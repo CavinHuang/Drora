@@ -54,6 +54,7 @@ jobs:
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
+        shell: bash
       # 桌面全链构建(含 agent bundle / native search / mac window bounds)
       - name: Build desktop production bundles
         run: pnpm --filter @zcode/desktop run build
@@ -111,6 +112,7 @@ jobs:
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
+        shell: bash
       - name: Build single-executable
         run: node scripts/build-sea.mjs
         working-directory: apps/zcode-cli/packages/cli

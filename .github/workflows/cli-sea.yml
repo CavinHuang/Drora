@@ -39,6 +39,7 @@ jobs:
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
+        shell: bash
       # SEA 资产解析要求 workspace 包(如 @zcode/shared)有 dist/index.js;
       # 根 typecheck 是 tsc -b(工程引用,带输出),即上游产出这些 dist 的链路
       - name: Emit workspace package dists (tsc -b project references)

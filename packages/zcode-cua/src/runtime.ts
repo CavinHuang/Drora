@@ -4,7 +4,32 @@
 // 连接/鉴权/协议封装复用 broker/client.ts 的 brokerExchange（per-call 连接语义）。
 import { BrokerError, BROKER_SOCKET_ENV, brokerExchange } from "./broker/client.js";
 
-interface RuntimeContextLike {
+// node-repl-host(src/cua-broker.ts、server.ts)按名导入这两个类型;开源剥离的
+// 占位 d.ts 未携带,这里以命名导出补齐消费契约。
+export interface ComputerUseRuntimeContext {
+  sessionId?: string;
+  runtimeScope?: string;
+  workspaceKey?: string;
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  turnId?: string;
+  clientMode?: string;
+  deliveryKind?: string;
+}
+
+export interface ComputerUseRuntime {
+  execute(input: {
+    toolName: string;
+    arguments?: unknown;
+    context?: ComputerUseRuntimeContext;
+    signal?: AbortSignal;
+  }): Promise<unknown>;
+  closeSession(context?: ComputerUseRuntimeContext): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+interface RuntimeContextLike extends ComputerUseRuntimeContext {
   sessionId?: string;
   runtimeScope?: string;
   workspaceKey?: string;

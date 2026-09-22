@@ -15,6 +15,7 @@ interface RuntimeOptionsLike {
   ensureBrokerAvailable?: () => Promise<void>;
   env?: NodeJS.ProcessEnv;
 }
+export type { ComputerUseRuntime, ComputerUseRuntimeContext } from "./runtime.js";
 export declare function createComputerUseRuntime(options?: RuntimeOptionsLike): {
   execute(input: {
     toolName: string;

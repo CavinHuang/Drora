@@ -160,7 +160,14 @@ function readZCodeAgentRuntimeVersion() {
 }
 
 async function download(url, destinationPath) {
-  const response = await fetch(url, { redirect: "follow" });
+  // Windows CI runner 上 fetch(undici)对 nodejs.org/npmmirror 都会出现连接
+  // 建立后长期停滞且不失败(实测 50 分钟无字节无异常,pipeline 只能救中断、
+  // 救不了停滞)。加整体超时把停滞转成可重试失败,否则 downloadWithRetry
+  // 永远等不到第一次结果。
+  const response = await fetch(url, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(Number(process.env.ZCODE_PREBUILD_DOWNLOAD_TIMEOUT_MS) || 300_000),
+  });
   if (!response.ok) {
     throw new Error(`Download failed: HTTP ${response.status} (${url})`);
   }

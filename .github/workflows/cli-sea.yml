@@ -30,6 +30,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build CLI bundle with dependency closure
         run: pnpm --filter @zcode/cli... build
+      # SEA 资产解析要求 workspace 包(如 @zcode/shared)有 dist/index.js;
+      # 根 typecheck 是 tsc -b(工程引用,带输出),即上游产出这些 dist 的链路
+      - name: Emit workspace package dists (tsc -b project references)
+        run: pnpm typecheck
       - name: Build single-executable (host target${{ github.event.inputs.target && format(' → {0}', github.event.inputs.target) || '' }})
         run: node scripts/build-sea.mjs ${{ github.event.inputs.target }}
         working-directory: apps/zcode-cli/packages/cli

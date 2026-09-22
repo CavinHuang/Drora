@@ -75,3 +75,4 @@ packages/desktop/resources/cua-helper/
 !packages/zcode-cua-helper/build/Release/ax_native.node
 # reverse 构建中间产物(node-gyp vcxproj 等)与端到端验收的运行时输出不入库
 packages/zcode-cua-helper/native/reverse/build/
+packages/zcode-cua-helper/native/reverse/.matrix-*.json

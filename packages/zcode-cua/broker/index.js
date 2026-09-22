@@ -1,0 +1,58 @@
+import { BrokerAuthRejectedError, BrokerError, BROKER_SOCKET_ENV, BROKER_UNAVAILABLE_ENV, CuaHelperError, brokerExchange, delay, isCuaHelperError, notAuthorized, notSelectable, notSettable, elementUnavailable, actionUnavailable, foregroundRequired, } from "./client.js";
+export { BrokerAuthRejectedError, BrokerError, BROKER_SOCKET_ENV, BROKER_UNAVAILABLE_ENV, CuaHelperError, brokerExchange, delay, isCuaHelperError, notAuthorized, notSelectable, notSettable, elementUnavailable, actionUnavailable, foregroundRequired, };
+export async function callBrokerMethod(args) {
+    const { socketPath, method, params = {}, timeoutMs = 2000 } = args;
+    const sanitize = (text) => text.split(socketPath).join("<socket>");
+    let response;
+    try {
+        response = await brokerExchange({ socketPath, method, params, timeoutMs });
+    }
+    catch (error) {
+        throw error instanceof BrokerAuthRejectedError
+            ? new CuaHelperError("auth_failed", sanitize("broker auth rejected"))
+            : error;
+    }
+    if (response.ok === true)
+        return response.result;
+    const error = response.error;
+    const message = typeof error === "string"
+        ? error
+        : error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : "broker error";
+    throw new Error(sanitize(message));
+}
+export async function probeHelperHealth(socketPath, options = {}) {
+    const timeoutMs = options.timeoutMs ?? 5000;
+    const pollIntervalMs = options.pollIntervalMs ?? 100;
+    const perTryTimeoutMs = options.perTryTimeoutMs ?? 1000;
+    const deadline = Date.now() + timeoutMs;
+    let lastError;
+    for (;;) {
+        const tryTimeoutMs = Math.max(1, Math.min(perTryTimeoutMs, deadline - Date.now()));
+        try {
+            const response = (await brokerExchange({
+                socketPath,
+                method: "broker_info",
+                params: {},
+                timeoutMs: tryTimeoutMs,
+            }));
+            if (response.ok === true) {
+                const result = (response.result ?? {});
+                const bundleId = typeof result.bundle_id === "string" ? result.bundle_id : null;
+                const pid = typeof result.pid === "number" ? result.pid : null;
+                return { bundleId, pid };
+            }
+        }
+        catch (error) {
+            if (error instanceof BrokerAuthRejectedError) {
+                throw new CuaHelperError("auth_failed", "ZCode Computer Use rejected this process as a broker peer (code-signature gate). ZCode and the helper may be version-mismatched; reinstall or repair the helper component.");
+            }
+            lastError = error;
+        }
+        if (Date.now() >= deadline)
+            break;
+        await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+    }
+    throw new CuaHelperError("health_timeout", `ZCode Computer Use did not become ready within ${timeoutMs}ms. It may have failed to launch or lacks required permissions (${lastError instanceof Error ? lastError.message : String(lastError ?? "no connection")}).`);
+}

@@ -1,0 +1,741 @@
+// oxlint-disable-file
+// 发行 bundle 还原稿：结构忠实于原编译产物，待语义化拆分。
+import { HELPER_INSTALL_VARIANT_ENV } from "./region-constants.js";
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+import { z } from "zod";
+import { dn } from "./region-constants.js";
+import { Readable as Sie, Transform as kie } from "node:stream";
+import { basename as yie, dirname as wie, isAbsolute as dse, join as AW, join as Kn, relative as lse, resolve as CW, sep as vie, } from "node:path";
+import { cp as mie, lstat as Zh, mkdir as vb, mkdtemp as gie, open as yW, readFile as jh, readdir as Sb, readlink as hb, realpath as yb, rename as gb, rm as Hh, writeFile as hie, } from "node:fs/promises";
+import { constants as Ku, createWriteStream as uie, existsSync as wb, fstatSync as pie, lstatSync as TW, lstatSync as fie, readdirSync as sse, readlinkSync as ase, realpathSync as RW, statSync as cse, } from "node:fs";
+import $W from "node:process";
+import { pipeline as Pie } from "node:stream/promises";
+import { CuaHelperError } from "../client.js";
+import { Dh, Oh } from "./helper-verifier.js";
+import { Hc, XC, ha, xh, xt } from "./helper-launcher.js";
+import { Hr, bn, jn } from "./trust-policy.js";
+import { Nh, Ps } from "./orphan-reaper.js";
+import { WC } from "./refresh-marker.js";
+import { ma } from "../socket-path.js";
+// 还原草稿（块级切分，待手工修正导入与类型）
+export var sie = 7;
+export var lW = "zcode-cua-windows-dev/v1";
+export var P6e = z.object({
+    platform: z.literal("win32"),
+    socketPath: z.string().refine((e) => ma(e) && e.length > 9),
+    parentPid: z.coerce.number().int().positive(),
+});
+export var qc = "3.14.0";
+export function uW(e) {
+    return e?.trim().toLowerCase() === "production" ? "production" : "test";
+}
+export var aie = uW("production");
+export var cie = typeof process < "u" ? process.env.ZCODE_DEBUG : void 0;
+export var pW = "studio.zcode-ai.com";
+export function fW() {
+    return globalThis.process?.env ?? {};
+}
+export function ub(e = fW()) {
+    return e.INTRANET_MACHINE_HOST?.trim() || pW;
+}
+export var pb = ub(), fb = 12345, mW = `http://${pb}:${fb}/zcode`, die = `${mW}/deps`, gW = 3850, hW = "/api/intranet/probe", lie = `http://${pb}:${gW}${hW}`;
+export function mb(e = fW()) {
+    let t = e.ZCODE_DEPS_BASE_URL?.trim();
+    return t ? t.replace(/\/+$/, "") : `http://${ub(e)}:${fb}/zcode/deps`;
+}
+export var Cie = ".zcode-cua-helper-meta.json", wW = 3e4, bie = "ZCODE_CUA_HELPER_DOWNLOAD_TIMEOUT_MS", vW = 200 * 1024 * 1024, Iie = "ZCODE_CUA_HELPER_MAX_DOWNLOAD_BYTES", SW = ".zcode-cua-helper-install.lock", _ie = 12e4, Rie = 50, Aie = 32, $h = new Map();
+export function Eie(e = process.env) {
+    let t = e[Iie]?.trim();
+    if (!t)
+        return vW;
+    let n = Number(t);
+    return Number.isInteger(n) && n > 0 ? n : vW;
+}
+export function Tie(e) {
+    let t = 0;
+    return new kie({
+        transform(n, r, o) {
+            if (((t += n.length), t > e)) {
+                o(new Error(`ZCode Computer Use download exceeded max size ${e} bytes`));
+                return;
+            }
+            o(null, n);
+        },
+    });
+}
+export function Mie(e = {}) {
+    let t = e.env ?? process.env, n = bn(t), r = Vie((n ? (e.targetPlatform ?? t.ZCODE_TARGET_OS) : void 0) ?? process.platform);
+    if (r !== "darwin")
+        throw new CuaHelperError("install_failed", `ZCode Computer Use auto-install is only supported on macOS, got ${r}`);
+    let o = Jie((n ? (e.targetArch ?? t.ZCODE_TARGET_ARCH ?? t.npm_config_arch) : void 0) ?? process.arch), s = xie({
+        env: t,
+        explicitVersion: e.version,
+        localDevelopmentRuntime: n,
+    }) ?? "0.0.0";
+    if (!Hc(t))
+        throw new CuaHelperError("install_failed", "Cannot resolve ${ZCODE_HOME:-$HOME/.zcode}; set ZCODE_HOME or HOME before installing ZCode Computer Use.");
+    let c = `${r}-${o}`, d = Oie(t, e.embeddedBuildId ?? WC);
+    if (!n && !d)
+        throw new CuaHelperError("install_failed", "Packaged ZCode is missing its embedded Computer Use Helper build identity; refusing an unpinned Helper install");
+    let l = e.bundledAppPath?.trim() || null;
+    if (!n && !l)
+        throw new CuaHelperError("install_failed", "Packaged ZCode is missing its bundled ZCode Computer Use.app path");
+    let p = l
+        ? {
+            kind: "bundled",
+            appPath: l,
+        }
+        : (() => {
+            let f = `ZCode-CUA-Helper-${s}-mac-${o}.zip`;
+            return {
+                kind: "download",
+                fileName: f,
+                url: t.ZCODE_CUA_HELPER_DOWNLOAD_URL?.trim() || `${qie(s, d, t)}/${f}`,
+            };
+        })(), u = XC(t);
+    if (!u)
+        throw new CuaHelperError("install_failed", `Cannot resolve a safe Computer Use Helper install root from ${HELPER_INSTALL_VARIANT_ENV}.`);
+    return {
+        version: s,
+        platform: r,
+        arch: o,
+        platformKey: c,
+        installRoot: u,
+        appPath: Kn(u, xh(t)),
+        source: p,
+        expectedBundleId: Nh(t),
+        expectedTeamIdentifier: n ? t.ZCODE_CUA_HELPER_TEAM_ID?.trim() || ha : ha,
+        expectedBuildId: d,
+        allowUnsignedLocalDev: Ps(t),
+    };
+}
+export function xie(e = {}) {
+    let t = e.env ?? process.env;
+    return (e.localDevelopmentRuntime ?? bn(t))
+        ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0
+        : qc;
+}
+export function Oie(e = process.env, t = WC) {
+    let n = bn(e) ? e.ZCODE_CUA_HELPER_BUILD_ID?.trim() : void 0;
+    return Gie(t.trim() || n);
+}
+export function qu(e = {}) {
+    let n = {
+        plan: e.plan ??
+            Mie({
+                env: e.env,
+                bundledAppPath: e.bundledAppPath,
+            }),
+        logger: e.logger,
+        dependencies: {
+            downloadFile: Xie,
+            extractZip: rse,
+            clearQuarantine: ose,
+            acquireInstallLease: zie,
+            ...Oh,
+            ...e.dependencies,
+        },
+    };
+    return {
+        ensureInstalled: () => Wie(n),
+        verifyInstalled: async (r, o) => {
+            await Dh(r, n.plan, n.dependencies, o);
+        },
+    };
+}
+export function bW() {
+    return typeof process.getuid == "function" ? process.getuid() : void 0;
+}
+export function Die(e, t) {
+    let n = bW();
+    if (t.isSymbolicLink() ||
+        !t.isDirectory() ||
+        (n !== void 0 && t.uid !== n) ||
+        (Number(t.mode) & 18) !== 0)
+        throw new CuaHelperError("install_failed", `Refusing insecure ZCode Computer Use install-lock directory ${e}; it must be a real owner-controlled directory without group/other write access`);
+}
+export function Gc(e, t) {
+    let n = bW();
+    if (t.isSymbolicLink() ||
+        !t.isFile() ||
+        t.nlink !== 1 ||
+        (n !== void 0 && t.uid !== n) ||
+        (Number(t.mode) & 511) !== 384)
+        throw new CuaHelperError("install_failed", `Refusing insecure ZCode Computer Use install lock ${e}; it must be a real owner-only regular file with exactly one link`);
+}
+export var Kh = class extends Error {
+    static { }
+    constructor(t) {
+        (super(`ZCode Computer Use install lock is held by another owner: ${t}`),
+            (this.name = "HelperInstallLockContendedError"));
+    }
+};
+export function Nie(e) {
+    let t = e?.code;
+    return t === "EAGAIN" || t === "EWOULDBLOCK";
+}
+export async function Lie(e) {
+    let t = await yb(e).catch((s) => {
+        throw new CuaHelperError("install_failed", `Cannot resolve ZCode Computer Use install-lock directory ${e}: ${jn(s)}`, {
+            cause: s,
+        });
+    });
+    Die(e, await Zh(e));
+    let n = Kn(e, SW), r = Ku.O_RDWR | Ku.O_NOFOLLOW | Aie | Ku.O_NONBLOCK, o;
+    try {
+        o = await yW(n, Ku.O_CREAT | Ku.O_EXCL | r, 384);
+    }
+    catch (s) {
+        if (s.code !== "EEXIST")
+            throw new CuaHelperError("install_failed", `Cannot create ZCode Computer Use install lock ${n}: ${jn(s)}`, {
+                cause: s,
+            });
+        try {
+            (Gc(n, await Zh(n)), (o = await yW(n, r)));
+        }
+        catch (a) {
+            throw Nie(a)
+                ? new Kh(n)
+                : new CuaHelperError("install_failed", `Refusing unsafe ZCode Computer Use install lock ${n}: ${jn(a)}`, {
+                    cause: a,
+                });
+        }
+    }
+    try {
+        let [s, a, c] = await Promise.all([o.stat(), Zh(n), yb(n)]);
+        if ((Gc(n, s), Gc(n, a), c !== Kn(t, SW) || s.dev !== a.dev || s.ino !== a.ino))
+            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed while it was being opened: ${n}`);
+        return {
+            lockPath: n,
+            identity: {
+                device: a.dev,
+                inode: a.ino,
+            },
+            handle: o,
+        };
+    }
+    catch (s) {
+        throw (await o.close(), s);
+    }
+}
+export function Fie(e, t) {
+    if (t)
+        throw new CuaHelperError("install_failed", "ZCode Computer Use install lease has already been released");
+    try {
+        let n = pie(e.handle.fd), r = fie(e.lockPath);
+        if ((Gc(e.lockPath, n),
+            Gc(e.lockPath, r),
+            n.dev !== e.identity.device ||
+                n.ino !== e.identity.inode ||
+                r.dev !== e.identity.device ||
+                r.ino !== e.identity.inode))
+            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed while its lease was held: ${e.lockPath}`);
+    }
+    catch (n) {
+        throw n instanceof CuaHelperError
+            ? n
+            : new CuaHelperError("install_failed", `ZCode Computer Use install lease is no longer verifiable: ${jn(n)}`, {
+                cause: n,
+            });
+    }
+}
+export function Bie(e, t) {
+    return new Promise((n, r) => {
+        let o = () => {
+            (clearTimeout(s), r(kb()));
+        }, s = setTimeout(() => {
+            (t?.removeEventListener("abort", o), n());
+        }, e);
+        t?.addEventListener("abort", o, {
+            once: !0,
+        });
+    });
+}
+export function kb() {
+    return new CuaHelperError("install_failed", "ZCode Computer Use install lease acquisition was aborted");
+}
+export async function Uie(e, t, n) {
+    let r = Date.now() + t;
+    for (;;) {
+        if (n?.aborted)
+            throw kb();
+        try {
+            return await Lie(e);
+        }
+        catch (o) {
+            if (!(o instanceof Kh))
+                throw o;
+            if (Date.now() >= r)
+                throw new CuaHelperError("install_failed", `Failed to acquire ZCode Computer Use install lease: timed out after ${t}ms; ${o.message}`, {
+                    cause: o,
+                });
+            await Bie(Rie, n);
+        }
+    }
+}
+export async function zie(e, t = {}) {
+    if (process.platform !== "darwin")
+        throw new CuaHelperError("install_failed", `ZCode Computer Use install lease requires macOS (O_EXLOCK); got ${process.platform}`);
+    if (t.signal?.aborted)
+        throw kb();
+    let n = typeof t.waitTimeoutMs == "number" && Number.isFinite(t.waitTimeoutMs) && t.waitTimeoutMs > 0
+        ? t.waitTimeoutMs
+        : _ie, r = await Uie(e.installRoot, n, t.signal);
+    try {
+        await t.faultInjection?.afterLockFilePrepared?.(r.lockPath);
+        let a = await Zh(r.lockPath);
+        if ((Gc(r.lockPath, a), a.dev !== r.identity.device || a.ino !== r.identity.inode))
+            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed before its lease was used: ${r.lockPath}`);
+    }
+    catch (a) {
+        throw (await r.handle.close().catch(() => { }),
+            a instanceof CuaHelperError
+                ? a
+                : new CuaHelperError("install_failed", `Failed to acquire ZCode Computer Use install lease: ${jn(a)}`, {
+                    cause: a,
+                }));
+    }
+    let o = !1, s;
+    return {
+        assertHeld() {
+            Fie(r, o);
+        },
+        release() {
+            return ((s ??= (async () => {
+                o || (await r.handle.close(), (o = !0));
+            })()),
+                s);
+        },
+    };
+}
+export function Wie(e) {
+    let t = CW(e.plan.appPath), n = $h.get(t);
+    if (n)
+        return n;
+    let o = (async () => {
+        await vb(e.plan.installRoot, {
+            recursive: !0,
+            mode: 448,
+        });
+        let s = await e.dependencies.acquireInstallLease(e.plan);
+        try {
+            return (s.assertHeld(), await $ie(e, s));
+        }
+        finally {
+            await s.release();
+        }
+    })().finally(() => {
+        $h.get(t) === o && $h.delete(t);
+    });
+    return ($h.set(t, o), o);
+}
+export async function $ie(e, t) {
+    let { plan: n, logger: r, dependencies: o } = e;
+    if ((t.assertHeld(), wb(n.appPath)))
+        try {
+            let a = await Dh(n.appPath, n, o);
+            if (await Hie(n, a.bundleInfo.executableName))
+                r?.info(void 0, `local bundled cua helper payload changed; replacing ${n.appPath}`);
+            else {
+                (t.assertHeld(), await kW(n.appPath, e));
+                try {
+                    await PW(n, a);
+                }
+                catch (d) {
+                    r?.warn(void 0, `verified installed cua helper but failed to refresh install metadata: ${jn(d)}`);
+                }
+                return (r?.info(void 0, n.allowUnsignedLocalDev
+                    ? `local unsigned cua helper ${n.version} already installed at ${n.appPath}`
+                    : `cua helper ${n.version} already installed at ${n.appPath}`),
+                    n.appPath);
+            }
+        }
+        catch (a) {
+            if (n.allowUnsignedLocalDev && n.source.kind !== "bundled")
+                throw new CuaHelperError("verification_failed", `Local unsigned ZCode Computer Use.app failed dev verification: ${jn(a)}. Rebuild and reinstall it at ${n.appPath}, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release path.`, {
+                    cause: a,
+                });
+            r?.warn(void 0, `installed cua helper is not usable, reinstalling: ${jn(a)}`);
+        }
+    if (n.allowUnsignedLocalDev && n.source.kind !== "bundled")
+        throw new CuaHelperError("helper_missing", `Local unsigned ZCode Computer Use.app is not installed at ${n.appPath}. Build the Helper locally and copy it there, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release installer.`);
+    let s = await gie(Kn(n.installRoot, ".cua-helper-install-"));
+    try {
+        let a = n.source.kind === "bundled" ? await jie(n.source.appPath, s) : await Kie(e, s, n.source), c = await Dh(a, n, o);
+        (t.assertHeld(), await ise(a, n.appPath), t.assertHeld(), await kW(n.appPath, e));
+        try {
+            await PW(n, c);
+        }
+        catch (d) {
+            r?.warn(void 0, `installed cua helper but failed to write install metadata: ${jn(d)}`);
+        }
+        return (r?.info(void 0, `installed cua helper ${n.version} at ${n.appPath}`), n.appPath);
+    }
+    finally {
+        await Hh(s, {
+            recursive: !0,
+            force: !0,
+        });
+    }
+}
+$ie;
+export var Zie = [["Contents", "Info.plist"]];
+export async function IW(e, t) {
+    let n = async (c) => {
+        try {
+            return await Sb(c, {
+                withFileTypes: !0,
+            });
+        }
+        catch {
+            return null;
+        }
+    }, [r, o] = await Promise.all([n(e), n(t)]);
+    if (r === null || o === null)
+        return r !== o;
+    let s = new Map(r.map((c) => [c.name, c])), a = new Map(o.map((c) => [c.name, c]));
+    if (s.size !== a.size)
+        return !0;
+    for (let [c, d] of a) {
+        let l = s.get(c);
+        if (!l)
+            return !0;
+        let p = Kn(e, c), u = Kn(t, c);
+        if (d.isDirectory() !== l.isDirectory() || d.isSymbolicLink() !== l.isSymbolicLink())
+            return !0;
+        if (d.isDirectory()) {
+            if (await IW(p, u))
+                return !0;
+            continue;
+        }
+        if (d.isSymbolicLink()) {
+            let [v, S] = await Promise.all([hb(p), hb(u)]);
+            if (v !== S)
+                return !0;
+            continue;
+        }
+        let [f, g] = await Promise.all([jh(p), jh(u)]);
+        if (!f.equals(g))
+            return !0;
+    }
+    return !1;
+}
+export async function Hie(e, t) {
+    if (!e.allowUnsignedLocalDev || e.source.kind !== "bundled" || !t)
+        return !1;
+    let n = [["Contents", "MacOS", t], ...Zie];
+    for (let r of n) {
+        let o = Kn(e.appPath, ...r), s = Kn(e.source.appPath, ...r);
+        try {
+            let [a, c] = await Promise.all([jh(o), jh(s)]);
+            if (!a.equals(c))
+                return !0;
+        }
+        catch {
+            return !0;
+        }
+    }
+    return IW(Kn(e.appPath, "Contents", "Resources"), Kn(e.source.appPath, "Contents", "Resources"));
+}
+export async function jie(e, t) {
+    if (!wb(e))
+        throw new CuaHelperError("helper_missing", `Bundled ZCode Computer Use.app is missing at ${e}`);
+    let n = Kn(t, xt);
+    return (await mie(e, n, {
+        recursive: !0,
+        errorOnExist: !0,
+        preserveTimestamps: !0,
+    }).catch((r) => {
+        throw new CuaHelperError("install_failed", `Failed to stage bundled ZCode Computer Use.app: ${jn(r)}`, {
+            cause: r,
+        });
+    }),
+        n);
+}
+export async function Kie(e, t, n) {
+    let { plan: r, logger: o, dependencies: s } = e;
+    o?.info(void 0, `installing local-development cua helper ${r.version} ${r.platformKey} from ${qh(n.url)}`);
+    let a = Kn(t, n.fileName), c = Kn(t, "extract");
+    (await s.downloadFile(n.url, a).catch((l) => {
+        let p = qh(n.url), u = jn(l).split(n.url).join(p);
+        throw new CuaHelperError("download_failed", `Failed to download ZCode Computer Use from ${p}: ${u}`, {
+            cause: l,
+        });
+    }),
+        await vb(c, {
+            recursive: !0,
+        }),
+        await s.extractZip(a, c).catch((l) => {
+            throw new CuaHelperError("install_failed", `Failed to extract ZCode Computer Use archive ${a}: ${jn(l)}`, {
+                cause: l,
+            });
+        }));
+    let d = await _W(c);
+    if (!d)
+        throw new CuaHelperError("install_failed", `ZCode Computer Use archive did not contain ${xt}`);
+    return d;
+}
+export function qie(e, t, n) {
+    let r = n.ZCODE_CUA_HELPER_DOWNLOAD_BASE_URL?.trim();
+    if (r)
+        return r.replace(/\/+$/, "");
+    let o = `${mb(n)}/zcode-cua-helper-${e}`;
+    return t ? `${o}/${t}` : o;
+}
+export function Gie(e) {
+    let t = e?.trim();
+    if (!t)
+        return null;
+    if (!/^[A-Za-z0-9][A-Za-z0-9.z-]{0,127}$/u.test(t))
+        throw new CuaHelperError("install_failed", "ZCODE_CUA_HELPER_BUILD_ID must use 1-128 ASCII letters, digits, dots, underscores, or hyphens");
+    return t;
+}
+export function Vie(e) {
+    switch (e.toLowerCase()) {
+        case "mac":
+        case "macos":
+        case "osx":
+        case "darwin":
+            return "darwin";
+        default:
+            return e;
+    }
+}
+export function Jie(e) {
+    switch (e.toLowerCase()) {
+        case "aarch64":
+        case "arm64":
+            return "arm64";
+        case "amd64":
+        case "x86_64":
+        case "x64":
+            return "x64";
+        default:
+            throw new CuaHelperError("install_failed", `Unsupported ZCode Computer Use arch: ${e}`);
+    }
+}
+export function Yie(e) {
+    let t;
+    try {
+        t = new URL(e);
+    }
+    catch {
+        throw new CuaHelperError("download_failed", `invalid ZCode Computer Use download URL: ${qh(e)}`);
+    }
+    if (t.protocol !== "https:" && t.protocol !== "http:")
+        throw new CuaHelperError("download_failed", `refusing to download ZCode Computer Use over unsupported scheme "${t.protocol}" (only http/https are allowed)`);
+}
+export async function Xie(e, t) {
+    Yie(e);
+    let n = Qie(process.env), r = new AbortController(), o = setTimeout(() => {
+        r.abort(new Error(`download timed out after ${n}ms`));
+    }, n);
+    o.unref?.();
+    try {
+        let s = await fetch(e, {
+            redirect: "follow",
+            signal: r.signal,
+        });
+        if (!s.ok)
+            throw new Error(`HTTP ${s.status} ${s.statusText}`);
+        if (!s.body)
+            throw new Error("empty response body");
+        let a = Eie(process.env), c = Number(s.headers.get("content-length"));
+        if (Number.isFinite(c) && c > a)
+            throw new Error(`ZCode Computer Use download declares ${c} bytes, exceeding max ${a}`);
+        await Pie(Sie.fromWeb(s.body), Tie(a), uie(t));
+    }
+    catch (s) {
+        throw r.signal.aborted
+            ? new Error(`download timed out after ${n}ms`, {
+                cause: s,
+            })
+            : s;
+    }
+    finally {
+        clearTimeout(o);
+    }
+}
+export function Qie(e) {
+    let t = e[bie]?.trim();
+    if (!t)
+        return wW;
+    let n = Number(t);
+    return Number.isFinite(n) && n > 0 ? n : wW;
+}
+export function qh(e) {
+    try {
+        let t = new URL(e);
+        return ((t.username = ""), (t.password = ""), (t.search = ""), (t.hash = ""), t.toString());
+    }
+    catch {
+        let n = (e.split(/[?#]/u)[0] ?? e).split("/");
+        return n[n.length - 1] || "<redacted-url>";
+    }
+}
+export function ese(e) {
+    return e.length === 0 ||
+        e.includes("\0") ||
+        e.startsWith("/") ||
+        e.startsWith("\\") ||
+        /^[A-Za-z]:[\\/]/.test(e)
+        ? !0
+        : e.split(/[\\/]/u).some((n) => n === "..");
+}
+export async function tse(e) {
+    let { stdout: t } = await Hr(dn.unzip, ["-Z1", e]), n = t
+        .split(`
+
+`)
+        .map((r) => r.replace(/\r$/u, ""))
+        .filter((r) => r.length > 0);
+    for (let r of n)
+        if (ese(r))
+            throw new CuaHelperError("install_failed", `refusing to extract Computer Use Helper archive: unsafe zip entry path ${JSON.stringify(r)}`);
+}
+export async function nse(e) {
+    let t = await yb(e), n = (o) => o === t || o.startsWith(`${t}${vie}`), r = [e];
+    for (; r.length > 0;) {
+        let o = r.pop(), s = await Sb(o, {
+            withFileTypes: !0,
+        });
+        for (let a of s) {
+            let c = Kn(o, a.name);
+            if (a.isSymbolicLink()) {
+                let d = await hb(c), l = CW(o, d);
+                if (!n(l))
+                    throw new CuaHelperError("install_failed", `refusing extracted Computer Use Helper: symlink escapes staging (${c} -> ${d})`);
+            }
+            else
+                a.isDirectory() && r.push(c);
+        }
+    }
+}
+export async function rse(e, t) {
+    (await tse(e), await Hr(dn.ditto, ["-x", "-k", e, t]), await nse(t));
+}
+export async function ose(e) {
+    process.platform === "darwin" &&
+        (await Hr(dn.xattr, ["-dr", "com.apple.quarantine", e]).catch((t) => {
+            let n = jn(t);
+            if (!/No such xattr|No such file|No such file or directory|not found/iu.test(n))
+                throw t;
+        }));
+}
+export async function kW(e, t) {
+    await t.dependencies.clearQuarantine(e).catch((n) => {
+        t.logger?.warn(void 0, `cua helper installed and verified, but quarantine cleanup failed: ${jn(n)}`);
+    });
+}
+export async function _W(e) {
+    let t = await Sb(e, {
+        withFileTypes: !0,
+    });
+    for (let n of t) {
+        let r = Kn(e, n.name);
+        if (!n.isDirectory())
+            continue;
+        if (n.name === xt)
+            return r;
+        let o = await _W(r);
+        if (o)
+            return o;
+    }
+    return null;
+}
+export async function ise(e, t) {
+    let n = wie(t);
+    await vb(n, {
+        recursive: !0,
+    });
+    let r = Kn(n, `.${xt}.backup-${process.pid}-${Date.now()}`), o = !1;
+    wb(t) &&
+        (await Hh(r, {
+            recursive: !0,
+            force: !0,
+        }),
+            await gb(t, r),
+            (o = !0));
+    try {
+        await gb(e, t);
+    }
+    catch (s) {
+        throw (o &&
+            (await Hh(t, {
+                recursive: !0,
+                force: !0,
+            }),
+                await gb(r, t)),
+            new CuaHelperError("install_failed", `Failed to promote ${xt} into ${t}: ${jn(s)}`, {
+                cause: s,
+            }));
+    }
+    o &&
+        (await Hh(r, {
+            recursive: !0,
+            force: !0,
+        }));
+}
+export async function PW(e, t) {
+    await hie(Kn(e.installRoot, Cie), `${JSON.stringify({ provider: "zcode-cua-helper", version: e.version, buildId: t.bundleInfo.buildId, platform: e.platformKey, source: e.source.kind === "bundled" ? "bundled:zcode-app" : qh(e.source.url), bundleId: t.bundleInfo.bundleId, displayName: yie(e.appPath, ".app"), teamIdentifier: t.codesign?.teamIdentifier ?? null, verificationMode: t.mode, releaseEligible: t.releaseEligible }, null, 2)}
+
+`, "utf8");
+}
+export var EW = 4096;
+export function Pb(e) {
+    let t = cse(e, {
+        bigint: !0,
+    });
+    return `${t.dev}:${t.ino}:${t.mode}:${t.ctimeNs}:${t.size}`;
+}
+export function use(e) {
+    let t = TW(e, {
+        bigint: !0,
+    });
+    return `${t.dev}:${t.ino}:${t.mode}:${t.ctimeNs}:${t.size}`;
+}
+export function Cb(e) {
+    let t = AW(e, "Contents"), n = RW(t), r = [
+        {
+            absolutePath: t,
+            relativePath: "Contents",
+        },
+    ], o = [`app:${Pb(e)}`];
+    for (; r.length > 0;) {
+        if (o.length >= EW)
+            throw new Error(`ZCode Computer Use bundle exceeds ${EW} attestation entries`);
+        let s = r.shift(), a = TW(s.absolutePath, {
+            bigint: !0,
+        });
+        if (a.isSymbolicLink()) {
+            let c = ase(s.absolutePath), d = RW(s.absolutePath), l = lse(n, d);
+            if (l === ".." || l.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || dse(l))
+                throw new Error(`ZCode Computer Use contains an out-of-bundle symlink: ${s.relativePath} -> ${c}`);
+            o.push(`${s.relativePath}:symlink:${use(s.absolutePath)}:${c}:${Pb(s.absolutePath)}`);
+            continue;
+        }
+        if ((o.push(`${s.relativePath}:${Pb(s.absolutePath)}`), !!a.isDirectory()))
+            for (let c of sse(s.absolutePath).sort())
+                r.push({
+                    absolutePath: AW(s.absolutePath, c),
+                    relativePath: `${s.relativePath}/${c}`,
+                });
+    }
+    return o.join("|");
+}
+export function bb(e, t) {
+    let n;
+    try {
+        n = Cb(e);
+    }
+    catch (r) {
+        throw new Error(`ZCode Computer Use changed or became unreadable after verification: ${r instanceof Error ? r.message : String(r)}`);
+    }
+    if (n !== t)
+        throw new Error("ZCode Computer Use changed after signature verification");
+}
+export var Dse = ".host-reservation", CUA_PIP_NO_ACTIVE_SESSION_PENDING = ".pending", CUA_HEALTH_POLL_MS = 100;
+export function jW() {
+    let e = $W.getuid;
+    return typeof e == "function" ? e.call($W) : null;
+}

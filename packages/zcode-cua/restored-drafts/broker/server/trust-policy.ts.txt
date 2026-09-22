@@ -1,0 +1,37 @@
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+import { basename as DKe, dirname as NKe, isAbsolute as LKe, join as Hz, relative as FKe, resolve as BKe, sep as UKe } from "node:path";
+import { execFile as Are, spawnSync as TKe } from "node:child_process";
+import { realpathSync as xKe } from "node:fs";
+
+// 还原草稿（块级切分，待手工修正导入与类型）
+
+
+export function Hr(e, t) {
+  return new Promise((n, r) => {
+    Are(e, t, {
+      encoding: "utf8"
+    }, (o, s, a) => {
+      if (o) {
+        let c = `${e} ${t.join(" ")} failed: ${jn(o)}${a?`
+
+${a}`:""}`;
+        r(new Error(c));
+        return
+      }
+      n({
+        stdout: s,
+        stderr: a
+      })
+    })
+  })
+}
+
+export function jn(e) {
+  return e instanceof Error ? e.message : String(e)
+}
+
+export var Ere = typeof __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ < "u" ? __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ : process.env.NODE_ENV !== "production";
+
+export function bn(e = process.env, t = Ere) {
+  return t && e.ZCODE_RUNTIME_ENV?.trim().toLowerCase() !== "production"
+}

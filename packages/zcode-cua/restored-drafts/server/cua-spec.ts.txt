@@ -1,0 +1,66 @@
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+export var NC = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {}
+};
+
+export var ZU = ["broker_info", "controller_status", "controller_takeover", "controller_stop", "request_access", "permission_status", "input_permission_status", "screen_capture_status", "screen_capture_probe", "supports_accessibility", "list_applications", "application_info", "list_windows", "capture_app", "element_at_point", "read_element", "click", "scroll", "drag", "type_text", "type_text_to_app", "press_key", "press_key_to_app", "hold_key", "hold_key_to_app", "cancel_input_holds", "element_press", "element_show_menu", "element_focus", "element_set_value", "element_perform_action", "element_select_text", "paste", "prevent_activation", "reenable_activation", "is_focus_steal_prevented", "pip_start", "pip_stop", "pip_is_running", "pip_clear_dismissed", "pip_session_handshake", "pip_session_event"],
+  oHe = new Set(ZU);
+
+export var UHe = 16 * 1024 * 1024;
+
+export var jU = 8e3;
+
+export var LC = "ZCODE_PLUGIN_ID",
+  Lu = "computer-use@zcode-plugins-official",
+  qU = "ZCODE_CUA_PLUGIN_AUTHORITY",
+  lre = "computer-use",
+  FC = "plugin:computer-use:computer-use";
+
+export function BC(e) {
+  return e.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? e
+}
+
+export function hh(e) {
+  let t = e.replace(/z/g, "-");
+  return t === "zcode-cua" || t.startsWith("zcode-cua[") || t.startsWith("zcode-cua@") || t.startsWith("zcode-cua==") || t.startsWith("zcode-cua.")
+}
+
+export function KU(e) {
+  return e === "zcode-cua" || e.startsWith("zcode-cua[") || e.startsWith("zcode-cua@") || e.startsWith("zcode-cua==") || e.startsWith("zcode-cua.")
+}
+
+export function ure(e) {
+  let t = e.toLowerCase().replace(/z/g, "-");
+  if (KU(t)) return !0;
+  let n = t.replace(/([a-z0-9])\.(?=[a-z0-9])/g, "$1-");
+  return KU(n)
+}
+
+export function UC(e, t) {
+  let n = e.trim().toLowerCase();
+  return n === lre ? !0 : n === FC && t?.trim().toLowerCase() === Lu
+}
+
+export function GU(e) {
+  return hh(e) || hh(BC(e))
+}
+
+export function zC(e) {
+  return hh(e) || hh(BC(e))
+}
+
+export function VU(e) {
+  let t = [],
+    n = r => {
+      if (!r) return;
+      t.push(r);
+      let o = BC(r);
+      o !== r && t.push(o)
+    }
+  if (n(e.command), e.args)
+    for (let r of e.args) n(r);
+  return n(e.packageSpec), t.some(ure)
+}

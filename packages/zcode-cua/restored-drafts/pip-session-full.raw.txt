@@ -1,0 +1,975 @@
+var Qu = class {
+  static {
+    i(this, "PermissionBrokerClient")
+  }
+  socketPath;
+  timeoutMs;
+  peerChecker;
+  maxFrameBytes;
+  cancelSignal;
+  onPresentation;
+  authenticateParams;
+  _nextId = 0;
+  constructor(t, n) {
+    if (!t || !t.trim()) throw new Error("permission broker socket path must be non-empty");
+    if (typeof n.timeoutMs != "number" || !Number.isFinite(n.timeoutMs) || n.timeoutMs <= 0) throw new Error(`permission broker timeout must be a finite, positive number of milliseconds, got ${n.timeoutMs}`);
+    this.socketPath = t, this.timeoutMs = n.timeoutMs, this.peerChecker = n.peerChecker ?? $b(), this.maxFrameBytes = n.maxFrameBytes ?? 67108864, this.cancelSignal = n.cancelSignal, this.onPresentation = n.onPresentation, this.authenticateParams = n.authenticateParams && Object.keys(n.authenticateParams).length > 0 ? {
+      ...n.authenticateParams
+    } : null
+  }
+  requestId() {
+    return this._nextId += 1, this._nextId
+  }
+  async call(t, n, r = {}) {
+    if (this.cancelSignal?.cancelled) throw Jc();
+    let o = this.requestId(),
+      s = `${JSON.stringify({id:o,method:t,params:n})}
+`,
+      a = {
+        clientApiVersion: 2,
+        ...this.authenticateParams
+      },
+      c = `${JSON.stringify({id:0,method:"authenticate",params:a})}
+`,
+      d = Bb(this.timeoutMs, t, n),
+      l = "not_sent",
+      p = i(k => k.split(this.socketPath).join("<socket>"), "sanitize"),
+      u = "",
+      f = !1,
+      g = {
+        result: null,
+        error: null
+      },
+      v = vae(this.socketPath);
+    if (await new Promise(k => {
+        let C = !1,
+          A = i(() => {}, "unsubscribeCancel"),
+          D = i(j => {
+            if (!C) {
+              C = !0, A();
+              try {
+                v.destroy()
+              } catch {}
+              j(), k()
+            }
+          }, "finish"),
+          U = i(() => {
+            l === "not_sent" && D(() => {
+              g.error = Jc()
+            })
+          }, "cancelBeforeSend");
+        this.cancelSignal?.onCancel && (A = this.cancelSignal.onCancel(U)), this.cancelSignal?.cancelled && U(), v.on("close", () => {
+          if (f && g.result || g.error) return;
+          let j = l;
+          D(() => {
+            g.error = kae(p("broker connection closed before reply"), j, "connection_closed")
+          })
+        }), v.on("error", j => {
+          if (g.error || g.result) return;
+          let B = l;
+          D(() => {
+            g.error = d$(j, p, B)
+          })
+        }), v.setTimeout(d), v.setEncoding("utf8"), v.on("timeout", () => {
+          if (g.error || g.result) return;
+          let j = l;
+          D(() => {
+            g.error = d$(new Error(p("broker exchange timed out")), p, j, "timeout")
+          })
+        }), v.on("connect", () => {
+          try {
+            this.peerChecker.verifySocketPeer(this.socketPath, v)
+          } catch (j) {
+            let B = l;
+            D(() => {
+              g.error = Sae(j, B)
+            });
+            return
+          }
+          v.write(c)
+        }), v.on("data", j => {
+          u += j;
+          let B = u.indexOf(`
+`);
+          for (; B >= 0;) {
+            let W = u.slice(0, B);
+            if (u = u.slice(B + 1), B = u.indexOf(`
+`), !W.trim()) continue;
+            if (W.length > this.maxFrameBytes) {
+              let q = l;
+              D(() => {
+                g.error = new Ft(`ZCode permission broker frame exceeded ${this.maxFrameBytes} bytes`, {
+                  code: fr,
+                  details: {
+                    request_delivery_state: q
+                  }
+                })
+              });
+              return
+            }
+            let M;
+            try {
+              M = JSON.parse(W)
+            } catch {
+              let q = f ? "possibly_sent" : l;
+              D(() => {
+                g.error = new Ft("ZCode permission broker returned invalid JSON", {
+                  code: fr,
+                  details: {
+                    broker_response_state: "invalid_json",
+                    request_delivery_state: q
+                  }
+                })
+              });
+              return
+            }
+            if (!f && c !== null && (M.id === 0 || M === null || typeof M != "object" || Array.isArray(M))) {
+              if (M === null || typeof M != "object" || Array.isArray(M)) {
+                D(() => {
+                  g.error = Ju("ZCode permission broker returned a non-object authenticate response", {
+                    code: "not_authorized"
+                  })
+                });
+                return
+              }
+              if (M.ok === !0) {
+                f = !0, l = "possibly_sent", v.write(s);
+                continue
+              }
+              let q = Wb(M);
+              D(() => {
+                g.error = Ju(`ZCode permission broker rejected authenticate: ${q}`, {
+                  code: "not_authorized"
+                })
+              });
+              return
+            }
+            if (M === null || typeof M != "object" || Array.isArray(M)) {
+              D(() => {
+                g.error = oy("ZCode permission broker response must be a JSON object", "non_object")
+              });
+              return
+            }
+            if (M.id !== o) {
+              D(() => {
+                g.error = oy(`ZCode permission broker response id mismatch: expected ${o}, got ${JSON.stringify(M.id)}`, "id_mismatch")
+              });
+              return
+            }
+            if (typeof M.ok != "boolean") {
+              D(() => {
+                g.error = oy("ZCode permission broker response has an invalid ok field", "invalid_envelope")
+              });
+              return
+            }
+            if (M.ok === !0) {
+              D(() => {
+                if (M.presentation !== void 0) try {
+                  this.onPresentation?.(M.presentation)
+                } catch {}
+                g.result = {
+                  value: M.result
+                }
+              });
+              return
+            }
+            if (!Ub(M.error)) {
+              D(() => {
+                g.error = oy("ZCode permission broker returned an invalid error envelope", "invalid_envelope")
+              });
+              return
+            }
+            let {
+              message: F,
+              code: O,
+              details: L
+            } = zb(M.error);
+            D(O === "permission_denied" || O === "not_authorized" ? () => {
+              g.error = Ju(F, {
+                code: O,
+                details: L
+              })
+            } : () => {
+              g.error = new Ft(F, {
+                code: O,
+                details: L
+              })
+            });
+            return
+          }
+        })
+      }), g.error) throw g.error;
+    if (g.result) return g.result.value;
+    throw new Ft("ZCode permission broker exchange ended without a reply", {
+      code: fr,
+      details: {
+        request_delivery_state: l
+      }
+    })
+  }
+};
+
+function d$(e, t, n, r) {
+  let o = e instanceof Error ? e.message : String(e ?? "transport error"),
+    s = r ?? (e instanceof Error ? e.name : typeof e == "string" ? "string" : "unknown");
+  return new Ft(t(`ZCode permission broker is unavailable: ${o}`), {
+    code: fr,
+    details: {
+      error_type: s,
+      request_delivery_state: n
+    }
+  })
+}
+i(d$, "wrapTransportError");
+
+function Sae(e, t) {
+  if (e instanceof Ft) {
+    if (e.code === fr) {
+      let n = {
+        ...e.details,
+        request_delivery_state: t
+      };
+      return new Ft(e.message, {
+        code: e.code,
+        details: n,
+        permissionError: e.permissionError
+      })
+    }
+    return e
+  }
+  return new Ft(`peer credential check raised unexpectedly: ${String(e)}`, {
+    code: fr,
+    details: {
+      request_delivery_state: t
+    }
+  })
+}
+i(Sae, "wrapPeerCheckError");
+
+function oy(e, t) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      broker_response_state: t,
+      request_delivery_state: "possibly_sent"
+    }
+  })
+}
+i(oy, "invalidResponseError");
+
+function kae(e, t, n) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      error_type: n,
+      request_delivery_state: t
+    }
+  })
+}
+i(kae, "brokerUnavailableFromTransport");
+y();
+import {
+  closeSync as yXe,
+  fstatSync as wXe,
+  lstatSync as vXe,
+  openSync as SXe,
+  readFileSync as kXe,
+  readSync as PXe
+} from "fs";
+var RXe = Object.freeze(new Set(["schema", "kind", "deadlineEpochMs"]));
+y();
+y();
+import {
+  randomBytes as Aae
+} from "crypto";
+y();
+import {
+  fork as Rae
+} from "child_process";
+var iy = lW,
+  p$ = Zu,
+  f$ = {
+    fork(e, t, n) {
+      let [r, ...o] = t;
+      if (!r) throw new Error("Windows Computer Use Helper entry path is required");
+      return Rae(r, o, {
+        ...n,
+        execPath: e
+      })
+    }
+  },
+  m$ = Uu,
+  g$ = i((e, t) => ql(e, {
+    timeoutMs: t
+  }), "defaultHealthProbe"),
+  sy = class {
+    constructor(t) {
+      this.logger = t
+    }
+    logger;
+    static {
+      i(this, "WindowsCuaChildLifecycle")
+    }
+    async terminate(t, n, r) {
+      if (t.exitObserved) {
+        t.removeMainListeners();
+        return
+      }
+      let o = this.waitForExit(t, "first-wait", r);
+      if (this.sendShutdown(t, n), await o) {
+        t.removeMainListeners();
+        return
+      }
+      let s = this.waitForExit(t, "second-wait", r);
+      if (this.kill(t, n), await s) {
+        t.removeMainListeners();
+        return
+      }
+      let a = new Error("Windows Computer Use Helper termination blocker: child did not exit after kill");
+      throw this.logFailure(t.id, t.child.pid, `${n}-termination-blocker`, a), a
+    }
+    sendShutdown(t, n) {
+      try {
+        t.child.send({
+          protocol: iy,
+          type: "shutdown"
+        })
+      } catch (r) {
+        this.logFailure(t.id, t.child.pid, `${n}-send`, r)
+      }
+    }
+    kill(t, n) {
+      try {
+        t.child.kill()
+      } catch (r) {
+        this.logFailure(t.id, t.child.pid, `${n}-kill`, r)
+      }
+    }
+    on(t, n, r, o, s) {
+      try {
+        return t.on(n, r), !0
+      } catch (a) {
+        return this.logFailure(o, t.pid, s, a), !1
+      }
+    }
+    off(t, n, r, o, s) {
+      try {
+        t.off(n, r)
+      } catch (a) {
+        this.logFailure(o, t.pid, s, a)
+      }
+    }
+    logFailure(t, n, r, o) {
+      this.logger.warn(void 0, "Windows Computer Use Helper lifecycle failure", {
+        generation: t,
+        pid: n,
+        errorClass: r,
+        error: o instanceof Error ? o.name : typeof o
+      })
+    }
+    waitForExit(t, n, r) {
+      return t.exitObserved ? Promise.resolve(!0) : new Promise(o => {
+        let s = !1,
+          a = i(l => {
+            s || (s = !0, clearTimeout(d), this.off(t.child, "exit", c, t.id, `${n}-off`), o(l))
+          }, "finish"),
+          c = i(() => {
+            t.exitObserved = !0, a(!0)
+          }, "onExit"),
+          d = setTimeout(() => a(!1), r);
+        d.unref?.(), this.on(t.child, "exit", c, t.id, `${n}-on`) ? t.exitObserved && a(!0) : a(!1)
+      })
+    }
+  };
+
+function h$(e) {
+  if (!e || typeof e != "object") return null;
+  let t = e;
+  return t.protocol !== iy ? "ignore" : t.type === "error" ? typeof t.message != "string" || t.message.length === 0 ? null : {
+    protocol: iy,
+    type: "error",
+    message: t.message
+  } : t.type !== "ready" && t.type !== "transport_ready" ? "ignore" : typeof t.socketPath != "string" || !t.socketPath || !Number.isInteger(t.pid) || t.pid <= 0 ? null : {
+    protocol: iy,
+    type: t.type,
+    socketPath: t.socketPath,
+    pid: t.pid
+  }
+}
+i(h$, "parseReadyMessage");
+
+function y$(e, t) {
+  return Number.isInteger(e.pid) && e.pid > 0 && e.pid === t
+}
+i(y$, "isExactHealthPid");
+
+function ay(e) {
+  return e instanceof Error ? e : new Error(String(e))
+}
+i(ay, "asError");
+var Eae = i(() => Aae(16).toString("hex"), "mintRandomAuthority"),
+  w$ = 3e4,
+  v$ = 1e3,
+  ep = class {
+    constructor(t) {
+      this.options = t;
+      this.childProcess = t.childProcess ?? f$, this.mintSocketPath = t.mintSocketPath ?? m$, this.healthProbe = t.healthProbe ?? g$, this.startupTimeoutMs = t.startupTimeoutMs ?? w$, this.shutdownTimeoutMs = t.shutdownTimeoutMs ?? v$, this.logger = t.logger ?? Pe("windows-cua-helper-host"), this.childLifecycle = new sy(this.logger), this.authority = (t.mintPluginAuthority ?? Eae)()
+    }
+    options;
+    static {
+      i(this, "WindowsCuaHelperHost")
+    }
+    childProcess;
+    mintSocketPath;
+    healthProbe;
+    startupTimeoutMs;
+    shutdownTimeoutMs;
+    logger;
+    childLifecycle;
+    authority;
+    handle = null;
+    lastAgentVisibleTransport = null;
+    current = null;
+    lifecycleTail = Promise.resolve();
+    terminationBlocker = null;
+    startInFlight = null;
+    startInFlightEpoch = null;
+    restartInFlight = null;
+    restartAfterStartInFlight = null;
+    restartPreservingTransportInFlight = null;
+    transportReadyInFlight = null;
+    transportReadyResolve = null;
+    transportReadyReject = null;
+    nextGeneration = 0;
+    externalStopEpoch = 0;
+    get running() {
+      return this.handle !== null
+    }
+    get socketPath() {
+      return this.handle?.socketPath ?? null
+    }
+    get pluginAuthority() {
+      return this.handle ? this.authority : null
+    }
+    waitForTransport(t = w$) {
+      if (this.handle) return Promise.resolve({
+        socketPath: this.handle.socketPath,
+        pluginAuthority: this.handle.pluginAuthority
+      });
+      let n = this.transportReadyInFlight;
+      return n ? new Promise((r, o) => {
+        let s = setTimeout(() => {
+          o(new Error(`Windows Computer Use Helper transport timed out after ${t}ms`))
+        }, t);
+        s.unref?.(), n.then(a => {
+          clearTimeout(s), r(a)
+        }, a => {
+          clearTimeout(s), o(a)
+        })
+      }) : Promise.reject(new Error("Windows Computer Use Helper is not starting"))
+    }
+    start() {
+      let t = this.externalStopEpoch;
+      if (this.startInFlight && this.startInFlightEpoch === t) return this.startInFlight;
+      this.createTransportReadyPromise();
+      let n = this.transportReadyInFlight,
+        r = this.lastAgentVisibleTransport ?? void 0,
+        o = this.enqueue(() => this.startNow(t, r)).catch(s => {
+          throw this.transportReadyInFlight === n && this.rejectTransportReady(s), s
+        }).finally(() => {
+          this.startInFlight === o && (this.startInFlight = null, this.startInFlightEpoch = null)
+        });
+      return this.startInFlight = o, this.startInFlightEpoch = t, o.catch(() => {}), o
+    }
+    stop() {
+      let t = this.current,
+        n = this.invalidateForExternalStop(t);
+      return this.enqueue(async () => {
+        try {
+          await n
+        } finally {
+          t && this.current?.id === t.id && (this.current = null)
+        }
+      })
+    }
+    restart() {
+      if (this.restartInFlight) return this.restartInFlight;
+      let t = this.externalStopEpoch,
+        n = this.enqueue(async () => (await this.stopNow("restart"), this.startNow(t))).finally(() => {
+          this.restartInFlight === n && (this.restartInFlight = null)
+        });
+      return this.restartInFlight = n, n
+    }
+    restartAfterCurrentStart() {
+      if (this.restartAfterStartInFlight) return this.restartAfterStartInFlight;
+      let t = this.externalStopEpoch,
+        n = this.enqueue(async () => (await this.stopNow("permission-restart"), this.startNow(t))).finally(() => {
+          this.restartAfterStartInFlight === n && (this.restartAfterStartInFlight = null)
+        });
+      return this.restartAfterStartInFlight = n, n
+    }
+    restartAfterCurrentStartPreservingTransport(t = {}) {
+      if (this.restartPreservingTransportInFlight) return this.restartPreservingTransportInFlight;
+      let n = this.externalStopEpoch,
+        r = this.enqueue(async () => {
+          let o = this.handle ?? this.lastAgentVisibleTransport;
+          if (await this.stopNow("preserving-transport-restart"), n !== this.externalStopEpoch) throw new Error("Windows Computer Use Helper startup stopped");
+          return o ? {
+            handle: await this.startNow(n, o),
+            reused: !0
+          } : (t.beforeFreshStart?.(), this.lastAgentVisibleTransport = null, {
+            handle: await this.startNow(n),
+            reused: !1
+          })
+        }).finally(() => {
+          this.restartPreservingTransportInFlight === r && (this.restartPreservingTransportInFlight = null)
+        });
+      return this.restartPreservingTransportInFlight = r, r
+    }
+    async checkHealth(t = v$) {
+      let n = this.handle;
+      if (!n) throw new Error("Windows Computer Use Helper is not running");
+      return this.healthProbe(n.socketPath, t)
+    }
+    enqueue(t) {
+      let n = this.lifecycleTail.then(async () => {
+        if (this.terminationBlocker) throw this.terminationBlocker;
+        return t()
+      });
+      return this.lifecycleTail = n.then(() => {}, () => {}), n
+    }
+    startNow(t, n) {
+      return t !== this.externalStopEpoch ? Promise.reject(new Error("Windows Computer Use Helper startup stopped")) : this.handle ? Promise.resolve(this.handle) : this.terminationBlocker ? Promise.reject(this.terminationBlocker) : this.startGeneration(t, n)
+    }
+    createTransportReadyPromise() {
+      this.transportReadyInFlight || (this.transportReadyInFlight = new Promise((t, n) => {
+        this.transportReadyResolve = t, this.transportReadyReject = n
+      }), this.transportReadyInFlight.catch(() => {}))
+    }
+    resolveTransportReady(t) {
+      this.lastAgentVisibleTransport = {
+        socketPath: t.socketPath
+      }, this.transportReadyResolve?.(t), this.transportReadyResolve = null, this.transportReadyReject = null
+    }
+    rejectTransportReady(t) {
+      this.transportReadyReject?.(t), this.invalidateTransportReady()
+    }
+    invalidateTransportReady() {
+      this.transportReadyResolve = null, this.transportReadyReject = null, this.transportReadyInFlight = null
+    }
+    async stopNow(t) {
+      let n = this.current;
+      n && (this.handle = null, t !== "preserving-transport-restart" && (this.lastAgentVisibleTransport = null), n.stopped = !0, await this.terminateGeneration(n, t), this.current?.id === n.id && (this.current = null), this.invalidateTransportReady())
+    }
+    startGeneration(t, n) {
+      let r = ++this.nextGeneration,
+        o = n?.socketPath ?? this.mintSocketPath(),
+        s = [this.options.runtime.entryPath, "--socket", o, "--parent-pid", String(process.pid)],
+        a;
+      try {
+        a = this.childProcess.fork(this.options.runtime.command, s, {
+          cwd: this.options.runtime.root,
+          env: {
+            ...process.env,
+            ...this.options.runtime.commandEnv,
+            [p$]: this.options.runtime.addonPath,
+            ELECTRON_RUN_AS_NODE: "1"
+          }
+        })
+      } catch (c) {
+        let d = ay(c);
+        return this.rejectTransportReady(d), this.childLifecycle.logFailure(r, void 0, "fork", d), Promise.reject(d)
+      }
+      return new Promise((c, d) => {
+        let l = !1,
+          p, u, f = i((C, A) => {
+            if (l) return;
+            l = !0, p && clearTimeout(p);
+            let D = ay(C);
+            this.handle = null, this.rejectTransportReady(D), u.stopped = !0, this.childLifecycle.logFailure(r, a.pid, A, D), this.terminateGeneration(u, A).then(() => d(D), U => {
+              this.childLifecycle.logFailure(r, a.pid, `${A}-cleanup`, U), d(D)
+            })
+          }, "fail"),
+          g = i(C => {
+            l || (l = !0, p && clearTimeout(p), this.handle = null, this.rejectTransportReady(C), d(C))
+          }, "abort"),
+          v = i(C => f(C, "child-error"), "onError"),
+          S = i(C => {
+            u.exitObserved = !0, l ? !u.stopped && this.current?.id === r && (this.handle = null, this.current = null, this.invalidateTransportReady(), this.logger.warn(void 0, "Windows Computer Use Helper exited unexpectedly", {
+              generation: r,
+              pid: a.pid,
+              errorClass: "unexpected-exit"
+            }), this.options.onUnexpectedExit?.({
+              generation: r,
+              pid: a.pid
+            })) : f(new Error(`Windows Computer Use Helper exited before ready (${String(C)})`), "early-exit")
+          }, "onExit"),
+          k = i(C => {
+            if (u.stopped || t !== this.externalStopEpoch || this.current?.id !== r) return;
+            let A = h$(C);
+            if (A !== "ignore") {
+              if (!A) return f(new Error("Invalid Windows Computer Use Helper control message"), "malformed-message");
+              if (A.type === "error") return f(new Error(A.message), "helper-reported-error");
+              if (A.socketPath === o) {
+                if (A.pid !== a.pid) return f(new Error("ready-pid-mismatch"), "ready-pid-mismatch");
+                this.resolveTransportReady({
+                  socketPath: o,
+                  pluginAuthority: this.authority
+                }), A.type !== "transport_ready" && this.healthProbe(o, this.startupTimeoutMs).then(D => {
+                  if (l || u.stopped || t !== this.externalStopEpoch || this.current?.id !== r) return;
+                  if (!y$(D, a.pid)) return f(new Error("health-pid-mismatch"), "health-pid-mismatch");
+                  l = !0, p && clearTimeout(p);
+                  let U = {
+                    socketPath: o,
+                    launchSocketPath: o,
+                    pluginAuthority: this.authority,
+                    helperAppPath: this.options.runtime.entryPath,
+                    bundleId: D.bundleId,
+                    pid: D.pid
+                  };
+                  this.handle = U, this.logger.info(void 0, "Windows Computer Use Helper ready", {
+                    generation: r,
+                    pid: D.pid
+                  }), c(U)
+                }, D => f(D, "health-failed"))
+              }
+            }
+          }, "onMessage");
+        if (u = {
+            id: r,
+            child: a,
+            socketPath: o,
+            stopped: !1,
+            exitObserved: !1,
+            abort: g,
+            removeMainListeners: i(() => {
+              this.childLifecycle.off(a, "message", k, r, "cleanup-off-message"), this.childLifecycle.off(a, "error", v, r, "cleanup-off-error"), this.childLifecycle.off(a, "exit", S, r, "cleanup-off-exit")
+            }, "removeMainListeners")
+          }, this.current = u, !this.childLifecycle.on(a, "message", k, r, "setup-on-message") || !this.childLifecycle.on(a, "error", v, r, "setup-on-error") || !this.childLifecycle.on(a, "exit", S, r, "setup-on-exit")) {
+          f(new Error("Windows Computer Use Helper listener setup failed"), "listener-setup");
+          return
+        }
+        p = setTimeout(() => f(new Error("Windows Computer Use Helper startup timed out"), "startup-timeout"), this.startupTimeoutMs), p.unref?.()
+      })
+    }
+    terminateGeneration(t, n) {
+      if (t.terminationPromise) return t.terminationPromise;
+      let r = this.terminateGenerationOnce(t, n);
+      return t.terminationPromise = r, r
+    }
+    async terminateGenerationOnce(t, n) {
+      try {
+        await this.childLifecycle.terminate(t, n, this.shutdownTimeoutMs)
+      } catch (r) {
+        throw this.terminationBlocker = ay(r), r
+      }
+    }
+    invalidateForExternalStop(t) {
+      if (this.externalStopEpoch += 1, this.lastAgentVisibleTransport = null, !t) return this.rejectTransportReady(new Error("Windows Computer Use Helper startup stopped")), Promise.resolve();
+      this.handle = null, t.stopped = !0, t.abort?.(new Error("Windows Computer Use Helper startup stopped")), this.invalidateTransportReady();
+      let n = this.terminateGeneration(t, "stop");
+      return n.catch(() => {}), n
+    }
+  };
+y();
+y();
+
+function Tae(e) {
+  return new Ft(e, {
+    code: "version_mismatch"
+  })
+}
+i(Tae, "mismatchError");
+
+function S$(e) {
+  let t = new Qu(e.socketPath, {
+      authenticateParams: {
+        role: "presentation"
+      },
+      timeoutMs: e.timeoutMs ?? 3e3,
+      peerChecker: e.peerChecker
+    }),
+    n = Math.max(0, e.reconnectAttempts ?? 2),
+    r = Math.max(0, e.reconnectDelayMs ?? 50),
+    o = !1,
+    s = !1,
+    a = null,
+    c = Promise.resolve(),
+    d = !1,
+    l = i(v => {
+      if (!d) {
+        d = !0;
+        try {
+          e.onDiagnostic?.(v)
+        } catch {}
+      }
+    }, "emitDiagnostic"),
+    p = i(v => {
+      s = !1, a = v, l({
+        code: "version_mismatch",
+        message: v.message
+      })
+    }, "disableForMismatch"),
+    u = i(async (v, S) => {
+      let k;
+      for (let C = 0; C <= n; C += 1) try {
+        return await t.call(v, S)
+      } catch (A) {
+        if (k = A, A instanceof Ft && A.code === "version_mismatch") throw p(A), A;
+        if (!(A instanceof Ft) || A.code !== "broker_unavailable" || C === n) throw A instanceof Ft && A.code === "broker_unavailable" && C === n && l({
+          code: "transport_unavailable",
+          message: A.message
+        }), A;
+        r > 0 && await new Promise(D => setTimeout(D, r))
+      }
+      throw k
+    }, "callWithReconnect"),
+    f = i(async () => {
+      if (o) throw new Error("PiP session client is closed");
+      if (a) throw a;
+      if (s) return;
+      let S = await u("pip_session_handshake", {
+        protocolVersion: Uh,
+        runtimeId: zh
+      });
+      if (S.ready !== !0 || S.protocolVersion !== Uh || S.runtimeId !== zh) {
+        let k = Tae("PiP session handshake returned a different protocol/runtime; Auto-PiP is disabled");
+        throw p(k), k
+      }
+      s = !0
+    }, "connect"),
+    g = i(v => {
+      let S = c.then(v, v);
+      return c = S.then(() => {}, () => {}), S
+    }, "enqueue");
+  return {
+    connect: i(() => g(f), "connect"),
+    send: i(v => g(async () => {
+      if (a) throw a;
+      let S = Wh.parse(v);
+      return await f(), await u("pip_session_event", {
+        event: S
+      })
+    }), "send"),
+    get enabled() {
+      return !o && a === null
+    },
+    close() {
+      o = !0, s = !1
+    }
+  }
+}
+i(S$, "createPipSessionClient");
+
+function Wi(e) {
+  return e.kind === "focus-changed" ? {
+    kind: e.kind,
+    revision: e.revision,
+    sessionId: e.sessionId,
+    sourceWindowId: e.sourceWindowId
+  } : {
+    eventId: e.eventId,
+    kind: e.kind,
+    sequenceNumber: e.sequenceNumber,
+    sessionId: e.sessionId,
+    ...e.kind === "session-closed" ? {} : {
+      turnId: e.turnId
+    },
+    ...e.kind === "turn-ended" ? {
+      outcome: e.outcome
+    } : {}
+  }
+}
+i(Wi, "eventLogContext");
+
+function Zb(e) {
+  let t = e.logger ?? Pe("cua-pip-session"),
+    n = e.createClient ?? S$,
+    r = null,
+    o = null,
+    s = Promise.resolve(),
+    a = !1,
+    c = null,
+    d = null,
+    l = 250,
+    p = 3e4,
+    u = 0,
+    f = i(() => {
+      d !== null && (clearTimeout(d), d = null)
+    }, "cancelReplayRetry"),
+    g = i(async () => {
+      if (!e.enabled) return {
+        client: null,
+        skipReason: "service-disabled"
+      };
+      if (a) return {
+        client: null,
+        skipReason: "service-disposed"
+      };
+      let k = await e.resolveCredentials();
+      if (!k) return {
+        client: null,
+        skipReason: "credentials-unavailable"
+      };
+      let C = k.socketPath;
+      if (o === C) return {
+        client: null,
+        skipReason: "transport-disabled"
+      };
+      if (r?.key === C) return {
+        client: r.client
+      };
+      r?.client.close();
+      let A = n({
+        socketPath: k.socketPath,
+        onDiagnostic: i(D => {
+          let U = `[cua-pip-session] ${D.code}: ${D.message}`;
+          D.code === "version_mismatch" ? t.warn(void 0, U) : t.debug(void 0, U)
+        }, "onDiagnostic")
+      });
+      r = {
+        key: C,
+        client: A
+      };
+      try {
+        return await A.connect(), {
+          client: A
+        }
+      } catch (D) {
+        throw r?.client === A && (r = null), A.close(), D.code === "version_mismatch" && (o = C), D
+      }
+    }, "getClient"),
+    v = i(() => {
+      if (f(), !(a || c === null)) {
+        if (Date.now() >= u) {
+          t.warn(void 0, "[cua-pip-session] deferred turn-started expired before transport", {
+            ...Wi(c.event)
+          }), c = null;
+          return
+        }
+        d = setTimeout(() => {
+          if (d = null, a || c === null) return;
+          s = s.then(async () => {
+            if (a || c === null) return;
+            let C;
+            try {
+              C = await g()
+            } catch {
+              v();
+              return
+            }
+            if (!C.client) {
+              v();
+              return
+            }
+            let A = c;
+            c = null;
+            try {
+              let D = await C.client.send(A.event);
+              t.info(void 0, "[cua-pip-session] replayed deferred turn-started", {
+                ...Wi(A.event),
+                applied: D.applied,
+                reason: D.reason
+              })
+            } catch (D) {
+              t.warn(void 0, "[cua-pip-session] replay of deferred turn-started failed", {
+                ...Wi(A.event),
+                errorMessage: D instanceof Error ? D.message : String(D)
+              })
+            }
+          })
+        }, l), d.unref?.()
+      }
+    }, "scheduleReplayRetry"),
+    S = i(k => {
+      if (a) return Promise.resolve();
+      let C = s.then(async () => {
+        try {
+          let A = await g();
+          if (!A.client) {
+            A.skipReason === "credentials-unavailable" || A.skipReason === "transport-disabled" ? (k.kind === "turn-started" ? (c = {
+              event: k,
+              turnId: k.turnId
+            }, u = Date.now() + p, v()) : (k.kind === "turn-ended" || k.kind === "session-closed") && c !== null && ("turnId" in k ? c.turnId === k.turnId : c.event.sessionId === k.sessionId) && (c = null, f()), t.warn(void 0, "[cua-pip-session] event delivery skipped", {
+              ...Wi(k),
+              skipReason: A.skipReason
+            })) : t.warn(void 0, "[cua-pip-session] event delivery dropped", {
+              ...Wi(k),
+              skipReason: A.skipReason
+            });
+            return
+          }
+          f();
+          let D = k.kind === "turn-started" ? null : c;
+          if (c = null, D !== null) try {
+            let j = await A.client.send(D.event);
+            t.info(void 0, "[cua-pip-session] replayed deferred turn-started", {
+              ...Wi(D.event),
+              applied: j.applied,
+              reason: j.reason
+            })
+          } catch (j) {
+            t.warn(void 0, "[cua-pip-session] replay of deferred turn-started failed", {
+              ...Wi(D.event),
+              errorMessage: j instanceof Error ? j.message : String(j)
+            })
+          }
+          let U = await A.client.send(k);
+          t.info(void 0, "[cua-pip-session] event delivery acknowledged", {
+            ...Wi(k),
+            applied: U.applied,
+            reason: U.reason
+          })
+        } catch (A) {
+          t.warn(void 0, "[cua-pip-session] event delivery failed", {
+            ...Wi(k),
+            errorMessage: A instanceof Error ? A.message : String(A)
+          })
+        }
+      });
+      return s = C, C
+    }, "publish");
+  return {
+    publishFocus: S,
+    publishLifecycle: S,
+    dispose() {
+      a = !0, f(), c = null, r?.client.close(), r = null
+    }
+  }
+}
+i(Zb, "createCuaPipSessionService");
+y();
+
+function k$(e) {
+  switch (e.trim().toLowerCase()) {
+    case "amd64":
+    case "x86_64":
+    case "x64":
+      return "x64";
+    case "aarch64":
+    case "arm64":
+      return "arm64";
+    default:
+      return e.trim()
+  }
+}
+i(k$, "normalizeCuaHelperArch");
+
+function P$(e) {
+  return [...new Set(e.map(k$).filter(Boolean))]
+}
+i(P$, "normalizeCuaHelperArchs");
+
+function C$(e) {
+  let t = e.dependencies?.readExecutableArchs ?? Oh.readExecutableArchs;
+  return {
+    ...e,
+    dependencies: {
+      ...e.dependencies,
+      readExecutableArchs: i(async n => P$(await t(n)), "readExecutableArchs")
+    }
+  }
+}
+i(C$, "canonicalizeCuaHelperInstallerOptions");
+
+function Hb(e, t = qu) {

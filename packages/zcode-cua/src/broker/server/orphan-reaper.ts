@@ -1,0 +1,644 @@
+// oxlint-disable-file
+// 发行 bundle 还原稿：结构忠实于原编译产物，待语义化拆分。
+import { DEV_HELPER_APP_NAME_APP } from "./region-constants.js";
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+import { z } from "zod";
+
+import {
+  CUA_PIP_NO_ACTIVE_SESSION_V2,
+  CUA_PIP_SESSION_PROTOCOL,
+  DEV_CUA_HELPER_BUNDLE_ID_VALUE,
+  dn,
+} from "./region-constants.js";
+
+import {
+  appendFileSync as Qoe,
+  existsSync as E4e,
+  existsSync as L2e,
+  mkdirSync as eie,
+  mkdtempSync as $Ge,
+  mkdtempSync as pVe,
+  readFileSync as ZGe,
+  readFileSync as fVe,
+  readdirSync as tie,
+  realpathSync as Qz,
+  rmSync as HGe,
+  rmSync as mVe,
+  unlinkSync as nie,
+  writeFileSync as T4e,
+} from "node:fs";
+import {
+  basename as MGe,
+  basename as wVe,
+  dirname as B2e,
+  dirname as sW,
+  isAbsolute as U2e,
+  isAbsolute as x4e,
+  join as EJe,
+  join as Foe,
+  join as GGe,
+  join as Lh,
+  join as iJe,
+  join as rie,
+  join as vVe,
+  join as xGe,
+} from "node:path";
+import { createRequire as D2e, createRequire as RJe } from "node:module";
+import {
+  execFile as UGe,
+  execFile as bGe,
+  execFile as dVe,
+  execFileSync as AVe,
+  execFileSync as Boe,
+  execFileSync as J2e,
+  execFileSync as lVe,
+  execFileSync as zGe,
+} from "node:child_process";
+import { fileURLToPath as W2e } from "node:url";
+import { homedir as EGe, platform as TVe, tmpdir as KGe, tmpdir as hVe } from "node:os";
+import aJe from "node:process";
+import {
+  lstat as X2e,
+  mkdir as Q2e,
+  open as eJe,
+  readFile as RGe,
+  readFile as tJe,
+  readdir as _Ge,
+  rm as nJe,
+  writeFile as rJe,
+} from "node:fs/promises";
+import { randomUUID as G2e } from "node:crypto";
+import { QC, Ss, xt, zz } from "./helper-launcher.js";
+import { bn } from "./trust-policy.js";
+import { fa } from "../socket-path.js";
+import { pre, yh } from "./refresh-marker.js";
+import { sie } from "./helper-installer.js";
+
+// 还原草稿（块级切分，待手工修正导入与类型）
+
+export var Jz = 64,
+  vGe = Jz * Jz;
+
+export var JGe = 16 * 1024 * 1024;
+
+export var DVe = 128 * 1024 * 1024;
+
+export var Ooe = Object.freeze({
+  Button: "button",
+  SplitButton: "button",
+  MenuItem: "menuitem",
+  Menu: "menuitem",
+  MenuBar: "menuitem",
+  Edit: "textfield",
+  Document: "textarea",
+  Password: "securefield",
+  ComboBox: "combobox",
+  CheckBox: "checkbox",
+  RadioButton: "radio",
+  Hyperlink: "link",
+  Slider: "slider",
+  ProgressBar: "slider",
+  Text: "text",
+  StatusBar: "text",
+  Image: "image",
+  ListItem: "row",
+  DataItem: "row",
+  TreeItem: "row",
+  TabItem: "tab",
+  Custom: "",
+  Pane: "",
+  Window: "",
+  Group: "",
+});
+
+export var Yz = new Set(["textfield", "textarea", "securefield", "combobox"]),
+  Doe = new Set([...Yz, "slider", "stepper"]);
+
+export function Nh(e = process.env) {
+  let t: any = bn(e),
+    n = t ? e.ZCODE_CUA_HELPER_BUNDLE_ID?.trim() : void 0;
+  return n || (t && Ps(e) ? DEV_CUA_HELPER_BUNDLE_ID_VALUE : Ss);
+}
+
+export function Loe(e) {
+  let t = e?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on";
+}
+
+export function Ps(e = process.env) {
+  return bn(e) ? Loe(e.ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL) || yh(e) : !1;
+}
+
+export var Z2e = Foe("build", "Release", "ax_native.node");
+
+export var Uoe = 32,
+  zoe = ["-awwxo", "pid=,ppid=,uid=,command="];
+
+export function eW(e = process.env) {
+  let t = xt.replace(/\.app$/u, ""),
+    n = QC(e),
+    r = zz(e).flatMap((o) => [Lh(o, xt), Lh(o, DEV_HELPER_APP_NAME_APP)]);
+  return [...new Set([...n, ...r])].map((o) => Lh(o, "Contents", "MacOS", t));
+}
+
+export function sb(e) {
+  return Lh(e, "Contents", "MacOS", xt.replace(/\.app$/u, ""));
+}
+
+export function ab(e, t) {
+  let n: any = e.split(/\s+/u),
+    r = n.indexOf(t);
+  return r < 0 || r + 1 >= n.length ? null : (n[r + 1] ?? null);
+}
+
+export function Woe(e, t) {
+  if (e === t) return !0;
+  let n = t.endsWith("/") ? t : `${t}/`;
+  return e.startsWith(n);
+}
+
+export function tW(e) {
+  try {
+    return (process.kill(e, 0), !0);
+  } catch (t) {
+    return t.code === "EPERM";
+  }
+}
+
+export function $oe(e) {
+  let t = ab(e, "--launcher-pid");
+  if (t !== null) {
+    let n = Number(t);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return null;
+}
+
+$oe;
+
+export function nW(e, t) {
+  return e === t || e.startsWith(`${t} `);
+}
+
+export function Zoe(e) {
+  if (!e.startsWith("/")) return !1;
+  let n = `/Contents/MacOS/${xt.replace(/\.app$/u, "")}`,
+    r = e.indexOf(n);
+  for (; r > 0; ) {
+    let o: any = r + n.length;
+    if (o === e.length || /\s/u.test(e[o])) return !0;
+    r = e.indexOf(n, r + 1);
+  }
+  return !1;
+}
+
+export function ob(e, t, n) {
+  let r: any = ` ${t} ${n}`,
+    o = e.indexOf(r);
+  for (; o >= 0; ) {
+    let s: any = o + r.length;
+    if (s === e.length || /\s/u.test(e[s])) return !0;
+    o = e.indexOf(r, o + 1);
+  }
+  return !1;
+}
+
+export function cb(e, t, n, r?) {
+  return e.uid !== t || !n.some((o) => nW(e.command, o))
+    ? !1
+    : r
+      ? ob(e.command, "--socket", r)
+      : !0;
+}
+
+export function Xz(e, t) {
+  if (e.ppid !== 1 || e.pid === t.selfPid || !cb(e, t.currentUid, t.executablePaths)) return !1;
+  let n = ab(e.command, "--socket");
+  if (!n || !Woe(n, t.runtimeDir)) return !1;
+  let r = $oe(e.command);
+  if (r === null) return !1;
+  let o = t.ownerEvidenceProvider(r);
+  return o.state === "dead" || o.identity === "unrelated";
+}
+
+export function db(e) {
+  let t = [];
+  for (let n of e.split(`
+
+`)) {
+    let r = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/u.exec(n);
+    if (!r) continue;
+    let [, o, s, a, c] = r;
+    o === void 0 ||
+      s === void 0 ||
+      a === void 0 ||
+      c === void 0 ||
+      t.push({
+        pid: Number(o),
+        ppid: Number(s),
+        uid: Number(a),
+        command: c,
+      });
+  }
+  return t;
+}
+
+export function rW() {
+  let e: any = Boe(dn.ps, [...zoe], {
+    encoding: "utf8",
+  });
+  return db(e);
+}
+
+export function ib(e: string[], t: (path: string) => string): string[] {
+  let n = new Set(e);
+  for (let r of e)
+    try {
+      n.add(t(r));
+    } catch {}
+  return [...n];
+}
+
+export function lb(e: any = {}) {
+  let t = e.platform ?? process.platform,
+    n = e.currentUid ?? (typeof process.getuid == "function" ? process.getuid() : null),
+    r = e.listProcesses ?? rW,
+    o = e.isProcessAlive ?? tW,
+    s = e.canonicalizePath ?? Qz.native,
+    a = ib(eW(e.env ?? process.env), s),
+    c = e.logger;
+  return (d, l) => {
+    if (t !== "darwin" || n === null)
+      return {
+        state: "helper",
+        reason: "non-darwin / no uid; identity recheck unavailable",
+      };
+    let p;
+    try {
+      p = r();
+    } catch (S) {
+      return (
+        c?.warn(
+          void 0,
+          `cua helper kill-path: process listing failed for pid ${d} (${Fh(S)}); skipping SIGTERM as a pid-reuse precaution`,
+        ),
+        {
+          state: "unknown",
+          reason: "process listing failed",
+        }
+      );
+    }
+    let u: any = p.find((S) => S.pid === d);
+    if (!u)
+      return o(d)
+        ? {
+            state: "unknown",
+            reason: "pid alive but absent from ps snapshot",
+          }
+        : {
+            state: "dead",
+            reason: "pid not alive",
+          };
+    let f: string[] = l?.helperAppPath ? ib([sb(l.helperAppPath), ...a], s) : a,
+      g = f.find((S) => nW(u.command, S));
+    if (g && (!l?.socketPath || ob(u.command, "--socket", l.socketPath)))
+      return {
+        state: "helper",
+        reason: "ps command matches Helper executable path",
+      };
+    if (g && l?.socketPath) {
+      let S: any = ab(u.command, "--socket");
+      return S === null || (l.socketPath.startsWith(S) && u.command.trimEnd().endsWith(S))
+        ? {
+            state: "unknown",
+            reason: "Helper argv is incomplete; exact random socket cannot be verified",
+            command: u.command,
+          }
+        : {
+            state: "unrelated",
+            reason: "pid now belongs to a Helper launched for a different random socket",
+            command: u.command,
+          };
+    }
+    if (l?.socketPath && ob(u.command, "--socket", l.socketPath) && Zoe(u.command))
+      return {
+        state: "unknown",
+        reason:
+          "Helper-shaped argv and exact random socket match, but canonical executable identity cannot be proven",
+        command: u.command,
+      };
+    let v = u.command.trimEnd();
+    return v.length > 0 && f.some((S) => S.startsWith(v))
+      ? {
+          state: "unknown",
+          reason: "ps command may be a truncated Helper executable path",
+          command: u.command,
+        }
+      : {
+          state: "unrelated",
+          reason: l?.socketPath
+            ? "pid no longer matches the Helper executable and random socket"
+            : "pid reused by non-Helper process",
+          command: u.command,
+        };
+  };
+}
+
+export function Hoe({ getRows: e, currentUid: t, selfPid: n, isProcessAlive: r, deadPids: o }) {
+  return (s) => {
+    if (s === n)
+      return {
+        state: "alive",
+        identity: "zcode-owner",
+        reason: "self",
+      };
+    if (!r(s))
+      return (
+        o.add(s),
+        {
+          state: "dead",
+          reason: "pid not alive",
+        }
+      );
+    if (!o.has(s))
+      return {
+        state: "alive",
+        identity: "zcode-owner",
+        reason: "live owner; spared by default",
+      };
+    let a: any = e().find((c) => c.pid === s && c.uid === t);
+    return a && !joe(a.command)
+      ? {
+          state: "alive",
+          identity: "unrelated",
+          command: a.command,
+          reason: "pid observed dead earlier is alive again with a non-ZCode command line",
+        }
+      : {
+          state: "alive",
+          identity: "zcode-owner",
+          command: a?.command,
+          reason: "pid reused after death; command still matches ZCode",
+        };
+  };
+}
+
+export function joe(e) {
+  let t = e.replaceAll("\\", "/").toLowerCase();
+  return t.includes("zcode cua helper") || t.includes("zcode-cua")
+    ? !1
+    : /\bzcode-host(?:-|$)/u.test(t) ||
+        /\bzcode-main(?:\s|$|-)/u.test(t) ||
+        t.includes("/zcode.app/contents/macos/") ||
+        t.includes("zcode.app/contents/macos/") ||
+        /\bzcode(?:\s|$)/u.test(t)
+      ? !0
+      : Koe(t);
+}
+
+export function Koe(e) {
+  return /(?:^|\s|\/)(?:node|electron)(?:\s|$)/u.test(e)
+    ? e.includes("/z-code/") ||
+        e.includes("/zcode/") ||
+        e.includes("packages/services") ||
+        e.includes("apps/zcode") ||
+        e.includes("dev.zcode")
+    : !1;
+}
+
+export function oW(e: any = {}) {
+  let t = e.env ?? process.env,
+    n = e.platform ?? process.platform,
+    r = e.logger,
+    o = {
+      scanned: 0,
+      reaped: [],
+    };
+  if (n !== "darwin") return o;
+  let s = e.currentUid ?? (typeof process.getuid == "function" ? process.getuid() : null);
+  if (s == null) return o;
+  let a = e.selfPid ?? process.pid,
+    c = e.maxReap ?? Uoe,
+    d = e.listProcesses ?? rW,
+    l =
+      e.killProcess ??
+      ((C) => {
+        process.kill(C, "SIGTERM");
+      }),
+    p = e.isProcessAlive ?? tW,
+    u = e.canonicalizePath ?? Qz.native,
+    f;
+  try {
+    f = d();
+  } catch (C) {
+    return (r?.warn(void 0, `cua helper reaper: process listing failed: ${Fh(C)}`), o);
+  }
+  o.scanned = f.length;
+  let g = new Set(),
+    v = f,
+    S =
+      e.ownerEvidenceProvider ??
+      Hoe({
+        getRows: () => v,
+        currentUid: s,
+        selfPid: a,
+        isProcessAlive: p,
+        deadPids: g,
+      }),
+    k = {
+      currentUid: s,
+      selfPid: a,
+      executablePaths: ib(eW(t), u),
+      runtimeDir: fa(t),
+      ownerEvidenceProvider: S,
+    };
+  for (let C of f) {
+    if (o.reaped.length >= c) {
+      r?.warn(void 0, `cua helper reaper: hit per-run cap (${c}); stopping`);
+      break;
+    }
+    if (((v = f), !Xz(C, k))) continue;
+    let A;
+    try {
+      A = d();
+    } catch (U) {
+      r?.warn(void 0, `cua helper reaper: pre-SIGTERM recheck failed for pid ${C.pid}: ${Fh(U)}`);
+      continue;
+    }
+    let D = A.find((U) => U.pid === C.pid) ?? null;
+    if (D && ((v = A), !!Xz(D, k)))
+      try {
+        (l(D.pid), o.reaped.push(D.pid));
+      } catch (U) {
+        r?.warn(
+          void 0,
+          `cua helper reaper: SIGTERM of orphaned Helper pid ${D.pid} failed: ${Fh(U)}`,
+        );
+      }
+  }
+  return (
+    o.reaped.length > 0 &&
+      r?.info(
+        void 0,
+        `cua helper reaper: SIGTERM'd ${o.reaped.length} orphaned Helper(s): ${o.reaped.join(", ")}`,
+      ),
+    o
+  );
+}
+
+export function Fh(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+
+export var Uh = 2;
+
+export var ni = z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .refine((e) => !e.includes("\0"), "identifier cannot contain NUL")
+    .refine(
+      (e) => e !== CUA_PIP_NO_ACTIVE_SESSION_V2,
+      "identifier is reserved by the PiP session runtime",
+    ),
+  Bh = z.number().int().nonnegative().safe(),
+  Wh = z.discriminatedUnion("kind", [
+    z
+      .object({
+        kind: z.literal("focus-changed"),
+        revision: Bh,
+        sourceWindowId: ni,
+        sessionId: ni.nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("turn-started"),
+        sessionId: ni,
+        turnId: ni,
+        sequenceNumber: Bh,
+        eventId: ni,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("turn-ended"),
+        sessionId: ni,
+        turnId: ni,
+        sequenceNumber: Bh,
+        eventId: ni,
+        outcome: z.enum(["completed", "failed"]),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("session-closed"),
+        sessionId: ni,
+        sequenceNumber: Bh,
+        eventId: ni,
+      })
+      .strict(),
+  ]),
+  UJe = z
+    .object({
+      windowId: z.number().int().positive().safe(),
+      presentationWindowId: z.number().int().positive().safe().optional(),
+      pid: z.number().int().positive().safe(),
+      bundleId: z.string().trim().min(1).max(255),
+    })
+    .strict();
+
+export var jJe = z
+    .object({
+      protocolVersion: z.number().int(),
+      runtimeId: z.string(),
+    })
+    .strict(),
+  KJe = z
+    .object({
+      event: Wh,
+    })
+    .strict();
+
+(() => {
+  let e = process.argv.indexOf("--exit-log"),
+    t = e >= 0 && e + 1 < process.argv.length ? process.argv[e + 1] : null;
+  if (!t) return;
+  try {
+    eie(sW(t), {
+      recursive: !0,
+    });
+  } catch {}
+  iie(sW(t));
+  let n = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (r, ...o) => {
+    try {
+      let s = typeof r == "string" ? r : String(r);
+      Qoe(t, oie(s));
+    } catch {}
+    return n(r, ...o);
+  };
+})();
+
+export function oie(e) {
+  let t = new Date().toISOString(),
+    n = "";
+  for (let r of e.split(`
+
+`)) {
+    let o = r.trim();
+    if (!o) continue;
+    let s, a;
+    try {
+      a = JSON.parse(o);
+    } catch {
+      a = null;
+    }
+    if (a && typeof a == "object" && !Array.isArray(a)) {
+      let c: any = a,
+        { scope: d, level: l, event: p, evidence: u, ...f } = c;
+      s = {
+        timestamp: t,
+        level: typeof l == "string" ? l : "info",
+        event: typeof p == "string" ? p : "helper runtime event",
+        module: typeof d == "string" ? d : "zcode-cua-helper",
+        pid: process.pid,
+        ...(u === void 0
+          ? {}
+          : {
+              context: u,
+            }),
+        ...f,
+      };
+    } else {
+      let c = /^\[([a-z0-9-]+)\]/iu.exec(o);
+      s = {
+        timestamp: t,
+        level: "info",
+        event: c ? c[1] : "helper stderr",
+        module: "zcode-cua-helper",
+        pid: process.pid,
+        message: c ? o.slice(c[0].length).trim() : o,
+      };
+    }
+    n += `${JSON.stringify(s)}
+
+`;
+  }
+  return n;
+}
+
+export function iie(e) {
+  try {
+    let t = tie(e)
+      .filter((n) => /^zcode-cua-helper-\d{4}-\d{2}-\d{2}\.jsonl$/u.test(n))
+      .sort()
+      .reverse()
+      .slice(sie);
+    for (let n of t)
+      try {
+        nie(rie(e, n));
+      } catch {}
+  } catch {}
+}

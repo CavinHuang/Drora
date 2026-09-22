@@ -1,1 +1,1 @@
-export { callBrokerMethod, probeHelperHealth } from "./broker.js";
+export { callBrokerMethod, probeHelperHealth } from "./broker/index.js";

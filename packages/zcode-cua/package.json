@@ -54,5 +54,16 @@
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
     }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/mcp/errors.ts src/mcp/client.ts src/mcp/session.ts src/mcp/tools.ts src/mcp/server.ts --outdir=. --outbase=src",
+    "typecheck": "tsc --noEmit",
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "test": "node test/restored-smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "express": "^5.2.1",
+    "zod": "4.6.5"
   }
 }

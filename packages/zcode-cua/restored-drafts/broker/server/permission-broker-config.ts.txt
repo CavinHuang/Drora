@@ -1,0 +1,135 @@
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+import { Bu, Fu } from "./refresh-marker.js";
+import { GU, LC, UC, VU, zC } from "./cua-spec.js";
+import { oo } from "./socket-path.js";
+
+// 还原草稿（块级切分，待手工修正导入与类型）
+
+export var oz = "--permission-broker-socket",
+  iz = "ZCODE_CUA_PACKAGE_SPEC";
+
+export function bre(e) {
+  let t = e.indexOf("--");
+  return t === -1 ? e : e.slice(0, t)
+}
+
+export function Ire(e) {
+  return e !== void 0 && e !== "--" && !e.startsWith("--")
+}
+
+export function sz(e, t) {
+  if (!t.socketPath || t.socketPath.trim().length === 0) throw new Error("injectPermissionBrokerConfig requires a non-empty socketPath");
+  let n = [...e.args ?? []];
+  az(n, oz, t.socketPath);
+  let r = Bu(t.socketPath);
+  return {
+    ...e,
+    args: n,
+    env: {
+      ...e.env,
+      [oo]: t.socketPath,
+      [Fu]: r
+    }
+  }
+}
+
+export function az(e, t, n) {
+  let r = e.indexOf("--"),
+    o = bre(e),
+    s = r === -1 ? [] : e.slice(r),
+    a = [];
+  for (let c = 0; c < o.length; c += 1) {
+    if (o[c] === t) {
+      Ire(o[c + 1]) && (c += 1);
+      continue
+    }
+    o[c]?.startsWith(`${t}=`) || a.push(o[c])
+  }
+  e.splice(0, e.length, ...a, t, n, ...s)
+}
+
+export function cz(e, t) {
+  if (!e || e.length === 0 || !t.pluginAuthority?.trim()) return e;
+  let n = e.map(r => _re(r, t));
+  return n.some((r, o) => r !== e[o]) ? n : e
+}
+
+export function _re(e, t) {
+  if (!wh(e, t.pluginAuthority)) return e;
+  if (!t.socketPath || t.socketPath.trim().length === 0) throw new Error("injectPermissionBrokerAgentMcpServers requires a non-empty socketPath");
+  let n = HC(e.args);
+  az(n, oz, t.socketPath);
+  let r = Bu(t.socketPath),
+    o = rz(zu(e.env), oo, t.socketPath);
+  return o = rz(o, Fu, r), {
+    ...e,
+    args: n,
+    env: o
+  }
+}
+
+export function $C(e) {
+  return typeof e != "object" || e === null || !("command" in e) || typeof e.command != "string" ? null : e
+}
+
+$C
+
+export function ga(e) {
+  let t = $C(e);
+  if (!t) return !1;
+  let n = "name" in e && typeof e.name == "string" ? e.name : "";
+  if (n.trim().toLowerCase().startsWith("plugin:")) {
+    let o = zu(t.env),
+      s = o.find(c => c.name === LC)?.value;
+    if (UC(n, s)) return !0;
+    let a = o.find(c => c.name === iz)?.value;
+    if (a && zC(a)) return !0
+  } else if (n && UC(n)) return !0;
+  return GU(t.command) ? !0 : HC(t.args).some(zC)
+}
+
+export function ZC(e) {
+  let t = $C(e);
+  return !t || ("name" in e && typeof e.name == "string" ? e.name : "").trim().toLowerCase() !== FC ? !1 : zu(t.env).find(r => r.name === LC)?.value.trim().toLowerCase() === Lu
+}
+
+export function wh(e, t) {
+  let n = t?.trim();
+  return !n || !ZC(e) ? !1 : zu(e.env).some(r => r.name === qU && r.value === n)
+}
+
+export function dz(e) {
+  if (!e || e.length === 0) return e;
+  let t = e.filter(n => !Rre(n));
+  return t.length === e.length ? e : t
+}
+
+export function Rre(e) {
+  let t = $C(e);
+  if (!t) return !1;
+  let n = zu(t.env),
+    r = n.find(s => s.name === iz)?.value;
+  return VU({
+    command: t.command,
+    args: HC(t.args),
+    packageSpec: r
+  }) ? !n.find(s => s.name === oo)?.value?.trim() : !1
+}
+
+export function HC(e) {
+  return Array.isArray(e) ? e.filter(t => typeof t == "string") : []
+}
+
+export function zu(e) {
+  return Array.isArray(e) ? e.filter(t => typeof t == "object" && t !== null && typeof t.name == "string" && typeof t.value == "string") : []
+}
+
+export function rz(e, t, n) {
+  let r = e.filter(o => o.name !== t).map(o => ({
+    ...o
+  }));
+  return r.push({
+    name: t,
+    value: n
+  }), r
+}

@@ -1,36 +1,34 @@
-export interface ComputerUseRuntimeContext {
-  sessionId: string;
-  runtimeScope: "main" | "subagent";
-  workspaceKey: string;
+interface RuntimeContextLike {
+  sessionId?: string;
+  runtimeScope?: string;
+  workspaceKey?: string;
   workspacePath?: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   turnId?: string;
-  clientMode?: "web-remote-replayable" | "desktop-continuous";
-  deliveryKind?: "web-remote-replayable" | "desktop-continuous";
-  trace?: Record<string, unknown>;
+  clientMode?: string;
+  deliveryKind?: string;
 }
-
-export interface ComputerUseRuntimeExecuteInput {
-  toolName: string;
-  arguments?: unknown;
-  context: ComputerUseRuntimeContext;
-  signal?: AbortSignal;
-}
-
-export interface ComputerUseRuntime {
-  execute(input: ComputerUseRuntimeExecuteInput): Promise<unknown>;
-  closeSession(context: ComputerUseRuntimeContext): Promise<void>;
-  dispose(): Promise<void>;
-}
-
-export interface ComputerUseRuntimeOptions {
+interface RuntimeOptionsLike {
   brokerSocketPath?: string;
   refreshMarkerPath?: string;
   ensureBrokerAvailable?: () => Promise<void>;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
 }
-
-export declare function createComputerUseRuntime(
-  options?: ComputerUseRuntimeOptions,
-): ComputerUseRuntime;
+export declare function createComputerUseRuntime(options?: RuntimeOptionsLike): {
+  execute(input: {
+    toolName: string;
+    arguments?: unknown;
+    context?: RuntimeContextLike;
+    signal?: AbortSignal;
+  }): Promise<unknown>;
+  closeSession(_context?: RuntimeContextLike): Promise<void>;
+  dispose(): Promise<void>;
+};
+export {
+  main,
+  parseServerArgs,
+  parsedArgsToOptions,
+  readBrokerEnv,
+  startStreamableHttpServer,
+} from "./mcp/server.js";

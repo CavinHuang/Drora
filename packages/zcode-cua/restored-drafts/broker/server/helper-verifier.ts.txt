@@ -1,0 +1,198 @@
+// oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
+import { dn } from "./region-constants.js";
+
+import { existsSync } from "node:fs";
+import { join as Hz, win32 as N1e } from "node:path";
+import { randomBytes as m1e } from "node:crypto";
+import { CuaHelperError } from "../../broker/client.js";
+import { Hr } from "./trust-policy.js";
+import { hz, xt } from "./helper-launcher.js";
+
+// 还原草稿（块级切分，待手工修正导入与类型）
+
+export function $z(e) {
+  for (let t of e)
+    if (t && existsSync(t)) return t;
+  return null
+}
+
+$z
+
+export var coe = "dev.zcode.app",
+  doe = "dev.zcode.app.preview",
+  bKe = Object.freeze([coe, doe]);
+
+export var Oh = {
+  readBundleInfo: uoe,
+  readExecutableArchs: hz,
+  verifyCodeSignature: poe,
+  inspectCodesignDetails: foe,
+  assessGatekeeper: moe
+};
+
+export async function Dh(e, t, n, r = {}) {
+  let o = await n.readBundleInfo(e);
+  if (o.bundleId !== t.expectedBundleId) throw new CuaHelperError("verification_failed", `${xt} bundle id ${o.bundleId??"<missing>"} does not match ${t.expectedBundleId}`);
+  let s: any = t.source.kind === "bundled" ? void 0 : t.version;
+  if (!goe(o, s)) throw new CuaHelperError("verification_failed", hoe(o, t.version));
+  if (t.expectedBuildId && o.buildId !== t.expectedBuildId) throw new CuaHelperError("verification_failed", `${xt} build id ${o.buildId??"<missing>"} does not match ${t.expectedBuildId}`);
+  if (!o.executableName) throw new CuaHelperError("verification_failed", `${xt} Info.plist is missing CFBundleExecutable`);
+  let a = Hz(e, "Contents", "MacOS", o.executableName),
+    c = await n.readExecutableArchs(a);
+  if (!c.includes(t.arch)) throw new CuaHelperError("verification_failed", `${xt} executable archs [${c.join(", ")||"<none>"}] do not include ${t.arch}`);
+  if (t.allowUnsignedLocalDev) {
+    let l = await loe(e, n);
+    return {
+      bundleInfo: o,
+      codesign: l,
+      releaseEligible: !1,
+      mode: "local_dev_unsigned"
+    }
+  }
+  await n.verifyCodeSignature(e);
+  let d = await n.inspectCodesignDetails(e);
+  if (d.adHoc || !d.teamIdentifier) throw new CuaHelperError("verification_failed", `${xt} is not signed with a stable Apple TeamIdentifier`);
+  if (!t.expectedTeamIdentifier) throw new CuaHelperError("verification_failed", `${xt} release verification requires a pinned Apple TeamIdentifier; refusing to trust an unpinned signing team as the TCC owner`);
+  if (d.teamIdentifier !== t.expectedTeamIdentifier) throw new CuaHelperError("verification_failed", `${xt} TeamIdentifier ${d.teamIdentifier} does not match ${t.expectedTeamIdentifier}`);
+  return r(r as any).skipGatekeeperAssessment || await n.assessGatekeeper(e), {
+    bundleInfo: o,
+    codesign: d,
+    releaseEligible: !0,
+    mode: "release"
+  }
+}
+
+export async function loe(e, t) {
+  try {
+    return await t.inspectCodesignDetails(e)
+  } catch {
+    return null
+  }
+}
+
+export async function uoe(e) {
+  let t = Hz(e, "Contents", "Info.plist"),
+    {
+      stdout: n
+    } = await Hr(dn.plist, ["-convert", "json", "-o", "-", t]),
+    r = JSON.parse(n);
+  return {
+    bundleId: Hu(r.CFBundleIdentifier),
+    version: Hu(r.CFBundleShortVersionString),
+    buildVersion: Hu(r.CFBundleVersion),
+    executableName: Hu(r.CFBundleExecutable),
+    buildId: Hu(r.ZCodeCUAHelperBuildId)
+  }
+}
+
+export async function poe(e) {
+  await Hr(dn.codesign, ["--verify", "--deep", "--strict", e])
+}
+
+export async function foe(e) {
+  let {
+    stdout: t,
+    stderr: n
+  } = await Hr(dn.codesign, ["-dv", "--verbose=4", e]), r = `${t}
+
+${n}`, o = r.match(/^TeamIdentifier=(.+)$/mu)?.[1]?.trim() || null, s = [...r.matchAll(/^Authority=(.+)$/gmu)].map(a => a[1]?.trim()).filter(a => !!a);
+  return {
+    teamIdentifier: o === "not set" ? null : o,
+    authorities: s,
+    rawOutput: r,
+    adHoc: /^Signature=adhoc$/mu.test(r)
+  }
+}
+
+export async function moe(e) {
+  await Hr(dn.spctl, ["-a", "-vv", "-t", "exec", e])
+}
+
+export function goe(e, t) {
+  return t === void 0 ? !0 : e.version === t && e.buildVersion === t
+}
+
+export function hoe(e, t) {
+  let n = e.version ?? "<missing>",
+    r = e.buildVersion ?? "<missing>";
+  return `${xt} version mismatch: expected short/build ${t}, got short ${n}, build ${r}`
+}
+
+export function Hu(e) {
+  return typeof e == "string" && e.trim() ? e.trim() : null
+}
+
+export var jKe = Object.freeze(["associateTitleUIElements", "flattenIntoSelectableAncestor", "pruneEmptyDisabledElements", "mergeSingleItemGroups", "flattenRepetitiveStaticText", "flattenLinksIntoMarkdownText"]);
+
+
+export var koe = new Set(["textfield", "textarea", "searchfield", "securefield", "combobox"]),
+  S1e = new Set([...koe, "slider", "stepper"]);
+
+
+export var cqe = new Set([..."abcdefghijklmnopqrstuvwxyz0123456789".split(""), "=", "*", "-", "]", "[", "'", ";", "\\", ",", "/", ".", "`", "enter", "tab", "space", "backspace", "delete", "esc", "command", "meta", "super", "win", "shift", "capslock", "alt", "ctrl", "help", "home", "pageup", "forwarddelete", "end", "pagedown", "left", "right", "down", "up", ...Array.from({
+  length: 16
+}, (e, t) => `f${t+1}`)]);
+
+export function nb(e, t) {
+  let n = e.width / t.bounds.width,
+    r = e.height / t.bounds.height;
+  return !Number.isFinite(n) || !Number.isFinite(r) || n < .75 || n > 4.5 || r < .75 || r > 4.5 ? !1 : Math.max(n, r) / Math.min(n, r) <= 1.35
+}
+
+export function tb(e) {
+  return Number.isSafeInteger(e) && e > 0
+}
+
+export function rb(e, t) {
+  if (!e || e.width !== t.width || e.height !== t.height || !tb(e.sampleWidth) || e.sampleWidth > 64 || !tb(e.sampleHeight) || e.sampleHeight > 64 || !tb(e.sampledPixelCount) || e.sampledPixelCount > 4096 || e.sampledPixelCount !== e.sampleWidth * e.sampleHeight || !Number.isSafeInteger(e.visiblePixelCount) || e.visiblePixelCount < 0 || e.visiblePixelCount > e.sampledPixelCount || !Number.isSafeInteger(e.distinctColorBucketCount) || e.distinctColorBucketCount < 0 || e.distinctColorBucketCount > e.visiblePixelCount || !Number.isSafeInteger(e.dominantColorPixelCount) || e.dominantColorPixelCount < 0 || e.dominantColorPixelCount > e.visiblePixelCount || !Number.isSafeInteger(e.maxChannelRange) || e.maxChannelRange < 0 || e.maxChannelRange > 255) return !1;
+  let n = Math.max(4, Math.ceil(e.sampledPixelCount * .005)),
+    r = Math.max(3, Math.ceil(e.sampledPixelCount * .0025));
+  return e.visiblePixelCount >= n && e.distinctColorBucketCount >= 3 && e.visiblePixelCount - e.dominantColorPixelCount >= r && e.maxChannelRange >= 24
+}
+
+export var qz = 3;
+
+export var Roe = 96,
+  Aoe = 64;
+
+export function Gz(e, t) {
+  return Number.isFinite(e) && e >= t && e <= 32768
+}
+
+export function Eoe(e) {
+  return Array.isArray(e) && e.length === 4 && e.every(t => typeof t == "number" && Number.isFinite(t)) && Gz(e[2], Roe) && Gz(e[3], Aoe)
+}
+
+export function Vz(e) {
+  if (e?.ok !== !0 || e.status !== "granted" || e.probed !== !0 || e.evidence !== "foreign_window" || e.content_evidence !== "decoded_visible_non_uniform" || !Number.isSafeInteger(e.probe_pid) || e.probe_pid <= 0 || !Number.isSafeInteger(e.target_window_id) || e.target_window_id <= 0 || !Number.isSafeInteger(e.target_owner_pid) || e.target_owner_pid <= 0 || e.target_owner_pid === e.probe_pid || e.target_on_screen !== !0 || !Eoe(e.target_bounds) || !Number.isSafeInteger(e.png_width) || e.png_width <= 0 || !Number.isSafeInteger(e.png_height) || e.png_height <= 0 || !Number.isSafeInteger(e.candidate_count) || e.candidate_count <= 0 || !Number.isSafeInteger(e.attempted_window_count) || e.attempted_window_count <= 0 || e.attempted_window_count > qz || e.attempted_window_count > e.candidate_count || !Number.isSafeInteger(e.sample_width) || e.sample_width <= 0 || !Number.isSafeInteger(e.sample_height) || e.sample_height <= 0 || !Number.isSafeInteger(e.sampled_pixel_count) || !Number.isSafeInteger(e.visible_pixel_count) || !Number.isSafeInteger(e.distinct_color_bucket_count) || !Number.isSafeInteger(e.dominant_color_pixel_count) || !Number.isSafeInteger(e.max_channel_range) || typeof e.byte_length != "number" || e.byte_length <= 0) return !1;
+  let t = {
+      width: e.png_width,
+      height: e.png_height
+    },
+    n = {
+      windowId: e.target_window_id,
+      ownerPid: e.target_owner_pid,
+      ownerBundleId: null,
+      ownerName: null,
+      ownerActive: !1,
+      title: null,
+      bounds: {
+        x: e.target_bounds[0],
+        y: e.target_bounds[1],
+        width: e.target_bounds[2],
+        height: e.target_bounds[3]
+      },
+      onScreen: !0
+    };
+  return nb(t, n) && rb({
+    width: t.width,
+    height: t.height,
+    sampleWidth: e.sample_width,
+    sampleHeight: e.sample_height,
+    sampledPixelCount: e.sampled_pixel_count,
+    visiblePixelCount: e.visible_pixel_count,
+    distinctColorBucketCount: e.distinct_color_bucket_count,
+    dominantColorPixelCount: e.dominant_color_pixel_count,
+    maxChannelRange: e.max_channel_range
+  }, t)
+}

@@ -1,0 +1,574 @@
+// oxlint-disable-file
+// 还原草稿：仅供继续手工重建参考，不参与编译
+import { AsyncLocalStorage as wae } from "node:async_hooks";
+import { createConnection as vae } from "node:net";
+import { homedir } from "node:os";
+import { join as aae } from "node:path";
+import { randomUUID } from "node:crypto";
+import { statSync as gae } from "node:fs";
+import { t$ } from "./product-helper-host.js";
+import { Lu } from "./cua-spec.js";
+
+// 还原草稿（块级切分，待手工修正导入与类型）
+
+export function n$(e: any = {}) {
+  let n: any = (e.env ?? process.env).HOME?.trim() || homedir();
+  return t$({
+    pluginId: Lu,
+    workingDirectory: e.workingDirectory,
+    projectConfigPath: e.projectConfigPath,
+    userConfigPath: e.userConfigPath ?? aae(n, ".zcode", "cli", "config.json"),
+  });
+}
+
+n$;
+
+export var fr = "broker_unavailable";
+
+export function dae(e) {
+  return (
+    /\braw foreground event\b.*\brefused because\b/i.test(e) ||
+    /\bmodifiers must be a '\+'-separated chord\b/i.test(e) ||
+    /\belement \([^)]*\) is not settable; refuse set_value\b/i.test(e) ||
+    /\belement \([^)]*\) is not selectable; refuse select_text\b/i.test(e)
+  );
+}
+
+export var Ft = class extends Error {
+  static {}
+  code;
+  details;
+  permissionError;
+  constructor(t = "unknown broker error", n: any = {}) {
+    let r: any =
+        (t && t.length > 0 ? t : n.code && n.code.length > 0 ? n.code : "unknown broker error") ||
+        "unknown broker error",
+      s =
+        (n.details?.action_sent === !1 || dae(r)) && !/\baction_sent\s*=\s*false\b/i.test(r)
+          ? `${r.replace(/\s+$/u, "")} action_sent=false.`
+          : r;
+    (super(
+      s,
+      n.cause !== void 0
+        ? {
+            cause: n.cause,
+          }
+        : void 0,
+    ),
+      (this.name = "PermissionBrokerError"),
+      (this.code = typeof n.code == "string" && n.code.trim().length > 0 ? n.code.trim() : null),
+      (this.details = n.details
+        ? {
+            ...n.details,
+          }
+        : {}),
+      (this.permissionError = n.permissionError === !0));
+  }
+};
+
+export function Ju(e, t = {}) {
+  let n = {
+    ...t,
+    permissionError: !0,
+  };
+  return new Ft(e, n);
+}
+
+export var Mb = "ZCODE_CUA_BROKER_ALLOW_ANY_PEER",
+  xb = "ZCODE_CUA_ALLOW_DEV_BROKER",
+  Ob = Object.freeze(["1", "true", "yes", "on"]);
+
+export var Xh = "broker_not_accepting",
+  Qh = "permission_refresh_in_progress",
+  ey = "permission_refresh_invalid",
+  ty = "broker_response_ambiguous",
+  ny = "caller_timeout",
+  ry = "restart_deferred_active_turn",
+  lae = Object.freeze({
+    [Xh]: !0,
+    [Qh]: !0,
+    [ey]: !1,
+    [ty]: !1,
+    [ny]: !0,
+    [ry]: !0,
+  }),
+  uae = Object.freeze([Xh, Qh, ey, ty, ny, ry]);
+
+export var Db =
+    "The ZCode Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.",
+  Nb =
+    "The Helper may have accepted this action, but its response was lost. Do not replay it automatically; observe the target state first.",
+  Yu = "ZCode is still refreshing the permission Helper. Retry after the refresh finishes.",
+  Xu =
+    "ZCode's permission refresh marker is invalid or unsafe. ZCode must recreate the marker in its private runtime directory.",
+  pae = Object.freeze({
+    broker_not_accepting: Db,
+    broker_response_ambiguous: Nb,
+    permission_refresh_in_progress: Yu,
+    permission_refresh_invalid: Xu,
+  });
+
+export var mae = 30 * 1e3,
+  s$ = 5 * 1e3;
+
+export function Fb(e, t) {
+  if (e !== "hold_key" && e !== "hold_key_to_app") return 0;
+  let n = (t ?? {}).duration;
+  return typeof n == "boolean" || typeof n != "number" || !Number.isFinite(n) || n < 0
+    ? 0
+    : Math.min(n, 30) * 1e3;
+}
+
+export function Bb(e, t, n) {
+  if (t !== "hold_key" && t !== "hold_key_to_app") return e;
+  let r = Fb(t, n);
+  return r <= 0 ? e : Math.max(e, r + s$);
+}
+
+export function Ub(e) {
+  if (e === null || typeof e != "object" || Array.isArray(e)) return !1;
+  let t: any = e,
+    n = t.message,
+    r = t.code,
+    o = t.details;
+  return (n !== void 0 && (typeof n != "string" || n.trim().length === 0)) ||
+    (r !== void 0 && (typeof r != "string" || r.trim().length === 0)) ||
+    (o !== void 0 && (o === null || typeof o != "object" || Array.isArray(o)))
+    ? !1
+    : (typeof n == "string" && n.trim().length > 0) ||
+        (typeof r == "string" && r.trim().length > 0);
+}
+
+export function zb(e) {
+  if (e !== null && typeof e == "object" && !Array.isArray(e)) {
+    let t = e,
+      n = t.code,
+      r = typeof n == "string" && n.trim().length > 0 ? n.trim() : null,
+      o = t.message,
+      s =
+        (typeof o == "string" && o.trim().length > 0 ? String(o) : null) ??
+        r ??
+        "unknown broker error",
+      a =
+        t.details !== null && typeof t.details == "object" && !Array.isArray(t.details)
+          ? {
+              ...t.details,
+            }
+          : {};
+    return {
+      message: String(s),
+      code: r,
+      details: a,
+    };
+  }
+  return {
+    message: String(e ?? "unknown broker error"),
+    code: null,
+    details: {},
+  };
+}
+
+export function Wb(e) {
+  let t = e.error;
+  if (t !== null && typeof t == "object" && !Array.isArray(t)) {
+    let r = t.message;
+    if (typeof r == "string" && r.trim().length > 0) return r;
+  }
+  return "auth rejected";
+}
+
+import "net";
+
+export var hae = /^\\\\\.\\pipe\\zcode-cua-helper-(?:[0-9a-f]{8,}|default)$/;
+
+export function a$(e = process.env) {
+  let t = e[xb];
+  if (typeof t != "string") return !1;
+  let n = t.trim().toLowerCase();
+  return Ob.includes(n);
+}
+
+a$;
+
+export function c$(e = process.env) {
+  let t = e[Mb];
+  return typeof t != "string" ? !1 : t.trim().toLowerCase().length > 0;
+}
+
+c$;
+
+export function $b(e = process.env) {
+  return {
+    verifySocketPeer(t, n) {
+      if (c$(e) && a$(e)) return;
+      if (process.platform === "win32") {
+        if (!hae.test(t))
+          throw new Ft(`refusing broker pipe outside zcode-cua-helper namespace: ${t}`, {
+            code: "untrusted_socket",
+          });
+        return;
+      }
+      let r = typeof process.geteuid == "function" ? process.geteuid() : void 0;
+      if (r === void 0) return;
+      let o;
+      try {
+        let s: any = gae(t);
+        o = {
+          uid: s.uid,
+          mode: s.mode,
+        };
+      } catch {
+        return;
+      }
+      if (o.uid !== r && o.uid !== 0)
+        throw new Ft(`refusing broker socket ${t}: owned by uid ${o.uid}, expected ${r}`, {
+          code: "untrusted_socket",
+        });
+      if (o.mode & 2)
+        throw new Ft(`refusing broker socket ${t}: world-writable`, {
+          code: "untrusted_socket",
+        });
+    },
+  };
+}
+
+$b;
+
+export var yae = Object.freeze({
+  verifySocketPeer(e, t) {},
+});
+
+export var tXe = new wae();
+
+export function Jc() {
+  return new Ft("ZCode permission broker RPC was cancelled before the next socket transition", {
+    code: fr,
+    details: {
+      rpc_deadline_state: "cancelled",
+      request_delivery_state: "not_sent",
+    },
+  });
+}
+
+export var Qu = class {
+  static {}
+  socketPath;
+  timeoutMs;
+  peerChecker;
+  maxFrameBytes;
+  cancelSignal;
+  onPresentation;
+  authenticateParams;
+  _nextId = 0;
+  constructor(t, n) {
+    if (!t || !t.trim()) throw new Error("permission broker socket path must be non-empty");
+    if (typeof n.timeoutMs != "number" || !Number.isFinite(n.timeoutMs) || n.timeoutMs <= 0)
+      throw new Error(
+        `permission broker timeout must be a finite, positive number of milliseconds, got ${n.timeoutMs}`,
+      );
+    ((this.socketPath = t),
+      (this.timeoutMs = n.timeoutMs),
+      (this.peerChecker = n.peerChecker ?? $b()),
+      (this.maxFrameBytes = n.maxFrameBytes ?? 67108864),
+      (this.cancelSignal = n.cancelSignal),
+      (this.onPresentation = n.onPresentation),
+      (this.authenticateParams =
+        n.authenticateParams && Object.keys(n.authenticateParams).length > 0
+          ? {
+              ...n.authenticateParams,
+            }
+          : null));
+  }
+  requestId() {
+    return ((this._nextId += 1), this._nextId);
+  }
+  async call(t, n, r = {}) {
+    if (this.cancelSignal?.cancelled) throw Jc();
+    let o = this.requestId(),
+      s = `${JSON.stringify({ id: o, method: t, params: n })}
+
+`,
+      a = {
+        clientApiVersion: 2,
+        ...this.authenticateParams,
+      },
+      c = `${JSON.stringify({ id: 0, method: "authenticate", params: a })}
+
+`,
+      d = Bb(this.timeoutMs, t, n),
+      l = "not_sent",
+      p = (k) => k.split(this.socketPath).join("<socket>"),
+      u = "",
+      f = !1,
+      g = {
+        result: null,
+        error: null,
+      },
+      v = vae(this.socketPath);
+    if (
+      (await new Promise<void>((k) => {
+        let C = !1,
+          A = () => {},
+          D = (j) => {
+            if (!C) {
+              ((C = !0), A());
+              try {
+                v.destroy();
+              } catch {}
+              (j(), k());
+            }
+          },
+          U = () => {
+            l === "not_sent" &&
+              D(() => {
+                g.error = Jc();
+              });
+          };
+        (this.cancelSignal?.onCancel && (A = this.cancelSignal.onCancel(U)),
+          this.cancelSignal?.cancelled && U(),
+          v.on("close", () => {
+            if ((f && g.result) || g.error) return;
+            let j = l;
+            D(() => {
+              g.error = kae(p("broker connection closed before reply"), j, "connection_closed");
+            });
+          }),
+          v.on("error", (j) => {
+            if (g.error || g.result) return;
+            let B = l;
+            D(() => {
+              g.error = d$(j, p, B);
+            });
+          }),
+          v.setTimeout(d),
+          v.setEncoding("utf8"),
+          v.on("timeout", () => {
+            if (g.error || g.result) return;
+            let j = l;
+            D(() => {
+              g.error = d$(new Error(p("broker exchange timed out")), p, j, "timeout");
+            });
+          }),
+          v.on("connect", () => {
+            try {
+              this.peerChecker.verifySocketPeer(this.socketPath, v);
+            } catch (j) {
+              let B = l;
+              D(() => {
+                g.error = Sae(j, B);
+              });
+              return;
+            }
+            v.write(c);
+          }),
+          v.on("data", (j) => {
+            u += j;
+            let B = u.indexOf(`
+
+`);
+            for (; B >= 0; ) {
+              let W = u.slice(0, B);
+              if (
+                ((u = u.slice(B + 1)),
+                (B = u.indexOf(`
+
+`)),
+                !W.trim())
+              )
+                continue;
+              if (W.length > this.maxFrameBytes) {
+                let q = l;
+                D(() => {
+                  g.error = new Ft(
+                    `ZCode permission broker frame exceeded ${this.maxFrameBytes} bytes`,
+                    {
+                      code: fr,
+                      details: {
+                        request_delivery_state: q,
+                      },
+                    },
+                  );
+                });
+                return;
+              }
+              let M;
+              try {
+                M = JSON.parse(W);
+              } catch {
+                let q = f ? "possibly_sent" : l;
+                D(() => {
+                  g.error = new Ft("ZCode permission broker returned invalid JSON", {
+                    code: fr,
+                    details: {
+                      broker_response_state: "invalid_json",
+                      request_delivery_state: q,
+                    },
+                  });
+                });
+                return;
+              }
+              if (
+                !f &&
+                c !== null &&
+                (M.id === 0 || M === null || typeof M != "object" || Array.isArray(M))
+              ) {
+                if (M === null || typeof M != "object" || Array.isArray(M)) {
+                  D(() => {
+                    g.error = Ju(
+                      "ZCode permission broker returned a non-object authenticate response",
+                      {
+                        code: "not_authorized",
+                      },
+                    );
+                  });
+                  return;
+                }
+                if (M.ok === !0) {
+                  ((f = !0), (l = "possibly_sent"), v.write(s));
+                  continue;
+                }
+                let q = Wb(M);
+                D(() => {
+                  g.error = Ju(`ZCode permission broker rejected authenticate: ${q}`, {
+                    code: "not_authorized",
+                  });
+                });
+                return;
+              }
+              if (M === null || typeof M != "object" || Array.isArray(M)) {
+                D(() => {
+                  g.error = oy(
+                    "ZCode permission broker response must be a JSON object",
+                    "non_object",
+                  );
+                });
+                return;
+              }
+              if (M.id !== o) {
+                D(() => {
+                  g.error = oy(
+                    `ZCode permission broker response id mismatch: expected ${o}, got ${JSON.stringify(M.id)}`,
+                    "id_mismatch",
+                  );
+                });
+                return;
+              }
+              if (typeof M.ok != "boolean") {
+                D(() => {
+                  g.error = oy(
+                    "ZCode permission broker response has an invalid ok field",
+                    "invalid_envelope",
+                  );
+                });
+                return;
+              }
+              if (M.ok === !0) {
+                D(() => {
+                  if (M.presentation !== void 0)
+                    try {
+                      this.onPresentation?.(M.presentation);
+                    } catch {}
+                  g.result = {
+                    value: M.result,
+                  };
+                });
+                return;
+              }
+              if (!Ub(M.error)) {
+                D(() => {
+                  g.error = oy(
+                    "ZCode permission broker returned an invalid error envelope",
+                    "invalid_envelope",
+                  );
+                });
+                return;
+              }
+              let { message: F, code: O, details: L } = zb(M.error);
+              D(
+                O === "permission_denied" || O === "not_authorized"
+                  ? () => {
+                      g.error = Ju(F, {
+                        code: O,
+                        details: L,
+                      });
+                    }
+                  : () => {
+                      g.error = new Ft(F, {
+                        code: O,
+                        details: L,
+                      });
+                    },
+              );
+              return;
+            }
+          }));
+      }),
+      g.error)
+    )
+      throw g.error;
+    if (g.result) return g.result.value;
+    throw new Ft("ZCode permission broker exchange ended without a reply", {
+      code: fr,
+      details: {
+        request_delivery_state: l,
+      },
+    });
+  }
+};
+
+export function d$(e, t, n, r?: string) {
+  let o = e instanceof Error ? e.message : String(e ?? "transport error"),
+    s = r ?? (e instanceof Error ? e.name : typeof e == "string" ? "string" : "unknown");
+  return new Ft(t(`ZCode permission broker is unavailable: ${o}`), {
+    code: fr,
+    details: {
+      error_type: s,
+      request_delivery_state: n,
+    },
+  });
+}
+
+d$;
+
+export function Sae(e, t) {
+  if (e instanceof Ft) {
+    if (e.code === fr) {
+      let n = {
+        ...e.details,
+        request_delivery_state: t,
+      };
+      return new Ft(e.message, {
+        code: e.code,
+        details: n,
+        permissionError: e.permissionError,
+      });
+    }
+    return e;
+  }
+  return new Ft(`peer credential check raised unexpectedly: ${String(e)}`, {
+    code: fr,
+    details: {
+      request_delivery_state: t,
+    },
+  });
+}
+
+export function oy(e, t) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      broker_response_state: t,
+      request_delivery_state: "possibly_sent",
+    },
+  });
+}
+
+export function kae(e, t, n) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      error_type: n,
+      request_delivery_state: t,
+    },
+  });
+}

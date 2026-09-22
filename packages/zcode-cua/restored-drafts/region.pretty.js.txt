@@ -1,0 +1,5320 @@
+// oxlint-disable-file
+t(f), g && (s(f), Co.info(void 0, "[zcode-session-service] deferred draft session \u5DF2\u63D0\u5347\u4E3A task", {
+  sessionId: f.sessionId,
+  workspaceIdentity: f.workspaceIdentity ?? null,
+  workspacePath: f.workspacePath
+})), Promise.resolve()
+}, closeSession(f) {
+  return o.forget(f), e.closeSession(f).then(() => {})
+}, async closeDeferredDraftSession(f) {
+  try {
+    let g = await e.closeSession({
+      ...f,
+      expectedPersistence: "deferred"
+    });
+    return g && o.forget(f), g
+  } catch (g) {
+    return Co.warn(void 0, "[zcode-session-service] \u6761\u4EF6\u5173\u95ED deferred draft \u5931\u8D25\uFF0C\u4FDD\u7559\u65E7 session", {
+      error: g instanceof Error ? g.message : String(g),
+      sessionId: f.sessionId,
+      workspaceIdentity: f.workspaceIdentity ?? null,
+      workspacePath: f.workspacePath
+    }), !1
+  }
+}, async setModel(f) {
+  let g = o.has(f);
+  g || s(f);
+  let v = r(await e.setModel(f));
+  return g || await l(v, "setModel", {
+    modelOverride: Fi(f.model),
+    broadcastReason: "task_model_changed"
+  }), v
+}, async setThoughtLevel(f) {
+  return r(await e.setThoughtLevel(f))
+}, async setMode(f) {
+  return r(await e.setMode(f))
+}, respondProviderRuntimeHeaders(f) {
+  return e.respondProviderRuntimeHeaders(f)
+}
+}
+}
+i(DC, "createZCodeSessionService");
+y();
+y();
+y();
+import {
+  chmod as kHe,
+  lstat as PHe,
+  mkdir as CHe,
+  open as bHe,
+  readFile as IHe,
+  stat as _He,
+  unlink as RHe
+} from "fs/promises";
+import {
+  createConnection as EHe,
+  createServer as THe
+} from "net";
+import {
+  dirname as xHe
+} from "path";
+import {
+  randomBytes as DHe
+} from "crypto";
+y();
+var NC = {
+  debug: i(() => {}, "debug"),
+  info: i(() => {}, "info"),
+  warn: i(() => {}, "warn"),
+  error: i(() => {}, "error")
+};
+y();
+y();
+var ZU = ["broker_info", "controller_status", "controller_takeover", "controller_stop", "request_access", "permission_status", "input_permission_status", "screen_capture_status", "screen_capture_probe", "supports_accessibility", "list_applications", "application_info", "list_windows", "capture_app", "element_at_point", "read_element", "click", "scroll", "drag", "type_text", "type_text_to_app", "press_key", "press_key_to_app", "hold_key", "hold_key_to_app", "cancel_input_holds", "element_press", "element_show_menu", "element_focus", "element_set_value", "element_perform_action", "element_select_text", "paste", "prevent_activation", "reenable_activation", "is_focus_steal_prevented", "pip_start", "pip_stop", "pip_is_running", "pip_clear_dismissed", "pip_session_handshake", "pip_session_event"],
+  oHe = new Set(ZU);
+y();
+y();
+var UHe = 16 * 1024 * 1024;
+var jU = 8e3;
+y();
+y();
+y();
+var LC = "ZCODE_PLUGIN_ID",
+  Lu = "computer-use@zcode-plugins-official",
+  qU = "ZCODE_CUA_PLUGIN_AUTHORITY",
+  lre = "computer-use",
+  FC = "plugin:computer-use:computer-use";
+
+function BC(e) {
+  return e.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? e
+}
+i(BC, "zcodeCuaArgLeaf");
+
+function hh(e) {
+  let t = e.replace(/_/g, "-");
+  return t === "zcode-cua" || t.startsWith("zcode-cua[") || t.startsWith("zcode-cua@") || t.startsWith("zcode-cua==") || t.startsWith("zcode-cua.")
+}
+i(hh, "matchesZCodeCuaSpec");
+
+function KU(e) {
+  return e === "zcode-cua" || e.startsWith("zcode-cua[") || e.startsWith("zcode-cua@") || e.startsWith("zcode-cua==") || e.startsWith("zcode-cua.")
+}
+i(KU, "hasZCodeCuaPackageBoundary");
+
+function ure(e) {
+  let t = e.toLowerCase().replace(/_/g, "-");
+  if (KU(t)) return !0;
+  let n = t.replace(/([a-z0-9])\.(?=[a-z0-9])/g, "$1-");
+  return KU(n)
+}
+i(ure, "matchesZCodeCuaSpecBroad");
+
+function UC(e, t) {
+  let n = e.trim().toLowerCase();
+  return n === lre ? !0 : n === FC && t?.trim().toLowerCase() === Lu
+}
+i(UC, "isZCodeCuaMcpServerName");
+
+function GU(e) {
+  return hh(e) || hh(BC(e))
+}
+i(GU, "isZCodeCuaMcpCommand");
+
+function zC(e) {
+  return hh(e) || hh(BC(e))
+}
+i(zC, "isZCodeCuaMcpPackageArg");
+
+function VU(e) {
+  let t = [],
+    n = i(r => {
+      if (!r) return;
+      t.push(r);
+      let o = BC(r);
+      o !== r && t.push(o)
+    }, "push");
+  if (n(e.command), e.args)
+    for (let r of e.args) n(r);
+  return n(e.packageSpec), t.some(ure)
+}
+i(VU, "resolvesToZCodeCuaPackage");
+y();
+var Fu = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+
+function Bu(e) {
+  let t = e.trim();
+  if (!t) throw new Error("CUA broker refresh marker requires a non-empty socket path");
+  return `${t}.permission-refresh.json`
+}
+i(Bu, "resolveZCodeCuaBrokerRefreshMarkerPath");
+var pre = "ZCODE_CUA_DEV_MODE";
+
+function yh(e = process.env) {
+  let t = e[pre]?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on"
+}
+i(yh, "isCuaDevModeRequested");
+y();
+var WC = "pipeline-291084-a1328db1";
+import {
+  randomBytes as fre
+} from "crypto";
+import {
+  chmod as mre,
+  rename as gre,
+  rm as JU,
+  writeFile as hre
+} from "fs/promises";
+var yre = 3e4,
+  YU = 12e4,
+  ws = new Map;
+
+function wre(e) {
+  return Bu(e)
+}
+i(wre, "cuaBrokerRefreshMarkerPath");
+async function XU(e, t = {}) {
+  let n = t.now ?? Date.now,
+    r = t.deadlineMs ?? yre;
+  if (!Number.isFinite(r) || r <= 0 || r > YU) throw new Error(`CUA broker refresh marker deadline must be within 1-${YU}ms, got ${r}`);
+  let o = wre(e);
+  if (ws.has(o)) throw new Error("CUA broker permission refresh is already active for this transport");
+  let s = Symbol("cua-broker-refresh-marker");
+  ws.set(o, {
+    id: s
+  });
+  let a = n(),
+    c = a + r;
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(c) || c <= a) throw ws.delete(o), new Error("CUA broker refresh marker clock produced an invalid deadline");
+  let d = `${JSON.stringify({schema:1,kind:"permission_refresh",deadlineEpochMs:c})}
+`,
+    l = `${o}.tmp-${process.pid}-${fre(8).toString("hex")}`;
+  try {
+    await hre(l, d, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 384
+    }), await mre(l, 384), await gre(l, o)
+  } catch (u) {
+    throw await JU(l, {
+      force: !0
+    }).catch(() => {}), ws.get(o)?.id === s && ws.delete(o), u
+  }
+  return {
+    path: o,
+    deadlineEpochMs: c,
+    complete: i(async () => {
+      if (ws.get(o)?.id !== s) return;
+      let f;
+      for (let v = 0; v < 3; v += 1) try {
+        await JU(o, {
+          force: !0
+        }), f = void 0;
+        break
+      } catch (S) {
+        f = S, v < 2 && await new Promise(k => setTimeout(k, 10))
+      }
+      if (f) throw f;
+      ws.get(o)?.id === s && ws.delete(o)
+    }, "cleanupIfCurrent")
+  }
+}
+i(XU, "publishCuaBrokerRefreshMarker");
+y();
+y();
+import {
+  randomBytes as QU
+} from "crypto";
+import {
+  readdirSync as vre,
+  statSync as Sre,
+  unlinkSync as kre
+} from "fs";
+import {
+  homedir as ez
+} from "os";
+import {
+  join as Bi
+} from "path";
+import vs from "process";
+var oo = "ZCODE_CUA_PERMISSION_BROKER_SOCKET",
+  ti = "ZCODE_CUA_PERMISSION_BROKER_UNAVAILABLE",
+  tz = "broker.sock",
+  nz = "\\\\.\\pipe\\zcode-cua-helper-";
+
+function $c(e = {}) {
+  let t = e.env ?? vs.env,
+    n = t[oo];
+  return typeof n == "string" && n.trim().length > 0 ? n : vs.platform === "win32" ? `${nz}default` : e.dir ? Bi(e.dir, tz) : Bi(fa(t), tz)
+}
+i($c, "resolveBrokerSocketPath");
+
+function Uu(e = {}) {
+  let t = e.env ?? vs.env;
+  if (vs.platform === "win32") return nz + QU(8).toString("hex");
+  let n = e.dir ?? fa(t);
+  return Cre(n), Bi(n, `broker-${QU(8).toString("hex")}.sock`)
+}
+i(Uu, "mintBrokerSocketPath");
+var Pre = 1440 * 60 * 1e3;
+
+function Cre(e) {
+  try {
+    let t = Date.now() - Pre;
+    for (let n of vre(e)) {
+      if (!/^broker-[0-9a-f]{16}\.sock$/u.test(n)) continue;
+      let r = Bi(e, n);
+      try {
+        if (Sre(r).mtimeMs >= t) continue;
+        kre(r)
+      } catch {}
+    }
+  } catch {}
+}
+i(Cre, "pruneStaleBrokerSockets");
+
+function fa(e) {
+  let t = e.XDG_RUNTIME_DIR;
+  if (typeof t == "string" && t.trim().length > 0) return Bi(t, "zcode-cua");
+  if (vs.platform === "win32") {
+    let n = e.LOCALAPPDATA;
+    return typeof n == "string" && n.trim().length > 0 ? Bi(n, "zcode", "cua-broker") : Bi(ez(), "AppData", "Local", "zcode", "cua-broker")
+  }
+  if (vs.platform === "darwin") {
+    let n = typeof vs.getuid == "function" ? vs.getuid() : "nouid";
+    return Bi("/tmp", `zcode-cua-${n}`)
+  }
+  return Bi(ez(), ".zcode", "cua-broker")
+}
+i(fa, "brokerRuntimeDir");
+
+function ma(e) {
+  return e.startsWith("\\\\.\\pipe\\")
+}
+i(ma, "isWindowsNamedPipePath");
+var oz = "--permission-broker-socket",
+  iz = "ZCODE_CUA_PACKAGE_SPEC";
+
+function bre(e) {
+  let t = e.indexOf("--");
+  return t === -1 ? e : e.slice(0, t)
+}
+i(bre, "optionArgsBeforeTerminator");
+
+function Ire(e) {
+  return e !== void 0 && e !== "--" && !e.startsWith("--")
+}
+i(Ire, "hasSeparateOptionValue");
+
+function sz(e, t) {
+  if (!t.socketPath || t.socketPath.trim().length === 0) throw new Error("injectPermissionBrokerConfig requires a non-empty socketPath");
+  let n = [...e.args ?? []];
+  az(n, oz, t.socketPath);
+  let r = Bu(t.socketPath);
+  return {
+    ...e,
+    args: n,
+    env: {
+      ...e.env,
+      [oo]: t.socketPath,
+      [Fu]: r
+    }
+  }
+}
+i(sz, "injectPermissionBrokerConfig");
+
+function az(e, t, n) {
+  let r = e.indexOf("--"),
+    o = bre(e),
+    s = r === -1 ? [] : e.slice(r),
+    a = [];
+  for (let c = 0; c < o.length; c += 1) {
+    if (o[c] === t) {
+      Ire(o[c + 1]) && (c += 1);
+      continue
+    }
+    o[c]?.startsWith(`${t}=`) || a.push(o[c])
+  }
+  e.splice(0, e.length, ...a, t, n, ...s)
+}
+i(az, "upsertFlag");
+
+function cz(e, t) {
+  if (!e || e.length === 0 || !t.pluginAuthority?.trim()) return e;
+  let n = e.map(r => _re(r, t));
+  return n.some((r, o) => r !== e[o]) ? n : e
+}
+i(cz, "injectPermissionBrokerAgentMcpServers");
+
+function _re(e, t) {
+  if (!wh(e, t.pluginAuthority)) return e;
+  if (!t.socketPath || t.socketPath.trim().length === 0) throw new Error("injectPermissionBrokerAgentMcpServers requires a non-empty socketPath");
+  let n = HC(e.args);
+  az(n, oz, t.socketPath);
+  let r = Bu(t.socketPath),
+    o = rz(zu(e.env), oo, t.socketPath);
+  return o = rz(o, Fu, r), {
+    ...e,
+    args: n,
+    env: o
+  }
+}
+i(_re, "injectPermissionBrokerAgentMcpServer");
+
+function $C(e) {
+  return typeof e != "object" || e === null || !("command" in e) || typeof e.command != "string" ? null : e
+}
+i($C, "asCommandServer");
+
+function ga(e) {
+  let t = $C(e);
+  if (!t) return !1;
+  let n = "name" in e && typeof e.name == "string" ? e.name : "";
+  if (n.trim().toLowerCase().startsWith("plugin:")) {
+    let o = zu(t.env),
+      s = o.find(c => c.name === LC)?.value;
+    if (UC(n, s)) return !0;
+    let a = o.find(c => c.name === iz)?.value;
+    if (a && zC(a)) return !0
+  } else if (n && UC(n)) return !0;
+  return GU(t.command) ? !0 : HC(t.args).some(zC)
+}
+i(ga, "isPotentialZCodeCuaAgentMcpServer");
+
+function ZC(e) {
+  let t = $C(e);
+  return !t || ("name" in e && typeof e.name == "string" ? e.name : "").trim().toLowerCase() !== FC ? !1 : zu(t.env).find(r => r.name === LC)?.value.trim().toLowerCase() === Lu
+}
+i(ZC, "isOfficialZCodeCuaPluginCandidate");
+
+function wh(e, t) {
+  let n = t?.trim();
+  return !n || !ZC(e) ? !1 : zu(e.env).some(r => r.name === qU && r.value === n)
+}
+i(wh, "isAuthorizedOfficialZCodeCuaPluginServer");
+
+function dz(e) {
+  if (!e || e.length === 0) return e;
+  let t = e.filter(n => !Rre(n));
+  return t.length === e.length ? e : t
+}
+i(dz, "omitUnbrokeredZCodeCuaAgentMcpServers");
+
+function Rre(e) {
+  let t = $C(e);
+  if (!t) return !1;
+  let n = zu(t.env),
+    r = n.find(s => s.name === iz)?.value;
+  return VU({
+    command: t.command,
+    args: HC(t.args),
+    packageSpec: r
+  }) ? !n.find(s => s.name === oo)?.value?.trim() : !1
+}
+i(Rre, "isUnbrokeredZCodeCuaAgentMcpServer");
+
+function HC(e) {
+  return Array.isArray(e) ? e.filter(t => typeof t == "string") : []
+}
+i(HC, "normalizeAgentMcpArgs");
+
+function zu(e) {
+  return Array.isArray(e) ? e.filter(t => typeof t == "object" && t !== null && typeof t.name == "string" && typeof t.value == "string") : []
+}
+i(zu, "normalizeAgentMcpEnv");
+
+function rz(e, t, n) {
+  let r = e.filter(o => o.name !== t).map(o => ({
+    ...o
+  }));
+  return r.push({
+    name: t,
+    value: n
+  }), r
+}
+i(rz, "upsertEnv");
+y();
+import {
+  spawnSync as TKe
+} from "child_process";
+import {
+  realpathSync as xKe
+} from "fs";
+import {
+  basename as DKe,
+  dirname as NKe,
+  isAbsolute as LKe,
+  relative as FKe,
+  resolve as BKe,
+  sep as UKe
+} from "path";
+y();
+import {
+  join as Hz
+} from "path";
+y();
+import {
+  execFile as Are
+} from "child_process";
+
+function Hr(e, t) {
+  return new Promise((n, r) => {
+    Are(e, t, {
+      encoding: "utf8"
+    }, (o, s, a) => {
+      if (o) {
+        let c = `${e} ${t.join(" ")} failed: ${jn(o)}${a?`
+${a}`:""}`;
+        r(new Error(c));
+        return
+      }
+      n({
+        stdout: s,
+        stderr: a
+      })
+    })
+  })
+}
+i(Hr, "execFileText");
+
+function jn(e) {
+  return e instanceof Error ? e.message : String(e)
+}
+i(jn, "formatErrorMessage");
+y();
+var Ere = typeof __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ < "u" ? __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ : process.env.NODE_ENV !== "production";
+
+function bn(e = process.env, t = Ere) {
+  return t && e.ZCODE_RUNTIME_ENV?.trim().toLowerCase() !== "production"
+}
+i(bn, "isCuaLocalDevelopmentRuntime");
+y();
+var lz = "/usr/bin:/bin:/usr/sbin:/sbin",
+  dn = {
+    codesign: "/usr/bin/codesign",
+    ditto: "/usr/bin/ditto",
+    lsof: "/usr/sbin/lsof",
+    mdfind: "/usr/bin/mdfind",
+    open: "/usr/bin/open",
+    osascript: "/usr/bin/osascript",
+    pbcopy: "/usr/bin/pbcopy",
+    pbpaste: "/usr/bin/pbpaste",
+    pgrep: "/usr/bin/pgrep",
+    plist: "/usr/bin/plutil",
+    plistBuddy: "/usr/libexec/PlistBuddy",
+    ps: "/bin/ps",
+    screencapture: "/usr/sbin/screencapture",
+    sh: "/bin/sh",
+    spctl: "/usr/sbin/spctl",
+    syspolicyCheck: "/usr/bin/syspolicy_check",
+    unzip: "/usr/bin/unzip",
+    xattr: "/usr/bin/xattr"
+  };
+y();
+import {
+  open as Tre
+} from "fs/promises";
+var uz = 4096,
+  pz = 4277009102,
+  fz = 4277009103,
+  mz = 3405691582,
+  jC = 3405691583,
+  Mre = 4278190080,
+  xre = new Map([
+    ["7:3", "i386"],
+    ["16777223:3", "x86_64"],
+    ["16777223:8", "x86_64h"],
+    ["12:6", "armv6"],
+    ["12:9", "armv7"],
+    ["12:11", "armv7s"],
+    ["12:12", "armv7k"],
+    ["16777228:0", "arm64"],
+    ["16777228:1", "arm64v8"],
+    ["16777228:2", "arm64e"],
+    ["33554444:1", "arm64_32"]
+  ]);
+
+function gz(e, t) {
+  let n = (t & ~Mre) >>> 0,
+    r = xre.get(`${e>>>0}:${n}`);
+  return r || `unknown(0x${(e>>>0).toString(16).padStart(8,"0")},0x${n.toString(16).padStart(8,"0")})`
+}
+i(gz, "archName");
+
+function Ore(e) {
+  if (e.length < 8) throw new Error("not a Mach-O file: header shorter than 8 bytes");
+  let t = e.readUInt32BE(0),
+    n = e.readUInt32LE(0),
+    r = t === mz || t === jC;
+  if (r || (n === mz || n === jC)) {
+    let c = r ? t : n,
+      d = i(g => r ? e.readUInt32BE(g) : e.readUInt32LE(g), "readU32"),
+      l = d(4),
+      p = c === jC ? 32 : 20,
+      u = 8 + l * p;
+    if (u > e.length) throw new Error(`not a Mach-O file: fat header declares ${l} slices (needs ${u} bytes, have ${e.length})`);
+    let f = [];
+    for (let g = 0; g < l; g += 1) {
+      let v = 8 + g * p;
+      f.push(gz(d(v), d(v + 4)))
+    }
+    return f
+  }
+  let s = t === pz || t === fz;
+  if (s || (n === pz || n === fz)) {
+    if (e.length < 12) throw new Error("not a Mach-O file: thin header truncated before cpusubtype");
+    let c = i(d => s ? e.readUInt32BE(d) : e.readUInt32LE(d), "readU32");
+    return [gz(c(4), c(8))]
+  }
+  throw new Error(`not a Mach-O file: unrecognized magic 0x${t.toString(16).padStart(8,"0")}`)
+}
+i(Ore, "parseMachoArchNames");
+async function hz(e) {
+  let t = await Tre(e, "r");
+  try {
+    let n = Buffer.alloc(uz),
+      {
+        bytesRead: r
+      } = await t.read(n, 0, uz, 0);
+    return Ore(n.subarray(0, r))
+  } finally {
+    await t.close()
+  }
+}
+i(hz, "readMachoArchNames");
+y();
+import {
+  execFile as Nz
+} from "child_process";
+import {
+  randomUUID as Jje
+} from "crypto";
+import {
+  existsSync as Lz,
+  readFileSync as jre,
+  rmSync as Kre,
+  writeFileSync as Xje
+} from "fs";
+import {
+  realpath as eKe,
+  rm as tKe
+} from "fs/promises";
+import {
+  basename as rKe,
+  join as ks
+} from "path";
+y();
+import {
+  randomUUID as Dre
+} from "crypto";
+import {
+  existsSync as Nre,
+  realpathSync as Sz,
+  writeFileSync as Lre
+} from "fs";
+import {
+  chmod as yz,
+  mkdir as wz,
+  realpath as vz,
+  rm as Fre
+} from "fs/promises";
+import {
+  basename as Bre,
+  dirname as kz,
+  isAbsolute as Pz,
+  join as KC,
+  resolve as Cz
+} from "path";
+var bz = "--broker-launch-deadline-epoch-ms",
+  Iz = "--broker-launch-cancel-file",
+  _z = ".launch-cancel",
+  Ure = /^\.broker-launch-cancel-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.sentinel$/u,
+  zre = 3e5,
+  Wre = 5e3;
+
+function Rz(e) {
+  return ma(e) ? fa(process.env) : kz(Cz(e))
+}
+i(Rz, "guardAnchorDirectory");
+
+function Az(e) {
+  return ma(e) || Pz(e)
+}
+i(Az, "hasAnchorableSocketPath");
+
+function $re(e) {
+  if (!Az(e)) return null;
+  try {
+    return KC(Sz(Rz(e)), _z)
+  } catch {
+    return null
+  }
+}
+i($re, "canonicalGuardDirectoryForSocket");
+
+function vh(e, t) {
+  if (!Number.isSafeInteger(t.deadlineEpochMs) || t.deadlineEpochMs <= 0 || !Pz(t.cancelFilePath) || !Ure.test(Bre(t.cancelFilePath))) return !1;
+  let n = $re(e);
+  if (!n) return !1;
+  try {
+    return Sz(kz(Cz(t.cancelFilePath))) === n
+  } catch {
+    return !1
+  }
+}
+i(vh, "isSafeCuaHelperBrokerLaunchGuard");
+async function Ez(e) {
+  let t = e.now ?? Date.now();
+  if (!Az(e.socketPath) || !Number.isSafeInteger(e.deadlineEpochMs) || e.deadlineEpochMs <= t || e.deadlineEpochMs - t > zre) throw new ye("launch_failed", "Refusing to prepare an unsafe Computer Use Helper broker launch guard");
+  let n;
+  try {
+    let s = Rz(e.socketPath);
+    await wz(s, {
+      recursive: !0,
+      mode: 448
+    }), await yz(s, 448), n = await vz(s)
+  } catch (s) {
+    throw new ye("launch_failed", `Failed to resolve the Computer Use Helper broker runtime directory: ${s instanceof Error?s.message:String(s)}`, {
+      cause: s
+    })
+  }
+  let r = KC(n, _z);
+  if (await wz(r, {
+      recursive: !0,
+      mode: 448
+    }), await yz(r, 448), await vz(r) !== r) throw new ye("launch_failed", "Refusing to use a redirected Computer Use Helper launch-cancel directory");
+  let o = e.mintId ?? Dre;
+  for (let s = 0; s < 5; s += 1) {
+    let a = o().trim().toLowerCase(),
+      c = {
+        cancelFilePath: KC(r, `.broker-launch-cancel-${a}.sentinel`),
+        deadlineEpochMs: e.deadlineEpochMs
+      };
+    if (vh(e.socketPath, c) && !Nre(c.cancelFilePath)) return c
+  }
+  throw new ye("launch_failed", "Failed to allocate a unique Computer Use Helper broker launch guard")
+}
+i(Ez, "prepareCuaHelperBrokerLaunchGuard");
+
+function Tz(e, t) {
+  if (!vh(e, t)) throw new ye("termination_failed", "Refusing to publish an unsafe Computer Use Helper broker launch cancellation sentinel");
+  try {
+    Lre(t.cancelFilePath, `canceled
+`, {
+      encoding: "utf8",
+      mode: 384,
+      flag: "wx"
+    })
+  } catch (n) {
+    if (n.code === "EEXIST") return;
+    throw n
+  }
+}
+i(Tz, "publishCuaHelperBrokerLaunchCancellation");
+async function qC(e) {
+  await Fre(e.cancelFilePath, {
+    force: !0
+  })
+}
+i(qC, "cleanupCuaHelperBrokerLaunchGuard");
+
+function Mz(e, t = {}) {
+  let n = t.now ?? Date.now,
+    r = t.setTimer ?? setTimeout,
+    o = Math.max(1e3, e.deadlineEpochMs - n() + Wre);
+  r(() => {
+    qC(e).catch(() => {})
+  }, o).unref?.()
+}
+i(Mz, "scheduleCuaHelperBrokerLaunchGuardCleanup");
+y();
+var xt = "ZCode Computer Use.app",
+  Ui = "ZCode Computer Use Dev.app";
+var Ss = "dev.zcode.cua-helper",
+  Zc = "dev.zcode.cua-helper.dev";
+var ha = "8A5X4JJ39T",
+  GC = "ZCODE_CUA_LAUNCHER_PID",
+  Wu = "ZCODE_CUA_HELPER_INSTALL_VARIANT",
+  $u = ["stable", "preview", "dev-desktop", "standalone"],
+  Sh = "--controller-variant",
+  kh = "--disable-cps-activation";
+
+function xz(e = process.env) {
+  let t = e.ZCODE_CUA_DISABLE_CPS_ACTIVATION?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on" || t === "yes"
+}
+i(xz, "cpsActivationDisableRequested");
+var Ph = "--allow-unsigned-launcher-local-dev",
+  Ch = "--allow-external-broker-client-local-dev",
+  bh = "--ghost-cursor-overlay",
+  Ih = "--background-mode",
+  _h = "--pip-mode",
+  Rh = "--pip-live-probe",
+  Zu = "ZCODE_CUA_HELPER_ADDON",
+  Ah = "--ghost-cursor-capture";
+var Eh = "--permission-preflight",
+  Th = "--permission-preflight-result-file";
+var VC = class extends ye {
+    static {
+      i(this, "CuaHelperLaunchAttemptError")
+    }
+    constructor(t) {
+      let n = t instanceof ye ? t : new ye("launch_failed", t instanceof Error ? t.message : String(t), {
+        cause: t
+      });
+      super(n.code, n.message, {
+        cause: t
+      }), this.name = "CuaHelperLaunchAttemptError"
+    }
+  },
+  Mh = 1e4;
+
+function qre(e) {
+  if (!bn(e)) return !1;
+  let t = e.ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on" || yh(e)
+}
+i(qre, "isDevMode");
+
+function xh(e = process.env) {
+  return qre(e) ? Ui : xt
+}
+i(xh, "resolveHelperAppName");
+
+function Gre(e = process.env) {
+  let t = e[GC];
+  if (typeof t == "string") {
+    let n = Number.parseInt(t.trim(), 10);
+    if (Number.isInteger(n) && n > 1) return n
+  }
+  return process.pid
+}
+i(Gre, "resolveLauncherPid");
+
+function JC(e, t) {
+  let n = ["-n", "-g", e.appPath, "--args", "--socket", e.socketPath],
+    r = e.version?.trim();
+  r && n.push("--version", r);
+  let o = e.expectedAppBundlePath?.trim();
+  if (o && n.push("--expected-app-bundle-path", o), e.controllerVariant && n.push(Sh, e.controllerVariant), e.disableCpsActivation && n.push(kh, "1"), e.brokerLaunchGuard) {
+    if (!vh(e.socketPath, e.brokerLaunchGuard)) throw new ye("launch_failed", "Refusing to pass an unsafe Computer Use Helper broker launch guard to LaunchServices");
+    n.push(bz, String(e.brokerLaunchGuard.deadlineEpochMs), Iz, e.brokerLaunchGuard.cancelFilePath)
+  }
+  return n.push("--exit-log", e.exitLogPath?.trim() || `${e.socketPath}.exit.log`), typeof t == "number" && Number.isInteger(t) && t > 0 && n.push("--launcher-pid", String(t)), e.allowUnsignedLauncherLocalDev === !0 && n.push(Ph), e.allowExternalBrokerClientLocalDev === !0 && n.push(Ch), e.ghostCursorOverlay === !0 && n.push(bh), e.backgroundMode === !0 && n.push(Ih), e.pipMode === !0 && n.push(_h), e.pipLiveProbe === !0 && n.push(Rh), e.ghostCursorCapture === !0 && n.push(Ah), n
+}
+i(JC, "buildHelperOpenArgs");
+
+function Vre(e, t) {
+  return ["-W", "-n", "-g", e, "--args", Eh, "screen_recording", Th, t]
+}
+i(Vre, "buildHelperScreenRecordingPreflightOpenArgs");
+var Jre = 8e3,
+  Yre = new Set(["granted", "denied", "unknown"]);
+
+function Xre(e) {
+  if (!e) return null;
+  let t;
+  try {
+    t = JSON.parse(e)
+  } catch {
+    return null
+  }
+  if (!t || typeof t != "object" || Array.isArray(t)) return null;
+  let n = t;
+  if (n.permission !== "screen_recording") return null;
+  let r = n.state;
+  return typeof r == "string" && Yre.has(r) ? r : null
+}
+i(Xre, "parseHelperScreenRecordingPreflightResult");
+var Qre = {
+  launchOpen: i((e, t, n, r) => Nz(dn.open, e, {
+    env: t,
+    timeout: n
+  }, o => r(o)), "launchOpen")
+};
+
+function eoe(e) {
+  try {
+    return Lz(e) ? jre(e, "utf8") : null
+  } catch {
+    return null
+  }
+}
+i(eoe, "readHelperPreflightResultFile");
+
+function toe(e) {
+  try {
+    Kre(e, {
+      force: !0
+    })
+  } catch {}
+}
+i(toe, "removeHelperPreflightResultFile");
+async function Fz(e) {
+  let t = e.dependencies ?? Qre,
+    n = t.readResult ?? eoe,
+    r = t.removeResult ?? toe,
+    o = e.timeoutMs ?? Jre;
+  try {
+    return await new Promise(a => {
+      t.launchOpen(Vre(e.appPath, e.resultFilePath), Uz(void 0), o, a)
+    }) ? null : Xre(n(e.resultFilePath))
+  } finally {
+    r(e.resultFilePath)
+  }
+}
+i(Fz, "readHelperScreenRecordingPreflightViaLaunchServices");
+
+function Bz() {
+  return {
+    launch: i(async e => {
+      try {
+        await ooe(e)
+      } catch (t) {
+        throw new VC(t)
+      }
+    }, "launch")
+  }
+}
+i(Bz, "createLaunchServicesLauncher");
+var noe = new Set(["HOME", "TMPDIR", "TMP", "TEMP", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "LC_CTYPE", "__CF_USER_TEXT_ENCODING", "ZCODE_CUA_PIP_DEBUG"]);
+
+function roe(e) {
+  let t = e.toUpperCase();
+  return noe.has(t) || t.startsWith("LC_")
+}
+i(roe, "isAllowedHelperLaunchEnvKey");
+
+function Uz(e) {
+  let t = e ?? process.env,
+    n = {};
+  for (let [r, o] of Object.entries(t)) o !== void 0 && roe(r) && (n[r] = o);
+  return n.PATH = lz, n
+}
+i(Uz, "sanitizeHelperLaunchEnv");
+async function ooe(e) {
+  return new Promise((t, n) => {
+    try {
+      e.assertHelperUnchangedBeforeLaunch?.(), Nz(dn.open, JC(e, Gre()), {
+        env: Uz(e.env),
+        timeout: Mh,
+        killSignal: "SIGKILL"
+      }, r => {
+        if (r) {
+          n(new ye("launch_failed", ioe(e.appPath, r), {
+            cause: r
+          }));
+          return
+        }
+        t()
+      })
+    } catch (r) {
+      n(new ye("launch_failed", `Refusing to launch a changed ZCode Computer Use: ${r instanceof Error?r.message:String(r)}`, {
+        cause: r
+      }))
+    }
+  })
+}
+i(ooe, "openHelperApp");
+
+function ioe(e, t) {
+  let n = t instanceof Error ? t.message : String(t),
+    r = `Failed to launch ${e} via LaunchServices (open): ${n}`;
+  return soe(t, n) ? `${r}
+LaunchServices timed out after ${Mh}ms while dispatching ZCode Computer Use. This usually means macOS is still verifying the helper, Gatekeeper blocked first launch, the installed bundle still carries a quarantine attribute, or a stale running Helper instance prevented fresh broker arguments from being delivered. Ask the user to open ZCode's CUA readiness panel, reveal the helper, repair the helper install, or fully quit ZCode and retry; diagnostic command: xattr -dr com.apple.quarantine ${JSON.stringify(e)}` : r
+}
+i(ioe, "formatLaunchServicesErrorMessage");
+
+function soe(e, t) {
+  if (/(?:_LSOpenURLsWithCompletionHandler|LaunchServices|AppleEvent).*(?:-1712|timed out)/iu.test(t)) return !0;
+  if (typeof e != "object" || e === null) return !1;
+  let n = e;
+  return n.code === "ETIMEDOUT" || n.killed === !0 && n.signal === "SIGKILL"
+}
+i(soe, "isLaunchServicesTimeout");
+
+function Hc(e) {
+  return e.ZCODE_HOME?.trim() || (e.HOME?.trim() ? ks(e.HOME.trim(), ".zcode") : null)
+}
+i(Hc, "resolveZcodeHome");
+
+function YC(e) {
+  let t = e[Wu]?.trim();
+  return t && $u.includes(t) ? t : t ? null : bn(e) ? "dev-desktop" : e.ZCODE_ENV?.trim().toLowerCase() === "test" ? "preview" : "stable"
+}
+i(YC, "resolveCuaHelperInstallVariant");
+
+function XC(e) {
+  let t = Hc(e);
+  if (!t) return null;
+  let n = ks(t, "computer-use"),
+    r = YC(e);
+  return r ? r === "dev-desktop" || xh(e) === Ui ? ks(n, "dev") : r === "preview" ? ks(n, "preview") : n : null
+}
+i(XC, "resolveCuaHelperInstallRoot");
+
+function zz(e = process.env) {
+  let t = Hc(e);
+  if (!t) return [];
+  let n = ks(t, "computer-use");
+  return [n, ks(n, "dev"), ...$u.map(r => ks(n, r))]
+}
+i(zz, "recognizedCuaHelperInstallRoots");
+
+function QC(e = process.env) {
+  let t = XC(e);
+  return t ? [ks(t, xh(e))] : []
+}
+i(QC, "standaloneHelperCandidatePaths");
+
+function Wz(e = process.env) {
+  return QC(e)
+}
+i(Wz, "productHelperCandidatePaths");
+
+function $z(e) {
+  for (let t of e)
+    if (t && Lz(t)) return t;
+  return null
+}
+i($z, "resolveHelperAppPath");
+var coe = "dev.zcode.app",
+  doe = "dev.zcode.app.preview",
+  bKe = Object.freeze([coe, doe]);
+var Oh = {
+  readBundleInfo: uoe,
+  readExecutableArchs: hz,
+  verifyCodeSignature: poe,
+  inspectCodesignDetails: foe,
+  assessGatekeeper: moe
+};
+async function Dh(e, t, n, r = {}) {
+  let o = await n.readBundleInfo(e);
+  if (o.bundleId !== t.expectedBundleId) throw new ye("verification_failed", `${xt} bundle id ${o.bundleId??"<missing>"} does not match ${t.expectedBundleId}`);
+  let s = t.source.kind === "bundled" ? void 0 : t.version;
+  if (!goe(o, s)) throw new ye("verification_failed", hoe(o, t.version));
+  if (t.expectedBuildId && o.buildId !== t.expectedBuildId) throw new ye("verification_failed", `${xt} build id ${o.buildId??"<missing>"} does not match ${t.expectedBuildId}`);
+  if (!o.executableName) throw new ye("verification_failed", `${xt} Info.plist is missing CFBundleExecutable`);
+  let a = Hz(e, "Contents", "MacOS", o.executableName),
+    c = await n.readExecutableArchs(a);
+  if (!c.includes(t.arch)) throw new ye("verification_failed", `${xt} executable archs [${c.join(", ")||"<none>"}] do not include ${t.arch}`);
+  if (t.allowUnsignedLocalDev) {
+    let l = await loe(e, n);
+    return {
+      bundleInfo: o,
+      codesign: l,
+      releaseEligible: !1,
+      mode: "local_dev_unsigned"
+    }
+  }
+  await n.verifyCodeSignature(e);
+  let d = await n.inspectCodesignDetails(e);
+  if (d.adHoc || !d.teamIdentifier) throw new ye("verification_failed", `${xt} is not signed with a stable Apple TeamIdentifier`);
+  if (!t.expectedTeamIdentifier) throw new ye("verification_failed", `${xt} release verification requires a pinned Apple TeamIdentifier; refusing to trust an unpinned signing team as the TCC owner`);
+  if (d.teamIdentifier !== t.expectedTeamIdentifier) throw new ye("verification_failed", `${xt} TeamIdentifier ${d.teamIdentifier} does not match ${t.expectedTeamIdentifier}`);
+  return r.skipGatekeeperAssessment || await n.assessGatekeeper(e), {
+    bundleInfo: o,
+    codesign: d,
+    releaseEligible: !0,
+    mode: "release"
+  }
+}
+i(Dh, "verifyCuaHelperBundle");
+async function loe(e, t) {
+  try {
+    return await t.inspectCodesignDetails(e)
+  } catch {
+    return null
+  }
+}
+i(loe, "inspectCodesignDetailsBestEffort");
+async function uoe(e) {
+  let t = Hz(e, "Contents", "Info.plist"),
+    {
+      stdout: n
+    } = await Hr(dn.plist, ["-convert", "json", "-o", "-", t]),
+    r = JSON.parse(n);
+  return {
+    bundleId: Hu(r.CFBundleIdentifier),
+    version: Hu(r.CFBundleShortVersionString),
+    buildVersion: Hu(r.CFBundleVersion),
+    executableName: Hu(r.CFBundleExecutable),
+    buildId: Hu(r.ZCodeCUAHelperBuildId)
+  }
+}
+i(uoe, "defaultReadBundleInfo");
+async function poe(e) {
+  await Hr(dn.codesign, ["--verify", "--deep", "--strict", e])
+}
+i(poe, "defaultVerifyCodeSignature");
+async function foe(e) {
+  let {
+    stdout: t,
+    stderr: n
+  } = await Hr(dn.codesign, ["-dv", "--verbose=4", e]), r = `${t}
+${n}`, o = r.match(/^TeamIdentifier=(.+)$/mu)?.[1]?.trim() || null, s = [...r.matchAll(/^Authority=(.+)$/gmu)].map(a => a[1]?.trim()).filter(a => !!a);
+  return {
+    teamIdentifier: o === "not set" ? null : o,
+    authorities: s,
+    rawOutput: r,
+    adHoc: /^Signature=adhoc$/mu.test(r)
+  }
+}
+i(foe, "defaultInspectCodesignDetails");
+async function moe(e) {
+  await Hr(dn.spctl, ["-a", "-vv", "-t", "exec", e])
+}
+i(moe, "defaultAssessGatekeeper");
+
+function goe(e, t) {
+  return t === void 0 ? !0 : e.version === t && e.buildVersion === t
+}
+i(goe, "isExpectedHelperVersion");
+
+function hoe(e, t) {
+  let n = e.version ?? "<missing>",
+    r = e.buildVersion ?? "<missing>";
+  return `${xt} version mismatch: expected short/build ${t}, got short ${n}, build ${r}`
+}
+i(hoe, "describeHelperVersionMismatch");
+
+function Hu(e) {
+  return typeof e == "string" && e.trim() ? e.trim() : null
+}
+i(Hu, "readString");
+y();
+y();
+var jKe = Object.freeze(["associateTitleUIElements", "flattenIntoSelectableAncestor", "pruneEmptyDisabledElements", "mergeSingleItemGroups", "flattenRepetitiveStaticText", "flattenLinksIntoMarkdownText"]);
+import {
+  randomBytes as m1e
+} from "crypto";
+y();
+y();
+y();
+var koe = new Set(["textfield", "textarea", "searchfield", "securefield", "combobox"]),
+  S1e = new Set([...koe, "slider", "stepper"]);
+y();
+y();
+y();
+y();
+y();
+import {
+  win32 as N1e
+} from "path";
+y();
+y();
+y();
+var cqe = new Set([..."abcdefghijklmnopqrstuvwxyz0123456789".split(""), "=", "*", "-", "]", "[", "'", ";", "\\", ",", "/", ".", "`", "enter", "tab", "space", "backspace", "delete", "esc", "command", "meta", "super", "win", "shift", "capslock", "alt", "ctrl", "help", "home", "pageup", "forwarddelete", "end", "pagedown", "left", "right", "down", "up", ...Array.from({
+  length: 16
+}, (e, t) => `f${t+1}`)]);
+y();
+y();
+y();
+y();
+
+function nb(e, t) {
+  let n = e.width / t.bounds.width,
+    r = e.height / t.bounds.height;
+  return !Number.isFinite(n) || !Number.isFinite(r) || n < .75 || n > 4.5 || r < .75 || r > 4.5 ? !1 : Math.max(n, r) / Math.min(n, r) <= 1.35
+}
+i(nb, "pngDimensionsMatchWindow");
+
+function tb(e) {
+  return Number.isSafeInteger(e) && e > 0
+}
+i(tb, "positiveSafeInteger");
+
+function rb(e, t) {
+  if (!e || e.width !== t.width || e.height !== t.height || !tb(e.sampleWidth) || e.sampleWidth > 64 || !tb(e.sampleHeight) || e.sampleHeight > 64 || !tb(e.sampledPixelCount) || e.sampledPixelCount > 4096 || e.sampledPixelCount !== e.sampleWidth * e.sampleHeight || !Number.isSafeInteger(e.visiblePixelCount) || e.visiblePixelCount < 0 || e.visiblePixelCount > e.sampledPixelCount || !Number.isSafeInteger(e.distinctColorBucketCount) || e.distinctColorBucketCount < 0 || e.distinctColorBucketCount > e.visiblePixelCount || !Number.isSafeInteger(e.dominantColorPixelCount) || e.dominantColorPixelCount < 0 || e.dominantColorPixelCount > e.visiblePixelCount || !Number.isSafeInteger(e.maxChannelRange) || e.maxChannelRange < 0 || e.maxChannelRange > 255) return !1;
+  let n = Math.max(4, Math.ceil(e.sampledPixelCount * .005)),
+    r = Math.max(3, Math.ceil(e.sampledPixelCount * .0025));
+  return e.visiblePixelCount >= n && e.distinctColorBucketCount >= 3 && e.visiblePixelCount - e.dominantColorPixelCount >= r && e.maxChannelRange >= 24
+}
+i(rb, "isDecodedNonPlaceholderPng");
+var qz = 3;
+var Roe = 96,
+  Aoe = 64;
+
+function Gz(e, t) {
+  return Number.isFinite(e) && e >= t && e <= 32768
+}
+i(Gz, "validFiniteDimension");
+
+function Eoe(e) {
+  return Array.isArray(e) && e.length === 4 && e.every(t => typeof t == "number" && Number.isFinite(t)) && Gz(e[2], Roe) && Gz(e[3], Aoe)
+}
+i(Eoe, "validTargetBounds");
+
+function Vz(e) {
+  if (e?.ok !== !0 || e.status !== "granted" || e.probed !== !0 || e.evidence !== "foreign_window" || e.content_evidence !== "decoded_visible_non_uniform" || !Number.isSafeInteger(e.probe_pid) || e.probe_pid <= 0 || !Number.isSafeInteger(e.target_window_id) || e.target_window_id <= 0 || !Number.isSafeInteger(e.target_owner_pid) || e.target_owner_pid <= 0 || e.target_owner_pid === e.probe_pid || e.target_on_screen !== !0 || !Eoe(e.target_bounds) || !Number.isSafeInteger(e.png_width) || e.png_width <= 0 || !Number.isSafeInteger(e.png_height) || e.png_height <= 0 || !Number.isSafeInteger(e.candidate_count) || e.candidate_count <= 0 || !Number.isSafeInteger(e.attempted_window_count) || e.attempted_window_count <= 0 || e.attempted_window_count > qz || e.attempted_window_count > e.candidate_count || !Number.isSafeInteger(e.sample_width) || e.sample_width <= 0 || !Number.isSafeInteger(e.sample_height) || e.sample_height <= 0 || !Number.isSafeInteger(e.sampled_pixel_count) || !Number.isSafeInteger(e.visible_pixel_count) || !Number.isSafeInteger(e.distinct_color_bucket_count) || !Number.isSafeInteger(e.dominant_color_pixel_count) || !Number.isSafeInteger(e.max_channel_range) || typeof e.byte_length != "number" || e.byte_length <= 0) return !1;
+  let t = {
+      width: e.png_width,
+      height: e.png_height
+    },
+    n = {
+      windowId: e.target_window_id,
+      ownerPid: e.target_owner_pid,
+      ownerBundleId: null,
+      ownerName: null,
+      ownerActive: !1,
+      title: null,
+      bounds: {
+        x: e.target_bounds[0],
+        y: e.target_bounds[1],
+        width: e.target_bounds[2],
+        height: e.target_bounds[3]
+      },
+      onScreen: !0
+    };
+  return nb(t, n) && rb({
+    width: t.width,
+    height: t.height,
+    sampleWidth: e.sample_width,
+    sampleHeight: e.sample_height,
+    sampledPixelCount: e.sampled_pixel_count,
+    visiblePixelCount: e.visible_pixel_count,
+    distinctColorBucketCount: e.distinct_color_bucket_count,
+    dominantColorPixelCount: e.dominant_color_pixel_count,
+    maxChannelRange: e.max_channel_range
+  }, t)
+}
+i(Vz, "isForeignWindowScreenCaptureProbeSuccess");
+y();
+y();
+var Jz = 64,
+  vGe = Jz * Jz;
+y();
+import {
+  execFile as dVe,
+  execFileSync as lVe
+} from "child_process";
+import {
+  mkdtempSync as pVe,
+  readFileSync as fVe,
+  rmSync as mVe
+} from "fs";
+import {
+  tmpdir as hVe
+} from "os";
+import {
+  basename as wVe,
+  join as vVe
+} from "path";
+y();
+import {
+  execFile as bGe
+} from "child_process";
+import {
+  readdir as _Ge,
+  readFile as RGe
+} from "fs/promises";
+import {
+  homedir as EGe
+} from "os";
+import {
+  basename as MGe,
+  join as xGe
+} from "path";
+y();
+import {
+  execFile as UGe,
+  execFileSync as zGe
+} from "child_process";
+import {
+  mkdtempSync as $Ge,
+  readFileSync as ZGe,
+  rmSync as HGe
+} from "fs";
+import {
+  tmpdir as KGe
+} from "os";
+import {
+  join as GGe
+} from "path";
+var JGe = 16 * 1024 * 1024;
+y();
+y();
+y();
+import {
+  execFileSync as AVe
+} from "child_process";
+import {
+  platform as TVe
+} from "os";
+y();
+var DVe = 128 * 1024 * 1024;
+y();
+import {
+  appendFileSync as Qoe,
+  existsSync as E4e,
+  mkdirSync as eie,
+  readdirSync as tie,
+  unlinkSync as nie,
+  writeFileSync as T4e
+} from "fs";
+import {
+  dirname as sW,
+  isAbsolute as x4e,
+  join as rie
+} from "path";
+y();
+y();
+y();
+y();
+y();
+var Ooe = Object.freeze({
+  Button: "button",
+  SplitButton: "button",
+  MenuItem: "menuitem",
+  Menu: "menuitem",
+  MenuBar: "menuitem",
+  Edit: "textfield",
+  Document: "textarea",
+  Password: "securefield",
+  ComboBox: "combobox",
+  CheckBox: "checkbox",
+  RadioButton: "radio",
+  Hyperlink: "link",
+  Slider: "slider",
+  ProgressBar: "slider",
+  Text: "text",
+  StatusBar: "text",
+  Image: "image",
+  ListItem: "row",
+  DataItem: "row",
+  TreeItem: "row",
+  TabItem: "tab",
+  Custom: "",
+  Pane: "",
+  Window: "",
+  Group: ""
+});
+var Yz = new Set(["textfield", "textarea", "securefield", "combobox"]),
+  Doe = new Set([...Yz, "slider", "stepper"]);
+y();
+y();
+
+function Nh(e = process.env) {
+  let t = bn(e),
+    n = t ? e.ZCODE_CUA_HELPER_BUNDLE_ID?.trim() : void 0;
+  return n || (t && Ps(e) ? Zc : Ss)
+}
+i(Nh, "resolveExpectedCuaHelperBundleId");
+
+function Loe(e) {
+  let t = e?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on"
+}
+i(Loe, "isExplicitLocalDevOptIn");
+
+function Ps(e = process.env) {
+  return bn(e) ? Loe(e.ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL) || yh(e) : !1
+}
+i(Ps, "isUnsignedHelperLocalDevRequested");
+y();
+y();
+import {
+  createRequire as D2e
+} from "module";
+import {
+  existsSync as L2e
+} from "fs";
+import {
+  dirname as B2e,
+  isAbsolute as U2e,
+  join as Foe
+} from "path";
+import {
+  fileURLToPath as W2e
+} from "url";
+var Z2e = Foe("build", "Release", "ax_native.node");
+y();
+import {
+  randomUUID as G2e
+} from "crypto";
+import {
+  execFileSync as J2e
+} from "child_process";
+import {
+  lstat as X2e,
+  mkdir as Q2e,
+  open as eJe,
+  readFile as tJe,
+  rm as nJe,
+  writeFile as rJe
+} from "fs/promises";
+import {
+  join as iJe
+} from "path";
+import aJe from "process";
+y();
+y();
+import {
+  execFileSync as Boe
+} from "child_process";
+import {
+  realpathSync as Qz
+} from "fs";
+import {
+  join as Lh
+} from "path";
+var Uoe = 32,
+  zoe = ["-awwxo", "pid=,ppid=,uid=,command="];
+
+function eW(e = process.env) {
+  let t = xt.replace(/\.app$/u, ""),
+    n = QC(e),
+    r = zz(e).flatMap(o => [Lh(o, xt), Lh(o, Ui)]);
+  return [...new Set([...n, ...r])].map(o => Lh(o, "Contents", "MacOS", t))
+}
+i(eW, "standaloneHelperExecutablePaths");
+
+function sb(e) {
+  return Lh(e, "Contents", "MacOS", xt.replace(/\.app$/u, ""))
+}
+i(sb, "helperExecutablePathForApp");
+
+function ab(e, t) {
+  let n = e.split(/\s+/u),
+    r = n.indexOf(t);
+  return r < 0 || r + 1 >= n.length ? null : n[r + 1] ?? null
+}
+i(ab, "extractFlagValue");
+
+function Woe(e, t) {
+  if (e === t) return !0;
+  let n = t.endsWith("/") ? t : `${t}/`;
+  return e.startsWith(n)
+}
+i(Woe, "isPathWithinDir");
+
+function tW(e) {
+  try {
+    return process.kill(e, 0), !0
+  } catch (t) {
+    return t.code === "EPERM"
+  }
+}
+i(tW, "defaultIsProcessAlive");
+
+function $oe(e) {
+  let t = ab(e, "--launcher-pid");
+  if (t !== null) {
+    let n = Number(t);
+    if (Number.isInteger(n) && n > 0) return n
+  }
+  return null
+}
+i($oe, "extractHelperOwnerPid");
+
+function nW(e, t) {
+  return e === t || e.startsWith(`${t} `)
+}
+i(nW, "commandStartsWithExactExecutable");
+
+function Zoe(e) {
+  if (!e.startsWith("/")) return !1;
+  let n = `/Contents/MacOS/${xt.replace(/\.app$/u,"")}`,
+    r = e.indexOf(n);
+  for (; r > 0;) {
+    let o = r + n.length;
+    if (o === e.length || /\s/u.test(e[o])) return !0;
+    r = e.indexOf(n, r + 1)
+  }
+  return !1
+}
+i(Zoe, "commandMayStartWithHelperBundleExecutable");
+
+function ob(e, t, n) {
+  let r = ` ${t} ${n}`,
+    o = e.indexOf(r);
+  for (; o >= 0;) {
+    let s = o + r.length;
+    if (s === e.length || /\s/u.test(e[s])) return !0;
+    o = e.indexOf(r, o + 1)
+  }
+  return !1
+}
+i(ob, "commandHasExactFlagValue");
+
+function cb(e, t, n, r) {
+  return e.uid !== t || !n.some(o => nW(e.command, o)) ? !1 : r ? ob(e.command, "--socket", r) : !0
+}
+i(cb, "rowLooksLikeHelperProcess");
+
+function Xz(e, t) {
+  if (e.ppid !== 1 || e.pid === t.selfPid || !cb(e, t.currentUid, t.executablePaths)) return !1;
+  let n = ab(e.command, "--socket");
+  if (!n || !Woe(n, t.runtimeDir)) return !1;
+  let r = $oe(e.command);
+  if (r === null) return !1;
+  let o = t.ownerEvidenceProvider(r);
+  return o.state === "dead" || o.identity === "unrelated"
+}
+i(Xz, "isReapableOrphanHelper");
+
+function db(e) {
+  let t = [];
+  for (let n of e.split(`
+`)) {
+    let r = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/u.exec(n);
+    if (!r) continue;
+    let [, o, s, a, c] = r;
+    o === void 0 || s === void 0 || a === void 0 || c === void 0 || t.push({
+      pid: Number(o),
+      ppid: Number(s),
+      uid: Number(a),
+      command: c
+    })
+  }
+  return t
+}
+i(db, "parsePsProcessRows");
+
+function rW() {
+  let e = Boe(dn.ps, [...zoe], {
+    encoding: "utf8"
+  });
+  return db(e)
+}
+i(rW, "defaultListProcesses");
+
+function ib(e, t) {
+  let n = new Set(e);
+  for (let r of e) try {
+    n.add(t(r))
+  } catch {}
+  return [...n]
+}
+i(ib, "addCanonicalPathAliases");
+
+function lb(e = {}) {
+  let t = e.platform ?? process.platform,
+    n = e.currentUid ?? (typeof process.getuid == "function" ? process.getuid() : null),
+    r = e.listProcesses ?? rW,
+    o = e.isProcessAlive ?? tW,
+    s = e.canonicalizePath ?? Qz.native,
+    a = ib(eW(e.env ?? process.env), s),
+    c = e.logger;
+  return (d, l) => {
+    if (t !== "darwin" || n === null) return {
+      state: "helper",
+      reason: "non-darwin / no uid; identity recheck unavailable"
+    };
+    let p;
+    try {
+      p = r()
+    } catch (S) {
+      return c?.warn(void 0, `cua helper kill-path: process listing failed for pid ${d} (${Fh(S)}); skipping SIGTERM as a pid-reuse precaution`), {
+        state: "unknown",
+        reason: "process listing failed"
+      }
+    }
+    let u = p.find(S => S.pid === d);
+    if (!u) return o(d) ? {
+      state: "unknown",
+      reason: "pid alive but absent from ps snapshot"
+    } : {
+      state: "dead",
+      reason: "pid not alive"
+    };
+    let f = l?.helperAppPath ? ib([sb(l.helperAppPath), ...a], s) : a,
+      g = f.find(S => nW(u.command, S));
+    if (g && (!l?.socketPath || ob(u.command, "--socket", l.socketPath))) return {
+      state: "helper",
+      reason: "ps command matches Helper executable path"
+    };
+    if (g && l?.socketPath) {
+      let S = ab(u.command, "--socket");
+      return S === null || l.socketPath.startsWith(S) && u.command.trimEnd().endsWith(S) ? {
+        state: "unknown",
+        reason: "Helper argv is incomplete; exact random socket cannot be verified",
+        command: u.command
+      } : {
+        state: "unrelated",
+        reason: "pid now belongs to a Helper launched for a different random socket",
+        command: u.command
+      }
+    }
+    if (l?.socketPath && ob(u.command, "--socket", l.socketPath) && Zoe(u.command)) return {
+      state: "unknown",
+      reason: "Helper-shaped argv and exact random socket match, but canonical executable identity cannot be proven",
+      command: u.command
+    };
+    let v = u.command.trimEnd();
+    return v.length > 0 && f.some(S => S.startsWith(v)) ? {
+      state: "unknown",
+      reason: "ps command may be a truncated Helper executable path",
+      command: u.command
+    } : {
+      state: "unrelated",
+      reason: l?.socketPath ? "pid no longer matches the Helper executable and random socket" : "pid reused by non-Helper process",
+      command: u.command
+    }
+  }
+}
+i(lb, "createDefaultHelperPidEvidenceProvider");
+
+function Hoe({
+  getRows: e,
+  currentUid: t,
+  selfPid: n,
+  isProcessAlive: r,
+  deadPids: o
+}) {
+  return s => {
+    if (s === n) return {
+      state: "alive",
+      identity: "zcode-owner",
+      reason: "self"
+    };
+    if (!r(s)) return o.add(s), {
+      state: "dead",
+      reason: "pid not alive"
+    };
+    if (!o.has(s)) return {
+      state: "alive",
+      identity: "zcode-owner",
+      reason: "live owner; spared by default"
+    };
+    let a = e().find(c => c.pid === s && c.uid === t);
+    return a && !joe(a.command) ? {
+      state: "alive",
+      identity: "unrelated",
+      command: a.command,
+      reason: "pid observed dead earlier is alive again with a non-ZCode command line"
+    } : {
+      state: "alive",
+      identity: "zcode-owner",
+      command: a?.command,
+      reason: "pid reused after death; command still matches ZCode"
+    }
+  }
+}
+i(Hoe, "createDefaultOwnerEvidenceProvider");
+
+function joe(e) {
+  let t = e.replaceAll("\\", "/").toLowerCase();
+  return t.includes("zcode cua helper") || t.includes("zcode-cua") ? !1 : /\bzcode-host(?:-|$)/u.test(t) || /\bzcode-main(?:\s|$|-)/u.test(t) || t.includes("/zcode.app/contents/macos/") || t.includes("zcode.app/contents/macos/") || /\bzcode(?:\s|$)/u.test(t) ? !0 : Koe(t)
+}
+i(joe, "isLikelyZCodeOwnerCommand");
+
+function Koe(e) {
+  return /(?:^|\s|\/)(?:node|electron)(?:\s|$)/u.test(e) ? e.includes("/z-code/") || e.includes("/zcode/") || e.includes("packages/services") || e.includes("apps/zcode") || e.includes("dev.zcode") : !1
+}
+i(Koe, "isLikelyZCodeDevOwnerCommand");
+
+function oW(e = {}) {
+  let t = e.env ?? process.env,
+    n = e.platform ?? process.platform,
+    r = e.logger,
+    o = {
+      scanned: 0,
+      reaped: []
+    };
+  if (n !== "darwin") return o;
+  let s = e.currentUid ?? (typeof process.getuid == "function" ? process.getuid() : null);
+  if (s == null) return o;
+  let a = e.selfPid ?? process.pid,
+    c = e.maxReap ?? Uoe,
+    d = e.listProcesses ?? rW,
+    l = e.killProcess ?? (C => {
+      process.kill(C, "SIGTERM")
+    }),
+    p = e.isProcessAlive ?? tW,
+    u = e.canonicalizePath ?? Qz.native,
+    f;
+  try {
+    f = d()
+  } catch (C) {
+    return r?.warn(void 0, `cua helper reaper: process listing failed: ${Fh(C)}`), o
+  }
+  o.scanned = f.length;
+  let g = new Set,
+    v = f,
+    S = e.ownerEvidenceProvider ?? Hoe({
+      getRows: i(() => v, "getRows"),
+      currentUid: s,
+      selfPid: a,
+      isProcessAlive: p,
+      deadPids: g
+    }),
+    k = {
+      currentUid: s,
+      selfPid: a,
+      executablePaths: ib(eW(t), u),
+      runtimeDir: fa(t),
+      ownerEvidenceProvider: S
+    };
+  for (let C of f) {
+    if (o.reaped.length >= c) {
+      r?.warn(void 0, `cua helper reaper: hit per-run cap (${c}); stopping`);
+      break
+    }
+    if (v = f, !Xz(C, k)) continue;
+    let A;
+    try {
+      A = d()
+    } catch (U) {
+      r?.warn(void 0, `cua helper reaper: pre-SIGTERM recheck failed for pid ${C.pid}: ${Fh(U)}`);
+      continue
+    }
+    let D = A.find(U => U.pid === C.pid) ?? null;
+    if (D && (v = A, !!Xz(D, k))) try {
+      l(D.pid), o.reaped.push(D.pid)
+    } catch (U) {
+      r?.warn(void 0, `cua helper reaper: SIGTERM of orphaned Helper pid ${D.pid} failed: ${Fh(U)}`)
+    }
+  }
+  return o.reaped.length > 0 && r?.info(void 0, `cua helper reaper: SIGTERM'd ${o.reaped.length} orphaned Helper(s): ${o.reaped.join(", ")}`), o
+}
+i(oW, "reapOrphanedHelpers");
+
+function Fh(e) {
+  return e instanceof Error ? e.message : String(e)
+}
+i(Fh, "messageOf");
+y();
+y();
+import {
+  createRequire as RJe
+} from "module";
+import {
+  join as EJe
+} from "path";
+y();
+y();
+var Uh = 2,
+  zh = "zcode-cua-pip-session-v2",
+  iW = "__zcode_pip_no_active_session_v2__";
+var ni = _.string().trim().min(1).max(255).refine(e => !e.includes("\0"), "identifier cannot contain NUL").refine(e => e !== iW, "identifier is reserved by the PiP session runtime"),
+  Bh = _.number().int().nonnegative().safe(),
+  Wh = _.discriminatedUnion("kind", [_.object({
+    kind: _.literal("focus-changed"),
+    revision: Bh,
+    sourceWindowId: ni,
+    sessionId: ni.nullable()
+  }).strict(), _.object({
+    kind: _.literal("turn-started"),
+    sessionId: ni,
+    turnId: ni,
+    sequenceNumber: Bh,
+    eventId: ni
+  }).strict(), _.object({
+    kind: _.literal("turn-ended"),
+    sessionId: ni,
+    turnId: ni,
+    sequenceNumber: Bh,
+    eventId: ni,
+    outcome: _.enum(["completed", "failed"])
+  }).strict(), _.object({
+    kind: _.literal("session-closed"),
+    sessionId: ni,
+    sequenceNumber: Bh,
+    eventId: ni
+  }).strict()]),
+  UJe = _.object({
+    windowId: _.number().int().positive().safe(),
+    presentationWindowId: _.number().int().positive().safe().optional(),
+    pid: _.number().int().positive().safe(),
+    bundleId: _.string().trim().min(1).max(255)
+  }).strict();
+var jJe = _.object({
+    protocolVersion: _.number().int(),
+    runtimeId: _.string()
+  }).strict(),
+  KJe = _.object({
+    event: Wh
+  }).strict();
+y();
+y();
+(() => {
+  let e = process.argv.indexOf("--exit-log"),
+    t = e >= 0 && e + 1 < process.argv.length ? process.argv[e + 1] : null;
+  if (!t) return;
+  try {
+    eie(sW(t), {
+      recursive: !0
+    })
+  } catch {}
+  iie(sW(t));
+  let n = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((r, ...o) => {
+    try {
+      let s = typeof r == "string" ? r : String(r);
+      Qoe(t, oie(s))
+    } catch {}
+    return n(r, ...o)
+  })
+})();
+
+function oie(e) {
+  let t = new Date().toISOString(),
+    n = "";
+  for (let r of e.split(`
+`)) {
+    let o = r.trim();
+    if (!o) continue;
+    let s, a;
+    try {
+      a = JSON.parse(o)
+    } catch {
+      a = null
+    }
+    if (a && typeof a == "object" && !Array.isArray(a)) {
+      let c = a,
+        {
+          scope: d,
+          level: l,
+          event: p,
+          evidence: u,
+          ...f
+        } = c;
+      s = {
+        timestamp: t,
+        level: typeof l == "string" ? l : "info",
+        event: typeof p == "string" ? p : "helper runtime event",
+        module: typeof d == "string" ? d : "zcode-cua-helper",
+        pid: process.pid,
+        ...u === void 0 ? {} : {
+          context: u
+        },
+        ...f
+      }
+    } else {
+      let c = /^\[([a-z0-9-]+)\]/iu.exec(o);
+      s = {
+        timestamp: t,
+        level: "info",
+        event: c ? c[1] : "helper stderr",
+        module: "zcode-cua-helper",
+        pid: process.pid,
+        message: c ? o.slice(c[0].length).trim() : o
+      }
+    }
+    n += `${JSON.stringify(s)}
+`
+  }
+  return n
+}
+i(oie, "helperLogLines");
+
+function iie(e) {
+  try {
+    let t = tie(e).filter(n => /^zcode-cua-helper-\d{4}-\d{2}-\d{2}\.jsonl$/u.test(n)).sort().reverse().slice(sie);
+    for (let n of t) try {
+      nie(rie(e, n))
+    } catch {}
+  } catch {}
+}
+i(iie, "pruneHelperLogs");
+var sie = 7;
+y();
+var lW = "zcode-cua-windows-dev/v1";
+var P6e = _.object({
+  platform: _.literal("win32"),
+  socketPath: _.string().refine(e => ma(e) && e.length > 9),
+  parentPid: _.coerce.number().int().positive()
+});
+y();
+import {
+  constants as Ku,
+  createWriteStream as uie,
+  existsSync as wb,
+  fstatSync as pie,
+  lstatSync as fie
+} from "fs";
+import {
+  cp as mie,
+  lstat as Zh,
+  mkdir as vb,
+  mkdtemp as gie,
+  open as yW,
+  readdir as Sb,
+  readFile as jh,
+  readlink as hb,
+  realpath as yb,
+  rename as gb,
+  rm as Hh,
+  writeFile as hie
+} from "fs/promises";
+import {
+  basename as yie,
+  dirname as wie,
+  join as Kn,
+  resolve as CW,
+  sep as vie
+} from "path";
+import {
+  Readable as Sie,
+  Transform as kie
+} from "stream";
+import {
+  pipeline as Pie
+} from "stream/promises";
+y();
+y();
+var qc = "3.14.0";
+y();
+
+function uW(e) {
+  return e?.trim().toLowerCase() === "production" ? "production" : "test"
+}
+i(uW, "normalizeZCodeEnv");
+var aie = uW("production");
+var cie = typeof process < "u" ? process.env.ZCODE_DEBUG : void 0;
+y();
+var pW = "studio.zcode-ai.com";
+
+function fW() {
+  return globalThis.process?.env ?? {}
+}
+i(fW, "readProcessEnv");
+
+function ub(e = fW()) {
+  return e.INTRANET_MACHINE_HOST?.trim() || pW
+}
+i(ub, "resolveIntranetMachineHost");
+var pb = ub(),
+  fb = 12345,
+  mW = `http://${pb}:${fb}/zcode`,
+  die = `${mW}/deps`,
+  gW = 3850,
+  hW = "/api/intranet/probe",
+  lie = `http://${pb}:${gW}${hW}`;
+
+function mb(e = fW()) {
+  let t = e.ZCODE_DEPS_BASE_URL?.trim();
+  return t ? t.replace(/\/+$/, "") : `http://${ub(e)}:${fb}/zcode/deps`
+}
+i(mb, "resolveIntranetDepsBaseUrl");
+y();
+var Cie = ".zcode-cua-helper-meta.json",
+  wW = 3e4,
+  bie = "ZCODE_CUA_HELPER_DOWNLOAD_TIMEOUT_MS",
+  vW = 200 * 1024 * 1024,
+  Iie = "ZCODE_CUA_HELPER_MAX_DOWNLOAD_BYTES",
+  SW = ".zcode-cua-helper-install.lock",
+  _ie = 12e4,
+  Rie = 50,
+  Aie = 32,
+  $h = new Map;
+
+function Eie(e = process.env) {
+  let t = e[Iie]?.trim();
+  if (!t) return vW;
+  let n = Number(t);
+  return Number.isInteger(n) && n > 0 ? n : vW
+}
+i(Eie, "resolveMaxDownloadBytes");
+
+function Tie(e) {
+  let t = 0;
+  return new kie({
+    transform(n, r, o) {
+      if (t += n.length, t > e) {
+        o(new Error(`ZCode Computer Use download exceeded max size ${e} bytes`));
+        return
+      }
+      o(null, n)
+    }
+  })
+}
+i(Tie, "createDownloadSizeLimiter");
+
+function Mie(e = {}) {
+  let t = e.env ?? process.env,
+    n = bn(t),
+    r = Vie((n ? e.targetPlatform ?? t.ZCODE_TARGET_OS : void 0) ?? process.platform);
+  if (r !== "darwin") throw new ye("install_failed", `ZCode Computer Use auto-install is only supported on macOS, got ${r}`);
+  let o = Jie((n ? e.targetArch ?? t.ZCODE_TARGET_ARCH ?? t.npm_config_arch : void 0) ?? process.arch),
+    s = xie({
+      env: t,
+      explicitVersion: e.version,
+      localDevelopmentRuntime: n
+    }) ?? "0.0.0";
+  if (!Hc(t)) throw new ye("install_failed", "Cannot resolve ${ZCODE_HOME:-$HOME/.zcode}; set ZCODE_HOME or HOME before installing ZCode Computer Use.");
+  let c = `${r}-${o}`,
+    d = Oie(t, e.embeddedBuildId ?? WC);
+  if (!n && !d) throw new ye("install_failed", "Packaged ZCode is missing its embedded Computer Use Helper build identity; refusing an unpinned Helper install");
+  let l = e.bundledAppPath?.trim() || null;
+  if (!n && !l) throw new ye("install_failed", "Packaged ZCode is missing its bundled ZCode Computer Use.app path");
+  let p = l ? {
+      kind: "bundled",
+      appPath: l
+    } : (() => {
+      let f = `ZCode-CUA-Helper-${s}-mac-${o}.zip`;
+      return {
+        kind: "download",
+        fileName: f,
+        url: t.ZCODE_CUA_HELPER_DOWNLOAD_URL?.trim() || `${qie(s,d,t)}/${f}`
+      }
+    })(),
+    u = XC(t);
+  if (!u) throw new ye("install_failed", `Cannot resolve a safe Computer Use Helper install root from ${Wu}.`);
+  return {
+    version: s,
+    platform: r,
+    arch: o,
+    platformKey: c,
+    installRoot: u,
+    appPath: Kn(u, xh(t)),
+    source: p,
+    expectedBundleId: Nh(t),
+    expectedTeamIdentifier: n ? t.ZCODE_CUA_HELPER_TEAM_ID?.trim() || ha : ha,
+    expectedBuildId: d,
+    allowUnsignedLocalDev: Ps(t)
+  }
+}
+i(Mie, "resolveCuaHelperInstallPlan");
+
+function xie(e = {}) {
+  let t = e.env ?? process.env;
+  return e.localDevelopmentRuntime ?? bn(t) ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0 : qc
+}
+i(xie, "resolveCuaHelperRuntimeVersion");
+
+function Oie(e = process.env, t = WC) {
+  let n = bn(e) ? e.ZCODE_CUA_HELPER_BUILD_ID?.trim() : void 0;
+  return Gie(t.trim() || n)
+}
+i(Oie, "resolveExpectedCuaHelperBuildId");
+
+function qu(e = {}) {
+  let n = {
+    plan: e.plan ?? Mie({
+      env: e.env,
+      bundledAppPath: e.bundledAppPath
+    }),
+    logger: e.logger,
+    dependencies: {
+      downloadFile: Xie,
+      extractZip: rse,
+      clearQuarantine: ose,
+      acquireInstallLease: zie,
+      ...Oh,
+      ...e.dependencies
+    }
+  };
+  return {
+    ensureInstalled: i(() => Wie(n), "ensureInstalled"),
+    verifyInstalled: i(async (r, o) => {
+      await Dh(r, n.plan, n.dependencies, o)
+    }, "verifyInstalled")
+  }
+}
+i(qu, "createCuaHelperInstaller");
+
+function bW() {
+  return typeof process.getuid == "function" ? process.getuid() : void 0
+}
+i(bW, "currentUid");
+
+function Die(e, t) {
+  let n = bW();
+  if (t.isSymbolicLink() || !t.isDirectory() || n !== void 0 && t.uid !== n || (Number(t.mode) & 18) !== 0) throw new ye("install_failed", `Refusing insecure ZCode Computer Use install-lock directory ${e}; it must be a real owner-controlled directory without group/other write access`)
+}
+i(Die, "assertOwnedSecureDirectory");
+
+function Gc(e, t) {
+  let n = bW();
+  if (t.isSymbolicLink() || !t.isFile() || t.nlink !== 1 || n !== void 0 && t.uid !== n || (Number(t.mode) & 511) !== 384) throw new ye("install_failed", `Refusing insecure ZCode Computer Use install lock ${e}; it must be a real owner-only regular file with exactly one link`)
+}
+i(Gc, "assertOwnedSecureLockFile");
+var Kh = class extends Error {
+  static {
+    i(this, "HelperInstallLockContendedError")
+  }
+  constructor(t) {
+    super(`ZCode Computer Use install lock is held by another owner: ${t}`), this.name = "HelperInstallLockContendedError"
+  }
+};
+
+function Nie(e) {
+  let t = e?.code;
+  return t === "EAGAIN" || t === "EWOULDBLOCK"
+}
+i(Nie, "isLockContendedError");
+async function Lie(e) {
+  let t = await yb(e).catch(s => {
+    throw new ye("install_failed", `Cannot resolve ZCode Computer Use install-lock directory ${e}: ${jn(s)}`, {
+      cause: s
+    })
+  });
+  Die(e, await Zh(e));
+  let n = Kn(e, SW),
+    r = Ku.O_RDWR | Ku.O_NOFOLLOW | Aie | Ku.O_NONBLOCK,
+    o;
+  try {
+    o = await yW(n, Ku.O_CREAT | Ku.O_EXCL | r, 384)
+  } catch (s) {
+    if (s.code !== "EEXIST") throw new ye("install_failed", `Cannot create ZCode Computer Use install lock ${n}: ${jn(s)}`, {
+      cause: s
+    });
+    try {
+      Gc(n, await Zh(n)), o = await yW(n, r)
+    } catch (a) {
+      throw Nie(a) ? new Kh(n) : new ye("install_failed", `Refusing unsafe ZCode Computer Use install lock ${n}: ${jn(a)}`, {
+        cause: a
+      })
+    }
+  }
+  try {
+    let [s, a, c] = await Promise.all([o.stat(), Zh(n), yb(n)]);
+    if (Gc(n, s), Gc(n, a), c !== Kn(t, SW) || s.dev !== a.dev || s.ino !== a.ino) throw new ye("install_failed", `ZCode Computer Use install lock changed while it was being opened: ${n}`);
+    return {
+      lockPath: n,
+      identity: {
+        device: a.dev,
+        inode: a.ino
+      },
+      handle: o
+    }
+  } catch (s) {
+    throw await o.close(), s
+  }
+}
+i(Lie, "prepareHelperInstallLockFile");
+
+function Fie(e, t) {
+  if (t) throw new ye("install_failed", "ZCode Computer Use install lease has already been released");
+  try {
+    let n = pie(e.handle.fd),
+      r = fie(e.lockPath);
+    if (Gc(e.lockPath, n), Gc(e.lockPath, r), n.dev !== e.identity.device || n.ino !== e.identity.inode || r.dev !== e.identity.device || r.ino !== e.identity.inode) throw new ye("install_failed", `ZCode Computer Use install lock changed while its lease was held: ${e.lockPath}`)
+  } catch (n) {
+    throw n instanceof ye ? n : new ye("install_failed", `ZCode Computer Use install lease is no longer verifiable: ${jn(n)}`, {
+      cause: n
+    })
+  }
+}
+i(Fie, "assertInstallLeaseDescriptorHeld");
+
+function Bie(e, t) {
+  return new Promise((n, r) => {
+    let o = i(() => {
+        clearTimeout(s), r(kb())
+      }, "onAbort"),
+      s = setTimeout(() => {
+        t?.removeEventListener("abort", o), n()
+      }, e);
+    t?.addEventListener("abort", o, {
+      once: !0
+    })
+  })
+}
+i(Bie, "delayWithAbort");
+
+function kb() {
+  return new ye("install_failed", "ZCode Computer Use install lease acquisition was aborted")
+}
+i(kb, "installLeaseAbortedError");
+async function Uie(e, t, n) {
+  let r = Date.now() + t;
+  for (;;) {
+    if (n?.aborted) throw kb();
+    try {
+      return await Lie(e)
+    } catch (o) {
+      if (!(o instanceof Kh)) throw o;
+      if (Date.now() >= r) throw new ye("install_failed", `Failed to acquire ZCode Computer Use install lease: timed out after ${t}ms; ${o.message}`, {
+        cause: o
+      });
+      await Bie(Rie, n)
+    }
+  }
+}
+i(Uie, "acquireLockedInstallLockFile");
+async function zie(e, t = {}) {
+  if (process.platform !== "darwin") throw new ye("install_failed", `ZCode Computer Use install lease requires macOS (O_EXLOCK); got ${process.platform}`);
+  if (t.signal?.aborted) throw kb();
+  let n = typeof t.waitTimeoutMs == "number" && Number.isFinite(t.waitTimeoutMs) && t.waitTimeoutMs > 0 ? t.waitTimeoutMs : _ie,
+    r = await Uie(e.installRoot, n, t.signal);
+  try {
+    await t.faultInjection?.afterLockFilePrepared?.(r.lockPath);
+    let a = await Zh(r.lockPath);
+    if (Gc(r.lockPath, a), a.dev !== r.identity.device || a.ino !== r.identity.inode) throw new ye("install_failed", `ZCode Computer Use install lock changed before its lease was used: ${r.lockPath}`)
+  } catch (a) {
+    throw await r.handle.close().catch(() => {}), a instanceof ye ? a : new ye("install_failed", `Failed to acquire ZCode Computer Use install lease: ${jn(a)}`, {
+      cause: a
+    })
+  }
+  let o = !1,
+    s;
+  return {
+    assertHeld() {
+      Fie(r, o)
+    },
+    release() {
+      return s ??= (async () => {
+        o || (await r.handle.close(), o = !0)
+      })(), s
+    }
+  }
+}
+i(zie, "acquireMacOSCuaHelperInstallLease");
+
+function Wie(e) {
+  let t = CW(e.plan.appPath),
+    n = $h.get(t);
+  if (n) return n;
+  let o = (async () => {
+    await vb(e.plan.installRoot, {
+      recursive: !0,
+      mode: 448
+    });
+    let s = await e.dependencies.acquireInstallLease(e.plan);
+    try {
+      return s.assertHeld(), await $ie(e, s)
+    } finally {
+      await s.release()
+    }
+  })().finally(() => {
+    $h.get(t) === o && $h.delete(t)
+  });
+  return $h.set(t, o), o
+}
+i(Wie, "ensureCuaHelperInstalledSingleFlight");
+async function $ie(e, t) {
+  let {
+    plan: n,
+    logger: r,
+    dependencies: o
+  } = e;
+  if (t.assertHeld(), wb(n.appPath)) try {
+    let a = await Dh(n.appPath, n, o);
+    if (await Hie(n, a.bundleInfo.executableName)) r?.info(void 0, `local bundled cua helper payload changed; replacing ${n.appPath}`);
+    else {
+      t.assertHeld(), await kW(n.appPath, e);
+      try {
+        await PW(n, a)
+      } catch (d) {
+        r?.warn(void 0, `verified installed cua helper but failed to refresh install metadata: ${jn(d)}`)
+      }
+      return r?.info(void 0, n.allowUnsignedLocalDev ? `local unsigned cua helper ${n.version} already installed at ${n.appPath}` : `cua helper ${n.version} already installed at ${n.appPath}`), n.appPath
+    }
+  } catch (a) {
+    if (n.allowUnsignedLocalDev && n.source.kind !== "bundled") throw new ye("verification_failed", `Local unsigned ZCode Computer Use.app failed dev verification: ${jn(a)}. Rebuild and reinstall it at ${n.appPath}, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release path.`, {
+      cause: a
+    });
+    r?.warn(void 0, `installed cua helper is not usable, reinstalling: ${jn(a)}`)
+  }
+  if (n.allowUnsignedLocalDev && n.source.kind !== "bundled") throw new ye("helper_missing", `Local unsigned ZCode Computer Use.app is not installed at ${n.appPath}. Build the Helper locally and copy it there, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release installer.`);
+  let s = await gie(Kn(n.installRoot, ".cua-helper-install-"));
+  try {
+    let a = n.source.kind === "bundled" ? await jie(n.source.appPath, s) : await Kie(e, s, n.source),
+      c = await Dh(a, n, o);
+    t.assertHeld(), await ise(a, n.appPath), t.assertHeld(), await kW(n.appPath, e);
+    try {
+      await PW(n, c)
+    } catch (d) {
+      r?.warn(void 0, `installed cua helper but failed to write install metadata: ${jn(d)}`)
+    }
+    return r?.info(void 0, `installed cua helper ${n.version} at ${n.appPath}`), n.appPath
+  } finally {
+    await Hh(s, {
+      recursive: !0,
+      force: !0
+    })
+  }
+}
+i($ie, "ensureCuaHelperInstalledUnderLease");
+var Zie = [
+  ["Contents", "Info.plist"]
+];
+async function IW(e, t) {
+  let n = i(async c => {
+      try {
+        return await Sb(c, {
+          withFileTypes: !0
+        })
+      } catch {
+        return null
+      }
+    }, "readEntries"),
+    [r, o] = await Promise.all([n(e), n(t)]);
+  if (r === null || o === null) return r !== o;
+  let s = new Map(r.map(c => [c.name, c])),
+    a = new Map(o.map(c => [c.name, c]));
+  if (s.size !== a.size) return !0;
+  for (let [c, d] of a) {
+    let l = s.get(c);
+    if (!l) return !0;
+    let p = Kn(e, c),
+      u = Kn(t, c);
+    if (d.isDirectory() !== l.isDirectory() || d.isSymbolicLink() !== l.isSymbolicLink()) return !0;
+    if (d.isDirectory()) {
+      if (await IW(p, u)) return !0;
+      continue
+    }
+    if (d.isSymbolicLink()) {
+      let [v, S] = await Promise.all([hb(p), hb(u)]);
+      if (v !== S) return !0;
+      continue
+    }
+    let [f, g] = await Promise.all([jh(p), jh(u)]);
+    if (!f.equals(g)) return !0
+  }
+  return !1
+}
+i(IW, "localDevPayloadTreeChanged");
+async function Hie(e, t) {
+  if (!e.allowUnsignedLocalDev || e.source.kind !== "bundled" || !t) return !1;
+  let n = [
+    ["Contents", "MacOS", t], ...Zie
+  ];
+  for (let r of n) {
+    let o = Kn(e.appPath, ...r),
+      s = Kn(e.source.appPath, ...r);
+    try {
+      let [a, c] = await Promise.all([jh(o), jh(s)]);
+      if (!a.equals(c)) return !0
+    } catch {
+      return !0
+    }
+  }
+  return IW(Kn(e.appPath, "Contents", "Resources"), Kn(e.source.appPath, "Contents", "Resources"))
+}
+i(Hie, "shouldRefreshLocalDevBundledHelper");
+async function jie(e, t) {
+  if (!wb(e)) throw new ye("helper_missing", `Bundled ZCode Computer Use.app is missing at ${e}`);
+  let n = Kn(t, xt);
+  return await mie(e, n, {
+    recursive: !0,
+    errorOnExist: !0,
+    preserveTimestamps: !0
+  }).catch(r => {
+    throw new ye("install_failed", `Failed to stage bundled ZCode Computer Use.app: ${jn(r)}`, {
+      cause: r
+    })
+  }), n
+}
+i(jie, "stageBundledHelperApp");
+async function Kie(e, t, n) {
+  let {
+    plan: r,
+    logger: o,
+    dependencies: s
+  } = e;
+  o?.info(void 0, `installing local-development cua helper ${r.version} ${r.platformKey} from ${qh(n.url)}`);
+  let a = Kn(t, n.fileName),
+    c = Kn(t, "extract");
+  await s.downloadFile(n.url, a).catch(l => {
+    let p = qh(n.url),
+      u = jn(l).split(n.url).join(p);
+    throw new ye("download_failed", `Failed to download ZCode Computer Use from ${p}: ${u}`, {
+      cause: l
+    })
+  }), await vb(c, {
+    recursive: !0
+  }), await s.extractZip(a, c).catch(l => {
+    throw new ye("install_failed", `Failed to extract ZCode Computer Use archive ${a}: ${jn(l)}`, {
+      cause: l
+    })
+  });
+  let d = await _W(c);
+  if (!d) throw new ye("install_failed", `ZCode Computer Use archive did not contain ${xt}`);
+  return d
+}
+i(Kie, "stageDownloadedHelperApp");
+
+function qie(e, t, n) {
+  let r = n.ZCODE_CUA_HELPER_DOWNLOAD_BASE_URL?.trim();
+  if (r) return r.replace(/\/+$/, "");
+  let o = `${mb(n)}/zcode-cua-helper-${e}`;
+  return t ? `${o}/${t}` : o
+}
+i(qie, "resolveCuaHelperDownloadBaseUrl");
+
+function Gie(e) {
+  let t = e?.trim();
+  if (!t) return null;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(t)) throw new ye("install_failed", "ZCODE_CUA_HELPER_BUILD_ID must use 1-128 ASCII letters, digits, dots, underscores, or hyphens");
+  return t
+}
+i(Gie, "normalizeHelperBuildId");
+
+function Vie(e) {
+  switch (e.toLowerCase()) {
+    case "mac":
+    case "macos":
+    case "osx":
+    case "darwin":
+      return "darwin";
+    default:
+      return e
+  }
+}
+i(Vie, "normalizeHelperPlatform");
+
+function Jie(e) {
+  switch (e.toLowerCase()) {
+    case "aarch64":
+    case "arm64":
+      return "arm64";
+    case "amd64":
+    case "x86_64":
+    case "x64":
+      return "x64";
+    default:
+      throw new ye("install_failed", `Unsupported ZCode Computer Use arch: ${e}`)
+  }
+}
+i(Jie, "normalizeHelperArch");
+
+function Yie(e) {
+  let t;
+  try {
+    t = new URL(e)
+  } catch {
+    throw new ye("download_failed", `invalid ZCode Computer Use download URL: ${qh(e)}`)
+  }
+  if (t.protocol !== "https:" && t.protocol !== "http:") throw new ye("download_failed", `refusing to download ZCode Computer Use over unsupported scheme "${t.protocol}" (only http/https are allowed)`)
+}
+i(Yie, "assertSafeHelperDownloadUrl");
+async function Xie(e, t) {
+  Yie(e);
+  let n = Qie(process.env),
+    r = new AbortController,
+    o = setTimeout(() => {
+      r.abort(new Error(`download timed out after ${n}ms`))
+    }, n);
+  o.unref?.();
+  try {
+    let s = await fetch(e, {
+      redirect: "follow",
+      signal: r.signal
+    });
+    if (!s.ok) throw new Error(`HTTP ${s.status} ${s.statusText}`);
+    if (!s.body) throw new Error("empty response body");
+    let a = Eie(process.env),
+      c = Number(s.headers.get("content-length"));
+    if (Number.isFinite(c) && c > a) throw new Error(`ZCode Computer Use download declares ${c} bytes, exceeding max ${a}`);
+    await Pie(Sie.fromWeb(s.body), Tie(a), uie(t))
+  } catch (s) {
+    throw r.signal.aborted ? new Error(`download timed out after ${n}ms`, {
+      cause: s
+    }) : s
+  } finally {
+    clearTimeout(o)
+  }
+}
+i(Xie, "defaultDownloadFile");
+
+function Qie(e) {
+  let t = e[bie]?.trim();
+  if (!t) return wW;
+  let n = Number(t);
+  return Number.isFinite(n) && n > 0 ? n : wW
+}
+i(Qie, "resolveDownloadTimeoutMs");
+
+function qh(e) {
+  try {
+    let t = new URL(e);
+    return t.username = "", t.password = "", t.search = "", t.hash = "", t.toString()
+  } catch {
+    let n = (e.split(/[?#]/u)[0] ?? e).split("/");
+    return n[n.length - 1] || "<redacted-url>"
+  }
+}
+i(qh, "redactHelperDownloadUrl");
+
+function ese(e) {
+  return e.length === 0 || e.includes("\0") || e.startsWith("/") || e.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(e) ? !0 : e.split(/[\\/]/u).some(n => n === "..")
+}
+i(ese, "isUnsafeZipEntryName");
+async function tse(e) {
+  let {
+    stdout: t
+  } = await Hr(dn.unzip, ["-Z1", e]), n = t.split(`
+`).map(r => r.replace(/\r$/u, "")).filter(r => r.length > 0);
+  for (let r of n)
+    if (ese(r)) throw new ye("install_failed", `refusing to extract Computer Use Helper archive: unsafe zip entry path ${JSON.stringify(r)}`)
+}
+i(tse, "assertSafeZipArchiveEntries");
+async function nse(e) {
+  let t = await yb(e),
+    n = i(o => o === t || o.startsWith(`${t}${vie}`), "withinRoot"),
+    r = [e];
+  for (; r.length > 0;) {
+    let o = r.pop(),
+      s = await Sb(o, {
+        withFileTypes: !0
+      });
+    for (let a of s) {
+      let c = Kn(o, a.name);
+      if (a.isSymbolicLink()) {
+        let d = await hb(c),
+          l = CW(o, d);
+        if (!n(l)) throw new ye("install_failed", `refusing extracted Computer Use Helper: symlink escapes staging (${c} -> ${d})`)
+      } else a.isDirectory() && r.push(c)
+    }
+  }
+}
+i(nse, "assertNoSymlinkEscape");
+async function rse(e, t) {
+  await tse(e), await Hr(dn.ditto, ["-x", "-k", e, t]), await nse(t)
+}
+i(rse, "defaultExtractZip");
+async function ose(e) {
+  process.platform === "darwin" && await Hr(dn.xattr, ["-dr", "com.apple.quarantine", e]).catch(t => {
+    let n = jn(t);
+    if (!/No such xattr|No such file|No such file or directory|not found/iu.test(n)) throw t
+  })
+}
+i(ose, "defaultClearQuarantine");
+async function kW(e, t) {
+  await t.dependencies.clearQuarantine(e).catch(n => {
+    t.logger?.warn(void 0, `cua helper installed and verified, but quarantine cleanup failed: ${jn(n)}`)
+  })
+}
+i(kW, "clearHelperQuarantine");
+async function _W(e) {
+  let t = await Sb(e, {
+    withFileTypes: !0
+  });
+  for (let n of t) {
+    let r = Kn(e, n.name);
+    if (!n.isDirectory()) continue;
+    if (n.name === xt) return r;
+    let o = await _W(r);
+    if (o) return o
+  }
+  return null
+}
+i(_W, "findHelperAppRecursively");
+async function ise(e, t) {
+  let n = wie(t);
+  await vb(n, {
+    recursive: !0
+  });
+  let r = Kn(n, `.${xt}.backup-${process.pid}-${Date.now()}`),
+    o = !1;
+  wb(t) && (await Hh(r, {
+    recursive: !0,
+    force: !0
+  }), await gb(t, r), o = !0);
+  try {
+    await gb(e, t)
+  } catch (s) {
+    throw o && (await Hh(t, {
+      recursive: !0,
+      force: !0
+    }), await gb(r, t)), new ye("install_failed", `Failed to promote ${xt} into ${t}: ${jn(s)}`, {
+      cause: s
+    })
+  }
+  o && await Hh(r, {
+    recursive: !0,
+    force: !0
+  })
+}
+i(ise, "promoteHelperApp");
+async function PW(e, t) {
+  await hie(Kn(e.installRoot, Cie), `${JSON.stringify({provider:"zcode-cua-helper",version:e.version,buildId:t.bundleInfo.buildId,platform:e.platformKey,source:e.source.kind==="bundled"?"bundled:zcode-app":qh(e.source.url),bundleId:t.bundleInfo.bundleId,displayName:yie(e.appPath,".app"),teamIdentifier:t.codesign?.teamIdentifier??null,verificationMode:t.mode,releaseEligible:t.releaseEligible},null,2)}
+`, "utf8")
+}
+i(PW, "writeInstallMeta");
+y();
+import {
+  lstatSync as TW,
+  readdirSync as sse,
+  readlinkSync as ase,
+  realpathSync as RW,
+  statSync as cse
+} from "fs";
+import {
+  isAbsolute as dse,
+  join as AW,
+  relative as lse
+} from "path";
+var EW = 4096;
+
+function Pb(e) {
+  let t = cse(e, {
+    bigint: !0
+  });
+  return `${t.dev}:${t.ino}:${t.mode}:${t.ctimeNs}:${t.size}`
+}
+i(Pb, "statSignature");
+
+function use(e) {
+  let t = TW(e, {
+    bigint: !0
+  });
+  return `${t.dev}:${t.ino}:${t.mode}:${t.ctimeNs}:${t.size}`
+}
+i(use, "lstatSignature");
+
+function Cb(e) {
+  let t = AW(e, "Contents"),
+    n = RW(t),
+    r = [{
+      absolutePath: t,
+      relativePath: "Contents"
+    }],
+    o = [`app:${Pb(e)}`];
+  for (; r.length > 0;) {
+    if (o.length >= EW) throw new Error(`ZCode Computer Use bundle exceeds ${EW} attestation entries`);
+    let s = r.shift(),
+      a = TW(s.absolutePath, {
+        bigint: !0
+      });
+    if (a.isSymbolicLink()) {
+      let c = ase(s.absolutePath),
+        d = RW(s.absolutePath),
+        l = lse(n, d);
+      if (l === ".." || l.startsWith(`..${process.platform==="win32"?"\\":"/"}`) || dse(l)) throw new Error(`ZCode Computer Use contains an out-of-bundle symlink: ${s.relativePath} -> ${c}`);
+      o.push(`${s.relativePath}:symlink:${use(s.absolutePath)}:${c}:${Pb(s.absolutePath)}`);
+      continue
+    }
+    if (o.push(`${s.relativePath}:${Pb(s.absolutePath)}`), !!a.isDirectory())
+      for (let c of sse(s.absolutePath).sort()) r.push({
+        absolutePath: AW(s.absolutePath, c),
+        relativePath: `${s.relativePath}/${c}`
+      })
+  }
+  return o.join("|")
+}
+i(Cb, "captureCuaHelperBundleAttestation");
+
+function bb(e, t) {
+  let n;
+  try {
+    n = Cb(e)
+  } catch (r) {
+    throw new Error(`ZCode Computer Use changed or became unreadable after verification: ${r instanceof Error?r.message:String(r)}`)
+  }
+  if (n !== t) throw new Error("ZCode Computer Use changed after signature verification")
+}
+i(bb, "assertCuaHelperBundleAttestationUnchanged");
+y();
+import {
+  execFile as pse
+} from "child_process";
+import {
+  existsSync as fse,
+  realpathSync as xW
+} from "fs";
+import {
+  isAbsolute as OW,
+  relative as mse,
+  resolve as gse
+} from "path";
+var MW = /^[A-Za-z0-9.-]+$/,
+  qn = class extends ye {
+    static {
+      i(this, "CuaHelperLiveProcessIdentityError")
+    }
+    observedSocketOwnerPid;
+    constructor(t, n = null, r) {
+      super("verification_failed", t, r), this.name = "CuaHelperLiveProcessIdentityError", this.observedSocketOwnerPid = n
+    }
+  };
+async function DW(e) {
+  return new Promise((t, n) => {
+    let r = ["-n", "-P", "-Fpcfn", "--", e];
+    pse(dn.lsof, r, {
+      encoding: "utf8"
+    }, (o, s, a) => {
+      let c = [...s.matchAll(/^p([0-9]+)$/gmu)].map(l => Number(l[1])).filter(l => Number.isInteger(l) && l > 1);
+      if (!o) {
+        t(c);
+        return
+      }
+      let d = o.code;
+      if ((d === 1 || d === "1") && c.length === 0 && (!fse(e) || a.trim().length === 0)) {
+        t([]);
+        return
+      }
+      n(new Error(`${dn.lsof} ${r.join(" ")} failed: ${o.message}${a?`
+${a}`:""}`))
+    })
+  })
+}
+i(DW, "listUnixSocketOwnerPids");
+async function hse() {
+  let {
+    stdout: e
+  } = await Hr(dn.ps, ["-awwxo", "pid=,ppid=,uid=,command="]);
+  return db(e)
+}
+i(hse, "listProcesses");
+var yse = {
+    listUnixSocketOwnerPids: DW,
+    async verifyProcessCodeSignature(e, t) {
+      await Hr(dn.codesign, ["--verify", "--strict", `-R=${t}`, String(e)])
+    },
+    async readProcessHostingPaths(e) {
+      let {
+        stdout: t,
+        stderr: n
+      } = await Hr(dn.codesign, ["--hosting", String(e)]);
+      return `${t}
+${n}`.split(/\r?\n/u).map(r => r.trim()).filter(r => OW(r))
+    },
+    canonicalize: xW
+  },
+  wse = {
+    listUnixSocketOwnerPids: DW,
+    listProcesses: hse,
+    currentUid: i(() => typeof process.getuid == "function" ? process.getuid() : null, "currentUid"),
+    canonicalize: xW
+  };
+async function NW(e, t = wse) {
+  let n = t.currentUid();
+  if (n === null) return {
+    state: "unknown",
+    pids: [],
+    detail: "current uid is unavailable"
+  };
+  let r = [],
+    o = null;
+  try {
+    r = [...new Set(await t.listUnixSocketOwnerPids(e.socketPath))]
+  } catch (l) {
+    o = (l instanceof Error ? l.message : String(l)).split(e.socketPath).join("<socket>")
+  }
+  let s;
+  try {
+    s = await t.listProcesses()
+  } catch (l) {
+    let p = (l instanceof Error ? l.message : String(l)).split(e.socketPath).join("<socket>");
+    return {
+      state: "unknown",
+      pids: [],
+      detail: `process inspection failed: ${p}`
+    }
+  }
+  let a = [e.helperAppPath];
+  try {
+    a.push(t.canonicalize(e.helperAppPath))
+  } catch {}
+  let c = [...new Set(a.map(sb))],
+    d = s.filter(l => cb(l, n, c, e.socketPath)).map(l => l.pid);
+  if (d.length > 0) {
+    let l = new Set(r);
+    return {
+      state: "observed",
+      pids: [...new Set(d)].sort((p, u) => Number(l.has(u)) - Number(l.has(p))),
+      ...o ? {
+        detail: `socket inspection failed: ${o}`
+      } : {}
+    }
+  }
+  return r.length > 0 ? {
+    state: "unknown",
+    pids: [],
+    detail: "random Helper socket still has an owner whose exact launch argv is unverified"
+  } : o ? {
+    state: "unknown",
+    pids: [],
+    detail: `socket inspection failed: ${o}`
+  } : {
+    state: "absent",
+    pids: []
+  }
+}
+i(NW, "discoverCuaHelperLaunchProcesses");
+
+function vse(e) {
+  let t = e.expectedBundleId.trim();
+  if (!MW.test(t)) throw new qn("ZCode Computer Use live verification received an unsafe bundle identifier");
+  if (e.allowAdHocLocalDev) {
+    if (t !== Zc) throw new qn("Ad-hoc Computer Use Helper live verification is restricted to the isolated dev bundle identifier");
+    return `identifier "${t}"`
+  }
+  let n = e.env ?? process.env,
+    o = (bn(n) ? n.ZCODE_CUA_HELPER_TEAM_ID?.trim() : void 0) || ha;
+  if (!MW.test(o)) throw new qn("ZCode Computer Use live verification received an unsafe TeamIdentifier");
+  return `anchor apple generic and identifier "${t}" and certificate leaf[subject.OU] = "${o}"`
+}
+i(vse, "resolveCuaHelperLiveCodeRequirement");
+async function LW(e, t = yse) {
+  if (e.reportedPid === null || !Number.isInteger(e.reportedPid) || e.reportedPid <= 1) throw new qn("ZCode Computer Use broker_info did not report a valid process id");
+  let n;
+  try {
+    n = [...new Set(await t.listUnixSocketOwnerPids(e.socketPath))]
+  } catch (l) {
+    throw new qn("Could not resolve the live process listening on the ZCode Computer Use socket", null, {
+      cause: l
+    })
+  }
+  if (n.length !== 1) throw new qn(`ZCode Computer Use socket has ${n.length} live owners; expected exactly one`, n.length === 1 ? n[0] : null);
+  let r = n[0];
+  if (r !== e.reportedPid) throw new qn(`ZCode Computer Use broker_info pid ${e.reportedPid} does not own its broker socket`, r);
+  let o = vse(e);
+  try {
+    await t.verifyProcessCodeSignature(r, o)
+  } catch (l) {
+    throw new qn("The live ZCode Computer Use process does not satisfy the expected code-signing identity", r, {
+      cause: l
+    })
+  }
+  let s;
+  try {
+    s = await t.readProcessHostingPaths(r)
+  } catch (l) {
+    throw new qn("Could not resolve the live ZCode Computer Use process hosting path", r, {
+      cause: l
+    })
+  }
+  let a = gse(t.canonicalize(e.helperAppPath), "Contents", "MacOS");
+  if (!s.some(l => {
+      try {
+        let p = t.canonicalize(l),
+          u = mse(a, p);
+        return u.length > 0 && u !== ".." && !u.startsWith(`..${process.platform==="win32"?"\\":"/"}`) && !OW(u)
+      } catch {
+        return !1
+      }
+    })) throw new qn("The live ZCode Computer Use process is not hosted by the verified Helper bundle", r);
+  let d;
+  try {
+    d = [...new Set(await t.listUnixSocketOwnerPids(e.socketPath))]
+  } catch (l) {
+    throw new qn("Could not re-confirm the live ZCode Computer Use socket owner after code-signature verification", r, {
+      cause: l
+    })
+  }
+  if (d.length !== 1 || d[0] !== r) throw new qn("ZCode Computer Use socket ownership changed during live process verification", d.length === 1 ? d[0] : null);
+  return {
+    pid: r
+  }
+}
+i(LW, "verifyCuaHelperLiveProcessIdentity");
+y();
+y();
+
+function FW(e) {
+  return Vz(e)
+}
+i(FW, "isScreenCaptureProbeSuccess");
+y();
+import {
+  randomUUID as Use
+} from "crypto";
+import {
+  mkdir as zse
+} from "fs/promises";
+import {
+  dirname as qW,
+  join as Wse
+} from "path";
+y();
+import {
+  randomBytes as Sse
+} from "crypto";
+
+function BW() {
+  return Sse(32).toString("hex")
+}
+i(BW, "mintRandomSecret");
+y();
+import {
+  chmod as UW,
+  mkdir as kse,
+  rename as Pse,
+  writeFile as Cse
+} from "fs/promises";
+import {
+  join as Ib
+} from "path";
+var bse = "ZCODE_CUA_DEV_EXPOSE_BROKER",
+  Ise = "broker-credentials.json",
+  _se = Ib("computer-use", "run");
+
+function _b(e) {
+  if (!bn(e ?? {})) return !1;
+  let t = e?.[bse],
+    n = typeof t == "string" ? t.trim().toLowerCase() : "";
+  return n === "1" || n === "true" || n === "on"
+}
+i(_b, "isDevBrokerExposureEnabled");
+
+function Rse(e = process.env) {
+  let t = Hc(e);
+  return t ? Ib(t, _se, Ise) : null
+}
+i(Rse, "resolveDevBrokerCredentialsFilePath");
+async function zW(e) {
+  if (!_b(e.env)) return;
+  let t = Rse(e.env ?? process.env);
+  if (!t) {
+    e.logger?.warn(void 0, "ZCODE_CUA_DEV_EXPOSE_BROKER=1 but ZCODE_HOME/HOME is not resolvable; skipping broker credential exposure (no path to write to).");
+    return
+  }
+  let n = Ib(t, "..");
+  await kse(n, {
+    recursive: !0,
+    mode: 448
+  }), await UW(n, 448);
+  let r = {
+      socket: e.socketPath
+    },
+    o = `${JSON.stringify(r)}
+`,
+    s = `${t}.${process.pid}.tmp`;
+  await Cse(s, o, {
+    encoding: "utf8",
+    mode: 384
+  }), await UW(s, 384), await Pse(s, t), e.logger?.warn(void 0, `ZCODE_CUA_DEV_EXPOSE_BROKER=1: wrote broker socket path to ${t} for the external test harness. NEVER enable this in production.`)
+}
+i(zW, "writeDevBrokerCredentialsFile");
+y();
+import {
+  chmod as HW,
+  lstat as Ase,
+  mkdir as Ese,
+  rename as WW,
+  stat as Tse,
+  unlink as Mse
+} from "fs/promises";
+import {
+  createServer as xse
+} from "net";
+import {
+  dirname as Ose
+} from "path";
+import $W from "process";
+var Dse = ".host-reservation",
+  Nse = ".pending",
+  ZW = 100;
+
+function jW() {
+  let e = $W.getuid;
+  return typeof e == "function" ? e.call($W) : null
+}
+i(jW, "currentUid");
+
+function Lse(e, t) {
+  let n = jW();
+  if (n !== null && t !== n) throw new Error(`refusing to use broker path not owned by current user: ${e}`)
+}
+i(Lse, "assertCurrentUserOwner");
+async function Fse(e) {
+  let t = Ose(e);
+  await Ese(t, {
+    recursive: !0,
+    mode: 448
+  });
+  let n = await Tse(t);
+  Lse(t, n.uid), (n.mode & 511) !== 448 && await HW(t, 448)
+}
+i(Fse, "ensureSocketDirectory");
+async function Gh(e) {
+  let t;
+  try {
+    t = await Ase(e)
+  } catch {
+    return
+  }
+  if (!t.isSocket()) return;
+  let n = jW();
+  n !== null && t.uid !== n || await Mse(e).catch(() => {})
+}
+i(Gh, "unlinkIfOwnedSocket");
+
+function Bse(e, t) {
+  return new Promise((n, r) => {
+    let o = i(a => {
+        e.removeListener("listening", s), r(a)
+      }, "onError"),
+      s = i(() => {
+        e.removeListener("error", o), n()
+      }, "onListening");
+    e.once("error", o), e.once("listening", s), e.listen(t)
+  })
+}
+i(Bse, "listenOn");
+
+function Rb(e) {
+  return new Promise(t => {
+    e.close(() => t())
+  })
+}
+i(Rb, "closeServer");
+async function KW(e) {
+  let {
+    socketPath: t
+  } = e, n = e.logger ?? NC;
+  if (ma(t)) return null;
+  let r = `${t}${Dse}`,
+    o = `${t}${Nse}`;
+  if (r.length > ZW) return n.warn(void 0, `cua transport rendezvous disabled: socket path budget exceeded (${r.length} > ${ZW})`), null;
+  let s = null;
+  try {
+    await Fse(t), await Gh(r), s = xse(p => {
+      p.destroy()
+    }), s.on("error", p => {
+      n.warn(void 0, `cua transport reservation listener error: ${p instanceof Error?p.message:String(p)}`)
+    }), await Bse(s, r), await HW(r, 384), await WW(r, t)
+  } catch (p) {
+    return s && await Rb(s).catch(() => {}), await Gh(r), n.warn(void 0, `cua transport rendezvous disabled: reservation failed (${p instanceof Error?p.message:String(p)})`), null
+  }
+  let a = s,
+    c = "reserved",
+    d = null,
+    l = i(p => {
+      let u = (d ?? Promise.resolve()).then(p, p);
+      return d = u.catch(() => {}), u
+    }, "single");
+  return {
+    pendingSocketPath: o,
+    get holdsPublishedPath() {
+      return c === "reserved"
+    },
+    publish() {
+      return l(async () => {
+        c === "reserved" && (await WW(o, t), c = "published", await Rb(a))
+      })
+    },
+    release() {
+      return l(async () => {
+        c === "reserved" && (c = "released", await Rb(a), await Gh(t))
+      })
+    },
+    unlinkPublishedIfOwned() {
+      return l(async () => {
+        c === "published" && await Gh(t)
+      })
+    }
+  }
+}
+i(KW, "createTransportReservation");
+var $se = Ss,
+  GW = jU + 2e3,
+  Zse = 5e3,
+  Hse = ".screen-recording-preflight",
+  Ab = class {
+    static {
+      i(this, "CuaHelperHost")
+    }
+    options;
+    handle = null;
+    resolverPluginAuthority;
+    pluginAuthorityMintError = null;
+    startInFlight = null;
+    pendingTermination = null;
+    terminationInFlight = null;
+    pendingFailedLaunch = null;
+    failedLaunchCleanupInFlight = null;
+    restartAfterCurrentStartInFlight = null;
+    restartPreservingTransportInFlight = null;
+    pendingRefreshMarker = null;
+    reservation = null;
+    pendingReservedTuple = null;
+    stopGeneration = 0;
+    collectHelperPidEvidence;
+    constructor(t) {
+      this.options = t, this.collectHelperPidEvidence = t.collectHelperPidEvidence ?? lb({
+        env: t.env,
+        logger: t.logger
+      })
+    }
+    get running() {
+      return this.handle !== null
+    }
+    get socketPath() {
+      return this.handle?.socketPath ?? null
+    }
+    get pluginAuthority() {
+      return this.resolverPluginAuthority ?? null
+    }
+    get reservedTransport() {
+      return this.handle || !this.reservation?.holdsPublishedPath ? null : this.pendingReservedTuple ?? null
+    }
+    resolveResolverPluginAuthority() {
+      if (this.resolverPluginAuthority !== void 0) return this.resolverPluginAuthority;
+      if (this.pluginAuthorityMintError) throw this.pluginAuthorityMintError;
+      try {
+        return this.resolverPluginAuthority = (this.options.mintPluginAuthority ?? BW)(), this.resolverPluginAuthority
+      } catch (t) {
+        throw this.pluginAuthorityMintError = new ye("launch_failed", `Failed to mint ZCode Computer Use resolver plugin authority: ${t instanceof Error?t.message:String(t)}`, {
+          cause: t
+        }), this.pluginAuthorityMintError
+      }
+    }
+    async start() {
+      if (this.restartPreservingTransportInFlight) return this.restartPreservingTransportInFlight.then(o => o.handle);
+      if (this.restartAfterCurrentStartInFlight) return this.restartAfterCurrentStartInFlight;
+      if (this.startInFlight) return this.startInFlight;
+      if (this.handle) {
+        let o = this.stopGeneration,
+          s = await this.retryCompletedRefreshMarkerForLiveHandle();
+        this.assertNotExternallyStopped(o);
+        let a = s?.handle ?? this.handle;
+        if (!a) throw new ye("launch_failed", "ZCode Computer Use handle became unavailable during start()");
+        return a
+      }
+      let t = this.stopGeneration;
+      if (await this.finishPendingTermination("before start"), await this.finishPendingFailedLaunch("before start"), this.assertNotExternallyStopped(t), this.handle) return this.handle;
+      if (this.startInFlight) return this.startInFlight;
+      let r = this.doStart(t, void 0, "cold-start").finally(async () => {
+        this.startInFlight === r && (this.startInFlight = null), await this.releaseReservationIfUnpublished()
+      });
+      return this.startInFlight = r, r
+    }
+    async doStart(t, n, r = "restart") {
+      let o = n?.socketPath ?? (this.options.mintSocketPath ?? (() => Uu({
+          env: this.options.env
+        })))(),
+        s = this.resolveResolverPluginAuthority(),
+        a = r === "cold-start" && !n ? await (this.options.createTransportReservation ?? KW)({
+          socketPath: o,
+          logger: this.options.logger
+        }) : null;
+      this.reservation = a, this.pendingReservedTuple = a ? {
+        socketPath: o,
+        pluginAuthority: s
+      } : null;
+      let c = a?.pendingSocketPath ?? o,
+        d = n ? void 0 : await this.options.helperInstaller?.ensureInstalled(),
+        l = n ? [n.helperAppPath] : [...d ? [d] : [], ...this.options.helperAppCandidates],
+        p = n?.helperAppPath ?? $z(l);
+      if (!p) throw new ye("helper_missing", `ZCode Computer Use is not ready (${l.length} internal candidate(s) checked). Restart ZCode or reinstall the Computer Use component.`);
+      let u = this.options.helperInstaller ? Cb(p) : null,
+        f = d !== void 0 && p === d;
+      await this.options.helperInstaller?.verifyInstalled(p, {
+        skipGatekeeperAssessment: f
+      }), u && bb(p, u);
+      let g = this.options.ghostCursorOverlay === !0,
+        v = this.options.pipMode === !0,
+        S = this.options.pipLiveProbe === !0,
+        k = YC(this.options.env ?? process.env),
+        C = this.options.healthTimeoutMs ?? 5e3,
+        A = this.options.failedLaunchCleanupNow ?? Date.now,
+        D = Math.max(0, this.options.brokerLaunchDeadlineSlackMs ?? 5e3),
+        U = await (this.options.prepareBrokerLaunchGuard ?? Ez)({
+          socketPath: c,
+          deadlineEpochMs: A() + C + D,
+          now: A()
+        });
+      try {
+        await this.options.launcher.launch({
+          appPath: p,
+          expectedAppBundlePath: p,
+          ...k ? {
+            controllerVariant: k
+          } : {},
+          ...xz() ? {
+            disableCpsActivation: !0
+          } : {},
+          socketPath: c,
+          brokerLaunchGuard: U,
+          ...u ? {
+            assertHelperUnchangedBeforeLaunch: i(() => bb(p, u), "assertHelperUnchangedBeforeLaunch")
+          } : {},
+          env: this.options.env,
+          allowUnsignedLauncherLocalDev: Ps(this.options.env),
+          allowExternalBrokerClientLocalDev: Ps(this.options.env) || _b(this.options.env),
+          version: bn(this.options.env) ? this.options.env?.ZCODE_VERSION?.trim() || qc : qc,
+          ghostCursorOverlay: g,
+          pipMode: v,
+          pipLiveProbe: S
+        })
+      } catch (W) {
+        let M = W instanceof ye ? W : new ye("launch_failed", `Failed to launch ${p}: ${W instanceof Error?W.message:String(W)}`, {
+          cause: W
+        });
+        throw await this.recordAndCleanupFailedLaunch({
+          socketPath: c,
+          helperAppPath: p,
+          guard: U
+        }, M), M
+      }
+      let j, B;
+      try {
+        j = await (this.options.healthProbe ?? ((O, L) => ql(O, {
+          timeoutMs: L
+        })))(c, C);
+        let M = this.options.expectedBundleId ?? $se;
+        if (B = (await (this.options.verifyLiveProcessIdentity ?? LW)({
+            socketPath: c,
+            reportedPid: j.pid,
+            helperAppPath: p,
+            expectedBundleId: M,
+            allowAdHocLocalDev: Ps(this.options.env),
+            env: this.options.env
+          })).pid, M && j.bundleId !== M) throw await this.terminateHelperPid(B, "unexpected bundle id", {
+          socketPath: c,
+          helperAppPath: p
+        }), new ye("unexpected_bundle_id", `ZCode Computer Use reported bundle id ${j.bundleId??"<missing>"} (expected ${M}). Refusing to inject broker credentials because TCC ownership is not the signed ZCode Computer Use.`);
+        if (this.stopGeneration !== t) throw await this.terminateHelperPid(B, "stopped-during-start", {
+          socketPath: c,
+          helperAppPath: p
+        }), new ye("launch_failed", "ZCode Computer Use start aborted by stop()");
+        if (await (this.options.cleanupBrokerLaunchGuard ?? qC)(U), this.stopGeneration !== t) throw await this.terminateHelperPid(B, "stopped-during-launch-guard-cleanup", {
+          socketPath: c,
+          helperAppPath: p
+        }), new ye("launch_failed", "ZCode Computer Use start aborted by stop()");
+        await this.reservation?.publish()
+      } catch (W) {
+        let M = W instanceof qn ? W.observedSocketOwnerPid : null;
+        throw await this.recordAndCleanupFailedLaunch({
+          socketPath: c,
+          helperAppPath: p,
+          guard: U
+        }, W, M), W instanceof ye || W instanceof qn ? W : new ye("verification_failed", `Failed to verify the live ZCode Computer Use process identity: ${W instanceof Error?W.message:String(W)}`, {
+          cause: W
+        })
+      }
+      this.handle = {
+        socketPath: o,
+        launchSocketPath: c,
+        pluginAuthority: s,
+        helperAppPath: p,
+        bundleId: j.bundleId,
+        pid: B
+      }, this.pendingReservedTuple = null;
+      try {
+        await zW({
+          socketPath: o,
+          env: this.options.env,
+          logger: this.options.logger
+        })
+      } catch (W) {
+        this.options.logger?.warn(void 0, `ZCODE_CUA_DEV_EXPOSE_BROKER: failed to write broker credentials file: ${W instanceof Error?W.message:String(W)}`)
+      }
+      return this.options.logger?.info(void 0, `cua helper ready at ${p} pid=${j.pid??"?"}`), this.options.logger?.debug?.(void 0, `cua helper socket=${o}`), this.handle
+    }
+    injectInto(t) {
+      if (!this.handle) throw new Error("CuaHelperHost.injectInto called before start(); start the helper first");
+      return sz(t, {
+        socketPath: this.handle.socketPath
+      })
+    }
+    async stop() {
+      let t = ++this.stopGeneration,
+        n = this.startInFlight;
+      if (n) try {
+        await n
+      } catch {}
+      t === this.stopGeneration && (await this.stopCurrentHandle("stop", {
+        allowSigkill: !0
+      }, !0), await this.completeRefreshMarkerAfterTransportRetired())
+    }
+    async stopCurrentHandle(t, n, r = !1) {
+      let o = this.handle;
+      if (o?.pid == null && o) throw new ye("termination_failed", `Cannot terminate ZCode Computer Use (${t}): live pid is unknown`);
+      if (this.handle = null, o?.pid != null) {
+        await this.terminateHelperPid(o.pid, t, {
+          socketPath: o.launchSocketPath,
+          helperAppPath: o.helperAppPath
+        }, n, r), await this.finishPendingFailedLaunch(t), await this.releasePublishedReservation();
+        return
+      }
+      await this.finishPendingTermination(t, n, r), await this.finishPendingFailedLaunch(t), await this.releasePublishedReservation()
+    }
+    async releaseReservationIfUnpublished() {
+      let t = this.reservation;
+      t?.holdsPublishedPath && (await t.release().catch(() => {}), this.reservation === t && (this.reservation = null, this.pendingReservedTuple = null))
+    }
+    async releasePublishedReservation() {
+      let t = this.reservation;
+      t && (await t.unlinkPublishedIfOwned().catch(() => {}), this.reservation === t && (this.reservation = null, this.pendingReservedTuple = null))
+    }
+    assertNotExternallyStopped(t) {
+      if (this.stopGeneration !== t) throw new ye("launch_failed", "ZCode Computer Use restart aborted by stop()")
+    }
+    beginFreshRestart(t) {
+      let r = (async () => (this.assertNotExternallyStopped(t), await this.stopCurrentHandle("restart"), await this.completeRefreshMarkerAfterTransportRetired(), this.assertNotExternallyStopped(t), this.doStart(t, void 0, "restart")))().finally(() => {
+        this.startInFlight === r && (this.startInFlight = null)
+      });
+      return this.startInFlight = r, r
+    }
+    async completeRefreshMarkerAfterTransportRetired() {
+      let t = this.pendingRefreshMarker;
+      t && (t.oldTransportRetired = !0, await t.handle.complete(), this.pendingRefreshMarker === t && (this.pendingRefreshMarker = null))
+    }
+    async retryCompletedRefreshMarkerForLiveHandle() {
+      let t = this.pendingRefreshMarker,
+        n = this.handle;
+      if (!t || !t.oldTransportRetired || !n) return null;
+      if (n.socketPath !== t.socketPath) throw new ye("termination_failed", "Cannot complete CUA permission refresh marker: live Helper transport no longer matches the pending marker");
+      return await t.handle.complete(), this.pendingRefreshMarker === t && (this.pendingRefreshMarker = null), {
+        handle: n,
+        reused: !0
+      }
+    }
+    beginTransportPreservingRestart(t, n) {
+      let o = (async () => {
+        if (this.assertNotExternallyStopped(t), n.pid == null) throw new ye("termination_failed", "Cannot refresh ZCode Computer Use permissions: verified live pid is unavailable");
+        let s = this.pendingRefreshMarker;
+        if (s && s.socketPath !== n.socketPath) throw new ye("termination_failed", "Cannot replace a pending CUA permission refresh marker with a different transport");
+        let a = s?.handle ?? await XU(n.socketPath, {
+            deadlineMs: (this.options.terminationTermGraceMs ?? GW) + Mh + (this.options.healthTimeoutMs ?? 5e3) + Zse
+          }),
+          c = s ?? {
+            socketPath: n.socketPath,
+            handle: a,
+            oldTransportRetired: !1
+          };
+        this.pendingRefreshMarker = c, this.assertNotExternallyStopped(t), await this.stopCurrentHandle("permission refresh", {
+          allowSigkill: !1,
+          termGraceMs: this.options.terminationTermGraceMs ?? GW
+        }), c.oldTransportRetired = !0, this.assertNotExternallyStopped(t);
+        let d = await this.doStart(t, {
+          helperAppPath: n.helperAppPath,
+          socketPath: n.socketPath
+        }, "restart");
+        return await a.complete(), this.pendingRefreshMarker === c && (this.pendingRefreshMarker = null), this.assertNotExternallyStopped(t), d
+      })().finally(() => {
+        this.startInFlight === o && (this.startInFlight = null)
+      });
+      return this.startInFlight = o, o.then(s => ({
+        handle: s,
+        reused: !0
+      }))
+    }
+    async finishPendingTermination(t, n, r = !1) {
+      let o = this.pendingTermination;
+      if (o) {
+        await this.terminateHelperPid(o.pid, t, {
+          socketPath: o.socketPath,
+          helperAppPath: o.helperAppPath
+        }, n ?? o.policy, r);
+        return
+      }
+      await this.terminationInFlight
+    }
+    async recordAndCleanupFailedLaunch(t, n, r = null) {
+      let o = this.pendingFailedLaunch;
+      if (o && (o.socketPath !== t.socketPath || o.helperAppPath !== t.helperAppPath)) throw new ye("termination_failed", "A previous failed ZCode Computer Use launch is still unresolved; refusing to replace its lifecycle blocker", {
+        cause: n
+      });
+      this.pendingFailedLaunch ??= {
+        ...t,
+        context: `startup failed: ${n instanceof Error?n.message:String(n)}`,
+        cancellationPublished: !1
+      }, this.ensureFailedLaunchRevoked(this.pendingFailedLaunch);
+      try {
+        r != null && await this.terminateHelperPid(r, "live process identity verification failed", t), await this.finishPendingFailedLaunch("startup failure")
+      } catch (s) {
+        throw new ye("termination_failed", `ZCode Computer Use startup failed and the launched process could not be conclusively cleaned up: ${s instanceof Error?s.message:String(s)}`, {
+          cause: n
+        })
+      }
+    }
+    async finishPendingFailedLaunch(t) {
+      if (!this.pendingFailedLaunch) {
+        await this.failedLaunchCleanupInFlight;
+        return
+      }
+      if (this.failedLaunchCleanupInFlight) {
+        await this.failedLaunchCleanupInFlight, this.pendingFailedLaunch && await this.finishPendingFailedLaunch(t);
+        return
+      }
+      let n = this.pendingFailedLaunch;
+      this.ensureFailedLaunchRevoked(n);
+      let o = this.runFailedLaunchCleanup(n, t).then(() => {
+        this.pendingFailedLaunch === n && (this.pendingFailedLaunch = null)
+      }).finally(() => {
+        this.failedLaunchCleanupInFlight === o && (this.failedLaunchCleanupInFlight = null)
+      });
+      this.failedLaunchCleanupInFlight = o, await o
+    }
+    async runFailedLaunchCleanup(t, n) {
+      let r = this.options.discoverLaunchedHelperProcesses ?? NW,
+        o = Math.max(1, this.options.failedLaunchCleanupPollIntervalMs ?? 100),
+        s = Math.max(1, Math.ceil(Math.max(0, this.options.failedLaunchCleanupQuietMs ?? 500) / o)),
+        a = this.options.failedLaunchCleanupDelay ?? VW,
+        c = this.options.failedLaunchCleanupNow ?? Date.now,
+        d = 0,
+        l = t.cancellationPublished ? 0 : Math.ceil(Math.max(0, t.guard.deadlineEpochMs - c()) / o),
+        p = Math.max(32, s + 8, l + s + 8);
+      for (let u = 0; u < p; u += 1) {
+        let f = await r({
+          socketPath: t.socketPath,
+          helperAppPath: t.helperAppPath
+        });
+        if (f.state === "unknown") throw new ye("termination_failed", `Cannot confirm failed ZCode Computer Use launch cleanup (${n}): ${f.detail??"process identity is unknown"}`);
+        if (f.state === "observed") {
+          d = 0;
+          let g = [...new Set(f.pids)].filter(v => Number.isInteger(v) && v > 1);
+          if (g.length === 0) throw new ye("termination_failed", `Failed ZCode Computer Use launch discovery returned observed without a valid pid (${n})`);
+          for (let v of g) await this.terminateHelperPid(v, t.context, {
+            socketPath: t.socketPath,
+            helperAppPath: t.helperAppPath
+          })
+        } else {
+          d += 1;
+          let g = t.cancellationPublished || c() >= t.guard.deadlineEpochMs;
+          if (d >= s && g) return
+        }
+        await a(o)
+      }
+      throw new ye("termination_failed", `Failed ZCode Computer Use launch did not reach a safely revoked quiet state (${n})${t.cancellationPublishError?`; cancel sentinel: ${t.cancellationPublishError}`:""}`)
+    }
+    ensureFailedLaunchRevoked(t) {
+      if (!t.cancellationPublished) try {
+        (this.options.publishBrokerLaunchCancellation ?? Tz)(t.socketPath, t.guard), t.cancellationPublished = !0, t.cancellationPublishError = void 0;
+        try {
+          (this.options.scheduleBrokerLaunchGuardCleanup ?? Mz)(t.guard)
+        } catch (n) {
+          this.options.logger?.warn(void 0, `failed to schedule cua helper launch-cancel cleanup: ${n instanceof Error?n.message:String(n)}`)
+        }
+      } catch (n) {
+        t.cancellationPublishError = n instanceof Error ? n.message : String(n)
+      }
+    }
+    async terminateHelperPid(t, n, r = {}, o = {}, s = !1) {
+      if (t == null) return;
+      if (this.pendingTermination && this.pendingTermination.pid !== t) throw new ye("termination_failed", `Cannot terminate ZCode Computer Use pid ${t} (${n}): pid ${this.pendingTermination.pid} is still pending termination`);
+      let a = !s && this.pendingTermination ? this.pendingTermination.policy : {
+        allowSigkill: o.allowSigkill ?? !0,
+        termGraceMs: o.termGraceMs ?? this.options.terminationTermGraceMs ?? 1e3
+      };
+      if (this.pendingTermination ??= {
+          pid: t,
+          context: n,
+          ...r,
+          policy: a
+        }, this.terminationInFlight) {
+        await this.terminationInFlight, this.pendingTermination?.pid === t && await this.terminateHelperPid(t, n, r, a, s);
+        return
+      }
+      let d = this.runTerminationSequence(t, n, r, a).catch(l => {
+        throw l instanceof ye ? l : new ye("termination_failed", `Failed to confirm ZCode Computer Use pid ${t} termination (${n}): ${l instanceof Error?l.message:String(l)}`, {
+          cause: l
+        })
+      }).then(() => {
+        this.pendingTermination?.pid === t && (this.pendingTermination = null)
+      }).finally(() => {
+        this.terminationInFlight === d && (this.terminationInFlight = null)
+      });
+      this.terminationInFlight = d, await d
+    }
+    async runTerminationSequence(t, n, r, o) {
+      if (this.signalHelperIfStillOwned(t, "SIGTERM", n, r) && !await this.waitForHelperDeparture(t, o.termGraceMs, n, r)) {
+        if (!o.allowSigkill) throw new ye("termination_failed", `ZCode Computer Use pid ${t} remained alive after SIGTERM (${n}); SIGKILL is disabled for permission refresh`);
+        if (this.signalHelperIfStillOwned(t, "SIGKILL", n, r) && !await this.waitForHelperDeparture(t, this.options.terminationKillGraceMs ?? 1e3, n, r)) throw new ye("termination_failed", `ZCode Computer Use pid ${t} remained alive after SIGTERM and SIGKILL (${n})`)
+      }
+    }
+    signalHelperIfStillOwned(t, n, r, o) {
+      let s = this.readHelperPidEvidence(t, o);
+      if (s.state === "unknown") throw new ye("termination_failed", `Cannot safely signal ZCode Computer Use pid ${t} (${r}): ${s.reason??"process identity is unknown"}`);
+      if (s.state !== "helper") {
+        if (s.state === "unrelated") {
+          let a = s.command ? ` (now: ${s.command})` : "";
+          this.options.logger?.warn(void 0, `skipping ${n} of cua helper pid ${t} (${r}): ${s.reason??"pid no longer looks like our Helper"}${a}`)
+        }
+        return !1
+      }
+      try {
+        (this.options.killProcess ?? jse)(t, n)
+      } catch (a) {
+        this.options.logger?.warn(void 0, `failed to send ${n} to cua helper pid ${t} (${r}): ${a instanceof Error?a.message:String(a)}`)
+      }
+      return !0
+    }
+    async waitForHelperDeparture(t, n, r, o) {
+      let s = Math.max(1, this.options.terminationPollIntervalMs ?? 100),
+        a = Math.max(1, Math.ceil(Math.max(0, n) / s)),
+        c = this.options.terminationDelay ?? VW;
+      for (let d = 0; d < a; d += 1) {
+        await c(s);
+        let l = this.readHelperPidEvidence(t, o);
+        if (l.state === "unknown") throw new ye("termination_failed", `Cannot confirm ZCode Computer Use pid ${t} departure (${r}): ${l.reason??"process identity is unknown"}`);
+        if (l.state !== "helper") return !0
+      }
+      return !1
+    }
+    readHelperPidEvidence(t, n) {
+      try {
+        return this.collectHelperPidEvidence(t, n)
+      } catch (r) {
+        return {
+          state: "unknown",
+          reason: r instanceof Error ? r.message : String(r)
+        }
+      }
+    }
+    async restart() {
+      return this.startInFlight ? this.startInFlight : this.beginFreshRestart(this.stopGeneration)
+    }
+    async restartAfterCurrentStart() {
+      if (this.restartAfterCurrentStartInFlight) return this.restartAfterCurrentStartInFlight;
+      let t = this.stopGeneration,
+        r = (async () => {
+          for (;;) {
+            this.assertNotExternallyStopped(t);
+            let s = this.startInFlight;
+            if (!s) break;
+            try {
+              await s
+            } catch {}
+          }
+          let o = await this.beginFreshRestart(t);
+          return this.assertNotExternallyStopped(t), o
+        })().finally(() => {
+          this.restartAfterCurrentStartInFlight === r && (this.restartAfterCurrentStartInFlight = null)
+        });
+      return this.restartAfterCurrentStartInFlight = r, r
+    }
+    async restartAfterCurrentStartPreservingTransport(t = {}) {
+      if (this.restartPreservingTransportInFlight) return this.restartPreservingTransportInFlight;
+      let n = this.stopGeneration,
+        o = (async () => {
+          for (;;) {
+            this.assertNotExternallyStopped(n);
+            let c = this.startInFlight;
+            if (!c) break;
+            try {
+              await c
+            } catch {}
+          }
+          this.assertNotExternallyStopped(n);
+          let s = await this.retryCompletedRefreshMarkerForLiveHandle();
+          if (s) return s;
+          let a = this.handle;
+          if (!a) {
+            t.beforeFreshStart?.();
+            let c = await this.beginFreshRestart(n);
+            return this.assertNotExternallyStopped(n), {
+              handle: c,
+              reused: !1
+            }
+          }
+          return this.beginTransportPreservingRestart(n, a)
+        })().finally(() => {
+          this.restartPreservingTransportInFlight === o && (this.restartPreservingTransportInFlight = null)
+        });
+      return this.restartPreservingTransportInFlight = o, o
+    }
+    async checkHealth(t = 1e3) {
+      if (!this.handle) throw new Error("CuaHelperHost.checkHealth called before start(); start the helper first");
+      return (this.options.healthProbe ?? ((r, o) => ql(r, {
+        timeoutMs: o
+      })))(this.handle.socketPath, t)
+    }
+    async queryPermissionStatus(t = 3e3) {
+      if (!this.handle) throw new Error("CuaHelperHost.queryPermissionStatus called before start(); start the helper first");
+      return (this.options.permissionStatusProbe ?? ((r, o) => xm({
+        socketPath: r,
+        method: "permission_status",
+        timeoutMs: o
+      })))(this.handle.socketPath, t)
+    }
+    async queryScreenRecordingPreflight(t) {
+      if (!this.handle) return null;
+      let n = this.options.screenRecordingPreflight ?? Fz,
+        r = Wse(qW(this.handle.socketPath), Hse, `.screen-recording-preflight-${Use()}.json`);
+      try {
+        await zse(qW(r), {
+          recursive: !0,
+          mode: 448
+        })
+      } catch {
+        return null
+      }
+      return n({
+        appPath: this.handle.helperAppPath,
+        resultFilePath: r,
+        ...t !== void 0 ? {
+          timeoutMs: t
+        } : {}
+      })
+    }
+    async queryScreenCaptureProbe(t = 6500) {
+      if (!this.handle) throw new Error("CuaHelperHost.queryScreenCaptureProbe called before start(); start the helper first");
+      return (this.options.screenCaptureProbe ?? ((r, o) => xm({
+        socketPath: r,
+        method: "screen_capture_probe",
+        timeoutMs: o
+      })))(this.handle.socketPath, t)
+    }
+  };
+
+function jse(e, t) {
+  process.kill(e, t)
+}
+i(jse, "defaultKillProcess");
+
+function VW(e) {
+  return new Promise(t => setTimeout(t, e))
+}
+i(VW, "defaultTerminationDelay");
+
+function JW(e) {
+  let t = e.env ?? process.env,
+    n = e.helperInstaller === !1 ? void 0 : e.helperInstaller ?? qu({
+      logger: e.logger,
+      env: t,
+      bundledAppPath: e.bundledHelperAppPath
+    });
+  return new Ab({
+    launcher: e.launcher ?? Bz(),
+    helperAppCandidates: Wz(t),
+    helperInstaller: n,
+    healthTimeoutMs: e.healthTimeoutMs,
+    expectedBundleId: Nh(t),
+    logger: e.logger,
+    env: t,
+    ghostCursorOverlay: !0,
+    verifyLiveProcessIdentity: e.verifyLiveProcessIdentity,
+    ...e.screenRecordingPreflight ? {
+      screenRecordingPreflight: e.screenRecordingPreflight
+    } : {},
+    pipMode: !0
+  })
+}
+i(JW, "createProductCuaHelperHost");
+y();
+y();
+
+function Eb(e, t) {
+  let n = !1,
+    r = i(() => {
+      n || (n = !0, t())
+    }, "beforeFreshStart");
+  return (e.restartAfterCurrentStartPreservingTransport ? e.restartAfterCurrentStartPreservingTransport({
+    beforeFreshStart: r
+  }) : (r(), e.restartAfterCurrentStart().then(s => ({
+    handle: s,
+    reused: !1
+  })))).then(s => {
+    if (!s.reused && !n) throw new ye("launch_failed", "Computer Use Helper fresh permission restart launched before the unavailable generation was published");
+    return s
+  })
+}
+i(Eb, "restartCuaHelperPreservingTransport");
+var Kse = 1e4,
+  Gu = new WeakMap;
+
+function qse(e) {
+  let t = Gu.get(e);
+  return t || (t = {
+    generation: 0,
+    pendingGeneration: null
+  }, Gu.set(e, t)), t
+}
+i(qse, "recoveryStateFor");
+
+function zi(e) {
+  let t = qse(e);
+  return t.generation += 1, t.pendingGeneration = t.generation, t.generation
+}
+i(zi, "markCuaProductHelperAgentEnvUnavailable");
+
+function YW(e) {
+  return Gu.get(e)?.pendingGeneration ?? null
+}
+i(YW, "pendingCuaProductHelperRecoveryGeneration");
+
+function Gse(e, t) {
+  let n = Gu.get(e);
+  return !n || n.pendingGeneration !== t ? !1 : (n.pendingGeneration = null, !0)
+}
+i(Gse, "commitCuaProductHelperRecoveryGeneration");
+
+function Rr(e) {
+  return YW(e) !== null
+}
+i(Rr, "hasCuaProductHelperAgentEnvUnavailable");
+
+function XW(e) {
+  let t = Gu.get(e);
+  t && (t.pendingGeneration = null)
+}
+i(XW, "clearCuaProductHelperAgentEnvUnavailable");
+async function Vu(e, t = Kse) {
+  let n;
+  try {
+    return await Promise.race([e, new Promise((r, o) => {
+      n = setTimeout(() => {
+        o(new ye("caller_timeout", `ZCode Computer Use is still starting after ${t}ms; retry the task shortly`))
+      }, t)
+    })])
+  } finally {
+    n && clearTimeout(n)
+  }
+}
+i(Vu, "waitForCuaHelperStartup");
+
+function QW(e, t = {}) {
+  let n = null,
+    r = null,
+    o = null,
+    s = null,
+    a = 0,
+    c = Promise.resolve(),
+    d = new Map,
+    l = new Set;
+
+  function p() {
+    if (o) return o.then(O => O.handle);
+    if (n) return n;
+    let F = e.start().finally(() => {
+      n === F && (n = null)
+    });
+    return n = F, F
+  }
+  i(p, "startHelper");
+
+  function u() {
+    if (r) return r;
+    let M = o,
+      O = (async () => (M && await M.catch(() => {}), (await Eb(e, () => zi(e))).handle))().finally(() => {
+        r === O && (r = null)
+      });
+    return r = O, O
+  }
+  i(u, "restartHelper");
+
+  function f() {
+    if (o) return o;
+    let M = r,
+      O = (async () => (M && await M.catch(() => {}), Eb(e, () => zi(e))))().finally(() => {
+        o === O && (o = null)
+      });
+    return o = O, O
+  }
+  i(f, "restartHelperAfterPermissionGrant");
+
+  function g() {
+    return o ? o.then(M => M.handle) : r ?? n
+  }
+  i(g, "currentLifecyclePromise");
+  async function v() {
+    await u(), await D()
+  }
+  i(v, "recoverHelper");
+  async function S() {
+    await f(), await D()
+  }
+  i(S, "recoverAfterPermissionGrant");
+
+  function k(M) {
+    let O = M?.trim() || `anonymous-grant-${++a}`;
+    if (l.has(O)) return Promise.resolve();
+    let L = d.get(O);
+    if (L) return L;
+    let q = c,
+      ie = (async () => {
+        if (await q.catch(() => {}), await S(), l.add(O), l.size > 64) {
+          let X = l.values().next().value;
+          X && l.delete(X)
+        }
+      })().finally(() => {
+        d.get(O) === ie && d.delete(O)
+      });
+    return d.set(O, ie), c = ie.catch(() => {}), ie
+  }
+  i(k, "restartAfterPermissionGrant");
+
+  function C() {
+    let M = e.running,
+      F = e.socketPath,
+      O = e.pluginAuthority;
+    return !M || !F || !O ? null : {
+      socketPath: F,
+      pluginAuthority: O
+    }
+  }
+  i(C, "readLiveHelperTuple");
+
+  function A(M) {
+    let F = C();
+    return F !== null && (F.socketPath !== M.socketPath || F.pluginAuthority !== M.pluginAuthority)
+  }
+  i(A, "helperTupleChanged");
+  async function D() {
+    for (;;) {
+      if (!s) {
+        if (!Rr(e)) return;
+        s = (async () => {
+          for (;;) {
+            let M = g();
+            if (M) {
+              await Vu(M);
+              continue
+            }
+            let F = YW(e);
+            if (F === null) return;
+            C() && Gse(e, F);
+            return
+          }
+        })().finally(() => {
+          s = null
+        })
+      }
+      if (await s, !Rr(e)) return
+    }
+  }
+  i(D, "reconcileSpawnAdmissionIfNeeded");
+  async function U() {
+    for (;;) {
+      let M = g();
+      if (M) {
+        try {
+          await Vu(M)
+        } catch (O) {
+          throw Rr(e) || zi(e), O
+        }
+        continue
+      }
+      if (await D(), g() || Rr(e)) continue;
+      let F = C();
+      if (F) return F;
+      throw zi(e), new ye("launch_failed", "ZCode Computer Use lifecycle completed without a live broker credential tuple")
+    }
+  }
+  i(U, "stabilizeHelperTuple");
+  async function j() {
+    let M = C();
+    if (!g() && M) try {
+      await e.checkHealth(1e3)
+    } catch {
+      if (t.hasActiveTurn?.()) throw new ye("restart_deferred_active_turn", "cua helper is unhealthy but an agent turn is active; deferring restart to the next request boundary");
+      !g() && !A(M) && u()
+    } else !g() && !M && p();
+    return U()
+  }
+  i(j, "ensureHelperReady");
+
+  function B() {
+    if (e.running || g()) return;
+    p().catch(() => {})
+  }
+  i(B, "warmHelperForBuiltInPlugin");
+  async function W(M) {
+    let F = M?.filter(ga);
+    if (!M || !F?.length) {
+      if (!e.running) return B(), M;
+      try {
+        await j()
+      } catch {}
+      return M
+    }
+    let O = e.pluginAuthority ?? void 0;
+    if (!F.some(Y => ZC(Y) && wh(Y, O))) return M.filter(Y => !ga(Y));
+    let L;
+    try {
+      L = await j()
+    } catch {
+      return Rr(e) || zi(e), M.filter(Y => !ga(Y))
+    }
+    let q = M.filter(Y => !ga(Y) || wh(Y, L.pluginAuthority));
+    return cz(q, L)
+  }
+  return i(W, "resolveMcpServersImpl"), {
+    async resolveMcpServers(M) {
+      let F = await W(M);
+      return dz(F)
+    },
+    async restart() {
+      await v()
+    },
+    async restartAfterPermissionGrant(M) {
+      await k(M)
+    },
+    async reconcileRecoveredHelper() {
+      g() || Rr(e) && C() && await D()
+    }
+  }
+}
+i(QW, "createCuaProductMcpServerResolver");
+y();
+var Vh = class {
+  static {
+    i(this, "CuaProductHelperWorkspaceRegistry")
+  }
+  targetsByWorkspaceKey = new Map;
+  setEnabled(t, n) {
+    if (!n) {
+      this.targetsByWorkspaceKey.delete(t.workspaceKey);
+      return
+    }
+    let r = {
+      workspacePath: t.workspacePath,
+      ...t.workspaceIdentity ? {
+        workspaceIdentity: t.workspaceIdentity
+      } : {}
+    };
+    this.targetsByWorkspaceKey.set(t.workspaceKey, r)
+  }
+  snapshot() {
+    return [...this.targetsByWorkspaceKey.values()]
+  }
+  pruneDisabled(t) {
+    for (let [n, r] of this.targetsByWorkspaceKey) t(r) || this.targetsByWorkspaceKey.delete(n)
+  }
+};
+y();
+var Jh = class {
+  static {
+    i(this, "CuaHelperLifecycleManager")
+  }
+  stopInstance;
+  current;
+  retiring;
+  terminal = !1;
+  transitionTail = Promise.resolve();
+  disposePromise;
+  constructor(t) {
+    this.stopInstance = t
+  }
+  get disposed() {
+    return this.terminal
+  }
+  isCurrent(t) {
+    return !this.terminal && this.current === t
+  }
+  peek() {
+    return this.terminal ? void 0 : this.current
+  }
+  acquire(t) {
+    return this.enqueue(async () => {
+      if (!this.terminal && (await this.finishRetiringInstance(), !this.terminal)) {
+        if (!t.isAdmitted()) {
+          await this.stopCurrentIfNeeded(t.shouldRetainCurrent);
+          return
+        }
+        return this.current || (this.current = t.create()), this.current
+      }
+    })
+  }
+  reconcile(t) {
+    return this.enqueue(async () => {
+      this.terminal || (await this.finishRetiringInstance(), !this.terminal && await this.stopCurrentIfNeeded(t))
+    })
+  }
+  dispose() {
+    return this.disposePromise ? this.disposePromise : (this.terminal = !0, this.disposePromise = this.enqueue(async () => {
+      let t = this.current,
+        n = this.retiring;
+      this.current = void 0, this.retiring = void 0;
+      let r = [n, t].filter((s, a, c) => s !== void 0 && c.indexOf(s) === a),
+        o = [];
+      for (let s of r) try {
+        await this.stopInstance(s)
+      } catch (a) {
+        o.push(a)
+      }
+      if (o.length === 1) throw o[0];
+      if (o.length > 1) throw new AggregateError(o, "Failed to stop Computer Use Helper instances")
+    }), this.disposePromise)
+  }
+  async stopCurrentIfNeeded(t) {
+    let n = this.current;
+    !n || t(n) || (this.current = void 0, this.retiring = n, await this.finishRetiringInstance())
+  }
+  async finishRetiringInstance() {
+    let t = this.retiring;
+    t && (await this.stopInstance(t), this.retiring === t && (this.retiring = void 0))
+  }
+  enqueue(t) {
+    let n = this.transitionTail.then(t, t);
+    return this.transitionTail = n.then(() => {}, () => {}), n
+  }
+};
+y();
+import {
+  chmodSync as K3e,
+  copyFileSync as q3e,
+  mkdirSync as G3e,
+  writeFileSync as V3e
+} from "fs";
+import {
+  basename as Y3e,
+  join as X3e
+} from "path";
+y();
+import {
+  homedir as sae
+} from "os";
+import {
+  join as aae
+} from "path";
+y();
+import {
+  existsSync as e$,
+  readFileSync as Vse,
+  statSync as Jse
+} from "fs";
+import {
+  dirname as Yse,
+  join as Tb,
+  resolve as Xse
+} from "path";
+var Qse = ["zcode.json", Tb(".zcode", "config.json")],
+  eae = ".git";
+
+function tae(e) {
+  let t = Xse(e ?? process.cwd());
+  return rae(t).flatMap(n => Qse.map(r => Tb(n, r)).filter(r => e$(r)))
+}
+i(tae, "discoverZCodeProjectConfigPaths");
+
+function t$(e) {
+  return nae(e).enabled
+}
+i(t$, "resolveOfficialCuaPluginEnablement");
+
+function nae(e) {
+  let t = !0,
+    n = !0,
+    r = !1,
+    o = !1,
+    s = [...e.userConfigPath ? [e.userConfigPath] : [], ...tae(e.workingDirectory), ...e.projectConfigPath ? [e.projectConfigPath] : []];
+  for (let a of s) {
+    let c = iae(a);
+    if (c) {
+      if (Vc(c, "features")) {
+        let d = Yh(c.features);
+        d ? Vc(d, "mcp") && (t = d.mcp === !0) : t = !1
+      }
+      if (Vc(c, "plugins")) {
+        let d = Yh(c.plugins);
+        if (!d) {
+          n = !1, r = !1, o = !0;
+          continue
+        }
+        if (Vc(d, "enabled") && (n = d.enabled === !0), Vc(d, "enabledPlugins")) {
+          let l = Yh(d.enabledPlugins);
+          l ? Vc(l, e.pluginId) && (r = l[e.pluginId] === !0, o = !0) : (r = !1, o = !0)
+        }
+      }
+    }
+  }
+  return {
+    configured: o,
+    enabled: t && n && r
+  }
+}
+i(nae, "resolveOfficialCuaPluginEnablementState");
+
+function rae(e) {
+  let t = [],
+    n = e;
+  for (;;) {
+    if (t.push(n), oae(n)) return t.reverse();
+    let r = Yse(n);
+    if (r === n) break;
+    n = r
+  }
+  return [e]
+}
+i(rae, "getProjectConfigDirectories");
+
+function oae(e) {
+  let t = Tb(e, eae);
+  try {
+    if (!e$(t)) return !1;
+    let n = Jse(t);
+    return n.isDirectory() || n.isFile()
+  } catch {
+    return !1
+  }
+}
+i(oae, "hasWorktreeMarker");
+
+function iae(e) {
+  try {
+    return Yh(JSON.parse(Vse(e, "utf8")))
+  } catch {
+    return
+  }
+}
+i(iae, "readJsonObject");
+
+function Yh(e) {
+  return typeof e == "object" && e !== null && !Array.isArray(e) ? e : void 0
+}
+i(Yh, "readObject");
+
+function Vc(e, t) {
+  return Object.prototype.hasOwnProperty.call(e, t)
+}
+i(Vc, "hasOwn");
+
+function n$(e = {}) {
+  let n = (e.env ?? process.env).HOME?.trim() || sae();
+  return t$({
+    pluginId: Lu,
+    workingDirectory: e.workingDirectory,
+    projectConfigPath: e.projectConfigPath,
+    userConfigPath: e.userConfigPath ?? aae(n, ".zcode", "cli", "config.json")
+  })
+}
+i(n$, "isOfficialCuaPluginEnabledForWorkspace");
+y();
+y();
+y();
+y();
+y();
+var fr = "broker_unavailable";
+
+function dae(e) {
+  return /\braw foreground event\b.*\brefused because\b/i.test(e) || /\bmodifiers must be a '\+'-separated chord\b/i.test(e) || /\belement \([^)]*\) is not settable; refuse set_value\b/i.test(e) || /\belement \([^)]*\) is not selectable; refuse select_text\b/i.test(e)
+}
+i(dae, "legacyHelperMessageProvesActionNotSent");
+var Ft = class extends Error {
+  static {
+    i(this, "PermissionBrokerError")
+  }
+  code;
+  details;
+  permissionError;
+  constructor(t = "unknown broker error", n = {}) {
+    let r = (t && t.length > 0 ? t : n.code && n.code.length > 0 ? n.code : "unknown broker error") || "unknown broker error",
+      s = (n.details?.action_sent === !1 || dae(r)) && !/\baction_sent\s*=\s*false\b/i.test(r) ? `${r.replace(/\s+$/u,"")} action_sent=false.` : r;
+    super(s, n.cause !== void 0 ? {
+      cause: n.cause
+    } : void 0), this.name = "PermissionBrokerError", this.code = typeof n.code == "string" && n.code.trim().length > 0 ? n.code.trim() : null, this.details = n.details ? {
+      ...n.details
+    } : {}, this.permissionError = n.permissionError === !0
+  }
+};
+
+function Ju(e, t = {}) {
+  let n = {
+    ...t,
+    permissionError: !0
+  };
+  return new Ft(e, n)
+}
+i(Ju, "permissionBrokerPermissionError");
+y();
+var Mb = "ZCODE_CUA_BROKER_ALLOW_ANY_PEER",
+  xb = "ZCODE_CUA_ALLOW_DEV_BROKER",
+  Ob = Object.freeze(["1", "true", "yes", "on"]);
+y();
+var Xh = "broker_not_accepting",
+  Qh = "permission_refresh_in_progress",
+  ey = "permission_refresh_invalid",
+  ty = "broker_response_ambiguous",
+  ny = "caller_timeout",
+  ry = "restart_deferred_active_turn",
+  lae = Object.freeze({
+    [Xh]: !0,
+    [Qh]: !0,
+    [ey]: !1,
+    [ty]: !1,
+    [ny]: !0,
+    [ry]: !0
+  }),
+  uae = Object.freeze([Xh, Qh, ey, ty, ny, ry]);
+y();
+var Db = "The ZCode Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.",
+  Nb = "The Helper may have accepted this action, but its response was lost. Do not replay it automatically; observe the target state first.",
+  Yu = "ZCode is still refreshing the permission Helper. Retry after the refresh finishes.",
+  Xu = "ZCode's permission refresh marker is invalid or unsafe. ZCode must recreate the marker in its private runtime directory.",
+  pae = Object.freeze({
+    broker_not_accepting: Db,
+    broker_response_ambiguous: Nb,
+    permission_refresh_in_progress: Yu,
+    permission_refresh_invalid: Xu
+  });
+y();
+y();
+y();
+var mae = 30 * 1e3,
+  s$ = 5 * 1e3;
+
+function Fb(e, t) {
+  if (e !== "hold_key" && e !== "hold_key_to_app") return 0;
+  let n = (t ?? {}).duration;
+  return typeof n == "boolean" || typeof n != "number" || !Number.isFinite(n) || n < 0 ? 0 : Math.min(n, 30) * 1e3
+}
+i(Fb, "boundedHoldDuration");
+
+function Bb(e, t, n) {
+  if (t !== "hold_key" && t !== "hold_key_to_app") return e;
+  let r = Fb(t, n);
+  return r <= 0 ? e : Math.max(e, r + s$)
+}
+i(Bb, "businessResponseTimeout");
+y();
+
+function Ub(e) {
+  if (e === null || typeof e != "object" || Array.isArray(e)) return !1;
+  let t = e,
+    n = t.message,
+    r = t.code,
+    o = t.details;
+  return n !== void 0 && (typeof n != "string" || n.trim().length === 0) || r !== void 0 && (typeof r != "string" || r.trim().length === 0) || o !== void 0 && (o === null || typeof o != "object" || Array.isArray(o)) ? !1 : typeof n == "string" && n.trim().length > 0 || typeof r == "string" && r.trim().length > 0
+}
+i(Ub, "isValidErrorEnvelope");
+
+function zb(e) {
+  if (e !== null && typeof e == "object" && !Array.isArray(e)) {
+    let t = e,
+      n = t.code,
+      r = typeof n == "string" && n.trim().length > 0 ? n.trim() : null,
+      o = t.message,
+      s = (typeof o == "string" && o.trim().length > 0 ? String(o) : null) ?? r ?? "unknown broker error",
+      a = t.details !== null && typeof t.details == "object" && !Array.isArray(t.details) ? {
+        ...t.details
+      } : {};
+    return {
+      message: String(s),
+      code: r,
+      details: a
+    }
+  }
+  return {
+    message: String(e ?? "unknown broker error"),
+    code: null,
+    details: {}
+  }
+}
+i(zb, "parseErrorPayload");
+
+function Wb(e) {
+  let t = e.error;
+  if (t !== null && typeof t == "object" && !Array.isArray(t)) {
+    let r = t.message;
+    if (typeof r == "string" && r.trim().length > 0) return r
+  }
+  return "auth rejected"
+}
+i(Wb, "extractAuthErrorMessage");
+y();
+import {
+  statSync as gae
+} from "fs";
+import "net";
+var hae = /^\\\\\.\\pipe\\zcode-cua-helper-(?:[0-9a-f]{8,}|default)$/;
+
+function a$(e = process.env) {
+  let t = e[xb];
+  if (typeof t != "string") return !1;
+  let n = t.trim().toLowerCase();
+  return Ob.includes(n)
+}
+i(a$, "devBrokerOptIn");
+
+function c$(e = process.env) {
+  let t = e[Mb];
+  return typeof t != "string" ? !1 : t.trim().toLowerCase().length > 0
+}
+i(c$, "allowAnyPeer");
+
+function $b(e = process.env) {
+  return {
+    verifySocketPeer(t, n) {
+      if (c$(e) && a$(e)) return;
+      if (process.platform === "win32") {
+        if (!hae.test(t)) throw new Ft(`refusing broker pipe outside zcode-cua-helper namespace: ${t}`, {
+          code: "untrusted_socket"
+        });
+        return
+      }
+      let r = typeof process.geteuid == "function" ? process.geteuid() : void 0;
+      if (r === void 0) return;
+      let o;
+      try {
+        let s = gae(t);
+        o = {
+          uid: s.uid,
+          mode: s.mode
+        }
+      } catch {
+        return
+      }
+      if (o.uid !== r && o.uid !== 0) throw new Ft(`refusing broker socket ${t}: owned by uid ${o.uid}, expected ${r}`, {
+        code: "untrusted_socket"
+      });
+      if (o.mode & 2) throw new Ft(`refusing broker socket ${t}: world-writable`, {
+        code: "untrusted_socket"
+      })
+    }
+  }
+}
+i($b, "defaultPeerCredentialChecker");
+var yae = Object.freeze({
+  verifySocketPeer(e, t) {}
+});
+y();
+import {
+  createConnection as vae
+} from "net";
+y();
+import {
+  AsyncLocalStorage as wae
+} from "async_hooks";
+var tXe = new wae;
+
+function Jc() {
+  return new Ft("ZCode permission broker RPC was cancelled before the next socket transition", {
+    code: fr,
+    details: {
+      rpc_deadline_state: "cancelled",
+      request_delivery_state: "not_sent"
+    }
+  })
+}
+i(Jc, "cancelledBrokerError");
+var Qu = class {
+  static {
+    i(this, "PermissionBrokerClient")
+  }
+  socketPath;
+  timeoutMs;
+  peerChecker;
+  maxFrameBytes;
+  cancelSignal;
+  onPresentation;
+  authenticateParams;
+  _nextId = 0;
+  constructor(t, n) {
+    if (!t || !t.trim()) throw new Error("permission broker socket path must be non-empty");
+    if (typeof n.timeoutMs != "number" || !Number.isFinite(n.timeoutMs) || n.timeoutMs <= 0) throw new Error(`permission broker timeout must be a finite, positive number of milliseconds, got ${n.timeoutMs}`);
+    this.socketPath = t, this.timeoutMs = n.timeoutMs, this.peerChecker = n.peerChecker ?? $b(), this.maxFrameBytes = n.maxFrameBytes ?? 67108864, this.cancelSignal = n.cancelSignal, this.onPresentation = n.onPresentation, this.authenticateParams = n.authenticateParams && Object.keys(n.authenticateParams).length > 0 ? {
+      ...n.authenticateParams
+    } : null
+  }
+  requestId() {
+    return this._nextId += 1, this._nextId
+  }
+  async call(t, n, r = {}) {
+    if (this.cancelSignal?.cancelled) throw Jc();
+    let o = this.requestId(),
+      s = `${JSON.stringify({id:o,method:t,params:n})}
+`,
+      a = {
+        clientApiVersion: 2,
+        ...this.authenticateParams
+      },
+      c = `${JSON.stringify({id:0,method:"authenticate",params:a})}
+`,
+      d = Bb(this.timeoutMs, t, n),
+      l = "not_sent",
+      p = i(k => k.split(this.socketPath).join("<socket>"), "sanitize"),
+      u = "",
+      f = !1,
+      g = {
+        result: null,
+        error: null
+      },
+      v = vae(this.socketPath);
+    if (await new Promise(k => {
+        let C = !1,
+          A = i(() => {}, "unsubscribeCancel"),
+          D = i(j => {
+            if (!C) {
+              C = !0, A();
+              try {
+                v.destroy()
+              } catch {}
+              j(), k()
+            }
+          }, "finish"),
+          U = i(() => {
+            l === "not_sent" && D(() => {
+              g.error = Jc()
+            })
+          }, "cancelBeforeSend");
+        this.cancelSignal?.onCancel && (A = this.cancelSignal.onCancel(U)), this.cancelSignal?.cancelled && U(), v.on("close", () => {
+          if (f && g.result || g.error) return;
+          let j = l;
+          D(() => {
+            g.error = kae(p("broker connection closed before reply"), j, "connection_closed")
+          })
+        }), v.on("error", j => {
+          if (g.error || g.result) return;
+          let B = l;
+          D(() => {
+            g.error = d$(j, p, B)
+          })
+        }), v.setTimeout(d), v.setEncoding("utf8"), v.on("timeout", () => {
+          if (g.error || g.result) return;
+          let j = l;
+          D(() => {
+            g.error = d$(new Error(p("broker exchange timed out")), p, j, "timeout")
+          })
+        }), v.on("connect", () => {
+          try {
+            this.peerChecker.verifySocketPeer(this.socketPath, v)
+          } catch (j) {
+            let B = l;
+            D(() => {
+              g.error = Sae(j, B)
+            });
+            return
+          }
+          v.write(c)
+        }), v.on("data", j => {
+          u += j;
+          let B = u.indexOf(`
+`);
+          for (; B >= 0;) {
+            let W = u.slice(0, B);
+            if (u = u.slice(B + 1), B = u.indexOf(`
+`), !W.trim()) continue;
+            if (W.length > this.maxFrameBytes) {
+              let q = l;
+              D(() => {
+                g.error = new Ft(`ZCode permission broker frame exceeded ${this.maxFrameBytes} bytes`, {
+                  code: fr,
+                  details: {
+                    request_delivery_state: q
+                  }
+                })
+              });
+              return
+            }
+            let M;
+            try {
+              M = JSON.parse(W)
+            } catch {
+              let q = f ? "possibly_sent" : l;
+              D(() => {
+                g.error = new Ft("ZCode permission broker returned invalid JSON", {
+                  code: fr,
+                  details: {
+                    broker_response_state: "invalid_json",
+                    request_delivery_state: q
+                  }
+                })
+              });
+              return
+            }
+            if (!f && c !== null && (M.id === 0 || M === null || typeof M != "object" || Array.isArray(M))) {
+              if (M === null || typeof M != "object" || Array.isArray(M)) {
+                D(() => {
+                  g.error = Ju("ZCode permission broker returned a non-object authenticate response", {
+                    code: "not_authorized"
+                  })
+                });
+                return
+              }
+              if (M.ok === !0) {
+                f = !0, l = "possibly_sent", v.write(s);
+                continue
+              }
+              let q = Wb(M);
+              D(() => {
+                g.error = Ju(`ZCode permission broker rejected authenticate: ${q}`, {
+                  code: "not_authorized"
+                })
+              });
+              return
+            }
+            if (M === null || typeof M != "object" || Array.isArray(M)) {
+              D(() => {
+                g.error = oy("ZCode permission broker response must be a JSON object", "non_object")
+              });
+              return
+            }
+            if (M.id !== o) {
+              D(() => {
+                g.error = oy(`ZCode permission broker response id mismatch: expected ${o}, got ${JSON.stringify(M.id)}`, "id_mismatch")
+              });
+              return
+            }
+            if (typeof M.ok != "boolean") {
+              D(() => {
+                g.error = oy("ZCode permission broker response has an invalid ok field", "invalid_envelope")
+              });
+              return
+            }
+            if (M.ok === !0) {
+              D(() => {
+                if (M.presentation !== void 0) try {
+                  this.onPresentation?.(M.presentation)
+                } catch {}
+                g.result = {
+                  value: M.result
+                }
+              });
+              return
+            }
+            if (!Ub(M.error)) {
+              D(() => {
+                g.error = oy("ZCode permission broker returned an invalid error envelope", "invalid_envelope")
+              });
+              return
+            }
+            let {
+              message: F,
+              code: O,
+              details: L
+            } = zb(M.error);
+            D(O === "permission_denied" || O === "not_authorized" ? () => {
+              g.error = Ju(F, {
+                code: O,
+                details: L
+              })
+            } : () => {
+              g.error = new Ft(F, {
+                code: O,
+                details: L
+              })
+            });
+            return
+          }
+        })
+      }), g.error) throw g.error;
+    if (g.result) return g.result.value;
+    throw new Ft("ZCode permission broker exchange ended without a reply", {
+      code: fr,
+      details: {
+        request_delivery_state: l
+      }
+    })
+  }
+};
+
+function d$(e, t, n, r) {
+  let o = e instanceof Error ? e.message : String(e ?? "transport error"),
+    s = r ?? (e instanceof Error ? e.name : typeof e == "string" ? "string" : "unknown");
+  return new Ft(t(`ZCode permission broker is unavailable: ${o}`), {
+    code: fr,
+    details: {
+      error_type: s,
+      request_delivery_state: n
+    }
+  })
+}
+i(d$, "wrapTransportError");
+
+function Sae(e, t) {
+  if (e instanceof Ft) {
+    if (e.code === fr) {
+      let n = {
+        ...e.details,
+        request_delivery_state: t
+      };
+      return new Ft(e.message, {
+        code: e.code,
+        details: n,
+        permissionError: e.permissionError
+      })
+    }
+    return e
+  }
+  return new Ft(`peer credential check raised unexpectedly: ${String(e)}`, {
+    code: fr,
+    details: {
+      request_delivery_state: t
+    }
+  })
+}
+i(Sae, "wrapPeerCheckError");
+
+function oy(e, t) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      broker_response_state: t,
+      request_delivery_state: "possibly_sent"
+    }
+  })
+}
+i(oy, "invalidResponseError");
+
+function kae(e, t, n) {
+  return new Ft(e, {
+    code: fr,
+    details: {
+      error_type: n,
+      request_delivery_state: t
+    }
+  })
+}
+i(kae, "brokerUnavailableFromTransport");
+y();
+import {
+  closeSync as yXe,
+  fstatSync as wXe,
+  lstatSync as vXe,
+  openSync as SXe,
+  readFileSync as kXe,
+  readSync as PXe
+} from "fs";
+var RXe = Object.freeze(new Set(["schema", "kind", "deadlineEpochMs"]));
+y();
+y();
+import {
+  randomBytes as Aae
+} from "crypto";
+y();
+import {
+  fork as Rae
+} from "child_process";
+var iy = lW,
+  p$ = Zu,
+  f$ = {
+    fork(e, t, n) {
+      let [r, ...o] = t;
+      if (!r) throw new Error("Windows Computer Use Helper entry path is required");
+      return Rae(r, o, {
+        ...n,
+        execPath: e
+      })
+    }
+  },
+  m$ = Uu,
+  g$ = i((e, t) => ql(e, {
+    timeoutMs: t
+  }), "defaultHealthProbe"),
+  sy = class {
+    constructor(t) {
+      this.logger = t
+    }
+    logger;
+    static {
+      i(this, "WindowsCuaChildLifecycle")
+    }
+    async terminate(t, n, r) {
+      if (t.exitObserved) {
+        t.removeMainListeners();
+        return
+      }
+      let o = this.waitForExit(t, "first-wait", r);
+      if (this.sendShutdown(t, n), await o) {
+        t.removeMainListeners();
+        return
+      }
+      let s = this.waitForExit(t, "second-wait", r);
+      if (this.kill(t, n), await s) {
+        t.removeMainListeners();
+        return
+      }
+      let a = new Error("Windows Computer Use Helper termination blocker: child did not exit after kill");
+      throw this.logFailure(t.id, t.child.pid, `${n}-termination-blocker`, a), a
+    }
+    sendShutdown(t, n) {
+      try {
+        t.child.send({
+          protocol: iy,
+          type: "shutdown"
+        })
+      } catch (r) {
+        this.logFailure(t.id, t.child.pid, `${n}-send`, r)
+      }
+    }
+    kill(t, n) {
+      try {
+        t.child.kill()
+      } catch (r) {
+        this.logFailure(t.id, t.child.pid, `${n}-kill`, r)
+      }
+    }
+    on(t, n, r, o, s) {
+      try {
+        return t.on(n, r), !0
+      } catch (a) {
+        return this.logFailure(o, t.pid, s, a), !1
+      }
+    }
+    off(t, n, r, o, s) {
+      try {
+        t.off(n, r)
+      } catch (a) {
+        this.logFailure(o, t.pid, s, a)
+      }
+    }
+    logFailure(t, n, r, o) {
+      this.logger.warn(void 0, "Windows Computer Use Helper lifecycle failure", {
+        generation: t,
+        pid: n,
+        errorClass: r,
+        error: o instanceof Error ? o.name : typeof o
+      })
+    }
+    waitForExit(t, n, r) {
+      return t.exitObserved ? Promise.resolve(!0) : new Promise(o => {
+        let s = !1,
+          a = i(l => {
+            s || (s = !0, clearTimeout(d), this.off(t.child, "exit", c, t.id, `${n}-off`), o(l))
+          }, "finish"),
+          c = i(() => {
+            t.exitObserved = !0, a(!0)
+          }, "onExit"),
+          d = setTimeout(() => a(!1), r);
+        d.unref?.(), this.on(t.child, "exit", c, t.id, `${n}-on`) ? t.exitObserved && a(!0) : a(!1)
+      })
+    }
+  };
+
+function h$(e) {
+  if (!e || typeof e != "object") return null;
+  let t = e;
+  return t.protocol !== iy ? "ignore" : t.type === "error" ? typeof t.message != "string" || t.message.length === 0 ? null : {
+    protocol: iy,
+    type: "error",
+    message: t.message
+  } : t.type !== "ready" && t.type !== "transport_ready" ? "ignore" : typeof t.socketPath != "string" || !t.socketPath || !Number.isInteger(t.pid) || t.pid <= 0 ? null : {
+    protocol: iy,
+    type: t.type,
+    socketPath: t.socketPath,
+    pid: t.pid
+  }
+}
+i(h$, "parseReadyMessage");
+
+function y$(e, t) {
+  return Number.isInteger(e.pid) && e.pid > 0 && e.pid === t
+}
+i(y$, "isExactHealthPid");
+
+function ay(e) {
+  return e instanceof Error ? e : new Error(String(e))
+}
+i(ay, "asError");
+var Eae = i(() => Aae(16).toString("hex"), "mintRandomAuthority"),
+  w$ = 3e4,
+  v$ = 1e3,
+  ep = class {
+    constructor(t) {
+      this.options = t;
+      this.childProcess = t.childProcess ?? f$, this.mintSocketPath = t.mintSocketPath ?? m$, this.healthProbe = t.healthProbe ?? g$, this.startupTimeoutMs = t.startupTimeoutMs ?? w$, this.shutdownTimeoutMs = t.shutdownTimeoutMs ?? v$, this.logger = t.logger ?? Pe("windows-cua-helper-host"), this.childLifecycle = new sy(this.logger), this.authority = (t.mintPluginAuthority ?? Eae)()
+    }
+    options;
+    static {
+      i(this, "WindowsCuaHelperHost")
+    }
+    childProcess;
+    mintSocketPath;
+    healthProbe;
+    startupTimeoutMs;
+    shutdownTimeoutMs;
+    logger;
+    childLifecycle;
+    authority;
+    handle = null;
+    lastAgentVisibleTransport = null;
+    current = null;
+    lifecycleTail = Promise.resolve();
+    terminationBlocker = null;
+    startInFlight = null;
+    startInFlightEpoch = null;
+    restartInFlight = null;
+    restartAfterStartInFlight = null;
+    restartPreservingTransportInFlight = null;
+    transportReadyInFlight = null;
+    transportReadyResolve = null;
+    transportReadyReject = null;
+    nextGeneration = 0;
+    externalStopEpoch = 0;
+    get running() {
+      return this.handle !== null
+    }
+    get socketPath() {
+      return this.handle?.socketPath ?? null
+    }
+    get pluginAuthority() {
+      return this.handle ? this.authority : null
+    }
+    waitForTransport(t = w$) {
+      if (this.handle) return Promise.resolve({
+        socketPath: this.handle.socketPath,
+        pluginAuthority: this.handle.pluginAuthority
+      });
+      let n = this.transportReadyInFlight;
+      return n ? new Promise((r, o) => {
+        let s = setTimeout(() => {
+          o(new Error(`Windows Computer Use Helper transport timed out after ${t}ms`))
+        }, t);
+        s.unref?.(), n.then(a => {
+          clearTimeout(s), r(a)
+        }, a => {
+          clearTimeout(s), o(a)
+        })
+      }) : Promise.reject(new Error("Windows Computer Use Helper is not starting"))
+    }
+    start() {
+      let t = this.externalStopEpoch;
+      if (this.startInFlight && this.startInFlightEpoch === t) return this.startInFlight;
+      this.createTransportReadyPromise();
+      let n = this.transportReadyInFlight,
+        r = this.lastAgentVisibleTransport ?? void 0,
+        o = this.enqueue(() => this.startNow(t, r)).catch(s => {
+          throw this.transportReadyInFlight === n && this.rejectTransportReady(s), s
+        }).finally(() => {
+          this.startInFlight === o && (this.startInFlight = null, this.startInFlightEpoch = null)
+        });
+      return this.startInFlight = o, this.startInFlightEpoch = t, o.catch(() => {}), o
+    }
+    stop() {
+      let t = this.current,
+        n = this.invalidateForExternalStop(t);
+      return this.enqueue(async () => {
+        try {
+          await n
+        } finally {
+          t && this.current?.id === t.id && (this.current = null)
+        }
+      })
+    }
+    restart() {
+      if (this.restartInFlight) return this.restartInFlight;
+      let t = this.externalStopEpoch,
+        n = this.enqueue(async () => (await this.stopNow("restart"), this.startNow(t))).finally(() => {
+          this.restartInFlight === n && (this.restartInFlight = null)
+        });
+      return this.restartInFlight = n, n
+    }
+    restartAfterCurrentStart() {
+      if (this.restartAfterStartInFlight) return this.restartAfterStartInFlight;
+      let t = this.externalStopEpoch,
+        n = this.enqueue(async () => (await this.stopNow("permission-restart"), this.startNow(t))).finally(() => {
+          this.restartAfterStartInFlight === n && (this.restartAfterStartInFlight = null)
+        });
+      return this.restartAfterStartInFlight = n, n
+    }
+    restartAfterCurrentStartPreservingTransport(t = {}) {
+      if (this.restartPreservingTransportInFlight) return this.restartPreservingTransportInFlight;
+      let n = this.externalStopEpoch,
+        r = this.enqueue(async () => {
+          let o = this.handle ?? this.lastAgentVisibleTransport;
+          if (await this.stopNow("preserving-transport-restart"), n !== this.externalStopEpoch) throw new Error("Windows Computer Use Helper startup stopped");
+          return o ? {
+            handle: await this.startNow(n, o),
+            reused: !0
+          } : (t.beforeFreshStart?.(), this.lastAgentVisibleTransport = null, {
+            handle: await this.startNow(n),
+            reused: !1
+          })
+        }).finally(() => {
+          this.restartPreservingTransportInFlight === r && (this.restartPreservingTransportInFlight = null)
+        });
+      return this.restartPreservingTransportInFlight = r, r
+    }
+    async checkHealth(t = v$) {
+      let n = this.handle;
+      if (!n) throw new Error("Windows Computer Use Helper is not running");
+      return this.healthProbe(n.socketPath, t)
+    }
+    enqueue(t) {
+      let n = this.lifecycleTail.then(async () => {
+        if (this.terminationBlocker) throw this.terminationBlocker;
+        return t()
+      });
+      return this.lifecycleTail = n.then(() => {}, () => {}), n
+    }
+    startNow(t, n) {
+      return t !== this.externalStopEpoch ? Promise.reject(new Error("Windows Computer Use Helper startup stopped")) : this.handle ? Promise.resolve(this.handle) : this.terminationBlocker ? Promise.reject(this.terminationBlocker) : this.startGeneration(t, n)
+    }
+    createTransportReadyPromise() {
+      this.transportReadyInFlight || (this.transportReadyInFlight = new Promise((t, n) => {
+        this.transportReadyResolve = t, this.transportReadyReject = n
+      }), this.transportReadyInFlight.catch(() => {}))
+    }
+    resolveTransportReady(t) {
+      this.lastAgentVisibleTransport = {
+        socketPath: t.socketPath
+      }, this.transportReadyResolve?.(t), this.transportReadyResolve = null, this.transportReadyReject = null
+    }
+    rejectTransportReady(t) {
+      this.transportReadyReject?.(t), this.invalidateTransportReady()
+    }
+    invalidateTransportReady() {
+      this.transportReadyResolve = null, this.transportReadyReject = null, this.transportReadyInFlight = null
+    }
+    async stopNow(t) {
+      let n = this.current;
+      n && (this.handle = null, t !== "preserving-transport-restart" && (this.lastAgentVisibleTransport = null), n.stopped = !0, await this.terminateGeneration(n, t), this.current?.id === n.id && (this.current = null), this.invalidateTransportReady())
+    }
+    startGeneration(t, n) {
+      let r = ++this.nextGeneration,
+        o = n?.socketPath ?? this.mintSocketPath(),
+        s = [this.options.runtime.entryPath, "--socket", o, "--parent-pid", String(process.pid)],
+        a;
+      try {
+        a = this.childProcess.fork(this.options.runtime.command, s, {
+          cwd: this.options.runtime.root,
+          env: {
+            ...process.env,
+            ...this.options.runtime.commandEnv,
+            [p$]: this.options.runtime.addonPath,
+            ELECTRON_RUN_AS_NODE: "1"
+          }
+        })
+      } catch (c) {
+        let d = ay(c);
+        return this.rejectTransportReady(d), this.childLifecycle.logFailure(r, void 0, "fork", d), Promise.reject(d)
+      }
+      return new Promise((c, d) => {
+        let l = !1,
+          p, u, f = i((C, A) => {
+            if (l) return;
+            l = !0, p && clearTimeout(p);
+            let D = ay(C);
+            this.handle = null, this.rejectTransportReady(D), u.stopped = !0, this.childLifecycle.logFailure(r, a.pid, A, D), this.terminateGeneration(u, A).then(() => d(D), U => {
+              this.childLifecycle.logFailure(r, a.pid, `${A}-cleanup`, U), d(D)
+            })
+          }, "fail"),
+          g = i(C => {
+            l || (l = !0, p && clearTimeout(p), this.handle = null, this.rejectTransportReady(C), d(C))
+          }, "abort"),
+          v = i(C => f(C, "child-error"), "onError"),
+          S = i(C => {
+            u.exitObserved = !0, l ? !u.stopped && this.current?.id === r && (this.handle = null, this.current = null, this.invalidateTransportReady(), this.logger.warn(void 0, "Windows Computer Use Helper exited unexpectedly", {
+              generation: r,
+              pid: a.pid,
+              errorClass: "unexpected-exit"
+            }), this.options.onUnexpectedExit?.({
+              generation: r,
+              pid: a.pid
+            })) : f(new Error(`Windows Computer Use Helper exited before ready (${String(C)})`), "early-exit")
+          }, "onExit"),
+          k = i(C => {
+            if (u.stopped || t !== this.externalStopEpoch || this.current?.id !== r) return;
+            let A = h$(C);
+            if (A !== "ignore") {
+              if (!A) return f(new Error("Invalid Windows Computer Use Helper control message"), "malformed-message");
+              if (A.type === "error") return f(new Error(A.message), "helper-reported-error");
+              if (A.socketPath === o) {
+                if (A.pid !== a.pid) return f(new Error("ready-pid-mismatch"), "ready-pid-mismatch");
+                this.resolveTransportReady({
+                  socketPath: o,
+                  pluginAuthority: this.authority
+                }), A.type !== "transport_ready" && this.healthProbe(o, this.startupTimeoutMs).then(D => {
+                  if (l || u.stopped || t !== this.externalStopEpoch || this.current?.id !== r) return;
+                  if (!y$(D, a.pid)) return f(new Error("health-pid-mismatch"), "health-pid-mismatch");
+                  l = !0, p && clearTimeout(p);
+                  let U = {
+                    socketPath: o,
+                    launchSocketPath: o,
+                    pluginAuthority: this.authority,
+                    helperAppPath: this.options.runtime.entryPath,
+                    bundleId: D.bundleId,
+                    pid: D.pid
+                  };
+                  this.handle = U, this.logger.info(void 0, "Windows Computer Use Helper ready", {
+                    generation: r,
+                    pid: D.pid
+                  }), c(U)
+                }, D => f(D, "health-failed"))
+              }
+            }
+          }, "onMessage");
+        if (u = {
+            id: r,
+            child: a,
+            socketPath: o,
+            stopped: !1,
+            exitObserved: !1,
+            abort: g,
+            removeMainListeners: i(() => {
+              this.childLifecycle.off(a, "message", k, r, "cleanup-off-message"), this.childLifecycle.off(a, "error", v, r, "cleanup-off-error"), this.childLifecycle.off(a, "exit", S, r, "cleanup-off-exit")
+            }, "removeMainListeners")
+          }, this.current = u, !this.childLifecycle.on(a, "message", k, r, "setup-on-message") || !this.childLifecycle.on(a, "error", v, r, "setup-on-error") || !this.childLifecycle.on(a, "exit", S, r, "setup-on-exit")) {
+          f(new Error("Windows Computer Use Helper listener setup failed"), "listener-setup");
+          return
+        }
+        p = setTimeout(() => f(new Error("Windows Computer Use Helper startup timed out"), "startup-timeout"), this.startupTimeoutMs), p.unref?.()
+      })
+    }
+    terminateGeneration(t, n) {
+      if (t.terminationPromise) return t.terminationPromise;
+      let r = this.terminateGenerationOnce(t, n);
+      return t.terminationPromise = r, r
+    }
+    async terminateGenerationOnce(t, n) {
+      try {
+        await this.childLifecycle.terminate(t, n, this.shutdownTimeoutMs)
+      } catch (r) {
+        throw this.terminationBlocker = ay(r), r
+      }
+    }
+    invalidateForExternalStop(t) {
+      if (this.externalStopEpoch += 1, this.lastAgentVisibleTransport = null, !t) return this.rejectTransportReady(new Error("Windows Computer Use Helper startup stopped")), Promise.resolve();
+      this.handle = null, t.stopped = !0, t.abort?.(new Error("Windows Computer Use Helper startup stopped")), this.invalidateTransportReady();
+      let n = this.terminateGeneration(t, "stop");
+      return n.catch(() => {}), n
+    }
+  };
+y();
+y();
+
+function Tae(e) {
+  return new Ft(e, {
+    code: "version_mismatch"
+  })
+}
+i(Tae, "mismatchError");
+
+function S$(e) {
+  let t = new Qu(e.socketPath, {
+      authenticateParams: {
+        role: "presentation"
+      },
+      timeoutMs: e.timeoutMs ?? 3e3,
+      peerChecker: e.peerChecker
+    }),
+    n = Math.max(0, e.reconnectAttempts ?? 2),
+    r = Math.max(0, e.reconnectDelayMs ?? 50),
+    o = !1,
+    s = !1,
+    a = null,
+    c = Promise.resolve(),
+    d = !1,
+    l = i(v => {
+      if (!d) {
+        d = !0;
+        try {
+          e.onDiagnostic?.(v)
+        } catch {}
+      }
+    }, "emitDiagnostic"),
+    p = i(v => {
+      s = !1, a = v, l({
+        code: "version_mismatch",
+        message: v.message
+      })
+    }, "disableForMismatch"),
+    u = i(async (v, S) => {
+      let k;
+      for (let C = 0; C <= n; C += 1) try {
+        return await t.call(v, S)
+      } catch (A) {
+        if (k = A, A instanceof Ft && A.code === "version_mismatch") throw p(A), A;
+        if (!(A instanceof Ft) || A.code !== "broker_unavailable" || C === n) throw A instanceof Ft && A.code === "broker_unavailable" && C === n && l({
+          code: "transport_unavailable",
+          message: A.message
+        }), A;
+        r > 0 && await new Promise(D => setTimeout(D, r))
+      }
+      throw k
+    }, "callWithReconnect"),
+    f = i(async () => {
+      if (o) throw new Error("PiP session client is closed");
+      if (a) throw a;
+      if (s) return;
+      let S = await u("pip_session_handshake", {
+        protocolVersion: Uh,
+        runtimeId: zh
+      });
+      if (S.ready !== !0 || S.protocolVersion !== Uh || S.runtimeId !== zh) {
+        let k = Tae("PiP session handshake returned a different protocol/runtime; Auto-PiP is disabled");
+        throw p(k), k
+      }
+      s = !0
+    }, "connect"),
+    g = i(v => {
+      let S = c.then(v, v);
+      return c = S.then(() => {}, () => {}), S
+    }, "enqueue");
+  return {
+    connect: i(() => g(f), "connect"),
+    send: i(v => g(async () => {
+      if (a) throw a;
+      let S = Wh.parse(v);
+      return await f(), await u("pip_session_event", {
+        event: S
+      })
+    }), "send"),
+    get enabled() {
+      return !o && a === null
+    },
+    close() {
+      o = !0, s = !1
+    }
+  }
+}
+i(S$, "createPipSessionClient");
+
+function Wi(e) {
+  return e.kind === "focus-changed" ? {
+    kind: e.kind,
+    revision: e.revision,
+    sessionId: e.sessionId,
+    sourceWindowId: e.sourceWindowId
+  } : {
+    eventId: e.eventId,
+    kind: e.kind,
+    sequenceNumber: e.sequenceNumber,
+    sessionId: e.sessionId,
+    ...e.kind === "session-closed" ? {} : {
+      turnId: e.turnId
+    },
+    ...e.kind === "turn-ended" ? {
+      outcome: e.outcome
+    } : {}
+  }
+}
+i(Wi, "eventLogContext");
+
+function Zb(e) {
+  let t = e.logger ?? Pe("cua-pip-session"),
+    n = e.createClient ?? S$,
+    r = null,
+    o = null,
+    s = Promise.resolve(),
+    a = !1,
+    c = null,
+    d = null,
+    l = 250,
+    p = 3e4,
+    u = 0,
+    f = i(() => {
+      d !== null && (clearTimeout(d), d = null)
+    }, "cancelReplayRetry"),
+    g = i(async () => {
+      if (!e.enabled) return {
+        client: null,
+        skipReason: "service-disabled"
+      };
+      if (a) return {
+        client: null,
+        skipReason: "service-disposed"
+      };
+      let k = await e.resolveCredentials();
+      if (!k) return {
+        client: null,
+        skipReason: "credentials-unavailable"
+      };
+      let C = k.socketPath;
+      if (o === C) return {
+        client: null,
+        skipReason: "transport-disabled"
+      };
+      if (r?.key === C) return {
+        client: r.client
+      };
+      r?.client.close();
+      let A = n({
+        socketPath: k.socketPath,
+        onDiagnostic: i(D => {
+          let U = `[cua-pip-session] ${D.code}: ${D.message}`;
+          D.code === "version_mismatch" ? t.warn(void 0, U) : t.debug(void 0, U)
+        }, "onDiagnostic")
+      });
+      r = {
+        key: C,
+        client: A
+      };
+      try {
+        return await A.connect(), {
+          client: A
+        }
+      } catch (D) {
+        throw r?.client === A && (r = null), A.close(), D.code === "version_mismatch" && (o = C), D
+      }
+    }, "getClient"),
+    v = i(() => {
+      if (f(), !(a || c === null)) {
+        if (Date.now() >= u) {
+          t.warn(void 0, "[cua-pip-session] deferred turn-started expired before transport", {
+            ...Wi(c.event)
+          }), c = null;
+          return
+        }
+        d = setTimeout(() => {
+          if (d = null, a || c === null) return;
+          s = s.then(async () => {
+            if (a || c === null) return;
+            let C;
+            try {
+              C = await g()
+            } catch {
+              v();
+              return
+            }
+            if (!C.client) {
+              v();
+              return
+            }
+            let A = c;
+            c = null;
+            try {
+              let D = await C.client.send(A.event);
+              t.info(void 0, "[cua-pip-session] replayed deferred turn-started", {
+                ...Wi(A.event),
+                applied: D.applied,
+                reason: D.reason
+              })
+            } catch (D) {
+              t.warn(void 0, "[cua-pip-session] replay of deferred turn-started failed", {
+                ...Wi(A.event),
+                errorMessage: D instanceof Error ? D.message : String(D)
+              })
+            }
+          })
+        }, l), d.unref?.()
+      }
+    }, "scheduleReplayRetry"),
+    S = i(k => {
+      if (a) return Promise.resolve();
+      let C = s.then(async () => {
+        try {
+          let A = await g();
+          if (!A.client) {
+            A.skipReason === "credentials-unavailable" || A.skipReason === "transport-disabled" ? (k.kind === "turn-started" ? (c = {
+              event: k,
+              turnId: k.turnId
+            }, u = Date.now() + p, v()) : (k.kind === "turn-ended" || k.kind === "session-closed") && c !== null && ("turnId" in k ? c.turnId === k.turnId : c.event.sessionId === k.sessionId) && (c = null, f()), t.warn(void 0, "[cua-pip-session] event delivery skipped", {
+              ...Wi(k),
+              skipReason: A.skipReason
+            })) : t.warn(void 0, "[cua-pip-session] event delivery dropped", {
+              ...Wi(k),
+              skipReason: A.skipReason
+            });
+            return
+          }
+          f();
+          let D = k.kind === "turn-started" ? null : c;
+          if (c = null, D !== null) try {
+            let j = await A.client.send(D.event);
+            t.info(void 0, "[cua-pip-session] replayed deferred turn-started", {
+              ...Wi(D.event),
+              applied: j.applied,
+              reason: j.reason
+            })
+          } catch (j) {
+            t.warn(void 0, "[cua-pip-session] replay of deferred turn-started failed", {
+              ...Wi(D.event),
+              errorMessage: j instanceof Error ? j.message : String(j)
+            })
+          }
+          let U = await A.client.send(k);
+          t.info(void 0, "[cua-pip-session] event delivery acknowledged", {
+            ...Wi(k),
+            applied: U.applied,
+            reason: U.reason
+          })
+        } catch (A) {
+          t.warn(void 0, "[cua-pip-session] event delivery failed", {
+            ...Wi(k),
+            errorMessage: A instanceof Error ? A.message : String(A)
+          })
+        }
+      });
+      return s = C, C
+    }, "publish");
+  return {
+    publishFocus: S,
+    publishLifecycle: S,
+    dispose() {
+      a = !0, f(), c = null, r?.client.close(), r = null
+    }
+  }
+}
+i(Zb, "createCuaPipSessionService");
+y();
+
+function k$(e) {
+  switch (e.trim().toLowerCase()) {
+    case "amd64":
+    case "x86_64":
+    case "x64":
+      return "x64";
+    case "aarch64":
+    case "arm64":
+      return "arm64";
+    default:
+      return e.trim()
+  }
+}
+i(k$, "normalizeCuaHelperArch");
+
+function P$(e) {
+  return [...new Set(e.map(k$).filter(Boolean))]
+}
+i(P$, "normalizeCuaHelperArchs");
+
+function C$(e) {
+  let t = e.dependencies?.readExecutableArchs ?? Oh.readExecutableArchs;
+  return {
+    ...e,
+    dependencies: {
+      ...e.dependencies,
+      readExecutableArchs: i(async n => P$(await t(n)), "readExecutableArchs")
+    }
+  }
+}
+i(C$, "canonicalizeCuaHelperInstallerOptions");
+
+function Hb(e, t = qu) {
+  return t(C$(e))
+}
+i(Hb, "createCanonicalCuaHelperInstaller");
+y();
+import {
+  Buffer as lH
+} from "buffer";
+import {
+  createHash as uH,
+  randomBytes as lle
+} from "crypto";
+import {
+  mkdir as ule,
+  readFile as ple,
+  writeFile as fle
+} from "fs/promises";
+import {
+  dirname as mle,
+  join as gle
+} from "path";
+y();
+var Mae = new Set(["default", "yolo", "plan", "edit", "acceptEdits", "auto", "dontAsk", "bypassPermissions", "autoEdit", "build"]);
+
+function I$(e) {
+  if (typeof e != "string") return;
+  let t = e.trim();
+  return t.length > 0 ? t : void 0
+}
+i(I$, "readTrimmedString");
+
+function xae(e) {
+  return e.find(t => t.category === "mode" && t.type === "select")
+}
+i(xae, "getModeConfigOption");
+
+function b$(e, t) {
+  let n = I$(e);
+  if (n) {
+    if (Mae.has(n)) return n;
+    switch (n) {
+      case "read-only":
+      case "read_only":
+        return "plan";
+      case "auto_edit":
+      case "auto-edit":
+      case "autoEdit":
+      case "accept_edits":
+      case "accept-edits":
+        return "acceptEdits";
+      case "full-auto":
+      case "full_auto":
+        return "yolo";
+      case "agent":
+        return t === "codex" ? "default" : void 0;
+      case "agent-full-access":
+      case "agent_full_access":
+      case "full-access":
+      case "full_access":
+        return "bypassPermissions";
+      default:
+        return
+    }
+  }
+}
+i(b$, "normalizePersistedSessionMode");
+
+function _$(e) {
+  let t = I$(e.modeId);
+  if (!t) return;
+  let r = xae(e.configOptions)?.options ?? [],
+    o = r.find(c => c.value === t);
+  if (o) return o.value;
+  let s = b$(t, e.provider);
+  return s ? r.find(c => b$(c.value, e.provider) === s)?.value : void 0
+}
+i(_$, "resolveProviderModeIdFromConfigOptions");
+y();
+var Oae = "https://accounts.feishu.cn",
+  Dae = "https://accounts.larksuite.com",
+  Nae = "/oauth/v1/app/registration";
+var Lae = "node-sdk/zcode";
+
+function Fae(e) {
+  return e === "lark" ? Dae : Oae
+}
+i(Fae, "getAccountsBaseUrl");
+
+function R$(e, t) {
+  let n = e?.[t];
+  return typeof n == "string" ? n : ""
+}
+i(R$, "readString");
+
+function Bae(e) {
+  let t = typeof e.

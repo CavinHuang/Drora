@@ -1,0 +1,16 @@
+export declare var oz: string, iz: string;
+export declare function bre(e: any): any;
+export declare function Ire(e: any): boolean;
+export declare function sz(e: any, t: any): any;
+export declare function az(e: any, t: any, n: any): void;
+export declare function cz(e: any, t: any): any;
+export declare function _re(e: any, t: any): any;
+export declare function $C(e: any): any;
+export declare function ga(e: any): boolean;
+export declare function ZC(e: any): boolean;
+export declare function wh(e: any, t: any): boolean;
+export declare function dz(e: any): any;
+export declare function Rre(e: any): boolean;
+export declare function HC(e: any): string[];
+export declare function zu(e: any): any[];
+export declare function rz(e: any, t: any, n: any): any;

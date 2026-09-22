@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "strict": false,
+    "noUncheckedIndexedAccess": false,
+    "declaration": false,
+    "sourceMap": false,
+    "declarationMap": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": ".",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "restored-drafts"],
+  "declaration": false
+}

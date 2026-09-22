@@ -30,6 +30,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build CLI bundle with dependency closure
         run: pnpm --filter @zcode/cli... build
+      # SEA 还内嵌插件 MCP runtime(node_repl 宿主与工具插件),它们不在 cli 的
+      # 依赖闭包内,按 SEA 资产清单单独构建
+      - name: Build plugin MCP runtimes
+        run: >-
+          pnpm --filter @zcode/node-repl-host
+          --filter @zcode/browser-use-plugin
+          --filter @zcode/android-emulator-plugin
+          --filter @zcode/ios-simulator-plugin build
       # SEA 资产解析要求 workspace 包(如 @zcode/shared)有 dist/index.js;
       # 根 typecheck 是 tsc -b(工程引用,带输出),即上游产出这些 dist 的链路
       - name: Emit workspace package dists (tsc -b project references)

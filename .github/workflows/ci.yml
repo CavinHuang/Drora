@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck / Lint / Format (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Freshness baseline
+        run: node scripts/check-workspace-freshness.mjs
+        continue-on-error: true
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
+      # 永久红灯;待仓库决定格式化基线后再启用。
+      # - name: Format check
+      #   run: pnpm fmt:check
+
+  smoke:
+    name: CUA smoke + helper bundle (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: zcode-cua smoke (mock broker)
+        run: node packages/zcode-cua/test/restored-smoke.mjs
+      - name: Helper typecheck + Windows bundle build
+        run: |
+          pnpm --filter @zcode/zcode-cua-helper-runtime typecheck
+          pnpm --filter @zcode/zcode-cua-helper-runtime build
+      - name: Upload helper bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-windows-bundle
+          path: packages/zcode-cua-helper/dist/windows-helper.js
+          retention-days: 7
+
+  cli-build:
+    name: CLI bundle (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build @zcode/cli with dependency closure
+        run: pnpm --filter @zcode/cli... build
+      - name: Smoke CLI entry
+        run: |
+          node apps/zcode-cli/packages/cli/dist/zcode.cjs --version
+          node apps/zcode-cli/packages/cli/dist/zcode.cjs --help > /dev/null
+      - name: Upload CLI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-zcode-cjs
+          path: apps/zcode-cli/packages/cli/dist/zcode.cjs
+          retention-days: 7
+
+  addon-parity:
+    name: Win32 addon rebuild + parity vs shipped binary (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        shell: cmd
+      - name: Rebuild addon from restored source (MSVC + Windows SDK autodetect)
+        run: node packages/zcode-cua-helper/native/reverse/build-rebuilt.mjs
+        shell: cmd
+      - name: Parity — read-only suite (57 checks)
+        run: node packages/zcode-cua-helper/native/reverse/parity-native.mjs
+        shell: cmd
+        env:
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+      - name: Parity — input/output matrix (123 cells)
+        run: node packages/zcode-cua-helper/native/reverse/parity-native-matrix.mjs
+        shell: cmd
+        env:
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+      - name: Rebuilt addon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax-native-win-rebuilt
+          path: packages/zcode-cua-helper/native/reverse/build/Release/ax_native_win.node
+          retention-days: 7

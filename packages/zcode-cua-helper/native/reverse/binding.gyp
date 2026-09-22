@@ -1,13 +1,16 @@
 {
+  "variables": {
+    "win_sdk%": "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0"
+  },
   "targets": [
     {
       "target_name": "ax_native_win",
       "sources": ["src/ax_native_win.cc"],
       "include_dirs": [
         "node_modules/node-addon-api",
-        "D:/Windows Kits/10/Include/10.0.26100.0/cppwinrt",
-        "D:/Windows Kits/10/Include/10.0.26100.0/um",
-        "D:/Windows Kits/10/Include/10.0.26100.0/shared"
+        "<(win_sdk)/cppwinrt",
+        "<(win_sdk)/um",
+        "<(win_sdk)/shared"
       ],
       "defines": ["NAPI_DISABLE_CPP_EXCEPTIONS", "NAPI_VERSION=9"],
       "msvs_settings": {

@@ -249,6 +249,26 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十三轮：GitHub Actions 构建脚本（2026-09-22）
+
+`.github/workflows/ci.yml`（push main / PR 触发，四个 job）：
+
+- **verify**（ubuntu）：frozen-lockfile install → freshness 基线 → typecheck →
+  lint（fmt 基线未定，暂不设卡，注释记录原因）。
+- **smoke**（ubuntu）：zcode-cua mock-broker 冒烟 + helper typecheck/bundle 构建，
+  bundle 以 artifact 归档。
+- **cli-build**（ubuntu）：`pnpm --filter @zcode/cli... build`（依赖闭包，绕开
+  turbo 递归）+ CLI 入口冒烟，zcode.cjs 以 artifact 归档。
+- **addon-parity**（windows-latest）：MSVC 重编译 addon（SDK 自动探测注入 gyp）
+  → 与**入库原版副本**逐项对齐（只读 57 项 + 输入×输出矩阵 123 格；写路径
+  套件涉及真实键鼠注入不进 CI），重编译 .node 以 artifact 归档。
+
+配套参数化（CI 可复现前提）：binding.gyp 的 Windows SDK include 由
+build-rebuilt.mjs 探测后 `-Dwin_sdk` 注入（不再硬编码 D 盘）；三个 parity
+脚本对照路径支持 `AX_NATIVE_ORIG` 环境变量并回退入库副本
+（build/Release/ax_native.node 与发行物字节一致）。另清理了误入库的
+reverse/build MSVC 中间产物。
+
 ### 第十二轮：CLI 构建链修复与全实现对齐终审（2026-09-22）
 
 - **安装根目录盘点**：ZCode.exe/dll/pak/locales 等均为 Electron/Chromium 运行时

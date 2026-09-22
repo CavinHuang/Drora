@@ -11,7 +11,10 @@ import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import process from "node:process";
 
-const ORIG = "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
+import { existsSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
+const ORIG_DIST = process.env.AX_NATIVE_ORIG ?? "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
+const ORIG = existsSync(ORIG_DIST) ? ORIG_DIST : pathResolve(import.meta.dirname, "../../../build/Release/ax_native.node");
 const base = pathToFileURL("D:/workspace/projects/ZCode/packages/zcode-cua-helper/native/reverse/").href;
 const req = createRequire(base);
 const orig = req(ORIG);

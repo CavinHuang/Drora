@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 const root = import.meta.dirname;
-const orig = resolve(root, "../../../../../..") && "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
+const orig = process.env.AX_NATIVE_ORIG ?? resolve(root, "../../build/Release/ax_native.node");
 
 function runMatrix(addonPath, outPath) {
   const r = spawnSync(process.execPath, [resolve(root, "probe-matrix.mjs"), addonPath, outPath], {

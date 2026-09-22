@@ -10,7 +10,14 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
-const ORIG = "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
+// 对照原版:优先 AX_NATIVE_ORIG 环境变量,其次本机发行物,最后回退入库副本
+// (build/Release/ax_native.node 与发行物字节一致,CI 上以入库副本为基准)。
+import { existsSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
+const shippedCopy = pathResolve(import.meta.dirname, "../../../build/Release/ax_native.node");
+const ORIG = process.env.AX_NATIVE_ORIG
+  ?? "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
+const ORIG_FINAL = existsSync(ORIG) ? ORIG : shippedCopy;
 const REBUILT = "./build/Release/ax_native_win.node";
 const base = pathToFileURL("D:/workspace/projects/ZCode/packages/zcode-cua-helper/native/reverse/").href;
 const req = createRequire(base);
@@ -21,7 +28,7 @@ const check = (name, ok, detail) => {
   console.log(`${ok ? "MATCH" : "DIFF "} ${name}${ok ? "" : "  → " + detail}`);
 };
 
-const orig = req(ORIG);
+const orig = req(ORIG_FINAL);
 const rest = req(REBUILT);
 
 // —— 1. 导出面 ——

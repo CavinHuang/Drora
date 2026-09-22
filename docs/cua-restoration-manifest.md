@@ -249,6 +249,22 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十五轮：CLI 构建链完善（2026-09-22）
+
+- **ci.yml 的 cli-build 深度化**：新增 scripts/ci/cli-app-server-smoke.mjs ——
+  app-server 协议握手（首行必须是合法 startup/* JSON 通知）、四条子命令
+  （plugins/skills/commands/doctor）执行、agent 核心工具注册（字符串面），
+  替换原先的 --version/--help 浅冒烟。
+- **新增 cli-sea.yml（workflow_dispatch，ubuntu+windows 矩阵）**：发行级单可执行
+  SEA 构建 —— 依赖闭包 bundle + 根 typecheck 产出 workspace dist + 插件 MCP
+  runtime（node-repl-host/browser-use/android/ios）+ build-sea 组装；产物
+  zcode-<os>-<arch>[.exe] 归档并对二进制直接跑 --version。全绿
+  （run 35749212084，windows exe 实测输出 0.16.9）。
+- **修复开源剥离的第三个类型缺口**：node-repl-host 按名 import
+  ComputerUseRuntime/ComputerUseRuntimeContext，占位 d.ts 从未导出 —— 在还原包
+  runtime 入口定义接口并从包根 re-export，HEAD 源码自此可编译（这也是 SEA
+  能产物的先决条件）。
+
 ### 第十四轮：CI 全绿闭环（2026-09-22）
 
 Drora Actions 四 job 全绿（run 35741131849）：verify / smoke / cli-build（ubuntu）

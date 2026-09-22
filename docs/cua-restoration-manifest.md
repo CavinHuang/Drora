@@ -249,6 +249,18 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十四轮：CI 全绿闭环（2026-09-22）
+
+Drora Actions 四 job 全绿（run 35741131849）：verify / smoke / cli-build（ubuntu）
++ addon-parity（windows-2022：MSVC 重编译 + 只读 57 项 + 矩阵 123 格对入库原版
+副本全过，重编译 .node 与 CLI bundle、helper bundle 均归档为 artifact）。
+
+首跑至全绿修了四处环境性差异：linux 上原版 installer 面按设计抛 install_failed
+（冒烟断言改三平台分支）；windows-latest 的 VS18 不被 node-gyp 识别（钉
+windows-2022）；parity 脚本 createRequire 基址硬编码本机路径（改
+import.meta.dirname）；runner 服务上下文下 self 提权查询可能返回 undefined
+（isTargetElevated 断言按值相等否则按类型一致并透出两值）。
+
 ### 第十三轮：GitHub Actions 构建脚本（2026-09-22）
 
 `.github/workflows/ci.yml`（push main / PR 触发，四个 job）：

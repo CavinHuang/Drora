@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import process from "node:process";
 
 const [addonPath, outPath] = process.argv.slice(2);
-const base = pathToFileURL("D:/workspace/projects/ZCode/packages/zcode-cua-helper/native/reverse/").href;
+const base = pathToFileURL(import.meta.dirname + "/").href;
 const req = createRequire(base);
 const native = req(addonPath);
 

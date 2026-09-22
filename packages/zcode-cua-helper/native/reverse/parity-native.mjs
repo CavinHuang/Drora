@@ -19,7 +19,7 @@ const ORIG = process.env.AX_NATIVE_ORIG
   ?? "D:/software/zcode/resources/tools/cua-helper/build/Release/ax_native.node";
 const ORIG_FINAL = existsSync(ORIG) ? ORIG : shippedCopy;
 const REBUILT = "./build/Release/ax_native_win.node";
-const base = pathToFileURL("D:/workspace/projects/ZCode/packages/zcode-cua-helper/native/reverse/").href;
+const base = pathToFileURL(import.meta.dirname + "/").href;
 const req = createRequire(base);
 
 const results = [];

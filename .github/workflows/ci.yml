@@ -83,16 +83,13 @@ jobs:
 
   addon-parity:
     name: Win32 addon rebuild + parity vs shipped binary (windows)
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.0"
       - run: corepack enable
-      # windows-latest 的 VS 版本较新，node-gyp 自带探测不识别；预设 MSVC 开发
-      # 环境后 gyp 走 VCINSTALLDIR 路径直接使用。
-      - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         shell: cmd

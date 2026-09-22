@@ -48,32 +48,28 @@ jobs:
         env:
           # SEA 下载 node 官方发行二进制;走 GH 网络无需镜像
           ELECTRON_GET_USE_PROXY: "0"
-      - name: Locate SEA outputs
+      - name: Locate SEA binary
         id: out
         shell: bash
         run: |
           set -e
-          out=$(find apps/zcode-cli/packages/cli -maxdepth 3 -type f \( -name "zcode*" -o -name "*.exe" \) -newer package.json 2>/dev/null | head -5 || true)
-          echo "files<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$out" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          bin=$(ls apps/zcode-cli/packages/cli/dist/zcode-*x64* 2>/dev/null | grep -E '\.(exe)$|^.*zcode-(linux|macos|windows)-x64$' | head -1 || true)
+          [ -n "$bin" ] || bin=$(find apps/zcode-cli/packages/cli/dist -maxdepth 1 -type f -name "zcode-*" ! -name "*.blob" ! -name "*.blob.*" | head -1 || true)
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+          echo "located: $bin"
       - name: Upload SEA artifacts
-        if: steps.out.outputs.files != ''
+        if: steps.out.outputs.bin != ''
         uses: actions/upload-artifact@v4
         with:
           name: cli-sea-${{ matrix.os }}
           path: |
+            ${{ steps.out.outputs.bin }}
             apps/zcode-cli/packages/cli/sea/**
-            ${{ steps.out.outputs.files }}
           retention-days: 14
       - name: Smoke SEA binary (version)
-        if: steps.out.outputs.files != ''
+        if: steps.out.outputs.bin != ''
         shell: bash
         run: |
-          for f in ${{ steps.out.outputs.files }}; do
-            case "$f" in
-              *.exe) "$f" --version ;;
-              *) chmod +x "$f" 2>/dev/null || true; "$f" --version ;;
-            esac
-            break
-          done
+          bin="${{ steps.out.outputs.bin }}"
+          chmod +x "$bin" 2>/dev/null || true
+          "$bin" --version

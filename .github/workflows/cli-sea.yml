@@ -33,11 +33,12 @@ jobs:
       # SEA 还内嵌插件 MCP runtime(node_repl 宿主与工具插件),它们不在 cli 的
       # 依赖闭包内,按 SEA 资产清单单独构建
       - name: Build plugin MCP runtimes
+        # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
+        # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
-          pnpm --filter @zcode/node-repl-host
-          --filter @zcode/browser-use-plugin
-          --filter @zcode/android-emulator-plugin
-          --filter @zcode/ios-simulator-plugin build
+          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          done
       # SEA 资产解析要求 workspace 包(如 @zcode/shared)有 dist/index.js;
       # 根 typecheck 是 tsc -b(工程引用,带输出),即上游产出这些 dist 的链路
       - name: Emit workspace package dists (tsc -b project references)

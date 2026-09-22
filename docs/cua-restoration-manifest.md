@@ -230,7 +230,8 @@ capabilities）、错误 token 拒绝，三项与原版发行物完全一致。
   action_unsupported、cancelInputHoldsForSession → false 全部对齐。
 - 移除死代码（mac 面函数与被 WinRT 替代的 PrintWindow 管线）。
 
-### 第十轮：发行物全目录对齐盘点（2026-09-22，D:\software\zcodeesources）
+### 第十轮：发行物全目录对齐盘点（2026-09-22，D:\software\zcode
+esources）
 
 对 resources 全目录逐一核对仓库对齐状态：
 
@@ -247,6 +248,25 @@ capabilities）、错误 token 拒绝，三项与原版发行物完全一致。
 | model-providers/models_catalog_china_llm_zcode_*.json（目录型 catalog，10 providers） | 开源 HEAD 已重构为规则型 config/provider/zcode-builtin.json（revision 30，builtinProviderConfig）；旧 catalog 机制在 legacy 序列化层留有兼容 | 机制演进，非缺失 |
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
+
+### 第十一轮：内置插件内容级对齐审计（2026-09-22）
+
+在第十轮文件级覆盖之上做 md5 内容级审计，全部差异定性如下（无漂移、无内容丢失）：
+
+- **skill-creator**：3/3 文件逐字节一致。
+- **restore-legacy-sessions**：6/7 一致；唯一差异 `restore-conversation.mjs` 为仓库携带的
+  消息契约修复（modelID/providerID → modelId/providerId + modelSelection 新契约），
+  合法领先，保留。
+- **zcode-cua**：6/10 一致；4 处差异全部有意——glm 版 plugin.json 的 mcpServers 段为
+  桌面打包器写入（安装期配置，源形态不携带）、package.json test 脚本为本仓库布局
+  适配、bump/sync-cache 两脚本的 Windows 修复与 ENTRIES 对齐（第四轮工作）。
+- **zcode-guide**：7/9 一致；2 处差异均为版本字段（0.1.0 → 0.2.0 仓库领先）。
+- **browser-use**：0.4.1 → 0.5.1 node_repl 架构演进（bootstrap 源码注释明载不再产出
+  dist/mcp/server.js）；skills/docs 内容差异均为演进措辞，保留 HEAD。
+- **android-emulator / ios-simulator**：仓库构建产物（tsc+esbuild 再生成功）与发行
+  dist 同构（体积差 ~18% 为打包器版本噪声，与 cua bundle 同比例）；MCP 握手 probe
+  下两版行为完全一致（同静默退出），实现同构。
+- **document-skills → 四包拆分**：110 文件零缺失，28 处内容差异为拆分后演进。
 
 未发现新的“发行物有、仓库缺”功能缺口；此前九轮还原的 cua/helper/插件面之外，
 其余差异均属仓库 HEAD 相对发行物的正常版本演进或第三方/打包资产。

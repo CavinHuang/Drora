@@ -32,6 +32,10 @@ jobs:
           - os: windows-2022
             builder-os: win
     runs-on: ${{ matrix.os }}
+    env:
+      # Node dist 跨平台 prebuild 下载源:默认 npmmirror 在海外 runner 上会挂死
+      # (实测 50 分钟无进展,卡在 prepare:remote-assets);GitHub 网络走官方源
+      ZCODE_NODE_DIST_MIRROR: "https://nodejs.org/dist"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,9 +72,6 @@ jobs:
           # authenticode;开源构建的预期形态
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           ZCODE_ENABLE_MAC_SIGN: ""
-          # Node dist 跨平台 prebuild 下载源:默认 npmmirror 在海外 runner 上
-          # 会挂死(实测 50 分钟无进展);GitHub 网络走官方源
-          ZCODE_NODE_DIST_MIRROR: "https://nodejs.org/dist"
       - name: Locate installers
         id: artifacts
         shell: bash

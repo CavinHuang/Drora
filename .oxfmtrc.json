@@ -5,6 +5,10 @@
     "third-party/inventory.json",
     "third-party/upstream/**",
     "third-party/native-search/licenses/**",
-    "third-party/runtime/*.txt"
+    "third-party/runtime/*.txt",
+    "packages/zcode-cua/vendor/**",
+    "packages/zcode-cua/mcp/**",
+    "packages/zcode-cua/broker/**",
+    "packages/zcode-cua/frame-contract/**"
   ]
 }

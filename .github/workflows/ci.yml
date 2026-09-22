@@ -70,10 +70,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build @zcode/cli with dependency closure
         run: pnpm --filter @zcode/cli... build
-      - name: Smoke CLI entry
-        run: |
-          node apps/zcode-cli/packages/cli/dist/zcode.cjs --version
-          node apps/zcode-cli/packages/cli/dist/zcode.cjs --help > /dev/null
+      - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
+        run: node scripts/ci/cli-app-server-smoke.mjs apps/zcode-cli/packages/cli/dist/zcode.cjs
       - name: Upload CLI bundle
         uses: actions/upload-artifact@v4
         with:

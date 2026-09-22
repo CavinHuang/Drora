@@ -1,0 +1,67 @@
+name: CLI SEA build
+
+# 手动触发的发行级 CLI 构建:单可执行 SEA(内嵌 node 二进制 + 完整资产)。
+# 常规 PR 不跑(需下载 node 发行二进制、postject 注入、staging 插件/TUI/
+# runtime 工具资产,耗时数分钟)。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "SEA 目标(默认当前运行平台)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  sea:
+    name: Single-executable build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build CLI bundle with dependency closure
+        run: pnpm --filter @zcode/cli... build
+      - name: Build single-executable (host target${{ github.event.inputs.target && format(' → {0}', github.event.inputs.target) || '' }})
+        run: node scripts/build-sea.mjs ${{ github.event.inputs.target }}
+        working-directory: apps/zcode-cli/packages/cli
+        env:
+          # SEA 下载 node 官方发行二进制;走 GH 网络无需镜像
+          ELECTRON_GET_USE_PROXY: "0"
+      - name: Locate SEA outputs
+        id: out
+        shell: bash
+        run: |
+          set -e
+          out=$(find apps/zcode-cli/packages/cli -maxdepth 3 -type f \( -name "zcode*" -o -name "*.exe" \) -newer package.json 2>/dev/null | head -5 || true)
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$out" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: Upload SEA artifacts
+        if: steps.out.outputs.files != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-sea-${{ matrix.os }}
+          path: |
+            apps/zcode-cli/packages/cli/sea/**
+            ${{ steps.out.outputs.files }}
+          retention-days: 14
+      - name: Smoke SEA binary (version)
+        if: steps.out.outputs.files != ''
+        shell: bash
+        run: |
+          for f in ${{ steps.out.outputs.files }}; do
+            case "$f" in
+              *.exe) "$f" --version ;;
+              *) chmod +x "$f" 2>/dev/null || true; "$f" --version ;;
+            esac
+            break
+          done

@@ -1,0 +1,24 @@
+{
+  "name": "@zcode/zcode-cua-helper-runtime",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/windows-helper.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "build:darwin-app": "node build-cua-helper-app.mjs",
+    "probe:native": "node tools/probe-ax-native.mjs",
+    "check:native-interface": "node tools/check-ax-native-interface.mjs",
+    "check:parity": "node tools/parity-check.mjs"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

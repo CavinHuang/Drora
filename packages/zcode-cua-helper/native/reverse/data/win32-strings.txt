@@ -1,0 +1,1260 @@
+!This program cannot be run in DOS mode.
+`.rdata
+@.data
+.pdata
+@.fptable
+@.reloc
+L$ SUVWAVH
+@A^_^][
+UVWAVAWH
+A_A^_^]
+@USWAWH
+@USVWAVH
+A^_^[]
+UVWAVAWH
+D8t$`u
+A_A^_^]
+t"x Hi
+|$ UAVAWH
+D9|$0u%H
+UWATAVAWH
+A_A^A\_]
+UVWAVAWH
+fD9<zu
+A_A^_^]
+VAVAWH
+0A_A^^
+UVWAVAWH
+A_A^_^]
+t$ WATAUAVAWH
+A_A^A]A\_
+UVWATAUAVAWH
+A_A^A]A\_^]
+t$ UWAVH
+|$ AVH
+UVWAVAWH
+A_A^_^]
+@SUVWATAUAVAWH
+xA_A^A]A\_^][
+\$0H+\$(H
+SUVWATAVAWH
+PA_A^A\_^][
+t$ UWAVH
+k VWAVH
+UVWATAUAVAWH
+PA_A^A]A\_^]
+MenuItem
+Document
+ComboBox
+CheckBox
+ListItem
+DataItem
+TreeItem
+TitleBar
+t$ UWAVH
+AXToggleH
+AXSelectH
+AXExpandH
+9AXPru
+UVWATAUAVAWH
+D+d$PA
+8EdittoH
+DocumentL9
+ComboBoxL9
+8Spinu
+T$`H+T$XH
+AXExpand
+AXShowMeH
+A_A^A]A\_^]
+t$ UWATAVAWH
+D8d$pu
+A_A^A\_]
+@USVWATAVAWH
+D$8+D$0f
+D$<+D$4f
+A_A^A\_^[]
+UVWAVAWH
+A_A^_^]
+l$ VWATAVAWH
+A_A^A\_^
+|$ UATAUAVAWH
+8ctrlt?L
+8metau
+backspacM+
+8bkspu
+8downu
+8leftu
+8homeu
+8pgupu
+pagedownL9
+8pgdnu
+capslockL9
+8capsu
+printscrL+
+scrollloM+
+A_A^A]A\]
+UVWATAUAVAWH
+T$HH;T$Pt
+A_A^A]A\_^]
+|$ UAVAWH
+UWATAVAWH
+A_A^A\_]
+|$ UATAUAVAWH
+A_A^A]A\]
+` UAVAWH
+gfffffffH
+fffffff
+WATAUAVAWH
+A_A^A]A\_
+\$ UVWATAUAVAWH
+A_A^A]A\_^]
+SUVWAVH
+pA^_^][
+pA^_^][
+UATAUAVAWH
+A_A^A]A\]
+x UAVAWH
+UWATAVAWH
+A_A^A\_]
+x UAVAWH
+UVWATAUAVAWH
+@8t$`u
+A_A^A]A\_^]
+x UAVAWH
+x UATAUAVAWH
+A_A^A]A\]
+t$ UWAVH
+UVWATAUAVAWH
+|$pH9=
+D9|$0u
+A_A^A]A\_^]
+UVWAVAWH
+A_A^_^]
+UVWAVAWH
+A_A^_^]
+x UATAUAVAWH
+oL$@E3
+A_A^A]A\]
+UVWATAUAVAWH
+9D$0v7H
+D9|$0u0M
+D9|$0u+I
+T$HH;T$Pt
+A_A^A]A\_^]
+t$ UWAVH
+UVWAVAWH
+A_A^_^]
+t$ UWAVH
+UVWAVAWH
+A_A^_^]
+p UWAVH
+p UWAVH
+UVWATAUAVAWH
+@8t$xu
+A_A^A]A\_^]
+UVWATAUAVAWH
+A_A^A]A\_^]
+p UWATAVAWH
+A_A^A\_]
+UVWATAUAVAWH
+T$XH;U
+|$XH;|$Pt
+H;|$Pu
+A_A^A]A\_^]
+UVWATAUAVAWH
+A_A^A]A\_^]
+UVWAVAWH
+A_A^_^]
+UVWATAUAVAWH
+PA_A^A]A\_^]
+UVWATAUAVAWH
+L$`H;L$hu%@
+H+t$@H
+A_A^A]A\_^]
+p UWAVH
+p UWATAVAWH
+\$`L9%~
+H9D$xusH
+A_A^A\_]
+t$ UWAVH
+UVWATAUAVAWH
+A_A^A]A\_^]
+UVWATAUAVAWH
+pA_A^A]A\_^]
+|$ AVH
+fE94Pu
+gfffffffH+
+@SWAWH
+WAVAWH
+0A_A^_
+\$ VAVAWH
+0A_A^^
+0A_A^^
+|$ AVH
+t"x Hi
+WATAUAVAWH
+@A_A^A]A\_
+WATAUAVAWH
+UUUUUUU
+@A_A^A]A\_
+t$ AVH
+@SUVAUH
+8A]^][
+l$ WATAWH
+0A_A\_
+@SUATAUAVH
+gfffffffM+
+fffffff
+0A^A]A\][
+@SUVAUH
+8A]^][
+VAVAWH
+ A_A^^
+l$ VWAWH
+\$ WATAVH
+0A^A\_
+@SWATAUAVH
+0A^A]A\_[
+VAVAWH
+0A_A^^
+|$ AVH
+|$ AVH
+@SWAUAWH
+8A_A]_[
+I9*u+A
+|$ UATAUAVAWH
+0A_A^A]A\]
+@SVAWH
+H9\$(t
+H9\$0t
+H9\$ t
+@SVAWH
+UVWAVAWH
+@A_A^_^]
+UVWAVAWH
+D$1:D$9u
+A_A^_^]
+l$ VWATAVAWH
+A_A^A\_^
+UVWATAUAVAWH
+D$09D$(
+A_A^A]A\_^]
+@USVWATAVAWH
+A_A^A\_^[]
+SVWAVAWH
+@A_A^_^[
+@USVWATAVAWH
+A_A^A\_^[]
+@USVWATAUAVAWH
+A_A^A]A\_^[]
+UVWATAUAVAWH
+A_A^A]A\_^]
+p UWATAVAWH
+A_A^A\_]
+|$ UATAUAVAWH
+A_A^A]A\]
+|$ UAVAWH
+|$ UAVAWH
+|$ AVH
+UVWATAUAVAWH
+A_A^A]A\_^]
+@SUVWAVAWH
+@8|$`u
+A_A^_^][
+@USVWATAUAVAWH
+xA_A^A]A\_^[]
+|$ AVH
+sH9.tgH
+9D$(}LH
+sH9.t&H
+@USVWAVAWH
+A_A^_^[]
+@SUVWATAUAVAWH
+ot$ I;
+hA_A^A]A\_^][
+@SUVWATAUAVAWH
+L$ tAL+
+A_A^A]A\_^][
+WAVAWH
+ A_A^_
+8T$(ua
+t$ WATAUAVAWH
+~ND;t;
+ A_A^A]A\_
+WATAUAVAWH
+A_A^A]A\_
+x ATAVAWH
+A_A^A\
+H;xXu5
+WATAUAVAWH
+A_A^A]A\_
+AUAVAWH
+u4I9}(
+9I9}(tgH
+0A_A^A]
+AUAVAWH
+u4I9}(
+9I9}(tgH
+0A_A^A]
+UVWATAUAVAWH
+`A_A^A]A\_^]
+UVWATAUAVAWH
+`A_A^A]A\_^]
+@USVWATAUAVAWH
+L$pHcX
+A_A^A]A\_^[]
+@USVWATAUAVAWH
+D$h;D$x
+A_A^A]A\_^[]
+UVWATAUAVAWH
+A_A^A]A\_^]
+@USVWATAUAVAWH
+A_A^A]A\_^[]
+WAVAWH
+ A_A^_
+x ATAVAWH
+ A_A^A\
+WAVAWH
+x ATAVAWH
+9h@u(D93t#D9
+A_A^A\
+@SVWATAUAVAWH
+D$0HcH
+pA_A^A]A\_^[
+@SVWATAUAVAWH
+A_A^A]A\_^[
+B(I9A(u
+SVWATAUAVAWH
+|$ Hc^
+0A_A^A]A\_^[
+SVWATAUAVAWH
+A_A^A]A\_^[
+UVWATAUAVAWH
+|$hHcX
+ A_A^A]A\_^]
+UVWATAUAVAWH
+ A_A^A]A\_^]
+D$ I;R
+D$ I9P
+WATAUAVAWH
+ A_A^A]A\_
+D$0@8{
+@USVWATAVAWH
+A_A^A\_^[]
+WATAUAVAWH
+0A_A^A]A\_
+S(HcS0
+S(HcS0
+S(HcS0
+D$@H;F
+sL@8w(u
+<htl<jt\<lt4<tt$<wt
+UWATAVAWH
+A_A^A\_]
+` UAVAWH
+WATAUAVAWH
+0A_A^A]A\_
+u3HcH<H
+x ATAVAWH
+ A_A^A\
+UVWAVAWH
+0A_A^_^]
+WAVAWH
+ A_A^_
+WAVAWH
+ A_A^_
+t$ WATAUAVAWH
+gfffffffH
+A_A^A]A\_
+{ AUAVAWH
+0A_A^A]
+t$xt*3
+WAVAWH
+ A_A^_
+x ATAVAWH
+ A_A^A\
+L$ VWAVH
+fD94H}aD
+@SUVWATAVAWH
+@A_A^A\_^][
+t$ WATAUAVAWH
+0A_A^A]A\_
+fD9t$b
+t$ WATAUAVAWH
+D!|$xA
+A_A^A]A\_
+u$D8r(t
+D81u`L9r
+uPD8r(t
+vWD8s(t
+u$D8r(t
+fD91u_L9r
+uPD8r(t
+vVD8s(t
+UVWATAUAVAWH
+PA_A^A]A\_^]
+WATAUAVAWH
+0A_A^A]A\_
+H9>u+A
+@USVWATAUAVH
+D8t$ht
+D8t$ht
+A^A]A\_^[]
+f9)u4H9j
+u%@8j(t
+l$ VWATAVAWH
+L$&8\$&t,8Y
+A_A^A\_^
+t$ WATAUAVAWH
+ A_A^A]A\_
+L$ VWAVH
+@UATAUAVAWH
+e0A_A^A]A\]
+SUVWATAVAWH
+A_A^A\_^][
+USVWATAVAWH
+A_A^A\_^[]
+ATAUAVAWH
+L$ |+L;
+A_A^A]A\
+@UATAUAVAWH
+A_A^A]A\]
+WAVAWH
+ A_A^_
+UVWATAUAVAWH
+fB9<I}1L
+A_A^A]A\_^]
+VWATAVAW
+A_A^A\_^
+VATAUAVAWH
+0A_A^A]A\^
+@USVWATAUAVAWH
+H!D$ E
+hA_A^A]A\_^[]
+ffffff
+fffffff
+|$ AVH
+@USVAVH
+D$DDtRH
+ATAVAWH
+0A_A^A\
+|$ UATAUAVAWH
+t'HcC<
+A_A^A]A\]
+LcA<E3
+fffffff
+ffffff
+vKfffff
+fffffff
+fffffff
+}1$_=C
+node.exe
+Unknown exception
+device or resource busy
+invalid argument
+no such process
+not enough memory
+operation not permitted
+resource deadlock would occur
+resource unavailable try again
+bad function call
+success
+address family not supported
+address in use
+address not available
+already connected
+argument list too long
+argument out of domain
+bad address
+bad file descriptor
+bad message
+broken pipe
+connection aborted
+connection already in progress
+connection refused
+connection reset
+cross device link
+destination address required
+directory not empty
+executable format error
+file exists
+file too large
+filename too long
+function not supported
+host unreachable
+identifier removed
+illegal byte sequence
+inappropriate io control operation
+interrupted
+invalid seek
+io error
+is a directory
+message size
+network down
+network reset
+network unreachable
+no buffer space
+no child process
+no link
+no lock available
+no message available
+no message
+no protocol option
+no space on device
+no stream resources
+no such device or address
+no such device
+no such file or directory
+not a directory
+not a socket
+not a stream
+not connected
+not supported
+operation canceled
+operation in progress
+operation not supported
+operation would block
+owner dead
+permission denied
+protocol error
+protocol not supported
+read only file system
+result out of range
+state not recoverable
+stream timeout
+text file busy
+timed out
+too many files open in system
+too many files open
+too many links
+too many symbolic link levels
+value too large
+wrong protocol type
+unknown error
+GetSystemTimePreciseAsFileTime
+GetTempPath2W
+bad exception
+__based(
+__cdecl
+__stdcall
+__thiscall
+__fastcall
+__vectorcall
+__preserve_none
+__clrcall
+__eabi
+__swift_1
+__swift_2
+__swift_3
+__ptr64
+__restrict
+__unaligned
+restrict(
+ delete
+operator
+`vftable'
+`vbtable'
+`vcall'
+`typeof'
+`local static guard'
+`string'
+`vbase destructor'
+`vector deleting destructor'
+`default constructor closure'
+`scalar deleting destructor'
+`vector constructor iterator'
+`vector destructor iterator'
+`vector vbase constructor iterator'
+`virtual displacement map'
+`eh vector constructor iterator'
+`eh vector destructor iterator'
+`eh vector vbase constructor iterator'
+`copy constructor closure'
+`udt returning'
+`local vftable'
+`local vftable constructor closure'
+ new[]
+ delete[]
+`omni callsig'
+`placement delete closure'
+`placement delete[] closure'
+`managed vector constructor iterator'
+`managed vector destructor iterator'
+`eh vector copy constructor iterator'
+`eh vector vbase copy constructor iterator'
+`dynamic initializer for '
+`dynamic atexit destructor for '
+`vector copy constructor iterator'
+`vector vbase copy constructor iterator'
+`managed vector copy constructor iterator'
+`local static thread guard'
+operator "" 
+operator co_await
+operator<=>
+ Type Descriptor'
+ Base Class Descriptor at (
+ Base Class Array'
+ Class Hierarchy Descriptor'
+ Complete Object Locator'
+`anonymous namespace'
+FlsAlloc
+FlsFree
+FlsGetValue
+FlsSetValue
+InitializeCriticalSectionEx
+(null)
+CorExitProcess
+Sunday
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+January
+February
+August
+September
+October
+November
+December
+MM/dd/yy
+dddd, MMMM dd, yyyy
+HH:mm:ss
+ !"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnopqrstuvwxyz[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`ABCDEFGHIJKLMNOPQRSTUVWXYZ{|}~
+NAN(SNAN)
+nan(snan)
+NAN(IND)
+nan(ind)
+AreFileApisANSI
+FlsGetValue2
+LCMapStringEx
+LocaleNameToLCID
+AppPolicyGetProcessTerminationMethod
+[aOni*{
+~ $s%r
+@b;zO]
+v2!L.2
+1#QNAN
+1#SNAN
+UUUUUU
+UUUUUU
+=imb;D
+/>58d%
+>jtm}S
+)>6{1n
++f)>0'
+;H9>&X
+*StO9>T
+n03>Pu
+K~Je#>!
+bp(=>?g
+BC?>6t9^
+K&>.yC
+.xJ>Hf
+y\PD>!
+|b=})>
+c [1>H'
+uzKs@>
+3>N;kU
+kE>fvw
+V6E>`"(5
+?UUUUUU
+?7zQ6$
+AcquireSRWLockExclusive
+ReleaseSRWLockExclusive
+node.exe
+unknown exception
+bad array new length
+unknown
+string too long
+generic
+napi_get_last_error_info
+Error::New
+napi_is_exception_pending
+napi_get_and_clear_last_exception
+Error in native callback
+napi_create_string_utf8
+napi_create_error
+napi_create_object
+Error::Error
+napi_define_properties
+napi_create_reference
+napi_throw
+Error::ThrowAsJavaScriptException
+4bda9e7e-4913-4dbc-95de-891cbf66598e-errorVal
+napi_close_handle_scope
+HandleScope::~HandleScope
+napi_close_escapable_handle_scope
+EscapableHandleScope::~EscapableHandleScope
+process
+thread
+SetProcessDpiAwarenessContext
+map/set too long
+awareness
+per_monitor_v2
+unavailable
+invalid_data
+too_large
+write_failed
+ClipboardReadWorker
+ClipboardWriteWorker
+writeClipboardTextAsync(text) expects one string
+DwmGetWindowAttribute
+Custom
+Button
+SplitButton
+Window
+TabItem
+MenuBar
+Document
+RadioButton
+Hyperlink
+Slider
+ProgressBar
+Spinner
+StatusBar
+ScrollBar
+ToolBar
+ToolTip
+Separator
+Header
+HeaderItem
+AppBar
+Calendar
+SemanticZoom
+AXPress
+AXSetValue
+AXCollapse
+AXScrollIntoView
+ptr:%d:%p
+bounds
+enabled
+focused
+editable
+actions
+has_menu
+ownerPid
+bundle_id
+active
+window_id
+axError
+axpress
+invoke
+axtoggle
+toggle
+axexpand
+expand
+axcollapse
+collapse
+axselect
+select
+axscrollintoview
+scroll_into_view
+scrollintoview
+middle
+unknown startup failure
+api_disabled
+granted
+denied
+GetDpiForMonitor
+scale_factor
+applicationInfo(pid) expects a number
+applicationInfoByAumid(aumid) expects a string
+windowId
+ownerBundleId
+ownerName
+ownerActive
+height
+onScreen
+captureApp(pid) expects a number
+window
+elements
+readElement(ref) expects a string
+elementAtPoint(x, y) expects two numbers
+illegal_argument
+invalid_element
+action_unsupported
+cannot_complete
+failure
+moveTo(x, y) expects two finite numbers
+scrollAt(x, y, delta, direction) expects three numbers and a direction
+mouseDown(button) expects a button string
+mouseUp(button) expects a button string
+drag(fromX, fromY, toX, toY, button) expects four numbers and a button
+clickAtPoint(x, y, button, clicks, modifiers?) expects two numbers, a button string, a click count, and an optional modifiers chord
+typeTextGlobal(text) expects a string
+pressKeyGlobal(text) expects a key chord string
+keyDownGlobal(text) expects a key chord string
+keyUpGlobal(text) expects a key chord string
+holdKeyGlobal(text, durationMs) expects a key chord and a duration
+WinBoolWorker
+ApplicationIconWorker
+holdKeyGlobalAsync(text, durationMs) expects a key chord and a duration
+isTrusted
+isInteractiveSession
+startupError
+probeAccessibility
+probeAccessibilityStatus
+screenCaptureStatus
+dpiAwarenessInfo
+isScreenCaptureSupported
+captureMonitorPngAsync
+captureWindowPngVerifiedAsync
+cursorPoint
+displays
+readClipboardTextAsync
+writeClipboardTextAsync
+listApplications
+applicationInfo
+applicationIconPngAsync
+applicationInfoByAumid
+activateApplicationByAumid
+processExecutablePath
+listWindows
+screenCaptureProbeWindows
+captureApp
+readElement
+elementAtPoint
+isTargetElevated
+performAction
+setValue
+setFocused
+selectText
+clickAtPoint
+moveTo
+scrollAt
+mouseDown
+mouseUp
+typeTextGlobal
+pressKeyGlobal
+keyDownGlobal
+keyUpGlobal
+holdKeyGlobal
+holdKeyGlobalAsync
+cancelPendingInputHolds
+cancelInputHoldsForSession
+activateApplication
+preventActivation
+reenableActivation
+isFocusStealPrevented
+captureWindowImage
+vector too long
+unordered_map/set too long
+invalid hash bucket count
+invalid string position
+ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
+bad allocation
+length
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\cppwinrt\winrt\base.h
+C++/WinRT version:2.0.250303.1
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\cppwinrt\winrt\Windows.Foundation.h
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\cppwinrt\winrt\Windows.Graphics.Capture.h
+unsupported
+timeout
+invalid_target
+target_changed
+device_lost
+encode_failed
+capture_failed
+C:\Users\codegeex\gitlab-runner\builds\d5-EUcYuG\1\codegeex\z-code\node_modules\@zcode\zcode-cua\src\native\screen_capture_win.cc
+ScreenCaptureWorker
+format
+CoIncrementMTAUsage
+DllGetActivationFactory
+C:\Users\codegeex\gitlab-runner\builds\d5-EUcYuG\1\codegeex\z-code\node_modules\@zcode\zcode-cua\build\Release\ax_native.pdb
+.text$di
+.text$mn
+.text$mn$00
+.text$mn$21
+.text$x
+.text$yd
+.idata$5
+.00cfg
+.CRT$XCA
+.CRT$XCU
+.CRT$XCZ
+.CRT$XIA
+.CRT$XIC
+.CRT$XIZ
+.CRT$XLA
+.CRT$XLZ
+.CRT$XPA
+.CRT$XPX
+.CRT$XPXA
+.CRT$XPZ
+.CRT$XTA
+.CRT$XTZ
+.rdata
+.rdata$00
+.rdata$T
+.rdata$r
+.rdata$voltmd
+.rdata$zzzdbg
+.rtc$IAA
+.rtc$IZZ
+.rtc$TAA
+.rtc$TZZ
+.tls$ZZZ
+.xdata
+.xdata$x
+.didat$2
+.didat$3
+.didat$4
+.didat$6
+.didat$7
+.edata
+.idata$2
+.idata$3
+.idata$4
+.idata$6
+.data$r
+.data$rs
+.didat$5
+.pdata
+.fptable
+.rsrc$01
+.rsrc$02
+napi_create_array_with_length
+napi_create_function
+napi_open_handle_scope
+napi_get_boolean
+napi_get_last_error_info
+napi_create_error
+napi_call_function
+napi_get_null
+napi_queue_async_work
+napi_delete_reference
+napi_fatal_error
+napi_is_exception_pending
+napi_set_element
+napi_get_value_string_utf8
+napi_close_escapable_handle_scope
+napi_escape_handle
+napi_get_property
+napi_add_finalizer
+napi_resolve_deferred
+napi_create_type_error
+napi_create_string_latin1
+napi_create_async_work
+napi_create_string_utf8
+napi_has_property
+napi_set_named_property
+napi_define_properties
+napi_create_array
+napi_typeof
+napi_throw
+napi_create_promise
+napi_get_value_int32
+napi_get_and_clear_last_exception
+napi_create_object
+napi_get_undefined
+napi_get_cb_info
+napi_delete_async_work
+napi_open_escapable_handle_scope
+napi_get_value_double
+napi_create_reference
+napi_close_handle_scope
+napi_create_double
+napi_get_reference_value
+napi_get_element
+napi_is_array
+napi_get_typedarray_info
+napi_get_array_length
+napi_create_buffer_copy
+ax_native.node
+napi_register_module_v1
+node_api_module_get_api_version_v1
+GetModuleHandleW
+GetCurrentProcess
+K32GetModuleFileNameExW
+CompareStringOrdinal
+GetCurrentThreadId
+OpenProcess
+MultiByteToWideChar
+ProcessIdToSessionId
+GlobalSize
+GlobalAlloc
+GlobalFree
+CloseHandle
+LoadLibraryW
+GetProcAddress
+GlobalLock
+GetCurrentProcessId
+FreeLibrary
+WideCharToMultiByte
+GlobalUnlock
+QueryFullProcessImageNameW
+KERNEL32.dll
+GetWindowTextW
+SendInput
+GetCursorPos
+IsIconic
+SetForegroundWindow
+SetProcessDPIAware
+IsClipboardFormatAvailable
+GetUserObjectInformationW
+SetClipboardData
+GetAwarenessFromDpiAwarenessContext
+GetClipboardData
+BringWindowToTop
+AreDpiAwarenessContextsEqual
+EnumWindows
+GetForegroundWindow
+SetThreadDpiAwarenessContext
+AttachThreadInput
+EmptyClipboard
+CloseClipboard
+GetMonitorInfoW
+VkKeyScanW
+OpenClipboard
+IsWindow
+ShowWindow
+GetThreadDesktop
+GetSystemMetrics
+EnumDisplayMonitors
+IsWindowVisible
+GetWindowRect
+GetThreadDpiAwarenessContext
+GetWindowTextLengthW
+GetWindowThreadProcessId
+GetWindowLongW
+OpenInputDesktop
+CloseDesktop
+USER32.dll
+DeleteObject
+GDI32.dll
+GetTokenInformation
+OpenProcessToken
+IsValidSid
+GetSidSubAuthority
+GetSidSubAuthorityCount
+ADVAPI32.dll
+SHCreateItemFromParsingName
+SHGetPropertyStoreForWindow
+SHELL32.dll
+PropVariantClear
+GetHGlobalFromStream
+CoUninitialize
+CoCreateInstance
+CreateStreamOnHGlobal
+CoInitializeEx
+ole32.dll
+OLEAUT32.dll
+CreateDirect3D11DeviceFromDXGIDevice
+D3D11CreateDevice
+d3d11.dll
+ReleaseSRWLockExclusive
+AcquireSRWLockExclusive
+WakeAllConditionVariable
+SleepConditionVariableSRW
+RtlCaptureContext
+RtlLookupFunctionEntry
+RtlVirtualUnwind
+UnhandledExceptionFilter
+SetUnhandledExceptionFilter
+TerminateProcess
+IsProcessorFeaturePresent
+IsDebuggerPresent
+GetStartupInfoW
+QueryPerformanceCounter
+GetSystemTimeAsFileTime
+InitializeSListHead
+TryAcquireSRWLockExclusive
+WakeConditionVariable
+QueryPerformanceFrequency
+GetTickCount64
+InitializeCriticalSectionEx
+RtlUnwindEx
+RtlPcToFileHeader
+RaiseException
+InterlockedPushEntrySList
+InterlockedFlushSList
+GetLastError
+SetLastError
+EncodePointer
+EnterCriticalSection
+LeaveCriticalSection
+DeleteCriticalSection
+InitializeCriticalSectionAndSpinCount
+TlsAlloc
+TlsGetValue
+TlsSetValue
+TlsFree
+LoadLibraryExW
+ExitProcess
+GetModuleHandleExW
+GetModuleFileNameW
+HeapFree
+HeapAlloc
+GetStdHandle
+GetFileType
+FindClose
+FindFirstFileExW
+FindNextFileW
+IsValidCodePage
+GetACP
+GetOEMCP
+GetCPInfo
+GetCommandLineA
+GetCommandLineW
+GetEnvironmentStringsW
+FreeEnvironmentStringsW
+FlsAlloc
+FlsGetValue
+FlsSetValue
+FlsFree
+VirtualProtect
+LCMapStringW
+GetProcessHeap
+SetFilePointerEx
+GetStringTypeW
+SetStdHandle
+HeapSize
+HeapReAlloc
+FlushFileBuffers
+WriteFile
+GetConsoleOutputCP
+GetConsoleMode
+CreateFileW
+WriteConsoleW
+GetSystemInfo
+VirtualQuery
+LoadLibraryExA
+CoCreateFreeThreadedMarshaler
+RoOriginateLanguageException
+RoGetActivationFactory
+api-ms-win-core-winrt-error-l1-1-1.dll
+api-ms-win-core-winrt-l1-1-0.dll
+                          
+abcdefghijklmnopqrstuvwxyz
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+                          
+abcdefghijklmnopqrstuvwxyz
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+.?AVbad_alloc@std@@
+.?AVexception@std@@
+.?AVbad_array_new_length@std@@
+.?AVruntime_error@std@@
+.?AVsystem_error@std@@
+.?AV_System_error@std@@
+.?AVlength_error@std@@
+.?AVbad_function_call@std@@
+.?AVbad_exception@std@@
+.?AV<lambda_2>@?1??HoldKeyGlobalAsync@?A0x9df88517@@YA?AVValue@Napi@@AEBVCallbackInfo@4@@Z@
+.?AUhresult_out_of_bounds@winrt@@
+.?AVout_of_range@std@@
+.?AVinvalid_argument@std@@
+.?AUhresult_illegal_state_change@winrt@@
+.?AUhresult_no_interface@winrt@@
+.?AUhresult_illegal_method_call@winrt@@
+.?AUhresult_wrong_thread@winrt@@
+.?AUhresult_class_not_registered@winrt@@
+.?AUhresult_canceled@winrt@@
+.?AVexception@stdext@@
+.?AUhresult_changed_state@winrt@@
+.?AUhresult_access_denied@winrt@@
+.?AVbad_alloc@stdext@@
+.?AUhresult_class_not_available@winrt@@
+.?AUhresult_error@winrt@@
+.?AUhresult_invalid_argument@winrt@@
+.?AVlogic_error@std@@
+.?AUhresult_not_implemented@winrt@@
+.?AUhresult_illegal_delegate_assignment@winrt@@
+.?AVtype_info@@
+.?AVerror_category@std@@
+.?AV_Generic_error_category@std@@
+<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
+<assembly xmlns='urn:schemas-microsoft-com:asm.v1' manifestVersion='1.0'>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level='asInvoker' uiAccess='false' />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>
+6g^3x1
+DigiCert Inc1
+www.digicert.com1!0
+DigiCert Trusted Root G40
+130801120000Z
+380115120000Z0b1
+DigiCert Inc1
+www.digicert.com1!0
+DigiCert Trusted Root G40
+]J<0"0i3
+v=Y]Bv
+PAq=?Mp#
+L?n(Zy&
+DigiCert Inc1
+www.digicert.com1!0
+DigiCert Trusted Root G40
+210429000000Z
+360428235959Z0i1
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA10
+[K]taM?
+SA|X=G
+http://ocsp.digicert.com0A
+5http://cacerts.digicert.com/DigiCertTrustedRootG4.crt0C
+2http://crl3.digicert.com/DigiCertTrustedRootG4.crl0
+jj@0HK4
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA10
+260320000000Z
+270319235959Z0
+Private Organization1
+91110108MA01KP2T5U1
+M^!ihW[n
+t>o}g.
+http://www.digicert.com/CPS0
+Mhttp://crl3.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crl0S
+Mhttp://crl4.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crl0
+http://ocsp.digicert.com0\
+Phttp://cacerts.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crt0
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1
+Y(^1G@
+20260828042720Z
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA10
+250604000000Z
+360903235959Z0c1
+DigiCert, Inc.1;09
+2DigiCert SHA256 RSA4096 Timestamp Responder 2025 10
+p%w+q4
+http://ocsp.digicert.com0]
+Qhttp://cacerts.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crt0_
+Nhttp://crl3.digicert.com/DigiCertTrustedG4TimeStampingRSA4096SHA2562025CA1.crl0 
+r&fR{a|
+DigiCert Inc1
+www.digicert.com1!0
+DigiCert Trusted Root G40
+250507000000Z
+380114235959Z0i1
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA10
+http://ocsp.digicert.com0A
+5http://cacerts.digicert.com/DigiCertTrustedRootG4.crt0C
+2http://crl3.digicert.com/DigiCertTrustedRootG4.crl0 
+:U|r*C
+DigiCert Inc1
+www.digicert.com1$0"
+DigiCert Assured ID Root CA0
+220801000000Z
+311109235959Z0b1
+DigiCert Inc1
+www.digicert.com1!0
+DigiCert Trusted Root G40
+]J<0"0i3
+v=Y]Bv
+http://ocsp.digicert.com0C
+7http://cacerts.digicert.com/DigiCertAssuredIDRootCA.crt0E
+4http://crl3.digicert.com/DigiCertAssuredIDRootCA.crl0
+~qj#k"
+DigiCert, Inc.1A0?
+8DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA1
+260828042720Z0+
+/1(0&0$0"

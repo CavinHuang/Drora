@@ -58,9 +58,11 @@ jobs:
       # 桌面全链构建(含 agent bundle / native search / mac window bounds)
       - name: Build desktop production bundles
         run: pnpm --filter @zcode/desktop run build
+        timeout-minutes: 50
       - name: Package desktop installer (electron-builder)
         run: node scripts/bundle.mjs --os=${{ matrix.builder-os }}
         working-directory: packages/desktop
+        timeout-minutes: 60
         env:
           # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
           # authenticode;开源构建的预期形态

@@ -111,6 +111,116 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+
+  // 以下内容型 / 预编译插件不带可构建 runtime（dist 即分发产物），只需原样 stage，
+  // requiredSeedPaths 与 bootstrap/official-plugin-definitions.ts 的声明保持一致，
+  // 缺文件时在打包阶段就报错，而不是装出一个残缺插件。
+  {
+    packageName: "@zcode/documents-plugin",
+    relativePath: "apps/zcode-cli/packages/documents-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/docx/SKILL.md"],
+    stagedPath: "packages/documents-plugin",
+  },
+  {
+    packageName: "@zcode/pdf-plugin",
+    relativePath: "apps/zcode-cli/packages/pdf-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
+    stagedPath: "packages/pdf-plugin",
+  },
+  {
+    packageName: "@zcode/presentations-plugin",
+    relativePath: "apps/zcode-cli/packages/presentations-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
+    stagedPath: "packages/presentations-plugin",
+  },
+  {
+    packageName: "@zcode/spreadsheets-plugin",
+    relativePath: "apps/zcode-cli/packages/spreadsheets-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
+    stagedPath: "packages/spreadsheets-plugin",
+  },
+  {
+    packageName: "@zcode/image-search-plugin",
+    relativePath: "apps/zcode-cli/packages/image-search-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [".mcp.json"],
+    stagedPath: "packages/image-search-plugin",
+  },
+  {
+    packageName: "@zcode/android-emulator-plugin",
+    relativePath: "apps/zcode-cli/packages/android-emulator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["dist/mcp/server.js"],
+    stagedPath: "packages/android-emulator-plugin",
+  },
+  {
+    packageName: "@zcode/ios-simulator-plugin",
+    relativePath: "apps/zcode-cli/packages/ios-simulator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["dist/mcp/server.js"],
+    stagedPath: "packages/ios-simulator-plugin",
+  },
+  {
+    packageName: "@zcode/restore-legacy-sessions-plugin",
+    relativePath: "apps/zcode-cli/packages/restore-legacy-sessions-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["skills/restore-legacy-sessions/SKILL.md"],
+    stagedPath: "packages/restore-legacy-sessions-plugin",
+  },
+  {
+    packageName: "@zcode/plugin-creator-plugin",
+    relativePath: "apps/zcode-cli/packages/plugin-creator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "skills/plugin-creator/SKILL.md",
+      "skills/plugin-creator/scripts/create-basic-plugin.mjs",
+      "skills/plugin-creator/scripts/marketplace-files.mjs",
+      "skills/plugin-creator/scripts/upsert-dev-marketplace.mjs",
+      "skills/plugin-creator/scripts/scaffold-files.mjs",
+      "skills/plugin-creator/scripts/validate-plugin.mjs",
+      "skills/plugin-creator/references/plugin-json-spec.md",
+      "skills/plugin-creator/references/installing-and-updating.md",
+    ],
+    stagedPath: "packages/plugin-creator-plugin",
+  },
+  {
+    packageName: "@zcode/skill-creator-plugin",
+    relativePath: "apps/zcode-cli/packages/skill-creator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["skills/skill-creator/SKILL.md"],
+    stagedPath: "packages/skill-creator-plugin",
+  },
+  {
+    packageName: "@zcode/zcode-guide-plugin",
+    relativePath: "apps/zcode-cli/packages/zcode-guide-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "commands/workflow.md",
+      "skills/dynamic-workflows/SKILL.md",
+      "skills/dynamic-workflows/examples.md",
+      "skills/dynamic-workflows/patterns.md",
+    ],
+    stagedPath: "packages/zcode-guide-plugin",
+  },
+  {
+    packageName: "@zcode/zcode-cua-plugin",
+    relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
+    requiresRuntime: false,
+    // 与原版 0.5.13 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
+    // 自包含 MCP bundle + seed 级 native 依赖缺一即装出启动即退出的空 server。
+    requiredSeedPaths: [
+      "dist/mcp/server.js",
+      "skills/computer-use/SKILL.md",
+      "package.json",
+      "node_modules/sharp/package.json",
+    ],
+    runtimeTopLevelPaths: ["node_modules"],
+    stagedPath: "packages/zcode-cua-plugin",
+  },
 ];
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -135,8 +245,17 @@ const excludedOfficialPluginAssetNames = new Set([
   "node_modules",
 ]);
 
-function shouldCopyOfficialPluginAsset(sourcePath) {
+// 声明了 runtimeTopLevelPaths 的插件（如 zcode-cua-plugin 的 seed 级 sharp/koffi）
+// 会把 node_modules 顶层加入复制白名单；其余插件维持排除，避免把构建垃圾带进安装包。
+const pluginsWithRuntimeTopLevelPaths = new Set(
+  officialPluginPackages
+    .filter((plugin) => (plugin.runtimeTopLevelPaths ?? []).length > 0)
+    .map((plugin) => plugin.packageName),
+);
+
+function shouldCopyOfficialPluginAsset(sourcePath, allowSeedNodeModules = false) {
   const name = basename(sourcePath);
+  if (name === "node_modules" && allowSeedNodeModules) return true;
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const isBootstrapWithRemote = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
@@ -230,12 +349,17 @@ function stageOfficialPlugins() {
 
     const targetRoot = resolve(glmDir, plugin.stagedPath);
     mkdirSync(targetRoot, { recursive: true });
-    for (const entryName of includedOfficialPluginTopLevelPaths) {
+    const allowSeedNodeModules = pluginsWithRuntimeTopLevelPaths.has(plugin.packageName);
+    const stagedTopLevelPaths = [
+      ...includedOfficialPluginTopLevelPaths,
+      ...(allowSeedNodeModules ? ["node_modules"] : []),
+    ];
+    for (const entryName of stagedTopLevelPaths) {
       const sourcePath = resolve(sourceRoot, entryName);
       if (!existsSync(sourcePath)) continue;
       cpSync(sourcePath, resolve(targetRoot, entryName), {
         recursive: true,
-        filter: shouldCopyOfficialPluginAsset,
+        filter: (path) => shouldCopyOfficialPluginAsset(path, allowSeedNodeModules),
       });
     }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {

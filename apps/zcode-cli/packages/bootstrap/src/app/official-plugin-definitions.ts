@@ -72,9 +72,13 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 ] as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  "docs/computer-use.md",
-  "scripts/computer-use-client.mjs",
+  // 与原版 0.5.13 发行物对齐：插件自带自包含的 MCP server bundle 与 seed 依赖
+  // （sharp/koffi/semver 等）。dist 缺失或加载不到 node_modules 时装出的是
+  // 立即退出的空 server，必须在 seed 阶段就报错。
+  "dist/mcp/server.js",
   "skills/computer-use/SKILL.md",
+  "package.json",
+  "node_modules/sharp/package.json",
 ] as const;
 
 // zcode-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
@@ -355,11 +359,14 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../zcode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // 当前 CUA 为不可用占位包，无需复制 native runtime；避免把本地旧依赖继续带入缓存。
-    runtimeTopLevelPaths: [],
+    // 原版 0.5.13 发行物自带 seed 级 native 依赖（sharp/koffi/semver/detect-libc），
+    // dist/mcp/server.js 运行时按相对路径解析它们；不随包 seed 的话装出的是
+    // 启动即退出的空 server（缺原生模块）。node_modules 顶层默认被 seed 走向排除，
+    // 必须显式声明才会进入 bundled plugin 包。
+    runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 zcode-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    version: "0.6.3",
+    version: "0.5.13",
   },
 ];
 

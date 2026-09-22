@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": false,
+    "forceConsistentCasingInFileNames": true,
+    // 本包被 pnpm-workspace 排除（seed 资产不参与 install），@zcode/zcode-cua
+    // 直接映射到仓库还原包的公开入口做类型检查。
+    "paths": {
+      "@zcode/zcode-cua": ["../../../../packages/zcode-cua/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

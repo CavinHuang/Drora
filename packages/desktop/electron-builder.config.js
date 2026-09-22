@@ -576,6 +576,16 @@ export default {
             from: "resources/macos-window-bounds/zcode-window-bounds",
             to: "macos-window-bounds/zcode-window-bounds",
           },
+          {
+            // Computer Use Helper 随包资产：整个 .app 原样拷贝，保持其既有代码签名
+            // （TeamID 8A5X4JJ39T）与 TCC 身份不被破坏。主进程/安装器按
+            // process.resourcesPath/cua-helper/<HELPER_APP_NAME> 解析（见
+            // desktopCuaHelperInstaller.ts 与 services/node.ts resolveBundledCuaHelperAppPath），
+            // 运行时校验 bundle id、TeamIdentifier 与可执行文件架构，签名无效即 fail-closed。
+            from: "resources/cua-helper",
+            to: "cua-helper",
+            filter: ["**/*"],
+          },
         ]
       : []),
     {

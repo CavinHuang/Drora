@@ -1,0 +1,162 @@
+name: Release
+
+# 完整发布流水线:双平台(macOS dmg/zip + Windows nsis exe)桌面安装包与
+# CLI 单可执行,tag(v*)推送或手动触发;产物汇总为 GitHub Release。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      make_release:
+        description: "构建后创建 GitHub Release(仅手动触发时生效)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Desktop installer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            builder-os: mac
+          - os: windows-2022
+            builder-os: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime
+      - name: Emit workspace dists (tsc -b project references)
+        run: pnpm typecheck
+      - name: Build plugin MCP runtimes
+        run: >-
+          pnpm --filter @zcode/node-repl-host
+          --filter @zcode/browser-use-plugin
+          --filter @zcode/android-emulator-plugin
+          --filter @zcode/ios-simulator-plugin build
+      # 桌面全链构建(含 agent bundle / native search / mac window bounds)
+      - name: Build desktop production bundles
+        run: pnpm --filter @zcode/desktop run build
+      - name: Package desktop installer (electron-builder)
+        run: node scripts/bundle.mjs --os=${{ matrix.builder-os }}
+        working-directory: packages/desktop
+        env:
+          # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
+          # authenticode;开源构建的预期形态
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ZCODE_ENABLE_MAC_SIGN: ""
+      - name: Locate installers
+        id: artifacts
+        shell: bash
+        run: |
+          set -e
+          dir="packages/desktop/release"
+          [ -d "$dir" ] || dir="packages/desktop/dist"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          ls -la "$dir" || true
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.builder-os }}
+          path: |
+            ${{ steps.artifacts.outputs.dir }}/*.dmg
+            ${{ steps.artifacts.outputs.dir }}/*.zip
+            ${{ steps.artifacts.outputs.dir }}/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  cli-sea:
+    name: CLI single-executable (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Emit workspace dists
+        run: pnpm typecheck
+      - name: Build CLI bundle with dependency closure
+        run: pnpm --filter @zcode/cli... build
+      - name: Build plugin MCP runtimes
+        run: >-
+          pnpm --filter @zcode/node-repl-host
+          --filter @zcode/browser-use-plugin
+          --filter @zcode/android-emulator-plugin
+          --filter @zcode/ios-simulator-plugin build
+      - name: Build single-executable
+        run: node scripts/build-sea.mjs
+        working-directory: apps/zcode-cli/packages/cli
+      - name: Locate SEA binary
+        id: out
+        shell: bash
+        run: |
+          set -e
+          bin=$(find apps/zcode-cli/packages/cli/dist -maxdepth 1 -type f -name "zcode-*" ! -name "*.blob" ! -name "*.cjs*" ! -name "*.json" | head -1 || true)
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+          chmod +x "$bin" 2>/dev/null || true
+          "$bin" --version
+      - name: Upload SEA binary
+        if: steps.out.outputs.bin != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-sea-${{ matrix.os }}
+          path: ${{ steps.out.outputs.bin }}
+          retention-days: 14
+
+  release:
+    name: GitHub Release
+    needs: [desktop, cli-sea]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.make_release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: List release contents
+        run: find release-assets -type f -exec ls -la {} \;
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ "$TAG" = "$GITHUB_REF" ]; then
+            # 手动触发无 tag:用短 sha 造一个发布名
+            TAG="nightly-${GITHUB_SHA::7}"
+            git tag "$TAG" || true
+            git push origin "$TAG" || true
+          fi
+          gh release create "$TAG" release-assets/**/* \
+            --title "ZCode ${TAG#v}" \
+            --notes "Automated multi-platform build.
+
+          - Desktop installers: macOS (dmg/zip), Windows (nsis exe) — unsigned community build
+          - CLI single-executable: macOS / Linux / Windows
+
+          Sources: commit ${GITHUB_SHA}" \
+            --prerelease || \
+          gh release upload "$TAG" release-assets/**/* --clobber

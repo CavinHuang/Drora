@@ -112,11 +112,15 @@ check(
   "isScreenCaptureProbeSuccess(严格契约)",
   server.isScreenCaptureProbeSuccess({ ok: true }) === false,
 );
+if (process.platform !== "win32" && process.platform !== "darwin") {
+  // 原版 installer 的自动安装仅支持 macOS：非 darwin 平台构造时求值 plan 即抛
+  // install_failed（发行物行为）。linux CI 上该面不可用，跳过断言。
+  console.log("SKIP installer interface (linux: original throws install_failed by design)");
+} else
 check(
   "installer interface",
   process.platform === "win32"
-    ? // 原版 installer 的自动安装仅支持 macOS（构造时求值 plan 即抛 install_failed）；
-      // win32 上走 windows-helper-host 直拉路径，这里用注入 plan 验证同一接口面。
+    ? // win32 上走 windows-helper-host 直拉路径，这里用注入 plan 验证同一接口面。
       typeof server.createCuaHelperInstaller({
         plan: {
           version: "0.0.0",

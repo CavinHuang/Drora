@@ -252,9 +252,6 @@ importers:
       '@types/yazl':
         specifier: ^3.3.1
         version: 3.3.1
-      '@zcode/formal-proof':
-        specifier: workspace:*
-        version: link:../../../../packages/formal-proof
       yazl:
         specifier: ^3.3.1
         version: 3.3.1

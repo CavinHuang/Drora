@@ -249,6 +249,29 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十二轮：CLI 构建链修复与全实现对齐终审（2026-09-22）
+
+- **安装根目录盘点**：ZCode.exe/dll/pak/locales 等均为 Electron/Chromium 运行时
+  资产，无还原义务。
+- **CLI 构建链修复**（此前嵌套 workspace 无法构建）：
+  - 移除 `apps/zcode-cli/pnpm-workspace.yaml`/`pnpm-lock.yaml` 嵌套边界 —— 上游
+    monorepo 中 cli 与主 packages 同一 workspace，嵌套文件切断了
+    @zcode/shared/provider/provider-node/model-option-map/zcode-cua 的可见性；
+  - 清理 `bootstrap` 对 `@zcode/formal-proof` 的死依赖（开源剥离 formal-proof
+    后的声明残留，src 零引用）；
+  - turbo 从根 workspace 运行会递归执行 apps/zcode-cli 自身的 build script，
+    构建改用 `pnpm --filter @zcode/cli... build`（依赖闭包）直达。
+- **CLI 功能面对比**（仓库构建 zcode.cjs 31MB vs 发行 12.5MB）：版本 0.16.5 →
+  0.16.9（仓库领先）；顶层命令集、全部子命令 help 结构、agent 核心工具面
+  （Bash/Edit/Glob/Grep/Read/TodoRead/TodoWrite/Write）完全一致；差异为演进
+  （login 新增 bigmodel 双 provider）。
+- **renderer/preload cua 面定性**：cuaPermissionPanel 两侧 i18n 文案同源
+  （波斯语/中文繁简/匈牙利语字串逐一对应，仅 minifier 变量名与打包噪声差异），
+  纯演进。
+- 构建污染回滚：zcode-cua 发行物副本曾被 cli 构建链的 tsc/esbuild 输出覆盖，
+  已从 git 恢复并重跑冒烟确认无损；插件 seed node_modules 曾被嵌套 install
+  误删，同样已恢复。
+
 ### 第十一轮：内置插件内容级对齐审计（2026-09-22）
 
 在第十轮文件级覆盖之上做 md5 内容级审计，全部差异定性如下（无漂移、无内容丢失）：

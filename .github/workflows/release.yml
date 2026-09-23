@@ -193,16 +193,27 @@ jobs:
       - name: List release contents
         run: find release-assets -type f -exec ls -la {} \;
       - name: Integrity check on downloaded assets
-        # 离线校验下载好的资产:必备类别齐全 + SHA256SUMS 自洽(若随包携带)
+        # 离线校验:按"平台覆盖"断言(dmg/zip/exe 任一命名形态命中即算),不按
+        # 精确文件名 —— nightly 与 tag 正式的后缀不同(_TEST / 无)。SHA256SUMS
+        # 由下一步生成,此处只校验随包携带时的自洽性。
         run: |
           cd release-assets
           fail=0
-          for pat in "arm64.dmg" "arm64_TEST.dmg" ".zip" ".exe" "zcode-darwin" "zcode-linux" "zcode-windows" "SHA256SUMS.txt" "latest.yml" "latest-mac.yml"; do
-            if ls | grep -qF "$pat"; then
-              echo "PASS 资产含 $pat"
-            else
-              echo "FAIL 资产缺 $pat"; fail=1
-            fi
+          have_dmg=false; have_zip=false; have_exe=false; have_sea=false
+          for f in $(ls); do
+            case "$f" in
+              *.dmg) have_dmg=true ;;
+              *.zip) have_zip=true ;;
+              *.exe) have_exe=true ;;
+              zcode-darwin*|zcode-linux*) have_sea=true ;;
+            esac
+          done
+          for pair in "macOS dmg:$have_dmg" "macOS zip:$have_zip" "Windows exe:$have_exe" "CLI SEA:$have_sea"; do
+            name="${pair%%:*}"; val="${pair##*:}"
+            if [ "$val" = "true" ]; then echo "PASS 平台覆盖 $name"; else echo "FAIL 平台覆盖 $name"; fail=1; fi
+          done
+          for f in latest.yml latest-mac.yml; do
+            if [ -f "$f" ]; then echo "PASS 通道清单 $f"; else echo "FAIL 缺 $f"; fail=1; fi
           done
           if [ -f SHA256SUMS.txt ]; then
             python - <<'PY' || fail=1

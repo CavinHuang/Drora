@@ -48,12 +48,25 @@ jobs:
       ZCODE_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'test' }}
     steps:
       - uses: actions/checkout@v4
+      # 版本单一真相源:tag(v*)构建时把 tag 版本写入根 package.json,
+      # desktop build-meta 与 electron-builder 都从这里取版本
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            console.log('version stamped:', p.version);
+          "
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
       # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime;
       # node-repl-host 还依赖 @zcode/core、@zcode/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包
@@ -114,6 +127,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            console.log('version stamped:', p.version);
+          "
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.0"
@@ -166,6 +191,37 @@ jobs:
           merge-multiple: true
       - name: List release contents
         run: find release-assets -type f -exec ls -la {} \;
+      - name: Integrity check on downloaded assets
+        # 离线校验下载好的资产:必备类别齐全 + SHA256SUMS 自洽(若随包携带)
+        run: |
+          cd release-assets
+          fail=0
+          for pat in "arm64.dmg" "arm64_TEST.dmg" ".zip" ".exe" "zcode-darwin" "zcode-linux" "zcode-windows" "SHA256SUMS.txt" "latest.yml" "latest-mac.yml"; do
+            if ls | grep -qF "$pat"; then
+              echo "PASS 资产含 $pat"
+            else
+              echo "FAIL 资产缺 $pat"; fail=1
+            fi
+          done
+          if [ -f SHA256SUMS.txt ]; then
+            python - <<'PY' || fail=1
+          import hashlib, os, sys
+          ok = True
+          for line in open("SHA256SUMS.txt", encoding="utf-8"):
+              line = line.rstrip("\n")
+              if not line or line.startswith("SHA256SUMS"):
+                  continue
+              digest, name = line.split("  ", 1)
+              match = next((c for c in (name, name.replace(" ", ".")) if os.path.exists(c)), None)
+              if match is None:
+                  print("MISS:", name); ok = False; continue
+              h = hashlib.sha256(open(match, "rb").read()).hexdigest()
+              if h != digest:
+                  print("BAD:", match); ok = False
+          sys.exit(0 if ok else 1)
+          PY
+          fi
+          exit $fail
       - name: Generate checksums
         run: |
           cd release-assets

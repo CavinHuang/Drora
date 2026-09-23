@@ -70,6 +70,6 @@ export function loadRealNativeAddon(options: any = {}) {
     return require2(inTreePath);
   }
   throw new Error(
-    `CUA native addon (ax_native.node) not found for ${platform2}. Run \`node-gyp rebuild\` in the @zcode/zcode-cua package, or set ${HELPER_ADDON_ENV} to the .node path.`,
+    `CUA native addon (ax_native.node) not found for ${platform2}. Run \`node-gyp rebuild\` in the @drora/drora-cua package, or set ${HELPER_ADDON_ENV} to the .node path.`,
   );
 }

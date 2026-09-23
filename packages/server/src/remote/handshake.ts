@@ -1,5 +1,5 @@
-import type { HelloMessage, HelloAckMessage } from "@zcode/shared";
-import { ZCODE_VERSION, formatZodError, helloMessageSchema } from "@zcode/shared";
+import type { HelloMessage, HelloAckMessage } from "@drora/shared";
+import { DRORA_VERSION, formatZodError, helloMessageSchema } from "@drora/shared";
 import type { StdioStream } from "./backend.js";
 
 const MAX_HANDSHAKE_DIAGNOSTIC_CHARS = 2048;
@@ -12,9 +12,9 @@ export interface HandshakeResult {
 
 /**
  * Perform the client-side handshake:
- * 1. Read lines from stdout until we find a zcode-hello JSON
+ * 1. Read lines from stdout until we find a drora-hello JSON
  *    (skip SSH banner/motd lines)
- * 2. Send a zcode-hello-ack to stdin
+ * 2. Send a drora-hello-ack to stdin
  * 3. Return the hello info and any remaining data
  */
 export function performHandshake(
@@ -46,7 +46,7 @@ export function performHandshake(
     };
 
     const timeout = setTimeout(() => {
-      rejectWithDiagnostics("Handshake timeout: no zcode-hello received within timeout");
+      rejectWithDiagnostics("Handshake timeout: no drora-hello received within timeout");
     }, timeoutMs);
 
     const onData = (chunk: Buffer) => {
@@ -76,8 +76,8 @@ export function performHandshake(
 
               // Send ack
               const ack: HelloAckMessage = {
-                type: "zcode-hello-ack",
-                version: ZCODE_VERSION,
+                type: "drora-hello-ack",
+                version: DRORA_VERSION,
                 clientId,
               };
               stream.stdin.write(JSON.stringify(ack) + "\n");
@@ -92,9 +92,9 @@ export function performHandshake(
               rawValue &&
               typeof rawValue === "object" &&
               "type" in rawValue &&
-              (rawValue as { type?: unknown }).type === "zcode-hello"
+              (rawValue as { type?: unknown }).type === "drora-hello"
             ) {
-              rejectWithDiagnostics(`Invalid zcode-hello: ${formatZodError(result.error)}`);
+              rejectWithDiagnostics(`Invalid drora-hello: ${formatZodError(result.error)}`);
               return;
             }
           } catch {

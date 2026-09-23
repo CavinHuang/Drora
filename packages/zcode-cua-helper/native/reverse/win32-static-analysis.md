@@ -22,7 +22,7 @@
   (Windows SDK 10.0.26100 cppwinrt 路径字符串)。
 - 上游构建路径(PDB 字符串):
   `C:\Users\codegeex\gitlab-runner\builds\...\z-code\node_modules\@zcode\zcode-cua\src\native\screen_capture_win.cc`
-  —— 证实上游为单编译单元 addon,源码位于 `@zcode/zcode-cua` 包的 `src/native/`,
+  —— 证实上游为单编译单元 addon,源码位于 `@drora/drora-cua` 包的 `src/native/`,
   截图模块文件名为 `screen_capture_win.cc`。
 
 ## 2. 导入表(实现路径的直接证据)

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type {
   WindowHostControllerTaskListItem,
-  ZCodeTaskListKind,
-  ZCodeTaskListWorkspaceScope,
-} from "@zcode/services";
+  DroraTaskListKind,
+  DroraTaskListWorkspaceScope,
+} from "@drora/services";
 import { logger } from "@/logger.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
-import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { selectWorkspaceDroraState, useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { attachTaskListRowActivity } from "@/v4/taskListRowActivity.js";
 import { stabilizeTaskListItems } from "@/v4/taskListItemStabilization.js";
 import { getWindowControllerTaskListRegistry } from "@/v4/windowControllerTaskListRegistry.js";
@@ -18,8 +18,8 @@ type GlobalTaskListItem = WindowHostControllerTaskListItem;
 const subscribeToNothing = () => () => {};
 const zeroRevision = () => 0;
 
-function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): ZCodeTaskListWorkspaceScope[] {
-  const scopes = new Map<string, ZCodeTaskListWorkspaceScope>();
+function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): DroraTaskListWorkspaceScope[] {
+  const scopes = new Map<string, DroraTaskListWorkspaceScope>();
   for (const tab of workspaceTabs) {
     const scope = {
       workspacePath: tab.workspacePath,
@@ -34,7 +34,7 @@ function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): ZCodeTaskList
 }
 
 export function useGlobalTaskList(params: {
-  kind: ZCodeTaskListKind;
+  kind: DroraTaskListKind;
   workspaceTabs: WorkspaceTabState[];
   sortBy: "created" | "updated";
   searchQuery: string;
@@ -85,11 +85,11 @@ export function useGlobalTaskList(params: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceSignature],
   );
-  const taskListVersionSignature = useZCodeSessionStore((state) =>
+  const taskListVersionSignature = useDroraSessionStore((state) =>
     JSON.stringify(
       params.workspaceTabs
         .map((tab) => {
-          const workspace = selectWorkspaceZCodeState(
+          const workspace = selectWorkspaceDroraState(
             state,
             tab.workspacePath,
             tab.workspaceIdentity,

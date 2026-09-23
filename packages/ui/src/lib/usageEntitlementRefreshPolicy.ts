@@ -1,15 +1,15 @@
-import type { IUsageStatsService } from "@zcode/services";
+import type { IUsageStatsService } from "@drora/services";
 import type {
   UsageEntitlementSnapshot,
-  ZCodeAccountAccess,
-  ZCodeProviderAccountAccess,
-} from "@zcode/shared";
+  DroraAccountAccess,
+  DroraProviderAccountAccess,
+} from "@drora/shared";
 
 export interface UsageEntitlementRequestOptions {
   invalidateBalanceCache?: boolean;
   includeSubscription: boolean;
   preferredProviderId?: string;
-  accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+  accountAccess?: DroraProviderAccountAccess | DroraAccountAccess;
   allowDisabledPreferredProvider: boolean;
   requirePreferredProvider: boolean;
   allowEnvApiKey?: boolean;

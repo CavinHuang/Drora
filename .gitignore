@@ -1,6 +1,6 @@
 node_modules/
 dist/
-# zcode-server-cli 发行包 staging 输出，本地组装产物不入库。
+# drora-server-cli 发行包 staging 输出，本地组装产物不入库。
 dist-release/
 # macOS CI 按架构隔离 electron-builder 输出目录，这些仍是构建产物。
 packages/desktop/dist-*/
@@ -68,7 +68,7 @@ __pycache__/
 packages/desktop/.e2e-artifacts/
 packages/desktop/.e2e-cache/
 packages/desktop/.e2e-network-capture/
-.zcode-runtime/
+.drora-runtime/
 packages/desktop/resources/cua-helper/
 # win32 原生插件是还原链的运行时资产(helperAddonLoader 的 in-tree 解析路径),
 # 必须入库;其余 build/Release/*.node 仍是 node-gyp 中间产物,保持忽略。

@@ -4,7 +4,7 @@ name: Release
 # CLI 单可执行,tag(v*)推送或手动触发;产物汇总为 GitHub Release。
 #
 # 产物形态:
-#   - 正式(tag v*):ZCODE_ENV=production,安装包名无 _TEST 后缀,
+#   - 正式(tag v*):DRORA_ENV=production,安装包名无 _TEST 后缀,
 #     Release 标记为 latest(非 prerelease),附 SHA256SUMS 与 latest.yml
 #     (electron-builder 自动更新通道清单)。
 #   - 手动 nightly:保留 _TEST 后缀与 prerelease 标记,便于区分。
@@ -50,10 +50,10 @@ jobs:
       # 桌面安装包不依赖 mock-cdn 的跨平台 remote 资产(node/pty 等,是远端部署
       # 与 WSL 链路用的;脚本注释明载 Windows build job 应跳过)。skip 后不再
       # 下载 node tarball —— 之前四跑 50 分钟超时全是这一步在 CI 网络下挂死。
-      ZCODE_SKIP_REMOTE_ASSETS: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
       # 正式发布用生产后端身份:安装包名不带 _TEST 后缀,应用连接生产环境。
       # 手动 nightly(dispatch 无 tag)保持 test 后缀以示区分。
-      ZCODE_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'test' }}
+      DRORA_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'test' }}
     steps:
       - uses: actions/checkout@v4
       # 版本单一真相源:tag(v*)构建时把 tag 版本写入根 package.json,
@@ -77,23 +77,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime;
-      # node-repl-host 还依赖 @zcode/core、@zcode/contracts 的 dist(在 cli 依赖
+      # node-repl-host 还依赖 @drora/core、@drora/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包
       - name: Emit workspace dists (tsc -b project references)
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
-        run: pnpm --filter @zcode/cli... build
+        run: pnpm --filter @drora/cli... build
       - name: Build plugin MCP runtimes
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
-          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
       # 桌面全链构建(含 agent bundle / native search / mac window bounds)
       - name: Build desktop production bundles
-        run: pnpm --filter @zcode/desktop run build
+        run: pnpm --filter @drora/desktop run build
         timeout-minutes: 50
       - name: Package desktop installer (electron-builder)
         # bundle.mjs 不传 --arch 时默认 arm64,曾导致发布只有 arm64 安装包
@@ -105,7 +105,7 @@ jobs:
           # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
           # authenticode;开源构建的预期形态
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          ZCODE_ENABLE_MAC_SIGN: ""
+          DRORA_ENABLE_MAC_SIGN: ""
       - name: Locate installers and channel files
         id: artifacts
         shell: bash
@@ -165,24 +165,24 @@ jobs:
       - name: Emit workspace dists
         run: pnpm typecheck
       - name: Build CLI bundle with dependency closure
-        run: pnpm --filter @zcode/cli... build
+        run: pnpm --filter @drora/cli... build
       - name: Build plugin MCP runtimes
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
-          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
       - name: Build single-executable
         run: node scripts/build-sea.mjs
-        working-directory: apps/zcode-cli/packages/cli
+        working-directory: apps/drora-cli/packages/cli
       - name: Locate SEA binary
         id: out
         shell: bash
         run: |
           set -e
-          bin=$(find apps/zcode-cli/packages/cli/dist -maxdepth 1 -type f -name "zcode-*" ! -name "*.blob" ! -name "*.cjs*" ! -name "*.json" | head -1 || true)
+          bin=$(find apps/drora-cli/packages/cli/dist -maxdepth 1 -type f -name "drora-*" ! -name "*.blob" ! -name "*.cjs*" ! -name "*.json" | head -1 || true)
           echo "bin=$bin" >> "$GITHUB_OUTPUT"
           chmod +x "$bin" 2>/dev/null || true
           "$bin" --version
@@ -215,7 +215,7 @@ jobs:
         run: |
           cd release-assets
           fail=0
-          # 安装包 exe 以 productName(ZCode-)开头;Windows SEA 以 zcode- 开头,
+          # 安装包 exe 以 productName(Drora-)开头;Windows SEA 以 drora- 开头,
           # 两者都叫 *.exe,必须分开断言,否则 SEA 会冒充安装包通过校验。
           have_dmg=false; have_zip=false; have_installer=false; have_sea=false; have_sea_win=false
           have_installer_arm64=false; have_installer_x64=false
@@ -223,12 +223,12 @@ jobs:
             case "$f" in
               *.dmg) have_dmg=true ;;
               *.zip) have_zip=true ;;
-              ZCode-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
-              ZCode-*x64*.exe) have_installer=true; have_installer_x64=true ;;
-              ZCode-*arm64*.dmg|ZCode-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
-              ZCode-*x64*.dmg|ZCode-*x64*.zip) have_installer=true; have_installer_x64=true ;;
-              zcode-windows*) have_sea_win=true ;;
-              zcode-darwin*|zcode-linux*) have_sea=true ;;
+              Drora-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
+              Drora-*x64*.exe) have_installer=true; have_installer_x64=true ;;
+              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
+              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true ;;
+              drora-windows*) have_sea_win=true ;;
+              drora-darwin*|drora-linux*) have_sea=true ;;
             esac
           done
           for pair in "macOS dmg:$have_dmg" "macOS zip:$have_zip" "Windows 安装包 exe:$have_installer" "CLI SEA(mac/linux):$have_sea" "CLI SEA(windows):$have_sea_win" "安装包 arm64 覆盖:$have_installer_arm64" "安装包 x64 覆盖:$have_installer_x64"; do
@@ -295,18 +295,18 @@ jobs:
           fi
           gh release create "$TAG" "${FILES[@]}" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "ZCode ${TAG#v}" \
+            --title "Drora ${TAG#v}" \
             --notes "Automated multi-platform build.
 
           ## 桌面安装包(Desktop installers)
           macOS dmg/zip、Windows nsis exe。安装后从开始菜单/启动台启动图形界面。
 
-          ## CLI 单可执行(zcode-<os>-<arch>)
+          ## CLI 单可执行(drora-<os>-<arch>)
           命令行工具,必须在终端里运行(双击会闪退 —— 它不是 GUI 程序):
           \`\`\`
-          ./zcode-linux-x64 --help        # 查看全部命令
-          ./zcode-linux-x64 tui           # 进入全屏终端界面
-          ./zcode-linux-x64 -p \"你的问题\"  # 单条提问(需先 login)
+          ./drora-linux-x64 --help        # 查看全部命令
+          ./drora-linux-x64 tui           # 进入全屏终端界面
+          ./drora-linux-x64 -p \"你的问题\"  # 单条提问(需先 login)
           \`\`\`
           首次使用先执行 login 按提示完成浏览器授权;提问功能需要可用的
           模型服务凭据。

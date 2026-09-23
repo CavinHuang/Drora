@@ -1,4 +1,4 @@
-import type { ApiClient, ProviderFamilyDomain } from "@zcode/shared";
+import type { ApiClient, ProviderFamilyDomain } from "@drora/shared";
 import {
   fetchPersonalCodingPlanEntitlement,
   fetchTeamCodingPlanEntitlement,

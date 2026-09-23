@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/zcode-cua-helper-runtime",
+  "name": "@drora/drora-cua-helper-runtime",
   "version": "0.6.1",
   "private": true,
   "type": "module",

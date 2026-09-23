@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build CLI bundle with dependency closure
-        run: pnpm --filter @zcode/cli... build
+        run: pnpm --filter @drora/cli... build
       # SEA 还内嵌插件 MCP runtime(node_repl 宿主与工具插件),它们不在 cli 的
       # 依赖闭包内,按 SEA 资产清单单独构建
       - name: Build plugin MCP runtimes
@@ -37,16 +37,16 @@ jobs:
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
           for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
-          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
-      # SEA 资产解析要求 workspace 包(如 @zcode/shared)有 dist/index.js;
+      # SEA 资产解析要求 workspace 包(如 @drora/shared)有 dist/index.js;
       # 根 typecheck 是 tsc -b(工程引用,带输出),即上游产出这些 dist 的链路
       - name: Emit workspace package dists (tsc -b project references)
         run: pnpm typecheck
       - name: Build single-executable (host target${{ github.event.inputs.target && format(' → {0}', github.event.inputs.target) || '' }})
         run: node scripts/build-sea.mjs ${{ github.event.inputs.target }}
-        working-directory: apps/zcode-cli/packages/cli
+        working-directory: apps/drora-cli/packages/cli
         env:
           # SEA 下载 node 官方发行二进制;走 GH 网络无需镜像
           ELECTRON_GET_USE_PROXY: "0"
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           set -e
-          bin=$(ls apps/zcode-cli/packages/cli/dist/zcode-*x64* 2>/dev/null | grep -E '\.(exe)$|^.*zcode-(linux|macos|windows)-x64$' | head -1 || true)
-          [ -n "$bin" ] || bin=$(find apps/zcode-cli/packages/cli/dist -maxdepth 1 -type f -name "zcode-*" ! -name "*.blob" ! -name "*.blob.*" | head -1 || true)
+          bin=$(ls apps/drora-cli/packages/cli/dist/drora-*x64* 2>/dev/null | grep -E '\.(exe)$|^.*drora-(linux|macos|windows)-x64$' | head -1 || true)
+          [ -n "$bin" ] || bin=$(find apps/drora-cli/packages/cli/dist -maxdepth 1 -type f -name "drora-*" ! -name "*.blob" ! -name "*.blob.*" | head -1 || true)
           echo "bin=$bin" >> "$GITHUB_OUTPUT"
           echo "located: $bin"
       - name: Upload SEA artifacts
@@ -66,7 +66,7 @@ jobs:
           name: cli-sea-${{ matrix.os }}
           path: |
             ${{ steps.out.outputs.bin }}
-            apps/zcode-cli/packages/cli/sea/**
+            apps/drora-cli/packages/cli/sea/**
           retention-days: 14
       - name: Smoke SEA binary (version)
         if: steps.out.outputs.bin != ''

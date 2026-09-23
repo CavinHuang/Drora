@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-// 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（zcode.cjs）放进 bundled-agents/<platform>/glm，
+// 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（drora.cjs）放进 bundled-agents/<platform>/glm，
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
 // 为什么这么做：
 // - agent 没有任何原生 NAPI 插件（ripgrep 是 WASM，其余纯 JS），可直接跑在 Electron 的 Node 上；
-// - Electron 41 内置 Node 24.x，与 zcode-cli 的目标运行时一致；
+// - Electron 41 内置 Node 24.x，与 drora-cli 的目标运行时一致；
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
-// - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
+// - app-server 命令路径不会加载 @drora/tui，所以这里天然不打包 TUI。
 //
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
@@ -21,18 +21,18 @@ import { stageAgentBundle } from "./stage-agent-bundle.mjs";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(desktopRoot, "..", "..");
-const cliBundlePath = resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs");
-const adaptersRoot = resolve(repoRoot, "apps/zcode-cli/packages/adapters");
+const cliBundlePath = resolve(repoRoot, "apps/drora-cli/packages/cli/dist/drora.cjs");
+const adaptersRoot = resolve(repoRoot, "apps/drora-cli/packages/adapters");
 const pnpmRunEnv = {
   ...process.env,
-  // pnpm 11 会在 apps/zcode-cli 子 workspace 执行 run 前触发 install；
-  // 子 workspace 不能解析根 workspace 的 @zcode/shared，Docker/web app 打包会因此卡在插件 runtime 构建。
+  // pnpm 11 会在 apps/drora-cli 子 workspace 执行 run 前触发 install；
+  // 子 workspace 不能解析根 workspace 的 @drora/shared，Docker/web app 打包会因此卡在插件 runtime 构建。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
-const BROWSER_USE_PLUGIN_PACKAGE_NAME = "@zcode/browser-use-plugin";
+const BROWSER_USE_PLUGIN_PACKAGE_NAME = "@drora/browser-use-plugin";
 
 // 平台目录命名：darwin/win32/linux + x64/arm64，
-// 支持 ZCODE_TARGET_OS / ZCODE_TARGET_ARCH 覆盖（交叉打包时由 CI 注入）。
+// 支持 DRORA_TARGET_OS / DRORA_TARGET_ARCH 覆盖（交叉打包时由 CI 注入）。
 function normalizePlatform(raw) {
   switch (raw) {
     case "mac":
@@ -65,15 +65,15 @@ function normalizeArch(raw) {
   }
 }
 
-const platform = normalizePlatform(process.env.ZCODE_TARGET_OS || "") || process.platform;
-const arch = normalizeArch(process.env.ZCODE_TARGET_ARCH || "") || process.arch;
+const platform = normalizePlatform(process.env.DRORA_TARGET_OS || "") || process.platform;
+const arch = normalizeArch(process.env.DRORA_TARGET_ARCH || "") || process.arch;
 const platformKey = `${platform}-${arch}`;
 
 const glmDir = resolve(desktopRoot, "bundled-agents", platformKey, "glm");
-// zcode.cjs / .node-bundle-meta.json 的落点由 stage-agent-bundle.mjs 自己解析（同源）。
+// drora.cjs / .node-bundle-meta.json 的落点由 stage-agent-bundle.mjs 自己解析（同源）。
 // node_repl 宿主抽成独立包
-// @zcode/node-repl-host 之后，browser-use 不再产出 dist/mcp/server.js，CUA 资产
-// （docs/computer-use.md、scripts/computer-use-client.mjs）也已归 @zcode/zcode-cua-plugin。
+// @drora/node-repl-host 之后，browser-use 不再产出 dist/mcp/server.js，CUA 资产
+// （docs/computer-use.md、scripts/computer-use-client.mjs）也已归 @drora/drora-cua-plugin。
 // 这份清单当时漏改，打包准备阶段照旧去 browser-use 要那三个文件，直接 missing runtime 挂掉。
 // dev 链路走的是 scripts/build-desktop-agent-cli.mjs 的 requiredDevPluginRuntimeBuilds（那份改对了），
 // 两份平行清单各自维护，所以 dev 测不出来 —— 权威归属见 bootstrap/official-plugin-definitions.ts。
@@ -91,9 +91,9 @@ const browserUseRequiredRuntimePaths = [
 const officialPluginPackages = [
   {
     // browser-use 只携带自己的 client script 与 skill/docs；node_repl MCP runtime 归
-    // @zcode/node-repl-host（见上方常量注释）。
-    packageName: "@zcode/browser-use-plugin",
-    relativePath: "apps/zcode-cli/packages/browser-use-plugin",
+    // @drora/node-repl-host（见上方常量注释）。
+    packageName: "@drora/browser-use-plugin",
+    relativePath: "apps/drora-cli/packages/browser-use-plugin",
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
     runtimeBuildScript: "scripts/build.mjs",
@@ -104,8 +104,8 @@ const officialPluginPackages = [
     // node_repl 宿主：Browser Use 与 Computer Use 共用的 MCP runtime，本轮抽成独立包。
     // 它没有 listing（不进插件市场展示面），但生产包首启 seed 必须拿到它的 dist runtime，
     // 否则 bua/cua 任一开启时都会连不上 node_repl。
-    packageName: "@zcode/node-repl-host",
-    relativePath: "apps/zcode-cli/packages/node-repl-host",
+    packageName: "@drora/node-repl-host",
+    relativePath: "apps/drora-cli/packages/node-repl-host",
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
     runtimeBuildScript: "scripts/build.mjs",
@@ -116,72 +116,72 @@ const officialPluginPackages = [
   // requiredSeedPaths 与 bootstrap/official-plugin-definitions.ts 的声明保持一致，
   // 缺文件时在打包阶段就报错，而不是装出一个残缺插件。
   {
-    packageName: "@zcode/documents-plugin",
-    relativePath: "apps/zcode-cli/packages/documents-plugin",
+    packageName: "@drora/documents-plugin",
+    relativePath: "apps/drora-cli/packages/documents-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["agents/visual-judge.md", "skills/docx/SKILL.md"],
     stagedPath: "packages/documents-plugin",
   },
   {
-    packageName: "@zcode/pdf-plugin",
-    relativePath: "apps/zcode-cli/packages/pdf-plugin",
+    packageName: "@drora/pdf-plugin",
+    relativePath: "apps/drora-cli/packages/pdf-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
     stagedPath: "packages/pdf-plugin",
   },
   {
-    packageName: "@zcode/presentations-plugin",
-    relativePath: "apps/zcode-cli/packages/presentations-plugin",
+    packageName: "@drora/presentations-plugin",
+    relativePath: "apps/drora-cli/packages/presentations-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
     stagedPath: "packages/presentations-plugin",
   },
   {
-    packageName: "@zcode/spreadsheets-plugin",
-    relativePath: "apps/zcode-cli/packages/spreadsheets-plugin",
+    packageName: "@drora/spreadsheets-plugin",
+    relativePath: "apps/drora-cli/packages/spreadsheets-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
     stagedPath: "packages/spreadsheets-plugin",
   },
   {
-    packageName: "@zcode/image-search-plugin",
-    relativePath: "apps/zcode-cli/packages/image-search-plugin",
+    packageName: "@drora/image-search-plugin",
+    relativePath: "apps/drora-cli/packages/image-search-plugin",
     requiresRuntime: false,
     requiredSeedPaths: [".mcp.json"],
     stagedPath: "packages/image-search-plugin",
   },
   {
-    packageName: "@zcode/android-emulator-plugin",
-    relativePath: "apps/zcode-cli/packages/android-emulator-plugin",
+    packageName: "@drora/android-emulator-plugin",
+    relativePath: "apps/drora-cli/packages/android-emulator-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["dist/mcp/server.js"],
     stagedPath: "packages/android-emulator-plugin",
   },
   {
-    packageName: "@zcode/ios-simulator-plugin",
-    relativePath: "apps/zcode-cli/packages/ios-simulator-plugin",
+    packageName: "@drora/ios-simulator-plugin",
+    relativePath: "apps/drora-cli/packages/ios-simulator-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["dist/mcp/server.js"],
     stagedPath: "packages/ios-simulator-plugin",
   },
   {
-    packageName: "@zcode/obsidian-plugin",
-    relativePath: "apps/zcode-cli/packages/obsidian-plugin",
+    packageName: "@drora/obsidian-plugin",
+    relativePath: "apps/drora-cli/packages/obsidian-plugin",
     requiresRuntime: false,
     // dist runtime 与 skill 正文是同一发布单元，缺任一项打包期即报错。
     requiredSeedPaths: ["dist/mcp/server.js", "skills/obsidian/SKILL.md"],
     stagedPath: "packages/obsidian-plugin",
   },
   {
-    packageName: "@zcode/restore-legacy-sessions-plugin",
-    relativePath: "apps/zcode-cli/packages/restore-legacy-sessions-plugin",
+    packageName: "@drora/restore-legacy-sessions-plugin",
+    relativePath: "apps/drora-cli/packages/restore-legacy-sessions-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["skills/restore-legacy-sessions/SKILL.md"],
     stagedPath: "packages/restore-legacy-sessions-plugin",
   },
   {
-    packageName: "@zcode/plugin-creator-plugin",
-    relativePath: "apps/zcode-cli/packages/plugin-creator-plugin",
+    packageName: "@drora/plugin-creator-plugin",
+    relativePath: "apps/drora-cli/packages/plugin-creator-plugin",
     requiresRuntime: false,
     requiredSeedPaths: [
       "skills/plugin-creator/SKILL.md",
@@ -196,15 +196,15 @@ const officialPluginPackages = [
     stagedPath: "packages/plugin-creator-plugin",
   },
   {
-    packageName: "@zcode/skill-creator-plugin",
-    relativePath: "apps/zcode-cli/packages/skill-creator-plugin",
+    packageName: "@drora/skill-creator-plugin",
+    relativePath: "apps/drora-cli/packages/skill-creator-plugin",
     requiresRuntime: false,
     requiredSeedPaths: ["skills/skill-creator/SKILL.md"],
     stagedPath: "packages/skill-creator-plugin",
   },
   {
-    packageName: "@zcode/zcode-guide-plugin",
-    relativePath: "apps/zcode-cli/packages/zcode-guide-plugin",
+    packageName: "@drora/drora-guide-plugin",
+    relativePath: "apps/drora-cli/packages/drora-guide-plugin",
     requiresRuntime: false,
     requiredSeedPaths: [
       "commands/workflow.md",
@@ -212,11 +212,11 @@ const officialPluginPackages = [
       "skills/dynamic-workflows/examples.md",
       "skills/dynamic-workflows/patterns.md",
     ],
-    stagedPath: "packages/zcode-guide-plugin",
+    stagedPath: "packages/drora-guide-plugin",
   },
   {
     packageName: "@zcode/zcode-cua-plugin",
-    relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
+    relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
     requiresRuntime: false,
     // 与原版 0.5.13 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
     // 自包含 MCP bundle + seed 级 native 依赖缺一即装出启动即退出的空 server。
@@ -266,11 +266,11 @@ function shouldCopyOfficialPluginAsset(sourcePath, allowSeedNodeModules = false)
   if (name === "node_modules" && allowSeedNodeModules) return true;
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
-const isBootstrapWithRemote = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
+const isBootstrapWithRemote = process.env.DRORA_BOOTSTRAP_WITH_REMOTE === "1";
 
 function buildCliBundle() {
-  console.log("[prepare:agent-bundle] building zcode-cli app-server bundle ...");
-  // 复用仓库根脚本（turbo build:desktop-agent --filter=@zcode/cli），命中缓存时几乎瞬时。
+  console.log("[prepare:agent-bundle] building drora-cli app-server bundle ...");
+  // 复用仓库根脚本（turbo build:desktop-agent --filter=@drora/cli），命中缓存时几乎瞬时。
   runCommand(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")], {
     cwd: repoRoot,
     env: pnpmRunEnv,
@@ -294,7 +294,7 @@ function buildOfficialPluginRuntimes() {
 
     runCommand(
       "pnpm",
-      ["--dir", resolve(repoRoot, "apps/zcode-cli"), "--filter", plugin.packageName, "build"],
+      ["--dir", resolve(repoRoot, "apps/drora-cli"), "--filter", plugin.packageName, "build"],
       {
         cwd: repoRoot,
         env: pnpmRunEnv,
@@ -382,11 +382,11 @@ function stageOfficialPlugins() {
   }
 }
 
-// Electron 生产包只带 resources/glm/zcode.cjs 时，app-server 进程的
+// Electron 生产包只带 resources/glm/drora.cjs 时，app-server 进程的
 // __dirname 附近没有官方插件目录，启动时 seed 找不到 source，用户侧不会自动得到内置插件。
 // 这里把官方插件按 bootstrap 的 rootCandidates 期望放到 glm/packages/*-plugin，
-// 让 Electron Node 运行 zcode.cjs 时复用同一套 filesystem seed 逻辑。
-// browser-use runtime 的声明生成依赖 @zcode/core/dist。CI 干净检出没有该产物，
+// 让 Electron Node 运行 drora.cjs 时复用同一套 filesystem seed 逻辑。
+// browser-use runtime 的声明生成依赖 @drora/core/dist。CI 干净检出没有该产物，
 // 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
 buildCliBundle();
 buildOfficialPluginRuntimes();

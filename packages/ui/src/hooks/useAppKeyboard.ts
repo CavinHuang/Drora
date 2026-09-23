@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SHORTCUT_COMMANDS, type ShortcutCommandId } from "@zcode/shared";
+import { SHORTCUT_COMMANDS, type ShortcutCommandId } from "@drora/shared";
 import {
   isEditableShortcutEventTarget,
   isShiftOnlyPrintableBinding,

@@ -1,14 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { PlatformChannels, formatZCodeRendererProcessName } from "@zcode/shared";
+import { PlatformChannels, formatDroraRendererProcessName } from "@drora/shared";
 import type {
   ResourceUsageSnapshot,
   StorageCleanRequest,
   StorageCleanResult,
   StorageManagementBridge,
   StorageUsageSnapshot,
-} from "@zcode/shared";
+} from "@drora/shared";
 
-process.title = formatZCodeRendererProcessName("Resource Manager");
+process.title = formatDroraRendererProcessName("Resource Manager");
 
 const storage: StorageManagementBridge = {
   startScan: (): Promise<{ jobId: string }> =>

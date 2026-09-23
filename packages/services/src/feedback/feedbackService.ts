@@ -1,14 +1,14 @@
 import { basename, join } from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
-import type { ApiClient, FeedbackDeviceInfo } from "@zcode/shared";
+import type { ApiClient, FeedbackDeviceInfo } from "@drora/shared";
 import {
-  buildRuntimeZCodeApiUrl,
-  ZCODE_BUILD_TIME,
-  ZCODE_COMMIT,
-  ZCODE_VERSION,
-} from "@zcode/shared";
-import { Emitter } from "@zcode/rpc";
+  buildRuntimeDroraApiUrl,
+  DRORA_BUILD_TIME,
+  DRORA_COMMIT,
+  DRORA_VERSION,
+} from "@drora/shared";
+import { Emitter } from "@drora/rpc";
 import { arch, platform, release, type as osType } from "node:os";
 
 import type { ICredentialService } from "../credential/credential.js";
@@ -19,7 +19,7 @@ import { cleanupLogArchive, prepareCompactLogArchive } from "./compactLogArchive
 import { getFeedbackAttachmentDir } from "../paths.js";
 import { FeedbackLocalTicketStore } from "#src/feedback/feedbackLocalTicketStore.js";
 
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const DRORA_JWT_TOKEN_KEY = "drorajwttoken";
 
 export interface CreateFeedbackServiceOptions {
   credentialService: ICredentialService;
@@ -39,16 +39,16 @@ export interface CreateFeedbackServiceOptions {
 function resolveApiBaseUrl(explicit?: string): string {
   return (
     explicit?.trim() ||
-    process.env.ZCODE_FEEDBACK_API_BASE?.trim() ||
-    buildRuntimeZCodeApiUrl(process.env, "/api/v1")
+    process.env.DRORA_FEEDBACK_API_BASE?.trim() ||
+    buildRuntimeDroraApiUrl(process.env, "/api/v1")
   );
 }
 
 function buildDeviceSnapshot(): FeedbackDeviceInfo {
   return {
-    appVersion: ZCODE_VERSION,
-    buildCommitId: ZCODE_COMMIT,
-    buildTime: ZCODE_BUILD_TIME,
+    appVersion: DRORA_VERSION,
+    buildCommitId: DRORA_COMMIT,
+    buildTime: DRORA_BUILD_TIME,
     nodeVersion: process.version,
     osType: osType(),
     osPlatform: platform(),
@@ -73,12 +73,12 @@ export function createFeedbackService(options: CreateFeedbackServiceOptions): IF
     return deviceMid;
   }
 
-  async function getZcodeJwtToken(): Promise<string | undefined> {
-    return (await options.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || undefined;
+  async function getDroraJwtToken(): Promise<string | undefined> {
+    return (await options.credentialService.load(DRORA_JWT_TOKEN_KEY))?.trim() || undefined;
   }
 
-  async function hasZcodeJwtToken(): Promise<boolean> {
-    return Boolean(await getZcodeJwtToken());
+  async function hasDroraJwtToken(): Promise<boolean> {
+    return Boolean(await getDroraJwtToken());
   }
 
   const httpClient = new FeedbackHttpClient({
@@ -92,7 +92,7 @@ export function createFeedbackService(options: CreateFeedbackServiceOptions): IF
       if (deviceMid) {
         headers["X-Device-Mid"] = deviceMid;
       }
-      const jwtToken = await getZcodeJwtToken();
+      const jwtToken = await getDroraJwtToken();
       if (jwtToken) {
         headers.Authorization = `Bearer ${jwtToken}`;
       }
@@ -138,7 +138,7 @@ export function createFeedbackService(options: CreateFeedbackServiceOptions): IF
             signal: controller.signal,
           },
         );
-        if (!(await hasZcodeJwtToken())) {
+        if (!(await hasDroraJwtToken())) {
           await localTicketStore.upsert(requireHostDeviceMid(), ticket);
         }
         return ticket;
@@ -154,7 +154,7 @@ export function createFeedbackService(options: CreateFeedbackServiceOptions): IF
       activeCreateControllers.get(key)?.abort();
     },
     list: async (query) => {
-      if (await hasZcodeJwtToken()) {
+      if (await hasDroraJwtToken()) {
         return httpClient.list(query);
       }
       const items = await localTicketStore.list(requireHostDeviceMid(), query);

@@ -1,8 +1,8 @@
-import type { ISettingService } from "@zcode/services";
+import type { ISettingService } from "@drora/services";
 import {
   type ProviderFamilyConnectionSelectionSettings,
   type ProviderFamilyDomain,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 export function resolveLogoutProviderFamilyDomain(params: {
   currentDomain: ProviderFamilyDomain | null | undefined;

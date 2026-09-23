@@ -1,23 +1,23 @@
 packages:
   - packages/*
-  - apps/zcode-cli
-  - apps/zcode-cli/packages/*
-  - apps/zcode-cli/tools/*
+  - apps/drora-cli
+  - apps/drora-cli/packages/*
+  - apps/drora-cli/tools/*
   # 官方插件包是 seed 资产（内容即源码 / 预编译 runtime），不参与本仓库构建；
   # 排除以免 install 解析它们的独立依赖（如 zcode-cua-plugin 的 catalog: 协议）。
-  - "!apps/zcode-cli/packages/android-emulator-plugin"
-  - "!apps/zcode-cli/packages/documents-plugin"
-  - "!apps/zcode-cli/packages/image-search-plugin"
-  - "!apps/zcode-cli/packages/ios-simulator-plugin"
-  - "!apps/zcode-cli/packages/obsidian-plugin"
-  - "!apps/zcode-cli/packages/pdf-plugin"
-  - "!apps/zcode-cli/packages/plugin-creator-plugin"
-  - "!apps/zcode-cli/packages/presentations-plugin"
-  - "!apps/zcode-cli/packages/restore-legacy-sessions-plugin"
-  - "!apps/zcode-cli/packages/skill-creator-plugin"
-  - "!apps/zcode-cli/packages/spreadsheets-plugin"
-  - "!apps/zcode-cli/packages/zcode-cua-plugin"
-  - "!apps/zcode-cli/packages/zcode-guide-plugin"
+  - "!apps/drora-cli/packages/android-emulator-plugin"
+  - "!apps/drora-cli/packages/documents-plugin"
+  - "!apps/drora-cli/packages/image-search-plugin"
+  - "!apps/drora-cli/packages/ios-simulator-plugin"
+  - "!apps/drora-cli/packages/obsidian-plugin"
+  - "!apps/drora-cli/packages/pdf-plugin"
+  - "!apps/drora-cli/packages/plugin-creator-plugin"
+  - "!apps/drora-cli/packages/presentations-plugin"
+  - "!apps/drora-cli/packages/restore-legacy-sessions-plugin"
+  - "!apps/drora-cli/packages/skill-creator-plugin"
+  - "!apps/drora-cli/packages/spreadsheets-plugin"
+  - "!apps/drora-cli/packages/zcode-cua-plugin"
+  - "!apps/drora-cli/packages/drora-guide-plugin"
 supportedArchitectures:
   os:
     - current

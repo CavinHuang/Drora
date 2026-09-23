@@ -1,4 +1,4 @@
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { removeTaskFromTaskQueryCaches } from "@/store/taskQueryCacheStore.js";
 
 export function removeTaskFromTaskCaches(params: {
@@ -6,7 +6,7 @@ export function removeTaskFromTaskCaches(params: {
   workspaceIdentity?: string;
   taskId: string;
 }): boolean {
-  const store = useZCodeSessionStore.getState();
+  const store = useDroraSessionStore.getState();
   const workspaceState = store.getWorkspaceState(params.workspacePath, params.workspaceIdentity);
   if (workspaceState.taskListCache) {
     store.setTaskListCache(

@@ -15,7 +15,7 @@
 | `pip_window.mm` | PiP 画中画窗口:`ZcPip*` ObjC UI、`Pip*` NAPI 面、事件 tap 交互 |
 | `window_event_mask_macos.mm` | 窗口事件掩码(AXManualAccessibility / 事件观察) |
 
-上游包路径与 win32 相同(`@zcode/zcode-cua/src/native/`),构建为单 dylib。
+上游包路径与 win32 相同(`@drora/drora-cua/src/native/`),构建为单 dylib。
 
 ## 2. NAPI 入口全集(137 个 C++ 函数)
 
@@ -107,6 +107,6 @@ Ghost:`GhostInit` `GhostShow` `GhostHide` `GhostMove` `GhostMoveTarget`
 
 mac 发行面为全量功能(117 JS 导出);win32 发行面为其 Windows 子集(约 45 个,
 见 `win32-static-analysis.md` §3)。两侧共享同一上游包
-(`@zcode/zcode-cua/src/native/`),平台差异:
+(`@drora/drora-cua/src/native/`),平台差异:
 win32 用 UIAutomation(COM 动态解析)+ SendInput + DXGI/WinRT 截图;
 mac 用 AX API + CGEvent + ScreenCaptureKit/AVFoundation + 自绘 NSView。

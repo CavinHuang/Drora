@@ -22,10 +22,10 @@ echo "== 1. 必备产物存在 =="
 # nightly(手动)与 tag 正式两种形态的安装包后缀都接受;平台安装包按
 # dmg/zip/exe 分组,任一形态命中即视为该平台覆盖。
 have_dmg=false; have_zip=false; have_exe=false; have_sea=false
-for suffix in "arm64_TEST.dmg" "arm64_TEST.zip" "arm64_TEST.exe" "zcode-darwin-arm64" "zcode-linux-x64" "zcode-windows-x64.exe" "SHA256SUMS.txt" "latest.yml" "latest-mac.yml"; do
+for suffix in "arm64_TEST.dmg" "arm64_TEST.zip" "arm64_TEST.exe" "drora-darwin-arm64" "drora-linux-x64" "drora-windows-x64.exe" "SHA256SUMS.txt" "latest.yml" "latest-mac.yml"; do
   found=false
   while IFS= read -r f; do
-    # GitHub 上传会把文件名里的空格规范化为点:"ZCode Preview-x.dmg" → "ZCode.Preview-x.dmg"
+    # GitHub 上传会把文件名里的空格规范化为点:"Drora Preview-x.dmg" → "Drora.Preview-x.dmg"
     [[ "$f" == *"$suffix" || "$f" == *"${suffix// /.}"* ]] && found=true && break
   done < <(ls "$TMP")
   if [ "$found" = true ]; then
@@ -39,7 +39,7 @@ for f in $(ls "$TMP"); do
     *arm64*.dmg) have_dmg=true ;;
     *arm64*.zip) have_zip=true ;;
     *.exe) have_exe=true ;;
-    zcode-darwin*|zcode-linux*) have_sea=true ;;
+    drora-darwin*|drora-linux*) have_sea=true ;;
   esac
 done
 check "macOS dmg 覆盖" "$have_dmg"
@@ -49,8 +49,8 @@ check "CLI SEA 覆盖" "$have_sea"
 
 echo
 echo "== 2. SHA256 校验和自洽 =="
-# GitHub 上传会把文件名中的空格规范化为点(如 "ZCode Preview-x.dmg" →
-# "ZCode.Preview-x.dmg"),校验时按两种名字兼容匹配。
+# GitHub 上传会把文件名中的空格规范化为点(如 "Drora Preview-x.dmg" →
+# "Drora.Preview-x.dmg"),校验时按两种名字兼容匹配。
 python - "$TMP" <<'PY'
 import hashlib, os, sys
 os.chdir(sys.argv[1])
@@ -109,8 +109,8 @@ if [ -n "$DMG" ]; then
   size=$(stat -c%s "$DMG")
   check "dmg >100MiB" "$([ "$size" -gt 104857600 ] && echo true || echo false)" "size=$size"
 fi
-SEA=$(ls "$TMP"/zcode-windows-x64.exe 2>/dev/null | head -1 || true)
-[ -n "$SEA" ] || SEA=$(ls "$TMP"/zcode-linux-x64 2>/dev/null | head -1 || true)
+SEA=$(ls "$TMP"/drora-windows-x64.exe 2>/dev/null | head -1 || true)
+[ -n "$SEA" ] || SEA=$(ls "$TMP"/drora-linux-x64 2>/dev/null | head -1 || true)
 if [ -n "$SEA" ]; then
   size=$(stat -c%s "$SEA")
   check "SEA >50MiB" "$([ "$size" -gt 52428800 ] && echo true || echo false)" "size=$size"

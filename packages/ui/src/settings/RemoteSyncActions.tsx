@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronDown, UploadCloud } from "lucide-react";
-import type { RemoteTarget } from "@zcode/shared";
+import type { RemoteTarget } from "@drora/shared";
 import type {
   IMcpSyncService,
   IPluginSyncService,
   ISkillSyncService,
-  IZCodeAgentService,
-} from "@zcode/services";
+  IDroraAgentService,
+} from "@drora/services";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { RemoteMcpSyncDialog } from "@/settings/RemoteMcpSyncDialog.js";
 import { RemotePluginSyncDialog } from "@/settings/RemotePluginSyncDialog.js";
 import { RemoteSkillSyncDialog } from "@/settings/RemoteSkillSyncDialog.js";
@@ -130,7 +130,7 @@ export function RemoteSyncMenuItems({
   stopMouseDownPropagation?: boolean;
   mcpDisabled?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const handleMouseDown = stopMouseDownPropagation
     ? (event: MouseEvent) => {
         event.stopPropagation();
@@ -182,7 +182,7 @@ export function RemoteSyncDropdownButton({
   onOpenMcpSync: () => void;
   onOpenPluginSync?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
 
   if (!canSyncSkills && !canSyncMcp && !canSyncPlugins) {
     return null;
@@ -228,8 +228,8 @@ export function RemoteSyncDialogs({
   remoteMcpSyncService,
   localPluginSyncService,
   remotePluginSyncService,
-  localZCodeAgentService,
-  remoteZCodeAgentService,
+  localDroraAgentService,
+  remoteDroraAgentService,
   remoteTarget,
   skillWorkspacePath,
   mcpWorkspacePath,
@@ -256,8 +256,8 @@ export function RemoteSyncDialogs({
   remoteMcpSyncService?: IMcpSyncService | null;
   localPluginSyncService?: IPluginSyncService | null;
   remotePluginSyncService?: IPluginSyncService | null;
-  localZCodeAgentService?: IZCodeAgentService | null;
-  remoteZCodeAgentService?: IZCodeAgentService | null;
+  localDroraAgentService?: IDroraAgentService | null;
+  remoteDroraAgentService?: IDroraAgentService | null;
   remoteTarget?: RemoteTarget | null;
   skillWorkspacePath: string;
   mcpWorkspacePath: string;
@@ -330,8 +330,8 @@ export function RemoteSyncDialogs({
           onOpenChange={onPluginOpenChange ?? (() => {})}
           localPluginSyncService={pluginDialogProps.localPluginSyncService}
           remotePluginSyncService={pluginDialogProps.remotePluginSyncService}
-          localZCodeAgentService={localZCodeAgentService}
-          remoteZCodeAgentService={remoteZCodeAgentService}
+          localDroraAgentService={localDroraAgentService}
+          remoteDroraAgentService={remoteDroraAgentService}
           remoteTarget={pluginDialogProps.remoteTarget}
           localWorkspacePath={pluginLocalWorkspacePath}
           workspacePath={pluginWorkspacePath ?? mcpWorkspacePath}

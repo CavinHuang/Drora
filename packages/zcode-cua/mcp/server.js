@@ -241,7 +241,7 @@ async function resetPipDismissedForNewSession(deps) {
   } catch {
   }
 }
-function hostHeaderValidation(allowedHostnames, options) {
+function hostHeaderValidation(allowedHostnames, _options) {
   return (req, res, next) => {
     const hostHeader = req.headers.host;
     if (!hostHeader) {

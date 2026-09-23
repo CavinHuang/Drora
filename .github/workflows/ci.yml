@@ -46,12 +46,12 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: zcode-cua smoke (mock broker)
+      - name: drora-cua smoke (mock broker)
         run: node packages/zcode-cua/test/restored-smoke.mjs
       - name: Helper typecheck + Windows bundle build
         run: |
-          pnpm --filter @zcode/zcode-cua-helper-runtime typecheck
-          pnpm --filter @zcode/zcode-cua-helper-runtime build
+          pnpm --filter @drora/drora-cua-helper-runtime typecheck
+          pnpm --filter @drora/drora-cua-helper-runtime build
       - name: Upload helper bundle
         uses: actions/upload-artifact@v4
         with:
@@ -71,26 +71,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build plugin MCP runtimes
-        # node-repl-host 依赖 @zcode/core、@zcode/contracts 的 dist,
+        # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
         # 必须先走依赖闭包;android/ios 插件被 workspace 排除,--dir 直入
         run: >-
-          pnpm --filter @zcode/cli... build
+          pnpm --filter @drora/cli... build
         shell: bash
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
           for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
-          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
       - name: Obsidian plugin behavior tests (security semantics + stdio E2E)
-        run: pnpm --dir apps/zcode-cli/packages/obsidian-plugin run test
+        run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
       - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
-        run: node scripts/ci/cli-app-server-smoke.mjs apps/zcode-cli/packages/cli/dist/zcode.cjs
+        run: node scripts/ci/cli-app-server-smoke.mjs apps/drora-cli/packages/cli/dist/drora.cjs
       - name: Upload CLI bundle
         uses: actions/upload-artifact@v4
         with:
-          name: cli-zcode-cjs
-          path: apps/zcode-cli/packages/cli/dist/zcode.cjs
+          name: cli-drora-cjs
+          path: apps/drora-cli/packages/cli/dist/drora.cjs
           retention-days: 7
 
   desktop-build:
@@ -103,7 +103,7 @@ jobs:
     env:
       # 桌面构建不消费 mock-cdn 跨平台 remote 资产(远端部署/WSL 链路专用),
       # 跳过以免在 CI 网络下下载 node tarball 挂死(release 链路同款配置)
-      ZCODE_SKIP_REMOTE_ASSETS: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,15 +115,15 @@ jobs:
       - name: Emit workspace dists (tsc -b project references)
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
-        run: pnpm --filter @zcode/cli... build
+        run: pnpm --filter @drora/cli... build
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
           for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
-          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
       - name: Build desktop production bundles
-        run: pnpm --filter @zcode/desktop run build
+        run: pnpm --filter @drora/desktop run build
         timeout-minutes: 50
       - name: Verify desktop output segments
         shell: bash
@@ -160,12 +160,12 @@ jobs:
         run: node packages/zcode-cua-helper/native/reverse/parity-native.mjs
         shell: cmd
         env:
-          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\drora-cua-helper\build\Release\ax_native.node
       - name: Parity — input/output matrix (123 cells)
         run: node packages/zcode-cua-helper/native/reverse/parity-native-matrix.mjs
         shell: cmd
         env:
-          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\drora-cua-helper\build\Release\ax_native.node
       - name: Rebuilt addon artifact
         uses: actions/upload-artifact@v4
         with:

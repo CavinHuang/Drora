@@ -545,7 +545,7 @@ export var CuaPermissionBrokerServer = class {
    *
    * Transport is determined by the OS, not the path shape: a win32 server
    * always listens on a named pipe (see `mintBrokerSocketPath` in
-   * `@zcode/cua-helper/socketPath`). All fs-node assumptions in this server
+   * `@drora/cua-helper/socketPath`). All fs-node assumptions in this server
    * (mkdir a parent dir, chmod the socket node, unlink a stale socket file,
    * stat-based owner checks) are POSIX-only and skipped on win32 — pipe
    * security rests on the `CreateNamedPipe` SECURITY_ATTRIBUTES (native

@@ -15,7 +15,7 @@
       }
     },
     {
-      // zcode-cua 的 server 模块是发行 bundle 的还原稿（结构忠实原编译产物，
+      // drora-cua 的 server 模块是发行 bundle 的还原稿（结构忠实原编译产物，
       // 行数超限是还原粒度所致）；语义化拆分前先豁免行数上限，其余规则照常生效。
       "files": ["packages/zcode-cua/src/**/*.ts", "packages/zcode-cua-helper/src/**/*.ts"],
       "rules": {
@@ -68,7 +68,7 @@
     "packages/ui/src/components/ai-elements",
     ".agents/skills",
     "packages/formal-proof",
-    "apps/zcode-cli",
+    "apps/drora-cli",
     "docs/electron",
     "packages/zcode-cua/broker",
     "packages/zcode-cua/frame-contract",

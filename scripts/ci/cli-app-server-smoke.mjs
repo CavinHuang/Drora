@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// CI 冒烟:zcode.cjs 构建产物的深度验证。
+// CI 冒烟:drora.cjs 构建产物的深度验证。
 //   1. app-server 协议链路:启动后应在超时内输出合法 JSON 行(startup/* 通知)
 //   2. 子命令面:plugins/skills/commands list 与 doctor 正常执行
 //   3. agent 核心工具面:bundle 内必须含基础工具注册(字符串面)
-// 用法:node scripts/ci/cli-app-server-smoke.mjs <zcode.cjs 路径>
+// 用法:node scripts/ci/cli-app-server-smoke.mjs <drora.cjs 路径>
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 
 const bundle = process.argv[2];
 if (!bundle) {
-  console.error("usage: cli-app-server-smoke.mjs <zcode.cjs>");
+  console.error("usage: cli-app-server-smoke.mjs <drora.cjs>");
   process.exit(2);
 }
 

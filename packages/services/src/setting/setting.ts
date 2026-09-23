@@ -1,5 +1,5 @@
-import type { AppSettings } from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+import type { AppSettings } from "@drora/shared";
+import { ServiceChannels } from "@drora/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ISettingService {

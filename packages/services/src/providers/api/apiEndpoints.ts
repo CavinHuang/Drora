@@ -1,6 +1,6 @@
-import { buildRuntimeZCodeApiUrl, resolveZaiBusinessBaseUrl } from "@zcode/shared";
+import { buildRuntimeDroraApiUrl, resolveZaiBusinessBaseUrl } from "@drora/shared";
 
-export const ZCODE_CLIENT_SCENES_URL = buildRuntimeZCodeApiUrl(
+export const DRORA_CLIENT_SCENES_URL = buildRuntimeDroraApiUrl(
   process.env,
   "/api/v1/client/scenes",
 );

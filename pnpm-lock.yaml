@@ -10,13 +10,13 @@ overrides:
 
 patchedDependencies:
   '@ai-sdk/anthropic@3.0.81':
-    hash: d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18
+    hash: e7de52af28ec7a205e5697e64703343b14c00110e263eb4b1553bddf89a6c91b
     path: patches/@ai-sdk__anthropic@3.0.81.patch
   '@ai-sdk/openai-compatible@2.0.60':
-    hash: 9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b
+    hash: 9182206529689dd9c3bece9d5ae977824bfbe9ee6db2f297f0f9f65e158d366f
     path: patches/@ai-sdk__openai-compatible@2.0.60.patch
   '@arms/rum-electron@0.0.3':
-    hash: 36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97
+    hash: 73e97af976ace24cf4c560514bb3958ed8c41edb498b59f1a352697ec6235c10
     path: patches/@arms__rum-electron@0.0.3.patch
 
 importers:
@@ -91,7 +91,7 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
-  apps/zcode-cli:
+  apps/drora-cli:
     dependencies:
       dotenv:
         specifier: ^17.4.2
@@ -131,38 +131,38 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
-  apps/zcode-cli/packages/adapters:
+  apps/drora-cli/packages/adapters:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 3.0.81
-        version: 3.0.81(patch_hash=d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18)(zod@4.6.5)
+        version: 3.0.81(patch_hash=e7de52af28ec7a205e5697e64703343b14c00110e263eb4b1553bddf89a6c91b)(zod@4.6.5)
       '@ai-sdk/openai':
         specifier: ^3.0.58
         version: 3.0.65(zod@4.6.5)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.58
-        version: 2.0.60(patch_hash=9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b)(zod@4.6.5)
+        version: 2.0.60(patch_hash=9182206529689dd9c3bece9d5ae977824bfbe9ee6db2f297f0f9f65e158d366f)(zod@4.6.5)
+      '@drora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../../../../packages/zcode-cua
+      '@drora/dynamic-workflow':
+        specifier: workspace:*
+        version: link:../dynamic-workflow
+      '@drora/model-option-map':
+        specifier: workspace:*
+        version: link:../../../../packages/model-option-map
+      '@drora/provider':
+        specifier: workspace:*
+        version: link:../../../../packages/provider
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
-      '@zcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@zcode/dynamic-workflow':
-        specifier: workspace:*
-        version: link:../dynamic-workflow
-      '@zcode/model-option-map':
-        specifier: workspace:*
-        version: link:../../../../packages/model-option-map
-      '@zcode/provider':
-        specifier: workspace:*
-        version: link:../../../../packages/provider
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../../../../packages/shared
-      '@zcode/zcode-cua':
-        specifier: workspace:*
-        version: link:../../../../packages/zcode-cua
       ai:
         specifier: 6.0.193
         version: 6.0.193(zod@4.6.5)
@@ -207,36 +207,36 @@ importers:
         specifier: ^2.10.3
         version: 2.10.3
 
-  apps/zcode-cli/packages/bootstrap:
+  apps/drora-cli/packages/bootstrap:
     dependencies:
-      '@zcode/adapters':
+      '@drora/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@zcode/contracts':
+      '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@zcode/core':
+      '@drora/core':
         specifier: workspace:*
         version: link:../core
-      '@zcode/dynamic-workflow':
+      '@drora/dynamic-workflow':
         specifier: workspace:*
         version: link:../dynamic-workflow
-      '@zcode/dynamic-workflow-runtime':
+      '@drora/dynamic-workflow-runtime':
         specifier: workspace:*
         version: link:../dynamic-workflow-runtime
-      '@zcode/i18n':
+      '@drora/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@zcode/provider':
+      '@drora/provider':
         specifier: workspace:*
         version: link:../../../../packages/provider
-      '@zcode/provider-node':
+      '@drora/provider-node':
         specifier: workspace:*
         version: link:../../../../packages/provider-node
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared
-      '@zcode/telemetry':
+      '@drora/telemetry':
         specifier: workspace:*
         version: link:../telemetry
       diff:
@@ -256,39 +256,39 @@ importers:
         specifier: ^3.3.1
         version: 3.3.1
 
-  apps/zcode-cli/packages/browser-use-plugin:
+  apps/drora-cli/packages/browser-use-plugin:
     dependencies:
+      '@drora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@drora/core':
+        specifier: workspace:*
+        version: link:../core
+      '@drora/node-repl-host':
+        specifier: workspace:*
+        version: link:../node-repl-host
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
-      '@zcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@zcode/core':
-        specifier: workspace:*
-        version: link:../core
-      '@zcode/node-repl-host':
-        specifier: workspace:*
-        version: link:../node-repl-host
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../../../../packages/shared
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@drora/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@drora/bootstrap':
+        specifier: workspace:*
+        version: link:../bootstrap
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
-      '@zcode/adapters':
-        specifier: workspace:*
-        version: link:../adapters
-      '@zcode/bootstrap':
-        specifier: workspace:*
-        version: link:../bootstrap
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
@@ -299,36 +299,36 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
-  apps/zcode-cli/packages/cli:
+  apps/drora-cli/packages/cli:
     dependencies:
-      '@zcode/adapters':
+      '@drora/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@zcode/bootstrap':
+      '@drora/bootstrap':
         specifier: workspace:*
         version: link:../bootstrap
-      '@zcode/contracts':
+      '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@zcode/core':
+      '@drora/core':
         specifier: workspace:*
         version: link:../core
-      '@zcode/dynamic-workflow-runtime':
+      '@drora/dynamic-workflow-runtime':
         specifier: workspace:*
         version: link:../dynamic-workflow-runtime
-      '@zcode/i18n':
+      '@drora/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@zcode/provider-node':
+      '@drora/provider-node':
         specifier: workspace:*
         version: link:../../../../packages/provider-node
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared
-      '@zcode/shared-types':
+      '@drora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
-      '@zcode/tui':
+      '@drora/tui':
         specifier: workspace:*
         version: link:../tui
       dotenv:
@@ -338,9 +338,9 @@ importers:
         specifier: 1.59.1
         version: 1.59.1
 
-  apps/zcode-cli/packages/contracts:
+  apps/drora-cli/packages/contracts:
     dependencies:
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared
       zod:
@@ -354,23 +354,23 @@ importers:
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/core:
+  apps/drora-cli/packages/core:
     dependencies:
-      '@zcode/contracts':
+      '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@zcode/dynamic-workflow':
-        specifier: workspace:*
-        version: link:../dynamic-workflow
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../../../../packages/shared
-      '@zcode/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
-      '@zcode/zcode-cua':
+      '@drora/drora-cua':
         specifier: workspace:*
         version: link:../../../../packages/zcode-cua
+      '@drora/dynamic-workflow':
+        specifier: workspace:*
+        version: link:../dynamic-workflow
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
+      '@drora/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -397,7 +397,7 @@ importers:
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/debug:
+  apps/drora-cli/packages/debug:
     dependencies:
       '@hono/node-server':
         specifier: ^1.14.4
@@ -443,7 +443,7 @@ importers:
         specifier: ^7.2.6
         version: 7.3.3(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
 
-  apps/zcode-cli/packages/dynamic-workflow:
+  apps/drora-cli/packages/dynamic-workflow:
     dependencies:
       typescript:
         specifier: ^5.9.0
@@ -453,9 +453,9 @@ importers:
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/dynamic-workflow-runtime:
+  apps/drora-cli/packages/dynamic-workflow-runtime:
     dependencies:
-      '@zcode/dynamic-workflow':
+      '@drora/dynamic-workflow':
         specifier: workspace:*
         version: link:../dynamic-workflow
     devDependencies:
@@ -463,29 +463,29 @@ importers:
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/i18n:
+  apps/drora-cli/packages/i18n:
     dependencies:
-      '@zcode/contracts':
+      '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
 
-  apps/zcode-cli/packages/node-repl-host:
+  apps/drora-cli/packages/node-repl-host:
     dependencies:
+      '@drora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@drora/core':
+        specifier: workspace:*
+        version: link:../core
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../../../../packages/zcode-cua
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
-      '@zcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@zcode/core':
-        specifier: workspace:*
-        version: link:../core
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../../../../packages/shared
-      '@zcode/zcode-cua':
-        specifier: workspace:*
-        version: link:../../../../packages/zcode-cua
       zod:
         specifier: ^4.4.3
         version: 4.6.5
@@ -503,20 +503,23 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
-  apps/zcode-cli/packages/shared-types:
+  apps/drora-cli/packages/shared-types:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/swift-bridge:
+  apps/drora-cli/packages/swift-bridge:
     dependencies:
-      '@zcode/shared-types':
+      '@drora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 
-  apps/zcode-cli/packages/telemetry:
+  apps/drora-cli/packages/telemetry:
     dependencies:
+      '@drora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -541,31 +544,28 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: 2.6.1
         version: 2.6.1(@opentelemetry/api@1.9.1)
-      '@zcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
 
-  apps/zcode-cli/packages/tui:
+  apps/drora-cli/packages/tui:
     dependencies:
+      '@drora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@drora/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@mbears/opentui-core':
         specifier: 0.2.15
         version: 0.2.15(typescript@6.0.2)(web-tree-sitter@0.25.10)
       '@mbears/opentui-react':
         specifier: 0.2.15
         version: 0.2.15(react-devtools-core@7.0.1)(react@19.2.7)(typescript@6.0.2)(web-tree-sitter@0.25.10)(ws@8.18.0)
-      '@zcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@zcode/i18n':
-        specifier: workspace:*
-        version: link:../i18n
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../../../../packages/shared
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -589,7 +589,7 @@ importers:
         specifier: ^4.20.0
         version: 4.21.0
 
-  apps/zcode-cli/tools/prompt-trajectory:
+  apps/drora-cli/tools/prompt-trajectory:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -601,17 +601,17 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
-  apps/zcode-cli/tools/typescript: {}
+  apps/drora-cli/tools/typescript: {}
 
   packages/client:
     dependencies:
-      '@zcode/rpc':
+      '@drora/rpc':
         specifier: workspace:*
         version: link:../rpc
-      '@zcode/services':
+      '@drora/services':
         specifier: workspace:*
         version: link:../services
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -623,10 +623,37 @@ importers:
     dependencies:
       '@arms/rum-electron':
         specifier: ^0.0.3
-        version: 0.0.3(patch_hash=36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97)(@babel/runtime@7.29.7)(electron@41.0.3)
+        version: 0.0.3(patch_hash=73e97af976ace24cf4c560514bb3958ed8c41edb498b59f1a352697ec6235c10)(@babel/runtime@7.29.7)(electron@41.0.3)
       '@babel/runtime':
         specifier: ^7.24.5
         version: 7.29.7
+      '@drora/client':
+        specifier: workspace:*
+        version: link:../client
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../zcode-cua
+      '@drora/provider':
+        specifier: workspace:*
+        version: link:../provider
+      '@drora/provider-node':
+        specifier: workspace:*
+        version: link:../provider-node
+      '@drora/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@drora/server':
+        specifier: workspace:*
+        version: link:../server
+      '@drora/services':
+        specifier: workspace:*
+        version: link:../services
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@drora/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@fiahfy/icns':
         specifier: ^0.0.7
         version: 0.0.7
@@ -654,33 +681,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: 2.6.1
         version: 2.6.1(@opentelemetry/api@1.9.1)
-      '@zcode/client':
-        specifier: workspace:*
-        version: link:../client
-      '@zcode/provider':
-        specifier: workspace:*
-        version: link:../provider
-      '@zcode/provider-node':
-        specifier: workspace:*
-        version: link:../provider-node
-      '@zcode/rpc':
-        specifier: workspace:*
-        version: link:../rpc
-      '@zcode/server':
-        specifier: workspace:*
-        version: link:../server
-      '@zcode/services':
-        specifier: workspace:*
-        version: link:../services
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@zcode/ui':
-        specifier: workspace:*
-        version: link:../ui
-      '@zcode/zcode-cua':
-        specifier: workspace:*
-        version: link:../zcode-cua
       electron-updater:
         specifier: ^6.8.3
         version: 6.8.3
@@ -779,6 +779,55 @@ importers:
         specifier: ^8.0.2
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0)
 
+  packages/drora-server-cli:
+    dependencies:
+      '@drora/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@drora/services':
+        specifier: workspace:*
+        version: link:../services
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@hono/node-server':
+        specifier: ^1.19.11
+        version: 1.19.14(hono@4.12.12)
+      '@hono/node-ws':
+        specifier: ^1.3.0
+        version: 1.3.0(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
+      hono:
+        specifier: ^4.12.9
+        version: 4.12.12
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
+      yauzl:
+        specifier: ^3.3.0
+        version: 3.3.0
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@types/yauzl':
+        specifier: ^2.10.3
+        version: 2.10.3
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.9)(tsx@4.21.0)(typescript@6.0.2)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
   packages/formal-proof:
     dependencies:
       d3:
@@ -803,10 +852,10 @@ importers:
 
   packages/provider:
     dependencies:
-      '@zcode/model-option-map':
+      '@drora/model-option-map':
         specifier: workspace:*
         version: link:../model-option-map
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -819,22 +868,22 @@ importers:
 
   packages/provider-node:
     dependencies:
-      '@zcode/provider':
+      '@drora/provider':
         specifier: workspace:*
         version: link:../provider
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@drora/model-option-map':
+        specifier: workspace:*
+        version: link:../model-option-map
       '@types/node':
         specifier: ^25.5.0
         version: 25.6.0
-      '@zcode/model-option-map':
-        specifier: workspace:*
-        version: link:../model-option-map
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -850,6 +899,18 @@ importers:
 
   packages/server:
     dependencies:
+      '@drora/client':
+        specifier: workspace:*
+        version: link:../client
+      '@drora/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@drora/services':
+        specifier: workspace:*
+        version: link:../services
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@hono/node-server':
         specifier: ^1.19.11
         version: 1.19.14(hono@4.12.12)
@@ -868,18 +929,6 @@ importers:
       '@lydell/node-pty-linux-x64':
         specifier: 1.2.0-beta.10
         version: 1.2.0-beta.10
-      '@zcode/client':
-        specifier: workspace:*
-        version: link:../client
-      '@zcode/rpc':
-        specifier: workspace:*
-        version: link:../rpc
-      '@zcode/services':
-        specifier: workspace:*
-        version: link:../services
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../shared
       axios:
         specifier: ^1.13.6
         version: 1.13.6
@@ -947,21 +996,21 @@ importers:
 
   packages/services:
     dependencies:
-      '@zcode/provider':
-        specifier: workspace:*
-        version: link:../provider
-      '@zcode/provider-node':
-        specifier: workspace:*
-        version: link:../provider-node
-      '@zcode/rpc':
-        specifier: workspace:*
-        version: link:../rpc
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@zcode/zcode-cua':
+      '@drora/drora-cua':
         specifier: workspace:*
         version: link:../zcode-cua
+      '@drora/provider':
+        specifier: workspace:*
+        version: link:../provider
+      '@drora/provider-node':
+        specifier: workspace:*
+        version: link:../provider-node
+      '@drora/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../shared
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -1005,7 +1054,7 @@ importers:
 
   packages/shared:
     dependencies:
-      '@zcode/model-option-map':
+      '@drora/model-option-map':
         specifier: workspace:*
         version: link:../model-option-map
       zod:
@@ -1039,6 +1088,18 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@drora/provider':
+        specifier: workspace:*
+        version: link:../provider
+      '@drora/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@drora/services':
+        specifier: workspace:*
+        version: link:../services
+      '@drora/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@extend-ai/react-docx':
         specifier: ^0.8.1
         version: 0.8.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1090,18 +1151,6 @@ importers:
       '@xyflow/react':
         specifier: ^12.10.1
         version: 12.10.2(@types/react@19.2.14)(immer@11.1.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@zcode/provider':
-        specifier: workspace:*
-        version: link:../provider
-      '@zcode/rpc':
-        specifier: workspace:*
-        version: link:../rpc
-      '@zcode/services':
-        specifier: workspace:*
-        version: link:../services
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../shared
       ai:
         specifier: ^6.0.138
         version: 6.0.159(zod@4.6.5)
@@ -1238,13 +1287,13 @@ importers:
 
   packages/web:
     dependencies:
-      '@zcode/client':
+      '@drora/client':
         specifier: workspace:*
         version: link:../client
-      '@zcode/shared':
+      '@drora/shared':
         specifier: workspace:*
         version: link:../shared
-      '@zcode/ui':
+      '@drora/ui':
         specifier: workspace:*
         version: link:../ui
       react:
@@ -1306,55 +1355,6 @@ importers:
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
-
-  packages/zcode-server-cli:
-    dependencies:
-      '@hono/node-server':
-        specifier: ^1.19.11
-        version: 1.19.14(hono@4.12.12)
-      '@hono/node-ws':
-        specifier: ^1.3.0
-        version: 1.3.0(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
-      '@zcode/rpc':
-        specifier: workspace:*
-        version: link:../rpc
-      '@zcode/services':
-        specifier: workspace:*
-        version: link:../services
-      '@zcode/shared':
-        specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.12.9
-        version: 4.12.12
-      ws:
-        specifier: ^8.20.0
-        version: 8.20.0
-      yauzl:
-        specifier: ^3.3.0
-        version: 3.3.0
-      zod:
-        specifier: 4.6.5
-        version: 4.6.5
-    devDependencies:
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.6.0
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
-      '@types/yauzl':
-        specifier: ^2.10.3
-        version: 2.10.3
-      tsup:
-        specifier: ^8.4.0
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.9)(tsx@4.21.0)(typescript@6.0.2)(yaml@2.9.0)
-      tsx:
-        specifier: ^4.19.4
-        version: 4.21.0
-      typescript:
-        specifier: ^6.0.2
-        version: 6.0.2
 
 packages:
 
@@ -9964,7 +9964,7 @@ snapshots:
 
   7zip-bin@5.2.0: {}
 
-  '@ai-sdk/anthropic@3.0.81(patch_hash=d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18)(zod@4.6.5)':
+  '@ai-sdk/anthropic@3.0.81(patch_hash=e7de52af28ec7a205e5697e64703343b14c00110e263eb4b1553bddf89a6c91b)(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.27(zod@4.6.5)
@@ -9984,7 +9984,7 @@ snapshots:
       '@vercel/oidc': 3.1.0
       zod: 4.6.5
 
-  '@ai-sdk/openai-compatible@2.0.60(patch_hash=9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b)(zod@4.6.5)':
+  '@ai-sdk/openai-compatible@2.0.60(patch_hash=9182206529689dd9c3bece9d5ae977824bfbe9ee6db2f297f0f9f65e158d366f)(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.39(zod@4.6.5)
@@ -10052,7 +10052,7 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.29.7
 
-  '@arms/rum-electron@0.0.3(patch_hash=36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97)(@babel/runtime@7.29.7)(electron@41.0.3)':
+  '@arms/rum-electron@0.0.3(patch_hash=73e97af976ace24cf4c560514bb3958ed8c41edb498b59f1a352697ec6235c10)(@babel/runtime@7.29.7)(electron@41.0.3)':
     dependencies:
       '@arms/rum-browser': 0.1.8(@babel/runtime@7.29.7)
       '@arms/rum-core': 0.1.4(@babel/runtime@7.29.7)
@@ -11609,7 +11609,7 @@ snapshots:
 
   '@opentelemetry/api-logs@0.214.0':
     dependencies:
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -13745,7 +13745,7 @@ snapshots:
       '@ai-sdk/gateway': 3.0.121(zod@4.6.5)
       '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.27(zod@4.6.5)
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
       zod: 4.6.5
 
   ajv-formats@3.0.1(ajv@8.18.0):

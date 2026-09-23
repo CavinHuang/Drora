@@ -1,8 +1,8 @@
 {
-  "name": "@zcode/desktop",
+  "name": "@drora/desktop",
   "private": true,
-  "description": "ZCode Desktop App",
-  "author": "ZCode",
+  "description": "Drora Desktop App",
+  "author": "Drora",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -38,15 +38,15 @@
     "@opentelemetry/resources": "2.6.1",
     "@opentelemetry/sdk-metrics": "2.6.1",
     "@opentelemetry/sdk-trace-base": "2.6.1",
-    "@zcode/client": "workspace:*",
-    "@zcode/provider": "workspace:*",
-    "@zcode/provider-node": "workspace:*",
-    "@zcode/rpc": "workspace:*",
-    "@zcode/server": "workspace:*",
-    "@zcode/services": "workspace:*",
-    "@zcode/shared": "workspace:*",
-    "@zcode/ui": "workspace:*",
-    "@zcode/zcode-cua": "workspace:*",
+    "@drora/client": "workspace:*",
+    "@drora/provider": "workspace:*",
+    "@drora/provider-node": "workspace:*",
+    "@drora/rpc": "workspace:*",
+    "@drora/server": "workspace:*",
+    "@drora/services": "workspace:*",
+    "@drora/shared": "workspace:*",
+    "@drora/ui": "workspace:*",
+    "@drora/drora-cua": "workspace:*",
     "electron-updater": "^6.8.3",
     "module-details-from-path": "^1.0.4",
     "node-forge": "^1.4.0",
@@ -82,5 +82,5 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.2"
   },
-  "productName": "ZCode"
+  "productName": "Drora"
 }

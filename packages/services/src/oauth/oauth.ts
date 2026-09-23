@@ -5,8 +5,8 @@ import type {
   OAuthProviderMeta,
   OAuthStartResponse,
   UserInfo,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@drora/shared";
+import { ServiceChannels } from "@drora/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 /**

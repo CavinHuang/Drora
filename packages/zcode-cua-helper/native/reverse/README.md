@@ -31,7 +31,7 @@
 
 mac 侧符号表完整保留(3700 符号),函数名/类名/方法名置信度最高;
 win32 侧 release 剥离了符号,但 PDB 路径字符串证实上游源文件
-`@zcode/zcode-cua/src/native/screen_capture_win.cc` 与单编译单元布局。
+`@drora/drora-cua/src/native/screen_capture_win.cc` 与单编译单元布局。
 
 ## 重编译与能力对齐(第五轮,2026-09-22)
 

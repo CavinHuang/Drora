@@ -7,14 +7,14 @@ import assert from "node:assert/strict";
 
 const check = (name, ok) => console.log(`${ok ? "PASS" : "FAIL"} ${name}`);
 
-const broker = await import("@zcode/zcode-cua/broker");
-const server = await import("@zcode/zcode-cua/broker/server");
-const fc = await import("@zcode/zcode-cua/frame-contract");
-const { createPipSessionClient } = await import("@zcode/zcode-cua/pip-session/node");
-const root = await import("@zcode/zcode-cua");
+const broker = await import("@drora/drora-cua/broker");
+const server = await import("@drora/drora-cua/broker/server");
+const fc = await import("@drora/drora-cua/frame-contract");
+const { createPipSessionClient } = await import("@drora/drora-cua/pip-session/node");
+const root = await import("@drora/drora-cua");
 const { createComputerUseRuntime, main, parseServerArgs } = root;
-const { resolveBrokerSocketPath } = await import("@zcode/zcode-cua/broker/socketPath");
-const { HELPER_APP_NAME } = await import("@zcode/zcode-cua/broker/helperConstants");
+const { resolveBrokerSocketPath } = await import("@drora/drora-cua/broker/socketPath");
+const { HELPER_APP_NAME } = await import("@drora/drora-cua/broker/helperConstants");
 
 // —— 常量与契约 ——
 check("HELPER_APP_NAME", HELPER_APP_NAME === "ZCode Computer Use.app");

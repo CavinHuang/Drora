@@ -1,12 +1,12 @@
 # Obsidian 插件 Spec（复刻 Proma Vault 能力）
 
 来源：`D:\workspace\projects\ai-projects\Proma` 的 Obsidian Vault 能力（`vault-service.ts` +
-agent 集成），完整移植为 ZCode 官方插件 `obsidian`（`apps/zcode-cli/packages/obsidian-plugin`）。
+agent 集成），完整移植为 Drora 官方插件 `obsidian`（`apps/drora-cli/packages/obsidian-plugin`）。
 
 ## 能力边界
 
 Proma 的 Vault 能力由三部分组成，本插件完整复刻前两部分；第三部分是 Proma 自有 UI 面，
-不属于 ZCode 本轮范围（ZCode 桌面壳没有对应挂载点，若未来要做须按 DESIGN.md 另立 spec）：
+不属于 Drora 本轮范围（Drora 桌面壳没有对应挂载点，若未来要做须按 DESIGN.md 另立 spec）：
 
 1. **Vault 发现与配置**（复刻）：从 Obsidian 注册表（`obsidian.json`，win/mac/linux 三平台
    路径同 Proma）发现候选 Vault；支持配置一个活动 Vault（rootPath、displayName、inboxPath、
@@ -16,7 +16,7 @@ Proma 的 Vault 能力由三部分组成，本插件完整复刻前两部分；�
    savePastedImage，全部经同一安全门面。
 3. **Vault 浏览器 UI**（不复刻）：侧栏树、Markdown 编辑器、focus chip 等。
 
-Proma 把 Vault 根目录作为 Agent 附加目录（原生 Read/Write/Search 直接访问）；ZCode 的等价
+Proma 把 Vault 根目录作为 Agent 附加目录（原生 Read/Write/Search 直接访问）；Drora 的等价
 形态是 MCP 工具面——文件 IO 全部发生在 MCP server 进程内，不放大 Agent 原生文件权限。
 行为规则（先读后写、双链语义、笔记正文是用户数据等）落在 `skills/obsidian/SKILL.md`。
 

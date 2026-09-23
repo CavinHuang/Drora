@@ -1,0 +1,18 @@
+{
+  "name": "obsidian",
+  "version": "0.1.0",
+  "description": "Connect local Obsidian Vaults: browse, read, create, and organize Markdown notes with optimistic-concurrency safety.",
+  "author": { "name": "Z.ai" },
+  "license": "MIT",
+  "skills": "skills",
+  "mcpServers": {
+    "obsidian": {
+      "command": "node",
+      "args": ["${DRORA_PLUGIN_ROOT}/dist/mcp/server.js"],
+      "cwd": "${DRORA_PROJECT_DIR}",
+      "env": {
+        "OBSIDIAN_PLUGIN_DATA": "${DRORA_PLUGIN_DATA}"
+      }
+    }
+  }
+}

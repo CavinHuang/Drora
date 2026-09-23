@@ -1,4 +1,4 @@
-import { resolveWorkspaceKey } from "@zcode/shared";
+import { resolveWorkspaceKey } from "@drora/shared";
 
 interface HostWorkspaceTaskContext {
   workspacePath: string;

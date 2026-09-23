@@ -16,7 +16,7 @@ const ORIG_DIR = process.argv[2] ?? "D:\\software\\zcode\\resources\\tools\\cua-
 const ORIG = resolve(ORIG_DIR, "dist", "windows-helper.js");
 
 if (!existsSync(RESTORED)) {
-  console.error(`missing restored bundle: ${RESTORED}; run pnpm --filter @zcode/zcode-cua-helper-runtime build`);
+  console.error(`missing restored bundle: ${RESTORED}; run pnpm --filter @drora/drora-cua-helper-runtime build`);
   process.exit(2);
 }
 if (!existsSync(ORIG)) {

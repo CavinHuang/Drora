@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { DroraTaskMeta } from "@drora/shared";
 
 type WorkspaceTaskListVersionEntry = readonly [workspaceKey: string, version: number];
 
@@ -26,7 +26,7 @@ export function buildWorkspaceRemoteSessionSignature(
     .join("|");
 }
 
-export function areTaskListItemsEquivalent(left: ZCodeTaskMeta[], right: ZCodeTaskMeta[]): boolean {
+export function areTaskListItemsEquivalent(left: DroraTaskMeta[], right: DroraTaskMeta[]): boolean {
   if (left.length !== right.length) {
     return false;
   }

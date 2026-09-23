@@ -261,12 +261,20 @@ jobs:
             git push origin "$TAG" || true
           fi
           mapfile -t FILES < <(find release-assets -type f)
-          for f in "${FILES[@]}"; do echo "asset: $f"; done
-          FLAGS=""
-          [ "${{ steps.flags.outputs.latest }}" = "true" ] && FLAGS="$FLAGS --latest"
-          gh release create "$TAG" "${FILES[@]}" \
-            --title "ZCode ${TAG#v}" \
-            --notes "Automated multi-platform build.
+          echo "待上传 ${#FILES[@]} 个文件:"
+          printf '  %s\n' "${FILES[@]}"
+          # Release 已存在(重跑/补资产)→ 清空旧资产后全量重传;否则新建。
+          # 任何一步失败都让 job 失败,不用 || 吞错(曾导致资产静默丢失)。
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            for a in $(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'); do
+              gh release delete-asset "$TAG" "$a" --repo "$GITHUB_REPOSITORY" --yes || true
+            done
+            gh release upload "$TAG" "${FILES[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${FILES[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "ZCode ${TAG#v}" \
+              --notes "Automated multi-platform build.
 
           ## 桌面安装包(Desktop installers)
           macOS dmg/zip、Windows nsis exe。安装后从开始菜单/启动台启动图形界面。
@@ -276,7 +284,7 @@ jobs:
           \`\`\`
           ./zcode-linux-x64 --help        # 查看全部命令
           ./zcode-linux-x64 tui           # 进入全屏终端界面
-          ./zcode-linux-x64 -p "你的问题"  # 单条提问(需先 login)
+          ./zcode-linux-x64 -p \"你的问题\"  # 单条提问(需先 login)
           \`\`\`
           首次使用先执行 login 按提示完成浏览器授权;提问功能需要可用的
           模型服务凭据。
@@ -287,5 +295,5 @@ jobs:
 
           未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode;
           首次运行请按系统提示放行)。Sources: commit ${GITHUB_SHA}" \
-            $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}" || \
-          gh release upload "$TAG" "${FILES[@]}" --clobber
+              $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}"
+          fi

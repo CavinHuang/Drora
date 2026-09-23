@@ -67,6 +67,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime;
       # node-repl-host 还依赖 @zcode/core、@zcode/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包

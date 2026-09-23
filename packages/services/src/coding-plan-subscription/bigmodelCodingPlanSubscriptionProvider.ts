@@ -2,7 +2,6 @@
 import type {
   ApiClient,
   ApiRequestInit,
-  ForceUpdateConfig,
   CodingPlanAgreementResponse,
   CodingPlanBatchPreviewRequest,
   CodingPlanBatchPreviewResponse,
@@ -101,7 +100,6 @@ interface DroraClientConfigEnvelope {
   success?: boolean;
   data?: {
     configs?: {
-      forceUpdate?: ForceUpdateConfig | null;
       codingPlanStaticProducts?: CodingPlanStaticProductsConfig;
       codingPlanStaticTeamProducts?: CodingPlanStaticTeamProductsConfig;
       startPlanPreview?: StartPlanPreviewConfig | null;
@@ -273,10 +271,6 @@ export class BigModelCodingPlanSubscriptionProvider {
     return DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY;
   }
 
-  async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
-    const payload = await this.getClientConfigs();
-    return unwrapClientConfigForceUpdate(payload);
-  }
 
   async preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse> {
     return this.post<CodingPlanPreviewResponse>(
@@ -1216,25 +1210,6 @@ function unwrapClientConfigStartPlanPreview(
   };
 }
 
-function unwrapClientConfigForceUpdate(
-  payload: DroraClientConfigEnvelope,
-): ForceUpdateConfig | null {
-  if (payload.code !== undefined && payload.code !== 0) {
-    throw new Error(payload.msg?.trim() || "Drora client config request failed");
-  }
-
-  const forceUpdate = payload.data?.configs?.forceUpdate;
-  if (!forceUpdate) {
-    return null;
-  }
-
-  const minimalVersion = forceUpdate.minimalVersion;
-  if (typeof minimalVersion !== "string" || minimalVersion.trim() === "") {
-    return null;
-  }
-
-  return { minimalVersion: minimalVersion.trim() };
-}
 
 function isValidStartPlanPreviewEntitlement(
   entitlement: StartPlanPreviewConfig["entitlements"][number],

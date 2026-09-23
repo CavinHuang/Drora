@@ -78,10 +78,12 @@ jobs:
         shell: bash
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
-          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
+      - name: Obsidian plugin behavior tests (security semantics + stdio E2E)
+        run: pnpm --dir apps/zcode-cli/packages/obsidian-plugin run test
       - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
         run: node scripts/ci/cli-app-server-smoke.mjs apps/zcode-cli/packages/cli/dist/zcode.cjs
       - name: Upload CLI bundle
@@ -116,7 +118,7 @@ jobs:
         run: pnpm --filter @zcode/cli... build
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
-          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash

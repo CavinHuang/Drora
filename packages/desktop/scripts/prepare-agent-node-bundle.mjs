@@ -165,6 +165,14 @@ const officialPluginPackages = [
     stagedPath: "packages/ios-simulator-plugin",
   },
   {
+    packageName: "@zcode/obsidian-plugin",
+    relativePath: "apps/zcode-cli/packages/obsidian-plugin",
+    requiresRuntime: false,
+    // dist runtime 与 skill 正文是同一发布单元，缺任一项打包期即报错。
+    requiredSeedPaths: ["dist/mcp/server.js", "skills/obsidian/SKILL.md"],
+    stagedPath: "packages/obsidian-plugin",
+  },
+  {
     packageName: "@zcode/restore-legacy-sessions-plugin",
     relativePath: "apps/zcode-cli/packages/restore-legacy-sessions-plugin",
     requiresRuntime: false,

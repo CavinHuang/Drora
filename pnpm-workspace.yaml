@@ -9,6 +9,7 @@ packages:
   - "!apps/zcode-cli/packages/documents-plugin"
   - "!apps/zcode-cli/packages/image-search-plugin"
   - "!apps/zcode-cli/packages/ios-simulator-plugin"
+  - "!apps/zcode-cli/packages/obsidian-plugin"
   - "!apps/zcode-cli/packages/pdf-plugin"
   - "!apps/zcode-cli/packages/plugin-creator-plugin"
   - "!apps/zcode-cli/packages/presentations-plugin"

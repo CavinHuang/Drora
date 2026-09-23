@@ -79,7 +79,7 @@ jobs:
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
-          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
@@ -154,7 +154,7 @@ jobs:
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
         run: >-
-          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
           pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash

@@ -249,6 +249,27 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十六轮：完整发布流水线（2026-09-23）
+
+release.yml(tag v* 自动 / 手动 dispatch,六个 job)全绿并发布首个
+GitHub Release(nightly-149a7eb):macOS dmg+zip、Windows exe 安装包、
+三平台 CLI 单可执行,共 6 个产物 1.16 GB。
+
+链路与关键修复:
+- 本地 Windows 打包预验证通过(bundle.mjs --os=win,152 MiB exe 过审计);
+- desktop job:全链构建(闭包 dist → 插件 runtime → desktop build →
+  electron-builder);无签名环境(CSC auto-discovery 关、mac identity 空)
+  为开源社区构建预期形态;
+- **ZCODE_SKIP_REMOTE_ASSETS=1**:桌面安装包不消费 mock-cdn 的跨平台
+  remote 资产(node tarball/pty 等,那是远端部署与 WSL 链路用的),此前
+  四跑 50 分钟超时全是在 CI 网络下下载这些无关 tarball 挂死;
+- 下载健壮性:undici 连接停滞时 AbortSignal.timeout 不触发,改为系统
+  curl 优先(--max-time+内置重试),无 curl 回退 fetch+timeout;
+- 产物发布:runner 是 zsh(nullglob 报错),用 find+mapfile 收集上传;
+- 表单记录:electron-builder 的 mac cua-helper .app extraResource 改为
+  目录存在才拷贝(签名资产是上游交付物,开源树不携带;桌面 CUA 面
+  fail-closed 不受影响)。
+
 ### 第十五轮：CLI 构建链完善（2026-09-22）
 
 - **ci.yml 的 cli-build 深度化**：新增 scripts/ci/cli-app-server-smoke.mjs ——

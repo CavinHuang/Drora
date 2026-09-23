@@ -28,15 +28,23 @@ permissions:
 
 jobs:
   desktop:
-    name: Desktop installer (${{ matrix.os }})
+    name: Desktop installer (${{ matrix.os }} / ${{ matrix.builder-arch }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-latest
             builder-os: mac
+            builder-arch: arm64
+          - os: macos-latest
+            builder-os: mac
+            builder-arch: x64
           - os: windows-2022
             builder-os: win
+            builder-arch: x64
+          - os: windows-2022
+            builder-os: win
+            builder-arch: arm64
     runs-on: ${{ matrix.os }}
     env:
       # 桌面安装包不依赖 mock-cdn 的跨平台 remote 资产(node/pty 等,是远端部署
@@ -88,7 +96,9 @@ jobs:
         run: pnpm --filter @zcode/desktop run build
         timeout-minutes: 50
       - name: Package desktop installer (electron-builder)
-        run: node scripts/bundle.mjs --os=${{ matrix.builder-os }}
+        # bundle.mjs 不传 --arch 时默认 arm64,曾导致发布只有 arm64 安装包
+        # (x64 Windows 用户装不上);矩阵显式覆盖两个架构。
+        run: node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}
         working-directory: packages/desktop
         timeout-minutes: 60
         env:
@@ -103,12 +113,18 @@ jobs:
           set -e
           dir="packages/desktop/release"
           [ -d "$dir" ] || dir="packages/desktop/dist"
+          # latest*.yml 是固定文件名,两个架构都上传会在 release 汇总时互相覆盖;
+          # 通道清单统一归 arm64(native)构建位,x64 安装包走发布页手动安装
+          # (本构建未签名,mac 自动更新本就不可用)。
+          if [ "${{ matrix.builder-arch }}" != "arm64" ]; then
+            rm -f "$dir"/latest*.yml
+          fi
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
           ls -la "$dir" || true
       - name: Upload desktop installers
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.builder-os }}
+          name: desktop-${{ matrix.builder-os }}-${{ matrix.builder-arch }}
           # 含 latest.yml/electron-builder 更新通道清单与 blockmap
           path: |
             ${{ steps.artifacts.outputs.dir }}/*.dmg
@@ -202,16 +218,20 @@ jobs:
           # 安装包 exe 以 productName(ZCode-)开头;Windows SEA 以 zcode- 开头,
           # 两者都叫 *.exe,必须分开断言,否则 SEA 会冒充安装包通过校验。
           have_dmg=false; have_zip=false; have_installer=false; have_sea=false; have_sea_win=false
+          have_installer_arm64=false; have_installer_x64=false
           for f in $(ls); do
             case "$f" in
               *.dmg) have_dmg=true ;;
               *.zip) have_zip=true ;;
-              ZCode-*.exe) have_installer=true ;;
+              ZCode-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
+              ZCode-*x64*.exe) have_installer=true; have_installer_x64=true ;;
+              ZCode-*arm64*.dmg|ZCode-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
+              ZCode-*x64*.dmg|ZCode-*x64*.zip) have_installer=true; have_installer_x64=true ;;
               zcode-windows*) have_sea_win=true ;;
               zcode-darwin*|zcode-linux*) have_sea=true ;;
             esac
           done
-          for pair in "macOS dmg:$have_dmg" "macOS zip:$have_zip" "Windows 安装包 exe:$have_installer" "CLI SEA(mac/linux):$have_sea" "CLI SEA(windows):$have_sea_win"; do
+          for pair in "macOS dmg:$have_dmg" "macOS zip:$have_zip" "Windows 安装包 exe:$have_installer" "CLI SEA(mac/linux):$have_sea" "CLI SEA(windows):$have_sea_win" "安装包 arm64 覆盖:$have_installer_arm64" "安装包 x64 覆盖:$have_installer_x64"; do
             name="${pair%%:*}"; val="${pair##*:}"
             if [ "$val" = "true" ]; then echo "PASS 平台覆盖 $name"; else echo "FAIL 平台覆盖 $name"; fail=1; fi
           done

@@ -188,8 +188,9 @@ await test("验收6：配置门控与发现——allowAgentWrites 落盘、坏�
   const obsidianDir = join(fakeAppData, "obsidian");
   mkdirSync(obsidianDir, { recursive: true });
   writeFileSync(join(obsidianDir, "obsidian.json"), "{not json", "utf-8");
+  // win32 读 APPDATA，linux 读 XDG_CONFIG_HOME，全部指到假注册表根才与平台无关
   process.env.APPDATA = fakeAppData;
-  delete process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = fakeAppData;
   assert.deepEqual(await discoverObsidianVaultCandidates(), []);
   const vaultRoot = makeTempDir("registry-vault");
   writeFileSync(join(obsidianDir, "obsidian.json"), JSON.stringify({ vaults: { a: { path: vaultRoot }, b: { path: join(fakeAppData, "ghost") }, c: {} } }), "utf-8");

@@ -33,9 +33,10 @@ jobs:
             builder-os: win
     runs-on: ${{ matrix.os }}
     env:
-      # Node dist 跨平台 prebuild 下载源:默认 npmmirror 在海外 runner 上会挂死
-      # (实测 50 分钟无进展,卡在 prepare:remote-assets);GitHub 网络走官方源
-      ZCODE_NODE_DIST_MIRROR: "https://nodejs.org/dist"
+      # 桌面安装包不依赖 mock-cdn 的跨平台 remote 资产(node/pty 等,是远端部署
+      # 与 WSL 链路用的;脚本注释明载 Windows build job 应跳过)。skip 后不再
+      # 下载 node tarball —— 之前四跑 50 分钟超时全是这一步在 CI 网络下挂死。
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

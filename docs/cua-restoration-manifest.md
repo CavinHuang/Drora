@@ -249,6 +249,22 @@ esources）
 | tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
 | elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
 
+### 第十七轮：release 准备完善与发布闭环验证（2026-09-23）
+
+- **版本统一**：desktop 与 cli-sea job 在 tag(v*)构建时把 tag 版本写入根
+  package.json（build-meta 与 electron-builder 的版本单一真相源），正式发布
+  产物带 tag 版本号而非硬编码 3.14.0；手动 nightly 保持 _TEST 后缀以示区分。
+- **finalize 完整性门**：release job 下载产物后先跑离线校验（按平台覆盖
+  断言 dmg/zip/exe/SEA 存在、通道清单 latest*.yml 在、SHA256SUMS 自洽且
+  兼容空格→点改名），再生成 SHA256SUMS 并发布。
+- **两种发布形态**：tag v* → 正式（production 身份、无 _TEST、latest 标记）；
+  手动 dispatch → nightly（test 后缀、prerelease）。
+- **验证**：run 35831188052 六 job 全绿；发布页 nightly-277c324 含 12 项资产
+  （双平台安装包 + blockmap + 通道清单 + SUMS + 三平台 CLI）；从该 Release
+  下载 windows SEA 实测 `--version` 输出 0.16.9。
+- 排障记录：integrity gate 曾用精确文件名断言（arm64.dmg / SHA256SUMS.txt）,
+  在 nightly 形态下为假失败——改为平台覆盖断言 + SUMS 条件校验。
+
 ### 第十六轮：完整发布流水线（2026-09-23）
 
 release.yml(tag v* 自动 / 手动 dispatch,六个 job)全绿并发布首个

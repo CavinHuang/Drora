@@ -165,7 +165,9 @@ jobs:
             git tag "$TAG" || true
             git push origin "$TAG" || true
           fi
-          gh release create "$TAG" release-assets/**/* \
+          mapfile -t FILES < <(find release-assets -type f)
+          for f in "${FILES[@]}"; do echo "asset: $f"; done
+          gh release create "$TAG" "${FILES[@]}" \
             --title "ZCode ${TAG#v}" \
             --notes "Automated multi-platform build.
 
@@ -174,4 +176,4 @@ jobs:
 
           Sources: commit ${GITHUB_SHA}" \
             --prerelease || \
-          gh release upload "$TAG" release-assets/**/* --clobber
+          gh release upload "$TAG" "${FILES[@]}" --clobber

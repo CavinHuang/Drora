@@ -1,0 +1,29 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  aria-hidden="true"
+  class="h-full w-full dark:hidden"
+  width="400"
+  height="320"
+  viewBox="0 0 400 320"
+  fill="none"
+>
+  <defs>
+    <linearGradient id="drora-outline-fade-gradient" x1="0" y1="0" x2="0" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="white" />
+      <stop offset="70%" stop-color="white" stop-opacity="0" />
+      <stop offset="100%" stop-color="white" stop-opacity="0" />
+    </linearGradient>
+    <mask id="drora-outline-fade-mask" x="0" y="0" width="400" height="320" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style="mask-type:alpha">
+      <rect width="400" height="320" fill="url(#drora-outline-fade-gradient)" />
+    </mask>
+  </defs>
+  <g opacity="0.7" mask="url(#drora-outline-fade-mask)">
+    <path
+      transform="translate(50.5 1) scale(2.09)"
+      d="M0 0H74C96.25 0 143 23.87 143 76C143 127.16 97.91 152 74 152H29L57 122C105.84 122 111 89.6 111 76C111 42.64 82.51 32 73 32H33V100C33 100.45 33.55 100.7 34.35 100.7H37L33.5 104L0 142V0Z"
+      stroke="currentColor"
+      stroke-width="1"
+      vector-effect="non-scaling-stroke"
+    />
+  </g>
+</svg>

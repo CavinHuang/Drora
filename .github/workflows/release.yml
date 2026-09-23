@@ -113,11 +113,13 @@ jobs:
           set -e
           dir="packages/desktop/release"
           [ -d "$dir" ] || dir="packages/desktop/dist"
-          # latest*.yml 是固定文件名,两个架构都上传会在 release 汇总时互相覆盖;
-          # 通道清单统一归 arm64(native)构建位,x64 安装包走发布页手动安装
-          # (本构建未签名,mac 自动更新本就不可用)。
+          # latest*.yml 是固定文件名,两个架构都上传会在 release 汇总时互相覆盖。
+          # 非 arm64 构建位先改名带架构后缀,release job 再把双架构条目合并回
+          # latest*.yml(electron-updater 按 files[].url 中的架构后缀选择资产)。
           if [ "${{ matrix.builder-arch }}" != "arm64" ]; then
-            rm -f "$dir"/latest*.yml
+            for f in "$dir"/latest.yml "$dir"/latest-mac.yml; do
+              [ -f "$f" ] && mv "$f" "${f%.yml}-x64.yml"
+            done
           fi
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
           ls -la "$dir" || true
@@ -208,6 +210,44 @@ jobs:
           merge-multiple: true
       - name: List release contents
         run: find release-assets -type f -exec ls -la {} \;
+      - name: Merge per-arch update channel manifests
+        # 双架构各自产出 latest*.yml(仅含本架构资产);合并成单一清单,
+        # electron-updater 的 GitHub provider 按 files[].url 的架构后缀选资产。
+        run: |
+          cd release-assets
+          python3 - <<'PY'
+          import sys
+          try:
+              import yaml
+          except ImportError:
+              sys.exit("PyYAML is required for channel manifest merge")
+          import os
+
+          def merge(base_name, extra_name):
+              if not os.path.exists(extra_name):
+                  return
+              with open(base_name, encoding="utf-8") as fh:
+                  merged = yaml.safe_load(fh)
+              with open(extra_name, encoding="utf-8") as fh:
+                  extra = yaml.safe_load(fh)
+              if merged.get("version") != extra.get("version"):
+                  sys.exit(f"channel version mismatch: {base_name}={merged.get('version')} {extra_name}={extra.get('version')}")
+              files = merged.get("files") or []
+              seen = {f.get("url") for f in files}
+              for f in extra.get("files") or []:
+                  if f.get("url") not in seen:
+                      files.append(f)
+              merged["files"] = files
+              if (extra.get("releaseDate") or "") > (merged.get("releaseDate") or ""):
+                  merged["releaseDate"] = extra["releaseDate"]
+              with open(base_name, "w", encoding="utf-8") as fh:
+                  yaml.safe_dump(merged, fh, sort_keys=False, allow_unicode=True, width=4096)
+              os.remove(extra_name)
+              print(f"merged {extra_name} into {base_name}: {len(files)} file entries")
+
+          merge("latest.yml", "latest-x64.yml")
+          merge("latest-mac.yml", "latest-mac-x64.yml")
+          PY
       - name: Integrity check on downloaded assets
         # 离线校验:按"平台覆盖"断言(dmg/zip/exe 任一命名形态命中即算),不按
         # 精确文件名 —— nightly 与 tag 正式的后缀不同(_TEST / 无)。SHA256SUMS

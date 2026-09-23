@@ -1,5 +1,7 @@
 name: CI
 
+# 常规门禁:每次 push(main)/PR 同时验证 CLI 与桌面端两条构建链,
+# 以及 CUA 冒烟与 win32 addon 对齐。
 on:
   push:
     branches: [main]
@@ -11,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck / Lint / Format (ubuntu)
+    name: Typecheck / Lint (ubuntu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +70,18 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build @zcode/cli with dependency closure
-        run: pnpm --filter @zcode/cli... build
+      - name: Build plugin MCP runtimes
+        # node-repl-host 依赖 @zcode/core、@zcode/contracts 的 dist,
+        # 必须先走依赖闭包;android/ios 插件被 workspace 排除,--dir 直入
+        run: >-
+          pnpm --filter @zcode/cli... build
+        shell: bash
+      - name: Build plugin MCP runtimes (excluded seed packages)
+        run: >-
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
       - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
         run: node scripts/ci/cli-app-server-smoke.mjs apps/zcode-cli/packages/cli/dist/zcode.cjs
       - name: Upload CLI bundle
@@ -77,6 +89,54 @@ jobs:
         with:
           name: cli-zcode-cjs
           path: apps/zcode-cli/packages/cli/dist/zcode.cjs
+          retention-days: 7
+
+  desktop-build:
+    name: Desktop bundles (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    env:
+      # 桌面构建不消费 mock-cdn 跨平台 remote 资产(远端部署/WSL 链路专用),
+      # 跳过以免在 CI 网络下下载 node tarball 挂死(release 链路同款配置)
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Emit workspace dists (tsc -b project references)
+        run: pnpm typecheck
+      - name: Build CLI dependency closure (core/contracts dists)
+        run: pnpm --filter @zcode/cli... build
+      - name: Build plugin MCP runtimes (excluded seed packages)
+        run: >-
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin; do
+          pnpm --dir "apps/zcode-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
+      - name: Build desktop production bundles
+        run: pnpm --filter @zcode/desktop run build
+        timeout-minutes: 50
+      - name: Verify desktop output segments
+        shell: bash
+        run: |
+          set -e
+          for seg in main host preload renderer scheduler; do
+            test -d "packages/desktop/out/$seg" || { echo "missing out/$seg"; exit 1; }
+          done
+          test -f "packages/desktop/out/main/index.js"
+          echo "desktop out/ segments complete"
+      - name: Upload desktop bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-out-${{ matrix.os }}
+          path: packages/desktop/out/
           retention-days: 7
 
   addon-parity:

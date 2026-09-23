@@ -2,6 +2,12 @@ name: Release
 
 # 完整发布流水线:双平台(macOS dmg/zip + Windows nsis exe)桌面安装包与
 # CLI 单可执行,tag(v*)推送或手动触发;产物汇总为 GitHub Release。
+#
+# 产物形态:
+#   - 正式(tag v*):ZCODE_ENV=production,安装包名无 _TEST 后缀,
+#     Release 标记为 latest(非 prerelease),附 SHA256SUMS 与 latest.yml
+#     (electron-builder 自动更新通道清单)。
+#   - 手动 nightly:保留 _TEST 后缀与 prerelease 标记,便于区分。
 on:
   push:
     tags: ["v*"]
@@ -37,6 +43,9 @@ jobs:
       # 与 WSL 链路用的;脚本注释明载 Windows build job 应跳过)。skip 后不再
       # 下载 node tarball —— 之前四跑 50 分钟超时全是这一步在 CI 网络下挂死。
       ZCODE_SKIP_REMOTE_ASSETS: "1"
+      # 正式发布用生产后端身份:安装包名不带 _TEST 后缀,应用连接生产环境。
+      # 手动 nightly(dispatch 无 tag)保持 test 后缀以示区分。
+      ZCODE_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'test' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -73,7 +82,7 @@ jobs:
           # authenticode;开源构建的预期形态
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           ZCODE_ENABLE_MAC_SIGN: ""
-      - name: Locate installers
+      - name: Locate installers and channel files
         id: artifacts
         shell: bash
         run: |
@@ -86,10 +95,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.builder-os }}
+          # 含 latest.yml/electron-builder 更新通道清单与 blockmap
           path: |
             ${{ steps.artifacts.outputs.dir }}/*.dmg
             ${{ steps.artifacts.outputs.dir }}/*.zip
             ${{ steps.artifacts.outputs.dir }}/*.exe
+            ${{ steps.artifacts.outputs.dir }}/*.blockmap
+            ${{ steps.artifacts.outputs.dir }}/latest*.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -154,26 +166,46 @@ jobs:
           merge-multiple: true
       - name: List release contents
         run: find release-assets -type f -exec ls -la {} \;
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+          cat release-assets/SHA256SUMS.txt
+      - name: Determine release flags
+        id: flags
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           if [ "$TAG" = "$GITHUB_REF" ]; then
-            # 手动触发无 tag:用短 sha 造一个发布名
             TAG="nightly-${GITHUB_SHA::7}"
             git tag "$TAG" || true
             git push origin "$TAG" || true
           fi
           mapfile -t FILES < <(find release-assets -type f)
           for f in "${FILES[@]}"; do echo "asset: $f"; done
+          FLAGS=""
+          [ "${{ steps.flags.outputs.latest }}" = "true" ] && FLAGS="$FLAGS --latest"
           gh release create "$TAG" "${FILES[@]}" \
             --title "ZCode ${TAG#v}" \
             --notes "Automated multi-platform build.
 
-          - Desktop installers: macOS (dmg/zip), Windows (nsis exe) — unsigned community build
+          - Desktop installers: macOS (dmg/zip), Windows (nsis exe)
           - CLI single-executable: macOS / Linux / Windows
+          - SHA256SUMS.txt: 所有产物的校验和
+          - latest*.yml: electron-builder 自动更新通道清单
 
-          Sources: commit ${GITHUB_SHA}" \
-            --prerelease || \
+          未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode;
+          首次运行请按系统提示放行)。Sources: commit ${GITHUB_SHA}" \
+            $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}" || \
           gh release upload "$TAG" "${FILES[@]}" --clobber

@@ -160,12 +160,12 @@ jobs:
         run: node packages/zcode-cua-helper/native/reverse/parity-native.mjs
         shell: cmd
         env:
-          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\drora-cua-helper\build\Release\ax_native.node
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
       - name: Parity — input/output matrix (123 cells)
         run: node packages/zcode-cua-helper/native/reverse/parity-native-matrix.mjs
         shell: cmd
         env:
-          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\drora-cua-helper\build\Release\ax_native.node
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
       - name: Rebuilt addon artifact
         uses: actions/upload-artifact@v4
         with:

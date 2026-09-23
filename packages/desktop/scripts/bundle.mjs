@@ -707,6 +707,11 @@ async function main() {
     "electron-builder.config.js",
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
+    // publish 配置仅用于生成 app-update.yml（GitHub 更新源）。tag/CI 构建上
+    // electron-builder 默认会尝试 publish（GitHubPublisher 要求 GH_TOKEN），
+    // 而本仓库的 Release 由 release job 统一创建，builder 一律不发布。
+    "--publish",
+    "never",
   ];
 
   console.log(`[bundle] target=${os}/${arch}`);

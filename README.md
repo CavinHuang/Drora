@@ -19,6 +19,18 @@ Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Age
 | Web / Drora 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
 | Agent CLI            | 在终端中使用 `drora`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @drora/cli dev` |
 
+## 下载
+
+无需从源码构建，可直接在 [Releases](https://github.com/CavinHuang/Drora/releases/latest) 下载最新版本：
+
+| 文件 | 说明 |
+| --- | --- |
+| `Drora-<版本>-win-x64.exe` / `win-arm64.exe` | Windows 桌面应用安装包（NSIS） |
+| `Drora-<版本>-mac-arm64.dmg` / `mac-x64.dmg`（及 `.zip`） | macOS 桌面应用 |
+| `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Agent CLI 单文件，**须在终端中运行**（双击会闪退） |
+
+所有产物均由 GitHub Actions 从源码构建，`SHA256SUMS.txt` 提供校验和；`latest*.yml` 供应用内自动更新使用。安装包未做签名：Windows 首次运行请选择"仍要运行"，macOS 首次打开请在"系统设置 → 隐私与安全性"中放行。
+
 ## 初始化
 
 准备 Git、Node.js **24.14.0** 和 pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下开发和打包命令均在仓库根目录执行。

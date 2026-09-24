@@ -97,6 +97,13 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
   get pluginAuthority(): string | null {
     return this.handle ? this.authority : null;
   }
+  // win32 走 env-token 旧线（0.5.13 原版），无文件交付 token——恒 null。
+  get token(): string | null {
+    return null;
+  }
+  get presentationToken(): string | null {
+    return null;
+  }
 
   waitForTransport(timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS): Promise<CuaHelperTransportHandle> {
     if (this.handle) {

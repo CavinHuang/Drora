@@ -122,6 +122,18 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
 
 ## 七、遗留决策（已向用户报告，未获批不动）
 
+0. **helper 安装根的家目录约定分裂（新发现的设计接缝，需产品决策）**：
+   - 安装侧（zcode-cua 豁免区，还原原版语义）：`ZCODE_HOME || ~/.zcode` + `computer-use`；
+   - 查找侧（services standalone，Drora 改名形态）：`DRORA_HOME || ~/.drora` + `computer-use`；
+   - 桥接：不存在（桌面/服务无人设 `ZCODE_HOME`，zcode-cua 不读 `DRORA_HOME`）。
+   净效果：托管路径自洽（装 ~/.zcode、从 ~/.zcode 启动），但与官方 ZCode
+   **同根共存**（互相覆盖/构建 ID 冲突隐患）；设置页 standalone 路径枚举
+   ~/.drora 永远落空 → 静默失败退化。
+   候选方案：A. 桌面/host 注入 `ZCODE_HOME=~/.drora`（豁免区零改动，env 路由
+   到 Drora 根，需同步 standalone 枚举 + 排查与官方 ZCode 并存语义）；
+   B. 保持 ~/.zcode 共存（依赖 variant/锁机制，接受与官方互相可见）。
+   未获决策前不动。
+
 1. `qc=3.14.0`/`WC=291084` 钉扎与本机可得官方 3.11.2/277386 的版本线错位——
    需上游 3.14 产物或改钉扎决策（bundled 安装已被 §六接线消解，仅
    下载通道仍受影响）。

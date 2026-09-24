@@ -33,12 +33,12 @@ import {
 const OFFICIAL_PLUGIN_MARKETPLACE = DRORA_OFFICIAL_PLUGIN_MARKETPLACE;
 const SEA_PLUGIN_ASSET_PREFIX = "drora-official-plugins/";
 const SEA_PLUGIN_MANIFEST_ASSET_KEY = `${SEA_PLUGIN_ASSET_PREFIX}manifest.json`;
-const SEED_MARKER_FILE = ".zcode-plugin-seed.json";
+const SEED_MARKER_FILE = ".drora-plugin-seed.json";
 const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".drora-plugin",
   "README.md",
   // 官方内容插件新增 agents 后，filesystem seed 的顶层白名单未同步，目录被静默裁掉。
   "agents",
@@ -346,7 +346,7 @@ function resolveFilesystemPluginRoot(definition: OfficialPluginDefinition): stri
   for (const baseDir of candidateBaseDirs()) {
     for (const relativePath of definition.rootCandidates) {
       const rootPath = resolve(baseDir, relativePath);
-      if (existsSync(join(rootPath, ".zcode-plugin", "plugin.json"))) return rootPath;
+      if (existsSync(join(rootPath, ".drora-plugin", "plugin.json"))) return rootPath;
     }
   }
   return undefined;
@@ -435,7 +435,7 @@ function readSeedPluginDescription(
   source: OfficialPluginSeedSource,
   plugin: OfficialPluginSeedPluginSource,
 ): string | undefined {
-  const manifestFile = plugin.files.find((file) => file.path === ".zcode-plugin/plugin.json");
+  const manifestFile = plugin.files.find((file) => file.path === ".drora-plugin/plugin.json");
   if (!manifestFile) return undefined;
   try {
     const parsed = JSON.parse(readSeedFileBytes(source, plugin, manifestFile).toString("utf8")) as {
@@ -467,7 +467,7 @@ function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSourc
 function isSeedUsable(targetRoot: string, definition: OfficialPluginDefinition): boolean {
   try {
     const manifest = JSON.parse(
-      readFileSync(join(targetRoot, ".zcode-plugin", "plugin.json"), "utf8"),
+      readFileSync(join(targetRoot, ".drora-plugin", "plugin.json"), "utf8"),
     ) as { name?: unknown };
     if (manifest.name !== definition.name) return false;
   } catch {
@@ -628,8 +628,9 @@ function officialPluginCacheRoot(
   );
 }
 
-function candidateBaseDirs(): string[] {
-  // Electron app-server 运行在 resources/glm/drora.cjs，官方插件资源也随桌面包
+/** 内置技能包（bundled-skills.ts）沿同一组候选目录定位，保证两类内置资产在每种运行布局下同进同出。 */
+export function candidateBaseDirs(): string[] {
+  // 修复原因：Electron app-server 运行在 resources/glm/drora.cjs，官方插件资源也随桌面包
   // stage 到同级 packages/*-plugin。候选目录必须优先看入口文件目录，避免生产态退回到
   // monorepo-only 的 __dirname 查找假设。
   return [entrypointDir(), runtimeDir(), process.cwd()].filter(

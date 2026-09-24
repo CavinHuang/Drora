@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
+import { access, cp, mkdir } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
@@ -118,9 +119,19 @@ const remoteOfficialPluginPackages = [
     stagedPath: "packages/node-repl-host",
   },
 ];
+const remoteBundledSkillPack = {
+  relativePath: "apps/drora-cli/packages/bundled-skills",
+  requiredPaths: [
+    "skills/dynamic-workflows/SKILL.md",
+    "skills/dynamic-workflows/patterns.md",
+    "skills/dynamic-workflows/examples.md",
+  ],
+  stagedPath: "packages/bundled-skills",
+  topLevelPaths: ["skills"],
+};
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".drora-plugin",
   "README.md",
   // 生产远程预构建有独立顶层白名单，遗漏 agents 会在上传前永久裁掉子代理。
   "agents",
@@ -146,8 +157,8 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.zcode-plugin/plugin.json",
-  "packages/node-repl-host/.zcode-plugin/plugin.json",
+  "packages/browser-use-plugin/.drora-plugin/plugin.json",
+  "packages/node-repl-host/.drora-plugin/plugin.json",
 ];
 
 function readDroraAgentRuntimeVersion() {
@@ -498,7 +509,7 @@ function assertRemoteOfficialPluginRuntime(plugin) {
 function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
-    const manifestPath = join(sourceRoot, ".zcode-plugin", "plugin.json");
+    const manifestPath = join(sourceRoot, ".drora-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(
         `[prepare-prebuilds] missing remote official plugin manifest: ${manifestPath}`,
@@ -528,6 +539,24 @@ function stageRemoteOfficialPlugins(glmDir) {
   }
 }
 
+async function stageRemoteBundledSkillPack(glmDir) {
+  const sourceRoot = join(rootDir, remoteBundledSkillPack.relativePath);
+  const targetRoot = join(glmDir, ...remoteBundledSkillPack.stagedPath.split("/"));
+  await mkdir(targetRoot, { recursive: true });
+  for (const entryName of remoteBundledSkillPack.topLevelPaths) {
+    const sourcePath = join(sourceRoot, entryName);
+    await cp(sourcePath, join(targetRoot, entryName), {
+      recursive: true,
+      filter: shouldCopyOfficialPluginAsset,
+    });
+  }
+  for (const relativePath of remoteBundledSkillPack.requiredPaths) {
+    const stagedAssetPath = join(targetRoot, ...relativePath.split("/"));
+    await access(stagedAssetPath);
+  }
+  console.log(`  [ok] mock-cdn glm bundled skill pack ${remoteBundledSkillPack.stagedPath}`);
+}
+
 // 远端 agent 现在跑编译出来的 drora.cjs（而不是各平台独立的原生二进制）：
 // 远端部署时已经有一份独立 node（跑 drora-server.cjs），agent 复用它执行 drora.cjs 即可，
 // 不必再为每个平台准备一份内嵌 node 的 SEA 二进制。drora.cjs 跨平台同一份，逐平台只是放进各自的
@@ -555,6 +584,7 @@ function stageRemoteAgentBundles() {
     mkdirSync(glmDir, { recursive: true });
     copyFileSync(cliBundlePath, join(glmDir, "drora.cjs"));
     stageRemoteOfficialPlugins(glmDir);
+    stageRemoteBundledSkillPack(glmDir);
     console.log(`  [ok] mock-cdn glm/${platformKey}/drora.cjs`);
   }
 }

@@ -56,7 +56,8 @@ const check = (name, ok, detail) => {
 for (const [name, args, expect] of [
   ["plugins list", ["plugins", "list"], "Plugins ("],
   ["skills list", ["skills", "list"], "Available skills ("],
-  ["commands list", ["commands", "list"], "Custom commands ("],
+  // v3.14.3 起 commands list 在无自定义命令时输出新文案（内置 workflow 命令改为 bundled skill 提供）
+  ["commands list", ["commands", "list"], "No custom commands found."],
   ["doctor", ["doctor"], "version:"],
 ]) {
   const r = await new Promise((resolve) => {

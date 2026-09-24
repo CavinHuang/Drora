@@ -12,6 +12,7 @@ import type { IDroraTaskService } from "./session/droraTaskService.js";
 import type { IDroraAgentService } from "./drora-agent/droraAgent.js";
 import type { IDroraSessionService } from "./drora-session/droraSession.js";
 import type { ICuaPermissionService } from "./cua-permission-broker/cuaPermissionService.js";
+import type { IBotsService } from "./bots/bots.js";
 import type { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 import type { IOAuthService } from "./oauth/oauth.js";
 import type {
@@ -60,6 +61,7 @@ export interface IServiceAccessor {
   // CUA 是 opt-in 内测特性：local macOS host 提供，远端 等 host 没有。可选避免连锁必填。
   readonly cuaPermissionService?: ICuaPermissionService;
   readonly conversationShareService: IConversationShareService;
+  readonly botsService: IBotsService;
   readonly fileWatcherService: IFileWatcherService;
   readonly oauthService: IOAuthService;
   /** 当前 Environment 的 Provider 配置与设置视图。 */

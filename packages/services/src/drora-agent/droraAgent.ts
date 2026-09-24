@@ -63,6 +63,7 @@ import type {
   DroraWorkspaceGenerateTextResult,
   DroraWorkspaceGenerateTextParams,
   DroraWorkspaceHookTrustGrantResult,
+  DroraAutomationBotDeliveryTarget,
 } from "@drora/shared";
 import type {
   ClientHello,
@@ -266,6 +267,8 @@ export interface DroraAgentSendPromptParamsBase extends DroraAgentSessionTarget 
   expectedProviderRevision?: string;
   runtimeProviderHeaders?: Record<string, string>;
   toolDenylist?: string[];
+  /** Bot 来源 turn 的稳定回推地址；只在当前 turn 内供 CronCreate 读取。 */
+  botDeliveryTarget?: DroraAutomationBotDeliveryTarget;
 }
 
 export type DroraAgentSendPromptParams = DroraAgentSendPromptParamsBase &

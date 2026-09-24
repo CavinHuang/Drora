@@ -16,6 +16,8 @@ export function createDesktopPlatform(options: {
     createTempTextAttachment: (payload) => window.drora.createTempTextAttachment(payload),
     onRemoteConnectionLog: (handler) => window.drora.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.drora.onRemoteSessionClosed(handler),
+    onBotRemoteWorkspaceReconnected: (handler) =>
+      window.drora.onBotRemoteWorkspaceReconnected(handler),
     activateOrSetWorkspace: (path) =>
       window.drora.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),
     connectRemote: (remoteOptions, requestId, context) =>

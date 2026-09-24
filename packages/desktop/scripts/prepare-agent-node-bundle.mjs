@@ -12,6 +12,7 @@
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
 import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { access, cp, mkdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -215,8 +216,8 @@ const officialPluginPackages = [
     stagedPath: "packages/drora-guide-plugin",
   },
   {
-    packageName: "@zcode/zcode-cua-plugin",
-    relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
+    packageName: "@drora/drora-cua-plugin",
+    relativePath: "apps/drora-cli/packages/drora-cua-plugin",
     requiresRuntime: false,
     // 与原版 0.5.13 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
     // 自包含 MCP bundle + seed 级 native 依赖缺一即装出启动即退出的空 server。
@@ -227,12 +228,25 @@ const officialPluginPackages = [
       "node_modules/sharp/package.json",
     ],
     runtimeTopLevelPaths: ["node_modules"],
-    stagedPath: "packages/zcode-cua-plugin",
+    stagedPath: "packages/drora-cua-plugin",
   },
 ];
+// 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
+// 在 drora.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
+// 「先加载 dynamic-workflows 技能」而技能文件不存在，因此必须随 Agent 一起打包。
+const bundledSkillPack = {
+  relativePath: "apps/drora-cli/packages/bundled-skills",
+  requiredPaths: [
+    "skills/dynamic-workflows/SKILL.md",
+    "skills/dynamic-workflows/patterns.md",
+    "skills/dynamic-workflows/examples.md",
+  ],
+  stagedPath: "packages/bundled-skills",
+  topLevelPaths: ["skills"],
+};
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".drora-plugin",
   "README.md",
   // Electron 生产资源复制有独立白名单，遗漏 agents 会让首启 filesystem seed 永久缺少子代理。
   "agents",
@@ -253,7 +267,7 @@ const excludedOfficialPluginAssetNames = new Set([
   "node_modules",
 ]);
 
-// 声明了 runtimeTopLevelPaths 的插件（如 zcode-cua-plugin 的 seed 级 sharp/koffi）
+// 声明了 runtimeTopLevelPaths 的插件（如 drora-cua-plugin 的 seed 级 sharp/koffi）
 // 会把 node_modules 顶层加入复制白名单；其余插件维持排除，避免把构建垃圾带进安装包。
 const pluginsWithRuntimeTopLevelPaths = new Set(
   officialPluginPackages
@@ -350,7 +364,7 @@ function stageBundle() {
 function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
-    const manifestPath = resolve(sourceRoot, ".zcode-plugin", "plugin.json");
+    const manifestPath = resolve(sourceRoot, ".drora-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(`[prepare:agent-bundle] missing official plugin manifest: ${manifestPath}`);
     }
@@ -392,3 +406,22 @@ buildCliBundle();
 buildOfficialPluginRuntimes();
 stageBundle();
 stageOfficialPlugins();
+
+async function stageBundledSkillPack() {
+  const sourceRoot = resolve(repoRoot, bundledSkillPack.relativePath);
+  const targetRoot = resolve(glmDir, bundledSkillPack.stagedPath);
+  await mkdir(targetRoot, { recursive: true });
+  for (const entryName of bundledSkillPack.topLevelPaths) {
+    const sourcePath = resolve(sourceRoot, entryName);
+    await cp(sourcePath, resolve(targetRoot, entryName), {
+      recursive: true,
+      filter: shouldCopyOfficialPluginAsset,
+    });
+  }
+  for (const relativePath of bundledSkillPack.requiredPaths) {
+    const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
+    await access(stagedAssetPath);
+  }
+  console.log(`[prepare:agent-bundle] staged bundled skill pack ${bundledSkillPack.stagedPath}`);
+}
+

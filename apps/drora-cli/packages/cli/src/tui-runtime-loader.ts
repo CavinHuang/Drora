@@ -43,6 +43,57 @@ export const loadTuiRuntime = async (): Promise<TuiRuntimeModule> => {
   return await import(pathToFileURL(join(runtimeDirectory, packageEntryPath)).href);
 };
 
+/**
+ * SEA 下运行 TUI 的 Windows 专用路径。
+ *
+ * opentui 的 unsafe-pointer 原生模块把 N-API 符号绑定到 `NODE.EXE` 导入；
+ * Windows 加载器按进程映像名解析宿主。SEA 可执行文件不叫 node.exe 时，
+ * 该绑定失败（"找不到指定的模块"），opentui 回退成
+ * "OpenTUI native FFI is not available" 后 TUI 直接退出。
+ *
+ * 解法：把自身复制为解包目录里的 `node.exe`，用它以子进程跑 TUI——
+ * 映像名匹配后原生绑定成功。环境变量哨兵防止子进程再次派生。
+ * 仅 Windows SEA 生效；非 SEA 返回 null 走进程内路径。
+ */
+export const spawnTuiInNodeAliasProcess = async (): Promise<number | null> => {
+  const sea = await import("node:sea");
+  if (!sea.isSea() || platform() !== "win32") {
+    return null;
+  }
+  if (process.env.DRORA_TUI_NODE_ALIAS_CHILD === "1") {
+    return null;
+  }
+
+  const runtimeDirectory = await ensureSeaTuiRuntime(sea);
+  const nodeAliasPath = join(runtimeDirectory, "node.exe");
+  const selfPath = process.execPath;
+  const fs = await import("node:fs/promises");
+  try {
+    const [selfStats, aliasStats] = await Promise.all([
+      fs.stat(selfPath),
+      fs.stat(nodeAliasPath).catch(() => null),
+    ]);
+    if (!aliasStats || aliasStats.size !== selfStats.size) {
+      await fs.copyFile(selfPath, nodeAliasPath);
+    }
+  } catch {
+    await fs.copyFile(selfPath, nodeAliasPath).catch(() => {});
+  }
+
+  const { spawn } = await import("node:child_process");
+  return await new Promise<number>((resolve) => {
+    // SEA 的 argv 形如 [execPath, execPath, ...userArgs]，真正用户参数从 2 开始
+    const child = spawn(nodeAliasPath, process.argv.slice(2), {
+      cwd: process.cwd(),
+      env: { ...process.env, DRORA_TUI_NODE_ALIAS_CHILD: "1" },
+      stdio: "inherit",
+      windowsHide: false,
+    });
+    child.on("exit", (code) => resolve(code ?? 1));
+    child.on("error", () => resolve(1));
+  });
+};
+
 const ensureSeaTuiRuntime = async (sea: SeaModule): Promise<string> => {
   const manifest = readManifest(sea);
   const cacheDirectory = join(

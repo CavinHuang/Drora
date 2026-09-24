@@ -49,6 +49,8 @@ interface RuntimeOptionsLike {
 }
 
 const BROKER_TOKEN_ENV = "ZCODE_CUA_PERMISSION_BROKER_TOKEN";
+// 客户端注入键（与 shared/runtimeEnv 捕获/恢复通道同名）；兼容读旧 ZCODE 名。
+const BROKER_TOKEN_ENV_DRORA = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
 
 function readTrimmed(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const raw = env[key];
@@ -68,7 +70,7 @@ export function createComputerUseRuntime(options: RuntimeOptionsLike = {}): {
 } {
   const env = options.env ?? process.env;
   const socketPath = options.brokerSocketPath ?? readTrimmed(env, BROKER_SOCKET_ENV);
-  const token = readTrimmed(env, BROKER_TOKEN_ENV);
+  const token = readTrimmed(env, BROKER_TOKEN_ENV_DRORA) ?? readTrimmed(env, BROKER_TOKEN_ENV);
 
   return {
     async execute(input: {

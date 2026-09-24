@@ -58,6 +58,10 @@ export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Pro
     process.argv = [process.execPath, serverPath, ...serverArgs];
     if (capturedBrokerCredentials.socket && process.env[DRORA_CUA_NODE_REPL_HOST_ENV_KEY] === "1") {
       process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY] = capturedBrokerCredentials.socket;
+      // token 模式（原版 mac 发射链）：node_repl host 运行时 authenticate 需要同一 token
+      if (capturedBrokerCredentials.token) {
+        process.env.DRORA_CUA_PERMISSION_BROKER_TOKEN = capturedBrokerCredentials.token;
+      }
     }
     try {
       await module.main();

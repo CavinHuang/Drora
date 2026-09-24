@@ -1,11 +1,17 @@
 import { BrokerAuthRejectedError, BrokerError, BROKER_SOCKET_ENV, BROKER_UNAVAILABLE_ENV, CuaHelperError, brokerExchange, delay, isCuaHelperError, notAuthorized, notSelectable, notSettable, elementUnavailable, actionUnavailable, foregroundRequired, } from "./client.js";
 export { BrokerAuthRejectedError, BrokerError, BROKER_SOCKET_ENV, BROKER_UNAVAILABLE_ENV, CuaHelperError, brokerExchange, delay, isCuaHelperError, notAuthorized, notSelectable, notSettable, elementUnavailable, actionUnavailable, foregroundRequired, };
 export async function callBrokerMethod(args) {
-    const { socketPath, method, params = {}, timeoutMs = 2000 } = args;
+    const { socketPath, method, params = {}, timeoutMs = 2000, token } = args;
     const sanitize = (text) => text.split(socketPath).join("<socket>");
     let response;
     try {
-        response = await brokerExchange({ socketPath, method, params, timeoutMs });
+        response = await brokerExchange({
+            socketPath,
+            method,
+            params,
+            timeoutMs,
+            ...(token ? { authenticateParams: { token } } : {}),
+        });
     }
     catch (error) {
         throw error instanceof BrokerAuthRejectedError
@@ -26,6 +32,9 @@ export async function probeHelperHealth(socketPath, options = {}) {
     const timeoutMs = options.timeoutMs ?? 5000;
     const pollIntervalMs = options.pollIntervalMs ?? 100;
     const perTryTimeoutMs = options.perTryTimeoutMs ?? 1000;
+    // 第十五轮 token 模式：认领窗口关闭后的健康探针必须携带 token authenticate，
+    // 否则 broker_info 会被认证门拒绝，健康 helper 被误判为不可用。
+    const token = options.token;
     const deadline = Date.now() + timeoutMs;
     let lastError;
     for (;;) {
@@ -36,6 +45,7 @@ export async function probeHelperHealth(socketPath, options = {}) {
                 method: "broker_info",
                 params: {},
                 timeoutMs: tryTimeoutMs,
+                ...(token ? { authenticateParams: { token } } : {}),
             }));
             if (response.ok === true) {
                 const result = (response.result ?? {});

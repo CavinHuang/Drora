@@ -4,6 +4,8 @@
 // 连接/鉴权/协议封装复用 broker/client.ts 的 brokerExchange（per-call 连接语义）。
 import { BrokerError, BROKER_SOCKET_ENV, brokerExchange } from "./broker/client.js";
 const BROKER_TOKEN_ENV = "ZCODE_CUA_PERMISSION_BROKER_TOKEN";
+// 客户端注入键（与 shared/runtimeEnv 捕获/恢复通道同名）；兼容读旧 ZCODE 名。
+const BROKER_TOKEN_ENV_DRORA = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
 function readTrimmed(env, key) {
     const raw = env[key];
     if (typeof raw !== "string")
@@ -13,7 +15,7 @@ function readTrimmed(env, key) {
 export function createComputerUseRuntime(options = {}) {
     const env = options.env ?? process.env;
     const socketPath = options.brokerSocketPath ?? readTrimmed(env, BROKER_SOCKET_ENV);
-    const token = readTrimmed(env, BROKER_TOKEN_ENV);
+    const token = readTrimmed(env, BROKER_TOKEN_ENV_DRORA) ?? readTrimmed(env, BROKER_TOKEN_ENV);
     return {
         async execute(input) {
             if (options.ensureBrokerAvailable)

@@ -42,14 +42,22 @@ export interface CallBrokerMethodArgs {
   method: string;
   params?: unknown;
   timeoutMs?: number;
+  /** 第十五轮 token 模式：broker 以 token 设门时，authenticate 携带 */
+  token?: string;
 }
 
 export async function callBrokerMethod<T = unknown>(args: CallBrokerMethodArgs): Promise<T> {
-  const { socketPath, method, params = {}, timeoutMs = 2000 } = args;
+  const { socketPath, method, params = {}, timeoutMs = 2000, token } = args;
   const sanitize = (text: string): string => text.split(socketPath).join("<socket>");
   let response: any;
   try {
-    response = await brokerExchange({ socketPath, method, params, timeoutMs });
+    response = await brokerExchange({
+      socketPath,
+      method,
+      params,
+      timeoutMs,
+      ...(token ? { authenticateParams: { token } } : {}),
+    });
   } catch (error) {
     throw error instanceof BrokerAuthRejectedError
       ? new CuaHelperError("auth_failed", sanitize("broker auth rejected"))
@@ -70,6 +78,8 @@ export interface ProbeHelperHealthOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
   perTryTimeoutMs?: number;
+  /** 第十五轮 token 模式：认领窗口关闭后的探针必须携带 broker token */
+  token?: string;
 }
 
 export async function probeHelperHealth(
@@ -79,6 +89,9 @@ export async function probeHelperHealth(
   const timeoutMs = options.timeoutMs ?? 5000;
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const perTryTimeoutMs = options.perTryTimeoutMs ?? 1000;
+  // 第十五轮 token 模式：认领窗口关闭后的健康探针必须携带 token authenticate，
+  // 否则 broker_info 会被认证门拒绝，健康 helper 被误判为不可用。
+  const token = options.token;
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
   for (;;) {
@@ -89,6 +102,7 @@ export async function probeHelperHealth(
         method: "broker_info",
         params: {},
         timeoutMs: tryTimeoutMs,
+        ...(token ? { authenticateParams: { token } } : {}),
       })) as any;
       if (response.ok === true) {
         const result = (response.result ?? {}) as any;

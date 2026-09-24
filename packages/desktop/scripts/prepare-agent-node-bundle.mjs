@@ -217,7 +217,7 @@ const officialPluginPackages = [
   },
   {
     packageName: "@drora/drora-cua-plugin",
-    relativePath: "apps/drora-cli/packages/drora-cua-plugin",
+    relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
     requiresRuntime: false,
     // 与原版 0.5.13 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
     // 自包含 MCP bundle + seed 级 native 依赖缺一即装出启动即退出的空 server。
@@ -228,7 +228,7 @@ const officialPluginPackages = [
       "node_modules/sharp/package.json",
     ],
     runtimeTopLevelPaths: ["node_modules"],
-    stagedPath: "packages/drora-cua-plugin",
+    stagedPath: "packages/zcode-cua-plugin",
   },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
@@ -267,7 +267,7 @@ const excludedOfficialPluginAssetNames = new Set([
   "node_modules",
 ]);
 
-// 声明了 runtimeTopLevelPaths 的插件（如 drora-cua-plugin 的 seed 级 sharp/koffi）
+// 声明了 runtimeTopLevelPaths 的插件（如 zcode-cua-plugin 的 seed 级 sharp/koffi）
 // 会把 node_modules 顶层加入复制白名单；其余插件维持排除，避免把构建垃圾带进安装包。
 const pluginsWithRuntimeTopLevelPaths = new Set(
   officialPluginPackages

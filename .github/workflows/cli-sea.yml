@@ -75,3 +75,18 @@ jobs:
           bin="${{ steps.out.outputs.bin }}"
           chmod +x "$bin" 2>/dev/null || true
           "$bin" --version
+      - name: Smoke SEA TUI liveness (windows)
+        # TUI 是全屏交互程序：能存活数秒即证明 SEA 入口、tui 运行时解包与
+        # opentui 原生 FFI 链路完整（历史上这三个环节各自断过）。
+        if: steps.out.outputs.bin != '' && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $bin = (Resolve-Path "${{ steps.out.outputs.bin }}").Path
+          $p = Start-Process -FilePath $bin -ArgumentList "tui" -WorkingDirectory (Get-Location) -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) {
+            Write-Output "::error::SEA TUI exited immediately - entry chain broken"
+            exit 1
+          }
+          Write-Output "SEA TUI process alive after 8s"
+          Stop-Process -Id $p.Id -Force

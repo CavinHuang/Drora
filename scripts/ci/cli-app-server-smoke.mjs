@@ -57,7 +57,9 @@ for (const [name, args, expect] of [
   ["plugins list", ["plugins", "list"], "Plugins ("],
   ["skills list", ["skills", "list"], "Available skills ("],
   // v3.14.3 起 commands list 在无自定义命令时输出新文案（内置 workflow 命令改为 bundled skill 提供）
-  ["commands list", ["commands", "list"], "No custom commands found."],
+  // v3.14.3 起 commands list 同时列出内置 workflow 命令（计数 ≥1）；
+  // 空环境输出 "No custom commands found."。"ustom commands" 两种形态都命中。
+  ["commands list", ["commands", "list"], "ustom commands"],
   ["doctor", ["doctor"], "version:"],
 ]) {
   const r = await new Promise((resolve) => {
@@ -79,6 +81,13 @@ for (const [name, args, expect] of [
 {
   const src = await readFile(bundle, "utf8");
   const tools = ["Bash", "Edit", "Read", "Write", "Glob", "Grep", "TodoRead", "TodoWrite"];
+  // CreateWorkflow/AmendWorkflow/EvalWorkflowSnippet：v3.14.3 合入的动态工作流工具面。
+  // 这三个工具经常量注入注册（name: CREATE_WORKFLOW_TOOL_NAME 等），不能按字面 name: 匹配。
+  const constants = ["CREATE_WORKFLOW_TOOL_NAME", "AMEND_WORKFLOW_TOOL_NAME", "EVAL_WORKFLOW_SNIPPET_TOOL_NAME"];
+  const missingConstants = constants.filter(
+    (c) => !new RegExp(c + "[ \\t]*=[ \\t]*\"").test(src),
+  );
+  check("agent 动态工作流工具面", missingConstants.length === 0, `missing=[${missingConstants}]`);
   const missing = tools.filter((t) => !new RegExp(`name:\\s*["']${t}["']`).test(src));
   check("agent 核心工具注册", missing.length === 0, `missing=[${missing}]`);
 }

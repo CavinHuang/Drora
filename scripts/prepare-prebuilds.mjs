@@ -561,7 +561,7 @@ async function stageRemoteBundledSkillPack(glmDir) {
 // 远端部署时已经有一份独立 node（跑 drora-server.cjs），agent 复用它执行 drora.cjs 即可，
 // 不必再为每个平台准备一份内嵌 node 的 SEA 二进制。drora.cjs 跨平台同一份，逐平台只是放进各自的
 // glm/<platform> 组件目录，保持现有 manifest 组件结构不变。
-function stageRemoteAgentBundles() {
+async function stageRemoteAgentBundles() {
   console.log("==> Building drora-cli bundle for remote agents");
   // 复用桌面同款构建脚本（turbo build:desktop-agent --filter=@drora/cli），命中缓存时几乎瞬时。
   runCommand(process.execPath, [join(rootDir, "scripts/build-desktop-agent-cli.mjs")], {
@@ -584,7 +584,7 @@ function stageRemoteAgentBundles() {
     mkdirSync(glmDir, { recursive: true });
     copyFileSync(cliBundlePath, join(glmDir, "drora.cjs"));
     stageRemoteOfficialPlugins(glmDir);
-    stageRemoteBundledSkillPack(glmDir);
+    await stageRemoteBundledSkillPack(glmDir);
     console.log(`  [ok] mock-cdn glm/${platformKey}/drora.cjs`);
   }
 }
@@ -1084,7 +1084,7 @@ async function main() {
   buildServerBundle();
   copyServerBundle();
   copyNodePtyPrebuilds();
-  stageRemoteAgentBundles();
+  await stageRemoteAgentBundles();
   await prepareRemoteNativeSearchTools();
   // 修复：server、pty、agent 均可独立下载，需在组件哈希计算前补齐各自的声明。
   await stageThirdPartyNotices(join(releaseDir, "server"), rootDir);

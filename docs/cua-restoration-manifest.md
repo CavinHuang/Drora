@@ -727,6 +727,32 @@ manifest 事实一致。
   的 computer use app 与官方能力一致**（签名身份除外，§七遗留）。
 - 剩余：release.yml 的签名环境（DRORA_ENABLE_MAC_SIGN + 证书）为发布身份项。
 
+### 第二十七轮：runtime 消费层 token E2E（2026-09-25）
+
+发射契约测试新增 H 段：`createComputerUseRuntime`（node_repl 宿主的真实消费
+入口）从 env 读取 token → brokerExchange 自动 authenticate → 只读方法取回
+broker 真值（adhoc 产物无屏幕录制授权，真实状态为 "denied"）；错 token 时
+authenticate 被拒。宿主消费层与 broker 的 token 链路端到端闭环——此前仅验证
+了裸 socket 层（callBrokerMethod）。
+
+### 收尾增补：提交分组全量核验（2026-09-25）
+
+以 Node 对实际 git status 做分组覆盖断言，修正此前手写分组的路径错置
+（发射链文件曾误归 helper 包路径）——47/47 全覆盖：
+G1 构建链与 spec(4) / G2 方法表重放(7) / G3 插件 0.5.14(5) /
+G4 embeddedBuildId(7) / G5 发射链 token 模式(13，含 broker 导出与契约测试) /
+G6 PiP 与 win 宿主(7) / G7 验收套件与 CI(4)。
+七组提交已实体化并在 `feat/mac-cua-alignment` 分支落库。
+
+### 第二十八轮：home 目录接缝缺陷发现（2026-09-25）
+
+追问"打包出的桌面真实运行时的接缝"时发现：helper 安装根在两层用了不同的
+家目录约定（安装侧 ZCODE_HOME||~/.zcode vs standalone 查找侧
+DRORA_HOME||~/.drora，无桥接）。属重命名迁移的接缝缺陷：托管路径自洽但与
+官方 ZCode 同根共存；standalone 设置页路径静默失败。修复需产品决策
+（env 路由 vs 保持共存），已入 spec §七.0 遗留决策，未获批不动。
+
+
 ### 收尾增补：dmg 卷内验证（2026-09-25）
 
 挂载 `Drora Preview-0.0.1-mac-arm64_TEST.dmg` 实测卷内内容（区别于上轮的

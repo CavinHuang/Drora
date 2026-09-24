@@ -226,7 +226,11 @@ async function createTarball({ packageParent, releaseDir, tarballName }) {
   await rm(tarball, {
     force: true,
   });
-  run("tar", ["-czf", tarball, "-C", packageParent, packageDirName]);
+  // tar 输出路径必须用相对名：GNU tar 会把 "D:\..." 里的盘符冒号解析成远程主机
+  // （Cannot connect to D），在 releaseDir 上下文中生成后再由调用方使用绝对路径。
+  run("tar", ["-czf", tarballName, "-C", releaseDir, "-C", packageParent, packageDirName], {
+    cwd: releaseDir,
+  });
   return tarball;
 }
 

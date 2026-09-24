@@ -22,6 +22,9 @@ export var actionUnavailable = (message, details) =>
 export var foregroundRequired = (message, details) =>
   new BrokerError("foreground_required", message, details);
 export var launchFailed = (message, details?) => new BrokerError("launch_failed", message, details);
+// 原版 63 表 open_application 的参数/身份冲突错误构造器（第十一轮补齐）
+export var invalidRequest = (message, details?) =>
+  new BrokerError("invalid_request", message, details);
 export var controllerBusy = (message, details?) =>
   new BrokerError("controller_busy", message, details);
 export var BROKER_METHODS = [
@@ -36,35 +39,55 @@ export var BROKER_METHODS = [
   "screen_capture_status",
   "screen_capture_probe",
   "supports_accessibility",
-  // 观测
+  // 观测（对齐原版 mac 3.11.2 的 63 方法表：screen_size/cursor_position/screenshot/
+  // list_displays/get_skyshot 为第十轮重放补齐，底稿为官方 SEA payload 未混淆 bundle）
+  "screen_size",
+  "cursor_position",
+  "screenshot",
+  "list_displays",
   "list_applications",
   "application_info",
   "list_windows",
   "capture_app",
+  "get_skyshot",
   "element_at_point",
   "read_element",
-  // 动作
+  // 动作（set_display/move_to/mouse_down/mouse_up/type_text_into_current_focus/
+  // key_down/key_up/read_clipboard/write_clipboard/open_application/
+  // click_element_at_point 为第十轮重放补齐）
+  "set_display",
+  "move_to",
   "click",
   "scroll",
   "drag",
+  "mouse_down",
+  "mouse_up",
   "type_text",
+  "type_text_into_current_focus",
   "type_text_to_app",
   "press_key",
   "press_key_to_app",
   "hold_key",
   "hold_key_to_app",
   "cancel_input_holds",
+  "key_down",
+  "key_up",
+  "read_clipboard",
+  "write_clipboard",
+  "open_application",
   "element_press",
   "element_show_menu",
   "element_focus",
   "element_set_value",
   "element_perform_action",
   "element_select_text",
-  // 原生粘贴：Helper 内部完成「保存剪贴板 → 写入 → 发粘贴键 → 还原」，
-  // 取代 host 侧用 read_clipboard/write_clipboard 拼装的四步（后者已删除）。
-  // 原子化顺带消掉还原竞态：四步之间用户或别的进程改写剪贴板会被覆盖。
+  // v3.1 超集（原版 63 表无此项；宿主 cua-spec 消费，保留为唯一有文档的表偏差，
+  // 见 specs/mac-cua-helper-app-alignment.md §六）：
+  // Helper 内部一次完成「保存剪贴板 → 写入 → 发粘贴键 → 还原」，取代 host 侧
+  // read_clipboard/write_clipboard 拼装的四步，顺带消除还原竞态。
   "paste",
   // Phase 0 不抢焦点:AX hit-test 坐标点击 + preventActivation 门。
+  "click_element_at_point",
   "prevent_activation",
   "reenable_activation",
   "is_focus_steal_prevented",
@@ -77,14 +100,15 @@ export var BROKER_METHODS = [
   // dedicated presentation-token gate before dispatching either method.
   "pip_session_handshake",
   "pip_session_event",
-  // 墓碑：这里原有 6 个 `pip_live_probe_*` 方法（start_test_panel / window_bounds /
-  // drag_panel / move_test_panel / sample_ownership / initial_hit_surface），
-  // 由 Helper 的 --pip-live-probe argv 能力门按需注册。它们纯粹为真机 PiP GUI 验收
-  // 探针服务，消费者只有 scripts/pip_live_* 与 test/pip-live-*，产品代码一个都不调，
-  // 却活在生产协议表里 —— 每个测试专用方法都是 Helper 上一块真实的攻击面。
-  // v3.1 随协议瘦身整体删除（49 → 43），探针脚本与其校验器一并删除。
-  // `--pip-live-probe` argv 本身保留：它还负责置位 ZCODE_CUA_LIVE_NATIVE=1，
-  // 那是原生 live 测试钩子的能力门，与本协议表无关。
+  // PiP 真机验收探针（原版 63 表成员；产品代码不调用，仅 scripts/pip_live_* 与
+  // test/pip-live-* 消费，由 --pip-live-probe 能力门在 handler 层守卫）。
+  // 第十轮按原版表恢复注册；v3.1 曾以协议瘦身删除（49 → 43）。
+  "pip_live_probe_start_test_panel",
+  "pip_live_probe_window_bounds",
+  "pip_live_probe_drag_panel",
+  "pip_live_probe_move_test_panel",
+  "pip_live_probe_sample_ownership",
+  "pip_live_probe_initial_hit_surface",
 ];
 var BROKER_METHOD_SET = new Set(BROKER_METHODS);
 export var isBrokerMethod = (method) => BROKER_METHOD_SET.has(method);
@@ -102,6 +126,10 @@ var READ_ONLY_BROKER_METHODS = /* @__PURE__ */ new Set([
   "screen_capture_probe",
   "supports_accessibility",
   "permission_status",
+  "screen_size",
+  "cursor_position",
+  "screenshot",
+  "list_displays",
   "list_applications",
   "application_info",
   "list_windows",
@@ -109,8 +137,10 @@ var READ_ONLY_BROKER_METHODS = /* @__PURE__ */ new Set([
   // the local controller lease before it reaches native UI, so observers retain
   // read-only coexistence without gaining a visual side effect.
   "capture_app",
+  "get_skyshot",
   "element_at_point",
   "read_element",
+  "read_clipboard",
   "is_focus_steal_prevented",
   "pip_is_running",
   // 只清一个内部抑制标志，不启动/停止任何面板，用户桌面上没有任何可见变化。
@@ -119,6 +149,8 @@ var READ_ONLY_BROKER_METHODS = /* @__PURE__ */ new Set([
   // 上一个对话的 dismissed 状态——正是本方法要修的问题。
   "pip_clear_dismissed",
   "pip_session_handshake",
+  "pip_live_probe_window_bounds",
+  "pip_live_probe_initial_hit_surface",
 ]);
 export var isReadOnlyBrokerMethod = (method) => READ_ONLY_BROKER_METHODS.has(method);
 var PIP_SESSION_BROKER_METHODS = /* @__PURE__ */ new Set([

@@ -1080,11 +1080,44 @@ function assertAxOutcomeSucceeded(outcome, method) {
 function sessionKeyParam(value) {
   return typeof value === "string" && value ? value : "default";
 }
+// 分离按下/释放（mouse_down/mouse_up）与会话拖拽所有权的会话键：非空强制，
+// 防止跨 broker 连接的指针所有权串台（原版 63 表语义，第十轮重放）。
+function pointerSessionKeyParam(value, action) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  throw permissionDenied(
+    `${action} requires a non-empty session_key so split pointer ownership cannot cross broker connections. action_sent=false.`,
+    { action_sent: false, reason: "missing_session_key" },
+  );
+}
+// macOS 后台 mouse_down 的结构化返回（ok/delivery_state）判定：非结构化值保持
+// 布尔语义；结构化值区分 definitely_unsent（可安全拒绝）与模糊态（retain_for_cleanup）。
+function isMacBackgroundMouseDownOutcome(value) {
+  return value !== null && typeof value === "object" && "ok" in value && "delivery_state" in value;
+}
+function assertMacBackgroundMouseDownSucceeded(result, method) {
+  if (!isMacBackgroundMouseDownOutcome(result)) {
+    return result === false ? "retain_for_cleanup" : "accepted";
+  }
+  if (result.ok) return "accepted";
+  if (result.delivery_state === "definitely_unsent") {
+    throw elementUnavailable(
+      `${method}: macOS background mouse-down was rejected before dispatch. action_sent=false.`,
+      { action_sent: false, reason: result.reason ?? "background_mouse_down_unsent" },
+    );
+  }
+  return "retain_for_cleanup";
+}
 export function createElectronInputHandlers(options) {
   const { adapter, axSource } = options;
   const platform2 = options.platform ?? process.platform;
   const macBackgroundMode = platform2 === "darwin" && adapter.macBackgroundInputRequired === true;
+  // 指针序列所有权三态（原版语义，第十轮重放）：buttonHolder=已持有按下键的
+  // 会话；splitDownInFlight=mouse_down 进行中；combinedDragInFlight=合成拖拽进行中。
+  // backgroundButtonHold 记录后台模式按下时的目标与点位，供 mouse_up/终清释放。
+  let buttonHolder = null;
+  let splitDownInFlight = null;
   let combinedDragInFlight = false;
+  let backgroundButtonHold = null;
   const validatedFrameTargetByParams = /* @__PURE__ */ new WeakMap();
   const readLiveWindowServerSnapshot = (displayBounds, method) => {
     if (!adapter.listScreenCaptureProbeWindows) {
@@ -1484,14 +1517,91 @@ export function createElectronInputHandlers(options) {
   };
   pointerSequenceGateByAdapter.set(adapter, (action) => refusePointerSequenceIfBusy(action));
   terminalPointerCleanupByAdapter.set(adapter, async () => {
-    return !combinedDragInFlight;
+    // 终清语义（原版）：有会话持有按钮时先发 mouse_up("left")（后台模式按目标
+    // 窗口/pid 释放），成功后才清所有权并隐藏虚拟指针；释放失败返回 false，
+    // 让上层知道按钮可能仍被持有。
+    try {
+      if (macBackgroundMode) {
+        const held = backgroundButtonHold;
+        if (!held) return false;
+        let released = false;
+        if (typeof adapter.mouseUpToWindow === "function") {
+          released =
+            (await adapter.mouseUpToWindow(
+              held.target.pid,
+              held.target.bundleId,
+              held.target.windowId,
+              held.target.bounds,
+              held.point.x,
+              held.point.y,
+              "left",
+            )) === true;
+        }
+        if (!released && typeof adapter.mouseUpToPid === "function") {
+          try {
+            released = adapter.mouseUpToPid(held.target.pid, "left") !== false;
+          } catch {
+            released = false;
+          }
+        }
+        if (!released) return false;
+        backgroundButtonHold = null;
+      } else {
+        if (typeof adapter.mouseUp !== "function") return false;
+        if (adapter.mouseUp("left") === false) return false;
+      }
+      buttonHolder = null;
+      adapter.hideVirtualPointer?.();
+      return true;
+    } catch {
+      return false;
+    }
   });
   const refusePointerSequenceIfBusy = (action) => {
-    if (!combinedDragInFlight) return;
+    if (buttonHolder === null && splitDownInFlight === null && !combinedDragInFlight) {
+      return;
+    }
     throw permissionDenied(
-      `${action} refused: another left-button sequence is still active. Wait for drag completion or stop_computer_control. action_sent=false.`,
-      { action_sent: false, reason: "drag_in_flight" },
+      `${action} refused: another left-button sequence is still active. Wait for mouse_up, drag completion, or stop_computer_control. action_sent=false.`,
+      {
+        action_sent: false,
+        reason:
+          buttonHolder !== null
+            ? "button_already_held"
+            : splitDownInFlight !== null
+              ? "mouse_down_in_flight"
+              : "drag_in_flight",
+      },
     );
+  };
+  const refuseCombinedDragIfBusy = (action) => {
+    if (!combinedDragInFlight) return;
+    throw permissionDenied(`${action} refused: a combined drag is still active. action_sent=false.`, {
+      action_sent: false,
+      reason: "drag_in_flight",
+    });
+  };
+  const requirePointerMoveOwnership = (params, action) => {
+    refuseCombinedDragIfBusy(action);
+    if (splitDownInFlight !== null) {
+      throw permissionDenied(
+        `${action} refused: mouse_down has not completed yet. action_sent=false.`,
+        { action_sent: false, reason: "mouse_down_in_flight" },
+      );
+    }
+    if (buttonHolder !== null && buttonHolder !== pointerSessionKeyParam(params.session_key, action)) {
+      throw permissionDenied(
+        `${action} refused: another MCP session owns the active split drag. action_sent=false.`,
+        { action_sent: false, reason: "another_session_holds_button" },
+      );
+    }
+  };
+  const claimSplitDown = (sessionKey) => {
+    refusePointerSequenceIfBusy("mouse_down");
+    splitDownInFlight = sessionKey;
+  };
+  const releaseSplitDownClaim = (sessionKey) => {
+    if (splitDownInFlight === sessionKey) splitDownInFlight = null;
   };
   return {
     type_text_to_app: async (params) => {
@@ -1852,6 +1962,111 @@ export function createElectronInputHandlers(options) {
     },
     // 全局坐标鼠标/键盘合成（CGEvent + CGEventPost，不限定 pid）。仅签名 Helper 的 native addon 提供
     // （adapter.clickAtPoint 等）；Electron 主进程未注入 → not_authorized（fail-closed，绝不静默回退）。
+    // 原版 63 表方法（第十轮重放）：AX hit-test 原生坐标点击（Phase 0 不抢焦点）。
+    // owner pid 校验在 assertClickElementOwnerPid：命中元素不属于 expected_pid 即拒绝，
+    // 防止坐标点击落到覆盖层/别的应用上。
+    click_element_at_point: (params) => {
+      refusePointerSequenceIfBusy("click_element_at_point");
+      if (typeof adapter.clickElementAtPoint !== "function") {
+        throw notAuthorized("click_element_at_point is unavailable in this ZCode build.");
+      }
+      const point = extractPoint(params.point);
+      if (!point) {
+        throw permissionDenied("click_element_at_point requires point {x, y} as numbers.");
+      }
+      const clicks = clickCountParam(params.clicks, "click_element_at_point");
+      const returnSkyshot = params.return_skyshot === true;
+      const format = params.format === "jpeg" ? "jpeg" : "png";
+      const expectedPid =
+        typeof params.expected_pid === "number" &&
+        Number.isInteger(params.expected_pid) &&
+        params.expected_pid > 0
+          ? params.expected_pid
+          : 0;
+      const result = adapter.clickElementAtPoint(
+        point.x,
+        point.y,
+        clicks,
+        returnSkyshot,
+        format,
+        expectedPid,
+      );
+      assertClickElementOwnerPid(result, expectedPid, "click_element_at_point", point);
+      return result;
+    },
+    // 原版 63 表方法（第十轮重放）：纯移动（不按下）。移动也要过指针所有权门——
+    // 与 mouse_down 持有者不同的会话不允许在 split 序列中间抢移动。
+    move_to: async (params) => {
+      const provenancePoint = extractPoint(params.point);
+      if (provenancePoint) {
+        params = await validateFrameProvenance(params, "move_to", [provenancePoint]);
+      }
+      requirePointerMoveOwnership(params, "move_to");
+      if (macBackgroundMode) {
+        if (typeof adapter.moveToWindow !== "function") {
+          throw notAuthorized(
+            "move_to: macOS background pointer ABI is unavailable; global fallback is disabled.",
+          );
+        }
+        const backgroundPoint = extractPoint(params.point);
+        if (!backgroundPoint) {
+          throw permissionDenied("move_to requires point {x, y} as numbers.");
+        }
+        requirePointerMoveOwnership(params, "move_to");
+        const held = backgroundButtonHold;
+        const target =
+          held !== null &&
+          buttonHolder !== null &&
+          typeof params.session_key === "string" &&
+          params.session_key.trim() === buttonHolder
+            ? held.target
+            : await resolveMacBackgroundTarget(params, "move_to");
+        assertMacBackgroundInputSucceeded(
+          await adapter.moveToWindow(
+            target.pid,
+            target.bundleId,
+            target.windowId,
+            target.bounds,
+            backgroundPoint.x,
+            backgroundPoint.y,
+            ...provenAttachedSurfaceArgs(target),
+          ),
+          "move_to",
+        );
+        return appendResolvedAppRef({ method: "window_event" }, params, target);
+      }
+      if (typeof adapter.moveTo !== "function") {
+        throw notAuthorized("move_to is unavailable in this ZCode build.");
+      }
+      const point = extractPoint(params.point);
+      if (!point) {
+        throw permissionDenied("move_to requires point {x, y} as numbers.");
+      }
+      assertGlobalInputAllowed(adapter, "move_to");
+      if (platform2 === "win32") {
+        return (async () => {
+          await resolveWindowsPointerIdentity(axSource, params.app_ref, point, "move_to");
+          requirePointerMoveOwnership(params, "move_to");
+          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "move_to");
+          return appendResolvedAppRef(null, params);
+        })();
+      }
+      if (!params.app_ref) {
+        assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "move_to");
+        await waitForCursorToSettle(adapter, point, "move_to");
+        return appendResolvedAppRef(null, params);
+      }
+      const identity = await requirePointerAppPid(axSource, params.app_ref, "move_to");
+      activateConcreteWindow(adapter, identity.pid, identity.bundleId, identity.windowId, "move_to");
+      await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "move_to");
+      requirePointerMoveOwnership(params, "move_to");
+      assertNativeInputSucceeded(
+        adapter.moveTo(point.x, point.y, identity.pid, identity.windowId ?? void 0),
+        "move_to",
+      );
+      await waitForCursorToSettle(adapter, point, "move_to");
+      return appendResolvedAppRef(null, params);
+    },
     click: async (params) => {
       refusePointerSequenceIfBusy("click");
       if (
@@ -2376,6 +2591,212 @@ export function createElectronInputHandlers(options) {
         combinedDragInFlight = false;
       }
     },
+    // 原版 63 表方法（第十轮重放）：分离按下。全局路径持有 buttonHolder 所有权，
+    // mouse_up 只允许同一 session_key 释放；后台路径走 window ABI 并记录
+    // backgroundButtonHold 供 mouse_up / 终清按原目标释放。
+    mouse_down: async (params) => {
+      const provenancePoint = extractPoint(params.point);
+      if (provenancePoint) {
+        params = await validateFrameProvenance(params, "mouse_down", [provenancePoint]);
+      }
+      refuseCombinedDragIfBusy("mouse_down");
+      if (macBackgroundMode) {
+        if (typeof adapter.mouseDownToWindow !== "function") {
+          throw notAuthorized(
+            "mouse_down: macOS background pointer ABI is unavailable; global fallback is disabled.",
+          );
+        }
+        const backgroundSessionKey = pointerSessionKeyParam(params.session_key, "mouse_down");
+        if (buttonHolder !== null) {
+          throw permissionDenied(
+            "mouse_down refused: a session already holds the button. action_sent=false.",
+            { action_sent: false, reason: "button_already_held" },
+          );
+        }
+        const backgroundPoint = extractPoint(params.point);
+        if (!backgroundPoint) {
+          throw permissionDenied("mouse_down requires point {x, y} as numbers.");
+        }
+        const backgroundButton = typeof params.button === "string" ? params.button : "left";
+        claimSplitDown(backgroundSessionKey);
+        try {
+          const target = await resolveMacBackgroundTarget(params, "mouse_down");
+          const result = await adapter.mouseDownToWindow(
+            target.pid,
+            target.bundleId,
+            target.windowId,
+            target.bounds,
+            backgroundPoint.x,
+            backgroundPoint.y,
+            backgroundButton,
+            ...provenAttachedSurfaceArgs(target),
+          );
+          const delivery = assertMacBackgroundMouseDownSucceeded(result, "mouse_down");
+          buttonHolder = backgroundSessionKey;
+          backgroundButtonHold = { target, point: backgroundPoint };
+          if (delivery === "retain_for_cleanup") {
+            throw elementUnavailable(
+              "mouse_down: native delivery became ambiguous after attempting the background down; ownership was retained for cleanup. Do not retry blindly.",
+              {
+                action_sent: true,
+                request_delivery_state: "possibly_sent",
+                reason:
+                  isMacBackgroundMouseDownOutcome(result) && result.reason
+                    ? result.reason
+                    : "background_mouse_down_ambiguous",
+              },
+            );
+          }
+          return appendResolvedAppRef({ method: "window_event" }, params, target);
+        } finally {
+          releaseSplitDownClaim(backgroundSessionKey);
+        }
+      }
+      if (typeof adapter.mouseDown !== "function") {
+        throw notAuthorized("mouse_down is unavailable in this ZCode build.");
+      }
+      if (typeof adapter.moveTo !== "function") {
+        throw notAuthorized(
+          "mouse_down: the coordinate move primitive is unavailable in this ZCode build.",
+        );
+      }
+      const sessionKey = pointerSessionKeyParam(params.session_key, "mouse_down");
+      if (buttonHolder !== null) {
+        const who =
+          buttonHolder === sessionKey
+            ? "this session already holds"
+            : "another MCP session already holds";
+        throw permissionDenied(
+          `mouse_down refused: ${who} the left mouse button. This request did not send another press; action_sent=false. Wait for mouse_up or stop_computer_control.`,
+          {
+            action_sent: false,
+            reason:
+              buttonHolder === sessionKey
+                ? "session_already_holds_button"
+                : "another_session_holds_button",
+          },
+        );
+      }
+      const point = extractPoint(params.point);
+      if (!point) {
+        throw permissionDenied(
+          "mouse_down requires point {x, y} as numbers (resolved from target).",
+        );
+      }
+      const button = typeof params.button === "string" ? params.button : "left";
+      assertGlobalInputAllowed(adapter, "mouse_down");
+      claimSplitDown(sessionKey);
+      try {
+        if (platform2 === "win32") {
+          await resolveWindowsPointerIdentity(axSource, params.app_ref, point, "mouse_down");
+          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "mouse_down:move_to");
+          assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
+          buttonHolder = sessionKey;
+          return appendResolvedAppRef(null, params);
+        }
+        if (!params.app_ref) {
+          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "mouse_down:move_to");
+          await waitForCursorToSettle(adapter, point, "mouse_down:move_to");
+          assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
+          buttonHolder = sessionKey;
+          return appendResolvedAppRef(null, params);
+        }
+        const identity = await requirePointerAppPid(axSource, params.app_ref, "mouse_down");
+        activateConcreteWindow(adapter, identity.pid, identity.bundleId, identity.windowId, "mouse_down");
+        await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "mouse_down");
+        assertNativeInputSucceeded(
+          adapter.moveTo(point.x, point.y, identity.pid, identity.windowId ?? void 0),
+          "mouse_down:move_to",
+        );
+        await waitForCursorToSettle(adapter, point, "mouse_down:move_to");
+        assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
+        buttonHolder = sessionKey;
+        return appendResolvedAppRef(null, params);
+      } finally {
+        releaseSplitDownClaim(sessionKey);
+      }
+    },
+    mouse_up: async (params) => {
+      if (macBackgroundMode) {
+        if (typeof adapter.mouseUpToWindow !== "function") {
+          throw notAuthorized(
+            "mouse_up: macOS background pointer ABI is unavailable; global fallback is disabled.",
+          );
+        }
+        const backgroundSessionKey = pointerSessionKeyParam(params.session_key, "mouse_up");
+        if (buttonHolder === null || backgroundButtonHold === null) {
+          throw permissionDenied(
+            "mouse_up refused: this session is not holding a background button. action_sent=false.",
+            { action_sent: false, reason: "session_does_not_hold_button" },
+          );
+        }
+        if (buttonHolder !== backgroundSessionKey) {
+          throw permissionDenied(
+            "mouse_up refused: another session holds the background button. action_sent=false.",
+            { action_sent: false, reason: "another_session_holds_button" },
+          );
+        }
+        const backgroundButton = typeof params.button === "string" ? params.button : "left";
+        const held = backgroundButtonHold;
+        let released = false;
+        try {
+          released =
+            (await adapter.mouseUpToWindow(
+              held.target.pid,
+              held.target.bundleId,
+              held.target.windowId,
+              held.target.bounds,
+              held.point.x,
+              held.point.y,
+              backgroundButton,
+              ...provenAttachedSurfaceArgs(held.target),
+            )) === true;
+        } catch {
+          released = false;
+        }
+        if (!released && typeof adapter.mouseUpToPid === "function") {
+          try {
+            released = adapter.mouseUpToPid(held.target.pid, backgroundButton) !== false;
+          } catch {
+            released = false;
+          }
+        }
+        if (!released) {
+          throw elementUnavailable(
+            "mouse_up: both the window-scoped and pid-scoped release failed. The button may still be held; retry mouse_up or stop_computer_control. Do not retry blindly.",
+            {
+              action_sent: true,
+              request_delivery_state: "possibly_sent",
+              reason: "background_mouse_up_exhausted",
+            },
+          );
+        }
+        buttonHolder = null;
+        backgroundButtonHold = null;
+        return appendResolvedAppRef({ method: "window_event" }, params, held.target);
+      }
+      if (typeof adapter.mouseUp !== "function") {
+        throw notAuthorized("mouse_up is unavailable in this ZCode build.");
+      }
+      const sessionKey = pointerSessionKeyParam(params.session_key, "mouse_up");
+      if (buttonHolder === null) {
+        throw permissionDenied(
+          "mouse_up refused: this MCP session is not holding the left mouse button. This request did not send a release; action_sent=false. It only releases a button previously pressed by mouse_down.",
+          { action_sent: false, reason: "session_does_not_hold_button" },
+        );
+      }
+      if (buttonHolder !== sessionKey) {
+        throw permissionDenied(
+          "mouse_up refused: another MCP session holds the left mouse button. This request did not send a release; action_sent=false. Wait for that session to call mouse_up or stop_computer_control.",
+          { action_sent: false, reason: "another_session_holds_button" },
+        );
+      }
+      const button = typeof params.button === "string" ? params.button : "left";
+      assertGlobalInputAllowed(adapter, "mouse_up");
+      assertNativeInputSucceeded(adapter.mouseUp(button), "mouse_up");
+      buttonHolder = null;
+      return null;
+    },
     type_text: (params) => {
       if (macBackgroundMode) refuseTargetlessMacGlobalInput("type_text");
       if (typeof adapter.typeTextGlobal !== "function") {
@@ -2385,6 +2806,21 @@ export function createElectronInputHandlers(options) {
       if (!text) return null;
       assertGlobalInputAllowed(adapter, "type_text");
       assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text");
+      return null;
+    },
+    // 原版 63 表方法（第十轮重放）：与 type_text 同一全局注入原语，语义上独立成
+    // 方法是为了让调用方显式声明「目标是当前焦点」而非坐标目标。
+    type_text_into_current_focus: (params) => {
+      if (macBackgroundMode) {
+        refuseTargetlessMacGlobalInput("type_text_into_current_focus");
+      }
+      if (typeof adapter.typeTextGlobal !== "function") {
+        throw notAuthorized("type_text_into_current_focus is unavailable in this ZCode build.");
+      }
+      const text = syntheticTextParam(params.text, "type_text_into_current_focus");
+      if (!text) return null;
+      assertGlobalInputAllowed(adapter, "type_text_into_current_focus");
+      assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text_into_current_focus");
       return null;
     },
     press_key: async (params) => {
@@ -2428,6 +2864,29 @@ export function createElectronInputHandlers(options) {
       const sessionKey = sessionKeyParam(params.session_key);
       adapter.cancelInputHoldsForSession(sessionKey);
       adapter.hideVirtualPointer?.();
+      return null;
+    },
+    // 原版 63 表方法（第十轮重放）：分离 key_down/key_up（游戏式按住、组合和弦）。
+    // 与 hold_key 不同：无时长、无自动释放，必须由同会话显式 key_up 或
+    // cancel_input_holds 收尾。
+    key_down: (params) => {
+      if (macBackgroundMode) refuseTargetlessMacGlobalInput("key_down");
+      if (typeof adapter.keyDownGlobal !== "function") {
+        throw notAuthorized("key_down is unavailable in this ZCode build.");
+      }
+      const key = keyChordParam(params.key, "key_down", "key");
+      assertGlobalInputAllowed(adapter, "key_down");
+      assertNativeInputSucceeded(adapter.keyDownGlobal(key), "key_down");
+      return null;
+    },
+    key_up: (params) => {
+      if (macBackgroundMode) refuseTargetlessMacGlobalInput("key_up");
+      if (typeof adapter.keyUpGlobal !== "function") {
+        throw notAuthorized("key_up is unavailable in this ZCode build.");
+      }
+      const key = keyChordParam(params.key, "key_up", "key");
+      assertGlobalInputAllowed(adapter, "key_up");
+      assertNativeInputSucceeded(adapter.keyUpGlobal(key), "key_up");
       return null;
     },
   };

@@ -11,6 +11,7 @@ import {
   permissionDenied,
 } from "../types.js";
 import { AxSnapshotCache, decideSnapshotMode, diffAxSnapshots } from "./axSnapshot.js";
+import { createGetSkyshotHandler } from "./axSkyshot.js";
 import {
   canonicalizeCuaBundleId,
   resolvePidBundleId,
@@ -952,6 +953,9 @@ export function createAxReadOnlyMethods(
       );
     };
   }
+  // 原版 63 表方法（第十轮重放）：AX 树结构化快照（含 diff），注册条件与原版一致
+  // （methods 组装末尾无条件挂载，无障碍可用性由 handler 内 captureApp 判定）。
+  methods.get_skyshot = createGetSkyshotHandler(source);
   return methods;
 }
 function normalizeApp(app) {

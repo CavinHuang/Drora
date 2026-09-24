@@ -153,7 +153,7 @@ function tryCreateProviderBusinessModelErrorFromMetadata(
     return undefined;
   }
 
-  // adapter 偶发把 drora-plan 业务错误落成空 finish + 零 usage，core 会先抛 suspicious empty。
+  // adapter 偶发把 zcode-plan 业务错误落成空 finish + 零 usage，core 会先抛 suspicious empty。
   // 在 anomaly guard 前先从 providerMetadata 恢复 providerCode（如 3007），让 UI 能命中业务错误文案。
   return createCoreError(CoreErrorType.ModelError, failure.message, {
     context: {

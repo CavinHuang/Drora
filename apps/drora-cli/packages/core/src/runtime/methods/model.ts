@@ -483,7 +483,7 @@ export async function runModelTextRequest(
     !outputTokenLimit &&
     isSuspiciousEmptyModelResult(finishReason, text.length, toolCalls.length, usage)
   ) {
-    // drora-plan 常返回 HTTP 200 空 SSE，需在抛错前打出 finish/providerMetadata 摘要，避免只能看到 UI 泛化文案。
+    // zcode-plan 常返回 HTTP 200 空 SSE，需在抛错前打出 finish/providerMetadata 摘要，避免只能看到 UI 泛化文案。
     this.logger?.warn("Model stream ended with suspicious empty completion", {
       ...traceContextToLogContext(options.traceContext),
       event: "model.runtime.stream.suspicious_empty",

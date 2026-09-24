@@ -744,7 +744,7 @@
             },
             "api": {
               "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/drora-plan/anthropic"
+              "baseUrl": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
             },
             "logo": {
               "type": "builtin",
@@ -807,7 +807,7 @@
             },
             "api": {
               "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/drora-plan/anthropic"
+              "baseUrl": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
             },
             "logo": {
               "type": "builtin",
@@ -4033,7 +4033,7 @@
         },
         {
           "modelMatch": ".*",
-          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/drora-plan/anthropic/?",
+          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "inputFormat": {
@@ -4111,7 +4111,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/drora-plan/anthropic/?",
+          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": true,
@@ -4122,7 +4122,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/off-peak/anthropic/?",
+          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/off-peak/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": false,

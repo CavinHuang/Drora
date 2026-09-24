@@ -149,7 +149,7 @@ function collectCandidateRecords(record: Record<string, unknown>): Record<string
       currentRecord.choices,
     );
 
-    // drora-plan 等业务错误可能只出现在 AI SDK finish chunk 的深层 JSON（如 response.body），
+    // zcode-plan 等业务错误可能只出现在 AI SDK finish chunk 的深层 JSON（如 response.body），
     // 仅沿固定字段链扫描会漏掉 3007，最终让 core 误判为 suspicious empty。
     for (const nested of Object.values(currentRecord)) {
       if (nested && typeof nested === "object") {

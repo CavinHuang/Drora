@@ -182,7 +182,7 @@ export function CodingPlanEmbeddedWebviewDialog({
             : {
                 bigmodelAccessToken: values[0],
                 // BigModel OAuth callback 同样会落盘 drora JWT；官网用它在
-                // drora-plan 域查 billing/balance 判定 Start Plan 状态。
+                // zcode-plan 域查 billing/balance 判定 Start Plan 状态。
                 droraJwtToken: values[1],
               };
         const reportContext = buildCodingPlanEmbeddedReportContext({

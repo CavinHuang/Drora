@@ -452,7 +452,7 @@ function resolvePresetProviderKindFromRuntimeBaseUrl(
   if (path.includes("/coding/paas/v4")) {
     return "openai-compatible";
   }
-  if (path.includes("/api/anthropic") || path.includes("/drora-plan/anthropic")) {
+  if (path.includes("/api/anthropic") || path.includes("/zcode-plan/anthropic")) {
     return "anthropic";
   }
   return undefined;

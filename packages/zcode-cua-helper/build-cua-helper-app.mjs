@@ -7,6 +7,7 @@
 //   4. 组装 .app（Info.plist / AppIcon / ax_native.node），可选用 codesign 签名
 // Windows 端走 packages/zcode-cua-helper/build.mjs（dist/windows-helper.js）。
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
@@ -24,6 +25,17 @@ const appName = "ZCode Computer Use.app";
 const nodeBinary = process.execPath;
 
 const require = createRequire(import.meta.url);
+
+// SEA blob 格式随 node 主版本变化；骨架（原版 Helper 可执行）是 node 22 基座
+// （modules 127，见 gitignore 的 SEA 基座注释与原版 provenance 冒烟输出）。
+// 实测兼容矩阵：node 24（modules 137）生成的 blob 可注入 node 22 骨架；
+// node 25 生成的 blob 会在 SEA 加载期 v8 崩溃（ToLocalChecked Empty，实测复现）。
+// 构建按仓库 mise 约定固定在 node 24（modules 137）。
+if (process.versions.modules !== "137") {
+  throw new Error(
+    `build-cua-helper-app requires node 24 (modules 137, per mise.toml); current node ${process.version} (modules ${process.versions.modules}). SEA blob/骨架版本错配会导致产物启动崩溃。`,
+  );
+}
 
 function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, { stdio: "inherit", ...opts });
@@ -75,21 +87,29 @@ const helperExecutable = join(macosDir, "ZCode Computer Use");
 //   2. 仓库内原版 Helper 可执行文件（自带 NODE_SEA 段与 sentinel，--overwrite 换入新 blob；
 //      修改内容会使原签名失效，走 dev unsigned 流程，发布仍需 CI 完整重签）
 //   3. 当前 node 进程的可执行文件（要求发行版 node）
+// fused 骨架已熔丝且含 NODE_SEA 段；全新 node 骨架必须由 postject --sentinel-fuse
+// 熔丝，否则 SEA 永不激活（spec: specs/mac-cua-helper-app-alignment.md §二.1）。
+const repoOriginalHelperExe = resolve(
+  workspaceRoot,
+  "packages/desktop/resources/cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use",
+);
 const skeletonCandidates = [
-  process.env.NODE_SEA_SKELETON,
-  resolve(
-    workspaceRoot,
-    "packages/desktop/resources/cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use",
-  ),
-  nodeBinary,
-].filter(Boolean);
-const skeleton = skeletonCandidates.find((p) => {
+  { path: process.env.NODE_SEA_SKELETON, fused: false },
+  { path: repoOriginalHelperExe, fused: true },
+  { path: nodeBinary, fused: false },
+];
+const skeletonCandidate = skeletonCandidates.find((c) => {
   try {
-    return existsSync(p);
+    return c.path && existsSync(c.path);
   } catch {
     return false;
   }
 });
+if (!skeletonCandidate) {
+  throw new Error("No SEA skeleton available: set NODE_SEA_SKELETON to an official node binary");
+}
+const skeleton = skeletonCandidate.path;
+const skeletonNeedsFuse = !skeletonCandidate.fused;
 copyFileSync(skeleton, helperExecutable);
 
 // 4) postject 注入 SEA blob（Mach-O 段 NODE_SEA / __NODE_SEA_BLOB）
@@ -104,6 +124,9 @@ try {
     blobPath,
     "--overwrite",
     ...(process.platform === "darwin" ? ["--macho-segment-name", "NODE_SEA"] : []),
+    ...(skeletonNeedsFuse
+      ? ["--sentinel-fuse", "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"]
+      : []),
   ]);
 } catch (error) {
   console.warn(
@@ -121,7 +144,11 @@ try {
   run("/usr/bin/codesign", ["--force", "--sign", "-", helperExecutable]);
 } catch {}
 
-// Info.plist：LSUIElement 后台应用；签名身份/TeamID 与宿主校验链一致
+// Info.plist：LSUIElement 后台应用；签名身份/TeamID 与宿主校验链一致。
+// 版本与 BuildId 可注入（env CUA_HELPER_VERSION / CUA_HELPER_BUILD_ID），
+// 缺省对齐 parity 基线 3.11.2 / local-dev（spec: specs/mac-cua-helper-app-alignment.md §二.4）。
+const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.11.2";
+const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
 writeFileSync(
   join(contentsDir, "Info.plist"),
   `<?xml version="1.0" encoding="UTF-8"?>
@@ -134,12 +161,12 @@ writeFileSync(
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>ZCode Computer Use</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>3.11.2</string>
-  <key>CFBundleVersion</key><string>3.11.2</string>
+  <key>CFBundleShortVersionString</key><string>${helperVersion}</string>
+  <key>CFBundleVersion</key><string>${helperVersion}</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><true/>
   <key>NSAppleEventsUsageDescription</key><string>ZCode Computer Use needs to control System Events to activate target apps for computer use.</string>
-  <key>ZCodeCUAHelperBuildId</key><string>local-dev</string>
+  <key>ZCodeCUAHelperBuildId</key><string>${helperBuildId}</string>
 </dict></plist>
 `,
 );
@@ -153,9 +180,49 @@ try {
   copyFileSync(repoIcon, join(resourcesDir, "AppIcon.icns"));
 } catch {}
 
-// 原生插件（AX / 窗口服务集成）随包放入 Resources
-const nativeAddon = join(packageRoot, "native", "ax_native.node");
+// 原生插件（AX / 窗口服务集成）随包放入 Resources。
+// darwin 用仓库内原版二进制副本 ax_native_mac.node（与官方 .app 内字节一致，
+// 修复历史 bug：此前引用不存在的 native/ax_native.node 导致构建 ENOENT）。
+// Resources 不 staging node_modules：原版 SEA blob 的 sharp 解析基不含 Resources
+// 相对基（strings 实证），该目录在原版包内不被 load-sharp 消费，能力无关
+//（spec: specs/mac-cua-helper-app-alignment.md §二.3）。
+const nativeAddon = join(packageRoot, "native", "ax_native_mac.node");
+if (!existsSync(nativeAddon)) {
+  throw new Error(`mac native addon missing: ${nativeAddon}`);
+}
+// .node 对齐（spec §一：原生层字节级一致）：钉扎官方 3.11.2 基线 SHA-256。
+// 原生插件是能力底座，任何字节变化都意味着能力面漂移，必须显式升版：
+// 更新基线常量或临时以 CUA_NATIVE_ADDON_SHA256 覆盖（仅在审计过的升级时）。
+const NATIVE_ADDON_SHA256_BASELINE =
+  process.env.CUA_NATIVE_ADDON_SHA256?.trim() ||
+  "1ecb13fd2a54b316eff0e5c7d055e21689574d8f8b01c1d951c71335a7c3a5c1";
+const addonHash = createHash("sha256").update(readFileSync(nativeAddon)).digest("hex");
+if (addonHash !== NATIVE_ADDON_SHA256_BASELINE) {
+  throw new Error(
+    `ax_native_mac.node SHA-256 ${addonHash} does not match the pinned official baseline ${NATIVE_ADDON_SHA256_BASELINE}. ` +
+      "升级原生插件需先经官方发行物对齐审计，再更新 build-cua-helper-app.mjs 的基线常量。",
+  );
+}
 copyFileSync(nativeAddon, join(resourcesDir, "ax_native.node"));
+
+// Resources/node_modules：对齐原版 mac 打包形态（官方 .app 携带 darwin sharp
+// seed 四件套）。功能注记：helper 内 sharp 唯一消费者是 linuxWindowCapture
+// （平台门 linux），SEA 解析链也不含 Resources 基——mac 上为非功能资产，
+// staging 是打包形态对齐而非能力项（裁定记录见 spec §二.3 与 restore manifest）。
+// 来源优先级：官方 staging 副本（desktop/resources/cua-helper）→ 跳过并提示。
+const officialStagedApp = resolve(
+  workspaceRoot,
+  "packages/desktop/resources/cua-helper/ZCode Computer Use.app",
+);
+const stagedNodeModules = join(officialStagedApp, "Contents", "Resources", "node_modules");
+if (existsSync(stagedNodeModules)) {
+  run("/usr/bin/ditto", [stagedNodeModules, join(resourcesDir, "node_modules")]);
+} else {
+  console.warn(
+    "[build-cua-helper-app] official staging copy has no Resources/node_modules; " +
+      "packaging will be smaller than the official bundle (capability unaffected).",
+  );
+}
 
 // ---- postject 备用方案：直接解析 Mach-O，覆写 NODE_SEA 段内的 blob ----
 // postject 的 wasm 补丁器对 >100MB 的二进制可能内存越界；SEA blob 尺寸不大于

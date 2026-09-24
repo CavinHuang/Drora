@@ -11,7 +11,8 @@
     "build:darwin-app": "node build-cua-helper-app.mjs",
     "probe:native": "node tools/probe-ax-native.mjs",
     "check:native-interface": "node tools/check-ax-native-interface.mjs",
-    "check:parity": "node tools/parity-check.mjs"
+    "check:parity": "node tools/parity-check.mjs",
+    "verify:mac": "node tools/verify-mac-alignment.mjs"
   },
   "dependencies": {
     "zod": "4.6.5"

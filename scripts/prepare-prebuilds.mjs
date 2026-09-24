@@ -131,7 +131,7 @@ const remoteBundledSkillPack = {
 };
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".drora-plugin",
+  ".zcode-plugin",
   "README.md",
   // 生产远程预构建有独立顶层白名单，遗漏 agents 会在上传前永久裁掉子代理。
   "agents",
@@ -157,8 +157,8 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.drora-plugin/plugin.json",
-  "packages/node-repl-host/.drora-plugin/plugin.json",
+  "packages/browser-use-plugin/.zcode-plugin/plugin.json",
+  "packages/node-repl-host/.zcode-plugin/plugin.json",
 ];
 
 function readDroraAgentRuntimeVersion() {
@@ -509,7 +509,7 @@ function assertRemoteOfficialPluginRuntime(plugin) {
 function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
-    const manifestPath = join(sourceRoot, ".drora-plugin", "plugin.json");
+    const manifestPath = join(sourceRoot, ".zcode-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(
         `[prepare-prebuilds] missing remote official plugin manifest: ${manifestPath}`,

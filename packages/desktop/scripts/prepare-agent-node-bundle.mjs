@@ -246,7 +246,7 @@ const bundledSkillPack = {
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".drora-plugin",
+  ".zcode-plugin",
   "README.md",
   // Electron 生产资源复制有独立白名单，遗漏 agents 会让首启 filesystem seed 永久缺少子代理。
   "agents",
@@ -364,7 +364,7 @@ function stageBundle() {
 function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
-    const manifestPath = resolve(sourceRoot, ".drora-plugin", "plugin.json");
+    const manifestPath = resolve(sourceRoot, ".zcode-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(`[prepare:agent-bundle] missing official plugin manifest: ${manifestPath}`);
     }

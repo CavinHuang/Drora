@@ -5,21 +5,16 @@ export function DroraAboutLogo({ className }: { className?: string }) {
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="118"
-      height="100"
+      height="125"
       fill="none"
-      viewBox="0 0 256 218"
+      viewBox="0 0 143 152"
       className={cn("shrink-0 text-current", className)}
       aria-hidden="true"
       focusable="false"
     >
       <path
         fill="currentColor"
-        d="M134.4 0.130152L116.48 25.6022C113.665 29.5699 109.054 32.0019 104.064 32.0019H6.3999V0C6.3999 0.130149 134.4 0.130152 134.4 0.130152Z"
-      />
-      <path fill="currentColor" d="M256 0.130127L102.401 217.732H0L153.599 0.130127H256Z" />
-      <path
-        fill="currentColor"
-        d="M121.601 217.732L139.65 192.134C142.465 188.166 147.076 185.734 152.067 185.734H249.604V217.736H121.601V217.732Z"
+        d="M0 0H74C96.25 0 143 23.87 143 76C143 127.16 97.91 152 74 152H29L57 122C105.84 122 111 89.6 111 76C111 42.64 82.51 32 73 32H33V100C33 100.45 33.55 100.7 34.35 100.7H37L33.5 104L0 142V0Z"
       />
     </svg>
   );

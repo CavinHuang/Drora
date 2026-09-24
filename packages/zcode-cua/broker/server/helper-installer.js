@@ -111,13 +111,18 @@ export function Mie(e = {}) {
 }
 export function xie(e = {}) {
     let t = e.env ?? process.env;
-    return (e.localDevelopmentRuntime ?? bn(t))
+    // 打包态优先用显式注入的版本（桌面从 bundled Info.plist 读出，spec §六），
+    // 缺省回退构建期内嵌常量 qc——上游构建期折叠语义的开源运行时等价物。
+    return ((e.localDevelopmentRuntime ?? bn(t))
         ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0
-        : qc;
+        : e.explicitVersion?.trim() || qc);
 }
 export function Oie(e = process.env, t = WC) {
     let n = bn(e) ? e.ZCODE_CUA_HELPER_BUILD_ID?.trim() : void 0;
-    return Gie(t.trim() || n);
+    // dev 覆盖优先（spec: specs/mac-cua-helper-app-alignment.md §六）：`t.trim() || n`
+    // 会让 embeddedBuildId ?? WC 恒胜出，dev 态 env 覆盖成为死代码；打包态 bn() 恒假、
+    // n 恒 undefined，行为与原版发行构建一致（原版 dev 常量折叠为 false）。
+    return Gie(n || t.trim());
 }
 export function qu(e = {}) {
     let n = {
@@ -125,6 +130,10 @@ export function qu(e = {}) {
             Mie({
                 env: e.env,
                 bundledAppPath: e.bundledAppPath,
+                // 桌面包装层从 bundled .app 的 Info.plist 读出的真实构建身份
+                // （spec §六）；未传入时回退 WC 钉扎，行为不变。
+                embeddedBuildId: e.embeddedBuildId,
+                version: e.version,
             }),
         logger: e.logger,
         dependencies: {

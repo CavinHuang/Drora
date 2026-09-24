@@ -7,6 +7,7 @@ import {
   type CuaHelperInstaller,
   type CuaHelperInstallerOptions,
 } from "@drora/services/node";
+import { readBundledHelperBuildIdentity } from "./desktopCuaHelperBuildIdentity.js";
 
 type InstallerFactory = (options: CuaHelperInstallerOptions) => CuaHelperInstaller;
 
@@ -47,11 +48,13 @@ export function createDesktopCuaHelperInstaller(
   if (bundledAppPath) {
     delete env.DRORA_CUA_HELPER_ALLOW_UNSIGNED_LOCAL;
   }
+  const buildIdentity = bundledAppPath ? readBundledHelperBuildIdentity(bundledAppPath) : undefined;
   return createInstaller(
     canonicalizeCuaHelperInstallerOptions({
       env,
       logger: options.logger,
       bundledAppPath,
+      ...buildIdentity,
     }),
   );
 }

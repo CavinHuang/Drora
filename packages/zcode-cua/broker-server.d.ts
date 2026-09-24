@@ -35,6 +35,10 @@ export interface CuaHelperInstallerOptions {
   env?: NodeJS.ProcessEnv;
   logger?: unknown;
   bundledAppPath?: string;
+  /** bundled .app Info.plist 的 ZCodeCUAHelperBuildId（桌面包装层注入，spec §六） */
+  embeddedBuildId?: string;
+  /** bundled .app Info.plist 的 CFBundleShortVersionString（bundled 源跳过版本比对，仅影响 meta 展示） */
+  version?: string;
   plan?: unknown;
   dependencies?: Partial<CuaHelperVerifierDependencies>;
 }
@@ -47,6 +51,19 @@ export interface CuaHelperInstaller {
 export declare function createCuaHelperInstaller(
   options?: CuaHelperInstallerOptions,
 ): CuaHelperInstaller;
+
+// 第十五轮：一次性 token 文件链（原版 mac 3.11.2 发射器还原）
+export declare function writeOneShotHelperTokenFile(args: {
+  socketPath: string;
+  token: string;
+}): Promise<string>;
+export declare function createHelperTokenFileReceipt(files: (string | undefined)[]): {
+  tokenFiles: string[];
+  revokeTokenFile(): Promise<void>;
+};
+export declare function scheduleHelperTokenFileCleanup(
+  receipt: { revokeTokenFile(): Promise<void> },
+): void;
 
 export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDependencies;
 
@@ -117,6 +134,9 @@ export interface CuaProductHelperHost {
   readonly running: boolean;
   readonly socketPath: string | null;
   readonly pluginAuthority: string | null;
+  /** 第十五轮 token 模式：发射时铸造、handle 携带；无 token（旧 Helper/非 darwin）为 null */
+  readonly token: string | null;
+  readonly presentationToken: string | null;
   start(): Promise<CuaHelperHandle>;
   stop(): Promise<void>;
   restart(): Promise<CuaHelperHandle>;
@@ -152,6 +172,8 @@ export interface CuaHelperHandle {
   socketPath: string;
   launchSocketPath?: string;
   pluginAuthority: string;
+  token?: string;
+  presentationToken?: string;
   helperAppPath?: string;
   bundleId?: string | null;
   pid?: number | null;

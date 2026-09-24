@@ -72,7 +72,7 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 ] as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  // 与原版 0.5.13 发行物对齐：插件自带自包含的 MCP server bundle 与 seed 依赖
+  // 与原版发行物对齐（第十二轮基线 0.5.14，官方桌面 3.11.2 内置）：插件自带自包含的 MCP server bundle 与 seed 依赖
   // （sharp/koffi/semver 等）。dist 缺失或加载不到 node_modules 时装出的是
   // 立即退出的空 server，必须在 seed 阶段就报错。
   "dist/mcp/server.js",
@@ -394,7 +394,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 drora-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    version: "0.5.13",
+    version: "0.5.14",
   },
 ];
 

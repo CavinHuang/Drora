@@ -1,8 +1,9 @@
 # Drora
 
-<div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="Drora" width="128" height="128" />
 </div>
+  <p>
+    <a href="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml"><img src="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  </p>
 <p align="center">
   <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>

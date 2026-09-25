@@ -628,6 +628,9 @@ export default {
           // 运行时校验 bundle id、TeamIdentifier 与可执行文件架构，签名无效即 fail-closed。
           // 开源仓库不携带该签名资产（.app 需上游 Developer ID 交付）；目录缺失时
           // 跳过拷贝，桌面端 CUA 面按既有设计 fail-closed，发布构建不被阻断。
+          // 第四十三轮：缺失时打显眼告警——干净检出/CI 构建产出的包不带 Helper，
+          // 设置页「电脑控制」权限查询会以「Helper 可能还在启动」toast 死角呈现
+          // （官方 app 恒带该资产，详见 docs/cua-restoration-manifest.md 第四十二轮前审计）。
           ...(existsSync(resolve(desktopPackageRoot, "resources/cua-helper"))
             ? [
                 {
@@ -636,7 +639,17 @@ export default {
                   filter: ["**/*"],
                 },
               ]
-            : []),
+            : [
+                (() => {
+                  console.warn(
+                    "[electron-builder] WARN: packages/desktop/resources/cua-helper 缺失，" +
+                      "本包不携带 Computer Use Helper（官方发行物恒带）。" +
+                      "该包的「电脑控制」权限引导将不可用；正式分发请放入官方签名的 " +
+                      "ZCode Computer Use.app 后重新打包。",
+                  );
+                  return null;
+                })(),
+              ].filter((entry) => entry !== null)),
         ]
       : []),
     {

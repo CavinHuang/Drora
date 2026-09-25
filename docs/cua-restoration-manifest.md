@@ -1013,6 +1013,22 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   prepare-prebuilds 内部裸调 `pnpm` 会以 node18 运行 tsx（util.parseEnv 崩溃）；
   需 PATH 首位置入 corepack pnpm 10 shim + volta node24。CI（mise 钉扎）不受影响。
 
+### 第四十三轮：收尾三件——Helper 缺失告警 + icon 同步真实 E2E + dist 残差定性（2026-09-25）
+
+- **darwin 打包缺失 cua-helper 资产显式告警**：electron-builder 配置的资产条件跳过
+  分支补 console.warn（此前静默跳过，干净检出产的残包要等用户点权限按钮才以
+  「Helper 可能还在启动」toast 暴露）。开源无资产构建不被阻断（fail-closed 设计
+  不变），但缺失在打包日志可见。
+- **第41轮 icon-sources 同步真实 CDN 端到端验证**：以官方 app 的 claude 市场镜像
+  清单（314 插件、全量无图标）为输入，临时 storage root 跑 `syncClaudePluginsOfficial
+  Icons`——真实拉取 CDN 索引 256 条、244 个条目获得 CDN 图标并原子持久化进镜像
+  清单，进程内一次性守卫二次调用直接跳过。实现与官方 hdn/wJr 行为吻合。
+- **android/ios dist 残差定量收口**：第四十轮出源对齐后重建产物 vs 官方残余差异
+  定性——server.js（639/271 行）= esbuild 模块内联顺序 + 标识符编号（编译器输出
+  形态，源码无差异）；run.js/sim.js/preflight.js（≤25 行）= tsc 80 列换行 vs 官方
+  宽行 + 对齐注释。工具面（12/12、14/14）、特性 grep、文件面全等，审计项以证据
+  关闭，不再追编译器输出级字节差异。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

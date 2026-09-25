@@ -671,6 +671,13 @@ export default {
     },
   ],
   mac: {
+  // 路线 A 分发 profile（无签名身份分发）：经 LSEnvironment 让 LaunchServices
+  // 发射链与子进程携带 adhoc 分布标记；正式签名构建移除本键即可回到严格校验。
+  extendInfo: {
+    LSEnvironment: {
+      DRORA_CUA_HELPER_ADHOC_DISTRIBUTION: "1",
+    },
+  },
     target: ["dmg", "zip"],
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),

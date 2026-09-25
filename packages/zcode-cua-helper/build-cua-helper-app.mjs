@@ -51,6 +51,10 @@ const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
 const esbuildDefine = {
   __DRORA_CUA_HELPER_VERSION__: JSON.stringify(helperVersion),
 };
+// 路线 A 分发 profile：CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1 时折叠为 true
+if (process.env.CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER === "1") {
+  esbuildDefine.__DRORA_CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER__ = "true";
+}
 if (process.env.CUA_HELPER_FOLD_LOCAL_DEV_RUNTIME === "false") {
   // 发行形态：折叠 dev 常量为 false（原版 `true ? false : …` 语义），env 覆盖/未签名
   // 逃逸口随构建期消失
@@ -152,8 +156,25 @@ try {
 
 // 直接补丁/重注入会破坏骨架既有的代码签名，arm64 上会被内核直接 SIGKILL。
 // dev 构建 ad-hoc 重签；发布构建由 CI 用正式身份对整个 .app 重签。
+// --identifier 必须为 bundle id：签名单文件时 codesign 会用路径派生标识，
+// 而 helper 的本地开发验证链要求 code_signing_identifier === CFBundleIdentifier。
 try {
-  run("/usr/bin/codesign", ["--force", "--sign", "-", helperExecutable]);
+  run("/usr/bin/codesign", [
+    "--force",
+    "--sign",
+    "-",
+    "--identifier",
+    "dev.zcode.cua-helper",
+    helperExecutable,
+  ]);
+  run("/usr/bin/codesign", [
+    "--force",
+    "--sign",
+    "-",
+    "--identifier",
+    "dev.zcode.cua-helper",
+    join(outAppDir, appName),
+  ]);
 } catch {}
 
 // Info.plist：版本/BuildId 与 SEA 内嵌常量同源（顶部 helperVersion/helperBuildId，

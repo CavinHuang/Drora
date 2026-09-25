@@ -205,7 +205,10 @@ export function Mie(e: any = {}) {
     expectedBundleId: Nh(t),
     expectedTeamIdentifier: n ? t.ZCODE_CUA_HELPER_TEAM_ID?.trim() || ha : ha,
     expectedBuildId: d,
-    allowUnsignedLocalDev: Ps(t),
+    // 路线 A 分发 profile（spec §七.0）：显式选项允许 adhoc/自签 helper 走
+    // local_dev_unsigned 校验（token 文件 + peer 祖先链验证仍生效）。
+    // 缺省 false，与原版严格语义一致。
+    allowUnsignedLocalDev: e.allowUnsignedDistribution === true ? true : Ps(t),
   };
 }
 

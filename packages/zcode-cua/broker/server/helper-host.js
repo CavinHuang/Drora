@@ -511,7 +511,9 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                     }
                     : {}),
                 env: this.options.env,
-                allowUnsignedLauncherLocalDev: Ps(this.options.env),
+                // 路线 A 分发 profile：DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1 时接受
+                // 未签名 launcher（token 文件与 peer 祖先链验证仍生效）
+                allowUnsignedLauncherLocalDev: Ps(this.options.env) || process.env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1",
                 allowExternalBrokerClientLocalDev: Ps(this.options.env) || _b(this.options.env),
                 version: bn(this.options.env) ? this.options.env?.ZCODE_VERSION?.trim() || qc : qc,
                 ghostCursorOverlay: g,

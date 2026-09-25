@@ -58,11 +58,16 @@ export function createDesktopCuaHelperInstaller(
     env.ZCODE_HOME = resolveDroraHome(process.env);
   }
   const buildIdentity = bundledAppPath ? readBundledHelperBuildIdentity(bundledAppPath) : undefined;
+  // 路线 A 分发 profile：桌面以 adhoc 签名分发时，安装校验放宽为
+  // local_dev_unsigned（由打包配置注入 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1）
+  const adhocDistribution =
+    process.env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1";
   return createInstaller(
     canonicalizeCuaHelperInstallerOptions({
       env,
       logger: options.logger,
       bundledAppPath,
+      ...(adhocDistribution ? { allowUnsignedDistribution: true } : {}),
       ...buildIdentity,
     }),
   );

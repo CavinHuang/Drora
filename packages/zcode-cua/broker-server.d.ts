@@ -39,6 +39,8 @@ export interface CuaHelperInstallerOptions {
   embeddedBuildId?: string;
   /** bundled .app Info.plist 的 CFBundleShortVersionString（bundled 源跳过版本比对，仅影响 meta 展示） */
   version?: string;
+  /** 路线 A 分发 profile：允许 adhoc/自签 helper 走 local_dev_unsigned 校验 */
+  allowUnsignedDistribution?: boolean;
   plan?: unknown;
   dependencies?: Partial<CuaHelperVerifierDependencies>;
 }

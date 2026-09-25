@@ -4,7 +4,10 @@ import {
   buildRuntimeDroraEndpointUrls,
 } from "@drora/shared";
 
-const DESKTOP_OAUTH_CALLBACK_URI = "drora://oauth/callback";
+// 官网 OAuth 中转页对 redirect 参数做白名单校验，zcode://oauth/callback 是服务端
+// 固定契约（与 tokenUrl 同源），不能跟随本地产品名改名；改名会被中转页以
+// "sign-in callback URL is invalid" 拒绝，浏览器授权后无法回跳桌面端。
+const DESKTOP_OAUTH_CALLBACK_URI = "zcode://oauth/callback";
 
 export function readEnv(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[key];

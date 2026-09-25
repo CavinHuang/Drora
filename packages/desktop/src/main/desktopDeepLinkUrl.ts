@@ -1,5 +1,12 @@
-const DEEP_LINK_SCHEME = "drora";
-const DEEP_LINK_RE = /\bdrora:(?:\/\/|\/)?[^\s"'<>]+/i;
+// zcode:// 是服务端 OAuth 中转页白名单里的回调 scheme（原版契约，不能改名）；
+// drora:// 是本应用自有 deep link（Finder 工作流、分享导入）。两者等价接受，
+// 缺 zcode 会导致浏览器授权完成后的系统回跳无法命中本应用。
+const DEEP_LINK_SCHEMES = new Set(["zcode", "drora"]);
+const DEEP_LINK_RE = /\b(?:zcode|drora):(?:\/\/|\/)?[^\s"'<>]+/i;
+
+function isDeepLinkProtocol(parsedUrl: URL): boolean {
+  return DEEP_LINK_SCHEMES.has(parsedUrl.protocol.slice(0, -1).toLowerCase());
+}
 const OAUTH_CALLBACK_HOSTS = new Set(["oauth"]);
 const PAYMENT_CALLBACK_HOST = "payment";
 const WORKSPACE_OPEN_HOST = "workspace";
@@ -15,7 +22,7 @@ function normalizeOAuthCallbackPath(pathname: string): string {
 }
 
 export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!isDeepLinkProtocol(parsedUrl)) {
     return false;
   }
 
@@ -35,7 +42,7 @@ export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!isDeepLinkProtocol(parsedUrl)) {
     return false;
   }
 
@@ -53,7 +60,7 @@ export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isWorkspaceOpenUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!isDeepLinkProtocol(parsedUrl)) {
     return false;
   }
 
@@ -81,7 +88,7 @@ export function extractWorkspaceOpenPath(parsedUrl: URL): string | null {
 
 export function isShareImportUrl(parsedUrl: URL): boolean {
   return (
-    parsedUrl.protocol === `${DEEP_LINK_SCHEME}:` &&
+    isDeepLinkProtocol(parsedUrl) &&
     parsedUrl.hostname === SHARE_IMPORT_HOST &&
     normalizeOAuthCallbackPath(parsedUrl.pathname) === "/import"
   );

@@ -18,8 +18,9 @@ const BIGMODEL_OAUTH_PROVIDER_CONFIG: Omit<OAuthProviderRuntimeConfig, "appSecre
   authorizeUrl: "https://bigmodel.cn/login",
   tokenUrl: "https://zcode.z.ai/api/v1/oauth/token",
   userinfoUrl: buildBigModelApiUrl({ DRORA_ENV: "production" }, BIGMODEL_USERINFO_PATH),
-  appId: "drora",
-  redirectUri: "drora://oauth/callback",
+  // appId 与 redirectUri 都是服务端 OAuth 应用注册时的固定契约，不能本地改名。
+  appId: "zcode",
+  redirectUri: "zcode://oauth/callback",
 };
 
 export function createBigModelProviderRuntimeConfig(

@@ -7,7 +7,7 @@
 
 | 序 | 规则 | 说明 |
 | --- | --- | --- |
-| 0 | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai` | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效 |
+| 0 | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai`、`zcode://oauth/callback`、bigmodel `appId: "zcode"` | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效；OAuth 中转页白名单只认 `zcode://oauth/callback`，appId 是服务端注册值 |
 | 1 | `@zcode/` → `@drora/` | 包 scope（import specifier 与 package.json 依赖/名称） |
 | 2 | `ZCODE_` → `DRORA_` | 环境变量（ZCODE_ENV、ZCODE_PLUGIN_ROOT/DATA/PROJECT_DIR 等） |
 | 3 | `.zcode` → `.drora`（但 `.zcode-plugin`/`.zcode-plugin-seed.json` 保留） | 用户数据目录 `~/.zcode`；插件 manifest 目录约定保留（与 0.5.13 逐字 seed 共享的磁盘格式，避免 8 处发现逻辑双读） |
@@ -37,6 +37,20 @@
   `.zcode-plugin`，本次已全仓回退该约定并 git mv 各插件 manifest 目录。）
 - 目录 `packages/zcode-cua`、`packages/zcode-cua-helper`、`apps/zcode-cli/packages/
   zcode-cua-plugin` 保留原名（与其豁免身份一致，CI/打包清单路径引用不变）。
+- **OAuth 登录回调链路（重命名第 0 轮曾误改，2026-09 修复）**：登录授权地址由
+  `buildDesktopOAuthRedirectUriFromEnv` 构造为官网中转页
+  `https://<origin>/app/oauth/login?redirect=zcode://oauth/callback&app_version=...`，
+  中转页对 `redirect` 参数做白名单校验。改名后浏览器授权完成会报
+  "The sign-in callback URL is invalid"。对齐口径：
+  - `packages/services/src/oauth/providers/configUtils.ts` 的
+    `DESKTOP_OAUTH_CALLBACK_URI = "zcode://oauth/callback"`；
+  - bigmodel provider `appId: "zcode"`（服务端注册值）；
+  - 两个 provider 的静态 `redirectUri: "zcode://oauth/callback"`；
+  - 桌面端注册 `zcode` + `drora` 双 scheme（`registerDeepLinkProtocol`、
+    electron-builder `protocols.schemes`、Linux `MimeType`、dev 壳 Info.plist），
+    `desktopDeepLinkUrl.ts` 对所有 deep-link 路由等价接受两个 scheme；
+  - 验收：`packages/services/test/oauthDesktopCallbackContract.test.ts` 与
+    `packages/desktop/test/desktopDeepLinkUrl.test.ts` 全绿。
 
 ## 目录/路径改名
 

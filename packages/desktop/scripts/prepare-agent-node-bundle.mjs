@@ -407,6 +407,7 @@ buildOfficialPluginRuntimes();
 stageBundle();
 stageOfficialPlugins();
 await stageBundledSkillPack();
+await stageCuaHelperRuntime();
 
 async function stageBundledSkillPack() {
   const sourceRoot = resolve(repoRoot, bundledSkillPack.relativePath);
@@ -424,5 +425,20 @@ async function stageBundledSkillPack() {
     await access(stagedAssetPath);
   }
   console.log(`[prepare:agent-bundle] staged bundled skill pack ${bundledSkillPack.stagedPath}`);
+}
+
+async function stageCuaHelperRuntime() {
+  // CUA helper 运行时(0.6.3):windows-helper.js + ax_native.node + node_modules。
+  // resolveWindowsCuaRuntime 产品模式只读 resources/tools/cua-helper,缺文件即 fail-closed,
+  // 因此这里整树暴装(含运行依赖),与原版 resources/tools/cua-helper 布局一致。
+  const sourceRoot = resolve(repoRoot, "packages/zcode-cua-helper/runtime/cua-helper");
+  const targetRoot = resolve(glmDir, "tools", "cua-helper");
+  await mkdir(targetRoot, { recursive: true });
+  await cp(sourceRoot, targetRoot, { recursive: true });
+  for (const relativePath of ["dist/windows-helper.js", "build/Release/ax_native.node", "runtime-manifest.json"]) {
+    const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
+    await access(stagedAssetPath);
+  }
+  console.log(`[prepare:agent-bundle] staged cua helper runtime tools/cua-helper`);
 }
 

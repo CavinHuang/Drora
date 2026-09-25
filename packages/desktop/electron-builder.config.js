@@ -660,14 +660,6 @@ export default {
       to: `tools/${toolId}`,
       filter: ["**/*"],
     })),
-    {
-      // CUA helper 运行时(0.6.3,Electron 41.0.3 构建):windows-helper.js +
-      // ax_native.node + 运行依赖。resolveWindowsCuaRuntime 在产品模式只读
-      // resources/tools/cua-helper,缺失时 Windows Computer Use fail-closed。
-      from: "../zcode-cua-helper/runtime/cua-helper",
-      to: "tools/cua-helper",
-      filter: ["**/*", "!**/*.map"],
-    },
   ],
   // postinstall 会先优先复用 node-pty 自带的 Windows 预编译产物，其他平台再按需 electron-rebuild。
   // 打包阶段统一复用安装时准备好的原生文件，避免 electron-builder 再触发一轮不受控的本地编译。
@@ -701,7 +693,9 @@ export default {
     // drora 之前只有本地未签名打包配置，CI 即使注入了证书变量，
     // electron-builder 也不会自动切到 hardened runtime / entitlement 这套发布参数。
     // 这里显式收拢到环境开关，保证本地开发不被签名配置绑死，CI 发布时再按需打开。
-    identity: shouldEnableMacSigning ? macSigningIdentity : null,
+    // 无 Developer ID 时回退 ad-hoc 签名("-"):二进制结构有效,清除隔离属性后
+    // 可直接打开;完全未签名的 arm64 二进制会被 Gatekeeper 直接判"已损坏"。
+    identity: shouldEnableMacSigning ? macSigningIdentity : "-",
     // macOS 产物采用“build 阶段签名 + 独立公证阶段”的两段式流水线。
     // 如果这里不显式关闭 electron-builder 内置 notarize，它会在 build 阶段读取 Apple 凭据后直接尝试公证，
     // 并强制要求 APPLE_APP_SPECIFIC_PASSWORD，导致 build 还没产出 DMG 就提前失败。

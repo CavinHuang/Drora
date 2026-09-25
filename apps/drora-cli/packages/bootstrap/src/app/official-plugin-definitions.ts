@@ -72,22 +72,28 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 ] as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  // 与原版发行物对齐（第十二轮基线 0.5.14，官方桌面 3.11.2 内置）：插件自带自包含的 MCP server bundle 与 seed 依赖
-  // （sharp/koffi/semver 等）。dist 缺失或加载不到 node_modules 时装出的是
-  // 立即退出的空 server，必须在 seed 阶段就报错。
-  "dist/mcp/server.js",
+  // 与原版发行物对齐（第三十八轮基线 0.6.3，官方桌面 3.14.3 内置）：插件不再自带 MCP
+  // server bundle，改由共享 node_repl host 执行 scripts/computer-use-client.mjs SDK 桥。
+  // skill / 按需文档 / client 三者缺一即装出引导必失败的残缺插件，必须在 seed 阶段就报错。
   "skills/computer-use/SKILL.md",
+  "docs/computer-use.md",
+  "scripts/computer-use-client.mjs",
   "package.json",
+  // sharp/koffi/semver 等 seed 级 native 依赖仍随插件发行（宿主 bundle externalize
+  // sharp 后按插件自身 node_modules 解析），缺失时 SDK 首次调用即 MODULE_NOT_FOUND。
   "node_modules/sharp/package.json",
 ] as const;
 
-// drora-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
-// 没有 /workflow 命令的插件——症状是命令不存在，没有任何诊断。commands/ 与技能正文都钉住。
+// drora-guide 官方 0.3.0 形态不再携带 dynamic-workflows 技能与 /workflow 命令（官方已
+// 将该技能移入 bundled-skills 随 CLI 分发）；此处钉住 0.3.0 实际载荷的六个诊断技能正文，
+// seed 丢文件时立即报错，而不是静默装出没有诊断技能的插件。
 const OFFICIAL_DRORA_GUIDE_REQUIRED_SEED_PATHS = [
-  "commands/workflow.md",
-  "skills/dynamic-workflows/SKILL.md",
-  "skills/dynamic-workflows/examples.md",
-  "skills/dynamic-workflows/patterns.md",
+  "skills/diagnosing-commands/SKILL.md",
+  "skills/diagnosing-hooks/SKILL.md",
+  "skills/diagnosing-mcp/SKILL.md",
+  "skills/diagnosing-plugins/SKILL.md",
+  "skills/diagnosing-skills/SKILL.md",
+  "skills/drora-configuration-guide/SKILL.md",
 ] as const;
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
@@ -151,6 +157,17 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../browser-use-plugin",
       "../../browser-use-plugin",
       "../../../browser-use-plugin",
+    ],
+    // 官方 0.5.1 发行物随包携带 node_modules sharp 运行时（browser-client 的截图/缩放链，
+    // 宿主 bundle externalize sharp 后按插件自身 node_modules 解析）。本包仍是 pnpm
+    // workspace 成员，node_modules 混有开发依赖，只能按确定性运行时子树 seed/staging，
+    // 不能像 zcode-cua-plugin（入库基线，整目录干净）那样整目录复制。
+    runtimeTopLevelPaths: [
+      "node_modules/sharp",
+      "node_modules/semver",
+      "node_modules/detect-libc",
+      "node_modules/@img/colour",
+      "node_modules/@img/sharp-win32-x64",
     ],
     // 插件 package/manifest 升版时遗漏官方 seed 版本，会继续加载旧缓存目录。
     // package、manifest、definition 三处版本应保持一致，避免发布内容和安装版本再次分叉。
@@ -353,11 +370,11 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../drora-guide-plugin",
       "../../../drora-guide-plugin",
     ],
-    version: "0.2.0",
+    version: "0.3.0",
   },
   {
     // 产品决策：电脑控制回退为默认关闭，需用户在设置页显式开启。
-    // 因此这里不声明 defaultEnabled——computer-use 携带 MCP server 与系统 Helper 依赖，
+    // 因此这里不声明 defaultEnabled——computer-use 携带 SDK 客户端与系统 Helper 依赖，
     // 默认开启意味着每个新用户首启即注入整套工具集并拉起 Helper。
     // 「defaultEnabled 仅限内容型插件」的旧约定随之恢复完整。
     // 判定式是 enabledPlugins[id] ?? defaultEnabled：曾在设置页手动开过的用户已落盘
@@ -387,14 +404,14 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../zcode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // 原版 0.5.13 发行物自带 seed 级 native 依赖（sharp/koffi/semver/detect-libc），
-    // dist/mcp/server.js 运行时按相对路径解析它们；不随包 seed 的话装出的是
-    // 启动即退出的空 server（缺原生模块）。node_modules 顶层默认被 seed 走向排除，
-    // 必须显式声明才会进入 bundled plugin 包。
+    // 原版 0.6.3 发行物自带 seed 级 native 依赖（sharp/koffi/semver/detect-libc），
+    // node_repl 宿主 bundle externalize sharp 后按插件自身 node_modules 解析；
+    // 不随包 seed 的话 SDK 首次调用即 MODULE_NOT_FOUND。node_modules 顶层默认被
+    // seed 走向排除，必须显式声明才会进入 bundled plugin 包。
     runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 drora-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    version: "0.5.14",
+    version: "0.6.3",
   },
 ];
 

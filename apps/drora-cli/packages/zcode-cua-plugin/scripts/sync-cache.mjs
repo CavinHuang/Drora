@@ -18,19 +18,21 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
+import { stageSharpIntoBundledAgents } from "../../../../../packages/desktop/scripts/sharp-package-assets.mjs";
+import { stageKoffiIntoBundledAgents } from "../../../../../packages/desktop/scripts/koffi-package-assets.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const devPlugin = packageRoot;
 // Build artifacts that constitute an installed plugin in the cache.
-// 与原版 0.5.14 对齐（官方桌面 3.11.2 内置版本；第四轮基线为 0.5.13，第十二轮升版）：installed plugin = skills + dist + manifest + package.json；
-// node_modules（sharp/koffi/semver 等 seed 依赖）随缓存一起同步，缺它则 dist 的
-// server.js 在缓存里加载不到原生模块。
 const ENTRIES = [
   "skills",
-  "dist",
+  "docs",
+  "scripts/computer-use-client.mjs",
   ".zcode-plugin",
   "package.json",
+  // CUA screenshot/zoom 的 sharp native closure 属于 CUA plugin 自身；同步开发缓存时
+  // 不能只复制 skill/docs，否则下一次 cache seed 会再次丢失原生依赖。
   "node_modules",
 ];
 
@@ -89,9 +91,22 @@ for (const entry of ENTRIES) {
   copied.push(entry);
 }
 
-// sharp/koffi 的原生运行时已随原版 seed 资产整体存在于本包 node_modules（0.5.13 引入，0.5.14 沿用同文件集）
-// 并随上面的 ENTRIES 一起拷贝；此前从 desktop/adapters 包二次 stage 的两条链
-// （sharp-package-assets.mjs 在本仓库也不存在）随之移除，避免双源漂移。
+// Bug 根因：开发态 CLI 实际从 ~/.zcode/cli/plugins/cache 启动 MCP，
+// 只同步 dist 会让 externalized sharp 仍从一个隔离目录解析，导致 screenshot/zoom
+// 在源码和 Helper 都正确时依旧报 MODULE_NOT_FOUND。与产品打包共用同一个 staging
+// 函数，把当前平台的 JS/native 运行时放在插件自身 node_modules，避免两条链路漂移。
+stageSharpIntoBundledAgents({
+  desktopPackageRoot: resolve(packageRoot, "../../../../packages/desktop"),
+  glmDir: cacheDir,
+  targetPlatform: { os: process.platform, arch: process.arch },
+});
+copied.push("node_modules/sharp runtime");
+stageKoffiIntoBundledAgents({
+  koffiPackageRoot: resolve(packageRoot, "../adapters"),
+  glmDir: cacheDir,
+  targetPlatform: { os: process.platform, arch: process.arch },
+});
+copied.push("node_modules/koffi runtime");
 
 console.log(`sync:cache → ${cacheDir}`);
 console.log(`  copied: ${copied.join(", ") || "(nothing)"}`);

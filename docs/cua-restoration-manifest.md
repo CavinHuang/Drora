@@ -865,6 +865,52 @@ canonical；插件条目无市场后缀，顶层归一即足够）。安全面�
 HTTPS 源生效，无伪造面；CDN 内容不变（规则 0 尊重）。typecheck 全绿。
 写后断言模式沿用。
 
+### 第三十八轮：官方 3.14.3 全插件对齐（2026-09-25）
+
+官方桌面升级 3.11.2 → 3.14.3 后五路 subagent 全面重审 14 个内置插件目录，
+发现三个真缺口并全部闭合（本包由 zcode-cua-plugin 辐射到其余插件族）：
+
+- **zcode-cua-plugin 0.5.14 → 0.6.3 整代迁移**：官方弃"插件自带 MCP server
+  bundle"改"共享 node_repl host + SDK 桥脚本"。逐字拷贝官方
+  `scripts/computer-use-client.mjs`、`scripts/check-sdk.mjs`、
+  `docs/computer-use.md`、`package.json`（main 指向 client）、`plugin.json`、
+  `SKILL.md`（node_repl bootstrap + `agent.computerUse` API 版）、
+  `sync-cache.mjs`（恢复 staging 双函数）；删除 `dist/`、`src/mcp/server.ts`、
+  `tsconfig.json`、`scripts/build-mcp.mjs` 与 `.gitignore` 的 dist 例外。
+  `diff -r --exclude=node_modules` 与官方零差异、`grep -ri drora` 零命中。
+- **宿主接线**：`node-repl-host/src/cua-bridge.ts` 桥接符号改回官方互操作契约
+  `Symbol.for("zcode.node-repl.computer-use-bridge")`（豁免区客户端逐字读取）；
+  `bootstrap/src/app/built-in-node-repl.ts` 增设 `ZCODE_CUA_PLUGIN_ROOT`
+  （官方 SKILL 引导按 `ZCODE_CUA_PLUGIN_ROOT ?? ZCODE_PLUGIN_ROOT ??
+  CLAUDE_PLUGIN_ROOT` 解析插件根，豁免区不改名则宿主必须提供官方变量名）。
+- **browser-use 0.5.1 内容还原**：仓库此前单方面删光官方内容——恢复
+  `CLAUDE_PLUGIN_ROOT` 兼容回退、全部 Codex 措辞（SKILL/docs/api.json/README）、
+  `external: ["sharp"]` 与 `修复原因` 注释（7 处落在 bundle 源头
+  `core/src/browser-client/{documentation,facade}.ts`，重建后品牌规范化 diff=0）、
+  license 归位 MIT、test script + vitest devDep、随包 node_modules sharp 栈
+  （97 文件入库，win32-x64 基线对齐 zcode-cua-plugin 策略）。
+- **drora-guide 0.2.0 → 0.3.0**：内容本已逐字等价，三处版本随升；按官方 0.3.0
+  形态移除 `commands/workflow.md` 与 `skills/dynamic-workflows/`（旧副本，
+  官方已移入 bundled-skills；旧副本优先级高于 bundled 根，用户此前实际加载
+  的是旧版技能——本轮回退到官方形态后 bundled-skills 现行版生效）。
+- **bundled-skills 补 README.md**（官方随包分发链说明，品牌规范化后反向 diff=0）。
+- **node-repl-host**：`build.mjs` 恢复 `external: ["sharp"]` 与官方注释出处
+  （日期/pipeline 编号）；package.json 补 vitest devDep 与 test script。
+- **配套管线**：新建 `packages/desktop/scripts/sharp-package-assets.mjs`
+  （官方 sync-cache 的 import 依赖；koffi 同款契约 + 仓库入库基线回退，
+  win32 冒烟 100 文件含 native/dll）；注册表 CUA requiredSeedPaths 由
+  `dist/mcp/server.js` 改为 0.6.3 载荷三件套（skill/docs/client）+sharp；
+  guide seed 路径钉 6 个诊断技能；browser-use/runtimeTopLevelPaths 采用
+  确定性子树（node_modules/sharp 等 5 项）——browser-use 仍是 pnpm workspace
+  成员，node_modules 混有开发依赖，bundled-plugins.ts 的 seed 白名单与
+  prepare-agent-node-bundle.mjs 的 staging 同步支持嵌套子树条目，只随包
+  运行时文件；prepare 脚本 bundled-skills staging 增补 README。
+
+审查确认其余七对（skill-creator、restore-legacy-sessions、plugin-creator、
+image-search、documents/pdf/presentations/spreadsheets 四拆分）已对齐或仅
+品牌豁免。ios-simulator 仓库 run.ts 领先官方（win32 兼容 + stdin 管道）与
+superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，本轮不动。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

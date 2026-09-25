@@ -98,6 +98,16 @@ const officialPluginPackages = [
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
     runtimeBuildScript: "scripts/build.mjs",
+    // 官方 0.5.1 发行物随包携带 node_modules sharp 运行时（截图/缩放链）。本包仍是
+    // pnpm workspace 成员，node_modules 混有开发依赖，只能按确定性运行时子树 staging
+    // （与 bootstrap/official-plugin-definitions.ts 的 runtimeTopLevelPaths 同步声明）。
+    runtimeTopLevelPaths: [
+      "node_modules/sharp",
+      "node_modules/semver",
+      "node_modules/detect-libc",
+      "node_modules/@img/colour",
+      "node_modules/@img/sharp-win32-x64",
+    ],
     stagedPath: "packages/browser-use-plugin",
   },
 
@@ -219,11 +229,13 @@ const officialPluginPackages = [
     packageName: "@drora/drora-cua-plugin",
     relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
     requiresRuntime: false,
-    // 与原版 0.5.13 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
-    // 自包含 MCP bundle + seed 级 native 依赖缺一即装出启动即退出的空 server。
+    // 与原版 0.6.3 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
+    // 插件载荷为 node_repl SDK client + skill + 按需文档；seed 级 native 依赖缺失会让
+    // SDK 首次调用即 MODULE_NOT_FOUND，必须在 staging 阶段就报错。
     requiredSeedPaths: [
-      "dist/mcp/server.js",
       "skills/computer-use/SKILL.md",
+      "docs/computer-use.md",
+      "scripts/computer-use-client.mjs",
       "package.json",
       "node_modules/sharp/package.json",
     ],
@@ -242,7 +254,9 @@ const bundledSkillPack = {
     "skills/dynamic-workflows/examples.md",
   ],
   stagedPath: "packages/bundled-skills",
-  topLevelPaths: ["skills"],
+  // 官方 3.14.3 发行物在 bundled-skills 根带 README（分发链三形态说明）；
+  // skills 之外的这份文档也随包 staging，保持文件集对齐。
+  topLevelPaths: ["skills", "README.md"],
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -266,14 +280,6 @@ const excludedOfficialPluginAssetNames = new Set([
   "__pycache__",
   "node_modules",
 ]);
-
-// 声明了 runtimeTopLevelPaths 的插件（如 zcode-cua-plugin 的 seed 级 sharp/koffi）
-// 会把 node_modules 顶层加入复制白名单；其余插件维持排除，避免把构建垃圾带进安装包。
-const pluginsWithRuntimeTopLevelPaths = new Set(
-  officialPluginPackages
-    .filter((plugin) => (plugin.runtimeTopLevelPaths ?? []).length > 0)
-    .map((plugin) => plugin.packageName),
-);
 
 function shouldCopyOfficialPluginAsset(sourcePath, allowSeedNodeModules = false) {
   const name = basename(sourcePath);
@@ -371,10 +377,13 @@ function stageOfficialPlugins() {
 
     const targetRoot = resolve(glmDir, plugin.stagedPath);
     mkdirSync(targetRoot, { recursive: true });
-    const allowSeedNodeModules = pluginsWithRuntimeTopLevelPaths.has(plugin.packageName);
+    // runtimeTopLevelPaths 条目可以是整目录（node_modules，如 zcode-cua-plugin 入库基线）
+    // 或确定性子树（node_modules/sharp，browser-use 按 seed 级运行时子树随包），
+    // 与 bootstrap/official-plugin-definitions.ts 同步声明。
+    const allowSeedNodeModules = (plugin.runtimeTopLevelPaths ?? []).includes("node_modules");
     const stagedTopLevelPaths = [
       ...includedOfficialPluginTopLevelPaths,
-      ...(allowSeedNodeModules ? ["node_modules"] : []),
+      ...(plugin.runtimeTopLevelPaths ?? []),
     ];
     for (const entryName of stagedTopLevelPaths) {
       const sourcePath = resolve(sourceRoot, entryName);

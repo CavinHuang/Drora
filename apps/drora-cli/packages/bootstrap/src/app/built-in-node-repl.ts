@@ -36,7 +36,14 @@ export function resolveBuiltInNodeReplMcpServers(input: {
     env: {
       // 领域 root 各自注入，且只在对应能力启用时注入：宿主据此决定哪一半文档可用。
       ...(browserUsePackage ? { DRORA_PLUGIN_ROOT: browserUsePackage.rootPath } : {}),
-      ...(cuaPackage ? { DRORA_CUA_PLUGIN_ROOT: cuaPackage.rootPath } : {}),
+      ...(cuaPackage
+        ? {
+            DRORA_CUA_PLUGIN_ROOT: cuaPackage.rootPath,
+            // computer-use 插件属 specs/drora-rename.md 豁免区：其 SKILL 引导与 SDK 客户端
+            // 逐字携带官方变量名 ZCODE_CUA_PLUGIN_ROOT，不改名就必须由宿主侧提供同名变量。
+            ZCODE_CUA_PLUGIN_ROOT: cuaPackage.rootPath,
+          }
+        : {}),
     },
     rootPath: hostPackage.rootPath,
     timeoutMs: 600_000,

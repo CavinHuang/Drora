@@ -5,18 +5,18 @@ import { build } from "esbuild";
 
 const packageRoot = resolve(import.meta.dirname, "..");
 
-// 见 browser-use-plugin/scripts/build.mjs 的同名修复：esbuild 的 esm 产物里
+// 见 browser-use-plugin/scripts/build.mjs 的同名修复（2026-07-27）：esbuild 的 esm 产物里
 // __require shim 在 ESM 作用域没有 require 可用，@drora/core 拖进来的 CJS 依赖（yaml →
 // require("process")）会在**模块求值阶段**抛错，plugin host 的 await import() 直接失败，
 // 表现为注册 0 个工具、模型侧完全看不到 mcp__node_repl__js。注入真实 createRequire。
 const nodeRequireBanner = `import { createRequire as __droraCreateRequire } from "node:module";
 const require = __droraCreateRequire(import.meta.url);`;
 
-// 正式包上 Computer Use 曾完全
+// Bug 原因（2026-09-14 真机，正式包 pipeline-285829-411d997a）：正式包上 Computer Use 完全
 // 不可用 —— 每个 CUA 调用要么等到 MCP 客户端超时（实测 60/110/120s），要么等满 ~64s 后返回
 // 「permission broker socket is not accepting connections yet」。
 //
-// 链路：懒启动（services/src/node.ts 的 `懒启动` 注释处）把 darwin 上 Helper 的
+// 链路：M7 懒启动（services/src/node.ts 的 `M7 懒启动` 注释处）把 darwin 上 Helper 的
 // 安装/拉起从宿主搬到了「SDK 首次 CUA 调用时自拉」，而那条路径跑在**本包**里 ——
 // `helperInstaller` 因此随本 bundle 进入正式包。但 `__DRORA_CUA_HELPER_BUILD_ID__` 此前
 // **只有** packages/desktop/tsup.config.ts 注入（Electron main / app.asar），本文件的
@@ -55,6 +55,7 @@ export const buildNodeReplHostBundle = async ({
     outfile,
     platform: "node",
     target: "node24",
+    external: ["sharp"],
   });
   // 构建期守卫：define 名一旦漂移（改名、被 createSharedDefines 之类重构吞掉），
   // 产物会静默退回空串，而症状只在正式包出现且表现为超时。这里立刻失败，别再让它溜到用户手上。
@@ -70,7 +71,7 @@ export const buildNodeReplHostBundle = async ({
   return { outfile, cuaHelperBuildId };
 };
 
-// 这里原先写成 `file://${process.argv[1]}`。
+// Bug 原因（2026-09-12，CI build:windows:x64）：这里原先写成 `file://${process.argv[1]}`。
 // Windows 上 argv[1] 是 `C:\...\build.mjs`，而 import.meta.url 是 `file:///C:/.../build.mjs`，
 // 两者永远不相等 —— 脚本被当成纯模块导入，什么都不做就退出：构建"成功"却没有产物，
 // 直到 dev 守卫报「build succeeded without required MCP runtime」才暴露。

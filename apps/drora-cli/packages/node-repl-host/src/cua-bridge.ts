@@ -4,7 +4,10 @@ import type { NodeReplCuaAppIdentity, NodeReplRequestMeta, NodeReplSession } fro
 import { CUA_APP_ASSOCIATIONS_META_KEY } from "@drora/drora-cua/host-display-contract";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-export const NODE_REPL_CUA_BRIDGE_SYMBOL = Symbol.for("drora.node-repl.computer-use-bridge");
+// 符号字面量保持官方原样：computer-use 插件属 specs/drora-rename.md 豁免区，
+// 其 SDK 客户端（scripts/computer-use-client.mjs）逐字携带官方 BRIDGE_SYMBOL =
+// Symbol.for("zcode.node-repl.computer-use-bridge")，宿主侧改名会导致桥接永远找不到。
+export const NODE_REPL_CUA_BRIDGE_SYMBOL = Symbol.for("zcode.node-repl.computer-use-bridge");
 export const CUA_UNAVAILABLE_IN_SUBAGENT_MESSAGE = "Computer Use is not available in subagent";
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 

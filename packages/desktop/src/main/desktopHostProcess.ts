@@ -1,3 +1,4 @@
+import { resolveDroraHome } from "./desktopRuntimeEnv.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、Drora Agent，拆分前先保持跨进程消息收口。 */
@@ -255,7 +256,7 @@ export function spawnHostProcess(
             // helper 装进 ~/.zcode（与官方 ZCode 同根共存）而设置页在
             // ~/.drora 找不到。经 env 把 Drora 数据根路由进豁免区，零改动。
             ZCODE_HOME:
-              process.env.DRORA_HOME?.trim() || join(homedir(), ".drora"),
+              resolveDroraHome(),
           }
         : {}),
       ...(dependencies.desktopContextPromptEnabled

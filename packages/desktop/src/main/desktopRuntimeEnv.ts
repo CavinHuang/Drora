@@ -151,6 +151,15 @@ function resolveWorkspaceRootForEnvFiles(): string | null {
     : null;
 }
 
+/**
+ * Drora 数据根（用户目录约定）。CUA helper 安装链（豁免区 zcode-cua 以
+ * ZCODE_HOME||~/.zcode 解析）经此路由到同一根：desktopHostProcess（host env
+ * 注入）与 desktopCuaHelperInstaller（设置页安装流）共用，勿在调用点各自展开。
+ */
+export function resolveDroraHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.DRORA_HOME?.trim() || join(homedir(), ".drora");
+}
+
 export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
   if (isElectronAppPackaged()) {
     // 安装包不内嵌 OTLP 端点或鉴权，避免 CI 凭据随产物公开；连接配置由运行时环境提供。
@@ -495,7 +504,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           ? rawInheritedEnv.DRORA_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
             join(
-              rawInheritedEnv.DRORA_HOME?.trim() || join(homedir(), ".drora"),
+              resolveDroraHome(rawInheritedEnv),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,

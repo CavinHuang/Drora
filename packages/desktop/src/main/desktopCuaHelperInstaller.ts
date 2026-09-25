@@ -8,6 +8,7 @@ import {
   type CuaHelperInstallerOptions,
 } from "@drora/services/node";
 import { readBundledHelperBuildIdentity } from "./desktopCuaHelperBuildIdentity.js";
+import { resolveDroraHome } from "./desktopRuntimeEnv.js";
 
 type InstallerFactory = (options: CuaHelperInstallerOptions) => CuaHelperInstaller;
 
@@ -47,6 +48,14 @@ export function createDesktopCuaHelperInstaller(
   // LaunchServices environment was polluted by an earlier dev session.
   if (bundledAppPath) {
     delete env.DRORA_CUA_HELPER_ALLOW_UNSIGNED_LOCAL;
+  }
+  // 第二十九轮方案 A 的 main 进程侧补全：设置页安装流（本包装饰器）与 host
+  // 产品流必须使用同一安装根——zcode-cua 安装链以 ZCODE_HOME||~/.zcode 解析，
+  // 路由到 Drora 数据根（DRORA_HOME||~/.drora）后，两者都落在
+  // ~/.drora/computer-use，并与 spawnHostProcess 的 host env 注入一致。
+  // 非 darwin / 无 bundled 路径时不动 env（win32 走独立安装链）。
+  if (bundledAppPath && (options.platform ?? process.platform) === "darwin") {
+    env.ZCODE_HOME = resolveDroraHome(process.env);
   }
   const buildIdentity = bundledAppPath ? readBundledHelperBuildIdentity(bundledAppPath) : undefined;
   return createInstaller(

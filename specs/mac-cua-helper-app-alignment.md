@@ -134,6 +134,26 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
    安装根 ~/.drora/computer-use 与 standalone 枚举对齐，并与官方 ZCode
    的 ~/.zcode 隔离（共存冲突隐患消除）。commit 7952bba。
 
+0a. **无签名分发 profile（用户选定分发路线：ad-hoc + 首次放行；第三十三轮实施）**：
+   用户明确无 Developer ID，选定 ad-hoc + 放行脚本分发。实现三处构建期折叠
+   （全部 default-off，默认构建语义与原版严格链一致）：
+   - helper SEA：`CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1` 折叠
+     `allowUnsignedLauncherLocalDev=true`（接受
+     `--allow-unsigned-launcher-local-dev`，跳过 launcher 签名验证）；
+   - 构建签名步骤：exe 与 .app bundle 均以
+     `--identifier dev.zcode.cua-helper` ad-hoc 签名——修复路径派生标识
+     （`ZCode Computer Use-<hash>`）导致
+     `isCuaHelperBundleId(code_signing_identifier)` 恒假的拦截；
+   - 桌面/host/安装器：`DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`
+     （经 dmg 的 LSEnvironment 注入，LaunchServices 发射链与子进程继承）
+     → 安装器走 `allowUnsignedDistribution`（local_dev_unsigned 校验）、
+     host launcher 传 `--allow-unsigned-launcher-local-dev`。
+   安全姿态（如实）：helper 由 token 文件 + peer 祖先链验证守护；放弃的是
+   "launcher/helper 必须官方 Developer ID 签名" 的身份链（无 ID 分发的必然代价）。
+   正式签名身份到位后：移除三个 env/键即回到严格链。
+   用户侧步骤：dmg 安装 → 首次打开右键放行 → 系统设置授予
+   辅助功能 + 屏幕录制（ad-hoc 授权绑定 cdhash，更新后需重授）。
+
 1. `qc=3.14.0`/`WC=291084` 钉扎与本机可得官方 3.11.2/277386 的版本线错位——
    需上游 3.14 产物或改钉扎决策（bundled 安装已被 §六接线消解，仅
    下载通道仍受影响）。

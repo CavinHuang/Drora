@@ -511,5 +511,114 @@ if (oursCycle && origCycle) {
   console.log("DIFF controller cycle (broker not ready)");
 }
 
+
+// 场景 6：全方法空参穷举（第三十六轮）。64 方法中排除三类不可双侧对比者：
+// ① TCC/AX 阻塞（screenshot 家族与 AX 观测方法——ours adhoc 无授权，环境差异非代码差异）；
+// ② 有副作用的 paste 与 controller_takeover/stop（分别有专项覆盖/场景五）；
+// ③ pip_session_*（presentation 角色门，场景五已覆盖角色语义）。
+// 其余方法空参行为的 code+message 双侧逐字比对。
+const SWEEP_EXCLUDE = new Set([
+  "paste", "screenshot", "screen_capture_probe", "capture_app",
+  "list_applications", "application_info", "list_windows",
+  "element_at_point", "read_element", "get_skyshot",
+  "controller_takeover", "controller_stop",
+  "pip_session_handshake", "pip_session_event",
+  // 写用户剪贴板属可见副作用（第三十六轮实测空参会清空剪贴板），移出 sweep
+  "write_clipboard",
+]);
+const SWEEP_METHODS = [
+  "broker_info", "controller_status", "request_access", "permission_status",
+  "input_permission_status", "screen_capture_status", "screen_capture_probe",
+  "supports_accessibility", "screen_size", "cursor_position", "list_displays",
+  "set_display", "move_to", "click", "scroll", "drag", "mouse_down", "mouse_up",
+  "type_text", "type_text_into_current_focus", "type_text_to_app",
+  "press_key", "press_key_to_app", "hold_key", "hold_key_to_app",
+  "cancel_input_holds", "key_down", "key_up", "read_clipboard",
+  "write_clipboard", "open_application", "element_press", "element_show_menu",
+  "element_focus", "element_set_value", "element_perform_action",
+  "element_select_text", "prevent_activation", "reenable_activation",
+  "is_focus_steal_prevented", "pip_start", "pip_stop", "pip_is_running",
+  "pip_clear_dismissed", "click_element_at_point",
+  "pip_live_probe_start_test_panel", "pip_live_probe_window_bounds",
+  "pip_live_probe_drag_panel", "pip_live_probe_move_test_panel",
+  "pip_live_probe_sample_ownership", "pip_live_probe_initial_hit_surface",
+].filter((m) => !SWEEP_EXCLUDE.has(m));
+async function emptySweepProbe(label, appPath) {
+  const workDir = mkdtempSync(join(tmpdir(), `cua-sweep-${label}-`));
+  const socketPath = join(workDir, "broker.sock");
+  const token = `parity-${randomUUID()}`;
+  const tokenFile = join(workDir, "token");
+  writeFileSync(tokenFile, token, { mode: 0o600 });
+  const child = spawn(
+    join(appPath, "Contents", "MacOS", "ZCode Computer Use"),
+    ["--socket", socketPath, "--token-file", tokenFile, "--launcher-pid", String(launcherPid)],
+    { env: launchEnv(workDir), stdio: ["ignore", "pipe", "ignore"] },
+  );
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  const ready = await new Promise((res) => {
+    const deadline = Date.now() + 30000;
+    const poll = () => {
+      if (stdout.includes('"ready":true') || child.exitCode !== null || Date.now() > deadline) {
+        return res(stdout.includes('"ready":true'));
+      }
+      setTimeout(poll, 200);
+    };
+    poll();
+  });
+  if (!ready) { child.kill(); return null; }
+  const results = {};
+  for (const method of SWEEP_METHODS) {
+    try {
+      const replies = await new Promise((res, rej) => {
+        const sock = connect(socketPath);
+        let buf = "";
+        const out = [];
+        sock.on("error", (e) => (sock.destroy(), rej(e)));
+        sock.on("connect", () => {
+          sock.write(JSON.stringify({ id: 1, method: "authenticate", params: { token } }) + "\n");
+          sock.write(JSON.stringify({ id: 2, method, params: {} }) + "\n");
+        });
+        sock.on("data", (d) => {
+          buf += d;
+          let i;
+          while ((i = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, i);
+            buf = buf.slice(i + 1);
+            if (!line.trim()) continue;
+            out.push(JSON.parse(line));
+            if (out.length >= 2) { sock.destroy(); res(out); }
+          }
+        });
+        setTimeout(() => (sock.destroy(), rej(new Error("sweep timeout"))), 8000);
+      });
+      const r = replies[1] ?? {};
+      results[method] = r.ok === true
+        ? "ok"
+        : `${r.error?.code ?? "?"}::${String(r.error?.message ?? "").replace(/\s+/g, " ")}`;
+    } catch (e) {
+      results[method] = `exchange-error:${e.message}`;
+    }
+  }
+  child.kill();
+  setTimeout(() => { try { child.kill(9); } catch {} }, 1500);
+  await wait(400);
+  return results;
+}
+const oursSweep = await emptySweepProbe("ours", OURS);
+const origSweep = await emptySweepProbe("orig", ORIG);
+if (oursSweep && origSweep) {
+  for (const method of SWEEP_METHODS) {
+    const same = oursSweep[method] === origSweep[method];
+    if (!same) failed++;
+    console.log(
+      `${same ? "MATCH" : "DIFF"} sweep:${method}\n  ours=${oursSweep[method]}\n  orig=${origSweep[method]}`,
+    );
+  }
+} else {
+  failed++;
+  console.log("DIFF empty sweep (broker not ready)");
+}
+
 console.log(failed === 0 ? "\nmacOS broker parity 通过 ✓" : `\n${failed} 项不一致 ✗`);
 process.exit(failed === 0 ? 0 : 1);

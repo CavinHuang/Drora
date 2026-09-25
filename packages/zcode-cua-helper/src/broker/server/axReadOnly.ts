@@ -388,7 +388,10 @@ function refFromParams(registry2, params, method) {
   const ref = registry2.refFor(token);
   if (!ref) {
     throw elementUnavailable(
-      `${method}: element token ${token || "<empty>"} is no longer registered. It was either never issued in this session or its observation was retired by later observations of the same app; this does not mean the element disappeared. Call get_app_state again and re-pick the index from that fresh observation.`,
+      // 原版 mac 3.11.2 消息原文（blob 雕刻，第 36 轮参数矩阵对齐）：短文案。
+      // 此前还原稿为 v3.1 内部版的长文案（"is no longer registered…"），已按
+      // parity 矩阵实测与原版对齐。details 键为开源增强，保留。
+      `${method}: unknown or stale element token ${token || "<empty>"}; call get_app_state again.`,
       {
         action_sent: false,
         element_lookup: "not_found",

@@ -813,6 +813,24 @@ stop → status 七步状态机，双侧逐步比对（pid 归一）。
 至此除需 TCC 授权的观测成功载荷（受环境阻塞）与侵入式输入方法外，
 所有可在双侧无阻塞验证的行为面均已对齐并有自动化锚定。
 
+### 第三十六轮：全方法空参穷举 + element 消息漂移修复（2026-09-25）
+
+parity 场景六：**全方法空参穷举**——除 TCC/AX 阻塞面（screenshot 家族、
+AX 观测九法）、有副作用面（paste、controller_takeover/stop）与
+presentation 门（pip_session_*）外的全部方法，空参行为
+code + message 双侧逐字比对。
+
+- **发现一处真实还原漂移并修复**：六个 element 方法
+  （press/show_menu/focus/set_value/perform_action/select_text）的
+  stale-token 错误消息——还原稿为 v3.1 内部版长文案
+  （"…is no longer registered. It was either never issued…"），原版
+  mac 3.11.2 为短文案（"unknown or stale element token <empty>;
+  call get_app_state again."，error code 同为 element_unavailable）。
+  已按原版对齐（axReadOnly refFromParams），**50/50 全 MATCH**。
+- 附带发现（如实）：write_clipboard 空参在双侧都会把用户剪贴板写为空
+  （mac 经 pbcopy）——sweep 设计时低估了此副作用，本轮已在用户机器上
+  发生一次；后续 sweep 将 write_clipboard 移入排除清单。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

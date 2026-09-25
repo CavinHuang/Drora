@@ -82,12 +82,10 @@ for (const [name, args, expect] of [
   const src = await readFile(bundle, "utf8");
   const tools = ["Bash", "Edit", "Read", "Write", "Glob", "Grep", "TodoRead", "TodoWrite"];
   // CreateWorkflow/AmendWorkflow/EvalWorkflowSnippet：v3.14.3 合入的动态工作流工具面。
-  // 这三个工具经常量注入注册（name: CREATE_WORKFLOW_TOOL_NAME 等），不能按字面 name: 匹配。
-  const constants = ["CREATE_WORKFLOW_TOOL_NAME", "AMEND_WORKFLOW_TOOL_NAME", "EVAL_WORKFLOW_SNIPPET_TOOL_NAME"];
-  const missingConstants = constants.filter(
-    (c) => !new RegExp(c + "[ \\t]*=[ \\t]*\"").test(src),
-  );
-  check("agent 动态工作流工具面", missingConstants.length === 0, `missing=[${missingConstants}]`);
+  // 合并后常量折叠会把 NAME 常量内联，这里直接按工具名字面量断言注册面存在。
+  const dwfTools = ["CreateWorkflow", "AmendWorkflow", "EvalWorkflowSnippet"];
+  const missingDwf = dwfTools.filter((t) => !src.includes(`"${t}"`));
+  check("agent 动态工作流工具面", missingDwf.length === 0, `missing=[${missingDwf}]`);
   const missing = tools.filter((t) => !new RegExp(`name:\\s*["']${t}["']`).test(src));
   check("agent 核心工具注册", missing.length === 0, `missing=[${missing}]`);
 }

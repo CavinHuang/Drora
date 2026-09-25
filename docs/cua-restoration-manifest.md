@@ -762,6 +762,50 @@ node_modules）、Info.plist 3.11.2/277386、ax_native SHA-256 `1ecb13fd…`
 （字节级官方）、codesign 有效、**卷内路径直接运行溯源冒烟 exit 0**。
 字面交付物验证闭环。
 
+### 第二十九轮：home 接缝修复——方案 A env 路由（2026-09-25）
+
+desktop main fork host 进程时注入 `ZCODE_HOME=DRORA_HOME||~/.drora`
+（darwin only，desktopHostProcess），豁免区安装链（ZCODE_HOME||~/.zcode
+语义）经 env 落到 ~/.drora/computer-use，与 services standalone 枚举对齐；
+并与官方 ZCode 的 ~/.zcode 隔离。commit 7952bba。
+
+### 第三十轮：参数校验矩阵深度对齐（2026-09-25）
+
+parity 场景四：24 个带参确定性用例（类型错/边界/缺失），双侧逐字比对
+error.code + message 原文——**24/24 全 MATCH**（move_to/click/scroll/drag
+point 校验、scroll 0..100、pip_start 三段校验、会话键强制、targetless 拒绝
+文案）；cursor_position 真值逐位一致；request_access/permission_status/
+controller_status 载荷结构一致（pid 归一后）。
+
+### 第三十一轮：构建期常量折叠机制（2026-09-25）
+
+SEA 入口 embeddedVersion 经 esbuild define 读取（typeof 守卫，缺省 3.11.2）；
+发行形态开关折叠 `__ZCODE_LOCAL_DEVELOPMENT_RUNTIME__=false`（原版
+`true ? false : …` 语义）；buildId 唯一载体=Info.plist。验证：默认形态
+3.11.2/local-dev 不变；折叠形态 9.9.9/drora-release-test 双载体同源；
+bundle 无 define 残留。**换身份发行路径完整**。
+
+### 第三十二轮：分发根单一来源（2026-09-25）
+
+main 进程设置页安装流不经 host env 注入，安装根会分叉 ~/.zcode。修复：
+`resolveDroraHome()` 单一来源（desktopRuntimeEnv 导出），host env 注入/
+main 设置页安装流/dev bundled 路径基三条路径统一路由 ~/.drora/computer-use。
+
+### 第三十三轮：无签名分发 profile——路线 A 实施（2026-09-25）
+
+用户确认无 Developer ID，选定 ad-hoc + 放行脚本分发。三处 default-off
+构建期折叠：① helper SEA `CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1` 折叠
+`allowUnsignedLauncherLocalDev=true`；② 构建签名 exe/bundle 以
+`--identifier dev.zcode.cua-helper` ad-hoc 签名（修复路径派生标识导致
+`isCuaHelperBundleId` 恒假的拦截）；③ 打包 LSEnvironment
+`DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1` → 安装器
+`allowUnsignedDistribution` + host launcher 传标志。
+**E2E**：折叠构建 + 未签名 launcher 发射成功 + token auth；对照组
+（默认构建）正确拒绝。安全姿态：token 文件 + peer 祖先链验证守护；
+放弃的是官方 Developer ID 身份链（无 ID 分发的必然代价）。
+
+### 已知偏差（下一阶段）
+
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；
   唯一表偏差仍为有文档的 paste 超集。
 - lint 基线 0 errors；还原包贡献 ~280 条风格 warnings（unused-vars 等），随打磨项消化。

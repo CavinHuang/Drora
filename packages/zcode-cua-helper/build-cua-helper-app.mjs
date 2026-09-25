@@ -45,6 +45,17 @@ function run(cmd, args, opts = {}) {
 }
 
 // 1) CJS bundle（SEA 只接受 CJS 主脚本）
+// 构建期常量折叠（对齐原版构建机制：发行构建折叠身份/dev 常量，缺省保持 parity 基线）
+const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.11.2";
+const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
+const esbuildDefine = {
+  __DRORA_CUA_HELPER_VERSION__: JSON.stringify(helperVersion),
+};
+if (process.env.CUA_HELPER_FOLD_LOCAL_DEV_RUNTIME === "false") {
+  // 发行形态：折叠 dev 常量为 false（原版 `true ? false : …` 语义），env 覆盖/未签名
+  // 逃逸口随构建期消失
+  esbuildDefine.__ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ = "false";
+}
 mkdirSync(distDir, { recursive: true });
 await esbuildBuild({
   bundle: true,
@@ -55,6 +66,7 @@ await esbuildBuild({
   outfile: bundlePath,
   legalComments: "none",
   minify: true,
+  define: esbuildDefine,
   // 原生插件不能被内联：helperAddonLoader 按 ZCODE_CUA_HELPER_ADDON 运行时加载
   external: ["sharp", "koffi", "ax_native.node"],
 });
@@ -144,11 +156,9 @@ try {
   run("/usr/bin/codesign", ["--force", "--sign", "-", helperExecutable]);
 } catch {}
 
-// Info.plist：LSUIElement 后台应用；签名身份/TeamID 与宿主校验链一致。
-// 版本与 BuildId 可注入（env CUA_HELPER_VERSION / CUA_HELPER_BUILD_ID），
-// 缺省对齐 parity 基线 3.11.2 / local-dev（spec: specs/mac-cua-helper-app-alignment.md §二.4）。
-const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.11.2";
-const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
+// Info.plist：版本/BuildId 与 SEA 内嵌常量同源（顶部 helperVersion/helperBuildId，
+// esbuild define 注入 SEA），保证 plist 与溯源冒烟输出永不分叉。
+// 签名身份/TeamID 与宿主校验链一致。
 writeFileSync(
   join(contentsDir, "Info.plist"),
   `<?xml version="1.0" encoding="UTF-8"?>

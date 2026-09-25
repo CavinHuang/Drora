@@ -831,6 +831,26 @@ code + message 双侧逐字比对。
   （mac 经 pbcopy）——sweep 设计时低估了此副作用，本轮已在用户机器上
   发生一次；后续 sweep 将 write_clipboard 移入排除清单。
 
+### 第三十五轮：分发签名修复——"已损坏"根因消除（2026-09-25）
+
+用户实测 dmg 打开的桌面 App 报"已损坏，无法打开"。取证与修复：
+
+- **根因（本机挂载 dmg 实证）**：`codesign --verify --deep --strict` 失败——
+  `code has no resources but signature indicates they must be present`
+  （In subcomponent: Drora Preview Helper (GPU).app），外层 Identifier=Electron。
+  electron-builder 在 CSC 关闭（无签名身份）时跳过全部签名，预构建 Electron 的
+  陈旧 ad-hoc 签名残留：Helper (GPU) 等被重命名的嵌套 App seal 失配 →
+  macOS 判定签名无效报"已损坏"。非 Gatekeeper 摩擦，是真实打包缺陷。
+- **修复**：electron-builder `afterPack` 增加 ad-hoc 重签钩子——mac 且
+  `DRORA_ENABLE_MAC_SIGN!==1` 时 `codesign --force --deep --sign - <app>`。
+  **验证**：deep strict verify exit 0；外层 `dev.drora.app.preview`/adhoc；
+  嵌套 cua-helper 官方 Developer ID 签名完整保留（TeamID 8A5X4JJ39T，
+  --deep 未破坏——electron-builder 已签的嵌套件不被重签）；卷内 helper
+  溯源冒烟 exit 0。
+- 用户侧残余步骤（Route A 固有）：若 dmg 经浏览器/隔空投送转移带隔离属性，
+  首次打开前 `xattr -dr com.apple.quarantine <app>`；TCC 两权限手动授予，
+  更新后重授。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

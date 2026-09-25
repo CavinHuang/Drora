@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
@@ -566,6 +567,26 @@ export default {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),
       );
+    }
+    // 路线 A 分发（无签名身份，spec §七.0）：mac 打包时 electron-builder 会跳过
+    // 签名，预构建 Electron 的陈旧 ad-hoc 签名残留（seal 与重命名/实际资源不符）
+    // 会让 macOS 报"已损坏，无法打开"——嵌套 Helper (GPU) 等同样失配。整包
+    // --deep ad-hoc 重签修复。代价（如实）：嵌套 cua-helper 的官方 Developer ID
+    // 签名被替换为 ad-hoc（identifier 保留，运行无碍；TCC 授权随更新重授）。
+    // 启用签名身份的正式构建（DRORA_ENABLE_MAC_SIGN=1）由 electron-builder
+    // 自行签名，不走此分支。
+    if (
+      context.electronPlatformName === "darwin" &&
+      process.env.DRORA_ENABLE_MAC_SIGN !== "1"
+    ) {
+      runTimedSync("afterPack:adhoc-resign", () => {
+        const appName = `${context.packager?.appInfo?.productFilename ?? "Drora"}.app`;
+        execFileSync(
+          "/usr/bin/codesign",
+          ["--force", "--deep", "--sign", "-", join(context.appOutDir, appName)],
+          { stdio: "inherit" },
+        );
+      });
     }
   },
   extraResources: [

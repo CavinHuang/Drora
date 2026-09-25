@@ -851,6 +851,20 @@ code + message 双侧逐字比对。
   首次打开前 `xattr -dr com.apple.quarantine <app>`；TCC 两权限手动授予，
   更新后重授。
 
+### 第三十七轮：插件市场改名桥接（2026-09-25）
+
+用户实测插件市场报错："Official marketplace source must provide
+drora-plugins-official, received zcode-plugins-official"。根因：官方市场源
+是 z.ai 共享 CDN（rename 规则 0 豁免，URL 不可改），其清单以原版名
+zcode-plugins-official 发布；而加载守卫要求 canonical 名
+drora-plugins-official——改名迁移的接缝缺陷，官方市场在 Drora 上从未可加载。
+
+修复：contracts 导出 `OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS`；
+adapters 官方源加载后做改名桥接（manifest.name 与 raw.name 归一到
+canonical；插件条目无市场后缀，顶层归一即足够）。安全面：仅固定官方
+HTTPS 源生效，无伪造面；CDN 内容不变（规则 0 尊重）。typecheck 全绿。
+写后断言模式沿用。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

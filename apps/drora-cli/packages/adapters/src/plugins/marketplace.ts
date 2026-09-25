@@ -5,7 +5,11 @@ import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@drora/contracts";
-import { isOfficialMarketplaceId, DRORA_OFFICIAL_PLUGIN_MARKETPLACE } from "@drora/contracts";
+import {
+  isOfficialMarketplaceId,
+  DRORA_OFFICIAL_PLUGIN_MARKETPLACE,
+  OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS,
+} from "@drora/contracts";
 import { DEFAULT_PLUGIN_MARKETPLACES, sanitizeDroraRuntimeEnv } from "@drora/shared";
 import { loadPluginMcpServerDefinitions, resolvePluginMcpServers } from "./mcp.js";
 import {
@@ -353,6 +357,20 @@ export async function addMarketplace(input: {
       signal: operationSignal,
     });
     throwIfPluginOperationAborted(operationSignal);
+    // 改名桥接（rename 规则 0）：官方市场源是 z.ai 共享 CDN（外部设施，URL 不可
+    // 改），其清单以原版名 zcode-plugins-official 发布；Drora 的 canonical id 为
+    // drora-plugins-official。加载官方源时把清单名（含 raw）归一到 canonical——
+    // 插件条目不含市场后缀，顶层名归一即足够；仅对固定官方源生效，无伪造面。
+    if (
+      input.trustedId === DRORA_OFFICIAL_PLUGIN_MARKETPLACE &&
+      loaded.manifest.name === OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS
+    ) {
+      loaded.manifest.name = DRORA_OFFICIAL_PLUGIN_MARKETPLACE;
+      if (loaded.manifest.raw && typeof loaded.manifest.raw === "object") {
+        (loaded.manifest.raw as Record<string, unknown>).name =
+          DRORA_OFFICIAL_PLUGIN_MARKETPLACE;
+      }
+    }
     if (isOfficialMarketplaceId(loaded.manifest.name) && loaded.manifest.name !== input.trustedId) {
       throw new Error(
         `Cannot add a marketplace named "${loaded.manifest.name}": that id is reserved for the official marketplace.`,

@@ -5,6 +5,11 @@ import type { SkillRoot } from "../skills/index.js";
 import type { ExecutionContext, TraceContext } from "../tracing/tracer.js";
 
 export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE = "drora-plugins-official";
+/**
+ * 上游共享 CDN（rename 规则 0 豁免的外部设施）发布的官方市场原名。Drora 加载
+ * 官方市场源时经改名桥接归一到 {@link DRORA_OFFICIAL_PLUGIN_MARKETPLACE}。
+ */
+export const OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS = "zcode-plugins-official";
 export const DRORA_INLINE_PLUGIN_MARKETPLACE = "inline";
 export const DRORA_PLUGIN_HOST_COMMAND = "__drora-plugin-host";
 /**

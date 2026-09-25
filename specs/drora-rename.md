@@ -17,6 +17,15 @@
 | 7 | `z-code` → `drora` | 连字变体 |
 | 8 | `zcode` → `drora` | 兜底小写（命令名、路径、文件名、目录名引用） |
 
+## 改名桥接（规则 0 配套，2026-09-25）
+
+官方插件市场源指向 z.ai 共享 CDN（规则 0 豁免的外部设施），其清单以原版名
+`zcode-plugins-official` 发布；Drora 的 canonical 市场 id 为
+`drora-plugins-official`。加载官方源时在
+`adapters/src/plugins/marketplace.ts` 做改名桥接（manifest.name 与 raw.name
+归一到 canonical；插件条目不含市场后缀，无需逐条改）。安全面：仅对固定
+官方 CDN 源生效，清单经 HTTPS 取自官方基础设施。
+
 ## 豁免区（内容逐字不动）
 
 1. **apps/zcode-cli/packages/zcode-cua-plugin/**：0.5.13 逐字 seed（dist/mcp + node_modules +

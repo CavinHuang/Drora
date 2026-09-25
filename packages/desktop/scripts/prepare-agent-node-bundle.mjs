@@ -11,13 +11,15 @@
 //
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
-import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { access, cp, mkdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
+import { stageSharpIntoBundledAgents } from "./sharp-package-assets.mjs";
+import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -98,16 +100,11 @@ const officialPluginPackages = [
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
     runtimeBuildScript: "scripts/build.mjs",
-    // 官方 0.5.1 发行物随包携带 node_modules sharp 运行时（截图/缩放链）。本包仍是
-    // pnpm workspace 成员，node_modules 混有开发依赖，只能按确定性运行时子树 staging
-    // （与 bootstrap/official-plugin-definitions.ts 的 runtimeTopLevelPaths 同步声明）。
-    runtimeTopLevelPaths: [
-      "node_modules/sharp",
-      "node_modules/semver",
-      "node_modules/detect-libc",
-      "node_modules/@img/colour",
-      "node_modules/@img/sharp-win32-x64",
-    ],
+    // 官方 0.5.1 发行物随包携带 node_modules sharp 运行时（截图/缩放链）。
+    // 打包期 node_modules 不从源目录复制（源 node_modules 混 pnpm 开发依赖，且入库基线为
+    // win32 平台集），改由 stager 按目标平台重产（见 stageOfficialPlugins），与官方发行物同形态。
+    // bootstrap 注册表侧的 runtimeTopLevelPaths 子树仅服务 dev filesystem seed。
+    stagedNativeRuntimes: ["sharp"],
     stagedPath: "packages/browser-use-plugin",
   },
 
@@ -120,6 +117,9 @@ const officialPluginPackages = [
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
     runtimeBuildScript: "scripts/build.mjs",
+    // 宿主 bundle externalize sharp，随包 node_modules 由打包期按目标平台 staging；
+    // dev 态解析走仓库根 hoisted sharp（desktop devDep）。
+    stagedNativeRuntimes: ["sharp"],
     stagedPath: "packages/node-repl-host",
   },
 
@@ -239,7 +239,9 @@ const officialPluginPackages = [
       "package.json",
       "node_modules/sharp/package.json",
     ],
-    runtimeTopLevelPaths: ["node_modules"],
+    // 打包期 node_modules 由 stager 按目标平台重产（sharp + koffi，与官方 0.6.3 发行物
+    // 同形态）；入库 win32 基线只服务 dev filesystem seed，不直接进安装包。
+    stagedNativeRuntimes: ["sharp", "koffi"],
     stagedPath: "packages/zcode-cua-plugin",
   },
 ];
@@ -392,6 +394,26 @@ function stageOfficialPlugins() {
         recursive: true,
         filter: (path) => shouldCopyOfficialPluginAsset(path, allowSeedNodeModules),
       });
+    }
+    // 带 stagedNativeRuntimes 的插件（node_repl 宿主 / browser-use / zcode-cua）：
+    // 官方发行物的 node_modules 是按目标平台 staging 的运行时闭包（sharp JS + 平台
+    // @img natives + koffi），不是源目录复制。此前整目录复制会把入库 win32 基线带进
+    // darwin/linux 安装包（bundled-agents 缓存实测 sharp-win32-x64 出现在 darwin-arm64），
+    // 原生模块在目标平台直接 MODULE_NOT_FOUND。这里先清空再按目标平台重产，与官方
+    // sync-cache 共用同一组 staging 函数。
+    if ((plugin.stagedNativeRuntimes ?? []).length > 0) {
+      rmSync(resolve(targetRoot, "node_modules"), { recursive: true, force: true });
+      const targetPlatform = { os: platform, arch };
+      if (plugin.stagedNativeRuntimes.includes("sharp")) {
+        stageSharpIntoBundledAgents({ desktopPackageRoot: desktopRoot, glmDir: targetRoot, targetPlatform });
+      }
+      if (plugin.stagedNativeRuntimes.includes("koffi")) {
+        stageKoffiIntoBundledAgents({
+          koffiPackageRoot: resolve(repoRoot, "apps/drora-cli/packages/adapters"),
+          glmDir: targetRoot,
+          targetPlatform,
+        });
+      }
     }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {
       const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));

@@ -934,6 +934,34 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   （非 workspace 成员）、不进注册表、零代码引用。官方 glm/packages 无对应物，属"上游
   源码树继承"而非仓库自增偏离，删除反而偏离 fork 基线；保持原样并在此记录。
 
+### 第四十轮：出源风格对齐 + natives 按目标平台 staging（2026-09-25）
+
+第38轮审查中归类为"非功能构建差异/形态决策"的残余，本轮按官方形态权威继续收口：
+
+- **android/ios 出源风格对齐**：android `run.ts` 的 `?? 1` 移回 close 调用点（settle 保持
+  纯函数，与官方 android/ios 出源一致；ios 已于第39轮完成）；android `preflight.ts`
+  工具检查表内联进 for...of（去掉具名局部 toolChecks）；两插件 `server.ts` 加 shebang
+  并导出 `main()`、tsconfig 开 declarationMap——重建后 `dist/mcp/server.d.ts` 与官方
+  逐字同形（shebang + `export declare function main()` + sourceMappingURL，.map 仅本地
+  产物、electron-builder glm 过滤 `!**/*.map` 与官方一致）。工具面复核 android 12/12、
+  ios 14/14 与官方全等；android 保留官方既有的 win32 兼容与 stdin 管道。
+- **natives 按目标平台 staging（修实际打包缺陷）**：此前 stageOfficialPlugins 对声明
+  runtimeTopLevelPaths 的插件**整目录复制源 node_modules**，而入库基线是 win32 平台集
+  ——darwin-arm64 staging 缓存实测带着 sharp-win32-x64 进安装包，原生模块在 mac 上
+  MODULE_NOT_FOUND。官方发行物的 node_modules 是按目标平台产出的运行时闭包。本轮：
+  desktop 增加 `sharp@^0.34.5` devDep（hoisted 根解析，@img 全平台可选依赖齐备，跨
+  平台构建可用）；打包脚本对 node-repl-host / browser-use / zcode-cua 三个插件改用
+  `stagedNativeRuntimes`（CUA=sharp+koffi，另两个=sharp），staging 时清空目标
+  node_modules 后按目标平台调用 sharp/koffi stager（与官方 sync-cache 同一组函数）。
+  **darwin-arm64 仿真验证：三个插件 staged node_modules 文件集与官方逐项完全一致**
+  （host/browser-use 99 文件、CUA 103 文件，missing=0 extra=0——sharp stager 补了
+  官方同款 `*.md`/`*.d.ts` 裁剪）。koffi stager 输出本就与官方一致（index.d.ts 官方
+  保留）。注册表侧 browser-use 子树清单降为仅服务 dev filesystem seed；dev 态宿主
+  sharp 解析走仓库根 hoisted。
+- **边界记录**：SEA 构建链（sea-official-plugin-assets）历来跳过 node_modules 且仅嵌
+  host+browser-use 两插件，本轮不动（桌面 glm 发行物为对齐基准）；宿主 Helper 自装器
+  缺位维持第五轮决策（开源仓库无签名 Helper 资产，能力由桌面侧 installer 承载）。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

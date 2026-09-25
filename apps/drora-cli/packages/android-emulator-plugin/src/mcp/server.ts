@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import type { CallToolResult } from "@modelcontextprotocol/server";
@@ -373,7 +374,7 @@ server.registerTool(
   async (args) => guard(async () => json(await keyevent(args))),
 );
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   await server.connect(new StdioServerTransport());
 }
 

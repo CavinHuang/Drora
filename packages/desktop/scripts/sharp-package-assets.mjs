@@ -124,8 +124,12 @@ export function stageSharpIntoBundledAgents({ desktopPackageRoot, glmDir, target
     cpSync(module.sourceDir, destination, {
       recursive: true,
       // sharp npm 包自带 C++ 源码目录用于预编译回退编译；staging 只需要运行时文件，
-      // 但为与官方发行物文件集一致（含 src/），不做裁剪，仅排除包内嵌 node_modules。
-      filter: (source) => !source.includes(`${module.name}/node_modules/`),
+      // 但为与官方发行物文件集一致（含 src/），不做裁剪，仅排除包内嵌 node_modules
+      // 与文档/类型声明（*.md、*.d.ts——官方 staging 的运行时闭包不带这些）。
+      filter: (source) => {
+        if (source.includes(`${module.name}/node_modules/`)) return false;
+        return !/(?:\.md|\.d\.ts(?:\.map)?)$/iu.test(source);
+      },
     });
   }
   return resolve(targetRoot, "sharp");

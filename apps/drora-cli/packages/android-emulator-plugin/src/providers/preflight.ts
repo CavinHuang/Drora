@@ -66,13 +66,13 @@ export async function preflight() {
       `jdkMajor=${javaMajorVersion()}`,
     ].join("\n"),
   });
-  const toolChecks: [string, string[]][] = [
+  // 工具检查表内联在 for...of（官方 android 出源形态，无具名局部变量）。
+  for (const item of [
     ["adb", ["version"]],
     ["emulator", ["-version"]],
     ["sdkmanager", ["--version"]],
     ["avdmanager", ["list", "avd"]],
-  ];
-  for (const item of toolChecks) {
+  ] as [string, string[]][]) {
     const check = await checkTool(item[0], [...item[1]]);
     checks.push({
       name: item[0],

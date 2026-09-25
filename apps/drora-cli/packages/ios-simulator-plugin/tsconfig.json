@@ -9,7 +9,7 @@
     "noUncheckedIndexedAccess": false,
     "declaration": true,
     "sourceMap": false,
-    "declarationMap": false,
+    "declarationMap": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",

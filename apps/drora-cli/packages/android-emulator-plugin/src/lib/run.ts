@@ -49,11 +49,12 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
   }
   const code = await new Promise<number>((resolve) => {
     let settled = false;
-    const settle = (exitCode: number | null) => {
+    // `?? 1` 只留在 close 调用点（官方 android 出源形态）；settle 本体保持纯函数。
+    const settle = (exitCode: number) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(exitCode ?? 1);
+      resolve(exitCode);
     };
     child.once("error", (error) => {
       spawnError = error instanceof Error ? error : new Error(String(error));

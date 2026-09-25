@@ -660,6 +660,14 @@ export default {
       to: `tools/${toolId}`,
       filter: ["**/*"],
     })),
+    {
+      // CUA helper 运行时(0.6.3,Electron 41.0.3 构建):windows-helper.js +
+      // ax_native.node + 运行依赖。resolveWindowsCuaRuntime 在产品模式只读
+      // resources/tools/cua-helper,缺失时 Windows Computer Use fail-closed。
+      from: "../zcode-cua-helper/runtime/cua-helper",
+      to: "tools/cua-helper",
+      filter: ["**/*", "!**/*.map"],
+    },
   ],
   // postinstall 会先优先复用 node-pty 自带的 Windows 预编译产物，其他平台再按需 electron-rebuild。
   // 打包阶段统一复用安装时准备好的原生文件，避免 electron-builder 再触发一轮不受控的本地编译。

@@ -987,6 +987,32 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   5/5 通过。质量门：根 typecheck + adapters/bootstrap typecheck、lint 0 errors、
   架构 0 违规。
 
+### 第四十二轮：macOS 桌面端 Resources/app 完整形态对齐（2026-09-25）
+
+第六维度审查发现官方 3.14.3 mac 发行物在 Resources/ 下同时携带 app.asar 与**完整
+解包副本 `Resources/app`**（out/ + node_modules + .build-ready 构建标记，382MB）。
+实测关系：该目录与 app.asar 解包内容**逐文件零差异**；lsof 证实官方 main/host 进程
+均从 app.asar 加载，副本无运行时消费者——官方构建管线随包携带的完整拷贝。按用户
+裁定「完整对齐官方形态」照原版携带（与第十四轮 sharp 死重裁定同则）：
+
+- electron-builder afterPack 链新增 `extractUnpackedAppCopy`（darwin）：在 app.asar
+  全部重写（运行时依赖注入、sourcemap 尾注剥离）之后，用 @electron/asar CLI 把最终
+  app.asar 全量解包到 `Resources/app`（幂等：先清上代副本），置于 adhoc 重签之前使
+  副本随整包统一重签。
+- **真实构建端到端验证**（bundle.mjs --os=mac --arch=arm64）：`afterPack:
+  extractUnpackedAppCopy` 2835ms 完成；新构建 `Resources/app` 与其 app.asar 解包
+  内容 find diff = 0 行；顶层 Resources 与官方完全一致（仅多 THIRD-PARTY-NOTICES.md
+  + licenses/ 合规增补，官方无对应物）；**.app 总体积 1.1G 与官方 1.1G 对齐**
+  （此前 713M，差值即本项）。
+- 顺带修复构建验证暴露的漏网 bug：prepare-agent-node-bundle.mjs 中 drora-guide 条目
+  的 requiredSeedPaths 副本仍钉第三十九轮已删除的 commands/workflow.md（注册表已改、
+  打包脚本副本漏同步，首次完整打包即 fail-fast 拦截），同步为 0.3.0 六个诊断技能
+  路径。本次打包同时端到端验证了第 38–41 轮全部改动（插件 staging、natives per-
+  platform stager、guide 载荷、marketplace 改动）真实可出包。
+- 本机构建工具链注意：shell 默认 PATH 的 `pnpm` 是 nvm node18 下的系统 pnpm9，
+  prepare-prebuilds 内部裸调 `pnpm` 会以 node18 运行 tsx（util.parseEnv 崩溃）；
+  需 PATH 首位置入 corepack pnpm 10 shim + volta node24。CI（mise 钉扎）不受影响。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

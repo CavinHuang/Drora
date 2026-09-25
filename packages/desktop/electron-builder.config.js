@@ -249,6 +249,20 @@ function runAsarCommand(args) {
   });
 }
 
+/** 官方形态对齐（第四十二轮）：把最终 app.asar 全量解包为 Resources/app 副本。 */
+function extractUnpackedAppCopy(context) {
+  if (context.electronPlatformName !== "darwin") return;
+  const appAsarPath = resolveAppAsarPath(context);
+  if (!existsSync(appAsarPath)) {
+    throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
+  }
+  const targetRoot = resolve(resolvePackagedResourcesDir(context), "app");
+  // 幂等：先清上代副本再全量解包，保证目录内容与 app.asar 逐文件一致。
+  rmSync(targetRoot, { recursive: true, force: true });
+  runAsarCommand(["extract", appAsarPath, targetRoot]);
+  console.log(`[afterPack] unpacked app copy staged at ${targetRoot}`);
+}
+
 function runAsarCommandAndReadStdout(args) {
   return runCommandAndReadStdout(process.execPath, [asarCliPath, ...args], {
     cwd: import.meta.dirname,
@@ -563,6 +577,13 @@ export default {
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
       assertPackagedNodePtyPrebuild(context),
     );
+    // 官方 3.14.3 mac 发行物在 Resources/ 下同时携带 app.asar 与完整解包副本 Resources/app/
+    // （out/ + node_modules + .build-ready 构建标记；与 app.asar 解包内容逐文件零差异，
+    // lsof 实测官方 main/host 均从 app.asar 加载，该目录无运行时消费者——官方管线随包
+    // 携带的完整副本）。按用户裁定「完整对齐官方形态」照原版携带（第四十二轮）：在
+    // app.asar 全部重写（注入运行时依赖、剥 sourcemap 引用）之后把它全量解包落盘，
+    // 保证副本与最终 asar 逐文件一致；置于 adhoc 重签之前，副本随整包统一重签。
+    runTimedSync("afterPack:extractUnpackedAppCopy", () => extractUnpackedAppCopy(context));
     if (actualWindowsTarget) {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),

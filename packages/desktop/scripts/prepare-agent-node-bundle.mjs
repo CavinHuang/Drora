@@ -217,11 +217,16 @@ const officialPluginPackages = [
     packageName: "@drora/drora-guide-plugin",
     relativePath: "apps/drora-cli/packages/drora-guide-plugin",
     requiresRuntime: false,
+    // 官方 0.3.0 形态（第三十九轮）：dynamic-workflows 技能与 /workflow 命令已移入
+    // bundled-skills 随 CLI 分发；此处钉住 0.3.0 实际载荷的六个诊断技能正文，与
+    // bootstrap/official-plugin-definitions.ts 同步声明。
     requiredSeedPaths: [
-      "commands/workflow.md",
-      "skills/dynamic-workflows/SKILL.md",
-      "skills/dynamic-workflows/examples.md",
-      "skills/dynamic-workflows/patterns.md",
+      "skills/diagnosing-commands/SKILL.md",
+      "skills/diagnosing-hooks/SKILL.md",
+      "skills/diagnosing-mcp/SKILL.md",
+      "skills/diagnosing-plugins/SKILL.md",
+      "skills/diagnosing-skills/SKILL.md",
+      "skills/drora-configuration-guide/SKILL.md",
     ],
     stagedPath: "packages/drora-guide-plugin",
   },

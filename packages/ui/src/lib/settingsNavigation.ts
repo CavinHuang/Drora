@@ -42,7 +42,10 @@ const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   // 工作区搜索（.droraignore）设置入口先隐藏：规则文件仍生效并可手动编辑，
   // 编辑页代码保留，放开时从这里移除即可。
   "workspaceFileSearch",
-  "computerUse",
+  // computerUse 不在此列：原版发行物（3.14.3 renderer 隐藏集为
+  // automations/plugins/workspaceFileSearch）在桌面端设置页展示电脑控制分区，
+  // 由 settingsPageConfig.createSettingsPageConfig 按 isDesktop 等平台事实动态加入；
+  // Web 视图仍由 SETTINGS_SECTIONS 的显式 computerUse 过滤与 showComputerUse 门控排除。
 ]);
 
 interface SettingsSectionIntentEventDetail {

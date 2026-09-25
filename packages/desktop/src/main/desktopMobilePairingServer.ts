@@ -424,109 +424,230 @@ const PHONE_PAGE_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Drora 远程控制</title>
+<title>Drora</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #0e0f11; color: #e8e8e6; font-family: system-ui, sans-serif; }
-  header { padding: 14px 16px; border-bottom: 1px solid #2a2b2e; display: flex; align-items: center; gap: 8px; }
+  header { padding: 12px 16px; border-bottom: 1px solid #2a2b2e; display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: #0e0f11; z-index: 2; }
   header h1 { font-size: 16px; margin: 0; flex: 1; }
-  main { padding: 12px 16px 32px; }
+  main { padding: 12px 16px 40px; }
   .card { background: #17181b; border: 1px solid #2a2b2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
-  .task { display: flex; justify-content: space-between; gap: 8px; padding: 10px 2px; border-bottom: 1px solid #232427; cursor: pointer; }
+  .task { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 2px; border-bottom: 1px solid #232427; cursor: pointer; }
   .task:last-child { border-bottom: 0; }
   .title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { color: #8a8b8f; font-size: 12px; flex-shrink: 0; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; flex-shrink: 0; }
+  .badge.running { background: #2b3a2e; color: #7ad07a; }
+  .badge.idle { background: #26272b; color: #9a9ba0; }
   .msg { padding: 8px 10px; border-radius: 10px; margin: 6px 0; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
   .msg.user { background: #24304a; }
   .msg.assistant { background: #1d1e21; }
-  .msg.other { background: #17181b; color: #8a8b8f; font-size: 12px; }
+  .tool-line { color: #8a8b8f; font-size: 12px; padding: 2px 0; }
+  .thinking { color: #6f7075; font-size: 12px; padding: 2px 0; }
   input, textarea, button { font: inherit; }
   textarea { width: 100%; min-height: 72px; background: #17181b; color: inherit; border: 1px solid #2a2b2e; border-radius: 10px; padding: 10px; }
   .row { display: flex; gap: 8px; margin-top: 8px; }
-  button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #2a2b2e; background: #24304a; color: inherit; }
+  button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #2a2b2e; background: #24304a; color: inherit; cursor: pointer; }
   button.secondary { background: #17181b; }
+  button:disabled { opacity: 0.5; cursor: default; }
   .hidden { display: none; }
   .tip { color: #8a8b8f; font-size: 13px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #2b3a2e; color: #7ad07a; font-size: 12px; }
 </style>
 </head>
 <body>
-<header><h1>Drora 远程控制</h1><span id="conn" class="tip">连接中…</span></header>
+<header><h1>Drora</h1><span id="conn" class="tip">连接中…</span></header>
 <main>
   <section id="unpaired" class="hidden"><p class="tip">配对链接无效或已过期，请在桌面端重新生成二维码。</p></section>
   <section id="tasks" class="hidden"><div class="card" id="taskList"></div></section>
   <section id="chat" class="hidden">
-    <div class="card"><div class="task" id="back">← 返回任务列表</div><div id="timeline"></div></div>
+    <div class="card">
+      <div class="task" id="back"><span class="title">← 返回任务列表</span><span id="turnPill" class="pill hidden">生成中</span></div>
+      <div id="timeline"></div>
+    </div>
     <textarea id="input" placeholder="输入要发送给 Agent 的内容…"></textarea>
     <div class="row"><button id="send">发送</button><button id="stop" class="secondary">停止</button></div>
   </section>
 </main>
 <script>
-const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
-const socket = new WebSocket(wsProtocol + "//" + location.host + "/ws");
-const pairToken = location.pathname.startsWith("/p/") ? location.pathname.slice(3) : null;
-const sessionKey = "drora-mobile-session";
-let currentTaskId = null;
+var ws = null;
+var wsWanted = false;
+var retryTimer = null;
+var currentTaskId = null;
+var listTimer = null;
+var chatTimer = null;
+var pairToken = location.pathname.indexOf("/p/") === 0 ? location.pathname.slice(3) : null;
 
+function el(id) { return document.getElementById(id); }
 function show(id) {
-  for (const s of ["unpaired", "tasks", "chat"]) document.getElementById(s).classList.toggle("hidden", s !== id);
+  for (var s of ["unpaired", "tasks", "chat"]) el(s).classList.toggle("hidden", s !== id);
 }
-function esc(text) { const d = document.createElement("div"); d.textContent = text == null ? "" : String(text); return d.innerHTML; }
+function esc(text) {
+  var d = document.createElement("div");
+  d.textContent = text == null ? "" : String(text);
+  return d.innerHTML;
+}
+function setConn(text) { el("conn").textContent = text; }
 
-socket.onopen = () => {
-  const saved = sessionStorage.getItem(sessionKey);
-  socket.send(JSON.stringify(saved ? { type: "resume", sessionToken: saved } : { type: "hello", pairToken }));
-};
-socket.onmessage = (e) => {
-  const frame = JSON.parse(e.data);
-  if (frame.type === "paired") {
-    sessionStorage.setItem(sessionKey, frame.sessionToken || sessionStorage.getItem(sessionKey) || "");
-    document.getElementById("conn").textContent = "已连接";
-    show("tasks");
-  } else if (frame.type === "taskList") {
-    const list = document.getElementById("taskList");
-    list.innerHTML = "";
-    if (!frame.tasks.length) { list.innerHTML = '<p class="tip">当前工作区还没有任务</p>'; }
-    for (const task of frame.tasks) {
-      const row = document.createElement("div");
-      row.className = "task";
-      row.innerHTML = '<span class="title">' + esc(task.title) + '</span><span class="meta">' + esc(task.status || "") + "</span>";
-      row.onclick = () => { currentTaskId = task.taskId; socket.send(JSON.stringify({ type: "open", taskId: task.taskId })); };
-      list.appendChild(row);
+function connect() {
+  var proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(proto + "//" + location.host + "/ws");
+  ws.onopen = function () {
+    var saved = sessionStorage.getItem("drora-mobile-session");
+    if (saved) { ws.send(JSON.stringify({ type: "resume", sessionToken: saved })); }
+    else if (pairToken) { ws.send(JSON.stringify({ type: "hello", pairToken: pairToken })); }
+    else { show("unpaired"); }
+  };
+  ws.onmessage = function (e) { handle(JSON.parse(e.data)); };
+  ws.onclose = function () {
+    setConn("已断开，重连中…");
+    ws = null;
+    if (!wsWanted) { wsWanted = true; }
+    if (!retryTimer) {
+      retryTimer = setInterval(function () {
+        var saved = sessionStorage.getItem("drora-mobile-session");
+        if (saved || pairToken) { connect(); }
+      }, 2000);
     }
-    show("tasks");
-  } else if (frame.type === "timeline") {
-    const tl = document.getElementById("timeline");
-    tl.innerHTML = "";
-    for (const m of frame.messages || []) {
-      const role = m.role || m.type || "other";
-      const div = document.createElement("div");
-      const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? m);
-      div.className = "msg " + (role === "user" ? "user" : role === "assistant" ? "assistant" : "other");
-      div.innerHTML = esc(content).slice(0, 4000);
-      tl.appendChild(div);
-    }
+  };
+}
+
+function onPaired(frame) {
+  if (frame.sessionToken) { sessionStorage.setItem("drora-mobile-session", frame.sessionToken); }
+  setConn("已连接");
+  if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+  if (currentTaskId) {
     show("chat");
-  } else if (frame.type === "accepted") {
-    document.getElementById("input").value = "";
-  } else if (frame.type === "error") {
-    if (frame.code === "invalid-session" || frame.code === "unknown-token" || frame.code === "expired-token") {
-      sessionStorage.removeItem(sessionKey);
-      if (pairToken) { socket.send(JSON.stringify({ type: "hello", pairToken })); return; }
-    }
-    document.getElementById("conn").textContent = "错误: " + (frame.code || "");
-    if (!pairToken) show("unpaired");
+    requestTimeline();
+  } else {
+    show("tasks");
+    requestList();
   }
-};
-document.getElementById("back").onclick = () => show("tasks");
-document.getElementById("send").onclick = () => {
-  const content = document.getElementById("input").value.trim();
+}
+
+function requestList() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "list" })); }
+function requestTimeline() { if (ws && ws.readyState === 1 && currentTaskId) ws.send(JSON.stringify({ type: "open", taskId: currentTaskId })); }
+
+function handle(frame) {
+  if (frame.type === "paired") { onPaired(frame); return; }
+  if (frame.type === "taskList") { renderTasks(frame.tasks || []); return; }
+  if (frame.type === "timeline") { renderTimeline(frame.messages || []); return; }
+  if (frame.type === "accepted") { el("input").value = ""; requestTimeline(); return; }
+  if (frame.type === "error") {
+    var retryable = frame.code === "invalid-session";
+    if (retryable) { sessionStorage.removeItem("drora-mobile-session"); }
+    if (!retryable && (frame.code === "unknown-token" || frame.code === "expired-token")) {
+      setConn("配对已过期");
+      show("unpaired");
+      return;
+    }
+    setConn("错误: " + (frame.code || ""));
+    return;
+  }
+}
+
+function renderTasks(tasks) {
+  var list = el("taskList");
+  list.innerHTML = "";
+  if (!tasks.length) { list.innerHTML = '<p class="tip">当前工作区还没有任务</p>'; }
+  for (var i = 0; i < tasks.length; i++) {
+    var t = tasks[i];
+    var row = document.createElement("div");
+    row.className = "task";
+    var running = t.status === "running" || t.status === "pending";
+    var badge = '<span class="badge ' + (running ? "running" : "idle") + '">' + esc(t.status || "") + "</span>";
+    row.innerHTML = '<span class="title">' + esc(t.title) + "</span>" + badge;
+    row.onclick = (function (taskId) {
+      return function () {
+        currentTaskId = taskId;
+        el("timeline").innerHTML = "";
+        show("chat");
+        requestTimeline();
+        startChatTimer();
+      };
+    })(t.taskId);
+    list.appendChild(row);
+  }
+  show("tasks");
+}
+
+function partText(m) {
+  var out = [];
+  var tools = [];
+  var parts = m.parts || [];
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    if (p.type === "text" && p.text) { out.push(p.text); }
+    else if (p.type === "tool") {
+      var state = p.state && p.state.status ? p.state.status : "";
+      tools.push("⚙ " + p.tool + (state ? " · " + state : ""));
+    }
+  }
+  return { text: out.join(String.fromCharCode(10)), tools: tools };
+}
+
+function renderTimeline(messages) {
+  var tl = el("timeline");
+  var stick = window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
+  tl.innerHTML = "";
+  var running = false;
+  for (var i = 0; i < messages.length; i++) {
+    var m = messages[i];
+    var role = m.info && m.info.role ? m.info.role : "other";
+    var composed = partText(m);
+    if (composed.tools.length) {
+      for (var k = 0; k < composed.tools.length; k++) {
+        var line = document.createElement("div");
+        line.className = "tool-line";
+        line.innerHTML = esc(composed.tools[k]);
+        tl.appendChild(line);
+        if (composed.tools[k].indexOf("pending") >= 0) running = true;
+      }
+    }
+    if (!composed.text) continue;
+    var div = document.createElement("div");
+    div.className = "msg " + (role === "user" ? "user" : "assistant");
+    var text = composed.text;
+    div.innerHTML = esc(text.length > 6000 ? text.slice(0, 6000) + "…" : text);
+    tl.appendChild(div);
+  }
+  var last = messages[messages.length - 1];
+  if (last && last.parts) {
+    for (var j = 0; j < last.parts.length; j++) {
+      if (last.parts[j].type === "tool" && last.parts[j].state && last.parts[j].state.status === "running") running = true;
+    }
+  }
+  el("turnPill").classList.toggle("hidden", !running);
+  if (stick) window.scrollTo(0, document.body.scrollHeight);
+}
+
+function startChatTimer() {
+  if (chatTimer) clearInterval(chatTimer);
+  chatTimer = setInterval(function () {
+    if (!el("chat").classList.contains("hidden")) requestTimeline();
+  }, 2000);
+}
+function startListTimer() {
+  if (listTimer) clearInterval(listTimer);
+  listTimer = setInterval(function () {
+    if (!el("tasks").classList.contains("hidden")) requestList();
+  }, 8000);
+}
+
+el("back").onclick = function () { currentTaskId = null; show("tasks"); requestList(); startListTimer(); };
+el("send").onclick = function () {
+  var content = el("input").value.trim();
   if (!content || !currentTaskId) return;
-  socket.send(JSON.stringify({ type: "send", taskId: currentTaskId, content }));
+  ws.send(JSON.stringify({ type: "send", taskId: currentTaskId, content: content }));
 };
-document.getElementById("stop").onclick = () => {
-  if (currentTaskId) socket.send(JSON.stringify({ type: "stop", taskId: currentTaskId }));
+document.getElementById("stop").onclick = function () {
+  if (currentTaskId) ws.send(JSON.stringify({ type: "stop", taskId: currentTaskId }));
 };
+
+connect();
+startListTimer();
 </script>
 </body>
-</html>`;
+</html>
+`;

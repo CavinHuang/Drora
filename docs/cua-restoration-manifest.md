@@ -804,6 +804,15 @@ main 设置页安装流/dev bundled 路径基三条路径统一路由 ~/.drora/c
 （默认构建）正确拒绝。安全姿态：token 文件 + peer 祖先链验证守护；
 放弃的是官方 Developer ID 身份链（无 ID 分发的必然代价）。
 
+### 第三十四轮：controller 生命周期仲裁 parity（2026-09-25）
+
+parity 场景五：controller 生命周期序列——单连接驱动
+initial-status → takeover → status → takeover-reentrant → status →
+stop → status 七步状态机，双侧逐步比对（pid 归一）。
+**7/7 全 MATCH**：自助拿锁/重入/释放的状态机语义与原版完全一致。
+至此除需 TCC 授权的观测成功载荷（受环境阻塞）与侵入式输入方法外，
+所有可在双侧无阻塞验证的行为面均已对齐并有自动化锚定。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

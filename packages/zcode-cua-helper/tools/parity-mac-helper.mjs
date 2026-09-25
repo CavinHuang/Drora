@@ -416,5 +416,97 @@ if (oursParam && origParam) {
   console.log("DIFF param matrix (broker not ready)");
 }
 
+
+// 场景 5：controller 生命周期仲裁序列（第三十四轮）。
+// 同一 broker 上单连接驱动 takeover → status ×2 → stop → status ×2，
+// 双侧状态机序列应逐步一致（自助拿锁/重入/释放语义）。
+async function controllerCycleProbe(label, appPath) {
+  const workDir = mkdtempSync(join(tmpdir(), `cua-ctrl-${label}-`));
+  const socketPath = join(workDir, "broker.sock");
+  const token = `parity-${randomUUID()}`;
+  const tokenFile = join(workDir, "token");
+  writeFileSync(tokenFile, token, { mode: 0o600 });
+  const child = spawn(
+    join(appPath, "Contents", "MacOS", "ZCode Computer Use"),
+    ["--socket", socketPath, "--token-file", tokenFile, "--launcher-pid", String(launcherPid)],
+    { env: launchEnv(workDir), stdio: ["ignore", "pipe", "ignore"] },
+  );
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  const ready = await new Promise((res) => {
+    const deadline = Date.now() + 30000;
+    const poll = () => {
+      if (stdout.includes('"ready":true') || child.exitCode !== null || Date.now() > deadline) {
+        return res(stdout.includes('"ready":true'));
+      }
+      setTimeout(poll, 200);
+    };
+    poll();
+  });
+  if (!ready) { child.kill(); return null; }
+  const seq = [];
+  const drive = async (requests) => {
+    const replies = await new Promise((res, rej) => {
+      const sock = connect(socketPath);
+      let buf = "";
+      const out = [];
+      sock.on("error", (e) => (sock.destroy(), rej(e)));
+      sock.on("connect", () => {
+        for (const r of requests) sock.write(JSON.stringify(r) + "\n");
+      });
+      sock.on("data", (d) => {
+        buf += d;
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i);
+          buf = buf.slice(i + 1);
+          if (!line.trim()) continue;
+          out.push(JSON.parse(line));
+          if (out.length >= requests.length) { sock.destroy(); res(out); }
+        }
+      });
+      setTimeout(() => (sock.destroy(), rej(new Error("cycle timeout"))), 8000);
+    });
+    return replies;
+  };
+  const step = async (name, requests) => {
+    try {
+      const replies = await drive(requests);
+      seq.push(name + " => " + replies.slice(1).map((r) =>
+        r.ok === true
+          ? "ok:" + JSON.stringify(r.result)?.replace(/"pid":\d+/g, '"pid":<pid>')?.slice(0, 140)
+          : "err:" + (r.error?.code ?? "?"),
+      ).join(" | "));
+    } catch (e) {
+      seq.push(name + " => exchange-error:" + e.message);
+    }
+  };
+  await step("initial-status", [{ id: 2, method: "controller_status", params: {} }]);
+  await step("takeover", [{ id: 2, method: "controller_takeover", params: {} }]);
+  await step("status-after-takeover", [{ id: 2, method: "controller_status", params: {} }]);
+  await step("takeover-reentrant", [{ id: 2, method: "controller_takeover", params: {} }]);
+  await step("status-after-reentrant", [{ id: 2, method: "controller_status", params: {} }]);
+  await step("stop", [{ id: 2, method: "controller_stop", params: {} }]);
+  await step("status-after-stop", [{ id: 2, method: "controller_status", params: {} }]);
+  child.kill();
+  setTimeout(() => { try { child.kill(9); } catch {} }, 1500);
+  await wait(400);
+  return seq;
+}
+const oursCycle = await controllerCycleProbe("ours", OURS);
+const origCycle = await controllerCycleProbe("orig", ORIG);
+if (oursCycle && origCycle) {
+  const sameSeq = JSON.stringify(oursCycle) === JSON.stringify(origCycle);
+  if (!sameSeq) failed++;
+  for (let i = 0; i < Math.max(oursCycle.length, origCycle.length); i++) {
+    const same = oursCycle[i] === origCycle[i];
+    console.log(`${same ? "MATCH" : "DIFF"} ctrl[${i}] ${oursCycle[i] ?? "(missing)"}${same ? "" : " || orig=" + (origCycle[i] ?? "(missing)")}`);
+  }
+  console.log(sameSeq ? "controller 生命周期序列一致 ✓" : "✗ 序列不一致");
+} else {
+  failed++;
+  console.log("DIFF controller cycle (broker not ready)");
+}
+
 console.log(failed === 0 ? "\nmacOS broker parity 通过 ✓" : `\n${failed} 项不一致 ✗`);
 process.exit(failed === 0 ? 0 : 1);

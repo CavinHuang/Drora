@@ -330,6 +330,9 @@ jobs:
           # 重传同名资产会撞 GitHub 资产的最终一致性(422 "ReleaseAsset.name
           # already exists",v3.14.0 finalize 因此失败);改为删除整个 Release
           # (--cleanup-tag=false 保留 tag)后全新创建,绕开资产级竞态。
+          # notes 文案铁律:macOS runner 的 zsh 下,notes 字符串里禁用 ASCII
+          # 双引号(截断 shell 引号)与 → 等 unicode 符号落在引号外会被当
+          # glob 报 "no matches found"(2026-09-25 实测);用【】与全角引号。
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag=false
           fi
@@ -356,11 +359,11 @@ jobs:
           - latest*.yml: electron-builder 自动更新通道清单
 
           未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode)。
-          - Windows: SmartScreen 提示时点"更多信息 → 仍要运行"。
-          - macOS: 把 Drora 拖入"应用程序"后若提示"已损坏,无法打开",这是
-            Gatekeeper 对未公证应用的拦截,不是安装包损坏。在终端执行
+          - Windows: SmartScreen 提示时点【更多信息】再选【仍要运行】。
+          - macOS: 把 Drora 拖入【应用程序】后若提示【已损坏,无法打开】,
+            这是 Gatekeeper 对未公证应用的拦截,不是安装包损坏。在终端执行
             \`sudo xattr -rd com.apple.quarantine /Applications/Drora.app\`
-            清除下载隔离标记后正常打开("系统设置 → 隐私与安全性"的"仍要打开"
-            按钮在部分 macOS 版本不出现,以上面命令为准)。
+            清除下载隔离标记后正常打开(【系统设置,隐私与安全性】里的
+            【仍要打开】按钮在部分 macOS 版本不出现,以上面命令为准)。
           Sources: commit ${GITHUB_SHA}" \
             $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}"

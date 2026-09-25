@@ -10,7 +10,12 @@ import {
   DRORA_OFFICIAL_PLUGIN_MARKETPLACE,
   OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS,
 } from "@drora/contracts";
-import { DEFAULT_PLUGIN_MARKETPLACES, sanitizeDroraRuntimeEnv } from "@drora/shared";
+import {
+  CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+  DEFAULT_PLUGIN_MARKETPLACES,
+  OFFICIAL_PLUGIN_ASSETS_BASE_URL,
+  sanitizeDroraRuntimeEnv,
+} from "@drora/shared";
 import { loadPluginMcpServerDefinitions, resolvePluginMcpServers } from "./mcp.js";
 import {
   appendPluginSourceCleanupError,
@@ -65,6 +70,8 @@ const GIT_CLONE_RETRY_DELAY_MS = 1_000;
 const MARKETPLACE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const PLUGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const SOURCE_SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+const ICON_SOURCES_FILE = "icon-sources.json";
+const ICON_SOURCES_TIMEOUT_MS = 10_000;
 const UNSUPPORTED_MANIFEST_FIELDS = ["channels", "lspServers", "outputStyles", "settings"] as const;
 
 export type MarketplaceSource =
@@ -301,6 +308,129 @@ export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarke
   const next = [...known, ...missing];
   writeKnownMarketplacesSync(storageRoot, next);
   return next;
+}
+
+// —— claude-plugins-official 图标补全（与官方原版 hdn/wJr 同构）——
+// Claude 生态市场镜像来自 GitHub，条目不带图标；官方 CDN 另发布 icon-sources.json
+// 索引（name → assets/ 下相对路径）。列表流程后台拉一次索引、合并进市场镜像清单并
+// 落盘，已带非空 icon 的条目不覆盖。
+
+const iconSourceSyncedRoots = new Set<string>();
+const iconSourceSyncChain: Promise<unknown>[] = [];
+
+/** 校验并归一化 icon-sources 索引（name → assets 基址下的绝对 URL）；非法条目逐条丢弃。 */
+export function parseIconSourceIndex(value: unknown): Map<string, string> {
+  const icons = new Map<string, string>();
+  if (!Array.isArray(value)) return icons;
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const name = typeof entry.name === "string" ? entry.name.trim() : "";
+    const icon = typeof entry.icon === "string" ? entry.icon.trim() : "";
+    const mimeType = typeof entry.mimeType === "string" ? entry.mimeType : undefined;
+    const sha256 = typeof entry.sha256 === "string" ? entry.sha256 : undefined;
+    if (!PLUGIN_NAME_PATTERN.test(name) || !isIconSourcePath(icon)) continue;
+    if (mimeType !== undefined && mimeType !== "image/png") continue;
+    if (sha256 !== undefined && !SOURCE_SHA256_PATTERN.test(sha256)) continue;
+    icons.set(name, new URL(icon, `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/`).href);
+  }
+  return icons;
+}
+
+function isIconSourcePath(icon: string): boolean {
+  if (!icon.endsWith(".png") || icon.startsWith("/") || icon.includes("\\")) return false;
+  const segments = icon.split("/");
+  return segments.length >= 2 && segments.every((segment) => PLUGIN_NAME_PATTERN.test(segment));
+}
+
+/** 只给缺失/空白 icon 的条目补图标；无变更时返回原数组引用。 */
+export function mergePluginEntryIconSources<T extends { icon?: unknown }>(
+  entries: T[],
+  icons: ReadonlyMap<string, string>,
+  resolveName: (entry: T) => string | undefined,
+): T[] {
+  if (icons.size === 0) return entries;
+  let changed = false;
+  const merged = entries.map((entry) => {
+    if (typeof entry.icon === "string" && entry.icon.trim().length > 0) return entry;
+    const name = resolveName(entry);
+    const icon = name !== undefined ? icons.get(name) : undefined;
+    if (!icon) return entry;
+    changed = true;
+    return { ...entry, icon };
+  });
+  return changed ? merged : entries;
+}
+
+function mergeRawManifestIconSources(
+  raw: Record<string, unknown>,
+  icons: ReadonlyMap<string, string>,
+): Record<string, unknown> {
+  const plugins = raw.plugins;
+  if (!Array.isArray(plugins) || icons.size === 0) return raw;
+  const merged = mergePluginEntryIconSources(
+    plugins as Array<Record<string, unknown>>,
+    icons,
+    (entry) => (typeof entry.name === "string" ? entry.name : undefined),
+  );
+  return merged === plugins ? raw : { ...raw, plugins: merged };
+}
+
+function readCachedIconSourceIndex(storageRoot: string): Map<string, string> {
+  return parseIconSourceIndex(readJsonFileSync(join(storageRoot, ICON_SOURCES_FILE)));
+}
+
+async function resolveIconSourceIndex(storageRoot: string): Promise<Map<string, string>> {
+  try {
+    const fetched = await requestMarketplaceJson(
+      `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/${ICON_SOURCES_FILE}`,
+      undefined,
+      undefined,
+      ICON_SOURCES_TIMEOUT_MS,
+    );
+    const icons = parseIconSourceIndex(fetched);
+    // CDN 索引解析为空（异常响应）时回退缓存文件，不用空集清掉镜像里已补的图标。
+    if (icons.size === 0) return readCachedIconSourceIndex(storageRoot);
+    try {
+      await writeJsonFile(join(storageRoot, ICON_SOURCES_FILE), fetched);
+    } catch {
+      // 索引落盘失败不阻断本次合并（best-effort，与官方一致）。
+    }
+    return icons;
+  } catch {
+    return readCachedIconSourceIndex(storageRoot);
+  }
+}
+
+/**
+ * 后台补全 claude-plugins-official 镜像清单的插件图标。每个进程对同一 storage root
+ * 只执行一次（官方同款守卫）；claude 市场镜像缺失时直接跳过。失败静默——调用方按
+ * fire-and-forget 接入（官方在插件列表流程同款触发），绝不阻塞列表返回。
+ */
+export async function syncClaudePluginsOfficialIcons(storageRoot: string): Promise<void> {
+  const root = resolve(storageRoot);
+  if (iconSourceSyncedRoots.has(root)) return;
+  iconSourceSyncedRoots.add(root);
+  const run = async (): Promise<void> => {
+    if (!loadMarketplaceManifestSync(root, CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID)) return;
+    const icons = await resolveIconSourceIndex(root);
+    if (icons.size === 0) return;
+    const manifest = loadMarketplaceManifestSync(root, CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID);
+    if (!manifest) return;
+    const mergedRaw = mergeRawManifestIconSources(manifest.raw, icons);
+    if (mergedRaw === manifest.raw) return;
+    await writeJsonFile(
+      getMarketplaceManifestPath(root, CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID),
+      mergedRaw,
+    );
+  };
+  // 进程内串行：合并走「读-合并-原子写回原路径」的最小窗口，与安装事务的竞态由
+  // 原子写 + 一次性守卫约束（官方为锁内合并，意图等价）。
+  const previous = iconSourceSyncChain.length
+    ? iconSourceSyncChain[iconSourceSyncChain.length - 1]!
+    : Promise.resolve();
+  const current = previous.catch(() => undefined).then(run);
+  iconSourceSyncChain.push(current);
+  await current.catch(() => undefined);
 }
 
 export async function ensureMarketplaceManifestAvailable(input: {

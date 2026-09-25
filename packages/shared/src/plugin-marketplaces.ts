@@ -9,6 +9,12 @@ export interface DefaultPluginMarketplace {
 
 export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID = "drora-plugins-official";
 
+/** Claude 生态内置市场（anthropics/claude-plugins-official），与官方原版内置清单同名同源补录。 */
+export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = "claude-plugins-official";
+
+/** 官方 CDN 插件资产基址（市场图标索引 icon-sources.json 与插件图标共用）。 */
+export const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
+
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
   "browser-use@drora-plugins-official",
@@ -31,7 +37,7 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
 
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
-    // Drora 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
+    // Drora 官方市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
     // CDN manifest 的 name 必须与该 canonical id 一致。
     id: DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     source: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -39,9 +45,22 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
     description: "Official Drora plugins marketplace: built-in and community plugins for Drora.",
     pluginCount: 0,
   },
+  {
+    // 与官方原版内置清单（Bqt）对齐：Claude 生态市场源（GitHub anthropics/
+    // claude-plugins-official）同样随首载自动补录，驱动发现页「Claude Code 插件」分段；
+    // 其插件图标由官方 CDN 的 icon-sources.json 索引补全
+    // （adapters 侧 syncClaudePluginsOfficialIcons）。
+    id: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+    source: "anthropics/claude-plugins-official",
+    name: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+    description:
+      "Directory of popular Claude Code extensions including development tools, productivity plugins, and MCP integrations",
+    pluginCount: 0,
+  },
 ];
 
-// 商店「公开」分段只有一个 Drora 官方市场 id，内置与 CDN 不再拆分身份。
+// 商店「公开」分段只有一个 Drora 官方市场 id（官方原版同款语义：claude 生态市场只补录为
+// 已知源、落在个人分段，不并入公开商店身份），内置与 CDN 不再拆分身份。
 export const PUBLIC_STORE_MARKETPLACE_IDS = [DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
 export function isPublicStoreMarketplaceId(id: string): boolean {

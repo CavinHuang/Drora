@@ -3,7 +3,7 @@ import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useMemo, useState } from "react";
 import { Download, Loader2, Settings2 } from "lucide-react";
 import type { PluginStoreOrder, DroraPluginMarketplaceSummary } from "@drora/shared";
-import { DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@drora/shared";
+import { DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID, CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID } from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -112,7 +112,12 @@ export function PluginStoreListView({
     const titled: PersonalMarketplaceGroup[] = [...groups.entries()].map(
       ([marketplace, groupItems]) => ({
         marketplace,
-        title: resolveMarketplaceDisplayName(marketplace, marketplaces),
+        // Claude 生态内置市场用专门分段标题（官方同款 claudeCodePlugins i18n），
+        // 其余市场沿用 known record 的展示名。
+        title:
+          marketplace === CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID
+            ? intl.formatMessage({ id: "settings.plugins.marketplace.claudeCodePlugins" })
+            : resolveMarketplaceDisplayName(marketplace, marketplaces),
         items: groupItems.toSorted((left, right) =>
           resolveItemDisplayName(left, locale).localeCompare(
             resolveItemDisplayName(right, locale),

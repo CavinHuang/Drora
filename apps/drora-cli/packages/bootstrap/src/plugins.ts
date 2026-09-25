@@ -30,6 +30,7 @@ import {
   parseEntryStoreListing,
   readPluginSourceIdentityPin,
   removeMarketplace,
+  syncClaudePluginsOfficialIcons,
   uninstallMarketplacePlugin,
   updateMarketplace,
   validateLocalPluginPath,
@@ -271,6 +272,9 @@ export function getDroraPluginsOverview(
 ): DroraPluginsOverviewData {
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
+  // 官方同款触发：插件市场列表流程后台补全 claude-plugins-official 的 CDN 图标索引
+  // （fire-and-forget，不阻塞列表返回；每进程每 storage root 一次）。
+  void syncClaudePluginsOfficialIcons(pluginStorageRoot);
   const outcome = resolveDroraPlugins({
     ...options,
     configResult,

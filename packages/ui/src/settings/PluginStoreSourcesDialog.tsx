@@ -1,5 +1,6 @@
 import { AlertTriangle, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import type { DroraPluginMarketplaceSummary } from "@drora/shared";
+import { CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID } from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -83,7 +84,11 @@ export function PluginStoreSourcesDialog({
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate text-ui-base font-medium text-foreground">
-                        {resolveMarketplaceDisplayName(marketplace.id, [marketplace])}
+                        {marketplace.id === CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID
+                          ? intl.formatMessage({
+                              id: "settings.plugins.marketplace.claudeCodePlugins",
+                            })
+                          : resolveMarketplaceDisplayName(marketplace.id, [marketplace])}
                       </span>
                     </div>
                     <div className="mt-0.5 truncate text-ui-base text-foreground-subtle">

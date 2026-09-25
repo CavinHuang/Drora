@@ -3819,6 +3819,7 @@ const zhCN: Record<string, string> = {
   "settings.plugins.marketplacePlugins.install": "安装",
   "settings.plugins.marketplacePlugins.installed": "已安装",
   "settings.plugins.marketplace.searchPlaceholder": "搜索插件、技能、MCP…",
+  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code 插件",
   "settings.plugins.marketplace.catalogLoading": "正在加载插件…",
   "settings.plugins.marketplace.sourceInfo.label": "发现页来源说明",
   "settings.plugins.marketplace.sourceInfo.title": "发现页内容来自 GitHub 插件市场",

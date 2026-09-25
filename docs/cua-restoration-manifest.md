@@ -962,6 +962,31 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   host+browser-use 两插件，本轮不动（桌面 glm 发行物为对齐基准）；宿主 Helper 自装器
   缺位维持第五轮决策（开源仓库无签名 Helper 资产，能力由桌面侧 installer 承载）。
 
+### 第四十一轮：插件市场个人数据对齐收口（2026-09-25）
+
+第五维度审查（个人数据加载 + 远程资源加载）发现的两个内容面缺口闭合：
+
+- **补录 claude-plugins-official 内置市场**：官方内置清单（Bqt）是两个市场——官方 CDN
+  源 + Claude 生态 GitHub 源（anthropics/claude-plugins-official，314 插件，发现页
+  「Claude Code 插件」分段的来源），Drora 此前只补录官方源。`DEFAULT_PLUGIN_MARKETPLACES`
+  增加第二个条目（描述官方逐字），`ensureDefaultPluginMarketplaces` 首载自动补录
+  （github 源解析既有路径直通）；公开商店身份不变（官方 itr 同款：claude 市场属个人
+  分段）。发现页个人分段组标题与市场管理对话框为 claude 市场特判 i18n
+  `settings.plugins.marketplace.claudeCodePlugins`（中英文案官方逐字）。
+- **icon-sources.json CDN 图标索引**（官方 hdn/wJr 同构）：Claude 生态市场镜像来自
+  GitHub 不带图标，官方 CDN 另发布 icon-sources.json 索引。adapters 新增
+  `syncClaudePluginsOfficialIcons`：每进程每 storage root 一次守卫 → 拉取索引
+  （10s 超时；异常回退缓存文件；空索引不清空已有图标）→ 逐条校验（name 段正则、
+  icon 必须 .png 无绝对路径/反斜杠且 ≥2 段、mimeType 仅 image/png、sha256 64-hex）
+  → 只给缺失/空白 icon 的条目补 assets 基址绝对 URL → 合并有变更才原子写回镜像
+  清单；索引本身 best-effort 落盘。bootstrap `getDroraPluginsOverview` 按官方 Vwt
+  同款 fire-and-forget 触发，不阻塞列表。shared 新增
+  `CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID`/`OFFICIAL_PLUGIN_ASSETS_BASE_URL` 导出。
+- **测试**：adapters 新增 test 链（node --import tsx --test，与仓库 TS 源码导出形态
+  匹配）：索引解析/逐条丢弃、合并只补空白且无变更返回原引用、双内置市场补录幂等，
+  5/5 通过。质量门：根 typecheck + adapters/bootstrap typecheck、lint 0 errors、
+  架构 0 违规。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

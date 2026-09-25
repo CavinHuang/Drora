@@ -4083,6 +4083,7 @@ const enUS: Record<string, string> = {
   "settings.plugins.marketplacePlugins.install": "Install",
   "settings.plugins.marketplacePlugins.installed": "Installed",
   "settings.plugins.marketplace.searchPlaceholder": "Search Plugins, Skills, MCPs...",
+  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code Plugins",
   "settings.plugins.marketplace.catalogLoading": "Loading plugins…",
   "settings.plugins.marketplace.sourceInfo.label": "Discover source information",
   "settings.plugins.marketplace.sourceInfo.title": "Discover uses GitHub marketplaces",

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+/* oxlint-disable eslint(max-lines), eslint(no-unused-expressions) -- 验收
+   harness 按场景线性组织且大量使用逗号表达式驱动 socket 序列，长度与写法
+   为验收可读性服务，不拆分。 */
 // macOS 双 broker 能力 parity 验收：本仓库构建产物 vs 官方原版 .app。
 // spec：specs/mac-cua-helper-app-alignment.md §四.3。
 // 用法：node tools/parity-mac-helper.mjs [our.app] [orig.app]

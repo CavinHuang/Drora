@@ -7,8 +7,11 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-const addonPath =
-  process.argv[2] ?? path.resolve(import.meta.dirname, "..", "native", "ax_native.node");
+const addonPath = process.argv[2]
+  ? // require 把不以 ./ 或 / 开头的参数当包名解析（CI 从仓库根传相对路径即
+    // MODULE_NOT_FOUND），这里统一先按 cwd 解析成绝对路径。
+    path.resolve(process.argv[2])
+  : path.resolve(import.meta.dirname, "..", "native", "ax_native.node");
 if (!fs.existsSync(addonPath)) {
   console.error(`addon not found: ${addonPath}`);
   process.exit(1);

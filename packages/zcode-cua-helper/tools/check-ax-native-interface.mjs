@@ -10,7 +10,11 @@ import path from "node:path";
 import process from "node:process";
 
 const pkgRoot = path.resolve(import.meta.dirname, "..");
-const addonPath = process.argv[2] ?? path.resolve(pkgRoot, "native", "ax_native.node");
+const addonPath = process.argv[2]
+  ? // require 把不以 ./ 或 / 开头的参数当包名解析（CI 从仓库根传相对路径即
+    // MODULE_NOT_FOUND），这里统一先按 cwd 解析成绝对路径。
+    path.resolve(process.argv[2])
+  : path.resolve(pkgRoot, "native", "ax_native.node");
 
 // 源码中经适配层间接调用的包装名（nativeAxSource / nodeAutomationAdapter 提供，
 // 非 addon 直接导出）：调用点豁免清单。

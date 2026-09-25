@@ -308,5 +308,113 @@ if (oursSurface && origSurface) {
   console.log("DIFF method probe (broker not ready)");
 }
 
+
+// 场景 4：参数校验矩阵（第三十轮）。带参用例触发各方法的确定性校验路径
+// （参数类型/边界/缺失，均在 AX/权限门之前失败），双侧逐字比对
+// error.code + error.message——消息原文即参数校验逻辑的最强证据面。
+const PARAM_CASES = [
+  { name: "move_to:no-point", method: "move_to", params: {} },
+  { name: "mouse_down:no-point", method: "mouse_down", params: {} },
+  { name: "mouse_up:not-holding", method: "mouse_up", params: { session_key: "s1" } },
+  { name: "click:no-point", method: "click", params: {} },
+  { name: "click:bad-point", method: "click", params: { point: { x: "a", y: 2 } } },
+  { name: "scroll:no-point", method: "scroll", params: {} },
+  { name: "scroll:bad-amount", method: "scroll", params: { point: { x: 1, y: 1 }, amount: -5, direction: "down" } },
+  { name: "drag:no-points", method: "drag", params: {} },
+  { name: "element_at_point:bad-coords", method: "element_at_point", params: { x: "a", y: 0 } },
+  { name: "pip_start:no-window-id", method: "pip_start", params: {} },
+  { name: "pip_start:bad-width", method: "pip_start", params: { window_id: 1, width: -3 } },
+  { name: "pip_start:bad-height", method: "pip_start", params: { window_id: 1, width: 100, height: 99999 } },
+  { name: "click_element_at_point:no-point", method: "click_element_at_point", params: {} },
+  { name: "type_text:empty", method: "type_text", params: { text: "" } },
+  { name: "type_text:bad-type", method: "type_text", params: { text: 123 } },
+  { name: "hold_key:no-chord", method: "hold_key", params: {} },
+  { name: "press_key:no-chord", method: "press_key", params: {} },
+  { name: "key_down:no-key", method: "key_down", params: {} },
+  { name: "cursor_position:ok", method: "cursor_position", params: {} },
+  { name: "list_displays:ok", method: "list_displays", params: {} },
+  { name: "request_access:ok", method: "request_access", params: {} },
+  { name: "permission_status:ok", method: "permission_status", params: {} },
+  { name: "controller_status:ok", method: "controller_status", params: {} },
+  { name: "input_permission_status:ok", method: "input_permission_status", params: {} },
+];
+async function paramMatrixProbe(label, appPath) {
+  const workDir = mkdtempSync(join(tmpdir(), `cua-param-${label}-`));
+  const socketPath = join(workDir, "broker.sock");
+  const token = `parity-${randomUUID()}`;
+  const tokenFile = join(workDir, "token");
+  writeFileSync(tokenFile, token, { mode: 0o600 });
+  const child = spawn(
+    join(appPath, "Contents", "MacOS", "ZCode Computer Use"),
+    ["--socket", socketPath, "--token-file", tokenFile, "--launcher-pid", String(launcherPid)],
+    { env: launchEnv(workDir), stdio: ["ignore", "pipe", "ignore"] },
+  );
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  const ready = await new Promise((res) => {
+    const deadline = Date.now() + 30000;
+    const poll = () => {
+      if (stdout.includes('"ready":true') || child.exitCode !== null || Date.now() > deadline) {
+        return res(stdout.includes('"ready":true'));
+      }
+      setTimeout(poll, 200);
+    };
+    poll();
+  });
+  if (!ready) { child.kill(); return null; }
+  const results = {};
+  for (const c of PARAM_CASES) {
+    try {
+      const replies = await new Promise((res, rej) => {
+        const sock = connect(socketPath);
+        let buf = "";
+        const out = [];
+        sock.on("error", (e) => (sock.destroy(), rej(e)));
+        sock.on("connect", () => {
+          sock.write(JSON.stringify({ id: 1, method: "authenticate", params: { token } }) + "\n");
+          sock.write(JSON.stringify({ id: 2, method: c.method, params: c.params }) + "\n");
+        });
+        sock.on("data", (d) => {
+          buf += d;
+          let i;
+          while ((i = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, i);
+            buf = buf.slice(i + 1);
+            if (!line.trim()) continue;
+            out.push(JSON.parse(line));
+            if (out.length >= 2) { sock.destroy(); res(out); }
+          }
+        });
+        setTimeout(() => (sock.destroy(), rej(new Error("case timeout"))), 8000);
+      });
+      const r = replies[1] ?? {};
+      const norm = (v) => JSON.stringify(v)?.replace(/"pid":\d+/g, '"pid":<pid>');
+      results[c.name] = r.ok === true
+        ? `ok:${norm(r.result)?.slice(0, 160)}`
+        : `${r.error?.code ?? "?"}::${r.error?.message ?? ""}`;
+    } catch (e) {
+      results[c.name] = `exchange-error:${e.message}`;
+    }
+  }
+  child.kill();
+  setTimeout(() => { try { child.kill(9); } catch {} }, 1500);
+  await wait(400);
+  return results;
+}
+const oursParam = await paramMatrixProbe("ours", OURS);
+const origParam = await paramMatrixProbe("orig", ORIG);
+if (oursParam && origParam) {
+  for (const c of PARAM_CASES) {
+    const same = oursParam[c.name] === origParam[c.name];
+    if (!same) failed++;
+    console.log(
+      `${same ? "MATCH" : "DIFF"} param:${c.name}\n  ours=${oursParam[c.name]}\n  orig=${origParam[c.name]}`,
+    );
+  }
+} else {
+  failed++;
+  console.log("DIFF param matrix (broker not ready)");
+}
+
 console.log(failed === 0 ? "\nmacOS broker parity 通过 ✓" : `\n${failed} 项不一致 ✗`);
 process.exit(failed === 0 ? 0 : 1);

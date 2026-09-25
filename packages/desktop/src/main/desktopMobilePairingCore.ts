@@ -127,16 +127,19 @@ export interface LanAddressResult {
   interfaceName: string;
 }
 
+/** 放宽 Node 的 NetworkInterfaceInfo：测试可传入纯结构对象，family 用宽松 string。 */
+type LanInterfaces = Record<
+  string,
+  Array<{ address: string; family: string; internal: boolean }> | undefined
+>;
+
 /**
  * 从本机网卡挑一个可供手机访问的 IPv4 地址。
  * 优先 192.168/10. 段的物理网段，回退任意非内环 IPv4；找不到返回 null（UI 提示）。
  * 排除虚拟网卡常见命名（vEthernet/Docker/WSL 等），减少扫出一个连不上的地址。
  */
 export function pickLanAddress(
-  interfaces: Record<
-    string,
-    Array<{ address: string; family: string; internal: boolean }>
-  > = networkInterfaces(),
+  interfaces: LanInterfaces = networkInterfaces(),
 ): LanAddressResult | null {
   const candidates: Array<LanAddressResult & { priority: number }> = [];
   for (const [name, addresses] of Object.entries(interfaces)) {

@@ -197,6 +197,7 @@ import {
 } from "./resourceManagerWindow.js";
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
+import { createDesktopMobilePairingServer } from "./desktopMobilePairingServer.js";
 import {
   loadCliMcpFromUserDirectory,
   migrateLegacyCommonMcp,
@@ -2014,7 +2015,31 @@ app.whenReady().then(async () => {
     logger,
   });
 
+  // 移动端远程控制（LAN 直连扫码）：服务默认关闭，弹层显式开启才监听端口。
+  // 手机附着的是发起窗口所属的 Local Host，复用 web-remote-replayable 会话链路。
+  const mobilePairingServer = createDesktopMobilePairingServer({ logger });
   registerPlatformIpcHandlers({
+    mobilePairing: {
+      start: async (params) => {
+        const hostChild = windowHostProcessMap.get(params.senderWebContentsId);
+        if (!hostChild || hostChild.pid === undefined) {
+          throw new Error("当前窗口的 Host 进程尚未就绪，无法配对");
+        }
+        return mobilePairingServer.start({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+          hostChild,
+        });
+      },
+      stop: () => Promise.resolve(mobilePairingServer.stop("ui-stop")),
+      state: () => ({
+        running: mobilePairingServer.isRunning(),
+        phase: mobilePairingServer.phase(),
+        connected: mobilePairingServer.connected(),
+        url: mobilePairingServer.currentUrl(),
+        expiresAt: mobilePairingServer.currentExpiresAt(),
+      }),
+    },
     fetchHelpConfig: readHelpConfig,
     logger,
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。

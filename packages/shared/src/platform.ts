@@ -676,6 +676,25 @@ export interface IPlatformService {
   registerOAuthState(payload: OAuthStateRegistration): void;
 
   /**
+   * 移动端远程控制：启动 LAN 配对服务并签发一次性配对二维码。
+   * URL 里的配对令牌 5 分钟过期；服务默认关闭，由用户显式开启。Desktop only。
+   */
+  startMobilePairing?(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<{ url: string; port: number; expiresAt: number }>;
+  /** 停止移动端配对服务（关端口、作废令牌）。Desktop only。 */
+  stopMobilePairing?(): Promise<void>;
+  /** 查询配对服务状态（弹层重开时恢复展示）。Desktop only。 */
+  getMobilePairingState?(): Promise<{
+    running: boolean;
+    phase: "idle" | "awaiting-pair" | "paired";
+    connected: boolean;
+    url: string | null;
+    expiresAt: number | null;
+  }>;
+
+  /**
    * 注册 OAuth deep link 回调监听
    * @returns disposer 函数，调用后只移除当前回调
    */

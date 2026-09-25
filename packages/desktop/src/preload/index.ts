@@ -288,6 +288,17 @@ contextBridge.exposeInMainWorld("drora", {
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(PlatformChannels.SelectDirectory),
+  /** 移动端远程控制：启动 LAN 配对服务（URL 携带一次性配对令牌，5 分钟过期） */
+  startMobilePairing: (params: { workspacePath: string; workspaceIdentity?: string }) =>
+    ipcRenderer.invoke(PlatformChannels.MobilePairingStart, params),
+  stopMobilePairing: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.MobilePairingStop),
+  getMobilePairingState: (): Promise<{
+    running: boolean;
+    phase: "idle" | "awaiting-pair" | "paired";
+    connected: boolean;
+    url: string | null;
+    expiresAt: number | null;
+  }> => ipcRenderer.invoke(PlatformChannels.MobilePairingState),
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */

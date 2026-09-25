@@ -100,6 +100,22 @@ export function registerPlatformIpcHandlers(options: {
   reportBrowserScreenshotSurfaceReady?: ReportBrowserScreenshotSurfaceReady;
   /** Browser tab 关闭、挂起、恢复与跨重启 shell IPC。 */
   browserViewResidencyHandlers?: BrowserViewResidencyIpcHandlers;
+  /** 移动端远程控制配对服务（LAN 直连）。仅 Desktop 主进程提供。 */
+  mobilePairing?: {
+    start: (params: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+      senderWebContentsId: number;
+    }) => Promise<{ url: string; port: number; expiresAt: number }>;
+    stop: () => Promise<void>;
+    state: () => {
+      running: boolean;
+      phase: "idle" | "awaiting-pair" | "paired";
+      connected: boolean;
+      url: string | null;
+      expiresAt: number | null;
+    };
+  };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -109,6 +125,34 @@ export function registerPlatformIpcHandlers(options: {
       return null;
     }
     return result.filePaths[0];
+  });
+
+  ipcMain.handle(
+    PlatformChannels.MobilePairingStart,
+    async (event, params: { workspacePath?: string; workspaceIdentity?: string } | undefined) => {
+      if (!options.mobilePairing) {
+        throw new Error("mobile pairing is unavailable in this build");
+      }
+      return options.mobilePairing.start({
+        workspacePath: String(params?.workspacePath ?? ""),
+        workspaceIdentity: params?.workspaceIdentity ? String(params.workspaceIdentity) : undefined,
+        senderWebContentsId: event.sender.id,
+      });
+    },
+  );
+  ipcMain.handle(PlatformChannels.MobilePairingStop, async () => {
+    await options.mobilePairing?.stop();
+  });
+  ipcMain.handle(PlatformChannels.MobilePairingState, () => {
+    return (
+      options.mobilePairing?.state() ?? {
+        running: false,
+        phase: "idle" as const,
+        connected: false,
+        url: null,
+        expiresAt: null,
+      }
+    );
   });
 
   ipcMain.handle(PlatformChannels.SelectFile, async () => {

@@ -1,9 +1,10 @@
+import { resolveDroraHome } from "./desktopRuntimeEnv.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、Drora Agent，拆分前先保持跨进程消息收口。 */
 import { bindDatabaseStartupRelay } from "./databaseStartupRelay.js";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { homedir, join } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -267,7 +268,18 @@ export function spawnHostProcess(
       // `--launcher-pid` and the Helper's signature/peer verification succeeds instead of
       // health-timing out. Env-name mirror of services' LAUNCHER_PID_ENV. Not set on
       // Windows/Linux (CUA is macOS-only; nothing reads it there) to keep the host env pristine.
-      ...(process.platform === "darwin" ? { DRORA_CUA_LAUNCHER_PID: String(process.pid) } : {}),
+      ...(process.platform === "darwin"
+        ? {
+            DRORA_CUA_LAUNCHER_PID: String(process.pid),
+            // 第二十八轮接缝修复（方案 A，spec §七.0）：CUA 安装链（豁免区
+            // zcode-cua）以 ZCODE_HOME||~/.zcode 解析 helper 安装根，而 Drora
+            // 的数据根/standalone 枚举走 DRORA_HOME||~/.drora——不路由会让
+            // helper 装进 ~/.zcode（与官方 ZCode 同根共存）而设置页在
+            // ~/.drora 找不到。经 env 把 Drora 数据根路由进豁免区，零改动。
+            ZCODE_HOME:
+              resolveDroraHome(),
+          }
+        : {}),
       ...(dependencies.desktopContextPromptEnabled
         ? {
             [DRORA_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV]: dependencies.desktopContextPromptEnabled()

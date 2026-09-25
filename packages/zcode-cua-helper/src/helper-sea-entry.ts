@@ -1,4 +1,12 @@
 // oxlint-disable-file
+// 构建期常量折叠点（对齐原版构建机制：esbuild define 注入，缺失时回退缺省值）。
+// 原版发行构建把 dev 常量折叠为 false、身份常量折叠为产品值；开源默认构建
+// 不注入 → 走 parity 基线缺省，行为与此前一致。
+declare const __DRORA_CUA_HELPER_VERSION__: string | undefined;
+// 路线 A 分发（无签名身份）：发行构建折叠为 true——helper 接受
+// --allow-unsigned-launcher-local-dev（跳过 launcher 签名验证，token 文件与
+// peer 祖先链验证仍生效）。缺省 false，与原版行为一致。
+declare const __DRORA_CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER__: boolean | undefined;
 // ZCode Computer Use（macOS Helper）SEA 入口。
 // 还原自原版 payload 的 helper-sea-entry.mjs：esbuild 以此为入口打 CJS bundle，
 // 再经 node --experimental-sea-config + postject 注入生成单可执行 Helper。
@@ -10,10 +18,14 @@ import { main } from "./broker/server/helperMain.js";
 
 const helperAddonName = "ax_native.node";
 const smokeFlag = "--cua-helper-provenance-smoke";
-const allowUnsignedLauncherLocalDev = false;
+const allowUnsignedLauncherLocalDev =
+  typeof __DRORA_CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER__ < "u"
+    ? __DRORA_CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER__
+    : false;
 // 与 Info.plist 的 CFBundleShortVersionString / ZCodeCUAHelperBuildId 同步由
 // scripts/build-cua-helper-app.mjs 注入；这里只是 SEA 内嵌的缺省值。
-const embeddedVersion = "3.11.2";
+const embeddedVersion =
+  typeof __DRORA_CUA_HELPER_VERSION__ < "u" ? __DRORA_CUA_HELPER_VERSION__ : "3.11.2";
 const embeddedBundleId = "dev.zcode.cua-helper";
 const embeddedDisplayName = "ZCode Computer Use";
 

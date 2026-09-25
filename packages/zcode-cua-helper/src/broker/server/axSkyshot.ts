@@ -157,7 +157,7 @@ function summarizeRanges(ids) {
   return out.join(", ");
 }
 var sharedDiffer = new SkyshotDiffer();
-function createGetSkyshotHandler(source) {
+export function createGetSkyshotHandler(source) {
   return async (params) => {
     const appRef = params.app_ref ?? {};
     const snapshot = await source.captureApp(appRef, {

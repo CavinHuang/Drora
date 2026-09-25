@@ -7,6 +7,8 @@ export interface PipSessionApplyResult {
 
 export interface PipSessionClientOptions {
   socketPath?: string;
+  /** 第十五轮 token 模式：role=presentation authenticate 携带的 presentation token */
+  presentationToken?: string;
   timeoutMs?: number;
   reconnectAttempts?: number;
   reconnectDelayMs?: number;

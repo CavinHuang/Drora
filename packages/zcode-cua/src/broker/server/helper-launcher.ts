@@ -22,6 +22,7 @@ import {
   rm as tKe,
 } from "node:fs/promises";
 import { execFile as Nz } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   existsSync as Lz,
   existsSync as Nre,
@@ -323,6 +324,10 @@ export function Gre(e = process.env) {
 export function JC(e, t) {
   let n = ["-n", "-g", e.appPath, "--args", "--socket", e.socketPath],
     r = e.version?.trim();
+  // 原版 mac 3.11.2 发射序（asar Uxe）：token 文件紧跟 --socket，先于 --version。
+  // LaunchServices 不透传 env，token 只能走一次性文件（0.5.13 win32 线走 env，属两线演进差）。
+  e.tokenFile && n.push("--token-file", e.tokenFile);
+  e.presentationTokenFile && n.push("--presentation-token-file", e.presentationTokenFile);
   r && n.push("--version", r);
   let o = e.expectedAppBundlePath?.trim();
   if (
@@ -419,14 +424,75 @@ export async function Fz(e) {
   }
 }
 
+// —— 一次性 token 文件链（原版 mac 3.11.2 发射器 F9/Xxe/Yxe 的还原）——
+// LaunchServices(`open`) 不向目标 app 透传环境变量，mac 产品模式的 broker token
+// 只能经文件交付：socket 同目录 `.tokens/` 下的一次性文件，helper 读取后即删。
+var HELPER_TOKEN_FILE_CLEANUP_MS = 6e4;
+
+export async function writeOneShotHelperTokenFile(e) {
+  let t = KC(kz(e.socketPath), ".tokens");
+  await wz(t, { recursive: !0, mode: 448 });
+  await yz(t, 448);
+  for (let n = 0; n < 5; n += 1) {
+    let o = KC(t, `.broker-token-${process.pid}-${randomBytes(8).toString("hex")}`);
+    try {
+      return (
+        Lre(o, e.token, { encoding: "utf8", mode: 384, flag: "wx" }),
+        o
+      );
+    } catch (r) {
+      if (r.code === "EEXIST") continue;
+      throw new CuaHelperError(
+        "launch_failed",
+        `Failed to write one-shot Computer Use Helper token file: ${r instanceof Error ? r.message : String(r)}`,
+        { cause: r },
+      );
+    }
+  }
+  throw new CuaHelperError(
+    "launch_failed",
+    "Failed to write one-shot Computer Use Helper token file: exhausted unique filename retries",
+  );
+}
+
+export function createHelperTokenFileReceipt(e) {
+  let t = e.filter(Boolean);
+  return {
+    tokenFiles: t,
+    revokeTokenFile: async () => {
+      for (let n of t) await Fre(n, { force: !0 });
+    },
+  };
+}
+
+export function scheduleHelperTokenFileCleanup(e) {
+  setTimeout(() => {
+    e.revokeTokenFile().catch(() => {});
+  }, HELPER_TOKEN_FILE_CLEANUP_MS).unref?.();
+}
+
 export function Bz() {
   return {
     launch: async (e) => {
+      let t, n, o;
       try {
-        await ooe(e);
-      } catch (t) {
-        throw new VC(t);
+        (t = await writeOneShotHelperTokenFile(e)),
+          (n = e.presentationToken
+            ? await writeOneShotHelperTokenFile({ ...e, token: e.presentationToken })
+            : void 0),
+          (o = createHelperTokenFileReceipt([t, n]));
+      } catch (r) {
+        throw r instanceof VC ? r : new VC(r);
       }
+      try {
+        await ooe({ ...e, tokenFile: t, presentationTokenFile: n });
+      } catch (r) {
+        try {
+          await o.revokeTokenFile();
+        } catch {}
+        throw r instanceof VC ? r : new VC(r);
+      }
+      scheduleHelperTokenFileCleanup(o);
     },
   };
 }

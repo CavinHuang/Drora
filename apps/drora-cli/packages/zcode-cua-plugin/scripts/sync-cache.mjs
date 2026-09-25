@@ -23,7 +23,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const devPlugin = packageRoot;
 // Build artifacts that constitute an installed plugin in the cache.
-// 与原版 0.5.13 对齐：installed plugin = skills + dist + manifest + package.json；
+// 与原版 0.5.14 对齐（官方桌面 3.11.2 内置版本；第四轮基线为 0.5.13，第十二轮升版）：installed plugin = skills + dist + manifest + package.json；
 // node_modules（sharp/koffi/semver 等 seed 依赖）随缓存一起同步，缺它则 dist 的
 // server.js 在缓存里加载不到原生模块。
 const ENTRIES = [
@@ -89,7 +89,7 @@ for (const entry of ENTRIES) {
   copied.push(entry);
 }
 
-// sharp/koffi 的原生运行时已随原版 0.5.13 seed 资产整体存在于本包 node_modules
+// sharp/koffi 的原生运行时已随原版 seed 资产整体存在于本包 node_modules（0.5.13 引入，0.5.14 沿用同文件集）
 // 并随上面的 ENTRIES 一起拷贝；此前从 desktop/adapters 包二次 stage 的两条链
 // （sharp-package-assets.mjs 在本仓库也不存在）随之移除，避免双源漂移。
 

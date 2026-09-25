@@ -6,6 +6,9 @@ import { HELPER_ADDON_ENV, HELPER_APP_NAME } from "../helperConstants.js";
 
 var PACKAGED_ADDON_BASENAME = "ax_native.node";
 var IN_TREE_ADDON_REL = join("build", "Release", "ax_native.node");
+// darwin 的 in-tree 原生插件是 native/ax_native_mac.node（字节级官方副本）；
+// build/Release/ax_native.node 是 win32 PE——darwin dev 回退命中它会报镜像格式错误。
+var IN_TREE_ADDON_REL_DARWIN = join("native", "ax_native_mac.node");
 function loaderModuleBase(moduleUrl?) {
   if (moduleUrl) return moduleUrl;
   const argvEntry = process.argv[1];
@@ -45,6 +48,22 @@ function resolveInTreeAddonPath(options: any = {}) {
   }
   return null;
 }
+// darwin 专用回退：仓库内 native/ax_native_mac.node（不参与 win32 解析）。
+function resolveDarwinRepoAddonPath(options: any = {}) {
+  const fileExists: any = options.fileExists ?? existsSync;
+  const startDir = dirname(
+    options.moduleUrl ? fileURLToPath(new URL(".", options.moduleUrl)) : loaderModuleBase(),
+  );
+  let dir = startDir;
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, IN_TREE_ADDON_REL_DARWIN);
+    if (fileExists(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
 export function loadRealNativeAddon(options: any = {}) {
   const platform2 = options.platform ?? process.platform;
   if (platform2 !== "darwin" && platform2 !== "linux" && platform2 !== "win32") {
@@ -62,10 +81,14 @@ export function loadRealNativeAddon(options: any = {}) {
   if (packagedPath) {
     return require2(packagedPath);
   }
-  const inTreePath = resolveInTreeAddonPath({
-    fileExists: options.fileExists,
-    moduleUrl: options.moduleUrl,
-  });
+  const inTreePath =
+    (platform2 === "darwin"
+      ? resolveDarwinRepoAddonPath({ fileExists: options.fileExists, moduleUrl: options.moduleUrl })
+      : null) ??
+    resolveInTreeAddonPath({
+      fileExists: options.fileExists,
+      moduleUrl: options.moduleUrl,
+    });
   if (inTreePath) {
     return require2(inTreePath);
   }

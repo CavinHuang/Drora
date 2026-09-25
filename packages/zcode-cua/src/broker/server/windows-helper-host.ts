@@ -627,6 +627,9 @@ export function S$(e) {
   let t = new Qu(e.socketPath, {
       authenticateParams: {
         role: "presentation",
+        // 第十五轮 token 模式：presentation token 经 --presentation-token-file
+        // 配进 helper broker，PiP 客户端 authenticate 必须携带同一 token。
+        ...(e.presentationToken ? { token: e.presentationToken } : {}),
       },
       timeoutMs: e.timeoutMs ?? 3e3,
       peerChecker: e.peerChecker,

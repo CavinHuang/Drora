@@ -4,7 +4,7 @@
 
 import { BrokerError } from "../types.js";
 
-function createElectronDisplaySelection(source) {
+export function createElectronDisplaySelection(source) {
   let selectedDisplayId;
   const topology = () => {
     const displays = source.getAllDisplays();

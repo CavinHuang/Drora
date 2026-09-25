@@ -65485,8 +65485,8 @@ function registerAllTools(server, deps) {
 }
 var SERVER_NAME = "zcode-cua";
 var SERVER_VERSION = (() => {
-  if ("0.5.13".trim().length > 0) {
-    return "0.5.13";
+  if ("0.5.14".trim().length > 0) {
+    return "0.5.14";
   }
   try {
     const require2 = createRequire2(import.meta.url);

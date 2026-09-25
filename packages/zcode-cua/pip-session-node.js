@@ -5,9 +5,10 @@ import { S$ as createPipSessionClientFactory } from "./broker/server/windows-hel
 import { resolveBrokerSocketPath } from "./broker/socket-path.js";
 
 export function createPipSessionClient(options = {}) {
-  const { socketPath, env, ...rest } = options;
+  const { socketPath, env, presentationToken, ...rest } = options;
   return createPipSessionClientFactory({
     socketPath: socketPath ?? resolveBrokerSocketPath({ env: env ?? process.env }),
+    ...(presentationToken ? { presentationToken } : {}),
     ...rest,
   });
 }

@@ -141,6 +141,43 @@ jobs:
           path: packages/desktop/out/
           retention-days: 7
 
+  macos-helper:
+    name: macOS helper .app build chain (macos-14)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # 构建链守卫：addon 文件名、node 版本错配（modules 137 守卫）、SEA 熔丝、
+      # ax_native 基线 SHA-256 钉扎——任一回归即红灯。
+      - name: Build macOS helper .app
+        run: pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
+      - name: Provenance smoke
+        run: >-
+          'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use'
+          --cua-helper-provenance-smoke
+      - name: Native addon interface
+        run: |
+          node packages/zcode-cua-helper/tools/probe-ax-native.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
+          node packages/zcode-cua-helper/tools/check-ax-native-interface.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
+      # 离线段（A/B）：token 文件契约 + 原版参数序。E2E 段（C/F）需要产品
+      # launcher 祖先与官方签名 staging 资产，仅本机可跑（parity-mac-helper、
+      # embedded-build-id 同理，对照物不入库）。
+      - name: Launch contract (offline sections)
+        env:
+          MAC_LAUNCH_CONTRACT_E2E: "0"
+        run: node packages/zcode-cua/test/mac-launch-contract.mjs
+      - name: Upload helper .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-macos-app
+          path: packages/zcode-cua-helper/dist-cua-helper/
+          retention-days: 7
+
   addon-parity:
     name: Win32 addon rebuild + parity vs shipped binary (windows)
     runs-on: windows-2022

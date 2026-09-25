@@ -33,6 +33,7 @@ import {
   resolve as gse,
 } from "node:path";
 import { execFile as pse } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync as fse, realpathSync as xW } from "node:fs";
 import { randomBytes as Sse, randomUUID } from "node:crypto";
 import { Cb, Dse, bb, jW, qc, use } from "./helper-installer.js";
@@ -508,6 +509,14 @@ export var $se = Ss,
     get socketPath() {
       return this.handle?.socketPath ?? null;
     }
+    // 第十五轮：token 模式回归——handle 携带发射时铸造的 broker token，
+    // 供 services 构建 agent spawn env（客户端 authenticate 用）。
+    get token() {
+      return this.handle?.token ?? null;
+    }
+    get presentationToken() {
+      return this.handle?.presentationToken ?? null;
+    }
     get pluginAuthority() {
       return this.resolverPluginAuthority ?? null;
     }
@@ -621,10 +630,15 @@ export var $se = Ss,
           deadlineEpochMs: A() + C + D,
           now: A(),
         });
+      let zn = process.platform === "darwin" ? randomBytes(32).toString("hex") : void 0,
+        Un = process.platform === "darwin" ? randomBytes(32).toString("hex") : void 0;
       try {
         await this.options.launcher.launch({
           appPath: p,
           expectedAppBundlePath: p,
+          // 原版 mac 3.11.2 语义：host 铸造 broker token，经一次性文件交付
+          // （LaunchServices 不透传 env）。win32 走 env-token 旧线，不注入。
+          ...(zn ? { token: zn, presentationToken: Un } : {}),
           ...(k
             ? {
                 controllerVariant: k,
@@ -643,7 +657,10 @@ export var $se = Ss,
               }
             : {}),
           env: this.options.env,
-          allowUnsignedLauncherLocalDev: Ps(this.options.env),
+          // 路线 A 分发 profile：DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1 时接受
+          // 未签名 launcher（token 文件与 peer 祖先链验证仍生效）
+          allowUnsignedLauncherLocalDev:
+            Ps(this.options.env) || process.env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1",
           allowExternalBrokerClientLocalDev: Ps(this.options.env) || _b(this.options.env),
           version: bn(this.options.env) ? this.options.env?.ZCODE_VERSION?.trim() || qc : qc,
           ghostCursorOverlay: g,
@@ -680,6 +697,8 @@ export var $se = Ss,
           ((O, L) =>
             probeHelperHealth(O, {
               timeoutMs: L,
+              // token 模式：若其它客户端抢先认领，窗口关闭后无 token 探针会误判失败
+              ...(zn ? { token: zn } : {}),
             }))
         )(c, C);
         let M = this.options.expectedBundleId ?? $se;
@@ -753,6 +772,7 @@ export var $se = Ss,
         helperAppPath: p,
         bundleId: j.bundleId,
         pid: B,
+        ...(zn ? { token: zn, presentationToken: Un } : {}),
       }),
         (this.pendingReservedTuple = null));
       try {
@@ -1257,6 +1277,8 @@ export var $se = Ss,
         ((r, o) =>
           probeHelperHealth(r, {
             timeoutMs: o,
+            // token 模式（原版 mac 发射链）：窗口关闭后的探针必须带 token authenticate
+            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }
@@ -1272,6 +1294,7 @@ export var $se = Ss,
             socketPath: r,
             method: "permission_status",
             timeoutMs: o,
+            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }
@@ -1309,6 +1332,7 @@ export var $se = Ss,
             socketPath: r,
             method: "screen_capture_probe",
             timeoutMs: o,
+            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }

@@ -355,6 +355,12 @@ jobs:
           - SHA256SUMS.txt: 所有产物的校验和
           - latest*.yml: electron-builder 自动更新通道清单
 
-          未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode;
-          首次运行请按系统提示放行)。Sources: commit ${GITHUB_SHA}" \
+          未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode)。
+          - Windows: SmartScreen 提示时点"更多信息 → 仍要运行"。
+          - macOS: 把 Drora 拖入"应用程序"后若提示"已损坏,无法打开",这是
+            Gatekeeper 对未公证应用的拦截,不是安装包损坏。在终端执行
+            \`sudo xattr -rd com.apple.quarantine /Applications/Drora.app\`
+            清除下载隔离标记后正常打开("系统设置 → 隐私与安全性"的"仍要打开"
+            按钮在部分 macOS 版本不出现,以上面命令为准)。
+          Sources: commit ${GITHUB_SHA}" \
             $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}"

@@ -7,6 +7,7 @@
 //   IDroraTaskService / IDroraSessionService，把手机帧翻译成服务调用。
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
   ChannelClient,
@@ -15,7 +16,7 @@ import {
   type MessagePortPayload,
 } from "@drora/rpc";
 import { HostMessageTypes } from "@drora/shared";
-import { MessageChannelMain, type MessagePortMain, type UtilityProcess } from "electron";
+import type { MessagePortMain, UtilityProcess } from "electron";
 import {
   attemptPair,
   buildPairingUrl,
@@ -155,7 +156,13 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
     if (!startParams || !startResult) {
       throw new Error("pairing server is not running");
     }
-    const { port1, port2 } = new MessageChannelMain();
+    // electron API 懒加载：plain node（协议级测试）里 require("electron") 拿不到
+    // MessageChannelMain，new 时抛错并走错误帧路径；Electron 运行时里是完整 API。
+    const requireElectron = createRequire(import.meta.url);
+    const { MessageChannelMain: MessageChannelMainCtor } = requireElectron(
+      "electron",
+    ) as typeof import("electron");
+    const { port1, port2 } = new MessageChannelMainCtor();
     startParams.hostChild.postMessage(
       {
         type: HostMessageTypes.AttachServicePort,

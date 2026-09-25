@@ -1,7 +1,10 @@
 import { spawn as spawnChild } from "node:child_process";
-import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
 
+// 与官方 3.14.3 ios 发行物对齐：无 win32 .bat/.cmd 兼容、无 stdin 管道、settle 不内联
+// `?? 1`（官方 android 线有这些、ios 线没有；上游 ios 修订引入前不在仓库侧单侧领先，
+// 见 docs/cua-restoration-manifest.md 第39轮）。
 export type Run = {
   cmd: string[];
   code: number;
@@ -13,7 +16,6 @@ export type Run = {
 type RunOpts = {
   cwd?: string;
   env?: Record<string, string | undefined>;
-  input?: string;
   timeout?: number;
 };
 
@@ -23,8 +25,7 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
       return typeof item[1] === "string";
     }),
   );
-  const actual = commandForPlatform(cmd);
-  const child = spawn(actual, opts.cwd, env, opts.input !== undefined);
+  const child = spawn(cmd, opts.cwd, env);
   if (child instanceof Error) {
     return {
       cmd,
@@ -43,17 +44,13 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
   }, timeout);
   const out = collect(child.stdout);
   const err = collect(child.stderr);
-  if (opts.input !== undefined && child.stdin) {
-    child.stdin.write(opts.input);
-    child.stdin.end();
-  }
   const code = await new Promise<number>((resolve) => {
     let settled = false;
-    const settle = (exitCode: number | null) => {
+    const settle = (exitCode: number) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(exitCode ?? 1);
+      resolve(exitCode);
     };
     child.once("error", (error) => {
       spawnError = error instanceof Error ? error : new Error(String(error));
@@ -78,7 +75,6 @@ function spawn(
   cmd: string[],
   cwd: string | undefined,
   env: Record<string, string | undefined>,
-  pipeStdin: boolean,
 ): ChildProcess | Error {
   const [command, ...args] = cmd;
   if (!command) return new Error("Missing command");
@@ -87,8 +83,8 @@ function spawn(
       cwd,
       env,
       shell: false,
-      stdio: [pipeStdin ? "pipe" : "ignore", "pipe", "pipe"],
-    }) as ChildProcessWithoutNullStreams;
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   } catch (err) {
     return err instanceof Error ? err : new Error(String(err));
   }
@@ -101,17 +97,6 @@ async function collect(stream: Readable | null): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
   }
   return Buffer.concat(chunks).toString("utf8");
-}
-
-function commandForPlatform(cmd: string[]): string[] {
-  const head = cmd[0];
-  if (process.platform !== "win32" || !head || !/\.(bat|cmd)$/i.test(head)) return cmd;
-  return ["cmd.exe", "/d", "/s", "/c", cmd.map(cmdQuote).join(" ")];
-}
-
-function cmdQuote(value: string): string {
-  if (!/[ \t&()^|<>"]/.test(value)) return value;
-  return `"${value.replace(/(["^])/g, "^$1")}"`;
 }
 
 export function ok(item: Run): boolean {

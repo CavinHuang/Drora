@@ -911,6 +911,29 @@ image-search、documents/pdf/presentations/spreadsheets 四拆分）已对齐或
 品牌豁免。ios-simulator 仓库 run.ts 领先官方（win32 兼容 + stdin 管道）与
 superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，本轮不动。
 
+### 第三十九轮：遗留收口——merge 一致性重建 + ios 官方形态回退（2026-09-25）
+
+第38轮三项遗留的收口：
+
+- **CLI 全包 typecheck 恢复全绿（非源码缺陷，纯过期 dist）**：第38轮报告的
+  bootstrap↔dynamic-workflow `listRunLifeSpans` 等"类型错配"，实为 v3.14.3 merge
+  带入源码后 adapters/shared-types 的 dist 未重建（`DwfRunIntrospectionQueries`
+  定义于 adapters/src/storage/session-store/repositories/dwf-journal-introspection.ts:90，
+  含完整 `listRunLifeSpans` 读面与 SQL 实现；`enableWorkflow` 在
+  shared-types/src/index.ts:34）。重建两包后 bootstrap 0 错误；18 个 CLI 包
+  typecheck 全 PASS（turbo 在本环境不可用，用 `../../node_modules/typescript/bin/tsc`
+  按包直跑）。
+- **ios-simulator 回退官方 3.14.3 形态（用户裁定"继续完成对齐"）**：删除仓库单侧领先的
+  `commandForPlatform`（win32 .bat/.cmd 兼容）、`opts.input` stdin 管道（核查确认**无任何
+  调用方**，纯死代码）、`pick(input = {})` 默认参；`settle(exitCode)` 的 `?? 1` 移回
+  close 调用点（官方形态）。重建 dist 后：特性 grep 零命中、工具面与官方 14/14 全等、
+  `dist/lib/run.js` 与官方唯一差异为三元表达式换行格式。android 线保留官方既有的
+  win32 兼容与 stdin（官方 android dist 本就携带，未动）。
+- **superpowers-plugin 裁定归档：保留**。git 考证：目录自 fork 基线起仅含 1 个 LICENSE
+  （ee041bf 纯 R100 更名，无任何删除史），系上游源码树继承的惰性占位——无 package.json
+  （非 workspace 成员）、不进注册表、零代码引用。官方 glm/packages 无对应物，属"上游
+  源码树继承"而非仓库自增偏离，删除反而偏离 fork 基线；保持原样并在此记录。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

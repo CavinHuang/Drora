@@ -53,9 +53,12 @@ export function isIosRuntime(runtime: string): boolean {
   return /(?:^|[.\s-])(iOS|iPadOS)(?:$|[.\s-])/.test(runtime);
 }
 
-export async function pick(
-  input: { udid?: string; name?: string; runtime?: string } = {},
-): Promise<Sim> {
+// 无默认参与官方 3.14.3 ios 发行物对齐（官方 pick(input) 依赖 input?. 守卫，调用方均显式传参）。
+export async function pick(input?: {
+  udid?: string;
+  name?: string;
+  runtime?: string;
+}): Promise<Sim> {
   if (input?.udid) {
     if (!valid(input.udid)) throw new Error(`Invalid simulator UDID: ${input.udid}`);
     const hit = (await list()).find((item) => item.udid === input.udid);

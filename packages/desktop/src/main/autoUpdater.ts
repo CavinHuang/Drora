@@ -767,6 +767,17 @@ function shouldDiscardStalePendingReleaseNotes(
   return semver.lt(pendingCoerced, appCoerced);
 }
 
+function isCrossProductLinePendingVersion(pendingVersion: string, appVersion: string): boolean {
+  // Drora 走 0.x 版本线;上游 ZCode 是 3.x。迁移带入的旧待装状态在 semver 上
+  // 永远"高于"当前版本,会让假 ready 徽标永久驻留,这里按跨大版本识别。
+  const pendingCoerced = semver.valid(semver.coerce(pendingVersion));
+  const appCoerced = semver.valid(semver.coerce(appVersion));
+  if (!pendingCoerced || !appCoerced) {
+    return false;
+  }
+  return semver.major(pendingCoerced) !== semver.major(appCoerced);
+}
+
 function isPendingReleaseNotesForFutureVersion(payload: PostUpdateReleaseNotesPayload): boolean {
   return isVersionGreaterThan(payload.version, getCurrentAppVersionForUpdate());
 }
@@ -1194,6 +1205,25 @@ export async function hydratePendingPostUpdateReleaseNotes(settingService: Setti
       settingService,
       "hydrate-pending-older-than-installed-app",
     );
+  }
+
+  if (
+    pendingPostUpdateReleaseNotes &&
+    isCrossProductLinePendingVersion(
+      pendingPostUpdateReleaseNotes.version,
+      getCurrentAppVersionForUpdate(),
+    )
+  ) {
+    // Drora 0.x 与上游 ZCode 3.x 是两条版本线:改名迁移带来的旧待装状态
+    // 永远"高于"当前版本,若不丢弃会让假 ready 徽标永久驻留。
+    logger.info(
+      `[auto-update] discard cross-product-line pending release notes pending=${pendingPostUpdateReleaseNotes.version} app=${getCurrentAppVersionForUpdate()}`,
+    );
+    await clearPendingPostUpdateReleaseNotes(
+      settingService,
+      "hydrate-pending-cross-product-line",
+    );
+    pendingPostUpdateReleaseNotes = null;
   }
 
   if (

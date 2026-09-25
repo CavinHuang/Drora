@@ -58,9 +58,11 @@ type PhoneInboundFrame =
       runId?: string;
       requestId: string;
       optionId: string;
-      decision: "allow" | "deny";
+      decision: "allow" | "deny" | "escalate" | "modify";
     }
-  | { type: "stop"; taskId: string };
+  | { type: "stop"; taskId: string }
+  /** 增量拉取会话事件日志（seq 单调），手机端据此投影流式内容与待决权限。 */
+  | { type: "events"; taskId: string; afterSeq: number };
 
 interface AuthedPhoneConnection {
   socket: WebSocket;
@@ -263,6 +265,27 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
           });
           return;
         }
+        case "events": {
+          // 会话事件日志按 seq 单调递增；手机端用 afterSeq 增量拉，
+          // 投影出流式文本与待决权限卡片（permission.requested/resolved）。
+          const { session } = ensureServiceChannels();
+          const result = (await session.call("readSessionEvents", {
+            sessionId: frame.taskId,
+            afterSeq: frame.afterSeq,
+            limit: 200,
+          })) as { events?: Array<Record<string, unknown>> };
+          const events = result.events ?? [];
+          const lastEvent = events[events.length - 1] as { seq?: number } | undefined;
+          sendToPhone({
+            type: "events",
+            taskId: frame.taskId,
+            events,
+            lastSeq:
+              lastEvent && typeof lastEvent.seq === "number" ? lastEvent.seq : frame.afterSeq,
+            hasMore: events.length >= 200,
+          });
+          return;
+        }
         default:
           return;
       }
@@ -454,6 +477,8 @@ const PHONE_PAGE_HTML = `<!doctype html>
   .hidden { display: none; }
   .tip { color: #8a8b8f; font-size: 13px; }
   .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #2b3a2e; color: #7ad07a; font-size: 12px; }
+  .perm { border-color: #4a3a24; background: #241f17; }
+  .perm .title { font-weight: 600; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -462,6 +487,7 @@ const PHONE_PAGE_HTML = `<!doctype html>
   <section id="unpaired" class="hidden"><p class="tip">配对链接无效或已过期，请在桌面端重新生成二维码。</p></section>
   <section id="tasks" class="hidden"><div class="card" id="taskList"></div></section>
   <section id="chat" class="hidden">
+    <div id="perms"></div>
     <div class="card">
       <div class="task" id="back"><span class="title">← 返回任务列表</span><span id="turnPill" class="pill hidden">生成中</span></div>
       <div id="timeline"></div>
@@ -520,6 +546,7 @@ function onPaired(frame) {
   if (currentTaskId) {
     show("chat");
     requestTimeline();
+    startEventLoop();
   } else {
     show("tasks");
     requestList();
@@ -529,12 +556,100 @@ function onPaired(frame) {
 function requestList() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "list" })); }
 function requestTimeline() { if (ws && ws.readyState === 1 && currentTaskId) ws.send(JSON.stringify({ type: "open", taskId: currentTaskId })); }
 
+// —— 会话事件增量投影（权限请求等交互面）——
+var lastSeq = 0;
+var eventBusy = false;
+var pendingPerms = {};
+
+function requestEvents() {
+  if (!ws || ws.readyState !== 1 || !currentTaskId || eventBusy) return;
+  eventBusy = true;
+  ws.send(JSON.stringify({ type: "events", taskId: currentTaskId, afterSeq: lastSeq }));
+}
+
+function applyEvents(frame) {
+  eventBusy = false;
+  if (frame.taskId !== currentTaskId) return;
+  var events = frame.events || [];
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    if (typeof ev.seq === "number" && ev.seq > lastSeq) { lastSeq = ev.seq; }
+    var p = ev.payload || {};
+    if (ev.type === "permission.requested") {
+      var key = p.requestId || p.toolCallId;
+      pendingPerms[key] = {
+        requestId: key,
+        toolName: p.toolName || "tool",
+        reason: p.reason || "",
+        options: p.options || []
+      };
+    } else if (ev.type === "permission.resolved") {
+      delete pendingPerms[p.requestId || p.toolCallId];
+    }
+  }
+  renderPerms();
+}
+
+function renderPerms() {
+  var box = el("perms");
+  box.innerHTML = "";
+  var keys = Object.keys(pendingPerms);
+  for (var i = 0; i < keys.length; i++) {
+    var perm = pendingPerms[keys[i]];
+    var card = document.createElement("div");
+    card.className = "card perm";
+    var html = '<div class="title">🔐 ' + esc(perm.toolName) + '</div>';
+    if (perm.reason) { html += '<p class="tip">' + esc(perm.reason) + "</p>"; }
+    var options = perm.options.length ? perm.options : [
+      { optionId: "allow", name: "允许", response: { decision: "allow" } },
+      { optionId: "deny", name: "拒绝", response: { decision: "deny" } }
+    ];
+    html += '<div class="row">';
+    for (var k = 0; k < options.length; k++) {
+      var opt = options[k];
+      var decision = opt.response && opt.response.decision ? opt.response.decision : "allow";
+      html += '<button data-perm="' + esc(perm.requestId) + '" data-opt="' + esc(opt.optionId) +
+        '" data-decision="' + esc(decision) + '">' + esc(opt.name) + "</button>";
+    }
+    html += "</div>";
+    card.innerHTML = html;
+    box.appendChild(card);
+  }
+  var buttons = box.querySelectorAll("button");
+  for (var b = 0; b < buttons.length; b++) {
+    buttons[b].onclick = function () {
+      var payload = {
+        type: "permission",
+        taskId: currentTaskId,
+        requestId: this.getAttribute("data-perm"),
+        optionId: this.getAttribute("data-opt"),
+        decision: this.getAttribute("data-decision")
+      };
+      ws.send(JSON.stringify(payload));
+      delete pendingPerms[payload.requestId];
+      renderPerms();
+    };
+  }
+}
+
+function startEventLoop() {
+  lastSeq = 0;
+  pendingPerms = {};
+  renderPerms();
+  setInterval(function () {
+    if (!el("chat").classList.contains("hidden")) requestEvents();
+  }, 1500);
+  requestEvents();
+}
+
 function handle(frame) {
   if (frame.type === "paired") { onPaired(frame); return; }
   if (frame.type === "taskList") { renderTasks(frame.tasks || []); return; }
   if (frame.type === "timeline") { renderTimeline(frame.messages || []); return; }
+  if (frame.type === "events") { applyEvents(frame); return; }
   if (frame.type === "accepted") { el("input").value = ""; requestTimeline(); return; }
   if (frame.type === "error") {
+    eventBusy = false;
     var retryable = frame.code === "invalid-session";
     if (retryable) { sessionStorage.removeItem("drora-mobile-session"); }
     if (!retryable && (frame.code === "unknown-token" || frame.code === "expired-token")) {

@@ -36,12 +36,16 @@
 ## 手机协议 v1（WS JSON 帧，Main 与手机页之间）
 
 ```
-→ {type:"hello", pairToken}          ← {type:"paired", workspacePath, version} | {type:"error", code}
+→ {type:"hello", pairToken}          ← {type:"paired", workspacePath, sessionToken} | {type:"error", code}
+→ {type:"resume", sessionToken}      ← 同 paired（刷新后凭 Cookie 内令牌恢复）
 → {type:"list"}                      ← {type:"taskList", tasks:[{taskId,title,status,updatedAt}]}
 → {type:"open", taskId}              ← {type:"timeline", taskId, messages:[...]}（readSessionMessages）
+→ {type:"events", taskId, afterSeq}  ← {type:"events", taskId, events:[...], lastSeq, hasMore}
+                                       （readSessionEvents 增量；页面投影流式内容与待决权限）
 → {type:"send", taskId, content}     ← {type:"accepted", taskId}（sendPrompt, web-remote-replayable）
-→ {type:"permission", taskId, runId, requestId, optionId, response}
-→ {type:"stop", taskId}
+→ {type:"permission", taskId, requestId, optionId, decision}
+                                       （respondPermission；decision ∈ allow/deny/escalate/modify）
+→ {type:"stop", taskId}              （stopGeneration）
 ← {type:"taskListChanged"}           （触发客户端重拉 list）
 ```
 
@@ -49,10 +53,15 @@
 
 - **M1a（已落地）**：配对核心纯逻辑（`desktopMobilePairingCore.ts`：一次性令牌/TTL/
   踢除语义状态机/LAN 地址挑选/URL 与路径解析）+ 单测（6 项）。
-- **M1b（下一步）**：`desktopMobilePairingServer.ts`（http+ws 宿主 + 手机静态页 +
+- **M1b（已落地）**：`desktopMobilePairingServer.ts`（http+ws 宿主 + 手机静态页 +
   rpc 桥接）+ IPC 通道 + 弹层扫码 UI + 手机页交互面。
-- **M2**：实时流推送（agentService 帧通道镜像）、多任务并行 watch、推送通知。
-- **M3**：云中继传输层（协议不变，替换传输；需用户提供服务器）。
+- **M2（已落地）**：手机页准实时（时间线 2s/列表 8s 轮询）、WS 断线自动重连、
+  工具调用状态渲染、phonePageSyntaxCheck 页面语法门禁。
+- **M3a（已落地）**：手机端权限审批闭环——`events` 帧增量拉会话事件日志，
+  页面投影 `permission.requested/resolved` 为待决权限卡片（选项按钮来自
+  payload.options，decision 支持 allow/deny/escalate/modify）。
+- **M3b（可选后续）**：实时流推送（part.delta 事件投影替代轮询）、多任务并行 watch。
+- **M4（可选后续）**：云中继传输层（协议不变，替换传输；需用户提供服务器）。
 
 ## M1b 实施地图（勘察结论，直接照此实现）
 

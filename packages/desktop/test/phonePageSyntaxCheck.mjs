@@ -37,3 +37,5 @@ console.log("has join newline handling:", js.includes("String.fromCharCode(10)")
 console.log("has auto reconnect:", js.includes("retryTimer"));
 console.log("has list auto refresh:", js.includes("startListTimer"));
 console.log("has timeline auto refresh:", js.includes("startChatTimer"));
+console.log("has permission cards:", js.includes("permission.requested"));
+console.log("has events polling:", js.includes("requestEvents"));

@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- 所有 transport 生命周期共享同一个 registry 状态机，必须原子演进。 */
 import {
   buildSshRemoteHostKey,
+  resolveServerRemoteEndpoints,
   stripRemoteTargetSecrets,
   type RemoteTarget,
   type WindowHostAttachmentScope,
@@ -122,6 +123,12 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "docker":
       // Docker 保持现有 dedicated logical session 生命周期，不按 target 复用。
       return `${target.kind}:dedicated:${remoteSessionId}`;
+    case "server": {
+      // 第 46 轮：server 远程与 SSH 同属"同目标复用"语义；http/ws 输入经端点解析
+      // 归一到同一 hostWsUrl，避免同一 Server 因协议写法不同裂成两条连接。
+      // URL 非法时 resolveServerRemoteEndpoints 会带官方文案抛错，connect 立即失败。
+      return `server:${resolveServerRemoteEndpoints(target.url).hostWsUrl}`;
+    }
   }
 }
 

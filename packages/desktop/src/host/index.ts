@@ -1556,6 +1556,9 @@ function formatRemoteTargetForLog(target: RemoteTarget): string {
     }
     case "docker":
       return `docker:${target.container}`;
+    case "server":
+      // token 只存在于连接参数里，日志侧永不输出；URL 本身不含凭据。
+      return `server:${target.url}`;
   }
 }
 

@@ -1076,6 +1076,39 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   落 JWT 凭据到 credentials 存储，逐字照抄将描述错误行为）。
 - 质量门：cli/shared typecheck、根 typecheck、lint 0 errors、架构 0 违规。
 
+### 第四十六轮：三项功能面缺口对齐——dev-badge / base-url fallback / server 远程客户端（2026-09-26）
+
+第 15 维终态中"待裁定功能引入"清单，按用户裁定"继续对齐"实施其中三项可从官方
+产物逆向且可验证的；其余（多 Agent 供应商组、marketing/rewards/manualClaim 营销族、
+forceUpdate——后者有 removal spec）明确搁置：
+
+- **dev-badge**（官方 renderDevBadgeIcon 逐语义重放，desktopDevBadge.ts 新建）：
+  SVG 丝带（比例 0.24/0.199/0.152/0.625、#2563eb、-45° 旋转、letter-spacing
+  max(2, 0.008×size)）→ sharp 合成 over → 原图 dest-in 保 alpha → nativeImage；
+  尺寸缺失/空图/异常三回退仅告警（官方文案逐字）。applyAppIcon 改为接受
+  string|NativeImage（官方 oC 同款），index.ts dev 态先渲染角标。纯 sharp 冒烟
+  1024×1024 通过（alpha 裁切正确）。
+- **base-url per-env fallback 层**（官方 p1 语义，droraEndpoint.ts）：解析链补齐
+  `DRORA_BASE_URL → DRORA_ENDPOINT_ORIGIN → (production: DRORA_PRODUCTION_BASE_URL
+  ?? 生产站 / test: DRORA_TEST_BASE_URL ?? 测试站)`；测试站常量取官方
+  zcode.chatglm.site；pickProductEndpointEnv 白名单同步两键。六场景实测通过
+  （默认/双向覆盖/两显式键优先）。
+- **server 型远程工作区客户端链**（官方 IRe/RRe/ARe/ERe/JJ 五函数语义重放）：
+  shared 补 resolveServerRemoteEndpoints（http↔ws 互转、/ws(/host) 尾剥、
+  错误文案逐字）+ ServerRemoteTargetSnapshot/ConnectOptions 入联合 + zod/
+  identity/platform 七处类型收敛；services 新建 server-remote 子路径导出
+  （fetch 双 token 通道 Bearer+?token=、capability POST、ws 头 x-drora-rpc-host-
+  capability、before-ready close 语义逐字）；desktop 连接注册表 server 键分支 +
+  server backend 显式 fail-closed；顺带修复 desktopRemoteSessions 既有 9 个死
+  case 编译错误。**测试 14 项**（端点 6/fetch 4/connect 4）全过；服务端端点早已
+  在仓库（http.ts:320-346），客户端-服务端 schema 同源。
+- **搁置说明**：多 Agent 供应商（~85 i18n 键 + 第三方 agent 二进制分发，自成项目）、
+  marketing touch/asset + manualClaimPlan（依赖 Z.ai 营销后端）、rewards webview
+  （依赖 Z.ai 账号侧）、forceUpdate（specs/force-update-gate-removal.md 已裁定移除，
+  重新引入需推翻既有决策）、bot provider 枚举（随多 Agent）。server 远程的 Host
+  连接分派与 UI 表单（向导入口 + 14 i18n 键）为已知剩余接线面，见实施报告。
+- 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规、services 测试 19/19。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

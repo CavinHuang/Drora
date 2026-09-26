@@ -167,7 +167,7 @@ function buildDesktopWindowVisualOptions() {
   };
 }
 
-export function applyAppIcon(iconPath: string) {
+export function applyAppIcon(icon: string | Electron.NativeImage) {
   if (process.platform !== "darwin" || app.dock == null) {
     return;
   }
@@ -175,7 +175,8 @@ export function applyAppIcon(iconPath: string) {
   // TypeScript 不会因为 process.platform === "darwin" 自动收窄 app.dock。
   // app.dock 的类型在定义上仍然可能是 undefined，直接调用会持续报 ts(18048)。
   // 这里把平台判断和空值判断合并，既符合运行时语义，也让类型系统明确知道 Dock 一定存在。
-  const dockIcon = nativeImage.createFromPath(iconPath);
+  // 官方同款：dev 构建传入已叠加 DEV 角标的 NativeImage（desktopDevBadge），打包态传路径。
+  const dockIcon = typeof icon === "string" ? nativeImage.createFromPath(icon) : icon;
   if (!dockIcon.isEmpty()) {
     app.dock.setIcon(dockIcon);
   }

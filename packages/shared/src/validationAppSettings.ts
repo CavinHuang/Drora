@@ -100,6 +100,11 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     kind: z.literal("docker"),
     container: nonEmptyStringSchema,
   }),
+  z.object({
+    kind: z.literal("server"),
+    url: nonEmptyStringSchema,
+    tokenCredentialKey: nonEmptyStringSchema.optional(),
+  }),
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [

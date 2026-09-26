@@ -1,6 +1,9 @@
 import type { DroraEnv } from "./env.js";
 
 export const DEFAULT_DRORA_ENDPOINT_ORIGIN = "https://zcode.z.ai";
+// 官方原版 p1 语义（第四十六轮对齐）：per-env 回退基址——DRORA_ENV=test 用测试站，
+// 否则生产站；显式 DRORA_BASE_URL / DRORA_ENDPOINT_ORIGIN 优先于 per-env 回退。
+export const DEFAULT_DRORA_TEST_ENDPOINT_ORIGIN = "https://zcode.chatglm.site";
 export const DEFAULT_BIGMODEL_API_ORIGIN = "https://bigmodel.cn";
 export const DEFAULT_ZAI_OAUTH_ORIGIN = "https://chat.z.ai";
 export const DEFAULT_ZAI_BUSINESS_BASE_URL = "https://api.z.ai";
@@ -14,6 +17,8 @@ export function pickProductEndpointEnv(
   const keys = [
     "DRORA_BASE_URL",
     "DRORA_ENDPOINT_ORIGIN",
+    "DRORA_PRODUCTION_BASE_URL",
+    "DRORA_TEST_BASE_URL",
     "BIGMODEL_API_BASE_URL",
     "ZAI_OAUTH_ORIGIN",
     "ZAI_BUSINESS_BASE_URL",
@@ -46,6 +51,8 @@ export interface RuntimeDroraEndpointEnv {
   DRORA_ENV?: string;
   DRORA_BASE_URL?: string;
   DRORA_ENDPOINT_ORIGIN?: string;
+  DRORA_PRODUCTION_BASE_URL?: string;
+  DRORA_TEST_BASE_URL?: string;
 }
 
 export interface RuntimeBigModelApiEnv {
@@ -143,10 +150,16 @@ export function resolveRuntimeDroraEndpointOrigin(
   env: RuntimeDroraEndpointEnv = readProductEndpointEnv(),
   options?: { overrideOrigin?: string | null },
 ): string {
+  // 官方原版解析链（第四十六轮对齐）：BASE_URL → ENDPOINT_ORIGIN → per-env 回退
+  // （production → DRORA_PRODUCTION_BASE_URL/生产站，test → DRORA_TEST_BASE_URL/测试站）。
   return resolveDroraEndpointOrigin({
     envBaseOrigin:
       readRuntimeEnvValue(env, "DRORA_BASE_URL") ??
-      readRuntimeEnvValue(env, "DRORA_ENDPOINT_ORIGIN"),
+      readRuntimeEnvValue(env, "DRORA_ENDPOINT_ORIGIN") ??
+      (resolveRuntimeDroraEnv(env) === "production"
+        ? readRuntimeEnvValue(env, "DRORA_PRODUCTION_BASE_URL") ?? DEFAULT_DRORA_ENDPOINT_ORIGIN
+        : readRuntimeEnvValue(env, "DRORA_TEST_BASE_URL") ??
+          DEFAULT_DRORA_TEST_ENDPOINT_ORIGIN),
     overrideOrigin: options?.overrideOrigin,
   });
 }

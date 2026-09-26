@@ -141,6 +141,10 @@ export function buildRemoteTarget(
         },
       };
     }
+    // 第 46 轮：server 连接向导表单尚未接入（availableKinds 不含 server，运行期不可达）。
+    // 这里不返回 errorMessage，避免为不存在的表单预借 i18n 键；调用方按"未产出 target"处理。
+    case "server":
+      return {};
   }
 }
 

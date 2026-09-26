@@ -34,9 +34,19 @@ function buildRemoteWorkspacePrivateKeyPassphraseCredentialKey(workspaceKey: str
   return `remote-workspace:${workspaceKey}:private-key-passphrase`;
 }
 
+function buildRemoteWorkspaceServerTokenCredentialKey(workspaceKey: string): string {
+  return `remote-workspace:${workspaceKey}:server-token`;
+}
+
 function collectRemoteWorkspaceCredentialKeys(snapshot: RemoteTargetSnapshot): string[] {
   if (snapshot.kind === "ssh") {
     return [snapshot.passwordCredentialKey, snapshot.privateKeyPassphraseCredentialKey].filter(
+      (key): key is string => typeof key === "string" && key.length > 0,
+    );
+  }
+
+  if (snapshot.kind === "server") {
+    return [snapshot.tokenCredentialKey].filter(
       (key): key is string => typeof key === "string" && key.length > 0,
     );
   }
@@ -79,6 +89,8 @@ export function formatRemoteWorkspaceTargetSubtitle(
     }
     case "docker":
       return `Docker · ${target.container}`;
+    case "server":
+      return `Server · ${target.url}`;
   }
 }
 
@@ -92,6 +104,8 @@ export function formatRemoteWorkspaceHeaderHostLabel(
       return formatWslRemoteTargetAuthority(target);
     case "docker":
       return `docker:${target.container}`;
+    case "server":
+      return target.url;
   }
 }
 
@@ -131,6 +145,10 @@ function getRemoteWorkspaceAuthorityKey(target: RemoteTarget | RemoteTargetSnaps
     }
     case "docker":
       return ["docker", target.container].join(":");
+    case "server":
+      // 与 shared 的 remote-workspace-identity 契约对齐：URL 含 ":" 与 "/"，
+      // authority 段必须整体 encodeURIComponent，否则按段解析身份会错位。
+      return ["server", encodeURIComponent(target.url.trim())].join(":");
   }
 }
 
@@ -214,6 +232,19 @@ function createRemoteTargetSnapshot(
         kind: "docker",
         container: target.container,
       };
+    case "server":
+      return {
+        kind: "server",
+        url: target.url,
+        // server token 与 SSH password 同边界：连接参数里的真实 token 只写
+        // credentialService，快照仅保留键名；复连沿用旧键避免重复落凭据。
+        tokenCredentialKey:
+          target.token && target.token.length > 0
+            ? previousSnapshot?.kind === "server" && previousSnapshot.tokenCredentialKey
+              ? previousSnapshot.tokenCredentialKey
+              : buildRemoteWorkspaceServerTokenCredentialKey(workspaceKey)
+            : undefined,
+      };
   }
 }
 
@@ -222,6 +253,7 @@ export function createRemoteTargetFromSnapshot(
   credentials: {
     password: string | null;
     privateKeyPassphrase: string | null;
+    serverToken?: string | null;
   },
 ): RemoteTarget {
   switch (snapshot.kind) {
@@ -249,6 +281,12 @@ export function createRemoteTargetFromSnapshot(
       return {
         kind: "docker",
         container: snapshot.container,
+      };
+    case "server":
+      return {
+        kind: "server",
+        url: snapshot.url,
+        ...(credentials.serverToken ? { token: credentials.serverToken } : {}),
       };
   }
 }
@@ -386,6 +424,18 @@ export function buildRemoteWorkspaceSessionMutation(params: {
     credentialsToSave.push({
       key: nextSnapshot.privateKeyPassphraseCredentialKey,
       value: params.target.privateKeyPassphrase,
+    });
+  }
+
+  if (
+    params.target.kind === "server" &&
+    nextSnapshot.kind === "server" &&
+    params.target.token &&
+    nextSnapshot.tokenCredentialKey
+  ) {
+    credentialsToSave.push({
+      key: nextSnapshot.tokenCredentialKey,
+      value: params.target.token,
     });
   }
 

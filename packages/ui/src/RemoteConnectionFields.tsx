@@ -710,5 +710,9 @@ export function RemoteConnectionFields({
           </div>
         </div>
       );
+    // 第 46 轮：server 连接表单尚未接入（availableKinds 不含 server，运行期不可达），
+    // 这里只收敛联合类型，避免新增 kind 后静默渲染 ssh 表单。
+    case "server":
+      return null;
   }
 }

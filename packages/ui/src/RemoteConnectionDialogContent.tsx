@@ -45,6 +45,10 @@ function getKindIcon(kind: RemoteTarget["kind"]) {
       return MonitorCogIcon;
     case "wsl":
       return TerminalIcon;
+    // 第 46 轮：server 连接入口的 UI 表单尚未接入（i18n/表单后续轮次），
+    // 这里只保证联合类型收敛，图标沿用 Server 图标。
+    case "server":
+      return ServerIcon;
   }
 }
 

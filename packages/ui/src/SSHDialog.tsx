@@ -152,9 +152,10 @@ export function RemoteConnectionDialog({
     preferredKind,
     preferredWslDistro,
   });
-  const directoryBrowserServices = useRemoteWorkspaceSessionStore((state) =>
-    connectedSessionId ? (state.sessionsById[connectedSessionId]?.services ?? null) : null,
+  const directoryBrowserSession = useRemoteWorkspaceSessionStore((state) =>
+    connectedSessionId ? (state.sessionsById[connectedSessionId] ?? null) : null,
   );
+  const directoryBrowserServices = directoryBrowserSession?.services ?? null;
   const baseServices = useBaseWorkspaceServices();
   const flowSnapshot = useMemo(
     () => ({
@@ -633,6 +634,7 @@ export function RemoteConnectionDialog({
                     <RemoteConnectionDirectoryStep
                       services={directoryBrowserServices}
                       remoteTarget={pendingRemoteTarget}
+                      serverWorkspaces={directoryBrowserSession?.serverInfo?.workspaces ?? []}
                       localSkillSyncService={baseServices.skillSyncService}
                       remoteSkillSyncService={directoryBrowserServices?.skillSyncService ?? null}
                       localMcpSyncService={baseServices.mcpSyncService}

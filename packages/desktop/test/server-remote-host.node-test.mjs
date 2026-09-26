@@ -44,6 +44,8 @@ import {
   connectServerRemoteHostConnection,
   createServerRemoteWorkspaceServiceCollection,
 } from "../src/host/serverRemoteConnection.ts";
+import { createWindowRemoteConnectionRegistry } from "../src/host/windowRemoteConnectionRegistry.ts";
+import { windowHostRemoteWorkspaceDescriptorSchema } from "@drora/shared";
 
 const SERVER_INFO_PAYLOAD = {
   serverId: "srv-host-1",
@@ -150,6 +152,44 @@ test("connectServerRemoteHostConnection: open 后组装 RPC 代理并透传 serv
   }
 });
 
+test("windowRemoteConnectionRegistry: server handle 的 serverInfo 随 descriptor 透出并通过协议校验", async () => {
+  const serverInfo = {
+    ...SERVER_INFO_PAYLOAD,
+    workspaces: [{ path: "/srv/project", label: "project" }],
+  };
+  const registry = createWindowRemoteConnectionRegistry({
+    connect: async () => ({
+      services: {},
+      serverInfo,
+      dispose() {},
+    }),
+    createId: () => "remote-session-1",
+  });
+  const descriptor = await registry.connect({
+    requestId: "req-server-info",
+    target: { kind: "server", url: "https://studio.example.com:3030" },
+    remoteAssets: {},
+  });
+  assert.equal(descriptor.serverInfo, serverInfo, "descriptor 应原样携带 handle.serverInfo");
+  // descriptor 会走 hostRemoteWorkspaceConnectedResponseSchema 的 strict 校验：
+  // 带 serverInfo 的形态必须整体通过，否则 main 会把连接成功当协议错误丢弃。
+  const parsed = windowHostRemoteWorkspaceDescriptorSchema.safeParse(descriptor);
+  assert.ok(parsed.success, `descriptor 应通过协议校验: ${parsed.error?.message}`);
+
+  // 非 server 形态（无 serverInfo）同样保持兼容。
+  const plainRegistry = createWindowRemoteConnectionRegistry({
+    connect: async () => ({ services: {}, dispose() {} }),
+    createId: () => "remote-session-2",
+  });
+  const plainDescriptor = await plainRegistry.connect({
+    requestId: "req-plain",
+    target: { kind: "docker", container: "drora-demo" },
+    remoteAssets: {},
+  });
+  assert.equal("serverInfo" in plainDescriptor, false, "非 server 形态不应携带 serverInfo");
+  assert.ok(windowHostRemoteWorkspaceDescriptorSchema.safeParse(plainDescriptor).success);
+});
+
 test("connectServerRemoteHostConnection: ws close 按官方映射上报且只上报一次", async () => {
   const closeEvents = [];
   const { connection, socket } = await connectMockServer({
@@ -176,7 +216,7 @@ test("connectServerRemoteHostConnection: disposeAndWait 无 close 事件时按�
   assert.ok(socket.closeCount >= 1, "beginDisposal 应同步触发 socket.close()");
 });
 
-test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项落到远端代理，clientConfig 用本地实例", () => {
+test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项落到远端代理，clientConfig 用本地实例", async () => {
   const remoteChannelNames = [
     "fileService",
     "mediaPreviewService",
@@ -236,7 +276,6 @@ test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项
       droraTaskService: IDroraTaskService,
       droraAgentService: IDroraAgentService,
       droraSessionService: IDroraSessionService,
-      conversationShareService: IConversationShareService,
       fileWatcherService: IFileWatcherService,
       oauthService: IOAuthService,
       modelSelectionService: IModelSelectionService,
@@ -265,6 +304,24 @@ test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项
       `${channelName} 应注册远端代理`,
     );
   }
+  // 第四十九轮对齐官方 cRe 定案：conversationShare 不再注册远端代理，
+  // 而是固定禁用门禁（feature_disabled），只读查询返回 null。
+  const conversationShareService = services.get(IConversationShareService);
+  assert.notEqual(
+    conversationShareService,
+    connectionServices.conversationShareService,
+    "conversationShareService 不应注册远端代理",
+  );
+  assert.equal(
+    await conversationShareService.getImportedConversation({}),
+    null,
+    "只读查询在禁用门禁下返回 null",
+  );
+  await assert.rejects(
+    () => conversationShareService.publish({}),
+    (error) => error?.kind === "feature_disabled",
+    "写操作应按 feature_disabled 拒绝",
+  );
   // 官方"本地 t"：clientConfig 保留宿主实例，不来自 connectionServices。
   assert.equal(services.get(IClientConfigService), clientConfigService);
 });

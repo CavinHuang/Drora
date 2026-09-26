@@ -1166,6 +1166,36 @@ fork 基线已有、只缺服务层与注册）：
   全过，套件 28/28；desktop MJ 清单测试补 outputStyleService 断言 5/5。
 - 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规。
 
+### 第四十九轮：server 远程五项偏离全部收口（2026-09-26）
+
+第 47 轮五项有意偏离经官方逆向定案后全部闭合：
+
+- **③ conversationShare（官方 cRe 定案，推翻第 47 轮判断）**：官方对 server 远程的
+  会话分享**明确禁用**——createUnsupportedRemoteConversationShareService，message
+  固定 "Conversation sharing is not available for this client or remote target"，
+  onRejected 记 {kind:"feature_disabled", reason:"server_remote_unsupported"}；真实
+  实现只在 ssh 系 TJ 的 Ud（远端物化+本地 API 分享）。第 47 轮注册的远端代理是
+  **超出官方的能力面**（虽功能可用），按官方形态回退为禁用门禁
+  （createUnsupportedConversationShareService 仓库既有统一门禁工厂 + 官方 message
+  逐字 + serviceLogger("conversation-share") 审计）。
+- **⑤ dispose 语义（官方 TE 定案）**：官方对 server 远程同样调用
+  disposeServiceResourcesAndWait——内部按 hasDisposeAllAndWait/hasDisposeAll 能力
+  探测逐个处理，RemoteServiceAccess 远端代理没有这两个方法天然跳过，实际收口的
+  是容器内本地资源。第 47 轮"跳过防波及共享 server"的担忧不成立，已照官方调用。
+- **④ 快照持久化 name/workspacePath（官方提交形态已提取）**：
+  ServerRemoteTargetSnapshot 增加两可选字段（官方 target 同款），连接成功写入
+  历史/快照（token 仍只落 credentialKey），恢复链回读——tab 副标题显示 name、
+  重连自动打开 workspacePath；settings patch schema 新旧形态兼容。
+- **① serverInfo.workspaces 目录选择 UI**：透出链复用既有通道（连接 handle →
+  registry descriptor（schema 增可选 serverInfo，strict 校验）→ main
+  attachRendererPort 元数据 → renderer service port bridge → session store →
+  UI），无新 IPC；目录步骤顶部渲染 Server 工作区快捷列表（path+label，点击与
+  手选一致走 selectRemoteDirectory），空列表不渲染直接进完整 DirectoryBrowser；
+  i18n 新增 remote.serverWorkspacesTitle 双语一条。
+- 测试：desktop server-remote-host 6/6（新增 serverInfo descriptor 透出断言 +
+  share 门禁语义断言更新）、services 28/28；根 typecheck 0 错、lint 0 errors、
+  架构 0 违御。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

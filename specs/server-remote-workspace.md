@@ -57,6 +57,33 @@ credentialService 存储（snapshot 仅存 `tokenCredentialKey`），与 SSH pas
   prompt attachment 与 capabilities 组合）、连接向导表单与 `remote.kind.server`
   等 i18n 键、重连链路的完整 token 恢复端到端验证。
 
+## 恢复快照与 serverInfo 透出（第四十九轮）
+
+对齐官方提交形态：renderer 提交的 target 带 `name?/workspacePath?`，官方快照
+target 同样持久化这两个字段。
+
+- `ServerRemoteTargetSnapshot`（`packages/shared/src/protocol.ts`）与
+  `remoteWorkspaceTargetSchema`（`validationAppSettings.ts`，setting.json 读写
+  校验面）增加可选 `name`/`workspacePath`；token 仍只存 `tokenCredentialKey`。
+- UI 写入链：`createRemoteTargetSnapshot`（`packages/ui/src/lib/remoteWorkspaceHistory.ts`）
+  把 ConnectOptions 的 name/workspacePath（trim 后非空才写）带进快照；恢复链
+  `createRemoteTargetFromSnapshot` 原样带回，保证重连/重启后 tab 副标题
+  （`formatRemoteWorkspaceHeaderHostLabel` 消费 name）与后续落库不丢字段。
+- 打开语义：重连沿用既有 `sessionEntry.workspacePath` 自动打开；target 级
+  workspacePath 只是“默认目录”，新连接表单预填路径，不参与重连目录决策。
+- serverInfo 透出路径（唯一通道，无新增 IPC channel）：Host 连接 handle 携带
+  `serverInfo` → `windowRemoteConnectionRegistry.connect` 写进
+  `WindowHostRemoteWorkspaceDescriptor`（`windowHostRemoteWorkspaceDescriptorSchema`
+  增加可选 `serverInfo`，strict 校验）→ main `attachRendererPort` 随既有
+  `ScopedServicePort` 元数据附带 → renderer 解析后挂进
+  `RemoteWorkspaceSession.serverInfo`（remoteWorkspaceSessionStore）。
+  renderer 侧再过一次 `serverRemoteInfoSchema` safeParse，坏值只丢字段不丢 port。
+- 消费面：连接向导 directory 步骤顶部渲染 `serverInfo.workspaces`
+  （`{path,label?,workspaceIdentity?}[]`）快捷列表（i18n
+  `remote.serverWorkspacesTitle`），点击与手选目录同链（`onSelect(path)` →
+  `selectRemoteDirectory(sessionId, path)`）；空列表不渲染，回落完整目录浏览器。
+  非 server 形态全程无该字段，UI 不展示列表。
+
 ## 验收场景
 
 1. `resolveServerRemoteEndpoints`：http/https/ws/wss 四类输入 × 四端点 URL 生成、
@@ -64,3 +91,10 @@ credentialService 存储（snapshot 仅存 `tokenCredentialKey`），与 SSH pas
 2. fetch 两个函数：注入 fetchImpl mock，校验 Bearer+query token、错误文案逐字一致。
 3. connect：mock WebSocket，校验 URL/header 构造与 close-before-open 文案。
 4. services 单测（`node --import tsx --test`）与 `tsc --noEmit` 通过；shared 构建通过。
+5. （第四十九轮）快照往返：带 name/workspacePath/token 的 server 连接落库后，
+   快照含 name/workspacePath 与 tokenCredentialKey、不含明文 token；
+   `createRemoteTargetFromSnapshot` 回读保留 name/workspacePath；空白值不落快照；
+   settings patch schema 接受新旧两种 server 快照形态。
+6. （第四十九轮）serverInfo 透出：registry connect 返回的 descriptor 原样携带
+   handle.serverInfo 并通过 `windowHostRemoteWorkspaceDescriptorSchema` strict
+   校验；非 server 形态 descriptor 无 serverInfo 键且校验兼容。

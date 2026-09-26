@@ -15,6 +15,7 @@ import { droraProviderSchema } from "./providers.js";
 import { droraAgentProviderSchema } from "./drora-agent-policy.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
+import { serverRemoteInfoSchema } from "./server-remote.js";
 import {
   droraMcpTelemetryEventSchema,
   droraMcpResourceSamplesSchema,
@@ -211,6 +212,9 @@ export const windowHostRemoteWorkspaceDescriptorSchema = z
     workspacePath: nonEmptyStringSchema.optional(),
     workspaceIdentity: nonEmptyStringSchema.optional(),
     generation: z.number().int().positive(),
+    // 第四十九轮：server 形态连接成功时透出 server-info 自描述，供 renderer 目录
+    // 步骤展示 serverInfo.workspaces 快捷选择列表；其余远程形态不带该字段。
+    serverInfo: serverRemoteInfoSchema.optional(),
   })
   .strict();
 export type WindowHostRemoteWorkspaceDescriptor = z.infer<

@@ -1758,6 +1758,7 @@ const enUS: Record<string, string> = {
   "remote.selectDirectoryTitle": "Choose remote directory",
   "remote.selectDirectoryDescription":
     "Choose which directory to open in this window after the remote connection is ready.",
+  "remote.serverWorkspacesTitle": "Server workspaces",
   "remote.backToConnection": "Back to connection settings",
   "remote.selectedMethod": "Selected method",
   "remote.methods": "Connection method",

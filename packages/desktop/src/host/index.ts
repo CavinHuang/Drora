@@ -1782,6 +1782,9 @@ async function createWindowRemoteConnectionHandle(params: {
             ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
           }
         : {},
+    // 第四十九轮：server 形态把 server-info 自描述挂在 connection handle 上，
+    // registry 会带进 descriptor → main → renderer，供目录步骤展示快捷 workspace 列表。
+    ...(serverInfo ? { serverInfo } : {}),
     onDidClose(listener) {
       closeListeners.add(listener);
       return { dispose: () => closeListeners.delete(listener) };
@@ -1793,12 +1796,12 @@ async function createWindowRemoteConnectionHandle(params: {
       disposed = true;
       closeListeners.clear();
       resourceTelemetry.dispose();
-      if (!isServerRemoteConnection) {
-        await disposeServiceResourcesAndWait(services);
-      }
-      // server 是共享运行环境：容器里的 terminal/task 等是远端代理，向其发
-      // disposeAll 会波及同一 Server 上的其他客户端。本地只收口 ws 连接；
-      // 远端资源由 server 侧 per-connection scope 在 ws close 时自行清理。
+      // 第四十九轮对齐（官方 TE = disposeServiceResourcesAndWait 语义）：官方对
+      // server 远程同样调用服务资源收口——内部按 hasDisposeAllAndWait/hasDisposeAll
+      // 能力探测逐个处理，RemoteServiceAccess 的远端代理没有这两个方法，天然跳过，
+      // 不会向共享 Server 发 disposeAll；实际收口的是容器内 WeakMap 注册的本地
+      // 资源（遥测桥、本地 clientConfig 等）。
+      await disposeServiceResourcesAndWait(services);
       await disposeHostRemoteConnection(connection);
     },
   };

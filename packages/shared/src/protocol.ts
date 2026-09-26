@@ -160,6 +160,10 @@ export interface ServerRemoteTargetSnapshot {
   kind: "server";
   /** Server 基地址；支持 http(s) 与 ws(s)，端点由 resolveServerRemoteEndpoints 统一解析。 */
   url: string;
+  /** 连接显示名称；第四十九轮对齐官方提交形态，恢复连接时用于 tab 副标题展示。 */
+  name?: string;
+  /** 连接时指定的默认目录；第四十九轮对齐官方提交形态，恢复连接成功后自动打开。 */
+  workspacePath?: string;
   /**
    * Server 访问令牌不会写入 setting.json。
    * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实令牌。

@@ -1637,6 +1637,7 @@ const zhCN: Record<string, string> = {
   "remote.step.selectDirectory": "选择目录",
   "remote.selectDirectoryTitle": "选择远程目录",
   "remote.selectDirectoryDescription": "远程连接就绪后，选择要在当前窗口中打开的目录。",
+  "remote.serverWorkspacesTitle": "Server 工作区",
   "remote.backToConnection": "返回连接配置",
   "remote.selectedMethod": "当前连接方式",
   "remote.methods": "连接方式",

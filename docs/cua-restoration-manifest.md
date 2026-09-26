@@ -1029,6 +1029,34 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   宽行 + 对齐注释。工具面（12/12、14/14）、特性 grep、文件面全等，审计项以证据
   关闭，不再追编译器输出级字节差异。
 
+### 第四十四轮：十路复审两个 🔴 修复——extendInfo 重复键 + Windows CUA 运行时链（2026-09-26）
+
+十路复审实证确认的两个打包缺陷修复，真实构建产物级验证：
+
+- **mac.extendInfo 重复键**：`mac` 对象里两个同名 `extendInfo` 键（后者静默覆盖前者），
+  `LSEnvironment.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION="1"` 从未落进 Info.plist——
+  desktopCuaHelperInstaller 与 helper-host 的 adhoc 放行判定全部失效，路线 A 包的
+  Helper 校验被错误按严格模式 fail-closed。修复合并为单一 extendInfo 对象；重打包
+  实测 Info.plist 同时含 LSEnvironment 标记与 NSAppleEventsUsageDescription。
+- **Windows CUA 运行时链四重修复**（glm/tools/cua-helper）：
+  ① 路径：staging 由 `glm/tools/` 迁至 `bundled-tools/<platformKey>/cua-helper`
+  （与 ripgrep 同一模式），新增 win32 专属 extraResources 条目映射到
+  `resources/tools/cua-helper`（消费方 resolveWindowsCuaRuntime 的产品路径）；
+  ② 平台门控：仅 win32 staging（官方 mac 发行物 glm 无 tools/，对照实测），
+  重打包后 mac 产物 glm 顶层=drora.cjs+packages（官方形态），23.9MB win32 死重移除；
+  ③ 期望拆分：改名清扫曾把 dev/product 两处包名期望统一成 @drora/drora-cua，与
+  实体全部脱配——dev 期望改为随仓运行时包 @zcode/zcode-cua-helper-runtime（并为其
+  package.json 补 droraCuaRuntime 契约 {schema:1,windows:{entry,nativeAddon}}），
+  产品 manifest 期望改为上游包名 @zcode/zcode-cua（豁免区字节保持）；
+  ④ manifest 哈希重铸：仓库快照天生不配对（entry 的 sha256 与实际字节不符、addon
+  相符，同提交入库）——随包字节为权威，重铸 sha256.entry。
+- **回归测试**：packages/services 新增 test 链（node --import tsx --test）：dev 路径
+  真实契约解析成功/缺契约 fail-closed、产品路径 staged 布局（含 SHA-256 校验）成功/
+  arch 不匹配拒绝/非 win32 拒绝，5/5 通过。测试临时目录须置于仓库树内（macOS
+  /var/folders 符号链接触发产品路径的 samePhysicalPath 防护，属测试环境伪影）。
+- 质量门：typecheck/lint 0 errors/架构 0 违规；真实打包端到端验证（日志含 win32
+  skip 分支行、Info.plist 双键、glm/tools 消失）。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

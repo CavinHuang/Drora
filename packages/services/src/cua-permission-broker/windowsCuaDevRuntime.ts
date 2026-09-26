@@ -5,7 +5,13 @@ import * as fs from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep, win32 as windowsPath } from "node:path";
 
 const DEV_ROOT_ENV = "DRORA_CUA_DEV_ROOT";
-const EXPECTED_PACKAGE_NAME = "@drora/drora-cua";
+// 第四十四轮修复：拆分 dev/product 两套期望——改名清扫把两者统一成 @drora/drora-cua 后，
+// 与随包/随仓实体的真实包名全部脱配（产品校验对上游 manifest 必拒、dev 校验无任何包可满足）：
+// - dev root 是随仓的 Windows 运行时包（packages/zcode-cua-helper/runtime/cua-helper，
+//   上游豁免区产物，package.json 保留上游包名）；
+// - 产品 manifest 随 glm/tools → resources/tools 发行，同为上游字节保持，包名 @zcode/zcode-cua。
+const DEV_RUNTIME_PACKAGE_NAME = "@zcode/zcode-cua-helper-runtime";
+const PRODUCT_MANIFEST_PACKAGE_NAME = "@zcode/zcode-cua";
 const PACKAGE_JSON = "package.json";
 const PRODUCT_RUNTIME_MANIFEST = "runtime-manifest.json";
 const PRODUCT_RUNTIME_SEGMENTS = ["tools", "cua-helper"] as const;
@@ -147,7 +153,7 @@ async function resolveDevelopmentRuntime(
 
 interface RuntimeManifest {
   schemaVersion: 1;
-  packageName: typeof EXPECTED_PACKAGE_NAME;
+  packageName: typeof PRODUCT_MANIFEST_PACKAGE_NAME;
   packageVersion: string;
   platform: "win32";
   arch: NodeJS.Architecture;
@@ -303,7 +309,7 @@ function validateRuntimeManifest(
   const compatible =
     hasExactManifestKeys &&
     manifest.schemaVersion === 1 &&
-    manifest.packageName === EXPECTED_PACKAGE_NAME &&
+    manifest.packageName === PRODUCT_MANIFEST_PACKAGE_NAME &&
     isNonEmptyTrimmedString(manifest.packageVersion) &&
     manifest.platform === "win32" &&
     (manifest.arch === "x64" || manifest.arch === "arm64") &&
@@ -538,7 +544,7 @@ async function requireExpectedPackage(
     if (!isPlainRecord(pkg)) throw new Error("package.json is not an object");
     const contract = pkg.droraCuaRuntime;
     if (
-      pkg.name !== EXPECTED_PACKAGE_NAME ||
+      pkg.name !== DEV_RUNTIME_PACKAGE_NAME ||
       !isNonEmptyTrimmedString(pkg.version) ||
       !isPlainRecord(contract) ||
       !hasExactKeys(contract, ["schema", "windows"]) ||
@@ -561,7 +567,7 @@ async function requireExpectedPackage(
   }
   throw new WindowsCuaDevRuntimeResolutionError(
     "invalid-package",
-    `Windows CUA development root package.json must name ${EXPECTED_PACKAGE_NAME} and expose a valid droraCuaRuntime contract.`,
+    `Windows CUA development root package.json must name ${DEV_RUNTIME_PACKAGE_NAME} and expose a valid droraCuaRuntime contract.`,
     PACKAGE_JSON,
   );
 }

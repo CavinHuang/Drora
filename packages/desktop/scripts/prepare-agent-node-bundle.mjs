@@ -12,7 +12,7 @@
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { access, cp, mkdir } from "node:fs/promises";
+import { access, cp, mkdir, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -466,15 +466,34 @@ async function stageBundledSkillPack() {
 async function stageCuaHelperRuntime() {
   // CUA helper 运行时(0.6.3):windows-helper.js + ax_native.node + node_modules。
   // resolveWindowsCuaRuntime 产品模式只读 resources/tools/cua-helper,缺文件即 fail-closed,
-  // 因此这里整树暴装(含运行依赖),与原版 resources/tools/cua-helper 布局一致。
+  // 因此这里整树暴装(含运行依赖)。
+  // 第四十四轮修复：此前误落 glm/tools/cua-helper（随 glm→glm 映射进 Resources/glm/tools，
+  // 消费方按 resourcesPath/tools/cua-helper 永远解析不到），且对所有平台无条件 staging——
+  // 官方 mac 发行物的 glm 无 tools/ 目录（对照实测），该运行时是 Windows 专属。
+  // 现迁到 bundled-tools/<platformKey>/cua-helper（与 ripgrep 同一 staging 模式），
+  // 由 electron-builder 的 win32 专属 extraResources 条目映射到 resources/tools/cua-helper。
+  if (platform !== "win32") {
+    console.log(
+      `[prepare:agent-bundle] skip cua helper runtime on ${platformKey} (win32-only; 官方 mac glm 无 tools/)`,
+    );
+    return;
+  }
   const sourceRoot = resolve(repoRoot, "packages/zcode-cua-helper/runtime/cua-helper");
-  const targetRoot = resolve(glmDir, "tools", "cua-helper");
+  const targetRoot = resolve(
+    repoRoot,
+    "packages",
+    "desktop",
+    "bundled-tools",
+    platformKey,
+    "cua-helper",
+  );
+  await rm(targetRoot, { recursive: true, force: true });
   await mkdir(targetRoot, { recursive: true });
   await cp(sourceRoot, targetRoot, { recursive: true });
   for (const relativePath of ["dist/windows-helper.js", "build/Release/ax_native.node", "runtime-manifest.json"]) {
     const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
     await access(stagedAssetPath);
   }
-  console.log(`[prepare:agent-bundle] staged cua helper runtime tools/cua-helper`);
+  console.log(`[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`);
 }
 

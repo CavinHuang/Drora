@@ -13,6 +13,7 @@
     "./node": "./src/node.ts"
   },
   "scripts": {
+    "test": "node --import tsx --test test/*.node-test.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

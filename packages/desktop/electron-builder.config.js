@@ -691,6 +691,16 @@ export default {
             from: "build/icon.ico",
             to: "tray_icon.ico",
           },
+          {
+            // Windows 专属 CUA helper 运行时（第四十四轮修复：此前误 staging 到 glm/tools，
+            // 消费方 resolveWindowsCuaRuntime 只读 resources/tools/cua-helper 永远够不着，
+            // 且 mac 包跟着背了 23.9MB win32 产物——官方 mac glm 无 tools/）。staging 落
+            // bundled-tools/<platform>/cua-helper（prepare-agent-node-bundle.mjs），此处映射到
+            // 消费方的产品路径。
+            from: `bundled-tools/${targetPlatform.key}/cua-helper`,
+            to: "tools/cua-helper",
+            filter: ["**/*"],
+          },
         ]
       : []),
     {
@@ -730,19 +740,22 @@ export default {
     },
   ],
   mac: {
-  // 路线 A 分发 profile（无签名身份分发）：经 LSEnvironment 让 LaunchServices
-  // 发射链与子进程携带 adhoc 分布标记；正式签名构建移除本键即可回到严格校验。
-  extendInfo: {
-    LSEnvironment: {
-      DRORA_CUA_HELPER_ADHOC_DISTRIBUTION: "1",
+    // 路线 A 分发 profile（无签名身份分发）：经 LSEnvironment 让 LaunchServices
+    // 发射链与子进程携带 adhoc 分布标记；正式签名构建移除该键即可回到严格校验。
+    // 第四十四轮修复：此处曾写成两个 extendInfo 键（JS 同名键后者静默覆盖前者），
+    // 导致 LSEnvironment 从未落进 Info.plist——desktopCuaHelperInstaller 与
+    // helper-host 的 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION==="1" 判定全部失效，
+    // adhoc 包的 Helper 校验被错误地按严格模式 fail-closed。两个信息必须合并在
+    // 同一个 extendInfo 对象里。
+    extendInfo: {
+      LSEnvironment: {
+        DRORA_CUA_HELPER_ADHOC_DISTRIBUTION: "1",
+      },
+      NSAppleEventsUsageDescription: `${desktopProductIdentity.productName} needs Apple Events access to coordinate local automation workflows with user-approved desktop apps.`,
     },
-  },
     target: ["dmg", "zip"],
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),
-    extendInfo: {
-      NSAppleEventsUsageDescription: `${desktopProductIdentity.productName} needs Apple Events access to coordinate local automation workflows with user-approved desktop apps.`,
-    },
     // 预签名脚本走的是原生 codesign，要求完整的 "Developer ID Application: ..." 身份串；
     // 但 electron-builder 的 mac.identity 在 26.x 下会拒绝带此前缀的名字。
     // 这里仅对 electron-builder 侧做前缀归一化，避免本地预签名和最终 .app 签名互相打架。

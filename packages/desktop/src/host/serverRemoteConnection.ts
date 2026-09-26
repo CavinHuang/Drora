@@ -44,6 +44,7 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
+  IOutputStyleService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
@@ -209,7 +210,9 @@ export async function connectServerRemoteHostConnection(
  * - clientConfigService 保留本地实例（官方"本地 t"），conversationShare 走远端
  *   channel（官方此处是本地 cRe()；Drora 的 server 端已暴露该 channel，复用远端
  *   实现可避免在 Host 侧再建一套本地 API/凭据桥）；
- * - 官方清单中的 outputStyleService 在 Drora 无对应 token，未注册。
+ * - 第 48 轮补齐官方清单中的 outputStyleService：对齐官方 MJ 的
+ *   .register(Tl, e.connectionServices.outputStyleService)——server 远程注册
+ *   远端代理（远端 Server 的 createLocalServices 已暴露 output-style channel）。
  */
 export function createServerRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -250,6 +253,8 @@ export function createServerRemoteWorkspaceServiceCollection(params: {
     .register(ICommandsService, remote.commandsService)
     .register(IHooksService, remote.hooksService)
     .register(IMemoryService, remote.memoryService)
+    // 第 48 轮：官方 MJ 注册远端代理（e.connectionServices.outputStyleService）。
+    .register(IOutputStyleService, remote.outputStyleService)
     .register(ISettingsSyncService, remote.settingsSyncService)
     .register(IPromptAttachmentTransferService, remote.promptAttachmentTransferService);
 }

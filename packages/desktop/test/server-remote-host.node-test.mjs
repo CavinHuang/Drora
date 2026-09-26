@@ -25,6 +25,7 @@ import {
   IMemoryService,
   IModelSelectionService,
   IOAuthService,
+  IOutputStyleService,
   IPluginManagementService,
   IPluginSyncService,
   IPluginsService,
@@ -208,6 +209,7 @@ test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项
     "commandsService",
     "hooksService",
     "memoryService",
+    "outputStyleService",
     "settingsSyncService",
     "promptAttachmentTransferService",
   ];
@@ -251,6 +253,7 @@ test("createServerRemoteWorkspaceServiceCollection: 官方 MJ 注册清单逐项
       commandsService: ICommandsService,
       hooksService: IHooksService,
       memoryService: IMemoryService,
+      outputStyleService: IOutputStyleService,
       settingsSyncService: ISettingsSyncService,
       promptAttachmentTransferService: IPromptAttachmentTransferService,
     }),

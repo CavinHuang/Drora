@@ -217,6 +217,11 @@ export {
 } from "./memory/memory.js";
 export type { ProjectMemoryFileSummary, ProjectMemoryWorkspaceSummary } from "./memory/memory.js";
 
+// OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
+// 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
+export { IOutputStyleService } from "./outputStyle/outputStyle.js";
+export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
+
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
 
 // FileWatcher service — IFileWatcherService is both a type (interface) and value (descriptor)

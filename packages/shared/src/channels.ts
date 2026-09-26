@@ -137,6 +137,8 @@ export const ServiceChannels = {
   Hooks: "hooks",
   /** Memory 管理服务 */
   Memory: "memory",
+  /** Claude Code 兼容的输出风格服务（第 48 轮，~/.claude/output-styles） */
+  OutputStyle: "output-style",
   /** 首次启动设置同步服务 */
   SettingsSync: "settings-sync",
   /** Bots 远程聊天控制服务 */

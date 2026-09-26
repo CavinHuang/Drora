@@ -33,6 +33,7 @@ import type { ISubagentsService } from "./subagents/subagents.js";
 import type { ICommandsService } from "./commands/commands.js";
 import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
+import type { IOutputStyleService } from "./outputStyle/outputStyle.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -85,6 +86,8 @@ export interface IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
+  /** Claude Code 兼容的输出风格（本机 ~/.claude 状态；第 48 轮新增，远端代理与本地实例同接口）。 */
+  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

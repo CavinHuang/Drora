@@ -1138,6 +1138,34 @@ forceUpdate——后者有 removal spec）明确搁置：
 - 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规；desktop 新测试 5/5、
   services 回归 19/19、ui 9/9。
 
+### 第四十八轮：outputStyleService 功能域对齐——Claude Code 输出风格系统（2026-09-26）
+
+第 47 轮五项偏离中的 ②（此前误判"架构性缺失"，深挖后确认 agent 侧注入链
+fork 基线已有、只缺服务层与注册）：
+
+- **能力面**（官方 pf/bG/uf/lke 逆向）：Claude Code 兼容的输出风格——内置三档
+  （default/explanatory/learning，name+description 官方逐字、content 空串）+
+  自定义 `~/.claude/output-styles/*.md`（平铺 `name:/description:` 头 + prompt
+  正文，parse 正则逐字）；激活状态写 `~/.claude/settings.json` 的 outputStyle
+  字段（merge 保留其它字段）；服务 7 方法（list/add/update/delete/
+  getUserStylesDirectory/setActive/getActive），listStyles 内置在前+自定义
+  name 排序+坏文件容错。agent 侧生效链 fork 基线已在（core/src/context/
+  builder.ts:84-163 注入 config.outputStyle），激活即生效，零 UI（官方
+  renderer 无键无组件——纯 CLI/文件生态入口）。
+- **路径品牌决策**：官方用 `~/.claude`（Claude Code 生态兼容）；Drora 原样沿用
+  （与 claude-native session import 读 ~/.claude/projects 同属外部生态豁免），
+  保证与 Claude Code CLI 互认，注释写明依据。
+- **注册三处**（官方 `.register(Tl, pf())` 模式）：本地 Host（services/node.ts
+  createLocalServices，本地实例）；ssh/wsl/docker 远程集合
+  （remoteWorkspaceServiceCollection，本地实例——官方对 ssh 系也用本地实例，
+  output style 是本机状态）；server 远程（serverRemoteConnection MJ，远端代理
+  经 RemoteServiceAccess 新增 getChannel）。agent 侧注入链零改动。
+- **写盘格式注记**：官方模板锚点显示平铺空格，与逐字解析正则联立唯一自洽解释
+  为单空格=换行、双空格=空行；测试断言写盘与回读 parse 往返一致。
+- 测试：services 新增 9 项（active merge/内置逐字/排序/容错/id 前缀/回落链）
+  全过，套件 28/28；desktop MJ 清单测试补 outputStyleService 断言 5/5。
+- 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

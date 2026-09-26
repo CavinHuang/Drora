@@ -112,6 +112,10 @@ export function RemoteConnectionDialog({
     wslUser,
     dockerContainer,
     manualDockerContainer,
+    serverUrl,
+    serverName,
+    serverToken,
+    serverWorkspacePath,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -133,6 +137,10 @@ export function RemoteConnectionDialog({
     setWslUser,
     setDockerContainer,
     setManualDockerContainer,
+    setServerUrl,
+    setServerName,
+    setServerToken,
+    setServerWorkspacePath,
     refreshDockerContainers,
     applySshConfigAlias,
     clearSelectedSshConfigAlias,
@@ -294,6 +302,13 @@ export function RemoteConnectionDialog({
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
       trace.complete({ resultSource: "platform_result" });
+      // 对齐官方 server 表单文案语义："默认目录"非空时连接成功后直接打开该目录，
+      // 跳过目录浏览；打开失败（目录不存在等）停留在目录步骤并展示错误，允许手动重选。
+      const presetWorkspacePath =
+        nextTarget.kind === "server" ? nextTarget.workspacePath?.trim() : undefined;
+      if (presetWorkspacePath) {
+        await selectRemoteDirectory(sessionId, presetWorkspacePath);
+      }
     } catch (connectError) {
       const completionState = getRemoteConnectionCompletionDialogState("error");
       const errorMessage = getErrorMessage(connectError);
@@ -328,6 +343,10 @@ export function RemoteConnectionDialog({
       wslUser,
       dockerContainer,
       manualDockerContainer,
+      serverUrl,
+      serverName,
+      serverToken,
+      serverWorkspacePath,
     });
     if (!nextTarget) {
       // 必填项缺失属于表单校验，不应该和真实连接失败共用 destructive 错误样式。
@@ -367,9 +386,9 @@ export function RemoteConnectionDialog({
     }
   }, [connectedSessionId, onCancelSession, updateConnectingRequestId]);
 
-  const handleSelectDirectory = useCallback(
-    async (path: string) => {
-      if (!connectedSessionId || selectingDirectoryRef.current) {
+  const selectRemoteDirectory = useCallback(
+    async (sessionId: string, path: string) => {
+      if (selectingDirectoryRef.current) {
         return;
       }
 
@@ -379,7 +398,7 @@ export function RemoteConnectionDialog({
       setSelectingDirectory(true);
       resetFeedback();
       try {
-        await onSelectProject(connectedSessionId, path, localWorkspacePath);
+        await onSelectProject(sessionId, path, localWorkspacePath);
         resetConnectionLogs();
         setCurrentStep("kind");
         setConnectedSessionId(null);
@@ -388,10 +407,10 @@ export function RemoteConnectionDialog({
         applyOpenState(false);
       } catch (selectionError) {
         const failureState = getRemoteConnectionDirectoryFailureState({
-          connectedSessionId,
+          connectedSessionId: sessionId,
           // 事件处理器只在失败时读取一次最新 snapshot，避免为了回调判断新增重复 Zustand 订阅。
           sessionStillRegistered: Boolean(
-            useRemoteWorkspaceSessionStore.getState().sessionsById[connectedSessionId],
+            useRemoteWorkspaceSessionStore.getState().sessionsById[sessionId],
           ),
         });
         if (!failureState.connectedSessionId) {
@@ -405,12 +424,23 @@ export function RemoteConnectionDialog({
       }
     },
     [
-      connectedSessionId,
       localWorkspacePath,
       onSelectProject,
       resetDirectorySelectionState,
+      resetFeedback,
+      resetConnectionLogs,
       updateConnectingRequestId,
     ],
+  );
+
+  const handleSelectDirectory = useCallback(
+    async (path: string) => {
+      if (!connectedSessionId) {
+        return;
+      }
+      await selectRemoteDirectory(connectedSessionId, path);
+    },
+    [connectedSessionId, selectRemoteDirectory],
   );
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -528,6 +558,10 @@ export function RemoteConnectionDialog({
                     manualDockerContainer={manualDockerContainer}
                     dockerContainers={dockerContainers}
                     dockerAvailable={dockerAvailable}
+                    serverUrl={serverUrl}
+                    serverName={serverName}
+                    serverToken={serverToken}
+                    serverWorkspacePath={serverWorkspacePath}
                     sshConfigAliases={sshConfigAliases}
                     sshConfigAliasesLoading={sshConfigAliasesLoading}
                     sshConfigAliasesError={sshConfigAliasesError}
@@ -553,6 +587,10 @@ export function RemoteConnectionDialog({
                     onWslUserChange={setWslUser}
                     onDockerContainerChange={setDockerContainer}
                     onManualDockerContainerChange={setManualDockerContainer}
+                    onServerUrlChange={setServerUrl}
+                    onServerNameChange={setServerName}
+                    onServerTokenChange={setServerToken}
+                    onServerWorkspacePathChange={setServerWorkspacePath}
                     onDockerContainersRefresh={refreshDockerContainers}
                     onApplySshConfigAlias={applySshConfigAlias}
                     onClearSelectedSshConfigAlias={clearSelectedSshConfigAlias}

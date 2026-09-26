@@ -64,6 +64,13 @@ export function hasRemoteWorkspaceIdentity(entry: {
 
 type WslRemoteTargetLike = Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "wsl" }>;
 
+/** server 连接的显示名称只存在于连接流程内的 RemoteTarget 上；恢复快照不持久化。 */
+function getServerRemoteTargetDisplayName(
+  target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
+): string | undefined {
+  return "name" in target ? target.name?.trim() || undefined : undefined;
+}
+
 function getWslRemoteTargetUser(target: WslRemoteTargetLike): string | undefined {
   return target.user?.trim() || undefined;
 }
@@ -90,7 +97,7 @@ export function formatRemoteWorkspaceTargetSubtitle(
     case "docker":
       return `Docker · ${target.container}`;
     case "server":
-      return `Server · ${target.url}`;
+      return `Server · ${getServerRemoteTargetDisplayName(target) ?? target.url}`;
   }
 }
 
@@ -105,7 +112,7 @@ export function formatRemoteWorkspaceHeaderHostLabel(
     case "docker":
       return `docker:${target.container}`;
     case "server":
-      return target.url;
+      return getServerRemoteTargetDisplayName(target) ?? target.url;
   }
 }
 

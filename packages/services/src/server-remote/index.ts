@@ -20,12 +20,22 @@ export type ServerRemoteFetchLike = (
   init?: { method?: string; headers?: Record<string, string> },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
-/** node ws WebSocket 的最小结构面；测试注入 mock 类即可校验 URL/header 构造。 */
+/**
+ * node ws WebSocket 的最小结构面；测试注入 mock 类即可校验 URL/header 构造。
+ * open 后的 message/close/error 监听与 send/readyState 供宿主把 socket wrap 成
+ * RPC 帧协议 ISocket（对齐官方 _Re），不需要引入完整 ws 类型。
+ */
 export interface ServerRemoteNodeWebSocket {
   once(event: "error", listener: (error: Error) => void): unknown;
   once(event: "close", listener: (code: number, reason: Buffer) => void): unknown;
   once(event: "open", listener: () => void): unknown;
+  on(event: "message", listener: (raw: Buffer | ArrayBuffer | Buffer[]) => void): unknown;
+  on(event: "close", listener: (code: number, reason: Buffer) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  send(data: Uint8Array | ArrayBufferLike): void;
   close(): void;
+  readonly readyState: number;
+  readonly OPEN: number;
 }
 
 export type ServerRemoteWebSocketConstructor = new (

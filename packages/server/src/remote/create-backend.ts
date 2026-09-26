@@ -32,9 +32,9 @@ export async function createRemoteBackend(target: RemoteTarget): Promise<IRemote
       return new DockerBackend(target);
     }
     case "server":
-      // 第 46 轮：server 远程不经 SSH/WSL/Docker 部署链——目标 Server 已独立运行，
-      // 客户端直接走 @drora/services/server-remote 的端点解析 + /ws/host 连接。
-      // 走到这里说明宿主尚未接入 server 连接分支，显式报错而不是静默回退。
+      // 第 47 轮：窗口 Host 的 yAe 分派层已对 server 目标短路（serverRemoteConnection），
+      // 不再进入本部署链。这里保留显式守卫，覆盖 web 模式 /api/connect-remote 等仍以
+      // createRemoteBackend 为入口的调用方，防止 server 目标静默回退到 SSH/WSL/Docker 部署。
       throw new Error("server 远程目标不支持部署 backend，请使用 server-remote 客户端连接链");
   }
 }

@@ -1109,6 +1109,35 @@ forceUpdate——后者有 removal spec）明确搁置：
   连接分派与 UI 表单（向导入口 + 14 i18n 键）为已知剩余接线面，见实施报告。
 - 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规、services 测试 19/19。
 
+### 第四十七轮：server 远程剩余接线面补齐——Host 分派 + services 组装 + UI 表单（2026-09-26）
+
+第46轮遗留的 server 远程"剩余接线面"按官方原版实现补齐（官方 yAe/MJ/_Re/$O/YD
+逆向重放）：
+
+- **Host 连接分派**（官方 yAe= createWindowRemoteConnectionHandle 的 server 分支）：
+  server 三元分派不走 remoteAssets/部署链；onClose 映射 exitCode=ws close code +
+  error=reason；disposeAndWait(5s) 超时收口（官方 m4）；遥测 environmentKey 用
+  serverInfo.serverId（官方 l0）、telemetrySupported 按 server-info 能力门控；
+  capabilities 无 backend 返回 {}。
+- **services 组装**（官方 MJ=createServerRemoteWorkspaceServiceCollection）：新建
+  serverRemoteConnection.ts——ws wrap（官方 _Re 语义）→ SocketProtocol+ChannelClient
+  RPC（官方 $O+YD 对应）→ 远端代理按官方 MJ 清单逐项 register（30+ 服务），
+  clientConfig 本地实例、无 backend/promptAttachment 桥。5 项单测（RPC 组装/close
+  上报去重/disposeAndWait 超时/注册清单逐项断言/legacy channel fail-fast）全过。
+- **UI + i18n**：向导 buildAvailableKinds 加 server、四字段表单（url 历史/名称/
+  token/默认目录）+ urlRequired/invalidUrl 校验（invalidUrl 经
+  resolveServerRemoteEndpoints 真解析）；连接成功 workspacePath 非空直开目录；
+  14 键双语（zh 官方原文品牌替换逐字、en 语义对齐翻译——官方英文原文未提供，如实
+  注记）。
+- **有意偏离（5 项，均注记在案）**：serverInfo.workspaces 列表选择 UI 未做（沿
+  DirectoryBrowser 手选）；outputStyleService 无对应 token 未注册；
+  conversationShareService 用远端代理（server 端已 expose，避免本地再建 API/凭据
+  桥）；name/workspacePath 不持久化（快照类型 round-46 已定）；dispose 跳过
+  disposeServiceResourcesAndWait（远端代理 disposeAll 会波及共享 server 的其他
+  客户端，本地仅收口 ws）。
+- 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规；desktop 新测试 5/5、
+  services 回归 19/19、ui 9/9。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

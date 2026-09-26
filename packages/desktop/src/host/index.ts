@@ -122,6 +122,11 @@ import {
 import { watchCronRunBotDelivery } from "./cronBotDelivery.js";
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
+import {
+  connectServerRemoteHostConnection,
+  createServerRemoteWorkspaceServiceCollection,
+  type ServerRemoteHostConnection,
+} from "./serverRemoteConnection.js";
 import { getRemoteProviderProvisioningExecutor } from "./remoteProviderProvisioningService.js";
 import { createRemotePromptAttachmentTransferService } from "./promptAttachmentTransferService.js";
 import { shouldReportHostConsoleError, stringifyHostLogArg } from "./hostLog.js";
@@ -1632,7 +1637,10 @@ async function resolveDesktopRemoteRuntimeNetwork(
   }
 }
 
-async function disposeHostRemoteConnection(connection: HostRemoteConnection): Promise<void> {
+async function disposeHostRemoteConnection(
+  connection: HostRemoteConnection | ServerRemoteHostConnection,
+): Promise<void> {
+  // 官方 m4：有 disposeAndWait 用之带 5s 超时；server 形态同样提供该收口语义。
   await connection.disposeAndWait({ timeoutMs: 5_000 });
 }
 
@@ -1652,72 +1660,103 @@ async function createWindowRemoteConnectionHandle(params: {
       listener(event);
     }
   };
-  const connection = await setupRemoteConnection(
-    params.target,
-    params.remoteAssets,
-    { fetch: requireActiveHostApiNetworkTransport().fetch },
-    await resolveDesktopRemoteRuntimeNetwork(params.target),
-    (exitCode) => notifyClose({ exitCode, signal: null }),
-    params.target.kind === "ssh" ? "caller-serialized" : "remote",
-    params.target.kind === "ssh" ? params.signal : undefined,
-  );
+  // 对齐官方 yAe：server 形态不走 remoteAssets/部署链，直接经 server-remote 客户端
+  // 连到目标 Server 的 /ws/host；onClose 映射 exitCode=ws close code、error=reason。
+  const connection: HostRemoteConnection | ServerRemoteHostConnection =
+    params.target.kind === "server"
+      ? await connectServerRemoteHostConnection(params.target, {
+          fetchImpl: requireActiveHostApiNetworkTransport().fetch,
+          onDidClose: ({ code, reason }) =>
+            notifyClose({
+              exitCode: code,
+              signal: null,
+              ...(reason ? { error: reason } : {}),
+            }),
+        })
+      : await setupRemoteConnection(
+          params.target,
+          params.remoteAssets,
+          { fetch: requireActiveHostApiNetworkTransport().fetch },
+          await resolveDesktopRemoteRuntimeNetwork(params.target),
+          (exitCode) => notifyClose({ exitCode, signal: null }),
+          params.target.kind === "ssh" ? "caller-serialized" : "remote",
+          params.target.kind === "ssh" ? params.signal : undefined,
+        );
 
   if (params.signal.aborted) {
     await disposeHostRemoteConnection(connection);
     throw new Error("远程连接已取消");
   }
 
-  const backendConnection = connection;
-  const materializePromptAttachments = async (request: {
-    taskId: string;
-    traceId: TraceId | string;
-    content: string;
-    attachments?: DroraPromptAttachment[];
-  }) => {
-    const result = await materializeRemotePromptAttachments(request, {
-      backend: backendConnection.backend,
+  let services: ServiceCollection;
+  const isServerRemoteConnection = "serverInfo" in connection;
+  if (isServerRemoteConnection) {
+    // 官方 MJ：server 形态无 backend、无 promptAttachment 物化/transfer 桥，
+    // 远端服务代理直接组成新容器，clientConfig 保留本地实例。
+    services = createServerRemoteWorkspaceServiceCollection({
+      clientConfigService,
+      connectionServices: connection.services,
     });
-    return { content: result.content, attachments: result.attachments };
-  };
-  const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
-    backendConnection.backend,
-    {
-      onJanitorError: (error: unknown) =>
-        logger.warn("remote prompt attachment janitor failed", error),
-    },
-  );
-  const services = createRemoteWorkspaceServiceCollection({
-    clientConfigService,
-    connectionServices: backendConnection.services,
-    sourceServices: activeServices ?? undefined,
-    parentPort,
-    createRemotePromptAttachmentSessionService: (service) =>
-      createRemotePromptAttachmentSessionService(service, {
-        materializePromptAttachments,
-      }),
-    createRemotePromptAttachmentTaskService: (service) =>
-      createRemotePromptAttachmentTaskService(service, {
-        materializePromptAttachments,
-      }),
-    createReportingRemoteDroraTaskService: (service) =>
-      createReportingRemoteDroraTaskService(service, {
-        taskRealtimePort: activeSessionRealtimePort ?? undefined,
-      }),
-    promptAttachmentTransferService,
-    runtimePreferencesBridge: {
-      onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
-    },
-  });
+  } else {
+    const backendConnection = connection;
+    const materializePromptAttachments = async (request: {
+      taskId: string;
+      traceId: TraceId | string;
+      content: string;
+      attachments?: DroraPromptAttachment[];
+    }) => {
+      const result = await materializeRemotePromptAttachments(request, {
+        backend: backendConnection.backend,
+      });
+      return { content: result.content, attachments: result.attachments };
+    };
+    const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
+      backendConnection.backend,
+      {
+        onJanitorError: (error: unknown) =>
+          logger.warn("remote prompt attachment janitor failed", error),
+      },
+    );
+    services = createRemoteWorkspaceServiceCollection({
+      clientConfigService,
+      connectionServices: backendConnection.services,
+      sourceServices: activeServices ?? undefined,
+      parentPort,
+      createRemotePromptAttachmentSessionService: (service) =>
+        createRemotePromptAttachmentSessionService(service, {
+          materializePromptAttachments,
+        }),
+      createRemotePromptAttachmentTaskService: (service) =>
+        createRemotePromptAttachmentTaskService(service, {
+          materializePromptAttachments,
+        }),
+      createReportingRemoteDroraTaskService: (service) =>
+        createReportingRemoteDroraTaskService(service, {
+          taskRealtimePort: activeSessionRealtimePort ?? undefined,
+        }),
+      promptAttachmentTransferService,
+      runtimePreferencesBridge: {
+        onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
+      },
+    });
+  }
 
   let disposed = false;
   // 远端 workspace 的 CLI 与 MCP 样本走与本地同一条路径：远端 drora-server → 本地 Host → main。
   // 订阅寿命等于这份远端 services 的寿命：由 connection handle 持有，registry 释放 entry
   // （WSL idle 回收、最后一个 logical session 关闭、掉线后的 session 清理）时随 dispose 一起收口。
+  const serverInfo = isServerRemoteConnection ? connection.serverInfo : undefined;
   const resourceTelemetry = registerHostServiceResourceTelemetry({
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "remote",
-    environmentKey: resolveResourceTelemetryEnvironmentKey(params.target),
+    // 对齐官方 l0(target, serverInfo?.serverId)：server 形态优先用 serverId 做环境身份。
+    environmentKey: resolveResourceTelemetryEnvironmentKey(params.target, serverInfo?.serverId),
+    // 对齐官方 yAe：独立 Server 必须在 server-info 里显式声明 processResourceTelemetry，
+    // 未声明（旧 Server）时完全跳过订阅，避免未知事件打进对端读循环。
+    ...(params.target.kind === "server"
+      ? { telemetrySupported: serverInfo?.capabilities.processResourceTelemetry === true }
+      : {}),
     onError: (error) => logger.warn("remote resource telemetry subscription failed", error),
   });
   const remoteMediaPreviewFactory = !remoteMediaRangePreviewEnabled
@@ -1754,7 +1793,12 @@ async function createWindowRemoteConnectionHandle(params: {
       disposed = true;
       closeListeners.clear();
       resourceTelemetry.dispose();
-      await disposeServiceResourcesAndWait(services);
+      if (!isServerRemoteConnection) {
+        await disposeServiceResourcesAndWait(services);
+      }
+      // server 是共享运行环境：容器里的 terminal/task 等是远端代理，向其发
+      // disposeAll 会波及同一 Server 上的其他客户端。本地只收口 ws 连接；
+      // 远端资源由 server 侧 per-connection scope 在 ws close 时自行清理。
       await disposeHostRemoteConnection(connection);
     },
   };

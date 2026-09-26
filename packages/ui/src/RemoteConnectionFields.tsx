@@ -12,6 +12,8 @@ import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, Plus } from 
 import {
   TID_DOCKER_CONTAINER_INPUT,
   TID_DOCKER_CONTAINER_SELECT,
+  TID_SERVER_TOKEN_INPUT,
+  TID_SERVER_URL_INPUT,
   TID_SSH_CONFIG_ALIAS_SELECT,
   TID_SSH_AUTH_PASSWORD,
   TID_SSH_AUTH_PRIVATE_KEY,
@@ -30,6 +32,7 @@ import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { RemoteConnectionHistoryInput } from "@/remote-connection/RemoteConnectionHistoryInput.js";
+import { buildServerConnectionHistorySuggestions } from "@/remote-connection/serverHistorySuggestions.js";
 import { buildSshConnectionHistorySuggestions } from "@/remote-connection/sshHistorySuggestions.js";
 import {
   Command,
@@ -76,6 +79,10 @@ export function RemoteConnectionFields({
   manualDockerContainer,
   dockerContainers,
   dockerAvailable,
+  serverUrl,
+  serverName,
+  serverToken,
+  serverWorkspacePath,
   sshConfigAliases,
   sshConfigAliasesLoading,
   sshConfigAliasesError,
@@ -97,6 +104,10 @@ export function RemoteConnectionFields({
   setWslUser,
   setDockerContainer,
   setManualDockerContainer,
+  setServerUrl,
+  setServerName,
+  setServerToken,
+  setServerWorkspacePath,
 }: {
   kind: RemoteTarget["kind"];
   host: string;
@@ -114,6 +125,10 @@ export function RemoteConnectionFields({
   manualDockerContainer: string;
   dockerContainers: DockerContainerInfo[];
   dockerAvailable: boolean | null;
+  serverUrl: string;
+  serverName: string;
+  serverToken: string;
+  serverWorkspacePath: string;
   sshConfigAliases: SSHConfigAliasOption[];
   sshConfigAliasesLoading: boolean;
   sshConfigAliasesError: string;
@@ -135,6 +150,10 @@ export function RemoteConnectionFields({
   setWslUser?: (value: string) => void;
   setDockerContainer: (value: string) => void;
   setManualDockerContainer: (value: string) => void;
+  setServerUrl: (value: string) => void;
+  setServerName: (value: string) => void;
+  setServerToken: (value: string) => void;
+  setServerWorkspacePath: (value: string) => void;
 }) {
   const { intl } = useDroraIntl();
   const platform = usePlatform();
@@ -142,6 +161,7 @@ export function RemoteConnectionFields({
   const [dockerContainerPopoverOpen, setDockerContainerPopoverOpen] = useState(false);
   const sshAliasListRef = useRef<HTMLDivElement | null>(null);
   const sshHistorySuggestions = buildSshConnectionHistorySuggestions(remoteWorkspaceSessions);
+  const serverHistorySuggestions = buildServerConnectionHistorySuggestions(remoteWorkspaceSessions);
   const selectedSshAliasOption =
     selectedSshConfigAlias == null
       ? null
@@ -710,9 +730,85 @@ export function RemoteConnectionFields({
           </div>
         </div>
       );
-    // 第 46 轮：server 连接表单尚未接入（availableKinds 不含 server，运行期不可达），
-    // 这里只收敛联合类型，避免新增 kind 后静默渲染 ssh 表单。
+    // 第 47 轮：server 连接表单（对齐官方四字段 url/name/token/workspacePath）。
+    // token 与 SSH 密码同边界：只在连接流程内使用，持久化时仅保留 credentialService 键名。
     case "server":
-      return null;
+      return (
+        <div className="space-y-3">
+          <p className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "server.description" })}
+          </p>
+          <div>
+            <label className="mb-1 block text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "server.url" })}
+            </label>
+            <RemoteConnectionHistoryInput
+              className="h-9 text-ui-base"
+              label={intl.formatMessage({ id: "server.url" })}
+              value={serverUrl}
+              onChange={setServerUrl}
+              placeholder={intl.formatMessage({ id: "server.urlPlaceholder" })}
+              suggestions={serverHistorySuggestions.urls}
+              emptyText={intl.formatMessage({ id: "remote.history.empty" })}
+              suggestionWidth="min(36ch, calc(100vw - 2rem))"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-testid={TID_SERVER_URL_INPUT}
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
+            <div>
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "server.name" })}
+              </label>
+              <Input
+                size="lg"
+                className="h-9 text-ui-base"
+                value={serverName}
+                onChange={(event) => setServerName(event.target.value)}
+                placeholder={intl.formatMessage({ id: "server.namePlaceholder" })}
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "server.token" })}
+              </label>
+              <Input
+                size="lg"
+                className="h-9 text-ui-base"
+                type="password"
+                value={serverToken}
+                onChange={(event) => setServerToken(event.target.value)}
+                placeholder={intl.formatMessage({ id: "server.tokenPlaceholder" })}
+                name="remote-server-token"
+                autoComplete="off"
+                data-testid={TID_SERVER_TOKEN_INPUT}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "server.workspacePath" })}
+            </label>
+            <RemoteConnectionHistoryInput
+              className="h-9 text-ui-base"
+              label={intl.formatMessage({ id: "server.workspacePath" })}
+              value={serverWorkspacePath}
+              onChange={setServerWorkspacePath}
+              placeholder={intl.formatMessage({ id: "server.workspacePathPlaceholder" })}
+              suggestions={serverHistorySuggestions.workspacePaths}
+              emptyText={intl.formatMessage({ id: "remote.history.empty" })}
+              suggestionWidth="min(36ch, calc(100vw - 2rem))"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+            <p className="mt-1 text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "server.workspacePathDescription" })}
+            </p>
+          </div>
+        </div>
+      );
   }
 }

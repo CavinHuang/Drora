@@ -31,6 +31,10 @@ export interface ServerConnectOptions {
   url: string;
   /** Server 访问令牌；只存在于连接流程内，持久化时仅保留 credentialService 键名。 */
   token?: string;
+  /** 连接显示名称；仅连接流程与窗口标签展示使用，不进入恢复快照。 */
+  name?: string;
+  /** 默认目录；留空时连接成功后再选择 server 上的目录（对齐官方表单语义）。 */
+  workspacePath?: string;
 }
 
 export type RemoteTarget =

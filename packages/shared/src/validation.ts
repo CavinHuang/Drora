@@ -97,6 +97,9 @@ export const serverConnectOptionsSchema = z.object({
   kind: z.literal("server"),
   url: nonEmptyStringSchema,
   token: z.string().optional(),
+  // 显示名称与默认目录只随连接流程传递（UI 表单 → 连接建立），不进入恢复快照。
+  name: z.string().optional(),
+  workspacePath: z.string().optional(),
 });
 
 export const remoteTargetSchema = z.discriminatedUnion("kind", [

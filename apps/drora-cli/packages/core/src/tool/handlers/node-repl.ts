@@ -1,9 +1,11 @@
-import {
-  JsInputJsonSchema,
+import {JsInputJsonSchema,
   JsRuntimeInputSchema,
   JsOutputSchema,
   JsOutputJsonSchema,
   type JsOutput,
+  NODE_REPL_BROWSER_USE_META_KEY,
+  NODE_REPL_TOOL_SURFACE_META_KEY,
+  NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY,
 } from "@drora/contracts";
 import type { SessionId } from "@drora/contracts";
 import { isAbsolute, resolve } from "node:path";
@@ -126,8 +128,8 @@ function buildInjectedGlobals(
             const includeOpenTabs = result.ok && isBrowserSurfaceSideEffect(command);
 
             onBrowserResponseMeta({
-              "drora/browserUse": true,
-              "drora/toolSurface": {
+              NODE_REPL_BROWSER_USE_META_KEY: true,
+              NODE_REPL_TOOL_SURFACE_META_KEY: {
                 kind: "browserUse",
                 backend: meta.backendType,
                 browserId: meta.browserId,
@@ -137,7 +139,7 @@ function buildInjectedGlobals(
               browser_use: meta.currentUrl ? { url: meta.currentUrl } : {},
               ...(result.ok && meta.tabId && isAutoScreenshotTriggerCommand(command)
                 ? {
-                    "drora/browserTurnScreenshot": {
+                    NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY: {
                       browserGeneration: meta.browserGeneration,
                       browserId: meta.browserId,
                       tabId: meta.tabId,

@@ -1576,10 +1576,13 @@ export function createElectronInputHandlers(options) {
   };
   const refuseCombinedDragIfBusy = (action) => {
     if (!combinedDragInFlight) return;
-    throw permissionDenied(`${action} refused: a combined drag is still active. action_sent=false.`, {
-      action_sent: false,
-      reason: "drag_in_flight",
-    });
+    throw permissionDenied(
+      `${action} refused: a combined drag is still active. action_sent=false.`,
+      {
+        action_sent: false,
+        reason: "drag_in_flight",
+      },
+    );
   };
   const requirePointerMoveOwnership = (params, action) => {
     refuseCombinedDragIfBusy(action);
@@ -1589,7 +1592,10 @@ export function createElectronInputHandlers(options) {
         { action_sent: false, reason: "mouse_down_in_flight" },
       );
     }
-    if (buttonHolder !== null && buttonHolder !== pointerSessionKeyParam(params.session_key, action)) {
+    if (
+      buttonHolder !== null &&
+      buttonHolder !== pointerSessionKeyParam(params.session_key, action)
+    ) {
       throw permissionDenied(
         `${action} refused: another MCP session owns the active split drag. action_sent=false.`,
         { action_sent: false, reason: "another_session_holds_button" },
@@ -2057,7 +2063,13 @@ export function createElectronInputHandlers(options) {
         return appendResolvedAppRef(null, params);
       }
       const identity = await requirePointerAppPid(axSource, params.app_ref, "move_to");
-      activateConcreteWindow(adapter, identity.pid, identity.bundleId, identity.windowId, "move_to");
+      activateConcreteWindow(
+        adapter,
+        identity.pid,
+        identity.bundleId,
+        identity.windowId,
+        "move_to",
+      );
       await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "move_to");
       requirePointerMoveOwnership(params, "move_to");
       assertNativeInputSucceeded(
@@ -2702,7 +2714,13 @@ export function createElectronInputHandlers(options) {
           return appendResolvedAppRef(null, params);
         }
         const identity = await requirePointerAppPid(axSource, params.app_ref, "mouse_down");
-        activateConcreteWindow(adapter, identity.pid, identity.bundleId, identity.windowId, "mouse_down");
+        activateConcreteWindow(
+          adapter,
+          identity.pid,
+          identity.bundleId,
+          identity.windowId,
+          "mouse_down",
+        );
         await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "mouse_down");
         assertNativeInputSucceeded(
           adapter.moveTo(point.x, point.y, identity.pid, identity.windowId ?? void 0),

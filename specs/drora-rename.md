@@ -5,17 +5,17 @@
 
 ## 替换规则（有序，全部文本文件）
 
-| 序 | 规则 | 说明 |
-| --- | --- | --- |
-| 0 | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai`、`zcode://oauth/callback`、bigmodel `appId: "zcode"` | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效；OAuth 中转页白名单只认 `zcode://oauth/callback`，appId 是服务端注册值 |
-| 1 | `@zcode/` → `@drora/` | 包 scope（import specifier 与 package.json 依赖/名称） |
-| 2 | `ZCODE_` → `DRORA_` | 环境变量（ZCODE_ENV、ZCODE_PLUGIN_ROOT/DATA/PROJECT_DIR 等） |
-| 3 | `.zcode` → `.drora`（但 `.zcode-plugin`/`.zcode-plugin-seed.json` 保留） | 用户数据目录 `~/.zcode`；插件 manifest 目录约定保留（与 0.5.13 逐字 seed 共享的磁盘格式，避免 8 处发现逻辑双读） |
-| 4 | `ZCode` → `Drora` | 品牌显示词（productName、UI 文案、文档） |
-| 5 | `ZCODE` → `DRORA` | 剩余全大写 |
-| 6 | `Zcode` → `Drora` | 标题式变体（含标识符 normalizeDesktopZCodeEnv 等） |
-| 7 | `z-code` → `drora` | 连字变体 |
-| 8 | `zcode` → `drora` | 兜底小写（命令名、路径、文件名、目录名引用） |
+| 序  | 规则                                                                                                                            | 说明                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai`、`zcode://oauth/callback`、bigmodel `appId: "zcode"` | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效；OAuth 中转页白名单只认 `zcode://oauth/callback`，appId 是服务端注册值 |
+| 1   | `@zcode/` → `@drora/`                                                                                                           | 包 scope（import specifier 与 package.json 依赖/名称）                                                                               |
+| 2   | `ZCODE_` → `DRORA_`                                                                                                             | 环境变量（ZCODE_ENV、ZCODE_PLUGIN_ROOT/DATA/PROJECT_DIR 等）                                                                         |
+| 3   | `.zcode` → `.drora`（但 `.zcode-plugin`/`.zcode-plugin-seed.json` 保留）                                                        | 用户数据目录 `~/.zcode`；插件 manifest 目录约定保留（与 0.5.13 逐字 seed 共享的磁盘格式，避免 8 处发现逻辑双读）                     |
+| 4   | `ZCode` → `Drora`                                                                                                               | 品牌显示词（productName、UI 文案、文档）                                                                                             |
+| 5   | `ZCODE` → `DRORA`                                                                                                               | 剩余全大写                                                                                                                           |
+| 6   | `Zcode` → `Drora`                                                                                                               | 标题式变体（含标识符 normalizeDesktopZCodeEnv 等）                                                                                   |
+| 7   | `z-code` → `drora`                                                                                                              | 连字变体                                                                                                                             |
+| 8   | `zcode` → `drora`                                                                                                               | 兜底小写（命令名、路径、文件名、目录名引用）                                                                                         |
 
 ## 改名桥接（规则 0 配套，2026-09-25）
 
@@ -28,7 +28,7 @@
 
 ## 豁免区（内容逐字不动）
 
-1. **apps/zcode-cli/packages/zcode-cua-plugin/**：0.5.13 逐字 seed（dist/mcp + node_modules +
+1. **apps/drora-cli/packages/zcode-cua-plugin/**：0.5.13 逐字 seed（dist/mcp + node_modules +
    manifest = 原版形态，md5 审计基线）。目录与包名不改；其 scripts/ 是 producer 联动工具，
    引用上游 zcode-cua 仓库名，一并豁免。
 2. **packages/zcode-cua/ 与 packages/zcode-cua-helper/**：还原权威区。仅替换其中
@@ -45,7 +45,7 @@
   （实现教训：兜底规则 `zcode→drora` 会越过第 3 条规则的 lookahead 改掉
   `.zcode-plugin`，本次已全仓回退该约定并 git mv 各插件 manifest 目录。）
 - 目录 `packages/zcode-cua`、`packages/zcode-cua-helper`、`apps/zcode-cli/packages/
-  zcode-cua-plugin` 保留原名（与其豁免身份一致，CI/打包清单路径引用不变）。
+zcode-cua-plugin` 保留原名（与其豁免身份一致，CI/打包清单路径引用不变）。
 - **OAuth 登录回调链路（重命名第 0 轮曾误改，2026-09 修复）**：登录授权地址由
   `buildDesktopOAuthRedirectUriFromEnv` 构造为官网中转页
   `https://<origin>/app/oauth/login?redirect=zcode://oauth/callback&app_version=...`，
@@ -69,7 +69,7 @@
   （子路径导出与 import specifier 同步；AGENTS.md 指引同步）
 - CLI 产物 `zcode.cjs` → `drora.cjs`；SEA 产物 `zcode-<os>-<arch>` → `drora-<os>-<arch>`
   （release 定位模式与 release-artifact-check.sh 同步）
-- 桌面 productName `ZCode` → `Drora`（安装包名 Drora-0.0.1-*、窗口标题、build-meta）
+- 桌面 productName `ZCode` → `Drora`（安装包名 Drora-0.0.1-\*、窗口标题、build-meta）
 - 官方市场 id `zcode-plugins-official` → `drora-plugins-official`（contracts 常量、
   已装插件状态键会孤儿化——v0.0.1 无外部用户，接受重置）
 
@@ -81,4 +81,30 @@
 4. obsidian 插件测试（安全语义 + stdio E2E）通过。
 5. CUA restored-smoke（mock broker）通过；addon-parity 留 CI 验证。
 6. 本地 win-x64 打包产出 `Drora-0.0.1-win-x64.exe`。
-7. 重打 v0.0.1 后 Release 资产为 Drora-*/drora-* 命名且完整性门禁全 PASS。
+7. 重打 v0.0.1 后 Release 资产为 Drora-_/drora-_ 命名且完整性门禁全 PASS。
+
+## 浏览器 responseMeta 键改名映射（2026-09-26，批 5 审查补记）
+
+原版自身对浏览器桥 meta 键使用双前缀：`codex/browserUse`（@7523986 族）与
+`zcode/browserTurnScreenshot`（@7470647 族）。本仓统一为 `drora/*`，三个键
+（browserUse/toolSurface/browserTurnScreenshot）已提为 contracts 常量
+（NODE*REPL*\*\_META_KEY，interfaces/mcp.port.ts），生产方（宿主 browser-bridge）
+与消费方（core node-repl handler/session）引用同一常量。bundle parity 归一化
+时 codex→drora 与 zcode→drora 都要映射。
+
+## 归因 wire header 豁免（2026-09-26，批 3 provider 审查补记）
+
+随每个模型请求发往 z.ai Coding Plan 网关的归因 header 是**服务端按名读取的 wire 契约**，
+与规则 0 同族（后端是 z.ai 基础设施，改名即失效——main/subagent 归因与链路追踪读不到）：
+
+- `x-zcode-trace-id`（三处消费：NodeHttpClientAdapter @2712432、provider endpoint
+  routing @3710178、runner attribution @3938855）
+- `x-zcode-session-type`（@3938855，main/subagent/other 来源区分）
+
+实现位置：`adapters/src/model/runner-attribution.ts`（attribution）与
+`adapters/src/http/index.ts`（通用 HTTP adapter 的 trace 透传）；debug 的
+network-capture.ts 捕获列表同时认 zcode/drora 两种前缀。改名重放时这两个 header
+名不得被 sweep 改写；`x-request-id`/`x-session-id`/`x-query-id` 未改名原样保留。
+已知遗留（P2 备案）：`drora-source-headers.ts` 的出站源 header 组内一半改名
+（User-Agent/X-Drora-App-Version）一半保留（X-Title "Z Code@"），z.ai 端灰度/客户端
+识别会把 Drora 归入未知桶——待确认服务端消费语义后整组统一。

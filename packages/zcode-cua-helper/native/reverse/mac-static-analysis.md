@@ -7,13 +7,13 @@
 
 ## 1. 源文件布局(全局构造器符号)
 
-| 源文件 | 职责(依符号推断) |
-| --- | --- |
-| `ax_macos.mm` | 主体:AX(UIA 等价物 Accessibility API)、应用/窗口枚举、AX 元素读写、输入注入、信任探测 |
-| `background_input_macos.mm` | 后台(pid/window 定向)输入:`BackgroundInputWorker`、`begin/endBackgroundWindowInput*`、`QueueBackgroundInput`、`LegacyBackgroundInputRejected` |
-| `ghost_cursor.mm` | 虚拟光标覆盖层:`GhostInit/Show/Hide/Move/MoveTarget/ClickRipple/RenderPng/SetCapture/SetControllerStatus/SetEnabled/State`、`OptionalGhostTarget*` |
-| `pip_window.mm` | PiP 画中画窗口:`ZcPip*` ObjC UI、`Pip*` NAPI 面、事件 tap 交互 |
-| `window_event_mask_macos.mm` | 窗口事件掩码(AXManualAccessibility / 事件观察) |
+| 源文件                       | 职责(依符号推断)                                                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ax_macos.mm`                | 主体:AX(UIA 等价物 Accessibility API)、应用/窗口枚举、AX 元素读写、输入注入、信任探测                                                              |
+| `background_input_macos.mm`  | 后台(pid/window 定向)输入:`BackgroundInputWorker`、`begin/endBackgroundWindowInput*`、`QueueBackgroundInput`、`LegacyBackgroundInputRejected`      |
+| `ghost_cursor.mm`            | 虚拟光标覆盖层:`GhostInit/Show/Hide/Move/MoveTarget/ClickRipple/RenderPng/SetCapture/SetControllerStatus/SetEnabled/State`、`OptionalGhostTarget*` |
+| `pip_window.mm`              | PiP 画中画窗口:`ZcPip*` ObjC UI、`Pip*` NAPI 面、事件 tap 交互                                                                                     |
+| `window_event_mask_macos.mm` | 窗口事件掩码(AXManualAccessibility / 事件观察)                                                                                                     |
 
 上游包路径与 win32 相同(`@drora/drora-cua/src/native/`),构建为单 dylib。
 
@@ -85,23 +85,23 @@ Ghost:`GhostInit` `GhostShow` `GhostHide` `GhostMove` `GhostMoveTarget`
   `unordered_map<int, vector<uint64_t>>`(pid → 活跃 hold token)、
   `vector<pair<int,uint64_t>>`(释放序)。
 - **几何/编码**:`BoundsToJs(Env, CGRect)`、`BoundsArray`、`EncodeImage(Env, CGImage,
-  string, double)`(格式 + scale)、`FillAppInfo(Env, Object, int)`。
+string, double)`(格式 + scale)、`FillAppInfo(Env, Object, int)`。
 - **PiP 栈语义**(file-static):`PipStackPushFront/Remove/Contains/PromoteImmediately/
-  PromotePanel/SchedulePromotePanel/ApplyStackCascadeOffset/SetPublishedBounds`、
+PromotePanel/SchedulePromotePanel/ApplyStackCascadeOffset/SetPublishedBounds`、
   `PipGroupIsActive(NSString*)`、`PipTargetKey(int, uint32_t, NSString*)`、
   `PipRunOnMainSync(block)`、`PipInteractionEventCallback(CGEventTapProxy, CGEventType,
-  CGEvent, void*)`、`PipIsTargetDismissed`、`PipClearTargetDismissalsForGroup`、
+CGEvent, void*)`、`PipIsTargetDismissed`、`PipClearTargetDismissalsForGroup`、
   `PipFindPanelForVerifiedPresentation`、`PipStopAllPanels`。
 
 ## 4. Objective-C 类(5 个,137 个方法)
 
-| 类 | 职责 | 代表方法(符号) |
-| --- | --- | --- |
-| `ZCodeOneShotStreamOutput` | ScreenCaptureKit/AVSampleBuffer 一次性流输出 | `stream:didOutputSampleBuffer:ofType:`、`stream:didStopWithError:`、`frameHandler`/`errorHandler` |
-| `ZcPipController` | PiP 面板控制器(交互世代/可见性世代语义) | `acceptsGeneration:`、`acceptsInteractionGeneration:`、`acceptsInteractionVisibilityEpoch:`、`enqueueImageForPresentation:generation:`、`enqueueInteractionDeltaX:deltaY:visibilityEpoch:`、`commitInteractionMonitorForGeneration:panelWindowId:bounds:`、`activateTargetForDoubleClick`、`expectedPid`/`expectedBundleId` |
-| `ZcPipImageView` | 帧渲染视图 | —— |
-| `ZcPipCloseButtonView` | 关闭按钮(自绘) | `drawRect:`、`hitTest:`、`setHover:` |
-| `ZcPipCompletionBadgeView` | 完成徽章(自绘) | `drawRect:`、`hitTest:` |
+| 类                         | 职责                                         | 代表方法(符号)                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ZCodeOneShotStreamOutput` | ScreenCaptureKit/AVSampleBuffer 一次性流输出 | `stream:didOutputSampleBuffer:ofType:`、`stream:didStopWithError:`、`frameHandler`/`errorHandler`                                                                                                                                                                                                                           |
+| `ZcPipController`          | PiP 面板控制器(交互世代/可见性世代语义)      | `acceptsGeneration:`、`acceptsInteractionGeneration:`、`acceptsInteractionVisibilityEpoch:`、`enqueueImageForPresentation:generation:`、`enqueueInteractionDeltaX:deltaY:visibilityEpoch:`、`commitInteractionMonitorForGeneration:panelWindowId:bounds:`、`activateTargetForDoubleClick`、`expectedPid`/`expectedBundleId` |
+| `ZcPipImageView`           | 帧渲染视图                                   | ——                                                                                                                                                                                                                                                                                                                          |
+| `ZcPipCloseButtonView`     | 关闭按钮(自绘)                               | `drawRect:`、`hitTest:`、`setHover:`                                                                                                                                                                                                                                                                                        |
+| `ZcPipCompletionBadgeView` | 完成徽章(自绘)                               | `drawRect:`、`hitTest:`                                                                                                                                                                                                                                                                                                     |
 
 ## 5. 结论
 

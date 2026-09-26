@@ -314,6 +314,9 @@ export function createRemoteWorkspaceSessionManager(options: {
             attachmentId,
             sessionId: descriptor.remoteSessionId,
             target: descriptor.target,
+            // 第四十九轮：server 形态连接的 server-info 随端口元数据透出，
+            // renderer 把它挂进 remote session store，目录步骤据此展示快捷 workspace 列表。
+            ...(descriptor.serverInfo ? { serverInfo: descriptor.serverInfo } : {}),
           },
           [port1],
         );

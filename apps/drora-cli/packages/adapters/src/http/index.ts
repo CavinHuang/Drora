@@ -28,7 +28,8 @@ import {
 } from "./public-egress-policy.js";
 import { readResponseBody } from "./response-body.js";
 
-const TRACE_HEADER = "x-drora-trace-id";
+// wire 名保持原版（z.ai 后端按 header 名读取，rename 规则 0；原版 @2712432 同名）。
+const TRACE_HEADER = "x-zcode-trace-id";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 

@@ -1,10 +1,20 @@
-import { InternalChannels, type RemoteTarget } from "@drora/shared";
+import {
+  InternalChannels,
+  serverRemoteInfoSchema,
+  type RemoteTarget,
+  type ServerRemoteInfo,
+} from "@drora/shared";
 
 export interface RemoteWorkspaceServicePortRegistration {
   attachmentId: string;
   port: MessagePort;
   sessionId: string;
   target: RemoteTarget;
+  /**
+   * 第四十九轮：server 形态连接的 server-info 自描述。
+   * main 随 ScopedServicePort 元数据透出，目录步骤据此展示快捷 workspace 列表。
+   */
+  serverInfo?: ServerRemoteInfo;
 }
 
 export function parseRemoteWorkspaceServicePortMessage(
@@ -23,7 +33,17 @@ export function parseRemoteWorkspaceServicePortMessage(
   const sessionId = typeof event.data.sessionId === "string" ? event.data.sessionId : null;
   const target = "target" in event.data ? (event.data.target as RemoteTarget | null) : null;
   if (!port || !attachmentId || !sessionId || !target) return null;
-  return { attachmentId, port, sessionId, target };
+  // serverInfo 在 host→main 边界已过 zod 校验；这里再做一次安全解析，
+  // 坏值只丢字段不丢整条 port 注册，避免 server 元数据异常拖垮远端 services 接入。
+  const rawServerInfo = "serverInfo" in event.data ? event.data.serverInfo : undefined;
+  const parsedServerInfo = serverRemoteInfoSchema.safeParse(rawServerInfo);
+  return {
+    attachmentId,
+    port,
+    sessionId,
+    target,
+    ...(parsedServerInfo.success ? { serverInfo: parsedServerInfo.data } : {}),
+  };
 }
 
 export function notifyRemoteWorkspaceServicePortReady(

@@ -68,7 +68,13 @@ jobs:
             const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             p.version = '$VERSION';
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
-            console.log('version stamped:', p.version);
+            // apps/drora-cli 的 version 是 CLI/SEA __CLI_VERSION__ 的单一事实源
+            // （apps/drora-cli/packages/cli/scripts/build.mjs readRootPackageVersion
+            // 以 apps/drora-cli 为根）。不同步它会让 drora --version 与 tag 永久漂移。
+            const cli = JSON.parse(fs.readFileSync('apps/drora-cli/package.json', 'utf8'));
+            cli.version = '$VERSION';
+            fs.writeFileSync('apps/drora-cli/package.json', JSON.stringify(cli, null, 2) + '\n');
+            console.log('version stamped:', p.version, '/', cli.version);
           "
       - uses: actions/setup-node@v4
         with:
@@ -156,7 +162,13 @@ jobs:
             const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             p.version = '$VERSION';
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
-            console.log('version stamped:', p.version);
+            // apps/drora-cli 的 version 是 CLI/SEA __CLI_VERSION__ 的单一事实源
+            // （apps/drora-cli/packages/cli/scripts/build.mjs readRootPackageVersion
+            // 以 apps/drora-cli 为根）。不同步它会让 drora --version 与 tag 永久漂移。
+            const cli = JSON.parse(fs.readFileSync('apps/drora-cli/package.json', 'utf8'));
+            cli.version = '$VERSION';
+            fs.writeFileSync('apps/drora-cli/package.json', JSON.stringify(cli, null, 2) + '\n');
+            console.log('version stamped:', p.version, '/', cli.version);
           "
       - uses: actions/setup-node@v4
         with:
@@ -366,4 +378,3 @@ jobs:
             清除下载隔离标记后正常打开(【系统设置,隐私与安全性】里的
             【仍要打开】按钮在部分 macOS 版本不出现,以上面命令为准)。
           Sources: commit ${GITHUB_SHA}" \
-            $FLAGS --prerelease="${{ steps.flags.outputs.prerelease }}"

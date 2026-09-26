@@ -25,10 +25,6 @@ function resolveDroraCuaBrokerSocket(): string | undefined {
   );
 }
 
-function resolveDroraCuaBrokerToken(): string | undefined {
-  return undefined;
-}
-
 const NODE_REPL_SERVER_NAME = "node_repl";
 const REFRESH_MARKER_ENV = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 
@@ -100,7 +96,6 @@ export function omitMcpServers(
   return injectDroraCuaBrokerMcpServers(
     kept,
     resolveDroraCuaBrokerSocket(),
-    resolveDroraCuaBrokerToken(),
     trustedOfficialCuaServerNames,
   );
 }
@@ -108,11 +103,9 @@ export function omitMcpServers(
 function injectDroraCuaBrokerMcpServers(
   servers: Record<string, McpServerConfig>,
   socketPath: string | undefined,
-  token: string | undefined = undefined,
   trustedOfficialCuaServerNames: ReadonlySet<string> = new Set(),
 ): Record<string, McpServerConfig> {
   const normalizedSocketPath = socketPath?.trim();
-  const normalizedToken = token?.trim();
 
   let changed = false;
   const next: Record<string, McpServerConfig> = {};
@@ -132,7 +125,6 @@ function injectDroraCuaBrokerMcpServers(
     const injected = injectCuaCredentialsIntoNodeRepl(
       config,
       normalizedSocketPath,
-      normalizedToken,
     );
     next[name] = injected;
     changed ||= injected !== config;
@@ -144,7 +136,6 @@ function injectDroraCuaBrokerMcpServers(
 function injectCuaCredentialsIntoNodeRepl(
   config: McpServerConfig,
   socketPath: string,
-  token: string | undefined,
 ): McpServerConfig {
   if (config.type !== "stdio") return config;
   const captured = getCapturedDroraCuaBrokerCredentials();

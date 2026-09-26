@@ -19,12 +19,12 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "@larksuiteoapi/node-sdk": "1.64.0",
+    "@drora/drora-cua": "workspace:*",
     "@drora/provider": "workspace:*",
     "@drora/provider-node": "workspace:*",
     "@drora/rpc": "workspace:*",
     "@drora/shared": "workspace:*",
-    "@drora/drora-cua": "workspace:*",
+    "@larksuiteoapi/node-sdk": "1.64.0",
     "croner": "^10.0.1",
     "ignore": "^5.3.2",
     "node-forge": "^1.4.0",

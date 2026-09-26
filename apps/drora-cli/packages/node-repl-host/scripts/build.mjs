@@ -38,12 +38,29 @@ const require = __droraCreateRequire(import.meta.url);`;
 const resolveCuaHelperBuildId = (env = process.env) =>
   env.DRORA_CUA_HELPER_BUILD_ID?.trim() ?? "";
 
+// CUA producer 运行时用上游 0.6.3 原样切段（packages/zcode-cua/upstream/，含完整
+// 工具层：14 工具 → 42 项 broker 协议方法、会话注册表、CUA_NOT_READY、possibly_sent、
+// app-associations），替换本仓 0.5.14 时代的透传还原稿。用 onResolve 插件做**精确**包名
+// 匹配（esbuild 的 alias 选项是前缀替换，会误伤 ./host-display-contract、./frame-contract
+// 子路径——它们仍走 node_modules 的类型/常量还原稿，键值两侧同名已核）。
+const droraCuaUpstreamAliasPlugin = {
+  name: "drora-cua-upstream-alias",
+  setup(build) {
+    build.onResolve({ filter: /^@drora\/drora-cua$/ }, () => ({
+      // node_modules 的 @drora/drora-cua symlink 指向根 workspace 的
+      // packages/zcode-cua（drora-cli 无独立 workspace）；upstream 切段在该包内。
+      path: resolve(packageRoot, "../../../../packages/zcode-cua/upstream/zcode-cua-0.6.3.index.js"),
+    }));
+  },
+};
+
 export const buildNodeReplHostBundle = async ({
   outfile = resolve(packageRoot, "dist", "mcp", "server.js"),
   cuaHelperBuildId = resolveCuaHelperBuildId(),
 } = {}) => {
   await mkdir(dirname(outfile), { recursive: true });
   await build({
+    plugins: [droraCuaUpstreamAliasPlugin],
     banner: { js: nodeRequireBanner },
     bundle: true,
     define: {

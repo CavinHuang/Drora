@@ -23,7 +23,12 @@ function parseWindowsDevHelperConfig(input) {
   const args = input.argv.slice(2);
   // token 只从环境变量（BROKER_TOKEN_ENV）读取；命令行出现 --token 视为配置错误，
   // 避免鉴权凭据进入进程参数列表（与原版发行物一致）。
-  if (args.includes("--token") || args.length !== 4 || !args.includes("--socket") || !args.includes("--parent-pid")) {
+  if (
+    args.includes("--token") ||
+    args.length !== 4 ||
+    !args.includes("--socket") ||
+    !args.includes("--parent-pid")
+  ) {
     throw new Error("Invalid Windows Computer Use Helper configuration");
   }
   const parsed = configSchema.safeParse({

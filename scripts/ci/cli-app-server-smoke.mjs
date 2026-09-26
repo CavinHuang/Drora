@@ -40,11 +40,19 @@ const check = (name, ok, detail) => {
         done(buf.slice(0, i).trim());
       }
     });
-    child.on("error", () => { clearTimeout(timer); done(""); });
-    child.on("exit", (code) => { clearTimeout(timer); done(buf.trim().slice(0, 200) || `exit:${code}`); });
+    child.on("error", () => {
+      clearTimeout(timer);
+      done("");
+    });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      done(buf.trim().slice(0, 200) || `exit:${code}`);
+    });
   });
   let parsed = null;
-  try { parsed = JSON.parse(firstLine); } catch {}
+  try {
+    parsed = JSON.parse(firstLine);
+  } catch {}
   check(
     "app-server 首行是合法 JSON 通知",
     Boolean(parsed?.method) && String(parsed.method).startsWith("startup/"),
@@ -65,10 +73,19 @@ for (const [name, args, expect] of [
   const r = await new Promise((resolve) => {
     const child = spawn(process.execPath, [bundle, ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
-    const timer = setTimeout(() => { child.kill(); resolve({ code: -1, out }); }, 30000);
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ code: -1, out });
+    }, 30000);
     child.stdout.on("data", (d) => (out += d));
-    child.on("exit", (code) => { clearTimeout(timer); resolve({ code, out }); });
-    child.on("error", (e) => { clearTimeout(timer); resolve({ code: -1, out: String(e) }); });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      resolve({ code, out });
+    });
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ code: -1, out: String(e) });
+    });
   });
   check(
     `子命令 ${name}`,

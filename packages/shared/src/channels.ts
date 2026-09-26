@@ -151,6 +151,8 @@ export const ServiceChannels = {
   OffPeakTask: "off-peak-task",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
   OnboardingRecord: "onboarding-record",
+  /** Obsidian Vault 面板服务（host 常驻；配置与 obsidian MCP server 共享 vault-config.json） */
+  ObsidianVault: "obsidian-vault",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];
@@ -349,6 +351,10 @@ export const PlatformChannels = {
   TaskNotificationSound: "drora:task-notification-sound",
   /** Main → Preload：用户点击了系统通知，携带 taskId 让 renderer 跳转到对应任务 */
   TaskNotificationClick: "drora:task-notification-click",
+  DesktopPetPublish: "drora:desktop-pet-publish",
+  DesktopPetOpenTask: "drora:desktop-pet-open-task",
+  DesktopPetRender: "drora:desktop-pet-render",
+  DesktopPetActivate: "drora:desktop-pet-activate",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -979,6 +985,22 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.TaskNotificationClick]: {
     request: string;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetPublish]: {
+    request: import("./desktopPet.js").DesktopPetPresentation;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetOpenTask]: {
+    request: import("./desktopPet.js").DesktopPetTarget;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetRender]: {
+    request: import("./desktopPet.js").DesktopPetPresentation;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetActivate]: {
+    request: void;
     response: void;
   };
   [PlatformChannels.WindowFullscreenChanged]: {

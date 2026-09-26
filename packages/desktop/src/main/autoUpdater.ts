@@ -86,10 +86,8 @@ type UpdateDownloadedInfoLike = {
   > | null;
 };
 
-
 type AutoUpdaterMenuState = UpdateStatePayload;
 let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: true };
-
 
 const autoUpdaterStateListeners = new Set<(state: UpdateStatePayload) => void>();
 
@@ -636,7 +634,7 @@ function readSwitchValue(argv: readonly string[], switchName: string): string | 
   return undefined;
 }
 
-export async function resolveUpdateReleaseChannel(
+async function resolveUpdateReleaseChannel(
   settingService: SettingServiceLike | undefined,
 ): Promise<ElectronReleaseChannel> {
   if (!settingService) {
@@ -667,7 +665,7 @@ async function syncAutoUpdateCheckChannelFromSettings(
       `[auto-update] ${reason}: check channel ${availableUpdateChannel} -> ${nextChannel}`,
     );
   }
-  // 服务端 manifest provider 会在 checkForUpdates 内部读取 preview 设置。
+  // 注：GitHub provider（detectUpdateChannel:false）下通道目标化不再生效——preview 设置只更新本地跟踪变量，实际与 stable 拉同一份清单（specs/plugin-marketplaces.md §10）。
   // 如果 begin 阶段仍用默认 stable 作为 expected channel，冷启动 preview 结果会被误判为 stale。
   availableUpdateChannel = nextChannel;
   activeAutoUpdateCheckChannel = nextChannel;
@@ -1219,10 +1217,7 @@ export async function hydratePendingPostUpdateReleaseNotes(settingService: Setti
     logger.info(
       `[auto-update] discard cross-product-line pending release notes pending=${pendingPostUpdateReleaseNotes.version} app=${getCurrentAppVersionForUpdate()}`,
     );
-    await clearPendingPostUpdateReleaseNotes(
-      settingService,
-      "hydrate-pending-cross-product-line",
-    );
+    await clearPendingPostUpdateReleaseNotes(settingService, "hydrate-pending-cross-product-line");
     pendingPostUpdateReleaseNotes = null;
   }
 

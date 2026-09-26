@@ -95,7 +95,7 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/*.node-test.mjs",
+    "test": "tsx test/plugin-marketplaces.test.mjs && node --import tsx --test test/marketplace-icons.node-test.mjs",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"
   },

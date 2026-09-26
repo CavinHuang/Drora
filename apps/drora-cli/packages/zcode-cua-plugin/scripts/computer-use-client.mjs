@@ -166,7 +166,9 @@ function textBlocks(result) {
     .map((block) => block.text);
 }
 
-/** 从 MCP envelope 里挖出结构化收据（顶层、structuredContent 或 action_outcome）。 */
+/** 从 MCP envelope 里挖出结构化收据（顶层、structuredContent、action_receipt 或 action_outcome）。
+ *  action_receipt 是 producer 的实际嵌套形状（{action_sent, dispatch_status, ...}）——
+ *  不下钻它，possibly_sent（动作可能已下发）会被静默当成功，破坏防重放契约。 */
 function receiptOf(result) {
   const candidates = [];
   if (result && typeof result === "object") candidates.push(result);
@@ -177,6 +179,9 @@ function receiptOf(result) {
     const parsed = parseJsonRecord(text);
     if (!parsed) continue;
     candidates.push(parsed);
+    if (parsed.action_receipt && typeof parsed.action_receipt === "object") {
+      candidates.push(parsed.action_receipt);
+    }
     if (parsed.action_outcome && typeof parsed.action_outcome === "object") {
       candidates.push(parsed.action_outcome);
     }

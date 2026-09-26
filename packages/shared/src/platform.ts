@@ -722,6 +722,11 @@ export interface IPlatformService {
 
   /** 触发任务状态对应的系统通知，由宿主环境决定是否真正展示 */
   showTaskNotification(payload: TaskNotificationPayload): void;
+  /** Desktop-only derived pet presentation; Web has no publisher. */
+  publishDesktopPet?(presentation: import("./desktopPet.js").DesktopPetPresentation): void;
+  onDesktopPetOpenTask?(
+    handler: (target: import("./desktopPet.js").DesktopPetTarget) => void,
+  ): () => void;
 
   /** 通过宿主环境统一上报 UI 侧 telemetry 事件 */
   reportTelemetryEvent(payload: RendererTelemetryEventPayload): Promise<void>;

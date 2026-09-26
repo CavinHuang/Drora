@@ -361,7 +361,7 @@ function brokerUnavailableFromTransport(message, state, errorType) {
     }
   });
 }
-var ZCODE_CUA_BROKER_REFRESH_MARKER_ENV_KEY = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+var ZCODE_CUA_BROKER_REFRESH_MARKER_ENV_KEY = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 var MARKER_KEYS = Object.freeze(/* @__PURE__ */ new Set(["schema", "kind", "deadlineEpochMs"]));
 var MARKER_SCHEMA = 1;
 var MARKER_KIND = "permission_refresh";

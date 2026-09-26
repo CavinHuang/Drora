@@ -10,6 +10,11 @@ export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE = "drora-plugins-official";
  * 官方市场源时经改名桥接归一到 {@link DRORA_OFFICIAL_PLUGIN_MARKETPLACE}。
  */
 export const OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS = "zcode-plugins-official";
+/**
+ * 原版默认种子中的第二市场（anthropics 社区目录）。上游品牌名不在改名范围，
+ * id 保持原样；与官方市场一样受保留名守卫与 30s 刷新 deadline 保护。
+ */
+export const CLAUDE_PLUGIN_MARKETPLACE = "claude-plugins-official";
 export const DRORA_INLINE_PLUGIN_MARKETPLACE = "inline";
 export const DRORA_PLUGIN_HOST_COMMAND = "__drora-plugin-host";
 /**
@@ -24,8 +29,17 @@ export const DRORA_PLUGIN_HOST_COMMAND = "__drora-plugin-host";
  */
 export const DRORA_DWF_CHILD_COMMAND = "__drora-dwf-child";
 
+/**
+ * 官方保留市场 id 判定（对齐原版 UQ 的双 id 语义 + Drora 改名桥接的上游别名）：
+ * 用户侧新增市场声明任一保留 id 会被拒绝，防止注册出与官方/claude 市场平行的同名市场。
+ * 仅 drora canonical id 享受 CDN 双分区合并与公开商店分段；别名与 claude 不享受。
+ */
 export function isOfficialMarketplaceId(id: string): boolean {
-  return id === DRORA_OFFICIAL_PLUGIN_MARKETPLACE;
+  return (
+    id === DRORA_OFFICIAL_PLUGIN_MARKETPLACE ||
+    id === OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS ||
+    id === CLAUDE_PLUGIN_MARKETPLACE
+  );
 }
 
 export type PluginSource = "official" | "inline" | "cache";

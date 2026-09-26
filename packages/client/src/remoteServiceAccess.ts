@@ -37,6 +37,7 @@ import {
   IHooksService,
   IMemoryService,
   IOutputStyleService,
+  IObsidianVaultService,
   ISettingsSyncService,
   IFeedbackService,
   IPromptAttachmentTransferService,
@@ -92,6 +93,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly memoryService: IMemoryService;
   /** Claude Code 兼容的输出风格（第 48 轮）：channel 代理，指向连接对端的 output-style 服务。 */
   readonly outputStyleService: IOutputStyleService;
+  // obsidianVaultService 在 IServiceAccessor 上可选（远端/bots host 不注册该频道），
+  // 但桌面 renderer 经 RPC 一定能拿到（desktop/web host 始终注册此 descriptor）。
+  readonly obsidianVaultService: IObsidianVaultService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -215,6 +219,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
       channelClient.getChannel(IOutputStyleService.channelName),
+    );
+    this.obsidianVaultService = ProxyChannel.toService<IObsidianVaultService>(
+      channelClient.getChannel(IObsidianVaultService.channelName),
     );
     this.settingsSyncService = ProxyChannel.toService<ISettingsSyncService>(
       channelClient.getChannel(ISettingsSyncService.channelName),

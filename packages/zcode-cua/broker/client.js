@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
-export const BROKER_SOCKET_ENV = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
-export const BROKER_UNAVAILABLE_ENV = "ZCODE_CUA_PERMISSION_BROKER_UNAVAILABLE";
+export const BROKER_SOCKET_ENV = "DRORA_CUA_PERMISSION_BROKER_SOCKET";
+export const BROKER_UNAVAILABLE_ENV = "DRORA_CUA_PERMISSION_BROKER_UNAVAILABLE";
 export class BrokerError extends Error {
     code;
     details;

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { RemoteTarget } from "@drora/shared";
+import type { RemoteTarget, ServerRemoteInfo } from "@drora/shared";
 import type { IServiceAccessor } from "@drora/services";
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
@@ -7,6 +7,11 @@ import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceSer
 export interface RemoteWorkspaceSession {
   sessionId: string;
   target?: RemoteTarget;
+  /**
+   * 第四十九轮：server 形态连接成功后由端口元数据透出的 server-info 自描述；
+   * 目录选择步骤据此展示 serverInfo.workspaces 快捷列表，其余远程形态为 undefined。
+   */
+  serverInfo?: ServerRemoteInfo;
   services: IServiceAccessor;
   dispose?: (reason?: Error) => void;
 }

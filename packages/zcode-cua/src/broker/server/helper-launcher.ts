@@ -436,10 +436,7 @@ export async function writeOneShotHelperTokenFile(e) {
   for (let n = 0; n < 5; n += 1) {
     let o = KC(t, `.broker-token-${process.pid}-${randomBytes(8).toString("hex")}`);
     try {
-      return (
-        Lre(o, e.token, { encoding: "utf8", mode: 384, flag: "wx" }),
-        o
-      );
+      return (Lre(o, e.token, { encoding: "utf8", mode: 384, flag: "wx" }), o);
     } catch (r) {
       if (r.code === "EEXIST") continue;
       throw new CuaHelperError(
@@ -476,11 +473,11 @@ export function Bz() {
     launch: async (e) => {
       let t, n, o;
       try {
-        (t = await writeOneShotHelperTokenFile(e)),
+        ((t = await writeOneShotHelperTokenFile(e)),
           (n = e.presentationToken
             ? await writeOneShotHelperTokenFile({ ...e, token: e.presentationToken })
             : void 0),
-          (o = createHelperTokenFileReceipt([t, n]));
+          (o = createHelperTokenFileReceipt([t, n])));
       } catch (r) {
         throw r instanceof VC ? r : new VC(r);
       }

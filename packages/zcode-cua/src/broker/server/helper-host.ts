@@ -1301,7 +1301,11 @@ export var $se = Ss,
     async queryScreenRecordingPreflight(t) {
       if (!this.handle) return null;
       let n = this.options.screenRecordingPreflight ?? Fz,
-        r = Wse(qW(this.handle.socketPath), Hse, `.screen-recording-preflight-${randomUUID()}.json`);
+        r = Wse(
+          qW(this.handle.socketPath),
+          Hse,
+          `.screen-recording-preflight-${randomUUID()}.json`,
+        );
       try {
         await zse(qW(r), {
           recursive: !0,

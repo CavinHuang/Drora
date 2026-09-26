@@ -5,16 +5,16 @@
 
 ## 目录
 
-| 路径 | 内容 |
-| --- | --- |
-| `win32-static-analysis.md` | win32 PE64 分析:导入表(实现路径证据)、JS 导出面、参数校验消息表、错误码、与 helper 契约的交叉验证 |
-| `mac-static-analysis.md` | mac Mach-O 分析:源文件布局(5 个 .mm)、137 个 NAPI 入口全集、AsyncWorker 类、PiP 栈语义、5 个 ObjC 类 |
-| `src/ax_native_win.cc` | win32 语义还原 C++ 源码(N-API 注册表 + 各能力域实现,逐段标注证据来源) |
-| `data/win32-pe-analysis.json` | PE 导出表/导入表/符号(机器可读) |
-| `data/win32-strings.txt` | win32 全部 ASCII 字符串(1260 条) |
-| `data/mac-napi-functions.json` | mac NAPI 函数清单(96 匿名命名空间 + 41 file-static) |
-| `data/mac-demangled-symbols.json` | mac demangle 后符号(1416 条) |
-| `data/mac-objc-methods.txt` | mac ObjC 方法(137 个) |
+| 路径                              | 内容                                                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `win32-static-analysis.md`        | win32 PE64 分析:导入表(实现路径证据)、JS 导出面、参数校验消息表、错误码、与 helper 契约的交叉验证    |
+| `mac-static-analysis.md`          | mac Mach-O 分析:源文件布局(5 个 .mm)、137 个 NAPI 入口全集、AsyncWorker 类、PiP 栈语义、5 个 ObjC 类 |
+| `src/ax_native_win.cc`            | win32 语义还原 C++ 源码(N-API 注册表 + 各能力域实现,逐段标注证据来源)                                |
+| `data/win32-pe-analysis.json`     | PE 导出表/导入表/符号(机器可读)                                                                      |
+| `data/win32-strings.txt`          | win32 全部 ASCII 字符串(1260 条)                                                                     |
+| `data/mac-napi-functions.json`    | mac NAPI 函数清单(96 匿名命名空间 + 41 file-static)                                                  |
+| `data/mac-demangled-symbols.json` | mac demangle 后符号(1416 条)                                                                         |
+| `data/mac-objc-methods.txt`       | mac ObjC 方法(137 个)                                                                                |
 
 ## 证据链方法
 
@@ -87,8 +87,7 @@ win32 侧 release 剥离了符号,但 PDB 路径字符串证实上游源文件
   ("shift"/"ctrl")合法返回 true。
 - **probeWindows 排除最小化窗口**(经典 -32000 坐标)与 DWM cloaked 窗口;
   listApplications 均不过滤(三条枚举策略:全量/cloak+minimized 过滤)。
-- **captureApp 大树对齐**:Electron 窗口两边 BFS 平铺数量一致(主窗口触顶
-  400)、首元素一致;AXPress 真实按压(菜单开合)形态一致;setValue 不可写
+- **captureApp 大树对齐**:Electron 窗口两边 BFS 平铺数量一致(主窗口触顶400)、首元素一致;AXPress 真实按压(菜单开合)形态一致;setValue 不可写
   元素 → action_unsupported;cancelInputHoldsForSession → false(与
   cancelPendingInputHolds → true 不同)。
 - 错误参数第二矩阵(单参/坏按钮/坏方向/空串)全部 TypeError/布尔路径一致。

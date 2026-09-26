@@ -4,7 +4,10 @@
 import { chmod as mre, rename as gre, rm as JU, writeFile as hre } from "node:fs/promises";
 import { randomBytes as fre } from "node:crypto";
 // 还原草稿（块级切分，待手工修正导入与类型）
-export var Fu = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+// env 键与 Drora 注入/消费链统一为 DRORA_ 名（shared/runtimeEnv 捕获、mcp-config 注入、
+// node-repl-host 读取全是 DRORA 名；原版为 ZCODE_ 名，45/46 轮发现的"同函数混血键"地雷
+// 曾让本注入器的 marker 互斥静默失效）。
+export var Fu = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 export function Bu(e) {
     let t = e.trim();
     if (!t)
@@ -35,9 +38,9 @@ export async function XU(e, t = {}) {
     let a = n(), c = a + r;
     if (!Number.isSafeInteger(a) || !Number.isSafeInteger(c) || c <= a)
         throw (ws.delete(o), new Error("CUA broker refresh marker clock produced an invalid deadline"));
-    let d = `${JSON.stringify({ schema: 1, kind: "permission_refresh", deadlineEpochMs: c })}
-
-`, l = `${o}.tmp-${process.pid}-${fre(8).toString("hex")}`;
+    // marker 内容为紧凑单行 JSON（原版 parseMarker 全文 JSON.parse，容忍空白；
+    // 曾还原为带空行双换行，与原版写入口径不一致）。
+    let d = `${JSON.stringify({ schema: 1, kind: "permission_refresh", deadlineEpochMs: c })}\n`, l = `${o}.tmp-${process.pid}-${fre(8).toString("hex")}`;
     try {
         (await hre(l, d, {
             encoding: "utf8",

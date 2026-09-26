@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import {basename, join, resolve, relative, isAbsolute} from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
   DbMessageRecord,
@@ -23,8 +23,22 @@ export function defaultDbPath(): string {
   return join(homedir(), ".drora", "cli", "db", "db.sqlite");
 }
 
+
+/** 路径参数边界：只允许 ~/.drora 下的目标（默认根/默认 db 已在根内）。
+ *  debug server 绑定 127.0.0.1 但浏览器内任意网页都可 fetch 本地端口——
+ *  query 携带的任意路径读取是本地数据外泄面（批 5 telemetry 审查 P2）。 */
+function assertPathInsideDroraRoot(candidate: string, label: string): string {
+  const root = join(homedir(), ".drora");
+  const resolved = resolve(candidate);
+  const pathFromRoot = relative(root, resolved);
+  if (pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
+    throw new Error(`debug ${label} must stay inside ${root}: rejected ${resolved}`);
+  }
+  return resolved;
+}
+
 export async function loadLogs(options: ObservationOptions): Promise<SourceLoadResult<LogRecord>> {
-  const logDir = resolve(options.logDir ?? defaultLogDir());
+  const logDir = assertPathInsideDroraRoot(options.logDir ?? defaultLogDir(), "logDir");
   const jsonl = await readJsonlFiles(logDir, "结构化日志");
   return {
     kind: "log",
@@ -47,7 +61,7 @@ export async function loadEventLog(
     };
   }
 
-  const eventPath = resolve(options.eventPath);
+  const eventPath = assertPathInsideDroraRoot(options.eventPath, "eventPath");
   const jsonl = await readJsonlFiles(eventPath, "Session 事件 JSONL");
   return {
     kind: "eventlog",
@@ -59,7 +73,7 @@ export async function loadEventLog(
 }
 
 export function loadSqlite(options: ObservationOptions): SourceLoadResult<DbObservation> {
-  const dbPath = resolve(options.dbPath ?? defaultDbPath());
+  const dbPath = assertPathInsideDroraRoot(options.dbPath ?? defaultDbPath(), "dbPath");
   if (!existsSync(dbPath)) {
     return {
       kind: "sqlite",

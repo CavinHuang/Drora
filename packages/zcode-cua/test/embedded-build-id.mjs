@@ -21,8 +21,7 @@ import process from "node:process";
 
 const packageRoot = new URL("..", import.meta.url).pathname;
 const bundledApp =
-  process.argv[2] ??
-  resolve(packageRoot, "../desktop/resources/cua-helper/ZCode Computer Use.app");
+  process.argv[2] ?? resolve(packageRoot, "../desktop/resources/cua-helper/ZCode Computer Use.app");
 const plistPath = join(bundledApp, "Contents", "Info.plist");
 
 // —— A. 身份读取 ——

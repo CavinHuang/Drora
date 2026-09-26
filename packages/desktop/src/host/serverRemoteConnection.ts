@@ -24,6 +24,7 @@ import {
   IDroraTaskService,
   IDroraAgentService,
   IDroraSessionService,
+  createUnsupportedConversationShareService,
   IConversationShareService,
   IBotsService,
   IFileWatcherService,
@@ -56,6 +57,7 @@ import {
   type ServerRemoteWebSocketConstructor,
 } from "@drora/services/server-remote";
 import type { RemoteTarget, ServerRemoteInfo } from "@drora/shared";
+import { createServiceLogger } from "@drora/services/node";
 import { assertLegacyRemoteWorkspaceRpcContract } from "./legacyRemoteWorkspaceRpcContract.js";
 
 export interface ServerRemoteHostConnectionCloseEvent {
@@ -207,13 +209,15 @@ export async function connectServerRemoteHostConnection(
  * - 无部署 backend，无 promptAttachment 物化/janitor/transfer 桥；
  * - 设置、凭据、OAuth、订阅、bots、memory、settings-sync 等直接使用目标 Server
  *   上的服务（server workspace 的权威配置在 Server 本机，不在桌面）；
- * - clientConfigService 保留本地实例（官方"本地 t"），conversationShare 走远端
- *   channel（官方此处是本地 cRe()；Drora 的 server 端已暴露该 channel，复用远端
- *   实现可避免在 Host 侧再建一套本地 API/凭据桥）；
+ * - clientConfigService 保留本地实例（官方"本地 t"），conversationShare 按官方
+ *   cRe() 语义禁用（"server_remote_unsupported" 门禁——官方对 server 远程本就不
+ *   提供分享，真实实现只在 ssh 系 TJ 的 Ud 里）；
  * - 第 48 轮补齐官方清单中的 outputStyleService：对齐官方 MJ 的
  *   .register(Tl, e.connectionServices.outputStyleService)——server 远程注册
  *   远端代理（远端 Server 的 createLocalServices 已暴露 output-style channel）。
  */
+const logger = createServiceLogger("conversation-share");
+
 export function createServerRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
   connectionServices: IServiceAccessor;
@@ -233,7 +237,27 @@ export function createServerRemoteWorkspaceServiceCollection(params: {
     .register(IDroraTaskService, remote.droraTaskService)
     .register(IDroraAgentService, remote.droraAgentService)
     .register(IDroraSessionService, remote.droraSessionService)
-    .register(IConversationShareService, remote.conversationShareService)
+    // 第四十九轮对齐（官方 cRe 定案）：server 远程的会话分享在官方实现中明确禁用——
+    // createUnsupportedRemoteConversationShareService，message 固定、onRejected 记
+    // kind:"feature_disabled", reason:"server_remote_unsupported"。此前注册的远端
+    // 代理是超出官方的能力面（server 端虽暴露 channel），按官方形态回退为禁用门禁。
+    .register(
+      IConversationShareService,
+      createUnsupportedConversationShareService({
+        message: "Conversation sharing is not available for this client or remote target",
+        onRejected: (action) => {
+          logger.warn(
+            void 0,
+            "conversation share action rejected",
+            JSON.stringify({
+              action,
+              kind: "feature_disabled",
+              reason: "server_remote_unsupported",
+            }),
+          );
+        },
+      }),
+    )
     .register(IBotsService, remote.botsService)
     .register(IFileWatcherService, remote.fileWatcherService)
     .register(IOAuthService, remote.oauthService)

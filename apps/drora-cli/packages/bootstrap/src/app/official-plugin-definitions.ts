@@ -410,7 +410,9 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // seed 走向排除，必须显式声明才会进入 bundled plugin 包。
     runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 drora-cua runtime 版本，使插件 UI 展示、缓存路径、
-    // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
+    // marketplace 条目都对齐。0.6.3（2026-09-25）：对齐原版发行物当前形态——
+    // 0.6.x 起 CUA 包是 SDK+skill 包（client/docs 由 shared node_repl 宿主消费），
+    // 执行面在 node-repl-host；宿主库 runtime 仍由本仓 @drora/zcode-cua 提供。
     version: "0.6.3",
   },
 ];

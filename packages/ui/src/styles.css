@@ -4,6 +4,8 @@
 @import "shadcn/tailwind.css";
 @import "@xterm/xterm/css/xterm.css";
 @import "katex/dist/katex.min.css";
+/* Vault / Live Markdown 面板（Proma 保真移植）的组件样式；颜色 token 适配见文件头注释。 */
+@import "./v4/vault/vault-live-markdown.css";
 @source "../../../node_modules/streamdown/dist/*.js"; /* 显式扫描 streamdown 的运行时类名 */
 
 @plugin "@tailwindcss/typography";
@@ -2050,4 +2052,18 @@ body {
 
 .prompt-mention[data-mention-category="plugins"]::before {
   border-radius: var(--radius-sm);
+}
+
+/*
+ * Proma Vault / Live Markdown 面板移植所需的兼容 utility token。
+ * Proma 的 shadcn 语义类（bg-muted、text-muted-foreground、ring-ring 等）在
+ * 本仓 @theme 中没有对应色板；这里用引用既有 token 的方式补齐，.dark 下随
+ * 被引用 token 一起切换，不引入第二套颜色事实源。
+ */
+@theme {
+  --color-muted: var(--color-surface);
+  --color-muted-foreground: var(--color-foreground-subtle);
+  --color-accent-foreground: var(--color-foreground);
+  --color-ring: var(--color-brand);
+  --color-content-area: var(--color-background);
 }

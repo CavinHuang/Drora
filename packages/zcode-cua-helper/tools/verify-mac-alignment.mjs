@@ -27,7 +27,9 @@ const run = (label, cmd, args, env) => {
     env: { ...process.env, ...env },
   });
   const ok = result.status === 0;
-  console.log(`\n[${ok ? "PASS" : "FAIL"}] ${label} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)\n`);
+  console.log(
+    `\n[${ok ? "PASS" : "FAIL"}] ${label} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)\n`,
+  );
   if (!ok) process.exit(1);
 };
 
@@ -44,8 +46,14 @@ run("provenance smoke", builtExe, ["--cua-helper-provenance-smoke"]);
 
 // 3. ax_native 接口（117 导出 + 双向漂移）
 const addonPath = join(builtApp, "Contents", "Resources", "ax_native.node");
-run("probe ax_native (117 exports)", process.execPath, [join(packageRoot, "tools/probe-ax-native.mjs"), addonPath]);
-run("interface drift check", process.execPath, [join(packageRoot, "tools/check-ax-native-interface.mjs"), addonPath]);
+run("probe ax_native (117 exports)", process.execPath, [
+  join(packageRoot, "tools/probe-ax-native.mjs"),
+  addonPath,
+]);
+run("interface drift check", process.execPath, [
+  join(packageRoot, "tools/check-ax-native-interface.mjs"),
+  addonPath,
+]);
 
 // 4. ax_native 字节级对齐（官方 staging 副本存在时；不入库资产，CI 缺席为常态）
 if (existsSync(join(stagedApp, "Contents", "Resources", "ax_native.node"))) {
@@ -78,7 +86,11 @@ run("launch contract A–G", process.execPath, [
 
 // 6. 双 broker parity（对照官方 staging；缺席则整段跳过——CI 同理）
 if (existsSync(join(stagedApp, "Contents", "MacOS", "ZCode Computer Use"))) {
-  run("dual-broker parity (4 scenarios)", process.execPath, [join(packageRoot, "tools/parity-mac-helper.mjs"), builtApp, stagedApp]);
+  run("dual-broker parity (4 scenarios)", process.execPath, [
+    join(packageRoot, "tools/parity-mac-helper.mjs"),
+    builtApp,
+    stagedApp,
+  ]);
 } else {
   console.log("[SKIP] dual-broker parity (官方 staging 副本不在本机)\n");
 }

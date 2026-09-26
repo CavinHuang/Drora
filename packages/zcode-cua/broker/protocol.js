@@ -41,6 +41,10 @@ const READ_ONLY_BROKER_METHODS = new Set([
     "pip_clear_dismissed",
     "pip_session_handshake",
 ]);
+// 注：这是 Drora 内部配对协议的还原稿，不是官方 helper broker 协议的镜像——
+// 官方契约（windows-helper.js @14847-14927）要求 id 为非负安全整数、响应必带 id 回显、
+// 非法请求回 {id:0, ok:false, error:{code:"invalid_request"}} 并对未认证连接
+// closeAfterWrite；此处保持既有宽松形态，消费方仅限本仓内部配对链路。
 /** 解析一行 socket 请求；非法输入返回 undefined（宿主侧静默丢弃）。 */
 export function parseRequestLine(line) {
     if (typeof line !== "string" || line.trim().length === 0)
@@ -63,12 +67,13 @@ export function parseRequestLine(line) {
         ...(record.params === undefined ? {} : { params: record.params }),
     };
 }
-export function okResponse(result) {
+export function okResponse(result, id) {
     return { ok: true, result: result ?? null };
 }
 export function errorResponse(message, options) {
     return {
         ok: false,
+        ...(options?.id !== undefined ? { id: options.id } : {}),
         error: { code: options?.code ?? "internal", message },
     };
 }

@@ -42,16 +42,15 @@ function detectWindowsSdk() {
 
 const sdk = detectWindowsSdk();
 if (!sdk) {
-  console.error("未找到含 cppwinrt 的 Windows SDK(需要 10.0.19041+ 与 Windows.Graphics.Capture 头)");
+  console.error(
+    "未找到含 cppwinrt 的 Windows SDK(需要 10.0.19041+ 与 Windows.Graphics.Capture 头)",
+  );
   process.exit(1);
 }
 console.log("Windows SDK:", sdk);
 
 rmSync(join(root, "build"), { recursive: true, force: true });
-for (const args of [
-  ["configure", `-Dwin_sdk=${sdk}`],
-  ["build"],
-]) {
+for (const args of [["configure", `-Dwin_sdk=${sdk}`], ["build"]]) {
   const r = spawnSync(process.execPath, [gyp, ...args], { stdio: "inherit", cwd: root });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }

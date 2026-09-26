@@ -28,7 +28,9 @@ bootstrap and the actions must be in the **same** cell:
 
 ```js
 const root =
-  process.env.ZCODE_CUA_PLUGIN_ROOT ??
+  process.env.DRORA_CUA_PLUGIN_ROOT ??
+  process.env.DRORA_PLUGIN_ROOT ??
+    process.env.ZCODE_CUA_PLUGIN_ROOT ??
   process.env.ZCODE_PLUGIN_ROOT ??
   process.env.CLAUDE_PLUGIN_ROOT;
 const { join } = await import("node:path");

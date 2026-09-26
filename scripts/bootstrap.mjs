@@ -158,7 +158,8 @@ function runBootstrapWithRemoteBuild() {
   runBootstrapDesktopBuild();
 }
 
-runGit(["submodule", "update", "--init", "--recursive", "apps/drora-cli"]);
+// apps/drora-cli 自 2026-09 起为 in-tree 常规目录（非 submodule），
+// 原先的 git submodule 初始化对它是静默 no-op，已移除（批 4 构建 P3-2）。
 
 runPnpm(withRemoteAssets ? ["install", "--config.confirmModulesPurge=false"] : ["install"]);
 

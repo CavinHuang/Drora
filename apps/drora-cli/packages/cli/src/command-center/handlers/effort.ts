@@ -1,6 +1,5 @@
 import type { TuiSubmitPromptResult } from "@drora/tui";
 import { thoughtLevelsToEffortOptions } from "../effort-options.js";
-import { rememberCurrentModelSelection } from "../model-selection.js";
 import type { CommandCenterDeps } from "../types.js";
 
 const EFFORT_COMMAND_USAGE = "Use /effort <level>, /variant <level>, or /effort list.";
@@ -56,11 +55,10 @@ export async function handleEffortCommand(
 
   try {
     const result = await app.setThoughtLevel(requested);
-    const persistenceWarning = await rememberCurrentModelSelection(app, deps);
     return {
       effortOptions,
       mode: deps.getMode?.(),
-      response: `Reasoning effort switched to ${result.thoughtLevel}.${persistenceWarning}`,
+      response: `Reasoning effort switched to ${result.thoughtLevel}.`,
       thoughtLevel: result.thoughtLevel,
     };
   } catch (error) {

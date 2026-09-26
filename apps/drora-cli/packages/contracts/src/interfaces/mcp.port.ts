@@ -135,6 +135,13 @@ export interface McpToolAnnotations {
 export const DRORA_MCP_ERROR_PRESENTATION_META_KEY = "drora/errorPresentation";
 export const DRORA_MCP_ERROR_PRESENTATION_MESSAGE_ONLY = "message-only";
 /** MCP content 中来自模型显式 tab.screenshot() 的 image block 索引。 */
+// node_repl 浏览器桥的 responseMeta 契约键。原版自身双前缀（codex/browserUse +
+// zcode/browserTurnScreenshot），本仓统一 drora/（codex→drora 映射见
+// specs/drora-rename.md）；生产方与消费方引用同一常量，禁止散布字面量。
+export const NODE_REPL_BROWSER_USE_META_KEY = "drora/browserUse";
+export const NODE_REPL_TOOL_SURFACE_META_KEY = "drora/toolSurface";
+export const NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY = "drora/browserTurnScreenshot";
+
 export const DRORA_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY =
   "drora/browserScreenshotContentIndices";
 /**

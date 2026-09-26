@@ -276,8 +276,7 @@ export function spawnHostProcess(
             // 的数据根/standalone 枚举走 DRORA_HOME||~/.drora——不路由会让
             // helper 装进 ~/.zcode（与官方 ZCode 同根共存）而设置页在
             // ~/.drora 找不到。经 env 把 Drora 数据根路由进豁免区，零改动。
-            ZCODE_HOME:
-              resolveDroraHome(),
+            ZCODE_HOME: resolveDroraHome(),
           }
         : {}),
       ...(dependencies.desktopContextPromptEnabled
@@ -577,7 +576,6 @@ export function spawnHostProcess(
       });
       return;
     }
-
 
     if (result.data.type === HostResponseTypes.BotRemoteWorkspaceReconnectRequest) {
       const request = result.data;

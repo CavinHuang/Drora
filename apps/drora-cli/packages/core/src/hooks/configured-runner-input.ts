@@ -117,9 +117,9 @@ export function expandPluginVariables(
     replacements.DRORA_PLUGIN_ROOT = plugin.rootPath;
   }
   return value.replace(
-    /\$\{(CLAUDE_CODE_SESSION_ID|CLAUDE_PLUGIN_DATA|CLAUDE_PLUGIN_ROOT|CLAUDE_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_SKILL_DIR|DRORA_PLUGIN_DATA|DRORA_PLUGIN_ROOT|DRORA_PROJECT_DIR|DRORA_SESSION_ID|DRORA_SKILL_DIR)\}/gu,
+    /\$\{(CLAUDE_CODE_SESSION_ID|CLAUDE_PLUGIN_DATA|CLAUDE_PLUGIN_ROOT|CLAUDE_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_SKILL_DIR|DRORA_PLUGIN_DATA|DRORA_PLUGIN_ROOT|DRORA_PROJECT_DIR|DRORA_SESSION_ID|DRORA_SKILL_DIR|ZCODE_SKILL_DIR)\}/gu,
     (_match, key: string) => {
-      if (key === "CLAUDE_SKILL_DIR" || key === "DRORA_SKILL_DIR") {
+      if (key === "CLAUDE_SKILL_DIR" || key === "DRORA_SKILL_DIR" || key === "ZCODE_SKILL_DIR") {
         // hook 运行时没有“当前 skill”语义，不能把该变量交给 shell 展开为空字符串。
         // 这里提前报错，插件诊断/日志能看到明确的上下文缺失原因。
         throw createCoreError(

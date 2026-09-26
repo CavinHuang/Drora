@@ -71,7 +71,10 @@ const norm = (v) => {
 
 const report = {};
 for (const [name, forms] of Object.entries(matrix)) {
-  if (typeof native[name] !== "function") { report[name] = { missing: true }; continue; }
+  if (typeof native[name] !== "function") {
+    report[name] = { missing: true };
+    continue;
+  }
   report[name] = {};
   for (const args of forms) {
     const key = JSON.stringify(args);

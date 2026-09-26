@@ -216,11 +216,9 @@ export function xie(e: any = {}) {
   let t = e.env ?? process.env;
   // 打包态优先用显式注入的版本（桌面从 bundled Info.plist 读出，spec §六），
   // 缺省回退构建期内嵌常量 qc——上游构建期折叠语义的开源运行时等价物。
-  return (
-    (e.localDevelopmentRuntime ?? bn(t))
-      ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0
-      : e.explicitVersion?.trim() || qc
-  );
+  return (e.localDevelopmentRuntime ?? bn(t))
+    ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0
+    : e.explicitVersion?.trim() || qc;
 }
 
 export function Oie(e = process.env, t = WC) {
@@ -635,10 +633,7 @@ export async function Hie(e, t) {
 
 export async function jie(e, t) {
   if (!wb(e))
-    throw new CuaHelperError(
-      "helper_missing",
-      `Bundled ZCode Computer Use.app is missing at ${e}`,
-    );
+    throw new CuaHelperError("helper_missing", `Bundled ZCode Computer Use.app is missing at ${e}`);
   let n = Kn(t, xt);
   return (
     await mie(e, n, {
@@ -691,10 +686,7 @@ export async function Kie(e, t, n) {
     }));
   let d: any = await _W(c);
   if (!d)
-    throw new CuaHelperError(
-      "install_failed",
-      `ZCode Computer Use archive did not contain ${xt}`,
-    );
+    throw new CuaHelperError("install_failed", `ZCode Computer Use archive did not contain ${xt}`);
   return d;
 }
 
@@ -738,10 +730,7 @@ export function Jie(e) {
     case "x64":
       return "x64";
     default:
-      throw new CuaHelperError(
-        "install_failed",
-        `Unsupported ZCode Computer Use arch: ${e}`,
-      );
+      throw new CuaHelperError("install_failed", `Unsupported ZCode Computer Use arch: ${e}`);
   }
 }
 

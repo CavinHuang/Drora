@@ -35,6 +35,7 @@ import {
   addDroraPluginMarketplace,
   configureDroraPlugin,
   describeDroraPlugin,
+  enrichCachedClaudePluginMarketplaceIcons,
   getDroraPluginsOverview,
   installDroraMarketplacePlugin,
   removeDroraPluginMarketplace,
@@ -256,6 +257,11 @@ export async function getPluginsOverview(
   rawParams: unknown,
 ): Promise<DroraPluginsOverviewResult> {
   const params = parseParams(droraPluginsOverviewParamsSchema, rawParams);
+  // 原版 _Zo：overview 读入口先触发 claude 市场 icon 的每进程一次懒修补（不等待）。
+  enrichCachedClaudePluginMarketplaceIcons({
+    logger: context.logger,
+    workingDirectory: params.workspace.workspacePath,
+  });
   const overview = getDroraPluginsOverview({
     configResult: createPluginConfigView(
       context,

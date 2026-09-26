@@ -24,10 +24,10 @@ Drora is an AI coding workspace with desktop, browser, and terminal interfaces. 
 
 No build required - grab the latest build from the [Releases](https://github.com/CavinHuang/Drora/releases/latest) page:
 
-| File | Description |
-| --- | --- |
-| `Drora-<version>-win-x64.exe` / `win-arm64.exe` | Windows desktop installer (NSIS) |
-| `Drora-<version>-mac-arm64.dmg` / `mac-x64.dmg` (and `.zip`) | macOS desktop app |
+| File                                                               | Description                                                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `Drora-<version>-win-x64.exe` / `win-arm64.exe`                    | Windows desktop installer (NSIS)                                                     |
+| `Drora-<version>-mac-arm64.dmg` / `mac-x64.dmg` (and `.zip`)       | macOS desktop app                                                                    |
 | `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Single-file Agent CLI, **run it from a terminal** (double-clicking flashes a window) |
 
 All artifacts are built from source by GitHub Actions; `SHA256SUMS.txt` provides checksums and `latest*.yml` feeds the in-app auto-update. Installers are unsigned: on Windows choose "Run anyway", on macOS allow the app under "Privacy & Security" on first launch.

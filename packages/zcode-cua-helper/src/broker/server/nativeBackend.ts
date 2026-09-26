@@ -167,11 +167,11 @@ export function createRuntimeAuthorizationSubjectDiagnostics(options) {
   const expectedBundleId = options.expectedBundleId ?? options.bundleId;
   const stableIdentity = Boolean(
     platform2 === "darwin" &&
-      appBundlePath &&
-      signing.codeSigningIdentifier === expectedBundleId &&
-      signing.teamIdentifier &&
-      signing.signature &&
-      signing.signature !== "adhoc",
+    appBundlePath &&
+    signing.codeSigningIdentifier === expectedBundleId &&
+    signing.teamIdentifier &&
+    signing.signature &&
+    signing.signature !== "adhoc",
   );
   const diagnostics = {
     kind: authorizationSubjectKindForBundleId(options.bundleId),

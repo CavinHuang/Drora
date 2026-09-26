@@ -19,10 +19,7 @@ const literal = src.slice(start, end);
 if (literal.includes("${")) throw new Error("template interpolation leaked into page");
 
 // 模拟模板字面量求值：处理常见转义。
-const evaluated = literal
-  .replace(/\\\`/g, "`")
-  .replace(/\\\$/g, "$")
-  .replace(/\\\\/g, "\\");
+const evaluated = literal.replace(/\\\`/g, "`").replace(/\\\$/g, "$").replace(/\\\\/g, "\\");
 // 反向检查：页面 JS 里不能出现真实反斜杠换行碎片。
 const scriptStart = evaluated.indexOf("<script>") + "<script>".length;
 const scriptEnd = evaluated.lastIndexOf("</script>");

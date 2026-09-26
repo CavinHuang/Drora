@@ -4,7 +4,7 @@
 对照原版 3.14.3 发行物 renderer（`D:\software\ZCode\resources` app.asar）实测其隐藏集合为：
 
 ```js
-new Set([`automations`, `plugins`, `workspaceFileSearch`])  // 不含 computerUse
+new Set([`automations`, `plugins`, `workspaceFileSearch`]); // 不含 computerUse
 ```
 
 而本仓库 `HIDDEN_SETTINGS_SECTIONS`（开源 drop 872ad96 引入）多含 `computerUse`，

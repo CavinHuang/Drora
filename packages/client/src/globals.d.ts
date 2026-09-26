@@ -40,6 +40,8 @@ import type {
   RendererHeapSample,
   TelemetryRendererContext,
   TaskNotificationPayload,
+  DesktopPetPresentation,
+  DesktopPetTarget,
   WindowScreenshotResult,
   EmbeddedBrowserDataClearResult,
   WSLDistro,
@@ -183,6 +185,8 @@ declare global {
       onDesktopZoomLevelChanged?(handler: (state: DesktopZoomState) => void): () => void;
       /** 注册用户点击系统通知后跳转到对应任务的回调，返回 disposer */
       onTaskNotificationClick(handler: (taskId: string) => void): () => void;
+      publishDesktopPet?(presentation: DesktopPetPresentation): void;
+      onDesktopPetOpenTask?(handler: (target: DesktopPetTarget) => void): () => void;
       /** 打开外部 URL */
       openExternal(url: string): void;
       /** 查询当前语言下是否存在可用的用户社群入口 */

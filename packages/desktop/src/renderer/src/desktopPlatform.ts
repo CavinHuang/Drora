@@ -80,6 +80,7 @@ export function createDesktopPlatform(options: {
       ? (sample) => window.drora.reportRendererHeapSample!(sample)
       : undefined,
     showTaskNotification: (payload) => window.drora.showTaskNotification(payload),
+    publishDesktopPet: (presentation) => window.drora.publishDesktopPet?.(presentation),
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
     syncWindowUnreadCount: (count) => window.drora.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.drora.syncActiveTaskSession(sessionId),
@@ -122,6 +123,7 @@ export function createDesktopPlatform(options: {
     onDesktopZoomLevelChanged: (handler) =>
       window.drora.onDesktopZoomLevelChanged?.(handler) ?? (() => {}),
     onTaskNotificationClick: (handler) => window.drora.onTaskNotificationClick(handler),
+    onDesktopPetOpenTask: (handler) => window.drora.onDesktopPetOpenTask?.(handler) ?? (() => {}),
     exportLogs: () => window.drora.exportLogs(),
     captureWindowScreenshot: () =>
       window.drora.captureWindowScreenshot?.() ?? Promise.resolve(null),

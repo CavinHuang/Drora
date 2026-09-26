@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // 与原版发行物做入口与 broker 协议对齐验收。
 // 用法：node tools/parity-check.mjs [原版 cua-helper 目录]
-// 默认对照 D:\software\zcode\resources\tools\cua-helper（0.5.13 发行物）。
+// 注意：本工具只对 0.5.13 基线有效——0.6.3 官方 Helper 已删除 token 概念、改为两段式
+// transport_ready 握手且方法表 63→42，对 0.6.3 运行本工具会给出虚假 DIFF。默认对照 D:\software\zcode\resources\tools\cua-helper（0.5.13 发行物）。
 // 场景：入口 5 个参数场景（stdout/stderr/exit code）+ 真实拉起 broker 后的
 // authenticate / broker_info / 错误 token 拒绝。任一 DIFF 即非零退出。
 import { spawn, spawnSync } from "node:child_process";
@@ -16,7 +17,9 @@ const ORIG_DIR = process.argv[2] ?? "D:\\software\\zcode\\resources\\tools\\cua-
 const ORIG = resolve(ORIG_DIR, "dist", "windows-helper.js");
 
 if (!existsSync(RESTORED)) {
-  console.error(`missing restored bundle: ${RESTORED}; run pnpm --filter @drora/drora-cua-helper-runtime build`);
+  console.error(
+    `missing restored bundle: ${RESTORED}; run pnpm --filter @drora/drora-cua-helper-runtime build`,
+  );
   process.exit(2);
 }
 if (!existsSync(ORIG)) {
@@ -32,8 +35,16 @@ const norm = (s) => s.replace(/^(ORIG|REST):/, "X:");
 const entryCases = [
   { name: "no-args", args: [], env: {} },
   { name: "3 args (missing parent-pid)", args: ["--socket", "\\\\.\\pipe\\x"], env: {} },
-  { name: "--token rejected", args: ["--socket", "\\\\.\\pipe\\x", "--parent-pid", "1", "--token", "t"], env: {} },
-  { name: "4 args + no env token", args: ["--socket", "\\\\.\\pipe\\x", "--parent-pid", "4242"], env: {} },
+  {
+    name: "--token rejected",
+    args: ["--socket", "\\\\.\\pipe\\x", "--parent-pid", "1", "--token", "t"],
+    env: {},
+  },
+  {
+    name: "4 args + no env token",
+    args: ["--socket", "\\\\.\\pipe\\x", "--parent-pid", "4242"],
+    env: {},
+  },
   {
     name: "4 args + bad pipe",
     args: ["--socket", "/not-a-pipe", "--parent-pid", "4242"],
@@ -66,10 +77,14 @@ const TOKEN = `parity-${randomUUID()}`;
 
 async function runHelper(label, exe) {
   const pipe = `\\\\.\\pipe\\zcode-cua-parity-${randomUUID().slice(0, 8)}`;
-  const child = spawn(process.execPath, [exe, "--socket", pipe, "--parent-pid", String(process.pid)], {
-    env: { ...process.env, ZCODE_CUA_PERMISSION_BROKER_TOKEN: TOKEN },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const child = spawn(
+    process.execPath,
+    [exe, "--socket", pipe, "--parent-pid", String(process.pid)],
+    {
+      env: { ...process.env, ZCODE_CUA_PERMISSION_BROKER_TOKEN: TOKEN },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   let stdout = "";
   child.stdout.on("data", (d) => (stdout += d));
   const ready = await new Promise((res) => {
@@ -113,9 +128,9 @@ async function runHelper(label, exe) {
       ]).catch((e) => [{ error: e.message }])
     : null;
   const badAuth = ready
-    ? await exchange([JSON.stringify({ id: 3, method: "authenticate", params: { token: "wrong" } })]).catch(
-        (e) => [{ error: e.message }],
-      )
+    ? await exchange([
+        JSON.stringify({ id: 3, method: "authenticate", params: { token: "wrong" } }),
+      ]).catch((e) => [{ error: e.message }])
     : null;
   child.kill();
   await wait(200);

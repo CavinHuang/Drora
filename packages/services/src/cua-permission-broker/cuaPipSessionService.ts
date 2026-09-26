@@ -115,7 +115,9 @@ export function createCuaPipSessionService(options: {
     current?.client.close();
     const client = clientFactory({
       socketPath: credentials.socketPath,
-      ...(credentials.presentationToken ? { presentationToken: credentials.presentationToken } : {}),
+      ...(credentials.presentationToken
+        ? { presentationToken: credentials.presentationToken }
+        : {}),
       onDiagnostic: (diagnostic) => {
         const message = `[cua-pip-session] ${diagnostic.code}: ${diagnostic.message}`;
         if (diagnostic.code === "version_mismatch") logger.warn(undefined, message);

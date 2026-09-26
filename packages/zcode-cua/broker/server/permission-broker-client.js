@@ -228,13 +228,14 @@ export var Qu = class {
     async call(t, n, r = {}) {
         if (this.cancelSignal?.cancelled)
             throw Jc();
+        // 帧分隔符为单 \n（对齐官方 helper serializeResponse @14909 与原版 producer
+        // 读侧 @109146；曾误还原为 "\n\n"——写侧多发的空行 helper 能容忍，读侧却会
+        // 等一个永不出现的空行，Windows Auto-PiP 握手全部挂到超时）。
         let o = this.requestId(), s = `${JSON.stringify({ id: o, method: t, params: n })}
-
 `, a = {
             clientApiVersion: 2,
             ...this.authenticateParams,
         }, c = `${JSON.stringify({ id: 0, method: "authenticate", params: a })}
-
 `, d = Bb(this.timeoutMs, t, n), l = "not_sent", p = (k) => k.split(this.socketPath).join("<socket>"), u = "", f = !1, g = {
             result: null,
             error: null,
@@ -299,13 +300,11 @@ export var Qu = class {
                 v.on("data", (j) => {
                     u += j;
                     let B = u.indexOf(`
-
 `);
                     for (; B >= 0;) {
                         let W = u.slice(0, B);
                         if (((u = u.slice(B + 1)),
                             (B = u.indexOf(`
-
 `)),
                             !W.trim()))
                             continue;

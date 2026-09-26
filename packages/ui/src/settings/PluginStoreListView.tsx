@@ -3,7 +3,10 @@ import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useMemo, useState } from "react";
 import { Download, Loader2, Settings2 } from "lucide-react";
 import type { PluginStoreOrder, DroraPluginMarketplaceSummary } from "@drora/shared";
-import { DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID, CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID } from "@drora/shared";
+import {
+  DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+} from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

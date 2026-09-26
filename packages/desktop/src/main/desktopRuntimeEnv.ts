@@ -503,12 +503,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
               rawInheritedEnv.DRORA_CUA_HELPER_ALLOW_UNSIGNED_LOCAL?.trim().toLowerCase() ?? "",
             )
           ? rawInheritedEnv.DRORA_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
-            join(
-              resolveDroraHome(rawInheritedEnv),
-              "computer-use",
-              "dev",
-              DEV_HELPER_APP_NAME,
-            )
+            join(resolveDroraHome(rawInheritedEnv), "computer-use", "dev", DEV_HELPER_APP_NAME)
           : undefined;
   const windowsAppInstallDir = resolveWindowsAppInstallDirForDataBaseDirGuard();
   const agentTelemetryEnv = readDroraAgentTelemetryEnv(rawInheritedEnv);

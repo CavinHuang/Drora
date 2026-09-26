@@ -116,9 +116,9 @@ export function xie(e = {}) {
     let t = e.env ?? process.env;
     // 打包态优先用显式注入的版本（桌面从 bundled Info.plist 读出，spec §六），
     // 缺省回退构建期内嵌常量 qc——上游构建期折叠语义的开源运行时等价物。
-    return ((e.localDevelopmentRuntime ?? bn(t))
+    return (e.localDevelopmentRuntime ?? bn(t))
         ? e.explicitVersion?.trim() || t.ZCODE_CUA_HELPER_VERSION?.trim() || void 0
-        : e.explicitVersion?.trim() || qc);
+        : e.explicitVersion?.trim() || qc;
 }
 export function Oie(e = process.env, t = WC) {
     let n = bn(e) ? e.ZCODE_CUA_HELPER_BUILD_ID?.trim() : void 0;

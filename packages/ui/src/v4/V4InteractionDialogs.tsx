@@ -34,7 +34,6 @@ interface V4InteractionDialogsProps {
   provider?: DroraProvider;
   snapshot: ConversationSnapshot | null;
   onCommandSettled?: (commandId: string) => void;
-  onPlanInteractionAccepted?: (interactionId: string) => void;
 }
 
 function getCurrentSessionInteractionSnapshot(
@@ -97,7 +96,6 @@ export function V4InteractionDialogs({
   provider,
   snapshot,
   onCommandSettled,
-  onPlanInteractionAccepted,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
   const connectWorkspaceHookCommands = useWorkspaceHookReviewStore((state) => state.connect);
@@ -403,7 +401,6 @@ export function V4InteractionDialogs({
             if (isExitPlanMode) {
               // Plan 回执 ACK 与 replayable pending 清场是两条异步路径。
               // 这里只上报已接受的 Plan interaction，由手机 pane 在仍读到旧权威状态时触发恢复。
-              onPlanInteractionAccepted?.(pending.interactionId);
             }
           });
         }}

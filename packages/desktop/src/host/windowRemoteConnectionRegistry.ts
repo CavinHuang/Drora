@@ -4,6 +4,7 @@ import {
   resolveServerRemoteEndpoints,
   stripRemoteTargetSecrets,
   type RemoteTarget,
+  type ServerRemoteInfo,
   type WindowHostAttachmentScope,
   type WindowHostRemoteWorkspaceDescriptor,
 } from "@drora/shared";
@@ -24,6 +25,12 @@ export interface WindowRemoteConnectionCloseEvent {
 export interface WindowRemoteConnectionHandle<TServices, TCapabilities = never> {
   services: TServices;
   capabilities?: TCapabilities;
+  /**
+   * 第四十九轮：server 形态连接成功后透出的 server-info 自描述。
+   * registry 把它带进 logical session descriptor，main 再随 ScopedServicePort
+   * 发给 renderer，供目录步骤展示 serverInfo.workspaces 快捷选择列表。
+   */
+  serverInfo?: ServerRemoteInfo;
   dispose(): void | Promise<void>;
   onDidClose?(listener: (event: WindowRemoteConnectionCloseEvent) => void): { dispose(): void };
 }
@@ -542,6 +549,8 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         ...(session.workspacePath ? { workspacePath: session.workspacePath } : {}),
         ...(session.workspaceIdentity ? { workspaceIdentity: session.workspaceIdentity } : {}),
         generation: session.generation,
+        // server 形态复用同目标连接时 handle 常驻，serverInfo 始终可取；其余形态为 undefined。
+        ...(entry.handle?.serverInfo ? { serverInfo: entry.handle.serverInfo } : {}),
       };
     } catch (error) {
       if (sessionsById.get(remoteSessionId) === session) {

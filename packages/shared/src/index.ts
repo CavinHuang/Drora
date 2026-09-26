@@ -1,3 +1,6 @@
+export { desktopPetPresentationSchema, desktopPetTargetSchema } from "./desktopPet.js";
+export type { DesktopPetPresentation, DesktopPetTarget } from "./desktopPet.js";
+
 export type {
   FileBinaryPreview,
   FileEntry,

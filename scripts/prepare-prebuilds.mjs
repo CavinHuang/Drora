@@ -57,7 +57,7 @@ const isBootstrapWithRemote = process.env.DRORA_BOOTSTRAP_WITH_REMOTE === "1";
 
 /**
  * Node dist 下载源。默认走国内镜像，`DRORA_NODE_DIST_MIRROR` 可覆盖（与
- * `.gitlab/ci/00-workflow.yml` 的同名 CI 变量、`scripts/cua-helper-sea-base.mjs` 同一约定）。
+ * `.github/workflows` 的同名 CI 变量、`scripts/cua-helper-sea-base.mjs` 同一约定）。
  *
  * 这里原本硬编码 `https://nodejs.org/dist`，而 macOS
  * runner 连不上它 —— 3 次尝试全部 `UND_ERR_CONNECT_TIMEOUT`（10s）。更糟的是本文件的报错文案
@@ -129,7 +129,7 @@ const remoteBundledSkillPack = {
     "skills/dynamic-workflows/examples.md",
   ],
   stagedPath: "packages/bundled-skills",
-  topLevelPaths: ["skills"],
+  topLevelPaths: ["skills"], // 远端 bundle 不带 README（desktop 版含）；两处清单不同是有意的,
 };
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -206,7 +206,8 @@ function downloadViaCurl(url, destinationPath) {
   const curl = process.platform === "win32" ? "curl.exe" : "curl";
   let curlAvailable = false;
   try {
-    curlAvailable = spawnSync(curl, ["--version"], { stdio: "ignore", timeout: 10_000 }).status === 0;
+    curlAvailable =
+      spawnSync(curl, ["--version"], { stdio: "ignore", timeout: 10_000 }).status === 0;
   } catch {
     curlAvailable = false;
   }
@@ -216,10 +217,14 @@ function downloadViaCurl(url, destinationPath) {
     [
       "--fail",
       "--location",
-      "--retry", "3",
-      "--retry-delay", "2",
-      "--max-time", String(timeoutSec),
-      "--output", destinationPath,
+      "--retry",
+      "3",
+      "--retry-delay",
+      "2",
+      "--max-time",
+      String(timeoutSec),
+      "--output",
+      destinationPath,
       url,
     ],
     { stdio: "ignore", timeout: (timeoutSec + 30) * 1000 },

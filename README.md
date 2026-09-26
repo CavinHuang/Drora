@@ -24,10 +24,10 @@ Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Age
 
 无需从源码构建，可直接在 [Releases](https://github.com/CavinHuang/Drora/releases/latest) 下载最新版本：
 
-| 文件 | 说明 |
-| --- | --- |
-| `Drora-<版本>-win-x64.exe` / `win-arm64.exe` | Windows 桌面应用安装包（NSIS） |
-| `Drora-<版本>-mac-arm64.dmg` / `mac-x64.dmg`（及 `.zip`） | macOS 桌面应用 |
+| 文件                                                               | 说明                                               |
+| ------------------------------------------------------------------ | -------------------------------------------------- |
+| `Drora-<版本>-win-x64.exe` / `win-arm64.exe`                       | Windows 桌面应用安装包（NSIS）                     |
+| `Drora-<版本>-mac-arm64.dmg` / `mac-x64.dmg`（及 `.zip`）          | macOS 桌面应用                                     |
 | `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Agent CLI 单文件，**须在终端中运行**（双击会闪退） |
 
 所有产物均由 GitHub Actions 从源码构建，`SHA256SUMS.txt` 提供校验和；`latest*.yml` 供应用内自动更新使用。安装包未做签名：Windows 首次运行请选择"仍要运行"，macOS 首次打开请在"系统设置 → 隐私与安全性"中放行。

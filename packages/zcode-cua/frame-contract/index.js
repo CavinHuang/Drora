@@ -4,6 +4,8 @@
 import { createHash } from "node:crypto";
 export const OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY = "zcode.cua/official-frame-integrity-v1";
 export const OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION = "official_cua_frame_v1";
+/** 被拒结果的 _meta 标注键（原版 rln；曾误用 INTEGRITY 键，同 48 轮键名还原错误模式）。 */
+export const OFFICIAL_CUA_FRAME_REJECTIONS_META_KEY = "zcode.cua/frame-integrity-rejections-v1";
 export const OFFICIAL_CUA_IMAGE_INLINE_BASE64_BYTES = 200 * 1024;
 /** 单次 result 允许的 image block 数上限（官方 CUA 每个结果只允许一张最终 raster）。 */
 const MAX_IMAGE_REFS_PER_TEXT = 1024;
@@ -398,7 +400,8 @@ function decodeCanonicalBase64(encoded) {
     return decoded.length > 0 && decoded.toString("base64") === encoded ? decoded : undefined;
 }
 function formatBytes(bytes) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
+    // 原版 Ost/formatByteSize：<1024 走 "X B"，否则 KiB（曾误还原为恒 "KB"）。
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KiB`;
 }
 function redactFrameIds(reasons, frameIds) {
     const redacted = [...new Set(frameIds)]
@@ -453,8 +456,9 @@ async function inspectImageBlock(entry) {
         return `frame ${entry.reference.frameId} carries a non-canonical EXIF orientation`;
     }
     // 宿主图像处理器可用时做像素级一致性解码；不可用时 fail-closed。
+    // 原版 HLs：JLs 返回的两条消息一律加 "frame <id> " 前缀（与其余拒绝原因一致）。
     if (!entry.imageProcessorPort) {
-        return "cannot be fully decoded by the host image processor";
+        return `frame ${entry.reference.frameId} cannot be fully decoded by the host image processor`;
     }
     try {
         const resized = await entry.imageProcessorPort.resizeToFit({
@@ -463,7 +467,7 @@ async function inspectImageBlock(entry) {
             mediaType: mimeType,
         }, { signal: entry.signal });
         const identical = Buffer.from(resized.data).equals(bytes);
-        return resized.resized === false &&
+        const problem = resized.resized === false &&
             identical &&
             resized.mediaType === mimeType &&
             resized.originalWidth === entry.reference.width &&
@@ -472,11 +476,12 @@ async function inspectImageBlock(entry) {
             resized.height === entry.reference.height
             ? undefined
             : "decoded pixels do not match the immutable image_ref";
+        return problem ? `frame ${entry.reference.frameId} ${problem}` : undefined;
     }
     catch (error) {
         if (entry.signal?.aborted)
             throw error;
-        return "cannot be fully decoded by the host image processor";
+        return `frame ${entry.reference.frameId} cannot be fully decoded by the host image processor`;
     }
 }
 function validateProducerFrameIntegrity(result, parsedReferences) {
@@ -490,7 +495,12 @@ function validateProducerFrameIntegrity(result, parsedReferences) {
     if (!reference || !imageBlock || imageBlock.type !== "image") {
         return "producer frame integrity cannot bind an invalid image pair";
     }
-    const meta = result._meta?.[OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION];
+    // 原版 zcode.cjs 实证：gate 校验的 _meta 键是 producer（node_repl 宿主
+    // withOfficialFrameIntegrity）写入的 "zcode.cua/official-frame-integrity-v1"，
+    // 而 OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION("official_cua_frame_v1") 只是
+    // core attest 的 kind 值——还原稿曾误用后者当键名，导致任何官方截图都被判
+    // "metadata is missing" 拒绝。
+    const meta = result._meta?.[OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY];
     if (!isRecord(meta)) {
         return "producer frame integrity metadata is missing";
     }
@@ -566,8 +576,10 @@ export async function preserveOfficialCuaFrameResult(result, options) {
     if (rejectedReasons.length === 0)
         return result;
     const redacted = redactFrameIds(rejectedReasons, frameIds);
+    // 原版（cln）返回全新对象，仅 content/isError/_meta 三键——不 spread result：
+    // 被拒时必须连同 structuredContent（可能携带 unpaired image_ref authority）一并
+    // 丢弃（fail-closed），保留它将与拒绝文案的安全承诺直接矛盾。
     return {
-        ...result,
         content: [
             {
                 type: "text",
@@ -575,7 +587,7 @@ export async function preserveOfficialCuaFrameResult(result, options) {
             },
         ],
         isError: true,
-        _meta: { [OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY]: [...redacted] },
+        _meta: { [OFFICIAL_CUA_FRAME_REJECTIONS_META_KEY]: [...redacted] },
     };
 }
 function decodeCanonicalBoundedImageDataUrl(block) {

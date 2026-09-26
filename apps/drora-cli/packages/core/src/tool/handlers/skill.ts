@@ -72,7 +72,11 @@ const skillHandler: ToolHandler = async (input, context) => {
 
 function expandSkillContextVariables(content: string, baseDirectory: string): string {
   // 只有 Skill 工具加载后才有明确的当前 skill 目录，因此变量替换限定在这里完成。
-  return content.replace(/\$\{(CLAUDE_SKILL_DIR|DRORA_SKILL_DIR)\}/gu, baseDirectory);
+  // ZCODE_SKILL_DIR 是原版 ZCode 技能的互操作别名：体内使用它的第三方技能应原样运行。
+  return content.replace(
+    /\$\{(CLAUDE_SKILL_DIR|DRORA_SKILL_DIR|ZCODE_SKILL_DIR)\}/gu,
+    baseDirectory,
+  );
 }
 
 export const skillToolEntry: ToolEntry = {

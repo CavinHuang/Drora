@@ -204,8 +204,7 @@ function launchHintPayload(value, target) {
   const pid = positiveInt(record.pid) ?? null;
   const bundleId =
     optionalText(record.bundle_id) ?? optionalText(record.bundleId) ?? target.bundleId ?? null;
-  const name =
-    optionalText(record.name) ?? target.name ?? bundleId ?? (pid ? `pid ${pid}` : null);
+  const name = optionalText(record.name) ?? target.name ?? bundleId ?? (pid ? `pid ${pid}` : null);
   if (!pid && !bundleId && !name) return null;
   return {
     pid,
@@ -291,7 +290,9 @@ async function resolveOpenedApp(axSource, target, options: any = {}) {
     return isWindows ? null : launchHint;
   }
   const windowsAppUserModelId =
-    isWindows && options.windowsAppUserModelId?.trim() ? options.windowsAppUserModelId.trim() : undefined;
+    isWindows && options.windowsAppUserModelId?.trim()
+      ? options.windowsAppUserModelId.trim()
+      : undefined;
   if (windowsAppUserModelId) {
     if (!axSource.applicationInfoByAumid) return null;
     let found = null;
@@ -344,7 +345,12 @@ async function resolveOpenedApp(axSource, target, options: any = {}) {
     }
     const apps = await axSource.listApplications();
     if (isWindows) {
-      if (preferredPid && options.preLaunchApplications && canonicalLaunchIdentity && axSource.applicationInfo) {
+      if (
+        preferredPid &&
+        options.preLaunchApplications &&
+        canonicalLaunchIdentity &&
+        axSource.applicationInfo
+      ) {
         const candidates = [
           ...new Map(
             apps
@@ -378,7 +384,9 @@ async function resolveOpenedApp(axSource, target, options: any = {}) {
       const matches = target.bundleId
         ? apps.filter((app) => cuaBundleIdsEqual(app.bundle_id, target.bundleId, { loose: true }))
         : apps.filter((app) => exactNameMatches(app, target.name));
-      const eligibleMatches = matches.filter((candidate) => !options.excludedPids?.has(candidate.pid));
+      const eligibleMatches = matches.filter(
+        (candidate) => !options.excludedPids?.has(candidate.pid),
+      );
       const app =
         eligibleMatches.find((candidate) => candidate.pid === preferredPid) ??
         eligibleMatches.find((candidate) => candidate.active) ??
@@ -391,10 +399,10 @@ async function resolveOpenedApp(axSource, target, options: any = {}) {
   if (options.activateRequested && found.pid) {
     found = isWindows
       ? { ...found, active: await settleLiveActive(axSource, found.pid, 800) }
-      : (await settleLiveActiveApp(axSource, found, target, options.excludedPids, 800)) ?? {
+      : ((await settleLiveActiveApp(axSource, found, target, options.excludedPids, 800)) ?? {
           ...found,
           active: false,
-        };
+        });
   }
   return found;
 }
@@ -448,7 +456,9 @@ function windowIdsOf(windows) {
 function titleMatches(title, target) {
   const normalized = title?.trim().toLocaleLowerCase();
   if (!normalized) return false;
-  return target.titleCandidates.some((candidate) => normalized === candidate.trim().toLocaleLowerCase());
+  return target.titleCandidates.some(
+    (candidate) => normalized === candidate.trim().toLocaleLowerCase(),
+  );
 }
 function distinguishableTargets(targets) {
   const normalize = (value) => value.trim().toLocaleLowerCase();
@@ -530,8 +540,7 @@ async function captureFileUrlWindowBaseline(listWindows, urls) {
       windowTitles: new Map(
         windows
           .filter(
-            (window) =>
-              typeof window.window_id === "number" && Number.isInteger(window.window_id),
+            (window) => typeof window.window_id === "number" && Number.isInteger(window.window_id),
           )
           .map((window) => [window.window_id, window.title]),
       ),
@@ -544,7 +553,8 @@ async function verifyFileUrlWindowEffect(listWindows, baseline, options: any = {
   if (!baseline || !listWindows) return "unavailable";
   const attempts = options.attempts ?? FILE_URL_WINDOW_VERIFY_ATTEMPTS;
   const delayFn =
-    options.delay ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    options.delay ??
+    ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
   let lastWindows = [];
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const windows = await listWindows();
@@ -574,7 +584,9 @@ async function resolveAppByPid(axSource, pid, options: any = {}) {
           actual_pid: info.pid,
         };
         const message = `open_application direct PID lookup conflict: requested pid ${pid}, but applicationInfo returned pid ${String(info.pid)}.`;
-        throw options.actionSent === true ? launchFailed(message, details) : invalidRequest(message, details);
+        throw options.actionSent === true
+          ? launchFailed(message, details)
+          : invalidRequest(message, details);
       }
       if (info?.pid === pid && (info.bundle_id || info.name)) {
         return info;
@@ -601,7 +613,9 @@ async function rollbackFreshApplication(adapter, axSource, app) {
   }
   try {
     const terminated = await adapter.terminateApplication(app.pid, app.bundle_id);
-    return terminated ? `terminated_verified_pid_${app.pid}` : `termination_refused_for_verified_pid_${app.pid}`;
+    return terminated
+      ? `terminated_verified_pid_${app.pid}`
+      : `termination_refused_for_verified_pid_${app.pid}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return `termination_failed_for_verified_pid_${app.pid}: ${message}`;
@@ -625,7 +639,7 @@ async function discoverFreshApplicationForRollback(axSource, baselinePids, targe
       }
       return Boolean(
         target.name &&
-          candidate.name?.trim().toLocaleLowerCase() === target.name.trim().toLocaleLowerCase(),
+        candidate.name?.trim().toLocaleLowerCase() === target.name.trim().toLocaleLowerCase(),
       );
     });
     const preferred = freshMatches.find((candidate) => preferredPids.has(candidate.pid));
@@ -739,8 +753,13 @@ async function activateMacFilePanelSurface(options) {
         ? snapshot.window.actual_owner_bundle_id.trim()
         : actualOwnerPid === app.pid
           ? app.bundle_id
-          : (await resolvePidIdentity(axSource, actualOwnerPid, "open_application:file_panel_surface_owner"))
-              ?.bundle_id;
+          : (
+              await resolvePidIdentity(
+                axSource,
+                actualOwnerPid,
+                "open_application:file_panel_surface_owner",
+              )
+            )?.bundle_id;
     if (!actualOwnerBundleId) {
       throw elementUnavailable(
         "open_application: file-panel surface owner has no verified bundle identity. action_sent=false.",
@@ -814,7 +833,8 @@ async function activateMacFilePanelSurface(options) {
       ) {
         const replaced =
           verified?.window.window_id_fallback === true ||
-          (typeof verified?.window.window_id === "number" && verified.window.window_id !== actualWindowId);
+          (typeof verified?.window.window_id === "number" &&
+            verified.window.window_id !== actualWindowId);
         const factory = replaced ? elementUnavailable : foregroundRequired;
         throw factory(
           replaced
@@ -1214,7 +1234,10 @@ export function createElectronNativeBackend(options) {
         const afterWindows = beforeWindows
           ? captureScreenshotWindows(adapter, selectedDisplayBounds)
           : null;
-        if (!beforeWindows || (afterWindows && beforeWindows.fingerprint === afterWindows.fingerprint)) {
+        if (
+          !beforeWindows ||
+          (afterWindows && beforeWindows.fingerprint === afterWindows.fingerprint)
+        ) {
           break;
         }
         if (attempt === maxCaptureAttempts) {
@@ -1289,7 +1312,9 @@ export function createElectronNativeBackend(options) {
         );
       }
       const appObj =
-        params.app && typeof params.app === "object" && !Array.isArray(params.app) ? params.app : {};
+        params.app && typeof params.app === "object" && !Array.isArray(params.app)
+          ? params.app
+          : {};
       const bundleId = textParam(params.bundle_id) ?? textParam(appObj.bundle_id);
       const name = textParam(params.name) ?? textParam(appObj.name);
       const rawPid =
@@ -1298,7 +1323,8 @@ export function createElectronNativeBackend(options) {
           : typeof appObj.pid === "number" && Number.isInteger(appObj.pid) && appObj.pid > 0
             ? appObj.pid
             : undefined;
-      const requestedSurfaceWindowId = positiveWindowId(params.window_id) ?? positiveWindowId(appObj.window_id);
+      const requestedSurfaceWindowId =
+        positiveWindowId(params.window_id) ?? positiveWindowId(appObj.window_id);
       const newInstance = params.new_instance === true || appObj.new_instance === true;
       if (newInstance && rawPid) {
         throw invalidRequest(
@@ -1335,7 +1361,8 @@ export function createElectronNativeBackend(options) {
       if (brokerInfo.platform === "darwin" && nameIsAuthoritative && name) {
         const liveNameMatches = axSource
           ? (await axSource.listApplications()).filter(
-              (candidate) => candidate.name?.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
+              (candidate) =>
+                candidate.name?.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
             )
           : [];
         if (liveNameMatches.length > 1) {
@@ -1346,7 +1373,9 @@ export function createElectronNativeBackend(options) {
         }
         const registeredBundleId =
           liveNameMatches[0]?.bundle_id ??
-          (adapter.resolveApplicationBundleId ? await adapter.resolveApplicationBundleId(name) : null);
+          (adapter.resolveApplicationBundleId
+            ? await adapter.resolveApplicationBundleId(name)
+            : null);
         if (!registeredBundleId) {
           throw invalidRequest(
             `open_application could not resolve the installed macOS application named ${JSON.stringify(name)}. Use the original user-provided name once; do not translate it, search with Bash/Finder/Spotlight, or substitute another application.`,
@@ -1403,7 +1432,10 @@ export function createElectronNativeBackend(options) {
         }
       }
       const urls =
-        urlListParam(params.urls) ?? urlListParam(params.url) ?? urlListParam(appObj.urls) ?? urlListParam(appObj.url);
+        urlListParam(params.urls) ??
+        urlListParam(params.url) ??
+        urlListParam(appObj.urls) ??
+        urlListParam(appObj.url);
       const activate = params.activate === true;
       if (activate && adapter.isFocusStealPrevented?.() === true) {
         throw permissionDenied(
@@ -1587,7 +1619,9 @@ export function createElectronNativeBackend(options) {
       let launchResult;
       if (!resolvedExistingWindowsApp && rawPid && alreadyRunning && activate && !urls) {
         const activateExactPid =
-          brokerInfo.platform === "darwin" ? axSource?.activateApplication : adapter.activateApplication;
+          brokerInfo.platform === "darwin"
+            ? axSource?.activateApplication
+            : adapter.activateApplication;
         if (!activateExactPid) {
           const platformHint =
             brokerInfo.platform === "linux"
@@ -1652,7 +1686,12 @@ export function createElectronNativeBackend(options) {
           ? launchResult.pid
           : undefined;
       let canonicalLaunchIdentity = null;
-      if (brokerInfo.platform === "win32" && !windowsAppUserModelId && launcherPid && adapter.processExecutablePath) {
+      if (
+        brokerInfo.platform === "win32" &&
+        !windowsAppUserModelId &&
+        launcherPid &&
+        adapter.processExecutablePath
+      ) {
         try {
           canonicalLaunchIdentity = adapter.processExecutablePath(launcherPid)?.trim() || null;
         } catch {}
@@ -1792,7 +1831,11 @@ export function createElectronNativeBackend(options) {
           : "unavailable";
         const message = error instanceof Error ? error.message : String(error);
         if (error instanceof BrokerError) {
-          throw new BrokerError(error.code, `${message} Fresh-process rollback: ${rollback}.`, error.details);
+          throw new BrokerError(
+            error.code,
+            `${message} Fresh-process rollback: ${rollback}.`,
+            error.details,
+          );
         }
         throw elementUnavailable(`${message} Fresh-process rollback: ${rollback}.`);
       }

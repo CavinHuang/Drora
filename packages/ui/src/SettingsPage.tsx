@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
+import { DesktopPetSettingsRow } from "@/settings/DesktopPetSettingsRow.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -1946,6 +1947,24 @@ export function SettingsPage({
                             remoteSessionId={activeWorkspaceTab?.remoteSessionId}
                             remoteTarget={activeWorkspaceTab?.remoteTarget}
                             localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
+                          />
+                        ) : null}
+                        {activeSection === "general" && isDesktop ? (
+                          <DesktopPetSettingsRow
+                            checked={sharedSettings?.desktopPetEnabled ?? false}
+                            onChange={(enabled) => {
+                              void runSettingsActionAsync({
+                                featureId: "settings.desktop",
+                                action: "toggle_desktop_pet",
+                                trigger: "switch",
+                                operation: () =>
+                                  updateSharedSettings({ desktopPetEnabled: enabled }),
+                                completed: {
+                                  resultSource: "shared_settings",
+                                  stateAfter: enabled ? "enabled" : "disabled",
+                                },
+                              });
+                            }}
                           />
                         ) : null}
                       </div>

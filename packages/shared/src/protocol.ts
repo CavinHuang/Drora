@@ -160,6 +160,10 @@ export interface ServerRemoteTargetSnapshot {
   kind: "server";
   /** Server 基地址；支持 http(s) 与 ws(s)，端点由 resolveServerRemoteEndpoints 统一解析。 */
   url: string;
+  /** 连接显示名称；第四十九轮对齐官方提交形态，恢复连接时用于 tab 副标题展示。 */
+  name?: string;
+  /** 连接时指定的默认目录；第四十九轮对齐官方提交形态，恢复连接成功后自动打开。 */
+  workspacePath?: string;
   /**
    * Server 访问令牌不会写入 setting.json。
    * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实令牌。
@@ -290,6 +294,10 @@ export interface AppSettings {
   taskAutoArchiveOlderThanDays?: number;
   /** Windows 桌面端关闭窗口时隐藏到托盘；其它平台忽略 */
   closeToTrayOnWindows?: boolean;
+  /** Device-local desktop pet visibility; absent means hidden. */
+  desktopPetEnabled?: boolean;
+  /** Last native pet-window position in display-independent coordinates. */
+  desktopPetPosition?: { x: number; y: number };
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */

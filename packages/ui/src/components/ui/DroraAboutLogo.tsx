@@ -19,4 +19,3 @@ export function DroraAboutLogo({ className }: { className?: string }) {
     </svg>
   );
 }
-

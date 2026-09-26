@@ -117,29 +117,29 @@ if (process.platform !== "win32" && process.platform !== "darwin") {
   // install_failed（发行物行为）。linux CI 上该面不可用，跳过断言。
   console.log("SKIP installer interface (linux: original throws install_failed by design)");
 } else
-check(
-  "installer interface",
-  process.platform === "win32"
-    ? // win32 上走 windows-helper-host 直拉路径，这里用注入 plan 验证同一接口面。
-      typeof server.createCuaHelperInstaller({
-        plan: {
-          version: "0.0.0",
-          platform: "darwin",
-          arch: "arm64",
-          platformKey: "darwin-arm64",
-          installRoot: "/tmp/zcode-cua-helper",
-          appPath: "/tmp/zcode-cua-helper/ZCode Computer Use.app",
-          source: { kind: "bundled", appPath: "/tmp/ZCode Computer Use.app" },
-          expectedBundleId: "dev.zcode.cua-helper",
-          expectedTeamIdentifier: "8A5X4JJ39T",
-          expectedBuildId: "test",
-          allowUnsignedLocalDev: true,
-        },
-      }).ensureInstalled === "function"
-    : typeof server.createCuaHelperInstaller({
-        env: { ...process.env, NODE_ENV: "development", ZCODE_RUNTIME_ENV: "development" },
-      }).ensureInstalled === "function",
-);
+  check(
+    "installer interface",
+    process.platform === "win32"
+      ? // win32 上走 windows-helper-host 直拉路径，这里用注入 plan 验证同一接口面。
+        typeof server.createCuaHelperInstaller({
+          plan: {
+            version: "0.0.0",
+            platform: "darwin",
+            arch: "arm64",
+            platformKey: "darwin-arm64",
+            installRoot: "/tmp/zcode-cua-helper",
+            appPath: "/tmp/zcode-cua-helper/ZCode Computer Use.app",
+            source: { kind: "bundled", appPath: "/tmp/ZCode Computer Use.app" },
+            expectedBundleId: "dev.zcode.cua-helper",
+            expectedTeamIdentifier: "8A5X4JJ39T",
+            expectedBuildId: "test",
+            allowUnsignedLocalDev: true,
+          },
+        }).ensureInstalled === "function"
+      : typeof server.createCuaHelperInstaller({
+          env: { ...process.env, NODE_ENV: "development", ZCODE_RUNTIME_ENV: "development" },
+        }).ensureInstalled === "function",
+  );
 
 // —— mock broker 全链路 ——
 const socketPath = broker.mintBrokerSocketPath({ dir: "/tmp" });

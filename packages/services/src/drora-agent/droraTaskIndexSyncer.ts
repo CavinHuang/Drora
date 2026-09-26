@@ -18,6 +18,7 @@ import {
   type DroraSessionStateSnapshot,
   type DroraWorkspaceEvent,
   type DroraWorkspaceTaskListChanged,
+  normalizeDroraTaskMode,
 } from "@drora/shared";
 import {
   PROTOCOL_V4_LIMITS,
@@ -1832,7 +1833,7 @@ function buildMetaFromSnapshot(
     workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
     createdAt: snapshot.session.createdAt,
     updatedAt: snapshot.session.updatedAt,
-    mode: fromDroraMode(snapshot.session.mode),
+    mode: normalizeDroraTaskMode(fromDroraMode(snapshot.session.mode)),
     // 用户显式切模型或历史模型不可用时，session 操作已经带了新的可用模型。
     // 这类场景要同步覆盖 sqlite 的 task model，否则下次恢复仍会从已删除的历史模型起跳；
     // 普通历史快照仍走最近消息模型优先，避免被误污染的 settings.current 反向污染索引。

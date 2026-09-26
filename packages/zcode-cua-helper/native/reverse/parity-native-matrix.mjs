@@ -15,7 +15,8 @@ function runMatrix(addonPath, outPath) {
     encoding: "utf8",
     timeout: 120000,
   });
-  if (r.status !== 0) throw new Error(`matrix probe failed for ${addonPath}: ${r.stderr?.slice(0, 300)}`);
+  if (r.status !== 0)
+    throw new Error(`matrix probe failed for ${addonPath}: ${r.stderr?.slice(0, 300)}`);
 }
 
 const tmpA = resolve(root, ".matrix-a.json");
@@ -28,9 +29,17 @@ const b = JSON.parse(readFileSync(tmpB, "utf8"));
 
 // 动态值函数:成功执行即可,比较结构形态而非内容
 const DYNAMIC = new Set([
-  "cursorPoint", "listApplications", "listWindows", "screenCaptureProbeWindows",
-  "readClipboardTextAsync", "elementAtPoint", "activateApplicationByAumid",
-  "activateApplication", "applicationIconPngAsync", "captureApp", "isTargetElevated",
+  "cursorPoint",
+  "listApplications",
+  "listWindows",
+  "screenCaptureProbeWindows",
+  "readClipboardTextAsync",
+  "elementAtPoint",
+  "activateApplicationByAumid",
+  "activateApplication",
+  "applicationIconPngAsync",
+  "captureApp",
+  "isTargetElevated",
 ]);
 const shape = (fn, beh) => {
   if (!DYNAMIC.has(fn) || typeof beh !== "object" || beh === null) return beh;

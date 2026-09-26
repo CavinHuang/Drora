@@ -1,5 +1,6 @@
 // oxlint-disable-file
-// 还原草稿：仅供继续手工重建参考，不参与编译
+// 还原草稿（本文件已随包编译进 broker/server dist，且被 protocol.js 引用——
+// 「不参与编译」的旧注释与事实不符，勿据此跳过审查）
 export var NC = {
   debug: () => {},
   info: () => {},

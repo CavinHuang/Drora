@@ -431,23 +431,17 @@ export var Eae = () => Aae(16).toString("hex"),
                   ((this.handle = null),
                   (this.current = null),
                   this.invalidateTransportReady(),
-                  this.logger.warn(
-                    void 0,
-                    "Windows Computer Use Helper exited unexpectedly",
-                    {
-                      generation: r,
-                      pid: a.pid,
-                      errorClass: "unexpected-exit",
-                    },
-                  ),
+                  this.logger.warn(void 0, "Windows Computer Use Helper exited unexpectedly", {
+                    generation: r,
+                    pid: a.pid,
+                    errorClass: "unexpected-exit",
+                  }),
                   this.options.onUnexpectedExit?.({
                     generation: r,
                     pid: a.pid,
                   }))
                 : f(
-                    new Error(
-                      `Windows Computer Use Helper exited before ready (${String(C)})`,
-                    ),
+                    new Error(`Windows Computer Use Helper exited before ready (${String(C)})`),
                     "early-exit",
                   ));
           },
@@ -520,15 +514,11 @@ export var Eae = () => Aae(16).toString("hex"),
             !this.childLifecycle.on(a, "error", v, r, "setup-on-error") ||
             !this.childLifecycle.on(a, "exit", S, r, "setup-on-exit"))
         ) {
-          f(
-            new Error("Windows Computer Use Helper listener setup failed"),
-            "listener-setup",
-          );
+          f(new Error("Windows Computer Use Helper listener setup failed"), "listener-setup");
           return;
         }
         ((p = setTimeout(
-          () =>
-            f(new Error("Windows Computer Use Helper startup timed out"), "startup-timeout"),
+          () => f(new Error("Windows Computer Use Helper startup timed out"), "startup-timeout"),
           this.startupTimeoutMs,
         )),
           p.unref?.());
@@ -549,9 +539,7 @@ export var Eae = () => Aae(16).toString("hex"),
     invalidateForExternalStop(t) {
       if (((this.externalStopEpoch += 1), (this.lastAgentVisibleTransport = null), !t))
         return (
-          this.rejectTransportReady(
-            new Error("Windows Computer Use Helper startup stopped"),
-          ),
+          this.rejectTransportReady(new Error("Windows Computer Use Helper startup stopped")),
           Promise.resolve()
         );
       ((this.handle = null),

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+// oxlint-disable-file -- 桌面打包编排脚本（多阶段 staging 堆叠超 max-lines）
 // 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（drora.cjs）放进 bundled-agents/<platform>/glm，
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
@@ -410,7 +411,11 @@ function stageOfficialPlugins() {
       rmSync(resolve(targetRoot, "node_modules"), { recursive: true, force: true });
       const targetPlatform = { os: platform, arch };
       if (plugin.stagedNativeRuntimes.includes("sharp")) {
-        stageSharpIntoBundledAgents({ desktopPackageRoot: desktopRoot, glmDir: targetRoot, targetPlatform });
+        stageSharpIntoBundledAgents({
+          desktopPackageRoot: desktopRoot,
+          glmDir: targetRoot,
+          targetPlatform,
+        });
       }
       if (plugin.stagedNativeRuntimes.includes("koffi")) {
         stageKoffiIntoBundledAgents({
@@ -490,10 +495,13 @@ async function stageCuaHelperRuntime() {
   await rm(targetRoot, { recursive: true, force: true });
   await mkdir(targetRoot, { recursive: true });
   await cp(sourceRoot, targetRoot, { recursive: true });
-  for (const relativePath of ["dist/windows-helper.js", "build/Release/ax_native.node", "runtime-manifest.json"]) {
+  for (const relativePath of [
+    "dist/windows-helper.js",
+    "build/Release/ax_native.node",
+    "runtime-manifest.json",
+  ]) {
     const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
     await access(stagedAssetPath);
   }
   console.log(`[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`);
 }
-

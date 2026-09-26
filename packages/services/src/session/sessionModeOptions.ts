@@ -1,5 +1,8 @@
 import type { DroraConfigOption, DroraProvider, DroraTaskMode } from "@drora/shared";
 
+// 原版 bundle（chunk-NKOHJ4QI.js @618632 附近）canonical 集合为 10 值——含 legacy
+// permissionMode 词（default/acceptEdits/dontAsk/bypassPermissions）。本地持久化的
+// 旧数据可能携带这些词，按原版逐值恢复（批 3 审查 P3-1）。
 const CANONICAL_SESSION_MODES = new Set<DroraTaskMode>([
   "yolo",
   "plan",
@@ -7,6 +10,10 @@ const CANONICAL_SESSION_MODES = new Set<DroraTaskMode>([
   "auto",
   "autoEdit",
   "build",
+  "default",
+  "acceptEdits",
+  "dontAsk",
+  "bypassPermissions",
 ]);
 
 function readTrimmedString(value: unknown): string | undefined {
@@ -44,6 +51,17 @@ function normalizePersistedSessionMode(
     case "full-auto":
     case "full_auto":
       return "yolo";
+    // 原版 bundle 的三族额外别名（方向同批 1 权限审查的 Txa 映射）：
+    // accept_edits/auto-edit→acceptEdits、agent→default、
+    // agent-full-access/full-access→bypassPermissions。
+    case "accept_edits":
+    case "auto-edit":
+      return "acceptEdits";
+    case "agent":
+      return "default";
+    case "agent-full-access":
+    case "full-access":
+      return "bypassPermissions";
     default:
       return undefined;
   }
@@ -66,18 +84,14 @@ export function resolveProviderModeIdFromConfigOptions(params: {
     return exactMatch.value;
   }
 
-  const requestedPersistedMode = normalizePersistedSessionMode(
-    requestedMode,
-    params.provider,
-  );
+  const requestedPersistedMode = normalizePersistedSessionMode(requestedMode, params.provider);
   if (!requestedPersistedMode) {
     return undefined;
   }
 
   const semanticMatch = candidates.find(
     (candidate) =>
-      normalizePersistedSessionMode(candidate.value, params.provider) ===
-      requestedPersistedMode,
+      normalizePersistedSessionMode(candidate.value, params.provider) === requestedPersistedMode,
   );
 
   return semanticMatch?.value;

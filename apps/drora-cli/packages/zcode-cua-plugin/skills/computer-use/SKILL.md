@@ -25,6 +25,8 @@ Put the bootstrap and the actions in the **same** cell, bootstrap first:
 
 ```js
 const root =
+  process.env.DRORA_CUA_PLUGIN_ROOT ??
+  process.env.DRORA_PLUGIN_ROOT ??
   process.env.ZCODE_CUA_PLUGIN_ROOT ??
   process.env.ZCODE_PLUGIN_ROOT ??
   process.env.CLAUDE_PLUGIN_ROOT;

@@ -103,6 +103,10 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("server"),
     url: nonEmptyStringSchema,
+    // 第四十九轮对齐官方提交形态：name/workspacePath 随快照持久化，
+    // 恢复连接时分别用于展示名与默认目录；token 仍只保留 credentialKey。
+    name: nonEmptyStringSchema.optional(),
+    workspacePath: nonEmptyStringSchema.optional(),
     tokenCredentialKey: nonEmptyStringSchema.optional(),
   }),
 ]);
@@ -444,6 +448,8 @@ const appSettingsObjectSchema = z.object({
   taskAutoArchiveEnabled: z.boolean().default(false),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(7),
   closeToTrayOnWindows: z.boolean().default(true),
+  desktopPetEnabled: z.boolean().default(false),
+  desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
   keepAwakeWhileRunning: z.boolean().default(false),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
@@ -512,6 +518,8 @@ export const appSettingsPatchSchema = z.object({
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),
+  desktopPetEnabled: z.boolean().optional(),
+  desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),

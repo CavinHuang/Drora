@@ -63,9 +63,9 @@ export declare function createHelperTokenFileReceipt(files: (string | undefined)
   tokenFiles: string[];
   revokeTokenFile(): Promise<void>;
 };
-export declare function scheduleHelperTokenFileCleanup(
-  receipt: { revokeTokenFile(): Promise<void> },
-): void;
+export declare function scheduleHelperTokenFileCleanup(receipt: {
+  revokeTokenFile(): Promise<void>;
+}): void;
 
 export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDependencies;
 

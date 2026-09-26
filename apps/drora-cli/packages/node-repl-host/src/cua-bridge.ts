@@ -81,6 +81,8 @@ export function createComputerUseBridgeGlobals(input: {
     },
   };
 
+  // 符号字面量保持官方原样（见文件头注释）：本仓 SDK client 与市场安装的上游 client
+  // 都用 zcode.* 键从 globalThis 取 bridge，单挂即完整覆盖。
   return { [NODE_REPL_CUA_BRIDGE_SYMBOL]: bridge };
 }
 

@@ -73,6 +73,11 @@
     "packages/zcode-cua/broker",
     "packages/zcode-cua/frame-contract",
     "packages/zcode-cua/vendor",
-    "packages/zcode-cua/mcp"
+    "packages/zcode-cua/mcp",
+    "packages/zcode-cua/upstream",
+    "packages/zcode-cua-helper/native/reverse",
+    "packages/zcode-cua-helper/tools",
+    "packages/desktop/scripts/prepare-agent-node-bundle.mjs",
+    ".tmp-work"
   ]
 }

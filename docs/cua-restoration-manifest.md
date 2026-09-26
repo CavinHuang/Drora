@@ -7,57 +7,57 @@
 
 ## 一、复原方式说明
 
-| 方式             | 含义                                                                     |
-| ---------------- | ------------------------------------------------------------------------ |
+| 方式             | 含义                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------ |
 | 源码还原         | 从发行 bundle（未混淆 esbuild 产物，含 `// src/...` 模块标记）提取并转为可读 TS 模块 |
-| 语义还原         | 无发行源码可依时，按协议/契约与交叉证据重建（实现处均有注释说明依据）    |
-| 原样拷贝         | 原版二进制/资产直接入仓（不破坏签名与行为）                              |
-| 保持 fail-closed | 原发行物本身即 fail-closed 的面，忠实保留该行为                          |
+| 语义还原         | 无发行源码可依时，按协议/契约与交叉证据重建（实现处均有注释说明依据）                |
+| 原样拷贝         | 原版二进制/资产直接入仓（不破坏签名与行为）                                          |
+| 保持 fail-closed | 原发行物本身即 fail-closed 的面，忠实保留该行为                                      |
 
 ## 二、组件映射
 
 ### 1. `@zcode/zcode-cua`（in-app 库 + MCP server）
 
-| 原版组件                                                                                     | 仓库位置                                          | 方式                                       | 验证                                   |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------ | -------------------------------------- |
-| broker 客户端（brokerExchange/callBrokerMethod/probeHelperHealth）                           | `packages/zcode-cua/src/broker/{client,index}.ts` | 源码还原                                   | mock broker E2E                        |
-| socket 路径（稳定 socket/runtime 目录/铸造/回收）                                            | `src/broker/socket-path.ts`                       | 源码还原                                   | 单元冒烟（win32 pipe / POSIX sock 双形态） |
-| 宿主侧协议工具（parseRequestLine/dispatchRequest 等）                                        | `src/broker/protocol.ts`                          | 源码还原（镜像 helper types.ts 方法表）    | 冒烟                                   |
-| host 侧模块（installer/verifier/launcher/helper-host/orphan-reaper/frame 门/权限请求等）     | `src/broker/server/*.ts` + `index.ts`             | 源码还原                                   | tsc + 冒烟                             |
-| frame-contract raster 完整性门                                                               | `src/frame-contract/index.ts`                     | 源码还原（frame-contract.pretty.js.txt）   | 冒烟（有效/无效 image_ref、PNG 封套）  |
-| request-access 状态 schema                                                                   | `src/request-access-contract.ts`                  | 源码还原（zod）                            | 冒烟（valid/invalid）                  |
-| pip-session 宿主客户端                                                                       | `pip-session-node.js` → `src/mcp` 依赖链          | 源码还原                                   | 冒烟（enabled 语义/关闭）              |
-| MCP server 引擎                                                                              | `src/mcp/{errors,client,session,tools,server}.ts` | 源码拆解（vendor 同源提取）                | 冒烟                                   |
-| MCP server 第三方内联（zod v3 / zod-to-json-schema / MCP SDK / express）                     | `vendor/mcp-server.dist.mjs`                      | 原样拷贝（第三方档案）                     | E2E                                   |
-| `createComputerUseRuntime`                                                                   | `src/runtime.ts`（入口 `index.js`）               | 语义还原（按 node-repl-host 消费契约）     | E2E（execute → mock broker）           |
-| `createPipSessionClient`                                                                     | `pip-session-node.js`                             | 源码还原                                   | 冒烟                                   |
+| 原版组件                                                                                 | 仓库位置                                          | 方式                                     | 验证                                       |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------- | ------------------------------------------ |
+| broker 客户端（brokerExchange/callBrokerMethod/probeHelperHealth）                       | `packages/zcode-cua/src/broker/{client,index}.ts` | 源码还原                                 | mock broker E2E                            |
+| socket 路径（稳定 socket/runtime 目录/铸造/回收）                                        | `src/broker/socket-path.ts`                       | 源码还原                                 | 单元冒烟（win32 pipe / POSIX sock 双形态） |
+| 宿主侧协议工具（parseRequestLine/dispatchRequest 等）                                    | `src/broker/protocol.ts`                          | 源码还原（镜像 helper types.ts 方法表）  | 冒烟                                       |
+| host 侧模块（installer/verifier/launcher/helper-host/orphan-reaper/frame 门/权限请求等） | `src/broker/server/*.ts` + `index.ts`             | 源码还原                                 | tsc + 冒烟                                 |
+| frame-contract raster 完整性门                                                           | `src/frame-contract/index.ts`                     | 源码还原（frame-contract.pretty.js.txt） | 冒烟（有效/无效 image_ref、PNG 封套）      |
+| request-access 状态 schema                                                               | `src/request-access-contract.ts`                  | 源码还原（zod）                          | 冒烟（valid/invalid）                      |
+| pip-session 宿主客户端                                                                   | `pip-session-node.js` → `src/mcp` 依赖链          | 源码还原                                 | 冒烟（enabled 语义/关闭）                  |
+| MCP server 引擎                                                                          | `src/mcp/{errors,client,session,tools,server}.ts` | 源码拆解（vendor 同源提取）              | 冒烟                                       |
+| MCP server 第三方内联（zod v3 / zod-to-json-schema / MCP SDK / express）                 | `vendor/mcp-server.dist.mjs`                      | 原样拷贝（第三方档案）                   | E2E                                        |
+| `createComputerUseRuntime`                                                               | `src/runtime.ts`（入口 `index.js`）               | 语义还原（按 node-repl-host 消费契约）   | E2E（execute → mock broker）               |
+| `createPipSessionClient`                                                                 | `pip-session-node.js`                             | 源码还原                                 | 冒烟                                       |
 
 ### 2. `@zcode/zcode-cua-helper`（CUA Runtime Helper）
 
-| 原版组件                                   | 仓库位置                                                             | 方式                                                     | 验证                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| payload CUA 模块（broker 服务端、AX/自动化桥、平台表面、peer 验证等） | `src/broker/**`、`src/lib/**`、`src/native/**`、`src/pip-session/**` | 源码还原（注意：底稿为 v3.1 内部版，与 0.5.13 存在方法表差异，见第五节） | tsc 0 错误；构建成功                                          |
-| Windows 入口（windowsDevHelperMain）       | `src/broker/server/windowsDevHelperMain.ts`                          | 源码还原（第二轮按原版逐行校正）                         | 入口 5 场景 parity 全 MATCH（含 exit code）                   |
-| Windows 系统表面（AUMID/别名启动）         | `src/broker/server/windowsSystemSurface.ts`                          | 源码还原（第二轮从原版 bundle 整模块替换）               | E2E capabilities parity MATCH                                 |
-| SEA 入口 + 内嵌元数据                      | `src/helper-sea-entry.ts`                                            | 源码还原                                                 | 构建                                                          |
-| macOS Helper .app 构建                     | `build-cua-helper-app.mjs`                                           | 语义重建                                                 | 未在本机验证（无 mac .app 资产，见第三节）                    |
-| Windows helper bundle                      | `build.mjs`                                                           | 原有                                                     | 构建 + 与原版发行物 E2E 对齐（见第五节）                      |
+| 原版组件                                                              | 仓库位置                                                             | 方式                                                                     | 验证                                        |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| payload CUA 模块（broker 服务端、AX/自动化桥、平台表面、peer 验证等） | `src/broker/**`、`src/lib/**`、`src/native/**`、`src/pip-session/**` | 源码还原（注意：底稿为 v3.1 内部版，与 0.5.13 存在方法表差异，见第五节） | tsc 0 错误；构建成功                        |
+| Windows 入口（windowsDevHelperMain）                                  | `src/broker/server/windowsDevHelperMain.ts`                          | 源码还原（第二轮按原版逐行校正）                                         | 入口 5 场景 parity 全 MATCH（含 exit code） |
+| Windows 系统表面（AUMID/别名启动）                                    | `src/broker/server/windowsSystemSurface.ts`                          | 源码还原（第二轮从原版 bundle 整模块替换）                               | E2E capabilities parity MATCH               |
+| SEA 入口 + 内嵌元数据                                                 | `src/helper-sea-entry.ts`                                            | 源码还原                                                                 | 构建                                        |
+| macOS Helper .app 构建                                                | `build-cua-helper-app.mjs`                                           | 语义重建                                                                 | 未在本机验证（无 mac .app 资产，见第三节）  |
+| Windows helper bundle                                                 | `build.mjs`                                                          | 原有                                                                     | 构建 + 与原版发行物 E2E 对齐（见第五节）    |
 
 ### 3. 二进制与资产（原样拷贝）
 
-| 资产                                    | 仓库位置                                        | 说明                                                                       |
-| --------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
-| ax_native.node（win32）                 | `packages/zcode-cua-helper/build/Release/`      | 原版发行物二进制；helperAddonLoader in-tree 路径直接解析，E2E 加载验证通过 |
-| ax_native_mac.node（darwin）            | `packages/zcode-cua-helper/native/`             | 原版发行物二进制副本；接口逆向说明见同目录 README（117 导出）               |
-| ax_native.d.ts                          | `packages/zcode-cua-helper/native/`             | 运行时内省生成的接口声明                                                    |
-| zcode-window-bounds                     | `packages/desktop/resources/macos-window-bounds/` | 权限浮窗吸附数据源，打包配置原有引用补齐                                 |
+| 资产                         | 仓库位置                                          | 说明                                                                       |
+| ---------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| ax_native.node（win32）      | `packages/zcode-cua-helper/build/Release/`        | 原版发行物二进制；helperAddonLoader in-tree 路径直接解析，E2E 加载验证通过 |
+| ax_native_mac.node（darwin） | `packages/zcode-cua-helper/native/`               | 原版发行物二进制副本；接口逆向说明见同目录 README（117 导出）              |
+| ax_native.d.ts               | `packages/zcode-cua-helper/native/`               | 运行时内省生成的接口声明                                                   |
+| zcode-window-bounds          | `packages/desktop/resources/macos-window-bounds/` | 权限浮窗吸附数据源，打包配置原有引用补齐                                   |
 
 ### 4. 插件与桌面 UI
 
-| 组件                                                   | 仓库位置                                       | 状态        |
-| ------------------------------------------------------ | ---------------------------------------------- | ----------- |
-| 官方插件包（`computer-use@zcode-plugins-official` 0.5.13） | `apps/zcode-cli/packages/zcode-cua-plugin`  | ✅ 第四轮对齐原版发行物（见下） |
-| 权限浮窗 UI（renderer/preload/main 三层）              | `packages/desktop/src/{renderer,preload,main}` | ✅ 仓库原有 |
+| 组件                                                       | 仓库位置                                       | 状态                            |
+| ---------------------------------------------------------- | ---------------------------------------------- | ------------------------------- |
+| 官方插件包（`computer-use@zcode-plugins-official` 0.5.13） | `apps/zcode-cli/packages/zcode-cua-plugin`     | ✅ 第四轮对齐原版发行物（见下） |
+| 权限浮窗 UI（renderer/preload/main 三层）                  | `packages/desktop/src/{renderer,preload,main}` | ✅ 仓库原有                     |
 
 ### 5. 插件对齐记录（第四轮，2026-09-22）
 
@@ -80,7 +80,7 @@ node_repl SDK 方案对齐回原版发行形态：
   `src/mcp/server.ts` 与原版 bundle 内嵌薄壳逐字一致（已核对）。
 - **配套对齐**：`bootstrap/official-plugin-definitions.ts` 的
   OFFICIAL_CUA_REQUIRED_SEED_PATHS → 原版文件集、`runtimeTopLevelPaths:
-  ["node_modules"]`（seed 打包放行原生依赖）、version → 0.5.13；
+["node_modules"]`（seed 打包放行原生依赖）、version → 0.5.13；
   `packages/desktop/scripts/prepare-agent-node-bundle.mjs` 的 staged 清单同步，
   并支持声明 runtimeTopLevelPaths 的插件把 node_modules 带入安装包。
 - **验证**：dist 直跑 fail-closed（缺 `--permission-broker-socket` 拒绝启动）；
@@ -174,7 +174,7 @@ capabilities）、错误 token 拒绝，三项与原版发行物完全一致。
   VerifiedPipStartWorker（Napi::AsyncWorker）、AxCaptureDiagnosticState（epoch 取证
   状态）、PiP 栈语义函数群、5 个 ObjC 类 137 方法。
 - 产出：`native/reverse/{win32-static-analysis.md, mac-static-analysis.md,
-  src/ax_native_win.cc, data/*}`；`native/README.md` 与本清单同步更新。
+src/ax_native_win.cc, data/*}`；`native/README.md` 与本清单同步更新。
 
 ### 第六轮：win32 addon 能力对齐重建（2026-09-22）
 
@@ -231,33 +231,34 @@ capabilities）、错误 token 拒绝，三项与原版发行物完全一致。
 - 移除死代码（mac 面函数与被 WinRT 替代的 PrintWindow 管线）。
 
 ### 第十轮：发行物全目录对齐盘点（2026-09-22，D:\software\zcode
+
 esources）
 
 对 resources 全目录逐一核对仓库对齐状态：
 
-| 发行物资产 | 仓库状态 | 结论 |
-| --- | --- | --- |
-| tools/cua-helper（helper bundle + win32/mac addon） | 已还原 + 三套件 221 项对齐 | ✅ 已对齐 |
-| glm/packages/zcode-cua-plugin（桌面打包版） | 与插件缓存版同源；仓库版仅多 src/ 与 resolve-pnpm-invocation.mjs（合理本地补充） | ✅ 已对齐 |
-| app/ 与 app.asar | md5 级完全一致（4113 文件，双形态发行同一份内容） | 同源，无独立差异面 |
-| out/{main,host,scheduler,preload,renderer} | 仓库可完整构建（build:no-runtime-assets 通过，产物同构 6 段）；cua 面（desktopCuaHelperInstaller/cuaPermissionPanel/cua-permission-panel.html）两侧俱在 | ✅ 源码链齐备；内容差异为版本演进（仓库 HEAD 领先） |
-| app.asar.unpacked（node-pty prebuilds、ssh2 sshcrypto） | 仓库 pnpm install 产出同源二进制 | ✅ |
-| glm 其余 7 插件 | android-emulator/ios-simulator/restore-legacy/skill-creator 版本一致；browser-use（0.4.1→0.5.1）与 zcode-guide（0.1.0→0.2.0）仓库领先；document-skills-plugin 0.1.4 在仓库已重构拆分（documents/pdf/presentations/spreadsheets 等分包） | ✅ 版本演进，非缺失 |
-| glm/zcode.cjs（CLI 0.16.5） | 仓库 CLI 0.1.0（开源时版本号重置），源码链齐备 | 版本演进 |
-| config/default.json | 仅飞书群链接 token 运营配置差异 | ✅ |
-| model-providers/models_catalog_china_llm_zcode_*.json（目录型 catalog，10 providers） | 开源 HEAD 已重构为规则型 config/provider/zcode-builtin.json（revision 30，builtinProviderConfig）；旧 catalog 机制在 legacy 序列化层留有兼容 | 机制演进，非缺失 |
-| tools/ripgrep、tools/ugrep | 第三方二进制（rg.exe/ugrep.exe），随发行自带 | 第三方，无需还原 |
-| elevate.exe、tray_icon.ico、icon*.png、app-update.yml、.node-bundle-meta.json | 打包/更新器资产 | 打包产物，无需还原 |
+| 发行物资产                                                                             | 仓库状态                                                                                                                                                                                                                                | 结论                                                |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| tools/cua-helper（helper bundle + win32/mac addon）                                    | 已还原 + 三套件 221 项对齐                                                                                                                                                                                                              | ✅ 已对齐                                           |
+| glm/packages/zcode-cua-plugin（桌面打包版）                                            | 与插件缓存版同源；仓库版仅多 src/ 与 resolve-pnpm-invocation.mjs（合理本地补充）                                                                                                                                                        | ✅ 已对齐                                           |
+| app/ 与 app.asar                                                                       | md5 级完全一致（4113 文件，双形态发行同一份内容）                                                                                                                                                                                       | 同源，无独立差异面                                  |
+| out/{main,host,scheduler,preload,renderer}                                             | 仓库可完整构建（build:no-runtime-assets 通过，产物同构 6 段）；cua 面（desktopCuaHelperInstaller/cuaPermissionPanel/cua-permission-panel.html）两侧俱在                                                                                 | ✅ 源码链齐备；内容差异为版本演进（仓库 HEAD 领先） |
+| app.asar.unpacked（node-pty prebuilds、ssh2 sshcrypto）                                | 仓库 pnpm install 产出同源二进制                                                                                                                                                                                                        | ✅                                                  |
+| glm 其余 7 插件                                                                        | android-emulator/ios-simulator/restore-legacy/skill-creator 版本一致；browser-use（0.4.1→0.5.1）与 zcode-guide（0.1.0→0.2.0）仓库领先；document-skills-plugin 0.1.4 在仓库已重构拆分（documents/pdf/presentations/spreadsheets 等分包） | ✅ 版本演进，非缺失                                 |
+| glm/zcode.cjs（CLI 0.16.5）                                                            | 仓库 CLI 0.1.0（开源时版本号重置），源码链齐备                                                                                                                                                                                          | 版本演进                                            |
+| config/default.json                                                                    | 仅飞书群链接 token 运营配置差异                                                                                                                                                                                                         | ✅                                                  |
+| model-providers/models*catalog_china_llm_zcode*\*.json（目录型 catalog，10 providers） | 开源 HEAD 已重构为规则型 config/provider/zcode-builtin.json（revision 30，builtinProviderConfig）；旧 catalog 机制在 legacy 序列化层留有兼容                                                                                            | 机制演进，非缺失                                    |
+| tools/ripgrep、tools/ugrep                                                             | 第三方二进制（rg.exe/ugrep.exe），随发行自带                                                                                                                                                                                            | 第三方，无需还原                                    |
+| elevate.exe、tray_icon.ico、icon\*.png、app-update.yml、.node-bundle-meta.json         | 打包/更新器资产                                                                                                                                                                                                                         | 打包产物，无需还原                                  |
 
 ### 第十七轮：release 准备完善与发布闭环验证（2026-09-23）
 
-- **版本统一**：desktop 与 cli-sea job 在 tag(v*)构建时把 tag 版本写入根
+- **版本统一**：desktop 与 cli-sea job 在 tag(v\*)构建时把 tag 版本写入根
   package.json（build-meta 与 electron-builder 的版本单一真相源），正式发布
-  产物带 tag 版本号而非硬编码 3.14.0；手动 nightly 保持 _TEST 后缀以示区分。
+  产物带 tag 版本号而非硬编码 3.14.0；手动 nightly 保持 \_TEST 后缀以示区分。
 - **finalize 完整性门**：release job 下载产物后先跑离线校验（按平台覆盖
-  断言 dmg/zip/exe/SEA 存在、通道清单 latest*.yml 在、SHA256SUMS 自洽且
+  断言 dmg/zip/exe/SEA 存在、通道清单 latest\*.yml 在、SHA256SUMS 自洽且
   兼容空格→点改名），再生成 SHA256SUMS 并发布。
-- **两种发布形态**：tag v* → 正式（production 身份、无 _TEST、latest 标记）；
+- **两种发布形态**：tag v\* → 正式（production 身份、无 \_TEST、latest 标记）；
   手动 dispatch → nightly（test 后缀、prerelease）。
 - **验证**：run 35831188052 六 job 全绿；发布页 nightly-277c324 含 12 项资产
   （双平台安装包 + blockmap + 通道清单 + SUMS + 三平台 CLI）；从该 Release
@@ -267,11 +268,12 @@ esources）
 
 ### 第十六轮：完整发布流水线（2026-09-23）
 
-release.yml(tag v* 自动 / 手动 dispatch,六个 job)全绿并发布首个
+release.yml(tag v\* 自动 / 手动 dispatch,六个 job)全绿并发布首个
 GitHub Release(nightly-149a7eb):macOS dmg+zip、Windows exe 安装包、
 三平台 CLI 单可执行,共 6 个产物 1.16 GB。
 
 链路与关键修复:
+
 - 本地 Windows 打包预验证通过(bundle.mjs --os=win,152 MiB exe 过审计);
 - desktop job:全链构建(闭包 dist → 插件 runtime → desktop build →
   electron-builder);无签名环境(CSC auto-discovery 关、mac identity 空)
@@ -289,7 +291,7 @@ GitHub Release(nightly-149a7eb):macOS dmg+zip、Windows exe 安装包、
 ### 第十五轮：CLI 构建链完善（2026-09-22）
 
 - **ci.yml 的 cli-build 深度化**：新增 scripts/ci/cli-app-server-smoke.mjs ——
-  app-server 协议握手（首行必须是合法 startup/* JSON 通知）、四条子命令
+  app-server 协议握手（首行必须是合法 startup/\* JSON 通知）、四条子命令
   （plugins/skills/commands/doctor）执行、agent 核心工具注册（字符串面），
   替换原先的 --version/--help 浅冒烟。
 - **新增 cli-sea.yml（workflow_dispatch，ubuntu+windows 矩阵）**：发行级单可执行
@@ -305,8 +307,9 @@ GitHub Release(nightly-149a7eb):macOS dmg+zip、Windows exe 安装包、
 ### 第十四轮：CI 全绿闭环（2026-09-22）
 
 Drora Actions 四 job 全绿（run 35741131849）：verify / smoke / cli-build（ubuntu）
-+ addon-parity（windows-2022：MSVC 重编译 + 只读 57 项 + 矩阵 123 格对入库原版
-副本全过，重编译 .node 与 CLI bundle、helper bundle 均归档为 artifact）。
+
+- addon-parity（windows-2022：MSVC 重编译 + 只读 57 项 + 矩阵 123 格对入库原版
+  副本全过，重编译 .node 与 CLI bundle、helper bundle 均归档为 artifact）。
 
 首跑至全绿修了四处环境性差异：linux 上原版 installer 面按设计抛 install_failed
 （冒烟断言改三平台分支）；windows-latest 的 VS18 不被 node-gyp 识别（钉
@@ -423,13 +426,13 @@ Sleep(uint32(-1)) 长眠（负 duration 先判 false）。
 
 - **方法表**：`BROKER_METHODS` 42 → 原版 63（对齐顺序/分组/READ_ONLY 集），另保留
   v3.1 超集 `paste`（宿主 cua-spec 消费，spec §六唯一有文档表偏差）。
-- **重放 15 个方法 handler**：display 四件套（screen_size/cursor_position/list_displays/
+- **重放 15 个方法 handler**：display 四件套（screen*size/cursor_position/list_displays/
   set_display，接线已还原未导出的 electronDisplaySelection）、screenshot（双拓扑指纹 +
   WindowServer 窗口栈指纹防漂移）、read/write_clipboard、get_skyshot（接线 axSkyshot，
   与原版同在 axReadOnly methods 末尾注册）、click_element_at_point、move_to、mouse_down/
   mouse_up（buttonHolder/splitDownInFlight/backgroundButtonHold 三态所有权 + 后台窗口
   ABI + 终清释放语义恢复）、type_text_into_current_focus、key_down/key_up。
-  `pip_live_probe_*` ×6：handler 在 helperMain 本就还原（v3.1 只删表项），恢复表注册即通。
+  `pip_live_probe*\*` ×6：handler 在 helperMain 本就还原（v3.1 只删表项），恢复表注册即通。
 - **构建链**：加 node 主版本守卫（SEA blob 随 node 版本变化，node 25 生成的 blob 注入
   node 24 骨架会在加载期 v8 崩溃，实测复现并修复）。
 - **parity 套件升级**（`tools/parity-mac-helper.mjs` 场景三）：13 方法空参探测矩阵
@@ -507,7 +510,7 @@ spec：`specs/mac-cua-helper-app-alignment.md` §六。上游"桌面内嵌自己
 用户裁定：打包必须对齐原版实现/形态。复核原版实现后的两点结论：
 
 - **load-sharp 基差异是官方两产物线的演进差，非还原漂移**：mac 3.11.2
-  helper SEA 为 4 基（import.meta.url/__filename/ZCODE_PLUGIN_ROOT/可选 cwd），
+  helper SEA 为 4 基（import.meta.url/\_\_filename/ZCODE_PLUGIN_ROOT/可选 cwd），
   win32 0.5.13 原版 bundle（字节在仓）为 5 基（首位 ZCODE_CUA_PLUGIN_ROOT）——
   与我们 helper src 的还原逐字一致。裁定：保持 5 基（忠实 win32 官方实现，
   属该模块的较新演进），不回退 mac 旧形态。原版 SEA 入口（helper-sea-entry.mjs
@@ -530,10 +533,10 @@ q9/Kxe/产品 host 工厂），即"原版对 cua helper 的真实调用"。
   LaunchServices 不透传 env，mac 产品 token 从 env 改为**一次性文件**交付——
   `<socketDir>/.tokens/.broker-token-<launcherPid>-<16hex>`（目录 0700、文件
   0600、wx + 5 次重试）；args 序 `--socket → --token-file → [
-  --presentation-token-file] → --version → --expected-app-bundle-path →
-  [launch guard] → --exit-log → --launcher-pid → [dev 逃逸] → [ghost/pip
-  flags]`；成功发射 60s 后回收 token 文件；open 子进程 env 走白名单
-  （HOME/TMPDIR/…/LC_* + ZCODE_CUA_PIP_DEBUG，PATH 硬编码
+--presentation-token-file] → --version → --expected-app-bundle-path →
+[launch guard] → --exit-log → --launcher-pid → [dev 逃逸] → [ghost/pip
+flags]`；成功发射 60s 后回收 token 文件；open 子进程 env 走白名单
+  （HOME/TMPDIR/…/LC\_\* + ZCODE_CUA_PIP_DEBUG，PATH 硬编码
   /usr/bin:/bin:/usr/sbin:/sbin，超时 10s）。
 - **还原落地**：helper-launcher 增 writeOneShotHelperTokenFile /
   createHelperTokenFileReceipt / scheduleHelperTokenFileCleanup，Bz 发射器
@@ -549,9 +552,9 @@ q9/Kxe/产品 host 工厂），即"原版对 cua helper 的真实调用"。
 - **验收**（packages/zcode-cua/test/mac-launch-contract.mjs，并入 package
   test）：A token 文件格式/权限；B 与原版 Uxe 逐项参数序断言；C 完整原版
   向量 E2E（含 --exit-log/--launcher-pid/--ghost-cursor-overlay/--pip-mode
-  + 产品 launcher）——ready / token authenticate / broker_info 认领 / 错
-  token 拒 / exit-log 落盘，全过。既有三套件（restored-smoke、
-  embedded-build-id、mac parity 四场景）全绿；typecheck/lint/架构门全绿。
+  - 产品 launcher）——ready / token authenticate / broker_info 认领 / 错
+    token 拒 / exit-log 落盘，全过。既有三套件（restored-smoke、
+    embedded-build-id、mac parity 四场景）全绿；typecheck/lint/架构门全绿。
 - **如实边界**：桌面→agent 进程的 env 注入段（socket/token 写入 agent env）
   在当前 checkout 尚无调用方（injectInto 无 caller，属桌面接线演进项）；
   capture/restore 两端已就绪，注入链落地即通。
@@ -683,7 +686,7 @@ darwin dev 回退正确加载 mac 副本（117 导出可用）。
 ### 第二十三轮：一键验收 runner + 记忆同步（2026-09-24）
 
 - **`tools/verify-mac-alignment.mjs`**（`pnpm --filter @drora/drora-cua-helper-runtime
-  verify:mac`，`--fast` 跳过重建）：八段串行——构建/溯源冒烟/接口探针/漂移/
+verify:mac`，`--fast` 跳过重建）：八段串行——构建/溯源冒烟/接口探针/漂移/
   ax_native 字节对齐/包测试链/embeddedBuildId/发射契约 A–G/双 broker parity。
   任一失败非零退出。官方 staging 资产缺席时字节对齐与 parity 段自动跳过
   （CI 形态）。
@@ -752,7 +755,6 @@ DRORA_HOME||~/.drora，无桥接）。属重命名迁移的接缝缺陷：托管
 官方 ZCode 同根共存；standalone 设置页路径静默失败。修复需产品决策
 （env 路由 vs 保持共存），已入 spec §七.0 遗留决策，未获批不动。
 
-
 ### 收尾增补：dmg 卷内验证（2026-09-25）
 
 挂载 `Drora Preview-0.0.1-mac-arm64_TEST.dmg` 实测卷内内容（区别于上轮的
@@ -816,8 +818,8 @@ stop → status 七步状态机，双侧逐步比对（pid 归一）。
 ### 第三十六轮：全方法空参穷举 + element 消息漂移修复（2026-09-25）
 
 parity 场景六：**全方法空参穷举**——除 TCC/AX 阻塞面（screenshot 家族、
-AX 观测九法）、有副作用面（paste、controller_takeover/stop）与
-presentation 门（pip_session_*）外的全部方法，空参行为
+AX 观测九法）、有副作用面（paste、controller*takeover/stop）与
+presentation 门（pip_session*\*）外的全部方法，空参行为
 code + message 双侧逐字比对。
 
 - **发现一处真实还原漂移并修复**：六个 element 方法
@@ -882,7 +884,7 @@ HTTPS 源生效，无伪造面；CDN 内容不变（规则 0 尊重）。typeche
   `Symbol.for("zcode.node-repl.computer-use-bridge")`（豁免区客户端逐字读取）；
   `bootstrap/src/app/built-in-node-repl.ts` 增设 `ZCODE_CUA_PLUGIN_ROOT`
   （官方 SKILL 引导按 `ZCODE_CUA_PLUGIN_ROOT ?? ZCODE_PLUGIN_ROOT ??
-  CLAUDE_PLUGIN_ROOT` 解析插件根，豁免区不改名则宿主必须提供官方变量名）。
+CLAUDE_PLUGIN_ROOT` 解析插件根，豁免区不改名则宿主必须提供官方变量名）。
 - **browser-use 0.5.1 内容还原**：仓库此前单方面删光官方内容——恢复
   `CLAUDE_PLUGIN_ROOT` 兼容回退、全部 Codex 措辞（SKILL/docs/api.json/README）、
   `external: ["sharp"]` 与 `修复原因` 注释（7 处落在 bundle 源头
@@ -1000,10 +1002,10 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   app.asar 全量解包到 `Resources/app`（幂等：先清上代副本），置于 adhoc 重签之前使
   副本随整包统一重签。
 - **真实构建端到端验证**（bundle.mjs --os=mac --arch=arm64）：`afterPack:
-  extractUnpackedAppCopy` 2835ms 完成；新构建 `Resources/app` 与其 app.asar 解包
+extractUnpackedAppCopy` 2835ms 完成；新构建 `Resources/app` 与其 app.asar 解包
   内容 find diff = 0 行；顶层 Resources 与官方完全一致（仅多 THIRD-PARTY-NOTICES.md
-  + licenses/ 合规增补，官方无对应物）；**.app 总体积 1.1G 与官方 1.1G 对齐**
-  （此前 713M，差值即本项）。
+  - licenses/ 合规增补，官方无对应物）；**.app 总体积 1.1G 与官方 1.1G 对齐**
+    （此前 713M，差值即本项）。
 - 顺带修复构建验证暴露的漏网 bug：prepare-agent-node-bundle.mjs 中 drora-guide 条目
   的 requiredSeedPaths 副本仍钉第三十九轮已删除的 commands/workflow.md（注册表已改、
   打包脚本副本漏同步，首次完整打包即 fail-fast 拦截），同步为 0.3.0 六个诊断技能
@@ -1021,7 +1023,7 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
   不变），但缺失在打包日志可见。
 - **第41轮 icon-sources 同步真实 CDN 端到端验证**：以官方 app 的 claude 市场镜像
   清单（314 插件、全量无图标）为输入，临时 storage root 跑 `syncClaudePluginsOfficial
-  Icons`——真实拉取 CDN 索引 256 条、244 个条目获得 CDN 图标并原子持久化进镜像
+Icons`——真实拉取 CDN 索引 256 条、244 个条目获得 CDN 图标并原子持久化进镜像
   清单，进程内一次性守卫二次调用直接跳过。实现与官方 hdn/wJr 行为吻合。
 - **android/ios dist 残差定量收口**：第四十轮出源对齐后重建产物 vs 官方残余差异
   定性——server.js（639/271 行）= esbuild 模块内联顺序 + 标识符编号（编译器输出
@@ -1165,6 +1167,36 @@ fork 基线已有、只缺服务层与注册）：
 - 测试：services 新增 9 项（active merge/内置逐字/排序/容错/id 前缀/回落链）
   全过，套件 28/28；desktop MJ 清单测试补 outputStyleService 断言 5/5。
 - 质量门：根 typecheck 0 错、lint 0 errors、架构 0 违规。
+
+### 第四十九轮：server 远程五项偏离全部收口（2026-09-26）
+
+第 47 轮五项有意偏离经官方逆向定案后全部闭合：
+
+- **③ conversationShare（官方 cRe 定案，推翻第 47 轮判断）**：官方对 server 远程的
+  会话分享**明确禁用**——createUnsupportedRemoteConversationShareService，message
+  固定 "Conversation sharing is not available for this client or remote target"，
+  onRejected 记 {kind:"feature_disabled", reason:"server_remote_unsupported"}；真实
+  实现只在 ssh 系 TJ 的 Ud（远端物化+本地 API 分享）。第 47 轮注册的远端代理是
+  **超出官方的能力面**（虽功能可用），按官方形态回退为禁用门禁
+  （createUnsupportedConversationShareService 仓库既有统一门禁工厂 + 官方 message
+  逐字 + serviceLogger("conversation-share") 审计）。
+- **⑤ dispose 语义（官方 TE 定案）**：官方对 server 远程同样调用
+  disposeServiceResourcesAndWait——内部按 hasDisposeAllAndWait/hasDisposeAll 能力
+  探测逐个处理，RemoteServiceAccess 远端代理没有这两个方法天然跳过，实际收口的
+  是容器内本地资源。第 47 轮"跳过防波及共享 server"的担忧不成立，已照官方调用。
+- **④ 快照持久化 name/workspacePath（官方提交形态已提取）**：
+  ServerRemoteTargetSnapshot 增加两可选字段（官方 target 同款），连接成功写入
+  历史/快照（token 仍只落 credentialKey），恢复链回读——tab 副标题显示 name、
+  重连自动打开 workspacePath；settings patch schema 新旧形态兼容。
+- **① serverInfo.workspaces 目录选择 UI**：透出链复用既有通道（连接 handle →
+  registry descriptor（schema 增可选 serverInfo，strict 校验）→ main
+  attachRendererPort 元数据 → renderer service port bridge → session store →
+  UI），无新 IPC；目录步骤顶部渲染 Server 工作区快捷列表（path+label，点击与
+  手选一致走 selectRemoteDirectory），空列表不渲染直接进完整 DirectoryBrowser；
+  i18n 新增 remote.serverWorkspacesTitle 双语一条。
+- 测试：desktop server-remote-host 6/6（新增 serverInfo descriptor 透出断言 +
+  share 门禁语义断言更新）、services 28/28；根 typecheck 0 错、lint 0 errors、
+  架构 0 违御。
 
 ### 已知偏差（下一阶段）
 

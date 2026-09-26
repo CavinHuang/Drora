@@ -59,7 +59,7 @@
     "build": "tsc -p tsconfig.json && esbuild src/mcp/errors.ts src/mcp/client.ts src/mcp/session.ts src/mcp/tools.ts src/mcp/server.ts --outdir=. --outbase=src",
     "typecheck": "tsc --noEmit",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "test": "node test/restored-smoke.mjs && node test/embedded-build-id.mjs && node test/mac-launch-contract.mjs"
+    "test": "node test/restored-smoke.mjs && node test/embedded-build-id.mjs && node test/mac-launch-contract.mjs && node test/cua-tool-layer-smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

@@ -48,6 +48,7 @@ import { useDroraStoreWithDefault } from "@/store/StoreProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { useDroraIntl } from "./i18n/IntlProvider.js";
 import { Info, LoaderIcon, WrenchIcon } from "lucide-react";
+import { useIsMobileViewport } from "@/hooks/useIsMobileViewport.js";
 
 const MCP_PERMISSION_TOOL_ICON = <WrenchIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
@@ -441,6 +442,7 @@ export function PermissionDialog({
   workspacePath: string;
   provider?: DroraProvider;
 }) {
+  const isMobileTextInputViewport = useIsMobileViewport();
   const { intl } = useDroraIntl();
   // store 耦合剥离：主题/代码预览设置在宿主处取 store，向下走 props/render context。
   const theme = useDroraStoreWithDefault((state) => state.theme, "system");
@@ -885,7 +887,7 @@ export function PermissionDialog({
                   onKeyDown={handleFeedbackKeyDown}
                   className={cn(
                     // 拒绝反馈自动换行，但限制为 5 行并在输入框内滚动，避免窄屏遮住权限选项和确认按钮。
-                    "h-auto !min-h-5 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-none border-transparent bg-transparent !px-0 !py-0 font-medium text-ui-base leading-5 shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0",
+                    `h-auto !min-h-5 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-none border-transparent bg-transparent !px-0 !py-0 font-medium ${isMobileTextInputViewport ? "text-mobile-input-safe leading-6" : "text-ui-base leading-5"} shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0`,
                   )}
                 />
               </div>

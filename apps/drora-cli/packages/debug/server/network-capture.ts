@@ -30,7 +30,7 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4184;
 const DEFAULT_MAX_ENTRIES = 300;
 const HEADER_REDACTION_VALUE = "[redacted]";
-const traceHeaderNames = ["x-drora-trace-id", "x-trace-id", "traceparent"];
+const traceHeaderNames = ["x-zcode-trace-id", "x-drora-trace-id", "x-trace-id", "traceparent"];
 const redactedHeaderNames = new Set([
   "authorization",
   "proxy-authorization",
@@ -39,6 +39,12 @@ const redactedHeaderNames = new Set([
   "x-api-key",
   "api-key",
   "openai-api-key",
+  // 常见 key/token 头族（批 5 telemetry 审查 P3：原集合偏窄）。
+  "anthropic-api-key",
+  "x-goog-api-key",
+  "x-auth-token",
+  "x-api-token",
+  "bigmodel-api-key",
 ]);
 
 export class NetworkCaptureService {

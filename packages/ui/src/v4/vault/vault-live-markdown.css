@@ -1,0 +1,620 @@
+/*
+ * Vault / Live Markdown 面板样式 —— 还原自 Proma apps/electron/src/renderer/styles/globals.css
+ * 的 Vault 段落（原文件 2371-2951 行）。选择器与规则逐条保留，仅做两类适配：
+ * 1. 颜色：Proma 的 shadcn HSL 变量（hsl(var(--x) / a)）映射为 Drora Tailwind v4 主题
+ *    token（var(--color-*) / color-mix(in oklab, ...)），暗色模式由 .dark 的 token 覆盖承担；
+ * 2. Drora 缺失的 utility token（--color-muted、--color-muted-foreground、--color-ring 等）
+ *    在 styles.css 末尾的兼容 @theme 块中补齐。
+ */
+
+/* Vault uses ink-mde's hybrid editor with the workspace canvas and typography. */
+.vault-note-editor {
+  --vault-editor-horizontal-inset: 1rem;
+}
+.vault-note-editor-titlebar {
+  padding-inline: var(--vault-editor-horizontal-inset);
+}
+.vault-ink-mde {
+  --ink-color: var(--color-foreground);
+  --ink-font-family: inherit;
+  --ink-editor-font-size: var(--md-preview-font-size, 15px);
+  --ink-editor-line-height: 1.625;
+  --ink-border-radius: 0;
+  --ink-block-background-color: transparent;
+  --ink-block-background-color-on-hover: transparent;
+  /* 与 Markdown 预览及 Agent 历史的代码块共用主题背景（Proma 原值为 hsl(var(--code-bg))）。 */
+  --ink-code-background-color: var(--color-surface);
+}
+.vault-ink-mde .ink-mde,
+.vault-ink-mde .ink-mde-editor,
+.vault-ink-mde .cm-editor,
+.vault-ink-mde .cm-scroller,
+.vault-ink-mde .cm-content {
+  background: transparent !important;
+}
+.vault-ink-mde .ink-mde {
+  height: 100%;
+  border: 0 !important;
+  color: var(--color-foreground);
+}
+.vault-ink-mde .ink-mde-editor {
+  min-height: 0;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.vault-ink-mde .cm-editor {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.vault-ink-mde .cm-scroller {
+  height: 100% !important;
+  overflow: auto !important;
+  font-family: inherit !important;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-muted-foreground) 30%, transparent) transparent;
+}
+.vault-ink-mde .cm-scroller::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.vault-ink-mde .cm-scroller::-webkit-scrollbar-track,
+.vault-ink-mde .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.vault-ink-mde .cm-scroller::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-muted-foreground) 30%, transparent);
+  border-radius: 3px;
+}
+.vault-ink-mde .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-muted-foreground) 50%, transparent);
+}
+
+/* Keep Markdown syntax visible only while editing its line, like Obsidian's live preview. */
+.live-markdown-editor .live-markdown-syntax-hidden,
+.live-markdown-editor .live-markdown-syntax-hidden *,
+.vault-ink-mde .vault-markdown-syntax-hidden,
+.vault-ink-mde .vault-markdown-syntax-hidden * {
+  display: none !important;
+}
+/* CodeMirror 状态层的查找装饰，避免预览搜索直接改写 .cm-content 的受控 DOM。 */
+.live-markdown-editor .live-markdown-find-match {
+  background: rgb(250 204 21 / 0.48);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.live-markdown-editor .live-markdown-find-match-active {
+  background: rgb(249 115 22 / 0.72);
+  box-shadow: 0 0 0 1px rgb(249 115 22 / 0.55);
+}
+.vault-ink-mde .cm-editor.cm-focused,
+.vault-ink-mde .cm-editor:focus-visible,
+.vault-ink-mde .cm-content:focus-visible {
+  outline: none !important;
+}
+.vault-ink-mde .cm-content,
+.vault-ink-mde .cm-content[contenteditable="true"] {
+  caret-color: var(--color-foreground) !important;
+}
+.vault-ink-mde .cm-cursor {
+  border-left-color: var(--color-foreground) !important;
+}
+.vault-ink-mde .cm-content {
+  min-height: 100%;
+  padding: 0.75rem var(--vault-editor-horizontal-inset, 1rem) !important;
+}
+/* 预览/详情页的滚动由外层统一承接：TOC、查找与选区引用必须和正文
+ * 使用同一个 scroll root，避免 CodeMirror 内层滚动导致目录跳转、ScrollSpy 失联。 */
+.live-markdown-external-scroll,
+.live-markdown-external-scroll .ink-mde,
+.live-markdown-external-scroll .ink-mde-editor,
+.live-markdown-external-scroll .cm-editor,
+.live-markdown-external-scroll .cm-scroller {
+  height: auto !important;
+  min-height: 100%;
+}
+.live-markdown-external-scroll .cm-scroller {
+  overflow: visible !important;
+}
+.skill-detail-live-markdown {
+  min-height: 26.25rem;
+}
+.vault-ink-mde .cm-selectionBackground,
+.vault-ink-mde .cm-searchMatch,
+.vault-ink-mde .cm-searchMatch-selected {
+  background: transparent !important;
+}
+.vault-ink-mde .cm-cursor {
+  border-left-color: var(--color-foreground) !important;
+}
+/* ink-mde applies a full block padding and a heavy rail to quotes. Keep them
+ * visually compact so a one-line quote shares the editor's normal line height. */
+.vault-ink-mde .ink-mde .cm-line.cm-blockquote {
+  min-height: 0 !important;
+  height: auto !important;
+  line-height: inherit !important;
+  background: transparent !important;
+  border-left: 2px solid color-mix(in oklab, var(--color-muted-foreground) 50%, transparent) !important;
+  padding: 0 0 0 0.375rem !important;
+}
+.vault-ink-mde .ink-mde .cm-line.cm-blockquote.cm-blockquote-open,
+.vault-ink-mde .ink-mde .cm-line.cm-blockquote.cm-blockquote-close {
+  border-radius: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+/* This marker is only added while a terminal `-` is temporarily parsed as a
+ * Setext H2 during list entry. It neutralizes the parser's heading theme. */
+.live-markdown-editor .live-markdown-pending-list-heading,
+.live-markdown-editor .live-markdown-pending-list-heading *,
+.vault-ink-mde .vault-pending-list-heading,
+.vault-ink-mde .vault-pending-list-heading * {
+  font-size: 1em !important;
+  font-weight: inherit !important;
+}
+.vault-ink-mde hr {
+  display: block !important;
+  width: 100%;
+  margin: 1.35rem 0;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 75%, transparent);
+}
+.vault-ink-mde .cm-line {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+}
+/*
+ * CodeMirror measures a block widget by its DOM rectangle. External vertical
+ * margins sit outside that rectangle, so they corrupt the height map used by
+ * posAtCoords after each rendered Markdown block. Keep the same visual gaps
+ * inside each measurable widget box instead.
+ */
+.vault-ink-mde .vault-markdown-table,
+.vault-ink-mde .vault-mermaid-block,
+.vault-ink-mde .vault-horizontal-rule {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-block: 0.9rem;
+}
+.vault-ink-mde .vault-horizontal-rule {
+  width: 100%;
+  padding-block: 1.35rem;
+}
+.vault-ink-mde .vault-horizontal-rule hr {
+  margin: 0;
+}
+.live-markdown-editor .live-markdown-code-block {
+  display: block;
+  max-width: 100%;
+}
+.live-markdown-editor .live-markdown-math-block {
+  display: block;
+  overflow-x: auto;
+  padding: 0.9rem 0;
+  text-align: center;
+  line-height: 1.2;
+}
+/* Match the Agent history's inline-block + baseline contract. CodeMirror's
+ * editor line-height must not leak into KaTeX's vlist/table positioning. */
+.live-markdown-editor .live-markdown-math-inline {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.live-markdown-editor .live-markdown-math-inline .katex,
+.live-markdown-editor .live-markdown-math-block .katex {
+  font-size: 1.21em;
+  line-height: 1.2;
+}
+/* ink-mde has `.cm-line span { display: inline }`, whose specificity overrides
+ * KaTeX's structural span displays. Restore the KaTeX layout primitives inside
+ * widgets: vlist drives superscripts, fractions, roots, matrices and integrals. */
+.live-markdown-editor .ink-mde .cm-line .katex .base,
+.live-markdown-editor .ink-mde .cm-line .katex .strut,
+.live-markdown-editor .ink-mde .cm-line .katex .vlist > span > span,
+.live-markdown-editor .ink-mde .cm-line .katex .mfrac .frac-line,
+.live-markdown-editor .ink-mde .cm-line .katex .mspace,
+.live-markdown-editor .ink-mde .cm-line .katex .llap > .fix,
+.live-markdown-editor .ink-mde .cm-line .katex .rlap > .fix,
+.live-markdown-editor .ink-mde .cm-line .katex .clap > .fix,
+.live-markdown-editor .ink-mde .cm-line .katex .rule,
+.live-markdown-editor .ink-mde .cm-line .katex .overline .overline-line,
+.live-markdown-editor .ink-mde .cm-line .katex .underline .underline-line,
+.live-markdown-editor .ink-mde .cm-line .katex .hline,
+.live-markdown-editor .ink-mde .cm-line .katex .hdashline,
+.live-markdown-editor .ink-mde .cm-line .katex .nulldelimiter,
+.live-markdown-editor .ink-mde .cm-line .katex .mtable .vertical-separator,
+.live-markdown-editor .ink-mde .cm-line .katex .mtable .arraycolsep,
+.live-markdown-editor .ink-mde .cm-line .katex .cd-vert-arrow,
+.live-markdown-editor .ink-mde .cm-line .katex .cd-label-left,
+.live-markdown-editor .ink-mde .cm-line .katex .cd-label-right {
+  display: inline-block !important;
+}
+.live-markdown-editor .ink-mde .cm-line .katex .vlist-t {
+  display: inline-table !important;
+}
+.live-markdown-editor .ink-mde .cm-line .katex .vlist-r {
+  display: table-row !important;
+}
+.live-markdown-editor .ink-mde .cm-line .katex .vlist,
+.live-markdown-editor .ink-mde .cm-line .katex .vlist-s {
+  display: table-cell !important;
+}
+.live-markdown-editor .ink-mde .cm-line .katex .vlist > span,
+.live-markdown-editor .ink-mde .cm-line .katex .overlay,
+.live-markdown-editor .ink-mde .cm-line .katex .stretchy {
+  display: block !important;
+}
+.live-markdown-editor .ink-mde .cm-line .katex .vbox,
+.live-markdown-editor .ink-mde .cm-line .katex .hbox,
+.live-markdown-editor .ink-mde .cm-line .katex .thinbox {
+  display: inline-flex !important;
+}
+.live-markdown-editor .live-markdown-math-inline .katex .vlist,
+.live-markdown-editor .live-markdown-math-block .katex .vlist {
+  line-height: 1.2;
+}
+.live-markdown-editor .live-markdown-image {
+  display: inline-block;
+  max-width: 100%;
+  cursor: text;
+}
+.live-markdown-editor .live-markdown-image img {
+  display: block;
+  max-width: min(100%, 56rem);
+  max-height: 44rem;
+  border: 1px solid color-mix(in oklab, var(--color-border) 38%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-muted) 20%, transparent);
+  object-fit: contain;
+}
+.live-markdown-editor .live-markdown-raw-html-block {
+  display: block;
+  min-height: 1.625em;
+}
+.live-markdown-editor .live-markdown-raw-html-block center {
+  display: block;
+}
+.live-markdown-editor .live-markdown-autolink {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.vault-ink-mde .vault-markdown-table table,
+.live-markdown-table-editor table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.94em;
+}
+.vault-ink-mde .vault-markdown-table th,
+.vault-ink-mde .vault-markdown-table td,
+.live-markdown-table-editor th,
+.live-markdown-table-editor td {
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 55%, transparent);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.vault-ink-mde .vault-markdown-table th,
+.live-markdown-table-editor th {
+  background: color-mix(in oklab, var(--color-muted) 45%, transparent);
+  color: var(--color-foreground);
+  font-weight: 700;
+}
+.vault-ink-mde .vault-markdown-table td,
+.live-markdown-table-editor td {
+  color: color-mix(in oklab, var(--color-foreground) 88%, transparent);
+}
+/* 替换型表格不承载 CodeMirror 的文本装饰，单元格自行响应预览查找状态。 */
+.live-markdown-table-editor .live-markdown-table-find-match {
+  background: rgb(250 204 21 / 0.48);
+}
+.live-markdown-table-editor .live-markdown-table-find-match-active {
+  background: rgb(249 115 22 / 0.72);
+  box-shadow: inset 0 0 0 1px rgb(249 115 22 / 0.55);
+}
+.live-markdown-table-editor-root {
+  display: block;
+  max-width: 100%;
+}
+.live-markdown-table-editor {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+}
+.live-markdown-table-editor-hint {
+  display: flex;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.2rem 0.55rem;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+.live-markdown-table-cell-trigger {
+  display: block;
+  width: calc(100% + 1.4rem);
+  min-height: 1.35rem;
+  margin: -0.5rem -0.7rem;
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  cursor: text;
+  transform-origin: center;
+  transition-property: background-color, transform;
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.live-markdown-table-cell-trigger:hover {
+  background: color-mix(in oklab, var(--color-muted) 58%, transparent);
+}
+.live-markdown-table-cell-trigger:active {
+  transform: scale(0.96);
+}
+.live-markdown-table-cell-trigger:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+.live-markdown-table-editor .is-editing {
+  background: color-mix(in oklab, var(--color-muted) 38%, transparent);
+}
+.live-markdown-table-input {
+  display: block;
+  box-sizing: border-box;
+  width: calc(100% + 1.4rem);
+  min-width: 0;
+  min-height: 2.35rem;
+  margin: -0.5rem -0.7rem;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 0;
+  border-radius: 0.25rem;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  line-height: inherit;
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+.live-markdown-table-value {
+  display: block;
+  min-height: 1.35rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.live-markdown-table-value strong {
+  font-weight: 700;
+}
+.live-markdown-table-math {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1.2;
+}
+.live-markdown-table-math.is-display {
+  display: block;
+  overflow-x: auto;
+  padding-block: 0.15rem;
+}
+.live-markdown-table-editor .katex {
+  font-size: 1.06em;
+  line-height: 1.2;
+}
+
+.vault-ink-mde .vault-properties {
+  display: block;
+  box-sizing: border-box;
+  width: min(100%, 52rem);
+  /* Preserves the former 1.35rem/1.6rem outer gaps plus inner padding. */
+  padding: 1.5rem 0 1.95rem;
+}
+.vault-ink-mde .vault-properties-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.8rem;
+  color: var(--color-foreground);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.vault-ink-mde .vault-properties-count {
+  color: color-mix(in oklab, var(--color-muted-foreground) 78%, transparent);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.vault-ink-mde .vault-properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.vault-ink-mde .vault-property-row {
+  display: grid;
+  grid-template-columns: 1.55rem minmax(7.5rem, 0.36fr) minmax(0, 1fr) 1.4rem;
+  min-height: 2.45rem;
+  align-items: center;
+  column-gap: 0.35rem;
+  padding: 0.25rem 0;
+}
+.vault-ink-mde .vault-property-icon {
+  position: relative;
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: color-mix(in oklab, var(--color-muted-foreground) 72%, transparent);
+}
+.vault-ink-mde .vault-property-icon-text::before,
+.vault-ink-mde .vault-property-icon-text::after {
+  position: absolute;
+  left: 0.12rem;
+  width: 1rem;
+  height: 0.12rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0.34rem 0 currentColor;
+  content: "";
+}
+.vault-ink-mde .vault-property-icon-text::before {
+  top: 0.25rem;
+}
+.vault-ink-mde .vault-property-icon-text::after {
+  top: 0.59rem;
+  width: 0.72rem;
+}
+.vault-ink-mde .vault-property-icon-date {
+  border: 0.12rem solid currentColor;
+  border-radius: 0.2rem;
+}
+.vault-ink-mde .vault-property-icon-date::before {
+  position: absolute;
+  top: 0.25rem;
+  right: 0;
+  left: 0;
+  border-top: 0.12rem solid currentColor;
+  content: "";
+}
+.vault-ink-mde .vault-property-icon-date::after {
+  position: absolute;
+  top: -0.22rem;
+  left: 0.2rem;
+  width: 0.12rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0.45rem 0 currentColor;
+  content: "";
+}
+.vault-ink-mde .vault-property-key {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted-foreground);
+  font-size: 0.92em;
+  font-weight: 400;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-ink-mde .vault-property-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: color-mix(in oklab, var(--color-foreground) 92%, transparent);
+  font-size: 0.94em;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.vault-ink-mde .vault-property-input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: transparent;
+  outline: none;
+  padding: 0.22rem 0.35rem;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.vault-ink-mde .vault-property-input:hover,
+.vault-ink-mde .vault-property-input:focus {
+  border-color: color-mix(in oklab, var(--color-border) 80%, transparent);
+  background: color-mix(in oklab, var(--color-background) 55%, transparent);
+}
+.vault-ink-mde .vault-property-input:focus {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-ring) 18%, transparent);
+}
+.vault-ink-mde .vault-property-remove {
+  display: inline-flex;
+  width: 1.4rem;
+  height: 1.4rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.3rem;
+  color: color-mix(in oklab, var(--color-muted-foreground) 70%, transparent);
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.vault-ink-mde .vault-property-row:hover .vault-property-remove,
+.vault-ink-mde .vault-property-remove:focus-visible {
+  opacity: 1;
+}
+.vault-ink-mde .vault-property-remove:hover {
+  background: color-mix(in oklab, var(--color-destructive) 12%, transparent);
+  color: var(--color-destructive);
+}
+.vault-ink-mde .vault-property-value-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.vault-ink-mde .vault-property-value-date::before {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+  border: 0.1rem solid color-mix(in oklab, var(--color-muted-foreground) 72%, transparent);
+  border-radius: 0.16rem;
+  content: "";
+}
+.vault-ink-mde .vault-property-value-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.vault-ink-mde .vault-property-value-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, var(--color-muted) 72%, transparent);
+  color: color-mix(in oklab, var(--color-foreground) 88%, transparent);
+  padding: 0.12rem 0.45rem;
+  font-size: 0.86em;
+}
+.vault-ink-mde .vault-mermaid-block .mermaid-block-wrapper {
+  margin: 0;
+}
+
+/* Proma 面板类名依赖的窗口拖拽区语义；Drora 桌面端同样基于 -webkit-app-region。 */
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+}
+
+/* Proma 使用的细滚动条 utility；本仓 tailwind-scrollbar-hide 插件不提供同名类。 */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-foreground-subtle) 40%, transparent) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-foreground-subtle) 40%, transparent);
+  border-radius: 3px;
+}

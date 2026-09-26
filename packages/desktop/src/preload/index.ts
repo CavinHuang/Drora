@@ -589,6 +589,14 @@ contextBridge.exposeInMainWorld("drora", {
     ipcRenderer.on(PlatformChannels.TaskNotificationClick, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.TaskNotificationClick, handler);
   },
+  onDesktopPetOpenTask: (
+    callback: (target: import("@drora/shared").DesktopPetTarget) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, target: import("@drora/shared").DesktopPetTarget) =>
+      callback(target);
+    ipcRenderer.on(PlatformChannels.DesktopPetOpenTask, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.DesktopPetOpenTask, handler);
+  },
   /** 打开外部 URL（用于 OAuth 跳转浏览器） */
   openExternal: (url: string) => ipcRenderer.send(PlatformChannels.OpenExternal, url),
   /** 查询当前语言下是否存在可用的用户社群入口 */
@@ -687,6 +695,8 @@ contextBridge.exposeInMainWorld("drora", {
   /** 通过 main process 触发原生任务通知 */
   showTaskNotification: (payload: TaskNotificationPayload) =>
     ipcRenderer.send(PlatformChannels.ShowTaskNotification, payload),
+  publishDesktopPet: (presentation: import("@drora/shared").DesktopPetPresentation) =>
+    ipcRenderer.send(PlatformChannels.DesktopPetPublish, presentation),
   /** 导出日志：打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
   exportLogs: (): Promise<{
     success: boolean;

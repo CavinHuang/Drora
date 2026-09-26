@@ -8,7 +8,9 @@ export var cuaRequestAccessStatusSchema = z
     .object({
     schemaVersion: z.literal(1),
     platform: z.literal("darwin"),
-    grantOwner: z.string(),
+    // grantOwner 校验对齐原版 rio schema（zcode.cjs @5028721/宿主 dist 同款）：
+    // 曾误还原为裸 z.string()，空串/超长/带空白 owner 会被接受。
+    grantOwner: z.string().trim().min(1).max(512),
     accessibility: z.enum(["granted", "stale", "denied"]),
     screenRecording: z.enum(["unknown", "granted", "denied"]),
 })

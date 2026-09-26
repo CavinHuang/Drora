@@ -30,7 +30,7 @@ import {
   parseEntryStoreListing,
   readPluginSourceIdentityPin,
   removeMarketplace,
-  syncClaudePluginsOfficialIcons,
+  enrichCachedClaudeMarketplaceIcons,
   uninstallMarketplacePlugin,
   updateMarketplace,
   validateLocalPluginPath,
@@ -267,14 +267,25 @@ export function resolveDroraPlugins(options: ResolveDroraPluginsOptions = {}): P
   });
 }
 
+/**
+ * 原版 Vwt 的等价入口：overview / reference catalog 读路径触发对已缓存 claude 市场的
+ * 每进程一次 icon 修补。fire-and-forget——读路径不等网络，修补写入经 storage lock 串行，
+ * 结果供后续请求使用；见 specs/plugin-marketplaces.md。
+ */
+export function enrichCachedClaudePluginMarketplaceIcons(
+  options: ResolveDroraPluginsOptions = {},
+): void {
+  const { pluginStorageRoot } = resolvePluginContext(options);
+  void enrichCachedClaudeMarketplaceIcons(pluginStorageRoot, (operation: () => Promise<void>) =>
+    withPluginStorageLock(pluginStorageRoot, operation),
+  );
+}
+
 export function getDroraPluginsOverview(
   options: ResolveDroraPluginsOptions = {},
 ): DroraPluginsOverviewData {
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
-  // 官方同款触发：插件市场列表流程后台补全 claude-plugins-official 的 CDN 图标索引
-  // （fire-and-forget，不阻塞列表返回；每进程每 storage root 一次）。
-  void syncClaudePluginsOfficialIcons(pluginStorageRoot);
   const outcome = resolveDroraPlugins({
     ...options,
     configResult,

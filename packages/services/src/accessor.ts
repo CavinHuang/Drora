@@ -34,6 +34,7 @@ import type { ICommandsService } from "./commands/commands.js";
 import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
 import type { IOutputStyleService } from "./outputStyle/outputStyle.js";
+import type { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -88,6 +89,8 @@ export interface IServiceAccessor {
   readonly memoryService: IMemoryService;
   /** Claude Code 兼容的输出风格（本机 ~/.claude 状态；第 48 轮新增，远端代理与本地实例同接口）。 */
   readonly outputStyleService: IOutputStyleService;
+  /** Obsidian Vault 面板（host-local 能力；远端/bots host 不提供，故可选）。 */
+  readonly obsidianVaultService?: IObsidianVaultService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

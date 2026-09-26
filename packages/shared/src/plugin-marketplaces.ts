@@ -9,11 +9,14 @@ export interface DefaultPluginMarketplace {
 
 export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID = "drora-plugins-official";
 
-/** Claude 生态内置市场（anthropics/claude-plugins-official），与官方原版内置清单同名同源补录。 */
+/** Claude 生态内置市场（anthropics/claude-plugins-official），与官方原版内置清单同名同源补录。
+ *  id 与 source 保持上游原名：claude 是第三方品牌，不属于 zcode→drora 改名范围；
+ *  原版对该 id 同样按官方保留名保护（isOfficialMarketplaceId 覆盖）。 */
 export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = "claude-plugins-official";
 
 /** 官方 CDN 插件资产基址（市场图标索引 icon-sources.json 与插件图标共用）。 */
-export const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
+export const OFFICIAL_PLUGIN_ASSETS_BASE_URL =
+  "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
@@ -48,8 +51,8 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
     // 与官方原版内置清单（Bqt）对齐：Claude 生态市场源（GitHub anthropics/
     // claude-plugins-official）同样随首载自动补录，驱动发现页「Claude Code 插件」分段；
-    // 其插件图标由官方 CDN 的 icon-sources.json 索引补全
-    // （adapters 侧 syncClaudePluginsOfficialIcons）。
+    // pluginCount 初始 0，首次浏览/安装时经懒刷新拉取真实清单。其插件图标由官方 CDN 的
+    // icon-sources.json 索引补全（adapters 侧 syncClaudePluginsOfficialIcons）。
     id: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
     source: "anthropics/claude-plugins-official",
     name: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,

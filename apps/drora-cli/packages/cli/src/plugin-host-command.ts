@@ -53,14 +53,17 @@ export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Pro
 
     const originalArgv = process.argv;
     const originalBrokerSocket = process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY];
+    let brokerTokenRestored = false;
     // shared node_repl 把同一凭据组恢复到环境，由 broker bridge 读取；旧的独立 CUA
     // MCP 不再拥有执行入口。
     process.argv = [process.execPath, serverPath, ...serverArgs];
     if (capturedBrokerCredentials.socket && process.env[DRORA_CUA_NODE_REPL_HOST_ENV_KEY] === "1") {
       process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY] = capturedBrokerCredentials.socket;
-      // token 模式（原版 mac 发射链）：node_repl host 运行时 authenticate 需要同一 token
+      // token 模式（原版 mac 发射链回归）：node_repl host 运行时 authenticate 需要同一
+      // token；Windows 身份模式 host.token 恒 null，凭据组无 token 时省键。
       if (capturedBrokerCredentials.token) {
         process.env.DRORA_CUA_PERMISSION_BROKER_TOKEN = capturedBrokerCredentials.token;
+        brokerTokenRestored = true;
       }
     }
     try {
@@ -71,6 +74,11 @@ export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Pro
         delete process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY];
       } else {
         process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY] = originalBrokerSocket;
+      }
+      // token 与 socket 同批恢复，也要同批对称清理——该进程 main() 返回后即退出，
+      // 但恢复语义必须对称，避免凭据材料残留到同进程的后续路径。
+      if (brokerTokenRestored) {
+        delete process.env.DRORA_CUA_PERMISSION_BROKER_TOKEN;
       }
     }
 
@@ -89,14 +97,13 @@ function assertCapturedBrokerLaunchIsAuthorized(credentials: CapturedBrokerCrede
   if (!hasCapturedCredentials) return;
 
   const pluginId = process.env[DRORA_PLUGIN_ID_ENV_KEY]?.trim().toLowerCase();
-  // 凭据组里已经没有 token 了：broker 全平台改为身份模式（Helper 按对端代码签名裁决连接），
-  // shared/runtimeEnv.ts 的 CapturedCuaBrokerCredentials 只有 socket + pluginAuthority
-  // (+ refreshMarker)。这里不能再读 `credentials.token`；token 已从凭据组移除，
-  // 残留读取方只能靠 CLI 自己的 typecheck 发现（根 `pnpm typecheck` 不含 apps/drora-cli）。
-  // socket + pluginAuthority 必须成对（authority 是 bootstrap 写入 node_repl 配置的 provenance
-  // 随机数，core 据此认官方 server）；捕获侧本就只在成对时落快照，半组会清空并 fail-closed。
-  // 校验也不能要求 token 齐全——身份模式凭据没有 token，强校验会让 node_repl 宿主启动即
-  // 退出（"connection closed during the server/discover probe"），工具面为空。
+  // 凭据组 = socket + pluginAuthority (+ refreshMarker，+ 可选 token——第 15 轮 mac
+  // 发射链回归后 token 重新进组，Windows 身份模式 host.token 恒 null 所以通常缺省)。
+  // socket + pluginAuthority 必须成对（authority 是 bootstrap 写入 node_repl 配置的
+  // provenance 随机数，core 据此认官方 server）；捕获侧本就只在成对时落快照，半组会清空
+  // 并 fail-closed。校验不能要求 token 齐全——身份模式凭据没有 token，强校验会让
+  // node_repl 宿主启动即退出（"connection closed during the server/discover probe"），
+  // 工具面为空。
   if (
     credentials.socket === undefined ||
     credentials.pluginAuthority === undefined ||

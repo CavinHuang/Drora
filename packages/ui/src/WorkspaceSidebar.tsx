@@ -14,6 +14,7 @@ import {
 import {
   Archive,
   Blocks,
+  BookMarked,
   CalendarClock,
   Clock3,
   Cloud,
@@ -259,8 +260,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onOpenCommandCenter,
   onOpenAutomations,
   onOpenPluginStore,
+  onOpenVault,
   automationsActive = false,
   pluginStoreActive = false,
+  vaultActive = false,
   onFileTreeOpenChange,
 }: {
   workspacePath: string;
@@ -311,8 +314,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onOpenCommandCenter: () => void;
   onOpenAutomations?: () => void;
   onOpenPluginStore?: () => void;
+  onOpenVault?: () => void;
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
+  vaultActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useDroraIntl();
@@ -1345,6 +1350,21 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             >
               <Blocks className="size-4" />
               {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={onOpenVault}
+              data-icon="inline-start"
+              data-testid="vault-sidebar-open"
+              size="lg"
+              aria-pressed={vaultActive}
+              className={cn(
+                "w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground",
+                vaultActive && "bg-selected text-foreground",
+              )}
+            >
+              <BookMarked className="size-4" />
+              {intl.formatMessage({ id: "workspace.openVault" })}
             </Button>
           </div>
 

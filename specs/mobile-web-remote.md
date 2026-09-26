@@ -67,7 +67,7 @@
 
 1. **附着流**：Main 向窗口 Host UtilityProcess postMessage
    `{type: HostMessageTypes.AttachServicePort, scope:{kind:"local", workspacePath,
-   workspaceIdentity}, clientMode:"web-remote-replayable"}`（参考
+workspaceIdentity}, clientMode:"web-remote-replayable"}`（参考
    `desktopRemoteSessions.ts` 的 `attachRemoteWorkspaceSessionHost`，remote 版）；
    Main 留 port1 作 rpc 客户端端。host 侧 `host/index.ts:2729` 已处理 scope=local
    （注释"刷新/手机 attachment 复用同一 Host"），绑定 activeServices
@@ -79,7 +79,7 @@
 3. **服务面**（已核对接口签名）：
    `listTasks({workspacePath,workspaceIdentity})`、
    `readSessionMessages`、`sendPrompt({...,clientMode:"web-remote-replayable",
-   clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
+clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
    （`packages/services/src/session/droraTaskService.ts:199` 起；
    `droraSession.ts:135` 的 `readSessionMessages`）。
 4. **权限请求可见性**：M1 手机端拉取式（打开会话时读 pending permission——

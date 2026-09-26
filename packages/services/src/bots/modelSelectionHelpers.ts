@@ -1,6 +1,4 @@
-import {
-  type DroraProvider,
-} from "@drora/shared";
+import { type DroraProvider } from "@drora/shared";
 
 const BOT_NATIVE_MODEL_PROVIDER_PREFIX = "native:";
 

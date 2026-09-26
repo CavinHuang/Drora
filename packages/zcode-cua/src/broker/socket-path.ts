@@ -98,8 +98,8 @@ export function resolveBrokerSocketPath(
   return join(brokerRuntimeDir(env), DEFAULT_SOCKET_FILE_NAME);
 }
 
-export const BROKER_SOCKET_ENV_NAME = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
-export const BROKER_UNAVAILABLE_ENV_NAME = "ZCODE_CUA_PERMISSION_BROKER_UNAVAILABLE";
+export const BROKER_SOCKET_ENV_NAME = "DRORA_CUA_PERMISSION_BROKER_SOCKET";
+export const BROKER_UNAVAILABLE_ENV_NAME = "DRORA_CUA_PERMISSION_BROKER_UNAVAILABLE";
 
 // —— 草稿混淆名别名（server 模块尚未完成语义化，保持原导入可解析） ——
 export {

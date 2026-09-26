@@ -17,7 +17,11 @@ report.exportNames = names;
 report.exportCount = names.length;
 for (const n of names) {
   const v = native[n];
-  report.exports[n] = { type: typeof v, name: v?.name, length: typeof v === "function" ? v.length : null };
+  report.exports[n] = {
+    type: typeof v,
+    name: v?.name,
+    length: typeof v === "function" ? v.length : null,
+  };
 }
 
 // —— 2. 参数校验行为(错误参数,不触发系统能力) ——
@@ -78,7 +82,16 @@ const probes = {
   applicationInfoSelf: () => native.applicationInfo(process.pid),
 };
 for (const [name, fn] of Object.entries(probes)) {
-  if (typeof native[name === "applicationInfoSelf" ? "applicationInfo" : name === "isTargetElevatedSelf" ? "isTargetElevated" : name] !== "function") continue;
+  if (
+    typeof native[
+      name === "applicationInfoSelf"
+        ? "applicationInfo"
+        : name === "isTargetElevatedSelf"
+          ? "isTargetElevated"
+          : name
+    ] !== "function"
+  )
+    continue;
   try {
     report.probes[name] = { ok: true, value: safeJson(await fn()) };
   } catch (e) {
@@ -95,5 +108,7 @@ function safeJson(v) {
 }
 
 writeFileSync(outPath, JSON.stringify(report, null, 1));
-console.log(`exports: ${report.exportCount}; error probes: ${Object.keys(report.errors).length}; value probes: ${Object.keys(report.probes).length}`);
+console.log(
+  `exports: ${report.exportCount}; error probes: ${Object.keys(report.errors).length}; value probes: ${Object.keys(report.probes).length}`,
+);
 console.log("export names:", names.join(" "));

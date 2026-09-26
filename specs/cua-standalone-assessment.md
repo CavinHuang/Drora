@@ -24,12 +24,12 @@
 
 ## 解封需要什么（若产品决定支持）
 
-| 工作块 | 内容 | 规模 |
-| --- | --- | --- |
-| Helper 生命周期编排（CLI 侧） | 提权安装、启动、健康检查、升级、卸载——桌面宿主里这部分横跨 helper-installer/launcher/verifier/orphan-reaper | 大 |
-| 权限提示 UX | broker 的 permission-request 目前由桌面窗口应答；CLI 需要 TUI/系统通知形态的授权流（且是安全敏感 UI） | 大 |
-| 凭据发放 | CLI 宿主生成 token + 写 canonical socket + 注入 MCP env，替代 plugin-host-command 的宿主捕获路径 | 中 |
-| 协议对齐 | 原版 0.5.13 的 token 凭据组字段与现身份模式的字段差异逐一回放 | 中 |
+| 工作块                        | 内容                                                                                                        | 规模 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- | ---- |
+| Helper 生命周期编排（CLI 侧） | 提权安装、启动、健康检查、升级、卸载——桌面宿主里这部分横跨 helper-installer/launcher/verifier/orphan-reaper | 大   |
+| 权限提示 UX                   | broker 的 permission-request 目前由桌面窗口应答；CLI 需要 TUI/系统通知形态的授权流（且是安全敏感 UI）       | 大   |
+| 凭据发放                      | CLI 宿主生成 token + 写 canonical socket + 注入 MCP env，替代 plugin-host-command 的宿主捕获路径            | 中   |
+| 协议对齐                      | 原版 0.5.13 的 token 凭据组字段与现身份模式的字段差异逐一回放                                               | 中   |
 
 ## 建议
 

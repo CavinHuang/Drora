@@ -1,7 +1,6 @@
 import type { TuiSubmitPromptResult } from "@drora/tui";
 import { parseModelPickerValue, type ModelSelection } from "@drora/shared/model-selection";
 import { listAppEffortOptions } from "../effort-options.js";
-import { rememberCurrentModelSelection } from "../model-selection.js";
 import type { CommandCenterDeps, CommandCenterModelOption } from "../types.js";
 
 export async function handleModelCommand(
@@ -44,7 +43,6 @@ export async function handleModelCommand(
     }
     const selection = resolveTuiModelSelection(args, options, selectedRef ?? mainRef);
     const result = await app.setModel(selection);
-    const persistenceWarning = await rememberCurrentModelSelection(app, deps);
     const effortOptions = await listAppEffortOptions(app);
     return {
       ...(effortOptions ? { effortOptions } : {}),
@@ -52,7 +50,7 @@ export async function handleModelCommand(
       model: result.model,
       modelOptions: options,
       loginRequired: false,
-      response: `Model switched to ${result.model} (${selection.options!.reasoningLevel}).${persistenceWarning}`,
+      response: `Model switched to ${result.model} (${selection.options!.reasoningLevel}).`,
       thoughtLevel: result.thoughtLevel ?? app.getThoughtLevel?.(),
     };
   } catch (error) {

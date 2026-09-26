@@ -271,7 +271,6 @@ export class BigModelCodingPlanSubscriptionProvider {
     return DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY;
   }
 
-
   async preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse> {
     return this.post<CodingPlanPreviewResponse>(
       request.providerId,
@@ -1209,7 +1208,6 @@ function unwrapClientConfigStartPlanPreview(
     entitlements: preview.entitlements.filter(isValidStartPlanPreviewEntitlement),
   };
 }
-
 
 function isValidStartPlanPreviewEntitlement(
   entitlement: StartPlanPreviewConfig["entitlements"][number],

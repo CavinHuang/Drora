@@ -78,3 +78,5 @@ packages/zcode-cua-helper/native/reverse/build/
 packages/zcode-cua-helper/native/reverse/.matrix-*.json
 # macOS .app 构建产物（build-cua-helper-app.mjs 输出，spec: specs/mac-cua-helper-app-alignment.md）
 packages/zcode-cua-helper/dist-cua-helper/
+
+.tmp-work

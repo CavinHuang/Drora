@@ -26,9 +26,27 @@ interface DebugServerOptions extends Omit<DebugAppOptions, "networkCapture"> {
   networkCapture?: NetworkCaptureService | false;
 }
 
+// DNS rebinding 防护：debug server 只服务本机浏览器（127.0.0.1 绑定 + Vite dev
+// origin）。浏览器内任意网页可 fetch 本地端口，Host 头不是 localhost/127.0.0.1 的
+// 请求一律拒绝（批 5 telemetry 审查 P2）。
+const DEBUG_ALLOWED_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/u;
+
 export function createDebugApp(options: DebugAppOptions = {}): Hono {
   const app = new Hono();
-  app.use("*", cors());
+  app.use("*", async (context, next) => {
+    const host = context.req.header("host") ?? "";
+    if (!DEBUG_ALLOWED_HOST_PATTERN.test(host)) {
+      return context.text(`debug server rejects cross-origin host: ${host}`, 403);
+    }
+    await next();
+  });
+  // CORS 收窄到 Vite dev origin（调试 UI 的开发源）；不再对任意 origin 放开凭据读取。
+  app.use(
+    "*",
+    cors({
+      origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    }),
+  );
 
   app.get("/api/health", (context) =>
     context.json({

@@ -33,7 +33,16 @@ export async function handleModelCommand(
   }
 
   try {
-    const selection = resolveTuiModelSelection(args, options, selectedRef);
+    // /model main（官方 i9a/h$o 同款语义）：保留当前会话的模型选择，仅把推理档重置为
+    // 该模型目录默认值。经 selectedRef 通道送入解析器可复用现有校验与默认档回落
+    // （requested 无 options 时取 option.reasoning.defaultLevel，即官方 h$o 的重置语义）。
+    const trimmed = args.trim();
+    const mainRef =
+      !selectedRef && trimmed === "main" ? app.getCurrentModelOption?.()?.ref : undefined;
+    if (!selectedRef && trimmed === "main" && !mainRef) {
+      throw new Error("main requires an active model selection. Use /model provider/model.");
+    }
+    const selection = resolveTuiModelSelection(args, options, selectedRef ?? mainRef);
     const result = await app.setModel(selection);
     const persistenceWarning = await rememberCurrentModelSelection(app, deps);
     const effortOptions = await listAppEffortOptions(app);

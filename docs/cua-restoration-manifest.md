@@ -1057,6 +1057,25 @@ superpowers-plugin 占位（仅 LICENSE）为待用户裁定的既有偏离，�
 - 质量门：typecheck/lint 0 errors/架构 0 违规；真实打包端到端验证（日志含 win32
   skip 分支行、Info.plist 双键、glm/tools 消失）。
 
+### 第四十五轮：CLI 斜杠命令帮助对齐收尾——/model main 特判与两处文案漂移（2026-09-26）
+
+第12维审查发现的唯一内容级漂移闭合（v3.14.3 合并基线即有）：
+
+- **/model help 对齐官方原文**：usage `/model [list|provider/model]` → 官方
+  `/model [list|main|lite|provider/model]`；details 两条改为官方逐字（"Use main,
+  lite, or a provider/model id to switch the active session model."）。`lite` 在官方
+  运行时**无实现**（bundle 内非斜杠参数解析为 undefined，仅文案提及）——照抄文案、
+  不实现别名，与官方行为面一致。
+- **/model main 运行时特判**（官方 i9a/h$o 同款语义）：保留当前会话的模型选择、
+  仅把推理档重置为目录默认——经 selectedRef 通道送入 resolveTuiModelSelection 复用
+  现有校验与默认档回落；无当前选择时报错引导 provider/model。TUI 与命令中心两条
+  入口汇于同一 handler（create.ts:293）。
+- **/login details 措辞**：补齐官方的 "Coding Plan"（"Z.ai and BigModel Coding Plan
+  browser login…"）。第二句存储机制描述保留本仓如实文案（官方"write the final API
+  key to config.json"——官方 bundle 运行时无此写盘代码、仅文案；Drora OAuth 实际
+  落 JWT 凭据到 credentials 存储，逐字照抄将描述错误行为）。
+- 质量门：cli/shared typecheck、根 typecheck、lint 0 errors、架构 0 违规。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

@@ -20,7 +20,7 @@ export const BUILTIN_DRORA_SLASH_COMMAND_HELP_ENTRIES: readonly BuiltinDroraSlas
     {
       details: [
         "Opens a Coding Plan setup picker when called without arguments.",
-        "Z.ai and BigModel browser login poll for authorization, then securely save credentials and refresh available models.",
+        "Z.ai and BigModel Coding Plan browser login poll for authorization, then securely save credentials and refresh available models.",
         "Manual API key variants accept the API key as an argument.",
       ],
       name: "login",
@@ -134,11 +134,11 @@ export const BUILTIN_DRORA_SLASH_COMMAND_HELP_ENTRIES: readonly BuiltinDroraSlas
     {
       details: [
         "Shows the current and selectable models when called without arguments or with list.",
-        "Use a provider/model id to select a model with its default reasoning effort; use /effort to change the effort.",
+        "Use main, lite, or a provider/model id to switch the active session model.",
       ],
       name: "model",
       summary: "Show or switch the current session model.",
-      usage: "/model [list|provider/model]",
+      usage: "/model [list|main|lite|provider/model]",
     },
     {
       aliases: ["clear"],

@@ -47,6 +47,10 @@ jobs:
             builder-arch: arm64
     runs-on: ${{ matrix.os }}
     env:
+      # secrets 不允许出现在 step 的 if 条件里（GitHub 编译期拒绝，run 秒败 0 job）；
+      # 提升到 job 级 env，签名步骤的 if 比较 env.*（secret 留空即维持 adhoc）。
+      MAC_SIGNING_CERT_P12_BASE64: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 }}
+      MAC_SIGNING_CERT_PASSWORD: ${{ secrets.MAC_SIGNING_CERT_PASSWORD }}
       # 桌面安装包不依赖 mock-cdn 的跨平台 remote 资产(node/pty 等,是远端部署
       # 与 WSL 链路用的;脚本注释明载 Windows build job 应跳过)。skip 后不再
       # 下载 node tarball —— 之前四跑 50 分钟超时全是这一步在 CI 网络下挂死。
@@ -114,12 +118,9 @@ jobs:
         #   MAC_SIGNING_CERT_PASSWORD   — p12 导出密码
         if: >-
           matrix.builder-os == 'mac' &&
-          secrets.MAC_SIGNING_CERT_P12_BASE64 != '' &&
-          secrets.MAC_SIGNING_CERT_PASSWORD != ''
+          env.MAC_SIGNING_CERT_P12_BASE64 != '' &&
+          env.MAC_SIGNING_CERT_PASSWORD != ''
         shell: bash
-        env:
-          MAC_SIGNING_CERT_P12_BASE64: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 }}
-          MAC_SIGNING_CERT_PASSWORD: ${{ secrets.MAC_SIGNING_CERT_PASSWORD }}
         run: |
           set -e
           CERT_PATH="$RUNNER_TEMP/drora-signing.p12"

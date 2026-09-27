@@ -32,8 +32,37 @@ import { CuaHelperError } from "../client.js";
 const UNAVAILABLE = "Computer Use is not available in this build.";
 /** Windows 开发态 helper 控制协议（原发行物按平台条件提供；本包当前不启用）。 */
 export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
-export async function resolveHelperPermissionSubjectIdentity(_appPath) {
-    throw new CuaHelperError("unavailable", UNAVAILABLE);
+// 第五十五轮：由 fail-closed 桩恢复为真身。授权引导（onboarding/拖拽浮窗）以
+// HelperPermissionSubjectIdentity（appPath/executablePath/displayName/bundleId）
+// 作为 TCC 授权主体与会话协调 key——此前恒抛 unavailable，设置页点击授权在
+// 安装成功后必死在身份解析。四元组全部来自 .app 的 Info.plist 与路径拼接，
+// 与 desktop 侧 readBundledHelperBuildIdentity 同款 plutil 读取；plist 缺失或
+// 键不全时维持 fail-closed（CuaHelperError unavailable），不产出半套身份。
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join as __join } from "node:path";
+export async function resolveHelperPermissionSubjectIdentity(appPath) {
+    const plistPath = __join(appPath, "Contents", "Info.plist");
+    if (!appPath?.trim() || !existsSync(plistPath)) {
+        throw new CuaHelperError("unavailable", `${UNAVAILABLE} (missing Helper bundle: ${appPath})`);
+    }
+    const readKey = (key) => {
+        const result = spawnSync("/usr/bin/plutil", ["-extract", key, "raw", "-o", "-", plistPath], {
+            encoding: "utf8",
+            timeout: 2000,
+            maxBuffer: 64 * 1024,
+        });
+        const value = (result.stdout ?? "").trim();
+        return result.status === 0 && value ? value : undefined;
+    };
+    const bundleId = readKey("CFBundleIdentifier");
+    const displayName = readKey("CFBundleDisplayName") ?? readKey("CFBundleName");
+    const executableName = readKey("CFBundleExecutable");
+    if (!bundleId || !displayName || !executableName) {
+        throw new CuaHelperError("unavailable", `${UNAVAILABLE} (incomplete Info.plist identity)`);
+    }
+    const executablePath = __join(appPath, "Contents", "MacOS", executableName);
+    return { appPath, executablePath, displayName, bundleId };
 }
 export function loadRealNativeAddon(_options) {
     throw new CuaHelperError("unavailable", UNAVAILABLE);

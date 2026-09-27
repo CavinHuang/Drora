@@ -75,7 +75,7 @@ export var P6e = z.object({
   parentPid: z.coerce.number().int().positive(),
 });
 
-export var qc = "3.14.0";
+export var qc = "3.14.3";
 
 export function uW(e) {
   return e?.trim().toLowerCase() === "production" ? "production" : "test";
@@ -240,6 +240,12 @@ export function qu(e: any = {}) {
         // （spec §六）；未传入时回退 WC 钉扎，行为不变。
         embeddedBuildId: e.embeddedBuildId,
         version: e.version,
+        // 路线 A 分发 profile（第五十五轮修复）：Mie 已定义该显式选项但 qu() 此前
+        // 未透传——桌面包装层/host 托管路径传入的放行被静默丢弃，adhoc 随包 Helper
+        // 恒走严格 TeamID 门。dev env 语义不受影响。
+        ...(e.allowUnsignedDistribution === true
+          ? { allowUnsignedDistribution: true }
+          : {}),
       }),
     logger: e.logger,
     dependencies: {

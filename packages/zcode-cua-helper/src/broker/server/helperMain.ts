@@ -405,6 +405,22 @@ export async function runHelper(options: any) {
     presentationAuthToken: options.presentationAuthToken ?? null,
     logger: options.logger,
     verifyPeer: options.verifyPeer,
+    // 第五十八轮：接线闲置自眠（官方 3.14.3 形态，strings 实证
+    // `idleExit: { timeoutMs: 3e5, reason: "idle_timeout_reached" }`；3.11.2 无此
+    // 机制）。brokerServer 的 idleExit 机制此前无人传参=死代码，standalone
+    // Helper 永不自眠（实测 14 分钟存活直至手杀，且占全局租约堵住其它 broker）。
+    // 判定=无连接 && 无 in-flight 持续 300s；managed 场景由 host 按需重拉。
+    idleExit: { timeoutMs: 3e5, reason: "idle_timeout_reached" },
+    // 官方 3.14.3 同款显式退出处理器（strings 实证 `onIdleExit: (reason) => {`）：
+    // broker 优雅 stop 后原生句柄（AX 观察者/CG watcher）仍撑住事件循环，自然
+    // drain 不会发生——必须像 startup-claim-timeout 一样显式 process.exit(0)。
+    onIdleExit: (reason) => {
+      process.stderr.write(
+        `[helper-exit] trigger=${reason} → process.exit(0) at ${new Date().toISOString()} launcherPid=${launcherPid}
+`,
+      );
+      process.exit(0);
+    },
     // 认领完成 = 客户端成功拿到 broker_info（health probe 收尾），此时主进程已接管并拿到 pid。只在此刻
     // 取消启动看门狗：若 authenticate 成功但 broker_info 超时/断开，claimed 仍为 false，看门狗照常自杀，
     // 不会留下已认证但无人接管的孤儿 Helper。
@@ -452,6 +468,11 @@ export async function runHelper(options: any) {
             "ZCode Computer Use startup-timeout shutdown failed",
             error51,
           );
+          // 第五十八轮：最后手段退出。认领超时的 Helper 是孤儿授权主体（上方告警
+          // 原文），优雅停机在原生清理失败时抛错——此前只记日志不退出，进程被原生
+          // 句柄撑住事件循环成为僵尸（实测 14/47 分钟存活直至手杀，且占全局租约
+          // 堵死其它 broker）。与官方 startup-claim-timeout 语义一致：无条件退。
+          options.onStartupClaimTimeout?.();
         });
     }, startupTtlMs);
     startupTimer.unref?.();

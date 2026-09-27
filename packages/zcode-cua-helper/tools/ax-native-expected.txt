@@ -68,6 +68,12 @@ moveToWindow
 moveToWindowAsync
 openApplicationInBackground
 openApplicationInBackgroundAsync
+parentProcessPid
+pasteboardAwaitProvidedRead
+pasteboardBeginProvidedPaste
+pasteboardFinishProvidedPaste
+pasteboardMarkProvidedPasteDispatched
+peerCodeSigningSummary
 performAction
 pipBeginTurn
 pipClearDismissed
@@ -100,6 +106,7 @@ readTccDbGranted
 reenableActivation
 releaseCaptureEpoch
 requestScreenCaptureAccess
+responsibleProcessPid
 screenCaptureProbeWindows
 screenCaptureStatus
 scrollAt
@@ -107,6 +114,7 @@ scrollToPid
 scrollToWindow
 scrollToWindowAsync
 selectText
+setCpsActivationDisabled
 setFocused
 setValue
 terminateApplicationVerified

@@ -1,7 +1,9 @@
 // ax_native.node 接口声明（对原版原生插件逆向还原）。
 //
 // 逆向方式与证据：
-// 1. 运行时内省：require() 加载后 Object.keys() 枚举出全部 117 个导出函数
+// 1. 运行时内省：require() 加载后 Object.keys() 枚举出全部导出函数
+//    （3.11.2 基线 117 个；第五十一轮升到官方 3.14.3 基线 125 个，
+//    新增 8 个见文末「3.14.3 增量导出」一节）
 //    （NAPI 插件的 arity 恒为 0，参数经 CallbackInfo 传入）。
 // 2. 静态符号：nm + c++filt demangle 出 55 个 C++ 函数（Napi 框架）与
 //    ObjC 类（ZcPipController / ZcPipImageView / ZcPipCloseButtonView /
@@ -388,3 +390,39 @@ export function holdKeyGlobalAsync(
 export function clickToWindowAsync(windowId: number, x: number, y: number): Promise<unknown>;
 /** 定向窗口滚动（异步）。 */
 export function scrollToWindowAsync(windowId: number, dx: number, dy: number): Promise<unknown>;
+
+// ---------------------------------------------------------------------------
+// 3.14.3 增量导出（第五十一轮基线升级；调用形态自官方 3.14.3 SEA payload
+// strings 的调用点还原，返回值语义未逐一逆向处以 unknown 标注）。
+// 官方 payload 侧均为可选守卫消费（wrapOptionalNativeMethod / typeof 检查），
+// 本仓 helper payload（3.11.2 方法面重放）不调用，能力面无依赖。
+// ---------------------------------------------------------------------------
+
+/// 当前进程的父进程 pid（3.14.3 产品模式 peer 验证硬门槛原语之一；
+/// win32 addon 早已提供同名导出，mac 3.14.3 补齐）。
+export function parentProcessPid(): number | null;
+
+/// 当前进程的 responsible 进程 pid（macOS responsibility 派生，用于 peer
+/// 身份归因诊断）。
+export function responsibleProcessPid(): number | null;
+
+/// 对端进程码签名摘要（peer 验证诊断面；参数/返回结构未逆向）。
+export function peerCodeSigningSummary(...args: unknown[]): unknown;
+
+/// 原生层禁用 CPS（Clear Predecessor State）激活；对应发射参数
+/// --disable-cps-activation 的原生落地。
+export function setCpsActivationDisabled(disabled: boolean): void;
+
+/// provided-paste 防劫持协议（darwin，四件套需同时在位才启用）：
+/// begin 写入剪贴板并返回一次性 token；awaitRead 等待对端读取确认
+/// （timeout/grace/minHold 三段时限）；finish 结束会话；markDispatched
+/// 标记派发完成（3.14.3 起可选出现）。
+export function pasteboardBeginProvidedPaste(text: string, format?: string): unknown;
+export function pasteboardAwaitProvidedRead(
+  token: unknown,
+  timeoutMs: number,
+  graceMs: number,
+  minHoldMs: number,
+): unknown;
+export function pasteboardFinishProvidedPaste(token: unknown): unknown;
+export function pasteboardMarkProvidedPasteDispatched(token: unknown): unknown;

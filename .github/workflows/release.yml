@@ -167,7 +167,7 @@ jobs:
         if: >-
           always() &&
           matrix.builder-os == 'mac' &&
-          secrets.MAC_SIGNING_CERT_P12_BASE64 != ''
+          env.MAC_SIGNING_CERT_P12_BASE64 != ''
         shell: bash
         run: |
           security delete-keychain "$RUNNER_TEMP/drora-signing.keychain-db" || true

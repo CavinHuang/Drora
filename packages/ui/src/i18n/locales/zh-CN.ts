@@ -2137,7 +2137,11 @@ const zhCN: Record<string, string> = {
   "settings.skin.useCustomAccent": "启用自定义颜色",
   "settings.skin.usePresetAccent": "恢复预设颜色",
   "settings.skin.customAccentDescription": "明暗主题会自动调整颜色亮度，保持文字可读。",
-  "settings.skin.opacityHint": "数值越低，背景图越明显；95% 不透明度只透出约 5% 的背景图。",
+  "settings.skin.panelColorTitle": "面板底色跟随背景图",
+  "settings.skin.panelColorDescription":
+    "根据当前背景图的主色，为会话、侧栏和右侧面板生成柔和底色。",
+  "settings.skin.opacityHint":
+    "可调范围 20%–100%；数值越低，背景图越明显。复杂图片在低不透明度下可能影响文字阅读。",
   "settings.skin.opacity.conversationOpacity": "会话面板背景不透明度：{value}%",
   "settings.skin.opacity.sidebarOpacity": "侧栏背景不透明度：{value}%",
   "settings.skin.opacity.sidePaneOpacity": "右侧面板背景不透明度：{value}%",

@@ -36,6 +36,7 @@ test("version 1 preference migrates panel opacity to three independent panels", 
       version: 2,
       presetId: "forest",
       customAccentColor: null,
+      matchPanelColorsToWallpaper: false,
       conversationOpacity: 87,
       sidebarOpacity: 87,
       sidePaneOpacity: 87,
@@ -65,6 +66,7 @@ test("stored version 2 takes precedence; legacy metadata is read only during mig
   );
   assert.equal(loaded.migrated, false);
   assert.equal(loaded.preference.presetId, "ocean");
+  assert.equal(loaded.preference.matchPanelColorsToWallpaper, false);
 });
 
 test("new preset IDs keep existing version 2 skin choices intact", () => {
@@ -72,12 +74,14 @@ test("new preset IDs keep existing version 2 skin choices intact", () => {
     ...DEFAULT_SKIN_PREFERENCE,
     presetId: "forest" as const,
     customAccentColor: "#aabbcc",
+    matchPanelColorsToWallpaper: true,
     sidebarOpacity: 87,
   };
   for (const presetId of ["ink", "geometry", "celestial"] as const) {
     const next = updateSkinPreference(current, { presetId });
     assert.equal(next.presetId, presetId);
     assert.equal(next.customAccentColor, current.customAccentColor);
+    assert.equal(next.matchPanelColorsToWallpaper, true);
     assert.equal(next.sidebarOpacity, current.sidebarOpacity);
     assert.equal(parseSkinPreference(JSON.stringify(next)).presetId, presetId);
   }
@@ -100,9 +104,10 @@ test("normalization bounds each opacity, color and image position", () => {
       version: 2,
       presetId: "ocean",
       customAccentColor: "#AABBCC",
-      conversationOpacity: 75,
+      matchPanelColorsToWallpaper: true,
+      conversationOpacity: 10,
       sidebarOpacity: 105,
-      sidePaneOpacity: 91,
+      sidePaneOpacity: 20,
       wallpaperPositionX: 120,
       wallpaperPositionY: -5,
       wallpaperRevision: null,
@@ -111,9 +116,10 @@ test("normalization bounds each opacity, color and image position", () => {
       version: 2,
       presetId: "ocean",
       customAccentColor: "#aabbcc",
-      conversationOpacity: 80,
+      matchPanelColorsToWallpaper: true,
+      conversationOpacity: 20,
       sidebarOpacity: 100,
-      sidePaneOpacity: 91,
+      sidePaneOpacity: 20,
       wallpaperPositionX: 100,
       wallpaperPositionY: 0,
       wallpaperRevision: null,
@@ -123,6 +129,11 @@ test("normalization bounds each opacity, color and image position", () => {
     normalizeSkinPreference({ ...DEFAULT_SKIN_PREFERENCE, customAccentColor: "red" })
       .customAccentColor,
     null,
+  );
+  assert.equal(
+    normalizeSkinPreference({ ...DEFAULT_SKIN_PREFERENCE, matchPanelColorsToWallpaper: "yes" })
+      .matchPanelColorsToWallpaper,
+    false,
   );
 });
 

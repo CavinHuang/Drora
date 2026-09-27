@@ -103,6 +103,19 @@ html[data-drora-custom-accent="true"] {
   --color-brand: var(--skin-custom-brand-light);
   --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
 }
+html[data-drora-skin-image-color="true"] {
+  --skin-conversation-surface: color-mix(
+    in srgb,
+    var(--color-background) 82%,
+    var(--skin-wallpaper-color)
+  );
+  --skin-sidebar-surface: color-mix(in srgb, var(--color-sidebar) 82%, var(--skin-wallpaper-color));
+  --skin-side-pane-surface: color-mix(
+    in srgb,
+    var(--color-background) 82%,
+    var(--skin-wallpaper-color)
+  );
+}
 html.dark[data-drora-custom-accent="true"] {
   --color-brand: var(--skin-custom-brand-dark);
   --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
@@ -116,24 +129,28 @@ html[data-drora-skin-active="true"] [data-workspace-shell="true"] {
 html[data-drora-skin-active="true"] [data-workspace-conversation-frame] {
   background-color: color-mix(
     in srgb,
-    var(--color-background) var(--skin-conversation-opacity, 100%),
+    var(--skin-conversation-surface, var(--color-background)) var(--skin-conversation-opacity, 100%),
     transparent
   ) !important;
 }
 html[data-drora-skin-active="true"] [data-workspace-sidebar-panel] {
   background-color: color-mix(
     in srgb,
-    var(--color-sidebar) var(--skin-sidebar-opacity, 100%),
+    var(--skin-sidebar-surface, var(--color-sidebar)) var(--skin-sidebar-opacity, 100%),
     transparent
   ) !important;
 }
-html[data-drora-skin-active="true"] [data-workspace-side-frame],
-html[data-drora-skin-active="true"] .side-pane-open-tab-shell {
+html[data-drora-skin-active="true"] [data-workspace-side-frame] {
   background-color: color-mix(
     in srgb,
-    var(--color-background) var(--skin-side-pane-opacity, 100%),
+    var(--skin-side-pane-surface, var(--color-background)) var(--skin-side-pane-opacity, 100%),
     transparent
   ) !important;
+}
+html[data-drora-skin-active="true"] [data-workspace-side-root],
+html[data-drora-skin-active="true"] [data-workspace-side-content],
+html[data-drora-skin-active="true"] .side-pane-open-tab-shell {
+  background-color: transparent !important;
 }
 html[data-drora-skin-active="true"] [data-workspace-terminal-frame] {
   background-color: var(--color-background) !important;
@@ -174,4 +191,25 @@ html[data-drora-skin-active="true"] [data-workspace-terminal-frame] {
   background-image: var(--skin-custom-wallpaper, var(--skin-preset-wallpaper, none));
   background-position: var(--skin-wallpaper-position-x, 50%) var(--skin-wallpaper-position-y, 50%);
   background-size: cover;
+}
+.skin-current-preview [data-skin-preview-panel="sidebar"] {
+  background-color: color-mix(
+    in srgb,
+    var(--skin-sidebar-surface, var(--color-sidebar)) var(--skin-sidebar-opacity, 100%),
+    transparent
+  );
+}
+.skin-current-preview [data-skin-preview-panel="conversation"] {
+  background-color: color-mix(
+    in srgb,
+    var(--skin-conversation-surface, var(--color-background)) var(--skin-conversation-opacity, 100%),
+    transparent
+  );
+}
+.skin-current-preview [data-skin-preview-panel="side"] {
+  background-color: color-mix(
+    in srgb,
+    var(--skin-side-pane-surface, var(--color-background)) var(--skin-side-pane-opacity, 100%),
+    transparent
+  );
 }

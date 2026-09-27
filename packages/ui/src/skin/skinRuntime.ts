@@ -1,16 +1,60 @@
 import type { SkinPreference } from "./skinPreference.js";
 import { loadWallpaper } from "./skinImageStore.js";
 import { resolveCustomBrandColor } from "./skinAccent.js";
+import {
+  getPresetWallpaperColor,
+  sampleWallpaperColor,
+  toMutedWallpaperColor,
+} from "./skinPalette.js";
 
 let requestGeneration = 0;
 let activeRevision: string | null = null;
 let activeObjectUrl: string | null = null;
+let activeBlob: Blob | null = null;
+let activeSample: string | null | undefined;
+let activeSamplePromise: Promise<string | null> | null = null;
 
 function releaseObjectUrl(): void {
   if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
   activeObjectUrl = null;
   activeRevision = null;
+  activeBlob = null;
+  activeSample = undefined;
+  activeSamplePromise = null;
   document.documentElement.style.removeProperty("--skin-custom-wallpaper");
+}
+
+function projectPanelColor(root: HTMLElement, enabled: boolean, color: string | null): void {
+  if (enabled && color) {
+    root.dataset.droraSkinImageColor = "true";
+    root.style.setProperty("--skin-wallpaper-color", toMutedWallpaperColor(color));
+  } else {
+    delete root.dataset.droraSkinImageColor;
+    root.style.removeProperty("--skin-wallpaper-color");
+  }
+}
+
+function projectCustomPanelColor(
+  root: HTMLElement,
+  preference: SkinPreference,
+  generation: number,
+): void {
+  if (!preference.matchPanelColorsToWallpaper || !activeBlob) return;
+  const fallback = getPresetWallpaperColor(preference.presetId);
+  if (activeSample !== undefined) {
+    projectPanelColor(root, true, activeSample ?? fallback);
+    return;
+  }
+  const revision = activeRevision;
+  const sample = activeSamplePromise ?? sampleWallpaperColor(activeBlob).catch(() => null);
+  activeSamplePromise = sample;
+  void sample.then((color) => {
+    if (revision !== activeRevision) return;
+    activeSample = color;
+    activeSamplePromise = null;
+    // 修复：导入图片或切换开关时旧的采样结果可能晚于新皮肤返回，不能覆盖新投射。
+    if (generation === requestGeneration) projectPanelColor(root, true, color ?? fallback);
+  });
 }
 
 export function applySkinPreference(preference: SkinPreference): void {
@@ -50,18 +94,27 @@ export function applySkinPreference(preference: SkinPreference): void {
   root.style.setProperty("--skin-wallpaper-position-y", `${preference.wallpaperPositionY}%`);
 
   const generation = ++requestGeneration;
+  const presetColor = getPresetWallpaperColor(preference.presetId);
+  const cachedColor =
+    activeRevision === preference.wallpaperRevision ? (activeSample ?? presetColor) : presetColor;
+  projectPanelColor(root, preference.matchPanelColorsToWallpaper, cachedColor);
   if (!preference.wallpaperRevision) {
     releaseObjectUrl();
     return;
   }
-  if (activeRevision === preference.wallpaperRevision && activeObjectUrl) return;
+  if (activeRevision === preference.wallpaperRevision && activeObjectUrl) {
+    projectCustomPanelColor(root, preference, generation);
+    return;
+  }
   releaseObjectUrl();
   void loadWallpaper()
     .then((blob) => {
       if (generation !== requestGeneration || !blob) return;
       activeObjectUrl = URL.createObjectURL(blob);
       activeRevision = preference.wallpaperRevision;
+      activeBlob = blob;
       root.style.setProperty("--skin-custom-wallpaper", `url("${activeObjectUrl}")`);
+      projectCustomPanelColor(root, preference, generation);
     })
     .catch(() => {
       // 修复：壁纸数据可能在浏览器清理或另一个窗口删除后消失。

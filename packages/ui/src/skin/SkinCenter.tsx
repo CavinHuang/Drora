@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button.js";
+import { Switch } from "@/components/ui/switch.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useDroraStore } from "@/store/StoreProvider.js";
 import {
@@ -95,10 +96,38 @@ export function SkinCenter() {
         </p>
       </div>
 
-      <div className="skin-current-preview flex h-28 items-end overflow-hidden rounded-lg border border-border p-3">
-        <span className="rounded-md bg-background/90 px-2 py-1 text-ui-sm text-foreground">
+      <div className="skin-current-preview flex h-28 flex-col justify-between overflow-hidden rounded-lg border border-border p-3">
+        <span className="self-start rounded-md bg-background/90 px-2 py-1 text-ui-sm text-foreground">
           {intl.formatMessage({ id: "settings.skin.preview" })}
         </span>
+        <div aria-hidden="true" className="flex h-6 gap-1">
+          <div
+            data-skin-preview-panel="sidebar"
+            className="w-1/4 rounded border border-border/50"
+          />
+          <div
+            data-skin-preview-panel="conversation"
+            className="flex-1 rounded border border-border/50"
+          />
+          <div data-skin-preview-panel="side" className="w-1/5 rounded border border-border/50" />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
+        <div className="min-w-0">
+          <label id="skin-panel-color-label" className="text-ui-base font-medium text-foreground">
+            {intl.formatMessage({ id: "settings.skin.panelColorTitle" })}
+          </label>
+          <p id="skin-panel-color-description" className="mt-1 text-ui-sm text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.skin.panelColorDescription" })}
+          </p>
+        </div>
+        <Switch
+          checked={preference.matchPanelColorsToWallpaper}
+          onCheckedChange={(checked) => setSkin({ matchPanelColorsToWallpaper: checked })}
+          aria-labelledby="skin-panel-color-label"
+          aria-describedby="skin-panel-color-description"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -213,7 +242,7 @@ export function SkinCenter() {
             </span>
             <input
               type="range"
-              min={80}
+              min={20}
               max={100}
               step={1}
               value={preference[field]}

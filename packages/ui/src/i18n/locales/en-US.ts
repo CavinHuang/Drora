@@ -2275,8 +2275,11 @@ const enUS: Record<string, string> = {
   "settings.skin.usePresetAccent": "Use preset colors",
   "settings.skin.customAccentDescription":
     "Brightness adjusts automatically for readable text in light and dark themes.",
+  "settings.skin.panelColorTitle": "Match panel colors to wallpaper",
+  "settings.skin.panelColorDescription":
+    "Use the wallpaper's main color to softly tint the conversation, sidebar and right pane.",
   "settings.skin.opacityHint":
-    "Lower values show more wallpaper; 95% opacity reveals only about 5% of it.",
+    "Range: 20%–100%. Lower values reveal more wallpaper; busy images may make text harder to read.",
   "settings.skin.opacity.conversationOpacity": "Conversation background opacity: {value}%",
   "settings.skin.opacity.sidebarOpacity": "Sidebar background opacity: {value}%",
   "settings.skin.opacity.sidePaneOpacity": "Right pane background opacity: {value}%",

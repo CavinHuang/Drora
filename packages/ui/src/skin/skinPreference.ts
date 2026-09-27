@@ -18,6 +18,7 @@ export interface SkinPreference {
   version: 2;
   presetId: SkinPresetId;
   customAccentColor: string | null;
+  matchPanelColorsToWallpaper: boolean;
   conversationOpacity: number;
   sidebarOpacity: number;
   sidePaneOpacity: number;
@@ -30,6 +31,7 @@ export const DEFAULT_SKIN_PREFERENCE: SkinPreference = {
   version: 2,
   presetId: "default",
   customAccentColor: null,
+  matchPanelColorsToWallpaper: false,
   conversationOpacity: 100,
   sidebarOpacity: 100,
   sidePaneOpacity: 100,
@@ -53,9 +55,9 @@ export function normalizeSkinPreference(value: unknown): SkinPreference {
   ) {
     return DEFAULT_SKIN_PREFERENCE;
   }
-  const legacyOpacity = boundedNumber(raw.panelOpacity, 100, 80, 100);
+  const legacyOpacity = boundedNumber(raw.panelOpacity, 100, 20, 100);
   const opacity = (field: string) =>
-    raw.version === 1 ? legacyOpacity : boundedNumber(raw[field], 100, 80, 100);
+    raw.version === 1 ? legacyOpacity : boundedNumber(raw[field], 100, 20, 100);
   return {
     version: 2,
     presetId: raw.presetId as SkinPresetId,
@@ -63,6 +65,7 @@ export function normalizeSkinPreference(value: unknown): SkinPreference {
       typeof raw.customAccentColor === "string" && /^#[0-9a-f]{6}$/i.test(raw.customAccentColor)
         ? raw.customAccentColor.toLowerCase()
         : null,
+    matchPanelColorsToWallpaper: raw.matchPanelColorsToWallpaper === true,
     conversationOpacity: opacity("conversationOpacity"),
     sidebarOpacity: opacity("sidebarOpacity"),
     sidePaneOpacity: opacity("sidePaneOpacity"),

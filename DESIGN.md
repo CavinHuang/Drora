@@ -52,6 +52,7 @@ Default light and dark CSS variables still exist as fallback foundations, but ne
 ## Optional workspace skins
 
 The Appearance skin center may place a device-local raster wallpaper beneath the workspace frames.
+Optional bundled preset art should use quiet compositions with no text or prominent focal object, be optimized for Desktop and Web delivery, and remain legible under light/dark theme tints.
 Keep semantic text, status, card, dialog, browser and terminal content surfaces readable. The
 workspace conversation, sidebar and side-pane shell backgrounds may each use an 80–100% opacity setting;
 never apply CSS `opacity` to a parent containing text or controls. Default skin at 100% preserves

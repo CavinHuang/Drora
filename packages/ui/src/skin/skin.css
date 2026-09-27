@@ -1,45 +1,55 @@
 /* 皮肤仅投射到工作区视觉层，不改变任务、设置、预览和原生窗口的表面语义。 */
+html {
+  --skin-ocean-art: url("./wallpapers/ocean.webp");
+  --skin-forest-art: url("./wallpapers/forest.webp");
+  --skin-plum-art: url("./wallpapers/plum.webp");
+  --skin-ocean-wallpaper:
+    linear-gradient(rgb(235 247 250 / 18%), rgb(230 245 249 / 18%)), var(--skin-ocean-art),
+    linear-gradient(135deg, #d9edf4, #6e9db0);
+  --skin-forest-wallpaper:
+    linear-gradient(rgb(238 246 236 / 14%), rgb(229 240 230 / 14%)), var(--skin-forest-art),
+    linear-gradient(140deg, #e4ecdf, #779b87);
+  --skin-plum-wallpaper:
+    linear-gradient(rgb(248 238 248 / 16%), rgb(244 235 247 / 16%)), var(--skin-plum-art),
+    linear-gradient(135deg, #f1e7ef, #aa8dad);
+}
+html.dark {
+  --skin-ocean-wallpaper:
+    linear-gradient(rgb(7 19 29 / 64%), rgb(8 24 35 / 64%)), var(--skin-ocean-art),
+    linear-gradient(135deg, #102a3a, #31596e);
+  --skin-forest-wallpaper:
+    linear-gradient(rgb(9 23 16 / 67%), rgb(13 28 20 / 67%)), var(--skin-forest-art),
+    linear-gradient(140deg, #192a21, #345446);
+  --skin-plum-wallpaper:
+    linear-gradient(rgb(28 18 35 / 58%), rgb(25 17 32 / 58%)), var(--skin-plum-art),
+    linear-gradient(135deg, #2b2030, #674d70);
+}
 html[data-drora-skin="ocean"] {
   --color-brand: #176d97;
   --color-accent: #e6f5fb;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 85% 14%, #a8d8e5 0%, transparent 42%),
-    linear-gradient(135deg, #d9edf4, #6e9db0);
+  --skin-preset-wallpaper: var(--skin-ocean-wallpaper);
 }
 html.dark[data-drora-skin="ocean"] {
   --color-brand: #7dcee9;
   --color-accent: #163341;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 82% 16%, #287089 0%, transparent 42%),
-    linear-gradient(135deg, #102a3a, #31596e);
 }
 html[data-drora-skin="forest"] {
   --color-brand: #28724b;
   --color-accent: #e5f2e8;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 20% 25%, #b0d5b7 0%, transparent 40%),
-    linear-gradient(140deg, #e4ecdf, #779b87);
+  --skin-preset-wallpaper: var(--skin-forest-wallpaper);
 }
 html.dark[data-drora-skin="forest"] {
   --color-brand: #91d6a9;
   --color-accent: #20392b;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 20% 25%, #3d7654 0%, transparent 40%),
-    linear-gradient(140deg, #192a21, #345446);
 }
 html[data-drora-skin="plum"] {
   --color-brand: #8054a0;
   --color-accent: #f1e9f6;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 75% 20%, #d6badd 0%, transparent 45%),
-    linear-gradient(135deg, #f1e7ef, #aa8dad);
+  --skin-preset-wallpaper: var(--skin-plum-wallpaper);
 }
 html.dark[data-drora-skin="plum"] {
   --color-brand: #d7a9ed;
   --color-accent: #39283f;
-  --skin-preset-wallpaper:
-    radial-gradient(circle at 75% 20%, #825592 0%, transparent 45%),
-    linear-gradient(135deg, #2b2030, #674d70);
 }
 html[data-drora-custom-accent="true"] {
   --color-brand: var(--skin-custom-brand-light);
@@ -91,13 +101,19 @@ html[data-drora-skin-active="true"] [data-workspace-terminal-frame] {
   background: var(--color-background);
 }
 .skin-preview[data-preset="ocean"] {
-  background: linear-gradient(135deg, #d9edf4, #31596e);
+  background-image: var(--skin-ocean-wallpaper);
 }
 .skin-preview[data-preset="forest"] {
-  background: linear-gradient(135deg, #e4ecdf, #345446);
+  background-image: var(--skin-forest-wallpaper);
 }
 .skin-preview[data-preset="plum"] {
-  background: linear-gradient(135deg, #f1e7ef, #674d70);
+  background-image: var(--skin-plum-wallpaper);
+}
+.skin-preview[data-preset="ocean"],
+.skin-preview[data-preset="forest"],
+.skin-preview[data-preset="plum"] {
+  background-position: center;
+  background-size: cover;
 }
 
 .skin-current-preview {

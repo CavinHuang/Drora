@@ -49,6 +49,15 @@ User-facing theme choices are:
 
 Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
 
+## Optional workspace skins
+
+The Appearance skin center may place a device-local raster wallpaper beneath the workspace frames.
+Keep semantic text, status, card, dialog, browser and terminal content surfaces readable. The
+workspace conversation, sidebar and side-pane shell backgrounds may each use an 80–100% opacity setting;
+never apply CSS `opacity` to a parent containing text or controls. Default skin at 100% preserves
+the existing appearance. A custom brand accent must remain readable in both light and dark themes.
+Theme mode remains the owner of light/dark and native title-bar behavior.
+
 ## Color Palette
 
 ### Core semantic colors

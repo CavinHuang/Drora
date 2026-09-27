@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_SKIN_PREFERENCE,
+  LEGACY_SKIN_STORAGE_KEY,
   SKIN_STORAGE_KEY,
+  loadSkinPreference,
   normalizeSkinPreference,
+  parseSkinPreference,
   updateSkinPreference,
   validateWallpaperFile,
 } from "../src/skin/skinPreference.js";
@@ -14,15 +17,62 @@ test("new and malformed profiles preserve the original default appearance", () =
     normalizeSkinPreference({ version: 9, presetId: "missing" }),
     DEFAULT_SKIN_PREFERENCE,
   );
-  assert.equal(SKIN_STORAGE_KEY, "drora-skin-v1");
+  assert.equal(SKIN_STORAGE_KEY, "drora-skin-v2");
 });
 
-test("normalization bounds opacity and image position while rejecting unknown presets", () => {
+test("version 1 preference migrates panel opacity to three independent panels", () => {
+  assert.deepEqual(
+    parseSkinPreference(
+      JSON.stringify({
+        version: 1,
+        presetId: "forest",
+        panelOpacity: 87,
+        wallpaperPositionX: 25,
+        wallpaperPositionY: 75,
+        wallpaperRevision: "11111111-1111-4111-8111-111111111111",
+      }),
+    ),
+    {
+      version: 2,
+      presetId: "forest",
+      customAccentColor: null,
+      conversationOpacity: 87,
+      sidebarOpacity: 87,
+      sidePaneOpacity: 87,
+      wallpaperPositionX: 25,
+      wallpaperPositionY: 75,
+      wallpaperRevision: "11111111-1111-4111-8111-111111111111",
+    },
+  );
+});
+
+test("stored version 2 takes precedence; legacy metadata is read only during migration", () => {
+  const legacy = JSON.stringify({
+    version: 1,
+    presetId: "plum",
+    panelOpacity: 83,
+    wallpaperPositionX: 50,
+    wallpaperPositionY: 50,
+    wallpaperRevision: null,
+  });
+  const readLegacy = (key: string) => (key === LEGACY_SKIN_STORAGE_KEY ? legacy : null);
+  const migration = loadSkinPreference(readLegacy);
+  assert.equal(migration.migrated, true);
+  assert.equal(migration.preference.sidebarOpacity, 83);
+  const current = JSON.stringify({ ...DEFAULT_SKIN_PREFERENCE, presetId: "ocean" });
+  const loaded = loadSkinPreference((key) =>
+    key === SKIN_STORAGE_KEY ? current : key === LEGACY_SKIN_STORAGE_KEY ? legacy : null,
+  );
+  assert.equal(loaded.migrated, false);
+  assert.equal(loaded.preference.presetId, "ocean");
+});
+
+test("normalization bounds each opacity, color and image position", () => {
   assert.deepEqual(
     normalizeSkinPreference({
-      version: 1,
+      version: 2,
       presetId: "unknown",
-      panelOpacity: 12,
+      conversationOpacity: 12,
       wallpaperPositionX: 140,
       wallpaperPositionY: -10,
       wallpaperRevision: "not-a-uuid",
@@ -31,31 +81,45 @@ test("normalization bounds opacity and image position while rejecting unknown pr
   );
   assert.deepEqual(
     normalizeSkinPreference({
-      version: 1,
+      version: 2,
       presetId: "ocean",
-      panelOpacity: 75,
+      customAccentColor: "#AABBCC",
+      conversationOpacity: 75,
+      sidebarOpacity: 105,
+      sidePaneOpacity: 91,
       wallpaperPositionX: 120,
       wallpaperPositionY: -5,
       wallpaperRevision: null,
     }),
     {
-      version: 1,
+      version: 2,
       presetId: "ocean",
-      panelOpacity: 80,
+      customAccentColor: "#aabbcc",
+      conversationOpacity: 80,
+      sidebarOpacity: 100,
+      sidePaneOpacity: 91,
       wallpaperPositionX: 100,
       wallpaperPositionY: 0,
       wallpaperRevision: null,
     },
+  );
+  assert.equal(
+    normalizeSkinPreference({ ...DEFAULT_SKIN_PREFERENCE, customAccentColor: "red" })
+      .customAccentColor,
+    null,
   );
 });
 
 test("resetting a skin does not change theme mode", () => {
   const previous = updateSkinPreference(DEFAULT_SKIN_PREFERENCE, {
     presetId: "forest",
-    panelOpacity: 85,
+    conversationOpacity: 85,
+    sidebarOpacity: 92,
+    customAccentColor: "#336699",
   });
   assert.equal(previous.presetId, "forest");
-  assert.equal(previous.panelOpacity, 85);
+  assert.equal(previous.conversationOpacity, 85);
+  assert.equal(previous.sidebarOpacity, 92);
   assert.deepEqual(
     updateSkinPreference(previous, DEFAULT_SKIN_PREFERENCE),
     DEFAULT_SKIN_PREFERENCE,

@@ -3,11 +3,14 @@ import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useDroraStore } from "@/store/StoreProvider.js";
 import {
+  DEFAULT_CUSTOM_ACCENT_COLOR,
   DEFAULT_SKIN_PREFERENCE,
   SKIN_PRESET_IDS,
   validateWallpaperFile,
 } from "@/skin/skinPreference.js";
 import { decodeWallpaper, deleteWallpaper, saveWallpaper } from "@/skin/skinImageStore.js";
+
+const OPACITY_FIELDS = ["conversationOpacity", "sidebarOpacity", "sidePaneOpacity"] as const;
 
 export function SkinCenter() {
   const { intl } = useDroraIntl();
@@ -24,14 +27,16 @@ export function SkinCenter() {
     setError(null);
     try {
       await deleteWallpaper();
-      if (request !== requestRef.current) return;
-      setSkin(reset ? DEFAULT_SKIN_PREFERENCE : { wallpaperRevision: null });
     } catch {
       if (request === requestRef.current) {
-        setError(intl.formatMessage({ id: "settings.skin.storageError" }));
+        // 修复：本地图片清理失败不应阻止用户恢复配色与面板背景。
+        setError(intl.formatMessage({ id: "settings.skin.cleanupError" }));
       }
     } finally {
-      if (request === requestRef.current) setBusy(false);
+      if (request === requestRef.current) {
+        setSkin(reset ? DEFAULT_SKIN_PREFERENCE : { wallpaperRevision: null });
+        setBusy(false);
+      }
     }
   };
 
@@ -103,15 +108,52 @@ export function SkinCenter() {
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3">
+        <label className="flex min-w-0 flex-1 items-center gap-3 text-ui-base text-foreground">
+          <span>{intl.formatMessage({ id: "settings.skin.customAccent" })}</span>
+          <input
+            type="color"
+            value={preference.customAccentColor ?? DEFAULT_CUSTOM_ACCENT_COLOR}
+            onChange={(event) => setSkin({ customAccentColor: event.currentTarget.value })}
+            className="h-9 w-12 cursor-pointer rounded border border-border bg-transparent p-1"
+          />
+          <span className="text-ui-sm text-foreground-subtle">
+            {preference.customAccentColor ??
+              intl.formatMessage({ id: "settings.skin.presetAccent" })}
+          </span>
+        </label>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() =>
+            setSkin({
+              customAccentColor: preference.customAccentColor ? null : DEFAULT_CUSTOM_ACCENT_COLOR,
+            })
+          }
+        >
+          {intl.formatMessage({
+            id: preference.customAccentColor
+              ? "settings.skin.usePresetAccent"
+              : "settings.skin.useCustomAccent",
+          })}
+        </Button>
+        <p className="w-full text-ui-sm text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.skin.customAccentDescription" })}
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           ref={inputRef}
+          data-testid="skin-wallpaper-input"
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={(event) => {
             void onFileChange(event);
           }}
-          className="hidden"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
         />
         <Button
           type="button"
@@ -145,20 +187,27 @@ export function SkinCenter() {
         </Button>
       </div>
 
-      <label className="block space-y-2 text-ui-base text-foreground">
-        <span>
-          {intl.formatMessage({ id: "settings.skin.opacity" }, { value: preference.panelOpacity })}
-        </span>
-        <input
-          type="range"
-          min={80}
-          max={100}
-          step={1}
-          value={preference.panelOpacity}
-          onChange={(event) => setSkin({ panelOpacity: Number(event.currentTarget.value) })}
-          className="w-full accent-[var(--color-brand)]"
-        />
-      </label>
+      <div className="space-y-3">
+        {OPACITY_FIELDS.map((field) => (
+          <label key={field} className="block space-y-2 text-ui-base text-foreground">
+            <span>
+              {intl.formatMessage(
+                { id: `settings.skin.opacity.${field}` },
+                { value: preference[field] },
+              )}
+            </span>
+            <input
+              type="range"
+              min={80}
+              max={100}
+              step={1}
+              value={preference[field]}
+              onChange={(event) => setSkin({ [field]: Number(event.currentTarget.value) })}
+              className="w-full accent-[var(--color-brand)]"
+            />
+          </label>
+        ))}
+      </div>
 
       {preference.wallpaperRevision ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

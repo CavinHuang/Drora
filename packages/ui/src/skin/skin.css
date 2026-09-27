@@ -41,31 +41,46 @@ html.dark[data-drora-skin="plum"] {
     radial-gradient(circle at 75% 20%, #825592 0%, transparent 45%),
     linear-gradient(135deg, #2b2030, #674d70);
 }
-html[data-drora-skin-active="true"] [data-desktop-window-frame="true"] {
-  position: relative;
+html[data-drora-custom-accent="true"] {
+  --color-brand: var(--skin-custom-brand-light);
+  --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
+}
+html.dark[data-drora-custom-accent="true"] {
+  --color-brand: var(--skin-custom-brand-dark);
+  --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
+}
+html[data-drora-skin-active="true"] [data-workspace-shell="true"] {
   isolation: isolate;
 }
-html[data-drora-skin-active="true"] [data-desktop-window-frame="true"]::before {
+html[data-drora-skin-active="true"] [data-workspace-shell="true"]::before {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   content: "";
   background-image: var(--skin-custom-wallpaper, var(--skin-preset-wallpaper, none));
   background-position: var(--skin-wallpaper-position-x, 50%) var(--skin-wallpaper-position-y, 50%);
   background-size: cover;
 }
-html[data-drora-skin-active="true"] [data-desktop-window-frame="true"] > div {
-  position: relative;
-  z-index: 1;
+html[data-drora-skin-active="true"] [data-workspace-conversation-frame] {
+  background-color: color-mix(
+    in srgb,
+    var(--color-background) var(--skin-conversation-opacity, 100%),
+    transparent
+  ) !important;
 }
-html[data-drora-skin-active="true"] [data-workspace-conversation-frame],
+html[data-drora-skin-active="true"] [data-workspace-sidebar-panel] {
+  background-color: color-mix(
+    in srgb,
+    var(--color-sidebar) var(--skin-sidebar-opacity, 100%),
+    transparent
+  ) !important;
+}
 html[data-drora-skin-active="true"] [data-workspace-side-frame],
-html[data-drora-skin-active="true"] [data-workspace-sidebar-panel],
 html[data-drora-skin-active="true"] .side-pane-open-tab-shell {
   background-color: color-mix(
     in srgb,
-    var(--color-background) var(--skin-panel-opacity, 100%),
+    var(--color-background) var(--skin-side-pane-opacity, 100%),
     transparent
   ) !important;
 }

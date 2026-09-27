@@ -9,14 +9,14 @@ import { create } from "zustand";
 import type { IBroadcastService, BroadcastMessage } from "@drora/services";
 import type { OAuthProviderId, UserInfo } from "@drora/shared";
 import type { CodingPlanResetType } from "@drora/shared";
-import { SKIN_BROADCAST_CHANNEL, SKIN_STORAGE_KEY } from "@drora/shared";
+import { SKIN_STORAGE_KEY } from "@drora/shared";
 import {
-  normalizeSkinPreference,
-  parseSkinPreference,
+  loadSkinPreference,
   updateSkinPreference,
   type SkinPreference,
 } from "@/skin/skinPreference.js";
 import { applySkinPreference } from "@/skin/skinRuntime.js";
+import { createSkinPreferenceSync, type SkinSyncMode } from "@/skin/skinSync.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type {
   CodingPlanQuotaResetUiEntries,
@@ -243,6 +243,7 @@ export function createDroraStore(
   broadcastService: IBroadcastService,
   options: {
     initialIsRestoringOAuthSession?: boolean;
+    skinSyncMode?: SkinSyncMode;
   } = {},
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
@@ -250,6 +251,10 @@ export function createDroraStore(
   let loginEntryRequestSeq = 0;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
+  const initialSkin = loadSkinPreference(readSafeLocalStorage);
+  if (initialSkin.migrated) {
+    writeSafeLocalStorage(SKIN_STORAGE_KEY, JSON.stringify(initialSkin.preference));
+  }
 
   const useStore = create<DroraState>()((set, get) => ({
     interfaceMode: normalizeInterfaceMode(readSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY)),
@@ -276,7 +281,7 @@ export function createDroraStore(
       set({ theme: normalizedTheme });
     },
 
-    skin: parseSkinPreference(readSafeLocalStorage(SKIN_STORAGE_KEY)),
+    skin: initialSkin.preference,
     setSkin: (patch: Partial<SkinPreference>) => {
       const next = updateSkinPreference(get().skin, patch);
       writeSafeLocalStorage(SKIN_STORAGE_KEY, JSON.stringify(next));
@@ -417,6 +422,25 @@ export function createDroraStore(
     clearOnboardingDialogRequest: () => set({ onboardingDialogRequested: false }),
   }));
 
+  const skinSync = createSkinPreferenceSync({
+    mode: options.skinSyncMode ?? "desktop",
+    broadcast: broadcastService,
+    onPreference: (preference) => {
+      applyingBroadcast = true;
+      try {
+        if (options.skinSyncMode === "web") {
+          // 修复：Web storage 事件已经持久化；重复写入会制造跨标签回声。
+          applySkinPreference(preference);
+          useStore.setState({ skin: preference });
+        } else {
+          useStore.getState().setSkin(preference);
+        }
+      } finally {
+        applyingBroadcast = false;
+      }
+    },
+  });
+
   syncSystemThemeListener = (theme: Theme) => {
     cleanupSystemThemeListener?.();
     cleanupSystemThemeListener = null;
@@ -461,7 +485,9 @@ export function createDroraStore(
     }
 
     if (state.skin !== prevState.skin) {
-      void broadcastService.send({ channel: SKIN_BROADCAST_CHANNEL, payload: state.skin });
+      void skinSync.publish(state.skin).catch((error: unknown) => {
+        logger.warn("[Skin] 同步皮肤偏好失败", { error });
+      });
     }
 
     for (const field of BROADCAST_FIELDS as Set<BroadcastField>) {
@@ -483,16 +509,6 @@ export function createDroraStore(
     const autoPlayed = parseCodingPlanQuotaResetAutoPlayedBroadcastMessage(msg);
     if (autoPlayed) {
       useStore.setState((state) => applyCodingPlanQuotaResetAutoPlayedBroadcast(state, autoPlayed));
-      return;
-    }
-
-    if (msg.channel === SKIN_BROADCAST_CHANNEL) {
-      applyingBroadcast = true;
-      try {
-        useStore.getState().setSkin(normalizeSkinPreference(msg.payload));
-      } finally {
-        applyingBroadcast = false;
-      }
       return;
     }
 

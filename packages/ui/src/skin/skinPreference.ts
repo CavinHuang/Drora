@@ -1,21 +1,30 @@
-export { SKIN_STORAGE_KEY } from "@drora/shared";
+import { LEGACY_SKIN_STORAGE_KEY, SKIN_STORAGE_KEY } from "@drora/shared";
+
+export { LEGACY_SKIN_STORAGE_KEY, SKIN_STORAGE_KEY };
 export const MAX_WALLPAPER_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_CUSTOM_ACCENT_COLOR = "#176d97";
 export const SKIN_PRESET_IDS = ["default", "ocean", "forest", "plum"] as const;
 export type SkinPresetId = (typeof SKIN_PRESET_IDS)[number];
 
 export interface SkinPreference {
-  version: 1;
+  version: 2;
   presetId: SkinPresetId;
-  panelOpacity: number;
+  customAccentColor: string | null;
+  conversationOpacity: number;
+  sidebarOpacity: number;
+  sidePaneOpacity: number;
   wallpaperPositionX: number;
   wallpaperPositionY: number;
   wallpaperRevision: string | null;
 }
 
 export const DEFAULT_SKIN_PREFERENCE: SkinPreference = {
-  version: 1,
+  version: 2,
   presetId: "default",
-  panelOpacity: 100,
+  customAccentColor: null,
+  conversationOpacity: 100,
+  sidebarOpacity: 100,
+  sidePaneOpacity: 100,
   wallpaperPositionX: 50,
   wallpaperPositionY: 50,
   wallpaperRevision: null,
@@ -30,13 +39,25 @@ function boundedNumber(value: unknown, fallback: number, min: number, max: numbe
 export function normalizeSkinPreference(value: unknown): SkinPreference {
   if (!value || typeof value !== "object") return DEFAULT_SKIN_PREFERENCE;
   const raw = value as Record<string, unknown>;
-  if (raw.version !== 1 || !SKIN_PRESET_IDS.includes(raw.presetId as SkinPresetId)) {
+  if (
+    (raw.version !== 1 && raw.version !== 2) ||
+    !SKIN_PRESET_IDS.includes(raw.presetId as SkinPresetId)
+  ) {
     return DEFAULT_SKIN_PREFERENCE;
   }
+  const legacyOpacity = boundedNumber(raw.panelOpacity, 100, 80, 100);
+  const opacity = (field: string) =>
+    raw.version === 1 ? legacyOpacity : boundedNumber(raw[field], 100, 80, 100);
   return {
-    version: 1,
+    version: 2,
     presetId: raw.presetId as SkinPresetId,
-    panelOpacity: boundedNumber(raw.panelOpacity, 100, 80, 100),
+    customAccentColor:
+      typeof raw.customAccentColor === "string" && /^#[0-9a-f]{6}$/i.test(raw.customAccentColor)
+        ? raw.customAccentColor.toLowerCase()
+        : null,
+    conversationOpacity: opacity("conversationOpacity"),
+    sidebarOpacity: opacity("sidebarOpacity"),
+    sidePaneOpacity: opacity("sidePaneOpacity"),
     wallpaperPositionX: boundedNumber(raw.wallpaperPositionX, 50, 0, 100),
     wallpaperPositionY: boundedNumber(raw.wallpaperPositionY, 50, 0, 100),
     wallpaperRevision:
@@ -45,6 +66,15 @@ export function normalizeSkinPreference(value: unknown): SkinPreference {
         ? raw.wallpaperRevision
         : null,
   };
+}
+
+export function isSkinPreferencePayload(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const raw = value as Record<string, unknown>;
+  return (
+    (raw.version === 1 || raw.version === 2) &&
+    SKIN_PRESET_IDS.includes(raw.presetId as SkinPresetId)
+  );
 }
 
 export function updateSkinPreference(
@@ -61,6 +91,16 @@ export function parseSkinPreference(raw: string | null): SkinPreference {
   } catch {
     return DEFAULT_SKIN_PREFERENCE;
   }
+}
+
+export function loadSkinPreference(read: (key: string) => string | null): {
+  preference: SkinPreference;
+  migrated: boolean;
+} {
+  const current = read(SKIN_STORAGE_KEY);
+  if (current !== null) return { preference: parseSkinPreference(current), migrated: false };
+  const legacy = read(LEGACY_SKIN_STORAGE_KEY);
+  return { preference: parseSkinPreference(legacy), migrated: legacy !== null };
 }
 
 export type WallpaperValidationError = "invalid" | "too-large";

@@ -2240,7 +2240,7 @@ const enUS: Record<string, string> = {
   "settings.skin.preview": "Workspace preview",
   "settings.skin.title": "Skin center",
   "settings.skin.description":
-    "Choose a palette and workspace background, then adjust panel background opacity.",
+    "Choose a palette and workspace background, then adjust each panel background.",
   "settings.skin.preset.default": "Default",
   "settings.skin.preset.ocean": "Ocean",
   "settings.skin.preset.forest": "Forest",
@@ -2248,12 +2248,22 @@ const enUS: Record<string, string> = {
   "settings.skin.import": "Import background image",
   "settings.skin.clearImage": "Remove image",
   "settings.skin.reset": "Reset skin",
-  "settings.skin.opacity": "Panel background opacity: {value}%",
+  "settings.skin.customAccent": "Custom accent color",
+  "settings.skin.presetAccent": "Using preset colors",
+  "settings.skin.useCustomAccent": "Use custom color",
+  "settings.skin.usePresetAccent": "Use preset colors",
+  "settings.skin.customAccentDescription":
+    "Brightness adjusts automatically for readable text in light and dark themes.",
+  "settings.skin.opacity.conversationOpacity": "Conversation background opacity: {value}%",
+  "settings.skin.opacity.sidebarOpacity": "Sidebar background opacity: {value}%",
+  "settings.skin.opacity.sidePaneOpacity": "Right pane background opacity: {value}%",
   "settings.skin.positionX": "Horizontal image position",
   "settings.skin.positionY": "Vertical image position",
   "settings.skin.invalid": "Choose a valid PNG, JPEG, or WebP image.",
   "settings.skin.too-large": "Images must be 8 MiB or smaller.",
   "settings.skin.storageError": "Could not save this image. Try again.",
+  "settings.skin.cleanupError":
+    "Settings were restored, but the local image could not be removed. Retry Reset later.",
   "settings.appearance.interfaceDescription": "Choose the app theme and interface text size.",
   "settings.appearance.codeTitle": "Code settings",
   "settings.appearance.codeDescription":

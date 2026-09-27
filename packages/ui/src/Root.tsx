@@ -120,6 +120,7 @@ export function Root(props: RootProps) {
           <PlatformProvider platform={props.platform}>
             <StoreProvider
               broadcastService={props.services.broadcastService}
+              skinSyncMode={props.isDesktop ? "desktop" : "web"}
               initialIsRestoringOAuthSession
             >
               <TabStoreProvider>

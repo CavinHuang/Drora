@@ -1,5 +1,6 @@
 import type { SkinPreference } from "./skinPreference.js";
 import { loadWallpaper } from "./skinImageStore.js";
+import { resolveCustomBrandColor } from "./skinAccent.js";
 
 let requestGeneration = 0;
 let activeRevision: string | null = null;
@@ -16,16 +17,35 @@ export function applySkinPreference(preference: SkinPreference): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.dataset.droraSkin = preference.presetId;
+  if (preference.customAccentColor) {
+    root.dataset.droraCustomAccent = "true";
+    root.style.setProperty(
+      "--skin-custom-brand-light",
+      resolveCustomBrandColor(preference.customAccentColor, "light"),
+    );
+    root.style.setProperty(
+      "--skin-custom-brand-dark",
+      resolveCustomBrandColor(preference.customAccentColor, "dark"),
+    );
+  } else {
+    delete root.dataset.droraCustomAccent;
+    root.style.removeProperty("--skin-custom-brand-light");
+    root.style.removeProperty("--skin-custom-brand-dark");
+  }
   if (
     preference.presetId !== "default" ||
-    preference.panelOpacity < 100 ||
+    preference.conversationOpacity < 100 ||
+    preference.sidebarOpacity < 100 ||
+    preference.sidePaneOpacity < 100 ||
     preference.wallpaperRevision
   ) {
     root.dataset.droraSkinActive = "true";
   } else {
     delete root.dataset.droraSkinActive;
   }
-  root.style.setProperty("--skin-panel-opacity", `${preference.panelOpacity}%`);
+  root.style.setProperty("--skin-conversation-opacity", `${preference.conversationOpacity}%`);
+  root.style.setProperty("--skin-sidebar-opacity", `${preference.sidebarOpacity}%`);
+  root.style.setProperty("--skin-side-pane-opacity", `${preference.sidePaneOpacity}%`);
   root.style.setProperty("--skin-wallpaper-position-x", `${preference.wallpaperPositionX}%`);
   root.style.setProperty("--skin-wallpaper-position-y", `${preference.wallpaperPositionY}%`);
 

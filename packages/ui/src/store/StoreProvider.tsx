@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useStore } from "zustand";
 import type { IBroadcastService } from "@drora/services";
+import type { SkinSyncMode } from "@/skin/skinSync.js";
 import { createDroraStore, type DroraStore, type DroraState } from "./index.js";
 
 // 导出 Context 供测试直接注入已构造的 store 实例（如跨窗口广播抑制用例）。
@@ -20,10 +21,12 @@ const StoreContext = createContext<DroraStore | null>(null);
 
 export function StoreProvider({
   broadcastService,
+  skinSyncMode = "desktop",
   initialIsRestoringOAuthSession = false,
   children,
 }: {
   broadcastService: IBroadcastService;
+  skinSyncMode?: SkinSyncMode;
   initialIsRestoringOAuthSession?: boolean;
   children: ReactNode;
 }) {
@@ -32,6 +35,7 @@ export function StoreProvider({
   if (!storeRef.current) {
     storeRef.current = createDroraStore(broadcastService, {
       initialIsRestoringOAuthSession,
+      skinSyncMode,
     });
   }
 

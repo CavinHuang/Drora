@@ -200,6 +200,9 @@ export function SkinCenter() {
       </div>
 
       <div className="space-y-3">
+        <p className="text-ui-sm text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.skin.opacityHint" })}
+        </p>
         {OPACITY_FIELDS.map((field) => (
           <label key={field} className="block space-y-2 text-ui-base text-foreground">
             <span>

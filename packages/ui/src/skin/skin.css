@@ -108,14 +108,7 @@ html.dark[data-drora-custom-accent="true"] {
   --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
 }
 html[data-drora-skin-active="true"] [data-workspace-shell="true"] {
-  isolation: isolate;
-}
-html[data-drora-skin-active="true"] [data-workspace-shell="true"]::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
+  /* 修复：负层级伪元素可能被不透明窗口外框遮住；壁纸直接作为工作区底层绘制。 */
   background-image: var(--skin-custom-wallpaper, var(--skin-preset-wallpaper, none));
   background-position: var(--skin-wallpaper-position-x, 50%) var(--skin-wallpaper-position-y, 50%);
   background-size: cover;

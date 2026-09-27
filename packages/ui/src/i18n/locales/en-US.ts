@@ -2274,6 +2274,8 @@ const enUS: Record<string, string> = {
   "settings.skin.usePresetAccent": "Use preset colors",
   "settings.skin.customAccentDescription":
     "Brightness adjusts automatically for readable text in light and dark themes.",
+  "settings.skin.opacityHint":
+    "Lower values show more wallpaper; 95% opacity reveals only about 5% of it.",
   "settings.skin.opacity.conversationOpacity": "Conversation background opacity: {value}%",
   "settings.skin.opacity.sidebarOpacity": "Sidebar background opacity: {value}%",
   "settings.skin.opacity.sidePaneOpacity": "Right pane background opacity: {value}%",

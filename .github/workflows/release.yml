@@ -131,7 +131,9 @@ jobs:
           security unlock-keychain -p "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
           security import "$CERT_PATH" -P "$MAC_SIGNING_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           # 自签名证书必须被信任，find-identity -v 才会列出有效身份
-          openssl pkcs12 -in "$CERT_PATH" -passin "pass:$MAC_SIGNING_CERT_PASSWORD" -nokeys -out "$RUNNER_TEMP/drora-signing.crt" -passout pass:
+          # p12 常见为 RC2-40-CBC 旧式加密（Windows 证书管理器导出）；macOS 的
+# OpenSSL 3 默认禁用 legacy 算法，必须 -legacy 才能解析。
+openssl pkcs12 -legacy -in "$CERT_PATH" -passin "pass:$MAC_SIGNING_CERT_PASSWORD" -nokeys -out "$RUNNER_TEMP/drora-signing.crt" -passout pass:
           sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/drora-signing.crt"
           security set-key-partition-list -S apple-tool:,apple: -k "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains | tr '\n' ' ' | sed 's/ *$//')

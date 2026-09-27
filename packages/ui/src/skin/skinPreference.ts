@@ -1,0 +1,91 @@
+export { SKIN_STORAGE_KEY } from "@drora/shared";
+export const MAX_WALLPAPER_BYTES = 8 * 1024 * 1024;
+export const SKIN_PRESET_IDS = ["default", "ocean", "forest", "plum"] as const;
+export type SkinPresetId = (typeof SKIN_PRESET_IDS)[number];
+
+export interface SkinPreference {
+  version: 1;
+  presetId: SkinPresetId;
+  panelOpacity: number;
+  wallpaperPositionX: number;
+  wallpaperPositionY: number;
+  wallpaperRevision: string | null;
+}
+
+export const DEFAULT_SKIN_PREFERENCE: SkinPreference = {
+  version: 1,
+  presetId: "default",
+  panelOpacity: 100,
+  wallpaperPositionX: 50,
+  wallpaperPositionY: 50,
+  wallpaperRevision: null,
+};
+
+function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback;
+}
+
+export function normalizeSkinPreference(value: unknown): SkinPreference {
+  if (!value || typeof value !== "object") return DEFAULT_SKIN_PREFERENCE;
+  const raw = value as Record<string, unknown>;
+  if (raw.version !== 1 || !SKIN_PRESET_IDS.includes(raw.presetId as SkinPresetId)) {
+    return DEFAULT_SKIN_PREFERENCE;
+  }
+  return {
+    version: 1,
+    presetId: raw.presetId as SkinPresetId,
+    panelOpacity: boundedNumber(raw.panelOpacity, 100, 80, 100),
+    wallpaperPositionX: boundedNumber(raw.wallpaperPositionX, 50, 0, 100),
+    wallpaperPositionY: boundedNumber(raw.wallpaperPositionY, 50, 0, 100),
+    wallpaperRevision:
+      typeof raw.wallpaperRevision === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(raw.wallpaperRevision)
+        ? raw.wallpaperRevision
+        : null,
+  };
+}
+
+export function updateSkinPreference(
+  current: SkinPreference,
+  patch: Partial<SkinPreference>,
+): SkinPreference {
+  return normalizeSkinPreference({ ...current, ...patch });
+}
+
+export function parseSkinPreference(raw: string | null): SkinPreference {
+  if (!raw) return DEFAULT_SKIN_PREFERENCE;
+  try {
+    return normalizeSkinPreference(JSON.parse(raw) as unknown);
+  } catch {
+    return DEFAULT_SKIN_PREFERENCE;
+  }
+}
+
+export type WallpaperValidationError = "invalid" | "too-large";
+
+export async function validateWallpaperFile(file: File): Promise<WallpaperValidationError | null> {
+  if (file.size > MAX_WALLPAPER_BYTES) return "too-large";
+  if (file.size < 9) return "invalid";
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return "invalid";
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const png =
+    header[0] === 137 &&
+    header[1] === 80 &&
+    header[2] === 78 &&
+    header[3] === 71 &&
+    header[4] === 13 &&
+    header[5] === 10 &&
+    header[6] === 26 &&
+    header[7] === 10;
+  const jpeg = header[0] === 255 && header[1] === 216 && header[2] === 255;
+  const webp =
+    String.fromCharCode(...header.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...header.slice(8, 12)) === "WEBP";
+  return (file.type === "image/png" && png) ||
+    (file.type === "image/jpeg" && jpeg) ||
+    (file.type === "image/webp" && webp)
+    ? null
+    : "invalid";
+}

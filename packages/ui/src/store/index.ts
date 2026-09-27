@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 全局 UI store 统一管理主题、皮肤和跨窗口广播；皮肤校验与渲染已拆入独立模块。 */
 /**
  * Zustand Store —— 全局状态管理
  *
@@ -8,6 +9,14 @@ import { create } from "zustand";
 import type { IBroadcastService, BroadcastMessage } from "@drora/services";
 import type { OAuthProviderId, UserInfo } from "@drora/shared";
 import type { CodingPlanResetType } from "@drora/shared";
+import { SKIN_BROADCAST_CHANNEL, SKIN_STORAGE_KEY } from "@drora/shared";
+import {
+  normalizeSkinPreference,
+  parseSkinPreference,
+  updateSkinPreference,
+  type SkinPreference,
+} from "@/skin/skinPreference.js";
+import { applySkinPreference } from "@/skin/skinRuntime.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type {
   CodingPlanQuotaResetUiEntries,
@@ -107,6 +116,9 @@ export interface DroraState {
   /** 当前主题 */
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  /** 设备本地皮肤；主题明暗仍由 theme 负责。 */
+  skin: SkinPreference;
+  setSkin: (patch: Partial<SkinPreference>) => void;
 
   /** 当前语言 */
   locale: string;
@@ -262,6 +274,14 @@ export function createDroraStore(
       applyTheme(normalizedTheme);
 
       set({ theme: normalizedTheme });
+    },
+
+    skin: parseSkinPreference(readSafeLocalStorage(SKIN_STORAGE_KEY)),
+    setSkin: (patch: Partial<SkinPreference>) => {
+      const next = updateSkinPreference(get().skin, patch);
+      writeSafeLocalStorage(SKIN_STORAGE_KEY, JSON.stringify(next));
+      applySkinPreference(next);
+      set({ skin: next });
     },
 
     locale: readSafeLocalStorage("drora-locale") || "zh-CN",
@@ -440,6 +460,10 @@ export function createDroraStore(
       return;
     }
 
+    if (state.skin !== prevState.skin) {
+      void broadcastService.send({ channel: SKIN_BROADCAST_CHANNEL, payload: state.skin });
+    }
+
     for (const field of BROADCAST_FIELDS as Set<BroadcastField>) {
       if (state[field] === prevState[field]) {
         continue;
@@ -459,6 +483,16 @@ export function createDroraStore(
     const autoPlayed = parseCodingPlanQuotaResetAutoPlayedBroadcastMessage(msg);
     if (autoPlayed) {
       useStore.setState((state) => applyCodingPlanQuotaResetAutoPlayedBroadcast(state, autoPlayed));
+      return;
+    }
+
+    if (msg.channel === SKIN_BROADCAST_CHANNEL) {
+      applyingBroadcast = true;
+      try {
+        useStore.getState().setSkin(normalizeSkinPreference(msg.payload));
+      } finally {
+        applyingBroadcast = false;
+      }
       return;
     }
 
@@ -490,6 +524,7 @@ export function createDroraStore(
 
   syncSystemThemeListener(useStore.getState().theme);
   applyTheme(useStore.getState().theme);
+  applySkinPreference(useStore.getState().skin);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
   document.documentElement.classList.toggle(
     "dark",

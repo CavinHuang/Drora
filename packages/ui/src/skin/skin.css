@@ -1,0 +1,93 @@
+/* 皮肤仅投射到工作区视觉层，不改变任务、设置、预览和原生窗口的表面语义。 */
+html[data-drora-skin="ocean"] {
+  --color-brand: #176d97;
+  --color-accent: #e6f5fb;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 85% 14%, #a8d8e5 0%, transparent 42%),
+    linear-gradient(135deg, #d9edf4, #6e9db0);
+}
+html.dark[data-drora-skin="ocean"] {
+  --color-brand: #7dcee9;
+  --color-accent: #163341;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 82% 16%, #287089 0%, transparent 42%),
+    linear-gradient(135deg, #102a3a, #31596e);
+}
+html[data-drora-skin="forest"] {
+  --color-brand: #28724b;
+  --color-accent: #e5f2e8;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 20% 25%, #b0d5b7 0%, transparent 40%),
+    linear-gradient(140deg, #e4ecdf, #779b87);
+}
+html.dark[data-drora-skin="forest"] {
+  --color-brand: #91d6a9;
+  --color-accent: #20392b;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 20% 25%, #3d7654 0%, transparent 40%),
+    linear-gradient(140deg, #192a21, #345446);
+}
+html[data-drora-skin="plum"] {
+  --color-brand: #8054a0;
+  --color-accent: #f1e9f6;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 75% 20%, #d6badd 0%, transparent 45%),
+    linear-gradient(135deg, #f1e7ef, #aa8dad);
+}
+html.dark[data-drora-skin="plum"] {
+  --color-brand: #d7a9ed;
+  --color-accent: #39283f;
+  --skin-preset-wallpaper:
+    radial-gradient(circle at 75% 20%, #825592 0%, transparent 45%),
+    linear-gradient(135deg, #2b2030, #674d70);
+}
+html[data-drora-skin-active="true"] [data-desktop-window-frame="true"] {
+  position: relative;
+  isolation: isolate;
+}
+html[data-drora-skin-active="true"] [data-desktop-window-frame="true"]::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background-image: var(--skin-custom-wallpaper, var(--skin-preset-wallpaper, none));
+  background-position: var(--skin-wallpaper-position-x, 50%) var(--skin-wallpaper-position-y, 50%);
+  background-size: cover;
+}
+html[data-drora-skin-active="true"] [data-desktop-window-frame="true"] > div {
+  position: relative;
+  z-index: 1;
+}
+html[data-drora-skin-active="true"] [data-workspace-conversation-frame],
+html[data-drora-skin-active="true"] [data-workspace-side-frame],
+html[data-drora-skin-active="true"] [data-workspace-sidebar-panel],
+html[data-drora-skin-active="true"] .side-pane-open-tab-shell {
+  background-color: color-mix(
+    in srgb,
+    var(--color-background) var(--skin-panel-opacity, 100%),
+    transparent
+  ) !important;
+}
+html[data-drora-skin-active="true"] [data-workspace-terminal-frame] {
+  background-color: var(--color-background) !important;
+}
+.skin-preview[data-preset="default"] {
+  background: var(--color-background);
+}
+.skin-preview[data-preset="ocean"] {
+  background: linear-gradient(135deg, #d9edf4, #31596e);
+}
+.skin-preview[data-preset="forest"] {
+  background: linear-gradient(135deg, #e4ecdf, #345446);
+}
+.skin-preview[data-preset="plum"] {
+  background: linear-gradient(135deg, #f1e7ef, #674d70);
+}
+
+.skin-current-preview {
+  background-color: var(--color-background-win-alt);
+  background-image: var(--skin-custom-wallpaper, var(--skin-preset-wallpaper, none));
+  background-position: var(--skin-wallpaper-position-x, 50%) var(--skin-wallpaper-position-y, 50%);
+  background-size: cover;
+}

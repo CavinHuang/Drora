@@ -1,0 +1,194 @@
+import { useRef, useState, type ChangeEvent } from "react";
+import { Button } from "@/components/ui/button.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { useDroraStore } from "@/store/StoreProvider.js";
+import {
+  DEFAULT_SKIN_PREFERENCE,
+  SKIN_PRESET_IDS,
+  validateWallpaperFile,
+} from "@/skin/skinPreference.js";
+import { decodeWallpaper, deleteWallpaper, saveWallpaper } from "@/skin/skinImageStore.js";
+
+export function SkinCenter() {
+  const { intl } = useDroraIntl();
+  const preference = useDroraStore((state) => state.skin);
+  const setSkin = useDroraStore((state) => state.setSkin);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const requestRef = useRef(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearWallpaper = async (reset: boolean) => {
+    const request = ++requestRef.current;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteWallpaper();
+      if (request !== requestRef.current) return;
+      setSkin(reset ? DEFAULT_SKIN_PREFERENCE : { wallpaperRevision: null });
+    } catch {
+      if (request === requestRef.current) {
+        setError(intl.formatMessage({ id: "settings.skin.storageError" }));
+      }
+    } finally {
+      if (request === requestRef.current) setBusy(false);
+    }
+  };
+
+  const onFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    const request = ++requestRef.current;
+    setBusy(true);
+    setError(null);
+    try {
+      const validation = await validateWallpaperFile(file);
+      if (validation) {
+        setError(intl.formatMessage({ id: `settings.skin.${validation}` }));
+        return;
+      }
+      try {
+        await decodeWallpaper(file);
+      } catch {
+        setError(intl.formatMessage({ id: "settings.skin.invalid" }));
+        return;
+      }
+      if (request !== requestRef.current) return;
+      await saveWallpaper(file);
+      if (request !== requestRef.current) return;
+      setSkin({ wallpaperRevision: crypto.randomUUID() });
+    } catch {
+      if (request === requestRef.current) {
+        setError(intl.formatMessage({ id: "settings.skin.storageError" }));
+      }
+    } finally {
+      if (request === requestRef.current) setBusy(false);
+    }
+  };
+
+  return (
+    <section className="min-w-0 space-y-4">
+      <div>
+        <h3 className="text-ui-lg font-semibold text-foreground">
+          {intl.formatMessage({ id: "settings.skin.title" })}
+        </h3>
+        <p className="mt-1 text-ui-base leading-6 text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.skin.description" })}
+        </p>
+      </div>
+
+      <div className="skin-current-preview flex h-28 items-end overflow-hidden rounded-lg border border-border p-3">
+        <span className="rounded-md bg-background/90 px-2 py-1 text-ui-sm text-foreground">
+          {intl.formatMessage({ id: "settings.skin.preview" })}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {SKIN_PRESET_IDS.map((presetId) => (
+          <button
+            key={presetId}
+            type="button"
+            aria-pressed={preference.presetId === presetId}
+            onClick={() => setSkin({ presetId })}
+            className="min-w-0 rounded-lg border border-border bg-card p-2 text-left text-ui-base text-foreground transition-colors hover:border-border-hover aria-pressed:ring-2 aria-pressed:ring-ring"
+          >
+            <span
+              aria-hidden="true"
+              data-preset={presetId}
+              className="skin-preview mb-2 block h-16 rounded-md"
+            />
+            {intl.formatMessage({ id: `settings.skin.preset.${presetId}` })}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={(event) => {
+            void onFileChange(event);
+          }}
+          className="hidden"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {intl.formatMessage({ id: "settings.skin.import" })}
+        </Button>
+        {preference.wallpaperRevision ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              void clearWallpaper(false);
+            }}
+          >
+            {intl.formatMessage({ id: "settings.skin.clearImage" })}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            void clearWallpaper(true);
+          }}
+        >
+          {intl.formatMessage({ id: "settings.skin.reset" })}
+        </Button>
+      </div>
+
+      <label className="block space-y-2 text-ui-base text-foreground">
+        <span>
+          {intl.formatMessage({ id: "settings.skin.opacity" }, { value: preference.panelOpacity })}
+        </span>
+        <input
+          type="range"
+          min={80}
+          max={100}
+          step={1}
+          value={preference.panelOpacity}
+          onChange={(event) => setSkin({ panelOpacity: Number(event.currentTarget.value) })}
+          className="w-full accent-[var(--color-brand)]"
+        />
+      </label>
+
+      {preference.wallpaperRevision ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(["wallpaperPositionX", "wallpaperPositionY"] as const).map((field) => (
+            <label key={field} className="block space-y-2 text-ui-base text-foreground">
+              <span>
+                {intl.formatMessage({
+                  id:
+                    field === "wallpaperPositionX"
+                      ? "settings.skin.positionX"
+                      : "settings.skin.positionY",
+                })}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={preference[field]}
+                onChange={(event) => setSkin({ [field]: Number(event.currentTarget.value) })}
+                className="w-full accent-[var(--color-brand)]"
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-ui-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}

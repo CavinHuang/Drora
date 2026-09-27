@@ -42,6 +42,7 @@ import {
   nativeImage,
   net,
   protocol,
+  safeStorage,
   session,
   webContents,
 } from "electron";
@@ -201,6 +202,8 @@ import {
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import { createDesktopMobilePairingServer } from "./desktopMobilePairingServer.js";
+import { createDesktopMobileRelayControl } from "./desktopMobileRelayControl.js";
+import { MobileRelayCredentialStore } from "./desktopMobileRelayProtocol.js";
 import { MobilePairingRestoreStore, shouldRestorePairing } from "./desktopMobilePairingRestore.js";
 import {
   loadCliMcpFromUserDirectory,
@@ -817,6 +820,38 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
 });
 
 const deviceMid = ensureDesktopDeviceMidSync();
+// 官方 relay 云中继远控（M4a，spec: mobile-web-remote.md）：复用 z.ai 官方 relay 与
+// 托管手机页（remote/v4），跨网络可用；与 LAN 直连并存，默认关闭、弹层内显式开启。
+// 凭据持久化：deviceSid+passHash 存 Main 自有单键文件，safeStorage 可用时加密 passHash。
+let mobileRelaySenderWebContentsId: number | null = null;
+const mobileRelayCredentialStore = new MobileRelayCredentialStore(
+  join(homedir(), ".drora", "v2"),
+  safeStorage.isEncryptionAvailable()
+    ? {
+        encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
+        decrypt: (stored) => safeStorage.decryptString(Buffer.from(stored, "base64")),
+      }
+    : undefined,
+);
+const mobileRelayControl = createDesktopMobileRelayControl({
+  logger,
+  deviceMid,
+  appVersion: DRORA_VERSION || app.getVersion(),
+  credentialStore: mobileRelayCredentialStore,
+  // relay 远控同样惰性解析发起窗口的 Host；resolveHostChild 闭包在 start 接线时替换为
+  // 持有 senderWebContentsId 的版本（见 registerPlatformIpcHandlers 装配处）。
+  resolveHostChild: () => {
+    if (mobileRelaySenderWebContentsId === null) return null;
+    return windowHostProcessMap.get(mobileRelaySenderWebContentsId) ?? null;
+  },
+  onStatusChanged: (state) => {
+    if (mobileRelaySenderWebContentsId === null) return;
+    const sender = webContents.fromId(mobileRelaySenderWebContentsId);
+    if (sender && !sender.isDestroyed()) {
+      sender.send(PlatformChannels.MobileRelayStateChanged, state);
+    }
+  },
+});
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
   appVersion: DRORA_VERSION || app.getVersion(),
@@ -2140,6 +2175,21 @@ app.whenReady().then(async () => {
         await mobilePairingRestoreStore.clear();
       },
       state: () => mobilePairingServer.runtimeState(),
+    },
+    mobileRelay: {
+      start: async (params) => {
+        mobileRelaySenderWebContentsId = params.senderWebContentsId;
+        return mobileRelayControl.start({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+        });
+      },
+      reset: async (params) => {
+        mobileRelaySenderWebContentsId = params.senderWebContentsId;
+        return mobileRelayControl.reset();
+      },
+      stop: () => mobileRelayControl.stop(),
+      state: () => mobileRelayControl.runtimeState(),
     },
     fetchHelpConfig: readHelpConfig,
     logger,

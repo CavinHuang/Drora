@@ -1847,6 +1847,10 @@ const enUS: Record<string, string> = {
   "webRemoteControl.qrAlt": "Web remote control QR code",
   "webRemoteControl.mobileQr.title": "Scan from phone",
   "webRemoteControl.mobileQr.description": "Use your phone camera to open this workspace remotely.",
+  "webRemoteControl.relay.description":
+    "Connects through the official cloud relay — your phone does not need to be on the same network. Phone page hosted by z.ai.",
+  "webRemoteControl.transport.lan": "LAN",
+  "webRemoteControl.transport.relay": "Cloud relay",
   "webRemoteControl.copyLink.description": "Can't scan? Open the link on your phone.",
   "webRemoteControl.copyLink": "Copy link",
   "webRemoteControl.copyLink.copied": "Remote control link copied",

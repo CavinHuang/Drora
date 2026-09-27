@@ -743,6 +743,26 @@ export interface IPlatformService {
   onMobilePairingStateChanged?(callback: (state: MobilePairingRuntimeState) => void): () => void;
 
   /**
+   * 官方 relay 云中继远控（M4，spec: mobile-web-remote.md）：连接 z.ai 官方 relay，
+   * 设备注册/鉴权后生成指向官方托管手机页（remote/v4）的二维码；跨网络可用。
+   * 与 LAN 直连并存，默认关闭。Desktop only。
+   */
+  startMobileRelayControl?(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<{ url: string; sessionId: string }>;
+  /** 停止 relay 远控（断开连接；设备凭据保留以便下次直连）。Desktop only。 */
+  stopMobileRelayControl?(): Promise<void>;
+  /** 轮换 relay 设备凭据并重启（二维码泄露时的 resetPairing 语义）。Desktop only。 */
+  refreshMobileRelayControl?(): Promise<{ url: string; sessionId: string }>;
+  /** 查询 relay 远控运行状态。Desktop only。 */
+  getMobileRelayControlState?(): Promise<MobilePairingRuntimeState>;
+  /** 订阅 relay 远控状态推送。Desktop only。 */
+  onMobileRelayStateChanged?(
+    callback: (state: MobilePairingRuntimeState) => void,
+  ): () => void;
+
+  /**
    * 注册 OAuth deep link 回调监听
    * @returns disposer 函数，调用后只移除当前回调
    */

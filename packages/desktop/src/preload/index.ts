@@ -306,6 +306,23 @@ contextBridge.exposeInMainWorld("drora", {
       ipcRenderer.removeListener(PlatformChannels.MobilePairingStateChanged, listener);
     };
   },
+  /** 官方 relay 云中继远控：连接 z.ai relay 并生成 v4 托管页二维码（跨网络可用） */
+  startMobileRelayControl: (params: { workspacePath: string; workspaceIdentity?: string }) =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelayStart, params),
+  stopMobileRelayControl: (): Promise<void> =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelayStop),
+  /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
+  refreshMobileRelayControl: (): Promise<{ url: string; sessionId: string }> =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelayReset),
+  getMobileRelayControlState: (): Promise<MobilePairingRuntimeState> =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelayState),
+  onMobileRelayStateChanged: (callback: (state: MobilePairingRuntimeState) => void) => {
+    const listener = (_event: unknown, state: MobilePairingRuntimeState) => callback(state);
+    ipcRenderer.on(PlatformChannels.MobileRelayStateChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(PlatformChannels.MobileRelayStateChanged, listener);
+    };
+  },
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */

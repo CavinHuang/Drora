@@ -1721,6 +1721,10 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.qrAlt": "Web 远程控制二维码",
   "webRemoteControl.mobileQr.title": "手机扫码连接",
   "webRemoteControl.mobileQr.description": "用手机相机扫码，在手机上打开这个工作区。",
+  "webRemoteControl.relay.description":
+    "经官方云中继连接，手机无需与电脑同一网络；由 z.ai 托管手机页面。",
+  "webRemoteControl.transport.lan": "局域网",
+  "webRemoteControl.transport.relay": "云中继",
   "webRemoteControl.copyLink.description": "无法扫码？可以在手机上打开链接。",
   "webRemoteControl.copyLink": "复制链接",
   "webRemoteControl.copyLink.copied": "已复制远程控制链接",

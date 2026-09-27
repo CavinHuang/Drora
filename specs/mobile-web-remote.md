@@ -166,3 +166,56 @@ clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
 15 分钟空闲自停 + 令牌 5 分钟 TTL"，审查确认原版均无，已按原版移除；现行边界 =
 显式停止 / 窗口关闭 / 应用退出。补偿控制：令牌一次性（首个扫描者赢得配对）、单设备
 绑定、随机端口、仅局域网、泄露可一键重置。
+
+## M4：接入官方 z.ai relay（云中继传输，2026-09-27 裁定并探测通过）
+
+用户决策：直接使用官方原版的远程服务端能力（`wss://zcode.z.ai/ws` + 托管手机页
+`https://zcode.z.ai/remote/v4`），与 LAN 直连并存。最小探测（一次性脚本，未入库）已
+全链路验证：`device_register_init → device_register_ack → auth_init → auth_challenge →
+auth_response(HMAC) → auth_ack{pair_status:"waiting"} → pair_status_query 心跳`，官方
+relay 接受无账号的设备级注册。
+
+### 分期
+
+- **M4a（本轮）**：relay 客户端（传输/鉴权/心跳/KICKED 语义）+ v4 二维码 + 应用帧
+  最小面（bootstrap-request / workspace-list-request / mobile-view-state-update /
+  telemetry-report / mobile-diagnostic；workspace-bridge-open 回 bridge-error 降级）。
+  验收：桌面在官方 relay 到达 waiting、二维码可扫、手机配对（matched）后 bootstrap
+  返回真实工作区/任务列表。
+- **M4b（后续）**：rpc-frame 透明桥——`attachWorkspaceHost` 建桥 + 流控协议
+  （官方常量：消息上限 16MiB、分片 64、重组超时 30s）+ 官方通道名兼容桥
+  （手机页调 `zcode-task`/`zcode-session`，本仓为 `drora-*`；参照插件市场改名桥接先例）。
+- **M4c（后续）**：workspace-reconnect-request、platform-request、恢复代次
+  （bridgeGeneration/recoveryId）对齐。
+
+### 协议常量（逐项取证自官方 3.14.3 bundle，探测复核）
+
+- 端点：`wss://zcode.z.ai/ws?mid=<deviceMid>`，头 `X-Device-ID`，permessage-deflate。
+- 注册：`device_register_init{device_mid, pass_hash, meta{platform,version,name}, client_ts}`
+  → `device_register_ack{device_sid}`；凭据长期有效（deviceSid+passHash 持久化）。
+- 鉴权：`auth_init{role:"device", device_sid, meta, client_ts}` →
+  `auth_challenge{nonce}` → `auth_response{device_sid,
+  proof=HMAC-SHA256(passHash, "<nonce>|device|<sid>", base64url)}` → `auth_ack{pair_status}`。
+- 口令派生：password=randomBytes(24).base64url；passHash=sha256(password).base64。
+- 心跳：`pair_status_query{device_sid}` 间隔 10s±抖动(≤2s)；ack 看门狗 30s。
+- pair_status：waiting/matched；新页面接管 → 旧连接收 `error{code:"KICKED"}`。
+- 错误处理：AUTH_FAILED（persisted 凭据失效→重注册一次）；INTERNAL（waiting 态按
+  可恢复处理重连）；WRONG_PARAM（paired 态上报）。
+- 二维码：`https://zcode.z.ai/remote/v4?sid=&hash=&t=&mid=&name=&app_version=`
+  （v3 页已 404，版本门控现走 v4）。
+- 应用帧（zcode_type）：bootstrap-request→bootstrap-response{result:
+  {windowControlSessionId, desktopAppVersion, workspaces[], tasks[],
+  initialViewState?, mobileViewState?}}；workspace-list-request→
+  workspace-list-response{result:{workspaces, tasks, activeWorkspaceKey?,
+  activeTaskId?}}；mobile-view-state-update{viewState, deviceInfo}（状态所有者：runtime）。
+
+### 边界
+
+- relay 只承载转发；Drora 不实现服务端。官方可随时变更协议/加账号绑定——静默失效
+  风险由双传输承担（LAN 直连为默认回退，relay 为弹层内可选项）。
+- 凭据持久化：`~/.drora/v2/mobile-relay-device.json`（deviceSid+passHash；
+  Electron safeStorage 可用时加密存 passHash，不可用回落明文——passHash 仅授权
+  relay 转发，非账号凭据）。原版用 settings+OS 凭据链，本仓 Main 不写 setting.json
+  （Host settings 服务独占写盘），故用 Main 自有单键文件。
+- 手机页是官方托管应用：其 rpc 调用走官方通道名，M4b 前打开工作区会收到
+  bridge-error（bridge-not-available）降级失败面。

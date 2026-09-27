@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- 远控弹层保持单一文件（扫码卡双传输 + Bot Channel 卡），
+   与 BotsDialog.tsx 同例；状态逻辑后续可再下沉 hook。 */
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { BotProvider, MobilePairingRuntimeState, MobilePairingStatus } from "@drora/shared";
 import {
@@ -84,10 +86,11 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
 
-  // —— 手机扫码连接（LAN 直连，spec: mobile-web-remote.md）——
-  // 布局与文案逐项对齐原版 3.14.3 发行版弹层：左扫码卡（连接状态卡 + 刷新/复制行 + 二维码）、
-  // 右 Bot Channel 卡。服务独立于弹层运行，状态由 Main 推送驱动。
+  // —— 手机扫码连接（双传输，spec: mobile-web-remote.md）——
+  // LAN 直连（默认回退，同网可用）与官方 relay 云中继（跨网络，M4a）二选一；
+  // 布局与文案逐项对齐原版 3.14.3 发行版弹层，状态由 Main 推送驱动。
   const platform = usePlatform();
+  const [transport, setTransport] = useState<"lan" | "relay">("lan");
   const [qr, setQr] = useState<{
     status: MobilePairingRuntimeState["status"];
     url: string | null;
@@ -98,6 +101,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [pending, setPending] = useState(false);
   const renderedQrUrlRef = useRef<string | null>(null);
   const autoStartedForOpenRef = useRef(false);
+  const transportRef = useRef(transport);
+  transportRef.current = transport;
 
   const renderQrForUrl = useCallback(async (url: string) => {
     if (renderedQrUrlRef.current === url) return;
@@ -129,6 +134,35 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   );
 
   const handleStart = useCallback(async () => {
+    if (transportRef.current === "relay") {
+      if (!platform.startMobileRelayControl) return;
+      setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
+      try {
+        const result = await platform.startMobileRelayControl({
+          workspacePath,
+          workspaceIdentity,
+        });
+        applyRuntimeState({
+          running: true,
+          status: "running",
+          connected: false,
+          url: result.url,
+          workspacePath,
+          workspaceIdentity: workspaceIdentity ?? null,
+          failure: null,
+        });
+      } catch (error) {
+        logger.warn("[WebRemoteControlDialog] 启动 relay 远控失败", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setQr((prev) => ({
+          ...prev,
+          status: "error",
+          failureMessage: error instanceof Error ? error.message : String(error),
+        }));
+      }
+      return;
+    }
     if (!platform.startMobilePairing) return;
     setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
     try {
@@ -154,37 +188,66 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     }
   }, [platform, workspacePath, workspaceIdentity, applyRuntimeState]);
 
-  // 状态推送订阅（对齐原版 StatusChanged）：弹层开着时全部状态变化实时可见。
+  // 状态推送订阅（对齐原版 StatusChanged）：仅消费当前选中传输的推送。
   useEffect(() => {
     if (!platform.onMobilePairingStateChanged) return;
-    return platform.onMobilePairingStateChanged(applyRuntimeState);
+    return platform.onMobilePairingStateChanged((state) => {
+      if (transportRef.current === "lan") applyRuntimeState(state);
+    });
+  }, [platform, applyRuntimeState]);
+
+  useEffect(() => {
+    if (!platform.onMobileRelayStateChanged) return;
+    return platform.onMobileRelayStateChanged((state) => {
+      if (transportRef.current === "relay") applyRuntimeState(state);
+    });
   }, [platform, applyRuntimeState]);
 
   // 对齐原版：弹层打开即恢复展示；服务未运行则自动开启（每次打开至多自动开启一次）。
+  // 传输切换时同样恢复对应链路的状态。
   useEffect(() => {
     if (!open) {
       autoStartedForOpenRef.current = false;
       return;
     }
-    void platform
-      .getMobilePairingState?.()
-      .then((state) => {
-        applyRuntimeState(state);
-        if (state.status === "idle" && !autoStartedForOpenRef.current) {
+    void (async () => {
+      try {
+        const state =
+          transport === "relay"
+            ? await platform.getMobileRelayControlState?.()
+            : await platform.getMobilePairingState?.();
+        applyRuntimeState(
+          state ?? {
+            running: false,
+            status: "idle",
+            connected: false,
+            url: null,
+            workspacePath: null,
+            workspaceIdentity: null,
+            failure: null,
+          },
+        );
+        if (state?.status === "idle" && !autoStartedForOpenRef.current) {
           autoStartedForOpenRef.current = true;
           void handleStart();
         }
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随 open 变化触发恢复/自动开启
-  }, [open]);
+      } catch {
+        // 查询失败静默；starting 态兜底显示
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随 open/transport 变化触发恢复
+  }, [open, transport]);
 
-  // 对齐原版 resetPairing（"刷新二维码"）：踢除已连手机并换发票据，服务不重启。
+  // 对齐原版 resetPairing（"刷新二维码"）：LAN=换发票据踢除旧手机；relay=轮换设备凭据重启。
   const handleRefreshQr = async () => {
-    if (!platform.refreshMobilePairing || pending) return;
+    if (pending) return;
     setPending(true);
     try {
-      const result = await platform.refreshMobilePairing();
+      const result =
+        transport === "relay"
+          ? await platform.refreshMobileRelayControl?.()
+          : await platform.refreshMobilePairing?.();
+      if (!result) return;
       applyRuntimeState({
         running: true,
         status: "running",
@@ -196,6 +259,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       });
     } catch (error) {
       logger.warn("[WebRemoteControlDialog] 刷新配对二维码失败", {
+        transport,
         error: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -206,8 +270,13 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const handleStopPairing = () => {
     setQr({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
     renderedQrUrlRef.current = null;
-    void platform.stopMobilePairing?.().catch((error: unknown) =>
-      logger.warn("[WebRemoteControlDialog] 停止配对服务失败", {
+    const stopping =
+      transport === "relay"
+        ? platform.stopMobileRelayControl?.()
+        : platform.stopMobilePairing?.();
+    void stopping?.catch((error: unknown) =>
+      logger.warn("[WebRemoteControlDialog] 停止远控失败", {
+        transport,
         error: error instanceof Error ? error.message : String(error),
       }),
     );
@@ -297,13 +366,40 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
               <section className="flex min-h-[360px] flex-col rounded-xl border border-border bg-card p-4">
                 <div className="mb-4 flex items-start gap-2">
                   <Smartphone className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <div className="text-ui-base font-medium text-foreground">
                       {intl.formatMessage({ id: "webRemoteControl.mobileQr.title" })}
                     </div>
                     <p className="text-ui-base/relaxed text-foreground-subtle">
-                      {intl.formatMessage({ id: "webRemoteControl.mobileQr.description" })}
+                      {intl.formatMessage({
+                        id:
+                          transport === "relay"
+                            ? "webRemoteControl.relay.description"
+                            : "webRemoteControl.mobileQr.description",
+                      })}
                     </p>
+                  </div>
+                  {/* 传输切换：LAN 直连（默认）↔ 官方 relay 云中继（跨网络）。 */}
+                  <div className="flex shrink-0 rounded-lg border border-border bg-surface p-0.5">
+                    {(
+                      [
+                        { value: "lan", labelId: "webRemoteControl.transport.lan" },
+                        { value: "relay", labelId: "webRemoteControl.transport.relay" },
+                      ] as const
+                    ).map((entry) => (
+                      <button
+                        key={entry.value}
+                        type="button"
+                        className={`rounded-md px-2.5 py-1 text-ui-xs font-medium transition-colors ${
+                          transport === entry.value
+                            ? "bg-card text-foreground"
+                            : "text-foreground-subtle hover:text-foreground"
+                        }`}
+                        onClick={() => setTransport(entry.value)}
+                      >
+                        {intl.formatMessage({ id: entry.labelId })}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 {/* 连接状态卡：状态 + 圆点标签行、详情行；右侧停止。 */}

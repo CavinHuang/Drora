@@ -113,6 +113,17 @@ export function registerPlatformIpcHandlers(options: {
     stop: () => Promise<void>;
     state: () => MobilePairingRuntimeState;
   };
+  /** 官方 relay 云中继远控（M4a，spec: mobile-web-remote.md）。仅 Desktop 主进程提供。 */
+  mobileRelay?: {
+    start: (params: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+      senderWebContentsId: number;
+    }) => Promise<{ url: string; sessionId: string }>;
+    reset: (params: { senderWebContentsId: number }) => Promise<{ url: string; sessionId: string }>;
+    stop: () => Promise<void>;
+    state: () => MobilePairingRuntimeState;
+  };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -149,6 +160,41 @@ export function registerPlatformIpcHandlers(options: {
   ipcMain.handle(PlatformChannels.MobilePairingState, () => {
     return (
       options.mobilePairing?.state() ?? {
+        running: false,
+        status: "idle" as const,
+        connected: false,
+        url: null,
+        workspacePath: null,
+        workspaceIdentity: null,
+        failure: null,
+      }
+    );
+  });
+  ipcMain.handle(
+    PlatformChannels.MobileRelayStart,
+    async (event, params: { workspacePath?: string; workspaceIdentity?: string } | undefined) => {
+      if (!options.mobileRelay) {
+        throw new Error("mobile relay control is unavailable in this build");
+      }
+      return options.mobileRelay.start({
+        workspacePath: String(params?.workspacePath ?? ""),
+        workspaceIdentity: params?.workspaceIdentity ? String(params.workspaceIdentity) : undefined,
+        senderWebContentsId: event.sender.id,
+      });
+    },
+  );
+  ipcMain.handle(PlatformChannels.MobileRelayReset, async (event) => {
+    if (!options.mobileRelay) {
+      throw new Error("mobile relay control is unavailable in this build");
+    }
+    return options.mobileRelay.reset({ senderWebContentsId: event.sender.id });
+  });
+  ipcMain.handle(PlatformChannels.MobileRelayStop, async () => {
+    await options.mobileRelay?.stop();
+  });
+  ipcMain.handle(PlatformChannels.MobileRelayState, () => {
+    return (
+      options.mobileRelay?.state() ?? {
         running: false,
         status: "idle" as const,
         connected: false,

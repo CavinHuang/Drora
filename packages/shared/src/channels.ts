@@ -175,6 +175,16 @@ export const PlatformChannels = {
   MobilePairingReset: "drora:mobile-pairing-reset",
   /** Main → Renderer：移动端配对运行状态推送（对齐原版 StatusChanged：不轮询） */
   MobilePairingStateChanged: "drora:mobile-pairing-state-changed",
+  /** Renderer → Main：启动官方 relay 云中继远控（注册/鉴权设备并生成 v4 托管页二维码） */
+  MobileRelayStart: "drora:mobile-relay-start",
+  /** Renderer → Main：停止官方 relay 云中继远控（断开并保留设备凭据） */
+  MobileRelayStop: "drora:mobile-relay-stop",
+  /** Renderer → Main：重置 relay 设备凭据（轮换 deviceSid/passHash，泄露二维码用） */
+  MobileRelayReset: "drora:mobile-relay-reset",
+  /** Renderer → Main：查询 relay 远控运行状态 */
+  MobileRelayState: "drora:mobile-relay-state",
+  /** Main → Renderer：relay 远控运行状态推送 */
+  MobileRelayStateChanged: "drora:mobile-relay-state-changed",
   /** 打开系统文件选择框 */
   SelectFile: "drora:select-file",
   /** 打开系统多文件选择框 */

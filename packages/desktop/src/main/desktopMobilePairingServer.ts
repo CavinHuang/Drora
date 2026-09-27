@@ -7,20 +7,10 @@
 //   IDroraTaskService / IDroraSessionService，把手机帧翻译成服务调用。
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
-import { createRequire } from "node:module";
 import { WebSocketServer, type WebSocket } from "ws";
-import {
-  ChannelClient,
-  MessagePortProtocol,
-  type IChannel,
-  type MessagePortPayload,
-} from "@drora/rpc";
-import { HostMessageTypes } from "@drora/shared";
-import type {
-  MessagePortMain,
-  UtilityProcess,
-} from "electron";
 import type { MobilePairingRuntimeState } from "@drora/shared";
+import type { UtilityProcess } from "electron";
+import { createMobileServiceAttacher } from "./desktopMobileServiceAttach.js";
 import {
   attemptPair,
   buildPairingUrl,
@@ -94,11 +84,11 @@ export function createDesktopMobilePairingServer(deps: {
   let authedConnection: AuthedPhoneConnection | null = null;
   /** 已建立 WS 但尚未通过握手认证的连接（connecting 态的判定依据）。 */
   const pendingSockets = new Set<WebSocket>();
-  let serviceChannel: IChannel | null = null;
-  let sessionChannel: IChannel | null = null;
-  /** 当前附着端口所属的 Host 实例；resolver 返回不同实例时重建（Host 重启场景）。 */
-  let attachedHostChild: UtilityProcess | null = null;
-  let clientPort: MessagePortMain | null = null;
+  /** 窗口 Host 服务附着（与 relay 远控共用同一实现；Host 重启自动重附着）。 */
+  const serviceAttacher = createMobileServiceAttacher({
+    resolveHostChild: () => startParams?.resolveHostChild() ?? null,
+    logger,
+  });
   let runtimeStatus: MobilePairingRuntimeState["status"] = "idle";
   let runtimeFailure: MobilePairingRuntimeState["failure"] = null;
   let boundAddress: string | null = null;
@@ -208,13 +198,7 @@ export function createDesktopMobilePairingServer(deps: {
       httpServer.close();
       httpServer = null;
     }
-    serviceChannel = null;
-    sessionChannel = null;
-    attachedHostChild = null;
-    if (clientPort) {
-      clientPort.close();
-      clientPort = null;
-    }
+    serviceAttacher.dispose();
     state = createPairingCoreState();
     startParams = null;
     startResult = null;
@@ -233,80 +217,14 @@ export function createDesktopMobilePairingServer(deps: {
   }
 
   /**
-   * 向窗口 Host 申请 local scoped service 端口并建立 rpc 客户端（惰性，首次认证才连）。
-   * 对齐原版 workspace-bridge 语义：Host 实例变化（窗口 Host 重启）时旧端口作废，重附着新实例。
+   * 惰性建立 scoped service rpc 客户端（首次认证才连；实现与 relay 远控共用，
+   * Host 实例变化时自动重附着——对齐原版 workspace-bridge 语义）。
    */
-  function ensureServiceChannels(): { task: IChannel; session: IChannel } {
+  function ensureServiceChannels() {
     if (!startParams || !startResult) {
       throw new Error("pairing server is not running");
     }
-    const hostChild = startParams.resolveHostChild();
-    if (!hostChild || hostChild.pid === undefined) {
-      // 对齐原版 DESKTOP_HOST_MISSING：窗口/工作区不可用 → 手机端 workspace-closed 失败面。
-      const error: Error & { code?: string } = new Error(
-        "window host process is not ready for pairing attachment",
-      );
-      error.code = "workspace-closed";
-      throw error;
-    }
-    if (serviceChannel && sessionChannel && attachedHostChild === hostChild) {
-      return { task: serviceChannel, session: sessionChannel };
-    }
-    // Host 实例变化：旧端口/通道随旧进程一起失效，先丢弃再重建。
-    if (attachedHostChild !== hostChild) {
-      serviceChannel = null;
-      sessionChannel = null;
-      if (clientPort) {
-        clientPort.close();
-        clientPort = null;
-      }
-      attachedHostChild = hostChild;
-    }
-    // electron API 懒加载：plain node（协议级测试）里 require("electron") 拿不到
-    // MessageChannelMain，new 时抛错并走错误帧路径；Electron 运行时里是完整 API。
-    const requireElectron = createRequire(import.meta.url);
-    const { MessageChannelMain: MessageChannelMainCtor } = requireElectron(
-      "electron",
-    ) as typeof import("electron");
-    const { port1, port2 } = new MessageChannelMainCtor();
-    hostChild.postMessage(
-      {
-        type: HostMessageTypes.AttachServicePort,
-        requestId: randomUUID(),
-        attachmentId: randomUUID(),
-        // 手机是可恢复的远程客户端；与桌面 continuous 链路明确区分（AGENTS.md 进程协议边界）。
-        clientMode: "web-remote-replayable",
-        scope: { kind: "local" },
-      },
-      [port2],
-    );
-    clientPort = port1;
-    // 与 host/electronPort.ts 同构的适配：main/host 是两个编译段，不能跨段 import。
-    const portLike = {
-      addEventListener(_type: "message", listener: (e: { data: MessagePortPayload }) => void) {
-        port1.on("message", listener);
-      },
-      removeEventListener(_type: "message", listener: (e: { data: MessagePortPayload }) => void) {
-        port1.off("message", listener);
-      },
-      postMessage(data: MessagePortPayload) {
-        port1.postMessage(data);
-      },
-      start() {
-        port1.start();
-      },
-      close() {
-        port1.close();
-      },
-    };
-    const protocol = new MessagePortProtocol(portLike);
-    const client = new ChannelClient(protocol);
-    serviceChannel = client.getChannel("drora-task");
-    sessionChannel = client.getChannel("drora-session");
-    logger.info("[mobile-pairing] scoped service 端口已附着", {
-      workspacePath: startParams.workspacePath,
-    });
-    return { task: serviceChannel, session: sessionChannel };
+    return serviceAttacher.ensure();
   }
 
   async function handleAuthedFrame(frame: PhoneInboundFrame): Promise<void> {

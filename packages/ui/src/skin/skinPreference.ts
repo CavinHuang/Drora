@@ -3,7 +3,15 @@ import { LEGACY_SKIN_STORAGE_KEY, SKIN_STORAGE_KEY } from "@drora/shared";
 export { LEGACY_SKIN_STORAGE_KEY, SKIN_STORAGE_KEY };
 export const MAX_WALLPAPER_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CUSTOM_ACCENT_COLOR = "#176d97";
-export const SKIN_PRESET_IDS = ["default", "ocean", "forest", "plum"] as const;
+export const SKIN_PRESET_IDS = [
+  "default",
+  "ocean",
+  "forest",
+  "plum",
+  "ink",
+  "geometry",
+  "celestial",
+] as const;
 export type SkinPresetId = (typeof SKIN_PRESET_IDS)[number];
 
 export interface SkinPreference {

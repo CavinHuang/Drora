@@ -67,6 +67,22 @@ test("stored version 2 takes precedence; legacy metadata is read only during mig
   assert.equal(loaded.preference.presetId, "ocean");
 });
 
+test("new preset IDs keep existing version 2 skin choices intact", () => {
+  const current = {
+    ...DEFAULT_SKIN_PREFERENCE,
+    presetId: "forest" as const,
+    customAccentColor: "#aabbcc",
+    sidebarOpacity: 87,
+  };
+  for (const presetId of ["ink", "geometry", "celestial"] as const) {
+    const next = updateSkinPreference(current, { presetId });
+    assert.equal(next.presetId, presetId);
+    assert.equal(next.customAccentColor, current.customAccentColor);
+    assert.equal(next.sidebarOpacity, current.sidebarOpacity);
+    assert.equal(parseSkinPreference(JSON.stringify(next)).presetId, presetId);
+  }
+});
+
 test("normalization bounds each opacity, color and image position", () => {
   assert.deepEqual(
     normalizeSkinPreference({

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const PRESET_ART = ["ocean", "forest", "plum"] as const;
+const PRESET_ART = ["ocean", "forest", "plum", "ink", "geometry", "celestial"] as const;
 
 test("bundled skin wallpapers are optimized WebP assets", async () => {
   for (const preset of PRESET_ART) {

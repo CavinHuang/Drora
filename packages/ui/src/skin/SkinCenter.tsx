@@ -12,6 +12,18 @@ import { decodeWallpaper, deleteWallpaper, saveWallpaper } from "@/skin/skinImag
 
 const OPACITY_FIELDS = ["conversationOpacity", "sidebarOpacity", "sidePaneOpacity"] as const;
 
+// 原生 range 无样式时是纯黑轨道+黑圆头（设置页实测刺眼）；统一样式化为
+// 4px 细轨道（border token）+ 12px 品牌色圆头，遵守 DESIGN.md 低饱和卡片化语言。
+const SKIN_RANGE_INPUT_CLASS = [
+  "w-full cursor-pointer appearance-none bg-transparent",
+  "h-4",
+  "[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-border",
+  "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:rounded-full",
+  "[&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-sm",
+  "[&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-background",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+].join(" ");
+
 export function SkinCenter() {
   const { intl } = useDroraIntl();
   const preference = useDroraStore((state) => state.skin);
@@ -96,7 +108,7 @@ export function SkinCenter() {
             type="button"
             aria-pressed={preference.presetId === presetId}
             onClick={() => setSkin({ presetId })}
-            className="min-w-0 rounded-lg border border-border bg-card p-2 text-left text-ui-base text-foreground transition-colors hover:border-border-hover aria-pressed:ring-2 aria-pressed:ring-ring"
+            className="min-w-0 rounded-lg border border-border bg-card p-2 text-left text-ui-base text-foreground transition-colors hover:border-border-hover aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/30"
           >
             <span
               aria-hidden="true"
@@ -203,7 +215,7 @@ export function SkinCenter() {
               step={1}
               value={preference[field]}
               onChange={(event) => setSkin({ [field]: Number(event.currentTarget.value) })}
-              className="w-full accent-[var(--color-brand)]"
+              className={SKIN_RANGE_INPUT_CLASS}
             />
           </label>
         ))}
@@ -227,7 +239,7 @@ export function SkinCenter() {
                 max={100}
                 value={preference[field]}
                 onChange={(event) => setSkin({ [field]: Number(event.currentTarget.value) })}
-                className="w-full accent-[var(--color-brand)]"
+                className={SKIN_RANGE_INPUT_CLASS}
               />
             </label>
           ))}

@@ -43,6 +43,7 @@ import {
   dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -107,7 +108,6 @@ const VAULT_SIDEBAR_MIN_WIDTH = 180;
 const VAULT_SIDEBAR_MAX_WIDTH = 520;
 // 与 packages/services/src/obsidian-vault/config.ts 的 MANAGED_VAULT_DISPLAY_NAME 保持同值。
 const DRORA_MANAGED_VAULT_DISPLAY_NAME = "Drora Vault";
-const DRORA_SELF_MANAGED_VAULT_LABEL = "Drora 自建 Vault";
 const MAX_QUOTED_CHARS = 2000;
 
 // ---- 轻量全局状态（替代 Proma 的 jotai vault-atoms） ----
@@ -201,6 +201,7 @@ function SelectionActionPopover({
   onAddToAgent: () => void;
   onOpenChat: () => void;
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
   // 顶部选区若仍向上展开，浮窗会被窗口边缘裁掉；此时改为在选区下方展示。
   const openBelow = y < 72;
   // 浮窗有两个不可换行的动作。靠近视口边缘时改为向内对齐，避免 flex item 收缩后中文逐字竖排。
@@ -228,14 +229,14 @@ function SelectionActionPopover({
           className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium transition-colors hover:bg-muted"
           onClick={onAddToAgent}
         >
-          为 Agent 引用
+          {intl.formatMessage({ id: "vault.selection.quoteToAgent" })}
         </button>
         <button
           type="button"
           className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium transition-colors hover:bg-muted"
           onClick={onOpenChat}
         >
-          打开右侧问答
+          {intl.formatMessage({ id: "vault.selection.openSideChat" })}
         </button>
       </div>
     </div>
@@ -252,8 +253,8 @@ function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   loadingLabel,
   onConfirm,
   loading = false,
@@ -268,6 +269,9 @@ function ConfirmDialog({
   onConfirm: () => void | Promise<void>;
   loading?: boolean;
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
+  const resolvedConfirmLabel = confirmLabel ?? intl.formatMessage({ id: "vault.confirm.default" });
+  const resolvedCancelLabel = cancelLabel ?? intl.formatMessage({ id: "vault.cancel" });
   return (
     <AlertDialog
       open={open}
@@ -281,13 +285,13 @@ function ConfirmDialog({
           {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{resolvedCancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={loading}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
-            {loading ? (loadingLabel ?? confirmLabel) : confirmLabel}
+            {loading ? (loadingLabel ?? resolvedConfirmLabel) : resolvedConfirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -335,6 +339,7 @@ function VaultFileList({
   canCreate: boolean;
   treeAction: { type: "expand" | "collapse"; version: number };
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
   const tree = React.useMemo(() => buildVaultTree(entries), [entries]);
   const allFolderPaths = React.useMemo(() => {
     const paths: string[] = [];
@@ -405,7 +410,12 @@ function VaultFileList({
                   <button
                     type="button"
                     aria-expanded={expanded}
-                    aria-label={`${expanded ? "收起" : "展开"}文件夹 ${child.name}`}
+                    aria-label={intl.formatMessage(
+                      {
+                        id: expanded ? "vault.tree.collapseFolder" : "vault.tree.expandFolder",
+                      },
+                      { name: child.name },
+                    )}
                     onClick={() => {
                       onFocusFolder(child.relativePath);
                       setExpandedFolders((current) => {
@@ -439,13 +449,13 @@ function VaultFileList({
                     disabled={!canCreate}
                     onSelect={() => onCreateNote(child.relativePath)}
                   >
-                    新建笔记
+                    {intl.formatMessage({ id: "vault.newNote" })}
                   </ContextMenuItem>
                   <ContextMenuItem
                     disabled={!canCreate}
                     onSelect={() => onCreateFolder(child.relativePath)}
                   >
-                    新建文件夹
+                    {intl.formatMessage({ id: "vault.newFolder" })}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -490,14 +500,14 @@ function VaultFileList({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={`删除笔记 ${displayDocumentTitle(file.name)}`}
+                    aria-label={intl.formatMessage({ id: "vault.deleteNoteAria" }, { name: displayDocumentTitle(file.name) })}
                     onClick={() => onDelete(file)}
                     className="mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[opacity,color,background-color] hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                   >
                     <Trash2 size={13} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">删除笔记</TooltipContent>
+                <TooltipContent side="right">{intl.formatMessage({ id: "vault.deleteNote" })}</TooltipContent>
               </Tooltip>
             </div>
           );
@@ -568,6 +578,7 @@ function VaultMarkdownEditor({
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
   const documentController = React.useMemo(
     () => getVaultDocumentController(readResult, vaultId),
     [readResult.relativePath, vaultId],
@@ -654,7 +665,7 @@ function VaultMarkdownEditor({
   }, [readResult, selection]);
   const addSelectionToAgent = React.useCallback(() => {
     if (!selectionTarget) {
-      toast.info("请从 Agent 会话右侧打开 Obsidian 后再添加引用");
+      toast.info(intl.formatMessage({ id: "vault.selection.needSession" }));
       return;
     }
     const reference = createSelectionReference();
@@ -665,14 +676,18 @@ function VaultMarkdownEditor({
       reference,
     });
     if (!result.ok) {
-      toast.info(result.reason === "count" ? "引用数量已达上限" : "引用内容过长，请缩小选区后重试");
+      toast.info(
+        result.reason === "count"
+          ? intl.formatMessage({ id: "vault.selection.limitReached" })
+          : intl.formatMessage({ id: "vault.selection.tooLong" }),
+      );
       return;
     }
     clearSelection();
-  }, [clearSelection, createSelectionReference, selectionTarget]);
+  }, [clearSelection, createSelectionReference, intl, selectionTarget]);
   const openSelectionChat = React.useCallback((): void => {
     if (!sideChatKey) {
-      toast.info("请从 Agent 会话右侧打开 Obsidian 后再发起右侧问答");
+      toast.info(intl.formatMessage({ id: "vault.selection.needSessionChat" }));
       return;
     }
     const reference = createSelectionReference();
@@ -680,11 +695,11 @@ function VaultMarkdownEditor({
     // requestSelectionSideChatOpen 内部按 workspace + parent 去重并发创建；
     // 无可用 opener（主会话未挂载）或引用被阻断时返回 false。
     if (!requestSelectionSideChatOpen(sideChatKey, reference)) {
-      toast.error("打开右侧问答失败");
+      toast.error(intl.formatMessage({ id: "vault.selection.sideChatFailed" }));
       return;
     }
     clearSelection();
-  }, [clearSelection, createSelectionReference, sideChatKey]);
+  }, [clearSelection, createSelectionReference, intl, sideChatKey]);
 
   const updateDraft = React.useCallback(
     (nextDraft: string): void => {
@@ -695,7 +710,7 @@ function VaultMarkdownEditor({
 
   React.useEffect(() => {
     if (documentController.observeRemote(readResult) === "conflict") {
-      toast.error("笔记已被外部修改；已保留本地草稿");
+      toast.error(intl.formatMessage({ id: "vault.toast.conflictDraftKept" }));
     }
   }, [documentController, readResult]);
 
@@ -719,14 +734,14 @@ function VaultMarkdownEditor({
       if (!result.ok) {
         toast.error(
           result.reason === "conflict"
-            ? "笔记已被外部修改；已保留本地草稿"
-            : (result.message ?? "保存失败；已保留本地草稿"),
+            ? intl.formatMessage({ id: "vault.toast.conflictDraftKept" })
+            : (result.message ?? intl.formatMessage({ id: "vault.toast.saveFailedDraftKept" })),
         );
         return false;
       }
       return true;
     },
-    [documentController, onSave],
+    [documentController, intl, onSave],
   );
 
   const flushPendingSave = React.useCallback(
@@ -762,9 +777,9 @@ function VaultMarkdownEditor({
   const copyLocalDraft = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(draft);
-      toast.success("未保存草稿已复制");
+      toast.success(intl.formatMessage({ id: "vault.toast.draftCopied" }));
     } catch {
-      toast.error("无法复制本地草稿");
+      toast.error(intl.formatMessage({ id: "vault.toast.draftCopyFailed" }));
     }
   };
 
@@ -784,7 +799,7 @@ function VaultMarkdownEditor({
           />
           {saveConflict && (
             <div className="flex shrink-0 items-center gap-1.5 text-xs text-destructive">
-              <span>草稿未保存</span>
+              <span>{intl.formatMessage({ id: "vault.draftUnsaved" })}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -792,7 +807,7 @@ function VaultMarkdownEditor({
                 }}
                 className="rounded px-1.5 py-1 hover:bg-destructive/10"
               >
-                复制草稿
+                {intl.formatMessage({ id: "vault.draftCopy" })}
               </button>
               <button
                 type="button"
@@ -802,7 +817,7 @@ function VaultMarkdownEditor({
                 }}
                 className="rounded px-1.5 py-1 hover:bg-destructive/10"
               >
-                丢弃并重载
+                {intl.formatMessage({ id: "vault.draftDiscardReload" })}
               </button>
             </div>
           )}
@@ -810,7 +825,7 @@ function VaultMarkdownEditor({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={`${VAULT_NAME} 使用帮助`}
+                aria-label={intl.formatMessage({ id: "vault.tutorial.helpAria" }, { name: VAULT_NAME })}
                 onClick={onOpenTutorial}
                 className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
@@ -818,7 +833,10 @@ function VaultMarkdownEditor({
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              {VAULT_NAME} 使用帮助（自动保存；Cmd/Ctrl + S 可立即保存）
+              {intl.formatMessage(
+                { id: "vault.tutorial.helpTitle" },
+                { name: VAULT_NAME },
+              )}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -880,6 +898,7 @@ function VaultMarkdownPane({
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
   if (loading || !readResult || !vaultId) {
     return (
       <section className="flex min-w-0 flex-1 flex-col bg-muted/25">
@@ -887,10 +906,10 @@ function VaultMarkdownPane({
           <div className="titlebar-no-drag flex min-w-0 items-center gap-2">
             <p className="min-w-0 flex-1 truncate px-4 text-sm text-muted-foreground">
               {loading
-                ? "正在加载笔记"
+                ? intl.formatMessage({ id: "vault.loadingNote" })
                 : hasVault
-                  ? "选择一篇笔记开始编辑"
-                  : "从左下角选择或创建 Vault"}
+                  ? intl.formatMessage({ id: "vault.noFileSelected" })
+                  : intl.formatMessage({ id: "vault.pickVaultHint" })}
             </p>
           </div>
           {loading && (
@@ -939,6 +958,7 @@ export function VaultView({
   /** 会话所属工作区 key（workspaceIdentity?.trim() || workspacePath），selectionSideChat 路由依赖。 */
   workspaceKey?: string;
 }): React.ReactElement {
+  const { intl } = useDroraIntl();
   const vaultSidebarContentId = React.useId();
   const vaultSessionScope = getVaultSessionScope(sessionId);
   const vaultService = useOptionalServices()?.obsidianVaultService;
@@ -1134,7 +1154,7 @@ export function VaultView({
           ) {
             selectFile(null);
             setReadResult(null);
-            toast.message("已打开的笔记不存在");
+            toast.message(intl.formatMessage({ id: "vault.toast.noteMissing" }));
             return;
           }
           const requestId = ++readRequestRef.current;
@@ -1143,7 +1163,7 @@ export function VaultView({
             if (requestId === readRequestRef.current) setReadResult(result);
           } catch (error) {
             if (requestId === readRequestRef.current) {
-              toast.error(error instanceof Error ? error.message : "无法刷新已打开的笔记");
+              toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.refreshFailed" }));
             }
           } finally {
             // 刷新可能接管尚未完成的导航读取，也负责结束该请求的加载态。
@@ -1151,7 +1171,7 @@ export function VaultView({
           }
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : `无法读取 ${VAULT_NAME}`);
+        toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.readFailed" }, { name: VAULT_NAME }));
       } finally {
         if (showLoading) setLoading(false);
       }
@@ -1245,7 +1265,7 @@ export function VaultView({
           // The tree can be stale when a note is deleted or renamed outside this
           // renderer. Refresh it once so the unavailable note is removed.
           if (isVaultFileNotFoundError(error)) void refresh();
-          toast.error(error instanceof Error ? error.message : "无法打开笔记");
+          toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.openFailed" }));
           setReadResult(null);
         }
       } finally {
@@ -1264,7 +1284,7 @@ export function VaultView({
         entries.filter((entry) => entry.kind === "file").map((entry) => entry.relativePath),
       );
       if (!path) {
-        toast.error(`无法定位笔记“${target}”，请检查名称或使用完整的 Vault 内路径`);
+        toast.error(intl.formatMessage({ id: "vault.toast.locateFailed" }, { name: target }));
         return;
       }
       void openFile(path);
@@ -1288,7 +1308,7 @@ export function VaultView({
     setReadResult(null);
     setVaultSwitcherOpen(false);
     setRefreshToken((value) => value + 1);
-    toast.success(`已连接 ${selected.displayName}`);
+    toast.success(intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }));
   };
 
   const createDroraVault = async (): Promise<void> => {
@@ -1301,10 +1321,12 @@ export function VaultView({
       setReadResult(null);
       setVaultSwitcherOpen(false);
       setRefreshToken((value) => value + 1);
-      toast.success(`已创建 ${selected.displayName}`);
+      toast.success(intl.formatMessage({ id: "vault.toast.created" }, { name: selected.displayName }));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : `无法创建 ${DRORA_MANAGED_VAULT_DISPLAY_NAME}`,
+        error instanceof Error
+            ? error.message
+            : intl.formatMessage({ id: "vault.toast.createFailed" }, { name: DRORA_MANAGED_VAULT_DISPLAY_NAME }),
       );
     }
   };
@@ -1324,9 +1346,9 @@ export function VaultView({
       setReadResult(null);
       setVaultSwitcherOpen(false);
       setRefreshToken((value) => value + 1);
-      toast.success(`已连接 ${selected.displayName}`);
+      toast.success(intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `无法连接检测到的 ${VAULT_NAME}`);
+      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.connectFailed" }, { name: VAULT_NAME }));
     }
   };
 
@@ -1338,7 +1360,7 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       await openFile(result.relativePath);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法创建笔记");
+      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createNoteFailed" }));
     }
   };
 
@@ -1350,7 +1372,7 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       await openFile(result.relativePath);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法创建笔记");
+      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createNoteFailed" }));
     }
   };
 
@@ -1374,9 +1396,9 @@ export function VaultView({
       setFocusedFolder(relativePath);
       updateAgentFocus({ kind: "folder", relativePath });
       setRefreshToken((value) => value + 1);
-      toast.success(`已创建文件夹 ${name}`);
+      toast.success(intl.formatMessage({ id: "vault.toast.folderCreated" }, { name }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法创建文件夹");
+      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createFolderFailed" }));
     } finally {
       setCreatingFolder(false);
     }
@@ -1387,7 +1409,7 @@ export function VaultView({
       request: VaultSaveRequest,
       { silent = false }: { silent?: boolean } = {},
     ): Promise<VaultSaveResult> => {
-      if (!vaultService) return { ok: false, reason: "error", message: "Vault 服务不可用" };
+      if (!vaultService) return { ok: false, reason: "error", message: intl.formatMessage({ id: "vault.toast.serviceUnavailable" }) };
       try {
         const result = await vaultService.writeFile(request);
         if (!result.ok) return { ok: false, reason: "conflict" };
@@ -1408,13 +1430,13 @@ export function VaultView({
         setEntries((current) =>
           hasSameVaultTreeEntries(current, nextEntries) ? current : nextEntries,
         );
-        if (!silent) toast.success(`已保存到 ${VAULT_NAME}`);
+        if (!silent) toast.success(intl.formatMessage({ id: "vault.toast.saved" }, { name: VAULT_NAME }));
         return result;
       } catch (error) {
         return {
           ok: false,
           reason: "error",
-          message: error instanceof Error ? error.message : "保存失败",
+          message: error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.saveFailed" }),
         };
       }
     },
@@ -1451,11 +1473,11 @@ export function VaultView({
       }
       if (result.renamed) {
         setRefreshToken((value) => value + 1);
-        toast.success("已重命名笔记");
+        toast.success(intl.formatMessage({ id: "vault.toast.renamed" }));
       }
       return true;
     } catch (error) {
-      if (isVaultCurrent()) toast.error(error instanceof Error ? error.message : "无法重命名笔记");
+      if (isVaultCurrent()) toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.renameFailed" }));
       return false;
     }
   };
@@ -1488,9 +1510,9 @@ export function VaultView({
       }
       setDeleteTarget(null);
       setRefreshToken((value) => value + 1);
-      toast.success("已删除 Vault 笔记");
+      toast.success(intl.formatMessage({ id: "vault.toast.deleted" }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "无法删除笔记");
+      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.deleteFailed" }));
     } finally {
       setDeleting(false);
     }
@@ -1571,7 +1593,7 @@ export function VaultView({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium text-foreground">
-                    {config?.displayName ?? "选择 Vault"}
+                    {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
                   </p>
                 </div>
                 <div className="flex items-center gap-0.5 titlebar-no-drag">
@@ -1595,9 +1617,14 @@ export function VaultView({
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        aria-label={
-                          vaultTreeAction.type === "expand" ? "全部折叠文件树" : "全部展开文件树"
-                        }
+                        aria-label={intl.formatMessage(
+                          {
+                            id:
+                              vaultTreeAction.type === "expand"
+                                ? "vault.tree.collapseAllAria"
+                                : "vault.tree.expandAllAria",
+                          },
+                        )}
                         onClick={() =>
                           setVaultTreeAction((current) => ({
                             type: current.type === "expand" ? "collapse" : "expand",
@@ -1610,7 +1637,9 @@ export function VaultView({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {vaultTreeAction.type === "expand" ? "全部折叠" : "全部展开"}
+                      {intl.formatMessage({
+                        id: vaultTreeAction.type === "expand" ? "vault.tree.collapseAll" : "vault.tree.expandAll",
+                      })}
                     </TooltipContent>
                   </Tooltip>
                   {config && (
@@ -1618,7 +1647,7 @@ export function VaultView({
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          aria-label="新建笔记"
+                          aria-label={intl.formatMessage({ id: "vault.newNote" })}
                           onClick={() => {
                             void createNote();
                           }}
@@ -1627,7 +1656,7 @@ export function VaultView({
                           <Plus size={16} />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>新建笔记</TooltipContent>
+                      <TooltipContent>{intl.formatMessage({ id: "vault.newNote" })}</TooltipContent>
                     </Tooltip>
                   )}
                 </div>
@@ -1663,12 +1692,12 @@ export function VaultView({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      aria-label="切换 Vault"
+                      aria-label={intl.formatMessage({ id: "vault.switchVault" })}
                       className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">
-                        {config?.displayName ?? "选择 Vault"}
+                        {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
                       </span>
                     </button>
                   </PopoverTrigger>
@@ -1695,7 +1724,7 @@ export function VaultView({
                             </span>
                             {candidate.isDroraManaged && (
                               <span className="shrink-0 text-[10px] text-muted-foreground">
-                                {DRORA_SELF_MANAGED_VAULT_LABEL}
+                                {intl.formatMessage({ id: "vault.managedLabel" })}
                               </span>
                             )}
                           </button>
@@ -1769,14 +1798,14 @@ export function VaultView({
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
         }}
-        title="删除 Vault 笔记？"
+        title={intl.formatMessage({ id: "vault.deleteNoteConfirm.title" })}
         description={
           deleteTarget
-            ? `“${deleteTarget.relativePath}”将从 Vault 中永久删除，此操作无法撤销。`
+            ? intl.formatMessage({ id: "vault.deleteNoteConfirm.description" }, { name: deleteTarget.relativePath })
             : undefined
         }
-        confirmLabel="删除"
-        loadingLabel="删除中"
+        confirmLabel={intl.formatMessage({ id: "vault.delete" })}
+        loadingLabel={intl.formatMessage({ id: "vault.deleting" })}
         loading={deleting}
         onConfirm={() => {
           void deleteNote();
@@ -1790,9 +1819,12 @@ export function VaultView({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新建文件夹</DialogTitle>
+            <DialogTitle>{intl.formatMessage({ id: "vault.newFolder" })}</DialogTitle>
             <DialogDescription>
-              在{newFolderParentPath ? ` ${newFolderParentPath}` : " Vault 根目录"}中创建文件夹。
+              {intl.formatMessage(
+                { id: "vault.newFolder.description" },
+                { path: newFolderParentPath ?? intl.formatMessage({ id: "vault.newFolder.rootPath" }) },
+              )}
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -1802,8 +1834,8 @@ export function VaultView({
             onKeyDown={(event) => {
               if (event.key === "Enter") void createFolder();
             }}
-            placeholder="文件夹名称"
-            aria-label="文件夹名称"
+            placeholder={intl.formatMessage({ id: "vault.namePlaceholder" })}
+            aria-label={intl.formatMessage({ id: "vault.namePlaceholder" })}
           />
           <DialogFooter>
             <Button
@@ -1820,7 +1852,7 @@ export function VaultView({
               }}
             >
               {creatingFolder && <Loader2 className="mr-2 size-4 animate-spin" />}
-              创建
+              {intl.formatMessage({ id: "vault.create" })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1828,35 +1860,27 @@ export function VaultView({
       <Dialog open={vaultHelpOpen} onOpenChange={setVaultHelpOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>在 Drora 中使用 {VAULT_NAME}</DialogTitle>
+            <DialogTitle>{intl.formatMessage({ id: "vault.tutorial.title" }, { name: VAULT_NAME })}</DialogTitle>
             <DialogDescription>
-              Drora 直接读写本机已授权的 Markdown Vault；这些笔记也会继续保留在 {VAULT_NAME} 中。
+              {intl.formatMessage({ id: "vault.tutorial.intro" }, { name: VAULT_NAME })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm leading-6 text-muted-foreground">
             <section>
-              <p className="font-medium text-foreground">切换与管理 Vault</p>
-              <p>
-                点击左下角的 Vault 名称可切换已发现的本地 Vault，也可以创建 Drora Vault
-                或打开本地仓库。云端 Vault 需先同步或挂载到本机。
-              </p>
+              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.manage" })}</p>
+              <p>{intl.formatMessage({ id: "vault.tutorial.manage.body" })}</p>
             </section>
             <section>
-              <p className="font-medium text-foreground">浏览与新建笔记</p>
-              <p>
-                点击文件夹可展开或收起；顶部左箭头可收起整个文件目录，收起后点击靠边的右箭头即可恢复。旁边按钮可一键展开或折叠全部文件夹，拖动中间分隔线可调整文件树宽度。右键点击文件夹可在该目录中新建笔记或文件夹。
-              </p>
+              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.browse" })}</p>
+              <p>{intl.formatMessage({ id: "vault.tutorial.browse.body" })}</p>
             </section>
             <section>
-              <p className="font-medium text-foreground">编辑与自动保存</p>
-              <p>
-                输入停止 700ms 后会自动保存；按 Cmd/Ctrl + S 可立即保存。直接编辑标题并按 Enter
-                或移开焦点即可重命名笔记。
-              </p>
+              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.edit" })}</p>
+              <p>{intl.formatMessage({ id: "vault.tutorial.edit.body" })}</p>
             </section>
           </div>
           <DialogFooter>
-            <Button onClick={() => setVaultHelpOpen(false)}>知道了</Button>
+            <Button onClick={() => setVaultHelpOpen(false)}>{intl.formatMessage({ id: "vault.tutorial.gotIt" })}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -20,6 +20,7 @@ import { resolveCliCwd } from "./cwd.js";
 import { runLoginCommand, runLogoutCommand } from "./login-command.js";
 import { CLI_COMMAND_NAME, CLI_PROCESS_NAME } from "./process-name.js";
 import { isPluginHostInvocation, runPluginHostCommand } from "./plugin-host-command.js";
+import { isPluginHookInvocation, runPluginHookCommand } from "./plugin-hook-command.js";
 import { isDwfChildInvocation, runDwfChildCommand } from "./dwf-child-command.js";
 import { runPrompt } from "./prompt-command.js";
 import { runPluginsCommand, type PluginsCommandFlags } from "./plugins-command.js";
@@ -298,6 +299,12 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
 
   if (isPluginHostInvocation(ctx.argv)) {
     return await runPluginHostCommand(ctx, ctx.argv.slice(1));
+  }
+
+  // 与 plugin host 同理，必须在 parseArgs 之前：SEA 下 hook 子进程是本二进制的
+  // 自 re-exec（前缀含 __drora-plugin-hook），交给严格 parseArgs 只会报未知参数。
+  if (isPluginHookInvocation(ctx.argv)) {
+    return await runPluginHookCommand(ctx, ctx.argv.slice(1));
   }
 
   // 与 plugin host 同理，且必须同样在 parseArgs 之前：SEA 下 dwf 的沙箱子进程是本二进制的

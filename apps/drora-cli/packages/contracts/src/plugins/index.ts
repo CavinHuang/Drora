@@ -18,6 +18,16 @@ export const CLAUDE_PLUGIN_MARKETPLACE = "claude-plugins-official";
 export const DRORA_INLINE_PLUGIN_MARKETPLACE = "inline";
 export const DRORA_PLUGIN_HOST_COMMAND = "__drora-plugin-host";
 /**
+ * 隐藏子命令：在 agent 运行时进程内执行 official plugin 的 hook 脚本
+ * （`__drora-plugin-hook <script path>`；脚本须导出 `main()`）。
+ *
+ * 与 {@link DRORA_PLUGIN_HOST_COMMAND} 同族、同机制（SEA 前缀见
+ * `officialPluginHookPrefixArgs`），但**不共用同一入口**：plugin host 的 CUA broker
+ * 凭据门禁会在"已捕获凭据 + 非CUA插件身份"时 fail-close 拒绝，hook 脚本不涉及
+ * broker 凭据，必须走独立入口避免被误伤。
+ */
+export const DRORA_PLUGIN_HOOK_COMMAND = "__drora-plugin-hook";
+/**
  * 隐藏子命令：dynamic workflow 的沙箱子进程入口（`__drora-dwf-child <entry path>`；argv 末位是
  * harness 写好的入口文件路径，payload 不过命令行）。
  *

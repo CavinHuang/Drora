@@ -82,8 +82,10 @@ jobs:
           pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
-      - name: Obsidian plugin behavior tests (security semantics + stdio E2E)
+      - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
         run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
+      - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)
+        run: pnpm --dir apps/drora-cli/packages/bootstrap run test
       - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
         run: node scripts/ci/cli-app-server-smoke.mjs apps/drora-cli/packages/cli/dist/drora.cjs
       - name: Upload CLI bundle

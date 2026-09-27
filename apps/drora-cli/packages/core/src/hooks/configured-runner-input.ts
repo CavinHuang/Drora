@@ -75,6 +75,7 @@ export function createPluginEnvOverlay(
   plugin: HookPluginContext | undefined,
   input: HookInput,
   workingDirectory: string,
+  hookEnv?: Record<string, string>,
 ) {
   const set: Record<string, string> = {
     CLAUDE_CODE_SESSION_ID: input.sessionId,
@@ -83,7 +84,10 @@ export function createPluginEnvOverlay(
     DRORA_PROJECT_DIR: input.cwd || workingDirectory,
     DRORA_SESSION_ID: input.sessionId,
   };
-  if (!plugin) return { set };
+  if (!plugin) {
+    // hook 配置 env（如 official plugin 重写写入的 ELECTRON_RUN_AS_NODE）优先于通用 overlay。
+    return { set: { ...set, ...hookEnv } };
+  }
   return {
     set: {
       ...set,
@@ -93,6 +97,7 @@ export function createPluginEnvOverlay(
       DRORA_PLUGIN_ID: plugin.id,
       DRORA_PLUGIN_NAME: plugin.name,
       DRORA_PLUGIN_ROOT: plugin.rootPath,
+      ...hookEnv,
     },
   };
 }

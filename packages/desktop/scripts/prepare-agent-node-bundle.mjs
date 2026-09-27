@@ -180,8 +180,13 @@ const officialPluginPackages = [
     packageName: "@drora/obsidian-plugin",
     relativePath: "apps/drora-cli/packages/obsidian-plugin",
     requiresRuntime: false,
-    // dist runtime 与 skill 正文是同一发布单元，缺任一项打包期即报错。
-    requiredSeedPaths: ["dist/mcp/server.js", "skills/obsidian/SKILL.md"],
+    // hook 运行时与 skill 正文是同一发布单元，缺任一项打包期即报错。
+    requiredSeedPaths: [
+      "dist/hooks/session-start.mjs",
+      "dist/hooks/permission-request.mjs",
+      "dist/hooks/user-prompt-submit.mjs",
+      "skills/obsidian/SKILL.md",
+    ],
     stagedPath: "packages/obsidian-plugin",
   },
   {

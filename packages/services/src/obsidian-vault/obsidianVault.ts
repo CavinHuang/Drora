@@ -1,10 +1,11 @@
 /**
  * Obsidian Vault 面板服务接口（host 常驻）。
  *
- * 数据面与 obsidian MCP server（agent 会话子进程）共享同一个 vault-config.json：
+ * 数据面与 obsidian 插件 hooks（agent 会话内，Proma 式原生访问）共享同一个
+ * vault-config.json：
  * - 路径推导见 obsidianVaultService.resolveObsidianPluginDataDir；
- * - MCP server 侧由插件 manifest env `OBSIDIAN_PLUGIN_DATA=${DRORA_PLUGIN_DATA}`
- *   注入同一路径，两侧读写天然一致。
+ * - hooks 侧由 runtime 的 DRORA_PLUGIN_DATA env 注入同一路径，两侧读写天然一致
+ *   （hooks 对配置只读，写入仍只经本服务门面）。
  * 安全不变量集中在 ./vault-fs.ts、./paths.ts、./atomic.ts、./image.ts、./discovery.ts
  * （移植自 obsidian-plugin src/lib，逐条保留，不得弱化）。
  */

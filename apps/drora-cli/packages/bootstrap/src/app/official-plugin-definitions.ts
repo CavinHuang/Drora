@@ -244,9 +244,9 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     version: "0.1.0",
   },
   {
-    // Obsidian Vault 能力：发现/授权本机 Vault + 安全 Markdown CRUD + 图片落盘。
-    // 携带 MCP server（node stdio，无系统依赖）；按「defaultEnabled 仅限内容型插件」
-    // 的约定不默认启用，由用户在设置页/商店显式开启。
+    // Obsidian Vault 能力（Proma 式原生访问）：SessionStart 注入 Vault 上下文 +
+    // PermissionRequest 授权 Vault 内原生写入；无 MCP server。hooks 属可执行副作用，
+    // 按「defaultEnabled 仅限内容型插件」的约定不默认启用，由用户在商店显式开启。
     listing: {
       author: ZAI_AUTHOR,
       category: "productivity",
@@ -259,7 +259,9 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     },
     name: "obsidian",
     requiredSeedPaths: [
-      "dist/mcp/server.js",
+      "dist/hooks/session-start.mjs",
+      "dist/hooks/permission-request.mjs",
+      "dist/hooks/user-prompt-submit.mjs",
       "skills/obsidian/SKILL.md",
       "package.json",
     ],
@@ -269,7 +271,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../obsidian-plugin",
       "../../../obsidian-plugin",
     ],
-    version: "0.1.0",
+    version: "0.2.0",
   },
   {
     listing: {

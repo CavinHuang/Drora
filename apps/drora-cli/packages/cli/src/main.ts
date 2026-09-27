@@ -5,6 +5,7 @@ import { setCliProcessTitle } from "./process-name.js";
 import { applyCliRuntimeEnvSanitization } from "./env.js";
 import { ensureSeaRuntimeTools } from "./sea-runtime-tools.js";
 import { isPluginHostInvocation, runPluginHostCommand } from "./plugin-host-command.js";
+import { isPluginHookInvocation, runPluginHookCommand } from "./plugin-hook-command.js";
 import { scheduleCliExitWatchdog } from "./shutdown.js";
 import { installCliProcessErrorBoundary } from "./process-errors.js";
 import { installProtocolStderrBoundary } from "./protocol-stderr.js";
@@ -61,6 +62,11 @@ async function main(): Promise<void> {
     // 即使最终没有创建 AgentRuntime，也会让每个 MCP 子进程持有整套业务依赖。
     if (isPluginHostInvocation(argv)) {
       process.exitCode = await runPluginHostCommand(context, argv.slice(1));
+      return;
+    }
+    // plugin-hook 子进程同理：hook 脚本是毫秒级 stdin/stdout 处理，更不能持有整套业务依赖。
+    if (isPluginHookInvocation(argv)) {
+      process.exitCode = await runPluginHookCommand(context, argv.slice(1));
       return;
     }
     if (!argv.includes("--prepare-storage")) {

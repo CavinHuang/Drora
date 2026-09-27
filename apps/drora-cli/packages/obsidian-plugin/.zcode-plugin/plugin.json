@@ -1,18 +1,50 @@
 {
   "name": "obsidian",
-  "version": "0.1.0",
-  "description": "Connect local Obsidian Vaults: browse, read, create, and organize Markdown notes with optimistic-concurrency safety.",
+  "version": "0.2.0",
+  "description": "Connect local Obsidian Vaults: the agent reads, creates, and organizes Markdown notes with native file tools under hook-based vault authorization.",
   "author": { "name": "Z.ai" },
   "license": "MIT",
   "skills": "skills",
-  "mcpServers": {
-    "obsidian": {
-      "command": "node",
-      "args": ["${DRORA_PLUGIN_ROOT}/dist/mcp/server.js"],
-      "cwd": "${DRORA_PROJECT_DIR}",
-      "env": {
-        "OBSIDIAN_PLUGIN_DATA": "${DRORA_PLUGIN_DATA}"
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${DRORA_PLUGIN_ROOT}/dist/hooks/session-start.mjs"],
+            "timeoutMs": 10000,
+            "statusMessage": "注入 Obsidian Vault 上下文"
+          }
+        ]
       }
-    }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${DRORA_PLUGIN_ROOT}/dist/hooks/permission-request.mjs"],
+            "timeoutMs": 10000,
+            "statusMessage": "校验 Obsidian Vault 写授权"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${DRORA_PLUGIN_ROOT}/dist/hooks/user-prompt-submit.mjs"],
+            "timeoutMs": 10000,
+            "statusMessage": "注入 Obsidian Vault 焦点上下文"
+          }
+        ]
+      }
+    ]
   }
 }

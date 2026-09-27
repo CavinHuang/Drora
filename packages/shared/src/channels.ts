@@ -355,7 +355,6 @@ export const PlatformChannels = {
   DesktopPetOpenTask: "drora:desktop-pet-open-task",
   DesktopPetRender: "drora:desktop-pet-render",
   DesktopPetActivate: "drora:desktop-pet-activate",
-  DesktopPetDrag: "drora:desktop-pet-drag",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -1006,10 +1005,6 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.DesktopPetActivate]: {
     request: void;
-    response: void;
-  };
-  [PlatformChannels.DesktopPetDrag]: {
-    request: import("./desktopPet.js").DesktopPetDrag;
     response: void;
   };
   [PlatformChannels.WindowFullscreenChanged]: {

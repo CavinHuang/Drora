@@ -6,6 +6,9 @@ html {
   --skin-ink-art: url("./wallpapers/ink.webp");
   --skin-geometry-art: url("./wallpapers/geometry.webp");
   --skin-celestial-art: url("./wallpapers/celestial.webp");
+  --skin-tea-art: url("./wallpapers/tea.webp");
+  --skin-botanical-art: url("./wallpapers/botanical.webp");
+  --skin-jade-art: url("./wallpapers/jade.webp");
   --skin-ocean-wallpaper:
     linear-gradient(rgb(235 247 250 / 18%), rgb(230 245 249 / 18%)), var(--skin-ocean-art),
     linear-gradient(135deg, #d9edf4, #6e9db0);
@@ -24,6 +27,15 @@ html {
   --skin-celestial-wallpaper:
     linear-gradient(rgb(224 232 251 / 40%), rgb(220 230 250 / 40%)), var(--skin-celestial-art),
     linear-gradient(135deg, #a8b4d0, #46577e);
+  --skin-tea-wallpaper:
+    linear-gradient(rgb(239 247 220 / 18%), rgb(232 242 218 / 18%)), var(--skin-tea-art),
+    linear-gradient(135deg, #eaf3d3, #91ad68);
+  --skin-botanical-wallpaper:
+    linear-gradient(rgb(245 249 235 / 8%), rgb(238 247 231 / 8%)), var(--skin-botanical-art),
+    linear-gradient(135deg, #f2f4e8, #9eae8b);
+  --skin-jade-wallpaper:
+    linear-gradient(rgb(225 244 233 / 60%), rgb(214 239 226 / 60%)), var(--skin-jade-art),
+    linear-gradient(135deg, #cee5d9, #548b76);
 }
 html.dark {
   --skin-ocean-wallpaper:
@@ -44,6 +56,15 @@ html.dark {
   --skin-celestial-wallpaper:
     linear-gradient(rgb(8 11 27 / 18%), rgb(9 13 31 / 18%)), var(--skin-celestial-art),
     linear-gradient(135deg, #0e1730, #343b6f);
+  --skin-tea-wallpaper:
+    linear-gradient(rgb(15 27 11 / 66%), rgb(17 31 15 / 66%)), var(--skin-tea-art),
+    linear-gradient(135deg, #263d21, #55743c);
+  --skin-botanical-wallpaper:
+    linear-gradient(rgb(12 23 17 / 76%), rgb(14 27 20 / 76%)), var(--skin-botanical-art),
+    linear-gradient(135deg, #1c3025, #455e4b);
+  --skin-jade-wallpaper:
+    linear-gradient(rgb(4 19 16 / 14%), rgb(5 24 19 / 14%)), var(--skin-jade-art),
+    linear-gradient(135deg, #092c23, #1d5a48);
 }
 html[data-drora-skin="ocean"] {
   --color-brand: #176d97;
@@ -98,6 +119,33 @@ html[data-drora-skin="celestial"] {
 html.dark[data-drora-skin="celestial"] {
   --color-brand: #b7b7f4;
   --color-accent: #292945;
+}
+html[data-drora-skin="tea"] {
+  --color-brand: #527626;
+  --color-accent: #edf5df;
+  --skin-preset-wallpaper: var(--skin-tea-wallpaper);
+}
+html.dark[data-drora-skin="tea"] {
+  --color-brand: #b7db85;
+  --color-accent: #2a3920;
+}
+html[data-drora-skin="botanical"] {
+  --color-brand: #4a7055;
+  --color-accent: #ecf3e8;
+  --skin-preset-wallpaper: var(--skin-botanical-wallpaper);
+}
+html.dark[data-drora-skin="botanical"] {
+  --color-brand: #afd6b1;
+  --color-accent: #26382b;
+}
+html[data-drora-skin="jade"] {
+  --color-brand: #176c58;
+  --color-accent: #e2f3eb;
+  --skin-preset-wallpaper: var(--skin-jade-wallpaper);
+}
+html.dark[data-drora-skin="jade"] {
+  --color-brand: #85d6b3;
+  --color-accent: #173b30;
 }
 html[data-drora-custom-accent="true"] {
   --color-brand: var(--skin-custom-brand-light);
@@ -234,12 +282,24 @@ html[data-drora-skin-wallpaper="true"][data-drora-skin-image-color="true"]
 .skin-preview[data-preset="celestial"] {
   background-image: var(--skin-celestial-wallpaper);
 }
+.skin-preview[data-preset="tea"] {
+  background-image: var(--skin-tea-wallpaper);
+}
+.skin-preview[data-preset="botanical"] {
+  background-image: var(--skin-botanical-wallpaper);
+}
+.skin-preview[data-preset="jade"] {
+  background-image: var(--skin-jade-wallpaper);
+}
 .skin-preview[data-preset="ocean"],
 .skin-preview[data-preset="forest"],
 .skin-preview[data-preset="plum"],
 .skin-preview[data-preset="ink"],
 .skin-preview[data-preset="geometry"],
-.skin-preview[data-preset="celestial"] {
+.skin-preview[data-preset="celestial"],
+.skin-preview[data-preset="tea"],
+.skin-preview[data-preset="botanical"],
+.skin-preview[data-preset="jade"] {
   background-position: center;
   background-size: cover;
 }

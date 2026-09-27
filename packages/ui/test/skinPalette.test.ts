@@ -8,7 +8,17 @@ import {
 
 test("each bundled wallpaper has a curated representative color", () => {
   assert.equal(getPresetWallpaperColor("default"), null);
-  for (const preset of ["ocean", "forest", "plum", "ink", "geometry", "celestial"] as const) {
+  for (const preset of [
+    "ocean",
+    "forest",
+    "plum",
+    "ink",
+    "geometry",
+    "celestial",
+    "tea",
+    "botanical",
+    "jade",
+  ] as const) {
     assert.match(getPresetWallpaperColor(preset) ?? "", /^#[0-9a-f]{6}$/);
   }
 });

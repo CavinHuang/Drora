@@ -8,6 +8,9 @@ const PRESET_WALLPAPER_COLORS: Record<Exclude<SkinPresetId, "default">, string> 
   ink: "#a7a4a1",
   geometry: "#c1aa94",
   celestial: "#43517e",
+  tea: "#8fa768",
+  botanical: "#9cae8c",
+  jade: "#286b56",
 };
 
 export function getPresetWallpaperColor(presetId: SkinPresetId): string | null {

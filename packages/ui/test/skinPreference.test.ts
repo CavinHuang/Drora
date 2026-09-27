@@ -77,7 +77,7 @@ test("new preset IDs keep existing version 2 skin choices intact", () => {
     matchPanelColorsToWallpaper: true,
     sidebarOpacity: 87,
   };
-  for (const presetId of ["ink", "geometry", "celestial"] as const) {
+  for (const presetId of ["ink", "geometry", "celestial", "tea", "botanical", "jade"] as const) {
     const next = updateSkinPreference(current, { presetId });
     assert.equal(next.presetId, presetId);
     assert.equal(next.customAccentColor, current.customAccentColor);

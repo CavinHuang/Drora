@@ -11,6 +11,9 @@ export const SKIN_PRESET_IDS = [
   "ink",
   "geometry",
   "celestial",
+  "tea",
+  "botanical",
+  "jade",
 ] as const;
 export type SkinPresetId = (typeof SKIN_PRESET_IDS)[number];
 

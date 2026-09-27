@@ -1,6 +1,6 @@
 # Built-in skin wallpapers
 
-These six wallpapers were created with the built-in `image_gen` tool on 2026-09-27, then converted to WebP with Pillow at quality 80. Each image is 1672 × 941 pixels. Keep the generated art in this directory so the shared UI stylesheet can bundle it for Desktop and Web.
+The first six wallpapers were created with the built-in `image_gen` tool on 2026-09-27; Tea, Botanical and Jade were added on 2026-09-28. All were converted to WebP with Pillow at quality 80. Each image is 1672 × 941 pixels. Keep the generated art in this directory so the shared UI stylesheet can bundle it for Desktop and Web.
 
 ## Prompts
 
@@ -27,3 +27,15 @@ These six wallpapers were created with the built-in `image_gen` tool on 2026-09-
 ### Celestial
 
 > Use case: stylized-concept. Asset type: built-in wallpaper for a calm, dense AI coding workspace; wide 16:9 desktop composition. Create an understated celestial night-sky artwork with deep ink-blue space, fine sparse stars, and a very soft veil of lavender and cyan aurora-like light sweeping gently around the upper and outer edges. The central 70% should be a low-contrast, uncluttered dark blue field suitable behind translucent application panels. Sophisticated observatory-poster mood, delicate film grain, subtle depth and restrained glow; visually distinct from landscape scenery and geometric paper collage. No planets, moon, horizon, mountains, spacecraft, text, logos, icons, watermark, saturated neon or bright focal star.
+
+### Tea Hills
+
+> Use case: stylized-concept. Asset type: built-in 16:9 desktop wallpaper for a calm, dense AI coding workspace. Create an original panoramic illustration of lush tea terraces on gentle hills in early morning, fresh spring leaf greens and soft yellow-green light, elegant curved planting lines receding into delicate mist. View from a distant elevated perspective, with visual interest toward the outer edges and a spacious quiet low-contrast middle 70% for translucent app panels and text. Refined editorial illustration with subtle paper grain, natural rather than neon color, no people, buildings, text, icons, logos, watermark, harsh sun, sharp high-frequency patterns or prominent focal object.
+
+### Botanical
+
+> Use case: stylized-concept. Asset type: built-in 16:9 desktop wallpaper for a calm, dense AI coding workspace. Create an original minimalist botanical watercolor artwork, not a landscape: elegant translucent fern and ginkgo leaves arranged along the far left and right edges, a few overlapping fronds in soft moss, sage and eucalyptus green, warm muted ivory-green paper through the large open middle 70%. Natural handmade watercolor washes, subtle fibrous texture, gentle shadow and restrained botanical detail. Sophisticated contemporary editorial design, low contrast central field for translucent app panels and text. No flowers, people, vases, frames, typography, labels, icons, logos, watermark, hard outlines, repeated pattern or busy center.
+
+### Jade
+
+> Use case: stylized-concept. Asset type: built-in 16:9 desktop wallpaper for a calm, dense AI coding workspace. Create an original deep emerald and jade abstract artwork, distinct from landscapes and botanical paintings: large slow flowing translucent mineral-like color fields, subtle malachite veining and misty glass layers gathering along the far edges, a restrained dark green-teal central field with soft low-contrast gradients for translucent app panels and text. Sophisticated museum-quality material study, matte and quietly luminous, rich green palette from pine to jade with tiny muted celadon highlights. Keep the center 70% uncluttered and without sharp contrast. No recognizable objects, leaves, mountains, people, text, icons, logos, watermark, neon glow, tiny repeated patterns or high-frequency detail.

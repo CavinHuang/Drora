@@ -1,4 +1,4 @@
-import type { SkinPreference } from "./skinPreference.js";
+import type { SkinPreference, SkinPresetId } from "./skinPreference.js";
 import { loadWallpaper } from "./skinImageStore.js";
 import { resolveCustomBrandColor } from "./skinAccent.js";
 import {
@@ -32,6 +32,15 @@ function projectPanelColor(root: HTMLElement, enabled: boolean, color: string | 
     delete root.dataset.droraSkinImageColor;
     root.style.removeProperty("--skin-wallpaper-color");
   }
+}
+
+function projectWallpaperPresence(
+  root: HTMLElement,
+  presetId: SkinPresetId,
+  hasCustom: boolean,
+): void {
+  if (presetId !== "default" || hasCustom) root.dataset.droraSkinWallpaper = "true";
+  else delete root.dataset.droraSkinWallpaper;
 }
 
 function projectCustomPanelColor(
@@ -94,12 +103,18 @@ export function applySkinPreference(preference: SkinPreference): void {
   root.style.setProperty("--skin-wallpaper-position-y", `${preference.wallpaperPositionY}%`);
 
   const generation = ++requestGeneration;
+  projectWallpaperPresence(
+    root,
+    preference.presetId,
+    Boolean(activeObjectUrl && activeRevision === preference.wallpaperRevision),
+  );
   const presetColor = getPresetWallpaperColor(preference.presetId);
   const cachedColor =
     activeRevision === preference.wallpaperRevision ? (activeSample ?? presetColor) : presetColor;
   projectPanelColor(root, preference.matchPanelColorsToWallpaper, cachedColor);
   if (!preference.wallpaperRevision) {
     releaseObjectUrl();
+    projectWallpaperPresence(root, preference.presetId, false);
     return;
   }
   if (activeRevision === preference.wallpaperRevision && activeObjectUrl) {
@@ -107,6 +122,7 @@ export function applySkinPreference(preference: SkinPreference): void {
     return;
   }
   releaseObjectUrl();
+  projectWallpaperPresence(root, preference.presetId, false);
   void loadWallpaper()
     .then((blob) => {
       if (generation !== requestGeneration || !blob) return;
@@ -114,11 +130,15 @@ export function applySkinPreference(preference: SkinPreference): void {
       activeRevision = preference.wallpaperRevision;
       activeBlob = blob;
       root.style.setProperty("--skin-custom-wallpaper", `url("${activeObjectUrl}")`);
+      projectWallpaperPresence(root, preference.presetId, true);
       projectCustomPanelColor(root, preference, generation);
     })
     .catch(() => {
       // 修复：壁纸数据可能在浏览器清理或另一个窗口删除后消失。
       // 仅回退到预设背景，不覆盖用户的其他皮肤偏好。
-      if (generation === requestGeneration) releaseObjectUrl();
+      if (generation === requestGeneration) {
+        releaseObjectUrl();
+        projectWallpaperPresence(root, preference.presetId, false);
+      }
     });
 }

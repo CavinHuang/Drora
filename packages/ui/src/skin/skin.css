@@ -169,6 +169,32 @@ html[data-drora-skin-active="true"] .side-pane-open-tab-shell {
 html[data-drora-skin-active="true"] [data-workspace-terminal-frame] {
   background-color: var(--color-background) !important;
 }
+html[data-drora-skin-wallpaper="true"]
+  [data-workspace-conversation-frame]:has([data-testid="chat-empty"]) {
+  /* 修复：低不透明度首页里问候语、输入框和轮廓水印直接叠在风景图上，主操作区缺少聚焦。 */
+  background-image: radial-gradient(
+    ellipse 42rem 26rem at 50% 44%,
+    color-mix(in srgb, var(--skin-conversation-surface, var(--color-background)) 52%, transparent),
+    transparent 84%
+  );
+}
+html[data-drora-skin-wallpaper="true"] [data-workspace-sidebar-panel] {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--skin-sidebar-surface, var(--color-sidebar)) 28%, transparent),
+    transparent
+  );
+}
+html[data-drora-skin-wallpaper="true"] [data-v4-draft-watermark="true"] {
+  visibility: hidden;
+}
+html[data-drora-skin-wallpaper="true"] [data-workspace-sidebar-panel] .text-foreground-subtlest {
+  color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
+}
+html[data-drora-skin-wallpaper="true"] [data-v4-draft-suggested-prompts] button {
+  background-color: color-mix(in srgb, var(--color-card) 82%, transparent);
+  backdrop-filter: blur(8px);
+}
 .skin-preview[data-preset="default"] {
   background: var(--color-background);
 }

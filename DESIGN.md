@@ -60,6 +60,9 @@ the existing appearance. A custom brand accent must remain readable in both ligh
 Image-color panel tinting is optional and scoped to workspace shell surfaces: keep hues muted and
 theme-controlled brightness, including when a custom image contains a saturated color. At low panel
 opacity, a busy custom image can reduce the readability of unboxed text; explain this in the setting.
+On a wallpaper-backed draft home, use a localized soft focus veil behind the central greeting and
+composer while preserving the image around it. Suppress the large outline watermark when it competes
+with wallpaper artwork, and give sidebar metadata enough contrast at low panel opacity.
 Theme mode remains the owner of light/dark and native title-bar behavior.
 
 ## Color Palette

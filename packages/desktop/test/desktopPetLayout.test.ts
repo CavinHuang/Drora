@@ -20,10 +20,14 @@ test("pet drag follows screen-DIP cursor across displays and clamps only on rele
   });
 });
 
-test("bubble flips beside the pet and remains within its display work area", () => {
+test("bubble sits above the pet, centered on it, and remains within its display work area", () => {
+  // 宠物在屏幕右下：气泡居中悬于头顶（pet 中心 1756 - 130 = 1626），底边距头顶 6px。
   assert.deepEqual(bubblePositionForPet({ x: 1700, y: 1010 }, right), {
-    x: 1452,
-    y: 960,
+    x: 1626,
+    y: 864,
   });
-  assert.deepEqual(bubblePositionForPet({ x: 12, y: 12 }, right), { x: 132, y: 30 });
+  // 宠物贴近屏幕左上：气泡整体钳回工作区，不允许推出屏幕外。
+  assert.deepEqual(bubblePositionForPet({ x: 12, y: 12 }, right), { x: 0, y: 0 });
+  // 宠物在左侧屏右缘：气泡右缘优先收进该屏，而不是翻到旁边显示器。
+  assert.deepEqual(bubblePositionForPet({ x: 1880, y: 600 }, left), { x: -260, y: 454 });
 });

@@ -63,6 +63,8 @@ opacity, a busy custom image can reduce the readability of unboxed text; explain
 On a wallpaper-backed draft home, use a localized soft focus veil behind the central greeting and
 composer while preserving the image around it. Suppress the large outline watermark when it competes
 with wallpaper artwork, and give sidebar metadata enough contrast at low panel opacity.
+The draft composer may use an opaque, theme-aware wallpaper tint when image-color matching is enabled;
+keep it distinct from the surrounding panel and preserve the normal focus outline and readable controls.
 Theme mode remains the owner of light/dark and native title-bar behavior.
 
 ## Color Palette

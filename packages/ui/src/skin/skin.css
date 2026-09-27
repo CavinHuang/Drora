@@ -195,6 +195,24 @@ html[data-drora-skin-wallpaper="true"] [data-v4-draft-suggested-prompts] button 
   background-color: color-mix(in srgb, var(--color-card) 82%, transparent);
   backdrop-filter: blur(8px);
 }
+html[data-drora-skin-wallpaper="true"][data-drora-skin-image-color="true"]
+  [data-workspace-conversation-frame]:has([data-testid="chat-empty"])
+  [data-prompt-editor-surface="true"] {
+  /* 修复：取色后的工作区与纯灰输入框割裂；输入框保持不透明并沿用主题文字、焦点边框。 */
+  background-color: color-mix(in srgb, var(--skin-conversation-surface) 60%, var(--color-input));
+  border-color: color-mix(in srgb, var(--skin-wallpaper-color) 35%, var(--color-input-border));
+}
+html[data-drora-skin-wallpaper="true"][data-drora-skin-image-color="true"]
+  [data-workspace-conversation-frame]:has([data-testid="chat-empty"])
+  [data-prompt-editor-surface="true"]:focus-within {
+  background-color: color-mix(in srgb, var(--skin-conversation-surface) 66%, var(--color-input));
+}
+html[data-drora-skin-wallpaper="true"][data-drora-skin-image-color="true"]
+  [data-workspace-conversation-frame]:has([data-testid="chat-empty"])
+  [data-prompt-editor-surface="true"]
+  .text-foreground-subtlest {
+  color: color-mix(in srgb, var(--color-foreground) 72%, transparent);
+}
 .skin-preview[data-preset="default"] {
   background: var(--color-background);
 }

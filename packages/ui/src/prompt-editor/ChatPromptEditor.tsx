@@ -340,6 +340,7 @@ export function ChatPromptEditor({
         />
       )}
       <div
+        data-prompt-editor-surface="true"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

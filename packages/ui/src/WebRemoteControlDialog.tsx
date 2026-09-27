@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { BotProvider, MobilePairingRuntimeState } from "@drora/shared";
+import type { BotProvider, MobilePairingRuntimeState, MobilePairingStatus } from "@drora/shared";
 import {
   Bot as BotIcon,
+  Link2,
+  Loader2,
   MonitorSmartphone,
-  QrCode as QrCodeIcon,
   RefreshCw,
   Smartphone,
+  Square,
   XIcon,
 } from "lucide-react";
 import QRCode from "qrcode";
@@ -35,6 +37,38 @@ const REMOTE_CONTROL_BOT_ENTRIES: Array<{
   { provider: "telegram" },
 ];
 
+/** 状态文案/详情/圆点色/标签的映射逐项对齐原版（cin/lin/uin/din）。 */
+const STATUS_TEXT_ID: Record<MobilePairingStatus, string> = {
+  idle: "webRemoteControl.status.idle",
+  starting: "webRemoteControl.status.starting",
+  running: "webRemoteControl.status.running",
+  connecting: "webRemoteControl.status.connecting",
+  active: "webRemoteControl.status.active",
+  error: "webRemoteControl.status.error",
+};
+
+const STATUS_DETAIL_ID: Record<MobilePairingStatus, string> = {
+  idle: "webRemoteControl.statusDetail.idle",
+  starting: "webRemoteControl.statusDetail.starting",
+  running: "webRemoteControl.statusDetail.running",
+  connecting: "webRemoteControl.statusDetail.connecting",
+  active: "webRemoteControl.statusDetail.active",
+  error: "webRemoteControl.statusDetail.error",
+};
+
+function statusDotClass(status: MobilePairingStatus): string {
+  switch (status) {
+    case "error":
+      return "bg-destructive";
+    case "active":
+      return "bg-success";
+    case "idle":
+      return "bg-border";
+    default:
+      return "bg-warning";
+  }
+}
+
 export const WebRemoteControlDialog = memo(function WebRemoteControlDialogComponent({
   open,
   onOpenChange,
@@ -51,8 +85,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
 
   // —— 手机扫码连接（LAN 直连，spec: mobile-web-remote.md）——
-  // 生命周期对齐原版：服务独立于弹层运行，状态经 Main 推送（StatusChanged）驱动，
-  // 停止仅通过显式"停止"按钮；弹层重开时按查询面恢复二维码展示。
+  // 布局与文案逐项对齐原版 3.14.3 发行版弹层：左扫码卡（连接状态卡 + 刷新/复制行 + 二维码）、
+  // 右 Bot Channel 卡。服务独立于弹层运行，状态由 Main 推送驱动。
   const platform = usePlatform();
   const [qr, setQr] = useState<{
     status: MobilePairingRuntimeState["status"];
@@ -61,13 +95,16 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     failureMessage: string | null;
   }>({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
   const [copied, setCopied] = useState(false);
+  const [pending, setPending] = useState(false);
   const renderedQrUrlRef = useRef<string | null>(null);
+  const autoStartedForOpenRef = useRef(false);
 
   const renderQrForUrl = useCallback(async (url: string) => {
     if (renderedQrUrlRef.current === url) return;
     renderedQrUrlRef.current = url;
     try {
-      const dataUrl = await QRCode.toDataURL(url, { margin: 1, width: 200 });
+      // 对齐原版：width 320、margin 1。
+      const dataUrl = await QRCode.toDataURL(url, { margin: 1, width: 320 });
       // 异步生成期间 URL 可能又被刷新；过期结果不落状态。
       if (renderedQrUrlRef.current !== url) return;
       setQr((prev) => ({ ...prev, qrDataUrl: dataUrl }));
@@ -91,22 +128,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     [renderQrForUrl],
   );
 
-  // 状态推送订阅：starting/running/connecting/active/error 全部由 Main 驱动，不再轮询。
-  useEffect(() => {
-    if (!platform.onMobilePairingStateChanged) return;
-    return platform.onMobilePairingStateChanged(applyRuntimeState);
-  }, [platform, applyRuntimeState]);
-
-  // 弹层重开时恢复展示（服务可能在弹层关闭期间一直运行）。
-  useEffect(() => {
-    if (!open) return;
-    void platform
-      .getMobilePairingState?.()
-      .then((state) => applyRuntimeState(state))
-      .catch(() => {});
-  }, [open, platform, applyRuntimeState]);
-
-  const handleGenerateQr = async () => {
+  const handleStart = useCallback(async () => {
     if (!platform.startMobilePairing) return;
     setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
     try {
@@ -130,11 +152,37 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
         failureMessage: error instanceof Error ? error.message : String(error),
       }));
     }
-  };
+  }, [platform, workspacePath, workspaceIdentity, applyRuntimeState]);
+
+  // 状态推送订阅（对齐原版 StatusChanged）：弹层开着时全部状态变化实时可见。
+  useEffect(() => {
+    if (!platform.onMobilePairingStateChanged) return;
+    return platform.onMobilePairingStateChanged(applyRuntimeState);
+  }, [platform, applyRuntimeState]);
+
+  // 对齐原版：弹层打开即恢复展示；服务未运行则自动开启（每次打开至多自动开启一次）。
+  useEffect(() => {
+    if (!open) {
+      autoStartedForOpenRef.current = false;
+      return;
+    }
+    void platform
+      .getMobilePairingState?.()
+      .then((state) => {
+        applyRuntimeState(state);
+        if (state.status === "idle" && !autoStartedForOpenRef.current) {
+          autoStartedForOpenRef.current = true;
+          void handleStart();
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随 open 变化触发恢复/自动开启
+  }, [open]);
 
   // 对齐原版 resetPairing（"刷新二维码"）：踢除已连手机并换发票据，服务不重启。
   const handleRefreshQr = async () => {
-    if (!platform.refreshMobilePairing) return;
+    if (!platform.refreshMobilePairing || pending) return;
+    setPending(true);
     try {
       const result = await platform.refreshMobilePairing();
       applyRuntimeState({
@@ -150,6 +198,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       logger.warn("[WebRemoteControlDialog] 刷新配对二维码失败", {
         error: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      setPending(false);
     }
   };
 
@@ -193,12 +243,25 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     });
   };
 
+  const statusText = intl.formatMessage({ id: STATUS_TEXT_ID[qr.status] });
+  const statusDetail = intl.formatMessage({ id: STATUS_DETAIL_ID[qr.status] });
+  const statusTag = intl.formatMessage({
+    id:
+      qr.status === "active"
+        ? "webRemoteControl.statusTag.phone"
+        : qr.status === "idle"
+          ? "webRemoteControl.status.idle"
+          : qr.status === "error"
+            ? "webRemoteControl.status.error"
+            : "webRemoteControl.statusTag.ready",
+  });
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           showCloseButton={false}
-          className="max-h-[calc(100vh-6rem)] max-w-lg gap-0 overflow-hidden rounded-2xl p-0"
+          className="max-h-[calc(100vh-6rem)] max-w-4xl gap-0 overflow-hidden rounded-2xl p-0"
         >
           <Button
             type="button"
@@ -229,99 +292,101 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
               </div>
             </DialogHeader>
 
-            <div className="mt-5 grid gap-4">
-              <section className="rounded-xl border border-border bg-card p-4">
-                <div className="flex items-start gap-2">
+            {/* 对齐原版：左扫码卡（1.45fr）+ 右 Bot Channel 卡（min 300px）双栏。 */}
+            <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1.45fr)_minmax(300px,1fr)]">
+              <section className="flex min-h-[360px] flex-col rounded-xl border border-border bg-card p-4">
+                <div className="mb-4 flex items-start gap-2">
                   <Smartphone className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
-                  <div className="min-w-0 flex-1 space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <div className="text-ui-base font-medium text-foreground">
-                      {intl.formatMessage({ id: "webRemoteControl.qr.title" })}
+                      {intl.formatMessage({ id: "webRemoteControl.mobileQr.title" })}
                     </div>
                     <p className="text-ui-base/relaxed text-foreground-subtle">
-                      {intl.formatMessage({ id: "webRemoteControl.qr.description" })}
+                      {intl.formatMessage({ id: "webRemoteControl.mobileQr.description" })}
                     </p>
                   </div>
                 </div>
-                <div className="mt-3">
-                  {qr.status === "idle" || qr.status === "error" ? (
-                    <div className="space-y-2">
+                {/* 连接状态卡：状态 + 圆点标签行、详情行；右侧停止。 */}
+                <div className="mb-3 rounded-lg bg-surface px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="text-ui-base font-medium text-foreground">{statusText}</div>
+                        <div className="flex min-w-0 items-center gap-1.5 rounded-full bg-card px-2 py-0.5 text-ui-xs font-medium text-foreground-subtle">
+                          <span
+                            className={`size-1.5 shrink-0 rounded-full ${statusDotClass(qr.status)}`}
+                          />
+                          <span className="truncate">{statusTag}</span>
+                        </div>
+                      </div>
+                      <div className="text-ui-base/relaxed text-foreground-subtle">
+                        {statusDetail}
+                      </div>
+                    </div>
+                    {pending ? (
+                      <Loader2 className="size-4 animate-spin text-foreground-subtle" />
+                    ) : (
                       <Button
                         type="button"
                         variant="outline"
-                        size="lg"
-                        className="w-full justify-center gap-2 enabled:cursor-pointer"
-                        onClick={() => void handleGenerateQr()}
+                        size="default"
+                        className="shrink-0 gap-2 enabled:cursor-pointer"
+                        onClick={handleStopPairing}
+                        disabled={qr.status === "idle"}
                       >
-                        <QrCodeIcon className="size-4" />
-                        {intl.formatMessage({ id: "webRemoteControl.qr.generate" })}
+                        <Square className="size-3.5" />
+                        {intl.formatMessage({ id: "webRemoteControl.stop" })}
                       </Button>
-                      {qr.status === "error" ? (
-                        <p className="text-center text-ui-xs text-destructive">
-                          {intl.formatMessage({ id: "webRemoteControl.qr.generateFailed" })}
-                          {qr.failureMessage ? `：${qr.failureMessage}` : ""}
-                        </p>
-                      ) : null}
+                    )}
+                  </div>
+                  {qr.failureMessage ? (
+                    <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-ui-base/relaxed text-destructive">
+                      <p>{qr.failureMessage}</p>
                     </div>
+                  ) : null}
+                  {/* 无法扫码行：文案 + 刷新二维码 + 复制链接（对齐原版 copy-link-row）。 */}
+                  <div className="mt-3 flex min-h-10 flex-wrap items-center gap-3 border-t border-border pt-3">
+                    <div className="min-w-48 flex-1 text-ui-base/relaxed text-foreground-subtle">
+                      {intl.formatMessage({ id: "webRemoteControl.copyLink.description" })}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      className="shrink-0 gap-2 enabled:cursor-pointer"
+                      onClick={() => void handleRefreshQr()}
+                      disabled={pending}
+                    >
+                      <RefreshCw className="size-3.5" />
+                      {intl.formatMessage({ id: "webRemoteControl.refreshQr" })}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      className="shrink-0 gap-2 enabled:cursor-pointer"
+                      onClick={() => void handleCopyPairingLink()}
+                      disabled={!qr.url || pending}
+                    >
+                      <Link2 className="size-3.5" />
+                      {copied
+                        ? intl.formatMessage({ id: "webRemoteControl.copyLink.copied" })
+                        : intl.formatMessage({ id: "webRemoteControl.copyLink" })}
+                    </Button>
+                  </div>
+                </div>
+                {/* 二维码容器：虚线边框、居中；未就绪时显示准备中。 */}
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background-alt p-4">
+                  {qr.qrDataUrl ? (
+                    <img
+                      src={qr.qrDataUrl}
+                      alt={intl.formatMessage({ id: "webRemoteControl.qrAlt" })}
+                      className="size-64 max-w-full rounded-lg bg-white p-3"
+                    />
                   ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      {qr.qrDataUrl ? (
-                        <img
-                          src={qr.qrDataUrl}
-                          alt={intl.formatMessage({ id: "webRemoteControl.qr.title" })}
-                          className="size-[200px] rounded-lg bg-white p-1"
-                        />
-                      ) : (
-                        <div className="flex size-[200px] items-center justify-center rounded-lg bg-surface text-foreground-subtle">
-                          {intl.formatMessage({ id: "webRemoteControl.qr.generating" })}
-                        </div>
-                      )}
-                      {/* 状态行对齐原版六态：等待手机连接 / 正在连接手机 / 手机已连接。 */}
-                      <p className="text-center text-ui-xs font-medium text-foreground">
-                        {qr.status === "active"
-                          ? intl.formatMessage({ id: "webRemoteControl.status.active" })
-                          : qr.status === "connecting"
-                            ? intl.formatMessage({ id: "webRemoteControl.status.connecting" })
-                            : qr.status === "starting"
-                              ? intl.formatMessage({ id: "webRemoteControl.status.starting" })
-                              : intl.formatMessage({ id: "webRemoteControl.status.waiting" })}
-                      </p>
-                      <p className="text-center text-ui-xs text-foreground-subtle">
-                        {qr.status === "active"
-                          ? intl.formatMessage({ id: "webRemoteControl.qr.connected" })
-                          : intl.formatMessage({ id: "webRemoteControl.qr.hint" })}
-                      </p>
-                      <div className="grid w-full grid-cols-3 gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="justify-center enabled:cursor-pointer"
-                          onClick={() => void handleCopyPairingLink()}
-                        >
-                          {copied
-                            ? intl.formatMessage({ id: "webRemoteControl.qr.copied" })
-                            : intl.formatMessage({ id: "webRemoteControl.qr.copyLink" })}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="justify-center gap-1 enabled:cursor-pointer"
-                          onClick={() => void handleRefreshQr()}
-                        >
-                          <RefreshCw className="size-3.5" />
-                          {intl.formatMessage({ id: "webRemoteControl.qr.refresh" })}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="justify-center enabled:cursor-pointer"
-                          onClick={handleStopPairing}
-                        >
-                          {intl.formatMessage({ id: "webRemoteControl.qr.stop" })}
-                        </Button>
-                      </div>
+                    <div className="flex flex-col items-center gap-3 text-center text-ui-base text-foreground-subtle">
+                      <Loader2 className="size-5 animate-spin" />
+                      <span>{intl.formatMessage({ id: "webRemoteControl.generating" })}</span>
                     </div>
                   )}
                 </div>

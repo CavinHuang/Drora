@@ -201,6 +201,12 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
 1. （第五十一轮已闭合）版本线钉扎已随本机官方 3.14.3 产物对账升级为
    `qc=3.14.3`/`WC=293504`；下载通道期望与现行官方线一致。
 2. 自有 Developer ID + 公证的发布签名身份（含 TCC 重新授权成本）。
+   **2026-09-27 部分裁定**：用户选定自签名证书作为桌面 app 主体的过渡发布
+   身份（解 Squirrel 自动更新链 + 主 app TCC 持久化，见
+   specs/update-feed-github.md「macOS 发布签名身份」）。本 spec 的严格链
+   不因此恢复：CUA Helper 的 launcher 门锚定官方 Developer ID +
+   TeamID `8A5X4JJ39T`，自签名证书无法满足，路线 A（§七.0a）保持不变；
+   Developer ID 仍为待定终态（届时按 §七.3 整体还原 v2 五面）。
 3. **官方 3.14.3 CUA 认证模型 v2 代际（第五十一/五十二轮定性，行为 delta 待
    签名身份裁定）**：官方 3.14.3 对 3.11.2 的认证/发射模型做了整体换代，五个
    面一体：

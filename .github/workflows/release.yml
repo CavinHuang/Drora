@@ -105,6 +105,36 @@ jobs:
           done
         shell: bash
       # 桌面全链构建(含 agent bundle / native search / mac window bounds)
+      - name: Import macOS signing certificate
+        # specs/update-feed-github.md「macOS 发布签名身份」：自签名证书
+        # （CN=Drora Desktop Signing）解锁 Squirrel.Mac 自动更新链。证书未配置
+        # （secret 留空）时跳过本步，维持无签名/路线 A adhoc 分发不变。
+        # secrets:
+        #   MAC_SIGNING_CERT_P12_BASE64 — p12（base64，含私钥与证书）
+        #   MAC_SIGNING_CERT_PASSWORD   — p12 导出密码
+        if: >-
+          matrix.builder-os == 'mac' &&
+          secrets.MAC_SIGNING_CERT_P12_BASE64 != '' &&
+          secrets.MAC_SIGNING_CERT_PASSWORD != ''
+        shell: bash
+        env:
+          MAC_SIGNING_CERT_P12_BASE64: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 }}
+          MAC_SIGNING_CERT_PASSWORD: ${{ secrets.MAC_SIGNING_CERT_PASSWORD }}
+        run: |
+          set -e
+          CERT_PATH="$RUNNER_TEMP/drora-signing.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/drora-signing.keychain-db"
+          echo -n "$MAC_SIGNING_CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MAC_SIGNING_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # 自签名证书必须被信任，find-identity -v 才会列出有效身份
+          openssl pkcs12 -in "$CERT_PATH" -passin "pass:$MAC_SIGNING_CERT_PASSWORD" -nokeys -out "$RUNNER_TEMP/drora-signing.crt" -passout pass:
+          sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/drora-signing.crt"
+          security set-key-partition-list -S apple-tool:,apple: -k "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains | tr '\n' ' ' | sed 's/ *$//')
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
       - name: Build desktop production bundles
         run: pnpm --filter @drora/desktop run build
         timeout-minutes: 50
@@ -127,9 +157,20 @@ jobs:
         shell: bash
         env:
           # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
-          # authenticode;开源构建的预期形态
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          DRORA_ENABLE_MAC_SIGN: ""
+          # authenticode;开源构建的预期形态。配置了自签名证书 secret 时按
+          # specs/update-feed-github.md 启用真实身份签名（自动跳过路线 A adhoc）。
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'true' || 'false' }}
+          CSC_NAME: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'Drora Desktop Signing' || '' }}
+          DRORA_ENABLE_MAC_SIGN: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && '1' || '' }}
+      - name: Cleanup macOS signing keychain
+        if: >-
+          always() &&
+          matrix.builder-os == 'mac' &&
+          secrets.MAC_SIGNING_CERT_P12_BASE64 != ''
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/drora-signing.keychain-db" || true
+          security list-keychain -d user -s login.keychain
       - name: Locate installers and channel files
         id: artifacts
         shell: bash

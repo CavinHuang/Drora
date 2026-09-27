@@ -17,6 +17,10 @@ import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
+import {
+  createAutoUpdateInstallRecovery,
+  type AutoUpdateInstallRecovery,
+} from "./autoUpdateInstallRecovery.js";
 const { autoUpdater } = pkg;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
@@ -47,6 +51,7 @@ let downloadCancellationToken: CancellationToken | null = null;
 let readyUpdateChannel: ElectronReleaseChannel | null = null;
 let pendingManifestReleaseChannelRefresh: ElectronReleaseChannel | null = null;
 let onBeforeQuitAndInstall: (() => void | Promise<void>) | undefined;
+let installFailureRecovery: AutoUpdateInstallRecovery | null = null;
 const acknowledgedPostUpdateReleaseNotesVersions = new Set<string>();
 const cancelledDownloadTokens = new WeakSet<CancellationToken>();
 let pendingCancelledDownloadErrorCount = 0;
@@ -94,6 +99,7 @@ const autoUpdaterStateListeners = new Set<(state: UpdateStatePayload) => void>()
 interface InitAutoUpdaterOptions {
   enabled?: boolean;
   onBeforeQuitAndInstall?: () => void | Promise<void>;
+  onQuitAndInstallFailed?: (error: unknown) => void;
   settingService?: SettingServiceLike;
   locale?: Locale;
 }
@@ -424,6 +430,12 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     // 3.3.0 的 Windows 自定义 PowerShell delayed launcher 在 detached/hidden
     // 模式下可能只创建 powershell.exe，却没有稳定执行到安装器启动，用户看到应用关闭但版本不变。
     // 这里恢复 electron-updater 原生安装入口，避免把“launcher 进程创建成功”误当成更新已接管。
+    // macOS 上 Squirrel 安装任务异步执行，失败经 error 事件迟到（specs/update-feed-github.md
+    // 「macOS quitAndInstall 失败恢复」）；退出准备已不可逆，从现在起任何 updater error 都按
+    // 安装失败收口。Windows 的 NSIS 安装器接管后不再回调 updater error，不标记，保持原语义。
+    if (process.platform === "darwin") {
+      installFailureRecovery?.markInstallRequested();
+    }
     autoUpdater.quitAndInstall();
   } finally {
     quitAndInstallInFlight = false;
@@ -1380,6 +1392,11 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   if (!canUseAutoUpdaterInCurrentRuntime()) return;
 
   onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
+  // specs/update-feed-github.md「macOS quitAndInstall 失败恢复」：
+  // 安装请求后的迟到 error 必须交给恢复回调收口，不能走常规静默收敛。
+  installFailureRecovery = createAutoUpdateInstallRecovery({
+    onInstallFailure: (error) => options.onQuitAndInstallFailed?.(error),
+  });
   if (options.locale) {
     menuLocale = options.locale;
   }
@@ -1605,6 +1622,13 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
       // electron-updater 在取消下载后可能异步补发 error("cancelled")。
       // 用户取消已经把状态恢复到可重试的 update-available，迟到取消事件不能再清空入口。
       logger.info("[auto-update] ignore delayed error from cancelled download");
+      return;
+    }
+
+    // 安装请求后的 error 是 Squirrel 安装任务失败（退出准备已完成且不可逆），
+    // 常规收敛会把应用留在半退出态——交给恢复回调（main：弹窗 + 完成退出）。
+    // 回调只触发一次；触发后恢复后续 error 走常规路径（应用即将退出，通常不再有）。
+    if (installFailureRecovery?.handleUpdaterError(err)) {
       return;
     }
 

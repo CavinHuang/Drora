@@ -67,6 +67,7 @@ import {
 } from "@drora/services/node";
 import {
   desktopMenuMessageIds,
+  formatDesktopMenuMessage,
   type Locale,
   type AppSettings,
   PlatformChannels,
@@ -1885,7 +1886,8 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
           // Start Plan 人机验证：隐藏窗口跑阿里云 captcha SDK，凭证一次性（specs/start-plan-captcha-verification.md）。
-          handleCaptchaSolveRequest: ({ captcha, language }) => captchaSolver.solve({ captcha, language }),
+          handleCaptchaSolveRequest: ({ captcha, language }) =>
+            captchaSolver.solve({ captcha, language }),
         },
         {
           taskRealtime: {
@@ -2109,6 +2111,25 @@ app.whenReady().then(async () => {
       if (process.platform === "win32") {
         await prepareWindowsProcessesForUpdateInstall();
       }
+    },
+    onQuitAndInstallFailed: (error) => {
+      // specs/update-feed-github.md「macOS quitAndInstall 失败恢复」：
+      // 退出准备已完成且不可逆，renderer 可能已不可交互——用原生弹窗兜底反馈，
+      // 用户确认后完成退出，不把应用留在半退出态（实测表现为「点击没反应」的僵尸态）。
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("[auto-update] quit and install failed, exiting after dialog:", error);
+      dialog.showErrorBox(
+        getDesktopMenuLabelByLocale(
+          currentApplicationLocale,
+          desktopMenuMessageIds.updateInstallFailedTitle,
+        ),
+        formatDesktopMenuMessage(
+          currentApplicationLocale,
+          desktopMenuMessageIds.updateInstallFailedBody,
+          { message },
+        ),
+      );
+      exitPreparedApp("auto-update-install-failed");
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,

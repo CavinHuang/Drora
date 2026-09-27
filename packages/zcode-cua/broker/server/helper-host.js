@@ -147,7 +147,11 @@ export function vse(e) {
     if (!MW.test(t))
         throw new qn("ZCode Computer Use live verification received an unsafe bundle identifier");
     if (e.allowAdHocLocalDev) {
-        if (t !== DEV_CUA_HELPER_BUNDLE_ID_VALUE)
+        // 路线 A 分发（第五十轮）：adhoc 包的自建 Helper 以产品 bundle id 分发
+        // （build-cua-helper-app.mjs --identifier 签名、无证书链），复核放宽到产品
+        // id 的 identifier 锚；dev 线仍限隔离 dev id，语义不变。
+        let n = e.adhocDistribution === !0 ? Ss : DEV_CUA_HELPER_BUNDLE_ID_VALUE;
+        if (t !== n)
             throw new qn("Ad-hoc Computer Use Helper live verification is restricted to the isolated dev bundle identifier");
         return `identifier "${t}"`;
     }
@@ -512,8 +516,11 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                     : {}),
                 env: this.options.env,
                 // 路线 A 分发 profile：DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1 时接受
-                // 未签名 launcher（token 文件与 peer 祖先链验证仍生效）
-                allowUnsignedLauncherLocalDev: Ps(this.options.env) || process.env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1",
+                // 未签名 launcher（token 文件与 peer 祖先链验证仍生效）。
+                // env 取 options.env ?? process.env：生产两者同源（LSEnvironment 注入
+                // main/host），测试可经 options.env 精确注入（第五十轮）。
+                allowUnsignedLauncherLocalDev: Ps(this.options.env) ||
+                    (this.options.env ?? process.env).DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1",
                 allowExternalBrokerClientLocalDev: Ps(this.options.env) || _b(this.options.env),
                 version: bn(this.options.env) ? this.options.env?.ZCODE_VERSION?.trim() || qc : qc,
                 ghostCursorOverlay: g,
@@ -543,12 +550,20 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                     ...(zn ? { token: zn } : {}),
                 })))(c, C);
             let M = this.options.expectedBundleId ?? $se;
+            // 路线 A 分发（第五十轮）：live 进程复核此前只接 dev 线（Ps），生产 adhoc 包
+            // 对自建 Helper 走 TeamID 锚必杀。补分发门：非 dev runtime 且
+            // DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1 时按 adhocDistribution 放宽
+            // （vse 以产品 id identifier 锚复核），token/peer 链不变。
+            let adhocDistributionLiveVerify =
+                !Ps(this.options.env) &&
+                (this.options.env ?? process.env).DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1";
             if (((B = (await (this.options.verifyLiveProcessIdentity ?? LW)({
                 socketPath: c,
                 reportedPid: j.pid,
                 helperAppPath: p,
                 expectedBundleId: M,
-                allowAdHocLocalDev: Ps(this.options.env),
+                allowAdHocLocalDev: Ps(this.options.env) || adhocDistributionLiveVerify,
+                adhocDistribution: adhocDistributionLiveVerify,
                 env: this.options.env,
             })).pid),
                 M && j.bundleId !== M))

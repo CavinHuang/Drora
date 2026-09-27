@@ -8,19 +8,25 @@
 发射链（token 文件/参数序/env 白名单）、安装链（embeddedBuildId）、打包形态、
 CI 守卫均与原版对齐并有测试锚定；遗留仅 §七 两项（均需用户输入）。
 
-对照基线（parity 参照物）：本机官方原版 3.11.2 / buildId `pipeline-277386-89817f5b`
+对照基线（parity 参照物）：本机官方 **3.14.3** / buildId `pipeline-293504-ab4d5e6b`
 （`packages/desktop/resources/cua-helper/` 的 staging 副本，Developer ID 8A5X4JJ39T 签名）。
-仓库内嵌常量 `qc="3.14.0"` / `WC="pipeline-291084-a1328db1"` 指向的官方线本机不存在，
-不作为本轮 parity 参照（见「遗留决策」）。
+第五十一轮（2026-09-26）从 3.11.2/89817f5b 升级：官方 3.14.3 发行物本机可得后全量对账——
+broker 方法面零变化（strings 裸 token 差集为空，63+1 方法表仍现行）；原生 addon 纯增量
+117→125 导出（新增 parentProcessPid / responsibleProcessPid / peerCodeSigningSummary /
+setCpsActivationDisabled / pasteboard provided-paste 四件套，全部为官方 payload 可选守卫
+消费，本仓 payload 不调用）；随包常量线 `qc="3.14.3"` / `WC="pipeline-293504-ab4d5e6b"`
+（第五十一轮按本机官方 3.14.3 实测值更新，旧值 3.14.0/291084 为无产物可证的中间线）。
+payload 内部演进差（zod 校验升级、captureApp 启动 settle 链、provided-paste 接线、
+peer 验证原语硬门槛化）如实入档为后续还原项，方法面不受影响。
 
 ## 一、能力一致的定义（分层）
 
-| 层                        | 一致口径                                                                                                                           | 依据                                     |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| 原生层（ax_native）       | **字节级一致**：构建直接复用仓库内原版二进制 `native/ax_native_mac.node`（SHA-256 与官方 .app 内 `Resources/ax_native.node` 相同） | 117 导出面 + `check-ax-native-interface` |
-| TS payload（helper 主体） | **行为一致**：`src/helper-sea-entry.ts` → helperMain 的还原实现，经双 broker 对比验收（见第四节）                                  | 复原清单 + 本 spec 新增 mac parity 工具  |
-| App 形态                  | **结构一致**：Node SEA 单可执行 + `Resources/ax_native.node` + Info.plist 键集与原版相同（值允许按构建身份不同）                   | 构建脚本                                 |
-| 签名身份                  | **允许不同**：dev 构建 ad-hoc；发布构建用自有 Developer ID + 公证。签名身份不同必然导致 TCC 授权主体不同，属产品决策而非能力差异   | —                                        |
+| 层 | 一致口径 | 依据 |
+| --- | --- | --- |
+| 原生层（ax_native） | **字节级一致**：构建直接复用仓库内原版二进制 `native/ax_native_mac.node`（SHA-256 与官方 .app 内 `Resources/ax_native.node` 相同） | 117 导出面 + `check-ax-native-interface` |
+| TS payload（helper 主体） | **行为一致**：`src/helper-sea-entry.ts` → helperMain 的还原实现，经双 broker 对比验收（见第四节） | 复原清单 + 本 spec 新增 mac parity 工具 |
+| App 形态 | **结构一致**：Node SEA 单可执行 + `Resources/ax_native.node` + Info.plist 键集与原版相同（值允许按构建身份不同） | 构建脚本 |
+| 签名身份 | **允许不同**：dev 构建 ad-hoc；发布构建用自有 Developer ID + 公证。签名身份不同必然导致 TCC 授权主体不同，属产品决策而非能力差异 | — |
 
 ## 二、产物契约（构建输出 `dist-cua-helper/ZCode Computer Use.app`）
 
@@ -47,7 +53,7 @@ CI 守卫均与原版对齐并有测试锚定；遗留仅 §七 两项（均需�
    helper src 保持与 win32 官方一致的 5 基形态，不回退。
 4. `Contents/Info.plist`：键集与原版一致；值规则——
    - `CFBundleShortVersionString`/`CFBundleVersion`：env `CUA_HELPER_VERSION`，缺省
-     `3.11.2`（parity 基线）；
+     `3.14.3`（parity 基线，第五十一轮随官方现行线升级）；
    - `ZCodeCUAHelperBuildId`：env `CUA_HELPER_BUILD_ID`，缺省 `local-dev`；
    - `CFBundleIdentifier` 恒 `dev.zcode.cua-helper`（校验链白名单成员，不改）；
    - `LSUIElement` true、`NSAppleEventsUsageDescription` 与原版逐字一致。
@@ -93,7 +99,9 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
   blob/asar 雕刻为底稿并注明证据坐标；纯品牌改名（ZCode→Drora）沿用
   `specs/drora-rename.md` 豁免语义。`load-sharp` 经审计保持与 win32 官方一致
   的 5 基形态（两产物线演进差，见 §二.3），不得"顺手改齐" mac 4 基旧形态。
-- 不改 TeamID 钉扎（`8A5X4JJ39T`）、bundle id 白名单、`qc`/`WC` 常量。
+- 不改 TeamID 钉扎（`8A5X4JJ39T`）、bundle id 白名单。`qc`/`WC` 常量第五十一轮解禁并
+  按本机官方 3.14.3 实测值更新（此前禁改因官方 3.14 线本机不可得、无法验证；现产物
+  在机，`/Applications/ZCode.app` 随包 Helper Info.plist 即为权威值源）。
 
 ## 六、embeddedBuildId 接线（第十二轮实现项）
 
@@ -103,7 +111,12 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
 
 - **所有者**：桌面 main 进程的 installer 包装层（desktopCuaHelperInstaller）
   是 bundled Helper 身份的唯一读取点；zcode-cua 的 `qu()` 负责把
-  `embeddedBuildId`/`version` 透传进默认 plan。
+  `embeddedBuildId`/`version` 透传进默认 plan。第五十五轮补两条：
+  main 经 host env（`DRORA_CUA_HELPER_EMBEDDED_BUILD_ID/_VERSION`）把同一身份
+  下发给 host 托管安装器（services readEmbeddedCuaHelperBuildIdentityFromEnv），
+  host 侧不再回落 WC；`qu()` 同时透传 `allowUnsignedDistribution`（路线 A
+  放行此前被静默丢弃，自第 33 轮起从未接通）。授权引导的身份四元组解析
+  （resolveHelperPermissionSubjectIdentity）由恒抛桩恢复为 Info.plist 真身。
 - **读取方式**：installer 创建时对 bundledAppPath 执行
   `plutil -extract <key> raw`（darwin + 打包态 + bundled 路径存在才读）；
   读取失败/键缺失 → 字段缺省 → 回退既有 `WC` 钉扎（不阻断安装，最坏退回
@@ -126,36 +139,134 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
    - 安装侧（zcode-cua 豁免区，还原原版语义）：`ZCODE_HOME || ~/.zcode` + `computer-use`；
    - 查找侧（services standalone，Drora 改名形态）：`DRORA_HOME || ~/.drora` + `computer-use`；
    - 桥接：不存在（桌面/服务无人设 `ZCODE_HOME`，zcode-cua 不读 `DRORA_HOME`）。
-     净效果：托管路径自洽（装 ~/.zcode、从 ~/.zcode 启动），但与官方 ZCode
-     **同根共存**（互相覆盖/构建 ID 冲突隐患）；设置页 standalone 路径枚举
-     ~/.drora 永远落空 → 静默失败退化。
-     实施记录：方案 A（env 路由）——desktop main 于 fork host 进程时注入
-     `ZCODE_HOME=DRORA_HOME||~/.drora`（darwin only），豁免区零改动；
-     安装根 ~/.drora/computer-use 与 standalone 枚举对齐，并与官方 ZCode
-     的 ~/.zcode 隔离（共存冲突隐患消除）。commit 7952bba。
+   净效果：托管路径自洽（装 ~/.zcode、从 ~/.zcode 启动），但与官方 ZCode
+   **同根共存**（互相覆盖/构建 ID 冲突隐患）；设置页 standalone 路径枚举
+   ~/.drora 永远落空 → 静默失败退化。
+   实施记录：方案 A（env 路由）——desktop main 于 fork host 进程时注入
+   `ZCODE_HOME=DRORA_HOME||~/.drora`（darwin only），豁免区零改动；
+   安装根 ~/.drora/computer-use 与 standalone 枚举对齐，并与官方 ZCode
+   的 ~/.zcode 隔离（共存冲突隐患消除）。commit 7952bba。
 
 0a. **无签名分发 profile（用户选定分发路线：ad-hoc + 首次放行；第三十三轮实施）**：
-用户明确无 Developer ID，选定 ad-hoc + 放行脚本分发。实现三处构建期折叠
-（全部 default-off，默认构建语义与原版严格链一致）：
+   用户明确无 Developer ID，选定 ad-hoc + 放行脚本分发。实现三处构建期折叠
+   （全部 default-off，默认构建语义与原版严格链一致）：
+   - helper SEA：`CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1` 折叠
+     `allowUnsignedLauncherLocalDev=true`（接受
+     `--allow-unsigned-launcher-local-dev`，跳过 launcher 签名验证）；
+   - 构建签名步骤：exe 与 .app bundle 均以
+     `--identifier dev.zcode.cua-helper` ad-hoc 签名——修复路径派生标识
+     （`ZCode Computer Use-<hash>`）导致
+     `isCuaHelperBundleId(code_signing_identifier)` 恒假的拦截；
+   - 桌面/host/安装器：`DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`
+     （经 dmg 的 LSEnvironment 注入，LaunchServices 发射链与子进程继承）
+     → 安装器走 `allowUnsignedDistribution`（local_dev_unsigned 校验）、
+     host launcher 传 `--allow-unsigned-launcher-local-dev`。
+   安全姿态（如实）：helper 由 token 文件 + peer 祖先链验证守护；放弃的是
+   "launcher/helper 必须官方 Developer ID 签名" 的身份链（无 ID 分发的必然代价）。
+   正式签名身份到位后：移除三个 env/键即回到严格链。
+   用户侧步骤：dmg 安装 → 首次打开右键放行 → 系统设置授予
+   辅助功能 + 屏幕录制（ad-hoc 授权绑定 cdhash，更新后需重授）。
+   - **第四轮缺口收口（第五十轮）——两处路线 A 断链**：
+     a. **打包接线**：发布构建此前仅在 `resources/cua-helper`（官方签名 staging
+        副本，gitignored）存在时才 staging，干净检出/CI 静默产出"无 Helper 包"
+        （官方发行物恒带）。新增 `prepare:cua-helper`（desktop build 链，darwin
+        target 专属）：**恒**自建 `build:darwin-app` 并 ditto staging 至
+        `bundled-cua-helper/`（electron-builder 源，gitignored）。官方副本只作
+        parity 参照物与 node_modules 种源，**不入包**——其 launcher 门钉死
+        `dev.zcode.app` + TeamID `8A5X4JJ39T`，Drora（dev.drora.app）无论
+        ad-hoc 还是自有 Developer ID 都永远无法拉起它。折叠：路线 A
+        （`DRORA_ENABLE_MAC_SIGN != 1`）注入
+        `CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1`；正式签名构建不折叠（严格
+        launcher 门，签名身份决策见 §七.2）。buildId 取 `drora-<desktop 版本>`。
+        构建失败即失败，不降级出"无 Helper 包"；构建经当前 node 直跑（pnpm
+        --filter 会被 volta shim 解析到项目钉扎外 node，SEA 骨架守卫需同 ABI）。
+     b. **host live 进程验证分发门**：`helper-host` 对已启动 Helper 的
+        codesign 复核（`vse` requirement 构造）此前只认 dev 线
+        （`allowAdHocLocalDev && bundle id === dev.zcode.cua-helper.dev`）或
+        严格 TeamID 锚——adhoc 包的自建 Helper（产品 id、无证书链）在生产环境
+        必被"live process identity verification failed"杀掉。补
+        `adhocDistribution` 判定（`!Ps(env) && DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`）：
+        该门下 adhoc 复核放宽为 `identifier "dev.zcode.cua-helper"`（无 cert
+        anchor）；dev 线与严格线语义不变。
+     c. **陈旧安装副本替换**：既有安装副本（如手拷官方 Helper）与 bundled
+        payload 不一致时（`Hie` 字节比对 / buildId 期望失配），安装器按
+        "not usable, reinstalling" 从 bundled 自建产物重装——路由 A 包携带的
+        自建 Helper 会自动覆盖历史手拷官方副本（官方副本对 ad-hoc launcher
+        恒拒启，不可继续使用）。
+     验收：`packages/zcode-cua/test/adhoc-distribution-profile.mjs`——vse 三分支
+     requirement 单测 + 生产形态 E2E（NODE_ENV=production、无 dev env、
+     `DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`，CuaHelperHost 全链
+     launch→health→live verify→permission_status，对照组严格门 fail-closed）。
 
-- helper SEA：`CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1` 折叠
-  `allowUnsignedLauncherLocalDev=true`（接受
-  `--allow-unsigned-launcher-local-dev`，跳过 launcher 签名验证）；
-- 构建签名步骤：exe 与 .app bundle 均以
-  `--identifier dev.zcode.cua-helper` ad-hoc 签名——修复路径派生标识
-  （`ZCode Computer Use-<hash>`）导致
-  `isCuaHelperBundleId(code_signing_identifier)` 恒假的拦截；
-- 桌面/host/安装器：`DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`
-  （经 dmg 的 LSEnvironment 注入，LaunchServices 发射链与子进程继承）
-  → 安装器走 `allowUnsignedDistribution`（local_dev_unsigned 校验）、
-  host launcher 传 `--allow-unsigned-launcher-local-dev`。
-  安全姿态（如实）：helper 由 token 文件 + peer 祖先链验证守护；放弃的是
-  "launcher/helper 必须官方 Developer ID 签名" 的身份链（无 ID 分发的必然代价）。
-  正式签名身份到位后：移除三个 env/键即回到严格链。
-  用户侧步骤：dmg 安装 → 首次打开右键放行 → 系统设置授予
-  辅助功能 + 屏幕录制（ad-hoc 授权绑定 cdhash，更新后需重授）。
-
-1. `qc=3.14.0`/`WC=291084` 钉扎与本机可得官方 3.11.2/277386 的版本线错位——
-   需上游 3.14 产物或改钉扎决策（bundled 安装已被 §六接线消解，仅
-   下载通道仍受影响）。
+1. （第五十一轮已闭合）版本线钉扎已随本机官方 3.14.3 产物对账升级为
+   `qc=3.14.3`/`WC=293504`；下载通道期望与现行官方线一致。
 2. 自有 Developer ID + 公证的发布签名身份（含 TCC 重新授权成本）。
+3. **官方 3.14.3 CUA 认证模型 v2 代际（第五十一/五十二轮定性，行为 delta 待
+   签名身份裁定）**：官方 3.14.3 对 3.11.2 的认证/发射模型做了整体换代，五个
+   面一体：
+   - **token 文件链整体移除**：launcher 发射向量不再携带
+     `--token-file`/`--presentation-token-file`（asar out/host 实证
+     tokenFile/randomBytes(32)/writeOneShot 全为 0）；host 不再铸造 token。
+   - **helper 启动门同步放宽**：官方 3.14.3 helper 无 `--token-file` 即可启动
+     （3.11.2 拒启"requires a launcher-minted --token-file"）；token 门被原生
+     peer 门取代。
+   - **连接级 peer 收紧**：broker 对连接 peer 做原生码签名校验
+     （peerCodeSigningSummary/parentProcessPid 新原语；实测
+     `peer verification failed`——无签名进程即使 token 合法、位于受信 launcher
+     后代链上也一律拒答）。
+   - **客户端协议 v2 + 双向互验**：authenticate 恒携 `clientApiVersion:2`（无
+     token）；客户端新增 `peerChecker/verifySocketPeer` 反向验证 broker peer。
+   - **发射参数增删**：新增 `--permission-broker-socket`（preflight 模式引用主
+     broker）；launcher 未签名放行门收为纯 dev runtime（官方产品态永不放行）。
+   本仓 host/payload 保持 3.11.2 模型（token + 祖先链 + 同 UID 外部 peer 需
+   dev 门）——模型内部自洽（发射契约/双轨 parity/生产 E2E 全绿锚定），且照搬
+   v2 会拒掉路线 A 的 ad-hoc 桌面宿主自身（客户端进程无官方签名）。跟随换代的
+   前置条件是 §七.2 签名身份落地（届时需整体还原 v2 五面，非单点）。
+   已验证 3.14.3 与本仓一致的面（第五十二轮正向确认）：live 复核 requirement
+   构造逐字一致；安装链结构一致（variant/meta/verificationMode/
+   releaseEligible/install-lock）；getStatus 形状一致（字段/语义/idle 文案）；
+   发射参数主干一致（除上述 token 两参移除与新 preflight 参数）。
+   parity 影响：双 broker 行为对比锚定 3.11.2（官方最后一个可质询版本），
+   3.14.3 作为形态锚（字节/版本/启动门），见 manifest 第五十一轮双轨基线。
+
+## 八、payload 行为演进残差（第六十四轮修正；第六十三轮编目方法学错误已纠正）
+
+> **第六十三轮勘误**：彼时 diff 的是官方 3.11.2 vs 官方 3.14.3，并假设我方
+> payload=3.11.2 纯重放——错。我方还原 payload 早已吸收后续线行为（paste 超集
+> 自早期轮次有档；settle 链/窗口语义/诊断通道均在源码与产物中实证存在）。
+> 第六十四轮改为**我方产物 strings vs 官方 3.14.3 直接比对**，真实残差如下。
+
+原 A/B 级五项（settle 链/窗口 onscreen+subrole/minimized/event 前台约束/
+provided-paste）经逐标记验证（源码 grep + 产物 strings）**全部已在**。
+
+**真实残差终稿（第六十五轮逐项定性完成）**：比对方法学四级递进（整行 diff →
+字面量抽取 → 换行切分伪影识别 → **token 级比对**）后，此前 2147 行/212 字面量
+的"残差"全部判定为比对伪影（两套 minify 产物的格式差 + strings(1) 换行切分）。
+token 级逐家族核验：frame 派发守卫全变体（geometry changed/does not match
+frame/live pixel owner/expired before dispatch/closed-moved-changed owner/
+stable bundle identity/different live windows）两侧 1/1 齐备；输入上限校验
+（UTF-16 units/key chord/click count/action_sent 语义）两侧等价；隐私提示/
+覆盖窗口跳过/AX set 失败文案/win32 原生族均在。**可观测行为面零确认缺口**。
+- C级不变：v2 认证（签名门控）
+
+**A级——立即可还原（纯 payload 行为，零门控）**
+1. `open_application`/`capture_app` 启动 settle 链：`settleFreshlyLaunchedTree(pid, probe)`
+   （launch 后轮询 AX 树稳定再返回）、名字→bundle 解析 `resolveApplicationBundleId` +
+   失败 reResolve、`[cua-captureapp-launch]` 诊断日志族（LaunchServices 解析/attach 已跑
+   pid/后台 launch begin/completed）、capture_app 详版错误文案（含恢复指引）。
+2. 窗口列表语义增强：`onscreen`/`subrole`/`minimized` 字段上浮、minimized 窗口
+   screenshot_error、overlay 窗口跳过提示（"do not move the skipped overlay windows"）、
+   `cloaked`/`minimized` 过滤。
+3. `strategy=event` 前台约束详版错误（global input 仅前台生效 + action_sent 状态语义）。
+4. 观测面：`diagnostic?.(paste_provided/paste_provided_failed)` 诊断通道、
+   `reads_before_dispatch`/`ax_error` 字段上浮。
+
+**B级——立即可还原（依赖 3.14.3 原生导出——已随包！125 导出含四件套，仅 payload 未调用）**
+5. `paste` → provided-paste 防劫持协议：begin/awaitRead/finish/markDispatched 四阶段 +
+   剪贴板恢复（writeClipboardText(previous)）+ 三类新错误（interrupted=他者接管/
+   timed out=app 未消费/take over failed=写入失败，各带 action_sent 语义）。
+
+**C级——签名身份门控（即 §七.3 认证模型 v2，不赘）**
+
+win32 侧另有 29 处行为 strings（windowsScreenCaptureBrokerError 等），本机无官方
+win32 产物不可验，随 win32 对齐线处理。

@@ -27,10 +27,32 @@ const run = (label, cmd, args, env) => {
     env: { ...process.env, ...env },
   });
   const ok = result.status === 0;
-  console.log(
-    `\n[${ok ? "PASS" : "FAIL"}] ${label} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)\n`,
-  );
+  console.log(`\n[${ok ? "PASS" : "FAIL"}] ${label} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)\n`);
   if (!ok) process.exit(1);
+};
+
+// 第五十一轮：段间 settle。多段测试各自 spawn/kill Helper broker；3.14.3 参照
+// 的 SIGTERM 优雅退出较慢，紧邻段的实例可能读到仍存活/退场中的租约持有者
+// （实测契约段在 parity 段刚结束后 30s 内 not-ready；单独重跑即绿）。每段
+// 开始前等待本机无存活的自建/参照 Helper 进程（至多 30s），仍存活则告警放行。
+function settleBetweenSections() {
+  const deadline = Date.now() + 30000;
+  for (;;) {
+    const out = spawnSync("/bin/ps", ["-axo", "command="], { encoding: "utf8" }).stdout ?? "";
+    const live = out
+      .split("\n")
+      .filter((l) => l.includes("Computer Use.app/Contents/MacOS/ZCode Computer Use") && !l.includes("/.zcode/"));
+    if (live.length === 0) return;
+    if (Date.now() > deadline) {
+      console.warn(`[verify:mac] 段间 settle 超时，仍有 ${live.length} 个 Helper 进程存活，继续执行`);
+      return;
+    }
+    spawnSync(process.execPath, ["-e", "setTimeout(()=>0,500)"]);
+  }
+}
+const runSettled = (label, cmd, args, env) => {
+  settleBetweenSections();
+  run(label, cmd, args, env);
 };
 
 // 1. 构建 .app（--fast 跳过）
@@ -42,18 +64,12 @@ if (!fast) {
 }
 
 // 2. 溯源冒烟
-run("provenance smoke", builtExe, ["--cua-helper-provenance-smoke"]);
+runSettled("provenance smoke", builtExe, ["--cua-helper-provenance-smoke"]);
 
 // 3. ax_native 接口（117 导出 + 双向漂移）
 const addonPath = join(builtApp, "Contents", "Resources", "ax_native.node");
-run("probe ax_native (117 exports)", process.execPath, [
-  join(packageRoot, "tools/probe-ax-native.mjs"),
-  addonPath,
-]);
-run("interface drift check", process.execPath, [
-  join(packageRoot, "tools/check-ax-native-interface.mjs"),
-  addonPath,
-]);
+run("probe ax_native (117 exports)", process.execPath, [join(packageRoot, "tools/probe-ax-native.mjs"), addonPath]);
+run("interface drift check", process.execPath, [join(packageRoot, "tools/check-ax-native-interface.mjs"), addonPath]);
 
 // 4. ax_native 字节级对齐（官方 staging 副本存在时；不入库资产，CI 缺席为常态）
 if (existsSync(join(stagedApp, "Contents", "Resources", "ax_native.node"))) {
@@ -72,25 +88,21 @@ if (existsSync(join(stagedApp, "Contents", "Resources", "ax_native.node"))) {
 // 5. zcode-cua 包测试链（restored-smoke + embedded-build-id + 发射契约 A–G）
 //    发射契约 E2E 段需要产品 launcher 祖先（ZCode 桌面进程树内）；CI 设
 //    MAC_LAUNCH_CONTRACT_E2E=0 只跑离线段。
-run("restored smoke (mock broker)", process.execPath, [
+runSettled("restored smoke (mock broker)", process.execPath, [
   join(packageRoot, "../zcode-cua/test/restored-smoke.mjs"),
 ]);
-run("embeddedBuildId wiring", process.execPath, [
+runSettled("embeddedBuildId wiring", process.execPath, [
   join(packageRoot, "../zcode-cua/test/embedded-build-id.mjs"),
   stagedApp,
 ]);
-run("launch contract A–G", process.execPath, [
+runSettled("launch contract A–G", process.execPath, [
   join(packageRoot, "../zcode-cua/test/mac-launch-contract.mjs"),
   builtApp,
 ]);
 
 // 6. 双 broker parity（对照官方 staging；缺席则整段跳过——CI 同理）
 if (existsSync(join(stagedApp, "Contents", "MacOS", "ZCode Computer Use"))) {
-  run("dual-broker parity (4 scenarios)", process.execPath, [
-    join(packageRoot, "tools/parity-mac-helper.mjs"),
-    builtApp,
-    stagedApp,
-  ]);
+  runSettled("dual-broker parity (4 scenarios)", process.execPath, [join(packageRoot, "tools/parity-mac-helper.mjs"), builtApp, stagedApp]);
 } else {
   console.log("[SKIP] dual-broker parity (官方 staging 副本不在本机)\n");
 }

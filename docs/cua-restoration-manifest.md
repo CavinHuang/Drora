@@ -1198,6 +1198,365 @@ fork 基线已有、只缺服务层与注册）：
   share 门禁语义断言更新）、services 28/28；根 typecheck 0 错、lint 0 errors、
   架构 0 违御。
 
+### 第五十轮：mac computer use 打通——自建 Helper 打包接线 + 路线 A 信任链两断点 + 两个还原 bug（2026-09-26）
+
+用户实测反馈三症状（包无 Helper / 设置页权限引导点击无反应 / mac CUA 整体不可用），
+逐层定位为四点根因并全部收口：
+
+- **① 打包接线缺失（症状：包无 Helper）**：`resources/cua-helper`（官方签名
+  staging 副本，gitignored）缺失时发布链静默产出无 Helper 包。新增
+  `prepare:cua-helper`（desktop `build` 链，darwin target 专属）：**恒**自建
+  `build:darwin-app`（路线 A 折叠 `CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1`、
+  buildId `drora-<desktop 版本>`）staging 至 `bundled-cua-helper/`（新
+  electron-builder 源）。官方副本只作 parity 参照物与 node_modules 种源不入包
+  ——其 launcher 门钉死 dev.zcode.app + 8A5X4JJ39T，Drora 永远拉不起（本仓
+  官方副本自 9/19 就在位，用户昨晚的包却无 Helper，正是干净检出构建所致；
+  若照旧"官方副本优先"，本仓构建会打包一个必然拒启的死资产）。构建失败即
+  失败不降级；构建脚本调用改为当前 node 直跑（pnpm --filter 会被 volta shim
+  解析到项目钉扎外 node，实测 18，SEA 骨架守卫需同 ABI node）。
+- **② 陈旧官方副本死锁（症状：设置页「未知」+ 点击无反应）**：`~/.drora/`
+  computer-use 曾手拷官方 Helper——其编译期 `allowUnsignedLauncherLocalDev=false`，
+  对 ad-hoc Drora launcher 恒拒启（broker exit log 实锤：`--launcher-pid did
+  not verify as a code-signed ZCode process`）。每次 getStatus 走 5s health
+  超时→徽章「未知」；点击授权按钮先跑最多 3×5s+2×2s 预检查、期间守卫静默吞
+  后续点击→用户感知「点了没反应」。收口：包内自建 Helper（buildId 不同）经
+  安装器 payload/身份比对自动重装替换陈旧副本；helper-host 两处分发标记判定
+  统一 `options.env ?? process.env` 源（生产同源、测试可注入）。
+- **③ 路线 A 信任链最后断点**：helper-host live 进程复核（vse/LW）此前只接
+  dev 线或 TeamID 严格锚，生产 adhoc 包对自建 Helper（产品 id、无证书链）必杀。
+  补 `adhocDistribution` 门（非 dev runtime 且 `DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1`）：
+  该门下复核放宽为产品 id 的 identifier 锚；dev 线与严格线语义不变（对照组
+  E2E 锚定 fail-closed）。
+- **④ 两个还原 bug 顺带修复**：
+  - `build-cua-helper-app.mjs` adhoc 签名先于 Info.plist/AppIcon/ax_native/
+    node_modules staging——CodeResources 封条从未覆盖这些文件，
+    `codesign --verify --strict` 恒报 sealed resource invalid（第 14 轮 node_modules
+    staging 落地后即坏，路线 A live 复核首次消费）。签名移至全部资源落位后并
+    改 fail-loud（spec §二.5）。
+  - orphan-reaper `db` ps 解析按空行切分且正则无 m 标志——无空行 ps 输出整段
+    只解析出第一个进程，终止/清理链（terminateHelperPid/failedLaunch cleanup/
+    授权后 restart）全部退化为 "absent from ps snapshot" 终止失败，测试现场
+    四个 Helper 进程滞留实证。改为按行切分（dist + 草稿同步）。
+- **验收**：新增 `packages/zcode-cua/test/adhoc-distribution-profile.mjs`——
+  A vse 三分支 requirement 单测；B 发射参数折叠；C 生产形态 E2E（NODE_ENV=
+  production、无 dev env、分发标记经 options.env）：CuaHelperHost 全链
+  launch（LS+token 文件）→health→live 复核（adhoc 分支）→permission_status
+  应答→干净 stop；C2 对照组严格门 fail-closed。既有套件回归：mac-launch-contract
+  / embedded-build-id / restored-smoke / services windowsCuaRuntime 5/5 全绿；
+  根 typecheck 0 错、lint 0 errors、架构 0 违规；真实重打包（corepack pnpm
+  10.33.2 + node 24.14.0，与 mise.toml 钉扎一致）安装实测见轮末补充。
+
+### 第五十一轮：parity 基线双轨升级 3.14.3——原生层字节跟随 + peer 收紧 delta 定性（2026-09-26）
+
+官方 3.14.3 发行物本机可得（`/Applications/ZCode.app`，此前 spec 判定"3.14 线本机
+不存在"已过时；`ZCode_副本.app` 为完整 3.11.2 存档），全量对账后实施：
+
+- **差异盘点**：broker 方法面零变化（两版 SEA strings 裸 token 差集为空，63+1
+  方法表仍现行）；原生 addon 纯增量 117→125 导出（parentProcessPid /
+  responsibleProcessPid / peerCodeSigningSummary / setCpsActivationDisabled /
+  pasteboard provided-paste 四件套，官方 payload 均为可选守卫消费）；payload 内部
+  演进（zod 升级、captureApp 启动 settle 链、provided-paste 接线、peer 验证原语
+  产品模式硬门槛化）。
+- **形态锚升级 3.14.3**：`native/ax_native_mac.node` 字节替换（SHA-256
+  5b46401f…，纯增量无删除，本仓 payload 不调用新导出不受影响）；构建钉扎/125
+  导出预期表/ax_native.d.ts 增量节（调用形态自官方 payload strings 还原）同步；
+  staging 参照物（`resources/cua-helper`）换 3.14.3 副本；缺省版本 3.14.3；
+  `qc/WC` 常量解禁并按实测更新为 3.14.3/pipeline-293504-ab4d5e6b（spec §五
+  禁改条按新证据修订，遗留决策 1 闭合）。
+- **peer 收紧 delta（本轮最重要发现，待裁定）**：官方 3.14.3 在连接级把 peer
+  验证收紧为原生码签名校验——无签名进程（含本仓 parity harness 的 node）即使
+  token 合法、位于受信 launcher 后代链上也一律拒答（`peer verification failed`
+  实测；场景二此前的 MATCH 是双侧同被拒的空匹配）。本仓 payload 维持 3.11.2
+  语义（token+祖先链）：照搬收紧会拒掉路线 A 的 ad-hoc 桌面宿主自身，跟随收紧
+  的前置条件是签名身份落地（spec §七.3 新增）。
+- **双轨 parity 基线**：形态锚=3.14.3（字节/身份/溯源/启动门，新增 form-anchor
+  断言段）；行为锚=3.11.2 参照副本（`resources/cua-helper-3.11.2-reference/`，
+  源自 ZCode_副本.app，gitignored）承载场景二～六（产品配方/13 方法探针/24 参数
+  矩阵/controller 七步/50 方法空参穷举）——100 MATCH 全绿（version 字段随构建
+  身份脱敏，同 pid）。插件面 0.6.3 已是最新（本机缓存 0.5.13/0.5.14/0.6.3）。
+- **harness 三处工程修复**（对账过程的副产物）：① kill 后确认退出
+  （SIGTERM→至多 5s→SIGKILL；3.14.3 优雅退出慢于 3.11.2，fire-and-forget kill
+  会泄漏实例跨段/跨 run 占租约——实测四个泄漏进程）；② 移除 XDG_RUNTIME_DIR
+  每实例隔离（3.14.3 参照在 XDG 被设时接受连接但永不回复；生产 GUI 会话本就不
+  设该变量，harness 与生产一致才是 parity 正解），改为全局租约预检 fail-fast
+  （发现存活外部持有者时给出处置指引，不静默击杀用户活会话）；③ verify:mac
+  段间 settle（等本机 Helper 进程全部退场，修复 parity 段后契约段的 30s
+  not-ready 竞争——单独重跑即绿的环境伪影）。
+- **验收**：双轨 parity 100 MATCH；verify:mac 全套（build/probe 125/interface
+  双向/溯源/embeddedBuildId 293504 直通/契约 A–H/双轨 parity）EXIT=0；
+  adhoc-distribution-profile 生产形态 E2E 全绿；typecheck 0 错、lint 0 errors、
+  架构 0 违规；win32 helper 构建无损（build.mjs exit 0、零源码漂移）。
+  正式包重打（Drora-0.0.1-mac-arm64，随包 Helper=3.14.3 形态/125 导出）。
+- **随包 addon 字节保真（打包链第三处修复，字节级对账暴露）**：electron-builder
+  的 mac 签名准备会把 extraResources 里的 cua-helper `ax_native.node` 重签为
+  adhoc（identifier 加 hash 后缀、-128B）——自第四十二轮首次随包即存在，此前
+  只验封条未比字节所以未暴露。修复：afterSign 钩子（签名后、产物构建前）恢复
+  仓内官方原始字节（自带官方 Developer ID 8A5X4JJ39T 签名），随后**先单签内层
+  Helper 修复封条、再整包 --deep 重签**（直接 --deep 会因嵌套封条失效报
+  sealed resource invalid，实测）。终态三验：包内 addon SHA-256=5b46401f…（官方
+  字节+官方签名）、内层封条+identifier 锚过、整包 deep 校验过。
+
+### 第五十二轮：官方 3.14.3 asar 宿主库全量对账——认证模型 v2 换代定性（2026-09-27）
+
+抽取官方 3.14.3 `app.asar`（out/host bundle，1.5MB）与我方还原的 zcode-cua
+宿主库逐模块对账（launcher/installer/host/live-verify/协议客户端/getStatus）：
+
+- **认证模型 v2 换代（五面一体，全部签名死结同源，无单点可跟随项）**：
+  ① token 文件链整体移除——3.14.3 发射向量无 `--token-file`/
+  `--presentation-token-file`，host 无 token 铸造（tokenFile/randomBytes(32)/
+  writeOneShot 计数全 0）；② helper 启动门同步放宽——官方 3.14.3 helper 无
+  token 即 ready（3.11.2 拒启），token 门被原生 peer 门取代；③ 连接级 peer
+  收紧（第 51 轮已录）；④ 客户端 authenticate 恒携 `clientApiVersion:2`（无
+  token）+ 客户端侧 `peerChecker/verifySocketPeer` 反向验证 broker——双向原生
+  peer 互验；⑤ 发射参数增删：新增 `--permission-broker-socket`，未签名
+  launcher 放行门收为纯 dev runtime（官方产品态永不放行）。帧格式未变（换行
+  分帧维持）。
+- **正向确认一致的面（不受死结影响）**：live 复核 requirement 构造（vse/Cse）
+  逐字一致；安装链结构一致（INSTALL_VARIANT/verificationMode/releaseEligible/
+  meta/install-lock）；standalone getStatus 形状一致（grantOwner/
+  accessibilityProbeOk/screenRecording/screenCaptureProbeOk/idle 文案）；
+  发射参数主干一致（socket/version/expected-app-bundle-path/controller-variant/
+  disable-cps-activation/broker-launch-guard/exit-log/launcher-pid/
+  permission-preflight 两参 3.11.2 已有）。
+- **处置**：零代码改动——我方 3.11.2 模型内部自洽且全绿锚定（发射契约 A–H、
+  双轨 parity 100 MATCH、adhoc 生产形态 E2E）；v2 五面任何单点跟随都会拒掉
+  路线 A 的 ad-hoc 宿主，属签名身份（spec §七.2）落地后的整体还原项。本轮
+  为纯审查定性轮，spec §七.3 已扩写为完整换代图景。
+
+### 第五十三轮：glm 内嵌 CUA 插件原生件官方字节对齐 + 三面审查收口（2026-09-27）
+
+- **glm 内嵌 zcode-cua-plugin 对账**：版本一致（0.6.3 = 官方 3.14.3 内嵌），整树
+  diff 仅 3 个 darwin 原生二进制不同——koffi 2.15.6 / sharp-darwin-arm64 /
+  libvips dylib（sharp 0.34.5）。剥离签名后代码字节仍不同：官方为自建产物，
+  我方 staging 源是 npm prebuilt（且被 adhoc 重签过）。按「官方形态为权威」
+  实施：① 官方种子目录 `resources/glm-natives-3.14.3/`（gitignored，17MB，
+  源自官方 3.14.3 glm）；② koffi/sharp stager 官方字节优先替换（版本守卫
+  koffi 2.15.6/sharp 0.34.5，漂移 fail-open 告警保留 npm 字节；种子目录
+  从 glmDir 有界回溯定位——stager 两种调用位形到包根层级不同，写死层数必错）；
+  ③ afterSign 恢复扩展到三件 glm natives（electron-builder 签名准备会再把
+  它们 adhoc 化；普通文件非嵌套 bundle，恢复后由整包 --deep 统一封条）。
+  **验证**：staging 与包内三件 SHA-256 = 官方字节（官方 Developer ID 签名保留）；
+  包内直载 koffi（38 导出）与 sharp native（metadata/pipeline/cache/concurrency）
+  成功；整包 deep 校验过。
+- **window-bounds 定性**：官方 `zcode-window-bounds`（Developer ID）vs 我方
+  `drora-window-bounds`——我方为 swift 源重放后本地编译产物（build-macos-
+  window-bounds.mjs + native/macos-window-bounds/main.swift），字节永不可比，
+  命名差异属 specs/drora-rename.md 豁免。按既定设计定性为对齐（与 Helper SEA
+  同类：还原源码 + 自建产物），无需动作。
+- **渲染层 CUA UI 抽查**：官方 3.14.3 renderer 全部 cuaPermission.* i18n 键
+  与我方 zh-CN 键集 32=32 双向零差（权限浮窗 + 设置页文案面无漂移）。
+- 质量门：typecheck 0 错、lint 0 errors、架构 0 违规；正式包已重装。
+
+### 第五十四轮：两个遗留观察项实证闭合——插件持久化完好 + 空态死路为官方同构（2026-09-27）
+
+- **观察项 ①「插件开关重启回 OFF」→ 实证非缺陷**：写入链 ✓（config 落盘
+  `~/.drora/cli/config.json` `enabledPlugins["computer-use@drora-plugins-official"]=true`
+  持续在位）；读取链 ✓（随包 agent CLI `plugins list` 权威回读 `[enabled]`）。
+  第五十轮 GUI 观察重新定性为**首帧竞态**（pluginManagementStore 加载完成前
+  checkbox 渲染默认 false），非数据丢失；官方 store 同为异步初始化，同构。
+- **观察项 ②「欢迎空态授权按钮禁用零反馈」→ 官方逐字同构**：从官方 3.14.3
+  renderer bundle（styles-DEELZGp2.js）提取 ComputerUseSection 与状态 hook
+  全套逻辑对照——`disabled:!settled`、settled 三态文案（granted/stale/missing/
+  unknown + verifying 占位）、tone 映射（green/amber/red/muted）、`openCuaPermissionOnboarding
+  typeof function` 门、hook 的 `!workspacePath || !service → 不查询` 守卫 +
+  mount ensure + focus refresh，全部与我方 useCuaPermissionStatus/
+  ComputerUseSection 逐字等价（仅压缩命名不同）。空态死路为官方原生行为
+  （官方用户不感知只因其 Helper 恒可用、settled 快速为真）。
+- **main 胶水面扫描**：官方 out/main 的 CUA 标记（PrepareCuaHelperPermissionDrag/
+  GetCuaOsSupport/openCuaPermissionOnboarding/cua-helper/macos-window-bounds）
+  与我方 desktop main 一一对应，无 3.14.3 独有新增面。
+- **处置**：零代码改动（两项均为官方同构行为，修复即偏离原版）；第 50 轮
+  manifest 中"未定性观察"条目就此闭合。至此 computer use 对官方 3.14.3 的
+  行为面审查清单全部走完，唯一剩余差距仍为签名身份前置的认证模型 v2（§七.3）。
+
+### 第五十五轮：真机首用链验收揪出四处串联断裂并全部修复（2026-09-27）
+
+以"设置页授权点击"的服务端全程做真机验收（对已装 /Applications 包、真实
+~/.drora/computer-use），逐层暴露四个串联断裂——全部是"从未被端到端跑通过"
+的潜伏缺陷（此前各轮 E2E 要么走 dev env 语义、要么绕过安装器）：
+
+1. **host 托管安装器缺 embeddedBuildId 注入**（services/node.ts）：plan 期望
+   回落 WC 常量（官方 pipeline id），与随包自建 Helper（drora-<版本>）必然
+   失配，agent 首次驱动 CUA 的 ensureInstalled 即 verification_failed。
+   修复：main 经 host env 下发随包 Info.plist 身份（DRORA_CUA_HELPER_EMBEDDED_
+   BUILD_ID/_VERSION，spec §六"main 唯一读取点"语义的 env 化延伸），host 侧
+   readEmbeddedCuaHelperBuildIdentityFromEnv 消费。
+2. **host 托管安装器缺路线 A 放行**：TeamID 稳定签名门对 adhoc 随包 Helper
+   必拒（desktop main 包装层有、host 侧没有）。修复：判定统一为 services 的
+   isDroraCuaAdhocDistributionEnv，main 包装层与 host 同源。
+3. **qu() 丢弃 allowUnsignedDistribution 透传**（zcode-cua dist+草稿，根因）：
+   Mie 早已定义该显式选项（第 33 轮），但 qu() 构造 plan 只透传四字段——
+   桌面包装层/host 传入的放行被静默丢弃，路线 A 安装放行自第 33 轮起从未
+   真正接通（dev 流走 env 语义掩盖）。修复：qu() 补透传。
+4. **resolveHelperPermissionSubjectIdentity 是恒抛桩**（zcode-cua barrel）：
+   授权引导（onboarding/拖拽浮窗）以身份四元组为 TCC 主体与会话 key，恒抛
+   unavailable 会让设置页点击在安装成功后必死在身份解析——用户"点击无反应"
+   的最后一环。修复：恢复真身（Info.plist 四元组 + 路径拼接，plutil 读取，
+   plist 缺失/键不全维持 fail-closed），dist+草稿同步。
+
+**验收**：新增 services 回归测试 cuaHostInstallerBuildIdentity（env 契约解析/
+真实身份安装通过/错误身份 fail-closed，3/3）；真机 live 验收（host 路径构造）
+全绿——随包 Helper 安装落盘 `~/.drora/computer-use`（meta：drora-0.0.1/
+local_dev_unsigned/bundled 源）+ 幂等重装 + 身份四元组 + verifyInstalled；
+既有套件（embedded-build-id 293504 直通、adhoc-profile 全链）全绿；typecheck
+0 错、lint 0 errors、架构 0 违规；正式包重打重装。GUI 全程点击流因自动化
+窗口态受限未复跑，但其服务端依赖链已逐环 live 验证。
+
+### 第五十六轮：standalone 状态发射的第 5 处断裂 + 桩面清零审计（2026-09-27）
+
+- **桩面审计（第 55 轮教训的推广）**：zcode-cua barrel 其余 fail-closed 桩
+  （loadRealNativeAddon/resolvePackagedNativeAddonPath/resolveInTreeAddonPath/
+  createAxReadOnlyMethods/requestHelper*PermissionViaLaunchServices）逐一查消费
+  方——除两处死导入外零生产调用面，无同类死点残留。
+- **第 5 处断裂（live ±flag 对照实证）**：services 的 standalone 状态发射
+  （launchStandaloneCuaHelperForStatus——设置页getStatus 的按需拉起路径）只在
+  dev runtime 传放行 argv；打包态（路线 A）发射折叠 Helper 时不传，Helper 的
+  launcher 门拒掉无签名 host 进程 → 首查「未知」的直接原因之一。对照实验：
+  无 flag 拒启/带 flag 就绪且 permission_status 返回真实授权数据
+  （grant_owner/dev.zcode.cua-helper/version 3.14.3）。修复：提取
+  buildStandaloneCuaHelperLaunchArgs（dev 与 adhoc 分发共享同一对放行 argv），
+  回归测试 4/4（含严格态对照锚——注意 dev 常量关断需 ZCODE_RUNTIME_ENV=
+  production，NODE_ENV 不够）。
+- **验收**：verify:mac 全套 EXIT=0（第 55 轮改动回归通过）；typecheck 0 错、
+  lint 0 errors、架构 0 违规；正式包重打重装。
+
+### 第五十七轮：托管 host 全链 live 终验通过——两条服务端路径全部对已装包闭环（2026-09-27）
+
+- **托管链（agent 驱动 CUA 首用）live 终验**：以已装包路径/身份 env（含 55/56
+  轮全部修复形态）构造 product host——安装器幂等复用已装 Helper（embeddedBuildId
+  匹配 + adhoc 门通过）→ 发射（token 文件 + launcher flag）→ health → live 复核
+  （adhoc 分支）→ permission_status 返回真实授权数据 → 干净停止。至此
+  **设置页状态路径（standalone）与 agent 驱动路径（managed）两条服务端链均对
+  已装包 live 闭环**，55–56 轮五处修复各有测试/live 锚。
+- **GUI 全程点击流**：受阻于本会话的 ZCode computer-use 控制会话被此前调试中的
+  显式 stop() 终结（插件会话不可在会话内重启）；AppleScript 被技能规约排除。
+  服务端依赖链已逐环验证，剩 `shell.openExternal` 标准动作；留 10 秒手工配方
+  给用户：打开 App → 任开会话 → 设置 → 电脑控制 → 徽章应显示「未授权」（可点）
+  → 点「打开辅助功能设置」应弹出系统设置。
+- 附带：发现并清理 round-56 测试遗留的 standalone Helper 占用全局租约（会堵
+  ZCode 插件自家 broker——测试后必须清场的入档教训）。
+
+### 第五十八轮：Helper 生命周期自愈对齐——idle 自眠接线 + 认领超时僵尸修复（2026-09-27）
+
+从"round-56 测试 Helper 占全局租约 14 分钟"的现场反推，发现**两个生命周期
+断裂**（官方 3.11.2→3.14.3 新增了 idle 机制——strings 对照 16 处 vs 0 处）：
+
+1. **idle 自眠从未接线**：brokerServer 的 idleExit 机制（无连接 && 无 in-flight
+   持续 timeoutMs → 自毁）此前无人传参=死代码。按官方 3.14.3 形态接线
+   `idleExit:{timeoutMs:3e5,reason:"idle_timeout_reached"}` + **onIdleExit 显式
+   process.exit(0) 处理器**（官方 strings 实证有该 handler；broker 优雅 stop 后
+   原生句柄撑住事件循环，自然 drain 不会发生，必须显式退）。
+2. **认领超时自毁链断裂（僵尸根因）**：90s 启动认领看门狗触发后走优雅停机，
+   原生清理失败即抛错——此前 catch 分支只记日志不退出，进程滞留成僵尸
+   （实测 14/47 分钟存活直至手杀，占全局租约可堵死其它 broker）。修复：失败
+   分支无条件走 onStartupClaimTimeout（最后手段 process.exit(0)，与官方
+   "孤儿授权主体不允许滞留"语义一致）。
+- **双生命周期实测**（自建产物直启）：未认领实例 ~90s 自灭
+  （trigger=startup-claim-timeout）；已认领实例（authenticate+broker_info）
+  280s 存活、320s 内自眠——两路退出均验证。
+- 附带：window-bounds 二进制功能烟雾通过（输出窗口 bounds JSON）。
+- 质量门：typecheck 0 错、lint 0 errors、架构 0 违规；verify:mac --fast
+  EXIT=0；正式包重打重装（含 idle 修复的 Helper）。
+
+### 第五十九轮：第 58 轮生命周期改动的 win32 无损验证（纯验证轮，2026-09-27）
+
+第五十八轮改动落在共享源 `helperMain.ts`（idle 接线 + 认领超时最后退出）。按
+「改共享 CUA 模块勿破 win32」的既定要求做结构审查 + 实证：
+
+- **结构审查**：win32 helper 走完全独立入口 `windows-helper.ts →
+  runWindowsDevHelper`（`--parent-pid` 协议，父进程守望生命周期），不经过
+  `helperMain`——mac 侧生命周期改动对 win32 零路径交叠。
+- **实证**：`build.mjs`（win32 helper bundle）exit 0 零源码漂移；
+  `windowsCuaRuntime.node-test` 5/5；services 全量 node-test 批 **32/32**；
+  restored-smoke 通过。
+- 附带复核：桌面宿主对"自眠后的 standalone Helper"的处理链健康——
+  probeStable 返回 null → 四候选重发射（第五十五/五十六轮已修通），managed
+  路径 host 按需 start——两个消费方都不假设 Helper 常驻。
+
+### 第六十轮：认领超时兜底退出的复现确认（纯验证轮，2026-09-27）
+
+第58轮遗留的唯一异常（单实例未认领存活>120s）精确复现失败：单实例、客户端
+连接即断的场景下，Helper 在 **90s 整**自灭，退出链完整——优雅停机原生清理
+失败（post-drain input cleanup failed）→ catch 分支 → 最后手段
+`process.exit(0)`（trigger=startup-claim-timeout，exit code=0）。时间线回查：
+该异常观测于"只带 onIdleExit、未加认领超时兜底"的中间构建——构建时序伪影，
+非未修路径。至此 Helper 生命周期全部路径（认领超时兜底/闲置自眠）均有直接
+观测证据，僵尸问题闭合。
+
+### 第六十一轮：权限浮窗逐字同构确认 + 全量终回归（纯验证轮，2026-09-27）
+
+- **权限浮窗（cua-permission-panel）闭合**：与官方 3.14.3 的面板文件逐字比对
+  ——拖拽逻辑/元素绑定/完成提示/双语文案完全同构（1793B vs 1793B，diff 仅
+  产品名 ZCode→Drora，属 specs/drora-rename.md 豁免）。此前该面只做过 i18n
+  键对照，本轮升级为全文比对闭合。
+- **全量 verify:mac 终回归**（第 58 轮生命周期改动后的完整跑，非 --fast）：
+  build/probe 125/interface 双向/溯源/embeddedBuildId/发射契约 A–H/双轨
+  parity（含新增 idle 行为下的场景二~六）全部通过，EXIT=0。
+
+### 第六十二轮：agent 侧 CUA 胶水对账闭合（纯审查轮，2026-09-27）
+
+最后一个未比过的面：agent bundle 内的 CUA 胶水（官方 glm/zcode.cjs vs 我方
+glm/drora.cjs——此前只对齐了插件字节，bundle 本体的注入段没比过）：
+
+- **MCP env 注入形态完全同构**：官方与 我方均为同一五键结构——broker socket +
+  refreshMarker（可选）+ pluginAuthority（可选）+ node-repl-host 标志="1" +
+  官方插件 ID，条件分支一致。
+- **env 名改名为内部契约**：ZCODE_CUA_PERMISSION_BROKER_SOCKET →
+  DRORA_…（specs/drora-rename.md 豁免）；消费方 node-repl-host 的
+  dist/mcp/server.js 为双读（DRORA_ 主 + ZCODE_ 兜底），注入-消费链自洽。
+- **唯一实质差 = 已知 v2 delta 的 agent 侧投影**：我方额外注入
+  DRORA_CUA_PERMISSION_BROKER_TOKEN（3.11.2 token 模型，agent 内嵌消费端在
+  run-plugin 包装里 set/restore）；官方 3.14.3 无 token 注入（其 bundle 中
+  唯一一处 PERMISSION_BROKER_TOKEN 字符串仅为子进程 env 透传白名单的遗留
+  条目，不再设值）。与 spec §七.3 认证模型 v2 记录一致。
+- 零代码改动。至此 agent（bundle 胶水 + 插件字节 + node_repl 消费端）、host
+  （库 + 安装/发射/生命周期）、桌面（main + 渲染 + 浮窗）、产物（字节级）
+  四层的 CUA 面全部过审。
+
+### 第六十三轮：payload 行为演进 backlog 编目（审查轮，2026-09-27）
+
+把"payload 内部演进差"从一句话展开为可执行清单（spec §八）：A级 4 项纯行为
+（启动 settle 链/窗口语义增强/event 前台约束/观测通道）、B级 1 项 provided-paste
+防劫持协议（**零门控可还原**——3.14.3 addon 已随包，125 导出含四件套，仅 payload
+未调用）、C级=v2 认证（签名门控）。win32 侧 29 处行为 strings 本机不可验随线处理。
+零代码改动；A/B 级共 5 项为后续还原候选，按用户优先级排期。
+
+### 第六十四轮：第六十三轮勘误——A/B 级五项已全部在库，真实残差收窄至 ~30 行（2026-09-27）
+
+第六十三轮的 backlog 编目犯方法学错误：diff 官方 3.11.2 vs 3.14.3 并假设我方
+=3.11.2 纯重放。逐标记验证（源码 + 产物 strings 双侧）证明 provided-paste 四
+阶段/启动 settle 链/窗口 onscreen+subrole/event 前台约束/诊断通道**全部已在我
+方 payload**（paste 超集早期轮次有档）。改为**我方产物 vs 官方 3.14.3 直接
+比对**后，真实残差收窄至 CUA 域 ~30 整行：PiP 表面溯源组（presentationWindowId/
+allowProvenAttachedSurface/exactForegroundSurface 等）、capture-settle 措辞
+变体组、零散上浮字段——需逐行定性（部分可能为我方不同表述的等价实现）。
+spec §八已改写为修正版。教训：**差距审计必须直接比对"我方产物 vs 官方现行"，
+任何"我方=X 版"的假设都要先验证**。
+
+### 第六十五轮：残差逐项定性完成——可观测行为面零确认缺口（2026-09-27）
+
+第六十四轮的"~30 行残差"在展开后膨胀（整行 diff 2147 行、字面量抽取 212 条），
+经方法学四级递进（整行→字面量→切分伪影识别→token 级）逐家族核验，全部判定
+为**比对伪影**（两套 minify 产物格式差 + strings(1) 换行切分）：
+
+- frame 派发守卫全变体（geometry/identity/expired/owner-changed/bundle-identity/
+  coordinate-endpoints）：两侧 1/1 齐备
+- 输入上限校验（MAX_SYNTHETIC_TEXT=1024 units/key chord 1..8 keys≤128B/
+  click count/action_sent 语义）：源码常量与文案逐字相同，产物 token 级等价
+- 隐私提示、覆盖窗口跳过、AX set 失败文案、win32 原生族：均在
+- provided-paste/settle 链/窗口语义（第六十四轮已证）：均在
+
+**结论：除 v2 认证（签名门控）与 win32（本机不可验）外，我方 Helper payload
+的可观测行为面与官方 3.14.3 零确认缺口。**比对方法学教训一并入档：跨 minify
+产物比以 token 级为准，整行/字面量级只作候选发现。
+
+### 第六十六轮：收尾工程——零漂移复核 + 交接状态文档（2026-09-27）
+
+- **零漂移复核**：已装 /Applications 包的 Helper 可执行与 addon、glm 三原生件
+  与当前树产物及官方 3.14.3 字节三方 MATCH（62–66 轮纯审查/验证轮后无漂移）。
+- **新增 `docs/cua-alignment-status.md`**：一页交接文档（状态矩阵/分发形态/
+  复验命令/工具链注意/待用户输入两项），供团队接手；过程细节仍在本文档。
+
 ### 已知偏差（下一阶段）
 
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；

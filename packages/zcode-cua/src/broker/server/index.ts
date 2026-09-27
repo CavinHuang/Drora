@@ -65,8 +65,44 @@ const UNAVAILABLE = "Computer Use is not available in this build.";
 /** Windows 开发态 helper 控制协议（原发行物按平台条件提供；本包当前不启用）。 */
 export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
 
-export async function resolveHelperPermissionSubjectIdentity(_appPath: string): Promise<never> {
-  throw new CuaHelperError("unavailable", UNAVAILABLE);
+// 第五十五轮：由 fail-closed 桩恢复为真身（Info.plist 四元组：appPath/
+// executablePath/displayName/bundleId）——授权引导（onboarding/拖拽浮窗）以它为
+// TCC 授权主体与会话协调 key，恒抛 unavailable 会让设置页点击授权在安装成功后
+// 必死在身份解析。plist 缺失/键不全维持 fail-closed。
+export async function resolveHelperPermissionSubjectIdentity(appPath: string): Promise<{
+  appPath: string;
+  executablePath: string;
+  displayName: string;
+  bundleId: string;
+}> {
+  const { spawnSync } = await import("node:child_process");
+  const { existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const plistPath = join(appPath, "Contents", "Info.plist");
+  if (!appPath?.trim() || !existsSync(plistPath)) {
+    throw new CuaHelperError("unavailable", `${UNAVAILABLE} (missing Helper bundle: ${appPath})`);
+  }
+  const readKey = (key: string) => {
+    const result = spawnSync("/usr/bin/plutil", ["-extract", key, "raw", "-o", "-", plistPath], {
+      encoding: "utf8",
+      timeout: 2000,
+      maxBuffer: 64 * 1024,
+    });
+    const value = (result.stdout ?? "").trim();
+    return result.status === 0 && value ? value : undefined;
+  };
+  const bundleId = readKey("CFBundleIdentifier");
+  const displayName = readKey("CFBundleDisplayName") ?? readKey("CFBundleName");
+  const executableName = readKey("CFBundleExecutable");
+  if (!bundleId || !displayName || !executableName) {
+    throw new CuaHelperError("unavailable", `${UNAVAILABLE} (incomplete Info.plist identity)`);
+  }
+  return {
+    appPath,
+    executablePath: join(appPath, "Contents", "MacOS", executableName),
+    displayName,
+    bundleId,
+  };
 }
 
 export function loadRealNativeAddon(_options?: unknown): never {

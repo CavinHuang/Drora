@@ -132,6 +132,49 @@ export function stageSharpIntoBundledAgents({ desktopPackageRoot, glmDir, target
       },
     });
   }
+  // 第五十三轮：官方形态对齐——官方发行物的 darwin natives（sharp .node 与
+  // libvips dylib）为自建产物，同版本（sharp 0.34.5）下与 npm prebuilt 字节不同。
+  // staging 完成后以仓内官方种子（resources/glm-natives-3.14.3，gitignored，
+  // 源自官方 3.14.3 glm）替换 darwin 目标的两个原生文件；种子缺席或版本漂移时
+  // fail-open 保留 npm 字节并告警。
+  if (targetPlatform.os === "darwin") {
+    const stagedSharpVersion = (() => {
+      try {
+        return JSON.parse(readFileSync(resolve(sharpRoot, "package.json"), "utf8")).version;
+      } catch {
+        return null;
+      }
+    })();
+    const seedRoot = resolve(desktopPackageRoot, "resources", "glm-natives-3.14.3");
+    const darwinKey = `sharp-${targetPlatform.os}-${targetPlatform.arch}`;
+    const replacements = [
+      {
+        seed: resolve(seedRoot, "@img", "sharp-darwin-arm64", "lib", "sharp-darwin-arm64.node"),
+        staged: resolve(targetRoot, "@img", darwinKey, "lib", `${darwinKey}.node`),
+      },
+      {
+        seed: resolve(seedRoot, "@img", "sharp-libvips-darwin-arm64", "lib", "libvips-cpp.8.17.3.dylib"),
+        staged: resolve(
+          targetRoot,
+          "@img",
+          `sharp-libvips-${targetPlatform.os}-${targetPlatform.arch}`,
+          "lib",
+          "libvips-cpp.8.17.3.dylib",
+        ),
+      },
+    ];
+    for (const { seed, staged } of replacements) {
+      if (!existsSync(staged)) continue;
+      if (targetPlatform.arch !== "arm64" || stagedSharpVersion !== "0.34.5" || !existsSync(seed)) {
+        console.warn(
+          `[sharp-package-assets] darwin native 保留 npm 字节（arch=${targetPlatform.arch} sharp=${stagedSharpVersion} seed=${existsSync(seed)}；种子仅覆盖 darwin-arm64/sharp 0.34.5）`,
+        );
+        continue;
+      }
+      cpSync(seed, staged);
+      console.log(`[sharp-package-assets] ${darwinKey} 以官方 3.14.3 种子字节替换`);
+    }
+  }
   return resolve(targetRoot, "sharp");
 }
 

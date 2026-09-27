@@ -138,9 +138,7 @@ export function Xz(e, t) {
 }
 export function db(e) {
     let t = [];
-    for (let n of e.split(`
-
-`)) {
+    for (let n of e.split("\n")) {
         let r = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/u.exec(n);
         if (!r)
             continue;

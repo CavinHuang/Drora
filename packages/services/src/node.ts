@@ -1027,6 +1027,12 @@ export function createDefaultCuaProductHelper(
           logger,
           env: process.env,
           bundledAppPath: bundledHelperAppPath,
+          // 随包构建身份（spec §六）：缺省回落 WC 常量会与自建 Helper 的
+          // drora-* buildId 失配，首次 agent 驱动的安装校验必败（第五十五轮）。
+          ...readEmbeddedCuaHelperBuildIdentityFromEnv(),
+          // 路线 A 分发放行：与 desktop main 包装层同一判定（此前 host 侧缺失，
+          // adhoc 随包 Helper 过不了 TeamID 稳定签名门，同轮修复）。
+          ...(isDroraCuaAdhocDistributionEnv() ? { allowUnsignedDistribution: true } : {}),
         }),
         // 冲突解决原则：macOS 继续严格消费应用内置 Helper，不能退回下载源；
         // Windows 才走下方独立的安装包 runtime 解析链路。
@@ -1070,6 +1076,56 @@ export function createDefaultCuaProductHelper(
 }
 
 export const DRORA_CUA_BUNDLED_HELPER_APP_PATH_ENV = "DRORA_CUA_BUNDLED_HELPER_APP_PATH";
+// 第五十五轮：host 托管路径安装器的 buildId 期望此前回落 WC 常量（官方线
+// pipeline id），与随包自建 Helper（drora-<版本>）必然失配——agent 首次驱动 CUA
+// 的 ensureInstalled 校验即 verification_failed。按 spec §六「main 是 bundled 身份
+// 唯一读取点」：main 经 host env 下发随包 Info.plist 读出的真实身份，host 侧消费。
+export const DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV = "DRORA_CUA_HELPER_EMBEDDED_BUILD_ID";
+export const DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV = "DRORA_CUA_HELPER_EMBEDDED_VERSION";
+
+// 路线 A adhoc 分发标记（打包经 LSEnvironment 注入 main/host；desktop main 包装层与
+// host 托管安装器必须同一判定源，任一侧缺失都会把随包自建 Helper 拒之门外）。
+export function isDroraCuaAdhocDistributionEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1";
+}
+
+// 第五十六轮：standalone 状态发射的参数构造（从 launchStandaloneCuaHelperForStatus
+// 提取以便测试锚定）。dev runtime 与路线 A 分发共享同一对放行 argv——前者是
+// 上游 dev 语义，后者是打包态 ad-hoc host 的 launcher 门放行；两判定可叠加。
+export function buildStandaloneCuaHelperLaunchArgs(options: {
+  appPath: string;
+  socketPath: string;
+  tokenFile: string;
+  env?: NodeJS.ProcessEnv;
+  launcherPid: number;
+}): string[] {
+  const env = options.env ?? process.env;
+  const devEscape = isCuaLocalDevelopmentRuntime(env);
+  const adhocDistribution = isDroraCuaAdhocDistributionEnv(env);
+  return buildHelperOpenArgs(
+    {
+      appPath: options.appPath,
+      socketPath: options.socketPath,
+      tokenFile: options.tokenFile,
+      exitLogPath: `${options.socketPath}.settings.exit.log`,
+      ...(devEscape || adhocDistribution
+        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
+        : {}),
+    },
+    options.launcherPid,
+  );
+}
+
+export function readEmbeddedCuaHelperBuildIdentityFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): { embeddedBuildId?: string; version?: string } {
+  const embeddedBuildId = env[DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV]?.trim();
+  const version = env[DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]?.trim();
+  return {
+    ...(embeddedBuildId ? { embeddedBuildId } : {}),
+    ...(version ? { version } : {}),
+  };
+}
 
 export function resolveBundledCuaHelperAppPath(
   env: NodeJS.ProcessEnv = process.env,
@@ -1868,18 +1924,13 @@ export function createLocalServices(options: {
     const { writeOneShotHelperTokenFile, scheduleHelperTokenFileCleanup } =
       await import("@drora/drora-cua/broker/server");
     const tokenFile = await writeOneShotHelperTokenFile({ socketPath, token });
-    const args = buildHelperOpenArgs(
-      {
-        appPath,
-        socketPath,
-        tokenFile,
-        exitLogPath: `${socketPath}.settings.exit.log`,
-        ...(isCuaLocalDevelopmentRuntime(process.env)
-          ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
-          : {}),
-      },
-      process.pid,
-    );
+    const args = buildStandaloneCuaHelperLaunchArgs({
+      appPath,
+      socketPath,
+      tokenFile,
+      env: process.env,
+      launcherPid: process.pid,
+    });
     try {
       await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
     } catch {

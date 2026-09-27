@@ -46,7 +46,8 @@ function run(cmd, args, opts = {}) {
 
 // 1) CJS bundle（SEA 只接受 CJS 主脚本）
 // 构建期常量折叠（对齐原版构建机制：发行构建折叠身份/dev 常量，缺省保持 parity 基线）
-const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.11.2";
+// 第五十一轮：缺省版本随官方现行线（3.14.3 / pipeline-293504-ab4d5e6b）。
+const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.14.3";
 const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
 const esbuildDefine = {
   __DRORA_CUA_HELPER_VERSION__: JSON.stringify(helperVersion),
@@ -154,29 +155,6 @@ try {
   }
 }
 
-// 直接补丁/重注入会破坏骨架既有的代码签名，arm64 上会被内核直接 SIGKILL。
-// dev 构建 ad-hoc 重签；发布构建由 CI 用正式身份对整个 .app 重签。
-// --identifier 必须为 bundle id：签名单文件时 codesign 会用路径派生标识，
-// 而 helper 的本地开发验证链要求 code_signing_identifier === CFBundleIdentifier。
-try {
-  run("/usr/bin/codesign", [
-    "--force",
-    "--sign",
-    "-",
-    "--identifier",
-    "dev.zcode.cua-helper",
-    helperExecutable,
-  ]);
-  run("/usr/bin/codesign", [
-    "--force",
-    "--sign",
-    "-",
-    "--identifier",
-    "dev.zcode.cua-helper",
-    join(outAppDir, appName),
-  ]);
-} catch {}
-
 // Info.plist：版本/BuildId 与 SEA 内嵌常量同源（顶部 helperVersion/helperBuildId，
 // esbuild define 注入 SEA），保证 plist 与溯源冒烟输出永不分叉。
 // 签名身份/TeamID 与宿主校验链一致。
@@ -221,12 +199,15 @@ const nativeAddon = join(packageRoot, "native", "ax_native_mac.node");
 if (!existsSync(nativeAddon)) {
   throw new Error(`mac native addon missing: ${nativeAddon}`);
 }
-// .node 对齐（spec §一：原生层字节级一致）：钉扎官方 3.11.2 基线 SHA-256。
+// .node 对齐（spec §一：原生层字节级一致）：钉扎官方 3.14.3 基线 SHA-256。
 // 原生插件是能力底座，任何字节变化都意味着能力面漂移，必须显式升版：
 // 更新基线常量或临时以 CUA_NATIVE_ADDON_SHA256 覆盖（仅在审计过的升级时）。
 const NATIVE_ADDON_SHA256_BASELINE =
   process.env.CUA_NATIVE_ADDON_SHA256?.trim() ||
-  "1ecb13fd2a54b316eff0e5c7d055e21689574d8f8b01c1d951c71335a7c3a5c1";
+  // 第五十一轮：基线升级到本机官方 3.14.3（pipeline-293504-ab4d5e6b）随包 addon。
+  // 3.11.2 → 3.14.3 纯增量（117 → 125 导出，无删除，方法面零变化），旧值
+  // 1ecb13fd2a54b316eff0e5c7d055e21689574d8f8b01c1d951c71335a7c3a5c1。
+  "5b46401f8561dc94ac8c8e1707fafe925a965f78a30ce2b246437965d8a61440";
 const addonHash = createHash("sha256").update(readFileSync(nativeAddon)).digest("hex");
 if (addonHash !== NATIVE_ADDON_SHA256_BASELINE) {
   throw new Error(
@@ -254,6 +235,34 @@ if (existsSync(stagedNodeModules)) {
       "packaging will be smaller than the official bundle (capability unaffected).",
   );
 }
+
+// ad-hoc 签名必须在全部 Contents 资源（Info.plist/AppIcon/ax_native.node/
+// node_modules seed）落位之后执行（第五十轮修复）：此前签名先于资源写入，
+// CodeResources 封条从未覆盖这些文件，codesign --verify --strict 对 .app 恒报
+// "a sealed resource is missing or invalid"——路线 A 的 host live 复核
+// （identifier 锚）因此必杀合法自建 Helper。
+// 直接补丁/重注入会破坏骨架既有的代码签名，arm64 上会被内核直接 SIGKILL，
+// 故注入后必须重签；--identifier 必须为 bundle id：签名单文件时 codesign 会用
+// 路径派生标识，而 helper 的本地开发验证链要求
+// code_signing_identifier === CFBundleIdentifier。
+// 失败语义（spec §二.5）：签名失败即构建失败——封条无效的 .app 在分发/安装/
+// live 复核链上不可用，静默产出等于把故障推迟到用户桌面。
+run("/usr/bin/codesign", [
+  "--force",
+  "--sign",
+  "-",
+  "--identifier",
+  "dev.zcode.cua-helper",
+  helperExecutable,
+]);
+run("/usr/bin/codesign", [
+  "--force",
+  "--sign",
+  "-",
+  "--identifier",
+  "dev.zcode.cua-helper",
+  join(outAppDir, appName),
+]);
 
 // ---- postject 备用方案：直接解析 Mach-O，覆写 NODE_SEA 段内的 blob ----
 // postject 的 wasm 补丁器对 >100MB 的二进制可能内存越界；SEA blob 尺寸不大于

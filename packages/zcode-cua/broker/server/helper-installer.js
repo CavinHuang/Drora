@@ -25,7 +25,7 @@ export var P6e = z.object({
     socketPath: z.string().refine((e) => ma(e) && e.length > 9),
     parentPid: z.coerce.number().int().positive(),
 });
-export var qc = "3.14.0";
+export var qc = "3.14.3";
 export function uW(e) {
     return e?.trim().toLowerCase() === "production" ? "production" : "test";
 }
@@ -137,6 +137,14 @@ export function qu(e = {}) {
                 // （spec §六）；未传入时回退 WC 钉扎，行为不变。
                 embeddedBuildId: e.embeddedBuildId,
                 version: e.version,
+                // 路线 A 分发 profile（第五十五轮修复）：Mie 早已定义该显式选项
+                // （allowUnsignedLocalDev: allowUnsignedDistribution===true 优先于
+                // dev env 判定），但 qu() 此前未透传——桌面包装层与 host 托管路径
+                // 传入的放行被静默丢弃，adhoc 随包 Helper 恒走严格 TeamID 门。
+                // dev env 语义（ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL）不受影响。
+                ...(e.allowUnsignedDistribution === true
+                    ? { allowUnsignedDistribution: true }
+                    : {}),
             }),
         logger: e.logger,
         dependencies: {

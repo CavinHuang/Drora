@@ -4,6 +4,7 @@ import { HELPER_APP_NAME } from "@drora/drora-cua/broker/helperConstants";
 import {
   canonicalizeCuaHelperInstallerOptions,
   createCuaHelperInstaller,
+  isDroraCuaAdhocDistributionEnv,
   type CuaHelperInstaller,
   type CuaHelperInstallerOptions,
 } from "@drora/services/node";
@@ -59,8 +60,9 @@ export function createDesktopCuaHelperInstaller(
   }
   const buildIdentity = bundledAppPath ? readBundledHelperBuildIdentity(bundledAppPath) : undefined;
   // 路线 A 分发 profile：桌面以 adhoc 签名分发时，安装校验放宽为
-  // local_dev_unsigned（由打包配置注入 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1）
-  const adhocDistribution = process.env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1";
+  // local_dev_unsigned（由打包配置注入 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION=1；
+  // 判定统一走 services 的 isDroraCuaAdhocDistributionEnv，host 托管安装器同源）
+  const adhocDistribution = isDroraCuaAdhocDistributionEnv();
   return createInstaller(
     canonicalizeCuaHelperInstallerOptions({
       env,

@@ -28,6 +28,8 @@ import { registerHostServiceResourceTelemetry } from "./hostServiceResourceTelem
 import { resolveResourceTelemetryEnvironmentKey } from "./hostResourceTelemetryEnvironment.js";
 import { reportHostSessionCreate } from "./hostSessionCreateTelemetry.js";
 import { createBrowserControlMainBridge } from "./browserControlMainBridge.js";
+import { createStartPlanCaptchaMainBridge } from "./startPlanCaptchaMainBridge.js";
+import type { StartPlanCaptchaResolver } from "@drora/services";
 import { materializeBrowserRecordingArtifact } from "./browserRecordingArtifactMaterializer.js";
 import {
   ServiceCollection,
@@ -264,6 +266,49 @@ const browserControlMainBridge = createBrowserControlMainBridge({
     });
   },
 });
+
+// Start Plan 人机验证采集桥：把采集请求经 parentPort 转给 main 的隐藏窗口跑阿里云 SDK。
+// 配置来自 client-configs（clientConfigService 自带 TTL 缓存），服务集合就绪前/缺失时按未启用降级。
+const captchaConfigServiceHolder: { current: IClientConfigService | undefined } = { current: undefined };
+const startPlanCaptchaMainBridge = createStartPlanCaptchaMainBridge({
+  postToMain: (message) => {
+    if (!parentPort) {
+      throw new Error("parentPort unavailable");
+    }
+    parentPort.postMessage(message);
+  },
+});
+
+function resolveStartPlanCaptchaResolver(): StartPlanCaptchaResolver {
+  return {
+    async resolve({ providerId, requestId }) {
+      const clientConfigService = captchaConfigServiceHolder.current;
+      if (!clientConfigService) {
+        return null;
+      }
+      const snapshot = await clientConfigService.getSnapshot();
+      const captcha = snapshot.captcha;
+      // 官方语义：配置缺失/enabled=false/缺 region|prefix|sceneId 均按未启用处理。
+      if (!captcha || captcha.enabled === false) {
+        return null;
+      }
+      // 语言只影响 SDK 文案（无感模式不渲染 UI）；host 无 localStorage，按 env 近似官方 knn 规则。
+      const language = (process.env.LANG ?? process.env.LANGUAGE ?? "").toLowerCase().startsWith("zh")
+        ? ("cn" as const)
+        : ("en" as const);
+      return startPlanCaptchaMainBridge.resolveCaptcha({
+        requestId,
+        captcha,
+        language,
+      }).then((material) => {
+        if (!material) {
+          logger.warn("Start Plan captcha 未取得凭证", { providerId, requestId });
+        }
+        return material;
+      });
+    },
+  };
+}
 
 function reportHostLog(level: HostLogLevel, args: unknown[]): void {
   if (!parentPort) {
@@ -2488,6 +2533,12 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     return;
   }
 
+  if (msg.type === HostMessageTypes.CaptchaSolveResult) {
+    // main 隐藏窗口跑完阿里云 captcha SDK，按 requestId 关联回 captcha 桥的 pending。
+    startPlanCaptchaMainBridge.handleResult(msg);
+    return;
+  }
+
   if (msg.type === HostMessageTypes.Dispose) {
     // main 进程通知清理（窗口关闭 / app 退出时）
     // 这里必须等待统一资源清理完成（含异步收尾写回），再让进程退出；main 侧仍有强杀 timer 兜底。
@@ -2925,12 +2976,16 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // browser-use：agent 的 interaction/browserExecute 经 droraAgentService 转到这个 executor，
               // 再经 parentPort 到 main 的 WebContentsView+CDP 执行。
               browserControlExecutor: browserControlMainBridge,
+              // Start Plan 人机验证：runtime-headers 应答前经 parentPort 到 main 隐藏窗口采集凭证。
+              startPlanCaptchaResolver: resolveStartPlanCaptchaResolver(),
               // CUA 顶部提示属于物理 Windows 桌面投影；非 Windows 和远端 authority 都不得上报。
               cuaOperationStateReporter:
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;
+            captchaConfigServiceHolder.current =
+              initializedServices.getOptional(IClientConfigService);
             return initializedServices;
           },
         });

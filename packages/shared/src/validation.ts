@@ -437,6 +437,19 @@ export const hostBrowserExecuteResultMessageSchema = z.object({
   result: browserCommandResultSchema,
 });
 
+// main → host：Start Plan 人机验证凭证采集结果（隐藏窗口 SDK 执行完回传，按 requestId 关联）。
+export const hostCaptchaSolveResultMessageSchema = z
+  .object({
+    type: z.literal("captcha-solve-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    captchaVerifyParam: z.string().min(1).optional(),
+    captchaRegion: z.string().optional(),
+    errorCode: z.string().optional(),
+    errorMessage: z.string().optional(),
+  })
+  .strict();
+
 export const hostLocalMediaPreviewPathAuthorizeResultMessageSchema = z
   .object({
     type: z.literal("local-media-preview-path-authorize-result"),
@@ -512,6 +525,7 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostCronRunMessageSchema,
   hostOffPeakRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
+  hostCaptchaSolveResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
   hostProviderProvisioningExecuteMessageSchema,
@@ -927,6 +941,23 @@ export const hostBrowserExecuteRequestResponseSchema = z.object({
   command: browserCommandSchema,
 });
 
+// host → main：请求 main 隐藏窗口采集一次阿里云 Start Plan 人机验证凭证。
+export const hostCaptchaSolveRequestResponseSchema = z
+  .object({
+    type: z.literal("captcha-solve-request"),
+    requestId: nonEmptyStringSchema,
+    captcha: z
+      .object({
+        enabled: z.boolean(),
+        region: nonEmptyStringSchema,
+        prefix: nonEmptyStringSchema,
+        sceneId: nonEmptyStringSchema,
+      })
+      .strict(),
+    language: z.enum(["cn", "en"]),
+  })
+  .strict();
+
 export const hostLocalMediaPreviewPathAuthorizeRequestResponseSchema = z
   .object({
     type: z.literal("local-media-preview-path-authorize-request"),
@@ -1038,6 +1069,7 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostSessionMessageDeliverResultResponseSchema,
   hostFeedbackLogArchiveRequestResponseSchema,
   hostBrowserExecuteRequestResponseSchema,
+  hostCaptchaSolveRequestResponseSchema,
   hostLocalMediaPreviewPathAuthorizeRequestResponseSchema,
   hostNetworkTelemetryBatchResponseSchema,
   hostProviderProvisioningSourceChangedResponseSchema,

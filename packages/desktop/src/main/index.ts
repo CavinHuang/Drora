@@ -19,6 +19,7 @@ import {
 } from "./desktopContextPromptRollout.js";
 import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
+import { createCaptchaSolver } from "./captchaSolverWindow.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
 import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
 import {
@@ -447,6 +448,13 @@ const browserGuestManager = new BrowserGuestManager(
   (windowId) => BrowserWindow.fromId(windowId),
 );
 setBrowserUseGuestWebContentsIdsProvider(() => browserGuestManager.listGuestWebContentsIds());
+
+// Start Plan 人机验证采集器：main 隐藏窗口跑阿里云 SDK，惰性建窗、进程退出时销毁
+// （specs/start-plan-captcha-verification.md）。
+const captchaSolver = createCaptchaSolver();
+app.on("will-quit", () => {
+  captchaSolver.dispose();
+});
 
 // browser-use：带诊断日志地执行 browser 命令（两处 spawnHostProcess wiring 共用）。
 // 打入口/出口便于定位卡点（如 navigate loadURL 挂起、CDP 报错等）。
@@ -1788,6 +1796,8 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
+          // Start Plan 人机验证：隐藏窗口跑阿里云 captcha SDK，凭证一次性（specs/start-plan-captcha-verification.md）。
+          handleCaptchaSolveRequest: ({ captcha, language }) => captchaSolver.solve({ captcha, language }),
         },
         {
           taskRealtime: {

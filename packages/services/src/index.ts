@@ -16,6 +16,7 @@ export {
   type AccountRequestAuthMaterial,
   type AccountRequestAuthResolver,
 } from "./model-provider/accountRequestAuthService.js";
+export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { IProviderProvisioningTargetService } from "./model-provider/providerProvisioning.js";
 export {
   collectServiceMemoryDiagnostics,

@@ -120,6 +120,11 @@ import type {
   IAccountRequestAuthService,
 } from "#src/model-provider/accountRequestAuthService.js";
 import {
+  isStartPlanAccountAccess,
+  mergeStartPlanCaptchaHeaders,
+  type StartPlanCaptchaResolver,
+} from "#src/model-provider/startPlanCaptchaHeaders.js";
+import {
   mergeAutomationMutationToolDenylist,
   mergeOffPeakMutationToolDenylist,
 } from "#src/drora-agent/automationToolPolicy.js";
@@ -866,6 +871,12 @@ interface CreateDroraAgentServiceOptions extends Omit<
   mcpStatusIdleTimeoutMs?: number;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
+  /**
+   * Start Plan 人机验证凭证采集（阿里云 WAF 3007 的解法，见 specs/start-plan-captcha-verification.md）。
+   * 桌面本地装配经 parentPort 桥调 main 隐藏窗口；远端 authority / web server 不注入，
+   * Start Plan 请求保持无验证头的现状行为（WAF 3007 透出）。
+   */
+  startPlanCaptchaResolver?: StartPlanCaptchaResolver;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
   modelSelectionReadinessSource?: ModelSelectionReadinessSource;
@@ -1269,6 +1280,45 @@ export function createDroraAgentService(
     });
   }
 
+  /**
+   * Start Plan 模型请求需附带一次性人机验证凭证，否则阿里云 WAF 以 3007
+   * "captcha verify failed" 拒绝（认证本身已通过）。采集失败必须降级而不是让请求失败：
+   * 返回 null 时按修复前行为回包（无验证头），3007 会照常透出给用户。
+   */
+  async function resolveStartPlanCaptchaMaterial(
+    request: DroraProviderRuntimeHeadersRequestParams,
+  ): Promise<{ captchaVerifyParam: string; captchaRegion?: string } | null> {
+    const resolver = options?.startPlanCaptchaResolver;
+    if (!resolver || !isStartPlanAccountAccess(request.accountAccess)) {
+      return null;
+    }
+    try {
+      const material = await resolver.resolve({
+        providerId: request.providerId,
+        requestId: request.requestId,
+        accountAccess: request.accountAccess,
+      });
+      if (!material?.captchaVerifyParam?.trim()) {
+        logger.warn(undefined, "Start Plan captcha 采集返回空凭证，按无验证头降级", {
+          providerId: request.providerId,
+          requestId: request.requestId,
+        });
+        return null;
+      }
+      return {
+        captchaVerifyParam: material.captchaVerifyParam.trim(),
+        ...(material.captchaRegion?.trim() ? { captchaRegion: material.captchaRegion.trim() } : {}),
+      };
+    } catch (error) {
+      logger.warn(undefined, "Start Plan captcha 采集失败，按无验证头降级", {
+        providerId: request.providerId,
+        requestId: request.requestId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
   async function respondAccountRequestAuthWithoutInteraction(params: {
     key: string;
     pending: PendingProviderRuntimeHeadersRequest;
@@ -1281,15 +1331,25 @@ export function createDroraAgentService(
       if (!requestAuth) {
         throw new Error("Account request auth resolver returned no material");
       }
+      const captcha = await resolveStartPlanCaptchaMaterial(params.pending.request);
+      if (pendingProviderRuntimeHeaders.get(params.key) !== params.pending) return;
       await params.pending.client.respond(params.pending.protocolRequestId, {
         headersApplied: true,
-        requestAuth,
+        requestAuth: {
+          ...requestAuth,
+          ...(captcha
+            ? {
+                headers: mergeStartPlanCaptchaHeaders(requestAuth.headers, captcha),
+              }
+            : {}),
+        },
       });
       logger.info(undefined, "Drora provider runtime headers 已应用", {
         modelId: params.pending.request.modelSelection.modelId,
         providerId: params.pending.request.providerId,
         requestId: params.pending.request.requestId,
         sessionId: params.pending.request.sessionId,
+        captchaAttached: captcha !== null,
         workspaceKey: resolveWorkspaceKey(params.pending.request.workspace),
       });
     } catch (error) {

@@ -244,6 +244,22 @@ export function spawnHostProcess(
       sessionContext?: "live" | "cached";
       command: unknown;
     }) => Promise<{ ok: boolean; [k: string]: unknown }>;
+    /** Start Plan 人机验证：main 隐藏窗口采集一次性凭证；缺省则 captcha_unavailable 降级。 */
+    handleCaptchaSolveRequest?: (params: {
+      captcha: {
+        enabled: boolean;
+        region: string;
+        prefix: string;
+        sceneId: string;
+      };
+      language: "cn" | "en";
+    }) => Promise<{
+      ok: boolean;
+      captchaVerifyParam?: string;
+      captchaRegion?: string;
+      errorCode?: string;
+      errorMessage?: string;
+    }>;
     /** Host 已完成附件授权后，由 Main 将本地视频 realpath 加入精确协议授权集合。 */
     authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
   },
@@ -484,6 +500,30 @@ export function spawnHostProcess(
           requestId,
           result: commandResult,
         });
+      });
+      return;
+    }
+
+    if (result.data.type === HostResponseTypes.CaptchaSolveRequest) {
+      // Start Plan 人机验证：main 隐藏窗口跑阿里云 captcha SDK（createCaptchaSolver）。
+      // 缺省实现时返回 captcha_unavailable，host 侧降级为无验证头请求。
+      const requestId = result.data.requestId;
+      const handler = dependencies.handleCaptchaSolveRequest;
+      void (handler
+        ? handler({ captcha: result.data.captcha, language: result.data.language }).catch(
+            (error: unknown) => ({
+              ok: false as const,
+              errorCode: "solve_error",
+              errorMessage: error instanceof Error ? error.message : String(error),
+            }),
+          )
+        : Promise.resolve({
+            ok: false as const,
+            errorCode: "captcha_unavailable",
+            errorMessage: "captcha solver not ready",
+          })
+      ).then((outcome) => {
+        child.postMessage({ type: HostMessageTypes.CaptchaSolveResult, requestId, ...outcome });
       });
       return;
     }

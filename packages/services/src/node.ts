@@ -186,6 +186,7 @@ export {
 } from "./model-provider/providerFacadeServices.js";
 export { createAccountRequestAuthService } from "./model-provider/accountRequestAuthService.js";
 export type { IAccountRequestAuthService } from "./model-provider/accountRequestAuthService.js";
+export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createAccountProviderRequestAuthService } from "./model-provider/accountProviderRequestAuthService.js";
 export { resolveAccountTeamPlanRuntimeApiKey } from "./model-provider/accountProviderTeamPlanRequestKey.js";
 export { createAccountProviderCredentialService } from "./model-provider/accountProviderCredentialService.js";
@@ -401,6 +402,7 @@ import {
   createAccountRequestAuthService,
   type IAccountRequestAuthService,
 } from "./model-provider/accountRequestAuthService.js";
+import type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 import { createUsageStatsService } from "./usage-stats/usageStatsService.js";
 import { createCodingPlanSubscriptionService } from "./coding-plan-subscription/codingPlanSubscriptionService.js";
 import { createClientConfigService } from "./client-config/clientConfigService.js";
@@ -1358,6 +1360,12 @@ export function createLocalServices(options: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
   };
+  /**
+   * Start Plan 人机验证采集桥（host→main 隐藏窗口跑阿里云 SDK）；desktop host 注入。
+   * 缺省（web/server/远端 authority）时 Start Plan 请求保持无验证头的现状行为。
+   * 见 specs/start-plan-captcha-verification.md。
+   */
+  startPlanCaptchaResolver?: StartPlanCaptchaResolver;
   /** browser-use 执行桥（host→main WebContentsView+CDP）；desktop host 注入，缺省则 browser 不可用。 */
   browserControlExecutor?: {
     list(input: {
@@ -2166,6 +2174,8 @@ export function createLocalServices(options: {
     spawnFallbackCwd: options?.droraAgentSpawnFallbackCwd,
     // browser-use：host→main 执行桥透传给 agent service 的 onRequest browserExecute 路由。
     browserControlExecutor: options?.browserControlExecutor,
+    // Start Plan 人机验证：host→main 隐藏窗口采集一次性凭证，附加进 runtime headers。
+    startPlanCaptchaResolver: options?.startPlanCaptchaResolver,
     // 官方 Server MCP 身份头：host 是唯一身份权威，Agent 经反向请求索取。
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。
     officialMcpAuthHeadersResolver: createOfficialMcpAuthHeadersResolver({

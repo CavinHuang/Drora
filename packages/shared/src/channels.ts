@@ -355,6 +355,7 @@ export const PlatformChannels = {
   DesktopPetOpenTask: "drora:desktop-pet-open-task",
   DesktopPetRender: "drora:desktop-pet-render",
   DesktopPetActivate: "drora:desktop-pet-activate",
+  DesktopPetDrag: "drora:desktop-pet-drag",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -569,6 +570,8 @@ export const HostMessageTypes = {
   OffPeakRun: "off-peak-run",
   /** main → host：browser-use 命令执行结果（CDP 执行完回传，按 requestId 关联） */
   BrowserExecuteResult: "browser-execute-result",
+  /** main → host：Start Plan 人机验证凭证采集结果（隐藏窗口 SDK 执行完回传，按 requestId 关联） */
+  CaptchaSolveResult: "captcha-solve-result",
   /** main → host：本地视频 canonical path 授权结果 */
   LocalMediaPreviewPathAuthorizeResult: "local-media-preview-path-authorize-result",
   /** Main → Host：全局前台 Drora 窗口派生的 producer focus fact。 */
@@ -666,6 +669,8 @@ export const HostResponseTypes = {
   OffPeakSchedulerWakeRequest: "off-peak-scheduler-wake-request",
   /** host → main：执行一条 browser-use 命令（main 用 WebContentsView+CDP 执行，按 requestId 关联） */
   BrowserExecuteRequest: "browser-execute-request",
+  /** host → main：请求 main 隐藏窗口采集一次阿里云 Start Plan 人机验证凭证（按 requestId 关联） */
+  CaptchaSolveRequest: "captcha-solve-request",
   /** host → main：请求授权 Agent 已精确校验的本地视频路径 */
   LocalMediaPreviewPathAuthorizeRequest: "local-media-preview-path-authorize-request",
   /** host → main：RPC 网络遥测批次（channel.command 成功率/耗时） */
@@ -1001,6 +1006,10 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.DesktopPetActivate]: {
     request: void;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetDrag]: {
+    request: import("./desktopPet.js").DesktopPetDrag;
     response: void;
   };
   [PlatformChannels.WindowFullscreenChanged]: {

@@ -23,24 +23,28 @@ The production atlas now contains five action rows and 32 playback cells. Its se
 
 Every used atlas cell must contain a distinct or deliberately returning pose, preserve transparency and fit the cell. Review each row as a playing preview at 96px on light and dark backgrounds; count alone is not acceptance. Reject opaque backgrounds, frame-to-frame silhouette drift, unwanted changes in apparent size, and static rows padded with duplicate cells.
 
-- Desktop only. A single small, movable pet window shows the selected workspace's live task state. Web and mobile have no pet window.
+- Desktop only. A small movable pet window shows the selected workspace's live task state. Web and mobile have no pet window. Pressing and dragging the visible pet moves it; a short movement threshold preserves ordinary click-to-open. The native drag handle above the sprite remains an alternate way to move it.
 - The pet is a presentation of `sessions-index`, never an owner of task or interaction state. Priority: pending interaction, active work, recent terminal transition, idle. `prewarming`, `running`, or `hasBackgroundWork` means active work. A pending interaction is indicated by the session summary's interaction ID/count.
 - Initial subscription establishes a baseline. Historical completed/failed tasks do not trigger a terminal animation. A later terminal transition may play briefly, then return to the live aggregate state. Pending interactions are reflected from the live session summary and its current counts.
 - The pet is one app-level presentation sourced from the most recently focused main window. Each window publishes a bounded, validated presentation snapshot for its active workspace. Main selects the source and routes it; it does not accept task commands or persist a task index.
 - Clicking the pet opens the represented task in the source window, using workspace identity/path, remote session ID and session ID. It never approves a permission or supplies a user answer. If the source or task is gone, clicking only opens the source window.
 - The pet is enabled by an explicit desktop setting, default off for existing installations. The user can show/hide it in Settings. Position is device-local; when the saved display disappears, clamp to the primary display work area.
 - The pet is an auxiliary window and is excluded from main-application window discovery, tray/window activation and settings broadcasts.
-- The compact window must not obstruct most of the screen. Motion respects `prefers-reduced-motion`. It stays below CUA permission/operation safety overlays. Do not show task content, prompts, paths or secrets in the pet.
+- A separate, mouse-transparent companion bubble follows the pet while work, attention or a recent terminal cue is visible. It shows a localized state label and, where available, the selected task's existing bounded `lastAssistantPreview` from `sessions-index` (at most 120 characters); never route user prompts, pending interaction payloads or tool output into it. Text is assigned as text, never HTML. The bubble stays in the current display's work area, flips sides near edges and hides for idle or disabled state. It receives no pointer input; clicking the pet still opens the task. Because the preview can contain assistant-authored task content, the bubble exists only when the user has explicitly enabled the desktop pet.
+- The compact pet and bubble must not obstruct most of the screen. Motion respects `prefers-reduced-motion`. Both stay below CUA permission/operation safety overlays.
 
 ## Ownership and event order
 
 ```text
 CLI/runtime task facts -> window Host sessions-index -> main Renderer projection
-  -> validated IPC -> Main pet window presentation -> click IPC
+  -> validated IPC -> Main pet/bubble presentation -> click IPC
   -> source main Renderer navigation
+
+Pet pointer down/move/up -> pet preload -> validated pet-only IPC
+  -> Main window position (screen DIP) -> device-local persistence
 ```
 
-The CLI/runtime remains the task state owner. The main Renderer owns only a derived presentation and transition baseline. Main owns the native pet window, display position and last-focused source-window routing. A renderer reload clears its old presentation; a new sessions-index baseline restores it. Main rejects messages from the pet window and destroyed/non-main senders. No pet events enter `CommandInbox` or the mobile replayable delivery path.
+The CLI/runtime remains the task state owner. The main Renderer owns only a derived presentation and transition baseline. Main owns the native pet/bubble windows, display position and last-focused source-window routing. A renderer reload clears its old presentation; a new sessions-index baseline restores it. Main accepts pointer drag commands only from the current pet webContents and rejects task presentations from the pet/bubble or destroyed/non-main senders. Drag end clamps the pet into the current display work area; native move events and programmatic drag updates share one delayed position write. No pet events enter `CommandInbox` or the mobile replayable delivery path.
 
 ## Acceptance cases
 
@@ -53,6 +57,9 @@ The CLI/runtime remains the task state owner. The main Renderer owns only a deri
 7. Drag the pet, restart, and remove its display: position restores or clamps into a visible work area.
 8. Disable the setting: the pet closes immediately. Web/mobile behavior and existing native task notifications remain unchanged.
 9. At 96px, all five modes play their own row with the frame counts above. Pose order and individual frame holds read clearly without loop popping or baseline jumps; reduced-motion preference shows a stable representative pose for each mode.
+10. Press and drag the visible sprite across a display (including mixed-scale or multi-display layouts): the native window follows the pointer, then saves a visible position. A short click still opens the selected task and does not start a drag. The top handle remains draggable.
+11. During active work, the bubble shows the state and bounded assistant preview; for a pending interaction it prominently says that user action is needed. Completion/error cues update it, and returning to idle hides it. The bubble follows the pet without intercepting clicks or clipping at display edges; switching source windows cannot leave stale text behind.
+12. A task presentation published while the pet or bubble document is still loading appears as soon as that document is ready, even when no second sessions-index update arrives.
 
 ## Upstream boundary
 

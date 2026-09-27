@@ -37,10 +37,39 @@ test("interaction takes priority and preserves workspace identity for navigation
   });
 });
 
+test("selected task carries only its bounded assistant preview into the pet", () => {
+  const result = projectDesktopPet({
+    scope,
+    sessions: [
+      session({ sessionId: "older", lastActivityAt: 1, lastAssistantPreview: "old message" }),
+      session({
+        sessionId: "current",
+        lastActivityAt: 2,
+        lastAssistantPreview: "  Checking files\nnow  ",
+      }),
+    ],
+    previous: null,
+  });
+  assert.equal(result.mode, "working");
+  assert.equal(result.preview, "Checking files now");
+  assert.equal(result.target?.sessionId, "current");
+  const longPreview = projectDesktopPet({
+    scope,
+    sessions: [session({ lastAssistantPreview: "x".repeat(160) })],
+    previous: null,
+  });
+  assert.equal(longPreview.preview?.length, 120);
+});
+
 test("initial historical completion is idle, later terminal edge is shown once", () => {
-  const completed = session({ phase: "completedSuccess", sessionEnded: true });
+  const completed = session({
+    phase: "completedSuccess",
+    sessionEnded: true,
+    lastAssistantPreview: "Finished the earlier task",
+  });
   const initial = projectDesktopPet({ scope, sessions: [completed], previous: null });
   assert.equal(initial.mode, "idle");
+  assert.equal(initial.preview, undefined);
   const transition = projectDesktopPet({
     scope,
     sessions: [completed],

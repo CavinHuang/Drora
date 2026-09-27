@@ -38,6 +38,11 @@ function terminalMode(session: SessionSummary): "completed" | "error" | null {
   return null;
 }
 
+function previewOf(session: SessionSummary): string | undefined {
+  const preview = session.lastAssistantPreview?.replace(/\s+/g, " ").trim().slice(0, 120);
+  return preview || undefined;
+}
+
 /** A bounded desktop presentation of the authoritative sessions-index state. */
 export function projectDesktopPet(params: {
   scope: Scope;
@@ -53,18 +58,36 @@ export function projectDesktopPet(params: {
   };
   const selectedAttention = attention[0];
   if (selectedAttention) {
-    return { ...counts, mode: "attention", target: targetOf(params.scope, selectedAttention) };
+    const preview = previewOf(selectedAttention);
+    return {
+      ...counts,
+      mode: "attention",
+      target: targetOf(params.scope, selectedAttention),
+      ...(preview ? { preview } : {}),
+    };
   }
   const selectedActive = active[0];
   if (selectedActive) {
-    return { ...counts, mode: "working", target: targetOf(params.scope, selectedActive) };
+    const preview = previewOf(selectedActive);
+    return {
+      ...counts,
+      mode: "working",
+      target: targetOf(params.scope, selectedActive),
+      ...(preview ? { preview } : {}),
+    };
   }
   if (params.previous) {
     for (const session of ordered) {
       const previous = params.previous.get(session.sessionId);
       const terminal = terminalMode(session);
       if (previous && terminal && terminalMode(previous) !== terminal) {
-        return { ...counts, mode: terminal, target: targetOf(params.scope, session) };
+        const preview = previewOf(session);
+        return {
+          ...counts,
+          mode: terminal,
+          target: targetOf(params.scope, session),
+          ...(preview ? { preview } : {}),
+        };
       }
     }
   }

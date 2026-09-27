@@ -96,7 +96,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     url: string | null;
     qrDataUrl: string | null;
     failureMessage: string | null;
-  }>({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
+    qrRenderError: string | null;
+  }>({ status: "idle", url: null, qrDataUrl: null, failureMessage: null, qrRenderError: null });
   const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false);
   const renderedQrUrlRef = useRef<string | null>(null);
@@ -114,9 +115,12 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       if (renderedQrUrlRef.current !== url) return;
       setQr((prev) => ({ ...prev, qrDataUrl: dataUrl }));
     } catch (error) {
-      logger.warn("[WebRemoteControlDialog] 二维码生成失败", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn("[WebRemoteControlDialog] 二维码生成失败", { error: message });
+      // 失败必须可见：停留在“正在准备二维码”会让用户无限等待。
+      if (renderedQrUrlRef.current === url) {
+        setQr((prev) => ({ ...prev, qrRenderError: message }));
+      }
     }
   }, []);
 
@@ -127,6 +131,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
         url: state.url,
         qrDataUrl: state.url === prev.url ? prev.qrDataUrl : null,
         failureMessage: state.failure?.message ?? null,
+        qrRenderError: state.url === prev.url ? prev.qrRenderError : null,
       }));
       if (state.url) void renderQrForUrl(state.url);
     },
@@ -135,8 +140,15 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
 
   const handleStart = useCallback(async () => {
     if (transportRef.current === "relay") {
-      if (!platform.startMobileRelayControl) return;
-      setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
+      if (!platform.startMobileRelayControl) {
+        setQr((prev) => ({
+          ...prev,
+          status: "error",
+          failureMessage: "mobile relay control is unavailable in this build",
+        }));
+        return;
+      }
+      setQr((prev) => ({ ...prev, status: "starting", failureMessage: null, qrRenderError: null }));
       try {
         const result = await platform.startMobileRelayControl({
           workspacePath,
@@ -163,8 +175,15 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       }
       return;
     }
-    if (!platform.startMobilePairing) return;
-    setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
+    if (!platform.startMobilePairing) {
+      setQr((prev) => ({
+        ...prev,
+        status: "error",
+        failureMessage: "mobile pairing is unavailable in this build",
+      }));
+      return;
+    }
+    setQr((prev) => ({ ...prev, status: "starting", failureMessage: null, qrRenderError: null }));
     try {
       const result = await platform.startMobilePairing({ workspacePath, workspaceIdentity });
       applyRuntimeState({
@@ -268,7 +287,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   };
 
   const handleStopPairing = () => {
-    setQr({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
+    setQr({ status: "idle", url: null, qrDataUrl: null, failureMessage: null, qrRenderError: null });
     renderedQrUrlRef.current = null;
     const stopping =
       transport === "relay"
@@ -473,7 +492,12 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                 </div>
                 {/* 二维码容器：虚线边框、居中；未就绪时显示准备中。 */}
                 <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background-alt p-4">
-                  {qr.qrDataUrl ? (
+                  {qr.qrRenderError && !qr.qrDataUrl ? (
+                    <div className="flex flex-col items-center gap-2 text-center text-ui-sm text-destructive">
+                      <span>{intl.formatMessage({ id: "webRemoteControl.qr.renderFailed" })}</span>
+                      <span className="text-ui-xs text-foreground-subtle">{qr.qrRenderError}</span>
+                    </div>
+                  ) : qr.qrDataUrl ? (
                     <img
                       src={qr.qrDataUrl}
                       alt={intl.formatMessage({ id: "webRemoteControl.qrAlt" })}

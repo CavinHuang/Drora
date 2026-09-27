@@ -1844,6 +1844,7 @@ const enUS: Record<string, string> = {
   "webRemoteControl.statusTag.phone": "Phone",
   "webRemoteControl.statusTag.ready": "Ready",
   "webRemoteControl.generating": "Preparing QR code...",
+  "webRemoteControl.qr.renderFailed": "Failed to render QR code",
   "webRemoteControl.qrAlt": "Web remote control QR code",
   "webRemoteControl.mobileQr.title": "Scan from phone",
   "webRemoteControl.mobileQr.description": "Use your phone camera to open this workspace remotely.",

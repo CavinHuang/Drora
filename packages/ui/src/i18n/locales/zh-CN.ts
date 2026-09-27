@@ -1718,6 +1718,7 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.statusTag.phone": "手机",
   "webRemoteControl.statusTag.ready": "已就绪",
   "webRemoteControl.generating": "正在准备二维码...",
+  "webRemoteControl.qr.renderFailed": "二维码生成失败",
   "webRemoteControl.qrAlt": "Web 远程控制二维码",
   "webRemoteControl.mobileQr.title": "手机扫码连接",
   "webRemoteControl.mobileQr.description": "用手机相机扫码，在手机上打开这个工作区。",

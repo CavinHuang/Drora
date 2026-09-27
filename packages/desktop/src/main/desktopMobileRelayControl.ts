@@ -4,6 +4,7 @@
 // 边界：relay 只做转发；官方可随时变更协议——本传输与 LAN 直连并存，弹层内可选。
 /* eslint-disable max-lines -- 传输状态机/心跳/应用帧路由集中在一个生命周期单元里，
    与 botsService/desktopMainIpcPlatform 同例；纯协议逻辑已拆至 RelayProtocol 模块。 */
+import { createRequire } from "node:module";
 import { hostname } from "node:os";
 import type { MessagePortMain, UtilityProcess } from "electron";
 import type { MobilePairingFailure, MobilePairingRuntimeState } from "@drora/shared";
@@ -66,7 +67,21 @@ export function createDesktopMobileRelayControl(deps: {
   remotePageUrl?: string;
 }) {
   const logger = deps.logger;
-  const WebSocketCtor = deps.webSocketCtor;
+  // 生产未注入时回退到 ws 包（测试注入 fake 构造器走纯逻辑路径）。
+  // 懒 require：与 electron 懒加载同法，保持模块在 plain node 下的可测性。
+  const WebSocketCtor: WebSocketCtor | null =
+    deps.webSocketCtor ??
+    (() => {
+      try {
+        const requireNode = createRequire(import.meta.url);
+        const loaded = requireNode("ws") as unknown as WebSocketCtor & {
+          WebSocket?: WebSocketCtor;
+        };
+        return loaded.WebSocket ?? loaded;
+      } catch {
+        return null;
+      }
+    })();
   const relayWsUrl = deps.relayWsUrl ?? OFFICIAL_RELAY_WS_URL;
   const remotePageUrl = deps.remotePageUrl ?? OFFICIAL_REMOTE_PAGE_URL;
   const attacher = createMobileServiceAttacher({
@@ -583,6 +598,7 @@ export function createDesktopMobileRelayControl(deps: {
     transition("error");
     runtimeFailure = { reason: "internal", message: messageText || code };
     emitStatus();
+    notifyQrReady();
     try {
       socket?.close();
     } catch {
@@ -621,6 +637,8 @@ export function createDesktopMobileRelayControl(deps: {
       transition("error");
       runtimeFailure = { reason: "internal", message: "WebSocket constructor unavailable" };
       emitStatus();
+      // 快速失败：唤醒 start 的 QR 就绪等待，立刻向上抛错而不是拖满 30s 超时。
+      notifyQrReady();
       return;
     }
     const url = new URL(relayWsUrl);
@@ -718,7 +736,15 @@ export function createDesktopMobileRelayControl(deps: {
       throw error;
     }
     pendingCredentialSave = null;
-    if (!credential) throw new Error("relay credential missing after QR-ready");
+    if (
+      terminalError ||
+      !credential ||
+      (transportState !== "waiting_terminal" && transportState !== "paired")
+    ) {
+      const failure = runtimeFailure;
+      await stop();
+      throw new Error(failure?.message ?? "relay did not reach QR-ready state");
+    }
     qrUrl = buildRelayQrUrl({
       baseUrl: remotePageUrl,
       deviceSid: credential.deviceSid,

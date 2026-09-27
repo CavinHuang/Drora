@@ -119,7 +119,6 @@ export type WallpaperValidationError = "invalid" | "too-large";
 export async function validateWallpaperFile(file: File): Promise<WallpaperValidationError | null> {
   if (file.size > MAX_WALLPAPER_BYTES) return "too-large";
   if (file.size < 9) return "invalid";
-  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return "invalid";
   const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const png =
     header[0] === 137 &&
@@ -134,9 +133,6 @@ export async function validateWallpaperFile(file: File): Promise<WallpaperValida
   const webp =
     String.fromCharCode(...header.slice(0, 4)) === "RIFF" &&
     String.fromCharCode(...header.slice(8, 12)) === "WEBP";
-  return (file.type === "image/png" && png) ||
-    (file.type === "image/jpeg" && jpeg) ||
-    (file.type === "image/webp" && webp)
-    ? null
-    : "invalid";
+  // 修复：桌面文件选择器可能留空或误报 MIME；以内容签名和后续实际解码结果为准。
+  return png || jpeg || webp ? null : "invalid";
 }

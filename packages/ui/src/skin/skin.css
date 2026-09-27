@@ -104,15 +104,29 @@ html[data-drora-custom-accent="true"] {
   --color-accent: color-mix(in srgb, var(--color-brand) 16%, var(--color-background));
 }
 html[data-drora-skin-image-color="true"] {
+  /* 修复：原先仅混入 18% 图片色，深色主题的预置图切换几乎不可辨。 */
   --skin-conversation-surface: color-mix(
     in srgb,
-    var(--color-background) 82%,
+    var(--color-background) 60%,
     var(--skin-wallpaper-color)
   );
-  --skin-sidebar-surface: color-mix(in srgb, var(--color-sidebar) 82%, var(--skin-wallpaper-color));
+  --skin-sidebar-surface: color-mix(in srgb, var(--color-sidebar) 60%, var(--skin-wallpaper-color));
   --skin-side-pane-surface: color-mix(
     in srgb,
-    var(--color-background) 82%,
+    var(--color-background) 60%,
+    var(--skin-wallpaper-color)
+  );
+}
+html.dark[data-drora-skin-image-color="true"] {
+  --skin-conversation-surface: color-mix(
+    in srgb,
+    var(--color-background) 45%,
+    var(--skin-wallpaper-color)
+  );
+  --skin-sidebar-surface: color-mix(in srgb, var(--color-sidebar) 45%, var(--skin-wallpaper-color));
+  --skin-side-pane-surface: color-mix(
+    in srgb,
+    var(--color-background) 45%,
     var(--skin-wallpaper-color)
   );
 }

@@ -67,7 +67,8 @@ export async function decodeWallpaper(file: File): Promise<void> {
   if (typeof createImageBitmap === "function") {
     const image = await createImageBitmap(file);
     try {
-      if (image.width < 1 || image.height < 1 || image.width > 8192 || image.height > 8192) {
+      // 修复：文件大小已限制为 8 MiB，像素维度再设 8192 上限会误拒合法长图。
+      if (image.width < 1 || image.height < 1) {
         throw new Error("Wallpaper dimensions are unsupported");
       }
     } finally {
@@ -80,7 +81,7 @@ export async function decodeWallpaper(file: File): Promise<void> {
     const image = new Image();
     image.onload = () => {
       URL.revokeObjectURL(url);
-      image.width > 0 && image.height > 0 && image.width <= 8192 && image.height <= 8192
+      image.width > 0 && image.height > 0
         ? resolve()
         : reject(new Error("Wallpaper dimensions are unsupported"));
     };

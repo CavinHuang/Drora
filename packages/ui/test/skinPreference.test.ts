@@ -153,11 +153,17 @@ test("resetting a skin does not change theme mode", () => {
   );
 });
 
-test("wallpaper import checks signature, declared type and size", async () => {
+test("wallpaper import checks content signature and size even when picker MIME is missing or wrong", async () => {
   const png = new File([Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1])], "wallpaper.png", {
     type: "image/png",
   });
   assert.equal(await validateWallpaperFile(png), null);
+  const pngWithoutMime = new File([await png.arrayBuffer()], "wallpaper.png");
+  assert.equal(await validateWallpaperFile(pngWithoutMime), null);
+  const pngWithWrongMime = new File([await png.arrayBuffer()], "wallpaper.png", {
+    type: "application/octet-stream",
+  });
+  assert.equal(await validateWallpaperFile(pngWithWrongMime), null);
   const disguised = new File([new Uint8Array(12)], "fake.png", { type: "image/png" });
   assert.equal(await validateWallpaperFile(disguised), "invalid");
   const huge = new File([new Uint8Array(8 * 1024 * 1024 + 1)], "huge.png", {

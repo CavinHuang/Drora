@@ -201,6 +201,7 @@ import {
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import { createDesktopMobilePairingServer } from "./desktopMobilePairingServer.js";
+import { MobilePairingRestoreStore, shouldRestorePairing } from "./desktopMobilePairingRestore.js";
 import {
   loadCliMcpFromUserDirectory,
   migrateLegacyCommonMcp,
@@ -539,6 +540,23 @@ let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
 const settingsFile = join(homedir(), ".drora", "v2", "setting.json");
+// 移动端远程控制（LAN 直连扫码）：服务默认关闭，弹层显式开启才监听端口。
+// 对齐原版：状态推送给发起窗口（StatusChanged）；start 成功持久化恢复上下文、手动停止
+// 清除、窗口 Host 就绪且工作区匹配时自动恢复一次（restorePreviouslyEnabled）。
+const mobilePairingRestoreStore = new MobilePairingRestoreStore(join(homedir(), ".drora", "v2"));
+let mobilePairingSenderWebContentsId: number | null = null;
+let mobilePairingStartedThisRun = false;
+const mobilePairingServer = createDesktopMobilePairingServer({
+  logger,
+  onStatusChanged: (state) => {
+    if (mobilePairingSenderWebContentsId === null) return;
+    const sender = webContents.fromId(mobilePairingSenderWebContentsId);
+    // 窗口可能已关闭（webContents 销毁）；推送失败静默，状态查询面仍可用。
+    if (sender && !sender.isDestroyed()) {
+      sender.send(PlatformChannels.MobilePairingStateChanged, state);
+    }
+  },
+});
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -1685,6 +1703,41 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }),
     windowHostProcessMap,
     onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
+    onWindowHostWorkspaceReady: (windowKey, workspace) => {
+      // 对齐原版 restorePreviouslyEnabled：窗口 Host 就绪且工作区匹配时自动恢复远控。
+      if (mobilePairingStartedThisRun || mobilePairingServer.isRunning()) return;
+      void (async () => {
+        const saved = await mobilePairingRestoreStore.load();
+        if (
+          !shouldRestorePairing({
+            saved,
+            serviceRunning: mobilePairingServer.isRunning(),
+            alreadyStartedThisRun: mobilePairingStartedThisRun,
+            hostWorkspace: workspace,
+          })
+        ) {
+          return;
+        }
+        const hostChild = windowHostProcessMap.get(windowKey);
+        if (!hostChild || hostChild.pid === undefined) return;
+        logger.info("[mobile-pairing] 恢复上次开启的移动端远程控制", {
+          workspacePath: saved.workspacePath,
+        });
+        mobilePairingSenderWebContentsId = windowKey;
+        try {
+          await mobilePairingServer.start({
+            workspacePath: saved.workspacePath,
+            workspaceIdentity: saved.workspaceIdentity,
+            resolveHostChild: () => windowHostProcessMap.get(windowKey) ?? null,
+          });
+          mobilePairingStartedThisRun = true;
+        } catch (error) {
+          logger.warn("[mobile-pairing] 恢复上次远控失败", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      })();
+    },
     awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(
@@ -2051,30 +2104,42 @@ app.whenReady().then(async () => {
     logger,
   });
 
-  // 移动端远程控制（LAN 直连扫码）：服务默认关闭，弹层显式开启才监听端口。
-  // 手机附着的是发起窗口所属的 Local Host，复用 web-remote-replayable 会话链路。
-  const mobilePairingServer = createDesktopMobilePairingServer({ logger });
+  // 移动端远程控制（LAN 直连扫码）：服务与状态块声明见 settingsFile 旁（模块前部）；
+  // 这里只做 IPC 装配。手机附着的是发起窗口所属的 Local Host，复用 web-remote-replayable 链路。
   registerPlatformIpcHandlers({
     mobilePairing: {
       start: async (params) => {
+        mobilePairingSenderWebContentsId = params.senderWebContentsId;
         const hostChild = windowHostProcessMap.get(params.senderWebContentsId);
         if (!hostChild || hostChild.pid === undefined) {
           throw new Error("当前窗口的 Host 进程尚未就绪，无法配对");
         }
-        return mobilePairingServer.start({
+        const result = await mobilePairingServer.start({
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
-          hostChild,
+          resolveHostChild: () => {
+            // 惰性解析：手机认证时才取当前 Host 实例；窗口 Host 重启后可重附着。
+            const current = windowHostProcessMap.get(params.senderWebContentsId);
+            return current ?? null;
+          },
         });
+        mobilePairingStartedThisRun = true;
+        await mobilePairingRestoreStore.save({
+          workspacePath: params.workspacePath,
+          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        });
+        return result;
       },
-      stop: () => Promise.resolve(mobilePairingServer.stop("ui-stop")),
-      state: () => ({
-        running: mobilePairingServer.isRunning(),
-        phase: mobilePairingServer.phase(),
-        connected: mobilePairingServer.connected(),
-        url: mobilePairingServer.currentUrl(),
-        expiresAt: mobilePairingServer.currentExpiresAt(),
-      }),
+      reset: async (params) => {
+        mobilePairingSenderWebContentsId = params.senderWebContentsId;
+        return mobilePairingServer.resetPairing();
+      },
+      stop: async () => {
+        mobilePairingServer.stop("ui-stop");
+        // 对齐原版：手动停止清除恢复上下文；窗口关闭/应用退出保留。
+        await mobilePairingRestoreStore.clear();
+      },
+      state: () => mobilePairingServer.runtimeState(),
     },
     fetchHelpConfig: readHelpConfig,
     logger,
@@ -2303,6 +2368,10 @@ app.on("browser-window-created", (_, win) => {
     browserGuestManager.closeWindow(win.id);
     windowWorkspaceMap.delete(win.id);
     windowTaskRealtimeHostIdMap.delete(win.id);
+    // 对齐原版 disposeWindow：承载远控会话的窗口关闭即停服；手机收到 workspace-closed 终态。
+    if (mobilePairingSenderWebContentsId === windowWebContentsId) {
+      mobilePairingServer.stop("window-closed");
+    }
     if (windowUnreadCountMap.delete(win.id)) {
       syncApplicationUnreadBadge(windowUnreadCountMap);
     }

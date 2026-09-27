@@ -16,7 +16,11 @@ import {
   type MessagePortPayload,
 } from "@drora/rpc";
 import { HostMessageTypes } from "@drora/shared";
-import type { MessagePortMain, UtilityProcess } from "electron";
+import type {
+  MessagePortMain,
+  UtilityProcess,
+} from "electron";
+import type { MobilePairingRuntimeState } from "@drora/shared";
 import {
   attemptPair,
   buildPairingUrl,
@@ -30,15 +34,17 @@ import {
 export interface MobilePairingStartParams {
   workspacePath: string;
   workspaceIdentity?: string;
-  /** 发起配对的窗口；其所属 Host 即手机附着的服务面。 */
-  hostChild: UtilityProcess;
+  /**
+   * 发起窗口的 Host 解析器（对齐原版"手机认证后才惰性附着"的桥接时序）：
+   * start 时不持有 Host 实例；手机认证或重连时惰性解析，Host 重启后可换新实例重附着。
+   */
+  resolveHostChild: () => UtilityProcess | null;
 }
 
 export interface MobilePairingStartResult {
   url: string;
   port: number;
   pairToken: string;
-  expiresAt: number;
 }
 
 type Logger = {
@@ -70,10 +76,15 @@ interface AuthedPhoneConnection {
   sessionToken: string;
 }
 
-const IDLE_STOP_AFTER_DISCONNECT_MS = 15 * 60 * 1000;
-const AWAIT_PAIR_STOP_MS = 15 * 60 * 1000;
-
-export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
+/**
+ * 运行状态对齐原版 runtime status（idle/starting/running/connecting/active/error）：
+ * Main 通过 onStatusChanged 推送给 renderer（替代轮询），快照供 state 查询。
+ * connecting = 手机已建立 WS 但尚未完成配对握手（原版"正在连接手机"）。
+ */
+export function createDesktopMobilePairingServer(deps: {
+  logger: Logger;
+  onStatusChanged?: (state: MobilePairingRuntimeState) => void;
+}) {
   const logger = deps.logger;
   let httpServer: Server | null = null;
   let wss: WebSocketServer | null = null;
@@ -81,47 +92,114 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
   let startParams: MobilePairingStartParams | null = null;
   let startResult: MobilePairingStartResult | null = null;
   let authedConnection: AuthedPhoneConnection | null = null;
+  /** 已建立 WS 但尚未通过握手认证的连接（connecting 态的判定依据）。 */
+  const pendingSockets = new Set<WebSocket>();
   let serviceChannel: IChannel | null = null;
   let sessionChannel: IChannel | null = null;
+  /** 当前附着端口所属的 Host 实例；resolver 返回不同实例时重建（Host 重启场景）。 */
+  let attachedHostChild: UtilityProcess | null = null;
   let clientPort: MessagePortMain | null = null;
-  let idleTimer: NodeJS.Timeout | null = null;
+  let runtimeStatus: MobilePairingRuntimeState["status"] = "idle";
+  let runtimeFailure: MobilePairingRuntimeState["failure"] = null;
+  let boundAddress: string | null = null;
+  let boundPort = 0;
 
   function isRunning(): boolean {
     return httpServer !== null;
   }
 
-  function phase(): PairingCoreState["phase"] {
-    return state.phase;
+  function runtimeState(): MobilePairingRuntimeState {
+    return {
+      running: httpServer !== null,
+      status: runtimeStatus,
+      connected: authedConnection !== null,
+      url: startResult?.url ?? null,
+      workspacePath: startParams?.workspacePath ?? null,
+      workspaceIdentity: startParams?.workspaceIdentity ?? null,
+      failure: runtimeFailure,
+    };
   }
 
-  function connected(): boolean {
-    return authedConnection !== null;
+  /** 状态变化即推送（对齐原版 StatusChanged；emit 的快照必须是转移后的新值）。 */
+  function emitStatus(): void {
+    deps.onStatusChanged?.(runtimeState());
   }
 
-  function currentUrl(): string | null {
-    return startResult?.url ?? null;
+  function transition(status: MobilePairingRuntimeState["status"]): void {
+    if (runtimeStatus === status) return;
+    runtimeStatus = status;
+    if (status !== "error") runtimeFailure = null;
+    emitStatus();
   }
 
-  function currentExpiresAt(): number | null {
-    return startResult?.expiresAt ?? null;
+  /**
+   * 未认证连接增减后的过渡态归位：有 pending → connecting（原版"手机正在连接"），
+   * 全部离开且无人认证成功 → 回 running（等待手机连接）。
+   */
+  function reconcilePendingPhase(): void {
+    if (authedConnection) return;
+    if (runtimeStatus !== "connecting" && runtimeStatus !== "running") return;
+    transition(pendingSockets.size > 0 ? "connecting" : "running");
   }
 
-  function scheduleIdleStop(delayMs: number, reason: string): void {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      logger.info("[mobile-pairing] 空闲超时，自动停止配对服务", { reason });
-      stop("idle-timeout");
-    }, delayMs);
-    idleTimer.unref?.();
-  }
-
-  function stop(reason: string): void {
-    if (idleTimer) {
-      clearTimeout(idleTimer);
-      idleTimer = null;
-    }
-    authedConnection?.socket.close();
+  /**
+   * 踢除当前已连手机（对齐原版 relay KICKED 语义）：先送达 kicked 错误帧再断开，
+   * 手机页据此显示"会话已被其他配对页面接管"而不是无限重连。
+   */
+  function kickActivePhone(reason: string): void {
+    const connection = authedConnection;
+    if (!connection) return;
     authedConnection = null;
+    try {
+      if (connection.socket.readyState === 1) {
+        connection.socket.send(JSON.stringify({ type: "error", code: "kicked" }));
+      }
+    } catch (error) {
+      logger.warn("[mobile-pairing] 踢除帧发送失败（socket 可能已关闭）", {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    connection.socket.close();
+    logger.info("[mobile-pairing] 已踢除已连手机", { reason });
+  }
+
+  /**
+   * 服务终止给手机一个终态失败面（对齐原版 failure 语义）：
+   * restarted=被新的配对服务接管（kicked）；window-closed=承载工作区的窗口已关闭
+   * （workspace-closed）；其余=桌面端主动停止（desktop-stopped）。
+   */
+  function stop(reason: string): void {
+    const connection = authedConnection;
+    authedConnection = null;
+    if (connection) {
+      const code =
+        reason === "restarted"
+          ? "kicked"
+          : reason === "window-closed"
+            ? "workspace-closed"
+            : "desktop-stopped";
+      try {
+        if (connection.socket.readyState === 1) {
+          connection.socket.send(JSON.stringify({ type: "error", code }));
+        }
+      } catch {
+        // socket 已关闭属正常路径
+      }
+      try {
+        connection.socket.close();
+      } catch {
+        // socket 已关闭属正常路径
+      }
+    }
+    for (const socket of pendingSockets) {
+      try {
+        socket.close();
+      } catch {
+        // socket 已关闭属正常路径
+      }
+    }
+    pendingSockets.clear();
     if (wss) {
       wss.close();
       wss = null;
@@ -132,6 +210,7 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
     }
     serviceChannel = null;
     sessionChannel = null;
+    attachedHostChild = null;
     if (clientPort) {
       clientPort.close();
       clientPort = null;
@@ -139,7 +218,12 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
     state = createPairingCoreState();
     startParams = null;
     startResult = null;
+    boundAddress = null;
+    boundPort = 0;
+    runtimeStatus = "idle";
+    runtimeFailure = null;
     logger.info("[mobile-pairing] 配对服务已停止", { reason });
+    emitStatus();
   }
 
   function sendToPhone(frame: Record<string, unknown>): void {
@@ -148,13 +232,35 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
     }
   }
 
-  /** 向窗口 Host 申请 local scoped service 端口并建立 rpc 客户端（惰性，首次认证才连）。 */
+  /**
+   * 向窗口 Host 申请 local scoped service 端口并建立 rpc 客户端（惰性，首次认证才连）。
+   * 对齐原版 workspace-bridge 语义：Host 实例变化（窗口 Host 重启）时旧端口作废，重附着新实例。
+   */
   function ensureServiceChannels(): { task: IChannel; session: IChannel } {
-    if (serviceChannel && sessionChannel) {
-      return { task: serviceChannel, session: sessionChannel };
-    }
     if (!startParams || !startResult) {
       throw new Error("pairing server is not running");
+    }
+    const hostChild = startParams.resolveHostChild();
+    if (!hostChild || hostChild.pid === undefined) {
+      // 对齐原版 DESKTOP_HOST_MISSING：窗口/工作区不可用 → 手机端 workspace-closed 失败面。
+      const error: Error & { code?: string } = new Error(
+        "window host process is not ready for pairing attachment",
+      );
+      error.code = "workspace-closed";
+      throw error;
+    }
+    if (serviceChannel && sessionChannel && attachedHostChild === hostChild) {
+      return { task: serviceChannel, session: sessionChannel };
+    }
+    // Host 实例变化：旧端口/通道随旧进程一起失效，先丢弃再重建。
+    if (attachedHostChild !== hostChild) {
+      serviceChannel = null;
+      sessionChannel = null;
+      if (clientPort) {
+        clientPort.close();
+        clientPort = null;
+      }
+      attachedHostChild = hostChild;
     }
     // electron API 懒加载：plain node（协议级测试）里 require("electron") 拿不到
     // MessageChannelMain，new 时抛错并走错误帧路径；Electron 运行时里是完整 API。
@@ -163,7 +269,7 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
       "electron",
     ) as typeof import("electron");
     const { port1, port2 } = new MessageChannelMainCtor();
-    startParams.hostChild.postMessage(
+    hostChild.postMessage(
       {
         type: HostMessageTypes.AttachServicePort,
         requestId: randomUUID(),
@@ -301,9 +407,14 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
         type: frame.type,
         error: error instanceof Error ? error.message : String(error),
       });
+      // Host 缺失（窗口/工作区已不可用）对齐原版 DESKTOP_HOST_MISSING → workspace-closed 失败面。
+      const code =
+        (error as { code?: string }).code === "workspace-closed"
+          ? "workspace-closed"
+          : "bridge-call-failed";
       sendToPhone({
         type: "error",
-        code: "bridge-call-failed",
+        code,
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -319,13 +430,16 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
     if (!authedConnection || authedConnection.socket !== socket) {
       // 握手帧：hello（配对令牌）或 resume（会话令牌）。
       if (frame.type === "hello" && typeof frame.pairToken === "string") {
-        const outcome = attemptPair(state, frame.pairToken, Date.now());
+        const outcome = attemptPair(state, frame.pairToken);
         state = outcome.state;
         if (!outcome.ok || !outcome.sessionToken) {
           socket.send(JSON.stringify({ type: "error", code: outcome.failure ?? "pair-failed" }));
           socket.close();
           return;
         }
+        // 单设备语义：新配对生效即接管，旧连接按 relay KICKED 语义踢除。
+        kickActivePhone("re-paired-by-new-device");
+        pendingSockets.delete(socket);
         authedConnection = { socket, sessionToken: outcome.sessionToken };
         socket.send(
           JSON.stringify({
@@ -334,15 +448,12 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
             sessionToken: outcome.sessionToken,
           }),
         );
-        if (idleTimer) {
-          clearTimeout(idleTimer);
-          idleTimer = null;
-        }
+        transition("active");
         socket.on("close", () => {
           if (authedConnection?.socket === socket) {
             authedConnection = null;
-            // 设备断开后保留服务 15 分钟，方便手机侧临时断网重连。
-            scheduleIdleStop(IDLE_STOP_AFTER_DISCONNECT_MS, "paired-device-disconnected");
+            // 设备断开后服务保持运行（对齐原版：无空闲自停，等待重连/显式停止）。
+            transition("running");
           }
         });
         void handleAuthedFrame({ type: "list" });
@@ -350,6 +461,9 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
       }
       if (frame.type === "resume" && typeof frame.sessionToken === "string") {
         if (isSessionTokenValid(state, frame.sessionToken)) {
+          // resume 走的是既有会话恢复，不产生"接管"语义；理论上不会与旧连接并存，保险起见仍踢旧。
+          kickActivePhone("resume-replaced-connection");
+          pendingSockets.delete(socket);
           authedConnection = { socket, sessionToken: frame.sessionToken };
           socket.send(
             JSON.stringify({
@@ -358,14 +472,11 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
               sessionToken: frame.sessionToken,
             }),
           );
-          if (idleTimer) {
-            clearTimeout(idleTimer);
-            idleTimer = null;
-          }
+          transition("active");
           socket.on("close", () => {
             if (authedConnection?.socket === socket) {
               authedConnection = null;
-              scheduleIdleStop(IDLE_STOP_AFTER_DISCONNECT_MS, "paired-device-disconnected");
+              transition("running");
             }
           });
           void handleAuthedFrame({ type: "list" });
@@ -384,21 +495,28 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
 
   return {
     isRunning,
-    phase,
-    connected,
-    currentUrl,
-    currentExpiresAt,
+    runtimeState,
 
     async start(params: MobilePairingStartParams): Promise<MobilePairingStartResult> {
+      // 对齐原版 start 语义：服务已在运行时重启而不是拒绝（换窗口/换工作区即接管）。
       if (httpServer) {
-        throw new Error("mobile pairing server already running");
+        stop("restarted");
       }
+      runtimeStatus = "starting";
+      runtimeFailure = null;
+      emitStatus();
       const lan = pickLanAddress();
       if (!lan) {
+        runtimeStatus = "error";
+        runtimeFailure = {
+          reason: "internal",
+          message: "no routable LAN IPv4 address available",
+        };
+        emitStatus();
         throw new Error("no routable LAN IPv4 address available");
       }
       startParams = params;
-      const issued = issuePairTicket(state, Date.now());
+      const issued = issuePairTicket();
       state = issued.state;
       const server = createServer((_request, response) => {
         // 任何路径都回手机 SPA；配对令牌校验发生在 WS 握手，不在页面资源层。
@@ -409,13 +527,19 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
       httpServer = server;
       wss = new WebSocketServer({ server, path: "/ws" });
       wss.on("connection", (socket) => {
+        // 对齐原版 connecting 过渡态：WS 已建立、握手未完成 = "正在连接手机"。
+        pendingSockets.add(socket);
+        reconcilePendingPhase();
+        socket.on("close", () => {
+          pendingSockets.delete(socket);
+          reconcilePendingPhase();
+        });
         socket.on("message", (raw) => handleSocketMessage(socket, raw));
       });
       const result: MobilePairingStartResult = {
         url: "",
         port: 0,
         pairToken: issued.ticket.pairToken,
-        expiresAt: issued.ticket.expiresAt,
       };
       startResult = result;
       // 端口绑定是异步的；URL 含实际端口，必须等 listen 完成再返回给 UI 生成二维码。
@@ -424,25 +548,57 @@ export function createDesktopMobilePairingServer(deps: { logger: Logger }) {
         server.listen(0, "0.0.0.0", () => {
           server.off("error", reject);
           const address = server.address();
-          const boundPort = typeof address === "object" && address ? address.port : 0;
-          result.port = boundPort;
+          const bound = typeof address === "object" && address ? address.port : 0;
+          boundPort = bound;
+          boundAddress = lan.address;
+          result.port = bound;
           result.url = buildPairingUrl({
             address: lan.address,
-            port: boundPort,
+            port: bound,
             pairToken: issued.ticket.pairToken,
           });
           logger.info("[mobile-pairing] 配对服务已启动", {
             url: result.url,
             interface: lan.interfaceName,
-            expiresAt: issued.ticket.expiresAt,
           });
           resolve();
         });
-      }).catch((error) => {
+      }).catch((error: unknown) => {
+        // listen 失败：状态落 error（推送失败面），并清理半开资源后向上抛。
+        const message = error instanceof Error ? error.message : String(error);
         stop("listen-failed");
+        runtimeStatus = "error";
+        runtimeFailure = { reason: "internal", message };
+        emitStatus();
         throw error;
       });
-      scheduleIdleStop(AWAIT_PAIR_STOP_MS, "awaiting-pair");
+      transition("running");
+      return result;
+    },
+
+    /**
+     * 重置配对（对齐原版 resetPairing/"刷新二维码"）：踢除已连手机、作废旧票据、
+     * 换发新票据；服务与端口保持不变，避免"刷新"抖动整条监听链路。
+     */
+    async resetPairing(): Promise<MobilePairingStartResult> {
+      if (!httpServer || !startParams || !boundAddress) {
+        throw new Error("mobile pairing server is not running");
+      }
+      kickActivePhone("pairing-reset");
+      const issued = issuePairTicket();
+      state = issued.state;
+      const result: MobilePairingStartResult = {
+        url: buildPairingUrl({
+          address: boundAddress,
+          port: boundPort,
+          pairToken: issued.ticket.pairToken,
+        }),
+        port: boundPort,
+        pairToken: issued.ticket.pairToken,
+      };
+      startResult = result;
+      logger.info("[mobile-pairing] 配对已重置（换发票据并踢除旧连接）");
+      transition("running");
       return result;
     },
     stop,
@@ -491,7 +647,7 @@ const PHONE_PAGE_HTML = `<!doctype html>
 <body>
 <header><h1>Drora</h1><span id="conn" class="tip">连接中…</span></header>
 <main>
-  <section id="unpaired" class="hidden"><p class="tip">配对链接无效或已过期，请在桌面端重新生成二维码。</p></section>
+  <section id="unpaired" class="hidden"><p class="tip" id="unpairedText">配对链接无效或已过期，请在桌面端重新生成二维码。</p></section>
   <section id="tasks" class="hidden"><div class="card" id="taskList"></div></section>
   <section id="chat" class="hidden">
     <div id="perms"></div>
@@ -507,6 +663,7 @@ const PHONE_PAGE_HTML = `<!doctype html>
 var ws = null;
 var wsWanted = false;
 var retryTimer = null;
+var terminal = false;
 var currentTaskId = null;
 var listTimer = null;
 var chatTimer = null;
@@ -537,12 +694,12 @@ function connect() {
     setConn("已断开，重连中…");
     ws = null;
     if (!wsWanted) { wsWanted = true; }
-    if (!retryTimer) {
-      retryTimer = setInterval(function () {
-        var saved = sessionStorage.getItem("drora-mobile-session");
-        if (saved || pairToken) { connect(); }
-      }, 2000);
-    }
+    // 终态失败面（kicked/过期/桌面停止）后不再重连：令牌已失效，重试只会反复失败。
+    if (terminal || retryTimer) { return; }
+    retryTimer = setInterval(function () {
+      var saved = sessionStorage.getItem("drora-mobile-session");
+      if (saved || pairToken) { connect(); }
+    }, 2000);
   };
 }
 
@@ -657,10 +814,41 @@ function handle(frame) {
   if (frame.type === "accepted") { el("input").value = ""; requestTimeline(); return; }
   if (frame.type === "error") {
     eventBusy = false;
+    // 对齐原版失败面：kicked=新配对接管（relay KICKED 语义）；desktop-stopped=桌面端停止。
+    // 两者与令牌过期一样都是终态：清会话、停止重连、显示对应文案。
+    if (frame.code === "kicked") {
+      terminal = true;
+      sessionStorage.removeItem("drora-mobile-session");
+      if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+      el("unpairedText").textContent = "此配对会话已被其他页面接管，请在桌面端重新扫码。";
+      setConn("会话已被接管");
+      show("unpaired");
+      return;
+    }
+    if (frame.code === "desktop-stopped") {
+      terminal = true;
+      sessionStorage.removeItem("drora-mobile-session");
+      if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+      el("unpairedText").textContent = "桌面端已停止远程控制，请在桌面端重新开启后扫码。";
+      setConn("远程控制已停止");
+      show("unpaired");
+      return;
+    }
+    if (frame.code === "workspace-closed") {
+      terminal = true;
+      sessionStorage.removeItem("drora-mobile-session");
+      if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+      el("unpairedText").textContent = "桌面端承载这个工作区的窗口已经关闭，请回到桌面端重新发起访问。";
+      setConn("工作区已关闭");
+      show("unpaired");
+      return;
+    }
     var retryable = frame.code === "invalid-session";
     if (retryable) { sessionStorage.removeItem("drora-mobile-session"); }
     if (!retryable && (frame.code === "unknown-token" || frame.code === "expired-token")) {
-      setConn("配对已过期");
+      terminal = true;
+      if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+      setConn("配对已失效");
       show("unpaired");
       return;
     }

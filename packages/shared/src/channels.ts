@@ -165,12 +165,16 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 export const PlatformChannels = {
   /** 打开系统目录选择框 */
   SelectDirectory: "drora:select-directory",
-  /** Renderer → Main：启动移动端配对服务（LAN 直连，返回二维码 URL；一次性令牌 5 分钟过期） */
+  /** Renderer → Main：启动移动端配对服务（LAN 直连，返回二维码 URL；配对令牌一次性使用） */
   MobilePairingStart: "drora:mobile-pairing-start",
   /** Renderer → Main：停止移动端配对服务 */
   MobilePairingStop: "drora:mobile-pairing-stop",
   /** Renderer → Main：查询移动端配对服务状态 */
   MobilePairingState: "drora:mobile-pairing-state",
+  /** Renderer → Main：重置移动端配对（作废旧票据并踢除已连手机，换发新二维码；服务不重启） */
+  MobilePairingReset: "drora:mobile-pairing-reset",
+  /** Main → Renderer：移动端配对运行状态推送（对齐原版 StatusChanged：不轮询） */
+  MobilePairingStateChanged: "drora:mobile-pairing-state-changed",
   /** 打开系统文件选择框 */
   SelectFile: "drora:select-file",
   /** 打开系统多文件选择框 */

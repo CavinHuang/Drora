@@ -20,6 +20,7 @@ import {
   type CreateTempTextAttachmentRequest,
   type UpdateStatePayload,
   type WindowControlsOverlayReadyPayload,
+  type MobilePairingRuntimeState,
 } from "@drora/shared";
 import { getInstalledEditors } from "./editors.js";
 import { getApplicationIcon } from "./applicationIcons.js";
@@ -106,15 +107,11 @@ export function registerPlatformIpcHandlers(options: {
       workspacePath: string;
       workspaceIdentity?: string;
       senderWebContentsId: number;
-    }) => Promise<{ url: string; port: number; expiresAt: number }>;
+    }) => Promise<{ url: string; port: number }>;
+    /** 重置配对：踢除已连手机并换发新票据（"刷新二维码"）。 */
+    reset: (params: { senderWebContentsId: number }) => Promise<{ url: string; port: number }>;
     stop: () => Promise<void>;
-    state: () => {
-      running: boolean;
-      phase: "idle" | "awaiting-pair" | "paired";
-      connected: boolean;
-      url: string | null;
-      expiresAt: number | null;
-    };
+    state: () => MobilePairingRuntimeState;
   };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
@@ -140,6 +137,12 @@ export function registerPlatformIpcHandlers(options: {
       });
     },
   );
+  ipcMain.handle(PlatformChannels.MobilePairingReset, async (event) => {
+    if (!options.mobilePairing) {
+      throw new Error("mobile pairing is unavailable in this build");
+    }
+    return options.mobilePairing.reset({ senderWebContentsId: event.sender.id });
+  });
   ipcMain.handle(PlatformChannels.MobilePairingStop, async () => {
     await options.mobilePairing?.stop();
   });
@@ -147,10 +150,12 @@ export function registerPlatformIpcHandlers(options: {
     return (
       options.mobilePairing?.state() ?? {
         running: false,
-        phase: "idle" as const,
+        status: "idle" as const,
         connected: false,
         url: null,
-        expiresAt: null,
+        workspacePath: null,
+        workspaceIdentity: null,
+        failure: null,
       }
     );
   });

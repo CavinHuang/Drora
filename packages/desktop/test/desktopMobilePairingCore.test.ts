@@ -5,54 +5,48 @@ import {
   buildPairingUrl,
   createPairingCoreState,
   isSessionTokenValid,
-  isTicketExpired,
   issuePairTicket,
   parsePairingPath,
   pickLanAddress,
 } from "../src/main/desktopMobilePairingCore.js";
 
-test("配对令牌一次性且过期后拒绝", () => {
+// 对齐原版后配对票据无 TTL：等待配对停留在 awaiting-pair（原版 relay pair_status
+// 停留在 waiting），令牌一次性使用；停止时机归 Main 侧宿主。
+
+test("配对令牌一次性：配对成功后同一令牌拒绝重放", () => {
   let state = createPairingCoreState();
-  const now = 1_000_000;
-  const issued = issuePairTicket(state, now);
+  const issued = issuePairTicket();
   state = issued.state;
 
-  const paired = attemptPair(state, issued.ticket.pairToken, now + 1000);
+  const paired = attemptPair(state, issued.ticket.pairToken, 1000);
   assert.ok(paired.ok);
   assert.equal(paired.state.phase, "paired");
   assert.ok(paired.sessionToken);
 
   // 同一令牌第二次配对：票据已消费，拒绝。
-  const replay = attemptPair(paired.state, issued.ticket.pairToken, now + 2000);
+  const replay = attemptPair(paired.state, issued.ticket.pairToken, 2000);
   assert.ok(!replay.ok);
+  assert.equal(replay.failure, "unknown-token");
 });
 
-test("过期票据拒绝配对并区分失败原因", () => {
+test("未知令牌拒绝配对并区分失败原因", () => {
   let state = createPairingCoreState();
-  const now = 1_000_000;
-  const issued = issuePairTicket(state, now);
-  state = issued.state;
+  state = issuePairTicket().state;
 
-  const unknown = attemptPair(state, "deadbeef".repeat(4), now + 1000);
+  const unknown = attemptPair(state, "deadbeef".repeat(4), 1000);
   assert.ok(!unknown.ok);
   assert.equal(unknown.failure, "unknown-token");
-
-  const expired = attemptPair(state, issued.ticket.pairToken, now + 5 * 60 * 1000 + 1);
-  assert.ok(!expired.ok);
-  assert.equal(expired.failure, "expired-token");
-  assert.ok(isTicketExpired(state, now + 5 * 60 * 1000 + 1));
-  assert.ok(!isTicketExpired(state, now));
 });
 
 test("已配对后新配对票据踢掉旧会话", () => {
   let state = createPairingCoreState();
-  const issued = issuePairTicket(state, 0);
+  const issued = issuePairTicket();
   state = issued.state;
   const paired = attemptPair(state, issued.ticket.pairToken, 1);
   assert.ok(paired.ok && paired.sessionToken);
 
   // 换机场景：重新生成票据并配对成功，旧会话令牌随之失效。
-  const second = issuePairTicket(paired.state, 2);
+  const second = issuePairTicket();
   assert.equal(second.state.phase, "awaiting-pair");
   const kicked = attemptPair(second.state, second.ticket.pairToken, 3);
   assert.ok(kicked.ok && kicked.sessionToken);

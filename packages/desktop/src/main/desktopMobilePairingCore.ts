@@ -1,12 +1,12 @@
 // 移动端远程控制·配对核心（纯逻辑，无 electron/http 依赖，可独立单测）。
-// 架构与安全模型见 specs/mobile-web-remote.md：
-// - 配对令牌一次性 + 5 分钟 TTL，只出现在二维码 URL 路径；
+// 架构与安全模型见 specs/mobile-web-remote.md（对齐原版 3.14.3 行为）：
+// - 配对令牌一次性、只出现在二维码 URL 路径；等待配对无 TTL（对齐原版：
+//   relay pair_status 停留在 waiting 直到手机接入或用户重置）；
 // - 配对成功即作废并换发会话令牌（单设备语义，新配对踢旧会话）；
-// - 服务空闲自动关闭是 Main 侧生命周期，不在这里（core 只管令牌与判定）。
+// - 服务生命周期（停止时机）归 Main 侧宿主，不在这里（core 只管令牌与判定）。
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { networkInterfaces } from "node:os";
 
-export const PAIR_TOKEN_TTL_MS = 5 * 60 * 1000;
 /** 单台设备配对；令牌按字节编码为 32 字符 hex（128-bit），URL 安全。 */
 export const PAIR_TOKEN_BYTES = 16;
 export const SESSION_TOKEN_BYTES = 32;
@@ -16,7 +16,6 @@ export type PairingPhase = "idle" | "awaiting-pair" | "paired";
 export interface PairingTicket {
   pairToken: string;
   sessionToken: string;
-  expiresAt: number;
 }
 
 export interface PairingCoreState {
@@ -60,11 +59,10 @@ export interface IssuePairTicketResult {
  * 生成新配对票据。任何时刻至多一张有效票据：重复生成会作废旧票据
  * （用户重启服务/重新扫码的语义）。phase 保持 awaiting-pair 直到 pair() 成功。
  */
-export function issuePairTicket(state: PairingCoreState, now: number): IssuePairTicketResult {
+export function issuePairTicket(): IssuePairTicketResult {
   const ticket: PairingTicket = {
     pairToken: createPairToken(),
     sessionToken: createSessionToken(),
-    expiresAt: now + PAIR_TOKEN_TTL_MS,
   };
   return {
     state: { phase: "awaiting-pair", ticket, pairedSessionToken: null, pairedAt: null },
@@ -77,7 +75,7 @@ export interface PairAttemptOutcome {
   ok: boolean;
   /** ok=true 时返回会话令牌；手机端后续 WS 请求都带它。 */
   sessionToken?: string;
-  failure?: "unknown-token" | "expired-token";
+  failure?: "unknown-token";
 }
 
 /**
@@ -87,14 +85,11 @@ export interface PairAttemptOutcome {
 export function attemptPair(
   state: PairingCoreState,
   pairToken: string,
-  now: number,
+  now: number = Date.now(),
 ): PairAttemptOutcome {
   const ticket = state.ticket;
   if (!ticket || !tokensMatch(ticket.pairToken, pairToken)) {
     return { state, ok: false, failure: "unknown-token" };
-  }
-  if (now > ticket.expiresAt) {
-    return { state, ok: false, failure: "expired-token" };
   }
   return {
     state: {
@@ -108,18 +103,12 @@ export function attemptPair(
   };
 }
 
-/** 校验会话令牌；服务运行期间会话令牌不过期（生命周期由空闲关停兜底）。 */
 export function isSessionTokenValid(state: PairingCoreState, sessionToken: string): boolean {
   return (
     state.phase === "paired" &&
     !!state.pairedSessionToken &&
     tokensMatch(state.pairedSessionToken, sessionToken)
   );
-}
-
-/** 配对令牌是否已过期（UI 倒计时与重生成提示用）。 */
-export function isTicketExpired(state: PairingCoreState, now: number): boolean {
-  return state.phase === "awaiting-pair" && !!state.ticket && now > state.ticket.expiresAt;
 }
 
 export interface LanAddressResult {

@@ -1,9 +1,10 @@
-import { memo, useEffect, useRef, useState } from "react";
-import type { BotProvider } from "@drora/shared";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { BotProvider, MobilePairingRuntimeState } from "@drora/shared";
 import {
   Bot as BotIcon,
   MonitorSmartphone,
   QrCode as QrCodeIcon,
+  RefreshCw,
   Smartphone,
   XIcon,
 } from "lucide-react";
@@ -50,86 +51,128 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
 
   // —— 手机扫码连接（LAN 直连，spec: mobile-web-remote.md）——
+  // 生命周期对齐原版：服务独立于弹层运行，状态经 Main 推送（StatusChanged）驱动，
+  // 停止仅通过显式"停止"按钮；弹层重开时按查询面恢复二维码展示。
   const platform = usePlatform();
-  const [qrState, setQrState] = useState<{
-    phase: "idle" | "starting" | "awaiting-pair" | "paired";
-    qrDataUrl: string | null;
+  const [qr, setQr] = useState<{
+    status: MobilePairingRuntimeState["status"];
     url: string | null;
-  }>({ phase: "idle", qrDataUrl: null, url: null });
+    qrDataUrl: string | null;
+    failureMessage: string | null;
+  }>({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
   const [copied, setCopied] = useState(false);
-  const qrStateRef = useRef(qrState);
-  qrStateRef.current = qrState;
+  const renderedQrUrlRef = useRef<string | null>(null);
 
-  const stopPairingIfRunning = (reason: string) => {
-    if (qrStateRef.current.phase === "idle") return;
-    setQrState({ phase: "idle", qrDataUrl: null, url: null });
+  const renderQrForUrl = useCallback(async (url: string) => {
+    if (renderedQrUrlRef.current === url) return;
+    renderedQrUrlRef.current = url;
+    try {
+      const dataUrl = await QRCode.toDataURL(url, { margin: 1, width: 200 });
+      // 异步生成期间 URL 可能又被刷新；过期结果不落状态。
+      if (renderedQrUrlRef.current !== url) return;
+      setQr((prev) => ({ ...prev, qrDataUrl: dataUrl }));
+    } catch (error) {
+      logger.warn("[WebRemoteControlDialog] 二维码生成失败", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, []);
+
+  const applyRuntimeState = useCallback(
+    (state: MobilePairingRuntimeState) => {
+      setQr((prev) => ({
+        status: state.status,
+        url: state.url,
+        qrDataUrl: state.url === prev.url ? prev.qrDataUrl : null,
+        failureMessage: state.failure?.message ?? null,
+      }));
+      if (state.url) void renderQrForUrl(state.url);
+    },
+    [renderQrForUrl],
+  );
+
+  // 状态推送订阅：starting/running/connecting/active/error 全部由 Main 驱动，不再轮询。
+  useEffect(() => {
+    if (!platform.onMobilePairingStateChanged) return;
+    return platform.onMobilePairingStateChanged(applyRuntimeState);
+  }, [platform, applyRuntimeState]);
+
+  // 弹层重开时恢复展示（服务可能在弹层关闭期间一直运行）。
+  useEffect(() => {
+    if (!open) return;
+    void platform
+      .getMobilePairingState?.()
+      .then((state) => applyRuntimeState(state))
+      .catch(() => {});
+  }, [open, platform, applyRuntimeState]);
+
+  const handleGenerateQr = async () => {
+    if (!platform.startMobilePairing) return;
+    setQr((prev) => ({ ...prev, status: "starting", failureMessage: null }));
+    try {
+      const result = await platform.startMobilePairing({ workspacePath, workspaceIdentity });
+      applyRuntimeState({
+        running: true,
+        status: "running",
+        connected: false,
+        url: result.url,
+        workspacePath,
+        workspaceIdentity: workspaceIdentity ?? null,
+        failure: null,
+      });
+    } catch (error) {
+      logger.warn("[WebRemoteControlDialog] 启动配对服务失败", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setQr((prev) => ({
+        ...prev,
+        status: "error",
+        failureMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  };
+
+  // 对齐原版 resetPairing（"刷新二维码"）：踢除已连手机并换发票据，服务不重启。
+  const handleRefreshQr = async () => {
+    if (!platform.refreshMobilePairing) return;
+    try {
+      const result = await platform.refreshMobilePairing();
+      applyRuntimeState({
+        running: true,
+        status: "running",
+        connected: false,
+        url: result.url,
+        workspacePath,
+        workspaceIdentity: workspaceIdentity ?? null,
+        failure: null,
+      });
+    } catch (error) {
+      logger.warn("[WebRemoteControlDialog] 刷新配对二维码失败", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const handleStopPairing = () => {
+    setQr({ status: "idle", url: null, qrDataUrl: null, failureMessage: null });
+    renderedQrUrlRef.current = null;
     void platform.stopMobilePairing?.().catch((error: unknown) =>
       logger.warn("[WebRemoteControlDialog] 停止配对服务失败", {
-        reason,
         error: error instanceof Error ? error.message : String(error),
       }),
     );
   };
 
-  // 安全模型：弹层关闭即停服（避免端口在用户不知情时保持监听）。
-  useEffect(() => {
-    if (!open) {
-      stopPairingIfRunning("dialog-closed");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随 open 变化
-  }, [open]);
-
-  const handleDialogOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      stopPairingIfRunning("dialog-close-button");
-    }
-    onOpenChange(nextOpen);
-  };
-
-  const handleGenerateQr = async () => {
-    if (!platform.startMobilePairing) return;
-    setQrState({ phase: "starting", qrDataUrl: null, url: null });
-    try {
-      const result = await platform.startMobilePairing({ workspacePath, workspaceIdentity });
-      const qrDataUrl = await QRCode.toDataURL(result.url, { margin: 1, width: 200 });
-      setQrState({ phase: "awaiting-pair", qrDataUrl, url: result.url });
-    } catch (error) {
-      logger.warn("[WebRemoteControlDialog] 启动配对服务失败", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setQrState({ phase: "idle", qrDataUrl: null, url: null });
-    }
-  };
-
   const handleCopyPairingLink = async () => {
-    if (!qrState.url) return;
+    if (!qr.url) return;
     try {
-      await navigator.clipboard.writeText(qrState.url);
+      await navigator.clipboard.writeText(qr.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // 剪贴板不可用（权限/非安全上下文）时保持静默，二维码本身仍可用。
     }
   };
-
-  // 等待配对期间轮询连接状态；手机侧完成 hello 握手后 Main 的 connected 翻 true。
-  useEffect(() => {
-    if (qrState.phase !== "awaiting-pair" || !platform.getMobilePairingState) {
-      return;
-    }
-    const timer = setInterval(() => {
-      void platform.getMobilePairingState!()
-        .then((state) => {
-          if (state?.connected && state.running) {
-            setQrState((prev) =>
-              prev.phase === "awaiting-pair" ? { ...prev, phase: "paired" } : prev,
-            );
-          }
-        })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [qrState.phase, platform]);
 
   const handleOpenBotEntry = (provider: RemoteControlBotProvider) => {
     setBotEntryProvider(provider);
@@ -152,7 +195,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           showCloseButton={false}
           className="max-h-[calc(100vh-6rem)] max-w-lg gap-0 overflow-hidden rounded-2xl p-0"
@@ -200,22 +243,30 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                   </div>
                 </div>
                 <div className="mt-3">
-                  {qrState.phase === "idle" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      className="w-full justify-center gap-2 enabled:cursor-pointer"
-                      onClick={() => void handleGenerateQr()}
-                    >
-                      <QrCodeIcon className="size-4" />
-                      {intl.formatMessage({ id: "webRemoteControl.qr.generate" })}
-                    </Button>
+                  {qr.status === "idle" || qr.status === "error" ? (
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        className="w-full justify-center gap-2 enabled:cursor-pointer"
+                        onClick={() => void handleGenerateQr()}
+                      >
+                        <QrCodeIcon className="size-4" />
+                        {intl.formatMessage({ id: "webRemoteControl.qr.generate" })}
+                      </Button>
+                      {qr.status === "error" ? (
+                        <p className="text-center text-ui-xs text-destructive">
+                          {intl.formatMessage({ id: "webRemoteControl.qr.generateFailed" })}
+                          {qr.failureMessage ? `：${qr.failureMessage}` : ""}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
-                      {qrState.qrDataUrl ? (
+                      {qr.qrDataUrl ? (
                         <img
-                          src={qrState.qrDataUrl}
+                          src={qr.qrDataUrl}
                           alt={intl.formatMessage({ id: "webRemoteControl.qr.title" })}
                           className="size-[200px] rounded-lg bg-white p-1"
                         />
@@ -224,12 +275,22 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                           {intl.formatMessage({ id: "webRemoteControl.qr.generating" })}
                         </div>
                       )}
+                      {/* 状态行对齐原版六态：等待手机连接 / 正在连接手机 / 手机已连接。 */}
+                      <p className="text-center text-ui-xs font-medium text-foreground">
+                        {qr.status === "active"
+                          ? intl.formatMessage({ id: "webRemoteControl.status.active" })
+                          : qr.status === "connecting"
+                            ? intl.formatMessage({ id: "webRemoteControl.status.connecting" })
+                            : qr.status === "starting"
+                              ? intl.formatMessage({ id: "webRemoteControl.status.starting" })
+                              : intl.formatMessage({ id: "webRemoteControl.status.waiting" })}
+                      </p>
                       <p className="text-center text-ui-xs text-foreground-subtle">
-                        {qrState.phase === "paired"
+                        {qr.status === "active"
                           ? intl.formatMessage({ id: "webRemoteControl.qr.connected" })
                           : intl.formatMessage({ id: "webRemoteControl.qr.hint" })}
                       </p>
-                      <div className="grid w-full grid-cols-2 gap-2">
+                      <div className="grid w-full grid-cols-3 gap-2">
                         <Button
                           type="button"
                           variant="outline"
@@ -245,8 +306,18 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="justify-center gap-1 enabled:cursor-pointer"
+                          onClick={() => void handleRefreshQr()}
+                        >
+                          <RefreshCw className="size-3.5" />
+                          {intl.formatMessage({ id: "webRemoteControl.qr.refresh" })}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           className="justify-center enabled:cursor-pointer"
-                          onClick={() => stopPairingIfRunning("stop-button")}
+                          onClick={handleStopPairing}
                         >
                           {intl.formatMessage({ id: "webRemoteControl.qr.stop" })}
                         </Button>

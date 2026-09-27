@@ -250,6 +250,43 @@ export interface CreateTempTextAttachmentResult {
   sizeBytes: number;
 }
 
+/**
+ * 移动端远程控制运行状态（对齐原版六态 runtime status）：
+ * idle=未开启；starting=启动中；running=等待手机连接；
+ * connecting=手机已建立连接、握手进行中；active=手机已连接；error=失败（failure 携带原因）。
+ */
+export type MobilePairingStatus =
+  | "idle"
+  | "starting"
+  | "running"
+  | "connecting"
+  | "active"
+  | "error";
+
+/** 移动端远程控制失败面（reason 对齐原版失败语义）。 */
+export interface MobilePairingFailure {
+  /** session-conflict=被新配对接管；internal=本地启动/监听失败；unsupported-action=构建不支持。 */
+  reason: "session-conflict" | "internal" | "unsupported-action";
+  message: string;
+}
+
+/**
+ * 移动端配对服务运行状态快照（Main → Renderer 推送与查询共用同一形状；
+ * 字段对齐原版 buildRuntimeStatus 的可回填子集）。
+ */
+export interface MobilePairingRuntimeState {
+  running: boolean;
+  status: MobilePairingStatus;
+  /** 手机是否已完成配对握手（status=active 时为 true）。 */
+  connected: boolean;
+  /** 当前二维码链接（running/connecting/active 时非空；仅局域网可达）。 */
+  url: string | null;
+  /** 配对绑定的本地工作区（对齐原版 runtime 里的 workspacePath）。 */
+  workspacePath: string | null;
+  workspaceIdentity: string | null;
+  failure: MobilePairingFailure | null;
+}
+
 export type SaveFileRequest =
   | {
       data: ArrayBuffer;
@@ -685,22 +722,25 @@ export interface IPlatformService {
 
   /**
    * 移动端远程控制：启动 LAN 配对服务并签发一次性配对二维码。
-   * URL 里的配对令牌 5 分钟过期；服务默认关闭，由用户显式开启。Desktop only。
+   * 配对令牌一次性使用、长期有效直到被重置（对齐原版等待期无 TTL）；
+   * 服务默认关闭，由用户显式开启。Desktop only。
+   * 服务独立于弹层运行（对齐原版生命周期）：重复 start 会重启服务并踢除旧会话。
    */
   startMobilePairing?(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<{ url: string; port: number; expiresAt: number }>;
+  }): Promise<{ url: string; port: number }>;
   /** 停止移动端配对服务（关端口、作废令牌）。Desktop only。 */
   stopMobilePairing?(): Promise<void>;
-  /** 查询配对服务状态（弹层重开时恢复展示）。Desktop only。 */
-  getMobilePairingState?(): Promise<{
-    running: boolean;
-    phase: "idle" | "awaiting-pair" | "paired";
-    connected: boolean;
-    url: string | null;
-    expiresAt: number | null;
-  }>;
+  /**
+   * 重置移动端配对（对齐原版 resetPairing/“刷新二维码”语义）：
+   * 向已连手机发 kicked 后断开、作废旧配对票据、换发新票据；服务与端口保持不变。
+   */
+  refreshMobilePairing?(): Promise<{ url: string; port: number }>;
+  /** 查询配对服务运行状态（弹层重开时恢复展示）。Desktop only。 */
+  getMobilePairingState?(): Promise<MobilePairingRuntimeState>;
+  /** 订阅配对服务运行状态推送（对齐原版 StatusChanged；替代轮询）。Desktop only。 */
+  onMobilePairingStateChanged?(callback: (state: MobilePairingRuntimeState) => void): () => void;
 
   /**
    * 注册 OAuth deep link 回调监听

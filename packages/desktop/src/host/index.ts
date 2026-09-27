@@ -2138,7 +2138,11 @@ function exposeServicesOnMessagePort(
       ),
     );
   }
-  services.exposeOnChannelServer(server, overrides);
+  services.exposeOnChannelServer(server, overrides, {
+    // 官方托管手机页（M4b relay 桥）按官方通道名调用服务：为 web-remote 附着注册
+    // zcode-* 别名（同一 channel 实例，不改本名；spec: mobile-web-remote.md）。
+    officialChannelAliases: clientMode === "web-remote-replayable",
+  });
   let disposed = false;
   let flowUpdateChain = Promise.resolve();
   const forwardFlowState = (state: "saturated" | "drained" | "closed") => {

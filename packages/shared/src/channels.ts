@@ -161,6 +161,22 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 // 平台频道 —— 仅 Desktop main 进程能处理的操作（Electron IPC）
 // ============================================================================
 
+/**
+ * 官方 rpc 通道名兼容前缀（M4b，spec: mobile-web-remote.md）：
+ * 官方托管手机页按官方通道名（zcode-task 等）调用服务；Drora 改名后为 drora-*。
+ * web-remote-replayable 附着会为每个 drora-* 通道同时注册 zcode-* 别名
+ * （仅别名映射，不改变 drora-* 本名），参照插件市场官方源改名桥接先例。
+ */
+export const OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-";
+const DRORA_RPC_CHANNEL_PREFIX = "drora-";
+
+/** drora-* 通道名 → 官方别名；非 drora- 前缀返回 null（不衍生）。 */
+export function toOfficialRpcChannelAlias(channelName: string): string | null {
+  return channelName.startsWith(DRORA_RPC_CHANNEL_PREFIX)
+    ? `${OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX}${channelName.slice(DRORA_RPC_CHANNEL_PREFIX.length)}`
+    : null;
+}
+
 /** Electron IPC 频道名。仅在 preload ↔ main 之间使用。 */
 export const PlatformChannels = {
   /** 打开系统目录选择框 */

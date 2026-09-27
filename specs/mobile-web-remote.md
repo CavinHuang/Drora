@@ -177,14 +177,18 @@ relay 接受无账号的设备级注册。
 
 ### 分期
 
-- **M4a（本轮）**：relay 客户端（传输/鉴权/心跳/KICKED 语义）+ v4 二维码 + 应用帧
-  最小面（bootstrap-request / workspace-list-request / mobile-view-state-update /
-  telemetry-report / mobile-diagnostic；workspace-bridge-open 回 bridge-error 降级）。
-  验收：桌面在官方 relay 到达 waiting、二维码可扫、手机配对（matched）后 bootstrap
-  返回真实工作区/任务列表。
-- **M4b（后续）**：rpc-frame 透明桥——`attachWorkspaceHost` 建桥 + 流控协议
-  （官方常量：消息上限 16MiB、分片 64、重组超时 30s）+ 官方通道名兼容桥
-  （手机页调 `zcode-task`/`zcode-session`，本仓为 `drora-*`；参照插件市场改名桥接先例）。
+- **M4a（已落地）**：relay 客户端（传输/鉴权/心跳/KICKED 语义）+ v4 二维码 + 应用帧
+  bootstrap/workspace-list/mobile-view-state（telemetry/diagnostic 只记日志）。
+- **M4b（已落地）**：rpc-frame 透明桥——`workspace-bridge-open` 每桥新建 Host 附着端口
+  （clientMode=web-remote-replayable），Host 侧为该附着同时注册 `zcode-*` 官方通道别名
+  （`toOfficialRpcChannelAlias`：drora-* → zcode-*，同一 channel 实例；参照插件市场
+  改名桥接先例）。帧封装对齐官方 frameShell/L3：{zcode_type:"rpc-frame",
+  bridgeSessionId,[bridgeGeneration],[recoveryId],seq,messageSeq,fragmentIndex,
+  fragmentCount,messageBytes,checksum{crc32},dataBase64}；每条入站完整消息回
+  rpc-frame-ack（对端流控依赖）。简化项（相对官方 AcknowledgedRelayProtocol）：
+  桌面侧不维护重放缓冲/饱和水位（手机侧 ack 忽略）、无 stale-waiting 恢复、
+  无 flow-state sideband 透传——高负载下可能丢帧降级，真机验证后按需补齐。
+  桥错误面：workspace-not-found / desktop-host-missing / desktop-disconnected。
 - **M4c（后续）**：workspace-reconnect-request、platform-request、恢复代次
   （bridgeGeneration/recoveryId）对齐。
 

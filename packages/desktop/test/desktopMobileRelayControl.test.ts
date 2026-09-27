@@ -262,15 +262,36 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
   assert.equal(result.windowControlSessionId, "d_test");
   assert.equal(result.workspaces[0]?.workspacePath, "C:/demo");
 
-  // 桥请求降级回应（M4b 前语义）
+  // 桥请求（M4b）：plain node 无 electron MessageChannelMain，附着失败必须回
+  // desktop-host-missing 失败面而不是挂起；workspaceKey 错误时回 workspace-not-found。
   socket.serverMessage({
     type: "data",
-    payload: { zcode_type: "workspace-bridge-open", requestId: "r2", bridgeSessionId: "b1" },
+    payload: {
+      zcode_type: "workspace-bridge-open",
+      requestId: "r2",
+      bridgeSessionId: "b1",
+      workspaceKey: "C:/wrong",
+    },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const bridgeError = socket.sent.find((m) => m.zcode_type === "workspace-bridge-error");
-  assert.ok(bridgeError, "M4b 前必须降级回应 bridge-error");
-  assert.equal(bridgeError.reason, "bridge-not-available");
+  const notFound = socket.sent.find((m) => m.zcode_type === "workspace-bridge-error");
+  assert.ok(notFound, "未知工作区必须回应 bridge-error");
+  assert.equal(notFound.reason, "workspace-not-found");
+  socket.serverMessage({
+    type: "data",
+    payload: {
+      zcode_type: "workspace-bridge-open",
+      requestId: "r3",
+      bridgeSessionId: "b2",
+      workspaceKey: "C:/demo",
+    },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const hostMissing = socket.sent
+    .filter((m) => m.zcode_type === "workspace-bridge-error")
+    .find((m) => m.requestId === "r3");
+  assert.ok(hostMissing, "附着失败必须回应 bridge-error");
+  assert.equal(hostMissing.reason, "desktop-host-missing");
 
   // KICKED：上报 session-conflict 失败面并重连
   socket.serverMessage({ type: "error", code: "KICKED", message: "taken over" });
@@ -351,4 +372,105 @@ test("reset 轮换凭据：清存后重走注册", async () => {
   assert.equal(savedCredential.deviceSid, "d_new");
   assert.notEqual(savedCredential.passHash, "h_old", "passHash 必须随轮换更换");
   await control.stop();
+});
+
+// —— M4b：rpc-frame 编解码 ——
+
+test("rpc-frame 编解码往返：crc32 校验、分片重组、字段形状", async () => {
+  const { RpcFrameAssembler, crc32, encodeRpcTransportMessage, buildRpcFrameAck, parseRpcTransportFrame, toExternalBridge } =
+    await import("../src/main/desktopMobileRelayProtocol.js");
+  const identity = { bridgeSessionId: "b-1", bridgeGeneration: 3, recoveryId: "r-9" };
+  const message = new Uint8Array(1_500_000);
+  for (let i = 0; i < message.length; i += 1) message[i] = i % 251;
+  const encoded = encodeRpcTransportMessage({
+    message,
+    identity,
+    firstPhysicalSeq: 1,
+    messageSeq: 1,
+  });
+  // 1.5MiB / 640KiB → 3 片；物理序号推进 = 1+3
+  assert.equal(encoded.frames.length, 3);
+  assert.equal(encoded.nextPhysicalSeq, 4);
+  assert.equal(encoded.checksum, crc32(message));
+  const first = encoded.frames[0]!;
+  assert.equal(first.zcode_type, "rpc-frame");
+  assert.equal(first.bridgeSessionId, "b-1");
+  assert.equal(first.bridgeGeneration, 3);
+  assert.equal(first.recoveryId, "r-9");
+  assert.equal(first.messageBytes, message.byteLength);
+  assert.equal(first.checksum.algorithm, "crc32");
+
+  // 重组往返
+  const assembler = new RpcFrameAssembler(identity);
+  let assembled: { message: Uint8Array; messageSeq: number } | null = null;
+  for (const frame of encoded.frames) {
+    const result = assembler.accept(frame);
+    if (result) assembled = result;
+  }
+  assert.ok(assembled);
+  assert.equal(assembled.messageSeq, 1);
+  assert.equal(crc32(assembled.message), encoded.checksum);
+  assert.deepEqual(Buffer.from(assembled.message), Buffer.from(message));
+
+  // 解析器拒绝异构帧
+  assert.equal(parseRpcTransportFrame({ zcode_type: "rpc-frame-ack" }), null);
+  assert.equal(parseRpcTransportFrame({ zcode_type: "rpc-frame", bridgeSessionId: 1 }), null);
+
+  // identity 不匹配的帧被丢弃
+  const foreign = new RpcFrameAssembler({ bridgeSessionId: "other" });
+  assert.equal(foreign.accept(encoded.frames[0]!), null);
+
+  // ack 形状
+  assert.deepEqual(buildRpcFrameAck({ identity, ackMessageSeq: 7 }), {
+    zcode_type: "rpc-frame-ack",
+    bridgeSessionId: "b-1",
+    bridgeGeneration: 3,
+    recoveryId: "r-9",
+    ackMessageSeq: 7,
+  });
+
+  // toExternalBridge 形状（对齐官方）
+  assert.deepEqual(
+    toExternalBridge({
+      identity: { bridgeSessionId: "b-2" },
+      workspaceKey: "C:/demo",
+      workspacePath: "C:/demo",
+      kind: "local",
+    }),
+    { bridgeSessionId: "b-2", workspaceKey: "C:/demo", workspacePath: "C:/demo", kind: "local" },
+  );
+});
+
+test("超限消息被拒：空消息与超 16MiB", async () => {
+  const { encodeRpcTransportMessage, RPC_FRAME_MAX_MESSAGE_BYTES } = await import(
+    "../src/main/desktopMobileRelayProtocol.js"
+  );
+  assert.throws(
+    () =>
+      encodeRpcTransportMessage({
+        message: new Uint8Array(0),
+        identity: { bridgeSessionId: "b" },
+        firstPhysicalSeq: 1,
+        messageSeq: 1,
+      }),
+    /emptyMessage/u,
+  );
+  assert.throws(
+    () =>
+      encodeRpcTransportMessage({
+        message: new Uint8Array(RPC_FRAME_MAX_MESSAGE_BYTES + 1),
+        identity: { bridgeSessionId: "b" },
+        firstPhysicalSeq: 1,
+        messageSeq: 1,
+      }),
+    /messageTooLarge/u,
+  );
+});
+
+test("通道名别名推导：drora-* → zcode-*，其余不衍生", async () => {
+  const { toOfficialRpcChannelAlias } = await import("@drora/shared");
+  assert.equal(toOfficialRpcChannelAlias("drora-task"), "zcode-task");
+  assert.equal(toOfficialRpcChannelAlias("drora-session"), "zcode-session");
+  assert.equal(toOfficialRpcChannelAlias("window-controller"), null);
+  assert.equal(toOfficialRpcChannelAlias("drora-"), "zcode-");
 });

@@ -5,9 +5,14 @@
 /* eslint-disable max-lines -- 传输状态机/心跳/应用帧路由集中在一个生命周期单元里，
    与 botsService/desktopMainIpcPlatform 同例；纯协议逻辑已拆至 RelayProtocol 模块。 */
 import { hostname } from "node:os";
-import type { UtilityProcess } from "electron";
+import type { MessagePortMain, UtilityProcess } from "electron";
 import type { MobilePairingFailure, MobilePairingRuntimeState } from "@drora/shared";
 import {
+  RpcFrameAssembler,
+  buildRpcFrameAck,
+  encodeRpcTransportMessage,
+  parseRpcTransportFrame,
+  toExternalBridge,
   HEARTBEAT_ACK_TIMEOUT_MS,
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_JITTER_MAX_MS,
@@ -21,9 +26,11 @@ import {
   derivePassHash,
   mapTransportState,
   MobileRelayCredentialStore,
+  relayWorkspaceKey,
   buildBootstrapResult,
   buildWorkspaceListResult,
   type RelayDeviceCredential,
+  type RpcFrameIdentity,
   type RelayMobileViewState,
   type RelayTaskSummary,
   type RelayTransportState,
@@ -81,6 +88,18 @@ export function createDesktopMobileRelayControl(deps: {
   let lastPairStatusAckAt = 0;
   let startParams: { workspacePath: string; workspaceIdentity?: string } | null = null;
   let mobileViewState: RelayMobileViewState | undefined;
+  /** M4b rpc 桥：手机页 workspace-bridge-open 建立，端口直连窗口 Host 附着。 */
+  let bridge: {
+    identity: RpcFrameIdentity;
+    workspaceKey: string;
+    initialTaskId?: string;
+    port: Electron.MessagePortMain;
+    assembler: RpcFrameAssembler;
+    outboundAssemblerSeq: number;
+    outboundMessageSeq: number;
+    readyAnnounced: boolean;
+    pendingOutbound: Uint8Array[];
+  } | null = null;
   let runtimeFailure: MobilePairingFailure | null = null;
   let qrUrl: string | null = null;
   let qrReadyWaiter: (() => void) | null = null;
@@ -232,6 +251,144 @@ export function createDesktopMobileRelayControl(deps: {
     };
   }
 
+  /** Host 端口二进制 → rpc-frame 封装 → relay（ready 前先缓冲）。 */
+  function forwardHostBytesToPhone(bytes: Uint8Array): void {
+    if (!bridge) return;
+    if (!bridge.readyAnnounced) {
+      bridge.pendingOutbound.push(bytes);
+      return;
+    }
+    flushBridgeOutbound(bytes);
+  }
+
+  function flushBridgeOutbound(extra?: Uint8Array): void {
+    if (!bridge) return;
+    const batch = extra ? [...bridge.pendingOutbound.splice(0), extra] : bridge.pendingOutbound.splice(0);
+    for (const bytes of batch) {
+      try {
+        const encoded = encodeRpcTransportMessage({
+          message: bytes,
+          identity: bridge.identity,
+          firstPhysicalSeq: bridge.outboundAssemblerSeq,
+          messageSeq: bridge.outboundMessageSeq,
+        });
+        bridge.outboundAssemblerSeq = encoded.nextPhysicalSeq;
+        bridge.outboundMessageSeq += 1;
+        for (const frame of encoded.frames) {
+          sendAppFrame(frame as unknown as Record<string, unknown>);
+        }
+      } catch (error) {
+        // 超限/编码失败：丢帧并记日志（对齐原版 degraded 语义的保守子集，不拆桥）。
+        logger.warn("[mobile-relay] rpc-frame 编码失败，丢弃该消息", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  function disposeBridge(): void {
+    if (!bridge) return;
+    try {
+      bridge.port.close();
+    } catch {
+      // 已关闭属正常路径
+    }
+    bridge = null;
+  }
+
+  /** workspace-bridge-open：附着 Host 端口并双向接管 rpc 帧（对齐原版 createWorkspaceBridge）。 */
+  async function openWorkspaceBridge(frame: Record<string, unknown>): Promise<void> {
+    const requestId = frame.requestId;
+    const bridgeSessionId = String(frame.bridgeSessionId ?? "");
+    const bridgeGeneration =
+      typeof frame.bridgeGeneration === "number" ? frame.bridgeGeneration : undefined;
+    const recoveryId = typeof frame.recoveryId === "string" ? frame.recoveryId : undefined;
+    const initialTaskId = typeof frame.taskId === "string" ? frame.taskId : undefined;
+    const identity: RpcFrameIdentity = {
+      bridgeSessionId,
+      ...(bridgeGeneration !== undefined ? { bridgeGeneration } : {}),
+      ...(recoveryId ? { recoveryId } : {}),
+    };
+    const respondError = (reason: string, error: string) => {
+      sendAppFrame({
+        zcode_type: "workspace-bridge-error",
+        requestId,
+        ...identity,
+        reason,
+        error,
+      });
+    };
+    if (!startParams || transportState !== "paired") {
+      respondError("desktop-disconnected", "relay session is not paired");
+      return;
+    }
+    const workspaceKey = String(frame.workspaceKey ?? "");
+    if (workspaceKey !== relayWorkspaceKey(startParams)) {
+      respondError("workspace-not-found", "目标工作区不在当前远控会话中");
+      return;
+    }
+    disposeBridge();
+    let port: MessagePortMain;
+    try {
+      port = attacher.attachBridgePort();
+    } catch (error) {
+      respondError(
+        "desktop-host-missing",
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
+    port.on("message", (event: { data: unknown }) => {
+      const data = event.data;
+      // 只转发二进制；流控 sideband 对象（__droraRpcControl）不进 relay。
+      const bytes =
+        data instanceof Uint8Array
+          ? data
+          : data instanceof ArrayBuffer
+            ? new Uint8Array(data)
+            : null;
+      if (bytes) forwardHostBytesToPhone(bytes);
+    });
+    port.start();
+    bridge = {
+      identity,
+      workspaceKey,
+      ...(initialTaskId ? { initialTaskId } : {}),
+      port,
+      assembler: new RpcFrameAssembler(identity),
+      outboundAssemblerSeq: 1,
+      outboundMessageSeq: 1,
+      readyAnnounced: false,
+      pendingOutbound: [],
+    };
+    sendAppFrame({
+      zcode_type: "workspace-bridge-ready",
+      requestId,
+      ...identity,
+      bridge: toExternalBridge({
+        identity,
+        workspaceKey,
+        workspacePath: startParams.workspacePath,
+        ...(initialTaskId ? { initialTaskId } : {}),
+        kind: "local",
+      }),
+    });
+    bridge.readyAnnounced = true;
+    flushBridgeOutbound();
+    logger.info("[mobile-relay] workspace bridge 已建立", { bridgeSessionId, workspaceKey });
+  }
+
+  /** rpc-frame 入站：重组 → Host 端口；完整消息回 ack（对端流控依赖）。 */
+  function handleRpcFrame(value: unknown): void {
+    if (!bridge) return;
+    const frame = parseRpcTransportFrame(value);
+    if (!frame) return;
+    const assembled = bridge.assembler.accept(frame);
+    if (!assembled) return;
+    sendAppFrame(buildRpcFrameAck({ identity: bridge.identity, ackMessageSeq: assembled.messageSeq }));
+    bridge.port.postMessage(Buffer.from(assembled.message));
+  }
+
   async function handleAppFrame(frame: Record<string, unknown>): Promise<void> {
     const zcodeType = frame.zcode_type;
     switch (zcodeType) {
@@ -293,19 +450,7 @@ export function createDesktopMobileRelayControl(deps: {
         return;
       }
       case "workspace-bridge-open": {
-        // M4b 前的降级：如实告知桥不可用，手机页展示失败面而不是挂起。
-        logger.info("[mobile-relay] workspace-bridge-open（M4b 未实现，降级回应）", {
-          workspaceKey: frame.workspaceKey,
-        });
-        sendAppFrame({
-          zcode_type: "workspace-bridge-error",
-          requestId: frame.requestId,
-          bridgeSessionId: frame.bridgeSessionId,
-          ...(frame.bridgeGeneration !== undefined ? { bridgeGeneration: frame.bridgeGeneration } : {}),
-          ...(frame.recoveryId ? { recoveryId: frame.recoveryId } : {}),
-          reason: "bridge-not-available",
-          error: "rpc bridge lands in M4b",
-        });
+        await openWorkspaceBridge(frame);
         return;
       }
       case "workspace-reconnect-request": {
@@ -318,13 +463,19 @@ export function createDesktopMobileRelayControl(deps: {
         });
         return;
       }
+      case "rpc-frame":
+        handleRpcFrame(frame);
+        return;
+      case "rpc-frame-ack":
+        // 手机确认我们的出站消息；M4b 简化实现不维护重放缓冲，收到即忽略。
+        return;
       case "telemetry-report":
       case "mobile-diagnostic":
-        // 只记日志，不上报（对齐“不向官方发送额外遥测”的保守姿态）。
+        // 只记日志，不上报（保守姿态）。
         logger.info("[mobile-relay] 手机端帧", { zcodeType });
         return;
       default:
-        // rpc-frame / rpc-frame-ack / platform-request 属 M4b/M4c；未知帧静默丢弃。
+        // platform-request / workspace-list-updated 属 M4c；未知帧静默丢弃。
         return;
     }
   }
@@ -598,6 +749,7 @@ export function createDesktopMobileRelayControl(deps: {
       waiter();
     }
     pendingCredentialSave = null;
+    disposeBridge();
     attacher.dispose();
     transportState = "idle";
     runtimeFailure = null;

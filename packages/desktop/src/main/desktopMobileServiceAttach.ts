@@ -106,5 +106,31 @@ export function createMobileServiceAttacher(options: {
     return { task: client.getChannel("drora-task"), session: client.getChannel("drora-session") };
   }
 
-  return { ensure, dispose };
+  /**
+   * 为 relay rpc 桥新建一个独立附着端口（M4b）：每次 workspace-bridge-open 一个新
+   * MessageChannelMain（对齐原版 createWorkspaceBridge 每桥一端口），Host 侧按
+   * clientMode=web-remote-replayable 注册服务（含 zcode-* 别名通道）。
+   * 返回 Main 侧端口；调用方负责 close（close 即触发 Host 侧 attachment 清理）。
+   */
+  function attachBridgePort(): MessagePortMain {
+    const hostChild = assertHostChild();
+    const requireElectron = createRequire(import.meta.url);
+    const { MessageChannelMain: MessageChannelMainCtor } = requireElectron(
+      "electron",
+    ) as typeof import("electron");
+    const { port1, port2 } = new MessageChannelMainCtor();
+    hostChild.postMessage(
+      {
+        type: HostMessageTypes.AttachServicePort,
+        requestId: randomUUID(),
+        attachmentId: randomUUID(),
+        clientMode: "web-remote-replayable",
+        scope: { kind: "local" },
+      },
+      [port2],
+    );
+    return port1;
+  }
+
+  return { ensure, dispose, attachBridgePort };
 }

@@ -2338,6 +2338,12 @@ const enUS: Record<string, string> = {
     "Optional. Set a PEM root certificate path to inject it as NODE_EXTRA_CA_CERTS for models, MCP, and command tools, and to trust it in renderer certificate verification. Restart the app to take effect.",
   "settings.httpProxyCaCertPathPlaceholder": "e.g. /Users/name/certs/root-ca.pem",
   "settings.httpProxySavedHint": "Network proxy settings saved. Restart the app to take effect.",
+  "settings.relayServerUrl": "Relay server",
+  "settings.relayServerUrlDescription":
+    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
+  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
+  "settings.relayServerUrlSavedHint":
+    "Relay server settings saved. Restart the app to take effect.",
   "settings.desktopChromiumHardwareAcceleration": "Chrome hardware acceleration",
   "settings.desktopChromiumHardwareAccelerationDescription":
     "Turn this off to work around blank windows, crashes, or rendering issues caused by some GPUs or drivers. Restart the app to take effect.",

@@ -9,15 +9,18 @@ import { createRequire } from "node:module";
 import {
   ChannelClient,
   MessagePortProtocol,
-  type IChannel,
+  ProxyChannel,
   type MessagePortPayload,
 } from "@drora/rpc";
+import type { IDroraAgentService, IDroraSessionService, IDroraTaskService } from "@drora/services";
 import { HostMessageTypes } from "@drora/shared";
 import type { MessagePortMain, UtilityProcess } from "electron";
 
 export interface MobileServiceAttachment {
-  task: IChannel;
-  session: IChannel;
+  task: IDroraTaskService;
+  session: IDroraSessionService;
+  /** agent 服务（listSessions 等只读调用可按需拉起工作区 CLI 运行时）。 */
+  agent: IDroraAgentService;
 }
 
 export function createMobileServiceAttacher(options: {
@@ -27,6 +30,9 @@ export function createMobileServiceAttacher(options: {
   let attachedHostChild: UtilityProcess | null = null;
   let clientPort: MessagePortMain | null = null;
   let client: ChannelClient | null = null;
+  let taskService: IDroraTaskService | null = null;
+  let sessionService: IDroraSessionService | null = null;
+  let agentService: IDroraAgentService | null = null;
 
   /** Host 缺失错误统一带 code=workspace-closed（对齐原版 DESKTOP_HOST_MISSING 失败面）。 */
   function assertHostChild(): UtilityProcess {
@@ -45,6 +51,9 @@ export function createMobileServiceAttacher(options: {
   function dispose(): void {
     attachedHostChild = null;
     client = null;
+    taskService = null;
+    sessionService = null;
+    agentService = null;
     if (clientPort) {
       try {
         clientPort.close();
@@ -55,11 +64,26 @@ export function createMobileServiceAttacher(options: {
     }
   }
 
-  /** 惰性建立（或按 Host 实例重建）scoped service rpc 客户端。 */
+  /**
+   * 惰性建立（或按 Host 实例重建）scoped service rpc 客户端。
+   *
+   * 服务面必须经 ProxyChannel.toService 代理调用：rpc 线协议的方法参数是
+   * 位置参数数组（服务端 fromService 用 target.apply(handler, args) 展开），
+   * 裸 channel.call("method", {对象}) 会被 apply 当成空参数列表——手机侧
+   * 首个 listTasks 就会以 "reading 'workspacePath' of undefined" 崩掉
+   * （2026-09-27 真机首配实锤）。toService 让调用点拿到类型化签名，
+   * 参数形状错误直接变编译错误。
+   */
   function ensure(): MobileServiceAttachment {
     const hostChild = assertHostChild();
-    if (client && attachedHostChild === hostChild) {
-      return { task: client.getChannel("drora-task"), session: client.getChannel("drora-session") };
+    if (
+      client &&
+      taskService &&
+      sessionService &&
+      agentService &&
+      attachedHostChild === hostChild
+    ) {
+      return { task: taskService, session: sessionService, agent: agentService };
     }
     dispose();
     attachedHostChild = hostChild;
@@ -102,8 +126,13 @@ export function createMobileServiceAttacher(options: {
     };
     const protocol = new MessagePortProtocol(portLike);
     client = new ChannelClient(protocol);
+    taskService = ProxyChannel.toService<IDroraTaskService>(client.getChannel("drora-task"));
+    sessionService = ProxyChannel.toService<IDroraSessionService>(
+      client.getChannel("drora-session"),
+    );
+    agentService = ProxyChannel.toService<IDroraAgentService>(client.getChannel("drora-agent"));
     options.logger.info("[mobile-remote] scoped service 端口已附着");
-    return { task: client.getChannel("drora-task"), session: client.getChannel("drora-session") };
+    return { task: taskService, session: sessionService, agent: agentService };
   }
 
   /**

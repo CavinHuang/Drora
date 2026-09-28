@@ -19,7 +19,6 @@ import { Event, Emitter, IDisposable, DisposableStore } from "./foundation.js";
  */
 const MAX_FRAME_BODY_LENGTH = 32 * 1024 * 1024;
 
-
 // ============================================================================
 // 核心传输接口
 // ============================================================================
@@ -64,6 +63,18 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
     record.__droraRpcControl === "connection-flow-v1" &&
     (record.state === "saturated" || record.state === "drained")
   );
+}
+
+/**
+ * connection-flow-v1 sideband 构造（契约字面量单一出处）。
+ *
+ * 走向（官方 3.14.3 取证，specs/mobile-web-remote.md「flow-state sideband」小节）：
+ * 桥发送侧水位越限（saturated）/ 回落（drained）时，由桌面 main 经 Host 附着端口
+ * postMessage 本对象（不进 relay 数据面）；Host 侧 MessagePortProtocol 分流到
+ * onFlowState → connectionScope.setTransportFlowState 暂停/恢复 CLI 发送。
+ */
+export function messagePortFlowControl(state: MessagePortFlowState): MessagePortFlowControl {
+  return { __droraRpcControl: "connection-flow-v1", state };
 }
 
 // ============================================================================
@@ -279,7 +290,9 @@ export class SocketProtocol implements IMessagePassingProtocol {
       const length = header.readUInt32BE(9);
       if (length > MAX_FRAME_BODY_LENGTH) {
         // 协议损坏：断开而不是把后续帧吞进 pending（DoS 防护，批 3 RPC P2-2）。
-        console.error(`[rpc] frame length ${length} exceeds ${MAX_FRAME_BODY_LENGTH}; closing connection`);
+        console.error(
+          `[rpc] frame length ${length} exceeds ${MAX_FRAME_BODY_LENGTH}; closing connection`,
+        );
         this.socket.end();
         return;
       }
@@ -400,7 +413,7 @@ export class MessagePortProtocol implements IMessagePassingProtocol {
   }
 
   sendFlowState(state: MessagePortFlowState): void {
-    this.port.postMessage({ __droraRpcControl: "connection-flow-v1", state });
+    this.port.postMessage(messagePortFlowControl(state));
   }
 
   disconnect(): void {

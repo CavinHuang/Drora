@@ -1,5 +1,6 @@
 import { createLocalTtftExporter } from "./localTtftExporter.js";
 import { registerDesktopPetWindow } from "./desktopPetWindow.js";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
@@ -81,6 +82,8 @@ import {
   buildDroraEndpointUrls,
   resolveDroraEndpointOrigin,
   shouldEnableE2ETestBridge,
+  rendererTelemetryEventPayloadSchema,
+  type MobileRelayTransport,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
@@ -202,10 +205,19 @@ import {
 } from "./resourceManagerWindow.js";
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
-import { createDesktopMobilePairingServer } from "./desktopMobilePairingServer.js";
 import { createDesktopMobileRelayControl } from "./desktopMobileRelayControl.js";
-import { MobileRelayCredentialStore } from "./desktopMobileRelayProtocol.js";
-import { MobilePairingRestoreStore, shouldRestorePairing } from "./desktopMobilePairingRestore.js";
+import {
+  MobileRelayCredentialStore,
+  OFFICIAL_RELAY_WS_URL,
+  deriveSelfHostedRelayEndpoints,
+} from "./desktopMobileRelayProtocol.js";
+import {
+  LAN_EMBEDDED_RELAY_ORIGIN,
+  buildLanRemotePageUrl,
+  createDesktopMobileLanRelayHost,
+  credentialFileNameForOrigin,
+  resolveCloudRelayOrigin,
+} from "./desktopMobileLanRelayHost.js";
 import {
   loadCliMcpFromUserDirectory,
   migrateLegacyCommonMcp,
@@ -544,23 +556,9 @@ let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
 const settingsFile = join(homedir(), ".drora", "v2", "setting.json");
-// 移动端远程控制（LAN 直连扫码）：服务默认关闭，弹层显式开启才监听端口。
-// 对齐原版：状态推送给发起窗口（StatusChanged）；start 成功持久化恢复上下文、手动停止
-// 清除、窗口 Host 就绪且工作区匹配时自动恢复一次（restorePreviouslyEnabled）。
-const mobilePairingRestoreStore = new MobilePairingRestoreStore(join(homedir(), ".drora", "v2"));
-let mobilePairingSenderWebContentsId: number | null = null;
-let mobilePairingStartedThisRun = false;
-const mobilePairingServer = createDesktopMobilePairingServer({
-  logger,
-  onStatusChanged: (state) => {
-    if (mobilePairingSenderWebContentsId === null) return;
-    const sender = webContents.fromId(mobilePairingSenderWebContentsId);
-    // 窗口可能已关闭（webContents 销毁）；推送失败静默，状态查询面仍可用。
-    if (sender && !sender.isDestroyed()) {
-      sender.send(PlatformChannels.MobilePairingStateChanged, state);
-    }
-  },
-});
+// 移动端远程控制统一走 relay 控制链（specs/mobile-relay-server.md §12）：
+// 旧 LAN 直连配对服务栈（desktopMobilePairingServer/Core/Restore）已整体删除，
+// 「局域网连接」传输 = 进程内嵌 relay（desktopMobileLanRelayHost）。
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -822,28 +820,197 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
 
 const deviceMid = ensureDesktopDeviceMidSync();
 // 官方 relay 云中继远控（M4a，spec: mobile-web-remote.md）：复用 z.ai 官方 relay 与
-// 托管手机页（remote/v4），跨网络可用；与 LAN 直连并存，默认关闭、弹层内显式开启。
-// 凭据持久化：deviceSid+passHash 存 Main 自有单键文件，safeStorage 可用时加密 passHash。
+// 托管手机页（remote/v4），跨网络可用；与 LAN 内嵌传输共用同一控制链（specs/
+// mobile-relay-server.md §12），默认关闭、弹层内显式开启。
+// 凭据持久化：deviceSid+passHash 按 effective origin 路由的 Main 自有单键文件，
+// safeStorage 可用时加密 passHash。
 let mobileRelaySenderWebContentsId: number | null = null;
-const mobileRelayCredentialStore = new MobileRelayCredentialStore(
-  join(homedir(), ".drora", "v2"),
-  safeStorage.isEncryptionAvailable()
-    ? {
-        encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
-        decrypt: (stored) => safeStorage.decryptString(Buffer.from(stored, "base64")),
-      }
-    : undefined,
-);
+// 各窗口最近一次推送的 relay 工作区/任务清单（官方 syncWebRemoteControl* 语义：
+// 无 runtime 时丢弃；这里额外缓存，relay 后启动也能立即拿到全量）。
+const mobileRelaySyncedWorkspaces = new Map<
+  number,
+  import("@drora/shared").MobileRelayWorkspaceSyncEntry[]
+>();
+const mobileRelaySyncedTasks = new Map<
+  number,
+  import("@drora/shared").MobileRelayTaskSyncEntry[]
+>();
+
+// —— 内嵌 LAN relay 宿主（§12）：局域网传输=进程内自建 relay-server ——
+const mobileLanRelayHost = createDesktopMobileLanRelayHost({ logger });
+// 应用退出兜底清理（stop 语义见 §12.1；registry 持久保留，端口随机不复用）。
+app.on("will-quit", () => {
+  void mobileLanRelayHost.stop().catch(() => {});
+});
+
+// —— 凭据按端点 origin 隔离（§12.2）：云端（官方/自建）与 LAN 内嵌是不同服务端，
+// sid 命名空间独立，混用必然 AUTH_FAILED。路由键 = 云端 relayWsUrl 的 origin；
+// LAN 内嵌用稳定逻辑 origin（端口随机，registry.json 才是身份域）。旧单文件
+// mobile-relay-device.json 不迁移不删除：首次按新 origin 重新注册，无害。
+const mobileRelayCredentialDir = join(homedir(), ".drora", "v2");
+const mobileRelayCredentialEncryption = safeStorage.isEncryptionAvailable()
+  ? {
+      encrypt: (plain: string) => safeStorage.encryptString(plain).toString("base64"),
+      decrypt: (stored: string) => safeStorage.decryptString(Buffer.from(stored, "base64")),
+    }
+  : undefined;
+const mobileRelayCredentialStoresByOrigin = new Map<string, MobileRelayCredentialStore>();
+function mobileRelayCredentialStoreForOrigin(origin: string): MobileRelayCredentialStore {
+  let store = mobileRelayCredentialStoresByOrigin.get(origin);
+  if (!store) {
+    store = new MobileRelayCredentialStore(
+      mobileRelayCredentialDir,
+      mobileRelayCredentialEncryption,
+      credentialFileNameForOrigin(origin),
+    );
+    mobileRelayCredentialStoresByOrigin.set(origin, store);
+  }
+  return store;
+}
+// 当前会话的凭据路由键：prepareMobileRelayTransport 在每次 control.start 前设置
+//（IPC start / 恢复链路 load 钩子两个入口，control.start 内部才读凭据）。
+let activeRelayCredentialOrigin = LAN_EMBEDDED_RELAY_ORIGIN;
+const mobileRelayCredentialStore = {
+  load: () => mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).load(),
+  save: (credential: { deviceSid: string; passHash: string }) =>
+    mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).save(credential),
+  clear: () => mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).clear(),
+};
+
+// —— 传输准备（§12.1）：每次 control.start 前调用。lan=确保内嵌 relay 已监听并
+// 固定注入端点（桌面客户端走环回、QR 指向手机可达 LAN 地址）；cloud=按设置键/
+// env 解析端点并回填凭据路由键。preparedEndpoints 供 resolveEndpoints 闭包返回。
+let preparedRelayEndpoints: { relayWsUrl: string; remotePageUrl: string } | null = null;
+let activeRelayTransport: MobileRelayTransport | null = null;
+async function prepareMobileRelayTransport(transport: MobileRelayTransport): Promise<void> {
+  activeRelayTransport = transport;
+  if (transport === "lan") {
+    const { port } = await mobileLanRelayHost.ensureStarted();
+    // buildLanRemotePageUrl 挑选手机可达 IPv4（desktopMobileLanRelayHost 迁入逻辑）；
+    // 找不到 LAN 地址直接失败——环回地址对手机不可达，出码必然连不上。
+    const remotePageUrl = buildLanRemotePageUrl({ port });
+    preparedRelayEndpoints = {
+      relayWsUrl: `ws://127.0.0.1:${port}/ws`,
+      remotePageUrl,
+    };
+    activeRelayCredentialOrigin = LAN_EMBEDDED_RELAY_ORIGIN;
+    return;
+  }
+  // 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
+  // relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。
+  // 传输切换（lan→cloud）时同步摘除内嵌服务端：旧二维码不得在无设备附着的
+  // 服务端上永久 waiting。
+  if (mobileLanRelayHost.isRunning()) {
+    await mobileLanRelayHost.stop();
+  }
+  let base = "";
+  try {
+    base = (await mainSettingService.get()).relayServerUrl?.trim() || "";
+  } catch {
+    // 设置服务不可用时回落 env
+  }
+  if (!base) base = process.env.DRORA_RELAY_SERVER_URL?.trim() || "";
+  preparedRelayEndpoints = deriveSelfHostedRelayEndpoints(base);
+  activeRelayCredentialOrigin = resolveCloudRelayOrigin(
+    preparedRelayEndpoints?.relayWsUrl ?? OFFICIAL_RELAY_WS_URL,
+  );
+}
+
+// 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
+// relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。每次 start 解析
+// 一次，设置变更后重启远控（停止→开启）即生效。
 const mobileRelayControl = createDesktopMobileRelayControl({
   logger,
   deviceMid,
-  appVersion: DRORA_VERSION || app.getVersion(),
   credentialStore: mobileRelayCredentialStore,
+  // 端点由 prepareMobileRelayTransport 在 start 前备好（lan=内嵌固定注入）；
+  // 返回 undefined 时控制链回落固定注入值（默认官方）。
+  resolveEndpoints: async () => preparedRelayEndpoints,
+  // 配对/桥结果遥测（对齐官方 reportRemoteUsageEvent 事件族）。
+  reportUsageEvent: (event) => {
+    if (mobileRelaySenderWebContentsId === null) return;
+    reportRemoteUsageEventForRenderer(mobileRelaySenderWebContentsId, event);
+  },
+  // 重启自动恢复上下文（对齐官方 startupRestoreStorageProvider）：start 成功保存、
+  // 手动 stop 清除、renderer 首次推送工作区时经 restorePreviouslyEnabled 恢复。
+  // load 钩子兼作恢复链路的传输准备点（§12.4）：控制链随后的 start→load 凭据与
+  // resolveEndpoints 都依赖 prepare 产出的路由键与端点。
+  startupRestoreStorage: {
+    load: async () => {
+      try {
+        const raw = await readFile(
+          join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
+          "utf8",
+        );
+        const parsed = JSON.parse(raw) as {
+          workspacePath?: string;
+          workspaceIdentity?: string;
+          transport?: MobileRelayTransport;
+        };
+        if (typeof parsed.workspacePath !== "string" || !parsed.workspacePath.trim()) return null;
+        const context = {
+          workspacePath: parsed.workspacePath,
+          ...(typeof parsed.workspaceIdentity === "string" && parsed.workspaceIdentity.trim()
+            ? { workspaceIdentity: parsed.workspaceIdentity }
+            : {}),
+          ...(parsed.transport === "lan" ? { transport: parsed.transport } : {}),
+        };
+        // 旧记录无 transport → cloud（现链路）；lan 记录先拉起内嵌 relay。
+        await prepareMobileRelayTransport(context.transport ?? "cloud");
+        return context;
+      } catch {
+        return null;
+      }
+    },
+    save: async (context) => {
+      await mkdir(join(homedir(), ".drora", "v2"), { recursive: true });
+      await writeFile(
+        join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
+        `${JSON.stringify(context)}\n`,
+        "utf8",
+      );
+    },
+    clear: async () => {
+      await rm(join(homedir(), ".drora", "v2", "mobile-relay-restore.json"), { force: true });
+    },
+  },
   // relay 远控同样惰性解析发起窗口的 Host；resolveHostChild 闭包在 start 接线时替换为
   // 持有 senderWebContentsId 的版本（见 registerPlatformIpcHandlers 装配处）。
   resolveHostChild: () => {
     if (mobileRelaySenderWebContentsId === null) return null;
     return windowHostProcessMap.get(mobileRelaySenderWebContentsId) ?? null;
+  },
+  // 手机页 platform-request 的方法表（对齐官方 8 方法注册表；复用 main IPC 同名实现）。
+  platformHandlers: {
+    isDockerAvailable: () => isDockerDaemonAvailable(),
+    listWSLDistros: () => listAvailableWSLDistros(),
+    listDockerContainers: () => listAvailableDockerContainers(),
+    listSSHConfigAliases: () => listSSHConfigAliases(),
+    createTempTextAttachment: (args) => createTempTextAttachment(args),
+    loadMcpFromUserDirectory: (args) => loadCliMcpFromUserDirectory(args ?? {}),
+    saveMcpToUserDirectory: async (args) => {
+      // 对齐官方：MCP 保存失败折叠为 {success:false,error} 结果帧而不是错误。
+      try {
+        await saveCliMcpToUserDirectory(args);
+        return { success: true };
+      } catch (error) {
+        logger.warn(
+          "[web-remote-control] MCP save failed",
+          error instanceof Error ? error.message : String(error),
+        );
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    migrateLegacyCommonMcp: (args) => migrateLegacyCommonMcp(args ?? {}),
+  },
+  // 手机遥测事件并入桌面遥测汇（对齐官方 reportRendererTelemetryEvent）。
+  reportPhoneTelemetryEvent: async (event) => {
+    const result = rendererTelemetryEventPayloadSchema.safeParse(event);
+    if (!result.success) return;
+    await appTelemetryCore.reportEvent(result.data);
   },
   onStatusChanged: (state) => {
     if (mobileRelaySenderWebContentsId === null) return;
@@ -852,7 +1019,92 @@ const mobileRelayControl = createDesktopMobileRelayControl({
       sender.send(PlatformChannels.MobileRelayStateChanged, state);
     }
   },
+  // 远程工作区开桥的 remote-scoped attach（M4c，官方 attachWorkspaceHost 远程分支
+  // index.js@584400 → attachRemoteWorkspaceSessionHost @577400）：按 remoteSessionId
+  // 经 Main 远程连接注册表校验（REMOTE_SESSION_MISSING/OFFLINE/WINDOW_MISMATCH、
+  // REMOTE_WORKSPACE_IDENTITY_MISMATCH，错误码与官方同名）后向窗口 Host 发
+  // scope kind=remote + clientMode=web-remote-replayable 的附着端口。
+  attachRemoteBridgePort: (params) => {
+    const ownerWindow =
+      mobileRelaySenderWebContentsId === null
+        ? undefined
+        : BrowserWindow.getAllWindows().find(
+            (candidate) => candidate.webContents.id === mobileRelaySenderWebContentsId,
+          );
+    if (!ownerWindow) {
+      throw Object.assign(new Error("未找到 relay 远控属主窗口"), {
+        code: "DESKTOP_HOST_MISSING" as const,
+      });
+    }
+    return remoteSessionManager.attachRemoteWorkspaceSessionHost({
+      windowId: ownerWindow.id,
+      remoteSessionId: params.remoteSessionId,
+      workspacePath: params.workspacePath,
+      // 官方 re 校验要求 workspaceKey===workspaceIdentity（identity-first，
+      // chunk-GJUBRD53.js resolveWorkspaceKey 同语义）。
+      workspaceIdentity: params.workspaceIdentity,
+      workspaceKey: params.workspaceIdentity,
+      clientMode: "web-remote-replayable",
+    });
+  },
+  // 手机 workspace-reconnect-request 的重连委托（官方 qb
+  // reconnectWebRemoteControlWorkspaceInRenderer 同款，index.js@409793）：重连事实
+  // （远程历史/target/凭据）归窗口 renderer，main 经 IPC 请求属主窗口重连并等待
+  // 同通道回复（sender + requestId 校验，120s 超时）。
+  reconnectWorkspace: (workspaceKey) => reconnectWebRemoteControlWorkspaceInRenderer(workspaceKey),
 });
+
+/**
+ * 手机 workspace-reconnect-request 的重连委托实现（官方 qb 同款逐项对齐）：
+ * BrowserWindow 缺失 → "Desktop window is not available for Web remote control
+ * reconnect."；请求 id `web-remote-reconnect-<ts>-<rand>`；等 renderer 回
+ * {requestId, workspaceKey, success, error?}；120s 超时 → "Web remote control
+ * reconnect request timed out."。
+ */
+function reconnectWebRemoteControlWorkspaceInRenderer(workspaceKey: string): Promise<void> {
+  const ownerWindow =
+    mobileRelaySenderWebContentsId === null
+      ? undefined
+      : BrowserWindow.getAllWindows().find(
+          (candidate) => candidate.webContents.id === mobileRelaySenderWebContentsId,
+        );
+  if (!ownerWindow || ownerWindow.isDestroyed() || ownerWindow.webContents.isDestroyed()) {
+    throw new Error("Desktop window is not available for Web remote control reconnect.");
+  }
+  const request = {
+    requestId: `web-remote-reconnect-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    workspaceKey,
+  };
+  return new Promise<void>((resolve, reject) => {
+    const handleResult = (event: Electron.IpcMainEvent, payload: unknown) => {
+      // 仅接受属主窗口 renderer 的回复；requestId 匹配（官方 qb 的 sender/schema 过滤）。
+      if (event.sender.id !== ownerWindow.webContents.id) return;
+      const shape = (payload ?? {}) as {
+        requestId?: unknown;
+        success?: unknown;
+        error?: unknown;
+      };
+      if (shape.requestId !== request.requestId) return;
+      dispose();
+      if (shape.success === true) {
+        resolve();
+        return;
+      }
+      reject(new Error(typeof shape.error === "string" ? shape.error : "reconnect failed"));
+    };
+    const dispose = () => {
+      clearTimeout(timer);
+      ipcMain.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handleResult);
+    };
+    const timer = setTimeout(() => {
+      dispose();
+      reject(new Error("Web remote control reconnect request timed out."));
+    }, 120_000);
+    timer.unref?.();
+    ipcMain.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handleResult);
+    ownerWindow.webContents.send(PlatformChannels.WebRemoteControlReconnectWorkspace, request);
+  });
+}
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
   appVersion: DRORA_VERSION || app.getVersion(),
@@ -1739,41 +1991,9 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }),
     windowHostProcessMap,
     onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
-    onWindowHostWorkspaceReady: (windowKey, workspace) => {
-      // 对齐原版 restorePreviouslyEnabled：窗口 Host 就绪且工作区匹配时自动恢复远控。
-      if (mobilePairingStartedThisRun || mobilePairingServer.isRunning()) return;
-      void (async () => {
-        const saved = await mobilePairingRestoreStore.load();
-        if (
-          !shouldRestorePairing({
-            saved,
-            serviceRunning: mobilePairingServer.isRunning(),
-            alreadyStartedThisRun: mobilePairingStartedThisRun,
-            hostWorkspace: workspace,
-          })
-        ) {
-          return;
-        }
-        const hostChild = windowHostProcessMap.get(windowKey);
-        if (!hostChild || hostChild.pid === undefined) return;
-        logger.info("[mobile-pairing] 恢复上次开启的移动端远程控制", {
-          workspacePath: saved.workspacePath,
-        });
-        mobilePairingSenderWebContentsId = windowKey;
-        try {
-          await mobilePairingServer.start({
-            workspacePath: saved.workspacePath,
-            workspaceIdentity: saved.workspaceIdentity,
-            resolveHostChild: () => windowHostProcessMap.get(windowKey) ?? null,
-          });
-          mobilePairingStartedThisRun = true;
-        } catch (error) {
-          logger.warn("[mobile-pairing] 恢复上次远控失败", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      })();
-    },
+    // 旧 LAN 直连配对栈（含 desktopMobilePairingRestore）已删除（specs/mobile-relay-server.md
+    // §12.4）：移动远控恢复由 relay 控制链的 startupRestoreStorage 接管，transport=lan
+    // 恢复内嵌服务端，此处不再有任何 pairing 恢复触发点。
     awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(
@@ -2160,57 +2380,71 @@ app.whenReady().then(async () => {
     logger,
   });
 
-  // 移动端远程控制（LAN 直连扫码）：服务与状态块声明见 settingsFile 旁（模块前部）；
-  // 这里只做 IPC 装配。手机附着的是发起窗口所属的 Local Host，复用 web-remote-replayable 链路。
+  // 移动端远程控制（relay 双传输，specs/mobile-relay-server.md §12）：服务与状态块
+  // 声明见 settingsFile 旁（模块前部）；这里只做 IPC 装配。手机附着的是发起窗口所属的
+  // Local Host，复用 web-remote-replayable 链路。
   registerPlatformIpcHandlers({
-    mobilePairing: {
-      start: async (params) => {
-        mobilePairingSenderWebContentsId = params.senderWebContentsId;
-        const hostChild = windowHostProcessMap.get(params.senderWebContentsId);
-        if (!hostChild || hostChild.pid === undefined) {
-          throw new Error("当前窗口的 Host 进程尚未就绪，无法配对");
-        }
-        const result = await mobilePairingServer.start({
-          workspacePath: params.workspacePath,
-          workspaceIdentity: params.workspaceIdentity,
-          resolveHostChild: () => {
-            // 惰性解析：手机认证时才取当前 Host 实例；窗口 Host 重启后可重附着。
-            const current = windowHostProcessMap.get(params.senderWebContentsId);
-            return current ?? null;
-          },
-        });
-        mobilePairingStartedThisRun = true;
-        await mobilePairingRestoreStore.save({
-          workspacePath: params.workspacePath,
-          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-        });
-        return result;
-      },
-      reset: async (params) => {
-        mobilePairingSenderWebContentsId = params.senderWebContentsId;
-        return mobilePairingServer.resetPairing();
-      },
-      stop: async () => {
-        mobilePairingServer.stop("ui-stop");
-        // 对齐原版：手动停止清除恢复上下文；窗口关闭/应用退出保留。
-        await mobilePairingRestoreStore.clear();
-      },
-      state: () => mobilePairingServer.runtimeState(),
-    },
     mobileRelay: {
       start: async (params) => {
         mobileRelaySenderWebContentsId = params.senderWebContentsId;
+        // 传输准备（§12.1）：lan 先拉起内嵌 relay 并注入端点；cloud 解析设置键/env。
+        // 必须先于 control.start——凭据路由与 resolveEndpoints 都消费其产出。
+        await prepareMobileRelayTransport(params.transport ?? "cloud");
+        // relay 启动即灌入该窗口最近一次同步的工作区清单（renderer 在 tab 变化时
+        // 推送；官方语义为无 runtime 即丢弃，这里缓存以便后启动的 relay 立即拿全量）。
+        mobileRelayControl.syncAvailableWorkspaces(
+          mobileRelaySyncedWorkspaces.get(params.senderWebContentsId) ?? [],
+        );
+        mobileRelayControl.syncAvailableTasks(
+          mobileRelaySyncedTasks.get(params.senderWebContentsId) ?? [],
+        );
         return mobileRelayControl.start({
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
+          transport: params.transport ?? "cloud",
         });
       },
       reset: async (params) => {
         mobileRelaySenderWebContentsId = params.senderWebContentsId;
+        // 刷新（二维码泄露轮换）沿用当前会话的传输与端点准备；未运行时 control.reset 抛错。
+        if (activeRelayTransport !== null) {
+          await prepareMobileRelayTransport(activeRelayTransport);
+        }
         return mobileRelayControl.reset();
       },
-      stop: () => mobileRelayControl.stop(),
+      stop: async () => {
+        const transport = activeRelayTransport;
+        await mobileRelayControl.stop();
+        // stop 语义（§12.1）：transport=lan 同时停内嵌服务端；cloud 只停控制链。
+        if (transport === "lan") {
+          await mobileLanRelayHost.stop();
+        }
+        activeRelayTransport = null;
+        preparedRelayEndpoints = null;
+      },
       state: () => mobileRelayControl.runtimeState(),
+      syncWorkspaces: (senderWebContentsId, workspaces) => {
+        mobileRelaySyncedWorkspaces.set(senderWebContentsId, workspaces);
+        // 重启自动恢复的首个触发窗口：恢复出的 relay 需要绑定属主窗口（Host 解析
+        // 与状态推送都走该 id），否则手机开桥会 desktop-host-missing。
+        if (mobileRelaySenderWebContentsId === null) {
+          mobileRelaySenderWebContentsId = senderWebContentsId;
+        }
+        // 仅属主窗口的推送进入运行时（官方同款条件；非属主窗口只更新缓存）。
+        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
+          mobileRelayControl.syncAvailableWorkspaces(workspaces);
+        }
+        // 重启自动恢复（对齐官方 syncWebRemoteControlWorkspaces 处理器内联的
+        // restorePreviouslyEnabled）：renderer 首次推送工作区时尝试恢复上次启用的
+        // relay；至多一次，手动 stop 已清除上下文不会误恢复。
+        void mobileRelayControl.restorePreviouslyEnabled(workspaces);
+      },
+      syncTasks: (senderWebContentsId, tasks) => {
+        mobileRelaySyncedTasks.set(senderWebContentsId, tasks);
+        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
+          mobileRelayControl.syncAvailableTasks(tasks);
+        }
+      },
     },
     fetchHelpConfig: readHelpConfig,
     logger,
@@ -2439,10 +2673,9 @@ app.on("browser-window-created", (_, win) => {
     browserGuestManager.closeWindow(win.id);
     windowWorkspaceMap.delete(win.id);
     windowTaskRealtimeHostIdMap.delete(win.id);
-    // 对齐原版 disposeWindow：承载远控会话的窗口关闭即停服；手机收到 workspace-closed 终态。
-    if (mobilePairingSenderWebContentsId === windowWebContentsId) {
-      mobilePairingServer.stop("window-closed");
-    }
+    // 旧 LAN 直连连的「窗口关闭即停服」已随配对栈删除。relay 链路生命周期边界
+    // （specs/mobile-relay-server.md §12.1）：弹层显式 stop / 应用退出 will-quit
+    // 兜底停内嵌服务端，不随承载窗口关闭而停。
     if (windowUnreadCountMap.delete(win.id)) {
       syncApplicationUnreadBadge(windowUnreadCountMap);
     }

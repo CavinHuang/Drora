@@ -219,6 +219,8 @@ export type {
   MobilePairingFailure,
   MobilePairingRuntimeState,
   MobilePairingStatus,
+  MobileRelayTaskSyncEntry,
+  MobileRelayWorkspaceSyncEntry,
   OpenInEditorRemoteTarget,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,

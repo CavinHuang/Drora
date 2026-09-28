@@ -34,6 +34,7 @@
     "@drora/drora-cua": "workspace:*",
     "@drora/provider": "workspace:*",
     "@drora/provider-node": "workspace:*",
+    "@drora/relay-server": "workspace:*",
     "@drora/rpc": "workspace:*",
     "@drora/server": "workspace:*",
     "@drora/services": "workspace:*",

@@ -2197,6 +2197,11 @@ const zhCN: Record<string, string> = {
     "可选。填写 PEM 根证书路径后，会作为 NODE_EXTRA_CA_CERTS 注入模型、MCP 与命令工具，并用于渲染层证书校验。修改后需重启应用生效。",
   "settings.httpProxyCaCertPathPlaceholder": "例如 /Users/name/certs/root-ca.pem",
   "settings.httpProxySavedHint": "网络代理设置已保存，重启应用后生效",
+  "settings.relayServerUrl": "云中继服务器",
+  "settings.relayServerUrlDescription":
+    "自建 relay 服务端地址（移动端远控）。留空使用官方 zcode.z.ai；修改后需停止并重新开启远程控制。",
+  "settings.relayServerUrlPlaceholder": "留空使用官方，例如 http://relay.lan:4430",
+  "settings.relayServerUrlSavedHint": "云中继服务器设置已保存，重启应用后生效",
   "settings.desktopChromiumHardwareAcceleration": "Chrome 硬件加速",
   "settings.desktopChromiumHardwareAccelerationDescription":
     "关闭后可规避部分显卡或驱动导致的白屏、闪退、渲染异常。修改后需重启应用生效。",

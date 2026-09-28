@@ -158,6 +158,9 @@ export default defineConfig([
       "@drora/rpc",
       "@drora/services",
       "@drora/client",
+      // 内嵌 LAN relay 宿主（specs/mobile-relay-server.md §12）随 main 内联：
+      // workspace 包导出 TypeScript 源码，Electron 运行时无 TS loader。
+      "@drora/relay-server",
       // Provider Refactor 的 workspace 包导出 TypeScript 源码；Electron 生产运行时没有
       // TS loader，必须随 Desktop bundle 内联，不能留下指向 src/index.ts 的裸包引用。
       "@drora/provider",

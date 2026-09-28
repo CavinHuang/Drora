@@ -21,7 +21,6 @@ import { getCodePreviewTheme } from "@/lib/codePreviewPreferences.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import { THEME_MODES } from "@/settings/settingsPageConfig.js";
-import { SkinCenter } from "@/skin/SkinCenter.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
 
 function FontSizeInput({
@@ -156,8 +155,6 @@ export function AppearanceSectionContent({
           </CardContent>
         </Card>
       </div>
-
-      <SkinCenter />
 
       <div className="space-y-6">
         <div className="min-w-0 space-y-3">

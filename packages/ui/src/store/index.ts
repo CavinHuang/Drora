@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- 全局 UI store 统一管理主题、皮肤和跨窗口广播；皮肤校验与渲染已拆入独立模块。 */
 /**
  * Zustand Store —— 全局状态管理
  *
@@ -9,14 +8,6 @@ import { create } from "zustand";
 import type { IBroadcastService, BroadcastMessage } from "@drora/services";
 import type { OAuthProviderId, UserInfo } from "@drora/shared";
 import type { CodingPlanResetType } from "@drora/shared";
-import { SKIN_STORAGE_KEY } from "@drora/shared";
-import {
-  loadSkinPreference,
-  updateSkinPreference,
-  type SkinPreference,
-} from "@/skin/skinPreference.js";
-import { applySkinPreference } from "@/skin/skinRuntime.js";
-import { createSkinPreferenceSync, type SkinSyncMode } from "@/skin/skinSync.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type {
   CodingPlanQuotaResetUiEntries,
@@ -116,9 +107,6 @@ export interface DroraState {
   /** 当前主题 */
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  /** 设备本地皮肤；主题明暗仍由 theme 负责。 */
-  skin: SkinPreference;
-  setSkin: (patch: Partial<SkinPreference>) => void;
 
   /** 当前语言 */
   locale: string;
@@ -243,7 +231,6 @@ export function createDroraStore(
   broadcastService: IBroadcastService,
   options: {
     initialIsRestoringOAuthSession?: boolean;
-    skinSyncMode?: SkinSyncMode;
   } = {},
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
@@ -251,10 +238,6 @@ export function createDroraStore(
   let loginEntryRequestSeq = 0;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
-  const initialSkin = loadSkinPreference(readSafeLocalStorage);
-  if (initialSkin.migrated) {
-    writeSafeLocalStorage(SKIN_STORAGE_KEY, JSON.stringify(initialSkin.preference));
-  }
 
   const useStore = create<DroraState>()((set, get) => ({
     interfaceMode: normalizeInterfaceMode(readSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY)),
@@ -279,14 +262,6 @@ export function createDroraStore(
       applyTheme(normalizedTheme);
 
       set({ theme: normalizedTheme });
-    },
-
-    skin: initialSkin.preference,
-    setSkin: (patch: Partial<SkinPreference>) => {
-      const next = updateSkinPreference(get().skin, patch);
-      writeSafeLocalStorage(SKIN_STORAGE_KEY, JSON.stringify(next));
-      applySkinPreference(next);
-      set({ skin: next });
     },
 
     locale: readSafeLocalStorage("drora-locale") || "zh-CN",
@@ -422,25 +397,6 @@ export function createDroraStore(
     clearOnboardingDialogRequest: () => set({ onboardingDialogRequested: false }),
   }));
 
-  const skinSync = createSkinPreferenceSync({
-    mode: options.skinSyncMode ?? "desktop",
-    broadcast: broadcastService,
-    onPreference: (preference) => {
-      applyingBroadcast = true;
-      try {
-        if (options.skinSyncMode === "web") {
-          // 修复：Web storage 事件已经持久化；重复写入会制造跨标签回声。
-          applySkinPreference(preference);
-          useStore.setState({ skin: preference });
-        } else {
-          useStore.getState().setSkin(preference);
-        }
-      } finally {
-        applyingBroadcast = false;
-      }
-    },
-  });
-
   syncSystemThemeListener = (theme: Theme) => {
     cleanupSystemThemeListener?.();
     cleanupSystemThemeListener = null;
@@ -482,12 +438,6 @@ export function createDroraStore(
   useStore.subscribe((state, prevState) => {
     if (applyingBroadcast) {
       return;
-    }
-
-    if (state.skin !== prevState.skin) {
-      void skinSync.publish(state.skin).catch((error: unknown) => {
-        logger.warn("[Skin] 同步皮肤偏好失败", { error });
-      });
     }
 
     for (const field of BROADCAST_FIELDS as Set<BroadcastField>) {
@@ -540,7 +490,6 @@ export function createDroraStore(
 
   syncSystemThemeListener(useStore.getState().theme);
   applyTheme(useStore.getState().theme);
-  applySkinPreference(useStore.getState().skin);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
   document.documentElement.classList.toggle(
     "dark",

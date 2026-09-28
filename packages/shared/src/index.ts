@@ -315,9 +315,3 @@ export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
 export { redactFeedbackText } from "./feedbackPrivacy.js";
-
-export {
-  LEGACY_SKIN_STORAGE_KEY,
-  SKIN_STORAGE_KEY,
-  SKIN_BROADCAST_CHANNEL,
-} from "./skinContracts.js";

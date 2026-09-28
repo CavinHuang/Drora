@@ -1096,9 +1096,6 @@ export function AnimatedSidePanePanel({
                         key={tab.id}
                         value={tab.id}
                         forceMount
-                        data-workspace-side-content={
-                          tab.type === "terminal" || tab.type === "code-viewer" ? undefined : "true"
-                        }
                         className="relative z-10 h-full min-h-0 bg-background data-[state=inactive]:hidden"
                       >
                         {tab.type === "bash-output" ? (
@@ -1326,7 +1323,6 @@ export function AnimatedSidePanePanel({
         <div
           ref={panelElementRef}
           aria-hidden={!isVisible}
-          data-workspace-side-root="true"
           className={cn(
             "h-full w-full min-w-0 border-l border-border bg-background transition-opacity duration-200 ease-out",
             isVisible || isScreenshotSurfaceActive

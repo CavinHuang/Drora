@@ -49,24 +49,6 @@ User-facing theme choices are:
 
 Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
 
-## Optional workspace skins
-
-The Appearance skin center may place a device-local raster wallpaper beneath the workspace frames.
-Optional bundled preset art should use quiet compositions with no text or prominent focal object, be optimized for Desktop and Web delivery, and remain legible under light/dark theme tints.
-Keep semantic text, status, card, dialog, browser and terminal content surfaces readable. The
-workspace conversation, sidebar and side-pane shell backgrounds may each use a 20–100% opacity setting;
-never apply CSS `opacity` to a parent containing text or controls. Default skin at 100% preserves
-the existing appearance. A custom brand accent must remain readable in both light and dark themes.
-Image-color panel tinting is optional and scoped to workspace shell surfaces: keep hues muted and
-theme-controlled brightness, including when a custom image contains a saturated color. At low panel
-opacity, a busy custom image can reduce the readability of unboxed text; explain this in the setting.
-On a wallpaper-backed draft home, use a localized soft focus veil behind the central greeting and
-composer while preserving the image around it. Suppress the large outline watermark when it competes
-with wallpaper artwork, and give sidebar metadata enough contrast at low panel opacity.
-The draft composer may use an opaque, theme-aware wallpaper tint when image-color matching is enabled;
-keep it distinct from the surrounding panel and preserve the normal focus outline and readable controls.
-Theme mode remains the owner of light/dark and native title-bar behavior.
-
 ## Color Palette
 
 ### Core semantic colors

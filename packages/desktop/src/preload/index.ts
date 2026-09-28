@@ -76,6 +76,7 @@ import type {
   CreateTempTextAttachmentRequest,
   MobilePairingRuntimeState,
   MobileRelayTaskSyncEntry,
+  MobileRelayTransport,
   MobileRelayWorkspaceSyncEntry,
   OpenCuaPermissionOnboardingOptions,
   ConfigureFinalArmsCustomEventE2ERequest,
@@ -291,26 +292,15 @@ contextBridge.exposeInMainWorld("drora", {
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(PlatformChannels.SelectDirectory),
-  /** 移动端远程控制：启动 LAN 配对服务（URL 携带一次性配对令牌，长期有效直到重置） */
-  startMobilePairing: (params: { workspacePath: string; workspaceIdentity?: string }) =>
-    ipcRenderer.invoke(PlatformChannels.MobilePairingStart, params),
-  stopMobilePairing: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.MobilePairingStop),
-  /** 移动端远程控制：重置配对（踢除已连手机并换发新票据，服务不重启） */
-  refreshMobilePairing: (): Promise<{ url: string; port: number }> =>
-    ipcRenderer.invoke(PlatformChannels.MobilePairingReset),
-  getMobilePairingState: (): Promise<MobilePairingRuntimeState> =>
-    ipcRenderer.invoke(PlatformChannels.MobilePairingState),
-  /** 订阅配对服务运行状态推送（对齐原版 StatusChanged） */
-  onMobilePairingStateChanged: (callback: (state: MobilePairingRuntimeState) => void) => {
-    const listener = (_event: unknown, state: MobilePairingRuntimeState) => callback(state);
-    ipcRenderer.on(PlatformChannels.MobilePairingStateChanged, listener);
-    return () => {
-      ipcRenderer.removeListener(PlatformChannels.MobilePairingStateChanged, listener);
-    };
-  },
-  /** 官方 relay 云中继远控：连接 z.ai relay 并生成 v4 托管页二维码（跨网络可用） */
-  startMobileRelayControl: (params: { workspacePath: string; workspaceIdentity?: string }) =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelayStart, params),
+  /**
+   * relay 远控：transport=cloud（缺省）连云中继；transport=lan 启动进程内嵌自建
+   * relay（specs/mobile-relay-server.md §12，局域网可用，手机侧同 relay 协议）。
+   */
+  startMobileRelayControl: (params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    transport?: MobileRelayTransport;
+  }) => ipcRenderer.invoke(PlatformChannels.MobileRelayStart, params),
   stopMobileRelayControl: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.MobileRelayStop),
   /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
   refreshMobileRelayControl: (): Promise<{ url: string; sessionId: string }> =>
@@ -330,6 +320,42 @@ contextBridge.exposeInMainWorld("drora", {
   /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
   syncWebRemoteControlTasks: (tasks: MobileRelayTaskSyncEntry[]) =>
     ipcRenderer.invoke(PlatformChannels.MobileRelaySyncTasks, tasks),
+  /**
+   * 注册手机 workspace-reconnect-request 的窗口重连委托（官方 preload 同款，
+   * 2026-09-28 取证 preload/index.cjs onWebRemoteControlReconnectWorkspace）：
+   * main 经同一通道发 {requestId, workspaceKey}，await 回调后把结果发回同通道；
+   * 回调抛错折叠为 {requestId, workspaceKey, success:false, error}——官方语义
+   * （失败也必须回复，否则 main 侧 120s 等待只会以超时收场）。
+   */
+  onWebRemoteControlReconnectWorkspace: (
+    callback: (request: { requestId: string; workspaceKey: string }) => Promise<{
+      requestId: string;
+      workspaceKey: string;
+      success: boolean;
+      error?: string;
+    }>,
+  ) => {
+    const handler = async (
+      event: { sender: { send: (channel: string, payload: unknown) => void } },
+      payload: { requestId: string; workspaceKey: string },
+    ) => {
+      try {
+        const result = await callback(payload);
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, result);
+      } catch (error) {
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, {
+          requestId: payload.requestId,
+          workspaceKey: payload.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+    ipcRenderer.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+    return () => {
+      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+    };
+  },
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */

@@ -72,6 +72,19 @@ function statusDotClass(status: MobilePairingStatus): string {
   }
 }
 
+/**
+ * 状态 → tab 过滤（specs/mobile-relay-server.md §12.4）：LAN/云中继统一走 relay
+ * 控制链后，运行状态携带 transport；tab=relay 对应 transport=cloud。未携带字段的
+ * 状态（旧生产方）按匹配处理（兼容语义）。
+ */
+function stateMatchesTransport(
+  state: Pick<MobilePairingRuntimeState, "transport">,
+  tab: "lan" | "relay",
+): boolean {
+  if (!state.transport) return true;
+  return tab === "relay" ? state.transport === "cloud" : state.transport === "lan";
+}
+
 export const WebRemoteControlDialog = memo(function WebRemoteControlDialogComponent({
   open,
   onOpenChange,
@@ -140,53 +153,23 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   );
 
   const handleStart = useCallback(async () => {
-    if (transportRef.current === "relay") {
-      if (!platform.startMobileRelayControl) {
-        setQr((prev) => ({
-          ...prev,
-          status: "error",
-          failureMessage: "mobile relay control is unavailable in this build",
-        }));
-        return;
-      }
-      setQr((prev) => ({ ...prev, status: "starting", failureMessage: null, qrRenderError: null }));
-      try {
-        const result = await platform.startMobileRelayControl({
-          workspacePath,
-          workspaceIdentity,
-        });
-        applyRuntimeState({
-          running: true,
-          status: "running",
-          connected: false,
-          url: result.url,
-          workspacePath,
-          workspaceIdentity: workspaceIdentity ?? null,
-          failure: null,
-        });
-      } catch (error) {
-        logger.warn("[WebRemoteControlDialog] 启动 relay 远控失败", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setQr((prev) => ({
-          ...prev,
-          status: "error",
-          failureMessage: error instanceof Error ? error.message : String(error),
-        }));
-      }
-      return;
-    }
-    if (!platform.startMobilePairing) {
+    // LAN/云中继统一走 relay 控制链（specs/mobile-relay-server.md §12）：
+    // lan=进程内嵌自建 relay（局域网可达，手机侧同 relay 协议）；cloud=云中继。
+    if (!platform.startMobileRelayControl) {
       setQr((prev) => ({
         ...prev,
         status: "error",
-        failureMessage: "mobile pairing is unavailable in this build",
+        failureMessage: "mobile relay control is unavailable in this build",
       }));
       return;
     }
     setQr((prev) => ({ ...prev, status: "starting", failureMessage: null, qrRenderError: null }));
     try {
-      const result = await platform.startMobilePairing({ workspacePath, workspaceIdentity });
+      const result = await platform.startMobileRelayControl({
+        workspacePath,
+        workspaceIdentity,
+        transport: transportRef.current === "relay" ? "cloud" : "lan",
+      });
       applyRuntimeState({
         running: true,
         status: "running",
@@ -197,7 +180,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
         failure: null,
       });
     } catch (error) {
-      logger.warn("[WebRemoteControlDialog] 启动配对服务失败", {
+      logger.warn("[WebRemoteControlDialog] 启动 relay 远控失败", {
+        transport: transportRef.current,
         error: error instanceof Error ? error.message : String(error),
       });
       setQr((prev) => ({
@@ -208,24 +192,18 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     }
   }, [platform, workspacePath, workspaceIdentity, applyRuntimeState]);
 
-  // 状态推送订阅（对齐原版 StatusChanged）：仅消费当前选中传输的推送。
-  useEffect(() => {
-    if (!platform.onMobilePairingStateChanged) return;
-    return platform.onMobilePairingStateChanged((state) => {
-      if (transportRef.current === "lan") applyRuntimeState(state);
-    });
-  }, [platform, applyRuntimeState]);
-
+  // 状态推送订阅（统一 relay 控制链后单一推送源；两 tab 按 transport 过滤——
+  // 两传输共用控制链，同一时刻至多一条活跃，状态携带 transport 字段）。
   useEffect(() => {
     if (!platform.onMobileRelayStateChanged) return;
     return platform.onMobileRelayStateChanged((state) => {
-      if (transportRef.current === "relay") applyRuntimeState(state);
+      if (stateMatchesTransport(state, transportRef.current)) applyRuntimeState(state);
     });
   }, [platform, applyRuntimeState]);
 
-  // 对齐原版：弹层打开即恢复展示；服务未运行则自动开启。名额按传输区分
-  // （spec: mobile-web-remote.md「Renderer 集成面」）：LAN 打开时消耗自己的名额后，
-  // 切到云中继 tab 仍可自动开启 relay。传输切换时同样恢复对应链路的状态。
+  // 弹层打开即恢复展示；当前 tab 对应传输未运行则自动开启。传输切换时恢复对应
+  // 链路的状态：运行中状态的 transport 与 tab 不匹配视为「该 tab 未运行」——
+  // 切 tab 会把唯一活跃链路切到目标传输（有意收敛，spec §12.4）。
   useEffect(() => {
     if (!open) {
       autoStartGateRef.current.reset();
@@ -233,12 +211,13 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     }
     void (async () => {
       try {
-        const state =
-          transport === "relay"
-            ? await platform.getMobileRelayControlState?.()
-            : await platform.getMobilePairingState?.();
+        const state = await platform.getMobileRelayControlState?.();
+        const stateForTab =
+          state && state.status !== "idle" && stateMatchesTransport(state, transport)
+            ? state
+            : undefined;
         applyRuntimeState(
-          state ?? {
+          stateForTab ?? {
             running: false,
             status: "idle",
             connected: false,
@@ -248,7 +227,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
             failure: null,
           },
         );
-        if (autoStartGateRef.current.admit(state, transport)) void handleStart();
+        if (autoStartGateRef.current.admit(stateForTab, transport)) void handleStart();
       } catch {
         // 查询失败静默；starting 态兜底显示
       }
@@ -256,15 +235,13 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随 open/transport 变化触发恢复
   }, [open, transport]);
 
-  // 对齐原版 resetPairing（"刷新二维码"）：LAN=换发票据踢除旧手机；relay=轮换设备凭据重启。
+  // 对齐原版 resetPairing（"刷新二维码"）：轮换设备凭据并重启（LAN 内嵌/云中继同
+  // 语义：旧终端被断开、重新注册出码）。
   const handleRefreshQr = async () => {
     if (pending) return;
     setPending(true);
     try {
-      const result =
-        transport === "relay"
-          ? await platform.refreshMobileRelayControl?.()
-          : await platform.refreshMobilePairing?.();
+      const result = await platform.refreshMobileRelayControl?.();
       if (!result) return;
       applyRuntimeState({
         running: true,
@@ -294,9 +271,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       qrRenderError: null,
     });
     renderedQrUrlRef.current = null;
-    const stopping =
-      transport === "relay" ? platform.stopMobileRelayControl?.() : platform.stopMobilePairing?.();
-    void stopping?.catch((error: unknown) =>
+    // 统一 stop：transport=lan 时 main 同时停内嵌服务端（§12.1）。
+    void platform.stopMobileRelayControl?.().catch((error: unknown) =>
       logger.warn("[WebRemoteControlDialog] 停止远控失败", {
         transport,
         error: error instanceof Error ? error.message : String(error),

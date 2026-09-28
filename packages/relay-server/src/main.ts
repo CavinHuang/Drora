@@ -12,6 +12,7 @@ const { values } = parseArgs({
     port: { type: "string", default: "4430" },
     host: { type: "string", default: "0.0.0.0" },
     db: { type: "string", default: "./relay-devices.json" },
+    "static-dir": { type: "string" },
   },
 });
 
@@ -29,6 +30,8 @@ const server = createRelayServer({
   registry,
   port,
   host: values.host,
+  // 官方 v4 前端资产本地托管（spec §12.5）：目录结构镜像 /remote/v4/**。
+  staticRoot: values["static-dir"],
   log: { info: (...args) => console.log(...args), warn: (...args) => console.warn(...args) },
 });
 

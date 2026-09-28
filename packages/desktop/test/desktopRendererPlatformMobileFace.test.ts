@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 
 // 守护 renderer 平台适配层的移动远控方法面（spec: mobile-web-remote.md
-// 「Renderer 集成面」）：IPlatformService 的 LAN 5 项 + relay 5 项必须在
+// 「Renderer 集成面」）：IPlatformService 的 relay 5 项 + 重连委托必须在
 // createDesktopPlatform 逐一转发到 window.drora。
 //
 // 背景：renderer 子项目不在根 pnpm typecheck 覆盖内，且 window.drora 的全局
 // 类型声明不在 renderer 工程里——缺失转发不会被类型检查拦截；relay 5 项缺失曾让
 // “云中继”tab 永久停在“正在准备二维码”（状态兜底 idle、自动开启条件永不成立、
-// 无推送、无手动开启入口）。
+// 无推送、无手动开启入口）。旧 LAN 直连 5 项（startMobilePairing 等）已随配对栈
+// 删除（specs/mobile-relay-server.md §12.4），不再属于方法面。
 //
 // 运行：cd packages/desktop &&
 //   node --import tsx/esm --experimental-test-module-mocks --test \
@@ -22,19 +23,13 @@ mock.module("@drora/ui", {
 });
 
 const MOBILE_FACE_METHODS = [
-  "startMobilePairing",
-  "stopMobilePairing",
-  "refreshMobilePairing",
-  "getMobilePairingState",
-  "onMobilePairingStateChanged",
   "startMobileRelayControl",
   "stopMobileRelayControl",
   "refreshMobileRelayControl",
   "getMobileRelayControlState",
   "onMobileRelayStateChanged",
+  "onWebRemoteControlReconnectWorkspace",
 ] as const;
-
-type MobileFaceMethod = (typeof MOBILE_FACE_METHODS)[number];
 
 function installWindowDroraStub() {
   const invocations: Array<{ method: string; args: unknown[] }> = [];
@@ -43,15 +38,15 @@ function installWindowDroraStub() {
   for (const method of MOBILE_FACE_METHODS) {
     stub[method] = (...args: unknown[]) => {
       invocations.push({ method, args });
-      if (method === "onMobilePairingStateChanged" || method === "onMobileRelayStateChanged") {
+      if (
+        method === "onMobileRelayStateChanged" ||
+        method === "onWebRemoteControlReconnectWorkspace"
+      ) {
         listeners.set(method, args[0] as (state: unknown) => void);
         return () => {};
       }
-      if (method === "getMobilePairingState" || method === "getMobileRelayControlState") {
+      if (method === "getMobileRelayControlState") {
         return { running: false, status: "idle" };
-      }
-      if (method === "startMobilePairing" || method === "refreshMobilePairing") {
-        return { url: `stub://${method}`, port: 12345 };
       }
       if (method === "startMobileRelayControl" || method === "refreshMobileRelayControl") {
         return { url: `stub://${method}`, sessionId: "stub-session" };
@@ -65,12 +60,12 @@ function installWindowDroraStub() {
   return { invocations, listeners };
 }
 
-test("createDesktopPlatform 转发移动远控全方法面（LAN 5 + relay 5）", async () => {
+test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委托）", async () => {
   const { invocations, listeners } = installWindowDroraStub();
   const { createDesktopPlatform } = await import("../src/renderer/src/desktopPlatform.js");
   const platform = createDesktopPlatform({ isLocalDevelopmentRuntime: false });
 
-  // 全部 10 个方法必须存在——缺失任意一项，对应传输在弹层内就没有可用链路。
+  // 全部方法必须存在——缺失任意一项，对应传输在弹层内就没有可用链路。
   for (const method of MOBILE_FACE_METHODS) {
     assert.equal(
       typeof platform[method],
@@ -83,6 +78,19 @@ test("createDesktopPlatform 转发移动远控全方法面（LAN 5 + relay 5）"
   assert.deepEqual(invocations.at(-1), {
     method: "startMobileRelayControl",
     args: [{ workspacePath: "D:/w" }],
+  });
+
+  // transport 维度（specs/mobile-relay-server.md §12）必须原样透传：弹层 LAN tab
+  // 传 lan（内嵌 relay），云中继 tab 传 cloud——转发层丢参会让两条传输同化。
+  await platform.startMobileRelayControl?.({ workspacePath: "D:/w", transport: "lan" });
+  assert.deepEqual(invocations.at(-1), {
+    method: "startMobileRelayControl",
+    args: [{ workspacePath: "D:/w", transport: "lan" }],
+  });
+  await platform.startMobileRelayControl?.({ workspacePath: "D:/w", transport: "cloud" });
+  assert.deepEqual(invocations.at(-1), {
+    method: "startMobileRelayControl",
+    args: [{ workspacePath: "D:/w", transport: "cloud" }],
   });
 
   await platform.getMobileRelayControlState?.();
@@ -99,10 +107,13 @@ test("createDesktopPlatform 转发移动远控全方法面（LAN 5 + relay 5）"
   platform.onMobileRelayStateChanged?.(relayListener);
   assert.equal(listeners.get("onMobileRelayStateChanged"), relayListener);
 
-  const lanListener = (state: unknown) => state;
-  platform.onMobilePairingStateChanged?.(lanListener);
-  assert.equal(listeners.get("onMobilePairingStateChanged"), lanListener);
-
-  await platform.refreshMobilePairing?.();
-  assert.equal(invocations.at(-1)?.method, "refreshMobilePairing");
+  // 手机 workspace-reconnect-request 的窗口重连委托（M4c）：缺失转发会让手机端
+  // 重连请求在 main 侧 120s 超时（回复永远到不了 main）。
+  const reconnectHandler = async (request: { requestId: string }) => ({
+    requestId: request.requestId,
+    workspaceKey: "k",
+    success: true,
+  });
+  platform.onWebRemoteControlReconnectWorkspace?.(reconnectHandler);
+  assert.equal(listeners.get("onWebRemoteControlReconnectWorkspace"), reconnectHandler);
 });

@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- 协议纯逻辑单文件聚合（常量+算法+存储），与 desktopMobilePairingCore 同例。 */
+/* eslint-disable max-lines -- 协议纯逻辑单文件聚合（常量+算法+存储），沿用已删除的 desktopMobilePairingCore 的单文件先例。 */
 // 移动端远程控制·官方 relay 协议纯逻辑（无 IO，可独立单测）。
 // 常量与算法逐项取证自官方 3.14.3 发行 bundle 并经最小探测复核（spec: mobile-web-remote.md M4）。
 import { createHash, createHmac, randomBytes } from "node:crypto";
@@ -153,8 +153,14 @@ export class MobileRelayCredentialStore {
       encrypt: (plain: string) => string;
       decrypt: (stored: string) => string;
     },
+    /**
+     * 凭据文件名覆盖（specs/mobile-relay-server.md §12.2 凭据按 origin 隔离）：
+     * 装配处按 effective origin 传 mobile-relay-device-<sha8(origin)>.json；
+     * 缺省保持旧单文件名（该文件不再被新链路读写，不迁移不删除）。
+     */
+    fileName: string = CREDENTIAL_FILE_NAME,
   ) {
-    this.filePath = join(optionsDir, CREDENTIAL_FILE_NAME);
+    this.filePath = join(optionsDir, fileName);
     this.encrypt = encryption?.encrypt ?? null;
     this.decrypt = encryption?.decrypt ?? null;
   }
@@ -251,7 +257,7 @@ export function buildBootstrapResult(params: {
  * 对齐官方 getAvailableWorkspaces：registry 投影为基集，运行时目标（startParams
  * 工作区）不缺席——controller 投影缺失/未就绪时至少回退到它。
  */
-export function mergeRuntimeWorkspace(
+function mergeRuntimeWorkspace(
   workspaces: RelayWorkspaceSummary[],
   fallbackWorkspace: RelayWorkspaceSummary,
 ): RelayWorkspaceSummary[] {
@@ -291,9 +297,9 @@ export function buildWorkspaceListResult(params: {
 // 限制（官方常量）：消息 ≤16MiB、分片 ≤64、dataBase64 ≤1MiB。
 
 export const RPC_FRAME_MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
-export const RPC_FRAME_MAX_FRAGMENTS = 64;
+const RPC_FRAME_MAX_FRAGMENTS = 64;
 /** 单分片数据预算：base64 后 ~874KB + 封套 JSON 开销，稳居 1MiB 物理帧上限内。 */
-export const RPC_FRAME_FRAGMENT_DATA_BYTES = 640 * 1024;
+const RPC_FRAME_FRAGMENT_DATA_BYTES = 640 * 1024;
 
 export interface RpcFrameIdentity {
   bridgeSessionId: string;
@@ -353,7 +359,7 @@ function identityFields(identity: RpcFrameIdentity): Record<string, unknown> {
  * /^[0-9a-f]{8}$/ 校验，数字会被判 proto.frameAssemblyMetadataMismatch 丢弃，
  * 2026-09-27 真机取证）；内部比较统一用数值。
  */
-export function crc32ToWire(value: number): string {
+function crc32ToWire(value: number): string {
   return (value >>> 0).toString(16).padStart(8, "0");
 }
 
@@ -471,15 +477,222 @@ export class RpcFrameAssembler {
   }
 }
 
-/** bridge-ready 携带的 bridge 信息（对齐官方 toExternalBridge）。 */
+// —— M4c：发送侧流控与重放缓冲（对齐官方 AcknowledgedRelayProtocol）——
+//
+// 取证：chunk-C6VCYWB4.js 类体 @8551、常量表 @6729。官方语义：每条完整消息一个
+// messageSeq；发送侧记录 {messageSeq→帧组, outerBytes, queuedAt}；收到
+// rpc-frame-ack{ackMessageSeq} → releaseThrough 释放 ≤ack 的批次并减
+// unacknowledgedByteCount；unacked 越过高水位置 saturated（宿主背压触发面），ack
+// 回落到 ≤低水位置 drained；future-ack（ack > 已发最高 seq）→ enterDegraded（终态）；
+// 缓冲超限 / 最旧未确认批次超过 grace → enterDegraded（终态）。
+
+/** 饱和高水位：官方 saturationHighWaterMarkBytes=1MiB（常量表 @6729）。 */
+export const RELAY_SATURATION_HIGH_WATER_MARK_BYTES = 1024 * 1024;
+/** 排空低水位：官方 saturationLowWaterMarkBytes=256KiB。 */
+export const RELAY_SATURATION_LOW_WATER_MARK_BYTES = 256 * 1024;
+/** 重放缓冲字节上限：官方 replayBufferMaxBytes=8MiB。 */
+export const RELAY_REPLAY_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
+/** 未确认批次宽限期：官方 replayBufferGraceMs=45s。 */
+export const RELAY_REPLAY_BUFFER_GRACE_MS = 45_000;
+
+/** 终态降级原因码（对齐官方 fault.reasonCode 字面量族）。 */
+export const RELAY_REPLAY_DEGRADED_ACK_GRACE = "remote.rpcFrame.ackGraceExceeded";
+export const RELAY_REPLAY_DEGRADED_FUTURE_ACK = "remote.rpcFrame.futureAck";
+export const RELAY_REPLAY_DEGRADED_BUFFER_EXCEEDED = "remote.rpcFrame.replayBufferExceeded";
+/**
+ * 发送侧超限（M4c，官方 Q 的 sendFrame 取证 index.js@397000 附近）：
+ * 出站物理帧超过 maxPhysicalFrameBytes 时官方显式抛
+ * Error("remote.rpcFrame.envelopeTooLarge")，协议侧捕获 → enterDegraded 终态——
+ * 不再静默丢帧（手机页 sendFrame 同款，托管页取证 @6084714）。
+ */
+export const RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE = "remote.rpcFrame.envelopeTooLarge";
+
+/** 重放缓冲参数（缺省 = 官方常量；测试可注入缩短 graceMs / 缩小水位）。 */
+export interface RelayReplayBufferOptions {
+  highWaterMarkBytes?: number;
+  lowWaterMarkBytes?: number;
+  maxBytes?: number;
+  graceMs?: number;
+  /** 时间源（测试注入；默认 Date.now）。 */
+  now?: () => number;
+}
+
+export interface RelayReplayReserveResult {
+  /** 入队将使未确认字节超过缓冲上限：批次被拒（官方 replayBufferExceeded → enterDegraded）。 */
+  overflow: boolean;
+  /** 入队后的饱和状态（false→true 转变沿即官方 onSaturated 触发面）。 */
+  saturated: boolean;
+}
+
+export interface RelayReplayAckResult {
+  /** releaseThrough 释放的字节数；0 = 落后/重复 ack（官方 `ack<=lastAcked` 无操作）。 */
+  releasedBytes: number;
+  /** ack 超过已完整发送的最高 messageSeq（官方 futureAck → enterDegraded 终态）。 */
+  futureAck: boolean;
+  /** 本次 ack 使饱和回落到 ≤ 低水位（官方 onDrained 触发面）。 */
+  drained: boolean;
+}
+
+interface RelayReplayBatch {
+  messageSeq: number;
+  outerBytes: number;
+  frames: RpcTransportFrame[];
+  queuedAt: number;
+}
+
+/**
+ * 发送侧重放缓冲（纯逻辑，可独立单测）：官方 AcknowledgedRelayProtocol 的出站簿记
+ * 子集。批次按 reserve 顺序保存（控制层保证 messageSeq 单调递增），ack 为累计确认
+ * （releaseThrough 释放 ≤ack 的全部批次）。字节口径由调用方决定，控制层用出站
+ * data 信封字节数（对齐官方 measureFrameBytes 计量最终信封）。
+ */
+export class RelayReplayBuffer {
+  private readonly batches: RelayReplayBatch[] = [];
+  private unacknowledgedByteCount = 0;
+  private saturatedState = false;
+  private highestFullySentMessageSeq = 0;
+  private lastAckedMessageSeq = 0;
+  /** 宽限期（ms）：控制层据此计算 grace 看门狗延迟。 */
+  readonly graceMs: number;
+  private readonly highWaterMarkBytes: number;
+  private readonly lowWaterMarkBytes: number;
+  private readonly maxBytes: number;
+  private readonly now: () => number;
+
+  constructor(options: RelayReplayBufferOptions = {}) {
+    this.highWaterMarkBytes = options.highWaterMarkBytes ?? RELAY_SATURATION_HIGH_WATER_MARK_BYTES;
+    this.lowWaterMarkBytes = options.lowWaterMarkBytes ?? RELAY_SATURATION_LOW_WATER_MARK_BYTES;
+    this.maxBytes = options.maxBytes ?? RELAY_REPLAY_BUFFER_MAX_BYTES;
+    this.graceMs = options.graceMs ?? RELAY_REPLAY_BUFFER_GRACE_MS;
+    this.now = options.now ?? Date.now;
+  }
+
+  /** 未确认字节水位（官方 unacknowledgedBytes getter）。 */
+  get unacknowledgedBytes(): number {
+    return this.unacknowledgedByteCount;
+  }
+
+  /** 饱和状态（官方 saturated 字段；状态转变沿即 saturated/drained 事件）。 */
+  get saturated(): boolean {
+    return this.saturatedState;
+  }
+
+  /** 已完整发送的最高 messageSeq（future-ack 判定基准，官方 highestFullySentMessageSeq）。 */
+  get highestSentMessageSeq(): number {
+    return this.highestFullySentMessageSeq;
+  }
+
+  /**
+   * 入队一个已发送批次并累计未确认字节。超上限时拒收（不累计、不保存）——官方
+   * 在发送前检查并 enterDegraded(replayBufferExceeded)；本仓控制层为"发送后
+   * reserve"顺序，据 overflow 标记走终态降级（批次已上线，但 ack 将被忽略）。
+   */
+  reserve(
+    messageSeq: number,
+    outerBytes: number,
+    frames: RpcTransportFrame[],
+  ): RelayReplayReserveResult {
+    if (this.unacknowledgedByteCount + outerBytes > this.maxBytes) {
+      return { overflow: true, saturated: this.saturatedState };
+    }
+    this.batches.push({ messageSeq, outerBytes, frames, queuedAt: this.now() });
+    this.unacknowledgedByteCount += outerBytes;
+    if (messageSeq > this.highestFullySentMessageSeq) {
+      this.highestFullySentMessageSeq = messageSeq;
+    }
+    // 官方 updateSaturationAfterReserve：越过（>）高水位置饱和。
+    if (!this.saturatedState && this.unacknowledgedByteCount > this.highWaterMarkBytes) {
+      this.saturatedState = true;
+    }
+    return { overflow: false, saturated: this.saturatedState };
+  }
+
+  /** 累计确认（官方 processAck）：释放 ≤ackMessageSeq 的批次并减未确认水位。 */
+  ack(ackMessageSeq: number): RelayReplayAckResult {
+    // 落后/重复 ack：无操作（官方 `e<=lastAckedMessageSeq → return`）。
+    if (ackMessageSeq <= this.lastAckedMessageSeq) {
+      return { releasedBytes: 0, futureAck: false, drained: false };
+    }
+    // future-ack：ack 超过已完整发送的最高 seq → 终态降级标记（官方 futureAck）。
+    if (ackMessageSeq > this.highestFullySentMessageSeq) {
+      return { releasedBytes: 0, futureAck: true, drained: false };
+    }
+    let releasedBytes = 0;
+    let releasedCount = 0;
+    while (releasedCount < this.batches.length) {
+      const batch = this.batches[releasedCount];
+      if (!batch || batch.messageSeq > ackMessageSeq) break;
+      releasedBytes += batch.outerBytes;
+      releasedCount += 1;
+    }
+    if (releasedCount > 0) this.batches.splice(0, releasedCount);
+    this.unacknowledgedByteCount = Math.max(0, this.unacknowledgedByteCount - releasedBytes);
+    this.lastAckedMessageSeq = ackMessageSeq;
+    // 官方 drained：饱和态回落到 ≤ 低水位时清饱和并触发事件。
+    let drained = false;
+    if (this.saturatedState && this.unacknowledgedByteCount <= this.lowWaterMarkBytes) {
+      this.saturatedState = false;
+      drained = true;
+    }
+    return { releasedBytes, futureAck: false, drained };
+  }
+
+  /** 全部未确认帧组（重连后重发的数据源；官方 resetReplay + flushPendingFrames）。 */
+  replayFrames(): RpcTransportFrame[] {
+    const frames: RpcTransportFrame[] = [];
+    for (const batch of this.batches) {
+      for (const frame of batch.frames) frames.push(frame);
+    }
+    return frames;
+  }
+
+  /** 最旧未确认批次的入队时刻；无批次返回 null（官方 deadline 的 oldestData）。 */
+  oldestQueuedAt(): number | null {
+    const oldest = this.batches[0];
+    return oldest ? oldest.queuedAt : null;
+  }
+
+  /**
+   * grace 超时判定（官方 deadline）：最旧未确认批次超过宽限期。官方判定式
+   * `now > queuedAt+graceMs+1` 的 +1 是整数毫秒边界细节，与 `now > queuedAt+graceMs`
+   * 语义等价。
+   */
+  graceExceeded(nowMs: number = this.now()): boolean {
+    const oldest = this.batches[0];
+    return oldest !== undefined && nowMs > oldest.queuedAt + this.graceMs;
+  }
+
+  /** 清空（终态降级 / 桥销毁）：水位与饱和态归零；终态后不再有 reserve/ack 进入。 */
+  clear(): void {
+    this.batches.length = 0;
+    this.unacknowledgedByteCount = 0;
+    this.saturatedState = false;
+    this.highestFullySentMessageSeq = 0;
+    this.lastAckedMessageSeq = 0;
+  }
+}
+
+/** 官方 createAcknowledgedWebRemoteControlRelayProtocol 的缓冲构造入口（可注入参数）。 */
+export function createRelayReplayBuffer(options?: RelayReplayBufferOptions): RelayReplayBuffer {
+  return new RelayReplayBuffer(options);
+}
+
+/**
+ * bridge-ready 携带的 bridge 信息（对齐官方 toExternalBridge，index.js@386100）：
+ * kind=remote 时官方强制要求 workspaceIdentity+remoteSessionId（缺则 throw），
+ * 并附加这两个字段——远程桥的桥端以身份隔离键而非路径寻址（AGENTS.md Workspace
+ * Identity 规则）。
+ */
 export function toExternalBridge(params: {
   identity: RpcFrameIdentity;
   workspaceKey: string;
   workspacePath: string;
   initialTaskId?: string;
-  kind: "local";
+  kind: "local" | "remote";
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
 }): Record<string, unknown> {
-  return {
+  const base = {
     bridgeSessionId: params.identity.bridgeSessionId,
     ...(params.identity.bridgeGeneration !== undefined
       ? { bridgeGeneration: params.identity.bridgeGeneration }
@@ -488,8 +701,80 @@ export function toExternalBridge(params: {
     workspaceKey: params.workspaceKey,
     workspacePath: params.workspacePath,
     ...(params.initialTaskId ? { initialTaskId: params.initialTaskId } : {}),
-    kind: params.kind,
   };
+  if (params.kind === "remote") {
+    if (!params.workspaceIdentity || !params.remoteSessionId) {
+      throw new Error("远程 workspace bridge 缺少 workspaceIdentity 或 remoteSessionId。");
+    }
+    return {
+      ...base,
+      kind: "remote",
+      workspaceIdentity: params.workspaceIdentity,
+      remoteSessionId: params.remoteSessionId,
+    };
+  }
+  return { ...base, kind: "local" };
+}
+
+/**
+ * 可桥判定（对齐官方 isBridgeableRemoteTarget，pl，index.js@385786）：
+ * `kind!=="remote" || !!(workspaceIdentity && remoteSessionId)`。远程工作区断连后
+ * renderer 推送条目不再携带 remoteSessionId，故"identity+remoteSessionId 齐备"
+ * 即官方对"远程已连接"的判定代理——连接状态字段不参与判定。
+ */
+export function isBridgeableRemoteTarget(target: {
+  kind: "local" | "remote";
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}): boolean {
+  return target.kind !== "remote" || Boolean(target.workspaceIdentity && target.remoteSessionId);
+}
+
+/**
+ * bridge-error reason 映射（对齐官方 mapWorkspaceBridgeFailureReason，FW，
+ * index.js@385109，经 getErrorCode UW @385003 取 Error.code）。托管手机页 i18n
+ * （remote/v4/3.14.3 资产 @6046621-6052021）恰好只含这 4 个 reason 键——未知键
+ * 落通用失败面，故无 code 的校验错误（未知工作区/远程未连接/superseded）按官方
+ * 一律映射 unexpected-error，错误文案随 error 字段透出。
+ */
+export function mapWorkspaceBridgeFailureReason(error: unknown): string {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code)
+      : undefined;
+  switch (code) {
+    case "DESKTOP_HOST_MISSING":
+      return "desktop-disconnected";
+    case "REMOTE_SESSION_MISSING":
+    case "REMOTE_SESSION_WINDOW_MISMATCH":
+      return "workspace-closed";
+    case "REMOTE_WORKSPACE_IDENTITY_MISSING":
+    case "REMOTE_WORKSPACE_IDENTITY_MISMATCH":
+      return "unsupported-action";
+    default:
+      return "unexpected-error";
+  }
+}
+
+/**
+ * relay 桥面的附着错误码归一：本仓共享 attacher（desktopMobileServiceAttach）的
+ * Host 缺失错误码是 LAN 失败面词汇（code=workspace-closed，被 LAN 配对服务器
+ * 消费，不可改动）；relay 桥面按官方词汇归一为 DESKTOP_HOST_MISSING（官方
+ * attachLocalHost n @583400 的 du("DESKTOP_HOST_MISSING") 同码），再经
+ * mapWorkspaceBridgeFailureReason 得到 desktop-disconnected。
+ */
+export function normalizeRelayAttachError(error: unknown): unknown {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "workspace-closed"
+  ) {
+    return Object.assign(new Error(error instanceof Error ? error.message : String(error)), {
+      code: "DESKTOP_HOST_MISSING",
+    });
+  }
+  return error;
 }
 
 /** 入站 rpc-frame 帧的运行时校验（形状级；语义校验在 Assembler）。 */

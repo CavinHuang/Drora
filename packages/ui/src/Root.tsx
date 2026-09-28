@@ -695,6 +695,37 @@ function RootInner({
     });
   }, [platform]);
 
+  useEffect(() => {
+    // 手机 workspace-reconnect-request 的窗口重连委托（官方 Root 同款接线，
+    // 托管页取证 styles-DEELZGp2.js@5942240）：远程连接历史/target/凭据都在窗口
+    // renderer，main 只转发手机请求，这里用既有 handleReconnectRemoteWorkspace
+    // 执行重连——不激活 tab、不弹 toast、失败抛错（由委托折叠为 success:false）。
+    if (!platform.onWebRemoteControlReconnectWorkspace) {
+      return;
+    }
+    return platform.onWebRemoteControlReconnectWorkspace(async (request) => {
+      try {
+        await handleReconnectRemoteWorkspace(request.workspaceKey, {
+          activateWorkspaceAfterReconnect: false,
+          showErrorToast: false,
+          throwOnFailure: true,
+        });
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: true,
+        };
+      } catch (error) {
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  }, [handleReconnectRemoteWorkspace, platform]);
+
   useRootOAuthEffects({
     accountIntentKey: JSON.stringify([
       user?.id,

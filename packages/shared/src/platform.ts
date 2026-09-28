@@ -263,12 +263,21 @@ export type MobilePairingStatus =
   | "active"
   | "error";
 
-/** 移动端远程控制失败面（reason 对齐原版失败语义）。 */
+/**
+ * 移动端远程控制失败面（reason 对齐原版失败语义）。
+ */
 export interface MobilePairingFailure {
   /** session-conflict=被新配对接管；internal=本地启动/监听失败；unsupported-action=构建不支持。 */
   reason: "session-conflict" | "internal" | "unsupported-action";
   message: string;
 }
+
+/**
+ * 移动端远控传输（renderer → main IPC 参数；specs/mobile-relay-server.md §12）：
+ * lan=进程内嵌自建 relay（手机侧同 relay 协议，局域网可达）；
+ * cloud=云中继（官方/自建部署，缺省）。跨进程契约字面量唯一出处（shared 契约区）。
+ */
+export type MobileRelayTransport = "lan" | "cloud";
 
 /**
  * 移动端配对服务运行状态快照（Main → Renderer 推送与查询共用同一形状；
@@ -285,6 +294,11 @@ export interface MobilePairingRuntimeState {
   workspacePath: string | null;
   workspaceIdentity: string | null;
   failure: MobilePairingFailure | null;
+  /**
+   * 产生该状态的传输（relay 控制链统一后用于弹层按 tab 过滤；LAN 直连旧链路与
+   * 未携带该字段的产生方为 undefined，弹层按兼容语义处理）。
+   */
+  transport?: MobileRelayTransport | null;
 }
 
 /**
@@ -750,37 +764,18 @@ export interface IPlatformService {
   registerOAuthState(payload: OAuthStateRegistration): void;
 
   /**
-   * 移动端远程控制：启动 LAN 配对服务并签发一次性配对二维码。
-   * 配对令牌一次性使用、长期有效直到被重置（对齐原版等待期无 TTL）；
-   * 服务默认关闭，由用户显式开启。Desktop only。
-   * 服务独立于弹层运行（对齐原版生命周期）：重复 start 会重启服务并踢除旧会话。
-   */
-  startMobilePairing?(params: {
-    workspacePath: string;
-    workspaceIdentity?: string;
-  }): Promise<{ url: string; port: number }>;
-  /** 停止移动端配对服务（关端口、作废令牌）。Desktop only。 */
-  stopMobilePairing?(): Promise<void>;
-  /**
-   * 重置移动端配对（对齐原版 resetPairing/“刷新二维码”语义）：
-   * 向已连手机发 kicked 后断开、作废旧配对票据、换发新票据；服务与端口保持不变。
-   */
-  refreshMobilePairing?(): Promise<{ url: string; port: number }>;
-  /** 查询配对服务运行状态（弹层重开时恢复展示）。Desktop only。 */
-  getMobilePairingState?(): Promise<MobilePairingRuntimeState>;
-  /** 订阅配对服务运行状态推送（对齐原版 StatusChanged；替代轮询）。Desktop only。 */
-  onMobilePairingStateChanged?(callback: (state: MobilePairingRuntimeState) => void): () => void;
-
-  /**
-   * 官方 relay 云中继远控（M4，spec: mobile-web-remote.md）：连接 z.ai 官方 relay，
-   * 设备注册/鉴权后生成指向官方托管手机页（remote/v4）的二维码；跨网络可用。
-   * 与 LAN 直连并存，默认关闭。Desktop only。
+   * relay 远控（M4，spec: mobile-web-remote.md + mobile-relay-server.md §12）：连接
+   * relay 服务端，设备注册/鉴权后生成指向托管手机页的二维码。transport=cloud（缺省）
+   * 连云中继（官方/自建部署，跨网络）；transport=lan 启动进程内嵌自建 relay 服务端
+   * （局域网可用，手机侧同 relay 协议）。旧 LAN 直连配对栈已删除（§12.4），两传输
+   * 共用同一控制链，同一时刻至多一条活跃（后启动者先停掉前者）。Desktop only。
    */
   startMobileRelayControl?(params: {
     workspacePath: string;
     workspaceIdentity?: string;
+    transport?: MobileRelayTransport;
   }): Promise<{ url: string; sessionId: string }>;
-  /** 停止 relay 远控（断开连接；设备凭据保留以便下次直连）。Desktop only。 */
+  /** 停止 relay 远控（断开连接；transport=lan 时同时停内嵌服务端；凭据保留以便下次直连）。Desktop only。 */
   stopMobileRelayControl?(): Promise<void>;
   /** 轮换 relay 远控凭据并重启（二维码泄露时的 resetPairing 语义）。Desktop only。 */
   refreshMobileRelayControl?(): Promise<{ url: string; sessionId: string }>;
@@ -796,6 +791,22 @@ export interface IPlatformService {
   syncWebRemoteControlWorkspaces?(workspaces: MobileRelayWorkspaceSyncEntry[]): void;
   /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款）。Desktop only。 */
   syncWebRemoteControlTasks?(tasks: MobileRelayTaskSyncEntry[]): void;
+  /**
+   * 注册手机 workspace-reconnect-request 的窗口重连委托（官方
+   * onWebRemoteControlReconnectWorkspace 同款，2026-09-28 取证）：callback 收
+   * {requestId, workspaceKey}，await 重连（官方选项 activateWorkspaceAfterReconnect:
+   * false / showErrorToast:false / throwOnFailure:true）后返回
+   * {requestId, workspaceKey, success, error?}；回调抛错由实现折叠为
+   * success:false。Desktop only。
+   */
+  onWebRemoteControlReconnectWorkspace?(
+    callback: (request: { requestId: string; workspaceKey: string }) => Promise<{
+      requestId: string;
+      workspaceKey: string;
+      success: boolean;
+      error?: string;
+    }>,
+  ): () => void;
 
   /**
    * 注册 OAuth deep link 回调监听

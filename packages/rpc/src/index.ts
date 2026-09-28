@@ -59,6 +59,7 @@ export {
   type ConnectionFlowControl,
   type MessagePortFlowControl,
   type MessagePortFlowState,
+  messagePortFlowControl,
   type MessagePortPayload,
   type ISocket,
   ChunkStream,

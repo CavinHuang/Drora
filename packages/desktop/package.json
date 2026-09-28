@@ -34,6 +34,7 @@
     "@drora/drora-cua": "workspace:*",
     "@drora/provider": "workspace:*",
     "@drora/provider-node": "workspace:*",
+    "@drora/relay-server": "workspace:*",
     "@drora/rpc": "workspace:*",
     "@drora/server": "workspace:*",
     "@drora/services": "workspace:*",
@@ -65,7 +66,6 @@
     "yazl": "^3.3.1"
   },
   "devDependencies": {
-    "@drora/relay-server": "workspace:*",
     "@electron/asar": "^3.4.1",
     "@electron/rebuild": "^4.0.3",
     "@tailwindcss/vite": "^4.2.2",

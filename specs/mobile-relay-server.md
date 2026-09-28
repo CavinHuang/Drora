@@ -52,16 +52,18 @@ desktopMobileRelayControl ── WSS ──► ┌──────────
 | `auth_init{role:"device"                                       | "terminal", device_sid, meta, client_ts}` | 双方→srv                                             | 发起挑战 |
 | `auth_challenge{nonce, server_ts}`                             | srv→双方                                  | 挑战                                                 |
 | `auth_response{device_sid, proof, client_ts}`                  | 双方→srv                                  | `proof=HMAC-SHA256(passHash, "<nonce>                | <role>   | <device_sid>", base64url)` |
-| `auth_ack{pair_status, terminal_sid, server_ts}`               | srv→双方                                  | 鉴权应答（terminal 附带自身 sid）                    |
-| `pair_status_query{device_sid, client_ts}`                     | device→srv                                | 心跳/状态查询                                        |
-| `pair_status_ack{pair_status, server_ts}`                      | srv→device                                | 状态应答（**也作为配对变化时的主动推送**）           |
+| `auth_ack{pair_status, device_sid, terminal_sid, server_ts}`   | srv→双方                                  | 鉴权应答：device ack 带 `device_sid`+`terminal_sid`（未配对 `""`），terminal ack 带 `device_sid`+自身 sid（E2E #2 对齐） |
+| `pair_status_query{device_sid, client_ts}`                     | 双方→srv                                  | 心跳/状态查询（device/terminal 双角色受理，E2E #1 对齐） |
+| `pair_status_ack{pair_status, server_ts}`                      | srv→双方                                  | 状态应答（**也作为配对变化时的主动推送**；terminal 查询应答附 `terminal_sid:""`，官方观测形状） |
 | `data{payload:{zcode_type...}, client_ts}`                     | 双方                                      | 应用帧（**matched 态才转发**，转发时补 `server_ts`） |
 | `error{code, message?, server_ts}`                             | srv→双方                                  | 错误面（见 §5）                                      |
 
 校验面（反推自官方行为，spec M4 段有实证记录）：
 
 - `data` 信封必须有 `client_ts`（缺失静默丢弃——官方行为：接受但不转发）；
-- `pair_status_query` 仅在 waiting 态合法，matched 后回 `error{code:"WRONG_PARAM"}`；
+- `pair_status_query` 双角色受理（2026-09-28 E2E #1 P0 修复：官方 terminal 角色以
+  query 为唯一心跳，拒绝即官方手机页 ~10s 终态死亡），任意 pair 态回当前
+  `pair_status_ack`；`device_sid` 与鉴权会话不符回 `WRONG_PARAM`；
 - 未知 `type` / 非对象帧 → `error{code:"WRONG_PARAM"}`；
 - 超 1MiB 的 WS 消息：断开连接（官方在应用帧层拒收 + 物理帧上限，服务端从严）；
 - `payload` 非对象 / `bridgeSessionId` 超出 `[A-Za-z0-9._~-]{1,64}`：静默丢弃
@@ -89,7 +91,8 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 事件顺序不变量（实现必须保证）：
 
 1. **踢除顺序**：新 terminal 鉴权成功时，先向旧 terminal 发
-   `error{code:"KICKED"}` 并等其 socket 关闭（或直接销毁），**再**向新 terminal 发
+   `error{code:"KICKED"}` 并 **terminate 断开**（E2E #4 对齐：官方不发 close 帧，
+   客户端见 1006），**再**向新 terminal 发
    `auth_ack{pair_status:"matched"}`——避免旧 terminal 在 matched 后仍能抢发 data。
 2. **配对通知**：terminal attach/detach 时向 device **主动推**
    `pair_status_ack`（附心跳应答兜底，设备 ≤10s 内必知状态）；两条路径幂等。
@@ -97,9 +100,10 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
    FIFO，跨连接不保证全局有序（端到端靠 rpc-frame seq/ack 语义，spec M4c）。
 4. **转发时盖章**：服务端解析 data 信封 → 置 `server_ts` → 重序列化转发（官方手机
    页 schema 含 server_ts 的来源）。
-5. **device 死亡**：WS close/ping 超时 → 先向 terminal 发
-   `error{code:"DEVICE_OFFLINE"}`，再断 terminal；会话销毁（device 重连重走鉴权，
-   matched 关系不持久）。
+5. **device 死亡**：WS close/ping 超时 → 依次向 terminal 推
+   `pair_status_ack{waiting}`（E2E #3 对齐：官方先推状态再报错）→
+   `error{code:"DEVICE_OFFLINE"}` → **terminate 断开**（E2E #4，客户端见 1006）；
+   会话销毁（device 重连重走鉴权，matched 关系不持久）。
 6. **鉴权竞态**：单连接同一时刻至多一个在途 auth（challenge 后未应答前收到新
    auth_init → 按 WRONG_PARAM 处理）；terminal 与 device 可并发鉴权互不阻塞。
 
@@ -158,8 +162,29 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
   发布天然配套）；页面能力面=LAN v1 子集（列表/时间线/事件/发送/权限/停止），
   官方 rpc-frame 深接入留待 R3。**已知限制（R2）**：任务清单为活跃 timeline 子集，
   pinned/archived 专视图未做（官方 AMn 推送三类；R3 随完整前端一并补）。
+  **失败面卡片（2026-09-28 对齐官方托管页）**：KICKED（设备接管）/AUTH_FAILED+
+  WRONG_PARAM（手机连接已失效）/DEVICE_OFFLINE（桌面离线，可恢复自动重连）/
+  bootstrap 20s 超时（响应超时卡）——标题/描述/下一步步骤/失败详情/重试按钮，
+  文案与官方托管页逐字对齐；可恢复面（deviceOffline）保留 2s 自动重连循环，
+  终态面停止重连仅留重试按钮。
 - **R3（可选，远期）**：完整移动前端（与桌面同源组件的移动构建，官方形态）；
   依赖面大，独立立项。
+- **桌面发送侧流控/重放（2026-09-28，mobile-web-remote.md M4c 核心项）**：
+  `desktopMobileRelayControl` 桥发送侧对齐官方 AcknowledgedRelayProtocol 子集——
+  `createRelayReplayBuffer` 纯逻辑（desktopMobileRelayProtocol.ts，常量逐项对齐
+  官方 chunk-C6VCYWB4.js @6729：高水位 1MiB / 低水位 256KiB / 重放缓冲 8MiB /
+  grace 45s）：rpc-frame 发送后逐批 reserve（outerBytes=出站 data 信封字节数）；
+  rpc-frame-ack releaseThrough 释放未确认字节；future-ack（ack>已发最高 seq）/
+  缓冲超限 / grace 超时（按最旧未确认批次）→ 桥终态降级（对齐官方
+  enterDegraded：后续 sendFrame 拒绝、入站帧丢弃、清缓冲与看门狗；不发
+  app-error、不拆桥，页面上层靠超时失败面恢复）；`replayFrames()` 供重连后重发。
+  **宿主背压 + onSendReady 已接线（2026-09-28 M4c 收尾）**：水位越限/回落沿经桥
+  附着端口发 connection-flow-v1 控制对象（`messagePortFlowControl` 工厂，本仓判别键
+  `__droraRpcControl`；官方为 `__zcodeRpcControl`——本地 sideband 不出机器，不与
+  官方互操作）→ Host `onFlowState → setTransportFlowState` 暂停/恢复 CLI；matched
+  非首次配对触发 onSendReady → 未确认帧全量重发（messageSeq/编码不变、不重记账）。
+  取证偏移与线格式详见 mobile-web-remote.md「flow-state sideband 帧格式」小节与
+  证据索引。
 
 ## 8. 客户端接线（桌面侧，最小改动）
 
@@ -184,3 +209,213 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 2. 并发与竞态：双 terminal 互踢顺序、device 断开清理、鉴权竞态、1MiB 超限。
 3. 持久化：服务重启后旧 device_sid 鉴权成功（凭据库生效）。
 4. 真机：Drora 手机页（R2）扫码全流程，对齐 LAN 页能力面。
+
+## 11. 双服务 E2E 黑盒对比（2026-09-28，官方 zcode.z.ai vs 自建 ：4430）
+
+同一探测驱动（`.tmp-work/relay-service-compare3.mjs` + `device-death-probe.mjs`，
+全新随机 mid 不触碰用户凭据）对两个服务跑同序列，逐帧归一化对比。**探测方法论
+教训**：官方手机的 WS 连接也带 `?mid=<deviceMid>`（QR 携带 deviceMid，手机页
+connect() @官方 bundle 6031676 把它拼进 URL）——不带 mid 的终端连接在官方侧
+配对语义完全错乱（互相 KICK、永不 matched），此前 v1/v2 探测的"官方配对怪异"
+结论全部作废；自建服务端则容忍无 mid 终端（更宽松，不构成分歧）。
+
+### 对齐项（黑盒实测一致）
+
+| 行为 | 双方一致表现 |
+| --- | --- |
+| 注册 | `device_register_ack{device_sid, server_ts}` 同形 |
+| 设备/终端鉴权流程 | challenge→proof→auth_ack；proof 同构造（HMAC base64url） |
+| 配对（带 mid 终端） | 终端 auth_ack 即 matched + terminal_sid；设备收到 `pair_status_ack{matched}` 推送 |
+| 设备角色 pair_status_query | matched 态回 `pair_status_ack{matched}`（官方接受，57 轮 WRONG_PARAM 记录系无 mid 伪象） |
+| data 双向转发 | client_ts 保留 + server_ts 盖章，payload 原样 |
+| 二终端互踢 | 旧终端收 `error{code:"KICKED"}`，新终端 auth_ack matched |
+| 设备死亡（close/terminate 等价） | 终端收 `error{code:"DEVICE_OFFLINE"}` 后被断开 |
+| 错误码族 | KICKED/AUTH_FAILED/DEVICE_OFFLINE/WRONG_PARAM 五码全对上 |
+
+### 分歧项（按客户端影响排序；#1-#4 已于 2026-09-28 修复）
+
+| # | 级别 | 分歧 | 官方 | 自建（修复前） | 客户端影响 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | **P0** | 终端角色 pair_status_query | 接受，回 `pair_status_ack{当前态}`（手机页唯一心跳方式） | 拒绝 `WRONG_PARAM "pair_status_query is device-only"` | **官方手机页连自建服务端：配对后 ~10s 页面 enterTerminalFailure(invalid-mobile-connection) 死亡**（phone handleRelayError 对 WRONG_PARAM 终态化）。R3 复用官方客户端语义前必修 | **已修复**：双角色受理，terminal 应答附 `terminal_sid:""`（官方观测形状）；paired 判定用 sessionStore 当前视图 |
+| 2 | P2 | auth_ack 字段集 | 设备 ack 含 `device_sid+terminal_sid:""`；终端 ack 含 `device_sid+terminal_sid` | 设备 ack 仅 pair_status；终端 ack 无 device_sid | 无害（客户端只读 pair_status），严格对齐可补 | **已修复**：device ack 补 `device_sid+terminal_sid(<sid\|"">)`；terminal ack 补 `device_sid` |
+| 3 | P2 | DEVICE_OFFLINE 前置推送 | 先推 `pair_status_ack{waiting}` 再发 error 再断开 | 直接 error→断开 | 无害；对齐=补一条状态推送 | **已修复**：device 死亡序列 = pair_status_ack{waiting} → error{DEVICE_OFFLINE} → terminate |
+| 4 | P3 | 断开 close 码 | 1006（不发 close 帧，直接断 TCP） | 1000 "device-offline"/"kicked" | 无害（手机端进恢复状态机，不看 close 码） | **已修复**：KICKED/DEVICE_OFFLINE 发帧后 `terminate()`（客户端见 1006），不再 close(1000) |
+| 5 | ~~P3~~ 已对齐 | 未知 sid 鉴权 | 先发 challenge，proof 阶段才 AUTH_FAILED（防枚举） | **同官方（2026-09-28 完成）**：challenge 照发，proof 阶段统一 AUTH_FAILED | 已消除 |
+| 6 | ~~P3~~ 已对齐 | 未知帧型 | `WRONG_PARAM`（message 空串）**+ 服务端立即断连**（发送方见 1006；device 死亡→终端收 waiting 推送+DEVICE_OFFLINE）；query payload sid 错误不报错按会话应答 | **同官方（2026-09-29 完成，干净实验推翻 85 轮 E5 的 pair_status_ack 误读——系队列残留）**：WRONG_PARAM 空串 + terminate(1006)；query 忽略 payload sid 按会话身份应答 | 已消除 |
+| 7 | ~~P3~~ 已对齐 | error.message | 恒空串 | **同官方（2026-09-28 完成）**：线协议 message 恒空串，诊断细节降级为服务端日志；KICKED 卡自此与官方栈逐字节一致 | 已消除 |
+| 8 | 设计差 | 页面托管 | 官方托管 React 应用（/remote/v4 版本库） | /m 极简页（R2） | R3 范围，非协议分歧 | 维持（R3 范围） |
+
+### 结论
+
+设备角色（桌面客户端）面：**自建服务端与官方完全兼容**——官方桌面客户端、本仓
+桌面客户端均可无差别工作（此前 G1 一致性测试 + 本轮矩阵双重实证）。终端角色面：
+本仓手机页（R2 自绘）与自建服务端自洽；**#1-#4 已修复（2026-09-28）**，官方手机页
+与自建服务端的心跳/鉴权字段/死亡序列/断开语义全部对齐，R3 路线 A（复用官方 rpc
+客户端代码）已解锁；#5-#7 为有意分歧（自建语义更利于诊断），#8 属 R3 范围。
+
+## 12. 内嵌 LAN 模式（desktop 内嵌宿主，2026-09-28）
+
+桌面应用的「局域网连接」传输不再使用旧 LAN 直连配对服务
+（`desktopMobilePairingServer`，HTTP+WS、协议 v1、一次性配对令牌），改为**进程内
+嵌自建 relay-server**：手机侧与云中继统一走本 spec 的 relay 协议（§3），手机页
+复用 R2 自建页（/m）。官方对齐代码零改动——内嵌宿主是纯自研装配层。
+
+### 12.1 架构与生命周期
+
+```
+renderer 弹层(transport=lan)
+  └─ startMobileRelayControl({transport:"lan"})          ── IPC ──► Main 装配（index.ts）
+       1. prepareMobileRelayTransport("lan")：
+          desktopMobileLanRelayHost.ensureStarted()       （幂等；已监听则复用）
+            ├─ createDeviceRegistry(file storage:
+            │    ~/.drora/v2/mobile-relay-lan/registry.json)   ← sid↔pass_hash 持久
+            └─ createRelayServer({port:0, host:"0.0.0.0"}) → listen → actualPort
+          pickLanAddress()（desktopMobileLanRelayHost，自旧 pairing core 迁入）选手机可达 IPv4
+       2. resolveEndpoints 固定注入：
+            relayWsUrl    = ws://127.0.0.1:<actualPort>/ws      （桌面客户端走环回）
+            remotePageUrl = http://<lanIp>:<actualPort>/m/index.html（QR 指向手机可达地址）
+       3. desktopMobileRelayControl.start(...)：注册→鉴权→waiting → QR（sid+hash 形态，
+          与云中继同构造，仅 baseUrl 换成本机页）
+  手机 ── ws://<lanIp>:<actualPort>/ws ──► 内嵌 relay ── 1:1 data ──► 桌面客户端(同一进程)
+```
+
+- **端口**：`port:0` 随机，杜绝与用户自部署 relay（如 dev CLI :4430）冲突；每次应用
+  启动端口可能变化，QR/远端页地址随之失效重发——预期行为。
+- **stop 语义**：`stopMobileRelayControl` 在 transport=lan 时同时停 relay 控制链
+  （设备 WS、桥）与内嵌服务端；应用退出（will-quit）兜底清理。refresh（刷新二维
+  码）= 轮换凭据重启，内嵌服务端保持监听（仅设备重注册）。
+- **幂等**：ensureStarted/stop 均幂等；宿主不随弹层开关反复重建 registry。
+
+### 12.2 凭据按端点 origin 隔离
+
+云中继与 LAN 内嵌是**不同服务端**（sid 命名空间独立）：同一 device_sid+pass_hash
+在另一服务端必然 AUTH_FAILED。装配处把单一凭据文件改为按 effective origin 路由：
+
+- 路由键 = 云端取 `relayWsUrl` 的 origin（官方 `wss://zcode.z.ai` 与任意自建部署
+  互不通用）；LAN 内嵌取固定逻辑 origin `ws://127.0.0.1`（端口随机且 registry.json
+  才是身份域，端口不入键——凭据跨重启有效，避免每次开机重注册）。
+- 文件：`~/.drora/v2/mobile-relay-device-<sha8(origin)前8位>.json`。旧单文件
+  `mobile-relay-device.json` **不迁移不删除**：首次按新 origin 重新注册（二维码重
+  出，官方语义 sid 本就随注册轮换），无害。
+
+### 12.3 安全模型变化（有意分歧，对齐官方语义）
+
+- QR 从「一次性配对令牌」（旧 LAN 直连）变为 **sid+hash 长期凭据**（relay 协议形
+  态）：扫码即配对能力，泄露面与云中继一致；兜底 = 刷新二维码轮换凭据（设备重注
+  册、旧 sid 作废、旧终端被 DEVICE_OFFLINE/KICKED 断开）。
+- 服务端仅监听本机需求面：WS 入口绑 `0.0.0.0`（手机须经局域网访问），桌面客户端
+  自身走 `127.0.0.1` 环回；注册限速/1MiB 上限/HMAC 挑战应答沿用 §6。
+
+### 12.4 恢复语义与旧链路删除
+
+- **恢复**：`startupRestoreStorage` 上下文扩展 `transport` 字段（<30 行改动，已实
+  现）：应用重启后按记录的 transport 恢复对应链路（lan=先 ensureStarted 再注入内
+  嵌端点；cloud=现链路）。
+- **旧 LAN 直连已删除（2026-09-29，完成 §12 退役的最后一步）**：弹层 LAN 分支改调
+  `startMobileRelayControl({transport:"lan"})`（前轮已落地），随后整体删除旧栈——
+  - 文件：`desktopMobilePairingServer.ts`（HTTP+WS 宿主 + 内联手机页）、
+    `desktopMobilePairingCore.ts`（一次性令牌状态机；`pickLanAddress` 迁入
+    `desktopMobileLanRelayHost.ts` 继续服务内嵌出码）、`desktopMobilePairingRestore.ts`
+    （LAN 恢复触发点此前已摘除）、`test/phonePageSyntaxCheck.mjs`（仅校验旧内联页）；
+  - IPC 通道：`PlatformChannels.MobilePairingStart/Stop/State/Reset/StateChanged`；
+  - IPlatformService 方法：`startMobilePairing/stopMobilePairing/refreshMobilePairing/
+    getMobilePairingState/onMobilePairingStateChanged`（preload、renderer 转发、main
+    装配同步删除）；
+  - 测试：`desktopMobilePairingServer/Core/Restore.test.ts`；
+    `desktopRendererPlatformMobileFace.test.ts` 收敛为 relay 5 项 + 重连委托。
+  **保留**：`MobilePairingRuntimeState`/`MobilePairingStatus`/`MobilePairingFailure`
+  类型（relay 状态沿用同一形状）、`desktopMobilePageBridge`（relay 手机页桥共用）、
+  `desktopMobileServiceAttach`（relay 共用）、`createWebRemoteControlAutoStartGate`
+  （双传输共用）、`~/.drora` 运行时文件一律不清理。两传输共用同一 relay 控制链 →
+  **同一时刻至多一条传输活跃**：弹层内切换 tab 会把运行中的链路切到目标传输（原双
+  服务端可并存的行为不再存在，记录为有意收敛）。
+
+### 12.5 静态资产托管（2026-09-28，官方前端本地托管）
+
+`createRelayServer` 新增 `staticRoot` 选项（CLI `--static-dir`）：GET `/remote/**`
+按路径树从该目录映射文件——官方 v4 前端资产是绝对路径
+`/remote/v4/<version>/assets/*`，且页面会检查
+`pathname === "/remote/v4"`（bundle dHn 段），故目录结构需镜像
+`<staticRoot>/remote/v4/index.html` 与 `<staticRoot>/remote/v4/<version>/assets/*`。
+
+- 用途：①双栈对比测试床——官方真实页面（z.ai 托管的同一构建）架到自建 relay 上，
+  配 P0 修复（终端心跳受理）即可端到端验证协议对齐；②R3 路线 A 的第一块基石
+  （relay 托管移动 React 入口）。
+- 安全：resolve 后必须仍位于 staticRoot 内（防目录穿越）；仅 GET；按扩展名回
+  Content-Type；未命中 404；不缓存（测试床语义）。/m 内置页不受影响。
+- 与官方差异（有意）：官方为按版本的资产库 + 版本门控 404；自建直接映射本地目录，
+  页面与桌面同仓演进、天然配套（§7 同语义）。
+
+**托管改写（2026-09-28 实测定案）**：官方托管页的 relay origin 是**硬编码**——
+bundle 内 `sHn(){return Aee({endpointOrigin:\`https://zcode.z.ai\`...})}`（与页面
+自身 origin 无关），纯托管资产页面会拿自建 sid 去连生产 relay（表现为 AUTH_FAILED
+失败卡，relay 侧零连接日志）。故 staticRoot 服务 .js 资产时对字面量
+`` endpointOrigin:`https://zcode.z.ai` `` 出站改写为
+`endpointOrigin:window.location.origin`——自建托管形态下页面 relay 指向同源，
+属 R3 路线 A 的托管改造点（有意差异，记录于此）。index.html 无 SRI/integrity，
+改写安全；其余 z.ai 端点（OAuth/营销等）不动。
+**改写规则修正（2026-09-28 二次实测）**：仅改 `endpointOrigin` 参数无效——共享
+chunk（src-dNkcRypW.js）的端点构造器 `Mh()` 实际忽略该参数：relay WS 恒取硬编码
+常量 `` `wss://zcode.z.ai/ws` ``（唯一例外是 `endpointOrigin===https://zcode.chatglm.site`
+时走镜像）。故自建托管需同时改写出站 JS 中的 `` `wss://zcode.z.ai/ws` `` 字面量 →
+`(window.location.protocol===`https:`?`wss:`:`ws:`)+`//`+window.location.host+`/ws``
+（动态同源）。另：浏览器对托管 JS 的内存缓存无视 no-cache——改写后须破缓存
+（换 URL 或重开浏览器会话）才能生效。
+
+**托管对齐终验（2026-09-28）**：官方真实页面（z.ai 托管 v4 构建，资产本地镜像）
+经自建 relay 全链跑通——配对/引导/工作区聚合/任务时间线（rpc 桥）/composer 全部
+活数据渲染。**同视口（414×896）双栈截图 SHA-256 逐字节一致**
+（cmp4-ours-official-home.png ≡ cmp4-zai-official-home.png），即官方前端在自建
+relay 上的显示与官方 relay 完全对齐（同一前端、同一协议、数据同源）。
+测试床资产=.tmp-work/official-page/（57+ 资产镜像 + index.html 注入 WS 探针与
+入口 script 缓存破坏参数，仅测试床用，不入库）。
+
+**交互级双栈对比（2026-09-28 第二轮，§12.5 终验的深化）**：同一驱动脚本对两栈
+（官方页×自建 relay vs 官方页×官方 relay，同一桌面、同视口 414×896）重放六面：
+①首页+7 工作区全展开（157 任务）②整理任务菜单 ③主题菜单 ④composer 真实发
+消息（"1+1"→agent 流回"2"，sendPrompt 全链）⑤二终端 KICKED ⑥杀桌面→等待超时。
+结果：**①⑥两组截图 SHA-256 逐字节一致**；②③④仅时间戳类化妆品差异（测试
+消息刷新了 hi 任务 updatedAt + 日期边界舍入 + 截图时点消息数不同——同一任务
+历史两栈共写互见）；⑤KICKED 卡结构/文案/按钮全同，唯一实质差异=「Relay 返回」
+详情行：自建发描述性 message（taken over by another terminal），官方发空串回退
+显示码（KICKED）——即 §11 分歧 #7，无功能影响，保持有意分歧（利于诊断）。
+结论：官方前端在自建 relay 上的全部交互面与官方 relay 行为对齐；剩余显示差异
+仅错误详情文案一处（有意）。
+
+### 12.6 对齐完成（2026-09-28）
+
+交互级六面对比（§12.5 第二轮）暴露的最后一处显示差异——KICKED 卡「Relay 返回」
+详情行——已消除：错误帧 message 全线空串（sendError 线格式 + KICKED/DEVICE_OFFLINE
+两条 sendThenTerminate 路径），未知 sid 改两跳防枚举。重拍 KICKED 卡与官方栈
+SHA-256 逐字节一致（d7-ours ≡ d5-zai）。**剩余有意分歧仅 #6**（未知设备帧官方回
+pair_status_ack 的兜底怪癖——零客户端可观察影响，不复制）；#8 页面托管差异已由
+staticRoot 托管方案消化。诊断信息不丢：全部错误细节以 log.warn(error frame) 进
+服务端日志；R2 自建页失败卡详情空串回退显示错误码（与官方页同语义）。
+
+### 12.7 对齐收口（2026-09-29）
+
+§11 最后保留项 #6 经干净实验（分角色×分鉴权态、清空在途队列后逐帧观测）重新定案
+并完成对齐：官方对未知帧 = `WRONG_PARAM`（message 空串）+ **服务端立即 terminate**
+（发送方见 1006；device 死亡走既有终端通知路径）；`pair_status_query` 的 payload
+`device_sid` 不参与校验（错 sid 照常按会话应答）。85 轮 E5 的"未知帧回
+pair_status_ack"结论系在途帧队列残留造成的误读，已在 spec 内更正。自建 relay
+实测（verify-6.mjs）：错 sid query → `pair_status_ack{waiting}`；未知帧 →
+`WRONG_PARAM{message:""}` + `closed 1006`——与官方逐项一致。
+**§11 分歧矩阵至此全部清零（#1-#8 无残留），自建 relay 与官方可观察行为完全对齐。**
+
+### 12.8 全页面双栈对比（2026-09-29 第三轮，宽视口全应用面）
+
+发现：官方移动页在宽视口（≥~900px）渲染**完整应用壳**（侧栏：新建任务/搜索/
+插件市场/项目树全量任务；主区：问候空态+composer+快捷操作+用户页脚）——移动/
+桌面双布局同一构建。第三轮以 1280×720 对九个深服务面双栈重放：新建任务全壳、
+模型选择器（BigModel 个人：GLM-5.3✓/GLM-5.3-Flash 视觉/管理模型——活数据）、
+优先级菜单（低/高/最高✓）、变更前确认（两栈同为无菜单 no-op）、搜索命令面板
+（全部/操作/任务/文件 tabs+最近任务+建议+面板快捷键+配置）、插件市场（**两栈
+同样不切主视图**——行为一致非缺口）、Drora 富时间线（工具块 查阅/思考/终端、
+后台任务 pill、通知横幅、完全访问 composer 全活渲染）、任务头「更多」（两栈同
+帧无可见菜单）。
+
+**结论：九面全部同构，零实质差异；唯一可见差异仍是相对时间戳（测试消息刷新
+updatedAt 所致）。** 宽视口全壳在自建 relay 上经 rpc 桥驱动全部活数据（模型列表/
+命令面板/富时间线），至此覆盖移动+宽视口两布局、静态+交互+深服务三层的对比
+全部完成，无残留缺口。

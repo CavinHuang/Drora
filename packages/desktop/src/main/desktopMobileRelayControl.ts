@@ -8,15 +8,23 @@ import { createRequire } from "node:module";
 import { hostname } from "node:os";
 import { basename } from "node:path";
 import type { MessagePortMain, UtilityProcess } from "electron";
+import { messagePortFlowControl, type MessagePortFlowState } from "@drora/rpc";
 import type {
   MobilePairingFailure,
   MobilePairingRuntimeState,
   MobileRelayTaskSyncEntry,
+  MobileRelayTransport,
   MobileRelayWorkspaceSyncEntry,
+} from "@drora/shared";
+import {
+  // 遥测维度纯函数（shared 单一出处，还原官方同名 helper，见各调用点偏移）。
+  classifyRemoteUsageError,
+  resolveWorkspaceTelemetryDetail,
 } from "@drora/shared";
 import {
   RpcFrameAssembler,
   buildRpcFrameAck,
+  createRelayReplayBuffer,
   encodeRpcTransportMessage,
   parseRpcTransportFrame,
   toExternalBridge,
@@ -25,6 +33,9 @@ import {
   HEARTBEAT_JITTER_MAX_MS,
   QR_READY_TIMEOUT_MS,
   RECONNECT_DELAY_MS,
+  RELAY_REPLAY_DEGRADED_ACK_GRACE,
+  RELAY_REPLAY_DEGRADED_BUFFER_EXCEEDED,
+  RELAY_REPLAY_DEGRADED_FUTURE_ACK,
   OFFICIAL_REMOTE_PAGE_URL,
   OFFICIAL_RELAY_WS_URL,
   OFFICIAL_REMOTE_PAGE_APP_VERSION,
@@ -33,11 +44,15 @@ import {
   createRelayPassword,
   derivePassHash,
   mapTransportState,
-  MobileRelayCredentialStore,
+  isBridgeableRemoteTarget,
+  mapWorkspaceBridgeFailureReason,
+  normalizeRelayAttachError,
+  RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE,
   relayWorkspaceKey,
   buildBootstrapResult,
   buildWorkspaceListResult,
   type RelayDeviceCredential,
+  type RelayReplayBuffer,
   type RpcFrameIdentity,
   type RelayMobileViewState,
   type RelayTaskSummary,
@@ -65,10 +80,25 @@ type WebSocketCtor = new (
   },
 ) => WebSocketLike;
 
+/**
+ * 凭据仓结构面（specs/mobile-relay-server.md §12.2）：装配处注入按 effective origin
+ * 路由的凭据仓（云端/LAN 内嵌 sid 命名空间独立），测试注入单文件仓——都只需这三个方法。
+ */
+export interface RelayCredentialStoreLike {
+  load(): Promise<RelayDeviceCredential | null>;
+  save(credential: RelayDeviceCredential): Promise<void>;
+  clear(): Promise<void>;
+}
+
+/** 端点解析入参：transport 告知装配处本次启动走云中继还是内嵌 LAN relay。 */
+export interface RelayEndpointRequest {
+  transport: MobileRelayTransport;
+}
+
 export function createDesktopMobileRelayControl(deps: {
   logger: Logger;
   deviceMid: string;
-  credentialStore: MobileRelayCredentialStore;
+  credentialStore: RelayCredentialStoreLike;
   resolveHostChild: () => UtilityProcess | null;
   onStatusChanged?: (state: MobilePairingRuntimeState) => void;
   /**
@@ -79,10 +109,11 @@ export function createDesktopMobileRelayControl(deps: {
   /** 手机遥测事件转发（对齐官方 reportRendererTelemetryEvent）；缺省仅记日志。 */
   reportPhoneTelemetryEvent?: (event: unknown) => Promise<void>;
   /**
-   * 动态端点解析（specs/mobile-relay-server.md §8）：每次 start 时调用，读设置键
-   * relayServerUrl（→ env → 官方默认）。返回 undefined 则沿用固定注入端点。
+   * 动态端点解析（specs/mobile-relay-server.md §8/§12）：每次 start 时调用，读设置键
+   * relayServerUrl（→ env → 官方默认）；transport=lan 时装配处返回内嵌 relay 的固定
+   * 注入端点。返回 undefined 则沿用固定注入端点。
    */
-  resolveEndpoints?: () => Promise<
+  resolveEndpoints?: (request: RelayEndpointRequest) => Promise<
     | {
         relayWsUrl: string;
         remotePageUrl: string;
@@ -102,35 +133,93 @@ export function createDesktopMobileRelayControl(deps: {
   /**
    * 重启自动恢复的持久化上下文（对齐官方 startupRestoreStorageProvider）：
    * start 成功 save、手动 stop clear、应用重启后经 restorePreviouslyEnabled 恢复。
+   * context.transport（specs/mobile-relay-server.md §12.4）：按记录的传输恢复对应链路。
    */
   startupRestoreStorage?: {
-    load(): Promise<{ workspacePath: string; workspaceIdentity?: string } | null>;
-    save(context: { workspacePath: string; workspaceIdentity?: string }): Promise<void>;
+    load(): Promise<{
+      workspacePath: string;
+      workspaceIdentity?: string;
+      transport?: MobileRelayTransport;
+    } | null>;
+    save(context: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+      transport?: MobileRelayTransport;
+    }): Promise<void>;
     clear(): Promise<void>;
   };
-  /** 测试注入 WebSocket 构造器与端点；生产用 ws 包与官方端点。 */
-  webSocketCtor?: WebSocketCtor;
+  /**
+   * 测试注入 WebSocket 构造器与端点；生产用 ws 包与官方端点。
+   * 显式传 null = 模拟"构造器不可用"（require ws 失败的生产形态），测试快速失败路径；
+   * 缺省（undefined）= 懒加载 ws 包。
+   */
+  webSocketCtor?: WebSocketCtor | null;
   relayWsUrl?: string;
   remotePageUrl?: string;
+  /**
+   * 桥附着端口构造注入（测试：plain node 无 electron MessageChannelMain 无法真实
+   * 开桥）；生产不注入 = attacher.attachBridgePort 走 electron 创建路径。
+   * 允许返回 Promise（对齐官方 attachWorkspaceHost 为异步附着，index.js@396694：
+   * await 后校验 superseded）——测试用挂起的 Promise 制造异步窗口。
+   */
+  attachBridgePort?: () => MessagePortMain | Promise<MessagePortMain>;
+  /**
+   * 远程工作区开桥的 remote-scoped attach（M4c，对齐官方 attachWorkspaceHost 远程
+   * 分支 index.js@584400 → attachRemoteWorkspaceSessionHost @577400）：按
+   * remoteSessionId 在 Main 远程连接注册表校验（REMOTE_SESSION_MISSING/OFFLINE/
+   * WINDOW_MISMATCH、REMOTE_WORKSPACE_IDENTITY_MISMATCH，错误码与官方同名）后向
+   * 窗口 Host 发 scope kind=remote 的附着端口。装配处接 remoteSessionManager。
+   */
+  attachRemoteBridgePort?: (params: {
+    remoteSessionId: string;
+    workspacePath: string;
+    workspaceIdentity: string;
+  }) => { port: MessagePortMain; remoteKind: string };
+  /**
+   * 手机 workspace-reconnect-request 的重连委托（对齐官方 e.reconnectWorkspace =
+   * reconnectWebRemoteControlWorkspaceInRenderer，index.js@409793）：main 经 IPC
+   * 请属主窗口 renderer 重连远程工作区（重连事实归窗口），拒绝/超时/失败以
+   * rejection 传递，message 原样回手机（官方 respondToWorkspaceReconnectRequest
+   * @399799 语义：success:false + error）。
+   */
+  reconnectWorkspace?: (workspaceKey: string) => Promise<void>;
+  /**
+   * 重放缓冲参数注入（M4c 测试缩短 graceMs / 缩小水位；生产缺省 = 官方常量，
+   * 见 protocol 常量区：1MiB/256KiB/8MiB/45s）。
+   */
+  replayBufferOptions?: {
+    graceMs?: number;
+    highWaterMarkBytes?: number;
+    lowWaterMarkBytes?: number;
+    maxBytes?: number;
+  };
+  /**
+   * 出站应用帧硬上限注入（测试 envelopeTooLarge 降级路径；生产缺省 = 官方
+   * maxPhysicalFrameBytes 1MiB）。
+   */
+  maxAppFrameBytes?: number;
 }) {
   const logger = deps.logger;
-  // 出站应用帧硬上限（对齐官方 maxPhysicalFrameBytes=1MiB，取证 chunk-GJUBRD53.js et 表）。
-  const MAX_APP_FRAME_BYTES = 1024 * 1024;
-  // 生产未注入时回退到 ws 包（测试注入 fake 构造器走纯逻辑路径）。
+  // 出站应用帧硬上限（对齐官方 maxPhysicalFrameBytes=1MiB，取证 chunk-GJUBRD53.js et 表；
+  // 测试可注入缩小以驱动 envelopeTooLarge 路径）。
+  const MAX_APP_FRAME_BYTES = deps.maxAppFrameBytes ?? 1024 * 1024;
+  // 生产未注入时回退到 ws 包（测试注入 fake 构造器走纯逻辑路径；显式 null =
+  // 模拟构造器不可用，驱动 connect() 的快速失败分支）。
   // 懒 require：与 electron 懒加载同法，保持模块在 plain node 下的可测性。
   const WebSocketCtor: WebSocketCtor | null =
-    deps.webSocketCtor ??
-    (() => {
-      try {
-        const requireNode = createRequire(import.meta.url);
-        const loaded = requireNode("ws") as unknown as WebSocketCtor & {
-          WebSocket?: WebSocketCtor;
-        };
-        return loaded.WebSocket ?? loaded;
-      } catch {
-        return null;
-      }
-    })();
+    deps.webSocketCtor !== undefined
+      ? deps.webSocketCtor
+      : (() => {
+          try {
+            const requireNode = createRequire(import.meta.url);
+            const loaded = requireNode("ws") as unknown as WebSocketCtor & {
+              WebSocket?: WebSocketCtor;
+            };
+            return loaded.WebSocket ?? loaded;
+          } catch {
+            return null;
+          }
+        })();
   const relayWsUrl = deps.relayWsUrl ?? OFFICIAL_RELAY_WS_URL;
   const remotePageUrl = deps.remotePageUrl ?? OFFICIAL_REMOTE_PAGE_URL;
   /**
@@ -157,7 +246,11 @@ export function createDesktopMobileRelayControl(deps: {
   let heartbeatAckWatchdog: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
   let lastPairStatusAckAt = 0;
-  let startParams: { workspacePath: string; workspaceIdentity?: string } | null = null;
+  let startParams: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    transport: MobileRelayTransport;
+  } | null = null;
   let mobileViewState: RelayMobileViewState | undefined;
   /** 手机端设备信息（mobile-view-state-update 携带；对齐官方 mobileDeviceInfo）。 */
   let mobileDeviceInfo: Record<string, unknown> | undefined;
@@ -172,6 +265,12 @@ export function createDesktopMobileRelayControl(deps: {
     outboundMessageSeq: number;
     readyAnnounced: boolean;
     pendingOutbound: Uint8Array[];
+    /** M4c 发送侧流控/重放：已发送未确认批次的簿记（官方 AcknowledgedRelayProtocol）。 */
+    replayBuffer: RelayReplayBuffer;
+    /** 终态降级（官方 enterDegraded）：后续 sendFrame 拒绝、入站帧丢弃。 */
+    degraded: boolean;
+    /** grace 看门狗（官方 deadline）：有未确认批次时挂定，超时 → 终态降级。 */
+    graceTimer: NodeJS.Timeout | null;
   } | null = null;
   let runtimeFailure: MobilePairingFailure | null = null;
   let qrUrl: string | null = null;
@@ -188,6 +287,9 @@ export function createDesktopMobileRelayControl(deps: {
       workspacePath: startParams?.workspacePath ?? null,
       workspaceIdentity: startParams?.workspaceIdentity ?? null,
       failure: runtimeFailure,
+      // 弹层按传输过滤状态推送（specs/mobile-relay-server.md §12.4：两传输共用控制
+      // 链，未运行时为 null）。
+      transport: startParams?.transport ?? null,
     };
   }
 
@@ -199,6 +301,16 @@ export function createDesktopMobileRelayControl(deps: {
     if (transportState === next) return;
     transportState = next;
     if (next !== "error") runtimeFailure = null;
+    // pair_result 随状态沿上报（对齐官方 mapTransportState nI，index.js@401850-402465）：
+    // paired→success；kicked/error→failure+error_category="relay"；pair_kind 取
+    // hasEverPaired 活值（官方在 paired 沿 emit 之后才 hasEverPaired=!0，因此首次
+    // 配对为 initial）。kicked/error 与状态同值早退保证每沿至多一次。
+    if (next === "paired") {
+      pairResultEvent("success", "", hasEverPaired ? "reconnect" : "initial");
+      hasEverPaired = true;
+    } else if (next === "kicked" || next === "error") {
+      pairResultEvent("failure", "relay", hasEverPaired ? "reconnect" : "initial");
+    }
     emitStatus();
   }
 
@@ -220,12 +332,14 @@ export function createDesktopMobileRelayControl(deps: {
     }
   }
 
-  // 用量遥测事件（对齐官方 buildWebRemoteControl*Telemetry 构造族，取证 chunk-GJUBRD53）。
+  // 用量遥测事件（对齐官方 Af 信封构造，取证 chunk-GJUBRD53.js@741857：
+  // {elementName, eventRegion:"web_remote_control", eventType, eventExtraDetail}）。
+  // 2026-09-28 修正：eventRegion 此前误写 "result"，官方信封恒为 "web_remote_control"。
   function emitUsageEvent(elementName: string, extra: Record<string, string>): void {
     try {
       deps.reportUsageEvent?.({
         elementName,
-        eventRegion: "result",
+        eventRegion: "web_remote_control",
         eventType: "result",
         eventExtraDetail: extra,
       });
@@ -234,24 +348,101 @@ export function createDesktopMobileRelayControl(deps: {
     }
   }
 
-  function pairResultEvent(result: "success" | "failure", errorCategory?: string): void {
-    emitUsageEvent("web_remote_control_pair_result", {
-      result,
-      error_category: result === "success" ? "" : (errorCategory ?? "unknown"),
-      pair_kind: wasPaired ? "reconnect" : "initial",
-      workspace_kind: "local",
-      remote_kind: "",
+  /**
+   * 运行时工作区遥测维度（对齐官方 resolveRuntimeWorkspaceDimensions，取证
+   * index.js@387232：workspaceKind = identity||remoteSessionId ? "remote" : "local"、
+   * remoteKind = parseRemoteWorkspaceIdentity(identity)?.kind）。shared 的
+   * resolveWorkspaceTelemetryDetail 为该 helper 的逐字还原，单一出处。
+   */
+  function runtimeWorkspaceDims(): { workspace_kind: "local" | "remote"; remote_kind: string } {
+    return resolveWorkspaceTelemetryDetail({
+      workspaceIdentity: startParams?.workspaceIdentity ?? null,
+      remoteSessionId: null,
     });
   }
 
-  function bridgeResultEvent(result: "success" | "failure", errorCategory?: string): void {
+  /**
+   * pair_result（对齐官方 cee 构造 chunk-GJUBRD53.js@742450 + mapTransportState
+   * 状态沿调用 index.js@401850-402465）：pairKind 由调用方显式传入——官方在
+   * paired 沿 emit 时 hasEverPaired 尚未置位（nI 内 emit 后才 hasEverPaired=!0），
+   * 不能在构造函数里读活值。
+   */
+  function pairResultEvent(
+    result: "success" | "failure",
+    errorCategory: string,
+    pairKind: "initial" | "reconnect",
+  ): void {
+    const dims = runtimeWorkspaceDims();
+    emitUsageEvent("web_remote_control_pair_result", {
+      result,
+      error_category: result === "success" ? "" : errorCategory || "unknown",
+      pair_kind: pairKind,
+      workspace_kind: dims.workspace_kind,
+      remote_kind: dims.remote_kind,
+    });
+  }
+
+  /**
+   * start_result（对齐官方 see 构造 chunk-GJUBRD53.js@742235 + runStartOperation
+   * 调用点 index.js@658155：StartWebRemoteControl IPC 完成沿上发，成功/失败都发，
+   * 失败面 errorCategory=classifyRemoteUsageError）。dims 由调用方传入——官方在
+   * start 上下文入口解析（@658168），而本仓 start 失败路径会先 stop() 清空
+   * startParams，emit 时再解析会丢维度。
+   */
+  function startResultEvent(
+    result: "success" | "failure",
+    error: unknown,
+    dims: { workspace_kind: "local" | "remote"; remote_kind: string },
+  ): void {
+    emitUsageEvent("web_remote_control_start_result", {
+      result,
+      error_category: result === "success" ? "" : classifyRemoteUsageError(error),
+      workspace_kind: dims.workspace_kind,
+      remote_kind: dims.remote_kind,
+    });
+  }
+
+  /**
+   * 桥结果遥测（对齐官方 lee 构造 chunk-GJUBRD53.js@742684 + createWorkspaceBridge
+   * 调用点 index.js@398405/398537）：workspaceKind 取目标工作区 kind、entryKind 按
+   * taskId 区分 task/home；remoteKind 官方经 resolveRemoteKind（index.js@387052）
+   * 解析——remote 目标优先 attach 结果的 remoteKind，缺失回退 workspaceIdentity
+   * 解析，非远程恒空（ctor 对 undefined 落空串）。
+   */
+  function bridgeResultEvent(
+    result: "success" | "failure",
+    errorCategory?: string,
+    dimensions?: {
+      workspaceKind?: "local" | "remote";
+      entryKind?: "task" | "home";
+      remoteKind?: string;
+    },
+  ): void {
     emitUsageEvent("web_remote_control_bridge_result", {
       result,
       error_category: result === "success" ? "" : (errorCategory ?? "unknown"),
-      workspace_kind: "local",
-      remote_kind: "",
-      entry_kind: "workspace",
+      workspace_kind: dimensions?.workspaceKind ?? "local",
+      remote_kind: dimensions?.remoteKind ?? "",
+      entry_kind: dimensions?.entryKind ?? "home",
     });
+  }
+
+  /**
+   * 官方 resolveRemoteKind 同构（index.js@387052：`if(kind==="remote") return
+   * attach?.remoteKind ?? (workspaceIdentity ? parse(workspaceIdentity)?.kind : void 0)`）。
+   * attach 结果来自远程连接注册表（RemoteTarget.kind，desktopRemoteSessions.ts），
+   * identity 解析兜底覆盖 attach 未发生/失败的路径（未连接拒绝面、附着失败面）。
+   */
+  function resolveTargetRemoteKind(
+    target: { kind: string; workspaceIdentity?: string; remoteSessionId?: string },
+    attachedRemoteKind?: string,
+  ): string {
+    if (target.kind !== "remote") return "";
+    if (attachedRemoteKind) return attachedRemoteKind;
+    return resolveWorkspaceTelemetryDetail({
+      workspaceIdentity: target.workspaceIdentity ?? null,
+      remoteSessionId: target.remoteSessionId ?? null,
+    }).remote_kind;
   }
 
   // stale-waiting 恢复（对齐官方 scheduleStaleWaitingRecovery/reconnectAfterStaleWaiting）：
@@ -335,8 +526,21 @@ export function createDesktopMobileRelayControl(deps: {
     return true;
   }
 
-  /** 应用帧下行（对齐原版 routePayload 的 M4a 子集；frame 自带 zcode_type）。 */
-  function sendAppFrame(frame: Record<string, unknown>): boolean {
+  /**
+   * 应用帧下行分发结果：sent=已交给 socket；oversize=超限拒收（官方 Q sendFrame
+   * 抛 envelopeTooLarge → 终态降级，index.js@397000 附近）；not-ready=socket 未就绪。
+   */
+  type AppFrameDispatch =
+    | { status: "sent"; bytes: number }
+    | { status: "oversize" }
+    | { status: "not-ready" };
+
+  /**
+   * 应用帧下行（对齐原版 routePayload 的 M4a 子集；frame 自带 zcode_type）。
+   * 桥出站 rpc-frame 以 sent.bytes 做 outerBytes 计量（对齐官方 measureFrameBytes
+   * 口径），oversize/not-ready 供桥发送侧区分处置。
+   */
+  function dispatchAppFrame(frame: Record<string, unknown>): AppFrameDispatch {
     // 出站应用帧信封逐字段对齐官方 payloadSerializer（取证 chunk-C6VCYWB4.js）：
     // {type:"data", payload, client_ts}。relay 消息族一律要求 client_ts——缺字段时
     // 裸帧被 WRONG_PARAM 拒收；有 type 缺 client_ts 则被接受但静默不转发给手机端
@@ -353,7 +557,7 @@ export function createDesktopMobileRelayControl(deps: {
         bytes: jsonBytes,
         maxBytes: MAX_APP_FRAME_BYTES,
       });
-      return false;
+      return { status: "oversize" };
     }
     logger.info("[mobile-relay] 出站应用帧", {
       zcodeType: frame.zcode_type,
@@ -367,7 +571,13 @@ export function createDesktopMobileRelayControl(deps: {
           }
         : {}),
     });
-    return send(message);
+    return send(message) ? { status: "sent", bytes: jsonBytes } : { status: "not-ready" };
+  }
+
+  /** 应用帧下行（字节计量口径；0 = 超限拒收或 socket 未就绪未发出）。 */
+  function sendAppFrame(frame: Record<string, unknown>): number {
+    const dispatched = dispatchAppFrame(frame);
+    return dispatched.status === "sent" ? dispatched.bytes : 0;
   }
 
   function reconnect(delayMs = RECONNECT_DELAY_MS): void {
@@ -397,6 +607,14 @@ export function createDesktopMobileRelayControl(deps: {
   let restoredThisRun = false;
   // stale-waiting 恢复状态（对齐官方 applyPairStatus/scheduleStaleWaitingRecovery）。
   let wasPaired = false;
+  // pair_result 的 pair_kind 维度旗标（对齐官方运行时 hasEverPaired，index.js@404928
+  // 仅在 start 建会话时置 false、paired 沿置 true，stale 恢复重连不重置——与 stale
+  // 探测旗标 wasPaired（reconnectAfterStaleWaiting 会重置，index.js@382894）是两个
+  // 变量，不可合并：合并会让 stale 恢复后的重配误报 initial）。
+  let hasEverPaired = false;
+  // 上次配对成功时的 socket 代（官方 lastPairedSocketGeneration）：0=尚未配对过。
+  // matched 时非 0 即非首次配对 → onSendReady（same-socket/reconnected-socket）→ 重放。
+  let lastPairedSocketGeneration = 0;
   let staleWaitingCount = 0;
   let staleWaitingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   const STALE_WAITING_RECOVERY_MS = 15_000;
@@ -502,7 +720,8 @@ export function createDesktopMobileRelayControl(deps: {
 
   /** Host 端口二进制 → rpc-frame 封装 → relay（ready 前先缓冲）。 */
   function forwardHostBytesToPhone(bytes: Uint8Array): void {
-    if (!bridge) return;
+    // 终态降级：静默丢弃（对齐官方 reserveMessage 的 degraded 早退）。
+    if (!bridge || bridge.degraded) return;
     if (!bridge.readyAnnounced) {
       bridge.pendingOutbound.push(bytes);
       return;
@@ -516,6 +735,8 @@ export function createDesktopMobileRelayControl(deps: {
       ? [...bridge.pendingOutbound.splice(0), extra]
       : bridge.pendingOutbound.splice(0);
     for (const bytes of batch) {
+      // 终态降级：后续 sendFrame 拒绝（对齐官方 enterDegraded 后的发送早退）。
+      if (bridge.degraded) break;
       try {
         const encoded = encodeRpcTransportMessage({
           message: bytes,
@@ -524,10 +745,49 @@ export function createDesktopMobileRelayControl(deps: {
           messageSeq: bridge.outboundMessageSeq,
         });
         bridge.outboundAssemblerSeq = encoded.nextPhysicalSeq;
+        const messageSeq = bridge.outboundMessageSeq;
         bridge.outboundMessageSeq += 1;
+        let outerBytes = 0;
+        let fullySent = true;
         for (const frame of encoded.frames) {
-          sendAppFrame(frame as unknown as Record<string, unknown>);
+          const dispatched = dispatchAppFrame(frame as unknown as Record<string, unknown>);
+          if (dispatched.status === "oversize") {
+            // 发送侧超限（M4c，官方 Q 的 sendFrame 取证 index.js@397000 附近）：
+            // 显式抛 envelopeTooLarge 而非静默丢帧——协议侧语义为终态降级。
+            enterBridgeDegraded(RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE);
+            fullySent = false;
+            break;
+          }
+          if (dispatched.status !== "sent") {
+            fullySent = false;
+            break;
+          }
+          outerBytes += dispatched.bytes;
         }
+        if (!fullySent) {
+          // 消息不完整未上线（超限拒收/socket 未就绪）：不入重放缓冲，与改动前丢帧行为一致。
+          continue;
+        }
+        // 发送后逐批 reserve（M4c 定案顺序；官方为先入队后 flush）。未确认字节记账
+        // 是 ack 释放、水位与 grace 看门狗的依据。
+        const wasSaturated = bridge.replayBuffer.saturated;
+        const reserved = bridge.replayBuffer.reserve(messageSeq, outerBytes, encoded.frames);
+        if (reserved.overflow) {
+          // 缓冲超限（官方 replayBufferExceeded → enterDegraded，批次不入队不记账）。
+          enterBridgeDegraded(RELAY_REPLAY_DEGRADED_BUFFER_EXCEEDED);
+          break;
+        }
+        if (!wasSaturated && reserved.saturated) {
+          logger.warn("[mobile-relay] 桥未确认字节越过饱和高水位", {
+            unackedBytes: bridge.replayBuffer.unacknowledgedBytes,
+            bridgeSessionId: bridge.identity.bridgeSessionId,
+          });
+          // 宿主背压（M4c，官方 createWorkspaceBridge 接线取证 index.js@397846）：
+          // onSaturated 沿向 Host 附着端口发 flow-state "saturated"，Host 侧
+          // （host/index.ts onFlowState → setTransportFlowState）暂停 CLI 出站。
+          sendBridgeFlowState("saturated");
+        }
+        armBridgeGraceTimer();
       } catch (error) {
         // 超限/编码失败：丢帧并记日志（对齐原版 degraded 语义的保守子集，不拆桥）。
         logger.warn("[mobile-relay] rpc-frame 编码失败，丢弃该消息", {
@@ -537,8 +797,51 @@ export function createDesktopMobileRelayControl(deps: {
     }
   }
 
+  function clearBridgeGraceTimer(): void {
+    if (bridge?.graceTimer) {
+      clearTimeout(bridge.graceTimer);
+      bridge.graceTimer = null;
+    }
+  }
+
+  /**
+   * grace 看门狗（官方 deadline 语义）：按最旧未确认批次挂定时，armBridgeGraceTimer
+   * 在每次 reserve/ack 后重挂（对齐官方 deadline.refresh）；无未确认批次时解除。
+   */
+  function armBridgeGraceTimer(): void {
+    if (!bridge || bridge.degraded) return;
+    clearBridgeGraceTimer();
+    const oldestQueuedAt = bridge.replayBuffer.oldestQueuedAt();
+    if (oldestQueuedAt === null) return;
+    const delayMs = Math.max(0, oldestQueuedAt + bridge.replayBuffer.graceMs - Date.now());
+    const timer = setTimeout(() => {
+      if (!bridge || bridge.degraded) return;
+      if (!bridge.replayBuffer.graceExceeded()) return;
+      enterBridgeDegraded(RELAY_REPLAY_DEGRADED_ACK_GRACE);
+    }, delayMs);
+    timer.unref?.();
+    bridge.graceTimer = timer;
+  }
+
+  /**
+   * 桥终态降级（对齐官方 enterDegraded）：清重放缓冲与看门狗，后续 sendFrame 拒绝、
+   * 入站帧丢弃。不发 app-error、不拆桥——页面上层靠超时失败面恢复（官方接线同款）。
+   */
+  function enterBridgeDegraded(reason: string): void {
+    if (!bridge || bridge.degraded) return;
+    bridge.degraded = true;
+    clearBridgeGraceTimer();
+    bridge.replayBuffer.clear();
+    logger.warn("[mobile-relay] 桥终态降级，后续 rpc 帧拒绝", {
+      reason,
+      bridgeSessionId: bridge.identity.bridgeSessionId,
+    });
+  }
+
   function disposeBridge(): void {
     if (!bridge) return;
+    clearBridgeGraceTimer();
+    bridge.replayBuffer.clear();
     try {
       bridge.port.close();
     } catch {
@@ -547,7 +850,18 @@ export function createDesktopMobileRelayControl(deps: {
     bridge = null;
   }
 
-  /** workspace-bridge-open：附着 Host 端口并双向接管 rpc 帧（对齐原版 createWorkspaceBridge）。 */
+  /**
+   * 开桥请求代（M4c superseded 判定）：对齐官方 currentBridge 槽位语义
+   * （isCurrentBridgeRuntime v，index.js@388704）——异步预热/附着完成后校验本请求
+   * 仍是最新开桥请求，被更新请求取代（superseded）则释放端口并回错误。
+   */
+  let bridgeOpenEpoch = 0;
+
+  /**
+   * workspace-bridge-open：附着 Host 端口并双向接管 rpc 帧（对齐原版
+   * createWorkspaceBridge，index.js@395979）。M4c 起支持远程工作区：可桥判定、
+   * remote-scoped attach、superseded 校验、reason 词汇表逐项对齐官方。
+   */
   async function openWorkspaceBridge(frame: Record<string, unknown>): Promise<void> {
     const requestId = frame.requestId;
     const bridgeSessionId = String(frame.bridgeSessionId ?? "");
@@ -560,7 +874,17 @@ export function createDesktopMobileRelayControl(deps: {
       ...(bridgeGeneration !== undefined ? { bridgeGeneration } : {}),
       ...(recoveryId ? { recoveryId } : {}),
     };
-    const respondError = (reason: string, error: string) => {
+    bridgeOpenEpoch += 1;
+    const myEpoch = bridgeOpenEpoch;
+    const respondError = (
+      reason: string,
+      error: string,
+      dims?: {
+        workspaceKind?: "local" | "remote";
+        entryKind?: "task" | "home";
+        remoteKind?: string;
+      },
+    ) => {
       sendAppFrame({
         zcode_type: "workspace-bridge-error",
         requestId,
@@ -568,64 +892,148 @@ export function createDesktopMobileRelayControl(deps: {
         reason,
         error,
       });
-      bridgeResultEvent("failure", reason);
+      bridgeResultEvent("failure", reason, dims);
     };
     if (!startParams || transportState !== "paired") {
       respondError("desktop-disconnected", "relay session is not paired");
       return;
     }
     const workspaceKey = String(frame.workspaceKey ?? "");
-    // 多工作区（官方 getAvailableWorkspaces 语义）：bootstrap 列出的任意本地工作区
-    // 都可开桥——窗口 Host 的服务面覆盖全部本地工作区（attach scope=local 不按路径
-    // 切分）；远程工作区的桥接依赖 remote-scoped attach，属 M4c。
-    const knownWorkspace = [relayWorkspaceKey(startParams)]
-      .concat(syncedWorkspaces.map((entry) => relayWorkspaceKey(entry)))
-      .some((key) => key === workspaceKey);
-    const isRemoteWorkspace = syncedWorkspaces.some(
-      (entry) => relayWorkspaceKey(entry) === workspaceKey && entry.kind === "remote",
-    );
-    if (isRemoteWorkspace) {
+    // 多工作区目标解析（对齐官方 getAvailableWorkspaces 合并语义，index.js@393711：
+    // 推送清单为基集 + 运行时目标不缺席，按 workspaceKey 查找）。
+    const runtimeTarget = currentWorkspaceSummary();
+    const target =
+      syncedWorkspaces.find((entry) => relayWorkspaceKey(entry) === workspaceKey) ??
+      (runtimeTarget && relayWorkspaceKey(runtimeTarget) === workspaceKey
+        ? runtimeTarget
+        : undefined);
+    // 未知工作区（官方 Q 校验一，无 code → FW 映射 unexpected-error，
+    // 文案取官方原文 index.js@395979）。
+    if (!target) {
       respondError(
-        "workspace-not-found",
-        "remote workspace bridging lands in M4c; reconnect from desktop first",
+        mapWorkspaceBridgeFailureReason(new Error()),
+        "目标工作区不在当前桌面窗口中，无法创建 Web 远程控制 bridge。",
       );
       return;
     }
-    if (!knownWorkspace) {
-      respondError("workspace-not-found", "目标工作区不在当前远控会话中");
+    // 可桥判定（官方 isBridgeableRemoteTarget pl @385786）：远程工作区须带
+    // workspaceIdentity+remoteSessionId（即已连接代理），否则要求先重连。
+    if (!isBridgeableRemoteTarget(target)) {
+      respondError(
+        mapWorkspaceBridgeFailureReason(new Error()),
+        "目标远程工作区尚未连接，无法创建 bridge，请先重连。",
+        {
+          workspaceKind: "remote",
+          // 未连接即 attach 未发生：remote_kind 走 identity 解析兜底（官方
+          // resolveRemoteKind index.js@387052 的 fallback 支路）。
+          remoteKind: resolveTargetRemoteKind(target),
+        },
+      );
       return;
     }
-    // 预热目标工作区的 CLI 运行时（对齐桌面端打开工作区 tab 时的 warmup 行为）：
-    // 手机页随后的 sessions-index 订阅与 readSession 都是 existing-only/需要活运行时，
-    // 冷工作区会直接 "runtime is not running"/"Session is not active"。listSessions
+    // 预热目标工作区的 CLI 运行时（M4b 自研步骤，官方无）：手机页随后的
+    // sessions-index 订阅与 readSession 都是 existing-only/需要活运行时，冷工作区
+    // 会直接 "runtime is not running"/"Session is not active"。listSessions
     // 默认 start-if-needed——既拉起运行时又拿到该工作区的权威会话清单。
     // 20s 兜底：预热失败不阻塞开桥（手机端按各自错误面重试）。
-    const warmTarget = syncedWorkspaces.find((entry) => relayWorkspaceKey(entry) === workspaceKey);
-    try {
-      const { agent } = attacher.ensure();
-      await Promise.race([
-        agent.listSessions({
-          workspacePath: warmTarget?.workspacePath ?? startParams.workspacePath,
-          ...(warmTarget?.workspaceIdentity || startParams.workspaceIdentity
-            ? {
-                workspaceIdentity: warmTarget?.workspaceIdentity ?? startParams.workspaceIdentity,
-              }
-            : {}),
-        }),
-        new Promise((resolve) => setTimeout(resolve, 20_000)),
-      ]);
-    } catch (error) {
-      logger.warn("[mobile-relay] 开桥预热运行时失败，继续开桥", {
-        workspaceKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    // 仅本地工作区执行：远程 scope 的服务面在 remote attach 端口上，本地 Host 的
+    // agent.listSessions 覆盖不到远程路径。
+    if (target.kind !== "remote") {
+      try {
+        const { agent } = attacher.ensure();
+        await Promise.race([
+          agent.listSessions({
+            workspacePath: target.workspacePath,
+            ...(target.workspaceIdentity || startParams.workspaceIdentity
+              ? {
+                  workspaceIdentity: target.workspaceIdentity ?? startParams.workspaceIdentity,
+                }
+              : {}),
+          }),
+          new Promise((resolve) => setTimeout(resolve, 20_000)),
+        ]);
+      } catch (error) {
+        logger.warn("[mobile-relay] 开桥预热运行时失败，继续开桥", {
+          workspaceKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      // superseded 校验一（预热 await 之后；对齐官方 attach 后校验位）。
+      if (myEpoch !== bridgeOpenEpoch) {
+        respondError(
+          mapWorkspaceBridgeFailureReason(new Error()),
+          "Workspace bridge request was superseded.",
+        );
+        return;
+      }
     }
     disposeBridge();
     let port: MessagePortMain;
+    let remoteKind: string | undefined;
     try {
-      port = attacher.attachBridgePort();
+      if (target.kind === "remote") {
+        // remote-scoped attach（官方 attachWorkspaceHost 远程分支 @584400）：按
+        // remoteSessionId 经 Main 远程连接注册表校验后附着远程 Host 服务面。
+        // 未注入（装配缺位）与注册表拒绝（未连接/窗口不符/身份不匹配）都按
+        // Error.code 映射官方 reason 词汇表。
+        if (!deps.attachRemoteBridgePort) {
+          throw new Error("remote-scoped attach is not wired for this relay control");
+        }
+        const attached = deps.attachRemoteBridgePort({
+          remoteSessionId: target.remoteSessionId ?? "",
+          workspacePath: target.workspacePath,
+          workspaceIdentity: target.workspaceIdentity ?? "",
+        });
+        port = attached.port;
+        remoteKind = attached.remoteKind;
+      } else {
+        // 测试注入端口（plain node 无 electron MessageChannelMain）；生产走 electron
+        // 创建。注入可返回挂起 Promise（对齐官方异步附着，测试制造 superseded 窗口）。
+        port = await (deps.attachBridgePort
+          ? deps.attachBridgePort()
+          : attacher.attachBridgePort());
+      }
     } catch (error) {
-      respondError("desktop-host-missing", error instanceof Error ? error.message : String(error));
+      // 附着失败（官方 Q catch）：release 后回 bridge-error，reason 按 Error.code
+      // 经 FW 词汇表映射（DESKTOP_HOST_MISSING→desktop-disconnected、
+      // REMOTE_SESSION_*→workspace-closed、REMOTE_WORKSPACE_IDENTITY_*→unsupported-action）。
+      logger.warn("[mobile-relay] workspace bridge attach 失败", {
+        bridgeSessionId,
+        workspaceKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      const normalized = normalizeRelayAttachError(error);
+      respondError(
+        mapWorkspaceBridgeFailureReason(normalized),
+        normalized instanceof Error ? normalized.message : String(normalized),
+        {
+          workspaceKind: target.kind === "remote" ? "remote" : "local",
+          // attach 失败无 attach remoteKind：identity 解析兜底（官方 catch 面
+          // wc({remoteKind:i(T,te)}) 在 te 缺失时同走 fallback，index.js@398537）。
+          remoteKind: resolveTargetRemoteKind(target),
+        },
+      );
+      return;
+    }
+    // superseded 校验二（异步附着完成之后，官方 index.js@396694：isCurrentBridgeRuntime
+    // 不满足 → release attachment + throw superseded；此处等价为本请求已被更新
+    // 请求取代——关掉本请求的端口并回错误，不覆盖新桥）。
+    if (myEpoch !== bridgeOpenEpoch) {
+      try {
+        port.close();
+      } catch {
+        // 已关闭属正常路径
+      }
+      respondError(
+        mapWorkspaceBridgeFailureReason(new Error()),
+        "Workspace bridge request was superseded.",
+        {
+          workspaceKind: target.kind === "remote" ? "remote" : "local",
+          // 异步附着已完成：attach remoteKind 可用（官方 superseded 失败面同款，
+          // index.js@396694 → catch 统一 emit）。
+          remoteKind: resolveTargetRemoteKind(target, remoteKind),
+        },
+      );
       return;
     }
     port.on("message", (event: { data: unknown }) => {
@@ -650,7 +1058,17 @@ export function createDesktopMobileRelayControl(deps: {
       outboundMessageSeq: 1,
       readyAnnounced: false,
       pendingOutbound: [],
+      // M4c 发送侧流控/重放：常量对齐官方（1MiB/256KiB/8MiB/45s）；graceMs 可注入缩短（测试）。
+      replayBuffer: createRelayReplayBuffer({
+        graceMs: deps.replayBufferOptions?.graceMs,
+        highWaterMarkBytes: deps.replayBufferOptions?.highWaterMarkBytes,
+        lowWaterMarkBytes: deps.replayBufferOptions?.lowWaterMarkBytes,
+        maxBytes: deps.replayBufferOptions?.maxBytes,
+      }),
+      degraded: false,
+      graceTimer: null,
     };
+    const targetKind = target.kind === "remote" ? "remote" : "local";
     sendAppFrame({
       zcode_type: "workspace-bridge-ready",
       requestId,
@@ -658,23 +1076,79 @@ export function createDesktopMobileRelayControl(deps: {
       bridge: toExternalBridge({
         identity,
         workspaceKey,
-        // bridge-ready 如实携带被桥接的工作区（多工作区下可能是推送清单中的任一本地工作区）。
-        workspacePath:
-          syncedWorkspaces.find((entry) => relayWorkspaceKey(entry) === workspaceKey)
-            ?.workspacePath ?? startParams.workspacePath,
+        // bridge-ready 如实携带被桥接的工作区（多工作区下可能是推送清单中的任一工作区）；
+        // 远程桥附 workspaceIdentity+remoteSessionId（官方 toExternalBridge zW @386100）。
+        workspacePath: target.workspacePath,
         ...(initialTaskId ? { initialTaskId } : {}),
-        kind: "local",
+        kind: targetKind,
+        ...(targetKind === "remote"
+          ? {
+              workspaceIdentity: target.workspaceIdentity ?? "",
+              remoteSessionId: target.remoteSessionId ?? "",
+            }
+          : {}),
       }),
     });
     bridge.readyAnnounced = true;
     flushBridgeOutbound();
-    bridgeResultEvent("success");
-    logger.info("[mobile-relay] workspace bridge 已建立", { bridgeSessionId, workspaceKey });
+    bridgeResultEvent("success", undefined, {
+      workspaceKind: targetKind,
+      // 官方 entryKind=taskId?"task":"home"（lee 构造调用 index.js@398405）。
+      entryKind: initialTaskId ? "task" : "home",
+      // remote_kind 已填充（2026-09-28 缺口收口）：attach 结果优先/identity 解析
+      // 兜底，官方 resolveRemoteKind 同构（index.js@387052）。
+      remoteKind: resolveTargetRemoteKind(target, remoteKind),
+    });
+    logger.info("[mobile-relay] workspace bridge 已建立", {
+      bridgeSessionId,
+      workspaceKey,
+      kind: targetKind,
+      ...(remoteKind ? { remoteKind } : {}),
+    });
+  }
+
+  /**
+   * workspace-reconnect-request 真实处理（M4c，对齐官方
+   * respondToWorkspaceReconnectRequest，lt，index.js@399799）：委托属主窗口
+   * renderer 重连该远程工作区（官方 e.reconnectWorkspace → IPC
+   * zcode:web-remote-control-reconnect-workspace；重连事实归窗口），成功回
+   * `{zcode_type, requestId, workspaceKey, success:true}`，任何失败回
+   * `success:false + error=错误消息`——官方无独立 reason 字段，requestId 与
+   * workspaceKey 必须回显（手机页按两者匹配响应，托管页取证 @6086587；
+   * success:false 时页面 throw Error(error) 走失败面）。
+   */
+  async function respondToWorkspaceReconnectRequest(frame: Record<string, unknown>): Promise<void> {
+    const requestId = frame.requestId;
+    const workspaceKey = frame.workspaceKey;
+    try {
+      if (!deps.reconnectWorkspace) {
+        throw new Error("workspace reconnect is not available on this desktop build");
+      }
+      if (typeof workspaceKey !== "string" || !workspaceKey.trim()) {
+        throw new Error("workspace reconnect request is missing workspaceKey");
+      }
+      await deps.reconnectWorkspace(workspaceKey);
+      sendAppFrame({
+        zcode_type: "workspace-reconnect-response",
+        requestId,
+        workspaceKey,
+        success: true,
+      });
+    } catch (error) {
+      sendAppFrame({
+        zcode_type: "workspace-reconnect-response",
+        requestId,
+        workspaceKey,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /** rpc-frame 入站：重组 → Host 端口；完整消息回 ack（对端流控依赖）。 */
   function handleRpcFrame(value: unknown): void {
-    if (!bridge) return;
+    // 终态降级：入站帧丢弃（官方 acceptPayload 的 degraded 早退）。
+    if (!bridge || bridge.degraded) return;
     const frame = parseRpcTransportFrame(value);
     if (!frame) return;
     const assembled = bridge.assembler.accept(frame);
@@ -683,6 +1157,103 @@ export function createDesktopMobileRelayControl(deps: {
       buildRpcFrameAck({ identity: bridge.identity, ackMessageSeq: assembled.messageSeq }),
     );
     bridge.port.postMessage(Buffer.from(assembled.message));
+  }
+
+  /**
+   * rpc-frame-ack 入站：releaseThrough 释放未确认批次并降水位（官方 processAck）。
+   * future-ack → 终态降级；饱和回落低水位发 flow-state "drained" 恢复 Host 发送。
+   */
+  function handleRpcFrameAck(frame: Record<string, unknown>): void {
+    if (!bridge || bridge.degraded) return;
+    const ackMessageSeq = frame.ackMessageSeq;
+    if (typeof ackMessageSeq !== "number" || !Number.isSafeInteger(ackMessageSeq)) return;
+    const result = bridge.replayBuffer.ack(ackMessageSeq);
+    if (result.futureAck) {
+      enterBridgeDegraded(RELAY_REPLAY_DEGRADED_FUTURE_ACK);
+      return;
+    }
+    if (result.drained) {
+      logger.info("[mobile-relay] 桥未确认字节回落到排空低水位", {
+        unackedBytes: bridge.replayBuffer.unacknowledgedBytes,
+        bridgeSessionId: bridge.identity.bridgeSessionId,
+      });
+      // 宿主背压解除（M4c，官方 createWorkspaceBridge 接线取证 index.js@397922）：
+      // onDrained 沿向 Host 附着端口发 flow-state "drained"，Host 恢复 CLI 出站。
+      sendBridgeFlowState("drained");
+    }
+    // 官方 deadline.refresh：按剩余最旧未确认批次重挂看门狗（释放完则解除）。
+    armBridgeGraceTimer();
+  }
+
+  /**
+   * 宿主背压 sideband（M4c）：经桥附着端口发 connection-flow-v1 控制对象。
+   *
+   * 线格式与走向（官方 3.14.3 取证，specs/mobile-web-remote.md「flow-state sideband」）：
+   * MessagePortProtocol.sendFlowState（chunk-BMP2VTTL.js@7872）postMessage
+   * {__zcodeRpcControl:"connection-flow-v1", state:"saturated"|"drained"}——官方
+   * 字面量为 __zcodeRpcControl，本仓按改名规则用 __droraRpcControl（rpc 包
+   * messagePortFlowControl 工厂，单一出处）。这是 main→Host 本地 sideband，
+   * 不进 relay 数据面；护栏对齐官方事件接线（index.js@397846/397922）：
+   * 桥存活且未降级才发。
+   */
+  function sendBridgeFlowState(state: MessagePortFlowState): void {
+    if (!bridge || bridge.degraded) return;
+    try {
+      bridge.port.postMessage(messagePortFlowControl(state));
+    } catch (error) {
+      // sideband 失败不影响数据面（Host 侧靠下一次水位沿自行恢复一致）。
+      logger.warn("[mobile-relay] flow-state 发送失败", {
+        state,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * onSendReady 重放（M4c）：设备 socket 重连/重新配对后全量重发未确认帧。
+   *
+   * 官方依据（3.14.3，main index.js）：
+   * - 触发：applyPairStatus matched 分支（@379650）——非首次配对
+   *   （lastPairedSocketGeneration>0）即 onSendReady({kind:"same-socket"|"reconnected-socket"})；
+   * - 处理（@404240）：flushPendingOutboundPayloads 后
+   *   `currentBridge.relayProtocol.replayUnacknowledged()`（@404330，degraded 跳过）。
+   * 记账语义（chunk-C6VCYWB4.js@12892）：resetReplay+flushPendingFrames——只重发，
+   * 不重新 reserve、不改未确认水位、不刷新 grace 看门狗（queuedAt 不变）。
+   * 顺序：先重放旧批次再 flush 新 pending（官方 flushPendingFrames 按 reserve
+   * 顺序出帧，旧在前）。
+   */
+  function replayUnacknowledgedForBridge(): void {
+    if (!bridge || bridge.degraded) return;
+    const frames = bridge.replayBuffer.replayFrames();
+    if (frames.length === 0) {
+      flushBridgeOutbound();
+      return;
+    }
+    logger.info("[mobile-relay] onSendReady：重发未确认 rpc 帧", {
+      frames: frames.length,
+      unackedBytes: bridge.replayBuffer.unacknowledgedBytes,
+      bridgeSessionId: bridge.identity.bridgeSessionId,
+    });
+    try {
+      for (const frame of frames) {
+        // 终态降级中途出现（理论上重放路径不触发）：停止保留剩余批次。
+        if (bridge.degraded) return;
+        // 与首次发送同路径同编码；帧内 messageSeq/seq 不变（重放语义）。
+        // 重放遇超限与首次发送同罚：enterDegraded（官方 sendFrame 抛 envelopeTooLarge）。
+        const dispatched = dispatchAppFrame(frame as unknown as Record<string, unknown>);
+        if (dispatched.status === "oversize") {
+          enterBridgeDegraded(RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE);
+          return;
+        }
+        if (dispatched.status !== "sent") return;
+      }
+    } catch (error) {
+      logger.warn("[mobile-relay] 重放发送失败，保留缓冲待下次 onSendReady", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    flushBridgeOutbound();
   }
 
   async function handleAppFrame(frame: Record<string, unknown>): Promise<void> {
@@ -774,6 +1345,9 @@ export function createDesktopMobileRelayControl(deps: {
               frame: {
                 type: "taskList",
                 tasks: syncedTasks.length > 0 ? currentTaskSummaries() : await fetchTaskSummaries(),
+                // 工作区清单与 PC 侧栏同一集合（renderer 推送快照），手机页据此
+                // 渲染与 PC 一致的工作区分组（含无任务的工作区）。
+                workspaces: currentWorkspaceSummaries(),
               },
             });
             return;
@@ -841,20 +1415,15 @@ export function createDesktopMobileRelayControl(deps: {
         return;
       }
       case "workspace-reconnect-request": {
-        sendAppFrame({
-          zcode_type: "workspace-reconnect-response",
-          requestId: frame.requestId,
-          workspaceKey: frame.workspaceKey,
-          success: false,
-          error: "workspace reconnect lands in M4c",
-        });
+        await respondToWorkspaceReconnectRequest(frame);
         return;
       }
       case "rpc-frame":
         handleRpcFrame(frame);
         return;
       case "rpc-frame-ack":
-        // 手机确认我们的出站消息；M4b 简化实现不维护重放缓冲，收到即忽略。
+        // 手机确认我们的出站消息：释放未确认批次/降水位/future-ack 降级（M4c）。
+        handleRpcFrameAck(frame);
         return;
       case "telemetry-report": {
         // 对齐官方 routePayload：telemetry-report 转发进桌面遥测管道
@@ -915,8 +1484,7 @@ export function createDesktopMobileRelayControl(deps: {
         return;
       }
       default:
-        // workspace-reconnect-request 需远程会话重连机器（M4c，有独立错误响应分支）；
-        // 其余未知帧静默丢弃。
+        // 未知帧静默丢弃（workspace-reconnect-request/bridge-open 等已有独立分支）。
         return;
     }
   }
@@ -980,13 +1548,26 @@ export function createDesktopMobileRelayControl(deps: {
           startHeartbeat();
           notifyQrReady();
         } else if (pairStatus === "matched") {
+          // onSendReady 触发判定（官方 applyPairStatus matched 分支，index.js@379650）：
+          // 上次配对代为 0 = 首次配对不触发；同代 = same-socket（手机离开后同 socket
+          // 重配）；跨代 = reconnected-socket（设备 WS 重连）——后两者都触发重放。
+          const sendReadyKind =
+            lastPairedSocketGeneration === 0
+              ? null
+              : lastPairedSocketGeneration === socketGeneration
+                ? "same-socket"
+                : "reconnected-socket";
           staleWaitingCount = 0;
           clearStaleWaitingRecoveryTimer();
-          wasPaired = true;
+          // 对齐官方 matched 分支顺序（index.js@379706）：先 setState("paired")
+          // （pair_result 在该沿 emit，hasEverPaired 尚为旧值）再置位配对旗标。
           transition("paired");
+          wasPaired = true;
+          hasEverPaired = true;
+          lastPairedSocketGeneration = socketGeneration;
           startHeartbeat();
           notifyQrReady();
-          pairResultEvent("success");
+          if (sendReadyKind) replayUnacknowledgedForBridge();
         }
         break;
       }
@@ -1009,6 +1590,7 @@ export function createDesktopMobileRelayControl(deps: {
   async function handleRelayError(code: string, messageText: string): Promise<void> {
     if (code === "KICKED") {
       // 对齐原版：单会话被新页面接管；上报一次失败面后重连回 waiting。
+      // pair_result failure 由 transition("kicked") 状态沿统一上报（官方 nI kicked 分支）。
       logger.warn("[mobile-relay] 设备被 KICKED，重连", { message: messageText });
       transition("kicked");
       runtimeFailure = {
@@ -1016,7 +1598,6 @@ export function createDesktopMobileRelayControl(deps: {
         message: "Web remote control connection was kicked by relay.",
       };
       emitStatus();
-      pairResultEvent("failure", "relay");
       reconnect();
       return;
     }
@@ -1106,6 +1687,8 @@ export function createDesktopMobileRelayControl(deps: {
       runtimeFailure = { reason: "internal", message: "WebSocket constructor unavailable" };
       emitStatus();
       // 快速失败：唤醒 start 的 QR 就绪等待，立刻向上抛错而不是拖满 30s 超时。
+      // 依赖 start 的挂载顺序——QR 等待器先于 connect() 挂载（见 start 内注释），
+      // 这里的同步 notifyQrReady() 才有等待者可唤醒。
       notifyQrReady();
       return;
     }
@@ -1168,20 +1751,33 @@ export function createDesktopMobileRelayControl(deps: {
   async function start(params: {
     workspacePath: string;
     workspaceIdentity?: string;
+    /** 传输维度（specs/mobile-relay-server.md §12）：lan=内嵌自建 relay；cloud=云中继（缺省）。 */
+    transport?: MobileRelayTransport;
   }): Promise<{ url: string; sessionId: string }> {
     if (!manuallyClosed) {
       await stop();
     }
+    const transport = params.transport ?? "cloud";
     manuallyClosed = false;
     terminalError = false;
     wasPaired = false;
+    // 对齐官方：hasEverPaired 仅随新会话重置（index.js@404928 运行时初始化）。
+    hasEverPaired = false;
+    lastPairedSocketGeneration = 0;
     staleWaitingCount = 0;
     clearStaleWaitingRecoveryTimer();
     invalidPersistedRetryUsed = false;
     runtimeFailure = null;
     mobileViewState = undefined;
     mobileDeviceInfo = undefined;
-    startParams = params;
+    startParams = {
+      workspacePath: params.workspacePath,
+      ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+      transport,
+    };
+    // start_result 维度在 start 上下文入口解析（对齐官方 runStartOperation
+    // index.js@658168：失败路径会先 stop() 清 startParams，emit 时解析会丢维度）。
+    const startDims = runtimeWorkspaceDims();
     const persisted = await deps.credentialStore.load();
     if (persisted) {
       credential = persisted;
@@ -1190,10 +1786,11 @@ export function createDesktopMobileRelayControl(deps: {
       credential = null;
       authMode = "register";
     }
-    // 动态端点（设置键 relayServerUrl → env → 固定注入/官方）：每次 start 解析一次。
+    // 动态端点（设置键 relayServerUrl → env → 固定注入/官方；lan=内嵌固定注入）：
+    // 每次 start 解析一次。装配处按 transport 准备链路（lan 先 ensureStarted）。
     if (deps.resolveEndpoints) {
       try {
-        const endpoints = await deps.resolveEndpoints();
+        const endpoints = await deps.resolveEndpoints({ transport });
         if (endpoints) {
           effectiveRelayWsUrl = endpoints.relayWsUrl;
           effectiveRemotePageUrl = endpoints.remotePageUrl;
@@ -1207,7 +1804,11 @@ export function createDesktopMobileRelayControl(deps: {
         });
       }
     }
-    connect();
+    // QR 就绪等待器必须先于 connect() 挂载：connect() 内 WebSocket 构造器缺失的
+    // 快速失败路径是同步调 notifyQrReady()——旧顺序（先 connect() 再挂载）下通知
+    // 落空，start 只能拖满 30s 超时才失败。挂载前移后快速失败做真：等待被立即唤醒，
+    // 经下方 terminalError 检查以真实原因（"WebSocket constructor unavailable"）
+    // 上抛（2026-09-29 修正注释与行为不符）。
     // QR 就绪 = 到达 waiting/matched（拿到 deviceSid 才能构造 URL）且注册凭据已落盘；
     // 超时对齐原版 BW。
     const ready = new Promise<void>((resolve, reject) => {
@@ -1221,11 +1822,15 @@ export function createDesktopMobileRelayControl(deps: {
         resolve();
       };
     });
+    connect();
     try {
       await ready;
       if (pendingCredentialSave) await pendingCredentialSave;
     } catch (error) {
       await stop();
+      // start_result failure（对齐官方 runStartOperation catch，index.js@658475：
+      // 失败面也上报，errorCategory=classifyRemoteUsageError）。
+      startResultEvent("failure", error, startDims);
       throw error;
     }
     pendingCredentialSave = null;
@@ -1236,7 +1841,11 @@ export function createDesktopMobileRelayControl(deps: {
     ) {
       const failure = runtimeFailure;
       await stop();
-      throw new Error(failure?.message ?? "relay did not reach QR-ready state");
+      // 未达 QR 就绪的终态失败同样上报 start_result（官方 StartWebRemoteControl
+      // handler 对 operation rejection 统一走 catch 失败面）。
+      const error = new Error(failure?.message ?? "relay did not reach QR-ready state");
+      startResultEvent("failure", error, startDims);
+      throw error;
     }
     qrUrl = buildRelayQrUrl({
       baseUrl: effectiveRemotePageUrl,
@@ -1248,10 +1857,12 @@ export function createDesktopMobileRelayControl(deps: {
       // 托管页按版本清单 404 未知版本，真实版本 0.0.1 手机扫码必 404。
     });
     // 对齐官方：start 成功即持久化恢复上下文（手动 stop 清除，应用重启后恢复）。
+    // transport 一并记录：恢复时按原传输重启对应链路（§12.4）。
     try {
       await deps.startupRestoreStorage?.save({
         workspacePath: params.workspacePath,
         ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        transport,
       });
     } catch (error) {
       logger.warn("[mobile-relay] 恢复上下文保存失败", {
@@ -1259,6 +1870,9 @@ export function createDesktopMobileRelayControl(deps: {
       });
     }
     emitStatus();
+    // start_result success（对齐官方 runStartOperation 成功沿 index.js@658465：
+    // operation 完成后、返回前上报）。
+    startResultEvent("success", undefined, startDims);
     return { url: qrUrl, sessionId: credential.deviceSid };
   }
 
@@ -1281,9 +1895,13 @@ export function createDesktopMobileRelayControl(deps: {
     }
     pendingCredentialSave = null;
     disposeBridge();
+    // 在途开桥请求一并作废（superseded）：stop 后异步预热/附着完成的请求不得重建桥。
+    bridgeOpenEpoch += 1;
     syncedWorkspaces = [];
     clearStaleWaitingRecoveryTimer();
     wasPaired = false;
+    hasEverPaired = false;
+    lastPairedSocketGeneration = 0;
     staleWaitingCount = 0;
     syncedTasks = [];
     lastWorkspaceListFingerprint = null;
@@ -1330,6 +1948,8 @@ export function createDesktopMobileRelayControl(deps: {
       await start({
         workspacePath: target.workspacePath,
         workspaceIdentity: target.workspaceIdentity,
+        // 恢复语义（§12.4）：按记录的传输重启对应链路（缺省 cloud 兼容旧记录）。
+        transport: context.transport ?? "cloud",
       });
       return true;
     } catch (error) {

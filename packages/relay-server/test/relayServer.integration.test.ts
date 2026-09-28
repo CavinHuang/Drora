@@ -53,6 +53,9 @@ function connect(url: string): Promise<WsClient> {
           });
         },
         raw,
+        closed: new Promise((resolve) => {
+          ws.once("close", (code) => resolve(code));
+        }),
         close() {
           return new Promise((resolve) => {
             ws.once("close", resolve);
@@ -99,7 +102,8 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
   }>;
   assert.ok(persisted.length >= 1);
 
-  // 2) device 鉴权（HMAC 挑战应答）→ auth_ack waiting。
+  // 2) device 鉴权（HMAC 挑战应答）→ auth_ack waiting；字段集对齐官方
+  //    （E2E #2）：device_sid + terminal_sid（未配对为 ""）。
   device.send({ type: "auth_init", role: "device", device_sid: deviceSid, client_ts: Date.now() });
   const challenge = await device.next();
   assert.equal(challenge.type, "auth_challenge");
@@ -114,6 +118,8 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
   const authAck = await device.next();
   assert.equal(authAck.type, "auth_ack");
   assert.equal(authAck.pair_status, "waiting");
+  assert.equal(authAck.device_sid, deviceSid);
+  assert.equal(authAck.terminal_sid, "");
 
   // 3) 心跳：waiting 态查询 → ack waiting。
   device.send({ type: "pair_status_query", device_sid: deviceSid, client_ts: Date.now() });
@@ -149,6 +155,8 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
   assert.equal(terminalAuthAck.type, "auth_ack");
   assert.equal(terminalAuthAck.pair_status, "matched");
   assert.match(terminalAuthAck.terminal_sid as string, /^t_/);
+  // terminal ack 补 device_sid（E2E #2，官方观测形状）。
+  assert.equal(terminalAuthAck.device_sid, deviceSid);
   const matchedPush = await device.next();
   assert.equal(matchedPush.type, "pair_status_ack");
   assert.equal(matchedPush.pair_status, "matched");
@@ -193,8 +201,12 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
   assert.equal((await device.next()).pair_status, "matched");
 
   // 10) 第二个 terminal 接管：旧 terminal 先收 KICKED，新 terminal matched。
+  //     断开语义对齐官方（E2E #4）：发帧后 terminate，旧终端 close 码 1006。
   const oldTerminal = terminal;
   const kickedPromise = oldTerminal.next();
+  const oldTerminalClosed = new Promise<number>((resolve) => {
+    oldTerminal.ws.once("close", (code: number) => resolve(code));
+  });
   const second = await connect(url);
   second.send({
     type: "auth_init",
@@ -220,15 +232,22 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
   const kickedFrame = await kickedPromise;
   assert.equal(kickedFrame.type, "error");
   assert.equal(kickedFrame.code, "KICKED");
-  await oldTerminal.close();
+  assert.equal(await oldTerminalClosed, 1006, "KICKED 后必须 terminate（1006），不发 close 帧");
 
-  // 11) device 死亡 → terminal 收 DEVICE_OFFLINE（先于断开）。
+  // 11) device 死亡 → terminal 死亡序列（E2E #3/#4 对齐）：
+  //     pair_status_ack{waiting} 前置推送 → error{DEVICE_OFFLINE} → terminate(1006)。
   const offlinePromise = second.next();
+  const secondClosed = new Promise<number>((resolve) => {
+    second.ws.once("close", (code: number) => resolve(code));
+  });
   await device.close();
-  const offlineFrame = await offlinePromise;
+  const waitingPush = await offlinePromise;
+  assert.equal(waitingPush.type, "pair_status_ack");
+  assert.equal(waitingPush.pair_status, "waiting");
+  const offlineFrame = await second.next();
   assert.equal(offlineFrame.type, "error");
   assert.equal(offlineFrame.code, "DEVICE_OFFLINE");
-  await second.close();
+  assert.equal(await secondClosed, 1006, "DEVICE_OFFLINE 后必须 terminate（1006）");
 
   // 12) 凭据持久化：服务重启（同 db 重建）后旧 sid 鉴权成功。
   await server.close();
@@ -267,8 +286,13 @@ test("错误面：未知 sid AUTH_FAILED / 坏 proof AUTH_FAILED / 未知类型 
   const url = `ws://127.0.0.1:${port}/ws`;
 
   const c1 = await connect(url);
+  // 未知 sid 两跳防枚举（§11 #5 对齐官方）：challenge 照发，proof 阶段统一 AUTH_FAILED。
   c1.send({ type: "auth_init", role: "device", device_sid: "d_missing", client_ts: Date.now() });
-  assert.equal((await c1.next()).code, "AUTH_FAILED");
+  assert.equal((await c1.next()).type, "auth_challenge");
+  c1.send({ type: "auth_response", device_sid: "d_missing", proof: "x", client_ts: Date.now() });
+  const unknownOut = await c1.next();
+  assert.equal(unknownOut.code, "AUTH_FAILED");
+  assert.equal(unknownOut.message, "", "错误帧 message 恒空串（§11 #7 对齐官方）");
 
   // 注册真凭据后用坏 proof 鉴权。
   const passHash = passHashOf("pw");
@@ -285,10 +309,12 @@ test("错误面：未知 sid AUTH_FAILED / 坏 proof AUTH_FAILED / 未知类型 
   c1.send({ type: "auth_response", device_sid: sid, proof: "bad", client_ts: Date.now() });
   assert.equal((await c1.next()).code, "AUTH_FAILED");
 
+  // 未知帧=协议违例（§11 #6 对齐官方）：WRONG_PARAM（message 空串）+ 服务端立即
+  // terminate（客户端见 1006）。
   c1.send({ type: "nonsense", client_ts: Date.now() });
   assert.equal((await c1.next()).code, "WRONG_PARAM");
+  assert.equal(await c1.closed, 1006, "未知帧后必须 terminate（1006）");
 
-  await c1.close();
   await server.close();
 });
 
@@ -346,4 +372,141 @@ test("自建手机页托管：/m/index.html 返回页面 HTML", async () => {
   const missing = await fetch(`http://127.0.0.1:${port}/nope`);
   assert.equal(missing.status, 404);
   await server.close();
+});
+
+test('终端角色心跳受理（E2E #1 P0）：waiting/matched 均回 pair_status_ack + terminal_sid:""', async () => {
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-tq-"));
+  tempDirs.push(dir);
+  const registry = createDeviceRegistry({
+    storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
+  });
+  const server = createRelayServer({ registry, port: 0 });
+  const port = await server.listen();
+  const url = `ws://127.0.0.1:${port}/ws`;
+
+  const passHash = passHashOf("pw-tq");
+  const device = await connect(url);
+  device.send({
+    type: "device_register_init",
+    device_mid: "mid-tq",
+    pass_hash: passHash,
+    client_ts: Date.now(),
+  });
+  const sid = (await device.next()).device_sid as string;
+
+  // 未鉴权连接 query → WRONG_PARAM（角色面校验仍在）。
+  const stranger = await connect(url);
+  stranger.send({ type: "pair_status_query", device_sid: sid, client_ts: Date.now() });
+  assert.equal((await stranger.next()).code, "WRONG_PARAM");
+
+  // terminal 鉴权（未配对）→ query 回 waiting。
+  const terminal = await connect(url);
+  terminal.send({ type: "auth_init", role: "terminal", device_sid: sid, client_ts: Date.now() });
+  const challenge = await terminal.next();
+  terminal.send({
+    type: "auth_response",
+    device_sid: sid,
+    proof: computeProof({
+      passHash,
+      nonce: challenge.nonce as string,
+      role: "terminal",
+      deviceSid: sid,
+    }),
+    client_ts: Date.now(),
+  });
+  const terminalWaitingAck = await terminal.next();
+  assert.equal(terminalWaitingAck.pair_status, "waiting");
+  const terminalSid = terminalWaitingAck.terminal_sid as string;
+  assert.match(terminalSid, /^t_/, "terminal auth_ack 携带自身 sid");
+  terminal.send({ type: "pair_status_query", device_sid: sid, client_ts: Date.now() });
+  const waitingAck = await terminal.next();
+  assert.equal(waitingAck.type, "pair_status_ack");
+  assert.equal(waitingAck.pair_status, "waiting");
+  assert.equal(waitingAck.terminal_sid, "", '官方观测形状：terminal 应答附 terminal_sid:""');
+
+  // device 配对 → matched；terminal query 回 matched（此前 WRONG_PARAM 会让官方
+  // 手机页 ~10s 终态死亡，spec §11 #1）。
+  device.send({ type: "auth_init", role: "device", device_sid: sid, client_ts: Date.now() });
+  const deviceChallenge = await device.next();
+  device.send({
+    type: "auth_response",
+    device_sid: sid,
+    proof: computeProof({
+      passHash,
+      nonce: deviceChallenge.nonce as string,
+      role: "device",
+      deviceSid: sid,
+    }),
+    client_ts: Date.now(),
+  });
+  const deviceAuthAck = await device.next();
+  assert.equal(deviceAuthAck.pair_status, "matched");
+  // 配对后 device ack 的 terminal_sid 携带当前 terminal sid（E2E #2）。
+  assert.equal(deviceAuthAck.terminal_sid, terminalSid);
+  terminal.send({ type: "pair_status_query", device_sid: sid, client_ts: Date.now() });
+  const matchedAck = await terminal.next();
+  assert.equal(matchedAck.type, "pair_status_ack");
+  assert.equal(matchedAck.pair_status, "matched");
+  assert.equal(matchedAck.terminal_sid, "");
+
+  // payload device_sid 与会话不符 → 忽略 payload 值、按会话身份应答（§11 #6 对齐官方：
+  // 错 sid 的 query 照常回 ack，不报错）。
+  terminal.send({ type: "pair_status_query", device_sid: "d_other", client_ts: Date.now() });
+  const mismatchAck = await terminal.next();
+  assert.equal(mismatchAck.type, "pair_status_ack");
+  assert.equal(mismatchAck.pair_status, "matched");
+
+  await device.close();
+  await terminal.close();
+  await stranger.close();
+  await server.close();
+});
+
+test("停机 API：close 幂等且重复调用直接返回", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-close-"));
+  tempDirs.push(dir);
+  const registry = createDeviceRegistry({
+    storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
+  });
+  const server = createRelayServer({ registry, port: 0 });
+  await server.listen();
+  await server.close();
+  // 第二次 close 必须立即 resolve（幂等），不得挂起或抛错。
+  await server.close();
+});
+
+test("静态资产托管（spec §12.5）：/remote/** 映射 staticRoot + 防目录穿越", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-static-"));
+  tempDirs.push(dir);
+  const registry = createDeviceRegistry({
+    storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
+  });
+  // 目录树镜像官方资产布局：<staticRoot>/remote/v4/index.html + .../assets/x.js
+  const webRoot = join(dir, "site");
+  const assetsDir = join(webRoot, "remote", "v4", "3.14.3", "assets");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(webRoot, "remote", "v4", "index.html"), "<html>official-page</html>");
+  await writeFile(join(assetsDir, "app-test.js"), "globalThis.ok=1;");
+  const server = createRelayServer({ registry, port: 0, staticRoot: webRoot });
+  const port = await server.listen();
+  // 正常映射
+  const page = await fetch(`http://127.0.0.1:${port}/remote/v4/index.html`);
+  assert.equal(page.status, 200);
+  assert.ok((await page.text()).includes("official-page"));
+  const js = await fetch(`http://127.0.0.1:${port}/remote/v4/3.14.3/assets/app-test.js`);
+  assert.equal(js.status, 200);
+  assert.match(js.headers.get("content-type") ?? "", /text\/javascript/);
+  // 未命中 404；穿越拒绝 404
+  const missing = await fetch(`http://127.0.0.1:${port}/remote/v4/3.14.3/assets/nope.js`);
+  assert.equal(missing.status, 404);
+  const traversal = await fetch(`http://127.0.0.1:${port}/remote/v4/..%2f..%2f..%2fdb.json`);
+  assert.equal(traversal.status, 404);
+  // 未配置 staticRoot 的服务不响应 /remote/**
+  const server2 = createRelayServer({ registry, port: 0 });
+  const port2 = await server2.listen();
+  const off = await fetch(`http://127.0.0.1:${port2}/remote/v4/index.html`);
+  assert.equal(off.status, 404);
+  await server.close();
+  await server2.close();
 });

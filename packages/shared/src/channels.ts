@@ -181,16 +181,6 @@ export function toOfficialRpcChannelAlias(channelName: string): string | null {
 export const PlatformChannels = {
   /** 打开系统目录选择框 */
   SelectDirectory: "drora:select-directory",
-  /** Renderer → Main：启动移动端配对服务（LAN 直连，返回二维码 URL；配对令牌一次性使用） */
-  MobilePairingStart: "drora:mobile-pairing-start",
-  /** Renderer → Main：停止移动端配对服务 */
-  MobilePairingStop: "drora:mobile-pairing-stop",
-  /** Renderer → Main：查询移动端配对服务状态 */
-  MobilePairingState: "drora:mobile-pairing-state",
-  /** Renderer → Main：重置移动端配对（作废旧票据并踢除已连手机，换发新二维码；服务不重启） */
-  MobilePairingReset: "drora:mobile-pairing-reset",
-  /** Main → Renderer：移动端配对运行状态推送（对齐原版 StatusChanged：不轮询） */
-  MobilePairingStateChanged: "drora:mobile-pairing-state-changed",
   /** Renderer → Main：启动官方 relay 云中继远控（注册/鉴权设备并生成 v4 托管页二维码） */
   MobileRelayStart: "drora:mobile-relay-start",
   /** Renderer → Main：停止官方 relay 云中继远控（断开并保留设备凭据） */
@@ -205,6 +195,14 @@ export const PlatformChannels = {
   MobileRelaySyncWorkspaces: "drora:mobile-relay-sync-workspaces",
   /** Renderer → Main：同步跨工作区任务列表到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
   MobileRelaySyncTasks: "drora:mobile-relay-sync-tasks",
+  /**
+   * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
+   * zcode:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
+   * main→renderer 发 {requestId, workspaceKey}，renderer 处理后经同一通道回
+   * {requestId, workspaceKey, success, error?}——重连事实（历史/target/凭据）归
+   * 窗口 renderer，main 只做转发与等待（官方 qb 语义，120s 超时）。
+   */
+  WebRemoteControlReconnectWorkspace: "drora:web-remote-control-reconnect-workspace",
   /** 打开系统文件选择框 */
   SelectFile: "drora:select-file",
   /** 打开系统多文件选择框 */

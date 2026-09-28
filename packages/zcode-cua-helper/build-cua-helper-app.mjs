@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 构建 macOS 端 ZCode Computer Use.app（Node SEA 单可执行 Helper）。
+// 构建 macOS 端 Drora Computer Use.app（Node SEA 单可执行 Helper）。
 // 还原自原版管线（payload 构建路径 .tmp/cua-helper-build-*/helper.cjs 可证）：
 //   1. esbuild 将 src/helper-sea-entry.ts 打成 CJS bundle（helper.cjs）
 //   2. node --experimental-sea-config 生成 SEA blob
@@ -21,7 +21,7 @@ const bundlePath = join(distDir, "helper.cjs");
 const seaConfigPath = join(distDir, "helper-sea-config.json");
 const blobPath = join(distDir, "helper.blob");
 const outAppDir = resolve(packageRoot, "dist-cua-helper");
-const appName = "ZCode Computer Use.app";
+const appName = "Drora Computer Use.app";
 const nodeBinary = process.execPath;
 
 const require = createRequire(import.meta.url);
@@ -98,7 +98,7 @@ const resourcesDir = join(contentsDir, "Resources");
 mkdirSync(macosDir, { recursive: true });
 mkdirSync(resourcesDir, { recursive: true });
 
-const helperExecutable = join(macosDir, "ZCode Computer Use");
+const helperExecutable = join(macosDir, "Drora Computer Use");
 // SEA 注入骨架优先级：
 //   1. NODE_SEA_SKELETON env（CI 用官方 node 发行版，自带 NODE_JS_FUSE sentinel）
 //   2. 仓库内原版 Helper 可执行文件（自带 NODE_SEA 段与 sentinel，--overwrite 换入新 blob；
@@ -108,6 +108,7 @@ const helperExecutable = join(macosDir, "ZCode Computer Use");
 // 熔丝，否则 SEA 永不激活（spec: specs/mac-cua-helper-app-alignment.md §二.1）。
 const repoOriginalHelperExe = resolve(
   workspaceRoot,
+  // 官方 staging 参照副本（SEA 熔丝骨架种源）——官方身份保留原名，见 specs/drora-rename.md 2026-09-28 修订。
   "packages/desktop/resources/cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use",
 );
 const skeletonCandidates = [
@@ -163,18 +164,18 @@ writeFileSync(
   `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleDisplayName</key><string>ZCode Computer Use</string>
-  <key>CFBundleExecutable</key><string>ZCode Computer Use</string>
+  <key>CFBundleDisplayName</key><string>Drora Computer Use</string>
+  <key>CFBundleExecutable</key><string>Drora Computer Use</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleIdentifier</key><string>dev.zcode.cua-helper</string>
+  <key>CFBundleIdentifier</key><string>dev.drora.cua-helper</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>CFBundleName</key><string>ZCode Computer Use</string>
+  <key>CFBundleName</key><string>Drora Computer Use</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${helperVersion}</string>
   <key>CFBundleVersion</key><string>${helperVersion}</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><true/>
-  <key>NSAppleEventsUsageDescription</key><string>ZCode Computer Use needs to control System Events to activate target apps for computer use.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Drora Computer Use needs to control System Events to activate target apps for computer use.</string>
   <key>ZCodeCUAHelperBuildId</key><string>${helperBuildId}</string>
 </dict></plist>
 `,
@@ -252,7 +253,7 @@ run("/usr/bin/codesign", [
   "--sign",
   "-",
   "--identifier",
-  "dev.zcode.cua-helper",
+  "dev.drora.cua-helper",
   helperExecutable,
 ]);
 run("/usr/bin/codesign", [
@@ -260,7 +261,7 @@ run("/usr/bin/codesign", [
   "--sign",
   "-",
   "--identifier",
-  "dev.zcode.cua-helper",
+  "dev.drora.cua-helper",
   join(outAppDir, appName),
 ]);
 

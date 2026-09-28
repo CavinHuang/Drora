@@ -35,6 +35,27 @@
    `@zcode/` import specifier 与 package.json name 的 scope（@drora/zcode-cua 等），
    其余内容（broker/管道/身份字符串、dist/windows-helper.js 原版 bundle、逆向档案）逐字保留，
    保证与原版发行物的对齐测试（221 项 E2E、8 项 parity、restored-smoke）持续有效。
+   **2026-09-28 修订（用户裁定：Helper 身份 Drora 化）**：自签名链落地后 Helper 的
+   签名身份已归 Drora（specs/update-feed-github.md「macOS 发布签名身份」），用户可见
+   身份仍叫 "ZCode Computer Use" 构成品牌撕裂（TCC 授权弹窗/活动监视器/设置页/
+   安装路径/permission_status.grant_owner）。修订如下：
+   - **改名面（Drora 化）**：`HELPER_APP_NAME` "ZCode Computer Use.app" →
+     "Drora Computer Use.app"；`HELPER_DISPLAY_NAME` → "Drora Computer Use"；
+     `DEV_HELPER_APP_NAME` → "Drora Computer Use Dev.app"；
+     `HELPER_BUNDLE_ID` "dev.zcode.cua-helper" → "dev.drora.cua-helper"；
+     `DEV_CUA_HELPER_BUNDLE_ID` → "dev.drora.cua-helper.dev"（两棵常量树
+     helperConstants.ts / broker-helper-constants.js 为单一出处，散落字面量随常量走）。
+     连带：buildId 前缀本就为 drora-*；安装路径 ~/.drora/computer-use/<新 app 名>；
+     TCC 授权主体随 bundle id 变更一次性重置（发布前执行，无存量授权损失）。
+   - **保留逐字（官方锚点，非 Drora 身份）**：launcher 门钉扎 `dev.zcode.app` +
+     TeamID `8A5X4JJ39T`（`HELPER_TEAM_ID`，官方发射门与严格链锚定的是官方发行物，
+     改名即篡改还原语义）；`resources/cua-helper*/` 官方 staging/参照副本（含其
+     "ZCode Computer Use.app" 原名与 bundle id）；上游仓库名/目录名
+     （packages/zcode-cua* 等）；dist/windows-helper.js 原版 bundle；
+     parity 工具中「官方侧」路径与断言。
+   - 验收：zcode-cua 全套测试（restored-smoke/embedded-build-id/mac-launch-contract/
+     cua-tool-layer-smoke/adhoc-distribution-profile）+ parity（our 侧新名/orig 侧
+     原名）+ win32 tsc/build 无损 + 签名打包真机首用链全绿。
 3. **third-party/ 与 THIRD-PARTY-NOTICES.md**：来源出处记录（provenance），改名即篡改记录。
 4. **docs/cua-restoration-manifest.md**：17-19 轮还原历史档案，保留原称谓。
 5. **pnpm-lock.yaml**：不 sed，由 `pnpm install` 重生成。

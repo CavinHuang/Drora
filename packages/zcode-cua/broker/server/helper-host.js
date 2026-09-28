@@ -145,7 +145,7 @@ export async function NW(e, t = wse) {
 export function vse(e) {
     let t = e.expectedBundleId.trim();
     if (!MW.test(t))
-        throw new qn("ZCode Computer Use live verification received an unsafe bundle identifier");
+        throw new qn("Drora Computer Use live verification received an unsafe bundle identifier");
     if (e.allowAdHocLocalDev) {
         // 路线 A 分发（第五十轮）：adhoc 包的自建 Helper 以产品 bundle id 分发
         // （build-cua-helper-app.mjs --identifier 签名、无证书链），复核放宽到产品
@@ -157,32 +157,32 @@ export function vse(e) {
     }
     let n = e.env ?? process.env, o = (bn(n) ? n.ZCODE_CUA_HELPER_TEAM_ID?.trim() : void 0) || ha;
     if (!MW.test(o))
-        throw new qn("ZCode Computer Use live verification received an unsafe TeamIdentifier");
+        throw new qn("Drora Computer Use live verification received an unsafe TeamIdentifier");
     return `anchor apple generic and identifier "${t}" and certificate leaf[subject.OU] = "${o}"`;
 }
 export async function LW(e, t = yse) {
     if (e.reportedPid === null || !Number.isInteger(e.reportedPid) || e.reportedPid <= 1)
-        throw new qn("ZCode Computer Use broker_info did not report a valid process id");
+        throw new qn("Drora Computer Use broker_info did not report a valid process id");
     let n;
     try {
         n = [...new Set(await t.listUnixSocketOwnerPids(e.socketPath))];
     }
     catch (l) {
-        throw new qn("Could not resolve the live process listening on the ZCode Computer Use socket", null, {
+        throw new qn("Could not resolve the live process listening on the Drora Computer Use socket", null, {
             cause: l,
         });
     }
     if (n.length !== 1)
-        throw new qn(`ZCode Computer Use socket has ${n.length} live owners; expected exactly one`, n.length === 1 ? n[0] : null);
+        throw new qn(`Drora Computer Use socket has ${n.length} live owners; expected exactly one`, n.length === 1 ? n[0] : null);
     let r = n[0];
     if (r !== e.reportedPid)
-        throw new qn(`ZCode Computer Use broker_info pid ${e.reportedPid} does not own its broker socket`, r);
+        throw new qn(`Drora Computer Use broker_info pid ${e.reportedPid} does not own its broker socket`, r);
     let o = vse(e);
     try {
         await t.verifyProcessCodeSignature(r, o);
     }
     catch (l) {
-        throw new qn("The live ZCode Computer Use process does not satisfy the expected code-signing identity", r, {
+        throw new qn("The live Drora Computer Use process does not satisfy the expected code-signing identity", r, {
             cause: l,
         });
     }
@@ -191,7 +191,7 @@ export async function LW(e, t = yse) {
         s = await t.readProcessHostingPaths(r);
     }
     catch (l) {
-        throw new qn("Could not resolve the live ZCode Computer Use process hosting path", r, {
+        throw new qn("Could not resolve the live Drora Computer Use process hosting path", r, {
             cause: l,
         });
     }
@@ -208,18 +208,18 @@ export async function LW(e, t = yse) {
             return !1;
         }
     }))
-        throw new qn("The live ZCode Computer Use process is not hosted by the verified Helper bundle", r);
+        throw new qn("The live Drora Computer Use process is not hosted by the verified Helper bundle", r);
     let d;
     try {
         d = [...new Set(await t.listUnixSocketOwnerPids(e.socketPath))];
     }
     catch (l) {
-        throw new qn("Could not re-confirm the live ZCode Computer Use socket owner after code-signature verification", r, {
+        throw new qn("Could not re-confirm the live Drora Computer Use socket owner after code-signature verification", r, {
             cause: l,
         });
     }
     if (d.length !== 1 || d[0] !== r)
-        throw new qn("ZCode Computer Use socket ownership changed during live process verification", d.length === 1 ? d[0] : null);
+        throw new qn("Drora Computer Use socket ownership changed during live process verification", d.length === 1 ? d[0] : null);
     return {
         pid: r,
     };
@@ -423,7 +423,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                 this.resolverPluginAuthority);
         }
         catch (t) {
-            throw ((this.pluginAuthorityMintError = new CuaHelperError("launch_failed", `Failed to mint ZCode Computer Use resolver plugin authority: ${t instanceof Error ? t.message : String(t)}`, {
+            throw ((this.pluginAuthorityMintError = new CuaHelperError("launch_failed", `Failed to mint Drora Computer Use resolver plugin authority: ${t instanceof Error ? t.message : String(t)}`, {
                 cause: t,
             })),
                 this.pluginAuthorityMintError);
@@ -441,7 +441,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
             this.assertNotExternallyStopped(o);
             let a = s?.handle ?? this.handle;
             if (!a)
-                throw new CuaHelperError("launch_failed", "ZCode Computer Use handle became unavailable during start()");
+                throw new CuaHelperError("launch_failed", "Drora Computer Use handle became unavailable during start()");
             return a;
         }
         let t = this.stopGeneration;
@@ -478,7 +478,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                 : null));
         let c = a?.pendingSocketPath ?? o, d = n ? void 0 : await this.options.helperInstaller?.ensureInstalled(), l = n ? [n.helperAppPath] : [...(d ? [d] : []), ...this.options.helperAppCandidates], p = n?.helperAppPath ?? $z(l);
         if (!p)
-            throw new CuaHelperError("helper_missing", `ZCode Computer Use is not ready (${l.length} internal candidate(s) checked). Restart ZCode or reinstall the Computer Use component.`);
+            throw new CuaHelperError("helper_missing", `Drora Computer Use is not ready (${l.length} internal candidate(s) checked). Restart ZCode or reinstall the Computer Use component.`);
         let u = this.options.helperInstaller ? Cb(p) : null, f = d !== void 0 && p === d;
         (await this.options.helperInstaller?.verifyInstalled(p, {
             skipGatekeeperAssessment: f,
@@ -571,19 +571,19 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                     socketPath: c,
                     helperAppPath: p,
                 }),
-                    new CuaHelperError("unexpected_bundle_id", `ZCode Computer Use reported bundle id ${j.bundleId ?? "<missing>"} (expected ${M}). Refusing to inject broker credentials because TCC ownership is not the signed ZCode Computer Use.`));
+                    new CuaHelperError("unexpected_bundle_id", `Drora Computer Use reported bundle id ${j.bundleId ?? "<missing>"} (expected ${M}). Refusing to inject broker credentials because TCC ownership is not the signed Drora Computer Use.`));
             if (this.stopGeneration !== t)
                 throw (await this.terminateHelperPid(B, "stopped-during-start", {
                     socketPath: c,
                     helperAppPath: p,
                 }),
-                    new CuaHelperError("launch_failed", "ZCode Computer Use start aborted by stop()"));
+                    new CuaHelperError("launch_failed", "Drora Computer Use start aborted by stop()"));
             if ((await (this.options.cleanupBrokerLaunchGuard ?? qC)(U), this.stopGeneration !== t))
                 throw (await this.terminateHelperPid(B, "stopped-during-launch-guard-cleanup", {
                     socketPath: c,
                     helperAppPath: p,
                 }),
-                    new CuaHelperError("launch_failed", "ZCode Computer Use start aborted by stop()"));
+                    new CuaHelperError("launch_failed", "Drora Computer Use start aborted by stop()"));
             await this.reservation?.publish();
         }
         catch (W) {
@@ -595,7 +595,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
             }, W, M),
                 W instanceof CuaHelperError || W instanceof qn
                     ? W
-                    : new CuaHelperError("verification_failed", `Failed to verify the live ZCode Computer Use process identity: ${W instanceof Error ? W.message : String(W)}`, {
+                    : new CuaHelperError("verification_failed", `Failed to verify the live Drora Computer Use process identity: ${W instanceof Error ? W.message : String(W)}`, {
                         cause: W,
                     }));
         }
@@ -646,7 +646,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
     async stopCurrentHandle(t, n, r = !1) {
         let o = this.handle;
         if (o?.pid == null && o)
-            throw new CuaHelperError("termination_failed", `Cannot terminate ZCode Computer Use (${t}): live pid is unknown`);
+            throw new CuaHelperError("termination_failed", `Cannot terminate Drora Computer Use (${t}): live pid is unknown`);
         if (((this.handle = null), o?.pid != null)) {
             (await this.terminateHelperPid(o.pid, t, {
                 socketPath: o.launchSocketPath,
@@ -674,7 +674,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
     }
     assertNotExternallyStopped(t) {
         if (this.stopGeneration !== t)
-            throw new CuaHelperError("launch_failed", "ZCode Computer Use restart aborted by stop()");
+            throw new CuaHelperError("launch_failed", "Drora Computer Use restart aborted by stop()");
     }
     beginFreshRestart(t) {
         let r = (async () => (this.assertNotExternallyStopped(t),
@@ -709,7 +709,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
     beginTransportPreservingRestart(t, n) {
         let o = (async () => {
             if ((this.assertNotExternallyStopped(t), n.pid == null))
-                throw new CuaHelperError("termination_failed", "Cannot refresh ZCode Computer Use permissions: verified live pid is unavailable");
+                throw new CuaHelperError("termination_failed", "Cannot refresh Drora Computer Use permissions: verified live pid is unavailable");
             let s = this.pendingRefreshMarker;
             if (s && s.socketPath !== n.socketPath)
                 throw new CuaHelperError("termination_failed", "Cannot replace a pending CUA permission refresh marker with a different transport");
@@ -763,7 +763,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
     async recordAndCleanupFailedLaunch(t, n, r = null) {
         let o = this.pendingFailedLaunch;
         if (o && (o.socketPath !== t.socketPath || o.helperAppPath !== t.helperAppPath))
-            throw new CuaHelperError("termination_failed", "A previous failed ZCode Computer Use launch is still unresolved; refusing to replace its lifecycle blocker", {
+            throw new CuaHelperError("termination_failed", "A previous failed Drora Computer Use launch is still unresolved; refusing to replace its lifecycle blocker", {
                 cause: n,
             });
         ((this.pendingFailedLaunch ??= {
@@ -778,7 +778,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                 await this.finishPendingFailedLaunch("startup failure"));
         }
         catch (s) {
-            throw new CuaHelperError("termination_failed", `ZCode Computer Use startup failed and the launched process could not be conclusively cleaned up: ${s instanceof Error ? s.message : String(s)}`, {
+            throw new CuaHelperError("termination_failed", `Drora Computer Use startup failed and the launched process could not be conclusively cleaned up: ${s instanceof Error ? s.message : String(s)}`, {
                 cause: n,
             });
         }
@@ -812,12 +812,12 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
                 helperAppPath: t.helperAppPath,
             });
             if (f.state === "unknown")
-                throw new CuaHelperError("termination_failed", `Cannot confirm failed ZCode Computer Use launch cleanup (${n}): ${f.detail ?? "process identity is unknown"}`);
+                throw new CuaHelperError("termination_failed", `Cannot confirm failed Drora Computer Use launch cleanup (${n}): ${f.detail ?? "process identity is unknown"}`);
             if (f.state === "observed") {
                 d = 0;
                 let g = [...new Set(f.pids)].filter((v) => Number.isInteger(v) && v > 1);
                 if (g.length === 0)
-                    throw new CuaHelperError("termination_failed", `Failed ZCode Computer Use launch discovery returned observed without a valid pid (${n})`);
+                    throw new CuaHelperError("termination_failed", `Failed Drora Computer Use launch discovery returned observed without a valid pid (${n})`);
                 for (let v of g)
                     await this.terminateHelperPid(v, t.context, {
                         socketPath: t.socketPath,
@@ -832,7 +832,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
             }
             await a(o);
         }
-        throw new CuaHelperError("termination_failed", `Failed ZCode Computer Use launch did not reach a safely revoked quiet state (${n})${t.cancellationPublishError ? `; cancel sentinel: ${t.cancellationPublishError}` : ""}`);
+        throw new CuaHelperError("termination_failed", `Failed Drora Computer Use launch did not reach a safely revoked quiet state (${n})${t.cancellationPublishError ? `; cancel sentinel: ${t.cancellationPublishError}` : ""}`);
     }
     ensureFailedLaunchRevoked(t) {
         if (!t.cancellationPublished)
@@ -855,7 +855,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
         if (t == null)
             return;
         if (this.pendingTermination && this.pendingTermination.pid !== t)
-            throw new CuaHelperError("termination_failed", `Cannot terminate ZCode Computer Use pid ${t} (${n}): pid ${this.pendingTermination.pid} is still pending termination`);
+            throw new CuaHelperError("termination_failed", `Cannot terminate Drora Computer Use pid ${t} (${n}): pid ${this.pendingTermination.pid} is still pending termination`);
         let a = !s && this.pendingTermination
             ? this.pendingTermination.policy
             : {
@@ -877,7 +877,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
             .catch((l) => {
             throw l instanceof CuaHelperError
                 ? l
-                : new CuaHelperError("termination_failed", `Failed to confirm ZCode Computer Use pid ${t} termination (${n}): ${l instanceof Error ? l.message : String(l)}`, {
+                : new CuaHelperError("termination_failed", `Failed to confirm Drora Computer Use pid ${t} termination (${n}): ${l instanceof Error ? l.message : String(l)}`, {
                     cause: l,
                 });
         })
@@ -893,16 +893,16 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
         if (this.signalHelperIfStillOwned(t, "SIGTERM", n, r) &&
             !(await this.waitForHelperDeparture(t, o.termGraceMs, n, r))) {
             if (!o.allowSigkill)
-                throw new CuaHelperError("termination_failed", `ZCode Computer Use pid ${t} remained alive after SIGTERM (${n}); SIGKILL is disabled for permission refresh`);
+                throw new CuaHelperError("termination_failed", `Drora Computer Use pid ${t} remained alive after SIGTERM (${n}); SIGKILL is disabled for permission refresh`);
             if (this.signalHelperIfStillOwned(t, "SIGKILL", n, r) &&
                 !(await this.waitForHelperDeparture(t, this.options.terminationKillGraceMs ?? 1e3, n, r)))
-                throw new CuaHelperError("termination_failed", `ZCode Computer Use pid ${t} remained alive after SIGTERM and SIGKILL (${n})`);
+                throw new CuaHelperError("termination_failed", `Drora Computer Use pid ${t} remained alive after SIGTERM and SIGKILL (${n})`);
         }
     }
     signalHelperIfStillOwned(t, n, r, o) {
         let s = this.readHelperPidEvidence(t, o);
         if (s.state === "unknown")
-            throw new CuaHelperError("termination_failed", `Cannot safely signal ZCode Computer Use pid ${t} (${r}): ${s.reason ?? "process identity is unknown"}`);
+            throw new CuaHelperError("termination_failed", `Cannot safely signal Drora Computer Use pid ${t} (${r}): ${s.reason ?? "process identity is unknown"}`);
         if (s.state !== "helper") {
             if (s.state === "unrelated") {
                 let a = s.command ? ` (now: ${s.command})` : "";
@@ -924,7 +924,7 @@ export var $se = Ss, GW = jU + 2e3, Zse = 5e3, Hse = ".screen-recording-prefligh
             await c(s);
             let l = this.readHelperPidEvidence(t, o);
             if (l.state === "unknown")
-                throw new CuaHelperError("termination_failed", `Cannot confirm ZCode Computer Use pid ${t} departure (${r}): ${l.reason ?? "process identity is unknown"}`);
+                throw new CuaHelperError("termination_failed", `Cannot confirm Drora Computer Use pid ${t} departure (${r}): ${l.reason ?? "process identity is unknown"}`);
             if (l.state !== "helper")
                 return !0;
         }

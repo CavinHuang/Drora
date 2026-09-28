@@ -392,7 +392,7 @@ export async function runHelper(options: any) {
     } catch (error51) {
       options.logger?.error(
         void 0,
-        "ZCode Computer Use could not cancel pending native input holds during shutdown",
+        "Drora Computer Use could not cancel pending native input holds during shutdown",
         error51 instanceof Error ? error51.name : "UnknownError",
       );
       return false;
@@ -448,13 +448,13 @@ export async function runHelper(options: any) {
       if (claimed) return;
       options.logger?.warn(
         void 0,
-        `ZCode Computer Use was not claimed within ${startupTtlMs}ms; self-terminating to avoid an orphaned permission subject`,
+        `Drora Computer Use was not claimed within ${startupTtlMs}ms; self-terminating to avoid an orphaned permission subject`,
       );
       void server
         .stopEventually("startup-claim-timeout", (error51) => {
           options.logger?.warn(
             void 0,
-            "ZCode Computer Use startup-timeout shutdown did not drain safely",
+            "Drora Computer Use startup-timeout shutdown did not drain safely",
             error51,
           );
         })
@@ -465,7 +465,7 @@ export async function runHelper(options: any) {
         .catch((error51) => {
           options.logger?.error(
             void 0,
-            "ZCode Computer Use startup-timeout shutdown failed",
+            "Drora Computer Use startup-timeout shutdown failed",
             error51,
           );
           // 第五十八轮：最后手段退出。认领超时的 Helper 是孤儿授权主体（上方告警
@@ -577,7 +577,7 @@ export async function main(argv, runtimePolicy: any = {}) {
   const socketPath = argOf(argv, "--socket") ?? process.env.ZCODE_CUA_PERMISSION_BROKER_SOCKET;
   if (!socketPath) {
     process.stderr.write(
-      "ZCode Computer Use requires --socket <path> (or ZCODE_CUA_PERMISSION_BROKER_SOCKET)\n",
+      "Drora Computer Use requires --socket <path> (or ZCODE_CUA_PERMISSION_BROKER_SOCKET)\n",
     );
     process.exit(2);
     return;
@@ -605,7 +605,7 @@ export async function main(argv, runtimePolicy: any = {}) {
   );
   if (!argOf(argv, "--token-file") && !unauthenticatedLocalDev) {
     process.stderr.write(
-      "ZCode Computer Use broker requires a launcher-minted --token-file; refusing to start an unauthenticated (or attacker-supplied --token/env) broker for an already-authorized Helper.\n",
+      "Drora Computer Use broker requires a launcher-minted --token-file; refusing to start an unauthenticated (or attacker-supplied --token/env) broker for an already-authorized Helper.\n",
     );
     process.exit(2);
     return;
@@ -648,7 +648,7 @@ export async function main(argv, runtimePolicy: any = {}) {
     });
     if (!launcherTrusted) {
       process.stderr.write(
-        "ZCode Computer Use broker: --launcher-pid did not verify as a code-signed ZCode process (needs a native verifyProcessCodeSignature build and a launcher matching the ZCode signing requirement); refusing to start.\n",
+        "Drora Computer Use broker: --launcher-pid did not verify as a code-signed ZCode process (needs a native verifyProcessCodeSignature build and a launcher matching the ZCode signing requirement); refusing to start.\n",
       );
       process.exit(2);
       return;
@@ -718,7 +718,7 @@ export async function main(argv, runtimePolicy: any = {}) {
     });
   } else if (!unauthenticatedLocalDev) {
     process.stderr.write(
-      "ZCode Computer Use broker requires peer verification in product mode (needs --launcher-pid and a native getPeerCredentials build); refusing to start.\n",
+      "Drora Computer Use broker requires peer verification in product mode (needs --launcher-pid and a native getPeerCredentials build); refusing to start.\n",
     );
     process.exit(2);
     return;

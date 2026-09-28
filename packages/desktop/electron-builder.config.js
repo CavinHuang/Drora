@@ -606,16 +606,13 @@ export default {
     //    形态一致）；② 整包 --deep ad-hoc 重签以新封条覆盖（恢复后的字节与封条恒
     //    匹配）。正式签名构建（DRORA_ENABLE_MAC_SIGN=1）由 electron-builder 以真实
     //    身份签名，不走此分支。
-    if (
-      context.electronPlatformName === "darwin" &&
-      process.env.DRORA_ENABLE_MAC_SIGN !== "1"
-    ) {
+    if (context.electronPlatformName === "darwin" && process.env.DRORA_ENABLE_MAC_SIGN !== "1") {
       runTimedSync("afterSign:adhoc-resign", () => {
         const appName = `${context.packager?.appInfo?.productFilename ?? "Drora"}.app`;
         const packagedCuaAddon = join(
           context.appOutDir,
           appName,
-          "Contents/Resources/cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node",
+          "Contents/Resources/cua-helper/Drora Computer Use.app/Contents/Resources/ax_native.node",
         );
         const canonicalCuaAddon = resolve(
           workspaceRoot,
@@ -624,7 +621,7 @@ export default {
         const packagedCuaHelperApp = join(
           context.appOutDir,
           appName,
-          "Contents/Resources/cua-helper/ZCode Computer Use.app",
+          "Contents/Resources/cua-helper/Drora Computer Use.app",
         );
         if (existsSync(packagedCuaAddon) && existsSync(canonicalCuaAddon)) {
           copyFileSync(canonicalCuaAddon, packagedCuaAddon);
@@ -632,11 +629,9 @@ export default {
         // 恢复字节后内层 Helper 封条已失效；必须先单签内层修复封条，再整包 --deep。
         // （直接整包 --deep 会因嵌套封条失效而失败，实测 "sealed resource invalid"。）
         if (existsSync(packagedCuaHelperApp)) {
-          execFileSync(
-            "/usr/bin/codesign",
-            ["--force", "--sign", "-", packagedCuaHelperApp],
-            { stdio: "inherit" },
-          );
+          execFileSync("/usr/bin/codesign", ["--force", "--sign", "-", packagedCuaHelperApp], {
+            stdio: "inherit",
+          });
         }
         // glm 内嵌 CUA 插件的 darwin natives（koffi/sharp/libvips）同样会被签名
         // 准备改写为 adhoc——从官方种子恢复字节（第五十三轮）。这些是普通文件而非
@@ -651,10 +646,7 @@ export default {
           appName,
           "Contents/Resources/glm/packages/zcode-cua-plugin/node_modules",
         );
-        const glmSeedRoot = resolve(
-          workspaceRoot,
-          "packages/desktop/resources/glm-natives-3.14.3",
-        );
+        const glmSeedRoot = resolve(workspaceRoot, "packages/desktop/resources/glm-natives-3.14.3");
         for (const relativeSeed of glmNativeSeeds) {
           const packaged = join(glmPluginRoot, relativeSeed);
           const seed = join(glmSeedRoot, relativeSeed);

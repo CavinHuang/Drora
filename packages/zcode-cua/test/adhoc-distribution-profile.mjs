@@ -27,17 +27,17 @@ const hostMod = await import("../broker/server/helper-host.js");
 // —— A. vse 三分支 ——
 const { vse } = hostMod;
 assert.equal(
-  vse({ expectedBundleId: "dev.zcode.cua-helper", env: {} }),
-  'anchor apple generic and identifier "dev.zcode.cua-helper" and certificate leaf[subject.OU] = "8A5X4JJ39T"',
+  vse({ expectedBundleId: "dev.drora.cua-helper", env: {} }),
+  'anchor apple generic and identifier "dev.drora.cua-helper" and certificate leaf[subject.OU] = "8A5X4JJ39T"',
   "strict branch keeps TeamID anchor",
 );
 assert.equal(
-  vse({ allowAdHocLocalDev: true, expectedBundleId: "dev.zcode.cua-helper.dev" }),
-  'identifier "dev.zcode.cua-helper.dev"',
+  vse({ allowAdHocLocalDev: true, expectedBundleId: "dev.drora.cua-helper.dev" }),
+  'identifier "dev.drora.cua-helper.dev"',
   "dev branch keeps isolated dev bundle id",
 );
 assert.throws(
-  () => vse({ allowAdHocLocalDev: true, expectedBundleId: "dev.zcode.cua-helper" }),
+  () => vse({ allowAdHocLocalDev: true, expectedBundleId: "dev.drora.cua-helper" }),
   /isolated dev bundle identifier/,
   "dev branch rejects product bundle id",
 );
@@ -45,9 +45,9 @@ assert.equal(
   vse({
     allowAdHocLocalDev: true,
     adhocDistribution: true,
-    expectedBundleId: "dev.zcode.cua-helper",
+    expectedBundleId: "dev.drora.cua-helper",
   }),
-  'identifier "dev.zcode.cua-helper"',
+  'identifier "dev.drora.cua-helper"',
   "adhoc distribution branch accepts product bundle id with identifier anchor",
 );
 assert.throws(
@@ -55,7 +55,7 @@ assert.throws(
     vse({
       allowAdHocLocalDev: true,
       adhocDistribution: true,
-      expectedBundleId: "dev.zcode.cua-helper.dev",
+      expectedBundleId: "dev.drora.cua-helper.dev",
     }),
   /isolated dev bundle identifier/,
   "adhoc distribution branch rejects dev bundle id",
@@ -100,9 +100,9 @@ console.log("B. launcher arg fold OK");
 const runE2E = process.env.CUA_ADHOC_PROFILE_E2E !== "0";
 const helperApp = resolve(
   packageRoot,
-  "../zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app",
+  "../zcode-cua-helper/dist-cua-helper/Drora Computer Use.app",
 );
-const helperExe = join(helperApp, "Contents", "MacOS", "ZCode Computer Use");
+const helperExe = join(helperApp, "Contents", "MacOS", "Drora Computer Use");
 
 function readProvenance() {
   try {
@@ -144,7 +144,7 @@ if (runE2E) {
 
   if (folded === true) {
     const provenance = readProvenance();
-    assert.equal(provenance.bundleId, "dev.zcode.cua-helper", "helper bundle id is product id");
+    assert.equal(provenance.bundleId, "dev.drora.cua-helper", "helper bundle id is product id");
 
     const home = join(tmpdir(), `cua-ap-${Date.now().toString(36)}`);
     mkdirSync(home, { recursive: true });
@@ -175,7 +175,7 @@ if (runE2E) {
     const adhocHost = makeHost(productionEnv);
     const handle = await adhocHost.start();
     try {
-      assert.equal(handle.bundleId, "dev.zcode.cua-helper", "claimed bundle id matches");
+      assert.equal(handle.bundleId, "dev.drora.cua-helper", "claimed bundle id matches");
       assert.ok(handle.token, "broker token minted (mac token-file chain)");
       const status = await adhocHost.queryPermissionStatus(5000);
       assert.ok(status && typeof status === "object", "permission_status responds");

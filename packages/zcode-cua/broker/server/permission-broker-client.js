@@ -66,7 +66,7 @@ export var Xh = "broker_not_accepting", Qh = "permission_refresh_in_progress", e
     [ny]: !0,
     [ry]: !0,
 }), uae = Object.freeze([Xh, Qh, ey, ty, ny, ry]);
-export var Db = "The ZCode Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.", Nb = "The Helper may have accepted this action, but its response was lost. Do not replay it automatically; observe the target state first.", Yu = "ZCode is still refreshing the permission Helper. Retry after the refresh finishes.", Xu = "ZCode's permission refresh marker is invalid or unsafe. ZCode must recreate the marker in its private runtime directory.", pae = Object.freeze({
+export var Db = "The Drora Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.", Nb = "The Helper may have accepted this action, but its response was lost. Do not replay it automatically; observe the target state first.", Yu = "Drora is still refreshing the permission Helper. Retry after the refresh finishes.", Xu = "Drora's permission refresh marker is invalid or unsafe. Drora must recreate the marker in its private runtime directory.", pae = Object.freeze({
     broker_not_accepting: Db,
     broker_response_ambiguous: Nb,
     permission_refresh_in_progress: Yu,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // macOS CUA Helper 随包资产准备（第五十轮，spec: specs/mac-cua-helper-app-alignment.md §七.0a）。
-// 官方形态对齐：官方 mac 发行物恒带 Resources/cua-helper/ZCode Computer Use.app。
+// 官方形态对齐：官方 mac 发行物恒带 Resources/cua-helper/Drora Computer Use.app。
 // 此前发布链只在 resources/cua-helper（gitignored 官方签名 staging 副本）存在时才
 // staging，干净检出/CI 构建静默产出"无 Helper 包"——设置页「电脑控制」因此整链不可用。
 //
@@ -24,7 +24,7 @@ import { getTargetPlatform } from "./target-platform.mjs";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const workspaceRoot = resolve(desktopRoot, "../..");
-const helperAppName = "ZCode Computer Use.app";
+const helperAppName = "Drora Computer Use.app";
 const packagingStageRoot = join(desktopRoot, "bundled-cua-helper");
 const stagedHelperApp = join(packagingStageRoot, helperAppName);
 const builtHelperApp = join(
@@ -74,7 +74,7 @@ try {
   console.log(`[ci][timer] prepare:cua-helper build end duration_ms=${Date.now() - startMs}`);
 }
 
-if (!existsSync(join(builtHelperApp, "Contents", "MacOS", "ZCode Computer Use"))) {
+if (!existsSync(join(builtHelperApp, "Contents", "MacOS", "Drora Computer Use"))) {
   console.error(
     `[prepare:cua-helper] 自建 Helper 产物缺失：${builtHelperApp}。` +
       "发布 mac 包必须携带 Computer Use Helper（官方发行物恒带），构建链损坏需先修复。",

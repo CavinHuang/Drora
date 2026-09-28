@@ -21,7 +21,7 @@ import process from "node:process";
 const packageRoot = new URL("..", import.meta.url).pathname;
 const helperApp =
   process.argv[2] ??
-  resolve(packageRoot, "../zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app");
+  resolve(packageRoot, "../zcode-cua-helper/dist-cua-helper/Drora Computer Use.app");
 const mod = await import("../broker/server/helper-launcher.js");
 
 // —— A. token 文件格式 ——
@@ -84,7 +84,7 @@ console.log("B. arg vector matches original Uxe order");
 // MAC_LAUNCH_CONTRACT_E2E=0 时只跑离线段（A/B），供 CI 锁发射契约形状。
 // 全新 checkout 无官方 staging 资产时自动降级为离线段（与 CI 的 E2E=0 等效）。
 const runE2E =
-  process.env.MAC_LAUNCH_CONTRACT_E2E !== "0" && existsSync(join(helperApp, "Contents", "MacOS", "ZCode Computer Use"));
+  process.env.MAC_LAUNCH_CONTRACT_E2E !== "0" && existsSync(join(helperApp, "Contents", "MacOS", "Drora Computer Use"));
 const launcherPid = (() => {
   let pid = process.pid;
   for (let i = 0; i < 16; i += 1) {
@@ -95,7 +95,7 @@ const launcherPid = (() => {
   }
   return pid;
 })();
-const exe = join(helperApp, "Contents", "MacOS", "ZCode Computer Use");
+const exe = join(helperApp, "Contents", "MacOS", "Drora Computer Use");
 if (runE2E) {
 assert.ok(existsSync(exe), "helper executable exists");
 const exitLogPath = `${socketPath}.exit.log`;
@@ -318,7 +318,7 @@ if (process.env.MAC_LAUNCH_CONTRACT_OPEN === "1" && runE2E) {
     console.log("DIAG exit-log:", readFileSync(`${openSocketPath}.exit.log`, "utf8").slice(-800));
   }
   assert.ok(openReplies?.[0]?.ok === true, "LS launch: token file delivered, authenticate passes");
-  assert.equal(openReplies[1]?.result?.bundle_id, "dev.zcode.cua-helper", "LS launch broker_info claims");
+  assert.equal(openReplies[1]?.result?.bundle_id, "dev.drora.cua-helper", "LS launch broker_info claims");
   const helperPid = openReplies[1].result.pid;
   console.log(`G. real LaunchServices open: LS accepted args, token file delivered (helper pid=${helperPid})`);
   process.kill(helperPid);

@@ -1,13 +1,13 @@
-export var HELPER_APP_NAME = "ZCode Computer Use.app";
-export var HELPER_DISPLAY_NAME = "ZCode Computer Use";
-export var HELPER_BUNDLE_ID = "dev.zcode.cua-helper";
-var DEV_CUA_HELPER_BUNDLE_ID = "dev.zcode.cua-helper.dev";
+export var HELPER_APP_NAME = "Drora Computer Use.app";
+export var HELPER_DISPLAY_NAME = "Drora Computer Use";
+export var HELPER_BUNDLE_ID = "dev.drora.cua-helper";
+var DEV_CUA_HELPER_BUNDLE_ID = "dev.drora.cua-helper.dev";
 export var CUA_HELPER_BUNDLE_IDS = /* @__PURE__ */ new Set([
   HELPER_BUNDLE_ID,
   DEV_CUA_HELPER_BUNDLE_ID,
 ]);
 export var HELPER_ADDON_ENV = "ZCODE_CUA_HELPER_ADDON";
-export var DEV_HELPER_APP_NAME = "ZCode Computer Use Dev.app";
+export var DEV_HELPER_APP_NAME = "Drora Computer Use Dev.app";
 export var HELPER_TEAM_ID = "8A5X4JJ39T";
 export var CUA_HELPER_INSTALL_VARIANT_ENV = "ZCODE_CUA_HELPER_INSTALL_VARIANT";
 export var CUA_HELPER_INSTALL_VARIANTS = ["stable", "preview", "dev-desktop", "standalone"];

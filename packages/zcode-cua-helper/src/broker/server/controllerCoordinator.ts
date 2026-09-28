@@ -38,7 +38,7 @@ export function createCuaControllerCoordinator(options) {
     if (visualsEnabled) return;
     const source = controllerSourceName(options.owner);
     options.visuals.ghostSetControllerStatus?.(
-      `ZCode Computer Use \xB7 ${source} v${options.owner.version} \xB7 PID ${options.owner.pid}`,
+      `Drora Computer Use \xB7 ${source} v${options.owner.version} \xB7 PID ${options.owner.pid}`,
     );
     if (options.wantsGhostCursor) options.visuals.ghostSetEnabled?.(true);
     if (options.wantsGhostCapture) options.visuals.ghostSetCapture?.(true);

@@ -56,7 +56,7 @@ export function Tie(e) {
     return new kie({
         transform(n, r, o) {
             if (((t += n.length), t > e)) {
-                o(new Error(`ZCode Computer Use download exceeded max size ${e} bytes`));
+                o(new Error(`Drora Computer Use download exceeded max size ${e} bytes`));
                 return;
             }
             o(null, n);
@@ -66,20 +66,20 @@ export function Tie(e) {
 export function Mie(e = {}) {
     let t = e.env ?? process.env, n = bn(t), r = Vie((n ? (e.targetPlatform ?? t.ZCODE_TARGET_OS) : void 0) ?? process.platform);
     if (r !== "darwin")
-        throw new CuaHelperError("install_failed", `ZCode Computer Use auto-install is only supported on macOS, got ${r}`);
+        throw new CuaHelperError("install_failed", `Drora Computer Use auto-install is only supported on macOS, got ${r}`);
     let o = Jie((n ? (e.targetArch ?? t.ZCODE_TARGET_ARCH ?? t.npm_config_arch) : void 0) ?? process.arch), s = xie({
         env: t,
         explicitVersion: e.version,
         localDevelopmentRuntime: n,
     }) ?? "0.0.0";
     if (!Hc(t))
-        throw new CuaHelperError("install_failed", "Cannot resolve ${ZCODE_HOME:-$HOME/.zcode}; set ZCODE_HOME or HOME before installing ZCode Computer Use.");
+        throw new CuaHelperError("install_failed", "Cannot resolve ${ZCODE_HOME:-$HOME/.zcode}; set ZCODE_HOME or HOME before installing Drora Computer Use.");
     let c = `${r}-${o}`, d = Oie(t, e.embeddedBuildId ?? WC);
     if (!n && !d)
-        throw new CuaHelperError("install_failed", "Packaged ZCode is missing its embedded Computer Use Helper build identity; refusing an unpinned Helper install");
+        throw new CuaHelperError("install_failed", "Packaged Drora is missing its embedded Computer Use Helper build identity; refusing an unpinned Helper install");
     let l = e.bundledAppPath?.trim() || null;
     if (!n && !l)
-        throw new CuaHelperError("install_failed", "Packaged ZCode is missing its bundled ZCode Computer Use.app path");
+        throw new CuaHelperError("install_failed", "Packaged Drora is missing its bundled Drora Computer Use.app path");
     let p = l
         ? {
             kind: "bundled",
@@ -172,7 +172,7 @@ export function Die(e, t) {
         !t.isDirectory() ||
         (n !== void 0 && t.uid !== n) ||
         (Number(t.mode) & 18) !== 0)
-        throw new CuaHelperError("install_failed", `Refusing insecure ZCode Computer Use install-lock directory ${e}; it must be a real owner-controlled directory without group/other write access`);
+        throw new CuaHelperError("install_failed", `Refusing insecure Drora Computer Use install-lock directory ${e}; it must be a real owner-controlled directory without group/other write access`);
 }
 export function Gc(e, t) {
     let n = bW();
@@ -181,12 +181,12 @@ export function Gc(e, t) {
         t.nlink !== 1 ||
         (n !== void 0 && t.uid !== n) ||
         (Number(t.mode) & 511) !== 384)
-        throw new CuaHelperError("install_failed", `Refusing insecure ZCode Computer Use install lock ${e}; it must be a real owner-only regular file with exactly one link`);
+        throw new CuaHelperError("install_failed", `Refusing insecure Drora Computer Use install lock ${e}; it must be a real owner-only regular file with exactly one link`);
 }
 export var Kh = class extends Error {
     static { }
     constructor(t) {
-        (super(`ZCode Computer Use install lock is held by another owner: ${t}`),
+        (super(`Drora Computer Use install lock is held by another owner: ${t}`),
             (this.name = "HelperInstallLockContendedError"));
     }
 };
@@ -196,7 +196,7 @@ export function Nie(e) {
 }
 export async function Lie(e) {
     let t = await yb(e).catch((s) => {
-        throw new CuaHelperError("install_failed", `Cannot resolve ZCode Computer Use install-lock directory ${e}: ${jn(s)}`, {
+        throw new CuaHelperError("install_failed", `Cannot resolve Drora Computer Use install-lock directory ${e}: ${jn(s)}`, {
             cause: s,
         });
     });
@@ -207,7 +207,7 @@ export async function Lie(e) {
     }
     catch (s) {
         if (s.code !== "EEXIST")
-            throw new CuaHelperError("install_failed", `Cannot create ZCode Computer Use install lock ${n}: ${jn(s)}`, {
+            throw new CuaHelperError("install_failed", `Cannot create Drora Computer Use install lock ${n}: ${jn(s)}`, {
                 cause: s,
             });
         try {
@@ -216,7 +216,7 @@ export async function Lie(e) {
         catch (a) {
             throw Nie(a)
                 ? new Kh(n)
-                : new CuaHelperError("install_failed", `Refusing unsafe ZCode Computer Use install lock ${n}: ${jn(a)}`, {
+                : new CuaHelperError("install_failed", `Refusing unsafe Drora Computer Use install lock ${n}: ${jn(a)}`, {
                     cause: a,
                 });
         }
@@ -224,7 +224,7 @@ export async function Lie(e) {
     try {
         let [s, a, c] = await Promise.all([o.stat(), Zh(n), yb(n)]);
         if ((Gc(n, s), Gc(n, a), c !== Kn(t, SW) || s.dev !== a.dev || s.ino !== a.ino))
-            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed while it was being opened: ${n}`);
+            throw new CuaHelperError("install_failed", `Drora Computer Use install lock changed while it was being opened: ${n}`);
         return {
             lockPath: n,
             identity: {
@@ -240,7 +240,7 @@ export async function Lie(e) {
 }
 export function Fie(e, t) {
     if (t)
-        throw new CuaHelperError("install_failed", "ZCode Computer Use install lease has already been released");
+        throw new CuaHelperError("install_failed", "Drora Computer Use install lease has already been released");
     try {
         let n = pie(e.handle.fd), r = fie(e.lockPath);
         if ((Gc(e.lockPath, n),
@@ -249,12 +249,12 @@ export function Fie(e, t) {
                 n.ino !== e.identity.inode ||
                 r.dev !== e.identity.device ||
                 r.ino !== e.identity.inode))
-            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed while its lease was held: ${e.lockPath}`);
+            throw new CuaHelperError("install_failed", `Drora Computer Use install lock changed while its lease was held: ${e.lockPath}`);
     }
     catch (n) {
         throw n instanceof CuaHelperError
             ? n
-            : new CuaHelperError("install_failed", `ZCode Computer Use install lease is no longer verifiable: ${jn(n)}`, {
+            : new CuaHelperError("install_failed", `Drora Computer Use install lease is no longer verifiable: ${jn(n)}`, {
                 cause: n,
             });
     }
@@ -272,7 +272,7 @@ export function Bie(e, t) {
     });
 }
 export function kb() {
-    return new CuaHelperError("install_failed", "ZCode Computer Use install lease acquisition was aborted");
+    return new CuaHelperError("install_failed", "Drora Computer Use install lease acquisition was aborted");
 }
 export async function Uie(e, t, n) {
     let r = Date.now() + t;
@@ -286,7 +286,7 @@ export async function Uie(e, t, n) {
             if (!(o instanceof Kh))
                 throw o;
             if (Date.now() >= r)
-                throw new CuaHelperError("install_failed", `Failed to acquire ZCode Computer Use install lease: timed out after ${t}ms; ${o.message}`, {
+                throw new CuaHelperError("install_failed", `Failed to acquire Drora Computer Use install lease: timed out after ${t}ms; ${o.message}`, {
                     cause: o,
                 });
             await Bie(Rie, n);
@@ -295,7 +295,7 @@ export async function Uie(e, t, n) {
 }
 export async function zie(e, t = {}) {
     if (process.platform !== "darwin")
-        throw new CuaHelperError("install_failed", `ZCode Computer Use install lease requires macOS (O_EXLOCK); got ${process.platform}`);
+        throw new CuaHelperError("install_failed", `Drora Computer Use install lease requires macOS (O_EXLOCK); got ${process.platform}`);
     if (t.signal?.aborted)
         throw kb();
     let n = typeof t.waitTimeoutMs == "number" && Number.isFinite(t.waitTimeoutMs) && t.waitTimeoutMs > 0
@@ -305,13 +305,13 @@ export async function zie(e, t = {}) {
         await t.faultInjection?.afterLockFilePrepared?.(r.lockPath);
         let a = await Zh(r.lockPath);
         if ((Gc(r.lockPath, a), a.dev !== r.identity.device || a.ino !== r.identity.inode))
-            throw new CuaHelperError("install_failed", `ZCode Computer Use install lock changed before its lease was used: ${r.lockPath}`);
+            throw new CuaHelperError("install_failed", `Drora Computer Use install lock changed before its lease was used: ${r.lockPath}`);
     }
     catch (a) {
         throw (await r.handle.close().catch(() => { }),
             a instanceof CuaHelperError
                 ? a
-                : new CuaHelperError("install_failed", `Failed to acquire ZCode Computer Use install lease: ${jn(a)}`, {
+                : new CuaHelperError("install_failed", `Failed to acquire Drora Computer Use install lease: ${jn(a)}`, {
                     cause: a,
                 }));
     }
@@ -372,13 +372,13 @@ export async function $ie(e, t) {
         }
         catch (a) {
             if (n.allowUnsignedLocalDev && n.source.kind !== "bundled")
-                throw new CuaHelperError("verification_failed", `Local unsigned ZCode Computer Use.app failed dev verification: ${jn(a)}. Rebuild and reinstall it at ${n.appPath}, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release path.`, {
+                throw new CuaHelperError("verification_failed", `Local unsigned Drora Computer Use.app failed dev verification: ${jn(a)}. Rebuild and reinstall it at ${n.appPath}, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release path.`, {
                     cause: a,
                 });
             r?.warn(void 0, `installed cua helper is not usable, reinstalling: ${jn(a)}`);
         }
     if (n.allowUnsignedLocalDev && n.source.kind !== "bundled")
-        throw new CuaHelperError("helper_missing", `Local unsigned ZCode Computer Use.app is not installed at ${n.appPath}. Build the Helper locally and copy it there, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release installer.`);
+        throw new CuaHelperError("helper_missing", `Local unsigned Drora Computer Use.app is not installed at ${n.appPath}. Build the Helper locally and copy it there, or unset ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL for the signed release installer.`);
     let s = await gie(Kn(n.installRoot, ".cua-helper-install-"));
     try {
         let a = n.source.kind === "bundled" ? await jie(n.source.appPath, s) : await Kie(e, s, n.source), c = await Dh(a, n, o);
@@ -459,14 +459,14 @@ export async function Hie(e, t) {
 }
 export async function jie(e, t) {
     if (!wb(e))
-        throw new CuaHelperError("helper_missing", `Bundled ZCode Computer Use.app is missing at ${e}`);
+        throw new CuaHelperError("helper_missing", `Bundled Drora Computer Use.app is missing at ${e}`);
     let n = Kn(t, xt);
     return (await mie(e, n, {
         recursive: !0,
         errorOnExist: !0,
         preserveTimestamps: !0,
     }).catch((r) => {
-        throw new CuaHelperError("install_failed", `Failed to stage bundled ZCode Computer Use.app: ${jn(r)}`, {
+        throw new CuaHelperError("install_failed", `Failed to stage bundled Drora Computer Use.app: ${jn(r)}`, {
             cause: r,
         });
     }),
@@ -478,7 +478,7 @@ export async function Kie(e, t, n) {
     let a = Kn(t, n.fileName), c = Kn(t, "extract");
     (await s.downloadFile(n.url, a).catch((l) => {
         let p = qh(n.url), u = jn(l).split(n.url).join(p);
-        throw new CuaHelperError("download_failed", `Failed to download ZCode Computer Use from ${p}: ${u}`, {
+        throw new CuaHelperError("download_failed", `Failed to download Drora Computer Use from ${p}: ${u}`, {
             cause: l,
         });
     }),
@@ -486,13 +486,13 @@ export async function Kie(e, t, n) {
             recursive: !0,
         }),
         await s.extractZip(a, c).catch((l) => {
-            throw new CuaHelperError("install_failed", `Failed to extract ZCode Computer Use archive ${a}: ${jn(l)}`, {
+            throw new CuaHelperError("install_failed", `Failed to extract Drora Computer Use archive ${a}: ${jn(l)}`, {
                 cause: l,
             });
         }));
     let d = await _W(c);
     if (!d)
-        throw new CuaHelperError("install_failed", `ZCode Computer Use archive did not contain ${xt}`);
+        throw new CuaHelperError("install_failed", `Drora Computer Use archive did not contain ${xt}`);
     return d;
 }
 export function qie(e, t, n) {
@@ -531,7 +531,7 @@ export function Jie(e) {
         case "x64":
             return "x64";
         default:
-            throw new CuaHelperError("install_failed", `Unsupported ZCode Computer Use arch: ${e}`);
+            throw new CuaHelperError("install_failed", `Unsupported Drora Computer Use arch: ${e}`);
     }
 }
 export function Yie(e) {
@@ -540,10 +540,10 @@ export function Yie(e) {
         t = new URL(e);
     }
     catch {
-        throw new CuaHelperError("download_failed", `invalid ZCode Computer Use download URL: ${qh(e)}`);
+        throw new CuaHelperError("download_failed", `invalid Drora Computer Use download URL: ${qh(e)}`);
     }
     if (t.protocol !== "https:" && t.protocol !== "http:")
-        throw new CuaHelperError("download_failed", `refusing to download ZCode Computer Use over unsupported scheme "${t.protocol}" (only http/https are allowed)`);
+        throw new CuaHelperError("download_failed", `refusing to download Drora Computer Use over unsupported scheme "${t.protocol}" (only http/https are allowed)`);
 }
 export async function Xie(e, t) {
     Yie(e);
@@ -562,7 +562,7 @@ export async function Xie(e, t) {
             throw new Error("empty response body");
         let a = Eie(process.env), c = Number(s.headers.get("content-length"));
         if (Number.isFinite(c) && c > a)
-            throw new Error(`ZCode Computer Use download declares ${c} bytes, exceeding max ${a}`);
+            throw new Error(`Drora Computer Use download declares ${c} bytes, exceeding max ${a}`);
         await Pie(Sie.fromWeb(s.body), Tie(a), uie(t));
     }
     catch (s) {
@@ -723,14 +723,14 @@ export function Cb(e) {
     ], o = [`app:${Pb(e)}`];
     for (; r.length > 0;) {
         if (o.length >= EW)
-            throw new Error(`ZCode Computer Use bundle exceeds ${EW} attestation entries`);
+            throw new Error(`Drora Computer Use bundle exceeds ${EW} attestation entries`);
         let s = r.shift(), a = TW(s.absolutePath, {
             bigint: !0,
         });
         if (a.isSymbolicLink()) {
             let c = ase(s.absolutePath), d = RW(s.absolutePath), l = lse(n, d);
             if (l === ".." || l.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || dse(l))
-                throw new Error(`ZCode Computer Use contains an out-of-bundle symlink: ${s.relativePath} -> ${c}`);
+                throw new Error(`Drora Computer Use contains an out-of-bundle symlink: ${s.relativePath} -> ${c}`);
             o.push(`${s.relativePath}:symlink:${use(s.absolutePath)}:${c}:${Pb(s.absolutePath)}`);
             continue;
         }
@@ -749,10 +749,10 @@ export function bb(e, t) {
         n = Cb(e);
     }
     catch (r) {
-        throw new Error(`ZCode Computer Use changed or became unreadable after verification: ${r instanceof Error ? r.message : String(r)}`);
+        throw new Error(`Drora Computer Use changed or became unreadable after verification: ${r instanceof Error ? r.message : String(r)}`);
     }
     if (n !== t)
-        throw new Error("ZCode Computer Use changed after signature verification");
+        throw new Error("Drora Computer Use changed after signature verification");
 }
 export var Dse = ".host-reservation", CUA_PIP_NO_ACTIVE_SESSION_PENDING = ".pending", CUA_HEALTH_POLL_MS = 100;
 export function jW() {

@@ -17,7 +17,7 @@ const { resolveBrokerSocketPath } = await import("@drora/drora-cua/broker/socket
 const { HELPER_APP_NAME } = await import("@drora/drora-cua/broker/helperConstants");
 
 // —— 常量与契约 ——
-check("HELPER_APP_NAME", HELPER_APP_NAME === "ZCode Computer Use.app");
+check("HELPER_APP_NAME", HELPER_APP_NAME === "Drora Computer Use.app");
 check("HELPER_ADDON_ENV", server.HELPER_ADDON_ENV === "ZCODE_CUA_HELPER_ADDON");
 check(
   "WINDOWS_DEV_CONTROL_PROTOCOL",
@@ -128,9 +128,9 @@ if (process.platform !== "win32" && process.platform !== "darwin") {
             arch: "arm64",
             platformKey: "darwin-arm64",
             installRoot: "/tmp/zcode-cua-helper",
-            appPath: "/tmp/zcode-cua-helper/ZCode Computer Use.app",
-            source: { kind: "bundled", appPath: "/tmp/ZCode Computer Use.app" },
-            expectedBundleId: "dev.zcode.cua-helper",
+            appPath: "/tmp/zcode-cua-helper/Drora Computer Use.app",
+            source: { kind: "bundled", appPath: "/tmp/Drora Computer Use.app" },
+            expectedBundleId: "dev.drora.cua-helper",
             expectedTeamIdentifier: "8A5X4JJ39T",
             expectedBuildId: "test",
             allowUnsignedLocalDev: true,
@@ -159,7 +159,7 @@ const srv = createServer((c) => {
           JSON.stringify({
             id: req.id,
             ok: true,
-            result: { bundle_id: "dev.zcode.cua-helper", pid: 4242 },
+            result: { bundle_id: "dev.drora.cua-helper", pid: 4242 },
           }) + "\n",
         );
       else c.write(JSON.stringify({ id: req.id, ok: true, result: { state: "granted" } }) + "\n");
@@ -168,7 +168,7 @@ const srv = createServer((c) => {
 });
 await new Promise((r) => srv.listen(socketPath, r));
 const health = await broker.probeHelperHealth(socketPath, { timeoutMs: 2000 });
-check("probeHelperHealth(mock)", health.bundleId === "dev.zcode.cua-helper" && health.pid === 4242);
+check("probeHelperHealth(mock)", health.bundleId === "dev.drora.cua-helper" && health.pid === 4242);
 const callResult = await broker.callBrokerMethod({ socketPath, method: "broker_info" });
 check("callBrokerMethod(mock)", callResult.pid === 4242);
 

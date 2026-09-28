@@ -65,10 +65,10 @@ var ALL_REASON_CODES = Object.freeze([
   REASON_CALLER_TIMEOUT,
   REASON_RESTART_DEFERRED_ACTIVE_TURN
 ]);
-var NOT_READY_MESSAGE = "The ZCode Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.";
+var NOT_READY_MESSAGE = "The Drora Computer Use is starting up and its permission broker socket is not accepting connections yet. Retry the same tool call after a brief wait.";
 var BROKER_RESPONSE_AMBIGUOUS_MESSAGE = "The Helper may have accepted this action, but its response was lost. Do not replay it automatically; observe the target state first.";
-var PERMISSION_REFRESH_IN_PROGRESS_MESSAGE = "ZCode is still refreshing the permission Helper. Retry after the refresh finishes.";
-var PERMISSION_REFRESH_INVALID_MESSAGE = "ZCode's permission refresh marker is invalid or unsafe. ZCode must recreate the marker in its private runtime directory.";
+var PERMISSION_REFRESH_IN_PROGRESS_MESSAGE = "Drora is still refreshing the permission Helper. Retry after the refresh finishes.";
+var PERMISSION_REFRESH_INVALID_MESSAGE = "Drora's permission refresh marker is invalid or unsafe. Drora must recreate the marker in its private runtime directory.";
 var REASON_MESSAGE = Object.freeze({
   broker_not_accepting: NOT_READY_MESSAGE,
   broker_response_ambiguous: BROKER_RESPONSE_AMBIGUOUS_MESSAGE,

@@ -13,7 +13,7 @@ function authorizationSubjectActionName(brokerInfo) {
 function authorizationSubjectDisplayName(brokerInfo) {
   switch (authorizationSubjectKind(brokerInfo)) {
     case "zcode_helper":
-      return "ZCode Computer Use.app";
+      return "Drora Computer Use.app";
     case "zcode_app":
       return "ZCode.app";
     default:

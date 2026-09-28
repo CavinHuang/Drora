@@ -90,7 +90,7 @@ export async function Vu(e, t = Kse) {
             e,
             new Promise((r, o) => {
                 n = setTimeout(() => {
-                    o(new CuaHelperError("caller_timeout", `ZCode Computer Use is still starting after ${t}ms; retry the task shortly`));
+                    o(new CuaHelperError("caller_timeout", `Drora Computer Use is still starting after ${t}ms; retry the task shortly`));
                 }, t);
             }),
         ]);
@@ -210,7 +210,7 @@ export function QW(e, t = {}) {
             if (F)
                 return F;
             throw (zi(e),
-                new CuaHelperError("launch_failed", "ZCode Computer Use lifecycle completed without a live broker credential tuple"));
+                new CuaHelperError("launch_failed", "Drora Computer Use lifecycle completed without a live broker credential tuple"));
         }
     }
     async function j() {

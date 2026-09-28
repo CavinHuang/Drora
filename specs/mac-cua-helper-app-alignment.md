@@ -28,7 +28,14 @@ peer 验证原语硬门槛化）如实入档为后续还原项，方法面不受
 | App 形态 | **结构一致**：Node SEA 单可执行 + `Resources/ax_native.node` + Info.plist 键集与原版相同（值允许按构建身份不同） | 构建脚本 |
 | 签名身份 | **允许不同**：dev 构建 ad-hoc；发布构建用自有 Developer ID + 公证。签名身份不同必然导致 TCC 授权主体不同，属产品决策而非能力差异 | — |
 
-## 二、产物契约（构建输出 `dist-cua-helper/ZCode Computer Use.app`）
+## 二、产物契约（构建输出 `dist-cua-helper/Drora Computer Use.app`）
+
+> **2026-09-28 身份改名（specs/drora-rename.md 修订）**：Helper 的 app 名/display/
+> bundle id 自本日起 Drora 化——`Drora Computer Use.app`、`dev.drora.cua-helper`
+> （dev 变体 `dev.drora.cua-helper.dev`）。下文历史条目中的 `ZCode Computer Use`/
+> `dev.zcode.cua-helper` 字样凡指「我方 Helper 身份」处均按新名读；凡指「官方
+> 参照副本 / launcher 门官方锚（dev.zcode.app + 8A5X4JJ39T）」处保留原名不动。
+> TCC 授权主体随 bundle id 变更一次性重置（发布前执行）。
 
 1. `Contents/MacOS/ZCode Computer Use`：以骨架（优先级：`NODE_SEA_SKELETON` env →
    仓库 staging 的原版可执行 → 本机 node）注入 SEA blob（`helper.cjs`，esbuild

@@ -7,7 +7,7 @@ declare const __DRORA_CUA_HELPER_VERSION__: string | undefined;
 // --allow-unsigned-launcher-local-dev（跳过 launcher 签名验证，token 文件与
 // peer 祖先链验证仍生效）。缺省 false，与原版行为一致。
 declare const __DRORA_CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER__: boolean | undefined;
-// ZCode Computer Use（macOS Helper）SEA 入口。
+// Drora Computer Use（macOS Helper）SEA 入口。
 // 还原自原版 payload 的 helper-sea-entry.mjs：esbuild 以此为入口打 CJS bundle，
 // 再经 node --experimental-sea-config + postject 注入生成单可执行 Helper。
 import { createRequire } from "node:module";
@@ -26,8 +26,8 @@ const allowUnsignedLauncherLocalDev =
 // scripts/build-cua-helper-app.mjs 注入；这里只是 SEA 内嵌的缺省值。
 const embeddedVersion =
   typeof __DRORA_CUA_HELPER_VERSION__ < "u" ? __DRORA_CUA_HELPER_VERSION__ : "3.11.2";
-const embeddedBundleId = "dev.zcode.cua-helper";
-const embeddedDisplayName = "ZCode Computer Use";
+const embeddedBundleId = "dev.drora.cua-helper";
+const embeddedDisplayName = "Drora Computer Use";
 
 function resourcesDir() {
   return join(dirname(process.execPath), "..", "Resources");
@@ -66,6 +66,6 @@ main(process.argv.slice(1), {
   displayName: embeddedDisplayName,
 }).catch((error) => {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-  process.stderr.write(`ZCode Computer Use failed to start: ${message}\n`);
+  process.stderr.write(`Drora Computer Use failed to start: ${message}\n`);
   process.exit(1);
 });

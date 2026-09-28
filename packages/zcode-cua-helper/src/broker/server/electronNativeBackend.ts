@@ -876,7 +876,7 @@ export function createElectronNativeBackend(options) {
   const screenCaptureUnavailableMessage =
     brokerInfo.platform === "win32"
       ? "Screen capture is unavailable in this Windows Computer Use Helper build until Windows Graphics Capture is implemented."
-      : "Screen capture is unavailable in this ZCode Computer Use build because no capture adapter is installed.";
+      : "Screen capture is unavailable in this Drora Computer Use build because no capture adapter is installed.";
   const hasAxSource = Boolean(axSource);
   const hasAutomationBridge = Boolean(axSource?.warmAutomationPermission);
   const hasElementActions = hasTokenScopedElementActions(axSource);
@@ -1069,7 +1069,7 @@ export function createElectronNativeBackend(options) {
         },
         note:
           authorizationSubjectKind(brokerInfo) === "zcode_helper"
-            ? "Authorization status belongs to ZCode Computer Use.app. This report is read-only; request missing grants through the trusted ZCode host UI."
+            ? "Authorization status belongs to Drora Computer Use.app. This report is read-only; request missing grants through the trusted ZCode host UI."
             : "Authorization status belongs to ZCode.app. This report is read-only; request missing grants through the trusted ZCode host UI.",
       };
     },
@@ -1278,13 +1278,13 @@ export function createElectronNativeBackend(options) {
     // supportsClipboard=false，与原版 mac 同样 fail-closed notAuthorized）。
     read_clipboard: async () => {
       if (!supportsClipboard) {
-        throw notAuthorized("read_clipboard is unavailable in this ZCode Computer Use build.");
+        throw notAuthorized("read_clipboard is unavailable in this Drora Computer Use build.");
       }
       return await adapter.readClipboardText();
     },
     write_clipboard: async (params) => {
       if (!supportsClipboard) {
-        throw notAuthorized("write_clipboard is unavailable in this ZCode Computer Use build.");
+        throw notAuthorized("write_clipboard is unavailable in this Drora Computer Use build.");
       }
       const text = typeof params.text === "string" ? params.text : "";
       await adapter.writeClipboardText(text);
@@ -1842,7 +1842,7 @@ export function createElectronNativeBackend(options) {
     },
     paste: async (params) => {
       if (!supportsClipboard) {
-        throw notAuthorized("paste is unavailable in this ZCode Computer Use build.");
+        throw notAuthorized("paste is unavailable in this Drora Computer Use build.");
       }
       const text = typeof params.text === "string" ? params.text : "";
       const format = typeof params.format === "string" ? params.format : "text";

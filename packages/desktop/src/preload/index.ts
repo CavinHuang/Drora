@@ -75,6 +75,8 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   MobilePairingRuntimeState,
+  MobileRelayTaskSyncEntry,
+  MobileRelayWorkspaceSyncEntry,
   OpenCuaPermissionOnboardingOptions,
   ConfigureFinalArmsCustomEventE2ERequest,
   FinalArmsCustomEventE2EEntry,
@@ -309,8 +311,7 @@ contextBridge.exposeInMainWorld("drora", {
   /** 官方 relay 云中继远控：连接 z.ai relay 并生成 v4 托管页二维码（跨网络可用） */
   startMobileRelayControl: (params: { workspacePath: string; workspaceIdentity?: string }) =>
     ipcRenderer.invoke(PlatformChannels.MobileRelayStart, params),
-  stopMobileRelayControl: (): Promise<void> =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelayStop),
+  stopMobileRelayControl: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.MobileRelayStop),
   /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
   refreshMobileRelayControl: (): Promise<{ url: string; sessionId: string }> =>
     ipcRenderer.invoke(PlatformChannels.MobileRelayReset),
@@ -323,6 +324,12 @@ contextBridge.exposeInMainWorld("drora", {
       ipcRenderer.removeListener(PlatformChannels.MobileRelayStateChanged, listener);
     };
   },
+  /** 同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
+  syncWebRemoteControlWorkspaces: (workspaces: MobileRelayWorkspaceSyncEntry[]) =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncWorkspaces, workspaces),
+  /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
+  syncWebRemoteControlTasks: (tasks: MobileRelayTaskSyncEntry[]) =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncTasks, tasks),
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */

@@ -13,7 +13,20 @@ export function createDesktopPlatform(options: {
     selectDirectory: () => window.drora.selectDirectory(),
     startMobilePairing: (params) => window.drora.startMobilePairing(params),
     stopMobilePairing: () => window.drora.stopMobilePairing(),
+    refreshMobilePairing: () => window.drora.refreshMobilePairing(),
     getMobilePairingState: () => window.drora.getMobilePairingState(),
+    onMobilePairingStateChanged: (handler) => window.drora.onMobilePairingStateChanged(handler),
+    // 移动远控方法面必须整体转发（spec: mobile-web-remote.md「Renderer 集成面」）：
+    // relay 五项缺失曾让云中继 tab 永久停在“正在准备二维码”，且 renderer 子项目
+    // 不在根 typecheck 覆盖内，缺口只能由 desktopRendererPlatformMobileFace 测试守护。
+    startMobileRelayControl: (params) => window.drora.startMobileRelayControl(params),
+    stopMobileRelayControl: () => window.drora.stopMobileRelayControl(),
+    refreshMobileRelayControl: () => window.drora.refreshMobileRelayControl(),
+    getMobileRelayControlState: () => window.drora.getMobileRelayControlState(),
+    onMobileRelayStateChanged: (handler) => window.drora.onMobileRelayStateChanged(handler),
+    syncWebRemoteControlWorkspaces: (workspaces) =>
+      window.drora.syncWebRemoteControlWorkspaces(workspaces),
+    syncWebRemoteControlTasks: (tasks) => window.drora.syncWebRemoteControlTasks(tasks),
     selectFile: () => window.drora.selectFile(),
     selectFiles: () => window.drora.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.drora.createTempTextAttachment(payload),

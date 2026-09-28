@@ -21,6 +21,8 @@ import {
   type UpdateStatePayload,
   type WindowControlsOverlayReadyPayload,
   type MobilePairingRuntimeState,
+  type MobileRelayTaskSyncEntry,
+  type MobileRelayWorkspaceSyncEntry,
 } from "@drora/shared";
 import { getInstalledEditors } from "./editors.js";
 import { getApplicationIcon } from "./applicationIcons.js";
@@ -123,6 +125,11 @@ export function registerPlatformIpcHandlers(options: {
     reset: (params: { senderWebContentsId: number }) => Promise<{ url: string; sessionId: string }>;
     stop: () => Promise<void>;
     state: () => MobilePairingRuntimeState;
+    syncWorkspaces: (
+      senderWebContentsId: number,
+      workspaces: MobileRelayWorkspaceSyncEntry[],
+    ) => void;
+    syncTasks: (senderWebContentsId: number, tasks: MobileRelayTaskSyncEntry[]) => void;
   };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
@@ -204,6 +211,14 @@ export function registerPlatformIpcHandlers(options: {
         failure: null,
       }
     );
+  });
+  // 多工作区聚合（对齐官方 syncWebRemoteControlWorkspaces/Tasks）：renderer 在
+  // tab 变化时推送窗口全部工作区与任务摘要，main 侧作为 bootstrap 清单事实源。
+  ipcMain.handle(PlatformChannels.MobileRelaySyncWorkspaces, (event, workspaces: unknown) => {
+    options.mobileRelay?.syncWorkspaces(event.sender.id, sanitizeSyncWorkspaces(workspaces));
+  });
+  ipcMain.handle(PlatformChannels.MobileRelaySyncTasks, (event, tasks: unknown) => {
+    options.mobileRelay?.syncTasks(event.sender.id, sanitizeSyncTasks(tasks));
   });
 
   ipcMain.handle(PlatformChannels.SelectFile, async () => {
@@ -501,5 +516,74 @@ export function registerPlatformIpcHandlers(options: {
 
     // 返回值直通 renderer 的 executeDesktopCommand promise（GetCuaOsSupport 依赖此行为）。
     return await options.executeDesktopCommand(command as DesktopCommandId, senderWindow);
+  });
+}
+
+/** relay 工作区同步载荷的形状级运行时校验（协议入口防御）。 */
+function sanitizeSyncWorkspaces(value: unknown): MobileRelayWorkspaceSyncEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): MobileRelayWorkspaceSyncEntry[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const workspacePath =
+      typeof record.workspacePath === "string" ? record.workspacePath.trim() : "";
+    if (!workspacePath) return [];
+    const kind = record.kind === "remote" ? "remote" : "local";
+    // 官方 jjn 语义：connectionState 仅远程携带，合法值之外丢弃（本地缺省）。
+    const connectionState =
+      record.connectionState === "disconnected" || record.connectionState === "reconnecting"
+        ? record.connectionState
+        : record.connectionState === "connected"
+          ? "connected"
+          : undefined;
+    return [
+      {
+        workspacePath,
+        ...(typeof record.workspaceIdentity === "string" && record.workspaceIdentity.trim()
+          ? { workspaceIdentity: record.workspaceIdentity.trim() }
+          : {}),
+        ...(typeof record.remoteSessionId === "string" && record.remoteSessionId.trim()
+          ? { remoteSessionId: record.remoteSessionId.trim() }
+          : {}),
+        label:
+          typeof record.label === "string" && record.label.trim() ? record.label : workspacePath,
+        kind,
+        ...(connectionState ? { connectionState } : {}),
+        ...(typeof record.workspacePurpose === "string" && record.workspacePurpose.trim()
+          ? { workspacePurpose: record.workspacePurpose.trim() }
+          : {}),
+        ...(typeof record.lastConnectionError === "string" && record.lastConnectionError.trim()
+          ? { lastConnectionError: record.lastConnectionError.trim() }
+          : {}),
+      },
+    ];
+  });
+}
+
+/** relay 任务同步载荷的形状级运行时校验。 */
+function sanitizeSyncTasks(value: unknown): MobileRelayTaskSyncEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): MobileRelayTaskSyncEntry[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const taskId = typeof record.taskId === "string" ? record.taskId.trim() : "";
+    const workspacePath =
+      typeof record.workspacePath === "string" ? record.workspacePath.trim() : "";
+    if (!taskId || !workspacePath) return [];
+    return [
+      {
+        taskId,
+        title: typeof record.title === "string" ? record.title : "",
+        updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
+        createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
+        workspacePath,
+        ...(typeof record.workspaceIdentity === "string" && record.workspaceIdentity.trim()
+          ? { workspaceIdentity: record.workspaceIdentity.trim() }
+          : {}),
+        ...(typeof record.remoteSessionId === "string" && record.remoteSessionId.trim()
+          ? { remoteSessionId: record.remoteSessionId.trim() }
+          : {}),
+      },
+    ];
   });
 }

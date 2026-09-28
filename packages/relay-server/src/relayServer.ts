@@ -1,0 +1,391 @@
+// Drora Relay Server · WS 服务接线：连接生命周期、鉴权、配对状态机驱动、
+// data 转发（matched + server_ts 盖章）、错误面、限速与死亡检测。
+// 职责边界：本模块不做任何业务解析；协议语义见 specs/mobile-relay-server.md §3/§4/§5。
+import { createServer } from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
+import { PHONE_PAGE_HTML } from "./phonePage.js";
+import {
+  MAX_WS_PAYLOAD_BYTES,
+  REGISTER_RATE_PER_MINUTE,
+  isDataEnvelope,
+  makeNonce,
+  makeTerminalSid,
+  stampServerTs,
+  verifyProof,
+  type RelayRole,
+} from "./protocol.js";
+import type { DeviceRegistry } from "./deviceRegistry.js";
+import { createSessionStore } from "./sessionStore.js";
+
+export interface RelayServerLogger {
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+}
+
+export interface RelayServerOptions {
+  registry: DeviceRegistry;
+  port?: number;
+  host?: string;
+  /** 单条 WS 消息硬上限；超限由 ws 库断开（默认对齐官方 1MiB）。 */
+  maxPayloadBytes?: number;
+  /** 注册限速（次/分钟/IP）。 */
+  registerRatePerMinute?: number;
+  /** WS ping 间隔（死亡检测），3 次未 pong 判死。 */
+  pingIntervalMs?: number;
+  log?: RelayServerLogger;
+}
+
+interface ConnectionMeta {
+  id: number;
+  ip: string;
+  role: RelayRole | null;
+  deviceSid: string | null;
+  terminalSid: string | null;
+  pendingNonce: string | null;
+  isAlive: boolean;
+}
+
+const ERROR_CODES = {
+  authFailed: "AUTH_FAILED",
+  wrongParam: "WRONG_PARAM",
+  kicked: "KICKED",
+  deviceOffline: "DEVICE_OFFLINE",
+  internal: "INTERNAL",
+} as const;
+
+function send(socket: WebSocket, message: Record<string, unknown>): void {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ ...message, server_ts: Date.now() }));
+}
+
+function sendError(socket: WebSocket, code: string, message?: string): void {
+  send(socket, message ? { type: "error", code, message } : { type: "error", code });
+}
+
+/** 每 IP 滑动窗口限速（注册接口）。 */
+function createRateLimiter(limit: number, windowMs: number) {
+  const hitsByIp = new Map<string, number[]>();
+  return {
+    allow(ip: string, now = Date.now()): boolean {
+      const hits = (hitsByIp.get(ip) ?? []).filter((ts) => now - ts < windowMs);
+      if (hits.length >= limit) {
+        hitsByIp.set(ip, hits);
+        return false;
+      }
+      hits.push(now);
+      hitsByIp.set(ip, hits);
+      return true;
+    },
+  };
+}
+
+export function createRelayServer(options: RelayServerOptions) {
+  const log = options.log ?? { info: () => {}, warn: () => {} };
+  const maxPayloadBytes = options.maxPayloadBytes ?? MAX_WS_PAYLOAD_BYTES;
+  const ratePerMinute = options.registerRatePerMinute ?? REGISTER_RATE_PER_MINUTE;
+  const pingIntervalMs = options.pingIntervalMs ?? 30_000;
+
+  const httpServer = createServer((request, response) => {
+    // 健康检查供部署探活。
+    if ((request.url ?? "").split("?")[0] === "/healthz") {
+      response.writeHead(200, { "content-type": "text/plain" });
+      response.end("ok");
+      return;
+    }
+    // 自建手机页（R2）：/m 与 /m/index.html 同页；桌面二维码 remotePageUrl 指向此处。
+    // 必须按 pathname 匹配——request.url 含查询串（QR 的 sid/hash 等），
+    // 精确匹配会让带参数的手机页 404（E2E 实锤）。
+    let pagePathname = "";
+    try {
+      pagePathname = new URL(request.url ?? "/", "http://relay.local").pathname;
+    } catch {
+      pagePathname = request.url ?? "";
+    }
+    if (pagePathname === "/m" || pagePathname === "/m/" || pagePathname === "/m/index.html") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(PHONE_PAGE_HTML);
+      return;
+    }
+    // 自托管资产库不做官方式版本门控：页面与桌面端同仓发布，天然配套（spec §7）。
+    response.writeHead(404);
+    response.end();
+  });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    maxPayload: maxPayloadBytes,
+    perMessageDeflate: true,
+  });
+
+  const sessions = createSessionStore();
+  const rateLimiter = createRateLimiter(ratePerMinute, 60_000);
+  const metaBySocket = new WeakMap<WebSocket, ConnectionMeta>();
+  let nextConnectionId = 1;
+
+  function sendTo(sid: string | null, role: RelayRole, message: Record<string, unknown>): boolean {
+    if (!sid) return false;
+    const peer = sessions.peer(sid, role);
+    if (!peer) return false;
+    const meta = socketsByConnectionId.get(peer.connectionId);
+    if (!meta) return false;
+    send(meta.socket, message);
+    return true;
+  }
+
+  const socketsByConnectionId = new Map<number, { socket: WebSocket; meta: ConnectionMeta }>();
+
+  function closeConnection(socket: WebSocket, code: number, reason: string): void {
+    try {
+      socket.close(code, reason);
+    } catch {
+      // 已关闭属正常路径
+    }
+  }
+
+  function detachAndNotify(meta: ConnectionMeta): void {
+    if (!meta.deviceSid || !meta.role) return;
+    const result = sessions.detach(meta.deviceSid, meta.id);
+    const deviceSid = meta.deviceSid;
+    // device 死亡：只要 terminal 在线就必须发 DEVICE_OFFLINE 并断开——
+    // 不以 statusChanged 为门（旧 terminal 先离开时状态已是 waiting，
+    // 按状态门控会漏发，集成测试实锤）。
+    if (result.detachedRole === "device") {
+      const terminalPeer = sessions.peer(deviceSid, "device");
+      if (terminalPeer) {
+        const terminalMeta = socketsByConnectionId.get(terminalPeer.connectionId);
+        if (terminalMeta) {
+          sendError(terminalMeta.socket, ERROR_CODES.deviceOffline, "desktop disconnected");
+          closeConnection(terminalMeta.socket, 1000, "device-offline");
+        }
+      }
+    }
+    // 配对状态变化 → 主动推对端（幂等）：terminal 离开时通知 device 回到 waiting。
+    // 被踢旧连接的迟到 close（detachedRole=null）不产生任何通知。
+    if (result.statusChanged && result.detachedRole === "terminal") {
+      sendTo(deviceSid, "terminal", { type: "pair_status_ack", pair_status: "waiting" });
+    }
+  }
+
+  wss.on("connection", (socket, request) => {
+    const meta: ConnectionMeta = {
+      id: nextConnectionId++,
+      ip: request.socket.remoteAddress ?? "unknown",
+      role: null,
+      deviceSid: null,
+      terminalSid: null,
+      pendingNonce: null,
+      isAlive: true,
+    };
+    metaBySocket.set(socket, meta);
+    socketsByConnectionId.set(meta.id, { socket, meta });
+    socket.on("pong", () => {
+      meta.isAlive = true;
+    });
+
+    socket.on("message", (raw: unknown) => {
+      let message: Record<string, unknown>;
+      try {
+        message = JSON.parse(String(raw)) as Record<string, unknown>;
+      } catch {
+        sendError(socket, ERROR_CODES.wrongParam, "invalid json");
+        return;
+      }
+      const type = message.type;
+      if (type === "device_register_init") {
+        handleRegister(socket, meta, message);
+        return;
+      }
+      if (type === "auth_init") {
+        void handleAuthInit(socket, meta, message);
+        return;
+      }
+      if (type === "auth_response") {
+        void handleAuthResponse(socket, meta, message);
+        return;
+      }
+      if (type === "pair_status_query") {
+        handlePairStatusQuery(socket, meta, message);
+        return;
+      }
+      if (type === "data") {
+        handleData(meta, message);
+        return;
+      }
+      sendError(socket, ERROR_CODES.wrongParam, `unknown type: ${String(type)}`);
+    });
+
+    socket.on("close", () => {
+      socketsByConnectionId.delete(meta.id);
+      detachAndNotify(meta);
+    });
+    socket.on("error", () => {
+      // close 事件随后到达，统一走 detachAndNotify。
+    });
+  });
+
+  async function handleRegister(
+    socket: WebSocket,
+    meta: ConnectionMeta,
+    message: Record<string, unknown>,
+  ): Promise<void> {
+    if (!rateLimiter.allow(meta.ip)) {
+      // 限速命中：策略性断开（1013 try again later），避免暴力注册。
+      closeConnection(socket, 1013, "registration rate limited");
+      return;
+    }
+    const deviceMid = typeof message.device_mid === "string" ? message.device_mid.trim() : "";
+    const passHash = typeof message.pass_hash === "string" ? message.pass_hash.trim() : "";
+    if (!deviceMid || !passHash) {
+      sendError(
+        socket,
+        ERROR_CODES.wrongParam,
+        "device_register_init requires device_mid and pass_hash",
+      );
+      return;
+    }
+    const record = await options.registry.register({ deviceMid, passHash });
+    send(socket, { type: "device_register_ack", device_sid: record.deviceSid });
+  }
+
+  async function handleAuthInit(
+    socket: WebSocket,
+    meta: ConnectionMeta,
+    message: Record<string, unknown>,
+  ): Promise<void> {
+    const role = message.role;
+    const deviceSid = typeof message.device_sid === "string" ? message.device_sid.trim() : "";
+    if ((role !== "device" && role !== "terminal") || !deviceSid) {
+      sendError(socket, ERROR_CODES.wrongParam, "auth_init requires role and device_sid");
+      return;
+    }
+    if (!(await options.registry.getBySid(deviceSid))) {
+      sendError(socket, ERROR_CODES.authFailed, "unknown device_sid");
+      return;
+    }
+    // 宽松重试：challenge 丢失后客户端重发 auth_init 允许重新挑战（覆盖 pending nonce）。
+    const nonce = makeNonce();
+    meta.pendingNonce = nonce;
+    meta.role = role;
+    meta.deviceSid = deviceSid;
+    send(socket, { type: "auth_challenge", nonce });
+  }
+
+  async function handleAuthResponse(
+    socket: WebSocket,
+    meta: ConnectionMeta,
+    message: Record<string, unknown>,
+  ): Promise<void> {
+    const proof = typeof message.proof === "string" ? message.proof : "";
+    const nonce = meta.pendingNonce;
+    const role = meta.role;
+    const deviceSid = meta.deviceSid;
+    if (!nonce || !role || !deviceSid || !proof) {
+      sendError(socket, ERROR_CODES.wrongParam, "auth_response without pending challenge");
+      return;
+    }
+    meta.pendingNonce = null;
+    const record = await options.registry.getBySid(deviceSid);
+    if (!record || !verifyProof({ passHash: record.passHash, nonce, role, deviceSid, proof })) {
+      sendError(socket, ERROR_CODES.authFailed, "proof mismatch");
+      return;
+    }
+    options.registry.touch(deviceSid, Date.now());
+    if (role === "device") {
+      const result = sessions.attachDevice(deviceSid, { connectionId: meta.id, sid: deviceSid });
+      send(socket, { type: "auth_ack", pair_status: result.status });
+      return;
+    }
+    const terminalSid = makeTerminalSid();
+    meta.terminalSid = terminalSid;
+    const attach = sessions.attachTerminal(deviceSid, { connectionId: meta.id, sid: terminalSid });
+    // 踢除顺序不变量（spec §4.1）：先 KICKED 旧 terminal 并断开，再应答新 terminal。
+    if (attach.kickedEndpoint) {
+      const oldMeta = socketsByConnectionId.get(attach.kickedEndpoint.connectionId);
+      if (oldMeta) {
+        sendError(oldMeta.socket, ERROR_CODES.kicked, "taken over by another terminal");
+        closeConnection(oldMeta.socket, 1000, "kicked");
+      }
+    }
+    send(socket, { type: "auth_ack", pair_status: attach.status, terminal_sid: terminalSid });
+    // 配对变化主动推送（幂等）：device ≤一次心跳周期内必然知晓。
+    if (attach.statusChanged) {
+      sendTo(deviceSid, "terminal", { type: "pair_status_ack", pair_status: "matched" });
+    }
+  }
+
+  function handlePairStatusQuery(
+    socket: WebSocket,
+    meta: ConnectionMeta,
+    message: Record<string, unknown>,
+  ): void {
+    if (meta.role !== "device" || !meta.deviceSid) {
+      sendError(socket, ERROR_CODES.wrongParam, "pair_status_query is device-only");
+      return;
+    }
+    const requestedSid = typeof message.device_sid === "string" ? message.device_sid : "";
+    if (requestedSid !== meta.deviceSid) {
+      sendError(socket, ERROR_CODES.wrongParam, "device_sid mismatch");
+      return;
+    }
+    const view = sessions.view(meta.deviceSid);
+    send(socket, { type: "pair_status_ack", pair_status: view.status });
+  }
+
+  function handleData(meta: ConnectionMeta, message: Record<string, unknown>): void {
+    // 仅 matched 双向转发；非法/缺 client_ts 静默丢弃（官方行为：接受但不投递）。
+    if (meta.role !== "device" && meta.role !== "terminal") return;
+    if (!meta.deviceSid) return;
+    if (!isDataEnvelope(message)) return;
+    const view = sessions.view(meta.deviceSid);
+    if (view.status !== "matched") return;
+    const peer = sessions.peer(meta.deviceSid, meta.role);
+    if (!peer) return;
+    const peerMeta = socketsByConnectionId.get(peer.connectionId);
+    if (!peerMeta) return;
+    send(
+      peerMeta.socket,
+      stampServerTs(
+        { type: "data", payload: message.payload, client_ts: message.client_ts },
+        Date.now(),
+      ),
+    );
+  }
+
+  // 死亡检测：ping 间隔 + 双未命中判死（ws 库对超 maxPayload 的入站会触发 error/close）。
+  const pingTimer = setInterval(() => {
+    for (const { socket, meta } of socketsByConnectionId.values()) {
+      if (!meta.isAlive) {
+        closeConnection(socket, 1006, "ping timeout");
+        continue;
+      }
+      meta.isAlive = false;
+      socket.ping();
+    }
+  }, pingIntervalMs);
+  pingTimer.unref?.();
+
+  const listenPort = options.port ?? 4430;
+  const listenHost = options.host ?? "0.0.0.0";
+
+  return {
+    /** 启动监听（返回实际端口，port=0 时由系统分配）。 */
+    listen(): Promise<number> {
+      return new Promise((resolve, reject) => {
+        httpServer.once("error", reject);
+        httpServer.listen(listenPort, listenHost, () => {
+          const address = httpServer.address();
+          const port = typeof address === "object" && address ? address.port : listenPort;
+          log.info("[relay-server] listening", { host: listenHost, port });
+          resolve(port);
+        });
+      });
+    },
+    /** 优雅停机：先断全部 WS（1001），再关 HTTP。 */
+    async close(): Promise<void> {
+      clearInterval(pingTimer);
+      for (const { socket } of socketsByConnectionId.values()) {
+        closeConnection(socket, 1001, "server shutting down");
+      }
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    },
+  };
+}

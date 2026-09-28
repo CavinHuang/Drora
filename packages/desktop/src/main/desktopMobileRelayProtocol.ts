@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 协议纯逻辑单文件聚合（常量+算法+存储），与 desktopMobilePairingCore 同例。 */
 // 移动端远程控制·官方 relay 协议纯逻辑（无 IO，可独立单测）。
 // 常量与算法逐项取证自官方 3.14.3 发行 bundle 并经最小探测复核（spec: mobile-web-remote.md M4）。
 import { createHash, createHmac, randomBytes } from "node:crypto";
@@ -8,6 +9,42 @@ import type { MobilePairingRuntimeState } from "@drora/shared";
 export const OFFICIAL_RELAY_WS_URL = "wss://zcode.z.ai/ws";
 /** v3 托管页已 404；官方版本门控现走 v4（探测核实）。 */
 export const OFFICIAL_REMOTE_PAGE_URL = "https://zcode.z.ai/remote/v4";
+
+/**
+ * 自建 relay 服务端端点推导（spec: mobile-relay-server.md §8）：
+ * base = http(s)://host:port → relayWsUrl = ws(s)://host:port/ws、
+ * remotePageUrl = base + /m/index.html（自建手机页）。
+ * 未配置（官方地址）时返回 undefined，走官方常量。
+ */
+export function deriveSelfHostedRelayEndpoints(baseUrl: string):
+  | {
+      relayWsUrl: string;
+      remotePageUrl: string;
+    }
+  | undefined {
+  const base = baseUrl.trim().replace(/\/+$/, "");
+  if (!base) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(base);
+  } catch {
+    return undefined;
+  }
+  const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
+  return {
+    relayWsUrl: `${wsProto}//${parsed.host}/ws`,
+    remotePageUrl: `${base}/m/index.html`,
+  };
+}
+/**
+ * 二维码固定上报的 app_version——必须是官方托管页认识的版本。
+ * 修复依据（2026-09-27 实测）：托管页按版本清单分发页面资源，未知版本直接 404
+ * （0.0.x/99.0.0/3.13.0/3.14.4/3.15.0 → 404，3.14.0–3.14.3 → 200，省略参数 → 走默认）。
+ * Drora 自身版本（0.0.1）不在清单内，手机扫码必 404；本仓 relay 协议逐项还原自
+ * 3.14.3 bundle，故二维码固定上报 3.14.3（页面会下发与该协议配套的手机页资源）。
+ * WS 注册/鉴权的 meta.version 不受此影响——relay 不校验该值（0.0.1 注册实测通过）。
+ */
+export const OFFICIAL_REMOTE_PAGE_APP_VERSION = "3.14.3";
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const HEARTBEAT_JITTER_MAX_MS = 2_000;
@@ -60,7 +97,6 @@ export function buildRelayQrUrl(params: {
   timestamp?: number;
   deviceMid?: string;
   deviceName?: string;
-  appVersion?: string;
 }): string {
   const url = new URL(params.baseUrl ?? OFFICIAL_REMOTE_PAGE_URL);
   url.searchParams.set("sid", params.deviceSid);
@@ -68,7 +104,9 @@ export function buildRelayQrUrl(params: {
   url.searchParams.set("t", String(params.timestamp ?? Date.now()));
   if (params.deviceMid?.trim()) url.searchParams.set("mid", params.deviceMid.trim());
   if (params.deviceName?.trim()) url.searchParams.set("name", params.deviceName.trim());
-  if (params.appVersion?.trim()) url.searchParams.set("app_version", params.appVersion.trim());
+  // app_version 固定为 OFFICIAL_REMOTE_PAGE_APP_VERSION：上报真实版本（0.0.1）会被
+  // 托管页 404（见常量注释实测记录），此处参数值代表"手机页协议版本"而非产品版本。
+  url.searchParams.set("app_version", OFFICIAL_REMOTE_PAGE_APP_VERSION);
   return url.toString();
 }
 
@@ -109,10 +147,13 @@ export class MobileRelayCredentialStore {
   private readonly encrypt: ((plain: string) => string) | null;
   private readonly decrypt: ((stored: string) => string) | null;
 
-  constructor(optionsDir: string, encryption?: {
-    encrypt: (plain: string) => string;
-    decrypt: (stored: string) => string;
-  }) {
+  constructor(
+    optionsDir: string,
+    encryption?: {
+      encrypt: (plain: string) => string;
+      decrypt: (stored: string) => string;
+    },
+  ) {
     this.filePath = join(optionsDir, CREDENTIAL_FILE_NAME);
     this.encrypt = encryption?.encrypt ?? null;
     this.decrypt = encryption?.decrypt ?? null;
@@ -136,7 +177,11 @@ export class MobileRelayCredentialStore {
   async save(credential: RelayDeviceCredential): Promise<void> {
     await mkdir(dirname(this.filePath), { recursive: true });
     const stored = this.encrypt ? this.encrypt(credential.passHash) : credential.passHash;
-    await writeFile(this.filePath, JSON.stringify({ deviceSid: credential.deviceSid, passHash: stored }, null, 2), "utf-8");
+    await writeFile(
+      this.filePath,
+      JSON.stringify({ deviceSid: credential.deviceSid, passHash: stored }, null, 2),
+      "utf-8",
+    );
   }
 
   async clear(): Promise<void> {
@@ -150,8 +195,13 @@ export class MobileRelayCredentialStore {
 export interface RelayWorkspaceSummary {
   workspacePath: string;
   workspaceIdentity?: string;
-  kind: "local";
-  connectionState: "connected";
+  /** 远程会话 id；有值即 remote 工作区（手机页 schema 可选字段）。 */
+  remoteSessionId?: string;
+  /** 手机页 schema 必填：工作区显示名（目录 basename，对齐官方 ul(path)）。 */
+  label: string;
+  kind: "local" | "remote";
+  /** 页面词表：connected/disconnected/reconnecting。 */
+  connectionState: "connected" | "disconnected" | "reconnecting";
 }
 
 export interface RelayTaskSummary {
@@ -159,6 +209,11 @@ export interface RelayTaskSummary {
   title: string;
   status: string;
   updatedAt: number;
+  /** 手机页 schema 必填字段族（对齐官方 task 投影）：工作区定位 + 创建时间。 */
+  workspacePath: string;
+  workspaceLabel: string;
+  workspaceKind: "local" | "remote";
+  createdAt: number;
 }
 
 export interface RelayMobileViewState {
@@ -177,30 +232,47 @@ export function relayWorkspaceKey(target: {
 export function buildBootstrapResult(params: {
   deviceSid: string;
   appVersion: string;
-  workspace: RelayWorkspaceSummary;
+  workspaces: RelayWorkspaceSummary[];
+  fallbackWorkspace: RelayWorkspaceSummary;
   tasks: RelayTaskSummary[];
   mobileViewState?: RelayMobileViewState;
 }): Record<string, unknown> {
   return {
     windowControlSessionId: params.deviceSid,
     desktopAppVersion: params.appVersion,
-    workspaces: [params.workspace],
+    workspaces: mergeRuntimeWorkspace(params.workspaces, params.fallbackWorkspace),
     tasks: params.tasks,
     ...(params.mobileViewState ? { initialViewState: params.mobileViewState } : {}),
     ...(params.mobileViewState ? { mobileViewState: params.mobileViewState } : {}),
   };
 }
 
+/**
+ * 对齐官方 getAvailableWorkspaces：registry 投影为基集，运行时目标（startParams
+ * 工作区）不缺席——controller 投影缺失/未就绪时至少回退到它。
+ */
+export function mergeRuntimeWorkspace(
+  workspaces: RelayWorkspaceSummary[],
+  fallbackWorkspace: RelayWorkspaceSummary,
+): RelayWorkspaceSummary[] {
+  const merged = [...workspaces];
+  if (!merged.some((w) => relayWorkspaceKey(w) === relayWorkspaceKey(fallbackWorkspace))) {
+    merged.push(fallbackWorkspace);
+  }
+  return merged;
+}
+
 export function buildWorkspaceListResult(params: {
-  workspace: RelayWorkspaceSummary;
+  workspaces: RelayWorkspaceSummary[];
+  fallbackWorkspace: RelayWorkspaceSummary;
   tasks: RelayTaskSummary[];
   mobileViewState?: RelayMobileViewState;
 }): Record<string, unknown> {
   return {
-    workspaces: [params.workspace],
+    workspaces: mergeRuntimeWorkspace(params.workspaces, params.fallbackWorkspace),
     tasks: params.tasks,
     activeWorkspaceKey:
-      params.mobileViewState?.activeWorkspaceKey ?? relayWorkspaceKey(params.workspace),
+      params.mobileViewState?.activeWorkspaceKey ?? relayWorkspaceKey(params.fallbackWorkspace),
     ...(params.mobileViewState?.activeTaskId
       ? { activeTaskId: params.mobileViewState.activeTaskId }
       : {}),
@@ -239,7 +311,8 @@ export interface RpcTransportFrame {
   fragmentIndex: number;
   fragmentCount: number;
   messageBytes: number;
-  checksum: { algorithm: "crc32"; value: number };
+  /** checksum.value 线格式：8 位小写 hex 字符串（出站）；入站兼容数值。 */
+  checksum: { algorithm: "crc32"; value: string };
   dataBase64: string;
 }
 
@@ -266,7 +339,9 @@ export function crc32(bytes: Uint8Array): number {
 function identityFields(identity: RpcFrameIdentity): Record<string, unknown> {
   return {
     bridgeSessionId: identity.bridgeSessionId,
-    ...(identity.bridgeGeneration !== undefined ? { bridgeGeneration: identity.bridgeGeneration } : {}),
+    ...(identity.bridgeGeneration !== undefined
+      ? { bridgeGeneration: identity.bridgeGeneration }
+      : {}),
     ...(identity.recoveryId ? { recoveryId: identity.recoveryId } : {}),
   };
 }
@@ -274,7 +349,21 @@ function identityFields(identity: RpcFrameIdentity): Record<string, unknown> {
 /**
  * 编码一条 rpc 消息为一个或多个物理帧（对齐官方 L3 编码器语义）。
  * 返回帧数组与推进后的物理序号。
+ * checksum.value 线格式为 8 位小写十六进制字符串（官方/手机端组装器以
+ * /^[0-9a-f]{8}$/ 校验，数字会被判 proto.frameAssemblyMetadataMismatch 丢弃，
+ * 2026-09-27 真机取证）；内部比较统一用数值。
  */
+export function crc32ToWire(value: number): string {
+  return (value >>> 0).toString(16).padStart(8, "0");
+}
+
+/** 入站 checksum.value 兼容数值与 8 位 hex 字符串两种线格式。 */
+export function checksumValueFromWire(value: unknown): number | null {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && /^[0-9a-f]{8}$/.test(value)) return parseInt(value, 16);
+  return null;
+}
+
 export function encodeRpcTransportMessage(params: {
   message: Uint8Array;
   identity: RpcFrameIdentity;
@@ -288,7 +377,7 @@ export function encodeRpcTransportMessage(params: {
   if (message.byteLength > RPC_FRAME_MAX_MESSAGE_BYTES) {
     throw new Error("remote.rpcFrame.messageTooLarge");
   }
-  const checksum = { algorithm: "crc32" as const, value: crc32(message) };
+  const checksum = { algorithm: "crc32" as const, value: crc32ToWire(crc32(message)) };
   const fragmentCount = Math.max(1, Math.ceil(message.byteLength / RPC_FRAME_FRAGMENT_DATA_BYTES));
   if (fragmentCount > RPC_FRAME_MAX_FRAGMENTS) {
     throw new Error("remote.rpcFrame.fragmentLimitExceeded");
@@ -309,7 +398,8 @@ export function encodeRpcTransportMessage(params: {
       dataBase64: Buffer.from(message.subarray(start, end)).toString("base64"),
     });
   }
-  return { frames, nextPhysicalSeq: firstPhysicalSeq + fragmentCount, checksum: checksum.value };
+  const checksumValue = crc32(message);
+  return { frames, nextPhysicalSeq: firstPhysicalSeq + fragmentCount, checksum: checksumValue };
 }
 
 /** rpc-frame-ack 确认帧（手机→桌面方向的每条完整消息都必须回执，否则对端流控降级）。 */
@@ -350,10 +440,14 @@ export class RpcFrameAssembler {
     this.pending.delete(frame.messageSeq);
     const assembled = Buffer.alloc(frame.messageBytes);
     let offset = 0;
+    const frameChecksum = checksumValueFromWire(frame.checksum.value);
     for (let index = 0; index < frame.fragmentCount; index += 1) {
       const piece = group.get(index);
       if (!piece) return null;
-      if (piece.messageBytes !== frame.messageBytes || piece.checksum.value !== frame.checksum.value) {
+      if (
+        piece.messageBytes !== frame.messageBytes ||
+        checksumValueFromWire(piece.checksum.value) !== frameChecksum
+      ) {
         return null;
       }
       const chunk = Buffer.from(piece.dataBase64, "base64");
@@ -363,7 +457,7 @@ export class RpcFrameAssembler {
     }
     const message = new Uint8Array(assembled);
     if (message.byteLength !== frame.messageBytes) return null;
-    if (crc32(message) !== frame.checksum.value) return null;
+    if (frameChecksum === null || crc32(message) !== frameChecksum) return null;
     return { message, messageSeq: frame.messageSeq };
   }
 
@@ -404,7 +498,8 @@ export function parseRpcTransportFrame(value: unknown): RpcTransportFrame | null
   const record = value as Record<string, unknown>;
   if (record.zcode_type !== "rpc-frame") return null;
   if (typeof record.bridgeSessionId !== "string") return null;
-  if (record.bridgeGeneration !== undefined && typeof record.bridgeGeneration !== "number") return null;
+  if (record.bridgeGeneration !== undefined && typeof record.bridgeGeneration !== "number")
+    return null;
   if (record.recoveryId !== undefined && typeof record.recoveryId !== "string") return null;
   if (typeof record.seq !== "number" || typeof record.messageSeq !== "number") return null;
   if (
@@ -418,7 +513,8 @@ export function parseRpcTransportFrame(value: unknown): RpcTransportFrame | null
   if (
     !checksum ||
     checksum.algorithm !== "crc32" ||
-    typeof checksum.value !== "number" ||
+    // 入站兼容数值与 8 位 hex 字符串两种线格式（手机端发送侧为 hex 字符串）。
+    checksumValueFromWire(checksum.value) === null ||
     typeof record.dataBase64 !== "string"
   ) {
     return null;

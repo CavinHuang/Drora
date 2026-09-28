@@ -1,5 +1,6 @@
 import { createLocalTtftExporter } from "./localTtftExporter.js";
 import { registerDesktopPetWindow } from "./desktopPetWindow.js";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
@@ -81,6 +82,7 @@ import {
   buildDroraEndpointUrls,
   resolveDroraEndpointOrigin,
   shouldEnableE2ETestBridge,
+  rendererTelemetryEventPayloadSchema,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
@@ -204,7 +206,10 @@ import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import { createDesktopMobilePairingServer } from "./desktopMobilePairingServer.js";
 import { createDesktopMobileRelayControl } from "./desktopMobileRelayControl.js";
-import { MobileRelayCredentialStore } from "./desktopMobileRelayProtocol.js";
+import {
+  MobileRelayCredentialStore,
+  deriveSelfHostedRelayEndpoints,
+} from "./desktopMobileRelayProtocol.js";
 import { MobilePairingRestoreStore, shouldRestorePairing } from "./desktopMobilePairingRestore.js";
 import {
   loadCliMcpFromUserDirectory,
@@ -825,6 +830,16 @@ const deviceMid = ensureDesktopDeviceMidSync();
 // 托管手机页（remote/v4），跨网络可用；与 LAN 直连并存，默认关闭、弹层内显式开启。
 // 凭据持久化：deviceSid+passHash 存 Main 自有单键文件，safeStorage 可用时加密 passHash。
 let mobileRelaySenderWebContentsId: number | null = null;
+// 各窗口最近一次推送的 relay 工作区/任务清单（官方 syncWebRemoteControl* 语义：
+// 无 runtime 时丢弃；这里额外缓存，relay 后启动也能立即拿到全量）。
+const mobileRelaySyncedWorkspaces = new Map<
+  number,
+  import("@drora/shared").MobileRelayWorkspaceSyncEntry[]
+>();
+const mobileRelaySyncedTasks = new Map<
+  number,
+  import("@drora/shared").MobileRelayTaskSyncEntry[]
+>();
 const mobileRelayCredentialStore = new MobileRelayCredentialStore(
   join(homedir(), ".drora", "v2"),
   safeStorage.isEncryptionAvailable()
@@ -834,16 +849,98 @@ const mobileRelayCredentialStore = new MobileRelayCredentialStore(
       }
     : undefined,
 );
+// 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
+// relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。每次 start 解析
+// 一次，设置变更后重启远控（停止→开启）即生效。
 const mobileRelayControl = createDesktopMobileRelayControl({
   logger,
   deviceMid,
-  appVersion: DRORA_VERSION || app.getVersion(),
   credentialStore: mobileRelayCredentialStore,
+  resolveEndpoints: async () => {
+    let base = "";
+    try {
+      base = (await mainSettingService.get()).relayServerUrl?.trim() || "";
+    } catch {
+      // 设置服务不可用时回落 env
+    }
+    if (!base) base = process.env.DRORA_RELAY_SERVER_URL?.trim() || "";
+    return deriveSelfHostedRelayEndpoints(base);
+  },
+  // 配对/桥结果遥测（对齐官方 reportRemoteUsageEvent 事件族）。
+  reportUsageEvent: (event) => {
+    if (mobileRelaySenderWebContentsId === null) return;
+    reportRemoteUsageEventForRenderer(mobileRelaySenderWebContentsId, event);
+  },
+  // 重启自动恢复上下文（对齐官方 startupRestoreStorageProvider）：start 成功保存、
+  // 手动 stop 清除、renderer 首次推送工作区时经 restorePreviouslyEnabled 恢复。
+  startupRestoreStorage: {
+    load: async () => {
+      try {
+        const raw = await readFile(
+          join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
+          "utf8",
+        );
+        const parsed = JSON.parse(raw) as { workspacePath?: string; workspaceIdentity?: string };
+        if (typeof parsed.workspacePath !== "string" || !parsed.workspacePath.trim()) return null;
+        return {
+          workspacePath: parsed.workspacePath,
+          ...(typeof parsed.workspaceIdentity === "string" && parsed.workspaceIdentity.trim()
+            ? { workspaceIdentity: parsed.workspaceIdentity }
+            : {}),
+        };
+      } catch {
+        return null;
+      }
+    },
+    save: async (context) => {
+      await mkdir(join(homedir(), ".drora", "v2"), { recursive: true });
+      await writeFile(
+        join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
+        `${JSON.stringify(context)}\n`,
+        "utf8",
+      );
+    },
+    clear: async () => {
+      await rm(join(homedir(), ".drora", "v2", "mobile-relay-restore.json"), { force: true });
+    },
+  },
   // relay 远控同样惰性解析发起窗口的 Host；resolveHostChild 闭包在 start 接线时替换为
   // 持有 senderWebContentsId 的版本（见 registerPlatformIpcHandlers 装配处）。
   resolveHostChild: () => {
     if (mobileRelaySenderWebContentsId === null) return null;
     return windowHostProcessMap.get(mobileRelaySenderWebContentsId) ?? null;
+  },
+  // 手机页 platform-request 的方法表（对齐官方 8 方法注册表；复用 main IPC 同名实现）。
+  platformHandlers: {
+    isDockerAvailable: () => isDockerDaemonAvailable(),
+    listWSLDistros: () => listAvailableWSLDistros(),
+    listDockerContainers: () => listAvailableDockerContainers(),
+    listSSHConfigAliases: () => listSSHConfigAliases(),
+    createTempTextAttachment: (args) => createTempTextAttachment(args),
+    loadMcpFromUserDirectory: (args) => loadCliMcpFromUserDirectory(args ?? {}),
+    saveMcpToUserDirectory: async (args) => {
+      // 对齐官方：MCP 保存失败折叠为 {success:false,error} 结果帧而不是错误。
+      try {
+        await saveCliMcpToUserDirectory(args);
+        return { success: true };
+      } catch (error) {
+        logger.warn(
+          "[web-remote-control] MCP save failed",
+          error instanceof Error ? error.message : String(error),
+        );
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    migrateLegacyCommonMcp: (args) => migrateLegacyCommonMcp(args ?? {}),
+  },
+  // 手机遥测事件并入桌面遥测汇（对齐官方 reportRendererTelemetryEvent）。
+  reportPhoneTelemetryEvent: async (event) => {
+    const result = rendererTelemetryEventPayloadSchema.safeParse(event);
+    if (!result.success) return;
+    await appTelemetryCore.reportEvent(result.data);
   },
   onStatusChanged: (state) => {
     if (mobileRelaySenderWebContentsId === null) return;
@@ -2200,6 +2297,14 @@ app.whenReady().then(async () => {
     mobileRelay: {
       start: async (params) => {
         mobileRelaySenderWebContentsId = params.senderWebContentsId;
+        // relay 启动即灌入该窗口最近一次同步的工作区清单（renderer 在 tab 变化时
+        // 推送；官方语义为无 runtime 即丢弃，这里缓存以便后启动的 relay 立即拿全量）。
+        mobileRelayControl.syncAvailableWorkspaces(
+          mobileRelaySyncedWorkspaces.get(params.senderWebContentsId) ?? [],
+        );
+        mobileRelayControl.syncAvailableTasks(
+          mobileRelaySyncedTasks.get(params.senderWebContentsId) ?? [],
+        );
         return mobileRelayControl.start({
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
@@ -2211,6 +2316,28 @@ app.whenReady().then(async () => {
       },
       stop: () => mobileRelayControl.stop(),
       state: () => mobileRelayControl.runtimeState(),
+      syncWorkspaces: (senderWebContentsId, workspaces) => {
+        mobileRelaySyncedWorkspaces.set(senderWebContentsId, workspaces);
+        // 重启自动恢复的首个触发窗口：恢复出的 relay 需要绑定属主窗口（Host 解析
+        // 与状态推送都走该 id），否则手机开桥会 desktop-host-missing。
+        if (mobileRelaySenderWebContentsId === null) {
+          mobileRelaySenderWebContentsId = senderWebContentsId;
+        }
+        // 仅属主窗口的推送进入运行时（官方同款条件；非属主窗口只更新缓存）。
+        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
+          mobileRelayControl.syncAvailableWorkspaces(workspaces);
+        }
+        // 重启自动恢复（对齐官方 syncWebRemoteControlWorkspaces 处理器内联的
+        // restorePreviouslyEnabled）：renderer 首次推送工作区时尝试恢复上次启用的
+        // relay；至多一次，手动 stop 已清除上下文不会误恢复。
+        void mobileRelayControl.restorePreviouslyEnabled(workspaces);
+      },
+      syncTasks: (senderWebContentsId, tasks) => {
+        mobileRelaySyncedTasks.set(senderWebContentsId, tasks);
+        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
+          mobileRelayControl.syncAvailableTasks(tasks);
+        }
+      },
     },
     fetchHelpConfig: readHelpConfig,
     logger,

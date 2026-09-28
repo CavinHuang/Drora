@@ -42,6 +42,7 @@ import { logger } from "@/logger.js";
 import { RootShell } from "@/root/RootShell.js";
 import { RootWorkspaceContent } from "@/root/RootWorkspaceContent.js";
 import { resolveRootWorkspaceShellTarget } from "@/root/rootWorkspaceShellTarget.js";
+import { WebRemoteControlTaskSync } from "@/root/WebRemoteControlTaskSync.js";
 import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
 import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
@@ -1013,6 +1014,8 @@ function RootInner({
       {rootModelSelectionErrorNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}
+      {/* 云中继远控运行期间向 main 推送跨工作区任务时间线（官方 AMn 同款隐藏组件）。 */}
+      <WebRemoteControlTaskSync workspaceTabs={tabs.filter(isWorkspaceTab)} />
       <OccupationOnboarding
         showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
         showChildrenWhileLoading={!workspaceShellPath && isSettingsTabActive}

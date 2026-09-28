@@ -11,6 +11,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { MobilePairingRuntimeState } from "@drora/shared";
 import type { UtilityProcess } from "electron";
 import { createMobileServiceAttacher } from "./desktopMobileServiceAttach.js";
+import { serveMobilePageAction } from "./desktopMobilePageBridge.js";
 import {
   attemptPair,
   buildPairingUrl,
@@ -229,97 +230,24 @@ export function createDesktopMobilePairingServer(deps: {
 
   async function handleAuthedFrame(frame: PhoneInboundFrame): Promise<void> {
     if (!startParams) return;
+    // 已鉴权连接不会再收 hello/resume；收窄为动作帧供共享翻译层消费。
+    if (frame.type === "hello" || frame.type === "resume") return;
     const { workspacePath, workspaceIdentity } = startParams;
     try {
-      switch (frame.type) {
-        case "list": {
-          const { task } = ensureServiceChannels();
-          const tasks = (await task.call("listTasks", {
-            workspacePath,
-            workspaceIdentity,
-          })) as Array<Record<string, unknown>>;
-          sendToPhone({
-            type: "taskList",
-            tasks: tasks.map((meta) => ({
-              taskId: meta.taskId,
-              title: meta.title,
-              status: meta.status,
-              updatedAt: meta.updatedAt,
-            })),
-          });
-          return;
-        }
-        case "open": {
-          const { session } = ensureServiceChannels();
-          const messages = (await session.call("readSessionMessages", {
-            sessionId: frame.taskId,
-            limit: 200,
-          })) as unknown[];
-          sendToPhone({ type: "timeline", taskId: frame.taskId, messages });
-          return;
-        }
-        case "send": {
-          const content = frame.content.trim();
-          if (!content) return;
-          const { task } = ensureServiceChannels();
-          await task.call("sendPrompt", {
-            taskId: frame.taskId,
-            workspacePath,
-            workspaceIdentity,
-            traceId: randomUUID(),
-            content,
-            clientMode: "web-remote-replayable",
-            clientLabel: "mobile-web",
-          });
-          sendToPhone({ type: "accepted", taskId: frame.taskId });
-          return;
-        }
-        case "permission": {
-          const { task } = ensureServiceChannels();
-          await task.call("respondPermission", {
-            taskId: frame.taskId,
-            workspacePath,
-            workspaceIdentity,
-            runId: frame.runId,
-            requestId: frame.requestId,
-            optionId: frame.optionId,
-            response: { decision: frame.decision },
-          });
-          return;
-        }
-        case "stop": {
-          const { task } = ensureServiceChannels();
-          await task.call("stopGeneration", {
-            taskId: frame.taskId,
-            workspacePath,
-            workspaceIdentity,
-          });
-          return;
-        }
-        case "events": {
-          // 会话事件日志按 seq 单调递增；手机端用 afterSeq 增量拉，
-          // 投影出流式文本与待决权限卡片（permission.requested/resolved）。
-          const { session } = ensureServiceChannels();
-          const result = (await session.call("readSessionEvents", {
-            sessionId: frame.taskId,
-            afterSeq: frame.afterSeq,
-            limit: 200,
-          })) as { events?: Array<Record<string, unknown>> };
-          const events = result.events ?? [];
-          const lastEvent = events[events.length - 1] as { seq?: number } | undefined;
-          sendToPhone({
-            type: "events",
-            taskId: frame.taskId,
-            events,
-            lastSeq:
-              lastEvent && typeof lastEvent.seq === "number" ? lastEvent.seq : frame.afterSeq,
-            hasMore: events.length >= 200,
-          });
-          return;
-        }
-        default:
-          return;
-      }
+      // v1 动作帧 → 服务调用翻译为共享单一实现（relay 手机页同款，spec mobile-web-remote.md）。
+      const { task, session } = ensureServiceChannels();
+      const response = await serveMobilePageAction({
+        task,
+        session,
+        frame,
+        workspace: {
+          workspacePath: startParams.workspacePath,
+          ...(startParams.workspaceIdentity
+            ? { workspaceIdentity: startParams.workspaceIdentity }
+            : {}),
+        },
+      });
+      sendToPhone(response);
     } catch (error) {
       logger.warn("[mobile-pairing] 手机帧处理失败", {
         type: frame.type,
@@ -337,7 +265,6 @@ export function createDesktopMobilePairingServer(deps: {
       });
     }
   }
-
   function handleSocketMessage(socket: WebSocket, raw: unknown): void {
     let frame: PhoneInboundFrame;
     try {

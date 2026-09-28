@@ -287,6 +287,35 @@ export interface MobilePairingRuntimeState {
   failure: MobilePairingFailure | null;
 }
 
+/**
+ * relay 远控的工作区同步条目（Renderer → Main，官方 syncWebRemoteControlWorkspaces
+ * 的推送形状子集；字段满足手机页 workspace schema 的必填集）。
+ */
+export interface MobileRelayWorkspaceSyncEntry {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  /** 远程会话 id；有值即 remote 工作区。 */
+  remoteSessionId?: string;
+  /** 工作区显示名（目录 basename）。 */
+  label: string;
+  kind: "local" | "remote";
+  /** 仅远程携带（对齐官方 jjn 构造器）：reconnecting/connected/disconnected。 */
+  connectionState?: "connected" | "disconnected" | "reconnecting";
+  workspacePurpose?: string;
+  lastConnectionError?: string;
+}
+
+/** relay 远控的任务同步条目（官方 syncWebRemoteControlTasks 推送形状子集）。 */
+export interface MobileRelayTaskSyncEntry {
+  taskId: string;
+  title: string;
+  updatedAt: number;
+  createdAt: number;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
 export type SaveFileRequest =
   | {
       data: ArrayBuffer;
@@ -753,14 +782,20 @@ export interface IPlatformService {
   }): Promise<{ url: string; sessionId: string }>;
   /** 停止 relay 远控（断开连接；设备凭据保留以便下次直连）。Desktop only。 */
   stopMobileRelayControl?(): Promise<void>;
-  /** 轮换 relay 设备凭据并重启（二维码泄露时的 resetPairing 语义）。Desktop only。 */
+  /** 轮换 relay 远控凭据并重启（二维码泄露时的 resetPairing 语义）。Desktop only。 */
   refreshMobileRelayControl?(): Promise<{ url: string; sessionId: string }>;
   /** 查询 relay 远控运行状态。Desktop only。 */
   getMobileRelayControlState?(): Promise<MobilePairingRuntimeState>;
   /** 订阅 relay 远控状态推送。Desktop only。 */
-  onMobileRelayStateChanged?(
-    callback: (state: MobilePairingRuntimeState) => void,
-  ): () => void;
+  onMobileRelayStateChanged?(callback: (state: MobilePairingRuntimeState) => void): () => void;
+  /**
+   * 同步窗口全部工作区到 relay 远控（多工作区聚合；对齐官方
+   * syncWebRemoteControlWorkspaces：renderer 在 tab 变化时推送，main 侧
+   * bootstrap/workspace-list 以此为工作区清单事实源）。Desktop only。
+   */
+  syncWebRemoteControlWorkspaces?(workspaces: MobileRelayWorkspaceSyncEntry[]): void;
+  /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款）。Desktop only。 */
+  syncWebRemoteControlTasks?(tasks: MobileRelayTaskSyncEntry[]): void;
 
   /**
    * 注册 OAuth deep link 回调监听

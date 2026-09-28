@@ -201,6 +201,10 @@ export const PlatformChannels = {
   MobileRelayState: "drora:mobile-relay-state",
   /** Main → Renderer：relay 远控运行状态推送 */
   MobileRelayStateChanged: "drora:mobile-relay-state-changed",
+  /** Renderer → Main：同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
+  MobileRelaySyncWorkspaces: "drora:mobile-relay-sync-workspaces",
+  /** Renderer → Main：同步跨工作区任务列表到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
+  MobileRelaySyncTasks: "drora:mobile-relay-sync-tasks",
   /** 打开系统文件选择框 */
   SelectFile: "drora:select-file",
   /** 打开系统多文件选择框 */

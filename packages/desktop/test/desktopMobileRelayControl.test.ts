@@ -9,6 +9,8 @@ import {
   buildBootstrapResult,
   buildRelayQrUrl,
   buildWorkspaceListResult,
+  OFFICIAL_REMOTE_PAGE_APP_VERSION,
+  deriveSelfHostedRelayEndpoints,
   calculateRelayProof,
   createRelayPassword,
   derivePassHash,
@@ -64,7 +66,6 @@ test("QR URL 参数族对齐官方 buildWebRemoteControlExternalQrUrl", () => {
     timestamp: 1234,
     deviceMid: "mid-1",
     deviceName: "name-1",
-    appVersion: "0.0.5",
   });
   const parsed = new URL(url);
   assert.equal(parsed.origin, "https://zcode.z.ai");
@@ -74,13 +75,13 @@ test("QR URL 参数族对齐官方 buildWebRemoteControlExternalQrUrl", () => {
   assert.equal(parsed.searchParams.get("t"), "1234");
   assert.equal(parsed.searchParams.get("mid"), "mid-1");
   assert.equal(parsed.searchParams.get("name"), "name-1");
-  assert.equal(parsed.searchParams.get("app_version"), "0.0.5");
-  // 空字段不落参（对齐官方 trim 判断）。
-  const minimal = new URL(
-    buildRelayQrUrl({ deviceSid: "d_x", passHash: "h", deviceName: "  ", appVersion: "" }),
-  );
+  // app_version 固定上报还原协议版本：托管页按版本清单 404 未知版本（0.0.1 实测 404），
+  // 省略参数虽走默认页但不确定，固定 3.14.3 与本仓还原的 relay 协议配套。
+  assert.equal(parsed.searchParams.get("app_version"), "3.14.3");
+  // 空字段不落参（对齐官方 trim 判断）；app_version 恒在。
+  const minimal = new URL(buildRelayQrUrl({ deviceSid: "d_x", passHash: "h", deviceName: "  " }));
   assert.equal(minimal.searchParams.get("name"), null);
-  assert.equal(minimal.searchParams.get("app_version"), null);
+  assert.equal(minimal.searchParams.get("app_version"), "3.14.3");
 });
 
 test("传输态映射：waiting→running、paired→active、kicked→running（原版语义）", () => {
@@ -98,33 +99,69 @@ test("bootstrap / workspace-list 结果形状对齐原版构造函数", () => {
   const workspace = {
     workspacePath: "C:/demo",
     workspaceIdentity: "id-1",
+    label: "demo",
     kind: "local" as const,
     connectionState: "connected" as const,
   };
-  const tasks = [{ taskId: "t1", title: "T", status: "running", updatedAt: 5 }];
+  const tasks = [
+    {
+      taskId: "t1",
+      title: "T",
+      status: "running",
+      updatedAt: 5,
+      workspacePath: "C:/demo",
+      workspaceLabel: "demo",
+      workspaceKind: "local" as const,
+      createdAt: 1,
+    },
+  ];
+  const remoteWorkspace = {
+    workspacePath: "ssh://host/remote/proj",
+    workspaceIdentity: "ssh://host/remote/proj",
+    label: "proj",
+    kind: "remote" as const,
+    connectionState: "reconnecting" as const,
+  };
   const bootstrap = buildBootstrapResult({
     deviceSid: "d_1",
-    appVersion: "0.0.5",
-    workspace,
+    appVersion: OFFICIAL_REMOTE_PAGE_APP_VERSION,
+    workspaces: [remoteWorkspace],
+    fallbackWorkspace: workspace,
     tasks,
     mobileViewState: { activeWorkspaceKey: "id-1", activeTaskId: "t1" },
   });
   assert.equal(bootstrap.windowControlSessionId, "d_1");
-  assert.equal(bootstrap.desktopAppVersion, "0.0.5");
-  assert.deepEqual(bootstrap.workspaces, [workspace]);
+  assert.equal(bootstrap.desktopAppVersion, OFFICIAL_REMOTE_PAGE_APP_VERSION);
+  // 多工作区聚合 + 运行时目标不缺席（对齐官方 getAvailableWorkspaces 语义）。
+  assert.deepEqual(bootstrap.workspaces, [remoteWorkspace, workspace]);
   assert.deepEqual(bootstrap.tasks, tasks);
   assert.deepEqual(bootstrap.mobileViewState, {
     activeWorkspaceKey: "id-1",
     activeTaskId: "t1",
   });
+  // 手机页 schema 必填字段（2026-09-27 真机取证）：workspace.label 与 task 的
+  // workspacePath/workspaceLabel/workspaceKind/createdAt 缺一即整帧被静默丢弃。
+  assert.equal(bootstrap.workspaces[0]?.label, "proj");
+  assert.equal(bootstrap.workspaces[1]?.label, "demo");
+  assert.equal(bootstrap.tasks[0]?.workspaceLabel, "demo");
+  assert.equal(bootstrap.tasks[0]?.createdAt, 1);
 
   const list = buildWorkspaceListResult({
-    workspace,
+    workspaces: [remoteWorkspace],
+    fallbackWorkspace: workspace,
     tasks,
     mobileViewState: { activeTaskId: "t1" },
   });
   assert.equal(list.activeWorkspaceKey, "id-1", "viewState 缺省回落工作区 key");
   assert.equal(list.activeTaskId, "t1");
+  // 投影缺失时（controller 不可用）回落运行时目标单工作区。
+  const fallbackOnly = buildWorkspaceListResult({
+    workspaces: [],
+    fallbackWorkspace: workspace,
+    tasks: [],
+  });
+  assert.deepEqual(fallbackOnly.workspaces, [workspace]);
+  assert.equal(fallbackOnly.activeWorkspaceKey, "id-1");
 });
 
 test("凭据存取：往返/清空/损坏文件容错/加密往返", async () => {
@@ -189,10 +226,15 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
   const control = createDesktopMobileRelayControl({
     logger: { info: () => {}, warn: () => {} },
     deviceMid: "mid-test",
-    appVersion: "0.0.5",
     credentialStore: store,
     resolveHostChild: () => null,
     onStatusChanged: (state) => harness.emitStatus.push(state.status),
+    platformHandlers: {
+      isDockerAvailable: async () => true,
+      boom: async () => {
+        throw new Error("kaput");
+      },
+    },
     webSocketCtor: harness.ctor as never,
     relayWsUrl: "wss://relay.test/ws",
     remotePageUrl: "https://page.test/remote/v4",
@@ -234,6 +276,17 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
     "connecting/registering/authenticating 三段都映射为 starting",
   );
 
+  // waiting 态 WRONG_PARAM（对齐官方条件 paired||waiting_terminal）：只记日志，
+  // 不断连、不进失败态（2026-09-27 真机取证官方 onError 接线仅 logger.warn）。
+  socket.serverMessage({
+    type: "error",
+    code: "WRONG_PARAM",
+    message: "transient rejection",
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(control.runtimeState().status, "running");
+  assert.equal(control.runtimeState().failure, null);
+
   // 手机配对
   socket.serverMessage({
     type: "pair_status_ack",
@@ -244,15 +297,34 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
   assert.equal(control.runtimeState().status, "active");
   assert.equal(control.runtimeState().connected, true);
 
+  // paired 态 WRONG_PARAM（修复回归，2026-09-27 真机首配实锤）：手机接管/离开的
+  // 过渡期 relay 会对 pair_status_query 周期性回 WRONG_PARAM。官方（3.14.3 bundle
+  // handleError 取证）对该条件（paired||waiting_terminal）只 logger.warn——不断连、
+  // 不停心跳、不刷新 ack；30s ack 看门狗到期自然重连自愈。此前按终态处理会把刚
+  // 配对上的会话 10s 内误杀。
+  socket.serverMessage({
+    type: "error",
+    code: "WRONG_PARAM",
+    message: "pair_status_query rejected in paired state",
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(control.runtimeState().status, "active");
+  assert.equal(control.runtimeState().connected, true);
+  assert.equal(control.runtimeState().failure, null);
+
   // bootstrap 帧 → 返回带工作区的响应（任务拉取因 Host 缺失回空列表，不阻塞）
   socket.serverMessage({
     type: "data",
     payload: { zcode_type: "bootstrap-request", requestId: "r1" },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const bootstrapResponse = socket.sent.find(
-    (m) => m.zcode_type === "bootstrap-response",
-  );
+  // 出站应用帧必须裹 {type:"data", payload} 信封——裸帧会被 relay 以 WRONG_PARAM
+  // 拒收，手机页收不到响应（2026-09-27 真机取证）。
+  const sentAppFrames = () =>
+    socket.sent
+      .filter((m) => m.type === "data" && m.payload && typeof m.payload === "object")
+      .map((m) => m.payload as Record<string, unknown>);
+  const bootstrapResponse = sentAppFrames().find((m) => m.zcode_type === "bootstrap-response");
   assert.ok(bootstrapResponse, "必须回应 bootstrap-response");
   assert.equal(bootstrapResponse.success, true);
   const result = bootstrapResponse.result as {
@@ -261,6 +333,69 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
   };
   assert.equal(result.windowControlSessionId, "d_test");
   assert.equal(result.workspaces[0]?.workspacePath, "C:/demo");
+
+  // 多工作区聚合（官方 syncWebRemoteControlWorkspaces 同款）：renderer 推送后
+  // bootstrap 汇总推送清单+运行时目标；paired 态下指纹变化触发
+  // workspace-list-updated 广播（官方 pushWorkspaceListUpdated 语义）。
+  control.syncAvailableWorkspaces([
+    {
+      workspacePath: "ssh://host/remote/proj",
+      workspaceIdentity: "ssh://host/remote/proj",
+      remoteSessionId: "rs-1",
+      label: "proj",
+      kind: "remote",
+      connectionState: "connected",
+    },
+  ]);
+  const updatedFrame = sentAppFrames().find((m) => m.zcode_type === "workspace-list-updated");
+  assert.ok(updatedFrame, "paired 态推送清单必须广播 workspace-list-updated");
+  const updatedResult = updatedFrame.result as {
+    workspaces: Array<{ workspacePath: string; kind: string }>;
+  };
+  assert.equal(updatedResult.workspaces.length, 2, "推送工作区+运行时目标");
+  assert.equal(updatedResult.workspaces[0]?.workspacePath, "ssh://host/remote/proj");
+  assert.equal(updatedResult.workspaces[0]?.kind, "remote");
+  assert.equal(updatedResult.workspaces[1]?.workspacePath, "C:/demo");
+  // 重复推送相同清单不重复广播（指纹去重）。
+  const before = sentAppFrames().length;
+  control.syncAvailableWorkspaces([
+    {
+      workspacePath: "ssh://host/remote/proj",
+      workspaceIdentity: "ssh://host/remote/proj",
+      remoteSessionId: "rs-1",
+      label: "proj",
+      kind: "remote",
+      connectionState: "connected",
+    },
+  ]);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sentAppFrames().length, before, "指纹未变不得重复广播");
+
+  // platform-request（对齐官方 q 处理器）：方法表内执行成功/失败分别回
+  // platform-response 的 success true/false；未知方法回错误。
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "platform-request", requestId: "p1", method: "isDockerAvailable" },
+  });
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "platform-request", requestId: "p2", method: "boom" },
+  });
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "platform-request", requestId: "p3", method: "nope" },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const platformResponses = sentAppFrames().filter((m) => m.zcode_type === "platform-response");
+  assert.equal(platformResponses.length, 3);
+  const ok1 = platformResponses.find((m) => m.requestId === "p1");
+  assert.equal(ok1?.success, true);
+  assert.equal(ok1?.result, true);
+  const failed = platformResponses.find((m) => m.requestId === "p2");
+  assert.equal(failed?.success, false);
+  assert.equal(failed?.error, "kaput");
+  const unknown = platformResponses.find((m) => m.requestId === "p3");
+  assert.equal(unknown?.success, false);
 
   // 桥请求（M4b）：plain node 无 electron MessageChannelMain，附着失败必须回
   // desktop-host-missing 失败面而不是挂起；workspaceKey 错误时回 workspace-not-found。
@@ -274,7 +409,12 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
     },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const notFound = socket.sent.find((m) => m.zcode_type === "workspace-bridge-error");
+  const collectBridgeErrors = () =>
+    socket.sent
+      .filter((m) => m.type === "data" && m.payload && typeof m.payload === "object")
+      .map((m) => m.payload as Record<string, unknown>)
+      .filter((m) => m.zcode_type === "workspace-bridge-error");
+  const notFound = collectBridgeErrors().find((m) => m.requestId === "r2");
   assert.ok(notFound, "未知工作区必须回应 bridge-error");
   assert.equal(notFound.reason, "workspace-not-found");
   socket.serverMessage({
@@ -287,9 +427,7 @@ test("状态机全链路：注册→挑战→waiting→QR 就绪→matched→boo
     },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const hostMissing = socket.sent
-    .filter((m) => m.zcode_type === "workspace-bridge-error")
-    .find((m) => m.requestId === "r3");
+  const hostMissing = collectBridgeErrors().find((m) => m.requestId === "r3");
   assert.ok(hostMissing, "附着失败必须回应 bridge-error");
   assert.equal(hostMissing.reason, "desktop-host-missing");
 
@@ -308,7 +446,6 @@ test("persisted 凭据：直连 auth_init，不重复注册", async () => {
   const control = createDesktopMobileRelayControl({
     logger: { info: () => {}, warn: () => {} },
     deviceMid: "mid-test",
-    appVersion: "0.0.5",
     credentialStore: store,
     resolveHostChild: () => null,
     webSocketCtor: harness.ctor as never,
@@ -332,6 +469,109 @@ test("persisted 凭据：直连 auth_init，不重复注册", async () => {
   await control.stop();
 });
 
+test("重启自动恢复：上下文工作区在推送清单中才恢复，手动 stop 清除后不恢复", async () => {
+  const harness = createFakeSocketHarness();
+  const store = await makeStore();
+  let persisted: { workspacePath: string; workspaceIdentity?: string } | null = null;
+  const control = createDesktopMobileRelayControl({
+    logger: { info: () => {}, warn: () => {} },
+    deviceMid: "mid-test",
+    credentialStore: store,
+    startupRestoreStorage: {
+      load: async () => persisted,
+      save: async (context) => {
+        persisted = context;
+      },
+      clear: async () => {
+        persisted = null;
+      },
+    },
+    resolveHostChild: () => null,
+    webSocketCtor: harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  after(() => void control.stop());
+
+  // start 成功 → 上下文已保存
+  const startPromise = control.start({ workspacePath: "C:/demo" });
+  await new Promise((r) => setTimeout(r, 10));
+  const socket = harness.sockets[0]!;
+  socket.serverOpen();
+  socket.serverMessage({ type: "device_register_ack", device_sid: "d_r", server_ts: 1 });
+  socket.serverMessage({ type: "auth_challenge", nonce: "n", server_ts: 1 });
+  socket.serverMessage({ type: "auth_ack", pair_status: "waiting", server_ts: 1 });
+  await startPromise;
+  assert.deepEqual(persisted, { workspacePath: "C:/demo" });
+  await control.stop();
+  // 手动 stop → 上下文清除（官方 manual-stop 才 clear）
+  assert.equal(persisted, null);
+
+  // 上下文缺失 → 不恢复
+  assert.equal(
+    await control.restorePreviouslyEnabled([
+      {
+        workspacePath: "C:/demo",
+        label: "demo",
+        kind: "local",
+        connectionState: "connected",
+      },
+    ]),
+    false,
+  );
+
+  // 上下文存在且工作区在推送清单中 → 恢复成功，且本次运行至多一次
+  persisted = { workspacePath: "C:/demo" };
+  const restorePromise = control.restorePreviouslyEnabled([
+    {
+      workspacePath: "C:/other",
+      label: "other",
+      kind: "local",
+      connectionState: "connected",
+    },
+    { workspacePath: "C:/demo", label: "demo", kind: "local", connectionState: "connected" },
+  ]);
+  // 恢复内部的 start 会建新 socket；驱动它走到 QR-ready。
+  await new Promise((r) => setTimeout(r, 10));
+  const socket2 = harness.sockets[1]!;
+  socket2.serverOpen();
+  socket2.serverMessage({ type: "device_register_ack", device_sid: "d_r2", server_ts: 1 });
+  socket2.serverMessage({ type: "auth_challenge", nonce: "n2", server_ts: 1 });
+  socket2.serverMessage({ type: "auth_ack", pair_status: "waiting", server_ts: 1 });
+  assert.equal(await restorePromise, true);
+  assert.equal(control.isRunning(), true);
+  assert.equal(
+    await control.restorePreviouslyEnabled([
+      { workspacePath: "C:/demo", label: "demo", kind: "local", connectionState: "connected" },
+    ]),
+    false,
+    "已恢复过/运行中不得重复恢复",
+  );
+
+  // 工作区不在推送清单中 → 不恢复（官方"工作区不匹配不恢复"）
+  const control2 = createDesktopMobileRelayControl({
+    logger: { info: () => {}, warn: () => {} },
+    deviceMid: "mid-test",
+    credentialStore: store,
+    startupRestoreStorage: {
+      load: async () => ({ workspacePath: "C:/gone" }),
+      save: async () => {},
+      clear: async () => {},
+    },
+    resolveHostChild: () => null,
+    webSocketCtor: harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  after(() => void control2.stop());
+  assert.equal(
+    await control2.restorePreviouslyEnabled([
+      { workspacePath: "C:/demo", label: "demo", kind: "local", connectionState: "connected" },
+    ]),
+    false,
+  );
+});
+
 test("reset 轮换凭据：清存后重走注册", async () => {
   const harness = createFakeSocketHarness();
   const store = await makeStore();
@@ -339,7 +579,6 @@ test("reset 轮换凭据：清存后重走注册", async () => {
   const control = createDesktopMobileRelayControl({
     logger: { info: () => {}, warn: () => {} },
     deviceMid: "mid-test",
-    appVersion: "0.0.5",
     credentialStore: store,
     resolveHostChild: () => null,
     webSocketCtor: harness.ctor as never,
@@ -377,8 +616,14 @@ test("reset 轮换凭据：清存后重走注册", async () => {
 // —— M4b：rpc-frame 编解码 ——
 
 test("rpc-frame 编解码往返：crc32 校验、分片重组、字段形状", async () => {
-  const { RpcFrameAssembler, crc32, encodeRpcTransportMessage, buildRpcFrameAck, parseRpcTransportFrame, toExternalBridge } =
-    await import("../src/main/desktopMobileRelayProtocol.js");
+  const {
+    RpcFrameAssembler,
+    crc32,
+    encodeRpcTransportMessage,
+    buildRpcFrameAck,
+    parseRpcTransportFrame,
+    toExternalBridge,
+  } = await import("../src/main/desktopMobileRelayProtocol.js");
   const identity = { bridgeSessionId: "b-1", bridgeGeneration: 3, recoveryId: "r-9" };
   const message = new Uint8Array(1_500_000);
   for (let i = 0; i < message.length; i += 1) message[i] = i % 251;
@@ -399,6 +644,11 @@ test("rpc-frame 编解码往返：crc32 校验、分片重组、字段形状", a
   assert.equal(first.recoveryId, "r-9");
   assert.equal(first.messageBytes, message.byteLength);
   assert.equal(first.checksum.algorithm, "crc32");
+  // checksum.value 线格式必须是 8 位小写 hex 字符串——手机端组装器以
+  // /^[0-9a-f]{8}$/ 校验，数字会被判 proto.frameAssemblyMetadataMismatch 丢弃
+  // （2026-09-27 真机取证）。
+  assert.match(first.checksum.value, /^[0-9a-f]{8}$/);
+  assert.equal(parseInt(first.checksum.value, 16), crc32(message));
 
   // 重组往返
   const assembler = new RpcFrameAssembler(identity);
@@ -442,9 +692,8 @@ test("rpc-frame 编解码往返：crc32 校验、分片重组、字段形状", a
 });
 
 test("超限消息被拒：空消息与超 16MiB", async () => {
-  const { encodeRpcTransportMessage, RPC_FRAME_MAX_MESSAGE_BYTES } = await import(
-    "../src/main/desktopMobileRelayProtocol.js"
-  );
+  const { encodeRpcTransportMessage, RPC_FRAME_MAX_MESSAGE_BYTES } =
+    await import("../src/main/desktopMobileRelayProtocol.js");
   assert.throws(
     () =>
       encodeRpcTransportMessage({
@@ -473,4 +722,17 @@ test("通道名别名推导：drora-* → zcode-*，其余不衍生", async () =
   assert.equal(toOfficialRpcChannelAlias("drora-session"), "zcode-session");
   assert.equal(toOfficialRpcChannelAlias("window-controller"), null);
   assert.equal(toOfficialRpcChannelAlias("drora-"), "zcode-");
+});
+
+test("deriveSelfHostedRelayEndpoints：自建 relay 端点推导（spec §8）", () => {
+  const http = deriveSelfHostedRelayEndpoints("http://relay.lan:4430");
+  assert.equal(http?.relayWsUrl, "ws://relay.lan:4430/ws");
+  assert.equal(http?.remotePageUrl, "http://relay.lan:4430/m/index.html");
+
+  const https = deriveSelfHostedRelayEndpoints("https://relay.example.com/");
+  assert.equal(https?.relayWsUrl, "wss://relay.example.com/ws");
+  assert.equal(https?.remotePageUrl, "https://relay.example.com/m/index.html");
+
+  assert.equal(deriveSelfHostedRelayEndpoints(""), undefined);
+  assert.equal(deriveSelfHostedRelayEndpoints("not a url"), undefined);
 });

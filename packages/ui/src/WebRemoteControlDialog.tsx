@@ -27,6 +27,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
+import { createWebRemoteControlAutoStartGate } from "@/lib/webRemoteControlAutoStart.js";
 
 type RemoteControlBotProvider = Extract<BotProvider, "weixin" | "feishu" | "lark" | "telegram">;
 
@@ -101,7 +102,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false);
   const renderedQrUrlRef = useRef<string | null>(null);
-  const autoStartedForOpenRef = useRef(false);
+  const autoStartGateRef = useRef(createWebRemoteControlAutoStartGate());
   const transportRef = useRef(transport);
   transportRef.current = transport;
 
@@ -222,11 +223,12 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     });
   }, [platform, applyRuntimeState]);
 
-  // 对齐原版：弹层打开即恢复展示；服务未运行则自动开启（每次打开至多自动开启一次）。
-  // 传输切换时同样恢复对应链路的状态。
+  // 对齐原版：弹层打开即恢复展示；服务未运行则自动开启。名额按传输区分
+  // （spec: mobile-web-remote.md「Renderer 集成面」）：LAN 打开时消耗自己的名额后，
+  // 切到云中继 tab 仍可自动开启 relay。传输切换时同样恢复对应链路的状态。
   useEffect(() => {
     if (!open) {
-      autoStartedForOpenRef.current = false;
+      autoStartGateRef.current.reset();
       return;
     }
     void (async () => {
@@ -246,10 +248,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
             failure: null,
           },
         );
-        if (state?.status === "idle" && !autoStartedForOpenRef.current) {
-          autoStartedForOpenRef.current = true;
-          void handleStart();
-        }
+        if (autoStartGateRef.current.admit(state, transport)) void handleStart();
       } catch {
         // 查询失败静默；starting 态兜底显示
       }
@@ -287,12 +286,16 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   };
 
   const handleStopPairing = () => {
-    setQr({ status: "idle", url: null, qrDataUrl: null, failureMessage: null, qrRenderError: null });
+    setQr({
+      status: "idle",
+      url: null,
+      qrDataUrl: null,
+      failureMessage: null,
+      qrRenderError: null,
+    });
     renderedQrUrlRef.current = null;
     const stopping =
-      transport === "relay"
-        ? platform.stopMobileRelayControl?.()
-        : platform.stopMobilePairing?.();
+      transport === "relay" ? platform.stopMobileRelayControl?.() : platform.stopMobilePairing?.();
     void stopping?.catch((error: unknown) =>
       logger.warn("[WebRemoteControlDialog] 停止远控失败", {
         transport,

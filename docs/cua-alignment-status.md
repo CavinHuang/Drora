@@ -43,6 +43,20 @@ cd packages/desktop && DRORA_ENV=production pnpm bundle
 构建工具链注意：volta 自带 pnpm 绑 node 18 不可用——
 `PATH="$HOME/.volta/tools/image/node/24.14.0/bin:$PATH" corepack enable --install-directory /tmp/ci-bin && PATH=/tmp/ci-bin:$PATH pnpm …`
 
+## 签名构建首用链实测（2026-09-28，3d298c5 后）
+
+自签名生产包（Drora Desktop Signing，hardened runtime）对已装包 live 闭环全绿：
+安装替换（drora-0.0.1→drora-0.0.9，"not usable, reinstalling"）→ 发射（折叠门
+`allowUnsignedLauncherLocalDev:true` 随包实证）→ health → live 复核（adhoc 分支）
+→ permission_status 应答；关键升级：`"signature":"signed:Drora Desktop Signing"`、
+`"stable_identity":true`——Helper 首次以稳定签名身份运行，**TCC 授权跨更新持久化**
+（ad-hoc 时代每次更新重授的固有代价消除）。嵌套 Helper 经 electron-builder 重签为
+自签名且 entitlementsInherit 完整（jit/unsigned-mem/disable-library-validation），
+hardened runtime 下 SEA 正常执行。zcode-cua 五套测试（restored-smoke/
+embedded-build-id/mac-launch-contract/cua-tool-layer-smoke/adhoc-distribution-profile
+含 C2 严格门对照）全绿。备注：v0.0.8 的 Helper 为未折叠严格 SEA（拒启），0.0.9 起
+修复；存量 0.0.8 用户升级后首次使用会自动按 buildId 失配重装新 Helper。
+
 ## 待用户输入的两项
 
 1. **GUI 10 秒手工确认**：打开 App → 任开会话 → 设置 → 电脑控制 →

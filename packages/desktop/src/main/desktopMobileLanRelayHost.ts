@@ -1,14 +1,16 @@
 // 内嵌 LAN relay 宿主（自研层，specs/mobile-relay-server.md §12）：
 // 桌面应用进程内启动自建 relay-server，「局域网连接」传输与云中继统一走 relay 协议，
-// 手机页复用 R2 自建页（/m）。旧 LAN 直连配对服务栈（desktopMobilePairingServer/
-// Core/Restore，协议 v1 + 一次性令牌）已删除（specs/mobile-relay-server.md §12.4），
-// 其 LAN 地址挑选逻辑（pickLanAddress）迁入本文件继续服务内嵌 relay 出码。
+// 手机页默认官方 v4 托管页（/remote/v4，内建资产代理 §12.9：cache→fetch 官方源站，
+// 离线时入口 302 → R2 自建页 /m/index.html 兜底）。旧 LAN 直连配对服务栈
+// （desktopMobilePairingServer/Core/Restore，协议 v1 + 一次性令牌）已删除
+// （specs/mobile-relay-server.md §12.4），其 LAN 地址挑选逻辑（pickLanAddress）
+// 迁入本文件继续服务内嵌 relay 出码。
 //
 // 职责边界：本模块只管内嵌服务端生命周期（listen/stop/幂等）与凭据 origin 路由的
 // 纯逻辑；relay 控制链（desktopMobileRelayControl）与装配（index.ts）不在此处。
 import { createHash } from "node:crypto";
 import { homedir, networkInterfaces } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   createDeviceRegistry,
   createFileDeviceRegistryStorage,
@@ -92,6 +94,10 @@ export function createDesktopMobileLanRelayHost(deps: {
           registry,
           port: 0,
           host: listenHost,
+          // 内建官方页资产代理（spec §12.9）：LAN 内嵌默认出官方 v4 页；缓存与
+          // registry 同目录托管（~/.drora/v2/mobile-relay-lan/remote-assets），
+          // 离线时入口 302 → /m/index.html（R2 极简页兜底）。
+          remoteAssets: { cacheDir: join(dirname(registryFilePath), "remote-assets") },
           log: relayLog,
         });
         try {
@@ -136,9 +142,11 @@ export function createDesktopMobileLanRelayHost(deps: {
 }
 
 /**
- * LAN 传输的二维码页地址（specs/mobile-relay-server.md §12.1）：手机必须经局域网
- * IPv4 访问自建手机页；找不到可用地址时抛错（环回地址对手机不可达，出码必然连不上）。
- * WS 入口同理经 lanIp 可达（服务端绑 0.0.0.0）。
+ * LAN 传输的二维码页地址（specs/mobile-relay-server.md §12.1/§12.9）：手机必须经
+ * 局域网 IPv4 访问内嵌 relay；找不到可用地址时抛错（环回地址对手机不可达，出码
+ * 必然连不上）。页地址为官方 v4 托管页（/remote/v4，§12.5-§12.8 双栈对齐结论的
+ * 产品化）——资产代理离线时该入口 302 回退 R2 极简页（/m/index.html，保留 QR
+ * 查询参数），故无需客户端侧探测。WS 入口同理经 lanIp 可达（服务端绑 0.0.0.0）。
  */
 export function buildLanRemotePageUrl(params: { port: number }): string {
   const lan = pickLanAddress();
@@ -149,7 +157,7 @@ export function buildLanRemotePageUrl(params: { port: number }): string {
     address: lan.address,
     interfaceName: lan.interfaceName,
   });
-  return `http://${lan.address}:${params.port}/m/index.html`;
+  return `http://${lan.address}:${params.port}/remote/v4`;
 }
 
 export interface LanAddressResult {

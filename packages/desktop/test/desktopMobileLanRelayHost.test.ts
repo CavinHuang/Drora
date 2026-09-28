@@ -55,7 +55,10 @@ function connectTerminal(url: string): Promise<{
           const queued = queue.shift();
           if (queued) return Promise.resolve(queued);
           return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error("terminal message timeout")), timeoutMs);
+            const timer = setTimeout(
+              () => reject(new Error("terminal message timeout")),
+              timeoutMs,
+            );
             pending.push((message) => {
               clearTimeout(timer);
               resolve(message);
@@ -94,7 +97,12 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
 
   // 真实可达：WS 入口在同一端口应答注册。
   const probe = await connectTerminal(`ws://127.0.0.1:${first.port}/ws`);
-  probe.send({ type: "device_register_init", device_mid: "mid-host", pass_hash: "h", client_ts: Date.now() });
+  probe.send({
+    type: "device_register_init",
+    device_mid: "mid-host",
+    pass_hash: "h",
+    client_ts: Date.now(),
+  });
   assert.equal((await probe.next()).type, "device_register_ack");
   await probe.close();
 
@@ -150,8 +158,8 @@ test("进程内一致性：真 desktopMobileRelayControl × 真内嵌 relayServe
   };
   assert.match(
     preparedEndpoints.remotePageUrl,
-    /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/m\/index\.html$/u,
-    "QR 页地址必须指向手机可达的 LAN IPv4",
+    /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/remote\/v4$/u,
+    "QR 页地址必须指向手机可达的 LAN IPv4 上的官方 v4 托管页（§12.9，离线 302 回退 R2 页）",
   );
 
   // 凭据仓：LAN 稳定 origin 路由（§12.2，路由文件名与装配一致）。
@@ -177,20 +185,30 @@ test("进程内一致性：真 desktopMobileRelayControl × 真内嵌 relayServe
   // QR：sid+hash 形态（与云中继同构造），baseUrl = 注入的本机页地址。
   const qr = new URL(started.url);
   assert.equal(qr.origin, new URL(preparedEndpoints.remotePageUrl).origin);
-  assert.equal(qr.pathname, "/m/index.html");
+  assert.equal(qr.pathname, "/remote/v4");
   const deviceSid = qr.searchParams.get("sid") as string;
   const passHash = qr.searchParams.get("hash") as string;
   assert.match(deviceSid, /^d_/);
 
   // 手机（terminal）经局域网入口配对：auth_init → challenge → proof → matched。
   const terminal = await connectTerminal(`ws://127.0.0.1:${port}/ws`);
-  terminal.send({ type: "auth_init", role: "terminal", device_sid: deviceSid, client_ts: Date.now() });
+  terminal.send({
+    type: "auth_init",
+    role: "terminal",
+    device_sid: deviceSid,
+    client_ts: Date.now(),
+  });
   const challenge = await terminal.next();
   assert.equal(challenge.type, "auth_challenge");
   terminal.send({
     type: "auth_response",
     device_sid: deviceSid,
-    proof: calculateRelayProof({ passHash, nonce: challenge.nonce as string, role: "terminal", sessionId: deviceSid }),
+    proof: calculateRelayProof({
+      passHash,
+      nonce: challenge.nonce as string,
+      role: "terminal",
+      sessionId: deviceSid,
+    }),
     client_ts: Date.now(),
   });
   const authAck = await terminal.next();

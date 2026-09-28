@@ -4,9 +4,8 @@
 import { createServer } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
-import { PHONE_PAGE_HTML } from "./phonePage.js";
 import { createRateLimiter } from "./rateLimiter.js";
-import { serveStaticAsset } from "./staticAssets.js";
+import { routeStaticRequest } from "./staticAssets.js";
 import { send, sendError, sendThenTerminate } from "./wire.js";
 import {
   MAX_WS_PAYLOAD_BYTES,
@@ -45,6 +44,16 @@ export interface RelayServerOptions {
    * <staticRoot>/remote/v4/<version>/assets/*（spec §12.5）。
    */
   staticRoot?: string;
+  /**
+   * 内建官方页资产代理（spec §12.9）：GET /remote/** 未命中 staticRoot 时，
+   * cacheDir 缓存 → fetch 官方源站（10s 超时）→ 原始字节落盘缓存、出站改写后
+   * 服务；离线回退：入口文档（/remote/v4[/index.html]）302 → /m/index.html
+   * （保留查询串，R2 极简页兜底），其余资产 404。与 staticRoot 互不排斥
+   * （staticRoot 优先）；决策与安全约束在 staticAssets.ts。
+   */
+  remoteAssets?: { cacheDir: string };
+  /** 资产代理 fetch 实现（依赖注入，测试 mock；缺省 globalThis.fetch，不污染 global）。 */
+  fetchImpl?: typeof fetch;
   log?: RelayServerLogger;
 }
 
@@ -73,6 +82,9 @@ export function createRelayServer(options: RelayServerOptions) {
   const pingIntervalMs = options.pingIntervalMs ?? 30_000;
   // 防目录穿越基准：静态根的绝对形态（spec §12.5——resolve 后必须仍在其内）。
   const staticRootAbs = options.staticRoot ? resolvePath(options.staticRoot) : null;
+  // 内建资产代理缓存根的绝对形态（spec §12.9）。
+  const remoteAssetsAbs = options.remoteAssets ? resolvePath(options.remoteAssets.cacheDir) : null;
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
 
   // 错误帧统一出口：线协议 message 空串（对齐官方），诊断细节进服务端日志。
   function emitError(socket: WebSocket, code: string, detail?: string): void {
@@ -91,31 +103,28 @@ export function createRelayServer(options: RelayServerOptions) {
     // 必须按 pathname 匹配——request.url 含查询串（QR 的 sid/hash 等），
     // 精确匹配会让带参数的手机页 404（E2E 实锤）。
     let pagePathname = "";
+    let pageSearch = "";
     try {
-      pagePathname = new URL(request.url ?? "/", "http://relay.local").pathname;
+      const parsed = new URL(request.url ?? "/", "http://relay.local");
+      pagePathname = parsed.pathname;
+      pageSearch = parsed.search;
     } catch {
       pagePathname = request.url ?? "";
     }
-    if (pagePathname === "/m" || pagePathname === "/m/" || pagePathname === "/m/index.html") {
-      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      response.end(PHONE_PAGE_HTML);
-      return;
-    }
-    // 静态资产托管（spec §12.5）：/remote/** → staticRoot/remote/** 文件映射，
-    // 含官方托管页 relay 端点出站改写；命中判断/防穿越/改写在 staticAssets.ts。
-    if (
-      staticRootAbs &&
-      (request.method ?? "GET") === "GET" &&
-      pagePathname.startsWith("/remote/")
-    ) {
-      const asset = await serveStaticAsset(pagePathname, staticRootAbs);
-      if (asset) {
-        response.writeHead(200, { "content-type": asset.contentType, "cache-control": "no-cache" });
-        response.end(asset.body);
-      } else {
-        response.writeHead(404, { "content-type": "text/plain" });
-        response.end("not found");
-      }
+    // 页面/静态托管路由（spec §12.5/§12.9）：R2 手机页（/m*）与 /remote/** 托管
+    // 资产两级来源（staticRoot → 内建 cache/fetch 代理）+ 离线回退；决策与安全
+    // 约束集中在 staticAssets.ts（单文件行数门禁），此处仅接线 HTTP 响应。
+    const routed = await routeStaticRequest({
+      method: request.method ?? "GET",
+      pathname: pagePathname,
+      search: pageSearch,
+      staticRootAbs,
+      remoteAssetsAbs,
+      fetchImpl,
+    });
+    if (routed) {
+      response.writeHead(routed.status, routed.headers);
+      response.end(routed.body);
       return;
     }
     // 自托管资产库不做官方式版本门控：页面与桌面端同仓发布，天然配套（spec §7）。

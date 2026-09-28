@@ -382,6 +382,30 @@ relay 上的显示与官方 relay 完全对齐（同一前端、同一协议、�
 结论：官方前端在自建 relay 上的全部交互面与官方 relay 行为对齐；剩余显示差异
 仅错误详情文案一处（有意）。
 
+**内建资产代理（2026-09-29，LAN 内嵌/自建部署默认官方页）**：`createRelayServer`
+新增 `remoteAssets: { cacheDir }` 选项与可注入 `fetchImpl`（缺省
+`globalThis.fetch`，测试 mock 走依赖注入、不污染 global）。GET `/remote/**` 的
+来源触发顺序：①`staticRoot` 文件映射（dev `--static-dir`，优先，测试床语义不变）
+→ ②`cacheDir` 同 pathname 缓存 → ③fetch 官方源站
+`https://zcode.z.ai<pathname>`（10s 超时，简单 UA）→ 200 则把**原始字节**写入
+`cacheDir`（目录随 pathname 创建；无扩展名入口按 staticRoot 约定落
+`<pathname>/index.html`——v4 既是入口路径又是 `/remote/v4/<ver>/assets/*` 的
+目录，不能落同名文件）并出站改写后服务。缓存只存原始字节、改写只在
+出站做——§12.5 托管改写规则演进时缓存仍有效；写缓存失败降级为直出不缓存。
+防穿越约束同 staticRoot：越界 pathname 直接拒绝，连源站都不请求（无扩展名候选链
+原样 → .html → index.html 亦同 staticRoot；Content-Type 按扩展名推导，无扩展名
+入口按 HTML）。**离线降级**：fetch 失败/非 200 时——入口文档（`/remote/v4` 与
+`/remote/v4/index.html`）302 重定向到 `/m/index.html`（**保留原查询串**，QR 的
+sid/hash 透传，R2 极简页兜底）；其余资产（chunk/css）404（页面自身有失败面，
+重定向无意义）。内嵌 LAN 宿主（desktopMobileLanRelayHost）默认启用
+`remoteAssets`（cacheDir=`~/.drora/v2/mobile-relay-lan/remote-assets`，与
+registry 同目录），LAN 二维码页地址由 `/m/index.html` 升级为 `/remote/v4`（官方
+v4 页，§12.5-§12.8 双栈对齐结论的产品化）；R2 页由重定向兜底，离线首次打开即
+回退。CLI（main.ts）未给 `--static-dir` 时默认启用代理（cacheDir 缺省
+`./remote-asset-cache`，`--asset-cache-dir` 可覆盖）；`--static-dir` 仍优先。
+云中继（官方/自建）端点推导（`deriveSelfHostedRelayEndpoints` →
+`<base>/m/index.html`）不受影响。
+
 ### 12.6 对齐完成（2026-09-28）
 
 交互级六面对比（§12.5 第二轮）暴露的最后一处显示差异——KICKED 卡「Relay 返回」

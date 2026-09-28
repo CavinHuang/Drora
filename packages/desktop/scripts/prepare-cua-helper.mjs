@@ -8,9 +8,11 @@
 // 官方签名副本（resources/cua-helper）只作 parity 参照物与 node_modules 种源，
 // 不入包——其 launcher 门钉死 dev.zcode.app + TeamID 8A5X4JJ39T，Drora
 // （dev.drora.app）无论 ad-hoc 还是自有 Developer ID 都永远无法拉起它。
-// 分发 profile 折叠：路线 A（DRORA_ENABLE_MAC_SIGN != 1）折叠
-// CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1；正式签名构建不折叠（严格 launcher 门，
-// 签名身份决策见 spec §七.2）。
+// 分发 profile 折叠：路线 A 默认恒折叠 CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1。
+// 严格 launcher 门（锚官方 Developer ID + TeamID 8A5X4JJ39T）只在
+// DRORA_CUA_HELPER_STRICT_CHAIN=1（未来 Developer ID + spec §七.3 v2 整体
+// 还原）时打开——自签名证书（spec §七.2 2026-09-27 部分裁定）无法满足严格门，
+// 若按 DRORA_ENABLE_MAC_SIGN 关折叠会让签名包的 Helper 恒拒启。
 // 构建失败即失败：发布构建不允许静默降级为"不带 Helper 的包"。
 import process from "node:process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
@@ -49,9 +51,9 @@ const desktopVersion = JSON.parse(
 const env = {
   ...process.env,
   CUA_HELPER_BUILD_ID: process.env.CUA_HELPER_BUILD_ID ?? `drora-${desktopVersion}`,
-  ...(process.env.DRORA_ENABLE_MAC_SIGN === "1"
+  ...(process.env.DRORA_CUA_HELPER_STRICT_CHAIN === "1"
     ? {}
-    : // 路线 A：ad-hoc 分发必须折叠，否则 Helper 对未签名 launcher 恒拒启
+    : // 路线 A：ad-hoc/自签名分发必须折叠，否则 Helper 对非官方签名 launcher 恒拒启
       { CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER: "1" }),
 };
 
@@ -69,9 +71,7 @@ try {
     stdio: "inherit",
   });
 } finally {
-  console.log(
-    `[ci][timer] prepare:cua-helper build end duration_ms=${Date.now() - startMs}`,
-  );
+  console.log(`[ci][timer] prepare:cua-helper build end duration_ms=${Date.now() - startMs}`);
 }
 
 if (!existsSync(join(builtHelperApp, "Contents", "MacOS", "ZCode Computer Use"))) {

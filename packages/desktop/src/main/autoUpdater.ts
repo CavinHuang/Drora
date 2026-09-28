@@ -1394,9 +1394,10 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
   // specs/update-feed-github.md「macOS quitAndInstall 失败恢复」：
   // 安装请求后的迟到 error 必须交给恢复回调收口，不能走常规静默收敛。
-  installFailureRecovery = createAutoUpdateInstallRecovery({
-    onInstallFailure: (error) => options.onQuitAndInstallFailed?.(error),
-  });
+  // 回调缺省时不创建判定器——error 继续走常规收敛，绝不能既无恢复又无收敛。
+  installFailureRecovery = options.onQuitAndInstallFailed
+    ? createAutoUpdateInstallRecovery({ onInstallFailure: options.onQuitAndInstallFailed })
+    : null;
   if (options.locale) {
     menuLocale = options.locale;
   }

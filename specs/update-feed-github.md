@@ -91,6 +91,10 @@ code requirement(s)"）。链路其余环节（manifest 检查、下载/差分�
   不同内容双构建 Squirrel 等价校验（`codesign -v -R=`）PASS。
 - 构建接线：既有 `CSC_NAME` + `DRORA_ENABLE_MAC_SIGN=1` 通道直接生效，
   无需改 electron-builder 配置（afterSign adhoc 分支按既有开关自动跳过）。
+  注意：该开关**只**切换 app 主体的签名身份，不改变 CUA Helper 分发路线——
+  路线 A 折叠（`CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1`）默认恒生效，
+  仅 `DRORA_CUA_HELPER_STRICT_CHAIN=1`（Developer ID 终态 + v2 整体还原）
+  关闭（specs/mac-cua-helper-app-alignment.md §七.0a/§七.2）。
 - CI：release.yml 新增可选签名段——配置
   `MAC_SIGNING_CERT_P12_BASE64` / `MAC_SIGNING_CERT_PASSWORD` 两个 secret
   后，mac 构建位导入 p12 至临时 keychain 并以

@@ -48,9 +48,13 @@ cd packages/desktop && DRORA_ENV=production pnpm bundle
 1. **GUI 10 秒手工确认**：打开 App → 任开会话 → 设置 → 电脑控制 →
    徽章应为「未授权」（可点）而非「未知」→ 点「打开辅助功能设置」应弹系统设置。
    （服务端依赖链已逐环 live 验证。）
-2. **签名身份裁定**（Developer ID 或自签）：解锁 v2 认证五面整体还原
-   （token 链移除、clientApiVersion:2、双向原生 peer 互验、
-   `--permission-broker-socket`、launcher 门回收）——spec §七.2/3。
+2. **签名身份裁定**：2026-09-27 部分裁定——桌面 app 主体已选定**自签名证书**
+   （`Drora Desktop Signing`，specs/update-feed-github.md「macOS 发布签名身份」；
+   CI secrets 已配置、release.yml 已接线），解锁 Squirrel 自动更新链；但 v2
+   认证五面（token 链移除、clientApiVersion:2、双向原生 peer 互验、
+   `--permission-broker-socket`、launcher 门回收）仍锚定**官方 Developer ID**，
+   自签名不满足，严格链开关键 `DRORA_CUA_HELPER_STRICT_CHAIN` 保持关闭
+   （路线 A 折叠恒生效）——Developer ID 仍是待定终态，spec §七.2/3。
 
 ## 工作树
 

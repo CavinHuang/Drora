@@ -174,10 +174,12 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
         `bundled-cua-helper/`（electron-builder 源，gitignored）。官方副本只作
         parity 参照物与 node_modules 种源，**不入包**——其 launcher 门钉死
         `dev.zcode.app` + TeamID `8A5X4JJ39T`，Drora（dev.drora.app）无论
-        ad-hoc 还是自有 Developer ID 都永远无法拉起它。折叠：路线 A
-        （`DRORA_ENABLE_MAC_SIGN != 1`）注入
-        `CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1`；正式签名构建不折叠（严格
-        launcher 门，签名身份决策见 §七.2）。buildId 取 `drora-<desktop 版本>`。
+        ad-hoc 还是自有 Developer ID 都永远无法拉起它。折叠：路线 A **默认恒**
+        注入 `CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1`（自签名签名构建同属路线 A，
+        §七.2 2026-09-27 部分裁定——launcher 严格门锚官方 Developer ID，自签名
+        无法满足，按 `DRORA_ENABLE_MAC_SIGN` 关折叠会让签名包 Helper 恒拒启）；
+        仅 `DRORA_CUA_HELPER_STRICT_CHAIN=1`（Developer ID 落地 + §七.3 v2
+        整体还原时）不折叠。buildId 取 `drora-<desktop 版本>`。
         构建失败即失败，不降级出"无 Helper 包"；构建经当前 node 直跑（pnpm
         --filter 会被 volta shim 解析到项目钉扎外 node，SEA 骨架守卫需同 ABI）。
      b. **host live 进程验证分发门**：`helper-host` 对已启动 Helper 的

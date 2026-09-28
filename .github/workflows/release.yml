@@ -162,9 +162,12 @@ jobs:
           # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
           # authenticode;开源构建的预期形态。配置了自签名证书 secret 时按
           # specs/update-feed-github.md 启用真实身份签名（自动跳过路线 A adhoc）。
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'true' || 'false' }}
-          CSC_NAME: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'Drora Desktop Signing' || '' }}
-          DRORA_ENABLE_MAC_SIGN: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && '1' || '' }}
+          # 三个键必须以 builder-os==mac 门控：CSC_NAME 在 win 侧会被
+          # electron-builder 读作 Authenticode 身份，无证书的 Windows runner
+          # 会因找不到身份而打包失败。
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'true' || 'false' }}
+          CSC_NAME: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'Drora Desktop Signing' || '' }}
+          DRORA_ENABLE_MAC_SIGN: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && '1' || '' }}
       - name: Cleanup macOS signing keychain
         if: >-
           always() &&

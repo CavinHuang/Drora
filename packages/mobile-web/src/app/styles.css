@@ -1,0 +1,259 @@
+/* R3 P2a 自包含移动壳样式（specs/mobile-relay-r3-frontend.md §11/§13）。
+ * 设计 token 子集移植自 packages/ui/src/styles.css（明/暗两套值逐一对应，
+ * 只保留移动壳实际消费的面），不 import @drora/ui（D6 UI 自包含）。
+ * 字号/状态色/前景层级与 ui 同源值；改动须与 DESIGN.md 及 ui styles.css 对照。 */
+@import "tailwindcss";
+
+/* Tailwind v4 自动源检测以 vite root（src/app）为界——src/ui 的壳组件类不在扫描
+ * 范围内（E2E 实证：flex-col/bg-header 等未生成导致整页横排）。显式声明源目录。 */
+@source "../ui";
+@source "./";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --ui-font-size: 14px;
+}
+
+@theme {
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace;
+  --text-ui-xl: calc(var(--ui-font-size) + 4px);
+  --text-ui-lg: calc(var(--ui-font-size) + 2px);
+  --text-ui-base: var(--ui-font-size);
+  --text-ui-sm: calc(var(--ui-font-size) - 2px);
+  --text-ui-xs: calc(var(--ui-font-size) - 4px);
+
+  /* 例外刻度：iOS Safari 聚焦输入不缩放下限（ui styles.css 同源值）。 */
+  --text-mobile-input-safe: 16px;
+
+  /* P3a 富时间线：assistantText streaming 行尾光标脉冲（keyframes 随工具类按需产出）。 */
+  --animate-cursor-pulse: cursor-pulse 1s ease-in-out infinite;
+
+  @keyframes cursor-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  /* 状态色（明/暗共用主题值经下方 .dark 覆盖；基础字面值 = ui tailwind 调色板）。 */
+  --color-sky-50: oklch(0.977 0.013 236.62);
+  --color-sky-400: oklch(0.746 0.16 232.66);
+  --color-sky-500: oklch(0.685 0.169 237.32);
+  --color-sky-950: oklch(0.293 0.09 230.19);
+  --color-green-500: oklch(0.723 0.192 149.58);
+  --color-green-600: oklch(0.627 0.194 149.21);
+  --color-red-500: oklch(0.637 0.237 25.33);
+  --color-red-600: oklch(0.577 0.245 27.32);
+  --color-yellow-500: oklch(0.795 0.184 86.05);
+  --color-yellow-600: oklch(0.681 0.162 75.83);
+  --color-neutral-50: oklch(0.985 0 0);
+  --color-neutral-100: oklch(0.97 0 0);
+  --color-neutral-200: oklch(0.922 0 0);
+  --color-neutral-700: oklch(0.371 0 0);
+  --color-neutral-800: oklch(0.268 0 0);
+  --color-neutral-900: oklch(0.205 0 0);
+  --color-neutral-950: oklch(0.145 0 0);
+  --color-white: #fff;
+
+  --color-background: var(--color-neutral-50);
+  --color-brand: var(--color-sky-400);
+  --color-accent: var(--color-sky-50);
+  --color-border: color-mix(in oklab, var(--color-neutral-950) 10%, transparent);
+  --color-selected: color-mix(in oklab, var(--color-neutral-950) 10%, transparent);
+  --color-header: var(--color-neutral-100);
+  --color-surface: color-mix(in oklab, var(--color-neutral-950) 3%, transparent);
+  --color-surface-hover: color-mix(in oklab, var(--color-neutral-950) 5%, transparent);
+  --color-card: var(--color-white);
+  --color-card-border: var(--color-border);
+  /* 输入面（composer）：ui styles.css 同源（明 196/198/200 行）。 */
+  --color-input: var(--color-white);
+  --color-input-border: var(--color-border);
+  --color-input-border-focused: var(--color-brand);
+  --color-primary: var(--color-neutral-950);
+  --color-primary-foreground: var(--color-neutral-50);
+  --color-foreground: var(--color-neutral-700);
+  --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-700) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-700) 40%, transparent);
+  --color-foreground-inverse: var(--color-white);
+  --color-success: var(--color-green-600);
+  --color-success-foreground: var(--color-foreground-inverse);
+  --color-destructive: var(--color-red-600);
+  --color-destructive-foreground: var(--color-foreground-inverse);
+  --color-warning: var(--color-yellow-600);
+  --color-warning-foreground: var(--color-foreground-inverse);
+}
+
+.dark {
+  --color-background: var(--color-neutral-900);
+  --color-brand: var(--color-sky-500);
+  --color-accent: color-mix(in oklab, var(--color-sky-950) 50%, transparent);
+  --color-border: color-mix(in oklab, var(--color-neutral-50) 10%, transparent);
+  --color-selected: color-mix(in oklab, var(--color-white) 10%, transparent);
+  --color-header: var(--color-neutral-900);
+  --color-surface: color-mix(in oklab, var(--color-white) 5%, transparent);
+  --color-surface-hover: color-mix(in oklab, var(--color-white) 10%, transparent);
+  --color-card: var(--color-neutral-800);
+  --color-card-border: var(--color-border);
+  /* 输入面（composer）暗色覆盖：ui styles.css .dark（344/346/348 行）同源。 */
+  --color-input: var(--color-neutral-800);
+  --color-input-border: var(--color-border);
+  --color-input-border-focused: var(--color-brand);
+  --color-primary: var(--color-neutral-50);
+  --color-primary-foreground: var(--color-neutral-950);
+  --color-foreground: var(--color-neutral-200);
+  --color-foreground-inverse: var(--color-neutral-950);
+  --color-success: var(--color-green-500);
+  --color-destructive: var(--color-red-500);
+  --color-warning: var(--color-yellow-500);
+}
+
+.dark {
+  --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-200) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-200) 40%, transparent);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei UI",
+    "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* —— P3b markdown 渲染（MarkdownContent）：.drora-md 命名空间（spec §15 第 2 条）——
+ * 净化后注入的 HTML 无法逐元素挂 utility class，故用命名空间层叠提供排版；
+ * 颜色/字号/圆角全部引用上方 @theme token（与 ui styles.css 同源值），不新增 token。
+ * 语法高亮归 P3 后续，本层只做底色/边框/滚动的基础代码块面。 */
+.drora-md {
+  line-height: 1.625; /* tailwind leading-relaxed 同值 */
+  overflow-wrap: break-word;
+}
+.drora-md > :first-child {
+  margin-top: 0;
+}
+.drora-md > :last-child {
+  margin-bottom: 0;
+}
+.drora-md h1,
+.drora-md h2,
+.drora-md h3,
+.drora-md h4,
+.drora-md h5,
+.drora-md h6 {
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  line-height: 1.4;
+}
+.drora-md h1 {
+  font-size: var(--text-ui-xl);
+}
+.drora-md h2 {
+  font-size: var(--text-ui-lg);
+}
+.drora-md h3,
+.drora-md h4,
+.drora-md h5,
+.drora-md h6 {
+  font-size: var(--text-ui-base);
+}
+.drora-md p,
+.drora-md ul,
+.drora-md ol,
+.drora-md pre,
+.drora-md table,
+.drora-md blockquote {
+  margin: 0.5rem 0;
+}
+.drora-md ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.drora-md ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.drora-md li {
+  margin: 0.25rem 0;
+}
+.drora-md li > ul,
+.drora-md li > ol {
+  margin: 0.25rem 0;
+}
+/* 代码块：surface 底色 + 圆角 + 横向滚动（长行不撑破气泡）。 */
+.drora-md pre {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-ui-xs);
+  line-height: 1.5;
+}
+.drora-md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  white-space: pre;
+}
+/* 行内 code：同 surface 面但轻量（无边框）。 */
+.drora-md :not(pre) > code {
+  background: var(--color-surface);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+/* 表格：基本边框 + 窄面横向滚动（display:block 收缩到内容宽）。 */
+.drora-md table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.drora-md th,
+.drora-md td {
+  border: 1px solid var(--color-border);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.drora-md th {
+  background: var(--color-surface);
+  font-weight: 600;
+}
+.drora-md blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 0.75rem;
+  color: var(--color-foreground-subtle);
+}
+.drora-md a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+.drora-md hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 1rem 0;
+}
+.drora-md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}

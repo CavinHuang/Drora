@@ -1,0 +1,14 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [`path`, { d: `M10 3h.01`, key: `lbucoy` }],
+    [`path`, { d: `M14 2h.01`, key: `1k8aa1` }],
+    [`path`, { d: `m2 9 20-5`, key: `1kz0j5` }],
+    [`path`, { d: `M12 12V6.5`, key: `1vbrij` }],
+    [`rect`, { width: `16`, height: `10`, x: `4`, y: `12`, rx: `3`, key: `if91er` }],
+    [`path`, { d: `M9 12v5`, key: `3anwtq` }],
+    [`path`, { d: `M15 12v5`, key: `5xh3zn` }],
+    [`path`, { d: `M4 17h16`, key: `g4d7ey` }],
+  ],
+  n = e(`cable-car`, t);
+export { t as __iconNode, n as default };

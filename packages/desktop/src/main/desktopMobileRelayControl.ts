@@ -687,6 +687,7 @@ export function createDesktopMobileRelayControl(deps: {
   }
 
   async function fetchTaskSummaries(): Promise<RelayTaskSummary[]> {
+
     // startParams 为可变闭包变量，await 之后 TS 丢失收窄——先固化到局部。
     const params = startParams;
     if (!params) return [];

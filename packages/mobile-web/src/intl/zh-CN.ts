@@ -1,0 +1,274 @@
+// R3 P2a 自包含 i18n 字典（zh-CN）。文案自 packages/ui/src/i18n/locales/zh-CN.ts 的
+// mobileShell.* / taskList.* 命名空间提取（官方 3.14.3 逐字对齐文案，见 ui StatusCards
+// 文件头取证注释）；D6 UI 自包含——本包不 import @drora/ui，字典改动需与 ui 侧对照。
+export const zhCN: Record<string, string> = {
+  "mobileShell.connection.connected": "已连接到当前桌面窗口",
+  "mobileShell.connection.connecting": "正在连接",
+  "mobileShell.connection.disconnected": "未连接",
+  "mobileShell.connection.reconnecting": "正在重新连接",
+  "mobileShell.failure.connectionRecoveryTimeout.action": "重试",
+  "mobileShell.failure.connectionRecoveryTimeout.badge": "恢复超时",
+  "mobileShell.failure.connectionRecoveryTimeout.detailLabel": "恢复详情",
+  "mobileShell.failure.connectionRecoveryTimeout.description":
+    "手机端连接没有及时恢复，当前页面暂时无法继续同步远程控制。",
+  "mobileShell.failure.connectionRecoveryTimeout.step1": "保持手机网络可用后重试。",
+  "mobileShell.failure.connectionRecoveryTimeout.step2":
+    "如果仍无法恢复，再回到桌面端重新开启 Web 远程控制。",
+  "mobileShell.failure.connectionRecoveryTimeout.stepsTitle": "下一步",
+  "mobileShell.failure.connectionRecoveryTimeout.title": "连接恢复超时",
+  "mobileShell.failure.desktopBootstrapTimeout.action": "重试",
+  "mobileShell.failure.desktopBootstrapTimeout.badge": "响应超时",
+  "mobileShell.failure.desktopBootstrapTimeout.description":
+    "手机端已经连上 relay，但桌面端没有及时返回工作区数据。",
+  "mobileShell.failure.desktopBootstrapTimeout.detailLabel": "超时详情",
+  "mobileShell.failure.desktopBootstrapTimeout.step1": "确认桌面端没有休眠或卡在确认弹窗。",
+  "mobileShell.failure.desktopBootstrapTimeout.step2": "保持电脑和手机网络可用后重试。",
+  "mobileShell.failure.desktopBootstrapTimeout.stepsTitle": "下一步",
+  "mobileShell.failure.desktopBootstrapTimeout.title": "桌面端响应超时",
+  "mobileShell.failure.desktopDisconnected.action": "重新连接",
+  "mobileShell.failure.desktopDisconnected.badge": "电脑端离线",
+  "mobileShell.failure.desktopDisconnected.description":
+    "电脑端已经断开连接，当前手机页面不能继续控制桌面工作区。",
+  "mobileShell.failure.desktopDisconnected.detailLabel": "Relay 返回",
+  "mobileShell.failure.desktopDisconnected.step1": "确认电脑端 Drora 仍在运行并联网。",
+  "mobileShell.failure.desktopDisconnected.step2": "在电脑端重新开启 Web 远程控制后再连接。",
+  "mobileShell.failure.desktopDisconnected.stepsTitle": "下一步",
+  "mobileShell.failure.desktopDisconnected.title": "桌面端已离线",
+  "mobileShell.failure.invalidMobileConnection.action": "重新连接",
+  "mobileShell.failure.invalidMobileConnection.badge": "校验失败",
+  "mobileShell.failure.invalidMobileConnection.description":
+    "当前页面的二维码参数或鉴权信息已经失效，不能再作为控制端连接。",
+  "mobileShell.failure.invalidMobileConnection.detailLabel": "失败原因",
+  "mobileShell.failure.invalidMobileConnection.step1": "不要复用旧截图或旧链接。",
+  "mobileShell.failure.invalidMobileConnection.step2": "回到桌面端扫描最新二维码。",
+  "mobileShell.failure.invalidMobileConnection.stepsTitle": "下一步",
+  "mobileShell.failure.invalidMobileConnection.title": "手机连接已失效",
+  "mobileShell.failure.relayUnavailable.action": "重试",
+  "mobileShell.failure.relayUnavailable.badge": "中转异常",
+  "mobileShell.failure.relayUnavailable.description": "手机端无法稳定连接 Web 远程控制中转服务。",
+  "mobileShell.failure.relayUnavailable.detailLabel": "连接详情",
+  "mobileShell.failure.relayUnavailable.step1": "检查手机网络是否可访问外网。",
+  "mobileShell.failure.relayUnavailable.step2": "如果电脑端仍在线，可以稍后刷新重试。",
+  "mobileShell.failure.relayUnavailable.stepsTitle": "下一步",
+  "mobileShell.failure.relayUnavailable.title": "无法连接中转服务",
+  "mobileShell.failure.sessionConflict.action": "重新连接",
+  "mobileShell.failure.sessionConflict.badge": "设备接管",
+  "mobileShell.failure.sessionConflict.description":
+    "另一台远程控制设备已经接入，同一时间只能保留一个手机控制端。",
+  "mobileShell.failure.sessionConflict.detailLabel": "Relay 返回",
+  "mobileShell.failure.sessionConflict.step1": "继续使用新接入的设备。",
+  "mobileShell.failure.sessionConflict.step2": "如果要用本设备控制，请重新扫描桌面端二维码。",
+  "mobileShell.failure.sessionConflict.stepsTitle": "下一步",
+  "mobileShell.failure.sessionConflict.title": "已被其他设备接管",
+  "mobileShell.failure.sessionExpired.action": "重新加载",
+  "mobileShell.failure.sessionExpired.badge": "会话结束",
+  "mobileShell.failure.sessionExpired.description": "当前远程控制会话已经过期或被桌面端关闭。",
+  "mobileShell.failure.sessionExpired.detailLabel": "结束原因",
+  "mobileShell.failure.sessionExpired.step1": "在桌面端重新开启 Web 远程控制。",
+  "mobileShell.failure.sessionExpired.step2": "用新的链接进入当前工作区。",
+  "mobileShell.failure.sessionExpired.stepsTitle": "下一步",
+  "mobileShell.failure.sessionExpired.title": "本次远程控制已结束",
+  "mobileShell.failure.sessionNotFound.action": "重新加载",
+  "mobileShell.failure.sessionNotFound.badge": "链接不可用",
+  "mobileShell.failure.sessionNotFound.description":
+    "这次 Web 远程控制链接已经不存在，通常是桌面端重新生成了二维码。",
+  "mobileShell.failure.sessionNotFound.detailLabel": "Relay 返回",
+  "mobileShell.failure.sessionNotFound.step1": "回到桌面端重新打开 Web 远程控制。",
+  "mobileShell.failure.sessionNotFound.step2": "用手机扫描最新二维码。",
+  "mobileShell.failure.sessionNotFound.stepsTitle": "下一步",
+  "mobileShell.failure.sessionNotFound.title": "访问链接已失效",
+  "mobileShell.failure.unexpectedError.action": "重试",
+  "mobileShell.failure.unexpectedError.badge": "未知异常",
+  "mobileShell.failure.unexpectedError.description": "打开远程控制页面时发生了未预期错误。",
+  "mobileShell.failure.unexpectedError.detailLabel": "错误详情",
+  "mobileShell.failure.unexpectedError.step1": "刷新页面再试一次。",
+  "mobileShell.failure.unexpectedError.step2": "如果仍然失败，请回到桌面端重新生成二维码。",
+  "mobileShell.failure.unexpectedError.stepsTitle": "下一步",
+  "mobileShell.failure.unexpectedError.title": "Web 远程控制失败",
+  "mobileShell.failure.unsupportedAction.action": "重新加载",
+  "mobileShell.failure.unsupportedAction.badge": "暂不支持",
+  "mobileShell.failure.unsupportedAction.description":
+    "Web 远程控制只支持访问桌面端已经打开的工作区。",
+  "mobileShell.failure.unsupportedAction.detailLabel": "限制说明",
+  "mobileShell.failure.unsupportedAction.step1": "先在桌面端打开目标工作区。",
+  "mobileShell.failure.unsupportedAction.step2": "再从手机端选择这个工作区。",
+  "mobileShell.failure.unsupportedAction.stepsTitle": "下一步",
+  "mobileShell.failure.unsupportedAction.title": "当前动作暂不支持",
+  "mobileShell.failure.workspaceClosed.action": "重新加载",
+  "mobileShell.failure.workspaceClosed.badge": "工作区关闭",
+  "mobileShell.failure.workspaceClosed.description":
+    "桌面端已经关闭了共享工作区，手机端无法继续访问这个 workspace。",
+  "mobileShell.failure.workspaceClosed.detailLabel": "桌面端返回",
+  "mobileShell.failure.workspaceClosed.step1": "在桌面端重新打开目标工作区。",
+  "mobileShell.failure.workspaceClosed.step2": "重新发起 Web 远程控制。",
+  "mobileShell.failure.workspaceClosed.stepsTitle": "下一步",
+  "mobileShell.failure.workspaceClosed.title": "当前工作区已关闭",
+  "mobileShell.home.collapseAll": "收起全部工作区",
+  "mobileShell.home.expandAll": "展开全部工作区",
+  "mobileShell.home.notice":
+    "本次连接可以查看当前设备上已打开的项目、任务和会话；二维码失效后需要回到桌面端重新连接。",
+  "mobileShell.home.organize": "整理任务",
+  "mobileShell.home.reconnect": "重新连接",
+  "mobileShell.home.refresh": "刷新工作区和任务",
+  "mobileShell.home.sectionTitle": "当前设备上的工作区和任务",
+  "mobileShell.home.summary": "{workspaceCount} 个工作区 · {taskCount} 个任务",
+  "mobileShell.home.theme": "选择主题",
+  "mobileShell.home.title": "Drora 远程控制",
+  "mobileShell.home.workspaceEmpty": "当前设备上没有已打开的工作区",
+  "mobileShell.loading.authenticating.description": "已连接中转服务，正在完成远控身份校验。",
+  "mobileShell.loading.authenticating.title": "正在认证设备…",
+  "mobileShell.loading.connecting.description": "正在建立手机与远控中转服务的连接。",
+  "mobileShell.loading.connecting.title": "正在连接中转服务…",
+  "mobileShell.loading.paired.description": "连接已建立，正在同步桌面端工作区和任务。",
+  "mobileShell.loading.paired.title": "已配对，正在加载工作区…",
+  "mobileShell.loading.preparing.description": "正在初始化手机端远程控制会话。",
+  "mobileShell.loading.preparing.title": "正在准备远程控制…",
+  "mobileShell.loading.reconnecting.description": "网络或休眠恢复后会自动重连，请稍候。",
+  "mobileShell.loading.reconnecting.title": "连接中断，正在重连…",
+  "mobileShell.loading.step.auth": "设备鉴权",
+  "mobileShell.loading.step.pairing": "等待桌面端配对",
+  "mobileShell.loading.step.relay": "连接中转服务",
+  "mobileShell.loading.step.sync": "同步工作区",
+  "mobileShell.loading.suspended.description": "回到前台后会自动恢复连接。",
+  "mobileShell.loading.suspended.title": "页面在后台，等待恢复…",
+  "mobileShell.loading.waiting.description": "手机端已就绪，等待桌面端会话匹配当前连接。",
+  "mobileShell.loading.waiting.title": "等待桌面端确认配对…",
+  "mobileShell.task.backHome": "返回任务首页",
+  "mobileShell.task.chatTitle": "任务会话",
+  "mobileShell.task.more": "更多",
+  "mobileShell.task.reconnectingBanner": "正在自动重连...",
+  "mobileShell.task.sidePaneCollapse": "收起侧边面板",
+  "mobileShell.task.sidePaneExpand": "展开侧边面板",
+  "mobileShell.task.status.completed": "已完成",
+  "mobileShell.task.status.running": "运行中",
+  "mobileShell.workspace.kind.local": "本地",
+  "mobileShell.workspace.kind.remote": "远程",
+  "mobileShell.workspace.newTask": "新建任务",
+  "mobileShell.workspace.taskCount": "{count} 个任务",
+  "mobileShell.workspace.tasksEmpty": "这个工作区暂无任务",
+  "mobileShell.workspace.updatedAt": "更新于 {time}",
+  "taskList.archive": "归档任务",
+  "taskList.archiveFailed": "归档任务失败",
+  "taskList.archiveLocal": "归档本地任务",
+  "taskList.archiveRemote": "归档远端任务",
+  "taskList.archivedActions": "归档操作",
+  "taskList.archivedTaskCount": "{count} 个归档任务",
+  "taskList.attentionCount": "{label} · {count}",
+  "taskList.changeStats": "+{added} -{removed}",
+  "taskList.cronTaskLabel": "定时任务",
+  "taskList.daysAgo": "{days}天",
+  "taskList.delete": "删除任务",
+  "taskList.deleteAllArchived": "删除所有归档任务",
+  "taskList.deleteAllArchivedBusy": "正在处理…",
+  "taskList.deleteAllArchivedError": "操作或列表刷新失败，请刷新后检查剩余任务。",
+  "taskList.deleteAllArchivedMenu": "删除所有归档任务…",
+  "taskList.deleteAllArchivedResult": "已删除 {deleted} 个，跳过 {skipped} 个，失败 {failed} 个。",
+  "taskList.deleteAllArchivedTitle": "删除 {count} 个归档任务？",
+  "taskList.feedback": "反馈问题",
+  "taskList.feedbackOpened": "已打开反馈，并自动带上当前任务信息",
+  "taskList.forkedUntitled": "新任务",
+  "taskList.hoursAgo": "{hours}小时",
+  "taskList.justNow": "刚刚",
+  "taskList.loading": "正在获取任务...",
+  "taskList.markAsUnread": "标记为未读",
+  "taskList.markAsUnreadFailed": "标记未读失败",
+  "taskList.minutesAgo": "{minutes}分",
+  "taskList.mobileActive": "手机正在操作此任务",
+  "taskList.newTask": "新建任务",
+  "taskList.newThread": "新建任务",
+  "taskList.noArchivedTasks": "暂无归档任务",
+  "taskList.noTasks": "暂无任务",
+  "taskList.offPeakTaskLabel": "闲时任务",
+  "taskList.openInSplitPane": "在分屏打开",
+  "taskList.openSettings": "设置",
+  "taskList.permissionTag": "等待确认",
+  "taskList.pin": "置顶任务",
+  "taskList.pinFailed": "更新置顶状态失败",
+  "taskList.pinnedSection": "已置顶",
+  "taskList.recentSection": "最近任务",
+  "taskList.rename": "重命名任务",
+  "taskList.renameFailed": "重命名任务失败",
+  "taskList.renamePlaceholder": "任务名称",
+  "taskList.resume": "恢复",
+  "taskList.showLess": "显示更少",
+  "taskList.showMore": "显示更多",
+  "taskList.status.completed": "已完成",
+  "taskList.status.failed": "失败",
+  "taskList.status.notReady": "未就绪",
+  "taskList.status.ready": "已就绪",
+  "taskList.status.restoring": "恢复中",
+  "taskList.status.streaming": "生成中",
+  "taskList.stopCountdown": "停止计时",
+  "taskList.switchBlockedByModelRestart": "模型供应商切换中，暂时不能切换任务。",
+  "taskList.syncingRemoteWorkspaces": "正在加载远端任务...",
+  "taskList.unarchive": "取消归档任务",
+  "taskList.unpin": "取消置顶任务",
+  "taskList.untitled": "新任务",
+  "taskList.userInputTag": "等待确认",
+  "taskList.viewModelTrajectory": "查看调用轨迹",
+  "taskList.workflowRun.ariaLabel": "工作流实例 {name}：{status}",
+  "taskList.workflowRun.liveCount": "{count} 个工作流在跑",
+  "taskList.workflowRun.moreRuns": "+{count} 个实例",
+  "taskList.workflowRun.moreStations": "+{count}",
+  "mobileShell.composer.placeholder": "继续输入", // P2a 自建键（非官方提取；官方 composer 富面归 P3）
+  "mobileShell.composer.send": "发送", // P2a 自建键（非官方提取；官方 composer 富面归 P3）
+  "mobileShell.task.timelineEmpty": "暂无消息", // P2a 自建键（非官方提取；官方 composer 富面归 P3）
+  "mobileShell.home.language": "切换语言", // P2a 自建键（非官方提取；官方 composer 富面归 P3）
+  // —— P3a 富时间线 / composer 状态驱动：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
+  "chat.permission.awaitingApproval": "等待确认", // 官方 zh-CN.ts:5674
+  "chat.placeholder.followUpQueue": "继续输入以排队后续修改", // 官方 zh-CN.ts:4408
+  "chat.reasoning.thinking": "正在思考", // 官方 zh-CN.ts:4510
+  "chat.reasoning.thought": "思考", // 官方 zh-CN.ts:4511
+  "chat.stop.short": "停止", // 官方 zh-CN.ts:4472
+  "chat.toolCall.collapseDetails": "收起工具详情", // 官方 zh-CN.ts:4709
+  "chat.toolCall.expandDetails": "展开工具详情", // 官方 zh-CN.ts:4708
+  "chat.toolCall.result": "结果", // 官方 zh-CN.ts:4713
+  "chat.toolCall.status.completed": "已执行", // 官方 zh-CN.ts:4704
+  "chat.toolCall.status.failed": "执行失败", // 官方 zh-CN.ts:4705
+  "chat.toolCall.status.running": "执行中", // 官方 zh-CN.ts:4703
+  "chat.toolCall.status.stopped": "已停止", // 官方 zh-CN.ts:4707
+  "taskTimeline.daysAgo": "{days} 天前", // 官方 zh-CN.ts:1955
+  "taskTimeline.lastMonth": "上月", // 官方 zh-CN.ts:1959
+  "taskTimeline.lastWeek": "上周", // 官方 zh-CN.ts:1957
+  "taskTimeline.older": "更早", // 官方 zh-CN.ts:1960
+  "taskTimeline.thisMonth": "本月", // 官方 zh-CN.ts:1958
+  "taskTimeline.thisWeek": "本周", // 官方 zh-CN.ts:1956
+  "taskTimeline.today": "今天", // 官方 zh-CN.ts:1953
+  "taskTimeline.yesterday": "昨天", // 官方 zh-CN.ts:1954
+  // —— P3a 自建键（官方 ui locales 无现成轮级/折叠文案）——
+  "mobileShell.task.turnState.interrupted": "已中断", // P3a 自建键
+  "mobileShell.task.turnState.failed": "失败", // P3a 自建键
+  "mobileShell.timeline.reasoningCollapse": "收起思考过程", // P3a 自建键
+  "mobileShell.timeline.reasoningExpand": "展开思考过程", // P3a 自建键
+  // —— P3b 文件变更统计 + 队列状态第一档：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
+  "chat.changeSummary.filesChanged.one": "{count} 个文件已更改", // 官方 zh-CN.ts:1961
+  "chat.changeSummary.filesChanged.other": "{count} 个文件已更改", // 官方 zh-CN.ts:1962
+  "chat.queue.paused.error": "由于当前响应出错，队列已暂停（内容未丢失）", // 官方 zh-CN.ts:4494
+  "chat.queue.paused.generic": "队列已暂停", // 官方 zh-CN.ts:4495
+  "chat.queue.paused.stopped": "由于你中断了当前响应，队列已暂停", // 官方 zh-CN.ts:4493
+  "chat.queue.title": "待发送消息（{count}）", // 官方 zh-CN.ts:4483
+  "mobileShell.interaction.questionBadge": "提问", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
+  "mobileShell.interaction.addFeedback": "附加反馈…", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
+  "mobileShell.organize.title": "整理", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.organizeBy": "整理方式", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.byWorkspace": "按工作区", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.byTimeline": "按时间线", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.sortBy": "排序", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.byCreated": "按创建时间", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.byUpdated": "按更新时间", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  // —— P3c 模型选择器第一档 + 上下文用量：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
+  "chat.toolbar.model.label": "选择模型", // 官方 zh-CN.ts:4643
+  "chat.toolbar.model.loadFailedRetry": "模型加载失败，重试", // 官方 zh-CN.ts:965
+  "chat.toolbar.model.remoteWaiting": "等待远程模型", // 官方 zh-CN.ts:966
+  "chat.toolbar.model.targetMissing": "暂无模型目标", // 官方 zh-CN.ts:967
+  "chat.contextUsage": "上下文已用 {used} / 总量 {total}", // 官方 zh-CN.ts:4514
+  "mobileShell.model.thoughtLevel": "推理档", // P3c 自建键（官方 ui locales 无现成菜单内档位分组标题）
+  "notification.permissionRequired": "需要你的确认", // P4b 官方键（值取自 ui locales zh-CN.ts）
+  // —— P3d 首页任务搜索：自建键（官方无 mobileShell.search 命名空间；值逐字对齐冻结 bundle
+  // workspaceSidebar.searchTasks* 官方文案，见 src/recovered/remote/v4/3.14.3/assets/IntlProvider-BiPABK16.js）——
+  "mobileShell.search.title": "搜索任务", // P3d 自建键（值 = 官方 workspaceSidebar.searchTasks）
+  "mobileShell.search.placeholder": "搜索任务...", // P3d 自建键（值 = 官方 workspaceSidebar.searchTasksPlaceholder）
+  "mobileShell.search.close": "关闭任务搜索", // P3d 自建键（值 = 官方 workspaceSidebar.closeTaskSearch 同义）
+  "mobileShell.search.history": "搜索历史", // P3d 自建键
+  "mobileShell.search.empty": "未找到匹配的任务", // P3d 自建键
+};

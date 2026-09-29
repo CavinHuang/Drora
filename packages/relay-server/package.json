@@ -8,6 +8,7 @@
     "./main": "./src/main.ts"
   },
   "dependencies": {
+    "@drora/shared": "workspace:*",
     "ws": "^8.20.0"
   },
   "devDependencies": {

@@ -45,18 +45,18 @@ desktopMobileRelayControl ── WSS ──► ┌──────────
 端点 `GET /ws?mid=<deviceMid>`（Upgrade: websocket，permessage-deflate 开启，
 单 WS 消息上限 1MiB，超限断开）。帧为 JSON 对象，服务端只认以下类型：
 
-| 类型                                                           | 方向                                      | 语义                                                 |
-| -------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------- | -------- | -------------------------- |
-| `device_register_init{device_mid, pass_hash, meta, client_ts}` | device→srv                                | 注册，生成 `device_sid`                              |
-| `device_register_ack{device_sid, server_ts}`                   | srv→device                                | 注册应答                                             |
-| `auth_init{role:"device"                                       | "terminal", device_sid, meta, client_ts}` | 双方→srv                                             | 发起挑战 |
-| `auth_challenge{nonce, server_ts}`                             | srv→双方                                  | 挑战                                                 |
-| `auth_response{device_sid, proof, client_ts}`                  | 双方→srv                                  | `proof=HMAC-SHA256(passHash, "<nonce>                | <role>   | <device_sid>", base64url)` |
+| 类型                                                           | 方向                                      | 语义                                                                                                                     |
+| -------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------- | -------------------------- |
+| `device_register_init{device_mid, pass_hash, meta, client_ts}` | device→srv                                | 注册，生成 `device_sid`                                                                                                  |
+| `device_register_ack{device_sid, server_ts}`                   | srv→device                                | 注册应答                                                                                                                 |
+| `auth_init{role:"device"                                       | "terminal", device_sid, meta, client_ts}` | 双方→srv                                                                                                                 | 发起挑战 |
+| `auth_challenge{nonce, server_ts}`                             | srv→双方                                  | 挑战                                                                                                                     |
+| `auth_response{device_sid, proof, client_ts}`                  | 双方→srv                                  | `proof=HMAC-SHA256(passHash, "<nonce>                                                                                    | <role>   | <device_sid>", base64url)` |
 | `auth_ack{pair_status, device_sid, terminal_sid, server_ts}`   | srv→双方                                  | 鉴权应答：device ack 带 `device_sid`+`terminal_sid`（未配对 `""`），terminal ack 带 `device_sid`+自身 sid（E2E #2 对齐） |
-| `pair_status_query{device_sid, client_ts}`                     | 双方→srv                                  | 心跳/状态查询（device/terminal 双角色受理，E2E #1 对齐） |
-| `pair_status_ack{pair_status, server_ts}`                      | srv→双方                                  | 状态应答（**也作为配对变化时的主动推送**；terminal 查询应答附 `terminal_sid:""`，官方观测形状） |
-| `data{payload:{zcode_type...}, client_ts}`                     | 双方                                      | 应用帧（**matched 态才转发**，转发时补 `server_ts`） |
-| `error{code, message?, server_ts}`                             | srv→双方                                  | 错误面（见 §5）                                      |
+| `pair_status_query{device_sid, client_ts}`                     | 双方→srv                                  | 心跳/状态查询（device/terminal 双角色受理，E2E #1 对齐）                                                                 |
+| `pair_status_ack{pair_status, server_ts}`                      | srv→双方                                  | 状态应答（**也作为配对变化时的主动推送**；terminal 查询应答附 `terminal_sid:""`，官方观测形状）                          |
+| `data{payload:{zcode_type...}, client_ts}`                     | 双方                                      | 应用帧（**matched 态才转发**，转发时补 `server_ts`）                                                                     |
+| `error{code, message?, server_ts}`                             | srv→双方                                  | 错误面（见 §5）                                                                                                          |
 
 校验面（反推自官方行为，spec M4 段有实证记录）：
 
@@ -192,7 +192,8 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 
 - **已实现（2026-09-28，env 优先形态）**：环境变量 `DRORA_RELAY_SERVER_URL`
   （如 `http://relay.lan:4430`）→ `deriveSelfHostedRelayEndpoints` 推导
-  relayWsUrl=`ws(s)://host/ws`、remotePageUrl=`{base}/m/index.html`（自建手机页）；
+  relayWsUrl=`ws(s)://host/ws`、remotePageUrl=`{base}/remote/v4`（独立 mobile-web 包；
+  缺失时服务端保留 `/m/index.html` 降级）；
   未设置走官方常量。`appSettings` 设置键（UI 可配）为后续增强。
 - QR 的 `app_version`：官方地址维持固定 3.14.3；自建页忽略该参数（无资产门控）。
 
@@ -223,29 +224,29 @@ connect() @官方 bundle 6031676 把它拼进 URL）——不带 mid 的终端�
 
 ### 对齐项（黑盒实测一致）
 
-| 行为 | 双方一致表现 |
-| --- | --- |
-| 注册 | `device_register_ack{device_sid, server_ts}` 同形 |
-| 设备/终端鉴权流程 | challenge→proof→auth_ack；proof 同构造（HMAC base64url） |
-| 配对（带 mid 终端） | 终端 auth_ack 即 matched + terminal_sid；设备收到 `pair_status_ack{matched}` 推送 |
-| 设备角色 pair_status_query | matched 态回 `pair_status_ack{matched}`（官方接受，57 轮 WRONG_PARAM 记录系无 mid 伪象） |
-| data 双向转发 | client_ts 保留 + server_ts 盖章，payload 原样 |
-| 二终端互踢 | 旧终端收 `error{code:"KICKED"}`，新终端 auth_ack matched |
-| 设备死亡（close/terminate 等价） | 终端收 `error{code:"DEVICE_OFFLINE"}` 后被断开 |
-| 错误码族 | KICKED/AUTH_FAILED/DEVICE_OFFLINE/WRONG_PARAM 五码全对上 |
+| 行为                             | 双方一致表现                                                                             |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| 注册                             | `device_register_ack{device_sid, server_ts}` 同形                                        |
+| 设备/终端鉴权流程                | challenge→proof→auth_ack；proof 同构造（HMAC base64url）                                 |
+| 配对（带 mid 终端）              | 终端 auth_ack 即 matched + terminal_sid；设备收到 `pair_status_ack{matched}` 推送        |
+| 设备角色 pair_status_query       | matched 态回 `pair_status_ack{matched}`（官方接受，57 轮 WRONG_PARAM 记录系无 mid 伪象） |
+| data 双向转发                    | client_ts 保留 + server_ts 盖章，payload 原样                                            |
+| 二终端互踢                       | 旧终端收 `error{code:"KICKED"}`，新终端 auth_ack matched                                 |
+| 设备死亡（close/terminate 等价） | 终端收 `error{code:"DEVICE_OFFLINE"}` 后被断开                                           |
+| 错误码族                         | KICKED/AUTH_FAILED/DEVICE_OFFLINE/WRONG_PARAM 五码全对上                                 |
 
 ### 分歧项（按客户端影响排序；#1-#4 已于 2026-09-28 修复）
 
-| # | 级别 | 分歧 | 官方 | 自建（修复前） | 客户端影响 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | **P0** | 终端角色 pair_status_query | 接受，回 `pair_status_ack{当前态}`（手机页唯一心跳方式） | 拒绝 `WRONG_PARAM "pair_status_query is device-only"` | **官方手机页连自建服务端：配对后 ~10s 页面 enterTerminalFailure(invalid-mobile-connection) 死亡**（phone handleRelayError 对 WRONG_PARAM 终态化）。R3 复用官方客户端语义前必修 | **已修复**：双角色受理，terminal 应答附 `terminal_sid:""`（官方观测形状）；paired 判定用 sessionStore 当前视图 |
-| 2 | P2 | auth_ack 字段集 | 设备 ack 含 `device_sid+terminal_sid:""`；终端 ack 含 `device_sid+terminal_sid` | 设备 ack 仅 pair_status；终端 ack 无 device_sid | 无害（客户端只读 pair_status），严格对齐可补 | **已修复**：device ack 补 `device_sid+terminal_sid(<sid\|"">)`；terminal ack 补 `device_sid` |
-| 3 | P2 | DEVICE_OFFLINE 前置推送 | 先推 `pair_status_ack{waiting}` 再发 error 再断开 | 直接 error→断开 | 无害；对齐=补一条状态推送 | **已修复**：device 死亡序列 = pair_status_ack{waiting} → error{DEVICE_OFFLINE} → terminate |
-| 4 | P3 | 断开 close 码 | 1006（不发 close 帧，直接断 TCP） | 1000 "device-offline"/"kicked" | 无害（手机端进恢复状态机，不看 close 码） | **已修复**：KICKED/DEVICE_OFFLINE 发帧后 `terminate()`（客户端见 1006），不再 close(1000) |
-| 5 | ~~P3~~ 已对齐 | 未知 sid 鉴权 | 先发 challenge，proof 阶段才 AUTH_FAILED（防枚举） | **同官方（2026-09-28 完成）**：challenge 照发，proof 阶段统一 AUTH_FAILED | 已消除 |
-| 6 | ~~P3~~ 已对齐 | 未知帧型 | `WRONG_PARAM`（message 空串）**+ 服务端立即断连**（发送方见 1006；device 死亡→终端收 waiting 推送+DEVICE_OFFLINE）；query payload sid 错误不报错按会话应答 | **同官方（2026-09-29 完成，干净实验推翻 85 轮 E5 的 pair_status_ack 误读——系队列残留）**：WRONG_PARAM 空串 + terminate(1006)；query 忽略 payload sid 按会话身份应答 | 已消除 |
-| 7 | ~~P3~~ 已对齐 | error.message | 恒空串 | **同官方（2026-09-28 完成）**：线协议 message 恒空串，诊断细节降级为服务端日志；KICKED 卡自此与官方栈逐字节一致 | 已消除 |
-| 8 | 设计差 | 页面托管 | 官方托管 React 应用（/remote/v4 版本库） | /m 极简页（R2） | R3 范围，非协议分歧 | 维持（R3 范围） |
+| #   | 级别          | 分歧                       | 官方                                                                                                                                                       | 自建（修复前）                                                                                                                                                      | 客户端影响                                                                                                                                                                     | 状态                                                                                                           |
+| --- | ------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| 1   | **P0**        | 终端角色 pair_status_query | 接受，回 `pair_status_ack{当前态}`（手机页唯一心跳方式）                                                                                                   | 拒绝 `WRONG_PARAM "pair_status_query is device-only"`                                                                                                               | **官方手机页连自建服务端：配对后 ~10s 页面 enterTerminalFailure(invalid-mobile-connection) 死亡**（phone handleRelayError 对 WRONG_PARAM 终态化）。R3 复用官方客户端语义前必修 | **已修复**：双角色受理，terminal 应答附 `terminal_sid:""`（官方观测形状）；paired 判定用 sessionStore 当前视图 |
+| 2   | P2            | auth_ack 字段集            | 设备 ack 含 `device_sid+terminal_sid:""`；终端 ack 含 `device_sid+terminal_sid`                                                                            | 设备 ack 仅 pair_status；终端 ack 无 device_sid                                                                                                                     | 无害（客户端只读 pair_status），严格对齐可补                                                                                                                                   | **已修复**：device ack 补 `device_sid+terminal_sid(<sid\|"">)`；terminal ack 补 `device_sid`                   |
+| 3   | P2            | DEVICE_OFFLINE 前置推送    | 先推 `pair_status_ack{waiting}` 再发 error 再断开                                                                                                          | 直接 error→断开                                                                                                                                                     | 无害；对齐=补一条状态推送                                                                                                                                                      | **已修复**：device 死亡序列 = pair_status_ack{waiting} → error{DEVICE_OFFLINE} → terminate                     |
+| 4   | P3            | 断开 close 码              | 1006（不发 close 帧，直接断 TCP）                                                                                                                          | 1000 "device-offline"/"kicked"                                                                                                                                      | 无害（手机端进恢复状态机，不看 close 码）                                                                                                                                      | **已修复**：KICKED/DEVICE_OFFLINE 发帧后 `terminate()`（客户端见 1006），不再 close(1000)                      |
+| 5   | ~~P3~~ 已对齐 | 未知 sid 鉴权              | 先发 challenge，proof 阶段才 AUTH_FAILED（防枚举）                                                                                                         | **同官方（2026-09-28 完成）**：challenge 照发，proof 阶段统一 AUTH_FAILED                                                                                           | 已消除                                                                                                                                                                         |
+| 6   | ~~P3~~ 已对齐 | 未知帧型                   | `WRONG_PARAM`（message 空串）**+ 服务端立即断连**（发送方见 1006；device 死亡→终端收 waiting 推送+DEVICE_OFFLINE）；query payload sid 错误不报错按会话应答 | **同官方（2026-09-29 完成，干净实验推翻 85 轮 E5 的 pair_status_ack 误读——系队列残留）**：WRONG_PARAM 空串 + terminate(1006)；query 忽略 payload sid 按会话身份应答 | 已消除                                                                                                                                                                         |
+| 7   | ~~P3~~ 已对齐 | error.message              | 恒空串                                                                                                                                                     | **同官方（2026-09-28 完成）**：线协议 message 恒空串，诊断细节降级为服务端日志；KICKED 卡自此与官方栈逐字节一致                                                     | 已消除                                                                                                                                                                         |
+| 8   | 设计差        | 页面托管                   | 官方托管 React 应用（/remote/v4 版本库）                                                                                                                   | /m 极简页（R2）                                                                                                                                                     | R3 范围，非协议分歧                                                                                                                                                            | 维持（R3 范围）                                                                                                |
 
 ### 结论
 
@@ -321,16 +322,16 @@ renderer 弹层(transport=lan)
     （LAN 恢复触发点此前已摘除）、`test/phonePageSyntaxCheck.mjs`（仅校验旧内联页）；
   - IPC 通道：`PlatformChannels.MobilePairingStart/Stop/State/Reset/StateChanged`；
   - IPlatformService 方法：`startMobilePairing/stopMobilePairing/refreshMobilePairing/
-    getMobilePairingState/onMobilePairingStateChanged`（preload、renderer 转发、main
+getMobilePairingState/onMobilePairingStateChanged`（preload、renderer 转发、main
     装配同步删除）；
   - 测试：`desktopMobilePairingServer/Core/Restore.test.ts`；
     `desktopRendererPlatformMobileFace.test.ts` 收敛为 relay 5 项 + 重连委托。
-  **保留**：`MobilePairingRuntimeState`/`MobilePairingStatus`/`MobilePairingFailure`
-  类型（relay 状态沿用同一形状）、`desktopMobilePageBridge`（relay 手机页桥共用）、
-  `desktopMobileServiceAttach`（relay 共用）、`createWebRemoteControlAutoStartGate`
-  （双传输共用）、`~/.drora` 运行时文件一律不清理。两传输共用同一 relay 控制链 →
-  **同一时刻至多一条传输活跃**：弹层内切换 tab 会把运行中的链路切到目标传输（原双
-  服务端可并存的行为不再存在，记录为有意收敛）。
+    **保留**：`MobilePairingRuntimeState`/`MobilePairingStatus`/`MobilePairingFailure`
+    类型（relay 状态沿用同一形状）、`desktopMobilePageBridge`（relay 手机页桥共用）、
+    `desktopMobileServiceAttach`（relay 共用）、`createWebRemoteControlAutoStartGate`
+    （双传输共用）、`~/.drora` 运行时文件一律不清理。两传输共用同一 relay 控制链 →
+    **同一时刻至多一条传输活跃**：弹层内切换 tab 会把运行中的链路切到目标传输（原双
+    服务端可并存的行为不再存在，记录为有意收敛）。
 
 ### 12.5 静态资产托管（2026-09-28，官方前端本地托管）
 
@@ -405,8 +406,17 @@ registry 同目录），LAN 二维码页地址由 `/m/index.html` 升级为 `/re
 v4 页，§12.5-§12.8 双栈对齐结论的产品化）；R2 页由重定向兜底，离线首次打开即
 回退。CLI（main.ts）未给 `--static-dir` 时默认启用代理（cacheDir 缺省
 `./remote-asset-cache`，`--asset-cache-dir` 可覆盖）；`--static-dir` 仍优先。
-云中继（官方/自建）端点推导（`deriveSelfHostedRelayEndpoints` →
-`<base>/m/index.html`）不受影响。
+云中继的自建端点推导已随 D7 独立页面包更新为 `<base>/remote/v4`；官方
+`zcode.z.ai` 默认端点保持其 `/remote/v4`。
+
+**Bundled 本地根优先级（D7 + R3 P2a 修订，2026-09-29）**：CLI 未显式给
+`--mobile-dir` 时，bundled 本地根解析为
+`packages/mobile-web/dist/`（**源码应用产物，`remote/v4/index.html` 存在才启用**；
+R3 P2a 起 `pnpm --filter @drora/mobile-web build` = vite 源码构建）
+→ `packages/mobile-web/src/recovered/`（官方 3.14.3 可读快照，D7 行为保底）。
+两者都缺失才落回内建资产代理。桌面 LAN 宿主在 D6 冻结期内维持只读
+`src/recovered`，其切换与 QR 端点翻转一并归 R3 P5（specs/mobile-relay-r3-frontend.md
+§11/§13）。源码应用直连同源 `/ws`，出站 WS 改写对其为 no-op。
 
 ### 12.6 对齐完成（2026-09-28）
 
@@ -463,13 +473,13 @@ schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与�
 
 **官方取证（3.14.3 runtime bundle `zcode.cjs`，14.8MB 单行；片段为反汇编原文）：**
 
-| 证据 | 文件+字节偏移 | 片段 | 结论 |
-| --- | --- | --- | --- |
-| 官方 readMessages 实现 | zcode.cjs@14490259 | `function WKo(e,t){...s.findIndex(u=>String(u.info.id)===n.afterMessageId)...return{messages:n.limit?l.slice(-n.limit):l}}` | 官方 runtime 同样返回 session store 的 **v4 原始行**（`info.id`，非 messageId） |
-| 官方声明结果 schema | zcode.cjs@755909 | `U5i=m.object({messages:m.array(WZe)}).strict()` | 与本仓 droraSessionMessagesResultSchema 同构 |
-| 官方 MessageWithParts schema | zcode.cjs@657821 | `WZe=m.object({info:tor,parts:m.array(qZe)}).strict()`；tor@654424=`discriminatedUnion("role",[Qrr,eor])`，Qrr@653778/eor@654098 用 `messageId/sessionId/parentMessageId`；parts `LR`=`{partId,sessionId,messageId}`、tool `callId` | 官方声明契约 = **legacy 形状**，与本仓 schema 逐字段一致 |
-| 官方 snapshot 映射 | zcode.cjs@14406172/@14407132 | `JPn`：`messageId:String(e.info.id)`、`parentMessageId:String(e.info.parentID)`；`FKa`：`{messageId:String(e.messageID),partId:String(e.id),sessionId:String(e.sessionID)}` | 官方在 **snapshot 路径**把 v4 行映射为声明契约形状（≈本仓 bootstrap message-mapper.ts） |
-| 官方手机页 | official-phone-bundle.js（6.1MB） | `session/messages`/`readSessionMessages` 0 命中；`subscribeConversationV4` 3 命中 | 官方客户端不消费该 op——**上游死代码漂移**，上游不可见 |
+| 证据                         | 文件+字节偏移                     | 片段                                                                                                                                                                                                                                | 结论                                                                                    |
+| ---------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 官方 readMessages 实现       | zcode.cjs@14490259                | `function WKo(e,t){...s.findIndex(u=>String(u.info.id)===n.afterMessageId)...return{messages:n.limit?l.slice(-n.limit):l}}`                                                                                                         | 官方 runtime 同样返回 session store 的 **v4 原始行**（`info.id`，非 messageId）         |
+| 官方声明结果 schema          | zcode.cjs@755909                  | `U5i=m.object({messages:m.array(WZe)}).strict()`                                                                                                                                                                                    | 与本仓 droraSessionMessagesResultSchema 同构                                            |
+| 官方 MessageWithParts schema | zcode.cjs@657821                  | `WZe=m.object({info:tor,parts:m.array(qZe)}).strict()`；tor@654424=`discriminatedUnion("role",[Qrr,eor])`，Qrr@653778/eor@654098 用 `messageId/sessionId/parentMessageId`；parts `LR`=`{partId,sessionId,messageId}`、tool `callId` | 官方声明契约 = **legacy 形状**，与本仓 schema 逐字段一致                                |
+| 官方 snapshot 映射           | zcode.cjs@14406172/@14407132      | `JPn`：`messageId:String(e.info.id)`、`parentMessageId:String(e.info.parentID)`；`FKa`：`{messageId:String(e.messageID),partId:String(e.id),sessionId:String(e.sessionID)}`                                                         | 官方在 **snapshot 路径**把 v4 行映射为声明契约形状（≈本仓 bootstrap message-mapper.ts） |
+| 官方手机页                   | official-phone-bundle.js（6.1MB） | `session/messages`/`readSessionMessages` 0 命中；`subscribeConversationV4` 3 命中                                                                                                                                                   | 官方客户端不消费该 op——**上游死代码漂移**，上游不可见                                   |
 
 结论：官方 drop 自身即存在"声明 schema（legacy）≠ runtime 实际返回（v4 原始行）"
 的潜伏不一致；官方只在 snapshot 路径做 v4→legacy 映射，session/messages 直接返回
@@ -483,7 +493,7 @@ schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与�
 投影为声明契约形状。理由：
 
 1. op 载荷从此满足官方声明契约（U5i/WZe）与本仓客户端 schema，`IDroraSessionService
-   .readSessionMessages(): Promise<DroraMessageWithParts[]>` 接口类型变真；
+.readSessionMessages(): Promise<DroraMessageWithParts[]>` 接口类型变真；
 2. 复用既有 mapper——客户端侧适配需在 services 复制 ~250 行 v4 行 schema+mapper，
    且 shared 无 v4 store 行 zod schema（v4 conversationRowSchema 是 UI 投影非 store 行）；
 3. 载荷剥离 mode/planEnabled/anchor 等内部字段（手机带宽友好，字段语义同官方 snapshot 面）。
@@ -541,3 +551,17 @@ Host 附着窗口期手机清单不闪断；回落 listTasks 路径自带容错�
   afterMessageId 分页与 limit 尾窗在投影前生效。
 - `packages/relay-server/test/phonePageSyntax.test.ts`：时间线渲染面形状探针
   （info.role + text/reasoning/tool；v1 旧词 tool_call/thinking 不得回流）。
+
+### 13.6 v4 Worker 出站改写边界（2026-09-29）
+
+恢复稿在独立 Electron + 414px 浏览器真配对后显示移动首页，但浏览器记录 4 次
+`ReferenceError: window is not defined`，均指向 `diffs.worker-CAavpt0L.js` 末尾。
+根因是 relay 静态资产层对**所有** JS 无条件追加
+`window.__selfhostPatch="served"` 诊断语句；Worker 没有 `window` 全局对象。
+
+产品规则：出站改写只替换官方 relay URL 和 endpointOrigin 两个已取证字面量；
+不追加运行时诊断副作用。未含目标字面量的 JS（尤其 Worker）必须按恢复稿原字节
+返回。鉴权、配对和业务帧顺序不变。验收包含主 chunk 同源 URL 改写、Worker
+响应与源码字节相同、移动真配对首页无页面异常。
+修复后独立 Electron + Edge 真配对复测：414×896 移动首页与 1280×896 PC 全壳
+均可见，页面异常数均为 0；`remoteAssets.test.ts` 的 Worker 字节相等断言通过。

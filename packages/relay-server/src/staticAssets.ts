@@ -1,5 +1,5 @@
 // 静态资产托管（spec §12.5/§12.9）：GET /m*（R2 手机页）与 /remote/**（官方 v4
-// 托管资产，两级来源：staticRoot 文件映射 → 内建资产代理 cache→fetch 官方源站）
+// 托管资产，三级来源：staticRoot 测试床 → mobileRoot 本地包 → 内建资产代理）
 // 的 HTTP 决策与官方托管页 relay 端点出站改写。集中在本文件以守 relayServer.ts
 // 单文件行数门禁；语义与安全约束见 spec。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -21,6 +21,7 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
+  ".wasm": "application/wasm",
   ".map": "application/json",
   ".txt": "text/plain; charset=utf-8",
 };
@@ -51,8 +52,9 @@ const OFFICIAL_HOSTED_REWRITES: Array<[string, string]> = [
 
 function rewriteHostedAsset(body: string, contentType: string): string {
   if (!contentType.startsWith("text/javascript")) return body;
-  // 运行时标记：判定页面执行的 bundle 确出自本托管（临时诊断手段，保留无副作用）。
-  let out = `${body}\n;window.__selfhostPatch="served";\n`;
+  // 修复依据：Worker 没有 window；无条件追加诊断标记会让 diffs.worker 在加载时抛错。
+  // 只替换已取证的端点字面量，未命中的 JS 保持原字节。
+  let out = body;
   for (const [from, to] of OFFICIAL_HOSTED_REWRITES) {
     out = out.split(from).join(to);
   }
@@ -82,7 +84,7 @@ function contentTypeForFile(file: string): string {
 
 interface StaticAssetResponse {
   contentType: string;
-  body: string;
+  body: string | Buffer;
 }
 
 /**
@@ -100,8 +102,13 @@ async function serveStaticAsset(
     if (!isWithinRoot(candidate, staticRootAbs)) continue;
     try {
       const contentType = contentTypeForFile(candidate);
-      const body = (await readFile(candidate)).toString("utf8");
-      return { contentType, body: rewriteHostedAsset(body, contentType) };
+      const body = await readFile(candidate);
+      return {
+        contentType,
+        body: contentType.startsWith("text/javascript")
+          ? rewriteHostedAsset(body.toString("utf8"), contentType)
+          : body,
+      };
     } catch {
       // 尝试下一个候选（ENOENT 属常规路径）
     }
@@ -212,7 +219,7 @@ function okRoute(contentType: string, body: string | Buffer): StaticRouteResult 
 
 /**
  * GET /remote/** 托管资产路由（spec §12.5/§12.9）：①staticRoot 文件映射优先
- * （dev 测试床语义不变）→ ②内建资产代理（cache → fetch 官方源站）→ ③离线回退：
+ * （dev 测试床语义不变）→ mobileRoot 本地包 → ②内建资产代理 → ③离线回退：
  * 入口文档 302 重定向到 /m/index.html（保留原查询串，R2 极简页兜底），其余资产
  * 404。仅受理 GET；未配置任何来源时维持 404。
  */
@@ -221,6 +228,7 @@ async function routeRemoteAssetRequest(params: {
   pathname: string;
   search: string;
   staticRootAbs: string | null;
+  mobileRootAbs: string | null;
   remoteAssetsAbs: string | null;
   fetchImpl: typeof fetch;
 }): Promise<StaticRouteResult> {
@@ -228,6 +236,11 @@ async function routeRemoteAssetRequest(params: {
   // ① staticRoot 优先（spec §12.5）：命中即服务，未命中落入内建代理。
   if (params.staticRootAbs) {
     const asset = await serveStaticAsset(params.pathname, params.staticRootAbs);
+    if (asset) return okRoute(asset.contentType, asset.body);
+  }
+  // 自建同源部署的 v4 恢复稿：与测试床同一受限路径读取，优先于联网代理。
+  if (params.mobileRootAbs) {
+    const asset = await serveStaticAsset(params.pathname, params.mobileRootAbs);
     if (asset) return okRoute(asset.contentType, asset.body);
   }
   // ② 内建资产代理（spec §12.9）。
@@ -238,17 +251,17 @@ async function routeRemoteAssetRequest(params: {
       fetchImpl: params.fetchImpl,
     });
     if (asset) return okRoute(asset.contentType, asset.body);
-    // ③ 离线回退（spec §12.9）：入口文档 302 → R2 页（查询串透传给 QR 参数面）。
-    if (isHostedEntryDoc(params.pathname)) {
-      return { status: 302, headers: { location: `/m/index.html${params.search}` }, body: "" };
-    }
+  }
+  // ③ 本地资产缺失或代理离线：入口文档回退 R2 页，查询串中的 QR 参数保留。
+  if ((params.mobileRootAbs || params.remoteAssetsAbs) && isHostedEntryDoc(params.pathname)) {
+    return { status: 302, headers: { location: `/m/index.html${params.search}` }, body: "" };
   }
   return NOT_FOUND_ROUTE;
 }
 
 /**
  * HTTP 静态面路由（spec §12.5/§12.9）：R2 手机页（/m*，任意方法）与 /remote/**
- * 托管资产（仅 GET，两级来源 + 离线回退）。返回 null = 本层不接管，调用方统一
+ * 托管资产（仅 GET，三级来源 + 离线回退）。返回 null = 本层不接管，调用方统一
  * 404（自托管资产库不做官方式版本门控：页面与桌面端同仓发布，天然配套，spec §7）。
  */
 export async function routeStaticRequest(params: {
@@ -256,10 +269,11 @@ export async function routeStaticRequest(params: {
   pathname: string;
   search: string;
   staticRootAbs: string | null;
+  mobileRootAbs: string | null;
   remoteAssetsAbs: string | null;
   fetchImpl: typeof fetch;
 }): Promise<StaticRouteResult | null> {
-  // 自建手机页（R2）：/m 与 /m/index.html 同页；桌面二维码 remotePageUrl 与代理
+  // 自建手机页（R2）：/m 与 /m/index.html 同页；本地入口缺失与代理
   // 离线回退都指向此处。必须按 pathname 匹配——request.url 含查询串（QR 的
   // sid/hash 等），精确匹配会让带参数的手机页 404（E2E 实锤）。
   if (

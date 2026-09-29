@@ -27,7 +27,11 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
-import { createWebRemoteControlAutoStartGate } from "@/lib/webRemoteControlAutoStart.js";
+import {
+  createWebRemoteControlAutoStartGate,
+  selectWebRemoteControlTabState,
+  stateMatchesTransport,
+} from "@/lib/webRemoteControlAutoStart.js";
 
 type RemoteControlBotProvider = Extract<BotProvider, "weixin" | "feishu" | "lark" | "telegram">;
 
@@ -70,19 +74,6 @@ function statusDotClass(status: MobilePairingStatus): string {
     default:
       return "bg-warning";
   }
-}
-
-/**
- * 状态 → tab 过滤（specs/mobile-relay-server.md §12.4）：LAN/云中继统一走 relay
- * 控制链后，运行状态携带 transport；tab=relay 对应 transport=cloud。未携带字段的
- * 状态（旧生产方）按匹配处理（兼容语义）。
- */
-function stateMatchesTransport(
-  state: Pick<MobilePairingRuntimeState, "transport">,
-  tab: "lan" | "relay",
-): boolean {
-  if (!state.transport) return true;
-  return tab === "relay" ? state.transport === "cloud" : state.transport === "lan";
 }
 
 export const WebRemoteControlDialog = memo(function WebRemoteControlDialogComponent({
@@ -212,10 +203,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     void (async () => {
       try {
         const state = await platform.getMobileRelayControlState?.();
-        const stateForTab =
-          state && state.status !== "idle" && stateMatchesTransport(state, transport)
-            ? state
-            : undefined;
+        const stateForTab = selectWebRemoteControlTabState(state, transport);
         applyRuntimeState(
           stateForTab ?? {
             running: false,

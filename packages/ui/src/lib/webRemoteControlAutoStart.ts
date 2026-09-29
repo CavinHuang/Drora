@@ -2,6 +2,26 @@ import type { MobilePairingRuntimeState } from "@drora/shared";
 
 export type WebRemoteControlTransport = "lan" | "relay";
 
+/** 当前 tab 只消费本传输的运行状态；旧生产方未携带 transport 时按兼容语义处理。 */
+export function stateMatchesTransport(
+  state: Pick<MobilePairingRuntimeState, "transport">,
+  tab: WebRemoteControlTransport,
+): boolean {
+  if (!state.transport) return true;
+  return tab === "relay" ? state.transport === "cloud" : state.transport === "lan";
+}
+
+/**
+ * 修复依据：Main 的 idle 是自动开启命令的准入事实，不能在 tab 过滤时先丢弃。
+ * 仅非 idle 状态携带有效传输归属，其他传输的运行态才应从当前 tab 投影中排除。
+ */
+export function selectWebRemoteControlTabState<
+  T extends Pick<MobilePairingRuntimeState, "status" | "transport">,
+>(state: T | undefined, tab: WebRemoteControlTransport): T | undefined {
+  if (!state) return undefined;
+  return state.status === "idle" || stateMatchesTransport(state, tab) ? state : undefined;
+}
+
 /**
  * 弹层自动开启闸门（spec: mobile-web-remote.md「Renderer 集成面」）：
  * 每次弹层打开、每个传输至多自动开启一次。

@@ -1,0 +1,21 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [
+      `path`,
+      {
+        d: `M4 6.835V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-.343`,
+        key: `1vfytu`,
+      },
+    ],
+    [`path`, { d: `M14 2v5a1 1 0 0 0 1 1h5`, key: `wfsgrz` }],
+    [
+      `path`,
+      {
+        d: `M2 19a2 2 0 0 1 4 0v1a2 2 0 0 1-4 0v-4a6 6 0 0 1 12 0v4a2 2 0 0 1-4 0v-1a2 2 0 0 1 4 0`,
+        key: `1etmh7`,
+      },
+    ],
+  ],
+  n = e(`file-headphone`, t);
+export { t as __iconNode, n as default };

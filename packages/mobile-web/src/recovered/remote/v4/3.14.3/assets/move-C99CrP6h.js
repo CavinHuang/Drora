@@ -1,0 +1,12 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [`path`, { d: `M12 2v20`, key: `t6zp3m` }],
+    [`path`, { d: `m15 19-3 3-3-3`, key: `11eu04` }],
+    [`path`, { d: `m19 9 3 3-3 3`, key: `1mg7y2` }],
+    [`path`, { d: `M2 12h20`, key: `9i4pu4` }],
+    [`path`, { d: `m5 9-3 3 3 3`, key: `j64kie` }],
+    [`path`, { d: `m9 5 3-3 3 3`, key: `l8vdw6` }],
+  ],
+  n = e(`move`, t);
+export { t as __iconNode, n as default };

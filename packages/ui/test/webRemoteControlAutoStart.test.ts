@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWebRemoteControlAutoStartGate } from "../src/lib/webRemoteControlAutoStart.js";
+import {
+  createWebRemoteControlAutoStartGate,
+  selectWebRemoteControlTabState,
+} from "../src/lib/webRemoteControlAutoStart.js";
 
 // 弹层自动开启闸门（spec: mobile-web-remote.md「Renderer 集成面」）：
 // 每次弹层打开、每个传输至多自动开启一次。修复背景是跨传输共享单一布尔时，
@@ -36,4 +39,15 @@ test("reset 清空名额（弹层关闭后再打开，各传输可再自动开�
   gate.reset();
   assert.equal(gate.admit({ status: "idle" }, "lan"), true);
   assert.equal(gate.admit({ status: "idle" }, "relay"), true);
+});
+
+test("Main 的 idle 状态保留给当前 tab 自动开启；其他传输的运行状态被过滤", () => {
+  const gate = createWebRemoteControlAutoStartGate();
+  const idle = { status: "idle" as const, transport: "cloud" as const };
+  assert.equal(selectWebRemoteControlTabState(idle, "lan"), idle);
+  assert.equal(gate.admit(selectWebRemoteControlTabState(idle, "lan"), "lan"), true);
+  const cloudRunning = { status: "running" as const, transport: "cloud" as const };
+  assert.equal(selectWebRemoteControlTabState(cloudRunning, "lan"), undefined);
+  assert.equal(selectWebRemoteControlTabState(cloudRunning, "relay"), cloudRunning);
+  assert.equal(selectWebRemoteControlTabState(undefined, "lan"), undefined);
 });

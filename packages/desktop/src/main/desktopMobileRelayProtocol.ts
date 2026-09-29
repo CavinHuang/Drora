@@ -11,7 +11,7 @@ import {
   RELAY_SATURATION_LOW_WATER_MARK_BYTES,
   buildRelayProofMessage,
 } from "@drora/shared";
-import type { MobilePairingRuntimeState } from "@drora/shared";
+import type { MobilePairingRuntimeState, RpcFrameIdentity } from "@drora/shared";
 
 export const OFFICIAL_RELAY_WS_URL = "wss://zcode.z.ai/ws";
 /** v3 托管页已 404；官方版本门控现走 v4（探测核实）。 */
@@ -20,7 +20,7 @@ export const OFFICIAL_REMOTE_PAGE_URL = "https://zcode.z.ai/remote/v4";
 /**
  * 自建 relay 服务端端点推导（spec: mobile-relay-server.md §8）：
  * base = http(s)://host:port → relayWsUrl = ws(s)://host:port/ws、
- * remotePageUrl = base + /m/index.html（自建手机页）。
+ * remotePageUrl = base + /remote/v4（独立 mobile-web 页；R2 页为服务端兜底）。
  * 未配置（官方地址）时返回 undefined，走官方常量。
  */
 export function deriveSelfHostedRelayEndpoints(baseUrl: string):
@@ -40,7 +40,7 @@ export function deriveSelfHostedRelayEndpoints(baseUrl: string):
   const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
   return {
     relayWsUrl: `${wsProto}//${parsed.host}/ws`,
-    remotePageUrl: `${base}/m/index.html`,
+    remotePageUrl: `${base}/remote/v4`,
   };
 }
 /**
@@ -95,7 +95,13 @@ export function calculateRelayProof(params: {
   // 三方现格式逐字核对一致，见 shared/relay-wire/proof.ts 头注）。createHmac 保留为
   // node 环境快路径（Main 进程专用），纯 JS 实现见 @drora/shared relay-wire（手机页用）。
   return createHmac("sha256", params.passHash)
-    .update(buildRelayProofMessage({ nonce: params.nonce, role: params.role, deviceSid: params.sessionId }))
+    .update(
+      buildRelayProofMessage({
+        nonce: params.nonce,
+        role: params.role,
+        deviceSid: params.sessionId,
+      }),
+    )
     .digest("base64url");
 }
 
@@ -296,398 +302,38 @@ export function buildWorkspaceListResult(params: {
   };
 }
 
-// —— M4b：rpc-frame 传输封装（对齐官方 encodeWebRemoteControlRpcTransportMessage /
-// WebRemoteControlRpcTransportAssembler / frameShell，取证自官方 3.14.3 bundle）——
-//
-// 线格式（每个物理帧一个 JSON 对象，经 relay data 帧透传）：
-//   {zcode_type:"rpc-frame", bridgeSessionId, [bridgeGeneration], [recoveryId],
-//    seq(物理序号), messageSeq, fragmentIndex, fragmentCount, messageBytes,
-//    checksum:{algorithm:"crc32", value}, dataBase64(分片字节)}
-// 确认帧：{zcode_type:"rpc-frame-ack", bridgeSessionId, [bridgeGeneration],
-//   [recoveryId], ackMessageSeq}
-// 限制（官方常量）：消息 ≤16MiB、分片 ≤64、dataBase64 ≤1MiB。
-
-export const RPC_FRAME_MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
-const RPC_FRAME_MAX_FRAGMENTS = 64;
-/** 单分片数据预算：base64 后 ~874KB + 封套 JSON 开销，稳居 1MiB 物理帧上限内。 */
-const RPC_FRAME_FRAGMENT_DATA_BYTES = 640 * 1024;
-
-export interface RpcFrameIdentity {
-  bridgeSessionId: string;
-  bridgeGeneration?: number;
-  recoveryId?: string;
-}
-
-export interface RpcTransportFrame {
-  zcode_type: "rpc-frame";
-  bridgeSessionId: string;
-  bridgeGeneration?: number;
-  recoveryId?: string;
-  seq: number;
-  messageSeq: number;
-  fragmentIndex: number;
-  fragmentCount: number;
-  messageBytes: number;
-  /** checksum.value 线格式：8 位小写 hex 字符串（出站）；入站兼容数值。 */
-  checksum: { algorithm: "crc32"; value: string };
-  dataBase64: string;
-}
-
-const CRC32_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let i = 0; i < 256; i += 1) {
-    let value = i;
-    for (let bit = 0; bit < 8; bit += 1) {
-      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    table[i] = value >>> 0;
-  }
-  return table;
-})();
-
-export function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (let i = 0; i < bytes.length; i += 1) {
-    crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function identityFields(identity: RpcFrameIdentity): Record<string, unknown> {
-  return {
-    bridgeSessionId: identity.bridgeSessionId,
-    ...(identity.bridgeGeneration !== undefined
-      ? { bridgeGeneration: identity.bridgeGeneration }
-      : {}),
-    ...(identity.recoveryId ? { recoveryId: identity.recoveryId } : {}),
-  };
-}
-
-/**
- * 编码一条 rpc 消息为一个或多个物理帧（对齐官方 L3 编码器语义）。
- * 返回帧数组与推进后的物理序号。
- * checksum.value 线格式为 8 位小写十六进制字符串（官方/手机端组装器以
- * /^[0-9a-f]{8}$/ 校验，数字会被判 proto.frameAssemblyMetadataMismatch 丢弃，
- * 2026-09-27 真机取证）；内部比较统一用数值。
- */
-function crc32ToWire(value: number): string {
-  return (value >>> 0).toString(16).padStart(8, "0");
-}
-
-/** 入站 checksum.value 兼容数值与 8 位 hex 字符串两种线格式。 */
-export function checksumValueFromWire(value: unknown): number | null {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
-  if (typeof value === "string" && /^[0-9a-f]{8}$/.test(value)) return parseInt(value, 16);
-  return null;
-}
-
-export function encodeRpcTransportMessage(params: {
-  message: Uint8Array;
-  identity: RpcFrameIdentity;
-  firstPhysicalSeq: number;
-  messageSeq: number;
-}): { frames: RpcTransportFrame[]; nextPhysicalSeq: number; checksum: number } {
-  const { message, identity, firstPhysicalSeq, messageSeq } = params;
-  if (message.byteLength === 0) {
-    throw new Error("remote.rpcFrame.emptyMessage");
-  }
-  if (message.byteLength > RPC_FRAME_MAX_MESSAGE_BYTES) {
-    throw new Error("remote.rpcFrame.messageTooLarge");
-  }
-  const checksum = { algorithm: "crc32" as const, value: crc32ToWire(crc32(message)) };
-  const fragmentCount = Math.max(1, Math.ceil(message.byteLength / RPC_FRAME_FRAGMENT_DATA_BYTES));
-  if (fragmentCount > RPC_FRAME_MAX_FRAGMENTS) {
-    throw new Error("remote.rpcFrame.fragmentLimitExceeded");
-  }
-  const frames: RpcTransportFrame[] = [];
-  for (let index = 0; index < fragmentCount; index += 1) {
-    const start = index * RPC_FRAME_FRAGMENT_DATA_BYTES;
-    const end = Math.min(message.byteLength, start + RPC_FRAME_FRAGMENT_DATA_BYTES);
-    frames.push({
-      zcode_type: "rpc-frame",
-      ...identityFields(identity),
-      seq: firstPhysicalSeq + index,
-      messageSeq,
-      fragmentIndex: index,
-      fragmentCount,
-      messageBytes: message.byteLength,
-      checksum,
-      dataBase64: Buffer.from(message.subarray(start, end)).toString("base64"),
-    });
-  }
-  const checksumValue = crc32(message);
-  return { frames, nextPhysicalSeq: firstPhysicalSeq + fragmentCount, checksum: checksumValue };
-}
-
-/** rpc-frame-ack 确认帧（手机→桌面方向的每条完整消息都必须回执，否则对端流控降级）。 */
-export function buildRpcFrameAck(params: {
-  identity: RpcFrameIdentity;
-  ackMessageSeq: number;
-}): Record<string, unknown> {
-  return {
-    zcode_type: "rpc-frame-ack",
-    ...identityFields(params.identity),
-    ackMessageSeq: params.ackMessageSeq,
-  };
-}
-
-/**
- * 入站帧重组器（宽松版官方 Assembler：按 messageSeq 聚组分片）。
- * 完整消息返回 {message, messageSeq}；未齐或校验失败返回 null 并由调用方丢弃。
- */
-export class RpcFrameAssembler {
-  private readonly pending = new Map<number, Map<number, RpcTransportFrame>>();
-
-  constructor(private readonly identity: RpcFrameIdentity) {}
-
-  accept(frame: RpcTransportFrame): { message: Uint8Array; messageSeq: number } | null {
-    if (frame.bridgeSessionId !== this.identity.bridgeSessionId) return null;
-    if (frame.bridgeGeneration !== this.identity.bridgeGeneration) return null;
-    if ((frame.recoveryId ?? undefined) !== (this.identity.recoveryId || undefined)) return null;
-    if (frame.fragmentIndex >= frame.fragmentCount) return null;
-    if (frame.messageBytes > RPC_FRAME_MAX_MESSAGE_BYTES) return null;
-    if (frame.fragmentCount > RPC_FRAME_MAX_FRAGMENTS) return null;
-    let group = this.pending.get(frame.messageSeq);
-    if (!group) {
-      group = new Map();
-      this.pending.set(frame.messageSeq, group);
-    }
-    group.set(frame.fragmentIndex, frame);
-    if (group.size < frame.fragmentCount) return null;
-    this.pending.delete(frame.messageSeq);
-    const assembled = Buffer.alloc(frame.messageBytes);
-    let offset = 0;
-    const frameChecksum = checksumValueFromWire(frame.checksum.value);
-    for (let index = 0; index < frame.fragmentCount; index += 1) {
-      const piece = group.get(index);
-      if (!piece) return null;
-      if (
-        piece.messageBytes !== frame.messageBytes ||
-        checksumValueFromWire(piece.checksum.value) !== frameChecksum
-      ) {
-        return null;
-      }
-      const chunk = Buffer.from(piece.dataBase64, "base64");
-      if (offset + chunk.byteLength > assembled.byteLength) return null;
-      chunk.copy(assembled, offset);
-      offset += chunk.byteLength;
-    }
-    const message = new Uint8Array(assembled);
-    if (message.byteLength !== frame.messageBytes) return null;
-    if (frameChecksum === null || crc32(message) !== frameChecksum) return null;
-    return { message, messageSeq: frame.messageSeq };
-  }
-
-  /** 丢弃某 messageSeq 的未齐分组（桥重建时清理）。 */
-  drop(messageSeq: number): void {
-    this.pending.delete(messageSeq);
-  }
-
-  clear(): void {
-    this.pending.clear();
-  }
-}
-
-// —— M4c：发送侧流控与重放缓冲（对齐官方 AcknowledgedRelayProtocol）——
-//
-// 取证：chunk-C6VCYWB4.js 类体 @8551、常量表 @6729。官方语义：每条完整消息一个
-// messageSeq；发送侧记录 {messageSeq→帧组, outerBytes, queuedAt}；收到
-// rpc-frame-ack{ackMessageSeq} → releaseThrough 释放 ≤ack 的批次并减
-// unacknowledgedByteCount；unacked 越过高水位置 saturated（宿主背压触发面），ack
-// 回落到 ≤低水位置 drained；future-ack（ack > 已发最高 seq）→ enterDegraded（终态）；
-// 缓冲超限 / 最旧未确认批次超过 grace → enterDegraded（终态）。
-
-// spec D2 同源化：流控/重放常量单一出处 = @drora/shared relay-wire（取证注释随迁：
-// 官方 chunk-C6VCYWB4.js 类体 @8551、常量表 @6729）。此处 re-export 维持既有消费者
+// spec D2/P2a 同源化：rpc-frame 传输封装（M4b）与发送侧重放缓冲（M4c）的单一出处
+// 已收敛到 @drora/shared relay-wire（线格式/常量/crc32/组装器/重放缓冲及取证注释随迁，
+// 见 specs/mobile-relay-r3-frontend.md §12/§13）。此处 re-export 维持既有消费者
 // （desktopMobileRelayControl、conformance 测试）的导入路径不变。
 export {
   RELAY_REPLAY_BUFFER_GRACE_MS,
   RELAY_REPLAY_BUFFER_MAX_BYTES,
   RELAY_SATURATION_HIGH_WATER_MARK_BYTES,
   RELAY_SATURATION_LOW_WATER_MARK_BYTES,
+  RELAY_REPLAY_DEGRADED_ACK_GRACE,
+  RELAY_REPLAY_DEGRADED_BUFFER_EXCEEDED,
+  RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE,
+  RELAY_REPLAY_DEGRADED_FUTURE_ACK,
+  RPC_FRAME_FRAGMENT_DATA_BYTES,
+  RPC_FRAME_MAX_FRAGMENTS,
+  RPC_FRAME_MAX_MESSAGE_BYTES,
+  RelayReplayBuffer,
+  RpcFrameAssembler,
+  buildRpcFrameAck,
+  checksumValueFromWire,
+  createRelayReplayBuffer,
+  crc32,
+  crc32ToWire,
+  encodeRpcTransportMessage,
+  identityFields,
+  parseRpcTransportFrame,
+  type RelayReplayAckResult,
+  type RelayReplayBufferOptions,
+  type RelayReplayReserveResult,
+  type RpcFrameIdentity,
+  type RpcTransportFrame,
 } from "@drora/shared";
-
-/** 终态降级原因码（对齐官方 fault.reasonCode 字面量族）。 */
-export const RELAY_REPLAY_DEGRADED_ACK_GRACE = "remote.rpcFrame.ackGraceExceeded";
-export const RELAY_REPLAY_DEGRADED_FUTURE_ACK = "remote.rpcFrame.futureAck";
-export const RELAY_REPLAY_DEGRADED_BUFFER_EXCEEDED = "remote.rpcFrame.replayBufferExceeded";
-/**
- * 发送侧超限（M4c，官方 Q 的 sendFrame 取证 index.js@397000 附近）：
- * 出站物理帧超过 maxPhysicalFrameBytes 时官方显式抛
- * Error("remote.rpcFrame.envelopeTooLarge")，协议侧捕获 → enterDegraded 终态——
- * 不再静默丢帧（手机页 sendFrame 同款，托管页取证 @6084714）。
- */
-export const RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE = "remote.rpcFrame.envelopeTooLarge";
-
-/** 重放缓冲参数（缺省 = 官方常量；测试可注入缩短 graceMs / 缩小水位）。 */
-export interface RelayReplayBufferOptions {
-  highWaterMarkBytes?: number;
-  lowWaterMarkBytes?: number;
-  maxBytes?: number;
-  graceMs?: number;
-  /** 时间源（测试注入；默认 Date.now）。 */
-  now?: () => number;
-}
-
-export interface RelayReplayReserveResult {
-  /** 入队将使未确认字节超过缓冲上限：批次被拒（官方 replayBufferExceeded → enterDegraded）。 */
-  overflow: boolean;
-  /** 入队后的饱和状态（false→true 转变沿即官方 onSaturated 触发面）。 */
-  saturated: boolean;
-}
-
-export interface RelayReplayAckResult {
-  /** releaseThrough 释放的字节数；0 = 落后/重复 ack（官方 `ack<=lastAcked` 无操作）。 */
-  releasedBytes: number;
-  /** ack 超过已完整发送的最高 messageSeq（官方 futureAck → enterDegraded 终态）。 */
-  futureAck: boolean;
-  /** 本次 ack 使饱和回落到 ≤ 低水位（官方 onDrained 触发面）。 */
-  drained: boolean;
-}
-
-interface RelayReplayBatch {
-  messageSeq: number;
-  outerBytes: number;
-  frames: RpcTransportFrame[];
-  queuedAt: number;
-}
-
-/**
- * 发送侧重放缓冲（纯逻辑，可独立单测）：官方 AcknowledgedRelayProtocol 的出站簿记
- * 子集。批次按 reserve 顺序保存（控制层保证 messageSeq 单调递增），ack 为累计确认
- * （releaseThrough 释放 ≤ack 的全部批次）。字节口径由调用方决定，控制层用出站
- * data 信封字节数（对齐官方 measureFrameBytes 计量最终信封）。
- */
-export class RelayReplayBuffer {
-  private readonly batches: RelayReplayBatch[] = [];
-  private unacknowledgedByteCount = 0;
-  private saturatedState = false;
-  private highestFullySentMessageSeq = 0;
-  private lastAckedMessageSeq = 0;
-  /** 宽限期（ms）：控制层据此计算 grace 看门狗延迟。 */
-  readonly graceMs: number;
-  private readonly highWaterMarkBytes: number;
-  private readonly lowWaterMarkBytes: number;
-  private readonly maxBytes: number;
-  private readonly now: () => number;
-
-  constructor(options: RelayReplayBufferOptions = {}) {
-    this.highWaterMarkBytes = options.highWaterMarkBytes ?? RELAY_SATURATION_HIGH_WATER_MARK_BYTES;
-    this.lowWaterMarkBytes = options.lowWaterMarkBytes ?? RELAY_SATURATION_LOW_WATER_MARK_BYTES;
-    this.maxBytes = options.maxBytes ?? RELAY_REPLAY_BUFFER_MAX_BYTES;
-    this.graceMs = options.graceMs ?? RELAY_REPLAY_BUFFER_GRACE_MS;
-    this.now = options.now ?? Date.now;
-  }
-
-  /** 未确认字节水位（官方 unacknowledgedBytes getter）。 */
-  get unacknowledgedBytes(): number {
-    return this.unacknowledgedByteCount;
-  }
-
-  /** 饱和状态（官方 saturated 字段；状态转变沿即 saturated/drained 事件）。 */
-  get saturated(): boolean {
-    return this.saturatedState;
-  }
-
-  /** 已完整发送的最高 messageSeq（future-ack 判定基准，官方 highestFullySentMessageSeq）。 */
-  get highestSentMessageSeq(): number {
-    return this.highestFullySentMessageSeq;
-  }
-
-  /**
-   * 入队一个已发送批次并累计未确认字节。超上限时拒收（不累计、不保存）——官方
-   * 在发送前检查并 enterDegraded(replayBufferExceeded)；本仓控制层为"发送后
-   * reserve"顺序，据 overflow 标记走终态降级（批次已上线，但 ack 将被忽略）。
-   */
-  reserve(
-    messageSeq: number,
-    outerBytes: number,
-    frames: RpcTransportFrame[],
-  ): RelayReplayReserveResult {
-    if (this.unacknowledgedByteCount + outerBytes > this.maxBytes) {
-      return { overflow: true, saturated: this.saturatedState };
-    }
-    this.batches.push({ messageSeq, outerBytes, frames, queuedAt: this.now() });
-    this.unacknowledgedByteCount += outerBytes;
-    if (messageSeq > this.highestFullySentMessageSeq) {
-      this.highestFullySentMessageSeq = messageSeq;
-    }
-    // 官方 updateSaturationAfterReserve：越过（>）高水位置饱和。
-    if (!this.saturatedState && this.unacknowledgedByteCount > this.highWaterMarkBytes) {
-      this.saturatedState = true;
-    }
-    return { overflow: false, saturated: this.saturatedState };
-  }
-
-  /** 累计确认（官方 processAck）：释放 ≤ackMessageSeq 的批次并减未确认水位。 */
-  ack(ackMessageSeq: number): RelayReplayAckResult {
-    // 落后/重复 ack：无操作（官方 `e<=lastAckedMessageSeq → return`）。
-    if (ackMessageSeq <= this.lastAckedMessageSeq) {
-      return { releasedBytes: 0, futureAck: false, drained: false };
-    }
-    // future-ack：ack 超过已完整发送的最高 seq → 终态降级标记（官方 futureAck）。
-    if (ackMessageSeq > this.highestFullySentMessageSeq) {
-      return { releasedBytes: 0, futureAck: true, drained: false };
-    }
-    let releasedBytes = 0;
-    let releasedCount = 0;
-    while (releasedCount < this.batches.length) {
-      const batch = this.batches[releasedCount];
-      if (!batch || batch.messageSeq > ackMessageSeq) break;
-      releasedBytes += batch.outerBytes;
-      releasedCount += 1;
-    }
-    if (releasedCount > 0) this.batches.splice(0, releasedCount);
-    this.unacknowledgedByteCount = Math.max(0, this.unacknowledgedByteCount - releasedBytes);
-    this.lastAckedMessageSeq = ackMessageSeq;
-    // 官方 drained：饱和态回落到 ≤ 低水位时清饱和并触发事件。
-    let drained = false;
-    if (this.saturatedState && this.unacknowledgedByteCount <= this.lowWaterMarkBytes) {
-      this.saturatedState = false;
-      drained = true;
-    }
-    return { releasedBytes, futureAck: false, drained };
-  }
-
-  /** 全部未确认帧组（重连后重发的数据源；官方 resetReplay + flushPendingFrames）。 */
-  replayFrames(): RpcTransportFrame[] {
-    const frames: RpcTransportFrame[] = [];
-    for (const batch of this.batches) {
-      for (const frame of batch.frames) frames.push(frame);
-    }
-    return frames;
-  }
-
-  /** 最旧未确认批次的入队时刻；无批次返回 null（官方 deadline 的 oldestData）。 */
-  oldestQueuedAt(): number | null {
-    const oldest = this.batches[0];
-    return oldest ? oldest.queuedAt : null;
-  }
-
-  /**
-   * grace 超时判定（官方 deadline）：最旧未确认批次超过宽限期。官方判定式
-   * `now > queuedAt+graceMs+1` 的 +1 是整数毫秒边界细节，与 `now > queuedAt+graceMs`
-   * 语义等价。
-   */
-  graceExceeded(nowMs: number = this.now()): boolean {
-    const oldest = this.batches[0];
-    return oldest !== undefined && nowMs > oldest.queuedAt + this.graceMs;
-  }
-
-  /** 清空（终态降级 / 桥销毁）：水位与饱和态归零；终态后不再有 reserve/ack 进入。 */
-  clear(): void {
-    this.batches.length = 0;
-    this.unacknowledgedByteCount = 0;
-    this.saturatedState = false;
-    this.highestFullySentMessageSeq = 0;
-    this.lastAckedMessageSeq = 0;
-  }
-}
-
-/** 官方 createAcknowledgedWebRemoteControlRelayProtocol 的缓冲构造入口（可注入参数）。 */
-export function createRelayReplayBuffer(options?: RelayReplayBufferOptions): RelayReplayBuffer {
-  return new RelayReplayBuffer(options);
-}
 
 /**
  * bridge-ready 携带的 bridge 信息（对齐官方 toExternalBridge，index.js@386100）：
@@ -787,34 +433,4 @@ export function normalizeRelayAttachError(error: unknown): unknown {
     });
   }
   return error;
-}
-
-/** 入站 rpc-frame 帧的运行时校验（形状级；语义校验在 Assembler）。 */
-export function parseRpcTransportFrame(value: unknown): RpcTransportFrame | null {
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  if (record.zcode_type !== "rpc-frame") return null;
-  if (typeof record.bridgeSessionId !== "string") return null;
-  if (record.bridgeGeneration !== undefined && typeof record.bridgeGeneration !== "number")
-    return null;
-  if (record.recoveryId !== undefined && typeof record.recoveryId !== "string") return null;
-  if (typeof record.seq !== "number" || typeof record.messageSeq !== "number") return null;
-  if (
-    typeof record.fragmentIndex !== "number" ||
-    typeof record.fragmentCount !== "number" ||
-    typeof record.messageBytes !== "number"
-  ) {
-    return null;
-  }
-  const checksum = record.checksum as { algorithm?: unknown; value?: unknown } | undefined;
-  if (
-    !checksum ||
-    checksum.algorithm !== "crc32" ||
-    // 入站兼容数值与 8 位 hex 字符串两种线格式（手机端发送侧为 hex 字符串）。
-    checksumValueFromWire(checksum.value) === null ||
-    typeof record.dataBase64 !== "string"
-  ) {
-    return null;
-  }
-  return record as unknown as RpcTransportFrame;
 }

@@ -1,7 +1,21 @@
 // Drora Relay Server · 线协议纯逻辑（无 IO，可独立单测）。
 // 协议规范与官方对齐依据见 specs/mobile-web-remote.md M4 段（含原版证据索引）
 // 与 specs/mobile-relay-server.md §3/§5。
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+// spec D2 同源化：跨包线协议纯逻辑（proof 构造、data 信封校验、transportId 字符集）
+// 单一出处收敛到 @drora/shared 的 relay-wire 区；本文件保留 node:crypto 专属面
+// （verifyProof 的常量时比较、sid/nonce 生成）并对既有消费者 re-export shared 出处。
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  TRANSPORT_ID_PATTERN,
+  computeProof,
+  isDataEnvelope,
+  stampServerTs,
+  type IncomingDataEnvelope,
+  type RelayWireRole,
+} from "@drora/shared";
+
+export { TRANSPORT_ID_PATTERN, computeProof, isDataEnvelope, stampServerTs };
+export type { IncomingDataEnvelope };
 
 /** 单条 WS 消息硬上限（对齐官方 maxPhysicalFrameBytes=1MiB，取证 et 常量表）。 */
 export const MAX_WS_PAYLOAD_BYTES = 1024 * 1024;
@@ -10,10 +24,7 @@ export const MAX_WS_PAYLOAD_BYTES = 1024 * 1024;
 export const REGISTER_RATE_PER_MINUTE = 10;
 export const MAX_LIVE_SIDS_PER_DEVICE_MID = 8;
 
-/** transportId（bridgeSessionId 等）字符集白名单（取证手机页 transportEnvelopeIdMaxChars schema）。 */
-export const TRANSPORT_ID_PATTERN = /^[A-Za-z0-9._~-]{1,64}$/u;
-
-export type RelayRole = "device" | "terminal";
+export type RelayRole = RelayWireRole;
 
 export interface DeviceRecord {
   deviceSid: string;
@@ -23,17 +34,7 @@ export interface DeviceRecord {
   lastSeenAt: number;
 }
 
-/** proof = HMAC-SHA256(passHash, "<nonce>|<role>|<deviceSid>", base64url)。 */
-export function computeProof(params: {
-  passHash: string;
-  nonce: string;
-  role: RelayRole;
-  deviceSid: string;
-}): string {
-  return createHmac("sha256", params.passHash)
-    .update(`${params.nonce}|${params.role}|${params.deviceSid}`)
-    .digest("base64url");
-}
+// computeProof 现出自 @drora/shared relay-wire（格式串单一出处 buildRelayProofMessage）。
 
 /**
  * proof 校验。base64url 为标准编码（桌面客户端发送形态）；同时接受标准 base64，
@@ -65,30 +66,4 @@ export function makeTerminalSid(): string {
 
 export function makeNonce(): string {
   return randomBytes(16).toString("base64url");
-}
-
-/** 入站消息的运行时形状校验（协议级；业务校验在端侧）。 */
-export interface IncomingDataEnvelope {
-  type: "data";
-  payload: Record<string, unknown>;
-  client_ts: number;
-}
-
-export function isDataEnvelope(value: unknown): value is IncomingDataEnvelope {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return (
-    record.type === "data" &&
-    typeof record.payload === "object" &&
-    record.payload !== null &&
-    typeof record.client_ts === "number"
-  );
-}
-
-/** 转发前盖章：官方手机页入站信封含 server_ts（schema 取证），由服务端在转发时写入。 */
-export function stampServerTs<T extends Record<string, unknown>>(
-  envelope: T,
-  ts: number,
-): T & { server_ts: number } {
-  return { ...envelope, server_ts: ts };
 }

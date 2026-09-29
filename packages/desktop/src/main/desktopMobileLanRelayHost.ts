@@ -1,7 +1,8 @@
 // 内嵌 LAN relay 宿主（自研层，specs/mobile-relay-server.md §12）：
 // 桌面应用进程内启动自建 relay-server，「局域网连接」传输与云中继统一走 relay 协议，
-// 手机页默认官方 v4 托管页（/remote/v4，内建资产代理 §12.9：cache→fetch 官方源站，
-// 离线时入口 302 → R2 自建页 /m/index.html 兜底）。旧 LAN 直连配对服务栈
+// 手机页默认 mobile-web 本地 3.14.3 v4 可读恢复稿（/remote/v4）；仅本地包不存在时
+// 启用内建代理 cache→fetch 官方源站。入口缺失时 302 → R2 自建页 /m/index.html。
+// 旧 LAN 直连配对服务栈
 // （desktopMobilePairingServer/Core/Restore，协议 v1 + 一次性令牌）已删除
 // （specs/mobile-relay-server.md §12.4），其 LAN 地址挑选逻辑（pickLanAddress）
 // 迁入本文件继续服务内嵌 relay 出码。
@@ -9,8 +10,10 @@
 // 职责边界：本模块只管内嵌服务端生命周期（listen/stop/幂等）与凭据 origin 路由的
 // 纯逻辑；relay 控制链（desktopMobileRelayControl）与装配（index.ts）不在此处。
 import { createHash } from "node:crypto";
+import { access } from "node:fs/promises";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createDeviceRegistry,
   createFileDeviceRegistryStorage,
@@ -25,6 +28,24 @@ type HostLogger = {
 
 // 服务级日志（AGENTS.md 日志规范）：模块级单例，宿主生命周期与 LAN 地址诊断共用。
 const serviceLog = createServiceLogger("mobile-lan-relay");
+
+/** 同一 3.14.3 恢复稿优先读取安装包资源，开发态读取 mobile-web 源码目录。 */
+export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
+  const sourceRoot = fileURLToPath(new URL("../../../mobile-web/src/recovered/", import.meta.url));
+  const candidates = [
+    ...(process.resourcesPath ? [join(process.resourcesPath, "mobile-web")] : []),
+    sourceRoot,
+  ];
+  for (const root of candidates) {
+    try {
+      await access(join(root, "remote", "v4", "index.html"));
+      return root;
+    } catch {
+      // 此候选不存在时尝试下一个；没有本地页才允许走旧资产代理。
+    }
+  }
+  return undefined;
+}
 
 /**
  * LAN 内嵌 relay 的稳定逻辑 origin（specs/mobile-relay-server.md §12.2）：
@@ -87,6 +108,7 @@ export function createDesktopMobileLanRelayHost(deps: {
     ensureStarted(): Promise<{ port: number }> {
       if (server && port !== null) return Promise.resolve({ port });
       starting ??= (async () => {
+        const mobileRoot = await resolveLocalMobileWebRoot();
         const registry = createDeviceRegistry({
           storage: createFileDeviceRegistryStorage(registryFilePath),
         });
@@ -94,10 +116,11 @@ export function createDesktopMobileLanRelayHost(deps: {
           registry,
           port: 0,
           host: listenHost,
-          // 内建官方页资产代理（spec §12.9）：LAN 内嵌默认出官方 v4 页；缓存与
-          // registry 同目录托管（~/.drora/v2/mobile-relay-lan/remote-assets），
-          // 离线时入口 302 → /m/index.html（R2 极简页兜底）。
-          remoteAssets: { cacheDir: join(dirname(registryFilePath), "remote-assets") },
+          mobileRoot,
+          // 自带页面时禁用官方代理，保证 LAN 可离线且不向 z.ai 请求资产。
+          remoteAssets: mobileRoot
+            ? undefined
+            : { cacheDir: join(dirname(registryFilePath), "remote-assets") },
           log: relayLog,
         });
         try {
@@ -144,8 +167,8 @@ export function createDesktopMobileLanRelayHost(deps: {
 /**
  * LAN 传输的二维码页地址（specs/mobile-relay-server.md §12.1/§12.9）：手机必须经
  * 局域网 IPv4 访问内嵌 relay；找不到可用地址时抛错（环回地址对手机不可达，出码
- * 必然连不上）。页地址为官方 v4 托管页（/remote/v4，§12.5-§12.8 双栈对齐结论的
- * 产品化）——资产代理离线时该入口 302 回退 R2 极简页（/m/index.html，保留 QR
+ * 必然连不上）。页地址为本地托管 v4 页面（/remote/v4，§12.5-§12.8 双栈对齐结论的
+ * 产品化）——本地入口缺失时该入口 302 回退 R2 极简页（/m/index.html，保留 QR
  * 查询参数），故无需客户端侧探测。WS 入口同理经 lanIp 可达（服务端绑 0.0.0.0）。
  */
 export function buildLanRemotePageUrl(params: { port: number }): string {

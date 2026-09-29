@@ -16,6 +16,7 @@ import {
   createDesktopMobileLanRelayHost,
   credentialFileNameForOrigin,
   resolveCloudRelayOrigin,
+  resolveLocalMobileWebRoot,
 } from "../src/main/desktopMobileLanRelayHost.js";
 import {
   calculateRelayProof,
@@ -94,6 +95,17 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
   assert.equal(again.port, first.port, "幂等：已监听时复用同一端口");
   assert.equal(host.currentPort(), first.port);
   assert.equal(host.isRunning(), true);
+
+  // LAN 内嵌服务优先由独立 mobile-web 包离线供给 v4 入口和版本资产。
+  assert.ok(await resolveLocalMobileWebRoot());
+  const entry = await fetch(`http://127.0.0.1:${first.port}/remote/v4`);
+  assert.equal(entry.status, 200);
+  assert.match(await entry.text(), /3\.14\.3\/assets\/index-/u);
+  const bundle = await fetch(
+    `http://127.0.0.1:${first.port}/remote/v4/3.14.3/assets/index-NjWRUABD.js`,
+  );
+  assert.equal(bundle.status, 200);
+  assert.doesNotMatch(await bundle.text(), /`wss:\/\/zcode\.z\.ai\/ws`/u);
 
   // 真实可达：WS 入口在同一端口应答注册。
   const probe = await connectTerminal(`ws://127.0.0.1:${first.port}/ws`);

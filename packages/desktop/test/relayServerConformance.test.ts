@@ -167,7 +167,9 @@ test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => 
   assert.equal(kicked.code, "KICKED");
 
   // 手机页动作帧路由（R2）：drora-page-request → 服务调用 → drora-page-response。
-  // 本测试环境无窗口 Host，attacher 失败 → ok:false 结果帧（证明路由与错误面可达）。
+  // e1a6d18 起 list 不强制附着 Host（缓存可答时纯快照响应，specs/mobile-relay-server.md
+  // §9 迁移边界）：本测试环境无窗口 Host，list 仍以空/回退清单成功响应——期望
+  // success:true + taskList 帧形状；任务类动作（chat 等）才走 attacher 失败面。
   terminal2.send({
     type: "data",
     client_ts: Date.now(),
@@ -183,10 +185,14 @@ test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => 
     zcode_type: string;
     requestId: string;
     success: boolean;
+    frame?: { type?: string; workspaces?: unknown[]; tasks?: unknown[] };
   };
   assert.equal(pagePayload.zcode_type, "drora-page-response");
   assert.equal(pagePayload.requestId, "pg1");
-  assert.equal(pagePayload.success, false);
+  assert.equal(pagePayload.success, true);
+  assert.equal(pagePayload.frame?.type, "taskList");
+  assert.ok(Array.isArray(pagePayload.frame?.workspaces));
+  assert.ok(Array.isArray(pagePayload.frame?.tasks));
   await terminal.close();
   await terminal2.close();
 

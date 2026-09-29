@@ -1,0 +1,87 @@
+// R3 P2a 构建验收（specs/mobile-relay-r3-frontend.md §13）：
+// - dist 形状：官方路径形状入口 + 资产图闭合 + 无官方 URL 字面量 / sourceMappingURL；
+// - i18n 同构：zh-CN / en-US 键集一致（D6 本地化验收面）；
+// - 源码边界：src/ui、src/intl 存在自包含实现（不 import @drora/ui）。
+// 纯 node 运行（package.json test 脚本无 tsx loader），TS 字典按文本解析键集。
+import assert from "node:assert/strict";
+import { readdir, readFile, stat } from "node:fs/promises";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const distEntry = join(packageRoot, "dist", "remote", "v4", "index.html");
+const distAssets = join(packageRoot, "dist", "remote", "v4", "3.14.3", "assets");
+
+test("dist：官方路径形状入口存在", async () => {
+  const info = await stat(distEntry);
+  assert.ok(info.isFile());
+});
+
+test("dist：资产图闭合（入口引用全部存在）且无违面字面量", async () => {
+  const entry = await readFile(distEntry, "utf8");
+  // P4a E2E 实证（spec §17）：入口在 /remote/v4（无尾斜杠）下服务，相对引用会解析
+  // 到 /remote/ 下丢 v4 段——必须为绝对官方形状引用。
+  const refs = [
+    ...entry.matchAll(/(?:src|href)="(\/remote\/v4\/3\.14\.3\/assets\/[^"]+)"/g),
+  ].map((m) => m[1]);
+  assert.ok(refs.length >= 2, `entry should reference >=2 assets, got ${refs.length}`);
+  const assetNames = new Set(await readdir(distAssets));
+  for (const ref of refs) {
+    const name = ref.slice("/remote/v4/3.14.3/assets/".length);
+    assert.ok(assetNames.has(name), `missing referenced asset: ${name}`);
+  }
+  for (const name of assetNames) {
+    const text = await readFile(join(distAssets, name), "utf8");
+    assert.equal(text.includes("zcode.z.ai"), false, `${name} contains official relay URL`);
+    assert.equal(text.includes("sourceMappingURL"), false, `${name} contains sourcemap comment`);
+  }
+  assert.equal(entry.includes("zcode.z.ai"), false);
+});
+
+test("i18n：zh-CN / en-US 键集同构", async () => {
+  const keySet = async (locale) => {
+    const text = await readFile(join(packageRoot, "src", "intl", `${locale}.ts`), "utf8");
+    // 全文解析（oxfmt 可能把长值折行，逐行解析会漏键/误报）：先剥离整行注释，
+    // 再以键值对正则抽取；值内转义引号不跨界。
+    const stripped = text
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
+    const keys = new Set();
+    for (const match of stripped.matchAll(/"((?:[^"\\]|\\.)+)"\s*:\s*"(?:[^"\\]|\\.)*"/g)) {
+      keys.add(match[1]);
+    }
+    return keys;
+  };
+  const zh = await keySet("zh-CN");
+  const en = await keySet("en-US");
+  assert.ok(zh.size >= 100, `zh dictionary unexpectedly small: ${zh.size}`);
+  const zhOnly = [...zh].filter((key) => !en.has(key));
+  const enOnly = [...en].filter((key) => !zh.has(key));
+  assert.deepEqual({ zhOnly, enOnly }, { zhOnly: [], enOnly: [] });
+});
+
+test("自包含边界：src 不 import @drora/ui（D6）", async () => {
+  const walk = async (dir) => {
+    const out = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...(await walk(full)));
+      else if (/\.(tsx?|css)$/.test(entry.name)) out.push(full);
+    }
+    return out;
+  };
+  const files = [
+    ...(await walk(join(packageRoot, "src", "ui"))),
+    ...(await walk(join(packageRoot, "src", "app"))),
+  ];
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+    // 只查真实 import 语句（注释里的 "@drora/ui" 字样不算违面）。
+    const imports = text.match(/^\s*import[\s\S]*?from\s+["'][^"']+["']/gm) ?? [];
+    const violating = imports.filter((statement) => statement.includes("@drora/ui"));
+    assert.deepEqual(violating, [], `${file} imports @drora/ui (violates D6 self-containment)`);
+  }
+  assert.ok(files.length >= 8, "self-contained ui/app tree is missing files");
+});

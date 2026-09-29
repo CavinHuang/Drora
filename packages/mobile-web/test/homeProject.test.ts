@@ -1,0 +1,76 @@
+// P4b 回归测试（spec §17）：真实 bootstrap 响应形状 → projectHomeData 任务归组。
+// 背景：分组曾读**投影后**任务对象（已剥 workspacePath/workspaceIdentity）→ key 为空、
+// 任务全部被丢弃——E2E 首批真链路验证（种子任务 + 真桌面 control）实证后修复。
+// 方法学：响应形状逐字段对照 desktop buildBootstrapResult（desktopMobileRelayProtocol.ts）。
+import assert from "node:assert/strict";
+import test from "node:test";
+import { projectHomeData } from "../src/app/entry.js";
+
+const BOOTSTRAP_RESULT = {
+  windowControlSessionId: "d_x",
+  desktopAppVersion: "3.14.3",
+  workspaces: [
+    { workspacePath: "C:/g1", label: "g1", kind: "local", connectionState: "connected" },
+  ],
+  tasks: [
+    {
+      taskId: "task-e2e-1",
+      title: "E2E 冒烟任务",
+      status: "",
+      updatedAt: 1790717360214,
+      workspacePath: "C:/g1",
+      workspaceLabel: "g1",
+      workspaceKind: "local",
+      createdAt: 1790630960214,
+    },
+  ],
+};
+
+test("P4b 回归：bootstrap 任务按原始记录归组到工作区（投影不丢定位字段）", () => {
+  const home = projectHomeData(BOOTSTRAP_RESULT);
+  assert.equal(home.workspaces.length, 1);
+  assert.equal(home.workspaces[0]?.workspaceKey, "C:/g1");
+  assert.equal(home.workspaces[0]?.tasks.length, 1);
+  assert.equal(home.workspaces[0]?.tasks[0]?.sessionId, "task-e2e-1");
+  assert.equal(home.workspaces[0]?.tasks[0]?.title, "E2E 冒烟任务");
+});
+
+test("P4b 回归：workspaceIdentity 归一与孤儿任务（不在已知工作区的任务不渲染组）", () => {
+  const home = projectHomeData({
+    ...BOOTSTRAP_RESULT,
+    workspaces: [
+      {
+        workspacePath: "C:/g1",
+        workspaceIdentity: "id-g1",
+        label: "g1",
+        kind: "local",
+        connectionState: "connected",
+      },
+    ],
+    tasks: [
+      // identity 命中：workspaceIdentity?.trim() || workspacePath。
+      {
+        ...BOOTSTRAP_RESULT.tasks[0],
+        workspaceIdentity: "id-g1",
+      },
+      // 孤儿：workspacePath 不在清单（控制面投影缺失场景）——不崩溃即可。
+      {
+        ...BOOTSTRAP_RESULT.tasks[0],
+        taskId: "task-orphan",
+        workspacePath: "C:/elsewhere",
+        workspaceIdentity: undefined,
+      },
+    ],
+  });
+  assert.equal(home.workspaces[0]?.tasks.length, 1);
+  assert.equal(home.workspaces[0]?.tasks[0]?.sessionId, "task-e2e-1");
+});
+
+test("P4b 回归：activeTaskId 从 mobileViewState 回退读取（bootstrap 顶层无该键）", () => {
+  const home = projectHomeData({
+    ...BOOTSTRAP_RESULT,
+    mobileViewState: { activeWorkspaceKey: "C:/g1", activeTaskId: "task-e2e-1" },
+  });
+  assert.equal(home.activeTaskId, "task-e2e-1");
+  assert.equal(home.activeWorkspaceKey, "C:/g1");
+});

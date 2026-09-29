@@ -44,6 +44,8 @@ export interface RelayServerOptions {
    * <staticRoot>/remote/v4/<version>/assets/*（spec §12.5）。
    */
   staticRoot?: string;
+  /** 独立 mobile-web 包的静态根，未命中时才进入官方资产代理。 */
+  mobileRoot?: string;
   /**
    * 内建官方页资产代理（spec §12.9）：GET /remote/** 未命中 staticRoot 时，
    * cacheDir 缓存 → fetch 官方源站（10s 超时）→ 原始字节落盘缓存、出站改写后
@@ -82,6 +84,7 @@ export function createRelayServer(options: RelayServerOptions) {
   const pingIntervalMs = options.pingIntervalMs ?? 30_000;
   // 防目录穿越基准：静态根的绝对形态（spec §12.5——resolve 后必须仍在其内）。
   const staticRootAbs = options.staticRoot ? resolvePath(options.staticRoot) : null;
+  const mobileRootAbs = options.mobileRoot ? resolvePath(options.mobileRoot) : null;
   // 内建资产代理缓存根的绝对形态（spec §12.9）。
   const remoteAssetsAbs = options.remoteAssets ? resolvePath(options.remoteAssets.cacheDir) : null;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
@@ -99,7 +102,6 @@ export function createRelayServer(options: RelayServerOptions) {
       response.end("ok");
       return;
     }
-    // 自建手机页（R2）：/m 与 /m/index.html 同页；桌面二维码 remotePageUrl 指向此处。
     // 必须按 pathname 匹配——request.url 含查询串（QR 的 sid/hash 等），
     // 精确匹配会让带参数的手机页 404（E2E 实锤）。
     let pagePathname = "";
@@ -112,13 +114,14 @@ export function createRelayServer(options: RelayServerOptions) {
       pagePathname = request.url ?? "";
     }
     // 页面/静态托管路由（spec §12.5/§12.9）：R2 手机页（/m*）与 /remote/** 托管
-    // 资产两级来源（staticRoot → 内建 cache/fetch 代理）+ 离线回退；决策与安全
+    // 资产三级来源（staticRoot → mobileRoot → 内建 cache/fetch 代理）+ 离线回退；决策与安全
     // 约束集中在 staticAssets.ts（单文件行数门禁），此处仅接线 HTTP 响应。
     const routed = await routeStaticRequest({
       method: request.method ?? "GET",
       pathname: pagePathname,
       search: pageSearch,
       staticRootAbs,
+      mobileRootAbs,
       remoteAssetsAbs,
       fetchImpl,
     });
@@ -326,6 +329,7 @@ export function createRelayServer(options: RelayServerOptions) {
     }
     options.registry.touch(deviceSid, Date.now());
     if (role === "device") {
+      log.warn("[relay-server][diag-auth] device attached", { deviceSid });
       const result = sessions.attachDevice(deviceSid, { connectionId: meta.id, sid: deviceSid });
       // auth_ack 字段集对齐官方（E2E #2）：device ack 携带 device_sid + terminal_sid
       //（未配对为 ""，已配对为当前 terminal 的 sid——用 sessionStore 当前视图）。
@@ -398,11 +402,17 @@ export function createRelayServer(options: RelayServerOptions) {
     if (!meta.deviceSid) return;
     if (!isDataEnvelope(message)) return;
     const view = sessions.view(meta.deviceSid);
-    if (view.status !== "matched") return;
+    if (view.status !== "matched") {
+      return;
+    }
     const peer = sessions.peer(meta.deviceSid, meta.role);
-    if (!peer) return;
+    if (!peer) {
+      return;
+    }
     const peerMeta = socketsByConnectionId.get(peer.connectionId);
-    if (!peerMeta) return;
+    if (!peerMeta) {
+      return;
+    }
     send(
       peerMeta.socket,
       stampServerTs(

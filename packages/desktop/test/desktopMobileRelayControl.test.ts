@@ -898,11 +898,11 @@ test("通道名别名推导：drora-* → zcode-*，其余不衍生", async () =
 test("deriveSelfHostedRelayEndpoints：自建 relay 端点推导（spec §8）", () => {
   const http = deriveSelfHostedRelayEndpoints("http://relay.lan:4430");
   assert.equal(http?.relayWsUrl, "ws://relay.lan:4430/ws");
-  assert.equal(http?.remotePageUrl, "http://relay.lan:4430/m/index.html");
+  assert.equal(http?.remotePageUrl, "http://relay.lan:4430/remote/v4");
 
   const https = deriveSelfHostedRelayEndpoints("https://relay.example.com/");
   assert.equal(https?.relayWsUrl, "wss://relay.example.com/ws");
-  assert.equal(https?.remotePageUrl, "https://relay.example.com/m/index.html");
+  assert.equal(https?.remotePageUrl, "https://relay.example.com/remote/v4");
 
   assert.equal(deriveSelfHostedRelayEndpoints(""), undefined);
   assert.equal(deriveSelfHostedRelayEndpoints("not a url"), undefined);

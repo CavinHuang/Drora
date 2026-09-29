@@ -290,64 +290,64 @@ f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowSta
 
 ### 原版证据索引（2026-09-28，官方 3.14.3 安装树 `D:\software\zcode\resources\app\out\main\`，偏移为该构建 minified 文件的字节偏移）
 
-| 结论                                                         | 位置                   | 偏移                             |
-| ------------------------------------------------------------ | ---------------------- | -------------------------------- | ----------------- | -------------------------------- |
-| 应用帧分发表 routePayload（9 case 全表）                     | index.js               | 400878                           |
-| 手机 platform-request 8 方法注册表                           | index.js               | 709575                           |
-| workspace 推送→同步+恢复（官方内联触发）                     | index.js               | 731576                           |
-| restorePreviouslyEnabled（至多一次/清单校验）                | index.js               | 405987                           |
-| start 成功 save 恢复上下文                                   | index.js               | 405268                           |
-| 仅手动 stop clear 上下文                                     | index.js               | 405856                           |
-| isBridgeableRemoteTarget / isBridgeableRemoteTask            | index.js               | 385786 / 385903                  |
-| getAvailableWorkspaces（注册表+运行时目标合并）              | index.js               | 393711                           |
-| WRONG_PARAM 仅 paired/waiting 走 onError（只记日志）         | index.js               | 380403                           |
-| onError 接线=仅 logger.warn 不断连                           | index.js               | 404384                           |
-| 应用帧超限拒收（warn+丢弃）                                  | index.js               | 392023                           |
-| WS mid 参数 / X-Device-ID 头 / 心跳 10s / QR app_version     | index.js               | 376115 / 376220 / 381194 / 59072 |
-| 流控+重放默认常量（1MiB/256KiB/8MiB/45s）                    | chunk-C6VCYWB4.js      | 6729                             |
-| AcknowledgedRelayProtocol 类 / data 信封 client_ts           | chunk-C6VCYWB4.js      | 8551 / 16244                     |
-| 协议 limits 引用 / 物理帧 1MiB 常量表                        | chunk-GJUBRD53.js      | 672222 / 532564                  |
-| checksum hex strict / frameShell=messageBytes                | chunk-GJUBRD53.js      | 672722 / 675450                  |
-| 配对遥测构造族（pair/bridge/start_result）                   | chunk-GJUBRD53.js      | 742394                           |
-| 遥测 ctor 族全貌（Af/Ef/aee/see/cee/lee）                    | chunk-GJUBRD53.js      | 741857–742900                    |
-| remote_kind 遥测 schema enum（ssh/wsl/docker/server）        | chunk-GJUBRD53.js      | 507075                           |
-| resolveRemoteKind（attach 优先/identity 兜底）               | index.js               | 387052                           |
-| resolveRuntimeWorkspaceDimensions（pair 维度）               | index.js               | 387232                           |
-| pair_result 状态沿（nI：paired/kicked/error）                | index.js               | 401850–402465                    |
-| hasEverPaired（pair_kind 旗标，仅新会话重置）                | index.js               | 404928                           |
-| start_result IPC 沿（runStartOperation/e1/StartWebRemote…）  | index.js               | 658100–658820                    |
-| ConnectRemote connectTrigger 归一（reconnect/restore→else new） | index.js            | 665263                           |
-| ARMS remote_usage 组（remote_connect_result 等）             | index.js               | 580856–581084                    |
-| 端点族构造（api/v1、relay /ws、remote v3/v4 按 semver）      | chunk-GJUBRD53.js      | 4737                             |
-| onSaturated/onDrained → Host 端口 sendFlowState 接线         | index.js               | 397846 / 397922                  |
-| onSendReady 触发（applyPairStatus matched，非首次配对）      | index.js               | 379650                           |
-| onSendReady 处理：flush pending + replayUnacknowledged       | index.js               | 404240 / 404330                  |
-| replayUnacknowledged（resetReplay+flush，不改水位记账）      | chunk-C6VCYWB4.js      | 12892                            |
-| 饱和/排空发射沿（updateSaturationAfterReserve/processAck）   | chunk-C6VCYWB4.js      | 11617 / 14812                    |
-| flow-state 线格式（postMessage 控制对象，非 relay 帧）       | chunk-BMP2VTTL.js      | 4958 / 7872                      |
-| Host 侧 MessagePortProtocol.onFlowState 分流                 | host/chunk-UHHNTW2R.js | 2711 / 5625                      |
-| Host 消费：onFlowState → setTransportFlowState               | host/index.js          | 1482463                          |
-| Host 下游：setConnectionFlowStateV4（trusted-host-relay）    | host/index.js          | 360242                           |
-| respondToWorkspaceReconnectRequest（reconnect 分支全貌）     | index.js               | 399799                           |
-| reconnectWorkspace=reconnectWebRemoteControlWorkspaceIn…     | index.js               | 409793                           |
-| routePayload reconnect case（无前置守卫直发）                | index.js               | 401307                           |
-| reconnect IPC 通道名 zcode:web-remote-control-reconnect-…    | chunk-GJUBRD53.js      | 11408                            |
-| preload onWebRemoteControlReconnectWorkspace（同通道回复）   | preload/index.cjs      | onWebRemoteControlReconnectWork… |
-| renderer 重连处理（handleReconnectRemoteWorkspace 委托）     | 托管页 index-NjWRUABD  | 5942240                          |
-| 手机页 reconnect 请求/响应匹配（workspaceKey 必须回显）      | 托管页 index-NjWRUABD  | 6086587                          |
-| createWorkspaceBridge（开桥全貌：attach+superseded+telem…    | index.js               | 395979                           |
-| respondToWorkspaceBridgeOpen（ready 后 readyAnnounced+fl…    | index.js               | 398793                           |
-| mapWorkspaceBridgeFailureReason（FW）/getErrorCode（UW）     | index.js               | 385109 / 385003                  |
-| isBridgeableRemoteTarget（pl）/isBridgeableRemoteTask（HW）  | index.js               | 385786 / 385903                  |
-| toExternalBridge 远程分支（kind=remote 必带 id+remoteSes…    | index.js               | 386100                           |
-| isCurrentBridgeRuntime（v=superseded 判定）                  | index.js               | 388704                           |
-| disposeRuntimeBridgeResources（y：开新桥先拆旧桥）           | index.js               | 388667                           |
-| attachLocalHost（n：scope kind=local，DESKTOP_HOST_MISSING） | index.js               | 583400                           |
-| attachWorkspaceHost 远程分支（i：remoteSessionId/kind 面）   | index.js               | 584400                           |
-| attachRemoteWorkspaceSessionHost（re：四段校验+remoteKind）  | index.js               | 577400                           |
-| 手机页 bridge-error/app-error 消费（I9(reason,message)）     | 托管页 index-NjWRUABD  | 6044547 / 6030112                |
-| 手机页失败面 i18n（4 个 reason 键=官方 reason 词汇表）       | 托管页 index-NjWRUABD  | 6046621–6052021                  |
-| resolveWorkspaceKey（identity?.trim()                        |                        | workspacePath）                  | chunk-GJUBRD53.js | oz 函数（"resolveWorkspaceKey"） |
+| 结论                                                            | 位置                   | 偏移                             |
+| --------------------------------------------------------------- | ---------------------- | -------------------------------- | ----------------- | -------------------------------- |
+| 应用帧分发表 routePayload（9 case 全表）                        | index.js               | 400878                           |
+| 手机 platform-request 8 方法注册表                              | index.js               | 709575                           |
+| workspace 推送→同步+恢复（官方内联触发）                        | index.js               | 731576                           |
+| restorePreviouslyEnabled（至多一次/清单校验）                   | index.js               | 405987                           |
+| start 成功 save 恢复上下文                                      | index.js               | 405268                           |
+| 仅手动 stop clear 上下文                                        | index.js               | 405856                           |
+| isBridgeableRemoteTarget / isBridgeableRemoteTask               | index.js               | 385786 / 385903                  |
+| getAvailableWorkspaces（注册表+运行时目标合并）                 | index.js               | 393711                           |
+| WRONG_PARAM 仅 paired/waiting 走 onError（只记日志）            | index.js               | 380403                           |
+| onError 接线=仅 logger.warn 不断连                              | index.js               | 404384                           |
+| 应用帧超限拒收（warn+丢弃）                                     | index.js               | 392023                           |
+| WS mid 参数 / X-Device-ID 头 / 心跳 10s / QR app_version        | index.js               | 376115 / 376220 / 381194 / 59072 |
+| 流控+重放默认常量（1MiB/256KiB/8MiB/45s）                       | chunk-C6VCYWB4.js      | 6729                             |
+| AcknowledgedRelayProtocol 类 / data 信封 client_ts              | chunk-C6VCYWB4.js      | 8551 / 16244                     |
+| 协议 limits 引用 / 物理帧 1MiB 常量表                           | chunk-GJUBRD53.js      | 672222 / 532564                  |
+| checksum hex strict / frameShell=messageBytes                   | chunk-GJUBRD53.js      | 672722 / 675450                  |
+| 配对遥测构造族（pair/bridge/start_result）                      | chunk-GJUBRD53.js      | 742394                           |
+| 遥测 ctor 族全貌（Af/Ef/aee/see/cee/lee）                       | chunk-GJUBRD53.js      | 741857–742900                    |
+| remote_kind 遥测 schema enum（ssh/wsl/docker/server）           | chunk-GJUBRD53.js      | 507075                           |
+| resolveRemoteKind（attach 优先/identity 兜底）                  | index.js               | 387052                           |
+| resolveRuntimeWorkspaceDimensions（pair 维度）                  | index.js               | 387232                           |
+| pair_result 状态沿（nI：paired/kicked/error）                   | index.js               | 401850–402465                    |
+| hasEverPaired（pair_kind 旗标，仅新会话重置）                   | index.js               | 404928                           |
+| start_result IPC 沿（runStartOperation/e1/StartWebRemote…）     | index.js               | 658100–658820                    |
+| ConnectRemote connectTrigger 归一（reconnect/restore→else new） | index.js               | 665263                           |
+| ARMS remote_usage 组（remote_connect_result 等）                | index.js               | 580856–581084                    |
+| 端点族构造（api/v1、relay /ws、remote v3/v4 按 semver）         | chunk-GJUBRD53.js      | 4737                             |
+| onSaturated/onDrained → Host 端口 sendFlowState 接线            | index.js               | 397846 / 397922                  |
+| onSendReady 触发（applyPairStatus matched，非首次配对）         | index.js               | 379650                           |
+| onSendReady 处理：flush pending + replayUnacknowledged          | index.js               | 404240 / 404330                  |
+| replayUnacknowledged（resetReplay+flush，不改水位记账）         | chunk-C6VCYWB4.js      | 12892                            |
+| 饱和/排空发射沿（updateSaturationAfterReserve/processAck）      | chunk-C6VCYWB4.js      | 11617 / 14812                    |
+| flow-state 线格式（postMessage 控制对象，非 relay 帧）          | chunk-BMP2VTTL.js      | 4958 / 7872                      |
+| Host 侧 MessagePortProtocol.onFlowState 分流                    | host/chunk-UHHNTW2R.js | 2711 / 5625                      |
+| Host 消费：onFlowState → setTransportFlowState                  | host/index.js          | 1482463                          |
+| Host 下游：setConnectionFlowStateV4（trusted-host-relay）       | host/index.js          | 360242                           |
+| respondToWorkspaceReconnectRequest（reconnect 分支全貌）        | index.js               | 399799                           |
+| reconnectWorkspace=reconnectWebRemoteControlWorkspaceIn…        | index.js               | 409793                           |
+| routePayload reconnect case（无前置守卫直发）                   | index.js               | 401307                           |
+| reconnect IPC 通道名 zcode:web-remote-control-reconnect-…       | chunk-GJUBRD53.js      | 11408                            |
+| preload onWebRemoteControlReconnectWorkspace（同通道回复）      | preload/index.cjs      | onWebRemoteControlReconnectWork… |
+| renderer 重连处理（handleReconnectRemoteWorkspace 委托）        | 托管页 index-NjWRUABD  | 5942240                          |
+| 手机页 reconnect 请求/响应匹配（workspaceKey 必须回显）         | 托管页 index-NjWRUABD  | 6086587                          |
+| createWorkspaceBridge（开桥全貌：attach+superseded+telem…       | index.js               | 395979                           |
+| respondToWorkspaceBridgeOpen（ready 后 readyAnnounced+fl…       | index.js               | 398793                           |
+| mapWorkspaceBridgeFailureReason（FW）/getErrorCode（UW）        | index.js               | 385109 / 385003                  |
+| isBridgeableRemoteTarget（pl）/isBridgeableRemoteTask（HW）     | index.js               | 385786 / 385903                  |
+| toExternalBridge 远程分支（kind=remote 必带 id+remoteSes…       | index.js               | 386100                           |
+| isCurrentBridgeRuntime（v=superseded 判定）                     | index.js               | 388704                           |
+| disposeRuntimeBridgeResources（y：开新桥先拆旧桥）              | index.js               | 388667                           |
+| attachLocalHost（n：scope kind=local，DESKTOP_HOST_MISSING）    | index.js               | 583400                           |
+| attachWorkspaceHost 远程分支（i：remoteSessionId/kind 面）      | index.js               | 584400                           |
+| attachRemoteWorkspaceSessionHost（re：四段校验+remoteKind）     | index.js               | 577400                           |
+| 手机页 bridge-error/app-error 消费（I9(reason,message)）        | 托管页 index-NjWRUABD  | 6044547 / 6030112                |
+| 手机页失败面 i18n（4 个 reason 键=官方 reason 词汇表）          | 托管页 index-NjWRUABD  | 6046621–6052021                  |
+| resolveWorkspaceKey（identity?.trim()                           |                        | workspacePath）                  | chunk-GJUBRD53.js | oz 函数（"resolveWorkspaceKey"） |
 
 **补充定案（版本门控机制细化）**：桌面侧 `Wx(appVersion)` 为 semver 合法性校验，
 合法→页面路径 `/remote/v4`，非法（dev 版本）→`/remote/v3`（chunk-GJUBRD53.js:4737
@@ -590,6 +590,22 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
    消耗自己的名额后，切到"云中继"tab 仍可自动开启 relay——修复前是跨传输共享的
    单一布尔，切 tab 后 relay 永远停在"未开启"。弹层关闭 `reset()` 清空全部名额。
 
+4. 2026-09-29 真 Electron + CDP 回归：Main 查询返回 `status: idle` 时，
+   Renderer 必须保留这个状态传给自动开启闸门；只过滤其他传输的非 idle 运行状态。
+   原实现先用 `state.status !== "idle"` 筛掉 idle，再把 `undefined` 交给闸门，
+   结果弹层永久显示“正在准备二维码”。状态所有者仍是 Main，Renderer 只决定当前
+   tab 的投影及单次启动命令；关闭弹层重置名额，不另存服务端运行事实。
+
+   ```text
+   Main: idle ──状态查询──> Renderer: 当前 tab 投影 idle
+                                  └─闸门准许一次──> startMobileRelayControl
+                                                        └─Main: running + QR URL──> Renderer
+   ```
+
+   验收：隔离 Electron 实例打开弹层后，无需手动刷新即出现可复制的本地 QR URL；
+   LAN 与云中继切换仍各自最多自动启动一次；已在其他传输运行时不得误判为本 tab
+   可用状态。
+
 ### 边界
 
 - relay 只承载转发；Drora 不实现服务端（官方 z.ai relay）。**自建兼容服务端的设计
@@ -629,7 +645,7 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
   **单一活跃链路**：两传输共用控制链，同一时刻至多一条活跃；弹层内切换 tab 会把
   运行中的链路切到目标传输（原双服务端可并存的行为不再存在，有意收敛）。
 - **旧栈已删除（2026-09-29，前轮「只拆线不删码」的收尾）**：`startMobilePairing/
-  stopMobilePairing/refreshMobilePairing/getMobilePairingState/onMobilePairingStateChanged`
+stopMobilePairing/refreshMobilePairing/getMobilePairingState/onMobilePairingStateChanged`
   方法与 `MobilePairingStart/Stop/State/Reset/StateChanged` IPC 通道、
   `desktopMobilePairingServer/Core/Restore` 文件及其测试、`phonePageSyntaxCheck.mjs`
   均已删除；保留 `MobilePairingRuntimeState` 等状态类型（relay 沿用）、

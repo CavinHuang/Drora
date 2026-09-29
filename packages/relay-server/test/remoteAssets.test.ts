@@ -4,9 +4,10 @@
 // - 离线回退：入口文档 302 → /m/index.html（保留查询串）；其余资产 404；
 // - 安全：越界 pathname 不读盘也不请求源站；缓存写失败降级直出不缓存。
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
 import { createDeviceRegistry, createFileDeviceRegistryStorage } from "../src/index.js";
 import { OFFICIAL_PAGE_ORIGIN, serveHostedAsset } from "../src/staticAssets.js";
@@ -68,7 +69,7 @@ test("内建资产代理：未命中→fetch→出站改写→缓存落盘原始
   });
   const assetUrl = "/remote/v4/3.14.3/assets/app-test.js";
 
-  // 首次请求：fetch 官方源站 → 200 + 出站改写（动态同源端点 + __selfhostPatch 标记）。
+  // 首次请求：fetch 官方源站 → 200 + 出站改写动态同源端点。
   const first = await fetch(`${base}${assetUrl}`);
   assert.equal(first.status, 200);
   assert.match(first.headers.get("content-type") ?? "", /text\/javascript/u);
@@ -82,7 +83,7 @@ test("内建资产代理：未命中→fetch→出站改写→缓存落盘原始
     "硬编码 wss 端点必须改写为动态同源",
   );
   assert.ok(body1.includes("endpointOrigin:window.location.origin"));
-  assert.ok(body1.includes('window.__selfhostPatch="served"'), "JS 必须带自托管运行时标记");
+  assert.ok(!body1.includes("__selfhostPatch"), "JS 不得注入诊断副作用");
   assert.ok(!body1.includes("zcode.z.ai"), "改写后不得残留官方源站字面量");
 
   // 缓存落盘为原始字节（无改写、无标记）——改写规则演进时缓存仍有效（spec §12.9）。
@@ -178,7 +179,7 @@ test("staticRoot 优先级不变：命中不经代理，未命中落入 cache→
   // staticRoot 未命中：落入内建代理（cache→fetch）。
   const proxied = await fetch(`${base}/remote/v4/other.js`);
   assert.equal(proxied.status, 200);
-  assert.ok((await proxied.text()).includes("window.__selfhostPatch"));
+  assert.equal(await proxied.text(), "proxied-entry");
   assert.equal(counting.calls.length, 1, "staticRoot 未命中必须落入代理");
   await server.close();
 
@@ -219,7 +220,7 @@ test("安全与降级：越界 pathname 不读盘不 fetch；缓存写失败降�
     fetchImpl,
   });
   assert.ok(served, "缓存写失败仍须直出服务");
-  assert.ok(String(served.body).includes('window.__selfhostPatch="served"'));
+  assert.equal(String(served.body), "should-not-serve");
   assert.equal(calls.length, 1);
   // 防穿越守卫对 HTTP 面同样生效（URL 解析归一 + 分支前缀）：. 段不落入 /remote/**。
   const { server, base } = await startServer({
@@ -231,5 +232,60 @@ test("安全与降级：越界 pathname 不读盘不 fetch；缓存写失败降�
   const dotEscape = await fetch(`${base}/remote/../../secret.js`);
   assert.equal(dotEscape.status, 404);
   assert.equal(calls.length, 1, "URL 归一后的非 /remote 路径不进代理分支");
+  await server.close();
+});
+
+test("独立 mobile-web 恢复稿离线托管：入口、版本 chunk 和同源 WS 改写", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-mobile-web-"));
+  tempDirs.push(dir);
+  const mobileRoot = fileURLToPath(new URL("../../mobile-web/src/recovered/", import.meta.url));
+  const { fetchImpl, calls } = mockFetch(() => {
+    throw new Error("本地资产命中时不应请求官方源站");
+  });
+  const { server, base } = await startServer({
+    registry: makeRegistry(dir),
+    port: 0,
+    mobileRoot,
+    fetchImpl,
+  });
+  const entry = await fetch(`${base}/remote/v4?sid=test&hash=example`);
+  assert.equal(entry.status, 200);
+  assert.match(entry.headers.get("content-type") ?? "", /text\/html/u);
+  assert.match(await entry.text(), /3\.14\.3\/assets\/index-/u);
+  const app = await fetch(`${base}/remote/v4/3.14.3/assets/index-NjWRUABD.js`);
+  assert.equal(app.status, 200);
+  const js = await app.text();
+  assert.ok(js.startsWith("// 还原自发行 bundle"));
+  assert.ok(!js.includes("__selfhostPatch"));
+  assert.ok(!js.includes("`wss://zcode.z.ai/ws`"));
+  const workerPath = "remote/v4/3.14.3/assets/diffs.worker-CAavpt0L.js";
+  const worker = await fetch(`${base}/${workerPath}`);
+  assert.equal(worker.status, 200);
+  assert.equal(await worker.text(), await readFile(join(mobileRoot, workerPath), "utf8"));
+  const missing = await fetch(`${base}/remote/v4/3.14.3/assets/missing.js`);
+  assert.equal(missing.status, 404);
+  assert.equal(calls.length, 0);
+  await server.close();
+});
+
+test("本地托管对二进制页面资产保持字节不变", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-binary-"));
+  tempDirs.push(dir);
+  const mobileRoot = join(dir, "mobile");
+  const assetDir = join(mobileRoot, "remote", "v4", "3.14.3", "assets");
+  await mkdir(assetDir, { recursive: true });
+  const binary = Buffer.from([0, 255, 80, 78, 71, 0, 128]);
+  await writeFile(join(assetDir, "sample.png"), binary);
+  const { server, base } = await startServer({
+    registry: makeRegistry(dir),
+    port: 0,
+    mobileRoot,
+  });
+  const response = await fetch(`${base}/remote/v4/3.14.3/assets/sample.png`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), binary);
+  const fallback = await fetch(`${base}/remote/v4?sid=local`, { redirect: "manual" });
+  assert.equal(fallback.status, 302);
+  assert.equal(fallback.headers.get("location"), "/m/index.html?sid=local");
   await server.close();
 });

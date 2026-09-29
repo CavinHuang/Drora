@@ -46,6 +46,7 @@ import {
   mapTransportState,
   isBridgeableRemoteTarget,
   mapWorkspaceBridgeFailureReason,
+  mergeRuntimeWorkspace,
   normalizeRelayAttachError,
   RELAY_REPLAY_DEGRADED_ENVELOPE_TOO_LARGE,
   relayWorkspaceKey,
@@ -621,6 +622,17 @@ export function createDesktopMobileRelayControl(deps: {
   let lastWorkspaceListFingerprint: string | null = null;
 
   function syncAvailableWorkspaces(workspaces: MobileRelayWorkspaceSyncEntry[]): void {
+    // 空推送防护（2026-09-29 回归修复）：renderer 重载/标签恢复窗口会推送空快照；
+    // relay 会话附着在真实工作区上，"无工作区"不是有效状态——运行中忽略空推送，
+    // 避免把 syncedWorkspaces 清空（手机页 list 的工作区分组随之消失，实锤见
+    // specs/mobile-relay-server.md「R2 list workspaces:0」）。非空推送保持官方
+    // replace 语义；下次正常推送仍会覆盖本清单。
+    if (workspaces.length === 0 && startParams) {
+      logger.warn("[mobile-relay] 忽略空工作区推送（保持当前清单）", {
+        workspacePath: startParams.workspacePath,
+      });
+      return;
+    }
     syncedWorkspaces = workspaces;
     pushWorkspaceListUpdatedIfChanged();
   }
@@ -1333,10 +1345,12 @@ export function createDesktopMobileRelayControl(deps: {
           return;
         }
         try {
-          const { task, session } = attacher.ensure();
+          const fallbackWorkspace = currentWorkspaceSummary();
           // list 动作 = 全工作区任务聚合（对齐官方 getAvailableTasks 语义）：
           // renderer 已推送跨工作区任务摘要（syncedTasks）时直接采用；
           // 否则（如设置页场景无推送）回落启动工作区的单工作区清单。
+          // list 不强制附着 Host——缓存可答时纯快照响应，Host 重启/附着窗口期
+          // 手机页清单不闪断（回落 listTasks 的路径自带 Host 容错）。
           if (pageFrame.type === "list") {
             sendAppFrame({
               zcode_type: "drora-page-response",
@@ -1346,12 +1360,17 @@ export function createDesktopMobileRelayControl(deps: {
                 type: "taskList",
                 tasks: syncedTasks.length > 0 ? currentTaskSummaries() : await fetchTaskSummaries(),
                 // 工作区清单与 PC 侧栏同一集合（renderer 推送快照），手机页据此
-                // 渲染与 PC 一致的工作区分组（含无任务的工作区）。
-                workspaces: currentWorkspaceSummaries(),
+                // 渲染与 PC 一致的工作区分组（含无任务的工作区）。与 bootstrap/
+                // workspace-list 同款 merge：推送快照为空时并入启动工作区，保证
+                // 手机页至少渲染 relay 附着的这一组（2026-09-29 workspaces:0 回归）。
+                workspaces: fallbackWorkspace
+                  ? mergeRuntimeWorkspace(currentWorkspaceSummaries(), fallbackWorkspace)
+                  : currentWorkspaceSummaries(),
               },
             });
             return;
           }
+          const { task, session } = attacher.ensure();
           // 任务类动作按任务所属工作区路由（跨工作区任务的会话读取/输入发送/
           // 权限答复必须落到正确工作区的服务面）：从 syncedTasks 按 taskId 解析；
           // 未命中（如启动工作区任务）回落 startParams。

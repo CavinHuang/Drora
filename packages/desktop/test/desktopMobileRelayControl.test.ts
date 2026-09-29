@@ -476,6 +476,138 @@ test("persisted 凭据：直连 auth_init，不重复注册", async () => {
   await control.stop();
 });
 
+// R2 page-request list 的驱动辅助：注册→配对到 matched，返回 control 与 socket。
+async function startToPairedForPageRequests(options: {
+  harness: ReturnType<typeof createFakeSocketHarness>;
+  store: Awaited<ReturnType<typeof makeStore>>;
+}) {
+  const control = createDesktopMobileRelayControl({
+    logger: { info: () => {}, warn: () => {} },
+    deviceMid: "mid-test",
+    credentialStore: options.store,
+    resolveHostChild: () => null,
+    webSocketCtor: options.harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  const startPromise = control.start({ workspacePath: "C:/demo" });
+  await new Promise((r) => setTimeout(r, 10));
+  const socket = options.harness.sockets[0]!;
+  socket.serverOpen();
+  socket.serverMessage({ type: "device_register_ack", device_sid: "d_test", server_ts: 1 });
+  socket.serverMessage({ type: "auth_challenge", nonce: "n", server_ts: 1 });
+  socket.serverMessage({
+    type: "auth_ack",
+    pair_status: "waiting",
+    terminal_sid: "",
+    server_ts: 1,
+  });
+  await startPromise;
+  socket.serverMessage({
+    type: "pair_status_ack",
+    pair_status: "matched",
+    terminal_sid: "m_1",
+    server_ts: 2,
+  });
+  return { control, socket };
+}
+
+function sentDroraPageResponses(socket: FakeSocket) {
+  return socket.sent
+    .filter((m) => m.type === "data" && m.payload && typeof m.payload === "object")
+    .map((m) => m.payload as Record<string, unknown>)
+    .filter((m) => m.zcode_type === "drora-page-response");
+}
+
+test("R2 list 响应：workspaces 聚合推送清单+运行时目标，空推送不清空（2026-09-29 回归锚）", async () => {
+  const harness = createFakeSocketHarness();
+  const store = await makeStore();
+  const { control, socket } = await startToPairedForPageRequests({ harness, store });
+  after(() => void control.stop());
+
+  // renderer 推送跨工作区清单（含远程工作区）。
+  control.syncAvailableWorkspaces([
+    {
+      workspacePath: "ssh://host/remote/proj",
+      workspaceIdentity: "ssh://host/remote/proj",
+      remoteSessionId: "rs-1",
+      label: "proj",
+      kind: "remote",
+      connectionState: "connected",
+    },
+  ]);
+  control.syncAvailableTasks([
+    {
+      taskId: "t-1",
+      title: "hello",
+      updatedAt: 1,
+      createdAt: 1,
+      workspacePath: "C:/demo",
+    },
+  ]);
+
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "drora-page-request", requestId: "l1", frame: { type: "list" } },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const listResponse = sentDroraPageResponses(socket).find((m) => m.requestId === "l1");
+  assert.ok(listResponse, "list 必须有应答");
+  assert.equal(listResponse.success, true);
+  const listFrame = listResponse.frame as {
+    type: string;
+    tasks: Array<{ taskId: string }>;
+    workspaces: Array<{ workspacePath: string; kind: string }>;
+  };
+  assert.equal(listFrame.type, "taskList");
+  assert.deepEqual(
+    listFrame.workspaces.map((w) => w.workspacePath),
+    ["ssh://host/remote/proj", "C:/demo"],
+    "list 响应 = 推送清单 + 运行时目标（merge 后）",
+  );
+  assert.equal(listFrame.tasks[0]?.taskId, "t-1", "list 响应带任务清单");
+
+  // 空推送防护：renderer 重载窗口推送空快照，运行中不得清空清单
+  // （实锤：workspaces:0 回归——空推送把 syncedWorkspaces 抹掉后手机页分组消失）。
+  control.syncAvailableWorkspaces([]);
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "drora-page-request", requestId: "l2", frame: { type: "list" } },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const listResponse2 = sentDroraPageResponses(socket).find((m) => m.requestId === "l2");
+  assert.ok(listResponse2, "第二次 list 必须有应答");
+  const listFrame2 = listResponse2.frame as { workspaces: Array<{ workspacePath: string }> };
+  assert.deepEqual(
+    listFrame2.workspaces.map((w) => w.workspacePath),
+    ["ssh://host/remote/proj", "C:/demo"],
+    "空推送后清单保持（防护生效）",
+  );
+
+  // 非空推送仍为 replace 语义（官方同步语义不回退）。
+  control.syncAvailableWorkspaces([
+    {
+      workspacePath: "D:/other",
+      label: "other",
+      kind: "local",
+    },
+  ]);
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "drora-page-request", requestId: "l3", frame: { type: "list" } },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const listResponse3 = sentDroraPageResponses(socket).find((m) => m.requestId === "l3");
+  const listFrame3 = listResponse3?.frame as { workspaces: Array<{ workspacePath: string }> };
+  assert.deepEqual(
+    listFrame3.workspaces.map((w) => w.workspacePath),
+    ["D:/other", "C:/demo"],
+    "非空推送 replace + fallback merge",
+  );
+
+  await control.stop();
+});
+
 test("WebSocket 构造器不可用：start 快速失败（不拖 QR 就绪 30s 超时）", async () => {
   const store = await makeStore();
   const statusPushes: Array<{ status: string; failure: { message: string } | null }> = [];
@@ -484,8 +616,7 @@ test("WebSocket 构造器不可用：start 快速失败（不拖 QR 就绪 30s �
     deviceMid: "mid-test",
     credentialStore: store,
     resolveHostChild: () => null,
-    onStatusChanged: (state) =>
-      statusPushes.push({ status: state.status, failure: state.failure }),
+    onStatusChanged: (state) => statusPushes.push({ status: state.status, failure: state.failure }),
     // 显式 null = 生产 require("ws") 失败形态（connect() 快速失败分支）。
     webSocketCtor: null,
     relayWsUrl: "wss://relay.test/ws",
@@ -503,9 +634,7 @@ test("WebSocket 构造器不可用：start 快速失败（不拖 QR 就绪 30s �
   assert.ok(elapsed < 5_000, `start 应秒级失败，实际耗时 ${elapsed}ms`);
   // 失败面经状态推送可见（弹层错误态）；stop 后 runtimeFailure 复位，只能看推送。
   // transition("error") 沿先于 runtimeFailure 赋值，取携带 failure 的那条推送。
-  const errorPush = statusPushes.find(
-    (push) => push.status === "error" && push.failure !== null,
-  );
+  const errorPush = statusPushes.find((push) => push.status === "error" && push.failure !== null);
   assert.equal(errorPush?.failure?.message, "WebSocket constructor unavailable");
   await control.stop();
 }, 10_000);
@@ -1786,9 +1915,7 @@ test("遥测事件族：信封 eventRegion=web_remote_control、start/pair/bridg
   // 取 hasEverPaired 活值=已有配对史 → "reconnect"）。
   socket.serverMessage({ type: "error", code: "KICKED", message: "kicked by new page" });
   await new Promise((r) => setTimeout(r, 10));
-  const pairFail = events
-    .filter((e) => e.elementName === "web_remote_control_pair_result")
-    .at(-1);
+  const pairFail = events.filter((e) => e.elementName === "web_remote_control_pair_result").at(-1);
   assert.ok(pairFail, "KICKED 必须上报 pair_result failure");
   assert.deepEqual(pairFail.eventExtraDetail, {
     result: "failure",
@@ -1822,7 +1949,7 @@ test("start_result 失败面：终态错误上报 failure + error 沿 pair failu
     () => {
       throw new Error("start 应当失败");
     },
-    (error: unknown) => error instanceof Error ? error.message : String(error),
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
   );
   await new Promise((r) => setTimeout(r, 10));
   const socket = harness.sockets[0];

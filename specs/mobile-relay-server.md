@@ -167,8 +167,10 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
   bootstrap 20s 超时（响应超时卡）——标题/描述/下一步步骤/失败详情/重试按钮，
   文案与官方托管页逐字对齐；可恢复面（deviceOffline）保留 2s 自动重连循环，
   终态面停止重连仅留重试按钮。
-- **R3（可选，远期）**：完整移动前端（与桌面同源组件的移动构建，官方形态）；
-  依赖面大，独立立项。
+- **R3（已立项，方案定稿）**：完整移动前端（与桌面同源组件的移动构建，官方形态）。
+  实施方案与对齐清单见 `specs/mobile-relay-r3-frontend.md`（2026-09-29 立项：路线 A
+  =packages/ui 移动壳 + relay-client + packages/web 远程第二入口，v4 数据零转换；
+  目标替换官方资产代理为默认手机页）。
 - **桌面发送侧流控/重放（2026-09-28，mobile-web-remote.md M4c 核心项）**：
   `desktopMobileRelayControl` 桥发送侧对齐官方 AcknowledgedRelayProtocol 子集——
   `createRelayReplayBuffer` 纯逻辑（desktopMobileRelayProtocol.ts，常量逐项对齐
@@ -443,3 +445,99 @@ pair_status_ack"结论系在途帧队列残留造成的误读，已在 spec 内�
 updatedAt 所致）。** 宽视口全壳在自建 relay 上经 rpc 桥驱动全部活数据（模型列表/
 命令面板/富时间线），至此覆盖移动+宽视口两布局、静态+交互+深服务三层的对比
 全部完成，无残留缺口。
+
+## 13. R2 页时间线 schema 漂移与 list workspaces:0 回归（2026-09-29）
+
+### 13.1 根因链：session/messages schema 漂移（响应形状 ≠ 声明契约，时间线整屏校验错误墙）
+
+本节即 `server-operations.ts readMessages` 有意分歧注释所引的「session/messages
+schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与结论，修复方式见 §13.2。
+
+链路：R2 页 page-request{open} → desktopMobilePageBridge → IDroraSessionService
+.readSessionMessages → droraAgentService → RPC `session/messages` →
+`droraSessionMessagesResultSchema`（drora-protocol/index.ts:1479，内嵌 legacy
+`droraMessageWithPartsSchema`：info camelCase messageId + partBase
+{partId,sessionId,messageId}，.strict()）校验失败 → ZodError 序列化成 error 字符串
+→ R2 页整屏校验错误墙（真机实测单次响应 259132 字节的错误串，桌面日志 2026-09-29
+09:01 三个 259132 字节 drora-page-response）。
+
+**官方取证（3.14.3 runtime bundle `zcode.cjs`，14.8MB 单行；片段为反汇编原文）：**
+
+| 证据 | 文件+字节偏移 | 片段 | 结论 |
+| --- | --- | --- | --- |
+| 官方 readMessages 实现 | zcode.cjs@14490259 | `function WKo(e,t){...s.findIndex(u=>String(u.info.id)===n.afterMessageId)...return{messages:n.limit?l.slice(-n.limit):l}}` | 官方 runtime 同样返回 session store 的 **v4 原始行**（`info.id`，非 messageId） |
+| 官方声明结果 schema | zcode.cjs@755909 | `U5i=m.object({messages:m.array(WZe)}).strict()` | 与本仓 droraSessionMessagesResultSchema 同构 |
+| 官方 MessageWithParts schema | zcode.cjs@657821 | `WZe=m.object({info:tor,parts:m.array(qZe)}).strict()`；tor@654424=`discriminatedUnion("role",[Qrr,eor])`，Qrr@653778/eor@654098 用 `messageId/sessionId/parentMessageId`；parts `LR`=`{partId,sessionId,messageId}`、tool `callId` | 官方声明契约 = **legacy 形状**，与本仓 schema 逐字段一致 |
+| 官方 snapshot 映射 | zcode.cjs@14406172/@14407132 | `JPn`：`messageId:String(e.info.id)`、`parentMessageId:String(e.info.parentID)`；`FKa`：`{messageId:String(e.messageID),partId:String(e.id),sessionId:String(e.sessionID)}` | 官方在 **snapshot 路径**把 v4 行映射为声明契约形状（≈本仓 bootstrap message-mapper.ts） |
+| 官方手机页 | official-phone-bundle.js（6.1MB） | `session/messages`/`readSessionMessages` 0 命中；`subscribeConversationV4` 3 命中 | 官方客户端不消费该 op——**上游死代码漂移**，上游不可见 |
+
+结论：官方 drop 自身即存在"声明 schema（legacy）≠ runtime 实际返回（v4 原始行）"
+的潜伏不一致；官方只在 snapshot 路径做 v4→legacy 映射，session/messages 直接返回
+原始行且无任何官方消费方。本仓还原两侧都忠实（还原无错），R2 自建页作为该 op 的
+首个真实消费方把漂移暴露出来。
+
+### 13.2 修复决策（有意分歧，对照说明）
+
+**选服务端投影**：bootstrap `server-operations.ts readMessages` 出站前经既有
+`mapMessageWithParts`（官方 JPn/FKa 的还原实现，snapshot 路径已生产验证）把 v4 行
+投影为声明契约形状。理由：
+
+1. op 载荷从此满足官方声明契约（U5i/WZe）与本仓客户端 schema，`IDroraSessionService
+   .readSessionMessages(): Promise<DroraMessageWithParts[]>` 接口类型变真；
+2. 复用既有 mapper——客户端侧适配需在 services 复制 ~250 行 v4 行 schema+mapper，
+   且 shared 无 v4 store 行 zod schema（v4 conversationRowSchema 是 UI 投影非 store 行）；
+3. 载荷剥离 mode/planEnabled/anchor 等内部字段（手机带宽友好，字段语义同官方 snapshot 面）。
+
+**对上游同步的影响**：与官方 WKo 行为有意分歧（官方返回原始行）——记入本节，
+同步上游 server-operations.ts 时 readMessages 函数区域按本节处理。afterMessageId
+分页在映射前按原始 `info.id` 切片；投影 messageId=String(info.id) 同值，客户端回传
+任一形态命中同一切分点。
+
+**readSession 快照面查证（未受影响）**：`droraSessionStateSnapshotSchema`
+（index.ts:1028）内嵌同一 legacy schema，但 session/read 出站经 session-mapper 的
+`mapMessageWithParts` 映射（bootstrap 侧），桌面 app 消费正常——与官方 snapshot
+路径同构，无漂移。桌面 app 无 readSessionMessages 消费方（grep 实证：唯一消费者
+即 R2 页桥）。
+
+### 13.3 配套修复：R2 页时间线渲染面对齐
+
+R2 页 renderTimeline/extractText 原按已删除的 v1 配对页形状渲染
+（`message.role`/`tool_call`/`thinking`/`preview`），schema 修复后收到的是
+DroraMessageWithParts：页面渲染面对齐 info.role + text/reasoning/tool parts；
+model-only 上下文（compact summary/goal 续跑/后台通知等）在桌面桥
+（desktopMobilePageBridge，LAN/relay 单一实现）按 PC 同款判据
+（getConversationMessageProjectionPolicy：仅保留 realUserInput/visibleAssistant，
+附加 uiVisibility!=="debug"）过滤，页面不复制第二份过滤逻辑。
+
+### 13.4 list 响应 workspaces:0 回归（同日修复）
+
+**取证（桌面日志 + 实连捕获）**：同会话（pid 34892）02:48 bootstrap-response 携带
+7 工作区、09:00 R2 list 响应 `workspaces: array(0)`（diag-list.mjs 实连复现）；期间
+无 stop/start（仅 stale-waiting 重连）。此前"transport 维度过滤推送"的假设不成立：
+syncWorkspaces IPC 无 transport 过滤，bootstrap 走同一 `currentWorkspaceSummaries()`。
+
+**根因（两层）**：
+
+1. `syncedWorkspaces` 被 renderer **空推送清空**：renderer 重载/标签恢复窗口推送
+   空快照，运行中 relay 的清单随之抹掉（relay 附着在真实工作区上，"无工作区"不是
+   有效状态）；
+2. R2 list 响应取 `currentWorkspaceSummaries()` **裸清单**，缺 bootstrap/
+   workspace-list 同款 `mergeRuntimeWorkspace`（fallback=启动工作区）兜底。
+
+**修复**：list 动作响应 workspaces 与 bootstrap 同款 merge（desktopMobileRelayProtocol
+.mergeRuntimeWorkspace 导出复用）；运行中忽略空工作区推送（warn 日志，非空推送保持
+官方 replace 语义）；list 分支不再强制 `attacher.ensure()`（缓存可答时纯快照响应，
+Host 附着窗口期手机清单不闪断；回落 listTasks 路径自带容错）。
+
+### 13.5 验收锚
+
+- `packages/desktop/test/desktopMobileRelayControl.test.ts`「R2 list 响应：workspaces
+  聚合推送清单+运行时目标，空推送不清空」：list 响应 = 推送清单 + fallback merge；
+  空推送后清单保持；非空推送 replace。
+- `packages/desktop/test/mobilePageBridge.test.ts`「open/events」：timeline 投影保留
+  真实用户输入与 assistant 回复、过滤 model-only 注入。
+- `apps/drora-cli/packages/bootstrap/test/drora-protocol-read-messages.test.mjs`：
+  v4 原始行被声明 schema 拒绝（漂移事实锚）；readMessages 出站通过声明 schema；
+  afterMessageId 分页与 limit 尾窗在投影前生效。
+- `packages/relay-server/test/phonePageSyntax.test.ts`：时间线渲染面形状探针
+  （info.role + text/reasoning/tool；v1 旧词 tool_call/thinking 不得回流）。

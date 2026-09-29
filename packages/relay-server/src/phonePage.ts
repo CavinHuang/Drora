@@ -512,8 +512,14 @@ function renderTimeline(messages) {
   box.innerHTML = "";
   for (var i = 0; i < messages.length; i++) {
     var m = messages[i];
+    // Drora Protocol legacy 消息行（DroraMessageWithParts）：role 在 info 内。
+    // 桌面桥（serveMobilePageAction）已按 PC 同款投影判据过滤 model-only 上下文，
+    // 这里只做渲染面（2026-09-29 schema 漂移修复后该 op 返回声明契约形状；
+    // 旧 v1 页形状 role/tool_call/thinking 已随配对栈删除）。
+    var info = m.info || {};
+    var role = info.role;
     var div = document.createElement("div");
-    div.className = "msg " + (m.role === "user" ? "user" : "assistant");
+    div.className = "msg " + (role === "user" ? "user" : "assistant");
     div.textContent = extractText(m);
     box.appendChild(div);
   }
@@ -525,11 +531,17 @@ function extractText(message) {
   var out = "";
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
-    if (p.type === "text" && p.text) { out += p.text + "\\n"; }
-    else if (p.type === "tool_call" && p.name) { out += "🔧 " + p.name + "\\n"; }
-    else if (p.type === "thinking" && p.thinking) { out += p.thinking + "\\n"; }
+    if (p.type === "text" && p.text && !p.ignored && !p.synthetic) { out += p.text + "\\n"; }
+    else if (p.type === "reasoning" && p.text) { out += "💭 " + p.text + "\\n"; }
+    else if (p.type === "tool" && (p.tool || p.state)) {
+      // 工具卡：标题优先（完成态含真实 title），状态后缀；错误附摘要行。
+      var state = p.state || {};
+      var label = state.title || p.tool || "tool";
+      var suffix = state.status === "completed" ? "" : " (" + (state.status || "pending") + ")";
+      out += "🔧 " + label + suffix + "\\n";
+      if (state.status === "error" && state.error) { out += "   " + String(state.error).slice(0, 200) + "\\n"; }
+    }
   }
-  if (!out && message.preview) { out = message.preview; }
   return out || "(空)";
 }
 

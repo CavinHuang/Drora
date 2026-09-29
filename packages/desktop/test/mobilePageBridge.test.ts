@@ -25,6 +25,10 @@ function fakeServices(options: {
         calls.push({ service: "task", method: "respondPermission", params });
         return true;
       },
+      async resumeTask(params: unknown) {
+        calls.push({ service: "task", method: "resumeTask", params });
+        return {};
+      },
       async stopGeneration(params: unknown) {
         calls.push({ service: "task", method: "stopGeneration", params });
       },
@@ -70,18 +74,75 @@ test("list：透传 workspace 参数并映射 v1 taskList 负载", async () => {
 });
 
 test("open/events：sessionId=taskId 且携带 workspace 路由参数", async () => {
-  const services = fakeServices({ messages: [{ role: "user" }], events: [{ seq: 7 }] });
-  await serveMobilePageAction({
+  // DroraMessageWithParts 声明契约形状（2026-09-29 schema 漂移修复后 readSessionMessages
+  // 的真实返回）：timeline 投影只保留用户可见对话面（PC 同款 policy 判据）。
+  const services = fakeServices({
+    messages: [
+      {
+        info: {
+          messageId: "m1",
+          sessionId: "t9",
+          role: "user",
+          time: { created: 1 },
+          agent: "root",
+        },
+        parts: [{ partId: "p1", sessionId: "t9", messageId: "m1", type: "text", text: "你好" }],
+      },
+      {
+        // runtime 注入的 model-only 上下文：不得进手机时间线。
+        info: {
+          messageId: "m2",
+          sessionId: "t9",
+          role: "user",
+          time: { created: 2 },
+          agent: "root",
+          synthetic: true,
+          source: "goal-continuation",
+        },
+        parts: [{ partId: "p2", sessionId: "t9", messageId: "m2", type: "text", text: "continue" }],
+      },
+      {
+        info: {
+          messageId: "m3",
+          sessionId: "t9",
+          role: "assistant",
+          time: { created: 3 },
+          parentMessageId: "m1",
+          agent: "root",
+          path: { cwd: "C:/demo", root: "C:/demo" },
+          cost: 0,
+          tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } },
+        },
+        parts: [{ partId: "p3", sessionId: "t9", messageId: "m3", type: "text", text: "回复" }],
+      },
+    ],
+    events: [{ seq: 7 }],
+  });
+  const response = await serveMobilePageAction({
     task: services.task,
     session: services.session,
     frame: { type: "open", taskId: "t9" },
     workspace,
   });
-  const openCall = services.calls[0];
+  // 冷会话激活先行（对齐桌面 App 打开历史任务语义），随后才读消息。
+  const resumeCall = services.calls[0];
+  assert.equal(resumeCall.service, "task");
+  assert.equal(resumeCall.method, "resumeTask");
+  assert.deepEqual((resumeCall.params as { taskId: string }).taskId, "t9");
+  assert.deepEqual((resumeCall.params as { workspacePath: string }).workspacePath, "C:/demo");
+  const openCall = services.calls[1];
   assert.equal(openCall.service, "session");
   assert.equal(openCall.method, "readSessionMessages");
   assert.deepEqual((openCall.params as { sessionId: string }).sessionId, "t9");
   assert.deepEqual((openCall.params as { workspacePath: string }).workspacePath, "C:/demo");
+
+  // timeline 投影：真实用户输入与 assistant 回复保留，model-only 注入被过滤。
+  const timeline = response as { type: string; messages: Array<{ info: { messageId: string } }> };
+  assert.equal(timeline.type, "timeline");
+  assert.deepEqual(
+    timeline.messages.map((m) => m.info.messageId),
+    ["m1", "m3"],
+  );
 
   await serveMobilePageAction({
     task: services.task,

@@ -4,6 +4,13 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import {
+  RELAY_REPLAY_BUFFER_GRACE_MS,
+  RELAY_REPLAY_BUFFER_MAX_BYTES,
+  RELAY_SATURATION_HIGH_WATER_MARK_BYTES,
+  RELAY_SATURATION_LOW_WATER_MARK_BYTES,
+  buildRelayProofMessage,
+} from "@drora/shared";
 import type { MobilePairingRuntimeState } from "@drora/shared";
 
 export const OFFICIAL_RELAY_WS_URL = "wss://zcode.z.ai/ws";
@@ -84,8 +91,11 @@ export function calculateRelayProof(params: {
   role: string;
   sessionId: string;
 }): string {
+  // spec D2 同源化：消息格式单一出处 = shared 的 buildRelayProofMessage（"<nonce>|<role>|<device_sid>"，
+  // 三方现格式逐字核对一致，见 shared/relay-wire/proof.ts 头注）。createHmac 保留为
+  // node 环境快路径（Main 进程专用），纯 JS 实现见 @drora/shared relay-wire（手机页用）。
   return createHmac("sha256", params.passHash)
-    .update(`${params.nonce}|${params.role}|${params.sessionId}`)
+    .update(buildRelayProofMessage({ nonce: params.nonce, role: params.role, deviceSid: params.sessionId }))
     .digest("base64url");
 }
 
@@ -256,8 +266,9 @@ export function buildBootstrapResult(params: {
 /**
  * 对齐官方 getAvailableWorkspaces：registry 投影为基集，运行时目标（startParams
  * 工作区）不缺席——controller 投影缺失/未就绪时至少回退到它。
+ * 导出版：R2 page-request list 响应与 bootstrap/workspace-list 共用同一聚合语义。
  */
-function mergeRuntimeWorkspace(
+export function mergeRuntimeWorkspace(
   workspaces: RelayWorkspaceSummary[],
   fallbackWorkspace: RelayWorkspaceSummary,
 ): RelayWorkspaceSummary[] {
@@ -486,14 +497,15 @@ export class RpcFrameAssembler {
 // 回落到 ≤低水位置 drained；future-ack（ack > 已发最高 seq）→ enterDegraded（终态）；
 // 缓冲超限 / 最旧未确认批次超过 grace → enterDegraded（终态）。
 
-/** 饱和高水位：官方 saturationHighWaterMarkBytes=1MiB（常量表 @6729）。 */
-export const RELAY_SATURATION_HIGH_WATER_MARK_BYTES = 1024 * 1024;
-/** 排空低水位：官方 saturationLowWaterMarkBytes=256KiB。 */
-export const RELAY_SATURATION_LOW_WATER_MARK_BYTES = 256 * 1024;
-/** 重放缓冲字节上限：官方 replayBufferMaxBytes=8MiB。 */
-export const RELAY_REPLAY_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
-/** 未确认批次宽限期：官方 replayBufferGraceMs=45s。 */
-export const RELAY_REPLAY_BUFFER_GRACE_MS = 45_000;
+// spec D2 同源化：流控/重放常量单一出处 = @drora/shared relay-wire（取证注释随迁：
+// 官方 chunk-C6VCYWB4.js 类体 @8551、常量表 @6729）。此处 re-export 维持既有消费者
+// （desktopMobileRelayControl、conformance 测试）的导入路径不变。
+export {
+  RELAY_REPLAY_BUFFER_GRACE_MS,
+  RELAY_REPLAY_BUFFER_MAX_BYTES,
+  RELAY_SATURATION_HIGH_WATER_MARK_BYTES,
+  RELAY_SATURATION_LOW_WATER_MARK_BYTES,
+} from "@drora/shared";
 
 /** 终态降级原因码（对齐官方 fault.reasonCode 字面量族）。 */
 export const RELAY_REPLAY_DEGRADED_ACK_GRACE = "remote.rpcFrame.ackGraceExceeded";

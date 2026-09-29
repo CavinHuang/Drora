@@ -153,6 +153,10 @@ export const PHONE_PAGE_HTML = `<!doctype html>
   .step.active { color: var(--fg); border-color: var(--border-hover); }
   .perm { border-color: rgba(234, 179, 8, 0.25); background: rgba(234, 179, 8, 0.06); }
   .perm .title { font-weight: 600; margin-bottom: 4px; }
+  /* 加载/失败卡视口居中（对齐官方托管页：状态卡在视口水平+垂直居中、宽视口限宽）。
+     :not(.hidden) 作用域避免 ID 选择器压过 .hidden 的 display:none。 */
+  #loading:not(.hidden), #unpaired:not(.hidden) { min-height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center; }
+  #loading .card, #unpaired .card { width: 100%; max-width: 600px; margin-bottom: 0; }
 </style>
 </head>
 <body>

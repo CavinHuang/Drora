@@ -315,6 +315,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleOpenSubagentDirectory,
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
+  handleOpenExplorationBranch,
   handleOpenPlanDetail,
   handleOpenWorkflowRun,
   handleOpenWorkflowRunDirectory,
@@ -1754,6 +1755,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           onCreateTask={handleCreateTaskInChat}
                           onOpenWorkspace={onOpenWorkspace}
                           allowOpenWorkspace={allowOpenWorkspace}
+                          onOpenExplorationBranch={handleOpenExplorationBranch}
                         />
                       </ScopedErrorBoundary>
                     ) : null}
@@ -1911,6 +1913,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               onOpenSubagentDirectory={handleOpenSubagentDirectory}
                               onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                               onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                              onOpenExplorationBranch={handleOpenExplorationBranch}
                               onOpenPlanDetail={handleOpenPlanDetail}
                               onOpenWorkflowRun={handleOpenWorkflowRun}
                               onOpenWorkflowArtifact={handleOpenWorkflowArtifact}

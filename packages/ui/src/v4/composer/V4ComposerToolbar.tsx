@@ -336,6 +336,8 @@ export interface V4ComposerToolbarProps {
   draftMode?: boolean;
   /** 当前 scope 的 Composer 选择；新任务与已有会话都只显示这份状态。 */
   draftConfig?: Partial<SessionConfigState>;
+  /** 只读会话（探索分支）：禁用模式切换；写闸门由 core 裁决。 */
+  sessionReadOnly?: boolean;
   usage: SessionUsageState | null;
   disabled: boolean;
   /** 单个 composer 内的配置 picker 排他 owner；只属于 renderer-local presentation。 */

@@ -104,6 +104,8 @@ export interface ExitPlanModeTransitionResult {
 export interface SessionModePort {
   supportsPermissionFullAccess?(): boolean;
   isPlanEnabled?(): boolean;
+  /** 只读会话（specs/exploration-mode.md）：可选，缺席视为 false。 */
+  isReadOnly?(): boolean;
   getMode(): CollaborationMode;
   getPrePlanMode(): Exclude<CollaborationMode, "plan"> | undefined;
   enterPlanMode(input?: SessionModeTransitionInput): Promise<EnterPlanModeTransitionResult>;

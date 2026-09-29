@@ -143,7 +143,11 @@ export interface V4CommandCoreHost {
    */
   isLatestAssistantSegmentRow?(sessionId: string, rowId: number): boolean | null;
   /** 唯一 stable fork resolver：projection 闸门 + transcript 持久 anchor/fallback。 */
-  resolveStableForkTarget?(sessionId: string, rowId: number): Promise<V4StableForkTargetResolution>;
+  resolveStableForkTarget?(
+    sessionId: string,
+    rowId: number,
+    options?: { goalBoundaryPolicy?: "anchor" | "none" },
+  ): Promise<V4StableForkTargetResolution>;
   /**
    * latestAssistantRetryOnly core 侧防御：retryTurn 只能指向当前投影里的最后一条
    * assistantText row。false/null 都由 handler 拒绝，避免旧客户端绕过 UI。
@@ -259,6 +263,8 @@ export interface V4CommandCoreHost {
       goalBoundary: StableForkGoalBoundaryMetadata;
       sourceCommandId: string;
       revisionAtDecision: number;
+      /** 探索分支（specs/exploration-mode.md）：child 只读 + 分叉来源落库。 */
+      exploration?: { sourceLabel: string };
     },
   ): Promise<{ forkedSessionId: string }>;
   /** @deprecated 仅旧宿主结构兼容；新 editUserQuery 永不调用，显式 forkAssistant 不受影响。 */

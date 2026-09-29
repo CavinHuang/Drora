@@ -8,8 +8,13 @@ export function createRuntimeSessionModePort(runtime: AgentRuntimeInternal): Ses
     getMode: () => runtime.config.mode ?? "build",
     getPrePlanMode: () => undefined,
     isPlanEnabled: () => readRuntimeExecutionState(runtime).planEnabled,
+    isReadOnly: () => readRuntimeExecutionState(runtime).readOnly === true,
     async enterPlanMode(input) {
       const previous = readRuntimeExecutionState(runtime);
+      // 只读会话（探索分支）不得切换 plan：plan 的放行面比只读更宽，切走即绕过闸门。
+      if (previous.readOnly) {
+        throw new Error("This session is read-only; plan mode is unavailable.");
+      }
       const next = await applyRuntimeExecutionState(
         runtime,
         { planEnabled: true },
@@ -19,6 +24,9 @@ export function createRuntimeSessionModePort(runtime: AgentRuntimeInternal): Ses
     },
     async exitPlanMode(input) {
       const previous = readRuntimeExecutionState(runtime);
+      if (previous.readOnly) {
+        throw new Error("This session is read-only; plan mode is unavailable.");
+      }
       if (!previous.planEnabled) {
         throw new Error(
           "You are not in plan mode. This tool is only for exiting plan mode after writing a plan. If your plan was already approved, continue with implementation.",

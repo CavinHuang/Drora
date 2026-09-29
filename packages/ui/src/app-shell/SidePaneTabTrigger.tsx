@@ -19,6 +19,7 @@ import {
   WaypointsIcon,
   Workflow as WorkflowIcon,
   XIcon,
+  GitBranchIcon,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -296,6 +297,9 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
+  if (tab.type === "exploration-branch") {
+    return <GitBranchIcon className="size-3.5" />;
+  }
   if (tab.type === "subagent-session") {
     return <BotIcon className="size-3.5" />;
   }
@@ -502,6 +506,9 @@ export function getSidePaneTabTitle(
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;
+  }
+  if (tab.type === "exploration-branch") {
+    return `${formatMessage({ id: "sidePane.exploration" })} ${tab.ordinal}`;
   }
   if (tab.type === "subagent-session") {
     return tab.title?.trim() || formatMessage({ id: "sidePane.subagent" });

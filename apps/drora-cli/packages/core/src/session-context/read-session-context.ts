@@ -30,6 +30,23 @@ export interface SessionContextMaterial {
   selectedChunks: TranscriptChunk[];
   selectedMessageCount: number;
   truncated: boolean;
+  /** fork 分支边界（specs/exploration-mode.md）：存在时材料只含锚点之后的增量。 */
+  forkBoundary?: { parentSessionId: string; sourceMessageId: string };
+}
+
+/** fork notice 消息：fork copy 附加的 model-only 边界标记，携带 forkOrigin provenance。 */
+function forkOriginOf(message: MessageWithParts): {
+  parentSessionId: string;
+  sourceMessageId: string;
+} | null {
+  if (message.info.role !== "user") return null;
+  if (message.info.source !== "fork") return null;
+  const forkOrigin = message.info.metadata?.forkOrigin;
+  if (!forkOrigin || typeof forkOrigin !== "object") return null;
+  const parentSessionId = (forkOrigin as { parentSessionId?: unknown }).parentSessionId;
+  const sourceMessageId = (forkOrigin as { targetMessageId?: unknown }).targetMessageId;
+  if (typeof parentSessionId !== "string" || typeof sourceMessageId !== "string") return null;
+  return { parentSessionId, sourceMessageId };
 }
 
 export interface TranscriptChunk {
@@ -61,7 +78,21 @@ export function buildSessionContextMaterial(input: {
 }): SessionContextMaterial {
   const outputCharBudget = clampOutputCharBudget(input.outputCharBudget);
   const activeMessages = activeSessionMessages(input.messages);
-  const snippets = activeMessages
+  // fork 分支（探索模式）：分叉点之前是从主线复制的前缀，不是本次引用的内容。
+  // 材料只保留最后一条 fork notice 之后的增量——分支的分支会继承上一条 notice，
+  // 因此必须取 last（自身边界），不能取 first（祖先边界）。
+  let forkBoundary: SessionContextMaterial["forkBoundary"];
+  let scopedMessages = activeMessages;
+  for (let index = activeMessages.length - 1; index >= 0; index -= 1) {
+    const message = activeMessages[index];
+    if (!message) continue;
+    const origin = forkOriginOf(message);
+    if (!origin) continue;
+    forkBoundary = origin;
+    scopedMessages = activeMessages.slice(index + 1);
+    break;
+  }
+  const snippets = scopedMessages
     .map((message, index) => formatMessageSnippet(message, index))
     .filter((snippet): snippet is MessageSnippet => snippet !== null);
   const scoredSnippets = scoreSnippets(snippets, input.query);
@@ -86,8 +117,9 @@ export function buildSessionContextMaterial(input: {
     allContentChars: allContent.length,
     chunks,
     localContent,
-    messageCount: activeMessages.length,
+    messageCount: scopedMessages.length,
     readableMessageCount: scoredSnippets.length,
+    ...(forkBoundary ? { forkBoundary } : {}),
     references: selectedSnippets.flatMap((snippet) => snippet.references),
     selectedChunks,
     selectedMessageCount: selectedSnippets.length,
@@ -115,6 +147,10 @@ export function formatReadSessionContextModelContent(output: ReadSessionContextO
   return [
     `ReadSessionContext returned ${output.source} context for ${output.sessionId}.`,
     output.title ? `Title: ${output.title}` : undefined,
+    // fork 分支：明确告知模型材料不含分叉前的主线历史，避免它误以为读到全量上下文。
+    output.forkBoundary
+      ? "This session is an exploration branch; content before its fork point (copied from the parent session) is excluded. Only the branch's own new content is returned."
+      : undefined,
     output.truncated ? "The returned context is truncated." : undefined,
     "",
     output.content,

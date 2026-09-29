@@ -482,6 +482,47 @@ export interface OpenSelectionSideChatRequest {
   replacesChildSessionId?: string;
 }
 
+/** 探索分支 Tab 打开请求（specs/exploration-mode.md）：child 是 forkAssistant(exploration) 产物。 */
+export interface OpenExplorationBranchRequest {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+  childSessionId: string;
+  /** 用户可读的分叉来源描述，展示在 Tab 标题与提示里。 */
+  sourceLabel: string;
+}
+
+/**
+ * 解析探索分支来源标签（specs/exploration-mode.md）：持久化层存稳定标识
+ * （`i18n:<key>` 前缀），展示层解析本地化；无前缀的旧数据按原文返回。
+ */
+export function resolveExplorationSourceLabel(sourceLabel: string): { i18nKey?: string; text: string } {
+  if (sourceLabel.startsWith("i18n:")) {
+    return { i18nKey: sourceLabel.slice("i18n:".length), text: sourceLabel };
+  }
+  return { text: sourceLabel };
+}
+
+/**
+ * 探索分支 Tab：与 selection-side-chat 同构，但 child 是完整能力会话
+ * （taskType "fork"，只读执行态），不携带副屏受限语义。
+ */
+export interface ExplorationBranchPaneTab {
+  id: string;
+  type: "exploration-branch";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+  childSessionId: string;
+  sourceLabel: string;
+  ordinal: number;
+}
+
 export interface OpenSubagentSideTabRequest {
   rootSessionId?: string;
   parentSessionId: string;
@@ -527,6 +568,7 @@ export type WorkspaceSidePaneTab =
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
   | SelectionSideChatPaneTab
+  | ExplorationBranchPaneTab
   | PlanDetailSidePaneTab
   | WorkflowRunSidePaneTab
   | WorkflowRunDirectorySidePaneTab
@@ -1719,6 +1761,69 @@ function getNextSelectionSideChatOrdinal(
   return ordinal;
 }
 
+function createExplorationBranchPaneTab(
+  options: OpenExplorationBranchRequest & {
+    workspaceKey: string;
+    ordinal: number;
+  },
+): ExplorationBranchPaneTab {
+  return {
+    id: [
+      "exploration-branch",
+      encodeSidePaneTabIdPart(options.workspaceKey),
+      encodeSidePaneTabIdPart(options.parentSessionId),
+      encodeSidePaneTabIdPart(options.childSessionId),
+    ].join(":"),
+    type: "exploration-branch",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    parentSessionId: options.parentSessionId,
+    childSessionId: options.childSessionId,
+    sourceLabel: options.sourceLabel,
+    ordinal: options.ordinal,
+  };
+}
+
+export function openExplorationBranchPane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenExplorationBranchRequest & { workspaceKey: string },
+): WorkspaceSidePaneState {
+  const existing = current?.tabs.find(
+    (tab): tab is ExplorationBranchPaneTab =>
+      tab.type === "exploration-branch" &&
+      tab.workspaceKey === options.workspaceKey &&
+      tab.parentSessionId === options.parentSessionId &&
+      tab.childSessionId === options.childSessionId,
+  );
+  const ordinal =
+    existing?.ordinal ??
+    getNextExplorationBranchOrdinal(current?.tabs ?? [], options.workspaceKey, options.parentSessionId);
+  const nextTab = createExplorationBranchPaneTab({ ...options, ordinal });
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+function getNextExplorationBranchOrdinal(
+  tabs: readonly WorkspaceSidePaneTab[],
+  workspaceKey: string,
+  parentSessionId: string,
+): number {
+  const used = new Set(
+    tabs.flatMap((tab) =>
+      tab.type === "exploration-branch" &&
+      tab.workspaceKey === workspaceKey &&
+      tab.parentSessionId === parentSessionId
+        ? [tab.ordinal]
+        : [],
+    ),
+  );
+  let ordinal = 1;
+  while (used.has(ordinal)) ordinal += 1;
+  return ordinal;
+}
+
 export function getActiveSelectionSideChatTab(
   current: WorkspaceSidePaneState | null,
   scope: { workspaceKey: string; parentSessionId: string },
@@ -1907,6 +2012,7 @@ export function isSidePaneTabVisibleForParent(
   // 归属于某条对话（而非 workspace 全局）的 tab 按 parentSessionId 收窄。
   if (
     tab.type === "selection-side-chat" ||
+    tab.type === "exploration-branch" ||
     tab.type === "plan-detail" ||
     tab.type === "workflow-run" ||
     tab.type === "workflow-directory" ||

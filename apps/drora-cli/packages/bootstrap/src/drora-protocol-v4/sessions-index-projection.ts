@@ -16,6 +16,9 @@ export interface SessionSummaryDeriveExtra {
   createdAt: number;
   lastActivityAt: number;
   parentSessionId?: string;
+  /** 探索分支来源（specs/exploration-mode.md）；仅探索分支提供。 */
+  forkSourceMessageId?: string;
+  forkSourceLabel?: string;
 }
 
 const MAX_PREVIEW_CHARS = 120;
@@ -77,6 +80,8 @@ function deriveSessionSummary(
     sessionId: snapshot.sessionId,
     workspaceId: extra.workspaceId,
     ...(extra.parentSessionId ? { parentSessionId: extra.parentSessionId } : {}),
+    ...(extra.forkSourceMessageId ? { forkSourceMessageId: extra.forkSourceMessageId } : {}),
+    ...(extra.forkSourceLabel ? { forkSourceLabel: extra.forkSourceLabel } : {}),
     title: snapshot.meta.title,
     titleSource: snapshot.meta.titleSource,
     phase: snapshot.control.phase,
@@ -106,6 +111,9 @@ function summariesEqual(a: SessionSummary, b: SessionSummary): boolean {
     a.sessionId === b.sessionId &&
     a.workspaceId === b.workspaceId &&
     a.parentSessionId === b.parentSessionId &&
+    // 探索分支字段缺席/出现是产品语义变化，不得被 conflation 吃掉。
+    a.forkSourceMessageId === b.forkSourceMessageId &&
+    a.forkSourceLabel === b.forkSourceLabel &&
     a.title === b.title &&
     a.titleSource === b.titleSource &&
     a.phase === b.phase &&

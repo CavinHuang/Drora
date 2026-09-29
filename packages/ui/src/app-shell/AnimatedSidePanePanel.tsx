@@ -43,6 +43,7 @@ import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
+import { ExplorationBranchPane } from "@/app-shell/ExplorationBranchPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
@@ -893,6 +894,9 @@ export function AnimatedSidePanePanel({
         selectionChatTitle: intl.formatMessage({
           id: "sidePane.selectionChat",
         }),
+        explorationTitle: intl.formatMessage({
+          id: "sidePane.exploration",
+        }),
         planTitle: intl.formatMessage({ id: "planTool.panel.planTab" }),
         workflowRunTitle: intl.formatMessage({ id: "sidePane.workflowRun" }),
         workflowDirectoryTitle: intl.formatMessage({ id: "sidePane.workflowDirectory" }),
@@ -1124,6 +1128,15 @@ export function AnimatedSidePanePanel({
                           />
                         ) : tab.type === "selection-side-chat" ? (
                           <SelectionSideChatPane
+                            tab={tab}
+                            focused={isVisible && tab.id === visibleActiveTabId}
+                            onOpenBrowserUrl={onOpenBrowserUrl}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                            onOpenFileLink={onOpenFileLink}
+                            onUnavailable={onCloseTab}
+                          />
+                        ) : tab.type === "exploration-branch" ? (
+                          <ExplorationBranchPane
                             tab={tab}
                             focused={isVisible && tab.id === visibleActiveTabId}
                             onOpenBrowserUrl={onOpenBrowserUrl}

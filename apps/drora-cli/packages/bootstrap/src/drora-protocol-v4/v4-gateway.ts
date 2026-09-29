@@ -240,6 +240,8 @@ export interface V4GatewayHost {
     createdAt: number;
     lastActivityAt: number;
     parentSessionId?: string;
+    forkSourceMessageId?: string;
+    forkSourceLabel?: string;
   } | null;
   /**
    * config 种子：会话 runtime 的当前真值（模型选型/思考深度/协作模式）。
@@ -1124,12 +1126,20 @@ export class ConversationV4Gateway {
     createdAt: number;
     lastActivityAt: number;
     parentSessionId?: string;
+    forkSourceMessageId?: string;
+    forkSourceLabel?: string;
   } {
     const meta = this.host.getSessionIndexMeta?.(sessionId);
     return {
       createdAt: meta?.createdAt ?? 0,
       lastActivityAt: meta?.lastActivityAt ?? this.now(),
       ...(meta?.parentSessionId ? { parentSessionId: meta.parentSessionId } : {}),
+      ...(meta?.forkSourceMessageId
+        ? {
+            forkSourceMessageId: meta.forkSourceMessageId,
+            ...(meta.forkSourceLabel ? { forkSourceLabel: meta.forkSourceLabel } : {}),
+          }
+        : {}),
     };
   }
 

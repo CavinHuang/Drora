@@ -264,6 +264,7 @@ interface ConversationTimelineProps {
   /** 行渲染上下文（theme/codePreviewSettings/workspacePath）；宿主保证引用稳定。 */
   rowContext: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
   onEdit?: (
@@ -358,6 +359,7 @@ function ConversationTimelineImpl({
   scrollMemoryKey = null,
   rowContext,
   onFork,
+  onExplore,
   onRetry,
   onFeedbackChange,
   onEdit,
@@ -1843,6 +1845,7 @@ function ConversationTimelineImpl({
                         apiRetry={null}
                         context={rowContext}
                         onFork={onFork}
+                        onExplore={onExplore}
                         onRetry={onRetry}
                         onFeedbackChange={onFeedbackChange}
                         onEdit={onEdit}
@@ -1873,6 +1876,7 @@ function ConversationTimelineImpl({
                     apiRetry={apiRetry}
                     context={rowContext}
                     onFork={onFork}
+                    onExplore={onExplore}
                     onRetry={onRetry}
                     onFeedbackChange={onFeedbackChange}
                     onEdit={onEdit}

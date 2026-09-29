@@ -230,6 +230,8 @@ function hookExecutionDisplayName(
 export interface SessionConfigSeed {
   permissionGrant?: { interactionId: string };
   planEnabled?: boolean;
+  /** 只读会话闸门（specs/exploration-mode.md）：true 时 UI 禁用模式切换。 */
+  readOnly?: boolean;
   modelSelection?: ModelSelectedPayload["modelSelection"];
   provider?: string;
   model?: string;
@@ -603,6 +605,11 @@ export class ProductProjection {
       config.planEnabled !== seed.planEnabled
     ) {
       config.planEnabled = seed.planEnabled;
+      changed = true;
+    }
+    // 只读闸门没有事件路径（创建边界写入，mode/plan 补丁不清除），seed 即权威。
+    if (seed.readOnly !== undefined && config.readOnly !== seed.readOnly) {
+      config.readOnly = seed.readOnly;
       changed = true;
     }
     if (changed) {
@@ -3786,6 +3793,7 @@ export class ProductProjection {
     const payload = event.payload as {
       mode?: string;
       planEnabled?: boolean;
+      readOnly?: boolean;
       source?: string;
       toolCallId?: string;
       permissionGrant?: { interactionId: string; queueItemIds: string[] };
@@ -3799,10 +3807,12 @@ export class ProductProjection {
       payload.source === "tool" && payload.toolCallId
         ? { toolCallId: payload.toolCallId, planEnabled }
         : this.snapshot.config.planTransition;
+    const readOnly = payload.readOnly ?? this.snapshot.config.readOnly;
     if (
       this.snapshot.config.mode === mode &&
       this.snapshot.config.planEnabled === planEnabled &&
       planTransition === this.snapshot.config.planTransition &&
+      this.snapshot.config.readOnly === readOnly &&
       !payload.permissionGrant
     )
       return [];
@@ -3824,6 +3834,7 @@ export class ProductProjection {
             ...this.snapshot.config,
             mode,
             planEnabled,
+            readOnly,
             planTransition,
             ...(payload.permissionGrant
               ? { permissionGrant: { interactionId: payload.permissionGrant.interactionId } }

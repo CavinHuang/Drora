@@ -13,6 +13,8 @@ export type SessionOpenTrigger =
   | "reload"
   | "subagent"
   | "selection"
+  /** 探索分支 Tab（specs/exploration-mode.md）。 */
+  | "exploration"
   | "split"
   | "pane";
 type SessionOpenStatus = "success" | "failed" | "timeout";

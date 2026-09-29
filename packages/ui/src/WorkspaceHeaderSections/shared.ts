@@ -7,6 +7,7 @@ import type {
   RemoteTarget,
   UserInfo,
 } from "@drora/shared";
+import type { OpenExplorationBranchRequest } from "@/lib/workspaceSidePane.js";
 
 export interface WorkspaceHeaderState {
   selectedProvider: DroraProvider;
@@ -20,6 +21,8 @@ export interface WorkspaceHeaderReloadSessionOptions {
 }
 
 export interface WorkspaceHeaderTitleSectionProps {
+  /** 探索分支头部入口（specs/exploration-mode.md）。 */
+  onOpenExplorationBranch?: (request: OpenExplorationBranchRequest) => void;
   variant?: WorkspaceHeaderVariant;
   readOnlyReason?: string;
   workspaceAbsPath: string;

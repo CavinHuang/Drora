@@ -30,6 +30,8 @@ interface MapSessionSummaryOptions {
   workspaceIdentity?: string;
   /** 本地已有 meta（保留手动标题/provider 等旧值，避免被列表刷新冲掉）。 */
   previous?: DroraTaskMeta;
+  /** 探索分支标题前缀（本地化文案由调用方传入）；custom 命名不加。 */
+  explorationTitlePrefix?: string;
 }
 
 /**
@@ -46,10 +48,15 @@ export function mapSessionSummaryToTaskMeta(
   // 旧 task-index 里已经存在 titleOverridden=true 的手动标题时，
   // sessions-index 冷启动 summary 可能仍是 first_input/generated 标题。只有 v4 session
   // store 明确标记 custom 时才把 summary.title 当成新的手动标题权威。
-  const title =
+  const resolvedTitle =
     previous?.titleOverridden === true && !summaryTitleIsCustom
       ? previous.title
       : summary.title || previous?.title || "";
+  // 探索分支在侧栏持续可辨识（用户 custom 重命名后不加前缀，尊重显式命名）。
+  const title =
+    summary.forkSourceMessageId && !summaryTitleIsCustom && resolvedTitle
+      ? `${options.explorationTitlePrefix ?? ""}${resolvedTitle}`
+      : resolvedTitle;
   const titleOverridden =
     summaryTitleIsCustom || previous?.titleOverridden === true ? true : undefined;
   return attachTaskListRowActivity(
@@ -65,6 +72,8 @@ export function mapSessionSummaryToTaskMeta(
       mode: previous?.mode ?? "build",
       ...(previous?.model ? { model: previous.model } : {}),
       ...(summary.parentSessionId ? { forkedFromTaskId: summary.parentSessionId } : {}),
+      ...(summary.forkSourceMessageId ? { forkSourceMessageId: summary.forkSourceMessageId } : {}),
+      ...(summary.forkSourceLabel ? { forkSourceLabel: summary.forkSourceLabel } : {}),
       ...(previous?.provider ? { provider: previous.provider as DroraProvider } : {}),
       ...(status ? { status } : {}),
       ...(summary.pendingInteraction

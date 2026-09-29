@@ -1,4 +1,4 @@
-import { QuoteIcon, Trash2Icon } from "lucide-react";
+import { GitMergeIcon, QuoteIcon, Trash2Icon } from "lucide-react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -48,49 +48,78 @@ export function ConversationSelectionReferenceChip({
         "data-conversation-selection-reference-count": references.length,
       }}
     >
-      {references.map((reference, index) => (
-        <div
-          key={
-            isConversationSelectionReference(reference)
-              ? reference.id
-              : `${index}:${reference.text}`
-          }
-          className="group/reference flex gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-menu-hover"
-        >
-          <QuoteIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
-          <div className="min-w-0 flex-1">
-            <div className="line-clamp-3 whitespace-pre-wrap break-words">{reference.text}</div>
-            {reference.path || isConversationSelectionReference(reference) ? (
-              <div className="mt-0.5 break-words text-ui-sm text-foreground-subtlest">
-                {reference.path ? (
-                  reference.path
-                ) : isConversationSelectionReference(reference) &&
-                  reference.contentType === "markdown" ? (
-                  reference.sourceTitle
-                ) : isConversationSelectionReference(reference) &&
-                  reference.contentType !== "markdown" ? (
-                  <>
-                    {intl.formatMessage({ id: `chat.selections.type.${reference.contentType}` })} ·
-                    #{reference.sourceRowId}
-                  </>
-                ) : null}
+      {references.map((reference, index) => {
+        if ("contentType" in reference && reference.contentType === "session") {
+          return (
+            <div
+              key={reference.id}
+              className="group/reference flex gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-menu-hover"
+            >
+              <GitMergeIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-3 whitespace-pre-wrap break-words">{reference.label}</div>
               </div>
+              {onRemove ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-5 shrink-0 text-foreground-subtle opacity-0 group-hover/reference:opacity-100"
+                  aria-label={removeLabel}
+                  onClick={() => onRemove(reference.id)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          );
+        }
+        return (
+          <div
+            key={
+              isConversationSelectionReference(reference)
+                ? reference.id
+                : `${index}:${reference.text ?? ""}`
+            }
+            className="group/reference flex gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-menu-hover"
+          >
+            <QuoteIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-3 whitespace-pre-wrap break-words">{reference.text}</div>
+              {reference.path || isConversationSelectionReference(reference) ? (
+                <div className="mt-0.5 break-words text-ui-sm text-foreground-subtlest">
+                  {reference.path ? (
+                    reference.path
+                  ) : isConversationSelectionReference(reference) &&
+                    reference.contentType === "markdown" ? (
+                    reference.sourceTitle
+                  ) : isConversationSelectionReference(reference) &&
+                    reference.contentType !== "markdown" ? (
+                    <>
+                      {intl.formatMessage({
+                        id: `chat.selections.type.${reference.contentType}`,
+                      })}{" "}
+                      ·#{reference.sourceRowId}
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {onRemove && isConversationSelectionReference(reference) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="size-5 shrink-0 text-foreground-subtle opacity-0 group-hover/reference:opacity-100"
+                aria-label={removeLabel}
+                onClick={() => onRemove(reference.id)}
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
             ) : null}
           </div>
-          {onRemove && isConversationSelectionReference(reference) ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="size-5 shrink-0 text-foreground-subtle opacity-0 group-hover/reference:opacity-100"
-              aria-label={removeLabel}
-              onClick={() => onRemove(reference.id)}
-            >
-              <Trash2Icon className="size-3.5" />
-            </Button>
-          ) : null}
-        </div>
-      ))}
+        );
+      })}
     </ContextAttachmentPill>
   );
 }

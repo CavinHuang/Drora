@@ -13,6 +13,7 @@ export interface SidePaneTabPresentationLabels {
   subagentTypeLabel: string;
   subagentDirectoryTitle: string;
   selectionChatTitle: string;
+  explorationTitle: string;
   planTitle: string;
   workflowRunTitle: string;
   workflowDirectoryTitle: string;
@@ -44,6 +45,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "selection-side-chat") {
     return `${tab.parentSessionId} ${tab.childSessionId} ${tab.ordinal} selection side chat`;
+  }
+  if (tab.type === "exploration-branch") {
+    return `${tab.parentSessionId} ${tab.childSessionId} ${tab.sourceLabel} ${tab.ordinal} exploration branch`;
   }
   if (tab.type === "subagent-session") {
     return `${tab.title ?? ""} ${tab.subagentType} ${tab.parentSessionId} ${tab.childSessionId}`;
@@ -86,6 +90,7 @@ export function getLocalizedSidePaneTabTitle(
       "sidePane.subagent": labels.subagentTypeLabel,
       "sidePane.subagentDirectory": labels.subagentDirectoryTitle,
       "sidePane.selectionChat": labels.selectionChatTitle,
+      "sidePane.exploration": labels.explorationTitle,
       "planTool.panel.planTab": labels.planTitle,
       "sidePane.workflowRun": labels.workflowRunTitle,
       "sidePane.workflowActor": labels.workflowActorTitle,
@@ -107,6 +112,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "workflow-workspace") return labels.workflowScriptTitle;
   if (tab.type === "workflow-artifact") return labels.workflowArtifactTitle;
   if (tab.type === "selection-side-chat") return labels.selectionChatTitle;
+  if (tab.type === "exploration-branch") return labels.explorationTitle;
   if (tab.type === "subagent-session") {
     return tab.subagentType.trim() || labels.subagentTypeLabel;
   }

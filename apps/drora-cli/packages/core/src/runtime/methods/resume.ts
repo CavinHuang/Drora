@@ -1,6 +1,7 @@
 import { restorePermissionGrantMarker } from "../helpers/permission-grant-resume.js";
-import { executionStateSchema, resolveExecutionState } from "@drora/shared";
+import { executionStateSchema } from "@drora/shared";
 import { SESSION_ENTRY_EXECUTION_STATE } from "@drora/contracts";
+import { applyResumeExecutionState } from "../execution-state.js";
 import {
   CoreErrorType,
   HookEventName,
@@ -199,21 +200,22 @@ export async function resumeFromStore(
   const restoredMode =
     restoredModeEvents.length > 0 ? this.eventReducer.reduce(restoredModeEvents).mode : undefined;
   const resolvedMode = options?.modeOverride ?? restoredMode ?? session.permission?.mode;
-  if (resolvedMode !== undefined) {
-    // cold resume 会先把 checkpoint/rewind 等局部事件恢复到新的内存 eventStore。
-    // 这些事件不携带 mode，若仅按“存在任意事件”reduce，会用默认 build 覆盖 headless yolo。
-    // 只有权威 mode 事件能恢复历史值；本次 invocation 的显式/default mode 仍保持最高优先级。
-    Object.assign(this.config, resolveExecutionState({ mode: resolvedMode }));
-  }
   // 会话自己的新记录优先于项目偏好；旧记录仅兼容读取，不批量回填。
   const executionEntries = await this.sessionStore.sessionEntries?.({
     sessionID: this.sessionId,
     type: SESSION_ENTRY_EXECUTION_STATE,
   });
   const savedExecution = executionStateSchema.safeParse(executionEntries?.at(-1)?.data);
-  if (savedExecution.success && options?.modeOverride === undefined) {
-    Object.assign(this.config, savedExecution.data);
-  }
+  // cold resume 会先把 checkpoint/rewind 等局部事件恢复到新的内存 eventStore。
+  // 这些事件不携带 mode，若仅按“存在任意事件”reduce，会用默认 build 覆盖 headless yolo。
+  // 只有权威 mode 事件能恢复历史值；本次 invocation 的显式/default mode 仍保持最高优先级。
+  // 合并规则（含 modeOverride 下 readOnly 的保真）收敛在 applyResumeExecutionState。
+  applyResumeExecutionState(
+    this.config,
+    resolvedMode,
+    savedExecution.success ? savedExecution.data : undefined,
+    options?.modeOverride !== undefined,
+  );
 
   await restorePermissionGrantMarker(this, traceContext);
 

@@ -36,6 +36,8 @@ export interface PermissionContext {
   riskLevel: RiskLevel;
   mode: CollaborationMode;
   planEnabled?: boolean;
+  /** 只读会话闸门（specs/exploration-mode.md）：缺席视为 false。 */
+  readOnly?: boolean;
   prePlanMode?: Exclude<CollaborationMode, "plan">;
   /**
    * 会话工作目录。判定相对路径的落点用（目前只有 workflow 草稿免确认这一条），
@@ -133,7 +135,8 @@ export class PermissionService {
     }
 
     const planEnabled = context.planEnabled ?? context.mode === "plan";
-    if (context.mode === "yolo" && !planEnabled) {
+    const readOnlySession = context.readOnly === true;
+    if (context.mode === "yolo" && !planEnabled && !readOnlySession) {
       return this.allow(context, capability, "mode.yolo", "Yolo mode bypasses permission prompts");
     }
 
@@ -173,7 +176,7 @@ export class PermissionService {
       );
     }
 
-    if (planEnabled) {
+    if (planEnabled || readOnlySession) {
       return this.checkPlanMode(context, capability);
     }
 
@@ -403,12 +406,16 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
+    // 只读会话（探索分支）与 plan 模式共用同一放行面：读工具放行、其余拒绝。
+    // ruleId 按 gate 标注区分，供遥测与诊断区分两种来源。
+    const gate = context.readOnly === true ? "readonly" : "plan";
+    const gateLabel = context.readOnly === true ? "Read-only session" : "Plan mode";
     if (capability.readOnly && !capability.destructive) {
       return this.allow(
         context,
         capability,
-        "mode.plan.readOnly",
-        "Plan mode allows read-only tool execution",
+        `mode.${gate}.readOnly`,
+        `${gateLabel} allows read-only tool execution`,
       );
     }
 
@@ -416,8 +423,8 @@ export class PermissionService {
       return this.allow(
         context,
         capability,
-        "mode.plan.mcp",
-        "Plan mode allows non-destructive MCP tool execution",
+        `mode.${gate}.mcp`,
+        `${gateLabel} allows non-destructive MCP tool execution`,
       );
     }
 
@@ -430,16 +437,16 @@ export class PermissionService {
       return this.allow(
         context,
         capability,
-        "mode.plan.explicitSessionCapability",
-        "Plan mode allows this explicit non-destructive session control action",
+        `mode.${gate}.explicitSessionCapability`,
+        `${gateLabel} allows this explicit non-destructive session control action`,
       );
     }
 
     return this.deny(
       context,
       capability,
-      "mode.plan.nonReadOnly",
-      "Plan mode only allows read-only, non-destructive tools",
+      `mode.${gate}.nonReadOnly`,
+      `${gateLabel} only allows read-only, non-destructive tools`,
     );
   }
 

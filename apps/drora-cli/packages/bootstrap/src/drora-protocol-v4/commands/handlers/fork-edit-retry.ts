@@ -294,7 +294,10 @@ async function forkAssistant(
   if (!host.resolveStableForkTarget) {
     throw new Error("v4 forkAssistant requires host.resolveStableForkTarget capability");
   }
-  const resolution = await host.resolveStableForkTarget(record.app.sessionId, payload.target.rowId);
+  const resolution = await host.resolveStableForkTarget(record.app.sessionId, payload.target.rowId, {
+    // 探索分支不继承 Goal/verifier，也不受「parent 有 active target」guard 阻塞。
+    goalBoundaryPolicy: payload.exploration ? "none" : "anchor",
+  });
   if (!resolution.ok) {
     throw new V4ForkTargetGuardError(resolution.reasonCode, payload.target.rowId);
   }
@@ -306,6 +309,7 @@ async function forkAssistant(
     goalBoundary: resolution.goalBoundary,
     sourceCommandId: envelope.commandId,
     revisionAtDecision: envelope.baseRevision ?? 0,
+    exploration: payload.exploration,
   });
   // fork 完成事实过去只在 session event/debug 中，生产默认 JSONL 无法直接检索。
   // child 已创建并完成宿主注册后再写 info，避免把被拒绝或失败的请求误记为成功。

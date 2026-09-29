@@ -11,6 +11,8 @@ export interface SessionRow {
   title: string;
   title_source: string | null;
   title_message_id: string | null;
+  fork_source_message_id: string | null;
+  fork_source_label: string | null;
   version: string;
   share_url: string | null;
   summary_additions: number | null;

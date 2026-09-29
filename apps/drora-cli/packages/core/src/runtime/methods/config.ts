@@ -91,6 +91,10 @@ export function getPlanEnabled(this: AgentRuntimeInternal): boolean {
   return resolveExecutionState(this.config).planEnabled;
 }
 
+export function isReadOnly(this: AgentRuntimeInternal): boolean {
+  return resolveExecutionState(this.config).readOnly === true;
+}
+
 export function getSessionModelSelection(this: AgentRuntimeInternal): ModelSelection | undefined {
   return this.sessionModelSelection && cloneModelSelection(this.sessionModelSelection);
 }

@@ -42,6 +42,7 @@ function V4ComposerModeSwitchImpl({
   provider,
   draftConfig,
   disabled,
+  sessionReadOnly,
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSwitchMode,
@@ -52,10 +53,14 @@ function V4ComposerModeSwitchImpl({
   | "provider"
   | "draftConfig"
   | "disabled"
+  | "sessionReadOnly"
   | "activeConfigPicker"
   | "onConfigPickerOpenChange"
   | "onSwitchMode"
 >) {
+  // 只读会话（探索分支）禁用模式切换：core 闸门不会因 mode 补丁解除只读，
+  // 但 UI 若仍显示可切换，用户会误以为写操作即将放行（specs/exploration-mode.md）。
+  const modeControlsDisabled = disabled || sessionReadOnly === true;
   const { intl } = useDroraIntl();
   const displayProvider = provider ?? DRORA_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
@@ -87,7 +92,7 @@ function V4ComposerModeSwitchImpl({
   }, [modeOption, onSwitchMode]);
   useToolbarShortcutBindings({
     hasAnyOption: Boolean(selected),
-    toolbarDisabled: disabled,
+    toolbarDisabled: modeControlsDisabled,
     modelMenuDisabled: true,
     modeOption,
     onCycleSessionMode: cycle,
@@ -111,7 +116,7 @@ function V4ComposerModeSwitchImpl({
             <Button
               variant="ghost"
               size="sm"
-              disabled={disabled}
+              disabled={modeControlsDisabled}
               data-testid={TID_CHAT_MODE_SELECT_TRIGGER}
               data-composer-collapse-priority="1"
               aria-label={intl.formatMessage({ id: "chat.toolbar.mode.label" })}

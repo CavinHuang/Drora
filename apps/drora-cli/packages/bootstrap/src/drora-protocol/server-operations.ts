@@ -138,7 +138,14 @@ type DroraSessionRecordParams = (
       // 共用 record 初始化函数；resume 兼容分支也必须声明该策略字段。
       titleGenerationEnabled?: DroraSessionCreateParams["titleGenerationEnabled"];
     })
-) & { taskType?: SessionTaskType };
+) & {
+  taskType?: SessionTaskType;
+  /** 只读会话（探索分支）：必须在 resume 前进入 runtime config，避免 setMode 覆盖执行态条目。 */
+  readOnly?: boolean;
+  /** 探索分支来源：注册/恢复期挂到 record，供 sessions-index meta 同步读取。 */
+  forkSourceMessageId?: string;
+  forkSourceLabel?: string;
+};
 
 interface SessionStartupPreferences {
   memoryEnabled: boolean;
@@ -1475,6 +1482,13 @@ export async function activateSessionForResume(
       // desktop 任务列表长出「workflow actor actor#N@k」假任务，任务索引同步器还会
       // 反复对它们发 session/resume。fork 路径一直带着 taskType，这里必须同样带。
       taskType: session.taskType,
+      // 探索分支来源随恢复链路带上，保证 live 投影不把冷启动种子的分支字段冲掉。
+      ...(session.forkSourceMessageID
+        ? {
+            forkSourceMessageId: String(session.forkSourceMessageID),
+            ...(session.forkSourceLabel ? { forkSourceLabel: session.forkSourceLabel } : {}),
+          }
+        : {}),
       workspace,
     },
     params.sessionId as SessionId,
@@ -2263,6 +2277,8 @@ export async function registerForkedSession(
       model: string;
       thoughtLevel?: string;
       followupMode?: "queue" | "guide";
+      /** 探索分支：child 只读执行态在注册期进入 runtime config。 */
+      readOnly?: boolean;
     };
     inheritLatestTarget: boolean;
   },
@@ -2271,6 +2287,7 @@ export async function registerForkedSession(
   const parentModel = options.runtimeConfig.model;
   const parentThoughtLevel = options.runtimeConfig.thoughtLevel;
   const parentFollowupMode = options.runtimeConfig.followupMode;
+  const childReadOnly = options.runtimeConfig.readOnly === true;
   const forkedSession = await getPersistedSession(context, fork.forkedSessionId);
   if (!forkedSession) {
     throw new Error(`Persisted child session not found: ${fork.forkedSessionId}`);
@@ -2284,6 +2301,17 @@ export async function registerForkedSession(
       model: optionalModelSelectionFromString(parentModel),
       ...(fork.parentSessionId ? { parentSessionId: fork.parentSessionId } : {}),
       taskType: forkedSession.taskType,
+      // 只读必须在 setMode/resume 之前进入 runtime config：
+      // setMode 会 upsert 执行态 entry，晚于此注入会把 fork bundle 里的 readOnly 抹掉。
+      ...(childReadOnly ? { readOnly: true } : {}),
+      ...(forkedSession.forkSourceMessageID
+        ? {
+            forkSourceMessageId: String(forkedSession.forkSourceMessageID),
+            ...(forkedSession.forkSourceLabel
+              ? { forkSourceLabel: forkedSession.forkSourceLabel }
+              : {}),
+          }
+        : {}),
       workspace: record.workspace,
     },
     fork.forkedSessionId as SessionId,
@@ -3312,6 +3340,14 @@ async function createRecord(
     "parentSessionId" in params && params.parentSessionId
       ? (params.parentSessionId as SessionId)
       : undefined;
+  const forkSourceMessageId =
+    "forkSourceMessageId" in params && params.forkSourceMessageId
+      ? String(params.forkSourceMessageId)
+      : undefined;
+  const forkSourceLabel =
+    "forkSourceLabel" in params && params.forkSourceLabel
+      ? String(params.forkSourceLabel)
+      : undefined;
   const taskType = params.taskType ?? "interactive";
   const runtimeMcp = protocolMcpServersToRuntimeMcpConfig(params.mcpServers);
   context.logger?.info("Drora Protocol createRecord MCP config", {
@@ -3336,6 +3372,7 @@ async function createRecord(
       mode: "mode" in params ? params.mode : undefined,
       modelSelection: "model" in params ? toRuntimeModelSelection(initialModel) : undefined,
       parentSessionId,
+      readOnly: params.readOnly === true ? true : undefined,
       taskType,
       // 动态工作流灰度门：与 offPeakPort
       // 同一套读法——本次 create/resume 参数优先，缺席时读 Host 同步到进程的 workspace 级
@@ -3413,6 +3450,9 @@ async function createRecord(
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
     ...(parentSessionId ? { parentSessionId } : {}),
+    ...(forkSourceMessageId
+      ? { forkSourceMessageId, ...(forkSourceLabel ? { forkSourceLabel } : {}) }
+      : {}),
     persistence: "persistence" in params ? (params.persistence ?? "immediate") : "immediate",
     protocolEventSequences: new Map(),
     protocolToolInputTransmissions: new Map(),

@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src",
-    "test": "tsx test/official-plugin-hook-runtime.test.mjs"
+    "test": "tsx test/official-plugin-hook-runtime.test.mjs && tsx test/exploration-sessions-index.test.mjs"
   },
   "dependencies": {
     "@drora/adapters": "workspace:*",

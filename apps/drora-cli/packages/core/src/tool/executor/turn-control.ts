@@ -46,6 +46,8 @@ export function withPlanExitDeniedTurnStop(
   input: {
     mode: CollaborationMode;
     planEnabled?: boolean;
+    /** 只读会话（探索分支）在上游 policy 已拒绝 ExitPlanMode，本助手逻辑不会命中。 */
+    readOnly?: boolean;
     toolName: string;
   },
 ): ToolExecutionResult {

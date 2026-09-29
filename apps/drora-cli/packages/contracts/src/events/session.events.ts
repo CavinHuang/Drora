@@ -642,6 +642,8 @@ export interface SessionModeChangedPayload {
   permissionGrant?: { interactionId: string; queueItemIds: string[] };
   planEnabled?: boolean;
   previousPlanEnabled?: boolean;
+  /** 只读会话闸门随 mode 事件广播；缺席视为 false。 */
+  readOnly?: boolean;
   mode: CollaborationMode;
   previousMode: CollaborationMode;
   source: "tool" | "command" | "system";

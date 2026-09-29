@@ -74,12 +74,23 @@ export async function resolveStableForkTargetFromTranscript(options: {
   candidate: StableForkCandidate;
   messages: readonly MessageWithParts[];
   store: SessionStorePort;
+  /**
+   * 探索分支（specs/exploration-mode.md）：强制 goalBoundary none——只读分支不继承
+   * Goal/verifier（跑不了验证，继承只会产生悬挂的 goal 状态），也因此不受
+   * legacy「parent 有 active target 即 ambiguous」guard 的阻塞。none 不写回锚点，
+   * 后续普通 fork 的 goal 语义不受影响。
+   */
+  goalBoundaryPolicy?: "anchor" | "none";
 }): Promise<V4StableForkTargetResolution> {
+  const goalBoundaryNone = options.goalBoundaryPolicy === "none";
   const persisted = persistedTarget(options.messages, options.candidate);
   if (persisted === "ambiguous") {
     return { ok: false, reasonCode: "guard.forkTargetAmbiguous" };
   }
   if (persisted) {
+    if (goalBoundaryNone) {
+      return { ok: true, target: persisted.target, goalBoundary: { kind: "none" } };
+    }
     const goalBoundary =
       persisted.goalBoundary ??
       (await legacyGoalBoundary(options.store, options.messages, persisted.target.boundaryMessageId));
@@ -135,6 +146,9 @@ export async function resolveStableForkTargetFromTranscript(options: {
     orderedMessageIds,
     boundaryMessageId: options.candidate.boundaryMessageId,
   };
+  if (goalBoundaryNone) {
+    return { ok: true, target, goalBoundary: { kind: "none" } };
+  }
   const goalBoundary = await legacyGoalBoundary(
     options.store,
     options.messages,

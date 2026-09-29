@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DroraTaskMeta } from "@drora/shared";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { compareDroraTaskListItems } from "@/lib/taskListOrdering.js";
 import { mapSessionSummaryToTaskMeta } from "@/v4/mapSessionSummaryToTaskMeta.js";
 import {
@@ -98,6 +99,7 @@ function isHydratingStore(store: SessionsIndexStore): boolean {
 export function useWorkspaceSessionsIndexItems(
   scopes: WorkspaceSessionsIndexScope[],
 ): WorkspaceSessionsIndexItemsResult {
+  const { intl } = useDroraIntl();
   const baseServices = useBaseWorkspaceServices();
   const baseAgentService = baseServices.droraAgentService;
 
@@ -185,6 +187,7 @@ export function useWorkspaceSessionsIndexItems(
           mapSessionSummaryToTaskMeta(summary, {
             workspacePath: scope.workspacePath,
             ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
+            explorationTitlePrefix: intl.formatMessage({ id: "chat.exploration.titlePrefix" }),
             previous: previousByKey.get(buildSummaryIdentityKey(scope, summary.sessionId)),
           }),
         );

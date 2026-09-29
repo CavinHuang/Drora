@@ -360,6 +360,9 @@ export interface DroraTaskMeta {
   offPeakTaskId?: string;
   /** fork 产物保留来源 taskId，供 UI 做本地化标题兜底和后续追溯。 */
   forkedFromTaskId?: string;
+  /** 探索分支来源（specs/exploration-mode.md）：分叉锚点与用户可读标签。 */
+  forkSourceMessageId?: string;
+  forkSourceLabel?: string;
   /** 未读任务记录最近一次标记/产生未读的时间，用于跨重启保留蓝点状态。 */
   unreadAt?: number;
   /** 持久化的任务状态，记录最后一次 prompt 的结果 */

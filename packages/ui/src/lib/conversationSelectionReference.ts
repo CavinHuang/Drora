@@ -25,7 +25,24 @@ export interface MarkdownSelectionReference extends ConversationSelectionText {
   sourceTitle: string;
 }
 
-export type ConversationSelectionReference = MessageSelectionReference | MarkdownSelectionReference;
+/**
+ * 探索分支带回主线的会话引用（specs/exploration-mode.md）。
+ * 与文本选段不同：不进 userselect 块，提交时序列化为可见 mention 行，
+ * 让 CLI 侧 #sess_* 引用链（reminder → ReadSessionContext）自然生效。
+ */
+export interface SessionMentionReference {
+  id: string;
+  contentType: "session";
+  sessionId: string;
+  label: string;
+  /** 联合类型上允许统一 path 访问；会话引用恒无文件路径。 */
+  path?: undefined;
+}
+
+export type ConversationSelectionReference =
+  | MessageSelectionReference
+  | MarkdownSelectionReference
+  | SessionMentionReference;
 
 export interface MarkdownSelectionTarget {
   sessionId: string | null;
@@ -109,7 +126,9 @@ export function createConversationSelectionReference(
   return { ...input, id: createUuid() };
 }
 
-function getConversationSelectionDedupeKey(reference: ConversationSelectionReference): string {
+function getConversationSelectionDedupeKey(
+  reference: Exclude<ConversationSelectionReference, SessionMentionReference>,
+): string {
   if (reference.contentType === "markdown") {
     return ["markdown", reference.sourceKey, reference.text].join("\0");
   }
@@ -121,21 +140,50 @@ function getConversationSelectionDedupeKey(reference: ConversationSelectionRefer
   ].join("\0");
 }
 
+export function isSessionMentionReference(
+  reference: ConversationSelectionDisplayReference,
+): reference is SessionMentionReference {
+  return "contentType" in reference && reference.contentType === "session";
+}
+
 function appendConversationSelectionReference(
   current: readonly ConversationSelectionReference[],
   reference: ConversationSelectionReference,
 ): ConversationSelectionAppendResult {
+  // 会话引用没有正文：只按目标会话去重，不参与文本长度限额。
+  if (isSessionMentionReference(reference)) {
+    if (
+      current.some((item) => item.contentType === "session" && item.sessionId === reference.sessionId)
+    ) {
+      return { ok: true, references: current, duplicate: true };
+    }
+    if (current.length >= CONVERSATION_SELECTION_MAX_COUNT) {
+      return { ok: false, reason: "count" };
+    }
+    return { ok: true, references: [...current, reference], duplicate: false };
+  }
   if (reference.text.length > CONVERSATION_SELECTION_MAX_TEXT_LENGTH) {
     return { ok: false, reason: "single" };
   }
-  const key = getConversationSelectionDedupeKey(reference);
-  if (current.some((item) => getConversationSelectionDedupeKey(item) === key)) {
+  // session 引用已在函数头提前返回；此处必为文本类引用。
+  const textReference = reference as Exclude<ConversationSelectionReference, SessionMentionReference>;
+  const key = getConversationSelectionDedupeKey(textReference);
+  if (
+    current.some((item) => {
+      if (isSessionMentionReference(item)) return false;
+      return getConversationSelectionDedupeKey(item) === key;
+    })
+  ) {
     return { ok: true, references: current, duplicate: true };
   }
   if (current.length >= CONVERSATION_SELECTION_MAX_COUNT) {
     return { ok: false, reason: "count" };
   }
-  const totalLength = current.reduce((sum, item) => sum + item.text.length, 0);
+  const totalLength = current.reduce((sum, item) => {
+    // session 引用没有正文，不占文本总长限额。
+    if (item.contentType === "session") return sum;
+    return sum + item.text.length;
+  }, 0);
   if (totalLength + reference.text.length > CONVERSATION_SELECTION_MAX_TOTAL_LENGTH) {
     return { ok: false, reason: "total" };
   }
@@ -147,14 +195,36 @@ export function buildPromptWithConversationSelections(
   references: readonly ConversationSelectionDisplayReference[],
 ): string {
   if (references.length === 0) return visibleContent;
+  // 会话引用（探索分支带回）：以可见 mention 行进入正文，
+  // CLI 的 #sess_* 提取（references.ts）据此注入 reminder 并让 agent 渐进读取分支。
+  const mentionLines = references
+    .filter(
+      (reference): reference is SessionMentionReference =>
+        "contentType" in reference && reference.contentType === "session",
+    )
+    .map((reference) => `[${reference.label}](#sess_${reference.sessionId})`);
+  const textReferences = references.filter(
+    (reference): reference is ConversationSelectionText =>
+      !("contentType" in reference) ||
+      (reference.contentType !== "session" && reference.contentType !== "markdown"),
+  );
+  const withMentions =
+    mentionLines.length > 0
+      ? visibleContent
+        ? `${visibleContent}\n\n${mentionLines.join("\n\n")}`
+        : mentionLines.join("\n\n")
+      : visibleContent;
+  if (textReferences.length === 0) return withMentions;
   // 文件选段曾只发正文，导致模型与历史丢失文件来源；只保留路径，不发送内部身份字段。
   const block = [
     "# userselect:",
     "```userselect",
-    JSON.stringify(references.map(({ text, path }) => (path?.trim() ? { path, text } : { text }))),
+    JSON.stringify(
+      textReferences.map(({ text, path }) => (path?.trim() ? { path, text } : { text })),
+    ),
     "```",
   ].join("\n");
-  return visibleContent ? `${visibleContent}\n\n${block}` : block;
+  return withMentions ? `${withMentions}\n\n${block}` : block;
 }
 
 export function parsePromptConversationSelections(text: string): {
@@ -249,6 +319,13 @@ export function isConversationSelectionReference(
 ): value is ConversationSelectionReference {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ConversationSelectionReference>;
+  if (candidate.contentType === "session") {
+    return (
+      typeof candidate.id === "string" &&
+      typeof (candidate as Partial<SessionMentionReference>).sessionId === "string" &&
+      typeof (candidate as Partial<SessionMentionReference>).label === "string"
+    );
+  }
   if (candidate.contentType === "markdown") {
     return (
       typeof candidate.id === "string" &&

@@ -149,6 +149,7 @@ function buildForkedSessionInput(
   parentSession: SessionInfo,
   forkedSessionId: SessionId,
   kind: "fork" | "selection_side_chat" = "fork",
+  exploration?: { sourceMessageId: MessageId; sourceLabel: string },
 ): CreateSessionInput {
   const now = Date.now();
   return {
@@ -166,6 +167,12 @@ function buildForkedSessionInput(
     titleSource: "generated",
     version: parentSession.version,
     permission: parentSession.permission,
+    ...(exploration
+      ? {
+          forkSourceMessageID: exploration.sourceMessageId,
+          forkSourceLabel: exploration.sourceLabel,
+        }
+      : {}),
     time: {
       created: now,
       updated: now,
@@ -585,6 +592,8 @@ async function commitAtomicConversationFork(
     sourceCommandId: string;
     targetMessageId: MessageId;
     target?: StableConversationForkTarget;
+    /** 探索分支：child 只读 + fork 来源落库。 */
+    exploration?: { sourceLabel: string };
     traceContext: TraceContext;
     kind?: "fork" | "selection_side_chat";
   },
@@ -600,10 +609,16 @@ async function commitAtomicConversationFork(
     .reverse()
     .find((message) => message.info.role === "assistant")?.info;
   // 保留原 stable fork 的历史权限选择，不能让新增 entry 把它覆盖成父任务当前权限。
-  const executionState =
+  const resolvedExecutionState =
     kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
       ? currentExecutionState
       : resolveExecutionState(historicalInfo);
+  // 探索分支一律只读执行态（specs/exploration-mode.md 决策 2）：与主线共享 workspace
+  // 文件，若分支可写会真实改动主线正在使用的文件；readOnly 随执行态 entry 持久化，
+  // resume 恢复后依旧生效，权限服务据此放行读工具、拒绝写与 plan 切换。
+  const executionState = options.exploration
+    ? { ...resolvedExecutionState, planEnabled: false, readOnly: true }
+    : resolvedExecutionState;
   // 辅助对话明确不复制 Goal target/verifier entries，不能仍将
   // 父消息的 goalBoundary 交给 strict fork clone，否则任意 Goal 状态都会要求不存在的
   // child-local identity。只移除用于 Goal 恢复的 boundary，保留父对话正文作为模型上下文。
@@ -725,6 +740,10 @@ async function commitAtomicConversationFork(
         targetMessageId: String(options.targetMessageId),
       },
       ...(options.target ? { forkTarget: options.target } : {}),
+      // 探索元数据随幂等 fact 落盘（specs/exploration-mode.md 语义契约）：
+      // 重放路径命中 (parentSessionId, sourceCommandId) 返回既有结果时，
+      // fact 仍保留探索 provenance，不因只查 fact 而丢失来源语义。
+      ...(options.exploration ? { exploration: options.exploration } : {}),
     },
   };
   const goal =
@@ -735,7 +754,9 @@ async function commitAtomicConversationFork(
         }
       : undefined;
   const committedChild = await store.commitForkBundle({
-    child: buildForkedSessionInput(runtime, options.parentSession, childSessionId, kind),
+    child: buildForkedSessionInput(runtime, options.parentSession, childSessionId, kind, options.exploration
+      ? { sourceMessageId: options.targetMessageId, sourceLabel: options.exploration.sourceLabel }
+      : undefined),
     messages: copiedMessages,
     copySources: {
       messages: Object.fromEntries(
@@ -1072,6 +1093,7 @@ export async function forkStableConversationAtMessage(
     sourceCommandId: options.sourceCommandId,
     target: options.target,
     targetMessageId: options.target.boundaryMessageId as MessageId,
+    exploration: options.exploration,
     traceContext: options.traceContext ?? this.rootTraceContext,
   });
 }

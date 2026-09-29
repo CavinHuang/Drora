@@ -154,6 +154,9 @@ export interface SessionInfo {
   title: string;
   titleSource?: SessionTitleSource;
   titleMessageID?: MessageId;
+  /** 探索分支来源锚点（specs/exploration-mode.md）；仅 fork child 且携带 exploration 时写入。 */
+  forkSourceMessageID?: MessageId;
+  forkSourceLabel?: string;
   version: string;
   shareURL?: string;
   summaryAdditions?: number;
@@ -184,6 +187,8 @@ export interface CreateSessionInput {
   title: string;
   titleSource?: SessionTitleSource;
   titleMessageID?: MessageId;
+  forkSourceMessageID?: MessageId;
+  forkSourceLabel?: string;
   version: string;
   shareURL?: string;
   permission?: PermissionRuleset;

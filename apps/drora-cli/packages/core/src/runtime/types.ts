@@ -124,6 +124,8 @@ export interface AgentRuntimeConfig {
   presentationSurface?: PresentationSurface;
   mode?: CollaborationMode;
   planEnabled?: boolean;
+  /** 只读会话闸门（specs/exploration-mode.md）：创建边界一次性写入，mode/plan 补丁不可清除。 */
+  readOnly?: boolean;
   modelStreaming?: "off" | "on";
   streamingToolExecution?: "off" | "readOnly";
   /** Session 创建时固定；缺省使用共享的模型上下文预算默认策略。 */
@@ -643,6 +645,8 @@ export interface StableConversationForkOptions {
   sourceCommandId: string;
   revisionAtDecision?: number;
   target: StableConversationForkTarget;
+  /** 探索分支（specs/exploration-mode.md）：child 只读 + 持久化分叉来源。 */
+  exploration?: { sourceLabel: string };
   traceContext?: TraceContext;
 }
 

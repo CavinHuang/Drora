@@ -413,6 +413,7 @@ function buildOutput(input: {
     truncated: input.truncated,
     error: input.error,
     references: input.material.references,
+    ...(input.material.forkBoundary ? { forkBoundary: input.material.forkBoundary } : {}),
   };
 }
 

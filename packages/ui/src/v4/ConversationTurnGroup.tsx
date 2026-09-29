@@ -94,6 +94,7 @@ interface ConversationTurnGroupProps {
   apiRetry?: ApiRetryState | null;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
   onEdit?: (
@@ -612,6 +613,7 @@ function AssistantHistoryStatus({
 function ConversationWorkSegmentFlow({
   segment,
   context,
+  onExplore,
   onFork,
   onRetry,
   onEdit,
@@ -629,6 +631,7 @@ function ConversationWorkSegmentFlow({
   segment: ConversationTurnWorkSegment;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
   editWorkspaceRewindAvailability: EditWorkspaceRewindAvailability;
@@ -728,7 +731,8 @@ function ConversationWorkSegmentFlow({
             <ConversationTurnRow
               row={item.row}
               context={context}
-              onFork={item.latest && canForkLatestAssistant ? onFork : undefined}
+              onFork={canForkLatestAssistant ? onFork : undefined}
+              onExplore={canForkLatestAssistant ? onExplore : undefined}
               onRetry={item.latest && canRetryLatestAssistant ? onRetry : undefined}
               hideAssistantActions={!item.latest}
               deferAssistantActions={item.latest}
@@ -770,6 +774,7 @@ function ConversationTurnFlow({
   unit,
   apiRetry,
   context,
+  onExplore,
   onFork,
   onRetry,
   onEdit,
@@ -785,6 +790,7 @@ function ConversationTurnFlow({
   apiRetry: ApiRetryState | null;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
   editWorkspaceRewindAvailability: EditWorkspaceRewindAvailability;
@@ -877,6 +883,7 @@ function ConversationTurnFlow({
           segment={segment}
           context={context}
           onFork={onFork}
+          onExplore={onExplore}
           onRetry={onRetry}
           onEdit={onEdit}
           editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
@@ -944,6 +951,7 @@ function ConversationBackgroundResultWork({
   unit,
   apiRetry,
   context,
+  onExplore,
   onFork,
   onRetry,
   title,
@@ -956,6 +964,7 @@ function ConversationBackgroundResultWork({
   apiRetry: ApiRetryState | null;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   title: string;
   assistantCopyText?: string;
@@ -1077,6 +1086,7 @@ function ConversationBackgroundResultWork({
           row={latestAssistantTextRow}
           context={context}
           onFork={latestAssistantTextRow.actions?.canFork === true ? onFork : undefined}
+          onExplore={latestAssistantTextRow.actions?.canFork === true ? onExplore : undefined}
           onRetry={latestAssistantTextRow.actions?.canRetry === true ? onRetry : undefined}
           deferAssistantActions
           assistantCopyText={assistantCopyText}
@@ -1102,6 +1112,7 @@ function ConversationTurnGroupImpl({
   unit,
   apiRetry = null,
   context,
+  onExplore,
   onFork,
   onRetry,
   onFeedbackChange,
@@ -1348,6 +1359,7 @@ function ConversationTurnGroupImpl({
                 apiRetry={apiRetry}
                 context={assistantRowContext}
                 onFork={canForkLatestAssistant ? onFork : undefined}
+                onExplore={canForkLatestAssistant ? onExplore : undefined}
                 onRetry={onRetry}
                 title={backgroundResultTitle}
                 assistantCopyText={assistantCopyText}
@@ -1366,6 +1378,7 @@ function ConversationTurnGroupImpl({
               apiRetry={apiRetry}
               context={assistantRowContext}
               onFork={canForkLatestAssistant ? onFork : undefined}
+              onExplore={canForkLatestAssistant ? onExplore : undefined}
               onRetry={onRetry}
               onEdit={onEdit}
               editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
@@ -1422,6 +1435,7 @@ function ConversationTurnGroupImpl({
               feedback={readAssistantFeedback(latestAssistantTextRow)}
               sessionId={context.sessionId}
               onFork={canForkLatestAssistant ? onFork : undefined}
+              onExplore={canForkLatestAssistant ? onExplore : undefined}
               onRetry={canRetryLatestAssistant ? onRetry : undefined}
               onFeedbackChange={onFeedbackChange}
               hookInvocations={unit.hookInvocations}

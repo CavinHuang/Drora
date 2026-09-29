@@ -2146,6 +2146,7 @@ function ConversationComposerImpl({
           provider={provider}
           draftConfig={draftConfig}
           disabled={disabled}
+          sessionReadOnly={snapshot?.config?.readOnly === true}
           activeConfigPicker={activeConfigPicker}
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}

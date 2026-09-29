@@ -16,6 +16,7 @@ import {
   type WorkspaceHeaderState,
   WorkspaceHeaderTitleSection,
 } from "@/WorkspaceHeaderSections.js";
+import type { OpenExplorationBranchRequest } from "@/lib/workspaceSidePane.js";
 import type { WorkspaceHeaderVariant } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeader({
@@ -23,6 +24,7 @@ export function WorkspaceHeader({
 
   draftDropTargetController,
   readOnlyReason,
+  onOpenExplorationBranch,
   workspaceAbsPath,
   remoteSessionId,
   workspaceIdentity,
@@ -66,6 +68,8 @@ export function WorkspaceHeader({
   variant?: WorkspaceHeaderVariant;
   draftDropTargetController?: ConversationDropTargetController | null;
   readOnlyReason?: string;
+  /** 探索分支头部入口（specs/exploration-mode.md）。 */
+  onOpenExplorationBranch?: (request: OpenExplorationBranchRequest) => void;
   workspaceAbsPath: string;
   remoteSessionId?: string;
   workspaceIdentity?: string;
@@ -163,6 +167,7 @@ export function WorkspaceHeader({
           <WorkspaceHeaderTitleSection
             variant={variant}
             readOnlyReason={readOnlyReason}
+            onOpenExplorationBranch={onOpenExplorationBranch}
             workspaceAbsPath={workspaceAbsPath}
             remoteSessionId={remoteSessionId}
             workspaceIdentity={workspaceIdentity}

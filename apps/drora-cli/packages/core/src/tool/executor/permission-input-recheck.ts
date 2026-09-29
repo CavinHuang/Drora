@@ -38,6 +38,7 @@ export async function recheckPermissionHookModifiedInput(input: {
     mode: input.mode,
     prePlanMode: input.deps.sessionModePort?.getPrePlanMode(),
     planEnabled: input.deps.sessionModePort?.isPlanEnabled?.(),
+    readOnly: input.deps.sessionModePort?.isReadOnly?.() === true,
     riskLevel: input.entry.metadata.riskLevel,
     toolName: input.toolCall.name,
     // 与首次判定同源：hook 改过 input 之后，草稿免确认仍要按同一个工作目录复核。

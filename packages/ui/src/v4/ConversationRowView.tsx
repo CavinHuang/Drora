@@ -1,5 +1,11 @@
 /* oxlint-disable eslint(max-lines) -- v4 逐行 row 渲染分发集中收口（每种 row 一个 memo 叶子 + timelineMarker 分隔线），拆分会打散行类型对照。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArchiveIcon,
@@ -23,6 +29,7 @@ import {
   TID_V4_EDIT_INPUT,
   TID_V4_EDIT_SUBMIT,
   TID_V4_EDIT_REWIND_WORKSPACE,
+  TID_V4_EXPLORE,
   TID_V4_FEEDBACK_DISLIKE,
   TID_V4_FEEDBACK_LIKE,
   TID_V4_FORK,
@@ -246,6 +253,8 @@ interface ConversationRowViewProps {
   context: ConversationRowRenderContext;
   /** 完成态 assistant 行的 fork 入口（forkAssistant command）。 */
   onFork?: (target: ConversationRowTarget) => void;
+  /** 完成态 assistant 行的探索入口（forkAssistant + exploration，右侧分支 Tab）。 */
+  onExplore?: (target: ConversationRowTarget) => void;
   /** assistant entity 反馈 CAS；UI 先乐观更新，命令失败时回滚。 */
   onFeedbackChange?: AssistantFeedbackHandler;
   /** 协议兼容：上层仍可提供 retryTurn capability，但产品 UI 不渲染普通重试入口。 */
@@ -1317,6 +1326,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   sessionId,
   turnId,
   onFork,
+  onExplore,
   onFeedbackChange,
   className,
 }: {
@@ -1329,6 +1339,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   sessionId?: string | null;
   turnId?: string;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
   className?: string;
@@ -1343,6 +1354,9 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   const dislikeLabel = intl.formatMessage({
     id: localFeedback === "dislike" ? "chat.message.disliked" : "chat.message.dislike",
   });
+  // 分叉图标是两个动作的 popup 入口：分叉到新会话（跳走语义）/ 探索分支（右侧 Tab）。
+  const forkMenuItemLabel = intl.formatMessage({ id: "chat.message.forkMenu.newSession" });
+  const exploreMenuItemLabel = intl.formatMessage({ id: "chat.message.forkMenu.explore" });
   const forkLabel = intl.formatMessage({ id: "chat.message.fork" });
   const timeLabel = formatMessageTimeLabel(createdAt, locale, intl);
   const resolveTooltip = (label: string): string | undefined => label;
@@ -1403,6 +1417,16 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
       });
     }
   }, [entityId, onFork, rowId]);
+  const handleExplore = useCallback(() => {
+    if (entityId) {
+      runUserAction({
+        input: { featureId: "conversation.history.branch", action: "explore", trigger: "button" },
+        operation: () => onExplore?.({ rowId, entityId }),
+        completed: { resultSource: "optimistic_projection" },
+        failureStage: "fork",
+      });
+    }
+  }, [entityId, onExplore, rowId]);
   return (
     <MessageActions className={cn(className)}>
       <CopyRowAction
@@ -1451,16 +1475,38 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
           </MessageAction>
         </>
       ) : null}
-      {onFork && entityId ? (
-        <MessageAction
-          aria-label={forkLabel}
-          label={forkLabel}
-          tooltip={resolveTooltip(forkLabel)}
-          data-testid={testId(TID_V4_FORK, String(rowId))}
-          onClick={handleFork}
-        >
-          <TrendingUpDownIcon className="size-3.5" />
-        </MessageAction>
+      {entityId && (onFork || onExplore) ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <MessageAction
+              aria-label={forkLabel}
+              label={forkLabel}
+              data-testid={testId(TID_V4_FORK, String(rowId))}
+            >
+              <TrendingUpDownIcon className="size-3.5" />
+            </MessageAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="bottom" className="w-44">
+            {onFork ? (
+              <DropdownMenuItem
+                data-testid={testId(TID_V4_FORK, `${rowId}:fork`)}
+                onClick={handleFork}
+              >
+                <TrendingUpDownIcon className="size-3.5" />
+                {forkMenuItemLabel}
+              </DropdownMenuItem>
+            ) : null}
+            {onExplore ? (
+              <DropdownMenuItem
+                data-testid={testId(TID_V4_EXPLORE, String(rowId))}
+                onClick={handleExplore}
+              >
+                <GitBranchIcon className="size-3.5" />
+                {exploreMenuItemLabel}
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
       {turnId && hookInvocations ? (
         <ConversationHookDetailsAction rows={hookInvocations} turnId={turnId} />
@@ -1478,6 +1524,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
   row,
   context,
   onFork,
+  onExplore,
   onRetry,
   onFeedbackChange,
   hideActions,
@@ -1491,6 +1538,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
   row: AssistantTextRow;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
+  onExplore?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
   hideActions?: boolean;
@@ -1577,6 +1625,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           feedback={readAssistantFeedback(row)}
           sessionId={context.sessionId}
           onFork={onFork}
+          onExplore={onExplore}
           onRetry={onRetry}
           onFeedbackChange={onFeedbackChange}
           className={cn(

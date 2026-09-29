@@ -28,6 +28,7 @@ import type {
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
+  OpenExplorationBranchRequest,
   OpenSelectionSideChatRequest,
   OpenScopedPlanDetailSideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
@@ -288,6 +289,8 @@ export interface WorkbenchShellBinding {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
+  /** 探索分支（specs/exploration-mode.md）：右侧工作区分支 Tab。 */
+  onOpenExplorationBranch?: (request: OpenExplorationBranchRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
@@ -600,6 +603,7 @@ export function WorkbenchLeafPane({
           onOpenSubagentDirectory={shell.onOpenSubagentDirectory}
           onSyncSubagentSessionTabs={shell.onSyncSubagentSessionTabs}
           onOpenSelectionSideChat={shell.onOpenSelectionSideChat}
+          onOpenExplorationBranch={shell.onOpenExplorationBranch}
           onOpenPlanDetail={shell.onOpenPlanDetail}
           onOpenWorkflowRun={shell.onOpenWorkflowRun}
           onOpenWorkflowArtifact={shell.onOpenWorkflowArtifact}

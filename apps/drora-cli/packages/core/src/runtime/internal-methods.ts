@@ -74,6 +74,7 @@ export interface AgentRuntimeCoreMethods {
   getSessionShellSelection(): ExecutionShellSelection | undefined;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
+  isReadOnly(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;
   setExecutionState(
     input: { mode?: string; planEnabled?: boolean },

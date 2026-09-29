@@ -258,6 +258,7 @@ import type {
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
+  OpenExplorationBranchRequest,
   OpenSelectionSideChatRequest,
   SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
@@ -352,6 +353,8 @@ export interface SessionPaneProps {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
+  /** 探索分支（specs/exploration-mode.md）：forkAssistant(exploration) ACK 后打开右侧分支 Tab。 */
+  onOpenExplorationBranch?: (request: OpenExplorationBranchRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   /** 通知行的产物 chip → 全尺寸查看 tab。 */
@@ -542,6 +545,7 @@ export function SessionPane({
   onOpenSubagentDirectory,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
+  onOpenExplorationBranch,
   onOpenPlanDetail,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
@@ -3060,6 +3064,53 @@ export function SessionPane({
     [dispatchCommand, onSessionCreated, sessionId],
   );
 
+  /** 探索分支：fork 到锚点但留在主线，右侧工作区打开分支 Tab（specs/exploration-mode.md）。 */
+  const handleExplore = useCallback(
+    (target: ConversationRowTarget) => {
+      const current = snapshotRef.current;
+      if (!sessionId || current === null) return;
+      // 持久化用稳定标识（i18n: 前缀 + key），展示层解析本地化——
+      // 本地化文案不能进 sqlite/command payload，否则跨语言环境重开显示创建时语言。
+      const sourceLabel = "i18n:chat.exploration.sourceLabel";
+      // 探索必须继承分叉点的渠道与模型，不受全局选择器影响（与 fork 相同语义）。
+      void dispatchCommand(
+        "forkAssistant",
+        { target, exploration: { sourceLabel } },
+        sessionId,
+        current.revision,
+        current.logEpoch,
+      ).then((ack) => {
+        if (ack.status !== "accepted" && ack.status !== "duplicate") {
+          logger.warn(`[v4-pane] 探索分支被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+          // 与 Proma 对齐：拒绝必须有用户可见反馈；锚点不可用映射为可理解的文案。
+          const anchorUnavailable =
+            ack.reasonCode === "guard.forkTargetAmbiguous" ||
+            ack.reasonCode === "guard.forkTargetNotStable";
+          toast(
+            intl.formatMessage({
+              id: anchorUnavailable
+                ? "chat.exploration.anchorUnavailable"
+                : "chat.exploration.rejected",
+            }),
+          );
+          return;
+        }
+        if (ack.result?.type === "forkAssistant") {
+          onOpenExplorationBranch?.({
+            workspacePath,
+            ...(workspaceIdentity ? { workspaceIdentity } : {}),
+            ...(remoteSessionId ? { remoteSessionId } : {}),
+            parentSessionId: sessionId,
+            childSessionId: ack.result.sessionId,
+            sourceLabel,
+          });
+          toast(intl.formatMessage({ id: "chat.exploration.created" }));
+        }
+      });
+    },
+    [dispatchCommand, intl, onOpenExplorationBranch, remoteSessionId, sessionId, workspaceIdentity, workspacePath],
+  );
+
   const handleEdit = useCallback(
     async (
       target: ConversationRowTarget,
@@ -3704,6 +3755,9 @@ export function SessionPane({
   const retryActionsEnabled = !readOnly && !selectionSideChat && Boolean(sessionId);
   // fork 可用性完全由 row.actions.canFork（CLI stable resolver 投影）裁决；pane 只提供命令回调。
   const forkActionsEnabled = !readOnly && !selectionSideChat && Boolean(sessionId);
+  // 探索分支依赖右侧 Side Pane：web-remote-replayable（手机远控）没有该工作面，隐藏探索入口
+  // （specs/exploration-mode.md 边界 2）；分支会话本身仍会出现在手机会话列表里。
+  const explorationActionsEnabled = forkActionsEnabled && !remoteSessionId;
   // editUserQuery 已由 command 层防御 latest real user query，并在 running
   // 提交时先 stop barrier 再 rewind/rerun；UI 不应再用 completed gate 把入口整轮隐藏。
   const editActionsEnabled = !readOnly && !selectionSideChat && Boolean(sessionId);
@@ -4759,6 +4813,9 @@ export function SessionPane({
               scrollMemoryKey={timelineScrollMemoryKey}
               rowContext={rowContext}
               onFork={forkActionsEnabled ? handleFork : undefined}
+              onExplore={
+                explorationActionsEnabled && onOpenExplorationBranch ? handleExplore : undefined
+              }
               onRetry={retryActionsEnabled ? handleRetry : undefined}
               onFeedbackChange={
                 !readOnly && !selectionSideChat && sessionId ? handleAssistantFeedback : undefined

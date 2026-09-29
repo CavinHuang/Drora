@@ -69,6 +69,11 @@ export const ReadSessionContextOutputSchema = z
     truncated: z.boolean(),
     error: z.string().optional(),
     references: z.array(ReadSessionContextReferenceSchema).optional(),
+    /** fork 分支边界（specs/exploration-mode.md）：材料只含该锚点之后的增量。 */
+    forkBoundary: z
+      .object({ parentSessionId: z.string(), sourceMessageId: z.string() })
+      .strict()
+      .optional(),
   })
   .strict();
 

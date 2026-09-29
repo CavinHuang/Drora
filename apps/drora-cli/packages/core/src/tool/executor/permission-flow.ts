@@ -56,6 +56,7 @@ export async function resolveToolPermission(
     mode,
     prePlanMode: deps.sessionModePort?.getPrePlanMode(),
     planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
+    readOnly: deps.sessionModePort?.isReadOnly?.() === true,
     // workflow 草稿免确认要按工作目录解析相对路径，见 PermissionService 的
     // isPreapprovedWorkflowDraftWrite。
     workingDirectory: deps.getWorkingDirectory(),

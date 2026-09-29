@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button.js";
 import { Cloud, Ellipsis, Folder, GitBranch, LoaderIcon } from "lucide-react";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
+import { ExplorationBranchesMenu } from "@/app-shell/ExplorationBranchesMenu.js";
 import { useBaseWorkspaceServices, useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
@@ -100,6 +101,7 @@ export function WorkspaceHeaderTitleSection({
   isMacFullscreen: _isMacFullscreen,
   isWindowsDesktop: _isWindowsDesktop,
   selectedEditor: _selectedEditor,
+  onOpenExplorationBranch,
   simplifyForNarrowRemote = false,
   compact = false,
 }: WorkspaceHeaderTitleSectionProps) {
@@ -491,6 +493,19 @@ export function WorkspaceHeaderTitleSection({
         ) : null} */}
       </h1>
       <div className="flex min-w-0 shrink-0 items-center gap-1">
+        {/* web-remote-replayable（手机远控）没有右侧 Side Pane 工作面，头部入口
+            与行级探索入口（SessionPane explorationActionsEnabled）同一信号隐藏。 */}
+        {!isDraftNewTask && !remoteSessionId ? (
+          <ExplorationBranchesMenu
+            sessionId={activeTaskId}
+            workspacePath={workspaceAbsPath}
+            workspaceIdentity={workspaceIdentity}
+            remoteSessionId={remoteSessionId}
+            agentService={services.droraAgentService}
+            disabled={!onOpenExplorationBranch || Boolean(readOnlyReason)}
+            onOpenBranch={(request) => onOpenExplorationBranch?.(request)}
+          />
+        ) : null}
         {!isDraftNewTask ? (
           <DropdownMenu open={taskMenuOpen} onOpenChange={setTaskMenuOpen}>
             <DropdownMenuTrigger asChild>

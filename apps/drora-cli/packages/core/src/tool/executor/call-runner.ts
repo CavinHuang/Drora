@@ -257,6 +257,7 @@ async function executeToolCallImpl(
         {
           mode,
           planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
+          readOnly: deps.sessionModePort?.isReadOnly?.() === true,
           toolName: canonicalToolCall.name,
         },
       ),
@@ -304,6 +305,7 @@ async function executeToolCallImpl(
         withPlanExitDeniedTurnStop(permissionResult.result, {
           mode,
           planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
+          readOnly: deps.sessionModePort?.isReadOnly?.() === true,
           toolName: canonicalToolCall.name,
         }),
         { toolName: canonicalToolCall.name },

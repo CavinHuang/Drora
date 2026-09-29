@@ -11,6 +11,7 @@ import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPrevie
 import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import type {
+  OpenExplorationBranchRequest,
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
@@ -112,6 +113,7 @@ interface V4WorkspaceChatAreaProps {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
+  onOpenExplorationBranch?: (request: OpenExplorationBranchRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
@@ -173,6 +175,7 @@ export function V4WorkspaceChatArea({
   onOpenSubagentDirectory,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
+  onOpenExplorationBranch,
   onOpenPlanDetail,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
@@ -298,6 +301,7 @@ export function V4WorkspaceChatArea({
       onOpenSubagentDirectory,
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
+      onOpenExplorationBranch,
       onOpenPlanDetail,
       onOpenWorkflowRun,
       onOpenWorkflowArtifact,
@@ -343,6 +347,7 @@ export function V4WorkspaceChatArea({
       onOpenSubagentDirectory,
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
+      onOpenExplorationBranch,
       onOpenPlanDetail,
       onOpenWorkflowRun,
       onOpenWorkflowArtifact,

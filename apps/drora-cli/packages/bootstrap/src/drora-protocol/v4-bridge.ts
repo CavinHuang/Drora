@@ -978,7 +978,7 @@ export function createConversationV4Gateway(
       context.v4Gateway?.getMessageIdsForTurnRow(sessionId, rowId) ?? [],
     isLatestAssistantSegmentRow: (sessionId, rowId) =>
       context.v4Gateway?.isLatestAssistantSegmentRow(sessionId, rowId) ?? null,
-    resolveStableForkTarget: async (sessionId, rowId) => {
+    resolveStableForkTarget: async (sessionId, rowId, options) => {
       const candidate = context.v4Gateway?.resolveStableForkCandidate(sessionId, rowId) ?? null;
       if (!candidate) return { ok: false, reasonCode: "guard.forkTargetAmbiguous" };
       if (!candidate.ok) return candidate;
@@ -989,6 +989,7 @@ export function createConversationV4Gateway(
         candidate: candidate.candidate,
         messages,
         store,
+        goalBoundaryPolicy: options?.goalBoundaryPolicy,
       });
     },
     isLatestRetryAssistantRow: (sessionId, rowId) =>
@@ -1162,7 +1163,7 @@ export function createConversationV4Gateway(
     // running stable fork：只走 core transcript copy，再注册 child record。父 runtime、queue、
     // background/continuation inbox 与 shared workspace 均不读取、不停止、不复制。
     forkStableConversation: async (sessionId, options) => {
-      const { goalBoundary, revisionAtDecision, sourceCommandId, target } = options;
+      const { goalBoundary, revisionAtDecision, sourceCommandId, target, exploration } = options;
       const record = context.sessions.get(sessionId);
       if (!record) throw new Error("proto.sessionNotFound");
       const store = context.deps.sessionStore;
@@ -1192,6 +1193,7 @@ export function createConversationV4Gateway(
         goalBoundary,
         sourceCommandId,
         revisionAtDecision,
+        exploration,
         traceContext: record.traceContext,
       });
       await registerCommittedForkBestEffort(context, record, fork, {
@@ -1202,6 +1204,8 @@ export function createConversationV4Gateway(
           ...(modelSelection?.options?.reasoningLevel
             ? { thoughtLevel: modelSelection.options.reasoningLevel }
             : {}),
+          // 探索分支在注册期就进入只读执行态；晚于 setMode 注入会被执行态 entry 覆盖。
+          ...(exploration ? { readOnly: true } : {}),
         },
         // core 已按 copied message/verifier 边界复制 goal；禁止再用 parent 当前 target 覆盖。
         inheritLatestTarget: false,
@@ -1409,6 +1413,12 @@ export function createConversationV4Gateway(
         sessionId: String(session.id),
         workspaceId,
         ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
+        ...(session.forkSourceMessageID
+          ? {
+              forkSourceMessageId: String(session.forkSourceMessageID),
+              ...(session.forkSourceLabel ? { forkSourceLabel: session.forkSourceLabel } : {}),
+            }
+          : {}),
         title: session.title ?? "",
         titleSource: normalizeStoredTitleSource(session.titleSource),
         phase: "completedSuccess" as const,
@@ -1521,6 +1531,7 @@ export function createConversationV4Gateway(
           : [],
         mode: record.app.getMode(),
         planEnabled: record.app.runtime.getPlanEnabled(),
+        readOnly: record.app.runtime.isReadOnly?.() === true ? true : undefined,
         ...(record.app.runtime.lastPermissionGrantId
           ? { permissionGrant: { interactionId: record.app.runtime.lastPermissionGrantId } }
           : {}),
@@ -1551,6 +1562,12 @@ export function createConversationV4Gateway(
         createdAt: record.createdAt,
         lastActivityAt: record.updatedAt,
         ...(record.parentSessionId ? { parentSessionId: String(record.parentSessionId) } : {}),
+        ...(record.forkSourceMessageId
+          ? {
+              forkSourceMessageId: record.forkSourceMessageId,
+              ...(record.forkSourceLabel ? { forkSourceLabel: record.forkSourceLabel } : {}),
+            }
+          : {}),
       };
     },
     listWorkspaceSessionIds: (workspaceId) =>

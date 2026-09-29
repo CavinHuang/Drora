@@ -30,11 +30,11 @@ export function createSession(
       `
       insert into session (
         id, project_id, workspace_id, parent_id, trace_id, task_type, slug, directory, path,
-        title, title_source, title_message_id, version,
+        title, title_source, title_message_id, fork_source_message_id, fork_source_label, version,
         share_url, summary_additions, summary_deletions, summary_files, summary_diffs,
         revert, permission, time_created, time_updated, time_title_updated,
         time_compacting, time_archived
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, null, null, null, ?, ?, ?, ?, null, null)
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, null, null, null, ?, ?, ?, ?, null, null)
       on conflict(id) do update set
         project_id = excluded.project_id,
         workspace_id = excluded.workspace_id,
@@ -47,6 +47,8 @@ export function createSession(
         title = excluded.title,
         title_source = excluded.title_source,
         title_message_id = excluded.title_message_id,
+        fork_source_message_id = excluded.fork_source_message_id,
+        fork_source_label = excluded.fork_source_label,
         version = excluded.version,
         share_url = excluded.share_url,
         permission = coalesce(excluded.permission, session.permission),
@@ -67,6 +69,8 @@ export function createSession(
       input.title,
       input.titleSource ?? "first_input",
       input.titleMessageID ?? null,
+      input.forkSourceMessageID ?? null,
+      input.forkSourceLabel ?? null,
       input.version,
       input.shareURL ?? null,
       encodeJson(input.permission),

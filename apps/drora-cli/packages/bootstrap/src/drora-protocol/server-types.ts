@@ -94,6 +94,9 @@ export interface DroraProtocolSessionRecord {
   legacyStreamSubscribed?: boolean;
   eventStore: SessionEventStorePort;
   parentSessionId?: SessionId;
+  /** 探索分支来源（specs/exploration-mode.md）；仅供 sessions-index meta 读取。 */
+  forkSourceMessageId?: string;
+  forkSourceLabel?: string;
   persistence: DroraSessionPersistence;
   protocolEventSequences: Map<string, DroraProtocolEventSequenceState>;
   protocolToolInputTransmissions: Map<string, DroraProtocolToolInputTransmissionState>;

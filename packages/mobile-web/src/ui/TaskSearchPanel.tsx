@@ -6,6 +6,7 @@
 // 投影本地标题过滤（与 relay bootstrap/workspace-list 同源数据，缺 snippet 能力，降级面
 // 由 searchPalette.test 锚定）。搜索历史纯函数见 searchHistory.ts（Drora 化键）。
 // 受控纯展示基线同 ModelMenu：打开状态归调用方（HomeScreen 懒加载装配），本组件只发意图。
+import type { WorkspaceFileEntry } from "@drora/shared";
 import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./Button.js";
@@ -58,6 +59,13 @@ export interface TaskSearchPanelProps {
   onSearchTasks?: (search: string) => Promise<TaskSearchPanelTask[]>;
   /** 选中任务（打开任务面；开合与路由收口在调用方）。 */
   onTaskOpen: (task: TaskSearchPanelTask) => void;
+  /**
+   * P6 文件域（spec §29.3）：host 文件搜索执行器（accessor.fileService.searchWorkspaceFiles
+   * 绑定；失败已在其内收敛为 []）。缺省 = 不查文件域（任务-only 零回归）。
+   */
+  onSearchFiles?: (query: string) => Promise<WorkspaceFileEntry[]>;
+  /** 文件结果行点击（官方 workspaceFileTree.addToChat 语义=插入 composer 引用；装配归调用方）。 */
+  onFileSelect?: (entry: WorkspaceFileEntry) => void;
   /** 关闭请求（遮罩点击 / Escape / 关闭按钮；打开状态归调用方）。 */
   onClose: () => void;
   /** 历史存储键（缺省 = Drora 化单键；注入便于测试隔离）。 */
@@ -151,6 +159,8 @@ function SearchTaskRow({
 export function TaskSearchPanel({
   workspaces = [],
   onSearchTasks,
+  onSearchFiles,
+  onFileSelect,
   onTaskOpen,
   onClose,
   historyKey = MOBILE_SEARCH_HISTORY_STORAGE_KEY,
@@ -160,6 +170,8 @@ export function TaskSearchPanel({
   const { formatMessage } = intl;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TaskSearchPanelTask[]>([]);
+  // P6 文件域（spec §29.3）：与任务域并行的第二查询（序号守卫同源）。
+  const [fileResults, setFileResults] = useState<WorkspaceFileEntry[]>([]);
   const [history, setHistory] = useState<SearchHistoryEntry[]>(() =>
     loadSearchHistory(historyKey),
   );
@@ -194,9 +206,21 @@ export function TaskSearchPanel({
         .catch(() => {
           if (requestSeqRef.current === seq) setResults([]);
         });
+      // 文件域并行第二查询（有执行器且有 query 才查；空 query 不查文件）。
+      if (onSearchFiles && query.trim() !== "") {
+        void onSearchFiles(query.trim())
+          .then((files) => {
+            if (requestSeqRef.current === seq) setFileResults(files);
+          })
+          .catch(() => {
+            if (requestSeqRef.current === seq) setFileResults([]);
+          });
+      } else if (requestSeqRef.current === seq) {
+        setFileResults([]);
+      }
     }, TASK_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [query, submitNonce, runSearch]);
+  }, [query, submitNonce, runSearch, onSearchFiles]);
 
   useEffect(() => {
     setHistory(loadSearchHistory(historyKey));
@@ -254,6 +278,37 @@ export function TaskSearchPanel({
           </Button>
         </form>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          {hasQuery && fileResults.length > 0 ? (
+            <section>
+              <div className="px-1.5 pb-1 pt-1 text-ui-xs font-medium text-foreground-subtlest">
+                {formatMessage({ id: "workspaceFileTree.title" })}
+              </div>
+              <ul className="pb-2">
+                {fileResults.map((entry) => (
+                  <li key={entry.path}>
+                    <button
+                      type="button"
+                      className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-hover"
+                      onClick={() => {
+                        onFileSelect?.(entry);
+                        onClose();
+                      }}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-ui-base text-foreground">{entry.name}</span>
+                        <span className="mt-0.5 block truncate text-ui-xs text-foreground-subtle">
+                          {entry.relativePath}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-ui-xs text-foreground-subtlest">
+                        {entry.type === "directory" ? "dir" : null}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           {!hasQuery && history.length > 0 ? (
             <section>
               <div className="px-1.5 pb-1 pt-1 text-ui-xs font-medium text-foreground-subtlest">

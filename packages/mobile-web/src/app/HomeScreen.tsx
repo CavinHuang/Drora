@@ -45,6 +45,12 @@ export interface HomeScreenProps {
    * 过滤（与 relay bootstrap 同源数据，缺 snippet 能力；取舍见 TaskSearchPanel 文件头）。
    */
   onSearchTasks?: (search: string) => Promise<TaskSearchResult[]>;
+  /** P6 文件域（spec §29.3）：host 文件搜索执行器（accessor.fileService 绑定）。 */
+  onSearchFiles?: (query: string) => Promise<
+    { name: string; path: string; relativePath: string; type: "file" | "directory" }[]
+  >;
+  /** 文件结果行点击（插入 composer 引用；装配归调用方）。 */
+  onFileSelect?: (entry: { path: string; relativePath: string }) => void;
 }
 
 export function HomeScreen(props: HomeScreenProps) {
@@ -114,6 +120,8 @@ export function HomeScreen(props: HomeScreenProps) {
           <TaskSearchPanel
             workspaces={props.workspaces}
             onSearchTasks={props.onSearchTasks}
+            onSearchFiles={props.onSearchFiles}
+            onFileSelect={props.onFileSelect}
             onTaskOpen={openSearchTask}
             onClose={closeSearch}
           />

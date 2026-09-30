@@ -1843,3 +1843,13 @@ composer 工具条（四 trigger+thought CAS）/模型菜单（徽标+管理模�
 （toast 存档）/头部（双标题+装配缝）——生产页活体对照无遗漏面。深度还原指令语义
 下可执行项清零；后续推进依赖：并行收口（SidePane/goal/attachmentGitSummary/
 OpenTabShell——其会话进行中）/数据源接通（quotaReset/命令源）/真机验收反馈。
+
+### 29.5 文件域装配环境裁定（2026-09-30 续五）——缝已备，App 挂起
+
+文件域装配遭遇**环境缺口**：TaskSearchPanel 宿主在首页，而首页无常驻桥（taskSession
+开桥模式，spec §18 关联裁定）——accessor 仅任务面存活期存在，首页文件域搜索不可达。
+**处置**：①TaskSearchPanel/HomeScreen 装配缝保留（onSearchFiles/onFileSelect 可选
+props，缺省不查=零回归）；②App 装配挂起（无 accessor 可供）；③Host 桩 file 通道仍
+补（searchWorkspaceFiles scripted——Host 面就绪，首页 attachment 立项即用）。
+**二期前置=首页 attachment 架构立项**（首页常驻 workspace attachment——与 §18
+"首页 sessions-index 不做"同域重裁，独立决策）。门禁维持 164/164（缝缺省零回归）。

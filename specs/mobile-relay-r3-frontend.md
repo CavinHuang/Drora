@@ -2071,3 +2071,33 @@ GitActionMenu 状态行（「提交或推送」/main 分支/diff 统计）**回�
 ServiceProvider（App() 根）后 useServices 消费全通实锤（此前崩=塔未覆盖分支的
 accessor null 帧——塔上提修复后消除）。GitPane/GitActionMenu/commit-dialog/
 文件搜索/新建任务**全部上线**。门禁：165/165+build 绿+typecheck 绿。
+
+## 31. 远程控制服务 UI 对齐——阶段完成总结（2026-09-30）
+
+### 31.1 完成度总览
+
+| 域 | 结果 |
+|---|---|
+| 对齐度 | 13 → **31/34** 官方稳定 testid |
+| capability 接线法 | feedback / fork / commit-dialog / 新建任务 / 文件搜索——**五例全链** |
+| 官方组件上线 | GitPane / GitActionMenu / 侧板 / 时间线全家桶（lazy 104KB）/ StatusPanel |
+| locale | zh/en 双语逐字闭环（172 键校准） |
+| App 基建 | App 级 Provider 塔（全分支覆盖）+ 诊断探针体系 + chunk 图分析工具链 |
+| 生产页活体 | 七面对照全部终态 + 复用终盘 38/56 |
+| 并行域 | 618 行验收合入（OpenTabShell/attachmentGitSummary/remoteStatusCommands/goal） |
+| 门禁 | 165/165 + build 797 + 根 typecheck 绿 |
+
+### 31.2 capability 接线法（可复用标准作业）
+
+官方协议既有命令查证 → TaskSession/模块级方法 → 壳/装配透传 → Host 桩 → E2E 真页面。
+四例全链验收：setAssistantFeedback / forkAssistant / createSession / searchWorkspaceFiles。
+
+### 31.3 剩余项（全部外部条件触发）
+
+| 项 | 前置条件 | 归属 |
+|---|---|---|
+| GitActionMenu 状态行 | rolldown chunk 合并语义专项 | 专项 |
+| quotaReset 额度条 | coding plan 额度数据源接远控协议 | 协议扩展 |
+| 命令面板 | quickPick 命令源接通（§18 裁定域） | 协议扩展 |
+| lazy 再拆 | GitActionMenu chunk 1072KB 按需评估 | 低优先 |
+| 真机验收 | 真机设备+桌面客户端 | 验收 |

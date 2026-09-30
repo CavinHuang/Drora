@@ -1470,3 +1470,13 @@ getChanges/getRepositorySummary 最小面）+ GitPane 挂载于 side-pane 开合
 不做（写命令一期后置）。工作量预估：useGitRepository 最小派生 ~150 行 + 桩 ~40 行
 + 装配 ~30 行。风险：useServices 在 GitPane 内部直连（非 props）——(a) 路线仍需
 ServicesProvider 最小壳（mock 空服务表 + git 实注入），需读 useServices 实现定壳形。
+
+### 25.3 壳形取证修正（同轮续）——(a) 移植路线撤销，(b) Provider 桥接成本大降
+
+useServices 实为**极简 Context**（ServiceProvider{services: IServiceAccessor}——
+mobile-web 的 taskSession.accessor 即 IServiceAccessor，一行壳）。useGitRepository
+在 UI 包内可直接调用（无需移植 564 行）。剩余壳=StoreProvider（需 broadcastService
+mock——GitPane 仅读 theme/codePreviewSettings 两态）+ 公开出口 "./git-pane"（§22
+窄入口模式）。一期执行清单（下轮）：package.json exports +1 → App 任务面
+ServiceProvider+StoreProvider 壳 → useGitRepository 派生 gitState → side-pane
+开合容器挂 GitPane → Host 桩 git 通道 scripted getChanges → E2E。

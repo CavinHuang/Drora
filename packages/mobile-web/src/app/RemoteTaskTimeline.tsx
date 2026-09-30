@@ -29,6 +29,9 @@ export interface RemoteTaskTimelineProps {
   sessionPhase?: SessionPhase;
   modelSelectionView?: ModelSelectionView | null;
   statusSnapshot?: ConversationSnapshot | null;
+  onPauseGoal?: () => void;
+  onResumeGoal?: () => void;
+  onCancelBackgroundWork?: (workId: string) => void;
   interactions: readonly PendingInteraction[];
   answering: boolean;
   onResolve: (interactionId: string, answer: InteractionAnswer) => void;
@@ -37,6 +40,8 @@ export interface RemoteTaskTimelineProps {
   loadingOlder: boolean;
   onLoadOlder: () => Promise<void>;
   bottomDock: ReactNode;
+  /** 助手消息赞/踩（v4 setAssistantFeedback；缺省不渲染 feedback 按钮）。 */
+  onFeedbackChange?: (target: { rowId: number; entityId: string }, feedback: "like" | "dislike" | null) => Promise<boolean | void> | boolean | void;
 }
 
 export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
@@ -69,8 +74,12 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         sessionPhase={props.sessionPhase}
         modelSelectionView={props.modelSelectionView}
         statusSnapshot={props.statusSnapshot}
+        onPauseGoal={props.onPauseGoal}
+        onResumeGoal={props.onResumeGoal}
+        onCancelBackgroundWork={props.onCancelBackgroundWork}
         headerSlot={headerSlot}
         bottomDock={props.bottomDock}
+        onFeedbackChange={props.onFeedbackChange}
         canLoadOlder={props.canLoadOlder}
         loadingOlder={props.loadingOlder}
         onLoadOlder={props.onLoadOlder}

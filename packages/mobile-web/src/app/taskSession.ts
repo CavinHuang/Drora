@@ -115,6 +115,8 @@ export async function sendSwitchModelConfigCas(input: {
 
 export class TaskSession {
   private olderRequestPending = false;
+  private goalControlPending: Promise<boolean> | null = null;
+  private readonly backgroundCancelPending = new Map<string, Promise<boolean>>();
   private constructor(
     readonly accessor: IServiceAccessor,
     readonly target: TaskSessionTarget,
@@ -365,6 +367,30 @@ export class TaskSession {
   }
 
   /**
+   * 助手消息赞/踩（v4 setAssistantFeedback，官方协议 command.ts 既有命令——合规还原非
+   * 臆造；spec §23.12 capability 裁定解除：协议面已在，接 UI 回调链即可）。feedback=null
+   * 撤销。target 为 assistant 行锚点（rowId + entityId，core.ts 闭集）。
+   */
+  async setAssistantFeedback(
+    rowId: number,
+    entityId: string,
+    feedback: "like" | "dislike" | null,
+  ): Promise<void> {
+    const envelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+      type: "setAssistantFeedback" as const,
+      payload: { target: { rowId, entityId }, feedback },
+      issuedAt: Date.now(),
+    };
+    await this.accessor.droraAgentService.sendConversationCommandV4({
+      ...this.workspaceRef(),
+      envelope,
+    });
+  }
+
+  /**
    * 文件变更只读查询（v4 conversationFileChanges，spec §15 第 3 条；打开任务面拉取一次 +
    * 发送后刷新，单次拉取即弃，不缓存不重试）。
    *
@@ -412,6 +438,83 @@ export class TaskSession {
   /** 状态面板只读事实；快照仍由 conversation store 独占，App 只保留渲染镜像。 */
   getStatusSnapshot() {
     return this.store.getState().snapshot;
+  }
+
+  /**
+   * 目标动作以最新快照做 CAS；拒绝或断桥时不乐观改变 goal，下一帧仍由 Host 裁决。
+   * 桌面 SessionPane 同样不对 pause/resume 的 stale ACK 自动重发。
+   */
+  pauseGoal(): Promise<boolean> {
+    return this.sendGoalControl("pauseGoal");
+  }
+
+  resumeGoal(): Promise<boolean> {
+    return this.sendGoalControl("resumeGoal");
+  }
+
+  private async sendGoalControl(type: "pauseGoal" | "resumeGoal"): Promise<boolean> {
+    if (this.goalControlPending) return this.goalControlPending;
+    const snapshot = this.store.getState().snapshot;
+    const status = snapshot?.goal?.status;
+    const statusAllowsAction =
+      type === "pauseGoal"
+        ? status === "active" || status === "verifying" || status === "notSatisfied"
+        : status === "paused";
+    if (!snapshot?.availability[type].allowed || !statusAllowsAction) return false;
+    const command = this.sendStatusControl(type, {}, snapshot.revision);
+    this.goalControlPending = command;
+    try {
+      return await command;
+    } finally {
+      if (this.goalControlPending === command) this.goalControlPending = null;
+    }
+  }
+
+  /**
+   * workId 必须来自当前会话快照的运行态；cancelBackgroundWork 不是 CAS 命令，
+   * 不得附上 revision 造成无意义的 stale 拒绝。同一 work 的在途点击共用一次下发。
+   */
+  async cancelBackgroundWork(workId: string): Promise<boolean> {
+    const pending = this.backgroundCancelPending.get(workId);
+    if (pending) return pending;
+    const work = this.store.getState().snapshot?.backgroundWorks.find(
+      (item) => item.workId === workId,
+    );
+    if (!work || work.status !== "running" || work.cancellable === false) return false;
+    const command = this.sendStatusControl("cancelBackgroundWork", { workId });
+    this.backgroundCancelPending.set(workId, command);
+    try {
+      return await command;
+    } finally {
+      if (this.backgroundCancelPending.get(workId) === command) {
+        this.backgroundCancelPending.delete(workId);
+      }
+    }
+  }
+
+  private async sendStatusControl(
+    type: "pauseGoal" | "resumeGoal" | "cancelBackgroundWork",
+    payload: Record<string, string>,
+    baseRevision?: number,
+  ): Promise<boolean> {
+    const envelope: CommandEnvelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+      type,
+      payload,
+      ...(baseRevision === undefined ? {} : { baseRevision }),
+      issuedAt: Date.now(),
+    };
+    try {
+      const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
+        ...this.workspaceRef(),
+        envelope,
+      });
+      return ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop";
+    } catch {
+      return false;
+    }
   }
 
   /** 阻塞交互选择器（spec §15 第 1 条；转发 store，UI 交互卡消费）。 */

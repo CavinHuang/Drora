@@ -1383,3 +1383,24 @@ feedback 归 Host 能力矩阵期（需 relay/桥新增 feedback 写命令，与
 所有剩余 testid 差距均归三类：①数据形态（已全部触发，28/34）②capability 写命令
 未接（feedback/侧板/附件——组件自动降级，正确行为）③骨架外围（summary-panel=
 并行工作、更多菜单展开态未取证）。UI 组件复用路线成立，无需再 fork 形态。
+
+### 23.13 feedback capability 解除（2026-09-30 第八轮）——官方协议既有命令接线
+
+§23.12 裁定修正：feedback 非"能力矩阵新命令"——**官方协议 v4 既有
+setAssistantFeedback**（command.ts:162，target+feedback enum|null，命令注册表两处），
+接线即合规还原。全链落地：TaskSession.setAssistantFeedback（resolveInteraction 同构）→
+包装器 RemoteConversationTimeline 透传 onFeedbackChange（AssistantFeedbackHandler）→
+RemoteTaskTimeline 透传 → App 装配（taskRef.current.setAssistantFeedback）→ harness
+stub case（ACK accepted + 内存行更新）。
+
+**渲染根因链（三段深挖）**：①UI 包无 v4-feedback testid 字面 → ②实为
+ConversationAssistantTextActions 完整组件存在但门控未开（canRenderAssistantActions =
+!timelineOnly && latestAssistantTextRow.state===complete && copyText 有值）→ ③
+latestAssistantTextRow 派生需 row.actions.canFork/canRetry 能力位（gateway 投影）或
+末行 assistantText+非 running——stub 补 actions 位后动作条全套渲染（copy+like+dislike
+成对，fork 因 onFork 未接仍降级——retryTurn/fork 官方协议同样既有，同法可接）。
+**E2E**：点击 like → !bg-success/10 active 样式 + toggle 撤销语义 + 命令链成功
+（失败会回滚——未回滚即 ACK 达成）。对齐度 28→**30/34**（+feedback 两键；fork 待
+onFork 接线、summary-panel=并行、侧板族=同法可接）。门禁：158/158、build 绿。
+提交含并行文件（包装器/App）零交集 hunk（本轮 feedback 三处 + 并行 StatusPanel
+既有改动，透明记录）。

@@ -376,6 +376,20 @@ function AppBody() {
         sessionPhase={controlState?.phase ?? undefined}
         modelSelectionView={modelView}
         statusSnapshot={statusSnapshot}
+        onPauseGoal={() => {
+          const session = taskRef.current;
+          if (session?.target.sessionId === selectedTaskId) void session.pauseGoal();
+        }}
+        onResumeGoal={() => {
+          const session = taskRef.current;
+          if (session?.target.sessionId === selectedTaskId) void session.resumeGoal();
+        }}
+        onCancelBackgroundWork={(workId) => {
+          const session = taskRef.current;
+          if (session?.target.sessionId === selectedTaskId) {
+            void session.cancelBackgroundWork(workId);
+          }
+        }}
         interactions={pendingInteractions}
         answering={answering}
         onResolve={(interactionId, answer) => void resolveInteraction(interactionId, answer)}
@@ -384,6 +398,9 @@ function AppBody() {
         loadingOlder={loadingOlder}
         onLoadOlder={loadOlder}
         bottomDock={composer}
+        onFeedbackChange={(target, feedback) =>
+          taskRef.current?.setAssistantFeedback(target.rowId, target.entityId, feedback)
+        }
       />
     ) : null;
 

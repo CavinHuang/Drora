@@ -8,6 +8,7 @@
     "./conversation-share-readonly": "./src/v4/ConversationShareReadonlyTimeline.tsx",
     "./remote-timeline": "./src/v4/RemoteConversationTimeline.tsx",
     "./remote-frame": "./src/DesktopWindowFrame.tsx",
+    "./git-pane": "./src/remote-git-pane.ts",
     "./oauth-provider-icon": "./src/lib/oauthProviderIcon.tsx",
     "./message": "./src/components/ai-elements/message.tsx",
     "./e2e-store-bridge": "./src/lib/e2eStoreBridgeBootstrap.ts",

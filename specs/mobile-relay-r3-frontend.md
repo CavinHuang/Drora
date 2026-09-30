@@ -1232,8 +1232,9 @@ harness（真 relay × 真 control × Host 桩，port 62176）× ZCode 内置浏
 本地浏览器验收（Host 桩，经真 relay/attachment，非真 CLI）：1600×900 时
 会话容器宽 1336px，原版 UI 面板按容器查询展开为 320px，消息列没有被面板
 覆盖；414×896 时面板默认是 34px mini，点击「展开状态」出现计划两项，
-权限应答卡、文件变更条、时间线与 composer 继续可见。真 Git/预览服务、
-后台任务控制和附件仍需真实 Host/CLI 集成验收，DOM 与桩数据不足以证明它们。
+权限应答卡、文件变更条、时间线与 composer 继续可见。真 Git/预览服务与
+附件仍需真实 Host/CLI 集成验收；后台任务控制的桩链路验收见 §26，桩数据
+不足以证明真 CLI 的权限与取消结果。
 
 ### 25.1 后续 Git/预览侧板的 attachment 能力核对
 
@@ -1279,6 +1280,23 @@ Host attachment 的 `sendConversationCommandV4` 执行这些命令，不新建�
   回调不能路由到新会话。
 - **交付链**：桌面 `desktop-continuous` 与手机 `web-remote-replayable` 仍各走原
   attachment；命令进入相同 CLI owner，手机只通过可恢复订阅观察最终状态。
+
+```mermaid
+sequenceDiagram
+    participant UI as 手机状态面板
+    participant Store as 手机 conversation store
+    participant Relay as relay/Main attachment
+    participant Host as 窗口 Local Host
+    participant CLI as CLI/runtime CommandInbox
+    UI->>Store: 读取最新 availability、revision 或 workId
+    UI->>Relay: sendConversationCommandV4
+    Relay->>Host: 转发命令
+    Host->>CLI: 交给既有会话 owner
+    CLI-->>Host: 命令 ACK 与状态投影
+    Host-->>Relay: web-remote-replayable 帧
+    Relay-->>Store: snapshot/state.updated
+    Store-->>UI: 渲染权威状态
+```
 
 验收：无快照或能力关闭时不发命令；pause/resume 带当前 CAS revision；
 cancel 精确 workId 且无 CAS；重复点击不重复下发；ACK 拒绝/网络失败不伪造成功；
@@ -1480,3 +1498,39 @@ mock——GitPane 仅读 theme/codePreviewSettings 两态）+ 公开出口 "./gi
 窄入口模式）。一期执行清单（下轮）：package.json exports +1 → App 任务面
 ServiceProvider+StoreProvider 壳 → useGitRepository 派生 gitState → side-pane
 开合容器挂 GitPane → Host 桩 git 通道 scripted getChanges → E2E。
+
+### 25.4 attachment 与桌面远程 workspace 的判别修正
+
+进一步沿 `useGitRepository` → `useResolvedRemoteWorkspaceSessionId` →
+`shouldEnableWorkspaceRpc` 追踪发现，§25.3 的直接装配结论只覆盖了
+`useServices`，还遗漏了两个运行条件：hook 在 `ServiceProvider` 内调用且必须
+处于 `TabStoreProvider` 内；`workspaceIdentity` 非空、`remoteSessionId` 为空时，
+`shouldEnableWorkspaceRpc` 返回 false，`gitService.refresh` 根本不会执行。
+`GitPane` 自身还通过 `useFileContextActions` 要求 `PlatformProvider`。因此当前
+“外层只包 ServiceProvider + StoreProvider”的壳不足以证明可复用。
+
+手机 attachment 连接桌面窗口 Local Host，不能为了让原 hook 查询而把它注册成
+桌面远程 workspace session。Git 数据只允许经当前 task 的 attachment accessor
+读取；以 `workspaceIdentity?.trim() || workspacePath` 标识目标，bridge/task 换代
+时旧请求结果不得落到新侧板。优先复用 Git 视图及纯投影函数，确有必要时在
+mobile-web 新建 attachment 专用只读查询 adapter；不修改还原的 UI hook 来绕过
+桌面注册表。最终开放侧板前，E2E 必须证明 `gitService.refresh` 经过真桥触发，
+而非仅看到空态 DOM。预览侧板也要独立核对服务和平台 Provider。
+
+### 25.4 GitPane 一期执行（2026-09-30，实现落盘——E2E 复验归下轮）
+
+§25.3 清单执行：package.json exports +"./git-pane"（remote-git-pane.ts 窄出口：
+GitPane/useGitRepository/ServiceProvider/StoreProvider/TabStoreProvider/官方壳三件套
+re-export）→ mobile-web 新建 RemoteGitSidePane（Provider 壳七层：DroraIntl→Tooltip→
+IconProvider→TabStore→Store→Services + GitPaneBody 内层承载数据派生——**层序契约**：
+useGitRepository 内部 useServices/useDroraIntl 必须在对应 Provider 内，外层壳只挂载）→
+App 接线（sidePaneOpen 态 + Header toggle 联动 + 窄/宽壳双分支 relative 容器挂浮层）→
+Host 桩 git 通道（getRepositorySummary/getChanges/getWorkspaceRepositoryInfo/
+getIgnoredPaths/getDiff scripted）→ build.test.mjs D6 白名单 +git-pane（守卫按预期
+工作实证）。门禁：**162/162**、build 绿（789 assets）。
+
+**E2E 复验归下轮（如实）**：IAB 验证被测试床状态拖住——CUA 坐标点击进任务面后遇
+「window host process is not ready for pairing attachment」（harness 桩 pairing 偶发，
+非本轮代码）+ 标签旧 bundle 状态残留。实现侧 Provider 顺序 bug（useGitRepository 在
+ServiceProvider 外调用→整树崩）已由错误捕获定位并两层拆分修正。下轮首查：fresh
+harness + fresh 标签重走 toggle→GitPane→git 列表断言。

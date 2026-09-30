@@ -24,6 +24,7 @@ import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
+import { RemoteGitSidePane } from "./RemoteGitSidePane.js";
 import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
 import { useTaskHistory } from "./useTaskHistory.js";
 import { WideShell } from "../ui/wide/WideShell.js";
@@ -77,6 +78,8 @@ function AppBody() {
   const [modelState, setModelState] = useState<ModelSelectionState | null>(null);
   // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
   const [configMode, setConfigMode] = useState<string | null>(null);
+  // P6 GitPane 一期（spec §25）：官方侧板开合态（Header side-pane-toggle 联动）。
+  const [gitSidePaneOpen, setGitSidePaneOpen] = useState(false);
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
   const { loadingOlder, loadOlder, resetOlder } = useTaskHistory(taskRef);
@@ -428,6 +431,21 @@ function AppBody() {
 
   // P5b：任务面装配提前为元素常量（宽壳主区容器与窄壳全屏壳同源复用；仅元素构造，
   // 渲染由下方分支决定）。
+  // P6 GitPane 一期（spec §25）：侧板浮层挂任务面容器（MobileTaskShell 根为 relative
+  // 语义——实际经 taskShell 外层同源容器；absolute inset-y 覆盖任务面右缘）。
+  const gitSidePane =
+    phase.kind === "task" && taskTarget && taskRef.current && gitSidePaneOpen ? (
+      <RemoteGitSidePane
+        open
+        onClose={() => setGitSidePaneOpen(false)}
+        workspacePath={taskTarget.path}
+        workspaceIdentity={taskTarget.identity}
+        remoteSessionId={null}
+        accessor={taskRef.current.accessor}
+        activeTaskId={selectedTaskId}
+      />
+    ) : null;
+
   const taskShell =
     phase.kind === "task" ? (
       <MobileTaskShell
@@ -436,7 +454,12 @@ function AppBody() {
         timeline={timeline}
         workspaceHeader={
           taskTarget ? (
-            <RemoteWorkspaceHeader title={taskTitle} workspacePath={taskTarget.path} />
+            <RemoteWorkspaceHeader
+              title={taskTitle}
+              workspacePath={taskTarget.path}
+              onToggleSidePane={taskRef.current ? () => setGitSidePaneOpen((open) => !open) : undefined}
+              sidePaneOpen={gitSidePaneOpen}
+            />
           ) : null
         }
       />
@@ -446,6 +469,7 @@ function AppBody() {
   // 复用既有 state/动作，本处只做接线。
   if (wideViewport) {
     return (
+      <div className="relative h-dvh w-full">
       <WideShell
         connection={connection}
         workspaces={liveWorkspaces}
@@ -458,11 +482,18 @@ function AppBody() {
         onLanguagePress={toggleLanguage}
         onReconnect={() => clientRef.current?.connect()}
       />
+      {gitSidePane}
+      </div>
     );
   }
 
   if (phase.kind === "task") {
-    return taskShell;
+    return (
+      <div className="relative h-dvh w-full">
+        {taskShell}
+        {gitSidePane}
+      </div>
+    );
   }
 
   return (

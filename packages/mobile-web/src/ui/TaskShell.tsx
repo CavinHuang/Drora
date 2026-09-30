@@ -79,31 +79,46 @@ export function MobileTaskShell({
 
       {workspaceHeader}
 
-      {/* 时间线滚动容器：children 槽 + stick-to-bottom 交由调用方（经 timelineScrollRef）。 */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {connectionBanner ? (
-          <div className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle">
-            {connectionBanner}
+      {/* P6 骨架对齐（spec §23.10 取证）：官方 [v4-session-pane-workspace-main] = 会话
+          主容器（相对定位 flex，包 时间线 + dock；官方横排因含侧板，窄壳纵排同 testid）。 */}
+      <div
+        data-testid="v4-session-pane-workspace-main"
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {connectionBanner ? (
+            <div className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle">
+              {connectionBanner}
+            </div>
+          ) : null}
+          <div
+            ref={timelineOwnsScroll ? undefined : timelineScrollRef}
+            className={
+              timelineOwnsScroll
+                ? "flex min-h-0 min-w-0 flex-1 flex-col"
+                : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            }
+          >
+            {timeline}
+          </div>
+        </div>
+
+        {/* 底部 composer 槽；safe-area 内边距避免 iOS 底部手势区遮挡输入面。
+            官方 dock 双层 grid（conversation-bottom-dock-transition > -layer 同格叠放，
+            滚动渐变动画双 buffer 形态逐字）。 */}
+        {composer ? (
+          <div className="shrink-0 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
+            <div data-testid="conversation-bottom-dock-transition" className="grid w-full">
+              <div
+                data-testid="conversation-bottom-dock-transition-layer"
+                className="col-start-1 row-start-1 w-full min-w-0"
+              >
+                {composer}
+              </div>
+            </div>
           </div>
         ) : null}
-        <div
-          ref={timelineOwnsScroll ? undefined : timelineScrollRef}
-          className={
-            timelineOwnsScroll
-              ? "flex min-h-0 min-w-0 flex-1 flex-col"
-              : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          }
-        >
-          {timeline}
-        </div>
       </div>
-
-      {/* 底部 composer 槽；safe-area 内边距避免 iOS 底部手势区遮挡输入面。 */}
-      {composer ? (
-        <div className="shrink-0 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
-          {composer}
-        </div>
-      ) : null}
     </div>
   );
 }

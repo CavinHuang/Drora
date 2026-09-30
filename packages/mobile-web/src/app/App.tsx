@@ -197,15 +197,17 @@ function AppBody() {
         taskRef.current = session;
         // P3a/P3b：store 订阅驱动（快照/增量帧到达即同步行、composer 状态与交互卡）。
         const syncFromStore = () => {
+          // 订阅回调会持有旧渲染闭包；面板与 mode 必须读取同一帧快照，不能从 React state 反读。
+          const snapshot = session.getStatusSnapshot();
           setTaskRows([...session.rows]);
           setTaskTotalCount(session.totalRowCount);
-          setStatusSnapshot(session.getStatusSnapshot());
+          setStatusSnapshot(snapshot);
           setControlState(session.getControlState());
           setPendingInteractions(session.getPendingInteractions());
           setQueueState(session.getQueueState());
           setModelState(session.getModelSelectionState());
           // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
-          setConfigMode(statusSnapshot?.config.mode ?? null);
+          setConfigMode(snapshot?.config.mode ?? null);
         };
         syncFromStore();
         storeUnsubscribeRef.current?.();
@@ -314,9 +316,17 @@ function AppBody() {
   // —— 渲染 ——
 
   // P3a/P3b：富时间线 + 交互卡（权限/问答置顶）+ 文件变更统计条。
+  // P6 骨架对齐（spec §23.10）：官方窄壳 composer 实挂 [conversation-bottom-dock-
+  // transition] 双层 grid（同格叠放动画 buffer）；UI 包链路为 wide 版
+  // data-v4-composer-dock 透明层（D6 冻结域不动）——grid 外壳在 mobile-web 侧包。
   const composer =
     taskTarget && selectedTaskId ? (
-      <TaskComposer
+      <div data-testid="conversation-bottom-dock-transition" className="grid w-full">
+        <div
+          data-testid="conversation-bottom-dock-transition-layer"
+          className="col-start-1 row-start-1 w-full min-w-0"
+        >
+          <TaskComposer
         draft={draft}
         sending={sending}
         stopping={stopping}
@@ -349,6 +359,8 @@ function AppBody() {
         }}
         onCloseModelMenu={() => setModelMenuOpen(false)}
       />
+        </div>
+      </div>
     ) : null;
 
   const timeline =

@@ -1596,3 +1596,18 @@ generateCommitMessage/commit/push/discardPaths/getIdentity 全在（capability �
 **commit-dialog 一期**（形态取证完整/协议齐/键族清——下轮执行：intl 81 键提取 →
 GitCommitDialog 组件（UI 包 GitPane 域有 commit dialog 复原件待查）→ App git-action
 装配 → stub commit/generate → E2E）。
+
+### 27.2 commit-dialog 一期执行（2026-09-30，实现落盘——dialog 打开待调）
+
+§27.1 执行：packages/ui/src/remote-git-pane.ts 出口补 GitActionMenu → mobile-web
+新建 RemoteGitActionMenu（七层 Provider 壳同 RemoteGitSidePane；useGitRepository 只取
+summary 传 props——GitActionMenu commit/push 对话框状态全组件内建）→ Header gitAction
+槽（ReactNode，官方「提交或推送」triggerLayout="header"）→ App 装配（taskRef accessor）
+→ Host 桩补 generateCommitMessage/commit → D6 白名单合并（RemoteGitActionMenu 同
+git-pane 出口）。门禁：**162/162**、build 绿。
+**E2E 实况**：任务面渲染触发器「提交或推送」✓；点击（dispatchEvent+CUA 坐标）dialog
+未开——primaryActionDisabled 派生实锤（canUseGitActionMenu(gitSummary)/commitEnabled
+= isDirty 链——桥 git summary 数据到页面的链路待深查：useGitRepository 内部
+repository summary 请求/refresh 周期/remoteTarget 分支）。下轮首查：页面内
+gitState.summary 快照（React DevTools 不可用——临时调试挂点或单元级 gitState 派生
+测试）。UI 包 locales git.* 154 键自带（intl 零工作）。

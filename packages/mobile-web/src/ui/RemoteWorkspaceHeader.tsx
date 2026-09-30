@@ -6,6 +6,7 @@
 // §23.15：官方头部右区另有 button[side-pane-toggle]（PanelRight 图标；官方侧板内容=
 // aside[chat-summary-panel]，并行 StatusPanel 工作方向）——onToggleSidePane 装配缝可选，
 // 缺省不渲染按钮；open 态归上层（aria-expanded 投影）。
+import type { ReactNode } from "react";
 import { Ellipsis, Folder, PanelRight } from "lucide-react";
 import { useIntl } from "./intl.js";
 
@@ -20,6 +21,8 @@ export interface RemoteWorkspaceHeaderProps {
   onToggleSidePane?: () => void;
   /** 侧板开合态投影（aria-expanded；缺省 false）。 */
   sidePaneOpen?: boolean;
+  /** 官方「提交或推送」入口（GitActionMenu 自含壳元素，App 装配；缺省不渲染）。 */
+  gitAction?: ReactNode;
 }
 
 export function RemoteWorkspaceHeader({
@@ -29,6 +32,7 @@ export function RemoteWorkspaceHeader({
   onMoreMenu,
   onToggleSidePane,
   sidePaneOpen,
+  gitAction,
 }: RemoteWorkspaceHeaderProps) {
   const { formatMessage } = useIntl();
   const workspaceName =
@@ -102,6 +106,9 @@ export function RemoteWorkspaceHeader({
             </button>
           </div>
         ) : null}
+        {/* P6 GitPane 一期姊妹件（spec §27.1）：官方「提交或推送」入口（GitActionMenu
+            自含触发器+对话框；Provider 壳归 RemoteGitActionMenu 封装）。 */}
+        {gitAction ?? null}
       </div>
     </header>
   );

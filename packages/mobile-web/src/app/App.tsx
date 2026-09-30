@@ -25,6 +25,7 @@ import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
 import { RemoteGitSidePane } from "./RemoteGitSidePane.js";
+import { RemoteGitActionMenu } from "./RemoteGitActionMenu.js";
 import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
 import { useTaskHistory } from "./useTaskHistory.js";
 import { WideShell } from "../ui/wide/WideShell.js";
@@ -461,6 +462,18 @@ function AppBody() {
               // 大接口，远控无平台服务）——Provider 壳缺位前不启用开关（防崩树）。
               onToggleSidePane={undefined}
               sidePaneOpen={gitSidePaneOpen}
+              // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
+              // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
+              gitAction={
+                taskRef.current ? (
+                  <RemoteGitActionMenu
+                    workspacePath={taskTarget.path}
+                    workspaceIdentity={taskTarget.identity}
+                    accessor={taskRef.current.accessor}
+                    activeTaskId={selectedTaskId}
+                  />
+                ) : null
+              }
             />
           ) : null
         }

@@ -89,8 +89,9 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
         ? ["@drora/ui/remote-timeline"]
         : file === join(packageRoot, "src", "app", "main.tsx")
           ? ["@drora/ui/remote-frame"]
-          : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx")
-            ? // GitPane 一期（spec §25）：官方 GitPane 复原件窄入口装配。
+          : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx") ||
+            file === join(packageRoot, "src", "app", "RemoteGitActionMenu.tsx")
+            ? // GitPane 一期姊妹件（spec §25/§27.1）：官方复原件窄入口装配。
               ["@drora/ui/git-pane"]
             : [];
     assert.deepEqual(

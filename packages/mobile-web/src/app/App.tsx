@@ -31,13 +31,13 @@ import { useAttachmentGitSummary } from "./attachmentGitSummary.js";
 // GitPane 一期姊妹件 lazy 化（spec §28.3）：官方复原件重依赖链（useGitRepository+
 // IGitService+GitPane/GitActionMenu）拆出主 chunk（P5d 体积纪律；官方 SessionPane
 // 惰性 chunk 先例）。
-import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
-import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
-import { PlatformProvider } from "@/hooks/usePlatform.js";
-import { TabStoreProvider } from "@/store/TabStoreProvider.js";
-import { StoreProvider } from "@/store/StoreProvider.js";
-import { ServiceProvider } from "@/hooks/useServices.js";
+import { DroraIntlProvider } from "@drora/ui/git-pane";
+import { TooltipProvider } from "@drora/ui/git-pane";
+import { PluginReferenceIconProvider } from "@drora/ui/git-pane";
+import { PlatformProvider } from "@drora/ui/git-pane";
+import { TabStoreProvider } from "@drora/ui/git-pane";
+import { StoreProvider } from "@drora/ui/git-pane";
+import { ServiceProvider } from "@drora/ui/git-pane";
 import type { IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
 const LazyRemoteGitSidePane = React.lazy(() =>
@@ -295,6 +295,7 @@ function AppBody() {
     const accessor = homeBridgeAccessorRef.current;
     const ws = liveWorkspaces[0];
     if (!accessor || !ws) return;
+    activeAccessorRef.current = accessor;
     void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
       .then(({ sessionId, title }) =>
         openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
@@ -641,11 +642,17 @@ export function App() {
           <PluginReferenceIconProvider value={null}>
             <TabStoreProvider>
               <StoreProvider broadcastService={MOCK_APP_BROADCAST}>
-                <ServiceProvider services={activeAccessorRef.current as never}>
+                {activeAccessorRef.current ? (
+                  <ServiceProvider services={activeAccessorRef.current as never}>
+                    <IntlProvider>
+                      <AppBody />
+                    </IntlProvider>
+                  </ServiceProvider>
+                ) : (
                   <IntlProvider>
                     <AppBody />
                   </IntlProvider>
-                </ServiceProvider>
+                )}
               </StoreProvider>
             </TabStoreProvider>
           </PluginReferenceIconProvider>

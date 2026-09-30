@@ -20,7 +20,8 @@ export function ServiceProvider({
   children: ReactNode;
 }) {
   (globalThis as { __prov?: string[] }).__prov ??= [];
-  (globalThis as { __prov?: string[] }).__prov.push("provider:" + __svcModuleId);
+  const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
+  prov.push("provider:" + __svcModuleId);
   return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
 }
 

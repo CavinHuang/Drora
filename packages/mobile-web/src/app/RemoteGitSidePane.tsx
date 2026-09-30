@@ -82,7 +82,8 @@ export function RemoteGitSidePane({
 }: RemoteGitSidePaneProps) {
   const { formatMessage } = useIntl();
   (globalThis as { __prov?: string[] }).__prov ??= [];
-  (globalThis as { __prov?: string[] }).__prov.push("$1-shell:" + __modId);
+  const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
+  prov.push(String("GitSidePane-shell:" + __modId));
   if (!open) return null;
   return (
     <aside

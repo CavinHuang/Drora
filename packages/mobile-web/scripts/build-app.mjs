@@ -30,7 +30,7 @@ function run(command, args) {
 }
 
 const viteBin = join(packageRoot, "..", "..", "node_modules", "vite", "bin", "vite.js");
-await run(process.execPath, [viteBin, "build", "--sourcemap"]);
+await run(process.execPath, [viteBin, "build"]);
 
 // 产物排列：entry html → /remote/v4/index.html；assets/* → /remote/v4/3.14.3/assets/*。
 await rm(dist, { recursive: true, force: true });

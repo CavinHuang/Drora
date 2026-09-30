@@ -1,24 +1,22 @@
 // R3 P6 GitPane 一期姊妹件（specs/mobile-relay-r3-frontend.md §27.1）：官方 GitActionMenu
 // 复原件（packages/ui/src/GitActionMenu.tsx 1404 行，git-commit-dialog 全 testid 实锤）
 // 经窄公开入口装配。Provider 壳与 RemoteGitSidePane 同构（七层——层序契约同源）；
-// gitSummary 由 useGitRepository 派生（GitActionMenu props 传入，内部 useServices 的
+// gitSummary 由 App 的同一 attachment Git 快照提供（GitActionMenu props 传入，内部 useServices 的
 // gitService 走桥 accessor 的 IGitService 通道——generateCommitMessage/commit/push
 // 协议面 100% 既有，§27.1）。
 // 官方装配形态取证（生产页活体）：「提交或推送」折叠组按钮，triggerLayout="header"
 // 组件内建支持；本壳默认 header 布局挂 RemoteWorkspaceHeader 右区。
 import * as React from "react";
-import {
-  DroraIntlProvider,
-  GitActionMenu,
-  PluginReferenceIconProvider,
-  TooltipProvider,
-  useGitRepository,
-  ServiceProvider,
-  StoreProvider,
-  TabStoreProvider,
-} from "@drora/ui/git-pane";
+import { GitActionMenu } from "@drora/ui/git-pane";
+import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
+import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
+import { ServiceProvider } from "@/hooks/useServices.js";
+import { StoreProvider } from "@/store/StoreProvider.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import type { IServiceAccessor, IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
+import type { GitRepositorySummary } from "@drora/shared";
 import { resolveLocale } from "../ui/intl.js";
 
 /** mock 广播服务（与 RemoteGitSidePane 同构；store 构造存而不用）。 */
@@ -41,16 +39,19 @@ export interface RemoteGitActionMenuProps {
   remoteSessionId?: string | null;
   /** 桥服务 accessor（git 通道消费）。 */
   accessor: IServiceAccessor;
-  activeTaskId: string | null;
+  gitSummary: GitRepositorySummary | null;
+  onRefreshGit: () => void;
   className?: string;
 }
+
+const __modId = ((globalThis as { __svcModuleId?: string }).__svcModuleId ??= "shell-" + Math.random().toString(36).slice(2, 8)) as string;
 
 export function RemoteGitActionMenu({
   workspacePath,
   workspaceIdentity,
-  remoteSessionId,
   accessor,
-  activeTaskId,
+  gitSummary,
+  onRefreshGit,
   className,
 }: RemoteGitActionMenuProps) {
   return (
@@ -61,11 +62,12 @@ export function RemoteGitActionMenu({
             <TabStoreProvider>
               <StoreProvider broadcastService={MOCK_BROADCAST}>
                 <ServiceProvider services={accessor}>
-                  <GitActionMenuBody
+                  <GitActionMenu
                     workspacePath={workspacePath}
                     workspaceIdentity={workspaceIdentity}
-                    remoteSessionId={remoteSessionId}
-                    activeTaskId={activeTaskId}
+                    gitSummary={gitSummary ?? unavailableGitSummary(workspacePath)}
+                    onRefreshGit={onRefreshGit}
+                    triggerLayout="header"
                   />
                 </ServiceProvider>
               </StoreProvider>
@@ -77,30 +79,19 @@ export function RemoteGitActionMenu({
   );
 }
 
-/** Provider 内层：summary 派生 + GitActionMenu（commit/push 对话框状态全在组件内建）。 */
-function GitActionMenuBody({
-  workspacePath,
-  workspaceIdentity,
-  remoteSessionId,
-  activeTaskId,
-}: {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string | null;
-  activeTaskId: string | null;
-}) {
-  const gitState = useGitRepository({
+function unavailableGitSummary(workspacePath: string): GitRepositorySummary {
+  return {
     workspacePath,
-    activeTaskId,
-    remoteSessionId,
-    workspaceIdentity,
-  });
-  return (
-    <GitActionMenu
-      workspacePath={workspacePath}
-      workspaceIdentity={workspaceIdentity}
-      gitSummary={gitState.summary}
-      triggerLayout="header"
-    />
-  );
+    repoRoot: workspacePath,
+    workspaceInRepoPath: ".",
+    autoRefreshWatchPaths: [],
+    branchName: null,
+    trackingBranchName: null,
+    headRefType: "branch",
+    ahead: 0,
+    behind: 0,
+    isDirty: false,
+    isGitAvailable: false,
+    isRepository: false,
+  };
 }

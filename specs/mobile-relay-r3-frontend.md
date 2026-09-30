@@ -1370,3 +1370,16 @@ harness 侧，不进包测试）、build 绿。
 （§22）的行级深面（reasoning 折叠/工具卡/复制/历史触发）在数据形态到位后全部
 真页面生效；剩余差距集中于骨架外围（summary-panel=并行工作、侧板族=能力矩阵、
 feedback 条件、更多菜单展开态）。
+
+### 23.12 feedback 门控终裁（2026-09-30，复用判定补完）
+
+v4-feedback-* 触发条件终裁：**双门控**——①row.feedback 字段（like/dislike，数据侧，
+stub 已加）；②onFeedbackChange 回调接线（capability 侧，AssistantFeedbackHandler，
+mobile 包装器未传）。回调缺省时动作条 feedback 按钮**按 capability 自动不渲染**——
+这是官方组件的正确降级设计（无命令通道不显示可点击控件，§24 纪律的组件内建实现）。
+feedback 归 Host 能力矩阵期（需 relay/桥新增 feedback 写命令，与侧板族同类）。
+
+**复用判定总结（§23.8–23.12 四轮对比）**：@drora/ui 复用组件的行为分歧为零——
+所有剩余 testid 差距均归三类：①数据形态（已全部触发，28/34）②capability 写命令
+未接（feedback/侧板/附件——组件自动降级，正确行为）③骨架外围（summary-panel=
+并行工作、更多菜单展开态未取证）。UI 组件复用路线成立，无需再 fork 形态。

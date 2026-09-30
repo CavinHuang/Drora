@@ -996,14 +996,14 @@ sequenceDiagram
 「同源」是根节点 class、`data-testid`、子节点形状与当前 `packages/ui` 源码
 四项互证的结论，不等于该组件已经被本地 `mobile-web` 直接复用。
 
-| 快照 | 页面形态 | 可见结构标记 |
-| --- | --- | --- |
-| `test-1` | 远控首页 | `DesktopWindowFrame`、移动首页壳，无 v4 会话 |
-| `test-2` | 远控任务，侧板关闭 | `workspace-header`、`v4-session-pane-workspace-main`、`chat-summary-panel`、`v4-timeline`、composer dock、`v4-composer` |
-| `test-3` | 远控任务，Git 侧板 | 同上，增加 `git-pane` |
-| `test-4` | 远控任务，预览侧板 | 同上，出现 `git-pane` 与两个已挂载的 `preview-pane` DOM；挂载数不等于可见数 |
-| `test-web-1` | 完整 Web 工作台 | `sidebar`、会话同源标记、`terminal`、`browser` |
-| `test-web-2` | 完整 Web 工作台，预览侧板 | 同上，增加 `preview-pane` |
+| 快照         | 页面形态                  | 可见结构标记                                                                                                            |
+| ------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `test-1`     | 远控首页                  | `DesktopWindowFrame`、移动首页壳，无 v4 会话                                                                            |
+| `test-2`     | 远控任务，侧板关闭        | `workspace-header`、`v4-session-pane-workspace-main`、`chat-summary-panel`、`v4-timeline`、composer dock、`v4-composer` |
+| `test-3`     | 远控任务，Git 侧板        | 同上，增加 `git-pane`                                                                                                   |
+| `test-4`     | 远控任务，预览侧板        | 同上，出现 `git-pane` 与两个已挂载的 `preview-pane` DOM；挂载数不等于可见数                                             |
+| `test-web-1` | 完整 Web 工作台           | `sidebar`、会话同源标记、`terminal`、`browser`                                                                          |
+| `test-web-2` | 完整 Web 工作台，预览侧板 | 同上，增加 `preview-pane`                                                                                               |
 
 `test-4` 与 `test-web-1` 的 `workspace-header`、`v4-session-pane-workspace-main`、
 `chat-summary-panel`、`data-v4-timeline-scroll`、`data-v4-composer-dock`、
@@ -1064,14 +1064,14 @@ sequenceDiagram
 
 ### 23.2 本期范围（用户确认六面，185 id）
 
-| 面        | id 数 | 形态（上游取证）                                   |
-| --------- | ----- | -------------------------------------------------- |
-| appHeader | 14    | 头部动作菜单（复制路径/会话 ID/日志、编辑器/文件管理器打开、reload、selectOpenApp） |
-| automations | 92  | 定时任务面（日程编辑器 hourly/daily/monthly/weekdays、创建/删除/nextRun） |
-| workspaceSidebar | 32 | 宽壳侧栏深面（项目树/任务行深态）               |
-| sidePane  | 25    | 侧板（任务页右/下侧板深态）                        |
-| workspaceFileTree | 12 | 文件树面板（搜索/refresh/gitStatus 标记/addToChat） |
-| quickPick | 10    | 快选框（命令面板 title/description/find 导航）     |
+| 面                | id 数 | 形态（上游取证）                                                                    |
+| ----------------- | ----- | ----------------------------------------------------------------------------------- |
+| appHeader         | 14    | 头部动作菜单（复制路径/会话 ID/日志、编辑器/文件管理器打开、reload、selectOpenApp） |
+| automations       | 92    | 定时任务面（日程编辑器 hourly/daily/monthly/weekdays、创建/删除/nextRun）           |
+| workspaceSidebar  | 32    | 宽壳侧栏深面（项目树/任务行深态）                                                   |
+| sidePane          | 25    | 侧板（任务页右/下侧板深态）                                                         |
+| workspaceFileTree | 12    | 文件树面板（搜索/refresh/gitStatus 标记/addToChat）                                 |
+| quickPick         | 10    | 快选框（命令面板 title/description/find 导航）                                      |
 
 appHeader 缺口与 spec §22「本地 RemoteWorkspaceHeader 无原版菜单/侧板动作」
 记录吻合；automations 已有 formatMessage 真实 UI 上下文实锤（日程描述构造器
@@ -1122,10 +1122,11 @@ locale chunk 双向取证 zh 日-六 / en Sun-Sat 补录）。
 
 门禁：测试 +33（基线 96 → **129**；四新面单文件直跑 29/29 + automationsSchedule
 11/11 + AutomationsPanel 6/6 + SidePane 6/6 全绿；全套件 runner 125/125 一轮绿）
-+ build 绿（788 assets）。**劣化轮取证纪律实锤**（spec §24 执行案例）：Edit
-幻觉回显（臆造 new_string）经 git 仲裁证伪——劣化只污染回显不污染落盘；sidePane
-污染段 25 键经清创脚本精准移除后按 TSV 逐字重落；pnpm runner 计数漂移（8/108/
-125 三形态）→ **node --test 单文件直跑为本轮最小可信单元**。
+
+- build 绿（788 assets）。**劣化轮取证纪律实锤**（spec §24 执行案例）：Edit
+  幻觉回显（臆造 new_string）经 git 仲裁证伪——劣化只污染回显不污染落盘；sidePane
+  污染段 25 键经清创脚本精准移除后按 TSV 逐字重落；pnpm runner 计数漂移（8/108/
+  125 三形态）→ **node --test 单文件直跑为本轮最小可信单元**。
 
 E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，本轮不虚报通过）。
 
@@ -1133,6 +1134,7 @@ E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，
 
 抗劣化协议取证（grep 落盘 → node 22 布尔结构化摘要 → 与已提交 nX 字段族交叉，
 **22/22 全过**才动手还原）：
+
 - **tX = serializeSchedule**（schedule→cron，单参）：五基础频率直出；weekly 的 weekdays
   **数值升序** `(a,b)=>a-b`（与 describeSchedule 的 $Y 周一起始序**双形态并存**，两函数
   排序不同均官方逐字节）；custom 六子——minute/hourly/daily 步进越界守卫（t<=59/24/31，
@@ -1156,9 +1158,10 @@ E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，
 ### 23.6 P6 续还原：sidebar 组件深面（2026-09-30 第三轮）
 
 宽壳侧栏深面接线（locale 32 键已入库，本轮补组件与组装）：
+
 - **SidebarOrganizeMenu**：官方 RadioGroup 形态（value 字面 project/chronological/
   workspace 三值 + aria-label=organize「视图」+ 选中 check size-3）；sortBy 两值
-  （updated/created）装配缝缺省不渲染（零回归）；官方图标名 minify 不可考（Hv/z_/Uv），
+  （updated/created）装配缝缺省不渲染（零回归）；官方图标名 minify 不可考（Hv/z\_/Uv），
   用同族 lucide 对位（History/CalendarPlus/ListOrdered）。
 - **SidebarRemoveWorkspaceDialog**：官方 confirm dialog API 形态（title/description/
   confirmLabel=removeRunningWorkspace.confirm/cancelLabel=**common.cancel**/
@@ -1179,6 +1182,7 @@ sed，逐处 Edit 或读后删**。
 ### 23.7 P6 双视口 E2E 验收（2026-09-30，IAB 真浏览器）
 
 harness（真 relay × 真 control × Host 桩，port 62176）× ZCode 内置浏览器：
+
 - **宽壳 1280**：项目树官方键全要素（「项目」/g1/任务数/「E2E 冒烟任务」活性「刚刚」）+
   问候空态「下午好呀」+ 页脚（用户/已连接/EN）；点击任务行 → 任务面全链路（交互卡
   「需要你的确认/允许一次/拒绝/Bash/附加反馈…」+ FileChangesBar「1 个文件已更改
@@ -1225,6 +1229,61 @@ harness（真 relay × 真 control × Host 桩，port 62176）× ZCode 内置浏
 不挂载；窄屏展开/收起可操作，宽屏消息列不被遮挡；换任务不继承旧任务的
 显示变体；文件变更条与阻塞交互卡继续工作。
 
+本地浏览器验收（Host 桩，经真 relay/attachment，非真 CLI）：1600×900 时
+会话容器宽 1336px，原版 UI 面板按容器查询展开为 320px，消息列没有被面板
+覆盖；414×896 时面板默认是 34px mini，点击「展开状态」出现计划两项，
+权限应答卡、文件变更条、时间线与 composer 继续可见。真 Git/预览服务、
+后台任务控制和附件仍需真实 Host/CLI 集成验收，DOM 与桩数据不足以证明它们。
+
+### 25.1 后续 Git/预览侧板的 attachment 能力核对
+
+`desktopMobileServiceAttach.attachBridgePort()` 为每个远控工作区桥创建独立
+MessagePort，标记 `clientMode=web-remote-replayable`、`scope=local`；Host 的
+`exposeOnChannelServer` 在该端口公布已注册服务与官方通道别名。
+`RemoteServiceAccess` 已有 `gitService`、`fileService`、
+`mediaPreviewService` 代理。因此协议通道本身不要求新建远程 Host。
+但 UI 的 `useWorkspaceServices` 会把有 `workspaceIdentity`、却未登记
+`remoteSessionId` 的目标视为断开的远程工作区；`useGitRepository` 的
+`shouldEnableWorkspaceRpc` 在同一形态下关闭查询。手机 attachment 是窗口 Local
+Host 的独立消费端，不能把它硬塞进桌面远程工作区注册表来绕过这两处判定。
+
+| UI 组件                               | 已有服务入口                                         | 直接装配障碍                                                                                                                                  |
+| ------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GitPane`                             | `gitService.getRepositorySummary/getChanges/getDiff` | 组件还读取 `useServices`、UI store、编辑器目标与文件上下文；数据集、来源选择及迟到结果守卫必须由远控 adapter 提供                             |
+| `PreviewPane`                         | `fileService`、`mediaPreviewService`                 | 组件还读取 workspace services、平台、UI store 与预览类型设置；必须按 workspacePath 做文件 IO，并以 workspaceIdentity/session 约束面板生命周期 |
+| `ConversationStatusPanel` 的 Git 分区 | 同上                                                 | 分区内含 `GitBranchSwitcher` 与 `GitActionMenu` 的写操作；只给摘要或空回调会让用户看到不可用入口，因此本阶段保持隐藏                          |
+
+下一实现顺序是：先做 attachment 只读查询 adapter 和可验证的
+workspaceIdentity/session/epoch 关联，再提供远控 UI 需要的最小服务注入及
+Git/预览侧板动作；每次面板切换都取消或丢弃旧目标的异步返回。Git 分支切换、
+提交、文件写入与预览外部打开需独立验证权限与平台行为，不能由 DOM 标记推断。
+
+## 26. 状态面板控制动作接线（2026-09-30）
+
+复用的 `ConversationStatusPanel` 已有 `onPauseGoal`、`onResumeGoal` 与
+`onCancelBackgroundWork` 插槽。官方 `SessionPane` 对目标暂停/恢复分别发送
+`pauseGoal`/`resumeGoal`，带当前 `snapshot.revision`；后台任务停止发送
+`cancelBackgroundWork({workId})`，不带 CAS revision。mobile-web 通过同一
+Host attachment 的 `sendConversationCommandV4` 执行这些命令，不新建状态所有者。
+
+- **显示规则**：目标动作只在最新快照 `availability.pauseGoal/resumeGoal.allowed`
+  为真时注入面板；后台任务停止只对当前快照中 `status=running`、
+  `cancellable!==false` 且 workId 精确匹配的任务开放。面板本身决定按钮展示。
+- **唯一写入路径**：面板点击 → `RemoteConversationTimeline` 回调 → mobile-web
+  `TaskSession` → 当前 attachment 的 Agent service → CLI/runtime CommandInbox。
+  App 不乐观改变 goal/backgroundWorks；ACK 只表达命令裁决，最终状态以快照/增量为准。
+- **时序与失败**：发送前再次从 store 读取可用性与 workId，避免旧渲染闭包误操作；
+  目标 CAS 使用此刻 revision，stale/rejected/failed 不自动重试，返回失败；
+  后台任务取消不带 revision（与官方、协议同款）。同一目标/同一 work 的本地并发点击
+  合并为一次在途命令；网络异常返回失败，按钮随权威快照保留。换任务后旧会话的
+  回调不能路由到新会话。
+- **交付链**：桌面 `desktop-continuous` 与手机 `web-remote-replayable` 仍各走原
+  attachment；命令进入相同 CLI owner，手机只通过可恢复订阅观察最终状态。
+
+验收：无快照或能力关闭时不发命令；pause/resume 带当前 CAS revision；
+cancel 精确 workId 且无 CAS；重复点击不重复下发；ACK 拒绝/网络失败不伪造成功；
+原状态面板按权威快照更新，不产生第二份 goal/backgroundWork 状态。
+
 ### 23.8 P6 深度还原：官方 vs 实现 testid 对比 + composer 工具条（2026-09-30 第四轮）
 
 **对比方法**：官方 3.14.3 实机 DOM 保存稿（.tmp-work/official-live-mobile-chat.html，
@@ -1236,6 +1295,7 @@ workspace-header/title/path——§22 时间线复用生效实证）。注意：
 
 **composer 工具条深度还原**（官方两区形态逐字：左 attachment+mode / 右
 model-config[model+thought]→context-usage→v4-stop）：
+
 - 四 trigger testid 对齐：chat-attachment-button（disabled+官方 hidden input 同形，
   上传面归 P7 能力矩阵）/ chat-mode-select-trigger（mode.label.glm.{configMode}
   官方五值闭集映射，configMode=snapshot.config.mode 经 App 派生；**切换弹层不做**——
@@ -1253,9 +1313,60 @@ model-config[model+thought]→context-usage→v4-stop）：
 重发→config delta 回流全链真页面通过**（stub 首发并发写脚本实弹）。
 对齐度：13 → **19/34** 官方稳定 testid（余：chat-summary-panel/v4-session-title/
 v4-session-pane-workspace-main/workspace-more-button/side-pane-toggle/git-action-
-trigger/chat-reasoning-*/v4-feedback-*/conversation-bottom-dock-*——骨架命名与
+trigger/chat-reasoning-_/v4-feedback-_/conversation-bottom-dock-\*——骨架命名与
 侧板族归后续期）。
 
 门禁：composerDeep 5/5、全套件 **149/149**、build 绿。取证修正记录：thoughtLevel
 初版四档漏 off/minimal（stub 集 ["off","high"] 裸键 fallback 暴露）——官方 chunk
 补证「关闭/Off」「极低/Minimal」+2。
+
+### 23.9 P6 深度还原：头部双标题与 more 装配缝（2026-09-30 第五轮，未提交——与并行 remote-frame/StatusPanel 工作共存）
+
+官方窄壳头部取证（official-live-mobile-chat）：button[workspace-path]（可点）>
+h1[workspace-title]（可见任务标题）+ [v4-session-title]（**sr-only 会话级标题**，
+官方双标题可访问性形态）+ button[workspace-more-button]（⋯ 纯图标；**菜单展开态
+未取证** → onMoreMenu 装配缝可选、缺省不渲染按钮不臆造菜单项）。side-pane-toggle
+在头部右区（svg 面板图标）——归并行 StatusPanel/能力矩阵工作，本轮让行。
+
+RemoteWorkspaceHeader 对齐：v4-session-title sr-only 落地；workspace-path 按
+onPathClick 存在性切换 button/span 形态；more 按钮装配缝。E2E 真页面复验
+（harness 55685）：双标题形态在场（sr-only span 文本=任务标题）、path 缺省 span、
+more 缺省不渲染（零回归）。对齐度 19→**21/34**。门禁：headerDeep 3/3、全套件
+**156/156**（含并行 remote-frame 工作测试，互不冲突）、build 绿。
+
+### 23.10 P6 深度还原：骨架容器与 dock 双层 grid（2026-09-30 第六轮）
+
+官方窄壳骨架取证（official-live-mobile-chat）：[v4-session-pane-workspace-main]
+（div.relative.flex 会话主容器：包 sr-only session-title + container/conversation
+[chat-summary-panel 右上浮层 + v4-turn-navigator + v4-timeline[data-v4-composer-dock]]）；
+composer 实挂 [conversation-bottom-dock-transition]（grid w-full）> -layer
+（col-start-1 row-start-1 同格叠放动画 buffer）> v4-composer。conversation/
+conversation-column 两节点属 wide 域（窄壳 null），非远控还原面。
+
+对齐落地：MobileTaskShell 新增 session-pane 容器（时间线+dock 包裹，窄壳纵排同
+testid）+ dock 双层 grid；App composer 元素外包 grid 壳（UI 包 ConversationTimeline
+链路为 wide 版 data-v4-composer-dock 透明层——D6 冻结域不动，grid 外壳 mobile-web
+侧包）。E2E 真页面：骨架 5/5 在场 + composerInsideLayer=true（官方层级复现）。
+对齐度 21→**24/34**（余：chat-summary-panel=并行 StatusPanel 工作方向/侧板族/
+reasoning/feedback 行级=stub 数据形态未触发/hook=已裁）。门禁：taskShell 2/2、
+全套件 157/157、build 绿。提交含并行会话 App.tsx setStatusSnapshot 微重构 5 行
+（全套件绿验证，透明记录）。
+
+### 23.11 P6 深度还原：行级数据形态触发（2026-09-30 第七轮）
+
+行级差距的根因判定：reasoning/工具卡/行级复制等 testid **时间线复用组件自带**，
+此前不出现是 stub 数据形态缺行类型（仅 turnHeader/userInput/assistantText 三种）。
+harness stub 增 reasoning（assistantResponseId+state=complete+durationMs）与
+toolCall（toolCallId/toolName/status=success/inputText 最小必填）行后，IAB 真页面
+触发官方行级 testid 全族：chat-reasoning-trigger/content、chat-tool-call-block-
+call_*（动态 id 形态逐字）、tool-summary-trigger-call_*、chat-assistant-history-
+trigger/content-turn_*；assistantText state=complete 追加触发 v4-copy-{rowId}
+行级复制。对齐度 24→**28/34**（+reasoning 两键 + 工具卡/摘要两族）。v4-feedback
+仍未触发（需轮完成+末条 assistant 条件，官方条件未取证——时间线组件自带，真
+CLI runtime 数据自然触发，不臆造 stub 条件）。门禁：全套件 157/157（stub 为
+harness 侧，不进包测试）、build 绿。
+
+**结论（复用判定）**：行级 UI 零还原成本——@drora/ui ConversationTimeline 复用
+（§22）的行级深面（reasoning 折叠/工具卡/复制/历史触发）在数据形态到位后全部
+真页面生效；剩余差距集中于骨架外围（summary-panel=并行工作、侧板族=能力矩阵、
+feedback 条件、更多菜单展开态）。

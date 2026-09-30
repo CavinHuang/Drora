@@ -1611,3 +1611,47 @@ git-pane 出口）。门禁：**162/162**、build 绿。
 repository summary 请求/refresh 周期/remoteTarget 分支）。下轮首查：页面内
 gitState.summary 快照（React DevTools 不可用——临时调试挂点或单元级 gitState 派生
 测试）。UI 包 locales git.* 154 键自带（intl 零工作）。
+
+### 27.3 Git 摘要的 attachment 查询（2026-09-30）
+
+§25.4 已确认 `useGitRepository` 需要桌面远程 workspace 注册表；手机的
+`web-remote-replayable` attachment 没有该注册项。菜单只需要
+`GitRepositorySummary`，因此此处以 mobile-web 的窄 adapter 调用当前
+`TaskSession.accessor.gitService.getRepositorySummary({workspacePath})`，把结果交给
+原版 `GitActionMenu`。Git 操作仍由该组件通过同一 `ServiceProvider` 进入 Host；
+`onRefreshGit` 在提交等动作后重读摘要，不另建 Git 业务状态。
+
+**所有者与失败**：Git 仓库是 Host 服务事实；adapter 只持当前页面的只读摘要镜像。
+目标键为 `workspaceIdentity?.trim() || workspacePath`，并绑定当前 attachment
+accessor 与 task id。切换目标、桥换代或组件卸载后，旧请求结果丢弃。读取失败
+保留不可提交的空摘要，不伪造 dirty/branch；再次挂载或菜单成功操作可重试。
+不向桌面远程 workspace 注册表写入手机 attachment，不修改还原的 UI hook。
+
+```mermaid
+sequenceDiagram
+    participant Menu as GitActionMenu
+    participant Adapter as 手机摘要 adapter
+    participant Host as 当前 Local Host attachment
+    Adapter->>Host: getRepositorySummary(workspacePath)
+    Host-->>Adapter: GitRepositorySummary
+    Adapter-->>Menu: 同一目标键的摘要
+    Menu->>Host: commit / push（原版服务命令）
+    Host-->>Menu: 结果
+    Menu->>Adapter: onRefreshGit
+    Adapter->>Host: getRepositorySummary(workspacePath)
+```
+
+验收：本地与有 `workspaceIdentity` 的目标都经当前桥发起摘要查询；dirty 仓库
+触发器可打开原版 `git-commit-dialog`；桥错误及跨目标迟到结果不启用提交。
+
+### 27.3 commit-dialog 全链路打通（2026-09-30 续）——根因=stub 缺 refresh
+
+dialog 未开根因终裁：useGitRepository **唯一重度消费 = gitService.refresh**
+（一次返回 summary+identity+unstaged/stagedChanges+branchComparison 全量，注释明言
+"不能拆三个 RPC"）——桩此前补的是散方法（getRepositorySummary/getChanges），ProxyChannel
+调 refresh 即 reject → gitState.error → disabled。桩补 refresh 全量后 IAB 真页面：
+CUA 点触发器 → **[git-commit-dialog] 弹出，内容与官方生产页逐字同形**（main/+12 -3/
+提交消息/包含未暂存的更改 2 个文件/提交 Ctrl+⏎/提交并推送/推送——数据全部来自桥
+git 通道）。**GitPane/commit-dialog 一期全链路验收 ✓**（capability 接线法第三例
+完成）。经验入库：复用 UI 包 hooks 前先 grep 其 service 消费方法集（组合 hook 常聚
+合多方法——散方法桩会静默 reject）。

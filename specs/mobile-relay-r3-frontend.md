@@ -1944,3 +1944,15 @@ chunk useServices throw**——渲染点全图 grep 无 GitActionMenu 消费（g
 等 GitPane 域交叉）或 modulepreload 时序——归 chunk 组成专项精读（下轮：堆栈 Jm/Zm
 chunk 内函数名反查+消费树裁剪试验）。门禁：**165/165**、build 绿（798）、根
 typecheck 全绿（automationsSchedule 索引/WideShell 解构/main 探针随手修）。
+
+### 30.4 Jm 反查与 chunk 图专项（2026-09-30 终轮）
+
+塔落地后新建仍崩（同错）——**共享 chunk 已提取**（useServices-D6uBlRCx.js 独立）但
+运行时仍 Context null。Jm 反查（57:63384 源码）：Jm=GitActionMenu 状态行组件
+（workspacePath/currentBranchName/headRefType/onRefreshGit props + ee()=useServices
+gitService + m()=useDroraIntl 双消费）——GitActionMenu.tsx 同文件内部组件。
+**机制未破**：壳的 ServiceProvider 与 Jm 的 useServices 按 vite 解析应单实例
+（@ 别名与包内相对同绝对路径；pnpm symlink realpath 默认）——运行时双实例的
+rolldown chunk 图证据待专项（下轮：build 后扫描 useServices 模块在几个 chunk 出现+
+ServiceProvider 塔位置 vs 消费位置）。gitAction={null} 回退维持（新建主功能通——
+点新建→createSession→新任务面主功能可开，状态行/提交对话框崩已隔离）。

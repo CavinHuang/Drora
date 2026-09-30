@@ -1655,3 +1655,18 @@ CUA 点触发器 → **[git-commit-dialog] 弹出，内容与官方生产页逐�
 git 通道）。**GitPane/commit-dialog 一期全链路验收 ✓**（capability 接线法第三例
 完成）。经验入库：复用 UI 包 hooks 前先 grep 其 service 消费方法集（组合 hook 常聚
 合多方法——散方法桩会静默 reject）。
+
+### 27.2 补：残留三取证项终态（2026-09-30 续）
+
+- **more 本体**：workspace-more-button 生产页点击 = 「4 次重置额度」popper（rewards
+  额度提示小面，非功能菜单）——归 backlog 低优先。
+- **宽壳首页命令面板区块重裁定**：生产页区块 = 仅 h2「命令面板」+p「搜索并执行当前
+  工作区可用的命令。」（无命令列表项在区块内——命令源为 workspace-config/命令服务，
+  §18 已裁远控有意分歧）。**裁定维持 GreetingEmptyState**：无命令数据支撑的空壳
+  区块（仅标题+描述）用户价值低于问候空态；若后续接通命令源再重裁。
+- en 微尾：已闭环（§23.16 172/172）。
+
+**深度还原边界声明**：可取证可执行的 UI 形态差距已全部处置（31/34+feedback/fork/
+commit-dialog 全链+装配缝套件）；剩余四项（GitPane 二期/summary-panel 并行/命令
+源重裁/more 额度）全部依赖外部条件（并行收口/能力矩阵/数据源接通），在本轮指令
+语义下无进一步可执行项。

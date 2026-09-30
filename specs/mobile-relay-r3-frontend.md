@@ -1583,3 +1583,16 @@ aside[chat-summary-panel]（状态浮层，显示当前任务最新摘要——�
    platform 供给前置不变（§25.5）。
 3. §25.5 "toggle 回退" 维持——SidePane 标签容器壳接线待并行 StatusPanel 收口
    （内容提供方），壳本身可与 SidePane 组件对接（P6 已备）。
+
+### 27.1 GitPane 入口链终点：git-commit-dialog（2026-09-30 续）
+
+git-action-trigger 点击产物 = `[git-commit-dialog]`（fixed top-1/2 提交对话框）：
+分支选择按钮（main+chevrons）+ ±diff 统计（+267/-13）+ 提交消息 textarea
+[git-commit-message-input] + **AI 生成按钮**[git-commit-generate-button] +
+「包含未暂存的更改」checkbox（{count} 个文件）[git-commit-include-unstaged] +
+git-commit-action-command 区。**协议面 100% 既有**：IGitService
+generateCommitMessage/commit/push/discardPaths/getIdentity 全在（capability 接线法
+第三例对象）；intl = git.* 81 键族（权威缺口清单对应）。GitPane 二期改写为
+**commit-dialog 一期**（形态取证完整/协议齐/键族清——下轮执行：intl 81 键提取 →
+GitCommitDialog 组件（UI 包 GitPane 域有 commit dialog 复原件待查）→ App git-action
+装配 → stub commit/generate → E2E）。

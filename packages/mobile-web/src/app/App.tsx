@@ -3,6 +3,7 @@
 // 状态所有者：连接/配对 = RelaySession；会话行/交互/模型/用量 = conversation store 派生；
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
+import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   mobileFailureCodeFromWire,
@@ -24,8 +25,15 @@ import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
-import { RemoteGitSidePane } from "./RemoteGitSidePane.js";
-import { RemoteGitActionMenu } from "./RemoteGitActionMenu.js";
+// GitPane 一期姊妹件 lazy 化（spec §28.3）：官方复原件重依赖链（useGitRepository+
+// IGitService+GitPane/GitActionMenu）拆出主 chunk（P5d 体积纪律；官方 SessionPane
+// 惰性 chunk 先例）。
+const LazyRemoteGitSidePane = React.lazy(() =>
+  import("./RemoteGitSidePane.js").then((m) => ({ default: m.RemoteGitSidePane })),
+);
+const LazyRemoteGitActionMenu = React.lazy(() =>
+  import("./RemoteGitActionMenu.js").then((m) => ({ default: m.RemoteGitActionMenu })),
+);
 import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
 import { useTaskHistory } from "./useTaskHistory.js";
 import { WideShell } from "../ui/wide/WideShell.js";
@@ -436,7 +444,8 @@ function AppBody() {
   // 语义——实际经 taskShell 外层同源容器；absolute inset-y 覆盖任务面右缘）。
   const gitSidePane =
     phase.kind === "task" && taskTarget && taskRef.current && gitSidePaneOpen ? (
-      <RemoteGitSidePane
+      <React.Suspense fallback={null}>
+      <LazyRemoteGitSidePane
         open
         onClose={() => setGitSidePaneOpen(false)}
         workspacePath={taskTarget.path}
@@ -445,6 +454,7 @@ function AppBody() {
         accessor={taskRef.current.accessor}
         activeTaskId={selectedTaskId}
       />
+      </React.Suspense>
     ) : null;
 
   const taskShell =
@@ -466,12 +476,14 @@ function AppBody() {
               // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
               gitAction={
                 taskRef.current ? (
-                  <RemoteGitActionMenu
+                  <React.Suspense fallback={null}>
+                  <LazyRemoteGitActionMenu
                     workspacePath={taskTarget.path}
                     workspaceIdentity={taskTarget.identity}
                     accessor={taskRef.current.accessor}
                     activeTaskId={selectedTaskId}
                   />
+                  </React.Suspense>
                 ) : null
               }
             />

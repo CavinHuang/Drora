@@ -1427,3 +1427,12 @@ mobileShell.task.sidePaneExpand 既有键复用）。缺省不渲染（侧板内
 panel 归并行 StatusPanel 装配，接通后 App 一行联动）。门禁：headerDeep 4/4、
 build 绿。并行会话同窗推进 goal 控制命令（taskSession/remoteStatusCommands.test
 新改动）——继续零交集共存。
+
+### 23.16 en 逐字校准（2026-09-30 第十二轮）——深度还原收尾
+
+官方 IntlProvider chunk 提取 en 值 map（6001 键，ASCII 判别 zh/en 双块）批量对照
+en-US.ts 全部 172 补译键：**65 键值替换**为官方 en 逐字（如 Command Palette→
+Command palette）、**106 键值已一致**（仅注释升级"官方逐字（en 校准一致）"）、
+**0 键官方无值**——en 侧从"语义补译"全线升级为"官方逐字"。zh 侧此前已官方逐字
+（§23.3）。深度还原六面对齐至此**双语逐字闭环**（除 SSH 三键/mode medium 等官方
+chunk 本身缺值键，已按语义补译注明）。门禁：161/161、build 绿。

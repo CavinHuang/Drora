@@ -1930,3 +1930,17 @@ homeBridgeAccessorRef.current）+StoreProvider/TabStoreProvider/DroraIntl/Toolti
 IconProvider/PlatformProvider（remoteWebPlatform）——**一次性覆盖 lazy chunk 全部
 useServices 消费**（GitPane/GitActionMenu/GitPaneChangeCard/未来组件全解锁）。
 门禁维持 165/165（gitAction=null 回退保新建主功能通）。
+
+### 30.3 塔落地 + IntlProvider 回补 + 崩源专项待查（2026-09-30 终轮）
+
+App 级塔落地形态（结构三轮修正定稿）：App() = 七层塔（Platform/DroraIntl/Tooltip/
+Icon/TabStore/Store/Services）包 AppBody；accessor 动态组合经 **module 级
+activeAccessorRef**（AppBody 渲染期同步写：任务桥优先回退首页桥；App 单根安全）；
+塔内保留**自持 IntlProvider** 包 AppBody（修一轮自持 useIntl 全崩——塔曾吃掉自持
+IntlProvider）。main.tsx 全局错误探针升级 stack 300 字符（title 可读）。
+**新建任务 E2E 实况**：首页稳定（title 正常/新建按钮在场）→ 点新建 → **GitActionMenu
+chunk useServices throw**——渲染点全图 grep 无 GitActionMenu 消费（gitAction=null）——
+崩源=chunk 内组件经**消费树交叉**被渲染（ConversationFileSummaryPanel→GitPaneChangeCard
+等 GitPane 域交叉）或 modulepreload 时序——归 chunk 组成专项精读（下轮：堆栈 Jm/Zm
+chunk 内函数名反查+消费树裁剪试验）。门禁：**165/165**、build 绿（798）、根
+typecheck 全绿（automationsSchedule 索引/WideShell 解构/main 探针随手修）。

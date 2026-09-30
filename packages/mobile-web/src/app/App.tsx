@@ -4,6 +4,7 @@
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
 import * as React from "react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   mobileFailureCodeFromWire,
@@ -30,6 +31,15 @@ import { useAttachmentGitSummary } from "./attachmentGitSummary.js";
 // GitPane 一期姊妹件 lazy 化（spec §28.3）：官方复原件重依赖链（useGitRepository+
 // IGitService+GitPane/GitActionMenu）拆出主 chunk（P5d 体积纪律；官方 SessionPane
 // 惰性 chunk 先例）。
+import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
+import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
+import { PlatformProvider } from "@/hooks/usePlatform.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
+import { StoreProvider } from "@/store/StoreProvider.js";
+import { ServiceProvider } from "@/hooks/useServices.js";
+import type { IBroadcastService } from "@drora/services";
+import type { Event } from "@drora/rpc";
 const LazyRemoteGitSidePane = React.lazy(() =>
   import("./RemoteGitSidePane.js").then((m) => ({ default: m.RemoteGitSidePane })),
 );
@@ -61,6 +71,11 @@ type Phase =
   | { kind: "home" }
   | { kind: "task" }
   | { kind: "failure"; wireReason: string; detail: string | null; retryable: boolean };
+
+import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
+
+// 活跃 accessor（module 级单例——App 单根；塔在 App() 读，AppBody 渲染期写）。
+const activeAccessorRef: { current: IServiceAccessor | null } = { current: null };
 
 function AppBody() {
   const [phase, setPhase] = useState<Phase>({ kind: "loading", step: "connecting" });
@@ -100,6 +115,9 @@ function AppBody() {
   const wideViewport = useWideViewport();
   // P6 文件域（spec §29.5 解封）：首页桥 accessor 记录（TaskSearchPanel 文件搜索供给）。
   const homeBridgeAccessorRef = useRef<IServiceAccessor | null>(null);
+  // 渲染期同步（module ref 赋值非 state，不触发渲染）。
+  activeAccessorRef.current =
+    (phase.kind === "task" ? taskRef.current?.accessor : null) ?? homeBridgeAccessorRef.current;
   const openHomeBridge = useCallback((workspacePath: string, workspaceIdentity?: string) => {
     const client = clientRef.current;
     if (!client) return Promise.reject(new Error("relay client is not connected"));
@@ -600,10 +618,39 @@ function AppBody() {
   );
 }
 
+// App 级 Provider 塔（spec §30.2）：lazy chunk（GitPane/GitActionMenu/时间线族）的
+// useServices/useDroraIntl/usePlatform 全消费一次性覆盖——accessor 动态组合（任务桥
+// 优先，回退首页 sessions-index 桥）。
+const MOCK_APP_BROADCAST: IBroadcastService = {
+  send: () => Promise.resolve(),
+  acquireClaim: () => Promise.resolve({ status: "unavailable" } as never),
+  commitClaim: () => Promise.resolve(),
+  releaseClaim: () => Promise.resolve(),
+  tryClaim: () => Promise.resolve(false),
+  onMessage: Object.assign(() => ({ dispose: () => {} }), {}) as never,
+};
+const APP_PLATFORM = createRemoteWebPlatform();
+
 export function App() {
+  // accessor 动态组合（spec §30.2）：任务桥优先，回退首页 sessions-index 桥——
+  // module 级 ref（AppBody 渲染期同步写入；App 单根实例安全）。
   return (
-    <IntlProvider>
-      <AppBody />
-    </IntlProvider>
+    <PlatformProvider platform={APP_PLATFORM}>
+      <DroraIntlProvider initialLocale={resolveLocale()}>
+        <TooltipProvider delayDuration={0}>
+          <PluginReferenceIconProvider value={null}>
+            <TabStoreProvider>
+              <StoreProvider broadcastService={MOCK_APP_BROADCAST}>
+                <ServiceProvider services={activeAccessorRef.current as never}>
+                  <IntlProvider>
+                    <AppBody />
+                  </IntlProvider>
+                </ServiceProvider>
+              </StoreProvider>
+            </TabStoreProvider>
+          </PluginReferenceIconProvider>
+        </TooltipProvider>
+      </DroraIntlProvider>
+    </PlatformProvider>
   );
 }

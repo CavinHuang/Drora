@@ -1,6 +1,3 @@
-/* eslint-disable max-lines -- 远控连接、首页和任务面由同一个根组件装配，状态面板只接入现有订阅镜像。 */
-// R3 P2a/P3 应用装配：四步卡 → 首页（HomeScreen，应用帧数据）→ 任务面（服务面流式）→ 失败卡。
-// 状态所有者：连接/配对 = RelaySession；会话行/交互/模型/用量 = conversation store 派生；
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
 import * as React from "react";
@@ -74,8 +71,39 @@ type Phase =
 
 import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
 
-// 活跃 accessor（module 级单例——App 单根；塔在 App() 读，AppBody 渲染期写）。
+// 活跃 accessor（module 级单例——App 单根；AppBody 渲染期写，Tower 渲染期读）。
 const activeAccessorRef: { current: IServiceAccessor | null } = { current: null };
+const APP_PLATFORM = createRemoteWebPlatform();
+const MOCK_APP_BROADCAST: IBroadcastService = {
+  send: () => Promise.resolve(),
+  acquireClaim: () => Promise.resolve({ status: "unavailable" } as never),
+  commitClaim: () => Promise.resolve(),
+  releaseClaim: () => Promise.resolve(),
+  tryClaim: () => Promise.resolve(false),
+  onMessage: Object.assign(() => ({ dispose: () => {} }), {}) as never,
+};
+
+/** App 级 Provider 塔（spec §30.9）：恒包 ServiceProvider（value=module ref——
+ * AppBody 渲染期已写），覆盖 lazy chunk 全部 useServices 消费。 */
+function AppTower({ children }: { children: ReactNode }) {
+  return (
+    <PlatformProvider platform={APP_PLATFORM}>
+      <DroraIntlProvider initialLocale={resolveLocale()}>
+        <TooltipProvider delayDuration={0}>
+          <PluginReferenceIconProvider value={null}>
+            <TabStoreProvider>
+              <StoreProvider broadcastService={MOCK_APP_BROADCAST}>
+                <ServiceProvider services={activeAccessorRef.current ?? ({} as never)}>
+                  {children}
+                </ServiceProvider>
+              </StoreProvider>
+            </TabStoreProvider>
+          </PluginReferenceIconProvider>
+        </TooltipProvider>
+      </DroraIntlProvider>
+    </PlatformProvider>
+  );
+}
 
 function AppBody() {
   const [phase, setPhase] = useState<Phase>({ kind: "loading", step: "connecting" });
@@ -592,6 +620,7 @@ function AppBody() {
   }
 
   return (
+    <AppTower>
     <HomeScreen
       connection={connection}
       workspaces={liveWorkspaces}
@@ -616,48 +645,16 @@ function AppBody() {
       onLanguagePress={toggleLanguage}
       onReconnect={() => clientRef.current?.connect()}
     />
+    </AppTower>
   );
 }
 
-// App 级 Provider 塔（spec §30.2）：lazy chunk（GitPane/GitActionMenu/时间线族）的
-// useServices/useDroraIntl/usePlatform 全消费一次性覆盖——accessor 动态组合（任务桥
-// 优先，回退首页 sessions-index 桥）。
-const MOCK_APP_BROADCAST: IBroadcastService = {
-  send: () => Promise.resolve(),
-  acquireClaim: () => Promise.resolve({ status: "unavailable" } as never),
-  commitClaim: () => Promise.resolve(),
-  releaseClaim: () => Promise.resolve(),
-  tryClaim: () => Promise.resolve(false),
-  onMessage: Object.assign(() => ({ dispose: () => {} }), {}) as never,
-};
-const APP_PLATFORM = createRemoteWebPlatform();
+
 
 export function App() {
-  // accessor 动态组合（spec §30.2）：任务桥优先，回退首页 sessions-index 桥——
-  // module 级 ref（AppBody 渲染期同步写入；App 单根实例安全）。
   return (
-    <PlatformProvider platform={APP_PLATFORM}>
-      <DroraIntlProvider initialLocale={resolveLocale()}>
-        <TooltipProvider delayDuration={0}>
-          <PluginReferenceIconProvider value={null}>
-            <TabStoreProvider>
-              <StoreProvider broadcastService={MOCK_APP_BROADCAST}>
-                {activeAccessorRef.current ? (
-                  <ServiceProvider services={activeAccessorRef.current as never}>
-                    <IntlProvider>
-                      <AppBody />
-                    </IntlProvider>
-                  </ServiceProvider>
-                ) : (
-                  <IntlProvider>
-                    <AppBody />
-                  </IntlProvider>
-                )}
-              </StoreProvider>
-            </TabStoreProvider>
-          </PluginReferenceIconProvider>
-        </TooltipProvider>
-      </DroraIntlProvider>
-    </PlatformProvider>
+    <IntlProvider>
+      <AppBody />
+    </IntlProvider>
   );
 }

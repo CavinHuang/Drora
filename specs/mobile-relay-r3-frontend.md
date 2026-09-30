@@ -1996,3 +1996,16 @@ remoteStatusCommands/RemoteConversationTimeline 状态面板/DESIGN/vite.config 
 强制单路径+ui 包 react import 审计为下轮专项。**当前保护**：gitAction=null +
 handleNewTask 写 ref（点新建后新任务面主功能通；GitPaneChangeCard 崩已隔离于
 fileChanges 渲染段——fileChanges=null 裁剪可绕）。
+
+### 30.10 chunk 图实证收口（2026-09-30 终轮）——理论全通而实证仍崩，归渲染树专项
+
+最新 build 产物级实证（推翻双拷贝/双实例假说）：①useServices chunk 单份（createContext
+10 处全在其中）②index 与 GitActionMenu chunk **都 import 同一 useServices chunk**
+（ESM 单例铁证）③塔 ServiceProvider 编译形 `services:kr.current?...` **在 index 塔内**
+④GitPaneChangeCard 渲染链（ConversationFileSummaryPanel→GitPaneChangeCard→Zm→Jm
+→useServices）全在塔覆盖树内——**理论全通而实证仍 throw null**。
+**剩余未知项归 React 渲染树专项**（下轮）：dump 崩帧渲染树（React DevTools 不可用——
+用 useServices throw 前打印 React __SECRET_INTERNALS 当前 dispatcher 所属 react 拷贝
++查找第二 react 拷贝（pnpm ls react/嵌套 node_modules/react/react-dom 全列））。
+**保护已做**：gitAction=null+塔恒包（accessor null 帧占位对象）——新建主功能通
+（createSession 命令链+新任务面主体），GitPaneChangeCard/fileChanges 段崩已隔离。

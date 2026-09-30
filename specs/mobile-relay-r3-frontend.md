@@ -1825,3 +1825,21 @@ commit-dialog/quickPick sr-only/额度条四项）。
 三域合一归 backlog（数据面前置：quickPick 命令源+fileService 搜索——§18/§25 既有
 裁定域，非新裁）。生产页活体对照面至此再无未对比项（composer 工具条/模型菜单/
 侧板/commit-dialog/搜索/额度条/头部全部对照完毕）。
+
+### 29.3 补：三域合一之文件域可行性（2026-09-30 续四）
+
+生产页三域搜索的**文件域前置全绿**：`IFileService.searchWorkspaceFiles` 方法既有
+（services/file/file.ts:23，ServiceChannels.File="file" 通道 Host 全量注册）+ UI 包
+`useWorkspaceFileSearchFilter` 复原件在（workspace-file-search 域）+ 构建产物
+workspaceFileSearchFilter.worker 既有——**文件域=接线即可用**（非数据源缺口）。
+操作域仍前置缺（quickPick 命令源 §18）。执行建议（专项）：TaskSearchPanel 扩文件
+结果段（searchWorkspaceFiles 查询+文件行渲染；行点击行为按官方 workspaceFileTree
+.addToChat「添加到聊天」语义插入 composer 引用）+ placeholder 三域语义切齐。
+
+### 29.4 对照面清单终版（全七面完毕）
+
+composer 工具条（四 trigger+thought CAS）/模型菜单（徽标+管理模型）/侧板（标签
+容器+StatusPanel）/commit-dialog（全链）/搜索（三域 backlog+文件域可行）/额度条
+（toast 存档）/头部（双标题+装配缝）——生产页活体对照无遗漏面。深度还原指令语义
+下可执行项清零；后续推进依赖：并行收口（SidePane/goal/attachmentGitSummary/
+OpenTabShell——其会话进行中）/数据源接通（quotaReset/命令源）/真机验收反馈。

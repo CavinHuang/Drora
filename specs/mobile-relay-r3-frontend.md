@@ -1985,3 +1985,14 @@ remoteStatusCommands/RemoteConversationTimeline 状态面板/DESIGN/vite.config 
 提交；本会话不再动工作树（防覆盖）。1516 assets=MOBILE_ALLOW_SOURCEMAP 诊断模式
 产物（718 maps——崩源定位资产）。正式构建回退=不设 env 跑 build-app（守卫恢复，
 .git 残留 .map 已清）。
+
+### 30.8 崩源定位于 GitPaneChangeCard 消费链（2026-09-30 终）——双 React 拷贝假说
+
+印记链实证：useServices chunk 印记在（__svcModuleId/__prov）而页面 __prov 空——
+**崩消费者（时间线族 GitPaneChangeCard→Jm=useGitRepository minified→useServices）
+的 Context 读 null**，塔 Provider 已覆盖 AppBody 全树且 accessor 非 null。**假说
+最强=双 React 拷贝**（@/i18n 等 ui 源直引经 @ 别名拉 ui 包源 → ui 包嵌套 react
+与主 react 分裂 → Context 全失效；dedupe 未解）——vite resolve.alias react/react-dom
+强制单路径+ui 包 react import 审计为下轮专项。**当前保护**：gitAction=null +
+handleNewTask 写 ref（点新建后新任务面主功能通；GitPaneChangeCard 崩已隔离于
+fileChanges 渲染段——fileChanges=null 裁剪可绕）。

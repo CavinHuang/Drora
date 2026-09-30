@@ -1564,3 +1564,22 @@ E2E 复验抓第四层 Provider 依赖：GitPane 链 useFileContextActions → u
 层序契约已是二期直接资产）；③GitPane 二期前置=web 平台适配器（IPlatformService
 远控语义子集 no-op 或官方远控页平台方案取证——官方生产页 GitPane 可开，其
 platform 供给方式待查）。门禁：162/162、build 绿。E2E 复验顺延二期（同因）。
+
+## 27. 官方侧板真形态取证（2026-09-30，生产页活体）——GitPane 路线修正
+
+生产页任务面活体交互取证（只读+UI 开合）：**side-pane-toggle 开的不是 GitPane**
+——官方侧板 = **标签页容器**：`div.side-pane-open-tab-shell`（「打开标签页/
+选择要在侧边面板中打开的标签。」= sidePane.openTabs/openTabDescription 官方逐字，
+P6 已落 25 键；标签类型族：辅助对话 selectionChat/审查 review/终端 terminal）+
+aside[chat-summary-panel]（状态浮层，显示当前任务最新摘要——并行 StatusPanel
+方向）为独立浮层非侧板内容。git-action-trigger 为另一入口（点击未直接出 git-pane
+——GitPane 挂载条件/入口链待续取证）。
+
+**路线修正**：
+1. side-pane 正解 = SidePane 标签容器壳（P6 SidePane.tsx 组件+25 键已备）联动
+   chat-summary-panel（并行 StatusPanel 收口后一行）；tab 类型按 sidePane.openTab
+   族渐进（辅助对话/审查/终端各需服务面，渐进接线）。
+2. GitPane 降为 side-pane 体系外的独立面（git-action-trigger 入口链续取证），
+   platform 供给前置不变（§25.5）。
+3. §25.5 "toggle 回退" 维持——SidePane 标签容器壳接线待并行 StatusPanel 收口
+   （内容提供方），壳本身可与 SidePane 组件对接（P6 已备）。

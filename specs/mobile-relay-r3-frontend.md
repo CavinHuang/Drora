@@ -1731,3 +1731,15 @@ FileRewindDialog/BottomDockTransition/…——lazy chunk 内按需激活）。�
 未接线 18 个均为域外/有意分歧/低价值对照点——复用架构收敛完成，无进一步强接价值。
 生产页活体对照（§26）：chat-summary-panel=最新消息摘要浮层——并行 StatusPanel
 复用件语义一致，方向验证正确。
+
+### 29.1 宽壳首页可见层终版裁定（2026-09-30 续，生产页逐元素可见性判定）
+
+「命令面板区块」翻转再翻转终局：逐元素 getBoundingClientRect+computedStyle 判定——
+该区块 **w:1×h:1 absolute = sr-only 语义层**（可见文本「命令面板/搜索并执行…」系
+sr-only 进 innerText 的取证假象）。官方宽壳首页**可见层 = 侧栏（新建/搜索/项目/
+ZCode）+ 工作区任务列表列**（双列/分栏 Workbench 降级投影）——**无问候空态、无
+命令面板可见区块**。我方 GreetingEmptyState（问候+新建主按钮）为自创可见层（P5b
+有意偏差）——**终版裁定维持**（移动优先问候态合理；官方双列布局系桌面 Workbench
+降级形态，替换成本/信息架构收益不成比），本节补完「官方无问候可见层」证据供后续
+重裁。方法论沉淀：innerText 取证会混入 sr-only 文本——可见性判定必须
+getBoundingClientRect+computedStyle 逐元素。

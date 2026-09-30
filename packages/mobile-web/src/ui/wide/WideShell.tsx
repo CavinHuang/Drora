@@ -66,6 +66,8 @@ export function WideShell({
   onLanguagePress,
   onReconnect,
   onSearchTasks,
+    onSearchFiles,
+    onFileSelect,
   className,
 }: WideShellProps) {
   // 断点自持：窄视口返回 null（App 侧同样经 useWideViewport 分支，此处为组件自守）。

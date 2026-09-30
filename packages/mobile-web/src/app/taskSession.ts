@@ -2,6 +2,7 @@
    首页 sessions-index 专用桥）：三条链共用同一条 workspace 桥生命周期（open/握手/帧面/
    退订/释放）与同一 accessor 装配，拆文件会把一条桥的所有权拆散（packages/ui/src/v4/
    sessionsIndexStore.ts 同款豁免先例）。 */
+import type { WorkspaceFileEntry } from "@drora/shared";
 // R3 P2a/P3a/P3b/P3c 任务会话面：workspace-bridge-open → 服务面（与 renderer 同源
 // RemoteServiceAccess，D8）。读路径 = v4 rows 分页（conversationRowsRangeV4，首帧收敛前的
 // 回补入口）+ P3a 流式订阅（subscribeConversationV4 → onDynamicConversationFrame →
@@ -496,9 +497,9 @@ export class TaskSession {
   async cancelBackgroundWork(workId: string): Promise<boolean> {
     const pending = this.backgroundCancelPending.get(workId);
     if (pending) return pending;
-    const work = this.store.getState().snapshot?.backgroundWorks.find(
-      (item) => item.workId === workId,
-    );
+    const work = this.store
+      .getState()
+      .snapshot?.backgroundWorks.find((item) => item.workId === workId);
     if (!work || work.status !== "running" || work.cancellable === false) return false;
     const command = this.sendStatusControl("cancelBackgroundWork", { workId });
     this.backgroundCancelPending.set(workId, command);
@@ -659,6 +660,38 @@ export const TASK_SEARCH_LIST_LIMIT = 20;
  * 失败语义：桥断开/目标缺席/能力不支持一律返回 [] 不抛——只读搜索按「无结果显示」降级，
  * 调用方不得据此打断首页（与 fetchFileChanges 同口径）。
  */
+/**
+ * 文件域搜索（v4 fileService.searchWorkspaceFiles，spec §29.3——官方三域搜索之文件域；
+ * ServiceChannels.File 通道 Host 对 web-remote-replayable 全量注册）。失败语义与
+ * searchTasks 同口径：桥断开/能力缺席/查询失败一律返回 [] 不抛——只读搜索按
+ * 「无结果显示」降级，调用方不得据此打断首页。
+ */
+export async function searchWorkspaceFilesInBridge(
+  accessor: IServiceAccessor,
+  rootPath: string,
+  workspaceIdentity: string | undefined,
+  query: string,
+): Promise<WorkspaceFileEntry[]> {
+  const trimmed = query.trim();
+  if (trimmed === "") return [];
+  // fileService 在 IServiceAccessor 上可选（旧 server wire / 测试 double 可缺省）：
+  // 能力缺席与查询失败同口径，收敛为空结果降级，不上抛。
+  const fileService = (accessor as { fileService?: {
+    searchWorkspaceFiles(params: { rootPath: string; workspaceIdentity?: string; query: string; limit?: number }): Promise<WorkspaceFileEntry[]>;
+  } }).fileService;
+  if (!fileService) return [];
+  try {
+    return await fileService.searchWorkspaceFiles({
+      rootPath,
+      workspaceIdentity,
+      query: trimmed,
+      limit: 8,
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function searchTasks(
   accessor: IServiceAccessor,
   workspaces: readonly TaskSearchWorkspaceScope[],
@@ -727,6 +760,8 @@ interface HomeWorkspaceTarget {
 export interface HomeSessionsIndexBridge {
   /** 工作区身份 key（workspaceIdentity?.trim() || workspacePath；store topic 后缀）。 */
   readonly workspaceKey: string;
+  /** 桥服务 accessor（P6 文件域：TaskSearchPanel 文件搜索经 fileService 通道消费）。 */
+  readonly accessor: IServiceAccessor;
   /** sessions-index store：帧/订阅水位/纪元的唯一所有者（UI 订阅它派生活性）。 */
   readonly store: SessionsIndexStore;
   /**
@@ -844,6 +879,7 @@ export async function openHomeSessionsIndexBridge(
 
   return {
     workspaceKey,
+    accessor,
     store,
     async start(): Promise<string | null> {
       if (closed || !accessor) return null;

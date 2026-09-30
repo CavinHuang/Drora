@@ -1801,3 +1801,17 @@ opportunity}。数据源=coding plan 额度服务+弹出时机逻辑——远控
 无 coding plan 时官方亦不显示。**裁定：backlog 维持**（成本>价值；键族与形态已存档，
 数据源接通时按 toast 形态落地）。生产页活体可取证面至此全部终态闭合（侧板/
 commit-dialog/quickPick sr-only/额度条四项）。
+
+## 30. 模型菜单对照对齐（2026-09-30，生产页活体第三轮）
+
+生产页 chat-model-select-trigger CUA 展开取证：官方菜单 = Provider 分组（名+徽标
+「个人/免费」rounded-full）> menuitemradio 模型项 > sticky 底部「管理模型」。对照
+我方 ModelMenu：分组/radio 已同构；缺两处本轮补齐——①Provider 徽标
+（codingPlanBadge/startPlanBadge，按 templateId 映射，UI 包 locales 键既有）；
+②底部 sticky「管理模型」禁用态（chat.toolbar.model.manageModels，UI 包 locales
+自带；远控设置入口未接线，渲染禁用不做假入口）。门禁：ModelMenu 单文件 13/13、
+全套件 **165/165**（并行 OpenTabShell 实现补齐后全绿）、build 绿。
+
+**并行协同实录**：openTabShell.test.ts 先行落地（引用 RemoteOpenTabShell 实现）曾
+致文件级失败——并行会话随即补实现（SidePane 标签容器壳方向），全套件复绿；并行
+另推进 attachmentGitSummary（git 摘要附件）——继续零冲突共存。

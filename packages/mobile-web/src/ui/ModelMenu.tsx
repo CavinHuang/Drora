@@ -240,10 +240,23 @@ export function ModelMenu({ view, state, loading = false, onSelect, onClose }: M
         {view.providers.map((provider) => {
           // providerName 注册表内可空（config-service 允许空串），空回落 providerId。
           const providerLabel = provider.providerName?.trim() || provider.providerId;
+          // P6 模型菜单对照（生产页活体取证）：Provider 徽标（「个人/免费」rounded-full，
+          // 官方 codingPlanBadge 形态）随 provider 名渲染。
+          const providerBadge =
+            provider.templateId === "coding-plan"
+              ? formatMessage({ id: "settings.modelProvider.connectionMode.codingPlanBadge" })
+              : provider.templateId === "start-plan"
+                ? formatMessage({ id: "settings.modelProvider.connectionMode.startPlanBadge" })
+                : null;
           return (
             <section key={provider.providerId} role="group" aria-label={providerLabel}>
-              <div className="px-3 pb-1 pt-2 text-ui-xs text-foreground-subtle">
-                {providerLabel}
+              <div className="flex items-center gap-2 px-3 pb-1 pt-2 text-ui-xs text-foreground-subtle">
+                <span className="min-w-0 truncate">{providerLabel}</span>
+                {providerBadge ? (
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 text-ui-xs text-muted-foreground">
+                    {providerBadge}
+                  </span>
+                ) : null}
               </div>
               {provider.models.map((model) => {
                 const rowKey = `${provider.providerId}/${model.modelId}`;
@@ -339,6 +352,20 @@ export function ModelMenu({ view, state, loading = false, onSelect, onClose }: M
             </section>
           );
         })}
+        {/* 官方菜单底部 sticky「管理模型」（chat.toolbar.model.manageModels；UI 包 locales
+            自带键——远控面设置入口未接线，渲染禁用态不做假入口）。 */}
+        <div className="sticky bottom-0 border-t border-border bg-card">
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            className="flex min-h-10 w-full items-center gap-2 px-3 text-left text-ui-sm text-muted-foreground"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {formatMessage({ id: "chat.toolbar.model.manageModels" })}
+            </span>
+          </button>
+        </div>
       </div>
     </>
   );

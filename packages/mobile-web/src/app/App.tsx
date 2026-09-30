@@ -25,6 +25,8 @@ import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
+import { RemoteOpenTabShell } from "../ui/RemoteOpenTabShell.js";
+import { useAttachmentGitSummary } from "./attachmentGitSummary.js";
 // GitPane 一期姊妹件 lazy 化（spec §28.3）：官方复原件重依赖链（useGitRepository+
 // IGitService+GitPane/GitActionMenu）拆出主 chunk（P5d 体积纪律；官方 SessionPane
 // 惰性 chunk 先例）。
@@ -50,7 +52,7 @@ import type {
   PendingInteraction,
   V4ConversationFileChangesResult,
 } from "@drora/shared/drora-protocol-v4";
-import type { ModelSelectionView } from "@drora/services";
+import type { IServiceAccessor, ModelSelectionView } from "@drora/services";
 import type { RelayClient } from "@drora/relay-client";
 declare const __MOBILE_APP_VERSION__: string;
 
@@ -87,8 +89,8 @@ function AppBody() {
   const [modelState, setModelState] = useState<ModelSelectionState | null>(null);
   // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
   const [configMode, setConfigMode] = useState<string | null>(null);
-  // P6 GitPane 一期（spec §25）：官方侧板开合态（Header side-pane-toggle 联动）。
-  const [gitSidePaneOpen, setGitSidePaneOpen] = useState(false);
+  // 官方侧板按钮先显示标签启动器；Git 审查由状态面板独立打开。
+  const [sidePaneMode, setSidePaneMode] = useState<"launcher" | "git" | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
   const { loadingOlder, loadOlder, resetOlder } = useTaskHistory(taskRef);
@@ -96,12 +98,32 @@ function AppBody() {
   // P5b 宽视口（spec §19）：官方断点 (max-width: 767px) 取反——≥768px 交 WideShell
   // 全壳（侧栏+主区），<768px 维持既有单列壳（零回归）。
   const wideViewport = useWideViewport();
+  // P6 文件域（spec §29.5 解封）：首页桥 accessor 记录（TaskSearchPanel 文件搜索供给）。
+  const homeBridgeAccessorRef = useRef<IServiceAccessor | null>(null);
   const openHomeBridge = useCallback((workspacePath: string, workspaceIdentity?: string) => {
     const client = clientRef.current;
     if (!client) return Promise.reject(new Error("relay client is not connected"));
-    return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity);
+    return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity).then(
+      (bridge) => {
+        homeBridgeAccessorRef.current = bridge.accessor;
+        return bridge;
+      },
+    );
   }, []);
   const liveWorkspaces = useHomeSessionsIndex(workspaces, openHomeBridge);
+  const attachedTask =
+    phase.kind === "task" &&
+    taskRef.current?.target.sessionId === selectedTaskId &&
+    (taskRef.current.target.workspaceIdentity?.trim() || taskRef.current.target.workspacePath) ===
+      (taskTarget?.identity?.trim() || taskTarget?.path)
+      ? taskRef.current
+      : null;
+  const gitStatus = useAttachmentGitSummary({
+    gitService: attachedTask?.accessor.gitService ?? null,
+    workspacePath: attachedTask?.target.workspacePath ?? null,
+    workspaceIdentity: attachedTask?.target.workspaceIdentity,
+    activeTaskId: attachedTask?.target.sessionId ?? null,
+  });
 
   const fail = useCallback((wireReason: string, detail: string | null, retryable: boolean) => {
     setPhase({ kind: "failure", wireReason, detail, retryable });
@@ -188,6 +210,7 @@ function AppBody() {
       setTaskRows([]);
       setTaskTotalCount(0);
       setStatusSnapshot(null);
+      setSidePaneMode(null);
       resetOlder();
       setTaskTarget({
         path: workspace.path,
@@ -254,6 +277,7 @@ function AppBody() {
     taskRef.current = null;
     setControlState(null);
     setStatusSnapshot(null);
+    setSidePaneMode(null);
     setTaskTarget(null);
     resetOlder();
     setPendingInteractions([]);
@@ -388,6 +412,11 @@ function AppBody() {
         sessionPhase={controlState?.phase ?? undefined}
         modelSelectionView={modelView}
         statusSnapshot={statusSnapshot}
+        gitSummary={gitStatus.summary}
+        gitDirtyFileCount={gitStatus.dirtyFileCount}
+        gitWorktreeChangeSummary={gitStatus.changeSummary}
+        onRefreshGit={gitStatus.refresh}
+        onOpenGitReview={() => setSidePaneMode("git")}
         onPauseGoal={() => {
           const session = taskRef.current;
           if (session?.target.sessionId === selectedTaskId) void session.pauseGoal();
@@ -440,21 +469,24 @@ function AppBody() {
 
   // P5b：任务面装配提前为元素常量（宽壳主区容器与窄壳全屏壳同源复用；仅元素构造，
   // 渲染由下方分支决定）。
-  // P6 GitPane 一期（spec §25）：侧板浮层挂任务面容器（MobileTaskShell 根为 relative
-  // 语义——实际经 taskShell 外层同源容器；absolute inset-y 覆盖任务面右缘）。
-  const gitSidePane =
-    phase.kind === "task" && taskTarget && taskRef.current && gitSidePaneOpen ? (
+  // 侧板模式由 App 持有；Git 审查只从状态面板打开，普通开关显示官方标签启动壳。
+  const sidePane =
+    phase.kind === "task" && taskTarget && attachedTask && sidePaneMode === "git" ? (
       <React.Suspense fallback={null}>
       <LazyRemoteGitSidePane
+        key={`${taskTarget.identity?.trim() || taskTarget.path}:${selectedTaskId}`}
         open
-        onClose={() => setGitSidePaneOpen(false)}
+        onClose={() => setSidePaneMode("launcher")}
         workspacePath={taskTarget.path}
         workspaceIdentity={taskTarget.identity}
         remoteSessionId={null}
-        accessor={taskRef.current.accessor}
+        accessor={attachedTask.accessor}
         activeTaskId={selectedTaskId}
+        onRefreshGit={gitStatus.refresh}
       />
       </React.Suspense>
+    ) : phase.kind === "task" && taskTarget && sidePaneMode === "launcher" ? (
+      <RemoteOpenTabShell onClose={() => setSidePaneMode(null)} />
     ) : null;
 
   const taskShell =
@@ -468,20 +500,19 @@ function AppBody() {
             <RemoteWorkspaceHeader
               title={taskTitle}
               workspacePath={taskTarget.path}
-              // GitPane 二期解封（spec §28）：官方 createWebPlatform（webPlatform.ts
-              // 移出复用）供 usePlatform——侧板开关恢复接线。
-              onToggleSidePane={taskRef.current ? () => setGitSidePaneOpen((open) => !open) : undefined}
-              sidePaneOpen={gitSidePaneOpen}
+              onToggleSidePane={attachedTask ? () => setSidePaneMode((mode) => mode ? null : "launcher") : undefined}
+              sidePaneOpen={sidePaneMode !== null}
               // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
               // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
               gitAction={
-                taskRef.current ? (
+                attachedTask ? (
                   <React.Suspense fallback={null}>
                   <LazyRemoteGitActionMenu
                     workspacePath={taskTarget.path}
                     workspaceIdentity={taskTarget.identity}
-                    accessor={taskRef.current.accessor}
-                    activeTaskId={selectedTaskId}
+                    accessor={attachedTask.accessor}
+                    gitSummary={gitStatus.summary}
+                    onRefreshGit={gitStatus.refresh}
                   />
                   </React.Suspense>
                 ) : null
@@ -504,12 +535,25 @@ function AppBody() {
         isRefreshing={false}
         taskSurface={taskShell}
         onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+        onSearchFiles={(query) => {
+          const accessor = homeBridgeAccessorRef.current;
+          if (!accessor) return Promise.resolve([]);
+          return accessor.fileService.searchWorkspaceFiles({
+            rootPath: liveWorkspaces[0]?.path ?? "",
+            workspaceIdentity: liveWorkspaces[0]?.workspaceKey,
+            query,
+            limit: 8,
+          });
+        }}
+        onFileSelect={(entry) => {
+          setDraft((draft) => (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath);
+        }}
         onRefresh={() => void refresh()}
         onThemePress={toggleTheme}
         onLanguagePress={toggleLanguage}
         onReconnect={() => clientRef.current?.connect()}
       />
-      {gitSidePane}
+      {sidePane}
       </div>
     );
   }
@@ -518,7 +562,7 @@ function AppBody() {
     return (
       <div className="relative h-dvh w-full">
         {taskShell}
-        {gitSidePane}
+        {sidePane}
       </div>
     );
   }
@@ -530,6 +574,19 @@ function AppBody() {
       selectedTaskId={selectedTaskId}
       isRefreshing={false}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+      onSearchFiles={(query) => {
+        const accessor = homeBridgeAccessorRef.current;
+        if (!accessor) return Promise.resolve([]);
+        return accessor.fileService.searchWorkspaceFiles({
+          rootPath: liveWorkspaces[0]?.path ?? "",
+          workspaceIdentity: liveWorkspaces[0]?.workspaceKey,
+          query,
+          limit: 8,
+        });
+      }}
+      onFileSelect={(entry) => {
+        setDraft((draft) => (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath);
+      }}
       onRefresh={() => void refresh()}
       onThemePress={toggleTheme}
       onLanguagePress={toggleLanguage}

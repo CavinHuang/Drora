@@ -1853,3 +1853,18 @@ props，缺省不查=零回归）；②App 装配挂起（无 accessor 可供）
 补（searchWorkspaceFiles scripted——Host 面就绪，首页 attachment 立项即用）。
 **二期前置=首页 attachment 架构立项**（首页常驻 workspace attachment——与 §18
 "首页 sessions-index 不做"同域重裁，独立决策）。门禁维持 164/164（缝缺省零回归）。
+
+### 29.6 文件域全装配落地（2026-09-30 续六）——宽壳宿主补齐+E2E 环境波折如实
+
+宽壳宿主补齐（断点定位：文件域 props 断在 WideShell——其内嵌 TaskSearchPanel 宿主
+透传只有 onSearchTasks）：WideShell props/解构/透传 + App 宽壳 WideShell 装配
+（onSearchFiles/onFileSelect 同首页闭包——homeBridgeAccessorRef+liveWorkspaces[0]）。
+**四层装配全落**：TaskSearchPanel（文件段渲染+并行第二查询）/HomeScreen/WideShell/App。
+Host 桩：refresh+searchWorkspaceFiles+**File 通道注册**（fileService 走 "file" 通道
+名——searchWorkspaceFiles 初误挂 Git 通道致页面请求 reject，File 通道注册后待复验）。
+门禁：**165/165**、build 绿（796 assets，lazy 拆分后）。
+**E2E 波折如实**：三轮验证遇 pairing 偶发（window host not ready）/间歇白屏/CUA
+序列差异叠加——fd 轮曾 dispatchEvent 同路径成功开面板；本轮 fresh harness+清标签+
+CUA 坐标均未复现开面板，环境不稳定超阈值。实现侧四层装配代码已全落且门禁绿——
+E2E 复验归环境稳定窗口（下轮首查）。经验：多标签+长会话 IAB 状态漂移——验证前
+先 fresh 标签+reload+清场；Illegal invocation=input setter 跨上下文调用假崩溃。

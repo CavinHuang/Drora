@@ -42,6 +42,16 @@ function createMockBroadcastService(): IBroadcastService {
 const MOCK_BROADCAST = createMockBroadcastService();
 // 远控 web 平台适配（§28 受控移植：官方 createWebPlatform 逐方法对照，自持零依赖图污染）。
 const WEB_PLATFORM = createRemoteWebPlatform();
+const ACCESSOR_IDS = new WeakMap<IServiceAccessor, number>();
+let nextAccessorId = 0;
+
+function accessorId(accessor: IServiceAccessor): number {
+  const existing = ACCESSOR_IDS.get(accessor);
+  if (existing !== undefined) return existing;
+  const id = ++nextAccessorId;
+  ACCESSOR_IDS.set(accessor, id);
+  return id;
+}
 
 export interface RemoteGitSidePaneProps {
   open: boolean;
@@ -53,6 +63,7 @@ export interface RemoteGitSidePaneProps {
   /** 桥服务 accessor（taskSession 持有；Host git 通道经此消费）。 */
   accessor: IServiceAccessor;
   activeTaskId: string | null;
+  onRefreshGit?: () => void;
   className?: string;
 }
 
@@ -64,6 +75,7 @@ export function RemoteGitSidePane({
   remoteSessionId,
   accessor,
   activeTaskId,
+  onRefreshGit,
   className,
 }: RemoteGitSidePaneProps) {
   const { formatMessage } = useIntl();
@@ -99,11 +111,11 @@ export function RemoteGitSidePane({
                 <StoreProvider broadcastService={MOCK_BROADCAST}>
                   <ServiceProvider services={accessor}>
                     <GitPaneBody
+                      key={`${workspaceIdentity?.trim() || workspacePath}:${activeTaskId}:${accessorId(accessor)}`}
                       workspacePath={workspacePath}
-                      workspaceIdentity={workspaceIdentity}
-                      remoteSessionId={remoteSessionId}
                       activeTaskId={activeTaskId}
                       onClose={onClose}
+                      onRefreshGit={onRefreshGit}
                     />
                   </ServiceProvider>
                 </StoreProvider>
@@ -120,30 +132,28 @@ export function RemoteGitSidePane({
 /** Provider 内层：git 数据派生 + GitPane 挂载（本地交互态归此层）。 */
 function GitPaneBody({
   workspacePath,
-  workspaceIdentity,
-  remoteSessionId,
   activeTaskId,
   onClose,
+  onRefreshGit,
 }: {
   workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string | null;
   activeTaskId: string | null;
   onClose: () => void;
+  onRefreshGit?: () => void;
 }) {
   const [selectedSourceId, setSelectedSourceId] = React.useState<string>("unstaged");
   const [findNavRequest, setFindNavRequest] = React.useState(0);
+  const [gitRefreshToken, setGitRefreshToken] = React.useState(0);
   const gitState: GitPaneRepositoryState = useGitRepository({
     workspacePath,
     activeTaskId,
-    remoteSessionId,
-    workspaceIdentity,
+    refreshToken: gitRefreshToken,
+    // 手机桥已绑定当前 Host；桌面 remote workspace 注册表不参与此查询。
+    // 传入远端 identity 且没有 desktop remoteSessionId 会让原 hook 禁止 Git RPC。
   });
   return (
     <GitPane
       workspacePath={workspacePath}
-      workspaceIdentity={workspaceIdentity}
-      workspaceRemoteSessionId={remoteSessionId ?? undefined}
       gitState={gitState}
       selectedSourceId={selectedSourceId as never}
       fileChangeFindActiveIndex={0}
@@ -152,7 +162,10 @@ function GitPaneBody({
       onFileChangeFindMatchCountChange={() => {}}
       onSelectSource={(sourceId) => setSelectedSourceId(sourceId as string)}
       onClose={onClose}
-      onRefresh={() => setFindNavRequest((n) => n + 1)}
+      onRefresh={() => {
+        setGitRefreshToken((token) => token + 1);
+        onRefreshGit?.();
+      }}
     />
   );
 }

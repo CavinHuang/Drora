@@ -44,6 +44,12 @@ export interface WideShellProps {
    * 缺省 = TaskSearchPanel 首页投影本地标题过滤（与窄壳同降级面）。
    */
   onSearchTasks?: (search: string) => Promise<TaskSearchPanelTask[]>;
+  /** P6 文件域（spec §29.5）：host 文件搜索执行器（accessor.fileService 绑定）。 */
+  onSearchFiles?: (query: string) => Promise<
+    { name: string; path: string; relativePath: string; type: "file" | "directory" }[]
+  >;
+  /** 文件结果行点击（插入 composer 引用；装配归调用方）。 */
+  onFileSelect?: (entry: { path: string; relativePath: string }) => void;
   className?: string;
 }
 
@@ -103,6 +109,8 @@ export function WideShell({
           <TaskSearchPanel
             workspaces={workspaces}
             onSearchTasks={onSearchTasks}
+            onSearchFiles={onSearchFiles}
+            onFileSelect={onFileSelect}
             onTaskOpen={(task: TaskSearchPanelTask) => {
               closeSearch();
               // 搜索结果 → 既有任务面链路：workspace 身份 key 按 AGENTS 规则归一透传。

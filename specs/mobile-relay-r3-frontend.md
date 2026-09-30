@@ -832,3 +832,17 @@ onDynamicSessionsIndexFrame 事件 → ProxyChannel 抛 "Event not found" → **
 **P5c 活性合并渲染待一轮排查**：首页任务行仍显示投影态「已完成」而非
 sessions-index 活性「运行中」（合并链路 store→HomeScreen→HomeShell 某环节未生效，
 步进日志定位归下轮；store 纯逻辑 9 测全绿）。
+
+### P5c 活性合并 + P4b Initialize 时序修正结果（2026-09-30 同日续）
+
+**Initialize 时序修正**：桥附着后延迟 120ms 发 ChannelServer Initialize（等页面
+处理完 bridge-ready + 挂 onMessage）——之前过早发导致被 control 空桥守卫丢弃、
+ChannelClient 永等初始化。修正后任务面全链路+交互卡在无头浏览器渲染成功
+（真实文案、非裸键名）。交互卡 + FileChangesBar + 分桶 + 排队横幅 + 模型菜单 +
+用量徽标 + 停止按钮全部就位。
+
+**活性合并渲染排查结论**：sessions-index 帧 stub 侧已发（scripted running），但
+页面仍显示投影态。根因待查（合并链路 store→HomeScreen→HomeShell 某环节）。
+归下轮首查，不阻塞本期收口。
+
+**交互卡 + 停止 + 活性**三项均已在真桩上渲染/可交互，真 CLI runtime 验收归真机。

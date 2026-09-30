@@ -2009,3 +2009,12 @@ fileChanges 渲染段——fileChanges=null 裁剪可绕）。
 +查找第二 react 拷贝（pnpm ls react/嵌套 node_modules/react/react-dom 全列））。
 **保护已做**：gitAction=null+塔恒包（accessor null 帧占位对象）——新建主功能通
 （createSession 命令链+新任务面主体），GitPaneChangeCard/fileChanges 段崩已隔离。
+
+### 30.9 产物审计完成与剩余疑点（2026-09-30 终轮收口）
+
+产物级审计定谳：**无双 react**（dispatcher 特征零命中）、**useServices 单拷贝**
+（GitActionMenu chunk 唯一，index 经 ESM import 引用——模块图正常）。塔恒包
+ServiceProvider 已落地（accessor null 帧占位对象）。**剩余疑点收缩为一条**：
+GitPaneChangeCard 渲染链（ConversationFileSummaryPanel→GitPaneChangeCard→Zm→Jm
+→useServices）在塔内仍 throw——页面运行时 __prov/__svcModuleId 读实测（IAB
+evaluate window 读）为下轮首查（源码静态审计已穷尽）。

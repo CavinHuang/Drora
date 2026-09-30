@@ -1415,3 +1415,15 @@ stub case（ACK accepted）。E2E：v4-fork-102 渲染 + 点击 ACK 无崩。对
 复用）：查官方协议既有命令 → TaskSession 命令方法 → 包装器/容器透传 → App 装配 →
 stub case → E2E。剩余 3 差距：summary-panel（并行）/side-pane-toggle+git-action-
 trigger（同法查 git/fileService 协议既有面，若无则留能力矩阵）/更多菜单展开态。
+
+### 23.15 side-pane-toggle 装配缝（2026-09-30 第十一轮）
+
+侧板协议面检查：ServiceChannels.Git="git"/File="file" **通道已在**（Host 对
+web-remote-replayable 注册全量服务，spec §19 P5a）——侧板 capability 面存在，但
+GitPane 完整接线（git 状态/文件树 UI+服务消费）是独立一期（§24 能力矩阵本义）。
+本轮零冲突面：RemoteWorkspaceHeader 补 button[side-pane-toggle]（PanelRight 图标，
+官方头部右区位）+ onToggleSidePane/sidePaneOpen 装配缝（aria-expanded 投影；
+mobileShell.task.sidePaneExpand 既有键复用）。缺省不渲染（侧板内容=chat-summary-
+panel 归并行 StatusPanel 装配，接通后 App 一行联动）。门禁：headerDeep 4/4、
+build 绿。并行会话同窗推进 goal 控制命令（taskSession/remoteStatusCommands.test
+新改动）——继续零交集共存。

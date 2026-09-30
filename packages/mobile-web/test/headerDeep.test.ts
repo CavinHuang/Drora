@@ -3,17 +3,22 @@ import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RemoteWorkspaceHeader } from "../src/ui/RemoteWorkspaceHeader.js";
+import { IntlProvider } from "../src/ui/intl.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });
 
 function render(props: Partial<Parameters<typeof RemoteWorkspaceHeader>[0]> = {}) {
   return renderToStaticMarkup(
-    React.createElement(RemoteWorkspaceHeader, {
-      title: "E2E 冒烟任务",
-      workspacePath: "C:/g1/sub",
-      ...props,
-    }),
+    React.createElement(
+      IntlProvider,
+      { locale: "zh-CN" },
+      React.createElement(RemoteWorkspaceHeader, {
+        title: "E2E 冒烟任务",
+        workspacePath: "C:/g1/sub",
+        ...props,
+      }),
+    ),
   );
 }
 
@@ -37,4 +42,13 @@ test("workspace-more-button 装配缝：缺省不渲染；传入渲染 ⋯ 图�
   const wired = render({ onMoreMenu: () => {} });
   assert.ok(wired.includes('data-testid="workspace-more-button"'));
   assert.ok(wired.includes('aria-label="E2E 冒烟任务"'));
+});
+
+test("side-pane-toggle 装配缝：缺省不渲染；传入渲染 PanelRight 按钮 + aria-expanded 投影", () => {
+  const bare = render();
+  assert.ok(!bare.includes("side-pane-toggle"), "缺省不渲染（侧板内容归 StatusPanel 装配）");
+  const wired = render({ onToggleSidePane: () => {}, sidePaneOpen: true });
+  assert.ok(wired.includes('data-testid="side-pane-toggle"'));
+  assert.ok(wired.includes('aria-expanded="true"'));
+  assert.ok(wired.includes('aria-label="展开侧边面板"'), "官方 mobileShell.task.sidePaneExpand 既有键");
 });

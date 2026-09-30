@@ -3,7 +3,11 @@
 // header 形态 = button[workspace-path]（图标+可点）> h1[workspace-title]（可见任务
 // 标题）+ [v4-session-title]（sr-only 会话级标题）+ div > button[workspace-more-button]
 // （⋯ 纯图标；菜单展开态未取证 → onMoreMenu 装配缝可选，缺省不渲染按钮，不臆造菜单项）。
-import { Ellipsis, Folder } from "lucide-react";
+// §23.15：官方头部右区另有 button[side-pane-toggle]（PanelRight 图标；官方侧板内容=
+// aside[chat-summary-panel]，并行 StatusPanel 工作方向）——onToggleSidePane 装配缝可选，
+// 缺省不渲染按钮；open 态归上层（aria-expanded 投影）。
+import { Ellipsis, Folder, PanelRight } from "lucide-react";
+import { useIntl } from "./intl.js";
 
 export interface RemoteWorkspaceHeaderProps {
   title: string;
@@ -12,6 +16,10 @@ export interface RemoteWorkspaceHeaderProps {
   onPathClick?: () => void;
   /** 官方 ⋯ 更多按钮（菜单内容归上层装配；缺省不渲染按钮）。 */
   onMoreMenu?: () => void;
+  /** 官方侧板开关（内容=chat-summary-panel 归 StatusPanel 装配；缺省不渲染按钮）。 */
+  onToggleSidePane?: () => void;
+  /** 侧板开合态投影（aria-expanded；缺省 false）。 */
+  sidePaneOpen?: boolean;
 }
 
 export function RemoteWorkspaceHeader({
@@ -19,7 +27,10 @@ export function RemoteWorkspaceHeader({
   workspacePath,
   onPathClick,
   onMoreMenu,
+  onToggleSidePane,
+  sidePaneOpen,
 }: RemoteWorkspaceHeaderProps) {
+  const { formatMessage } = useIntl();
   const workspaceName =
     workspacePath
       .replace(/[\\/]+$/, "")
@@ -74,6 +85,20 @@ export function RemoteWorkspaceHeader({
               onClick={onMoreMenu}
             >
               <Ellipsis aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+        ) : null}
+        {onToggleSidePane ? (
+          <div className="flex shrink-0 items-center">
+            <button
+              type="button"
+              data-testid="side-pane-toggle"
+              aria-label={formatMessage({ id: "mobileShell.task.sidePaneExpand" })}
+              aria-expanded={sidePaneOpen ?? false}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+              onClick={onToggleSidePane}
+            >
+              <PanelRight aria-hidden="true" className="size-4" />
             </button>
           </div>
         ) : null}

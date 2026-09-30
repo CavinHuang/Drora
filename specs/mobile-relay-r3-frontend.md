@@ -1284,6 +1284,13 @@ Host attachment 的 `sendConversationCommandV4` 执行这些命令，不新建�
 cancel 精确 workId 且无 CAS；重复点击不重复下发；ACK 拒绝/网络失败不伪造成功；
 原状态面板按权威快照更新，不产生第二份 goal/backgroundWork 状态。
 
+本地真页面验证（2026-09-30，Host 桩 + relay + attachment，非真 CLI）：
+初始 `goal=active` 和运行中的 `work-e2e` 均出现在复用的状态面板；点击
+「暂停目标」后收到 Host `state.updated`，按钮变为「继续目标」；继续后按钮变回
+「暂停目标」；展开终端并点击「停止运行中的后台任务」后，Host 把该 work 改为
+`cancelled`，停止按钮消失。命令 schema、CAS/非 CAS 与失败收敛另有单测覆盖。
+真 CLI 的目标权限与取消结果仍需在实际桌面会话中验证。
+
 ### 23.8 P6 深度还原：官方 vs 实现 testid 对比 + composer 工具条（2026-09-30 第四轮）
 
 **对比方法**：官方 3.14.3 实机 DOM 保存稿（.tmp-work/official-live-mobile-chat.html，
@@ -1436,3 +1443,30 @@ Command palette）、**106 键值已一致**（仅注释升级"官方逐字（en
 **0 键官方无值**——en 侧从"语义补译"全线升级为"官方逐字"。zh 侧此前已官方逐字
 （§23.3）。深度还原六面对齐至此**双语逐字闭环**（除 SSH 三键/mode medium 等官方
 chunk 本身缺值键，已按语义补译注明）。门禁：161/161、build 绿。
+
+## 25. GitPane 一期立项（2026-09-30，基于产物取证）
+
+### 25.1 三面取证结论（本轮）
+
+- **组件**：`packages/ui/src/GitPane.tsx`（546 行）+ GitPaneChangeCard + helpers——
+  官方复原件存在，形态即官方（还原域，无需再取证 UI 形态）。
+- **服务**：`IGitService`（services/git/git.ts，ServiceChannels.Git="git"）13+ 方法
+  （getRepositorySummary/getChanges/getDiff/stagePaths/unstagePaths/…）——通道已在
+  （Host 对 web-remote-replayable 全量注册，§19 P5a）。
+- **缺口（接线真实成本）**：GitPane 深 耦 UI 包 Provider 树——useServices（服务上下文）
+  + useDroraStore + useGitRepository（564 行 git 数据派生 hook：变更聚合/diff 缓存/
+  source 分组）+ useFileContextActions。mobile-web 不挂 Root（§24 判定），需三选一：
+  (a) 移植 useGitRepository 派生层到 mobile-web（经桥 accessor 的 git 通道）；
+  (b) ServicesProvider 上下文桥接（把 taskSession.accessor 适配进 useServices 形状）；
+  (c) GitPane 改纯 props（gitState 已是 prop，但内部 hooks 仍直连——需上游重构，动
+  D6 冻结域，需官方证据支持）。
+
+### 25.2 一期范围建议（下轮执行）
+
+(a) 路线：mobile-web 新建 `useGitRepositoryRemote`（桥 accessor 消费 IGitService 的
+getChanges/getRepositorySummary 最小面）+ GitPane 挂载于 side-pane 开合容器
+（§23.15 的 toggle 已就位）+ Host 桩 git 通道（scripted getChanges 行）。验收：
+任务面 side-pane-toggle 点击 → git 变更列表渲染（真桥消费）+ stage/unstage 按钮
+不做（写命令一期后置）。工作量预估：useGitRepository 最小派生 ~150 行 + 桩 ~40 行
++ 装配 ~30 行。风险：useServices 在 GitPane 内部直连（非 props）——(a) 路线仍需
+ServicesProvider 最小壳（mock 空服务表 + git 实注入），需读 useServices 实现定壳形。

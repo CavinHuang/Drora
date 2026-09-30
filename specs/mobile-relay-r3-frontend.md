@@ -1703,3 +1703,31 @@ StatusPanel aside 共存。门禁：**164/164**、build 绿（789 assets）。
   lazy 化（React.lazy chunk）为收尾项（官方 SessionPane 即惰性 chunk 先例）。
 - capability 接线法累计**三例**（feedback/fork/commit-dialog+GitPane）——官方协议
   与复原件双前置查证 → 命令/壳 → 桩 → E2E 的标准作业已成熟。
+
+### 28.3 lazy 化完成（2026-09-30 续）——index 104KB 达标
+
+GitPane/GitActionMenu lazy 化（React.lazy+Suspense fallback=null，官方 SessionPane
+惰性 chunk 先例）落地：**index 主 chunk 1432→104KB**（≤500KB P5d 基线 ✓✓）；
+GitActionMenu 1072KB/RemoteConversationTimeline 1156KB 拆惰性 chunk 按需加载；
+796 assets。E2E 回归：toggle→lazy chunk 按需加载→GitPane 真 git 数据渲染+「提交或
+推送」触发器（lazy 姊妹件）同验 ✓。**回归白屏根因**：App.tsx named imports only
+（useCallback 等）——React.lazy/React.Suspense 的 React 标识符未导入→模块级
+ReferenceError 整树白屏；修=import * as React（一次修正全通）。
+
+## 29. UI 包复原件 × 接线状态终盘（2026-09-30，复用问题量化收口）
+
+消费树法（remote-timeline 出口的 import 传递闭包）替代组件名 grep（间接复用不漏）：
+**38/56 官方 v4 组件族已随 remote-timeline 出口全自动接线**（时间线全家桶：
+TurnGroup/RowView/Navigator/StatusPanel/FileSummaryPanel/HookDetails/PendingGuideList/
+WorkflowCompletion/Digests/QueuePanel/UserInput 三件/AgentToolCallRow/SelectionTooltip/
+FileRewindDialog/BottomDockTransition/…——lazy chunk 内按需激活）。真未接线 18 个
+语义归位：9 桌面工作台专属（SessionPane/V4ChatPane/V4WorkspaceChatArea/Workbench*
+/VaultView 等，§24 判定域外）+3 分享域（ShareReadonlyTimeline §22 排除+Selection
+域）+3 草稿域（DraftSuggested*，relay 无 createTask §19 分歧）+3 轻量对照点
+（MarkdownSelectionTooltip/WorkflowNotificationArtifactChips/V4InteractionDialogs
+——与 mobile-web 自持 InteractionCards 的形态对照候选）。
+
+**复用问题终答**：官方 v4 组件族复用率 68%（38/56）经一条窄出口零成本全自动达成；
+未接线 18 个均为域外/有意分歧/低价值对照点——复用架构收敛完成，无进一步强接价值。
+生产页活体对照（§26）：chat-summary-panel=最新消息摘要浮层——并行 StatusPanel
+复用件语义一致，方向验证正确。

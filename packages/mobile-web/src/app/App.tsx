@@ -319,17 +319,20 @@ function AppBody() {
 
   // P6 新建任务解封（spec §30，capability 第四例）：createSession → ACK sessionId →
   // 打开新任务面（桌面同语义：空会话，首输走 composer）。
-  const handleNewTask = useCallback(() => {
-    const accessor = homeBridgeAccessorRef.current;
-    const ws = liveWorkspaces[0];
-    if (!accessor || !ws) return;
-    activeAccessorRef.current = accessor;
-    void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
-      .then(({ sessionId, title }) =>
-        openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
-      )
-      .catch(() => {});
-  }, [liveWorkspaces, openTask]);
+  const handleNewTask = useCallback(
+    (workspace?: { workspaceKey: string; path: string }) => {
+      const accessor = homeBridgeAccessorRef.current;
+      const ws = workspace ?? liveWorkspaces[0];
+      if (!accessor || !ws) return;
+      activeAccessorRef.current = accessor;
+      void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
+        .then(({ sessionId, title }) =>
+          openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
+        )
+        .catch(() => {});
+    },
+    [liveWorkspaces, openTask],
+  );
   const backHome = useCallback(() => {
     storeUnsubscribeRef.current?.();
     storeUnsubscribeRef.current = null;
@@ -638,6 +641,7 @@ function AppBody() {
       selectedTaskId={selectedTaskId}
       isRefreshing={false}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+      onWorkspaceNewTask={(workspace) => void handleNewTask(workspace)}
       onSearchFiles={(query) => {
         const accessor = homeBridgeAccessorRef.current;
         if (!accessor) return Promise.resolve([]);

@@ -51,6 +51,8 @@ export interface HomeScreenProps {
   >;
   /** 文件结果行点击（插入 composer 引用；装配归调用方）。 */
   onFileSelect?: (entry: { path: string; relativePath: string }) => void;
+  /** P6 新建任务（spec §30）：工作区组"+"按钮 → createSession（capability 第四例）。 */
+  onWorkspaceNewTask?: (workspace: { workspaceKey: string; path: string }) => void;
 }
 
 export function HomeScreen(props: HomeScreenProps) {
@@ -91,6 +93,7 @@ export function HomeScreen(props: HomeScreenProps) {
         onThemePress={props.onThemePress}
         onLanguagePress={props.onLanguagePress}
         onReconnect={props.onReconnect}
+        onWorkspaceNewTask={props.onWorkspaceNewTask}
       />
       {organizeMenuOpen ? (
         <div className="absolute right-3 top-14 z-20">

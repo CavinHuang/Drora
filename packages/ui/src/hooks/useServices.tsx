@@ -22,6 +22,7 @@ export function ServiceProvider({
   (globalThis as { __prov?: string[] }).__prov ??= [];
   const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
   prov.push("provider:" + __svcModuleId);
+  (globalThis as { __provActive?: boolean }).__provActive = true;
   return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
 }
 

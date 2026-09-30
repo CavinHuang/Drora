@@ -8,12 +8,12 @@
 // 组件内建支持；本壳默认 header 布局挂 RemoteWorkspaceHeader 右区。
 import * as React from "react";
 import { GitActionMenu } from "@drora/ui/git-pane";
-import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
-import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
-import { ServiceProvider } from "@/hooks/useServices.js";
-import { StoreProvider } from "@/store/StoreProvider.js";
-import { TabStoreProvider } from "@/store/TabStoreProvider.js";
+import { DroraIntlProvider } from "@drora/ui/git-pane";
+import { TooltipProvider } from "@drora/ui/git-pane";
+import { PluginReferenceIconProvider } from "@drora/ui/git-pane";
+import { ServiceProvider } from "@drora/ui/git-pane";
+import { StoreProvider } from "@drora/ui/git-pane";
+import { TabStoreProvider } from "@drora/ui/git-pane";
 import type { IServiceAccessor, IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
 import type { GitRepositorySummary } from "@drora/shared";
@@ -61,6 +61,11 @@ export function RemoteGitActionMenu({
           <PluginReferenceIconProvider value={null}>
             <TabStoreProvider>
               <StoreProvider broadcastService={MOCK_BROADCAST}>
+                {(() => {
+                  (globalThis as { __prov?: string[] }).__prov ??= [];
+                  (globalThis as { __prov?: string[] }).__prov.push("provider:" + __modId);
+                  return null;
+                })()}
                 <ServiceProvider services={accessor}>
                   <GitActionMenu
                     workspacePath={workspacePath}

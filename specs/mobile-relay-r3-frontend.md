@@ -846,3 +846,80 @@ ChannelClient 永等初始化。修正后任务面全链路+交互卡在无头�
 归下轮首查，不阻塞本期收口。
 
 **交互卡 + 停止 + 活性**三项均已在真桩上渲染/可交互，真 CLI runtime 验收归真机。
+
+## 20. P5c 订阅首帧时序修正（2026-09-30）
+
+现有移动首页 `onDynamicSessionsIndexFrame` 在 `subscribeSessionsIndexV4` ACK 之前就挂上，
+但 `sessionsIndexStore.acceptWireFrame` 在 `subscriptionId=null` 时丢弃全部帧。
+CLI 可以在 ACK 返回前发布 initial snapshot；桌面同类观察器已经用有界暂存处理该
+时序（`windowHostSessionsIndexObserver.ts`）。因此移动首页若只收到这一帧，会始终保留
+bootstrap 的任务状态。旧无头桩另有一个验证问题：它发出的 sessions-index 帧缺少
+`payload.kind=snapshot` 等逻辑帧字段，不能用它单独证明生产链路根因。
+
+本期规则：帧事件先于订阅请求挂载；ACK 前按 topic 有界暂存 wire 候选（最多 1024
+帧、32 MiB，超界整批作废）；ACK 后登记 store 的 subscriptionId，再只回放同一
+subscriptionId 的暂存帧。不同 topic/订阅的候选不参与状态；关闭、订阅失败清空暂存。
+topic 统一由 shared 的 `sessionsIndexTopic(workspaceKey)` 构造，桥与 store 不各自拼接。
+暂存只属于手机页面传输层，不保存 Host 任务真相，后续 delta 仍由 store 水位守卫。
+验收：initial snapshot 在 ACK 前到达仍能把任务行由 completed 改为 running；
+错误订阅与超界批次不能污染状态；真实浏览器回归覆盖移动首页与宽视口。
+
+## 21. P5c 双视口活性归一（2026-09-30）
+
+当前 sessions-index 桥由 `HomeScreen` 持有；宽视口走 `WideShell`，不渲染
+`HomeScreen`，侧栏任务状态因而一直停留在 bootstrap 投影。订阅生命周期上提到
+`App` 装配层，由一个 hook 持有工作区桥注册表及摘要投影；两种视口消费同一份合并
+结果。工作区 key 集未变时刷新投影不重开桥，视口切换也不改变订阅所有者。
+
+事件顺序：配对/bootstrap → App 按工作区打开桥 → 帧面先于订阅 → ACK 认领首帧 →
+store 更新摘要 → 合并 bootstrap/list 投影 → 手机首页与宽侧栏同时显示活性。
+任务面打开期间宽侧栏仍需活性，因此桥随 App 生命周期存在，直到工作区移除或 App
+卸载；窄任务面不会重复开桥。Host/CLI 仍是业务状态唯一所有者，App 只持有展示投影。
+在途开桥按工作区 key 配 token；工作区移除时使旧 token 失效，迟到桥只释放不订阅。
+错误相位在当前 UI 闭集收口为 completed，后续独立呈现另行决策。
+
+验收：同一 initial snapshot 在 414px 首页和 1280px 侧栏均显示 running；
+切换断点不重复订阅；任务打开后宽侧栏仍可接收更新；移除工作区释放对应桥。
+
+本轮验证：把无头 Host 桩的 bootstrap 行固定为 completed，并在订阅 ACK 前发出
+符合 shared schema 的 running initial wire。内置浏览器中，414px 首页显示「运行中」，
+1280px 侧栏显示运行标记；视口切换后 relay 日志未出现第二次首页开桥。任务打开时
+宽侧栏仍保留运行态。该桩只有一个 Host 端口，任务开桥会替换首页端口，因此不能用
+它证明任务打开后的增量持续到达；该场景留待真 Host 双 attachment 验收。
+
+## 22. 远控消息列表复用官方 v4 时间线（2026-09-30）
+
+原版宽视口页面保存稿 `.tmp-work/official-live-wide.html` 含
+`data-v4-timeline-scroll`、`data-v4-turn-unit`、`data-v4-running-live-tail`；
+这些标记与 `packages/ui/src/v4/ConversationTimeline.tsx` 一致，且没有分享页
+`data-conversation-share-timeline`。所以任务中间区域使用同一套实时 v4 时间线，
+不能继续以 `mobile-web/src/ui/TaskTimeline.tsx` 的简化行渲染作为最终实现。
+
+本节对 D6 的 UI 自包含原则开一处受控例外：`mobile-web` 只通过
+`@drora/ui/remote-timeline` 公开入口装配 `ConversationTimeline`，不深引 UI 实现文件；
+其余移动壳、composer、连接状态、交互卡仍归 `mobile-web`。UI 包新增薄包装器，
+提供 intl、tooltip、默认代码预览等展示上下文；不持有任务真相、relay 或服务引用。
+会话快照及其行窗口唯一所有者仍是 `mobile-web` 的 conversation store。
+
+事件顺序：Host snapshot/delta → store 校验纪元与水位 → App 订阅读取 rows、
+totalCount、phase → 包装器只读渲染。切换 sessionId 时重建时间线实例，隔离滚动锚点；
+时间线自有滚动容器，移动壳不得再包第二层滚动或按每帧强制贴底。
+缺省渲染无副作用动作：不能在手机上展示未接线的编辑、重试或文件操作按钮。
+
+验收：公开入口与架构依赖合法；构建产物的任务面出现
+`data-v4-timeline-scroll` 与 `data-v4-turn-unit`，桌面/手机宽度均无空白或双滚动；
+发送、流式增量、交互卡和 composer 保持工作；未打开任务的首页不加载重型时间线代码。
+共享 UI 的服务默认地址和设置文案随代码进入惰性 chunk 时，构建步骤仅在远控产物中
+把默认地址改为当前页面 origin，并移除上游域名文案；源码保持上游可追踪。
+语法高亮的按需语言包由构建器拆成独立 chunk；体积验收以首页初始加载和任务
+初始加载的实际网络请求为准，不能用所有可选语言包的磁盘总和代替首屏传输量。
+
+### P5c 活性合并渲染验证（内置浏览器，2026-09-30）
+
+ZCode 内置浏览器（IAB，414×896，Playwright evaluate）复验：**活性合并生效**——
+首页任务行显示「E2E 冒烟任务 1分 **运行中**」（sessions-index 相位覆盖投影态）；
+任务面全要素：今天分桶 + 运行中轮 pill + 双气泡 + FileChangesBar(+12 -3) +
+队列横幅 + stub-model + 用量徽标（5120/12.8万 4%）+ 停止按钮 + 排队占位。
+此前的"未生效"判定是 agent-browser CLI 截图时序 + 旧构建缓存的误报；IAB 域内
+evaluate 可靠穿透。工具链结论：IAB（内置浏览器）为无头验收首选（Playwright
+evaluate/domSnapshot 完整可用），agent-browser CLI 降级为备份。

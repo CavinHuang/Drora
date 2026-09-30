@@ -5,6 +5,9 @@
     "rootDir": "src",
     "lib": ["es2024", "dom", "dom.iterable"],
     "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["../ui/src/*"]
+    },
     "noEmit": true
   },
   "include": ["src"],
@@ -13,6 +16,7 @@
     { "path": "../rpc" },
     { "path": "../services" },
     { "path": "../client" },
-    { "path": "../relay-client" }
+    { "path": "../relay-client" },
+    { "path": "../ui" }
   ]
 }

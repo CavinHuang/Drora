@@ -20,6 +20,7 @@ import type { IServiceAccessor, ModelSelectionView } from "@drora/services";
 import {
   MAX_PERMISSION_FEEDBACK_CHARS,
   V4_WIRE_PROTOCOL_VERSION,
+  sessionsIndexTopic,
   type ClientHello,
   type CommandAck,
   type CommandEnvelope,
@@ -32,10 +33,8 @@ import type { RelayClient } from "@drora/relay-client";
 import { connectViaProtocol } from "@drora/client";
 import { createRelayMessageProtocol } from "./protocolAdapter.js";
 import { createConversationStore, type ConversationStore } from "./conversationStore.js";
-import {
-  createSessionsIndexStore,
-  type SessionsIndexStore,
-} from "./sessionsIndexStore.js";
+import { createInitialFrameGate } from "./sessionsIndexInitialFrameGate.js";
+import { createSessionsIndexStore, type SessionsIndexStore } from "./sessionsIndexStore.js";
 
 export interface TaskSessionTarget {
   workspacePath: string;
@@ -130,6 +129,11 @@ export class TaskSession {
   /** 行只读出口；store 单一所有者（快照窗口优先，首帧收敛前回落 rowsRange 回补窗口）。 */
   get rows(): ConversationRow[] {
     return this.store.getRows();
+  }
+
+  /** 时间线全序行数由 Host 快照提供；首帧前只展示当前回补窗口。 */
+  get totalRowCount(): number {
+    return this.store.getState().snapshot?.rows.totalCount ?? this.store.getRows().length;
   }
 
   /** 开桥 + v4 握手（hello → clientHello）+ 流式订阅 + 尾窗行回补。 */
@@ -268,8 +272,7 @@ export class TaskSession {
       clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "stop" as const,
-      payload:
-        typeof expected === "string" ? { expectedForegroundExecutionId: expected } : {},
+      payload: typeof expected === "string" ? { expectedForegroundExecutionId: expected } : {},
       issuedAt: Date.now(),
     };
     await this.accessor.droraAgentService.sendConversationCommandV4({
@@ -521,7 +524,7 @@ export async function searchTasks(
         ...(item.workspaceIdentity ? { workspaceIdentity: item.workspaceIdentity } : {}),
       };
     });
-    } catch {
+  } catch {
     // 只读搜索降级：不区分失败原因（理由见方法注释），空态呈现即可重试。
     return [];
   }
@@ -571,8 +574,8 @@ export interface HomeSessionsIndexBridge {
  * 事件顺序（专用桥路径）：workspace-bridge-open → hello/clientHello 握手（每条 attachment
  * 恰一次，TaskSession.open 同款 mobileRemote 语义）→ 挂 onDynamicSessionsIndexFrame 帧面 →
  * 返回句柄；start() → subscribeSessionsIndexV4 ACK → store.setSubscription。ACK 前到达的
- * 帧因 subscriptionId 未登记被 store 静默丢弃（与任务面同款有意分歧：依赖 initial
- * snapshot 收敛）；断档经 store 闩锁 → resyncSessionsIndexV4(forceSnapshot) 兜底。
+ * initial wire 有界暂存，ACK 认领后回放；断档经 store 闩锁 →
+ * resyncSessionsIndexV4(forceSnapshot) 兜底。
  *
  * 失败语义：开桥/握手失败上抛（结构性失败，半开桥已释放）；start 的订阅失败不上抛
  * （existing-only 的 unavailable 是稳定态而非故障，降级为无活性投影）。
@@ -617,6 +620,10 @@ export async function openHomeSessionsIndexBridge(
       resync().catch(() => {});
     },
   });
+  const frameGate = createInitialFrameGate({
+    topic: sessionsIndexTopic(workspaceKey),
+    onOwnedFrame: (candidate) => store.acceptWireFrame(candidate),
+  });
 
   if (!accessor) {
     const bridge = await client.openWorkspaceBridge({ workspaceKey });
@@ -643,11 +650,12 @@ export async function openHomeSessionsIndexBridge(
     }
   }
 
-  // 帧面先就位（缩小 ACK 竞窗，TaskSession.beginStreaming 同序）；wire 候选直接交给
-  // store：解码/分片重组/守卫都在 store 内。
-  frameSubscription = accessor.droraAgentService.onDynamicSessionsIndexFrame(target)((candidate) => {
-    store.acceptWireFrame(candidate);
-  });
+  // 帧面先于订阅就位；首帧可能早于 ACK，归属未确定时交给有界 gate 暂存。
+  frameSubscription = accessor.droraAgentService.onDynamicSessionsIndexFrame(target)(
+    (candidate) => {
+      frameGate.accept(candidate);
+    },
+  );
 
   async function unsubscribeQuiet(): Promise<void> {
     if (!accessor || !subscriptionId) return;
@@ -668,6 +676,7 @@ export async function openHomeSessionsIndexBridge(
     async start(): Promise<string | null> {
       if (closed || !accessor) return null;
       if (subscriptionId) return subscriptionId;
+      frameGate.clear();
       try {
         const result = await accessor.droraAgentService.subscribeSessionsIndexV4({
           ...target,
@@ -682,14 +691,26 @@ export async function openHomeSessionsIndexBridge(
           subscriptionId = result.ack.subscriptionId;
           await unsubscribeQuiet();
           subscriptionId = null;
+          frameGate.clear();
+          return null;
+        }
+        const initial = frameGate.claim(result.ack.subscriptionId);
+        if (initial === null) {
+          // 首帧暂存超界：整批作废并撤销订阅，避免半个 snapshot 变成权威状态。
+          subscriptionId = result.ack.subscriptionId;
+          await unsubscribeQuiet();
+          subscriptionId = null;
+          frameGate.clear();
           return null;
         }
         subscriptionId = result.ack.subscriptionId;
         store.setSubscription(result.ack);
+        for (const candidate of initial) store.acceptWireFrame(candidate);
         return subscriptionId;
       } catch {
         // existing-only 稳定拒绝（runtime 不存在/目标缺席）：降级为投影数据，
         // 不重试、不拉起 runtime（理由见接口注释）。
+        frameGate.clear();
         return null;
       }
     },
@@ -700,6 +721,7 @@ export async function openHomeSessionsIndexBridge(
       // （复用任务桥 accessor 时 bridgeSessionId 为 null，桥归 TaskSession 所有不动）。
       frameSubscription?.dispose();
       frameSubscription = null;
+      frameGate.clear();
       await unsubscribeQuiet();
       subscriptionId = null;
       if (bridgeSessionId) client.releaseBridge(bridgeSessionId);

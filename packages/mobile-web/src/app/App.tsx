@@ -2,7 +2,7 @@
 // 状态所有者：连接/配对 = RelaySession；会话行/交互/模型/用量 = conversation store 派生；
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   mobileFailureCodeFromWire,
   MobileConnectionStatusCard,
@@ -15,10 +15,7 @@ import {
   IntlProvider,
   resolveLocale,
   storeLocale,
-  useIntl,
-  type MobileLocale,
 } from "../ui/intl.js";
-import { TaskTimeline } from "../ui/TaskTimeline.js";
 import { InteractionCards, type InteractionAnswer } from "../ui/InteractionCards.js";
 import { FileChangesBar } from "../ui/FileChangesBar.js";
 import {
@@ -28,6 +25,7 @@ import {
   type ProjectedWorkspace,
 } from "./entry.js";
 import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
+import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { WideShell } from "../ui/wide/WideShell.js";
 import { useWideViewport } from "../ui/wide/useWideViewport.js";
@@ -46,6 +44,13 @@ import type { ModelSelectionView } from "@drora/services";
 import type { RelayClient } from "@drora/relay-client";
 declare const __MOBILE_APP_VERSION__: string;
 
+// 中间消息列表与桌面同源；仅进入任务面时加载重型行渲染子树。
+const RemoteConversationTimeline = lazy(() =>
+  import("@drora/ui/remote-timeline").then((module) => ({
+    default: module.RemoteConversationTimeline,
+  })),
+);
+
 type Phase =
   | { kind: "loading"; step: "connecting" | "authenticating" | "waiting" | "paired" }
   | { kind: "home" }
@@ -59,6 +64,11 @@ function AppBody() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskTitle, setTaskTitle] = useState<string>("");
   const [taskRows, setTaskRows] = useState<ConversationRow[]>([]);
+  const [taskTotalCount, setTaskTotalCount] = useState(0);
+  const [taskTarget, setTaskTarget] = useState<{ path: string; identity?: string } | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    document.documentElement.classList.contains("dark") ? "dark" : "light",
+  );
   const [controlState, setControlState] = useState<ConversationControlState | null>(null);
   const [pendingInteractions, setPendingInteractions] = useState<readonly PendingInteraction[]>([]);
   const [queueState, setQueueState] = useState<ConversationQueueState | null>(null);
@@ -75,10 +85,15 @@ function AppBody() {
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
   const storeUnsubscribeRef = useRef<(() => void) | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   // P5b 宽视口（spec §19）：官方断点 (max-width: 767px) 取反——≥768px 交 WideShell
   // 全壳（侧栏+主区），<768px 维持既有单列壳（零回归）。
   const wideViewport = useWideViewport();
+  const openHomeBridge = useCallback((workspacePath: string, workspaceIdentity?: string) => {
+    const client = clientRef.current;
+    if (!client) return Promise.reject(new Error("relay client is not connected"));
+    return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity);
+  }, []);
+  const liveWorkspaces = useHomeSessionsIndex(workspaces, openHomeBridge);
 
   const fail = useCallback((wireReason: string, detail: string | null, retryable: boolean) => {
     setPhase({ kind: "failure", wireReason, detail, retryable });
@@ -163,6 +178,11 @@ function AppBody() {
       setSelectedTaskId(sessionId);
       setTaskTitle(title);
       setTaskRows([]);
+      setTaskTotalCount(0);
+      setTaskTarget({
+        path: workspace.path,
+        ...(workspace.workspaceKey !== workspace.path ? { identity: workspace.workspaceKey } : {}),
+      });
       setPhase({ kind: "task" });
       try {
         const session = await TaskSession.open(
@@ -180,6 +200,7 @@ function AppBody() {
         // P3a/P3b：store 订阅驱动（快照/增量帧到达即同步行、composer 状态与交互卡）。
         const syncFromStore = () => {
           setTaskRows([...session.rows]);
+          setTaskTotalCount(session.totalRowCount);
           setControlState(session.getControlState());
           setPendingInteractions(session.getPendingInteractions());
           setQueueState(session.getQueueState());
@@ -217,6 +238,7 @@ function AppBody() {
     taskRef.current?.close();
     taskRef.current = null;
     setControlState(null);
+    setTaskTarget(null);
     setPendingInteractions([]);
     setQueueState(null);
     setFileChanges(null);
@@ -271,6 +293,7 @@ function AppBody() {
 
   const toggleTheme = useCallback(() => {
     const dark = document.documentElement.classList.toggle("dark");
+    setTheme(dark ? "dark" : "light");
     try {
       localStorage.setItem("drora-mobile-theme", dark ? "dark" : "light");
     } catch {
@@ -287,8 +310,8 @@ function AppBody() {
   // —— 渲染 ——
 
   // P3a/P3b：富时间线 + 交互卡（权限/问答置顶）+ 文件变更统计条。
-  const timeline = (
-    <div>
+  const timelineHeader = (
+    <>
       <InteractionCards
         interactions={pendingInteractions}
         busy={answering}
@@ -300,14 +323,26 @@ function AppBody() {
         deletions={fileChanges?.deletions ?? null}
         className="px-3 pt-1"
       />
-      <TaskTimeline rows={taskRows} now={Date.now()} />
-    </div>
+    </>
   );
 
-  useEffect(() => {
-    // stick-to-bottom（行变化即贴底；流式期间随帧重渲染跟随）。
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [taskRows]);
+  const timeline = taskTarget && selectedTaskId ? (
+    <Suspense fallback={<div className="min-h-0 flex-1" />}>
+      <RemoteConversationTimeline
+        key={selectedTaskId}
+        rows={taskRows}
+        totalCount={taskTotalCount}
+        sessionKey={selectedTaskId}
+        workspacePath={taskTarget.path}
+        workspaceIdentity={taskTarget.identity}
+        locale={resolveLocale()}
+        theme={theme}
+        sessionPhase={controlState?.phase ?? undefined}
+        modelSelectionView={modelView}
+        headerSlot={timelineHeader}
+      />
+    </Suspense>
+  ) : null;
 
   if (phase.kind === "loading") {
     const stepToPhase = {
@@ -343,7 +378,7 @@ function AppBody() {
       <MobileTaskShell
         title={taskTitle}
         onBack={backHome}
-        timelineScrollRef={scrollRef}
+        timelineOwnsScroll
         timeline={timeline}
         composer={
           <TaskComposer
@@ -388,7 +423,7 @@ function AppBody() {
     return (
       <WideShell
         connection={connection}
-        workspaces={workspaces}
+        workspaces={liveWorkspaces}
         selectedTaskId={selectedTaskId}
         isRefreshing={isRefreshing}
         taskSurface={taskShell}
@@ -408,14 +443,9 @@ function AppBody() {
   return (
     <HomeScreen
       connection={connection}
-      workspaces={workspaces}
+      workspaces={liveWorkspaces}
       selectedTaskId={selectedTaskId}
       isRefreshing={isRefreshing}
-      openSessionsIndexBridge={(workspacePath, workspaceIdentity) => {
-        const client = clientRef.current;
-        if (!client) return Promise.reject(new Error("relay client is not connected"));
-        return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity);
-      }}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
       onRefresh={() => void refresh()}
       onThemePress={toggleTheme}

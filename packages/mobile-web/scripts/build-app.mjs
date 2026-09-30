@@ -5,7 +5,7 @@
 // dist 语义（spec §13.4）：dist = 源码应用产物；快照回退根是 src/recovered（build:snapshot
 // 的产物历史上也写 dist，P2a 起快照不再复制进 dist，由 relay-server 直接读 src/recovered）。
 import { spawn } from "node:child_process";
-import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,7 +39,19 @@ const viteAssets = join(viteOut, "assets");
 const entries = await readdir(viteAssets);
 let assetCount = 0;
 for (const name of entries) {
-  await cp(join(viteAssets, name), join(assetsTarget, name));
+  const source = join(viteAssets, name);
+  const target = join(assetsTarget, name);
+  if (name.endsWith(".js")) {
+    const code = await readFile(source, "utf8");
+    // 共享 UI 时间线静态依赖的服务默认地址与设置文案会进入惰性 chunk。
+    // 手机远控只允许当前来源；把服务默认值改为页面 origin，文案去掉上游域名。
+    const localCode = code
+      .replaceAll("`https://zcode.z.ai`", "(globalThis.location?.origin??'')")
+      .replaceAll("zcode.z.ai", "Drora");
+    await writeFile(target, localCode);
+  } else {
+    await cp(source, target);
+  }
   assetCount += 1;
 }
 for (const name of await readdir(viteOut, { withFileTypes: true })) {

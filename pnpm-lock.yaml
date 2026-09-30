@@ -876,6 +876,9 @@ importers:
       '@drora/shared':
         specifier: workspace:*
         version: link:../shared
+      '@drora/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@types/dompurify':
         specifier: 3.2.0
         version: 3.2.0

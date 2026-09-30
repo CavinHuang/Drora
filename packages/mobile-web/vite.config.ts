@@ -13,6 +13,9 @@ const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json")
 
 export default defineConfig({
   root: resolve(import.meta.dirname, "src/app"),
+  resolve: {
+    alias: { "@": resolve(import.meta.dirname, "../ui/src") },
+  },
   base: "/remote/v4/3.14.3/",
   plugins: [react(), tailwindcss()],
   define: {
@@ -22,16 +25,15 @@ export default defineConfig({
   build: {
     outDir: resolve(import.meta.dirname, ".vite-out"),
     emptyOutDir: true,
-    // 官方单文件 6.2MB 是反面教材（spec §6）：依赖分包，应用与 vendor 分离。
-    // vite 8（rolldown）的 manualChunks 只收函数形态。
+    // 时间线包含按需加载的语法高亮语言包；不能把全部 node_modules 强制并进
+    // vendor，否则所有语言包都会在任务面首屏同步加载。
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           // Windows/posix 路径分隔都命中：字符类 = 反斜杠 + 斜杠。
           if (/[\\/]react-dom[\\/]|[\\/]react[\\/]|[\\/]scheduler[\\/]/.test(id)) return "react";
-          if (id.includes("@drora/rpc") || id.includes("@drora/client")) return "rpc";
-          return "vendor";
+          return undefined;
         },
       },
     },

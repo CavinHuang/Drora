@@ -16,6 +16,7 @@
     "@drora/rpc": "workspace:*",
     "@drora/services": "workspace:*",
     "@drora/shared": "workspace:*",
+    "@drora/ui": "workspace:*",
     "@types/dompurify": "3.2.0",
     "dompurify": "3.4.5",
     "marked": "16.4.2",

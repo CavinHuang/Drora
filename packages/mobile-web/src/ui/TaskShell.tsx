@@ -17,6 +17,8 @@ export interface MobileTaskShellProps {
   composer?: ReactNode;
   /** 时间线滚动容器 ref：stick-to-bottom / 滚动定位由调用方控制。 */
   timelineScrollRef?: Ref<HTMLDivElement>;
+  /** 时间线组件自带滚动视口时避免双层滚动。 */
+  timelineOwnsScroll?: boolean;
   /** 连接中断提示（如重新连接中文案由装配方注入）。 */
   connectionBanner?: ReactNode;
   className?: string;
@@ -29,6 +31,7 @@ export function MobileTaskShell({
   timeline,
   composer,
   timelineScrollRef,
+  timelineOwnsScroll = false,
   connectionBanner,
   className,
 }: MobileTaskShellProps) {
@@ -78,7 +81,14 @@ export function MobileTaskShell({
             {connectionBanner}
           </div>
         ) : null}
-        <div ref={timelineScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          ref={timelineOwnsScroll ? undefined : timelineScrollRef}
+          className={
+            timelineOwnsScroll
+              ? "flex min-h-0 min-w-0 flex-1 flex-col"
+              : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          }
+        >
           {timeline}
         </div>
       </div>

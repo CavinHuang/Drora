@@ -16,6 +16,7 @@
 // sessions-index 只并活性字段（status/updatedAt 覆盖，title 以 titleSource==="custom"
 // 为权威），draft 剔除、投影外行不新增。
 import {
+  sessionsIndexTopic,
   sessionsIndexTopicFrameSchema,
   TopicWireFrameAssembler,
   type SessionPhase,
@@ -66,7 +67,7 @@ export interface SessionsIndexStore {
 export function createSessionsIndexStore(options: SessionsIndexStoreOptions): SessionsIndexStore {
   // topic 与 CLI 侧一致：sessions-index/<workspaceKey>（桌面 agentSessionsIndexTransport
   // 同构：sessionsIndexTopic(identity?.trim() || path)）。
-  const topic = `sessions-index/${options.workspaceKey}`;
+  const topic = sessionsIndexTopic(options.workspaceKey);
   let seq = 0;
   let logEpoch: string | null = null;
   let subscriptionId: string | null = null;
@@ -141,8 +142,8 @@ export function createSessionsIndexStore(options: SessionsIndexStoreOptions): Se
 
     acceptWireFrame(candidate: unknown): void {
       // ownership 过滤先于 assembler（与任务面 conversationStore 同序）：非对象、非本订阅、
-      // 非本 topic 的候选在这里静默丢弃；ACK 未返回时（subscriptionId=null）一律丢弃
-      // （无 barrier 暂存，与任务面同款有意分歧：依赖 initial snapshot 收敛）。
+      // 非本 topic 的候选在这里静默丢弃。首页桥在 ACK 前暂存并在登记订阅后回放；
+      // store 自身无订阅所有权时仍必须拒绝候选，不能把传输暂存当作业务状态。
       if (typeof candidate !== "object" || candidate === null) return;
       const wire = candidate as { kind?: unknown; topic?: unknown; subscriptionId?: unknown };
       if (wire.kind !== "complete" && wire.kind !== "fragment") return;

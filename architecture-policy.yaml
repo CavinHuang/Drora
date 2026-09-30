@@ -47,7 +47,7 @@ modules:
   - id: mobile-web
     roots: [packages/mobile-web/scripts, packages/mobile-web/src]
     managed: false
-    requires: [shared, rpc, client, services, relay-client]
+    requires: [shared, rpc, client, services, relay-client, ui]
   - id: drora-server-cli
     roots: [packages/drora-server-cli/src]
     managed: false

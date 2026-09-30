@@ -298,6 +298,7 @@ export function MobileComposerStateBar({
   return (
     <button
       type="button"
+      data-testid="v4-stop"
       className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-destructive text-destructive-foreground disabled:opacity-50"
       disabled={stopping}
       aria-label={formatMessage({ id: "chat.stop.short" })}

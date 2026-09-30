@@ -492,4 +492,18 @@ export const enUS: Record<string, string> = {
   "sidePane.workflowRun": "Workflow run", // en 补译（zh 官方逐字）
   "sidePane.workflowScript": "Script step", // en 补译（zh 官方逐字）
   "common.cancel": "Cancel", // 官方 locale chunk 逐字
+  "mode.label.glm.default": "Default", // 官方逐字
+  "mode.label.glm.plan": "Plan mode", // 官方逐字
+  "mode.label.glm.edit": "Edit automatically", // 官方逐字
+  "mode.label.glm.build": "Ask before changes", // 官方逐字
+  "mode.label.glm.yolo": "Full access", // 官方逐字
+  "chat.toolbar.thoughtLevel.label": "Reasoning effort", // 官方逐字
+  "chat.toolbar.thoughtLevel.placeholder": "Select thought level", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.low": "Low", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.medium": "Medium", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.high": "High", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.max": "Max", // 官方逐字
+  "chat.attachments.add": "Add attachment", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.off": "Off", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.minimal": "Minimal", // 官方逐字
 };

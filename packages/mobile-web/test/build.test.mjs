@@ -62,7 +62,7 @@ test("i18n：zh-CN / en-US 键集同构", async () => {
   assert.deepEqual({ zhOnly, enOnly }, { zhOnly: [], enOnly: [] });
 });
 
-test("自包含边界：仅任务时间线装配缝可导入 UI（D6 §22 例外）", async () => {
+test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例外）", async () => {
   const walk = async (dir) => {
     const out = [];
     for (const entry of await readdir(dir, { withFileTypes: true })) {

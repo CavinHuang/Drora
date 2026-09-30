@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 远控连接、首页和任务面由同一个根组件装配，状态面板只接入现有订阅镜像。 */
 // R3 P2a/P3 应用装配：四步卡 → 首页（HomeScreen，应用帧数据）→ 任务面（服务面流式）→ 失败卡。
 // 状态所有者：连接/配对 = RelaySession；会话行/交互/模型/用量 = conversation store 派生；
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
@@ -35,6 +36,7 @@ import type {
 } from "./conversationStore.js";
 import type {
   ConversationRow,
+  ConversationSnapshot,
   PendingInteraction,
   V4ConversationFileChangesResult,
 } from "@drora/shared/drora-protocol-v4";
@@ -56,6 +58,7 @@ function AppBody() {
   const [taskTitle, setTaskTitle] = useState<string>("");
   const [taskRows, setTaskRows] = useState<ConversationRow[]>([]);
   const [taskTotalCount, setTaskTotalCount] = useState(0);
+  const [statusSnapshot, setStatusSnapshot] = useState<ConversationSnapshot | null>(null);
   const [taskTarget, setTaskTarget] = useState<{ path: string; identity?: string } | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     document.documentElement.classList.contains("dark") ? "dark" : "light",
@@ -72,6 +75,8 @@ function AppBody() {
   const [modelLoading, setModelLoading] = useState(false);
   const [modelView, setModelView] = useState<ModelSelectionView | null>(null);
   const [modelState, setModelState] = useState<ModelSelectionState | null>(null);
+  // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
+  const [configMode, setConfigMode] = useState<string | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
   const { loadingOlder, loadOlder, resetOlder } = useTaskHistory(taskRef);
@@ -170,6 +175,7 @@ function AppBody() {
       setTaskTitle(title);
       setTaskRows([]);
       setTaskTotalCount(0);
+      setStatusSnapshot(null);
       resetOlder();
       setTaskTarget({
         path: workspace.path,
@@ -193,10 +199,13 @@ function AppBody() {
         const syncFromStore = () => {
           setTaskRows([...session.rows]);
           setTaskTotalCount(session.totalRowCount);
+          setStatusSnapshot(session.getStatusSnapshot());
           setControlState(session.getControlState());
           setPendingInteractions(session.getPendingInteractions());
           setQueueState(session.getQueueState());
           setModelState(session.getModelSelectionState());
+          // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
+          setConfigMode(statusSnapshot?.config.mode ?? null);
         };
         syncFromStore();
         storeUnsubscribeRef.current?.();
@@ -230,6 +239,7 @@ function AppBody() {
     taskRef.current?.close();
     taskRef.current = null;
     setControlState(null);
+    setStatusSnapshot(null);
     setTaskTarget(null);
     resetOlder();
     setPendingInteractions([]);
@@ -237,6 +247,7 @@ function AppBody() {
     setFileChanges(null);
     setModelMenuOpen(false);
     setModelState(null);
+    setConfigMode(null);
     setModelView(null);
     setPhase({ kind: "home" });
     void refresh();
@@ -315,6 +326,7 @@ function AppBody() {
         modelView={modelView}
         modelLoading={modelLoading}
         modelMenuOpen={modelMenuOpen}
+        configMode={configMode}
         onDraftChange={setDraft}
         onSend={() => void sendDraft()}
         onStop={() => void stopGeneration()}
@@ -351,6 +363,7 @@ function AppBody() {
         theme={theme}
         sessionPhase={controlState?.phase ?? undefined}
         modelSelectionView={modelView}
+        statusSnapshot={statusSnapshot}
         interactions={pendingInteractions}
         answering={answering}
         onResolve={(interactionId, answer) => void resolveInteraction(interactionId, answer)}

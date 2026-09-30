@@ -3,6 +3,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import type { Locale } from "@drora/shared";
 import type {
   ConversationRow,
+  ConversationSnapshot,
   PendingInteraction,
   SessionPhase,
   V4ConversationFileChangesResult,
@@ -27,6 +28,7 @@ export interface RemoteTaskTimelineProps {
   theme: "light" | "dark";
   sessionPhase?: SessionPhase;
   modelSelectionView?: ModelSelectionView | null;
+  statusSnapshot?: ConversationSnapshot | null;
   interactions: readonly PendingInteraction[];
   answering: boolean;
   onResolve: (interactionId: string, answer: InteractionAnswer) => void;
@@ -66,6 +68,7 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         theme={props.theme}
         sessionPhase={props.sessionPhase}
         modelSelectionView={props.modelSelectionView}
+        statusSnapshot={props.statusSnapshot}
         headerSlot={headerSlot}
         bottomDock={props.bottomDock}
         canLoadOlder={props.canLoadOlder}

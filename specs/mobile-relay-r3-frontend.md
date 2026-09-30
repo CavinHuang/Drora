@@ -1193,3 +1193,69 @@ harness（真 relay × 真 control × Host 桩，port 62176）× ZCode 内置浏
 工具链：IAB tab API 实测——`setViewportSize` 可用（双视口切换无需开双标签）；
 `tabs.get(id)` 后才能驱动（list 仅元数据）；evaluate 箭头函数内不可引用 node 侧
 闭包变量（页面上下文序列化）。
+
+## 25. 远控任务状态面板复用（2026-09-30）
+
+六份 DOM 中远控任务页与完整 Web 工作台都在会话容器右上挂载
+`chat-summary-panel`，消息列和输入 dock 以同一个 conversation 容器查询调整宽度。
+本阶段复用 `packages/ui` 的 `ConversationStatusPanel`，由既有
+`@drora/ui/remote-timeline` 窄入口负责装配；不复制组件树。
+
+- **事实所有者**：Host/CLI 持有 goal、plan、backgroundWorks、subagents；
+  mobile conversation store 持有订阅快照；`TaskSession` 只暴露只读快照投影；
+  App 的 React state 只是订阅驱动的渲染镜像。面板显示模式（自动/展开/收起）
+  只属于当前会话组件本地状态，换 session 重新初始化。
+- **数据边界**：从快照接入 goal、plan、backgroundWorks、subagents.running。
+  `workflowRuns` 的增量在 §14 被有意过滤，因此本阶段不把冷快照中的工作流
+  进度传给状态面板，避免运行后显示过期进度。Git 摘要需要真实 Git 服务，
+  保留既有 `FileChangesBar`，不伪造 `gitSummary`。
+- **交互边界**：面板的展开/收起由原组件处理；没有 Host adapter 的暂停目标、
+  停止后台任务、打开终端/侧板动作不传回调，因此不显示无效按钮。
+  权限应答卡仍保留在时间线 header slot。
+- **布局**：面板作为时间线滚动容器的同级节点，挂在
+  `@container/conversation relative` 内；时间线的 `summaryPanelLayout` 与面板
+  变体使用同一个状态。窄屏默认 mini，宽屏由原组件的容器查询展开，
+  会话容器宽度达到 1280px 时消息列给状态面板让位。
+- **时序**：Host snapshot/delta → store 接受（校验 subscription/epoch/seq）→
+  TaskSession 只读投影 → App 渲染镜像 → UI 面板；切换会话前退订并关闭旧桥，
+  旧桥结果不得更新新会话面板。desktop-continuous 与
+  web-remote-replayable 仍共用 Host 事实、各走自己的交付链。
+
+验收：有计划或后台任务的快照应出现 `chat-summary-panel`；没有内容时面板
+不挂载；窄屏展开/收起可操作，宽屏消息列不被遮挡；换任务不继承旧任务的
+显示变体；文件变更条与阻塞交互卡继续工作。
+
+### 23.8 P6 深度还原：官方 vs 实现 testid 对比 + composer 工具条（2026-09-30 第四轮）
+
+**对比方法**：官方 3.14.3 实机 DOM 保存稿（.tmp-work/official-live-mobile-chat.html，
+窄壳远控任务面权威基准）× 我们实现（harness dist），IAB 同函数提取稳定 testid
+（滤动态行/工具块 id）：**官方 34 vs 我们基线 13**。已对齐 9（v4-timeline/
+turn-navigator/composer/composer-input/model-select-trigger/chat-loading/
+workspace-header/title/path——§22 时间线复用生效实证）。注意：official-live-wide
+是完整 Web 工作台（terminal/login 桌面专属），远控还原基准以窄壳保存稿为准。
+
+**composer 工具条深度还原**（官方两区形态逐字：左 attachment+mode / 右
+model-config[model+thought]→context-usage→v4-stop）：
+- 四 trigger testid 对齐：chat-attachment-button（disabled+官方 hidden input 同形，
+  上传面归 P7 能力矩阵）/ chat-mode-select-trigger（mode.label.glm.{configMode}
+  官方五值闭集映射，configMode=snapshot.config.mode 经 App 派生；**切换弹层不做**——
+  mode 切换命令 relay 面未确认，不臆造）/ chat-thought-level-select-trigger（**真
+  接线**：thoughtLevels 弹层 → onModelSelect 携 thoughtLevel 走既有 switchModelConfig
+  CAS）/ chat-context-usage-trigger（用量徽标并入）/ v4-stop（StateBar）。
+- 官方双语逐字键 +14：mode.label.glm.{default,plan,edit,build,yolo} /
+  chat.toolbar.thoughtLevel.{label,placeholder,value.low/medium/high/max/off/minimal} /
+  chat.attachments.add。
+- 发送按钮保留为实用偏差（官方窄壳回车提交；移动端可用性，记录不删）。
+
+**E2E 真页面验收**（harness dist + IAB）：8/8 composer testid 在场；mode「变更前
+确认」（config.mode=build 驱动）/thought「高」（fallback.thought）官方值文案；thought
+弹层选「关闭」→ 菜单关 → trigger 变「关闭」= **CAS stale→revisionAtDecision 收敛
+重发→config delta 回流全链真页面通过**（stub 首发并发写脚本实弹）。
+对齐度：13 → **19/34** 官方稳定 testid（余：chat-summary-panel/v4-session-title/
+v4-session-pane-workspace-main/workspace-more-button/side-pane-toggle/git-action-
+trigger/chat-reasoning-*/v4-feedback-*/conversation-bottom-dock-*——骨架命名与
+侧板族归后续期）。
+
+门禁：composerDeep 5/5、全套件 **149/149**、build 绿。取证修正记录：thoughtLevel
+初版四档漏 off/minimal（stub 集 ["off","high"] 裸键 fallback 暴露）——官方 chunk
+补证「关闭/Off」「极低/Minimal」+2。

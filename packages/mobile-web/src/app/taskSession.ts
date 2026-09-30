@@ -409,6 +409,11 @@ export class TaskSession {
     return this.store.getControlState();
   }
 
+  /** 状态面板只读事实；快照仍由 conversation store 独占，App 只保留渲染镜像。 */
+  getStatusSnapshot() {
+    return this.store.getState().snapshot;
+  }
+
   /** 阻塞交互选择器（spec §15 第 1 条；转发 store，UI 交互卡消费）。 */
   getPendingInteractions() {
     return this.store.getPendingInteractions();

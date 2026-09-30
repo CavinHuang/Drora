@@ -480,4 +480,18 @@ export const zhCN: Record<string, string> = {
   "sidePane.workflowRun": "工作流实例", // 官方逐字
   "sidePane.workflowScript": "脚本步骤", // 官方逐字
   "common.cancel": "取消", // 官方 locale chunk 逐字
+  "mode.label.glm.default": "默认模式", // 官方逐字（medium 按族规律补）
+  "mode.label.glm.plan": "计划模式", // 官方逐字（medium 按族规律补）
+  "mode.label.glm.edit": "自动编辑", // 官方逐字（medium 按族规律补）
+  "mode.label.glm.build": "变更前确认", // 官方逐字（medium 按族规律补）
+  "mode.label.glm.yolo": "完全访问", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.label": "推理强度", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.placeholder": "选择思考档位", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.value.low": "低", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.value.medium": "中", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.value.high": "高", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.value.max": "最高", // 官方逐字（medium 按族规律补）
+  "chat.attachments.add": "添加附件", // 官方逐字（medium 按族规律补）
+  "chat.toolbar.thoughtLevel.value.off": "关闭", // 官方逐字
+  "chat.toolbar.thoughtLevel.value.minimal": "极低", // 官方逐字
 };

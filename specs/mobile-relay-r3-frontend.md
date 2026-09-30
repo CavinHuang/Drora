@@ -1868,3 +1868,25 @@ Host 桩：refresh+searchWorkspaceFiles+**File 通道注册**（fileService 走 
 CUA 坐标均未复现开面板，环境不稳定超阈值。实现侧四层装配代码已全落且门禁绿——
 E2E 复验归环境稳定窗口（下轮首查）。经验：多标签+长会话 IAB 状态漂移——验证前
 先 fresh 标签+reload+清场；Illegal invocation=input setter 跨上下文调用假崩溃。
+
+### 29.7 文件域接线完成（2026-09-30 续七）——首页桥 accessor 暴露
+
+§29.5 "首页无桥"裁定再修正：**首页 sessions-index 专用桥已有 accessor**（openHome
+SessionsIndexBridge 内 connectViaProtocol，闭包持有未暴露）——解封三步：①Bridge
+接口+返回对象加 readonly accessor；②App openHomeBridge .then 记录 homeBridgeAccessor
+Ref（最新活桥）；③HomeScreen/WideShell 双宿主 onSearchFiles 装配（accessor.file
+Service.searchWorkspaceFiles，rootPath=liveWorkspaces[0]）+ onFileSelect（插入
+composer @relativePath 引用）。Host 桩 file 通道注册修正（searchWorkspaceFiles 初
+误挂 Git 通道，fileService 走 File 通道名）。E2E：面板开+query 输入 ✓，文件段渲染
+被 File 通道次序+环境抖动阻（下轮首查：桩日志 [file-stub] search called 是否命中）。
+门禁：**165/165**、build 绿、根 typecheck 全绿（automationsSchedule 严格索引两处+
+WideShell 解构漏一并修正）。
+
+### 29.8 文件域 E2E 复验 ✓（2026-09-30 终）——首页搜索三域之两域上线
+
+fresh harness+fresh 标签复验全通：搜索面板输入 "notes" → **文件段渲染「文件树」+
+notes.md 命中**（File 通道注册修正生效）；桩日志实锤请求参数
+{rootPath:"C:/g1", workspaceIdentity:"C:/g1", query:"notes", limit:8}——首页桥
+accessor 经 fileService 通道全链贯通。**文件域上线 ✓**（搜索三域：任务 ✓ + 文件 ✓ +
+操作 quickPick 维持 §18 裁定）。经验终条：环境抖动轮的"待复验"标记必须携带
+**可判定探针**（本例=桩日志命中）——复验轮先跑探针再走 UI 序列，避免盲试。

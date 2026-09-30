@@ -2064,3 +2064,10 @@ React/双拷贝/双实例后，剩余假说=**渲染时序**（崩消费者渲�
 （header/toggle/composer/状态面板/交互卡）——**GitActionMenu 崩消失** ✓。
 门禁：165/165+build 797+typecheck 绿。
 **GitPane 一期**（GitPaneChangeCard/fileChanges 段崩）同步修复 ✓——同塔覆盖。
+
+### 30.13 补：GitActionMenu 状态行回接 ✓（2026-09-30 终）——塔恒包后全通
+
+GitActionMenu 状态行（「提交或推送」/main 分支/diff 统计）**回接后不崩**——塔恒包
+ServiceProvider（App() 根）后 useServices 消费全通实锤（此前崩=塔未覆盖分支的
+accessor null 帧——塔上提修复后消除）。GitPane/GitActionMenu/commit-dialog/
+文件搜索/新建任务**全部上线**。门禁：165/165+build 绿+typecheck 绿。

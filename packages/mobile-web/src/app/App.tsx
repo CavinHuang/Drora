@@ -567,7 +567,19 @@ function AppBody() {
               // GitActionMenu 跨 chunk Context 双实例崩暂回退（spec §30.2）：useServices
               // 拷贝在 lazy chunk，Provider 塔同 chunk 仍崩——根因待专项（rolldown ui 包
               // 双入口解析）。新建任务主功能保通（点新建→createSession→新任务面）。
-              gitAction={null}
+              gitAction={
+                attachedTask ? (
+                  <React.Suspense fallback={null}>
+                    <LazyRemoteGitActionMenu
+                      workspacePath={taskTarget.path}
+                      workspaceIdentity={taskTarget.identity}
+                      accessor={attachedTask.accessor}
+                      gitSummary={gitStatus.summary}
+                      onRefreshGit={gitStatus.refresh}
+                    />
+                  </React.Suspense>
+                ) : null
+              }
             />
           ) : null
         }

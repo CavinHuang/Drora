@@ -458,9 +458,9 @@ function AppBody() {
             <RemoteWorkspaceHeader
               title={taskTitle}
               workspacePath={taskTarget.path}
-              // GitPane 二期前置（spec §25.5）：GitPane 链第四层 usePlatform（IPlatformService
-              // 大接口，远控无平台服务）——Provider 壳缺位前不启用开关（防崩树）。
-              onToggleSidePane={undefined}
+              // GitPane 二期解封（spec §28）：官方 createWebPlatform（webPlatform.ts
+              // 移出复用）供 usePlatform——侧板开关恢复接线。
+              onToggleSidePane={taskRef.current ? () => setGitSidePaneOpen((open) => !open) : undefined}
               sidePaneOpen={gitSidePaneOpen}
               // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
               // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。

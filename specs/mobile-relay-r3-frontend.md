@@ -1644,7 +1644,7 @@ sequenceDiagram
 验收：本地与有 `workspaceIdentity` 的目标都经当前桥发起摘要查询；dirty 仓库
 触发器可打开原版 `git-commit-dialog`；桥错误及跨目标迟到结果不启用提交。
 
-### 27.3 commit-dialog 全链路打通（2026-09-30 续）——根因=stub 缺 refresh
+### 27.4 commit-dialog 本地路径验证（2026-09-30 续）——根因=stub 缺 refresh
 
 dialog 未开根因终裁：useGitRepository **唯一重度消费 = gitService.refresh**
 （一次返回 summary+identity+unstaged/stagedChanges+branchComparison 全量，注释明言
@@ -1655,6 +1655,11 @@ CUA 点触发器 → **[git-commit-dialog] 弹出，内容与官方生产页逐�
 git 通道）。**GitPane/commit-dialog 一期全链路验收 ✓**（capability 接线法第三例
 完成）。经验入库：复用 UI 包 hooks 前先 grep 其 service 消费方法集（组合 hook 常聚
 合多方法——散方法桩会静默 reject）。
+
+该验证只覆盖未带远程 `workspaceIdentity` 的本地路径；带远程身份的手机 attachment
+仍按 §27.3 用当前桥读取摘要。2026-09-30 的浏览器复验还确认了 `generateCommitMessage`
+的返回字段必须为 `{message, providerId, model}`，测试桩此前误写 `commitMessage`
+导致对话框收到空值并崩溃；修正桩后消息能填入原版提交框。
 
 ### 27.2 补：残留三取证项终态（2026-09-30 续）
 
@@ -1670,3 +1675,31 @@ git 通道）。**GitPane/commit-dialog 一期全链路验收 ✓**（capability
 commit-dialog 全链+装配缝套件）；剩余四项（GitPane 二期/summary-panel 并行/命令
 源重裁/more 额度）全部依赖外部条件（并行收口/能力矩阵/数据源接通），在本轮指令
 语义下无进一步可执行项。
+
+## 28. GitPane 二期解封与全链路验收（2026-09-30）
+
+### 28.1 官方 createWebPlatform 移出（还原域重组）
+
+§25.5 第四层依赖（usePlatform）解封路径实锤：**官方 web 平台适配器复原件已在仓**
+（packages/web/src/main.tsx:190-353 createWebPlatform——Web 环境完整 IPlatformService
+fallback）。还原域内重组：移出 `packages/web/src/webPlatform.ts`（逻辑零改动，连带
+import 切换——AGENTS"新文件"合规），web main 改 import；CRLF 尾锚脚本移块。
+**mobile-web 消费方式=受控移植**（@drora/web workspace 依赖把 web 全依赖图拖进产物
+789→2830 assets 踩 P5d 红线 → 回退依赖+alias → 仍 2830（communityUrl/config 链相对
+引拖）→ 定稿=mobile-web 自持 `remoteWebPlatform.ts`（官方逐方法对照受控移植，
+openFeedback/openCommunity 远控 no-op）——HomeShell 先例同模式）。体积回落 789。
+
+### 28.2 五层壳补齐与 E2E 全链验收
+
+RemoteGitSidePane 壳补第五层 PlatformProvider（platform=createRemoteWebPlatform()）
+→ App onToggleSidePane 恢复接线（§25.5 回退解除）→ E2E（fresh harness）：toggle
+aria-expanded=true → **aside[GitPane] 渲染真 git 数据**（「查看文件/未暂存/刷新/
+notes.md docs/ +0-0/a.ts src/ +12-3」——refresh 全量经桥）+ 零错误 + 并行
+StatusPanel aside 共存。门禁：**164/164**、build 绿（789 assets）。
+
+### 28.3 记档
+
+- GitPane 依赖（useGitRepository+GitPane+GitActionMenu）使 index 334→1432KB——
+  lazy 化（React.lazy chunk）为收尾项（官方 SessionPane 即惰性 chunk 先例）。
+- capability 接线法累计**三例**（feedback/fork/commit-dialog+GitPane）——官方协议
+  与复原件双前置查证 → 命令/壳 → 桩 → E2E 的标准作业已成熟。

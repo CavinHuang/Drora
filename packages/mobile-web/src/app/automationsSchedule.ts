@@ -150,7 +150,8 @@ export function parseCron(expr: string, now: Date = new Date()): AutomationSched
   const base = defaultSchedule(expr, now);
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return base;
-  const [minute, hour, day, month, weekday] = parts;
+  // length===5 已守卫——五段均存在（TS 索引收窄需显式）。
+  const [minute, hour, day, month, weekday] = parts as [string, string, string, string, string];
   const minuteNum = Number(minute);
   const hourNum = Number(hour);
   // 1. */N * * * * → custom/minute
@@ -228,7 +229,7 @@ export function parseCron(expr: string, now: Date = new Date()): AutomationSched
 export function describeCron(expr: string, formatMessage: FormatMessage): string {
   const normalized = expr.trim().replace(/\s+/g, " ");
   const everyMinutes = /^\*\/([1-9]\d*) \* \* \* \*$/.exec(normalized);
-  if (everyMinutes) {
+  if (everyMinutes?.[1]) {
     return formatMessage(
       { id: "automations.schedule.customMinutes" },
       { interval: everyMinutes[1] },

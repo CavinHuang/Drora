@@ -12,6 +12,7 @@ import * as React from "react";
 import {
   DroraIntlProvider,
   GitPane,
+  PlatformProvider,
   PluginReferenceIconProvider,
   TooltipProvider,
   useGitRepository,
@@ -20,6 +21,7 @@ import {
   StoreProvider,
   TabStoreProvider,
 } from "@drora/ui/git-pane";
+import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
 import type { IServiceAccessor, IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
 import { X } from "lucide-react";
@@ -38,6 +40,8 @@ function createMockBroadcastService(): IBroadcastService {
   };
 }
 const MOCK_BROADCAST = createMockBroadcastService();
+// 远控 web 平台适配（§28 受控移植：官方 createWebPlatform 逐方法对照，自持零依赖图污染）。
+const WEB_PLATFORM = createRemoteWebPlatform();
 
 export interface RemoteGitSidePaneProps {
   open: boolean;
@@ -90,6 +94,7 @@ export function RemoteGitSidePane({
         <DroraIntlProvider initialLocale={resolveLocale()}>
           <TooltipProvider delayDuration={0}>
             <PluginReferenceIconProvider value={null}>
+              <PlatformProvider platform={WEB_PLATFORM}>
               <TabStoreProvider>
                 <StoreProvider broadcastService={MOCK_BROADCAST}>
                   <ServiceProvider services={accessor}>
@@ -103,6 +108,7 @@ export function RemoteGitSidePane({
                   </ServiceProvider>
                 </StoreProvider>
               </TabStoreProvider>
+              </PlatformProvider>
             </PluginReferenceIconProvider>
           </TooltipProvider>
         </DroraIntlProvider>

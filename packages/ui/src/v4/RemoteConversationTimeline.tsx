@@ -21,6 +21,10 @@ export interface RemoteConversationTimelineProps {
   sessionPhase?: SessionPhase;
   modelSelectionView?: ModelSelectionView | null;
   headerSlot?: ReactNode;
+  bottomDock?: ReactNode;
+  canLoadOlder?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => Promise<void> | void;
 }
 
 export function RemoteConversationTimeline({
@@ -34,6 +38,10 @@ export function RemoteConversationTimeline({
   sessionPhase,
   modelSelectionView,
   headerSlot,
+  bottomDock,
+  canLoadOlder,
+  loadingOlder,
+  onLoadOlder,
 }: RemoteConversationTimelineProps) {
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
@@ -59,6 +67,10 @@ export function RemoteConversationTimeline({
               rowContext={rowContext}
               sessionPhase={sessionPhase}
               headerSlot={headerSlot}
+              bottomDock={bottomDock}
+              canLoadOlder={canLoadOlder}
+              loadingOlder={loadingOlder}
+              onLoadOlder={onLoadOlder}
             />
           </div>
         </PluginReferenceIconProvider>

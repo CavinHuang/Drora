@@ -22,9 +22,9 @@ test("dist：资产图闭合（入口引用全部存在）且无违面字面量"
   const entry = await readFile(distEntry, "utf8");
   // P4a E2E 实证（spec §17）：入口在 /remote/v4（无尾斜杠）下服务，相对引用会解析
   // 到 /remote/ 下丢 v4 段——必须为绝对官方形状引用。
-  const refs = [
-    ...entry.matchAll(/(?:src|href)="(\/remote\/v4\/3\.14\.3\/assets\/[^"]+)"/g),
-  ].map((m) => m[1]);
+  const refs = [...entry.matchAll(/(?:src|href)="(\/remote\/v4\/3\.14\.3\/assets\/[^"]+)"/g)].map(
+    (m) => m[1],
+  );
   assert.ok(refs.length >= 2, `entry should reference >=2 assets, got ${refs.length}`);
   const assetNames = new Set(await readdir(distAssets));
   for (const ref of refs) {
@@ -62,7 +62,7 @@ test("i18n：zh-CN / en-US 键集同构", async () => {
   assert.deepEqual({ zhOnly, enOnly }, { zhOnly: [], enOnly: [] });
 });
 
-test("自包含边界：仅 App 可经公开入口装配 UI 时间线（D6 §22 例外）", async () => {
+test("自包含边界：仅任务时间线装配缝可导入 UI（D6 §22 例外）", async () => {
   const walk = async (dir) => {
     const out = [];
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -84,9 +84,12 @@ test("自包含边界：仅 App 可经公开入口装配 UI 时间线（D6 §22 
       ...imports.filter((statement) => statement.includes("@drora/ui")),
       ...[...text.matchAll(/\bimport\(["'](@drora\/ui[^"']*)["']\)/g)].map((match) => match[1]),
     ];
-    const allowed = file === join(packageRoot, "src", "app", "App.tsx")
-      ? ['@drora/ui/remote-timeline']
-      : [];
+    const allowed =
+      file === join(packageRoot, "src", "app", "RemoteTaskTimeline.tsx")
+        ? ["@drora/ui/remote-timeline"]
+        : file === join(packageRoot, "src", "app", "main.tsx")
+          ? ["@drora/ui/remote-frame"]
+          : [];
     assert.deepEqual(
       uiImports.map((statement) => statement.match(/@drora\/ui[^"']*/)?.[0]),
       allowed,

@@ -10,6 +10,7 @@ import type {
   ModelSelectionState,
 } from "./conversationStore.js";
 import type { ModelSelectionView } from "@drora/services";
+import { ArrowUp } from "lucide-react";
 
 export interface TaskComposerProps {
   draft: string;
@@ -25,7 +26,11 @@ export interface TaskComposerProps {
   onSend: () => void;
   onStop: () => void;
   onToggleModelMenu: () => void;
-  onModelSelect: (selection: { providerId: string; modelId: string; thoughtLevel?: string }) => void;
+  onModelSelect: (selection: {
+    providerId: string;
+    modelId: string;
+    thoughtLevel?: string;
+  }) => void;
   onCloseModelMenu: () => void;
 }
 
@@ -49,48 +54,14 @@ export function TaskComposer(props: TaskComposerProps) {
   } = props;
   const { formatMessage } = useIntl();
   return (
-    <div className="px-3 py-2">
-      {(queueState?.itemCount ?? 0) > 0 ? (
-        <div className="mb-2 rounded-lg border border-border bg-surface px-3 py-2 text-ui-xs text-foreground-subtle">
-          <div className="font-medium text-foreground">
-            {formatMessage(
-              { id: "chat.queue.title" },
-              { count: String(queueState?.itemCount ?? 0) },
-            )}
-          </div>
-          {queueState?.autoDrain === false ? (
-            <div className="mt-0.5">
-              {formatMessage({
-                id:
-                  queueState.pauseReason === "stopped"
-                    ? "chat.queue.paused.stopped"
-                    : queueState.pauseReason === "error"
-                      ? "chat.queue.paused.error"
-                      : "chat.queue.paused.generic",
-              })}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="mb-1 flex items-center gap-2">
-        <button
-          type="button"
-          className="min-h-9 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-ui-xs text-foreground transition-colors hover:bg-surface-hover"
-          onClick={onToggleModelMenu}
-        >
-          {modelState?.current?.modelId ??
-            modelState?.fallback?.model ??
-            formatMessage({ id: "chat.toolbar.model.label" })}
-        </button>
-        {modelState?.usage ? (
-          <UsageBadge
-            usedTokens={modelState.usage.usedTokens}
-            maxTokens={modelState.usage.maxTokens}
-          />
-        ) : null}
-      </div>
+    <div
+      data-testid="v4-composer"
+      data-queue-count={queueState?.itemCount ?? 0}
+      className="relative w-full"
+      aria-busy={sending || stopping}
+    >
       {modelMenuOpen ? (
-        <div className="relative z-20 mb-2">
+        <div className="absolute bottom-full left-0 z-30 mb-2 w-full">
           <ModelMenu
             view={modelView}
             state={
@@ -108,16 +79,10 @@ export function TaskComposer(props: TaskComposerProps) {
           />
         </div>
       ) : null}
-      <MobileComposerStateBar
-        phase={controlState?.phase ?? null}
-        canStop={controlState?.canStop ?? false}
-        stopState={controlState?.stopState ?? "idle"}
-        queuePending={controlState?.queuePending ?? false}
-        onStop={onStop}
-      />
-      <div className="mt-1 flex items-end gap-2">
+      <div className="flex flex-col gap-1 rounded-2xl border border-input-border bg-input p-3 transition-colors focus-within:border-input-border-focused">
         <textarea
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-lg border border-input-border bg-input px-3 py-2.5 text-mobile-input-safe text-foreground outline-none placeholder:text-foreground-subtlest focus:border-input-border-focused"
+          data-testid="v4-composer-input"
+          className="max-h-40 min-h-10 w-full resize-none bg-transparent text-mobile-input-safe leading-5 text-foreground outline-none placeholder:text-foreground-subtlest"
           rows={1}
           value={draft}
           placeholder={formatMessage({
@@ -134,17 +99,47 @@ export function TaskComposer(props: TaskComposerProps) {
             }
           }}
         />
-        <button
-          type="button"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
-          disabled={!draft.trim() || sending}
-          aria-label={formatMessage({ id: "mobileShell.composer.send" })}
-          onClick={onSend}
+        <div
+          className="flex min-w-0 items-center justify-end gap-1.5"
+          data-composer-trailing-actions
         >
-          ↑
-        </button>
+          {modelState?.usage ? (
+            <UsageBadge
+              usedTokens={modelState.usage.usedTokens}
+              maxTokens={modelState.usage.maxTokens}
+              compact
+            />
+          ) : null}
+          <button
+            type="button"
+            data-testid="chat-model-select-trigger"
+            className="min-h-9 max-w-36 truncate rounded-lg px-2 text-ui-base text-foreground transition-colors hover:bg-surface-hover"
+            onClick={onToggleModelMenu}
+          >
+            {modelState?.current?.modelId ??
+              modelState?.fallback?.model ??
+              formatMessage({ id: "chat.toolbar.model.label" })}
+          </button>
+          <MobileComposerStateBar
+            phase={controlState?.phase ?? null}
+            canStop={controlState?.canStop ?? false}
+            stopState={controlState?.stopState ?? "idle"}
+            queuePending={controlState?.queuePending ?? false}
+            onStop={onStop}
+          />
+          {draft.trim() || !controlState?.canStop ? (
+            <button
+              type="button"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
+              disabled={!draft.trim() || sending}
+              aria-label={formatMessage({ id: "mobileShell.composer.send" })}
+              onClick={onSend}
+            >
+              <ArrowUp aria-hidden="true" className="size-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 }
-

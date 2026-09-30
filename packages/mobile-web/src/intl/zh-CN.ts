@@ -288,4 +288,195 @@ export const zhCN: Record<string, string> = {
   "mobileShell.wide.greeting.afternoon": "下午好呀，接下来交给我吧", // P5b 自建键（值 = 官方 chat.empty.greeting.afternoon zh:4365）
   "mobileShell.wide.greeting.evening": "晚上好呀，今天辛苦啦", // P5b 自建键（值 = 官方 chat.empty.greeting.evening zh:4366）
   "mobileShell.wide.greeting.lateNight": "夜深啦，别忘了照顾好自己哦", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight zh:4367）
+  // —— P6 workspaceFileTree 文件树面（spec §23）：官方 zh 值逐字提取（formatMessage 权威形态 12 id，
+  // locale chunk 11 有值）；title 官方 chunk 无 zh 值 → 按面语义补译并注明（官方行为即 en fallback）——
+  "workspaceFileTree.title": "文件树", // 官方 locale chunk 缺 zh 值，按面语义补译
+  "workspaceFileTree.backToTasks": "返回任务", // 官方逐字
+  "workspaceFileTree.addToChat": "添加到聊天", // 官方逐字
+  "workspaceFileTree.clearSearch": "清空文件搜索", // 官方逐字
+  "workspaceFileTree.searchLabel": "搜索文件", // 官方逐字
+  "workspaceFileTree.searchPlaceholder": "搜索文件...", // 官方逐字
+  "workspaceFileTree.refresh": "刷新文件树", // 官方逐字
+  "workspaceFileTree.gitStatus.ignored": "已忽略", // 官方逐字
+  "workspaceFileTree.openFailed": "无法打开该条目", // 官方逐字
+  "workspaceFileTree.readFailed": "读取目录失败", // 官方逐字
+  "workspaceFileTree.openInBrowser": "用内置浏览器打开", // 官方逐字
+  "workspaceFileTree.openWith": "打开方式", // 官方逐字
+  // —— P6 quickPick 快选框面（spec §23）：官方 zh 值逐字（10/10 全有值，含 {error} 插值）——
+  "quickPick.title": "命令面板", // 官方逐字
+  "quickPick.description": "搜索并执行当前工作区可用的命令。", // 官方逐字
+  "quickPick.command.goBack": "返回", // 官方逐字
+  "quickPick.command.goForward": "前进", // 官方逐字
+  "quickPick.commandFailed": "命令执行失败：{error}", // 官方逐字（{error} 插值）
+  "quickPick.find.title": "在任务中查找", // 官方逐字
+  "quickPick.find.description": "搜索当前任务中的消息和文件变更。", // 官方逐字
+  "quickPick.find.next": "下一个结果", // 官方逐字
+  "quickPick.find.previous": "上一个结果", // 官方逐字
+  "quickPick.find.scope.tooltip": "切换搜索范围消息/文件", // 官方逐字
+  // —— P6 automations 定时任务面（spec §23）：官方 zh 值逐字（92/92 全有值；{interval}/{unit}/
+  // {month}/{day}/{time}/{limit}/{count}/{when}/{error} 插值族官方形态）。分两段落键——
+  "automations.breadcrumbLabel": "自动化路径", // 官方逐字
+  "automations.chatCreated.defaultTitle": "定时任务", // 官方逐字
+  "automations.chatCreated.open": "去到定时任务", // 官方逐字
+  "automations.chatCreated.scheduleFallback": "已创建", // 官方逐字
+  "automations.create": "新建", // 官方逐字
+  "automations.createManually": "创建定时任务", // 官方逐字
+  "automations.createViaChat": "去会话中创建", // 官方逐字
+  "automations.createViaChat.prompt": "每个工作日 9 点，汇总当前项目的代码变更和待跟进事项。", // 官方逐字
+  "automations.createdLabel": "已创建任务", // 官方逐字
+  "automations.customRepeat.byDate": "按日期", // 官方逐字
+  "automations.customRepeat.byWeekday": "按星期", // 官方逐字
+  "automations.customRepeat.compactFrequency": "每{interval}{unit}", // 官方逐字
+  "automations.customRepeat.ends": "结束", // 官方逐字
+  "automations.customRepeat.endsOption": "指定日期", // 官方逐字
+  "automations.customRepeat.frequency": "重复频率", // 官方逐字
+  "automations.customRepeat.minutes": "分钟", // 官方逐字
+  "automations.customRepeat.monthLabel": "{year}年{month}月", // 官方逐字
+  "automations.customRepeat.neverEnds": "永不结束", // 官方逐字
+  "automations.customRepeat.nextMonth": "下个月", // 官方逐字
+  "automations.customRepeat.previousMonth": "上个月", // 官方逐字
+  "automations.customRepeat.rule": "重复规则", // 官方逐字
+  "automations.customRepeat.title": "自定义重复", // 官方逐字
+  "automations.customRepeat.unit.day": "天", // 官方逐字
+  "automations.customRepeat.unit.hour": "小时", // 官方逐字
+  "automations.customRepeat.unit.minute": "分钟", // 官方逐字
+  "automations.customRepeat.unit.month": "个月", // 官方逐字
+  "automations.customRepeat.unit.week": "周", // 官方逐字
+  "automations.customRepeat.unit.year": "年", // 官方逐字
+  "automations.delete": "删除", // 官方逐字
+  "automations.delete.description": "确定删除“{title}”？此操作无法撤销。", // 官方逐字
+  "automations.delete.title": "删除定时任务", // 官方逐字
+  // —— 31-92 段（官方逐字，form/field/validate/schedule/weekday/confirm 交互族）——
+  "automations.edit.newTask": "新建任务", // 官方逐字
+  "automations.edit.promptPlaceholder": "例如：Review 最近 24 小时的提交，总结可能引入的 bug 和修复建议", // 官方逐字
+  "automations.edit.tab.history": "历史", // 官方逐字
+  "automations.edit.tab.settings": "设置", // 官方逐字
+  "automations.edit.titlePlaceholder": "未命名定时任务", // 官方逐字
+  "automations.empty.title": "还没有定时任务", // 官方逐字
+  "automations.error.createLimit": "最多可保留 {limit} 个定时任务（包含已暂停、已完成和失败任务），请先删除一个任务后再创建。", // 官方逐字
+  "automations.error.targetNotFound": "未找到该定时任务，可能已被删除", // 官方逐字
+  "automations.form.dayOfMonth": "{day} 号", // 官方逐字
+  "automations.form.editTitle": "编辑定时任务", // 官方逐字
+  "automations.form.project.localRequired": "请先打开一个本地项目", // 官方逐字
+  "automations.form.prompt.label": "指令", // 官方逐字
+  "automations.form.schedule.at": "于", // 官方逐字
+  "automations.form.schedule.label": "调度", // 官方逐字
+  "automations.form.schedule.minutePrefix": "第", // 官方逐字
+  "automations.form.schedule.minuteSuffix": "分钟", // 官方逐字
+  "automations.form.schedule.monthDayValue": "{month} 月 {day} 日", // 官方逐字
+  "automations.form.schedule.weekdaysLabel": "选择星期", // 官方逐字
+  "automations.form.schedule.yearDateLabel": "选择月份和日期", // 官方逐字
+  "automations.form.status.label": "状态", // 官方逐字
+  "automations.form.title.label": "任务标题", // 官方逐字
+  "automations.frequency.custom": "自定义", // 官方逐字
+  "automations.lifecycle.failed": "已失败", // 官方逐字
+  "automations.moreActions": "更多操作", // 官方逐字
+  "automations.moreIdeas": "定时任务模板", // 官方逐字
+  "automations.nextRun": "下次运行 {when}", // 官方逐字
+  "automations.noWorkspace": "打开一个工作区以管理它的定时任务。", // 官方逐字
+  "automations.pageTab.ariaLabel": "自动化页面", // 官方逐字
+  "automations.refresh": "刷新", // 官方逐字
+  "automations.restart": "重新启动", // 官方逐字
+  "automations.runCount": "已运行 {count} 次", // 官方逐字
+  "automations.runNow": "立即运行", // 官方逐字
+  "automations.runs.col.duration": "时长", // 官方逐字
+  "automations.runs.col.status": "状态", // 官方逐字
+  "automations.runs.col.trigger": "来源", // 官方逐字
+  "automations.runs.col.triggered": "触发时间", // 官方逐字
+  "automations.runs.delete": "删除记录", // 官方逐字
+  "automations.runs.empty": "还没有运行记录。", // 官方逐字
+  "automations.runs.errorUnavailable": "暂无错误详情", // 官方逐字
+  "automations.runs.nextPage": "下一页", // 官方逐字
+  "automations.runs.openSession": "跳到会话", // 官方逐字
+  "automations.runs.openSessionFailed": "目标项目当前未连接，无法打开该会话", // 官方逐字
+  "automations.runs.prevPage": "上一页", // 官方逐字
+  "automations.schedule.custom": "每 {interval} {unit}，{time}", // 官方逐字
+  "automations.schedule.customHourly": "每 {interval} 小时的第 {time} 分", // 官方逐字
+  "automations.schedule.customMinutes": "每 {interval} 分钟", // 官方逐字
+  "automations.schedule.customMonthlyDates": "每 {interval} 个月的 {days} 日，{time}", // 官方逐字
+  "automations.schedule.customMonthlyWeekday": "每 {interval} 个月的第一个周{day}，{time}", // 官方逐字
+  "automations.schedule.customWeekly": "每 {interval} 周的周{days}，{time}", // 官方逐字
+  "automations.schedule.customYearly": "每 {interval} 年的 {month} 月 {day} 日，{time}", // 官方逐字
+  "automations.schedule.daily": "每天 {time}", // 官方逐字
+  "automations.schedule.hourly": "每小时的第 {minute} 分", // 官方逐字
+  "automations.schedule.monthly": "每月 {day} 号 {time}", // 官方逐字
+  "automations.schedule.weekdays": "每工作日 {time}", // 官方逐字
+  "automations.schedule.weekly": "每周{days} {time}", // 官方逐字
+  "automations.statusFilter.empty": "没有符合条件的任务", // 官方逐字
+  "automations.templates.unavailable": "无可用模板", // 官方逐字
+  "automations.unsaved.description": "你对这个定时任务的更改将会丢失", // 官方逐字
+  "automations.unsaved.discard": "丢弃", // 官方逐字
+  "automations.unsaved.title": "丢弃定时任务的草稿？", // 官方逐字
+  "automations.weekday.separator": "、", // 官方逐字（分隔符逐字）
+  // —— P6 补录：automations.weekday.{0-6} 七键（官方 locale chunk 逐字取证——rX 经运行时模板
+  // `weekday.${e}` 拼接，为静态字面提取盲区；zh 日/一/二/三/四/五/六 + en Sun-Sat 双向实锤；
+  // $Y=[1,2,3,4,5,6,0] 周一起始序，rX(id)=weekday 名，iX 构造器 weekly/customWeekly/
+  // customMonthlyWeekday 三分支依赖）——
+  "automations.weekday.0": "日", // 官方 locale chunk 逐字
+  "automations.weekday.1": "一", // 官方逐字
+  "automations.weekday.2": "二", // 官方逐字
+  "automations.weekday.3": "三", // 官方逐字
+  "automations.weekday.4": "四", // 官方逐字
+  "automations.weekday.5": "五", // 官方逐字
+  "automations.weekday.6": "六", // 官方逐字
+  // —— P6 workspaceSidebar 宽壳侧栏深面（spec §23）：官方 zh 值逐字（32 id：29 有值 +
+  // sshConnection{Alias,Host,Path} 三键官方 locale 缺值 → 按插值形态语义补译并注明）——
+  "workspaceSidebar.addProject": "添加项目", // 官方逐字
+  "workspaceSidebar.connecting": "连接中", // 官方逐字
+  "workspaceSidebar.conversationsSection": "任务", // 官方逐字
+  "workspaceSidebar.newConversation": "新建任务", // 官方逐字
+  "workspaceSidebar.noConversations": "还没有任务", // 官方逐字
+  "workspaceSidebar.noProjects": "尚未打开项目", // 官方逐字
+  "workspaceSidebar.notConnected": "未连接", // 官方逐字
+  "workspaceSidebar.organize": "视图", // 官方逐字
+  "workspaceSidebar.organizeByProject": "项目", // 官方逐字
+  "workspaceSidebar.organizeChronologicalList": "时间线", // 官方逐字
+  "workspaceSidebar.organizeGrouped": "分组", // 官方逐字
+  "workspaceSidebar.projectsSection": "项目", // 官方逐字
+  "workspaceSidebar.reconnect": "重新连接", // 官方逐字
+  "workspaceSidebar.remove": "移除", // 官方逐字
+  "workspaceSidebar.removeRunningWorkspace.confirm": "移除并停止运行", // 官方逐字
+  "workspaceSidebar.removeRunningWorkspace.description": "该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。", // 官方逐字
+  "workspaceSidebar.removeRunningWorkspace.title": "移除运行中的项目？", // 官方逐字
+  "workspaceSidebar.reorderSection": "移动{section}分区", // 官方逐字
+  "workspaceSidebar.resizeSidebar": "调整侧边栏宽度", // 官方逐字
+  "workspaceSidebar.showFileTree": "查看文件", // 官方逐字
+  "workspaceSidebar.sortBy": "排序方式", // 官方逐字
+  "workspaceSidebar.sortByCreated": "创建时间", // 官方逐字
+  "workspaceSidebar.sortByUpdated": "更新时间", // 官方逐字
+  "workspaceSidebar.sshConnectionAlias": "{alias}（SSH）", // 官方 locale 缺值，按插值语义补译
+  "workspaceSidebar.sshConnectionHost": "主机：{host}", // 官方 locale 缺值，按插值语义补译
+  "workspaceSidebar.sshConnectionPath": "路径：{path}", // 官方 locale 缺值，按插值语义补译
+  "workspaceSidebar.sshConnectionTitle": "SSH 连接", // 官方逐字
+  "workspaceSidebar.taskViewOptions": "筛选和排序", // 官方逐字
+  "workspaceSidebar.toggleSidebar": "切换侧边栏", // 官方逐字
+  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。", // 官方逐字
+  "workspaceSidebar.viewByWorkspace": "按项目", // 官方逐字
+  "workspaceSidebar.windowsReservedNameRisk": "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}", // 官方逐字
+  // —— P6 sidePane 侧板面（spec §23）：官方 zh 值逐字（25/25 全有值，{title} 插值）——
+  "sidePane.addTab": "新增标签", // 官方逐字
+  "sidePane.closeAllTabs": "关闭所有标签", // 官方逐字
+  "sidePane.closeCurrentTab": "关闭标签", // 官方逐字
+  "sidePane.closeOtherTabs": "关闭其他标签", // 官方逐字
+  "sidePane.closeTab": "关闭 {title}", // 官方逐字
+  "sidePane.collapse": "收起侧边面板", // 官方逐字
+  "sidePane.noTabsFound": "没有找到标签页。", // 官方逐字
+  "sidePane.openFileLoading": "正在加载文件...", // 官方逐字
+  "sidePane.openTab": "打开标签页", // 官方逐字
+  "sidePane.openTabDescription": "选择要在侧边面板中打开的标签。", // 官方逐字
+  "sidePane.openTabs": "打开的标签页", // 官方逐字
+  "sidePane.recentlyClosedTabs": "最近关闭的标签页", // 官方逐字
+  "sidePane.review": "审查", // 官方逐字
+  "sidePane.searchTabs": "搜索标签页...", // 官方逐字
+  "sidePane.selectionChat": "辅助对话", // 官方逐字
+  "sidePane.subagent": "子智能体", // 官方逐字
+  "sidePane.subagentDirectory": "子智能体目录", // 官方逐字
+  "sidePane.tabOverview": "搜索标签页", // 官方逐字
+  "sidePane.time.justNow": "刚刚", // 官方逐字
+  "sidePane.togglePanel": "切换面板", // 官方逐字
+  "sidePane.workflowActor": "工作流子代理", // 官方逐字
+  "sidePane.workflowArtifact": "产物", // 官方逐字
+  "sidePane.workflowDirectory": "工作流目录", // 官方逐字
+  "sidePane.workflowRun": "工作流实例", // 官方逐字
+  "sidePane.workflowScript": "脚本步骤", // 官方逐字
 };

@@ -301,4 +301,194 @@ export const enUS: Record<string, string> = {
   "mobileShell.wide.greeting.afternoon": "Good afternoon! Leave the rest to me.", // P5b 自建键（值 = 官方 chat.empty.greeting.afternoon en:4667）
   "mobileShell.wide.greeting.evening": "Evening, nice work today", // P5b 自建键（值 = 官方 chat.empty.greeting.evening en:4668）
   "mobileShell.wide.greeting.lateNight": "It's late—remember to take care of yourself.", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight en:4669）
+  // —— P6 workspaceFileTree 文件树面（spec §23）：en 值按官方语义补译（官方 en locale chunk 本轮未逐字
+  // 提取，下轮校准）；zh 侧 11 键为官方逐字——
+  "workspaceFileTree.title": "Files", // en 补译（zh 侧同标注）
+  "workspaceFileTree.backToTasks": "Back to tasks", // en 补译
+  "workspaceFileTree.addToChat": "Add to chat", // en 补译
+  "workspaceFileTree.clearSearch": "Clear file search", // en 补译
+  "workspaceFileTree.searchLabel": "Search files", // en 补译
+  "workspaceFileTree.searchPlaceholder": "Search files...", // en 补译
+  "workspaceFileTree.refresh": "Refresh file tree", // en 补译
+  "workspaceFileTree.gitStatus.ignored": "Ignored", // en 补译
+  "workspaceFileTree.openFailed": "Failed to open this entry", // en 补译
+  "workspaceFileTree.readFailed": "Failed to read directory", // en 补译
+  "workspaceFileTree.openInBrowser": "Open in built-in browser", // en 补译
+  "workspaceFileTree.openWith": "Open with", // en 补译
+  // —— P6 quickPick 快选框面（spec §23）：en 值按官方语义补译（官方 en chunk 本轮未逐字提取，
+  // 下轮校准）；zh 侧 10 键为官方逐字（含 {error} 插值键）——
+  "quickPick.title": "Command Palette", // en 补译（zh 官方逐字）
+  "quickPick.description": "Search and run commands available in the current workspace.", // en 补译
+  "quickPick.command.goBack": "Back", // en 补译
+  "quickPick.command.goForward": "Forward", // en 补译
+  "quickPick.commandFailed": "Command failed: {error}", // en 补译（{error} 插值对齐官方）
+  "quickPick.find.description": "Search messages and file changes in the current task.", // en 补译
+  "quickPick.find.next": "Next result", // en 补译
+  "quickPick.find.previous": "Previous result", // en 补译
+  "quickPick.find.scope.tooltip": "Toggle search scope between messages and files", // en 补译
+  "quickPick.find.title": "Find in task", // en 补译
+  // —— P6 automations 定时任务面（spec §23）：en 按官方 zh 语义补译（官方 en chunk 本轮未逐字
+  // 提取，下轮校准）；插值名保持官方 {interval}/{unit}/{month}/{day}/{time}/{limit}/{count}/
+  // {when}/{error} 形态。分两段落键——
+  "automations.breadcrumbLabel": "Automations path", // en 补译
+  "automations.chatCreated.defaultTitle": "Scheduled task", // en 补译
+  "automations.chatCreated.open": "Go to scheduled tasks", // en 补译
+  "automations.chatCreated.scheduleFallback": "Created", // en 补译
+  "automations.create": "New", // en 补译
+  "automations.createManually": "Create scheduled task", // en 补译
+  "automations.createViaChat": "Create in chat", // en 补译
+  "automations.createViaChat.prompt": "Every weekday at 9, summarize the current project's code changes and follow-ups.", // en 补译
+  "automations.createdLabel": "Task created", // en 补译
+  "automations.customRepeat.byDate": "By date", // en 补译
+  "automations.customRepeat.byWeekday": "By weekday", // en 补译
+  "automations.customRepeat.compactFrequency": "Every {interval} {unit}", // en 补译
+  "automations.customRepeat.ends": "Ends", // en 补译
+  "automations.customRepeat.endsOption": "On date", // en 补译
+  "automations.customRepeat.frequency": "Repeat frequency", // en 补译
+  "automations.customRepeat.minutes": "minutes", // en 补译
+  "automations.customRepeat.monthLabel": "{year}-{month}", // en 补译
+  "automations.customRepeat.neverEnds": "Never ends", // en 补译
+  "automations.customRepeat.nextMonth": "Next month", // en 补译
+  "automations.customRepeat.previousMonth": "Previous month", // en 补译
+  "automations.customRepeat.rule": "Repeat rule", // en 补译
+  "automations.customRepeat.title": "Custom repeat", // en 补译
+  "automations.customRepeat.unit.day": "day", // en 补译
+  "automations.customRepeat.unit.hour": "hour", // en 补译
+  "automations.customRepeat.unit.minute": "minute", // en 补译
+  "automations.customRepeat.unit.month": "month", // en 补译
+  "automations.customRepeat.unit.week": "week", // en 补译
+  "automations.customRepeat.unit.year": "year", // en 补译
+  "automations.delete": "Delete", // en 补译
+  "automations.delete.description": "Delete “{title}”? This action cannot be undone.", // en 补译
+  "automations.delete.title": "Delete scheduled task", // en 补译
+  // —— 31-92 段（en 补译，form/field/validate/schedule/weekday/confirm 交互族）——
+  "automations.edit.newTask": "New task", // en 补译
+  "automations.edit.promptPlaceholder": "e.g. Review the last 24 hours of commits, summarize possible bugs and fixes", // en 补译
+  "automations.edit.tab.history": "History", // en 补译
+  "automations.edit.tab.settings": "Settings", // en 补译
+  "automations.edit.titlePlaceholder": "Untitled scheduled task", // en 补译
+  "automations.empty.title": "No scheduled tasks yet", // en 补译
+  "automations.error.createLimit": "You can keep at most {limit} scheduled tasks (including paused, completed and failed ones). Delete a task before creating a new one.", // en 补译
+  "automations.error.targetNotFound": "Scheduled task not found. It may have been deleted.", // en 补译
+  "automations.form.dayOfMonth": "Day {day}", // en 补译
+  "automations.form.editTitle": "Edit scheduled task", // en 补译
+  "automations.form.project.localRequired": "Open a local project first", // en 补译
+  "automations.form.prompt.label": "Prompt", // en 补译
+  "automations.form.schedule.at": "at", // en 补译
+  "automations.form.schedule.label": "Schedule", // en 补译
+  "automations.form.schedule.minutePrefix": "Minute", // en 补译
+  "automations.form.schedule.minuteSuffix": "minutes", // en 补译
+  "automations.form.schedule.monthDayValue": "{month}/{day}", // en 补译
+  "automations.form.schedule.weekdaysLabel": "Select weekdays", // en 补译
+  "automations.form.schedule.yearDateLabel": "Select month and date", // en 补译
+  "automations.form.status.label": "Status", // en 补译
+  "automations.form.title.label": "Task title", // en 补译
+  "automations.frequency.custom": "Custom", // en 补译
+  "automations.lifecycle.failed": "Failed", // en 补译
+  "automations.moreActions": "More actions", // en 补译
+  "automations.moreIdeas": "Scheduled task templates", // en 补译
+  "automations.nextRun": "Next run {when}", // en 补译
+  "automations.noWorkspace": "Open a workspace to manage its scheduled tasks.", // en 补译
+  "automations.pageTab.ariaLabel": "Automations page", // en 补译
+  "automations.refresh": "Refresh", // en 补译
+  "automations.restart": "Restart", // en 补译
+  "automations.runCount": "Ran {count} times", // en 补译
+  "automations.runNow": "Run now", // en 补译
+  "automations.runs.col.duration": "Duration", // en 补译
+  "automations.runs.col.status": "Status", // en 补译
+  "automations.runs.col.trigger": "Trigger", // en 补译
+  "automations.runs.col.triggered": "Triggered at", // en 补译
+  "automations.runs.delete": "Delete run", // en 补译
+  "automations.runs.empty": "No runs yet.", // en 补译
+  "automations.runs.errorUnavailable": "No error details available", // en 补译
+  "automations.runs.nextPage": "Next page", // en 补译
+  "automations.runs.openSession": "Jump to session", // en 补译
+  "automations.runs.openSessionFailed": "The target project is not connected; the session cannot be opened", // en 补译
+  "automations.runs.prevPage": "Previous page", // en 补译
+  "automations.schedule.custom": "Every {interval} {unit}, {time}", // en 补译
+  "automations.schedule.customHourly": "At minute {time} of every {interval} hours", // en 补译
+  "automations.schedule.customMinutes": "Every {interval} minutes", // en 补译
+  "automations.schedule.customMonthlyDates": "On day {days} of every {interval} months, {time}", // en 补译
+  "automations.schedule.customMonthlyWeekday": "On the first {day} of every {interval} months, {time}", // en 补译
+  "automations.schedule.customWeekly": "Every {interval} weeks on {days}, {time}", // en 补译
+  "automations.schedule.customYearly": "On {month}/{day} of every {interval} years, {time}", // en 补译
+  "automations.schedule.daily": "Daily at {time}", // en 补译
+  "automations.schedule.hourly": "At minute {minute} of every hour", // en 补译
+  "automations.schedule.monthly": "Monthly on day {day} at {time}", // en 补译
+  "automations.schedule.weekdays": "Every weekday at {time}", // en 补译
+  "automations.schedule.weekly": "Weekly on {days} at {time}", // en 补译
+  "automations.statusFilter.empty": "No matching tasks", // en 补译
+  "automations.templates.unavailable": "No templates available", // en 补译
+  "automations.unsaved.description": "Your changes to this scheduled task will be lost", // en 补译
+  "automations.unsaved.discard": "Discard", // en 补译
+  "automations.unsaved.title": "Discard scheduled task draft?", // en 补译
+  "automations.weekday.separator": ", ", // en 补译（分隔符）
+  // —— P6 补录：automations.weekday.{0-6} 七键（官方 locale chunk 逐字：Sun-Sat，与 zh 日-六
+  // 同源实锤；0=周日/1-6=周一~周六，对齐 $Y=[1..6,0] 周一起始序）——
+  "automations.weekday.0": "Sun", // 官方 locale chunk 逐字
+  "automations.weekday.1": "Mon", // 官方逐字
+  "automations.weekday.2": "Tue", // 官方逐字
+  "automations.weekday.3": "Wed", // 官方逐字
+  "automations.weekday.4": "Thu", // 官方逐字
+  "automations.weekday.5": "Fri", // 官方逐字
+  "automations.weekday.6": "Sat", // 官方逐字
+  // —— P6 workspaceSidebar 宽壳侧栏深面（spec §23）：en 语义补译（官方 en chunk 未逐字提取，下轮校准）——
+  "workspaceSidebar.addProject": "Add project", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.connecting": "Connecting", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.conversationsSection": "Tasks", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.newConversation": "New task", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.noConversations": "No tasks yet", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.noProjects": "No projects open", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.notConnected": "Not connected", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.organize": "View", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.organizeByProject": "Project", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.organizeChronologicalList": "Timeline", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.organizeGrouped": "Grouped", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.projectsSection": "Projects", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.reconnect": "Reconnect", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.remove": "Remove", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.removeRunningWorkspace.confirm": "Remove and stop runs", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.removeRunningWorkspace.description": "This project has running conversations or agents. Removing it stops and releases their run state; task history is kept.", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.removeRunningWorkspace.title": "Remove running project?", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.reorderSection": "Move {section} section", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.resizeSidebar": "Resize sidebar", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.showFileTree": "Show files", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sortBy": "Sort by", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sortByCreated": "Created", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sortByUpdated": "Updated", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sshConnectionAlias": "{alias} (SSH)", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sshConnectionHost": "Host: {host}", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sshConnectionPath": "Path: {path}", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.sshConnectionTitle": "SSH connection", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.taskViewOptions": "Filter and sort", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.toggleSidebar": "Toggle sidebar", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory is missing or inaccessible; only history is viewable for now. Restart ZCode after restoring the directory to continue.", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.viewByWorkspace": "By project", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  "workspaceSidebar.windowsReservedNameRisk": "Project removed, but {count} Windows reserved-name files were detected that may affect later deletion or directory renaming: {path}", // en 补译（zh 官方逐字；SSH 三键官方 locale 缺值）
+  // —— P6 sidePane 侧板面（spec §23）：en 语义补译——
+  "sidePane.addTab": "Add tab", // en 补译（zh 官方逐字）
+  "sidePane.closeAllTabs": "Close all tabs", // en 补译（zh 官方逐字）
+  "sidePane.closeCurrentTab": "Close tab", // en 补译（zh 官方逐字）
+  "sidePane.closeOtherTabs": "Close other tabs", // en 补译（zh 官方逐字）
+  "sidePane.closeTab": "Close {title}", // en 补译（zh 官方逐字）
+  "sidePane.collapse": "Collapse side panel", // en 补译（zh 官方逐字）
+  "sidePane.noTabsFound": "No tabs found.", // en 补译（zh 官方逐字）
+  "sidePane.openFileLoading": "Loading file...", // en 补译（zh 官方逐字）
+  "sidePane.openTab": "Open tab", // en 补译（zh 官方逐字）
+  "sidePane.openTabDescription": "Choose a tab to open in the side panel.", // en 补译（zh 官方逐字）
+  "sidePane.openTabs": "Open tabs", // en 补译（zh 官方逐字）
+  "sidePane.recentlyClosedTabs": "Recently closed tabs", // en 补译（zh 官方逐字）
+  "sidePane.review": "Review", // en 补译（zh 官方逐字）
+  "sidePane.searchTabs": "Search tabs...", // en 补译（zh 官方逐字）
+  "sidePane.selectionChat": "Side chat", // en 补译（zh 官方逐字）
+  "sidePane.subagent": "Subagent", // en 补译（zh 官方逐字）
+  "sidePane.subagentDirectory": "Subagent directory", // en 补译（zh 官方逐字）
+  "sidePane.tabOverview": "Search tabs", // en 补译（zh 官方逐字）
+  "sidePane.time.justNow": "Just now", // en 补译（zh 官方逐字）
+  "sidePane.togglePanel": "Toggle panel", // en 补译（zh 官方逐字）
+  "sidePane.workflowActor": "Workflow subagent", // en 补译（zh 官方逐字）
+  "sidePane.workflowArtifact": "Artifact", // en 补译（zh 官方逐字）
+  "sidePane.workflowDirectory": "Workflow directory", // en 补译（zh 官方逐字）
+  "sidePane.workflowRun": "Workflow run", // en 补译（zh 官方逐字）
+  "sidePane.workflowScript": "Script step", // en 补译（zh 官方逐字）
 };

@@ -13,6 +13,8 @@ export interface MobileTaskShellProps {
   onMorePress?: () => void;
   /** 时间线内容槽（P2a：只读行渲染；富时间线归 P3）。 */
   timeline?: ReactNode;
+  /** 官方任务面在导航栏与消息区之间的工作区标题栏。 */
+  workspaceHeader?: ReactNode;
   /** 底部 composer 槽。 */
   composer?: ReactNode;
   /** 时间线滚动容器 ref：stick-to-bottom / 滚动定位由调用方控制。 */
@@ -29,6 +31,7 @@ export function MobileTaskShell({
   onBack,
   onMorePress,
   timeline,
+  workspaceHeader,
   composer,
   timelineScrollRef,
   timelineOwnsScroll = false,
@@ -73,6 +76,8 @@ export function MobileTaskShell({
           </Button>
         ) : null}
       </header>
+
+      {workspaceHeader}
 
       {/* 时间线滚动容器：children 槽 + stick-to-bottom 交由调用方（经 timelineScrollRef）。 */}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">

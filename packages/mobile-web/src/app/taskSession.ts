@@ -114,6 +114,7 @@ export async function sendSwitchModelConfigCas(input: {
 }
 
 export class TaskSession {
+  private olderRequestPending = false;
   private constructor(
     readonly accessor: IServiceAccessor,
     readonly target: TaskSessionTarget,
@@ -134,6 +135,50 @@ export class TaskSession {
   /** 时间线全序行数由 Host 快照提供；首帧前只展示当前回补窗口。 */
   get totalRowCount(): number {
     return this.store.getState().snapshot?.rows.totalCount ?? this.store.getRows().length;
+  }
+
+  get canLoadOlder(): boolean {
+    const firstRowId = this.store.getState().snapshot?.rows.firstRowId;
+    const currentFirst = this.store.getRows()[0]?.rowId;
+    return (
+      firstRowId !== null &&
+      firstRowId !== undefined &&
+      currentFirst !== undefined &&
+      currentFirst > firstRowId
+    );
+  }
+
+  /** 时间线向上翻页：只前插同一订阅纪元和当前游标的历史行。 */
+  async loadOlder(): Promise<void> {
+    if (this.olderRequestPending || !this.canLoadOlder) return;
+    const beforeRowId = this.store.getRows()[0]?.rowId;
+    const startEpoch = this.store.getState().logEpoch;
+    if (beforeRowId === undefined || startEpoch === null) return;
+    this.olderRequestPending = true;
+    try {
+      const result = await this.accessor.droraAgentService.conversationRowsRangeV4({
+        ...this.workspaceRef(),
+        sessionId: this.target.sessionId,
+        beforeRowId,
+        limit: 200,
+      });
+      const state = this.store.getState();
+      if (
+        result.atLogEpoch !== startEpoch ||
+        state.logEpoch !== startEpoch ||
+        result.atSeq > state.seq ||
+        this.store.getRows()[0]?.rowId !== beforeRowId ||
+        result.rows.length === 0
+      )
+        return;
+      this.store.replaceRows(
+        [...result.rows, ...this.store.getRows()],
+        result.atSeq,
+        result.atLogEpoch,
+      );
+    } finally {
+      this.olderRequestPending = false;
+    }
   }
 
   /** 开桥 + v4 握手（hello → clientHello）+ 流式订阅 + 尾窗行回补。 */

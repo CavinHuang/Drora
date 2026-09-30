@@ -110,9 +110,11 @@ export function formatCompactTokenCount(value: number, locale: string): string {
 export function UsageBadge({
   usedTokens,
   maxTokens,
+  compact = false,
 }: {
   usedTokens: number;
   maxTokens: number;
+  compact?: boolean;
 }) {
   const intl = useIntl();
   if (
@@ -136,6 +138,41 @@ export function UsageBadge({
       total: formatCompactTokenCount(maxTokens, intl.locale),
     },
   );
+  if (compact) {
+    return (
+      <span
+        data-testid="mobile-usage-badge"
+        className="inline-flex size-11 shrink-0 items-center justify-center text-success"
+        role="img"
+        aria-label={`${usageLabel} ${percentLabel}`}
+        title={`${usageLabel} ${percentLabel}`}
+      >
+        <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24">
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="4"
+            opacity="0.25"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeDasharray={2 * Math.PI * 10}
+            strokeDashoffset={2 * Math.PI * 10 * (1 - percent)}
+            strokeLinecap="round"
+            transform="rotate(-90 12 12)"
+          />
+        </svg>
+      </span>
+    );
+  }
   return (
     <span
       data-testid="mobile-usage-badge"
@@ -150,13 +187,7 @@ export function UsageBadge({
 /** 模型菜单（spec §16 第 3 条第一档）。父级需把本组件渲染在触发按钮的 relative 容器内
  * （面板 absolute 锚定、遮罩 fixed 全屏）；面板 w-72 max-h-96 overflow-y-auto，行高 44px
  * 触控标准，选中行 bg-selected，分组标题 text-ui-xs 弱化色。 */
-export function ModelMenu({
-  view,
-  state,
-  loading = false,
-  onSelect,
-  onClose,
-}: ModelMenuProps) {
+export function ModelMenu({ view, state, loading = false, onSelect, onClose }: ModelMenuProps) {
   const { formatMessage } = useIntl();
   const menuLabel = formatMessage({ id: "chat.toolbar.model.label" });
   // 默认展开当前模型行（菜单每次打开重挂载，initializer 即取当时选中事实）。
@@ -203,7 +234,8 @@ export function ModelMenu({
         role="menu"
         aria-label={menuLabel}
         data-testid="mobile-model-menu"
-        className="absolute z-40 max-h-96 w-72 overflow-y-auto rounded-lg border border-border bg-card shadow"
+        // dock 内零高锚点位于输入卡上方；从锚点向上展开，避免菜单被视口底部裁切。
+        className="absolute bottom-0 left-0 z-40 max-h-96 w-72 overflow-y-auto rounded-lg border border-border bg-card shadow"
       >
         {view.providers.map((provider) => {
           // providerName 注册表内可空（config-service 允许空串），空回落 providerId。
@@ -255,7 +287,10 @@ export function ModelMenu({
                         >
                           <ChevronDown
                             aria-hidden="true"
-                            className={cn("size-3.5 transition-transform", expanded && "rotate-180")}
+                            className={cn(
+                              "size-3.5 transition-transform",
+                              expanded && "rotate-180",
+                            )}
                           />
                         </button>
                       ) : null}

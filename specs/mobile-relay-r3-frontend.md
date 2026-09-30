@@ -549,7 +549,7 @@ resolveInteraction、transport.ts v4ConversationFileChangesResult）与官方文
    freeText 输入，sensitive 按密码态处理不入草稿）。应答走 v4 `resolveInteraction`
    命令 `{interactionId, answer:{optionId?|freeText?}}`。无待答交互不渲染。
 2. **markdown 渲染**（assistantText 第一档）：marked + DOMPurify 净化渲染（自包含，
-   安全面：净化后注入，链接 target=_blank rel=noopener；代码块 mono 样式，语法
+   安全面：净化后注入，链接 target=\_blank rel=noopener；代码块 mono 样式，语法
    高亮归 P3 后续）；userInput 保持纯文本。
 3. **文件变更统计**：`conversationFileChangesV4`（打开任务面拉取一次 + 发送后刷新），
    渲染 `chat.changeSummary.filesChanged` 官方键（{count} 个文件已更改）+ 增删行数。
@@ -640,14 +640,14 @@ relay 托管自建 dist 页面 + 无头浏览器（agent-browser/CDP）做首批
 
 **场景结果（414×896 无头，agent-browser/CDP）**：
 
-| 场景 | 结果 |
-| --- | --- |
-| 入口加载（QR 参数族，本地 dist，无外网） | ✅ |
-| relay-client 真握手/配对/心跳（四步卡 → 「已连接到当前桌面窗口」） | ✅ |
-| 首页真实数据（fallback 工作区 g1/本地/C:/g1 渲染） | ✅ |
-| 整理菜单开合 + timeline 切换 | ✅ |
-| 单会话接管：第二浏览器同 QR → 第一页 KICKED → session-conflict 失败卡（真实文案非裸键名，P3b i18n 修复的运行时证据） | ✅ |
-| uncaught pageerror | 0 |
+| 场景                                                                                                                 | 结果 |
+| -------------------------------------------------------------------------------------------------------------------- | ---- |
+| 入口加载（QR 参数族，本地 dist，无外网）                                                                             | ✅   |
+| relay-client 真握手/配对/心跳（四步卡 → 「已连接到当前桌面窗口」）                                                   | ✅   |
+| 首页真实数据（fallback 工作区 g1/本地/C:/g1 渲染）                                                                   | ✅   |
+| 整理菜单开合 + timeline 切换                                                                                         | ✅   |
+| 单会话接管：第二浏览器同 QR → 第一页 KICKED → session-conflict 失败卡（真实文案非裸键名，P3b i18n 修复的运行时证据） | ✅   |
+| uncaught pageerror                                                                                                   | 0    |
 
 证据：`.tmp-work/e2e-smoke/`（10 张截图 + 文本导出）。工具坑备案：agent-browser
 把 argv/stdin 中的 `&` 当命令链分隔符——QR URL 导航用单行
@@ -758,7 +758,7 @@ accessor 显式注入作测试缝；scopes 数组贯穿 workspaceIdentity；缺�
 首页搜索 FAB 入口（React.lazy 真分包）。76 测全绿（新增 17）。
 遗留裁定：host 全文搜索+snippet 接线归 P4 真机档（App 一行接 onSearchTasks）；
 slash 目录（workspace-config topic）与桌面 QuickPick 壳命令组不做（有意分歧，
-spec §18）。临时调试桩 __step 已清除。
+spec §18）。临时调试桩 \_\_step 已清除。
 
 ## 19. 宽视口全壳裁定（2026-09-30）：走复刻路线
 
@@ -775,8 +775,8 @@ P5d 分包与体积验收（对照官方 6.2MB 基线）。
 断点=官方字面 `(max-width: 767px)`；侧栏宽 264（可持久化调整）；单 Root 挂载
 props 四件套（restoreSession:!1/allowOpenWorkspace:!1/switcher 七方法/ PairedCard
 fallback）；服务注册表 oHn()=35+ 服务 pre-bridge stub → 桥附着按通道升级
-（skills/commands 官方桩即 desktop_only 降级先例）。**服务端零改动**：Host 对
-web-remote-replayable 附着注册全量 drora-*/zcode-* 服务——缺口全在手机侧
+（skills/commands 官方桩即 desktop*only 降级先例）。**服务端零改动**：Host 对
+web-remote-replayable 附着注册全量 drora-*/zcode-\_ 服务——缺口全在手机侧
 accessor 组装层（stub→桥升级）与 UI。
 
 **三期切分**：P5b 侧栏+主区骨架（布局+新建/搜索/项目树/用户页脚+问候空态；
@@ -803,7 +803,7 @@ createTask 命令，draft 链归 P5c）、插件市场占位。**门禁**：type
    runtime/防与桌面订阅互替，droraAgent.ts:514-533 取证）→
    TopicWireFrameAssembler(sessionsIndexTopicFrameSchema) → 水位守卫
    （fromSeq!==seq → resync，不猜）→ SessionSummary.phase 映射任务行活性
-   （running/prewarming→running、completed*→completed、error→error、draft→隐藏）。
+   （running/prewarming→running、completed\*→completed、error→error、draft→隐藏）。
 2. **用量页脚数据**：usageStatsService（accessor 可达）——页脚显示当日 token 用量
    第一档；codingPlan 等归后续。
 3. **accessor 组装层**：任务面桥生命周期外的服务调用（搜索/树/用量）统一经
@@ -905,6 +905,10 @@ store 更新摘要 → 合并 bootstrap/list 投影 → 手机首页与宽侧栏
 totalCount、phase → 包装器只读渲染。切换 sessionId 时重建时间线实例，隔离滚动锚点；
 时间线自有滚动容器，移动壳不得再包第二层滚动或按每帧强制贴底。
 缺省渲染无副作用动作：不能在手机上展示未接线的编辑、重试或文件操作按钮。
+当快照窗口首行晚于 `firstRowId` 时，时间线接近顶部经原有 `onLoadOlder` 请求
+`conversationRowsRangeV4(beforeRowId)`。TaskSession 是单次请求所有者；只在
+`atLogEpoch` 与当前订阅一致且 `atSeq` 不超前时，把返回行前插到当前窗口，
+相同游标的并发调用合并；切换会话或纪元后，迟到结果不得写入新窗口。
 
 验收：公开入口与架构依赖合法；构建产物的任务面出现
 `data-v4-timeline-scroll` 与 `data-v4-turn-unit`，桌面/手机宽度均无空白或双滚动；
@@ -923,3 +927,204 @@ ZCode 内置浏览器（IAB，414×896，Playwright evaluate）复验：**活性
 此前的"未生效"判定是 agent-browser CLI 截图时序 + 旧构建缓存的误报；IAB 域内
 evaluate 可靠穿透。工具链结论：IAB（内置浏览器）为无头验收首选（Playwright
 evaluate/domSnapshot 完整可用），agent-browser CLI 降级为备份。
+
+## 23. 任务面第二顶栏与时间线内输入区（2026-09-30）
+
+原版页面存档 `.tmp-work/official-live-mobile-chat.html` 的任务面依次包含
+44px 的「任务会话」导航栏、48px 的 `data-testid="workspace-header"`，以及
+`data-testid="v4-session-pane-workspace-main"`。`ConversationTimeline` 滚动视口
+中的 `data-v4-composer-dock` 是 sticky，`data-v4-composer-dock-content` 带
+水平 16px 与底部 16px 间距。414px 截图显示输入卡悬浮于消息列表底部，
+不是任务壳外的全宽固定栏。宽屏仍由同一时间线 dock 约束内容宽度。
+
+`packages/ui` 的 `ConversationTimeline.bottomDock` 是可复用的布局接口，
+继续通过 `@drora/ui/remote-timeline` 公开入口接入。桌面 `WorkspaceHeader`
+的标题段依赖 workspace services、session store 和全局任务列表；
+`ChatPromptEditor` 的 Lexical 子组件依赖 TabStoreProvider 与桌面命令目录。
+远控当前不具备这些服务，不能挂空实现伪装完整功能。本阶段在 mobile-web
+用受控展示顶栏和既有 `TaskComposer`，保留真实模型、队列、停止、发送动作。
+队列数量保持诊断属性，运行中占位文案提示继续输入会排队，遵循原版无独立队列横幅的外观；
+其输入卡视觉结构对齐 UI 的 composer token，后续服务能力齐备再替换编辑器。
+
+复用审计（当前 checkout）：
+
+| 来源                                                      | 现有能力                                     | 远控选择                                 |
+| --------------------------------------------------------- | -------------------------------------------- | ---------------------------------------- |
+| `packages/ui/src/v4/ConversationTimeline.tsx`             | 实时行、虚拟窗口、滚动锚点、sticky dock      | 通过 `remote-timeline` 公开入口复用      |
+| `packages/ui/src/WorkspaceHeader.tsx`                     | 标题和工作区操作，依赖多项桌面 store/service | 只对齐展示结构，不接假操作               |
+| `packages/ui/src/prompt-editor/ChatPromptEditor.tsx`      | Lexical、附件、命令、模型工具栏              | 需桌面 Tab/服务上下文，暂不直接挂载      |
+| `packages/web/src/main.tsx`                               | Web Root、OAuth、分享路由                    | 不含 `/remote/v4` 任务壳或远控连接所有者 |
+| `packages/web/src/share/ConversationShareLandingPage.tsx` | 公开分享页只读时间线                         | 与可发送的远控 v4 会话语义不同，不复用   |
+
+状态所有者：Host/CLI 持有任务、模型、队列和运行相位；TaskSession/store 持有
+远端快照与发送桥；App 持有未提交草稿与发送中状态；顶栏、输入卡、时间线都只读
+props。输入事件顺序如下：
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant C as 输入卡
+  participant A as App 草稿态
+  participant S as TaskSession
+  participant H as Host/CLI
+  U->>C: 输入或提交
+  C->>A: onDraftChange / onSend
+  A->>S: sendText(text)
+  S->>H: 桥内发送命令
+  H-->>S: 接受结果与订阅帧
+  S-->>A: 快照或增量更新
+  A-->>C: 成功后清空草稿
+```
+
+验收：414px 和宽屏任务面均只出现一个输入区；二层顶栏与原版高度、顺序一致；
+输入区位于共享时间线 sticky dock 内、无额外底栏和双层滚动；模型菜单从输入卡上方向上展开，
+不被视口底边裁切；发送、停止、模型选择、队列占位提示继续工作；首页不加载任务区重型代码。
+
+本轮内置浏览器验收：本地 relay + Host 测试桩在 414×896 渲染两层标题栏
+（44px/48px）、唯一输入卡（`x=16, y≈766, bottom=880`；原版静态存档输入卡
+`y≈775, bottom=880`），共享时间线 dock 正常贴底。发送「对齐回归验证」后，
+订阅消息行出现且草稿清空；模型菜单修正后位于 `top≈534, bottom≈758`，
+完整落在视口内。1280×720 宽屏仍由同一 dock 渲染，无独立页脚。
+原版运行页使用真实任务数据，本地测试使用脚本化 Host，不能据此证明真 CLI 的
+权限应答与停止链路；这些仍须真 Host/CLI 集成验收。
+
+## 24. 六份官网 DOM 的 UI 复用判定（2026-09-30）
+
+证据是工作区根目录的 `test-1.html`、`test-2.html`、`test-3.html`、
+`test-4.html`、`test-web-1.html`、`test-web-2.html`。只记录结构与测试标记，
+不把快照里的会话内容写进仓库。DOM 相同不能单独证明 React 模块身份；以下
+「同源」是根节点 class、`data-testid`、子节点形状与当前 `packages/ui` 源码
+四项互证的结论，不等于该组件已经被本地 `mobile-web` 直接复用。
+
+| 快照 | 页面形态 | 可见结构标记 |
+| --- | --- | --- |
+| `test-1` | 远控首页 | `DesktopWindowFrame`、移动首页壳，无 v4 会话 |
+| `test-2` | 远控任务，侧板关闭 | `workspace-header`、`v4-session-pane-workspace-main`、`chat-summary-panel`、`v4-timeline`、composer dock、`v4-composer` |
+| `test-3` | 远控任务，Git 侧板 | 同上，增加 `git-pane` |
+| `test-4` | 远控任务，预览侧板 | 同上，出现 `git-pane` 与两个已挂载的 `preview-pane` DOM；挂载数不等于可见数 |
+| `test-web-1` | 完整 Web 工作台 | `sidebar`、会话同源标记、`terminal`、`browser` |
+| `test-web-2` | 完整 Web 工作台，预览侧板 | 同上，增加 `preview-pane` |
+
+`test-4` 与 `test-web-1` 的 `workspace-header`、`v4-session-pane-workspace-main`、
+`chat-summary-panel`、`data-v4-timeline-scroll`、`data-v4-composer-dock`、
+`v4-composer` 根节点 class 逐项完全相同，composer 的直接子节点也同为隐藏
+文件 input 与 `chat-composer-input-surface`。这些标记分别落在 UI 包的
+`WorkspaceHeader`、`SessionPane`、`ConversationStatusPanel`、
+`ConversationTimeline`、`ConversationComposer`；Git 与预览侧板落在 `GitPane`
+和 `PreviewPane`。`packages/web/src/main.tsx` 直接挂载 `@drora/ui` 的 `Root`，
+所以 `test-web-*` 是完整工作台的参照；远控页不应直接挂整个 Root，避免带入
+其 workspace、登录、终端和浏览器所有权。
+
+复用边界：
+
+1. `DesktopWindowFrame` 是纯 props 展示壳，六份快照都有
+   `data-desktop-window-frame="true"`。通过新增窄公开入口让 mobile-web 直接复用；
+   `isDesktop=false`，不引入窗口原生操作。
+2. 远控首页的标题、连接提示、聚合统计与工作区卡的 class 顺序，与
+   `packages/ui/src/mobile/MobileHomeShell.tsx` 高度一致。本地
+   `mobile-web/src/ui/HomeShell.tsx` 是有整理、语言和搜索接线的受控移植；
+   目前仍由 mobile-web 装配数据与动作，不把远控 relay 状态搬进 UI store。
+3. 任务面已直接复用 `ConversationTimeline`。其余组件仍是部分形似：
+   本地 `RemoteWorkspaceHeader` 无原版菜单/侧板动作；本地 `TaskComposer`
+   是 textarea，而官网 `ConversationComposer` 含 Lexical、附件、模式、模型与队列动作；
+   本地 `FileChangesBar`/交互卡置于时间线 header slot，官网
+   `ConversationStatusPanel` 浮在会话容器右上。
+4. `SessionPane` 依赖 `useServices`、workspace services、会话/Tab store 和大量
+   宿主回调；`WorkspaceHeader` 的标题段也依赖 workspace services 和任务列表。
+   `GitPane`/`PreviewPane` 读取真实 Git、文件和预览服务。没有对应服务契约时不
+   注入空实现或仅凭 DOM 显示可点击控件。下一阶段先做移动 Host attachment
+   的 Git/文件/附件/命令能力矩阵，再以公开 port 接入 UI 展示层。
+
+唯一所有者保持不变：Host/CLI 持有任务与工作区事实，`TaskSession` 持有移动
+订阅和命令桥，conversation store 持有快照/seq/logEpoch，App 只持有草稿和
+本地侧板选项。未来侧板事件顺序：用户动作 → UI 回调 → mobile-web adapter →
+已有 Host attachment 的服务/命令 → 可校验的返回或订阅帧 → UI 投影；
+跨任务或纪元的迟到结果不得覆写当前侧板。Web 工作台的 desktop-continuous
+链路与手机的 web-remote-replayable 链路不合并所有者。
+
+验收基线：414px 首页、任务页和 1280px 工作台各比对结构与可见区域；任务面
+分别覆盖侧板关闭、Git、预览三个状态；发送、停止、模型、权限应答、附件
+与滚动恢复走真 Host attachment；不能只凭 DOM 测试标记判定功能完成。
+
+## 23. P6 权威缺口取证与六面还原（2026-09-30，本轮立项）
+
+### 23.1 取证方法与权威缺口
+
+指令「继续基于已下载的产物逆向还原」。此前各轮残留疑点（宽壳深面是否漏还原）
+以 `formatMessage({id:"x.y"})` 严格形态全量扫描上游 chunk 定谳：上游 intl id
+约 2.4 千条，还原 `src/intl/zh-CN.ts` 268 键，**权威缺口约 2100+ id / ~75 命名
+空间**——还原面约为官方页的 1/9。此前"插件市场/slash/commandPalette 为有意
+分歧"的裁定在权威形态下复核：三者在 formatMessage 形态**零命中**（此前命中为
+宽松正则把 `t("...")`/表键误报为 intl id），有意分歧裁定**维持**；
+`workspaceFileTree` 12 id 真实存在，按用户裁定解除分歧还原。
+
+取证产物：`$TEMP/p6-<ns>.txt` 六面 id 清单 + `$TEMP/p6-zh-values.tsv`
+官方 zh 文案值（id→值 TSV，2251/2327 命中，76 缺值）。会话期间工具链多次
+计数漂移，数字以本节复核为准（六面 14/12/10/25/32/92 = 185）。
+
+### 23.2 本期范围（用户确认六面，185 id）
+
+| 面        | id 数 | 形态（上游取证）                                   |
+| --------- | ----- | -------------------------------------------------- |
+| appHeader | 14    | 头部动作菜单（复制路径/会话 ID/日志、编辑器/文件管理器打开、reload、selectOpenApp） |
+| automations | 92  | 定时任务面（日程编辑器 hourly/daily/monthly/weekdays、创建/删除/nextRun） |
+| workspaceSidebar | 32 | 宽壳侧栏深面（项目树/任务行深态）               |
+| sidePane  | 25    | 侧板（任务页右/下侧板深态）                        |
+| workspaceFileTree | 12 | 文件树面板（搜索/refresh/gitStatus 标记/addToChat） |
+| quickPick | 10    | 快选框（命令面板 title/description/find 导航）     |
+
+appHeader 缺口与 spec §22「本地 RemoteWorkspaceHeader 无原版菜单/侧板动作」
+记录吻合；automations 已有 formatMessage 真实 UI 上下文实锤（日程描述构造器
+`automations.schedule.hourly`、创建按钮 `automations.createManually` 在
+onClick/aria-label 中）。
+
+### 23.3 还原流程与验收
+
+每面：官方 zh 文案逐字提取（`p6-zh-values.tsv`）→ `src/intl/zh-CN.ts` +
+`en-US.ts` 增键（官方键逐字，官方键缺 en 值时按 zh 语义补译并注明）→ UI 组件
+还原（放 `src/ui/` / `src/ui/wide/`，D6 自包含线）→ 装配接线 → 测试。
+渲染门控（窄/宽视口、capability）以双视口 E2E 实测为准；appHeader 试点先跑
+通全链再扩展。验收：typecheck 0 / lint 0 error / 包内测试绿 / harness
+（官方页 `mobileRoot=upstream` 变体，`.tmp-work/upstream-harness.ts`）双视口
+对照官方渲染面。
+
+### 23.4 后续期 backlog（另立期，~2100 id / ~70 ns）
+
+settings 690 / chat 424 / git 81 / workflows 75 / codeViewer 68 / offPeak 58 /
+bots 58 / conversationShare 54 / webRemoteControl 47 / onboarding 41 /
+modelTrajectory 32 / login 26 / remote 25 / ssh 24 / settingsSync 24 /
+gitGraph 21 / cuaPermission 20 / commandCenter 19 / taskGroup 17 / common 15 /
+whiteboard 15 / codingPlan 15 / tokenDebug 15 / developerTools 14 / codeBlock 13
+/ feedback 12 / server 12 / browser 12 / wsl 10 / workspace 10 / docker 9 /
+treemapping 9 / markdownTable 8 / markdownImage 8 / updateDialog 8 / terminal 8
+/ workflowDirectory 8 / directoryBrowser 7 / updateReady 7 / update 7 / 其余
+~35 小 ns（≤6 id）。这些面多数为桌面工作台深面（settings/git/ssh/docker），
+还原须先过"远控场景可达性"取证（capability/路由门控），避免还原渲染不可达面。
+
+### 23.3 P6 执行结果（2026-09-30，本轮续还原）
+
+六面还原落盘（git 权威仲裁，双 locale +381 行）：workspaceFileTree 12 /
+quickPick 10 / automations 92 + weekday.{0-6} 7 / workspaceSidebar 32 /
+sidePane 25 = **178 id × 2 locale**（zh 以官方 locale chunk 逐字为主；en 语义
+补译标注下轮校准；SSH 三键官方缺值按插值语义补译注明）。组件五面 + 复用两件：
+WorkspaceFileTree / QuickPickDialog（官方 Dialog 受控壳形态 open/onOpenChange/
+title/description + command/find 双模式）/ AutomationsPanel（官方 tablist 双页签
+E1=[automation,workflow] + roving tabindex + 行形态 `title · nextRun` + endsWith
+活跃判定）/ SidePane（官方两分区 + workflow 五细分徽标）/ RemoteWorkspaceHeader
+（appHeader 试点）+ RemoteTaskTimeline/useTaskHistory（v4 时间线复用装配缝）。
+**automationsSchedule 六件套官方逐字节还原**（取证 4837B：iX 七分支 schedule
+构造器 + nX 九分支 cron 解析器 + mUt 三形态 + eX=padStart(2,'0') + $Y=[1..6,0]
+周一起始序 + rX=weekday.${e} 运行时模板）；官方双分隔符形态如实（weekly 硬编码
+"、"，customWeekly 走 weekday.separator 键）；hUt 的 tX 反序列化与 gUt GMT 尾段
+官方值未取证——不臆造，归下轮。**weekday.{0-6} 七键 = 静态提取盲区实锤**
+（rX 运行时模板拼接 `weekday.${e}`，formatMessage 字面提取正则不可达；官方
+locale chunk 双向取证 zh 日-六 / en Sun-Sat 补录）。
+
+门禁：测试 +33（基线 96 → **129**；四新面单文件直跑 29/29 + automationsSchedule
+11/11 + AutomationsPanel 6/6 + SidePane 6/6 全绿；全套件 runner 125/125 一轮绿）
++ build 绿（788 assets）。**劣化轮取证纪律实锤**（spec §24 执行案例）：Edit
+幻觉回显（臆造 new_string）经 git 仲裁证伪——劣化只污染回显不污染落盘；sidePane
+污染段 25 键经清创脚本精准移除后按 TSV 逐字重落；pnpm runner 计数漂移（8/108/
+125 三形态）→ **node --test 单文件直跑为本轮最小可信单元**。
+
+E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，本轮不虚报通过）。

@@ -2,7 +2,7 @@
 // 状态所有者：连接/配对 = RelaySession；会话行/交互/模型/用量 = conversation store 派生；
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   mobileFailureCodeFromWire,
   MobileConnectionStatusCard,
@@ -11,13 +11,8 @@ import {
 import type { MobileHomeConnectionState } from "../ui/HomeShell.js";
 import { HomeScreen } from "./HomeScreen.js";
 import { MobileTaskShell } from "../ui/TaskShell.js";
-import {
-  IntlProvider,
-  resolveLocale,
-  storeLocale,
-} from "../ui/intl.js";
-import { InteractionCards, type InteractionAnswer } from "../ui/InteractionCards.js";
-import { FileChangesBar } from "../ui/FileChangesBar.js";
+import { IntlProvider, resolveLocale, storeLocale } from "../ui/intl.js";
+import type { InteractionAnswer } from "../ui/InteractionCards.js";
 import {
   createEntryClient,
   parseEntryQuery,
@@ -27,6 +22,9 @@ import {
 import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
+import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
+import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
+import { useTaskHistory } from "./useTaskHistory.js";
 import { WideShell } from "../ui/wide/WideShell.js";
 import { useWideViewport } from "../ui/wide/useWideViewport.js";
 import { EMPTY_MODEL_SELECTION_STATE } from "./conversationStore.js";
@@ -43,13 +41,6 @@ import type {
 import type { ModelSelectionView } from "@drora/services";
 import type { RelayClient } from "@drora/relay-client";
 declare const __MOBILE_APP_VERSION__: string;
-
-// 中间消息列表与桌面同源；仅进入任务面时加载重型行渲染子树。
-const RemoteConversationTimeline = lazy(() =>
-  import("@drora/ui/remote-timeline").then((module) => ({
-    default: module.RemoteConversationTimeline,
-  })),
-);
 
 type Phase =
   | { kind: "loading"; step: "connecting" | "authenticating" | "waiting" | "paired" }
@@ -74,7 +65,6 @@ function AppBody() {
   const [queueState, setQueueState] = useState<ConversationQueueState | null>(null);
   const [fileChanges, setFileChanges] = useState<V4ConversationFileChangesResult | null>(null);
   const [answering, setAnswering] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -84,6 +74,7 @@ function AppBody() {
   const [modelState, setModelState] = useState<ModelSelectionState | null>(null);
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
+  const { loadingOlder, loadOlder, resetOlder } = useTaskHistory(taskRef);
   const storeUnsubscribeRef = useRef<(() => void) | null>(null);
   // P5b 宽视口（spec §19）：官方断点 (max-width: 767px) 取反——≥768px 交 WideShell
   // 全壳（侧栏+主区），<768px 维持既有单列壳（零回归）。
@@ -179,6 +170,7 @@ function AppBody() {
       setTaskTitle(title);
       setTaskRows([]);
       setTaskTotalCount(0);
+      resetOlder();
       setTaskTarget({
         path: workspace.path,
         ...(workspace.workspaceKey !== workspace.path ? { identity: workspace.workspaceKey } : {}),
@@ -229,7 +221,7 @@ function AppBody() {
         fail(reason, message, true);
       }
     },
-    [fail],
+    [fail, resetOlder],
   );
 
   const backHome = useCallback(() => {
@@ -239,6 +231,7 @@ function AppBody() {
     taskRef.current = null;
     setControlState(null);
     setTaskTarget(null);
+    resetOlder();
     setPendingInteractions([]);
     setQueueState(null);
     setFileChanges(null);
@@ -247,7 +240,7 @@ function AppBody() {
     setModelView(null);
     setPhase({ kind: "home" });
     void refresh();
-  }, [refresh]);
+  }, [refresh, resetOlder]);
 
   const sendDraft = useCallback(async () => {
     const session = taskRef.current;
@@ -310,26 +303,45 @@ function AppBody() {
   // —— 渲染 ——
 
   // P3a/P3b：富时间线 + 交互卡（权限/问答置顶）+ 文件变更统计条。
-  const timelineHeader = (
-    <>
-      <InteractionCards
-        interactions={pendingInteractions}
-        busy={answering}
-        onResolve={(interactionId, answer) => void resolveInteraction(interactionId, answer)}
+  const composer =
+    taskTarget && selectedTaskId ? (
+      <TaskComposer
+        draft={draft}
+        sending={sending}
+        stopping={stopping}
+        controlState={controlState}
+        queueState={queueState}
+        modelState={modelState ?? EMPTY_MODEL_SELECTION_STATE}
+        modelView={modelView}
+        modelLoading={modelLoading}
+        modelMenuOpen={modelMenuOpen}
+        onDraftChange={setDraft}
+        onSend={() => void sendDraft()}
+        onStop={() => void stopGeneration()}
+        onToggleModelMenu={() => {
+          const session = taskRef.current;
+          if (!session) return;
+          setModelMenuOpen((open) => !open);
+          if (!modelMenuOpen) {
+            setModelLoading(true);
+            void session
+              .getModelSelectionView()
+              .then((view) => setModelView(view))
+              .finally(() => setModelLoading(false));
+          }
+        }}
+        onModelSelect={(selection) => {
+          setModelMenuOpen(false);
+          const session = taskRef.current;
+          if (session) void session.switchModel(selection);
+        }}
+        onCloseModelMenu={() => setModelMenuOpen(false)}
       />
-      <FileChangesBar
-        files={fileChanges?.files ?? null}
-        additions={fileChanges?.additions ?? null}
-        deletions={fileChanges?.deletions ?? null}
-        className="px-3 pt-1"
-      />
-    </>
-  );
+    ) : null;
 
-  const timeline = taskTarget && selectedTaskId ? (
-    <Suspense fallback={<div className="min-h-0 flex-1" />}>
-      <RemoteConversationTimeline
-        key={selectedTaskId}
+  const timeline =
+    taskTarget && selectedTaskId ? (
+      <RemoteTaskTimeline
         rows={taskRows}
         totalCount={taskTotalCount}
         sessionKey={selectedTaskId}
@@ -339,24 +351,24 @@ function AppBody() {
         theme={theme}
         sessionPhase={controlState?.phase ?? undefined}
         modelSelectionView={modelView}
-        headerSlot={timelineHeader}
+        interactions={pendingInteractions}
+        answering={answering}
+        onResolve={(interactionId, answer) => void resolveInteraction(interactionId, answer)}
+        fileChanges={fileChanges}
+        canLoadOlder={taskRef.current?.canLoadOlder ?? false}
+        loadingOlder={loadingOlder}
+        onLoadOlder={loadOlder}
+        bottomDock={composer}
       />
-    </Suspense>
-  ) : null;
+    ) : null;
 
   if (phase.kind === "loading") {
-    const stepToPhase = {
-      connecting: { phase: "connecting", done: 0, active: 1 },
-      authenticating: { phase: "authenticating", done: 1, active: 2 },
-      waiting: { phase: "waiting", done: 2, active: 3 },
-      paired: { phase: "paired", done: 3, active: 4 },
-    } as const;
-    const copy = stepToPhase[phase.step];
+    const doneCount = ["connecting", "authenticating", "waiting", "paired"].indexOf(phase.step);
     return (
       <MobileConnectionStatusCard
-        phase={copy.phase}
-        doneCount={copy.done}
-        activeCount={copy.active}
+        phase={phase.step}
+        doneCount={doneCount}
+        activeCount={doneCount + 1}
       />
     );
   }
@@ -376,43 +388,13 @@ function AppBody() {
   const taskShell =
     phase.kind === "task" ? (
       <MobileTaskShell
-        title={taskTitle}
         onBack={backHome}
         timelineOwnsScroll
         timeline={timeline}
-        composer={
-          <TaskComposer
-            draft={draft}
-            sending={sending}
-            stopping={stopping}
-            controlState={controlState}
-            queueState={queueState}
-            modelState={modelState ?? EMPTY_MODEL_SELECTION_STATE}
-            modelView={modelView}
-            modelLoading={modelLoading}
-            modelMenuOpen={modelMenuOpen}
-            onDraftChange={setDraft}
-            onSend={() => void sendDraft()}
-            onStop={() => void stopGeneration()}
-            onToggleModelMenu={() => {
-              const session = taskRef.current;
-              if (!session) return;
-              setModelMenuOpen((open) => !open);
-              if (!modelMenuOpen) {
-                setModelLoading(true);
-                void session
-                  .getModelSelectionView()
-                  .then((view) => setModelView(view))
-                  .finally(() => setModelLoading(false));
-              }
-            }}
-            onModelSelect={(selection) => {
-              setModelMenuOpen(false);
-              const session = taskRef.current;
-              if (session) void session.switchModel(selection);
-            }}
-            onCloseModelMenu={() => setModelMenuOpen(false)}
-          />
+        workspaceHeader={
+          taskTarget ? (
+            <RemoteWorkspaceHeader title={taskTitle} workspacePath={taskTarget.path} />
+          ) : null
         }
       />
     ) : null;
@@ -425,7 +407,7 @@ function AppBody() {
         connection={connection}
         workspaces={liveWorkspaces}
         selectedTaskId={selectedTaskId}
-        isRefreshing={isRefreshing}
+        isRefreshing={false}
         taskSurface={taskShell}
         onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
         onRefresh={() => void refresh()}
@@ -445,7 +427,7 @@ function AppBody() {
       connection={connection}
       workspaces={liveWorkspaces}
       selectedTaskId={selectedTaskId}
-      isRefreshing={isRefreshing}
+      isRefreshing={false}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
       onRefresh={() => void refresh()}
       onThemePress={toggleTheme}

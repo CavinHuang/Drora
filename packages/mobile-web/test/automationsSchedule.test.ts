@@ -6,8 +6,11 @@ import {
   defaultSchedule,
   describeCron,
   describeSchedule,
+  formatDateTime,
+  formatGmtOffset,
   pad2,
   parseCron,
+  serializeSchedule,
   weekdayName,
   type AutomationSchedule,
   type FormatMessage,
@@ -38,7 +41,7 @@ test("rX 星期名：weekday.{0-6} 官方 zh 逐字（日/一/…/六）", () =>
 });
 
 test("iX hourly/daily/weekdays：官方逐字（第 {minute} 分 / 每天 / 每工作日）", () => {
-  const schedule = { ...defaultSchedule("0 9 * * *", NOW), hour: 9, minute: 5 };
+  const schedule = { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5 };
   assert.equal(describeSchedule({ ...schedule, frequency: "hourly" }, fmt), "每小时的第 05 分");
   assert.equal(describeSchedule({ ...schedule, frequency: "daily" }, fmt), "每天 09:05");
   assert.equal(describeSchedule({ ...schedule, frequency: "weekdays" }, fmt), "每工作日 09:05");
@@ -47,7 +50,7 @@ test("iX hourly/daily/weekdays：官方逐字（第 {minute} 分 / 每天 / 每�
 test("iX weekly：$Y 序排序 + 硬编码'、'分隔（不走 separator 键）", () => {
   assert.equal(
     describeSchedule(
-      { ...defaultSchedule("0 9 * * *", NOW), hour: 9, minute: 5, frequency: "weekly", weekdays: [3, 1] },
+      { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "weekly", weekdays: [3, 1] },
       fmt,
     ),
     "每周一、三 09:05",
@@ -57,7 +60,7 @@ test("iX weekly：$Y 序排序 + 硬编码'、'分隔（不走 separator 键）"
 test("iX monthly：{day} 号 + HH:MM", () => {
   assert.equal(
     describeSchedule(
-      { ...defaultSchedule("0 9 * * *", NOW), hour: 9, minute: 5, frequency: "monthly", dayOfMonth: 15 },
+      { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "monthly", dayOfMonth: 15 },
       fmt,
     ),
     "每月 15 号 09:05",
@@ -65,7 +68,7 @@ test("iX monthly：{day} 号 + HH:MM", () => {
 });
 
 test("iX custom 六子形态：minute/hourly/weekly/monthly×2/yearly/兜底 unit=day", () => {
-  const base = { ...defaultSchedule("0 9 * * *", NOW), hour: 9, minute: 5, frequency: "custom" as const };
+  const base = { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "custom" as const };
   assert.equal(
     describeSchedule({ ...base, customInterval: 5, customUnit: "minute" }, fmt),
     "每 5 分钟",
@@ -114,7 +117,7 @@ test("iX custom 六子形态：minute/hourly/weekly/monthly×2/yearly/兜底 uni
 
 test("iX default → rawExpr 直出（官方兜底）", () => {
   assert.equal(
-    describeSchedule({ ...defaultSchedule("0 9 * * *", NOW), frequency: "biweekly" as never, rawExpr: "0 12 * * 0" }, fmt),
+    describeSchedule({ ...defaultSchedule("30 9 * * *", NOW), frequency: "biweekly" as never, rawExpr: "0 12 * * 0" }, fmt),
     "0 12 * * 0",
   );
 });
@@ -180,3 +183,123 @@ function pick(schedule: AutomationSchedule, keys: readonly (keyof AutomationSche
   for (const key of keys) out[key] = schedule[key];
   return out;
 }
+
+// —— P6 续还原（第二轮取证 22/22）：tX/gUt/aX 三件套官方逐字节断言 ——
+
+// defaultSchedule 返回官方默认形状（minute:0 硬编码、**不解析** rawExpr——cron 解析归 nX）。
+// tX 断言基座显式补 hour/minute，使序列化输出与断言文案的 "30 9" 分时位对齐。
+const txBase = { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 30 };
+
+test("tX 五基础频率：官方逐字节形态", () => {
+  assert.equal(serializeSchedule({ ...txBase, frequency: "hourly" }), "30 * * * *");
+  assert.equal(serializeSchedule({ ...txBase, frequency: "daily" }), "30 9 * * *");
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekdays" }), "30 9 * * 1-5");
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [1, 3, 5] }), "30 9 * * 1,3,5");
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [] }), "30 9 * * *");
+  assert.equal(serializeSchedule({ ...txBase, frequency: "monthly", dayOfMonth: 15 }), "30 9 15 * *");
+});
+
+test("tX weekly 数值升序（与 describeSchedule $Y 序双形态并存实锤）", () => {
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [5, 1, 3] }), "30 9 * * 1,3,5");
+  assert.equal(
+    describeSchedule({ ...txBase, frequency: "weekly", weekdays: [0, 6] }, fmt),
+    "每周六、日 09:30",
+    "$Y 序：6(六) 先于 0(日)；时/分走 pad2（txBase minute=30）",
+  );
+});
+
+test("tX custom 六子：步进越界退化全通配 + weekly 原序 + nth/dates/yearly", () => {
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 5, customUnit: "minute" }),
+    "*/5 * * * *",
+  );
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 60, customUnit: "minute" }),
+    "* * * * *",
+    "官方越界守卫 t<=59 → 全通配",
+  );
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 25, customUnit: "hourly", minute: 30 }),
+    "30 * * * *",  // 官方越界守卫 t<=24 → 全通配退化
+  );
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 32, customUnit: "daily" }),
+    "30 9 * * *",
+    "官方越界守卫 t<=31",
+  );
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 2, customUnit: "weekly", customWeekdays: [5, 1] }),
+    "30 9 * * 5,1",
+    "customWeekly 官方原序（无排序）",
+  );
+  assert.equal(
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 1, customUnit: "weekly", customWeekdays: [] }),
+    "30 9 * * 1",
+    "空集 → 1 兜底",
+  );
+  assert.equal(
+    serializeSchedule({
+      ...txBase,
+      frequency: "custom",
+      customInterval: 1,
+      customUnit: "monthly",
+      customMonthlyMode: "weekday",
+      customWeekdays: [5],
+    }),
+    "30 9 * * 5#1",
+    "官方 nth-weekday 语法 DOW#1",
+  );
+  assert.equal(
+    serializeSchedule({
+      ...txBase,
+      frequency: "custom",
+      customInterval: 1,
+      customUnit: "monthly",
+      customMonthlyMode: "date",
+      customMonthDays: [1, 15],
+    }),
+    "30 9 1,15 * *",
+  );
+  assert.equal(
+    serializeSchedule({
+      ...txBase,
+      frequency: "custom",
+      customInterval: 1,
+      customUnit: "yearly",
+      customMonth: 15,
+      customMonthDays: [1],
+    }),
+    "30 9 1 12 *",
+    "官方月位 clamp(1..12) + interval 不参与 yearly",
+  );
+});
+
+test("tX default → rawExpr.trim()（官方兜底）", () => {
+  assert.equal(serializeSchedule({ ...txBase, frequency: "biweekly" as never, rawExpr: "  0 12 * * 0  " }), "0 12 * * 0");
+});
+
+test("gUt 三态：GMT / GMT+8 / GMT-5:30（分非零 pad2 尾段）", () => {
+  assert.equal(formatGmtOffset(0), "GMT");
+  assert.equal(formatGmtOffset(480), "GMT+8");
+  assert.equal(formatGmtOffset(-330), "GMT-5:30");
+});
+
+test("aX 日期时间：YYYY-MM-DD HH:MM 全 pad2 + 空值 → `-`", () => {
+  assert.equal(formatDateTime(new Date(2026, 8, 30, 9, 5).getTime()), "2026-09-30 09:05");
+  assert.equal(formatDateTime(null), "-");
+  assert.equal(formatDateTime(0), "-");
+});
+
+test("roundtrip：nX→tX 对五基础频率 + 步进三分支恒等（hUt 官方往返语义）", () => {
+  for (const expr of [
+    "30 * * * *",
+    "30 9 * * *",
+    "30 9 * * 1-5",
+    "30 9 15 * *",
+    "*/5 * * * *",
+    "30 */2 * * *",
+    "30 9 */3 * *",
+  ]) {
+    assert.equal(serializeSchedule(parseCron(expr, NOW)), expr, `roundtrip: ${expr}`);
+  }
+});

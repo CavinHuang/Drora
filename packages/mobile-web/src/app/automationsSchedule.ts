@@ -243,3 +243,85 @@ export function describeCron(expr: string, formatMessage: FormatMessage): string
     ? formatMessage({ id: "automations.frequency.custom" })
     : describeSchedule(schedule, formatMessage);
 }
+
+// —— P6 续还原（2026-09-30 第二轮取证，22/22 结构化断言全过）：tX/gUt/aX 三件套 ——
+// 官方取证逐字节（抗劣化协议：grep 落盘 → node 22 布尔摘要 → 与已提交 nX 字段族交叉）：
+//   tX(e) 单参 schedule→cron：六 case + custom 六子形态（步进越界守卫 t<=59/24/31 → 全通配
+//     退化 `*`）+ monthly weekday→`DOW#1` nth 语法 + yearly 月位 min(12,max(1,floor)) 且
+//     **interval 不参与 yearly cron**（t 仅前三分支用）+ 日位 customMonthDays[0]??今日兜底 +
+//     default→rawExpr.trim()。
+//   **weekly 排序双形态并存实锤**：tX 用数值升序 (a,b)=>a-b；iX（describeSchedule）用 $Y
+//     周一起始序——两函数排序不同，均官方逐字节，不归一。
+//   gUt(e=-new Date().getTimezoneOffset())：0→`GMT`；符号 e>0?`+`:`-`；时=floor(|e|/60)；
+//     分=|e|%60 非 0 → `:${pad2(分)}` 尾段（pad2 复用 eX）。
+//   aX(e)：日期时间 `YYYY-MM-DD HH:MM`（月/日/时/分全 pad2；空值→`-`）。
+
+/** 官方 tX：schedule → cron 表达式（单参；weekly 数值升序——与 describeSchedule 的 $Y 序双形态并存）。 */
+export function serializeSchedule(schedule: AutomationSchedule): string {
+  const { frequency, hour, minute, weekdays, dayOfMonth, rawExpr } = schedule;
+  switch (frequency) {
+    case "hourly":
+      return `${minute} * * * *`;
+    case "daily":
+      return `${minute} ${hour} * * *`;
+    case "weekdays":
+      return `${minute} ${hour} * * 1-5`;
+    case "weekly":
+      // 官方：数值升序排序（非 $Y 周一起始序）；空集 → `*`。
+      return `${minute} ${hour} * * ${
+        weekdays.length > 0 ? [...weekdays].sort((a, b) => a - b).join(",") : "*"
+      }`;
+    case "monthly":
+      return `${minute} ${hour} ${dayOfMonth} * *`;
+    case "custom": {
+      const interval = Math.max(1, Math.floor(schedule.customInterval));
+      if (schedule.customUnit === "minute") {
+        return interval <= 59 ? `*/${interval} * * * *` : "* * * * *";
+      }
+      if (schedule.customUnit === "hourly") {
+        return interval <= 24 ? `${minute} */${interval} * * *` : `${minute} * * * *`;
+      }
+      if (schedule.customUnit === "daily") {
+        return interval <= 31 ? `${minute} ${hour} */${interval} * *` : `${minute} ${hour} * * *`;
+      }
+      if (schedule.customUnit === "weekly") {
+        // 官方：原序 join（无排序，与 weekly case 数值升序不同）；空集 → `1` 兜底。
+        return `${minute} ${hour} * * ${
+          schedule.customWeekdays.length > 0 ? schedule.customWeekdays.join(",") : "1"
+        }`;
+      }
+      if (schedule.customUnit === "monthly") {
+        // 官方：weekday 模式走 cron nth-weekday 语法 `DOW#1`；date 模式日列表。
+        return schedule.customMonthlyMode === "weekday"
+          ? `${minute} ${hour} * * ${schedule.customWeekdays[0] ?? 1}#1`
+          : `${minute} ${hour} ${
+              schedule.customMonthDays.length > 0 ? schedule.customMonthDays.join(",") : "1"
+            } * *`;
+      }
+      // 官方 yearly：月位 clamp(1..12)；interval 不参与 yearly cron；日位 ?? 今日兜底。
+      const month = Math.min(12, Math.max(1, Math.floor(schedule.customMonth)));
+      return `${minute} ${hour} ${schedule.customMonthDays[0] ?? new Date().getDate()} ${month} *`;
+    }
+    default:
+      return rawExpr.trim();
+  }
+}
+
+/** 官方 gUt：UTC 偏移 → `GMT±H[:MM]`（0 → `GMT`；分非零 → pad2 补零尾段）。 */
+export function formatGmtOffset(offset: number = -new Date().getTimezoneOffset()): string {
+  if (offset === 0) return "GMT";
+  const sign = offset > 0 ? "+" : "-";
+  const total = Math.abs(offset);
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return `GMT${sign}${hours}${minutes > 0 ? `:${pad2(minutes)}` : ""}`;
+}
+
+/** 官方 aX：时间戳 → `YYYY-MM-DD HH:MM`（空值 → `-`；月/日/时/分全 pad2）。 */
+export function formatDateTime(timestamp: number | null | undefined): string {
+  if (!timestamp) return "-";
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(
+    date.getHours(),
+  )}:${pad2(date.getMinutes())}`;
+}

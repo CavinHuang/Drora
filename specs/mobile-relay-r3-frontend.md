@@ -1128,3 +1128,27 @@ locale chunk 双向取证 zh 日-六 / en Sun-Sat 补录）。
 125 三形态）→ **node --test 单文件直跑为本轮最小可信单元**。
 
 E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，本轮不虚报通过）。
+
+### 23.5 P6 续还原：tX/gUt/aX 三件套（2026-09-30 第二轮，automationsSchedule 六件套→九件套）
+
+抗劣化协议取证（grep 落盘 → node 22 布尔结构化摘要 → 与已提交 nX 字段族交叉，
+**22/22 全过**才动手还原）：
+- **tX = serializeSchedule**（schedule→cron，单参）：五基础频率直出；weekly 的 weekdays
+  **数值升序** `(a,b)=>a-b`（与 describeSchedule 的 $Y 周一起始序**双形态并存**，两函数
+  排序不同均官方逐字节）；custom 六子——minute/hourly/daily 步进越界守卫（t<=59/24/31，
+  越界退化为全通配 `*`）、customWeekly **原序** join（空→`1`）、monthly weekday→cron
+  nth 语法 `DOW#1`（date→日列表 join，空→`1`）、yearly 月位 clamp(1..12) 且
+  **customInterval 不参与 yearly cron**、日位 `customMonthDays[0]??new Date().getDate()`
+  今日兜底、default→`rawExpr.trim()`。
+- **gUt = formatGmtOffset**：0→`GMT`；符号 ±；时=floor(|e|/60)；分非零→`:${pad2(分)}`
+  尾段。**aX = formatDateTime**：`YYYY-MM-DD HH:MM`（全 pad2；空值→`-`）。
+- roundtrip 断言：nX→tX 对五基础频率+步进三分支恒等（hUt 官方往返语义覆盖）。
+
+门禁：automationsSchedule 单文件 **18/18**、全套件 **138/138**（131 基线 +7）、build 绿。
+**测试侧 3 处败因记录**（实现零改动）：`defaultSchedule` 返回官方默认形状（minute:0
+硬编码、**不解析** rawExpr——解析归 nX），断言基座误以为传入 cron 串会得到对应分时；
+修法=显式 `txBase = {...defaultSchedule(...), hour: 9, minute: 30}` 对齐预期文案。
+
+劣化教训入库（本轮实证）：`/tmp`（MSYS）与 node `fs` 的 `/tmp`（→`D:\tmp`）路径
+映射断裂——跨工具脚本一律走 `process.env.TEMP`；测试失败先做**行为级单调用直跑**
+（node --import tsx -e 构造同参调用）仲裁实现真伪，再查测试侧假设。

@@ -2042,3 +2042,15 @@ useServices 消费**——**App 塔与 GitPane 壳塔均不覆盖**（GitActionM
 GitActionMenu 域——修法=其壳自带 Provider 或内部改 useOptionalServices 容错）。
 **新建任务主功能不受影响**（gitAction=null 下点新建→createSession→新任务面主体
 渲染正常，仅 GitActionMenu 状态行崩——已由 null 隔离）。门禁：165/165+build 绿。
+
+### 30.12 崩根因调试收口（2026-09-30 终轮）——资产完备，归专项续查
+
+印记链 E2E 终态：真页面 __prov 空 + __svcModuleId 单值（l71fjz）——**GitActionMenu
+chunk 内 vI throw 时，塔 ServiceProvider 渲染体（__provActive）从未执行**——排除双
+React/双拷贝/双实例后，剩余假说=**渲染时序**（崩消费者渲染于塔 ServiceProvider 函数
+体执行前的帧——React 渲染序父先子后不成立，唯 lazy Suspense 边界/条件跳过帧可能）。
+**资产已全备**（__prov/__svcModuleId/__provActive 印记+build 诊断模式+探针栈 title），
+下轮专项：①印记载入恢复（并行重写覆盖了部分印记——重新补）②Suspense 边界二分
+（gitAction 槽 Suspense fallback=null → 改占位组件观崩点迁移）③时间线族 lazy 拆分
+回退试验（GitActionMenu 并回 index 看崩是否消失——chunk 边界语义定位）。
+**保护现状**：gitAction=null（新建主功能通）；165/165+build 797+typecheck 绿。

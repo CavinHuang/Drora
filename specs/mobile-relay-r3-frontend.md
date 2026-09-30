@@ -1704,6 +1704,54 @@ StatusPanel aside 共存。门禁：**164/164**、build 绿（789 assets）。
 - capability 接线法累计**三例**（feedback/fork/commit-dialog+GitPane）——官方协议
   与复原件双前置查证 → 命令/壳 → 桩 → E2E 的标准作业已成熟。
 
+## 29. 侧板入口与 Git 状态共源修正（2026-09-30）
+
+### 29.1 官方入口、复用边界
+
+发行 bundle `index-NjWRUABD.js:241629-241685` 与当前 UI 复原件
+`AnimatedSidePanePanel.tsx:815-855` 均表明 `side-pane-toggle` 首次展开的是
+`side-pane-open-tab-shell`，标题为「打开标签页」，包含可执行 tab 的启动列表；
+它不直接打开 `GitPane`。GitPane 的任务内入口是 `ConversationStatusPanel` 的
+`onOpenGitReview`（`WorkspaceShellLayout.tsx` 的既有接线），`GitActionMenu` 仍是
+独立的「提交或推送」入口。完整 `AnimatedSidePanePanel` 持桌面 tab/终端/浏览器
+状态，不能在手机 attachment 中直接挂载；复用其官方 DOM 结构和本包 locale，
+由 mobile-web 的受控侧板壳接入当前能力。无实际 tab 命令时不呈现虚假按钮。
+
+### 29.2 所有者与事件顺序
+
+Git 仓库事实仍由当前 Local Host 的 `IGitService.refresh` 提供；App 仅持当前
+attachment 的只读投影（摘要、文件数、增删行数），同时供 `GitActionMenu` 与
+`ConversationStatusPanel`。一次 refresh 取得同一 Git 快照，避免两个组件分别
+请求。目标键是 `workspaceIdentity?.trim() || workspacePath`，并绑定 task id 和
+当前 accessor；任务切换、桥换代、卸载时丢弃旧响应。UI 侧板模式（关闭、标签
+启动器、GitPane）仅为本地交互态，切换任务时复位；它不拥有 Git 或 task 状态。
+GitPane 内的 `useGitRepository` 是桌面远端注册表 hook，手机桥已按 attachment
+绑定 Host，因此 adapter 调用时使用本地路径 fallback，保留目标身份只作隔离。
+GitPane「刷新」必须触发 `gitService.refresh`，查找导航计数不能代替数据刷新。
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant App as 手机 App 投影
+    participant Host as 当前 Local Host
+    participant Status as ConversationStatusPanel
+    participant Pane as GitPane
+    App->>Host: git.refresh(workspacePath)
+    Host-->>App: summary + staged/unstaged 同帧快照
+    App-->>Status: Git 状态与 onOpenGitReview
+    User->>App: side-pane-toggle
+    App-->>User: open-tab-shell
+    User->>Status: 查看 Git 审查
+    Status->>App: onOpenGitReview
+    App-->>Pane: 打开 GitPane
+    User->>Pane: 刷新
+    Pane->>Host: git.refresh(workspacePath)
+```
+
+验收：任务 header 侧板按钮打开官方 open-tab-shell 而不是 GitPane；状态面板的
+Git 审查动作打开 GitPane；GitPane 刷新经当前桥重读数据；带远程身份但没有桌面
+`remoteSessionId` 的 attachment 仍可读取；迟到的旧 Host 响应不覆盖当前任务。
+
 ### 28.3 lazy 化完成（2026-09-30 续）——index 104KB 达标
 
 GitPane/GitActionMenu lazy 化（React.lazy+Suspense fallback=null，官方 SessionPane
@@ -1743,3 +1791,13 @@ ZCode）+ 工作区任务列表列**（双列/分栏 Workbench 降级投影）�
 降级形态，替换成本/信息架构收益不成比），本节补完「官方无问候可见层」证据供后续
 重裁。方法论沉淀：innerText 取证会混入 sr-only 文本——可见性判定必须
 getBoundingClientRect+computedStyle 逐元素。
+
+### 27.2 终补：额度提示条取证（2026-09-30 续二，生产页活体收尾）
+
+workspace-more-button 弹层实为**额度提示通知条**（顶部 toast 形态：icon+文案+关闭）：
+「4 次重置额度」= `codingPlan.quotaReset.contextReminder.available`（{count} 插值）；
+键族 quotaReset.{contextReminder.available/expiresIn,dialog.resettable/title,openDialog,
+opportunity}。数据源=coding plan 额度服务+弹出时机逻辑——远控桥面未接该数据面且
+无 coding plan 时官方亦不显示。**裁定：backlog 维持**（成本>价值；键族与形态已存档，
+数据源接通时按 toast 形态落地）。生产页活体可取证面至此全部终态闭合（侧板/
+commit-dialog/quickPick sr-only/额度条四项）。

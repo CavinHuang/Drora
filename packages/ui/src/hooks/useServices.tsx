@@ -6,6 +6,10 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { IServiceAccessor } from "@drora/services";
 
+// 临时诊断（GitPane 一期崩源，用后即还原）：模块执行 id + Provider 渲染印记。
+const __svcModuleId = ((globalThis as { __svcModuleId?: string }).__svcModuleId ??= Math.random()
+  .toString(36)
+  .slice(2, 8)) as string;
 const ServiceContext = createContext<IServiceAccessor | null>(null);
 
 export function ServiceProvider({
@@ -15,6 +19,8 @@ export function ServiceProvider({
   services: IServiceAccessor;
   children: ReactNode;
 }) {
+  (globalThis as { __prov?: string[] }).__prov ??= [];
+  (globalThis as { __prov?: string[] }).__prov.push("provider:" + __svcModuleId);
   return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
 }
 

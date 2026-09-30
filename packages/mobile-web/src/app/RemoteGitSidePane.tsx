@@ -10,17 +10,17 @@
 // 右侧覆盖浮层。
 import * as React from "react";
 import {
-  DroraIntlProvider,
   GitPane,
   PlatformProvider,
-  PluginReferenceIconProvider,
-  TooltipProvider,
   useGitRepository,
   type GitPaneRepositoryState,
-  ServiceProvider,
-  StoreProvider,
-  TabStoreProvider,
 } from "@drora/ui/git-pane";
+import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
+import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
+import { ServiceProvider } from "@/hooks/useServices.js";
+import { StoreProvider } from "@/store/StoreProvider.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
 import type { IServiceAccessor, IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
@@ -67,6 +67,8 @@ export interface RemoteGitSidePaneProps {
   className?: string;
 }
 
+const __modId = ((globalThis as { __svcModuleId?: string }).__svcModuleId ??= "shell-" + Math.random().toString(36).slice(2, 8)) as string;
+
 export function RemoteGitSidePane({
   open,
   onClose,
@@ -79,6 +81,8 @@ export function RemoteGitSidePane({
   className,
 }: RemoteGitSidePaneProps) {
   const { formatMessage } = useIntl();
+  (globalThis as { __prov?: string[] }).__prov ??= [];
+  (globalThis as { __prov?: string[] }).__prov.push("$1-shell:" + __modId);
   if (!open) return null;
   return (
     <aside

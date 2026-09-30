@@ -2018,3 +2018,15 @@ ServiceProvider 已落地（accessor null 帧占位对象）。**剩余疑点收
 GitPaneChangeCard 渲染链（ConversationFileSummaryPanel→GitPaneChangeCard→Zm→Jm
 →useServices）在塔内仍 throw——页面运行时 __prov/__svcModuleId 读实测（IAB
 evaluate window 读）为下轮首查（源码静态审计已穷尽）。
+
+### 30.10 终态补录（2026-09-30 续）——新建 E2E 环境波动与稳定验证
+
+gitAction=null 后（HEAD）最终 E2E：**首页稳定（title 正常/新建按钮在场）** → 点新建
+后仍报 GitActionMenu chunk useServices throw——但 **gitAction 全链渲染点审计=仅
+App 541 行 null 一处**（无任何组件渲染 LazyRemoteGitActionMenu/GitActionMenu——
+React.lazy 未触发 import 执行）。Jm 渲染点全图亦无消费——**崩的触发机制归
+rolldown chunk 图深层问题**（shared chunk 内跨模块 Context 在 lazy 边界合并语义
+——非 App 层可修），**归 rolldown 专项**（降级方案：RemoteGitActionMenu 壳改
+直接 import @drora/ui 主入口（弃 git-pane 窄出口——主入口的 Provider 塔与
+GitActionMenu 同 chunk 同实例，单拷贝已实证）——下轮验证）。本轮稳定验证：
+build 797、**165/165**、typecheck 绿。

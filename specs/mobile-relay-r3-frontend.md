@@ -1965,3 +1965,23 @@ sourceMappingURL+zcode.z.ai 守卫——保留提交为合法诊断功能）。
 **下轮换源内探针法**：①ui 包 useServices.tsx 临时探针已备（保留）；②GitActionMenu
 .tsx/GitPane.tsx 壳与消费组件加渲染期印记（window.__prov 链）→ 真页面读印记判定
 Provider/消费组件的模块实例与挂载顺序——比 chunk 反查直接。
+
+### 30.6 源内探针法落地（2026-09-30 终轮）——并行域 GitActionMenu 重写让位
+
+RemoteGitActionMenu.tsx 已被并行会话重写（unavailableGitSummary fallback 版）——
+该域停手让位。源内探针法落地（GitPane 崩源定位资产）：①useServices.tsx 模块执行
+id（__svcModuleId）+ServiceProvider 渲染印记（__prov 链，用后即还原标注）；
+②RemoteGitSidePane 壳消费印记。下轮 E2E：点新建/开侧板 → 读 __prov 链 →
+provider/consumer 同 __svcModuleId=单实例（崩源另寻）；异 id=双实例实锤（rolldown
+chunk 拆分策略修正）。openTabShell.test 文件级失败=并行半成品（其会话收口）。
+正式 build（无 sourcemap env）绿。
+
+### 30.7 工作树交接快照（2026-09-30 终轮收口）
+
+HEAD=55115ae3（源内探针法落地）。工作树 13 文件未提交=**并行会话进行中工作**与
+本会话尾部改动混合：并行域（OpenTabShell/attachmentGitSummary/goal 接线/
+remoteStatusCommands/RemoteConversationTimeline 状态面板/DESIGN/vite.config dedupe
+试探）+本会话尾部（App.tsx 塔/探针残留）。**交接约定**：并行会话收口其文件后一并
+提交；本会话不再动工作树（防覆盖）。1516 assets=MOBILE_ALLOW_SOURCEMAP 诊断模式
+产物（718 maps——崩源定位资产）。正式构建回退=不设 env 跑 build-app（守卫恢复，
+.git 残留 .map 已清）。

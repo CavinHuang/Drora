@@ -62,8 +62,8 @@ export function RemoteGitActionMenu({
             <TabStoreProvider>
               <StoreProvider broadcastService={MOCK_BROADCAST}>
                 {(() => {
-                  (globalThis as { __prov?: string[] }).__prov ??= [];
-                  (globalThis as { __prov?: string[] }).__prov.push("provider:" + __modId);
+                  const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
+                  prov.push("provider:" + __modId);
                   return null;
                 })()}
                 <ServiceProvider services={accessor}>

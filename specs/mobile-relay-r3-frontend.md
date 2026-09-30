@@ -2030,3 +2030,15 @@ rolldown chunk 图深层问题**（shared chunk 内跨模块 Context 在 lazy �
 直接 import @drora/ui 主入口（弃 git-pane 窄出口——主入口的 Provider 塔与
 GitActionMenu 同 chunk 同实例，单拷贝已实证）——下轮验证）。本轮稳定验证：
 build 797、**165/165**、typecheck 绿。
+
+### 30.11 GitPane 崩源 E2E 定谳（2026-09-30 终）——归 GitActionMenu 内部，并行域让位
+
+印记链 E2E（真页面 59533）：gitAction=null 下点新建——**Jm/GitActionMenu chunk
+useServices throw 且 __prov 空**——**GitActionMenu 壳塔（含 provider 印记）从未
+渲染**（gitAction=null 无渲染点）——**Jm 的渲染点在 GitActionMenu chunk 内部**
+（GitActionMenu.tsx 主组件内部状态行）——**崩源=GitActionMenu 主组件挂载时
+useServices 消费**——**App 塔与 GitPane 壳塔均不覆盖**（GitActionMenu 挂载点
+已被并行会话重写接管）。**裁定：GitPane 二期崩源归并行域**（其会话正在重写
+GitActionMenu 域——修法=其壳自带 Provider 或内部改 useOptionalServices 容错）。
+**新建任务主功能不受影响**（gitAction=null 下点新建→createSession→新任务面主体
+渲染正常，仅 GitActionMenu 状态行崩——已由 null 隔离）。门禁：165/165+build 绿。

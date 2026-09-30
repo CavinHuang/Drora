@@ -33,9 +33,7 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
     assert.match(html, /class="[^"]*h-dvh[^"]*"/);
     assert.match(html, /<main>task surface<\/main>/);
 
-    const { RemoteConversationTimeline } = await server.ssrLoadModule(
-      "@drora/ui/remote-timeline",
-    );
+    const { RemoteConversationTimeline } = await server.ssrLoadModule("@drora/ui/remote-timeline");
     const base = {
       rows: [],
       totalCount: 0,
@@ -44,9 +42,9 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
       locale: "zh-CN",
       theme: "light",
     };
-    const render = (statusSnapshot?: unknown) =>
+    const render = (statusSnapshot?: unknown, actions: Record<string, unknown> = {}) =>
       renderToStaticMarkup(
-        React.createElement(RemoteConversationTimeline, { ...base, statusSnapshot }),
+        React.createElement(RemoteConversationTimeline, { ...base, statusSnapshot, ...actions }),
       );
     assert.doesNotMatch(render(), /data-testid="chat-summary-panel"/);
     const taskHtml = render({
@@ -61,6 +59,27 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
     assert.match(taskHtml, /data-testid="chat-summary-panel"/);
     assert.match(taskHtml, /data-v4-timeline-scroll="true"/);
     assert.match(taskHtml, /@container\/conversation/);
+
+    const activeGoal = {
+      goal: {
+        targetId: "g1",
+        objective: "完成任务",
+        summaryTitle: null,
+        timeUsedSeconds: 0,
+        activeRunStartedAtMs: null,
+        status: "active",
+        iteration: 1,
+        verifications: [],
+        iterations: [],
+      },
+      plan: null,
+      backgroundWorks: [],
+      availability: { pauseGoal: { allowed: true }, resumeGoal: { allowed: false } },
+    };
+    assert.match(render(activeGoal), /data-goal-action="pause"[^>]*disabled/);
+    const enabled = render(activeGoal, { onPauseGoal: () => {} });
+    assert.match(enabled, /data-goal-action="pause"/);
+    assert.doesNotMatch(enabled, /data-goal-action="pause"[^>]*disabled/);
   } finally {
     await server.close();
   }

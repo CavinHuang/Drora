@@ -541,8 +541,9 @@ Rules:
 The mobile remote page (`@drora/mobile-web`, served at `/remote/v4`) is a
 self-contained React app. Its shell UI lives in the package (`src/ui`,
 `src/intl`). The task conversation uses the narrow
-`@drora/ui/remote-timeline` public entry for the original v4 message list and
-sticky composer dock (see `specs/mobile-relay-r3-frontend.md` §§22–23).
+`@drora/ui/remote-timeline` public entry for the original v4 message list,
+conversation status panel, and sticky composer dock. The entry frame uses
+`@drora/ui/remote-frame` (see `specs/mobile-relay-r3-frontend.md` §§22–25).
 
 ### Do
 
@@ -565,7 +566,8 @@ sticky composer dock (see `specs/mobile-relay-r3-frontend.md` §§22–23).
 ### Don't
 
 - import desktop-only capabilities into the mobile shell or bypass the
-  `@drora/ui/remote-timeline` entry to reach UI implementation files
+  `@drora/ui/remote-timeline` and `@drora/ui/remote-frame` entries to reach UI
+  implementation files
 - render raw i18n keys — a missing key means the dictionary extraction missed
   an official string; fix the extraction instead of tolerating the fallback
 - introduce single-file bundles: vendor/app splits are a hard requirement

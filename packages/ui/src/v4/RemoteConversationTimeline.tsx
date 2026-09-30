@@ -1,6 +1,6 @@
 // 远控展示适配层：复用 v4 实时消息列表，不在 UI 包里持有 relay 或会话状态。
 import { useMemo, useState, type ReactNode } from "react";
-import type { Locale } from "@drora/shared";
+import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
   ConversationRow,
   ConversationSnapshot,
@@ -34,6 +34,11 @@ export interface RemoteConversationTimelineProps {
   sessionPhase?: SessionPhase;
   modelSelectionView?: ModelSelectionView | null;
   statusSnapshot?: RemoteStatusSnapshot | null;
+  gitSummary?: GitRepositorySummary | null;
+  gitDirtyFileCount?: number;
+  gitWorktreeChangeSummary?: { added: number; removed: number } | null;
+  onRefreshGit?: () => void;
+  onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
   onCancelBackgroundWork?: (workId: string) => void;
@@ -59,6 +64,11 @@ export function RemoteConversationTimeline({
   sessionPhase,
   modelSelectionView,
   statusSnapshot,
+  gitSummary,
+  gitDirtyFileCount,
+  gitWorktreeChangeSummary,
+  onRefreshGit,
+  onOpenGitReview,
   onPauseGoal,
   onResumeGoal,
   onCancelBackgroundWork,
@@ -77,12 +87,15 @@ export function RemoteConversationTimeline({
     () =>
       buildConversationStatusPanelModel({
         workspacePath,
+        gitSummary,
+        gitDirtyFileCount,
+        gitWorktreeChangeSummary,
         goal: statusSnapshot?.goal ?? null,
         plan: statusSnapshot?.plan ?? null,
         backgroundWorks: statusSnapshot?.backgroundWorks ?? [],
         runningSubagents: statusSnapshot?.subagents?.running ?? [],
       }),
-    [workspacePath, statusSnapshot],
+    [workspacePath, gitSummary, gitDirtyFileCount, gitWorktreeChangeSummary, statusSnapshot],
   );
   const statusPanelLayout =
     !statusModel.hasContent || statusPanelVariant === "mini"
@@ -110,6 +123,11 @@ export function RemoteConversationTimeline({
             <ConversationStatusPanel
               workspacePath={workspacePath}
               workspaceIdentity={workspaceIdentity}
+              gitSummary={gitSummary}
+              gitDirtyFileCount={gitDirtyFileCount}
+              gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+              onRefreshGit={onRefreshGit}
+              onOpenGitReview={onOpenGitReview}
               goal={statusSnapshot?.goal ?? null}
               plan={statusSnapshot?.plan ?? null}
               backgroundWorks={statusSnapshot?.backgroundWorks ?? []}
@@ -117,7 +135,9 @@ export function RemoteConversationTimeline({
               layoutMode={statusPanelLayout}
               summaryPanelVariantOverride={statusPanelVariant}
               onVariantChange={setStatusPanelVariant}
-              onPauseGoal={statusSnapshot?.availability?.pauseGoal.allowed ? onPauseGoal : undefined}
+              onPauseGoal={
+                statusSnapshot?.availability?.pauseGoal.allowed ? onPauseGoal : undefined
+              }
               onResumeGoal={
                 statusSnapshot?.availability?.resumeGoal.allowed ? onResumeGoal : undefined
               }

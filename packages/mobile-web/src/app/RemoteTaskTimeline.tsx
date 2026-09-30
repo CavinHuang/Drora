@@ -1,6 +1,6 @@
 // 任务消息区唯一装配缝：惰性加载 UI 包的实时 v4 时间线。
 import { lazy, Suspense, type ReactNode } from "react";
-import type { Locale } from "@drora/shared";
+import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
   ConversationRow,
   ConversationSnapshot,
@@ -29,6 +29,11 @@ export interface RemoteTaskTimelineProps {
   sessionPhase?: SessionPhase;
   modelSelectionView?: ModelSelectionView | null;
   statusSnapshot?: ConversationSnapshot | null;
+  gitSummary?: GitRepositorySummary | null;
+  gitDirtyFileCount?: number;
+  gitWorktreeChangeSummary?: { added: number; removed: number } | null;
+  onRefreshGit?: () => void;
+  onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
   onCancelBackgroundWork?: (workId: string) => void;
@@ -41,7 +46,10 @@ export interface RemoteTaskTimelineProps {
   onLoadOlder: () => Promise<void>;
   bottomDock: ReactNode;
   /** 助手消息赞/踩（v4 setAssistantFeedback；缺省不渲染 feedback 按钮）。 */
-  onFeedbackChange?: (target: { rowId: number; entityId: string }, feedback: "like" | "dislike" | null) => Promise<boolean | void> | boolean | void;
+  onFeedbackChange?: (
+    target: { rowId: number; entityId: string },
+    feedback: "like" | "dislike" | null,
+  ) => Promise<boolean | void> | boolean | void;
   /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
   onFork?: (target: { rowId: number; entityId: string }) => void;
 }
@@ -76,6 +84,11 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         sessionPhase={props.sessionPhase}
         modelSelectionView={props.modelSelectionView}
         statusSnapshot={props.statusSnapshot}
+        gitSummary={props.gitSummary}
+        gitDirtyFileCount={props.gitDirtyFileCount}
+        gitWorktreeChangeSummary={props.gitWorktreeChangeSummary}
+        onRefreshGit={props.onRefreshGit}
+        onOpenGitReview={props.onOpenGitReview}
         onPauseGoal={props.onPauseGoal}
         onResumeGoal={props.onResumeGoal}
         onCancelBackgroundWork={props.onCancelBackgroundWork}

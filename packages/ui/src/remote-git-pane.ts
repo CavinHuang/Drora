@@ -11,3 +11,4 @@ export { TooltipProvider } from "@/components/ui/tooltip.js";
 export { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
 export { GitActionMenu } from "@/GitActionMenu.js";
 export { PlatformProvider } from "@/hooks/usePlatform.js";
+export { playTaskNotificationSound } from "@/lib/taskNotificationSound.js";

@@ -1907,3 +1907,13 @@ onNewTask prop（侧栏+问候空态新建按钮同源）。HomeScreen 窄壳新
 门禁：165/165、build 绿。**E2E 归下轮**：harness pairing 三轮未就绪（window host
 not ready 偶发，重启未解）——实现侧门禁绿；复验序列已备（fresh harness+点新建→
 createSession→新任务面 header/toggle 断言）。
+
+### 30.1 新建任务 E2E 与崩点归属（2026-09-30 续）——与并行工作交界的停手裁定
+
+新建 E2E 实况：点「新建任务」→ handleNewTask 执行 → createSession 命令链（DroraAgent
+通道正位修正后）→ 新任务面渲染时 **GitActionMenu chunk 崩**：useServices 必须在
+ServiceProvider 内（探针 stack 实锤 GitActionMenu chunk 内消费）。疑云=lazy chunk 与
+index chunk 的 useServices Context **双实例**（Provider 包不住跨 chunk 消费）。
+**停手裁定**：gitAction 槽区域已被并行会话改写（Lazy+attachedTask 模式融合——并行在
+该域活跃重构），不再覆盖；崩点修复归并行域（其 chunk 共享策略/壳归位即解）。
+门禁维持 165/165（build 绿）。

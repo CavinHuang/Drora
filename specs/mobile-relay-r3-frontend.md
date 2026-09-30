@@ -1917,3 +1917,16 @@ index chunk 的 useServices Context **双实例**（Provider 包不住跨 chunk 
 **停手裁定**：gitAction 槽区域已被并行会话改写（Lazy+attachedTask 模式融合——并行在
 该域活跃重构），不再覆盖；崩点修复归并行域（其 chunk 共享策略/壳归位即解）。
 门禁维持 165/165（build 绿）。
+
+### 30.2 崩根因升级（2026-09-30 终）——App 级 Provider 塔方案
+
+gitAction 回退 null 后新建**仍崩**同 chunk——**崩源非 header gitAction**：lazy chunk
+（GitActionMenu/时间线合并 1072KB）内**多个组件消费 useServices**（时间线族
+GitPaneChangeCard→GitPane 域等）——打开新任务面→时间线渲染→chunk 加载→无 Provider
+覆盖即 throw。**此前白屏间歇同根因**（进入含该组件族的页面即崩，探针未上线前不可读）。
+**方案（下轮执行）**：App 级 Provider 塔上提——窄/宽壳双分支外层包
+ServiceProvider（accessor 动态组合：attachedTask?.accessor 优先，回退
+homeBridgeAccessorRef.current）+StoreProvider/TabStoreProvider/DroraIntl/Tooltip/
+IconProvider/PlatformProvider（remoteWebPlatform）——**一次性覆盖 lazy chunk 全部
+useServices 消费**（GitPane/GitActionMenu/GitPaneChangeCard/未来组件全解锁）。
+门禁维持 165/165（gitAction=null 回退保新建主功能通）。

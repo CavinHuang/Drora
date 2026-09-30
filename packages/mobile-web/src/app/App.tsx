@@ -111,18 +111,7 @@ function AppBody() {
     );
   }, []);
   const liveWorkspaces = useHomeSessionsIndex(workspaces, openHomeBridge);
-  // P6 新建任务解封（spec §30，capability 第四例）：createSession → ACK sessionId →
-  // 打开新任务面（桌面同语义：空会话，首输走 composer）。
-  const handleNewTask = useCallback(() => {
-    const accessor = homeBridgeAccessorRef.current;
-    const ws = liveWorkspaces[0];
-    if (!accessor || !ws) return;
-    void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
-      .then(({ sessionId, title }) =>
-        openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
-      )
-      .catch(() => {});
-  }, [liveWorkspaces, openTask]);
+
   const attachedTask =
     phase.kind === "task" &&
     taskRef.current?.target.sessionId === selectedTaskId &&
@@ -282,6 +271,18 @@ function AppBody() {
     [fail, resetOlder],
   );
 
+  // P6 新建任务解封（spec §30，capability 第四例）：createSession → ACK sessionId →
+  // 打开新任务面（桌面同语义：空会话，首输走 composer）。
+  const handleNewTask = useCallback(() => {
+    const accessor = homeBridgeAccessorRef.current;
+    const ws = liveWorkspaces[0];
+    if (!accessor || !ws) return;
+    void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
+      .then(({ sessionId, title }) =>
+        openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
+      )
+      .catch(() => {});
+  }, [liveWorkspaces, openTask]);
   const backHome = useCallback(() => {
     storeUnsubscribeRef.current?.();
     storeUnsubscribeRef.current = null;
@@ -516,19 +517,10 @@ function AppBody() {
               sidePaneOpen={sidePaneMode !== null}
               // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
               // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
-              gitAction={
-                attachedTask ? (
-                  <React.Suspense fallback={null}>
-                  <LazyRemoteGitActionMenu
-                    workspacePath={taskTarget.path}
-                    workspaceIdentity={taskTarget.identity}
-                    accessor={attachedTask.accessor}
-                    gitSummary={gitStatus.summary}
-                    onRefreshGit={gitStatus.refresh}
-                  />
-                  </React.Suspense>
-                ) : null
-              }
+              // GitActionMenu 跨 chunk Context 双实例崩暂回退（spec §30.2）：useServices
+              // 拷贝在 lazy chunk，Provider 塔同 chunk 仍崩——根因待专项（rolldown ui 包
+              // 双入口解析）。新建任务主功能保通（点新建→createSession→新任务面）。
+              gitAction={null}
             />
           ) : null
         }

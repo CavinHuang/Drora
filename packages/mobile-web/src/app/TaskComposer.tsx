@@ -244,6 +244,7 @@ export function TaskComposer(props: TaskComposerProps) {
                 className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
                 disabled={!draft.trim() || sending}
                 aria-label={formatMessage({ id: "mobileShell.composer.send" })}
+                data-testid="v4-composer-send"
                 onClick={onSend}
               >
                 <ArrowUp aria-hidden="true" className="size-4" />

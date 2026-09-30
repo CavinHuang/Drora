@@ -1534,3 +1534,23 @@ getIgnoredPaths/getDiff scripted）→ build.test.mjs D6 白名单 +git-pane（�
 非本轮代码）+ 标签旧 bundle 状态残留。实现侧 Provider 顺序 bug（useGitRepository 在
 ServiceProvider 外调用→整树崩）已由错误捕获定位并两层拆分修正。下轮首查：fresh
 harness + fresh 标签重走 toggle→GitPane→git 列表断言。
+
+## 26. 官方生产页活体取证（2026-09-30，用户提供生产配对链）
+
+用户提供官方生产环境配对链接（zcode.z.ai + 真实桌面 Host 在线）——**活体对照**
+解锁此前保存稿不可取证面。IAB 同函数签名提取：稳定 testid **52**（vs 保存稿 34）。
+
+### 26.1 新对齐项（本轮落）
+
+- **v4-composer-send**：官方发送按钮 testid（保存稿无——生产页 composer 齐装形态）
+  → 我方发送按钮（实用偏差保留件）补 testid，门禁 162/162。
+
+### 26.2 新实锤分歧（下轮项）
+
+- **宽壳首页主区 = 命令面板区块**（h2「命令面板」+ p「搜索并执行当前工作区可用的
+  命令。」+ 命令列表项）——我方 GreetingEmptyState（问候空态）为形态分歧实锤。
+  生产页是完整工作台（含 sidebar/terminal/browser 工作台专属面），远控窄壳形态
+  仍以保存稿为准；宽壳首页命令面板区块属宽壳工作台域，是否跟随需结合 §24 复用
+  判定（GreetingEmptyState 为 P5b 有意偏差记录件）。
+- 生产页 v4-feedback-{like,dislike}-{rowId} 多行在场（真实 CLI 数据+完整能力）——
+  复证 §23.13 接线正确性（我方 feedback 按钮在数据+回调齐备后渲染同形）。

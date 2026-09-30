@@ -1554,3 +1554,13 @@ harness + fresh 标签重走 toggle→GitPane→git 列表断言。
   判定（GreetingEmptyState 为 P5b 有意偏差记录件）。
 - 生产页 v4-feedback-{like,dislike}-{rowId} 多行在场（真实 CLI 数据+完整能力）——
   复证 §23.13 接线正确性（我方 feedback 按钮在数据+回调齐备后渲染同形）。
+
+### 25.5 第四层依赖止损（2026-09-30）——GitPane 归二期，toggle 回退
+
+E2E 复验抓第四层 Provider 依赖：GitPane 链 useFileContextActions → usePlatform
+（IPlatformService 大接口 617 行——远控无平台服务，完整 mock 超一期边界且违 §24
+"无契约不注入空实现"）。**裁定**：①App onToggleSidePane 回退 undefined（装配缝
+保留、按钮不渲染防崩树）；②RemoteGitSidePane 装配壳保留（七层壳+GitPaneBody
+层序契约已是二期直接资产）；③GitPane 二期前置=web 平台适配器（IPlatformService
+远控语义子集 no-op 或官方远控页平台方案取证——官方生产页 GitPane 可开，其
+platform 供给方式待查）。门禁：162/162、build 绿。E2E 复验顺延二期（同因）。

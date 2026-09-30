@@ -457,7 +457,9 @@ function AppBody() {
             <RemoteWorkspaceHeader
               title={taskTitle}
               workspacePath={taskTarget.path}
-              onToggleSidePane={taskRef.current ? () => setGitSidePaneOpen((open) => !open) : undefined}
+              // GitPane 二期前置（spec §25.5）：GitPane 链第四层 usePlatform（IPlatformService
+              // 大接口，远控无平台服务）——Provider 壳缺位前不启用开关（防崩树）。
+              onToggleSidePane={undefined}
               sidePaneOpen={gitSidePaneOpen}
             />
           ) : null

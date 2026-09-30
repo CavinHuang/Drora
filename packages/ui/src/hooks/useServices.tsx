@@ -21,6 +21,8 @@ export function ServiceProvider({
 export function useServices(): IServiceAccessor {
   const ctx = useContext(ServiceContext);
   if (!ctx) {
+    // 临时诊断探针（GitPane 一期崩源定位，用后即还原）：
+    (globalThis as { __useServicesProbe?: string }).__useServicesProbe = new Error().stack ?? "";
     throw new Error("useServices 必须在 ServiceProvider 内使用");
   }
   return ctx;

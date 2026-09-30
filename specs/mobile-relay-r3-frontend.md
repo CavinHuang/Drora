@@ -1956,3 +1956,12 @@ gitService + m()=useDroraIntl 双消费）——GitActionMenu.tsx 同文件内�
 rolldown chunk 图证据待专项（下轮：build 后扫描 useServices 模块在几个 chunk 出现+
 ServiceProvider 塔位置 vs 消费位置）。gitAction={null} 回退维持（新建主功能通——
 点新建→createSession→新任务面主功能可开，状态行/提交对话框崩已隔离）。
+
+### 30.5 sourcemap 路线受阻（2026-09-30 终）——换源内探针法
+
+sourcemap 符号化未达：718 maps 生成但 Jm 位置（57:63384）**无映射段**（minify 内联
+函数无独立映射条目）。build-app.mjs 已加诊断模式（MOBILE_ALLOW_SOURCEMAP=1 豁免
+sourceMappingURL+zcode.z.ai 守卫——保留提交为合法诊断功能）。
+**下轮换源内探针法**：①ui 包 useServices.tsx 临时探针已备（保留）；②GitActionMenu
+.tsx/GitPane.tsx 壳与消费组件加渲染期印记（window.__prov 链）→ 真页面读印记判定
+Provider/消费组件的模块实例与挂载顺序——比 chunk 反查直接。

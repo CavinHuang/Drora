@@ -479,4 +479,5 @@ export const zhCN: Record<string, string> = {
   "sidePane.workflowDirectory": "工作流目录", // 官方逐字
   "sidePane.workflowRun": "工作流实例", // 官方逐字
   "sidePane.workflowScript": "脚本步骤", // 官方逐字
+  "common.cancel": "取消", // 官方 locale chunk 逐字
 };

@@ -1152,3 +1152,26 @@ E2E 双视口与 spec §23.3 验收基线对照归下轮（劣化间歇收口，
 劣化教训入库（本轮实证）：`/tmp`（MSYS）与 node `fs` 的 `/tmp`（→`D:\tmp`）路径
 映射断裂——跨工具脚本一律走 `process.env.TEMP`；测试失败先做**行为级单调用直跑**
 （node --import tsx -e 构造同参调用）仲裁实现真伪，再查测试侧假设。
+
+### 23.6 P6 续还原：sidebar 组件深面（2026-09-30 第三轮）
+
+宽壳侧栏深面接线（locale 32 键已入库，本轮补组件与组装）：
+- **SidebarOrganizeMenu**：官方 RadioGroup 形态（value 字面 project/chronological/
+  workspace 三值 + aria-label=organize「视图」+ 选中 check size-3）；sortBy 两值
+  （updated/created）装配缝缺省不渲染（零回归）；官方图标名 minify 不可考（Hv/z_/Uv），
+  用同族 lucide 对位（History/CalendarPlus/ListOrdered）。
+- **SidebarRemoveWorkspaceDialog**：官方 confirm dialog API 形态（title/description/
+  confirmLabel=removeRunningWorkspace.confirm/cancelLabel=**common.cancel**/
+  confirmVariant=destructive → role=alertdialog）；windowsReservedNameRisk
+  {count}/{path} 插值段装配可选。**common.cancel 双语补录**（官方 chunk 逐字 取消/Cancel）。
+- **WorkspaceSshBadge**：sshConnectionTitle 徽标 + alias/host/path 三插值进 title
+  详情（官方浮层形态未取证，不臆造交互）。
+- **Sidebar.tsx 接线**：键位官方化 7 处（noProjects/noConversations/projectsSection/
+  newConversation×2/toggleSidebar×2/noProjects 空态）+ 装配缝六项全可选缺省不渲染
+  （organize/sort/onWorkspaceRemove/onAddProject/onShowFileTree/organize 菜单浮层）。
+  organize/sort 状态所有者=上层 WideShell（props 注入），菜单开合/移除目标为侧栏本地态。
+
+门禁：sidebarDeep 10/10（组件 7 + 组装 3）、全套件 **148/148**、build 绿。
+**sed 误伤事故记录**：全局删 Trash2 占位时按缩进匹配误删两处 `</span>` 闭合
+（组行移除按钮 + 页脚用户名），build JSX 语法错暴露——**大文件清理禁用缩进锚全局
+sed，逐处 Edit 或读后删**。

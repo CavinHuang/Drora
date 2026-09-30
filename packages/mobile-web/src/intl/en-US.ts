@@ -491,4 +491,5 @@ export const enUS: Record<string, string> = {
   "sidePane.workflowDirectory": "Workflow directory", // en 补译（zh 官方逐字）
   "sidePane.workflowRun": "Workflow run", // en 补译（zh 官方逐字）
   "sidePane.workflowScript": "Script step", // en 补译（zh 官方逐字）
+  "common.cancel": "Cancel", // 官方 locale chunk 逐字
 };

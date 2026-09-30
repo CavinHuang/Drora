@@ -10,6 +10,7 @@ import {
   ChevronDown,
   CircleUserRound,
   FolderOpen,
+  FolderPlus,
   LoaderCircle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -17,12 +18,21 @@ import {
   Plus,
   RefreshCw,
   Search,
+  SlidersHorizontal,
+  TreeDeciduous,
+  X,
 } from "lucide-react";
 import { Button } from "../Button.js";
 import { cn } from "../cn.js";
 import { useIntl, type MobileIntl } from "../intl.js";
 import { formatTaskRelativeTime } from "../formatRelative.js";
 import type { MobileHomeConnectionState } from "../HomeShell.js";
+import {
+  SidebarOrganizeMenu,
+  type SidebarOrganizeMode,
+  type SidebarSortMode,
+} from "./SidebarOrganizeMenu.js";
+import { SidebarRemoveWorkspaceDialog } from "./SidebarRemoveWorkspaceDialog.js";
 import {
   buildSidebarProjectTree,
   type SidebarWorkspaceGroup,
@@ -56,6 +66,19 @@ export interface WideSidebarProps {
   onThemePress?: () => void;
   onLanguagePress?: () => void;
   onReconnect?: () => void;
+  // —— P6 深面装配缝（spec §23）：全部可选、缺省不渲染入口（零回归）——
+  /** 视图 organize 状态（所有者=上层 WideShell；本组件只渲染选择面）。 */
+  organize?: SidebarOrganizeMode;
+  /** 传入即渲染「筛选和排序」入口（官方 taskViewOptions 语义）。 */
+  onOrganizeChange?: (mode: SidebarOrganizeMode) => void;
+  sort?: SidebarSortMode;
+  onSortChange?: (mode: SidebarSortMode) => void;
+  /** 传入即渲染组行移除按钮（确认对话本组件持有 open 态，业务动作回调上层）。 */
+  onWorkspaceRemove?: (workspaceKey: string) => void;
+  /** 官方 addProject「添加项目」入口（缺省不渲染）。 */
+  onAddProject?: () => void;
+  /** 官方 showFileTree「查看文件」入口（缺省不渲染；P6 fileTree 面挂点）。 */
+  onShowFileTree?: () => void;
   className?: string;
 }
 
@@ -67,6 +90,7 @@ function SidebarWorkspaceSection({
   collapsed,
   onToggle,
   onTaskOpen,
+  onRemove,
 }: {
   group: SidebarWorkspaceGroup;
   intl: MobileIntl;
@@ -74,6 +98,7 @@ function SidebarWorkspaceSection({
   collapsed: boolean;
   onToggle: () => void;
   onTaskOpen?: (task: WideTaskOpenRequest, workspace: WideWorkspaceRef) => void;
+  onRemove?: (workspaceKey: string) => void;
 }) {
   const { formatMessage } = intl;
   return (
@@ -100,12 +125,33 @@ function SidebarWorkspaceSection({
           />
         ) : null}
         <span className="shrink-0 text-ui-xs text-foreground-subtlest">{group.taskCount}</span>
+        {onRemove ? (
+          <span
+            role="button"
+            tabIndex={0}
+            data-testid={`sidebar-remove-${group.workspaceKey}`}
+            aria-label={formatMessage({ id: "workspaceSidebar.remove" })}
+            className="shrink-0 rounded p-0.5 text-foreground-subtlest hover:bg-surface-hover hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove(group.workspaceKey);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.stopPropagation();
+                onRemove(group.workspaceKey);
+              }
+            }}
+          >
+            <X aria-hidden="true" className="size-3.5" />
+          </span>
+        ) : null}
       </button>
       {collapsed ? null : (
         <ul className="ml-4 border-l border-border pl-1">
           {group.tasks.length === 0 ? (
             <li className="px-2 py-1.5 text-ui-xs text-foreground-subtlest">
-              {formatMessage({ id: "mobileShell.workspace.tasksEmpty" })}
+              {formatMessage({ id: "workspaceSidebar.noConversations" })}
             </li>
           ) : (
             group.tasks.map((task) => {
@@ -164,6 +210,13 @@ export function Sidebar({
   onThemePress,
   onLanguagePress,
   onReconnect,
+  organize = "project",
+  onOrganizeChange,
+  sort,
+  onSortChange,
+  onWorkspaceRemove,
+  onAddProject,
+  onShowFileTree,
   className,
 }: WideSidebarProps) {
   const intl = useIntl();
@@ -174,6 +227,9 @@ export function Sidebar({
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  // P6 深面本地交互态：视图菜单开合（organize/sort 状态所有者=上层 props）+ 移除确认目标。
+  const [organizeMenuOpen, setOrganizeMenuOpen] = useState(false);
+  const [removeTargetKey, setRemoveTargetKey] = useState<string | null>(null);
   const toggleGroup = (workspaceKey: string) => {
     setCollapsedGroupKeys((prev) => {
       const next = new Set(prev);
@@ -197,7 +253,7 @@ export function Sidebar({
           variant="ghost"
           size="icon-sm"
           className="size-9"
-          aria-label={formatMessage({ id: "mobileShell.wide.expandSidebar" })}
+          aria-label={formatMessage({ id: "workspaceSidebar.toggleSidebar" })}
           onClick={() => onCollapsedChange(false)}
         >
           <PanelLeftOpen aria-hidden="true" className="size-4" />
@@ -206,7 +262,7 @@ export function Sidebar({
           variant="ghost"
           size="icon-sm"
           className="size-9"
-          aria-label={formatMessage({ id: "mobileShell.wide.newTask" })}
+          aria-label={formatMessage({ id: "workspaceSidebar.newConversation" })}
           disabled={!onNewTask}
           onClick={onNewTask}
         >
@@ -251,7 +307,7 @@ export function Sidebar({
           variant="ghost"
           size="icon-sm"
           className="size-8"
-          aria-label={formatMessage({ id: "mobileShell.wide.collapseSidebar" })}
+          aria-label={formatMessage({ id: "workspaceSidebar.toggleSidebar" })}
           onClick={() => onCollapsedChange(true)}
         >
           <PanelLeftClose aria-hidden="true" className="size-4" />
@@ -268,7 +324,7 @@ export function Sidebar({
           onClick={onNewTask}
         >
           <Plus aria-hidden="true" className="size-4" />
-          {formatMessage({ id: "mobileShell.wide.newTask" })}
+          {formatMessage({ id: "workspaceSidebar.newConversation" })}
         </Button>
         <Button
           variant="ghost"
@@ -292,29 +348,80 @@ export function Sidebar({
       {/* 项目树：分组 + 任务数（P5c 接 sessions-index 实时数）。 */}
       <div className="flex shrink-0 items-center justify-between px-3 pb-1 pt-1">
         <span className="text-ui-xs font-medium text-foreground-subtlest">
-          {formatMessage({ id: "mobileShell.wide.projectsSection" })}
+          {formatMessage({ id: "workspaceSidebar.projectsSection" })}
         </span>
-        {onRefresh ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="size-7"
-            aria-label={formatMessage({ id: "mobileShell.home.refresh" })}
-            disabled={isRefreshing}
-            onClick={onRefresh}
-          >
-            {isRefreshing ? (
-              <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-            ) : (
-              <RefreshCw aria-hidden="true" className="size-3.5" />
-            )}
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-0.5">
+          {onShowFileTree ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-7"
+              aria-label={formatMessage({ id: "workspaceSidebar.showFileTree" })}
+              onClick={onShowFileTree}
+            >
+              <TreeDeciduous aria-hidden="true" className="size-3.5" />
+            </Button>
+          ) : null}
+          {onAddProject ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-7"
+              aria-label={formatMessage({ id: "workspaceSidebar.addProject" })}
+              onClick={onAddProject}
+            >
+              <FolderPlus aria-hidden="true" className="size-3.5" />
+            </Button>
+          ) : null}
+          {onOrganizeChange ? (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-7"
+                aria-label={formatMessage({ id: "workspaceSidebar.taskViewOptions" })}
+                aria-expanded={organizeMenuOpen}
+                onClick={() => setOrganizeMenuOpen((open) => !open)}
+              >
+                <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+              </Button>
+              {organizeMenuOpen ? (
+                <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-border bg-card p-1.5 shadow-lg">
+                  <SidebarOrganizeMenu
+                    organize={organize}
+                    onOrganizeChange={(mode) => {
+                      onOrganizeChange(mode);
+                      setOrganizeMenuOpen(false);
+                    }}
+                    sort={sort}
+                    onSortChange={onSortChange}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {onRefresh ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-7"
+              aria-label={formatMessage({ id: "mobileShell.home.refresh" })}
+              disabled={isRefreshing}
+              onClick={onRefresh}
+            >
+              {isRefreshing ? (
+                <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw aria-hidden="true" className="size-3.5" />
+              )}
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {groups.length === 0 ? (
           <div className="px-2 py-2 text-ui-sm text-foreground-subtlest">
-            {formatMessage({ id: "mobileShell.home.workspaceEmpty" })}
+            {formatMessage({ id: "workspaceSidebar.noProjects" })}
           </div>
         ) : (
           <ul className="space-y-0.5">
@@ -327,6 +434,7 @@ export function Sidebar({
                 collapsed={collapsedGroupKeys.has(group.workspaceKey)}
                 onToggle={() => toggleGroup(group.workspaceKey)}
                 onTaskOpen={onTaskOpen}
+                onRemove={onWorkspaceRemove ? setRemoveTargetKey : undefined}
               />
             ))}
           </ul>
@@ -381,6 +489,20 @@ export function Sidebar({
           ) : null}
         </div>
       </div>
+
+      {/* P6 深面：工作区移除确认（官方 dialog API 形态；组行 X 图标按钮触发）。 */}
+      {onWorkspaceRemove ? (
+        <>
+          <SidebarRemoveWorkspaceDialog
+            open={removeTargetKey !== null}
+            onConfirm={() => {
+              if (removeTargetKey !== null) onWorkspaceRemove(removeTargetKey);
+              setRemoveTargetKey(null);
+            }}
+            onCancel={() => setRemoveTargetKey(null)}
+          />
+        </>
+      ) : null}
     </nav>
   );
 }

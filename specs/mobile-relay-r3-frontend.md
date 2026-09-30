@@ -1815,3 +1815,13 @@ commit-dialog/quickPick sr-only/额度条四项）。
 **并行协同实录**：openTabShell.test.ts 先行落地（引用 RemoteOpenTabShell 实现）曾
 致文件级失败——并行会话随即补实现（SidePane 标签容器壳方向），全套件复绿；并行
 另推进 attachmentGitSummary（git 摘要附件）——继续零冲突共存。
+
+### 29.2 补：官方搜索面板对照（2026-09-30 续三，生产页活体）
+
+生产页搜索入口面板 placeholder = **「搜索操作、任务或文件」**——三域合一搜索
+（操作=quickPick 命令源+任务+文件=fileService；quickPick.title「搜索并执行当前
+工作区可用的命令。」同源语义）。我方 TaskSearchPanel = 任务-only 简化（P3d）。
+**裁定**：placeholder 维持任务语义（placeholder 宣称三域而功能仅任务=误导）；
+三域合一归 backlog（数据面前置：quickPick 命令源+fileService 搜索——§18/§25 既有
+裁定域，非新裁）。生产页活体对照面至此再无未对比项（composer 工具条/模型菜单/
+侧板/commit-dialog/搜索/额度条/头部全部对照完毕）。

@@ -271,4 +271,21 @@ export const zhCN: Record<string, string> = {
   "mobileShell.search.close": "关闭任务搜索", // P3d 自建键（值 = 官方 workspaceSidebar.closeTaskSearch 同义）
   "mobileShell.search.history": "搜索历史", // P3d 自建键
   "mobileShell.search.empty": "未找到匹配的任务", // P3d 自建键
+  // —— P5b 宽视口全壳（spec §19）：mobileShell.wide.* 自建键（官方无该命名空间；值逐字
+  // 对齐官方 ui locales 同义键，出处随键注明）——
+  "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
+  "mobileShell.wide.sidebar": "侧栏", // P5b 自建键（nav aria-label）
+  "mobileShell.wide.newTask": "新建任务", // P5b 自建键（值 = 官方 taskList.newTask）
+  "mobileShell.wide.search": "搜索任务", // P5b 自建键（值 = 官方 workspaceSidebar.searchTasks zh:1609）
+  "mobileShell.wide.plugins": "插件市场", // P5b 自建键（值 = 官方 workspace.openPluginsSettings zh:1483；入口 disabled，P5c 接插件商店）
+  "mobileShell.wide.actionPending": "该入口将在后续版本开放", // P5b 自建键（禁用占位说明）
+  "mobileShell.wide.collapseSidebar": "收起侧栏", // P5b 自建键
+  "mobileShell.wide.expandSidebar": "展开侧栏", // P5b 自建键
+  "mobileShell.wide.projectsSection": "项目", // P5b 自建键（值 = 官方 workspaceSidebar.projectsSection zh:1596）
+  "mobileShell.wide.userFooter": "用户", // P5b 自建键（页脚占位；P5c 接用量/账户面板）
+  "mobileShell.wide.greeting.morning": "上午好呀，有什么想让我帮忙的吗", // P5b 自建键（值 = 官方 chat.empty.greeting.morning zh:4363）
+  "mobileShell.wide.greeting.noon": "中午好呀，要不要先休息一下", // P5b 自建键（值 = 官方 chat.empty.greeting.noon zh:4364）
+  "mobileShell.wide.greeting.afternoon": "下午好呀，接下来交给我吧", // P5b 自建键（值 = 官方 chat.empty.greeting.afternoon zh:4365）
+  "mobileShell.wide.greeting.evening": "晚上好呀，今天辛苦啦", // P5b 自建键（值 = 官方 chat.empty.greeting.evening zh:4366）
+  "mobileShell.wide.greeting.lateNight": "夜深啦，别忘了照顾好自己哦", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight zh:4367）
 };

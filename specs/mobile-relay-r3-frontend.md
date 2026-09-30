@@ -759,3 +759,76 @@ accessor 显式注入作测试缝；scopes 数组贯穿 workspaceIdentity；缺�
 遗留裁定：host 全文搜索+snippet 接线归 P4 真机档（App 一行接 onSearchTasks）；
 slash 目录（workspace-config topic）与桌面 QuickPick 壳命令组不做（有意分歧，
 spec §18）。临时调试桩 __step 已清除。
+
+## 19. 宽视口全壳裁定（2026-09-30）：走复刻路线
+
+用户在还原完成声明后继续指令「继续完成还原」= 裁定 **复刻官方宽视口行为**
+（≥767px 官方断点渲染完整桌面壳，spec §2/§106 轮取证：单 Root 树 + 侧栏 + 主区，
+官方 bundle 6.2MB 量级）。接受 bundle 增长与多轮工作量；分包纪律（spec §6）继续生效。
+P3d 检索面板等已交付面不受影响。
+
+**分期**：P5a 架构取证与方案（本轮启动）→ P5b 侧栏+主区骨架 → P5c 深面对齐 →
+P5d 分包与体积验收（对照官方 6.2MB 基线）。
+
+### P5a 架构取证结果（2026-09-30）
+
+断点=官方字面 `(max-width: 767px)`；侧栏宽 264（可持久化调整）；单 Root 挂载
+props 四件套（restoreSession:!1/allowOpenWorkspace:!1/switcher 七方法/ PairedCard
+fallback）；服务注册表 oHn()=35+ 服务 pre-bridge stub → 桥附着按通道升级
+（skills/commands 官方桩即 desktop_only 降级先例）。**服务端零改动**：Host 对
+web-remote-replayable 附着注册全量 drora-*/zcode-* 服务——缺口全在手机侧
+accessor 组装层（stub→桥升级）与 UI。
+
+**三期切分**：P5b 侧栏+主区骨架（布局+新建/搜索/项目树/用户页脚+问候空态；
+<767px 零回归）→ P5c 深面对齐（宽版 composer 工具条/sessions-index 实时任务数/
+文件树/用量页脚/accessor 组装层）→ P5d 分包与体积验收（index≤500KB/全站
+≤1.5MB，对照官方 6.2MB；双视口 E2E）。宽壳组件全部落 `src/ui/wide/`（D6 线）。
+
+### P5b 执行结果（2026-09-30，本轮）
+
+宽壳骨架落地并浏览器验收（1280×800 截图）：侧栏 264px（品牌/折叠开关[持久化
+drora-mobile-sidebar-collapsed]/新建/搜索[TaskSearchPanel 懒加载复用]/插件市场
+占位 disabled/项目树[g1 组+任务行]/用户页脚+连接状态+主题+语言）+ 主区问候空态
+（时段问候「上午好呀」+ 工作区名 + 新建任务主按钮）；<767px 零回归（窄壳单列
+路径逐字未动）。纯模型拆分（wideShellModel.ts 12 测：断点/折叠持久化/项目树/
+问候桶）。有意偏差记录：问候五桶归并（官方六档）、新建任务禁用（relay 面无
+createTask 命令，draft 链归 P5c）、插件市场占位。**门禁**：typecheck 0/lint
+0 error/mw 8+80 测/build 绿。
+
+### P5c 范围细化（2026-09-30）
+
+1. **sessions-index 实时任务活性**：首页/侧栏打开期间按工作区开桥
+   （workspace-bridge-open，任务面已开桥时复用）→ subscribeSessionsIndexV4
+   （runtimePolicy:"existing-only"，subscriberScope:"mobile-home"——防拉起
+   runtime/防与桌面订阅互替，droraAgent.ts:514-533 取证）→
+   TopicWireFrameAssembler(sessionsIndexTopicFrameSchema) → 水位守卫
+   （fromSeq!==seq → resync，不猜）→ SessionSummary.phase 映射任务行活性
+   （running/prewarming→running、completed*→completed、error→error、draft→隐藏）。
+2. **用量页脚数据**：usageStatsService（accessor 可达）——页脚显示当日 token 用量
+   第一档；codingPlan 等归后续。
+3. **accessor 组装层**：任务面桥生命周期外的服务调用（搜索/树/用量）统一经
+   taskSession 打开的工作桥 accessor（首页搜索沿用 spec §18 缺省回落）；
+   oHn 式全服务 stub 注册表**不做**（调用面按需开桥已覆盖，YAGNI）。
+4. **不做**：fileService 文件树、插件市场面板（P5d 后另立）；slash 目录（§18）。
+
+### P5c 执行结果（2026-09-30，本轮）
+
+sessions-index 实时任务活性落地：sessionsIndexStore（纯逻辑 9 测：snapshot 整包/
+delta 衔接/断档闩锁 resync/相位映射/订阅过滤）+ taskSession 专用首页桥
+（existing-only + scope mobile-home + visibility foreground；与任务桥并存/复用）+
+HomeScreen 装配缝接线（App 绑定 client）。**门禁**：typecheck 0/lint 0 error
+（365 基线 warnings）/mw 8+89 测绿。App 层一行接线完成（openSessionsIndexBridge
+装配缝）。**已知 UI 边界**：活性三值保真（含 error），ui status 闭集两值边界收口
+error→completed（error 独立呈现归 P5d 评估）。
+
+### P5d 执行结果（2026-09-30，本轮）
+
+**体积验收达标**：index 334KB（≤500KB ✓）/ 全站 793KB（≤1.5MB ✓）/ 官方基线
+6.2MB——8 倍小。双视口 E2E 终验：414×896（配对→首页任务行→任务打开→交互卡）✅；
+**发现并修复 P5c 集成 bug**：harness 桩 droraAgentService 未实现
+onDynamicSessionsIndexFrame 事件 → ProxyChannel 抛 "Event not found" → **harness
+进程崩溃**（HomeScreen 实时化调用触发）。修复：桩补 sessions-index 事件面
+（scripted running 快照帧）；管道 deliver 包 try/catch 防进程级崩溃。
+**P5c 活性合并渲染待一轮排查**：首页任务行仍显示投影态「已完成」而非
+sessions-index 活性「运行中」（合并链路 store→HomeScreen→HomeShell 某环节未生效，
+步进日志定位归下轮；store 纯逻辑 9 测全绿）。

@@ -27,8 +27,10 @@ import {
   projectHomeData,
   type ProjectedWorkspace,
 } from "./entry.js";
-import { TaskSession } from "./taskSession.js";
+import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { TaskComposer } from "./TaskComposer.js";
+import { WideShell } from "../ui/wide/WideShell.js";
+import { useWideViewport } from "../ui/wide/useWideViewport.js";
 import { EMPTY_MODEL_SELECTION_STATE } from "./conversationStore.js";
 import type {
   ConversationControlState,
@@ -74,6 +76,9 @@ function AppBody() {
   const taskRef = useRef<TaskSession | null>(null);
   const storeUnsubscribeRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // P5b 宽视口（spec §19）：官方断点 (max-width: 767px) 取反——≥768px 交 WideShell
+  // 全壳（侧栏+主区），<768px 维持既有单列壳（零回归）。
+  const wideViewport = useWideViewport();
 
   const fail = useCallback((wireReason: string, detail: string | null, retryable: boolean) => {
     setPhase({ kind: "failure", wireReason, detail, retryable });
@@ -331,8 +336,10 @@ function AppBody() {
     );
   }
 
-  if (phase.kind === "task") {
-    return (
+  // P5b：任务面装配提前为元素常量（宽壳主区容器与窄壳全屏壳同源复用；仅元素构造，
+  // 渲染由下方分支决定）。
+  const taskShell =
+    phase.kind === "task" ? (
       <MobileTaskShell
         title={taskTitle}
         onBack={backHome}
@@ -373,7 +380,29 @@ function AppBody() {
           />
         }
       />
+    ) : null;
+
+  // P5b 宽壳：≥768px 侧栏+主区（主区 = 已选任务宽容器 / 问候空态）；数据与回调全部
+  // 复用既有 state/动作，本处只做接线。
+  if (wideViewport) {
+    return (
+      <WideShell
+        connection={connection}
+        workspaces={workspaces}
+        selectedTaskId={selectedTaskId}
+        isRefreshing={isRefreshing}
+        taskSurface={taskShell}
+        onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+        onRefresh={() => void refresh()}
+        onThemePress={toggleTheme}
+        onLanguagePress={toggleLanguage}
+        onReconnect={() => clientRef.current?.connect()}
+      />
     );
+  }
+
+  if (phase.kind === "task") {
+    return taskShell;
   }
 
   return (
@@ -382,6 +411,11 @@ function AppBody() {
       workspaces={workspaces}
       selectedTaskId={selectedTaskId}
       isRefreshing={isRefreshing}
+      openSessionsIndexBridge={(workspacePath, workspaceIdentity) => {
+        const client = clientRef.current;
+        if (!client) return Promise.reject(new Error("relay client is not connected"));
+        return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity);
+      }}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
       onRefresh={() => void refresh()}
       onThemePress={toggleTheme}

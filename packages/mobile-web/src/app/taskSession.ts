@@ -1,3 +1,7 @@
+/* eslint-disable max-lines -- 移动端 relay 服务面单一装配模块（任务会话 + 首页搜索 + P5c
+   首页 sessions-index 专用桥）：三条链共用同一条 workspace 桥生命周期（open/握手/帧面/
+   退订/释放）与同一 accessor 装配，拆文件会把一条桥的所有权拆散（packages/ui/src/v4/
+   sessionsIndexStore.ts 同款豁免先例）。 */
 // R3 P2a/P3a/P3b/P3c 任务会话面：workspace-bridge-open → 服务面（与 renderer 同源
 // RemoteServiceAccess，D8）。读路径 = v4 rows 分页（conversationRowsRangeV4，首帧收敛前的
 // 回补入口）+ P3a 流式订阅（subscribeConversationV4 → onDynamicConversationFrame →
@@ -28,6 +32,10 @@ import type { RelayClient } from "@drora/relay-client";
 import { connectViaProtocol } from "@drora/client";
 import { createRelayMessageProtocol } from "./protocolAdapter.js";
 import { createConversationStore, type ConversationStore } from "./conversationStore.js";
+import {
+  createSessionsIndexStore,
+  type SessionsIndexStore,
+} from "./sessionsIndexStore.js";
 
 export interface TaskSessionTarget {
   workspacePath: string;
@@ -513,8 +521,193 @@ export async function searchTasks(
         ...(item.workspaceIdentity ? { workspaceIdentity: item.workspaceIdentity } : {}),
       };
     });
-  } catch {
+    } catch {
     // 只读搜索降级：不区分失败原因（理由见方法注释），空态呈现即可重试。
     return [];
   }
+}
+
+// —— P5c 首页 sessions-index 实时桥（specs/mobile-relay-r3-frontend.md §19/P5c 第 1 条）——
+
+/**
+ * 首页 sessions-index 订阅的 subscriberScope。CLI 侧重订阅替换按 (connectionId, topic)
+ * 判定（droraAgent.ts:514-533 取证）：桌面 renderer 侧栏 / task-index syncer 用各自
+ * connectionId 常驻订阅同一 topic；手机桥的 scope 必须唯一（"mobile-home"），防止
+ * 同 connection 上的订阅代际互替。
+ */
+export const HOME_SESSIONS_INDEX_SUBSCRIBER_SCOPE = "mobile-home";
+
+/** workspace 级订阅/退订/帧面目标（TaskSession.workspaceRef 同形；AGENTS identity 规则）。 */
+interface HomeWorkspaceTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+}
+
+/**
+ * 首页 sessions-index 专用桥句柄。与任务桥并存：openWorkspaceBridge 的 bridgeSessionId
+ * 由客户端生成（relay-client `bridge-<uuid>`），天然隔离；单工作区部署下若与任务桥同
+ * workspaceKey，调用方可传 existingAccessor 复用任务桥的 accessor 直接订阅 sessions-index
+ * topic，不重复开桥（复用时 close 只退订、不反注册桥——桥归 TaskSession 所有）。
+ */
+export interface HomeSessionsIndexBridge {
+  /** 工作区身份 key（workspaceIdentity?.trim() || workspacePath；store topic 后缀）。 */
+  readonly workspaceKey: string;
+  /** sessions-index store：帧/订阅水位/纪元的唯一所有者（UI 订阅它派生活性）。 */
+  readonly store: SessionsIndexStore;
+  /**
+   * 发起订阅（visibility=foreground + existing-only + scope "mobile-home"）。
+   * 返回 subscriptionId；existing-only 稳定拒绝（runtime 不存在等）返回 null——首页降级
+   * 为投影数据，不重试（禁止为列表订阅拉起 runtime，droraAgent.ts:524-528 语义）。
+   */
+  start(): Promise<string | null>;
+  /** 退订 + 解绑帧面 + 释放专用桥（复用 accessor 时只退订）。幂等。 */
+  close(): Promise<void>;
+}
+
+/**
+ * 为首页开一条 sessions-index 专用桥并挂好帧面（订阅由 start() 显式发起，桥生命周期
+ * 与调用方面板挂载配对）。
+ *
+ * 事件顺序（专用桥路径）：workspace-bridge-open → hello/clientHello 握手（每条 attachment
+ * 恰一次，TaskSession.open 同款 mobileRemote 语义）→ 挂 onDynamicSessionsIndexFrame 帧面 →
+ * 返回句柄；start() → subscribeSessionsIndexV4 ACK → store.setSubscription。ACK 前到达的
+ * 帧因 subscriptionId 未登记被 store 静默丢弃（与任务面同款有意分歧：依赖 initial
+ * snapshot 收敛）；断档经 store 闩锁 → resyncSessionsIndexV4(forceSnapshot) 兜底。
+ *
+ * 失败语义：开桥/握手失败上抛（结构性失败，半开桥已释放）；start 的订阅失败不上抛
+ * （existing-only 的 unavailable 是稳定态而非故障，降级为无活性投影）。
+ */
+export async function openHomeSessionsIndexBridge(
+  client: RelayClient,
+  workspacePath: string,
+  workspaceIdentity?: string,
+  options: { existingAccessor?: IServiceAccessor } = {},
+): Promise<HomeSessionsIndexBridge> {
+  const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const target: HomeWorkspaceTarget = {
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+  };
+
+  let accessor = options.existingAccessor ?? null;
+  let bridgeSessionId: string | null = null;
+  let frameSubscription: IDisposable | null = null;
+  let subscriptionId: string | null = null;
+  let closed = false;
+
+  async function resync(): Promise<void> {
+    // same-sub 恢复：base 一律从 store 水位取（不猜）；forceSnapshot 让服务端直接给全量。
+    if (closed || !accessor || !subscriptionId) return;
+    const state = store.getState();
+    const result = await accessor.droraAgentService.resyncSessionsIndexV4({
+      ...target,
+      subscriptionId,
+      base: state.logEpoch === null ? null : { logEpoch: state.logEpoch, seq: state.seq },
+      forceSnapshot: true,
+    });
+    // resync ACK 与 subscribe ACK 同形：重置 store 纪元（clear assembler + resync 闩锁）。
+    store.setSubscription(result.ack);
+  }
+
+  // store 先建：onResync 经闭包反查 resync（断档不猜，由 resyncSessionsIndexV4 裁决；
+  // 失败静默：闩锁保持至下一纪元/快照帧，不做无退避重试——TaskSession.open 同口径）。
+  const store = createSessionsIndexStore({
+    workspaceKey,
+    onResync: () => {
+      resync().catch(() => {});
+    },
+  });
+
+  if (!accessor) {
+    const bridge = await client.openWorkspaceBridge({ workspaceKey });
+    accessor = connectViaProtocol(createRelayMessageProtocol(bridge));
+    bridgeSessionId = bridge.identity.bridgeSessionId;
+    const agent = accessor.droraAgentService;
+    try {
+      // 可信 hello → clientHello（每条 attachment 恰一次；能力位缺省 = 旧客户端语义，
+      // 不声明 strict 未知键，老 Host 可握手——TaskSession.open 同款）。
+      await agent.helloConversationV4();
+      const clientHello: ClientHello = {
+        kind: "clientHello",
+        protocolVersion: V4_WIRE_PROTOCOL_VERSION,
+        clientId: `drora-mobile-home-${bridgeSessionId}`,
+        clientKind: "mobileRemote",
+        appVersion: __MOBILE_APP_VERSION__,
+      };
+      await agent.initializeConversationV4(clientHello);
+    } catch (error) {
+      // 握手失败：释放半开桥，避免 RelayClient 桥注册表泄漏（TaskSession 订阅失败
+      // 先解绑句柄同因）。
+      client.releaseBridge(bridgeSessionId);
+      throw error;
+    }
+  }
+
+  // 帧面先就位（缩小 ACK 竞窗，TaskSession.beginStreaming 同序）；wire 候选直接交给
+  // store：解码/分片重组/守卫都在 store 内。
+  frameSubscription = accessor.droraAgentService.onDynamicSessionsIndexFrame(target)((candidate) => {
+    store.acceptWireFrame(candidate);
+  });
+
+  async function unsubscribeQuiet(): Promise<void> {
+    if (!accessor || !subscriptionId) return;
+    try {
+      await accessor.droraAgentService.unsubscribeSessionsIndexV4({
+        ...target,
+        subscriptionId,
+        runtimePolicy: "existing-only",
+      });
+    } catch {
+      // 桥即将释放；退订失败不重试（连接关闭后 host 侧订阅随 attachment 级联清理）。
+    }
+  }
+
+  return {
+    workspaceKey,
+    store,
+    async start(): Promise<string | null> {
+      if (closed || !accessor) return null;
+      if (subscriptionId) return subscriptionId;
+      try {
+        const result = await accessor.droraAgentService.subscribeSessionsIndexV4({
+          ...target,
+          visibility: "foreground",
+          subscriberScope: HOME_SESSIONS_INDEX_SUBSCRIBER_SCOPE,
+          // task-list 类被动观察者必须 existing-only：runtime 不存在时返回稳定
+          // unavailable，禁止为了建立列表订阅而启动 Agent（droraAgent.ts:524-528）。
+          runtimePolicy: "existing-only",
+        });
+        if (closed) {
+          // start await 窗口内已 close：ACK 登记前先精确退订，不漏订阅代际。
+          subscriptionId = result.ack.subscriptionId;
+          await unsubscribeQuiet();
+          subscriptionId = null;
+          return null;
+        }
+        subscriptionId = result.ack.subscriptionId;
+        store.setSubscription(result.ack);
+        return subscriptionId;
+      } catch {
+        // existing-only 稳定拒绝（runtime 不存在/目标缺席）：降级为投影数据，
+        // 不重试、不拉起 runtime（理由见接口注释）。
+        return null;
+      }
+    },
+    async close(): Promise<void> {
+      if (closed) return;
+      closed = true;
+      // 顺序：先停事件面（不再向 store 投帧）→ 退订（失败不阻塞关闭）→ 反注册专用桥
+      // （复用任务桥 accessor 时 bridgeSessionId 为 null，桥归 TaskSession 所有不动）。
+      frameSubscription?.dispose();
+      frameSubscription = null;
+      await unsubscribeQuiet();
+      subscriptionId = null;
+      if (bridgeSessionId) client.releaseBridge(bridgeSessionId);
+    },
+  };
+}
+
+/** 桥关闭收口（退订 + 解绑帧面 + 反注册专用桥）；与 openHomeSessionsIndexBridge 配对。 */
+export async function closeSessionsIndexBridge(bridge: HomeSessionsIndexBridge): Promise<void> {
+  await bridge.close();
 }

@@ -661,6 +661,29 @@ export const TASK_SEARCH_LIST_LIMIT = 20;
  * 调用方不得据此打断首页（与 fetchFileChanges 同口径）。
  */
 /**
+ * 新建任务（v4 createSession，官方协议 command.ts:46 + IDroraAgentService.createSession
+ * 服务面双既有——P5b「新建任务禁用」裁定解除，capability 接线法第四例）。firstInput
+ * 缺省=创建空会话（桌面同语义）；ACK 快照 session.sessionId 供打开任务面。
+ * 失败语义：桥断开/创建失败上抛（结构性失败，调用方展示错误——与只读搜索降级相反，
+ * 创建是用户显式动作，静默失败会丢用户意图）。
+ */
+export async function createSessionInBridge(
+  accessor: IServiceAccessor,
+  workspacePath: string,
+  workspaceIdentity: string | undefined,
+): Promise<{ sessionId: string; title: string }> {
+  // 服务面无 firstInput（首条输入由用户在新任务面 composer 发——桌面同语义）。
+  const snapshot = await accessor.droraAgentService.createSession({
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+  });
+  return {
+    sessionId: snapshot.session.sessionId,
+    title: snapshot.session.title,
+  };
+}
+
+/**
  * 文件域搜索（v4 fileService.searchWorkspaceFiles，spec §29.3——官方三域搜索之文件域；
  * ServiceChannels.File 通道 Host 对 web-remote-replayable 全量注册）。失败语义与
  * searchTasks 同口径：桥断开/能力缺席/查询失败一律返回 [] 不抛——只读搜索按

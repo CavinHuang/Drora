@@ -1890,3 +1890,20 @@ notes.md 命中**（File 通道注册修正生效）；桩日志实锤请求参�
 accessor 经 fileService 通道全链贯通。**文件域上线 ✓**（搜索三域：任务 ✓ + 文件 ✓ +
 操作 quickPick 维持 §18 裁定）。经验终条：环境抖动轮的"待复验"标记必须携带
 **可判定探针**（本例=桩日志命中）——复验轮先跑探针再走 UI 序列，避免盲试。
+
+## 30. 新建任务接线（2026-09-30，capability 第四例）——P5b 禁用裁定解除
+
+「新建任务禁用（relay 面无 createTask 命令）」裁定解除实锤：**协议 createSession
+（command.ts:46，payload workspaceId/firstInput/config…）+ IDroraAgentService
+.createSession 服务面双既有**（droraAgent.ts:586，ACK 快照 session.sessionId——
+服务面无 firstInput，首输由用户在新任务面 composer 发，桌面同语义）。
+
+落地：taskSession.createSessionInBridge（模块级，失败上抛——创建是用户显式动作
+静默失败丢意图，与只读搜索降级相反）→ App handleNewTask 闭包（homeBridgeAccessor
+Ref+liveWorkspaces[0] → createSession → openTask 打开新任务面）→ WideShell
+onNewTask prop（侧栏+问候空态新建按钮同源）。HomeScreen 窄壳新建按钮装配同法待接
+（其按钮无 onNewTask 缝，归下轮）。Host 桩 createSession（ACK 快照形）。
+
+门禁：165/165、build 绿。**E2E 归下轮**：harness pairing 三轮未就绪（window host
+not ready 偶发，重启未解）——实现侧门禁绿；复验序列已备（fresh harness+点新建→
+createSession→新任务面 header/toggle 断言）。

@@ -21,7 +21,7 @@ import {
   projectHomeData,
   type ProjectedWorkspace,
 } from "./entry.js";
-import { TaskSession, openHomeSessionsIndexBridge } from "./taskSession.js";
+import { TaskSession, createSessionInBridge, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
@@ -111,6 +111,18 @@ function AppBody() {
     );
   }, []);
   const liveWorkspaces = useHomeSessionsIndex(workspaces, openHomeBridge);
+  // P6 新建任务解封（spec §30，capability 第四例）：createSession → ACK sessionId →
+  // 打开新任务面（桌面同语义：空会话，首输走 composer）。
+  const handleNewTask = useCallback(() => {
+    const accessor = homeBridgeAccessorRef.current;
+    const ws = liveWorkspaces[0];
+    if (!accessor || !ws) return;
+    void createSessionInBridge(accessor, ws.path, ws.workspaceKey)
+      .then(({ sessionId, title }) =>
+        openTask({ workspaceKey: ws.workspaceKey, path: ws.path }, sessionId, title),
+      )
+      .catch(() => {});
+  }, [liveWorkspaces, openTask]);
   const attachedTask =
     phase.kind === "task" &&
     taskRef.current?.target.sessionId === selectedTaskId &&
@@ -535,6 +547,7 @@ function AppBody() {
         isRefreshing={false}
         taskSurface={taskShell}
         onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+        onNewTask={handleNewTask}
         onSearchFiles={(query) => {
           const accessor = homeBridgeAccessorRef.current;
           if (!accessor) return Promise.resolve([]);

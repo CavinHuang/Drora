@@ -401,6 +401,7 @@ function AppBody() {
         onFeedbackChange={(target, feedback) =>
           taskRef.current?.setAssistantFeedback(target.rowId, target.entityId, feedback)
         }
+        onFork={(target) => void taskRef.current?.forkAssistant(target.rowId, target.entityId)}
       />
     ) : null;
 

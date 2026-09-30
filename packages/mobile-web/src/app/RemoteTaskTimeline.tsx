@@ -42,6 +42,8 @@ export interface RemoteTaskTimelineProps {
   bottomDock: ReactNode;
   /** 助手消息赞/踩（v4 setAssistantFeedback；缺省不渲染 feedback 按钮）。 */
   onFeedbackChange?: (target: { rowId: number; entityId: string }, feedback: "like" | "dislike" | null) => Promise<boolean | void> | boolean | void;
+  /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
+  onFork?: (target: { rowId: number; entityId: string }) => void;
 }
 
 export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
@@ -80,6 +82,7 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         headerSlot={headerSlot}
         bottomDock={props.bottomDock}
         onFeedbackChange={props.onFeedbackChange}
+        onFork={props.onFork}
         canLoadOlder={props.canLoadOlder}
         loadingOlder={props.loadingOlder}
         onLoadOlder={props.onLoadOlder}

@@ -1404,3 +1404,14 @@ latestAssistantTextRow 派生需 row.actions.canFork/canRetry 能力位（gatewa
 onFork 接线、summary-panel=并行、侧板族=同法可接）。门禁：158/158、build 绿。
 提交含并行文件（包装器/App）零交集 hunk（本轮 feedback 三处 + 并行 StatusPanel
 既有改动，透明记录）。
+
+### 23.14 fork 接线（2026-09-30 第九轮）——同法第二例
+
+官方协议既有 forkAssistant（command.ts:152，target 单参；child session 经
+sessions-index 增量回首页——既有桥承载，本命令不处理跳转）。全链同 feedback 法：
+TaskSession.forkAssistant → 包装器/RemoteTaskTimeline 透传 onFork → App 装配 →
+stub case（ACK accepted）。E2E：v4-fork-102 渲染 + 点击 ACK 无崩。对齐度 30→
+**31/34**（+v4-fork）。门禁：158/158、build 绿。**capability 接线法定型**（两例
+复用）：查官方协议既有命令 → TaskSession 命令方法 → 包装器/容器透传 → App 装配 →
+stub case → E2E。剩余 3 差距：summary-panel（并行）/side-pane-toggle+git-action-
+trigger（同法查 git/fileService 协议既有面，若无则留能力矩阵）/更多菜单展开态。

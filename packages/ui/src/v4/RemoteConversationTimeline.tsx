@@ -44,6 +44,8 @@ export interface RemoteConversationTimelineProps {
   onLoadOlder?: () => Promise<void> | void;
   /** 助手消息赞/踩（v4 setAssistantFeedback；缺省不渲染 feedback 按钮——capability 降级）。 */
   onFeedbackChange?: AssistantFeedbackHandler;
+  /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
+  onFork?: (target: import("@drora/shared/drora-protocol-v4").ConversationRowTarget) => void;
 }
 
 export function RemoteConversationTimeline({
@@ -66,6 +68,7 @@ export function RemoteConversationTimeline({
   loadingOlder,
   onLoadOlder,
   onFeedbackChange,
+  onFork,
 }: RemoteConversationTimelineProps) {
   const [statusPanelVariant, setStatusPanelVariant] = useState<ChatViewSummaryPanelVariant | null>(
     null,
@@ -130,6 +133,7 @@ export function RemoteConversationTimeline({
               headerSlot={headerSlot}
               bottomDock={bottomDock}
               onFeedbackChange={onFeedbackChange}
+              onFork={onFork}
               canLoadOlder={canLoadOlder}
               loadingOlder={loadingOlder}
               onLoadOlder={onLoadOlder}

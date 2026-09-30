@@ -391,6 +391,25 @@ export class TaskSession {
   }
 
   /**
+   * 从 assistant 消息分叉（v4 forkAssistant，官方协议 command.ts:152——合规还原）。
+   * child session 经 sessions-index 增量流回首页（既有桥），本命令不处理跳转。
+   */
+  async forkAssistant(rowId: number, entityId: string): Promise<void> {
+    const envelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+      type: "forkAssistant" as const,
+      payload: { target: { rowId, entityId } },
+      issuedAt: Date.now(),
+    };
+    await this.accessor.droraAgentService.sendConversationCommandV4({
+      ...this.workspaceRef(),
+      envelope,
+    });
+  }
+
+  /**
    * 文件变更只读查询（v4 conversationFileChanges，spec §15 第 3 条；打开任务面拉取一次 +
    * 发送后刷新，单次拉取即弃，不缓存不重试）。
    *

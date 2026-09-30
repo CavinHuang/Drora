@@ -2054,3 +2054,13 @@ React/双拷贝/双实例后，剩余假说=**渲染时序**（崩消费者渲�
 （gitAction 槽 Suspense fallback=null → 改占位组件观崩点迁移）③时间线族 lazy 拆分
 回退试验（GitActionMenu 并回 index 看崩是否消失——chunk 边界语义定位）。
 **保护现状**：gitAction=null（新建主功能通）；165/165+build 797+typecheck 绿。
+
+### 30.13 GitPane 崩修复 ✓（2026-09-30 终）——塔上提 App() 根
+
+**修复**：AppTower 从首页分支上提至 **App() 根**（塔包 IntlProvider 包 AppBody——
+全分支覆盖）。accessor 组合：module ref（AppBody 渲染期同步写）——塔读 ref（父先
+读子后写——首帧 ref=null 时 children=首页无消费安全，次帧起 accessor 非空）。
+**E2E 复验**（fresh harness+fresh 标签）：首页稳定 → 点新建 → 新任务面全要素
+（header/toggle/composer/状态面板/交互卡）——**GitActionMenu 崩消失** ✓。
+门禁：165/165+build 797+typecheck 绿。
+**GitPane 一期**（GitPaneChangeCard/fileChanges 段崩）同步修复 ✓——同塔覆盖。

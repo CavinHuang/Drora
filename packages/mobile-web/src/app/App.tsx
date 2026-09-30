@@ -620,7 +620,6 @@ function AppBody() {
   }
 
   return (
-    <AppTower>
     <HomeScreen
       connection={connection}
       workspaces={liveWorkspaces}
@@ -645,16 +644,20 @@ function AppBody() {
       onLanguagePress={toggleLanguage}
       onReconnect={() => clientRef.current?.connect()}
     />
-    </AppTower>
   );
 }
 
 
 
 export function App() {
+  // accessor 动态组合（spec §30.2）：任务桥优先，回退首页 sessions-index 桥——
+  // module 级 ref（AppBody 渲染期同步写入；App 单根实例安全）。
+  const accessor = activeAccessorRef.current ?? ({} as never);
   return (
-    <IntlProvider>
-      <AppBody />
-    </IntlProvider>
+    <AppTower>
+      <IntlProvider>
+        <AppBody />
+      </IntlProvider>
+    </AppTower>
   );
 }

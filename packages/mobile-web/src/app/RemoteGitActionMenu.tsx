@@ -44,8 +44,6 @@ export interface RemoteGitActionMenuProps {
   className?: string;
 }
 
-const __modId = ((globalThis as { __svcModuleId?: string }).__svcModuleId ??= "shell-" + Math.random().toString(36).slice(2, 8)) as string;
-
 export function RemoteGitActionMenu({
   workspacePath,
   workspaceIdentity,
@@ -61,11 +59,6 @@ export function RemoteGitActionMenu({
           <PluginReferenceIconProvider value={null}>
             <TabStoreProvider>
               <StoreProvider broadcastService={MOCK_BROADCAST}>
-                {(() => {
-                  const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
-                  prov.push("provider:" + __modId);
-                  return null;
-                })()}
                 <ServiceProvider services={accessor}>
                   <GitActionMenu
                     workspacePath={workspacePath}

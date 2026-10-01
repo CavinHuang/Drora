@@ -140,6 +140,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.task.sidePaneCollapse": "收起侧边面板",
   "mobileShell.task.sidePaneExpand": "展开侧边面板",
   "mobileShell.task.status.completed": "已完成",
+  "mobileShell.task.status.idle": "空闲",
   "mobileShell.task.status.running": "运行中",
   "mobileShell.workspace.kind.local": "本地",
   "mobileShell.workspace.kind.remote": "远程",
@@ -258,6 +259,8 @@ export const zhCN: Record<string, string> = {
   "mobileShell.organize.byUpdated": "按更新时间", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
   // —— P3c 模型选择器第一档 + 上下文用量：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
   "chat.toolbar.model.label": "选择模型", // 官方 zh-CN.ts:4643
+  "chat.toolbar.model.manageModels": "管理模型", // 官方 locale chunk 逐字（§32.10 双行触发器）
+  "chat.statusPanel.terminals": "终端", // 官方逐字（§32.14 侧板终端标签）
   "chat.toolbar.model.loadFailedRetry": "模型加载失败，重试", // 官方 zh-CN.ts:965
   "chat.toolbar.model.remoteWaiting": "等待远程模型", // 官方 zh-CN.ts:966
   "chat.toolbar.model.targetMissing": "暂无模型目标", // 官方 zh-CN.ts:967
@@ -480,6 +483,9 @@ export const zhCN: Record<string, string> = {
   "sidePane.workflowRun": "工作流实例", // 官方逐字
   "sidePane.workflowScript": "脚本步骤", // 官方逐字
   "common.cancel": "取消", // 官方 locale chunk 逐字
+  "common.confirm": "确认", // 官方 locale chunk 逐字（§32.3 重命名对话框）
+  "appHeader.copyPath": "复制路径", // 官方 locale chunk 逐字（§32.3 更多菜单一期）
+  "appHeader.copySessionId": "复制会话 ID", // 官方 locale chunk 逐字（§32.3 更多菜单一期）
   "mode.label.glm.default": "默认模式", // 官方逐字（medium 按族规律补）
   "mode.label.glm.plan": "计划模式", // 官方逐字（medium 按族规律补）
   "mode.label.glm.edit": "自动编辑", // 官方逐字（medium 按族规律补）
@@ -494,4 +500,12 @@ export const zhCN: Record<string, string> = {
   "chat.attachments.add": "添加附件", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.value.off": "关闭", // 官方逐字
   "chat.toolbar.thoughtLevel.value.minimal": "极低", // 官方逐字
+  // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，zh）
+  "chat.empty.greeting.morningEarly": "早上好呀，新的一天开始啦", // 官方逐字
+  "chat.placeholder.newTaskMobile": "向 ZCode 提问…", // 官方逐字
+  "workspace.context.lastActivity": "最近活动 {time}", // 官方逐字（§32.11 信息弹层）
+  "chat.draft.suggestedPrompt.recentCommits": "检查近 7 天的 commit", // 官方逐字
+  "chat.draft.suggestedPrompt.recentCommits.prompt": "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字
+  "chat.draft.suggestedPrompt.createPdf": "制作一份 PDF", // 官方逐字
+  "chat.draft.suggestedPrompt.createPdf.prompt": "根据当前工作区内容制作一份 PDF 文档。", // 官方逐字
 };

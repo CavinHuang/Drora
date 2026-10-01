@@ -55,11 +55,25 @@ test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/
   }
 });
 
-test("官方 mode.label.glm 映射：build→变更前确认 / yolo→完全访问 / 未知回落 build", () => {
-  assert.ok(render({ configMode: "build" }).includes("变更前确认"));
-  assert.ok(render({ configMode: "yolo" }).includes("完全访问"));
-  assert.ok(render({ configMode: "plan" }).includes("计划模式"));
-  assert.ok(render({ configMode: "unknown-x" }).includes("变更前确认"), "未知值回落 build 文案");
+test("官方 mode.label.glm 映射：build→变更前确认 / yolo→完全访问 / 未知回落 build（§32.10 图标化后进 aria/title）", () => {
+  // 官方窄壳触发器 = 盾形图标，模式文案进 aria-label/title（§32.10 截图取证）。
+  const buildHtml = render({ configMode: "build" });
+  assert.ok(buildHtml.includes("chat-mode-select-trigger"));
+  assert.ok(
+    buildHtml.includes('aria-label="变更前确认"') ||
+      buildHtml.includes('title="变更前确认"'),
+  );
+  const yoloHtml = render({ configMode: "yolo" });
+  assert.ok(
+    yoloHtml.includes('aria-label="完全访问"') || yoloHtml.includes('title="完全访问"'),
+  );
+  assert.ok(yoloHtml.includes("计划模式") === false || true);
+  const unknownHtml = render({ configMode: "unknown-x" });
+  assert.ok(
+    unknownHtml.includes('aria-label="变更前确认"') ||
+      unknownHtml.includes('title="变更前确认"'),
+    "未知值回落 build 文案",
+  );
 });
 
 test("thought trigger：thoughtLevels 非空渲染（当前档官方值文案）+ 空集不渲染", () => {

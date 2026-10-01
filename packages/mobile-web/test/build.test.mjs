@@ -90,11 +90,13 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
         : file === join(packageRoot, "src", "app", "main.tsx")
           ? ["@drora/ui/remote-frame"]
           : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx") ||
-            file === join(packageRoot, "src", "app", "RemoteGitActionMenu.tsx") ||
-            file === join(packageRoot, "src", "app", "App.tsx")
-            ? // GitPane 一期姊妹件+App 塔（spec §25/§27.1/§30.2）：官方复原件窄入口装配。
-              ["@drora/ui/git-pane"]
-            : [];
+            file === join(packageRoot, "src", "app", "RemoteGitActionMenu.tsx")
+          ? ["@drora/ui/git-pane"]
+          : file === join(packageRoot, "src", "app", "App.tsx")
+          ? // GitPane 一期姊妹件+App 塔（spec §25/§27.1/§30.2）：官方复原件窄入口装配。
+            // §32.12 队列面板（spec）：官方复原件受控窄入口（composer 上方逐条卡片）。
+            ["@drora/ui/git-pane", "@drora/ui/remote-queue-panel"]
+          : [];
     assert.deepEqual(
       [...new Set(uiImports.map((statement) => statement.match(/@drora\/ui[^"']*/)?.[0]))].sort(),
       allowed,

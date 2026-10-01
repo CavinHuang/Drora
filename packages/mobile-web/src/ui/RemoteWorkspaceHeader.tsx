@@ -15,8 +15,12 @@ export interface RemoteWorkspaceHeaderProps {
   workspacePath: string;
   /** 路径按钮点击（官方为 button 形态；缺省渲染为不可点 span 对位）。 */
   onPathClick?: () => void;
+  /** §32.11 任务信息弹层（folder 锚点；内容由 App 装配）。 */
+  infoSlot?: ReactNode;
   /** 官方 ⋯ 更多按钮（菜单内容归上层装配；缺省不渲染按钮）。 */
   onMoreMenu?: () => void;
+  /** ⋯ 弹层内容（与触发按钮同锚点渲染；App 持开合态，§32.3）。 */
+  moreMenuSlot?: ReactNode;
   /** 官方侧板开关（内容=chat-summary-panel 归 StatusPanel 装配；缺省不渲染按钮）。 */
   onToggleSidePane?: () => void;
   /** 侧板开合态投影（aria-expanded；缺省 false）。 */
@@ -30,6 +34,8 @@ export function RemoteWorkspaceHeader({
   workspacePath,
   onPathClick,
   onMoreMenu,
+  moreMenuSlot,
+  infoSlot,
   onToggleSidePane,
   sidePaneOpen,
   gitAction,
@@ -47,27 +53,31 @@ export function RemoteWorkspaceHeader({
       className="relative flex h-12 w-full shrink-0 items-center border-b border-border/50 px-2"
     >
       <div className="flex min-w-0 items-center gap-2 overflow-hidden max-md:gap-1">
-        {onPathClick ? (
-          <button
-            type="button"
-            data-testid="workspace-path"
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
-            title={workspacePath}
-            aria-label={workspaceName}
-            onClick={onPathClick}
-          >
-            <Folder aria-hidden="true" className="size-4" />
-          </button>
-        ) : (
-          <span
-            data-testid="workspace-path"
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
-            title={workspacePath}
-            aria-label={workspaceName}
-          >
-            <Folder aria-hidden="true" className="size-4" />
-          </span>
-        )}
+        <div className="relative flex shrink-0 items-center">
+          {onPathClick ? (
+            <button
+              type="button"
+              data-testid="workspace-path"
+              aria-label={workspaceName}
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+              title={workspacePath}
+              onClick={onPathClick}
+            >
+              <Folder aria-hidden="true" className="size-4" />
+            </button>
+          ) : (
+            <span
+              data-testid="workspace-path"
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
+              title={workspacePath}
+              aria-label={workspaceName}
+            >
+              <Folder aria-hidden="true" className="size-4" />
+            </span>
+          )}
+        </div>
+        {/* §32.11 任务信息弹层：锚 header 层（folder 容器 overflow-hidden 会裁剪弹层）。 */}
+        {infoSlot ?? null}
         <h1
           data-testid="workspace-title"
           className="min-w-12 max-w-[42vw] truncate text-ui-base font-semibold text-foreground"
@@ -80,7 +90,7 @@ export function RemoteWorkspaceHeader({
           {title}
         </span>
         {onMoreMenu ? (
-          <div className="flex min-w-0 shrink-0 items-center gap-1">
+          <div className="relative flex min-w-0 shrink-0 items-center gap-1">
             <button
               type="button"
               data-testid="workspace-more-button"
@@ -90,6 +100,8 @@ export function RemoteWorkspaceHeader({
             >
               <Ellipsis aria-hidden="true" className="size-4" />
             </button>
+            {/* 菜单锚定在触发按钮容器（官方弹层同锚点）；内容由 App 装配。 */}
+            {moreMenuSlot ?? null}
           </div>
         ) : null}
         {onToggleSidePane ? (

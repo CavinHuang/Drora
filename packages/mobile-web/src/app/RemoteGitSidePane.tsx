@@ -67,23 +67,17 @@ export interface RemoteGitSidePaneProps {
   className?: string;
 }
 
-const __modId = ((globalThis as { __svcModuleId?: string }).__svcModuleId ??= "shell-" + Math.random().toString(36).slice(2, 8)) as string;
-
 export function RemoteGitSidePane({
   open,
   onClose,
   workspacePath,
   workspaceIdentity,
-  remoteSessionId,
   accessor,
   activeTaskId,
   onRefreshGit,
   className,
 }: RemoteGitSidePaneProps) {
   const { formatMessage } = useIntl();
-  (globalThis as { __prov?: string[] }).__prov ??= [];
-  const prov = ((globalThis as { __prov?: string[] }).__prov ??= []);
-  prov.push(String("GitSidePane-shell:" + __modId));
   if (!open) return null;
   return (
     <aside
@@ -112,19 +106,19 @@ export function RemoteGitSidePane({
           <TooltipProvider delayDuration={0}>
             <PluginReferenceIconProvider value={null}>
               <PlatformProvider platform={WEB_PLATFORM}>
-              <TabStoreProvider>
-                <StoreProvider broadcastService={MOCK_BROADCAST}>
-                  <ServiceProvider services={accessor}>
-                    <GitPaneBody
-                      key={`${workspaceIdentity?.trim() || workspacePath}:${activeTaskId}:${accessorId(accessor)}`}
-                      workspacePath={workspacePath}
-                      activeTaskId={activeTaskId}
-                      onClose={onClose}
-                      onRefreshGit={onRefreshGit}
-                    />
-                  </ServiceProvider>
-                </StoreProvider>
-              </TabStoreProvider>
+                <TabStoreProvider>
+                  <StoreProvider broadcastService={MOCK_BROADCAST}>
+                    <ServiceProvider services={accessor}>
+                      <GitPaneBody
+                        key={`${workspaceIdentity?.trim() || workspacePath}:${activeTaskId}:${accessorId(accessor)}`}
+                        workspacePath={workspacePath}
+                        activeTaskId={activeTaskId}
+                        onClose={onClose}
+                        onRefreshGit={onRefreshGit}
+                      />
+                    </ServiceProvider>
+                  </StoreProvider>
+                </TabStoreProvider>
               </PlatformProvider>
             </PluginReferenceIconProvider>
           </TooltipProvider>
@@ -147,7 +141,6 @@ function GitPaneBody({
   onRefreshGit?: () => void;
 }) {
   const [selectedSourceId, setSelectedSourceId] = React.useState<string>("unstaged");
-  const [findNavRequest, setFindNavRequest] = React.useState(0);
   const [gitRefreshToken, setGitRefreshToken] = React.useState(0);
   const gitState: GitPaneRepositoryState = useGitRepository({
     workspacePath,
@@ -162,7 +155,7 @@ function GitPaneBody({
       gitState={gitState}
       selectedSourceId={selectedSourceId as never}
       fileChangeFindActiveIndex={0}
-      fileChangeFindNavigationRequestId={findNavRequest}
+      fileChangeFindNavigationRequestId={0}
       fileChangeFindQuery=""
       onFileChangeFindMatchCountChange={() => {}}
       onSelectSource={(sourceId) => setSelectedSourceId(sourceId as string)}

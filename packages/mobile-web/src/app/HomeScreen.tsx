@@ -46,13 +46,13 @@ export interface HomeScreenProps {
    */
   onSearchTasks?: (search: string) => Promise<TaskSearchResult[]>;
   /** P6 文件域（spec §29.3）：host 文件搜索执行器（accessor.fileService 绑定）。 */
-  onSearchFiles?: (query: string) => Promise<
-    { name: string; path: string; relativePath: string; type: "file" | "directory" }[]
-  >;
+  onSearchFiles?: (
+    query: string,
+  ) => Promise<{ name: string; path: string; relativePath: string; type: "file" | "directory" }[]>;
   /** 文件结果行点击（插入 composer 引用；装配归调用方）。 */
   onFileSelect?: (entry: { path: string; relativePath: string }) => void;
   /** P6 新建任务（spec §30）：工作区组"+"按钮 → createSession（capability 第四例）。 */
-  onWorkspaceNewTask?: (workspace: { workspaceKey: string; path: string }) => void;
+  onWorkspaceNewTask?: (workspace: { workspaceKey: string; path: string; name?: string }) => void;
 }
 
 export function HomeScreen(props: HomeScreenProps) {
@@ -84,6 +84,9 @@ export function HomeScreen(props: HomeScreenProps) {
       <MobileHomeShell
         connection={props.connection}
         workspaces={props.workspaces}
+        defaultCollapsedWorkspaceKeys={props.workspaces
+          .slice(1)
+          .map((workspace) => workspace.workspaceKey)}
         selectedTaskId={props.selectedTaskId}
         isRefreshing={props.isRefreshing}
         organizePreferences={organizePrefs}

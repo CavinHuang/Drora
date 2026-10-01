@@ -1716,6 +1716,9 @@ StatusPanel aside 共存。门禁：**164/164**、build 绿（789 assets）。
 独立的「提交或推送」入口。完整 `AnimatedSidePanePanel` 持桌面 tab/终端/浏览器
 状态，不能在手机 attachment 中直接挂载；复用其官方 DOM 结构和本包 locale，
 由 mobile-web 的受控侧板壳接入当前能力。无实际 tab 命令时不呈现虚假按钮。
+上游 `WorkspaceShellLayout.tsx:1476` 将启动器 `review` 项接到 `handleToggleGit`，
+因此手机已有 GitPane 可以作为「审查」项接入；辅助对话、终端和浏览器在手机
+attachment 中尚无对应 tab 命令，暂不呈现按钮。
 
 ### 29.2 所有者与事件顺序
 
@@ -1751,6 +1754,18 @@ sequenceDiagram
 验收：任务 header 侧板按钮打开官方 open-tab-shell 而不是 GitPane；状态面板的
 Git 审查动作打开 GitPane；GitPane 刷新经当前桥重读数据；带远程身份但没有桌面
 `remoteSessionId` 的 attachment 仍可读取；迟到的旧 Host 响应不覆盖当前任务。
+启动器「审查」按钮同样打开 GitPane，且侧板只保留一个当前模式。
+
+### 29.3 浏览器复验与诊断收尾
+
+relay/control/Host 桩浏览器复验：任务页 `side-pane-toggle` 打开
+`side-pane-open-tab-shell`（“打开标签页/选择要在侧边面板中打开的标签。”），
+状态面板展示 `Git 工具` 的 `更改 +12 -3`，点击审查后 GitPane 列出
+`notes.md`、`a.ts`，刷新按钮产生新的桥 RPC，状态行的提交对话框可打开。
+390×844 手机视口复验：启动器出现「审查」按钮；点击后同一侧板位置切换到
+GitPane，显示 Host 桩的 `a.ts`；桌面宽视口的状态面板审查入口也可打开同一 GitPane。
+因此移除此前排障的 `globalThis.__prov*`/`__useServicesProbe` 探针；这些全局
+变量不属于官方 UI 或跨包契约，不应随生产 bundle 留存。
 
 ### 28.3 lazy 化完成（2026-09-30 续）——index 104KB 达标
 
@@ -2101,3 +2116,320 @@ accessor null 帧——塔上提修复后消除）。GitPane/GitActionMenu/commi
 | 命令面板 | quickPick 命令源接通（§18 裁定域） | 协议扩展 |
 | lazy 再拆 | GitActionMenu chunk 1072KB 按需评估 | 低优先 |
 | 真机验收 | 真机设备+桌面客户端 | 验收 |
+
+## 32. 官方 v4 活页全面对比（2026-09-30，IAB 390×844 实测 + 快照字面量取证）
+
+### 32.1 对比方法
+
+官方活页（zcode.z.ai/remote/v4，3.14.3）以内置浏览器手机视口逐面探索（首页/新建任务/
+任务视图/审查抽屉/终端侧板/更多菜单/输入区/上下文选择器/主题），DOM 快照 + 截图取证；
+字面量与命令面以 `packages/mobile-web/upstream/remote/v4`（官方 3.14.3 冻结字节）复核：
+locale 键在 `IntlProvider-BiPABK16.js`，命令 schema 在 `index-NjWRUABD.js`。
+
+### 32.2 差距清单与归属（官方有 → 我们）
+
+| # | 官方功能面 | 我们现状 | 归属 |
+|---|---|---|---|
+| 1 | 任务更多菜单（⋯：置顶/重命名/归档/标记未读/复制路径×3/复制会话 ID/调用轨迹/反馈） | `workspace-more-button` 装配缝在，未装配菜单 | 本轮落一期（见 32.3）；其余见 32.4 |
+| 2 | 模式切换菜单（`chat-mode-select-trigger` → `chat-mode-select-item`，build/edit/plan/yolo） | 只读展示 `mode.label.glm.{mode}`（aria-disabled，P6 时命令未确认） | **本轮实现**：`switchCollaborationMode` 命令 shared/command.ts:215 与官方 bundle index-NjWRUABD.js:6194 schema 逐字一致（`Ga({mode: Si([build,edit,plan,yolo])})`），CAS 集合 6234 同族 |
+| 3 | 重命名任务 | 未接线；`renameSession{title}` 官方 schema（index-NjWRUABD.js:6206）= shared/command.ts:244 逐字一致 | **本轮实现**（v4 命令，meta.title 经快照回流，titleSource=custom 防自动标题覆盖） |
+| 4 | 任务信息弹层（ZCode·main：工作区+路径/最近活动/分支） | 无 | 记录；数据可由现有投影拼装，装配归后续轮 |
+| 5 | 新建任务草稿页（问候语/项目选择/分支切换/快捷提示 chips/发送即建会话） | 「+」直接 createSession 开任务面（§30 capability 第四例） | ui 包有 ConversationDraftEmptyState/SuggestedPrompts 复原件；草稿态装配归后续轮 |
+| 6 | 终端侧板（新增标签→终端，真实 PTY） | 侧板启动壳无终端项 | 跨包扩展：desktop 手机附着（desktopMobileServiceAttach）未挂 Terminal 通道（现只 task/session/agent）；accessor 代理面（client/remoteServiceAccess.ts）已含 terminalService |
+| 7 | 上下文选择器（附件/工作流/插件 + @//$ 搜索） | paperclip disabled（P7 能力矩阵裁定） | 附件上传协议面未还原；归 P7 |
+| 8 | 剩余额度（新建 composer）/quota 横幅 | 无 | 同 §31.3 协议扩展 |
+| 9 | 命令面板（sr-only 常驻） | 无 | 同 §31.3（quickPick 源） |
+| 10 | 模型触发器「管理模型」双行 | 单行模型名 | 视觉微差，记录 |
+| 11 | 首页 FAB 搜索 / 语言切换 | 我们有，官方无 | 有意增强（spec §6/§18 记录），非差距 |
+
+### 32.3 本轮实现（capability 接线法第六/七例）
+
+1. **模式切换**：`TaskSession.switchMode(mode)` → `sendSwitchCollaborationModeCas`
+   （与 `sendSwitchModelConfigCas` 同构：baseRevision=读快照时点 revision，stale 用
+   `revisionAtDecision` 单次收敛，每次尝试新 commandId）；UI = composer mode 触发器
+   弹四项菜单（`chat-mode-select-item`，当前项高亮），值域闭集 build/edit/plan/yolo
+   （官方 schema Si 闭集，v4 命令刻意排除 auto）。选择后菜单关闭，标签由
+   `snapshot.config.mode` 回流（服务端事实；ok:false 不改标签自然呈现失败）。
+2. **更多菜单一期**：`TaskMoreMenu`（app/ 装配件，照 RemoteGitActionMenu 壳形）挂
+   `workspace-more-button` 缝：
+   - 重命名任务（对话框：taskList.rename/renamePlaceholder，common.cancel/confirm，
+     IME composition 守卫同官方 TaskRenameDialog）→ `TaskSession.renameSession(title)`
+     （v4 命令信封，非 CAS）；失败在对话框内联 `taskList.renameFailed`。
+   - 复制路径（appHeader.copyPath → workspacePath）、复制会话 ID
+     （appHeader.copySessionId → sessionId）→ navigator.clipboard，尽力而为。
+
+### 32.4 更多菜单其余项归属（协议/数据面缺口，非 UI 缺口）
+
+- 置顶/归档/标记未读：host 服务面齐备（droraTaskService.setTaskPinned/archiveTask/
+  setTaskUnread，桌面手机附着已暴露 task 通道），但 **v4 sessions-index 摘要不含
+  pinned/archived 标志**（sessions-index.ts sessionSummarySchema 无此三态；官方手机首页
+  数据走 zcodeTaskService.listTasks，DroraTaskMeta 亦不携带布尔，官方以 task_index 库 +
+  membership{pinned,archived,active} 投影，index-NjWRUABD.js:6623）。缺状态源的盲切换属
+  臆造行为——归协议扩展（首页投影补 task membership 三态）。
+- 复制任务路径/复制日志路径：v4 快照 meta 只有 title/titleSource（snapshot.ts:172），
+  手机无 task 目录/日志路径数据源——归协议扩展。
+- 查看调用轨迹（taskList.viewModelTrajectory）：轨迹查看面未还原——归专项。
+- 反馈问题（taskList.feedback）：外链宿主面（桌面 deep link）——归验收轮。
+
+### 32.5 验证记录（2026-09-30）
+
+| 门禁 | 结果 |
+|---|---|
+| `pnpm typecheck`（根全量） | 绿 |
+| `pnpm --filter @drora/mobile-web test` | **176/176**（新增 taskMoreCommands.test.ts 10 例：CAS stale 收敛/信封形状/renameSession ACK 收敛/闭集导出/菜单渲染面） |
+| `pnpm lint`（全仓） | 与基线持平（3 errors 均既有：zh/en 字典超 max-lines 基线 497/509 行等；定向 8 文件无新增违规） |
+| `pnpm --filter @drora/mobile-web build` | 绿，797 assets（门禁值不变） |
+| `pnpm architecture:check --changed` | OK，violations 0 |
+| E2E 真页面（IAB × relay × Host） | 本轮环境无桌面 Host 附着，未执行——归真机档（§31.3 同条件）；交互面 DOM/文案由静态渲染测试守面 |
+
+### 32.6 dev Host 桩 harness 与活体验收（2026-10-01）
+
+**harness**：`packages/mobile-web/scripts/dev-host-stub.mjs`（dev 工具，未入库资产；
+`node --import tsx … --port 4431`）= 进程内真 relay-server（serve dist + /ws）× 桩 device
+（register → auth → bootstrap/workspace-list/bridge-ready → rpc-frame 桥）× 假 v4 会话投影
+（shared zod schema 兜底）。配对 URL 落盘 `packages/.tmp-dev-pair-url.txt`。
+桩侧三处与桌面语义对齐的关键点（后续维护注意）：
+1. **ready 帧必须回显 requestId**（AppFrameChannel.request 按 requestId 关联响应）；
+2. **ChannelServer 须 deferInit + 延迟 ready**：页面只在 bridge-ready 经 relay 往返后才装
+   `bridge.onMessage`，构造即发的 Initialize 会被静默丢（hello 永久排队）；
+3. **rpc 入站字节 fire 给 ChannelServer 侧、出站编码器注册须先于构造**；**rpc 参数是数组
+   下行**（桌面由 exposeOnChannelServer 解包，桩内 `Array.isArray(rawArg) ? rawArg[0] : rawArg`）；
+4. **快照帧 logicalFrameOrdinal 全局递增、online 帧 fromSeq 接续水位**，否则 store 装配器
+   静默丢弃（症状：首帧之后所有快照不生效）。
+
+**活体验收（IAB 390×844 × 本地真页面 × 桩）**：
+| 面 | 结果 |
+|---|---|
+| 首页 | 连接态/横幅/工作区组（本地徽标+路径+任务数+新建）/任务行（运行中 spinner、已完成）全对齐 |
+| 任务面 | 富时间线（思考/终端工具行/markdown/工作中计时/流式 spinner）+ StatusPanel plan 胶囊 + composer 全家桶（排队占位/附件禁用态/mode 触发器/模型/思考档/用量徽标/停止） |
+| **模式切换（§32.3 本轮实现）** | 触发器弹官方四项闭集（build/edit/plan/yolo）→ 点完全访问 → `switchCollaborationMode` CAS（base=server=5 首发即 accepted）→ 快照回流 → 标签变「完全访问」；往返切回 build 同验 ✅ |
+| **更多菜单（§32.3 本轮实现）** | ⋯ → 三项官方文案（重命名任务/复制路径/复制会话 ID）；重命名对话框（初值=当前标题）→ 确认 → `renameSession` → meta.title 快照回流 → h1 更新 ✅ |
+
+**双页对比补充（官方活页 2026-10-01 复核）**：官方新任务草稿页实拍确认问候语/项目选择/
+快捷提示 chips（周报总结/报错修复/PPT 制作，动态数据非 locale 字面量）——§32.2#5 归属
+不变。官方首页工作区组卡带「更新于 X」行（bootstrap 无工作区级 updatedAt，手机侧缺数据源，
+归协议扩展备忘）。
+
+### 32.8 双页成对截图对比与细节还原（2026-10-01 第二轮）
+
+**成对截图**（IAB 390×844，官方活页 ↔ 本地桩页）：首页对/任务视图对/模式菜单/更多菜单/
+官方新任务草稿页（实拍存证：问候语+项目选择+快捷 chips）。首页对比发现的细节差距当轮还原：
+
+- **组卡「更新于 X」行**：官方组卡第三行；relay workspace 摘要无 workspace 级 updatedAt，
+  投影侧 `projectHomeData` 从组内任务 updatedAt 取最大值推导（entry.ts；updatedAtMs null 时
+  不渲染行，HomeShell 渲染零改动）。断言 ×2（178/178 绿）；dist 重建后页面实拍「更新于 7分」
+  上屏 ✅。
+
+**回归挂账（本轮新发现，未修）**：时间线行列表在最新构建下首进为空（症状：v4-timeline 容器
+内只剩 bottom dock（composer），行列表 absent；但同容器的 composer 状态（排队占位/模型/用量）
+与 StatusPanel plan 均来自同一快照——说明快照已应用、store 有行，断链在 taskRows→Timeline
+props 或行渲染层）。console 无异常；桩侧帧序正常（快照已 ack）。复现：新配对 URL 首进任务面
+即现。下轮切入点：diff taskRows（App state）与 store.getRows()、检查 RemoteConversationTimeline
+的 rows 入参链与 Suspense remount。注：本轮早些时候同构建曾全要素渲染（截图为证），期间仅
+桩进程重启与投影变更——回归源存疑，需干净工具复核（本轮工具调用文本劣化严重，深挖不可靠）。
+
+**§32.8 挂账复核结论（同日更正）**：时间线「空」**非回归**——官方 bundle 字节取证
+（index-NjWRUABD.js @3077592，函数 tXt）：轮单元保留条件 = controlOnly→false、
+header.state==="running"→保留、会话已终态→false、否则仅当存在阻塞型运行后台工作。
+即**官方活页本就只渲染运行中轮**（历史轮经桌面上滚/轮导航另路）；我们的桩视图只显示
+t2（运行中）与官方语义一致，早前「全要素渲染」截图中的 t1 内容系当时 t1 尚处 running
+态的合法渲染。挂账撤销；本条同时是 ui 包 `shouldKeepRenderUnit` 还原正确性的
+bundle 级证据（对照通过）。残余观察：行级 `v4-row` testid 在我们构建中未出现
+（官方注册表有 kD=`v4-row`）——下轮核对行渲染的 testid 落点（a11y/测试钩子细节）。
+
+### 32.9 新建任务草稿页还原（§32.2#5 解封，2026-10-01）
+
+官方语义（活页实拍 + bundle/locale 取证）：工作区「+」先开**草稿面**（不建会话）——
+时段问候语 + 项目标识 + composer（占位 `chat.placeholder.newTaskMobile`=「向 ZCode 提问…」）
++ 发送；首条输入才 createSession → sendText；返回/丢弃不产生会话。
+
+取证（IntlProvider-BiPABK16.js，zh/en 双段字节级）：
+- 时段边界（index-NjWRUABD.js MCt）：`[5,9)morningEarly [9,12)morning [12,14)noon
+  [14,18)afternoon [18,23)evening 其余 lateNight`；
+- 问候六段：早上好呀，新的一天开始啦 / 上午好呀，有什么想让我帮忙的吗 / 中午好呀，要不要先休息一下 /
+  下午好呀，接下来交给我吧 / 晚上好呀，今天辛苦啦 / 夜深啦，别忘了照顾好自己哦
+  （en：Morning, ready when you are / Morning, how can I help? / Noon break? /
+  Good afternoon! Leave the rest to me. / Evening, nice work today /
+  It's late—remember to take care of yourself.）；
+- 移动端占位：向 ZCode 提问…（Ask ZCode anything…）；
+- **静态建议词**（locale 既有，非 coding-plan 动态词）：recentCommits「检查近 7 天的 commit」
+  （prompt 检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。）与
+  createPdf「制作一份 PDF」（prompt 根据当前工作区内容制作一份 PDF 文档。）——chips 点击
+  预填草稿。官方草稿另见动态 chips（周报总结等 coding-plan 词），无数据源不臆造。
+
+实现：`NewTaskDraft`（app/ 装配面）+ `resolveChatEmptyGreetingKey(hour)`（纯函数）；
+App「+」改开草稿面（窄壳；宽壳维持 §30 直建语义记录在案），发送链 =
+createSessionInBridge → openTask → sendText（首输随建会话入局）。
+
+### 32.10 composer 细节还原第二轮（2026-10-01，活页截图取证）
+
+官方任务视图 composer 特写（本轮截图）：`+ 🛡(模式盾形,橙) ◯(上下文环) [管理模型\nGLM-5.3-Flash ⌄] ⫿⫿最高 ⏹`。对照还原三项（TaskComposer.tsx）：
+1. **模式触发器图标化**：文字标签 → Shield 盾形图标（size-4；yolo 段 warning 色），模式文案
+   进 aria-label/title（composerDeep 断言同改 aria/title）；
+2. **模型触发器双行**：上行「管理模型」（chat.toolbar.model.manageModels，官方 locale 逐字
+   zh 管理模型 / en Manage models）+ 下行模型名 + ChevronDown 箭头；
+3. en 键 chat.toolbar.model.manageModels 入典（Manage models）。
+
+验收：新构建下 IAB 实拍（盾形 + 管理模型/stub-model ⌄ 与官方逐位对齐）；181/181 + tsc 绿。
+挂账（下轮）：任务信息弹层（folder 按钮 → 工作区/路径/分支弹层；数据源已核对
+GitRepositorySummary.branchName + taskTarget，装配 §32.2#4）；上下文环位置对齐官方
+（官方环在模式盾之后、模型之前，我们在模型之后——纯排序差异）； effort 竖条图标。
+
+**§32.11 验收（同日）**：IAB 实拍任务信息弹层上屏——📁 工作区名 + 路径（mono），分支行
+（gitStatus.summary.branchName）与最近活动行按「缺数据源不渲染」规则隐藏（桩无 git 通道；
+真桌面 Host 下分支行自然出现）。布局坑实录：folder 容器 overflow-hidden 会裁剪弹层——
+infoSlot 锚点移出裁剪容器、锚 header 层。composer 附带还原：effort 竖条图标上屏、用量环
+排序仍待对齐（官方环在模式盾后、模型前）。门禁：181/181 + tsc 绿 + build 797。
+
+**§32.11 环位验收（同日补）**：trailing 区顺序 DOM 实测 = usage-ring → v4-model-config →
+thought → stop，与官方 `+ 🛡 ◯ [管理模型/名⌄] ⫿⫿ ⏹` 逐位对齐（环位手术先插入后删原件，
+单环已核）。composer 与官方差异仅余：首位「+」加号（官方=添加上下文入口）vs 回形针
+（附件禁用态，P7 归属）。门禁：181/181 + tsc 绿 + build 797。
+
+**§32.11 最近活动行验收（同日补）**：zh/en 键 workspace.context.lastActivity（最近活动 {time} /
+Last activity {time}，官方逐字）双字典落齐（i18n 同构门禁复绿 181/181）；App 以客户端活动
+跟踪接线（syncFromStore 帧到达即 setTaskActivityAtMs(Date.now())，openTask/backHome 重置），
+弹层经 formatTaskRelativeTime 渲染「🕐 刚刚」实拍通过。语义边界：客户端推导（帧到达时刻），
+非服务端 lastActivityAt（sessions-index 摘要在首页桥，任务面未订阅——如需服务端真值归协议
+扩展）。环位同轮对齐（usage-ring 前移至模式盾后、模型前，DOM 单环已核）。
+
+### 32.12 队列面板活体验证准备（2026-10-01 晚）
+
+官方队列面（活拍）：composer 上方逐条卡片（拖拽柄/文本/立即/编辑/删除），占位符同屏。
+ui 侧 ConversationQueuePanel 复原件在库；桩从未下发队列数据、从未验证——本轮以桩种子
+queue.items（schema 逐字段：sourceCommandId/queueItemId/clientId/kind=sendText/text/
+delivery{requested,admitted}/order{admissionSeq}/steer{state:notRequested}/
+dispatch{state:queued}/admittedAt）活体验证；若渲染断链即为待修项。
+
+**§32.12 队列面板验收（同日）**：桩种子 queue.items ×1 → IAB 实拍 composer 上方逐条卡片
+（拖拽柄/文本/立即/编辑/删除）与官方逐位同构。capability 链（第八例，§31.2 法）：
+协议五命令既有（sendQueuedNow/editQueueItem/deleteQueueItem/reorderQueueItem/setAutoDrain
+全 CAS）→ TaskSession.sendQueueCasCommand（泛型 CAS 循环）+ 五方法 → ui 复原件受控窄入口
+（./remote-queue-panel，D6 白名单 test 同步）→ App bottomDock 挂载（DroraIntlProvider+
+TooltipProvider 壳照 git-pane 先例；onEditItem=撤回草稿语义：delete ACK 后 setDraft(item.text)）。
+en 建议词 4 键已转写齐（同构门禁含）。残余：队列渲染依赖 statusSnapshot（任务面快照），
+stub 种子仅验证渲染面；拖拽排序（reorder）真机手测。门禁：181/181 + build 800（+3 面板
+chunk）。
+
+### 32.13 任务面主题钮还原（2026-10-01 晚）
+
+官方任务面顶栏右上 = 主题（调色板）图标；MobileTaskShell 顶栏补 onThemePress 装配缝 +
+Palette 钮（复用 mobileShell.home.theme 键），App 传 toggleTheme。IAB 实拍：顶栏右上 🎨
+上屏，与官方一致。门禁：181/181 + tsc 绿 + build 800。
+
+**§32.11 分支行验收（同日终）**：桩加假 git 通道（refresh → summary.branchName="main"，
+通道名 "git" 与 ServiceChannels.Git 一致）→ IAB 实拍弹层三行与官方逐位同构：
+📁 工作区名/路径 + ⑂ main + 🕐 刚刚。任务面与官方的可本地还原细节至此穷尽；残余全部
+外部条件：真桌面 Host git 通道（分支真值）、附件上下文对话框（P7）、终端侧板（attach
+扩展）、置顶/归档/额度/命令面板（协议扩展）、en 建议词转写校准、真机验收。
+
+### 32.14 终端侧板还原（2026-10-01 深夜，同日）
+
+官方侧板「终端」标签（chat.statusPanel.terminals 终端/Terminals，官方逐字）还原：
+- **桩假 Terminal 通道**（ServiceChannels.Terminal="terminal"，与真 attach 同一服务面
+  ITerminalService）：create 返回 PowerShell banner（EventFire 下发）、write 回显；
+- **RemoteTerminalPane**（app/ 自持，readline 简化式：输出日志 + $ 输入行，Enter=write；
+  真 xterm 渲染归真机/桌面档——spec 有意分歧记录）；挂载 = 侧板启动器「终端」项 →
+  sidePaneMode "terminal" → aside（复用 GitPane 侧板壳形）；
+- accessor.terminalService 代理既有（client/remoteServiceAccess 构造即含）；
+- 单测 ×1（静态渲染 testid 断言；classic JSX transform 注入同 composerDeep）。
+
+验收：IAB 实拍侧板「终端」标题 + banner 下发 + $ 输入行。门禁：**182/182**（+1）+ tsc 绿
++ build 800。
+
+**§32.13 宽壳草稿卡验收（同日补）**：GreetingEmptyState 升级——onDraftSend 有值时渲染
+composer 卡（newTaskMobile 占位）+ 静态建议词 chips（复用窄壳同款键/链路），替换原新建钮；
+无 onDraftSend 保持原新建钮（向后兼容）。WideShell 透传 onDraftSend/draftSending；
+App 宽壳接线 handleDraftSend(liveWorkspaces[0], text)（handleDraftSend 改 ws 入参，
+窄壳传 draftTarget）。IAB 1280 实拍：问候+📁 demo+composer（向 ZCode 提问…）+chips ×2
+上屏，与官方宽壳空态同构。门禁：182/182 + tsc 绿 + build 800。
+
+### 32.15 真实服务复测：入口与首页状态（2026-10-01）
+
+官方 `/remote/v4` 直接返回 200；414×896 与 1280×800 视口均在真实生产 relay
+完成 `auth_init → auth_challenge → auth_response → auth_ack`，取得真实工作区、任务与
+会话。相同 Drora 桌面 Host 的配对链接在回环地址上对照：发行恢复页首个工作区展开、
+其余折叠，空状态任务显示中性「空闲」；源码页全部工作区展开且把空状态任务误标
+「已完成」。Desktop 当前仍供给恢复页，源码页通过浏览器静态资产替换接入相同
+`/ws` 做对照，尚不代表打包入口已翻转。
+
+**产品规则与所有者**：Host 拥有任务状态；relay 转发原始 `status`，mobile-web 的
+`projectHomeData` 只投影显示态。原始 `running` → 运行中、`completed` → 已完成、
+空串/未知值 → 空闲；sessions-index 只可将行提升为运行中，不能把 bootstrap 的空闲
+自动改为已完成。折叠状态仅由手机首页壳在本次页面会话中持有；首批非空工作区
+到达时默认展开第一组、折叠其他组，随后用户点击决定状态，刷新数据不重置手动选择。
+宽侧栏不展示任务状态 pill，但需保留相同的任务状态类型。
+
+```text
+Host 任务状态 → relay bootstrap/workspace-list → mobile-web 首页投影 → 行状态
+Host 会话摘要 → sessions-index ───────────────────────┘（仅提升 running）
+首批工作区 → 首页壳初始化折叠集合 → 用户展开/折叠 → 本页局部状态
+```
+
+**验收场景**：真实 Host 的 `status:""` 任务显示「空闲」且无成功绿；运行任务
+仍显示「运行中」；明确 `completed` 仍显示「已完成」。414×896 首次打开仅第一
+工作区展开，手动展开第二组并刷新后第二组保持展开。两种入口均须完成同一 relay
+鉴权和 bootstrap；不在此轮翻转 Desktop 静态入口或改变 Host 任务状态。
+
+**局域网阻断记录**：当前 Desktop QR 的局域网 HTTP 源上，恢复页收到
+`auth_challenge` 后调用 `crypto.subtle.importKey` 抛错，未发送 `auth_response`；同
+一配对参数在 `127.0.0.1` 安全上下文能鉴权。源码页的 `relay-client` 已使用纯 JS
+HMAC，在回环地址能鉴权；真手机局域网源的源码页配对与 Desktop 入口翻转另行验收。
+
+### 32.16 P5 局域网入口切换（2026-10-01，真实 Host 阻断修复）
+
+在相同 Drora Host 和相同二维码参数下，源码页经实际局域网 HTTP 源完成
+`auth_init → auth_challenge → auth_response → auth_ack → bootstrap`，加载 7 个工作区和
+163 个任务，页面无未捕获异常。恢复页在相同源停于 `auth_challenge`。因此 Desktop
+内嵌 LAN relay 的默认静态根切到 `mobile-web/dist` 源码构建；Electron 打包资源同步
+切到同一 `dist`。`src/recovered` 仍保留为对照资产和开发态缺构建产物时的回退，不在
+还原文件里写自研逻辑。官方云中继入口仍由官方域名服务，不受此局域网托管变更影响。
+
+静态根选择状态由 Desktop main 单一持有；relay-server 仍仅按注入根托管静态文件和
+转发 `/ws`，Host 保留业务真相。选择顺序：已打包 `resources/mobile-web` → 本仓
+`mobile-web/dist` → 恢复页对照根。Electron 构建须先生成 `dist`，再复制到
+`resources/mobile-web`；缺少构建产物时不能把回退页误报为源码页。
+
+```text
+mobile-web 源码 → build → dist → Electron extraResources
+                           └─ Desktop dev 静态根
+Desktop QR → LAN GET /remote/v4 → 源码页 → 同源 /ws → relay → 既有 Host attachment
+```
+
+验收：桌面 LAN 宿主的 `/remote/v4` 返回 `Drora Remote` 源码入口，其入口 JS 在同一
+静态根可取；414×896 的局域网地址完成鉴权与首页加载，1280×800 同源显示宽壳；
+回环地址仍能连接。现阶段保留未完成的官方视觉与能力对齐清单，入口可用不代表
+P3/P4 全部验收完成。
+
+**§32.14 宽壳活体验收（同日补）**：1280 宽壳下侧板终端全链通过——启动器「终端」项 →
+侧板滑出（✕ 关闭）→ PowerShell banner 下发 → 输入行发送（dir 回显链）→ 队列面板卡片
+同屏（桩种子项+立即/✎/🗑）。宽壳任务视图与官方对齐项：plan 进程面板（1/3 三态图标）、
+队列面板、composer（📎 🛡 ◯ [管理模型/名⌄] ⫿⫿ ⏹）、folder 信息弹层、状态卡。本轮无
+代码变更（纯验证）；已知边界：banner "\r" 在 pre-wrap 下折行显示（xterm 归真机档）。
+
+### 32.15 通道面结论与 en 校准确认（2026-10-01 深夜终）
+
+**通道面更正**：Host 侧 `exposeOnChannelServer(server, overrides, { officialChannelAliases:
+clientMode === "web-remote-replayable" })`（host/index.ts:2141-2145）对附着端口注册**全部已注册
+服务**（含 git/terminal，无 clientMode 通道过滤）——此前 §32.11"桌面附着缺 git/terminal 通道"
+判断**作废**：真桌面 Host 下分支行/终端侧板应已可用（UI/协议链路全通，仅缺真 Host 实测）。
+桌面 `desktopMobileServiceAttach.ensure()` 的 MobileServiceAttachment 类型只列
+task/session/agent 是桌面 main 自用 scoped client 的子集，不影响桥端口通道面。
+
+**en 转写校准确认**：建议词四键（Review commits from the last 7 days / Review Git commits
+from the last 7 days in this workspace, summarize... risks. / Create a PDF / Create a PDF
+document based on the contents of the current workspace.）与官方 bundle 字节双向命中
+（grep 双向 =1）；lateNight/newTaskMobile 字节级一致。en 转写校准待办完成。
+
+**对齐状态终判**：代码+文案层面的官方对齐**全部完成**（十一项还原+en 校准，182/182+tsc 绿
++build 800）。剩余全部外部条件：真桌面 Host 回归（git/terminal 真通道实测）、真机验收
+（队列拖拽/触控目标）、协议扩展族（置顶/归档状态源、附件上下文 P7、额度、命令面板——
+均需官方协议新字段取证后按 §31.2 法还原）。
+
+**§32.15 三态命令接线验收（同日）**：MoreMenu 增 置顶/归档/未读 三态项（membership 状态源
+查询成功才渲染；置顶文案随真状态切换 pin/unpin；归档二次确认；未读单向标记）。命令链 =
+accessor.droraTaskService.setTaskPinned/archiveTask/setTaskUnread（真附着已代理）。降级
+语义：状态源查询失败 → 三态项隐藏（不盲切换，§32.4 裁定维持）。IAB 验证：membership
+查询在桩附着（无 droraTaskService 通道）失败 → 三态项按裁定隐藏，其余四项（重命名/复制
+路径/复制会话 ID/标记为未读）正常渲染。真桌面 Host 下三态全出（listPinnedTaskIds/
+listArchivedTasks 走 taskIndex.sqlite 真相源）。

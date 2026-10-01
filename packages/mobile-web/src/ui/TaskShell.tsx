@@ -2,7 +2,7 @@
 // 本包自持）。本期只做壳与导航：顶栏 + 时间线滚动容器 + 底部 composer 槽，
 // 时间线/composer 由装配方注入（P2a 基础版注入只读行渲染与 sendText composer）。
 import type { Ref, ReactNode } from "react";
-import { ArrowLeft, Ellipsis } from "lucide-react";
+import { ArrowLeft, Ellipsis, Palette } from "lucide-react";
 import { Button } from "./Button.js";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
@@ -11,6 +11,8 @@ export interface MobileTaskShellProps {
   title?: string;
   onBack?: () => void;
   onMorePress?: () => void;
+  /** §32.13 官方任务面顶栏右上主题钮（活拍对齐）。 */
+  onThemePress?: () => void;
   /** 时间线内容槽（P2a：只读行渲染；富时间线归 P3）。 */
   timeline?: ReactNode;
   /** 官方任务面在导航栏与消息区之间的工作区标题栏。 */
@@ -30,6 +32,7 @@ export function MobileTaskShell({
   title,
   onBack,
   onMorePress,
+  onThemePress,
   timeline,
   workspaceHeader,
   composer,
@@ -63,6 +66,17 @@ export function MobileTaskShell({
           </Button>
         ) : null}
         <span className="min-w-0 flex-1 truncate text-ui-base font-medium">{resolvedTitle}</span>
+        {onThemePress ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-11"
+            aria-label={formatMessage({ id: "mobileShell.home.theme" })}
+            onClick={onThemePress}
+          >
+            <Palette aria-hidden="true" className="size-4" />
+          </Button>
+        ) : null}
         {onMorePress ? (
           <Button
             variant="ghost"

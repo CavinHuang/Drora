@@ -1,7 +1,7 @@
 // 官方 side-pane-toggle 首屏壳（bundle index-NjWRUABD.js:241629-241685）。
 // tab 命令由上层按实际 attachment 能力注入；无命令时只展示文案，不伪造按钮。
 import type { ReactNode } from "react";
-import { PanelRightClose } from "lucide-react";
+import { FileDiff, PanelRightClose } from "lucide-react";
 import { useIntl } from "./intl.js";
 
 export interface RemoteOpenTabItem {
@@ -13,12 +13,25 @@ export interface RemoteOpenTabItem {
 
 export function RemoteOpenTabShell({
   onClose,
+  onOpenReview,
   items = [],
 }: {
   onClose: () => void;
+  onOpenReview?: () => void;
   items?: readonly RemoteOpenTabItem[];
 }) {
   const { formatMessage } = useIntl();
+  const launcherItems: readonly RemoteOpenTabItem[] = onOpenReview
+    ? [
+        {
+          id: "review",
+          label: formatMessage({ id: "sidePane.review" }),
+          icon: <FileDiff aria-hidden="true" className="size-4 text-foreground-subtle" />,
+          onOpen: onOpenReview,
+        },
+        ...items,
+      ]
+    : items;
   return (
     <aside
       aria-label={formatMessage({ id: "sidePane.openTabs" })}
@@ -46,7 +59,7 @@ export function RemoteOpenTabShell({
               </p>
             </div>
             <div className="side-pane-open-tab-list flex w-full flex-col gap-2">
-              {items.map((item) => (
+              {launcherItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"

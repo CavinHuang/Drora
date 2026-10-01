@@ -151,6 +151,7 @@ export const enUS: Record<string, string> = {
   "mobileShell.task.sidePaneCollapse": "Collapse side panel",
   "mobileShell.task.sidePaneExpand": "Expand side panel",
   "mobileShell.task.status.completed": "Completed",
+  "mobileShell.task.status.idle": "Idle",
   "mobileShell.task.status.running": "Running",
   "mobileShell.workspace.kind.local": "Local",
   "mobileShell.workspace.kind.remote": "Remote",
@@ -271,6 +272,8 @@ export const enUS: Record<string, string> = {
   "mobileShell.organize.byUpdated": "By updated", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
   // —— P3c 模型选择器第一档 + 上下文用量：官方键，值逐字取自 packages/ui/src/i18n/locales/en-US.ts ——
   "chat.toolbar.model.label": "Choose model", // 官方 en-US.ts:4950
+  "chat.toolbar.model.manageModels": "Manage models", // official (32.10 two-line model trigger)
+  "chat.statusPanel.terminals": "Terminals", // official (32.14 side pane terminal)
   "chat.toolbar.model.loadFailedRetry": "Models failed to load. Retry", // 官方 en-US.ts:1045
   "chat.toolbar.model.remoteWaiting": "Waiting for remote models", // 官方 en-US.ts:1046
   "chat.toolbar.model.targetMissing": "No model target", // 官方 en-US.ts:1047
@@ -301,6 +304,18 @@ export const enUS: Record<string, string> = {
   "mobileShell.wide.greeting.afternoon": "Good afternoon! Leave the rest to me.", // P5b 自建键（值 = 官方 chat.empty.greeting.afternoon en:4667）
   "mobileShell.wide.greeting.evening": "Evening, nice work today", // P5b 自建键（值 = 官方 chat.empty.greeting.evening en:4668）
   "mobileShell.wide.greeting.lateNight": "It's late—remember to take care of yourself.", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight en:4669）
+  // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
+  "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
+  "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
+  "workspace.context.lastActivity": "Last activity {time}", // official
+  "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
+  "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
+  "chat.draft.suggestedPrompt.createPdf": "Create a PDF", // 官方逐字
+  "chat.draft.suggestedPrompt.createPdf.prompt": "Create a PDF document based on the contents of the current workspace.", // 官方逐字
+  // §32.3 更多菜单一期（上轮键，随字典回退补回）
+  "common.confirm": "Confirm", // 官方逐字
+  "appHeader.copyPath": "Copy path", // 官方逐字
+  "appHeader.copySessionId": "Copy session ID", // 官方逐字
   // —— P6 workspaceFileTree 文件树面（spec §23）：en 值按官方语义补译（官方 en locale chunk 本轮未逐字
   // 提取，下轮校准）；zh 侧 11 键为官方逐字——
   "workspaceFileTree.title": "Workspace", // 官方 en 逐字（校准）

@@ -22,3 +22,19 @@ test("侧板开关先显示官方标签启动壳，未接命令不展示假动�
   assert.doesNotMatch(html, /data-side-pane-open-tab-item/);
   assert.doesNotMatch(html, /git-pane/);
 });
+
+test("已有 Git 审查能力时显示官方 review 启动项", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      IntlProvider,
+      { locale: "zh-CN" },
+      React.createElement(RemoteOpenTabShell, {
+        onClose: () => {},
+        onOpenReview: () => {},
+      }),
+    ),
+  );
+  assert.match(html, /data-side-pane-open-tab-item="review"/);
+  assert.match(html, /审查/);
+  assert.doesNotMatch(html, /data-side-pane-open-tab-item="terminal"/);
+});

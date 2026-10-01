@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 远控连接、首页、任务和侧板由同一个根组件装配，避免跨组件复制 attachment 状态。 */
 // 首页投影 = bootstrap/workspace-list 响应的本地投影；草稿 = composer 本地态
 // （AGENTS：UI 局部状态不得当作服务端事实）。
 import * as React from "react";
@@ -11,7 +12,7 @@ import {
 import type { MobileHomeConnectionState } from "../ui/HomeShell.js";
 import { HomeScreen } from "./HomeScreen.js";
 import { MobileTaskShell } from "../ui/TaskShell.js";
-import { IntlProvider, resolveLocale, storeLocale } from "../ui/intl.js";
+import { IntlProvider, resolveLocale, storeLocale, useIntl } from "../ui/intl.js";
 import type { InteractionAnswer } from "../ui/InteractionCards.js";
 import {
   createEntryClient,
@@ -20,6 +21,17 @@ import {
   type ProjectedWorkspace,
 } from "./entry.js";
 import { TaskSession, createSessionInBridge, openHomeSessionsIndexBridge } from "./taskSession.js";
+import type { CollaborationMode } from "./taskSession.js";
+import { TaskMoreMenu } from "./TaskMoreMenu.js";
+import { NewTaskDraft } from "./NewTaskDraft.js";
+// §32.12 队列面板（ui 复原件受控窄入口；git-pane 先例）。
+const LazyQueuePanel = React.lazy(() =>
+  import("@drora/ui/remote-queue-panel").then((m) => ({
+    default: m.ConversationQueuePanel,
+  })),
+);
+import { TaskInfoPopover } from "./TaskInfoPopover.js";
+import { RemoteTerminalPane } from "./RemoteTerminalPane.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
@@ -36,7 +48,6 @@ import { TabStoreProvider } from "@drora/ui/git-pane";
 import { StoreProvider } from "@drora/ui/git-pane";
 import { ServiceProvider } from "@drora/ui/git-pane";
 import type { IBroadcastService } from "@drora/services";
-import type { Event } from "@drora/rpc";
 const LazyRemoteGitSidePane = React.lazy(() =>
   import("./RemoteGitSidePane.js").then((m) => ({ default: m.RemoteGitSidePane })),
 );
@@ -45,6 +56,7 @@ const LazyRemoteGitActionMenu = React.lazy(() =>
 );
 import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
 import { useTaskHistory } from "./useTaskHistory.js";
+import { formatTaskRelativeTime } from "../ui/formatRelative.js";
 import { WideShell } from "../ui/wide/WideShell.js";
 import { useWideViewport } from "../ui/wide/useWideViewport.js";
 import { EMPTY_MODEL_SELECTION_STATE } from "./conversationStore.js";
@@ -106,6 +118,7 @@ function AppTower({ children }: { children: ReactNode }) {
 }
 
 function AppBody() {
+  const intl = useIntl();
   const [phase, setPhase] = useState<Phase>({ kind: "loading", step: "connecting" });
   const [connection, setConnection] = useState<MobileHomeConnectionState>("connecting");
   const [workspaces, setWorkspaces] = useState<ProjectedWorkspace[]>([]);
@@ -133,7 +146,20 @@ function AppBody() {
   // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
   const [configMode, setConfigMode] = useState<string | null>(null);
   // 官方侧板按钮先显示标签启动器；Git 审查由状态面板独立打开。
-  const [sidePaneMode, setSidePaneMode] = useState<"launcher" | "git" | null>(null);
+  const [sidePaneMode, setSidePaneMode] = useState<"launcher" | "git" | "terminal" | null>(null);
+  // 32.9 draft surface target: + opens the draft (no session yet);
+  // the first send creates the session (createSession -> sendText).
+  const [draftTarget, setDraftTarget] = useState<{
+    workspaceKey: string;
+    path: string;
+    name: string;
+  } | null>(null);
+  // §32.11 会话活动时刻（客户端跟踪：store 每次变更即活动，用于信息弹层「最近活动」行）。
+  const [taskActivityAtMs, setTaskActivityAtMs] = useState<number | null>(null);
+  // 32.11 task info popover open state (folder button anchor).
+  const [infoOpen, setInfoOpen] = useState(false);
+  // §32.3 更多菜单开合（菜单渲染在 header 触发按钮锚点，内容归 TaskMoreMenu）。
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const clientRef = useRef<RelayClient | null>(null);
   const taskRef = useRef<TaskSession | null>(null);
   const { loadingOlder, loadOlder, resetOlder } = useTaskHistory(taskRef);
@@ -171,6 +197,13 @@ function AppBody() {
     workspaceIdentity: attachedTask?.target.workspaceIdentity,
     activeTaskId: attachedTask?.target.sessionId ?? null,
   });
+
+  // §32.3 重命名回流：v4 renameSession 后新标题经快照 meta 帧到达（titleSource=custom
+  // 抑制自动标题）；标题唯一所有者是服务端快照，本地只在帧到达时跟随。
+  const metaTitle = statusSnapshot?.meta?.title;
+  useEffect(() => {
+    if (metaTitle) setTaskTitle(metaTitle);
+  }, [metaTitle]);
 
   const fail = useCallback((wireReason: string, detail: string | null, retryable: boolean) => {
     setPhase({ kind: "failure", wireReason, detail, retryable });
@@ -258,6 +291,8 @@ function AppBody() {
       setTaskTotalCount(0);
       setStatusSnapshot(null);
       setSidePaneMode(null);
+      setMoreMenuOpen(false);
+      setTaskActivityAtMs(null);
       resetOlder();
       setTaskTarget({
         path: workspace.path,
@@ -290,6 +325,8 @@ function AppBody() {
           setModelState(session.getModelSelectionState());
           // P6 composer 深面：官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode）。
           setConfigMode(snapshot?.config.mode ?? null);
+          // §32.11 会话活动时刻（帧到达即活动；信息弹层「最近活动」行）。
+          setTaskActivityAtMs(Date.now());
         };
         syncFromStore();
         storeUnsubscribeRef.current?.();
@@ -341,6 +378,9 @@ function AppBody() {
     setControlState(null);
     setStatusSnapshot(null);
     setSidePaneMode(null);
+    setMoreMenuOpen(false);
+    setInfoOpen(false);
+    setTaskActivityAtMs(null);
     setTaskTarget(null);
     resetOlder();
     setPendingInteractions([]);
@@ -396,6 +436,33 @@ function AppBody() {
     }
   }, [stopping]);
 
+  // §32.9 草稿首输：createSession → openTask → sendText（首条输入随建会话入局）。
+  const handleDraftSend = useCallback(
+    (ws: { workspaceKey: string; path: string; name?: string } | null, text: string) => {
+      if (!ws) return;
+      setDraftTarget(null);
+      void (async () => {
+        const created = await createSessionInBridge(
+          homeBridgeAccessorRef.current as IServiceAccessor,
+          ws.path,
+          ws.workspaceKey,
+        );
+        await openTask(
+          { workspaceKey: ws.workspaceKey, path: ws.path },
+          created.sessionId,
+          created.title,
+        );
+        await taskRef.current?.sendText(text);
+      })().catch(() => {});
+    },
+    [openTask],
+  );
+
+  // §32.3 协作模式切换（v4 switchCollaborationMode CAS）；标签由 config.mode 快照回流。
+  const handleModeSelect = useCallback((mode: CollaborationMode) => {
+    void taskRef.current?.switchMode(mode);
+  }, []);
+
   const toggleTheme = useCallback(() => {
     const dark = document.documentElement.classList.toggle("dark");
     setTheme(dark ? "dark" : "light");
@@ -425,6 +492,38 @@ function AppBody() {
           data-testid="conversation-bottom-dock-transition-layer"
           className="col-start-1 row-start-1 w-full min-w-0"
         >
+          {/* §32.12 队列面板（官方 composer 上方逐条卡片；ui 复原件受控窄入口）。 */}
+          {statusSnapshot?.queue && statusSnapshot.queue.items.length > 0 ? (
+            <React.Suspense fallback={null}>
+              <DroraIntlProvider initialLocale={resolveLocale()}>
+                <TooltipProvider delayDuration={0}>
+                  <LazyQueuePanel
+                    queue={statusSnapshot.queue}
+                    onDeleteItem={(queueItemId) =>
+                      void taskRef.current?.queueDeleteItem(queueItemId)
+                    }
+                    onEditItem={async (queueItemId) => {
+                      const item = statusSnapshot.queue?.items.find(
+                        (q) => q.queueItemId === queueItemId,
+                      );
+                      if (!item) return;
+                      const result = await taskRef.current?.queueDeleteItem(queueItemId);
+                      if (result?.ok) setDraft(item.text);
+                    }}
+                    onSendNow={(queueItemId) =>
+                      void taskRef.current?.queueSendNow(queueItemId)
+                    }
+                    onMoveItem={(queueItemId, beforeQueueItemId) =>
+                      void taskRef.current?.queueReorderItem(queueItemId, beforeQueueItemId)
+                    }
+                    onResume={() => {
+                      void taskRef.current?.setQueueAutoDrain(true);
+                    }}
+                  />
+                </TooltipProvider>
+              </DroraIntlProvider>
+            </React.Suspense>
+          ) : null}
           <TaskComposer
         draft={draft}
         sending={sending}
@@ -457,12 +556,13 @@ function AppBody() {
           if (session) void session.switchModel(selection);
         }}
         onCloseModelMenu={() => setModelMenuOpen(false)}
+        onModeSelect={handleModeSelect}
       />
         </div>
       </div>
     ) : null;
 
-  const timeline =
+  const timelineContent =
     taskTarget && selectedTaskId ? (
       <RemoteTaskTimeline
         rows={taskRows}
@@ -508,6 +608,13 @@ function AppBody() {
         onFork={(target) => void taskRef.current?.forkAssistant(target.rowId, target.entityId)}
       />
     ) : null;
+  // AppTower 的初始 fallback accessor 不会随 AppBody 的 task state 重渲染；
+  // Git 状态行中的 GitBranchSwitcher/GitActionMenu 必须读取当前 attachment 的服务。
+  const timeline = attachedTask ? (
+    <ServiceProvider services={attachedTask.accessor}>{timelineContent}</ServiceProvider>
+  ) : (
+    timelineContent
+  );
 
   if (phase.kind === "loading") {
     const doneCount = ["connecting", "authenticating", "waiting", "paired"].indexOf(phase.step);
@@ -549,22 +656,137 @@ function AppBody() {
       />
       </React.Suspense>
     ) : phase.kind === "task" && taskTarget && sidePaneMode === "launcher" ? (
-      <RemoteOpenTabShell onClose={() => setSidePaneMode(null)} />
+      <RemoteOpenTabShell
+        onClose={() => setSidePaneMode(null)}
+        onOpenReview={attachedTask ? () => setSidePaneMode("git") : undefined}
+        items={
+          attachedTask
+            ? [
+                {
+                  id: "terminal",
+                  label: intl.formatMessage({ id: "chat.statusPanel.terminals" }),
+                  onOpen: () => setSidePaneMode("terminal"),
+                },
+              ]
+            : []
+        }
+      />
+    ) : phase.kind === "task" && taskTarget && sidePaneMode === "terminal" && attachedTask ? (
+      <aside
+        aria-label={intl.formatMessage({ id: "chat.statusPanel.terminals" })}
+        className="absolute inset-y-0 right-0 z-20 flex w-80 max-w-[85%] flex-col border-l border-border bg-background shadow-lg"
+      >
+        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
+          <span className="text-ui-sm font-medium text-foreground">
+            {intl.formatMessage({ id: "chat.statusPanel.terminals" })}
+          </span>
+          <button
+            type="button"
+            aria-label={intl.formatMessage({ id: "common.cancel" })}
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => setSidePaneMode(null)}
+          >
+            ✕
+          </button>
+        </div>
+        <RemoteTerminalPane
+          terminal={attachedTask.accessor.terminalService}
+          workspacePath={taskTarget.path}
+        />
+      </aside>
     ) : null;
 
   const taskShell =
     phase.kind === "task" ? (
       <MobileTaskShell
         onBack={backHome}
+        onThemePress={toggleTheme}
         timelineOwnsScroll
         timeline={timeline}
         workspaceHeader={
           taskTarget ? (
             <RemoteWorkspaceHeader
+              onPathClick={attachedTask ? () => setInfoOpen((open) => !open) : undefined}
+              infoSlot={
+                attachedTask && taskTarget ? (
+                  <TaskInfoPopover
+                    open={infoOpen}
+                    onClose={() => setInfoOpen(false)}
+                    name={taskTarget.path.split(/[\\/]/).filter(Boolean).pop() ?? taskTarget.path}
+                    workspacePath={taskTarget.path}
+                    branchName={gitStatus.summary?.branchName ?? null}
+                    lastActivityText={
+                      taskActivityAtMs
+                        ? formatTaskRelativeTime(taskActivityAtMs, intl)
+                        : undefined
+                    }
+                  />
+                ) : null
+              }
               title={taskTitle}
               workspacePath={taskTarget.path}
               onToggleSidePane={attachedTask ? () => setSidePaneMode((mode) => mode ? null : "launcher") : undefined}
               sidePaneOpen={sidePaneMode !== null}
+              // §32.3 更多菜单一期（重命名/复制路径/复制会话 ID）；菜单锚在 ⋯ 触发按钮。
+              onMoreMenu={attachedTask ? () => setMoreMenuOpen((open) => !open) : undefined}
+              moreMenuSlot={
+                attachedTask ? (
+                  <TaskMoreMenu
+                    open={moreMenuOpen}
+                    onClose={() => setMoreMenuOpen(false)}
+                    workspacePath={taskTarget.path}
+                    sessionId={selectedTaskId ?? ""}
+                    title={taskTitle}
+                    onRename={(next) => attachedTask.renameSession(next)}
+                    loadMembership={() =>
+                      Promise.all([
+                        attachedTask.accessor.droraTaskService.listPinnedTaskIds(),
+                        attachedTask.accessor.droraTaskService.listArchivedTasks({
+                          workspacePath: taskTarget.path,
+                          workspaceIdentity: taskTarget.identity,
+                        }),
+                      ]).then(([pinnedIds, archived]) => ({
+                        pinned: pinnedIds.includes(selectedTaskId ?? ""),
+                        archived: archived.some(
+                          (meta) => String(meta.taskId) === (selectedTaskId ?? ""),
+                        ),
+                      }))
+                    }
+                    onTogglePinned={(pinned) =>
+                      attachedTask.accessor.droraTaskService
+                        .setTaskPinned({
+                          taskId: selectedTaskId ?? "",
+                          workspacePath: taskTarget.path,
+                          workspaceIdentity: taskTarget.identity,
+                          pinned,
+                        })
+                        .then(() => true)
+                        .catch(() => false)
+                    }
+                    onArchive={() =>
+                      attachedTask.accessor.droraTaskService
+                        .archiveTask({
+                          taskId: selectedTaskId ?? "",
+                          workspacePath: taskTarget.path,
+                          workspaceIdentity: taskTarget.identity,
+                        })
+                        .then(() => true)
+                        .catch(() => false)
+                    }
+                    onMarkUnread={() =>
+                      attachedTask.accessor.droraTaskService
+                        .setTaskUnread({
+                          taskId: selectedTaskId ?? "",
+                          workspacePath: taskTarget.path,
+                          workspaceIdentity: taskTarget.identity,
+                          unread: true,
+                        })
+                        .then(() => true)
+                        .catch(() => false)
+                    }
+                  />
+                ) : null
+              }
               // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
               // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
               // GitActionMenu 跨 chunk Context 双实例崩暂回退（spec §30.2）：useServices
@@ -602,6 +824,19 @@ function AppBody() {
         taskSurface={taskShell}
         onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
         onNewTask={handleNewTask}
+        onDraftSend={(text) =>
+          handleDraftSend(
+            liveWorkspaces[0]
+              ? {
+                  workspaceKey: liveWorkspaces[0].workspaceKey,
+                  path: liveWorkspaces[0].path,
+                  name: liveWorkspaces[0].name,
+                }
+              : null,
+            text,
+          )
+        }
+        draftSending={sending}
         onSearchFiles={(query) => {
           const accessor = homeBridgeAccessorRef.current;
           if (!accessor) return Promise.resolve([]);
@@ -625,6 +860,27 @@ function AppBody() {
     );
   }
 
+  // §32.9 草稿面（窄壳；宽壳维持 §30 直建语义）。§32.16 多工作区下拉切换项目。
+  if (draftTarget && phase.kind === "home") {
+    const draftWorkspaces = liveWorkspaces.map((ws) => ({
+      workspaceKey: ws.workspaceKey,
+      path: ws.path,
+      name: ws.name,
+    }));
+    const selected =
+      draftWorkspaces.find((ws) => ws.workspaceKey === draftTarget.workspaceKey) ?? draftTarget;
+    return (
+      <NewTaskDraft
+        workspaceName={selected.name}
+        workspaces={draftWorkspaces}
+        onBack={() => setDraftTarget(null)}
+        onThemePress={toggleTheme}
+        sending={sending}
+        onSend={(text, ws) => handleDraftSend(ws ?? selected, text)}
+      />
+    );
+  }
+
   if (phase.kind === "task") {
     return (
       <div className="relative h-dvh w-full">
@@ -641,7 +897,12 @@ function AppBody() {
       selectedTaskId={selectedTaskId}
       isRefreshing={false}
       onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
-      onWorkspaceNewTask={(workspace) => void handleNewTask(workspace)}
+      onWorkspaceNewTask={(workspace) =>
+        setDraftTarget({
+          workspaceKey: workspace.workspaceKey,
+          path: workspace.path,
+          name: workspace.name ?? workspace.path,
+        })}
       onSearchFiles={(query) => {
         const accessor = homeBridgeAccessorRef.current;
         if (!accessor) return Promise.resolve([]);
@@ -668,7 +929,6 @@ function AppBody() {
 export function App() {
   // accessor 动态组合（spec §30.2）：任务桥优先，回退首页 sessions-index 桥——
   // module 级 ref（AppBody 渲染期同步写入；App 单根实例安全）。
-  const accessor = activeAccessorRef.current ?? ({} as never);
   return (
     <AppTower>
       <IntlProvider>

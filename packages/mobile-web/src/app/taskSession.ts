@@ -62,6 +62,9 @@ export interface SwitchModelResult {
   staleRetried: boolean;
 }
 
+/** v4 switchCollaborationMode 值域（shared command.ts 官方闭集；auto 非用户可切）。 */
+export type CollaborationMode = "build" | "edit" | "plan" | "yolo";
+
 /** switchModelConfig stale 收敛上限：首发 + revisionAtDecision 单次重试（spec §16 第 3 条）。 */
 const SWITCH_MODEL_MAX_ATTEMPTS = 2;
 
@@ -102,6 +105,45 @@ export async function sendSwitchModelConfigCas(input: {
       if (staleRetried) return { ok: false, staleRetried };
       // stale ACK 必带 revisionAtDecision（shared command.ts）；以服务端裁决时点
       // 的 revision 单次收敛重发。
+      staleRetried = true;
+      baseRevision = ack.revisionAtDecision;
+      continue;
+    }
+    return {
+      ok: ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop",
+      staleRetried,
+    };
+  }
+  return { ok: false, staleRetried };
+}
+
+/**
+ * v4 switchCollaborationMode 的 CAS 提交核心（spec §32.3；与 sendSwitchModelConfigCas
+ * 同构：baseRevision = 读快照时点 revision，stale ACK 以 revisionAtDecision 单次收敛，
+ * 每次尝试新 commandId）。payload {mode} 为官方 schema 闭集 build/edit/plan/yolo。
+ */
+export async function sendSwitchCollaborationModeCas(input: {
+  send: (envelope: CommandEnvelope) => Promise<CommandAck>;
+  sessionId: string;
+  clientId: string;
+  baseRevision: number;
+  mode: CollaborationMode;
+}): Promise<SwitchModelResult> {
+  let baseRevision = input.baseRevision;
+  let staleRetried = false;
+  for (let attempt = 0; attempt < SWITCH_MODEL_MAX_ATTEMPTS; attempt += 1) {
+    const envelope: CommandEnvelope = {
+      commandId: crypto.randomUUID(),
+      clientId: input.clientId,
+      sessionId: input.sessionId,
+      baseRevision,
+      type: "switchCollaborationMode",
+      payload: { mode: input.mode },
+      issuedAt: Date.now(),
+    };
+    const ack = await input.send(envelope);
+    if (ack.status === "stale") {
+      if (staleRetried) return { ok: false, staleRetried };
       staleRetried = true;
       baseRevision = ack.revisionAtDecision;
       continue;
@@ -592,6 +634,113 @@ export class TaskSession {
       return { ok: false, staleRetried: false };
     }
   }
+
+  /**
+   * 协作模式切换（v4 switchCollaborationMode，spec §32.3）。CAS 语义与 switchModel
+   * 同构（COMMANDS_REQUIRING_BASE_REVISION 成员）；结果不就地改本地 mode——
+   * config.mode 以快照回流为唯一事实（官方同构：标签读 snapshot.config.mode）。
+   */
+  async switchMode(mode: CollaborationMode): Promise<SwitchModelResult> {
+    try {
+      return await sendSwitchCollaborationModeCas({
+        send: (envelope) =>
+          this.accessor.droraAgentService.sendConversationCommandV4({
+            ...this.workspaceRef(),
+            envelope,
+          }),
+        sessionId: this.target.sessionId,
+        clientId: `drora-mobile-${this.target.sessionId}`,
+        baseRevision: this.store.getRevision(),
+        mode,
+      });
+    } catch {
+      return { ok: false, staleRetried: false };
+    }
+  }
+
+  /**
+   * 会话重命名（v4 renameSession，spec §32.3——官方 bundle index-NjWRUABD.js:6206
+   * schema 逐字一致）。非 CAS 命令；新标题经快照 meta 回流（titleSource=custom，
+   * Host 据此抑制自动标题覆盖）。
+   */
+  async renameSession(title: string): Promise<boolean> {
+    const envelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+        type: "renameSession" as const,
+        payload: { title },
+        issuedAt: Date.now(),
+      };
+      try {
+        const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
+          ...this.workspaceRef(),
+          envelope,
+        });
+        return ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop";
+      } catch {
+        return false;
+      }
+    }
+
+    /**
+     * §32.12 队列命令族（sendQueuedNow/editQueueItem/deleteQueueItem/reorderQueueItem/
+     * setAutoDrain，全部 CAS）。信封构造与 stale 收敛复用 sendSwitchCollaborationModeCas
+     * 同款循环（泛型化入参）；结果以 ok 收敛，UI 按 store 回流的快照呈现。
+     */
+    async sendQueueCasCommand(
+      type: "sendQueuedNow" | "editQueueItem" | "deleteQueueItem" | "reorderQueueItem" | "setAutoDrain",
+      payload: Record<string, unknown>,
+    ): Promise<SwitchModelResult> {
+      let baseRevision = this.store.getRevision();
+      let staleRetried = false;
+      try {
+        for (let attempt = 0; attempt < SWITCH_MODEL_MAX_ATTEMPTS; attempt += 1) {
+          const envelope: CommandEnvelope = {
+            commandId: crypto.randomUUID(),
+            clientId: `drora-mobile-${this.target.sessionId}`,
+            sessionId: this.target.sessionId,
+            baseRevision,
+            type,
+            payload,
+            issuedAt: Date.now(),
+          } as CommandEnvelope;
+          const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
+            ...this.workspaceRef(),
+            envelope,
+          });
+          if (ack.status === "stale") {
+            if (staleRetried) return { ok: false, staleRetried };
+            staleRetried = true;
+            baseRevision = ack.revisionAtDecision;
+            continue;
+          }
+          return {
+            ok: ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop",
+            staleRetried,
+          };
+        }
+        return { ok: false, staleRetried };
+      } catch {
+        return { ok: false, staleRetried };
+      }
+    }
+
+    queueSendNow(queueItemId: string) {
+      return this.sendQueueCasCommand("sendQueuedNow", { queueItemId });
+    }
+    queueEditItem(queueItemId: string, newText: string) {
+      return this.sendQueueCasCommand("editQueueItem", { queueItemId, newText });
+    }
+    queueDeleteItem(queueItemId: string) {
+      return this.sendQueueCasCommand("deleteQueueItem", { queueItemId });
+    }
+    queueReorderItem(queueItemId: string, beforeQueueItemId: string | null) {
+      return this.sendQueueCasCommand("reorderQueueItem", { queueItemId, beforeQueueItemId });
+    }
+    setQueueAutoDrain(autoDrain: boolean) {
+      return this.sendQueueCasCommand("setAutoDrain", { autoDrain });
+    }
 
   /** 通知面订阅（快照/行列表/派生状态变化即触发）；返回解绑函数。 */
   subscribe(listener: () => void): () => void {

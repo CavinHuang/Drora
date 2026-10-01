@@ -57,7 +57,7 @@ export interface ProjectedTask {
   /** 创建时间（P3c 整理任务排序/分桶用；relay tasks 的 createdAt，epoch ms，缺失为 null）。 */
   createdAtMs: number | null;
   updatedAtMs: number | null;
-  status: "running" | "completed";
+  status: "running" | "completed" | "idle";
 }
 
 export interface ProjectedWorkspace {
@@ -112,7 +112,8 @@ function projectTask(record: Record<string, unknown>): ProjectedTask {
     // createdAt（epoch ms）。readNumber 已做 number/有限性防御，缺失回 null。
     createdAtMs: readNumber(record, "createdAt"),
     updatedAtMs: readNumber(record, "updatedAt"),
-    status: status === "running" ? "running" : "completed",
+    // 真 Host 的同步任务摘要通常用空串表示空闲；不能把未知/空值伪装成已完成。
+    status: status === "running" || status === "completed" ? status : "idle",
   };
 }
 
@@ -141,6 +142,14 @@ export function projectHomeData(resultRaw: unknown): {
     const workspace = byKey.get(key);
     const projected = tasks[index];
     if (workspace && projected) workspace.tasks.push(projected);
+  }
+  // §32.7 细节还原：官方组卡第三行「更新于 X」= 组内任务 updatedAt 最大值
+  // （relay workspace 摘要无 workspace 级 updatedAt，投影侧从任务推导）。
+  for (const workspace of workspaces) {
+    const times = workspace.tasks
+      .map((task) => task.updatedAtMs)
+      .filter((time): time is number => time !== null);
+    if (times.length > 0) workspace.updatedAtMs = Math.max(...times);
   }
   const viewState = {
     ...asRecord(result.initialViewState),

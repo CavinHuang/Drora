@@ -10,8 +10,11 @@
 // 同形，上传面归 P7 能力矩阵）。发送按钮为实用偏差保留（官方窄壳回车提交，移动端
 // 无实体回车；spec §23.8 记录）。
 // 文案：mode.label.glm.* / chat.toolbar.thoughtLevel.* / chat.attachments.add 官方双语逐字。
+// §32.3 模式切换解封：官方 chat-mode-select-trigger → chat-mode-select-item 四项闭集
+// （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
+// snapshot.config.mode 回流，本组件不持有模式事实。
 import { useState } from "react";
-import { ArrowUp, Paperclip } from "lucide-react";
+import { AlignEndHorizontal, ArrowUp, ChevronDown, Paperclip, Shield } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
 import { MobileComposerStateBar, resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
@@ -21,7 +24,11 @@ import type {
   ConversationQueueState,
   ModelSelectionState,
 } from "./conversationStore.js";
+import type { CollaborationMode } from "./taskSession.js";
 import type { ModelSelectionView } from "@drora/services";
+
+/** 官方 switchCollaborationMode 值域闭集（顺序照官方 schema Si([build,edit,plan,yolo])）。 */
+export const MODE_SELECT_ITEMS: readonly CollaborationMode[] = ["build", "edit", "plan", "yolo"];
 
 export interface TaskComposerProps {
   draft: string;
@@ -45,6 +52,8 @@ export interface TaskComposerProps {
     thoughtLevel?: string;
   }) => void;
   onCloseModelMenu: () => void;
+  /** 协作模式切换（§32.3；v4 switchCollaborationMode CAS，装配归 App）。 */
+  onModeSelect?: (mode: CollaborationMode) => void;
 }
 
 /** 官方 mode.label.glm.* 闭集（config.mode 未知值回落 build 文案同官方缺省语义）。 */
@@ -74,10 +83,13 @@ export function TaskComposer(props: TaskComposerProps) {
     onToggleModelMenu,
     onModelSelect,
     onCloseModelMenu,
+    onModeSelect,
   } = props;
   const { formatMessage } = useIntl();
   // P6 深面本地交互态：思考档位弹层（选择走 switchModelConfig CAS 既有链路）。
   const [thoughtMenuOpen, setThoughtMenuOpen] = useState(false);
+  // §32.3 模式弹层（选择走 switchCollaborationMode CAS；开合为本地 UI 态）。
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const thoughtLevels = modelState?.thoughtLevels ?? [];
   const currentThought =
     modelState?.fallback?.thought || "";
@@ -179,18 +191,81 @@ export function TaskComposer(props: TaskComposerProps) {
               >
                 <Paperclip aria-hidden="true" className="size-4" />
               </button>
-              <button
-                type="button"
-                data-testid="chat-mode-select-trigger"
-                aria-disabled="true"
-                title={formatMessage({ id: modeLabelId })}
-                className="max-w-36 truncate rounded-lg px-2 py-1.5 text-ui-sm text-foreground-subtle"
-              >
-                {formatMessage({ id: modeLabelId })}
-              </button>
+              {/* §32.3 模式触发器：官方 chat-mode-select-trigger 弹层形态；无 onModeSelect
+                  （旧装配/测试）时退回只读展示。 */}
+              {onModeSelect ? (
+                <div className="relative shrink-0">
+                  {modeMenuOpen ? (
+                    <div
+                      role="menu"
+                      aria-label={formatMessage({ id: modeLabelId })}
+                      className="absolute bottom-full left-0 z-30 mb-2 w-44 rounded-lg border border-border bg-card p-1 shadow-lg"
+                    >
+                      {MODE_SELECT_ITEMS.map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="menuitem"
+                          data-testid={`chat-mode-select-item-${mode}`}
+                          className={cn(
+                            "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-ui-sm hover:bg-surface-hover",
+                            mode === configMode
+                              ? "text-foreground"
+                              : "text-foreground-subtle",
+                          )}
+                          onClick={() => {
+                            setModeMenuOpen(false);
+                            if (mode !== configMode) onModeSelect(mode);
+                          }}
+                        >
+                          {formatMessage({ id: MODE_LABEL_IDS[mode] ?? MODE_LABEL_IDS.build! })}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    data-testid="chat-mode-select-trigger"
+                    aria-haspopup="menu"
+                    aria-expanded={modeMenuOpen}
+                    aria-label={formatMessage({ id: modeLabelId })}
+                    title={formatMessage({ id: modeLabelId })}
+                    className={cn(
+                      "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface-hover",
+                      configMode === "yolo"
+                        ? "text-warning"
+                        : "text-foreground-subtle",
+                    )}
+                    onClick={() => setModeMenuOpen((open) => !open)}
+                  >
+                    {/* 官方窄壳模式触发器 = 盾形图标（§32.10 截图取证）；文案进 aria/title。 */}
+                    <Shield aria-hidden="true" className="size-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="chat-mode-select-trigger"
+                  aria-disabled="true"
+                  aria-label={formatMessage({ id: modeLabelId })}
+                  title={formatMessage({ id: modeLabelId })}
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
+                >
+                  <Shield aria-hidden="true" className="size-4" />
+                </button>
+              )}
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5" data-composer-trailing-actions>
+            <span className="inline-flex shrink-0" data-testid="chat-context-usage-trigger">
+              {modelState?.usage ? (
+                <UsageBadge
+                  usedTokens={modelState.usage.usedTokens}
+                  maxTokens={modelState.usage.maxTokens}
+                  compact
+                />
+              ) : null}
+            </span>
             <div
               data-testid="v4-model-config"
               className="flex min-w-0 items-center"
@@ -198,12 +273,21 @@ export function TaskComposer(props: TaskComposerProps) {
               <button
                 type="button"
                 data-testid="chat-model-select-trigger"
-                className="min-h-9 max-w-36 truncate rounded-lg px-2 text-ui-base text-foreground transition-colors hover:bg-surface-hover"
+                className="flex min-h-9 max-w-36 flex-col items-start justify-center rounded-lg px-2 leading-tight transition-colors hover:bg-surface-hover"
                 onClick={onToggleModelMenu}
               >
-                {modelState?.current?.modelId ??
-                  modelState?.fallback?.model ??
-                  formatMessage({ id: "chat.toolbar.model.label" })}
+                {/* 官方双行触发器：上行 管理模型（小字），下行 模型名+下拉箭头（§32.10 截图取证）。 */}
+                <span className="text-[10px] leading-3 text-foreground-subtle">
+                  {formatMessage({ id: "chat.toolbar.model.manageModels" })}
+                </span>
+                <span className="flex max-w-full items-center gap-0.5 text-ui-sm text-foreground">
+                  <span className="truncate">
+                    {modelState?.current?.modelId ??
+                      modelState?.fallback?.model ??
+                      formatMessage({ id: "chat.toolbar.model.label" })}
+                  </span>
+                  <ChevronDown aria-hidden="true" className="size-3 shrink-0" />
+                </span>
               </button>
               {thoughtLevels.length > 0 ? (
                 <button
@@ -214,6 +298,7 @@ export function TaskComposer(props: TaskComposerProps) {
                   className="max-w-20 truncate rounded-lg px-2 py-1.5 text-ui-sm text-foreground-subtle transition-colors hover:bg-surface-hover"
                   onClick={() => setThoughtMenuOpen((open) => !open)}
                 >
+                  <AlignEndHorizontal aria-hidden="true" className="size-3.5 shrink-0 text-foreground-subtle" />
                   {currentThought
                     ? formatMessage({
                         id: `chat.toolbar.thoughtLevel.value.${currentThought}`,
@@ -222,15 +307,6 @@ export function TaskComposer(props: TaskComposerProps) {
                 </button>
               ) : null}
             </div>
-            <span className="inline-flex shrink-0" data-testid="chat-context-usage-trigger">
-              {modelState?.usage ? (
-                <UsageBadge
-                  usedTokens={modelState.usage.usedTokens}
-                  maxTokens={modelState.usage.maxTokens}
-                  compact
-                />
-              ) : null}
-            </span>
             <MobileComposerStateBar
               phase={controlState?.phase ?? null}
               canStop={controlState?.canStop ?? false}

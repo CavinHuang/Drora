@@ -35,6 +35,10 @@ export interface WideShellProps {
   onTaskOpen?: (task: WideTaskOpenRequest, workspace: WideWorkspaceRef) => void;
   /** 新建任务（P5c 接 draft 链路；缺省按钮禁用，不做假动作）。 */
   onNewTask?: () => void;
+  /** §32.13 宽壳草稿卡首输发送（有值 = 空态渲染 composer+chips 草稿卡）。 */
+  onDraftSend?: (text: string) => void;
+  /** 草稿发送中。 */
+  draftSending?: boolean;
   onRefresh?: () => void;
   onThemePress?: () => void;
   onLanguagePress?: () => void;
@@ -61,6 +65,8 @@ export function WideShell({
   taskSurface = null,
   onTaskOpen,
   onNewTask,
+  onDraftSend,
+  draftSending,
   onRefresh,
   onThemePress,
   onLanguagePress,
@@ -104,7 +110,14 @@ export function WideShell({
         onReconnect={onReconnect}
       />
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {taskSurface ?? <GreetingEmptyState workspaceName={workspaceName} onNewTask={onNewTask} />}
+        {taskSurface ?? (
+          <GreetingEmptyState
+            workspaceName={workspaceName}
+            onNewTask={onNewTask}
+            onDraftSend={onDraftSend}
+            draftSending={draftSending}
+          />
+        )}
       </main>
       {searchOpen ? (
         <Suspense fallback={null}>

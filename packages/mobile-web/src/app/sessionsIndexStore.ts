@@ -187,7 +187,7 @@ export function createSessionsIndexStore(options: SessionsIndexStoreOptions): Se
 // —— 活性映射与合并（桌面 mapSessionSummaryToTaskMeta.phaseToStatus 同规）——
 
 /** 任务行活性状态（running/completed/error 三值；draft 无活性语义）。 */
-export type HomeTaskLivenessStatus = "running" | "completed" | "error";
+export type HomeTaskLivenessStatus = "running" | "completed" | "error" | "idle";
 
 /**
  * SessionSummary.phase → 任务行活性状态；draft → null（剔除）。

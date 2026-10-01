@@ -48,3 +48,33 @@ test("双视口共用的活性投影更新运行态并保留工作区身份", ()
     status: "running",
   });
 });
+
+test("已结束摘要不把 Host 空状态任务误标为已完成", () => {
+  const workspace: ProjectedWorkspace = {
+    workspaceKey: "C:/g1",
+    name: "g1",
+    kind: "local",
+    path: "C:/g1",
+    updatedAtMs: null,
+    connectionState: "connected",
+    tasks: [
+      { sessionId: "idle-task", title: "任务", createdAtMs: 1, updatedAtMs: 2, status: "idle" },
+    ],
+  };
+  const summary: SessionSummary = {
+    workspaceId: workspace.workspaceKey,
+    sessionId: "idle-task",
+    title: "任务",
+    titleSource: "generated",
+    phase: "completedSuccess",
+    sessionEnded: true,
+    hasBackgroundWork: false,
+    lastActivityAt: 3,
+    createdAt: 1,
+  };
+  const projected = projectHomeWorkspacesWithLiveness(
+    [workspace],
+    new Map([[workspace.workspaceKey, [summary]]]),
+  );
+  assert.equal(projected[0]?.tasks[0]?.status, "idle");
+});

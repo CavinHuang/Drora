@@ -17,7 +17,7 @@ export interface WideShellTask {
   title: string;
   createdAtMs: number | null;
   updatedAtMs: number | null;
-  status: "running" | "completed";
+  status: "running" | "completed" | "idle";
 }
 
 export interface WideShellWorkspace {

@@ -695,10 +695,19 @@ export function createDesktopMobileRelayControl(deps: {
     if (syncedTasks.length > 0) return currentTaskSummaries();
     try {
       const { task } = attacher.ensure();
-      const tasks = await task.listTasks({
-        workspacePath: params.workspacePath,
-        workspaceIdentity: params.workspaceIdentity,
-      });
+      const [tasks, pinnedIds, archivedMetas] = await Promise.all([
+        task.listTasks({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+        }),
+        task.listPinnedTaskIds(),
+        task.listArchivedTasks({
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+        }),
+      ]);
+      const pinnedSet = new Set(pinnedIds);
+      const archivedSet = new Set(archivedMetas.map((m) => String(m.taskId)));
       const workspaceLabel = basename(params.workspacePath) || params.workspacePath;
       return tasks.map((meta) => ({
         taskId: String(meta.taskId ?? ""),
@@ -709,6 +718,9 @@ export function createDesktopMobileRelayControl(deps: {
         workspaceLabel,
         workspaceKind: "local" as const,
         createdAt: Number(meta.createdAt ?? 0),
+        pinned: pinnedSet.has(String(meta.taskId)),
+        archived: archivedSet.has(String(meta.taskId)),
+        unreadAt: meta.unreadAt,
       }));
     } catch (error) {
       logger.warn("[mobile-relay] 任务列表拉取失败", {

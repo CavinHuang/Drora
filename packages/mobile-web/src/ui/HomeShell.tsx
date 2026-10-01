@@ -7,7 +7,7 @@
 // { sortBy, now, locale })` 同构）；计数条 taskCount 随模式取对应集合。排序/分桶纯函数与
 // 任务行/时间线列表渲染原语见 OrganizeMenu.tsx（本轮唯一允许的新源码文件，分工见其文件头）。
 // 折叠/触控/选中态交互保持不变。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronsDown,
@@ -52,7 +52,10 @@ export interface MobileHomeShellTask {
   /** 创建时间（P3c 整理排序/分桶用；relay tasks 有 createdAt，投影侧缺省为 null）。 */
   createdAtMs: number | null;
   updatedAtMs: number | null;
-  status: "running" | "completed";
+  status: "running" | "completed" | "idle";
+  /** §32.16 三态 membership（官方 chat.empty membership schema 对齐）。 */
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export interface MobileHomeShellWorkspace {
@@ -106,6 +109,13 @@ export function MobileHomeShell({
   const [collapsedKeys, setCollapsedKeys] = useState<ReadonlySet<string>>(
     () => new Set(defaultCollapsedWorkspaceKeys ?? []),
   );
+  const initializedCollapseRef = useRef(false);
+  useEffect(() => {
+    if (initializedCollapseRef.current || workspaces.length === 0) return;
+    initializedCollapseRef.current = true;
+    // 首批工作区异步到达后只初始化一次；之后刷新不得覆盖用户手动展开/折叠。
+    setCollapsedKeys(new Set(defaultCollapsedWorkspaceKeys ?? []));
+  }, [workspaces, defaultCollapsedWorkspaceKeys]);
 
   // —— P3c 整理任务：workspace 模式沿既有分组（组内按 sortBy 重排，不改动 props 序列，
   // 拷贝后排序）；timeline 模式全任务平铺（展开 task 字段并携带所属 workspace，供
@@ -116,7 +126,13 @@ export function MobileHomeShell({
     if (organizeBy !== "workspace") return workspaces;
     return workspaces.map((workspace) => ({
       ...workspace,
-      tasks: [...workspace.tasks].sort((a, b) => compareHomeTasks(a, b, sortBy)),
+      // §32.16 pinned 优先（官方置顶排前），其余按 sortBy。
+      tasks: [...workspace.tasks].sort((a, b) => {
+        const pa = a.pinned ? 1 : 0;
+        const pb = b.pinned ? 1 : 0;
+        if (pa !== pb) return pb - pa;
+        return compareHomeTasks(a, b, sortBy);
+      }),
     }));
   }, [workspaces, organizeBy, sortBy]);
   const timelineEntries = useMemo(

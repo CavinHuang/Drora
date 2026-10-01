@@ -58,6 +58,9 @@ export interface ProjectedTask {
   createdAtMs: number | null;
   updatedAtMs: number | null;
   status: "running" | "completed" | "idle";
+  /** §32.16 三态 membership（对齐官方 chat.empty membership schema）。 */
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export interface ProjectedWorkspace {
@@ -114,6 +117,8 @@ function projectTask(record: Record<string, unknown>): ProjectedTask {
     updatedAtMs: readNumber(record, "updatedAt"),
     // 真 Host 的同步任务摘要通常用空串表示空闲；不能把未知/空值伪装成已完成。
     status: status === "running" || status === "completed" ? status : "idle",
+    pinned: record.pinned === true,
+    archived: record.archived === true,
   };
 }
 

@@ -173,29 +173,38 @@ export interface OrganizeTaskRowTask {
   title: string;
   createdAtMs: number | null;
   updatedAtMs: number | null;
-  status: "running" | "completed";
+  status: "running" | "completed" | "idle";
+  /** §32.16 三态 membership。 */
+  pinned?: boolean;
 }
 
 /** 任务行状态 pill（官方 shell：rounded-full border px-1.5 py-0.5 text-ui-xs）。 */
 function OrganizeTaskStatusPill({ status }: { status: OrganizeTaskRowTask["status"] }) {
   const { formatMessage } = useIntl();
   const running = status === "running";
+  const completed = status === "completed";
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-ui-xs leading-none",
         running
           ? "border-brand/40 bg-accent text-foreground"
-          : "border-success/40 bg-success text-success-foreground",
+          : completed
+            ? "border-success/40 bg-success text-success-foreground"
+            : "border-border bg-background text-foreground-subtle",
       )}
     >
       {running ? (
         <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
-      ) : (
+      ) : completed ? (
         <CircleCheck aria-hidden="true" className="size-3" />
-      )}
+      ) : null}
       {formatMessage({
-        id: running ? "mobileShell.task.status.running" : "mobileShell.task.status.completed",
+        id: running
+          ? "mobileShell.task.status.running"
+          : completed
+            ? "mobileShell.task.status.completed"
+            : "mobileShell.task.status.idle",
       })}
     </span>
   );
@@ -227,7 +236,11 @@ export function HomeTaskRow<TWorkspace>({
         )}
         onClick={onTaskOpen ? () => onTaskOpen(task, workspace) : undefined}
       >
-        <span className="relative flex size-4 shrink-0 items-center justify-center" />
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          {task.pinned ? (
+            <span aria-hidden="true" className="text-ui-xs text-warning">📌</span>
+          ) : null}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-ui-base text-foreground">{task.title}</span>
           <span className="mt-1 flex min-w-0 items-center gap-1.5 text-ui-base text-foreground-subtle">

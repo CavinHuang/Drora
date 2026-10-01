@@ -11,12 +11,13 @@ export type OpenHomeSessionsIndexBridge = (
   workspaceIdentity?: string,
 ) => Promise<HomeSessionsIndexBridge>;
 
-/** 双视口展示边界：会话 error 相位当前归入 completed，避免残留运行指示。 */
+/** 双视口展示边界：sessions-index 只提升运行态；空闲/完成以 Host 任务摘要为准。 */
 export function projectHomeWorkspacesWithLiveness(
   workspaces: readonly ProjectedWorkspace[],
   summariesByKey: ReadonlyMap<string, readonly SessionSummary[]>,
 ): ProjectedWorkspace[] {
   return workspaces.map((workspace) => {
+    const sourceStatusById = new Map(workspace.tasks.map((task) => [task.sessionId, task.status]));
     const merged = mergeHomeWorkspaceLiveness(
       workspace,
       summariesByKey.get(workspace.workspaceKey) ?? [],
@@ -25,7 +26,13 @@ export function projectHomeWorkspacesWithLiveness(
       ...workspace,
       tasks: merged.tasks.map((task) => ({
         ...task,
-        status: task.status === "running" ? ("running" as const) : ("completed" as const),
+        // 会话已结束不等于任务摘要显式 completed；官方真 Host 的空串状态显示空闲。
+        status:
+          task.status === "running"
+            ? ("running" as const)
+            : sourceStatusById.get(task.sessionId) === "completed"
+              ? ("completed" as const)
+              : ("idle" as const),
       })),
     };
   });

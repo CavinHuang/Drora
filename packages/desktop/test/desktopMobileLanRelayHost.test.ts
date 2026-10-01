@@ -5,9 +5,10 @@
 //   relayServer 全配对流（注册→鉴权→waiting→QR→terminal 配对 matched→data 双向
 //   →stop 语义），装配形状（prepare→resolveEndpoints 固定注入）与 index.ts 同构。
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
 import { WebSocket } from "ws";
 import {
@@ -97,13 +98,27 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
   assert.equal(host.isRunning(), true);
 
   // LAN 内嵌服务优先由独立 mobile-web 包离线供给 v4 入口和版本资产。
-  assert.ok(await resolveLocalMobileWebRoot());
+  const sourceAppRoot = fileURLToPath(new URL("../../mobile-web/dist/", import.meta.url));
+  const resolvedRoot = await resolveLocalMobileWebRoot();
+  assert.ok(resolvedRoot);
+  let sourceAppBuilt = false;
+  try {
+    await access(join(sourceAppRoot, "remote", "v4", "index.html"));
+    sourceAppBuilt = true;
+  } catch {
+    // 未构建源码页的单测环境仍可用恢复稿验证 relay 资产回退。
+  }
+  if (sourceAppBuilt) assert.equal(resolvedRoot, sourceAppRoot);
   const entry = await fetch(`http://127.0.0.1:${first.port}/remote/v4`);
   assert.equal(entry.status, 200);
-  assert.match(await entry.text(), /3\.14\.3\/assets\/index-/u);
-  const bundle = await fetch(
-    `http://127.0.0.1:${first.port}/remote/v4/3.14.3/assets/index-NjWRUABD.js`,
-  );
+  const entryHtml = await entry.text();
+  assert.match(entryHtml, /3\.14\.3\/assets\/index-/u);
+  if (sourceAppBuilt) assert.match(entryHtml, /<title>Drora Remote<\/title>/u);
+  const bundlePath = entryHtml.match(
+    /src="(\/remote\/v4\/3\.14\.3\/assets\/index-[^"]+\.js)"/u,
+  )?.[1];
+  assert.ok(bundlePath);
+  const bundle = await fetch(`http://127.0.0.1:${first.port}${bundlePath}`);
   assert.equal(bundle.status, 200);
   assert.doesNotMatch(await bundle.text(), /`wss:\/\/zcode\.z\.ai\/ws`/u);
 

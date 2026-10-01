@@ -665,7 +665,7 @@ export default {
   extraResources: [
     {
       // 本地远控页与桌面同包发布，LAN 无外网时仍完整加载 v4 双布局。
-      from: resolve(workspaceRoot, "packages/mobile-web/src/recovered"),
+      from: resolve(workspaceRoot, "packages/mobile-web/dist"),
       to: "mobile-web",
     },
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },

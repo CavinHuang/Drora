@@ -1,6 +1,6 @@
 // 内嵌 LAN relay 宿主（自研层，specs/mobile-relay-server.md §12）：
 // 桌面应用进程内启动自建 relay-server，「局域网连接」传输与云中继统一走 relay 协议，
-// 手机页默认 mobile-web 本地 3.14.3 v4 可读恢复稿（/remote/v4）；仅本地包不存在时
+// 手机页默认 mobile-web 源码构建产物（/remote/v4）；仅本地包不存在时
 // 启用内建代理 cache→fetch 官方源站。入口缺失时 302 → R2 自建页 /m/index.html。
 // 旧 LAN 直连配对服务栈
 // （desktopMobilePairingServer/Core/Restore，协议 v1 + 一次性令牌）已删除
@@ -29,12 +29,16 @@ type HostLogger = {
 // 服务级日志（AGENTS.md 日志规范）：模块级单例，宿主生命周期与 LAN 地址诊断共用。
 const serviceLog = createServiceLogger("mobile-lan-relay");
 
-/** 同一 3.14.3 恢复稿优先读取安装包资源，开发态读取 mobile-web 源码目录。 */
+/** 开发态读取源码构建产物，安装态读取随包资源；恢复稿仅作缺构建产物时回退。 */
 export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
-  const sourceRoot = fileURLToPath(new URL("../../../mobile-web/src/recovered/", import.meta.url));
+  const sourceBuildRoot = fileURLToPath(new URL("../../../mobile-web/dist/", import.meta.url));
+  const recoveredRoot = fileURLToPath(
+    new URL("../../../mobile-web/src/recovered/", import.meta.url),
+  );
   const candidates = [
+    sourceBuildRoot,
     ...(process.resourcesPath ? [join(process.resourcesPath, "mobile-web")] : []),
-    sourceRoot,
+    recoveredRoot,
   ];
   for (const root of candidates) {
     try {

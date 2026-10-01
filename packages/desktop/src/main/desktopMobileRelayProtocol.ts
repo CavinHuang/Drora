@@ -236,6 +236,10 @@ export interface RelayTaskSummary {
   workspaceLabel: string;
   workspaceKind: "local" | "remote";
   createdAt: number;
+  /** §32.16 三态 membership（对齐官方 chat.empty membership schema）。 */
+  pinned?: boolean;
+  archived?: boolean;
+  unreadAt?: number;
 }
 
 export interface RelayMobileViewState {

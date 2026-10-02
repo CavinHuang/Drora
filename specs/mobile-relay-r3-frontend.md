@@ -4021,3 +4021,12 @@ aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
  dialogs 工具链已含三轮 reload 重订阅+行数诊断，根因修复后一键补拍。
 本裁定不阻塞 UI 对齐结论：数据到达时的行渲染与全视图形态已被 r2-r7 反复证实，
 弹层对齐证据引用 §33.18.5 既有专项轮次清单。
+
+#### 33.18.8 rows:0 假设证伪与最终边界（2026-10-03，dialogs5）
+
+- 「监听器晚注册」假设被证伪：stub 侧补发（注册时 refire snapshot）后 rows:0
+  依旧，推测性改动已回滚保持 stub 干净。
+- 最终边界：stub 推送正常发出，页面侧 relay-client 未把 snapshot 投影为行——
+  嫌疑=客户端按 topic/订阅 ID 过滤时与 stub 构造的 candidate（topic=
+  sessions-index/<workspacePath>，subscriptionId 恒 sub-si）不匹配，属
+  @drora/relay-client 契约域，须由持有人下轮定位。dialogs 工具链+诊断日志就绪。

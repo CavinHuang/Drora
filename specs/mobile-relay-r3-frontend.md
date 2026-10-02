@@ -4000,3 +4000,13 @@ aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
 套餐 banner（套餐查询失败，重试/配置）= coding-plan 服务 harness 失败面（P7 家族）。
 
 **门禁**：208/208 + typecheck 0 + lint 3 存量 + build 797 + nt-ours/official 双页对照。
+
+#### 33.18.6 弹层短跑复跑结论（2026-10-03，dialogs2/dialogs3）
+
+- createTarget(url) 直达改回 about:blank+Page.navigate（成熟模式）后，页面空白
+  问题消除；但任务行 rows:0 在 dialogs 运行形态下**确定性复现**（重建 dist 于最新
+  HEAD 仍现），而 r7 矩阵形态同链路数据正常——锁定为数据层 boot 竞态（195 轮
+  「偶发空时间线/早点击竞态」同族，非 UI 对齐缺陷：数据到达时行渲染已被 r2-r7
+  反复证实）。dialogs 脚本已含行数诊断日志（attempt N rows: M）。
+- 弹层视图对齐证据维持引用既有专项轮次（§33.18.5 清单）。根治 boot 竞态后
+  `bash .tmp-run-dialogs.sh <目录>` 一键补拍。

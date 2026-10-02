@@ -142,6 +142,8 @@ export const zhCN: Record<string, string> = {
   "mobileShell.task.reconnectingBanner": "正在自动重连...",
   "mobileShell.task.sidePaneCollapse": "收起侧边面板",
   "mobileShell.task.sidePaneExpand": "展开侧边面板",
+  "mobileShell.task.help": "帮助", // §33.18 官方活体（workspace-help-menu-trigger aria 逐字，宽壳）
+  "mobileShell.task.terminalToggle": "切换终端", // §33.18 官方活体（terminal-toggle aria 逐字，宽壳）
   "mobileShell.task.status.completed": "已完成",
   "mobileShell.task.status.idle": "空闲",
   "mobileShell.task.status.running": "运行中",

@@ -153,6 +153,8 @@ export const enUS: Record<string, string> = {
   "mobileShell.task.reconnectingBanner": "Reconnecting automatically...",
   "mobileShell.task.sidePaneCollapse": "Collapse side panel",
   "mobileShell.task.sidePaneExpand": "Expand side panel",
+  "mobileShell.task.help": "Help", // §33.18 官方活体（workspace-help-menu-trigger，宽壳）
+  "mobileShell.task.terminalToggle": "Toggle terminal", // §33.18 官方活体（terminal-toggle，宽壳）
   "mobileShell.task.status.completed": "Completed",
   "mobileShell.task.status.idle": "Idle",
   "mobileShell.task.status.running": "Running",

@@ -9,7 +9,7 @@ import {
   MobileConnectionStatusCard,
   MobileFailureCard,
 } from "../ui/StatusCards.js";
-import { FileDiff, MessagesSquare, TerminalSquare } from "lucide-react";
+import { ChevronDown, FileDiff, MessagesSquare, Plus, TerminalSquare, X } from "lucide-react";
 import type { MobileHomeConnectionState } from "../ui/HomeShell.js";
 import { HomeScreen } from "./HomeScreen.js";
 import { MobileTaskShell } from "../ui/TaskShell.js";
@@ -737,17 +737,45 @@ function AppBody() {
         aria-label={intl.formatMessage({ id: "chat.statusPanel.terminals" })}
         className="absolute inset-y-0 right-0 z-40 flex w-[88%] max-w-[88vw] flex-col border-l border-border bg-background shadow-lg"
       >
-        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
-          <span className="text-ui-sm font-medium text-foreground">
-            {intl.formatMessage({ id: "chat.statusPanel.terminals" })}
-          </span>
+        {/* §32.71 官方活体（tm-official）：终端面板头与审查同款标签条，标签题 =
+            工作区名（活体「demo」）+ TerminalSquare 图标；[⌄ 收起][× 关标签][＋ 新增]。 */}
+        <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
           <button
             type="button"
-            aria-label={intl.formatMessage({ id: "common.cancel" })}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={intl.formatMessage({ id: "sidePane.collapse" })}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
             onClick={() => setSidePaneMode(null)}
           >
-            ✕
+            <ChevronDown aria-hidden="true" className="size-4" />
+          </button>
+          <div className="flex h-9 min-w-0 max-w-52 flex-1 items-center gap-2 rounded-lg bg-surface px-2.5">
+            <TerminalSquare
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-foreground-subtle"
+            />
+            <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground">
+              {taskTarget.path.split(/[\\/]/).filter(Boolean).pop() ?? taskTarget.path}
+            </span>
+            <button
+              type="button"
+              aria-label={intl.formatMessage(
+                { id: "sidePane.closeTab" },
+                {
+                  title: taskTarget.path.split(/[\\/]/).filter(Boolean).pop() ?? taskTarget.path,
+                },
+              )}
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+              onClick={() => setSidePaneMode(null)}
+            >
+              <X aria-hidden="true" className="size-3.5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            aria-label={intl.formatMessage({ id: "sidePane.addTab" })}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+          >
+            <Plus aria-hidden="true" className="size-4" />
           </button>
         </div>
         <RemoteTerminalPane
@@ -782,7 +810,12 @@ function AppBody() {
                     branchName={gitStatus.summary?.branchName ?? null}
                     lastActivityText={
                       taskActivityAtMs
-                        ? formatTaskRelativeTime(taskActivityAtMs, intl)
+                        ? // §32.71 官方活体（ifo-official）：「最近活动 {time}」前缀
+                          // （workspace.context.lastActivity 既有键），非裸相对时间。
+                          intl.formatMessage(
+                            { id: "workspace.context.lastActivity" },
+                            { time: formatTaskRelativeTime(taskActivityAtMs, intl) },
+                          )
                         : undefined
                     }
                   />
@@ -793,6 +826,15 @@ function AppBody() {
               branchName={gitStatus.summary?.branchName ?? null}
               onToggleSidePane={attachedTask ? () => setSidePaneMode((mode) => mode ? null : "launcher") : undefined}
               sidePaneOpen={sidePaneMode !== null}
+              // §33.18 官方宽壳活体：帮助/切换终端双钮仅宽壳渲染（窄壳无）；
+              // r7 对照：侧板开启态官方隐藏终端钮（仅帮助+面板两钮）。
+              // 帮助菜单域未还原=无动作占位（视觉对齐优先，不臆造菜单内容）。
+              onHelpPress={wideViewport ? () => {} : undefined}
+              onTerminalToggle={
+                wideViewport && attachedTask && sidePaneMode === null
+                  ? () => setSidePaneMode("terminal")
+                  : undefined
+              }
               // §32.3 更多菜单一期（重命名/复制路径/复制会话 ID）；菜单锚在 ⋯ 触发按钮。
               onMoreMenu={attachedTask ? () => setMoreMenuOpen((open) => !open) : undefined}
               moreMenuSlot={

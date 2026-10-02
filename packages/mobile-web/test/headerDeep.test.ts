@@ -45,13 +45,19 @@ test("workspace-more-button 装配缝：缺省不渲染；传入渲染 ⋯ 图�
   assert.ok(wired.includes('aria-label="更多"'));
 });
 
-test("side-pane-toggle 装配缝：缺省不渲染；传入渲染 PanelRight 按钮 + aria-expanded 投影", () => {
+test("side-pane-toggle 装配缝：缺省不渲染；开合态驱动 aria/图标（§33.18 官方活体：开=收起侧边面板+panel-right-close）", () => {
   const bare = render();
   assert.ok(!bare.includes("side-pane-toggle"), "缺省不渲染（侧板内容归 StatusPanel 装配）");
   const wired = render({ onToggleSidePane: () => {}, sidePaneOpen: true });
   assert.ok(wired.includes('data-testid="side-pane-toggle"'));
   assert.ok(wired.includes('aria-expanded="true"'));
-  assert.ok(wired.includes('aria-label="展开侧边面板"'), "官方 mobileShell.task.sidePaneExpand 既有键");
+  // §33.18 官方宽壳活体：开态 aria=收起侧边面板、图标 panel-right-close；
+  // 合态=展开侧边面板 + panel-right-open（探针双态取证）。
+  assert.ok(wired.includes('aria-label="收起侧边面板"'), "开态 aria=收起侧边面板");
+  assert.ok(wired.includes("panel-right-close"), "开态图标 panel-right-close");
+  const closed = render({ onToggleSidePane: () => {} });
+  assert.ok(closed.includes('aria-label="展开侧边面板"'), "合态 aria=展开侧边面板");
+  assert.ok(closed.includes("panel-right-open"), "合态图标 panel-right-open");
 });
 
 test("§32.25 工作区 chip 名带分支：aria = 「工作区名 · 分支」（官方活体 demo · main）；分支缺省纯工作区名", () => {

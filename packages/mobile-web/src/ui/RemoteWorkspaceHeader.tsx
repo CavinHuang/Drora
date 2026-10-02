@@ -7,7 +7,14 @@
 // aside[chat-summary-panel]，并行 StatusPanel 工作方向）——onToggleSidePane 装配缝可选，
 // 缺省不渲染按钮；open 态归上层（aria-expanded 投影）。
 import type { ReactNode } from "react";
-import { Ellipsis, Folder, PanelRight } from "lucide-react";
+import {
+  CircleQuestionMark,
+  Ellipsis,
+  Folder,
+  PanelRightClose,
+  PanelRightOpen,
+  SquareTerminal,
+} from "lucide-react";
 import { useIntl } from "./intl.js";
 
 export interface RemoteWorkspaceHeaderProps {
@@ -30,6 +37,10 @@ export interface RemoteWorkspaceHeaderProps {
   onToggleSidePane?: () => void;
   /** 侧板开合态投影（aria-expanded；缺省 false）。 */
   sidePaneOpen?: boolean;
+  /** §33.18 官方宽壳活体：头部右区「帮助」钮（circle-question-mark）——仅宽壳装配。 */
+  onHelpPress?: () => void;
+  /** §33.18 官方宽壳活体：「切换终端」钮（terminal-toggle，square-terminal）——仅宽壳装配。 */
+  onTerminalToggle?: () => void;
 }
 
 export function RemoteWorkspaceHeader({
@@ -42,6 +53,8 @@ export function RemoteWorkspaceHeader({
   infoSlot,
   onToggleSidePane,
   sidePaneOpen,
+  onHelpPress,
+  onTerminalToggle,
 }: RemoteWorkspaceHeaderProps) {
   const { formatMessage } = useIntl();
   const workspaceName =
@@ -117,17 +130,52 @@ export function RemoteWorkspaceHeader({
           </div>
         ) : null}
         </div>
-        {onToggleSidePane ? (
-          <div className="flex shrink-0 items-center">
+        {(onHelpPress || onTerminalToggle || onToggleSidePane) ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {/* §33.18 官方宽壳活体：右区=帮助(circle-question-mark)+切换终端
+                (terminal-toggle, square-terminal) 双钮（窄壳无），28px ghost。 */}
+            {onHelpPress ? (
+              <button
+                type="button"
+                data-testid="workspace-help-menu-trigger"
+                aria-label={formatMessage({ id: "mobileShell.task.help" })}
+                title={formatMessage({ id: "mobileShell.task.help" })}
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+                onClick={onHelpPress}
+              >
+                <CircleQuestionMark aria-hidden="true" className="size-4" />
+              </button>
+            ) : null}
+            {onTerminalToggle ? (
+              <button
+                type="button"
+                data-testid="terminal-toggle"
+                aria-label={formatMessage({ id: "mobileShell.task.terminalToggle" })}
+                title={formatMessage({ id: "mobileShell.task.terminalToggle" })}
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+                onClick={onTerminalToggle}
+              >
+                <SquareTerminal aria-hidden="true" className="size-4" />
+              </button>
+            ) : null}
             <button
               type="button"
               data-testid="side-pane-toggle"
-              aria-label={formatMessage({ id: "mobileShell.task.sidePaneExpand" })}
+              aria-label={formatMessage({
+                id: sidePaneOpen
+                  ? "mobileShell.task.sidePaneCollapse"
+                  : "mobileShell.task.sidePaneExpand",
+              })}
               aria-expanded={sidePaneOpen ?? false}
               className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
               onClick={onToggleSidePane}
             >
-              <PanelRight aria-hidden="true" className="size-4" />
+              {/* §33.18 官方活体：开=panel-right-close，合=panel-right-open。 */}
+              {sidePaneOpen ? (
+                <PanelRightClose aria-hidden="true" className="size-4" />
+              ) : (
+                <PanelRightOpen aria-hidden="true" className="size-4" />
+              )}
             </button>
           </div>
         ) : null}

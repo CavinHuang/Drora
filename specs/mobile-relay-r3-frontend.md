@@ -3929,3 +3929,15 @@ w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟�
 占位）。新增 modelMenuEmpty 守卫。
 
 **门禁**：208/208 + typecheck 0 + build 797。
+
+#### 33.18.3 第三批清偿（2026-10-03，r7 矩阵验证）
+
+- 宽壳任务头右区补「帮助」(workspace-help-menu-trigger, circle-question-mark) +
+  「切换终端」(terminal-toggle, square-terminal) 双钮（官方宽壳活体探针逐字）；
+  侧板开启态官方隐藏终端钮（r7 对照实测），侧板钮图标随开合态切换
+  （开=panel-right-close/收起侧边面板，合=panel-right-open/展开侧边面板），
+  headerDeep 测试同步活体契约（208/208）。
+- §33.4#8「任务行 hover 删除钮」经官方 hover 探针**证伪**——hover 态行 DOM 无删除
+  钮（.tmp-probe-hover 实测），不实现（旧清单过时记录）。
+- 品牌词 Drora（rename 规则 4）与帮助菜单内容域（未还原，无动作占位）为存续的
+  有意分歧；其余 r7 全视图矩阵（v1-v7×双页）结构/文案/图标/顺序逐项一致。

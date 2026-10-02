@@ -82,7 +82,7 @@ export function RemoteGitSidePane({
   return (
     <aside
       className={
-        "absolute inset-y-0 right-0 z-20 flex w-80 max-w-[85%] flex-col border-l border-border bg-background shadow-lg " +
+        "absolute inset-y-0 right-0 z-40 flex w-[88%] max-w-[88vw] flex-col border-l border-border bg-background shadow-lg " +
         (className ?? "")
       }
       aria-label={formatMessage({ id: "workspaceSidebar.showFileTree" })}

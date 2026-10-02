@@ -41,20 +41,24 @@ export function RemoteOpenTabShell({
       className={
         variant === "wide"
           ? "flex h-full w-80 shrink-0 flex-col border-l border-border bg-background"
-          : "absolute inset-y-0 right-0 z-20 w-80 max-w-[85%] border-l border-border bg-background shadow-lg"
+          : "absolute inset-y-0 right-0 z-40 w-[88%] max-w-[88vw] border-l border-border bg-background shadow-lg"
       }
     >
       <div className="side-pane-open-tab-shell flex h-full min-h-0 flex-col bg-background">
-        <div className="flex h-12 shrink-0 items-center justify-end px-2">
-          <button
-            type="button"
-            aria-label={formatMessage({ id: "sidePane.collapse" })}
-            className="inline-flex size-7 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
-            onClick={onClose}
-          >
-            <PanelRightClose aria-hidden="true" className="size-4" />
-          </button>
-        </div>
+        {/* §32.69 官方活体（mv-side-official）：窄壳 launcher 无面板内关闭钮
+            （收起=遮罩点击，TaskShell 遮罩层承载）；宽壳 h2 面板头保留。 */}
+        {variant === "wide" ? (
+          <div className="flex h-12 shrink-0 items-center justify-end px-2">
+            <button
+              type="button"
+              aria-label={formatMessage({ id: "sidePane.collapse" })}
+              className="inline-flex size-7 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+              onClick={onClose}
+            >
+              <PanelRightClose aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+        ) : null}
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-10">
           <div className="side-pane-open-tab-content flex w-full max-w-[20rem] flex-col gap-5">
             <div className="flex flex-col gap-2 text-center">

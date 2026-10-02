@@ -353,3 +353,84 @@ test("更多菜单：closed 不渲染任何弹层节点", () => {
   const html = renderMoreMenu({ open: false });
   assert.ok(!html.includes("task-more-rename"));
 });
+
+test("§32.69 官方全项 9 条 4 组：pin() 装配序 + disabled 渲染不隐藏（活体 mv-more-official）", () => {
+  // 缺能力源（无 loadMembership/handler/路径）→ 官方 O 门同款 disabled 渲染：
+  const bare = renderMoreMenu();
+  for (const tid of [
+    "task-more-pin",
+    "task-more-rename",
+    "task-more-archive",
+    "task-more-mark-unread",
+    "task-more-copy-path",
+    "task-more-copy-task-path",
+    "task-more-copy-log-path",
+    "task-more-copy-session-id",
+    "task-more-view-trajectory",
+    "task-more-feedback",
+  ]) {
+    assert.match(bare, new RegExp(`data-testid="${tid}"`), tid);
+  }
+  // 官方键逐字（locale chunk @1373/1378/1851/1852）
+  assert.ok(bare.includes("置顶任务"), "taskList.pin");
+  assert.ok(bare.includes("归档任务"), "taskList.archive");
+  assert.ok(bare.includes("标记为未读"), "taskList.markAsUnread");
+  assert.ok(bare.includes("复制任务路径"), "appHeader.copyTaskPath");
+  assert.ok(bare.includes("复制日志路径"), "appHeader.copyLogPath");
+  assert.ok(bare.includes("查看调用轨迹"), "taskList.viewModelTrajectory");
+  assert.ok(bare.includes("反馈问题"), "taskList.feedback");
+  // 3 组分隔线（组 A‖B‖C‖D）
+  assert.strictEqual(
+    (bare.match(/role="separator"/g) ?? []).length,
+    3,
+    "官方三组分隔线",
+  );
+  // 缺源 disabled：pin/archive/markUnread/copyTaskPath/copyLogPath/copySessionId/trajectory/feedback
+  for (const tid of [
+    "task-more-pin",
+    "task-more-archive",
+    "task-more-mark-unread",
+    "task-more-copy-task-path",
+    "task-more-copy-log-path",
+    "task-more-copy-session-id",
+    "task-more-view-trajectory",
+    "task-more-feedback",
+  ]) {
+    const seg = (bare.split(`data-testid="${tid}"`)[1] ?? "").slice(0, 200);
+    assert.match(seg, /disabled/, `${tid} 缺源 → disabled（官方 O 门语义，不隐藏）`);
+  }
+  // 重命名/复制路径 harness 常绿（功能真接线；官方灰为其 O 微态，spec §32.69 记录）
+  const renameSeg = (bare.split('data-testid="task-more-rename"')[1] ?? "").slice(0, 200);
+  assert.doesNotMatch(renameSeg, /disabled/);
+  const copySeg = (bare.split('data-testid="task-more-copy-path"')[1] ?? "").slice(0, 200);
+  assert.doesNotMatch(copySeg, /disabled/);
+});
+
+test("§32.69 能力源到位 → 同步门项解禁（路径+handler；membership 为异步门 SSR 不解）", () => {
+  const wired = renderMoreMenu({
+    loadMembership: () => Promise.resolve({ pinned: false, archived: false }),
+    onTogglePinned: () => Promise.resolve(true),
+    onArchive: () => Promise.resolve(true),
+    onMarkUnread: () => Promise.resolve(true),
+    taskPath: "D:/ws/demo/.drora/tasks/t1",
+    logPath: "D:/ws/demo/.drora/logs/t1.log",
+    onViewModelTrajectory: () => {},
+    onTaskFeedback: () => {},
+  });
+  // 同步门（路径/handler prop）：
+  for (const tid of [
+    "task-more-copy-task-path",
+    "task-more-copy-log-path",
+    "task-more-view-trajectory",
+    "task-more-feedback",
+  ]) {
+    const seg = (wired.split(`data-testid="${tid}"`)[1] ?? "").slice(0, 200);
+    assert.doesNotMatch(seg, /disabled=""/, `${tid} 源到位 → 解禁`);
+  }
+  // membership 异步门（SSR 首帧 membership=null → disabled；运行时拉取后解禁，
+  // 效果归 useEffect——静态渲染测不到，行为与官方 O 门加载态一致）。
+  for (const tid of ["task-more-pin", "task-more-archive", "task-more-mark-unread"]) {
+    const seg = (wired.split(`data-testid="${tid}"`)[1] ?? "").slice(0, 200);
+    assert.match(seg, /disabled=""/, `${tid} membership 异步门 SSR 保持 disabled`);
+  }
+});

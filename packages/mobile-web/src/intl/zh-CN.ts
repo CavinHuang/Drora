@@ -527,6 +527,7 @@ export const zhCN: Record<string, string> = {
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，zh）
   "chat.empty.greeting.morningEarly": "早上好呀，新的一天开始啦", // 官方逐字
   "chat.placeholder.newTaskMobile": "向 ZCode 提问…", // 官方逐字
+  "chat.placeholder.newTask": "向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
   "workspace.context.lastActivity": "最近活动 {time}", // 官方逐字（§32.11 信息弹层）
   "chat.draft.suggestedPrompt.recentCommits": "检查近 7 天的 commit", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字

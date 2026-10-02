@@ -322,6 +322,7 @@ export const enUS: Record<string, string> = {
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
   "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
   "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
+  "chat.placeholder.newTask": "Ask ZCode anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
   "workspace.context.lastActivity": "Last active {time}", // official
   "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字

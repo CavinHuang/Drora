@@ -51,19 +51,35 @@ function renderDraft(props: Record<string, unknown> = {}) {
   );
 }
 
-test("§32.9 草稿面：时段问候 + 项目标识 + 占位符 + 静态建议词 chips", () => {
+test("§32.72 草稿面：问候 + 内嵌工作区行 + 全句占位 + 工具条四件 + chips suggestions 门控", () => {
   const html = renderDraft();
   // 上午 10 点 → morning 段（P5b 既有键，值 = 官方逐字）。
   assert.match(html, /上午好呀，有什么想让我帮忙的吗/);
-  // 官方移动端占位（chat.placeholder.newTaskMobile）。
-  assert.match(html, /向 ZCode 提问…/);
-  // 项目标识行（工作区名）。
+  // §32.72 官方活体全句占位（chat.placeholder.newTask，非 newTaskMobile 短句）。
+  assert.match(html, /向 ZCode 提问，使用 @ 添加上下文，使用 \/ 选择命令或能力/);
+  // composer 内嵌工作区行（工作区名）+ 分支占位图标。
   assert.match(html, /demo/);
-  // 静态建议词 chips（chat.draft.suggestedPrompt.*，官方 locale 既有）。
-  assert.match(html, /检查近 7 天的 commit/);
-  assert.match(html, /制作一份 PDF/);
+  // 工具条四件：＋ 添加上下文 / 模式触发器（Hand+变更前确认+▾）/ 管理模型 / 发送。
+  assert.match(html, /data-testid="new-task-draft-attach"/);
+  assert.match(html, /aria-label="添加上下文"/);
+  assert.match(html, /data-testid="new-task-draft-mode-trigger"/);
+  assert.match(html, /变更前确认/, "草稿模式缺省 build（官方活体）");
+  assert.match(html, /data-testid="new-task-draft-model-trigger"/);
+  assert.match(html, /aria-label="管理模型"/);
+  assert.match(html, /data-testid="new-task-draft-send"/);
   // 发送钮空草稿禁用。
   assert.match(html, /disabled/);
+  // chips suggestions 门控：缺省不渲染（官方 suggestions 服务缺位活体一致）。
+  assert.ok(!html.includes("检查近 7 天的 commit"), "chips 缺省隐藏");
+  const withSuggestions = renderDraft({
+    suggestions: [
+      {
+        labelId: "chat.draft.suggestedPrompt.recentCommits",
+        promptId: "chat.draft.suggestedPrompt.recentCommits.prompt",
+      },
+    ],
+  });
+  assert.match(withSuggestions, /检查近 7 天的 commit/, "装配缝下发即渲染");
 });
 
 test("§32.9 草稿面：夜间问候段（lateNight）", () => {

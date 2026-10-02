@@ -3980,3 +3980,23 @@ w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟�
   （模式=§32.3、模型=§32.57/64-68、整理/信息=§32.57、草稿=§32.56、亮色=§32.61、
   i18n=§32.67）。排查入口：dialogs 脚本已含逐步校验日志（task-open attempt 行），
   下一步在空白页 tab 上抓 journal/log 定位加载失败层。
+
+### 32.72 新建任务草稿页官方化重构（2026-10-03）
+
+**取证**：nt-official 双页干净路径采集（官方 ＋ 钮无 aria-label——须按位置上下文选钮，
+aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
+
+**逐项清偿（NewTaskDraft 重构）**：
+| # | 项 | 旧（我方 P3 形态） | 新（官方活体） |
+|---|---|---|---|
+| 1 | 返回钮 | ↓（ArrowUp rotate-180） | ←（ArrowLeft，活体） |
+| 2 | 工作区选择 | 独立卡片 | **内嵌 composer 卡首行**（📁 名；多工作区下拉 + ⑂ 分支占位图标——分支数据源归 P-next） |
+| 3 | 占位 | chat.placeholder.newTaskMobile 短句 | **chat.placeholder.newTask 全句**「向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力」（zh:4174/en:10332 逐字，双 locale 新增） |
+| 4 | 工具条 | [📎][↑] | [＋ 添加上下文][✋ 模式名 ▾（TaskModeMenu，本地 draftMode 缺省 build=活体）][管理模型 ▾（ModelMenu 空态单条面）][↑] |
+| 5 | 建议 chips | 无条件渲染 | **suggestions 服务门控**（官方桩缺位不渲染，活体一致）→ props.suggestions 装配缝，App 现不传=隐藏 |
+| 6 | 模式默认 | 无模式面 | build=变更前确认（官方活体；createSession 协议无初始 mode 字段，wire 归协议扩展轮，App onSend 第三参暂收不转） |
+
+**记录不拆**：品牌水印（官方 ZCode「Z」底纹）= 品牌政策面（drora-rename 规则 4）；
+套餐 banner（套餐查询失败，重试/配置）= coding-plan 服务 harness 失败面（P7 家族）。
+
+**门禁**：208/208 + typecheck 0 + lint 3 存量 + build 797 + nt-ours/official 双页对照。

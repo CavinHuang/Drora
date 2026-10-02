@@ -286,7 +286,7 @@ export const enUS: Record<string, string> = {
   "chat.toolbar.model.targetMissing": "No model target", // 官方 en-US.ts:1047
   "chat.contextUsage": "Context usage {used} of {total}", // 官方 en-US.ts:4824
   "mobileShell.model.thoughtLevel": "Reasoning level", // P3c 自建键（官方 ui locales 无现成菜单内档位分组标题）
-  "notification.permissionRequired": "Needs your confirmation", // P4b 官方键（值取自 ui locales en-US.ts）
+  "notification.permissionRequired": "Your confirmation is needed", // P4b 官方键（值取自 ui locales en-US.ts）
   // —— P3d 首页任务搜索：自建键（官方无 mobileShell.search 命名空间；值逐字对齐冻结 bundle
   // workspaceSidebar.searchTasks* 官方文案，见 src/recovered/remote/v4/3.14.3/assets/IntlProvider-BiPABK16.js）——
   "mobileShell.search.title": "Search tasks", // P3d 自建键（值 = 官方 workspaceSidebar.searchTasks）
@@ -315,7 +315,7 @@ export const enUS: Record<string, string> = {
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
   "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
   "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
-  "workspace.context.lastActivity": "Last activity {time}", // official
+  "workspace.context.lastActivity": "Last active {time}", // official
   "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
   "chat.draft.suggestedPrompt.createPdf": "Create a PDF", // 官方逐字
@@ -445,7 +445,7 @@ export const enUS: Record<string, string> = {
   "automations.unsaved.description": "Your changes to this scheduled task will be lost", // 官方逐字（en 校准一致）
   "automations.unsaved.discard": "Discard", // 官方逐字（en 校准一致）
   "automations.unsaved.title": "Discard scheduled task draft?", // 官方逐字（en 校准一致）
-  "automations.weekday.separator": "、", // 官方 en 逐字（校准）
+  "automations.weekday.separator": ", ", // 官方 en 逐字（校准）
   // —— P6 补录：automations.weekday.{0-6} 七键（官方 locale chunk 逐字：Sun-Sat，与 zh 日-六
   // 同源实锤；0=周日/1-6=周一~周六，对齐 $Y=[1..6,0] 周一起始序）——
   "automations.weekday.0": "Sun", // 官方 locale chunk 逐字
@@ -521,7 +521,7 @@ export const enUS: Record<string, string> = {
   "mode.label.glm.build": "Ask before changes", // 官方逐字
   "mode.label.glm.yolo": "Full access", // 官方逐字
   "chat.toolbar.thoughtLevel.label": "Reasoning effort", // 官方逐字
-  "chat.toolbar.thoughtLevel.placeholder": "Select thought level", // 官方逐字
+  "chat.toolbar.thoughtLevel.placeholder": "Select reasoning level", // 官方逐字
   "chat.toolbar.thoughtLevel.value.low": "Low", // 官方逐字
   "chat.toolbar.thoughtLevel.value.medium": "Medium", // 官方逐字
   "chat.toolbar.thoughtLevel.value.high": "High", // 官方逐字

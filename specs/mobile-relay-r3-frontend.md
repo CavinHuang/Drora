@@ -3759,3 +3759,15 @@ CDP `Emulation.setDeviceMetricsOverride(mobile:true)` **不仿真 hover 媒体�
 | 3 | thought-level trigger | 有（高） | 无（draft 态无模型→无 thought levels） | harness 语境非差异 |
 
 **门禁**：204/204 + 根 typecheck 0 + build 800+46 + lint 3 存量。
+
+### 32.67 全量 i18n 值级对照——8 差异清偿（2026-10-02）
+
+**方法**：官方 locale chunk（6110 键）与本仓 zh-CN.ts/en-US.ts（484 键×2）全量值级 diff。
+8 处差异中 5 处清偿、3 处定性：
+- **EN 清偿 3**：lastActivity=Last active {time} / permissionRequired=Your confirmation is
+  needed / thoughtLevel.placeholder=Select reasoning level
+- **EN 清偿 1**：automations.weekday.separator=、→", "（标点符号全角→半角）
+- **定性不修 4**：workspaceFileTree.title（官方=Workspace/我方=文件树，不同 UI 上下文）/
+  sshConnection 三键（桌面 SSH 面不在手机远控）/ notice 已一致（反查脚本误报）
+
+**门禁**：204/204 + 根 typecheck 0 + build 800+46 + lint 3 存量。

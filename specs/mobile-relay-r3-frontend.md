@@ -4010,3 +4010,14 @@ aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
   反复证实）。dialogs 脚本已含行数诊断日志（attempt N rows: M）。
 - 弹层视图对齐证据维持引用既有专项轮次（§33.18.5 清单）。根治 boot 竞态后
   `bash .tmp-run-dialogs.sh <目录>` 一键补拍。
+
+#### 33.18.7 rows:0 根因边界收窄（2026-10-03，dialogs3/4）
+
+诊断结论：dialogs 驱动形态下 stub 对 subscribeSessionsIndexV4 **ack 正常但 snapshot
+推送缺失**，reload 重订阅（全新订阅）也无法触发——非时序竞态，是该连接形态下的
+确定性缺失；而矩阵驱动形态（.tmp-run-matrix.sh，r2-r7）同链路推送正常。两驱动
+差异面已收窄至 ws 连接建立后的 stub 推送路径，定位归属 relay-server/dev-host-stub
+域（并行会话 active 域，spec §32.68/71/72 均在其内改动桩）。
+ dialogs 工具链已含三轮 reload 重订阅+行数诊断，根因修复后一键补拍。
+本裁定不阻塞 UI 对齐结论：数据到达时的行渲染与全视图形态已被 r2-r7 反复证实，
+弹层对齐证据引用 §33.18.5 既有专项轮次清单。

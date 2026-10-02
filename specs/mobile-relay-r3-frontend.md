@@ -3745,3 +3745,17 @@ CDP `Emulation.setDeviceMetricsOverride(mobile:true)` **不仿真 hover 媒体�
 + onFork，ui 复原件按相同机制渲染——按钮在 hover:none 环境常显。真机一致。
 
 **§32.39-62 二十四轮截图对照全部完成。所有可对比视图覆盖验证。残余=有意增强/harness 语境/P7/架构级。**
+
+**提交：5a667bc5**（§32.17-53 全量，270 文件）。
+残余 `capture-remote-dist.mjs` 1 文件为前 session 残留，未入本批。
+
+### 32.65 composer 附件钮 + 用量徽标对齐（2026-10-02，§32.64 续）
+
+**CDP 元素级探针修复三项**（同数据双页逐元素 diff）：
+| # | 元素 | 我方 | 官方 | 修复 |
+|---|---|---|---|---|
+| 1 | chat-attachment-button | 添加附件+disabled+Paperclip | **添加上下文**+Plus 非禁用 | aria=chat.composer.contextShortcut 官方逐字；Plus 图标；不 disabled |
+| 2 | mobile-usage-badge aria | `…总量 1,000,000 12%` | `…总量 1,000,000`（无百分比） | 百分比从 aria/title 移除（官方无） |
+| 3 | thought-level trigger | 有（高） | 无（draft 态无模型→无 thought levels） | harness 语境非差异 |
+
+**门禁**：204/204 + 根 typecheck 0 + build 800+46 + lint 3 存量。

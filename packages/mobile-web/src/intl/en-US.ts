@@ -527,6 +527,7 @@ export const enUS: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.high": "High", // 官方逐字
   "chat.toolbar.thoughtLevel.value.max": "Max", // 官方逐字
   "chat.attachments.add": "Add attachment", // 官方逐字
+  "chat.composer.contextShortcut": "Add context", // 官方逐字（§32.64）
   "chat.toolbar.thoughtLevel.value.off": "Off", // 官方逐字
   "chat.toolbar.thoughtLevel.value.minimal": "Minimal", // 官方逐字
   "chat.plan.removeMarker": "Turn off Plan mode", // 官方逐字（§32.22 composer plan 标记钮）

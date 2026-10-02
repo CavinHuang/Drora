@@ -84,10 +84,10 @@ test("thought trigger：thoughtLevels 非空渲染（当前档官方值文案）
   assert.ok(!noLevels.includes("chat-thought-level-select-trigger"));
 });
 
-test("attachment 官方形态：disabled + aria-label=添加附件 + hidden input", () => {
+test("attachment §32.64 官方活体：aria-label=添加上下文（Plus 图标）+ hidden input", () => {
   const html = render();
   assert.ok(html.includes('data-testid="chat-attachment-button"'));
-  assert.ok(html.includes('aria-label="添加附件"'));
+  assert.ok(html.includes('aria-label="添加上下文"'));
   assert.ok(html.includes('type="file" hidden'));
 });
 

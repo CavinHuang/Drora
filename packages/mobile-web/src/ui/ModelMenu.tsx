@@ -146,8 +146,8 @@ export function UsageBadge({
         data-testid="mobile-usage-badge"
         className="inline-flex size-11 shrink-0 items-center justify-center text-success"
         role="img"
-        aria-label={`${usageLabel} ${percentLabel}`}
-        title={`${usageLabel} ${percentLabel}`}
+        aria-label={usageLabel}
+        title={usageLabel}
       >
         <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24">
           <circle

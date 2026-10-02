@@ -14,7 +14,7 @@
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
 import { useState } from "react";
-import { AlignEndHorizontal, ArrowUp, ChevronDown, Paperclip, Shield, X } from "lucide-react";
+import { AlignEndHorizontal, ArrowUp, ChevronDown, Plus, Shield, X } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
 import { MobileComposerStateBar, resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
@@ -184,16 +184,16 @@ export function TaskComposer(props: TaskComposerProps) {
         <div className="group/toolbar flex min-w-0 items-end">
           <div className="flex min-w-0 flex-1">
             <div className="flex shrink-0 items-center">
-              {/* 官方同形态：hidden input + 按钮；上传命令面未接 → disabled（P7 能力矩阵）。 */}
+              {/* §32.64 官方活体（CDP 探针）：chat-attachment-button aria=添加上下文（非
+                  添加附件），Plus 图标非回形针；P7 上传协议面仍归后续，按钮不 disabled。 */}
               <input type="file" hidden multiple aria-hidden="true" tabIndex={-1} />
               <button
                 type="button"
                 data-testid="chat-attachment-button"
-                aria-label={formatMessage({ id: "chat.attachments.add" })}
-                disabled
+                aria-label={formatMessage({ id: "chat.composer.contextShortcut" })}
                 className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground-subtlest"
               >
-                <Paperclip aria-hidden="true" className="size-4" />
+                <Plus aria-hidden="true" className="size-4" />
               </button>
               {/* §32.3 模式触发器：官方 chat-mode-select-trigger 弹层形态；无 onModeSelect
                   （旧装配/测试）时退回只读展示。 */}

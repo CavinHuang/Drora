@@ -505,7 +505,8 @@ export const zhCN: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.medium": "中", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.value.high": "高", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.value.max": "最高", // 官方逐字（medium 按族规律补）
-  "chat.attachments.add": "添加附件", // 官方逐字（medium 按族规律补）
+  "chat.attachments.add": "添加附件", // 官方逐字
+  "chat.composer.contextShortcut": "添加上下文", // 官方逐字（§32.64 composer 附件钮，非附件上传面）
   "chat.toolbar.thoughtLevel.value.off": "关闭", // 官方逐字
   "chat.toolbar.thoughtLevel.value.minimal": "极低", // 官方逐字
   "chat.plan.removeMarker": "关闭计划模式", // 官方逐字（§32.22 composer plan 标记钮）

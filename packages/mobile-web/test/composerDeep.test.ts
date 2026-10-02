@@ -41,7 +41,12 @@ function render(props: Partial<Parameters<typeof TaskComposer>[0]> = {}) {
 test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/context-usage/stop", () => {
   const html = render({
     controlState: { phase: "running", canStop: true, stopState: "stoppable", queuePending: false },
-  } as never);
+    // §32.68 context-usage 数据源 = snapshot.usage（官方同源）；无数据不渲染（官方 null 门）。
+    modelState: {
+      ...EMPTY_MODEL_SELECTION_STATE,
+      usage: { usedTokens: 123456, maxTokens: 1000000 },
+    },
+  });
   for (const tid of [
     "v4-composer",
     "v4-composer-input",
@@ -53,6 +58,9 @@ test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/
   ]) {
     assert.ok(html.includes(`data-testid="${tid}"`), tid);
   }
+  // 无 usage 数据 → 官方同款 null 门（活体：Oxt 校验 used/size 非法即不渲染触发器）。
+  const noUsage = render();
+  assert.ok(!noUsage.includes('data-testid="chat-context-usage-trigger"'), "无数据不渲染用量表");
 });
 
 test("官方 mode.label.glm 映射：build→变更前确认 / yolo→完全访问 / 未知回落 build（§32.10 图标化后进 aria/title）", () => {
@@ -70,16 +78,47 @@ test("官方 mode.label.glm 映射：build→变更前确认 / yolo→完全访�
   assert.ok(!yoloHtml.includes('aria-label="完全访问"'), "yolo 模式名同样不进触发器");
 });
 
-test("thought trigger：thoughtLevels 非空渲染（当前档官方值文案）+ 空集不渲染", () => {
+test("thought trigger：档位只认 modelView optionSpecs（§32.68 官方活体）+ 快照档位/空集不渲染", () => {
+  // §32.68 官方活体取证（CDP）：snapshot.config.thoughtLevels=["low","high"] 已下发而
+  // 官方页不渲染 chat-thought-level-select-trigger——档位事实归 provider-settings 模型
+  // 配置（view optionSpecs），不归快照；快照档位不再触发渲染。
   const withLevels = render({
+    modelView: {
+      revision: 1,
+      providers: [
+        {
+          providerId: "p",
+          providerName: "p",
+          templateId: null,
+          models: [
+            {
+              modelId: "m",
+              displayName: "m",
+              config: { optionSpecs: { reasoningLevel: { values: ["low", "high"] } } },
+            },
+          ],
+        },
+      ],
+    } as never,
+    modelState: {
+      ...EMPTY_MODEL_SELECTION_STATE,
+      fallback: { provider: "p", model: "m", thought: "high" },
+    },
+  });
+  assert.ok(withLevels.includes('data-testid="chat-thought-level-select-trigger"'));
+  assert.ok(withLevels.includes("高"), "当前档 high → chat.toolbar.thoughtLevel.value.high");
+  // 仅快照档位（无 modelView）→ 不渲染（官方同证）。
+  const snapshotOnly = render({
     modelState: {
       ...EMPTY_MODEL_SELECTION_STATE,
       thoughtLevels: ["low", "high"],
       fallback: { provider: "p", model: "m", thought: "high" },
     },
   });
-  assert.ok(withLevels.includes('data-testid="chat-thought-level-select-trigger"'));
-  assert.ok(withLevels.includes("高"), "当前档 high → chat.toolbar.thoughtLevel.value.high");
+  assert.ok(
+    !snapshotOnly.includes("chat-thought-level-select-trigger"),
+    "快照 thoughtLevels 不再触发渲染（官方语义）",
+  );
   const noLevels = render();
   assert.ok(!noLevels.includes("chat-thought-level-select-trigger"));
 });
@@ -91,19 +130,19 @@ test("attachment §32.64 官方活体：aria-label=添加上下文（Plus 图标
   assert.ok(html.includes('type="file" hidden'));
 });
 
-test("用量并入 context-usage-trigger 容器；v4-stop 仅 stoppable 渲染", () => {
+test("§32.68 官方用量表：chat-context-usage-trigger 环形 aria=Intl 千分位 + null 门", () => {
   const withUsage = render({
     modelState: {
       ...EMPTY_MODEL_SELECTION_STATE,
-      usage: { usedTokens: 5120, maxTokens: 128000 },
+      usage: { usedTokens: 123456, maxTokens: 1000000 },
     },
   });
+  assert.ok(withUsage.includes('data-testid="chat-context-usage-trigger"'));
   assert.ok(
-    /data-testid="chat-context-usage-trigger"[^>]*>\s*<span/m.test(withUsage) ||
-      (withUsage.split('data-testid="chat-context-usage-trigger"')[1] ?? "").includes("%") ||
-      (withUsage.split('data-testid="chat-context-usage-trigger"')[1] ?? "").length > 40,
-    "用量徽标并入容器",
+    withUsage.includes("上下文已用 123,456 / 总量 1,000,000"),
+    "aria = chat.contextUsage Intl 千分位（官方活体同值）",
   );
+  assert.ok(withUsage.includes("62.83185307179586"), "环形几何 2πr 与官方 dasharray 同值");
   const stoppable = render({
     controlState: { phase: "running", canStop: true, stopState: "stoppable", queuePending: false },
   } as never);

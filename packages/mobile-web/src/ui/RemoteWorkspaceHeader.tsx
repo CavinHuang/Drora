@@ -30,8 +30,6 @@ export interface RemoteWorkspaceHeaderProps {
   onToggleSidePane?: () => void;
   /** 侧板开合态投影（aria-expanded；缺省 false）。 */
   sidePaneOpen?: boolean;
-  /** 官方「提交或推送」入口（GitActionMenu 自含壳元素，App 装配；缺省不渲染）。 */
-  gitAction?: ReactNode;
 }
 
 export function RemoteWorkspaceHeader({
@@ -44,7 +42,6 @@ export function RemoteWorkspaceHeader({
   infoSlot,
   onToggleSidePane,
   sidePaneOpen,
-  gitAction,
 }: RemoteWorkspaceHeaderProps) {
   const { formatMessage } = useIntl();
   const workspaceName =
@@ -58,9 +55,13 @@ export function RemoteWorkspaceHeader({
     <header
       data-testid="workspace-header"
       data-workspace-header-variant="task"
-      className="relative flex h-12 w-full shrink-0 items-center border-b border-border/50 px-2"
+      // §32.68 官方活体 markup：header 即 @container/workspace-header（h1 的
+      // @max-[560px]/workspace-header 容器查询前提）；内层 justify-between 双组——
+      // 左组 folder/标题/⋯，右组仅侧板开关（活体 x 坐标实证：toggle 贴右缘 x≈354）。
+      className="@container/workspace-header relative flex h-12 w-full shrink-0 items-center border-b border-border/50"
     >
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden max-md:gap-1">
+      <div className="flex h-12 min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2 max-md:gap-1">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden max-md:gap-1">
         <div className="relative flex shrink-0 items-center">
           {onPathClick ? (
             <button
@@ -88,10 +89,12 @@ export function RemoteWorkspaceHeader({
         {infoSlot ?? null}
         <h1
           data-testid="workspace-title"
-          className="min-w-12 max-w-[42vw] truncate text-ui-base font-semibold text-foreground"
+          // §32.68 官方活体 markup：max-w-100 + 容器查询档（≤560→30vw、≤420→22vw，
+          // 390 实测 22vw——此前 42vw 为旧证，活体截宽 85px 与 22vw 吻合推翻）。
+          className="flex min-w-12 max-w-100 shrink items-center gap-2 truncate text-ui-base font-semibold text-foreground @max-[420px]/workspace-header:max-w-[22vw] @max-[560px]/workspace-header:max-w-[30vw]"
           title={title}
         >
-          {title}
+          <span className="min-w-0 truncate">{title}</span>
         </h1>
         {/* 官方 sr-only 会话级标题（可访问性双标题形态）。 */}
         <span data-testid="v4-session-title" className="sr-only">
@@ -102,7 +105,8 @@ export function RemoteWorkspaceHeader({
             <button
               type="button"
               data-testid="workspace-more-button"
-              aria-label={title}
+              // §32.68 官方活体：⋯ 钮 aria=更多（非任务标题）。
+              aria-label={formatMessage({ id: "mobileShell.task.more" })}
               className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
               onClick={onMoreMenu}
             >
@@ -112,6 +116,7 @@ export function RemoteWorkspaceHeader({
             {moreMenuSlot ?? null}
           </div>
         ) : null}
+        </div>
         {onToggleSidePane ? (
           <div className="flex shrink-0 items-center">
             <button
@@ -126,9 +131,6 @@ export function RemoteWorkspaceHeader({
             </button>
           </div>
         ) : null}
-        {/* P6 GitPane 一期姊妹件（spec §27.1）：官方「提交或推送」入口（GitActionMenu
-            自含触发器+对话框；Provider 壳归 RemoteGitActionMenu 封装）。 */}
-        {gitAction ?? null}
       </div>
     </header>
   );

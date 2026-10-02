@@ -3771,3 +3771,72 @@ CDP `Emulation.setDeviceMetricsOverride(mobile:true)` **不仿真 hover 媒体�
   sshConnection 三键（桌面 SSH 面不在手机远控）/ notice 已一致（反查脚本误报）
 
 **门禁**：204/204 + 根 typecheck 0 + build 800+46 + lint 3 存量。
+
+### 33.18 100% 对齐裁定（2026-10-03，用户裁定——推翻 §33.4 停更）
+
+**裁定**：用户要求源码页界面实现 100% 对齐官方（remote-dist 取证镜像为基准），
+**包含手机端（窄壳 390×844）与 PC 端（宽壳 1280×800）双视口**，且必须逐页截图
+对比留证。§33.4 的「源码页不再逐项追赶」自本节起**废止**；§33.4 清单 8 项
+（composer 富形态/停止钮/侧栏底部/侧栏顶部/品牌水印/项目行/chips/hover 删除钮）
+全部转为清偿项，外加本轮矩阵新发现项。
+
+**验收口径**：
+1. 全视图矩阵双页截图（v1-v5 窄壳 + v6-v7 宽壳 + 扩展视图）逐页对比一致，
+   DOM 骨架 diff 为空；
+2. 官方侧 = remote-dist 取证镜像 × dev-host-stub 同一数据桩（数据面同源，
+   差异即纯 UI 实现差异）；
+3. 门禁：typecheck 0 + 包测试全绿 + 本轮改动文件 lint 0 告警；
+4. 与官方有意分歧（数据域缺失、改名面）须在 spec 逐条记录，不得静默。
+
+**范围边界**：仅动 `packages/mobile-web` 源码应用（src/app、src/ui、src/intl）；
+`src/recovered`（官方快照）与 relay-server 候选序不动；生产主体仍为 recovered
+（§33.7 不变），源码页从「回退/开发参照」升级为「官方形态镜像实现」。
+
+### 32.68 亮色任务面双页对照——readSession 契约补全 + composer/头部六项清偿（2026-10-02）
+
+**背景**：亮色模式（drora-theme/zcode-theme=zai-light 预种子重载法）首次跑通双页
+（390×844）同数据对照。此前 harness 三缺陷修复：① newTab 返回的已是 sessionId 字符串，
+误用 `s.sessionId` → Page 域调用挂起无输出；② about:blank null-origin localStorage
+种子静默失败 → 改「首载→setItem→重载」同源种子法；③ 旧脚本 DOM 强加 `.dark` 类会把
+我方页打回暗色（亮色=无 dark 类 + theme-zai-light）。
+
+**桩补全（dev-host-stub.mjs，均官方 bundle 取证）**：
+| # | 通道/字段 | 证据 | 效果 |
+|---|---|---|---|
+| 1 | `onboarding-record` 通道（shouldOnboard=false） | src-dNkcRypW.js@13786 `OnboardingRecord:\`onboarding-record\``；index@271011 JIn 3s 超时回退 !hasStoredOccupation | 通道缺省→超时回退恒真→「你的主要工作方向是？」三步问卷遮主页；补通道后按非首启渲染 |
+| 2 | readSession `settings.model.current` | index@30531 VTe `BTe(e.messages) ?? e.settings.model.current` | 缺键 UTe 抛 TypeError |
+| 3 | readSession `runtime` 对象 + `session.status` | src-dNkcRypW.js@13309 QC `e.runtime.activeTurnId‖activeTurnKind`；@13331 nw→ZC(e.session.status) | 缺 runtime 抛 TypeError |
+
+**②③的静默故障链（Debugger.setPauseOnExceptions 活体抓帧实证）**：UTe 抛 TypeError →
+QTe `.catch(() => s(null))` 静默吞 → resolvedActiveTaskMeta=null → 任务头 H1 回落
+`taskList.newThread`「新建任务」（index@30817 三元）——官方页显示「新建任务」而数据
+title 完好即此链；补齐后 H1=「E2E: mode menu + more menu」两页一致。
+
+**composer 四项（官方 outerHTML 活体取证，推翻 §32.10 旧证）**：
+| # | 元素 | 旧（我方） | 新（官方 markup 逐字） |
+|---|---|---|---|
+| 1 | chat-mode-select-trigger | 盾形无字 size-9 | Hand size-4 + 可见模式名（mode.label.glm.{mode}=变更前确认）+ ChevronDown size-3.5，h-7 px-2 text-ui-base；aria 仍=切换模式 |
+| 2 | chat-context-usage-trigger | span 包 UsageBadge（按钮探针不可见） | 真 button size-7：环形量表（track opacity .25/progress .7、strokeWidth 4、2πr=62.83185307179586、-90° 起角），aria=chat.contextUsage Intl 千分位「上下文已用 123,456 / 总量 1,000,000」；数据源=snapshot.usage.contextWindow（官方同源）；无数据 null 门不渲染 |
+| 3 | chat-model-select-trigger | 双行 管理模型/模型名，无 aria | 单行「管理模型」+ ChevronDown size-3.5，aria/title=管理模型，data-model-current-value 随值 |
+| 4 | chat-thought-level-select-trigger | snapshot.thoughtLevels 即渲染 | 档位事实归 provider-settings（view optionSpecs.reasoningLevel.values）：活体实证快照档位 ["low","high"] 已到而官方不渲染 → 门改 view；harness 双方一致不渲染 |
+
+**头部三项（RemoteWorkspaceHeader，官方 DOM/坐标取证）**：
+1. 「提交或推送」常驻钮拆除——官方任务头无此钮，git 动作归状态侧板
+   （chat.statusPanel.environment「Git 工具」节，▤ 打开；本仓 RemoteGitSidePane
+   同语义既有，Git 审查可达性不变；RemoteGitActionMenu 复原件保留无装配点）；
+2. h1 截宽 42vw → 官方 max-w-100 + 容器查询档（header 即
+   @container/workspace-header；≤560→30vw、≤420→22vw，390 实测 85px=22vw）；
+3. 内层改 justify-between 双组（左 folder/标题/⋯，右仅侧板开关，活体 x≈354 贴右缘）；
+   ⋯ 钮 aria 任务标题→「更多」（probe2 DOM）。
+
+**有意分歧（记录不拆）**：移动主页 EN 语言切换钮与搜索 FAB 为自研面（R3 P3d spec §18、
+i18n 切换），官方远控页无对应元素（官方搜索归宽壳 workspaceSidebar.searchTasks）；
+按 195 轮裁定先例（自研 TaskComposer 维持），保留功能并在本节记录，需求方明确提出
+100% 去除时可拆。
+
+**残余（非本轮范围）**：官方页 provider-settings/marketing-touch/window-controller/system
+通道未注册（ChannelServer 静默排队，§32.24 已记）；FAB/EN 外两页像素级一致
+（任务面+主页全要素）。
+
+**门禁**：204/204 + mobile-web typecheck 0 + build 797 资产 + 双页亮色截图对照
+（.tmp-shots/lt5）通过。

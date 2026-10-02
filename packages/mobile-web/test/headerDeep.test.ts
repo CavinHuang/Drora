@@ -36,12 +36,13 @@ test("workspace-path 官方 button 形态：onPathClick 传入才渲染 button�
   assert.ok(/<button[^>]*data-testid="workspace-path"/.test(wired), "button 形态");
 });
 
-test("workspace-more-button 装配缝：缺省不渲染；传入渲染 ⋯ 图标按钮", () => {
+test("workspace-more-button 装配缝：缺省不渲染；传入渲染 ⋯ 图标按钮（aria=更多 §32.68 官方活体）", () => {
   const bare = render();
   assert.ok(!bare.includes("workspace-more-button"), "缺省不渲染（不臆造菜单项）");
   const wired = render({ onMoreMenu: () => {} });
   assert.ok(wired.includes('data-testid="workspace-more-button"'));
-  assert.ok(wired.includes('aria-label="E2E 冒烟任务"'));
+  // §32.68 官方活体（probe2 DOM）：⋯ 钮 aria=更多，不再携带任务标题。
+  assert.ok(wired.includes('aria-label="更多"'));
 });
 
 test("side-pane-toggle 装配缝：缺省不渲染；传入渲染 PanelRight 按钮 + aria-expanded 投影", () => {

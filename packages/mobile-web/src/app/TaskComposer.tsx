@@ -14,11 +14,11 @@
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
 import { useState } from "react";
-import { AlignEndHorizontal, ArrowUp, ChevronDown, Plus, Shield, X } from "lucide-react";
+import { AlignEndHorizontal, ArrowUp, ChevronDown, Hand, Plus, Shield, X } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
 import { MobileComposerStateBar, resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
-import { ModelMenu, UsageBadge } from "../ui/ModelMenu.js";
+import { ModelMenu } from "../ui/ModelMenu.js";
 import type {
   ConversationControlState,
   ConversationQueueState,
@@ -67,6 +67,11 @@ const MODE_LABEL_IDS: Record<string, string> = {
   yolo: "mode.label.glm.yolo",
 };
 
+/** §32.68 官方用量环几何：r=10 圆周 2πr（官方 dasharray 62.83185307179586 同值）。 */
+const CONTEXT_RING_CIRCUMFERENCE = 2 * Math.PI * 10;
+/** §32.68 官方 aria 数字格式：Intl 千分位（活体 aria「上下文已用 123,456 / 总量 1,000,000」）。 */
+const usageNumberFormat = new Intl.NumberFormat();
+
 export function TaskComposer(props: TaskComposerProps) {
   const {
     draft,
@@ -93,7 +98,15 @@ export function TaskComposer(props: TaskComposerProps) {
   const [thoughtMenuOpen, setThoughtMenuOpen] = useState(false);
   // §32.3 模式弹层（选择走 switchCollaborationMode CAS；开合为本地 UI 态）。
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const thoughtLevels = modelState?.thoughtLevels ?? [];
+  // §32.68 思考档位门改成 provider-settings 语义：档位集合只认 modelView 模型的
+  // optionSpecs（活体实证：snapshot.config.thoughtLevels=["low","high"] 已到而官方页
+  // 不渲染 chat-thought-level-select-trigger——档位事实归 provider-settings 模型配置，
+  // 不归快照；harness 无 provider-settings → 双方一致不渲染）。
+  const thoughtLevels =
+    modelView?.providers
+      .flatMap((provider) => provider.models)
+      .map((model) => model.config?.optionSpecs?.reasoningLevel?.values ?? [])
+      .find((values) => values.length > 0) ?? [];
   const currentThought =
     modelState?.fallback?.thought || "";
   const currentProvider =
@@ -233,18 +246,18 @@ export function TaskComposer(props: TaskComposerProps) {
                     aria-haspopup="menu"
                     aria-expanded={modeMenuOpen}
                     aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
-                    title={formatMessage({ id: "chat.toolbar.mode.label" })}
                     className={cn(
-                      "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface-hover",
-                      configMode === "yolo"
-                        ? "text-warning"
-                        : "text-foreground-subtle",
+                      // §32.68 官方活体 markup：h-7 px-2 gap-1 text-ui-base，Hand 图标 +
+                      // 当前模式名（mode.label.glm.{configMode}）+ ChevronDown size-3.5
+                      // （此前盾形无字为 §32.10 旧证，本轮官方 DOM 取证推翻）。
+                      "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-ui-base text-foreground transition-colors hover:bg-hover hover:text-foreground",
+                      modeMenuOpen && "bg-hover",
                     )}
                     onClick={() => setModeMenuOpen((open) => !open)}
                   >
-                    {/* 官方窄壳模式触发器 = 盾形图标（§32.10）；aria/title = 官方通用
-                        「切换模式」（§32.24 官方还原页活体取证，非当前模式名）。 */}
-                    <Shield aria-hidden="true" className="size-4" />
+                    <Hand aria-hidden="true" className="size-4" />
+                    <span className="inline">{formatMessage({ id: modeLabelId })}</span>
+                    <ChevronDown aria-hidden="true" className="size-3.5" />
                   </button>
                 </div>
               ) : (
@@ -253,10 +266,11 @@ export function TaskComposer(props: TaskComposerProps) {
                   data-testid="chat-mode-select-trigger"
                   aria-disabled="true"
                   aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
-                  title={formatMessage({ id: "chat.toolbar.mode.label" })}
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
+                  className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-ui-base text-foreground-subtle"
                 >
-                  <Shield aria-hidden="true" className="size-4" />
+                  <Hand aria-hidden="true" className="size-4" />
+                  <span className="inline">{formatMessage({ id: modeLabelId })}</span>
+                  <ChevronDown aria-hidden="true" className="size-3.5" />
                 </button>
               )}
               {/* §32.22 官方 v4-composer-plan-marker（bundle @2029871）：plan 生效时工具栏
@@ -291,15 +305,59 @@ export function TaskComposer(props: TaskComposerProps) {
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5" data-composer-trailing-actions>
-            <span className="inline-flex shrink-0" data-testid="chat-context-usage-trigger">
-              {modelState?.usage ? (
-                <UsageBadge
-                  usedTokens={modelState.usage.usedTokens}
-                  maxTokens={modelState.usage.maxTokens}
-                  compact
-                />
-              ) : null}
-            </span>
+            {/* §32.68 官方 chat-context-usage-trigger：环形用量表（track opacity .25 /
+                progress opacity .7、strokeWidth 4、-90° 起角），aria=chat.contextUsage
+                Intl 千分位（活体「上下文已用 123,456 / 总量 1,000,000」）。数据源 =
+                snapshot.usage.contextWindow（官方同源），无数据不渲染（官方 null 门）。 */}
+            {modelState?.usage ? (
+              <button
+                type="button"
+                data-testid="chat-context-usage-trigger"
+                aria-label={formatMessage(
+                  { id: "chat.contextUsage" },
+                  {
+                    used: usageNumberFormat.format(modelState.usage.usedTokens),
+                    total: usageNumberFormat.format(modelState.usage.maxTokens),
+                  },
+                )}
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle transition-colors hover:bg-hover"
+              >
+                <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24">
+                  <circle
+                    cx="12"
+                    cy="12"
+                    fill="none"
+                    opacity="0.25"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    fill="none"
+                    opacity="0.7"
+                    r="10"
+                    stroke="currentColor"
+                    strokeDasharray={`${CONTEXT_RING_CIRCUMFERENCE} ${CONTEXT_RING_CIRCUMFERENCE}`}
+                    strokeDashoffset={
+                      CONTEXT_RING_CIRCUMFERENCE *
+                      (1 -
+                        Math.min(
+                          Math.max(
+                            modelState.usage.usedTokens / modelState.usage.maxTokens,
+                            0,
+                          ),
+                          1,
+                        ))
+                    }
+                    strokeLinecap="round"
+                    strokeWidth="4"
+                    style={{ transform: "rotate(-90deg)", transformOrigin: "center center" }}
+                  />
+                </svg>
+              </button>
+            ) : null}
             <div
               data-testid="v4-model-config"
               className="flex min-w-0 items-center"
@@ -307,21 +365,22 @@ export function TaskComposer(props: TaskComposerProps) {
               <button
                 type="button"
                 data-testid="chat-model-select-trigger"
-                className="flex min-h-9 max-w-36 flex-col items-start justify-center rounded-lg px-2 leading-tight transition-colors hover:bg-surface-hover"
+                aria-label={formatMessage({ id: "chat.toolbar.model.manageModels" })}
+                title={formatMessage({ id: "chat.toolbar.model.manageModels" })}
+                data-model-current-value={currentModel}
+                className="inline-flex h-7 shrink-0 items-center justify-between gap-1 rounded-lg pl-2 pr-1.5 text-ui-base text-foreground transition-colors hover:bg-hover"
                 onClick={onToggleModelMenu}
               >
-                {/* 官方双行触发器：上行 管理模型（小字），下行 模型名+下拉箭头（§32.10 截图取证）。 */}
-                <span className="text-[10px] leading-3 text-foreground-subtle">
+                {/* §32.68 官方活体 markup：单行「管理模型」+ ChevronDown size-3.5，
+                    aria/title=管理模型、data-model-current-value 随当前值（此前双行
+                    管理模型/模型名为 §32.10 旧证，本轮官方 DOM 取证推翻）。 */}
+                <span className="block min-w-0 truncate">
                   {formatMessage({ id: "chat.toolbar.model.manageModels" })}
                 </span>
-                <span className="flex max-w-full items-center gap-0.5 text-ui-sm text-foreground">
-                  <span className="truncate">
-                    {modelState?.current?.modelId ??
-                      modelState?.fallback?.model ??
-                      formatMessage({ id: "chat.toolbar.model.label" })}
-                  </span>
-                  <ChevronDown aria-hidden="true" className="size-3 shrink-0" />
-                </span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 text-foreground-subtle"
+                />
               </button>
               {thoughtLevels.length > 0 ? (
                 <button

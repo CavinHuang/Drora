@@ -328,17 +328,32 @@ function makeAgentChannel() {
           // session.title（官方任务视图标题/绑定经 QTe→UTe 由此而来，缺它回落新建任务）。
           const sid = String(params.sessionId ?? "");
           const t = tasksList().find((x) => x.taskId === sid);
+          const running = t?.status === "running";
           return {
             session: {
               sessionId: sid,
               title: t ? t.title : "",
+              status: running ? "running" : "completed",
               workspace: { workspacePath: WS_PATH },
               createdAt: t ? t.createdAt : NOW(),
               updatedAt: t ? t.updatedAt : NOW(),
               mode: "build",
             },
-            settings: { thoughtLevel: { current: "high" } },
-            projection: {},
+            // §32.68 settings.model.current 为官方 UTe 必读字段（bundle VTe @30531 取证：
+            // `BTe(e.messages) ?? e.settings.model.current`——缺 model 键则 UTe 抛
+            // TypeError → QTe catch 静默吞 → resolvedActiveTaskMeta=null → 任务头标题
+            // 回落 taskList.newThread「新建任务」（30817 三元取证）。活体 fiber 探针实证。
+            settings: { thoughtLevel: { current: "high" }, model: { current: "stub-model" } },
+            // §32.68 runtime 为官方 status 链必读对象（bundle QC @src-dNkcRypW.js:13309
+            // 取证：`e.runtime.activeTurnId || e.runtime.activeTurnKind || …`——缺 runtime
+            // 对象即抛 TypeError，异常被 QTe catch 静默吞（30604 .then 内），同样回落
+            // 「新建任务」。Debugger.setPauseOnExceptions 活体抓帧实证（栈 QC→$C→nw→
+            // UTe@30528 status:Ine(e)）。projection.pendingPermissions/activeToolCalls
+            // 官方自带 `?? []` 容错；session.status 供 nw→ZC 状态映射（13331）。
+            runtime: running
+              ? { activeTurnId: "turn-active", activeTurnKind: "userInput" }
+              : { activeTurnId: null, activeTurnKind: null },
+            projection: { lastError: null, target: null },
             messages: [],
           };
         }
@@ -432,6 +447,23 @@ function openBridge(identity) {
       if (cmd === "getFirstRunPromptState") return { handled: true };
       if (cmd === "detect") return { agents: [] };
       if (cmd === "markFirstRunPromptHandled") return { ok: true };
+      return null;
+    },
+    listen() { return () => ({ dispose: () => {} }); },
+  });
+  // §32.68 职业引导问卷抑制（bundle 取证：src-dNkcRypW.js@13786 `OnboardingRecord:
+  // \`onboarding-record\``；index-NjWRUABD.js@271011 JIn——claimAnonymousRecord 后
+  // shouldOnboard(deviceMid)，3s 超时回退 !hasStoredOccupation=开卷）。通道未注册时
+  // 超时回退恒真 →「你的主要工作方向是？」三步问卷遮主页。桩回 shouldOnboard=false
+  // =已完成引导设备，问卷门（271193 `!u && B===null && !a.onboardingOccupation` /
+  // 271113 visible）按非首启渲染，解锁亮色主页/任务面对照。
+  server.registerChannel("onboarding-record", {
+    async call(_ctx, cmd) {
+      if (cmd === "shouldOnboard") return false;
+      if (cmd === "claimAnonymousRecord") return null;
+      if (cmd === "getLatestEntry") return null;
+      if (cmd === "dismissOnboarding") return null;
+      if (cmd === "syncSettingsFromRecord") return null;
       return null;
     },
     listen() { return () => ({ dispose: () => {} }); },

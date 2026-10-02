@@ -54,9 +54,8 @@ import type { IBroadcastService } from "@drora/services";
 const LazyRemoteGitSidePane = React.lazy(() =>
   import("./RemoteGitSidePane.js").then((m) => ({ default: m.RemoteGitSidePane })),
 );
-const LazyRemoteGitActionMenu = React.lazy(() =>
-  import("./RemoteGitActionMenu.js").then((m) => ({ default: m.RemoteGitActionMenu })),
-);
+// §32.68 头部「提交或推送」常驻入口拆除（官方 git 动作归状态侧板）；RemoteGitActionMenu
+// 复原件保留（spec §27.1/§30.2 记录），当前装配面无引用点。
 import { RemoteTaskTimeline } from "./RemoteTaskTimeline.js";
 import { useTaskHistory } from "./useTaskHistory.js";
 import { formatTaskRelativeTime } from "../ui/formatRelative.js";
@@ -852,24 +851,10 @@ function AppBody() {
                   />
                 ) : null
               }
-              // P6 commit-dialog 一期（spec §27.1）：官方「提交或推送」入口（GitActionMenu
-              // 复原件；协议面 IGitService generateCommitMessage/commit 100% 既有）。
-              // GitActionMenu 跨 chunk Context 双实例崩暂回退（spec §30.2）：useServices
-              // 拷贝在 lazy chunk，Provider 塔同 chunk 仍崩——根因待专项（rolldown ui 包
-              // 双入口解析）。新建任务主功能保通（点新建→createSession→新任务面）。
-              gitAction={
-                attachedTask ? (
-                  <React.Suspense fallback={null}>
-                    <LazyRemoteGitActionMenu
-                      workspacePath={taskTarget.path}
-                      workspaceIdentity={taskTarget.identity}
-                      accessor={attachedTask.accessor}
-                      gitSummary={gitStatus.summary}
-                      onRefreshGit={gitStatus.refresh}
-                    />
-                  </React.Suspense>
-                ) : null
-              }
+              // §32.68 官方活体取证：任务头不渲染常驻「提交或推送」钮——官方 git 动作
+              // 归状态侧板（chat.statusPanel.environment「Git 工具」节，▤ 打开；本仓
+              // RemoteGitSidePane 同语义既有）。头部 gitAction 入口拆除，Git 审查仍从
+              // 侧板打开（App sidePaneMode="git"）。
             />
           ) : null
         }

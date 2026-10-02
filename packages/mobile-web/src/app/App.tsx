@@ -9,7 +9,7 @@ import {
   MobileConnectionStatusCard,
   MobileFailureCard,
 } from "../ui/StatusCards.js";
-import { MessagesSquare, TerminalSquare } from "lucide-react";
+import { FileDiff, MessagesSquare, TerminalSquare } from "lucide-react";
 import type { MobileHomeConnectionState } from "../ui/HomeShell.js";
 import { HomeScreen } from "./HomeScreen.js";
 import { MobileTaskShell } from "../ui/TaskShell.js";
@@ -912,11 +912,12 @@ function AppBody() {
           <RemoteOpenTabShell
             variant="wide"
             onClose={() => setSidePaneMode(null)}
-            onOpenReview={attachedTask ? () => setSidePaneMode("git") : undefined}
             items={
               attachedTask
                 ? [
                     // §32.47 官方宽壳 launcher 三项（w2 双页取证）：辅助对话/审查/终端。
+                    // §33.18 活体再证（v7-wide 官方侧板同序）；审查项不再走 shell 的
+                    // 首位前置（那是窄壳「审查/终端」序），宽壳按官方中位插入。
                     // §32.50 辅助对话专面（selection-chat）：官方语义=侧选会话面板，
                     // 本仓复用 chat 主区（无独立 selection chat 后端面，不臆造协议），
                     // 点击关闭侧板回到主会话——与官方"回到会话"体验等价的可用降级。
@@ -930,6 +931,12 @@ function AppBody() {
                         />
                       ),
                       onOpen: () => setSidePaneMode(null),
+                    },
+                    {
+                      id: "review",
+                      label: intl.formatMessage({ id: "sidePane.review" }),
+                      icon: <FileDiff aria-hidden="true" className="size-4 text-foreground-subtle" />,
+                      onOpen: () => setSidePaneMode("git"),
                     },
                     {
                       id: "terminal",

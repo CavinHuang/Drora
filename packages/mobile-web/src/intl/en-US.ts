@@ -298,6 +298,11 @@ export const enUS: Record<string, string> = {
   // 对齐官方 ui locales 同义键，出处随键注明）——
   "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
   "mobileShell.wide.sidebar": "Sidebar", // P5b 自建键（nav aria-label）
+  "mobileShell.wide.navBack": "Back", // §33.18 官方活体（desktop-top-nav-back aria 同族）
+  "mobileShell.wide.navForward": "Forward", // §33.18 官方活体（前进钮 aria 同族）
+  "mobileShell.wide.login": "Sign in to use", // §33.18 官方活体（login-trigger 官方 en 语义）
+  "mobileShell.wide.settings": "Settings", // §33.18 官方活体（task-settings-button aria）
+  "workspaceSidebar.archive": "Archive", // §33.18 官方活体（项目行 archive 钮 aria）
   "mobileShell.wide.newTask": "New task", // P5b 自建键（值 = 官方 taskList.newTask）
   "mobileShell.wide.search": "Search tasks", // P5b
   "commandCenter.open": "Search", // 官方逐字（§32.42） 自建键（值 = 官方 workspaceSidebar.searchTasks en:1731）
@@ -324,6 +329,8 @@ export const enUS: Record<string, string> = {
   "common.confirm": "Confirm", // 官方逐字
   "appHeader.copyPath": "Copy path", // 官方逐字
   "appHeader.copySessionId": "Copy session ID", // 官方逐字
+  "appHeader.copyTaskPath": "Copy task path", // 官方 en-US.ts:7533 逐字（§32.69 菜单全项）
+  "appHeader.copyLogPath": "Copy log path", // 官方 en-US.ts:7540 逐字（§32.69 菜单全项）
   // —— P6 workspaceFileTree 文件树面（spec §23）：en 值按官方语义补译（官方 en locale chunk 本轮未逐字
   // 提取，下轮校准）；zh 侧 11 键为官方逐字——
   "workspaceFileTree.title": "Workspace", // 官方 en 逐字（校准）
@@ -520,6 +527,11 @@ export const enUS: Record<string, string> = {
   "mode.label.glm.edit": "Edit automatically", // 官方逐字
   "mode.label.glm.build": "Ask before changes", // 官方逐字
   "mode.label.glm.yolo": "Full access", // 官方逐字
+  "mode.description.glm.default": "Use default confirmations.", // 官方 en:11565 逐字（§32.69）
+  "mode.description.glm.build": "Ask before file changes.", // 官方 en:11566 逐字
+  "mode.description.glm.edit": "Edit files automatically.", // 官方 en:11567 逐字
+  "mode.description.glm.plan": "Plan before editing.", // 官方 en:11568 逐字
+  "mode.description.glm.yolo": "Run with fewer confirmations.", // 官方 en:11569 逐字
   "chat.toolbar.thoughtLevel.label": "Reasoning effort", // 官方逐字
   "chat.toolbar.thoughtLevel.placeholder": "Select reasoning level", // 官方逐字
   "chat.toolbar.thoughtLevel.value.low": "Low", // 官方逐字

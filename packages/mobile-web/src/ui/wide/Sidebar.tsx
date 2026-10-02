@@ -1,26 +1,28 @@
-// R3 P5b 宽壳侧栏（specs/mobile-relay-r3-frontend.md §19/P5b）：结构/视觉参照
-// packages/ui/src/WorkspaceSidebar.tsx（D6 冻结，只读参照不 import）——顶品牌区 /
-// 新建任务 / 搜索入口 / 插件市场占位（disabled，P5c）/ 项目树（分组+任务数，点击工作区
-// = 展开折叠、点击任务 = onTaskOpen）/ 底部用户页脚占位（P5c 接用量）。
-// 纯展示：数据与动作经 props 注入；折叠态归 WideShell 所有（持久化见 wideShellModel）。
-// 连接状态/主题/语言入口收在页脚（窄壳 HomeShell 顶栏职责的宽壳对位，避免宽壳丢功能）。
+// R3 P5b 宽壳侧栏（specs/mobile-relay-r3-frontend.md §19/P5b）。§33.18 官方活体对齐
+// （CDP 探针 .tmp-probe-dom wide-1280 实测）：顶行=历史后退/前进(desktop-top-nav-back)
+// +新建任务 28px 钮（无品牌文字行）；项目行右侧=list-filter「筛选和排序」+archive「归档」
+// （无刷新钮）；树首节=「已置顶」（跨工作区 pinned 平铺：running 行=圆点、其余=pin 图标）；
+// 底部=login-trigger「连接使用」(user)+task-settings「设置」(settings)——连接状态/主题/
+// 语言入口官方宽壳不存在，随本次对齐移除（窄壳仍保留）。插件市场可点（官方 enabled）。
 import { useMemo, useState } from "react";
 import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
   Blocks,
   ChevronDown,
-  CircleUserRound,
   FolderOpen,
   FolderPlus,
-  LoaderCircle,
+  ListFilter,
   MessageCirclePlus,
   PanelLeftClose,
   PanelLeftOpen,
-  Palette,
+  Pin,
   Plus,
-  RefreshCw,
   Search,
-  SlidersHorizontal,
+  Settings,
   TreeDeciduous,
+  User,
   X,
 } from "lucide-react";
 import { Button } from "../Button.js";
@@ -42,15 +44,9 @@ import {
   type WideWorkspaceRef,
 } from "./wideShellModel.js";
 
-const CONNECTION_LABEL_KEYS: Record<MobileHomeConnectionState, string> = {
-  connected: "mobileShell.connection.connected",
-  connecting: "mobileShell.connection.connecting",
-  reconnecting: "mobileShell.connection.reconnecting",
-  disconnected: "mobileShell.connection.disconnected",
-};
-
 export interface WideSidebarProps {
-  connection: MobileHomeConnectionState;
+  /** §33.18 起官方宽壳侧栏无连接态显示；字段保留为装配方兼容，组件不消费。 */
+  connection?: MobileHomeConnectionState;
   workspaces: readonly WideShellWorkspace[];
   selectedTaskId?: string | null;
   /** 刷新进行中（项目区刷新按钮禁用 + 旋转指示，窄壳 HomeShell 同语义）。 */
@@ -161,6 +157,13 @@ function SidebarWorkspaceSection({
                 <li key={task.sessionId}>
                   <button
                     type="button"
+                    // §33.18 官方活体：侧栏任务行同 narrow 行契约（task-item-{id} /
+                    // 打开任务 {title}，wide 探针实测）。
+                    data-testid={`task-item-${task.sessionId}`}
+                    aria-label={formatMessage(
+                      { id: "mobileShell.home.openTask" },
+                      { title: task.title || task.sessionId },
+                    )}
                     className={cn(
                       "flex min-h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-hover",
                       selected && "bg-selected",
@@ -198,18 +201,13 @@ function SidebarWorkspaceSection({
 }
 
 export function Sidebar({
-  connection,
   workspaces,
   selectedTaskId = null,
-  isRefreshing = false,
   collapsed,
   onCollapsedChange,
   onTaskOpen,
   onNewTask,
   onOpenSearch,
-  onRefresh,
-  onThemePress,
-  onLanguagePress,
   onReconnect,
   organize = "project",
   onOrganizeChange,
@@ -221,9 +219,18 @@ export function Sidebar({
   className,
 }: WideSidebarProps) {
   const intl = useIntl();
-  const { formatMessage, locale } = intl;
-  const languageTag = locale === "zh-CN" ? "EN" : "中";
+  const { formatMessage } = intl;
   const groups = useMemo(() => buildSidebarProjectTree(workspaces), [workspaces]);
+  // §33.18 官方「已置顶」节：跨工作区 pinned 平铺（树首节，组列表之前）。
+  const pinnedTasks = useMemo(
+    () =>
+      workspaces.flatMap((workspace) =>
+        workspace.tasks
+          .filter((task) => task.pinned === true)
+          .map((task) => ({ ...task, workspace })),
+      ),
+    [workspaces],
+  );
   // 工作组展开态为侧栏本地交互态（与窄壳 MobileHomeShell 同语义：默认全展开，不持久化）。
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -299,15 +306,43 @@ export function Sidebar({
         className,
       )}
     >
-      {/* 顶品牌区 + 折叠开关。 */}
-      <div className="flex h-11 shrink-0 items-center gap-2 px-3">
-        <span className="min-w-0 flex-1 truncate text-ui-base font-medium">
-          {formatMessage({ id: "mobileShell.wide.brand" })}
-        </span>
+      {/* §33.18 官方顶行：历史后退/前进 + 新建任务（desktop-top-nav-back 语义），
+          无品牌文字行；折叠钮挂行尾（官方 grip 钮 hover 显现，常驻对齐为可见图标钮）。 */}
+      <div className="flex h-11 shrink-0 items-center gap-1 px-2">
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-8"
+          className="size-7"
+          data-testid="desktop-top-nav-back"
+          aria-label={formatMessage({ id: "mobileShell.wide.navBack" })}
+          onClick={() => window.history.back()}
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          data-testid="desktop-top-nav-forward"
+          aria-label={formatMessage({ id: "mobileShell.wide.navForward" })}
+          onClick={() => window.history.forward()}
+        >
+          <ArrowRight aria-hidden="true" className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          aria-label={formatMessage({ id: "taskList.newThread" })}
+          disabled={!onNewTask}
+          onClick={onNewTask}
+        >
+          <MessageCirclePlus aria-hidden="true" className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto size-7"
           aria-label={formatMessage({ id: "workspaceSidebar.toggleSidebar" })}
           onClick={() => onCollapsedChange(true)}
         >
@@ -359,7 +394,8 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* 项目树：分组 + 任务数（P5c 接 sessions-index 实时数）。 */}
+      {/* 项目树：§33.18 官方行尾=list-filter「筛选和排序」+archive「归档」（无刷新钮；
+          组织菜单沿用既有 onOrganizeChange 面，归档通道远控未达=无动作占位）。 */}
       <div className="flex shrink-0 items-center justify-between px-3 pb-1 pt-1">
         <span className="text-ui-xs font-medium text-foreground-subtlest">
           {formatMessage({ id: "workspaceSidebar.projectsSection" })}
@@ -397,7 +433,7 @@ export function Sidebar({
                 aria-expanded={organizeMenuOpen}
                 onClick={() => setOrganizeMenuOpen((open) => !open)}
               >
-                <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+                <ListFilter aria-hidden="true" className="size-3.5" />
               </Button>
               {organizeMenuOpen ? (
                 <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-border bg-card p-1.5 shadow-lg">
@@ -414,25 +450,71 @@ export function Sidebar({
               ) : null}
             </div>
           ) : null}
-          {onRefresh ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-7"
-              aria-label={formatMessage({ id: "mobileShell.home.refresh" })}
-              disabled={isRefreshing}
-              onClick={onRefresh}
-            >
-              {isRefreshing ? (
-                <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-              ) : (
-                <RefreshCw aria-hidden="true" className="size-3.5" />
-              )}
-            </Button>
-          ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-7"
+            aria-label={formatMessage({ id: "workspaceSidebar.archive" })}
+            title={formatMessage({ id: "workspaceSidebar.archive" })}
+          >
+            <Archive aria-hidden="true" className="size-3.5" />
+          </Button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {/* §33.18 官方树首节「已置顶」：跨工作区 pinned 平铺（行=running 圆点 / pin 图标
+            +标题+相对时间，32px 行高），其后才是项目组列表。 */}
+        {pinnedTasks.length > 0 ? (
+          <div className="mb-1">
+            <div className="px-2 py-1 text-ui-xs font-medium text-foreground-subtlest">
+              {formatMessage({ id: "mobileShell.home.pinnedSection" })}
+            </div>
+            <ul>
+              {pinnedTasks.map((task) => (
+                <li key={task.sessionId}>
+                  <button
+                    type="button"
+                    data-testid={`task-item-${task.sessionId}`}
+                    aria-label={formatMessage(
+                      { id: "mobileShell.home.openTask" },
+                      { title: task.title || task.sessionId },
+                    )}
+                    className={cn(
+                      "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-lg py-1 pl-2.5 pr-1 text-left transition-colors hover:bg-surface-hover",
+                      task.sessionId === selectedTaskId && "bg-selected",
+                    )}
+                    onClick={() =>
+                      onTaskOpen?.(
+                        { sessionId: task.sessionId, title: task.title },
+                        task.workspace,
+                      )
+                    }
+                  >
+                    {task.status === "running" ? (
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 shrink-0 rounded-full bg-success"
+                      />
+                    ) : (
+                      <Pin
+                        aria-hidden="true"
+                        className="size-3.5 shrink-0 text-foreground-subtle"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground-subtle">
+                      {task.title || task.sessionId}
+                    </span>
+                    <span className="shrink-0 text-ui-xs text-foreground-subtlest">
+                      {task.updatedAtMs !== null
+                        ? formatTaskRelativeTime(task.updatedAtMs, intl)
+                        : null}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {groups.length === 0 ? (
           <div className="px-2 py-2 text-ui-sm text-foreground-subtlest">
             {formatMessage({ id: "workspaceSidebar.noProjects" })}
@@ -455,53 +537,29 @@ export function Sidebar({
         )}
       </div>
 
-      {/* 底部页脚：用户占位（P5c 接用量/账户）+ 连接状态与主题/语言（窄壳顶栏职责对位）。 */}
-      <div className="shrink-0 border-t border-border px-2 py-2">
-        <div className="flex min-h-8 items-center gap-2 rounded-md px-2 text-foreground-subtle">
-          <CircleUserRound aria-hidden="true" className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-ui-sm">
-            {formatMessage({ id: "mobileShell.wide.userFooter" })}
-          </span>
-        </div>
-        <div className="mt-1 flex min-h-8 items-center gap-1 px-2">
-          <button
-            type="button"
-            className={cn(
-              "min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-ui-xs text-foreground-subtle",
-              connection !== "connected" && onReconnect
-                ? "hover:bg-surface-hover"
-                : "cursor-default",
-            )}
-            disabled={connection === "connected" || !onReconnect}
-            onClick={onReconnect}
-          >
-            {formatMessage({ id: CONNECTION_LABEL_KEYS[connection] })}
-          </button>
-          {onLanguagePress ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8"
-              aria-label={formatMessage({ id: "mobileShell.home.language" })}
-              onClick={onLanguagePress}
-            >
-              <span aria-hidden="true" className="text-ui-xs font-medium">
-                {languageTag}
-              </span>
-            </Button>
-          ) : null}
-          {onThemePress ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-8"
-              aria-label={formatMessage({ id: "mobileShell.home.theme" })}
-              onClick={onThemePress}
-            >
-              <Palette aria-hidden="true" className="size-3.5" />
-            </Button>
-          ) : null}
-        </div>
+      {/* §33.18 官方底部：login-trigger「连接使用」(user) + task-settings「设置」(settings)。
+          连接状态文字/语言/主题入口官方宽壳不存在——随对齐移除（窄壳顶栏仍保留）。 */}
+      <div className="flex shrink-0 items-center gap-1 border-t border-border px-2 py-2">
+        <Button
+          variant="ghost"
+          className="h-8 min-w-0 flex-1 justify-start gap-2 px-2 text-foreground-subtle"
+          data-testid="login-trigger"
+          aria-label={formatMessage({ id: "mobileShell.wide.login" })}
+          onClick={onReconnect}
+        >
+          <User aria-hidden="true" className="size-4 shrink-0" />
+          <span className="truncate">{formatMessage({ id: "mobileShell.wide.login" })}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-8"
+          data-testid="task-settings-button"
+          aria-label={formatMessage({ id: "mobileShell.wide.settings" })}
+          title={formatMessage({ id: "mobileShell.wide.settings" })}
+        >
+          <Settings aria-hidden="true" className="size-4" />
+        </Button>
       </div>
 
       {/* P6 深面：工作区移除确认（官方 dialog API 形态；组行 X 图标按钮触发）。 */}

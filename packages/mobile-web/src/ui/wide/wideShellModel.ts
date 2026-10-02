@@ -18,6 +18,8 @@ export interface WideShellTask {
   createdAtMs: number | null;
   updatedAtMs: number | null;
   status: "running" | "completed" | "idle";
+  /** §32.16 三态 membership（宽壳「已置顶」节消费；投影侧缺省 undefined=未置顶）。 */
+  pinned?: boolean;
 }
 
 export interface WideShellWorkspace {

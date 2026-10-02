@@ -10,6 +10,10 @@ import { Sidebar } from "./Sidebar.js";
 import { GreetingEmptyState } from "./GreetingEmptyState.js";
 import { useWideViewport } from "./useWideViewport.js";
 import { loadSidebarCollapsed, storeSidebarCollapsed } from "./wideShellModel.js";
+import type {
+  SidebarOrganizeMode,
+  SidebarSortMode,
+} from "./SidebarOrganizeMenu.js";
 import type { MobileHomeConnectionState } from "../HomeShell.js";
 // 类型仅引用（import type 编译期擦除）：不把 TaskSearchPanel 模块拽进首屏 chunk。
 import type { TaskSearchPanelTask } from "../TaskSearchPanel.js";
@@ -80,6 +84,9 @@ export function WideShell({
   const wide = useWideViewport();
   const [collapsed, setCollapsed] = useState<boolean>(() => loadSidebarCollapsed());
   const [searchOpen, setSearchOpen] = useState(false);
+  // §33.18 官方项目行「筛选和排序」入口：宽壳本地交互态（持久化归后续偏好域）。
+  const [organize, setOrganize] = useState<SidebarOrganizeMode>("project");
+  const [sort, setSort] = useState<SidebarSortMode>("updated");
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   const changeCollapsed = useCallback((next: boolean) => {
     setCollapsed(next);
@@ -94,20 +101,21 @@ export function WideShell({
         className ?? "flex h-dvh min-h-dvh w-full overflow-hidden bg-background text-foreground"
       }
     >
+      {/* §33.18 官方宽壳侧栏无连接状态/主题/语言入口——不再向 Sidebar 透传
+          （props 保留为 App 装配兼容，仅本壳消费面收窄）。 */}
       <Sidebar
-        connection={connection}
         workspaces={workspaces}
         selectedTaskId={selectedTaskId}
-        isRefreshing={isRefreshing}
         collapsed={collapsed}
         onCollapsedChange={changeCollapsed}
         onTaskOpen={onTaskOpen}
         onNewTask={onNewTask}
         onOpenSearch={() => setSearchOpen(true)}
-        onRefresh={onRefresh}
-        onThemePress={onThemePress}
-        onLanguagePress={onLanguagePress}
         onReconnect={onReconnect}
+        organize={organize}
+        onOrganizeChange={setOrganize}
+        sort={sort}
+        onSortChange={setSort}
       />
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {taskSurface ?? (

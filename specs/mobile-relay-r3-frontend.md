@@ -3840,3 +3840,23 @@ i18n 切换），官方远控页无对应元素（官方搜索归宽壳 workspac
 
 **门禁**：204/204 + mobile-web typecheck 0 + build 797 资产 + 双页亮色截图对照
 （.tmp-shots/lt5）通过。
+
+#### 33.18.1 第一批清偿落地（2026-10-03，本轮）
+
+已清偿（截图对照 .tmp-shots/r33-18-r3/r4）：
+- 窄壳首页：顶栏 EN 钮移除（官方仅选择主题）、分区钮 24px、搜索 FAB 移除（官方
+  窄壳无搜索入口，TaskSearchPanel 保留给宽壳 Ctrl+K）、运行中徽标 spinner=菊花
+  Loader、任务行 testid=task-item-{id}+aria=打开任务 X（官方行契约）。
+- 宽壳侧栏：顶部历史后退/前进+新建任务行（desktop-top-nav-back 契约）、项目行
+  list-filter「筛选和排序」+archive「归档」（去刷新钮，组织菜单宽壳本地态接线）、
+  树首「已置顶」节（pinned 平铺，running 圆点/其余 pin）、底部 login-trigger
+  「连接使用」+task-settings「设置」（连接态/语言/主题入口随官方移除）。
+- 宽壳侧板 launcher 顺序=辅助对话/审查/终端（审查项中位插入，不再首位前置）。
+
+剩余挂账（下一批， E 面）：
+1. 宽壳任务面仍渲染窄壳「← 任务会话」顶栏——官方宽壳无此行（主区头=📁标题⋯面板）。
+2. 宽壳 composer 占位应取 followUpAsk「提出后续修改要求」（现用窄壳 followUpQueue）。
+3. 宽壳 composer running 态官方=v4-composer-send↑发送（活体探针无 v4-stop），
+   我方仍渲染 StateBar 停止钮——停止能力语义与 204 基线测试需同轮裁定迁移。
+4. 品牌词 Drora vs 官方 ZCode：specs/drora-rename.md 规则 4 政策性有意分歧（豁免区外
+   强制改名），不随本裁定回改。

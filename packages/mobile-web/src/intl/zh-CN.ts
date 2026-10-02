@@ -285,6 +285,11 @@ export const zhCN: Record<string, string> = {
   // 对齐官方 ui locales 同义键，出处随键注明）——
   "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
   "mobileShell.wide.sidebar": "侧栏", // P5b 自建键（nav aria-label）
+  "mobileShell.wide.navBack": "后退", // §33.18 官方活体（desktop-top-nav-back aria 逐字）
+  "mobileShell.wide.navForward": "前进", // §33.18 官方活体（前进钮 aria，官方同族命名）
+  "mobileShell.wide.login": "连接使用", // §33.18 官方活体（login-trigger 文案逐字）
+  "mobileShell.wide.settings": "设置", // §33.18 官方活体（task-settings-button aria 逐字）
+  "workspaceSidebar.archive": "归档", // §33.18 官方活体（项目行 archive 钮 aria）
   "mobileShell.wide.newTask": "新建任务", // P5b 自建键（值 = 官方 taskList.newTask）
   "mobileShell.wide.search": "搜索任务", // P5b 自建键（值 = 官方 workspaceSidebar.searchTasks zh:1609）
   "commandCenter.open": "搜索", // 官方逐字（§32.42 宽壳左栏搜索行）
@@ -494,11 +499,18 @@ export const zhCN: Record<string, string> = {
   "common.confirm": "确认", // 官方 locale chunk 逐字（§32.3 重命名对话框）
   "appHeader.copyPath": "复制路径", // 官方 locale chunk 逐字（§32.3 更多菜单一期）
   "appHeader.copySessionId": "复制会话 ID", // 官方 locale chunk 逐字（§32.3 更多菜单一期）
+  "appHeader.copyTaskPath": "复制任务路径", // 官方 zh-CN.ts:1373 逐字（§32.69 菜单全项）
+  "appHeader.copyLogPath": "复制日志路径", // 官方 zh-CN.ts:1378 逐字（§32.69 菜单全项）
   "mode.label.glm.default": "默认模式", // 官方逐字（medium 按族规律补）
   "mode.label.glm.plan": "计划模式", // 官方逐字（medium 按族规律补）
   "mode.label.glm.edit": "自动编辑", // 官方逐字（medium 按族规律补）
   "mode.label.glm.build": "变更前确认", // 官方逐字（medium 按族规律补）
   "mode.label.glm.yolo": "完全访问", // 官方逐字（medium 按族规律补）
+  "mode.description.glm.default": "使用默认确认策略。", // 官方 zh:5408 逐字（§32.69 模式菜单描述行）
+  "mode.description.glm.build": "改文件前先问我。", // 官方 zh:5409 逐字
+  "mode.description.glm.edit": "自动编辑文件。", // 官方 zh:5410 逐字
+  "mode.description.glm.plan": "编辑前先出计划。", // 官方 zh:5411 逐字
+  "mode.description.glm.yolo": "减少确认次数。", // 官方 zh:5412 逐字
   "chat.toolbar.thoughtLevel.label": "推理强度", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.placeholder": "选择思考档位", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.value.low": "低", // 官方逐字（medium 按族规律补）

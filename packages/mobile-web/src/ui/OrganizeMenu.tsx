@@ -19,7 +19,7 @@
 //   桶序 = 排序后首次出现序；时间戳缺失时官方经 NaN 比较自然落入 older，本实现显式化。
 // 定位差异：absolute 定位盖在触发按钮附近由调用方处理，本组件只渲染菜单面板；
 // 官方面板 token 为 bg-popover，本包 styles.css 无该 token，用同族面板色 bg-card（D6 自包含）。
-import { Check, CircleCheck, LoaderCircle, Pin } from "lucide-react";
+import { Check, CircleCheck, Loader, LoaderCircle, Pin } from "lucide-react";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
 import { formatTaskRelativeTime } from "./formatRelative.js";
@@ -224,7 +224,8 @@ export function OrganizeTaskStatusPill({ status }: { status: OrganizeTaskRowTask
       )}
     >
       {running ? (
-        <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
+        /* §33.18 官方活体：运行中徽标 spinner=菊花辐条形（lucide Loader），非圆弧。 */
+        <Loader aria-hidden="true" className="size-3 animate-spin" />
       ) : completed ? (
         <CircleCheck aria-hidden="true" className="size-3" />
       ) : null}
@@ -259,6 +260,10 @@ export function HomeTaskRow<TWorkspace>({
     <li>
       <button
         type="button"
+        // §33.18 官方活体：行 testid=task-item-{sessionId}、aria=打开任务 {title}
+        //（.tmp-probe-dom narrow 实测 task-item-stub-task-1 / 打开任务 X）。
+        data-testid={`task-item-${task.sessionId}`}
+        aria-label={intl.formatMessage({ id: "mobileShell.home.openTask" }, { title: task.title })}
         className={cn(
           "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-70",
           selected ? "bg-selected text-foreground" : "hover:bg-surface-hover",

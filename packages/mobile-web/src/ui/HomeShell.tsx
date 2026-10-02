@@ -105,13 +105,11 @@ export function MobileHomeShell({
   onOrganize,
   onRefresh,
   onThemePress,
-  onLanguagePress,
   onReconnect,
   className,
 }: MobileHomeShellProps) {
   const intl = useIntl();
   const { formatMessage, locale } = intl;
-  const languageTag = locale === "zh-CN" ? "EN" : "中";
   const [collapsedKeys, setCollapsedKeys] = useState<ReadonlySet<string>>(
     () => new Set(defaultCollapsedWorkspaceKeys ?? []),
   );
@@ -204,7 +202,9 @@ export function MobileHomeShell({
         className,
       )}
     >
-      {/* 顶栏：标题 + 连接徽章 + 主题按钮（官方 bg-header px-4 py-3 结构）。 */}
+      {/* 顶栏：标题 + 连接徽章 + 主题按钮（官方 bg-header px-4 py-3 结构）。
+          §33.18 官方活体：顶栏右侧仅「选择主题」24px 钮——语言切换入口官方窄壳
+          不存在，随对齐移除（语言经桌面端同步）。 */}
       <header className="shrink-0 border-b border-border bg-header px-4 py-3">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -221,24 +221,10 @@ export function MobileHomeShell({
                 {formatMessage({ id: "mobileShell.home.reconnect" })}
               </Button>
             ) : null}
-            {onLanguagePress ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-11"
-                aria-label={formatMessage({ id: "mobileShell.home.language" })}
-                onClick={onLanguagePress}
-              >
-                <span aria-hidden="true" className="text-ui-xs font-medium">
-                  {languageTag}
-                </span>
-              </Button>
-            ) : null}
             <Button
               variant="ghost"
-              // 移动壳触控目标 ≥44px：显式放大图标按钮（覆盖 icon-sm 默认 size-6）。
               size="icon-sm"
-              className="size-11"
+              className="size-6"
               aria-label={formatMessage({ id: "mobileShell.home.theme" })}
               onClick={onThemePress}
             >
@@ -270,7 +256,7 @@ export function MobileHomeShell({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="size-11"
+              className="size-6"
               aria-label={formatMessage({
                 id: allCollapsed ? "mobileShell.home.expandAll" : "mobileShell.home.collapseAll",
               })}
@@ -286,7 +272,7 @@ export function MobileHomeShell({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="size-11"
+              className="size-6"
               aria-label={formatMessage({ id: "mobileShell.home.organize" })}
               aria-haspopup="menu"
               onClick={onOrganize}
@@ -297,7 +283,7 @@ export function MobileHomeShell({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="size-11"
+                className="size-6"
                 aria-label={formatMessage({ id: "mobileShell.home.refresh" })}
                 disabled={isRefreshing}
                 onClick={onRefresh}

@@ -39,6 +39,27 @@ test("文件树行渲染：名称 + gitIgnored 徽标（官方 zh 值「已忽�
   assert.ok(html.includes("已忽略"), "gitIgnored 徽标应渲染官方 zh 值");
 });
 
+test("文件行渲染 16px 类型图标（官方 Qon：shrink-0 size-4）；目录行不渲染图标", () => {
+  const html = renderTree({
+    entries: [
+      entry({ path: "src/a.ts", name: "a.ts" }),
+      entry({ path: "src/b.tsx", name: "b.tsx" }),
+      entry({ path: "dist/", name: "dist", kind: "directory", depth: 0 }),
+    ],
+  });
+  assert.ok(
+    html.includes('src="/remote/v4/3.14.3/material-icons/typescript.svg"'),
+    "a.ts 应映射 typescript 图标（官方 PCe）",
+  );
+  assert.ok(
+    html.includes('src="/remote/v4/3.14.3/material-icons/react_ts.svg"'),
+    "b.tsx 应映射 react_ts 图标（官方 PCe）",
+  );
+  assert.ok(html.includes('width="16"') && html.includes('class="shrink-0 size-4"'));
+  // 目录行官方不渲染类型图标（仅展开 chevron）——整树 img 计数 = 文件行数。
+  assert.equal(html.match(/<img /g)?.length, 2, "仅两行文件渲染图标 img");
+});
+
 test("搜索框官方形态：placeholder/aria-label 为官方 zh 值", () => {
   const html = renderTree();
   assert.ok(html.includes('placeholder="搜索文件..."'));

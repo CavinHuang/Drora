@@ -10,6 +10,7 @@
     "./remote-queue-panel": "./src/v4/ConversationQueuePanel.tsx",
     "./remote-frame": "./src/DesktopWindowFrame.tsx",
     "./git-pane": "./src/remote-git-pane.ts",
+    "./file-display": "./src/fileDisplayEntry.ts",
     "./oauth-provider-icon": "./src/lib/oauthProviderIcon.tsx",
     "./message": "./src/components/ai-elements/message.tsx",
     "./e2e-store-bridge": "./src/lib/e2eStoreBridgeBootstrap.ts",

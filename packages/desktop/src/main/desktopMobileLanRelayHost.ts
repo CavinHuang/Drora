@@ -1,6 +1,7 @@
 // 内嵌 LAN relay 宿主（自研层，specs/mobile-relay-server.md §12）：
 // 桌面应用进程内启动自建 relay-server，「局域网连接」传输与云中继统一走 relay 协议，
-// 手机页默认 mobile-web 源码构建产物（/remote/v4）；仅本地包不存在时
+// 手机页默认官方 3.14.3 快照（§33.7 用户裁定"页面主体=官方 remote 实现"后翻转，
+// 官方字节优先于自研源码应用）；快照缺失时回退源码构建产物，仅本地包不存在时
 // 启用内建代理 cache→fetch 官方源站。入口缺失时 302 → R2 自建页 /m/index.html。
 // 旧 LAN 直连配对服务栈
 // （desktopMobilePairingServer/Core/Restore，协议 v1 + 一次性令牌）已删除
@@ -29,18 +30,36 @@ type HostLogger = {
 // 服务级日志（AGENTS.md 日志规范）：模块级单例，宿主生命周期与 LAN 地址诊断共用。
 const serviceLog = createServiceLogger("mobile-lan-relay");
 
-/** 开发态读取源码构建产物，安装态读取随包资源；恢复稿仅作缺构建产物时回退。 */
-export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
-  const sourceBuildRoot = fileURLToPath(new URL("../../../mobile-web/dist/", import.meta.url));
-  const recoveredRoot = fileURLToPath(
+/**
+ * §33.11 产物一致性（raw 优先修正）：本地 v4 页面根候选序（纯函数，单测覆盖三种
+ * 部署形态）。序 = ①仓库 upstream（官方原始字节冻结件——recovered 的 JS 是可读化
+ * 格式化版，非官方原始字节，§33.11 修正）→ ②安装态随包 `mobile-web-official`
+ * （electron-builder 自 upstream/remote/v4 staging，同原始字节）→ ③随包
+ * `mobile-web`（旧 dist 产物，存量安装兜底）→ ④仓库 recovered（可读化回退）→
+ * ⑤仓库 dist（末位兜底）。
+ */
+export function buildMobileWebRootCandidates(resourcesPath?: string): string[] {
+  const repoUpstreamRoot = fileURLToPath(new URL("../../../mobile-web/upstream/", import.meta.url));
+  const repoRecoveredRoot = fileURLToPath(
     new URL("../../../mobile-web/src/recovered/", import.meta.url),
   );
-  const candidates = [
-    sourceBuildRoot,
-    ...(process.resourcesPath ? [join(process.resourcesPath, "mobile-web")] : []),
-    recoveredRoot,
+  const repoSourceBuildRoot = fileURLToPath(new URL("../../../mobile-web/dist/", import.meta.url));
+  return [
+    repoUpstreamRoot,
+    ...(resourcesPath
+      ? [
+          join(resourcesPath, "mobile-web-official"),
+          join(resourcesPath, "mobile-web"),
+        ]
+      : []),
+    repoRecoveredRoot,
+    repoSourceBuildRoot,
   ];
-  for (const root of candidates) {
+}
+
+/** 开发态优先仓库官方原始冻结件，安装态优先随包官方快照（§33.11）；无本地页时走资产代理。 */
+export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
+  for (const root of buildMobileWebRootCandidates(process.resourcesPath)) {
     try {
       await access(join(root, "remote", "v4", "index.html"));
       return root;

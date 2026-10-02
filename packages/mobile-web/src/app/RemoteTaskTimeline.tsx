@@ -10,7 +10,9 @@ import type {
 } from "@drora/shared/drora-protocol-v4";
 import type { ModelSelectionView } from "@drora/services";
 import { InteractionCards, type InteractionAnswer } from "../ui/InteractionCards.js";
-import { FileChangesBar } from "../ui/FileChangesBar.js";
+// FileChangesBar 挂载移除（§32.40）：ui ConversationTurnGroup 已内建官方
+// ConversationFileSummaryPanel（@1402，unit.header.fileChanges 驱动）——App 侧独立
+// 横条是重复渲染且被 taskShell 头部裁切（双页截图对照实证）。组件保留供复用。
 
 const Timeline = lazy(() =>
   import("@drora/ui/remote-timeline").then((module) => ({
@@ -61,12 +63,6 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         interactions={props.interactions}
         busy={props.answering}
         onResolve={props.onResolve}
-      />
-      <FileChangesBar
-        files={props.fileChanges?.files ?? null}
-        additions={props.fileChanges?.additions ?? null}
-        deletions={props.fileChanges?.deletions ?? null}
-        className="px-3 pt-1"
       />
     </>
   );

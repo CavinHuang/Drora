@@ -6,6 +6,7 @@ import { resolve as resolvePath } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import { createRateLimiter } from "./rateLimiter.js";
 import { routeStaticRequest } from "./staticAssets.js";
+import { createRelayRemoteControlApiHandler } from "./remoteControlHttpApi.js";
 import { send, sendError, sendThenTerminate } from "./wire.js";
 import {
   MAX_WS_PAYLOAD_BYTES,
@@ -113,6 +114,9 @@ export function createRelayServer(options: RelayServerOptions) {
     } catch {
       pagePathname = request.url ?? "";
     }
+    // 官方手机页 remote-control HTTP API（workspace-bridge / mobile-view-state，
+    // §32.35 客户端取证）——必须在静态路由前接线（404 会让官方页任务激活链死）。
+    if (await handleRemoteControlApi(request, response, pagePathname)) return;
     // 页面/静态托管路由（spec §12.5/§12.9）：R2 手机页（/m*）与 /remote/** 托管
     // 资产三级来源（staticRoot → mobileRoot → 内建 cache/fetch 代理）+ 离线回退；决策与安全
     // 约束集中在 staticAssets.ts（单文件行数门禁），此处仅接线 HTTP 响应。
@@ -439,6 +443,13 @@ export function createRelayServer(options: RelayServerOptions) {
 
   const listenPort = options.port ?? 4430;
   const listenHost = options.host ?? "0.0.0.0";
+  // 官方手机页 remote-control HTTP API（§32.35/§32.36）：token 鉴权 + 桥 wsUrl 签发 +
+  // 视图态转发桌面端（复用既有 device 帧通道）。
+  const handleRemoteControlApi = createRelayRemoteControlApiHandler({
+    wsUrlOrigin: `ws://${listenHost === "0.0.0.0" ? "127.0.0.1" : listenHost}:${listenPort}`,
+    sessions,
+    sendToDevice: (token, payload) => sendTo(token, "device", { type: "data", payload, client_ts: Date.now() }),
+  });
   let closeStarted = false;
 
   return {

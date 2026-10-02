@@ -6,7 +6,7 @@
 // 形态：数据来自 store.getControlState()（control.canStop/stopState/phase 与 queue.items），
 // stop 命令的 payload 组装归调用方，本组件只回调 onStop。
 import { useMemo, useState } from "react";
-import { Square } from "lucide-react";
+import { Check, Copy, Square } from "lucide-react";
 import type { ConversationRow } from "@drora/shared/drora-protocol-v4";
 import { cn } from "./cn.js";
 import { MarkdownContent } from "./MarkdownContent.js";
@@ -114,8 +114,15 @@ function TurnHeaderView({ row }: { row: TurnHeaderRow }) {
 
 function UserInputView({ row }: { row: Extract<ConversationRow, { kind: "userInput" }> }) {
   return (
-    <div className="ml-8 rounded-xl rounded-br-sm bg-accent px-3 py-2 text-ui-base whitespace-pre-wrap text-foreground">
-      {row.text}
+    <div className="group/user-row">
+      <div className="ml-8 rounded-xl rounded-br-sm bg-accent px-3 py-2 text-ui-base whitespace-pre-wrap text-foreground">
+        {row.text}
+      </div>
+      {/* §32.40 官方用户行复制钮（@3027964/_Jt @3011537）：hover 浮现（远控常显）、
+          v4-copy-{rowId} testid、点击变 success 勾 1.2s。 */}
+      <div className="mt-1 flex justify-end opacity-100 transition-opacity">
+        <CopyButton text={row.text} rowId={row.rowId} />
+      </div>
     </div>
   );
 }
@@ -299,9 +306,11 @@ export function MobileComposerStateBar({
     <button
       type="button"
       data-testid="v4-stop"
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-destructive text-destructive-foreground disabled:opacity-50"
+      // §32.44 官方停止钮（ui ConversationComposer @2067 逐字）：secondary icon-md 方钮
+      // + Square fill-current——非红色圆钮（双页截图对照发现的形态差）。
+      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-foreground disabled:opacity-50"
       disabled={stopping}
-      aria-label={formatMessage({ id: "chat.stop.short" })}
+      aria-label={formatMessage({ id: "chat.stop" })}
       onClick={onStop}
     >
       {stopping ? (
@@ -317,15 +326,48 @@ export function MobileComposerStateBar({
 }
 
 /**
- * composer 输入占位键解析（纯函数）：phase==="running" 或 queuePending 时切官方键
- * chat.placeholder.followUpQueue（「继续输入以排队后续修改」，官方 3.14.3 逐字），
- * 否则沿用 P2a 自建键 mobileShell.composer.placeholder。返回键由调用方经 intl 格式化。
+ * composer 输入占位键解析（纯函数，官方 plt @1735719 全语义移植）：
+ * 有历史消息 → 处理中（running/queuePending）= followUpQueue（排队语义）、
+ * 否则 followUpAsk（「提出后续修改要求」）；无历史 = newTaskMobile/newTask（草稿面）。
+ * 旧自建键 mobileShell.composer.placeholder 淘汰（§32.39 截图对照实证）。
  */
 export function resolveMobileComposerPlaceholderId(
   phase: string | null | undefined,
   queuePending: boolean,
+  hasHistoryMessages = true,
 ): string {
+  if (!hasHistoryMessages) return "chat.placeholder.newTaskMobile";
   return phase === "running" || queuePending
     ? "chat.placeholder.followUpQueue"
-    : "mobileShell.composer.placeholder";
+    : "chat.placeholder.followUpAsk";
+}
+
+/** §32.40 官方复制钮还原（_Jt @3011537）：v4-copy-{rowId}、点击剪贴板写 + 1.2s success 勾。 */
+function CopyButton({ text, rowId }: { text: string; rowId: number }) {
+  const [copied, setCopied] = useState(false);
+  const { formatMessage } = useIntl();
+  const label = formatMessage({ id: "chat.message.copy" });
+  return (
+    <button
+      type="button"
+      data-testid={`v4-copy-${rowId}`}
+      aria-label={label}
+      title={label}
+      disabled={text.length === 0}
+      className="inline-flex min-h-6 items-center gap-1 rounded-md px-1.5 text-ui-xs text-foreground-subtlest transition-colors hover:bg-surface-hover hover:text-foreground-subtle"
+      onClick={() => {
+        if (!text || !navigator.clipboard) return;
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+        });
+      }}
+    >
+      {copied ? (
+        <Check aria-hidden="true" className="size-3.5 text-success" />
+      ) : (
+        <Copy aria-hidden="true" className="size-3.5" />
+      )}
+    </button>
+  );
 }

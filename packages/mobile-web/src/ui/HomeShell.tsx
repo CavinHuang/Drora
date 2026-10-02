@@ -27,10 +27,14 @@ import {
   DEFAULT_HOME_ORGANIZE_PREFERENCES,
   HomeTaskRow,
   HomeTimelineTaskList,
+  OrganizeTaskStatusPill,
   bucketHomeTasksByTime,
   compareHomeTasks,
+  groupWorkspacesExcludingPinned,
   type HomeOrganizePreferences,
 } from "./OrganizeMenu.js";
+import { PinnedTaskSection, sortPinnedSectionTasks } from "./PinnedTaskSection.js";
+import { WorkspaceGroupCard } from "./WorkspaceGroupCard.js";
 
 export type MobileHomeConnectionState =
   | "connected"
@@ -56,6 +60,8 @@ export interface MobileHomeShellTask {
   /** §32.16 三态 membership（官方 chat.empty membership schema 对齐）。 */
   pinned?: boolean;
   archived?: boolean;
+  /** §32.37 未读时刻（epoch ms；null = 已读，行槽位渲染天蓝点/叠加徽标）。 */
+  unreadAtMs?: number | null;
 }
 
 export interface MobileHomeShellWorkspace {
@@ -122,19 +128,29 @@ export function MobileHomeShell({
   // 排序/分桶/打开回传）按任务粒度时间分桶（官方同款 Trn 输入 = 排序后任务序列）。
   // 计数条 taskCount 按模式取对应集合（workspace=各组之和 / timeline=平铺数）。
   const { organizeBy, sortBy } = organizePreferences;
-  const workspaceGroups = useMemo(() => {
-    if (organizeBy !== "workspace") return workspaces;
-    return workspaces.map((workspace) => ({
-      ...workspace,
-      // §32.16 pinned 优先（官方置顶排前），其余按 sortBy。
-      tasks: [...workspace.tasks].sort((a, b) => {
-        const pa = a.pinned ? 1 : 0;
-        const pb = b.pinned ? 1 : 0;
-        if (pa !== pb) return pb - pa;
-        return compareHomeTasks(a, b, sortBy);
-      }),
-    }));
-  }, [workspaces, organizeBy, sortBy]);
+  const workspaceGroups = useMemo(
+    () => groupWorkspacesExcludingPinned(workspaces, organizeBy, sortBy),
+    [workspaces, organizeBy, sortBy],
+  );
+  // §32.38 官方置顶区：跨工作区平铺（行内带工作区名），排序与组内同比较器。
+  const pinnedTasks = useMemo(
+    () =>
+      organizeBy === "workspace"
+        ? workspaces.flatMap((workspace) =>
+            workspace.tasks
+              .filter((task) => task.pinned === true)
+              .map((task) => ({
+                ...task,
+                workspace: { workspaceKey: workspace.workspaceKey, name: workspace.name },
+              })),
+          )
+        : [],
+    [workspaces, organizeBy],
+  );
+  const pinnedTasksSorted = useMemo(
+    () => sortPinnedSectionTasks(pinnedTasks, sortBy),
+    [pinnedTasks, sortBy],
+  );
   const timelineEntries = useMemo(
     () =>
       workspaces.flatMap((workspace) => workspace.tasks.map((task) => ({ ...task, workspace }))),
@@ -153,9 +169,11 @@ export function MobileHomeShell({
   const taskTotal = useMemo(
     () =>
       organizeBy === "workspace"
-        ? workspaceGroups.reduce((sum, workspace) => sum + workspace.tasks.length, 0)
+        ? // §32.38 计数含置顶区（官方摘要「2 个任务」在两任务全置顶时仍为 2）。
+          workspaceGroups.reduce((sum, workspace) => sum + workspace.tasks.length, 0) +
+          pinnedTasks.length
         : timelineEntries.length,
-    [organizeBy, workspaceGroups, timelineEntries],
+    [organizeBy, workspaceGroups, pinnedTasksSorted.length, timelineEntries],
   );
   const allCollapsed = workspaceGroups.length > 0 && collapsedKeys.size >= workspaceGroups.length;
 
@@ -296,104 +314,42 @@ export function MobileHomeShell({
 
         {workspaces.length === 0 ? (
           <div className="mt-6 flex min-h-32 items-center justify-center rounded-lg border border-card-border bg-card p-4 text-ui-base text-foreground-subtle">
-            {formatMessage({ id: "mobileShell.home.workspaceEmpty" })}
+            {/* §32.38 语义拆分实证：顶层无任务态 = 官方 webRemoteControl.noTasks；
+                mobileHome.workspaceEmpty 是组内空态（下方组渲染）。 */}
+            {formatMessage({ id: "mobileShell.home.noTasks" })}
           </div>
         ) : organizeBy === "workspace" ? (
-          <ul className="mt-3 space-y-2">
-            {workspaceGroups.map((workspace) => {
-              const collapsed = collapsedKeys.has(workspace.workspaceKey);
-              return (
-                <li
-                  key={workspace.workspaceKey}
-                  className="overflow-hidden rounded-lg border border-card-border bg-card"
-                >
-                  <div className="flex min-w-0 items-center gap-2 px-3 py-3">
-                    <button
-                      type="button"
-                      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
-                      aria-expanded={!collapsed}
-                      onClick={() => toggleWorkspace(workspace.workspaceKey)}
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface text-foreground-subtle">
-                        <FolderOpen aria-hidden="true" className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-ui-base font-medium text-foreground">
-                            {workspace.name}
-                          </span>
-                          <span className="shrink-0 rounded-full border border-border bg-surface px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtle">
-                            {formatMessage({
-                              id:
-                                workspace.kind === "local"
-                                  ? "mobileShell.workspace.kind.local"
-                                  : "mobileShell.workspace.kind.remote",
-                            })}
-                          </span>
-                        </span>
-                        <span className="mt-1 block truncate font-mono text-ui-base text-foreground-subtlest">
-                          {workspace.path}
-                        </span>
-                        <span className="mt-1 block text-ui-base text-foreground-subtle">
-                          {workspace.updatedAtMs !== null
-                            ? formatMessage(
-                                { id: "mobileShell.workspace.updatedAt" },
-                                { time: formatTaskRelativeTime(workspace.updatedAtMs, intl) },
-                              )
-                            : null}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2 text-ui-base text-foreground-subtle">
-                        {formatMessage(
-                          { id: "mobileShell.workspace.taskCount" },
-                          { count: String(workspace.tasks.length) },
-                        )}
-                        <ChevronDown
-                          aria-hidden="true"
-                          className={cn(
-                            "size-4 transition-transform",
-                            collapsed ? "-rotate-90" : "",
-                          )}
-                        />
-                      </span>
-                    </button>
-                    {onWorkspaceNewTask ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11"
-                        aria-label={formatMessage({ id: "mobileShell.workspace.newTask" })}
-                        onClick={() => onWorkspaceNewTask(workspace)}
-                      >
-                        <Plus aria-hidden="true" className="size-3.5" />
-                      </Button>
-                    ) : null}
-                  </div>
-                  {collapsed ? null : (
-                    <ul className="border-t border-card-border px-2 py-2">
-                      {workspace.tasks.length === 0 ? (
-                        <li className="px-2.5 py-2 text-ui-sm text-foreground-subtlest">
-                          {formatMessage({ id: "mobileShell.workspace.tasksEmpty" })}
-                        </li>
-                      ) : (
-                        workspace.tasks.map((task) => (
-                          <HomeTaskRow
-                            key={task.sessionId}
-                            task={task}
-                            workspace={workspace}
-                            selected={task.sessionId === selectedTaskId}
-                            onTaskOpen={onTaskOpen}
-                          />
-                        ))
-                      )}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {/* §32.38 官方置顶区（@3986483 逐字；组件=PinnedTaskSection，行数门禁抽离）。 */}
+            <PinnedTaskSection
+              tasks={pinnedTasksSorted}
+              onTaskOpen={
+                onTaskOpen
+                  ? (task) => {
+                      const workspace = workspaces.find(
+                        (candidate) => candidate.workspaceKey === task.workspace.workspaceKey,
+                      );
+                      if (workspace) onTaskOpen(task, workspace);
+                    }
+                  : undefined
+              }
+            />
+            <ul className="mt-3 space-y-2">
+            {workspaceGroups.map((workspace) => (
+              <WorkspaceGroupCard
+                key={workspace.workspaceKey}
+                workspace={workspace}
+                collapsed={collapsedKeys.has(workspace.workspaceKey)}
+                selectedTaskId={selectedTaskId}
+                onToggle={() => toggleWorkspace(workspace.workspaceKey)}
+                onTaskOpen={onTaskOpen}
+                onWorkspaceNewTask={onWorkspaceNewTask}
+              />
+            ))}
+            </ul>
+          </>
         ) : timelineBuckets.length === 0 ? (
-          // timeline 模式空态：有工作区但全无任务（无工作区已被上方 workspaceEmpty 覆盖）。
+          // timeline 模式空态：有工作区但全无任务（无工作区已被上方 noTasks 覆盖）。
           <div className="mt-6 flex min-h-32 items-center justify-center rounded-lg border border-card-border bg-card p-4 text-ui-base text-foreground-subtle">
             {formatMessage({ id: "taskList.noTasks" })}
           </div>

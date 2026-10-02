@@ -1,18 +1,22 @@
 # Drora mobile web 包
 
-双轨构建（specs/mobile-relay-r3-frontend.md §13 P2a）：
+双轨构建（specs/mobile-relay-r3-frontend.md §13 P2a / §33 页面主体裁定）：
 
-- **源码应用（默认）**：`pnpm --filter @drora/mobile-web build` 用 vite 从
+- **官方快照（生产主体，§33.7 翻转）**：`src/recovered` 是官方 3.14.3 页面字节
+  （`upstream/remote/v4` 冻结资产再生，`pnpm --filter @drora/mobile-web recover`）。
+  relay-server bundled 根与桌面 LAN 宿主候选序均 **recovered 优先**——页面主体=
+  官方 remote 实现（§33 用户裁定"不要自研"）；安装包经 electron-builder
+  `mobile-web-official` 随包（§33.9 产物一致性）。
+- **源码应用（回退/开发参照）**：`pnpm --filter @drora/mobile-web build` 用 vite 从
   `src/app`（React 入口）+ `src/ui`（自包含移动壳）+ `src/intl`（zh-CN/en-US）
   构建出官方路径形状的 `dist/remote/v4`（entry + `3.14.3/assets/*`）。数据层经
   `@drora/relay-client`（会话/rpc-frame）与 `@drora/rpc`/`@drora/client`/
-  `@drora/services`（Host 服务面）；UI 不 import `@drora/ui`（D6 自包含）。
-- **快照包（保底）**：`upstream/remote/v4` 是 2026-09-29 从
-  `https://zcode.z.ai/remote/v4` 冻结的官方 3.14.3 页面字节（证据资产，保持逐字节
-  不动）。`src/recovered` 由 `pnpm --filter @drora/mobile-web recover` 从快照再生
-  （可读化 + 还原来源头）。`pnpm --filter @drora/mobile-web build:snapshot` 把
-  recovered 拷贝为独立页面包（`--out` 指定目录，默认 `.tmp-snapshot-build`；不再写
-  dist），供独立部署 `relay-server --mobile-dir` 使用。
+  `@drora/services`（Host 服务面）。UI 对 `@drora/ui` 仅走 §22 受控窄入口
+  （remote-timeline/remote-frame/git-pane/remote-queue-panel，白名单由
+  test/build.test.mjs 硬校验；§33.4 裁定后源码页不再逐项追赶官方形态）。
+- **remote-dist（取证镜像）**：官方站点全量爬取（manifest/api-samples 取证副档），
+  字节与 recovered 同源、入口布局为根级；不进 bundled 候选链，供 harness `--dist`
+  显式引用与对照。
 
 relay-server 的 bundled 根优先级：`dist`（源码应用，entry 存在才启用）→
 `src/recovered`（快照回退）→ 内建资产代理 → R2 兜底（spec §13.4）。桌面 LAN

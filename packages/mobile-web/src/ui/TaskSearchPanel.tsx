@@ -13,6 +13,8 @@ import { Button } from "./Button.js";
 import { cn } from "./cn.js";
 import { useIntl, type MobileIntl } from "./intl.js";
 import { formatTaskRelativeTime } from "./formatRelative.js";
+import { FileIconImage } from "./FileChip.js";
+import { fileIconNameFor, fileIconSrc } from "./fileIcon.js";
 import { compareHomeTasks } from "./OrganizeMenu.js";
 import {
   MOBILE_SEARCH_HISTORY_STORAGE_KEY,
@@ -294,6 +296,14 @@ export function TaskSearchPanel({
                         onClose();
                       }}
                     >
+                      {/* 官方文件行 = Nh chip 形：16px 类型图标 + 文件名 + 相对路径（§32.17）。 */}
+                      <FileIconImage
+                        src={fileIconSrc(
+                          fileIconNameFor(entry.path, entry.type === "directory" ? "directory" : "file"),
+                        )}
+                        size={16}
+                        className="shrink-0"
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-ui-base text-foreground">{entry.name}</span>
                         <span className="mt-0.5 block truncate text-ui-xs text-foreground-subtle">

@@ -59,6 +59,7 @@ import {
   type RelayTaskSummary,
   type RelayTransportState,
   type RelayWorkspaceSummary,
+  deriveRelayDisplayStatus,
 } from "./desktopMobileRelayProtocol.js";
 import { createMobileServiceAttacher } from "./desktopMobileServiceAttach.js";
 import { serveMobilePageAction, type MobilePageActionFrame } from "./desktopMobilePageBridge.js";
@@ -678,6 +679,8 @@ export function createDesktopMobileRelayControl(deps: {
         taskId: entry.taskId,
         title: entry.title,
         status: "",
+        // §33.6：官方页行状态徽标读 displayStatus（enum idle/running/completed/error）。
+        displayStatus: deriveRelayDisplayStatus(entry.status),
         updatedAt: entry.updatedAt,
         workspacePath: entry.workspacePath,
         workspaceLabel: basename(entry.workspacePath) || entry.workspacePath,
@@ -713,6 +716,10 @@ export function createDesktopMobileRelayControl(deps: {
         taskId: String(meta.taskId ?? ""),
         title: String(meta.title ?? ""),
         status: String(meta.status ?? ""),
+        // §33.6：官方页行状态徽标数据源（本仓 meta.status 一定义即映射）。
+        displayStatus: deriveRelayDisplayStatus(
+          meta.status === undefined || meta.status === null ? undefined : String(meta.status),
+        ),
         updatedAt: Number(meta.updatedAt ?? 0),
         workspacePath: params.workspacePath,
         workspaceLabel,
@@ -720,7 +727,11 @@ export function createDesktopMobileRelayControl(deps: {
         createdAt: Number(meta.createdAt ?? 0),
         pinned: pinnedSet.has(String(meta.taskId)),
         archived: archivedSet.has(String(meta.taskId)),
-        unreadAt: meta.unreadAt,
+        // 官方 schema unreadAt=number.optional：null 整帧拒收（§32.24 帧门取证），
+        // 无值必须省略键。
+        ...(meta.unreadAt === null || meta.unreadAt === undefined
+          ? {}
+          : { unreadAt: Number(meta.unreadAt) }),
       }));
     } catch (error) {
       logger.warn("[mobile-relay] 任务列表拉取失败", {

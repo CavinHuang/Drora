@@ -19,7 +19,7 @@
 //   桶序 = 排序后首次出现序；时间戳缺失时官方经 NaN 比较自然落入 older，本实现显式化。
 // 定位差异：absolute 定位盖在触发按钮附近由调用方处理，本组件只渲染菜单面板；
 // 官方面板 token 为 bg-popover，本包 styles.css 无该 token，用同族面板色 bg-card（D6 自包含）。
-import { Check, CircleCheck, LoaderCircle } from "lucide-react";
+import { Check, CircleCheck, LoaderCircle, Pin } from "lucide-react";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
 import { formatTaskRelativeTime } from "./formatRelative.js";
@@ -98,6 +98,8 @@ export interface HomeOrganizeTask {
   sessionId: string;
   createdAtMs: number | null;
   updatedAtMs: number | null;
+  /** §32.38 置顶跨组提取（groupWorkspacesExcludingPinned/置顶区排序消费）。 */
+  pinned?: boolean;
 }
 
 /** 防御归一：官方数据恒为 epoch ms；投影侧 null/非有限值按 0（最旧）参与降序比较。 */
@@ -110,6 +112,30 @@ function organizeTimestamp(value: number | null): number {
  * updated 以 updatedAtMs 为主键，均降序；主键并列回退另一字段降序；再并列时
  * taskId 后排（官方 `t.taskId.localeCompare(e.taskId)` 同向，即 id 降序）。
  */
+/** §32.38 官方置顶跨组提取后的组视图：组内仅剩非置顶任务（按 sortBy 排序）；
+ * timeline 模式原样返回（置顶区仅 workspace 模式渲染，官方同语义）。 */
+export function groupWorkspacesExcludingPinned<
+  Task extends HomeOrganizeTask,
+  Workspace extends { tasks: readonly Task[] },
+>(workspaces: readonly Workspace[],
+  organizeBy: HomeOrganizePreferences["organizeBy"],
+  sortBy: HomeOrganizePreferences["sortBy"],
+) {
+  if (organizeBy !== "workspace") return workspaces;
+  return workspaces.map((workspace) => {
+    const tasks = [...workspace.tasks]
+      .filter((task) => task.pinned !== true)
+      .sort((a, b) => compareHomeTasks(a, b, sortBy));
+    // §32.39 官方「更新于」= 组内**剩余**任务 updatedAt 最大值（全置顶态无该行，
+    // 截图对照实证）；剩余为空 → null（渲染侧隐藏）。
+    const remainingMax = tasks.reduce<number | null>(
+      (max, task) => (task.updatedAtMs !== null && (max === null || task.updatedAtMs > max) ? task.updatedAtMs : max),
+      null,
+    );
+    return { ...workspace, tasks, updatedAtMs: remainingMax };
+  });
+}
+
 export function compareHomeTasks(
   a: HomeOrganizeTask,
   b: HomeOrganizeTask,
@@ -176,10 +202,13 @@ export interface OrganizeTaskRowTask {
   status: "running" | "completed" | "idle";
   /** §32.16 三态 membership。 */
   pinned?: boolean;
+  /** §32.37 未读时刻（epoch ms；null = 已读）。 */
+  unreadAtMs?: number | null;
 }
 
-/** 任务行状态 pill（官方 shell：rounded-full border px-1.5 py-0.5 text-ui-xs）。 */
-function OrganizeTaskStatusPill({ status }: { status: OrganizeTaskRowTask["status"] }) {
+/** 任务行状态 pill（官方 shell：rounded-full border px-1.5 py-0.5 text-ui-xs）。
+ * §32.38 起导出：HomeShell 置顶区平铺行同款（官方 pinned 行带状态 pill）。 */
+export function OrganizeTaskStatusPill({ status }: { status: OrganizeTaskRowTask["status"] }) {
   const { formatMessage } = useIntl();
   const running = status === "running";
   const completed = status === "completed";
@@ -236,9 +265,23 @@ export function HomeTaskRow<TWorkspace>({
         )}
         onClick={onTaskOpen ? () => onTaskOpen(task, workspace) : undefined}
       >
+        {/* §32.37 官方行槽位三态（活体取证）：未读=天蓝点（bg-sky-500 dark:bg-sky-400
+            h-1.5 w-1.5）；置顶=lucide Pin size-4；并存=Pin+右上叠加徽标（absolute
+            -top-0.5 -right-0.5）。 */}
         <span className="relative flex size-4 shrink-0 items-center justify-center">
-          {task.pinned ? (
-            <span aria-hidden="true" className="text-ui-xs text-warning">📌</span>
+          {task.pinned ? <Pin aria-hidden="true" className="size-4" /> : null}
+          {task.unreadAtMs != null ? (
+            task.pinned ? (
+              <span
+                aria-hidden="true"
+                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400"
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400"
+              />
+            )
           ) : null}
         </span>
         <span className="min-w-0 flex-1">

@@ -37,7 +37,9 @@ export function FileChangesBar({ files, additions, deletions, className }: FileC
   return (
     <div
       className={cn(
-        "flex min-h-10 items-center gap-2 overflow-hidden rounded-xl border border-border bg-card px-3 text-ui-sm text-foreground",
+        // §32.40 官方面板容器（sGt w-full bg-background/50 overflow-hidden）：自带背景，
+        // 不透出下层内容——修截图对照发现的「半裁切/透底」。
+        "flex min-h-10 w-full items-center gap-2 overflow-hidden rounded-xl border border-border bg-card px-3 text-ui-sm text-foreground shadow-sm",
         className,
       )}
     >

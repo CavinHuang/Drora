@@ -9,6 +9,7 @@ import {
   MobileConnectionStatusCard,
   MobileFailureCard,
 } from "../ui/StatusCards.js";
+import { MessagesSquare, TerminalSquare } from "lucide-react";
 import type { MobileHomeConnectionState } from "../ui/HomeShell.js";
 import { HomeScreen } from "./HomeScreen.js";
 import { MobileTaskShell } from "../ui/TaskShell.js";
@@ -43,6 +44,8 @@ import { useAttachmentGitSummary } from "./attachmentGitSummary.js";
 import { DroraIntlProvider } from "@drora/ui/git-pane";
 import { TooltipProvider } from "@drora/ui/git-pane";
 import { PluginReferenceIconProvider } from "@drora/ui/git-pane";
+// §32.20 官方 zCe 语义：文件 chip 相对目录基准（ui fileDisplay 还原件全局默认）。
+import { setDefaultFileDisplayBasePath } from "@drora/ui/file-display";
 import { PlatformProvider } from "@drora/ui/git-pane";
 import { TabStoreProvider } from "@drora/ui/git-pane";
 import { StoreProvider } from "@drora/ui/git-pane";
@@ -122,6 +125,9 @@ function AppBody() {
   const [phase, setPhase] = useState<Phase>({ kind: "loading", step: "connecting" });
   const [connection, setConnection] = useState<MobileHomeConnectionState>("connecting");
   const [workspaces, setWorkspaces] = useState<ProjectedWorkspace[]>([]);
+  // §32.37 openTask 读最新未读态（避免 setState 闭包滞后）。
+  const workspacesRef = useRef(workspaces);
+  workspacesRef.current = workspaces;
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskTitle, setTaskTitle] = useState<string>("");
   const [taskRows, setTaskRows] = useState<ConversationRow[]>([]);
@@ -205,6 +211,19 @@ function AppBody() {
     if (metaTitle) setTaskTitle(metaTitle);
   }, [metaTitle]);
 
+  // §32.20 官方 zCe 语义（upstream index chunk `useEffect(()=>{zCe(Ce)},[Ce])`）：活动
+  // 工作区变化 → 设置 ui fileDisplay 还原件的全局默认 basePath，文件 chip 的相对目录
+  // 以工作区为基准（GitPane 变更卡等）；回首页清空（官方 Ce 为空时同样置 null）。
+  useEffect(() => {
+    setDefaultFileDisplayBasePath(taskTarget ? taskTarget.path : null);
+  }, [taskTarget]);
+
+  // §32.20 官方语言面语义（share 页 `documentElement.lang=e`）：html lang 跟随界面
+  // 语言（静态壳默认 zh-CN，en 用户挂载后校正——影响读屏发音与 IME 行为）。
+  useEffect(() => {
+    document.documentElement.lang = resolveLocale();
+  }, []);
+
   const fail = useCallback((wireReason: string, detail: string | null, retryable: boolean) => {
     setPhase({ kind: "failure", wireReason, detail, retryable });
   }, []);
@@ -285,6 +304,30 @@ function AppBody() {
     async (workspace: { workspaceKey: string; path: string }, sessionId: string, title: string) => {
       const client = clientRef.current;
       if (!client) return;
+      // §32.37 官方 markTaskReadOnOpen 语义（Xnn 同工作区路径：unreadAt 为 number 即清未读，
+      // setTaskUnread 携 expectedUnreadAt 乐观并发）：fire-and-forget，失败仅告警不阻导航。
+      {
+        const source = workspacesRef.current
+          .flatMap((w) => w.tasks)
+          .find((t) => t.sessionId === sessionId);
+        if (source?.unreadAtMs != null) {
+          const session = taskRef.current;
+          const accessor = session?.accessor;
+          void accessor?.droraTaskService
+            .setTaskUnread({
+              taskId: sessionId,
+              workspacePath: workspace.path,
+              ...(workspace.workspaceKey !== workspace.path
+                ? { workspaceIdentity: workspace.workspaceKey }
+                : {}),
+              unread: false,
+              expectedUnreadAt: source.unreadAtMs,
+            })
+            .catch(() => {
+              // 清未读失败不阻断打开（官方同语义：warn 后继续）。
+            });
+        }
+      }
       setSelectedTaskId(sessionId);
       setTaskTitle(title);
       setTaskRows([]);
@@ -466,8 +509,23 @@ function AppBody() {
   const toggleTheme = useCallback(() => {
     const dark = document.documentElement.classList.toggle("dark");
     setTheme(dark ? "dark" : "light");
+    // §32.19 浏览器表面同步（官方 syncBrowserThemeSurface 语义）：切换即更新
+    // meta theme-color（#161616/#f8f8f8）与 color-scheme，手机浏览器工具栏随主题染色。
+    const mode = dark ? "dark" : "light";
+    const root = document.documentElement;
+    root.setAttribute("data-drora-browser-theme-surface", mode);
+    root.style.colorScheme = mode;
+    // 官方主题类三联动（applyTheme：dark + theme-zai-light/dark 标记主题族）。
+    root.classList.toggle("theme-zai-dark", dark);
+    root.classList.toggle("theme-zai-light", !dark);
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", dark ? "#161616" : "#f8f8f8");
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", mode);
     try {
-      localStorage.setItem("drora-mobile-theme", dark ? "dark" : "light");
+      // 单一主题源（§32.19）：与 ui 主题 store 同键 drora-theme、zai-* 规范值，
+      // 挂载期 store 初始化与本切换读写同源，不再互相覆盖。
+      localStorage.setItem("drora-theme", dark ? "zai-dark" : "zai-light");
     } catch {
       // 快照失败不影响本次切换。
     }
@@ -665,6 +723,9 @@ function AppBody() {
                 {
                   id: "terminal",
                   label: intl.formatMessage({ id: "chat.statusPanel.terminals" }),
+                  icon: (
+                    <TerminalSquare aria-hidden="true" className="size-4 text-foreground-subtle" />
+                  ),
                   onOpen: () => setSidePaneMode("terminal"),
                 },
               ]
@@ -702,6 +763,9 @@ function AppBody() {
         onBack={backHome}
         onThemePress={toggleTheme}
         timelineOwnsScroll
+        sidePane={sidePane}
+        sidePaneOpen={sidePaneMode !== null}
+        onSidePaneOverlayClose={() => setSidePaneMode(null)}
         timeline={timeline}
         workspaceHeader={
           taskTarget ? (
@@ -725,6 +789,7 @@ function AppBody() {
               }
               title={taskTitle}
               workspacePath={taskTarget.path}
+              branchName={gitStatus.summary?.branchName ?? null}
               onToggleSidePane={attachedTask ? () => setSidePaneMode((mode) => mode ? null : "launcher") : undefined}
               sidePaneOpen={sidePaneMode !== null}
               // §32.3 更多菜单一期（重命名/复制路径/复制会话 ID）；菜单锚在 ⋯ 触发按钮。
@@ -815,7 +880,7 @@ function AppBody() {
   // 复用既有 state/动作，本处只做接线。
   if (wideViewport) {
     return (
-      <div className="relative h-dvh w-full">
+      <div className="relative flex h-dvh w-full">
       <WideShell
         connection={connection}
         workspaces={liveWorkspaces}
@@ -855,7 +920,46 @@ function AppBody() {
         onLanguagePress={toggleLanguage}
         onReconnect={() => clientRef.current?.connect()}
       />
-      {sidePane}
+      {/* §32.45 宽壳右侧常驻侧板（w2 双页取证）：任务面开启时并排渲染「打开标签页」
+          启动壳（官方三栏空态同构）；sidePaneMode 打开时替换为对应面板。 */}
+      {phase.kind === "task" && attachedTask ? (
+        sidePane ?? (
+          <RemoteOpenTabShell
+            variant="wide"
+            onClose={() => setSidePaneMode(null)}
+            onOpenReview={attachedTask ? () => setSidePaneMode("git") : undefined}
+            items={
+              attachedTask
+                ? [
+                    // §32.47 官方宽壳 launcher 三项（w2 双页取证）：辅助对话/审查/终端。
+                    // §32.50 辅助对话专面（selection-chat）：官方语义=侧选会话面板，
+                    // 本仓复用 chat 主区（无独立 selection chat 后端面，不臆造协议），
+                    // 点击关闭侧板回到主会话——与官方"回到会话"体验等价的可用降级。
+                    {
+                      id: "selection-chat",
+                      label: intl.formatMessage({ id: "sidePane.selectionChat" }),
+                      icon: (
+                        <MessagesSquare
+                          aria-hidden="true"
+                          className="size-4 text-foreground-subtle"
+                        />
+                      ),
+                      onOpen: () => setSidePaneMode(null),
+                    },
+                    {
+                      id: "terminal",
+                      label: intl.formatMessage({ id: "chat.statusPanel.terminals" }),
+                      icon: (
+                        <TerminalSquare aria-hidden="true" className="size-4 text-foreground-subtle" />
+                      ),
+                      onOpen: () => setSidePaneMode("terminal"),
+                    },
+                  ]
+                : []
+            }
+          />
+        )
+      ) : null}
       </div>
     );
   }
@@ -882,12 +986,9 @@ function AppBody() {
   }
 
   if (phase.kind === "task") {
-    return (
-      <div className="relative h-dvh w-full">
-        {taskShell}
-        {sidePane}
-      </div>
-    );
+    // §32.48 侧板由 MobileTaskShell 内部渲染（sidePane prop，从工作区头下方起）；
+    // 此处重复挂载会以 h-dvh 容器为定位基准盖住页头（截图终验实证）。
+    return <div className="relative h-dvh w-full">{taskShell}</div>;
   }
 
   return (

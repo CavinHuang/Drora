@@ -26,6 +26,8 @@ export function projectHomeWorkspacesWithLiveness(
       ...workspace,
       tasks: merged.tasks.map((task) => ({
         ...task,
+        unreadAtMs: task.unreadAtMs ?? null,
+        hasBackgroundWork: task.hasBackgroundWork === true,
         // 会话已结束不等于任务摘要显式 completed；官方真 Host 的空串状态显示空闲。
         status:
           task.status === "running"

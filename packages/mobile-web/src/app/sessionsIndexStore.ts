@@ -216,6 +216,12 @@ export interface LivenessMergedTask {
   createdAtMs: number | null;
   updatedAtMs: number | null;
   status: HomeTaskLivenessStatus;
+  /** §32.37 左表（bootstrap/list 投影）携带的 membership/未读态原样保留。 */
+  pinned?: boolean;
+  archived?: boolean;
+  unreadAtMs?: number | null;
+  /** §32.50 官方投影：后台工作标记。 */
+  hasBackgroundWork?: boolean;
 }
 
 /** 活性合并后的工作区投影（工作区自身字段原样保留，仅 tasks 逐行合并活性）。 */
@@ -252,6 +258,12 @@ export function mergeHomeWorkspaceLiveness(
         createdAtMs: task.createdAtMs,
         updatedAtMs: task.updatedAtMs,
         status: task.status,
+        // §32.37 membership/未读原样保留（条件展开避免 undefined 键形态漂移）。
+        ...(task.pinned === true ? { pinned: true } : {}),
+        ...(task.archived === true ? { archived: true } : {}),
+        ...(task.unreadAtMs != null ? { unreadAtMs: task.unreadAtMs } : {}),
+        // §32.50 官方投影：后台工作标记（false 条件展开同未读语义）。
+        ...(task.hasBackgroundWork === true ? { hasBackgroundWork: true } : {}),
       });
       continue;
     }
@@ -266,6 +278,10 @@ export function mergeHomeWorkspaceLiveness(
       createdAtMs: task.createdAtMs,
       updatedAtMs: summary.lastActivityAt || task.updatedAtMs,
       status,
+      ...(task.pinned === true ? { pinned: true } : {}),
+      ...(task.archived === true ? { archived: true } : {}),
+      ...(task.unreadAtMs != null ? { unreadAtMs: task.unreadAtMs } : {}),
+      ...(task.hasBackgroundWork === true ? { hasBackgroundWork: true } : {}),
     });
   }
   return {

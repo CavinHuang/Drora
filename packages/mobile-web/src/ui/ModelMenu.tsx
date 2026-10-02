@@ -131,11 +131,13 @@ export function UsageBadge({
     style: "percent",
     maximumFractionDigits: 0,
   }).format(percent);
+  // §32.24 官方活体对照：用量环数字用千分位分组（「123,456 / 总量 1,000,000」），非
+  // compact 记法（compact 仅模型菜单 token 面沿用）。
   const usageLabel = intl.formatMessage(
     { id: "chat.contextUsage" },
     {
-      used: formatCompactTokenCount(usedTokens, intl.locale),
-      total: formatCompactTokenCount(maxTokens, intl.locale),
+      used: new Intl.NumberFormat(intl.locale).format(usedTokens),
+      total: new Intl.NumberFormat(intl.locale).format(maxTokens),
     },
   );
   if (compact) {

@@ -61,6 +61,8 @@ function WebRemoteControlTaskSyncActive(props: { workspaceTabs: WorkspaceTabStat
       updatedAt: item.updatedAt,
       createdAt: item.createdAt,
       workspacePath: item.workspacePath,
+      // §33.6：status 供 Main 投影官方 displayStatus（行状态徽标）。
+      ...(item.status ? { status: item.status } : {}),
       ...(item.workspaceIdentity ? { workspaceIdentity: item.workspaceIdentity } : {}),
       ...(item.remoteSessionId ? { remoteSessionId: item.remoteSessionId } : {}),
     }));

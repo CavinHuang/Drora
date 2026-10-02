@@ -52,3 +52,13 @@ test("side-pane-toggle 装配缝：缺省不渲染；传入渲染 PanelRight 按
   assert.ok(wired.includes('aria-expanded="true"'));
   assert.ok(wired.includes('aria-label="展开侧边面板"'), "官方 mobileShell.task.sidePaneExpand 既有键");
 });
+
+test("§32.25 工作区 chip 名带分支：aria = 「工作区名 · 分支」（官方活体 demo · main）；分支缺省纯工作区名", () => {
+  const withBranch = render({ branchName: "main" });
+  assert.ok(
+    withBranch.includes('aria-label="sub · main"'),
+    "chip aria = 工作区名 · 分支",
+  );
+  const noBranch = render({ branchName: null });
+  assert.ok(noBranch.includes('aria-label="sub"'), "无分支退化为纯工作区名");
+});

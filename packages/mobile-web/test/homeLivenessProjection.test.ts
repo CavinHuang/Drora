@@ -46,6 +46,10 @@ test("双视口共用的活性投影更新运行态并保留工作区身份", ()
     createdAtMs: 100,
     updatedAtMs: 200,
     status: "running",
+    // §32.37 投影携带未读键（null = 已读；左表无 membership 时缺省）。
+    unreadAtMs: null,
+    // §32.50 投影携带后台工作标记（左表无该字段时 false）。
+    hasBackgroundWork: false,
   });
 });
 

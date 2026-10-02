@@ -13,6 +13,11 @@ import { useIntl } from "./intl.js";
 export interface RemoteWorkspaceHeaderProps {
   title: string;
   workspacePath: string;
+  /**
+   * §32.25 工作区 chip 分支段（官方还原页活体：chip 名 = 「demo · main」——
+   * 工作区名 · 当前分支；分支源 = attachment git summary.branchName，缺省仅工作区名）。
+   */
+  branchName?: string | null;
   /** 路径按钮点击（官方为 button 形态；缺省渲染为不可点 span 对位）。 */
   onPathClick?: () => void;
   /** §32.11 任务信息弹层（folder 锚点；内容由 App 装配）。 */
@@ -32,6 +37,7 @@ export interface RemoteWorkspaceHeaderProps {
 export function RemoteWorkspaceHeader({
   title,
   workspacePath,
+  branchName,
   onPathClick,
   onMoreMenu,
   moreMenuSlot,
@@ -46,6 +52,8 @@ export function RemoteWorkspaceHeader({
       .replace(/[\\/]+$/, "")
       .split(/[\\/]/)
       .at(-1) ?? workspacePath;
+  // §32.25 官方 chip 名 = 工作区名 · 分支（活体「demo · main」）；分支缺省退化为纯工作区名。
+  const workspaceChipLabel = branchName ? `${workspaceName} · ${branchName}` : workspaceName;
   return (
     <header
       data-testid="workspace-header"
@@ -58,7 +66,7 @@ export function RemoteWorkspaceHeader({
             <button
               type="button"
               data-testid="workspace-path"
-              aria-label={workspaceName}
+              aria-label={workspaceChipLabel}
               className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
               title={workspacePath}
               onClick={onPathClick}
@@ -70,7 +78,7 @@ export function RemoteWorkspaceHeader({
               data-testid="workspace-path"
               className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
               title={workspacePath}
-              aria-label={workspaceName}
+              aria-label={workspaceChipLabel}
             >
               <Folder aria-hidden="true" className="size-4" />
             </span>

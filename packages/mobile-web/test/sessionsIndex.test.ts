@@ -317,9 +317,11 @@ test("活性合并：status/updatedAt 覆盖，custom title 权威，draft 剔�
 
 test("活性合并：无摘要的行保持投影原样（bootstrap/list 仍是权威数据源）", () => {
   const workspace = projectWorkspace([
-    { sessionId: "t1", title: "投影标题", createdAtMs: 1, updatedAtMs: 100, status: "running" },
+    { sessionId: "t1", title: "投影标题", createdAtMs: 1, updatedAtMs: 100, status: "running", unreadAtMs: null, hasBackgroundWork: false },
   ]);
   const merged = mergeHomeWorkspaceLiveness(workspace, []);
+  // §32.37 未读 null（已读）行条件展开——合并结果不携带未读键。
+  // §32.50 hasBackgroundWork false 亦条件展开。
   assert.deepEqual(merged.tasks, [
     { sessionId: "t1", title: "投影标题", createdAtMs: 1, updatedAtMs: 100, status: "running" },
   ]);

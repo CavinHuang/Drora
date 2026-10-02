@@ -15,10 +15,13 @@ export function RemoteOpenTabShell({
   onClose,
   onOpenReview,
   items = [],
+  variant = "overlay",
 }: {
   onClose: () => void;
   onOpenReview?: () => void;
   items?: readonly RemoteOpenTabItem[];
+  /** §32.45 overlay = 窄壳覆盖层（absolute）；wide = 宽壳并排列（flex 常驻，w2 双页取证）。 */
+  variant?: "overlay" | "wide";
 }) {
   const { formatMessage } = useIntl();
   const launcherItems: readonly RemoteOpenTabItem[] = onOpenReview
@@ -35,7 +38,11 @@ export function RemoteOpenTabShell({
   return (
     <aside
       aria-label={formatMessage({ id: "sidePane.openTabs" })}
-      className="absolute inset-y-0 right-0 z-20 w-80 max-w-[85%] border-l border-border bg-background shadow-lg"
+      className={
+        variant === "wide"
+          ? "flex h-full w-80 shrink-0 flex-col border-l border-border bg-background"
+          : "absolute inset-y-0 right-0 z-20 w-80 max-w-[85%] border-l border-border bg-background shadow-lg"
+      }
     >
       <div className="side-pane-open-tab-shell flex h-full min-h-0 flex-col bg-background">
         <div className="flex h-12 shrink-0 items-center justify-end px-2">

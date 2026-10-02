@@ -120,7 +120,10 @@ export const enUS: Record<string, string> = {
   "mobileShell.home.summary": "{workspaceCount} workspaces · {taskCount} tasks",
   "mobileShell.home.theme": "Choose theme",
   "mobileShell.home.title": "Drora remote control",
-  "mobileShell.home.workspaceEmpty": "No open workspaces on this device",
+  "mobileShell.home.workspaceEmpty": "No tasks in this workspace", // 官方逐字（§32.38 组内空态）
+  "mobileShell.home.noTasks": "No tasks available in the current desktop window", // 官方逐字（顶层空态）
+  "mobileShell.home.pinnedSection": "Pinned", // 官方逐字
+  "mobileShell.home.openTask": "Open task {title}", // 官方逐字（行 aria）
   "mobileShell.loading.authenticating.title": "Authenticating device…",
   "mobileShell.loading.authenticating.description":
     "Relay connected. Verifying your remote-control identity.",
@@ -231,9 +234,13 @@ export const enUS: Record<string, string> = {
   // —— P3a 富时间线 / composer 状态驱动：官方键，值逐字取自 packages/ui/src/i18n/locales/en-US.ts ——
   "chat.permission.awaitingApproval": "Awaiting approval", // 官方 en-US.ts:5941
   "chat.placeholder.followUpQueue": "Keep typing to queue follow-up changes", // 官方 en-US.ts:4715
+  "chat.placeholder.followUpAsk": "Ask for follow-up changes", // 官方逐字
+  "chat.message.copy": "Copy", // 官方逐字（§32.40）
   "chat.reasoning.thinking": "Thinking", // 官方 en-US.ts:4820
   "chat.reasoning.thought": "Thought", // 官方 en-US.ts:4821
   "chat.stop.short": "Stop", // 官方 en-US.ts:4779
+  "chat.stop": "Stop", // 官方逐字（§32.24 官方还原页活体：任务面停止钮用此键）
+  "chat.toolbar.mode.label": "Switch mode", // 官方逐字（§32.24 活体：模式触发器 aria 通用文案）
   "chat.toolCall.collapseDetails": "Collapse tool details", // 官方 en-US.ts:5022
   "chat.toolCall.expandDetails": "Expand tool details", // 官方 en-US.ts:5021
   "chat.toolCall.result": "Result", // 官方 en-US.ts:5026
@@ -263,13 +270,13 @@ export const enUS: Record<string, string> = {
   "chat.queue.title": "Queued messages ({count})", // 官方 en-US.ts:4792
   "mobileShell.interaction.questionBadge": "Question", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
   "mobileShell.interaction.addFeedback": "Add feedback…", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
-  "mobileShell.organize.title": "Organize", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.organizeBy": "Group by", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byWorkspace": "By workspace", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byTimeline": "By timeline", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.sortBy": "Sort by", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byCreated": "By created", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byUpdated": "By updated", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.title": "Organize", // 自建键（官方 mobileHome 族无菜单标题键）
+  "mobileShell.organize.organizeBy": "Group by", // 自建键（官方 mobileHome 族无对应键）
+  "mobileShell.organize.byWorkspace": "By workspace", // 官方逐字（webRemoteControl.mobileHome.organizeByWorkspace en）
+  "mobileShell.organize.byTimeline": "Timeline", // 官方逐字（webRemoteControl.mobileHome.organizeByTimeline en，§32.21 校准）
+  "mobileShell.organize.sortBy": "Sort by", // 官方逐字（webRemoteControl.mobileHome.sortBy en）
+  "mobileShell.organize.byCreated": "Created time", // 官方逐字（webRemoteControl.mobileHome.sortByCreated en，§32.21 校准）
+  "mobileShell.organize.byUpdated": "Updated time", // 官方逐字（webRemoteControl.mobileHome.sortByUpdated en，§32.21 校准）
   // —— P3c 模型选择器第一档 + 上下文用量：官方键，值逐字取自 packages/ui/src/i18n/locales/en-US.ts ——
   "chat.toolbar.model.label": "Choose model", // 官方 en-US.ts:4950
   "chat.toolbar.model.manageModels": "Manage models", // official (32.10 two-line model trigger)
@@ -292,7 +299,8 @@ export const enUS: Record<string, string> = {
   "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
   "mobileShell.wide.sidebar": "Sidebar", // P5b 自建键（nav aria-label）
   "mobileShell.wide.newTask": "New task", // P5b 自建键（值 = 官方 taskList.newTask）
-  "mobileShell.wide.search": "Search tasks", // P5b 自建键（值 = 官方 workspaceSidebar.searchTasks en:1731）
+  "mobileShell.wide.search": "Search tasks", // P5b
+  "commandCenter.open": "Search", // 官方逐字（§32.42） 自建键（值 = 官方 workspaceSidebar.searchTasks en:1731）
   "mobileShell.wide.plugins": "Plugin Marketplace", // P5b 自建键（值 = 官方 workspace.openPluginsSettings en:1599；入口 disabled，P5c 接插件商店）
   "mobileShell.wide.actionPending": "This entry will be available in a later release", // P5b 自建键（禁用占位说明）
   "mobileShell.wide.collapseSidebar": "Collapse sidebar", // P5b 自建键
@@ -521,4 +529,5 @@ export const enUS: Record<string, string> = {
   "chat.attachments.add": "Add attachment", // 官方逐字
   "chat.toolbar.thoughtLevel.value.off": "Off", // 官方逐字
   "chat.toolbar.thoughtLevel.value.minimal": "Minimal", // 官方逐字
+  "chat.plan.removeMarker": "Turn off Plan mode", // 官方逐字（§32.22 composer plan 标记钮）
 };

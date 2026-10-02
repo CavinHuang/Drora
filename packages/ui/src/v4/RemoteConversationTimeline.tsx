@@ -43,6 +43,8 @@ export interface RemoteConversationTimelineProps {
   onResumeGoal?: () => void;
   onCancelBackgroundWork?: (workId: string) => void;
   headerSlot?: ReactNode;
+  /** §32.51 手机远控：消息操作行常显（官方 compactForRemoteControl 同语义）。 */
+  compactForRemoteControl?: boolean;
   bottomDock?: ReactNode;
   canLoadOlder?: boolean;
   loadingOlder?: boolean;
@@ -73,6 +75,7 @@ export function RemoteConversationTimeline({
   onResumeGoal,
   onCancelBackgroundWork,
   headerSlot,
+  compactForRemoteControl,
   bottomDock,
   canLoadOlder,
   loadingOlder,
@@ -111,6 +114,8 @@ export function RemoteConversationTimeline({
       theme,
       codePreviewSettings: DEFAULT_CODE_PREVIEW_SETTINGS,
       modelSelectionView,
+      // §32.51 本组件即手机远控页时间线：操作行常显（官方 compactForRemoteControl）。
+      compactForRemoteControl: true,
     }),
     [workspacePath, workspaceIdentity, sessionKey, theme, modelSelectionView],
   );
@@ -150,6 +155,7 @@ export function RemoteConversationTimeline({
               rowContext={rowContext}
               sessionPhase={sessionPhase}
               summaryPanelLayout={statusPanelLayout}
+              compactForRemoteControl={compactForRemoteControl}
               headerSlot={headerSlot}
               bottomDock={bottomDock}
               onFeedbackChange={onFeedbackChange}

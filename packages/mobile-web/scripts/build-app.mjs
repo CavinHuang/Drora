@@ -59,6 +59,17 @@ for (const name of await readdir(viteOut, { withFileTypes: true })) {
   await cp(join(viteOut, name.name), join(dist, "remote", "v4", "index.html"));
 }
 
+// public/ 产物（material-icons 文件类型图标）随官方路径形状下发：vite 把 public/*
+// 平铺到 .vite-out 根，这里搬进 /remote/v4/3.14.3/（官方图标基址 BCe = base +
+// material-icons，页面按该绝对路径取图标，spec §32.17）。
+const versionRoot = join(dist, "remote", "v4", "3.14.3");
+let publicEntryCount = 0;
+for (const name of await readdir(viteOut, { withFileTypes: true })) {
+  if (name.name === "assets" || name.name.endsWith(".html")) continue;
+  await cp(join(viteOut, name.name), join(versionRoot, name.name), { recursive: true });
+  publicEntryCount += 1;
+}
+
 // 验收：入口引用**绝对**资源路径（官方形状 /remote/v4/3.14.3/assets/*）。入口在
 // /remote/v4（无尾斜杠）下被服务时，相对引用会解析到 /remote/ 下丢 v4 段——E2E
 // 实证（P4a，spec §17），故不做相对化改写；产物无官方 URL 字面量、无 sourcemap。
@@ -99,4 +110,6 @@ for (const name of [...assetNames, "index.html"]) {
 }
 
 await rm(viteOut, { recursive: true, force: true });
-console.log(`[mobile-web] built source app: ${assetCount + 1} assets under dist/remote/v4`);
+console.log(
+  `[mobile-web] built source app: ${assetCount + 1} assets + ${publicEntryCount} public entries under dist/remote/v4`,
+);

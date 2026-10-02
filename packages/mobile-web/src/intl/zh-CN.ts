@@ -5,7 +5,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.connection.connected": "已连接到当前桌面窗口",
   "mobileShell.connection.connecting": "正在连接",
   "mobileShell.connection.disconnected": "未连接",
-  "mobileShell.connection.reconnecting": "正在重新连接",
+  "mobileShell.connection.reconnecting": "连接中", // 官方逐字（webRemoteControl.mobileHome.reconnecting zh，§32.22 校准）
   "mobileShell.failure.connectionRecoveryTimeout.action": "重试",
   "mobileShell.failure.connectionRecoveryTimeout.badge": "恢复超时",
   "mobileShell.failure.connectionRecoveryTimeout.detailLabel": "恢复详情",
@@ -114,7 +114,10 @@ export const zhCN: Record<string, string> = {
   "mobileShell.home.summary": "{workspaceCount} 个工作区 · {taskCount} 个任务",
   "mobileShell.home.theme": "选择主题",
   "mobileShell.home.title": "Drora 远程控制",
-  "mobileShell.home.workspaceEmpty": "当前设备上没有已打开的工作区",
+  "mobileShell.home.workspaceEmpty": "这个工作区暂无任务", // 官方逐字（webRemoteControl.mobileHome.workspaceEmpty zh，§32.38 语义拆分：组内空态）
+  "mobileShell.home.noTasks": "当前桌面窗口没有可展示的任务", // 官方逐字（webRemoteControl.noTasks zh，顶层空态）
+  "mobileShell.home.pinnedSection": "已置顶", // 官方逐字（taskList.pinnedSection zh）
+  "mobileShell.home.openTask": "打开任务 {title}", // 官方逐字（webRemoteControl.openTask zh，行 aria）
   "mobileShell.loading.authenticating.description": "已连接中转服务，正在完成远控身份校验。",
   "mobileShell.loading.authenticating.title": "正在认证设备…",
   "mobileShell.loading.connecting.description": "正在建立手机与远控中转服务的连接。",
@@ -218,9 +221,13 @@ export const zhCN: Record<string, string> = {
   // —— P3a 富时间线 / composer 状态驱动：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
   "chat.permission.awaitingApproval": "等待确认", // 官方 zh-CN.ts:5674
   "chat.placeholder.followUpQueue": "继续输入以排队后续修改", // 官方 zh-CN.ts:4408
+  "chat.placeholder.followUpAsk": "提出后续修改要求", // 官方逐字（§32.39：官方 plt 无历史+非处理中态用此键，旧自建键淘汰）
+  "chat.message.copy": "复制", // 官方逐字（§32.40 用户行复制钮）
   "chat.reasoning.thinking": "正在思考", // 官方 zh-CN.ts:4510
   "chat.reasoning.thought": "思考", // 官方 zh-CN.ts:4511
   "chat.stop.short": "停止", // 官方 zh-CN.ts:4472
+  "chat.stop": "停止生成", // 官方逐字（§32.24 官方还原页活体：任务面停止钮用此键）
+  "chat.toolbar.mode.label": "切换模式", // 官方逐字（§32.24 活体：模式触发器 aria 通用文案）
   "chat.toolCall.collapseDetails": "收起工具详情", // 官方 zh-CN.ts:4709
   "chat.toolCall.expandDetails": "展开工具详情", // 官方 zh-CN.ts:4708
   "chat.toolCall.result": "结果", // 官方 zh-CN.ts:4713
@@ -250,13 +257,13 @@ export const zhCN: Record<string, string> = {
   "chat.queue.title": "待发送消息（{count}）", // 官方 zh-CN.ts:4483
   "mobileShell.interaction.questionBadge": "提问", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
   "mobileShell.interaction.addFeedback": "附加反馈…", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
-  "mobileShell.organize.title": "整理", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.organizeBy": "整理方式", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byWorkspace": "按工作区", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byTimeline": "按时间线", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.sortBy": "排序", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byCreated": "按创建时间", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
-  "mobileShell.organize.byUpdated": "按更新时间", // P3c 自建键（官方 webRemoteControl.mobileHome.* 为手机页自有 i18n，后续可从冻结 bundle 逐字提取）
+  "mobileShell.organize.title": "整理", // 自建键（官方 mobileHome 族无菜单标题键，结构取证 bundle :185807）
+  "mobileShell.organize.organizeBy": "整理方式", // 自建键（官方 mobileHome 族无对应键）
+  "mobileShell.organize.byWorkspace": "按工作区", // 官方逐字（webRemoteControl.mobileHome.organizeByWorkspace zh）
+  "mobileShell.organize.byTimeline": "按时间线", // 官方逐字（webRemoteControl.mobileHome.organizeByTimeline zh）
+  "mobileShell.organize.sortBy": "排序方式", // 官方逐字（webRemoteControl.mobileHome.sortBy zh，§32.21 校准）
+  "mobileShell.organize.byCreated": "创建时间", // 官方逐字（webRemoteControl.mobileHome.sortByCreated zh，§32.21 校准）
+  "mobileShell.organize.byUpdated": "更新时间", // 官方逐字（webRemoteControl.mobileHome.sortByUpdated zh，§32.21 校准）
   // —— P3c 模型选择器第一档 + 上下文用量：官方键，值逐字取自 packages/ui/src/i18n/locales/zh-CN.ts ——
   "chat.toolbar.model.label": "选择模型", // 官方 zh-CN.ts:4643
   "chat.toolbar.model.manageModels": "管理模型", // 官方 locale chunk 逐字（§32.10 双行触发器）
@@ -280,6 +287,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.wide.sidebar": "侧栏", // P5b 自建键（nav aria-label）
   "mobileShell.wide.newTask": "新建任务", // P5b 自建键（值 = 官方 taskList.newTask）
   "mobileShell.wide.search": "搜索任务", // P5b 自建键（值 = 官方 workspaceSidebar.searchTasks zh:1609）
+  "commandCenter.open": "搜索", // 官方逐字（§32.42 宽壳左栏搜索行）
   "mobileShell.wide.plugins": "插件市场", // P5b 自建键（值 = 官方 workspace.openPluginsSettings zh:1483；入口 disabled，P5c 接插件商店）
   "mobileShell.wide.actionPending": "该入口将在后续版本开放", // P5b 自建键（禁用占位说明）
   "mobileShell.wide.collapseSidebar": "收起侧栏", // P5b 自建键
@@ -500,6 +508,7 @@ export const zhCN: Record<string, string> = {
   "chat.attachments.add": "添加附件", // 官方逐字（medium 按族规律补）
   "chat.toolbar.thoughtLevel.value.off": "关闭", // 官方逐字
   "chat.toolbar.thoughtLevel.value.minimal": "极低", // 官方逐字
+  "chat.plan.removeMarker": "关闭计划模式", // 官方逐字（§32.22 composer plan 标记钮）
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，zh）
   "chat.empty.greeting.morningEarly": "早上好呀，新的一天开始啦", // 官方逐字
   "chat.placeholder.newTaskMobile": "向 ZCode 提问…", // 官方逐字

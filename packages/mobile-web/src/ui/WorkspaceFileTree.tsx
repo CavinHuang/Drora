@@ -9,6 +9,8 @@
 // D6 自包含：不 import @drora/ui；文案经上层 IntlProvider 的 useIntl 取键。
 import { useIntl } from "./intl.js";
 import { cn } from "./cn.js";
+import { FileIconImage } from "./FileChip.js";
+import { fileNameToIconName, fileIconSrc } from "./fileIcon.js";
 
 /** 文件树条目（上层 Host 文件服务投影；P7 协议面定义前先用本地形状）。 */
 export interface WorkspaceFileTreeEntry {
@@ -117,6 +119,15 @@ export function WorkspaceFileTree({
             className="flex items-center gap-2 px-3 py-1 text-ui-sm text-foreground hover:bg-muted"
             style={{ paddingLeft: `${12 + entry.depth * 16}px` }}
           >
+            {/* 官方树行（Qon，§32.17）：文件行 16px 类型图标（shrink-0 size-4）；
+                目录行不渲染类型图标（官方仅展开 chevron——本组件无展开态，不臆造）。 */}
+            {entry.kind === "file" ? (
+              <FileIconImage
+                src={fileIconSrc(fileNameToIconName(entry.path))}
+                size={16}
+                className="shrink-0 size-4"
+              />
+            ) : null}
             <span className="truncate" title={entry.path}>
               {entry.name}
             </span>

@@ -25,6 +25,11 @@ export interface MobileTaskShellProps {
   timelineOwnsScroll?: boolean;
   /** 连接中断提示（如重新连接中文案由装配方注入）。 */
   connectionBanner?: ReactNode;
+  /** §32.40 侧板内容（workspaceHeader 下方覆盖层；open 时底层压暗）。 */
+  sidePane?: ReactNode;
+  sidePaneOpen?: boolean;
+  /** §32.43 遮罩钮点击（官方 ain 遮罩是可点关闭的 button）。 */
+  onSidePaneOverlayClose?: () => void;
   className?: string;
 }
 
@@ -39,6 +44,10 @@ export function MobileTaskShell({
   timelineScrollRef,
   timelineOwnsScroll = false,
   connectionBanner,
+  /** §32.40 官方侧板挂载（从头部行下方起 + 底层压暗遮罩，双页截图对照实证）。 */
+  sidePane,
+  sidePaneOpen = false,
+  onSidePaneOverlayClose,
   className,
 }: MobileTaskShellProps) {
   const { formatMessage } = useIntl();
@@ -99,6 +108,24 @@ export function MobileTaskShell({
         data-testid="v4-session-pane-workspace-main"
         className="relative flex min-h-0 min-w-0 flex-1 flex-col"
       >
+        {/* §32.43 官方侧板遮罩逐字还原（ain @bundle：data-mobile-side-pane-overlay +
+            bg-background/60 backdrop-blur-[1px]，非 bg-black/40）；遮罩钮带关闭语义标签。 */}
+        {sidePaneOpen && sidePane ? (
+          <>
+            <button
+              type="button"
+              aria-label={formatMessage({ id: "sidePane.collapse" })}
+              className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[1px]"
+              onClick={onSidePaneOverlayClose}
+            />
+            <div
+              data-mobile-side-pane-overlay="true"
+              className="absolute inset-0 z-20 transition-opacity duration-200 ease-out"
+            >
+              {sidePane}
+            </div>
+          </>
+        ) : null}
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {connectionBanner ? (
             <div className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle">

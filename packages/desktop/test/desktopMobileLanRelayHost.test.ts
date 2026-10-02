@@ -14,6 +14,7 @@ import { WebSocket } from "ws";
 import {
   LAN_EMBEDDED_RELAY_ORIGIN,
   buildLanRemotePageUrl,
+  buildMobileWebRootCandidates,
   createDesktopMobileLanRelayHost,
   credentialFileNameForOrigin,
   resolveCloudRelayOrigin,
@@ -97,23 +98,18 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
   assert.equal(host.currentPort(), first.port);
   assert.equal(host.isRunning(), true);
 
-  // LAN 内嵌服务优先由独立 mobile-web 包离线供给 v4 入口和版本资产。
-  const sourceAppRoot = fileURLToPath(new URL("../../mobile-web/dist/", import.meta.url));
+  // LAN 内嵌服务由独立 mobile-web 包离线供给 v4 入口和版本资产。
+  // §33.11 raw 优先：仓库 upstream（官方原始字节冻结件）恒存在 → resolvedRoot 恒为
+  // upstream 根；recovered（可读化）与 dist 仅为回退候选。
+  const upstreamRoot = fileURLToPath(new URL("../../mobile-web/upstream/", import.meta.url));
   const resolvedRoot = await resolveLocalMobileWebRoot();
-  assert.ok(resolvedRoot);
-  let sourceAppBuilt = false;
-  try {
-    await access(join(sourceAppRoot, "remote", "v4", "index.html"));
-    sourceAppBuilt = true;
-  } catch {
-    // 未构建源码页的单测环境仍可用恢复稿验证 relay 资产回退。
-  }
-  if (sourceAppBuilt) assert.equal(resolvedRoot, sourceAppRoot);
+  assert.equal(resolvedRoot, upstreamRoot);
   const entry = await fetch(`http://127.0.0.1:${first.port}/remote/v4`);
   assert.equal(entry.status, 200);
   const entryHtml = await entry.text();
   assert.match(entryHtml, /3\.14\.3\/assets\/index-/u);
-  if (sourceAppBuilt) assert.match(entryHtml, /<title>Drora Remote<\/title>/u);
+  // 官方快照入口 title=官方品牌静态值（运行时 JS 再置完整标题）；出站改写不因页面主体切换而失效。
+  assert.match(entryHtml, /<title>ZCode<\/title>/u);
   const bundlePath = entryHtml.match(
     /src="(\/remote\/v4\/3\.14\.3\/assets\/index-[^"]+\.js)"/u,
   )?.[1];
@@ -282,4 +278,32 @@ test("进程内一致性：真 desktopMobileRelayControl × 真内嵌 relayServe
   const persistedCredential = await credentialStore.load();
   assert.ok(persistedCredential, "LAN 凭据必须落盘到 origin 路由文件");
   assert.equal(persistedCredential.deviceSid, deviceSid);
+});
+
+test("§33.11 页面根候选序（raw 优先）：开发态/安装态/存量安装三形态", () => {
+  const toSlash = (value: string) => value.split("\\").join("/");
+  const endsWith = (value: string, suffix: string) => toSlash(value).endsWith(suffix);
+  // 开发态：仓库 upstream（官方原始字节冻结件）首选；recovered（可读化）回退；dist 末位。
+  const dev = buildMobileWebRootCandidates(undefined);
+  assert.equal(dev.length, 3);
+  assert.ok(endsWith(dev[0]!, "mobile-web/upstream/"), "开发态首选官方原始字节冻结件");
+  assert.ok(endsWith(dev[1]!, "mobile-web/src/recovered/"), "recovered（可读化）为回退");
+  assert.ok(endsWith(dev[2]!, "mobile-web/dist/"), "dist 为末位兜底");
+  // 安装态（§33.11 extraResources mobile-web-official=upstream raw）：随包官方原始字节
+  // 优先于随包旧 dist 产物；仓库两根在安装态不存在，排其后作为源码运行兜底。
+  const installed = buildMobileWebRootCandidates("C:/app/resources");
+  assert.equal(installed.length, 5);
+  assert.ok(endsWith(installed[0]!, "mobile-web/upstream/"));
+  assert.equal(
+    toSlash(installed[1]!),
+    "C:/app/resources/mobile-web-official",
+    "安装态首选随包官方原始字节",
+  );
+  assert.equal(
+    toSlash(installed[2]!),
+    "C:/app/resources/mobile-web",
+    "旧 dist 产物为存量安装兜底",
+  );
+  assert.ok(endsWith(installed[3]!, "mobile-web/src/recovered/"));
+  assert.ok(endsWith(installed[4]!, "mobile-web/dist/"));
 });

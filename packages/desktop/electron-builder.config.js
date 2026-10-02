@@ -668,6 +668,16 @@ export default {
       from: resolve(workspaceRoot, "packages/mobile-web/dist"),
       to: "mobile-web",
     },
+    {
+      // §33.11 产物一致性（raw 优先修正）：官方 remote 页原始字节冻结件随包
+      // （upstream 根——布局含 remote/v4/index.html，与 LAN host 候选探测对齐；
+      // §33.9 曾误用 src/recovered，其 JS 是可读化格式化版非官方原始字节）。
+      // 安装态 LAN relay 候选序首位伺服官方原始字节。与旧 dist 姊妹目录分置——
+      // remote/v4/** 路径同形但字节不同，不可同目录合并。60MB 为官方全量资产集
+      // （逐图标 chunk/字体/材质图标），不裁剪保字节保真。
+      from: resolve(workspaceRoot, "packages/mobile-web/upstream"),
+      to: "mobile-web-official",
+    },
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
     ...(targetPlatform.os === "darwin"
       ? [

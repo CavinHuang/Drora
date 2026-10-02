@@ -13,6 +13,9 @@ const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json")
 
 export default defineConfig({
   root: resolve(import.meta.dirname, "src/app"),
+  // publicDir 显式指包根：vite root 是 src/app，默认只找 src/app/public——包根
+  // public/（material-icons 文件类型图标，spec §32.17）须显式声明才随构建下发。
+  publicDir: resolve(import.meta.dirname, "public"),
   resolve: {
     alias: { "@": resolve(import.meta.dirname, "../ui/src") },
     // ui 源直引（@ 别名）与 mobile-web 自身的 react 必须同拷贝——否则 Context 全失效

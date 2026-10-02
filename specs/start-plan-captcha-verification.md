@@ -78,3 +78,32 @@ CLI runtime-headers 请求 → droraAgentService（services 层，新增 StartPl
 2. captcha 配置缺失/采集超时：请求仍发出（无验证头），错误与修复前一致（3007 auth_failed），无新增异常路径。
 3. 付费 Coding Plan / API Key provider：请求头不包含验证头（回归）。
 4. `pnpm typecheck` / `pnpm lint` 通过；resolver 注入/降级有单测。
+
+## 补层（2026-10-02，真机验收 §33.10-33.12 新证据——3007 分层定性）
+
+真桌面真数据验收（官方页×dev 实例）把 3007 从"单层 captcha 缺失"修正为**两层问题**：
+
+**L1 = TLS 握手层被切（新增，先于 L2）**：bigmodel-individual-coding-plan（个人套餐，
+非 start-plan）的 CLI 模型请求（drora.cjs，宿主 utility 进程 fork）今日报
+`TerminalStreamChunkError: Cannot connect to API: Client network socket disconnected
+before secure TLS connection was established`——握手层被切，**HTTP 响应不存在，
+captcha 挑战根本不会到达**，本 spec 的采集链无从触发（运行日志 captchaAttached:false
+的另一原因：`isStartPlanAccountAccess` 只认 `mode==="start-plan"`，个人套餐
+coding-plan mode 直接 null 降级）。**同会话 9/27-28 同端点真成功过**（model-io
+debug 三条 durationMs 4-6s attempt 1），9/30 起 3007 立案——WAF 策略收紧窗口吻合。
+
+**对照排除**：同刻 shell Node 24.1 fetch 对 open.bigmodel.cn 与 api.z.ai 均通
+（401=TLS 正常）；curl 通（401/0.25s）；双方 settings 均无代理配置。差异收敛到
+**CLI 运行时**（electron 内嵌 Node 22.x 的 TLS 指纹 vs shell Node 24 / curl）或
+WAF 按指纹+历史行为惩罚（3007 违规记录后的策略性切断）。官方 ZCode 3.14.3 桌面
+同机可用——其模型请求的网络栈（Chromium net vs Node fetch）与/或验证码 clearance
+机制是 L1 的考古方向。
+
+**L2 = captcha 接合面（本 spec 既有实现）**：仅覆盖 start-plan mode 的模型请求；
+个人套餐 coding-plan mode 不经此链。L1 解除后若个人套餐也出 3007 HTTP 挑战，需把
+接合条件从 `isStartPlanAccountAccess` 扩展（challenge-driven，配置来自 API 响应的
+CaptchaClientConfig，桥可复用）。
+
+**修复顺序裁定**：L1 先行（无 HTTP 响应则 L2 无意义）；L1 修复方向=①官方桌面模型
+请求网络栈考古（Chromium net 代理/指纹）→②CLI 运行时 Node 版本/指纹对齐官方→③
+均不可行则 captcha-clearance 类方案需先与用户对齐（涉及 WAF 对抗边界）。

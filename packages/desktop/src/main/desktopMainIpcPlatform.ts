@@ -546,6 +546,8 @@ function sanitizeSyncTasks(value: unknown): MobileRelayTaskSyncEntry[] {
         ...(typeof record.remoteSessionId === "string" && record.remoteSessionId.trim()
           ? { remoteSessionId: record.remoteSessionId.trim() }
           : {}),
+        // §33.6：status 透传（Main 投影官方 displayStatus 用）。
+        ...(typeof record.status === "string" && record.status ? { status: record.status } : {}),
       },
     ];
   });

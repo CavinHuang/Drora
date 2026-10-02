@@ -236,9 +236,15 @@ export interface RelayTaskSummary {
   workspaceLabel: string;
   workspaceKind: "local" | "remote";
   createdAt: number;
+  /**
+   * §33.6：官方页行状态读独立 displayStatus 字段（bundle pb schema @261533 枚举
+   * idle/running/completed/error，optional），不读 status；缺省回落「空闲」。
+   */
+  displayStatus?: "idle" | "running" | "completed" | "error";
   /** §32.16 三态 membership（对齐官方 chat.empty membership schema）。 */
   pinned?: boolean;
   archived?: boolean;
+  /** 官方 schema 为 number.optional——null 会被拒收整帧（§32.24 帧门取证），禁传 null。 */
   unreadAt?: number;
 }
 
@@ -253,6 +259,20 @@ export function relayWorkspaceKey(target: {
   workspaceIdentity?: string;
 }): string {
   return target.workspaceIdentity?.trim() || target.workspacePath;
+}
+
+/**
+ * §33.6：本仓任务状态词表（DroraTaskMeta["status"]）→ 官方页 displayStatus 枚举
+ * （idle/running/completed/error，bundle pb schema @261533）。官方行状态徽标读
+ * displayStatus 而非 status；缺失/未知回落 idle（官方同语义）。
+ */
+export function deriveRelayDisplayStatus(
+  status: string | undefined,
+): "idle" | "running" | "completed" | "error" {
+  if (status === "running") return "running";
+  if (status === "completed") return "completed";
+  if (status === "error") return "error";
+  return "idle";
 }
 
 export function buildBootstrapResult(params: {

@@ -14,7 +14,7 @@
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
 import { useState } from "react";
-import { AlignEndHorizontal, ArrowUp, ChevronDown, Paperclip, Shield } from "lucide-react";
+import { AlignEndHorizontal, ArrowUp, ChevronDown, Paperclip, Shield, X } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
 import { MobileComposerStateBar, resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
@@ -36,6 +36,8 @@ export interface TaskComposerProps {
   stopping: boolean;
   controlState: ConversationControlState | null;
   queueState: ConversationQueueState | null;
+  /** §32.39 官方 plt：无历史消息 → newTaskMobile 占位（草稿语义）。 */
+  hasHistoryMessages?: boolean;
   modelState: ModelSelectionState | null;
   modelView: ModelSelectionView | null;
   modelLoading: boolean;
@@ -72,6 +74,7 @@ export function TaskComposer(props: TaskComposerProps) {
     stopping,
     controlState,
     queueState,
+    hasHistoryMessages = true,
     modelState,
     modelView,
     modelLoading,
@@ -166,6 +169,7 @@ export function TaskComposer(props: TaskComposerProps) {
             id: resolveMobileComposerPlaceholderId(
               controlState?.phase ?? null,
               controlState?.queuePending ?? false,
+              hasHistoryMessages,
             ),
           })}
           onChange={(event) => onDraftChange(event.target.value)}
@@ -228,8 +232,8 @@ export function TaskComposer(props: TaskComposerProps) {
                     data-testid="chat-mode-select-trigger"
                     aria-haspopup="menu"
                     aria-expanded={modeMenuOpen}
-                    aria-label={formatMessage({ id: modeLabelId })}
-                    title={formatMessage({ id: modeLabelId })}
+                    aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
+                    title={formatMessage({ id: "chat.toolbar.mode.label" })}
                     className={cn(
                       "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface-hover",
                       configMode === "yolo"
@@ -238,7 +242,8 @@ export function TaskComposer(props: TaskComposerProps) {
                     )}
                     onClick={() => setModeMenuOpen((open) => !open)}
                   >
-                    {/* 官方窄壳模式触发器 = 盾形图标（§32.10 截图取证）；文案进 aria/title。 */}
+                    {/* 官方窄壳模式触发器 = 盾形图标（§32.10）；aria/title = 官方通用
+                        「切换模式」（§32.24 官方还原页活体取证，非当前模式名）。 */}
                     <Shield aria-hidden="true" className="size-4" />
                   </button>
                 </div>
@@ -247,13 +252,42 @@ export function TaskComposer(props: TaskComposerProps) {
                   type="button"
                   data-testid="chat-mode-select-trigger"
                   aria-disabled="true"
-                  aria-label={formatMessage({ id: modeLabelId })}
-                  title={formatMessage({ id: modeLabelId })}
+                  aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
+                  title={formatMessage({ id: "chat.toolbar.mode.label" })}
                   className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
                 >
                   <Shield aria-hidden="true" className="size-4" />
                 </button>
               )}
+              {/* §32.22 官方 v4-composer-plan-marker（bundle @2029871）：plan 生效时工具栏
+                  出现可移除标记（竖分隔 + ghost 钮，悬停换 X，chat.plan.removeMarker 文案，
+                  官方动作为正交的 plan/plan-off 命令——本协议把 plan 折进 mode 闭集（§32.3），
+                  移除等价映射为切回 build）。仅在有切换能力（onModeSelect）时渲染。 */}
+              {onModeSelect && configMode === "plan" ? (
+                <span data-testid="v4-composer-plan-marker" className="flex items-center gap-1">
+                  <span
+                    role="separator"
+                    aria-orientation="vertical"
+                    className="h-3 w-px shrink-0 bg-border"
+                  />
+                  <button
+                    type="button"
+                    aria-label={formatMessage({ id: "chat.plan.removeMarker" })}
+                    title={formatMessage({ id: "chat.plan.removeMarker" })}
+                    className="group/plan inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover hover:text-foreground-subtle"
+                    onClick={() => onModeSelect("build")}
+                  >
+                    <Shield
+                      aria-hidden="true"
+                      className="size-4 group-hover/plan:hidden group-focus-visible/plan:hidden"
+                    />
+                    <X
+                      aria-hidden="true"
+                      className="hidden size-4 group-hover/plan:block group-focus-visible/plan:block"
+                    />
+                  </button>
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5" data-composer-trailing-actions>

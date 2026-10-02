@@ -12,6 +12,7 @@ import {
   buildWorkspaceListResult,
   OFFICIAL_REMOTE_PAGE_APP_VERSION,
   deriveSelfHostedRelayEndpoints,
+  deriveRelayDisplayStatus,
   calculateRelayProof,
   createRelayPassword,
   derivePassHash,
@@ -2106,4 +2107,15 @@ test("remote_workspace_connect_result ctor 形状对齐官方 aee（eventRegion=
     connectTrigger: "restore",
   });
   assert.equal(unknownCategory.eventExtraDetail.error_category, "unknown");
+});
+
+test("§33.6 displayStatus 映射：本仓状态词表 → 官方页行状态枚举（缺省 idle）", () => {
+  // 官方 pb schema @261533：displayStatus enum[idle,running,completed,error].optional，
+  // 行状态徽标读它而非 status；本仓词表 = DroraTaskMeta["status"]。
+  assert.equal(deriveRelayDisplayStatus("running"), "running");
+  assert.equal(deriveRelayDisplayStatus("completed"), "completed");
+  assert.equal(deriveRelayDisplayStatus("error"), "error");
+  assert.equal(deriveRelayDisplayStatus(undefined), "idle");
+  assert.equal(deriveRelayDisplayStatus(""), "idle");
+  assert.equal(deriveRelayDisplayStatus("waiting"), "idle");
 });

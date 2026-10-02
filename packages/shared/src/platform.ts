@@ -328,6 +328,11 @@ export interface MobileRelayTaskSyncEntry {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
+  /**
+   * §33.6：任务状态词表 = DroraTaskMeta["status"]（running/completed/error/undefined）。
+   * Main 侧投影为官方页 displayStatus（行状态徽标数据源；缺失回落「空闲」）。
+   */
+  status?: string;
 }
 
 export type SaveFileRequest =

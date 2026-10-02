@@ -12,6 +12,7 @@ import {
   FolderOpen,
   FolderPlus,
   LoaderCircle,
+  MessageCirclePlus,
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
@@ -314,25 +315,38 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* 新建任务 / 搜索 / 插件市场占位（官方同序；插件商店接线归 P5c）。 */}
+      {/* §32.42 官方宽壳左栏顶部菜单行（Bin @bundle + commandCenter.open 行取证，截图对照）：
+          h-8 圆角行 = 图标 + 文字 + 右侧快捷键徽标（非大按钮）；点击建任务/开搜索。 */}
       <div className="flex shrink-0 flex-col gap-1 px-2 pb-2">
-        <Button
-          variant="outline"
-          className="min-h-9 w-full justify-start gap-2 border-transparent bg-primary px-3 text-primary-foreground hover:opacity-90"
-          disabled={!onNewTask}
+        <div
+          role="group"
+          aria-disabled={!onNewTask}
+          className={`group inline-flex h-8 w-full shrink-0 cursor-pointer items-center justify-stretch gap-2 overflow-hidden rounded-lg pl-2.5 pr-2.5 hover:bg-surface-hover hover:text-foreground active:translate-y-0 ${
+            onNewTask ? "" : "cursor-not-allowed text-foreground-subtlest hover:bg-transparent hover:text-foreground-subtlest"
+          }`}
           title={onNewTask ? undefined : formatMessage({ id: "mobileShell.wide.actionPending" })}
-          onClick={onNewTask}
+          onClick={() => onNewTask?.()}
         >
-          <Plus aria-hidden="true" className="size-4" />
-          {formatMessage({ id: "workspaceSidebar.newConversation" })}
-        </Button>
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-ui-base">
+            <MessageCirclePlus aria-hidden="true" className="h-4 w-4 shrink-0" />
+            <span className="truncate">{formatMessage({ id: "taskList.newThread" })}</span>
+            <span className="ml-auto shrink-0 text-ui-xs font-normal text-foreground-subtlest">
+              Ctrl N
+            </span>
+          </div>
+        </div>
         <Button
           variant="ghost"
-          className="min-h-9 w-full justify-start gap-2 px-3 text-foreground hover:bg-surface-hover"
+          className="h-9 w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground"
           onClick={onOpenSearch}
         >
           <Search aria-hidden="true" className="size-4" />
-          {formatMessage({ id: "mobileShell.wide.search" })}
+          <span className="min-w-0 flex-1 truncate text-left">
+            {formatMessage({ id: "commandCenter.open" })}
+          </span>
+          <span className="ml-auto shrink-0 text-ui-xs font-normal text-foreground-subtlest">
+            Ctrl K
+          </span>
         </Button>
         <Button
           variant="ghost"

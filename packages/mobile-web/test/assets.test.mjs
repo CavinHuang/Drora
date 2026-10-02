@@ -74,11 +74,13 @@ test("recovered source retains the complete asset graph and builds without trans
 });
 
 test("frozen snapshot bytes match the SHA256SUMS.txt integrity manifest", async () => {
-  // 该清单是冻结快照 2026-09-29 CDN 逐字节重取后的完整性锚点（全仓 oxfmt 事故后重建）。
+  // 该清单是冻结快照的完整性锚点：2026-09-29 CDN 逐字节重取后重建（全仓 oxfmt 事故），
+  // 2026-10-01 按完整闭包抓取补全 78 文件（KaTeX ttf / pdf-viewer 栈 / bot 渠道图标 /
+  // material-icons 46 枚，spec §32.17），2620 = 快照全部文件。
   // 逐条复算 sha256：readFile 不带 encoding 返回 Buffer，二进制安全（wasm/woff2/png）。
   const manifest = await readFile(join(root, "upstream", "SHA256SUMS.txt"), "utf8");
   const lines = manifest.split("\n").filter((line) => line.length > 0);
-  assert.equal(lines.length, 2542, "manifest must cover every upstream snapshot file");
+  assert.equal(lines.length, 2620, "manifest must cover every upstream snapshot file");
   for (const line of lines) {
     const match = /^([0-9a-f]{64})  (remote\/v4\/.+)$/u.exec(line);
     assert.ok(match, `malformed manifest line: ${line}`);

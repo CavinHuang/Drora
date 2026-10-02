@@ -310,8 +310,8 @@ test("composer 模式触发器：无 onModeSelect 保持只读（aria-disabled�
   const active = renderComposer({ onModeSelect: () => {} });
   assert.match(active, /aria-haspopup="menu"/);
   assert.match(active, /aria-expanded="false"/);
-  // 官方 mode.label.glm.build 文案（configMode=build 回流标签）。
-  assert.match(active, /变更前确认/);
+  // §32.24 官方还原页活体取证：触发器 aria = 通用「切换模式」（chat.toolbar.mode.label）。
+  assert.match(active, /切换模式/);
 });
 
 test("composer 模式弹层：官方四项闭集（build/edit/plan/yolo 顺序照官方 schema）", () => {

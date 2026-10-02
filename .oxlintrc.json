@@ -78,9 +78,12 @@
     "packages/mobile-web/upstream",
     "packages/mobile-web/src/recovered",
     "packages/mobile-web/dist",
+    "packages/mobile-web/remote-dist",
+    "packages/mobile-web/scripts/dev-host-stub.mjs",
     "packages/zcode-cua-helper/native/reverse",
     "packages/zcode-cua-helper/tools",
     "packages/desktop/scripts/prepare-agent-node-bundle.mjs",
-    ".tmp-work"
+    ".tmp-work",
+    "**/.tmp-*"
   ]
 }

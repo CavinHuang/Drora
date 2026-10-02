@@ -306,6 +306,8 @@ interface ConversationTimelineProps {
    * 所以它落在 emptyState 分支之外。
    */
   headerSlot?: ReactNode;
+  /** §32.51 手机远控：消息操作行常显（rowContext 消费）。 */
+  compactForRemoteControl?: boolean;
   /** 草稿态让 emptyState 与同一个 bottomDock 作为整体居中，不重挂 composer。 */
   centerEmptyStateWithDock?: boolean;
   /** 窄屏/粗指针视口保留紧凑居中布局，不复用桌面草稿安全间距。 */

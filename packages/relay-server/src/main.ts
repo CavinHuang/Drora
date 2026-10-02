@@ -33,12 +33,16 @@ const registry = createDeviceRegistry({
   storage: createFileDeviceRegistryStorage(values.db),
 });
 
-// 官方 v4 前端资产托管（spec §12.5/§12.9 + mobile-relay-r3-frontend.md §13）：
+// 官方 v4 前端资产托管（spec §12.5/§12.9 + mobile-relay-r3-frontend.md §33.11）：
 // static-dir 测试床优先；无 --mobile-dir 时 bundled 根优先级 =
-// mobile-web/dist（P2a 源码应用产物，entry 存在才启用）→ mobile-web/src/recovered
-// （官方 3.14.3 可读快照，D7 行为保底）。两者都缺失时才启用内建资产代理
-// cache → fetch 官方源站，离线时入口 302 → /m/index.html（R2 极简页兜底）。
+// mobile-web/upstream（官方 3.14.3 原始字节冻结件——§33.11 修正：recovered 的 JS 是
+// 可读化格式化版，非官方原始字节；产物一致性以 raw 为准）→ mobile-web/src/recovered
+// （可读化再生，参照/回退）→ mobile-web/dist（源码应用产物，末位兜底）。全缺失时
+// 才启用内建资产代理 cache → fetch 官方源站，离线时入口 302 → /m/index.html
+// （R2 极简页兜底）。注：remote-dist（根级入口布局的官方镜像）不满足
+// remote/v4/index.html 候选校验，不进 bundled 候选链。
 const staticDir = values["static-dir"];
+const bundledUpstreamDir = fileURLToPath(new URL("../../mobile-web/upstream/", import.meta.url));
 const bundledSourceAppDir = fileURLToPath(new URL("../../mobile-web/dist/", import.meta.url));
 const bundledRecoveredDir = fileURLToPath(
   new URL("../../mobile-web/src/recovered/", import.meta.url),
@@ -48,7 +52,8 @@ if (!mobileDir) {
   // pickBundledMobileRoot 以 null 表达“全缺失”；createRelayServer 选项用 undefined 表达
   // 未注入——此处做一次词汇转换，不改变语义。
   mobileDir =
-    (await pickBundledMobileRoot([bundledSourceAppDir, bundledRecoveredDir])) ?? undefined;
+    (await pickBundledMobileRoot([bundledUpstreamDir, bundledRecoveredDir, bundledSourceAppDir])) ??
+    undefined;
 }
 const server = createRelayServer({
   registry,

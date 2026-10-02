@@ -83,6 +83,10 @@ packages/zcode-cua-helper/native/reverse/.matrix-*.json
 packages/zcode-cua-helper/dist-cua-helper/
 
 .tmp-work
+# 手机远控官方资源下载缓存（§32.39：48MB 归档，CDN 可重取，不入库）
+packages/mobile-web/remote-dist/
+# dev harness 临时文件（截图对照/CDP 探针/桩日志，§32.39-58）
+**/.tmp-*
 # ZCode CLI 本地会话/计划目录（工具产物，不入库）
 .zcode/
 # relay CLI 默认资产缓存（--asset-cache-dir 缺省目录），官方资产字节不入库。

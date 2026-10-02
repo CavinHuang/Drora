@@ -585,6 +585,7 @@ function AppBody() {
         draft={draft}
         sending={sending}
         stopping={stopping}
+        desktopComposer={wideViewport}
         controlState={controlState}
         queueState={queueState}
         modelState={modelState ?? EMPTY_MODEL_SELECTION_STATE}
@@ -734,7 +735,7 @@ function AppBody() {
     ) : phase.kind === "task" && taskTarget && sidePaneMode === "terminal" && attachedTask ? (
       <aside
         aria-label={intl.formatMessage({ id: "chat.statusPanel.terminals" })}
-        className="absolute inset-y-0 right-0 z-20 flex w-80 max-w-[85%] flex-col border-l border-border bg-background shadow-lg"
+        className="absolute inset-y-0 right-0 z-40 flex w-[88%] max-w-[88vw] flex-col border-l border-border bg-background shadow-lg"
       >
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
           <span className="text-ui-sm font-medium text-foreground">
@@ -761,6 +762,7 @@ function AppBody() {
       <MobileTaskShell
         onBack={backHome}
         onThemePress={toggleTheme}
+        topBarHidden={wideViewport}
         timelineOwnsScroll
         sidePane={sidePane}
         sidePaneOpen={sidePaneMode !== null}

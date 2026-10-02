@@ -17,7 +17,7 @@ import { useState } from "react";
 import { AlignEndHorizontal, ArrowUp, ChevronDown, Hand, Plus, Shield, X } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
-import { MobileComposerStateBar, resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
+import { resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
 import { ModelMenu } from "../ui/ModelMenu.js";
 import type {
   ConversationControlState,
@@ -28,7 +28,8 @@ import type { CollaborationMode } from "./taskSession.js";
 import type { ModelSelectionView } from "@drora/services";
 
 /** 官方 switchCollaborationMode 值域闭集（顺序照官方 schema Si([build,edit,plan,yolo])）。 */
-export const MODE_SELECT_ITEMS: readonly CollaborationMode[] = ["build", "edit", "plan", "yolo"];
+export { MODE_SELECT_ITEMS } from "./TaskModeMenu.js";
+import { TaskModeMenu, MODE_LABEL_IDS } from "./TaskModeMenu.js";
 
 export interface TaskComposerProps {
   draft: string;
@@ -38,6 +39,8 @@ export interface TaskComposerProps {
   queueState: ConversationQueueState | null;
   /** §32.39 官方 plt：无历史消息 → newTaskMobile 占位（草稿语义）。 */
   hasHistoryMessages?: boolean;
+  /** §33.18 宽壳占位分支：running 语义键官方宽壳=followUpAsk（窄壳=followUpQueue）。 */
+  desktopComposer?: boolean;
   modelState: ModelSelectionState | null;
   modelView: ModelSelectionView | null;
   modelLoading: boolean;
@@ -58,14 +61,7 @@ export interface TaskComposerProps {
   onModeSelect?: (mode: CollaborationMode) => void;
 }
 
-/** 官方 mode.label.glm.* 闭集（config.mode 未知值回落 build 文案同官方缺省语义）。 */
-const MODE_LABEL_IDS: Record<string, string> = {
-  default: "mode.label.glm.default",
-  plan: "mode.label.glm.plan",
-  edit: "mode.label.glm.edit",
-  build: "mode.label.glm.build",
-  yolo: "mode.label.glm.yolo",
-};
+/** 官方 mode.label.glm.* 闭集见 TaskModeMenu（本组件仅触发器文案用 modeLabelId）。 */
 
 /** §32.68 官方用量环几何：r=10 圆周 2πr（官方 dasharray 62.83185307179586 同值）。 */
 const CONTEXT_RING_CIRCUMFERENCE = 2 * Math.PI * 10;
@@ -80,6 +76,7 @@ export function TaskComposer(props: TaskComposerProps) {
     controlState,
     queueState,
     hasHistoryMessages = true,
+    desktopComposer = false,
     modelState,
     modelView,
     modelLoading,
@@ -183,6 +180,7 @@ export function TaskComposer(props: TaskComposerProps) {
               controlState?.phase ?? null,
               controlState?.queuePending ?? false,
               hasHistoryMessages,
+              desktopComposer,
             ),
           })}
           onChange={(event) => onDraftChange(event.target.value)}
@@ -212,34 +210,13 @@ export function TaskComposer(props: TaskComposerProps) {
                   （旧装配/测试）时退回只读展示。 */}
               {onModeSelect ? (
                 <div className="relative shrink-0">
-                  {modeMenuOpen ? (
-                    <div
-                      role="menu"
-                      aria-label={formatMessage({ id: modeLabelId })}
-                      className="absolute bottom-full left-0 z-30 mb-2 w-44 rounded-lg border border-border bg-card p-1 shadow-lg"
-                    >
-                      {MODE_SELECT_ITEMS.map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          role="menuitem"
-                          data-testid={`chat-mode-select-item-${mode}`}
-                          className={cn(
-                            "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-ui-sm hover:bg-surface-hover",
-                            mode === configMode
-                              ? "text-foreground"
-                              : "text-foreground-subtle",
-                          )}
-                          onClick={() => {
-                            setModeMenuOpen(false);
-                            if (mode !== configMode) onModeSelect(mode);
-                          }}
-                        >
-                          {formatMessage({ id: MODE_LABEL_IDS[mode] ?? MODE_LABEL_IDS.build! })}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  {/* §32.69 官方活体结构（图标+描述+✓+plan 首组分组）抽 TaskModeMenu。 */}
+                  <TaskModeMenu
+                    open={modeMenuOpen}
+                    configMode={configMode}
+                    onSelect={onModeSelect}
+                    onClose={() => setModeMenuOpen(false)}
+                  />
                   <button
                     type="button"
                     data-testid="chat-mode-select-trigger"
@@ -400,25 +377,20 @@ export function TaskComposer(props: TaskComposerProps) {
                 </button>
               ) : null}
             </div>
-            <MobileComposerStateBar
-              phase={controlState?.phase ?? null}
-              canStop={controlState?.canStop ?? false}
-              stopState={controlState?.stopState ?? "idle"}
-              queuePending={controlState?.queuePending ?? false}
-              onStop={onStop}
-            />
-            {draft.trim() || !controlState?.canStop ? (
-              <button
-                type="button"
-                className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
-                disabled={!draft.trim() || sending}
-                aria-label={formatMessage({ id: "mobileShell.composer.send" })}
-                data-testid="v4-composer-send"
-                onClick={onSend}
-              >
-                <ArrowUp aria-hidden="true" className="size-4" />
-              </button>
-            ) : null}
+            {/* §33.18 官方活体（.tmp-probe-task narrow / .tmp-probe-dom wide 实测）：
+                remote 页 running 态工具条无 v4-stop，v4-composer-send（arrow-up）常驻
+                ——停止语义不在远控 composer（§32.44 的 ui 包形态不适用），StateBar
+                退役；空草稿时按钮 disabled 但保持官方实心形态（不做透明度衰减）。 */}
+            <button
+              type="button"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+              disabled={!draft.trim() || sending}
+              aria-label={formatMessage({ id: "mobileShell.composer.send" })}
+              data-testid="v4-composer-send"
+              onClick={onSend}
+            >
+              <ArrowUp aria-hidden="true" className="size-4" />
+            </button>
           </div>
         </div>
       </div>

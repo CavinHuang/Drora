@@ -25,6 +25,8 @@ export interface MobileTaskShellProps {
   timelineOwnsScroll?: boolean;
   /** 连接中断提示（如重新连接中文案由装配方注入）。 */
   connectionBanner?: ReactNode;
+  /** §33.18 官方宽壳任务面无「任务会话」顶栏行（主区头=工作区标题行）——true 不渲染。 */
+  topBarHidden?: boolean;
   /** §32.40 侧板内容（workspaceHeader 下方覆盖层；open 时底层压暗）。 */
   sidePane?: ReactNode;
   sidePaneOpen?: boolean;
@@ -44,6 +46,7 @@ export function MobileTaskShell({
   timelineScrollRef,
   timelineOwnsScroll = false,
   connectionBanner,
+  topBarHidden = false,
   /** §32.40 官方侧板挂载（从头部行下方起 + 底层压暗遮罩，双页截图对照实证）。 */
   sidePane,
   sidePaneOpen = false,
@@ -60,7 +63,8 @@ export function MobileTaskShell({
         className,
       )}
     >
-      {/* 顶栏（官方 h-11 bg-header px-2 结构）。 */}
+      {/* 顶栏（官方 h-11 bg-header px-2 结构）；宽壳官方无此行（topBarHidden）。 */}
+      {topBarHidden ? null : (
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-header px-2">
         {onBack ? (
           <Button
@@ -99,6 +103,7 @@ export function MobileTaskShell({
           </Button>
         ) : null}
       </header>
+      )}
 
       {workspaceHeader}
 
@@ -109,18 +114,23 @@ export function MobileTaskShell({
         className="relative flex min-h-0 min-w-0 flex-1 flex-col"
       >
         {/* §32.43 官方侧板遮罩逐字还原（ain @bundle：data-mobile-side-pane-overlay +
-            bg-background/60 backdrop-blur-[1px]，非 bg-black/40）；遮罩钮带关闭语义标签。 */}
+            bg-background/60 backdrop-blur-[1px]，非 bg-black/40）；遮罩钮带关闭语义标签。
+            §32.69 官方活体（mv-side-official）：面板顶缘=双顶栏（顶栏 44+工作区头 48）
+            之下、覆盖 composer 至视口底——fixed 定位脱离 main 容器（inset-0 会被
+            composer 槽兄弟盖住，活体实证）。 */}
         {sidePaneOpen && sidePane ? (
           <>
             <button
               type="button"
               aria-label={formatMessage({ id: "sidePane.collapse" })}
-              className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[1px]"
+              className="fixed inset-x-0 bottom-0 z-30 bg-background/60 backdrop-blur-[1px]"
+              style={{ top: topBarHidden ? 48 : 92 }}
               onClick={onSidePaneOverlayClose}
             />
             <div
               data-mobile-side-pane-overlay="true"
-              className="absolute inset-0 z-20 transition-opacity duration-200 ease-out"
+              className="fixed inset-x-0 bottom-0 z-40 transition-opacity duration-200 ease-out"
+              style={{ top: topBarHidden ? 48 : 92 }}
             >
               {sidePane}
             </div>

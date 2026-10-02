@@ -54,10 +54,12 @@ test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/
     "chat-mode-select-trigger",
     "chat-model-select-trigger",
     "chat-context-usage-trigger",
-    "v4-stop",
+    // §33.18 活体：running 无 v4-stop，v4-composer-send 常驻（窄/宽壳同证）。
+    "v4-composer-send",
   ]) {
     assert.ok(html.includes(`data-testid="${tid}"`), tid);
   }
+  assert.ok(!html.includes('data-testid="v4-stop"'), "remote 页不渲染 v4-stop（§33.18 活体）");
   // 无 usage 数据 → 官方同款 null 门（活体：Oxt 校验 used/size 非法即不渲染触发器）。
   const noUsage = render();
   assert.ok(!noUsage.includes('data-testid="chat-context-usage-trigger"'), "无数据不渲染用量表");
@@ -146,9 +148,26 @@ test("§32.68 官方用量表：chat-context-usage-trigger 环形 aria=Intl 千�
   const stoppable = render({
     controlState: { phase: "running", canStop: true, stopState: "stoppable", queuePending: false },
   } as never);
-  assert.ok(stoppable.includes('data-testid="v4-stop"'));
+  // §33.18 官方活体：running 态 v4-composer-send 常驻、v4-stop 不存在（StateBar 退役）。
+  assert.ok(stoppable.includes('data-testid="v4-composer-send"'));
+  assert.ok(!stoppable.includes('data-testid="v4-stop"'), "running 不渲染停止钮");
   const idle = render();
+  assert.ok(idle.includes('data-testid="v4-composer-send"'), "发送钮常驻");
   assert.ok(!idle.includes('data-testid="v4-stop"'), "非 stoppable 不渲染停止");
+});
+
+test("§33.18 宽壳占位分支：desktop running=followUpAsk，窄壳 running=followUpQueue", () => {
+  const running = {
+    controlState: { phase: "running", canStop: true, stopState: "stoppable", queuePending: false },
+  } as never;
+  assert.ok(
+    render({ ...running }).includes("继续输入以排队后续修改"),
+    "窄壳 running=继续输入以排队后续修改",
+  );
+  assert.ok(
+    render({ ...running, desktopComposer: true }).includes("提出后续修改要求"),
+    "宽壳 running=提出后续修改要求（官方宽壳活体逐字）",
+  );
 });
 
 test("§32.22 官方 plan 标记：plan 生效且有切换能力时渲染 v4-composer-plan-marker（可移除钮）", () => {

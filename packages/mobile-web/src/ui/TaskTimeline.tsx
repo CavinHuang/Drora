@@ -335,8 +335,12 @@ export function resolveMobileComposerPlaceholderId(
   phase: string | null | undefined,
   queuePending: boolean,
   hasHistoryMessages = true,
+  // §33.18 官方宽壳活体：running 态占位=followUpAsk「提出后续修改要求」
+  //（窄壳 running=followUpQueue 语义不变，探针双视口实测）。
+  desktop = false,
 ): string {
   if (!hasHistoryMessages) return "chat.placeholder.newTaskMobile";
+  if (desktop) return "chat.placeholder.followUpAsk";
   return phase === "running" || queuePending
     ? "chat.placeholder.followUpQueue"
     : "chat.placeholder.followUpAsk";

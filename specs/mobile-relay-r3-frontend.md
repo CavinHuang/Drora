@@ -3860,3 +3860,58 @@ i18n 切换），官方远控页无对应元素（官方搜索归宽壳 workspac
    我方仍渲染 StateBar 停止钮——停止能力语义与 204 基线测试需同轮裁定迁移。
 4. 品牌词 Drora vs 官方 ZCode：specs/drora-rename.md 规则 4 政策性有意分歧（豁免区外
    强制改名），不随本裁定回改。
+
+### 32.69 交互面双页对照——更多菜单全项/模式菜单结构/侧板覆盖/已完成任务（2026-10-03）
+
+**方法**：CDP 双页（390×844 亮色）多状态采集；radix 弹层触发需真实鼠标事件
+（Runtime.evaluate .click() 无 pointerdown），坐标点击 + Escape 键盘事件关层；
+官方 composer 输入非 `<textarea>`（等待谓词需含 [contenteditable]）。
+
+**⋯ 更多菜单全项清偿（官方 pin()@index-NjWRUABD.js:186832 装配序 + mv-more-official 活体）**：
+9 条 4 组：[置顶任务/重命名任务/归档任务/标记为未读] ‖ [复制路径/复制任务路径/
+复制日志路径/复制会话 ID] ‖ [查看调用轨迹] ‖ [反馈问题]。官方 O 门
+（disableTaskActions||disableTaskTargetActions）harness 态全灰、仅 复制路径 常绿；
+我方改「缺能力源=disabled 渲染不隐藏」（三态查询源 loadMembership 门
+pin/archive/markUnread/copySessionId；taskPath/logPath prop 门两条复制项；
+trajectory/feedback 缺 handler=disabled）。活体灰阶与我方一致；仅 重命名任务
+我方常绿（v4 renameSession 真接线，官方灰为其 O 微态——记录为准）。
+面板 portal 到 body + fixed 锚定：头部左组 overflow-hidden 裁剪 in-flow absolute
+面板（DOM 在而不可见活体实证）；SSR/首帧 in-flow（静态测试可见）、挂载后 portal。
+locale 补 4 键：appHeader.copyTaskPath/copyLogPath（zh:1373/1378、en:7533/7540 逐字）。
+
+**模式菜单结构清偿（mv2-mode-official 活体，推翻 §32.3 纯文本项）**：
+plan 独立首组 + 分隔线 + build/edit/yolo 组；条目 = 图标（plan=Lightbulb/
+build=Hand/edit=ShieldCheck/yolo=ShieldAlert）+ 名称 + 描述行 + 当前模式右侧 ✓。
+locale 补 mode.description.glm.* 5 键（zh:5408-5412、en:11565-11569 逐字）。
+
+**侧板覆盖清偿（mv-side-official 活体）**：面板顶缘=双顶栏（顶栏 44+工作区头 48）
+之下、覆盖 composer 至视口底、宽 88%。我方三处容器 w-80 max-w-[85%] →
+w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟盖住，
+活体实证）→ fixed top-[92|48] inset-x-0 bottom-0；launcher 面板内关闭钮拆除
+（收起=遮罩点击；宽壳面板头保留）。
+
+**已完成任务视图**：mv-done-ours/official 双页全要素一致（含 已处理> 折叠、
+👍👎/复制/时刻操作行、提出后续修改要求 composer + ↑ 发送钮）——零差异。
+
+**有意分歧（记录）**：新任务视图（NewTaskDraft）为我方 P3 早期形态——官方 =
+问候语+水印+工作区选择器内嵌 composer 卡（@/占位提示+[＋][mode▾][管理模型▾][↑]
+工具栏）+套餐 banner（provider-settings 缺位 harness 面）；我方 = 独立 demo chip 卡
++简 composer+自研建议 chips（检查近 7 天 commit/制作一份 PDF）+↓ 返回钮。
+结构重构归下轮专项。
+
+**门禁**：207/207 + mobile-web typecheck 0 + build 797 资产 + 多状态双页对照
+（.tmp-shots/mv1）通过。
+
+#### 33.18.2 第二批清偿（2026-10-03，r5 矩阵验证）
+
+§33.18.1 挂账三项全部落地（.tmp-shots/r33-18-r5 v7 双页对照）：
+1. 宽壳任务面「← 任务会话」顶栏移除（MobileTaskShell topBarHidden，宽壳官方无此行）。
+2. 宽壳 composer 占位分支：resolveMobileComposerPlaceholderId 增 desktop 参——宽壳
+   running=followUpAsk「提出后续修改要求」（官方宽壳活体逐字），窄壳语义不变。
+3. v4-stop 退役：官方 remote 页活体（窄/宽双探针）running 态均只有 v4-composer-send
+   （arrow-up 常驻，无停止钮）；StateBar 停止渲染移除，发送钮 28px 实心形态、空草稿
+   disabled 不做透明度衰减；composerDeep 测试迁移至新契约（207/207）。
+
+剩余微项（下批）：官方任务头右侧「?⃝信息」圆钮；任务行 hover 删除钮（§33.4#8，
+需 hover 探针取证）；v4 侧板遮罩 z 序复核（更改胶囊浮层，r5 未复现待查）。
+品牌词 Drora=政策性有意分歧（rename 规则 4），维持。

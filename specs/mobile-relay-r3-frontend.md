@@ -3915,3 +3915,17 @@ w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟�
 剩余微项（下批）：官方任务头右侧「?⃝信息」圆钮；任务行 hover 删除钮（§33.4#8，
 需 hover 探针取证）；v4 侧板遮罩 z 序复核（更改胶囊浮层，r5 未复现待查）。
 品牌词 Drora=政策性有意分歧（rename 规则 4），维持。
+
+### 32.70 审查侧板标签条 + 模型菜单空态（2026-10-03）
+
+**审查侧板（rv-ours/official 双页同路径采集）**：内容面此前已一致（未暂存 ▾ 下拉/
+刷新/文件行 package.json +1-1、run.py scripts/ +30-0、app.ts src/ +8-2——类型徽标+
+目录标注+expand chevron 全同）。唯一差异=面板头：我方「查看文件」+× → 官方标签条
+[⌄ 收起(sidePane.collapse)] [FileDiff 审查 ×(sidePane.closeTab {title} 插值)]
+[＋(sidePane.addTab)]——sidePane.review 等 4 键既有官方逐字，仅壳改造。
+模型菜单打开态补取证（mm-click）：官方空清单（provider-settings 缺位）= 单条
+「管理模型」菜单项面，非占位文案；我方 ModelMenu 空清单分支从 targetMissing 占位
+改单条菜单项（mobile-model-menu-manage，onSelect=onClose；首读中仍 remoteWaiting
+占位）。新增 modelMenuEmpty 守卫。
+
+**门禁**：208/208 + typecheck 0 + build 797。

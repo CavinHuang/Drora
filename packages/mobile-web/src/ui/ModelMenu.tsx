@@ -221,10 +221,26 @@ export function ModelMenu({ view, state, loading = false, onSelect, onClose }: M
     </div>
   );
 
-  // 视图未就绪：首读中 → remoteWaiting；无目标/读取失败/空清单 → targetMissing。
+  // 视图未就绪：首读中 → remoteWaiting 占位；空清单（provider-settings 缺位/无目标）
+  // → 官方活体（mm-click）单条「管理模型」菜单项面（非占位文案）。
   if (!view || view.providers.length === 0) {
-    return renderPlaceholder(
-      loading ? "chat.toolbar.model.remoteWaiting" : "chat.toolbar.model.targetMissing",
+    if (loading) return renderPlaceholder("chat.toolbar.model.remoteWaiting");
+    return (
+      <div
+        role="menu"
+        aria-label={menuLabel}
+        className="w-72 rounded-lg border border-border bg-card p-1 shadow"
+      >
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="mobile-model-menu-manage"
+          className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover"
+          onClick={onClose}
+        >
+          {formatMessage({ id: "chat.toolbar.model.manageModels" })}
+        </button>
+      </div>
     );
   }
 

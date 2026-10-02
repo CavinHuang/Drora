@@ -24,7 +24,7 @@ import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
 import type { IServiceAccessor, IBroadcastService } from "@drora/services";
 import type { Event } from "@drora/rpc";
-import { X } from "lucide-react";
+import { ChevronDown, FileDiff, Plus, X } from "lucide-react";
 import { useIntl, resolveLocale } from "../ui/intl.js";
 
 /** GitPane 一期 mock 广播服务（六成员 no-op；store 构造存而不用，无订阅方）。 */
@@ -87,17 +87,38 @@ export function RemoteGitSidePane({
       }
       aria-label={formatMessage({ id: "workspaceSidebar.showFileTree" })}
     >
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
-        <span className="text-ui-sm font-medium text-foreground">
-          {formatMessage({ id: "workspaceSidebar.showFileTree" })}
-        </span>
+      {/* §32.70 官方活体（rv-official）：面板头 = 标签条 [⌄ 收起] [📋 审查 × 标签]
+          [＋ 新增标签]——非「查看文件」+× 旧形态（sidePane.review/addTab/closeTab/
+          collapse 官方键逐字；× 关当前标签=onClose 同语义）。 */}
+      <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
         <button
           type="button"
-          aria-label={formatMessage({ id: "common.cancel" })}
-          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={formatMessage({ id: "sidePane.collapse" })}
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
           onClick={onClose}
         >
-          <X aria-hidden="true" className="size-4" />
+          <ChevronDown aria-hidden="true" className="size-4" />
+        </button>
+        <div className="flex h-9 min-w-0 max-w-52 flex-1 items-center gap-2 rounded-lg bg-surface px-2.5">
+          <FileDiff aria-hidden="true" className="size-3.5 shrink-0 text-foreground-subtle" />
+          <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground">
+            {formatMessage({ id: "sidePane.review" })}
+          </span>
+          <button
+            type="button"
+            aria-label={formatMessage({ id: "sidePane.closeTab" }, { title: formatMessage({ id: "sidePane.review" }) })}
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+            onClick={onClose}
+          >
+            <X aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-label={formatMessage({ id: "sidePane.addTab" })}
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+        >
+          <Plus aria-hidden="true" className="size-4" />
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">

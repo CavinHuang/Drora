@@ -19,7 +19,17 @@
 //   桶序 = 排序后首次出现序；时间戳缺失时官方经 NaN 比较自然落入 older，本实现显式化。
 // 定位差异：absolute 定位盖在触发按钮附近由调用方处理，本组件只渲染菜单面板；
 // 官方面板 token 为 bg-popover，本包 styles.css 无该 token，用同族面板色 bg-card（D6 自包含）。
-import { Check, CircleCheck, Loader, LoaderCircle, Pin } from "lucide-react";
+import {
+  Check,
+  CircleCheck,
+  CirclePlus,
+  Clock,
+  Folder,
+  Loader,
+  LoaderCircle,
+  Pin,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
 import { formatTaskRelativeTime } from "./formatRelative.js";
@@ -354,10 +364,13 @@ export interface OrganizeMenuProps {
 /** 菜单选项行：44px 触控目标，选中项尾随打勾（官方 DropdownMenu RadioItem 同语义）。 */
 function OrganizeMenuOption({
   label,
+  icon,
   selected,
   onSelect,
 }: {
   label: string;
+  /** §33.18 官方活体：菜单行带前导图标（folder/clock/circle-plus/clock-check 形）。 */
+  icon?: ReactNode;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -372,7 +385,10 @@ function OrganizeMenuOption({
       )}
       onClick={onSelect}
     >
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        {icon ?? null}
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
       {selected ? <Check aria-hidden="true" className="size-4 shrink-0" /> : null}
     </button>
   );
@@ -412,20 +428,21 @@ export function OrganizeMenu({ preferences, onChange, onClose, className }: Orga
         if (event.key === "Escape") onClose();
       }}
     >
-      <div className="px-2.5 pb-1 pt-2 text-ui-xs font-medium text-foreground-subtlest">
-        {formatMessage({ id: "mobileShell.organize.title" })}
-      </div>
+      {/* §33.18 官方活体（v10 双页同帧）：标题=「整理任务」（无独立「整理」标题行、
+          无「整理方式」节头）；四行均带前导图标 folder/clock/circle-plus/clock-check。 */}
       <div role="radiogroup" aria-label={formatMessage({ id: "mobileShell.organize.organizeBy" })}>
-        <div className="px-2.5 py-1 text-ui-xs text-foreground-subtle">
+        <div className="px-2.5 pb-1 pt-2 text-ui-xs font-medium text-foreground-subtlest">
           {formatMessage({ id: "mobileShell.organize.organizeBy" })}
         </div>
         <OrganizeMenuOption
           label={formatMessage({ id: "mobileShell.organize.byWorkspace" })}
+          icon={<Folder aria-hidden="true" className="size-4 shrink-0" />}
           selected={preferences.organizeBy === "workspace"}
           onSelect={() => select({ organizeBy: "workspace" })}
         />
         <OrganizeMenuOption
           label={formatMessage({ id: "mobileShell.organize.byTimeline" })}
+          icon={<Clock aria-hidden="true" className="size-4 shrink-0" />}
           selected={preferences.organizeBy === "timeline"}
           onSelect={() => select({ organizeBy: "timeline" })}
         />
@@ -437,11 +454,13 @@ export function OrganizeMenu({ preferences, onChange, onClose, className }: Orga
         </div>
         <OrganizeMenuOption
           label={formatMessage({ id: "mobileShell.organize.byCreated" })}
+          icon={<CirclePlus aria-hidden="true" className="size-4 shrink-0" />}
           selected={preferences.sortBy === "created"}
           onSelect={() => select({ sortBy: "created" })}
         />
         <OrganizeMenuOption
           label={formatMessage({ id: "mobileShell.organize.byUpdated" })}
+          icon={<CircleCheck aria-hidden="true" className="size-4 shrink-0" />}
           selected={preferences.sortBy === "updated"}
           onSelect={() => select({ sortBy: "updated" })}
         />

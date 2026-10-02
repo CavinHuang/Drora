@@ -259,8 +259,8 @@ export const zhCN: Record<string, string> = {
   "chat.queue.title": "待发送消息（{count}）", // 官方 zh-CN.ts:4483
   "mobileShell.interaction.questionBadge": "提问", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
   "mobileShell.interaction.addFeedback": "附加反馈…", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
-  "mobileShell.organize.title": "整理", // 自建键（官方 mobileHome 族无菜单标题键，结构取证 bundle :185807）
-  "mobileShell.organize.organizeBy": "整理方式", // 自建键（官方 mobileHome 族无对应键）
+  "mobileShell.organize.title": "整理", // 自建键（§33.18 后不再渲染独立标题行）
+  "mobileShell.organize.organizeBy": "整理任务", // §33.18 官方活体（v10 同帧：节头=整理任务）
   "mobileShell.organize.byWorkspace": "按工作区", // 官方逐字（webRemoteControl.mobileHome.organizeByWorkspace zh）
   "mobileShell.organize.byTimeline": "按时间线", // 官方逐字（webRemoteControl.mobileHome.organizeByTimeline zh）
   "mobileShell.organize.sortBy": "排序方式", // 官方逐字（webRemoteControl.mobileHome.sortBy zh，§32.21 校准）

@@ -272,8 +272,8 @@ export const enUS: Record<string, string> = {
   "chat.queue.title": "Queued messages ({count})", // 官方 en-US.ts:4792
   "mobileShell.interaction.questionBadge": "Question", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
   "mobileShell.interaction.addFeedback": "Add feedback…", // P3b 自建键（官方无 mobileShell.interaction 命名空间）
-  "mobileShell.organize.title": "Organize", // 自建键（官方 mobileHome 族无菜单标题键）
-  "mobileShell.organize.organizeBy": "Group by", // 自建键（官方 mobileHome 族无对应键）
+  "mobileShell.organize.title": "Organize", // 自建键（§33.18 后不再渲染独立标题行）
+  "mobileShell.organize.organizeBy": "Organize tasks", // §33.18 官方活体（v10 同帧节头语义）
   "mobileShell.organize.byWorkspace": "By workspace", // 官方逐字（webRemoteControl.mobileHome.organizeByWorkspace en）
   "mobileShell.organize.byTimeline": "Timeline", // 官方逐字（webRemoteControl.mobileHome.organizeByTimeline en，§32.21 校准）
   "mobileShell.organize.sortBy": "Sort by", // 官方逐字（webRemoteControl.mobileHome.sortBy en）

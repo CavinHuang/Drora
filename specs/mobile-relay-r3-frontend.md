@@ -4030,3 +4030,16 @@ aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
   嫌疑=客户端按 topic/订阅 ID 过滤时与 stub 构造的 candidate（topic=
   sessions-index/<workspacePath>，subscriptionId 恒 sub-si）不匹配，属
   @drora/relay-client 契约域，须由持有人下轮定位。dialogs 工具链+诊断日志就绪。
+
+#### 33.18.9 整理菜单对齐（2026-10-03，dialogs5 双侧同帧对照）
+
+dialogs5 意外获得 v10 整理菜单**双侧同帧**（双方行渲染+菜单开启），据此清偿三处差异：
+1. 节头文案：整理方式→**整理任务**（官方节头逐字；独立「整理」标题行删除——官方无）；
+2. 菜单行前导图标：按工作区=Folder、按时间线=Clock、创建时间=CirclePlus、
+   更新时间=CircleCheck（官方活体形态；ClockCheck 本仓 lucide 版本无此导出，
+   以 CircleCheck 对位）；
+3. OrganizeMenuOption 增 icon 槽（前导 size-4 图标+label 同行）。
+门禁：typecheck 0+208/208。
+**rows:0 补充观测**：数据到达驱动（轮询 3 分钟）下我方首页仍无行，而 dialogs5
+（reload 轮次）同链路 ~2min 后数据到达——首连失败的 ws 连接不会自愈，reload
+（全新连接）有概率命中；属连接建立层问题（stub/relay-server ws 域），非订阅时序。

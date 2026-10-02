@@ -3941,3 +3941,18 @@ w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟�
   钮（.tmp-probe-hover 实测），不实现（旧清单过时记录）。
 - 品牌词 Drora（rename 规则 4）与帮助菜单内容域（未还原，无动作占位）为存续的
   有意分歧；其余 r7 全视图矩阵（v1-v7×双页）结构/文案/图标/顺序逐项一致。
+
+### 32.71 信息弹层行序/前缀 + 终端侧板标签条（2026-10-03）
+
+**信息弹层（ifo-ours/official 活体）**：官方行序 = 工作区块 → [🕐 最近活动 {time}]
+（同组无分隔）→ 分隔线 → [⑂ 分支]；我方旧序 = 工作区 → 分支 → 裸相对时间（无前缀
+无分隔）。修：TaskInfoPopover 行序对调 + 分支行前加分隔线；App 装配传
+「最近活动 {time}」全句（workspace.context.lastActivity 既有键 + formatTaskRelativeTime）。
+时间值差异（官方 2 分钟前 vs 我方 刚刚）= 桩数据源（我方 activity=帧时刻），非 UI 差异。
+
+**终端侧板（tm-official 活体）**：官方面板头与审查同款标签条，标签题 = 工作区名
+（活体「demo」）+ TerminalSquare 图标 + [⌄ 收起][× sidePane.closeTab][＋ addTab]；
+我方「终端」+✕ 旧头同改。终端区我方「…」占位 vs 官方光标 = 桩无终端数据流（harness）；
+底部 $ 输入行我方独有（移动端唯一输入路径，官方为 xterm 直键——记录保留）。
+
+**门禁**：208/208 + typecheck 0 + lint 3 存量 + build 797。

@@ -4,7 +4,6 @@
 // 最近活动无任务面数据源（sessions-index 摘要在首页桥），缺省不渲染该行——不臆造。
 import { useEffect, useRef } from "react";
 import { Clock, Folder, GitBranch } from "lucide-react";
-import { cn } from "../ui/cn.js";
 
 export interface TaskInfoPopoverProps {
   open: boolean;
@@ -55,23 +54,19 @@ export function TaskInfoPopover(props: TaskInfoPopoverProps) {
           </div>
         </div>
       </div>
+      {/* §32.71 官方活体（ifo-official）：行序 = 工作区块 → 最近活动（同组无分隔）→
+          分隔线 → 分支行（此前分支在前/时间末位为旧证）。文案=「最近活动 {time}」
+          （workspace.context.lastActivity，装配方传全句）。 */}
+      {props.lastActivityText ? (
+        <div className="mt-2.5 flex items-center gap-2.5">
+          <Clock aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
+          <span className="truncate text-ui-sm text-foreground">{props.lastActivityText}</span>
+        </div>
+      ) : null}
       {props.branchName ? (
         <div className="mt-2.5 flex items-center gap-2.5 border-t border-border pt-2.5">
           <GitBranch aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
           <span className="truncate text-ui-sm text-foreground">{props.branchName}</span>
-        </div>
-      ) : null}
-      {props.lastActivityText ? (
-        <div
-          className={cn(
-            "mt-2.5 flex items-center gap-2.5 border-t border-border pt-2.5",
-            props.branchName ? "" : "first:border-t-0 first:pt-0",
-          )}
-        >
-          <Clock aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
-          <span className="truncate text-ui-sm text-foreground-subtle">
-            {props.lastActivityText}
-          </span>
         </div>
       ) : null}
     </div>

@@ -4348,3 +4348,32 @@ syncWebRemoteControlSidePane + IPC MobileRelaySyncSidePane + main per-sender 路
 与本次桌面/renderer/活推半场互补合流。门禁：desktop 控制 40/40（含侧板活推指纹
 去重新用例）+ mobile 8+210 + typecheck 0 + build 800 + lint 0 error + 架构 0。
 真机验证归桌面重启轮（renderer/main 新代码需重启生效；桩无 terminal/侧板通道）。
+
+**§33.18.17 附二：剩余额度钮数据面定谳 + isWindowsDesktop 协议面落地（2026-10-03，
+"继续按照你的推荐实现"轮）**：①**数据面定谳（bundle 考古，index-NjWRUABD.js）**：
+官方页额度数据=**`usageStatsService.getEntitlementSnapshot({includeSubscription,
+preferredProviderId, accountAccess, allowDisabledPreferredProvider,
+requirePreferredProvider, allowEnvApiKey})`**（oE 查询助手 @1627119，缓存/刷新语义
+SYe/mYe/wYe/fYe），快照消费 `visibleSnapshot.quota.limits`（TOKENS_LIMIT 3/5=5 小时
+窗、6=周窗，qbt @2852944）；本仓服务面齐平——`IUsageStatsService.
+getEntitlementSnapshot`（usageStats.ts:32，accessor 已暴露）。**剩余未决仅按钮
+DOM**（位置/图标/点击行为，需真桌面活体），桌面重启轮实现=纯机械接线。
+②**isWindowsDesktop 协议面落地（§33.18.15 批 B TODO 清偿）**：bootstrap 顶层新增
+`desktopPlatform`（=process.platform，缺省不下发）——buildBootstrapResult 参数+下发、
+desktopMobileRelayControl bootstrap 调用点、手机 projectHomeData 投影（非字符串归
+null）→App 消费 `isWindowsDesktop={desktopPlatform==="win32"}` 传
+RemoteSidePaneTerminal（PowerShell readline 归一化）。官方 vb schema 非 strict 静默
+剥离该字段（同 sidePane 先例，官方页零影响）。测试：desktop 41/41（新增下发/缺省
+用例）+mobile homeProject 8/8（含非字符串归 null）。
+
+**§33.18.16 真机四项验证（2026-10-03 深夜，受控重启轮全部通过 ✅）**：拓扑=独立
+relay-server :4430（--mobile-dir 源码页 dist）+ electron（DRORA_RELAY_SERVER_URL env
+→ cloud 传输）= **源码页 × 真桌面 × 真实数据**（8 工作区·169 任务）首次同拓扑运行。
+①侧板初值投影：桌面 renderer 推 review → 手机冷加载开任务 → 侧板**自动展开直达
+审查**（无需点展开钮）✓；②活体跟随：桌面切 terminal → 手机侧板实时跟随 ✓；
+③终端 xterm：**真 PowerShell 7.6.6 真提示符**（桥上 ITerminalService → ui
+SidePaneTerminalPane 渲染）✓；④futureAck：快速切任务×4=13 次 workspace-bridge-open，
+**桥终态降级 0**、无加载卡 ✓（修复前 8s 双开 1s 内即降级）。
+**附带修复**：syncAvailableSidePane 指纹去重先于配对检查——未配对种子消耗指纹后
+配对态同值推送被误跳（帧永不出），配对检查前置。教训：resize 过渡帧/双树渲染
+伪影会让截图与交互定位失真，DOM 计数+稳态帧才是真值（本轮三次踩中）。

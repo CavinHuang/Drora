@@ -152,6 +152,16 @@ function AppBody() {
   const [configMode, setConfigMode] = useState<string | null>(null);
   // 官方侧板按钮先显示标签启动器；Git 审查由状态面板独立打开。
   const [sidePaneMode, setSidePaneMode] = useState<"launcher" | "git" | "terminal" | null>(null);
+  // §33.18.16 侧板初态投影的最新投影值（bootstrap 初值/活推帧写入；openTask 的
+  // 任务态重置后重施——桌面为源，手机镜像，开新任务不丢桌面侧板状态）。
+  const projectedSidePaneRef = useRef<"git" | "terminal" | null>(null);
+  const applyProjectedSidePane = useCallback((tab: unknown) => {
+    const mode = tab === "review" ? "git" : tab === "terminal" ? "terminal" : null;
+    projectedSidePaneRef.current = mode;
+    setSidePaneMode(mode);
+  }, []);
+  // §33.18.15 批 B TODO 清偿：桌面 OS（bootstrap 下发），终端侧板 isWindowsDesktop 消费。
+  const [desktopPlatform, setDesktopPlatform] = useState<string | null>(null);
   // 32.9 draft surface target: + opens the draft (no session yet);
   // the first send creates the session (createSession -> sendText).
   const [draftTarget, setDraftTarget] = useState<{
@@ -251,9 +261,7 @@ function AppBody() {
       const record = payload as Record<string, unknown>;
       if (record?.zcode_type !== "workspace-side-pane-update") return;
       const entry = record.sidePane as { tab?: unknown } | undefined;
-      setSidePaneMode(
-        entry?.tab === "review" ? "git" : entry?.tab === "terminal" ? "terminal" : null,
-      );
+      applyProjectedSidePane(entry?.tab);
     };
     // 挂起恢复（官方 suspended 语义）：UI 监听可见性驱动 session。
     const onVisibility = () => {
@@ -281,11 +289,10 @@ function AppBody() {
         const home = projectHomeData(bootstrap.result);
         setWorkspaces(home.workspaces);
         setSelectedTaskId(home.activeTaskId);
-        // §33.18.16 S7 最小切片：桌面侧板初值→手机任务面侧板初态（review→git 映射；
-        // null=选择器）。仅 bootstrap 初值无活推（完整形态立项见 spec 同节）。
-        setSidePaneMode(
-          home.sidePaneTab === "review" ? "git" : home.sidePaneTab === "terminal" ? "terminal" : null,
-        );
+        // §33.18.16 侧板初态投影：桌面侧板初值→手机任务面侧板初态（review→git 映射；
+        // null=选择器）。活推帧走 frames.onFrame（完整形态）。
+        applyProjectedSidePane(home.sidePaneTab);
+        setDesktopPlatform(home.desktopPlatform);
         setConnection("connected");
         setPhase({ kind: "home" });
       } catch (error) {
@@ -348,7 +355,8 @@ function AppBody() {
       setTaskRows([]);
       setTaskTotalCount(0);
       setStatusSnapshot(null);
-      setSidePaneMode(null);
+      // §33.18.16 侧板初态投影：任务态重置后重施最新投影值（桌面为源；null=选择器）。
+      setSidePaneMode(projectedSidePaneRef.current);
       setMoreMenuOpen(false);
       setTaskActivityAtMs(null);
       resetOlder();
@@ -814,6 +822,7 @@ function AppBody() {
           sessionId={selectedTaskId ?? taskTarget.path}
           workspaceKey={taskTarget.identity?.trim() || taskTarget.path}
           cwd={taskTarget.path}
+          isWindowsDesktop={desktopPlatform === "win32"}
         />
       </aside>
     ) : null;

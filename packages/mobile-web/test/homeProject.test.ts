@@ -129,3 +129,12 @@ test("§33.18.16 S7 最小切片：bootstrap sidePane 初值投影（闭集外�
   );
   assert.equal(projectHomeData(BOOTSTRAP_RESULT).sidePaneTab, null, "缺省不下发=选择器");
 });
+
+test("§33.18.15 批 B TODO 清偿：bootstrap desktopPlatform 投影（非字符串归 null）", () => {
+  assert.equal(
+    projectHomeData({ ...BOOTSTRAP_RESULT, desktopPlatform: "win32" }).desktopPlatform,
+    "win32",
+  );
+  assert.equal(projectHomeData(BOOTSTRAP_RESULT).desktopPlatform, null);
+  assert.equal(projectHomeData({ ...BOOTSTRAP_RESULT, desktopPlatform: 42 }).desktopPlatform, null);
+});

@@ -668,10 +668,12 @@ export function createDesktopMobileRelayControl(deps: {
 
   function syncAvailableSidePane(entry: MobileRelaySidePaneSyncEntry): void {
     syncedSidePane = entry;
+    // 配对检查必须先于指纹：未配对时（relay start 种子/配对前推送）不推进指纹，
+    // 否则配对后的首次同值推送会被误判「无变化」跳过——帧永远发不出去。
+    if (transportState !== "paired") return;
     const fingerprint = JSON.stringify(entry);
     if (fingerprint === lastSidePaneFingerprint) return;
     lastSidePaneFingerprint = fingerprint;
-    if (transportState !== "paired") return;
     sendAppFrame({ zcode_type: "workspace-side-pane-update", sidePane: entry });
   }
 
@@ -1372,6 +1374,9 @@ export function createDesktopMobileRelayControl(deps: {
             tasks,
             mobileViewState,
             sidePane: syncedSidePane,
+            // §33.18.15 批 B TODO 清偿：桌面 OS 随 bootstrap 下发（手机终端侧板
+            // isWindowsDesktop 消费；win32→PowerShell readline 归一化）。
+            desktopPlatform: process.platform,
           }),
         });
         return;

@@ -22,6 +22,9 @@ export interface RemoteSidePaneTerminalProps {
   /** workspace 身份隔离 key（workspaceIdentity?.trim() || workspacePath，回收键）。 */
   workspaceKey?: string;
   cwd?: string;
+  /** §33.18.15 批 B TODO 清偿：桌面是否 Windows（bootstrap desktopPlatform 下发，
+   * App 消费 process.platform === "win32"），驱动 PowerShell readline 归一化。 */
+  isWindowsDesktop?: boolean;
 }
 
 export function RemoteSidePaneTerminal(props: RemoteSidePaneTerminalProps) {
@@ -34,9 +37,7 @@ export function RemoteSidePaneTerminal(props: RemoteSidePaneTerminalProps) {
           workspaceKey={props.workspaceKey}
           cwd={props.cwd}
           isVisible
-          // TODO(协议面)：桌面 OS 信息随连接元数据下发后再接（官方 isWindowsDesktop
-          // 驱动 PowerShell readline 归一化；本仓连接态暂无该字段，缺省 false）。
-          isWindowsDesktop={false}
+          isWindowsDesktop={props.isWindowsDesktop ?? false}
           onOpenBrowserUrl={() => {
             // 手机页无浏览器打开通道（协议面未含），终端链接打开动作降级忽略。
           }}

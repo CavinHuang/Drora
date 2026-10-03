@@ -2279,3 +2279,29 @@ test("§33.18.16 S7 最小切片：bootstrap sidePane 初值下发/缺省不下�
   });
   assert.equal("sidePane" in withoutPane, false, "缺省不下发 sidePane（手机回选择器）");
 });
+
+test("§33.18.15 批 B TODO 清偿：bootstrap 携带 desktopPlatform（缺省不下发）", () => {
+  const fallbackWorkspace = {
+    workspacePath: "C:/demo",
+    label: "demo",
+    kind: "local" as const,
+    connectionState: "connected" as const,
+  };
+  const withPlatform = buildBootstrapResult({
+    deviceSid: "d_1",
+    appVersion: OFFICIAL_REMOTE_PAGE_APP_VERSION,
+    workspaces: [],
+    fallbackWorkspace,
+    tasks: [],
+    desktopPlatform: "win32",
+  });
+  assert.equal(withPlatform.desktopPlatform, "win32");
+  const withoutPlatform = buildBootstrapResult({
+    deviceSid: "d_1",
+    appVersion: OFFICIAL_REMOTE_PAGE_APP_VERSION,
+    workspaces: [],
+    fallbackWorkspace,
+    tasks: [],
+  });
+  assert.equal("desktopPlatform" in withoutPlatform, false, "缺省不下发（手机按未知 OS 处理）");
+});

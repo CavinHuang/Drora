@@ -285,6 +285,9 @@ export function buildBootstrapResult(params: {
   mobileViewState?: RelayMobileViewState;
   /** §33.18.16 侧板初态投影：桌面窗口侧板当前 tab（缺省不下发，手机回选择器）。 */
   sidePane?: MobileRelaySidePaneSyncEntry | null;
+  /** §33.18.15 批 B TODO 清偿：桌面 OS（process.platform），手机终端侧板
+   * isWindowsDesktop（PowerShell readline 归一化）消费；缺省不下发。 */
+  desktopPlatform?: string;
 }): Record<string, unknown> {
   return {
     windowControlSessionId: params.deviceSid,
@@ -296,6 +299,7 @@ export function buildBootstrapResult(params: {
     // §33.18.16 侧板初态投影：官方 vb schema 非 strict（src-dNkcRypW.js 取证），
     // 官方页静默剥离未知字段；本仓源码页消费 sidePane.tab 作侧板初值。
     ...(params.sidePane ? { sidePane: params.sidePane } : {}),
+    ...(params.desktopPlatform ? { desktopPlatform: params.desktopPlatform } : {}),
   };
 }
 

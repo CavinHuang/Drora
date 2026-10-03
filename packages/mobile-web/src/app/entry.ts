@@ -143,6 +143,8 @@ export function projectHomeData(resultRaw: unknown): {
   activeTaskId: string | null;
   /** §33.18.16 S7 最小切片：桌面侧板初值（审查 review/终端 terminal/缺省 null=选择器）。 */
   sidePaneTab: "review" | "terminal" | null;
+  /** §33.18.15 批 B TODO 清偿：桌面 OS（process.platform；缺省 null=未知）。 */
+  desktopPlatform: string | null;
 } {
   const result = asRecord(resultRaw);
   const workspaces = Array.isArray(result.workspaces)
@@ -188,5 +190,7 @@ export function projectHomeData(resultRaw: unknown): {
         : asRecord(result.sidePane).tab === "terminal"
           ? "terminal"
           : null,
+    // §33.18.15 批 B TODO 清偿：桌面 OS（bootstrap 顶层 desktopPlatform）。
+    desktopPlatform: typeof result.desktopPlatform === "string" ? result.desktopPlatform : null,
   };
 }

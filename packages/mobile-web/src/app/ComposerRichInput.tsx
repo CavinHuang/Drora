@@ -95,10 +95,10 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
             editorApiRef={editorApiRef}
             inputTestId={props.inputTestId}
             triggerPanelContainer={panelContainer}
-          // §33.18.19 @ 文件上下文：mention 面板挂起——MentionPlugin 分组渲染消费
-          // droraSessionStore 的 selectedProvider/order（手机 store 无该配置面，
-          // undefined.order 崩页面，§33.18.19 续），待 provider 配置面接线后开启。
-          enableMentionPanel={props.workspacePath.length > 0}
+            // §33.18.19 @ 文件上下文：mention 面板挂起——MentionPlugin 分组渲染消费
+            // droraSessionStore 的 selectedProvider/order（手机 store 无该配置面，
+            // undefined.order 崩页面，§33.18.19 续），待 provider 配置面接线后开启。
+            enableMentionPanel={false}
           />
         </Suspense>
       </div>

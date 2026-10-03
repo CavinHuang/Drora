@@ -4501,3 +4501,13 @@ createTerminalService({settingService}) 实例（手机 PTY 注册表与桌面�
 解阻塞条件**：手机侧 provider 配置面接线（modelState.providers → droraSessionStore
 selectedProvider 种子，或 MentionPlugin 容忍缺省 provider 跳过插件/技能分组）——
 归入 provider 配置面轮。文件上下文的面板数据面（fileService 桥）已验证通。
+
+**§33.18.19 崩溃根因精确定位（同日续）**：崩点=usePluginStoreOrder →
+clientConfigService.getSnapshot（手机桥未暴露 clientConfigService——与 terminal 通道
+同类：服务面未桥接）→ order=null → MentionPlugin 插件分组
+sortPluginStoreEntries 消费 order.work/order[category] 时 TypeError（stack Wa/qa/vs，
+chunk 4:68176 上下文=[PluginStoreOrder] 配置读取失败域）。**@ 面板完整解阻塞需二选
+一**：①桥上补 clientConfigService 通道（照 git/file 模式，插件/技能分组即活）；
+②ui MentionPlugin 增移动端门（无 clientConfigService 时只挂文件上下文分组，跳过
+插件/技能分组）——②改动面小且不依赖新桥通道，推荐先行。文件数据面（fileService
+桥）独立验证通不受影响。

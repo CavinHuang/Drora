@@ -107,3 +107,32 @@ CaptchaClientConfig，桥可复用）。
 **修复顺序裁定**：L1 先行（无 HTTP 响应则 L2 无意义）；L1 修复方向=①官方桌面模型
 请求网络栈考古（Chromium net 代理/指纹）→②CLI 运行时 Node 版本/指纹对齐官方→③
 均不可行则 captcha-clearance 类方案需先与用户对齐（涉及 WAF 对抗边界）。
+
+## 补层 2（2026-10-03，脱离 app 的决定性实验组）
+
+**实验组 A（传输层全变量排除）**：electron 内嵌 Node 24.14（=agent 实际运行时）+
+CLI 全套头 + dummy 认证 + 108KB body + SSE —— 三层全通（401 令牌无效=服务器正常
+应答）；CLI 同款头无凭据直连 —— 401 双通。**静态传输配置双 bundle 同族**
+（ProxyAgent×4/new Agent×1/rejectUnauthorized×1 逐项一致）。→ 头/体/流式/运行时
+二进制全部排除。
+
+**实验组 B（真实凭据路径分流）**：
+- **API-key 路径通**：`~/.drora/config.json` 的
+  `builtin:bigmodel-coding-plan`（open.bigmodel.cn/api/anthropic + apiKey）最小
+  认证请求 → **HTTP 200，GLM-5.3 真实回复**（thinking 内容）。模型推理连通性
+  在此路径完全正常；
+- **桌面账号路径（zhipu-account）间歇 TLS 切断**：同机同刻，CLI app 内请求
+  被切（重新连接中 N/10）。9/27-28 同路径成功过。→ L1 收敛为**账号路径的
+  WAF 行为标记或 clearance 缺失**（官方桌面同账号可用=其验证码/clearance 链
+  在位）。
+
+**新发现的独立 CLI 缺陷（headless 选模型）**：`-p` 一次性请求报
+"Select a model before continuing"（CONFIGURATION_ERROR）——`cli/config.json`
+的 model.main 指向 `builtin:bigmodel-coding-plan/GLM-5.3-Flash`，但 providers
+为空；把桌面 config 的 provider 定义合并进 cli/config.json 后**仍同错**（-p 的
+selection 另有解析来源，疑工作区/会话状态）；`--model` 非法 flag。→ 独立于
+3007 的 headless UX 缺陷，归 CLI backlog。实验已证实 API-key 传输可用，故该
+缺陷不阻塞网络层结论。
+
+**安全备注**：`~/.drora/config.json` 的 provider apiKey 为明文存储（诊断输出
+曾一次性带出）——建议评估迁移 safeStorage（凭据 store 已有加密机制）。

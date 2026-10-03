@@ -74,7 +74,13 @@ function resolveRef(ref, fromPath) {
   const cleaned = ref.split(/[?#]/)[0];
   if (!cleaned) return null;
   if (cleaned.startsWith("/")) return cleaned;
-  const baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/") + 1) : "/";
+  let baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/") + 1) : "/";
+  // 版本根基准引用：assets/ 目录内的 chunk 以 `assets/x.js` 形式指回自身目录时
+  //（vite 内联 preload 助手的写法，基准是版本根而非 assets 目录），剥掉一层，
+  // 避免 /assets/assets/ 双前缀 404。
+  if (baseDir.endsWith("/assets/") && cleaned.startsWith("assets/")) {
+    baseDir = baseDir.slice(0, -"assets/".length);
+  }
   const segments = (baseDir + cleaned).split("/");
   const stack = [];
   for (const segment of segments) {
@@ -94,17 +100,31 @@ const queued = new Set();
 const fetched = new Map(); // path -> { bytes, changed: "new"|"identical"|"updated" }
 const missing = new Map(); // path -> last status
 
-// vite 产物签名：basename 以 -8位hash 结尾（cytoscape.esm-DrA8Ev2-.js 这类
-// 多点合法名也符合）。不匹配 hash 形且原始引用不含斜杠的裸名（如语法高亮
-// scope 串 `source.css`、`meta.embedded.json`）不是资源引用，不入队。
-const HASHED_ASSET = new RegExp(String.raw`-[A-Za-z0-9_-]{8,}\.(${ASSET_EXT})$`, "i");
+// vite 产物签名：basename 以恰好 8 位 hash 结尾（vite base64url，合法多点名如
+// `pdf.worker.min-qwK7q_zL.mjs`、`cytoscape.esm-DrA8Ev2-.js` 均符合）。
+// 排除两类已实测的语法高亮 scope 串误报（TextMate scope 名）：
+// a) 点数 >3（scope 串普遍 4-5 点，合法资产最多 3 点）；
+// b) 点数≥2 且除扩展名外全为纯小写词点分段（`meta.attribute-selector.css` 形态）。
+const HASHED_ASSET = new RegExp(String.raw`-[A-Za-z0-9_-]{8}\.(${ASSET_EXT})$`, "i");
+
+function looksLikeAssetBasename(path) {
+  const base = path.split("/").pop();
+  if ((base.match(/\./g) ?? []).length > 3) return false;
+  if (!HASHED_ASSET.test(base)) return false;
+  const stem = base.slice(0, base.lastIndexOf("."));
+  if ((stem.match(/\./g) ?? []).length >= 1) {
+    const segments = stem.split(".");
+    if (segments.every((s) => /^[a-z][a-z-]*$/.test(s))) return false;
+  }
+  return true;
+}
 
 function enqueue(ref, path, fromPath) {
   if (!path || path === "/") return;
   // api-samples 是本地运行时 API 快照（取证副档），不属于静态资源闭包：
   // 不抓取、不从发现侧覆盖。
   if (path.startsWith("/api-samples/")) return;
-  if (!HASHED_ASSET.test(path) && !ref.includes("/")) return;
+  if (!looksLikeAssetBasename(path) && !ref.includes("/")) return;
   if (queued.has(path) || fetched.has(path) || missing.has(path)) return;
   queued.add(path);
   if (process.env.CAPTURE_VERBOSE) {
@@ -135,6 +155,15 @@ const REQUEST_UA =
 
 const curlTmpRoot = await mkdtemp(join(tmpdir(), "drora-capture-"));
 let curlSeq = 0;
+
+// 全局节流协调：任一请求收到 405/429（WAF 流量节流）即全员暂停到
+// pauseUntil，避免单点退避期间其余并发继续触发升级封禁。
+let pauseUntil = 0;
+async function waitIfPaused() {
+  while (Date.now() < pauseUntil) {
+    await new Promise((r) => setTimeout(r, Math.min(pauseUntil - Date.now(), 2000)));
+  }
+}
 
 async function curlFetch(url) {
   const bodyPath = join(curlTmpRoot, `body-${(curlSeq += 1)}.bin`);
@@ -174,13 +203,19 @@ async function curlFetch(url) {
 
 async function fetchWithRetry(url) {
   let lastError;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await waitIfPaused();
     try {
       const { status, bytes } = await curlFetch(url);
       if (status >= 200 && status < 300) return { ok: true, status, bytes };
       if (status === 404) return { ok: false, status, bytes: null };
       lastError = new Error(`HTTP ${status}`);
-      if (status < 500 && status !== 429 && status !== 405) {
+      if (status === 405 || status === 429) {
+        // WAF 流量节流：全员长冷却后重试。
+        pauseUntil = Math.max(pauseUntil, Date.now() + 90_000);
+      } else if (status >= 500) {
+        pauseUntil = Math.max(pauseUntil, Date.now() + 5_000);
+      } else {
         return { ok: false, status, bytes: null };
       }
     } catch (error) {
@@ -202,9 +237,25 @@ function safeDecode(path) {
 }
 
 async function download(path) {
+  // 发现早于抓取的去重：同一路径可能在本轮 batch 快照后才被更早的请求抓完。
+  if (fetched.has(path)) return;
   const url = `${origin}${path}`;
   const response = await fetchWithRetry(url);
   if (response.status === 404) {
+    // /remote/v4/index.html 是 upstream 冻结清单里的静态宿主别名；源站只有
+    // 动态路由 /remote/v4。从冻结副本落盘，保证镜像与冻结清单逐字节对齐。
+    if (path === "/remote/v4/index.html") {
+      try {
+        const frozen = await readFile(join(packageRoot, "upstream", "remote", "v4", "index.html"));
+        const target = join(outDir, "remote", "v4", "index.html");
+        await mkdir(dirname(target), { recursive: true });
+        await writeFileWithRetry(target, frozen);
+        fetched.set(path, { bytes: frozen.length, delta: "alias" });
+        return;
+      } catch {
+        // 冻结副本缺失时按普通 404 记录。
+      }
+    }
     missing.set(path, 404);
     return;
   }
@@ -236,20 +287,21 @@ async function download(path) {
   // 跟随重定向由 curl --location 完成；资产树无重定向，不再追踪落点。
 }
 
-async function runPool(paths, worker, concurrency) {
+async function runPool(paths, worker, concurrency, delayMs) {
   let cursor = 0;
   async function runner() {
     while (cursor < paths.length) {
       const item = paths[cursor];
       cursor += 1;
       await worker(item);
+      if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
     }
   }
   await Promise.all(Array.from({ length: concurrency }, runner));
 }
 
 // ---- 入口与主流程 ----
-async function fetchEntry(url, savePath, manifestUrl) {
+async function fetchEntry(url, savePath, manifestUrl, resolveBase) {
   let response;
   try {
     response = await fetchWithRetry(url);
@@ -283,7 +335,9 @@ async function fetchEntry(url, savePath, manifestUrl) {
     console.log(`[capture] entry version roots: ${[...versionRoots].sort().join(", ")}`);
   }
   for (const ref of extractRefs(html)) {
-    enqueue(ref, resolveRef(ref, savePath), savePath);
+    // 入口真实服务端路径是 /remote/v4（动态路由），本地存为 index.html；
+    // 相对引用须按真实路径解析而非落盘路径。
+    enqueue(ref, resolveRef(ref, resolveBase ?? savePath), savePath);
   }
   return { path: `/${savePath}`, url: manifestUrl, versionRoots: [...versionRoots] };
 }
@@ -299,8 +353,9 @@ try {
 
 await mkdir(outDir, { recursive: true });
 const entries = [];
-const concurrency = Number(argOf("--concurrency", "6"));
-const entry = await fetchEntry(entryUrl, "index.html", entryUrl.pathname);
+const concurrency = Number(argOf("--concurrency", "2"));
+const delayMs = Number(argOf("--delay-ms", "60"));
+const entry = await fetchEntry(entryUrl, "index.html", entryUrl.pathname, "remote/v4/index.html");
 if (entry) entries.push(entry);
 const staticEntry = await fetchEntry(`${origin}/remote/v4.html`, "remote/v4.html", "/remote/v4.html");
 if (staticEntry) entries.push(staticEntry);
@@ -339,11 +394,16 @@ while (queued.size > 0) {
   const batch = [...queued];
   queued.clear();
   console.log(`[capture] round ${round}: ${batch.length} asset(s)`);
-  await runPool(batch, download, concurrency);
+  await runPool(batch, download, concurrency, delayMs);
 }
 
 // ---- api-samples 保留：运行时 API 快照属取证副档，不参与静态抓取 ----
-const apiSampleFiles = previousFiles.filter((f) => f.path.startsWith("api-samples/"));
+// 按 path 去重：历史 manifest 可能已含重复条目（run-A 时代缺陷的遗留）。
+const apiSampleFiles = [
+  ...new Map(
+    previousFiles.filter((f) => f.path.startsWith("api-samples/")).map((f) => [f.path, f]),
+  ).values(),
+];
 for (const file of apiSampleFiles) {
   try {
     const s = await stat(join(outDir, file.path));
@@ -357,14 +417,19 @@ for (const file of apiSampleFiles) {
 
 // api-samples 只来自保留段（见下），静态文件列表剔除之，避免双计。
 const staticPaths = [...fetched.keys()].filter((p) => !p.startsWith("/api-samples/")).sort();
-const files = staticPaths.map((path) => {
-  const alias = entries.some((e) => e.alias && e.path === path);
-  return {
-    path: path.slice(1),
-    url: path,
-    ...(alias ? { note: "本地别名副本（源站无此静态路径，与入口页同字节）" } : {}),
-  };
-});
+const fileNotes = new Map([
+  ["remote/v4/index.html", "本地别名副本（源站仅动态路由，字节取自 upstream 冻结别名）"],
+]);
+for (const e of entries) {
+  if (e.alias) {
+    fileNotes.set(e.path.slice(1), "本地别名副本（源站无此静态路径，与入口页同字节）");
+  }
+}
+const files = staticPaths.map((path) => ({
+  path: path.slice(1),
+  url: path,
+  ...(fileNotes.has(path.slice(1)) ? { note: fileNotes.get(path.slice(1)) } : {}),
+}));
 const discoveredVersion = entries.flatMap((e) => e.versionRoots).find((v) => /^\d+\.\d+\.\d+/.test(v));
 const previousPaths = new Set(previousFiles.map((f) => `/${f.path}`));
 const added = staticPaths.filter((p) => !previousPaths.has(p));
@@ -385,11 +450,16 @@ const manifest = {
       url: f.url,
     })),
   ],
-  missing: [...missing.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([path, status]) => ({
-    path: path.slice(1),
-    status,
-    note: "官方源站 404（已知缺失引用，README 有记录）",
-  })),
+  missing: [...missing.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([path, status]) => {
+    const name = path.split("/").pop();
+    let note = "官方源站 404";
+    if (name === "docx_wasm_bg.js" || name === "duke_sheets_wasm_bg.js") {
+      note = "官方源站 404（README 记录的已知缺失引用，官方源站即缺）";
+    } else if (name.startsWith("invalid.illegal.")) {
+      note = "源站 404；已知的唯一扫描误报（TextMate scope 串，恰合 8 位 hash 形）";
+    }
+    return { path: path.slice(1), status, note };
+  }),
 };
 await writeFileWithRetry(previousManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 await rm(curlTmpRoot, { recursive: true, force: true });

@@ -16,7 +16,13 @@
   test/build.test.mjs 硬校验；§33.4 裁定后源码页不再逐项追赶官方形态）。
 - **remote-dist（取证镜像）**：官方站点全量爬取（manifest/api-samples 取证副档），
   字节与 recovered 同源、入口布局为根级；不进 bundled 候选链，供 harness `--dist`
-  显式引用与对照。
+  显式引用与对照。再生命令：
+  `node scripts/capture-remote-dist.mjs --url-file <含完整入口 URL 的文件>`
+  （URL 必须带 `app_version=3.14.3` 钉版参数，缺省会拿到 latest 版本树；入口地址
+  含 `&`，走文件传入防 shell 拆断）。发现机制 = 入口/JS/CSS 静态引用闭包 +
+  upstream 冻结清单种子（material-icons 等运行时字符串拼接引用静态扫描不可见，
+  靠种子回源验证）。源站 WAF（阿里云 ESA）对高频/裸 Node 指纹请求按 405 节流，
+  脚本走 curl 传输 + 全局冷却退避，勿调大并发。
 
 relay-server 的 bundled 根优先级：`dist`（源码应用，entry 存在才启用）→
 `src/recovered`（快照回退）→ 内建资产代理 → R2 兜底（spec §13.4）。桌面 LAN

@@ -4395,3 +4395,13 @@ fallback 兜 testid/占位（lexical 不进主包双赢）。真链活体（4430
 实例挂载（contenteditable/data-lexical-editor）+ 输入渲染 ✓；发送路径与既有 onSend
 同缝（真机发送验证归用户侧）。门禁：typecheck 0 + mobile 8+211 + build 811 资产
 （lexical 入懒 chunk）+ lint 0 + 架构 0。
+
+**§33.18.19 @ 面板真链打通（2026-10-03 深夜续）**：ComposerRichInput 增 portal 容器
+（MentionPlugin `!isOpen || !container → null`，桌面壳由 triggerPanelContainer 提供
+定位容器——本壳自建 relative 容器传入）+ `enableMentionPanel` 随 workspacePath 开启
+（MentionPlugin 数据面 = useServices().fileService.searchWorkspaceFiles + skill
+catalog——手机 ServiceProvider 塔=relay accessor 桥，与 App.onSearchFiles 同源）。
+真链活体（4430×真桌面）：输入 @s → 面板 5 个真实 mention 项（技能/插件目录匹配）
+✓ 零新协议。**存续**：附件上传链（attachmentBegin/Chunk/Commit + sendText
+attachments 字段已在 schema/服务面，UI 上传流未接=最后的 composer 挂账）；slash
+catalog 自动读取（随编辑器已在）。

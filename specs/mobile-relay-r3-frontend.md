@@ -4492,3 +4492,12 @@ createTerminalService({settingService}) 实例（手机 PTY 注册表与桌面�
 （ProxyChannel call 端 apply 展开）——传 {cwd} 会收到 undefined；③ demux 首测
 失败根因=控制面未 import deserialize（"deserialize is not defined" 被原样转发
 分支吞掉）——插桩日志定位。
+
+**§33.18.19 追记（@ 面板回退，2026-10-04 凌晨）**：enableMentionPanel=true 在任务页
+（taskId 在）触发 mention 分组渲染 → ContextMentionOptionContent/PluginMentionOption
+读 droraSessionStore 的 selectedProvider/order——手机 store 无该配置面（undefined）
+→ 页面级 TypeError 崩溃（4430 宽壳活体实锤，LexicalChatInput chunk 'order'）。
+回退 enableMentionPanel=false（窄壳 @s 无 taskId 时本就不挂分组，未炸）。**@ 面板
+解阻塞条件**：手机侧 provider 配置面接线（modelState.providers → droraSessionStore
+selectedProvider 种子，或 MentionPlugin 容忍缺省 provider 跳过插件/技能分组）——
+归入 provider 配置面轮。文件上下文的面板数据面（fileService 桥）已验证通。

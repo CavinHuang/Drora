@@ -41,27 +41,30 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
   // 懒 chunk 就绪前轮询等编辑器句柄，就绪后一次性 setText（文本相同则跳过，
   // 避免打字期间程序化重写编辑器）。
   const editorApiRef = useRef<LexicalChatInputHandle | null>(null);
-  const appliedInitialRef = useRef(false);
+  // §33.18.21 初值回填（桌面 ChatPromptEditor syncInitialValueOnMount 同模式）：
+  // 懒 chunk 就绪前轮询等编辑器句柄；就绪后按「文本比对」同步下行——打字经
+  // onChange 上行后 draft 与编辑器文本一致（跳过），仅外部变更（@file 插入、
+  // 草稿恢复、任务切换）才 setText，避免每个字符程序化重写编辑器。
+  const editorReady = useRef(false);
+  const latestInitialRef = useRef<string | undefined>(undefined);
+  latestInitialRef.current = props.initialText;
   useEffect(() => {
-    if (appliedInitialRef.current) return;
-    let tries = 0;
     const timer = setInterval(() => {
-      tries += 1;
       if (editorApiRef.current) {
-        clearInterval(timer);
-        appliedInitialRef.current = true;
-        const initial = props.initialText ?? "";
-        if (initial && editorApiRef.current?.getText() !== initial) {
-          editorApiRef.current?.setText(initial);
-        }
-      } else if (tries > 50) {
+        setEditorReadyState(true);
         clearInterval(timer);
       }
     }, 100);
     return () => clearInterval(timer);
-    // 仅挂载时回填一次（初值=任务打开时恢复的草稿；后续文本经 onChange 上行）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const [editorReadyState, setEditorReadyState] = useState(false);
+  useEffect(() => {
+    const api = editorApiRef.current;
+    const initial = latestInitialRef.current;
+    if (!editorReadyState || !api || initial === undefined) return;
+    if (api.getText() === initial) return;
+    api.setText(initial);
+  }, [editorReadyState, props.initialText]);
   return (
     <DroraIntlProvider initialLocale={resolveLocale()}>
       <div ref={setPanelContainerRef} className="relative flex flex-col">
@@ -92,10 +95,10 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
             editorApiRef={editorApiRef}
             inputTestId={props.inputTestId}
             triggerPanelContainer={panelContainer}
-            // §33.18.19 @ 文件上下文开启：MentionPlugin 数据面 = useServices().fileService
-            // .searchWorkspaceFiles（手机 ServiceProvider 塔=relay accessor 桥，与
-            // App.onSearchFiles 同源已验证）——零新协议。
-            enableMentionPanel={props.workspacePath.length > 0}
+          // §33.18.19 @ 文件上下文：mention 面板挂起——MentionPlugin 分组渲染消费
+          // droraSessionStore 的 selectedProvider/order（手机 store 无该配置面，
+          // undefined.order 崩页面，§33.18.19 续），待 provider 配置面接线后开启。
+          enableMentionPanel={false}
           />
         </Suspense>
       </div>

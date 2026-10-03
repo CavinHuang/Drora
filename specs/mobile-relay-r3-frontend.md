@@ -4405,3 +4405,22 @@ catalog——手机 ServiceProvider 塔=relay accessor 桥，与 App.onSearchFil
 ✓ 零新协议。**存续**：附件上传链（attachmentBegin/Chunk/Commit + sendText
 attachments 字段已在 schema/服务面，UI 上传流未接=最后的 composer 挂账）；slash
 catalog 自动读取（随编辑器已在）。
+
+**§33.18.20 附件上传链接线（2026-10-03 深夜，composer 全量对齐收官）**：
+P7 附件面清偿——schema（sendText.attachments/attachmentRef）与服务面
+（attachmentBegin/Chunk/Commit/Abort）原本已在，缺的只是 UI 上传流：
+- ui 包新增窄导出 `./attachment-upload-transaction`（uploadAttachmentTransaction：
+  begin→384KiB chunk→commit 编排 + sha256 校验和 + 失败 abort + 进度回调 +
+  指纹/去重语义——桌面同件直复用，零自研编排）；
+- 手机 composerAttachmentUpload.ts 窄入口（File→base64→事务→AttachmentRef，
+  20MiB 上限客户端预检）；
+- TaskComposer：hidden file input（multiple）→ 上传循环（进度内联提示，失败
+  跳过不阻断）→ 引用芯片（×可移除，AttachmentChips 抽件）→ 发送携
+  sendText(text, attachments)；App sendDraft 增 attachments 参数；
+- 结构：TaskComposer 412 行（代码行低于 max-lines 阈值）；附件控制簇抽
+  ui/TaskAttachmentControl（自包含 D6 域）。
+真链活体（4430×真桌面）：hidden file input(multiple)+附件钮+富文本编辑器共存 ✓
+（IAB 无法驱动文件选择对话框——真实选发归用户侧/真机轮）。门禁：typecheck 0 +
+mobile 8+211 + build 811 + lint（TaskComposer 未上榜）+ 架构 0。
+**composer 全量对齐收官**：双形态触发钮/停止钮/模型名/富文本输入面/@ 面板/附件
+芯片+上传全链——与官方页差异仅剩品牌词与 slash 命令源深度（catalog 已自动读取）。

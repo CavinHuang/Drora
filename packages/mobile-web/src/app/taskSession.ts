@@ -25,6 +25,7 @@ import {
   type ClientHello,
   type CommandAck,
   type CommandEnvelope,
+  type AttachmentRef,
   type ConversationRow,
   type ConversationRowTarget,
   type V4ConversationFileChangesResult,
@@ -331,15 +332,22 @@ export class TaskSession {
     this.store.setSubscription(result.ack);
   }
 
-  /** 发送用户输入（v4 sendText 命令；admission 由 CLI CommandInbox 串行，AGENTS 不变量）。 */
-  async sendText(text: string): Promise<void> {
+  /**
+   * 发送用户输入（v4 sendText 命令；admission 由 CLI CommandInbox 串行，AGENTS 不变量）。
+   * attachments（§33.18.20）：已上传附件引用（uploadComposerAttachment 产物），
+   * schema 原生字段（shared command.ts sendText.attachments）。
+   */
+  async sendText(text: string, attachments?: AttachmentRef[]): Promise<void> {
     const envelope = {
       // uuid v7 语义：客户端生成、重试不变（此处 P2a 无重试，uuid 即可）。
       commandId: crypto.randomUUID(),
       clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "sendText" as const,
-      payload: { text },
+      payload: {
+        text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      },
       issuedAt: Date.now(),
     };
     await this.accessor.droraAgentService.sendConversationCommandV4({

@@ -14,15 +14,11 @@
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
 import { lazy, Suspense, useState } from "react";
-import {
-  AlignEndHorizontal,
-  ArrowUp,
-  ChevronDown,
-  Plus,
-  Square,
-} from "lucide-react";
+import { AlignEndHorizontal, ArrowUp, ChevronDown, Square } from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
+import { AttachmentChips } from "../ui/AttachmentChips.js";
+import { TaskAttachmentControl } from "../ui/TaskAttachmentControl.js";
 import { resolveMobileComposerPlaceholderId } from "./composerPlaceholder.js";
 // §33.18.18 ComposerRichInput 懒引入：其依赖链（git-pane/lexical）不进主包，node
 // 测试环境也不解析 ui 别名链——Suspense fallback 兜 testid/占位形状。
@@ -38,6 +34,7 @@ import type {
   ModelSelectionState,
 } from "./conversationStore.js";
 import type { CollaborationMode } from "./taskSession.js";
+import type { AttachmentRef } from "@drora/shared/drora-protocol-v4";
 import type { ModelSelectionView } from "@drora/services";
 
 /** 官方 switchCollaborationMode 值域闭集（顺序照官方 schema Si([build,edit,plan,yolo])）。 */
@@ -61,8 +58,14 @@ export interface TaskComposerProps {
   /** 官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode；缺省 build）。 */
   configMode?: string | null;
   onDraftChange: (draft: string) => void;
-  /** text 覆写：富文本编辑器提交以参数传递（Lexical 自持状态，state 可能滞后）。 */
-  onSend: (text?: string) => void;
+  /** text 覆写：富文本编辑器提交以参数传递（Lexical 自持状态，state 可能滞后）。
+   *  attachments：§33.18.20 已上传附件引用（缺省/空=无附件）。 */
+  onSend: (text?: string, attachments?: AttachmentRef[]) => void;
+  /** §33.18.20 附件上传链（App 注入 composerAttachmentUpload；缺省=不接上传面）。 */
+  uploadAttachment?: (
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ) => Promise<AttachmentRef>;
   onStop: () => void;
   onToggleModelMenu: () => void;
   onModelSelect: (selection: {
@@ -107,6 +110,7 @@ export function TaskComposer(props: TaskComposerProps) {
     onModelSelect,
     onCloseModelMenu,
     onModeSelect,
+    uploadAttachment,
     workspacePath,
     workspaceIdentity,
     taskId,
@@ -114,6 +118,9 @@ export function TaskComposer(props: TaskComposerProps) {
   const { formatMessage } = useIntl();
   // P6 深面本地交互态：思考档位弹层（选择走 switchModelConfig CAS 既有链路）。
   const [thoughtMenuOpen, setThoughtMenuOpen] = useState(false);
+  // §33.18.20 附件上传本地态：已上传引用芯片（上传循环/进度归 ui/TaskAttachmentControl，
+  // uploadAttachment 经 App 注入 composerAttachmentUpload，失败静默跳过该文件）。
+  const [pendingAttachments, setPendingAttachments] = useState<AttachmentRef[]>([]);
   // §32.3 模式弹层（选择走 switchCollaborationMode CAS；开合为本地 UI 态）。
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   // §32.68 思考档位门改成 provider-settings 语义：档位集合只认 modelView 模型的
@@ -228,28 +235,34 @@ export function TaskComposer(props: TaskComposerProps) {
             initialText={draft}
             inputTestId="v4-composer-input"
             onChange={onDraftChange}
-            onSubmit={(text) => {
-              onDraftChange(text);
-              onSend(text);
-              return true;
-            }}
+          onSubmit={(text) => {
+            onDraftChange(text);
+            onSend(text, pendingAttachments);
+            setPendingAttachments([]);
+            return true;
+          }}
           />
         </Suspense>
+        {/* §33.18.20 附件芯片：已上传引用（×可移除）+ 上传中进度（ui 事务 onProgress）。 */}
+        <AttachmentChips
+          refs={pendingAttachments}
+          uploadProgress={null}
+          onRemove={(ref) =>
+            setPendingAttachments((list) => list.filter((item) => item.ref !== ref))
+          }
+        />
         {/* 官方两区工具条（group/toolbar）：左 attachment+mode / 右 model-config+usage+stop+send。 */}
         <div className="group/toolbar flex min-w-0 items-end">
           <div className="flex min-w-0 flex-1">
             <div className="flex shrink-0 items-center">
-              {/* §32.64 官方活体（CDP 探针）：chat-attachment-button aria=添加上下文（非
-                  添加附件），Plus 图标非回形针；P7 上传协议面仍归后续，按钮不 disabled。 */}
-              <input type="file" hidden multiple aria-hidden="true" tabIndex={-1} />
-              <button
-                type="button"
-                data-testid="chat-attachment-button"
-                aria-label={formatMessage({ id: "chat.composer.contextShortcut" })}
-                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground-subtlest"
-              >
-                <Plus aria-hidden="true" className="size-4" />
-              </button>
+              {/* §33.18.20 附件控制簇（抽 ui/TaskAttachmentControl）：hidden 选文件 →
+                  uploadAttachment → 引用回调；@ mention 文本与附件引用互补。 */}
+              <TaskAttachmentControl
+                uploadAttachment={uploadAttachment}
+                onUploaded={(attachment) =>
+                  setPendingAttachments((list) => [...list, attachment])
+                }
+              />
               {/* §32.3 模式触发器（§33.18.13 抽 TaskModeMenu.tsx 域内）：响应式双形态
                   触发钮 + 弹层；无 onModeSelect（旧装配/测试）时退回只读展示。 */}
               <TaskModeTrigger
@@ -383,7 +396,10 @@ export function TaskComposer(props: TaskComposerProps) {
                 disabled={!draft.trim() || sending}
                 aria-label={formatMessage({ id: "mobileShell.composer.send" })}
                 data-testid="v4-composer-send"
-                onClick={() => onSend()}
+                onClick={() => {
+                  onSend(undefined, pendingAttachments);
+                  setPendingAttachments([]);
+                }}
               >
                 <ArrowUp aria-hidden="true" className="size-4" />
               </button>

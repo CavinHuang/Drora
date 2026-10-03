@@ -22,6 +22,7 @@ import {
   type ProjectedWorkspace,
 } from "./entry.js";
 import { TaskSession, createSessionInBridge, openHomeSessionsIndexBridge } from "./taskSession.js";
+import { uploadComposerAttachment } from "./composerAttachmentUpload.js";
 import type { CollaborationMode } from "./taskSession.js";
 import { TaskMoreMenu } from "./TaskMoreMenu.js";
 import { NewTaskDraft } from "./NewTaskDraft.js";
@@ -68,6 +69,7 @@ import type {
   ModelSelectionState,
 } from "./conversationStore.js";
 import type {
+  AttachmentRef,
   ConversationRow,
   ConversationSnapshot,
   PendingInteraction,
@@ -460,14 +462,14 @@ function AppBody() {
     void refresh();
   }, [refresh, resetOlder]);
 
-  const sendDraft = useCallback(async (textOverride?: string) => {
+  const sendDraft = useCallback(async (textOverride?: string, attachments?: AttachmentRef[]) => {
     const session = taskRef.current;
     // text 覆写：富文本编辑器自持状态，提交以参数传递（state 可能滞后一拍）。
     const text = (textOverride ?? draft).trim();
     if (!session || !text || sending) return;
     setSending(true);
     try {
-      await session.sendText(text);
+      await session.sendText(text, attachments);
       setDraft("");
       // 用户回显与助手响应经订阅帧到达（P3a 流式）；文件变更随发送刷新。
       void session.fetchFileChanges().then((changes) => setFileChanges(changes));
@@ -619,7 +621,20 @@ function AppBody() {
         modelMenuOpen={modelMenuOpen}
         configMode={configMode}
         onDraftChange={setDraft}
-        onSend={(text) => void sendDraft(text)}
+        onSend={(text, attachments) => void sendDraft(text, attachments)}
+        uploadAttachment={(file, onProgress) => {
+          const session = taskRef.current;
+          if (!session || !taskTarget) return Promise.reject(new Error("task session detached"));
+          // §33.18.20：ui uploadAttachmentTransaction 窄入口复用（composerAttachmentUpload）。
+          return uploadComposerAttachment({
+            accessor: session.accessor,
+            workspacePath: taskTarget.path,
+            workspaceIdentity: taskTarget.identity,
+            sessionId: selectedTaskId ?? taskTarget.path,
+            file,
+            onProgress,
+          });
+        }}
         workspacePath={taskTarget?.path}
         workspaceIdentity={taskTarget?.identity}
         taskId={selectedTaskId}

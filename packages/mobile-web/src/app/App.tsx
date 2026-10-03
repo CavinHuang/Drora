@@ -23,6 +23,11 @@ import {
 } from "./entry.js";
 import { TaskSession, createSessionInBridge, openHomeSessionsIndexBridge } from "./taskSession.js";
 import { uploadComposerAttachment } from "./composerAttachmentUpload.js";
+import {
+  clearComposerDraft,
+  persistComposerDraft,
+  readComposerDraft,
+} from "./composerDraftPersistence.js";
 import type { CollaborationMode } from "./taskSession.js";
 import { TaskMoreMenu } from "./TaskMoreMenu.js";
 import { NewTaskDraft } from "./NewTaskDraft.js";
@@ -366,6 +371,17 @@ function AppBody() {
         path: workspace.path,
         ...(workspace.workspaceKey !== workspace.path ? { identity: workspace.workspaceKey } : {}),
       });
+      // §33.18.21 草稿持久化：开任务即回填该会话的 localStorage 草稿（官方
+      // composer parity；无草稿=空编辑器）。
+      setDraft(
+        readComposerDraft({
+          workspacePath: workspace.path,
+          workspaceIdentity: workspace.workspaceKey !== workspace.path
+            ? workspace.workspaceKey
+            : undefined,
+          scopeId: sessionId,
+        })?.text ?? "",
+      );
       setPhase({ kind: "task" });
       try {
         const session = await TaskSession.open(
@@ -471,12 +487,37 @@ function AppBody() {
     try {
       await session.sendText(text, attachments);
       setDraft("");
+      // §33.18.21 草稿持久化：发送成功即清该会话草稿（官方语义：发送只清内容）。
+      if (taskTarget) {
+        clearComposerDraft({
+          workspacePath: taskTarget.path,
+          workspaceIdentity: taskTarget.identity,
+          scopeId: selectedTaskId ?? "__draft__",
+        });
+      }
       // 用户回显与助手响应经订阅帧到达（P3a 流式）；文件变更随发送刷新。
       void session.fetchFileChanges().then((changes) => setFileChanges(changes));
     } finally {
       setSending(false);
     }
   }, [draft, sending]);
+
+  // §33.18.21 草稿持久化：输入即落 localStorage（官方 composer parity，按工作区+
+  // 会话 scope；发送成功清内容，见 sendDraft）。
+  const handleDraftChange = useCallback(
+    (text: string) => {
+      setDraft(text);
+      if (taskTarget) {
+        persistComposerDraft({
+          workspacePath: taskTarget.path,
+          workspaceIdentity: taskTarget.identity,
+          scopeId: selectedTaskId ?? "__draft__",
+          text,
+        });
+      }
+    },
+    [taskTarget, selectedTaskId],
+  );
 
   // 阻塞交互应答（P3b）：resolveInteraction 命令；快照更新经订阅帧回灌。
   const resolveInteraction = useCallback(
@@ -620,7 +661,7 @@ function AppBody() {
         modelLoading={modelLoading}
         modelMenuOpen={modelMenuOpen}
         configMode={configMode}
-        onDraftChange={setDraft}
+        onDraftChange={handleDraftChange}
         onSend={(text, attachments) => void sendDraft(text, attachments)}
         uploadAttachment={(file, onProgress) => {
           const session = taskRef.current;

@@ -4,7 +4,8 @@
 // onChange/onSubmit），无 services/store 消费。
 // 边界（记录为存续挂账）：@ 文件上下文/附件上传协议面（P7）未通——mention 面关、
 // appSlashCommands 空表；提交语义=乐观清空（官方同 UX，失败经错误面呈现）。
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import type { LexicalChatInputHandle } from "@drora/ui/lexical-chat-input";
 import { DroraIntlProvider } from "@drora/ui/git-pane";
 import { resolveLocale } from "../ui/intl.js";
 
@@ -36,6 +37,31 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
   const setPanelContainerRef = useCallback((node: HTMLDivElement | null) => {
     setPanelContainer(node);
   }, []);
+  // §33.18.21 初值回填（桌面 ChatPromptEditor syncInitialValueOnMount 同模式）：
+  // 懒 chunk 就绪前轮询等编辑器句柄，就绪后一次性 setText（文本相同则跳过，
+  // 避免打字期间程序化重写编辑器）。
+  const editorApiRef = useRef<LexicalChatInputHandle | null>(null);
+  const appliedInitialRef = useRef(false);
+  useEffect(() => {
+    if (appliedInitialRef.current) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      if (editorApiRef.current) {
+        clearInterval(timer);
+        appliedInitialRef.current = true;
+        const initial = props.initialText ?? "";
+        if (initial && editorApiRef.current?.getText() !== initial) {
+          editorApiRef.current?.setText(initial);
+        }
+      } else if (tries > 50) {
+        clearInterval(timer);
+      }
+    }, 100);
+    return () => clearInterval(timer);
+    // 仅挂载时回填一次（初值=任务打开时恢复的草稿；后续文本经 onChange 上行）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <DroraIntlProvider initialLocale={resolveLocale()}>
       <div ref={setPanelContainerRef} className="relative flex flex-col">
@@ -63,6 +89,7 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
             enterSubmits
             onChange={props.onChange}
             onSubmit={(text) => props.onSubmit(text)}
+            editorApiRef={editorApiRef}
             inputTestId={props.inputTestId}
             triggerPanelContainer={panelContainer}
             // §33.18.19 @ 文件上下文开启：MentionPlugin 数据面 = useServices().fileService

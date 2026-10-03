@@ -4424,3 +4424,16 @@ P7 附件面清偿——schema（sendText.attachments/attachmentRef）与服务�
 mobile 8+211 + build 811 + lint（TaskComposer 未上榜）+ 架构 0。
 **composer 全量对齐收官**：双形态触发钮/停止钮/模型名/富文本输入面/@ 面板/附件
 芯片+上传全链——与官方页差异仅剩品牌词与 slash 命令源深度（catalog 已自动读取）。
+
+**§33.18.21 草稿持久化（2026-10-03 深夜，官方 localStorage 实证驱动）**：官方页
+localStorage 取证 `zcode-v4-composer-drafts:v1:<encoded-workspace>`（scopes 按
+session，text+editorStateJson+mode）——本仓同语义件早已存在（ui composerDraftStore，
+键已 Drora 化 drora-v4-composer-drafts:v1:）但手机页未接。落地：ui 新增窄导出
+`./composer-draft-store` → app composerDraftPersistence.ts 包装（App 白名单按文件
+收口）→ App 三点接线：onDraftChange 即持久化（scope=selectedTaskId??__draft__）、
+openTask 回填该会话草稿、sendDraft 成功清内容（官方语义：发送只清内容）。编辑器
+回填=ComposerRichInput 初值轮询（懒 chunk 就绪后 setText 一次，文本同值跳过——
+镜像桌面 syncInitialValueOnMount 模式，适配懒 chunk 就绪时机）。真链活体（4430×
+真桌面）：输入 draft persistence check → localStorage 键逐字同构落盘 ✓ → 刷新
+重开任务 → 编辑器自动回填 ✓（测试草稿已清理）。门禁：typecheck 0 + mobile 8+211
++ build 811 + lint 0 + 架构 0。

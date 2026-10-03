@@ -19,7 +19,8 @@
     "./replay": "./src/replay.ts",
     "./side-pane-terminal": "./src/SidePaneTerminalPane.tsx",
     "./lexical-chat-input": "./src/LexicalChatInput.tsx",
-    "./attachment-upload-transaction": "./src/v4/attachmentUploadTransaction.ts"
+    "./attachment-upload-transaction": "./src/v4/attachmentUploadTransaction.ts",
+    "./composer-draft-store": "./src/v4/composer/composerDraftStore.ts"
   },
   "scripts": {
     "lint": "oxlint",

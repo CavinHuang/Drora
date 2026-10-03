@@ -4377,3 +4377,21 @@ SidePaneTerminalPane 渲染）✓；④futureAck：快速切任务×4=13 次 wor
 **附带修复**：syncAvailableSidePane 指纹去重先于配对检查——未配对种子消耗指纹后
 配对态同值推送被误跳（帧永不出），配对检查前置。教训：resize 过渡帧/双树渲染
 伪影会让截图与交互定位失真，DOM 计数+稳态帧才是真值（本轮三次踩中）。
+
+#### 33.18.18 composer 输入面换装（2026-10-03 深夜，"继续完成实现"轮）
+
+最后一个 composer 硬差清偿：textarea → ui 官方富文本编辑器 **LexicalChatInput**
+（ChatPromptEditor/LexicalChatInput 依赖面侦查：全 props 注入零 services 硬依赖；
+lexical 家族入懒 chunk 不进首屏）。切片=**只换输入面**：TaskComposer 保留自有工具条
+（已对齐面），ComposerRichInput.tsx 窄入口懒装配（git-pane DroraIntlProvider 壳 +
+lexical-chat-input）；提交语义=乐观清空（onSubmit 同步 App draft 后 onSend(text)，
+sendDraft 增 text 覆写——Lexical 自持状态 state 滞后一拍）；初值回填经
+ComposerRichInput 首帧 ref（任务切换 draft 重进编辑器）。App→编辑器下行写入
+（@file 插入等）留 editorApiRef 待需要时接；@ 附件协议面（P7）与 slash 命令源维持
+挂账，mention 关、slash 空表。
+**测试环境坑**：TaskComposer 静态 import ComposerRichInput 会把 git-pane/lexical
+别名链拖进 node 测试环境（@/GitPane.js 解析失败整文件红）——改 lazy 引入+Suspense
+fallback 兜 testid/占位（lexical 不进主包双赢）。真链活体（4430×真桌面）：Lexical
+实例挂载（contenteditable/data-lexical-editor）+ 输入渲染 ✓；发送路径与既有 onSend
+同缝（真机发送验证归用户侧）。门禁：typecheck 0 + mobile 8+211 + build 811 资产
+（lexical 入懒 chunk）+ lint 0 + 架构 0。

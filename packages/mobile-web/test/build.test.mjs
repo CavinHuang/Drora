@@ -91,6 +91,9 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
           ? ["@drora/ui/remote-frame"]
           : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx")
           ? ["@drora/ui/git-pane"]
+          : // §33.18.18 输入面换装：ui LexicalChatInput 窄入口（官方富文本编辑器）。
+            file === join(packageRoot, "src", "app", "ComposerRichInput.tsx")
+          ? ["@drora/ui/git-pane", "@drora/ui/lexical-chat-input"]
           : // §33.18.15 终端侧板换装：ui SidePaneTerminalPane 窄入口（xterm+PTY）。
             file === join(packageRoot, "src", "app", "RemoteSidePaneTerminal.tsx")
           ? ["@drora/ui/git-pane", "@drora/ui/side-pane-terminal"]

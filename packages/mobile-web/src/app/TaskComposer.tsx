@@ -13,7 +13,7 @@
 // §32.3 模式切换解封：官方 chat-mode-select-trigger → chat-mode-select-item 四项闭集
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   AlignEndHorizontal,
   ArrowUp,
@@ -24,6 +24,13 @@ import {
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
 import { resolveMobileComposerPlaceholderId } from "./composerPlaceholder.js";
+// §33.18.18 ComposerRichInput 懒引入：其依赖链（git-pane/lexical）不进主包，node
+// 测试环境也不解析 ui 别名链——Suspense fallback 兜 testid/占位形状。
+const ComposerRichInput = lazy(() =>
+  import("./ComposerRichInput.js").then((module) => ({
+    default: module.ComposerRichInput,
+  })),
+);
 import { ModelMenu } from "../ui/ModelMenu.js";
 import type {
   ConversationControlState,
@@ -54,7 +61,8 @@ export interface TaskComposerProps {
   /** 官方 mode.label.glm.{mode} 的 mode 值（snapshot.config.mode；缺省 build）。 */
   configMode?: string | null;
   onDraftChange: (draft: string) => void;
-  onSend: () => void;
+  /** text 覆写：富文本编辑器提交以参数传递（Lexical 自持状态，state 可能滞后）。 */
+  onSend: (text?: string) => void;
   onStop: () => void;
   onToggleModelMenu: () => void;
   onModelSelect: (selection: {
@@ -65,6 +73,10 @@ export interface TaskComposerProps {
   onCloseModelMenu: () => void;
   /** 协作模式切换（§32.3；v4 switchCollaborationMode CAS，装配归 App）。 */
   onModeSelect?: (mode: CollaborationMode) => void;
+  /** §33.18.18 富文本编辑器数据面（workspacePath/身份/会话，mention/历史键用）。 */
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  taskId?: string | null;
 }
 
 /** 官方 mode.label.glm.* 闭集与模式域 UI（触发钮/菜单/plan 标记）收口在 TaskModeMenu.tsx。 */
@@ -95,6 +107,9 @@ export function TaskComposer(props: TaskComposerProps) {
     onModelSelect,
     onCloseModelMenu,
     onModeSelect,
+    workspacePath,
+    workspaceIdentity,
+    taskId,
   } = props;
   const { formatMessage } = useIntl();
   // P6 深面本地交互态：思考档位弹层（选择走 switchModelConfig CAS 既有链路）。
@@ -175,27 +190,51 @@ export function TaskComposer(props: TaskComposerProps) {
         </div>
       ) : null}
       <div className="flex flex-col gap-1 rounded-2xl border border-input-border bg-input p-3 transition-colors focus-within:border-input-border-focused">
-        <textarea
-          data-testid="v4-composer-input"
-          className="max-h-40 min-h-10 w-full resize-none bg-transparent text-mobile-input-safe leading-5 text-foreground outline-none placeholder:text-foreground-subtlest"
-          rows={1}
-          value={draft}
-          placeholder={formatMessage({
-            id: resolveMobileComposerPlaceholderId(
-              controlState?.phase ?? null,
-              controlState?.queuePending ?? false,
-              hasHistoryMessages,
-              desktopComposer,
-            ),
-          })}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              onSend();
-            }
-          }}
-        />
+        {/* §33.18.18 输入面换装：textarea → ui LexicalChatInput 官方富文本编辑器
+            （窄入口经 ComposerRichInput 懒装配）。工具条已对齐面不动；提交语义=
+            乐观清空（onSubmit 同步 App draft 后 onSend(text)，失败经错误面呈现）；
+            @ 文件上下文/附件协议面（P7）未通，mention 关、slash 空表。 */}
+        <Suspense
+          fallback={
+            <textarea
+              data-testid="v4-composer-input"
+              className="max-h-40 min-h-10 w-full resize-none bg-transparent text-mobile-input-safe leading-5 text-foreground outline-none placeholder:text-foreground-subtlest"
+              rows={1}
+              placeholder={formatMessage({
+                id: resolveMobileComposerPlaceholderId(
+                  controlState?.phase ?? null,
+                  controlState?.queuePending ?? false,
+                  hasHistoryMessages,
+                  desktopComposer,
+                ),
+              })}
+              readOnly
+            />
+          }
+        >
+          <ComposerRichInput
+            workspacePath={workspacePath ?? ""}
+            workspaceIdentity={workspaceIdentity}
+            taskId={taskId ?? null}
+            placeholder={formatMessage({
+              id: resolveMobileComposerPlaceholderId(
+                controlState?.phase ?? null,
+                controlState?.queuePending ?? false,
+                hasHistoryMessages,
+                desktopComposer,
+              ),
+            })}
+            disabled={sending}
+            initialText={draft}
+            inputTestId="v4-composer-input"
+            onChange={onDraftChange}
+            onSubmit={(text) => {
+              onDraftChange(text);
+              onSend(text);
+              return true;
+            }}
+          />
+        </Suspense>
         {/* 官方两区工具条（group/toolbar）：左 attachment+mode / 右 model-config+usage+stop+send。 */}
         <div className="group/toolbar flex min-w-0 items-end">
           <div className="flex min-w-0 flex-1">
@@ -344,7 +383,7 @@ export function TaskComposer(props: TaskComposerProps) {
                 disabled={!draft.trim() || sending}
                 aria-label={formatMessage({ id: "mobileShell.composer.send" })}
                 data-testid="v4-composer-send"
-                onClick={onSend}
+                onClick={() => onSend()}
               >
                 <ArrowUp aria-hidden="true" className="size-4" />
               </button>

@@ -460,9 +460,10 @@ function AppBody() {
     void refresh();
   }, [refresh, resetOlder]);
 
-  const sendDraft = useCallback(async () => {
+  const sendDraft = useCallback(async (textOverride?: string) => {
     const session = taskRef.current;
-    const text = draft.trim();
+    // text 覆写：富文本编辑器自持状态，提交以参数传递（state 可能滞后一拍）。
+    const text = (textOverride ?? draft).trim();
     if (!session || !text || sending) return;
     setSending(true);
     try {
@@ -618,7 +619,10 @@ function AppBody() {
         modelMenuOpen={modelMenuOpen}
         configMode={configMode}
         onDraftChange={setDraft}
-        onSend={() => void sendDraft()}
+        onSend={(text) => void sendDraft(text)}
+        workspacePath={taskTarget?.path}
+        workspaceIdentity={taskTarget?.identity}
+        taskId={selectedTaskId}
         onStop={() => void stopGeneration()}
         onToggleModelMenu={() => {
           const session = taskRef.current;

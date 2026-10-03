@@ -65,6 +65,7 @@ import {
   getDroraDataRootDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
+  createTerminalService,
 } from "@drora/services/node";
 import {
   desktopMenuMessageIds,
@@ -928,6 +929,9 @@ const mobileRelayControl = createDesktopMobileRelayControl({
   logger,
   deviceMid,
   credentialStore: mobileRelayCredentialStore,
+  // §33.18.22 终端数据面桥接：手机 terminal 通道由 main 层 node-pty 服务承接
+  // （独立实例=手机 PTY 注册表与桌面终端隔离；服务生命周期随 main，不随 relay stop）。
+  terminalService: createTerminalService({ settingService: mainSettingService }),
   // 端点由 prepareMobileRelayTransport 在 start 前备好（lan=内嵌固定注入）；
   // 返回 undefined 时控制链回落固定注入值（默认官方）。
   resolveEndpoints: async () => preparedRelayEndpoints,

@@ -1200,6 +1200,84 @@ test("桥流控：ack 释放后 grace 不降级、发送继续；future-ack → 
   await control.stop();
 });
 
+test("§33.18.22 终端数据面桥接：terminal 通道 demux 到 main 层服务，不转发宿主端口", async () => {
+  // specs/mobile-relay-r3-frontend.md §33.18.22：宿主不注册 terminal 通道（服务面
+  // 分层）——手机桥 demux 把 terminal 帧喂 main 层 ChannelServer，其余帧照旧转发。
+  const harness = createFakeSocketHarness();
+  const store = await makeStore();
+  const bridgePort = createFakeBridgePort();
+  const terminalCreateCalls: unknown[] = [];
+  const control = createDesktopMobileRelayControl({
+    logger: { info: () => {}, warn: () => {} },
+    deviceMid: "mid-test",
+    credentialStore: store,
+    resolveHostChild: () => ({ pid: 4321 }) as never,
+    attachBridgePort: () => bridgePort as never,
+    terminalService: {
+      create: (arg: unknown) => {
+        terminalCreateCalls.push(arg);
+        return Promise.resolve({});
+      },
+    } as never,
+    webSocketCtor: harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  after(() => void control.stop());
+
+  const socket = await driveRelayToMatched(control, harness, "d_term");
+  openBridge(socket);
+  await new Promise((r) => setTimeout(r, 30));
+  const rpcFrames = () => collectAppFrames(socket).filter((m) => m.zcode_type === "rpc-frame");
+
+  // 手机 → desktop：terminal 通道 rpc 帧（与桌面 bridge 解码同构：header[2]=通道名）。
+  const { BufferWriter, serialize } = await import("@drora/rpc");
+  const buildChannelMessage = (channelName: string, name: string, arg: unknown): Uint8Array => {
+    const writer = new BufferWriter();
+    serialize(writer, [100, 1, channelName, name]);
+    serialize(writer, arg);
+    return new Uint8Array(writer.buffer.buffer);
+  };
+  const sendRpcFrame = async (frame: Record<string, unknown>) => {
+    socket.serverMessage({ type: "data", payload: frame });
+    await new Promise((r) => setTimeout(r, 20));
+  };
+  const identity = { bridgeSessionId: "b-flow" };
+  const { encodeRpcTransportMessage } = await import(
+    "../src/main/desktopMobileRelayProtocol.js"
+  );
+
+  // terminal 帧（create 调用形状）→ demux 承接：main 层 fake 服务被调用，
+  // ChannelServer 响应经 shim 回手机（rpc-frame），不落宿主端口。
+  await sendRpcFrame({
+    zcode_type: "rpc-frame",
+    ...encodeRpcTransportMessage({
+      message: buildChannelMessage("terminal", "create", [{ cwd: "C:/demo" }]),
+      identity,
+      firstPhysicalSeq: 1,
+      messageSeq: 1,
+    }).frames[0]!,
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(terminalCreateCalls.length, 1, "terminal 帧必须 demux 到 main 层服务");
+  assert.deepEqual(terminalCreateCalls[0], { cwd: "C:/demo" });
+
+  // 其余通道帧（非 terminal）照旧转发宿主端口。
+  await sendRpcFrame({
+    zcode_type: "rpc-frame",
+    ...encodeRpcTransportMessage({
+      message: buildChannelMessage("git", "refresh", {}),
+      identity,
+      firstPhysicalSeq: 2,
+      messageSeq: 2,
+    }).frames[0]!,
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(bridgePort.received.length > 0, "非 terminal 帧照旧转发宿主端口");
+
+  await control.stop();
+});
+
 test("§33.18.16 侧板初态投影：syncAvailableSidePane 配对态广播扩展帧+指纹去重", async () => {
   const harness = createFakeSocketHarness();
   const store = await makeStore();

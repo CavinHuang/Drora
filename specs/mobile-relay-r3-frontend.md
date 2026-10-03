@@ -4471,3 +4471,24 @@ services/node.ts ServiceCollection 的 createTerminalService（node-pty））在
 Host/解析失败帧转发）+ 真链活体（xterm 出真 PowerShell）。
 **改动性质**：触及手机桥 rpc 帧核心路径（全部手机流量经此）——实施后需全量
 矩阵回归。待用户裁定后进 S9 实现轮。
+
+**§33.18.22 实现记录（2026-10-04 凌晨，S9 实现轮完成 ✅）**：落地四件——
+①desktopMobileRelayControl deps 增 `terminalService?: ITerminalService`（缺省不启用
+=既有行为不变）；②桥帧 demux：handleRpcFrame 组帧+ack 后解析通道名
+（tryParseRpcChannelName：BufferReader+deserialize，request 帧 type∈
+{100,101,102,103} 且 channelName@​[2] 为 string；解析失败/非标准帧→null 原样转发）
+——terminal 帧喂 per-bridge TerminalRpcProtocolShim→ChannelServer（deferInit=true
+免 Initialize 帧）→registerChannel(ServiceChannels.Terminal,
+ProxyChannel.fromService(terminalService))；③index 装配：独立
+createTerminalService({settingService}) 实例（手机 PTY 注册表与桌面隔离；服务生命
+周期随 main，control stop 仅清 ChannelServer）；④disposeBridge 不清服务端（桥
+开合频繁，服务端随 control 生命周期）。
+真链活体（重启后 4430×真桌面）：终端侧板 **真 PowerShell 7.6.6 真提示符** 渲染 ✓
+（PTY 数据流经 demux→ChannelServer→EventFire→手机 xterm 全链）。
+门禁：desktop 控制 42/42（含新增 demux 端到端用例：terminal 帧 demux 到 main 层
+服务/非 terminal 帧照旧转发宿主端口）+ typecheck 0 + mobile 8+211 + 架构 0。
+**实现过程踩坑记录**：① DisposableStore（rpc foundation 版）无 clear() 方法——
+改持 ChannelServer 直引用+stop 时 dispose；② 测试 arg 形状=参数数组
+（ProxyChannel call 端 apply 展开）——传 {cwd} 会收到 undefined；③ demux 首测
+失败根因=控制面未 import deserialize（"deserialize is not defined" 被原样转发
+分支吞掉）——插桩日志定位。

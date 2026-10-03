@@ -8,7 +8,17 @@ import { createRequire } from "node:module";
 import { hostname } from "node:os";
 import { basename } from "node:path";
 import type { MessagePortMain, UtilityProcess } from "electron";
-import { messagePortFlowControl, type MessagePortFlowState } from "@drora/rpc";
+import {
+  BufferReader,
+  ChannelServer,
+  deserialize,
+  Emitter,
+  ProxyChannel,
+  VSBuffer,
+  messagePortFlowControl,
+  type IMessagePassingProtocol,
+  type MessagePortFlowState,
+} from "@drora/rpc";
 import type {
   MobilePairingFailure,
   MobilePairingRuntimeState,
@@ -22,6 +32,8 @@ import {
   classifyRemoteUsageError,
   resolveWorkspaceTelemetryDetail,
 } from "@drora/shared";
+import { ServiceChannels } from "@drora/shared";
+import type { ITerminalService } from "@drora/services";
 import {
   RpcFrameAssembler,
   buildRpcFrameAck,
@@ -98,11 +110,53 @@ export interface RelayEndpointRequest {
   transport: MobileRelayTransport;
 }
 
+/** §33.18.22 per-bridge terminal 通道 protocol shim：ChannelServer 视角的
+ *  双向管道——下行（宿主方向没有；本方向）由 demux 喂入 fireIncoming，
+ *  上行（ChannelServer 响应/事件）send 回手机（rpc-frame 封装归调用方）。 */
+class TerminalRpcProtocolShim implements IMessagePassingProtocol {
+  private readonly emitter = new Emitter<VSBuffer>();
+  readonly onMessage = this.emitter.event;
+  constructor(private readonly sendToPhone: (buffer: VSBuffer) => void) {}
+  send(buffer: VSBuffer): void {
+    this.sendToPhone(buffer);
+  }
+  fireIncoming(buffer: VSBuffer): void {
+    this.emitter.fire(buffer);
+  }
+}
+
+/** §33.18.22 demux：解析手机 rpc 帧的通道名（request 帧 [type, id, channelName,
+ *  name, arg]；type∈{100 Promise,101 Cancel,102 EventListen,103 Dispose}）。
+ *  解析失败/非 request 帧 → null（调用方原样转发，绝不因解析问题丢帧）。 */
+function tryParseRpcChannelName(message: Uint8Array): string | null {
+  try {
+    const reader = new BufferReader(VSBuffer.wrap(message));
+    const header = deserialize(reader);
+    if (
+      Array.isArray(header) &&
+      typeof header[0] === "number" &&
+      [100, 101, 102, 103].includes(header[0]) &&
+      typeof header[2] === "string"
+    ) {
+      return header[2];
+    }
+    console.log("[demux-debug] parse 未命中通道:", JSON.stringify(header)?.slice(0, 120));
+  } catch (error) {
+    console.log("[demux-debug] parse 异常:", error instanceof Error ? error.message : String(error));
+    // 解析失败 → 非标准帧，交由调用方转发。
+  }
+  return null;
+}
+
 export function createDesktopMobileRelayControl(deps: {
   logger: Logger;
   deviceMid: string;
   credentialStore: RelayCredentialStoreLike;
   resolveHostChild: () => UtilityProcess | null;
+  /** §33.18.22 终端数据面桥接：注入后手机桥 demux 出 terminal 通道由 main 层
+   *  node-pty 服务承接（宿主不注册 terminal 通道——服务面分层差异）。
+   *  缺省不启用（手机终端调用静默无响应，维持既有行为）。 */
+  terminalService?: ITerminalService;
   onStatusChanged?: (state: MobilePairingRuntimeState) => void;
   /**
    * 手机页 platform-request 可调用的桌面平台方法（对齐官方 platformHandlers 注册表）：
@@ -783,6 +837,23 @@ export function createDesktopMobileRelayControl(deps: {
     flushBridgeOutbound(bytes);
   }
 
+  // §33.18.22 终端数据面桥接：手机 terminal 通道由 main 层 terminalService 服务
+  // （宿主不注册 terminal 通道——服务面分层差异，spec §33.18.22）。per-bridge
+  // protocol shim 把 demux 出的 terminal rpc 帧喂给 ChannelServer，回程走
+  // forwardHostBytesToPhone（ready 前缓冲同款）。
+  const terminalChannelShim = new TerminalRpcProtocolShim((buffer) => {
+    forwardHostBytesToPhone(buffer.buffer);
+  });
+  let terminalChannelServer: ChannelServer<string> | null = deps.terminalService
+    ? new ChannelServer(terminalChannelShim, "", 1000, true)
+    : null;
+  if (deps.terminalService && terminalChannelServer) {
+    terminalChannelServer.registerChannel(
+      ServiceChannels.Terminal,
+      ProxyChannel.fromService(deps.terminalService),
+    );
+  }
+
   function flushBridgeOutbound(extra?: Uint8Array): void {
     if (!bridge) return;
     const batch = extra
@@ -1207,9 +1278,20 @@ export function createDesktopMobileRelayControl(deps: {
     if (!frame) return;
     const assembled = bridge.assembler.accept(frame);
     if (!assembled) return;
+    console.log("[demux-debug] rpc-frame 组帧完成 seq=", assembled.messageSeq, "channel=", tryParseRpcChannelName(assembled.message));
     sendAppFrame(
       buildRpcFrameAck({ identity: bridge.identity, ackMessageSeq: assembled.messageSeq }),
     );
+    // §33.18.22 demux：terminal 通道由 main 层服务承接（宿主不注册该通道——
+    // 服务面分层差异，specs/mobile-relay-r3-frontend.md §33.18.22）。其余帧
+    // 原样转发宿主端口。relay 层 ack 已先行（与分派顺序无关）。
+    if (
+      terminalChannelServer &&
+      tryParseRpcChannelName(assembled.message) === ServiceChannels.Terminal
+    ) {
+      terminalChannelShim.fireIncoming(VSBuffer.wrap(assembled.message));
+      return;
+    }
     bridge.port.postMessage(Buffer.from(assembled.message));
   }
 
@@ -1977,6 +2059,9 @@ export function createDesktopMobileRelayControl(deps: {
     terminalError = false;
     stopHeartbeat();
     clearReconnectTimer();
+    // §33.18.22：终态释放 terminal 通道服务端（fromService 的事件 buffer 依存）。
+    terminalChannelServer?.dispose();
+    terminalChannelServer = null;
     const old = socket;
     socket = null;
     try {

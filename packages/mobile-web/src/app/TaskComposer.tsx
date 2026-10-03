@@ -14,10 +14,16 @@
 // （switchCollaborationMode 命令官方 schema 逐字一致，spec §32.2#2）；标签读
 // snapshot.config.mode 回流，本组件不持有模式事实。
 import { useState } from "react";
-import { AlignEndHorizontal, ArrowUp, ChevronDown, Hand, Plus, Shield, X } from "lucide-react";
+import {
+  AlignEndHorizontal,
+  ArrowUp,
+  ChevronDown,
+  Plus,
+  Square,
+} from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { cn } from "../ui/cn.js";
-import { resolveMobileComposerPlaceholderId } from "../ui/TaskTimeline.js";
+import { resolveMobileComposerPlaceholderId } from "./composerPlaceholder.js";
 import { ModelMenu } from "../ui/ModelMenu.js";
 import type {
   ConversationControlState,
@@ -29,7 +35,7 @@ import type { ModelSelectionView } from "@drora/services";
 
 /** 官方 switchCollaborationMode 值域闭集（顺序照官方 schema Si([build,edit,plan,yolo])）。 */
 export { MODE_SELECT_ITEMS } from "./TaskModeMenu.js";
-import { TaskModeMenu, MODE_LABEL_IDS } from "./TaskModeMenu.js";
+import { TaskModeTrigger, TaskModePlanMarker } from "./TaskModeMenu.js";
 
 export interface TaskComposerProps {
   draft: string;
@@ -61,7 +67,7 @@ export interface TaskComposerProps {
   onModeSelect?: (mode: CollaborationMode) => void;
 }
 
-/** 官方 mode.label.glm.* 闭集见 TaskModeMenu（本组件仅触发器文案用 modeLabelId）。 */
+/** 官方 mode.label.glm.* 闭集与模式域 UI（触发钮/菜单/plan 标记）收口在 TaskModeMenu.tsx。 */
 
 /** §32.68 官方用量环几何：r=10 圆周 2πr（官方 dasharray 62.83185307179586 同值）。 */
 const CONTEXT_RING_CIRCUMFERENCE = 2 * Math.PI * 10;
@@ -109,7 +115,6 @@ export function TaskComposer(props: TaskComposerProps) {
   const currentProvider =
     modelState?.current?.providerId ?? modelState?.fallback?.provider ?? "";
   const currentModel = modelState?.current?.modelId ?? modelState?.fallback?.model ?? "";
-  const modeLabelId = MODE_LABEL_IDS[configMode ?? "build"] ?? MODE_LABEL_IDS.build!;
 
   return (
     <div
@@ -206,78 +211,18 @@ export function TaskComposer(props: TaskComposerProps) {
               >
                 <Plus aria-hidden="true" className="size-4" />
               </button>
-              {/* §32.3 模式触发器：官方 chat-mode-select-trigger 弹层形态；无 onModeSelect
-                  （旧装配/测试）时退回只读展示。 */}
-              {onModeSelect ? (
-                <div className="relative shrink-0">
-                  {/* §32.69 官方活体结构（图标+描述+✓+plan 首组分组）抽 TaskModeMenu。 */}
-                  <TaskModeMenu
-                    open={modeMenuOpen}
-                    configMode={configMode}
-                    onSelect={onModeSelect}
-                    onClose={() => setModeMenuOpen(false)}
-                  />
-                  <button
-                    type="button"
-                    data-testid="chat-mode-select-trigger"
-                    aria-haspopup="menu"
-                    aria-expanded={modeMenuOpen}
-                    aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
-                    className={cn(
-                      // §32.68 官方活体 markup：h-7 px-2 gap-1 text-ui-base，Hand 图标 +
-                      // 当前模式名（mode.label.glm.{configMode}）+ ChevronDown size-3.5
-                      // （此前盾形无字为 §32.10 旧证，本轮官方 DOM 取证推翻）。
-                      "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-ui-base text-foreground transition-colors hover:bg-hover hover:text-foreground",
-                      modeMenuOpen && "bg-hover",
-                    )}
-                    onClick={() => setModeMenuOpen((open) => !open)}
-                  >
-                    <Hand aria-hidden="true" className="size-4" />
-                    <span className="inline">{formatMessage({ id: modeLabelId })}</span>
-                    <ChevronDown aria-hidden="true" className="size-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  data-testid="chat-mode-select-trigger"
-                  aria-disabled="true"
-                  aria-label={formatMessage({ id: "chat.toolbar.mode.label" })}
-                  className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-ui-base text-foreground-subtle"
-                >
-                  <Hand aria-hidden="true" className="size-4" />
-                  <span className="inline">{formatMessage({ id: modeLabelId })}</span>
-                  <ChevronDown aria-hidden="true" className="size-3.5" />
-                </button>
-              )}
-              {/* §32.22 官方 v4-composer-plan-marker（bundle @2029871）：plan 生效时工具栏
-                  出现可移除标记（竖分隔 + ghost 钮，悬停换 X，chat.plan.removeMarker 文案，
-                  官方动作为正交的 plan/plan-off 命令——本协议把 plan 折进 mode 闭集（§32.3），
-                  移除等价映射为切回 build）。仅在有切换能力（onModeSelect）时渲染。 */}
+              {/* §32.3 模式触发器（§33.18.13 抽 TaskModeMenu.tsx 域内）：响应式双形态
+                  触发钮 + 弹层；无 onModeSelect（旧装配/测试）时退回只读展示。 */}
+              <TaskModeTrigger
+                configMode={configMode}
+                desktopComposer={desktopComposer}
+                modeMenuOpen={modeMenuOpen}
+                onToggle={() => setModeMenuOpen((open) => !open)}
+                onCloseMenu={() => setModeMenuOpen(false)}
+                onModeSelect={onModeSelect}
+              />
               {onModeSelect && configMode === "plan" ? (
-                <span data-testid="v4-composer-plan-marker" className="flex items-center gap-1">
-                  <span
-                    role="separator"
-                    aria-orientation="vertical"
-                    className="h-3 w-px shrink-0 bg-border"
-                  />
-                  <button
-                    type="button"
-                    aria-label={formatMessage({ id: "chat.plan.removeMarker" })}
-                    title={formatMessage({ id: "chat.plan.removeMarker" })}
-                    className="group/plan inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover hover:text-foreground-subtle"
-                    onClick={() => onModeSelect("build")}
-                  >
-                    <Shield
-                      aria-hidden="true"
-                      className="size-4 group-hover/plan:hidden group-focus-visible/plan:hidden"
-                    />
-                    <X
-                      aria-hidden="true"
-                      className="hidden size-4 group-hover/plan:block group-focus-visible/plan:block"
-                    />
-                  </button>
-                </span>
+                <TaskModePlanMarker onRemove={() => onModeSelect("build")} />
               ) : null}
             </div>
           </div>
@@ -342,17 +287,16 @@ export function TaskComposer(props: TaskComposerProps) {
               <button
                 type="button"
                 data-testid="chat-model-select-trigger"
-                aria-label={formatMessage({ id: "chat.toolbar.model.manageModels" })}
                 title={formatMessage({ id: "chat.toolbar.model.manageModels" })}
                 data-model-current-value={currentModel}
                 className="inline-flex h-7 shrink-0 items-center justify-between gap-1 rounded-lg pl-2 pr-1.5 text-ui-base text-foreground transition-colors hover:bg-hover"
                 onClick={onToggleModelMenu}
               >
-                {/* §32.68 官方活体 markup：单行「管理模型」+ ChevronDown size-3.5，
-                    aria/title=管理模型、data-model-current-value 随当前值（此前双行
-                    管理模型/模型名为 §32.10 旧证，本轮官方 DOM 取证推翻）。 */}
+                {/* §33.18.12 真数据活体：可见文案与 a11y 名 = 当前模型名（GLM-5.3），
+                    未选择回落管理模型（官方无 aria-label，名字随内容）；title 保持
+                    管理模型。§32.68「恒管理模型」为空数据态取证。 */}
                 <span className="block min-w-0 truncate">
-                  {formatMessage({ id: "chat.toolbar.model.manageModels" })}
+                  {currentModel || formatMessage({ id: "chat.toolbar.model.manageModels" })}
                 </span>
                 <ChevronDown
                   aria-hidden="true"
@@ -377,20 +321,34 @@ export function TaskComposer(props: TaskComposerProps) {
                 </button>
               ) : null}
             </div>
-            {/* §33.18 官方活体（.tmp-probe-task narrow / .tmp-probe-dom wide 实测）：
-                remote 页 running 态工具条无 v4-stop，v4-composer-send（arrow-up）常驻
-                ——停止语义不在远控 composer（§32.44 的 ui 包形态不适用），StateBar
-                退役；空草稿时按钮 disabled 但保持官方实心形态（不做透明度衰减）。 */}
-            <button
-              type="button"
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
-              disabled={!draft.trim() || sending}
-              aria-label={formatMessage({ id: "mobileShell.composer.send" })}
-              data-testid="v4-composer-send"
-              onClick={onSend}
-            >
-              <ArrowUp aria-hidden="true" className="size-4" />
-            </button>
+            {/* §33.18.12 翻案（官方 bundle 常量表 WD="v4-stop" + 流式态活体）：canStop
+                （snapshot.control 同源）时同槽互换为 v4-stop 停止钮（chat.stop 官方逐字，
+                stopping 期间 disabled），走既有 sendStop 链（§14 第 3 条）；空闲态才是
+                v4-composer-send（空草稿 disabled 但保持官方实心形态）。§33.18.2 探针
+                只踩到无流式回合状态，其"无停止钮"结论作废。 */}
+            {controlState?.canStop ? (
+              <button
+                type="button"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+                disabled={stopping}
+                aria-label={formatMessage({ id: "chat.stop" })}
+                data-testid="v4-stop"
+                onClick={onStop}
+              >
+                <Square aria-hidden="true" className="size-3 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+                disabled={!draft.trim() || sending}
+                aria-label={formatMessage({ id: "mobileShell.composer.send" })}
+                data-testid="v4-composer-send"
+                onClick={onSend}
+              >
+                <ArrowUp aria-hidden="true" className="size-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -54,12 +54,17 @@ test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/
     "chat-mode-select-trigger",
     "chat-model-select-trigger",
     "chat-context-usage-trigger",
-    // §33.18 活体：running 无 v4-stop，v4-composer-send 常驻（窄/宽壳同证）。
-    "v4-composer-send",
+    // §33.18.12 翻案：canStop（流式回合）→ v4-stop 同槽替换 v4-composer-send（官方
+    // bundle 常量表 WD="v4-stop" + 停止生成 aria 活体）。
+    "v4-stop",
   ]) {
     assert.ok(html.includes(`data-testid="${tid}"`), tid);
   }
-  assert.ok(!html.includes('data-testid="v4-stop"'), "remote 页不渲染 v4-stop（§33.18 活体）");
+  assert.ok(
+    !html.includes('data-testid="v4-composer-send"'),
+    "canStop 时 send 不渲染（同槽互换）",
+  );
+  assert.ok(html.includes('aria-label="停止生成"'), "停止钮 aria=chat.stop 官方逐字");
   // 无 usage 数据 → 官方同款 null 门（活体：Oxt 校验 used/size 非法即不渲染触发器）。
   const noUsage = render();
   assert.ok(!noUsage.includes('data-testid="chat-context-usage-trigger"'), "无数据不渲染用量表");
@@ -75,6 +80,13 @@ test("官方 mode.label.glm 映射：build→变更前确认 / yolo→完全访�
     "触发器 aria = 官方通用文案 切换模式",
   );
   assert.ok(!buildHtml.includes('aria-label="变更前确认"'), "当前模式名不进触发器 aria");
+  // §33.18.13 修正：官方触发钮为响应式双形态——窄壳纯图标（模式名不作可见文案），
+  // 宽壳=图标+模式名+ChevronDown（59702 真机宽壳活体「完全访问 ⌄」）。
+  assert.ok(!buildHtml.includes(">变更前确认<"), "窄壳触发钮无可见模式名");
+  assert.ok(!buildHtml.includes(">完全访问<"), "yolo 同理不渲染文字");
+  const wide = render({ configMode: "build", desktopComposer: true });
+  assert.ok(wide.includes(">变更前确认<"), "宽壳触发钮显示模式名");
+  assert.ok(wide.includes("chat-mode-select-trigger"), "宽壳触发钮仍在");
   const yoloHtml = render({ configMode: "yolo" });
   assert.ok(yoloHtml.includes("chat-mode-select-trigger"));
   assert.ok(!yoloHtml.includes('aria-label="完全访问"'), "yolo 模式名同样不进触发器");
@@ -148,12 +160,22 @@ test("§32.68 官方用量表：chat-context-usage-trigger 环形 aria=Intl 千�
   const stoppable = render({
     controlState: { phase: "running", canStop: true, stopState: "stoppable", queuePending: false },
   } as never);
-  // §33.18 官方活体：running 态 v4-composer-send 常驻、v4-stop 不存在（StateBar 退役）。
-  assert.ok(stoppable.includes('data-testid="v4-composer-send"'));
-  assert.ok(!stoppable.includes('data-testid="v4-stop"'), "running 不渲染停止钮");
+  // §33.18.12 翻案（活体+官方常量表）：stoppable → v4-stop 同槽替换 send。
+  assert.ok(stoppable.includes('data-testid="v4-stop"'), "stoppable 渲染停止钮");
+  assert.ok(!stoppable.includes('data-testid="v4-composer-send"'), "stoppable 不渲染发送钮");
   const idle = render();
-  assert.ok(idle.includes('data-testid="v4-composer-send"'), "发送钮常驻");
-  assert.ok(!idle.includes('data-testid="v4-stop"'), "非 stoppable 不渲染停止");
+  assert.ok(idle.includes('data-testid="v4-composer-send"'), "空闲态发送钮常驻");
+  assert.ok(!idle.includes('data-testid="v4-stop"'), "非 stoppable 不渲染停止钮");
+  // §33.18.12 真数据活体：模型钮可见文案 = 当前模型名（a11y 名随内容，官方无
+  // aria-label），未选择回落管理模型。
+  const namedModel = render({
+    modelState: {
+      ...EMPTY_MODEL_SELECTION_STATE,
+      current: { providerId: "bigmodel", modelId: "GLM-5.3" },
+    },
+  });
+  assert.ok(namedModel.includes(">GLM-5.3<"), "模型钮显示当前模型名");
+  assert.ok(render().includes(">管理模型<"), "未选择回落管理模型");
 });
 
 test("§33.18 宽壳占位分支：desktop running=followUpAsk，窄壳 running=followUpQueue", () => {

@@ -12,6 +12,7 @@ import {
   buildRelayProofMessage,
 } from "@drora/shared";
 import type { MobilePairingRuntimeState, RpcFrameIdentity } from "@drora/shared";
+import type { MobileRelaySidePaneSyncEntry } from "@drora/shared";
 
 export const OFFICIAL_RELAY_WS_URL = "wss://zcode.z.ai/ws";
 /** v3 托管页已 404；官方版本门控现走 v4（探测核实）。 */
@@ -282,6 +283,8 @@ export function buildBootstrapResult(params: {
   fallbackWorkspace: RelayWorkspaceSummary;
   tasks: RelayTaskSummary[];
   mobileViewState?: RelayMobileViewState;
+  /** §33.18.16 侧板初态投影：桌面窗口侧板当前 tab（缺省不下发，手机回选择器）。 */
+  sidePane?: MobileRelaySidePaneSyncEntry | null;
 }): Record<string, unknown> {
   return {
     windowControlSessionId: params.deviceSid,
@@ -290,6 +293,9 @@ export function buildBootstrapResult(params: {
     tasks: params.tasks,
     ...(params.mobileViewState ? { initialViewState: params.mobileViewState } : {}),
     ...(params.mobileViewState ? { mobileViewState: params.mobileViewState } : {}),
+    // §33.18.16 侧板初态投影：官方 vb schema 非 strict（src-dNkcRypW.js 取证），
+    // 官方页静默剥离未知字段；本仓源码页消费 sidePane.tab 作侧板初值。
+    ...(params.sidePane ? { sidePane: params.sidePane } : {}),
   };
 }
 

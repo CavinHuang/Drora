@@ -2,11 +2,14 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
+  AttachmentRef,
+  CommandAck,
   ConversationRow,
   ConversationSnapshot,
   PendingInteraction,
   SessionPhase,
   V4ConversationFileChangesResult,
+  V4ConversationFileRewindPreviewResult,
 } from "@drora/shared/drora-protocol-v4";
 import type { ModelSelectionView } from "@drora/services";
 import { InteractionCards, type InteractionAnswer } from "../ui/InteractionCards.js";
@@ -54,6 +57,19 @@ export interface RemoteTaskTimelineProps {
   ) => Promise<boolean | void> | boolean | void;
   /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
   onFork?: (target: { rowId: number; entityId: string }) => void;
+  /** user 行行内编辑（v4 editUserQuery；缺省不渲染编辑入口。§33.18.13）。 */
+  onEdit?: (
+    target: { rowId: number; entityId: string },
+    newText: string,
+    attachments?: readonly AttachmentRef[],
+    workspaceMode?: "preserve" | "rewind",
+  ) => Promise<CommandAck | boolean | void> | CommandAck | boolean | void;
+  /** 撤销该轮文件更改预览（v4 conversationFileRewindPreviewV4；缺省撤销钮不渲染）。 */
+  previewFileRewind?: (
+    target: { rowId: number; entityId: string },
+  ) => Promise<V4ConversationFileRewindPreviewResult>;
+  /** 撤销该轮文件更改应用（v4 applyFileRewind；workspace-only 不截断历史）。 */
+  applyFileRewind?: (target: { rowId: number; entityId: string }) => Promise<CommandAck>;
 }
 
 export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
@@ -92,6 +108,9 @@ export function RemoteTaskTimeline(props: RemoteTaskTimelineProps) {
         bottomDock={props.bottomDock}
         onFeedbackChange={props.onFeedbackChange}
         onFork={props.onFork}
+        onEdit={props.onEdit}
+        previewFileRewind={props.previewFileRewind}
+        applyFileRewind={props.applyFileRewind}
         canLoadOlder={props.canLoadOlder}
         loadingOlder={props.loadingOlder}
         onLoadOlder={props.onLoadOlder}

@@ -112,3 +112,20 @@ test("§32.7 任务全部缺 updatedAt 时组卡 updatedAtMs 保持 null（不�
   });
   assert.equal(home.workspaces[0]?.updatedAtMs, null);
 });
+
+test("§33.18.16 S7 最小切片：bootstrap sidePane 初值投影（闭集外归 null）", () => {
+  assert.equal(
+    projectHomeData({ ...BOOTSTRAP_RESULT, sidePane: { tab: "review" } }).sidePaneTab,
+    "review",
+  );
+  assert.equal(
+    projectHomeData({ ...BOOTSTRAP_RESULT, sidePane: { tab: "terminal" } }).sidePaneTab,
+    "terminal",
+  );
+  assert.equal(
+    projectHomeData({ ...BOOTSTRAP_RESULT, sidePane: { tab: "browser" } }).sidePaneTab,
+    null,
+    "闭集外 tab 归 null（手机回选择器）",
+  );
+  assert.equal(projectHomeData(BOOTSTRAP_RESULT).sidePaneTab, null, "缺省不下发=选择器");
+});

@@ -12,6 +12,7 @@ import { messagePortFlowControl, type MessagePortFlowState } from "@drora/rpc";
 import type {
   MobilePairingFailure,
   MobilePairingRuntimeState,
+  MobileRelaySidePaneSyncEntry,
   MobileRelayTaskSyncEntry,
   MobileRelayTransport,
   MobileRelayWorkspaceSyncEntry,
@@ -659,6 +660,21 @@ export function createDesktopMobileRelayControl(deps: {
     sendAppFrame({ zcode_type: "workspace-list-updated", result });
   }
 
+  // §33.18.16 侧板初态投影：renderer 推送的窗口侧板当前 tab（手机映射词表）。
+  // bootstrap 携带初值；配对态下变更即广播 drora 扩展帧 workspace-side-pane-update
+  // （官方页 schema 族无此帧类型→按未知帧丢弃；本仓源码页消费）。指纹去重同款。
+  let syncedSidePane: MobileRelaySidePaneSyncEntry | null = null;
+  let lastSidePaneFingerprint: string | null = null;
+
+  function syncAvailableSidePane(entry: MobileRelaySidePaneSyncEntry): void {
+    syncedSidePane = entry;
+    const fingerprint = JSON.stringify(entry);
+    if (fingerprint === lastSidePaneFingerprint) return;
+    lastSidePaneFingerprint = fingerprint;
+    if (transportState !== "paired") return;
+    sendAppFrame({ zcode_type: "workspace-side-pane-update", sidePane: entry });
+  }
+
   function currentWorkspaceSummaries(): RelayWorkspaceSummary[] {
     return syncedWorkspaces.map((entry) => ({
       workspacePath: entry.workspacePath,
@@ -1198,11 +1214,42 @@ export function createDesktopMobileRelayControl(deps: {
   /**
    * rpc-frame-ack 入站：releaseThrough 释放未确认批次并降水位（官方 processAck）。
    * future-ack → 终态降级；饱和回落低水位发 flow-state "drained" 恢复 Host 发送。
+   * ack 按 bridgeSessionId 过滤（specs/mobile-web-remote.md §M4c，2026-10-03 真机
+   * 故障修复）：官方 ack schema strict 且 bridgeSessionId 必填（upstream
+   * src-dNkcRypW.js），ack 只对它确认的那条桥生效。快速切任务时旧桥在途 ack 会晚于
+   * 新桥建立到达，喂进新桥 replayBuffer 会被误判 future-ack 终态降级（页面卡
+   * 「已配对，正在加载工作区」仅 reload 可恢复）——不匹配即丢弃；缺身份字段的旧
+   * 形态 ack 维持旧行为。与入站 rpc-frame 的 assembler 身份校验对齐。
    */
   function handleRpcFrameAck(frame: Record<string, unknown>): void {
     if (!bridge || bridge.degraded) return;
     const ackMessageSeq = frame.ackMessageSeq;
     if (typeof ackMessageSeq !== "number" || !Number.isSafeInteger(ackMessageSeq)) return;
+    const ackSessionId = frame.bridgeSessionId;
+    if (
+      typeof ackSessionId === "string" &&
+      ackSessionId !== bridge.identity.bridgeSessionId
+    ) {
+      logger.info("[mobile-relay] 丢弃跨桥 rpc-frame-ack", {
+        ackBridgeSessionId: ackSessionId,
+        currentBridgeSessionId: bridge.identity.bridgeSessionId,
+        ackMessageSeq,
+      });
+      return;
+    }
+    const ackGeneration = frame.bridgeGeneration;
+    if (
+      ackGeneration !== undefined &&
+      ackGeneration !== bridge.identity.bridgeGeneration
+    ) {
+      logger.info("[mobile-relay] 丢弃跨代 rpc-frame-ack", {
+        ackBridgeGeneration: ackGeneration,
+        currentBridgeGeneration: bridge.identity.bridgeGeneration,
+        bridgeSessionId: bridge.identity.bridgeSessionId,
+        ackMessageSeq,
+      });
+      return;
+    }
     const result = bridge.replayBuffer.ack(ackMessageSeq);
     if (result.futureAck) {
       enterBridgeDegraded(RELAY_REPLAY_DEGRADED_FUTURE_ACK);
@@ -1324,6 +1371,7 @@ export function createDesktopMobileRelayControl(deps: {
             fallbackWorkspace: workspace,
             tasks,
             mobileViewState,
+            sidePane: syncedSidePane,
           }),
         });
         return;
@@ -2023,6 +2071,7 @@ export function createDesktopMobileRelayControl(deps: {
     reset,
     syncAvailableWorkspaces,
     syncAvailableTasks,
+    syncAvailableSidePane,
     restorePreviouslyEnabled,
   };
 }

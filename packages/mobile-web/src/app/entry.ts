@@ -141,6 +141,8 @@ export function projectHomeData(resultRaw: unknown): {
   workspaces: ProjectedWorkspace[];
   activeWorkspaceKey: string | null;
   activeTaskId: string | null;
+  /** §33.18.16 S7 最小切片：桌面侧板初值（审查 review/终端 terminal/缺省 null=选择器）。 */
+  sidePaneTab: "review" | "terminal" | null;
 } {
   const result = asRecord(resultRaw);
   const workspaces = Array.isArray(result.workspaces)
@@ -178,5 +180,13 @@ export function projectHomeData(resultRaw: unknown): {
     workspaces,
     activeWorkspaceKey: readActive("activeWorkspaceKey"),
     activeTaskId: readActive("activeTaskId"),
+    // §33.18.16 S7 最小切片：bootstrap 顶层 sidePane（buildBootstrapResult 下发，
+    // 桌面 renderer 侧板当前 tab 的手机映射；闭集外值归 null=选择器）。
+    sidePaneTab:
+      asRecord(result.sidePane).tab === "review"
+        ? "review"
+        : asRecord(result.sidePane).tab === "terminal"
+          ? "terminal"
+          : null,
   };
 }

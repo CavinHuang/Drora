@@ -835,6 +835,11 @@ const mobileRelaySyncedTasks = new Map<
   number,
   import("@drora/shared").MobileRelayTaskSyncEntry[]
 >();
+// §33.18.16 侧板初态投影：各窗口最近一次推送的侧板 tab（手机映射词表）。
+const mobileRelaySyncedSidePane = new Map<
+  number,
+  import("@drora/shared").MobileRelaySidePaneSyncEntry
+>();
 
 // —— 内嵌 LAN relay 宿主（§12）：局域网传输=进程内自建 relay-server ——
 const mobileLanRelayHost = createDesktopMobileLanRelayHost({ logger });
@@ -2398,6 +2403,11 @@ app.whenReady().then(async () => {
         mobileRelayControl.syncAvailableTasks(
           mobileRelaySyncedTasks.get(params.senderWebContentsId) ?? [],
         );
+        // §33.18.16：侧板初值同样随 relay 启动灌入（renderer 无变化时也有当前值）。
+        const syncedSidePane = mobileRelaySyncedSidePane.get(params.senderWebContentsId);
+        if (syncedSidePane) {
+          mobileRelayControl.syncAvailableSidePane(syncedSidePane);
+        }
         return mobileRelayControl.start({
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
@@ -2443,6 +2453,13 @@ app.whenReady().then(async () => {
         mobileRelaySyncedTasks.set(senderWebContentsId, tasks);
         if (mobileRelaySenderWebContentsId === senderWebContentsId) {
           mobileRelayControl.syncAvailableTasks(tasks);
+        }
+      },
+      // §33.18.16 侧板初态投影：属主窗口的推送进运行时（bootstrap 初值+活体跟随）。
+      syncSidePane: (senderWebContentsId, entry) => {
+        mobileRelaySyncedSidePane.set(senderWebContentsId, entry);
+        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
+          mobileRelayControl.syncAvailableSidePane(entry);
         }
       },
     },

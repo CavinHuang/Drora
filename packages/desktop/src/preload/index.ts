@@ -75,6 +75,7 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   MobilePairingRuntimeState,
+  MobileRelaySidePaneSyncEntry,
   MobileRelayTaskSyncEntry,
   MobileRelayTransport,
   MobileRelayWorkspaceSyncEntry,
@@ -320,6 +321,9 @@ contextBridge.exposeInMainWorld("drora", {
   /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
   syncWebRemoteControlTasks: (tasks: MobileRelayTaskSyncEntry[]) =>
     ipcRenderer.invoke(PlatformChannels.MobileRelaySyncTasks, tasks),
+  /** §33.18.16 侧板初态投影：同步窗口侧板当前 tab（手机映射词表） */
+  syncWebRemoteControlSidePane: (entry: MobileRelaySidePaneSyncEntry) =>
+    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncSidePane, entry),
   /**
    * 注册手机 workspace-reconnect-request 的窗口重连委托（官方 preload 同款，
    * 2026-09-28 取证 preload/index.cjs onWebRemoteControlReconnectWorkspace）：

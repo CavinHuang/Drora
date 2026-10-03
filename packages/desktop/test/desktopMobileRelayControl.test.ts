@@ -1200,6 +1200,140 @@ test("桥流控：ack 释放后 grace 不降级、发送继续；future-ack → 
   await control.stop();
 });
 
+test("§33.18.16 侧板初态投影：syncAvailableSidePane 配对态广播扩展帧+指纹去重", async () => {
+  const harness = createFakeSocketHarness();
+  const store = await makeStore();
+  const control = createDesktopMobileRelayControl({
+    logger: { info: () => {}, warn: () => {} },
+    deviceMid: "mid-test",
+    credentialStore: store,
+    resolveHostChild: () => ({ pid: 4321 }) as never,
+    attachBridgePort: () => createFakeBridgePort() as never,
+    webSocketCtor: harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  after(() => void control.stop());
+
+  const socket = await driveRelayToMatched(control, harness, "d_sidepane");
+  const sidePaneFrames = () =>
+    collectAppFrames(socket).filter((m) => m.zcode_type === "workspace-side-pane-update");
+
+  // 配对态首推：帧携带 sidePane 映射词表。
+  control.syncAvailableSidePane({ tab: "review" });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sidePaneFrames().length, 1);
+  assert.deepEqual(sidePaneFrames()[0]?.sidePane, { tab: "review" });
+
+  // 同值重推：指纹去重不重发。
+  control.syncAvailableSidePane({ tab: "review" });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sidePaneFrames().length, 1, "同值指纹去重");
+
+  // 变更：新值广播。
+  control.syncAvailableSidePane({ tab: null });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sidePaneFrames().length, 2);
+  assert.deepEqual(sidePaneFrames()[1]?.sidePane, { tab: null });
+
+  await control.stop();
+});
+
+test("桥流控：跨桥迟到 ack 按 bridgeSessionId 丢弃（双桥竞态，2026-10-03 真机故障回归）", async () => {
+  // 真机故障（specs/mobile-web-remote.md §M4c ack 身份过滤）：8s 内两次
+  // workspace-bridge-open，旧桥在途 ack 落进新桥 replayBuffer 被误判 future-ack
+  // → 桥终态降级，页面卡「已配对，正在加载工作区」仅 reload 可恢复。
+  const harness = createFakeSocketHarness();
+  const store = await makeStore();
+  // 每次开桥注入全新 fake port（真实桌面每桥一个 MessagePort；共享实例会重复
+  // 注册 message 监听，一次 hostEmits 触发两次转发，属 harness 伪影）。
+  const bridgePorts: FakeBridgePort[] = [];
+  const warns: string[] = [];
+  const control = createDesktopMobileRelayControl({
+    logger: {
+      info: () => {},
+      warn: (message: unknown) => {
+        warns.push(String(message));
+      },
+    },
+    deviceMid: "mid-test",
+    credentialStore: store,
+    resolveHostChild: () => ({ pid: 4321 }) as never,
+    attachBridgePort: () => {
+      const port = createFakeBridgePort();
+      bridgePorts.push(port);
+      return port as never;
+    },
+    replayBufferOptions: { graceMs: 40 },
+    webSocketCtor: harness.ctor as never,
+    relayWsUrl: "wss://relay.test/ws",
+    remotePageUrl: "https://page.test/remote/v4",
+  });
+  after(() => void control.stop());
+
+  const socket = await driveRelayToMatched(control, harness, "d_xbridge");
+  const rpcFrames = () => collectAppFrames(socket).filter((m) => m.zcode_type === "rpc-frame");
+
+  // 桥 1（旧桥 b-flow）：发出一条消息，ack 在途
+  openBridge(socket);
+  await new Promise((r) => setTimeout(r, 30));
+  bridgePorts[0]!.hostEmits(new Uint8Array([1]));
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(rpcFrames().length, 1);
+
+  // 快速切任务：桥 2（b-next）替换桥 1（同工作区新桥会话，真实事故同型：
+  // 每次开桥都会生成新 bridgeSessionId，跨桥 ack 污染与 workspaceKey 无关）
+  socket.serverMessage({
+    type: "data",
+    payload: {
+      zcode_type: "workspace-bridge-open",
+      requestId: "rb-next",
+      bridgeSessionId: "b-next",
+      workspaceKey: "C:/demo",
+    },
+  });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(
+    collectAppFrames(socket).some(
+      (m) => m.zcode_type === "workspace-bridge-ready" && m.bridgeSessionId === "b-next",
+    ),
+    "新桥必须建立",
+  );
+
+  // 旧桥在途 ack 迟到到达：按身份丢弃，新桥不得终态降级
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "rpc-frame-ack", bridgeSessionId: "b-flow", ackMessageSeq: 1 },
+  });
+  await new Promise((r) => setTimeout(r, 60)); // > graceMs，同时排除 grace 看门狗干扰
+  assert.equal(
+    warns.some((w) => w.includes("终态降级")),
+    false,
+    "跨桥 ack 不得终态降级新桥",
+  );
+
+  // 新桥保持健康：出站独立计数
+  bridgePorts[1]!.hostEmits(new Uint8Array([2]));
+  await new Promise((r) => setTimeout(r, 10));
+  const nextFrames = rpcFrames().filter((f) => f.bridgeSessionId === "b-next");
+  assert.equal(nextFrames.length, 1, "新桥出站必须正常发出");
+  assert.equal(nextFrames[0]?.messageSeq, 1, "新桥 messageSeq 从 1 独立起算");
+
+  // 对照：同桥真 future-ack（b-next，9 > 已发最高 1）仍终态降级（官方 fail-closed 保真）
+  socket.serverMessage({
+    type: "data",
+    payload: { zcode_type: "rpc-frame-ack", bridgeSessionId: "b-next", ackMessageSeq: 9 },
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(
+    warns.some((w) => w.includes("终态降级")),
+    true,
+    "同桥 future-ack 仍必须终态降级",
+  );
+
+  await control.stop();
+});
+
 test("桥流控：grace 超时未确认 → 终态降级；降级后出站拒绝、入站帧丢弃", async () => {
   const harness = createFakeSocketHarness();
   const store = await makeStore();
@@ -2118,4 +2252,30 @@ test("§33.6 displayStatus 映射：本仓状态词表 → 官方页行状态枚
   assert.equal(deriveRelayDisplayStatus(undefined), "idle");
   assert.equal(deriveRelayDisplayStatus(""), "idle");
   assert.equal(deriveRelayDisplayStatus("waiting"), "idle");
+});
+
+test("§33.18.16 S7 最小切片：bootstrap sidePane 初值下发/缺省不下发", () => {
+  const fallbackWorkspace = {
+    workspacePath: "C:/demo",
+    label: "demo",
+    kind: "local" as const,
+    connectionState: "connected" as const,
+  };
+  const withPane = buildBootstrapResult({
+    deviceSid: "d_1",
+    appVersion: OFFICIAL_REMOTE_PAGE_APP_VERSION,
+    workspaces: [],
+    fallbackWorkspace,
+    tasks: [],
+    sidePane: { tab: "review" },
+  });
+  assert.deepEqual(withPane.sidePane, { tab: "review" });
+  const withoutPane = buildBootstrapResult({
+    deviceSid: "d_1",
+    appVersion: OFFICIAL_REMOTE_PAGE_APP_VERSION,
+    workspaces: [],
+    fallbackWorkspace,
+    tasks: [],
+  });
+  assert.equal("sidePane" in withoutPane, false, "缺省不下发 sidePane（手机回选择器）");
 });

@@ -28,6 +28,7 @@ import {
   type ConversationRow,
   type ConversationRowTarget,
   type V4ConversationFileChangesResult,
+  type V4ConversationFileRewindPreviewResult,
 } from "@drora/shared/drora-protocol-v4";
 import type { IDisposable } from "@drora/rpc";
 import type { RelayClient } from "@drora/relay-client";
@@ -366,6 +367,69 @@ export class TaskSession {
       issuedAt: Date.now(),
     };
     await this.accessor.droraAgentService.sendConversationCommandV4({
+      ...this.workspaceRef(),
+      envelope,
+    });
+  }
+
+  /**
+   * 用户消息行内编辑（v4 editUserQuery 命令，§33.18.13）：换文本的 retryTurn——
+   * CLI 侧 rewind 截断该轮后按原生 prompt turn 重发新文本（fork-edit-retry.ts）。
+   * workspaceMode preserve=仅切 conversation branch（缺省）/rewind=先安全恢复该轮文件。
+   */
+  async editUserQuery(
+    target: ConversationRowTarget,
+    newText: string,
+    workspaceMode: "preserve" | "rewind" = "preserve",
+  ): Promise<CommandAck> {
+    const envelope: CommandEnvelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+      type: "editUserQuery" as const,
+      payload: { target, newText, workspaceMode },
+      issuedAt: Date.now(),
+    };
+    return this.accessor.droraAgentService.sendConversationCommandV4({
+      ...this.workspaceRef(),
+      envelope,
+    });
+  }
+
+  /**
+   * 撤销该轮文件更改预览（v4 conversationFileRewindPreviewV4 只读查询，§33.18.13）。
+   * baseRevision/baseLogEpoch 取当前快照对齐位（与 CAS 同源，spec §16 第 3 条）。
+   */
+  async previewFileRewind(
+    target: ConversationRowTarget,
+  ): Promise<V4ConversationFileRewindPreviewResult> {
+    const logEpoch = this.store.getState().logEpoch;
+    if (logEpoch === null) {
+      throw new Error("conversation snapshot not aligned yet");
+    }
+    return this.accessor.droraAgentService.conversationFileRewindPreviewV4({
+      ...this.workspaceRef(),
+      sessionId: this.target.sessionId,
+      target,
+      baseRevision: this.store.getRevision(),
+      baseLogEpoch: logEpoch,
+    });
+  }
+
+  /**
+   * 撤销该轮文件更改（v4 applyFileRewind 命令，§33.18.13）：workspace-only 文件
+   * 恢复，不截断聊天历史（shared command.ts 裁决：会话内 rewind=editUserQuery 入口）。
+   */
+  async applyFileRewind(target: ConversationRowTarget): Promise<CommandAck> {
+    const envelope: CommandEnvelope = {
+      commandId: crypto.randomUUID(),
+      clientId: `drora-mobile-${this.target.sessionId}`,
+      sessionId: this.target.sessionId,
+      type: "applyFileRewind" as const,
+      payload: { target },
+      issuedAt: Date.now(),
+    };
+    return this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });

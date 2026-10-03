@@ -319,6 +319,16 @@ export interface MobileRelayWorkspaceSyncEntry {
   lastConnectionError?: string;
 }
 
+/**
+ * relay 远控的窗口侧板同步条目（§33.18.16 侧板初态投影，drora 扩展面——官方桌面
+ * 经 workspace-bridge 把窗口侧板状态活体投影给手机页，本仓对齐同一语义）：
+ * tab = 桌面窗口侧板当前 tab 的手机映射（审查→review、终端→terminal）；
+ * null = 桌面侧板无可映射 tab（手机回「打开标签页」选择器）。
+ */
+export interface MobileRelaySidePaneSyncEntry {
+  tab: "review" | "terminal" | null;
+}
+
 /** relay 远控的任务同步条目（官方 syncWebRemoteControlTasks 推送形状子集）。 */
 export interface MobileRelayTaskSyncEntry {
   taskId: string;
@@ -796,6 +806,11 @@ export interface IPlatformService {
   syncWebRemoteControlWorkspaces?(workspaces: MobileRelayWorkspaceSyncEntry[]): void;
   /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款）。Desktop only。 */
   syncWebRemoteControlTasks?(tasks: MobileRelayTaskSyncEntry[]): void;
+  /**
+   * 同步窗口侧板当前 tab 到 relay 远控（§33.18.16 侧板初态投影）：手机页 bootstrap
+   * 初值与活体跟随的数据源。Desktop only。
+   */
+  syncWebRemoteControlSidePane?(entry: MobileRelaySidePaneSyncEntry): void;
   /**
    * 注册手机 workspace-reconnect-request 的窗口重连委托（官方
    * onWebRemoteControlReconnectWorkspace 同款，2026-09-28 取证）：callback 收

@@ -32,7 +32,7 @@ const LazyQueuePanel = React.lazy(() =>
   })),
 );
 import { TaskInfoPopover } from "./TaskInfoPopover.js";
-import { RemoteTerminalPane } from "./RemoteTerminalPane.js";
+import { RemoteSidePaneTerminal } from "./RemoteSidePaneTerminal.js";
 import { useHomeSessionsIndex } from "./useHomeSessionsIndex.js";
 import { TaskComposer } from "./TaskComposer.js";
 import { RemoteWorkspaceHeader } from "../ui/RemoteWorkspaceHeader.js";
@@ -244,6 +244,17 @@ function AppBody() {
       },
     });
     clientRef.current = client;
+    // §33.18.16 完整形态（活体跟随）：桌面侧板 tab 变化广播（workspace-side-pane-update，
+    // drora 扩展帧；官方页按未知帧丢弃不受影响）→ 手机侧板跟随。映射与 bootstrap
+    // 初值一致（review→git/terminal→terminal/其余→null=选择器）。
+    client.frames.onFrame = (payload) => {
+      const record = payload as Record<string, unknown>;
+      if (record?.zcode_type !== "workspace-side-pane-update") return;
+      const entry = record.sidePane as { tab?: unknown } | undefined;
+      setSidePaneMode(
+        entry?.tab === "review" ? "git" : entry?.tab === "terminal" ? "terminal" : null,
+      );
+    };
     // 挂起恢复（官方 suspended 语义）：UI 监听可见性驱动 session。
     const onVisibility = () => {
       if (document.visibilityState === "hidden") client.session.notifyHidden();
@@ -270,6 +281,11 @@ function AppBody() {
         const home = projectHomeData(bootstrap.result);
         setWorkspaces(home.workspaces);
         setSelectedTaskId(home.activeTaskId);
+        // §33.18.16 S7 最小切片：桌面侧板初值→手机任务面侧板初态（review→git 映射；
+        // null=选择器）。仅 bootstrap 初值无活推（完整形态立项见 spec 同节）。
+        setSidePaneMode(
+          home.sidePaneTab === "review" ? "git" : home.sidePaneTab === "terminal" ? "terminal" : null,
+        );
         setConnection("connected");
         setPhase({ kind: "home" });
       } catch (error) {
@@ -664,6 +680,21 @@ function AppBody() {
           taskRef.current?.setAssistantFeedback(target.rowId, target.entityId, feedback)
         }
         onFork={(target) => void taskRef.current?.forkAssistant(target.rowId, target.entityId)}
+        onEdit={(target, newText) => {
+          const session = taskRef.current;
+          if (!session) return;
+          return session.editUserQuery(target, newText);
+        }}
+        previewFileRewind={async (target) => {
+          const session = taskRef.current;
+          if (!session) throw new Error("task session detached");
+          return session.previewFileRewind(target);
+        }}
+        applyFileRewind={(target) => {
+          const session = taskRef.current;
+          if (!session) return Promise.reject(new Error("task session detached"));
+          return session.applyFileRewind(target);
+        }}
       />
     ) : null;
   // AppTower 的初始 fallback accessor 不会随 AppBody 的 task state 重渲染；
@@ -778,9 +809,11 @@ function AppBody() {
             <Plus aria-hidden="true" className="size-4" />
           </button>
         </div>
-        <RemoteTerminalPane
-          terminal={attachedTask.accessor.terminalService}
-          workspacePath={taskTarget.path}
+        <RemoteSidePaneTerminal
+          accessor={attachedTask.accessor}
+          sessionId={selectedTaskId ?? taskTarget.path}
+          workspaceKey={taskTarget.identity?.trim() || taskTarget.path}
+          cwd={taskTarget.path}
         />
       </aside>
     ) : null;
@@ -792,8 +825,11 @@ function AppBody() {
         onThemePress={toggleTheme}
         topBarHidden={wideViewport}
         timelineOwnsScroll
-        sidePane={sidePane}
-        sidePaneOpen={sidePaneMode !== null}
+        // §33.18.14 修复（窄→宽壳侧板状态迁移）：宽壳侧板归右栏常驻列（宽壳分支已
+        // 并排渲染 sidePane ?? RemoteOpenTabShell），中心 MobileTaskShell 不再渲染
+        // 窄壳浮层——否则窄壳开启的侧板在断点跨越后以全宽浮层残留（收起重开才消失）。
+        sidePane={wideViewport ? null : sidePane}
+        sidePaneOpen={wideViewport ? false : sidePaneMode !== null}
         onSidePaneOverlayClose={() => setSidePaneMode(null)}
         timeline={timeline}
         workspaceHeader={
@@ -952,7 +988,7 @@ function AppBody() {
       {/* §32.45 宽壳右侧常驻侧板（w2 双页取证）：任务面开启时并排渲染「打开标签页」
           启动壳（官方三栏空态同构）；sidePaneMode 打开时替换为对应面板。 */}
       {phase.kind === "task" && attachedTask ? (
-        sidePane ?? (
+        sidePaneMode === null || sidePaneMode === "launcher" ? (
           <RemoteOpenTabShell
             variant="wide"
             onClose={() => setSidePaneMode(null)}
@@ -994,6 +1030,13 @@ function AppBody() {
                 : []
             }
           />
+        ) : (
+          // §33.18.14 修复（窄→宽壳侧板迁移）：git/terminal 侧板元素是窄壳浮层形态
+          // （absolute inset-y-0 right-0 w-[88%]），宽壳右栏用 relative w-80 列容器
+          // 收拢——aside 直子强制满列宽，断点跨越时就地转驻留，不以全宽浮层残留。
+          <div className="relative h-dvh w-80 shrink-0 overflow-hidden border-l border-border bg-background [&>aside]:w-full [&>aside]:max-w-none">
+            {sidePane}
+          </div>
         )
       ) : null}
       </div>

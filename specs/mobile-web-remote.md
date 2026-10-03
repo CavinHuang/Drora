@@ -252,7 +252,19 @@ relay 接受无账号的设备级注册。
   已发送未确认消息进重放缓冲（max 8MiB / grace 45s），重新配对/恢复时
   replayUnacknowledged() 全量重发（onSendReady 触发）；故障分级：future-ack/无效帧/
   组装超时(30s)/sendFrame 异常 → enterDegraded（终态，桥宣告失败）；重复帧重 ack
-  不重复投递。官方开桥（Q）差异：attach 请求携带 remoteSessionId/kind（远程工作区
+  不重复投递。
+  **ack 身份过滤（2026-10-03 真机故障修复，用户裁定方案①）**：官方页 ack 的 zod
+  schema 为 strict 且 `bridgeSessionId` 必填（upstream `src-dNkcRypW.js`
+  `ry=O({zcode_type:"rpc-frame-ack",bridgeSessionId,bridgeGeneration?,recoveryId?,ackMessageSeq}).strict()`）
+  ——ack 只对它所确认的那条桥生效。桌面 `handleRpcFrameAck` 此前不校验身份，快速切
+  任务/工作区时旧桥在途 ack 落进新桥 replayBuffer 被误判 future-ack → 桥终态降级
+  （真机日志 2026-10-03 10:29:36：两次 workspace-bridge-open 仅隔 8s，第二个桥建立
+  0.9s 后被旧桥 ack 打死，页面卡「已配对，正在加载工作区」，仅 reload 重建桥可恢复）。
+  修复=ack 携带的 bridgeSessionId ≠ 当前桥 → 丢弃（info 日志带双侧 sessionId，
+  可定位性优先；bridgeGeneration 若携带且不匹配同样丢弃）；缺身份字段的旧形态 ack
+  维持旧行为（视为当前桥）。同桥内的真 future-ack 仍终态降级不变。与入站 rpc-frame
+  的 assembler 三字段身份校验（relay-wire/rpcFrame.ts `accept`）对齐——ack 是此前
+  唯一未按身份过滤的入站面。回归：desktopMobileRelayControl.test.ts 双桥竞态用例。官方开桥（Q）差异：attach 请求携带 remoteSessionId/kind（远程工作区
   可开桥，要求远程已连接）、异步附着后校验 bridge 未被更新请求取代（superseded）、
   发送超限抛 envelopeTooLarge 而非静默。配对遥测事件族（2026-09-28 已全量对齐，
   证据 chunk-GJUBRD53.js@741857-742900 ctor 族 + index.js@387052/401850/658155）：

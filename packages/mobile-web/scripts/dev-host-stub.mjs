@@ -75,14 +75,16 @@ function buildRows(session) {
     ];
   }
   return [
-    row({ rowId: 1, turnId: "t1", kind: "turnHeader", entityId: "e-t1", state: "completedSuccess", origin: "userInput", startedAt: now - 600000 }),
-    row({ rowId: 2, turnId: "t1", kind: "userInput", origin: "realUser", entityId: "e-u1", text: "demo: switch mode + rename." }),
+    // §33.18.13 行级 actions 投影（真实 CLI 由 conversation-topic-publisher 派生）：
+    // canEdit 门编辑钮、canRewindFiles 门撤销钮、canFork 门分叉钮——缺省全 false。
+    row({ rowId: 1, turnId: "t1", kind: "turnHeader", entityId: "e-t1", state: "completedSuccess", origin: "userInput", startedAt: now - 600000, actions: { canRewindFiles: true }, fileChanges: { additions: 51, deletions: 7, files: 3 } }),
+    row({ rowId: 2, turnId: "t1", kind: "userInput", origin: "realUser", entityId: "e-u1", text: "demo: switch mode + rename.", actions: { canEdit: true } }),
     row({ rowId: 3, turnId: "t1", kind: "reasoning", state: "complete", text: "acceptance run.", durationMs: 4000 }),
-    row({ rowId: 4, turnId: "t1", kind: "assistantText", entityId: "e-a1", assistantResponseId: "ar-1", state: "complete", text: "ok. current mode is build." }),
+    row({ rowId: 4, turnId: "t1", kind: "assistantText", entityId: "e-a1", assistantResponseId: "ar-1", state: "complete", text: "ok. current mode is build.", actions: { canFork: true } }),
     row({ rowId: 5, turnId: "t1", kind: "toolCall", entityId: "e-a1", assistantResponseId: "ar-1", toolCallId: "tc-1", toolName: "terminal", status: "success", inputText: "node -v", output: { text: "v22" }, startedAt: now - 470000 }),
     row({ rowId: 6, turnId: "t2", kind: "turnHeader", entityId: "e-t2", state: "running", origin: "userInput", startedAt: now - 130000 }),
-    row({ rowId: 7, turnId: "t2", kind: "userInput", origin: "realUser", entityId: "e-u2", text: "continue." }),
-    row({ rowId: 8, turnId: "t2", kind: "assistantText", entityId: "e-a2", assistantResponseId: "ar-2", state: "streaming", text: "streaming reply" }),
+    row({ rowId: 7, turnId: "t2", kind: "userInput", origin: "realUser", entityId: "e-u2", text: "continue.", actions: { canEdit: true } }),
+    row({ rowId: 8, turnId: "t2", kind: "assistantText", entityId: "e-a2", assistantResponseId: "ar-2", state: "streaming", text: "streaming reply", actions: { canFork: true } }),
   ];
 }
 
@@ -166,40 +168,47 @@ const siListeners = new Set();
 let lastMobileViewState = { activeWorkspaceKey: undefined, updatedAt: 0 };
 
 function fireSessionsIndex(workspaceId) {
-  const snap = sessionsIndexSnapshotSchema.parse({
-    protocolVersion: 1,
-    workspaceId,
-    logEpoch: "epoch-1",
-    sessions: tasksList().map((t) => ({
-      sessionId: t.taskId,
+  // §33.18.11 诊断：setImmediate 内抛错会被静默吞掉（症状=订阅 ack 正常但快照
+  // 永不到达）。包裹记录监听器数与异常，验证「解析抛错/零监听」两假设。
+  try {
+    console.log(`[stub] fireSessionsIndex wid=${workspaceId} listeners=${siListeners.size}`);
+    const snap = sessionsIndexSnapshotSchema.parse({
+      protocolVersion: 1,
       workspaceId,
-      title: t.title,
-      phase: t.status === "running" ? "running" : "completedSuccess",
-      sessionEnded: t.status !== "running",
-      hasBackgroundWork: false,
-      lastActivityAt: t.updatedAt,
-      createdAt: t.createdAt,
-      lastAssistantPreview: "stub",
-    })),
-  });
-  const cand = sessionsIndexTopicWireCandidateSchema.parse({
-    kind: "complete",
-    deliveryKind: "initial",
-    logicalFrameId: "lf-si",
-    logicalFrameOrdinal: 1,
-    wireVersion: V4_WIRE_PROTOCOL_VERSION,
-    topic: "sessions-index/" + workspaceId,
-    subscriptionId: "sub-si",
-    frame: {
+      logEpoch: "epoch-1",
+      sessions: tasksList().map((t) => ({
+        sessionId: t.taskId,
+        workspaceId,
+        title: t.title,
+        phase: t.status === "running" ? "running" : "completedSuccess",
+        sessionEnded: t.status !== "running",
+        hasBackgroundWork: false,
+        lastActivityAt: t.updatedAt,
+        createdAt: t.createdAt,
+        lastAssistantPreview: "stub",
+      })),
+    });
+    const cand = sessionsIndexTopicWireCandidateSchema.parse({
+      kind: "complete",
+      deliveryKind: "initial",
+      logicalFrameId: "lf-si",
+      logicalFrameOrdinal: 1,
+      wireVersion: V4_WIRE_PROTOCOL_VERSION,
       topic: "sessions-index/" + workspaceId,
       subscriptionId: "sub-si",
-      fromSeq: 0,
-      toSeq: 1,
-      sentAt: NOW(),
-      payload: { kind: "snapshot", snapshot: snap },
-    },
-  });
-  siListeners.forEach((fn) => fn(cand));
+      frame: {
+        topic: "sessions-index/" + workspaceId,
+        subscriptionId: "sub-si",
+        fromSeq: 0,
+        toSeq: 1,
+        sentAt: NOW(),
+        payload: { kind: "snapshot", snapshot: snap },
+      },
+    });
+    siListeners.forEach((fn) => fn(cand));
+  } catch (error) {
+    console.error("[stub] fireSessionsIndex THREW:", error?.message ?? error);
+  }
 }
 
 function makeAgentChannel() {
@@ -314,6 +323,17 @@ function makeAgentChannel() {
               { path: "src/app.ts", additions: 8, deletions: 2, writeCount: 2, toolNames: ["edit"], patches: [] },
               { path: "src/task.ts", additions: 1, deletions: 1, writeCount: 1, toolNames: ["edit"], patches: [] },
             ],
+          };
+        case "conversationFileRewindPreviewV4":
+          // §33.18.13 撤销预览桩：罐头结果驱动 UI 链路（真实语义在 CLI rewind 引擎）。
+          return {
+            canApply: true,
+            ignoredFiles: [],
+            safeFiles: [
+              { action: "restore", operationCount: 2, path: "src/app.ts", toolNames: ["edit"] },
+              { action: "restore", operationCount: 1, path: "src/task.ts", toolNames: ["edit"] },
+            ],
+            unsafeFiles: [],
           };
         case "sendConversationCommandV4": {
           const env = params.envelope || {};

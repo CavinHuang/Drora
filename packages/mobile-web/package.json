@@ -17,12 +17,8 @@
     "@drora/services": "workspace:*",
     "@drora/shared": "workspace:*",
     "@drora/ui": "workspace:*",
-    "@types/dompurify": "3.2.0",
-    "dompurify": "3.4.5",
-    "marked": "16.4.2",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "@drora/web": "workspace:*"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

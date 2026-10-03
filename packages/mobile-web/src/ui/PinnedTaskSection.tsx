@@ -45,6 +45,11 @@ export function PinnedTaskSection({
           <li key={`${task.workspace.workspaceKey}\0${task.sessionId}`}>
             <button
               type="button"
+              // §33.18.17 契约补全：任务行统一 testid=task-item-{sessionId}（§33.18.1
+              // 官方行契约已在 HomeTaskRow/宽壳 Sidebar 落地，置顶区行漏接——stub 场景
+              // 唯一 running 任务恰为置顶，harness 按 [data-testid^=task-item-] 计行
+              // 恒得 0（§33.18.6-11 rows:0 挂账根因，帧级取证见同节）。
+              data-testid={`task-item-${task.sessionId}`}
               className="flex min-h-12 w-full min-w-0 items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2 text-left transition-colors hover:bg-surface-hover"
               aria-label={formatMessage({ id: "mobileShell.home.openTask" }, { title: task.title })}
               onClick={onTaskOpen ? () => onTaskOpen(task) : undefined}
@@ -66,7 +71,9 @@ export function PinnedTaskSection({
                     ·
                   </span>
                   <span className="truncate">
-                    {task.updatedAtMs !== null ? formatTaskRelativeTime(task.updatedAtMs, intl) : null}
+                    {task.updatedAtMs !== null
+                      ? formatTaskRelativeTime(task.updatedAtMs, intl)
+                      : null}
                   </span>
                 </span>
               </span>

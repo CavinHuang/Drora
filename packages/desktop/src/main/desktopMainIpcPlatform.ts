@@ -21,6 +21,7 @@ import {
   type UpdateStatePayload,
   type WindowControlsOverlayReadyPayload,
   type MobilePairingRuntimeState,
+  type MobileRelaySidePaneSyncEntry,
   type MobileRelayTaskSyncEntry,
   type MobileRelayTransport,
   type MobileRelayWorkspaceSyncEntry,
@@ -121,6 +122,10 @@ export function registerPlatformIpcHandlers(options: {
       workspaces: MobileRelayWorkspaceSyncEntry[],
     ) => void;
     syncTasks: (senderWebContentsId: number, tasks: MobileRelayTaskSyncEntry[]) => void;
+    syncSidePane: (
+      senderWebContentsId: number,
+      entry: MobileRelaySidePaneSyncEntry,
+    ) => void;
   };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
@@ -182,6 +187,12 @@ export function registerPlatformIpcHandlers(options: {
   });
   ipcMain.handle(PlatformChannels.MobileRelaySyncTasks, (event, tasks: unknown) => {
     options.mobileRelay?.syncTasks(event.sender.id, sanitizeSyncTasks(tasks));
+  });
+  // §33.18.16 侧板初态投影：renderer 推送窗口侧板当前 tab（手机映射词表）。
+  ipcMain.handle(PlatformChannels.MobileRelaySyncSidePane, (event, entry: unknown) => {
+    const sanitized = sanitizeSidePaneEntry(entry);
+    if (!sanitized) return;
+    options.mobileRelay?.syncSidePane(event.sender.id, sanitized);
   });
 
   ipcMain.handle(PlatformChannels.SelectFile, async () => {
@@ -551,4 +562,12 @@ function sanitizeSyncTasks(value: unknown): MobileRelayTaskSyncEntry[] {
       },
     ];
   });
+}
+
+/** §33.18.16 侧板同步载荷的形状级运行时校验（tab 闭集外的值→null）。 */
+function sanitizeSidePaneEntry(value: unknown): MobileRelaySidePaneSyncEntry | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const tab = record.tab === "review" || record.tab === "terminal" ? record.tab : null;
+  return { tab };
 }

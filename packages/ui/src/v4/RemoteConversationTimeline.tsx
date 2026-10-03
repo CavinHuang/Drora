@@ -2,9 +2,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
+  CommandAck,
   ConversationRow,
+  ConversationRowTarget,
   ConversationSnapshot,
   SessionPhase,
+  V4ConversationFileRewindPreviewResult,
 } from "@drora/shared/drora-protocol-v4";
 import type { ModelSelectionView } from "@drora/services";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
@@ -52,7 +55,20 @@ export interface RemoteConversationTimelineProps {
   /** 助手消息赞/踩（v4 setAssistantFeedback；缺省不渲染 feedback 按钮——capability 降级）。 */
   onFeedbackChange?: AssistantFeedbackHandler;
   /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
-  onFork?: (target: import("@drora/shared/drora-protocol-v4").ConversationRowTarget) => void;
+  onFork?: (target: ConversationRowTarget) => void;
+  /** user 行行内编辑（v4 editUserQuery；缺省不渲染编辑入口。§33.18.13）。 */
+  onEdit?: (
+    target: ConversationRowTarget,
+    newText: string,
+    attachments?: readonly import("@drora/shared/drora-protocol-v4").AttachmentRef[],
+    workspaceMode?: "preserve" | "rewind",
+  ) => Promise<CommandAck | boolean | void> | CommandAck | boolean | void;
+  /** 撤销预览（v4 conversationFileRewindPreviewV4；缺省=撤销钮不渲染。§33.18.13）。 */
+  previewFileRewind?: (
+    target: ConversationRowTarget,
+  ) => Promise<V4ConversationFileRewindPreviewResult>;
+  /** 撤销应用（v4 applyFileRewind 命令；workspace-only 不截断历史。§33.18.13）。 */
+  applyFileRewind?: (target: ConversationRowTarget) => Promise<CommandAck>;
 }
 
 export function RemoteConversationTimeline({
@@ -82,6 +98,9 @@ export function RemoteConversationTimeline({
   onLoadOlder,
   onFeedbackChange,
   onFork,
+  onEdit,
+  previewFileRewind,
+  applyFileRewind,
 }: RemoteConversationTimelineProps) {
   const [statusPanelVariant, setStatusPanelVariant] = useState<ChatViewSummaryPanelVariant | null>(
     null,
@@ -116,8 +135,12 @@ export function RemoteConversationTimeline({
       modelSelectionView,
       // §32.51 本组件即手机远控页时间线：操作行常显（官方 compactForRemoteControl）。
       compactForRemoteControl: true,
+      // §33.18.13 撤销钩子经行上下文注入（ConversationFileSummaryPanel 按
+      // applyFileRewind && previewFileRewind 门控撤销钮；与桌面 SessionPane 同模式）。
+      previewFileRewind,
+      applyFileRewind,
     }),
-    [workspacePath, workspaceIdentity, sessionKey, theme, modelSelectionView],
+    [workspacePath, workspaceIdentity, sessionKey, theme, modelSelectionView, previewFileRewind, applyFileRewind],
   );
 
   return (
@@ -160,6 +183,7 @@ export function RemoteConversationTimeline({
               bottomDock={bottomDock}
               onFeedbackChange={onFeedbackChange}
               onFork={onFork}
+              onEdit={onEdit}
               canLoadOlder={canLoadOlder}
               loadingOlder={loadingOlder}
               onLoadOlder={onLoadOlder}

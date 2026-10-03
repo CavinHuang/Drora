@@ -195,6 +195,8 @@ export const PlatformChannels = {
   MobileRelaySyncWorkspaces: "drora:mobile-relay-sync-workspaces",
   /** Renderer → Main：同步跨工作区任务列表到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
   MobileRelaySyncTasks: "drora:mobile-relay-sync-tasks",
+  /** Renderer → Main：同步窗口侧板当前 tab 到 relay 远控（§33.18.16 侧板初态投影，drora 扩展面） */
+  MobileRelaySyncSidePane: "drora:mobile-relay-sync-side-pane",
   /**
    * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
    * zcode:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。

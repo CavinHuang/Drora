@@ -4437,3 +4437,37 @@ openTask 回填该会话草稿、sendDraft 成功清内容（官方语义：发�
 真桌面）：输入 draft persistence check → localStorage 键逐字同构落盘 ✓ → 刷新
 重开任务 → 编辑器自动回填 ✓（测试草稿已清理）。门禁：typecheck 0 + mobile 8+211
 + build 811 + lint 0 + 架构 0。
+
+#### 33.18.22 终端数据面桥接——rpc 帧级 demux 立项（2026-10-03 深夜，待裁定后实施）
+
+**现象（活体）**：4430 relay 拓扑上手机终端侧板 xterm 挂载但空屏——桌面主进程日志零
+terminal 记录（PTY create 未达 main）；同拓扑审查数据面正常（git/file 通道经桥可达）。
+
+**根因定位**：手机 rpc 通道分派在**宿主（CLI runtime）的通道服务端**——手机桥
+（desktopMobileRelayControl handleRpcFrame → bridge.port）把 rpc 帧透明转发给 Host
+端口，宿主 server 只注册了 setting/git/file/drora-agent/v4 等通道；`terminal`
+通道（ServiceChannels.Terminal="terminal"，服务端=main 层
+services/node.ts ServiceCollection 的 createTerminalService（node-pty））在宿主不存在
+→ 手机 terminalService 代理调用静默无响应（协议适配 protocolAdapter=透明透传，
+通道分派归桌面桥服务端）。桌面 renderer 自己的终端走 main 层 ServiceCollection
+（node.ts:2562 注册 ITerminalService）→ 桌面/手机服务面不同层即数据面差异根因。
+
+**实施方案（S9，跨 main 服务装配 + 桥核心，须 spec 先行+真机回归）**：
+1. deps 注入：control 增 `terminalService?: ITerminalService`（index 装配处取
+   ServiceCollection 实例，或 `createTerminalService({ settingService })` 独立实例
+   ——独立实例=手机 PTY 与桌面 PTY 注册表隔离，relay stop 的 PTY 回收需随 control
+   stop 补 dispose）；
+2. 桥帧 demux：handleRpcFrame 组帧后解析通道名
+   （BufferReader+deserialize：request 帧 [100|101|102|103, id, channelName, …]，
+   channelName@[2]；解析失败=非标准帧原样转发）——channel==="terminal" 时喂入
+   per-bridge ChannelServer（registerChannel("terminal",
+   ProxyChannel.fromService(terminalService))；shim.send→
+   forwardHostBytesToPhone），其余帧原样转发 Host 端口；
+3. 顺序约束：relay 层 rpc-frame-ack 已在 demux 前发送（不变）；ChannelServer
+   deferInit=false 语义复核（手机 ChannelClient 无 Initialize 帧路径确认）；
+4. 回归面：非 terminal 帧（含 67KB drora-agent 流）解析失败必须原样转发；
+   terminal 帧服务后 relay 层 ack 时序不变。
+门禁设计：desktop 控制测试增 demux 用例（terminal 帧入 shim/非 terminal 帧转发
+Host/解析失败帧转发）+ 真链活体（xterm 出真 PowerShell）。
+**改动性质**：触及手机桥 rpc 帧核心路径（全部手机流量经此）——实施后需全量
+矩阵回归。待用户裁定后进 S9 实现轮。

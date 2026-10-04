@@ -40,6 +40,17 @@ modules:
   - id: zcode-server-cli
     roots: [packages/zcode-server-cli/src]
     managed: false
+  - id: relay-server
+    roots: [packages/relay-server/src]
+    managed: false
+  - id: relay-client
+    roots: [packages/relay-client/src]
+    managed: false
+    requires: [shared]
+  - id: mobile-web
+    roots: [packages/mobile-web/scripts, packages/mobile-web/src]
+    managed: false
+    requires: [shared, rpc, client, services, relay-client, ui]
   - id: ui
     roots: [packages/ui/src]
     managed: false

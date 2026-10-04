@@ -570,6 +570,19 @@ export default {
   },
   extraResources: [
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
+    {
+      // 本地远控页与桌面同包发布，LAN 无外网时仍完整加载 v4 双布局。
+      from: resolve(workspaceRoot, "packages/mobile-web/dist"),
+      to: "mobile-web",
+    },
+    {
+      // §33.11 产物一致性（raw 优先修正）：官方 remote 页原始字节冻结件随包
+      // （upstream 根——布局含 remote/v4/index.html，与 LAN host 候选探测对齐；
+      // remote/v4/** 路径同形但字节不同，不可同目录合并。60MB 为官方全量资产集
+      // （逐图标 chunk/字体/材质图标），不裁剪保字节保真。
+      from: resolve(workspaceRoot, "packages/mobile-web/upstream"),
+      to: "mobile-web-official",
+    },
     ...(targetPlatform.os === "darwin"
       ? [
           {

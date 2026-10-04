@@ -1,0 +1,9 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./shellscript-CXb1PO9t.js";
+var t = Object.freeze(
+    JSON.parse(
+      `{"displayName":"Git Rebase Message","name":"git-rebase","patterns":[{"captures":{"1":{"name":"punctuation.definition.comment.git-rebase"}},"match":"^\\\\s*(#).*$\\\\n?","name":"comment.line.number-sign.git-rebase"},{"captures":{"1":{"name":"support.function.git-rebase"},"2":{"name":"constant.sha.git-rebase"},"3":{"name":"meta.commit-message.git-rebase"}},"match":"^\\\\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|drop|d)\\\\s+([0-9a-f]+)\\\\s+(.*)$","name":"meta.commit-command.git-rebase"},{"captures":{"1":{"name":"support.function.git-rebase"},"2":{"patterns":[{"include":"source.shell"}]}},"match":"^\\\\s*(exec|x)\\\\s+(.*)$","name":"meta.commit-command.git-rebase"},{"captures":{"1":{"name":"support.function.git-rebase"}},"match":"^\\\\s*(b(?:reak|))\\\\s*$","name":"meta.commit-command.git-rebase"}],"scopeName":"text.git-rebase","embeddedLangs":["shellscript"]}`,
+    ),
+  ),
+  n = [...e, t];
+export { n as default };

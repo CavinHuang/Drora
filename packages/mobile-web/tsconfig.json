@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist-ts",
+    "rootDir": "src",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["../ui/src/*"]
+    },
+    "noEmit": true
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../rpc" },
+    { "path": "../services" },
+    { "path": "../client" },
+    { "path": "../relay-client" },
+    { "path": "../ui" }
+  ]
+}

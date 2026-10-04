@@ -517,6 +517,101 @@ export type CuaOsSupport =
   | { kind: "not-applicable" };
 
 /**
+ * 移动端远程控制运行状态（对齐原版六态 runtime status）：
+ * idle=未开启；starting=启动中；running=等待手机连接；
+ * connecting=手机已建立连接、握手进行中；active=手机已连接；error=失败（failure 携带原因）。
+ */
+export type MobilePairingStatus =
+  | "idle"
+  | "starting"
+  | "running"
+  | "connecting"
+  | "active"
+  | "error";
+
+/**
+ * 移动端远程控制失败面（reason 对齐原版失败语义）。
+ */
+export interface MobilePairingFailure {
+  /** session-conflict=被新配对接管；internal=本地启动/监听失败；unsupported-action=构建不支持。 */
+  reason: "session-conflict" | "internal" | "unsupported-action";
+  message: string;
+}
+
+/**
+ * 移动端远控传输（renderer → main IPC 参数；specs/mobile-relay-server.md §12）：
+ * lan=进程内嵌自建 relay（手机侧同 relay 协议，局域网可达）；
+ * cloud=云中继（官方/自建部署，缺省）。跨进程契约字面量唯一出处（shared 契约区）。
+ */
+export type MobileRelayTransport = "lan" | "cloud";
+
+/**
+ * 移动端配对服务运行状态快照（Main → Renderer 推送与查询共用同一形状；
+ * 字段对齐原版 buildRuntimeStatus 的可回填子集）。
+ */
+export interface MobilePairingRuntimeState {
+  running: boolean;
+  status: MobilePairingStatus;
+  /** 手机是否已完成配对握手（status=active 时为 true）。 */
+  connected: boolean;
+  /** 当前二维码链接（running/connecting/active 时非空；仅局域网可达）。 */
+  url: string | null;
+  /** 配对绑定的本地工作区（对齐原版 runtime 里的 workspacePath）。 */
+  workspacePath: string | null;
+  workspaceIdentity: string | null;
+  failure: MobilePairingFailure | null;
+  /**
+   * 产生该状态的传输（relay 控制链统一后用于弹层按 tab 过滤；LAN 直连旧链路与
+   * 未携带该字段的产生方为 undefined，弹层按兼容语义处理）。
+   */
+  transport?: MobileRelayTransport | null;
+}
+
+/**
+ * relay 远控的工作区同步条目（Renderer → Main，官方 syncWebRemoteControlWorkspaces
+ * 的推送形状子集；字段满足手机页 workspace schema 的必填集）。
+ */
+export interface MobileRelayWorkspaceSyncEntry {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  /** 远程会话 id；有值即 remote 工作区。 */
+  remoteSessionId?: string;
+  /** 工作区显示名（目录 basename）。 */
+  label: string;
+  kind: "local" | "remote";
+  /** 仅远程携带（对齐官方 jjn 构造器）：reconnecting/connected/disconnected。 */
+  connectionState?: "connected" | "disconnected" | "reconnecting";
+  workspacePurpose?: string;
+  lastConnectionError?: string;
+}
+
+/**
+ * relay 远控的窗口侧板同步条目（§33.18.16 侧板初态投影，zcode 扩展面——官方桌面
+ * 经 workspace-bridge 把窗口侧板状态活体投影给手机页，本仓对齐同一语义）：
+ * tab = 桌面窗口侧板当前 tab 的手机映射（审查→review、终端→terminal）；
+ * null = 桌面侧板无可映射 tab（手机回「打开标签页」选择器）。
+ */
+export interface MobileRelaySidePaneSyncEntry {
+  tab: "review" | "terminal" | null;
+}
+
+/** relay 远控的任务同步条目（官方 syncWebRemoteControlTasks 推送形状子集）。 */
+export interface MobileRelayTaskSyncEntry {
+  taskId: string;
+  title: string;
+  updatedAt: number;
+  createdAt: number;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  /**
+   * §33.6：任务状态词表 = ZCodeTaskMeta["status"]（running/completed/error/undefined）。
+   * Main 侧投影为官方页 displayStatus（行状态徽标数据源；缺失回落「空闲」）。
+   */
+  status?: string;
+}
+
+/**
  * 平台操作接口 —— 替代直接访问 window.zcode
  *
  * 定义需要宿主环境（Electron main / Web server）参与的操作。
@@ -700,6 +795,56 @@ export interface IPlatformService {
   publishDesktopPet?(presentation: import("./desktopPet.js").DesktopPetPresentation): void;
   onDesktopPetOpenTask?(
     handler: (target: import("./desktopPet.js").DesktopPetTarget) => void,
+  ): () => void;
+
+  /**
+   * relay 远控（M4，spec: mobile-web-remote.md + mobile-relay-server.md §12）：连接
+   * relay 服务端，设备注册/鉴权后生成指向托管手机页的二维码。transport=cloud（缺省）
+   * 连云中继（官方/自建部署，跨网络）；transport=lan 启动进程内嵌自建 relay 服务端
+   * （局域网可用，手机侧同 relay 协议）。旧 LAN 直连配对栈已删除（§12.4），两传输
+   * 共用同一控制链，同一时刻至多一条活跃（后启动者先停掉前者）。Desktop only。
+   */
+  startMobileRelayControl?(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    transport?: MobileRelayTransport;
+  }): Promise<{ url: string; sessionId: string }>;
+  /** 停止 relay 远控（断开连接；transport=lan 时同时停内嵌服务端；凭据保留以便下次直连）。Desktop only。 */
+  stopMobileRelayControl?(): Promise<void>;
+  /** 轮换 relay 远控凭据并重启（二维码泄露时的 resetPairing 语义）。Desktop only。 */
+  refreshMobileRelayControl?(): Promise<{ url: string; sessionId: string }>;
+  /** 查询 relay 远控运行状态。Desktop only。 */
+  getMobileRelayControlState?(): Promise<MobilePairingRuntimeState>;
+  /** 订阅 relay 远控状态推送。Desktop only。 */
+  onMobileRelayStateChanged?(callback: (state: MobilePairingRuntimeState) => void): () => void;
+  /**
+   * 同步窗口全部工作区到 relay 远控（多工作区聚合；对齐官方
+   * syncWebRemoteControlWorkspaces：renderer 在 tab 变化时推送，main 侧
+   * bootstrap/workspace-list 以此为工作区清单事实源）。Desktop only。
+   */
+  syncWebRemoteControlWorkspaces?(workspaces: MobileRelayWorkspaceSyncEntry[]): void;
+  /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款）。Desktop only。 */
+  syncWebRemoteControlTasks?(tasks: MobileRelayTaskSyncEntry[]): void;
+  /**
+   * 同步窗口侧板当前 tab 到 relay 远控（§33.18.16 侧板初态投影）：手机页 bootstrap
+   * 初值与活体跟随的数据源。Desktop only。
+   */
+  syncWebRemoteControlSidePane?(entry: MobileRelaySidePaneSyncEntry): void;
+  /**
+   * 注册手机 workspace-reconnect-request 的窗口重连委托（官方
+   * onWebRemoteControlReconnectWorkspace 同款，2026-09-28 取证）：callback 收
+   * {requestId, workspaceKey}，await 重连（官方选项 activateWorkspaceAfterReconnect:
+   * false / showErrorToast:false / throwOnFailure:true）后返回
+   * {requestId, workspaceKey, success, error?}；回调抛错由实现折叠为
+   * success:false。Desktop only。
+   */
+  onWebRemoteControlReconnectWorkspace?(
+    callback: (request: { requestId: string; workspaceKey: string }) => Promise<{
+      requestId: string;
+      workspaceKey: string;
+      success: boolean;
+      error?: string;
+    }>,
   ): () => void;
 
   /** 通过宿主环境统一上报 UI 侧 telemetry 事件 */

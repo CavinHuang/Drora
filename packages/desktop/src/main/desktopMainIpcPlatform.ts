@@ -20,6 +20,11 @@ import {
   type CreateTempTextAttachmentRequest,
   type UpdateStatePayload,
   type WindowControlsOverlayReadyPayload,
+  type MobilePairingRuntimeState,
+  type MobileRelaySidePaneSyncEntry,
+  type MobileRelayTaskSyncEntry,
+  type MobileRelayTransport,
+  type MobileRelayWorkspaceSyncEntry,
 } from "@zcode/shared";
 import { getInstalledEditors } from "./editors.js";
 import { getApplicationIcon } from "./applicationIcons.js";
@@ -100,6 +105,25 @@ export function registerPlatformIpcHandlers(options: {
   reportBrowserScreenshotSurfaceReady?: ReportBrowserScreenshotSurfaceReady;
   /** Browser tab 关闭、挂起、恢复与跨重启 shell IPC。 */
   browserViewResidencyHandlers?: BrowserViewResidencyIpcHandlers;
+  /** relay 远控（M4a + 内嵌 LAN §12，spec: mobile-web-remote.md / mobile-relay-server.md）。仅 Desktop 主进程提供。 */
+  mobileRelay?: {
+    start: (params: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+      /** lan=进程内嵌自建 relay；cloud=云中继（缺省）。 */
+      transport?: MobileRelayTransport;
+      senderWebContentsId: number;
+    }) => Promise<{ url: string; sessionId: string }>;
+    reset: (params: { senderWebContentsId: number }) => Promise<{ url: string; sessionId: string }>;
+    stop: () => Promise<void>;
+    state: () => MobilePairingRuntimeState;
+    syncWorkspaces: (
+      senderWebContentsId: number,
+      workspaces: MobileRelayWorkspaceSyncEntry[],
+    ) => void;
+    syncTasks: (senderWebContentsId: number, tasks: MobileRelayTaskSyncEntry[]) => void;
+    syncSidePane: (senderWebContentsId: number, entry: MobileRelaySidePaneSyncEntry) => void;
+  };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -109,6 +133,63 @@ export function registerPlatformIpcHandlers(options: {
       return null;
     }
     return result.filePaths[0];
+  });
+
+  ipcMain.handle(
+    PlatformChannels.MobileRelayStart,
+    async (
+      event,
+      params:
+        | { workspacePath?: string; workspaceIdentity?: string; transport?: string }
+        | undefined,
+    ) => {
+      if (!options.mobileRelay) {
+        throw new Error("mobile relay control is unavailable in this build");
+      }
+      return options.mobileRelay.start({
+        workspacePath: String(params?.workspacePath ?? ""),
+        workspaceIdentity: params?.workspaceIdentity ? String(params.workspaceIdentity) : undefined,
+        // 契约字面量白名单化（shared MobileRelayTransport）；未知值回落 cloud。
+        transport: params?.transport === "lan" ? "lan" : "cloud",
+        senderWebContentsId: event.sender.id,
+      });
+    },
+  );
+  ipcMain.handle(PlatformChannels.MobileRelayReset, async (event) => {
+    if (!options.mobileRelay) {
+      throw new Error("mobile relay control is unavailable in this build");
+    }
+    return options.mobileRelay.reset({ senderWebContentsId: event.sender.id });
+  });
+  ipcMain.handle(PlatformChannels.MobileRelayStop, async () => {
+    await options.mobileRelay?.stop();
+  });
+  ipcMain.handle(PlatformChannels.MobileRelayState, () => {
+    return (
+      options.mobileRelay?.state() ?? {
+        running: false,
+        status: "idle" as const,
+        connected: false,
+        url: null,
+        workspacePath: null,
+        workspaceIdentity: null,
+        failure: null,
+      }
+    );
+  });
+  // 多工作区聚合（对齐官方 syncWebRemoteControlWorkspaces/Tasks）：renderer 在
+  // tab 变化时推送窗口全部工作区与任务摘要，main 侧作为 bootstrap 清单事实源。
+  ipcMain.handle(PlatformChannels.MobileRelaySyncWorkspaces, (event, workspaces: unknown) => {
+    options.mobileRelay?.syncWorkspaces(event.sender.id, sanitizeSyncWorkspaces(workspaces));
+  });
+  ipcMain.handle(PlatformChannels.MobileRelaySyncTasks, (event, tasks: unknown) => {
+    options.mobileRelay?.syncTasks(event.sender.id, sanitizeSyncTasks(tasks));
+  });
+  // §33.18.16 侧板初态投影：renderer 推送窗口侧板当前 tab（手机映射词表）。
+  ipcMain.handle(PlatformChannels.MobileRelaySyncSidePane, (event, entry: unknown) => {
+    const sanitized = sanitizeSidePaneEntry(entry);
+    if (!sanitized) return;
+    options.mobileRelay?.syncSidePane(event.sender.id, sanitized);
   });
 
   ipcMain.handle(PlatformChannels.SelectFile, async () => {
@@ -407,4 +488,83 @@ export function registerPlatformIpcHandlers(options: {
     // 返回值直通 renderer 的 executeDesktopCommand promise（GetCuaOsSupport 依赖此行为）。
     return await options.executeDesktopCommand(command as DesktopCommandId, senderWindow);
   });
+}
+
+/** relay 工作区同步载荷的形状级运行时校验（协议入口防御）。 */
+function sanitizeSyncWorkspaces(value: unknown): MobileRelayWorkspaceSyncEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): MobileRelayWorkspaceSyncEntry[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const workspacePath =
+      typeof record.workspacePath === "string" ? record.workspacePath.trim() : "";
+    if (!workspacePath) return [];
+    const kind = record.kind === "remote" ? "remote" : "local";
+    // 官方 jjn 语义：connectionState 仅远程携带，合法值之外丢弃（本地缺省）。
+    const connectionState =
+      record.connectionState === "disconnected" || record.connectionState === "reconnecting"
+        ? record.connectionState
+        : record.connectionState === "connected"
+          ? "connected"
+          : undefined;
+    return [
+      {
+        workspacePath,
+        ...(typeof record.workspaceIdentity === "string" && record.workspaceIdentity.trim()
+          ? { workspaceIdentity: record.workspaceIdentity.trim() }
+          : {}),
+        ...(typeof record.remoteSessionId === "string" && record.remoteSessionId.trim()
+          ? { remoteSessionId: record.remoteSessionId.trim() }
+          : {}),
+        label:
+          typeof record.label === "string" && record.label.trim() ? record.label : workspacePath,
+        kind,
+        ...(connectionState ? { connectionState } : {}),
+        ...(typeof record.workspacePurpose === "string" && record.workspacePurpose.trim()
+          ? { workspacePurpose: record.workspacePurpose.trim() }
+          : {}),
+        ...(typeof record.lastConnectionError === "string" && record.lastConnectionError.trim()
+          ? { lastConnectionError: record.lastConnectionError.trim() }
+          : {}),
+      },
+    ];
+  });
+}
+
+/** relay 任务同步载荷的形状级运行时校验。 */
+function sanitizeSyncTasks(value: unknown): MobileRelayTaskSyncEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): MobileRelayTaskSyncEntry[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const taskId = typeof record.taskId === "string" ? record.taskId.trim() : "";
+    const workspacePath =
+      typeof record.workspacePath === "string" ? record.workspacePath.trim() : "";
+    if (!taskId || !workspacePath) return [];
+    return [
+      {
+        taskId,
+        title: typeof record.title === "string" ? record.title : "",
+        updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
+        createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
+        workspacePath,
+        ...(typeof record.workspaceIdentity === "string" && record.workspaceIdentity.trim()
+          ? { workspaceIdentity: record.workspaceIdentity.trim() }
+          : {}),
+        ...(typeof record.remoteSessionId === "string" && record.remoteSessionId.trim()
+          ? { remoteSessionId: record.remoteSessionId.trim() }
+          : {}),
+        // §33.6：status 透传（Main 投影官方 displayStatus 用）。
+        ...(typeof record.status === "string" && record.status ? { status: record.status } : {}),
+      },
+    ];
+  });
+}
+
+/** §33.18.16 侧板同步载荷的形状级运行时校验（tab 闭集外的值→null）。 */
+function sanitizeSidePaneEntry(value: unknown): MobileRelaySidePaneSyncEntry | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const tab = record.tab === "review" || record.tab === "terminal" ? record.tab : null;
+  return { tab };
 }

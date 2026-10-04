@@ -1284,7 +1284,11 @@ const UserInputRowView = memo(function UserInputRowView({
       <MessageActions
         className={cn(
           "mt-1",
-          "opacity-0 transition-opacity group-hover/user-row:opacity-100 focus-within:opacity-100",
+          // §32.51 官方 compactForRemoteControl 同语义：手机远控无 hover，操作行常显；
+          // 桌面端继续 hover/focus 降噪。hover:none 媒体降级兜底真机触屏。
+          context.compactForRemoteControl
+            ? "opacity-100"
+            : "opacity-0 transition-opacity group-hover/user-row:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100",
         )}
       >
         <CopyRowAction
@@ -1581,7 +1585,11 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           onFeedbackChange={onFeedbackChange}
           className={cn(
             "mt-1",
-            "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100",
+            // §32.51 官方 compactForRemoteControl 同语义：手机远控无 hover，操作行常显；
+            // 桌面端继续 hover/focus 降噪。
+            context.compactForRemoteControl
+              ? "opacity-100"
+              : "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100",
           )}
         />
       ) : null}

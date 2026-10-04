@@ -1,0 +1,9 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [`path`, { d: `M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242`, key: `1pljnt` }],
+    [`path`, { d: `M16 17H7`, key: `pygtm1` }],
+    [`path`, { d: `M17 21H9`, key: `1u2q02` }],
+  ],
+  n = e(`cloud-fog`, t);
+export { t as __iconNode, n as default };

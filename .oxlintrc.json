@@ -19,6 +19,21 @@
       "rules": {
         "max-lines": "off"
       }
+    },
+    {
+      // 手机远控手机页的 locale 文件与桌面 i18n 同性质（键值对词表，天然超 400 行）。
+      "files": ["packages/mobile-web/src/intl/*.ts"],
+      "rules": {
+        "max-lines": "off"
+      }
+    },
+    {
+      // 宽壳侧栏是自包含的官方对齐壳组件（§19/P5b + §33.18 活体对齐注释），拆分反而
+      // 破坏与上游页结构的对照性；仅豁免此文件。
+      "files": ["packages/mobile-web/src/ui/wide/Sidebar.tsx"],
+      "rules": {
+        "max-lines": "off"
+      }
     }
   ],
   "settings": {
@@ -61,6 +76,11 @@
     ".agents/skills",
     "packages/formal-proof",
     "apps/zcode-cli",
-    "docs/electron"
+    "docs/electron",
+    "packages/mobile-web/upstream",
+    "packages/mobile-web/src/recovered",
+    "packages/mobile-web/dist",
+    "packages/mobile-web/remote-dist",
+    "packages/mobile-web/scripts/dev-host-stub.mjs"
   ]
 }

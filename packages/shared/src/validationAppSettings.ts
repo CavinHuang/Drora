@@ -474,6 +474,8 @@ const appSettingsObjectSchema = z.object({
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  /** 自建 relay 服务端地址（mobile-relay-server.md §8；空=官方 zcode.z.ai）。 */
+  relayServerUrl: nonEmptyStringSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -563,4 +565,6 @@ export const appSettingsPatchSchema = z.object({
     .optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  /** 自建 relay 服务端地址（清空=回落官方；与 relayServerUrl 设置键同名同义）。 */
+  relayServerUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
 });

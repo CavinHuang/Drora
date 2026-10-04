@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "lib": ["ES2022"]
+  },
+  "include": ["src"],
+  // 依赖 @zcode/shared 的 relay-wire 区（spec D2 线协议同源化）；与 services/client
+  // 同款工程引用，避免 typecheck 顺着 workspace 入口重复编译 shared 源码。
+  "references": [{ "path": "../shared" }]
+}

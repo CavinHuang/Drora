@@ -161,6 +161,30 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 export const PlatformChannels = {
   /** 打开系统目录选择框 */
   SelectDirectory: "zcode:select-directory",
+  /** Renderer → Main：启动官方 relay 云中继远控（注册/鉴权设备并生成 v4 托管页二维码） */
+  MobileRelayStart: "zcode:mobile-relay-start",
+  /** Renderer → Main：停止官方 relay 云中继远控（断开并保留设备凭据） */
+  MobileRelayStop: "zcode:mobile-relay-stop",
+  /** Renderer → Main：重置 relay 设备凭据（轮换 deviceSid/passHash，泄露二维码用） */
+  MobileRelayReset: "zcode:mobile-relay-reset",
+  /** Renderer → Main：查询 relay 远控运行状态 */
+  MobileRelayState: "zcode:mobile-relay-state",
+  /** Main → Renderer：relay 远控运行状态推送 */
+  MobileRelayStateChanged: "zcode:mobile-relay-state-changed",
+  /** Renderer → Main：同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
+  MobileRelaySyncWorkspaces: "zcode:mobile-relay-sync-workspaces",
+  /** Renderer → Main：同步跨工作区任务列表到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
+  MobileRelaySyncTasks: "zcode:mobile-relay-sync-tasks",
+  /** Renderer → Main：同步窗口侧板当前 tab 到 relay 远控（§33.18.16 侧板初态投影，zcode 扩展面） */
+  MobileRelaySyncSidePane: "zcode:mobile-relay-sync-side-pane",
+  /**
+   * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
+   * zcode:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
+   * main→renderer 发 {requestId, workspaceKey}，renderer 处理后经同一通道回
+   * {requestId, workspaceKey, success, error?}——重连事实（历史/target/凭据）归
+   * 窗口 renderer，main 只做转发与等待（官方 qb 语义，120s 超时）。
+   */
+  WebRemoteControlReconnectWorkspace: "zcode:web-remote-control-reconnect-workspace",
   /** 打开系统文件选择框 */
   SelectFile: "zcode:select-file",
   /** 打开系统多文件选择框 */

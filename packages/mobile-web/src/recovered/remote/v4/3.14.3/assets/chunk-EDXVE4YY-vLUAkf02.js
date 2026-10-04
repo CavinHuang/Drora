@@ -1,0 +1,16 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { i as e, r as t } from "./src-BBFd38IP.js";
+import { c as n } from "./chunk-ICPOFSXX-DxCSEkoa.js";
+var r = t((t, r, o, s) => {
+    t.attr(`class`, o);
+    let { width: c, height: l, x: u, y: d } = i(t, r);
+    n(t, l, c, s);
+    let f = a(u, d, c, l, r);
+    (t.attr(`viewBox`, f), e.debug(`viewBox configured: ${f} with padding: ${r}`));
+  }, `setupViewPortForSVG`),
+  i = t((e, t) => {
+    let n = e.node()?.getBBox() || { width: 0, height: 0, x: 0, y: 0 };
+    return { width: n.width + t * 2, height: n.height + t * 2, x: n.x, y: n.y };
+  }, `calculateDimensionsWithPadding`),
+  a = t((e, t, n, r, i) => `${e - i} ${t - i} ${n} ${r}`, `createViewBox`);
+export { r as t };

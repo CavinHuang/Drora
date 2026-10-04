@@ -11,6 +11,23 @@ export function createDesktopPlatform(options: {
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.zcode.selectDirectory(),
+    // 移动远控方法面必须整体转发（spec: mobile-web-remote.md「Renderer 集成面」）：
+    // relay 五项缺失曾让云中继 tab 永久停在“正在准备二维码”，且 renderer 子项目
+    // 不在根 typecheck 覆盖内，缺口只能由 desktopRendererPlatformMobileFace 测试守护。
+    // 旧 LAN 直连 5 项（startMobilePairing 等）已随配对栈删除（§12.4）。
+    startMobileRelayControl: (params) => window.zcode.startMobileRelayControl(params),
+    stopMobileRelayControl: () => window.zcode.stopMobileRelayControl(),
+    refreshMobileRelayControl: () => window.zcode.refreshMobileRelayControl(),
+    getMobileRelayControlState: () => window.zcode.getMobileRelayControlState(),
+    onMobileRelayStateChanged: (handler) => window.zcode.onMobileRelayStateChanged(handler),
+    syncWebRemoteControlWorkspaces: (workspaces) =>
+      window.zcode.syncWebRemoteControlWorkspaces(workspaces),
+    syncWebRemoteControlTasks: (tasks) => window.zcode.syncWebRemoteControlTasks(tasks),
+    // fork 原版漏转 syncWebRemoteControlSidePane（preload 有暴露但 renderer 未转发，
+    // SidePaneSync 组件在桌面 renderer 恒 no-op）——迁移时补齐该接线。
+    syncWebRemoteControlSidePane: (entry) => window.zcode.syncWebRemoteControlSidePane?.(entry),
+    onWebRemoteControlReconnectWorkspace: (callback) =>
+      window.zcode.onWebRemoteControlReconnectWorkspace(callback),
     selectFile: () => window.zcode.selectFile(),
     selectFiles: () => window.zcode.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.zcode.createTempTextAttachment(payload),

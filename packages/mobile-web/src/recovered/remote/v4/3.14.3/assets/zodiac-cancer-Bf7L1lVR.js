@@ -1,0 +1,10 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [`path`, { d: `M21 14.5A9 6.5 0 0 1 5.5 19`, key: `1xj2o6` }],
+    [`path`, { d: `M3 9.5A9 6.5 0 0 1 18.5 5`, key: `1gln3t` }],
+    [`circle`, { cx: `17.5`, cy: `14.5`, r: `3.5`, key: `1ccu1t` }],
+    [`circle`, { cx: `6.5`, cy: `9.5`, r: `3.5`, key: `x5tc2d` }],
+  ],
+  n = e(`zodiac-cancer`, t);
+export { t as __iconNode, n as default };

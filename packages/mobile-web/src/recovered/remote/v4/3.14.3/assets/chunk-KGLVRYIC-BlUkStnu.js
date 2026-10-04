@@ -1,0 +1,33 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import {
+  _ as e,
+  g as t,
+  h as n,
+  i as r,
+  m as i,
+  o as a,
+  s as o,
+  t as s,
+  v as c,
+} from "./chunk-K5T4RW27-DC1TZ8rA.js";
+var l = class extends s {
+    static {
+      i(this, `InfoTokenBuilder`);
+    }
+    constructor() {
+      super([`info`, `showInfo`]);
+    }
+  },
+  u = {
+    parser: {
+      TokenBuilder: i(() => new l(), `TokenBuilder`),
+      ValueConverter: i(() => new r(), `ValueConverter`),
+    },
+  };
+function d(r = n) {
+  let i = t(c(r), o),
+    s = t(e({ shared: i }), a, u);
+  return (i.ServiceRegistry.register(s), { shared: i, Info: s });
+}
+i(d, `createInfoServices`);
+export { d as n, u as t };

@@ -11,6 +11,14 @@
 import { VSBuffer } from "./buffer.js";
 import { Event, Emitter, IDisposable, DisposableStore } from "./foundation.js";
 
+/**
+ * 单帧 body 上限（fail-closed）：伪造/损坏的 length 会让读侧把后续合法帧全部吞进
+ * pending body（连接静默卡死，批 3 RPC 审查 P2-2 实证）。合法流量的帧长由 v4 层
+ * PROTOCOL_V4_LIMITS.maxFrameBytes 约束在 1MiB 级；这里取 32MiB 余量——超过即视为
+ * 协议损坏，断开而不是挂死。
+ */
+const MAX_FRAME_BODY_LENGTH = 32 * 1024 * 1024;
+
 // ============================================================================
 // 核心传输接口
 // ============================================================================
@@ -55,6 +63,18 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
     record.__zcodeRpcControl === "connection-flow-v1" &&
     (record.state === "saturated" || record.state === "drained")
   );
+}
+
+/**
+ * connection-flow-v1 sideband 构造（契约字面量单一出处）。
+ *
+ * 走向（官方 3.14.3 取证，specs/mobile-web-remote.md「flow-state sideband」小节）：
+ * 桥发送侧水位越限（saturated）/ 回落（drained）时，由桌面 main 经 Host 附着端口
+ * postMessage 本对象（不进 relay 数据面）；Host 侧 MessagePortProtocol 分流到
+ * onFlowState → connectionScope.setTransportFlowState 暂停/恢复 CLI 发送。
+ */
+export function messagePortFlowControl(state: MessagePortFlowState): MessagePortFlowControl {
+  return { __zcodeRpcControl: "connection-flow-v1", state };
 }
 
 // ============================================================================
@@ -268,6 +288,14 @@ export class SocketProtocol implements IMessagePassingProtocol {
       const _id = header.readUInt32BE(1);
       const _ack = header.readUInt32BE(5);
       const length = header.readUInt32BE(9);
+      if (length > MAX_FRAME_BODY_LENGTH) {
+        // 协议损坏：断开而不是把后续帧吞进 pending（DoS 防护，批 3 RPC P2-2）。
+        console.error(
+          `[rpc] frame length ${length} exceeds ${MAX_FRAME_BODY_LENGTH}; closing connection`,
+        );
+        this.socket.end();
+        return;
+      }
 
       const totalFrameLength = HEADER_SIZE + length;
       if (this.chunkStream.byteLength < totalFrameLength) {
@@ -385,7 +413,7 @@ export class MessagePortProtocol implements IMessagePassingProtocol {
   }
 
   sendFlowState(state: MessagePortFlowState): void {
-    this.port.postMessage({ __zcodeRpcControl: "connection-flow-v1", state });
+    this.port.postMessage(messagePortFlowControl(state));
   }
 
   disconnect(): void {

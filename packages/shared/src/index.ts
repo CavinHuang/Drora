@@ -216,6 +216,12 @@ export type {
   EmbeddedBrowserDataClearResult,
   EmbeddedBrowserOpenUrlRequest,
   IPlatformService,
+  MobilePairingFailure,
+  MobilePairingRuntimeState,
+  MobilePairingStatus,
+  MobileRelaySidePaneSyncEntry,
+  MobileRelayTaskSyncEntry,
+  MobileRelayWorkspaceSyncEntry,
   OpenInEditorRemoteTarget,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
@@ -313,3 +319,5 @@ export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
 export { redactFeedbackText } from "./feedbackPrivacy.js";
+// relay 线协议纯逻辑（spec D2：desktop/relay-server/relay-client 三方同源）。
+export * from "./relay-wire/index.js";

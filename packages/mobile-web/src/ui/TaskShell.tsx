@@ -1,0 +1,175 @@
+// R3 移动会话面壳——自包含移植自 packages/ui/src/mobile/MobileTaskShell.tsx（D6 冻结 ui，
+// 本包自持）。本期只做壳与导航：顶栏 + 时间线滚动容器 + 底部 composer 槽，
+// 时间线/composer 由装配方注入（P2a 基础版注入只读行渲染与 sendText composer）。
+import type { Ref, ReactNode } from "react";
+import { ArrowLeft, Ellipsis, Palette } from "lucide-react";
+import { Button } from "./Button.js";
+import { cn } from "./cn.js";
+import { useIntl } from "./intl.js";
+
+export interface MobileTaskShellProps {
+  title?: string;
+  onBack?: () => void;
+  onMorePress?: () => void;
+  /** §32.13 官方任务面顶栏右上主题钮（活拍对齐）。 */
+  onThemePress?: () => void;
+  /** 时间线内容槽（P2a：只读行渲染；富时间线归 P3）。 */
+  timeline?: ReactNode;
+  /** 官方任务面在导航栏与消息区之间的工作区标题栏。 */
+  workspaceHeader?: ReactNode;
+  /** 底部 composer 槽。 */
+  composer?: ReactNode;
+  /** 时间线滚动容器 ref：stick-to-bottom / 滚动定位由调用方控制。 */
+  timelineScrollRef?: Ref<HTMLDivElement>;
+  /** 时间线组件自带滚动视口时避免双层滚动。 */
+  timelineOwnsScroll?: boolean;
+  /** 连接中断提示（如重新连接中文案由装配方注入）。 */
+  connectionBanner?: ReactNode;
+  /** §33.18 官方宽壳任务面无「任务会话」顶栏行（主区头=工作区标题行）——true 不渲染。 */
+  topBarHidden?: boolean;
+  /** §32.40 侧板内容（workspaceHeader 下方覆盖层；open 时底层压暗）。 */
+  sidePane?: ReactNode;
+  sidePaneOpen?: boolean;
+  /** §32.43 遮罩钮点击（官方 ain 遮罩是可点关闭的 button）。 */
+  onSidePaneOverlayClose?: () => void;
+  className?: string;
+}
+
+export function MobileTaskShell({
+  title,
+  onBack,
+  onMorePress,
+  onThemePress,
+  timeline,
+  workspaceHeader,
+  composer,
+  timelineScrollRef,
+  timelineOwnsScroll = false,
+  connectionBanner,
+  topBarHidden = false,
+  /** §32.40 官方侧板挂载（从头部行下方起 + 底层压暗遮罩，双页截图对照实证）。 */
+  sidePane,
+  sidePaneOpen = false,
+  onSidePaneOverlayClose,
+  className,
+}: MobileTaskShellProps) {
+  const { formatMessage } = useIntl();
+  const resolvedTitle = title ?? formatMessage({ id: "mobileShell.task.chatTitle" });
+
+  return (
+    <div
+      className={cn(
+        "flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-background text-foreground",
+        className,
+      )}
+    >
+      {/* 顶栏（官方 h-11 bg-header px-2 结构）；宽壳官方无此行（topBarHidden）。 */}
+      {topBarHidden ? null : (
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-header px-2">
+          {onBack ? (
+            <Button
+              variant="ghost"
+              // 移动壳触控目标 ≥44px：显式放大图标按钮（覆盖 icon-sm 默认 size-6）。
+              size="icon-sm"
+              className="size-11"
+              aria-label={formatMessage({ id: "mobileShell.task.backHome" })}
+              onClick={onBack}
+            >
+              <ArrowLeft aria-hidden="true" className="size-4" />
+            </Button>
+          ) : null}
+          <span className="min-w-0 flex-1 truncate text-ui-base font-medium">{resolvedTitle}</span>
+          {onThemePress ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              aria-label={formatMessage({ id: "mobileShell.home.theme" })}
+              onClick={onThemePress}
+            >
+              <Palette aria-hidden="true" className="size-4" />
+            </Button>
+          ) : null}
+          {onMorePress ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              aria-label={formatMessage({ id: "mobileShell.task.more" })}
+              aria-haspopup="menu"
+              onClick={onMorePress}
+            >
+              <Ellipsis aria-hidden="true" className="size-4" />
+            </Button>
+          ) : null}
+        </header>
+      )}
+
+      {workspaceHeader}
+
+      {/* P6 骨架对齐（spec §23.10 取证）：官方 [v4-session-pane-workspace-main] = 会话
+          主容器（相对定位 flex，包 时间线 + dock；官方横排因含侧板，窄壳纵排同 testid）。 */}
+      <div
+        data-testid="v4-session-pane-workspace-main"
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        {/* §32.43 官方侧板遮罩逐字还原（ain @bundle：data-mobile-side-pane-overlay +
+            bg-background/60 backdrop-blur-[1px]，非 bg-black/40）；遮罩钮带关闭语义标签。
+            §32.69 官方活体（mv-side-official）：面板顶缘=双顶栏（顶栏 44+工作区头 48）
+            之下、覆盖 composer 至视口底——fixed 定位脱离 main 容器（inset-0 会被
+            composer 槽兄弟盖住，活体实证）。 */}
+        {sidePaneOpen && sidePane ? (
+          <>
+            <button
+              type="button"
+              aria-label={formatMessage({ id: "sidePane.collapse" })}
+              className="fixed inset-x-0 bottom-0 z-30 bg-background/60 backdrop-blur-[1px]"
+              style={{ top: topBarHidden ? 48 : 92 }}
+              onClick={onSidePaneOverlayClose}
+            />
+            <div
+              data-mobile-side-pane-overlay="true"
+              className="fixed inset-x-0 bottom-0 z-40 transition-opacity duration-200 ease-out"
+              style={{ top: topBarHidden ? 48 : 92 }}
+            >
+              {sidePane}
+            </div>
+          </>
+        ) : null}
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {connectionBanner ? (
+            <div className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle">
+              {connectionBanner}
+            </div>
+          ) : null}
+          <div
+            ref={timelineOwnsScroll ? undefined : timelineScrollRef}
+            className={
+              timelineOwnsScroll
+                ? "flex min-h-0 min-w-0 flex-1 flex-col"
+                : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            }
+          >
+            {timeline}
+          </div>
+        </div>
+
+        {/* 底部 composer 槽；safe-area 内边距避免 iOS 底部手势区遮挡输入面。
+            官方 dock 双层 grid（conversation-bottom-dock-transition > -layer 同格叠放，
+            滚动渐变动画双 buffer 形态逐字）。 */}
+        {composer ? (
+          <div className="shrink-0 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
+            <div data-testid="conversation-bottom-dock-transition" className="grid w-full">
+              <div
+                data-testid="conversation-bottom-dock-transition-layer"
+                className="col-start-1 row-start-1 w-full min-w-0"
+              >
+                {composer}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

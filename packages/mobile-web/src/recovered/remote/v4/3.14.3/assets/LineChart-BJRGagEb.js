@@ -1,0 +1,18 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { s as e } from "./chunk-Bj-mKKzh.js";
+import { t } from "./react-47hYKFMc.js";
+import { G as n } from "./chart-g3jDpNEO.js";
+import { t as r } from "./CartesianChart-D0sV0uXC.js";
+var i = e(t()),
+  a = [`axis`],
+  o = (0, i.forwardRef)((e, t) =>
+    i.createElement(r, {
+      chartName: `LineChart`,
+      defaultTooltipEventType: `axis`,
+      validateTooltipEventTypes: a,
+      tooltipPayloadSearcher: n,
+      categoricalChartProps: e,
+      ref: t,
+    }),
+  );
+export { o as t };

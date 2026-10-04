@@ -1,0 +1,15 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [
+      `path`,
+      {
+        d: `m17.586 11.414-5.93 5.93a1 1 0 0 1-8-8l3.137-3.137a.707.707 0 0 1 1.207.5V10`,
+        key: `157y8s`,
+      },
+    ],
+    [`path`, { d: `M20.414 8.586 22 7`, key: `5g2s34` }],
+    [`circle`, { cx: `19`, cy: `10`, r: `2`, key: `7363ft` }],
+  ],
+  n = e(`fishing-hook`, t);
+export { t as __iconNode, n as default };

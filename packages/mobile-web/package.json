@@ -1,0 +1,35 @@
+{
+  "name": "@zcode/mobile-web",
+  "version": "3.14.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "recover": "node scripts/recover.mjs",
+    "build:snapshot": "node scripts/build.mjs",
+    "dev": "vite",
+    "build": "node scripts/build-app.mjs",
+    "test": "node --test test/*.test.mjs && node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@zcode/client": "workspace:*",
+    "@zcode/relay-client": "workspace:*",
+    "@zcode/rpc": "workspace:*",
+    "@zcode/services": "workspace:*",
+    "@zcode/shared": "workspace:*",
+    "@zcode/ui": "workspace:*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.550.0",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.2"
+  }
+}

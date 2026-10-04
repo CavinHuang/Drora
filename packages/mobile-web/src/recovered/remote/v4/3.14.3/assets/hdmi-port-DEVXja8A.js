@@ -1,0 +1,14 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import { t as e } from "./createLucideIcon-028HPnND.js";
+var t = [
+    [
+      `path`,
+      {
+        d: `M22 9a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1l2 2h12l2-2h1a1 1 0 0 0 1-1Z`,
+        key: `2128wb`,
+      },
+    ],
+    [`path`, { d: `M7.5 12h9`, key: `1t0ckc` }],
+  ],
+  n = e(`hdmi-port`, t);
+export { t as __iconNode, n as default };

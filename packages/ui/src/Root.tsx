@@ -40,6 +40,7 @@ import { TabStoreProvider, useTabStore, useTabStoreApi } from "@/store/TabStoreP
 import { isSettingsTab, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import { logger } from "@/logger.js";
 import { RootShell } from "@/root/RootShell.js";
+import { WebRemoteControlTaskSync } from "@/root/WebRemoteControlTaskSync.js";
 import { RootWorkspaceContent } from "@/root/RootWorkspaceContent.js";
 import { resolveRootWorkspaceShellTarget } from "@/root/rootWorkspaceShellTarget.js";
 import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
@@ -694,6 +695,37 @@ function RootInner({
     });
   }, [platform]);
 
+  useEffect(() => {
+    // 手机 workspace-reconnect-request 的窗口重连委托（官方 Root 同款接线，
+    // 托管页取证 styles-DEELZGp2.js@5942240）：远程连接历史/target/凭据都在窗口
+    // renderer，main 只转发手机请求，这里用既有 handleReconnectRemoteWorkspace
+    // 执行重连——不激活 tab、不弹 toast、失败抛错（由委托折叠为 success:false）。
+    if (!platform.onWebRemoteControlReconnectWorkspace) {
+      return;
+    }
+    return platform.onWebRemoteControlReconnectWorkspace(async (request) => {
+      try {
+        await handleReconnectRemoteWorkspace(request.workspaceKey, {
+          activateWorkspaceAfterReconnect: false,
+          showErrorToast: false,
+          throwOnFailure: true,
+        });
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: true,
+        };
+      } catch (error) {
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  }, [handleReconnectRemoteWorkspace, platform]);
+
   useRootOAuthEffects({
     accountIntentKey: JSON.stringify([
       user?.id,
@@ -1012,6 +1044,8 @@ function RootInner({
       {rootModelSelectionErrorNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}
+      {/* 云中继远控运行期间向 main 推送跨工作区任务时间线（官方 AMn 同款隐藏组件）。 */}
+      <WebRemoteControlTaskSync workspaceTabs={tabs.filter(isWorkspaceTab)} />
       <OccupationOnboarding
         showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
         showChildrenWhileLoading={!workspaceShellPath && isSettingsTabActive}

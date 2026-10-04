@@ -1,0 +1,33 @@
+// 还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。
+import {
+  _ as e,
+  g as t,
+  h as n,
+  i as r,
+  m as i,
+  s as a,
+  t as o,
+  u as s,
+  v as c,
+} from "./chunk-K5T4RW27-DC1TZ8rA.js";
+var l = class extends o {
+    static {
+      i(this, `RadarTokenBuilder`);
+    }
+    constructor() {
+      super([`radar-beta`]);
+    }
+  },
+  u = {
+    parser: {
+      TokenBuilder: i(() => new l(), `TokenBuilder`),
+      ValueConverter: i(() => new r(), `ValueConverter`),
+    },
+  };
+function d(r = n) {
+  let i = t(c(r), a),
+    o = t(e({ shared: i }), s, u);
+  return (i.ServiceRegistry.register(o), { shared: i, Radar: o });
+}
+i(d, `createRadarServices`);
+export { d as n, u as t };

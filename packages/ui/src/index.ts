@@ -29,6 +29,30 @@ export { useTestActions } from "./test-actions.js";
 export type { TestActions } from "./test-actions.js";
 export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
 export type { ZCodeState } from "./store/index.js";
+
+// R3 移动壳（specs/mobile-relay-r3-frontend.md D1）：纯展示组件，数据 props 注入。
+export {
+  MobileLoadingCard,
+  MobileConnectionStatusCard,
+  MobileFailureCard,
+  MOBILE_FAILURE_CARD_TONES,
+  mobileFailureCodeFromWire,
+  MobileHomeShell,
+  MobileTaskShell,
+} from "./mobile/index.js";
+export type {
+  MobileConnectionPhase,
+  MobileFailureCardTone,
+  MobileFailureCode,
+  MobileLoadingCardProps,
+  MobileConnectionStatusCardProps,
+  MobileFailureCardProps,
+  MobileHomeShellProps,
+  MobileHomeShellTask,
+  MobileHomeShellWorkspace,
+  MobileHomeConnectionState,
+  MobileTaskShellProps,
+} from "./mobile/index.js";
 export {
   bindRemoteWorkspacePath,
   getRemoteWorkspaceSession,

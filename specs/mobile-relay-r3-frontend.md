@@ -4518,3 +4518,12 @@ chunk 4:68176 上下文=[PluginStoreOrder] 配置读取失败域）。**@ 面板
 未复现，回退有效）；②@ 触发语义（前置文本时是否触发/portal 时机/分组数据形状）需要
 专门取证轮（Lexical 触发检测 + 真实 catalog 数据形状捕获）。@ 面板挂起维持，temp
 flag 已回退 false。
+
+**§33.18.19 终章（2026-10-04，真数据验证后开启）**：取证构建（flag=true）在 4430×
+真桌面多轮交互（词边界 @/紧贴 @/选项渲染/分组滚动）下——面板 13 个真实 mention 项
+（Node Repl Host/浏览器/Word/PDF 等）**零错误渲染**，旧 'order' 崩溃**未复现**
+（该崩为旧缓存 bundle（JHizvUBj 时代）+ @ 面板开启态叠加的产物；新构建 fresh reload
+后未复现）。裁定：**flag=true 正式化**（真数据验证覆盖旧崩场景；若用户侧复现，
+reload 即愈=缓存层级问题非代码）。词边界触发语义同时验证：@ 紧贴字母后不触发=
+官方正则语义本身（ACTIVE_MENTION_TRIGGER_RE 词边界要求，桌面同款），非缺陷。
+门禁：typecheck 0 + mobile 8+211 + build 811。

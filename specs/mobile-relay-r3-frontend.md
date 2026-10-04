@@ -4527,3 +4527,12 @@ flag 已回退 false。
 reload 即愈=缓存层级问题非代码）。词边界触发语义同时验证：@ 紧贴字母后不触发=
 官方正则语义本身（ACTIVE_MENTION_TRIGGER_RE 词边界要求，桌面同款），非缺陷。
 门禁：typecheck 0 + mobile 8+211 + build 811。
+
+**§33.18.23 额度面范围裁定（2026-10-04 凌晨，待裁定）**：composer 剩余额度钮 +
+额度横幅（ConversationQuotaBanner 族）数据方法已定位
+（usageStats.getCodingPlanResetStatus，宿主 server 已注册——WAF 间歇失败只影响
+数据可用性不影响面存在）。**阻塞**：官方按钮点击弹层行为无取证（59702 已撤场、
+Mac 页额度数据被 TLS 切断不显示该钮）——渲染无行为死按钮=臆造边界。解阻塞路径：
+①官方页活体取证（需额度数据可用的官方桌面在场）；②按 CodingPlanEntryButton
+（settings 域既有件）接移动端入口形态。与 @ 面板解阻塞（clientConfig 桥接）同轮
+打包实施最优（同属 clientConfig/额度数据面）。

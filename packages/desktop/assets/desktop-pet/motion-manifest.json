@@ -1,0 +1,73 @@
+{
+  "cellSize": 192,
+  "columns": 8,
+  "rows": [
+    {
+      "mode": "idle",
+      "playback": "loop",
+      "stillFrame": 0,
+      "frames": [
+        { "source": "violet-cat-master.png", "durationMs": 1200 },
+        { "source": "poses/idle-inhale.png", "durationMs": 180 },
+        { "source": "violet-cat-half-blink-master.png", "durationMs": 90 },
+        { "source": "violet-cat-blink-master.png", "durationMs": 110 },
+        { "source": "violet-cat-half-blink-master.png", "durationMs": 90, "returning": true },
+        { "source": "poses/idle-exhale.png", "durationMs": 220 },
+        { "source": "poses/idle-ear-twitch.png", "durationMs": 1200 }
+      ]
+    },
+    {
+      "mode": "working",
+      "playback": "loop",
+      "stillFrame": 0,
+      "frames": [
+        { "source": "violet-cat-working-master.png", "durationMs": 180 },
+        { "source": "poses/working-left-paw.png", "durationMs": 140 },
+        { "source": "poses/working-both-paws.png", "durationMs": 140 },
+        { "source": "poses/working-right-paw.png", "durationMs": 140 },
+        { "source": "poses/working-think.png", "durationMs": 180 },
+        { "source": "poses/working-rest.png", "durationMs": 260 }
+      ]
+    },
+    {
+      "mode": "attention",
+      "playback": "loop",
+      "stillFrame": 0,
+      "frames": [
+        { "source": "violet-cat-attention-master.png", "durationMs": 280 },
+        { "source": "poses/attention-left-paw.png", "durationMs": 180 },
+        { "source": "poses/attention-forward.png", "durationMs": 200 },
+        { "source": "poses/attention-right-paw.png", "durationMs": 180 },
+        { "source": "poses/attention-soft-blink.png", "durationMs": 160 },
+        { "source": "poses/attention-lean.png", "durationMs": 320 }
+      ]
+    },
+    {
+      "mode": "completed",
+      "playback": "once",
+      "stillFrame": 4,
+      "frames": [
+        { "source": "poses/completed-crouch.png", "durationMs": 120 },
+        { "source": "poses/completed-lift.png", "durationMs": 140, "liftPx": 8 },
+        { "source": "poses/completed-apex.png", "durationMs": 180, "liftPx": 19 },
+        { "source": "poses/completed-land.png", "durationMs": 140 },
+        { "source": "violet-cat-completed-master.png", "durationMs": 320 }
+      ]
+    },
+    {
+      "mode": "error",
+      "playback": "once",
+      "stillFrame": 0,
+      "frames": [
+        { "source": "violet-cat-error-master.png", "durationMs": 120 },
+        { "source": "poses/error-startle.png", "durationMs": 130 },
+        { "source": "poses/error-glance-left.png", "durationMs": 130 },
+        { "source": "poses/error-glance-right.png", "durationMs": 130 },
+        { "source": "poses/error-wince.png", "durationMs": 160 },
+        { "source": "poses/error-droop.png", "durationMs": 160 },
+        { "source": "poses/error-bow.png", "durationMs": 160 },
+        { "source": "poses/error-recover.png", "durationMs": 340 }
+      ]
+    }
+  ]
+}

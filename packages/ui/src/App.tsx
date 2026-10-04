@@ -63,6 +63,7 @@ import { useTaskSidePaneMemoryBridge } from "@/app-shell/useTaskSidePaneMemoryBr
 import { resolveAppWorkspaceRpcTarget } from "@/app-shell/workspaceRpcTarget.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
+import { useDesktopPet } from "@/hooks/useDesktopPet.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
 import type {
@@ -288,6 +289,14 @@ export function App({
     enabled: Boolean(notificationEnabled && isDesktop),
     formatMessage: intl.formatMessage,
   });
+  useDesktopPet({
+    workspacePath: workspaceAbsPath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(workspaceRemoteSessionId ? { endpointKey: workspaceRemoteSessionId } : {}),
+    rpcReady: workspaceRpcReady,
+    enabled: Boolean(isDesktop),
+    platform,
+  });
   const lastHandledDraftSidePaneCloseRef = useRef({
     workspaceKey,
     draftFocusVersion,
@@ -373,6 +382,31 @@ export function App({
   const tabs = useTabStore((s) => s.tabs);
   const addTab = useTabStore((s) => s.addTab);
   const activateTabByPath = useTabStore((s) => s.activateTabByPath);
+  useEffect(() => {
+    return (
+      platform?.onDesktopPetOpenTask?.((target) => {
+        const identity = target.workspaceIdentity?.trim();
+        const hasTargetTab = tabs.some(
+          (tab) =>
+            isWorkspaceTab(tab) &&
+            tab.workspacePath === target.workspacePath &&
+            (tab.workspaceIdentity?.trim() || undefined) === identity &&
+            (tab.remoteSessionId || undefined) === target.remoteSessionId,
+        );
+        if (!hasTargetTab) return;
+        if (
+          activateTabByPath(
+            target.workspacePath,
+            identity ? { workspaceIdentity: identity } : undefined,
+          )
+        ) {
+          useZCodeSessionStore
+            .getState()
+            .setActiveTaskId(target.workspacePath, target.sessionId, identity);
+        }
+      }) ?? (() => {})
+    );
+  }, [activateTabByPath, platform, tabs]);
 
   const {
     resolvedActiveTaskMeta,

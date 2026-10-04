@@ -341,6 +341,16 @@ export const PlatformChannels = {
   TaskNotificationSound: "zcode:task-notification-sound",
   /** Main → Preload：用户点击了系统通知，携带 taskId 让 renderer 跳转到对应任务 */
   TaskNotificationClick: "zcode:task-notification-click",
+  /** Renderer → Main：发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
+  DesktopPetPublish: "zcode:desktop-pet-publish",
+  /** Pet → Main：点击宠物打开对应任务 */
+  DesktopPetOpenTask: "zcode:desktop-pet-open-task",
+  /** Main → Pet：向宠物窗口推送任务状态渲染帧 */
+  DesktopPetRender: "zcode:desktop-pet-render",
+  /** Pet → Main：宠物被点击激活 */
+  DesktopPetActivate: "zcode:desktop-pet-activate",
+  /** Pet → Main：宠物拖拽事件（start/move/end） */
+  DesktopPetDrag: "zcode:desktop-pet-drag",
   /** Renderer → Main：导出日志（打包 ~/.zcode/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "zcode:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -971,6 +981,26 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.TaskNotificationClick]: {
     request: string;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetPublish]: {
+    request: import("./desktopPet.js").DesktopPetPresentation;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetOpenTask]: {
+    request: import("./desktopPet.js").DesktopPetTarget;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetRender]: {
+    request: import("./desktopPet.js").DesktopPetPresentation;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetActivate]: {
+    request: void;
+    response: void;
+  };
+  [PlatformChannels.DesktopPetDrag]: {
+    request: import("./desktopPet.js").DesktopPetDrag;
     response: void;
   };
   [PlatformChannels.WindowFullscreenChanged]: {

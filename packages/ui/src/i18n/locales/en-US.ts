@@ -2211,6 +2211,9 @@ const enUS: Record<string, string> = {
   "settings.notification": "Task notifications",
   "settings.notificationDescription":
     "Send desktop notifications when a task completes, fails, or needs approval.",
+  "settings.desktopPet": "Desktop pet",
+  "settings.desktopPetDescription":
+    "Show task status on the desktop. Click the pet to open its task.",
   "settings.notificationSound": "Notification sound",
   "settings.notificationSoundDescription":
     "When notifications are enabled, you can mute the task notification sound separately.",

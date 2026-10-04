@@ -77,6 +77,7 @@ export function createDesktopPlatform(options: {
       ? (sample) => window.zcode.reportRendererHeapSample!(sample)
       : undefined,
     showTaskNotification: (payload) => window.zcode.showTaskNotification(payload),
+    publishDesktopPet: (presentation) => window.zcode.publishDesktopPet?.(presentation),
     syncWindowTabs: (paths) => window.zcode.syncWindowTabs(paths),
     syncWindowUnreadCount: (count) => window.zcode.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.zcode.syncActiveTaskSession(sessionId),
@@ -119,6 +120,7 @@ export function createDesktopPlatform(options: {
     onDesktopZoomLevelChanged: (handler) =>
       window.zcode.onDesktopZoomLevelChanged?.(handler) ?? (() => {}),
     onTaskNotificationClick: (handler) => window.zcode.onTaskNotificationClick(handler),
+    onDesktopPetOpenTask: (handler) => window.zcode.onDesktopPetOpenTask?.(handler) ?? (() => {}),
     exportLogs: () => window.zcode.exportLogs(),
     captureWindowScreenshot: () =>
       window.zcode.captureWindowScreenshot?.() ?? Promise.resolve(null),

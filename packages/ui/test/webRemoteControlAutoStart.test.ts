@@ -51,3 +51,18 @@ test("Main 的 idle 状态保留给当前 tab 自动开启；其他传输的运�
   assert.equal(selectWebRemoteControlTabState(cloudRunning, "relay"), cloudRunning);
   assert.equal(selectWebRemoteControlTabState(undefined, "lan"), undefined);
 });
+
+test("其他传输已运行时可准入一次切换，同时展示投影不串用旧 QR", () => {
+  const gate = createWebRemoteControlAutoStartGate();
+  const cloudActive = { status: "active" as const, transport: "cloud" as const };
+  assert.equal(selectWebRemoteControlTabState(cloudActive, "lan"), undefined);
+  assert.equal(gate.admit(cloudActive, "lan"), true);
+  assert.equal(gate.admit(cloudActive, "lan"), false);
+
+  gate.reset();
+  const lanRunning = { status: "running" as const, transport: "lan" as const };
+  assert.equal(selectWebRemoteControlTabState(lanRunning, "relay"), undefined);
+  assert.equal(gate.admit(lanRunning, "relay"), true);
+  assert.equal(gate.admit(lanRunning, "lan"), false);
+  assert.equal(gate.admit({ status: "active" as const }, "lan"), false);
+});

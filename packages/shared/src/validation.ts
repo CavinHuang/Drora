@@ -3,6 +3,7 @@ import {
   sessionCreateTelemetrySchema,
   automationSessionCreateTelemetrySchema,
 } from "./sessionCreateTelemetry.js";
+import { serverRemoteInfoSchema } from "./server-remote.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
@@ -93,10 +94,20 @@ export const dockerConnectOptionsSchema = z.object({
   container: nonEmptyStringSchema,
 });
 
+export const serverConnectOptionsSchema = z.object({
+  kind: z.literal("server"),
+  url: nonEmptyStringSchema,
+  token: z.string().optional(),
+  // 显示名称与默认目录只随连接流程传递（UI 表单 → 连接建立），不进入恢复快照。
+  name: z.string().optional(),
+  workspacePath: z.string().optional(),
+});
+
 export const remoteTargetSchema = z.discriminatedUnion("kind", [
   sshConnectOptionsSchema,
   wslConnectOptionsSchema,
   dockerConnectOptionsSchema,
+  serverConnectOptionsSchema,
 ]);
 
 export const helloMessageSchema = z.object({
@@ -201,6 +212,9 @@ export const windowHostRemoteWorkspaceDescriptorSchema = z
     workspacePath: nonEmptyStringSchema.optional(),
     workspaceIdentity: nonEmptyStringSchema.optional(),
     generation: z.number().int().positive(),
+    // 第四十九轮：server 形态连接成功时透出 server-info 自描述，供 renderer 目录
+    // 步骤展示 serverInfo.workspaces 快捷选择列表；其余远程形态不带该字段。
+    serverInfo: serverRemoteInfoSchema.optional(),
   })
   .strict();
 export type WindowHostRemoteWorkspaceDescriptor = z.infer<

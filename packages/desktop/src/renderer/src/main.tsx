@@ -225,6 +225,8 @@ function registerRemoteWorkspaceServicePort(params: RemoteWorkspaceServicePortRe
   registerRemoteWorkspaceSession({
     sessionId: params.sessionId,
     target: params.target,
+    // server 形态连接的 server-info 随端口元数据透出（第四十九轮），目录步骤消费。
+    ...(params.serverInfo ? { serverInfo: params.serverInfo } : {}),
     services,
     dispose: (reason) =>
       remoteConnection.dispose(reason ?? createRemoteWorkspaceDisconnectedError()),

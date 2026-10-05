@@ -100,6 +100,15 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     kind: z.literal("docker"),
     container: nonEmptyStringSchema,
   }),
+  z.object({
+    kind: z.literal("server"),
+    url: nonEmptyStringSchema,
+    // 第四十九轮对齐官方提交形态：name/workspacePath 随快照持久化，
+    // 恢复连接时分别用于展示名与默认目录；token 仍只保留 credentialKey。
+    name: nonEmptyStringSchema.optional(),
+    workspacePath: nonEmptyStringSchema.optional(),
+    tokenCredentialKey: nonEmptyStringSchema.optional(),
+  }),
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [

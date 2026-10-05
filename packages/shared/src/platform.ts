@@ -2,6 +2,7 @@
 import type {
   DockerConnectOptions,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
@@ -228,7 +229,8 @@ export interface ApplicationIconRequest {
 export type OpenInEditorRemoteTarget =
   | Pick<SSHConnectOptions, "kind" | "host" | "port" | "username" | "sshConfigAlias">
   | Pick<WSLConnectOptions, "kind" | "distro" | "user">
-  | Pick<DockerConnectOptions, "kind" | "container">;
+  | Pick<DockerConnectOptions, "kind" | "container">
+  | Pick<ServerConnectOptions, "kind" | "url">;
 
 export interface OpenInEditorOptions {
   remoteTarget?: OpenInEditorRemoteTarget;
@@ -299,6 +301,12 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
       return {
         kind: "docker",
         container: target.container,
+      };
+    case "server":
+      // server 远端没有本机可用的编辑器跳转语义；只透传脱敏的连接标识。
+      return {
+        kind: "server",
+        url: target.url,
       };
   }
 }

@@ -67,6 +67,8 @@ type ManualReconnectRemoteWorkspaceParams = {
 export interface SshReconnectCredentials {
   password: string | null;
   privateKeyPassphrase: string | null;
+  // server 形态连接的访问令牌：与 SSH 凭据同边界（只经 credentialService 读取）。
+  serverToken?: string | null;
 }
 
 export interface ReconnectRemoteWorkspaceOptions {
@@ -126,6 +128,10 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
       privateKeyPassphrase:
         sessionEntry.target.kind === "ssh" && sessionEntry.target.privateKeyPassphraseCredentialKey
           ? await loadCredential(sessionEntry.target.privateKeyPassphraseCredentialKey)
+          : null,
+      serverToken:
+        sessionEntry.target.kind === "server" && sessionEntry.target.tokenCredentialKey
+          ? await loadCredential(sessionEntry.target.tokenCredentialKey)
           : null,
     };
     reconnectTarget = createRemoteTargetFromSnapshot(sessionEntry.target, sshCredentials);

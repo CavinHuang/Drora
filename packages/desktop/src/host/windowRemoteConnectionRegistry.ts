@@ -1,8 +1,10 @@
 /* eslint-disable max-lines -- 所有 transport 生命周期共享同一个 registry 状态机，必须原子演进。 */
 import {
   buildSshRemoteHostKey,
+  resolveServerRemoteEndpoints,
   stripRemoteTargetSecrets,
   type RemoteTarget,
+  type ServerRemoteInfo,
   type WindowHostAttachmentScope,
   type WindowHostRemoteWorkspaceDescriptor,
 } from "@zcode/shared";
@@ -23,6 +25,12 @@ export interface WindowRemoteConnectionCloseEvent {
 export interface WindowRemoteConnectionHandle<TServices, TCapabilities = never> {
   services: TServices;
   capabilities?: TCapabilities;
+  /**
+   * 第四十九轮：server 形态连接成功后透出的 server-info 自描述。
+   * registry 把它带进 logical session descriptor，main 再随 ScopedServicePort
+   * 发给 renderer，供目录步骤展示 serverInfo.workspaces 快捷选择列表。
+   */
+  serverInfo?: ServerRemoteInfo;
   dispose(): void | Promise<void>;
   onDidClose?(listener: (event: WindowRemoteConnectionCloseEvent) => void): { dispose(): void };
 }
@@ -122,6 +130,12 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "docker":
       // Docker 保持现有 dedicated logical session 生命周期，不按 target 复用。
       return `${target.kind}:dedicated:${remoteSessionId}`;
+    case "server": {
+      // 第 46 轮：server 远程与 SSH 同属"同目标复用"语义；http/ws 输入经端点解析
+      // 归一到同一 hostWsUrl，避免同一 Server 因协议写法不同裂成两条连接。
+      // URL 非法时 resolveServerRemoteEndpoints 会带官方文案抛错，connect 立即失败。
+      return `server:${resolveServerRemoteEndpoints(target.url).hostWsUrl}`;
+    }
   }
 }
 
@@ -535,6 +549,8 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         ...(session.workspacePath ? { workspacePath: session.workspacePath } : {}),
         ...(session.workspaceIdentity ? { workspaceIdentity: session.workspaceIdentity } : {}),
         generation: session.generation,
+        // server 形态复用同目标连接时 handle 常驻，serverInfo 始终可取；其余形态为 undefined。
+        ...(entry.handle?.serverInfo ? { serverInfo: entry.handle.serverInfo } : {}),
       };
     } catch (error) {
       if (sessionsById.get(remoteSessionId) === session) {

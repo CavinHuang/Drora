@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./cua-permission-broker": "./src/cua-permission-broker/index.ts",
     "./process/processTreeTerminator": "./src/process/processTreeTerminator.ts",
+    "./server-remote": "./src/server-remote/index.ts",
     "./node": "./src/node.ts"
   },
   "scripts": {
@@ -29,6 +30,7 @@
     "node-pty": "^1.0.0",
     "smol-toml": "^1.6.1",
     "undici": "^6.23.0",
+    "ws": "^8.20.0",
     "yaml": "^2.9.0",
     "yazl": "^3.3.1",
     "zod": "4.6.5"

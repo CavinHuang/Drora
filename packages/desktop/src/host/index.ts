@@ -148,6 +148,11 @@ import {
   type WindowRemoteConnectionHandle,
 } from "./windowRemoteConnectionRegistry.js";
 import { createWindowHostControllerRuntime } from "./windowHostControllerService.js";
+import {
+  connectServerRemoteHostConnection,
+  createServerRemoteWorkspaceServiceCollection,
+  type ServerRemoteHostConnection,
+} from "./serverRemoteConnection.js";
 import { resolveAutomationSubmissionModelSelection } from "./automationModelSelection.js";
 import { createRemoteConnectionProgressContext } from "@zcode/server/remote/remoteConnectionProgressContext.js";
 import { startHostSelfResourceTelemetry } from "./hostSelfResourceTelemetry.js";
@@ -1556,6 +1561,9 @@ function formatRemoteTargetForLog(target: RemoteTarget): string {
     }
     case "docker":
       return `docker:${target.container}`;
+    case "server":
+      // token 只存在于连接参数里，日志侧永不输出；URL 本身不含凭据。
+      return `server:${target.url}`;
   }
 }
 
@@ -1629,7 +1637,9 @@ async function resolveDesktopRemoteRuntimeNetwork(
   }
 }
 
-async function disposeHostRemoteConnection(connection: HostRemoteConnection): Promise<void> {
+async function disposeHostRemoteConnection(
+  connection: HostRemoteConnection | ServerRemoteHostConnection,
+): Promise<void> {
   await connection.disposeAndWait({ timeoutMs: 5_000 });
 }
 
@@ -1649,63 +1659,86 @@ async function createWindowRemoteConnectionHandle(params: {
       listener(event);
     }
   };
-  const connection = await setupRemoteConnection(
-    params.target,
-    params.remoteAssets,
-    { fetch: requireActiveHostApiNetworkTransport().fetch },
-    await resolveDesktopRemoteRuntimeNetwork(params.target),
-    (exitCode) => notifyClose({ exitCode, signal: null }),
-    params.target.kind === "ssh" ? "caller-serialized" : "remote",
-    params.target.kind === "ssh" ? params.signal : undefined,
-  );
+  // 对齐官方 yAe：server 形态不走 remoteAssets/部署链，直接经 server-remote 客户端
+  // 连到目标 Server 的 /ws/host；onClose 映射 exitCode=ws close code、error=reason。
+  const connection: HostRemoteConnection | ServerRemoteHostConnection =
+    params.target.kind === "server"
+      ? await connectServerRemoteHostConnection(params.target, {
+          fetchImpl: requireActiveHostApiNetworkTransport().fetch,
+          onDidClose: ({ code, reason }) =>
+            notifyClose({
+              exitCode: code,
+              signal: null,
+              ...(reason ? { error: reason } : {}),
+            }),
+        })
+      : await setupRemoteConnection(
+          params.target,
+          params.remoteAssets,
+          { fetch: requireActiveHostApiNetworkTransport().fetch },
+          await resolveDesktopRemoteRuntimeNetwork(params.target),
+          (exitCode) => notifyClose({ exitCode, signal: null }),
+          params.target.kind === "ssh" ? "caller-serialized" : "remote",
+          params.target.kind === "ssh" ? params.signal : undefined,
+        );
 
   if (params.signal.aborted) {
     await disposeHostRemoteConnection(connection);
     throw new Error("远程连接已取消");
   }
 
-  const backendConnection = connection;
-  const materializePromptAttachments = async (request: {
-    taskId: string;
-    traceId: TraceId | string;
-    content: string;
-    attachments?: ZCodePromptAttachment[];
-  }) => {
-    const result = await materializeRemotePromptAttachments(request, {
-      backend: backendConnection.backend,
+  const isServerRemoteConnection = "serverInfo" in connection;
+  let services: ServiceCollection;
+  if (isServerRemoteConnection) {
+    services = createServerRemoteWorkspaceServiceCollection({
+      clientConfigService,
+      connectionServices: connection.services,
     });
-    return { content: result.content, attachments: result.attachments };
-  };
-  const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
-    backendConnection.backend,
-    {
-      onJanitorError: (error: unknown) =>
-        logger.warn("remote prompt attachment janitor failed", error),
-    },
-  );
-  const services = createRemoteWorkspaceServiceCollection({
-    clientConfigService,
-    connectionServices: backendConnection.services,
-    sourceServices: activeServices ?? undefined,
-    parentPort,
-    createRemotePromptAttachmentSessionService: (service) =>
-      createRemotePromptAttachmentSessionService(service, {
-        materializePromptAttachments,
-      }),
-    createRemotePromptAttachmentTaskService: (service) =>
-      createRemotePromptAttachmentTaskService(service, {
-        materializePromptAttachments,
-      }),
-    createReportingRemoteZCodeTaskService: (service) =>
-      createReportingRemoteZCodeTaskService(service, {
-        taskRealtimePort: activeSessionRealtimePort ?? undefined,
-      }),
-    promptAttachmentTransferService,
-    runtimePreferencesBridge: {
-      onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
-    },
-  });
+  } else {
+    const backendConnection = connection;
+    const materializePromptAttachments = async (request: {
+      taskId: string;
+      traceId: TraceId | string;
+      content: string;
+      attachments?: ZCodePromptAttachment[];
+    }) => {
+      const result = await materializeRemotePromptAttachments(request, {
+        backend: backendConnection.backend,
+      });
+      return { content: result.content, attachments: result.attachments };
+    };
+    const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
+      backendConnection.backend,
+      {
+        onJanitorError: (error: unknown) =>
+          logger.warn("remote prompt attachment janitor failed", error),
+      },
+    );
+    services = createRemoteWorkspaceServiceCollection({
+      clientConfigService,
+      connectionServices: backendConnection.services,
+      sourceServices: activeServices ?? undefined,
+      parentPort,
+      createRemotePromptAttachmentSessionService: (service) =>
+        createRemotePromptAttachmentSessionService(service, {
+          materializePromptAttachments,
+        }),
+      createRemotePromptAttachmentTaskService: (service) =>
+        createRemotePromptAttachmentTaskService(service, {
+          materializePromptAttachments,
+        }),
+      createReportingRemoteZCodeTaskService: (service) =>
+        createReportingRemoteZCodeTaskService(service, {
+          taskRealtimePort: activeSessionRealtimePort ?? undefined,
+        }),
+      promptAttachmentTransferService,
+      runtimePreferencesBridge: {
+        onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
+      },
+    });
+  }
 
+  const serverInfo = isServerRemoteConnection ? connection.serverInfo : undefined;
   let disposed = false;
   // 远端 workspace 的 CLI 与 MCP 样本走与本地同一条路径：远端 zcode-server → 本地 Host → main。
   // 订阅寿命等于这份远端 services 的寿命：由 connection handle 持有，registry 释放 entry
@@ -1714,7 +1747,12 @@ async function createWindowRemoteConnectionHandle(params: {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "remote",
-    environmentKey: resolveResourceTelemetryEnvironmentKey(params.target),
+    environmentKey: resolveResourceTelemetryEnvironmentKey(params.target, serverInfo?.serverId),
+    // 对齐官方 yAe：独立 Server 必须在 server-info 里显式声明 processResourceTelemetry，
+    // 未声明（旧 Server）时完全跳过订阅，避免未知事件打进对端读循环。
+    ...(params.target.kind === "server"
+      ? { telemetrySupported: serverInfo?.capabilities.processResourceTelemetry === true }
+      : {}),
     onError: (error) => logger.warn("remote resource telemetry subscription failed", error),
   });
   const remoteMediaPreviewFactory = !remoteMediaRangePreviewEnabled

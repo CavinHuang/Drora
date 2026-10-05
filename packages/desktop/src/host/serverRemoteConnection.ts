@@ -1,0 +1,285 @@
+// 第 47 轮：Server 型远程工作区在窗口 Host 内的连接与服务组装。
+// 对齐官方 host/index.js：
+//   - connectServerRemote(JJ) 成功后 ERe open → _Re(ws wrap 成 ISocket) → $O(帧协议
+//     连接) → YD(services 代理集合)，本文件对应 wrapServerRemoteNodeWebSocket +
+//     SocketProtocol/ChannelClient/RemoteServiceAccess；
+//   - yAe 的 server 分支不走 remoteAssets/部署链，onClose 映射
+//     exitCode=ws close code、error=reason；
+//   - MJ(createServerRemoteWorkspaceServiceCollection)：无 backend、无
+//     promptAttachment 物化/janitor/transfer 桥，connectionServices 逐个 register，
+//     仅 clientConfig 保留本地实例（官方"本地 t"）。
+import { ChannelClient, Emitter, SocketProtocol, VSBuffer, type ISocket } from "@zcode/rpc";
+import { RemoteServiceAccess } from "@zcode/client";
+import {
+  ServiceCollection,
+  IFileService,
+  IMediaPreviewService,
+  IGitService,
+  IGitCheckpointService,
+  ISystemService,
+  ITerminalService,
+  ISettingService,
+  ICredentialService,
+  IBroadcastService,
+  IZCodeTaskService,
+  IZCodeAgentService,
+  IZCodeSessionService,
+  createUnsupportedConversationShareService,
+  IConversationShareService,
+  IBotsService,
+  IFileWatcherService,
+  IOAuthService,
+  IModelSelectionService,
+  IProviderSettingsService,
+  IUsageStatsService,
+  ICodingPlanSubscriptionService,
+  IClientConfigService,
+  IClientScenesService,
+  ISkillsService,
+  ISkillSyncService,
+  IMcpSyncService,
+  IPluginSyncService,
+  IPluginsService,
+  IPluginManagementService,
+  ISubagentsService,
+  ICommandsService,
+  IHooksService,
+  IMemoryService,
+  ISettingsSyncService,
+  IPromptAttachmentTransferService,
+  type IServiceAccessor,
+} from "@zcode/services";
+import {
+  connectServerRemoteTarget,
+  type ServerRemoteFetchLike,
+  type ServerRemoteNodeWebSocket,
+  type ServerRemoteWebSocketConstructor,
+} from "@zcode/services/server-remote";
+import type { RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
+import { createServiceLogger } from "@zcode/services/node";
+import { assertLegacyRemoteWorkspaceRpcContract } from "./legacyRemoteWorkspaceRpcContract.js";
+
+export interface ServerRemoteHostConnectionCloseEvent {
+  /** ws close code；官方 yAe 直接映射为 WindowRemoteConnectionCloseEvent.exitCode。 */
+  code: number;
+  /** ws close reason；非空时作为 close 事件的 error 上报。 */
+  reason: string;
+}
+
+export interface ServerRemoteHostConnection {
+  serverInfo: ServerRemoteInfo;
+  services: RemoteServiceAccess;
+  dispose(): void;
+  disposeAndWait(options?: { timeoutMs?: number }): Promise<void>;
+}
+
+/** 对齐官方 _Re：open 后的 node ws wrap 成 RPC 帧协议需要的 ISocket。 */
+function wrapServerRemoteNodeWebSocket(socket: ServerRemoteNodeWebSocket): ISocket {
+  const onData = new Emitter<VSBuffer>();
+  const onClose = new Emitter<void>();
+  const onEnd = new Emitter<void>();
+
+  socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
+    const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
+    onData.fire(VSBuffer.wrap(new Uint8Array(buf)));
+  });
+  socket.on("close", () => {
+    onClose.fire();
+    onEnd.fire();
+  });
+  socket.on("error", () => {
+    onClose.fire();
+    onEnd.fire();
+  });
+
+  return {
+    onData: onData.event,
+    onClose: onClose.event,
+    onEnd: onEnd.event,
+    write(buffer: VSBuffer) {
+      if (socket.readyState === socket.OPEN) {
+        socket.send(buffer.buffer);
+      }
+    },
+    end() {
+      socket.close();
+    },
+    drain() {
+      return Promise.resolve();
+    },
+    dispose() {
+      socket.close();
+    },
+  };
+}
+
+/**
+ * Server 型远程目标在窗口 Host 内的连接建立（对齐官方 yAe 的 server 分支）。
+ * 只做 endpoints → server-info → capability → /ws/host → RPC 组装；abort 由调用方
+ * 在连接返回后按官方语义 `disposeAndWait({timeoutMs:5000})` 收口。
+ */
+export async function connectServerRemoteHostConnection(
+  target: Extract<RemoteTarget, { kind: "server" }>,
+  options: {
+    fetchImpl?: ServerRemoteFetchLike;
+    /** 测试注入 mock socket 工厂；生产走默认 node ws。 */
+    webSocket?: ServerRemoteWebSocketConstructor;
+    onDidClose?: (event: ServerRemoteHostConnectionCloseEvent) => void;
+  } = {},
+): Promise<ServerRemoteHostConnection> {
+  const connection = await connectServerRemoteTarget(
+    { url: target.url, ...(target.token ? { token: target.token } : {}) },
+    {
+      fetchImpl: options.fetchImpl,
+      ...(options.webSocket ? { webSocket: options.webSocket } : {}),
+    },
+  );
+
+  let hasReportedClose = false;
+  let hasClosed = false;
+  let resolveClosed!: () => void;
+  const closed = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
+  // 官方 onClose 只取 ws close 事件的 code/reason；error 事件后 node ws 必然补发 close。
+  connection.socket.on("close", (code, reason) => {
+    hasClosed = true;
+    resolveClosed();
+    if (!hasReportedClose) {
+      hasReportedClose = true;
+      options.onDidClose?.({ code, reason: reason.toString("utf8") });
+    }
+  });
+
+  const socket = wrapServerRemoteNodeWebSocket(connection.socket);
+  const protocol = new SocketProtocol(socket);
+  const client = new ChannelClient(protocol);
+  const services = new RemoteServiceAccess(client);
+
+  let disposalStarted = false;
+  let disposeAndWaitInFlight: Promise<void> | null = null;
+  const beginDisposal = () => {
+    if (disposalStarted) {
+      return;
+    }
+    disposalStarted = true;
+    client.dispose();
+    protocol.dispose();
+    // close 必须在任何 await 之前同步触发，让对端 server 立即收到 ws close。
+    connection.dispose();
+  };
+
+  return {
+    serverInfo: connection.serverInfo,
+    services,
+    dispose() {
+      beginDisposal();
+    },
+    disposeAndWait(disposeOptions) {
+      if (disposeAndWaitInFlight) {
+        return disposeAndWaitInFlight;
+      }
+      beginDisposal();
+      if (hasClosed) {
+        return Promise.resolve();
+      }
+      const timeoutMs = Math.max(disposeOptions?.timeoutMs ?? 5_000, 0);
+      disposeAndWaitInFlight = (async () => {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<"timed-out">((resolve) => {
+          timeout = setTimeout(() => resolve("timed-out"), timeoutMs);
+        });
+        await Promise.race([closed, deadline]);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        // 超时后 socket 已在 beginDisposal 中 close()，不再追加终止；
+        // 迟到的 close 事件仍会兑现 closed Promise，供后续等待复用。
+      })();
+      return disposeAndWaitInFlight;
+    },
+  };
+}
+
+/**
+ * Server 型远程 workspace 的服务容器（对齐官方 MJ）。
+ *
+ * 与 ssh/wsl/docker 的 createRemoteWorkspaceServiceCollection（官方 TJ）差别：
+ * - 无部署 backend，无 promptAttachment 物化/janitor/transfer 桥；
+ * - 设置、凭据、OAuth、订阅、bots、memory、settings-sync 等直接使用目标 Server
+ *   上的服务（server workspace 的权威配置在 Server 本机，不在桌面）；
+ * - clientConfigService 保留本地实例（官方"本地 t"），conversationShare 按官方
+ *   cRe() 语义禁用（"server_remote_unsupported" 门禁——官方对 server 远程本就不
+ *   提供分享，真实实现只在 ssh 系 TJ 的 Ud 里）；
+ * - 第 48 轮补齐官方清单中的 outputStyleService：对齐官方 MJ 的
+ *   .register(Tl, e.connectionServices.outputStyleService)——server 远程注册
+ *   远端代理（远端 Server 的 createLocalServices 已暴露 output-style channel）。
+ */
+const logger = createServiceLogger("conversation-share");
+
+export function createServerRemoteWorkspaceServiceCollection(params: {
+  clientConfigService: IClientConfigService;
+  connectionServices: IServiceAccessor;
+}): ServiceCollection {
+  assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
+  const remote = params.connectionServices;
+  return (
+    new ServiceCollection()
+      .register(IFileService, remote.fileService)
+      .register(IMediaPreviewService, remote.mediaPreviewService)
+      .register(IGitService, remote.gitService)
+      .register(IGitCheckpointService, remote.gitCheckpointService)
+      .register(ISystemService, remote.systemService)
+      .register(ITerminalService, remote.terminalService)
+      .register(ISettingService, remote.settingService)
+      .register(ICredentialService, remote.credentialService)
+      .register(IBroadcastService, remote.broadcastService)
+      .register(IZCodeTaskService, remote.zcodeTaskService)
+      .register(IZCodeAgentService, remote.zcodeAgentService)
+      .register(IZCodeSessionService, remote.zcodeSessionService)
+      // 第四十九轮对齐（官方 cRe 定案）：server 远程的会话分享在官方实现中明确禁用——
+      // createUnsupportedRemoteConversationShareService，message 固定、onRejected 记
+      // kind:"feature_disabled", reason:"server_remote_unsupported"。此前注册的远端
+      // 代理是超出官方的能力面（server 端虽暴露 channel），按官方形态回退为禁用门禁。
+      .register(
+        IConversationShareService,
+        createUnsupportedConversationShareService({
+          message: "Conversation sharing is not available for this client or remote target",
+          onRejected: (action) => {
+            logger.warn(
+              void 0,
+              "conversation share action rejected",
+              JSON.stringify({
+                action,
+                kind: "feature_disabled",
+                reason: "server_remote_unsupported",
+              }),
+            );
+          },
+        }),
+      )
+      .register(IBotsService, remote.botsService)
+      .register(IFileWatcherService, remote.fileWatcherService)
+      .register(IOAuthService, remote.oauthService)
+      .register(IModelSelectionService, remote.modelSelectionService)
+      .register(IProviderSettingsService, remote.providerSettingsService)
+      .register(IUsageStatsService, remote.usageStatsService)
+      .register(ICodingPlanSubscriptionService, remote.codingPlanSubscriptionService)
+      .register(IClientConfigService, params.clientConfigService)
+      .register(IClientScenesService, remote.clientScenesService)
+      .register(ISkillsService, remote.skillsService)
+      .register(ISkillSyncService, remote.skillSyncService)
+      .register(IMcpSyncService, remote.mcpSyncService)
+      .register(IPluginSyncService, remote.pluginSyncService)
+      .register(IPluginsService, remote.pluginsService)
+      .register(IPluginManagementService, remote.pluginManagementService)
+      .register(ISubagentsService, remote.subagentsService)
+      .register(ICommandsService, remote.commandsService)
+      .register(IHooksService, remote.hooksService)
+      .register(IMemoryService, remote.memoryService)
+      // TODO(output-style): fork 第 48 轮在此注册 IOutputStyleService 远端代理（对齐官方
+      // MJ）；output-style 是尚未迁移的独立特性，base 无该服务——迁入后补此行。
+      .register(ISettingsSyncService, remote.settingsSyncService)
+      .register(IPromptAttachmentTransferService, remote.promptAttachmentTransferService)
+  );
+}

@@ -13,6 +13,10 @@ export function usePluginStoreOrder(enabled = true) {
   const generation = useRef(0);
   const refresh = useCallback(
     async (forceRefresh = false) => {
+      // 服务未桥接的环境（手机远控桩/降级附着）直接放弃：下方恒等陷阱
+      // `snapshot?.service === service` 在两者皆 undefined 时为真，会读
+      // `snapshot.order` 崩掉整个 React 树（§33.18.19 同族，假设备实测复现）。
+      if (!service) return;
       const current = ++generation.current;
       try {
         const { pluginStoreOrder: order } = await service.getSnapshot({ forceRefresh });
@@ -33,5 +37,5 @@ export function usePluginStoreOrder(enabled = true) {
     };
   }, [enabled, refresh]);
 
-  return { order: snapshot?.service === service ? snapshot.order : null, refresh };
+  return { order: snapshot && snapshot.service === service ? snapshot.order : null, refresh };
 }

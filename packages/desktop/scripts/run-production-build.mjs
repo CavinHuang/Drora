@@ -16,6 +16,9 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     resolve(cwd, "out/main"),
     resolve(cwd, "out/host"),
     resolve(cwd, "out/preload"),
+    // scheduler 也要清：tsup 打包态与 tsc 声明态产物会互相覆盖，陈旧 chunk 跨
+    // 构建代残留时会被 out/**/* 打进 app.asar（重新暴露未压缩 JS 与 sourcemap）。
+    resolve(cwd, "out/scheduler"),
     resolve(cwd, "out/renderer"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),

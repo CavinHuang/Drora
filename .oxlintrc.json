@@ -26,14 +26,6 @@
       "rules": {
         "max-lines": "off"
       }
-    },
-    {
-      // 宽壳侧栏是自包含的官方对齐壳组件（§19/P5b + §33.18 活体对齐注释），拆分反而
-      // 破坏与上游页结构的对照性；仅豁免此文件。
-      "files": ["packages/mobile-web/src/ui/wide/Sidebar.tsx"],
-      "rules": {
-        "max-lines": "off"
-      }
     }
   ],
   "settings": {

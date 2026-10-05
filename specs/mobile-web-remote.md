@@ -618,6 +618,30 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
    LAN 与云中继切换仍各自最多自动启动一次；已在其他传输运行时不得误判为本 tab
    可用状态。
 
+5. 2026-10-04 真窗口复测：Main 回报 `cloud/active` 时，LAN tab 的展示投影为
+   `undefined`（不显示云中继 URL），但启动闸门原先也读取这个投影，因而拒绝启动
+   LAN，弹层永久停「正在准备二维码」。**展示投影与命令准入必须读取不同形状的
+   同一事实**：展示仍只认本 tab；闸门读取 Main 原始状态，遇 `idle` 或明确属于
+   另一传输的状态时准许目标传输启动一次。原始状态缺失、当前传输已在
+   `starting/running/active/error`、或本次弹层已尝试过目标传输时拒绝。Main 的
+   `startMobileRelayControl` 仍是唯一切换所有者，负责停旧连接、起新连接及发布
+   新状态；Renderer 不保留第二份运行事实。
+
+   ```text
+   Main cloud/active ── getState ──> Renderer LAN tab：隐藏 cloud URL
+                                      └─ gate(raw state, LAN) 准入一次
+                                          └─ Main start(LAN)：停止 cloud → 建 LAN relay → 出 QR
+   ```
+
+   验收：云中继已运行时切 LAN，自动出现 LAN QR；反向切换同理；同一 tab
+   重复状态查询不重复启动；当前 tab 的 URL 仍不泄露到另一 tab。断线/重连语义
+   继续由 Main 状态决定，Renderer 不用超时伪造 idle。
+
+   实测：连接中的 Desktop Main 回报 `cloud/active`，重新打开 LAN tab 后自动
+   切至 `lan/running` 并生成可用二维码；桌面 Chrome 用该二维码访问真实局域网
+   HTTP 地址，完成 `auth_init → auth_challenge → auth_response → auth_ack` 和
+   bootstrap，进入工作区首页（详见 `specs/mobile-relay-server.md` §12.10）。
+
 ### 边界
 
 - relay 只承载转发；ZCode 不实现服务端（官方 z.ai relay）。**自建兼容服务端的设计

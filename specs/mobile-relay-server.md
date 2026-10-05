@@ -456,6 +456,110 @@ updatedAt 所致）。** 宽视口全壳在自建 relay 上经 rpc 桥驱动全�
 命令面板/富时间线），至此覆盖移动+宽视口两布局、静态+交互+深服务三层的对比
 全部完成，无残留缺口。
 
+### 12.10 非安全上下文 WebCrypto shim（2026-10-03，LAN 真机链路修复）
+
+**问题（§33.5 路线 4 真机验收首轮实测）**：手机经 LAN 出码地址
+（`http://<桌面局域网IP>:<端口>/remote/v4/?sid=…&hash=…`）打开官方 v4 页后，
+四步卡恒停「正在认证设备…」无限循环（官方页鉴权监督到点静默重连，永不进
+waiting/paired；配对窗/失败卡均不出现）。
+
+**根因（官方 bundle 字节证据，index-NjWRUABD.js）**：官方页 proof 计算
+`sVn` 直接 `await globalThis.crypto.subtle.importKey/sign`（HMAC-SHA256），
+且整份 bundle 无 `isSecureContext` 回退（出现 0 次），`authProvider` 仅此一个
+实现（`authProvider:cVn()`）。浏览器 Web Crypto（`crypto.subtle`）只在安全
+上下文（HTTPS/localhost）暴露：LAN 纯 HTTP 属非安全上下文，`crypto.subtle`
+为 `undefined` → proof 计算抛 TypeError → `auth_response` 发不出 → relay 的
+`handleAuthResponse` 永远等不到（`auth_ack` 不返回）→ 客户端 authenticating 态
+监督重连循环。官方线上此页恒走 HTTPS，上游无需处理该环境；自建 R2 页当年同因
+内嵌纯 JS HMAC（`PHONE_PAGE_CRYPTO_JS`，RFC 4231 向量校验）。§32/§33 各轮
+验证均经桌面/内置浏览器（localhost，安全上下文），故从未触发。同因的次要缺口：
+附件校验和 `CUe` 用 `crypto.subtle.digest('SHA-256',…)`，非安全上下文下按
+`fault.attachment.checksumUnavailable` 降级（不挂死但功能缺失）。
+
+**行为（伺服层出站注入，上游字节零改动）**：`/remote/**` 的 200 HTML 响应
+（staticRoot/mobileRoot/内建代理三来源统一，一处注入点）在 `<head>` 起始处
+注入内联 shim `<script>`：仅当 `globalThis.crypto` 存在且 `crypto.subtle`
+缺失（即非安全上下文）时，用纯 JS HMAC-SHA256 补一个 `crypto.subtle` 最小
+子集——`importKey`（仅 raw + HMAC/SHA-256）、`sign`（HMAC-SHA-256，返回
+ArrayBuffer 对齐 WebCrypto 形状；算法名接受字符串与 `{name}` 两种官方用法）、
+`digest`（仅 SHA-256，救活附件校验和）；其余算法/格式拒绝（fail-loud，官方页
+用法面仅此三处）。磁盘字节与 remoteAssets 缓存不写 shim——注入只在出站做
+（§12.5 改写同语义，改写规则演进时缓存仍有效）。安全上下文（HTTPS/localhost）
+下 shim 自门控直接返回，行为与官方字节一致。
+
+**不变量**：①上游/冻结字节文件不改写（磁盘与缓存均原始字节，伺服层是唯一
+改写面）；②`crypto.subtle` 已存在时零副作用（defineProperty 仅在缺失分支
+执行）；③注入幂等（HTML 已含 shim 标记即跳过）；④仅 `/remote/**` HTML，
+`/m` R2 页不受影响（自带纯 JS 实现）；⑤strict module 语义安全——浏览器中
+`subtle` 是 `Crypto.prototype` 只读 getter，官方页为 strict module（直接赋值
+抛 TypeError），必须 `Object.defineProperty` 建实例自有属性遮蔽。
+
+**验收**：`test/insecureContextCryptoShim.test.ts`——vm 沙箱模拟非安全上下文
+（crypto 无 subtle）：importKey+sign 对照 node:crypto（RFC 4231 用例 2/6 形状
+与二进制 key 字节——strBytes 式 UTF-8 实现处理不了的形状）、hash 的字符串/
+对象两种形状、digest 对照 createHash；有 subtle 沙箱零改动；注入幂等、
+`<head>`/无 `<head>` 两形态；`routeStaticRequest` 端到端：staticRoot 与
+remoteAssets 缓存（Buffer 体）两来源的入口文档响应均含 shim 标记。真机验收：
+手机经 LAN 出码地址完成配对进首页（authenticating 不再滞留）。已知边界：浏览器
+对 HTML 的内存缓存无视 no-cache（§12.5 同款）——已打开过的页面需重开会话。
+
+**浏览器验收记录（2026-10-04）**：用桌面 Chrome 的真实局域网 HTTP 源
+（`isSecureContext=false`）加载冻结的官方 3.14.3 页面，两条链均实测：
+①隔离 relay + 测试 device：`auth_init → auth_challenge → auth_response → auth_ack`，
+页面零未捕获异常；②当前 ZCode Desktop 的局域网 QR + 真实 Host：同样完成鉴权，
+随后 bootstrap 返回并显示工作区首页。HTTP 响应含 shim 标记，浏览器运行时
+`crypto.subtle` 可用，页面不再停「正在认证设备…」。这证明桌面 Chrome 上的非安全
+上下文路径；iOS/Android 实机浏览器仍须另行扫码验收，不能把模拟视口当作真机。
+
+**官方版本核对（2026-10-04）**：线上 `/remote/v4?app_version=3.14.3` 的
+HTML 与 `packages/mobile-web/upstream/remote/v4/index.html` 逐字相同；该 HTML
+引用的 `index-NjWRUABD.js` 与冻结资产逐字相同。不带 `app_version` 的线上入口
+已指向 `latest` 的另一份 bundle，因此本服务以桌面 3.14.3 对应的版本资源为
+对齐对象。局域网 HTTP 响应额外注入本节 shim，是明确的环境适配差异。
+
+### 12.11 局域网 HTTP 的随机 ID 与复制适配（2026-10-04）
+
+**问题与证据**：真实 LAN HTTP 源的 Chrome 中 `isSecureContext=false`，
+`crypto.subtle` 经 §12.10 注入后可用，但 `crypto.randomUUID` 与
+`navigator.clipboard` 仍为 `undefined`。官方 3.14.3 主 bundle 有三处无回退的
+`crypto.randomUUID()`（`index-NjWRUABD.js` 字节偏移 978600、5641518、
+5644811）；源码页 `taskSession.ts` 的 `sendText`、`stop` 等命令及
+`relay-client` 桥 ID 也直接调用它。官方页复制动作使用
+`navigator.clipboard.writeText`，HTTP 下缺失。独立 Chrome 实测：同一非安全
+上下文中 `document.queryCommandSupported('copy')` 与用户点击触发的
+`document.execCommand('copy')` 均返回 `true`。
+
+**所有者与接入**：relay-server 的 `/remote/**` HTML 出站适配层是唯一所有者；
+冻结的上游字节、源码应用、磁盘缓存不改写。§12.10 的 crypto shim 在
+`isSecureContext=false`、`randomUUID` 缺失且 `getRandomValues` 可用时增加
+RFC 4122 v4 UUID 生成方法（16 字节安全随机数，version/variant 位固定）；
+缺安全随机源时不使用 `Math.random` 伪造。独立 clipboard shim 只在
+`isSecureContext=false` 且原生 `navigator.clipboard` 缺失时提供 Promise 形状的
+`writeText`：调用时同步创建临时 textarea、选中文本、执行 `copy`，随后移除节点、
+恢复焦点/选区；命令失败则 reject。原生对象存在时零改动，不提供无法可靠模拟的
+`readText` 或富格式 `write`。两段内联脚本在入口 `<head>` 中先于官方 bundle
+执行，重复托管注入幂等；此为 LAN 环境适配，非官方资产还原。
+
+```text
+GET /remote/v4 → relay HTML 出站层 → 注入 crypto/clipboard 兼容脚本 → 浏览器
+                  ├─ 鉴权/命令：getRandomValues → UUID；Host 仍持有任务真相
+用户点击复制 ────└─ writeText → 同步选区 + execCommand(copy) → Promise 结果
+```
+
+**验收**：单测验证 UUID 格式/位、随机源缺失、原生 API 零改动、HTML 注入幂等；
+静态路由三来源继续只改出站 HTML。Chrome 在真实 LAN HTTP 源上验证
+`randomUUID` 可用，并由用户点击调用 `writeText` 成功。iOS/Android 实机复制
+与扫码仍需单独验收。Clipboard 读取和富格式写入不在本回退能力内；需要它们的
+界面仍应提供失败反馈，不能把 `writeText` 成功当作整套 Clipboard API 可用。
+
+**实现验收记录**：独立 relay-server 托管官方 3.14.3 原始资产，桌面 Chrome
+分别访问 LAN IP 与 localhost。LAN 页实测 `isSecureContext=false`、
+`crypto.subtle`/`randomUUID`/`navigator.clipboard.writeText` 可用，UUID 的 v4
+格式与 variant 位正确，点击复制的 Promise 成功；localhost 页
+`isSecureContext=true` 且 `crypto`/`navigator` 均无新增自有属性。relay-server
+相关 14 项测试与 Desktop `build:no-runtime-assets` 通过，生成的 Main bundle
+包含 clipboard shim 标记。该构建只验证主包编译，未替代安装包与手机实机验收。
+
 ## 13. R2 页时间线 schema 漂移与 list workspaces:0 回归（2026-09-29）
 
 ### 13.1 根因链：session/messages schema 漂移（响应形状 ≠ 声明契约，时间线整屏校验错误墙）

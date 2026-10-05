@@ -1,7 +1,7 @@
 // ZCode Relay Server CLI 入口：node/SEA 可执行。
 // 用法：relay-server --port 4430 --host 0.0.0.0 --db ./relay-devices.json
 //       [--static-dir ./site]（dev 离线镜像，优先）
-//       [--mobile-dir ./packages/mobile-web/dist]（独立本地页面包；缺省按 dist 源码应用 → src/recovered 快照 → 内建代理取根）
+//       [--mobile-dir ./packages/mobile-web/upstream]（独立本地页面包；缺省按 upstream → recovered → dist → 内建代理取根）
 //       [--asset-cache-dir ./remote-asset-cache]（本地缺失时 cache→fetch，spec §12.9）
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";

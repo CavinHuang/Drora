@@ -64,10 +64,7 @@ export function AutomationsPanel({
 
   return (
     <section
-      className={cn(
-        "flex min-h-0 flex-col gap-3 rounded-xl border border-border bg-card",
-        className,
-      )}
+      className={cn("flex min-h-0 flex-col gap-3 rounded-xl border border-border bg-card", className)}
       aria-label={tabAria}
     >
       <div className="flex items-center gap-2 border-b border-border px-4 py-2">
@@ -135,9 +132,7 @@ export function AutomationsPanel({
         </div>
       ) : tasks.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 pb-6">
-          <p className="text-ui-sm text-foreground">
-            {formatMessage({ id: "automations.empty.title" })}
-          </p>
+          <p className="text-ui-sm text-foreground">{formatMessage({ id: "automations.empty.title" })}</p>
           {onCreate ? (
             <>
               <button
@@ -186,10 +181,7 @@ export function AutomationsPanel({
                         ? `${task.title} · ${formatMessage({ id: "automations.nextRun" }, { when })}`
                         : task.title}
                       <span className="ml-2 text-ui-xs text-muted-foreground">
-                        {formatMessage(
-                          { id: "automations.runCount" },
-                          { count: String(task.runCount) },
-                        )}
+                        {formatMessage({ id: "automations.runCount" }, { count: String(task.runCount) })}
                       </span>
                       <span className="ml-2 text-ui-xs text-muted-foreground">
                         {describeSchedule(task.schedule, formatMessage)}

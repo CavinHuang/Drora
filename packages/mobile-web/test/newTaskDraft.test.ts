@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NewTaskDraft, resolveChatEmptyGreetingKey } from "../src/app/NewTaskDraft.js";
+import {
+  NewTaskDraft,
+  resolveChatEmptyGreetingKey,
+} from "../src/app/NewTaskDraft.js";
 import { IntlProvider } from "../src/ui/intl.js";
 
 Object.assign(globalThis, { React });
@@ -17,8 +20,14 @@ test("§32.9 时段问候边界：[5,9,12,14,18,23) 与官方 MCt 逐值一致",
   assert.equal(resolveChatEmptyGreetingKey(11), "mobileShell.wide.greeting.morning");
   assert.equal(resolveChatEmptyGreetingKey(12), "mobileShell.wide.greeting.noon");
   assert.equal(resolveChatEmptyGreetingKey(13), "mobileShell.wide.greeting.noon");
-  assert.equal(resolveChatEmptyGreetingKey(14), "mobileShell.wide.greeting.afternoon");
-  assert.equal(resolveChatEmptyGreetingKey(17), "mobileShell.wide.greeting.afternoon");
+  assert.equal(
+    resolveChatEmptyGreetingKey(14),
+    "mobileShell.wide.greeting.afternoon",
+  );
+  assert.equal(
+    resolveChatEmptyGreetingKey(17),
+    "mobileShell.wide.greeting.afternoon",
+  );
   assert.equal(resolveChatEmptyGreetingKey(18), "mobileShell.wide.greeting.evening");
   assert.equal(resolveChatEmptyGreetingKey(22), "mobileShell.wide.greeting.evening");
   assert.equal(resolveChatEmptyGreetingKey(23), "mobileShell.wide.greeting.lateNight");

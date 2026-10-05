@@ -40,10 +40,7 @@ const registry = createDeviceRegistry({
   storage: createFileDeviceRegistryStorage(resolve(ROOT, `.tmp-dev-relay-${PORT}.json`)),
 });
 const relay = createRelayServer({
-  registry,
-  port: PORT,
-  host: "127.0.0.1",
-  mobileRoot: DIST,
+  registry, port: PORT, host: "127.0.0.1", mobileRoot: DIST,
 });
 const actualPort = await relay.listen();
 
@@ -53,156 +50,41 @@ let deviceSid = "";
 
 const NOW = () => Date.now();
 const WS_PATH = "D:\\ws\\demo";
-const WORKSPACES = [
-  { workspacePath: WS_PATH, label: "demo", kind: "local", connectionState: "connected" },
-];
+const WORKSPACES = [{ workspacePath: WS_PATH, label: "demo", kind: "local", connectionState: "connected" }];
 // 字段族 = 真桌面 RelayTaskSummary（workspaceKind 非 kind；官方页 zod：unreadAt 是
 // number.optional——**null 会被拒收整帧**（§32.24 帧门取证），无值时必须省略键）。
 const BASE_TASKS = [
   // displayStatus：官方页 schema 的独立字段（pb：displayStatus enum，@src-dNkcRypW.js zod
   // 取证）——官方行状态读它而非 status，缺省回落「空闲」（§32.24 活体对照实证）。
   // unreadAt（§32.37 官方未读渲染面取证）：number 才会被官方投影并入。
-  {
-    taskId: "stub-task-1",
-    title: "E2E: mode menu + more menu",
-    status: "running",
-    displayStatus: "running",
-    workspacePath: WS_PATH,
-    workspaceLabel: "demo",
-    workspaceKind: "local",
-    createdAt: NOW() - 3600000,
-    updatedAt: NOW() - 60000,
-    pinned: true,
-    archived: false,
-    unreadAt: NOW() - 30000,
-  },
-  {
-    taskId: "stub-task-2",
-    title: "completed history task",
-    status: "completed",
-    displayStatus: "completed",
-    workspacePath: WS_PATH,
-    workspaceLabel: "demo",
-    workspaceKind: "local",
-    createdAt: NOW() - 86400000,
-    updatedAt: NOW() - 3600000,
-    pinned: true,
-    archived: false,
-  },
+  { taskId: "stub-task-1", title: "E2E: mode menu + more menu", status: "running", displayStatus: "running", workspacePath: WS_PATH, workspaceLabel: "demo", workspaceKind: "local", createdAt: NOW() - 3600000, updatedAt: NOW() - 60000, pinned: true, archived: false, unreadAt: NOW() - 30000 },
+  { taskId: "stub-task-2", title: "completed history task", status: "completed", displayStatus: "completed", workspacePath: WS_PATH, workspaceLabel: "demo", workspaceKind: "local", createdAt: NOW() - 86400000, updatedAt: NOW() - 3600000, pinned: true, archived: false },
 ];
 const extraTasks = [];
 const tasksList = () => [...BASE_TASKS, ...extraTasks];
 
-function row(base) {
-  return { createdAt: NOW() - 600000, createdAtSeq: 1, visibility: "visible", ...base };
-}
+function row(base) { return { createdAt: NOW() - 600000, createdAtSeq: 1, visibility: "visible", ...base }; }
 
 function buildRows(session) {
   const now = NOW();
   if (session.id === "stub-task-2") {
     return [
-      row({
-        rowId: 1,
-        turnId: "t1",
-        kind: "turnHeader",
-        entityId: "e-t1",
-        state: "completedSuccess",
-        origin: "userInput",
-        startedAt: now - 3600000,
-      }),
+      row({ rowId: 1, turnId: "t1", kind: "turnHeader", entityId: "e-t1", state: "completedSuccess", origin: "userInput", startedAt: now - 3600000 }),
       row({ rowId: 2, turnId: "t1", kind: "userInput", origin: "realUser", text: "history task." }),
-      row({
-        rowId: 3,
-        turnId: "t1",
-        kind: "assistantText",
-        entityId: "e-a1",
-        state: "complete",
-        text: "done.",
-      }),
+      row({ rowId: 3, turnId: "t1", kind: "assistantText", entityId: "e-a1", state: "complete", text: "done." }),
     ];
   }
   return [
     // §33.18.13 行级 actions 投影（真实 CLI 由 conversation-topic-publisher 派生）：
     // canEdit 门编辑钮、canRewindFiles 门撤销钮、canFork 门分叉钮——缺省全 false。
-    row({
-      rowId: 1,
-      turnId: "t1",
-      kind: "turnHeader",
-      entityId: "e-t1",
-      state: "completedSuccess",
-      origin: "userInput",
-      startedAt: now - 600000,
-      actions: { canRewindFiles: true },
-      fileChanges: { additions: 51, deletions: 7, files: 3 },
-    }),
-    row({
-      rowId: 2,
-      turnId: "t1",
-      kind: "userInput",
-      origin: "realUser",
-      entityId: "e-u1",
-      text: "demo: switch mode + rename.",
-      actions: { canEdit: true },
-    }),
-    row({
-      rowId: 3,
-      turnId: "t1",
-      kind: "reasoning",
-      state: "complete",
-      text: "acceptance run.",
-      durationMs: 4000,
-    }),
-    row({
-      rowId: 4,
-      turnId: "t1",
-      kind: "assistantText",
-      entityId: "e-a1",
-      assistantResponseId: "ar-1",
-      state: "complete",
-      text: "ok. current mode is build.",
-      actions: { canFork: true },
-    }),
-    row({
-      rowId: 5,
-      turnId: "t1",
-      kind: "toolCall",
-      entityId: "e-a1",
-      assistantResponseId: "ar-1",
-      toolCallId: "tc-1",
-      toolName: "terminal",
-      status: "success",
-      inputText: "node -v",
-      output: { text: "v22" },
-      startedAt: now - 470000,
-    }),
-    row({
-      rowId: 6,
-      turnId: "t2",
-      kind: "turnHeader",
-      entityId: "e-t2",
-      state: "running",
-      origin: "userInput",
-      startedAt: now - 130000,
-    }),
-    row({
-      rowId: 7,
-      turnId: "t2",
-      kind: "userInput",
-      origin: "realUser",
-      entityId: "e-u2",
-      text: "continue.",
-      actions: { canEdit: true },
-    }),
-    row({
-      rowId: 8,
-      turnId: "t2",
-      kind: "assistantText",
-      entityId: "e-a2",
-      assistantResponseId: "ar-2",
-      state: "streaming",
-      text: "streaming reply",
-      actions: { canFork: true },
-    }),
+    row({ rowId: 1, turnId: "t1", kind: "turnHeader", entityId: "e-t1", state: "completedSuccess", origin: "userInput", startedAt: now - 600000, actions: { canRewindFiles: true }, fileChanges: { additions: 51, deletions: 7, files: 3 } }),
+    row({ rowId: 2, turnId: "t1", kind: "userInput", origin: "realUser", entityId: "e-u1", text: "demo: switch mode + rename.", actions: { canEdit: true } }),
+    row({ rowId: 3, turnId: "t1", kind: "reasoning", state: "complete", text: "acceptance run.", durationMs: 4000 }),
+    row({ rowId: 4, turnId: "t1", kind: "assistantText", entityId: "e-a1", assistantResponseId: "ar-1", state: "complete", text: "ok. current mode is build.", actions: { canFork: true } }),
+    row({ rowId: 5, turnId: "t1", kind: "toolCall", entityId: "e-a1", assistantResponseId: "ar-1", toolCallId: "tc-1", toolName: "terminal", status: "success", inputText: "node -v", output: { text: "v22" }, startedAt: now - 470000 }),
+    row({ rowId: 6, turnId: "t2", kind: "turnHeader", entityId: "e-t2", state: "running", origin: "userInput", startedAt: now - 130000 }),
+    row({ rowId: 7, turnId: "t2", kind: "userInput", origin: "realUser", entityId: "e-u2", text: "continue.", actions: { canEdit: true } }),
+    row({ rowId: 8, turnId: "t2", kind: "assistantText", entityId: "e-a2", assistantResponseId: "ar-2", state: "streaming", text: "streaming reply", actions: { canFork: true } }),
   ];
 }
 
@@ -261,50 +143,17 @@ function snapshotFor(session) {
 }
 
 const sessions = new Map([
-  [
-    "stub-task-1",
-    {
-      id: "stub-task-1",
-      title: "E2E: mode menu + more menu",
-      phase: "running",
-      mode: "build",
-      seq: 12,
-      revision: 5,
-      titleSource: "generated",
-    },
-  ],
-  [
-    "stub-task-2",
-    {
-      id: "stub-task-2",
-      title: "completed history task",
-      phase: "completedSuccess",
-      mode: "build",
-      seq: 4,
-      revision: 2,
-      titleSource: "generated",
-    },
-  ],
+  ["stub-task-1", { id: "stub-task-1", title: "E2E: mode menu + more menu", phase: "running", mode: "build", seq: 12, revision: 5, titleSource: "generated" }],
+  ["stub-task-2", { id: "stub-task-2", title: "completed history task", phase: "completedSuccess", mode: "build", seq: 4, revision: 2, titleSource: "generated" }],
 ]);
 
 function manualPair() {
   const mk = () => {
     const s = { listener: null, peer: null };
     return {
-      send(buf) {
-        s.peer.listener(buf);
-      },
-      onMessage(l) {
-        s.listener = l;
-        return {
-          dispose: () => {
-            s.listener = null;
-          },
-        };
-      },
-      fire(buf) {
-        s.listener(buf);
-      },
+      send(buf) { s.peer.listener(buf); },
+      onMessage(l) { s.listener = l; return { dispose: () => { s.listener = null; } }; },
+      fire(buf) { s.listener(buf); },
     };
   };
   const a = mk();
@@ -364,28 +213,14 @@ function fireSessionsIndex(workspaceId) {
 
 function makeAgentChannel() {
   const frameListeners = new Set();
-  const frameEvent = (fn) => {
-    frameListeners.add(fn);
-    return { dispose: () => frameListeners.delete(fn) };
-  };
+  const frameEvent = (fn) => { frameListeners.add(fn); return { dispose: () => frameListeners.delete(fn) }; };
   let lf = 0;
   function fireConv(session, payload, kind) {
-    console.log(
-      "[stub] fireConv sid=" +
-        session.id +
-        " kind=" +
-        payload.kind +
-        " rows=" +
-        (payload.snapshot ? payload.snapshot.rows.window.length : "-") +
-        " seq=" +
-        session.seq +
-        " delivery=" +
-        (kind || "online"),
-    );
+    console.log("[stub] fireConv sid=" + session.id + " kind=" + payload.kind + " rows=" + (payload.snapshot ? payload.snapshot.rows.window.length : "-") + " seq=" + session.seq + " delivery=" + (kind || "online"));
     const cand = conversationTopicWireCandidateSchema.parse({
       kind: "complete",
       deliveryKind: kind || "online",
-      logicalFrameId: "lf-" + ++lf,
+      logicalFrameId: "lf-" + (++lf),
       // 修复原因：spec §32.6 关键点 4——logicalFrameOrdinal 必须全局递增（精简版
       // 写死 1，store 装配器判定乱序静默丢弃，症状：rpc 全通但时间线恒空）。
       logicalFrameOrdinal: lf,
@@ -408,12 +243,7 @@ function makeAgentChannel() {
     fireConv(session, { kind: "snapshot", snapshot: snapshotFor(session) }, kind || "online");
   }
   function handleCmd(session, env) {
-    const ack = (st, ex) => ({
-      commandId: env.commandId || "",
-      status: st,
-      revisionAtDecision: session.revision,
-      ...(ex || {}),
-    });
+    const ack = (st, ex) => ({ commandId: env.commandId || "", status: st, revisionAtDecision: session.revision, ...(ex || {}) });
     switch (env.type) {
       case "sendText":
         session.phase = "running";
@@ -437,25 +267,8 @@ function makeAgentChannel() {
         return ack("accepted");
       case "createSession": {
         const id = "stub-task-" + (sessions.size + 1);
-        sessions.set(id, {
-          id,
-          title: "new task",
-          phase: "draft",
-          mode: session.mode,
-          seq: 1,
-          revision: 1,
-          titleSource: "default",
-        });
-        extraTasks.push({
-          taskId: id,
-          title: "new task",
-          status: "completed",
-          workspacePath: WS_PATH,
-          workspaceLabel: "demo",
-          kind: "local",
-          createdAt: NOW(),
-          updatedAt: NOW(),
-        });
+        sessions.set(id, { id, title: "new task", phase: "draft", mode: session.mode, seq: 1, revision: 1, titleSource: "default" });
+        extraTasks.push({ taskId: id, title: "new task", status: "completed", workspacePath: WS_PATH, workspaceLabel: "demo", kind: "local", createdAt: NOW(), updatedAt: NOW() });
         setImmediate(() => fireSessionsIndex(WS_PATH));
         return ack("accepted", { sessionId: id, title: "new task" });
       }
@@ -470,27 +283,13 @@ function makeAgentChannel() {
       // 修复原因：rpc 线协议的方法参数是位置参数数组下行（spec §32.6 关键点 3；
       // 桌面由 exposeOnChannelServer 解包，桩内须自解——精简版丢了这层，所有
       // handler 读到的 params 恒 undefined → "unknown conv"/空 topic）。
-      const params = Array.isArray(arg) ? arg[0] || {} : arg || {};
+      const params = Array.isArray(arg) ? (arg[0] || {}) : (arg || {});
       switch (cmd) {
         case "helloConversationV4":
           // capabilities 必填四键（§32.24 官方页任务面 zod 取证：nativeDialogs/localTerminal/
           // binaryFrames 布尔 + compression ∈ none|permessage-deflate，缺任一即整帧拒收
           // 并落错误面板）。
-          return {
-            kind: "hello",
-            protocolVersion: V4_WIRE_PROTOCOL_VERSION,
-            connectionId: "stub-1",
-            clientMode: "web-remote-replayable",
-            deliveryProfile: "replayable",
-            serverTime: NOW(),
-            capabilities: {
-              nativeDialogs: false,
-              localTerminal: false,
-              binaryFrames: false,
-              compression: "none",
-            },
-            auth: {},
-          };
+          return { kind: "hello", protocolVersion: V4_WIRE_PROTOCOL_VERSION, connectionId: "stub-1", clientMode: "web-remote-replayable", deliveryProfile: "replayable", serverTime: NOW(), capabilities: { nativeDialogs: false, localTerminal: false, binaryFrames: false, compression: "none" }, auth: {} };
         case "initializeConversationV4":
           return undefined;
         case "subscribeConversationV4": {
@@ -508,9 +307,7 @@ function makeAgentChannel() {
           const sid = String(params.subscriptionId || "").replace("sub-", "");
           const session = sessions.get(sid);
           if (session) setImmediate(() => pushSnap(session, "recovery"));
-          return {
-            ack: { subscriptionId: params.subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
-          };
+          return { ack: { subscriptionId: params.subscriptionId, mode: "snapshot", logEpoch: "epoch-1" } };
         }
         case "conversationRowsRangeV4": {
           // 修复原因：真 Host 的 range 响应带尾窗真实行；恒空 rows + atSeq==seq 会触发
@@ -521,26 +318,10 @@ function makeAgentChannel() {
         }
         case "conversationFileChangesV4":
           return {
-            files: 2,
-            additions: 9,
-            deletions: 3,
+            files: 2, additions: 9, deletions: 3,
             items: [
-              {
-                path: "src/app.ts",
-                additions: 8,
-                deletions: 2,
-                writeCount: 2,
-                toolNames: ["edit"],
-                patches: [],
-              },
-              {
-                path: "src/task.ts",
-                additions: 1,
-                deletions: 1,
-                writeCount: 1,
-                toolNames: ["edit"],
-                patches: [],
-              },
+              { path: "src/app.ts", additions: 8, deletions: 2, writeCount: 2, toolNames: ["edit"], patches: [] },
+              { path: "src/task.ts", additions: 1, deletions: 1, writeCount: 1, toolNames: ["edit"], patches: [] },
             ],
           };
         case "conversationFileRewindPreviewV4":
@@ -557,13 +338,7 @@ function makeAgentChannel() {
         case "sendConversationCommandV4": {
           const env = params.envelope || {};
           const session = sessions.get(env.sessionId);
-          if (!session)
-            return {
-              commandId: env.commandId || "",
-              status: "rejected",
-              revisionAtDecision: 0,
-              reasonCode: "not_found",
-            };
+          if (!session) return { commandId: env.commandId || "", status: "rejected", revisionAtDecision: 0, reasonCode: "not_found" };
           return handleCmd(session, env);
         }
         case "readSession": {
@@ -623,10 +398,7 @@ function makeAgentChannel() {
     listen(_ctx, event) {
       if (event === "onDynamicConversationFrame") return frameEvent;
       if (event === "onDynamicSessionsIndexFrame") {
-        return (fn) => {
-          siListeners.add(fn);
-          return { dispose: () => siListeners.delete(fn) };
-        };
+        return (fn) => { siListeners.add(fn); return { dispose: () => siListeners.delete(fn) }; };
       }
       return () => ({ dispose: () => {} });
     },
@@ -644,20 +416,9 @@ function openBridge(identity) {
     const side = {
       listener: null,
       peer: null,
-      send(buffer) {
-        side.peer.listener(buffer);
-      },
-      onMessage(l) {
-        side.listener = l;
-        return {
-          dispose: () => {
-            side.listener = null;
-          },
-        };
-      },
-      fire(buffer) {
-        side.listener(buffer);
-      },
+      send(buffer) { side.peer.listener(buffer); },
+      onMessage(l) { side.listener = l; return { dispose: () => { side.listener = null; } }; },
+      fire(buffer) { side.listener(buffer); },
     };
     return side;
   };
@@ -678,12 +439,7 @@ function openBridge(identity) {
       const origCall = impl.call.bind(impl);
       impl.call = async (ctx, cmd, arg) => {
         const result = await origCall(ctx, cmd, arg);
-        console.log(
-          `[stub] ch:${name} call:`,
-          cmd,
-          "->",
-          JSON.stringify(result ?? null).slice(0, 160),
-        );
+        console.log(`[stub] ch:${name} call:`, cmd, "->", JSON.stringify(result ?? null).slice(0, 160));
         return result;
       };
     }
@@ -699,12 +455,8 @@ function openBridge(identity) {
   server.registerChannel("model-selection", {
     // §32.24 官方页契约：getView 必须返回 {revision, providers}（null → 页面读
     // r.revision 即崩 TypeError unhandled）。最小合法 view 即可（§32.6 桩语义）。
-    async call() {
-      return { revision: 1, providers: [] };
-    },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    async call() { return { revision: 1, providers: [] }; },
+    listen() { return () => ({ dispose: () => {} }); },
   });
   // §32.27 官方页首启面抑制（bundle aLn @5828277 取证）：settingsSyncService.getChannel
   // 'settings-sync'——getFirstRunPromptState 未 handled 且 detect 抛错（桩 null → r.agents
@@ -717,9 +469,7 @@ function openBridge(identity) {
       if (cmd === "markFirstRunPromptHandled") return { ok: true };
       return null;
     },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    listen() { return () => ({ dispose: () => {} }); },
   });
   // §32.68 职业引导问卷抑制（bundle 取证：src-dNkcRypW.js@13786 `OnboardingRecord:
   // \`onboarding-record\``；index-NjWRUABD.js@271011 JIn——claimAnonymousRecord 后
@@ -736,9 +486,7 @@ function openBridge(identity) {
       if (cmd === "syncSettingsFromRecord") return null;
       return null;
     },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    listen() { return () => ({ dispose: () => {} }); },
   });
   // §32.24 官方页启动期会拉 setting 通道（未注册 → Channel name 'setting' timed out 20s
   // → unhandled rejection）；get() 必须返回带 locale 的对象（IntlProvider 读 n.locale，
@@ -756,9 +504,7 @@ function openBridge(identity) {
       }
       return null;
     },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    listen() { return () => ({ dispose: () => {} }); },
   });
   server.registerChannel("git", {
     async call(_ctx, cmd) {
@@ -768,31 +514,11 @@ function openBridge(identity) {
         const change = (repoRelativePath, kind, section, added, removed) => ({
           // GitFileChange.path 必填（GitPane resolveChangePath 直接 isAbsoluteFilePath(change.path)）
           path: `${WS_PATH}/${repoRelativePath}`,
-          repoRelativePath,
-          workspaceRelativePath: repoRelativePath,
-          kind,
-          section,
-          added,
-          removed,
-          isStaged: section === "staged",
-          isUntracked: false,
-          isConflicted: false,
+          repoRelativePath, workspaceRelativePath: repoRelativePath, kind, section,
+          added, removed, isStaged: section === "staged", isUntracked: false, isConflicted: false,
         });
         return {
-          summary: {
-            workspacePath: WS_PATH,
-            repoRoot: WS_PATH,
-            workspaceInRepoPath: "",
-            autoRefreshWatchPaths: [],
-            branchName: "main",
-            trackingBranchName: "main",
-            headRefType: "branch",
-            ahead: 0,
-            behind: 0,
-            isDirty: true,
-            isGitAvailable: true,
-            isRepository: true,
-          },
+          summary: { workspacePath: WS_PATH, repoRoot: WS_PATH, workspaceInRepoPath: "", autoRefreshWatchPaths: [], branchName: "main", trackingBranchName: "main", headRefType: "branch", ahead: 0, behind: 0, isDirty: true, isGitAvailable: true, isRepository: true },
           identity: null,
           unstagedChanges: [
             change("src/app.ts", "modified", "unstaged", 8, 2),
@@ -805,75 +531,37 @@ function openBridge(identity) {
       }
       return null;
     },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    listen() { return () => ({ dispose: () => {} }); },
   });
   // 假 file 通道（spec §32.17 活体验收）：searchWorkspaceFiles 种子覆盖多种扩展名，
   // 供文件搜索结果行的 material-icons 类型图标实拍（与假 git 通道同模式）。
   server.registerChannel("file", {
     async call(_ctx, cmd, arg) {
-      const params = Array.isArray(arg) ? arg[0] || {} : arg || {};
+      const params = Array.isArray(arg) ? (arg[0] || {}) : (arg || {});
       if (cmd === "searchWorkspaceFiles") {
         const root = String(params.rootPath ?? "") || WS_PATH;
         const query = String(params.query ?? "").toLowerCase();
         const seeds = [
-          {
-            name: "index.tsx",
-            path: root + "/src/index.tsx",
-            relativePath: "src/index.tsx",
-            type: "file",
-          },
-          {
-            name: "app.py",
-            path: root + "/scripts/app.py",
-            relativePath: "scripts/app.py",
-            type: "file",
-          },
+          { name: "index.tsx", path: root + "/src/index.tsx", relativePath: "src/index.tsx", type: "file" },
+          { name: "app.py", path: root + "/scripts/app.py", relativePath: "scripts/app.py", type: "file" },
           { name: "README.md", path: root + "/README.md", relativePath: "README.md", type: "file" },
-          {
-            name: "package.json",
-            path: root + "/package.json",
-            relativePath: "package.json",
-            type: "file",
-          },
-          {
-            name: "logo.png",
-            path: root + "/assets/logo.png",
-            relativePath: "assets/logo.png",
-            type: "file",
-          },
-          {
-            name: "notes",
-            path: root + "/docs/notes",
-            relativePath: "docs/notes",
-            type: "directory",
-          },
+          { name: "package.json", path: root + "/package.json", relativePath: "package.json", type: "file" },
+          { name: "logo.png", path: root + "/assets/logo.png", relativePath: "assets/logo.png", type: "file" },
+          { name: "notes", path: root + "/docs/notes", relativePath: "docs/notes", type: "directory" },
         ];
         const hits = seeds.filter((e) => e.relativePath.toLowerCase().includes(query));
         return hits.slice(0, Number(params.limit ?? 8));
       }
       return null;
     },
-    listen() {
-      return () => ({ dispose: () => {} });
-    },
+    listen() { return () => ({ dispose: () => {} }); },
   });
-  const bridge = {
-    identity,
-    assembler: new RpcFrameAssembler(identity),
-    clientSide,
-    serverSide,
-    physicalSeq: 0,
-    messageSeq: 0,
-  };
+  const bridge = { identity, assembler: new RpcFrameAssembler(identity), clientSide, serverSide, physicalSeq: 0, messageSeq: 0 };
   clientSide.onMessage((buf) => {
     bridge.messageSeq += 1;
     const enc = encodeRpcTransportMessage({
-      message: buf.buffer,
-      identity,
-      firstPhysicalSeq: bridge.physicalSeq + 1,
-      messageSeq: bridge.messageSeq,
+      message: buf.buffer, identity,
+      firstPhysicalSeq: bridge.physicalSeq + 1, messageSeq: bridge.messageSeq,
     });
     bridge.physicalSeq = enc.nextPhysicalSeq - 1;
     for (const f of enc.frames) sendData(f);
@@ -881,22 +569,12 @@ function openBridge(identity) {
   bridges.set(identity.bridgeSessionId, bridge);
 }
 
-function send(obj) {
-  ws.send(JSON.stringify(obj));
-}
-function sendData(payload) {
-  send({ type: "data", payload, client_ts: Date.now() });
-}
+function send(obj) { ws.send(JSON.stringify(obj)); }
+function sendData(payload) { send({ type: "data", payload, client_ts: Date.now() }); }
 
 function onAppFrame(frame) {
   if (!frame || typeof frame !== "object") return;
-  console.log(
-    "[stub] app-frame:",
-    frame.zcode_type,
-    frame.zcode_type === "rpc-frame"
-      ? "bsid=" + frame.bridgeSessionId + " seq=" + frame.messageSeq
-      : "",
-  );
+  console.log("[stub] app-frame:", frame.zcode_type, frame.zcode_type === "rpc-frame" ? ("bsid=" + frame.bridgeSessionId + " seq=" + frame.messageSeq) : "");
   if (frame.zcode_type === "mobile-diagnostic") {
     console.log("[stub] diagnostic:", JSON.stringify(frame));
   }
@@ -904,14 +582,10 @@ function onAppFrame(frame) {
     case "bootstrap-request":
       console.log("[stub] bootstrap-request full:", JSON.stringify(frame).slice(0, 400));
       sendData({
-        zcode_type: "bootstrap-response",
-        requestId: frame.requestId,
-        success: true,
+        zcode_type: "bootstrap-response", requestId: frame.requestId, success: true,
         result: {
-          windowControlSessionId: deviceSid,
-          desktopAppVersion: "3.14.3",
-          workspaces: WORKSPACES,
-          tasks: tasksList(),
+          windowControlSessionId: deviceSid, desktopAppVersion: "3.14.3",
+          workspaces: WORKSPACES, tasks: tasksList(),
           // 真桌面双键同指（buildBootstrapResult）；官方页 gb schema 里 updatedAt 是
           // 必填 finite number（§32.24 zod 取证）——缺它整帧拒收。
           initialViewState: { activeWorkspaceKey: WS_PATH, updatedAt: NOW() },
@@ -921,9 +595,7 @@ function onAppFrame(frame) {
       return;
     case "workspace-list-request":
       sendData({
-        zcode_type: "workspace-list-response",
-        requestId: frame.requestId,
-        success: true,
+        zcode_type: "workspace-list-response", requestId: frame.requestId, success: true,
         result: { workspaces: WORKSPACES, tasks: tasksList(), activeWorkspaceKey: WS_PATH },
       });
       return;
@@ -933,8 +605,7 @@ function onAppFrame(frame) {
       openBridge(id);
       // 官方 schema（§32.24 zod 取证）：桥信息在嵌套 bridge 子对象（local 变体必填
       // workspaceKey），顶层另带 bridgeSessionId/bridgeGeneration——真桌面 toExternalBridge 同形。
-      const workspaceKey =
-        typeof frame.workspaceKey === "string" && frame.workspaceKey ? frame.workspaceKey : WS_PATH;
+      const workspaceKey = typeof frame.workspaceKey === "string" && frame.workspaceKey ? frame.workspaceKey : WS_PATH;
       sendData({
         zcode_type: "workspace-bridge-ready",
         requestId: frame.requestId,
@@ -981,9 +652,7 @@ function onAppFrame(frame) {
             workspaces: WORKSPACES,
             tasks: tasksList(),
             activeWorkspaceKey: lastMobileViewState.activeWorkspaceKey,
-            ...(lastMobileViewState.activeTaskId
-              ? { activeTaskId: lastMobileViewState.activeTaskId }
-              : {}),
+            ...(lastMobileViewState.activeTaskId ? { activeTaskId: lastMobileViewState.activeTaskId } : {}),
             mobileViewState: { ...lastMobileViewState },
             initialViewState: { ...lastMobileViewState },
           },
@@ -998,19 +667,14 @@ function onAppFrame(frame) {
     default:
       // §32.23 双页对照：官方还原页的协议面宽于源码页——未知帧全量落日志，
       // 静默丢弃会掩盖官方客户端正在等待的应答。
-      console.log(
-        "[stub] UNKNOWN app-frame:",
-        frame.zcode_type,
-        JSON.stringify(frame).slice(0, 220),
-      );
+      console.log("[stub] UNKNOWN app-frame:", frame.zcode_type, JSON.stringify(frame).slice(0, 220));
       return;
   }
 }
 
 const ws = new WebSocket("ws://127.0.0.1:" + actualPort + "/ws");
 let nonce = "";
-ws.onopen = () =>
-  send({ type: "device_register_init", device_mid: deviceMid, pass_hash: passHash });
+ws.onopen = () => send({ type: "device_register_init", device_mid: deviceMid, pass_hash: passHash });
 ws.onmessage = (ev) => {
   const msg = JSON.parse(String(ev.data));
   switch (msg.type) {
@@ -1020,24 +684,10 @@ ws.onmessage = (ev) => {
       break;
     case "auth_challenge":
       nonce = msg.nonce;
-      send({
-        type: "auth_response",
-        proof: computeProof({ passHash, nonce, role: "device", deviceSid }),
-      });
+      send({ type: "auth_response", proof: computeProof({ passHash, nonce, role: "device", deviceSid }) });
       break;
     case "auth_ack": {
-      const url =
-        "http://127.0.0.1:" +
-        actualPort +
-        "/remote/v4?sid=" +
-        encodeURIComponent(deviceSid) +
-        "&hash=" +
-        encodeURIComponent(passHash) +
-        "&t=" +
-        Date.now() +
-        "&mid=" +
-        encodeURIComponent(deviceMid) +
-        "&name=DEV-STUB&app_version=3.14.3";
+      const url = "http://127.0.0.1:" + actualPort + "/remote/v4?sid=" + encodeURIComponent(deviceSid) + "&hash=" + encodeURIComponent(passHash) + "&t=" + Date.now() + "&mid=" + encodeURIComponent(deviceMid) + "&name=DEV-STUB&app_version=3.14.3";
       console.log("[stub] pair URL:\n" + url);
       writeFileSync(resolve(ROOT, "packages/.tmp-dev-pair-url.txt"), url);
       break;

@@ -132,8 +132,10 @@ export function TaskComposer(props: TaskComposerProps) {
       .flatMap((provider) => provider.models)
       .map((model) => model.config?.optionSpecs?.reasoningLevel?.values ?? [])
       .find((values) => values.length > 0) ?? [];
-  const currentThought = modelState?.fallback?.thought || "";
-  const currentProvider = modelState?.current?.providerId ?? modelState?.fallback?.provider ?? "";
+  const currentThought =
+    modelState?.fallback?.thought || "";
+  const currentProvider =
+    modelState?.current?.providerId ?? modelState?.fallback?.provider ?? "";
   const currentModel = modelState?.current?.modelId ?? modelState?.fallback?.model ?? "";
 
   return (
@@ -233,12 +235,12 @@ export function TaskComposer(props: TaskComposerProps) {
             initialText={draft}
             inputTestId="v4-composer-input"
             onChange={onDraftChange}
-            onSubmit={(text) => {
-              onDraftChange(text);
-              onSend(text, pendingAttachments);
-              setPendingAttachments([]);
-              return true;
-            }}
+          onSubmit={(text) => {
+            onDraftChange(text);
+            onSend(text, pendingAttachments);
+            setPendingAttachments([]);
+            return true;
+          }}
           />
         </Suspense>
         {/* §33.18.20 附件芯片：已上传引用（×可移除）+ 上传中进度（ui 事务 onProgress）。 */}
@@ -257,7 +259,9 @@ export function TaskComposer(props: TaskComposerProps) {
                   uploadAttachment → 引用回调；@ mention 文本与附件引用互补。 */}
               <TaskAttachmentControl
                 uploadAttachment={uploadAttachment}
-                onUploaded={(attachment) => setPendingAttachments((list) => [...list, attachment])}
+                onUploaded={(attachment) =>
+                  setPendingAttachments((list) => [...list, attachment])
+                }
               />
               {/* §32.3 模式触发器（§33.18.13 抽 TaskModeMenu.tsx 域内）：响应式双形态
                   触发钮 + 弹层；无 onModeSelect（旧装配/测试）时退回只读展示。 */}
@@ -274,10 +278,7 @@ export function TaskComposer(props: TaskComposerProps) {
               ) : null}
             </div>
           </div>
-          <div
-            className="ml-auto flex shrink-0 items-center gap-1.5"
-            data-composer-trailing-actions
-          >
+          <div className="ml-auto flex shrink-0 items-center gap-1.5" data-composer-trailing-actions>
             {/* §32.68 官方 chat-context-usage-trigger：环形用量表（track opacity .25 /
                 progress opacity .7、strokeWidth 4、-90° 起角），aria=chat.contextUsage
                 Intl 千分位（活体「上下文已用 123,456 / 总量 1,000,000」）。数据源 =
@@ -317,7 +318,10 @@ export function TaskComposer(props: TaskComposerProps) {
                       CONTEXT_RING_CIRCUMFERENCE *
                       (1 -
                         Math.min(
-                          Math.max(modelState.usage.usedTokens / modelState.usage.maxTokens, 0),
+                          Math.max(
+                            modelState.usage.usedTokens / modelState.usage.maxTokens,
+                            0,
+                          ),
                           1,
                         ))
                     }
@@ -328,7 +332,10 @@ export function TaskComposer(props: TaskComposerProps) {
                 </svg>
               </button>
             ) : null}
-            <div data-testid="v4-model-config" className="flex min-w-0 items-center">
+            <div
+              data-testid="v4-model-config"
+              className="flex min-w-0 items-center"
+            >
               <button
                 type="button"
                 data-testid="chat-model-select-trigger"
@@ -357,10 +364,7 @@ export function TaskComposer(props: TaskComposerProps) {
                   className="max-w-20 truncate rounded-lg px-2 py-1.5 text-ui-sm text-foreground-subtle transition-colors hover:bg-surface-hover"
                   onClick={() => setThoughtMenuOpen((open) => !open)}
                 >
-                  <AlignEndHorizontal
-                    aria-hidden="true"
-                    className="size-3.5 shrink-0 text-foreground-subtle"
-                  />
+                  <AlignEndHorizontal aria-hidden="true" className="size-3.5 shrink-0 text-foreground-subtle" />
                   {currentThought
                     ? formatMessage({
                         id: `chat.toolbar.thoughtLevel.value.${currentThought}`,

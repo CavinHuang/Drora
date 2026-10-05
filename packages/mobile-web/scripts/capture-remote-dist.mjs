@@ -357,11 +357,7 @@ const concurrency = Number(argOf("--concurrency", "2"));
 const delayMs = Number(argOf("--delay-ms", "60"));
 const entry = await fetchEntry(entryUrl, "index.html", entryUrl.pathname, "remote/v4/index.html");
 if (entry) entries.push(entry);
-const staticEntry = await fetchEntry(
-  `${origin}/remote/v4.html`,
-  "remote/v4.html",
-  "/remote/v4.html",
-);
+const staticEntry = await fetchEntry(`${origin}/remote/v4.html`, "remote/v4.html", "/remote/v4.html");
 if (staticEntry) entries.push(staticEntry);
 
 let round = 0;
@@ -434,9 +430,7 @@ const files = staticPaths.map((path) => ({
   url: path,
   ...(fileNotes.has(path.slice(1)) ? { note: fileNotes.get(path.slice(1)) } : {}),
 }));
-const discoveredVersion = entries
-  .flatMap((e) => e.versionRoots)
-  .find((v) => /^\d+\.\d+\.\d+/.test(v));
+const discoveredVersion = entries.flatMap((e) => e.versionRoots).find((v) => /^\d+\.\d+\.\d+/.test(v));
 const previousPaths = new Set(previousFiles.map((f) => `/${f.path}`));
 const added = staticPaths.filter((p) => !previousPaths.has(p));
 const removed = previousFiles.map((f) => `/${f.path}`).filter((p) => !fetched.has(p));
@@ -456,30 +450,24 @@ const manifest = {
       url: f.url,
     })),
   ],
-  missing: [...missing.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([path, status]) => {
-      const name = path.split("/").pop();
-      let note = "官方源站 404";
-      if (name === "docx_wasm_bg.js" || name === "duke_sheets_wasm_bg.js") {
-        note = "官方源站 404（README 记录的已知缺失引用，官方源站即缺）";
-      } else if (name.startsWith("invalid.illegal.")) {
-        note = "源站 404；已知的唯一扫描误报（TextMate scope 串，恰合 8 位 hash 形）";
-      }
-      return { path: path.slice(1), status, note };
-    }),
+  missing: [...missing.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([path, status]) => {
+    const name = path.split("/").pop();
+    let note = "官方源站 404";
+    if (name === "docx_wasm_bg.js" || name === "duke_sheets_wasm_bg.js") {
+      note = "官方源站 404（README 记录的已知缺失引用，官方源站即缺）";
+    } else if (name.startsWith("invalid.illegal.")) {
+      note = "源站 404；已知的唯一扫描误报（TextMate scope 串，恰合 8 位 hash 形）";
+    }
+    return { path: path.slice(1), status, note };
+  }),
 };
 await writeFileWithRetry(previousManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 await rm(curlTmpRoot, { recursive: true, force: true });
 
-console.log(
-  `[capture] done: ${files.length} static + ${apiSampleFiles.length} api-samples = ${manifest.fileCount}`,
-);
+console.log(`[capture] done: ${files.length} static + ${apiSampleFiles.length} api-samples = ${manifest.fileCount}`);
 console.log(`[capture] missing (origin 404): ${missing.size}`);
 for (const [path] of [...missing.entries()].sort()) console.log(`[capture]   missing ${path}`);
-console.log(
-  `[capture] vs previous manifest: +${added.length} new, -${removed.length} gone, ~${updated.length} updated`,
-);
+console.log(`[capture] vs previous manifest: +${added.length} new, -${removed.length} gone, ~${updated.length} updated`);
 for (const p of added) console.log(`[capture]   added   ${p}`);
 for (const p of removed) console.log(`[capture]   removed ${p}`);
 for (const p of updated) console.log(`[capture]   updated ${p}`);

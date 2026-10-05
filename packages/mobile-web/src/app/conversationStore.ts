@@ -349,9 +349,10 @@ export function createConversationStore(options: ConversationStoreOptions): Conv
         current: config.modelSelection ?? null,
         fallback: { provider: config.provider, model: config.model, thought: config.thought },
         thoughtLevels: config.thoughtLevels,
-        availability: switchAvailability.allowed
-          ? { allowed: true }
-          : { allowed: false, reasonCode: switchAvailability.reasonCode },
+        availability:
+          switchAvailability.allowed
+            ? { allowed: true }
+            : { allowed: false, reasonCode: switchAvailability.reasonCode },
         usage:
           contextWindow &&
           Number.isFinite(contextWindow.usedTokens) &&

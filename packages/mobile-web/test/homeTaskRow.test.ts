@@ -19,14 +19,7 @@ function renderRow(task: Record<string, unknown>) {
       IntlProvider,
       { locale: "zh-CN" },
       React.createElement(HomeTaskRow, {
-        task: {
-          sessionId: "t1",
-          title: "任务",
-          createdAtMs: null,
-          updatedAtMs: null,
-          status: "idle",
-          ...task,
-        },
+        task: { sessionId: "t1", title: "任务", createdAtMs: null, updatedAtMs: null, status: "idle", ...task },
         workspace: { workspaceKey: "w" },
         selected: false,
       }),
@@ -56,32 +49,9 @@ test("投影链：projectTask 仅并入 number 型 unreadAt（null/缺省=已读
   const result = projectHomeData({
     workspaces: [{ workspacePath: "D:\\ws\\demo", label: "demo", kind: "local" }],
     tasks: [
-      {
-        taskId: "a",
-        title: "A",
-        status: "running",
-        createdAt: 1,
-        updatedAt: 2,
-        workspacePath: "D:\\ws\\demo",
-        unreadAt: 12345,
-      },
-      {
-        taskId: "b",
-        title: "B",
-        status: "",
-        createdAt: 1,
-        updatedAt: 2,
-        workspacePath: "D:\\ws\\demo",
-      },
-      {
-        taskId: "c",
-        title: "C",
-        status: "",
-        createdAt: 1,
-        updatedAt: 2,
-        workspacePath: "D:\\ws\\demo",
-        unreadAt: null,
-      },
+      { taskId: "a", title: "A", status: "running", createdAt: 1, updatedAt: 2, workspacePath: "D:\\ws\\demo", unreadAt: 12345 },
+      { taskId: "b", title: "B", status: "", createdAt: 1, updatedAt: 2, workspacePath: "D:\\ws\\demo" },
+      { taskId: "c", title: "C", status: "", createdAt: 1, updatedAt: 2, workspacePath: "D:\\ws\\demo", unreadAt: null },
     ],
   });
   const tasks = result.workspaces[0]!.tasks;

@@ -75,62 +75,62 @@ export function RemoteWorkspaceHeader({
     >
       <div className="flex h-12 min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2 max-md:gap-1">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden max-md:gap-1">
-          <div className="relative flex shrink-0 items-center">
-            {onPathClick ? (
-              <button
-                type="button"
-                data-testid="workspace-path"
-                aria-label={workspaceChipLabel}
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
-                title={workspacePath}
-                onClick={onPathClick}
-              >
-                <Folder aria-hidden="true" className="size-4" />
-              </button>
-            ) : (
-              <span
-                data-testid="workspace-path"
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
-                title={workspacePath}
-                aria-label={workspaceChipLabel}
-              >
-                <Folder aria-hidden="true" className="size-4" />
-              </span>
-            )}
-          </div>
-          {/* §32.11 任务信息弹层：锚 header 层（folder 容器 overflow-hidden 会裁剪弹层）。 */}
-          {infoSlot ?? null}
-          <h1
-            data-testid="workspace-title"
-            // §32.68 官方活体 markup：max-w-100 + 容器查询档（≤560→30vw、≤420→22vw，
-            // 390 实测 22vw——此前 42vw 为旧证，活体截宽 85px 与 22vw 吻合推翻）。
-            className="flex min-w-12 max-w-100 shrink items-center gap-2 truncate text-ui-base font-semibold text-foreground @max-[420px]/workspace-header:max-w-[22vw] @max-[560px]/workspace-header:max-w-[30vw]"
-            title={title}
-          >
-            <span className="min-w-0 truncate">{title}</span>
-          </h1>
-          {/* 官方 sr-only 会话级标题（可访问性双标题形态）。 */}
-          <span data-testid="v4-session-title" className="sr-only">
-            {title}
-          </span>
-          {onMoreMenu ? (
-            <div className="relative flex min-w-0 shrink-0 items-center gap-1">
-              <button
-                type="button"
-                data-testid="workspace-more-button"
-                // §32.68 官方活体：⋯ 钮 aria=更多（非任务标题）。
-                aria-label={formatMessage({ id: "mobileShell.task.more" })}
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
-                onClick={onMoreMenu}
-              >
-                <Ellipsis aria-hidden="true" className="size-4" />
-              </button>
-              {/* 菜单锚定在触发按钮容器（官方弹层同锚点）；内容由 App 装配。 */}
-              {moreMenuSlot ?? null}
-            </div>
-          ) : null}
+        <div className="relative flex shrink-0 items-center">
+          {onPathClick ? (
+            <button
+              type="button"
+              data-testid="workspace-path"
+              aria-label={workspaceChipLabel}
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+              title={workspacePath}
+              onClick={onPathClick}
+            >
+              <Folder aria-hidden="true" className="size-4" />
+            </button>
+          ) : (
+            <span
+              data-testid="workspace-path"
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle"
+              title={workspacePath}
+              aria-label={workspaceChipLabel}
+            >
+              <Folder aria-hidden="true" className="size-4" />
+            </span>
+          )}
         </div>
-        {onHelpPress || onTerminalToggle || onToggleSidePane ? (
+        {/* §32.11 任务信息弹层：锚 header 层（folder 容器 overflow-hidden 会裁剪弹层）。 */}
+        {infoSlot ?? null}
+        <h1
+          data-testid="workspace-title"
+          // §32.68 官方活体 markup：max-w-100 + 容器查询档（≤560→30vw、≤420→22vw，
+          // 390 实测 22vw——此前 42vw 为旧证，活体截宽 85px 与 22vw 吻合推翻）。
+          className="flex min-w-12 max-w-100 shrink items-center gap-2 truncate text-ui-base font-semibold text-foreground @max-[420px]/workspace-header:max-w-[22vw] @max-[560px]/workspace-header:max-w-[30vw]"
+          title={title}
+        >
+          <span className="min-w-0 truncate">{title}</span>
+        </h1>
+        {/* 官方 sr-only 会话级标题（可访问性双标题形态）。 */}
+        <span data-testid="v4-session-title" className="sr-only">
+          {title}
+        </span>
+        {onMoreMenu ? (
+          <div className="relative flex min-w-0 shrink-0 items-center gap-1">
+            <button
+              type="button"
+              data-testid="workspace-more-button"
+              // §32.68 官方活体：⋯ 钮 aria=更多（非任务标题）。
+              aria-label={formatMessage({ id: "mobileShell.task.more" })}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-surface-hover"
+              onClick={onMoreMenu}
+            >
+              <Ellipsis aria-hidden="true" className="size-4" />
+            </button>
+            {/* 菜单锚定在触发按钮容器（官方弹层同锚点）；内容由 App 装配。 */}
+            {moreMenuSlot ?? null}
+          </div>
+        ) : null}
+        </div>
+        {(onHelpPress || onTerminalToggle || onToggleSidePane) ? (
           <div className="flex shrink-0 items-center gap-1">
             {/* §33.18 官方宽壳活体：右区=帮助(circle-question-mark)+切换终端
                 (terminal-toggle, square-terminal) 双钮（窄壳无），28px ghost。 */}

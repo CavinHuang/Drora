@@ -69,7 +69,10 @@ export function TaskAttachmentControl(props: TaskAttachmentControlProps) {
         <Plus aria-hidden="true" className="size-4" />
       </button>
       {progress ? (
-        <span className="max-w-40 truncate text-ui-xs text-foreground-subtlest" role="status">
+        <span
+          className="max-w-40 truncate text-ui-xs text-foreground-subtlest"
+          role="status"
+        >
           上传中 {progress.name} {progress.percent}%
         </span>
       ) : null}

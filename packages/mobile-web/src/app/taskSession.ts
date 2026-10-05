@@ -740,84 +740,79 @@ export class TaskSession {
       commandId: crypto.randomUUID(),
       clientId: `zcode-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
-      type: "renameSession" as const,
-      payload: { title },
-      issuedAt: Date.now(),
-    };
-    try {
-      const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
-        ...this.workspaceRef(),
-        envelope,
-      });
-      return ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop";
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * §32.12 队列命令族（sendQueuedNow/editQueueItem/deleteQueueItem/reorderQueueItem/
-   * setAutoDrain，全部 CAS）。信封构造与 stale 收敛复用 sendSwitchCollaborationModeCas
-   * 同款循环（泛型化入参）；结果以 ok 收敛，UI 按 store 回流的快照呈现。
-   */
-  async sendQueueCasCommand(
-    type:
-      | "sendQueuedNow"
-      | "editQueueItem"
-      | "deleteQueueItem"
-      | "reorderQueueItem"
-      | "setAutoDrain",
-    payload: Record<string, unknown>,
-  ): Promise<SwitchModelResult> {
-    let baseRevision = this.store.getRevision();
-    let staleRetried = false;
-    try {
-      for (let attempt = 0; attempt < SWITCH_MODEL_MAX_ATTEMPTS; attempt += 1) {
-        const envelope: CommandEnvelope = {
-          commandId: crypto.randomUUID(),
-          clientId: `zcode-mobile-${this.target.sessionId}`,
-          sessionId: this.target.sessionId,
-          baseRevision,
-          type,
-          payload,
-          issuedAt: Date.now(),
-        } as CommandEnvelope;
+        type: "renameSession" as const,
+        payload: { title },
+        issuedAt: Date.now(),
+      };
+      try {
         const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
           ...this.workspaceRef(),
           envelope,
         });
-        if (ack.status === "stale") {
-          if (staleRetried) return { ok: false, staleRetried };
-          staleRetried = true;
-          baseRevision = ack.revisionAtDecision;
-          continue;
-        }
-        return {
-          ok: ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop",
-          staleRetried,
-        };
+        return ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop";
+      } catch {
+        return false;
       }
-      return { ok: false, staleRetried };
-    } catch {
-      return { ok: false, staleRetried };
     }
-  }
 
-  queueSendNow(queueItemId: string) {
-    return this.sendQueueCasCommand("sendQueuedNow", { queueItemId });
-  }
-  queueEditItem(queueItemId: string, newText: string) {
-    return this.sendQueueCasCommand("editQueueItem", { queueItemId, newText });
-  }
-  queueDeleteItem(queueItemId: string) {
-    return this.sendQueueCasCommand("deleteQueueItem", { queueItemId });
-  }
-  queueReorderItem(queueItemId: string, beforeQueueItemId: string | null) {
-    return this.sendQueueCasCommand("reorderQueueItem", { queueItemId, beforeQueueItemId });
-  }
-  setQueueAutoDrain(autoDrain: boolean) {
-    return this.sendQueueCasCommand("setAutoDrain", { autoDrain });
-  }
+    /**
+     * §32.12 队列命令族（sendQueuedNow/editQueueItem/deleteQueueItem/reorderQueueItem/
+     * setAutoDrain，全部 CAS）。信封构造与 stale 收敛复用 sendSwitchCollaborationModeCas
+     * 同款循环（泛型化入参）；结果以 ok 收敛，UI 按 store 回流的快照呈现。
+     */
+    async sendQueueCasCommand(
+      type: "sendQueuedNow" | "editQueueItem" | "deleteQueueItem" | "reorderQueueItem" | "setAutoDrain",
+      payload: Record<string, unknown>,
+    ): Promise<SwitchModelResult> {
+      let baseRevision = this.store.getRevision();
+      let staleRetried = false;
+      try {
+        for (let attempt = 0; attempt < SWITCH_MODEL_MAX_ATTEMPTS; attempt += 1) {
+          const envelope: CommandEnvelope = {
+            commandId: crypto.randomUUID(),
+            clientId: `zcode-mobile-${this.target.sessionId}`,
+            sessionId: this.target.sessionId,
+            baseRevision,
+            type,
+            payload,
+            issuedAt: Date.now(),
+          } as CommandEnvelope;
+          const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
+            ...this.workspaceRef(),
+            envelope,
+          });
+          if (ack.status === "stale") {
+            if (staleRetried) return { ok: false, staleRetried };
+            staleRetried = true;
+            baseRevision = ack.revisionAtDecision;
+            continue;
+          }
+          return {
+            ok: ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop",
+            staleRetried,
+          };
+        }
+        return { ok: false, staleRetried };
+      } catch {
+        return { ok: false, staleRetried };
+      }
+    }
+
+    queueSendNow(queueItemId: string) {
+      return this.sendQueueCasCommand("sendQueuedNow", { queueItemId });
+    }
+    queueEditItem(queueItemId: string, newText: string) {
+      return this.sendQueueCasCommand("editQueueItem", { queueItemId, newText });
+    }
+    queueDeleteItem(queueItemId: string) {
+      return this.sendQueueCasCommand("deleteQueueItem", { queueItemId });
+    }
+    queueReorderItem(queueItemId: string, beforeQueueItemId: string | null) {
+      return this.sendQueueCasCommand("reorderQueueItem", { queueItemId, beforeQueueItemId });
+    }
+    setQueueAutoDrain(autoDrain: boolean) {
+      return this.sendQueueCasCommand("setAutoDrain", { autoDrain });
+    }
 
   /** 通知面订阅（快照/行列表/派生状态变化即触发）；返回解绑函数。 */
   subscribe(listener: () => void): () => void {
@@ -925,18 +920,9 @@ export async function searchWorkspaceFilesInBridge(
   if (trimmed === "") return [];
   // fileService 在 IServiceAccessor 上可选（旧 server wire / 测试 double 可缺省）：
   // 能力缺席与查询失败同口径，收敛为空结果降级，不上抛。
-  const fileService = (
-    accessor as {
-      fileService?: {
-        searchWorkspaceFiles(params: {
-          rootPath: string;
-          workspaceIdentity?: string;
-          query: string;
-          limit?: number;
-        }): Promise<WorkspaceFileEntry[]>;
-      };
-    }
-  ).fileService;
+  const fileService = (accessor as { fileService?: {
+    searchWorkspaceFiles(params: { rootPath: string; workspaceIdentity?: string; query: string; limit?: number }): Promise<WorkspaceFileEntry[]>;
+  } }).fileService;
   if (!fileService) return [];
   try {
     return await fileService.searchWorkspaceFiles({

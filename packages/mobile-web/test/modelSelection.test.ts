@@ -115,7 +115,10 @@ function feedSnapshot(snapshot: ConversationSnapshot) {
 }
 
 /** 私有构造绕过（测试专用）：不触网，只注入假 accessor 与真实 store。 */
-function makeSession(input: { accessor: unknown; snapshot?: ConversationSnapshot }): TaskSession {
+function makeSession(input: {
+  accessor: unknown;
+  snapshot?: ConversationSnapshot;
+}): TaskSession {
   const Ctor = TaskSession as unknown as new (
     accessor: unknown,
     target: TaskSessionTarget,
@@ -124,9 +127,7 @@ function makeSession(input: { accessor: unknown; snapshot?: ConversationSnapshot
     store: ReturnType<typeof createConversationStore>,
     frameSubscription: null,
   ) => TaskSession;
-  const store = input.snapshot
-    ? feedSnapshot(input.snapshot)
-    : createConversationStore({ sessionId: SESSION_ID });
+  const store = input.snapshot ? feedSnapshot(input.snapshot) : createConversationStore({ sessionId: SESSION_ID });
   return new Ctor(
     input.accessor,
     { workspacePath: "D:/ws", sessionId: SESSION_ID },
@@ -424,11 +425,7 @@ test("switchModel：stale 用 revisionAtDecision 单次收敛重发（新 comman
       },
     },
   });
-  const result = await session.switchModel({
-    providerId: "acme",
-    modelId: "m2",
-    thoughtLevel: "low",
-  });
+  const result = await session.switchModel({ providerId: "acme", modelId: "m2", thoughtLevel: "low" });
   assert.deepEqual(result, { ok: true, staleRetried: true });
   assert.equal(calls.length, 2);
   assert.equal(calls[0]!.baseRevision, 3);
@@ -445,7 +442,8 @@ test("switchModel：连续 stale / rejected / transport 失败均收敛 ok:false
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
       zcodeAgentService: {
-        sendConversationCommandV4: async () => ackOf("stale", { revisionAtDecision: 4 }),
+        sendConversationCommandV4: async () =>
+          ackOf("stale", { revisionAtDecision: 4 }),
       },
     },
   });

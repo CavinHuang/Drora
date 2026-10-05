@@ -4,11 +4,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AutomationsPanel, type AutomationTaskItem } from "../src/ui/AutomationsPanel.js";
 import { IntlProvider } from "../src/ui/intl.js";
-import {
-  defaultSchedule,
-  parseCron,
-  type AutomationSchedule,
-} from "../src/app/automationsSchedule.js";
+import { defaultSchedule, parseCron, type AutomationSchedule } from "../src/app/automationsSchedule.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });
@@ -72,9 +68,7 @@ test("官方行形态：`title · nextRun{when}` 连接 + runCount {count} + des
 test("官方活跃判定：route.endsWith(':automationId') → 行高亮", () => {
   const activeHtml = renderPanel({ tasks: [task] });
   assert.ok(activeHtml.includes("bg-muted"), "活跃行高亮");
-  const inactiveHtml = renderPanel({
-    tasks: [{ ...task, activeRouteSuffix: "automations:auto-9" }],
-  });
+  const inactiveHtml = renderPanel({ tasks: [{ ...task, activeRouteSuffix: "automations:auto-9" }] });
   assert.ok(!inactiveHtml.includes("bg-muted/60"), "非活跃不高亮");
 });
 

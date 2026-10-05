@@ -76,10 +76,7 @@ export function SidebarOrganizeMenu({
                 <span aria-hidden="true" className="size-3 shrink-0" />
               )}
               {value === "chronological" ? (
-                <ListOrdered
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-foreground-subtle"
-                />
+                <ListOrdered aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
               ) : null}
               {formatMessage({ id: labelId })}
             </button>
@@ -110,10 +107,7 @@ export function SidebarOrganizeMenu({
                 {value === "updated" ? (
                   <History aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
                 ) : (
-                  <CalendarPlus
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-foreground-subtle"
-                  />
+                  <CalendarPlus aria-hidden="true" className="size-4 shrink-0 text-foreground-subtle" />
                 )}
                 {formatMessage({ id: labelId })}
                 {selected ? <Check aria-hidden="true" className="size-3 shrink-0" /> : null}

@@ -270,7 +270,10 @@ export class RelayClient {
     if (oldestQueuedAtMs === null) return;
     const channel = this.bridges.get(bridgeSessionId);
     if (!channel || channel.degraded) return;
-    const delayMs = Math.max(0, oldestQueuedAtMs + channel.graceMs + 1 - this.bridgeClock.now());
+    const delayMs = Math.max(
+      0,
+      oldestQueuedAtMs + channel.graceMs + 1 - this.bridgeClock.now(),
+    );
     const handle = this.bridgeClock.setTimeout(() => {
       this.graceWatchdogs.delete(bridgeSessionId);
       const current = this.bridges.get(bridgeSessionId);

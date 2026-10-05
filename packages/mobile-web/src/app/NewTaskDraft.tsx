@@ -12,7 +12,15 @@
 // 套餐 banner = coding-plan 服务 harness 面（P7 家族）。
 // 发送语义：首输 createSession → sendText（App 装配）；返回 = 丢弃草稿。
 import { useState } from "react";
-import { ArrowLeft, ArrowUp, ChevronDown, Folder, GitBranch, Hand, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUp,
+  ChevronDown,
+  Folder,
+  GitBranch,
+  Hand,
+  Plus,
+} from "lucide-react";
 import { useIntl } from "../ui/intl.js";
 import { ModelMenu } from "../ui/ModelMenu.js";
 import { EMPTY_MODEL_SELECTION_STATE } from "./conversationStore.js";
@@ -85,11 +93,7 @@ export function NewTaskDraft(props: NewTaskDraftProps) {
     const text = draft.trim();
     if (!text || props.sending) return;
     const ws = workspaces?.[projectIdx];
-    props.onSend(
-      text,
-      ws ? { workspaceKey: ws.workspaceKey, path: ws.path } : undefined,
-      draftMode,
-    );
+    props.onSend(text, ws ? { workspaceKey: ws.workspaceKey, path: ws.path } : undefined, draftMode);
     setDraft("");
   };
 

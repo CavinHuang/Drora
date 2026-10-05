@@ -60,7 +60,10 @@ function InteractionCard({
       onResolve(interaction.interactionId, freeText ? { optionId, freeText } : { optionId });
     };
     return (
-      <div role="alert" className="rounded-xl border border-warning/30 bg-card p-4 shadow-sm">
+      <div
+        role="alert"
+        className="rounded-xl border border-warning/30 bg-card p-4 shadow-sm"
+      >
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-ui-xs font-medium text-warning-foreground">
             {formatMessage({ id: "chat.permission.awaitingApproval" })}
@@ -115,9 +118,7 @@ function InteractionCard({
     // 顺序作答当前题（spec §15 有意分歧：多题 elicitation 第一档只答 currentQuestionIndex）。
     const question =
       payload.questions && payload.questions.length > 0
-        ? payload.questions[
-            Math.min(payload.currentQuestionIndex ?? 0, payload.questions.length - 1)
-          ]
+        ? payload.questions[Math.min(payload.currentQuestionIndex ?? 0, payload.questions.length - 1)]
         : null;
     const sensitive = payload.sensitive === true;
     const submitFreeText = () => {

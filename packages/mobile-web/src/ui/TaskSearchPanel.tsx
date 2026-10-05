@@ -174,7 +174,9 @@ export function TaskSearchPanel({
   const [results, setResults] = useState<TaskSearchPanelTask[]>([]);
   // P6 文件域（spec §29.3）：与任务域并行的第二查询（序号守卫同源）。
   const [fileResults, setFileResults] = useState<WorkspaceFileEntry[]>([]);
-  const [history, setHistory] = useState<SearchHistoryEntry[]>(() => loadSearchHistory(historyKey));
+  const [history, setHistory] = useState<SearchHistoryEntry[]>(() =>
+    loadSearchHistory(historyKey),
+  );
   // 提交序号：Enter/chip 与输入值未变时也强制重查（防抖 effect 依赖哨兵）。
   const [submitNonce, setSubmitNonce] = useState(0);
   const requestSeqRef = useRef(0);
@@ -297,18 +299,13 @@ export function TaskSearchPanel({
                       {/* 官方文件行 = Nh chip 形：16px 类型图标 + 文件名 + 相对路径（§32.17）。 */}
                       <FileIconImage
                         src={fileIconSrc(
-                          fileIconNameFor(
-                            entry.path,
-                            entry.type === "directory" ? "directory" : "file",
-                          ),
+                          fileIconNameFor(entry.path, entry.type === "directory" ? "directory" : "file"),
                         )}
                         size={16}
                         className="shrink-0"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-ui-base text-foreground">
-                          {entry.name}
-                        </span>
+                        <span className="block truncate text-ui-base text-foreground">{entry.name}</span>
                         <span className="mt-0.5 block truncate text-ui-xs text-foreground-subtle">
                           {entry.relativePath}
                         </span>

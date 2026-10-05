@@ -127,8 +127,7 @@ function organizeTimestamp(value: number | null): number {
 export function groupWorkspacesExcludingPinned<
   Task extends HomeOrganizeTask,
   Workspace extends { tasks: readonly Task[] },
->(
-  workspaces: readonly Workspace[],
+>(workspaces: readonly Workspace[],
   organizeBy: HomeOrganizePreferences["organizeBy"],
   sortBy: HomeOrganizePreferences["sortBy"],
 ) {
@@ -140,10 +139,7 @@ export function groupWorkspacesExcludingPinned<
     // §32.39 官方「更新于」= 组内**剩余**任务 updatedAt 最大值（全置顶态无该行，
     // 截图对照实证）；剩余为空 → null（渲染侧隐藏）。
     const remainingMax = tasks.reduce<number | null>(
-      (max, task) =>
-        task.updatedAtMs !== null && (max === null || task.updatedAtMs > max)
-          ? task.updatedAtMs
-          : max,
+      (max, task) => (task.updatedAtMs !== null && (max === null || task.updatedAtMs > max) ? task.updatedAtMs : max),
       null,
     );
     return { ...workspace, tasks, updatedAtMs: remainingMax };

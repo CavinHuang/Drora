@@ -65,10 +65,9 @@ export interface RemoteTaskTimelineProps {
     workspaceMode?: "preserve" | "rewind",
   ) => Promise<CommandAck | boolean | void> | CommandAck | boolean | void;
   /** 撤销该轮文件更改预览（v4 conversationFileRewindPreviewV4；缺省撤销钮不渲染）。 */
-  previewFileRewind?: (target: {
-    rowId: number;
-    entityId: string;
-  }) => Promise<V4ConversationFileRewindPreviewResult>;
+  previewFileRewind?: (
+    target: { rowId: number; entityId: string },
+  ) => Promise<V4ConversationFileRewindPreviewResult>;
   /** 撤销该轮文件更改应用（v4 applyFileRewind；workspace-only 不截断历史）。 */
   applyFileRewind?: (target: { rowId: number; entityId: string }) => Promise<CommandAck>;
 }

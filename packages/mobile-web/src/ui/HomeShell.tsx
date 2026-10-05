@@ -321,17 +321,17 @@ export function MobileHomeShell({
               }
             />
             <ul className="mt-3 space-y-2">
-              {workspaceGroups.map((workspace) => (
-                <WorkspaceGroupCard
-                  key={workspace.workspaceKey}
-                  workspace={workspace}
-                  collapsed={collapsedKeys.has(workspace.workspaceKey)}
-                  selectedTaskId={selectedTaskId}
-                  onToggle={() => toggleWorkspace(workspace.workspaceKey)}
-                  onTaskOpen={onTaskOpen}
-                  onWorkspaceNewTask={onWorkspaceNewTask}
-                />
-              ))}
+            {workspaceGroups.map((workspace) => (
+              <WorkspaceGroupCard
+                key={workspace.workspaceKey}
+                workspace={workspace}
+                collapsed={collapsedKeys.has(workspace.workspaceKey)}
+                selectedTaskId={selectedTaskId}
+                onToggle={() => toggleWorkspace(workspace.workspaceKey)}
+                onTaskOpen={onTaskOpen}
+                onWorkspaceNewTask={onWorkspaceNewTask}
+              />
+            ))}
             </ul>
           </>
         ) : timelineBuckets.length === 0 ? (

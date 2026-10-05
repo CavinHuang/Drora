@@ -103,16 +103,14 @@ const FILE_EXT_ICON_MAP: Readonly<Record<string, string>> = {
 };
 
 /** 官方全部图标名的闭集（两表值 ∪ {folder, document}，= public/material-icons 的 46 枚）。 */
-export const FILE_ICON_NAMES: readonly string[] = Object.freeze(
-  [
-    ...new Set([
-      ...Object.values(FILE_NAME_ICON_MAP),
-      ...Object.values(FILE_EXT_ICON_MAP),
-      FOLDER_ICON_NAME,
-      DOCUMENT_ICON_NAME,
-    ]),
-  ].sort(),
-);
+export const FILE_ICON_NAMES: readonly string[] = Object.freeze([
+  ...new Set([
+    ...Object.values(FILE_NAME_ICON_MAP),
+    ...Object.values(FILE_EXT_ICON_MAP),
+    FOLDER_ICON_NAME,
+    DOCUMENT_ICON_NAME,
+  ]),
+].sort());
 
 /** 反斜杠归一（bundle kh：`e.replace(/\\/g, "/")`——Windows 路径参与同一选择器）。 */
 function normalizeSeparators(path: string): string {

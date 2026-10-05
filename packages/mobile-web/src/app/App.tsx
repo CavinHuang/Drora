@@ -197,10 +197,12 @@ function AppBody() {
   const openHomeBridge = useCallback((workspacePath: string, workspaceIdentity?: string) => {
     const client = clientRef.current;
     if (!client) return Promise.reject(new Error("relay client is not connected"));
-    return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity).then((bridge) => {
-      homeBridgeAccessorRef.current = bridge.accessor;
-      return bridge;
-    });
+    return openHomeSessionsIndexBridge(client, workspacePath, workspaceIdentity).then(
+      (bridge) => {
+        homeBridgeAccessorRef.current = bridge.accessor;
+        return bridge;
+      },
+    );
   }, []);
   const liveWorkspaces = useHomeSessionsIndex(workspaces, openHomeBridge);
 
@@ -374,8 +376,9 @@ function AppBody() {
       setDraft(
         readComposerDraft({
           workspacePath: workspace.path,
-          workspaceIdentity:
-            workspace.workspaceKey !== workspace.path ? workspace.workspaceKey : undefined,
+          workspaceIdentity: workspace.workspaceKey !== workspace.path
+            ? workspace.workspaceKey
+            : undefined,
           scopeId: sessionId,
         })?.text ?? "",
       );
@@ -475,32 +478,29 @@ function AppBody() {
     void refresh();
   }, [refresh, resetOlder]);
 
-  const sendDraft = useCallback(
-    async (textOverride?: string, attachments?: AttachmentRef[]) => {
-      const session = taskRef.current;
-      // text 覆写：富文本编辑器自持状态，提交以参数传递（state 可能滞后一拍）。
-      const text = (textOverride ?? draft).trim();
-      if (!session || !text || sending) return;
-      setSending(true);
-      try {
-        await session.sendText(text, attachments);
-        setDraft("");
-        // §33.18.21 草稿持久化：发送成功即清该会话草稿（官方语义：发送只清内容）。
-        if (taskTarget) {
-          clearComposerDraft({
-            workspacePath: taskTarget.path,
-            workspaceIdentity: taskTarget.identity,
-            scopeId: selectedTaskId ?? "__draft__",
-          });
-        }
-        // 用户回显与助手响应经订阅帧到达（P3a 流式）；文件变更随发送刷新。
-        void session.fetchFileChanges().then((changes) => setFileChanges(changes));
-      } finally {
-        setSending(false);
+  const sendDraft = useCallback(async (textOverride?: string, attachments?: AttachmentRef[]) => {
+    const session = taskRef.current;
+    // text 覆写：富文本编辑器自持状态，提交以参数传递（state 可能滞后一拍）。
+    const text = (textOverride ?? draft).trim();
+    if (!session || !text || sending) return;
+    setSending(true);
+    try {
+      await session.sendText(text, attachments);
+      setDraft("");
+      // §33.18.21 草稿持久化：发送成功即清该会话草稿（官方语义：发送只清内容）。
+      if (taskTarget) {
+        clearComposerDraft({
+          workspacePath: taskTarget.path,
+          workspaceIdentity: taskTarget.identity,
+          scopeId: selectedTaskId ?? "__draft__",
+        });
       }
-    },
-    [draft, sending],
-  );
+      // 用户回显与助手响应经订阅帧到达（P3a 流式）；文件变更随发送刷新。
+      void session.fetchFileChanges().then((changes) => setFileChanges(changes));
+    } finally {
+      setSending(false);
+    }
+  }, [draft, sending]);
 
   // §33.18.21 草稿持久化：输入即落 localStorage（官方 composer parity，按工作区+
   // 会话 scope；发送成功清内容，见 sendDraft）。
@@ -635,7 +635,9 @@ function AppBody() {
                       const result = await taskRef.current?.queueDeleteItem(queueItemId);
                       if (result?.ok) setDraft(item.text);
                     }}
-                    onSendNow={(queueItemId) => void taskRef.current?.queueSendNow(queueItemId)}
+                    onSendNow={(queueItemId) =>
+                      void taskRef.current?.queueSendNow(queueItemId)
+                    }
                     onMoveItem={(queueItemId, beforeQueueItemId) =>
                       void taskRef.current?.queueReorderItem(queueItemId, beforeQueueItemId)
                     }
@@ -648,57 +650,56 @@ function AppBody() {
             </React.Suspense>
           ) : null}
           <TaskComposer
-            draft={draft}
-            sending={sending}
-            stopping={stopping}
-            desktopComposer={wideViewport}
-            controlState={controlState}
-            queueState={queueState}
-            modelState={modelState ?? EMPTY_MODEL_SELECTION_STATE}
-            modelView={modelView}
-            modelLoading={modelLoading}
-            modelMenuOpen={modelMenuOpen}
-            configMode={configMode}
-            onDraftChange={handleDraftChange}
-            onSend={(text, attachments) => void sendDraft(text, attachments)}
-            uploadAttachment={(file, onProgress) => {
-              const session = taskRef.current;
-              if (!session || !taskTarget)
-                return Promise.reject(new Error("task session detached"));
-              // §33.18.20：ui uploadAttachmentTransaction 窄入口复用（composerAttachmentUpload）。
-              return uploadComposerAttachment({
-                accessor: session.accessor,
-                workspacePath: taskTarget.path,
-                workspaceIdentity: taskTarget.identity,
-                sessionId: selectedTaskId ?? taskTarget.path,
-                file,
-                onProgress,
-              });
-            }}
-            workspacePath={taskTarget?.path}
-            workspaceIdentity={taskTarget?.identity}
-            taskId={selectedTaskId}
-            onStop={() => void stopGeneration()}
-            onToggleModelMenu={() => {
-              const session = taskRef.current;
-              if (!session) return;
-              setModelMenuOpen((open) => !open);
-              if (!modelMenuOpen) {
-                setModelLoading(true);
-                void session
-                  .getModelSelectionView()
-                  .then((view) => setModelView(view))
-                  .finally(() => setModelLoading(false));
-              }
-            }}
-            onModelSelect={(selection) => {
-              setModelMenuOpen(false);
-              const session = taskRef.current;
-              if (session) void session.switchModel(selection);
-            }}
-            onCloseModelMenu={() => setModelMenuOpen(false)}
-            onModeSelect={handleModeSelect}
-          />
+        draft={draft}
+        sending={sending}
+        stopping={stopping}
+        desktopComposer={wideViewport}
+        controlState={controlState}
+        queueState={queueState}
+        modelState={modelState ?? EMPTY_MODEL_SELECTION_STATE}
+        modelView={modelView}
+        modelLoading={modelLoading}
+        modelMenuOpen={modelMenuOpen}
+        configMode={configMode}
+        onDraftChange={handleDraftChange}
+        onSend={(text, attachments) => void sendDraft(text, attachments)}
+        uploadAttachment={(file, onProgress) => {
+          const session = taskRef.current;
+          if (!session || !taskTarget) return Promise.reject(new Error("task session detached"));
+          // §33.18.20：ui uploadAttachmentTransaction 窄入口复用（composerAttachmentUpload）。
+          return uploadComposerAttachment({
+            accessor: session.accessor,
+            workspacePath: taskTarget.path,
+            workspaceIdentity: taskTarget.identity,
+            sessionId: selectedTaskId ?? taskTarget.path,
+            file,
+            onProgress,
+          });
+        }}
+        workspacePath={taskTarget?.path}
+        workspaceIdentity={taskTarget?.identity}
+        taskId={selectedTaskId}
+        onStop={() => void stopGeneration()}
+        onToggleModelMenu={() => {
+          const session = taskRef.current;
+          if (!session) return;
+          setModelMenuOpen((open) => !open);
+          if (!modelMenuOpen) {
+            setModelLoading(true);
+            void session
+              .getModelSelectionView()
+              .then((view) => setModelView(view))
+              .finally(() => setModelLoading(false));
+          }
+        }}
+        onModelSelect={(selection) => {
+          setModelMenuOpen(false);
+          const session = taskRef.current;
+          if (session) void session.switchModel(selection);
+        }}
+        onCloseModelMenu={() => setModelMenuOpen(false)}
+        onModeSelect={handleModeSelect}
+      />
         </div>
       </div>
     ) : null;
@@ -799,17 +800,17 @@ function AppBody() {
   const sidePane =
     phase.kind === "task" && taskTarget && attachedTask && sidePaneMode === "git" ? (
       <React.Suspense fallback={null}>
-        <LazyRemoteGitSidePane
-          key={`${taskTarget.identity?.trim() || taskTarget.path}:${selectedTaskId}`}
-          open
-          onClose={() => setSidePaneMode("launcher")}
-          workspacePath={taskTarget.path}
-          workspaceIdentity={taskTarget.identity}
-          remoteSessionId={null}
-          accessor={attachedTask.accessor}
-          activeTaskId={selectedTaskId}
-          onRefreshGit={gitStatus.refresh}
-        />
+      <LazyRemoteGitSidePane
+        key={`${taskTarget.identity?.trim() || taskTarget.path}:${selectedTaskId}`}
+        open
+        onClose={() => setSidePaneMode("launcher")}
+        workspacePath={taskTarget.path}
+        workspaceIdentity={taskTarget.identity}
+        remoteSessionId={null}
+        accessor={attachedTask.accessor}
+        activeTaskId={selectedTaskId}
+        onRefreshGit={gitStatus.refresh}
+      />
       </React.Suspense>
     ) : phase.kind === "task" && taskTarget && sidePaneMode === "launcher" ? (
       <RemoteOpenTabShell
@@ -928,11 +929,7 @@ function AppBody() {
               title={taskTitle}
               workspacePath={taskTarget.path}
               branchName={gitStatus.summary?.branchName ?? null}
-              onToggleSidePane={
-                attachedTask
-                  ? () => setSidePaneMode((mode) => (mode ? null : "launcher"))
-                  : undefined
-              }
+              onToggleSidePane={attachedTask ? () => setSidePaneMode((mode) => mode ? null : "launcher") : undefined}
               sidePaneOpen={sidePaneMode !== null}
               // §33.18 官方宽壳活体：帮助/切换终端双钮仅宽壳渲染（窄壳无）；
               // r7 对照：侧板开启态官方隐藏终端钮（仅帮助+面板两钮）。
@@ -1018,107 +1015,99 @@ function AppBody() {
   if (wideViewport) {
     return (
       <div className="relative flex h-dvh w-full">
-        <WideShell
-          connection={connection}
-          workspaces={liveWorkspaces}
-          selectedTaskId={selectedTaskId}
-          isRefreshing={false}
-          taskSurface={taskShell}
-          onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
-          onNewTask={handleNewTask}
-          onDraftSend={(text) =>
-            handleDraftSend(
-              liveWorkspaces[0]
-                ? {
-                    workspaceKey: liveWorkspaces[0].workspaceKey,
-                    path: liveWorkspaces[0].path,
-                    name: liveWorkspaces[0].name,
-                  }
-                : null,
-              text,
-            )
-          }
-          draftSending={sending}
-          onSearchFiles={(query) => {
-            const accessor = homeBridgeAccessorRef.current;
-            if (!accessor) return Promise.resolve([]);
-            return accessor.fileService.searchWorkspaceFiles({
-              rootPath: liveWorkspaces[0]?.path ?? "",
-              workspaceIdentity: liveWorkspaces[0]?.workspaceKey,
-              query,
-              limit: 8,
-            });
-          }}
-          onFileSelect={(entry) => {
-            setDraft(
-              (draft) =>
-                (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath,
-            );
-          }}
-          onRefresh={() => void refresh()}
-          onThemePress={toggleTheme}
-          onLanguagePress={toggleLanguage}
-          onReconnect={() => clientRef.current?.connect()}
-        />
-        {/* §32.45 宽壳右侧常驻侧板（w2 双页取证）：任务面开启时并排渲染「打开标签页」
-          启动壳（官方三栏空态同构）；sidePaneMode 打开时替换为对应面板。 */}
-        {phase.kind === "task" && attachedTask ? (
-          sidePaneMode === null || sidePaneMode === "launcher" ? (
-            <RemoteOpenTabShell
-              variant="wide"
-              onClose={() => setSidePaneMode(null)}
-              items={
-                attachedTask
-                  ? [
-                      // §32.47 官方宽壳 launcher 三项（w2 双页取证）：辅助对话/审查/终端。
-                      // §33.18 活体再证（v7-wide 官方侧板同序）；审查项不再走 shell 的
-                      // 首位前置（那是窄壳「审查/终端」序），宽壳按官方中位插入。
-                      // §32.50 辅助对话专面（selection-chat）：官方语义=侧选会话面板，
-                      // 本仓复用 chat 主区（无独立 selection chat 后端面，不臆造协议），
-                      // 点击关闭侧板回到主会话——与官方"回到会话"体验等价的可用降级。
-                      {
-                        id: "selection-chat",
-                        label: intl.formatMessage({ id: "sidePane.selectionChat" }),
-                        icon: (
-                          <MessagesSquare
-                            aria-hidden="true"
-                            className="size-4 text-foreground-subtle"
-                          />
-                        ),
-                        onOpen: () => setSidePaneMode(null),
-                      },
-                      {
-                        id: "review",
-                        label: intl.formatMessage({ id: "sidePane.review" }),
-                        icon: (
-                          <FileDiff aria-hidden="true" className="size-4 text-foreground-subtle" />
-                        ),
-                        onOpen: () => setSidePaneMode("git"),
-                      },
-                      {
-                        id: "terminal",
-                        label: intl.formatMessage({ id: "chat.statusPanel.terminals" }),
-                        icon: (
-                          <TerminalSquare
-                            aria-hidden="true"
-                            className="size-4 text-foreground-subtle"
-                          />
-                        ),
-                        onOpen: () => setSidePaneMode("terminal"),
-                      },
-                    ]
-                  : []
-              }
-            />
-          ) : (
-            // §33.18.14 修复（窄→宽壳侧板迁移）：git/terminal 侧板元素是窄壳浮层形态
-            // （absolute inset-y-0 right-0 w-[88%]），宽壳右栏用 relative w-80 列容器
-            // 收拢——aside 直子强制满列宽，断点跨越时就地转驻留，不以全宽浮层残留。
-            <div className="relative h-dvh w-80 shrink-0 overflow-hidden border-l border-border bg-background [&>aside]:w-full [&>aside]:max-w-none">
-              {sidePane}
-            </div>
+      <WideShell
+        connection={connection}
+        workspaces={liveWorkspaces}
+        selectedTaskId={selectedTaskId}
+        isRefreshing={false}
+        taskSurface={taskShell}
+        onTaskOpen={(task, workspace) => void openTask(workspace, task.sessionId, task.title)}
+        onNewTask={handleNewTask}
+        onDraftSend={(text) =>
+          handleDraftSend(
+            liveWorkspaces[0]
+              ? {
+                  workspaceKey: liveWorkspaces[0].workspaceKey,
+                  path: liveWorkspaces[0].path,
+                  name: liveWorkspaces[0].name,
+                }
+              : null,
+            text,
           )
-        ) : null}
+        }
+        draftSending={sending}
+        onSearchFiles={(query) => {
+          const accessor = homeBridgeAccessorRef.current;
+          if (!accessor) return Promise.resolve([]);
+          return accessor.fileService.searchWorkspaceFiles({
+            rootPath: liveWorkspaces[0]?.path ?? "",
+            workspaceIdentity: liveWorkspaces[0]?.workspaceKey,
+            query,
+            limit: 8,
+          });
+        }}
+        onFileSelect={(entry) => {
+          setDraft((draft) => (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath);
+        }}
+        onRefresh={() => void refresh()}
+        onThemePress={toggleTheme}
+        onLanguagePress={toggleLanguage}
+        onReconnect={() => clientRef.current?.connect()}
+      />
+      {/* §32.45 宽壳右侧常驻侧板（w2 双页取证）：任务面开启时并排渲染「打开标签页」
+          启动壳（官方三栏空态同构）；sidePaneMode 打开时替换为对应面板。 */}
+      {phase.kind === "task" && attachedTask ? (
+        sidePaneMode === null || sidePaneMode === "launcher" ? (
+          <RemoteOpenTabShell
+            variant="wide"
+            onClose={() => setSidePaneMode(null)}
+            items={
+              attachedTask
+                ? [
+                    // §32.47 官方宽壳 launcher 三项（w2 双页取证）：辅助对话/审查/终端。
+                    // §33.18 活体再证（v7-wide 官方侧板同序）；审查项不再走 shell 的
+                    // 首位前置（那是窄壳「审查/终端」序），宽壳按官方中位插入。
+                    // §32.50 辅助对话专面（selection-chat）：官方语义=侧选会话面板，
+                    // 本仓复用 chat 主区（无独立 selection chat 后端面，不臆造协议），
+                    // 点击关闭侧板回到主会话——与官方"回到会话"体验等价的可用降级。
+                    {
+                      id: "selection-chat",
+                      label: intl.formatMessage({ id: "sidePane.selectionChat" }),
+                      icon: (
+                        <MessagesSquare
+                          aria-hidden="true"
+                          className="size-4 text-foreground-subtle"
+                        />
+                      ),
+                      onOpen: () => setSidePaneMode(null),
+                    },
+                    {
+                      id: "review",
+                      label: intl.formatMessage({ id: "sidePane.review" }),
+                      icon: <FileDiff aria-hidden="true" className="size-4 text-foreground-subtle" />,
+                      onOpen: () => setSidePaneMode("git"),
+                    },
+                    {
+                      id: "terminal",
+                      label: intl.formatMessage({ id: "chat.statusPanel.terminals" }),
+                      icon: (
+                        <TerminalSquare aria-hidden="true" className="size-4 text-foreground-subtle" />
+                      ),
+                      onOpen: () => setSidePaneMode("terminal"),
+                    },
+                  ]
+                : []
+            }
+          />
+        ) : (
+          // §33.18.14 修复（窄→宽壳侧板迁移）：git/terminal 侧板元素是窄壳浮层形态
+          // （absolute inset-y-0 right-0 w-[88%]），宽壳右栏用 relative w-80 列容器
+          // 收拢——aside 直子强制满列宽，断点跨越时就地转驻留，不以全宽浮层残留。
+          <div className="relative h-dvh w-80 shrink-0 overflow-hidden border-l border-border bg-background [&>aside]:w-full [&>aside]:max-w-none">
+            {sidePane}
+          </div>
+        )
+      ) : null}
       </div>
     );
   }
@@ -1162,8 +1151,7 @@ function AppBody() {
           workspaceKey: workspace.workspaceKey,
           path: workspace.path,
           name: workspace.name ?? workspace.path,
-        })
-      }
+        })}
       onSearchFiles={(query) => {
         const accessor = homeBridgeAccessorRef.current;
         if (!accessor) return Promise.resolve([]);
@@ -1175,10 +1163,7 @@ function AppBody() {
         });
       }}
       onFileSelect={(entry) => {
-        setDraft(
-          (draft) =>
-            (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath,
-        );
+        setDraft((draft) => (draft && !draft.endsWith(" ") ? draft + " " : draft) + "@" + entry.relativePath);
       }}
       onRefresh={() => void refresh()}
       onThemePress={toggleTheme}
@@ -1187,6 +1172,8 @@ function AppBody() {
     />
   );
 }
+
+
 
 export function App() {
   // accessor 动态组合（spec §30.2）：任务桥优先，回退首页 sessions-index 桥——

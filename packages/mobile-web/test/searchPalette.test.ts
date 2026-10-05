@@ -24,7 +24,9 @@ import type { IServiceAccessor } from "@zcode/services";
 
 // —— 脚手架：脚本化 accessor（spec §18 验收口径）与进程内 localStorage 假体 ——
 
-function scriptedAccessor(listTaskList: (query: unknown) => Promise<unknown>): IServiceAccessor {
+function scriptedAccessor(
+  listTaskList: (query: unknown) => Promise<unknown>,
+): IServiceAccessor {
   return { windowControllerService: { listTaskList } } as unknown as IServiceAccessor;
 }
 
@@ -56,7 +58,10 @@ test("searchTasks 契约：kind/sortBy/limit 固定，search trim 后上行，�
   });
   const rows = await searchTasks(
     accessor,
-    [{ workspacePath: "C:/g1", workspaceIdentity: "id-g1" }, { workspacePath: "C:/g2" }],
+    [
+      { workspacePath: "C:/g1", workspaceIdentity: "id-g1" },
+      { workspacePath: "C:/g2" },
+    ],
     "  fix login  ",
   );
   assert.deepEqual(rows, []);
@@ -201,10 +206,7 @@ test("搜索历史：大小写不敏感去重 + 命中条目移到首位（去�
       after.map((entry) => entry.query),
       ["ALPHA", "beta"],
     );
-    assert.deepEqual(
-      loadSearchHistory(key).map((entry) => entry.query),
-      ["ALPHA", "beta"],
-    );
+    assert.deepEqual(loadSearchHistory(key).map((entry) => entry.query), ["ALPHA", "beta"]);
   } finally {
     uninstall();
   }
@@ -314,7 +316,9 @@ const HOME_WORKSPACES = [
   {
     workspaceKey: "C:/b",
     path: "C:/b",
-    tasks: [{ sessionId: "t3", title: "fix login backend", createdAtMs: 30, updatedAtMs: 200 }],
+    tasks: [
+      { sessionId: "t3", title: "fix login backend", createdAtMs: 30, updatedAtMs: 200 },
+    ],
   },
 ];
 
@@ -327,10 +331,7 @@ test("本地投影：无 query 列最近任务（官方比较器 updated 降序�
   // 身份字段归一携带：workspaceKey 与 path 不同（远程身份）才带 workspaceIdentity。
   assert.equal(rows.find((row) => row.taskId === "t1")?.workspaceIdentity, "id-a");
   assert.equal(rows.find((row) => row.taskId === "t3")?.workspaceIdentity, undefined);
-  assert.deepEqual(
-    rows.map((row) => row.workspacePath),
-    ["C:/a", "C:/b", "C:/a"],
-  );
+  assert.deepEqual(rows.map((row) => row.workspacePath), ["C:/a", "C:/b", "C:/a"]);
 });
 
 test("本地投影：标题大小写不敏感包含过滤 + 结果仍按 updated 降序", () => {
@@ -339,10 +340,7 @@ test("本地投影：标题大小写不敏感包含过滤 + 结果仍按 updated
     rows.map((row) => row.taskId),
     ["t3", "t1"],
   );
-  assert.equal(
-    rows.every((row) => row.snippet === null),
-    true,
-  );
+  assert.equal(rows.every((row) => row.snippet === null), true);
 });
 
 test("本地投影：limit 截断与空标题回退 taskId", () => {

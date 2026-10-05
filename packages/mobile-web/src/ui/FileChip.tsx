@@ -75,17 +75,11 @@ export function FileChip({
       {options?.showIcon === false ? null : (
         <FileIconImage src={iconSrc} size={options?.iconSize ?? 16} className="shrink-0" />
       )}
-      <span
-        className={
-          options?.fileNameClassName ?? "truncate text-ui-base font-medium text-foreground"
-        }
-      >
+      <span className={options?.fileNameClassName ?? "truncate text-ui-base font-medium text-foreground"}>
         {name}
       </span>
       {options?.showFilePath && options?.filePath ? (
-        <span
-          className={options?.filePathClassName ?? "truncate text-ui-base text-foreground-subtlest"}
-        >
+        <span className={options?.filePathClassName ?? "truncate text-ui-base text-foreground-subtlest"}>
           {options.filePath}
         </span>
       ) : null}

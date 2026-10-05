@@ -10,7 +10,10 @@ import { Sidebar } from "./Sidebar.js";
 import { GreetingEmptyState } from "./GreetingEmptyState.js";
 import { useWideViewport } from "./useWideViewport.js";
 import { loadSidebarCollapsed, storeSidebarCollapsed } from "./wideShellModel.js";
-import type { SidebarOrganizeMode, SidebarSortMode } from "./SidebarOrganizeMenu.js";
+import type {
+  SidebarOrganizeMode,
+  SidebarSortMode,
+} from "./SidebarOrganizeMenu.js";
 import type { MobileHomeConnectionState } from "../HomeShell.js";
 // 类型仅引用（import type 编译期擦除）：不把 TaskSearchPanel 模块拽进首屏 chunk。
 import type { TaskSearchPanelTask } from "../TaskSearchPanel.js";
@@ -50,9 +53,9 @@ export interface WideShellProps {
    */
   onSearchTasks?: (search: string) => Promise<TaskSearchPanelTask[]>;
   /** P6 文件域（spec §29.5）：host 文件搜索执行器（accessor.fileService 绑定）。 */
-  onSearchFiles?: (
-    query: string,
-  ) => Promise<{ name: string; path: string; relativePath: string; type: "file" | "directory" }[]>;
+  onSearchFiles?: (query: string) => Promise<
+    { name: string; path: string; relativePath: string; type: "file" | "directory" }[]
+  >;
   /** 文件结果行点击（插入 composer 引用；装配归调用方）。 */
   onFileSelect?: (entry: { path: string; relativePath: string }) => void;
   className?: string;
@@ -73,8 +76,8 @@ export function WideShell({
   onLanguagePress,
   onReconnect,
   onSearchTasks,
-  onSearchFiles,
-  onFileSelect,
+    onSearchFiles,
+    onFileSelect,
   className,
 }: WideShellProps) {
   // 断点自持：窄视口返回 null（App 侧同样经 useWideViewport 分支，此处为组件自守）。

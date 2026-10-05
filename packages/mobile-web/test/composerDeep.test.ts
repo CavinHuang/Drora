@@ -60,7 +60,10 @@ test("官方工具条 testid 族：composer/input/attachment/mode/model/thought/
   ]) {
     assert.ok(html.includes(`data-testid="${tid}"`), tid);
   }
-  assert.ok(!html.includes('data-testid="v4-composer-send"'), "canStop 时 send 不渲染（同槽互换）");
+  assert.ok(
+    !html.includes('data-testid="v4-composer-send"'),
+    "canStop 时 send 不渲染（同槽互换）",
+  );
   assert.ok(html.includes('aria-label="停止生成"'), "停止钮 aria=chat.stop 官方逐字");
   // 无 usage 数据 → 官方同款 null 门（活体：Oxt 校验 used/size 非法即不渲染触发器）。
   const noUsage = render();
@@ -195,9 +198,7 @@ test("§32.22 官方 plan 标记：plan 生效且有切换能力时渲染 v4-com
   assert.ok(planHtml.includes('role="separator"'), "官方竖分隔结构");
   assert.ok(planHtml.includes("关闭计划模式"), "官方 removeMarker 文案（aria/title）");
   // 非 plan 模式与无切换能力（缺 onModeSelect）均不渲染——缺能力不臆造。
-  assert.ok(
-    !render({ configMode: "build", onModeSelect: () => {} }).includes("v4-composer-plan-marker"),
-  );
+  assert.ok(!render({ configMode: "build", onModeSelect: () => {} }).includes("v4-composer-plan-marker"));
   const noCapability = render({ configMode: "plan" });
   assert.ok(!noCapability.includes("v4-composer-plan-marker"), "无 onModeSelect 不渲染标记");
 });

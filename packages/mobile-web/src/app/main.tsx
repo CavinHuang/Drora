@@ -9,11 +9,13 @@ import "@zcode/ui/styles.css";
 // 常态无错误时 title 不被改写；探针只在 window error / unhandled rejection 时生效。
 window.addEventListener("error", (event) => {
   document.title =
-    "ERR: " + String(event.error?.stack ?? event.error?.message ?? event.message).slice(0, 300);
+    "ERR: " +
+    String(event.error?.stack ?? event.error?.message ?? event.message).slice(0, 300);
 });
 window.addEventListener("unhandledrejection", (event) => {
   document.title =
-    "REJ: " + String(event.reason?.stack ?? event.reason?.message ?? event.reason).slice(0, 300);
+    "REJ: " +
+    String(event.reason?.stack ?? event.reason?.message ?? event.reason).slice(0, 300);
 });
 
 const container = document.getElementById("root");

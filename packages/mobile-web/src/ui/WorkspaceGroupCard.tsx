@@ -40,10 +40,7 @@ export function WorkspaceGroupCard({
   collapsed: boolean;
   selectedTaskId: string | null;
   onToggle: () => void;
-  onTaskOpen?: (
-    task: WorkspaceGroupCardWorkspace["tasks"][number],
-    workspace: WorkspaceGroupCardWorkspace,
-  ) => void;
+  onTaskOpen?: (task: WorkspaceGroupCardWorkspace["tasks"][number], workspace: WorkspaceGroupCardWorkspace) => void;
   onWorkspaceNewTask?: (workspace: WorkspaceGroupCardWorkspace) => void;
 }) {
   const { formatMessage } = useIntl();
@@ -62,9 +59,7 @@ export function WorkspaceGroupCard({
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-ui-base font-medium text-foreground">
-                {workspace.name}
-              </span>
+              <span className="truncate text-ui-base font-medium text-foreground">{workspace.name}</span>
               <span className="shrink-0 rounded-full border border-border bg-surface px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtle">
                 {formatMessage({
                   id:

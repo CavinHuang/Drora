@@ -136,15 +136,11 @@ export function TaskModeTrigger({
         desktopComposer
           ? cn(
               "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-ui-base",
-              readOnly
-                ? "text-foreground-subtle"
-                : "text-foreground transition-colors hover:bg-hover hover:text-foreground",
+              readOnly ? "text-foreground-subtle" : "text-foreground transition-colors hover:bg-hover hover:text-foreground",
             )
           : cn(
               "inline-flex size-9 shrink-0 items-center justify-center rounded-lg",
-              readOnly
-                ? "text-foreground-subtle"
-                : "text-foreground transition-colors hover:bg-hover hover:text-foreground",
+              readOnly ? "text-foreground-subtle" : "text-foreground transition-colors hover:bg-hover hover:text-foreground",
             ),
         !readOnly && modeMenuOpen && "bg-hover",
       )}
@@ -178,11 +174,19 @@ export function TaskModeTrigger({
  *  移除标记（竖分隔 + ghost 钮，悬停换 X，chat.plan.removeMarker 文案）。官方动作为
  *  正交的 plan/plan-off 命令——本协议把 plan 折进 mode 闭集（§32.3），移除等价映射为
  *  切回 build。仅在有切换能力（onModeSelect）时渲染。 */
-export function TaskModePlanMarker({ onRemove }: { onRemove: () => void }) {
+export function TaskModePlanMarker({
+  onRemove,
+}: {
+  onRemove: () => void;
+}) {
   const { formatMessage } = useIntl();
   return (
     <span data-testid="v4-composer-plan-marker" className="flex items-center gap-1">
-      <span role="separator" aria-orientation="vertical" className="h-3 w-px shrink-0 bg-border" />
+      <span
+        role="separator"
+        aria-orientation="vertical"
+        className="h-3 w-px shrink-0 bg-border"
+      />
       <button
         type="button"
         aria-label={formatMessage({ id: "chat.plan.removeMarker" })}

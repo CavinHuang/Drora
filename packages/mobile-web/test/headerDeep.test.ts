@@ -25,21 +25,13 @@ function render(props: Partial<Parameters<typeof RemoteWorkspaceHeader>[0]> = {}
 test("官方双标题形态：workspace-title 可见 h1 + v4-session-title sr-only", () => {
   const html = render();
   assert.ok(html.includes('data-testid="workspace-title"'));
-  assert.ok(
-    /data-testid="v4-session-title"[^>]*class="[^"]*sr-only/.test(html),
-    "sr-only 会话标题",
-  );
+  assert.ok(/data-testid="v4-session-title"[^>]*class="[^"]*sr-only/.test(html), "sr-only 会话标题");
   assert.ok(html.includes("E2E 冒烟任务"));
 });
 
 test("workspace-path 官方 button 形态：onPathClick 传入才渲染 button，缺省 span", () => {
   const span = render();
-  assert.ok(
-    /data-testid="workspace-path"[\s\S]{0,80}<span|<span[^>]*data-testid="workspace-path"/.test(
-      span,
-    ) || !/<button[^>]*workspace-path/.test(span),
-    "缺省非 button",
-  );
+  assert.ok(/data-testid="workspace-path"[\s\S]{0,80}<span|<span[^>]*data-testid="workspace-path"/.test(span) || !/<button[^>]*workspace-path/.test(span), "缺省非 button");
   const wired = render({ onPathClick: () => {} });
   assert.ok(/<button[^>]*data-testid="workspace-path"/.test(wired), "button 形态");
 });
@@ -70,7 +62,10 @@ test("side-pane-toggle 装配缝：缺省不渲染；开合态驱动 aria/图标
 
 test("§32.25 工作区 chip 名带分支：aria = 「工作区名 · 分支」（官方活体 demo · main）；分支缺省纯工作区名", () => {
   const withBranch = render({ branchName: "main" });
-  assert.ok(withBranch.includes('aria-label="sub · main"'), "chip aria = 工作区名 · 分支");
+  assert.ok(
+    withBranch.includes('aria-label="sub · main"'),
+    "chip aria = 工作区名 · 分支",
+  );
   const noBranch = render({ branchName: null });
   assert.ok(noBranch.includes('aria-label="sub"'), "无分支退化为纯工作区名");
 });

@@ -366,14 +366,12 @@ export const zhCN: Record<string, string> = {
   "automations.delete.title": "删除定时任务", // 官方逐字
   // —— 31-92 段（官方逐字，form/field/validate/schedule/weekday/confirm 交互族）——
   "automations.edit.newTask": "新建任务", // 官方逐字
-  "automations.edit.promptPlaceholder":
-    "例如：Review 最近 24 小时的提交，总结可能引入的 bug 和修复建议", // 官方逐字
+  "automations.edit.promptPlaceholder": "例如：Review 最近 24 小时的提交，总结可能引入的 bug 和修复建议", // 官方逐字
   "automations.edit.tab.history": "历史", // 官方逐字
   "automations.edit.tab.settings": "设置", // 官方逐字
   "automations.edit.titlePlaceholder": "未命名定时任务", // 官方逐字
   "automations.empty.title": "还没有定时任务", // 官方逐字
-  "automations.error.createLimit":
-    "最多可保留 {limit} 个定时任务（包含已暂停、已完成和失败任务），请先删除一个任务后再创建。", // 官方逐字
+  "automations.error.createLimit": "最多可保留 {limit} 个定时任务（包含已暂停、已完成和失败任务），请先删除一个任务后再创建。", // 官方逐字
   "automations.error.targetNotFound": "未找到该定时任务，可能已被删除", // 官方逐字
   "automations.form.dayOfMonth": "{day} 号", // 官方逐字
   "automations.form.editTitle": "编辑定时任务", // 官方逐字
@@ -456,8 +454,7 @@ export const zhCN: Record<string, string> = {
   "workspaceSidebar.reconnect": "重新连接", // 官方逐字
   "workspaceSidebar.remove": "移除", // 官方逐字
   "workspaceSidebar.removeRunningWorkspace.confirm": "移除并停止运行", // 官方逐字
-  "workspaceSidebar.removeRunningWorkspace.description":
-    "该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。", // 官方逐字
+  "workspaceSidebar.removeRunningWorkspace.description": "该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。", // 官方逐字
   "workspaceSidebar.removeRunningWorkspace.title": "移除运行中的项目？", // 官方逐字
   "workspaceSidebar.reorderSection": "移动{section}分区", // 官方逐字
   "workspaceSidebar.resizeSidebar": "调整侧边栏宽度", // 官方逐字
@@ -471,11 +468,9 @@ export const zhCN: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH 连接", // 官方逐字
   "workspaceSidebar.taskViewOptions": "筛选和排序", // 官方逐字
   "workspaceSidebar.toggleSidebar": "切换侧边栏", // 官方逐字
-  "workspaceSidebar.unavailableLocalDirectory":
-    "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。", // 官方逐字
+  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。", // 官方逐字
   "workspaceSidebar.viewByWorkspace": "按项目", // 官方逐字
-  "workspaceSidebar.windowsReservedNameRisk":
-    "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}", // 官方逐字
+  "workspaceSidebar.windowsReservedNameRisk": "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}", // 官方逐字
   // —— P6 sidePane 侧板面（spec §23）：官方 zh 值逐字（25/25 全有值，{title} 插值）——
   "sidePane.addTab": "新增标签", // 官方逐字
   "sidePane.closeAllTabs": "关闭所有标签", // 官方逐字
@@ -535,8 +530,7 @@ export const zhCN: Record<string, string> = {
   "chat.placeholder.newTask": "向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
   "workspace.context.lastActivity": "最近活动 {time}", // 官方逐字（§32.11 信息弹层）
   "chat.draft.suggestedPrompt.recentCommits": "检查近 7 天的 commit", // 官方逐字
-  "chat.draft.suggestedPrompt.recentCommits.prompt":
-    "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字
+  "chat.draft.suggestedPrompt.recentCommits.prompt": "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字
   "chat.draft.suggestedPrompt.createPdf": "制作一份 PDF", // 官方逐字
   "chat.draft.suggestedPrompt.createPdf.prompt": "根据当前工作区内容制作一份 PDF 文档。", // 官方逐字
 };

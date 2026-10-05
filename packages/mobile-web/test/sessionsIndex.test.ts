@@ -25,7 +25,10 @@ let ordinal = 0;
 
 // ── 构造 helpers ──
 
-function summary(sessionId: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
+function summary(
+  sessionId: string,
+  overrides: Partial<SessionSummary> = {},
+): SessionSummary {
   return {
     workspaceId: WORKSPACE_KEY,
     title: `任务 ${sessionId}`,
@@ -119,9 +122,7 @@ test("delta 帧仅在 fromSeq === seq 衔接时应用：upserted 覆盖 / remove
   // 衔接 delta（fromSeq === 5）：upserted 按 sessionId 覆盖。
   store.acceptWireFrame(
     completeWire(
-      deltasFrame(5, 6, [
-        upserted(summary("s1", { phase: "completedSuccess", lastActivityAt: 300 })),
-      ]),
+      deltasFrame(5, 6, [upserted(summary("s1", { phase: "completedSuccess", lastActivityAt: 300 }))]),
     ),
   );
   assert.equal(store.getState().seq, 6);
@@ -215,9 +216,7 @@ test("非本订阅帧静默丢弃：ACK 前 / 异 subscriptionId / 异 topic / �
   store.acceptWireFrame(null);
   store.acceptWireFrame({ kind: "carrier-pigeon", topic: TOPIC, subscriptionId: SUBSCRIPTION_ID });
   // 本订阅 + 本 topic 但载荷不合法：assembler typed fault 静默忽略，状态不动。
-  store.acceptWireFrame(
-    completeWire({ topic: TOPIC, subscriptionId: SUBSCRIPTION_ID, garbage: true }),
-  );
+  store.acceptWireFrame(completeWire({ topic: TOPIC, subscriptionId: SUBSCRIPTION_ID, garbage: true }));
   assert.equal(resyncCount, 0);
   assert.deepEqual(store.getSessionSummaries(), []);
   assert.equal(store.getState().seq, 0);
@@ -312,27 +311,13 @@ test("活性合并：status/updatedAt 覆盖，custom title 权威，draft 剔�
   assert.equal(t2?.status, "error");
   assert.equal(t2?.title, "投影标题二"); // generated/default 标题不覆盖投影。
   assert.equal(t2?.updatedAtMs, 400);
-  assert.equal(
-    merged.tasks.some((task) => task.sessionId === "t3"),
-    false,
-  ); // draft 剔除。
-  assert.equal(
-    merged.tasks.some((task) => task.sessionId === "ghost"),
-    false,
-  ); // 投影外不新增。
+  assert.equal(merged.tasks.some((task) => task.sessionId === "t3"), false); // draft 剔除。
+  assert.equal(merged.tasks.some((task) => task.sessionId === "ghost"), false); // 投影外不新增。
 });
 
 test("活性合并：无摘要的行保持投影原样（bootstrap/list 仍是权威数据源）", () => {
   const workspace = projectWorkspace([
-    {
-      sessionId: "t1",
-      title: "投影标题",
-      createdAtMs: 1,
-      updatedAtMs: 100,
-      status: "running",
-      unreadAtMs: null,
-      hasBackgroundWork: false,
-    },
+    { sessionId: "t1", title: "投影标题", createdAtMs: 1, updatedAtMs: 100, status: "running", unreadAtMs: null, hasBackgroundWork: false },
   ]);
   const merged = mergeHomeWorkspaceLiveness(workspace, []);
   // §32.37 未读 null（已读）行条件展开——合并结果不携带未读键。

@@ -322,15 +322,12 @@ export const enUS: Record<string, string> = {
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
   "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
   "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
-  "chat.placeholder.newTask":
-    "Ask ZCode anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
+  "chat.placeholder.newTask": "Ask ZCode anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
   "workspace.context.lastActivity": "Last active {time}", // official
   "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
-  "chat.draft.suggestedPrompt.recentCommits.prompt":
-    "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
+  "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
   "chat.draft.suggestedPrompt.createPdf": "Create a PDF", // 官方逐字
-  "chat.draft.suggestedPrompt.createPdf.prompt":
-    "Create a PDF document based on the contents of the current workspace.", // 官方逐字
+  "chat.draft.suggestedPrompt.createPdf.prompt": "Create a PDF document based on the contents of the current workspace.", // 官方逐字
   // §32.3 更多菜单一期（上轮键，随字典回退补回）
   "common.confirm": "Confirm", // 官方逐字
   "appHeader.copyPath": "Copy path", // 官方逐字
@@ -373,8 +370,7 @@ export const enUS: Record<string, string> = {
   "automations.create": "Create", // 官方 en 逐字（校准）
   "automations.createManually": "Create scheduled task", // 官方逐字（en 校准一致）
   "automations.createViaChat": "Create in chat", // 官方逐字（en 校准一致）
-  "automations.createViaChat.prompt":
-    "Every weekday at 9 AM, summarize code changes and follow-ups for this project.", // 官方 en 逐字（校准）
+  "automations.createViaChat.prompt": "Every weekday at 9 AM, summarize code changes and follow-ups for this project.", // 官方 en 逐字（校准）
   "automations.createdLabel": "Task created", // 官方逐字（en 校准一致）
   "automations.customRepeat.byDate": "By date", // 官方逐字（en 校准一致）
   "automations.customRepeat.byWeekday": "By weekday", // 官方逐字（en 校准一致）
@@ -400,16 +396,13 @@ export const enUS: Record<string, string> = {
   "automations.delete.title": "Delete scheduled task", // 官方逐字（en 校准一致）
   // —— 31-92 段（en 补译，form/field/validate/schedule/weekday/confirm 交互族）——
   "automations.edit.newTask": "New task", // 官方逐字（en 校准一致）
-  "automations.edit.promptPlaceholder":
-    "e.g. Review commits from the last 24 hours and summarize likely bugs and fixes", // 官方 en 逐字（校准）
+  "automations.edit.promptPlaceholder": "e.g. Review commits from the last 24 hours and summarize likely bugs and fixes", // 官方 en 逐字（校准）
   "automations.edit.tab.history": "History", // 官方逐字（en 校准一致）
   "automations.edit.tab.settings": "Settings", // 官方逐字（en 校准一致）
   "automations.edit.titlePlaceholder": "Untitled Automation", // 官方 en 逐字（校准）
   "automations.empty.title": "No scheduled tasks yet.", // 官方 en 逐字（校准）
-  "automations.error.createLimit":
-    "You can keep up to {limit} scheduled tasks, including paused, completed, and failed tasks. Delete one before creating another.", // 官方 en 逐字（校准）
-  "automations.error.targetNotFound":
-    "This scheduled task was not found. It may have been deleted.", // 官方 en 逐字（校准）
+  "automations.error.createLimit": "You can keep up to {limit} scheduled tasks, including paused, completed, and failed tasks. Delete one before creating another.", // 官方 en 逐字（校准）
+  "automations.error.targetNotFound": "This scheduled task was not found. It may have been deleted.", // 官方 en 逐字（校准）
   "automations.form.dayOfMonth": "Day {day}", // 官方逐字（en 校准一致）
   "automations.form.editTitle": "Edit scheduled task", // 官方逐字（en 校准一致）
   "automations.form.project.localRequired": "Open a local project first", // 官方逐字（en 校准一致）
@@ -443,15 +436,13 @@ export const enUS: Record<string, string> = {
   "automations.runs.errorUnavailable": "No error details available", // 官方逐字（en 校准一致）
   "automations.runs.nextPage": "Next", // 官方 en 逐字（校准）
   "automations.runs.openSession": "Go to session", // 官方 en 逐字（校准）
-  "automations.runs.openSessionFailed":
-    "The target project is not connected, so this session cannot be opened.", // 官方 en 逐字（校准）
+  "automations.runs.openSessionFailed": "The target project is not connected, so this session cannot be opened.", // 官方 en 逐字（校准）
   "automations.runs.prevPage": "Previous", // 官方 en 逐字（校准）
   "automations.schedule.custom": "Every {interval} {unit} at {time}", // 官方 en 逐字（校准）
   "automations.schedule.customHourly": "Every {interval} hours at :{time}", // 官方 en 逐字（校准）
   "automations.schedule.customMinutes": "Every {interval} minutes", // 官方逐字（en 校准一致）
   "automations.schedule.customMonthlyDates": "Every {interval} months on day {days} at {time}", // 官方 en 逐字（校准）
-  "automations.schedule.customMonthlyWeekday":
-    "Every {interval} months on the first {day} at {time}", // 官方 en 逐字（校准）
+  "automations.schedule.customMonthlyWeekday": "Every {interval} months on the first {day} at {time}", // 官方 en 逐字（校准）
   "automations.schedule.customWeekly": "Every {interval} weeks on {days} at {time}", // 官方 en 逐字（校准）
   "automations.schedule.customYearly": "Every {interval} year(s) on {month}/{day} at {time}", // 官方 en 逐字（校准）
   "automations.schedule.daily": "Daily at {time}", // 官方逐字（en 校准一致）
@@ -490,8 +481,7 @@ export const enUS: Record<string, string> = {
   "workspaceSidebar.reconnect": "Reconnect", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.remove": "Remove", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.removeRunningWorkspace.confirm": "Remove and stop", // 官方 en 逐字（校准）
-  "workspaceSidebar.removeRunningWorkspace.description":
-    "This project still has a running chat or Agent. Removing it will stop and release the related runtime state, but task history will not be deleted.", // 官方 en 逐字（校准）
+  "workspaceSidebar.removeRunningWorkspace.description": "This project still has a running chat or Agent. Removing it will stop and release the related runtime state, but task history will not be deleted.", // 官方 en 逐字（校准）
   "workspaceSidebar.removeRunningWorkspace.title": "Remove a running project?", // 官方 en 逐字（校准）
   "workspaceSidebar.reorderSection": "Move {section} section", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.resizeSidebar": "Resize sidebar", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
@@ -505,11 +495,9 @@ export const enUS: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH connection", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.taskViewOptions": "Filter and sort", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.toggleSidebar": "Toggle sidebar", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
-  "workspaceSidebar.unavailableLocalDirectory":
-    "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart ZCode to continue.", // 官方 en 逐字（校准）
+  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart ZCode to continue.", // 官方 en 逐字（校准）
   "workspaceSidebar.viewByWorkspace": "By project", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
-  "workspaceSidebar.windowsReservedNameRisk":
-    "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}", // 官方 en 逐字（校准）
+  "workspaceSidebar.windowsReservedNameRisk": "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}", // 官方 en 逐字（校准）
   // —— P6 sidePane 侧板面（spec §23）：en 语义补译——
   "sidePane.addTab": "Add tab", // 官方逐字（en 校准一致）
   "sidePane.closeAllTabs": "Close all tabs", // 官方逐字（en 校准一致）

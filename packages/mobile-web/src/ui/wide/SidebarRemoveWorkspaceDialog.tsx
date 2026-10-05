@@ -112,7 +112,10 @@ export function WorkspaceSshBadge({
   return (
     <span
       title={details || formatMessage({ id: "workspaceSidebar.sshConnectionTitle" })}
-      className={cn("shrink-0 rounded bg-muted px-1 text-ui-xs text-muted-foreground", className)}
+      className={cn(
+        "shrink-0 rounded bg-muted px-1 text-ui-xs text-muted-foreground",
+        className,
+      )}
     >
       {formatMessage({ id: "workspaceSidebar.sshConnectionTitle" })}
     </span>

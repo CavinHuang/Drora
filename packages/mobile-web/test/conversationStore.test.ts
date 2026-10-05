@@ -513,7 +513,9 @@ test("⑩ getPendingInteractions：快照原样返回、state.updated 运行期�
   const { store } = setup();
   const interaction = permissionInteractionFixture();
   store.acceptWireFrame(
-    completeWire(snapshotFrame(makeSnapshot({ seq: 1, pendingInteractions: [interaction] }))),
+    completeWire(
+      snapshotFrame(makeSnapshot({ seq: 1, pendingInteractions: [interaction] })),
+    ),
   );
   assert.deepEqual(store.getPendingInteractions(), [interaction]);
 
@@ -528,10 +530,7 @@ test("⑩ getPendingInteractions：快照原样返回、state.updated 运行期�
   store.acceptWireFrame(
     completeWire(
       deltasFrame(1, 2, [
-        {
-          op: "state.updated",
-          patch: { pendingInteractions: [interaction, userInputInteraction] },
-        },
+        { op: "state.updated", patch: { pendingInteractions: [interaction, userInputInteraction] } },
       ]),
     ),
   );
@@ -539,7 +538,9 @@ test("⑩ getPendingInteractions：快照原样返回、state.updated 运行期�
 
   // 用户作答后 host 以空数组收走交互：同一整键替换语义，回到 []。
   store.acceptWireFrame(
-    completeWire(deltasFrame(2, 3, [{ op: "state.updated", patch: { pendingInteractions: [] } }])),
+    completeWire(
+      deltasFrame(2, 3, [{ op: "state.updated", patch: { pendingInteractions: [] } }]),
+    ),
   );
   assert.deepEqual(store.getPendingInteractions(), []);
 });
@@ -585,3 +586,4 @@ test("⑪ getQueueState：itemCount/autoDrain/pauseReason 三字段从 snapshot.
 // spec §15 验收第 3 项注明：resolveInteraction 的命令组装位于 taskSession.ts（v4 命令 +
 // 桥内 IServiceAccessor，属网络面），不在本纯逻辑 store 内；按任务约定网络面不做单测。
 // store 侧只提供 getPendingInteractions 派生选择器（⑩ 覆盖）。
+

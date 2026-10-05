@@ -106,10 +106,7 @@ export function RemoteGitSidePane({
           </span>
           <button
             type="button"
-            aria-label={formatMessage(
-              { id: "sidePane.closeTab" },
-              { title: formatMessage({ id: "sidePane.review" }) },
-            )}
+            aria-label={formatMessage({ id: "sidePane.closeTab" }, { title: formatMessage({ id: "sidePane.review" }) })}
             className="inline-flex size-5 shrink-0 items-center justify-center rounded text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
             onClick={onClose}
           >

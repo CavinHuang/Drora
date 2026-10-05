@@ -14,8 +14,7 @@ const handler = createRelayRemoteControlApiHandler({
   sessions: {
     view: (token) => ({ device: token === "tok-1" ? { sid: token } : null }),
   },
-  sendToDevice: (token, payload) =>
-    forwarded.push({ token, viewState: payload as Record<string, unknown> }),
+  sendToDevice: (token, payload) => forwarded.push({ token, viewState: payload as Record<string, unknown> }),
 });
 
 let server: Server;
@@ -40,26 +39,16 @@ test.after(() => {
   server.close();
 });
 
-function post(
-  path: string,
-  body: unknown,
-): Promise<{ status: number; json: Record<string, unknown> }> {
+function post(path: string, body: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
-    const req = request(
-      `${baseUrl}${path}`,
-      { method: "POST", headers: { "content-type": "application/json" } },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (c: Buffer) => chunks.push(c));
-        res.on("end", () => {
-          const text = Buffer.concat(chunks).toString("utf8");
-          resolve({
-            status: res.statusCode ?? 0,
-            json: text ? (JSON.parse(text) as Record<string, unknown>) : {},
-          });
-        });
-      },
-    );
+    const req = request(`${baseUrl}${path}`, { method: "POST", headers: { "content-type": "application/json" } }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        resolve({ status: res.statusCode ?? 0, json: text ? (JSON.parse(text) as Record<string, unknown>) : {} });
+      });
+    });
     req.on("error", reject);
     req.end(JSON.stringify(body));
   });
@@ -77,14 +66,9 @@ test("workspace-bridge：合法 token 签发 wsUrl + workspaceKey + initialTaskI
 });
 
 test("workspace-bridge：未知 token 401；缺 workspaceKey 400；无 taskId 省 initialTaskId", async () => {
-  assert.equal(
-    (await post("/api/remote-control/windows/nope/workspace-bridge", { workspaceKey: "w" })).status,
-    401,
-  );
+  assert.equal((await post("/api/remote-control/windows/nope/workspace-bridge", { workspaceKey: "w" })).status, 401);
   assert.equal((await post("/api/remote-control/windows/tok-1/workspace-bridge", {})).status, 400);
-  const ok = await post("/api/remote-control/windows/tok-1/workspace-bridge", {
-    workspaceKey: "w",
-  });
+  const ok = await post("/api/remote-control/windows/tok-1/workspace-bridge", { workspaceKey: "w" });
   assert.equal(ok.status, 200);
   assert.equal("initialTaskId" in ok.json, false);
 });

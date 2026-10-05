@@ -80,11 +80,7 @@ export function QuickPickDialog({
         if (event.key === "Escape") onOpenChange(false);
       }}
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-black/40"
-        onClick={() => onOpenChange(false)}
-      />
+      <div aria-hidden="true" className="absolute inset-0 bg-black/40" onClick={() => onOpenChange(false)} />
       <div className="absolute inset-x-0 top-0 flex max-h-[85dvh] flex-col overflow-hidden rounded-b-2xl border-b border-card-border bg-card shadow-lg">
         <div className="shrink-0 border-b border-border px-3 py-2">
           <p className="text-ui-sm font-medium text-foreground">{title}</p>
@@ -98,7 +94,9 @@ export function QuickPickDialog({
                   type="button"
                   aria-label={formatMessage({ id: "quickPick.find.scope.tooltip" })}
                   className="rounded-md border border-border px-2 py-1 text-ui-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                  onClick={() => onFindScopeChange(findScope === "messages" ? "files" : "messages")}
+                  onClick={() =>
+                    onFindScopeChange(findScope === "messages" ? "files" : "messages")
+                  }
                 >
                   {scopeLabel}
                 </button>

@@ -22,8 +22,7 @@ export interface RemoteControlHttpApiDeps {
 export function createRemoteControlHttpApiHandler(
   deps: RemoteControlHttpApiDeps,
 ): (request: IncomingMessage, response: ServerResponse, pathname: string) => Promise<boolean> {
-  return (request, response, pathname) =>
-    handleRemoteControlHttpApi(request, response, pathname, deps);
+  return (request, response, pathname) => handleRemoteControlHttpApi(request, response, pathname, deps);
 }
 
 /** relayServer 会话/发送面的最小结构类型（避免跨模块引入具体实现类型）。 */

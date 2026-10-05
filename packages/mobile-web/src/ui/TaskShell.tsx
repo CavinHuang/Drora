@@ -65,44 +65,44 @@ export function MobileTaskShell({
     >
       {/* 顶栏（官方 h-11 bg-header px-2 结构）；宽壳官方无此行（topBarHidden）。 */}
       {topBarHidden ? null : (
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-header px-2">
-          {onBack ? (
-            <Button
-              variant="ghost"
-              // 移动壳触控目标 ≥44px：显式放大图标按钮（覆盖 icon-sm 默认 size-6）。
-              size="icon-sm"
-              className="size-11"
-              aria-label={formatMessage({ id: "mobileShell.task.backHome" })}
-              onClick={onBack}
-            >
-              <ArrowLeft aria-hidden="true" className="size-4" />
-            </Button>
-          ) : null}
-          <span className="min-w-0 flex-1 truncate text-ui-base font-medium">{resolvedTitle}</span>
-          {onThemePress ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11"
-              aria-label={formatMessage({ id: "mobileShell.home.theme" })}
-              onClick={onThemePress}
-            >
-              <Palette aria-hidden="true" className="size-4" />
-            </Button>
-          ) : null}
-          {onMorePress ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11"
-              aria-label={formatMessage({ id: "mobileShell.task.more" })}
-              aria-haspopup="menu"
-              onClick={onMorePress}
-            >
-              <Ellipsis aria-hidden="true" className="size-4" />
-            </Button>
-          ) : null}
-        </header>
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-header px-2">
+        {onBack ? (
+          <Button
+            variant="ghost"
+            // 移动壳触控目标 ≥44px：显式放大图标按钮（覆盖 icon-sm 默认 size-6）。
+            size="icon-sm"
+            className="size-11"
+            aria-label={formatMessage({ id: "mobileShell.task.backHome" })}
+            onClick={onBack}
+          >
+            <ArrowLeft aria-hidden="true" className="size-4" />
+          </Button>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate text-ui-base font-medium">{resolvedTitle}</span>
+        {onThemePress ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-11"
+            aria-label={formatMessage({ id: "mobileShell.home.theme" })}
+            onClick={onThemePress}
+          >
+            <Palette aria-hidden="true" className="size-4" />
+          </Button>
+        ) : null}
+        {onMorePress ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-11"
+            aria-label={formatMessage({ id: "mobileShell.task.more" })}
+            aria-haspopup="menu"
+            onClick={onMorePress}
+          >
+            <Ellipsis aria-hidden="true" className="size-4" />
+          </Button>
+        ) : null}
+      </header>
       )}
 
       {workspaceHeader}

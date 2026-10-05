@@ -124,10 +124,7 @@ function projectTask(record: Record<string, unknown>): ProjectedTask {
     pinned: record.pinned === true,
     archived: record.archived === true,
     // §32.37 官方投影语义：仅 typeof number 的 unreadAt 并入（null/缺省均为未读否）。
-    unreadAtMs:
-      typeof record.unreadAt === "number" && Number.isFinite(record.unreadAt)
-        ? record.unreadAt
-        : null,
+    unreadAtMs: typeof record.unreadAt === "number" && Number.isFinite(record.unreadAt) ? record.unreadAt : null,
     // §32.50 官方投影（@3974926）：hasBackgroundWork 布尔透传（行活跃判定 Drn：
     // displayStatus==='running' || hasBackgroundWork===true）。
     hasBackgroundWork: record.hasBackgroundWork === true,

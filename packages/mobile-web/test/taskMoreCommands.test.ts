@@ -214,7 +214,9 @@ test("sendSwitchCollaborationModeCas：纯函数直发信封形状（stale 收�
   const result = await sendSwitchCollaborationModeCas({
     send: async (envelope) => {
       calls.push(envelope);
-      return calls.length === 1 ? ackOf("stale", { revisionAtDecision: 5 }) : ackOf("duplicate");
+      return calls.length === 1
+        ? ackOf("stale", { revisionAtDecision: 5 })
+        : ackOf("duplicate");
     },
     sessionId: SESSION_ID,
     clientId: "zcode-mobile-test",
@@ -378,7 +380,11 @@ test("§32.69 官方全项 9 条 4 组：pin() 装配序 + disabled 渲染不隐
   assert.ok(bare.includes("查看调用轨迹"), "taskList.viewModelTrajectory");
   assert.ok(bare.includes("反馈问题"), "taskList.feedback");
   // 3 组分隔线（组 A‖B‖C‖D）
-  assert.strictEqual((bare.match(/role="separator"/g) ?? []).length, 3, "官方三组分隔线");
+  assert.strictEqual(
+    (bare.match(/role="separator"/g) ?? []).length,
+    3,
+    "官方三组分隔线",
+  );
   // 缺源 disabled：pin/archive/markUnread/copyTaskPath/copyLogPath/copySessionId/trajectory/feedback
   for (const tid of [
     "task-more-pin",

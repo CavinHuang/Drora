@@ -50,13 +50,7 @@ test("iX hourly/daily/weekdays：官方逐字（第 {minute} 分 / 每天 / 每�
 test("iX weekly：$Y 序排序 + 硬编码'、'分隔（不走 separator 键）", () => {
   assert.equal(
     describeSchedule(
-      {
-        ...defaultSchedule("30 9 * * *", NOW),
-        hour: 9,
-        minute: 5,
-        frequency: "weekly",
-        weekdays: [3, 1],
-      },
+      { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "weekly", weekdays: [3, 1] },
       fmt,
     ),
     "每周一、三 09:05",
@@ -66,13 +60,7 @@ test("iX weekly：$Y 序排序 + 硬编码'、'分隔（不走 separator 键）"
 test("iX monthly：{day} 号 + HH:MM", () => {
   assert.equal(
     describeSchedule(
-      {
-        ...defaultSchedule("30 9 * * *", NOW),
-        hour: 9,
-        minute: 5,
-        frequency: "monthly",
-        dayOfMonth: 15,
-      },
+      { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "monthly", dayOfMonth: 15 },
       fmt,
     ),
     "每月 15 号 09:05",
@@ -80,12 +68,7 @@ test("iX monthly：{day} 号 + HH:MM", () => {
 });
 
 test("iX custom 六子形态：minute/hourly/weekly/monthly×2/yearly/兜底 unit=day", () => {
-  const base = {
-    ...defaultSchedule("30 9 * * *", NOW),
-    hour: 9,
-    minute: 5,
-    frequency: "custom" as const,
-  };
+  const base = { ...defaultSchedule("30 9 * * *", NOW), hour: 9, minute: 5, frequency: "custom" as const };
   assert.equal(
     describeSchedule({ ...base, customInterval: 5, customUnit: "minute" }, fmt),
     "每 5 分钟",
@@ -105,26 +88,14 @@ test("iX custom 六子形态：minute/hourly/weekly/monthly×2/yearly/兜底 uni
   );
   assert.equal(
     describeSchedule(
-      {
-        ...base,
-        customInterval: 2,
-        customUnit: "monthly",
-        customMonthlyMode: "weekday",
-        customWeekdays: [1],
-      },
+      { ...base, customInterval: 2, customUnit: "monthly", customMonthlyMode: "weekday", customWeekdays: [1] },
       fmt,
     ),
     "每 2 个月的第一个周一，09:05",
   );
   assert.equal(
     describeSchedule(
-      {
-        ...base,
-        customInterval: 2,
-        customUnit: "monthly",
-        customMonthlyMode: "date",
-        customMonthDays: [1, 15],
-      },
+      { ...base, customInterval: 2, customUnit: "monthly", customMonthlyMode: "date", customMonthDays: [1, 15] },
       fmt,
     ),
     "每 2 个月的 1, 15 日，09:05",
@@ -146,24 +117,16 @@ test("iX custom 六子形态：minute/hourly/weekly/monthly×2/yearly/兜底 uni
 
 test("iX default → rawExpr 直出（官方兜底）", () => {
   assert.equal(
-    describeSchedule(
-      {
-        ...defaultSchedule("30 9 * * *", NOW),
-        frequency: "biweekly" as never,
-        rawExpr: "0 12 * * 0",
-      },
-      fmt,
-    ),
+    describeSchedule({ ...defaultSchedule("30 9 * * *", NOW), frequency: "biweekly" as never, rawExpr: "0 12 * * 0" }, fmt),
     "0 12 * * 0",
   );
 });
 
 test("nX 九分支：步进×3 + hourly/daily/weekdays/weekly/yearly/monthly（白名单投影）", () => {
-  assert.deepEqual(pick(parseCron("*/5 * * * *", NOW), ["customUnit", "customInterval"]), {
-    frequency: "custom",
-    customUnit: "minute",
-    customInterval: 5,
-  });
+  assert.deepEqual(
+    pick(parseCron("*/5 * * * *", NOW), ["customUnit", "customInterval"]),
+    { frequency: "custom", customUnit: "minute", customInterval: 5 },
+  );
   assert.deepEqual(
     pick(parseCron("30 */2 * * *", NOW), ["minute", "customUnit", "customInterval"]),
     { frequency: "custom", minute: 30, customUnit: "hourly", customInterval: 2 },
@@ -172,49 +135,21 @@ test("nX 九分支：步进×3 + hourly/daily/weekdays/weekly/yearly/monthly（�
     pick(parseCron("15 9 */3 * *", NOW), ["hour", "minute", "customUnit", "customInterval"]),
     { frequency: "custom", hour: 9, minute: 15, customUnit: "daily", customInterval: 3 },
   );
-  assert.deepEqual(pick(parseCron("30 * * * *", NOW), ["minute"]), {
-    frequency: "hourly",
-    minute: 30,
-  });
-  assert.deepEqual(pick(parseCron("30 9 * * *", NOW), ["hour", "minute"]), {
-    frequency: "daily",
-    hour: 9,
-    minute: 30,
-  });
-  assert.deepEqual(pick(parseCron("30 9 * * 1-5", NOW), ["hour", "minute"]), {
-    frequency: "weekdays",
-    hour: 9,
-    minute: 30,
-  });
-  assert.deepEqual(pick(parseCron("30 9 * * 1,3,5", NOW), ["hour", "minute", "weekdays"]), {
-    frequency: "weekly",
-    hour: 9,
-    minute: 30,
-    weekdays: [1, 3, 5],
-  });
+  assert.deepEqual(pick(parseCron("30 * * * *", NOW), ["minute"]), { frequency: "hourly", minute: 30 });
+  assert.deepEqual(pick(parseCron("30 9 * * *", NOW), ["hour", "minute"]), { frequency: "daily", hour: 9, minute: 30 });
+  assert.deepEqual(pick(parseCron("30 9 * * 1-5", NOW), ["hour", "minute"]), { frequency: "weekdays", hour: 9, minute: 30 });
   assert.deepEqual(
-    pick(parseCron("0 9 1 3 *", NOW), [
-      "hour",
-      "minute",
-      "customUnit",
-      "customMonth",
-      "customMonthDays",
-    ]),
-    {
-      frequency: "custom",
-      hour: 9,
-      minute: 0,
-      customUnit: "yearly",
-      customMonth: 3,
-      customMonthDays: [1],
-    },
+    pick(parseCron("30 9 * * 1,3,5", NOW), ["hour", "minute", "weekdays"]),
+    { frequency: "weekly", hour: 9, minute: 30, weekdays: [1, 3, 5] },
   );
-  assert.deepEqual(pick(parseCron("30 9 15 * *", NOW), ["hour", "minute", "dayOfMonth"]), {
-    frequency: "monthly",
-    hour: 9,
-    minute: 30,
-    dayOfMonth: 15,
-  });
+  assert.deepEqual(
+    pick(parseCron("0 9 1 3 *", NOW), ["hour", "minute", "customUnit", "customMonth", "customMonthDays"]),
+    { frequency: "custom", hour: 9, minute: 0, customUnit: "yearly", customMonth: 3, customMonthDays: [1] },
+  );
+  assert.deepEqual(
+    pick(parseCron("30 9 15 * *", NOW), ["hour", "minute", "dayOfMonth"]),
+    { frequency: "monthly", hour: 9, minute: 30, dayOfMonth: 15 },
+  );
 });
 
 test("nX 边界：非 5 段→默认形状；weekday 无效值过滤；yearly 先于 monthly", () => {
@@ -226,12 +161,10 @@ test("nX 边界：非 5 段→默认形状；weekday 无效值过滤；yearly �
   assert.equal(fallback.rawExpr, "abc");
   assert.equal(fallback.customMonth, 9, "customMonth = now.getMonth()+1");
   // weekday 值过滤：1 有效、9 越界剔除 → weekly [1]。
-  assert.deepEqual(pick(parseCron("30 9 * * 1,9", NOW), ["hour", "minute", "weekdays"]), {
-    frequency: "weekly",
-    hour: 9,
-    minute: 30,
-    weekdays: [1],
-  });
+  assert.deepEqual(
+    pick(parseCron("30 9 * * 1,9", NOW), ["hour", "minute", "weekdays"]),
+    { frequency: "weekly", hour: 9, minute: 30, weekdays: [1] },
+  );
   // 全无效（7 越界）→ 空数组 → 不进 weekly，day/month 均 * → 落默认形状。
   assert.equal(parseCron("30 9 * * 7", NOW).frequency, "custom");
 });
@@ -240,19 +173,12 @@ test("mUt 三形态：*/N 直译 / 分时日月四数字→自定义键 / 其余
   assert.equal(describeCron("*/5 * * * *", fmt), "每 5 分钟");
   // 官方早退正则 /^\d+ \d+ \d+ \d+ \*$/：分/时/日/**月**四段全数字（月字段非 *）→ 自定义键。
   assert.equal(describeCron("30 9 15 6 *", fmt), "自定义");
-  assert.equal(
-    describeCron("30 9 15 * *", fmt),
-    "每月 15 号 09:30",
-    "月=* 不早退，走 nX→monthly→iX",
-  );
+  assert.equal(describeCron("30 9 15 * *", fmt), "每月 15 号 09:30", "月=* 不早退，走 nX→monthly→iX");
   assert.equal(describeCron("30 9 * * 1-5", fmt), "每工作日 09:30");
 });
 
 /** 断言投影（白名单模式：每分支显式声明关心键；不做默认值剔除——解析结果可与默认形状同值）。 */
-function pick(
-  schedule: AutomationSchedule,
-  keys: readonly (keyof AutomationSchedule)[],
-): Record<string, unknown> {
+function pick(schedule: AutomationSchedule, keys: readonly (keyof AutomationSchedule)[]): Record<string, unknown> {
   const out: Record<string, unknown> = { frequency: schedule.frequency };
   for (const key of keys) out[key] = schedule[key];
   return out;
@@ -268,22 +194,13 @@ test("tX 五基础频率：官方逐字节形态", () => {
   assert.equal(serializeSchedule({ ...txBase, frequency: "hourly" }), "30 * * * *");
   assert.equal(serializeSchedule({ ...txBase, frequency: "daily" }), "30 9 * * *");
   assert.equal(serializeSchedule({ ...txBase, frequency: "weekdays" }), "30 9 * * 1-5");
-  assert.equal(
-    serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [1, 3, 5] }),
-    "30 9 * * 1,3,5",
-  );
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [1, 3, 5] }), "30 9 * * 1,3,5");
   assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [] }), "30 9 * * *");
-  assert.equal(
-    serializeSchedule({ ...txBase, frequency: "monthly", dayOfMonth: 15 }),
-    "30 9 15 * *",
-  );
+  assert.equal(serializeSchedule({ ...txBase, frequency: "monthly", dayOfMonth: 15 }), "30 9 15 * *");
 });
 
 test("tX weekly 数值升序（与 describeSchedule $Y 序双形态并存实锤）", () => {
-  assert.equal(
-    serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [5, 1, 3] }),
-    "30 9 * * 1,3,5",
-  );
+  assert.equal(serializeSchedule({ ...txBase, frequency: "weekly", weekdays: [5, 1, 3] }), "30 9 * * 1,3,5");
   assert.equal(
     describeSchedule({ ...txBase, frequency: "weekly", weekdays: [0, 6] }, fmt),
     "每周六、日 09:30",
@@ -302,14 +219,8 @@ test("tX custom 六子：步进越界退化全通配 + weekly 原序 + nth/dates
     "官方越界守卫 t<=59 → 全通配",
   );
   assert.equal(
-    serializeSchedule({
-      ...txBase,
-      frequency: "custom",
-      customInterval: 25,
-      customUnit: "hourly",
-      minute: 30,
-    }),
-    "30 * * * *", // 官方越界守卫 t<=24 → 全通配退化
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 25, customUnit: "hourly", minute: 30 }),
+    "30 * * * *",  // 官方越界守卫 t<=24 → 全通配退化
   );
   assert.equal(
     serializeSchedule({ ...txBase, frequency: "custom", customInterval: 32, customUnit: "daily" }),
@@ -317,24 +228,12 @@ test("tX custom 六子：步进越界退化全通配 + weekly 原序 + nth/dates
     "官方越界守卫 t<=31",
   );
   assert.equal(
-    serializeSchedule({
-      ...txBase,
-      frequency: "custom",
-      customInterval: 2,
-      customUnit: "weekly",
-      customWeekdays: [5, 1],
-    }),
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 2, customUnit: "weekly", customWeekdays: [5, 1] }),
     "30 9 * * 5,1",
     "customWeekly 官方原序（无排序）",
   );
   assert.equal(
-    serializeSchedule({
-      ...txBase,
-      frequency: "custom",
-      customInterval: 1,
-      customUnit: "weekly",
-      customWeekdays: [],
-    }),
+    serializeSchedule({ ...txBase, frequency: "custom", customInterval: 1, customUnit: "weekly", customWeekdays: [] }),
     "30 9 * * 1",
     "空集 → 1 兜底",
   );
@@ -376,10 +275,7 @@ test("tX custom 六子：步进越界退化全通配 + weekly 原序 + nth/dates
 });
 
 test("tX default → rawExpr.trim()（官方兜底）", () => {
-  assert.equal(
-    serializeSchedule({ ...txBase, frequency: "biweekly" as never, rawExpr: "  0 12 * * 0  " }),
-    "0 12 * * 0",
-  );
+  assert.equal(serializeSchedule({ ...txBase, frequency: "biweekly" as never, rawExpr: "  0 12 * * 0  " }), "0 12 * * 0");
 });
 
 test("gUt 三态：GMT / GMT+8 / GMT-5:30（分非零 pad2 尾段）", () => {

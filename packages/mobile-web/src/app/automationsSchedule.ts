@@ -27,7 +27,10 @@ export interface AutomationSchedule {
   customMonthlyMode: "date" | "weekday";
 }
 
-export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string>) => string;
+export type FormatMessage = (
+  descriptor: { id: string },
+  values?: Record<string, string>,
+) => string;
 
 /** 官方 eX：时分补零（String(v).padStart(2,"0")）。 */
 export const pad2 = (value: number): string => String(value).padStart(2, "0");
@@ -66,10 +69,7 @@ export function describeSchedule(
   const time = `${pad2(schedule.hour)}:${pad2(schedule.minute)}`;
   switch (schedule.frequency) {
     case "hourly":
-      return formatMessage(
-        { id: "automations.schedule.hourly" },
-        { minute: pad2(schedule.minute) },
-      );
+      return formatMessage({ id: "automations.schedule.hourly" }, { minute: pad2(schedule.minute) });
     case "daily":
       return formatMessage({ id: "automations.schedule.daily" }, { time });
     case "weekdays":
@@ -157,12 +157,7 @@ export function parseCron(expr: string, now: Date = new Date()): AutomationSched
   // 1. */N * * * * → custom/minute
   const minuteStep = /^\*\/([1-9]\d*)$/.exec(minute);
   if (minuteStep && hour === "*" && day === "*" && month === "*" && weekday === "*") {
-    return {
-      ...base,
-      frequency: "custom",
-      customInterval: Number(minuteStep[1]),
-      customUnit: "minute",
-    };
+    return { ...base, frequency: "custom", customInterval: Number(minuteStep[1]), customUnit: "minute" };
   }
   // 2. M */N * * * → custom/hourly {minute:M, interval:max(1,N)}
   const hourStep = stepOf(hour);

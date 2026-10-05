@@ -19,7 +19,11 @@ export function readComposerDraft(params: {
   workspaceIdentity?: string;
   scopeId: string;
 }): ComposerDraft | null {
-  const draft = readV4ComposerDraft(params.workspacePath, params.workspaceIdentity, params.scopeId);
+  const draft = readV4ComposerDraft(
+    params.workspacePath,
+    params.workspaceIdentity,
+    params.scopeId,
+  );
   return draft ? { text: draft.text } : null;
 }
 

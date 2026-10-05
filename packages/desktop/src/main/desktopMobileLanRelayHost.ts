@@ -47,7 +47,10 @@ export function buildMobileWebRootCandidates(resourcesPath?: string): string[] {
   return [
     repoUpstreamRoot,
     ...(resourcesPath
-      ? [join(resourcesPath, "mobile-web-official"), join(resourcesPath, "mobile-web")]
+      ? [
+          join(resourcesPath, "mobile-web-official"),
+          join(resourcesPath, "mobile-web"),
+        ]
       : []),
     repoRecoveredRoot,
     repoSourceBuildRoot,

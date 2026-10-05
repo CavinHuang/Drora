@@ -56,7 +56,7 @@ test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 
   assert.ok(html.includes('aria-busy="true"'));
   assert.ok(html.includes("zcode-boot-loading__logo-shell"));
   // ui 全局样式的 vibrancy 透明背景覆盖（官方 browser-theme-surface !important 修复）
-  assert.ok(html.includes("html[data-zcode-browser-theme-surface] body"));
+  assert.ok(html.includes('html[data-zcode-browser-theme-surface] body'));
   assert.ok(html.includes("!important"));
 });
 

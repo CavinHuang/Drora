@@ -3,7 +3,7 @@
 // 重放缓冲——R3 P2a 起有意放宽：desktop / relay-client / 移动页三方需要逐字节同构的
 // 传输语义，见 specs/mobile-relay-r3-frontend.md §12/§13；连接级有状态逻辑
 // （SessionStore/会话状态机）仍不进本包）。与官方兼容的线协议字面量（zcode_type、
-// role 值等）是官方兼容键，保持原名不 Drora 化。
+// role 值等）是官方兼容键，保持原名不 ZCode 化。
 export { base64ToBytes, bytesToBase64 } from "./base64.js";
 export { bytesToBase64Url, hmacSha256Bytes, sha256Bytes, utf8Bytes } from "./hmacSha256.js";
 export {

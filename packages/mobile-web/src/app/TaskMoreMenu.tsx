@@ -230,161 +230,159 @@ export function TaskMoreMenu({
             <div
               ref={panelRef}
               role="menu"
-              style={
-                isMounted ? { position: "fixed", top: anchorTop, left: anchorLeft } : undefined
-              }
+              style={isMounted ? { position: "fixed", top: anchorTop, left: anchorLeft } : undefined}
               className={
                 isMounted
                   ? "z-30 w-48 rounded-xl border border-border bg-card p-1 shadow-lg"
                   : "absolute left-0 top-8 z-30 w-48 rounded-xl border border-border bg-card p-1 shadow-lg"
               }
             >
-              {/* —— 组 A：任务三态 + 重命名（官方 pin()@186860 装配序）—— */}
-              {/* §32.69 三态项改「缺能力源=disabled 渲染」不隐藏（官方 O 门语义，活体全灰）。 */}
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-pin"
-                disabled={pinPending || !membership || !onTogglePinned}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => {
-                  if (!membership || !onTogglePinned) return;
-                  setPinPending(true);
-                  void onTogglePinned(!membership.pinned)
-                    .then((ok) => {
-                      if (ok) setMembership({ ...membership, pinned: !membership.pinned });
-                    })
-                    .finally(() => setPinPending(false));
-                }}
-              >
-                {formatMessage({
-                  id: membership?.pinned ? "taskList.unpin" : "taskList.pin",
-                })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-rename"
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover"
-                onClick={() => {
-                  setRenameValue(title);
-                  setRenameError(false);
-                  setRenameOpen(true);
-                }}
-              >
-                {formatMessage({ id: "taskList.rename" })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-archive"
-                disabled={!membership || !onArchive}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => {
-                  if (!membership || !onArchive) return;
-                  setArchiveConfirm(true);
-                }}
-              >
-                {formatMessage({ id: "taskList.archive" })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-mark-unread"
-                disabled={!membership || !onMarkUnread}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => {
-                  if (!onMarkUnread) return;
-                  void onMarkUnread().finally(() => onClose());
-                }}
-              >
-                {formatMessage({ id: "taskList.markAsUnread" })}
-              </button>
-              {/* 归档确认二态（官方 confirmDialog.taskArchiveTitle 同语义，§32.15 保留）。 */}
-              {archiveConfirm ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="task-more-archive-confirm"
-                  disabled={archivePending}
-                  className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:opacity-50"
-                  onClick={() => {
-                    setArchivePending(true);
-                    void onArchive?.()
-                      .then((ok) => {
-                        if (ok) onClose();
-                      })
-                      .finally(() => setArchivePending(false));
-                  }}
-                >
-                  {formatMessage({ id: "taskList.archive" })}?
-                </button>
-              ) : null}
-              {/* —— 组 B：路径/ID 复制 —— */}
-              <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-copy-path"
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover"
-                onClick={() => copyText(workspacePath)}
-              >
-                {formatMessage({ id: "appHeader.copyPath" })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-copy-task-path"
-                disabled={!taskPath}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => taskPath && copyText(taskPath)}
-              >
-                {formatMessage({ id: "appHeader.copyTaskPath" })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-copy-log-path"
-                disabled={!logPath}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => logPath && copyText(logPath)}
-              >
-                {formatMessage({ id: "appHeader.copyLogPath" })}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-copy-session-id"
-                disabled={!membership}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => copyText(sessionId)}
-              >
-                {formatMessage({ id: "appHeader.copySessionId" })}
-              </button>
-              {/* —— 组 C：调用轨迹（官方 E 条件渲染项；缺 handler=disabled）—— */}
-              <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-view-trajectory"
-                disabled={!onViewModelTrajectory}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={onViewModelTrajectory}
-              >
-                {formatMessage({ id: "taskList.viewModelTrajectory" })}
-              </button>
-              {/* —— 组 D：反馈（官方 b 条件渲染项；缺 handler=disabled）—— */}
-              <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="task-more-feedback"
-                disabled={!onTaskFeedback}
-                className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
-                onClick={onTaskFeedback}
-              >
-                {formatMessage({ id: "taskList.feedback" })}
-              </button>
+          {/* —— 组 A：任务三态 + 重命名（官方 pin()@186860 装配序）—— */}
+          {/* §32.69 三态项改「缺能力源=disabled 渲染」不隐藏（官方 O 门语义，活体全灰）。 */}
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-pin"
+            disabled={pinPending || !membership || !onTogglePinned}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => {
+              if (!membership || !onTogglePinned) return;
+              setPinPending(true);
+              void onTogglePinned(!membership.pinned)
+                .then((ok) => {
+                  if (ok) setMembership({ ...membership, pinned: !membership.pinned });
+                })
+                .finally(() => setPinPending(false));
+            }}
+          >
+            {formatMessage({
+              id: membership?.pinned ? "taskList.unpin" : "taskList.pin",
+            })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-rename"
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover"
+            onClick={() => {
+              setRenameValue(title);
+              setRenameError(false);
+              setRenameOpen(true);
+            }}
+          >
+            {formatMessage({ id: "taskList.rename" })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-archive"
+            disabled={!membership || !onArchive}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => {
+              if (!membership || !onArchive) return;
+              setArchiveConfirm(true);
+            }}
+          >
+            {formatMessage({ id: "taskList.archive" })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-mark-unread"
+            disabled={!membership || !onMarkUnread}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => {
+              if (!onMarkUnread) return;
+              void onMarkUnread().finally(() => onClose());
+            }}
+          >
+            {formatMessage({ id: "taskList.markAsUnread" })}
+          </button>
+          {/* 归档确认二态（官方 confirmDialog.taskArchiveTitle 同语义，§32.15 保留）。 */}
+          {archiveConfirm ? (
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="task-more-archive-confirm"
+              disabled={archivePending}
+              className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:opacity-50"
+              onClick={() => {
+                setArchivePending(true);
+                void onArchive?.()
+                  .then((ok) => {
+                    if (ok) onClose();
+                  })
+                  .finally(() => setArchivePending(false));
+              }}
+            >
+              {formatMessage({ id: "taskList.archive" })}?
+            </button>
+          ) : null}
+          {/* —— 组 B：路径/ID 复制 —— */}
+          <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-copy-path"
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover"
+            onClick={() => copyText(workspacePath)}
+          >
+            {formatMessage({ id: "appHeader.copyPath" })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-copy-task-path"
+            disabled={!taskPath}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => taskPath && copyText(taskPath)}
+          >
+            {formatMessage({ id: "appHeader.copyTaskPath" })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-copy-log-path"
+            disabled={!logPath}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => logPath && copyText(logPath)}
+          >
+            {formatMessage({ id: "appHeader.copyLogPath" })}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-copy-session-id"
+            disabled={!membership}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => copyText(sessionId)}
+          >
+            {formatMessage({ id: "appHeader.copySessionId" })}
+          </button>
+          {/* —— 组 C：调用轨迹（官方 E 条件渲染项；缺 handler=disabled）—— */}
+          <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-view-trajectory"
+            disabled={!onViewModelTrajectory}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={onViewModelTrajectory}
+          >
+            {formatMessage({ id: "taskList.viewModelTrajectory" })}
+          </button>
+          {/* —— 组 D：反馈（官方 b 条件渲染项；缺 handler=disabled）—— */}
+          <div role="separator" aria-orientation="horizontal" className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="task-more-feedback"
+            disabled={!onTaskFeedback}
+            className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-ui-sm text-foreground hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50"
+            onClick={onTaskFeedback}
+          >
+            {formatMessage({ id: "taskList.feedback" })}
+          </button>
             </div>
           );
           return isMounted ? createPortal(panel, document.body) : panel;

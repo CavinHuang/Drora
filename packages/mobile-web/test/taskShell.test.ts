@@ -38,11 +38,7 @@ test("官方骨架：v4-session-pane-workspace-main 包 时间线+dock，dock �
       null,
       React.createElement(MobileTaskShell, {
         title: "会话标题",
-        workspaceHeader: React.createElement(
-          "div",
-          { "data-testid": "workspace-header" },
-          "工作区",
-        ),
+        workspaceHeader: React.createElement("div", { "data-testid": "workspace-header" }, "工作区"),
         timeline: React.createElement("div", { "data-testid": "v4-timeline-stub" }),
         composer: React.createElement("div", { "data-testid": "v4-composer" }),
         timelineOwnsScroll: true,

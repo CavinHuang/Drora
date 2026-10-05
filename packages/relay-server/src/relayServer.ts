@@ -448,8 +448,7 @@ export function createRelayServer(options: RelayServerOptions) {
   const handleRemoteControlApi = createRelayRemoteControlApiHandler({
     wsUrlOrigin: `ws://${listenHost === "0.0.0.0" ? "127.0.0.1" : listenHost}:${listenPort}`,
     sessions,
-    sendToDevice: (token, payload) =>
-      sendTo(token, "device", { type: "data", payload, client_ts: Date.now() }),
+    sendToDevice: (token, payload) => sendTo(token, "device", { type: "data", payload, client_ts: Date.now() }),
   });
   let closeStarted = false;
 

@@ -128,10 +128,7 @@ export function SidePane({
 
   return (
     <aside
-      className={cn(
-        "flex min-h-0 flex-col gap-2 rounded-xl border border-border bg-card",
-        className,
-      )}
+      className={cn("flex min-h-0 flex-col gap-2 rounded-xl border border-border bg-card", className)}
       aria-label={formatMessage({ id: "sidePane.tabOverview" })}
     >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">

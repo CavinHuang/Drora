@@ -174,3 +174,30 @@ test("键位官方化：切换侧边栏（官方一键双向）/项目/新建任
   assert.ok(html.includes('aria-label="切换侧边栏"'), "官方 toggleSidebar");
   assert.ok(html.includes("新建任务"));
 });
+
+test("宽壳置顶节仍先于项目树，置顶行和组内行保留同一任务契约", () => {
+  const html = renderSidebar({
+    workspaces: [
+      {
+        workspaceKey: "project-1",
+        name: "Project",
+        kind: "local",
+        path: "C:/project",
+        updatedAtMs: null,
+        tasks: [
+          {
+            sessionId: "task-1",
+            title: "Pinned task",
+            status: "idle",
+            pinned: true,
+            createdAtMs: 1,
+            updatedAtMs: 2,
+          },
+        ],
+      },
+    ],
+  });
+  assert.ok(html.indexOf("已置顶") < html.indexOf("Project"));
+  assert.equal((html.match(/data-testid="task-item-task-1"/g) ?? []).length, 2);
+  assert.ok(html.includes('aria-label="打开任务 Pinned task"'));
+});

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { buildRemoteWorkspaceConnectResultTelemetry } from "@zcode/shared";
+import { buildRemoteWorkspaceConnectResultTelemetry } from "@drora/shared";
 import {
   MobileRelayCredentialStore,
   buildBootstrapResult,
@@ -31,7 +31,7 @@ async function makeStore(encryption?: {
   encrypt: (plain: string) => string;
   decrypt: (stored: string) => string;
 }) {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-"));
   tempDirs.push(dir);
   return new MobileRelayCredentialStore(dir, encryption);
 }
@@ -513,11 +513,11 @@ async function startToPairedForPageRequests(options: {
   return { control, socket };
 }
 
-function sentZCodePageResponses(socket: FakeSocket) {
+function sentDroraPageResponses(socket: FakeSocket) {
   return socket.sent
     .filter((m) => m.type === "data" && m.payload && typeof m.payload === "object")
     .map((m) => m.payload as Record<string, unknown>)
-    .filter((m) => m.zcode_type === "zcode-page-response");
+    .filter((m) => m.zcode_type === "drora-page-response");
 }
 
 test("R2 list 响应：workspaces 聚合推送清单+运行时目标，空推送不清空（2026-09-29 回归锚）", async () => {
@@ -549,10 +549,10 @@ test("R2 list 响应：workspaces 聚合推送清单+运行时目标，空推送
 
   socket.serverMessage({
     type: "data",
-    payload: { zcode_type: "zcode-page-request", requestId: "l1", frame: { type: "list" } },
+    payload: { zcode_type: "drora-page-request", requestId: "l1", frame: { type: "list" } },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const listResponse = sentZCodePageResponses(socket).find((m) => m.requestId === "l1");
+  const listResponse = sentDroraPageResponses(socket).find((m) => m.requestId === "l1");
   assert.ok(listResponse, "list 必须有应答");
   assert.equal(listResponse.success, true);
   const listFrame = listResponse.frame as {
@@ -573,10 +573,10 @@ test("R2 list 响应：workspaces 聚合推送清单+运行时目标，空推送
   control.syncAvailableWorkspaces([]);
   socket.serverMessage({
     type: "data",
-    payload: { zcode_type: "zcode-page-request", requestId: "l2", frame: { type: "list" } },
+    payload: { zcode_type: "drora-page-request", requestId: "l2", frame: { type: "list" } },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const listResponse2 = sentZCodePageResponses(socket).find((m) => m.requestId === "l2");
+  const listResponse2 = sentDroraPageResponses(socket).find((m) => m.requestId === "l2");
   assert.ok(listResponse2, "第二次 list 必须有应答");
   const listFrame2 = listResponse2.frame as { workspaces: Array<{ workspacePath: string }> };
   assert.deepEqual(
@@ -595,10 +595,10 @@ test("R2 list 响应：workspaces 聚合推送清单+运行时目标，空推送
   ]);
   socket.serverMessage({
     type: "data",
-    payload: { zcode_type: "zcode-page-request", requestId: "l3", frame: { type: "list" } },
+    payload: { zcode_type: "drora-page-request", requestId: "l3", frame: { type: "list" } },
   });
   await new Promise((r) => setTimeout(r, 20));
-  const listResponse3 = sentZCodePageResponses(socket).find((m) => m.requestId === "l3");
+  const listResponse3 = sentDroraPageResponses(socket).find((m) => m.requestId === "l3");
   const listFrame3 = listResponse3?.frame as { workspaces: Array<{ workspacePath: string }> };
   assert.deepEqual(
     listFrame3.workspaces.map((w) => w.workspacePath),
@@ -888,8 +888,8 @@ test("超限消息被拒：空消息与超 16MiB", async () => {
   );
 });
 
-// fork 的「通道名别名推导」用例不迁：base 内部服务通道名本就是官方 zcode-*，
-// 不存在 fork 的 drora-*→zcode-* 改名缝合线（shared 亦无 toOfficialRpcChannelAlias
+// fork 的「通道名别名推导」用例不迁：base 内部服务通道名本就是官方 drora-*，
+// 不存在 fork 的 drora-*→drora-* 改名缝合线（shared 亦无 toOfficialRpcChannelAlias
 // 导出，避免引入恒等死代码）。
 
 test("deriveSelfHostedRelayEndpoints：自建 relay 端点推导（spec §8）", () => {
@@ -1227,7 +1227,7 @@ test("§33.18.22 终端数据面桥接：terminal 通道 demux 到 main 层服�
   const rpcFrames = () => collectAppFrames(socket).filter((m) => m.zcode_type === "rpc-frame");
 
   // 手机 → desktop：terminal 通道 rpc 帧（与桌面 bridge 解码同构：header[2]=通道名）。
-  const { BufferWriter, serialize } = await import("@zcode/rpc");
+  const { BufferWriter, serialize } = await import("@drora/rpc");
   const buildChannelMessage = (channelName: string, name: string, arg: unknown): Uint8Array => {
     const writer = new BufferWriter();
     serialize(writer, [100, 1, channelName, name]);
@@ -1531,15 +1531,15 @@ function collectFlowStates(port: FakeBridgePort): Array<Record<string, unknown>>
   return port.received.flatMap((item) =>
     item instanceof Buffer
       ? []
-      : typeof item === "object" && item !== null && "__zcodeRpcControl" in item
+      : typeof item === "object" && item !== null && "__droraRpcControl" in item
         ? [item as Record<string, unknown>]
         : [],
   );
 }
 
-/** 官方 connection-flow-v1 线格式（恰好 2 键；本仓判别键 __zcodeRpcControl）。 */
+/** 官方 connection-flow-v1 线格式（恰好 2 键；本仓判别键 __droraRpcControl）。 */
 function flowControl(state: string): Record<string, unknown> {
-  return { __zcodeRpcControl: "connection-flow-v1", state };
+  return { __droraRpcControl: "connection-flow-v1", state };
 }
 
 test("宿主背压：越过水位沿发 flow-state saturated，ack 回落沿发 drained（connection-flow-v1 sideband）", async () => {
@@ -1598,7 +1598,7 @@ test("宿主背压：越过水位沿发 flow-state saturated，ack 回落沿发 
 
   // sideband 只进附着端口，不得混入 relay 数据面（data 信封里没有 flow 对象）
   assert.equal(
-    collectAppFrames(socket).some((m) => "__zcodeRpcControl" in m),
+    collectAppFrames(socket).some((m) => "__droraRpcControl" in m),
     false,
     "flow-state 不得作为应用帧进 relay",
   );
@@ -2319,7 +2319,7 @@ test("remote_workspace_connect_result ctor 形状对齐官方 aee（eventRegion=
 
 test("§33.6 displayStatus 映射：本仓状态词表 → 官方页行状态枚举（缺省 idle）", () => {
   // 官方 pb schema @261533：displayStatus enum[idle,running,completed,error].optional，
-  // 行状态徽标读它而非 status；本仓词表 = ZCodeTaskMeta["status"]。
+  // 行状态徽标读它而非 status；本仓词表 = DroraTaskMeta["status"]。
   assert.equal(deriveRelayDisplayStatus("running"), "running");
   assert.equal(deriveRelayDisplayStatus("completed"), "completed");
   assert.equal(deriveRelayDisplayStatus("error"), "error");

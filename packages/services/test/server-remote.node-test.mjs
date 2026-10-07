@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { resolveServerRemoteEndpoints } from "@zcode/shared";
+import { resolveServerRemoteEndpoints } from "@drora/shared";
 import {
   connectServerRemoteTarget,
   fetchServerRemoteHostCapability,
@@ -14,7 +14,7 @@ import {
 
 const SERVER_INFO_PAYLOAD = {
   serverId: "srv-1",
-  name: "ZCode Server",
+  name: "Drora Server",
   version: "1.2.3",
   protocolVersion: 1,
   authRequired: true,
@@ -73,20 +73,20 @@ test("resolveServerRemoteEndpoints: http 输入产出四端点并升级 ws 协�
 });
 
 test("resolveServerRemoteEndpoints: https/wss 输入端到端映射", () => {
-  const httpsEndpoints = resolveServerRemoteEndpoints("https://example.com/zcode");
-  assert.equal(httpsEndpoints.infoUrl, "https://example.com/zcode/api/server-info");
-  assert.equal(httpsEndpoints.wsUrl, "wss://example.com/zcode/ws");
+  const httpsEndpoints = resolveServerRemoteEndpoints("https://example.com/drora");
+  assert.equal(httpsEndpoints.infoUrl, "https://example.com/drora/api/server-info");
+  assert.equal(httpsEndpoints.wsUrl, "wss://example.com/drora/ws");
   assert.equal(
     httpsEndpoints.hostCapabilityUrl,
-    "https://example.com/zcode/api/rpc-host-capability",
+    "https://example.com/drora/api/rpc-host-capability",
   );
-  assert.equal(httpsEndpoints.hostWsUrl, "wss://example.com/zcode/ws/host");
+  assert.equal(httpsEndpoints.hostWsUrl, "wss://example.com/drora/ws/host");
 
-  const wssEndpoints = resolveServerRemoteEndpoints("wss://example.com/zcode");
-  assert.equal(wssEndpoints.infoUrl, "https://example.com/zcode/api/server-info");
-  assert.equal(wssEndpoints.wsUrl, "wss://example.com/zcode/ws");
-  assert.equal(wssEndpoints.hostCapabilityUrl, "https://example.com/zcode/api/rpc-host-capability");
-  assert.equal(wssEndpoints.hostWsUrl, "wss://example.com/zcode/ws/host");
+  const wssEndpoints = resolveServerRemoteEndpoints("wss://example.com/drora");
+  assert.equal(wssEndpoints.infoUrl, "https://example.com/drora/api/server-info");
+  assert.equal(wssEndpoints.wsUrl, "wss://example.com/drora/ws");
+  assert.equal(wssEndpoints.hostCapabilityUrl, "https://example.com/drora/api/rpc-host-capability");
+  assert.equal(wssEndpoints.hostWsUrl, "wss://example.com/drora/ws/host");
 });
 
 test("resolveServerRemoteEndpoints: ws 输入降级 http 并保留 ws 端点", () => {
@@ -209,7 +209,7 @@ test("connectServerRemoteTarget: 组合三步并携带 capability header 建立 
   assert.equal(socket.url, "ws://192.168.1.5:3030/ws/host?token=tok-1");
   assert.deepEqual(socket.options.headers, {
     authorization: "Bearer tok-1",
-    "x-zcode-rpc-host-capability": "cap-123",
+    "x-drora-rpc-host-capability": "cap-123",
   });
 
   socket.emit("open");

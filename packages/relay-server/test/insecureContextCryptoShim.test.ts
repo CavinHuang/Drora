@@ -212,7 +212,7 @@ test("注入：<head> 后插入脚本；重复注入幂等；无 <head> 前置",
 });
 
 test("routeStaticRequest：staticRoot 来源入口文档出站含 shim（§12.10 三来源单点）", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-shim1-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-shim1-"));
   tempDirs.push(dir);
   const root = join(dir, "static");
   await mkdir(join(root, "remote", "v4"), { recursive: true });
@@ -256,7 +256,7 @@ test("routeStaticRequest：staticRoot 来源入口文档出站含 shim（§12.10
 });
 
 test("routeStaticRequest：remoteAssets 缓存来源（Buffer 体）入口文档出站含 shim", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-shim2-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-shim2-"));
   tempDirs.push(dir);
   const cacheDir = join(dir, "cache");
   const entryPath = join(cacheDir, "remote", "v4", "index.html");

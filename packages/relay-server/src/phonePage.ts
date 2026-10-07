@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 手机页单文件聚合（样式+加密+UI+传输），与 LAN 手机页同例。 */
-// ZCode Relay Server · 自建手机页（R2，specs/mobile-relay-server.md §7）。
+// Drora Relay Server · 自建手机页（R2，specs/mobile-relay-server.md §7）。
 // terminal 角色接入 relay：auth_init(role:"terminal") → HMAC 挑战应答 → matched。
-// 数据面 = zcode-page-request/response 应用帧（v1 动作帧 → 桌面 Host 服务调用）。
+// 数据面 = drora-page-request/response 应用帧（v1 动作帧 → 桌面 Host 服务调用）。
 // 纯 HTTP 部署下 crypto.subtle 不可用，proof 用内嵌纯 JS HMAC-SHA256（常量独立导出，
 // 由 test/phonePageCrypto.test.ts 对照 node:crypto 与 RFC 4231 向量校验）。
 
@@ -111,7 +111,7 @@ export const PHONE_PAGE_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>ZCode</title>
+<title>Drora</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -169,7 +169,7 @@ export const PHONE_PAGE_HTML = `<!doctype html>
 </style>
 </head>
 <body>
-<header><h1>ZCode</h1><span id="conn" class="tip">连接中…</span></header>
+<header><h1>Drora</h1><span id="conn" class="tip">连接中…</span></header>
 <main>
   <section id="loading" class="hidden">
     <div class="card">
@@ -335,10 +335,10 @@ function connect() {
       return;
     }
     if (msg.type === "data" && msg.payload) {
-      // zcode-page-response 信封：{zcode_type, requestId, success, frame}——
+      // drora-page-response 信封：{zcode_type, requestId, success, frame}——
       // 业务帧在 frame 字段内，必须解包后再分发（直接传信封会因无 type 静默忽略）。
       var p = msg.payload;
-      if (p.zcode_type === "zcode-page-response") {
+      if (p.zcode_type === "drora-page-response") {
         if (p.success === false) { setConn("请求失败：" + (p.error || "")); return; }
         if (p.frame) { handle(p.frame); }
       }
@@ -353,14 +353,14 @@ function connect() {
   };
 }
 
-// v1 动作帧 → relay data 信封（zcode-page-request）；应答经 handle(frame) 全局分发。
+// v1 动作帧 → relay data 信封（drora-page-request）；应答经 handle(frame) 全局分发。
 function sendFrame(frame) {
   if (!ws || ws.readyState !== 1) return;
   reqSeq += 1;
   ws.send(JSON.stringify({
     type: "data",
     client_ts: Date.now(),
-    payload: { zcode_type: "zcode-page-request", requestId: "p" + reqSeq, frame: frame },
+    payload: { zcode_type: "drora-page-request", requestId: "p" + reqSeq, frame: frame },
   }));
 }
 
@@ -521,7 +521,7 @@ function renderTimeline(messages) {
   box.innerHTML = "";
   for (var i = 0; i < messages.length; i++) {
     var m = messages[i];
-    // ZCode Protocol legacy 消息行（ZCodeMessageWithParts）：role 在 info 内。
+    // Drora Protocol legacy 消息行（DroraMessageWithParts）：role 在 info 内。
     // 桌面桥（serveMobilePageAction）已按 PC 同款投影判据过滤 model-only 上下文，
     // 这里只做渲染面（2026-09-29 schema 漂移修复后该 op 返回声明契约形状；
     // 旧 v1 页形状 role/tool_call/thinking 已随配对栈删除）。

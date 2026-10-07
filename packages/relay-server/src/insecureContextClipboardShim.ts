@@ -2,7 +2,7 @@
 // 官方 3.14.3 原始资产与缓存均不改写，安全上下文及原生 clipboard 零改动。
 import { injectInlineHeadScript } from "./inlineHeadScript.js";
 
-export const INSECURE_CONTEXT_CLIPBOARD_SHIM_MARKER = "__zcodeInsecureClipboardShim";
+export const INSECURE_CONTEXT_CLIPBOARD_SHIM_MARKER = "__droraInsecureClipboardShim";
 
 export const INSECURE_CONTEXT_CLIPBOARD_SHIM_JS = `(function () {
   "use strict";

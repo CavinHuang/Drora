@@ -5,12 +5,12 @@
 // 边界（记录为存续挂账）：@ 文件上下文/附件上传协议面（P7）未通——mention 面关、
 // appSlashCommands 空表；提交语义=乐观清空（官方同 UX，失败经错误面呈现）。
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import type { LexicalChatInputHandle } from "@zcode/ui/lexical-chat-input";
-import { ZCodeIntlProvider } from "@zcode/ui/git-pane";
+import type { LexicalChatInputHandle } from "@drora/ui/lexical-chat-input";
+import { DroraIntlProvider } from "@drora/ui/git-pane";
 import { resolveLocale } from "../ui/intl.js";
 
 const LexicalChatInput = lazy(() =>
-  import("@zcode/ui/lexical-chat-input").then((module) => ({
+  import("@drora/ui/lexical-chat-input").then((module) => ({
     default: module.LexicalChatInput,
   })),
 );
@@ -66,7 +66,7 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
     api.setText(initial);
   }, [editorReadyState, props.initialText]);
   return (
-    <ZCodeIntlProvider initialLocale={resolveLocale()}>
+    <DroraIntlProvider initialLocale={resolveLocale()}>
       <div ref={setPanelContainerRef} className="relative flex flex-col">
         <Suspense
           fallback={
@@ -96,12 +96,12 @@ export function ComposerRichInput(props: ComposerRichInputProps) {
             inputTestId={props.inputTestId}
             triggerPanelContainer={panelContainer}
             // §33.18.19 @ 文件上下文：mention 面板挂起——MentionPlugin 分组渲染消费
-            // zcodeSessionStore 的 selectedProvider/order（手机 store 无该配置面，
+            // droraSessionStore 的 selectedProvider/order（手机 store 无该配置面，
             // undefined.order 崩页面，§33.18.19 续），待 provider 配置面接线后开启。
             enableMentionPanel={props.workspacePath.length > 0}
           />
         </Suspense>
       </div>
-    </ZCodeIntlProvider>
+    </DroraIntlProvider>
   );
 }

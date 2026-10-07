@@ -2,7 +2,7 @@ import type { Ref, ReactNode } from "react";
 import { ArrowLeft, Ellipsis, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * R3 移动会话面壳（spec specs/mobile-relay-r3-frontend.md §2「移动会话面」、D1）。
@@ -52,7 +52,7 @@ export function MobileTaskShell({
   connectionBanner,
   className,
 }: MobileTaskShellProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const resolvedTitle = title ?? intl.formatMessage({ id: "mobileShell.task.chatTitle" });
 
   return (

@@ -4,9 +4,9 @@
 // 分歧）。数据面两态：无 query 列最近任务、有 query 走搜索——执行器由本组件装配：host 侧
 // taskSession.searchTasks 的注入投影（onSearchTasks，App 装配归 P4）优先，缺省回落首页
 // 投影本地标题过滤（与 relay bootstrap/workspace-list 同源数据，缺 snippet 能力，降级面
-// 由 searchPalette.test 锚定）。搜索历史纯函数见 searchHistory.ts（ZCode 化键）。
+// 由 searchPalette.test 锚定）。搜索历史纯函数见 searchHistory.ts（Drora 化键）。
 // 受控纯展示基线同 ModelMenu：打开状态归调用方（HomeScreen 懒加载装配），本组件只发意图。
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@drora/shared";
 import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./Button.js";
@@ -70,7 +70,7 @@ export interface TaskSearchPanelProps {
   onFileSelect?: (entry: WorkspaceFileEntry) => void;
   /** 关闭请求（遮罩点击 / Escape / 关闭按钮；打开状态归调用方）。 */
   onClose: () => void;
-  /** 历史存储键（缺省 = ZCode 化单键；注入便于测试隔离）。 */
+  /** 历史存储键（缺省 = Drora 化单键；注入便于测试隔离）。 */
   historyKey?: string;
   className?: string;
 }

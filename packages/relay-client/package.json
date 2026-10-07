@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/relay-client",
+  "name": "@drora/relay-client",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@zcode/shared": "workspace:*"
+    "@drora/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

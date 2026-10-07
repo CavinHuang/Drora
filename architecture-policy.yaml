@@ -37,8 +37,8 @@ modules:
   - id: server
     roots: [packages/server/src]
     managed: false
-  - id: zcode-server-cli
-    roots: [packages/zcode-server-cli/src]
+  - id: drora-server-cli
+    roots: [packages/drora-server-cli/src]
     managed: false
   - id: relay-server
     roots: [packages/relay-server/src]
@@ -63,8 +63,8 @@ modules:
   - id: formal-proof
     roots: [packages/formal-proof/src]
     managed: false
-  - id: zcode-cli
-    roots: [apps/zcode-cli]
+  - id: drora-cli
+    roots: [apps/drora-cli]
     managed: false
 
 global:

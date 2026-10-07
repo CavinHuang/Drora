@@ -1,4 +1,4 @@
-// ZCode Relay Server · 每设备会话状态机（内存，唯一所有者）。
+// Drora Relay Server · 每设备会话状态机（内存，唯一所有者）。
 // pair_status = device 与 terminal 双端都在线 ? matched : waiting。
 // 踢除顺序不变量（spec §4.1）：新 terminal 鉴权成功时，旧 terminal 先收 KICKED
 // 并断开，之后新 terminal 才拿到 matched 应答。

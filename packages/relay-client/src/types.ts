@@ -1,10 +1,10 @@
-// ZCode Relay Client · 类型面（terminal 角色）。
+// Drora Relay Client · 类型面（terminal 角色）。
 // 状态机与失败码族对齐 specs/mobile-relay-r3-frontend.md §2 清单；线协议形状对齐
 // specs/mobile-relay-server.md §3 与官方 3.14.3 手机页 bundle 取证（见各类型注释）。
-// R3 D2/P1 已换源：proof/信封校验由 @zcode/shared relay-wire 提供，默认编解码见
+// R3 D2/P1 已换源：proof/信封校验由 @drora/shared relay-wire 提供，默认编解码见
 // codec.ts，port 保留为测试注入点；本包帧类型（terminal 视角类型面）保持本地定义。
 
-/** relay 配对状态（线协议 pair_status 字面量，官方兼容键不 ZCode 化）。 */
+/** relay 配对状态（线协议 pair_status 字面量，官方兼容键不 Drora 化）。 */
 export type RelayPairStatus = "waiting" | "matched";
 
 /**
@@ -56,7 +56,7 @@ export type RelayErrorCode =
 
 /**
  * relay 线协议帧（terminal 视角）。字段名保持官方兼容键（`zcode_type` 族同规则：
- * 互操作必需，不做 ZCode 化）。
+ * 互操作必需，不做 Drora 化）。
  */
 export type RelayWireFrame =
   | {

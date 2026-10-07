@@ -1,5 +1,5 @@
-// ZCode Relay Client · 公开入口与装配门面（terminal 角色，specs/mobile-relay-r3-frontend.md D3/D8）。
-// 消费方 = 自建移动页（@zcode/mobile-web）与 node 集成测试；浏览器装配示例：
+// Drora Relay Client · 公开入口与装配门面（terminal 角色，specs/mobile-relay-r3-frontend.md D3/D8）。
+// 消费方 = 自建移动页（@drora/mobile-web）与 node 集成测试；浏览器装配示例：
 //   const client = createRelayClient({
 //     url: "wss://host/ws",
 //     credential: { deviceSid, passHash },
@@ -7,7 +7,7 @@
 //     clock: systemClock,
 //   });
 // 平台差异全部经 ports 注入（transport/codec/clock）；线协议纯逻辑单一出处
-// = @zcode/shared relay-wire（spec D2/P1），本包只承载有状态会话语义。
+// = @drora/shared relay-wire（spec D2/P1），本包只承载有状态会话语义。
 import { systemClock } from "./clock.js";
 export type {
   RelayClockPort,

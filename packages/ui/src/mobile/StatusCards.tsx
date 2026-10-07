@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * R3 移动壳状态卡族（四步加载卡 + 11 张失败卡）。
@@ -227,7 +227,7 @@ export function MobileConnectionStatusCard({
   activeCount = null,
   className,
 }: MobileConnectionStatusCardProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const copy = PHASE_COPY_KEYS[phase];
   const steps = LOADING_STEP_KEYS.map((key) => intl.formatMessage({ id: key }));
   return (
@@ -259,7 +259,7 @@ export interface MobileFailureCardProps {
  * 结构逐类对齐官方 EVn；文案见 mobileShell.failure.*。
  */
 export function MobileFailureCard({ code, detail, onAction, className }: MobileFailureCardProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const prefix = `mobileShell.failure.${code}`;
   const tone = MOBILE_FAILURE_CARD_TONES[code];
   const toneClasses = FAILURE_TONE_CLASSES[tone];

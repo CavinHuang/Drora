@@ -1,4 +1,4 @@
-import type { Locale } from "@zcode/shared";
+import type { Locale } from "@drora/shared";
 
 /** Isolated, pointer-transparent companion document; previews arrive through validated IPC. */
 export function desktopPetBubbleContent(locale: Locale): string {

@@ -1,4 +1,4 @@
-// ZCode Relay Client · 常量与默认时钟。
+// Drora Relay Client · 常量与默认时钟。
 // 数值逐项对齐官方 3.14.3 手机页 bundle 取证（.tmp-work/official-phone-bundle.js，
 // hVn RelaySession 段）与 specs/mobile-web-remote.md「协议常量」节。
 import type { RelayClockPort, RelayTimerHandle } from "./ports.js";

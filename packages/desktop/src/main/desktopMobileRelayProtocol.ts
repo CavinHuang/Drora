@@ -10,9 +10,9 @@ import {
   RELAY_SATURATION_HIGH_WATER_MARK_BYTES,
   RELAY_SATURATION_LOW_WATER_MARK_BYTES,
   buildRelayProofMessage,
-} from "@zcode/shared";
-import type { MobilePairingRuntimeState, RpcFrameIdentity } from "@zcode/shared";
-import type { MobileRelaySidePaneSyncEntry } from "@zcode/shared";
+} from "@drora/shared";
+import type { MobilePairingRuntimeState, RpcFrameIdentity } from "@drora/shared";
+import type { MobileRelaySidePaneSyncEntry } from "@drora/shared";
 
 export const OFFICIAL_RELAY_WS_URL = "wss://zcode.z.ai/ws";
 /** v3 托管页已 404；官方版本门控现走 v4（探测核实）。 */
@@ -48,7 +48,7 @@ export function deriveSelfHostedRelayEndpoints(baseUrl: string):
  * 二维码固定上报的 app_version——必须是官方托管页认识的版本。
  * 修复依据（2026-09-27 实测）：托管页按版本清单分发页面资源，未知版本直接 404
  * （0.0.x/99.0.0/3.13.0/3.14.4/3.15.0 → 404，3.14.0–3.14.3 → 200，省略参数 → 走默认）。
- * ZCode 自身版本（0.0.1）不在清单内，手机扫码必 404；本仓 relay 协议逐项还原自
+ * Drora 自身版本（0.0.1）不在清单内，手机扫码必 404；本仓 relay 协议逐项还原自
  * 3.14.3 bundle，故二维码固定上报 3.14.3（页面会下发与该协议配套的手机页资源）。
  * WS 注册/鉴权的 meta.version 不受此影响——relay 不校验该值（0.0.1 注册实测通过）。
  */
@@ -94,7 +94,7 @@ export function calculateRelayProof(params: {
 }): string {
   // spec D2 同源化：消息格式单一出处 = shared 的 buildRelayProofMessage（"<nonce>|<role>|<device_sid>"，
   // 三方现格式逐字核对一致，见 shared/relay-wire/proof.ts 头注）。createHmac 保留为
-  // node 环境快路径（Main 进程专用），纯 JS 实现见 @zcode/shared relay-wire（手机页用）。
+  // node 环境快路径（Main 进程专用），纯 JS 实现见 @drora/shared relay-wire（手机页用）。
   return createHmac("sha256", params.passHash)
     .update(
       buildRelayProofMessage({
@@ -263,7 +263,7 @@ export function relayWorkspaceKey(target: {
 }
 
 /**
- * §33.6：本仓任务状态词表（ZCodeTaskMeta["status"]）→ 官方页 displayStatus 枚举
+ * §33.6：本仓任务状态词表（DroraTaskMeta["status"]）→ 官方页 displayStatus 枚举
  * （idle/running/completed/error，bundle pb schema @261533）。官方行状态徽标读
  * displayStatus 而非 status；缺失/未知回落 idle（官方同语义）。
  */
@@ -337,7 +337,7 @@ export function buildWorkspaceListResult(params: {
 }
 
 // spec D2/P2a 同源化：rpc-frame 传输封装（M4b）与发送侧重放缓冲（M4c）的单一出处
-// 已收敛到 @zcode/shared relay-wire（线格式/常量/crc32/组装器/重放缓冲及取证注释随迁，
+// 已收敛到 @drora/shared relay-wire（线格式/常量/crc32/组装器/重放缓冲及取证注释随迁，
 // 见 specs/mobile-relay-r3-frontend.md §12/§13）。此处 re-export 维持既有消费者
 // （desktopMobileRelayControl、conformance 测试）的导入路径不变。
 export {
@@ -367,7 +367,7 @@ export {
   type RelayReplayReserveResult,
   type RpcFrameIdentity,
   type RpcTransportFrame,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 /**
  * bridge-ready 携带的 bridge 信息（对齐官方 toExternalBridge，index.js@386100）：

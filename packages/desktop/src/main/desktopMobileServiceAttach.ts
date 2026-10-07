@@ -11,16 +11,16 @@ import {
   MessagePortProtocol,
   ProxyChannel,
   type MessagePortPayload,
-} from "@zcode/rpc";
-import type { IZCodeAgentService, IZCodeSessionService, IZCodeTaskService } from "@zcode/services";
-import { HostMessageTypes } from "@zcode/shared";
+} from "@drora/rpc";
+import type { IDroraAgentService, IDroraSessionService, IDroraTaskService } from "@drora/services";
+import { HostMessageTypes } from "@drora/shared";
 import type { MessagePortMain, UtilityProcess } from "electron";
 
 export interface MobileServiceAttachment {
-  task: IZCodeTaskService;
-  session: IZCodeSessionService;
+  task: IDroraTaskService;
+  session: IDroraSessionService;
   /** agent 服务（listSessions 等只读调用可按需拉起工作区 CLI 运行时）。 */
-  agent: IZCodeAgentService;
+  agent: IDroraAgentService;
 }
 
 export function createMobileServiceAttacher(options: {
@@ -30,9 +30,9 @@ export function createMobileServiceAttacher(options: {
   let attachedHostChild: UtilityProcess | null = null;
   let clientPort: MessagePortMain | null = null;
   let client: ChannelClient | null = null;
-  let taskService: IZCodeTaskService | null = null;
-  let sessionService: IZCodeSessionService | null = null;
-  let agentService: IZCodeAgentService | null = null;
+  let taskService: IDroraTaskService | null = null;
+  let sessionService: IDroraSessionService | null = null;
+  let agentService: IDroraAgentService | null = null;
 
   /** Host 缺失错误统一带 code=workspace-closed（对齐原版 DESKTOP_HOST_MISSING 失败面）。 */
   function assertHostChild(): UtilityProcess {
@@ -126,11 +126,11 @@ export function createMobileServiceAttacher(options: {
     };
     const protocol = new MessagePortProtocol(portLike);
     client = new ChannelClient(protocol);
-    taskService = ProxyChannel.toService<IZCodeTaskService>(client.getChannel("zcode-task"));
-    sessionService = ProxyChannel.toService<IZCodeSessionService>(
-      client.getChannel("zcode-session"),
+    taskService = ProxyChannel.toService<IDroraTaskService>(client.getChannel("drora-task"));
+    sessionService = ProxyChannel.toService<IDroraSessionService>(
+      client.getChannel("drora-session"),
     );
-    agentService = ProxyChannel.toService<IZCodeAgentService>(client.getChannel("zcode-agent"));
+    agentService = ProxyChannel.toService<IDroraAgentService>(client.getChannel("drora-agent"));
     options.logger.info("[mobile-remote] scoped service 端口已附着");
     return { task: taskService, session: sessionService, agent: agentService };
   }
@@ -138,7 +138,7 @@ export function createMobileServiceAttacher(options: {
   /**
    * 为 relay rpc 桥新建一个独立附着端口（M4b）：每次 workspace-bridge-open 一个新
    * MessageChannelMain（对齐原版 createWorkspaceBridge 每桥一端口），Host 侧按
-   * clientMode=web-remote-replayable 注册服务（含 zcode-* 别名通道）。
+   * clientMode=web-remote-replayable 注册服务（含 drora-* 别名通道）。
    * 返回 Main 侧端口；调用方负责 close（close 即触发 Host 侧 attachment 清理）。
    */
   function attachBridgePort(): MessagePortMain {

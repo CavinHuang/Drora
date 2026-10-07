@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron";
-import type { DesktopPetPresentation } from "@zcode/shared";
-import { desktopPetPresentationSchema, PlatformChannels } from "@zcode/shared";
+import type { DesktopPetPresentation } from "@drora/shared";
+import { desktopPetPresentationSchema, PlatformChannels } from "@drora/shared";
 
 const DRAG_THRESHOLD_PX = 5;
 let current: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };

@@ -1,4 +1,4 @@
-// ZCode Relay Client · WebSocket 传输绑定（浏览器原生 WebSocket / node ws 包同构面）。
+// Drora Relay Client · WebSocket 传输绑定（浏览器原生 WebSocket / node ws 包同构面）。
 // 平台差异收敛在这里：两者都有 addEventListener("open"/"message"/"close"/"error")、
 // send(string)、close()；node ws 的 message.data 是 Buffer|string，统一转文本。
 // 环境差异（平台注入）遵循 AGENTS.md 平台边界：本包不做平台探测，由装配方传入实现。

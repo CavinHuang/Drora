@@ -1,4 +1,4 @@
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@drora/shared";
 
 type DesktopBrowserPlatformBridge = Pick<
   IPlatformService,
@@ -27,39 +27,39 @@ type DesktopBrowserPlatformBridge = Pick<
 // Rebase 集成：browser bridge 若继续内联在 renderer 入口，会让入口越过 max-lines 门禁。
 // 独立对象只做 preload 委托与旧 bridge 兼容兜底，不持有 Browser 业务状态。
 export const desktopBrowserPlatformBridge = {
-  getPathForFile: (file) => window.zcode.getPathForFile?.(file) ?? null,
+  getPathForFile: (file) => window.drora.getPathForFile?.(file) ?? null,
   saveFile: (payload) =>
-    window.zcode.saveFile?.(payload) ?? Promise.resolve({ success: false, error: "not_supported" }),
+    window.drora.saveFile?.(payload) ?? Promise.resolve({ success: false, error: "not_supported" }),
   // 条件定义而非兜底返回失败：UI 靠方法是否存在做能力检测，旧 preload 下必须保持 undefined
-  printPageToPdf: window.zcode.printPageToPdf ? () => window.zcode.printPageToPdf!() : undefined,
-  onBrowserViewReady: (handler) => window.zcode.onBrowserViewReady?.(handler) ?? (() => {}),
-  onBrowserViewOperation: (handler) => window.zcode.onBrowserViewOperation?.(handler) ?? (() => {}),
+  printPageToPdf: window.drora.printPageToPdf ? () => window.drora.printPageToPdf!() : undefined,
+  onBrowserViewReady: (handler) => window.drora.onBrowserViewReady?.(handler) ?? (() => {}),
+  onBrowserViewOperation: (handler) => window.drora.onBrowserViewOperation?.(handler) ?? (() => {}),
   onBrowserViewViewportChanged: (handler) =>
-    window.zcode.onBrowserViewViewportChanged?.(handler) ?? (() => {}),
+    window.drora.onBrowserViewViewportChanged?.(handler) ?? (() => {}),
   onBrowserViewVisibility: (handler) =>
-    window.zcode.onBrowserViewVisibility?.(handler) ?? (() => {}),
-  onBrowserViewCloseTab: (handler) => window.zcode.onBrowserViewCloseTab?.(handler) ?? (() => {}),
-  onBrowserViewSuspend: (handler) => window.zcode.onBrowserViewSuspend?.(handler) ?? (() => {}),
-  onBrowserViewRestore: (handler) => window.zcode.onBrowserViewRestore?.(handler) ?? (() => {}),
+    window.drora.onBrowserViewVisibility?.(handler) ?? (() => {}),
+  onBrowserViewCloseTab: (handler) => window.drora.onBrowserViewCloseTab?.(handler) ?? (() => {}),
+  onBrowserViewSuspend: (handler) => window.drora.onBrowserViewSuspend?.(handler) ?? (() => {}),
+  onBrowserViewRestore: (handler) => window.drora.onBrowserViewRestore?.(handler) ?? (() => {}),
   browserViewAttachGuest: (payload) =>
-    window.zcode.browserViewAttachGuest?.(payload) ??
+    window.drora.browserViewAttachGuest?.(payload) ??
     Promise.resolve({ ok: false, reason: "not-found", recoveryRequested: false }),
   browserViewDetachGuest: (payload) =>
-    window.zcode.browserViewDetachGuest?.(payload) ?? Promise.resolve(false),
+    window.drora.browserViewDetachGuest?.(payload) ?? Promise.resolve(false),
   browserViewCloseTab: (payload) =>
-    window.zcode.browserViewCloseTab?.(payload) ?? Promise.resolve(),
+    window.drora.browserViewCloseTab?.(payload) ?? Promise.resolve(),
   browserViewReportResidency: (payload) =>
-    window.zcode.browserViewReportResidency?.(payload) ?? Promise.resolve(),
+    window.drora.browserViewReportResidency?.(payload) ?? Promise.resolve(),
   browserViewSuspendReady: (payload) =>
-    window.zcode.browserViewSuspendReady?.(payload) ?? Promise.resolve(),
+    window.drora.browserViewSuspendReady?.(payload) ?? Promise.resolve(),
   browserViewEnsureResident: (payload) =>
-    window.zcode.browserViewEnsureResident?.(payload) ?? Promise.resolve(),
+    window.drora.browserViewEnsureResident?.(payload) ?? Promise.resolve(),
   browserViewRestoreTabs: (payload) =>
-    window.zcode.browserViewRestoreTabs?.(payload) ?? Promise.resolve([]),
+    window.drora.browserViewRestoreTabs?.(payload) ?? Promise.resolve([]),
   browserViewUpdateViewport: (payload) =>
-    window.zcode.browserViewUpdateViewport?.(payload) ?? Promise.resolve(),
+    window.drora.browserViewUpdateViewport?.(payload) ?? Promise.resolve(),
   importChromeBrowserData: (options) =>
-    window.zcode.importChromeBrowserData?.(options) ??
+    window.drora.importChromeBrowserData?.(options) ??
     Promise.resolve({
       success: false,
       cookies: { imported: 0, skipped: 0, failed: 0 },
@@ -72,6 +72,6 @@ export const desktopBrowserPlatformBridge = {
       error: "unsupported",
     }),
   clearEmbeddedBrowserData: (mode) =>
-    window.zcode.clearEmbeddedBrowserData?.(mode) ??
+    window.drora.clearEmbeddedBrowserData?.(mode) ??
     Promise.resolve({ success: false, error: "unsupported" }),
 } satisfies DesktopBrowserPlatformBridge;

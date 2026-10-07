@@ -19,7 +19,7 @@ after(async () => {
 });
 
 async function tempDbPath() {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-"));
   tempDirs.push(dir);
   return join(dir, "devices.json");
 }
@@ -92,7 +92,7 @@ test("registry：注册/查询/同 mid 淘汰最旧/持久化往返", async () =
 });
 
 test("registry：空/损坏文件容错", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-"));
   tempDirs.push(dir);
   const bad = join(dir, "bad.json");
   const { writeFile } = await import("node:fs/promises");

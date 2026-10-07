@@ -74,7 +74,7 @@ test("list：透传 workspace 参数并映射 v1 taskList 负载", async () => {
 });
 
 test("open/events：sessionId=taskId 且携带 workspace 路由参数", async () => {
-  // ZCodeMessageWithParts 声明契约形状（2026-09-29 schema 漂移修复后 readSessionMessages
+  // DroraMessageWithParts 声明契约形状（2026-09-29 schema 漂移修复后 readSessionMessages
   // 的真实返回）：timeline 投影只保留用户可见对话面（PC 同款 policy 判据）。
   const services = fakeServices({
     messages: [

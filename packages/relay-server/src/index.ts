@@ -1,4 +1,4 @@
-// ZCode Relay Server 公共入口（协议兼容自建云中继，spec: mobile-relay-server.md）。
+// Drora Relay Server 公共入口（协议兼容自建云中继，spec: mobile-relay-server.md）。
 export {
   MAX_WS_PAYLOAD_BYTES,
   REGISTER_RATE_PER_MINUTE,

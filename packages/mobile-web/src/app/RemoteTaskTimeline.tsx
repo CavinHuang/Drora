@@ -1,6 +1,6 @@
 // 任务消息区唯一装配缝：惰性加载 UI 包的实时 v4 时间线。
 import { lazy, Suspense, type ReactNode } from "react";
-import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@zcode/shared";
+import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
   AttachmentRef,
   CommandAck,
@@ -10,15 +10,15 @@ import type {
   SessionPhase,
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+} from "@drora/shared/drora-protocol-v4";
+import type { ModelSelectionView } from "@drora/services";
 import { InteractionCards, type InteractionAnswer } from "../ui/InteractionCards.js";
 // FileChangesBar 挂载移除（§32.40）：ui ConversationTurnGroup 已内建官方
 // ConversationFileSummaryPanel（@1402，unit.header.fileChanges 驱动）——App 侧独立
 // 横条是重复渲染且被 taskShell 头部裁切（双页截图对照实证）。组件保留供复用。
 
 const Timeline = lazy(() =>
-  import("@zcode/ui/remote-timeline").then((module) => ({
+  import("@drora/ui/remote-timeline").then((module) => ({
     default: module.RemoteConversationTimeline,
   })),
 );

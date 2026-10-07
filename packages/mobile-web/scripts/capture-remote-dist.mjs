@@ -153,7 +153,7 @@ async function writeFileWithRetry(path, data) {
 const REQUEST_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-const curlTmpRoot = await mkdtemp(join(tmpdir(), "zcode-capture-"));
+const curlTmpRoot = await mkdtemp(join(tmpdir(), "drora-capture-"));
 let curlSeq = 0;
 
 // 全局节流协调：任一请求收到 405/429（WAF 流量节流）即全员暂停到

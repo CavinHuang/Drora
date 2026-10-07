@@ -81,38 +81,38 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
     // 静态和动态 import 都检查；注释里的字样不算违面。
     const imports = text.match(/^\s*import[\s\S]*?from\s+["'][^"']+["']/gm) ?? [];
     const uiImports = [
-      ...imports.filter((statement) => statement.includes("@zcode/ui")),
-      ...[...text.matchAll(/\bimport\(["'](@zcode\/ui[^"']*)["']\)/g)].map((match) => match[1]),
+      ...imports.filter((statement) => statement.includes("@drora/ui")),
+      ...[...text.matchAll(/\bimport\(["'](@drora\/ui[^"']*)["']\)/g)].map((match) => match[1]),
     ];
     const allowed =
       file === join(packageRoot, "src", "app", "RemoteTaskTimeline.tsx")
-        ? ["@zcode/ui/remote-timeline"]
+        ? ["@drora/ui/remote-timeline"]
         : file === join(packageRoot, "src", "app", "main.tsx")
-          ? ["@zcode/ui/remote-frame"]
+          ? ["@drora/ui/remote-frame"]
           : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx")
-          ? ["@zcode/ui/git-pane"]
+          ? ["@drora/ui/git-pane"]
           : // §33.18.18 输入面换装：ui LexicalChatInput 窄入口（官方富文本编辑器）。
             file === join(packageRoot, "src", "app", "ComposerRichInput.tsx")
-          ? ["@zcode/ui/git-pane", "@zcode/ui/lexical-chat-input"]
+          ? ["@drora/ui/git-pane", "@drora/ui/lexical-chat-input"]
           : // §33.18.20 附件上传链：ui uploadAttachmentTransaction 窄入口（begin/chunk/commit）。
             file === join(packageRoot, "src", "app", "composerAttachmentUpload.ts")
-          ? ["@zcode/ui/attachment-upload-transaction"]
+          ? ["@drora/ui/attachment-upload-transaction"]
           : // §33.18.21 草稿持久化：ui composerDraftStore 窄入口（官方 parity 键空间）。
             file === join(packageRoot, "src", "app", "composerDraftPersistence.ts")
-          ? ["@zcode/ui/composer-draft-store"]
+          ? ["@drora/ui/composer-draft-store"]
           : // §33.18.15 终端侧板换装：ui SidePaneTerminalPane 窄入口（xterm+PTY）。
             file === join(packageRoot, "src", "app", "RemoteSidePaneTerminal.tsx")
-          ? ["@zcode/ui/git-pane", "@zcode/ui/side-pane-terminal"]
+          ? ["@drora/ui/git-pane", "@drora/ui/side-pane-terminal"]
           : file === join(packageRoot, "src", "app", "App.tsx")
           ? // GitPane 一期姊妹件+App 塔（spec §25/§27.1/§30.2）：官方复原件窄入口装配。
             // §32.12 队列面板（spec）：官方复原件受控窄入口（composer 上方逐条卡片）。
             // §32.20 文件 chip 相对目录基准（官方 zCe 语义窄入口）。
-            ["@zcode/ui/file-display", "@zcode/ui/git-pane", "@zcode/ui/remote-queue-panel"]
+            ["@drora/ui/file-display", "@drora/ui/git-pane", "@drora/ui/remote-queue-panel"]
           : [];
     assert.deepEqual(
-      [...new Set(uiImports.map((statement) => statement.match(/@zcode\/ui[^"']*/)?.[0]))].sort(),
+      [...new Set(uiImports.map((statement) => statement.match(/@drora\/ui[^"']*/)?.[0]))].sort(),
       allowed,
-      `${file} has an unexpected @zcode/ui dependency`,
+      `${file} has an unexpected @drora/ui dependency`,
     );
   }
   assert.ok(files.length >= 8, "self-contained ui/app tree is missing files");

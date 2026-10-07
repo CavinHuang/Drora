@@ -34,9 +34,9 @@ import {
   type UserInputOptionPayload,
   type UserInputQuestionPayload,
   type UserInputRequestPayload,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 
-// 阻塞交互面的类型与常量单一出处是 shared zcode-protocol-v4（snapshot.ts）；本 store 只做
+// 阻塞交互面的类型与常量单一出处是 shared drora-protocol-v4（snapshot.ts）；本 store 只做
 // 派生选择器，re-export 供 src/ui 交互卡消费，避免 UI 直接深挖 shared 内部路径。
 export type {
   InteractionAutoResolution,
@@ -45,11 +45,11 @@ export type {
   UserInputOptionPayload,
   UserInputQuestionPayload,
   UserInputRequestPayload,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 export {
   MAX_PERMISSION_FEEDBACK_CHARS,
   PERMISSION_FULL_ACCESS_OPTION_ID,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 
 export interface ConversationSubscriptionAck {
   subscriptionId: string;
@@ -90,7 +90,7 @@ export interface ConversationQueueState {
 /**
  * 模型选择/上下文用量派生面（spec §16 第 2/3 条），全部从 snapshot.config /
  * availability / usage 浅取，不新增订阅（store 已整包持有 snapshot）。
- * ModelSelection 单一出处 = shared model-selection（zcode-protocol-v4 re-export）。
+ * ModelSelection 单一出处 = shared model-selection（drora-protocol-v4 re-export）。
  */
 /** 空快照派生态（无快照/任务面未开时 UI 的缺省，与 ModelSelectionState 空值语义一致）。 */
 export const EMPTY_MODEL_SELECTION_STATE: ModelSelectionState = {

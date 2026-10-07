@@ -49,7 +49,7 @@ export interface ConnectionFlowControl {
 export type MessagePortFlowState = "saturated" | "drained";
 
 export interface MessagePortFlowControl {
-  __zcodeRpcControl: "connection-flow-v1";
+  __droraRpcControl: "connection-flow-v1";
   state: MessagePortFlowState;
 }
 
@@ -60,7 +60,7 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
   const record = value as Record<string, unknown>;
   return (
     Object.keys(record).length === 2 &&
-    record.__zcodeRpcControl === "connection-flow-v1" &&
+    record.__droraRpcControl === "connection-flow-v1" &&
     (record.state === "saturated" || record.state === "drained")
   );
 }
@@ -74,7 +74,7 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
  * onFlowState → connectionScope.setTransportFlowState 暂停/恢复 CLI 发送。
  */
 export function messagePortFlowControl(state: MessagePortFlowState): MessagePortFlowControl {
-  return { __zcodeRpcControl: "connection-flow-v1", state };
+  return { __droraRpcControl: "connection-flow-v1", state };
 }
 
 // ============================================================================

@@ -1,10 +1,10 @@
 // §33.18.20 附件上传链（specs/mobile-relay-r3-frontend.md）：ui
 // uploadAttachmentTransaction 窄入口复用（begin/chunk(384KiB)/commit 编排 + 校验和 +
-// 失败 abort + 进度）——手机 accessor.zcodeAgentService 四方法结构化满足 agent 面，
+// 失败 abort + 进度）——手机 accessor.droraAgentService 四方法结构化满足 agent 面，
 // 零自研编排。上限 PROTOCOL_V4_LIMITS.attachmentMaxBytes = 20MiB（解码后）。
-import { uploadAttachmentTransaction } from "@zcode/ui/attachment-upload-transaction";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
-import type { IServiceAccessor } from "@zcode/services";
+import { uploadAttachmentTransaction } from "@drora/ui/attachment-upload-transaction";
+import type { AttachmentRef } from "@drora/shared/drora-protocol-v4";
+import type { IServiceAccessor } from "@drora/services";
 
 const ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -28,7 +28,7 @@ export async function uploadComposerAttachment(params: {
   const dataBase64 = btoa(binary);
   const mime = params.file.type || "application/octet-stream";
   const result = await uploadAttachmentTransaction(
-    params.accessor.zcodeAgentService,
+    params.accessor.droraAgentService,
     {
       workspacePath: params.workspacePath,
       ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),

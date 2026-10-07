@@ -1,10 +1,10 @@
-import type { Locale } from "@zcode/shared";
+import type { Locale } from "@drora/shared";
 import { desktopPetArtworkDataUrl } from "./desktopPetArtwork.js";
 import { desktopPetBackgroundSize, desktopPetMotionCss } from "./desktopPetMotionCss.js";
 
 /** Static local document. The artwork is bundled; task facts never enter HTML. */
 export function desktopPetContent(locale: Locale): string {
-  const openLabel = locale.startsWith("zh") ? "打开 ZCode 任务" : "Open ZCode task";
+  const openLabel = locale.startsWith("zh") ? "打开 Drora 任务" : "Open Drora task";
   const dragLabel = locale.startsWith("zh") ? "拖动桌面宠物" : "Move desktop pet";
   return `<!doctype html><html lang="${locale.startsWith("zh") ? "zh" : "en"}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

@@ -9,7 +9,7 @@ import {
   V4_WIRE_PROTOCOL_VERSION,
   type SessionSummary,
   type SessionsIndexDelta,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import {
   createSessionsIndexStore,
   mapSessionPhaseToStatus,

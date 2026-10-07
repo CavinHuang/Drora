@@ -1,6 +1,6 @@
-// R3 P2a 自包含 i18n 运行时（D6：不依赖 @zcode/ui 的 IntlProvider）。
+// R3 P2a 自包含 i18n 运行时（D6：不依赖 @drora/ui 的 IntlProvider）。
 // 语义对齐 ui 侧用法：intl.formatMessage({id}, values?) + {placeholder} 插值；
-// 语言从 localStorage 快照（key: zcode-mobile-lang），缺省跟随 navigator，en 缺键回退 zh。
+// 语言从 localStorage 快照（key: drora-mobile-lang），缺省跟随 navigator，en 缺键回退 zh。
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { zhCN } from "../intl/zh-CN.js";
 import { enUS } from "../intl/en-US.js";
@@ -12,7 +12,7 @@ const DICTIONARIES: Record<MobileLocale, Record<string, string>> = {
   "en-US": enUS,
 };
 
-const LOCALE_STORAGE_KEY = "zcode-mobile-lang";
+const LOCALE_STORAGE_KEY = "drora-mobile-lang";
 
 export function resolveLocale(): MobileLocale {
   try {

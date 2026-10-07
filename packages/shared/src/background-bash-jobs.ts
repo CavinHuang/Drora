@@ -1,42 +1,42 @@
 import {
-  collectVisibleZCodeBackgroundTaskControlItems,
-  getZCodeBackgroundTaskControlItemElapsedMs,
-  isActiveZCodeBackgroundTaskControlItem,
-  parseZCodeBackgroundTaskControlItems,
-  type ZCodeBackgroundTaskControlItem,
-  type ZCodeBackgroundTaskControlStatus,
+  collectVisibleDroraBackgroundTaskControlItems,
+  getDroraBackgroundTaskControlItemElapsedMs,
+  isActiveDroraBackgroundTaskControlItem,
+  parseDroraBackgroundTaskControlItems,
+  type DroraBackgroundTaskControlItem,
+  type DroraBackgroundTaskControlStatus,
 } from "./background-task-controls.js";
 
-export type ZCodeBackgroundBashJobStatus = ZCodeBackgroundTaskControlStatus;
-export type ZCodeBackgroundBashJob = ZCodeBackgroundTaskControlItem & {
+export type DroraBackgroundBashJobStatus = DroraBackgroundTaskControlStatus;
+export type DroraBackgroundBashJob = DroraBackgroundTaskControlItem & {
   taskKind: "bash";
 };
 
-export function parseZCodeBackgroundBashJobs(value: unknown): ZCodeBackgroundBashJob[] {
-  return parseZCodeBackgroundTaskControlItems(value).filter(isBackgroundBashJob);
+export function parseDroraBackgroundBashJobs(value: unknown): DroraBackgroundBashJob[] {
+  return parseDroraBackgroundTaskControlItems(value).filter(isBackgroundBashJob);
 }
 
-export function isActiveZCodeBackgroundBashJob(job: ZCodeBackgroundBashJob): boolean {
-  return isActiveZCodeBackgroundTaskControlItem(job);
+export function isActiveDroraBackgroundBashJob(job: DroraBackgroundBashJob): boolean {
+  return isActiveDroraBackgroundTaskControlItem(job);
 }
 
-export function getZCodeBackgroundBashJobElapsedMs(
-  job: ZCodeBackgroundBashJob,
+export function getDroraBackgroundBashJobElapsedMs(
+  job: DroraBackgroundBashJob,
   now = Date.now(),
 ): number {
-  return getZCodeBackgroundTaskControlItemElapsedMs(job, now);
+  return getDroraBackgroundTaskControlItemElapsedMs(job, now);
 }
 
-export function collectVisibleZCodeBackgroundBashJobs(
-  jobs: readonly ZCodeBackgroundBashJob[],
+export function collectVisibleDroraBackgroundBashJobs(
+  jobs: readonly DroraBackgroundBashJob[],
   now = Date.now(),
   thresholdMs = 30_000,
-): Array<ZCodeBackgroundBashJob & { elapsedMs: number }> {
-  return collectVisibleZCodeBackgroundTaskControlItems(jobs, now, thresholdMs) as Array<
-    ZCodeBackgroundBashJob & { elapsedMs: number }
+): Array<DroraBackgroundBashJob & { elapsedMs: number }> {
+  return collectVisibleDroraBackgroundTaskControlItems(jobs, now, thresholdMs) as Array<
+    DroraBackgroundBashJob & { elapsedMs: number }
   >;
 }
 
-function isBackgroundBashJob(job: ZCodeBackgroundTaskControlItem): job is ZCodeBackgroundBashJob {
+function isBackgroundBashJob(job: DroraBackgroundTaskControlItem): job is DroraBackgroundBashJob {
   return job.taskKind === "bash";
 }

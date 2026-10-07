@@ -1,10 +1,10 @@
-import { modelSelectionSchema, type ModelSelection } from "@zcode/shared/model-selection";
-import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+import { modelSelectionSchema, type ModelSelection } from "@drora/shared/model-selection";
+import { submissionModeSchema, type SubmissionMode } from "@drora/shared/drora-protocol-v4";
+import type { ModelSelectionView } from "@drora/services";
 import { logger } from "@/logger.js";
 
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
-const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
+const COMPOSER_RECENT_KEY_PREFIX = "drora-model-selection-recent-v1";
 
 interface StorageLike {
   getItem(key: string): string | null;

@@ -47,7 +47,7 @@ for (const name of entries) {
     // 手机远控只允许当前来源；把服务默认值改为页面 origin，文案去掉上游域名。
     const localCode = code
       .replaceAll("`https://zcode.z.ai`", "(globalThis.location?.origin??'')")
-      .replaceAll("zcode.z.ai", "ZCode");
+      .replaceAll("zcode.z.ai", "Drora");
     await writeFile(target, localCode);
   } else {
     await cp(source, target);

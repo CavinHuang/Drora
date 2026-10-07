@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/relay-server",
+  "name": "@drora/relay-server",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "./main": "./src/main.ts"
   },
   "dependencies": {
-    "@zcode/shared": "workspace:*",
+    "@drora/shared": "workspace:*",
     "ws": "^8.20.0"
   },
   "devDependencies": {

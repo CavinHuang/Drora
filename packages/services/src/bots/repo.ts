@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
+import { atomicWritePrivateTextFile, withFileLock } from "@drora/shared/node";
 import {
   botsConfigFileSchema,
   botsStateFileSchema,
   type BotsConfigFile,
   type BotsStateFile,
-} from "@zcode/shared";
+} from "@drora/shared";
 import { getAppConfigDir } from "../paths.js";
 import {
   BOTS_CONFIG_FILE,

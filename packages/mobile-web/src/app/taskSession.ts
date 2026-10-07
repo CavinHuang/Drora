@@ -2,7 +2,7 @@
    首页 sessions-index 专用桥）：三条链共用同一条 workspace 桥生命周期（open/握手/帧面/
    退订/释放）与同一 accessor 装配，拆文件会把一条桥的所有权拆散（packages/ui/src/v4/
    sessionsIndexStore.ts 同款豁免先例）。 */
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@drora/shared";
 // R3 P2a/P3a/P3b/P3c 任务会话面：workspace-bridge-open → 服务面（与 renderer 同源
 // RemoteServiceAccess，D8）。读路径 = v4 rows 分页（conversationRowsRangeV4，首帧收敛前的
 // 回补入口）+ P3a 流式订阅（subscribeConversationV4 → onDynamicConversationFrame →
@@ -17,7 +17,7 @@ import type { WorkspaceFileEntry } from "@zcode/shared";
 // → reloadRows() 回补尾窗。ACK 前到达的帧因 subscriptionId 未登记被 store 静默丢弃
 // （spec §14 有意分歧：不做 ackActivationBarrier 暂存，依赖 initial snapshot 收敛；若
 // initial 丢失，store 断档守卫经 onResync → resync()（forceSnapshot）兜底）。
-import type { IServiceAccessor, ModelSelectionView } from "@zcode/services";
+import type { IServiceAccessor, ModelSelectionView } from "@drora/services";
 import {
   MAX_PERMISSION_FEEDBACK_CHARS,
   V4_WIRE_PROTOCOL_VERSION,
@@ -30,10 +30,10 @@ import {
   type ConversationRowTarget,
   type V4ConversationFileChangesResult,
   type V4ConversationFileRewindPreviewResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { IDisposable } from "@zcode/rpc";
-import type { RelayClient } from "@zcode/relay-client";
-import { connectViaProtocol } from "@zcode/client";
+} from "@drora/shared/drora-protocol-v4";
+import type { IDisposable } from "@drora/rpc";
+import type { RelayClient } from "@drora/relay-client";
+import { connectViaProtocol } from "@drora/client";
 import { createRelayMessageProtocol } from "./protocolAdapter.js";
 import { createConversationStore, type ConversationStore } from "./conversationStore.js";
 import { createInitialFrameGate } from "./sessionsIndexInitialFrameGate.js";
@@ -203,7 +203,7 @@ export class TaskSession {
     if (beforeRowId === undefined || startEpoch === null) return;
     this.olderRequestPending = true;
     try {
-      const result = await this.accessor.zcodeAgentService.conversationRowsRangeV4({
+      const result = await this.accessor.droraAgentService.conversationRowsRangeV4({
         ...this.workspaceRef(),
         sessionId: this.target.sessionId,
         beforeRowId,
@@ -239,14 +239,14 @@ export class TaskSession {
       taskId: target.sessionId,
     });
     const accessor = connectViaProtocol(createRelayMessageProtocol(bridge));
-    const agent = accessor.zcodeAgentService;
+    const agent = accessor.droraAgentService;
     // 可信 hello → clientHello（clientKind=mobileRemote；能力位缺省 = 旧客户端语义，
     // 不声明 strict 未知键，老 Host 可握手）。
     await agent.helloConversationV4();
     const clientHello: ClientHello = {
       kind: "clientHello",
       protocolVersion: V4_WIRE_PROTOCOL_VERSION,
-      clientId: `zcode-mobile-${target.sessionId}`,
+      clientId: `drora-mobile-${target.sessionId}`,
       clientKind: "mobileRemote",
       appVersion,
     };
@@ -286,7 +286,7 @@ export class TaskSession {
 
   /** P3a 流式链：先挂 workspace 帧事件面，再订阅（句柄先就位，缩小 ACK 竞窗，桌面同构）。 */
   private async beginStreaming(): Promise<void> {
-    const agent = this.accessor.zcodeAgentService;
+    const agent = this.accessor.droraAgentService;
     const workspace = this.workspaceRef();
     this.frameSubscription = agent.onDynamicConversationFrame(workspace)((frame) => {
       // wire 候选（complete|fragment）直接交给 store：解码/分片重组/守卫都在 store 内。
@@ -309,7 +309,7 @@ export class TaskSession {
 
   /** 尾窗行（rows/range，limit 200 上限内取 100）→ store 回补入口（校验 atLogEpoch）。 */
   async reloadRows(): Promise<void> {
-    const result = await this.accessor.zcodeAgentService.conversationRowsRangeV4({
+    const result = await this.accessor.droraAgentService.conversationRowsRangeV4({
       ...this.workspaceRef(),
       sessionId: this.target.sessionId,
       limit: 100,
@@ -322,7 +322,7 @@ export class TaskSession {
   async resync(): Promise<void> {
     const state = this.store.getState();
     if (!state.subscriptionId) return;
-    const result = await this.accessor.zcodeAgentService.resyncConversationV4({
+    const result = await this.accessor.droraAgentService.resyncConversationV4({
       ...this.workspaceRef(),
       subscriptionId: state.subscriptionId,
       base: state.logEpoch === null ? null : { logEpoch: state.logEpoch, seq: state.seq },
@@ -341,7 +341,7 @@ export class TaskSession {
     const envelope = {
       // uuid v7 语义：客户端生成、重试不变（此处 P2a 无重试，uuid 即可）。
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "sendText" as const,
       payload: {
@@ -350,7 +350,7 @@ export class TaskSession {
       },
       issuedAt: Date.now(),
     };
-    await this.accessor.zcodeAgentService.sendConversationCommandV4({
+    await this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -368,13 +368,13 @@ export class TaskSession {
     )?.foregroundExecutionId;
     const envelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "stop" as const,
       payload: typeof expected === "string" ? { expectedForegroundExecutionId: expected } : {},
       issuedAt: Date.now(),
     };
-    await this.accessor.zcodeAgentService.sendConversationCommandV4({
+    await this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -392,13 +392,13 @@ export class TaskSession {
   ): Promise<CommandAck> {
     const envelope: CommandEnvelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "editUserQuery" as const,
       payload: { target, newText, workspaceMode },
       issuedAt: Date.now(),
     };
-    return this.accessor.zcodeAgentService.sendConversationCommandV4({
+    return this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -415,7 +415,7 @@ export class TaskSession {
     if (logEpoch === null) {
       throw new Error("conversation snapshot not aligned yet");
     }
-    return this.accessor.zcodeAgentService.conversationFileRewindPreviewV4({
+    return this.accessor.droraAgentService.conversationFileRewindPreviewV4({
       ...this.workspaceRef(),
       sessionId: this.target.sessionId,
       target,
@@ -431,13 +431,13 @@ export class TaskSession {
   async applyFileRewind(target: ConversationRowTarget): Promise<CommandAck> {
     const envelope: CommandEnvelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "applyFileRewind" as const,
       payload: { target },
       issuedAt: Date.now(),
     };
-    return this.accessor.zcodeAgentService.sendConversationCommandV4({
+    return this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -463,7 +463,7 @@ export class TaskSession {
         : answer.freeText.slice(0, MAX_PERMISSION_FEEDBACK_CHARS);
     const envelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "resolveInteraction" as const,
       payload: {
@@ -475,7 +475,7 @@ export class TaskSession {
       },
       issuedAt: Date.now(),
     };
-    await this.accessor.zcodeAgentService.sendConversationCommandV4({
+    await this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -493,13 +493,13 @@ export class TaskSession {
   ): Promise<void> {
     const envelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "setAssistantFeedback" as const,
       payload: { target: { rowId, entityId }, feedback },
       issuedAt: Date.now(),
     };
-    await this.accessor.zcodeAgentService.sendConversationCommandV4({
+    await this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -512,13 +512,13 @@ export class TaskSession {
   async forkAssistant(rowId: number, entityId: string): Promise<void> {
     const envelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type: "forkAssistant" as const,
       payload: { target: { rowId, entityId } },
       issuedAt: Date.now(),
     };
-    await this.accessor.zcodeAgentService.sendConversationCommandV4({
+    await this.accessor.droraAgentService.sendConversationCommandV4({
       ...this.workspaceRef(),
       envelope,
     });
@@ -551,7 +551,7 @@ export class TaskSession {
     }
     if (!anchor) return null;
     try {
-      return await this.accessor.zcodeAgentService.conversationFileChangesV4({
+      return await this.accessor.droraAgentService.conversationFileChangesV4({
         ...this.workspaceRef(),
         sessionId: this.target.sessionId,
         target: anchor,
@@ -633,7 +633,7 @@ export class TaskSession {
   ): Promise<boolean> {
     const envelope: CommandEnvelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
       type,
       payload,
@@ -641,7 +641,7 @@ export class TaskSession {
       issuedAt: Date.now(),
     };
     try {
-      const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
+      const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
         ...this.workspaceRef(),
         envelope,
       });
@@ -693,12 +693,12 @@ export class TaskSession {
     try {
       return await sendSwitchModelConfigCas({
         send: (envelope) =>
-          this.accessor.zcodeAgentService.sendConversationCommandV4({
+          this.accessor.droraAgentService.sendConversationCommandV4({
             ...this.workspaceRef(),
             envelope,
           }),
         sessionId: this.target.sessionId,
-        clientId: `zcode-mobile-${this.target.sessionId}`,
+        clientId: `drora-mobile-${this.target.sessionId}`,
         baseRevision: this.store.getRevision(),
         command: next,
       });
@@ -716,12 +716,12 @@ export class TaskSession {
     try {
       return await sendSwitchCollaborationModeCas({
         send: (envelope) =>
-          this.accessor.zcodeAgentService.sendConversationCommandV4({
+          this.accessor.droraAgentService.sendConversationCommandV4({
             ...this.workspaceRef(),
             envelope,
           }),
         sessionId: this.target.sessionId,
-        clientId: `zcode-mobile-${this.target.sessionId}`,
+        clientId: `drora-mobile-${this.target.sessionId}`,
         baseRevision: this.store.getRevision(),
         mode,
       });
@@ -738,14 +738,14 @@ export class TaskSession {
   async renameSession(title: string): Promise<boolean> {
     const envelope = {
       commandId: crypto.randomUUID(),
-      clientId: `zcode-mobile-${this.target.sessionId}`,
+      clientId: `drora-mobile-${this.target.sessionId}`,
       sessionId: this.target.sessionId,
         type: "renameSession" as const,
         payload: { title },
         issuedAt: Date.now(),
       };
       try {
-        const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
+        const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
           ...this.workspaceRef(),
           envelope,
         });
@@ -770,14 +770,14 @@ export class TaskSession {
         for (let attempt = 0; attempt < SWITCH_MODEL_MAX_ATTEMPTS; attempt += 1) {
           const envelope: CommandEnvelope = {
             commandId: crypto.randomUUID(),
-            clientId: `zcode-mobile-${this.target.sessionId}`,
+            clientId: `drora-mobile-${this.target.sessionId}`,
             sessionId: this.target.sessionId,
             baseRevision,
             type,
             payload,
             issuedAt: Date.now(),
           } as CommandEnvelope;
-          const ack = await this.accessor.zcodeAgentService.sendConversationCommandV4({
+          const ack = await this.accessor.droraAgentService.sendConversationCommandV4({
             ...this.workspaceRef(),
             envelope,
           });
@@ -828,7 +828,7 @@ export class TaskSession {
     const { subscriptionId } = this.store.getState();
     if (subscriptionId) {
       try {
-        await this.accessor.zcodeAgentService.unsubscribeConversationV4({
+        await this.accessor.droraAgentService.unsubscribeConversationV4({
           ...this.workspaceRef(),
           subscriptionId,
         });
@@ -882,7 +882,7 @@ export const TASK_SEARCH_LIST_LIMIT = 20;
  * 调用方不得据此打断首页（与 fetchFileChanges 同口径）。
  */
 /**
- * 新建任务（v4 createSession，官方协议 command.ts:46 + IZCodeAgentService.createSession
+ * 新建任务（v4 createSession，官方协议 command.ts:46 + IDroraAgentService.createSession
  * 服务面双既有——P5b「新建任务禁用」裁定解除，capability 接线法第四例）。firstInput
  * 缺省=创建空会话（桌面同语义）；ACK 快照 session.sessionId 供打开任务面。
  * 失败语义：桥断开/创建失败上抛（结构性失败，调用方展示错误——与只读搜索降级相反，
@@ -894,7 +894,7 @@ export async function createSessionInBridge(
   workspaceIdentity: string | undefined,
 ): Promise<{ sessionId: string; title: string }> {
   // 服务面无 firstInput（首条输入由用户在新任务面 composer 发——桌面同语义）。
-  const snapshot = await accessor.zcodeAgentService.createSession({
+  const snapshot = await accessor.droraAgentService.createSession({
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
   });
@@ -983,7 +983,7 @@ export async function searchTasks(
 
 /**
  * 首页 sessions-index 订阅的 subscriberScope。CLI 侧重订阅替换按 (connectionId, topic)
- * 判定（zcodeAgent.ts:514-533 取证）：桌面 renderer 侧栏 / task-index syncer 用各自
+ * 判定（droraAgent.ts:514-533 取证）：桌面 renderer 侧栏 / task-index syncer 用各自
  * connectionId 常驻订阅同一 topic；手机桥的 scope 必须唯一（"mobile-home"），防止
  * 同 connection 上的订阅代际互替。
  */
@@ -1011,7 +1011,7 @@ export interface HomeSessionsIndexBridge {
   /**
    * 发起订阅（visibility=foreground + existing-only + scope "mobile-home"）。
    * 返回 subscriptionId；existing-only 稳定拒绝（runtime 不存在等）返回 null——首页降级
-   * 为投影数据，不重试（禁止为列表订阅拉起 runtime，zcodeAgent.ts:524-528 语义）。
+   * 为投影数据，不重试（禁止为列表订阅拉起 runtime，droraAgent.ts:524-528 语义）。
    */
   start(): Promise<string | null>;
   /** 退订 + 解绑帧面 + 释放专用桥（复用 accessor 时只退订）。幂等。 */
@@ -1053,7 +1053,7 @@ export async function openHomeSessionsIndexBridge(
     // same-sub 恢复：base 一律从 store 水位取（不猜）；forceSnapshot 让服务端直接给全量。
     if (closed || !accessor || !subscriptionId) return;
     const state = store.getState();
-    const result = await accessor.zcodeAgentService.resyncSessionsIndexV4({
+    const result = await accessor.droraAgentService.resyncSessionsIndexV4({
       ...target,
       subscriptionId,
       base: state.logEpoch === null ? null : { logEpoch: state.logEpoch, seq: state.seq },
@@ -1080,7 +1080,7 @@ export async function openHomeSessionsIndexBridge(
     const bridge = await client.openWorkspaceBridge({ workspaceKey });
     accessor = connectViaProtocol(createRelayMessageProtocol(bridge));
     bridgeSessionId = bridge.identity.bridgeSessionId;
-    const agent = accessor.zcodeAgentService;
+    const agent = accessor.droraAgentService;
     try {
       // 可信 hello → clientHello（每条 attachment 恰一次；能力位缺省 = 旧客户端语义，
       // 不声明 strict 未知键，老 Host 可握手——TaskSession.open 同款）。
@@ -1088,7 +1088,7 @@ export async function openHomeSessionsIndexBridge(
       const clientHello: ClientHello = {
         kind: "clientHello",
         protocolVersion: V4_WIRE_PROTOCOL_VERSION,
-        clientId: `zcode-mobile-home-${bridgeSessionId}`,
+        clientId: `drora-mobile-home-${bridgeSessionId}`,
         clientKind: "mobileRemote",
         appVersion: __MOBILE_APP_VERSION__,
       };
@@ -1102,7 +1102,7 @@ export async function openHomeSessionsIndexBridge(
   }
 
   // 帧面先于订阅就位；首帧可能早于 ACK，归属未确定时交给有界 gate 暂存。
-  frameSubscription = accessor.zcodeAgentService.onDynamicSessionsIndexFrame(target)(
+  frameSubscription = accessor.droraAgentService.onDynamicSessionsIndexFrame(target)(
     (candidate) => {
       frameGate.accept(candidate);
     },
@@ -1111,7 +1111,7 @@ export async function openHomeSessionsIndexBridge(
   async function unsubscribeQuiet(): Promise<void> {
     if (!accessor || !subscriptionId) return;
     try {
-      await accessor.zcodeAgentService.unsubscribeSessionsIndexV4({
+      await accessor.droraAgentService.unsubscribeSessionsIndexV4({
         ...target,
         subscriptionId,
         runtimePolicy: "existing-only",
@@ -1130,12 +1130,12 @@ export async function openHomeSessionsIndexBridge(
       if (subscriptionId) return subscriptionId;
       frameGate.clear();
       try {
-        const result = await accessor.zcodeAgentService.subscribeSessionsIndexV4({
+        const result = await accessor.droraAgentService.subscribeSessionsIndexV4({
           ...target,
           visibility: "foreground",
           subscriberScope: HOME_SESSIONS_INDEX_SUBSCRIBER_SCOPE,
           // task-list 类被动观察者必须 existing-only：runtime 不存在时返回稳定
-          // unavailable，禁止为了建立列表订阅而启动 Agent（zcodeAgent.ts:524-528）。
+          // unavailable，禁止为了建立列表订阅而启动 Agent（droraAgent.ts:524-528）。
           runtimePolicy: "existing-only",
         });
         if (closed) {

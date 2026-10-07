@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, screen } from "electron";
-import type { DesktopPetPresentation, DesktopPetTarget, Locale } from "@zcode/shared";
+import type { DesktopPetPresentation, DesktopPetTarget, Locale } from "@drora/shared";
 import {
   desktopPetDragSchema,
   desktopPetPresentationSchema,
   PlatformChannels,
-} from "@zcode/shared";
+} from "@drora/shared";
 import { desktopPetBubbleContent } from "./desktopPetBubbleContent.js";
 import { desktopPetContent } from "./desktopPetContent.js";
 import {

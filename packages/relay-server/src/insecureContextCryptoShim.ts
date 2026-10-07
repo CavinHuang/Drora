@@ -12,7 +12,7 @@ import { PURE_JS_SHA256_CORE_JS } from "./phonePage.js";
 import { injectInlineHeadScript } from "./inlineHeadScript.js";
 
 /** 幂等标记：HTML 已含该标识则不再注入（脚本体内同名变量即标记本体）。 */
-export const INSECURE_CONTEXT_CRYPTO_SHIM_MARKER = "__zcodeInsecureCryptoShim";
+export const INSECURE_CONTEXT_CRYPTO_SHIM_MARKER = "__droraInsecureCryptoShim";
 
 // 覆盖面（官方 bundle 仅三处 subtle 用法，spec §12.10）：
 //   ① sVn calculateProof：importKey(raw + HMAC/SHA-256) + sign("HMAC", key, data)

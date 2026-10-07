@@ -2,8 +2,8 @@ import type {
   BotConfig,
   BotProvider,
   BotReplyGranularity,
-} from "@zcode/shared";
-import { getSupportedBotReplyGranularities } from "@zcode/shared";
+} from "@drora/shared";
+import { getSupportedBotReplyGranularities } from "@drora/shared";
 
 export type BotProviderEntryId = BotProvider | "dingding";
 

@@ -1,14 +1,14 @@
 // §33.18.21 composer 草稿持久化（specs/mobile-relay-r3-frontend.md）：ui
 // composerDraftStore 窄入口复用（官方 parity 的 per-workspace+per-session 草稿，
-// localStorage 键 zcode-v4-composer-drafts:v1:<encoded-workspace>，语义=发送只清
+// localStorage 键 drora-v4-composer-drafts:v1:<encoded-workspace>，语义=发送只清
 // 内容、显式清理才删 scope；附件不入草稿——与 ui 裁决一致）。App 域包装避免
 // App 直引 ui 子入口（§22 白名单按文件收口）。
 import {
   clearV4ComposerDraft,
   persistV4ComposerDraft,
   readV4ComposerDraft,
-} from "@zcode/ui/composer-draft-store";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@drora/ui/composer-draft-store";
+import type { IServiceAccessor } from "@drora/services";
 
 export interface ComposerDraft {
   text: string;

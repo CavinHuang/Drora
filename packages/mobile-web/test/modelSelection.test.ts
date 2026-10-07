@@ -1,7 +1,7 @@
 // R3 P3c 模型选择器第一档 + 上下文用量纯逻辑单测（spec §16 第 2/3 条）。node:test + tsx，
 // 无网络、无 React 渲染：store 派生面（getRevision/getModelSelectionState）、TaskSession
 // CAS 收敛（switchModel/getModelSelectionView，假 accessor）、ModelMenu 纯 helpers。
-// 快照形状对照 packages/shared/src/zcode-protocol-v4/snapshot.ts；wire 候选构造同
+// 快照形状对照 packages/shared/src/drora-protocol-v4/snapshot.ts；wire 候选构造同
 // conversationStore.test.ts（complete 帧无分片 checksum）。
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -10,7 +10,7 @@ import {
   type CommandAck,
   type CommandEnvelope,
   type ConversationSnapshot,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import { createConversationStore } from "../src/app/conversationStore.js";
 import {
   sendSwitchModelConfigCas,
@@ -386,7 +386,7 @@ test("switchModel：首发 accepted，信封 CAS/payload 形状正确", async ()
   const session = makeSession({
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async (params: { envelope: CommandEnvelope }) => {
           calls.push(params.envelope);
           return ackOf("accepted", { revisionAtDecision: 3 });
@@ -401,7 +401,7 @@ test("switchModel：首发 accepted，信封 CAS/payload 形状正确", async ()
   const envelope = calls[0]!;
   assert.equal(envelope.type, "switchModelConfig");
   assert.equal(envelope.sessionId, SESSION_ID);
-  assert.equal(envelope.clientId, `zcode-mobile-${SESSION_ID}`);
+  assert.equal(envelope.clientId, `drora-mobile-${SESSION_ID}`);
   // CAS：baseRevision = 读快照时点的 store revision（快照 revision=3）。
   assert.equal(envelope.baseRevision, 3);
   // thought 缺省 ""（目标模型默认档；跨模型切档丢弃源 thought 由调用方决定）。
@@ -417,7 +417,7 @@ test("switchModel：stale 用 revisionAtDecision 单次收敛重发（新 comman
   const session = makeSession({
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async (params: { envelope: CommandEnvelope }) => {
           calls.push(params.envelope);
           return acks[calls.length - 1]!;
@@ -441,7 +441,7 @@ test("switchModel：连续 stale / rejected / transport 失败均收敛 ok:false
   const staleTwice = makeSession({
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () =>
           ackOf("stale", { revisionAtDecision: 4 }),
       },
@@ -455,7 +455,7 @@ test("switchModel：连续 stale / rejected / transport 失败均收敛 ok:false
   const rejected = makeSession({
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () =>
           ackOf("rejected", { reasonCode: "proto.unavailable" }),
       },
@@ -469,7 +469,7 @@ test("switchModel：连续 stale / rejected / transport 失败均收敛 ok:false
   const transport = makeSession({
     snapshot: SNAPSHOT_WITH_SELECTION,
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () => {
           throw new Error("bridge closed");
         },
@@ -490,7 +490,7 @@ test("sendSwitchModelConfigCas：无快照 baseRevision=0 首发（host 探测�
       return ackOf("accepted");
     },
     sessionId: SESSION_ID,
-    clientId: "zcode-mobile-test",
+    clientId: "drora-mobile-test",
     baseRevision: 0,
     command: { providerId: "p", modelId: "m", thoughtLevel: "mid" },
   });

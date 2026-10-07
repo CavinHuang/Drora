@@ -1,4 +1,4 @@
-// ZCode Relay Server CLI 入口：node/SEA 可执行。
+// Drora Relay Server CLI 入口：node/SEA 可执行。
 // 用法：relay-server --port 4430 --host 0.0.0.0 --db ./relay-devices.json
 //       [--static-dir ./site]（dev 离线镜像，优先）
 //       [--mobile-dir ./packages/mobile-web/upstream]（独立本地页面包；缺省按 upstream → recovered → dist → 内建代理取根）

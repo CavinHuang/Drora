@@ -3,7 +3,7 @@ import {
   serverRemoteInfoSchema,
   type RemoteTarget,
   type ServerRemoteInfo,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 export interface RemoteWorkspaceServicePortRegistration {
   attachmentId: string;

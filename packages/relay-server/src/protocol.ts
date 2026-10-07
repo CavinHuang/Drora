@@ -1,8 +1,8 @@
-// ZCode Relay Server · 线协议纯逻辑（无 IO，可独立单测）。
+// Drora Relay Server · 线协议纯逻辑（无 IO，可独立单测）。
 // 协议规范与官方对齐依据见 specs/mobile-web-remote.md M4 段（含原版证据索引）
 // 与 specs/mobile-relay-server.md §3/§5。
 // spec D2 同源化：跨包线协议纯逻辑（proof 构造、data 信封校验、transportId 字符集）
-// 单一出处收敛到 @zcode/shared 的 relay-wire 区；本文件保留 node:crypto 专属面
+// 单一出处收敛到 @drora/shared 的 relay-wire 区；本文件保留 node:crypto 专属面
 // （verifyProof 的常量时比较、sid/nonce 生成）并对既有消费者 re-export shared 出处。
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
@@ -12,7 +12,7 @@ import {
   stampServerTs,
   type IncomingDataEnvelope,
   type RelayWireRole,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 export { TRANSPORT_ID_PATTERN, computeProof, isDataEnvelope, stampServerTs };
 export type { IncomingDataEnvelope };
@@ -34,7 +34,7 @@ export interface DeviceRecord {
   lastSeenAt: number;
 }
 
-// computeProof 现出自 @zcode/shared relay-wire（格式串单一出处 buildRelayProofMessage）。
+// computeProof 现出自 @drora/shared relay-wire（格式串单一出处 buildRelayProofMessage）。
 
 /**
  * proof 校验。base64url 为标准编码（桌面客户端发送形态）；同时接受标准 base64，

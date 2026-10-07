@@ -23,7 +23,7 @@ import {
   type SessionSummary,
   type SessionsIndexTopicFrame,
   type TopicWireFrameCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import type { ProjectedWorkspace } from "./entry.js";
 
 /** sessions-index 订阅 ACK（shared transport.ts subscribeAckSchema 形状）。 */

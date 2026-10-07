@@ -1,5 +1,5 @@
-import type { DesktopPetPresentation, DesktopPetTarget } from "@zcode/shared";
-import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+import type { DesktopPetPresentation, DesktopPetTarget } from "@drora/shared";
+import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 
 interface Scope {
   workspacePath: string;

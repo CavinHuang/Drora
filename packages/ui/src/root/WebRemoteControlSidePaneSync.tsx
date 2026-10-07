@@ -3,7 +3,7 @@
 // 其余→null）推给 main（syncWebRemoteControlSidePane），作为手机页侧板初值与活体
 // 跟随的数据源。不渲染任何 UI；relay 停止即卸载，不常驻占用。
 import { useEffect, useState } from "react";
-import type { MobilePairingRuntimeState, MobileRelaySidePaneSyncEntry } from "@zcode/shared";
+import type { MobilePairingRuntimeState, MobileRelaySidePaneSyncEntry } from "@drora/shared";
 import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 

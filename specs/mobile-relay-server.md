@@ -1,8 +1,8 @@
-# ZCode Relay Server（自建云中继服务端）设计
+# Drora Relay Server（自建云中继服务端）设计
 
 状态：**设计定案，未实现**。线协议依据 = `specs/mobile-web-remote.md` M4 段的官方
 逆向定案（含原版证据索引）。动机：官方 relay（zcode.z.ai）不可自控——协议可变、
-版本资产库不含 ZCode 版本号（app_version 固定 3.14.3 是权宜）、无 SLA。自建服务端
+版本资产库不含 Drora 版本号（app_version 固定 3.14.3 是权宜）、无 SLA。自建服务端
 提供协议兼容的替代部署点，桌面端一行配置切换。
 
 ## 1. 目标与非目标
@@ -19,7 +19,7 @@
 
 **非目标**
 
-- 不做账号体系/计费/营销触点（官方有账号绑定能力，ZCode 私有部署不需要）。
+- 不做账号体系/计费/营销触点（官方有账号绑定能力，Drora 私有部署不需要）。
 - 不做多实例水平扩展（单机万级以下连接，内存注册表即可；扩展留待需要时）。
 - 不重写完整官方手机页（React 同源移动构建）；R2 的极简页覆盖任务列表/会话查看/
   输入发送/权限审批即可（对齐 LAN 手机页能力面）。
@@ -27,7 +27,7 @@
 ## 2. 总体架构
 
 ```
-桌面 Electron(device 角色)             ZCode Relay Server                 手机浏览器(terminal 角色)
+桌面 Electron(device 角色)             Drora Relay Server                 手机浏览器(terminal 角色)
 desktopMobileRelayControl ── WSS ──► ┌─────────────────────┐ ◄── WSS ── 手机页(R2 自研/兼容页)
   既有客户端,URL 可配置               │ WS 入口 /ws         │           auth_init{role:"terminal"}
                                      │  · 连接注册表(内存)  │
@@ -155,8 +155,8 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 - **R2 极简手机页（已实现，2026-09-28）**：`packages/relay-server/src/phonePage.ts`
   静态页（服务端 `/m` 与 `/m/index.html` 托管）：读 QR 的 sid/hash → terminal 鉴权
   （内嵌纯 JS HMAC-SHA256——纯 HTTP 部署无 crypto.subtle，实现经 RFC 4231 形状+
-  node:crypto 交叉单测）→ matched 后以 `zcode-page-request/response` 应用帧驱动
-  任务列表/会话时间线/事件权限/输入发送/停止。桌面侧 `zcode-page-request` 由
+  node:crypto 交叉单测）→ matched 后以 `drora-page-request/response` 应用帧驱动
+  任务列表/会话时间线/事件权限/输入发送/停止。桌面侧 `drora-page-request` 由
   `desktopMobilePageBridge.ts`（serveMobilePageAction，LAN 同款 v1 翻译单一实现）
   处理。**有意分歧**：自托管资产不做官方式 app_version 版本门控（页面与桌面同仓
   发布天然配套）；页面能力面=LAN v1 子集（列表/时间线/事件/发送/权限/停止），
@@ -182,7 +182,7 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
   app-error、不拆桥，页面上层靠超时失败面恢复）；`replayFrames()` 供重连后重发。
   **宿主背压 + onSendReady 已接线（2026-09-28 M4c 收尾）**：水位越限/回落沿经桥
   附着端口发 connection-flow-v1 控制对象（`messagePortFlowControl` 工厂，本仓判别键
-  `__zcodeRpcControl`；官方为 `__zcodeRpcControl`——本地 sideband 不出机器，不与
+  `__droraRpcControl`；官方为 `__droraRpcControl`——本地 sideband 不出机器，不与
   官方互操作）→ Host `onFlowState → setTransportFlowState` 暂停/恢复 CLI；matched
   非首次配对触发 onSendReady → 未确认帧全量重发（messageSeq/编码不变、不重记账）。
   取证偏移与线格式详见 mobile-web-remote.md「flow-state sideband 帧格式」小节与
@@ -190,7 +190,7 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 
 ## 8. 客户端接线（桌面侧，最小改动）
 
-- **已实现（2026-09-28，env 优先形态）**：环境变量 `ZCODE_RELAY_SERVER_URL`
+- **已实现（2026-09-28，env 优先形态）**：环境变量 `DRORA_RELAY_SERVER_URL`
   （如 `http://relay.lan:4430`）→ `deriveSelfHostedRelayEndpoints` 推导
   relayWsUrl=`ws(s)://host/ws`、remotePageUrl=`{base}/remote/v4`（独立 mobile-web 包；
   缺失时服务端保留 `/m/index.html` 降级）；
@@ -200,7 +200,7 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
 ## 9. 模块与部署
 
 - 新模块 `packages/relay-server`（lib：session store / registry / protocol handlers）
-  - `apps/zcode-relay-server`（CLI 入口：端口/db 路径/静态目录参数，SEA 可打包含）。
+  - `apps/drora-relay-server`（CLI 入口：端口/db 路径/静态目录参数，SEA 可打包含）。
     实现时在 `architecture-policy.yaml` 登记模块（managed: false，依赖 shared）。
 - 运行：`node dist/main.js --port 4430 --db ./relay.db --static ./public`；
   单进程；优雅停机（先广播 DEVICE_OFFLINE/INTERNAL 再关）。
@@ -211,7 +211,7 @@ last_seen_at}`。注册即新增（旋转语义：同 device_mid 重复注册生
    跑通现有 12 项状态机测试全场景 + KICKED/DEVICE_OFFLINE/恢复。
 2. 并发与竞态：双 terminal 互踢顺序、device 断开清理、鉴权竞态、1MiB 超限。
 3. 持久化：服务重启后旧 device_sid 鉴权成功（凭据库生效）。
-4. 真机：ZCode 手机页（R2）扫码全流程，对齐 LAN 页能力面。
+4. 真机：Drora 手机页（R2）扫码全流程，对齐 LAN 页能力面。
 
 ## 11. 双服务 E2E 黑盒对比（2026-09-28，官方 zcode.z.ai vs 自建 ：4430）
 
@@ -271,7 +271,7 @@ renderer 弹层(transport=lan)
        1. prepareMobileRelayTransport("lan")：
           desktopMobileLanRelayHost.ensureStarted()       （幂等；已监听则复用）
             ├─ createDeviceRegistry(file storage:
-            │    ~/.zcode/v2/mobile-relay-lan/registry.json)   ← sid↔pass_hash 持久
+            │    ~/.drora/v2/mobile-relay-lan/registry.json)   ← sid↔pass_hash 持久
             └─ createRelayServer({port:0, host:"0.0.0.0"}) → listen → actualPort
           pickLanAddress()（desktopMobileLanRelayHost，自旧 pairing core 迁入）选手机可达 IPv4
        2. resolveEndpoints 固定注入：
@@ -297,7 +297,7 @@ renderer 弹层(transport=lan)
 - 路由键 = 云端取 `relayWsUrl` 的 origin（官方 `wss://zcode.z.ai` 与任意自建部署
   互不通用）；LAN 内嵌取固定逻辑 origin `ws://127.0.0.1`（端口随机且 registry.json
   才是身份域，端口不入键——凭据跨重启有效，避免每次开机重注册）。
-- 文件：`~/.zcode/v2/mobile-relay-device-<sha8(origin)前8位>.json`。旧单文件
+- 文件：`~/.drora/v2/mobile-relay-device-<sha8(origin)前8位>.json`。旧单文件
   `mobile-relay-device.json` **不迁移不删除**：首次按新 origin 重新注册（二维码重
   出，官方语义 sid 本就随注册轮换），无害。
 
@@ -329,7 +329,7 @@ getMobilePairingState/onMobilePairingStateChanged`（preload、renderer 转发�
     **保留**：`MobilePairingRuntimeState`/`MobilePairingStatus`/`MobilePairingFailure`
     类型（relay 状态沿用同一形状）、`desktopMobilePageBridge`（relay 手机页桥共用）、
     `desktopMobileServiceAttach`（relay 共用）、`createWebRemoteControlAutoStartGate`
-    （双传输共用）、`~/.zcode` 运行时文件一律不清理。两传输共用同一 relay 控制链 →
+    （双传输共用）、`~/.drora` 运行时文件一律不清理。两传输共用同一 relay 控制链 →
     **同一时刻至多一条传输活跃**：弹层内切换 tab 会把运行中的链路切到目标传输（原双
     服务端可并存的行为不再存在，记录为有意收敛）。
 
@@ -359,7 +359,7 @@ bundle 内 `sHn(){return Aee({endpointOrigin:\`https://zcode.z.ai\`...})}`（与
 改写安全；其余 z.ai 端点（OAuth/营销等）不动。
 **改写规则修正（2026-09-28 二次实测）**：仅改 `endpointOrigin` 参数无效——共享
 chunk（src-dNkcRypW.js）的端点构造器 `Mh()` 实际忽略该参数：relay WS 恒取硬编码
-常量 `` `wss://zcode.z.ai/ws` ``（唯一例外是 `endpointOrigin===https://zcode.chatglm.site`
+常量 `` `wss://zcode.z.ai/ws` ``（唯一例外是 `endpointOrigin===https://drora.chatglm.site`
 时走镜像）。故自建托管需同时改写出站 JS 中的 `` `wss://zcode.z.ai/ws` `` 字面量 →
 `(window.location.protocol===`https:`?`wss:`:`ws:`)+`//`+window.location.host+`/ws``
 （动态同源）。另：浏览器对托管 JS 的内存缓存无视 no-cache——改写后须破缓存
@@ -401,7 +401,7 @@ relay 上的显示与官方 relay 完全对齐（同一前端、同一协议、�
 `/remote/v4/index.html`）302 重定向到 `/m/index.html`（**保留原查询串**，QR 的
 sid/hash 透传，R2 极简页兜底）；其余资产（chunk/css）404（页面自身有失败面，
 重定向无意义）。内嵌 LAN 宿主（desktopMobileLanRelayHost）默认启用
-`remoteAssets`（cacheDir=`~/.zcode/v2/mobile-relay-lan/remote-assets`，与
+`remoteAssets`（cacheDir=`~/.drora/v2/mobile-relay-lan/remote-assets`，与
 registry 同目录），LAN 二维码页地址由 `/m/index.html` 升级为 `/remote/v4`（官方
 v4 页，§12.5-§12.8 双栈对齐结论的产品化）；R2 页由重定向兜底，离线首次打开即
 回退。CLI（main.ts）未给 `--static-dir` 时默认启用代理（cacheDir 缺省
@@ -412,7 +412,7 @@ v4 页，§12.5-§12.8 双栈对齐结论的产品化）；R2 页由重定向兜
 **Bundled 本地根优先级（D7 + R3 P2a 修订，2026-09-29）**：CLI 未显式给
 `--mobile-dir` 时，bundled 本地根解析为
 `packages/mobile-web/dist/`（**源码应用产物，`remote/v4/index.html` 存在才启用**；
-R3 P2a 起 `pnpm --filter @zcode/mobile-web build` = vite 源码构建）
+R3 P2a 起 `pnpm --filter @drora/mobile-web build` = vite 源码构建）
 → `packages/mobile-web/src/recovered/`（官方 3.14.3 可读快照，D7 行为保底）。
 两者都缺失才落回内建资产代理。桌面 LAN 宿主在 D6 冻结期内维持只读
 `src/recovered`，其切换与 QR 端点翻转一并归 R3 P5（specs/mobile-relay-r3-frontend.md
@@ -447,7 +447,7 @@ pair_status_ack"结论系在途帧队列残留造成的误读，已在 spec 内�
 模型选择器（BigModel 个人：GLM-5.3✓/GLM-5.3-Flash 视觉/管理模型——活数据）、
 优先级菜单（低/高/最高✓）、变更前确认（两栈同为无菜单 no-op）、搜索命令面板
 （全部/操作/任务/文件 tabs+最近任务+建议+面板快捷键+配置）、插件市场（**两栈
-同样不切主视图**——行为一致非缺口）、ZCode 富时间线（工具块 查阅/思考/终端、
+同样不切主视图**——行为一致非缺口）、Drora 富时间线（工具块 查阅/思考/终端、
 后台任务 pill、通知横幅、完全访问 composer 全活渲染）、任务头「更多」（两栈同
 帧无可见菜单）。
 
@@ -506,7 +506,7 @@ remoteAssets 缓存（Buffer 体）两来源的入口文档响应均含 shim 标
 **浏览器验收记录（2026-10-04）**：用桌面 Chrome 的真实局域网 HTTP 源
 （`isSecureContext=false`）加载冻结的官方 3.14.3 页面，两条链均实测：
 ①隔离 relay + 测试 device：`auth_init → auth_challenge → auth_response → auth_ack`，
-页面零未捕获异常；②当前 ZCode Desktop 的局域网 QR + 真实 Host：同样完成鉴权，
+页面零未捕获异常；②当前 Drora Desktop 的局域网 QR + 真实 Host：同样完成鉴权，
 随后 bootstrap 返回并显示工作区首页。HTTP 响应含 shim 标记，浏览器运行时
 `crypto.subtle` 可用，页面不再停「正在认证设备…」。这证明桌面 Chrome 上的非安全
 上下文路径；iOS/Android 实机浏览器仍须另行扫码验收，不能把模拟视口当作真机。
@@ -567,22 +567,22 @@ GET /remote/v4 → relay HTML 出站层 → 注入 crypto/clipboard 兼容脚本
 本节即 `server-operations.ts readMessages` 有意分歧注释所引的「session/messages
 schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与结论，修复方式见 §13.2。
 
-链路：R2 页 page-request{open} → desktopMobilePageBridge → IZCodeSessionService
-.readSessionMessages → zcodeAgentService → RPC `session/messages` →
-`zcodeSessionMessagesResultSchema`（zcode-protocol/index.ts:1479，内嵌 legacy
-`zcodeMessageWithPartsSchema`：info camelCase messageId + partBase
+链路：R2 页 page-request{open} → desktopMobilePageBridge → IDroraSessionService
+.readSessionMessages → droraAgentService → RPC `session/messages` →
+`droraSessionMessagesResultSchema`（drora-protocol/index.ts:1479，内嵌 legacy
+`droraMessageWithPartsSchema`：info camelCase messageId + partBase
 {partId,sessionId,messageId}，.strict()）校验失败 → ZodError 序列化成 error 字符串
 → R2 页整屏校验错误墙（真机实测单次响应 259132 字节的错误串，桌面日志 2026-09-29
-09:01 三个 259132 字节 zcode-page-response）。
+09:01 三个 259132 字节 drora-page-response）。
 
-**官方取证（3.14.3 runtime bundle `zcode.cjs`，14.8MB 单行；片段为反汇编原文）：**
+**官方取证（3.14.3 runtime bundle `drora.cjs`，14.8MB 单行；片段为反汇编原文）：**
 
 | 证据                         | 文件+字节偏移                     | 片段                                                                                                                                                                                                                                | 结论                                                                                    |
 | ---------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| 官方 readMessages 实现       | zcode.cjs@14490259                | `function WKo(e,t){...s.findIndex(u=>String(u.info.id)===n.afterMessageId)...return{messages:n.limit?l.slice(-n.limit):l}}`                                                                                                         | 官方 runtime 同样返回 session store 的 **v4 原始行**（`info.id`，非 messageId）         |
-| 官方声明结果 schema          | zcode.cjs@755909                  | `U5i=m.object({messages:m.array(WZe)}).strict()`                                                                                                                                                                                    | 与本仓 zcodeSessionMessagesResultSchema 同构                                            |
-| 官方 MessageWithParts schema | zcode.cjs@657821                  | `WZe=m.object({info:tor,parts:m.array(qZe)}).strict()`；tor@654424=`discriminatedUnion("role",[Qrr,eor])`，Qrr@653778/eor@654098 用 `messageId/sessionId/parentMessageId`；parts `LR`=`{partId,sessionId,messageId}`、tool `callId` | 官方声明契约 = **legacy 形状**，与本仓 schema 逐字段一致                                |
-| 官方 snapshot 映射           | zcode.cjs@14406172/@14407132      | `JPn`：`messageId:String(e.info.id)`、`parentMessageId:String(e.info.parentID)`；`FKa`：`{messageId:String(e.messageID),partId:String(e.id),sessionId:String(e.sessionID)}`                                                         | 官方在 **snapshot 路径**把 v4 行映射为声明契约形状（≈本仓 bootstrap message-mapper.ts） |
+| 官方 readMessages 实现       | drora.cjs@14490259                | `function WKo(e,t){...s.findIndex(u=>String(u.info.id)===n.afterMessageId)...return{messages:n.limit?l.slice(-n.limit):l}}`                                                                                                         | 官方 runtime 同样返回 session store 的 **v4 原始行**（`info.id`，非 messageId）         |
+| 官方声明结果 schema          | drora.cjs@755909                  | `U5i=m.object({messages:m.array(WZe)}).strict()`                                                                                                                                                                                    | 与本仓 droraSessionMessagesResultSchema 同构                                            |
+| 官方 MessageWithParts schema | drora.cjs@657821                  | `WZe=m.object({info:tor,parts:m.array(qZe)}).strict()`；tor@654424=`discriminatedUnion("role",[Qrr,eor])`，Qrr@653778/eor@654098 用 `messageId/sessionId/parentMessageId`；parts `LR`=`{partId,sessionId,messageId}`、tool `callId` | 官方声明契约 = **legacy 形状**，与本仓 schema 逐字段一致                                |
+| 官方 snapshot 映射           | drora.cjs@14406172/@14407132      | `JPn`：`messageId:String(e.info.id)`、`parentMessageId:String(e.info.parentID)`；`FKa`：`{messageId:String(e.messageID),partId:String(e.id),sessionId:String(e.sessionID)}`                                                         | 官方在 **snapshot 路径**把 v4 行映射为声明契约形状（≈本仓 bootstrap message-mapper.ts） |
 | 官方手机页                   | official-phone-bundle.js（6.1MB） | `session/messages`/`readSessionMessages` 0 命中；`subscribeConversationV4` 3 命中                                                                                                                                                   | 官方客户端不消费该 op——**上游死代码漂移**，上游不可见                                   |
 
 结论：官方 drop 自身即存在"声明 schema（legacy）≠ runtime 实际返回（v4 原始行）"
@@ -596,8 +596,8 @@ schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与�
 `mapMessageWithParts`（官方 JPn/FKa 的还原实现，snapshot 路径已生产验证）把 v4 行
 投影为声明契约形状。理由：
 
-1. op 载荷从此满足官方声明契约（U5i/WZe）与本仓客户端 schema，`IZCodeSessionService
-.readSessionMessages(): Promise<ZCodeMessageWithParts[]>` 接口类型变真；
+1. op 载荷从此满足官方声明契约（U5i/WZe）与本仓客户端 schema，`IDroraSessionService
+.readSessionMessages(): Promise<DroraMessageWithParts[]>` 接口类型变真；
 2. 复用既有 mapper——客户端侧适配需在 services 复制 ~250 行 v4 行 schema+mapper，
    且 shared 无 v4 store 行 zod schema（v4 conversationRowSchema 是 UI 投影非 store 行）；
 3. 载荷剥离 mode/planEnabled/anchor 等内部字段（手机带宽友好，字段语义同官方 snapshot 面）。
@@ -607,7 +607,7 @@ schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与�
 分页在映射前按原始 `info.id` 切片；投影 messageId=String(info.id) 同值，客户端回传
 任一形态命中同一切分点。
 
-**readSession 快照面查证（未受影响）**：`zcodeSessionStateSnapshotSchema`
+**readSession 快照面查证（未受影响）**：`droraSessionStateSnapshotSchema`
 （index.ts:1028）内嵌同一 legacy schema，但 session/read 出站经 session-mapper 的
 `mapMessageWithParts` 映射（bootstrap 侧），桌面 app 消费正常——与官方 snapshot
 路径同构，无漂移。桌面 app 无 readSessionMessages 消费方（grep 实证：唯一消费者
@@ -617,7 +617,7 @@ schema 漂移」小节：官方行为与本仓分歧定性见下方取证表与�
 
 R2 页 renderTimeline/extractText 原按已删除的 v1 配对页形状渲染
 （`message.role`/`tool_call`/`thinking`/`preview`），schema 修复后收到的是
-ZCodeMessageWithParts：页面渲染面对齐 info.role + text/reasoning/tool parts；
+DroraMessageWithParts：页面渲染面对齐 info.role + text/reasoning/tool parts；
 model-only 上下文（compact summary/goal 续跑/后台通知等）在桌面桥
 （desktopMobilePageBridge，LAN/relay 单一实现）按 PC 同款判据
 （getConversationMessageProjectionPolicy：仅保留 realUserInput/visibleAssistant，
@@ -650,7 +650,7 @@ Host 附着窗口期手机清单不闪断；回落 listTasks 路径自带容错�
   空推送后清单保持；非空推送 replace。
 - `packages/desktop/test/mobilePageBridge.test.ts`「open/events」：timeline 投影保留
   真实用户输入与 assistant 回复、过滤 model-only 注入。
-- `apps/zcode-cli/packages/bootstrap/test/zcode-protocol-read-messages.test.mjs`：
+- `apps/drora-cli/packages/bootstrap/test/drora-protocol-read-messages.test.mjs`：
   v4 原始行被声明 schema 拒绝（漂移事实锚）；readMessages 出站通过声明 schema；
   afterMessageId 分页与 limit 尾窗在投影前生效。
 - `packages/relay-server/test/phonePageSyntax.test.ts`：时间线渲染面形状探针

@@ -1,9 +1,9 @@
-// ZCode Relay Client · 默认线编解码（浏览器/node 双端可用）。
-// proof 与信封校验单一出处 = @zcode/shared relay-wire（spec D2/P1 收口）；
+// Drora Relay Client · 默认线编解码（浏览器/node 双端可用）。
+// proof 与信封校验单一出处 = @drora/shared relay-wire（spec D2/P1 收口）；
 // 本文件只是端口装配：parseFrame 宽松入站（非法帧返回 null 静默丢弃，对齐官方），
 // serializeFrame 直出 JSON。terminal 角色的 proof 用纯 JS computeProof
 // （纯 HTTP/非 secure context 下无 window.crypto.subtle，页内只能走纯 JS 实现）。
-import { computeProof } from "@zcode/shared";
+import { computeProof } from "@drora/shared";
 import type { RelayWireFrame } from "./types.js";
 import type { RelayWireCodecPort } from "./ports.js";
 

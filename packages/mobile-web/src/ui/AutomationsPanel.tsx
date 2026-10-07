@@ -8,7 +8,7 @@
 //     活跃判定 route.endsWith(`:${automationId}`)；th px-4 font-normal + tr h-[46px]；
 //   日程描述：describeSchedule/describeCron（src/app/automationsSchedule.ts 官方逐字节还原）。
 // 文案：zh 92+weekday 七键官方逐字；en 语义补译（见 intl 注释）。workflow 页签内容（75 id 面）
-// 留装配缝（props 传入），缺省空态。D6 自包含：不 import @zcode/ui。
+// 留装配缝（props 传入），缺省空态。D6 自包含：不 import @drora/ui。
 import * as React from "react";
 import { useIntl } from "./intl.js";
 import { cn } from "./cn.js";

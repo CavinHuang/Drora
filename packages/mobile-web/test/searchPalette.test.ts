@@ -20,7 +20,7 @@ import {
   loadSearchHistory,
 } from "../src/ui/searchHistory.js";
 import { collectHomeSearchTasks } from "../src/ui/TaskSearchPanel.js";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@drora/services";
 
 // —— 脚手架：脚本化 accessor（spec §18 验收口径）与进程内 localStorage 假体 ——
 
@@ -177,8 +177,8 @@ test("搜索历史：storage 缺失（node 无 window）→ 读回空；写入�
   assert.deepEqual(loadSearchHistory(MOBILE_SEARCH_HISTORY_STORAGE_KEY), []);
 });
 
-test("搜索历史：默认键 = ZCode 化单键 zcode-mobile-search-history，默认上限 5", () => {
-  assert.equal(MOBILE_SEARCH_HISTORY_STORAGE_KEY, "zcode-mobile-search-history");
+test("搜索历史：默认键 = Drora 化单键 drora-mobile-search-history，默认上限 5", () => {
+  assert.equal(MOBILE_SEARCH_HISTORY_STORAGE_KEY, "drora-mobile-search-history");
   assert.equal(MOBILE_SEARCH_HISTORY_MAX, 5);
 });
 
@@ -233,7 +233,7 @@ test("搜索历史：默认上限 5，超出去旧（最新在前）", () => {
 test("搜索历史：自定义 max 截断（max=2）", () => {
   const { uninstall } = installFakeStorage();
   try {
-    const key = "zcode-mobile-search-history:test-custom-max";
+    const key = "drora-mobile-search-history:test-custom-max";
     addSearchHistory(key, "a");
     addSearchHistory(key, "b");
     const after = addSearchHistory(key, "c", 2);
@@ -288,15 +288,15 @@ test("搜索历史：脏 JSON / 非数组 / 形状不符条目 → 回空或过�
   }
 });
 
-test("搜索历史：clearSearchHistory 清空；key 缺省用 ZCode 化单键", () => {
+test("搜索历史：clearSearchHistory 清空；key 缺省用 Drora 化单键", () => {
   const { uninstall } = installFakeStorage();
   try {
-    addSearchHistory("zcode-mobile-search-history:custom", "a");
-    clearSearchHistory("zcode-mobile-search-history:custom");
-    assert.deepEqual(loadSearchHistory("zcode-mobile-search-history:custom"), []);
-    addSearchHistory("zcode-mobile-search-history:default", "b");
-    clearSearchHistory("zcode-mobile-search-history:default");
-    assert.deepEqual(loadSearchHistory("zcode-mobile-search-history:default"), []);
+    addSearchHistory("drora-mobile-search-history:custom", "a");
+    clearSearchHistory("drora-mobile-search-history:custom");
+    assert.deepEqual(loadSearchHistory("drora-mobile-search-history:custom"), []);
+    addSearchHistory("drora-mobile-search-history:default", "b");
+    clearSearchHistory("drora-mobile-search-history:default");
+    assert.deepEqual(loadSearchHistory("drora-mobile-search-history:default"), []);
   } finally {
     uninstall();
   }

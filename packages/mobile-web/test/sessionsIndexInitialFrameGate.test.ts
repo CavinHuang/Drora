@@ -4,7 +4,7 @@ import {
   V4_WIRE_PROTOCOL_VERSION,
   sessionsIndexTopic,
   type SessionSummary,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import { createInitialFrameGate } from "../src/app/sessionsIndexInitialFrameGate.js";
 import {
   createSessionsIndexStore,

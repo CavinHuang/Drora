@@ -35,7 +35,7 @@ export const OFFICIAL_PAGE_ORIGIN = "https://zcode.z.ai";
 const OFFICIAL_FETCH_TIMEOUT_MS = 10_000;
 
 /** 官方源站 fetch 的简单 UA（spec §12.9：不伪装浏览器，便于源站侧识别）。 */
-const OFFICIAL_FETCH_USER_AGENT = "zcode-relay-asset-proxy/1";
+const OFFICIAL_FETCH_USER_AGENT = "drora-relay-asset-proxy/1";
 
 /**
  * 官方托管页 relay 端点是硬编码（spec §12.5 二次实测）：共享 chunk 的端点构造器

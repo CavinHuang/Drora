@@ -2,18 +2,18 @@
 
 ## Product rules
 
-- The first pet is a small purple cat-like character with transparent-background raster frames. Status is conveyed by complete pose sequences, per-frame timing and a separate small indicator. Keep artwork in a new ZCode-owned desktop-pet asset directory, separate from restored upstream assets.
+- The first pet is a small purple cat-like character with transparent-background raster frames. Status is conveyed by complete pose sequences, per-frame timing and a separate small indicator. Keep artwork in a new Drora-owned desktop-pet asset directory, separate from restored upstream assets.
 - The original seven illustrations are expression key poses, not a production animation pack. A single shared blink with static state portraits is too sparse: each visible mode needs its own action row with consistent silhouette, scale, baseline and character identity.
-- The artwork generator derives a transparent WebP atlas and embedded data-URL module so the isolated pet document loads without a runtime file path or network request. Rows and durations are declared once in a ZCode-owned animation manifest; the renderer must not hard-code a second frame table.
+- The artwork generator derives a transparent WebP atlas and embedded data-URL module so the isolated pet document loads without a runtime file path or network request. Rows and durations are declared once in a Drora-owned animation manifest; the renderer must not hard-code a second frame table.
 - `prefers-reduced-motion` freezes the representative pose declared for each row (the final happy pose for completion). State changes restart the corresponding action; presentation mode remains derived from task facts rather than owned by the animation player.
 
 ## Motion design
 
-Codex's published [animation row contract](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/animation-rows.md) uses an 8-column atlas, 6–8 frames for most named actions, and individual frame holds. Its [QA rubric](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/qa-rubric.md) rejects obvious loop pops, baseline/scale jumps, and rows made from copies of one pose. ZCode follows these motion principles for its five task modes, without copying Codex's atlas geometry or unrelated locomotion actions.
+Codex's published [animation row contract](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/animation-rows.md) uses an 8-column atlas, 6–8 frames for most named actions, and individual frame holds. Its [QA rubric](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/qa-rubric.md) rejects obvious loop pops, baseline/scale jumps, and rows made from copies of one pose. Drora follows these motion principles for its five task modes, without copying Codex's atlas geometry or unrelated locomotion actions.
 
 The production atlas now contains five action rows and 32 playback cells. Its seven original expression masters and 24 additional transparent poses provide 31 unique drawings; the idle blink deliberately reuses the half-closed pose on its return. `assets/desktop-pet/motion-manifest.json` owns pose order, individual frame holds, playback type and reduced-motion stills. The artwork generator normalizes pose scale and foot baseline before embedding the atlas in the isolated pet document.
 
-| ZCode mode | Action                           | Target frame cells | Playback                              |
+| Drora mode | Action                           | Target frame cells | Playback                              |
 | ---------- | -------------------------------- | -----------------: | ------------------------------------- |
 | idle       | subtle breath, blink, settle     |                  7 | calm loop with a longer open-eye hold |
 | working    | focused paw/ear movement         |                  6 | short, low-distraction loop           |
@@ -63,4 +63,4 @@ The CLI/runtime remains the task state owner. The main Renderer owns only a deri
 
 ## Upstream boundary
 
-Keep pet projection, native window, rendering, artwork and tests in new files. Existing shell, preload, platform and settings files receive only the minimum registration hooks. Do not add pet logic to restored upstream sections or make restored files import the pet module. The feature is a deliberate ZCode-only extension.
+Keep pet projection, native window, rendering, artwork and tests in new files. Existing shell, preload, platform and settings files receive only the minimum registration hooks. Do not add pet logic to restored upstream sections or make restored files import the pet module. The feature is a deliberate Drora-only extension.

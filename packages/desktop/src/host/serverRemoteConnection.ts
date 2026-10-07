@@ -8,8 +8,8 @@
 //   - MJ(createServerRemoteWorkspaceServiceCollection)：无 backend、无
 //     promptAttachment 物化/janitor/transfer 桥，connectionServices 逐个 register，
 //     仅 clientConfig 保留本地实例（官方"本地 t"）。
-import { ChannelClient, Emitter, SocketProtocol, VSBuffer, type ISocket } from "@zcode/rpc";
-import { RemoteServiceAccess } from "@zcode/client";
+import { ChannelClient, Emitter, SocketProtocol, VSBuffer, type ISocket } from "@drora/rpc";
+import { RemoteServiceAccess } from "@drora/client";
 import {
   ServiceCollection,
   IFileService,
@@ -21,9 +21,9 @@ import {
   ISettingService,
   ICredentialService,
   IBroadcastService,
-  IZCodeTaskService,
-  IZCodeAgentService,
-  IZCodeSessionService,
+  IDroraTaskService,
+  IDroraAgentService,
+  IDroraSessionService,
   createUnsupportedConversationShareService,
   IConversationShareService,
   IBotsService,
@@ -48,15 +48,15 @@ import {
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
-} from "@zcode/services";
+} from "@drora/services";
 import {
   connectServerRemoteTarget,
   type ServerRemoteFetchLike,
   type ServerRemoteNodeWebSocket,
   type ServerRemoteWebSocketConstructor,
-} from "@zcode/services/server-remote";
-import type { RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
-import { createServiceLogger } from "@zcode/services/node";
+} from "@drora/services/server-remote";
+import type { RemoteTarget, ServerRemoteInfo } from "@drora/shared";
+import { createServiceLogger } from "@drora/services/node";
 import { assertLegacyRemoteWorkspaceRpcContract } from "./legacyRemoteWorkspaceRpcContract.js";
 
 export interface ServerRemoteHostConnectionCloseEvent {
@@ -234,9 +234,9 @@ export function createServerRemoteWorkspaceServiceCollection(params: {
       .register(ISettingService, remote.settingService)
       .register(ICredentialService, remote.credentialService)
       .register(IBroadcastService, remote.broadcastService)
-      .register(IZCodeTaskService, remote.zcodeTaskService)
-      .register(IZCodeAgentService, remote.zcodeAgentService)
-      .register(IZCodeSessionService, remote.zcodeSessionService)
+      .register(IDroraTaskService, remote.droraTaskService)
+      .register(IDroraAgentService, remote.droraAgentService)
+      .register(IDroraSessionService, remote.droraSessionService)
       // 第四十九轮对齐（官方 cRe 定案）：server 远程的会话分享在官方实现中明确禁用——
       // createUnsupportedRemoteConversationShareService，message 固定、onRejected 记
       // kind:"feature_disabled", reason:"server_remote_unsupported"。此前注册的远端

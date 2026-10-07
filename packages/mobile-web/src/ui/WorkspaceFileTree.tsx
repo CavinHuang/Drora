@@ -6,7 +6,7 @@
 // aria-label=searchLabel + onChange 受控；清空/刷新/返回任务为头部动作；
 // gitStatus 徽标官方仅 ignored 一值在本面 id 集（modified/untracked 官方键不在此面，不臆造）。
 // 文案：zh 11 键官方逐字 + title 官方 locale chunk 缺值按面语义补译（见 zh-CN.ts 注释）。
-// D6 自包含：不 import @zcode/ui；文案经上层 IntlProvider 的 useIntl 取键。
+// D6 自包含：不 import @drora/ui；文案经上层 IntlProvider 的 useIntl 取键。
 import { useIntl } from "./intl.js";
 import { cn } from "./cn.js";
 import { FileIconImage } from "./FileChip.js";

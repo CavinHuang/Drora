@@ -1,10 +1,10 @@
 // §33.18.20 附件控制簇（specs/mobile-relay-r3-frontend.md）：隐藏文件选钮 +
 // 「添加上下文」+ 上传循环（ui uploadAttachmentTransaction 窄入口经 props 注入）+
 // 上传进度内联提示。引用列表归 TaskComposer（发送组合/芯片展示），本组件只产出
-// AttachmentRef。自包含（D6：不 import @zcode/ui）。
+// AttachmentRef。自包含（D6：不 import @drora/ui）。
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@drora/shared/drora-protocol-v4";
 
 export interface TaskAttachmentControlProps {
   uploadAttachment?: (

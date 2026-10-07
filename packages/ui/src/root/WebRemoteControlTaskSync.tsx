@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MobilePairingRuntimeState, MobileRelayTaskSyncEntry } from "@zcode/shared";
+import type { MobilePairingRuntimeState, MobileRelayTaskSyncEntry } from "@drora/shared";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";

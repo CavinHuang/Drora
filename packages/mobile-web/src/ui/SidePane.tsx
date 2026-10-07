@@ -7,7 +7,7 @@
 // 类型徽标（review 审查 / selectionChat 辅助对话 / subagent 子智能体 / subagentDirectory
 // 子智能体目录 / workflow 四键：工作流子代理/产物/目录/实例/脚本步骤）+ time.justNow。
 // 文案：zh 25 键官方逐字（{title} 插值）；en 语义补译（见 intl 注释）。
-// D6 自包含：不 import @zcode/ui；文案经上层 IntlProvider 的 useIntl 取键。
+// D6 自包含：不 import @drora/ui；文案经上层 IntlProvider 的 useIntl 取键。
 import * as React from "react";
 import { useIntl } from "./intl.js";
 import { cn } from "./cn.js";

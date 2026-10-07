@@ -33,7 +33,7 @@ import { TaskMoreMenu } from "./TaskMoreMenu.js";
 import { NewTaskDraft } from "./NewTaskDraft.js";
 // §32.12 队列面板（ui 复原件受控窄入口；git-pane 先例）。
 const LazyQueuePanel = React.lazy(() =>
-  import("@zcode/ui/remote-queue-panel").then((m) => ({
+  import("@drora/ui/remote-queue-panel").then((m) => ({
     default: m.ConversationQueuePanel,
   })),
 );
@@ -47,16 +47,16 @@ import { useAttachmentGitSummary } from "./attachmentGitSummary.js";
 // GitPane 一期姊妹件 lazy 化（spec §28.3）：官方复原件重依赖链（useGitRepository+
 // IGitService+GitPane/GitActionMenu）拆出主 chunk（P5d 体积纪律；官方 SessionPane
 // 惰性 chunk 先例）。
-import { ZCodeIntlProvider } from "@zcode/ui/git-pane";
-import { TooltipProvider } from "@zcode/ui/git-pane";
-import { PluginReferenceIconProvider } from "@zcode/ui/git-pane";
+import { DroraIntlProvider } from "@drora/ui/git-pane";
+import { TooltipProvider } from "@drora/ui/git-pane";
+import { PluginReferenceIconProvider } from "@drora/ui/git-pane";
 // §32.20 官方 zCe 语义：文件 chip 相对目录基准（ui fileDisplay 还原件全局默认）。
-import { setDefaultFileDisplayBasePath } from "@zcode/ui/file-display";
-import { PlatformProvider } from "@zcode/ui/git-pane";
-import { TabStoreProvider } from "@zcode/ui/git-pane";
-import { StoreProvider } from "@zcode/ui/git-pane";
-import { ServiceProvider } from "@zcode/ui/git-pane";
-import type { IBroadcastService } from "@zcode/services";
+import { setDefaultFileDisplayBasePath } from "@drora/ui/file-display";
+import { PlatformProvider } from "@drora/ui/git-pane";
+import { TabStoreProvider } from "@drora/ui/git-pane";
+import { StoreProvider } from "@drora/ui/git-pane";
+import { ServiceProvider } from "@drora/ui/git-pane";
+import type { IBroadcastService } from "@drora/services";
 const LazyRemoteGitSidePane = React.lazy(() =>
   import("./RemoteGitSidePane.js").then((m) => ({ default: m.RemoteGitSidePane })),
 );
@@ -79,9 +79,9 @@ import type {
   ConversationSnapshot,
   PendingInteraction,
   V4ConversationFileChangesResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { IServiceAccessor, ModelSelectionView } from "@zcode/services";
-import type { RelayClient } from "@zcode/relay-client";
+} from "@drora/shared/drora-protocol-v4";
+import type { IServiceAccessor, ModelSelectionView } from "@drora/services";
+import type { RelayClient } from "@drora/relay-client";
 declare const __MOBILE_APP_VERSION__: string;
 
 type Phase =
@@ -109,7 +109,7 @@ const MOCK_APP_BROADCAST: IBroadcastService = {
 function AppTower({ children }: { children: ReactNode }) {
   return (
     <PlatformProvider platform={APP_PLATFORM}>
-      <ZCodeIntlProvider initialLocale={resolveLocale()}>
+      <DroraIntlProvider initialLocale={resolveLocale()}>
         <TooltipProvider delayDuration={0}>
           <PluginReferenceIconProvider value={null}>
             <TabStoreProvider>
@@ -121,7 +121,7 @@ function AppTower({ children }: { children: ReactNode }) {
             </TabStoreProvider>
           </PluginReferenceIconProvider>
         </TooltipProvider>
-      </ZCodeIntlProvider>
+      </DroraIntlProvider>
     </PlatformProvider>
   );
 }
@@ -262,7 +262,7 @@ function AppBody() {
     });
     clientRef.current = client;
     // §33.18.16 完整形态（活体跟随）：桌面侧板 tab 变化广播（workspace-side-pane-update，
-    // zcode 扩展帧；官方页按未知帧丢弃不受影响）→ 手机侧板跟随。映射与 bootstrap
+    // drora 扩展帧；官方页按未知帧丢弃不受影响）→ 手机侧板跟随。映射与 bootstrap
     // 初值一致（review→git/terminal→terminal/其余→null=选择器）。
     client.frames.onFrame = (payload) => {
       const record = payload as Record<string, unknown>;
@@ -342,7 +342,7 @@ function AppBody() {
         if (source?.unreadAtMs != null) {
           const session = taskRef.current;
           const accessor = session?.accessor;
-          void accessor?.zcodeTaskService
+          void accessor?.droraTaskService
             .setTaskUnread({
               taskId: sessionId,
               workspacePath: workspace.path,
@@ -580,7 +580,7 @@ function AppBody() {
     // meta theme-color（#161616/#f8f8f8）与 color-scheme，手机浏览器工具栏随主题染色。
     const mode = dark ? "dark" : "light";
     const root = document.documentElement;
-    root.setAttribute("data-zcode-browser-theme-surface", mode);
+    root.setAttribute("data-drora-browser-theme-surface", mode);
     root.style.colorScheme = mode;
     // 官方主题类三联动（applyTheme：dark + theme-zai-light/dark 标记主题族）。
     root.classList.toggle("theme-zai-dark", dark);
@@ -590,9 +590,9 @@ function AppBody() {
       ?.setAttribute("content", dark ? "#161616" : "#f8f8f8");
     document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", mode);
     try {
-      // 单一主题源（§32.19）：与 ui 主题 store 同键 zcode-theme、zai-* 规范值，
+      // 单一主题源（§32.19）：与 ui 主题 store 同键 drora-theme、zai-* 规范值，
       // 挂载期 store 初始化与本切换读写同源，不再互相覆盖。
-      localStorage.setItem("zcode-theme", dark ? "zai-dark" : "zai-light");
+      localStorage.setItem("drora-theme", dark ? "zai-dark" : "zai-light");
     } catch {
       // 快照失败不影响本次切换。
     }
@@ -620,7 +620,7 @@ function AppBody() {
           {/* §32.12 队列面板（官方 composer 上方逐条卡片；ui 复原件受控窄入口）。 */}
           {statusSnapshot?.queue && statusSnapshot.queue.items.length > 0 ? (
             <React.Suspense fallback={null}>
-              <ZCodeIntlProvider initialLocale={resolveLocale()}>
+              <DroraIntlProvider initialLocale={resolveLocale()}>
                 <TooltipProvider delayDuration={0}>
                   <LazyQueuePanel
                     queue={statusSnapshot.queue}
@@ -646,7 +646,7 @@ function AppBody() {
                     }}
                   />
                 </TooltipProvider>
-              </ZCodeIntlProvider>
+              </DroraIntlProvider>
             </React.Suspense>
           ) : null}
           <TaskComposer
@@ -953,8 +953,8 @@ function AppBody() {
                     onRename={(next) => attachedTask.renameSession(next)}
                     loadMembership={() =>
                       Promise.all([
-                        attachedTask.accessor.zcodeTaskService.listPinnedTaskIds(),
-                        attachedTask.accessor.zcodeTaskService.listArchivedTasks({
+                        attachedTask.accessor.droraTaskService.listPinnedTaskIds(),
+                        attachedTask.accessor.droraTaskService.listArchivedTasks({
                           workspacePath: taskTarget.path,
                           workspaceIdentity: taskTarget.identity,
                         }),
@@ -966,7 +966,7 @@ function AppBody() {
                       }))
                     }
                     onTogglePinned={(pinned) =>
-                      attachedTask.accessor.zcodeTaskService
+                      attachedTask.accessor.droraTaskService
                         .setTaskPinned({
                           taskId: selectedTaskId ?? "",
                           workspacePath: taskTarget.path,
@@ -977,7 +977,7 @@ function AppBody() {
                         .catch(() => false)
                     }
                     onArchive={() =>
-                      attachedTask.accessor.zcodeTaskService
+                      attachedTask.accessor.droraTaskService
                         .archiveTask({
                           taskId: selectedTaskId ?? "",
                           workspacePath: taskTarget.path,
@@ -987,7 +987,7 @@ function AppBody() {
                         .catch(() => false)
                     }
                     onMarkUnread={() =>
-                      attachedTask.accessor.zcodeTaskService
+                      attachedTask.accessor.droraTaskService
                         .setTaskUnread({
                           taskId: selectedTaskId ?? "",
                           workspacePath: taskTarget.path,

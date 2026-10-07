@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { projectDesktopPet } from "../src/lib/desktopPetProjection.js";
 
 const scope = {

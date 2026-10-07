@@ -9,7 +9,7 @@ import {
   type ConversationDelta,
   type ConversationRow,
   type ConversationSnapshot,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import { createConversationStore } from "../src/app/conversationStore.js";
 
 const SESSION_ID = "sess-store";

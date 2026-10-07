@@ -2,12 +2,12 @@
 // packages/ui/src/command-center/commandCenterSearchHistory.ts（D6 冻结 ui，本包自持；
 // 防御面同构：storage 不可用 / 非法 JSON / 非数组 / 条目形状不符一律回空，不抛错）。
 // 与桌面命令中心的有意分歧：手机首页为单 tab 全工作区搜索，无 scope 维度 → 条目只存
-// query；上限 5（桌面 20）；localStorage 键按 specs/zcode-rename.md ZCode 化为
-// `zcode-mobile-search-history`（与桌面 `zcode-command-center-search-history:<key>` 是
+// query；上限 5（桌面 20）；localStorage 键按 specs/drora-rename.md Drora 化为
+// `drora-mobile-search-history`（与桌面 `drora-command-center-search-history:<key>` 是
 // 两套独立键空间，不共用不迁移）。
 
 /** localStorage 键（手机首页任务搜索历史专用单键）。 */
-export const MOBILE_SEARCH_HISTORY_STORAGE_KEY = "zcode-mobile-search-history";
+export const MOBILE_SEARCH_HISTORY_STORAGE_KEY = "drora-mobile-search-history";
 
 /** 历史默认上限（chips 的移动触控密度：超出去旧，最新在前）。 */
 export const MOBILE_SEARCH_HISTORY_MAX = 5;
@@ -54,7 +54,7 @@ function parseSearchHistory(raw: string | null): SearchHistoryEntry[] {
   }
 }
 
-/** 读取历史（key 缺省 = ZCode 化单键；storage 不可用回空）。 */
+/** 读取历史（key 缺省 = Drora 化单键；storage 不可用回空）。 */
 export function loadSearchHistory(
   key: string = MOBILE_SEARCH_HISTORY_STORAGE_KEY,
 ): SearchHistoryEntry[] {

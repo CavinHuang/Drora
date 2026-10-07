@@ -1,4 +1,5 @@
-import { ProxyChannel, type IChannelServer } from "@zcode/rpc";
+import { ProxyChannel, type IChannelServer } from "@drora/rpc";
+import { toOfficialRpcChannelAlias } from "@drora/shared";
 import type { ServiceDescriptor } from "./descriptors.js";
 
 /**
@@ -30,13 +31,34 @@ export class ServiceCollection {
   exposeOnChannelServer(
     server: IChannelServer,
     overrides: ReadonlyMap<string, unknown> = new Map(),
+    options?: {
+      /**
+       * 同时注册官方通道名别名（zcode-* → 同一 channel 实例）。
+       * 仅用于 web-remote-replayable 附着：官方托管手机页按官方名调用服务
+       * （M4b 兼容桥，spec: mobile-web-remote.md）。
+       */
+      officialChannelAliases?: boolean;
+    },
   ): void {
     for (const [channelName, instance] of this._services) {
       const exposed = overrides.get(channelName) ?? instance;
-      server.registerChannel(
-        channelName,
-        ProxyChannel.fromService(exposed as Record<string, unknown>),
-      );
+      const channel = ProxyChannel.fromService(exposed as Record<string, unknown>);
+      server.registerChannel(channelName, channel);
+      if (options?.officialChannelAliases) {
+        const alias = toOfficialRpcChannelAlias(channelName);
+        if (alias) server.registerChannel(alias, channel);
+      }
+    }
+    // overrides 里可能存在不在 _services 注册表的覆盖键（如 window-controller 的
+    // attachment 变体）；官方别名同样需要指向覆盖后的实现。
+    if (options?.officialChannelAliases) {
+      for (const [channelName, instance] of overrides) {
+        if (this._services.has(channelName)) continue;
+        const alias = toOfficialRpcChannelAlias(channelName);
+        if (alias) {
+          server.registerChannel(alias, ProxyChannel.fromService(instance as Record<string, unknown>));
+        }
+      }
     }
   }
 }

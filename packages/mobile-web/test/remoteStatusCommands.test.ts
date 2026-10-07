@@ -5,7 +5,7 @@ import {
   type CommandAck,
   type CommandEnvelope,
   type ConversationSnapshot,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
 import { createConversationStore } from "../src/app/conversationStore.js";
 import { TaskSession, type TaskSessionTarget } from "../src/app/taskSession.js";
 
@@ -97,7 +97,7 @@ function makeSession(input: {
     frameSubscription: null,
   ) => TaskSession;
   return new Ctor(
-    { zcodeAgentService: { sendConversationCommandV4: input.send } },
+    { droraAgentService: { sendConversationCommandV4: input.send } },
     { workspacePath: "D:/repo", workspaceIdentity: "remote-key", sessionId: SESSION_ID },
     null,
     "bridge-status",

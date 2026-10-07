@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ConversationRow, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationRow, ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
 import { TaskSession, type TaskSessionTarget } from "../src/app/taskSession.js";
 import type { ConversationStore } from "../src/app/conversationStore.js";
 
@@ -29,7 +29,7 @@ function makeSession(
     },
   } as unknown as ConversationStore;
   const accessor = {
-    zcodeAgentService: {
+    droraAgentService: {
       conversationRowsRangeV4: ({ beforeRowId }: { beforeRowId: number }) => query(beforeRowId),
     },
   };

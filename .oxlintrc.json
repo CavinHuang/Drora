@@ -67,7 +67,7 @@
     "packages/ui/src/components/ai-elements",
     ".agents/skills",
     "packages/formal-proof",
-    "apps/zcode-cli",
+    "apps/drora-cli",
     "docs/electron",
     "packages/mobile-web/upstream",
     "packages/mobile-web/src/recovered",

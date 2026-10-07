@@ -9,7 +9,7 @@
 // 壳形态对齐本包 TaskSearchPanel 先例（role="dialog" 半面板 + Escape/遮罩关闭；
 // 官方 bg-popover token 本包 styles.css 缺失 → bg-card，D6 自包含）。
 // 文案：zh 10 键官方逐字（含 {error} 插值）；en 按官方语义补译（见 intl 注释）。
-// D6 自包含：不 import @zcode/ui；文案经上层 IntlProvider 的 useIntl 取键。
+// D6 自包含：不 import @drora/ui；文案经上层 IntlProvider 的 useIntl 取键。
 import * as React from "react";
 import { useIntl } from "./intl.js";
 import { cn } from "./cn.js";

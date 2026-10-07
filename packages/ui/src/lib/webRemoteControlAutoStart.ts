@@ -1,4 +1,4 @@
-import type { MobilePairingRuntimeState } from "@zcode/shared";
+import type { MobilePairingRuntimeState } from "@drora/shared";
 
 export type WebRemoteControlTransport = "lan" | "relay";
 

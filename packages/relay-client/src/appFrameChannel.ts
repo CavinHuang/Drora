@@ -1,11 +1,11 @@
-// ZCode Relay Client · data 应用帧通道（relay 数据面上的 zcode_type 应用帧族）。
+// Drora Relay Client · data 应用帧通道（relay 数据面上的 zcode_type 应用帧族）。
 // 出站统一带 client_ts（真机取证：缺 client_ts 的裸帧被 WRONG_PARAM 拒收；有 type
 // 缺 client_ts 被静默丢弃——desktopMobileRelayControl 取证注释），入站把 data.payload
 // 分派给上层；requestId 关联的请求-响应助手覆盖 bootstrap/workspace-list 等回声协议。
 import { MAX_PHYSICAL_FRAME_BYTES } from "./clock.js";
 import type { RelayPayloadSendResult } from "./types.js";
 
-/** 出站信封（线格式；type/client_ts 为 relay 线协议键，官方兼容键不 ZCode 化）。 */
+/** 出站信封（线格式；type/client_ts 为 relay 线协议键，官方兼容键不 Drora 化）。 */
 export interface RelayDataEnvelope {
   type: "data";
   payload: Record<string, unknown>;

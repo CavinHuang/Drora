@@ -16,7 +16,7 @@ import {
   createDeviceRegistry,
   createFileDeviceRegistryStorage,
   createRelayServer,
-} from "@zcode/relay-server";
+} from "@drora/relay-server";
 
 const tempDirs: string[] = [];
 after(async () => {
@@ -74,7 +74,7 @@ function connectTerminal(url: string): Promise<TerminalClient> {
 }
 
 test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => {
-  const home = await mkdtemp(join(tmpdir(), "zcode-relay-g1-"));
+  const home = await mkdtemp(join(tmpdir(), "drora-relay-g1-"));
   tempDirs.push(home);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(home, "devices.json")),
@@ -166,7 +166,7 @@ test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => 
   const kicked = await kickedPromise;
   assert.equal(kicked.code, "KICKED");
 
-  // 手机页动作帧路由（R2）：zcode-page-request → 服务调用 → zcode-page-response。
+  // 手机页动作帧路由（R2）：drora-page-request → 服务调用 → drora-page-response。
   // e1a6d18 起 list 不强制附着 Host（缓存可答时纯快照响应，specs/mobile-relay-server.md
   // §9 迁移边界）：本测试环境无窗口 Host，list 仍以空/回退清单成功响应——期望
   // success:true + taskList 帧形状；任务类动作（chat 等）才走 attacher 失败面。
@@ -174,7 +174,7 @@ test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => 
     type: "data",
     client_ts: Date.now(),
     payload: {
-      zcode_type: "zcode-page-request",
+      zcode_type: "drora-page-request",
       requestId: "pg1",
       frame: { type: "list" },
     },
@@ -187,7 +187,7 @@ test("G1：真桌面客户端 × 自建 relay 服务端 全链路", async () => 
     success: boolean;
     frame?: { type?: string; workspaces?: unknown[]; tasks?: unknown[] };
   };
-  assert.equal(pagePayload.zcode_type, "zcode-page-response");
+  assert.equal(pagePayload.zcode_type, "drora-page-response");
   assert.equal(pagePayload.requestId, "pg1");
   assert.equal(pagePayload.success, true);
   assert.equal(pagePayload.frame?.type, "taskList");

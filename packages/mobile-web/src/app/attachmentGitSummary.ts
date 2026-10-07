@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GitRepositorySummary } from "@zcode/shared";
-import type { IGitService } from "@zcode/services";
+import type { GitRepositorySummary } from "@drora/shared";
+import type { IGitService } from "@drora/services";
 
 type GitSummaryService = Pick<IGitService, "refresh">;
 

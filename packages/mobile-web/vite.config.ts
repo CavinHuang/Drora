@@ -20,7 +20,7 @@ export default defineConfig({
     alias: { "@": resolve(import.meta.dirname, "../ui/src") },
     // ui 源直引（@ 别名）与 mobile-web 自身的 react 必须同拷贝——否则 Context 全失效
     // （useIntl must be used within IntlProvider 症状；pnpm 嵌套 react 双拷贝坑）。
-    dedupe: ["react", "react-dom", "@zcode/shared", "@zcode/services", "@zcode/rpc"],
+    dedupe: ["react", "react-dom", "@drora/shared", "@drora/services", "@drora/rpc"],
   },
   base: "/remote/v4/3.14.3/",
   plugins: [react(), tailwindcss()],

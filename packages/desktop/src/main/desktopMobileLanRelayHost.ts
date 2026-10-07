@@ -19,8 +19,8 @@ import {
   createDeviceRegistry,
   createFileDeviceRegistryStorage,
   createRelayServer,
-} from "@zcode/relay-server";
-import { createServiceLogger } from "@zcode/services/node";
+} from "@drora/relay-server";
+import { createServiceLogger } from "@drora/services/node";
 
 type HostLogger = {
   info: (...args: unknown[]) => void;
@@ -105,7 +105,7 @@ export interface DesktopMobileLanRelayHost {
 
 export function createDesktopMobileLanRelayHost(deps: {
   logger: HostLogger;
-  /** 设备注册表落盘路径；测试注入临时目录，生产缺省 ~/.zcode/v2/mobile-relay-lan/。 */
+  /** 设备注册表落盘路径；测试注入临时目录，生产缺省 ~/.drora/v2/mobile-relay-lan/。 */
   registryFilePath?: string;
   /** 监听地址；缺省 0.0.0.0（手机须经局域网访问 WS 入口）。 */
   host?: string;
@@ -116,7 +116,7 @@ export function createDesktopMobileLanRelayHost(deps: {
     warn: (...args: unknown[]) => serviceLog.warn(undefined, ...args),
   };
   const registryFilePath =
-    deps.registryFilePath ?? join(homedir(), ".zcode", "v2", "mobile-relay-lan", "registry.json");
+    deps.registryFilePath ?? join(homedir(), ".drora", "v2", "mobile-relay-lan", "registry.json");
   const listenHost = deps.host ?? "0.0.0.0";
   type RunningRelayServer = {
     listen(): Promise<number>;

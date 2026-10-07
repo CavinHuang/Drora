@@ -2,7 +2,7 @@
 // node:test 直测（先例同 searchPalette.test.ts）。覆盖：
 // - 断点判定 isWideViewport：官方字面 query、命中/未命中取反、matchMedia 缺失/抛错
 //   回落窄壳（零回归默认）；
-// - 侧栏折叠持久化：ZCode 化键字面、storage 缺失防御、注入 storage 往返、闭集防御
+// - 侧栏折叠持久化：Drora 化键字面、storage 缺失防御、注入 storage 往返、闭集防御
 //   （仅 "1" 视为折叠）；
 // - 项目树分组计数：工作区保序分组、任务数/运行中数推导、组内 updated 降序；
 // - 问候时段桶：P5b 五桶边界（morning 5-11 / noon 11-13 / afternoon 13-18 /
@@ -60,8 +60,8 @@ test("断点判定：matchMedia 缺失或抛错 → 窄壳（回落单列壳零�
 
 // —— 侧栏折叠持久化（注入 storage 往返 + 闭集防御） ——
 
-test("折叠持久化：键为 ZCode 化单键 zcode-mobile-sidebar-collapsed", () => {
-  assert.equal(WIDE_SIDEBAR_COLLAPSED_STORAGE_KEY, "zcode-mobile-sidebar-collapsed");
+test("折叠持久化：键为 Drora 化单键 drora-mobile-sidebar-collapsed", () => {
+  assert.equal(WIDE_SIDEBAR_COLLAPSED_STORAGE_KEY, "drora-mobile-sidebar-collapsed");
 });
 
 test("折叠持久化：storage 缺失（node 无 window）→ 读回展开；写入不抛", () => {

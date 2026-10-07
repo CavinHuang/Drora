@@ -1,7 +1,7 @@
 # Server 型远程工作区（客户端链）Spec
 
-对齐官方原版第 46 轮 C 项：ZCode 桌面端作为客户端，连接一个已经独立运行的
-ZCode Server（`packages/server` 的 HTTP/WS 服务），复用其上的 Agent 运行时，
+对齐官方原版第 46 轮 C 项：Drora 桌面端作为客户端，连接一个已经独立运行的
+Drora Server（`packages/server` 的 HTTP/WS 服务），复用其上的 Agent 运行时，
 不在本机做任何 asset 部署。服务端端点（`/api/server-info`、`/api/rpc-host-capability`、
 `/ws/host`）已在 `packages/server/src/http.ts` 与 `packages/shared/src/server-remote.ts`
 落地；本 spec 定义**客户端链**。
@@ -21,7 +21,7 @@ ZCode Server（`packages/server` 的 HTTP/WS 服务），复用其上的 Agent �
 
 ## 客户端连接链（services）
 
-`@zcode/services/server-remote`（对齐官方 `RRe`/`ARe`/`ERe`/`JJ`）：
+`@drora/services/server-remote`（对齐官方 `RRe`/`ARe`/`ERe`/`JJ`）：
 
 1. `fetchServerRemoteInfo(infoUrl, { token? }, fetchImpl?)` — GET；token 同时走
    `Authorization: Bearer` 与 `?token=` 查询参数；非 ok 抛
@@ -34,7 +34,7 @@ ZCode Server（`packages/server` 的 HTTP/WS 服务），复用其上的 Agent �
    `Host capability response is invalid`；返回一次性 capability 字符串。
 3. `connectServerRemoteTarget({ url, token? }, options?)` — 组合 1→2→WS：
    `new WebSocket(authenticatedUrl(hostWsUrl), { headers: { authorization?, 
-x-zcode-rpc-host-capability: capability } })`；open 前错误/关闭分别
+x-drora-rpc-host-capability: capability } })`；open 前错误/关闭分别
    reject；close-before-open 的 reason 文案 `WebSocket closed before ready: <reason>`
    或 `WebSocket closed before ready (<code>)`。成功返回
    `{ serverInfo, capability, socket, dispose }`。`fetchImpl` 与 WebSocket

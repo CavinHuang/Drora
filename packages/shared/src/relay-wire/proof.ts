@@ -10,7 +10,7 @@
 // buildRelayProofMessage 构造（desktop 即此用法）。
 import { bytesToBase64Url, hmacSha256Bytes } from "./hmacSha256.js";
 
-/** proof 消息里的 role 字面量族（auth_init{role} 线协议字段，官方兼容键，保持原名不 ZCode 化）。 */
+/** proof 消息里的 role 字面量族（auth_init{role} 线协议字段，官方兼容键，保持原名不 Drora 化）。 */
 export const RELAY_PROOF_ROLES = ["device", "terminal"] as const;
 
 export type RelayWireRole = (typeof RELAY_PROOF_ROLES)[number];

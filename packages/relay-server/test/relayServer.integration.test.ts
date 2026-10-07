@@ -73,7 +73,7 @@ function passHashOf(password: string): string {
 }
 
 test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→双向 data→KICKED→离线", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-it-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-it-"));
   tempDirs.push(dir);
   const db = join(dir, "devices.json");
   const registry = createDeviceRegistry({ storage: createFileDeviceRegistryStorage(db) });
@@ -276,7 +276,7 @@ test("relay 全流程：注册→鉴权→waiting→terminal 配对 matched→�
 });
 
 test("错误面：未知 sid AUTH_FAILED / 坏 proof AUTH_FAILED / 未知类型 WRONG_PARAM", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-err-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-err-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
@@ -319,7 +319,7 @@ test("错误面：未知 sid AUTH_FAILED / 坏 proof AUTH_FAILED / 未知类型 
 });
 
 test("注册限速：超限连接被断开（1013）", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-rl-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-rl-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
@@ -355,7 +355,7 @@ test("注册限速：超限连接被断开（1013）", async () => {
 });
 
 test("自建手机页托管：/m/index.html 返回页面 HTML", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-page-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-page-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
@@ -365,7 +365,7 @@ test("自建手机页托管：/m/index.html 返回页面 HTML", async () => {
   const page = await fetch(`http://127.0.0.1:${port}/m/index.html`);
   assert.equal(page.status, 200);
   const html = await page.text();
-  assert.ok(html.includes("zcode-page-request"), "页面必须使用共享页面协议帧");
+  assert.ok(html.includes("drora-page-request"), "页面必须使用共享页面协议帧");
   assert.ok(html.includes("computeProof"), "页面必须内嵌 HMAC proof 计算");
   const health = await fetch(`http://127.0.0.1:${port}/healthz`);
   assert.equal(health.status, 200);
@@ -375,7 +375,7 @@ test("自建手机页托管：/m/index.html 返回页面 HTML", async () => {
 });
 
 test('终端角色心跳受理（E2E #1 P0）：waiting/matched 均回 pair_status_ack + terminal_sid:""', async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-tq-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-tq-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
@@ -463,7 +463,7 @@ test('终端角色心跳受理（E2E #1 P0）：waiting/matched 均回 pair_stat
 });
 
 test("停机 API：close 幂等且重复调用直接返回", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-close-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-close-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),
@@ -476,7 +476,7 @@ test("停机 API：close 幂等且重复调用直接返回", async () => {
 });
 
 test("静态资产托管（spec §12.5）：/remote/** 映射 staticRoot + 防目录穿越", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-static-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-static-"));
   tempDirs.push(dir);
   const registry = createDeviceRegistry({
     storage: createFileDeviceRegistryStorage(join(dir, "db.json")),

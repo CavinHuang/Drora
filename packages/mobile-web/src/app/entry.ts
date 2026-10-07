@@ -6,7 +6,7 @@ import {
   createRelayClient,
   systemClock,
   type RelayClient,
-} from "@zcode/relay-client";
+} from "@drora/relay-client";
 
 export interface ParsedEntryQuery {
   deviceSid: string;

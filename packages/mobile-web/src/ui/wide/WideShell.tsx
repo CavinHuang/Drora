@@ -3,7 +3,7 @@
 // <768px 返回 null（回落既有单列壳，零回归）。主区两态：已选任务 = app 层装配的
 // TaskShell 宽容器（taskSurface 槽）；无任务 = GreetingEmptyState。搜索面板懒加载
 // （React.lazy 真分包，spec §6 教训；与 HomeScreen 同款装配）。
-// 状态所有者：折叠态/搜索开合 = WideShell 本地（折叠持久化 ZCode 化键）；任务数据 =
+// 状态所有者：折叠态/搜索开合 = WideShell 本地（折叠持久化 Drora 化键）；任务数据 =
 // App 既有 state（本组件纯展示转发，不另立数据面）。
 import { lazy, Suspense, useCallback, useState, type ReactNode } from "react";
 import { Sidebar } from "./Sidebar.js";

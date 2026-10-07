@@ -2,9 +2,9 @@
 // permission 卡（options 按 kind 配色 + fullAccessOption + 可选反馈输入）与 userInput
 // 卡（prompt/questions 顺序作答 + freeText，sensitive 密码态）。应答经上层
 // onResolve → taskSession.resolveInteraction（v4 resolveInteraction 命令）。
-// workspaceHookReview 类本轮不渲染（spec §15 有意分歧）。D6：不 import @zcode/ui。
+// workspaceHookReview 类本轮不渲染（spec §15 有意分歧）。D6：不 import @drora/ui。
 import { useState } from "react";
-import type { PendingInteraction } from "@zcode/shared/zcode-protocol-v4";
+import type { PendingInteraction } from "@drora/shared/drora-protocol-v4";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
 

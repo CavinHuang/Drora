@@ -1,4 +1,4 @@
-// ZCode Relay Client · rpc-frame 通道（桥内 v4 RPC 传输，M4b/M4c 手机端镜像）。
+// Drora Relay Client · rpc-frame 通道（桥内 v4 RPC 传输，M4b/M4c 手机端镜像）。
 // 语义与桌面 desktopMobileRelayProtocol/desktopMobileRelayControl 逐项对齐：
 // - 发送：encodeRpcTransportMessage（shared 单一出处）分片 + messageSeq 单调递增，
 //   发送后 reserve 重放缓冲（字节口径 = 出站 data 信封，对齐官方 measureFrameBytes）；
@@ -20,7 +20,7 @@ import {
   parseRpcTransportFrame,
   type RpcFrameIdentity,
   type RpcTransportFrame,
-} from "@zcode/shared";
+} from "@drora/shared";
 import { MAX_PHYSICAL_FRAME_BYTES } from "./clock.js";
 
 export interface RpcFrameChannelOptions {

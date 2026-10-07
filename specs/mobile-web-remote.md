@@ -4,7 +4,7 @@
 浏览器里查看会话、发送输入、处理权限请求。
 
 原版实现依赖 z.ai 云端 relay（`webRemoteControl.failure.relayUnavailable` 等失败面）
-与托管手机 Web 应用，均未随开源树发布（上游 zai-org/ZCode 亦无）。ZCode 需自建，
+与托管手机 Web 应用，均未随开源树发布（上游 zai-org/Drora 亦无）。Drora 需自建，
 路线已裁定：**LAN 直连优先**（无需任何服务器；协议层预留中继抽象，将来可叠加云中继）。
 
 ## 架构
@@ -16,13 +16,13 @@ relay 协议」节与 `specs/mobile-relay-server.md` §12。）
 手机浏览器                    桌面 Main 进程                       窗口 Host (UtilityProcess)
 ┌──────────┐   WS(LAN)   ┌──────────────────────┐  AttachServicePort  ┌──────────────────┐
 │ phone页   │ ◄─────────► │ desktopMobilePairing │ ──────────────────► │ scoped services  │
-│ (静态单页) │  JSON 帧    │ Server               │  scope=local        │ (ZCodeTask/      │
-└──────────┘              │  + rpc ChannelClient  │  clientMode=        │  ZCodeSession)   │
+│ (静态单页) │  JSON 帧    │ Server               │  scope=local        │ (DroraTask/      │
+└──────────┘              │  + rpc ChannelClient  │  clientMode=        │  DroraSession)   │
                           └──────────────────────┘  web-remote-replayable └──────────────────┘
 ```
 
 - 复用 Host 既有的 `AttachServicePort`（scope=local）附着机制——host 侧注释已预留
-  "刷新/手机 attachment 复用同一 Host"；服务面 = `IZCodeTaskService` / `IZCodeSessionService`。
+  "刷新/手机 attachment 复用同一 Host"；服务面 = `IDroraTaskService` / `IDroraSessionService`。
 - 发送输入走 `sendPrompt(clientMode: "web-remote-replayable", clientLabel: "mobile-web")`，
   经既有 CommandInbox 串行 admission；权限回复走 `respondPermission`；停止走 `stopGeneration`。
 - 任务列表 `listTasks`；会话时间线 v1 拉取式 `readSessionMessages`（实时流 M2 经 agentService 帧通道）。
@@ -83,8 +83,8 @@ workspaceIdentity}, clientMode:"web-remote-replayable"}`（参考
    `desktopRemoteSessions.ts` 的 `attachRemoteWorkspaceSessionHost`，remote 版）；
    Main 留 port1 作 rpc 客户端端。host 侧 `host/index.ts:2729` 已处理 scope=local
    （注释"刷新/手机 attachment 复用同一 Host"），绑定 activeServices
-   （IZCodeTaskService/IZCodeSessionService，见 `windowHostAttachmentRegistry.ts`）。
-2. **rpc 客户端**：`@zcode/rpc` 的 ChannelClient + MessagePort 协议
+   （IDroraTaskService/IDroraSessionService，见 `windowHostAttachmentRegistry.ts`）。
+2. **rpc 客户端**：`@drora/rpc` 的 ChannelClient + MessagePort 协议
    （`packages/rpc/src/protocol.ts` 的 port.postMessage(VSBuffer) 契约对
    Electron MessagePortMain 适用；线格式 = VSBuffer(JSON)）。
    Main 侧此前没有 rpc 客户端先例——这是首例，注意 LoggingChannelServer 的对偶配置。
@@ -92,8 +92,8 @@ workspaceIdentity}, clientMode:"web-remote-replayable"}`（参考
    `listTasks({workspacePath,workspaceIdentity})`、
    `readSessionMessages`、`sendPrompt({...,clientMode:"web-remote-replayable",
 clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
-   （`packages/services/src/session/zcodeTaskService.ts:199` 起；
-   `zcodeSession.ts:135` 的 `readSessionMessages`）。
+   （`packages/services/src/session/droraTaskService.ts:199` 起；
+   `droraSession.ts:135` 的 `readSessionMessages`）。
 4. **权限请求可见性**：M1 手机端拉取式（打开会话时读 pending permission——
    若任务服务不暴露 pending 列表，M1 先支持"桌面弹出权限时若手机在线同步推送"，
    数据源走 TaskRealtimeBus 的 `permission_request` 流事件；
@@ -125,7 +125,7 @@ clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
 ```
 手机浏览器                      z.ai relay                        桌面 Main
 ┌──────────────┐  WSS(role:mobile) ┌─────────────┐  WSS(role:device) ┌──────────────────┐
-│ zcode.z.ai/  │ ◄───────────────► │ wss://zcode │ ◄───────────────► │ webRemoteControl │
+│ zcode.z.ai/  │ ◄───────────────► │ wss://drora │ ◄───────────────► │ webRemoteControl │
 │ remote/v3|v4 │                   │ .z.ai/ws    │                   │ Manager + 桥接    │
 └──────────────┘                   └─────────────┘                   └────────┬─────────┘
                                                                      MessagePort 附着窗口 Host
@@ -156,15 +156,15 @@ clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
 
 ## 原版对齐决策表（2026-09-27）
 
-| #   | 原版行为                                                                                                                                        | ZCode 实现                                                                                                                                                                                                                            | 状态                                                                                                                                                                                                                                                                         |
+| #   | 原版行为                                                                                                                                        | Drora 实现                                                                                                                                                                                                                            | 状态                                                                                                                                                                                                                                                                         |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | 1   | 云端 relay 中转 + 托管手机页                                                                                                                    | LAN 直连 + 本机静态手机页（传输可插拔，云中继留 M4）                                                                                                                                                                                  | 有意分歧（既定裁定）                                                                                                                                                                                                                                                         |
 | 2   | 二维码携带长期设备凭据 hash（等待期无 TTL）                                                                                                     | 二维码携带一次性 128-bit 配对令牌、路径传递、**无 TTL**（对齐原版等待期不过期），泄露用刷新重置                                                                                                                                       | 有意分歧（令牌形态），时效语义已对齐                                                                                                                                                                                                                                         |
-| 3   | 服务独立于弹层运行；停止 = 显式停止/窗口关闭/应用退出，**无空闲自停**                                                                           | 已对齐：弹层关闭不停服；停止按钮清除恢复上下文；窗口 closed 即停服（原 disposeWindow）；已移除 ZCode 自加的 15min 空闲自停                                                                                                            | 已对齐                                                                                                                                                                                                                                                                       |
+| 3   | 服务独立于弹层运行；停止 = 显式停止/窗口关闭/应用退出，**无空闲自停**                                                                           | 已对齐：弹层关闭不停服；停止按钮清除恢复上下文；窗口 closed 即停服（原 disposeWindow）；已移除 Drora 自加的 15min 空闲自停                                                                                                            | 已对齐                                                                                                                                                                                                                                                                       |
 | 4   | 刷新二维码 = 重置配对（轮换凭据 + 踢除）                                                                                                        | `resetPairing`：作废旧票据、旧手机收 `kicked` 后断开、换发新票据，服务不重启                                                                                                                                                          | 已对齐                                                                                                                                                                                                                                                                       |
 | 5   | 单会话踢除通知（relay KICKED → 会话冲突失败面）                                                                                                 | 新配对生效即踢旧连接并送达 `kicked` 帧；手机页显示会话冲突文案并停止重连                                                                                                                                                              | 已对齐                                                                                                                                                                                                                                                                       |
 | 6   | 状态推送 StatusChanged；六态 idle/starting/running/connecting/active/error；payload 含工作区上下文                                              | `MobilePairingStateChanged` 推送；六态全对齐（connecting = WS 已建立、握手未完成）；payload 含 workspacePath/workspaceIdentity                                                                                                        | 已对齐                                                                                                                                                                                                                                                                       |
-| 7   | 应用重启自动恢复上次开启状态（restorePreviouslyEnabled）                                                                                        | `desktopMobilePairingRestore.ts`：start 成功持久化、手动停止清除、窗口 Host 就绪且 workspaceKey 匹配时恢复一次                                                                                                                        | 已对齐（LAN）。**relay 同语义已补齐（2026-09-28）**：`startupRestoreStorage`（~/.zcode/v2/mobile-relay-restore.json）start 成功 save、手动 stop clear；renderer 推送工作区时 `restorePreviouslyEnabled` 至多恢复一次，上下文工作区须仍在推送清单（官方"工作区不匹配不恢复"） | 已对齐（双传输） |
+| 7   | 应用重启自动恢复上次开启状态（restorePreviouslyEnabled）                                                                                        | `desktopMobilePairingRestore.ts`：start 成功持久化、手动停止清除、窗口 Host 就绪且 workspaceKey 匹配时恢复一次                                                                                                                        | 已对齐（LAN）。**relay 同语义已补齐（2026-09-28）**：`startupRestoreStorage`（~/.drora/v2/mobile-relay-restore.json）start 成功 save、手动 stop clear；renderer 推送工作区时 `restorePreviouslyEnabled` 至多恢复一次，上下文工作区须仍在推送清单（官方"工作区不匹配不恢复"） | 已对齐（双传输） |
 | 8   | rpc-frame 透明桥 + zcode_type 帧；手机端可切换工作区；platform-request；列表推送                                                                | 保留手机协议 v1（list 轮询、单工作区绑定）；手机页重构为服务客户端时切 v2（M5）                                                                                                                                                       | 暂缓（M5 路径）                                                                                                                                                                                                                                                              |
 | 9   | 30s 一次性启动授权令牌（main 进程 start 处理器内部一次性签发+消费）                                                                             | main 的 start 处理器直接校验发起窗口与 Host 就绪（原版授权亦为 main 内部模式，无可观察差异）                                                                                                                                          | 等价，不另行引入                                                                                                                                                                                                                                                             |
 | 10  | 失败面家族：kicked / desktopDisconnected / workspaceClosed / sessionConflict 等                                                                 | kicked ✅、desktop-stopped ✅、workspace-closed ✅（窗口关闭与 Host 缺失两种来源）、会话冲突文案 ✅；sessionNotFound/Expired 由 unknown-token/invalid-session 承担                                                                    | 已对齐                                                                                                                                                                                                                                                                       |
@@ -210,8 +210,8 @@ relay 接受无账号的设备级注册。
   kind=remote 须同时带 workspaceIdentity+remoteSessionId，官方 pl 同语义）。
   （第一版曾用 Host Window Controller 投影订阅，实测 facts 不可靠已废弃。）
 - **M4b（已落地）**：rpc-frame 透明桥——`workspace-bridge-open` 每桥新建 Host 附着端口
-  （clientMode=web-remote-replayable），Host 侧为该附着同时注册 `zcode-*` 官方通道别名
-  （`toOfficialRpcChannelAlias`：zcode-_ → zcode-_，同一 channel 实例；参照插件市场
+  （clientMode=web-remote-replayable），Host 侧为该附着同时注册 `drora-*` 官方通道别名
+  （`toOfficialRpcChannelAlias`：drora-_ → drora-_，同一 channel 实例；参照插件市场
   改名桥接先例）。帧封装对齐官方 frameShell/L3（2026-09-27 终审定案，取证官方
   chunk-GJUBRD53.js 的 ko schema 与 frameShell 构造）：{zcode_type:"rpc-frame",
   bridgeSessionId,[bridgeGeneration],[recoveryId],seq,messageSeq,fragmentIndex,
@@ -288,7 +288,7 @@ transport flow gate）。官方接线（createWorkspaceBridge 内）：
 
 | 字段                | 类型                         | 值                     | 说明                                                               |
 | ------------------- | ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| `__zcodeRpcControl` | 字符串字面量                 | `"connection-flow-v1"` | 控制对象判别键；本仓改名 `__zcodeRpcControl`（rpc 包工厂单一出处） |
+| `__droraRpcControl` | 字符串字面量                 | `"connection-flow-v1"` | 控制对象判别键；本仓改名 `__droraRpcControl`（rpc 包工厂单一出处） |
 | `state`             | `"saturated"` \| `"drained"` | 水位沿状态             | 恰好 2 个键，多余字段即非法（isMessagePortFlowControl 校验）       |
 
 本仓消费链（取证时已具备，本次仅补 main 侧发送端）：Host `host/index.ts`
@@ -297,10 +297,10 @@ setTransportFlowState`（serial chain，dispose 时补发 "closed"），与官�
 `exposeServicesOnMessagePort`（host index.js@1482463：`c.onFlowState →
 f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowStateV4`
 （host index.js@360242，trusted-host-relay 校验）进入 CLI flow route。改名分歧：
-官方判别键 `__zcodeRpcControl`，本仓 `__zcodeRpcControl`（两端同为自研代码，不与
+官方判别键 `__droraRpcControl`，本仓 `__droraRpcControl`（两端同为自研代码，不与
 官方互操作——附着端口不出机器）。
 
-### 原版证据索引（2026-09-28，官方 3.14.3 安装树 `D:\software\zcode\resources\app\out\main\`，偏移为该构建 minified 文件的字节偏移）
+### 原版证据索引（2026-09-28，官方 3.14.3 安装树 `D:\software\drora\resources\app\out\main\`，偏移为该构建 minified 文件的字节偏移）
 
 | 结论                                                            | 位置                   | 偏移                             |
 | --------------------------------------------------------------- | ---------------------- | -------------------------------- | ----------------- | -------------------------------- |
@@ -343,7 +343,7 @@ f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowSta
 | respondToWorkspaceReconnectRequest（reconnect 分支全貌）        | index.js               | 399799                           |
 | reconnectWorkspace=reconnectWebRemoteControlWorkspaceIn…        | index.js               | 409793                           |
 | routePayload reconnect case（无前置守卫直发）                   | index.js               | 401307                           |
-| reconnect IPC 通道名 zcode:web-remote-control-reconnect-…       | chunk-GJUBRD53.js      | 11408                            |
+| reconnect IPC 通道名 drora:web-remote-control-reconnect-…       | chunk-GJUBRD53.js      | 11408                            |
 | preload onWebRemoteControlReconnectWorkspace（同通道回复）      | preload/index.cjs      | onWebRemoteControlReconnectWork… |
 | renderer 重连处理（handleReconnectRemoteWorkspace 委托）        | 托管页 index-NjWRUABD  | 5942240                          |
 | 手机页 reconnect 请求/响应匹配（workspaceKey 必须回显）         | 托管页 index-NjWRUABD  | 6086587                          |
@@ -365,7 +365,7 @@ f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowSta
 合法→页面路径 `/remote/v4`，非法（dev 版本）→`/remote/v3`（chunk-GJUBRD53.js:4737
 `Wx(n.appVersion)?"v4":"v3"`）；服务端为**按已发布版本的页面资产库**
 （`/remote/v4/{version}/assets`，3.14.0–3.14.3 存在，其余 404，无参数走 latest）。
-ZCode 版本号不在资产库中，故二维码 app_version 固定 3.14.3 的决策不变。
+Drora 版本号不在资产库中，故二维码 app_version 固定 3.14.3 的决策不变。
 **手机侧证据不在本地安装树**（页面由 zcode.z.ai 托管）：role:`terminal` auth、
 applyPairStatus stale-waiting、handleRelayError KICKED/DEVICE_OFFLINE 等位于
 `https://zcode.z.ai/remote/v4/3.14.3/assets/index-NjWRUABD.js`
@@ -433,7 +433,7 @@ lt(h,b)`，无前置守卫。
 4. `reconnectWorkspace` = `reconnectWebRemoteControlWorkspaceInRenderer`（qb
    @409793）：BrowserWindow.fromId(windowId) 缺失 → throw "Desktop window is not
    available for Web remote control reconnect."；经 IPC 通道
-   `zcode:web-remote-control-reconnect-workspace`（chunk-GJUBRD53.js@11408）向
+   `drora:web-remote-control-reconnect-workspace`（chunk-GJUBRD53.js@11408）向
    **发起窗口 renderer** 发 `{requestId:"web-remote-reconnect-<ts>-<rand>",
 workspaceKey}`，等 renderer 同通道回复（sender.id 过滤 + schema
    {requestId, workspaceKey, success, error?} + requestId 匹配），120s 超时 →
@@ -503,7 +503,7 @@ remoteKind`、`entryKind=taskId?"task":"home"`。
   bridgeSessionId 匹配。
 
 **本仓落地裁定（2026-09-28）**：重连走官方同构的全链委托（main→renderer IPC，
-通道 `zcode:web-remote-control-reconnect-workspace`，改名豁免；preload 同通道
+通道 `drora:web-remote-control-reconnect-workspace`，改名豁免；preload 同通道
 回复；Root 注册 handleReconnectRemoteWorkspace 委托，选项同官方）；远程开桥复用
 `attachRemoteWorkspaceSessionHost`（remote-scoped attach 在本仓等价物），预热
 （M4b 自研，官方无）仅对本地工作区执行——远程 scope 的服务面在 remote attach
@@ -533,7 +533,7 @@ proof=HMAC-SHA256(passHash, "<nonce>|device|<sid>", base64url)}` → `auth_ack{p
 - Host 服务调用封送（2026-09-27 真机首配实锤修复）：rpc 线协议的方法参数是
   **位置参数数组**（服务端 `ProxyChannel.fromService` 用 `target.apply(handler,
 args)` 展开）。移动远控的服务附着（`desktopMobileServiceAttach.ts`）必须经
-  `ProxyChannel.toService` 返回类型化服务（IZCodeTaskService/IZCodeSessionService）；
+  `ProxyChannel.toService` 返回类型化服务（IDroraTaskService/IDroraSessionService）；
   裸 `channel.call("method", {对象})` 会被 apply 当成空参数列表，首个 listTasks 即以
   "reading 'workspacePath' of undefined" 崩掉。类型化调用同时让
   readSessionMessages/readSessionEvents 补齐必填的 workspacePath（此前缺失）、
@@ -543,7 +543,7 @@ args)` 展开）。移动远控的服务附着（`desktopMobileServiceAttach.ts`
   （v3 页已 404，版本门控现走 v4）。**app_version 固定上报 `3.14.3`**
   （`OFFICIAL_REMOTE_PAGE_APP_VERSION`，2026-09-27 实测定案）：官方托管页按版本清单
   分发页面资源，未知版本直接 404——实测 0.0.x/1.0.0/2.0.0/3.13.0/3.14.4/3.15.0/
-  99.0.0 → 404，3.14.0–3.14.3 → 200，省略参数 → 200（走默认页）。ZCode 自身版本
+  99.0.0 → 404，3.14.0–3.14.3 → 200，省略参数 → 200（走默认页）。Drora 自身版本
   （0.0.1）不在清单内，手机扫码必 404；二维码的 app_version 语义是"手机页协议版本"
   而非产品版本，固定为还原协议版本 3.14.3（同步上游协议时随之调整）。WS 注册/鉴权的
   `meta.version` 仍上报真实版本——relay 不校验该值（0.0.1 注册实测通过）。
@@ -588,13 +588,13 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
 1. `IPlatformService` 的移动远控方法面（relay 5 项 + M4c 增补的
    `onWebRemoteControlReconnectWorkspace` 重连委托；旧 LAN 直连 5 项已随栈删除，
    2026-09-29）必须在
-   `createDesktopPlatform` 逐一转发到 `window.zcode`；后续在 preload 新增任何
+   `createDesktopPlatform` 逐一转发到 `window.drora`；后续在 preload 新增任何
    移动远控方法时，renderer 转发与弹层消费必须同步补齐。
 2. renderer 子项目不在根 `pnpm typecheck` 覆盖范围内（typecheck 只构建到
-   `packages/desktop/tsconfig.host.json`），且 `window.zcode` 的全局类型声明不在
+   `packages/desktop/tsconfig.host.json`），且 `window.drora` 的全局类型声明不在
    renderer 工程内——缺失转发不会被类型检查拦截，由
    `packages/desktop/test/desktopRendererPlatformMobileFace.test.ts`
-   （node:test + `mock.module("@zcode/ui")` + window stub）守护。
+   （node:test + `mock.module("@drora/ui")` + window stub）守护。
 3. 弹层自动开启闸门：每次弹层打开、每个传输至多自动开启一次
    （`packages/ui/src/lib/webRemoteControlAutoStart.ts` 的
    `createWebRemoteControlAutoStartGate`，`admit(state, transport)` 仅在
@@ -644,10 +644,10 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
 
 ### 边界
 
-- relay 只承载转发；ZCode 不实现服务端（官方 z.ai relay）。**自建兼容服务端的设计
+- relay 只承载转发；Drora 不实现服务端（官方 z.ai relay）。**自建兼容服务端的设计
   已定案**：见 `specs/mobile-relay-server.md`（线协议完全兼容，桌面端仅切 URL；
-  动机=官方不可自控+版本资产库不含 ZCode 版本号）。
-- 凭据持久化：`~/.zcode/v2/mobile-relay-device-<sha8(origin)>.json`（deviceSid+passHash
+  动机=官方不可自控+版本资产库不含 Drora 版本号）。
+- 凭据持久化：`~/.drora/v2/mobile-relay-device-<sha8(origin)>.json`（deviceSid+passHash
   按 effective origin 路由，2026-09-28 起云端/LAN 内嵌各自独立，见「LAN 传输替换」节；
   Electron safeStorage 可用时加密存 passHash，不可用回落明文——passHash 仅授权
   relay 转发，非账号凭据）。旧单文件 `mobile-relay-device.json` 不迁移不删除。
@@ -660,7 +660,7 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
 
 「局域网连接」传输不再使用本 spec 前文记录的 LAN 直连配对服务
 （`desktopMobilePairingServer`：HTTP+WS、协议 v1 hello/token、一次性配对令牌），
-改为**进程内嵌自建 relay-server**（`desktopMobileLanRelayHost` + `@zcode/relay-server`）。
+改为**进程内嵌自建 relay-server**（`desktopMobileLanRelayHost` + `@drora/relay-server`）。
 手机侧与云中继统一走 relay 协议（M4 帧族），手机页复用 R2 自建页（/m）。架构、端口、
 凭据隔离与安全模型变化详见 `specs/mobile-relay-server.md` §12，此处只记录双端接线面：
 

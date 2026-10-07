@@ -7,7 +7,7 @@ The seven root PNGs are expression masters: open eye, half blink, closed blink, 
 ```text
 Use case: stylized-concept
 Asset type: production desktop pet character master artwork for a 96 x 96 pixel floating Electron window
-Primary request: create the first original ZCode desktop pet, a tiny friendly purple cat-like creature. Keep the recognizable concept of a round plump lilac body with two short rounded triangular ears, two dark oval eyes, a tiny curved smile, soft pink cheek dots, and very small tucked paws. One character only.
+Primary request: create the first original Drora desktop pet, a tiny friendly purple cat-like creature. Keep the recognizable concept of a round plump lilac body with two short rounded triangular ears, two dark oval eyes, a tiny curved smile, soft pink cheek dots, and very small tucked paws. One character only.
 Style/medium: polished clean 2D game sprite / vector-like digital illustration with crisp dark-purple contour, restrained soft shading, excellent silhouette at tiny size. Calm and charming, not overly decorative.
 Composition/framing: centered front-facing full character, symmetrical, entire ears and feet visible, character occupies about 82% of square canvas, generous transparent breathing room, no cropped elements.
 Color palette: lilac and medium violet with dark plum outline and subtle blush. Keep high contrast in both light and dark desktop themes.

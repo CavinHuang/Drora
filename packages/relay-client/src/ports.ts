@@ -1,5 +1,5 @@
-// ZCode Relay Client · 依赖注入 port：传输 / 线编解码 / 时钟。
-// R3 D2/P1 已换源：proof/信封校验由 @zcode/shared relay-wire 提供单一出处，默认
+// Drora Relay Client · 依赖注入 port：传输 / 线编解码 / 时钟。
+// R3 D2/P1 已换源：proof/信封校验由 @drora/shared relay-wire 提供单一出处，默认
 // 编解码见 codec.ts；port 保留为测试注入点。本包不含平台 WebSocket 代码：浏览器
 // 装配用原生 WebSocket，node 测试装配用 ws 包（见 test/）。
 import type { RelayWireFrame } from "./types.js";
@@ -34,7 +34,7 @@ export type RelayTransportFactory = (request: {
 }) => RelayTransportPort;
 
 /**
- * 线编解码 port（帧/proof 原语注入点；P1 已换源 @zcode/shared，此处保留为测试注入替身）：
+ * 线编解码 port（帧/proof 原语注入点；P1 已换源 @drora/shared，此处保留为测试注入替身）：
  * - computeProof：proof=HMAC-SHA256(passHash, "<nonce>|terminal|<deviceSid>", base64url)；
  * - parseFrame：入站 JSON → 帧对象；非法帧返回 null（静默丢弃，对齐官方）；
  * - serializeFrame：出站帧 → JSON 文本。

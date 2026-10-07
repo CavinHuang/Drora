@@ -31,7 +31,7 @@ export const enUS: Record<string, string> = {
     "The desktop side disconnected. This phone can no longer control the desktop workspace.",
   "mobileShell.failure.desktopDisconnected.detailLabel": "Relay detail",
   "mobileShell.failure.desktopDisconnected.step1":
-    "Make sure ZCode is still running and online on desktop.",
+    "Make sure Drora is still running and online on desktop.",
   "mobileShell.failure.desktopDisconnected.step2": "Start Web remote control again from desktop.",
   "mobileShell.failure.desktopDisconnected.stepsTitle": "What happened",
   "mobileShell.failure.desktopDisconnected.title": "Desktop Offline",
@@ -119,7 +119,7 @@ export const enUS: Record<string, string> = {
   "mobileShell.home.sectionTitle": "Workspaces and tasks on this device",
   "mobileShell.home.summary": "{workspaceCount} workspaces · {taskCount} tasks",
   "mobileShell.home.theme": "Choose theme",
-  "mobileShell.home.title": "ZCode remote control",
+  "mobileShell.home.title": "Drora remote control",
   "mobileShell.home.workspaceEmpty": "No tasks in this workspace", // 官方逐字（§32.38 组内空态）
   "mobileShell.home.noTasks": "No tasks available in the current desktop window", // 官方逐字（顶层空态）
   "mobileShell.home.pinnedSection": "Pinned", // 官方逐字
@@ -298,7 +298,7 @@ export const enUS: Record<string, string> = {
   "mobileShell.search.empty": "No matching tasks", // P3d 自建键
   // —— P5b 宽视口全壳（spec §19）：mobileShell.wide.* 自建键（官方无该命名空间；值逐字
   // 对齐官方 ui locales 同义键，出处随键注明）——
-  "mobileShell.wide.brand": "ZCode", // P5b 自建键（产品名，双语文案同值）
+  "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
   "mobileShell.wide.sidebar": "Sidebar", // P5b 自建键（nav aria-label）
   "mobileShell.wide.navBack": "Back", // §33.18 官方活体（desktop-top-nav-back aria 同族）
   "mobileShell.wide.navForward": "Forward", // §33.18 官方活体（前进钮 aria 同族）
@@ -321,8 +321,8 @@ export const enUS: Record<string, string> = {
   "mobileShell.wide.greeting.lateNight": "It's late—remember to take care of yourself.", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight en:4669）
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
   "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
-  "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
-  "chat.placeholder.newTask": "Ask ZCode anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
+  "chat.placeholder.newTaskMobile": "Ask Drora anything…", // 官方逐字
+  "chat.placeholder.newTask": "Ask Drora anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
   "workspace.context.lastActivity": "Last active {time}", // official
   "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
@@ -495,7 +495,7 @@ export const enUS: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH connection", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.taskViewOptions": "Filter and sort", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.toggleSidebar": "Toggle sidebar", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
-  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart ZCode to continue.", // 官方 en 逐字（校准）
+  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart Drora to continue.", // 官方 en 逐字（校准）
   "workspaceSidebar.viewByWorkspace": "By project", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.windowsReservedNameRisk": "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}", // 官方 en 逐字（校准）
   // —— P6 sidePane 侧板面（spec §23）：en 语义补译——

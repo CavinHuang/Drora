@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 
 /**
@@ -88,7 +88,7 @@ export interface MobileHomeShellProps {
 
 /** 任务行状态 pill（官方 shell：rounded-full border px-1.5 py-0.5 text-ui-xs）。 */
 function TaskStatusPill({ status }: { status: MobileHomeShellTask["status"] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const running = status === "running";
   return (
     <span
@@ -125,7 +125,7 @@ export function MobileHomeShell({
   onReconnect,
   className,
 }: MobileHomeShellProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const [collapsedKeys, setCollapsedKeys] = useState<ReadonlySet<string>>(
     () => new Set(defaultCollapsedWorkspaceKeys ?? []),
   );

@@ -3,9 +3,9 @@ import { mock, test } from "node:test";
 
 // 守护 renderer 平台适配层的移动远控方法面（spec: mobile-web-remote.md
 // 「Renderer 集成面」）：IPlatformService 的 relay 5 项 + 重连委托必须在
-// createDesktopPlatform 逐一转发到 window.zcode。
+// createDesktopPlatform 逐一转发到 window.drora。
 //
-// 背景：renderer 子项目不在根 pnpm typecheck 覆盖内，且 window.zcode 的全局
+// 背景：renderer 子项目不在根 pnpm typecheck 覆盖内，且 window.drora 的全局
 // 类型声明不在 renderer 工程里——缺失转发不会被类型检查拦截；relay 5 项缺失曾让
 // “云中继”tab 永久停在“正在准备二维码”（状态兜底 idle、自动开启条件永不成立、
 // 无推送、无手动开启入口）。旧 LAN 直连 5 项（startMobilePairing 等）已随配对栈
@@ -14,11 +14,11 @@ import { mock, test } from "node:test";
 // 运行：cd packages/desktop &&
 //   node --import tsx/esm --experimental-test-module-mocks --test \
 //     test/desktopRendererPlatformMobileFace.test.ts
-// （@zcode/ui 源入口含 vite 路径别名，node 下无法加载，这里 mock 掉
+// （@drora/ui 源入口含 vite 路径别名，node 下无法加载，这里 mock 掉
 // desktopPlatform 顶层唯一的 ui 依赖；desktopBrowserPlatformBridge 在模块求值期
-// 只读 window.zcode 的可选能力，空 stub 下可安全加载。）
+// 只读 window.drora 的可选能力，空 stub 下可安全加载。）
 
-mock.module("@zcode/ui", {
+mock.module("@drora/ui", {
   namedExports: { recordArmsCustomEventForE2E: () => {} },
 });
 
@@ -31,7 +31,7 @@ const MOBILE_FACE_METHODS = [
   "onWebRemoteControlReconnectWorkspace",
 ] as const;
 
-function installWindowZCodeStub() {
+function installWindowDroraStub() {
   const invocations: Array<{ method: string; args: unknown[] }> = [];
   const listeners = new Map<string, (state: unknown) => void>();
   const stub: Record<string, unknown> = {};
@@ -54,14 +54,14 @@ function installWindowZCodeStub() {
       return undefined;
     };
   }
-  // desktopBrowserPlatformBridge 在模块求值期就读取 window.zcode 的可选能力，
+  // desktopBrowserPlatformBridge 在模块求值期就读取 window.drora 的可选能力，
   // stub 必须先于 desktopPlatform 的首次 import 安装。
-  (globalThis as { window?: unknown }).window = { zcode: stub };
+  (globalThis as { window?: unknown }).window = { drora: stub };
   return { invocations, listeners };
 }
 
 test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委托）", async () => {
-  const { invocations, listeners } = installWindowZCodeStub();
+  const { invocations, listeners } = installWindowDroraStub();
   const { createDesktopPlatform } = await import("../src/renderer/src/desktopPlatform.js");
   const platform = createDesktopPlatform({ isLocalDevelopmentRuntime: false });
 
@@ -70,7 +70,7 @@ test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委
     assert.equal(
       typeof platform[method],
       "function",
-      `platform.${method} 未转发到 window.zcode（云中继/局域网弹层将无法工作）`,
+      `platform.${method} 未转发到 window.drora（云中继/局域网弹层将无法工作）`,
     );
   }
 
@@ -102,7 +102,7 @@ test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委
   await platform.stopMobileRelayControl?.();
   assert.equal(invocations.at(-1)?.method, "stopMobileRelayControl");
 
-  // 订阅面：回调必须接到 window.zcode 的同名订阅上，否则弹层收不到状态推送。
+  // 订阅面：回调必须接到 window.drora 的同名订阅上，否则弹层收不到状态推送。
   const relayListener = (state: unknown) => state;
   platform.onMobileRelayStateChanged?.(relayListener);
   assert.equal(listeners.get("onMobileRelayStateChanged"), relayListener);

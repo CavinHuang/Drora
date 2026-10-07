@@ -5,8 +5,8 @@ import {
   broadcastMessageSchema,
   formatZodError,
   hostResponseMessageSchema,
-} from "@zcode/shared";
-import type { BroadcastMessage } from "@zcode/services";
+} from "@drora/shared";
+import type { BroadcastMessage } from "@drora/services";
 import { logger } from "./logger.js";
 
 /**

@@ -76,7 +76,7 @@ export function GreetingEmptyState({
         className,
       )}
     >
-      {/* 品牌水印留 P5c 深面对齐（官方 ZCodeEmptyStateLogo 资产未随手机包恢复）。 */}
+      {/* 品牌水印留 P5c 深面对齐（官方 DroraEmptyStateLogo 资产未随手机包恢复）。 */}
       <p className="text-center text-2xl/[1.2] font-medium">{greeting}</p>
       {workspaceName ? (
         <p className="flex min-w-0 items-center gap-1.5 text-ui-sm text-foreground-subtle">

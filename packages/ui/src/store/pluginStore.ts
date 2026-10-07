@@ -6,8 +6,8 @@ import type {
   PluginMarketplaceSummary,
   PluginScope,
   PluginsCapability,
-} from "@zcode/shared";
-import type { IPluginsService } from "@zcode/services";
+} from "@drora/shared";
+import type { IPluginsService } from "@drora/services";
 import { logger } from "@/logger.js";
 
 function buildPluginOperationId(

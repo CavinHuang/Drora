@@ -5,12 +5,12 @@
 // :121），ui TerminalSession 消费的 create/write/resize/dispose/onDynamicData/
 // onDynamicExit 六口全部透传，桥零改动。
 import { lazy, Suspense } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import { ZCodeIntlProvider } from "@zcode/ui/git-pane";
+import type { IServiceAccessor } from "@drora/services";
+import { DroraIntlProvider } from "@drora/ui/git-pane";
 import { resolveLocale } from "../ui/intl.js";
 
 const SidePaneTerminalPane = lazy(() =>
-  import("@zcode/ui/side-pane-terminal").then((module) => ({
+  import("@drora/ui/side-pane-terminal").then((module) => ({
     default: module.SidePaneTerminalPane,
   })),
 );
@@ -29,7 +29,7 @@ export interface RemoteSidePaneTerminalProps {
 
 export function RemoteSidePaneTerminal(props: RemoteSidePaneTerminalProps) {
   return (
-    <ZCodeIntlProvider initialLocale={resolveLocale()}>
+    <DroraIntlProvider initialLocale={resolveLocale()}>
       <Suspense fallback={<div className="min-h-0 flex-1" />}>
         <SidePaneTerminalPane
           services={props.accessor}
@@ -43,6 +43,6 @@ export function RemoteSidePaneTerminal(props: RemoteSidePaneTerminalProps) {
           }}
         />
       </Suspense>
-    </ZCodeIntlProvider>
+    </DroraIntlProvider>
   );
 }

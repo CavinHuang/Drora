@@ -4,15 +4,15 @@
 //
 // 本模块只做"取服务端自描述 → 申请一次性 host capability → 建立 trusted host
 // WebSocket"三步；返回原始 socket，ws → RPC services 的组装由宿主（窗口 Host）
-// 完成，避免 services 反向依赖 @zcode/client 的 RemoteServiceAccess。
+// 完成，避免 services 反向依赖 @drora/client 的 RemoteServiceAccess。
 import WebSocket from "ws";
 import {
-  ZCODE_RPC_HOST_CAPABILITY_HEADER,
+  DRORA_RPC_HOST_CAPABILITY_HEADER,
   resolveServerRemoteEndpoints,
   serverRemoteHostCapabilitySchema,
   serverRemoteInfoSchema,
   type ServerRemoteInfo,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 /** fetch 的最小结构面；注入 mock 即可离线测试，宿主可换成走代理的 transport。 */
 export type ServerRemoteFetchLike = (
@@ -132,7 +132,7 @@ function connectServerRemoteNodeWebSocket(
     const socket = new webSocket(authenticatedUrl(hostWsUrl, options.token), {
       headers: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
-        [ZCODE_RPC_HOST_CAPABILITY_HEADER]: capability,
+        [DRORA_RPC_HOST_CAPABILITY_HEADER]: capability,
       },
     });
     let opened = false;

@@ -7,7 +7,7 @@
 //     选中项带 check 图标（官方 size-3 shrink-0）；
 //   sortBy = 两 value：updated（sortByUpdated「更新时间」）/ created（sortByCreated
 //     「创建时间」），每项带图标（官方 size-4）；官方官方图标名经 minify 不可考（Hv/z_/Uv），
-//     用同族 lucide 图标对位（D6 不 import @zcode/ui）。
+//     用同族 lucide 图标对位（D6 不 import @drora/ui）。
 //   taskViewOptions「筛选和排序」为入口按钮文案（本组件由调用方做入口）。
 // 文案：workspaceSidebar.* 官方 zh 逐字（32 键已入库，spec §23.3）。装配缝缺省：sort 段
 // 仅在传 onSortChange 时渲染（零回归——不传即纯 organize 面）。

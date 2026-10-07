@@ -1,4 +1,4 @@
-// ZCode Relay Client · 错误码 → 失败卡 reason 映射（spec §2 十一卡验收面）。
+// Drora Relay Client · 错误码 → 失败卡 reason 映射（spec §2 十一卡验收面）。
 // 官方 3.14.3 手机页错误分派取证（hVn.handleRelayError，还原稿 index-NjWRUABD.js
 // @281119-281127）：
 //   KICKED → session-conflict（已被其他设备接管，终态）；

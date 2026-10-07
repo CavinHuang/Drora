@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/provider",
+  "name": "@drora/provider",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,8 +11,8 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@zcode/model-option-map": "workspace:*",
-    "@zcode/shared": "workspace:*",
+    "@drora/model-option-map": "workspace:*",
+    "@drora/shared": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {

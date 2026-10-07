@@ -9,8 +9,8 @@ import type {
   CommandAck,
   CommandEnvelope,
   ConversationSnapshot,
-} from "@zcode/shared/zcode-protocol-v4";
-import { V4_WIRE_PROTOCOL_VERSION } from "@zcode/shared/zcode-protocol-v4";
+} from "@drora/shared/drora-protocol-v4";
+import { V4_WIRE_PROTOCOL_VERSION } from "@drora/shared/drora-protocol-v4";
 import { createConversationStore } from "../src/app/conversationStore.js";
 import {
   sendSwitchCollaborationModeCas,
@@ -145,7 +145,7 @@ test("switchMode：信封 type/payload 官方闭集，baseRevision 取读快照�
   const session = makeSession({
     snapshot: makeSnapshot(3),
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async (params: { envelope: CommandEnvelope }) => {
           calls.push(params.envelope);
           return ackOf("accepted");
@@ -170,7 +170,7 @@ test("switchMode：stale 用 revisionAtDecision 单次收敛重发（新 command
   const session = makeSession({
     snapshot: makeSnapshot(3),
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async (params: { envelope: CommandEnvelope }) => {
           calls.push(params.envelope);
           return acks[calls.length - 1]!;
@@ -189,7 +189,7 @@ test("switchMode：rejected / transport 失败收敛 ok:false", async () => {
   const rejected = makeSession({
     snapshot: makeSnapshot(),
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () => ackOf("rejected", { reasonCode: "proto.busy" }),
       },
     },
@@ -199,7 +199,7 @@ test("switchMode：rejected / transport 失败收敛 ok:false", async () => {
   const transport = makeSession({
     snapshot: makeSnapshot(),
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () => {
           throw new Error("bridge closed");
         },
@@ -219,7 +219,7 @@ test("sendSwitchCollaborationModeCas：纯函数直发信封形状（stale 收�
         : ackOf("duplicate");
     },
     sessionId: SESSION_ID,
-    clientId: "zcode-mobile-test",
+    clientId: "drora-mobile-test",
     baseRevision: 0,
     mode: "build",
   });
@@ -235,7 +235,7 @@ test("renameSession：信封 type/payload，accepted/duplicate/noop 均 true", a
   const session = makeSession({
     snapshot: makeSnapshot(),
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async (params: { envelope: CommandEnvelope }) => {
           calls.push(params.envelope);
           return ackOf("accepted");
@@ -253,7 +253,7 @@ test("renameSession：信封 type/payload，accepted/duplicate/noop 均 true", a
 test("renameSession：rejected / transport 失败返回 false 不抛", async () => {
   const rejected = makeSession({
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () => ackOf("rejected", { reasonCode: "invalid" }),
       },
     },
@@ -262,7 +262,7 @@ test("renameSession：rejected / transport 失败返回 false 不抛", async () 
 
   const transport = makeSession({
     accessor: {
-      zcodeAgentService: {
+      droraAgentService: {
         sendConversationCommandV4: async () => {
           throw new Error("bridge closed");
         },
@@ -412,8 +412,8 @@ test("§32.69 能力源到位 → 同步门项解禁（路径+handler；membersh
     onTogglePinned: () => Promise.resolve(true),
     onArchive: () => Promise.resolve(true),
     onMarkUnread: () => Promise.resolve(true),
-    taskPath: "D:/ws/demo/.zcode/tasks/t1",
-    logPath: "D:/ws/demo/.zcode/logs/t1.log",
+    taskPath: "D:/ws/demo/.drora/tasks/t1",
+    logPath: "D:/ws/demo/.drora/logs/t1.log",
     onViewModelTrajectory: () => {},
     onTaskFeedback: () => {},
   });

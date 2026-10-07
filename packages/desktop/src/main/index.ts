@@ -62,31 +62,31 @@ import {
   createTerminalService,
   getConversationWorkspaceDir,
   getDataBaseDir,
-  getZCodeDataRootDir,
+  getDroraDataRootDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
-} from "@zcode/services/node";
+} from "@drora/services/node";
 import {
   desktopMenuMessageIds,
   type Locale,
   type AppSettings,
   PlatformChannels,
-  ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DRORA_ENV,
+  DRORA_PRODUCT_FLAVOR,
+  DEFAULT_DRORA_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
-  ZCODE_VERSION,
-  ZCODE_TELEMETRY_ENABLED,
-  ZCODE_ARMS_RUM_ENDPOINT,
-  buildZCodeEndpointUrls,
-  resolveZCodeEndpointOrigin,
+  DRORA_VERSION,
+  DRORA_TELEMETRY_ENABLED,
+  DRORA_ARMS_RUM_ENDPOINT,
+  buildDroraEndpointUrls,
+  resolveDroraEndpointOrigin,
   shouldEnableE2ETestBridge,
   rendererTelemetryEventPayloadSchema,
   type MobileRelayTransport,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
-} from "@zcode/shared";
+} from "@drora/shared";
 import { logger } from "./logger.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
@@ -132,7 +132,7 @@ import {
   getDesktopMenuLabel as getDesktopMenuLabelByLocale,
   rebuildApplicationMenu,
   resolveSystemApplicationLocale,
-  updateZCodeStdioTapDevMenuState,
+  updateDroraStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
 import { applyAppIcon } from "./desktopWindowChrome.js";
 import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
@@ -149,7 +149,7 @@ import {
   syncApplicationUnreadBadge,
   handleDesktopWindowCloseRequest,
 } from "./desktopWindowLifecycle.js";
-import { resolveZCodeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
+import { resolveDroraBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import {
   getCredentialsDir,
   isDockerDaemonAvailable,
@@ -159,7 +159,7 @@ import {
   loadHostProcessEnvFromLocalFiles,
   resolveBundledGlmBinaryPath,
   resolveRemoteAssetDirs,
-  resolveZCodeEndpointEnvBaseOrigin,
+  resolveDroraEndpointEnvBaseOrigin,
   desktopRuntimeEnv,
   runtimeApplicationName,
   runtimeHomePath,
@@ -246,9 +246,9 @@ import {
 } from "./desktopResourceTelemetry.js";
 import { registerRendererHeapSampleIpc } from "./processResourceRendererHeapSource.js";
 import {
-  registerDesktopZCodeDataSizeTelemetry,
-  stopDesktopZCodeDataSizeTelemetry,
-} from "./desktopZCodeDataSizeTelemetry.js";
+  registerDesktopDroraDataSizeTelemetry,
+  stopDesktopDroraDataSizeTelemetry,
+} from "./desktopDroraDataSizeTelemetry.js";
 import { configureDesktopMcpTelemetry, reportMcpTelemetryToArms } from "./desktopMcpTelemetry.js";
 import {
   configureDesktopNetworkTelemetry,
@@ -256,7 +256,7 @@ import {
   stopDesktopNetworkTelemetry,
 } from "./desktopNetworkTelemetry.js";
 import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
-import { mapZCodeEnvToArmsRumEnv } from "@zcode/shared";
+import { mapDroraEnvToArmsRumEnv } from "@drora/shared";
 import {
   findWindowsProcessesReferencingResourceMarkers,
   probeWindowsPackagedResourceWritable,
@@ -271,9 +271,9 @@ registerLocalMediaPreviewScheme(protocol);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
-// 会和开发态已打开的 ZCode Dev 抢端口，导致 WebDriver session 创建前白屏超时。
+// 会和开发态已打开的 Drora Dev 抢端口，导致 WebDriver session 创建前白屏超时。
 // 仅本地开发运行默认开启远程调试端口，并允许 e2e 通过环境变量交给 Chromedriver 接管。
-if (!app.isPackaged && process.env.ZCODE_DISABLE_FIXED_REMOTE_DEBUGGING_PORT !== "1") {
+if (!app.isPackaged && process.env.DRORA_DISABLE_FIXED_REMOTE_DEBUGGING_PORT !== "1") {
   app.commandLine.appendSwitch("remote-debugging-port", "9229");
 }
 
@@ -548,7 +548,7 @@ async function runBrowserCommandOnView(params: {
 let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
-const settingsFile = join(homedir(), ".zcode", "v2", "setting.json");
+const settingsFile = join(homedir(), ".drora", "v2", "setting.json");
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -692,11 +692,11 @@ let desktopPetWindow: ReturnType<typeof registerDesktopPetWindow> | null = null;
 const appLaunchGate = createAppLaunchGate();
 const appLaunchCoordinator = createAppLaunchCoordinator(appLaunchGate);
 const appTelemetryCredentialService = createCredentialService();
-async function resolveCurrentZCodeEndpointOrigin() {
-  return resolveZCodeEndpointOrigin({
-    env: ZCODE_ENV,
-    envBaseOrigin: resolveZCodeEndpointEnvBaseOrigin(hostProcessLocalEnv),
-    overrideOrigin: (await mainSettingService.get()).zcodeEndpointOrigin,
+async function resolveCurrentDroraEndpointOrigin() {
+  return resolveDroraEndpointOrigin({
+    env: DRORA_ENV,
+    envBaseOrigin: resolveDroraEndpointEnvBaseOrigin(hostProcessLocalEnv),
+    overrideOrigin: (await mainSettingService.get()).droraEndpointOrigin,
   });
 }
 let desktopContextPromptRollout: ReturnType<typeof createDesktopContextPromptRollout> | undefined;
@@ -749,7 +749,7 @@ const appTelemetryCore = createTelemetryCore({
   loadUserId: createTelemetryUserIdLoader(appTelemetryCredentialService),
   loadAuthorization: createTelemetryAuthorizationLoader(appTelemetryCredentialService),
   loadMarketingParams: createTelemetryMarketingParamsLoader(appTelemetryCredentialService),
-  resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+  resolveDroraEndpointOrigin: resolveCurrentDroraEndpointOrigin,
   fetchImpl: createDesktopTelemetryFetch(net),
 });
 const appTelemetryRuntime = createAppTelemetryRuntime({
@@ -785,7 +785,7 @@ function syncAppTelemetryInteractiveState(): void {
 app.on("browser-window-focus", (_event, win) => {
   syncAppTelemetryInteractiveState();
   rebuildMenu();
-  // 设置/更新等无 Host 的 ZCode 窗口也算前台：router 会先把旧 workspace Host 清成 null，
+  // 设置/更新等无 Host 的 Drora 窗口也算前台：router 会先把旧 workspace Host 清成 null，
   // 再把无 Host 的新窗口事实静默丢弃，避免旧会话 PiP 继续显示。
   cuaPipFocusRouter.focusWindow(resolveCuaPipWindowKey(win));
 });
@@ -819,16 +819,16 @@ let mobileRelaySenderWebContentsId: number | null = null;
 // 无 runtime 时丢弃；这里额外缓存，relay 后启动也能立即拿到全量）。
 const mobileRelaySyncedWorkspaces = new Map<
   number,
-  import("@zcode/shared").MobileRelayWorkspaceSyncEntry[]
+  import("@drora/shared").MobileRelayWorkspaceSyncEntry[]
 >();
 const mobileRelaySyncedTasks = new Map<
   number,
-  import("@zcode/shared").MobileRelayTaskSyncEntry[]
+  import("@drora/shared").MobileRelayTaskSyncEntry[]
 >();
 // §33.18.16 侧板初态投影：各窗口最近一次推送的侧板 tab（手机映射词表）。
 const mobileRelaySyncedSidePane = new Map<
   number,
-  import("@zcode/shared").MobileRelaySidePaneSyncEntry
+  import("@drora/shared").MobileRelaySidePaneSyncEntry
 >();
 
 // —— 内嵌 LAN relay 宿主（§12）：局域网传输=进程内自建 relay-server ——
@@ -842,7 +842,7 @@ app.on("will-quit", () => {
 // sid 命名空间独立，混用必然 AUTH_FAILED。路由键 = 云端 relayWsUrl 的 origin；
 // LAN 内嵌用稳定逻辑 origin（端口随机，registry.json 才是身份域）。旧单文件
 // mobile-relay-device.json 不迁移不删除：首次按新 origin 重新注册，无害。
-const mobileRelayCredentialDir = join(homedir(), ".zcode", "v2");
+const mobileRelayCredentialDir = join(homedir(), ".drora", "v2");
 const mobileRelayCredentialEncryption = safeStorage.isEncryptionAvailable()
   ? {
       encrypt: (plain: string) => safeStorage.encryptString(plain).toString("base64"),
@@ -892,7 +892,7 @@ async function prepareMobileRelayTransport(transport: MobileRelayTransport): Pro
     return;
   }
   // 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
-  // relayServerUrl → env ZCODE_RELAY_SERVER_URL → 官方 zcode.z.ai。
+  // relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。
   // 传输切换（lan→cloud）时同步摘除内嵌服务端：旧二维码不得在无设备附着的
   // 服务端上永久 waiting。
   if (mobileLanRelayHost.isRunning()) {
@@ -904,7 +904,7 @@ async function prepareMobileRelayTransport(transport: MobileRelayTransport): Pro
   } catch {
     // 设置服务不可用时回落 env
   }
-  if (!base) base = process.env.ZCODE_RELAY_SERVER_URL?.trim() || "";
+  if (!base) base = process.env.DRORA_RELAY_SERVER_URL?.trim() || "";
   preparedRelayEndpoints = deriveSelfHostedRelayEndpoints(base);
   activeRelayCredentialOrigin = resolveCloudRelayOrigin(
     preparedRelayEndpoints?.relayWsUrl ?? OFFICIAL_RELAY_WS_URL,
@@ -912,7 +912,7 @@ async function prepareMobileRelayTransport(transport: MobileRelayTransport): Pro
 }
 
 // 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
-// relayServerUrl → env ZCODE_RELAY_SERVER_URL → 官方 zcode.z.ai。每次 start 解析
+// relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。每次 start 解析
 // 一次，设置变更后重启远控（停止→开启）即生效。
 const mobileRelayControl = createDesktopMobileRelayControl({
   logger,
@@ -937,7 +937,7 @@ const mobileRelayControl = createDesktopMobileRelayControl({
     load: async () => {
       try {
         const raw = await readFile(
-          join(homedir(), ".zcode", "v2", "mobile-relay-restore.json"),
+          join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
           "utf8",
         );
         const parsed = JSON.parse(raw) as {
@@ -961,15 +961,15 @@ const mobileRelayControl = createDesktopMobileRelayControl({
       }
     },
     save: async (context) => {
-      await mkdir(join(homedir(), ".zcode", "v2"), { recursive: true });
+      await mkdir(join(homedir(), ".drora", "v2"), { recursive: true });
       await writeFile(
-        join(homedir(), ".zcode", "v2", "mobile-relay-restore.json"),
+        join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
         `${JSON.stringify(context)}\n`,
         "utf8",
       );
     },
     clear: async () => {
-      await rm(join(homedir(), ".zcode", "v2", "mobile-relay-restore.json"), { force: true });
+      await rm(join(homedir(), ".drora", "v2", "mobile-relay-restore.json"), { force: true });
     },
   },
   // relay 远控同样惰性解析发起窗口的 Host；resolveHostChild 闭包在 start 接线时替换为
@@ -1105,16 +1105,16 @@ function reconnectWebRemoteControlWorkspaceInRenderer(workspaceKey: string): Pro
 }
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
-  appVersion: ZCODE_VERSION || app.getVersion(),
+  appVersion: DRORA_VERSION || app.getVersion(),
   deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+  resolveEndpointOrigin: resolveCurrentDroraEndpointOrigin,
 });
 // 同一个 /api/v1/client/configs fetcher 供两个灰度 rollout 共用（请求参数与鉴权完全一致，
 // 各自独立缓存/去重，服务端按 data.configs.<key> 区分功能）。
 const electronClientConfigsFetcher = createElectronDesktopContextPromptConfigFetcher({
-  appVersion: ZCODE_VERSION || app.getVersion(),
+  appVersion: DRORA_VERSION || app.getVersion(),
   deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+  resolveEndpointOrigin: resolveCurrentDroraEndpointOrigin,
 });
 desktopContextPromptRollout = createDesktopContextPromptRollout({
   fetchConfig: electronClientConfigsFetcher,
@@ -1126,7 +1126,7 @@ const rendererActionTraceRollout = createRendererActionTraceRollout({
 });
 const localTtftExporter = createLocalTtftExporter({
   env: { ...hostProcessLocalEnv, ...process.env },
-  version: ZCODE_VERSION || app.getVersion(),
+  version: DRORA_VERSION || app.getVersion(),
   logger,
 });
 ipcMain.on(PlatformChannels.ReportLocalTtftBatch, (_event, batch: unknown) =>
@@ -1144,7 +1144,7 @@ const armsUserIdentitySync = createArmsUserIdentitySync({
   deviceMid,
   // 采集停用时 SDK 未初始化，setConfig 会抛错。
   setUser:
-    ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT
+    DRORA_TELEMETRY_ENABLED && DRORA_ARMS_RUM_ENDPOINT
       ? (user) => armsRum.setConfig("user", user)
       : () => {},
 });
@@ -1338,7 +1338,7 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
   // Bug 根因：资源样本改为 5 分钟窗口后，退出仍直接 stop 会清空未满窗口的数据。
   // 退出时只排空已存在的角色 / Agent 内存窗口，不启动新采样、目录扫描或外部探针。
   stopDesktopResourceTelemetry({ flushPendingWindows: true });
-  stopDesktopZCodeDataSizeTelemetry();
+  stopDesktopDroraDataSizeTelemetry();
   stopDesktopNetworkTelemetry();
   stopRemoteUsageArmsPeriodicSampling();
   disposeRendererActionTraceIpc?.();
@@ -1402,7 +1402,7 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
     })
     .finally(() => {
       // before-quit 是同步事件。只发 Dispose 就继续退出 main 的话，
-      // host 还没等到 agent 进程树的 SIGTERM/SIGKILL 兜底完成就被带走，zcode-cli 会被 init 接管成残留进程。
+      // host 还没等到 agent 进程树的 SIGTERM/SIGKILL 兜底完成就被带走，drora-cli 会被 init 接管成残留进程。
       // 这里先拦截第一次退出，等待 host 清理完成后再放行第二次 app.quit。
       hasPreparedAppQuit = true;
       appQuitPreparationInFlight = null;
@@ -1413,7 +1413,7 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
 
 function exitPreparedApp(reason: string): never | void {
   logger.info(`[app-quit] exiting prepared app (${reason})`);
-  if (process.env.ZCODE_E2E_RUN_ID?.trim()) {
+  if (process.env.DRORA_E2E_RUN_ID?.trim()) {
     flushMainE2ECoverage((error) => {
       logger.warn("[e2e-coverage] main coverage flush failed", error);
     });
@@ -1622,12 +1622,12 @@ async function prepareWindowsProcessesForUpdateInstall() {
 
 function shouldConfirmAppQuit() {
   // 开发环境里的普通会话经常需要重启 Electron，只在 production 下拦截，避免打断调试。
-  return ZCODE_ENV === "production" && getRunningAgentSessionCount() > 0;
+  return DRORA_ENV === "production" && getRunningAgentSessionCount() > 0;
 }
 
 function confirmAppQuit(originWindow?: BrowserWindow | null) {
   if (!shouldConfirmAppQuit()) {
-    logger.info(`[app-quit] quit confirmation skipped in ${ZCODE_ENV}`);
+    logger.info(`[app-quit] quit confirmation skipped in ${DRORA_ENV}`);
     return true;
   }
 
@@ -1672,14 +1672,14 @@ async function executeDesktopCommandForApp(
     command,
     senderWindow,
     logger,
-    updateZCodeStdioTapDevMenuState,
+    updateDroraStdioTapDevMenuState,
     onDesktopZoomChanged: (zoomLevel) => {
       currentDesktopZoomLevel = clampDesktopZoomLevel(zoomLevel);
       rebuildMenu();
     },
     settingService: mainSettingService,
-    onZCodeEndpointChanged: handleZCodeEndpointChanged,
-    zcodeEndpointEnvBaseOrigin: resolveZCodeEndpointEnvBaseOrigin(hostProcessLocalEnv),
+    onDroraEndpointChanged: handleDroraEndpointChanged,
+    droraEndpointEnvBaseOrigin: resolveDroraEndpointEnvBaseOrigin(hostProcessLocalEnv),
     onRelaunchApp: async () => {
       await prepareAppQuit("desktop-command-relaunch");
       app.relaunch();
@@ -1690,18 +1690,18 @@ async function executeDesktopCommandForApp(
   });
 }
 
-async function resolveZCodeEndpointSelection(): Promise<"production" | "test" | "custom"> {
-  if (ZCODE_ENV === "production") {
+async function resolveDroraEndpointSelection(): Promise<"production" | "test" | "custom"> {
+  if (DRORA_ENV === "production") {
     return "production";
   }
-  const origin = await resolveCurrentZCodeEndpointOrigin();
-  if (origin === DEFAULT_ZCODE_ENDPOINT_ORIGIN) {
+  const origin = await resolveCurrentDroraEndpointOrigin();
+  if (origin === DEFAULT_DRORA_ENDPOINT_ORIGIN) {
     return "production";
   }
   return "custom";
 }
 
-async function handleZCodeEndpointChanged() {
+async function handleDroraEndpointChanged() {
   rebuildMenu();
 }
 
@@ -1740,11 +1740,11 @@ function resetShortcutRecordingForWebContents(webContentsId: number) {
 }
 
 function rebuildMenu() {
-  void Promise.all([resolveZCodeEndpointSelection(), mainSettingService.get()]).then(
-    ([zcodeEndpointSelection, settings]) => {
+  void Promise.all([resolveDroraEndpointSelection(), mainSettingService.get()]).then(
+    ([droraEndpointSelection, settings]) => {
       rebuildApplicationMenu({
         currentApplicationLocale,
-        zcodeEndpointSelection,
+        droraEndpointSelection,
         executeDesktopCommand: executeDesktopCommandForApp,
         currentZoomLevel: resolveFocusedDesktopZoomLevel(),
         // 菜单 accelerator 跟随用户快捷键设置（shortcutBindings 用户覆盖）
@@ -2022,7 +2022,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         label,
         {
           ...initMessage,
-          zcodeBuiltinProviderConfigFilePath: resolveZCodeBuiltinProviderConfigFilePath({
+          droraBuiltinProviderConfigFilePath: resolveDroraBuiltinProviderConfigFilePath({
             env: { ...hostProcessLocalEnv, ...process.env },
           }),
         },
@@ -2309,7 +2309,7 @@ app.whenReady().then(async () => {
     // 打包态必须与 NSIS 快捷方式使用同一 AUMID，否则 Shell 把它们当成不同应用。
     // 使用构建期产品身份，不依赖用户机器环境；开发态继续保持独立身份。
     app.setAppUserModelId(
-      resolveWindowsAppUserModelIdForFlavor(ZCODE_PRODUCT_FLAVOR, { isPackaged: app.isPackaged }),
+      resolveWindowsAppUserModelIdForFlavor(DRORA_PRODUCT_FLAVOR, { isPackaged: app.isPackaged }),
     );
   }
 
@@ -2341,10 +2341,10 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
+  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 Drora 安装包，
   // 不向 Preview 渠道提供更新。
   void initAutoUpdater({
-    enabled: ZCODE_PRODUCT_FLAVOR === "production",
+    enabled: DRORA_PRODUCT_FLAVOR === "production",
     onBeforeQuitAndInstall: async () => {
       notifyStabilityLifecycle("update_install");
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
@@ -2355,7 +2355,7 @@ app.whenReady().then(async () => {
     settingService: mainSettingService,
     locale: currentApplicationLocale,
     deviceMid,
-    resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+    resolveEndpointOrigin: resolveCurrentDroraEndpointOrigin,
     updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
       argv: process.argv,
       env: process.env,
@@ -2585,8 +2585,8 @@ app.whenReady().then(async () => {
     armsCustomContext: {
       deviceMid,
       platform: process.platform,
-      appVersion: ZCODE_VERSION,
-      armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+      appVersion: DRORA_VERSION,
+      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
     },
     finalArmsCustomEventE2EEnabled: shouldEnableE2ETestBridge(process.env),
     createRemoteWorkspaceSession: remoteSessionManager.createRemoteWorkspaceSession,
@@ -2609,40 +2609,40 @@ app.whenReady().then(async () => {
   void armsUserIdentitySync.refresh();
 
   // 未配置 ARMS 端点时不初始化上报 context，避免把空转误当成已启用。
-  if (ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT) {
+  if (DRORA_TELEMETRY_ENABLED && DRORA_ARMS_RUM_ENDPOINT) {
     configureDesktopStabilityTelemetry({
       deviceMid,
       platform: process.platform,
-      appVersion: ZCODE_VERSION,
-      armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+      appVersion: DRORA_VERSION,
+      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
     });
     configureDesktopResourceTelemetry({
       deviceMid,
       platform: process.platform,
-      appVersion: ZCODE_VERSION,
-      armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+      appVersion: DRORA_VERSION,
+      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
     });
     configureDesktopNetworkTelemetry({
       deviceMid,
       platform: process.platform,
-      appVersion: ZCODE_VERSION,
-      armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+      appVersion: DRORA_VERSION,
+      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
     });
   }
   configureDesktopMcpTelemetry({
     deviceMid,
-    appVersion: ZCODE_VERSION,
-    armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+    appVersion: DRORA_VERSION,
+    armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
   });
   registerDesktopStabilityMonitors(logger, crashCapturePaths);
   registerDesktopResourceTelemetry(logger);
   // 主窗口 renderer 的 60 秒 heap 样本入口；随 App 生命周期常驻，只注册一次。
   registerRendererHeapSampleIpc();
   const defaultDataBaseDir = process.env.HOME?.trim() || homedir();
-  registerDesktopZCodeDataSizeTelemetry({
+  registerDesktopDroraDataSizeTelemetry({
     context: {
-      appVersion: ZCODE_VERSION,
-      armsEnv: mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv),
+      appVersion: DRORA_VERSION,
+      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
       dataRootKind:
         resolve(getDataBaseDir()) === resolve(defaultDataBaseDir) ? "default" : "custom",
       deviceMid,
@@ -2650,32 +2650,32 @@ app.whenReady().then(async () => {
     },
     getSystemIdleTimeSeconds: () => powerMonitor.getSystemIdleTime(),
     isAppBackground: () => resolveResourceUsageScene() === "background",
-    isZCodeBusy: () => getRunningAgentSessionCount() > 0,
+    isDroraBusy: () => getRunningAgentSessionCount() > 0,
     logger,
-    rootPath: getZCodeDataRootDir(),
-    stateFile: join(app.getPath("userData"), "zcode-data-size-telemetry.json"),
+    rootPath: getDroraDataRootDir(),
+    stateFile: join(app.getPath("userData"), "drora-data-size-telemetry.json"),
   });
   registerDesktopNetworkTelemetry(logger);
 
   // 本地未打包 dev 构建（app.isPackaged === false）必须跳过远端强制升级 gate。
-  // 原因：force-update gate 只看 ZCODE_ENV === "production"，但 dev 构建（如 dev:desktop:cua
+  // 原因：force-update gate 只看 DRORA_ENV === "production"，但 dev 构建（如 dev:desktop:cua
   // 连真实后端测 computer use）虽指向 production 后端，版本号却滞后于线上 release（feature
   // 分支不 bump 版本），会被 release minimalVersion 误判为"需强制升级"而启动秒退。force-update
   // 是面向打包发布客户端的安全门，对未打包 dev 运行时无意义。打包版 app.isPackaged === true，
   // gate 照常生效，对真实用户零影响。
   const skipForceUpdateForLocalDevRuntime = !app.isPackaged;
   const forceUpdateGuardResult =
-    ZCODE_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
+    DRORA_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
       ? await maybeBlockStartupForForceUpdate({
           locale: currentApplicationLocale,
           logger,
-          endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
+          endpointOrigin: await resolveCurrentDroraEndpointOrigin(),
           onBlocked: () => {
             forceUpdateMainWindowCreationBlocked = true;
           },
         })
       : { blocked: false };
-  if (ZCODE_PRODUCT_FLAVOR !== "production") {
+  if (DRORA_PRODUCT_FLAVOR !== "production") {
     logger.info("[force-update] Preview 跳过远端强制升级检查");
   } else if (skipForceUpdateForLocalDevRuntime) {
     logger.info("[force-update] 本地 dev 构建（未打包）跳过远端强制升级检查");

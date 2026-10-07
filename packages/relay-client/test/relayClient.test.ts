@@ -9,7 +9,7 @@ import {
   TRANSPORT_ID_PATTERN,
   computeProof,
   encodeRpcTransportMessage,
-} from "@zcode/shared";
+} from "@drora/shared";
 import { AppFrameChannel, measureAppFrameEnvelope } from "../src/appFrameChannel.js";
 import { mapRelayErrorToFailure } from "../src/errorMapping.js";
 import { RelayClient, createRelayClient } from "../src/index.js";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { GitFileChange, GitRepositorySummary } from "@zcode/shared";
+import type { GitFileChange, GitRepositorySummary } from "@drora/shared";
 import { AttachmentGitSummaryGate } from "../src/app/attachmentGitSummary.js";
 
 const SUMMARY: GitRepositorySummary = {

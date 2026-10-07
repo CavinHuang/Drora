@@ -1,4 +1,4 @@
-import { TopicWireFrameAssembler, conversationTopicFrameSchema, V4_WIRE_PROTOCOL_VERSION, type ConversationSnapshot, type ConversationTopicFrame } from "@zcode/shared/zcode-protocol-v4";
+import { TopicWireFrameAssembler, conversationTopicFrameSchema, V4_WIRE_PROTOCOL_VERSION, type ConversationSnapshot, type ConversationTopicFrame } from "@drora/shared/drora-protocol-v4";
 
 const TOPIC = "conversation/sess-store";
 const snapshot: ConversationSnapshot = {

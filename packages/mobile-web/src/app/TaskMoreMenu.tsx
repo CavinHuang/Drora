@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useIntl } from "../ui/intl.js";
 
-/** §32.15 三态状态源查询（App 装配：accessor.zcodeTaskService 只读面）。 */
+/** §32.15 三态状态源查询（App 装配：accessor.droraTaskService 只读面）。 */
 export interface TaskMembershipState {
   pinned: boolean;
   archived: boolean;
@@ -32,11 +32,11 @@ export interface TaskMoreMenuProps {
   onRename: (title: string) => Promise<boolean>;
   /** §32.15 打开菜单时拉三态（App 装配：listPinnedTaskIds/listArchivedTasks 查询）。 */
   loadMembership?: () => Promise<TaskMembershipState>;
-  /** 置顶切换（zcodeTaskService.setTaskPinned；App 装配）。 */
+  /** 置顶切换（droraTaskService.setTaskPinned；App 装配）。 */
   onTogglePinned?: (pinned: boolean) => Promise<boolean>;
-  /** 归档（zcodeTaskService.archiveTask；成功后 App 关任务面）。 */
+  /** 归档（droraTaskService.archiveTask；成功后 App 关任务面）。 */
   onArchive?: () => Promise<boolean>;
-  /** 标记未读（zcodeTaskService.setTaskUnread）。 */
+  /** 标记未读（droraTaskService.setTaskUnread）。 */
   onMarkUnread?: () => Promise<boolean>;
   /** §32.69 官方 appHeader.copyTaskPath 数据源（taskNativeSessionLogFile.path；缺位 disabled）。 */
   taskPath?: string | null;

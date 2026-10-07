@@ -1,7 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- RelaySession 九态状态机集中在单模块：配对窗/心跳/
    宽限/重连/恢复定时器共享同一状态边界与终态守卫，拆分会打散过渡原子性（desktop
    desktopMobileRelayControl 同款豁免先例）。 */
-// ZCode Relay Client · RelaySession（terminal 角色）九态状态机。
+// Drora Relay Client · RelaySession（terminal 角色）九态状态机。
 // 状态与过渡表 = specs/mobile-relay-r3-frontend.md §2（官方 3.14.3 RelaySession 对齐）：
 //   idle → connecting → authenticating → waiting/paired → (reconnecting|suspended)
 //   → kicked/error（终态）。

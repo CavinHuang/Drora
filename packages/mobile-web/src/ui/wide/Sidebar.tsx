@@ -46,7 +46,7 @@ export interface WideSidebarProps {
   selectedTaskId?: string | null;
   /** 刷新进行中（项目区刷新按钮禁用 + 旋转指示，窄壳 HomeShell 同语义）。 */
   isRefreshing?: boolean;
-  /** 折叠态（所有者 = WideShell，持久化 ZCode 化键）。 */
+  /** 折叠态（所有者 = WideShell，持久化 Drora 化键）。 */
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onTaskOpen?: (task: WideTaskOpenRequest, workspace: WideWorkspaceRef) => void;

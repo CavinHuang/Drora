@@ -7,7 +7,7 @@ import {
   type ServerRemoteInfo,
   type WindowHostAttachmentScope,
   type WindowHostRemoteWorkspaceDescriptor,
-} from "@zcode/shared";
+} from "@drora/shared";
 
 interface WindowRemoteAssetDirs {
   mockCdnDir?: string;

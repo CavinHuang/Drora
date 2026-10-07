@@ -1,6 +1,6 @@
 /* R3 P2a 自包含移动壳样式（specs/mobile-relay-r3-frontend.md §11/§13）。
  * 设计 token 子集移植自 packages/ui/src/styles.css（明/暗两套值逐一对应，
- * 只保留移动壳实际消费的面），不 import @zcode/ui（D6 UI 自包含）。
+ * 只保留移动壳实际消费的面），不 import @drora/ui（D6 UI 自包含）。
  * 字号/状态色/前景层级与 ui 同源值；改动须与 DESIGN.md 及 ui styles.css 对照。 */
 @import "tailwindcss";
 
@@ -134,67 +134,67 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* —— P3b markdown 渲染（MarkdownContent）：.zcode-md 命名空间（spec §15 第 2 条）——
+/* —— P3b markdown 渲染（MarkdownContent）：.drora-md 命名空间（spec §15 第 2 条）——
  * 净化后注入的 HTML 无法逐元素挂 utility class，故用命名空间层叠提供排版；
  * 颜色/字号/圆角全部引用上方 @theme token（与 ui styles.css 同源值），不新增 token。
  * 语法高亮归 P3 后续，本层只做底色/边框/滚动的基础代码块面。 */
-.zcode-md {
+.drora-md {
   line-height: 1.625; /* tailwind leading-relaxed 同值 */
   overflow-wrap: break-word;
 }
-.zcode-md > :first-child {
+.drora-md > :first-child {
   margin-top: 0;
 }
-.zcode-md > :last-child {
+.drora-md > :last-child {
   margin-bottom: 0;
 }
-.zcode-md h1,
-.zcode-md h2,
-.zcode-md h3,
-.zcode-md h4,
-.zcode-md h5,
-.zcode-md h6 {
+.drora-md h1,
+.drora-md h2,
+.drora-md h3,
+.drora-md h4,
+.drora-md h5,
+.drora-md h6 {
   font-weight: 600;
   margin: 1rem 0 0.5rem;
   line-height: 1.4;
 }
-.zcode-md h1 {
+.drora-md h1 {
   font-size: var(--text-ui-xl);
 }
-.zcode-md h2 {
+.drora-md h2 {
   font-size: var(--text-ui-lg);
 }
-.zcode-md h3,
-.zcode-md h4,
-.zcode-md h5,
-.zcode-md h6 {
+.drora-md h3,
+.drora-md h4,
+.drora-md h5,
+.drora-md h6 {
   font-size: var(--text-ui-base);
 }
-.zcode-md p,
-.zcode-md ul,
-.zcode-md ol,
-.zcode-md pre,
-.zcode-md table,
-.zcode-md blockquote {
+.drora-md p,
+.drora-md ul,
+.drora-md ol,
+.drora-md pre,
+.drora-md table,
+.drora-md blockquote {
   margin: 0.5rem 0;
 }
-.zcode-md ul {
+.drora-md ul {
   list-style: disc;
   padding-left: 1.25rem;
 }
-.zcode-md ol {
+.drora-md ol {
   list-style: decimal;
   padding-left: 1.25rem;
 }
-.zcode-md li {
+.drora-md li {
   margin: 0.25rem 0;
 }
-.zcode-md li > ul,
-.zcode-md li > ol {
+.drora-md li > ul,
+.drora-md li > ol {
   margin: 0.25rem 0;
 }
 /* 代码块：surface 底色 + 圆角 + 横向滚动（长行不撑破气泡）。 */
-.zcode-md pre {
+.drora-md pre {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
@@ -204,7 +204,7 @@ body {
   font-size: var(--text-ui-xs);
   line-height: 1.5;
 }
-.zcode-md pre code {
+.drora-md pre code {
   background: none;
   border: none;
   padding: 0;
@@ -213,7 +213,7 @@ body {
   white-space: pre;
 }
 /* 行内 code：同 surface 面但轻量（无边框）。 */
-.zcode-md :not(pre) > code {
+.drora-md :not(pre) > code {
   background: var(--color-surface);
   border-radius: 0.25rem;
   padding: 0.125rem 0.375rem;
@@ -221,38 +221,38 @@ body {
   font-size: 0.9em;
 }
 /* 表格：基本边框 + 窄面横向滚动（display:block 收缩到内容宽）。 */
-.zcode-md table {
+.drora-md table {
   border-collapse: collapse;
   display: block;
   max-width: 100%;
   overflow-x: auto;
 }
-.zcode-md th,
-.zcode-md td {
+.drora-md th,
+.drora-md td {
   border: 1px solid var(--color-border);
   padding: 0.375rem 0.5rem;
   text-align: left;
   vertical-align: top;
 }
-.zcode-md th {
+.drora-md th {
   background: var(--color-surface);
   font-weight: 600;
 }
-.zcode-md blockquote {
+.drora-md blockquote {
   border-left: 3px solid var(--color-border);
   padding-left: 0.75rem;
   color: var(--color-foreground-subtle);
 }
-.zcode-md a {
+.drora-md a {
   color: var(--color-brand);
   text-decoration: underline;
 }
-.zcode-md hr {
+.drora-md hr {
   border: 0;
   border-top: 1px solid var(--color-border);
   margin: 1rem 0;
 }
-.zcode-md img {
+.drora-md img {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;

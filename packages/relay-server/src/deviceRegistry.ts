@@ -1,4 +1,4 @@
-// ZCode Relay Server · 设备凭据持久层：device_sid ↔ pass_hash（官方语义：注册一次、
+// Drora Relay Server · 设备凭据持久层：device_sid ↔ pass_hash（官方语义：注册一次、
 // 跨连接鉴权）。存储适配器接口化——默认原子写 JSON 文件（设备表极小），可换 DB。
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";

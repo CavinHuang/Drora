@@ -7,7 +7,7 @@
 // 能力（openExternal/通知/getDeviceId）真实现；openFeedback/openCommunity 在远控面
 // no-op（社区/反馈入口归桌面域，远控场景不可达）。
 // 修复依据：connectRemote 的参数类型与 shared 的平台契约一致，避免适配器缺类型导致编译失败。
-import type { IPlatformService, RemoteTarget } from "@zcode/shared";
+import type { IPlatformService, RemoteTarget } from "@drora/shared";
 
 export function createRemoteWebPlatform(): IPlatformService {
   return {

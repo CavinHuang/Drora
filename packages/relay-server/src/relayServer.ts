@@ -1,4 +1,4 @@
-// ZCode Relay Server · WS 服务接线：连接生命周期、鉴权、配对状态机驱动、
+// Drora Relay Server · WS 服务接线：连接生命周期、鉴权、配对状态机驱动、
 // data 转发（matched + server_ts 盖章）、错误面、限速与死亡检测。
 // 职责边界：本模块不做任何业务解析；协议语义见 specs/mobile-relay-server.md §3/§4/§5。
 import { createServer } from "node:http";

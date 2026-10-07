@@ -34,8 +34,8 @@ import type {
   ModelSelectionState,
 } from "./conversationStore.js";
 import type { CollaborationMode } from "./taskSession.js";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+import type { AttachmentRef } from "@drora/shared/drora-protocol-v4";
+import type { ModelSelectionView } from "@drora/services";
 
 /** 官方 switchCollaborationMode 值域闭集（顺序照官方 schema Si([build,edit,plan,yolo])）。 */
 export { MODE_SELECT_ITEMS } from "./TaskModeMenu.js";

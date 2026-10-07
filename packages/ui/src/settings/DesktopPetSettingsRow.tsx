@@ -1,5 +1,5 @@
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 
 export function DesktopPetSettingsRow({
@@ -9,7 +9,7 @@ export function DesktopPetSettingsRow({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   return (
     <SettingsGroupCard>
       <SettingsRow

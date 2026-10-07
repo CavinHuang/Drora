@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 远控弹层保持单一文件（扫码卡双传输 + Bot Channel 卡），
    与 BotsDialog.tsx 同例；状态逻辑后续可再下沉 hook。 */
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { BotProvider, MobilePairingRuntimeState, MobilePairingStatus } from "@zcode/shared";
+import type { BotProvider, MobilePairingRuntimeState, MobilePairingStatus } from "@drora/shared";
 import {
   Bot as BotIcon,
   Link2,
@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
@@ -87,7 +87,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   workspacePath: string;
   workspaceIdentity?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useDroraIntl();
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
 

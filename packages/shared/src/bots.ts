@@ -1,24 +1,24 @@
 /* oxlint-disable eslint(max-lines) -- Bot 共享合约集中维护 provider、状态和 schema，保持类型与校验就近。 */
 import { z } from "zod";
 import { modelSelectionSchema, type ModelSelection } from "./model-selection.js";
-import { ZCODE_AGENT_PROVIDER, ZCODE_AGENT_PROVIDER_LABEL } from "./zcode-agent-policy.js";
+import { DRORA_AGENT_PROVIDER, DRORA_AGENT_PROVIDER_LABEL } from "./drora-agent-policy.js";
 import type {
-  ZCodeConfigOption,
-  ZCodeElicitationRequest,
-  ZCodeElicitationQuestion,
-  ZCodePermissionRequest,
-  ZCodePromptAttachment,
-  ZCodeProvider,
-  ZCodeStreamEvent,
-  ZCodeTaskMeta,
-  ZCodeTaskRuntimeStatus,
-} from "./zcode-task-types-core.js";
+  DroraConfigOption,
+  DroraElicitationRequest,
+  DroraElicitationQuestion,
+  DroraPermissionRequest,
+  DroraPromptAttachment,
+  DroraProvider,
+  DroraStreamEvent,
+  DroraTaskMeta,
+  DroraTaskRuntimeStatus,
+} from "./drora-task-types-core.js";
 import {
-  zcodeInteractionRequestOriginSchema,
-  zcodePermissionResponseSchema,
-  type ZCodeInteractionRequestOrigin,
-  type ZCodePermissionResponse,
-} from "./zcode-protocol-legacy-types.js";
+  droraInteractionRequestOriginSchema,
+  droraPermissionResponseSchema,
+  type DroraInteractionRequestOrigin,
+  type DroraPermissionResponse,
+} from "./drora-protocol-legacy-types.js";
 import type { Locale } from "./protocol.js";
 
 export const botProviders = [
@@ -38,7 +38,7 @@ export type FeishuBotProvider = Extract<BotProvider, "feishu" | "lark">;
  * 定时任务完成后的 Bot 回推目标。只保留未来仍稳定的会话地址；当前消息 id/context token
  * 属于一次入站交互，不能持久化后复用。该字段由 Host 注入，模型工具参数不直接暴露。
  */
-export const zcodeAutomationBotDeliveryTargetSchema = z
+export const droraAutomationBotDeliveryTargetSchema = z
   .object({
     provider: z.enum(["feishu", "lark", "weixin"]),
     botId: z.string().trim().min(1),
@@ -47,8 +47,8 @@ export const zcodeAutomationBotDeliveryTargetSchema = z
   })
   .strict();
 
-export type ZCodeAutomationBotDeliveryTarget = z.infer<
-  typeof zcodeAutomationBotDeliveryTargetSchema
+export type DroraAutomationBotDeliveryTarget = z.infer<
+  typeof droraAutomationBotDeliveryTargetSchema
 >;
 
 export function isFeishuBotProvider(provider: BotProvider): provider is FeishuBotProvider {
@@ -124,7 +124,7 @@ export interface BotPendingPermissionOption {
   optionId: string;
   command: "approve" | "deny";
   label: string;
-  response: ZCodePermissionResponse;
+  response: DroraPermissionResponse;
   handledAt?: number;
 }
 
@@ -132,10 +132,10 @@ export interface BotPendingElicitation {
   taskId: string;
   requestId: string;
   runId: string;
-  origin?: ZCodeInteractionRequestOrigin;
+  origin?: DroraInteractionRequestOrigin;
   actorKey?: string;
   currentQuestionIndex: number;
-  questions: ZCodeElicitationQuestion[];
+  questions: DroraElicitationQuestion[];
   answers: Record<string, string[]>;
   renderContext?: {
     kind: "plan_approval";
@@ -156,7 +156,7 @@ export interface BotOutboundElicitationRequest {
   taskId: string;
   runId: string;
   currentQuestionIndex: number;
-  questions: ZCodeElicitationQuestion[];
+  questions: DroraElicitationQuestion[];
   answers?: Record<string, string[]>;
   status?: "pending" | "completed" | "cancelled";
   expandedCustomAnswerQuestionIndexes?: number[];
@@ -164,7 +164,7 @@ export interface BotOutboundElicitationRequest {
 }
 
 export interface BotDraftOptions {
-  provider: ZCodeProvider;
+  provider: DroraProvider;
   modelSelection?: ModelSelection;
   mode?: string;
 }
@@ -311,10 +311,10 @@ export interface BotOutboundMessage {
 export interface BotTaskSummary {
   taskId: string;
   title: string;
-  status: ZCodeTaskRuntimeStatus | "persisted-completed" | "persisted-error" | "unknown";
+  status: DroraTaskRuntimeStatus | "persisted-completed" | "persisted-error" | "unknown";
   workspacePath: string;
   workspaceIdentity?: string;
-  provider?: ZCodeProvider;
+  provider?: DroraProvider;
   model?: string;
 }
 
@@ -340,17 +340,17 @@ export interface BotTaskBroadcastPayload {
   taskId: string;
   event: BotTaskBroadcastEvent;
   updatedAt: number;
-  task?: ZCodeTaskMeta;
-  provider?: ZCodeProvider;
-  configOptions?: ZCodeConfigOption[];
+  task?: DroraTaskMeta;
+  provider?: DroraProvider;
+  configOptions?: DroraConfigOption[];
   prompt?: {
     content: string;
-    attachments?: ZCodePromptAttachment[];
+    attachments?: DroraPromptAttachment[];
     messageId: string;
     sentAt: number;
   };
-  permissionRequest?: ZCodePermissionRequest;
-  elicitationRequest?: ZCodeElicitationRequest;
+  permissionRequest?: DroraPermissionRequest;
+  elicitationRequest?: DroraElicitationRequest;
   requestId?: string;
   error?: string;
 }
@@ -359,7 +359,7 @@ export interface BotTaskStreamBroadcastPayload {
   workspacePath: string;
   workspaceIdentity?: string;
   taskId: string;
-  event: ZCodeStreamEvent;
+  event: DroraStreamEvent;
   updatedAt: number;
 }
 
@@ -401,14 +401,14 @@ export const botCurrentOptionsSchema = z
     mode: z.string().min(1).optional(),
     sandboxMode: z.string().min(1).optional(),
     approvalPolicy: z.string().min(1).optional(),
-    // 兼容旧 bot-config.json；CLI provider 现在统一由 ZCode Protocol 侧配置决定。
-    cli: z.literal(ZCODE_AGENT_PROVIDER).optional(),
+    // 兼容旧 bot-config.json；CLI provider 现在统一由 Drora Protocol 侧配置决定。
+    cli: z.literal(DRORA_AGENT_PROVIDER).optional(),
   })
   .strict();
 
 export const botDraftOptionsSchema = z
   .object({
-    provider: z.literal(ZCODE_AGENT_PROVIDER),
+    provider: z.literal(DRORA_AGENT_PROVIDER),
     modelSelection: modelSelectionSchema.optional(),
     mode: z.string().min(1).optional(),
   })
@@ -436,7 +436,7 @@ const botPendingElicitationSchema = z
     taskId: z.string().min(1),
     requestId: z.string().min(1),
     runId: z.string().min(1),
-    origin: zcodeInteractionRequestOriginSchema.optional(),
+    origin: droraInteractionRequestOriginSchema.optional(),
     actorKey: z.string().min(1).optional(),
     currentQuestionIndex: z.number().int().min(0),
     questions: z.array(botElicitationQuestionSchema),
@@ -505,7 +505,7 @@ export const botsStateFileSchema = z
               optionId: z.string().min(1),
               command: z.enum(["approve", "deny"]),
               label: z.string().min(1),
-              response: zcodePermissionResponseSchema,
+              response: droraPermissionResponseSchema,
               handledAt: z.number().optional(),
             }),
           )
@@ -552,7 +552,7 @@ export function normalizeBotReplyGranularity(
   return supported.includes(candidate) ? candidate : supported[0]!;
 }
 
-export const BOT_ZCODE_PROVIDER_OPTIONS: Array<{
-  id: ZCodeProvider;
+export const BOT_DRORA_PROVIDER_OPTIONS: Array<{
+  id: DroraProvider;
   label: string;
-}> = [{ id: ZCODE_AGENT_PROVIDER, label: ZCODE_AGENT_PROVIDER_LABEL }];
+}> = [{ id: DRORA_AGENT_PROVIDER, label: DRORA_AGENT_PROVIDER_LABEL }];

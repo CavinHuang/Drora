@@ -1,7 +1,7 @@
 // 入口壳还原守卫（specs/mobile-relay-r3-frontend.md §32.19）。
 // 官方入口 HTML（upstream 冻结字节）的浏览器表面语义逐项对齐：
 // theme-color #161616 默认 + color-scheme meta + 内嵌 base64 favicon +
-// 预渲染启动壳（loading 屏/主题 bootstrap 属性/表面覆盖）+ 单一主题源 zcode-theme
+// 预渲染启动壳（loading 屏/主题 bootstrap 属性/表面覆盖）+ 单一主题源 drora-theme
 // （ui 主题 store 同键，值族 zai-*，默认 zai-dark）+ 运行时切换同步。
 // 运行：node --import tsx --test packages/mobile-web/test/bootShell.test.ts
 import assert from "node:assert/strict";
@@ -33,11 +33,11 @@ test("内嵌 favicon：base64 data-uri 32x32（官方 Chrome dev 不发 favicon 
   );
 });
 
-test("首帧脚本：单一主题源 zcode-theme（zai-* 值族/默认 zai-dark/官方归一化/旧键迁移回退）", async () => {
+test("首帧脚本：单一主题源 drora-theme（zai-* 值族/默认 zai-dark/官方归一化/旧键迁移回退）", async () => {
   const html = await readEntryHtml();
-  assert.ok(html.includes('var STORAGE_KEY = "zcode-theme"'));
+  assert.ok(html.includes('var STORAGE_KEY = "drora-theme"'));
   assert.ok(html.includes('var DEFAULT_THEME = "zai-dark"'));
-  assert.ok(html.includes('var LEGACY_STORAGE_KEY = "zcode-mobile-theme"'));
+  assert.ok(html.includes('var LEGACY_STORAGE_KEY = "drora-mobile-theme"'));
   // 官方 normalizeResolvedTheme 四分支
   assert.ok(html.includes('"zai-dark") return "dark"'));
   assert.ok(html.includes('"zai-light") return "light"'));
@@ -49,20 +49,20 @@ test("首帧脚本：单一主题源 zcode-theme（zai-* 值族/默认 zai-dark/
   assert.ok(/catch[\s\S]{0,400}syncBrowserThemeSurface\("dark"\)/.test(html));
 });
 
-test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 .zcode-boot-loading 结构）", async () => {
+test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 .drora-boot-loading 结构）", async () => {
   const html = await readEntryHtml();
-  assert.ok(html.includes('class="zcode-boot-loading"'));
+  assert.ok(html.includes('class="drora-boot-loading"'));
   assert.ok(html.includes('role="status"'));
   assert.ok(html.includes('aria-busy="true"'));
-  assert.ok(html.includes("zcode-boot-loading__logo-shell"));
+  assert.ok(html.includes("drora-boot-loading__logo-shell"));
   // ui 全局样式的 vibrancy 透明背景覆盖（官方 browser-theme-surface !important 修复）
-  assert.ok(html.includes('html[data-zcode-browser-theme-surface] body'));
+  assert.ok(html.includes('html[data-drora-browser-theme-surface] body'));
   assert.ok(html.includes("!important"));
 });
 
-test("运行时切换同步：toggleTheme 写单源 zcode-theme（zai-* 值）+ meta/theme-zai 类联动", async () => {
+test("运行时切换同步：toggleTheme 写单源 drora-theme（zai-* 值）+ meta/theme-zai 类联动", async () => {
   const app = await readFile(join(packageRoot, "src/app/App.tsx"), "utf8");
-  assert.ok(app.includes('localStorage.setItem("zcode-theme"'));
+  assert.ok(app.includes('localStorage.setItem("drora-theme"'));
   assert.ok(app.includes('"zai-dark"'));
   assert.ok(app.includes('"zai-light"'));
   assert.ok(app.includes('meta[name="theme-color"]'));
@@ -70,5 +70,5 @@ test("运行时切换同步：toggleTheme 写单源 zcode-theme（zai-* 值）+ 
   assert.ok(app.includes('"#161616"'));
   assert.ok(app.includes('"#f8f8f8"'));
   assert.ok(app.includes('classList.toggle("theme-zai-dark", dark)'));
-  assert.ok(app.includes("data-zcode-browser-theme-surface"));
+  assert.ok(app.includes("data-drora-browser-theme-surface"));
 });

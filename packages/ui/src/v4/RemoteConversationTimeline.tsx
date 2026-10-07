@@ -1,6 +1,6 @@
 // 远控展示适配层：复用 v4 实时消息列表，不在 UI 包里持有 relay 或会话状态。
 import { useMemo, useState, type ReactNode } from "react";
-import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@zcode/shared";
+import type { GitChangeSourceId, GitRepositorySummary, Locale } from "@drora/shared";
 import type {
   CommandAck,
   ConversationRow,
@@ -8,10 +8,10 @@ import type {
   ConversationSnapshot,
   SessionPhase,
   V4ConversationFileRewindPreviewResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+} from "@drora/shared/drora-protocol-v4";
+import type { ModelSelectionView } from "@drora/services";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
@@ -58,7 +58,7 @@ export interface RemoteConversationTimelineProps {
   onEdit?: (
     target: ConversationRowTarget,
     newText: string,
-    attachments?: readonly import("@zcode/shared/zcode-protocol-v4").AttachmentRef[],
+    attachments?: readonly import("@drora/shared/drora-protocol-v4").AttachmentRef[],
     workspaceMode?: "preserve" | "rewind",
   ) => Promise<CommandAck | boolean | void> | CommandAck | boolean | void;
   /** 撤销预览（v4 conversationFileRewindPreviewV4；缺省=撤销钮不渲染。§33.18.13）。 */
@@ -149,7 +149,7 @@ export function RemoteConversationTimeline({
   );
 
   return (
-    <ZCodeIntlProvider initialLocale={locale}>
+    <DroraIntlProvider initialLocale={locale}>
       <TooltipProvider delayDuration={0}>
         <PluginReferenceIconProvider value={null}>
           <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
@@ -195,6 +195,6 @@ export function RemoteConversationTimeline({
           </div>
         </PluginReferenceIconProvider>
       </TooltipProvider>
-    </ZCodeIntlProvider>
+    </DroraIntlProvider>
   );
 }

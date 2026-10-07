@@ -1,6 +1,6 @@
 // R3 P2a 自包含 i18n 字典（zh-CN）。文案自 packages/ui/src/i18n/locales/zh-CN.ts 的
 // mobileShell.* / taskList.* 命名空间提取（官方 3.14.3 逐字对齐文案，见 ui StatusCards
-// 文件头取证注释）；D6 UI 自包含——本包不 import @zcode/ui，字典改动需与 ui 侧对照。
+// 文件头取证注释）；D6 UI 自包含——本包不 import @drora/ui，字典改动需与 ui 侧对照。
 export const zhCN: Record<string, string> = {
   "mobileShell.connection.connected": "已连接到当前桌面窗口",
   "mobileShell.connection.connecting": "正在连接",
@@ -30,7 +30,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.failure.desktopDisconnected.description":
     "电脑端已经断开连接，当前手机页面不能继续控制桌面工作区。",
   "mobileShell.failure.desktopDisconnected.detailLabel": "Relay 返回",
-  "mobileShell.failure.desktopDisconnected.step1": "确认电脑端 ZCode 仍在运行并联网。",
+  "mobileShell.failure.desktopDisconnected.step1": "确认电脑端 Drora 仍在运行并联网。",
   "mobileShell.failure.desktopDisconnected.step2": "在电脑端重新开启 Web 远程控制后再连接。",
   "mobileShell.failure.desktopDisconnected.stepsTitle": "下一步",
   "mobileShell.failure.desktopDisconnected.title": "桌面端已离线",
@@ -113,7 +113,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.home.sectionTitle": "当前设备上的工作区和任务",
   "mobileShell.home.summary": "{workspaceCount} 个工作区 · {taskCount} 个任务",
   "mobileShell.home.theme": "选择主题",
-  "mobileShell.home.title": "ZCode 远程控制",
+  "mobileShell.home.title": "Drora 远程控制",
   "mobileShell.home.workspaceEmpty": "这个工作区暂无任务", // 官方逐字（webRemoteControl.mobileHome.workspaceEmpty zh，§32.38 语义拆分：组内空态）
   "mobileShell.home.noTasks": "当前桌面窗口没有可展示的任务", // 官方逐字（webRemoteControl.noTasks zh，顶层空态）
   "mobileShell.home.pinnedSection": "已置顶", // 官方逐字（taskList.pinnedSection zh）
@@ -285,7 +285,7 @@ export const zhCN: Record<string, string> = {
   "mobileShell.search.empty": "未找到匹配的任务", // P3d 自建键
   // —— P5b 宽视口全壳（spec §19）：mobileShell.wide.* 自建键（官方无该命名空间；值逐字
   // 对齐官方 ui locales 同义键，出处随键注明）——
-  "mobileShell.wide.brand": "ZCode", // P5b 自建键（产品名，双语文案同值）
+  "mobileShell.wide.brand": "Drora", // P5b 自建键（产品名，双语文案同值）
   "mobileShell.wide.sidebar": "侧栏", // P5b 自建键（nav aria-label）
   "mobileShell.wide.navBack": "后退", // §33.18 官方活体（desktop-top-nav-back aria 逐字）
   "mobileShell.wide.navForward": "前进", // §33.18 官方活体（前进钮 aria，官方同族命名）
@@ -468,7 +468,7 @@ export const zhCN: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH 连接", // 官方逐字
   "workspaceSidebar.taskViewOptions": "筛选和排序", // 官方逐字
   "workspaceSidebar.toggleSidebar": "切换侧边栏", // 官方逐字
-  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。", // 官方逐字
+  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 Drora 即可继续使用。", // 官方逐字
   "workspaceSidebar.viewByWorkspace": "按项目", // 官方逐字
   "workspaceSidebar.windowsReservedNameRisk": "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}", // 官方逐字
   // —— P6 sidePane 侧板面（spec §23）：官方 zh 值逐字（25/25 全有值，{title} 插值）——
@@ -526,8 +526,8 @@ export const zhCN: Record<string, string> = {
   "chat.plan.removeMarker": "关闭计划模式", // 官方逐字（§32.22 composer plan 标记钮）
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，zh）
   "chat.empty.greeting.morningEarly": "早上好呀，新的一天开始啦", // 官方逐字
-  "chat.placeholder.newTaskMobile": "向 ZCode 提问…", // 官方逐字
-  "chat.placeholder.newTask": "向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
+  "chat.placeholder.newTaskMobile": "向 Drora 提问…", // 官方逐字
+  "chat.placeholder.newTask": "向 Drora 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
   "workspace.context.lastActivity": "最近活动 {time}", // 官方逐字（§32.11 信息弹层）
   "chat.draft.suggestedPrompt.recentCommits": "检查近 7 天的 commit", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字

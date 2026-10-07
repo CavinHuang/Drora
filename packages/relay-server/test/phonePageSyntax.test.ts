@@ -43,8 +43,8 @@ test("状态视图切换完整（loading/tasks/chat/unpaired + 数据到达切�
   }
 });
 
-test("时间线渲染面对齐 ZCode 声明契约形状（info.role + text/reasoning/tool parts）", () => {
-  // 2026-09-29 schema 漂移修复配套：timeline 帧承载 ZCodeMessageWithParts（legacy
+test("时间线渲染面对齐 Drora 声明契约形状（info.role + text/reasoning/tool parts）", () => {
+  // 2026-09-29 schema 漂移修复配套：timeline 帧承载 DroraMessageWithParts（legacy
   // 形状），role 在 info 内，parts 词表为 text/reasoning/tool；渲染面不得回流
   // 已随配对栈删除的 v1 页旧词（message.role/tool_call/thinking）。
   for (const probe of [

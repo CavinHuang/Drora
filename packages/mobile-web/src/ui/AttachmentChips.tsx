@@ -1,5 +1,5 @@
 // §33.18.20 附件芯片（纯展示）：已上传引用（×可移除）+ 上传中进度。
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@drora/shared/drora-protocol-v4";
 
 export interface AttachmentChipsProps {
   refs: readonly AttachmentRef[];

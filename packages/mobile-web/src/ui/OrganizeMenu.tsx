@@ -3,9 +3,9 @@
 // HomeTimelineTaskList）一并落在本文件：它们只被首页整理两模式消费，且 D6 自包含约束下
 // 本轮仅允许本文件一个新增源码文件（HomeShell.tsx 亦受 max-lines 约束）。
 // 官方取证（upstream 冻结 bundle src/recovered/remote/v4/3.14.3/assets/index-NjWRUABD.js）：
-// - 持久化键原名为 `zcode-web-remote-control-mobile-task-home-preferences`（:185390 Vrn），
-//   按改名规则 ZCode 化为 `zcode-web-remote-control-mobile-task-home-preferences`
-//   （specs/zcode-rename.md；与桌面侧栏键/值域是两套独立偏好，不共用）；
+// - 持久化键原名为 `drora-web-remote-control-mobile-task-home-preferences`（:185390 Vrn），
+//   按改名规则 Drora 化为 `drora-web-remote-control-mobile-task-home-preferences`
+//   （specs/drora-rename.md；与桌面侧栏键/值域是两套独立偏好，不共用）；
 // - 官方默认值 `{ organizeBy: "workspace", sortBy: "updated" }`（:185391 B0），读取闭集
 //   校验非法回默认（:185397 Urn 组织方式∈{workspace,timeline}、排序∈{created,updated}；
 //   :185404 Wrn JSON.parse 异常/缺键同样回默认）；
@@ -58,9 +58,9 @@ export const DEFAULT_HOME_ORGANIZE_PREFERENCES: HomeOrganizePreferences = {
   sortBy: "updated",
 };
 
-/** localStorage 键：官方原键（见文件头取证）按 specs/zcode-rename.md 前缀改名。 */
+/** localStorage 键：官方原键（见文件头取证）按 specs/drora-rename.md 前缀改名。 */
 export const HOME_ORGANIZE_PREFERENCES_STORAGE_KEY =
-  "zcode-web-remote-control-mobile-task-home-preferences";
+  "drora-web-remote-control-mobile-task-home-preferences";
 
 /**
  * 偏好闭集校验纯函数（官方 Urn/Wrn 同语义：非对象、缺键、值出闭集一律回默认）。

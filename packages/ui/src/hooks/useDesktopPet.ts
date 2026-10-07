@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import type { DesktopPetPresentation, IPlatformService } from "@zcode/shared";
-import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+import type { DesktopPetPresentation, IPlatformService } from "@drora/shared";
+import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { projectDesktopPet } from "@/lib/desktopPetProjection.js";
@@ -22,14 +22,14 @@ export function useDesktopPet(params: {
   enabled: boolean;
   platform: IPlatformService | null | undefined;
 }): void {
-  const { zcodeAgentService } = useServices();
+  const { droraAgentService } = useServices();
   const { settings } = useSettings();
   const { workspacePath, workspaceIdentity, endpointKey, rpcReady, enabled, platform } = params;
   const petEnabled = enabled && settings?.desktopPetEnabled === true;
   useEffect(() => {
     const publish = platform?.publishDesktopPet;
     if (!petEnabled) return;
-    if (!rpcReady || !publish || !workspacePath || !zcodeAgentService) {
+    if (!rpcReady || !publish || !workspacePath || !droraAgentService) {
       publish?.(IDLE);
       return;
     }
@@ -39,7 +39,7 @@ export function useDesktopPet(params: {
       ...(workspaceIdentity?.trim() ? { workspaceIdentity: workspaceIdentity.trim() } : {}),
       ...(endpointKey ? { endpointKey } : {}),
     };
-    const store = acquireSessionsIndex(scope, zcodeAgentService);
+    const store = acquireSessionsIndex(scope, droraAgentService);
     let previous: Map<string, SessionSummary> | null = null;
     let cueTimer: ReturnType<typeof setTimeout> | null = null;
     const clearCue = () => {
@@ -83,7 +83,7 @@ export function useDesktopPet(params: {
       publish(IDLE);
     };
   }, [
-    zcodeAgentService,
+    droraAgentService,
     petEnabled,
     endpointKey,
     platform,

@@ -1,10 +1,10 @@
 // R3 P6 GitPane 一期装配壳（specs/mobile-relay-r3-frontend.md §25）：官方 GitPane 复原件
-// （packages/ui/src/GitPane.tsx，D6 冻结域）经窄公开入口 @zcode/ui/git-pane 装配。
+// （packages/ui/src/GitPane.tsx，D6 冻结域）经窄公开入口 @drora/ui/git-pane 装配。
 // Provider 壳（§25.3 壳形取证 + §25.3 修正）：ServiceProvider{accessor}（useServices
 // 极简 Context）+ StoreProvider{broadcast mock} + TabStoreProvider（自建）+
-// ZCodeIntlProvider/TooltipProvider/PluginReferenceIconProvider（照抄
+// DroraIntlProvider/TooltipProvider/PluginReferenceIconProvider（照抄
 // RemoteConversationTimeline 官方壳三件套）。
-// 层序契约：useGitRepository 内部 useServices/useZCodeIntl 必须在对应 Provider 内
+// 层序契约：useGitRepository 内部 useServices/useDroraIntl 必须在对应 Provider 内
 // 执行——外层 RemoteGitSidePane 只做壳挂载，GitPaneBody（Provider 内层组件）承载数据
 // 派生与 GitPane。开合：open 归 App（side-pane-toggle 联动，§23.15）；官方窄壳侧板 =
 // 右侧覆盖浮层。
@@ -14,16 +14,16 @@ import {
   PlatformProvider,
   useGitRepository,
   type GitPaneRepositoryState,
-} from "@zcode/ui/git-pane";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+} from "@drora/ui/git-pane";
+import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { StoreProvider } from "@/store/StoreProvider.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { createRemoteWebPlatform } from "./remoteWebPlatform.js";
-import type { IServiceAccessor, IBroadcastService } from "@zcode/services";
-import type { Event } from "@zcode/rpc";
+import type { IServiceAccessor, IBroadcastService } from "@drora/services";
+import type { Event } from "@drora/rpc";
 import { ChevronDown, FileDiff, Plus, X } from "lucide-react";
 import { useIntl, resolveLocale } from "../ui/intl.js";
 
@@ -123,7 +123,7 @@ export function RemoteGitSidePane({
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {/* Provider 先于消费（层序契约）：GitPaneBody 在全套 Provider 内承载数据派生。 */}
-        <ZCodeIntlProvider initialLocale={resolveLocale()}>
+        <DroraIntlProvider initialLocale={resolveLocale()}>
           <TooltipProvider delayDuration={0}>
             <PluginReferenceIconProvider value={null}>
               <PlatformProvider platform={WEB_PLATFORM}>
@@ -143,7 +143,7 @@ export function RemoteGitSidePane({
               </PlatformProvider>
             </PluginReferenceIconProvider>
           </TooltipProvider>
-        </ZCodeIntlProvider>
+        </DroraIntlProvider>
       </div>
     </aside>
   );

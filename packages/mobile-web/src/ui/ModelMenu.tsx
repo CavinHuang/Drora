@@ -10,7 +10,7 @@
 // 分组/选中/档位展开是纯派生，纯函数导出供 node:test 单测（本包无 React 测试设施）。
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ModelSelectionView } from "@zcode/services";
+import type { ModelSelectionView } from "@drora/services";
 import { cn } from "./cn.js";
 import { useIntl } from "./intl.js";
 

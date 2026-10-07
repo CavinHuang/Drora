@@ -8,8 +8,8 @@ import { compareHomeTasks } from "../OrganizeMenu.js";
 /** 官方断点字面（width-only；命中 = 窄视口单列壳，未命中 = ≥768px 宽壳）。 */
 export const MOBILE_WIDE_BREAKPOINT_QUERY = "(max-width: 767px)";
 
-/** 侧栏折叠持久化键（ZCode 化单键，specs/zcode-rename.md 同款命名空间）。 */
-export const WIDE_SIDEBAR_COLLAPSED_STORAGE_KEY = "zcode-mobile-sidebar-collapsed";
+/** 侧栏折叠持久化键（Drora 化单键，specs/drora-rename.md 同款命名空间）。 */
+export const WIDE_SIDEBAR_COLLAPSED_STORAGE_KEY = "drora-mobile-sidebar-collapsed";
 
 /** 宽壳结构面（ui/wide 自持，结构化满足 src/app/entry.ts 的 ProjectedWorkspace 投影，不反向 import app）。 */
 export interface WideShellTask {

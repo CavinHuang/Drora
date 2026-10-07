@@ -82,7 +82,7 @@ function connectTerminal(url: string): Promise<{
 }
 
 test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端口/registry 落盘", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-lan-host-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-lan-host-"));
   tempDirs.push(dir);
   const registryPath = join(dir, "nested", "registry.json");
   const host = createDesktopMobileLanRelayHost({
@@ -166,7 +166,7 @@ test("凭据 origin 路由纯逻辑：文件名 sha8 派生、云端 origin、LA
 });
 
 test("进程内一致性：真 desktopMobileRelayControl × 真内嵌 relayServer 全配对流（LAN 形态）", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-lan-e2e-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-lan-e2e-"));
   tempDirs.push(dir);
   const host = createDesktopMobileLanRelayHost({
     logger: silentLogger,

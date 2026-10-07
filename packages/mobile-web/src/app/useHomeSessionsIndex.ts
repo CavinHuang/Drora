@@ -1,7 +1,7 @@
 // 首页 sessions-index 展示投影的唯一装配点（specs/mobile-relay-r3-frontend.md §21）。
 // App 持有桥生命周期与摘要投影；窄首页和宽侧栏只读同一结果。Host/CLI 仍拥有会话真相。
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SessionSummary } from "@zcode/shared/zcode-protocol-v4";
+import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { mergeHomeWorkspaceLiveness } from "./sessionsIndexStore.js";
 import type { HomeSessionsIndexBridge } from "./taskSession.js";
 import type { ProjectedWorkspace } from "./entry.js";

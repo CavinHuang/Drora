@@ -27,8 +27,8 @@ export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
 export { useTestActions } from "./test-actions.js";
 export type { TestActions } from "./test-actions.js";
-export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
-export type { ZCodeState } from "./store/index.js";
+export { StoreProvider, useDroraStore } from "./store/StoreProvider.js";
+export type { DroraState } from "./store/index.js";
 
 // R3 移动壳（specs/mobile-relay-r3-frontend.md D1）：纯展示组件，数据 props 注入。
 export {
@@ -89,7 +89,7 @@ export {
   useGitActions,
 } from "./hooks/index.js";
 
-export { ZCodeIntlProvider, useZCodeIntl, LocaleSwitcher } from "./i18n/index.js";
+export { DroraIntlProvider, useDroraIntl, LocaleSwitcher } from "./i18n/index.js";
 export { ResourceManagerApp } from "./resource-manager/ResourceManagerApp.js";
 export type {
   ResourceManagerAppProps,

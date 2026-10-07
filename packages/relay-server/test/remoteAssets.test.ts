@@ -49,7 +49,7 @@ async function startServer(options: Parameters<typeof createRelayServer>[0]) {
 }
 
 test("内建资产代理：未命中→fetch→出站改写→缓存落盘原始字节→二次请求不再 fetch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-ra1-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-ra1-"));
   tempDirs.push(dir);
   const cacheDir = join(dir, "remote-assets");
   // 官方 bundle 字面量形状（spec §12.5）：硬编码 wss 端点 + endpointOrigin。
@@ -116,7 +116,7 @@ test("内建资产代理：未命中→fetch→出站改写→缓存落盘原始
 });
 
 test("离线回退：入口文档 302 → /m/index.html 保留查询串；chunk 404", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-ra2-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-ra2-"));
   tempDirs.push(dir);
   const offline = mockFetch(() => {
     throw new TypeError("fetch failed");
@@ -156,7 +156,7 @@ test("离线回退：入口文档 302 → /m/index.html 保留查询串；chunk 
 });
 
 test("staticRoot 优先级不变：命中不经代理，未命中落入 cache→fetch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-ra3-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-ra3-"));
   tempDirs.push(dir);
   // 目录树镜像官方资产布局：<staticRoot>/remote/v4/index.html（静态根只有入口）。
   const webRoot = join(dir, "site");
@@ -199,7 +199,7 @@ test("staticRoot 优先级不变：命中不经代理，未命中落入 cache→
 });
 
 test("安全与降级：越界 pathname 不读盘不 fetch；缓存写失败降级直出", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-ra4-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-ra4-"));
   tempDirs.push(dir);
   const cacheDir = join(dir, "cache");
   const { fetchImpl, calls } = mockFetch(() => new Response("should-not-serve", { status: 200 }));
@@ -236,7 +236,7 @@ test("安全与降级：越界 pathname 不读盘不 fetch；缓存写失败降�
 });
 
 test("独立 mobile-web 恢复稿离线托管：入口、版本 chunk 和同源 WS 改写", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-mobile-web-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-mobile-web-"));
   tempDirs.push(dir);
   const mobileRoot = fileURLToPath(new URL("../../mobile-web/src/recovered/", import.meta.url));
   const { fetchImpl, calls } = mockFetch(() => {
@@ -269,7 +269,7 @@ test("独立 mobile-web 恢复稿离线托管：入口、版本 chunk 和同源 
 });
 
 test("本地托管对二进制页面资产保持字节不变", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-relay-binary-"));
+  const dir = await mkdtemp(join(tmpdir(), "drora-relay-binary-"));
   tempDirs.push(dir);
   const mobileRoot = join(dir, "mobile");
   const assetDir = join(mobileRoot, "remote", "v4", "3.14.3", "assets");

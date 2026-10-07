@@ -21,11 +21,11 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
     plugins: [react()],
   });
   try {
-    const { DesktopWindowFrame } = await server.ssrLoadModule("@zcode/ui/remote-frame");
+    const { DesktopWindowFrame } = await server.ssrLoadModule("@drora/ui/remote-frame");
     const html = renderToStaticMarkup(
       React.createElement(
         DesktopWindowFrame,
-        { title: "ZCode Remote", isDesktop: false },
+        { title: "Drora Remote", isDesktop: false },
         React.createElement("main", null, "task surface"),
       ),
     );
@@ -33,7 +33,7 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
     assert.match(html, /class="[^"]*h-dvh[^"]*"/);
     assert.match(html, /<main>task surface<\/main>/);
 
-    const { RemoteConversationTimeline } = await server.ssrLoadModule("@zcode/ui/remote-timeline");
+    const { RemoteConversationTimeline } = await server.ssrLoadModule("@drora/ui/remote-timeline");
     const base = {
       rows: [],
       totalCount: 0,

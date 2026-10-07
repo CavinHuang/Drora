@@ -6,22 +6,22 @@
     <!-- 官方壳浏览器表面语义（spec §32.19）：暗色为默认面；首帧脚本按本地偏好/系统主题同步。 -->
     <meta name="theme-color" content="#161616" />
     <meta name="color-scheme" content="dark" />
-    <!-- Bugfix: Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标（官方同款结构，图标为 ZCode 品牌）。 -->
+    <!-- Bugfix: Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标（官方同款结构，图标为 Drora 品牌）。 -->
     <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAC4jAAAuIwF4pT92AAACYElEQVR4nGNgQALKGhqWEpLSc0VFJa6LiEq8FRGT+EAVLCrxFmQmyGyQHQxYAKOMnFI7v6DwTz5+wf+0xCA7ZOQU2kB2wm0HWU5ri9Ex1BEMDCoaGhYCdPA5lpD4payubsUAihd6Ww7DElLScxhAiWOgHCAqKnmVAZRCsUna2Tv+P3/+PEF89uy5/xs2bPyfnZ3zX1JKhiQHgOwGOeAjNkkvb9//pILXr1//Ly4p/c8vIESsAz5S1QEwsGPHTqJCg2YOAIGDBw/+FxeXpK4DEpOS/8fFJ6BgUNwvXbbs/48fPzDUT5o8hboOEBYRw2mYianZ/+vXb6Co//37939LS2v6OICPX/C/qpo6OCEigxkzZtLPAXz8gv9LSstQ9Lx69QpnrqCJA5RV1DD0KSqp0M8BfPyC/z99+oSiz8bWnr4O+Pz5M4o+axs7+jlARRUzCpSUVenngPyCQhQ9L19SKRF++/79v6GRCV7L5RWU/j999oz62fDv37//o2Pi8FpuYGj8/8KFC7QpiMrKKzDkQVnL3Nzyf3R07P8lS5f+//4dsyiePGUqXkcT5YCJkyZjyGVkZP3/9+/ff3zg0KFD/8XEJShzwNq16/4LCAqjiIMqoD9//uC1fPfuPf+lpGUJJli8DlBT1/gvKobqg8Cg4P8/f/7EafGbN2/+l5dXktwgeUuMYi1t3f9Hjx3D2iTbuHHT/5ycXKJ8jeaAtwPfKJUY6Ga5qqqmuYCg8A96Ww7qosH7iaBu0oB1zRjgnVOFNnp00UB2YHROUbrnUtJzQImD+t1zyasgs1VUNCyQLQUAk3G8+Ah0fzsAAAAASUVORK5CYII=" />
-    <title>ZCode Remote</title>
+    <title>Drora Remote</title>
     <script>
       // 首帧主题 + 浏览器表面同步（官方壳逐结构移植，spec §32.19）：
-      // - 单一主题源 = zcode-theme（ui 主题 store 同键，官方 zcode-theme 的 ZCode 名），
+      // - 单一主题源 = drora-theme（ui 主题 store 同键，官方 drora-theme 的 Drora 名），
       //   值族 zai-dark/zai-light/dark/light/system，默认 zai-dark——启动壳与 React 挂载后
       //   的 store 初始化读同一键，挂载不再反向覆盖首帧结果；
       // - syncBrowserThemeSurface：meta theme-color（#161616/#f8f8f8）+ color-scheme +
       //   html 表面属性，paint 前执行避免暗色用户看到白底闪烁；
-      // - 旧键 zcode-mobile-theme 作迁移回退读取一次（不回写）；
+      // - 旧键 drora-mobile-theme 作迁移回退读取一次（不回写）；
       // - 官方另有 sessionStorage bootstrap-shell 快照通道（跨 workspace 整页跳转前写入），
       //   本应用无整页跳转写入方，不还原读取侧——有意分歧记录。
       (function () {
-        var STORAGE_KEY = "zcode-theme";
-        var LEGACY_STORAGE_KEY = "zcode-mobile-theme";
+        var STORAGE_KEY = "drora-theme";
+        var LEGACY_STORAGE_KEY = "drora-mobile-theme";
         var DEFAULT_THEME = "zai-dark";
         var BROWSER_THEME_COLORS = { dark: "#161616", light: "#f8f8f8" };
         var normalizeResolvedTheme = function (theme) {
@@ -33,7 +33,7 @@
         };
         var syncBrowserThemeSurface = function (theme) {
           var root = document.documentElement;
-          root.setAttribute("data-zcode-browser-theme-surface", theme);
+          root.setAttribute("data-drora-browser-theme-surface", theme);
           root.style.colorScheme = theme;
           var themeMeta = document.querySelector('meta[name="theme-color"]');
           if (themeMeta) themeMeta.setAttribute("content", BROWSER_THEME_COLORS[theme]);
@@ -52,14 +52,14 @@
                 : "light"
               : normalizeResolvedTheme(saved);
           var finalTheme = resolved === "dark" ? "dark" : "light";
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", finalTheme);
+          document.documentElement.setAttribute("data-drora-bootstrap-theme", finalTheme);
           if (finalTheme === "dark") {
             document.documentElement.classList.add("dark");
           }
           syncBrowserThemeSurface(finalTheme);
         } catch (e) {
           /* storage 不可用时按官方语义回落暗色面 */
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", "dark");
+          document.documentElement.setAttribute("data-drora-bootstrap-theme", "dark");
           document.documentElement.classList.add("dark");
           syncBrowserThemeSurface("dark");
         }
@@ -75,8 +75,8 @@
       }
 
       body {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #0f172a));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #e2e8f0));
+        background: var(--drora-bootstrap-bg, var(--color-background, #0f172a));
+        color: var(--drora-bootstrap-fg, var(--color-foreground, #e2e8f0));
         font-family:
           Inter,
           -apple-system,
@@ -85,40 +85,40 @@
           sans-serif;
       }
 
-      html[data-zcode-bootstrap-theme="light"] body {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #f8fafc));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #334155));
+      html[data-drora-bootstrap-theme="light"] body {
+        background: var(--drora-bootstrap-bg, var(--color-background, #f8fafc));
+        color: var(--drora-bootstrap-fg, var(--color-foreground, #334155));
       }
 
-      html[data-zcode-browser-theme-surface] body,
-      html[data-zcode-browser-theme-surface] #root {
+      html[data-drora-browser-theme-surface] body,
+      html[data-drora-browser-theme-surface] #root {
         /* 修复依据（官方同款）：共享 UI 样式为 Electron vibrancy 强制透明根背景；浏览器入口
            必须用语义背景覆盖，否则浏览器工具栏、overscroll 与画布会回退系统白色。 */
-        background: var(--color-background, var(--zcode-bootstrap-bg, #161616)) !important;
+        background: var(--color-background, var(--drora-bootstrap-bg, #161616)) !important;
       }
 
-      html[data-zcode-browser-theme-surface="light"] body,
-      html[data-zcode-browser-theme-surface="light"] #root {
-        background: var(--color-background, var(--zcode-bootstrap-bg, #f8f8f8)) !important;
+      html[data-drora-browser-theme-surface="light"] body,
+      html[data-drora-browser-theme-surface="light"] #root {
+        background: var(--color-background, var(--drora-bootstrap-bg, #f8f8f8)) !important;
       }
 
-      .zcode-boot-loading {
+      .drora-boot-loading {
         display: flex;
         align-items: center;
         justify-content: center;
         width: 100%;
         height: 100%;
         /* Bugfix（官方同款）：UI 全局样式会把 body/#root 置为透明，预渲染壳必须自己承接主题背景。 */
-        background: var(--zcode-bootstrap-bg, var(--color-background, #0f172a));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #e2e8f0));
+        background: var(--drora-bootstrap-bg, var(--color-background, #0f172a));
+        color: var(--drora-bootstrap-fg, var(--color-foreground, #e2e8f0));
       }
 
-      html[data-zcode-bootstrap-theme="light"] .zcode-boot-loading {
-        background: var(--zcode-bootstrap-bg, var(--color-background, #f8fafc));
-        color: var(--zcode-bootstrap-fg, var(--color-foreground, #334155));
+      html[data-drora-bootstrap-theme="light"] .drora-boot-loading {
+        background: var(--drora-bootstrap-bg, var(--color-background, #f8fafc));
+        color: var(--drora-bootstrap-fg, var(--color-foreground, #334155));
       }
 
-      .zcode-boot-loading__logo-shell {
+      .drora-boot-loading__logo-shell {
         position: relative;
         display: flex;
         width: 96px;
@@ -132,7 +132,7 @@
           0 8px 10px -6px rgb(0 0 0 / 0.2);
       }
 
-      .zcode-boot-loading__logo-shell::before {
+      .drora-boot-loading__logo-shell::before {
         position: absolute;
         inset: 0;
         pointer-events: none;
@@ -142,7 +142,7 @@
         border-radius: inherit;
       }
 
-      .zcode-boot-loading__logo {
+      .drora-boot-loading__logo {
         width: 56px;
         height: auto;
         color: #ffffff;
@@ -153,18 +153,18 @@
     <div id="root">
       <!-- Bugfix（官方同款注释语义）：JS 入口执行前先给出 loading 壳，避免出现白屏空档；React 挂载后整棵替换。 -->
       <div
-        class="zcode-boot-loading"
+        class="drora-boot-loading"
         role="status"
         aria-live="polite"
         aria-busy="true"
         aria-label="Loading..."
       >
-        <div class="zcode-boot-loading__logo-shell">
+        <div class="drora-boot-loading__logo-shell">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 1024 1024"
             fill="none"
-            class="zcode-boot-loading__logo"
+            class="drora-boot-loading__logo"
             aria-hidden="true"
           >
             <path

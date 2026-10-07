@@ -263,10 +263,10 @@ export function buildDroraEndpointUrls(origin: string): DroraEndpointUrls {
     origin: normalizedOrigin,
     apiBaseUrl: `${normalizedOrigin}/api/v1`,
     webShareCallbackUrl: `${normalizedOrigin}/cn/share/callback`,
-    droraPlanOpenAiBaseUrl: `${normalizedOrigin}/api/v1/drora-plan`,
-    droraPlanAnthropicBaseUrl: `${normalizedOrigin}/api/v1/drora-plan/anthropic`,
-    droraPlanBillingCurrentUrl: `${normalizedOrigin}/api/v1/drora-plan/billing/current`,
-    droraPlanBillingBalanceUrl: `${normalizedOrigin}/api/v1/drora-plan/billing/balance`,
+    droraPlanOpenAiBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan`,
+    droraPlanAnthropicBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan/anthropic`,
+    droraPlanBillingCurrentUrl: `${normalizedOrigin}/api/v1/zcode-plan/billing/current`,
+    droraPlanBillingBalanceUrl: `${normalizedOrigin}/api/v1/zcode-plan/billing/balance`,
   };
 }
 

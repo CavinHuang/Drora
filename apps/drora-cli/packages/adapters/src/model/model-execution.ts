@@ -447,7 +447,7 @@ export function createProviderBusinessErrorFetch(
       throw normalizeModelTlsFailure(error);
     }
 
-    // drora-plan 安全校验拒绝（3007）等场景返回 HTTP 403 + JSON，但未必带
+    // zcode-plan 安全校验拒绝（3007）等场景返回 HTTP 403 + JSON，但未必带
     // Content-Type: application/json。若只在启发式命中时才读 body，fetch 会把 403 原样交给
     // AI SDK，流式请求可能以空 completion 结束，core 最终误报 suspicious empty。
     if (!response.ok) {
@@ -559,7 +559,7 @@ async function detectProviderBusinessError(
   });
 }
 
-/** 从 HTTP JSON body 解析 drora-plan 等业务错误（供 failure-classifier 在 APICallError 路径复用）。 */
+/** 从 HTTP JSON body 解析 zcode-plan 等业务错误（供 failure-classifier 在 APICallError 路径复用）。 */
 export function readProviderBusinessFailureFromBody(body: unknown):
   | {
       providerCode?: ProviderCode;

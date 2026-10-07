@@ -125,7 +125,7 @@ const STATIC_HTTP_PATH_SEGMENTS = new Set([
   "v4",
   "windows",
   "workspace-bridge",
-  "drora-plan",
+  "zcode-plan",
 ]);
 
 function normalizeErrorKind(value: string | undefined): NetworkErrorKind {

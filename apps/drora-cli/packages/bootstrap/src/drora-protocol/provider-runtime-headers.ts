@@ -88,7 +88,7 @@ export function createProviderRuntimeHeadersPort(
           },
         );
       }
-      // drora-plan 的账号鉴权材料是每次请求刷新的运行时配置，
+      // zcode-plan 的账号鉴权材料是每次请求刷新的运行时配置，
       // 但 provider registry revision 是 workspace 级全局状态；并发刷新时后一个请求会推进全局 revision，
       // 不能再用全局 revision 不相等误判当前请求的 headers 未应用。
       return result;

@@ -503,7 +503,44 @@ export function useRootPlatformEffects({
       .filter((tab) => !tab.remoteSessionId && !tab.workspaceIdentity && !tab.remoteTarget)
       .map((tab) => tab.workspacePath);
     platform.syncWindowTabs(paths);
-  }, [hasCompletedFullTabRestore, isDesktop, platform, tabs]);
+
+    // 云中继远控多工作区聚合（对齐官方 syncWebRemoteControlWorkspaces/jjn 构造器）：
+    // 把窗口全部工作区 tab（含远程）摘要推给 main，作为手机页 bootstrap 清单的事实源。
+    // 官方 jjn 语义：connectionState 仅远程携带（reconnecting 键集/会话在线/断开占位），
+    // workspacePurpose/lastConnectionError 有才带；main 侧缓存最近一次推送。
+    platform.syncWebRemoteControlWorkspaces?.(
+      tabs.filter(isWorkspaceTab).map((tab) => {
+        const workspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
+        const isRemote = Boolean(tab.remoteSessionId || tab.workspaceIdentity || tab.remoteTarget);
+        const lastConnectionError = remoteWorkspaceErrorByWorkspaceKey[workspaceKey]?.trim();
+        return {
+          workspacePath: tab.workspacePath,
+          label: tab.label || tab.workspacePath,
+          kind: isRemote ? ("remote" as const) : ("local" as const),
+          ...(isRemote
+            ? {
+                connectionState: reconnectingRemoteWorkspaceKeys.includes(workspaceKey)
+                  ? ("reconnecting" as const)
+                  : tab.remoteSessionId
+                    ? ("connected" as const)
+                    : ("disconnected" as const),
+              }
+            : {}),
+          ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+          ...(tab.workspacePurpose ? { workspacePurpose: tab.workspacePurpose } : {}),
+          ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
+          ...(isRemote && lastConnectionError ? { lastConnectionError } : {}),
+        };
+      }),
+    );
+  }, [
+    hasCompletedFullTabRestore,
+    isDesktop,
+    platform,
+    tabs,
+    reconnectingRemoteWorkspaceKeys,
+    remoteWorkspaceErrorByWorkspaceKey,
+  ]);
 
   useEffect(() => {
     if (isDesktop) {

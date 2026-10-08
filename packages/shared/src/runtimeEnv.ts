@@ -127,11 +127,16 @@ export function resolveDroraRuntimeEnv(
 // Exported so services/node.ts can inject the Helper's plugin authority into the agent spawn env
 // (mirrors feat; the agent-side plugin host verifies the broker authority via this env var).
 export const DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY = "DRORA_CUA_PLUGIN_AUTHORITY";
+// 第十五/十六轮：broker token 模式回归（原版 mac 3.11.2 发射链，一次性 token 文件交付）。
+// 客户端经此键拿到 token 后向 broker authenticate（runtime 兼容读 ZCODE 旧名作回退）。
+export const DRORA_CUA_BROKER_TOKEN_ENV_KEY = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
 
 interface CapturedCuaBrokerCredentials {
   socket: string;
   pluginAuthority: string;
   refreshMarker?: string;
+  /** 第十五轮：broker token 模式回归（原版 mac 3.11.2 发射链），经定向注入交付 */
+  token?: string;
 }
 
 let capturedCuaBrokerCredentials: Readonly<CapturedCuaBrokerCredentials> | undefined;
@@ -148,6 +153,10 @@ function captureDroraCuaBrokerCredentials(env: Record<string, string | undefined
   const socket = env[DRORA_CUA_BROKER_SOCKET_ENV_KEY]?.trim();
   const pluginAuthority = env[DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]?.trim();
   const refreshMarker = env["DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER"]?.trim();
+  // 第十五轮：broker token 模式回归（原版 mac 3.11.2 发射链经一次性 token 文件
+  // 启动 Helper 后，客户端必须以同一 token authenticate）。与 socket 同批捕获，
+  // 同受 confused-deputy 剔除约束（sanitize 列表已含本键）。
+  const brokerToken = env[DRORA_CUA_BROKER_TOKEN_ENV_KEY]?.trim();
   // 连接没有口令：socket + authority（config-provenance 随机数）同批出现才构成有效凭据组；
   // 半组说明上游注入不完整或正在轮换。
   if (socket && pluginAuthority) {
@@ -155,6 +164,7 @@ function captureDroraCuaBrokerCredentials(env: Record<string, string | undefined
       socket,
       pluginAuthority,
       ...(refreshMarker ? { refreshMarker } : {}),
+      ...(brokerToken ? { token: brokerToken } : {}),
     });
     return;
   }
@@ -192,6 +202,7 @@ export function getCapturedDroraCuaBrokerCredentials(): {
   socket: string | undefined;
   pluginAuthority: string | undefined;
   refreshMarker?: string;
+  token?: string;
 } {
   return capturedCuaBrokerCredentials
     ? { ...capturedCuaBrokerCredentials }

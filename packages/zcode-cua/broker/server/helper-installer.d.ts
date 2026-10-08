@@ -1,0 +1,110 @@
+import { z } from "zod";
+import { Transform as kie } from "node:stream";
+import { CuaHelperError } from "../client.js";
+export declare var sie: number;
+export declare var lW: string;
+export declare var P6e: z.ZodObject<{
+    platform: z.ZodLiteral<"win32">;
+    socketPath: z.ZodString;
+    parentPid: z.ZodCoercedNumber<unknown>;
+}, z.core.$strip>;
+export declare var qc: string;
+export declare function uW(e: any): "production" | "test";
+export declare var aie: string;
+export declare var cie: string;
+export declare var pW: string;
+export declare function fW(): NodeJS.ProcessEnv;
+export declare function ub(e?: NodeJS.ProcessEnv): string;
+export declare var pb: string, fb: number, mW: string, die: string, gW: number, hW: string, lie: string;
+export declare function mb(e?: NodeJS.ProcessEnv): any;
+export declare var Cie: string, wW: number, bie: string, vW: number, Iie: string, SW: string, _ie: number, Rie: number, Aie: number, $h: Map<any, any>;
+export declare function Eie(e?: NodeJS.ProcessEnv): any;
+export declare function Tie(e: any): kie;
+export declare function Mie(e?: any): {
+    version: any;
+    platform: any;
+    arch: string;
+    platformKey: string;
+    installRoot: string;
+    appPath: string;
+    source: any;
+    expectedBundleId: string;
+    expectedTeamIdentifier: any;
+    expectedBuildId: any;
+    allowUnsignedLocalDev: boolean;
+};
+export declare function xie(e?: any): any;
+export declare function Oie(e?: NodeJS.ProcessEnv, t?: string): any;
+export declare function qu(e?: any): {
+    ensureInstalled: () => any;
+    verifyInstalled: (r: any, o: any) => Promise<void>;
+};
+export declare function bW(): number;
+export declare function Die(e: any, t: any): void;
+export declare function Gc(e: any, t: any): void;
+export declare var Kh: {
+    new (t: any): {
+        name: string;
+        message: string;
+        stack?: string;
+        cause?: unknown;
+    };
+    captureStackTrace(targetObject: object, constructorOpt?: Function): void;
+    prepareStackTrace(err: Error, stackTraces: NodeJS.CallSite[]): any;
+    stackTraceLimit: number;
+};
+export declare function Nie(e: any): boolean;
+export declare function Lie(e: any): Promise<{
+    lockPath: string;
+    identity: {
+        device: number;
+        inode: number;
+    };
+    handle: any;
+}>;
+export declare function Fie(e: any, t: any): void;
+export declare function Bie(e: any, t: any): Promise<void>;
+export declare function kb(): CuaHelperError;
+export declare function Uie(e: any, t: any, n: any): Promise<{
+    lockPath: string;
+    identity: {
+        device: number;
+        inode: number;
+    };
+    handle: any;
+}>;
+export declare function zie(e: any, t?: any): Promise<{
+    assertHeld(): void;
+    release(): any;
+}>;
+export declare function Wie(e: any): any;
+export declare function $ie(e: any, t: any): Promise<any>;
+export declare var Zie: string[][];
+export declare function IW(e: any, t: any): Promise<boolean>;
+export declare function Hie(e: any, t: any): Promise<boolean>;
+export declare function jie(e: any, t: any): Promise<string>;
+export declare function Kie(e: any, t: any, n: any): Promise<any>;
+export declare function qie(e: any, t: any, n: any): any;
+export declare function Gie(e: any): any;
+export declare function Vie(e: any): any;
+export declare function Jie(e: any): "arm64" | "x64";
+export declare function Yie(e: any): void;
+export declare function Xie(e: any, t: any): Promise<void>;
+export declare function Qie(e: any): number;
+export declare function qh(e: any): any;
+export declare function ese(e: any): any;
+export declare function tse(e: any): Promise<void>;
+export declare function nse(e: any): Promise<void>;
+export declare function rse(e: any, t: any): Promise<void>;
+export declare function ose(e: any): Promise<void>;
+export declare function kW(e: any, t: any): Promise<void>;
+export declare function _W(e: any): any;
+export declare function ise(e: any, t: any): Promise<void>;
+export declare function PW(e: any, t: any): Promise<void>;
+export declare var EW: number;
+export declare function Pb(e: any): string;
+export declare function use(e: any): string;
+export declare function Cb(e: any): string;
+export declare function bb(e: any, t: any): void;
+export declare var Dse: string, CUA_PIP_NO_ACTIVE_SESSION_PENDING: string, CUA_HEALTH_POLL_MS: number;
+export declare function jW(): any;

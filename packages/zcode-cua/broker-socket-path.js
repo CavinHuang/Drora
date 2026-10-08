@@ -1,1 +1,1 @@
-export { resolveBrokerSocketPath } from "./broker.js";
+export { resolveBrokerSocketPath } from "./broker/socket-path.js";

@@ -6,6 +6,11 @@ import type { ConnectOptions } from "@drora/server/remote";
 import { listSSHConfigAliasesFromLocalConfig } from "@drora/services/node";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@drora/drora-cua/broker/helperConstants";
 import {
+  DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV,
+  DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV,
+} from "@drora/services/node";
+import { readBundledHelperBuildIdentity } from "./desktopCuaHelperBuildIdentity.js";
+import {
   DRORA_APP_VERSION_ENV,
   DRORA_AGENT_RUNTIME,
   DRORA_DYNAMIC_WORKFLOW_MODE_ENV,
@@ -149,6 +154,15 @@ function resolveWorkspaceRootForEnvFiles(): string | null {
   return existsSync(join(workspaceRootCandidate, "pnpm-workspace.yaml"))
     ? workspaceRootCandidate
     : null;
+}
+
+/**
+ * Drora 数据根（用户目录约定）。CUA helper 安装链（豁免区 zcode-cua 以
+ * ZCODE_HOME||~/.zcode 解析）经此路由到同一根：desktopHostProcess（host env
+ * 注入）与 desktopCuaHelperInstaller（设置页安装流）共用，勿在调用点各自展开。
+ */
+export function resolveDroraHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.DRORA_HOME?.trim() || join(homedir(), ".drora");
 }
 
 export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
@@ -494,12 +508,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
               rawInheritedEnv.DRORA_CUA_HELPER_ALLOW_UNSIGNED_LOCAL?.trim().toLowerCase() ?? "",
             )
           ? rawInheritedEnv.DRORA_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
-            join(
-              rawInheritedEnv.DRORA_HOME?.trim() || join(homedir(), ".drora"),
-              "computer-use",
-              "dev",
-              DEV_HELPER_APP_NAME,
-            )
+            join(resolveDroraHome(rawInheritedEnv), "computer-use", "dev", DEV_HELPER_APP_NAME)
           : undefined;
   const windowsAppInstallDir = resolveWindowsAppInstallDirForDataBaseDirGuard();
   const agentTelemetryEnv = readDroraAgentTelemetryEnv(rawInheritedEnv);
@@ -558,6 +567,20 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     ...(bundledCuaHelperAppPath
       ? { [DRORA_CUA_BUNDLED_HELPER_APP_PATH_ENV]: bundledCuaHelperAppPath }
       : {}),
+    // 第五十五轮：随包 Helper 构建身份随 host env 下发（spec §六：main 是唯一读取点；
+    // host 侧安装器此前回落 WC 常量，与自建 drora-* buildId 失配导致首次安装校验必败）。
+    ...(() => {
+      if (!bundledCuaHelperAppPath) return {};
+      const identity = readBundledHelperBuildIdentity(bundledCuaHelperAppPath) ?? {};
+      return {
+        ...(identity.embeddedBuildId
+          ? { [DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV]: identity.embeddedBuildId }
+          : {}),
+        ...(identity.version
+          ? { [DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]: identity.version }
+          : {}),
+      };
+    })(),
     ...(resolvedGlmBinaryPath ? { GLM_BINARY_PATH: resolvedGlmBinaryPath } : {}),
     ...(resolvedLarkCliBinaryPath ? { DRORA_LARK_CLI_BINARY: resolvedLarkCliBinaryPath } : {}),
   };

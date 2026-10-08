@@ -520,6 +520,7 @@ import {
   isDroraCuaMcpPackageArg,
   isDroraCuaInternalFeatureEnabled,
   DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY,
+  DRORA_CUA_BROKER_TOKEN_ENV_KEY,
   type DroraAutomation,
   type DroraAutomationRun,
   getCapturedDroraAgentTelemetryEnv,
@@ -929,6 +930,12 @@ export function createWindowsCuaHelperHost(options: {
     get pluginAuthority() {
       return host?.pluginAuthority ?? null;
     },
+    get token() {
+      return host?.token ?? null;
+    },
+    get presentationToken() {
+      return host?.presentationToken ?? null;
+    },
     async start() {
       return withActiveHost((activeHost) => activeHost.start());
     },
@@ -1017,6 +1024,12 @@ export function createDefaultCuaProductHelper(
           logger,
           env: process.env,
           bundledAppPath: bundledHelperAppPath,
+          // 随包构建身份（spec §六）：缺省回落 WC 常量会与自建 Helper 的
+          // drora-* buildId 失配，首次 agent 驱动的安装校验必败（第五十五轮）。
+          ...readEmbeddedCuaHelperBuildIdentityFromEnv(),
+          // 路线 A 分发放行：与 desktop main 包装层同一判定（此前 host 侧缺失，
+          // adhoc 随包 Helper 过不了 TeamID 稳定签名门，同轮修复）。
+          ...(isDroraCuaAdhocDistributionEnv() ? { allowUnsignedDistribution: true } : {}),
         }),
         // 冲突解决原则：macOS 继续严格消费应用内置 Helper，不能退回下载源；
         // Windows 才走下方独立的安装包 runtime 解析链路。
@@ -1060,6 +1073,56 @@ export function createDefaultCuaProductHelper(
 }
 
 export const DRORA_CUA_BUNDLED_HELPER_APP_PATH_ENV = "DRORA_CUA_BUNDLED_HELPER_APP_PATH";
+// 第五十五轮：host 托管路径安装器的 buildId 期望此前回落 WC 常量（官方线
+// pipeline id），与随包自建 Helper（drora-<版本>）必然失配——agent 首次驱动 CUA
+// 的 ensureInstalled 校验即 verification_failed。按 spec §六「main 是 bundled 身份
+// 唯一读取点」：main 经 host env 下发随包 Info.plist 读出的真实身份，host 侧消费。
+export const DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV = "DRORA_CUA_HELPER_EMBEDDED_BUILD_ID";
+export const DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV = "DRORA_CUA_HELPER_EMBEDDED_VERSION";
+
+// 路线 A adhoc 分发标记（打包经 LSEnvironment 注入 main/host；desktop main 包装层与
+// host 托管安装器必须同一判定源，任一侧缺失都会把随包自建 Helper 拒之门外）。
+export function isDroraCuaAdhocDistributionEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.DRORA_CUA_HELPER_ADHOC_DISTRIBUTION === "1";
+}
+
+// 第五十六轮：standalone 状态发射的参数构造（从 launchStandaloneCuaHelperForStatus
+// 提取以便测试锚定）。dev runtime 与路线 A 分发共享同一对放行 argv——前者是
+// 上游 dev 语义，后者是打包态 ad-hoc host 的 launcher 门放行；两判定可叠加。
+export function buildStandaloneCuaHelperLaunchArgs(options: {
+  appPath: string;
+  socketPath: string;
+  tokenFile: string;
+  env?: NodeJS.ProcessEnv;
+  launcherPid: number;
+}): string[] {
+  const env = options.env ?? process.env;
+  const devEscape = isCuaLocalDevelopmentRuntime(env);
+  const adhocDistribution = isDroraCuaAdhocDistributionEnv(env);
+  return buildHelperOpenArgs(
+    {
+      appPath: options.appPath,
+      socketPath: options.socketPath,
+      tokenFile: options.tokenFile,
+      exitLogPath: `${options.socketPath}.settings.exit.log`,
+      ...(devEscape || adhocDistribution
+        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
+        : {}),
+    },
+    options.launcherPid,
+  );
+}
+
+export function readEmbeddedCuaHelperBuildIdentityFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): { embeddedBuildId?: string; version?: string } {
+  const embeddedBuildId = env[DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV]?.trim();
+  const version = env[DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]?.trim();
+  return {
+    ...(embeddedBuildId ? { embeddedBuildId } : {}),
+    ...(version ? { version } : {}),
+  };
+}
 
 export function resolveBundledCuaHelperAppPath(
   env: NodeJS.ProcessEnv = process.env,
@@ -1118,7 +1181,10 @@ export async function buildCuaProductHelperAgentEnv(
   host:
     | (Pick<CuaHelperHost, "start"> &
         Partial<
-          Pick<CuaHelperHost, "running" | "checkHealth" | "reservedTransport"> & {
+          Pick<
+            CuaHelperHost,
+            "running" | "checkHealth" | "reservedTransport" | "token" | "presentationToken"
+          > & {
             waitForTransport(timeoutMs?: number): Promise<CuaHelperTransportHandle>;
           }
         >)
@@ -1198,6 +1264,8 @@ export async function buildCuaProductHelperAgentEnv(
       return {
         [BROKER_SOCKET_ENV]: transport.socketPath,
         [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: transport.pluginAuthority,
+        // 第十五轮 token 模式：host 发射时铸造、handle 携带；无 token（旧 Helper）省键。
+        ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
       };
     }
     // 原来只在 1s 超时后读取预留 tuple，Host 已安全占住 socket 时也会白等。
@@ -1206,11 +1274,12 @@ export async function buildCuaProductHelperAgentEnv(
     if (reserved && !hasCuaProductHelperAgentEnvUnavailable(host)) {
       cuaProductHelperReservedSpawns.add(host);
       cuaProductHelperAgentEnvRetryAt.delete(host);
-      // 这条 reserved 分支不再下发 BROKER_TOKEN_ENV：broker
-      // token 鉴权已整体删除（连接门是代码签名身份）。凭据只剩 socket + authority。
+      // 第十五轮恢复 token 模式（原版 mac 发射链）：helper 以 --token-file 启动，
+      // 客户端必须 authenticate。host 无 token（旧 Helper/非 darwin）时省键、语义不变。
       return {
         [BROKER_SOCKET_ENV]: reserved.socketPath,
         [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
+        ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
       };
     }
     // 有界 deadline race：cold launch 没在 1s 内 ready 且无预留才 fail-closed。waitForCuaHelperStartup
@@ -1231,6 +1300,7 @@ export async function buildCuaProductHelperAgentEnv(
     return {
       [BROKER_SOCKET_ENV]: handle.socketPath,
       [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: handle.pluginAuthority,
+      ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
     };
   } catch (error) {
     // caller_timeout 仅表示共享的 30s startup 仍在后台运行；trackCuaProductHelperStartup 会在其
@@ -1252,6 +1322,7 @@ export async function buildCuaProductHelperAgentEnv(
         return {
           [BROKER_SOCKET_ENV]: reserved.socketPath,
           [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
+          ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
         };
       }
     }
@@ -1808,7 +1879,16 @@ export function createLocalServices(options: {
   // 哪天 host bundle 也补上 __DRORA_LOCAL_DEVELOPMENT_RUNTIME__ define（Helper 侧已经有），
   // 编译期门自动生效，不需要再回来改这里。
 
-  const launchStandaloneCuaHelperForStatus = async (): Promise<string | null> => {
+  // 第十五轮 token 模式：standalone 发射的 token 缓存（socketPath → token）。
+  // 同一 host utilityProcess 内，resolveSpawnEnv 懒启动分支据此把 token 注入
+  // agent env（设置页拉起的 standalone helper 与 agent spawn 同进程宿主）。
+  // helper 300s 闲置自灭后重新发射会覆盖缓存；被外部以其它 token 重启则缓存
+  // 过期 → 客户端认证 fail-closed（宁可拒绝不可绕过）。
+  const standaloneTokenBySocket = new Map<string, string>();
+  const launchStandaloneCuaHelperForStatus = async (): Promise<{
+    socketPath: string;
+    token?: string;
+  } | null> => {
     if (process.platform !== "darwin") return null;
     const { existsSync } = await import("node:fs");
     const { execFile } = await import("node:child_process");
@@ -1834,22 +1914,36 @@ export function createLocalServices(options: {
     // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
     // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
     // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
-    const args = buildHelperOpenArgs({
+    // 第十五轮 token 模式：产品态 helperMain 强制 --token-file（LaunchServices 不透传
+    // env）。铸造 token → 一次性文件交付 → 60s 后回收（helper 读取后也会自删）。
+    const token = randomBytes(32).toString("hex");
+    standaloneTokenBySocket.delete(socketPath);
+    const { writeOneShotHelperTokenFile, scheduleHelperTokenFileCleanup } =
+      await import("@drora/drora-cua/broker/server");
+    const tokenFile = await writeOneShotHelperTokenFile({ socketPath, token });
+    const args = buildStandaloneCuaHelperLaunchArgs({
       appPath,
       socketPath,
-      exitLogPath: `${socketPath}.settings.exit.log`,
-      ...(isCuaLocalDevelopmentRuntime(process.env)
-        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
-        : {}),
+      tokenFile,
+      env: process.env,
+      launcherPid: process.pid,
     });
     try {
       await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
     } catch {
       // LaunchServices 已接单也可能超时；继续等 ping。
     }
+    scheduleHelperTokenFileCleanup({
+      revokeTokenFile: async () => {
+        await (await import("node:fs/promises")).rm(tokenFile, { force: true });
+      },
+    });
     for (let attempt = 0; attempt < 50; attempt += 1) {
       const ready = await probeStableCuaHelperSocket();
-      if (ready) return ready;
+      if (ready) {
+        standaloneTokenBySocket.set(socketPath, token);
+        return { socketPath, token };
+      }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     return null;
@@ -1867,6 +1961,8 @@ export function createLocalServices(options: {
       if (host?.running && host.socketPath) {
         return {
           socketPath: host.socketPath,
+          // token 模式：PiP 客户端以 role=presentation authenticate
+          ...(host.presentationToken ? { presentationToken: host.presentationToken } : {}),
         };
       }
       // 懒启动：无托管 host 时探测稳定 socket 上自启动的 Helper（probe-only，不拉起）。
@@ -1921,8 +2017,13 @@ export function createLocalServices(options: {
         // Helper 按需启动：设置页查询 = 拉起 standalone Helper（稳定 socket、
         // 无 launcher-pid → 300s 无访问自动休眠，不进托管体系）。拉起后经稳定 socket 查真值。
         let stable = await probeStableCuaHelperSocket();
+        let standaloneToken: string | undefined;
         if (!stable) {
-          stable = await launchStandaloneCuaHelperForStatus();
+          const launched = await launchStandaloneCuaHelperForStatus();
+          if (launched) {
+            stable = launched.socketPath;
+            standaloneToken = launched.token;
+          }
         }
         if (!stable) {
           return {
@@ -1932,7 +2033,7 @@ export function createLocalServices(options: {
             idle: true,
           } satisfies { available: false; reason: string; idle: true };
         }
-        // standalone Helper 上直接查权限真值（身份模式，无 token）。
+        // standalone Helper 查权限真值；token 模式下携带发射时铸造的 token。
         try {
           const { callBrokerMethod } = await import("@drora/drora-cua/broker/helperHealth");
           const report = await callBrokerMethod<{
@@ -1945,6 +2046,7 @@ export function createLocalServices(options: {
             socketPath: stable,
             method: "permission_status",
             timeoutMs: 3000,
+            ...(standaloneToken ? { token: standaloneToken } : {}),
           });
           return {
             grantOwner: report.grant_owner,
@@ -2193,9 +2295,13 @@ export function createLocalServices(options: {
         // pluginAuthority 是 agent 进程内的 config-provenance 随机数（bootstrap 捕获后写进
         // node_repl 配置 env，core 比对两者证明该配置出自本 bootstrap 而非用户配置文件）；
         // 它不需要 host——托管态由 host 铸造，懒启动态在此按 spawn 铸造，语义与校验完全一致。
+        const lazySocketPath = resolveBrokerSocketPath();
+        const lazyStandaloneToken = standaloneTokenBySocket.get(lazySocketPath);
         cuaProductHelperEnv = {
-          [BROKER_SOCKET_ENV]: resolveBrokerSocketPath(),
+          [BROKER_SOCKET_ENV]: lazySocketPath,
           [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: randomBytes(16).toString("hex"),
+          // 设置页以 token 文件发射的 standalone helper：agent 需同一 token 才能 authenticate
+          ...(lazyStandaloneToken ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: lazyStandaloneToken } : {}),
         };
         cuaProductHelperWorkspaceRegistry.setEnabled(context, false);
       } else if (cuaProductHelperHost && helper) {

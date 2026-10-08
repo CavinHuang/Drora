@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -248,6 +249,20 @@ function runAsarCommand(args) {
   });
 }
 
+/** 官方形态对齐（第四十二轮）：把最终 app.asar 全量解包为 Resources/app 副本。 */
+function extractUnpackedAppCopy(context) {
+  if (context.electronPlatformName !== "darwin") return;
+  const appAsarPath = resolveAppAsarPath(context);
+  if (!existsSync(appAsarPath)) {
+    throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
+  }
+  const targetRoot = resolve(resolvePackagedResourcesDir(context), "app");
+  // 幂等：先清上代副本再全量解包，保证目录内容与 app.asar 逐文件一致。
+  rmSync(targetRoot, { recursive: true, force: true });
+  runAsarCommand(["extract", appAsarPath, targetRoot]);
+  console.log(`[afterPack] unpacked app copy staged at ${targetRoot}`);
+}
+
 function runAsarCommandAndReadStdout(args) {
   return runCommandAndReadStdout(process.execPath, [asarCliPath, ...args], {
     cwd: import.meta.dirname,
@@ -462,7 +477,7 @@ export default {
     homepage: "https://zcode.z.ai",
     author: {
       name: "Drora",
-      email: "dev@zcode.z.ai",
+      email: "dev@drora.z.ai",
     },
   },
   // macOS 签名阶段会对 Electron Framework 下每个语言包逐个 codesign。
@@ -562,10 +577,82 @@ export default {
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
       assertPackagedNodePtyPrebuild(context),
     );
+    // 官方 3.14.3 mac 发行物在 Resources/ 下同时携带 app.asar 与完整解包副本 Resources/app/
+    // （out/ + node_modules + .build-ready 构建标记；与 app.asar 解包内容逐文件零差异，
+    // lsof 实测官方 main/host 均从 app.asar 加载，该目录无运行时消费者——官方管线随包
+    // 携带的完整副本）。按用户裁定「完整对齐官方形态」照原版携带（第四十二轮）：在
+    // app.asar 全部重写（注入运行时依赖、剥 sourcemap 引用）之后把它全量解包落盘，
+    // 保证副本与最终 asar 逐文件一致；置于 adhoc 重签之前，副本随整包统一重签。
+    runTimedSync("afterPack:extractUnpackedAppCopy", () => extractUnpackedAppCopy(context));
     if (actualWindowsTarget) {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),
       );
+    }
+  },
+  afterSign: async (context) => {
+    // 路线 A adhoc 分发签名链（第五十一轮自 afterPack 迁移，并新增 addon 字节恢复）：
+    // electron-builder 的 mac 签名准备发生在 afterPack 之后——它会把包内嵌套 Mach-O
+    // （含 extraResources 的 cua-helper ax_native.node）重签为 adhoc（identifier 加
+    // hash 后缀），破坏「原生层与官方随包字节一致」（spec §一）。因此在签名完成后：
+    // ① 恢复仓内官方原始 addon 字节（该文件自带官方 Developer ID 签名，与官方发行
+    //    形态一致）；② 整包 --deep ad-hoc 重签以新封条覆盖（恢复后的字节与封条恒
+    //    匹配）。正式签名构建（DRORA_ENABLE_MAC_SIGN=1）由 electron-builder 以真实
+    //    身份签名，不走此分支。
+    if (context.electronPlatformName === "darwin" && process.env.DRORA_ENABLE_MAC_SIGN !== "1") {
+      runTimedSync("afterSign:adhoc-resign", () => {
+        const appName = `${context.packager?.appInfo?.productFilename ?? "Drora"}.app`;
+        const packagedCuaAddon = join(
+          context.appOutDir,
+          appName,
+          "Contents/Resources/cua-helper/Drora Computer Use.app/Contents/Resources/ax_native.node",
+        );
+        const canonicalCuaAddon = resolve(
+          workspaceRoot,
+          "packages/zcode-cua-helper/native/ax_native_mac.node",
+        );
+        const packagedCuaHelperApp = join(
+          context.appOutDir,
+          appName,
+          "Contents/Resources/cua-helper/Drora Computer Use.app",
+        );
+        if (existsSync(packagedCuaAddon) && existsSync(canonicalCuaAddon)) {
+          copyFileSync(canonicalCuaAddon, packagedCuaAddon);
+        }
+        // 恢复字节后内层 Helper 封条已失效；必须先单签内层修复封条，再整包 --deep。
+        // （直接整包 --deep 会因嵌套封条失效而失败，实测 "sealed resource invalid"。）
+        if (existsSync(packagedCuaHelperApp)) {
+          execFileSync("/usr/bin/codesign", ["--force", "--sign", "-", packagedCuaHelperApp], {
+            stdio: "inherit",
+          });
+        }
+        // glm 内嵌 CUA 插件的 darwin natives（koffi/sharp/libvips）同样会被签名
+        // 准备改写为 adhoc——从官方种子恢复字节（第五十三轮）。这些是普通文件而非
+        // 嵌套 bundle，恢复后由最后的整包 --deep 重签统一封条。
+        const glmNativeSeeds = [
+          "koffi/build/koffi/darwin_arm64/koffi.node",
+          "@img/sharp-darwin-arm64/lib/sharp-darwin-arm64.node",
+          "@img/sharp-libvips-darwin-arm64/lib/libvips-cpp.8.17.3.dylib",
+        ];
+        const glmPluginRoot = join(
+          context.appOutDir,
+          appName,
+          "Contents/Resources/glm/packages/zcode-cua-plugin/node_modules",
+        );
+        const glmSeedRoot = resolve(workspaceRoot, "packages/desktop/resources/glm-natives-3.14.3");
+        for (const relativeSeed of glmNativeSeeds) {
+          const packaged = join(glmPluginRoot, relativeSeed);
+          const seed = join(glmSeedRoot, relativeSeed);
+          if (existsSync(packaged) && existsSync(seed)) {
+            copyFileSync(seed, packaged);
+          }
+        }
+        execFileSync(
+          "/usr/bin/codesign",
+          ["--force", "--deep", "--sign", "-", join(context.appOutDir, appName)],
+          { stdio: "inherit" },
+        );
+      });
     }
   },
   extraResources: [
@@ -592,6 +679,35 @@ export default {
             from: "resources/macos-window-bounds/drora-window-bounds",
             to: "macos-window-bounds/drora-window-bounds",
           },
+          // Computer Use Helper 随包资产：整个 .app 原样拷贝，保持其既有代码签名
+          // 与 TCC 身份不被破坏。主进程/安装器按
+          // process.resourcesPath/cua-helper/<HELPER_APP_NAME> 解析（见
+          // desktopCuaHelperInstaller.ts 与 services/node.ts resolveBundledCuaHelperAppPath），
+          // 运行时校验 bundle id、TeamIdentifier 与可执行文件架构，签名无效即 fail-closed。
+          // 源恒为 prepare:cua-helper（第五十轮）staging 的自建 SEA Helper
+          // （bundled-cua-helper/，路线 A 折叠 CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER）——
+          // 官方签名副本（resources/cua-helper）只作 parity 参照物，其 launcher 门
+          // 钉死 dev.zcode.app + 8A5X4JJ39T，Drora 永远拉不起，不得入包。
+          // 本兜底告警只在准备步骤被绕过（如直接 build:no-runtime-assets）时出现。
+          ...(existsSync(resolve(desktopPackageRoot, "bundled-cua-helper"))
+            ? [
+                {
+                  from: "bundled-cua-helper",
+                  to: "cua-helper",
+                  filter: ["**/*"],
+                },
+              ]
+            : [
+                (() => {
+                  console.warn(
+                    "[electron-builder] WARN: packages/desktop/bundled-cua-helper 缺失，" +
+                      "本包不携带 Computer Use Helper（官方发行物恒带）。" +
+                      "该包的「电脑控制」权限引导将不可用；正式 mac 构建请走 pnpm build " +
+                      "（含 prepare:cua-helper 自建 staging）后重新打包。",
+                  );
+                  return null;
+                })(),
+              ].filter((entry) => entry !== null)),
         ]
       : []),
     {
@@ -633,6 +749,16 @@ export default {
             from: "build/icon.ico",
             to: "tray_icon.ico",
           },
+          {
+            // Windows 专属 CUA helper 运行时（第四十四轮修复：此前误 staging 到 glm/tools，
+            // 消费方 resolveWindowsCuaRuntime 只读 resources/tools/cua-helper 永远够不着，
+            // 且 mac 包跟着背了 23.9MB win32 产物——官方 mac glm 无 tools/）。staging 落
+            // bundled-tools/<platform>/cua-helper（prepare-agent-node-bundle.mjs），此处映射到
+            // 消费方的产品路径。
+            from: `bundled-tools/${targetPlatform.key}/cua-helper`,
+            to: "tools/cua-helper",
+            filter: ["**/*"],
+          },
         ]
       : []),
     {
@@ -657,6 +783,17 @@ export default {
       to: `tools/${toolId}`,
       filter: ["**/*"],
     })),
+    {
+      // CUA helper 运行时(0.6.3,Electron 41.0.3 构建):windows-helper.js +
+      // ax_native.node + 运行依赖。resolveWindowsCuaRuntime 在产品模式只读
+      // resources/tools/cua-helper,缺失时 Windows Computer Use fail-closed。
+      // 注意:glm staging 里也有一份(prepare-agent-node-bundle 写 glm/tools),
+      // 但 host 解析的是 resources/tools——599a427 曾误删本映射,导致 Windows
+      // Computer Use 在发行版上永远 broker_unavailable,恢复时勿再省略。
+      from: "../zcode-cua-helper/runtime/cua-helper",
+      to: "tools/cua-helper",
+      filter: ["**/*", "!**/*.map"],
+    },
   ],
   // postinstall 会先优先复用 node-pty 自带的 Windows 预编译产物，其他平台再按需 electron-rebuild。
   // 打包阶段统一复用安装时准备好的原生文件，避免 electron-builder 再触发一轮不受控的本地编译。
@@ -671,19 +808,31 @@ export default {
     },
   ],
   mac: {
+    // 路线 A 分发 profile（无签名身份分发）：经 LSEnvironment 让 LaunchServices
+    // 发射链与子进程携带 adhoc 分布标记；正式签名构建移除该键即可回到严格校验。
+    // 第四十四轮修复：此处曾写成两个 extendInfo 键（JS 同名键后者静默覆盖前者），
+    // 导致 LSEnvironment 从未落进 Info.plist——desktopCuaHelperInstaller 与
+    // helper-host 的 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION==="1" 判定全部失效，
+    // adhoc 包的 Helper 校验被错误地按严格模式 fail-closed。两个信息必须合并在
+    // 同一个 extendInfo 对象里。
+    extendInfo: {
+      LSEnvironment: {
+        DRORA_CUA_HELPER_ADHOC_DISTRIBUTION: "1",
+      },
+      NSAppleEventsUsageDescription: `${desktopProductIdentity.productName} needs Apple Events access to coordinate local automation workflows with user-approved desktop apps.`,
+    },
     target: ["dmg", "zip"],
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),
-    extendInfo: {
-      NSAppleEventsUsageDescription: `${desktopProductIdentity.productName} needs Apple Events access to coordinate local automation workflows with user-approved desktop apps.`,
-    },
     // 预签名脚本走的是原生 codesign，要求完整的 "Developer ID Application: ..." 身份串；
     // 但 electron-builder 的 mac.identity 在 26.x 下会拒绝带此前缀的名字。
     // 这里仅对 electron-builder 侧做前缀归一化，避免本地预签名和最终 .app 签名互相打架。
     // drora 之前只有本地未签名打包配置，CI 即使注入了证书变量，
     // electron-builder 也不会自动切到 hardened runtime / entitlement 这套发布参数。
     // 这里显式收拢到环境开关，保证本地开发不被签名配置绑死，CI 发布时再按需打开。
-    identity: shouldEnableMacSigning ? macSigningIdentity : null,
+    // 无 Developer ID 时回退 ad-hoc 签名("-"):二进制结构有效,清除隔离属性后
+    // 可直接打开;完全未签名的 arm64 二进制会被 Gatekeeper 直接判"已损坏"。
+    identity: shouldEnableMacSigning ? macSigningIdentity : "-",
     // macOS 产物采用“build 阶段签名 + 独立公证阶段”的两段式流水线。
     // 如果这里不显式关闭 electron-builder 内置 notarize，它会在 build 阶段读取 Apple 凭据后直接尝试公证，
     // 并强制要求 APPLE_APP_SPECIFIC_PASSWORD，导致 build 还没产出 DMG 就提前失败。
@@ -716,7 +865,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/drora.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "Drora <dev@zcode.z.ai>",
+    maintainer: "Drora <dev@drora.z.ai>",
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。

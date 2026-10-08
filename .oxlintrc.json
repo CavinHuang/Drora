@@ -15,6 +15,14 @@
       }
     },
     {
+      // drora-cua 的 server 模块是发行 bundle 的还原稿（结构忠实原编译产物，
+      // 行数超限是还原粒度所致）；语义化拆分前先豁免行数上限，其余规则照常生效。
+      "files": ["packages/zcode-cua/src/**/*.ts", "packages/zcode-cua-helper/src/**/*.ts"],
+      "rules": {
+        "max-lines": "off"
+      }
+    },
+    {
       "files": ["**/i18n/locales/*.ts"],
       "rules": {
         "max-lines": "off"
@@ -75,7 +83,14 @@
     "packages/mobile-web/remote-dist",
     "packages/mobile-web/scripts/dev-host-stub.mjs",
     "scripts/regression",
+    "packages/zcode-cua/broker",
+    "packages/zcode-cua/frame-contract",
+    "packages/zcode-cua/mcp",
     "packages/zcode-cua/upstream",
-    "packages/zcode-cua-helper"
+    "packages/zcode-cua-helper/native/reverse",
+    "packages/zcode-cua-helper/tools",
+    "packages/desktop/scripts/prepare-agent-node-bundle.mjs",
+    ".tmp-work",
+    "**/.tmp-*"
   ]
 }

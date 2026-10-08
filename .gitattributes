@@ -15,3 +15,10 @@ third-party/inventory.json linguist-generated=true
 packages/mobile-web/upstream/** -text -whitespace
 packages/mobile-web/src/recovered/** -text -whitespace
 packages/mobile-web/public/** -text -whitespace
+
+# CUA helper 随包运行时按字节保存：runtime-manifest.json 钉住 entry/addon 的
+# SHA-256（windowsCuaDevRuntime requireArtifactHash 校验），autocrlf 改写行尾
+# 会让 Windows 本地打包/测试全部 fail-closed（分叉侧仅因 CI LF checkout 幸免）。
+packages/zcode-cua-helper/runtime/** -text -whitespace
+packages/zcode-cua-helper/native/*.node -text -whitespace
+packages/zcode-cua/upstream/** -text -whitespace

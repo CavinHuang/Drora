@@ -1,8 +1,9 @@
 # Drora
 
-<div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="Drora" width="128" height="128" />
 </div>
+  <p>
+    <a href="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml"><img src="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  </p>
 <p align="center">
   <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
@@ -11,13 +12,25 @@
   简体中文 | <a href="README.en.md">English</a>
 </p>
 
-
-
 Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
-## 更新
+| 入口                 | 用途                                                           | 开发命令                       |
+| -------------------- | -------------------------------------------------------------- | ------------------------------ |
+| Desktop              | Electron 桌面应用                                              | `pnpm dev:desktop`             |
+| Web / Drora 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
+| Agent CLI            | 在终端中使用 `drora`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @drora/cli dev` |
 
-- 2026-9-23：更新至 Drora v3.14.3 版本。
+## 下载
+
+无需从源码构建，可直接在 [Releases](https://github.com/CavinHuang/Drora/releases/latest) 下载最新版本：
+
+| 文件                                                               | 说明                                               |
+| ------------------------------------------------------------------ | -------------------------------------------------- |
+| `Drora-<版本>-win-x64.exe` / `win-arm64.exe`                       | Windows 桌面应用安装包（NSIS）                     |
+| `Drora-<版本>-mac-arm64.dmg` / `mac-x64.dmg`（及 `.zip`）          | macOS 桌面应用                                     |
+| `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Agent CLI 单文件，**须在终端中运行**（双击会闪退） |
+
+所有产物均由 GitHub Actions 从源码构建，`SHA256SUMS.txt` 提供校验和；`latest*.yml` 供应用内自动更新使用。安装包未做签名：Windows 首次运行请选择"仍要运行"，macOS 首次打开请在"系统设置 → 隐私与安全性"中放行。
 
 ## 初始化
 

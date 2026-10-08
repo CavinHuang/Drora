@@ -1,8 +1,9 @@
 # Drora
 
-<div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="Drora" width="128" height="128" />
 </div>
+  <p>
+    <a href="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml"><img src="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  </p>
 <p align="center">
   <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
@@ -13,9 +14,23 @@
 
 Drora is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
-## Updates
+| Interface                    | Purpose                                                                                   | Development command            |
+| ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
+| Desktop                      | Electron desktop application                                                              | `pnpm dev:desktop`             |
+| Web / Drora CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
+| Agent CLI                    | The `drora` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @drora/cli dev` |
 
-- 2026-9-23: Updated to Drora v3.14.3.
+## Download
+
+No build required - grab the latest build from the [Releases](https://github.com/CavinHuang/Drora/releases/latest) page:
+
+| File                                                               | Description                                                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `Drora-<version>-win-x64.exe` / `win-arm64.exe`                    | Windows desktop installer (NSIS)                                                     |
+| `Drora-<version>-mac-arm64.dmg` / `mac-x64.dmg` (and `.zip`)       | macOS desktop app                                                                    |
+| `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Single-file Agent CLI, **run it from a terminal** (double-clicking flashes a window) |
+
+All artifacts are built from source by GitHub Actions; `SHA256SUMS.txt` provides checksums and `latest*.yml` feeds the in-app auto-update. Installers are unsigned: on Windows choose "Run anyway", on macOS allow the app under "Privacy & Security" on first launch.
 
 ## Setup
 

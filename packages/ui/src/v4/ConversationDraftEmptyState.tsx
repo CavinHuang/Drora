@@ -5,7 +5,6 @@
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-import darkEmptyStateLogoUrl from "@/assets/Z.svg";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -210,38 +209,53 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
 }
 
 function DroraEmptyStateLogo({ className }: { className?: string }) {
+  // Drora 品牌轮廓（packages/desktop/assets/Drora-logo-outline-fade.svg 原样内联，
+  // 替换原版 ZCode 的 Z 字水印）：D 形细描边 + 自带底部渐隐 mask，描边跟随文字色
+  // （currentColor），浅/深主题自动适配，无需再按主题切换资产。
   return (
-    <>
-      {/* 夜间资源已自带渐变和透明度，公共容器叠加遮罩会让它重复变淡；渐隐效果只属于浅色线框。*/}
-      <svg
-        aria-hidden="true"
-        className={cn(
-          className,
-          "opacity-70 dark:hidden",
-          "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)]",
-          "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
-          "[mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)]",
-          "[mask-repeat:no-repeat] [mask-size:100%_100%]",
-        )}
-        width="400"
-        height="320"
-        viewBox="0 0 400 320"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
+    <svg
+      aria-hidden="true"
+      className={cn(className, "opacity-70")}
+      width="400"
+      height="320"
+      viewBox="0 0 400 320"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient
+          id="drora-outline-fade-gradient"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="320"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="white" />
+          <stop offset="70%" stopColor="white" stopOpacity="0" />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+        <mask
+          id="drora-outline-fade-mask"
+          x="0"
+          y="0"
+          width="400"
+          height="320"
+          maskUnits="userSpaceOnUse"
+          maskContentUnits="userSpaceOnUse"
+        >
+          <rect width="400" height="320" fill="url(#drora-outline-fade-gradient)" />
+        </mask>
+      </defs>
+      <g opacity="0.7" mask="url(#drora-outline-fade-mask)">
         <path
-          d="M398.97 0.5L147.576 319.5H1.03027L37.5996 273.081L120.167 169.603L120.171 169.598L215.342 47.5605L215.343 47.5615L252.424 0.5H398.97ZM264.544 273.271H372.527L336.082 319.498H189.886L202.642 303.307C217.584 284.34 240.398 273.271 264.544 273.271ZM209.164 0.5L202.786 8.58887C183.782 32.6885 154.782 46.752 124.091 46.752H25.9805L62.4268 0.5H209.164Z"
+          transform="translate(50.5 1) scale(2.09)"
+          d="M0 0H74C96.25 0 143 23.87 143 76C143 127.16 97.91 152 74 152H29L57 122C105.84 122 111 89.6 111 76C111 42.64 82.51 32 73 32H33V100C33 100.45 33.55 100.7 34.35 100.7H37L33.5 104L0 142V0Z"
           stroke="currentColor"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
         />
-      </svg>
-      {/* 深色资源包含专用渐变与模糊效果，不能通过 currentColor 复刻；主题类保证两套 Logo 互斥显示。 */}
-      <img
-        aria-hidden="true"
-        className={cn(className, "hidden dark:block")}
-        data-v4-draft-logo="dark"
-        src={darkEmptyStateLogoUrl}
-        alt=""
-      />
-    </>
+      </g>
+    </svg>
   );
 }

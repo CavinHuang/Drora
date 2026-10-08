@@ -533,6 +533,8 @@ export interface CodingPlanWebviewLangChangeDetail {
 /** 内部传输频道。用于 MessagePort 转发等框架级通信。 */
 export const InternalChannels = {
   DatabaseStartupState: "drora:database-startup-state",
+  /** host → main：Start Plan 人机验证采集结果（按 requestId 关联） */
+  CaptchaSolveResult: "captcha-solve-result",
   DatabaseStartupControl: "drora:database-startup-control",
   /** main → renderer 转发 MessagePort（通过 webContents.postMessage） */
   ServicePort: "drora:service-port",
@@ -602,6 +604,8 @@ export const HostMessageTypes = {
   OffPeakRun: "off-peak-run",
   /** main → host：browser-use 命令执行结果（CDP 执行完回传，按 requestId 关联） */
   BrowserExecuteResult: "browser-execute-result",
+  /** main → host：Start Plan 人机验证凭证采集结果（隐藏窗口 SDK 执行完回传，按 requestId 关联） */
+  CaptchaSolveResult: "captcha-solve-result",
   /** main → host：本地视频 canonical path 授权结果 */
   LocalMediaPreviewPathAuthorizeResult: "local-media-preview-path-authorize-result",
   /** Main → Host：全局前台 Drora 窗口派生的 producer focus fact。 */
@@ -628,6 +632,8 @@ export const HostResponseTypes = {
   Log: "log",
   /** host 内拉起新的 agent 子进程 */
   AgentProcessSpawned: "agent-process-spawned",
+  /** host → main：请求 main 隐藏窗口采集 Start Plan 人机验证凭证 */
+  CaptchaSolveRequest: "captcha-solve-request",
   /** host 内 agent runtime 首次通过模型执行门禁 */
   AgentProcessReady: "agent-process-ready",
   /** host 内的 agent 子进程退出 */

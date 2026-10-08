@@ -58,6 +58,11 @@ export {
 export { IFileService } from "./file/file.js";
 export { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
+
+// OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
+// 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
+export { IOutputStyleService } from "./outputStyle/outputStyle.js";
+export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 
 // Git service — IGitService is both a type (interface) and value (descriptor)

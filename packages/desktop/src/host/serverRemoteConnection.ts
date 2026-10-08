@@ -45,6 +45,7 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
+  IOutputStyleService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
@@ -277,8 +278,8 @@ export function createServerRemoteWorkspaceServiceCollection(params: {
       .register(ICommandsService, remote.commandsService)
       .register(IHooksService, remote.hooksService)
       .register(IMemoryService, remote.memoryService)
-      // TODO(output-style): fork 第 48 轮在此注册 IOutputStyleService 远端代理（对齐官方
-      // MJ）；output-style 是尚未迁移的独立特性，base 无该服务——迁入后补此行。
+      // 第 48 轮：官方 MJ 注册远端代理——output style 属远端 Server 的本机 ~/.claude 状态。
+      .register(IOutputStyleService, remote.outputStyleService)
       .register(ISettingsSyncService, remote.settingsSyncService)
       .register(IPromptAttachmentTransferService, remote.promptAttachmentTransferService)
   );

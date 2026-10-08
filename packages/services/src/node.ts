@@ -11,6 +11,8 @@ import {
 } from "@drora/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
+import { IOutputStyleService } from "./outputStyle/outputStyle.js";
+import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -139,6 +141,7 @@ export type {
 } from "./model-provider/accountProviderCredentialStore.js";
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
+export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,
@@ -2596,6 +2599,9 @@ export function createLocalServices(options: {
       }),
     )
     .register(IMemoryService, createMemoryService())
+    // 第 48 轮：Claude Code 兼容的输出风格服务。官方 createLocalServices 注册链里
+    // .register 使用本地实例——output style 是本机 ~/.claude 的状态。
+    .register(IOutputStyleService, createOutputStyleService())
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,

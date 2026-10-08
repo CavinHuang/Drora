@@ -47,13 +47,13 @@ Generic names such as `Search`, `Menu`, `Close`, or repeated result titles are a
 
 ## Timeout and recovery
 
-Routine locator, URL/load-state wait, and evaluate operations use a short failure budget: 3000ms by default and at most 3000ms even when a larger timeout is requested. Download event waiting may use up to 120000ms. Explicit `tab.playwright.waitForTimeout(ms)` is a separate fixed delay and should remain exceptional.
+Routine locator, URL/load-state wait, and evaluate operations use Codex's short failure budget: 3000ms by default and at most 3000ms even when a larger timeout is requested. Download event waiting may use up to 120000ms. Explicit `tab.playwright.waitForTimeout(ms)` is a separate fixed delay and should remain exceptional.
 
 After every successful `tab.goto(url)`, explicitly call `await tab.playwright.waitForLoadState({ state: "domcontentloaded" })` before the first title, URL, or DOM observation. Keep this step in the model-visible trajectory even when `goto()` has already settled the backend navigation; it confirms the expected load state without changing the 3000ms runtime cap.
 
-`waitForLoadState({ state: "networkidle" })` is not supported by this runtime. Wait for `load`/`domcontentloaded` or a concrete page state instead.
+`waitForLoadState({ state: "networkidle" })` is not supported by this Codex-compatible runtime. Wait for `load`/`domcontentloaded` or a concrete page state instead.
 
-`expectNavigation(action)` starts a load-state waiter before the action, but an
+`expectNavigation(action)` follows the current Codex client: it starts a load-state waiter before the action, but an
 already-loaded page can satisfy that waiter. Pass `{ url: expectedUrl }` when the action must prove a new navigation.
 
 An unchanged source-tab URL does not prove the click failed. Judge an action by whether its expected effect appeared,

@@ -1,3 +1,4 @@
+import { NODE_REPL_BROWSER_USE_META_KEY, NODE_REPL_TOOL_SURFACE_META_KEY, NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY } from "@drora/contracts";
 import { randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
 import type { BrowserClientTransport } from "@drora/core/browser-client";
@@ -81,12 +82,17 @@ export function createBrowserBridgeGlobals(input: {
       return response.result;
     },
   };
+  const bridge = {
+    ...transport,
+    documentationRoot: input.documentationRoot,
+    assertAvailable,
+  };
   return {
-    [NODE_REPL_BROWSER_BRIDGE_SYMBOL]: {
-      ...transport,
-      documentationRoot: input.documentationRoot,
-      assertAvailable,
-    },
+    [NODE_REPL_BROWSER_BRIDGE_SYMBOL]: bridge,
+    // Symbol.for 注册表键是跨包互操作契约：市场安装的上游 browser-use client
+    // （scripts/browser-client.mjs）用原版 zcode.* 键从 globalThis 取 bridge。
+    // 双挂保证原版 client 逐字可用（与 cua-bridge 同一兼容模式）。
+    [Symbol.for("zcode.node-repl.browser-control-bridge")]: bridge,
   };
 }
 
@@ -193,8 +199,8 @@ function mergeBrowserResponseMeta(
   const finalized = result.ok && command.method === "finalizeTabs";
   const includeOpenTabs = result.ok && isBrowserSurfaceSideEffect(command);
   session.mergeResponseMeta({
-    "drora/browserUse": true,
-    "drora/toolSurface": {
+    NODE_REPL_BROWSER_USE_META_KEY: true,
+    NODE_REPL_TOOL_SURFACE_META_KEY: {
       kind: "browserUse",
       backend: meta.backendType,
       browserId: meta.browserId,
@@ -204,7 +210,7 @@ function mergeBrowserResponseMeta(
     browser_use: meta.currentUrl ? { url: meta.currentUrl } : {},
     ...(result.ok && meta.tabId && isAutoScreenshotTriggerCommand(command)
       ? {
-          "drora/browserTurnScreenshot": {
+          NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY: {
             browserGeneration: meta.browserGeneration,
             browserId: meta.browserId,
             tabId: meta.tabId,

@@ -6,7 +6,7 @@ import { listSlashCommandSuggestions } from "./command-center.js";
 import { registerCliShutdownHandlers } from "./shutdown.js";
 import { listCustomCommandsForTui, loadInitialTuiSessionMetadata } from "./tui-command-data.js";
 import { createTuiSubmitPrompt } from "./tui-prompt-handler.js";
-import { loadTuiRuntime } from "./tui-runtime-loader.js";
+import { loadTuiRuntime, spawnTuiInNodeAliasProcess } from "./tui-runtime-loader.js";
 import { resolveTuiStartupLocale } from "./tui-startup-locale.js";
 import { createWorkspacePathSuggestionProvider } from "./tui-workspace-paths.js";
 import { resolveWorkspaceGitBranch } from "./tui-workspace-git.js";
@@ -25,6 +25,10 @@ export const runTuiCommand = async (
 ): Promise<number> => {
   try {
     const modeState = createCliModeState(mode);
+    const nodeAliasExit = await spawnTuiInNodeAliasProcess();
+    if (nodeAliasExit !== null) {
+      return nodeAliasExit;
+    }
     const runTui = deps.runTui ?? (await loadTuiRuntime()).runTui;
     const workspaceDirectory = (deps.cwd ?? process.cwd)();
     const env = deps.env ?? process.env;
@@ -112,6 +116,17 @@ export const runTuiCommand = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`Error: ${message}\n`);
+    // opentui 等库把底层失败挂在 Error.cause 上；不展开 cause 用户只能看到表层消息
+    // （如 "FFI 不可用"），无法定位真实原因（哪个原生依赖没加载起来）。
+    let cause = (error as { cause?: unknown }).cause;
+    let causeDepth = 0;
+    while (cause && causeDepth < 5) {
+      ctx.stderr.write(
+        `  caused by: ${cause instanceof Error ? cause.message : String(cause)}\n`,
+      );
+      cause = (cause as { cause?: unknown }).cause;
+      causeDepth += 1;
+    }
     if (options.verbose && error instanceof Error && error.stack) {
       ctx.stderr.write(`${error.stack}\n`);
     }

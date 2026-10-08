@@ -1,6 +1,10 @@
 import type { PluginDiagnosticCode } from "@drora/contracts";
 
-class PluginSourceMaterializationError extends Error {
+/**
+ * 导出供错误重建场景复用：claude 市场 30s 刷新超时需保留原诊断码、只替换文案，
+ * 保证 refresh failure 持久化的分类不丢（对齐原版 Sre/wre 的超时包装）。
+ */
+export class PluginSourceMaterializationError extends Error {
   readonly diagnosticCode: PluginDiagnosticCode;
 
   constructor(diagnosticCode: PluginDiagnosticCode, message: string, options?: ErrorOptions) {

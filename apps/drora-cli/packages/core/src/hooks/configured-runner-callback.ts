@@ -41,7 +41,12 @@ export function createConfiguredHookCallback(
                 shell: hook.shell,
               },
               cwd: input.cwd || options.getWorkingDirectory(),
-              env: createPluginEnvOverlay(hook.plugin, input, options.getWorkingDirectory()),
+              env: createPluginEnvOverlay(
+                hook.plugin,
+                input,
+                options.getWorkingDirectory(),
+                hook.env,
+              ),
               stdin: stdin.value,
               timeoutMs: execution.timeoutMs,
               outputLimit: {
@@ -86,7 +91,12 @@ export function createConfiguredHookCallback(
                 ),
               },
               cwd: input.cwd || options.getWorkingDirectory(),
-              env: createPluginEnvOverlay(hook.plugin, input, options.getWorkingDirectory()),
+              env: createPluginEnvOverlay(
+                hook.plugin,
+                input,
+                options.getWorkingDirectory(),
+                hook.env,
+              ),
               stdin: stdin.value,
               timeoutMs: execution.timeoutMs,
               outputLimit: {

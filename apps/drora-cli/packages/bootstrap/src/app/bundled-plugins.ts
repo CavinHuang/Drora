@@ -378,17 +378,36 @@ function collectFilesystemPluginFiles(
 function* walkFiles(
   directory: string,
   allowedTopLevelPaths: ReadonlySet<string>,
-  depth = 0,
+  relativePath = "",
 ): Generator<string> {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (shouldSkipDirectory(entry.name, depth, allowedTopLevelPaths)) continue;
+    const childRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+    if (shouldSkipDirectory(entry.name, allowedTopLevelPaths, childRelativePath)) continue;
     const fullPath = join(directory, entry.name);
     if (entry.isDirectory()) {
-      yield* walkFiles(fullPath, allowedTopLevelPaths, depth + 1);
+      yield* walkFiles(fullPath, allowedTopLevelPaths, childRelativePath);
       continue;
     }
     if (entry.isFile()) yield fullPath;
   }
+}
+
+/**
+ * 判断 relativePath 是否落在任一名单条目的分支上（条目本身、其后代或其祖先）。
+ * 名单条目可以是顶层目录（如 node_modules、docs），也可以是确定性子树
+ * （如 node_modules/sharp）——browser-use 等仍是 pnpm workspace 成员的插件，
+ * 其 node_modules 混有开发依赖，只能按运行时子树随包 seed，不能整目录复制。
+ */
+function isAllowedSeedBranch(
+  relativePath: string,
+  allowedTopLevelPaths: ReadonlySet<string>,
+): boolean {
+  for (const entry of allowedTopLevelPaths) {
+    if (entry === relativePath) return true;
+    if (entry.startsWith(`${relativePath}/`)) return true;
+    if (relativePath.startsWith(`${entry}/`)) return true;
+  }
+  return false;
 }
 
 function readSeedFileBytes(
@@ -648,13 +667,18 @@ function entrypointDir(): string | undefined {
 
 function shouldSkipDirectory(
   name: string,
-  depth: number,
   allowedTopLevelPaths: ReadonlySet<string>,
+  childRelativePath: string,
 ): boolean {
   if (name === ".turbo" || name === "coverage" || name === ".venv" || name === "__pycache__") {
     return true;
   }
-  return name === "node_modules" && !(depth === 0 && allowedTopLevelPaths.has(name));
+  // node_modules 默认整目录排除；名单条目可以是 node_modules（整目录，如 zcode-cua-plugin
+  // 的入库基线）或 node_modules/<子树>（确定性子树，见 isAllowedSeedBranch）。
+  if (name === "node_modules" || childRelativePath.startsWith("node_modules/")) {
+    return !isAllowedSeedBranch(childRelativePath, allowedTopLevelPaths);
+  }
+  return false;
 }
 
 function shouldIncludePluginFile(
@@ -666,7 +690,14 @@ function shouldIncludePluginFile(
     return false;
   }
   const [topLevel] = relativePath.split("/");
-  return topLevel !== undefined && allowedTopLevelPaths.has(topLevel);
+  if (topLevel !== undefined && allowedTopLevelPaths.has(topLevel)) return true;
+  // 嵌套条目（如 node_modules/sharp）按路径前缀匹配，与 isAllowedSeedBranch 的分支语义一致。
+  for (const entry of allowedTopLevelPaths) {
+    if (entry.includes("/") && (relativePath === entry || relativePath.startsWith(`${entry}/`))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function modeForSeedFile(filePath: string, sourceMode?: number): number {

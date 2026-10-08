@@ -40,7 +40,9 @@ const MAX_SYNC_TIMEOUT_MS = 120_000;
 const UNTRUSTED_SESSION_KEY = "__unscoped__";
 const WORKER_KIND = "drora-node-repl-call";
 export const NODE_REPL_MCP_PROCESS_TITLE = "drora-node-repl-mcp";
-const pluginRoot = process.env.DRORA_PLUGIN_ROOT ?? process.cwd();
+// CLAUDE_PLUGIN_ROOT 是原版/上游生态的兼容回退（对齐原版宿主的 fallback 链）。
+const pluginRoot =
+  process.env.DRORA_PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT ?? process.cwd();
 // CUA 与 Browser Use 共用 node_repl host，但文档和 native 依赖必须按领域隔离；
 // 否则 CUA skill 会因为 host root 恰好来自 Browser Use 而再次产生隐式依赖。
 const browserDocumentationRoot = resolve(pluginRoot, "docs");

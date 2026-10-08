@@ -20,3 +20,8 @@ packages/**/tests/**/*.js.map
 packages/**/tests/**/*.d.ts.map
 .VSCodeCounter
 vendor
+
+# zcode-cua-plugin 是官方发行物的 seed 资产包:node_modules(sharp/koffi 原生依赖)
+# 是包的一部分而非构建产物,必须入库。
+!packages/zcode-cua-plugin/node_modules
+!packages/zcode-cua-plugin/node_modules/**

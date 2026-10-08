@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@drora/obsidian-plugin",
+  "version": "0.2.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Obsidian Vault capability for Drora: vault discovery/authorization plus native agent file access via SessionStart/PermissionRequest hooks.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/build-hooks.mjs",
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node test/agent-access.test.mjs && node test/hooks-e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

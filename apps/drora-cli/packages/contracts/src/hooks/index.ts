@@ -304,6 +304,8 @@ export interface HookCommandConfig {
   async?: boolean;
   command: string;
   enabled?: boolean;
+  /** 附加进程级 env，整体并入 hook 执行的 env overlay（official plugin 重写态使用）。 */
+  env?: Record<string, string>;
   plugin?: HookPluginContext;
   shell?: true | string;
   /** Runtime-only provenance; the public config schema deliberately strips this field. */
@@ -318,6 +320,8 @@ export interface HookProcessConfig {
   args?: string[];
   command: string;
   enabled?: boolean;
+  /** 附加进程级 env，整体并入 hook 执行的 env overlay（official plugin 重写态使用）。 */
+  env?: Record<string, string>;
   plugin?: HookPluginContext;
   /** Runtime-only provenance; the public config schema deliberately strips this field. */
   source?: HookConfigSource;
@@ -379,6 +383,9 @@ export const HookProcessConfigSchema = z.object({
   command: z.string().min(1),
   enabled: z.boolean().optional(),
   args: z.array(z.string()).optional(),
+  // official plugin 重写态需要注入 ELECTRON_RUN_AS_NODE 等进程级 env（HookConfig 本身
+  // 没有 MCP server 那样的 env 面）；键值整体并入 hook 执行的 env overlay。
+  env: z.record(z.string(), z.string()).optional(),
   timeoutMs: z.number().int().positive().optional(),
   statusMessage: z.string().optional(),
 });
@@ -389,6 +396,8 @@ export const HookCommandConfigSchema = z.object({
   enabled: z.boolean().optional(),
   async: z.boolean().optional(),
   shell: z.union([z.literal(true), z.string().min(1)]).optional(),
+  // 与 process 型同语义：整体并入 hook 执行的 env overlay。
+  env: z.record(z.string(), z.string()).optional(),
   timeout: z.number().positive().optional(),
   timeoutMs: z.number().int().positive().optional(),
   statusMessage: z.string().optional(),

@@ -13,6 +13,9 @@ import { ModelApiActorKind, ModelApiOperation, ModelRequestSessionType } from "@
 import { isOpenCodeGoBaseUrl } from "./opencode-session.js";
 import type { ModelStatusContext } from "./runner-status.js";
 
+// 归因 header 发往 z.ai 的 Coding Plan 网关（rename 规则 0：后端基础设施，服务端按
+// header 名读取），header 名必须保持原版 wire 名——改名会让服务端读不到 session-type/
+// trace-id，main/subagent 归因失效（原版 zcode.cjs 同名常量为 x-zcode-*）。
 const MODEL_TRACE_HEADER = "x-zcode-trace-id";
 const MODEL_REQUEST_HEADER = "x-request-id";
 const MODEL_SESSION_HEADER = "x-session-id";

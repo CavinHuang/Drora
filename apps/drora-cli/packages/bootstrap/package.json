@@ -20,7 +20,8 @@
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint:fix": "oxlint --write src",
+    "test": "tsx test/official-plugin-hook-runtime.test.mjs"
   },
   "dependencies": {
     "@drora/adapters": "workspace:*",
@@ -39,7 +40,6 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/yazl": "^3.3.1",
-    "@drora/formal-proof": "workspace:*",
     "yazl": "^3.3.1"
   }
 }

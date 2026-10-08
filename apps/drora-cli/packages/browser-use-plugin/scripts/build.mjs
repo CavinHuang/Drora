@@ -6,6 +6,7 @@ import { build } from "esbuild";
 const defaultPackageRoot = resolve(import.meta.dirname, "..");
 const executableFileMode = 0o755;
 
+// 修复原因（2026-07-27，node_repl MCP server 整体连不上）：
 // esbuild 以 format: "esm" 打包时，会把 CJS 依赖里的 require() 替换成一个 __require shim：
 //   typeof require !== "undefined" ? require : (name) => { throw Error('Dynamic require of "' + name + '" is not supported') }
 // ESM 模块作用域里没有 require，于是这个 shim 永远走抛错分支。
@@ -30,6 +31,7 @@ const createBundleOptions = ({ entryPoint, outfile }) => ({
   outfile,
   platform: "node",
   target: "node24",
+  external: ["sharp"],
 });
 
 /**

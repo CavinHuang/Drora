@@ -92,6 +92,7 @@ import {
   resolveSessionContextUsage,
   shouldExposeSessionEventToProtocol,
 } from "./mapper.js";
+import { mapMessageWithParts } from "./message-mapper.js";
 import { optionalModelSelectionFromString } from "./model-mapper.js";
 import {
   ProtocolRequestError,
@@ -1871,8 +1872,17 @@ export async function readMessages(context: DroraProtocolAgentServerContext, raw
     ? allMessages.findIndex((message) => String(message.info.id) === params.afterMessageId)
     : -1;
   const messages = afterMessageIndex >= 0 ? allMessages.slice(afterMessageIndex + 1) : allMessages;
+  // 有意分歧（对照官方 3.14.3 bundle，specs/mobile-relay-server.md「session/messages
+  // schema 漂移」）：官方 WKo（zcode.cjs@14490259）把 session store 的 v4 原始行
+  // （info.id/sessionID、part.callID）直接作为 {messages} 返回，与其自身声明的结果
+  // schema U5i/WZe（@755909/@657821，info.messageId/partId/callId legacy 形状）不一致；
+  // 官方手机页不调用该 op（official-phone-bundle 0 命中），漂移在上游不可见。本仓 R2
+  // 手机页消费该 op，这里按官方 snapshot 路径同款映射（JPn/FKa @14406172/@14407132 =
+  // message-mapper.mapMessageWithParts）投影为声明契约形状，再交给协议边界校验。
+  // afterMessageId 分页在映射前按原始 info.id 切片：mapped messageId = String(info.id)，
+  // 两态字面量同值，客户端回传任一形态都能命中同一切分点。
   return {
-    messages: params.limit ? messages.slice(-params.limit) : messages,
+    messages: (params.limit ? messages.slice(-params.limit) : messages).map(mapMessageWithParts),
   };
 }
 

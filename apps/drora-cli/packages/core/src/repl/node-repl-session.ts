@@ -1,3 +1,4 @@
+import { NODE_REPL_TOOL_SURFACE_META_KEY } from "@drora/contracts";
 import { createContext, runInContext, type Context } from "node:vm";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
@@ -322,8 +323,8 @@ export class NodeReplSession {
   /** browser-client transport 在同一次 js run 内把 backend meta 合并进工具结果。 */
   mergeResponseMeta(meta: Record<string, unknown>): void {
     if (!this.currentSink) return;
-    const currentSurface = this.currentSink.responseMeta["drora/toolSurface"];
-    const nextSurface = meta["drora/toolSurface"];
+    const currentSurface = this.currentSink.responseMeta[NODE_REPL_TOOL_SURFACE_META_KEY];
+    const nextSurface = meta[NODE_REPL_TOOL_SURFACE_META_KEY];
 
     // cell 结束时附加最后一次成功副作用的 openTabIds/sessionEnded；自动 preview 与后续
     // title/url/domSnapshot 读取不能把先前动作 meta 覆盖掉。
@@ -337,7 +338,7 @@ export class NodeReplSession {
     ) {
       this.setResponseMeta({
         ...meta,
-        "drora/toolSurface": {
+        NODE_REPL_TOOL_SURFACE_META_KEY: {
           ...(currentSurface as Record<string, unknown>),
           ...(nextSurface as Record<string, unknown>),
         },

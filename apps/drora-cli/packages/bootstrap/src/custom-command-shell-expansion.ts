@@ -13,7 +13,7 @@ const DEFAULT_SHELL_EXPANSION_OUTPUT_BYTES = 128 * 1024;
 const INLINE_SHELL_PATTERN = /!`([^`]*)`/gu;
 const FENCED_SHELL_PATTERN = /```!\s*\r?\n?([\s\S]*?)```/gu;
 const SHELL_CONTEXT_VARIABLE_PATTERN =
-  /\$\{(CLAUDE_CODE_SESSION_ID|CLAUDE_PLUGIN_DATA|CLAUDE_PLUGIN_ROOT|CLAUDE_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_SKILL_DIR|DRORA_PLUGIN_DATA|DRORA_PLUGIN_ROOT|DRORA_PROJECT_DIR|DRORA_SESSION_ID|DRORA_SKILL_DIR)\}/gu;
+  /\$\{(CLAUDE_CODE_SESSION_ID|CLAUDE_PLUGIN_DATA|CLAUDE_PLUGIN_ROOT|CLAUDE_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_SKILL_DIR|DRORA_PLUGIN_DATA|DRORA_PLUGIN_ROOT|DRORA_PROJECT_DIR|DRORA_SESSION_ID|DRORA_SKILL_DIR|ZCODE_SKILL_DIR)\}/gu;
 
 interface ShellExpansionMatch {
   command: string;
@@ -190,7 +190,7 @@ function assertShellExpansionContextAvailable(input: {
   for (const match of input.shellCommand.matchAll(SHELL_CONTEXT_VARIABLE_PATTERN)) {
     const name = match[1];
     if (!name) continue;
-    if (name === "CLAUDE_SKILL_DIR" || name === "DRORA_SKILL_DIR") {
+    if (name === "CLAUDE_SKILL_DIR" || name === "DRORA_SKILL_DIR" || name === "ZCODE_SKILL_DIR") {
       throw new Error(
         `Custom command /${input.command.metadata.name} variable requires a skill context: ${name}`,
       );

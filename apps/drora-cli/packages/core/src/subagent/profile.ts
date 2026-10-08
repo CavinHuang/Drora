@@ -13,7 +13,16 @@ export type BuiltInSubagentModelSelectionOverrides = Partial<
   Record<typeof DEFAULT_SUBAGENT_TYPE | typeof EXPLORE_AGENT_TYPE, ModelSelection>
 >;
 
-export type AgentPermissionMode = "auto" | "plan";
+// 原版 dpa 词表（zcode.cjs @7587584）：frontmatter 可写 legacy 值
+// （acceptEdits/bypassPermissions/dontAsk/default），解析期归一为运行时模式
+// （resolveSubagentPermissionMode 的 Txa 映射）。
+export type AgentPermissionMode =
+  | "auto"
+  | "plan"
+  | "acceptEdits"
+  | "bypassPermissions"
+  | "dontAsk"
+  | "default";
 
 export type AgentProfileSource = "built-in" | "project" | "user";
 export type AgentMemoryScope = "user" | "project" | "local";
@@ -59,7 +68,14 @@ const VALID_COLORS = new Set<NonNullable<AgentProfile["color"]>>([
   "cyan",
 ]);
 
-const VALID_PERMISSION_MODES = new Set<AgentPermissionMode>(["auto", "plan"]);
+const VALID_PERMISSION_MODES = new Set<AgentPermissionMode>([
+  "auto",
+  "plan",
+  "acceptEdits",
+  "bypassPermissions",
+  "dontAsk",
+  "default",
+]);
 
 const VALID_MEMORY_SCOPES = new Set<AgentMemoryScope>(["user", "project", "local"]);
 

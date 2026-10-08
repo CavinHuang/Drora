@@ -56,6 +56,7 @@ export {
   describeMarketplacePlugin,
   ensureDefaultPluginMarketplaces,
   ensureMarketplaceManifestAvailable,
+  enrichCachedClaudeMarketplaceIcons,
   getPluginDataDir,
   installMarketplacePlugin,
   listInstalledPluginRecords,

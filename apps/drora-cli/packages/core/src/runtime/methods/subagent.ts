@@ -476,10 +476,18 @@ function resolveSubagentPermissionMode(
   builtInExplore: boolean,
 ): AgentRuntimeInternal["config"]["mode"] {
   switch (permissionMode) {
+    // legacy 归一映射对齐原版 Txa（zcode.cjs @12917333）：
+    // bypassPermissions|dontAsk→yolo、acceptEdits→edit、auto→auto、plan→plan。
+    case "bypassPermissions":
+    case "dontAsk":
+      return "yolo";
+    case "acceptEdits":
+      return "edit";
     case "auto":
       return "auto";
     case "plan":
       return "plan";
+    case "default":
     case undefined:
       return builtInExplore ? "yolo" : parentMode;
     default:

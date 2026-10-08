@@ -405,6 +405,7 @@ function resolveTemplate(
         );
       case "CLAUDE_SKILL_DIR":
       case "DRORA_SKILL_DIR":
+      case "ZCODE_SKILL_DIR":
         throw new PluginVariableError(`Plugin variable requires a skill context: ${name}`);
       default:
         break;

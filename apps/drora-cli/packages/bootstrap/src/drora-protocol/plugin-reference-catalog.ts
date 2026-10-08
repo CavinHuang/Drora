@@ -14,6 +14,7 @@ import {
 import type { PluginReferenceCatalogEntry } from "@drora/contracts";
 import { buildPluginReferenceCatalog } from "@drora/core";
 import {
+  enrichCachedClaudePluginMarketplaceIcons,
   getDroraPluginsOverview,
   resolveDroraPlugins,
   updateDroraPluginMarketplace,
@@ -33,6 +34,10 @@ export async function getPluginReferenceCatalog(
   includeCategory = false,
 ): Promise<DroraPluginsReferenceCatalogResult> {
   const params = parseParams(droraPluginsReferenceCatalogParamsSchema, rawParams);
+  // 原版 NRn：catalog 读入口同样触发 claude 市场 icon 的每进程一次懒修补（不等待）。
+  enrichCachedClaudePluginMarketplaceIcons({
+    workingDirectory: params.workspace.workspacePath,
+  });
   if (params.sessionId) {
     const record = requireSession(context, params.sessionId);
     const displayByPluginId = resolveReferenceListingDisplayByPluginId(

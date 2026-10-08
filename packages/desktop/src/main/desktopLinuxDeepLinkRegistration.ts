@@ -9,7 +9,8 @@ import {
 } from "./desktopLinuxXdg.js";
 
 const LINUX_DEEP_LINK_DESKTOP_FILE = "drora.desktop";
-const LINUX_DEEP_LINK_MIME_TYPE = "x-scheme-handler/drora";
+// zcode:// 是官网 OAuth 中转页白名单的回调契约，必须与 drora:// 一起登记为 handler。
+const LINUX_DEEP_LINK_MIME_TYPES = ["x-scheme-handler/drora", "x-scheme-handler/zcode"];
 // 归属标记：用于识别用户级 drora.desktop 是否由本应用写入（历史所有版本都带这行 Comment）。
 const LINUX_DESKTOP_ENTRY_OWNERSHIP_MARKER = "Comment=Drora Desktop App";
 
@@ -124,7 +125,7 @@ function createLinuxDeepLinkDesktopEntry(params: {
     "Type=Application",
     `Icon=${iconName}`,
     "Categories=Development;",
-    `MimeType=${LINUX_DEEP_LINK_MIME_TYPE};`,
+    `MimeType=${LINUX_DEEP_LINK_MIME_TYPES.join(";")};`,
     `StartupWMClass=${productName}`,
     "",
   ].join("\n");
@@ -260,13 +261,14 @@ export function registerLinuxDeepLinkProtocol(options: RegisterLinuxDeepLinkProt
     // deep link 是 OAuth/支付/工作区打开的核心链路，必须先完成用户级协议处理器刷新；
     // 图标安装是可选增强，放到核心注册成功后独立降级，避免扩大登录回调失败域。
     const updateResult = runCommand("update-desktop-database", [applicationsDir]);
-    const defaultResult = runCommand("xdg-mime", [
-      "default",
-      LINUX_DEEP_LINK_DESKTOP_FILE,
-      LINUX_DEEP_LINK_MIME_TYPE,
-    ]);
+    // 每个 scheme 单独设置默认 handler；任一成功即视为协议可用，全部失败才告警。
+    const defaultResults = LINUX_DEEP_LINK_MIME_TYPES.map((mimeType) => ({
+      mimeType,
+      result: runCommand("xdg-mime", ["default", LINUX_DEEP_LINK_DESKTOP_FILE, mimeType]),
+    }));
+    const failedDefaults = defaultResults.filter((entry) => entry.result.status !== 0);
 
-    if (defaultResult.status === 0) {
+    if (failedDefaults.length < defaultResults.length) {
       protocolRegistered = true;
       options.logger.info("[deep-link] Linux 用户级协议注册成功", {
         desktopFilePath,
@@ -274,17 +276,23 @@ export function registerLinuxDeepLinkProtocol(options: RegisterLinuxDeepLinkProt
         args: command.args,
         changed,
         systemDesktopEntryPath,
+        registeredMimeTypes: defaultResults
+          .filter((entry) => entry.result.status === 0)
+          .map((entry) => entry.mimeType),
       });
     } else {
       options.logger.warn("[deep-link] Linux 用户级协议注册失败", {
         desktopFilePath,
         executablePath: command.executablePath,
         args: command.args,
-        status: defaultResult.status,
-        signal: defaultResult.signal,
-        timeoutMs: defaultResult.signal === "SIGTERM" ? XDG_COMMAND_TIMEOUT_MS : undefined,
-        error: defaultResult.error?.message,
-        stderr: defaultResult.stderr?.trim(),
+        statuses: defaultResults.map((entry) => ({
+          mimeType: entry.mimeType,
+          status: entry.result.status,
+          signal: entry.result.signal,
+          timeoutMs: entry.result.signal === "SIGTERM" ? XDG_COMMAND_TIMEOUT_MS : undefined,
+          error: entry.result.error?.message,
+          stderr: entry.result.stderr?.trim(),
+        })),
       });
     }
 

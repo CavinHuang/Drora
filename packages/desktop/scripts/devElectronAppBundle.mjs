@@ -1,7 +1,9 @@
 import { access, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const DEV_ELECTRON_PROTOCOL_SCHEME = "drora";
+// zcode:// 是官网 OAuth 中转页白名单的回调契约，drora:// 是应用自有 deep link，
+// dev 壳两者都要声明，否则本地无法联调登录回跳。
+export const DEV_ELECTRON_PROTOCOL_SCHEMES = ["drora", "zcode"];
 export const DEV_ELECTRON_APP_NAME = "Drora Dev";
 export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.drora.app.development";
 // 副本布局版本，见 prepareDevElectronAppBundle 中的指纹说明。
@@ -23,7 +25,9 @@ function replacePlistString(plist, key, value) {
 }
 
 function appendProtocolDeclaration(plist) {
-  if (plist.includes(`<string>${DEV_ELECTRON_PROTOCOL_SCHEME}</string>`)) {
+  if (
+    DEV_ELECTRON_PROTOCOL_SCHEMES.every((scheme) => plist.includes(`<string>${scheme}</string>`))
+  ) {
     return plist;
   }
 
@@ -32,7 +36,10 @@ function appendProtocolDeclaration(plist) {
     throw new Error("Dev Electron Info.plist is missing its root dict");
   }
 
-  const protocolDeclaration = `\n\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLName</key>\n\t\t\t<string>${DEV_ELECTRON_APP_NAME}</string>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>\n\t\t\t\t<string>${DEV_ELECTRON_PROTOCOL_SCHEME}</string>\n\t\t\t</array>\n\t\t</dict>\n\t</array>\n`;
+  const schemeEntries = DEV_ELECTRON_PROTOCOL_SCHEMES.map(
+    (scheme) => `\n\t\t\t\t<string>${scheme}</string>`,
+  ).join("");
+  const protocolDeclaration = `\n\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLName</key>\n\t\t\t<string>${DEV_ELECTRON_APP_NAME}</string>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>${schemeEntries}\n\t\t\t</array>\n\t\t</dict>\n\t</array>\n`;
   return `${plist.slice(0, closingDictIndex)}${protocolDeclaration}${plist.slice(closingDictIndex)}`;
 }
 
@@ -88,7 +95,9 @@ export async function prepareDevElectronAppBundle({
     const existingStamp = await readFile(sourceStampPath, "utf8");
     needsCopy =
       !existingInfoPlist.includes(`<string>${DEV_ELECTRON_APP_BUNDLE_ID}</string>`) ||
-      !existingInfoPlist.includes(`<string>${DEV_ELECTRON_PROTOCOL_SCHEME}</string>`) ||
+      !DEV_ELECTRON_PROTOCOL_SCHEMES.every((scheme) =>
+        existingInfoPlist.includes(`<string>${scheme}</string>`),
+      ) ||
       sourceStamp === undefined ||
       existingStamp !== sourceStamp;
   } catch {

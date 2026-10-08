@@ -41,7 +41,6 @@ import type {
   EnterpriseCodingPlanPricingResponse,
   StartPlanPreviewConfig,
   DroraModelContextBudgetStrategy,
-  ForceUpdateConfig,
   DynamicWorkflowClientConfig,
 } from "@drora/shared";
 import type { ModelSelectionView } from "@drora/provider";
@@ -71,7 +70,6 @@ export interface ICodingPlanSubscriptionService {
   }): Promise<DynamicWorkflowClientConfig>;
   /** 兼容接口：固定返回 preflight-v1，不读取远端配置或缓存。 */
   getModelContextBudgetStrategy(): Promise<DroraModelContextBudgetStrategy>;
-  getForceUpdateConfig(): Promise<ForceUpdateConfig | null>;
   productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo>;
   preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse>;
   createSign(request: CodingPlanCreateSignRequest): Promise<CodingPlanAgreementResponse>;

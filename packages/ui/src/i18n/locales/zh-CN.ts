@@ -2273,6 +2273,11 @@ const zhCN: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.7": "7 天后归档",
   "settings.taskAutoArchiveDays.option.14": "14 天后归档",
   "settings.taskAutoArchiveDays.option.30": "30 天后归档",
+  "settings.relayServerUrl": "云中继服务器",
+  "settings.relayServerUrlDescription":
+    "自建 relay 服务端地址（移动端远控）。留空使用官方 zcode.z.ai；修改后需停止并重新开启远程控制。",
+  "settings.relayServerUrlPlaceholder": "留空使用官方，例如 http://relay.lan:4430",
+  "settings.relayServerUrlSavedHint": "云中继服务器设置已保存，重启应用后生效",
   "settings.dataBaseDir": "数据存储路径",
   "settings.dataBaseDirDescription":
     "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .drora/v2 不可更改。",

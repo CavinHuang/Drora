@@ -779,6 +779,7 @@ export function SettingsPage({
         setHttpProxy(settings.httpProxy ?? "");
         setHttpProxyNoProxy(settings.httpProxyNoProxy ?? "");
         setHttpProxyCaCertPath(settings.httpProxyCaCertPath ?? "");
+        setRelayServerUrl(settings.relayServerUrl ?? "");
         setEmbeddedBrowserAllowInsecureCertificates(
           settings.embeddedBrowserAllowInsecureCertificates ?? false,
         );
@@ -1013,6 +1014,31 @@ export function SettingsPage({
       });
       setHttpProxyCaCertPath(normalizedCaCertPath);
       toast(intl.formatMessage({ id: "settings.httpProxySavedHint" }));
+    },
+    [services.settingService, intl],
+  );
+  const [relayServerUrl, setRelayServerUrl] = useState("");
+
+  const handleRelayServerUrlChange = useCallback(
+    async (url: string) => {
+      const normalized = url.trim();
+      await runSettingsActionAsync({
+        featureId: "settings.network",
+        action: "save_relay_server_url",
+        trigger: "button",
+        operation: () =>
+          services.settingService.update({
+            // 清空必须传空串（RPC 丢 undefined），由服务层回落官方 zcode.z.ai。
+            relayServerUrl: normalized,
+          }),
+        completed: {
+          resultSource: "setting_service",
+          configured: normalized.length > 0,
+          requiresRestart: true,
+        },
+      });
+      setRelayServerUrl(normalized);
+      toast(intl.formatMessage({ id: "settings.relayServerUrlSavedHint" }));
     },
     [services.settingService, intl],
   );
@@ -1739,6 +1765,8 @@ export function SettingsPage({
                             onHttpProxyChange={handleHttpProxyChange}
                             onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
                             onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
+                            relayServerUrl={relayServerUrl}
+                            onRelayServerUrlChange={handleRelayServerUrlChange}
                             onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
                             onTaskAutoArchiveOlderThanDaysChange={
                               handleTaskAutoArchiveOlderThanDaysChange

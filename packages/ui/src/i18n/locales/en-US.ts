@@ -2420,6 +2420,12 @@ const enUS: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.7": "Archive after 7 days",
   "settings.taskAutoArchiveDays.option.14": "Archive after 14 days",
   "settings.taskAutoArchiveDays.option.30": "Archive after 30 days",
+  "settings.relayServerUrl": "Relay server",
+  "settings.relayServerUrlDescription":
+    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
+  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
+  "settings.relayServerUrlSavedHint":
+    "Relay server settings saved. Restart the app to take effect.",
   "settings.dataBaseDir": "Data storage path",
   "settings.dataBaseDirDescription":
     "Root directory for app data (defaults to user home directory). Existing data will be copied to the new location. The .drora/v2 suffix cannot be changed.",

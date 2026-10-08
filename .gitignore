@@ -10,6 +10,7 @@ bundled-resources/
 mock-cdn/
 packages/desktop/bundled-resources/
 packages/desktop/bundled-agents/
+packages/desktop/bundled-cua-helper/
 packages/desktop/bundled-tools/
 packages/desktop/mock-cdn/
 *.tsbuildinfo
@@ -69,3 +70,24 @@ packages/desktop/.e2e-artifacts/
 packages/desktop/.e2e-cache/
 packages/desktop/.e2e-network-capture/
 .drora-runtime/
+packages/desktop/resources/cua-helper/
+packages/desktop/resources/cua-helper-3.11.2-reference/
+packages/desktop/resources/glm-natives-3.14.3/
+# win32 原生插件是还原链的运行时资产(helperAddonLoader 的 in-tree 解析路径),
+# 必须入库;其余 build/Release/*.node 仍是 node-gyp 中间产物,保持忽略。
+!packages/zcode-cua-helper/build/Release/ax_native.node
+# reverse 构建中间产物(node-gyp vcxproj 等)与端到端验收的运行时输出不入库
+packages/zcode-cua-helper/native/reverse/build/
+packages/zcode-cua-helper/native/reverse/.matrix-*.json
+# macOS .app 构建产物（build-cua-helper-app.mjs 输出，spec: specs/mac-cua-helper-app-alignment.md）
+packages/zcode-cua-helper/dist-cua-helper/
+
+.tmp-work
+# 手机远控官方资源下载缓存（§32.39：48MB 归档，CDN 可重取，不入库）
+packages/mobile-web/remote-dist/
+# dev harness 临时文件（截图对照/CDP 探针/桩日志，§32.39-58）
+**/.tmp-*
+# ZCode CLI 本地会话/计划目录（工具产物，不入库）
+.zcode/
+# relay CLI 默认资产缓存（--asset-cache-dir 缺省目录），官方资产字节不入库。
+remote-asset-cache/

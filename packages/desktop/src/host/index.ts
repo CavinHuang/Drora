@@ -2982,8 +2982,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
             captchaConfigServiceHolder.current =
               initializedServices.getOptional(IClientConfigService);
             activeHostApiNetworkTransport = hostApiNetworkTransport;
-            captchaConfigServiceHolder.current =
-              initializedServices.getOptional(IClientConfigService);
             return initializedServices;
           },
         });

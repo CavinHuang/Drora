@@ -2690,6 +2690,7 @@ const enUS: Record<string, string> = {
   "settings.mcp.remoteSync.resultEmpty": "No MCP sync results were returned.",
   "settings.mcp.remoteSync.selectionCount": "{selected}/{total} selected",
   "settings.mcp.remoteSync.noSelection": "Select at least one missing MCP server.",
+  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code Plugins",
   "settings.plugins.remoteContext": "Current remote workspace: {target}",
   "settings.plugins.remoteSync.open": "Sync Plugin",
   "settings.plugins.remoteSync.title": "Sync Plugins to remote target",

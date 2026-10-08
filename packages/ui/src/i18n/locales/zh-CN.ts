@@ -2527,6 +2527,7 @@ const zhCN: Record<string, string> = {
   "settings.mcp.remoteSync.resultEmpty": "暂无 MCP 同步结果。",
   "settings.mcp.remoteSync.selectionCount": "已选 {selected}/{total}",
   "settings.mcp.remoteSync.noSelection": "请至少选择一个远端缺失的 MCP 服务器。",
+  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code 插件",
   "settings.plugins.remoteContext": "当前远端工作区：{target}",
   // 远程同步入口由独立文案演进，曾混用小写；并排展示时统一为 Skill/MCP/Plugin。
   "settings.plugins.remoteSync.open": "同步 Plugin",

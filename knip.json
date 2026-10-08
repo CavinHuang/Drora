@@ -22,6 +22,21 @@
     "packages/server": {
       "entry": ["src/index.ts", "src/entry-stdio.ts", "build-remote.ts"]
     },
+    "packages/relay-server": {
+      "entry": ["src/index.ts", "src/main.ts", "test/*.test.ts"]
+    },
+    "packages/relay-client": {
+      "entry": ["src/index.ts", "test/*.test.ts"]
+    },
+    "packages/mobile-web": {
+      "entry": [
+        "src/app/main.tsx",
+        "scripts/recover.mjs",
+        "scripts/build.mjs",
+        "scripts/build-app.mjs",
+        "test/*.test.mjs"
+      ]
+    },
     "packages/services": {
       "entry": ["src/index.ts", "src/storage/module.ts"]
     },
@@ -29,5 +44,12 @@
       "entry": ["src/browser-client.ts"]
     }
   },
-  "ignore": [".agents/**", "docs/**", "packages/ui/src/components/**"]
+  "ignore": [
+    ".agents/**",
+    "docs/**",
+    "packages/ui/src/components/**",
+    "packages/mobile-web/upstream/**",
+    "packages/mobile-web/src/recovered/**",
+    "packages/mobile-web/dist/**"
+  ]
 }

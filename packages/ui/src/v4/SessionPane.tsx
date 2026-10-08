@@ -485,6 +485,20 @@ function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boole
  *   使回调在流式增量期间保持稳定引用，避免把新函数灌进 memo 子组件触发无谓重渲染；
  * - 模型表单的本地输入 state 下沉到对应子组件，输入时不牵动整个 pane。
  */
+
+/** 移动视口判定（对齐原版 PR()：手机/平板触屏窄屏抑制 /side 斜杠命令）。 */
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px) and (hover: none) and (pointer: coarse)");
+    const sync = () => setIsMobile(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return isMobile;
+}
+
 export function SessionPane({
   paneId,
   sessionId,
@@ -2068,6 +2082,7 @@ export function SessionPane({
   // `/side` App 层斜杠命令。命令目录仍以 CLI catalog 为权威，这里只在渲染层
   // 按门禁注入"选中即打开辅助对话"的本地命令；草稿态（无父 session 可挂 child）、
   // 辅助对话自身、只读与手机 viewport 均不提供。
+  const isMobileViewport = useIsMobileViewport();
   const appSlashCommands = useMemo<AppSlashCommand[] | undefined>(() => {
     if (
       !sessionId ||
@@ -2076,7 +2091,7 @@ export function SessionPane({
         isDraft: sessionId === null,
         selectionSideChat,
         readOnly,
-        isMobileViewport: false,
+        isMobileViewport,
       })
     ) {
       return undefined;

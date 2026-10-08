@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
+import { useIsMobileViewport } from "@/hooks/useIsMobileViewport.js";
 /**
  * v4 会话 composer（composer parity）。
  *
@@ -391,7 +392,6 @@ interface ConversationComposerProps {
    * 竖切多 pane 时由宿主传入 SessionPane.focused，仅焦点 pane 聚焦、后台 pane 不抢焦点。
    */
   autoFocusEnabled?: boolean;
-  /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
@@ -816,6 +816,7 @@ function ConversationComposerImpl({
   // 借此区分 send_click 的 send_trigger，读取后立刻复位回默认的 shortcut。
   const sendTriggerRef = useRef<"button" | "shortcut">("shortcut");
   // 修饰键点击先于 form submit；这里只保存这一拍的 delivery 反转意图，submit 消费后清零。
+  const isMobileViewport = useIsMobileViewport();
   const reversePointerDeliveryRef = useRef(false);
   const appliedComposerRestoreRequestRef = useRef<number | null>(null);
   const appliedExternalTextInsertRequestRef = useRef<number | null>(null);
@@ -824,12 +825,12 @@ function ConversationComposerImpl({
   const focusOptsRef = useRef<ComposerAutoFocusOptions>({
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport,
   });
   focusOptsRef.current = {
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport,
   };
   const flushPendingFocus = useCallback(() => {
     if (!pendingFocusRef.current) return;

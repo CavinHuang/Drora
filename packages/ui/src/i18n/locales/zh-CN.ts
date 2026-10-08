@@ -2210,6 +2210,8 @@ const zhCN: Record<string, string> = {
     "开启后检测到更新会自动开始下载；下载完成后，如有任务正在运行，重启更新前仍会要求确认。",
   "settings.notification": "任务通知",
   "settings.notificationDescription": "任务完成、失败或需要确认时发送桌面通知。",
+  "settings.desktopPetCharacter": "宠物角色",
+  "settings.desktopPetCharacterDescription": "选择桌面宠物角色，切换后原位重建宠物窗口。",
   "settings.desktopPet": "桌面宠物",
   "settings.desktopPetDescription": "在桌面显示任务状态；点击宠物可打开对应任务。",
   "settings.notificationSound": "通知声音",

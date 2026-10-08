@@ -23,26 +23,27 @@ export function visiblePetPosition(
   saved: Point | undefined,
   workAreas: readonly Rectangle[],
   primary: Rectangle,
+  size: { width: number; height: number } = { width: PET_WIDTH, height: PET_HEIGHT },
 ): Point {
   const area = saved
     ? (workAreas.find(
         (workArea) =>
           saved.x < workArea.x + workArea.width &&
-          saved.x + PET_WIDTH > workArea.x &&
+          saved.x + size.width > workArea.x &&
           saved.y < workArea.y + workArea.height &&
-          saved.y + PET_HEIGHT > workArea.y,
+          saved.y + size.height > workArea.y,
       ) ?? primary)
     : primary;
   return {
     x: clamp(
-      saved?.x ?? area.x + area.width - PET_WIDTH - 28,
+      saved?.x ?? area.x + area.width - size.width - 28,
       area.x,
-      area.x + area.width - PET_WIDTH,
+      area.x + area.width - size.width,
     ),
     y: clamp(
-      saved?.y ?? area.y + area.height - PET_HEIGHT - 28,
+      saved?.y ?? area.y + area.height - size.height - 28,
       area.y,
-      area.y + area.height - PET_HEIGHT,
+      area.y + area.height - size.height,
     ),
   };
 }
@@ -59,9 +60,13 @@ export function draggedPetPosition(origin: Point, start: Point, current: Point):
  * 越界时整体收进工作区：左右钳到 display 边缘，顶部钳到工作区上沿（极近任务栏
  * 或屏幕顶时允许压住宠物头部，避免把气泡推出屏幕外）。
  */
-export function bubblePositionForPet(pet: Point, area: Rectangle): Point {
+export function bubblePositionForPet(
+  pet: Point,
+  area: Rectangle,
+  petWidth: number = PET_WIDTH,
+): Point {
   const x = clamp(
-    pet.x + PET_WIDTH / 2 - BUBBLE_WIDTH / 2,
+    pet.x + petWidth / 2 - BUBBLE_WIDTH / 2,
     area.x,
     area.x + area.width - BUBBLE_WIDTH,
   );

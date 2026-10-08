@@ -1245,6 +1245,9 @@ function syncImmediateAppSettings(patch: Partial<AppSettings>) {
   if (typeof patch.desktopPetEnabled === "boolean") {
     desktopPetWindow?.setEnabled(patch.desktopPetEnabled);
   }
+  if (patch.desktopPetCharacter) {
+    desktopPetWindow?.setCharacter(patch.desktopPetCharacter);
+  }
 
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
     keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
@@ -2254,6 +2257,7 @@ app.whenReady().then(async () => {
 
   desktopPetWindow = registerDesktopPetWindow({
     enabled: bootstrapSettings?.desktopPetEnabled ?? false,
+    character: bootstrapSettings?.desktopPetCharacter,
     position: bootstrapSettings?.desktopPetPosition,
     locale: () => currentApplicationLocale,
     isMainWindow: (win) => windowHostProcessMap.has(win.webContents.id),

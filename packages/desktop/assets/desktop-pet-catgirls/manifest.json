@@ -1,0 +1,292 @@
+{
+  "version": 5,
+  "frameWidth": 320,
+  "frameHeight": 640,
+  "columns": 4,
+  "rows": 2,
+  "motionRevision": "all-natural-v5",
+  "characters": [
+    {
+      "id": "noir",
+      "name": "夜墨 · 黑猫娘",
+      "actions": [
+        {
+          "id": "idle",
+          "label": "待机 · 轻轻呼吸",
+          "fps": 5,
+          "loop": true,
+          "atlas": "noir/idle-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "blink",
+          "label": "眨眼 · 柔和闭眼",
+          "fps": 10,
+          "loop": false,
+          "atlas": "noir/blink-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "talk",
+          "label": "说话 · 小幅唇形",
+          "fps": 7,
+          "loop": true,
+          "atlas": "noir/talk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "wave",
+          "label": "挥手 · 轻轻招手",
+          "fps": 7,
+          "loop": false,
+          "atlas": "noir/wave-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "think",
+          "label": "思考 · 轻轻歪头",
+          "fps": 5,
+          "loop": true,
+          "atlas": "noir/think-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "happy",
+          "label": "完成 · 小小开心",
+          "fps": 6,
+          "loop": false,
+          "atlas": "noir/happy-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "sleep",
+          "label": "打盹 · 轻垂眼睛",
+          "fps": 4,
+          "loop": true,
+          "atlas": "noir/sleep-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "walk",
+          "label": "行走 · 轻巧小步",
+          "fps": 8,
+          "loop": true,
+          "atlas": "noir/walk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "attention",
+          "label": "等待 · 小幅招手",
+          "fps": 6,
+          "loop": true,
+          "atlas": "noir/attention-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "error",
+          "label": "出错 · 轻握袖口",
+          "fps": 5,
+          "loop": true,
+          "atlas": "noir/error-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "working",
+          "label": "执行 · 轻敲键盘",
+          "fps": 7,
+          "loop": true,
+          "atlas": "noir/working-atlas.webp",
+          "frameCount": 8
+        }
+      ]
+    },
+    {
+      "id": "snow",
+      "name": "雪铃 · 白猫娘",
+      "actions": [
+        {
+          "id": "idle",
+          "label": "待机 · 轻轻呼吸",
+          "fps": 5,
+          "loop": true,
+          "atlas": "snow/idle-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "blink",
+          "label": "眨眼 · 柔和闭眼",
+          "fps": 10,
+          "loop": false,
+          "atlas": "snow/blink-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "talk",
+          "label": "说话 · 小幅唇形",
+          "fps": 7,
+          "loop": true,
+          "atlas": "snow/talk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "wave",
+          "label": "挥手 · 轻轻招手",
+          "fps": 7,
+          "loop": false,
+          "atlas": "snow/wave-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "think",
+          "label": "思考 · 轻轻歪头",
+          "fps": 5,
+          "loop": true,
+          "atlas": "snow/think-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "happy",
+          "label": "完成 · 小小开心",
+          "fps": 6,
+          "loop": false,
+          "atlas": "snow/happy-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "sleep",
+          "label": "打盹 · 轻垂眼睛",
+          "fps": 4,
+          "loop": true,
+          "atlas": "snow/sleep-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "walk",
+          "label": "行走 · 轻巧小步",
+          "fps": 8,
+          "loop": true,
+          "atlas": "snow/walk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "attention",
+          "label": "等待 · 小幅招手",
+          "fps": 6,
+          "loop": true,
+          "atlas": "snow/attention-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "error",
+          "label": "出错 · 轻握袖口",
+          "fps": 5,
+          "loop": true,
+          "atlas": "snow/error-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "working",
+          "label": "执行 · 轻敲键盘",
+          "fps": 7,
+          "loop": true,
+          "atlas": "snow/working-atlas.webp",
+          "frameCount": 8
+        }
+      ]
+    },
+    {
+      "id": "ginger",
+      "name": "杏桃 · 橘猫娘",
+      "actions": [
+        {
+          "id": "idle",
+          "label": "待机 · 轻轻呼吸",
+          "fps": 5,
+          "loop": true,
+          "atlas": "ginger/idle-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "blink",
+          "label": "眨眼 · 柔和闭眼",
+          "fps": 10,
+          "loop": false,
+          "atlas": "ginger/blink-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "talk",
+          "label": "说话 · 小幅唇形",
+          "fps": 7,
+          "loop": true,
+          "atlas": "ginger/talk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "wave",
+          "label": "挥手 · 轻轻招手",
+          "fps": 7,
+          "loop": false,
+          "atlas": "ginger/wave-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "think",
+          "label": "思考 · 轻轻歪头",
+          "fps": 5,
+          "loop": true,
+          "atlas": "ginger/think-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "happy",
+          "label": "完成 · 小小开心",
+          "fps": 6,
+          "loop": false,
+          "atlas": "ginger/happy-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "sleep",
+          "label": "打盹 · 轻垂眼睛",
+          "fps": 4,
+          "loop": true,
+          "atlas": "ginger/sleep-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "walk",
+          "label": "行走 · 轻巧小步",
+          "fps": 8,
+          "loop": true,
+          "atlas": "ginger/walk-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "attention",
+          "label": "等待 · 小幅招手",
+          "fps": 6,
+          "loop": true,
+          "atlas": "ginger/attention-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "error",
+          "label": "出错 · 轻握袖口",
+          "fps": 5,
+          "loop": true,
+          "atlas": "ginger/error-atlas.webp",
+          "frameCount": 8
+        },
+        {
+          "id": "working",
+          "label": "执行 · 轻敲键盘",
+          "fps": 7,
+          "loop": true,
+          "atlas": "ginger/working-atlas.webp",
+          "frameCount": 8
+        }
+      ]
+    }
+  ]
+}

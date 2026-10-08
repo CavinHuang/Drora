@@ -2352,6 +2352,8 @@ const enUS: Record<string, string> = {
   "settings.notification": "Task notifications",
   "settings.notificationDescription":
     "Send desktop notifications when a task completes, fails, or needs approval.",
+  "settings.desktopPetCharacter": "Pet character",
+  "settings.desktopPetCharacterDescription": "Choose the desktop pet character. Switching rebuilds the pet window in place.",
   "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Show task status on the desktop. Click the pet to open its task.",

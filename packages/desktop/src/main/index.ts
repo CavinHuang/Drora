@@ -136,6 +136,7 @@ import {
   updateDroraStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
 import { applyAppIcon } from "./desktopWindowChrome.js";
+import { renderDevBadgeIcon } from "./desktopDevBadge.js";
 import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
 import type { DesktopWindowSize } from "./desktopWindowSize.js";
 import { maybeWarnArchitectureMismatch } from "./desktopArchitectureGuard.js";
@@ -2289,7 +2290,14 @@ app.whenReady().then(async () => {
     );
   }
 
-  applyAppIcon(iconPath);
+  // dev 构建叠加 DEV 角标（官方 renderDevBadgeIcon 对齐）：与打包版图标区分，
+  // 多实例并存时避免误操作；渲染失败回退默认图标。
+  if (!app.isPackaged) {
+    const devBadgeIcon = await renderDevBadgeIcon(iconPath, logger);
+    applyAppIcon(devBadgeIcon ?? iconPath);
+  } else {
+    applyAppIcon(iconPath);
+  }
   if (!loadedBootstrapLocale) {
     currentApplicationLocale = resolveSystemApplicationLocale();
   }

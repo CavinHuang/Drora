@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+// oxlint-disable-file -- 桌面打包编排脚本（多阶段 staging 堆叠超 max-lines）
 // 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（drora.cjs）放进 bundled-agents/<platform>/glm，
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
@@ -11,13 +12,15 @@
 //
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
-import { cpSync, existsSync, mkdirSync } from "node:fs";
-import { access, cp, mkdir } from "node:fs/promises";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { access, cp, mkdir, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
+import { stageSharpIntoBundledAgents } from "./sharp-package-assets.mjs";
+import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -98,6 +101,11 @@ const officialPluginPackages = [
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
     runtimeBuildScript: "scripts/build.mjs",
+    // 官方 0.5.1 发行物随包携带 node_modules sharp 运行时（截图/缩放链）。
+    // 打包期 node_modules 不从源目录复制（源 node_modules 混 pnpm 开发依赖，且入库基线为
+    // win32 平台集），改由 stager 按目标平台重产（见 stageOfficialPlugins），与官方发行物同形态。
+    // bootstrap 注册表侧的 runtimeTopLevelPaths 子树仅服务 dev filesystem seed。
+    stagedNativeRuntimes: ["sharp"],
     stagedPath: "packages/browser-use-plugin",
   },
 
@@ -110,7 +118,142 @@ const officialPluginPackages = [
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
     runtimeBuildScript: "scripts/build.mjs",
+    // 宿主 bundle externalize sharp，随包 node_modules 由打包期按目标平台 staging；
+    // dev 态解析走仓库根 hoisted sharp（desktop devDep）。
+    stagedNativeRuntimes: ["sharp"],
     stagedPath: "packages/node-repl-host",
+  },
+
+  // 以下内容型 / 预编译插件不带可构建 runtime（dist 即分发产物），只需原样 stage，
+  // requiredSeedPaths 与 bootstrap/official-plugin-definitions.ts 的声明保持一致，
+  // 缺文件时在打包阶段就报错，而不是装出一个残缺插件。
+  {
+    packageName: "@drora/documents-plugin",
+    relativePath: "apps/drora-cli/packages/documents-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/docx/SKILL.md"],
+    stagedPath: "packages/documents-plugin",
+  },
+  {
+    packageName: "@drora/pdf-plugin",
+    relativePath: "apps/drora-cli/packages/pdf-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
+    stagedPath: "packages/pdf-plugin",
+  },
+  {
+    packageName: "@drora/presentations-plugin",
+    relativePath: "apps/drora-cli/packages/presentations-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
+    stagedPath: "packages/presentations-plugin",
+  },
+  {
+    packageName: "@drora/spreadsheets-plugin",
+    relativePath: "apps/drora-cli/packages/spreadsheets-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
+    stagedPath: "packages/spreadsheets-plugin",
+  },
+  {
+    packageName: "@drora/image-search-plugin",
+    relativePath: "apps/drora-cli/packages/image-search-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [".mcp.json"],
+    stagedPath: "packages/image-search-plugin",
+  },
+  {
+    packageName: "@drora/android-emulator-plugin",
+    relativePath: "apps/drora-cli/packages/android-emulator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["dist/mcp/server.js"],
+    stagedPath: "packages/android-emulator-plugin",
+  },
+  {
+    packageName: "@drora/ios-simulator-plugin",
+    relativePath: "apps/drora-cli/packages/ios-simulator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["dist/mcp/server.js"],
+    stagedPath: "packages/ios-simulator-plugin",
+  },
+  {
+    packageName: "@drora/obsidian-plugin",
+    relativePath: "apps/drora-cli/packages/obsidian-plugin",
+    requiresRuntime: false,
+    // hook 运行时与 skill 正文是同一发布单元，缺任一项打包期即报错。
+    requiredSeedPaths: [
+      "dist/hooks/session-start.mjs",
+      "dist/hooks/permission-request.mjs",
+      "dist/hooks/user-prompt-submit.mjs",
+      "skills/obsidian/SKILL.md",
+    ],
+    stagedPath: "packages/obsidian-plugin",
+  },
+  {
+    packageName: "@drora/restore-legacy-sessions-plugin",
+    relativePath: "apps/drora-cli/packages/restore-legacy-sessions-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["skills/restore-legacy-sessions/SKILL.md"],
+    stagedPath: "packages/restore-legacy-sessions-plugin",
+  },
+  {
+    packageName: "@drora/plugin-creator-plugin",
+    relativePath: "apps/drora-cli/packages/plugin-creator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "skills/plugin-creator/SKILL.md",
+      "skills/plugin-creator/scripts/create-basic-plugin.mjs",
+      "skills/plugin-creator/scripts/marketplace-files.mjs",
+      "skills/plugin-creator/scripts/upsert-dev-marketplace.mjs",
+      "skills/plugin-creator/scripts/scaffold-files.mjs",
+      "skills/plugin-creator/scripts/validate-plugin.mjs",
+      "skills/plugin-creator/references/plugin-json-spec.md",
+      "skills/plugin-creator/references/installing-and-updating.md",
+    ],
+    stagedPath: "packages/plugin-creator-plugin",
+  },
+  {
+    packageName: "@drora/skill-creator-plugin",
+    relativePath: "apps/drora-cli/packages/skill-creator-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["skills/skill-creator/SKILL.md"],
+    stagedPath: "packages/skill-creator-plugin",
+  },
+  {
+    packageName: "@drora/drora-guide-plugin",
+    relativePath: "apps/drora-cli/packages/drora-guide-plugin",
+    requiresRuntime: false,
+    // 官方 0.3.0 形态（第三十九轮）：dynamic-workflows 技能与 /workflow 命令已移入
+    // bundled-skills 随 CLI 分发；此处钉住 0.3.0 实际载荷的六个诊断技能正文，与
+    // bootstrap/official-plugin-definitions.ts 同步声明。
+    requiredSeedPaths: [
+      "skills/diagnosing-commands/SKILL.md",
+      "skills/diagnosing-hooks/SKILL.md",
+      "skills/diagnosing-mcp/SKILL.md",
+      "skills/diagnosing-plugins/SKILL.md",
+      "skills/diagnosing-skills/SKILL.md",
+      "skills/drora-configuration-guide/SKILL.md",
+    ],
+    stagedPath: "packages/drora-guide-plugin",
+  },
+  {
+    packageName: "@drora/drora-cua-plugin",
+    relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
+    requiresRuntime: false,
+    // 与原版 0.6.3 发行物对齐（bootstrap/official-plugin-definitions.ts 同步声明）：
+    // 插件载荷为 node_repl SDK client + skill + 按需文档；seed 级 native 依赖缺失会让
+    // SDK 首次调用即 MODULE_NOT_FOUND，必须在 staging 阶段就报错。
+    requiredSeedPaths: [
+      "skills/computer-use/SKILL.md",
+      "docs/computer-use.md",
+      "scripts/computer-use-client.mjs",
+      "package.json",
+      "node_modules/sharp/package.json",
+    ],
+    // 打包期 node_modules 由 stager 按目标平台重产（sharp + koffi，与官方 0.6.3 发行物
+    // 同形态）；入库 win32 基线只服务 dev filesystem seed，不直接进安装包。
+    stagedNativeRuntimes: ["sharp", "koffi"],
+    stagedPath: "packages/zcode-cua-plugin",
   },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
@@ -124,7 +267,9 @@ const bundledSkillPack = {
     "skills/dynamic-workflows/examples.md",
   ],
   stagedPath: "packages/bundled-skills",
-  topLevelPaths: ["skills"],
+  // 官方 3.14.3 发行物在 bundled-skills 根带 README（分发链三形态说明）；
+  // skills 之外的这份文档也随包 staging，保持文件集对齐。
+  topLevelPaths: ["skills", "README.md"],
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -149,8 +294,9 @@ const excludedOfficialPluginAssetNames = new Set([
   "node_modules",
 ]);
 
-function shouldCopyOfficialPluginAsset(sourcePath) {
+function shouldCopyOfficialPluginAsset(sourcePath, allowSeedNodeModules = false) {
   const name = basename(sourcePath);
+  if (name === "node_modules" && allowSeedNodeModules) return true;
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const isBootstrapWithRemote = process.env.DRORA_BOOTSTRAP_WITH_REMOTE === "1";
@@ -244,13 +390,45 @@ function stageOfficialPlugins() {
 
     const targetRoot = resolve(glmDir, plugin.stagedPath);
     mkdirSync(targetRoot, { recursive: true });
-    for (const entryName of includedOfficialPluginTopLevelPaths) {
+    // runtimeTopLevelPaths 条目可以是整目录（node_modules，如 zcode-cua-plugin 入库基线）
+    // 或确定性子树（node_modules/sharp，browser-use 按 seed 级运行时子树随包），
+    // 与 bootstrap/official-plugin-definitions.ts 同步声明。
+    const allowSeedNodeModules = (plugin.runtimeTopLevelPaths ?? []).includes("node_modules");
+    const stagedTopLevelPaths = [
+      ...includedOfficialPluginTopLevelPaths,
+      ...(plugin.runtimeTopLevelPaths ?? []),
+    ];
+    for (const entryName of stagedTopLevelPaths) {
       const sourcePath = resolve(sourceRoot, entryName);
       if (!existsSync(sourcePath)) continue;
       cpSync(sourcePath, resolve(targetRoot, entryName), {
         recursive: true,
-        filter: shouldCopyOfficialPluginAsset,
+        filter: (path) => shouldCopyOfficialPluginAsset(path, allowSeedNodeModules),
       });
+    }
+    // 带 stagedNativeRuntimes 的插件（node_repl 宿主 / browser-use / zcode-cua）：
+    // 官方发行物的 node_modules 是按目标平台 staging 的运行时闭包（sharp JS + 平台
+    // @img natives + koffi），不是源目录复制。此前整目录复制会把入库 win32 基线带进
+    // darwin/linux 安装包（bundled-agents 缓存实测 sharp-win32-x64 出现在 darwin-arm64），
+    // 原生模块在目标平台直接 MODULE_NOT_FOUND。这里先清空再按目标平台重产，与官方
+    // sync-cache 共用同一组 staging 函数。
+    if ((plugin.stagedNativeRuntimes ?? []).length > 0) {
+      rmSync(resolve(targetRoot, "node_modules"), { recursive: true, force: true });
+      const targetPlatform = { os: platform, arch };
+      if (plugin.stagedNativeRuntimes.includes("sharp")) {
+        stageSharpIntoBundledAgents({
+          desktopPackageRoot: desktopRoot,
+          glmDir: targetRoot,
+          targetPlatform,
+        });
+      }
+      if (plugin.stagedNativeRuntimes.includes("koffi")) {
+        stageKoffiIntoBundledAgents({
+          koffiPackageRoot: resolve(repoRoot, "apps/drora-cli/packages/adapters"),
+          glmDir: targetRoot,
+          targetPlatform,
+        });
+      }
     }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {
       const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
@@ -263,6 +441,19 @@ function stageOfficialPlugins() {
     console.log(`[prepare:agent-bundle] staged official plugin ${plugin.stagedPath}`);
   }
 }
+
+// Electron 生产包只带 resources/glm/drora.cjs 时，app-server 进程的
+// __dirname 附近没有官方插件目录，启动时 seed 找不到 source，用户侧不会自动得到内置插件。
+// 这里把官方插件按 bootstrap 的 rootCandidates 期望放到 glm/packages/*-plugin，
+// 让 Electron Node 运行 drora.cjs 时复用同一套 filesystem seed 逻辑。
+// browser-use runtime 的声明生成依赖 @drora/core/dist。CI 干净检出没有该产物，
+// 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
+buildCliBundle();
+buildOfficialPluginRuntimes();
+stageBundle();
+stageOfficialPlugins();
+await stageBundledSkillPack();
+await stageCuaHelperRuntime();
 
 async function stageBundledSkillPack() {
   const sourceRoot = resolve(repoRoot, bundledSkillPack.relativePath);
@@ -282,14 +473,40 @@ async function stageBundledSkillPack() {
   console.log(`[prepare:agent-bundle] staged bundled skill pack ${bundledSkillPack.stagedPath}`);
 }
 
-// Electron 生产包只带 resources/glm/drora.cjs 时，app-server 进程的
-// __dirname 附近没有官方插件目录，启动时 seed 找不到 source，用户侧不会自动得到内置插件。
-// 这里把官方插件按 bootstrap 的 rootCandidates 期望放到 glm/packages/*-plugin，
-// 让 Electron Node 运行 drora.cjs 时复用同一套 filesystem seed 逻辑。
-// browser-use runtime 的声明生成依赖 @drora/core/dist。CI 干净检出没有该产物，
-// 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
-buildCliBundle();
-buildOfficialPluginRuntimes();
-stageBundle();
-stageOfficialPlugins();
-await stageBundledSkillPack();
+async function stageCuaHelperRuntime() {
+  // CUA helper 运行时(0.6.3):windows-helper.js + ax_native.node + node_modules。
+  // resolveWindowsCuaRuntime 产品模式只读 resources/tools/cua-helper,缺文件即 fail-closed,
+  // 因此这里整树暴装(含运行依赖)。
+  // 第四十四轮修复：此前误落 glm/tools/cua-helper（随 glm→glm 映射进 Resources/glm/tools，
+  // 消费方按 resourcesPath/tools/cua-helper 永远解析不到），且对所有平台无条件 staging——
+  // 官方 mac 发行物的 glm 无 tools/ 目录（对照实测），该运行时是 Windows 专属。
+  // 现迁到 bundled-tools/<platformKey>/cua-helper（与 ripgrep 同一 staging 模式），
+  // 由 electron-builder 的 win32 专属 extraResources 条目映射到 resources/tools/cua-helper。
+  if (platform !== "win32") {
+    console.log(
+      `[prepare:agent-bundle] skip cua helper runtime on ${platformKey} (win32-only; 官方 mac glm 无 tools/)`,
+    );
+    return;
+  }
+  const sourceRoot = resolve(repoRoot, "packages/zcode-cua-helper/runtime/cua-helper");
+  const targetRoot = resolve(
+    repoRoot,
+    "packages",
+    "desktop",
+    "bundled-tools",
+    platformKey,
+    "cua-helper",
+  );
+  await rm(targetRoot, { recursive: true, force: true });
+  await mkdir(targetRoot, { recursive: true });
+  await cp(sourceRoot, targetRoot, { recursive: true });
+  for (const relativePath of [
+    "dist/windows-helper.js",
+    "build/Release/ax_native.node",
+    "runtime-manifest.json",
+  ]) {
+    const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
+    await access(stagedAssetPath);
+  }
+  console.log(`[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`);
+}

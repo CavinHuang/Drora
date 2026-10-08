@@ -73,6 +73,7 @@
     "packages/mobile-web/src/recovered",
     "packages/mobile-web/dist",
     "packages/mobile-web/remote-dist",
-    "packages/mobile-web/scripts/dev-host-stub.mjs"
+    "packages/mobile-web/scripts/dev-host-stub.mjs",
+    "scripts/regression"
   ]
 }

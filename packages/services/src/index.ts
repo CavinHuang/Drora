@@ -65,6 +65,23 @@ export { IOutputStyleService } from "./outputStyle/outputStyle.js";
 export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 
+// Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
+export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
+export type {
+  ObsidianVaultCandidate,
+  ObsidianVaultConfigureOptions,
+  ObsidianVaultDeleteInput,
+  ObsidianVaultFocus,
+  ObsidianVaultReadResult,
+  ObsidianVaultRenameInput,
+  ObsidianVaultSavePastedImageInput,
+  ObsidianVaultSummary,
+  ObsidianVaultTreeEntry,
+  ObsidianVaultUserContextSnapshot,
+  ObsidianVaultWriteInput,
+  ObsidianVaultWriteResult,
+} from "./obsidian-vault/obsidianVault.js";
+
 // Git service — IGitService is both a type (interface) and value (descriptor)
 export { IGitService } from "./git/git.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";

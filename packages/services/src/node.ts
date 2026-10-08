@@ -12,7 +12,9 @@ import {
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
 import { IOutputStyleService } from "./outputStyle/outputStyle.js";
+import { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
+import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -142,6 +144,7 @@ export type {
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
+export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,
@@ -2708,6 +2711,9 @@ export function createLocalServices(options: {
     // 第 48 轮：Claude Code 兼容的输出风格服务。官方 createLocalServices 注册链里
     // .register 使用本地实例——output style 是本机 ~/.claude 的状态。
     .register(IOutputStyleService, createOutputStyleService())
+    // Obsidian Vault 面板服务：无条件注册，未配置 vault 时面板展示引导；是
+    // 面板写路径的唯一安全门面（路径逐段 lstat 拒软链 + sha256 CAS 乐观锁）。
+    .register(IObsidianVaultService, createObsidianVaultService())
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,

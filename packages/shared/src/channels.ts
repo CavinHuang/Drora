@@ -164,6 +164,8 @@ export const ServiceChannels = {
   OutputStyle: "output-style",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
   OnboardingRecord: "onboarding-record",
+  /** Obsidian Vault 面板服务（host 常驻；配置与 obsidian MCP server 共享 vault-config.json） */
+  ObsidianVault: "obsidian-vault",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

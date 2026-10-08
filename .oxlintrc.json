@@ -75,6 +75,7 @@
     "packages/mobile-web/remote-dist",
     "packages/mobile-web/scripts/dev-host-stub.mjs",
     "scripts/regression",
-    "packages/zcode-cua/upstream"
+    "packages/zcode-cua/upstream",
+    "packages/zcode-cua-helper"
   ]
 }

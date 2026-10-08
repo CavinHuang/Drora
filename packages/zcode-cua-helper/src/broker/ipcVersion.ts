@@ -1,0 +1,1 @@
+export var CUA_BROKER_IPC_VERSION = 2;

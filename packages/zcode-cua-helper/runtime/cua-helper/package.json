@@ -1,0 +1,14 @@
+{
+  "name": "@zcode/zcode-cua-helper-runtime",
+  "version": "0.6.3",
+  "type": "module",
+  "private": true,
+  "main": "dist/windows-helper.js",
+  "droraCuaRuntime": {
+    "schema": 1,
+    "windows": {
+      "entry": "dist/windows-helper.js",
+      "nativeAddon": "build/Release/ax_native.node"
+    }
+  }
+}

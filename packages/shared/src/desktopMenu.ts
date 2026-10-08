@@ -47,6 +47,8 @@ export const desktopMenuMessageIds = {
   helpDownloadingUpdateVersion: "desktopMenu.help.downloadingUpdateVersion",
   helpDownloadingUpdateProgress: "desktopMenu.help.downloadingUpdateProgress",
   helpRestartToUpdate: "desktopMenu.help.restartToUpdate",
+  updateInstallFailedTitle: "desktopMenu.update.installFailedTitle",
+  updateInstallFailedBody: "desktopMenu.update.installFailedBody",
   dockShowCurrentWindow: "dock.menu.showCurrentWindow",
   trayTooltip: "tray.tooltip",
   trayOpenDrora: "tray.menu.openDrora",
@@ -106,6 +108,9 @@ export const desktopMenuMessages: Record<Locale, DesktopMenuLocaleMessages> = {
     "desktopMenu.help.downloadingUpdateVersion": "正在下载更新 {version}...",
     "desktopMenu.help.downloadingUpdateProgress": "正在下载更新... {progress}",
     "desktopMenu.help.restartToUpdate": "重启以更新（{version}）",
+    "desktopMenu.update.installFailedTitle": "更新安装失败",
+    "desktopMenu.update.installFailedBody":
+      "更新安装失败（{message}）。Drora 将退出，重新打开后可再次检查更新。",
     "dock.menu.showCurrentWindow": "显示当前窗口",
     "tray.tooltip": "Drora",
     "tray.menu.openDrora": "打开 Drora",
@@ -158,6 +163,9 @@ export const desktopMenuMessages: Record<Locale, DesktopMenuLocaleMessages> = {
     "desktopMenu.help.downloadingUpdateVersion": "Downloading update {version}...",
     "desktopMenu.help.downloadingUpdateProgress": "Downloading update... {progress}",
     "desktopMenu.help.restartToUpdate": "Restart to update ({version})",
+    "desktopMenu.update.installFailedTitle": "Update installation failed",
+    "desktopMenu.update.installFailedBody":
+      "Update installation failed ({message}). Drora will quit; reopen it to check for updates again.",
     "dock.menu.showCurrentWindow": "Show current window",
     "tray.tooltip": "Drora",
     "tray.menu.openDrora": "Open Drora",

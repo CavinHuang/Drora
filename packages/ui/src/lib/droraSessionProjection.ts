@@ -17,6 +17,7 @@ import {
   type DroraSessionMode,
   type DroraSessionSettingsState,
   type DroraSessionStateSnapshot,
+  normalizeDroraTaskMode,
 } from "@drora/shared";
 
 const MODEL_CONFIG_ID = "model";
@@ -180,7 +181,7 @@ export function droraSessionSnapshotToTaskMeta(snapshot: DroraSessionStateSnapsh
     workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
     createdAt: snapshot.session.createdAt,
     updatedAt: snapshot.session.updatedAt,
-    mode: fromDroraMode(snapshot.session.mode),
+    mode: normalizeDroraTaskMode(fromDroraMode(snapshot.session.mode)),
     model: formatModelPickerValue(resolveTaskMetaModelSelectionFromSnapshot(snapshot)),
     thoughtLevel: snapshot.settings.thoughtLevel.current,
     provider: DRORA_AGENT_PROVIDER,

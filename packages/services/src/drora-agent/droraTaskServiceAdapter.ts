@@ -109,6 +109,7 @@ import {
   type DroraUserInputRequestParams,
   type DroraUserInputResponse,
   type DroraAgentMcpServer,
+  normalizeDroraTaskMode,
 } from "@drora/shared";
 import type {
   DroraTaskListQuery,
@@ -1294,7 +1295,7 @@ export function createDroraTaskServiceAdapter(
         workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
         createdAt: snapshot.session.createdAt,
         updatedAt: snapshot.session.updatedAt,
-        mode: fromDroraMode(snapshot.session.mode),
+        mode: normalizeDroraTaskMode(fromDroraMode(snapshot.session.mode)),
         model: formatTaskMetaModelSelectionFromSnapshot(snapshot),
         thoughtLevel: snapshot.settings.thoughtLevel.current,
         provider: GLM_PROVIDER,
@@ -3273,10 +3274,17 @@ function toDroraMode(mode: DroraTaskMode | undefined): DroraSessionMode | undefi
       return "edit";
     case "yolo":
       return "yolo";
+    // legacy permissionMode 词的归一（对齐原版桌面投影 uYa @14452100）：
+    // dontAsk/bypassPermissions→yolo、default/acceptEdits→build。
+    case "dontAsk":
+    case "bypassPermissions":
+      return "yolo";
     case "auto":
-      return "auto";
+    case "default":
+    case "acceptEdits":
     case "build":
     case "autoEdit":
+      // 会话级 auto（全 deny 保留模式）不进任务 wire 面，按原版投影为 build。
       return "build";
     default:
       return undefined;

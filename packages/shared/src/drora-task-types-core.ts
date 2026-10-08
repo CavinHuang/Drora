@@ -146,7 +146,42 @@ export interface DroraTaskGoalChangedPatch {
 }
 // ---- Drora task 模式 ----
 
-export type DroraTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEdit" | "build";
+/** wire/存储面 canonical 六值（原版 task meta 的 mode 实际出现域）。 */
+export type DroraCanonicalTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEdit" | "build";
+
+/** legacy permissionMode 词（default/acceptEdits/dontAsk/bypassPermissions）是
+ * 原版桌面投影 uYa（zcode.cjs @14452100）的合法输入域——本地持久化的旧任务/
+ * automation 数据可能携带；消费侧（sessionModeOptions/toDroraMode）负责归一到
+ * wire 面 canonical 四档，本类型只承诺“能进来的词”。
+ */
+export type DroraTaskMode =
+  | "yolo"
+  | "plan"
+  | "edit"
+  | "auto"
+  | "autoEdit"
+  | "build"
+  | "default"
+  | "acceptEdits"
+  | "dontAsk"
+  | "bypassPermissions";
+
+/** legacy 词 → canonical 归一（原版 uYa 投影语义：dontAsk|bypassPermissions→yolo、
+ * default|acceptEdits|auto|autoEdit→build；其余透传）。canonical 值原样返回。 */
+export function normalizeDroraTaskMode(mode: DroraTaskMode): DroraCanonicalTaskMode {
+  switch (mode) {
+    case "dontAsk":
+    case "bypassPermissions":
+      return "yolo";
+    case "default":
+    case "acceptEdits":
+    case "auto":
+    case "autoEdit":
+      return "build";
+    default:
+      return mode;
+  }
+}
 
 export type DroraOffPeakRunType = "init" | "resume";
 
@@ -288,7 +323,7 @@ export interface DroraTaskMeta {
   workspacePurpose?: import("./workspacePurpose.js").WorkspacePurpose;
   createdAt: number;
   updatedAt: number;
-  mode: DroraTaskMode;
+  mode: DroraCanonicalTaskMode;
   model?: string;
   /**
    * task 级推理强度。

@@ -1,5 +1,5 @@
 import { PanelLeftOpen } from "lucide-react";
-import appLogoUrl from "@/assets/provider-icons/logo-zai.svg";
+import appLogoUrl from "@/assets/drora-mark.svg";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

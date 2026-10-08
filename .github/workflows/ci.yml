@@ -1,0 +1,213 @@
+name: CI
+
+# 常规门禁:每次 push(main)/PR 同时验证 CLI 与桌面端两条构建链,
+# 以及 CUA 冒烟与 win32 addon 对齐。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck / Lint (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Freshness baseline
+        run: node scripts/check-workspace-freshness.mjs
+        continue-on-error: true
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
+      # 永久红灯;待仓库决定格式化基线后再启用。
+      # - name: Format check
+      #   run: pnpm fmt:check
+
+  smoke:
+    name: CUA smoke + helper bundle (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: drora-cua smoke (mock broker)
+        run: node packages/zcode-cua/test/restored-smoke.mjs
+      - name: Helper typecheck + Windows bundle build
+        run: |
+          pnpm --filter @drora/drora-cua-helper-runtime typecheck
+          pnpm --filter @drora/drora-cua-helper-runtime build
+      - name: Upload helper bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-windows-bundle
+          path: packages/zcode-cua-helper/dist/windows-helper.js
+          retention-days: 7
+
+  cli-build:
+    name: CLI bundle (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build plugin MCP runtimes
+        # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
+        # 必须先走依赖闭包;android/ios 插件被 workspace 排除,--dir 直入
+        run: >-
+          pnpm --filter drora-cli... build
+        shell: bash
+      - name: Build plugin MCP runtimes (excluded seed packages)
+        run: >-
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
+      - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
+        run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
+      - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)
+        run: pnpm --dir apps/drora-cli/packages/bootstrap run test
+      - name: CLI deep smoke (app-server handshake / subcommands / agent tools)
+        run: node scripts/ci/cli-app-server-smoke.mjs apps/drora-cli/packages/cli/dist/drora.cjs
+      - name: Upload CLI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-drora-cjs
+          path: apps/drora-cli/packages/cli/dist/drora.cjs
+          retention-days: 7
+
+  desktop-build:
+    name: Desktop bundles (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    env:
+      # 桌面构建不消费 mock-cdn 跨平台 remote 资产(远端部署/WSL 链路专用),
+      # 跳过以免在 CI 网络下下载 node tarball 挂死(release 链路同款配置)
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Emit workspace dists (tsc -b project references)
+        run: pnpm typecheck
+      - name: Build CLI dependency closure (core/contracts dists)
+        run: pnpm --filter drora-cli... build
+      - name: Build plugin MCP runtimes (excluded seed packages)
+        run: >-
+          for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
+      - name: Build desktop production bundles
+        run: pnpm --filter @drora/desktop run build
+        timeout-minutes: 50
+      - name: Verify desktop output segments
+        shell: bash
+        run: |
+          set -e
+          for seg in main host preload renderer scheduler; do
+            test -d "packages/desktop/out/$seg" || { echo "missing out/$seg"; exit 1; }
+          done
+          test -f "packages/desktop/out/main/index.js"
+          echo "desktop out/ segments complete"
+      - name: Upload desktop bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-out-${{ matrix.os }}
+          path: packages/desktop/out/
+          retention-days: 7
+
+  macos-helper:
+    name: macOS helper .app build chain (macos-14)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # 构建链守卫：addon 文件名、node 版本错配（modules 137 守卫）、SEA 熔丝、
+      # ax_native 基线 SHA-256 钉扎——任一回归即红灯。
+      - name: Build macOS helper .app
+        run: pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
+      - name: Provenance smoke
+        run: >-
+          'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use'
+          --cua-helper-provenance-smoke
+      - name: Native addon interface
+        run: |
+          node packages/zcode-cua-helper/tools/probe-ax-native.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
+          node packages/zcode-cua-helper/tools/check-ax-native-interface.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
+      # 离线段（A/B）：token 文件契约 + 原版参数序。E2E 段（C/F）需要产品
+      # launcher 祖先与官方签名 staging 资产，仅本机可跑（parity-mac-helper、
+      # embedded-build-id 同理，对照物不入库）。
+      - name: Launch contract (offline sections)
+        env:
+          MAC_LAUNCH_CONTRACT_E2E: "0"
+        run: node packages/zcode-cua/test/mac-launch-contract.mjs
+      - name: Upload helper .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-macos-app
+          path: packages/zcode-cua-helper/dist-cua-helper/
+          retention-days: 7
+
+  addon-parity:
+    name: Win32 addon rebuild + parity vs shipped binary (windows)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        shell: cmd
+      - name: Rebuild addon from restored source (MSVC + Windows SDK autodetect)
+        run: node packages/zcode-cua-helper/native/reverse/build-rebuilt.mjs
+        shell: cmd
+      - name: Parity — read-only suite (57 checks)
+        run: node packages/zcode-cua-helper/native/reverse/parity-native.mjs
+        shell: cmd
+        env:
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+      - name: Parity — input/output matrix (123 cells)
+        run: node packages/zcode-cua-helper/native/reverse/parity-native-matrix.mjs
+        shell: cmd
+        env:
+          AX_NATIVE_ORIG: ${{ github.workspace }}\packages\zcode-cua-helper\build\Release\ax_native.node
+      - name: Rebuilt addon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax-native-win-rebuilt
+          path: packages/zcode-cua-helper/native/reverse/build/Release/ax_native_win.node
+          retention-days: 7

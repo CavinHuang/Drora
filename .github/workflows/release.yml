@@ -1,0 +1,452 @@
+name: Release
+
+# 完整发布流水线:双平台(macOS dmg/zip + Windows nsis exe)桌面安装包与
+# CLI 单可执行,tag(v*)推送或手动触发;产物汇总为 GitHub Release。
+#
+# 产物形态:
+#   - 正式(tag v*):DRORA_ENV=production,安装包名无 _TEST 后缀,
+#     Release 标记为 latest(非 prerelease),附 SHA256SUMS 与 latest.yml
+#     (electron-builder 自动更新通道清单)。
+#   - 手动 nightly:保留 _TEST 后缀与 prerelease 标记,便于区分。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      make_release:
+        description: "构建后创建 GitHub Release(仅手动触发时生效)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Desktop installer (${{ matrix.os }} / ${{ matrix.builder-arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            builder-os: mac
+            builder-arch: arm64
+          - os: macos-latest
+            builder-os: mac
+            builder-arch: x64
+          - os: windows-2022
+            builder-os: win
+            builder-arch: x64
+          - os: windows-2022
+            builder-os: win
+            builder-arch: arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      # secrets 不允许出现在 step 的 if 条件里（GitHub 编译期拒绝，run 秒败 0 job）；
+      # 提升到 job 级 env，签名步骤的 if 比较 env.*（secret 留空即维持 adhoc）。
+      MAC_SIGNING_CERT_P12_BASE64: ${{ secrets.MAC_SIGNING_CERT_P12_BASE64 }}
+      MAC_SIGNING_CERT_PASSWORD: ${{ secrets.MAC_SIGNING_CERT_PASSWORD }}
+      # 桌面安装包不依赖 mock-cdn 的跨平台 remote 资产(node/pty 等,是远端部署
+      # 与 WSL 链路用的;脚本注释明载 Windows build job 应跳过)。skip 后不再
+      # 下载 node tarball —— 之前四跑 50 分钟超时全是这一步在 CI 网络下挂死。
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+      # 正式发布用生产后端身份:安装包名不带 _TEST 后缀,应用连接生产环境。
+      # 手动 nightly(dispatch 无 tag)保持 test 后缀以示区分。
+      DRORA_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'test' }}
+    steps:
+      - uses: actions/checkout@v4
+      # 版本单一真相源:tag(v*)构建时把 tag 版本写入根 package.json,
+      # desktop build-meta 与 electron-builder 都从这里取版本
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            // apps/drora-cli 的 version 是 CLI/SEA __CLI_VERSION__ 的单一事实源
+            // （apps/drora-cli/packages/cli/scripts/build.mjs readRootPackageVersion
+            // 以 apps/drora-cli 为根）。不同步它会让 drora --version 与 tag 永久漂移。
+            const cli = JSON.parse(fs.readFileSync('apps/drora-cli/package.json', 'utf8'));
+            cli.version = '$VERSION';
+            fs.writeFileSync('apps/drora-cli/package.json', JSON.stringify(cli, null, 2) + '\n');
+            console.log('version stamped:', p.version, '/', cli.version);
+          "
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      # Windows runner 的 Defender 实时监控会锁住 electron-builder 复制的
+      # cua-helper 文件（EBUSY copyfile，v0.0.4-v0.0.6 四次发布三次命中）。
+      # 产物随后有 SHA256SUMS 校验，关掉实时监控不降低可信度。
+      - name: Disable Windows Defender real-time monitoring (EBUSY flake)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime;
+      # node-repl-host 还依赖 @drora/core、@drora/contracts 的 dist(在 cli 依赖
+      # 闭包内),先构建闭包
+      - name: Emit workspace dists (tsc -b project references)
+        run: pnpm typecheck
+      - name: Build CLI dependency closure (core/contracts dists)
+        run: pnpm --filter drora-cli... build
+      - name: Build plugin MCP runtimes
+        # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
+        # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
+        run: >-
+          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
+      # 桌面全链构建(含 agent bundle / native search / mac window bounds)
+      - name: Import macOS signing certificate
+        # specs/update-feed-github.md「macOS 发布签名身份」：自签名证书
+        # （CN=Drora Desktop Signing）解锁 Squirrel.Mac 自动更新链。证书未配置
+        # （secret 留空）时跳过本步，维持无签名/路线 A adhoc 分发不变。
+        # secrets:
+        #   MAC_SIGNING_CERT_P12_BASE64 — p12（base64，含私钥与证书）
+        #   MAC_SIGNING_CERT_PASSWORD   — p12 导出密码
+        if: >-
+          matrix.builder-os == 'mac' &&
+          env.MAC_SIGNING_CERT_P12_BASE64 != '' &&
+          env.MAC_SIGNING_CERT_PASSWORD != ''
+        shell: bash
+        run: |
+          set -e
+          CERT_PATH="$RUNNER_TEMP/drora-signing.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/drora-signing.keychain-db"
+          echo -n "$MAC_SIGNING_CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MAC_SIGNING_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # 自签名证书必须被信任，find-identity -v 才会列出有效身份
+                    # p12 常见为 RC2-40-CBC 旧式加密（Windows 证书管理器导出）；macOS 的
+          # OpenSSL 3 默认禁用 legacy 算法，必须 -legacy 才能解析。
+          openssl pkcs12 -legacy -in "$CERT_PATH" -passin "pass:$MAC_SIGNING_CERT_PASSWORD" -nokeys -out "$RUNNER_TEMP/drora-signing.crt" -passout pass:
+          sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/drora-signing.crt"
+          security set-key-partition-list -S apple-tool:,apple: -k "$MAC_SIGNING_CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains | tr '\n' ' ' | sed 's/ *$//')
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+      - name: Build desktop production bundles
+        run: pnpm --filter @drora/desktop run build
+        timeout-minutes: 50
+      - name: Package desktop installer (electron-builder)
+        # bundle.mjs 不传 --arch 时默认 arm64,曾导致发布只有 arm64 安装包
+        # (x64 Windows 用户装不上);矩阵显式覆盖两个架构。
+        # Windows 上 electron-builder 复制 cua-helper 资产偶发 EBUSY(资源锁,
+        # 禁 Defender 后仍复现,重跑必过=复制竞态);步骤级 3 次退避重试兜底。
+        run: |
+          for attempt in 1 2 3; do
+            if node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}; then
+              exit 0
+            fi
+            echo "bundle attempt ${attempt} failed; backing off and retrying"
+            sleep $((attempt * 20))
+          done
+          exit 1
+        working-directory: packages/desktop
+        timeout-minutes: 60
+        shell: bash
+        env:
+          # 无签名证书环境:mac 侧 identity 归 null(未签名 dmg),win 侧跳过
+          # authenticode;开源构建的预期形态。配置了自签名证书 secret 时按
+          # specs/update-feed-github.md 启用真实身份签名（自动跳过路线 A adhoc）。
+          # 三个键必须以 builder-os==mac 门控：CSC_NAME 在 win 侧会被
+          # electron-builder 读作 Authenticode 身份，无证书的 Windows runner
+          # 会因找不到身份而打包失败。
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'true' || 'false' }}
+          CSC_NAME: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && 'Drora Desktop Signing' || '' }}
+          DRORA_ENABLE_MAC_SIGN: ${{ matrix.builder-os == 'mac' && secrets.MAC_SIGNING_CERT_P12_BASE64 != '' && '1' || '' }}
+      - name: Cleanup macOS signing keychain
+        if: >-
+          always() &&
+          matrix.builder-os == 'mac' &&
+          env.MAC_SIGNING_CERT_P12_BASE64 != ''
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/drora-signing.keychain-db" || true
+          security list-keychain -d user -s login.keychain
+      - name: Locate installers and channel files
+        id: artifacts
+        shell: bash
+        run: |
+          set -e
+          dir="packages/desktop/release"
+          [ -d "$dir" ] || dir="packages/desktop/dist"
+          # latest*.yml 是固定文件名,两个架构都上传会在 release 汇总时互相覆盖。
+          # 非 arm64 构建位先改名带架构后缀,release job 再把双架构条目合并回
+          # latest*.yml(electron-updater 按 files[].url 中的架构后缀选择资产)。
+          if [ "${{ matrix.builder-arch }}" != "arm64" ]; then
+            for f in "$dir"/latest.yml "$dir"/latest-mac.yml; do
+              [ -f "$f" ] && mv "$f" "${f%.yml}-x64.yml"
+            done
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          ls -la "$dir" || true
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.builder-os }}-${{ matrix.builder-arch }}
+          # 含 latest.yml/electron-builder 更新通道清单与 blockmap
+          path: |
+            ${{ steps.artifacts.outputs.dir }}/*.dmg
+            ${{ steps.artifacts.outputs.dir }}/*.zip
+            ${{ steps.artifacts.outputs.dir }}/*.exe
+            ${{ steps.artifacts.outputs.dir }}/*.blockmap
+            ${{ steps.artifacts.outputs.dir }}/latest*.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  cli-sea:
+    name: CLI single-executable (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            // apps/drora-cli 的 version 是 CLI/SEA __CLI_VERSION__ 的单一事实源
+            // （apps/drora-cli/packages/cli/scripts/build.mjs readRootPackageVersion
+            // 以 apps/drora-cli 为根）。不同步它会让 drora --version 与 tag 永久漂移。
+            const cli = JSON.parse(fs.readFileSync('apps/drora-cli/package.json', 'utf8'));
+            cli.version = '$VERSION';
+            fs.writeFileSync('apps/drora-cli/package.json', JSON.stringify(cli, null, 2) + '\n');
+            console.log('version stamped:', p.version, '/', cli.version);
+          "
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      # Windows runner 的 Defender 实时监控会锁住 electron-builder 复制的
+      # cua-helper 文件（EBUSY copyfile，v0.0.4-v0.0.6 四次发布三次命中）。
+      # 产物随后有 SHA256SUMS 校验，关掉实时监控不降低可信度。
+      - name: Disable Windows Defender real-time monitoring (EBUSY flake)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Emit workspace dists
+        run: pnpm typecheck
+      - name: Build CLI bundle with dependency closure
+        run: pnpm --filter drora-cli... build
+      - name: Build plugin MCP runtimes
+        # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
+        # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
+        run: >-
+          for pkg in node-repl-host browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do
+          pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
+          done
+        shell: bash
+      - name: Build single-executable
+        run: node scripts/build-sea.mjs
+        working-directory: apps/drora-cli/packages/cli
+      - name: Locate SEA binary
+        id: out
+        shell: bash
+        run: |
+          set -e
+          bin=$(find apps/drora-cli/packages/cli/dist -maxdepth 1 -type f -name "drora-*" ! -name "*.blob" ! -name "*.cjs*" ! -name "*.json" | head -1 || true)
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+          chmod +x "$bin" 2>/dev/null || true
+          "$bin" --version
+      - name: Upload SEA binary
+        if: steps.out.outputs.bin != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-sea-${{ matrix.os }}
+          path: ${{ steps.out.outputs.bin }}
+          retention-days: 14
+
+  release:
+    name: GitHub Release
+    needs: [desktop, cli-sea]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.make_release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: List release contents
+        run: find release-assets -type f -exec ls -la {} \;
+      - name: Merge per-arch update channel manifests
+        # 双架构各自产出 latest*.yml(仅含本架构资产);合并成单一清单,
+        # electron-updater 的 GitHub provider 按 files[].url 的架构后缀选资产。
+        run: |
+          cd release-assets
+          python3 - <<'PY'
+          import sys
+          try:
+              import yaml
+          except ImportError:
+              sys.exit("PyYAML is required for channel manifest merge")
+          import os
+
+          def merge(base_name, extra_name):
+              if not os.path.exists(extra_name):
+                  return
+              with open(base_name, encoding="utf-8") as fh:
+                  merged = yaml.safe_load(fh)
+              with open(extra_name, encoding="utf-8") as fh:
+                  extra = yaml.safe_load(fh)
+              if merged.get("version") != extra.get("version"):
+                  sys.exit(f"channel version mismatch: {base_name}={merged.get('version')} {extra_name}={extra.get('version')}")
+              files = merged.get("files") or []
+              seen = {f.get("url") for f in files}
+              for f in extra.get("files") or []:
+                  if f.get("url") not in seen:
+                      files.append(f)
+              merged["files"] = files
+              if (extra.get("releaseDate") or "") > (merged.get("releaseDate") or ""):
+                  merged["releaseDate"] = extra["releaseDate"]
+              with open(base_name, "w", encoding="utf-8") as fh:
+                  yaml.safe_dump(merged, fh, sort_keys=False, allow_unicode=True, width=4096)
+              os.remove(extra_name)
+              print(f"merged {extra_name} into {base_name}: {len(files)} file entries")
+
+          merge("latest.yml", "latest-x64.yml")
+          merge("latest-mac.yml", "latest-mac-x64.yml")
+          PY
+      - name: Integrity check on downloaded assets
+        # 离线校验:按"平台覆盖"断言(dmg/zip/exe 任一命名形态命中即算),不按
+        # 精确文件名 —— nightly 与 tag 正式的后缀不同(_TEST / 无)。SHA256SUMS
+        # 由下一步生成,此处只校验随包携带时的自洽性。
+        run: |
+          cd release-assets
+          fail=0
+          # 安装包 exe 以 productName(Drora-)开头;Windows SEA 以 drora- 开头,
+          # 两者都叫 *.exe,必须分开断言,否则 SEA 会冒充安装包通过校验。
+          have_dmg=false; have_zip=false; have_installer=false; have_sea=false; have_sea_win=false
+          have_installer_arm64=false; have_installer_x64=false
+          for f in $(ls); do
+            case "$f" in
+              *.dmg) have_dmg=true ;;
+              *.zip) have_zip=true ;;
+              Drora-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
+              Drora-*x64*.exe) have_installer=true; have_installer_x64=true ;;
+              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
+              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true ;;
+              drora-windows*) have_sea_win=true ;;
+              drora-darwin*|drora-linux*) have_sea=true ;;
+            esac
+          done
+          for pair in "macOS dmg:$have_dmg" "macOS zip:$have_zip" "Windows 安装包 exe:$have_installer" "CLI SEA(mac/linux):$have_sea" "CLI SEA(windows):$have_sea_win" "安装包 arm64 覆盖:$have_installer_arm64" "安装包 x64 覆盖:$have_installer_x64"; do
+            name="${pair%%:*}"; val="${pair##*:}"
+            if [ "$val" = "true" ]; then echo "PASS 平台覆盖 $name"; else echo "FAIL 平台覆盖 $name"; fail=1; fi
+          done
+          for f in latest.yml latest-mac.yml; do
+            if [ -f "$f" ]; then echo "PASS 通道清单 $f"; else echo "FAIL 缺 $f"; fail=1; fi
+          done
+          if [ -f SHA256SUMS.txt ]; then
+            python - <<'PY' || fail=1
+          import hashlib, os, sys
+          ok = True
+          for line in open("SHA256SUMS.txt", encoding="utf-8"):
+              line = line.rstrip("\n")
+              if not line or line.startswith("SHA256SUMS"):
+                  continue
+              digest, name = line.split("  ", 1)
+              match = next((c for c in (name, name.replace(" ", ".")) if os.path.exists(c)), None)
+              if match is None:
+                  print("MISS:", name); ok = False; continue
+              h = hashlib.sha256(open(match, "rb").read()).hexdigest()
+              if h != digest:
+                  print("BAD:", match); ok = False
+          sys.exit(0 if ok else 1)
+          PY
+          fi
+          exit $fail
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+          cat release-assets/SHA256SUMS.txt
+      - name: Determine release flags
+        id: flags
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ "$TAG" = "$GITHUB_REF" ]; then
+            TAG="nightly-${GITHUB_SHA::7}"
+            git tag "$TAG" || true
+            git push origin "$TAG" || true
+          fi
+          mapfile -t FILES < <(find release-assets -type f)
+          echo "待上传 ${#FILES[@]} 个文件:"
+          printf '  %s\n' "${FILES[@]}"
+          # Release 已存在(重跑/补资产)→ 整删整建。逐个 delete-asset 后立即
+          # 重传同名资产会撞 GitHub 资产的最终一致性(422 "ReleaseAsset.name
+          # already exists",v3.14.0 finalize 因此失败);改为删除整个 Release
+          # (--cleanup-tag=false 保留 tag)后全新创建,绕开资产级竞态。
+          # notes 文案铁律:macOS runner 的 zsh 下,notes 字符串里禁用 ASCII
+          # 双引号(截断 shell 引号)与 → 等 unicode 符号落在引号外会被当
+          # glob 报 "no matches found"(2026-09-25 实测);用【】与全角引号。
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag=false
+          fi
+          gh release create "$TAG" "${FILES[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Drora ${TAG#v}" \
+            --notes "Automated multi-platform build.
+
+          ## 桌面安装包(Desktop installers)
+          macOS dmg/zip、Windows nsis exe。安装后从开始菜单/启动台启动图形界面。
+
+          ## CLI 单可执行(drora-<os>-<arch>)
+          命令行工具,必须在终端里运行(双击会闪退 —— 它不是 GUI 程序):
+          \`\`\`
+          ./drora-linux-x64 --help        # 查看全部命令
+          ./drora-linux-x64 tui           # 进入全屏终端界面
+          ./drora-linux-x64 -p \"你的问题\"  # 单条提问(需先 login)
+          \`\`\`
+          首次使用先执行 login 按提示完成浏览器授权;提问功能需要可用的
+          模型服务凭据。
+
+          ## 校验与更新
+          - SHA256SUMS.txt: 所有产物的校验和
+          - latest*.yml: electron-builder 自动更新通道清单
+
+          未签名社区构建(macOS 未做 Gatekeeper 公证,Windows 无 Authenticode)。
+          - Windows: SmartScreen 提示时点【更多信息】再选【仍要运行】。
+          - macOS: 把 Drora 拖入【应用程序】后若提示【已损坏,无法打开】,
+            这是 Gatekeeper 对未公证应用的拦截,不是安装包损坏。在终端执行
+            \`sudo xattr -rd com.apple.quarantine /Applications/Drora.app\`
+            清除下载隔离标记后正常打开(【系统设置,隐私与安全性】里的
+            【仍要打开】按钮在部分 macOS 版本不出现,以上面命令为准)。
+          Sources: commit ${GITHUB_SHA}" \

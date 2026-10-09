@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>常见问题 | Drora 文档</title>
+    <meta name="description" content="安装拦截、Linux 桌面版、更新方式与反馈渠道等高频问题。" />
+    <meta property="og:title" content="常见问题 | Drora 文档" />
+    <meta property="og:description" content="安装拦截、Linux 桌面版、更新方式与反馈渠道等高频问题。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="faq">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="faq"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.more">更多</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.faq">常见问题</h1>
+          <h3 data-i18n="doc.faq.q1">安装时提示「已损坏」或 SmartScreen 拦截？</h3>
+          <p>
+            <span data-i18n="doc.faq.a1">
+            社区构建未做签名：Windows 选择「更多信息 → 仍要运行」；macOS 在「系统设置 → 隐私与安全性」放行，或执行
+            </span>
+            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
+          </p>
+          <h3 data-i18n="doc.faq.q2">有 Linux 桌面版吗？</h3>
+          <p>
+            <span data-i18n="doc.faq.a2">暂未提供 Linux 预编译安装包；Linux 用户可先使用 CLI 单文件（</span>
+            <code>drora-linux-x64</code>
+            <span data-i18n="doc.faq.a2t">），或从源码</span>
+            <code>pnpm bundle:desktop -- --os linux</code><span data-i18n="doc.faq.a2e">自行构建。</span>
+          </p>
+          <h3 data-i18n="doc.faq.q3">如何更新？</h3>
+          <p data-i18n="doc.faq.a3">桌面应用内置自动更新（latest 通道），也可以随时到 Releases 页下载新版本覆盖安装。</p>
+          <h3 data-i18n="doc.faq.q4">遇到问题如何反馈？</h3>
+          <p>
+            <span data-i18n="doc.faq.a4">欢迎到</span>
+            <a href="https://github.com/CavinHuang/Drora/issues">GitHub Issues</a>
+            <span data-i18n="doc.faq.a4m">提交问题，或加入 README 中的</span>
+            <a href="https://github.com/CavinHuang/Drora#readme" data-i18n="doc.faq.a4link">社区渠道</a>
+            <span data-i18n="doc.faq.a4e">交流</span><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

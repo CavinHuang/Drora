@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>从源码构建 | Drora 文档</title>
+    <meta name="description" content="Git + Node 24.14.0 + pnpm 10.33.2（以 mise.toml 为准）：bootstrap、dev:desktop/dev:web 与 bundle:desktop 打包。" />
+    <meta property="og:title" content="从源码构建 | Drora 文档" />
+    <meta property="og:description" content="Git + Node 24.14.0 + pnpm 10.33.2（以 mise.toml 为准）：bootstrap、dev:desktop/dev:web 与 bundle:desktop 打包。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="build">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="build"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.more">更多</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.build">从源码构建</h1>
+          <h2 id="env" data-i18n="doc.build.sub.env">环境准备</h2>
+          <p>
+            <span data-i18n="doc.build.p1">准备 Git、Node.js</span> <strong>24.14.0</strong>
+            <span data-i18n="doc.build.p1m">和 pnpm</span> <strong>10.33.2</strong>
+            <span data-i18n="doc.build.p1t">（版本以仓库</span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/mise.toml">mise.toml</a>
+            <span data-i18n="doc.build.p1e">为准），在仓库根目录执行：</span>
+          </p>
+          <div class="docs-code"><code>pnpm bootstrap        # 安装依赖并准备桌面本地运行资源
+pnpm dev:desktop      # 启动 Electron 桌面应用（开发模式）
+pnpm dev:web          # 启动 Web + 后端（localhost:5173 / :3030）</code></div>
+
+          <h2 id="package" data-i18n="doc.build.sub.pkg">打包</h2>
+          <p data-i18n="doc.build.p2">打包桌面安装包：</p>
+          <div class="docs-code"><code>pnpm bundle:desktop -- --os win --arch x64   # 也可 --os mac|linux</code></div>
+          <p>
+            <span data-i18n="doc.build.p3">仓库结构、配置项（如</span>
+            <code>DRORA_DATA_BASE_DIR</code>
+            <span data-i18n="doc.build.p3t">数据目录）与完整打包说明见</span>
+            <a href="https://github.com/CavinHuang/Drora#readme">README</a><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

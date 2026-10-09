@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>安装 | Drora 文档</title>
+    <meta name="description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，了解校验与自动更新。" />
+    <meta property="og:title" content="安装 | Drora 文档" />
+    <meta property="og:description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，了解校验与自动更新。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="install">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="install"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.install">安装</h1>
+          <p>
+            <span data-i18n="doc.install.p1">无需从源码构建，直接在</span>
+            <a href="https://github.com/CavinHuang/Drora/releases/latest">Releases</a><span data-i18n="doc.colon">：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.install.th1">文件</th>
+                <th data-i18n="doc.install.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code data-i18n="doc.file.win">Drora-&lt;版本&gt;-win-x64.exe</code> / <code>win-arm64.exe</code></td>
+                <td data-i18n="doc.install.td1">Windows 桌面应用安装包（NSIS）</td>
+              </tr>
+              <tr>
+                <td><code data-i18n="doc.file.mac">Drora-&lt;版本&gt;-mac-arm64.dmg</code> / <code>mac-x64.dmg</code></td>
+                <td data-i18n="doc.install.td2">macOS 桌面应用</td>
+              </tr>
+              <tr>
+                <td><code>drora-windows-x64.exe</code> / <code>drora-darwin-arm64</code> / <code>drora-linux-x64</code></td>
+                <td data-i18n="doc.install.td3">Agent CLI 单文件，须在终端中运行（双击会闪退）</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="first-run" data-i18n="doc.install.sub.first">首次运行与签名提示</h2>
+          <div class="docs-note">
+            <span data-i18n="doc.install.note1">
+            安装包未做签名：Windows 首次运行请在 SmartScreen 提示时选择「更多信息 → 仍要运行」；macOS 首次打开若被拦截，可在「系统设置 →
+            隐私与安全性」中放行，或执行
+            </span>
+            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
+          </div>
+
+          <h2 id="verify" data-i18n="doc.install.sub.verify">校验与更新</h2>
+          <p>
+            <span data-i18n="doc.install.p2">所有产物均由 GitHub Actions 从源码构建，</span>
+            <code>SHA256SUMS.txt</code><span data-i18n="doc.install.p2t">提供校验和；桌面应用内置自动更新（latest 通道）。</span>
+          </p>
+
+          <h2 id="from-source" data-i18n="doc.install.sub.source">从源码构建</h2>
+          <p><span data-i18n="doc.install.source">偏好自建？见</span> <a href="build.html" data-i18n="doc.nav.build">从源码构建</a><span data-i18n="doc.dot">。</span></p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

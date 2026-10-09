@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>连接模型 | Drora 文档</title>
+    <meta name="description" content="在桌面端登录 Z.ai 账号（GLM Coding Plan）或配置模型服务；CLI 通过 drora login 完成浏览器授权。" />
+    <meta property="og:title" content="连接模型 | Drora 文档" />
+    <meta property="og:description" content="在桌面端登录 Z.ai 账号（GLM Coding Plan）或配置模型服务；CLI 通过 drora login 完成浏览器授权。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="configuration">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="configuration"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.model">连接模型</h1>
+          <h2 id="login" data-i18n="doc.model.sub.login">登录与账号</h2>
+          <p>
+            <span data-i18n="doc.model.p1">
+            Drora 面向 GLM 系列模型设计。桌面端在「设置」中登录 Z.ai 账号（GLM Coding Plan）或按需配置模型服务；CLI 通过
+            </span>
+            <code>drora login</code><span data-i18n="doc.model.p1t">完成浏览器授权后即可提问。</span>
+          </p>
+
+          <h2 id="self-host" data-i18n="doc.model.sub.self">自托管与私有接入</h2>
+          <p>
+            <span data-i18n="doc.model.p2">自托管或私有接入时，可用</span>
+            <code>DRORA_BUILTIN_PROVIDER_CONFIG_FILE</code>
+            <span data-i18n="doc.model.p2m">指定本地 Provider 配置文件；服务地址等构建配置见仓库</span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/.env.example">.env.example</a>
+            <span data-i18n="doc.model.p2and">与</span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/config/README.md">config/README.md</a><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

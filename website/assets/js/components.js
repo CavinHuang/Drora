@@ -55,6 +55,79 @@
     );
   }
 
+  /* ------------------------------ docs IA ------------------------------ */
+  /* 文档信息架构单一出处：<docs-nav> 侧栏与 ⌘K 搜索都从这里取数，不会漂移。
+     slug = website/docs/ 下的文件名（空串 = index.html 欢迎页）。 */
+
+  var DOCS_IA = [
+    {
+      group: "doc.group.start",
+      groupZh: "开始使用",
+      items: [
+        { slug: "", key: "doc.nav.intro", zh: "什么是 Drora" },
+        { slug: "install", key: "doc.nav.install", zh: "安装" },
+        { slug: "configuration", key: "doc.nav.model", zh: "连接模型" },
+      ],
+    },
+    {
+      group: "doc.group.features",
+      groupZh: "核心功能",
+      items: [
+        { slug: "goal", key: "doc.nav.tasks", zh: "任务与目标模式" },
+        { slug: "history", key: "doc.nav.sessions", zh: "会话与编辑历史" },
+        { slug: "remote-control", key: "doc.nav.remote", zh: "手机远控" },
+        { slug: "remote-dev", key: "doc.nav.remoteDev", zh: "远程开发" },
+        { slug: "pets", key: "doc.nav.pets", zh: "桌面宠物" },
+        { slug: "skin", key: "doc.nav.skin", zh: "皮肤中心" },
+        { slug: "usage-stats", key: "doc.nav.usage", zh: "使用统计" },
+      ],
+    },
+    {
+      group: "doc.group.advanced",
+      groupZh: "深度集成",
+      items: [
+        { slug: "skills", key: "doc.nav.skills", zh: "技能与斜杠命令" },
+        { slug: "subagents", key: "doc.nav.subagents", zh: "子智能体" },
+        { slug: "mcp", key: "doc.nav.mcp", zh: "MCP 与插件" },
+        { slug: "hooks", key: "doc.nav.hooks", zh: "Hooks" },
+        { slug: "automation", key: "doc.nav.automation", zh: "自动化任务" },
+      ],
+    },
+    {
+      group: "doc.group.more",
+      groupZh: "更多",
+      items: [
+        { slug: "cli", key: "doc.nav.cli", zh: "命令行 CLI" },
+        { slug: "build", key: "doc.nav.build", zh: "从源码构建" },
+        { slug: "faq", key: "doc.nav.faq", zh: "常见问题" },
+      ],
+    },
+  ];
+
+  /* main.js 的搜索读同一份数据 */
+  window.__DRORA_DOCS_IA = DOCS_IA;
+
+  class DocsNav extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.rendered) return;
+      this.dataset.rendered = "1";
+      var current = this.getAttribute("data-current");
+      var html = '<nav aria-label="Docs">';
+      DOCS_IA.forEach(function (group) {
+        html += '<div class="docs-nav-group"><p data-i18n="' + group.group + '">' + group.groupZh + "</p>";
+        group.items.forEach(function (item) {
+          var href = item.slug ? item.slug + ".html" : "./";
+          var currentAttr = item.slug === current ? " current" : "";
+          html +=
+            '<a href="' + href + '" class="docs-nav-link' + currentAttr + '" data-i18n="' + item.key + '">' + item.zh + "</a>";
+        });
+        html += "</div>";
+      });
+      html += "</nav>";
+      this.innerHTML = html;
+    }
+  }
+
   /* ------------------------------ <site-header> ------------------------------ */
 
   class SiteHeader extends HTMLElement {
@@ -163,6 +236,7 @@
 
   customElements.define("site-header", SiteHeader);
   customElements.define("site-footer", SiteFooter);
+  customElements.define("docs-nav", DocsNav);
   customElements.define("drora-pet", DroraPet);
   customElements.define("release-block", ReleaseBlock);
 })();

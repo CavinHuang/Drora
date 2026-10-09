@@ -299,6 +299,35 @@
       "com.drop.page": "Community home",
       "nf.text": "This page doesn't exist — it may have been moved or removed.",
       "nf.home": "Back to home",
+      "doc.welcome.cap.h2": "Core capabilities",
+      "doc.welcome.cap.tasks": " — carry long-range goals with progress ticking along.",
+      "doc.welcome.cap.remote": " — your phone's browser drives the existing desktop host, with replayable recovery.",
+      "doc.welcome.cap.remoteDev": " — develop against SSH/WSL remote workspaces.",
+      "doc.welcome.cap.skills": "",
+      "doc.welcome.cap.ext": " — extend the agent's tool surface as needed.",
+      "doc.welcome.cap.auto": " — scheduled and idle-time tasks run on plan.",
+      "doc.welcome.cap.pets": " — three catgirls reflect task status, draggable and hideable.",
+      "doc.welcome.quick.h2": "Quick start",
+      "doc.welcome.quick.p1": "Grab a desktop installer or the single-file CLI from",
+      "doc.welcome.quick.p2": ", sign in to a model account and start your first task — see",
+      "doc.welcome.quick.and": " and",
+      "doc.welcome.comm.h2": "Join the community",
+      "doc.welcome.comm.p1": "For questions and suggestions, head to the",
+      "doc.welcome.comm.link": "community page",
+      "doc.welcome.comm.p2": ": Feishu, Discord and GitHub Discussions all reach the maintainers; security issues go through",
+      "doc.welcome.comm.sec": "the vulnerability reporting channel",
+      "doc.install.sub.first": "First run & signature prompts",
+      "doc.install.sub.verify": "Checksums & updates",
+      "doc.install.sub.source": "Building from source",
+      "doc.install.source": "Prefer building yourself? See",
+      "doc.model.sub.login": "Sign-in & accounts",
+      "doc.model.sub.self": "Self-hosting & private endpoints",
+      "doc.cli.sub.web": "Web mode",
+      "doc.build.sub.env": "Environment",
+      "doc.build.sub.pkg": "Packaging",
+      "doc.tasks.next": "For history and replay of a task, see",
+      "doc.remote.next": "For developing on remote hosts, see",
+
       "nav.security": "Security",
 
       "sec.title": "Report a Vulnerability",
@@ -445,6 +474,26 @@
 
   function pageTitle(lang) {
     var page = document.body.getAttribute("data-page") || "home";
+    if (page === "docs") {
+      var slug = document.body.getAttribute("data-doc");
+      var ia = window.__DRORA_DOCS_IA;
+      if (ia && slug !== null) {
+        for (var g = 0; g < ia.length; g++) {
+          for (var i = 0; i < ia[g].items.length; i++) {
+            var item = ia[g].items[i];
+            if (item.slug === slug) {
+              if (slug === "") {
+                // 欢迎页沿用完整描述标题
+                var w = PAGE_TITLES.docs;
+                return lang === "en" ? w.en : w.zh;
+              }
+              var name = lang === "en" ? I18N.en[item.key] || item.zh : item.zh;
+              return name + (lang === "en" ? " | Drora Docs" : " | Drora 文档");
+            }
+          }
+        }
+      }
+    }
     var titles = PAGE_TITLES[page] || PAGE_TITLES.home;
     return lang === "en" ? titles.en : titles.zh;
   }
@@ -555,20 +604,27 @@
     var input = overlay.querySelector("#docSearchInput");
     var list = overlay.querySelector("#docSearchResults");
 
-    var sections = [];
-    document.querySelectorAll(".docs-content h2[id]").forEach(function (h) {
-      sections.push({ id: h.id, title: h.textContent });
+    // 索引 = 文档 IA 本身（与侧栏同源，不会漂移）；EN 态用词典键名匹配
+    var pages = [];
+    var ia = window.__DRORA_DOCS_IA || [];
+    ia.forEach(function (group) {
+      group.items.forEach(function (item) {
+        pages.push({ slug: item.slug, zh: item.zh, key: item.key });
+      });
     });
 
     function renderResults(query) {
+      var lang = currentLang();
       var q = query.trim().toLowerCase();
-      var hits = sections.filter(function (s) {
-        return !q || s.title.toLowerCase().indexOf(q) >= 0;
+      var hits = pages.filter(function (pg) {
+        var en = (I18N.en[pg.key] || "").toLowerCase();
+        return !q || pg.zh.toLowerCase().indexOf(q) >= 0 || en.indexOf(q) >= 0;
       });
       list.innerHTML =
         hits
-          .map(function (s) {
-            return '<li><a href="#' + s.id + '" data-target="' + s.id + '">' + s.title + "</a></li>";
+          .map(function (pg) {
+            var name = lang === "en" ? I18N.en[pg.key] || pg.zh : pg.zh;
+            return '<li><a href="' + (pg.slug ? pg.slug + ".html" : "./") + '">' + name + "</a></li>";
           })
           .join("") || '<li class="ds-empty" data-i18n="doc.search.empty">没有匹配的章节</li>';
     }
@@ -644,10 +700,27 @@
 
   /* --------------------------- interactions --------------------------- */
 
-  /* 文档页 scrollspy：视口上部区域命中的 h2 高亮侧栏与目录项 */
+  /* 文档页右侧目录：从当前页 h2[id] 生成（多页 docs 每页不同）；少于 2 节隐藏整栏 */
+  function buildDocsToc() {
+    var toc = document.getElementById("docsToc");
+    if (!toc) return;
+    var list = document.getElementById("tocList");
+    var heads = document.querySelectorAll(".docs-content h2[id]");
+    if (!list || heads.length < 2) {
+      toc.hidden = true;
+      return;
+    }
+    list.innerHTML = Array.prototype.map
+      .call(heads, function (h) {
+        return '<a href="#' + h.id + '">' + h.textContent + "</a>";
+      })
+      .join("");
+  }
+
+  /* 文档页 scrollspy：视口上部区域命中的 h2 高亮目录项（侧栏 current 由 docs-nav 渲染） */
   function initDocsSpy() {
     var heads = document.querySelectorAll(".docs-content h2[id]");
-    var links = document.querySelectorAll(".docs-toc a, .docs-nav-group a");
+    var links = document.querySelectorAll(".docs-toc a");
     if (!heads.length || !links.length || !("IntersectionObserver" in window)) return;
     var byId = {};
     links.forEach(function (a) {
@@ -737,6 +810,7 @@
     applyPlatform();
     initHeader();
     initReveal();
+    buildDocsToc();
     initDocsSpy();
     initDocsSearch();
     initCopyArticle();

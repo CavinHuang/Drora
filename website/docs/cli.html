@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>命令行 CLI | Drora 文档</title>
+    <meta name="description" content="drora 单文件可执行：TUI、--web 浏览器界面与单条提问，与桌面端共享同一运行时。" />
+    <meta property="og:title" content="命令行 CLI | Drora 文档" />
+    <meta property="og:description" content="drora 单文件可执行：TUI、--web 浏览器界面与单条提问，与桌面端共享同一运行时。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="cli">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="cli"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.more">更多</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.cli">命令行 CLI</h1>
+          <p>
+            <span data-i18n="doc.cli.p1">发行包中的</span>
+            <code>drora-&lt;os&gt;-&lt;arch&gt;</code>
+            <span data-i18n="doc.cli.p1t">是 Agent CLI 单文件可执行，须在终端中运行。它既是独立的终端 Agent，也与桌面端共享同一运行时：</span>
+          </p>
+          <div class="docs-code"><code>drora                 # 进入终端交互界面（TUI）
+drora --web           # 启动浏览器界面
+drora -p "你的问题"    # 单条提问（需先 login）
+drora login           # 浏览器授权登录</code></div>
+
+          <h2 id="web-mode" data-i18n="doc.cli.sub.web">Web 模式</h2>
+          <p>
+            <span data-i18n="doc.cli.p2">Web 模式默认监听本机并自动打开浏览器；局域网访问可使用</span>
+            <code>--host 0.0.0.0</code><span data-i18n="doc.cli.p2t">，监听非本机地址时默认生成访问令牌：</span>
+          </p>
+          <div class="docs-code"><code>drora --web --workspace /path/to/project --port 3030 --no-open</code></div>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

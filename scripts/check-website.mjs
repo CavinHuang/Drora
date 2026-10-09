@@ -41,7 +41,7 @@ for (const file of htmlFiles) {
 }
 
 // ---------- 词典键（i18n 门禁的对照面） ----------
-const mainJs = await readFile(path.join(JS, "main.js"), "utf8");
+const mainJs = await readFile(path.join(JS, "i18n.js"), "utf8");
 const dictStart = mainJs.indexOf("en: {");
 const dictKeys = new Set();
 for (const m of mainJs.slice(dictStart).matchAll(/"([a-zA-Z0-9.]+)":/g)) dictKeys.add(m[1]);

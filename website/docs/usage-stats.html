@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>使用统计 | Drora 文档</title>
-    <meta name="description" content="查看各会话的 token 消耗、请求次数与工具调用分布；统计数据基于本地会话记录生成。" />
+    <meta name="description" content="使用统计分为应用用量与编程套餐两个部分：前者统计本地会话，后者读取 Coding Plan 的远端额度与消耗，并支持端内额度重置。" />
     <meta property="og:title" content="使用统计 | Drora 文档" />
-    <meta property="og:description" content="查看各会话的 token 消耗、请求次数与工具调用分布；统计数据基于本地会话记录生成。" />
+    <meta property="og:description" content="使用统计分为应用用量与编程套餐两个部分：前者统计本地会话，后者读取 Coding Plan 的远端额度与消耗，并支持端内额度重置。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -38,42 +38,50 @@
           </div>
           <h1 data-i18n="doc.nav.usage">使用统计</h1>
           <p data-i18n="doc.usage.p1">
-            应用内置用量统计：查看各会话的 token 消耗、请求次数与工具调用分布，掌握成本与负载；统计数据基于本地会话记录生成。
+            使用统计用来查看 Drora 的实际使用情况。它分为「应用用量」和「编程套餐」两个部分：前者统计本地 Drora 会话，后者读取 Z.ai / BigModel Coding Plan 的远端额度与消耗。
           </p>
 
           <h2 id="app" data-i18n="doc.usage.sub.app">应用用量</h2>
-          <p data-i18n="doc.usage.app.p1">应用用量统计当前设备上的会话记录，数据来自本地会话聚合，适合回看自己最近在 Drora 里完成了多少任务。可以看到：</p>
+          <p data-i18n="doc.usage.app.p1">应用用量统计当前设备上的 Drora 会话记录，适合回看自己最近在 Drora 里完成了多少任务。你可以看到：</p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-usage-stats-model-usage-annotated.webp" alt="模型用量分布" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-usage-stats-token-trend-annotated.webp" alt="按天 Token 趋势" loading="lazy" /></figure>
           <ul>
             <li data-i18n="doc.usage.app.li1">Token 用量（输入 / 输出 / 缓存命中率）、会话数、轮次数与工具调用次数。</li>
             <li data-i18n="doc.usage.app.li2">当前连续使用天数、最长连续使用天数、最长单次会话与单日 Token 峰值。</li>
             <li data-i18n="doc.usage.app.li3">最常用模型及其用量占比。</li>
           </ul>
-          <p data-i18n="doc.usage.app.p2">图表区域提供按天 Token 趋势（悬停可查看当日各模型的用量明细）、活跃热力图和模型用量环图；右上角可以切换全部时间 / 最近 30 天 / 最近 7 天，用于快速对比近期使用情况。</p>
+          <p data-i18n="doc.usage.app.p2">按天 Token 趋势图支持悬停查看每日各模型的用量明细；模型用量环图则汇总各模型的 Token 占比，方便确认主力模型的实际消耗分布，另有活跃热力图可回顾使用节奏。右上角可以切换「全部时间 / 最近 30 天 / 最近 7 天」，用于快速对比近期使用情况。</p>
 
           <h2 id="coding-plan" data-i18n="doc.usage.sub.plan">编程套餐</h2>
-          <p data-i18n="doc.usage.plan.p1">编程套餐读取当前连接的 Z.ai / BigModel Coding Plan 远端统计，适合查看套餐额度、模型消耗和工具调用情况：</p>
+          <p data-i18n="doc.usage.plan.p1">编程套餐读取已连接的 Z.ai / BigModel Coding Plan 远端统计，适合查看套餐额度、模型消耗和工具调用情况。无论连接的是 Z.ai 还是 BigModel 的 Coding Plan，都可以在这里查看对应的额度和消耗：</p>
           <ul>
-            <li data-i18n="doc.usage.plan.li1">5 小时额度、每周额度等套餐状态与剩余进度。</li>
-            <li data-i18n="doc.usage.plan.li2">各模型的 Token 与 credits 消耗。</li>
+            <li data-i18n="doc.usage.plan.li1">5 小时 Prompt 池、每周额度、工具月额度等套餐状态。</li>
+            <li data-i18n="doc.usage.plan.li2">GLM-5.3、GLM-5.3-Flash 等模型的 Token 消耗。</li>
             <li data-i18n="doc.usage.plan.li3">联网搜索、网页读取等 MCP 工具的调用次数。</li>
           </ul>
+          <p data-i18n="doc.usage.plan.p3">点击或展开额度信息时，还可以查看当前上下文窗口的组成、消息和工具调用占比，以及 5 小时、每周、工具调用等剩余额度。</p>
           <p data-i18n="doc.usage.plan.p2">时间范围支持今天 / 最近 7 天 / 最近 30 天 / 自定义（最长 30 天）。使用编程套餐面板需要登录账号并连接对应的 Coding Plan；未登录、未开通或仅以 API Key 接入时，页面会给出对应提示。</p>
 
-          <h2 id="reset-card" data-i18n="doc.usage.sub.reset">额度重置卡</h2>
-          <p data-i18n="doc.usage.reset.p1">5 小时额度或每周额度用完后，不一定要干等下一个周期：端内会显示当前可用的重置机会，有重置机会时直接点击即可重置对应额度，重置后额度立即恢复并在卡片上标记「已重置」。</p>
-          <ul>
-            <li data-i18n="doc.usage.reset.li1">重置卡有有效期，必须在有效期内使用，过期自动失效。</li>
-            <li data-i18n="doc.usage.reset.li2">点击重置会打开「可重置额度」面板，列出每张卡的剩余有效期；有多张时自动使用最早获得的那张。</li>
-            <li data-i18n="doc.usage.reset.li3">重置机会只下发给登录并连接了当前账号 Coding Plan 的用户；仅用 API Key 接入不会收到。</li>
-          </ul>
+          <h3 id="reset-card" data-i18n="doc.usage.sub.reset">额度重置卡</h3>
+          <p data-i18n="doc.usage.reset.p1">5 小时额度或每周额度用完后，不一定要干等下一个周期。Drora 会在端内显示当前可用的「5 小时 / 每周」额度重置机会：有重置机会时，直接在端内点击即可重置对应额度；活动发放的其他重置卡也会在端内一并显示，使用方式相同。</p>
+          <p data-i18n="doc.usage.reset.p2">注意：重置卡只会下发给登录 Drora 并连接了当前账号 Coding Plan 的用户。如果没有登录账号、只用 API Key 接入，或者登录的账号没有开通 Coding Plan（即使配置了 API Key），都不会收到重置卡。</p>
+          <p data-i18n="doc.usage.reset.p3">使用统计的「编程套餐」页同样会显示可用的重置按钮，以及累计获得的重置次数。</p>
+          <p data-i18n="doc.usage.reset.p4">点击「重置」后，对应额度会立即恢复到 100%，并在卡片上标记「已重置」。</p>
+          <p>
+            <span data-i18n="doc.usage.reset.p5a">Drora 会在「闲时」自动向 Coding Plan 用户下发 5 小时额度重置卡，需要同时满足三个条件：当前处于闲时时段、5 小时用量超过阈值、当日下发次数未达上限。注意重置卡的闲时时段与</span>
+            <a href="automation.html#idle" data-i18n="doc.nav.automation">自动化任务</a>
+            <span data-i18n="doc.usage.reset.p5b">里闲时任务的闲时范围不是同一套；具体时段和用量阈值都是动态调整的参数，以端内实际显示为准。下发后，输入框右下角会出现重置额度的提示。</span>
+          </p>
+          <p data-i18n="doc.usage.reset.p6">重置卡有有效期，必须在有效期内使用，过期自动失效。点击重置按钮会弹出「可重置额度」面板，其中会列出每张卡的过期时间；有多张时，会自动使用最早获得的那张。</p>
 
           <h2 id="related" data-i18n="doc.usage.sub.related">相关页面</h2>
           <p>
-            <span data-i18n="doc.usage.related.p1">还没有连接模型？先看</span>
-            <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.usage.related.p2">；把不急的工作排进低峰时段，见</span>
+            <span data-i18n="doc.usage.related.p1a">还没有连接模型？先看</span>
+            <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a>
+            <span data-i18n="doc.usage.related.p1b">；为 Agent 接入外部工具能力，见</span>
+            <a href="mcp.html" data-i18n="doc.nav.mcp">MCP 与插件</a>
+            <span data-i18n="doc.usage.related.p1c">；把不急的工作排进低峰时段，见</span>
             <a href="automation.html" data-i18n="doc.nav.automation">自动化任务</a><span data-i18n="doc.dot">。</span>
-          </p>
-        </article>
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/reset-card-before-after-annotated.webp" alt="重置前后对比：5 小时剩余 3% 且有 1 次重置机会；点击重置后回到 100%，显示「已重置」" loading="lazy" /></figure>
+        <figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-usage-stats-overview-annotated.webp" alt="使用统计应用用量" loading="lazy" /></figure></article>
 
         <aside class="docs-toc" id="docsToc">
           <p data-i18n="doc.toc">本页目录</p>

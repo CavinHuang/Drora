@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MCP 与插件 | Drora 文档</title>
-    <meta name="description" content="配置 stdio / HTTP / SSE 的 MCP 服务器，从外部 Agent 导入，完成 OAuth 授权；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
+    <meta name="description" content="把文件系统、浏览器、记忆等外部能力接入 Agent：MCP 服务器配置、OAuth 授权、外部导入；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
     <meta property="og:title" content="MCP 与插件 | Drora 文档" />
-    <meta property="og:description" content="配置 stdio / HTTP / SSE 的 MCP 服务器，从外部 Agent 导入，完成 OAuth 授权；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
+    <meta property="og:description" content="把文件系统、浏览器、记忆等外部能力接入 Agent：MCP 服务器配置、OAuth 授权、外部导入；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,30 +37,103 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.mcp">MCP 与插件</h1>
-          <p data-i18n="doc.mcp.lead">
-            MCP（Model Context Protocol）把文件系统、数据库、联网搜索等外部能力接入 Agent：配置好服务器后，它的工具会自动进入 Agent
-            的工具面。插件则把技能、命令、子智能体、Hooks 与 MCP 服务器打包成一个扩展包，在应用内插件市场一键安装启用。
+          <p data-i18n="doc.mcp.lead1">
+            MCP（Model Context Protocol）可以把文件系统、浏览器、记忆、数据库等外部能力接入 Agent。Drora 会统一管理 Drora Agent 使用的 MCP 服务器配置。
+          </p>
+          <p data-i18n="doc.mcp.lead2">
+            给 Drora Agent 配好常用 MCP 后，Agent 在长任务里可以更稳定地使用项目文件、浏览器自动化、记忆等工具，配合 GLM 5.3
+            系列模型时也更适合处理连续、多步骤的开发任务。
           </p>
 
-          <h2 id="manage" data-i18n="doc.mcp.sub.manage">管理 MCP 服务器</h2>
-          <p data-i18n="doc.mcp.manage1">
-            入口在「设置 → MCP 服务器」。列表分为两组：「已配置 MCP 服务器」是你手动添加的，可以编辑、删除、启停；「Plugin MCP
-            服务器」由已启用的插件提供，配置跟随插件管理。
+          <h2 id="servers" data-i18n="doc.mcp.sub.servers">MCP 服务器</h2>
+
+          <h3 data-i18n="doc.mcp.grp.h">列表分组</h3>
+          <p data-i18n="doc.mcp.grp.p1">MCP 列表按来源分为两组：</p>
+          <ul>
+            <li>
+              <span data-i18n="doc.mcp.grp.li1.a">已配置 MCP 服务器</span><span data-i18n="doc.mcp.grp.li1.b">：你手动添加的 MCP 服务，可直接编辑、删除或启用/停用。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.grp.li2.a">Plugin MCP 服务器</span><span data-i18n="doc.mcp.grp.li2.b">：随插件一起安装的 MCP 服务，由对应插件统一管理。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.mcp.grp.p2">列表中每个 MCP 都会展示名称、来源、启动方式和命令。</p>
+
+          <h3 data-i18n="doc.mcp.create.h">新建 MCP 服务器</h3>
+          <p data-i18n="doc.mcp.create.p1">
+            进入「设置 → MCP 服务器」，点击右上角「新建 MCP 服务器」。表单模式适合快速填写常见 stdio 服务：
           </p>
-          <p data-i18n="doc.mcp.manage2">
-            点「新建 MCP 服务器」创建：先选作用域（用户对所有工作区生效，工作区仅当前项目），再填名称与类型。
-          </p>
-          <p data-i18n="doc.mcp.manageStdio">
-            类型 stdio 是本地命令：填命令与参数（如命令 npx、参数 -y @modelcontextprotocol/server-memory），需要时展开环境变量传入凭据。
-          </p>
-          <p data-i18n="doc.mcp.manageRemote">
-            类型 HTTP / SSE 是远程服务：填服务地址，需要鉴权时展开请求头补充 Authorization 等信息。表单还提供超时时间与协议版本（自动 /
-            兼容旧版）；已有 JSON 配置可切到「完整配置」模式直接粘贴。
+          <ol>
+            <li>
+              <span data-i18n="doc.mcp.create.li1.a">选择「作用域」：「用户」（所有工作区可用）或「工作区」（仅当前项目可用）。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.create.li2.a">填写名称，例如 </span><code>memory</code><span data-i18n="doc.mcp.create.li2.b">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.create.li3.a">类型选择 </span><code>stdio（本地命令）</code><span data-i18n="doc.mcp.create.li3.b">，也支持 SSE 和 HTTP 类型的远程服务。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.create.li4.a">填写命令，例如 </span><code>npx</code><span data-i18n="doc.mcp.create.li4.b">，以及参数，例如 </span><code>-y @modelcontextprotocol/server-memory</code><span data-i18n="doc.mcp.create.li4.c">。</span>
+            </li>
+            <li data-i18n="doc.mcp.create.li5">如服务需要密钥或路径，再展开「环境变量（可选）」填写。</li>
+            <li data-i18n="doc.mcp.create.li6">点击「添加」后回到列表，并确认开关处于启用状态。</li>
+          </ol>
+          <p>
+            <span data-i18n="doc.mcp.create.p2.a">除 stdio 本地命令外，还有两种录入方式：接入远程服务时，类型选择 </span><code>HTTP</code><span data-i18n="doc.mcp.create.p2.b"> 或 </span><code>SSE</code><span data-i18n="doc.mcp.create.p2.c">，填写服务地址即可，需要鉴权的服务可展开「请求头（可选）」补充 Authorization 等信息；如果已有现成 JSON 配置，则切换到「完整配置」模式直接粘贴，支持 </span><code>{"server-name": {...}}</code><span data-i18n="doc.mcp.create.p2.d"> 和 </span><code>{"mcpServers": {...}}</code><span data-i18n="doc.mcp.create.p2.e"> 两种常见结构。</span>
           </p>
 
-          <h2 id="files" data-i18n="doc.mcp.sub.files">配置文件与作用域</h2>
-          <p data-i18n="doc.mcp.files1">
-            MCP 配置落在本机文件里，设置面板与文件互相同步。同一个作用域下，Drora 原生格式与 .agents 兼容格式都可用：
+          <h4 data-i18n="doc.mcp.oauth.h">需要 OAuth 授权的服务</h4>
+          <p data-i18n="doc.mcp.oauth.p1">
+            有些远程 MCP 服务（例如 Figma 的官方 MCP）不接受固定密钥，而是要求你在浏览器里授权一次。为这类服务开启 OAuth 后，剩下的交给 Drora。
+          </p>
+          <p data-i18n="doc.mcp.oauth.p2">
+            授权需要你点一下：「设置 → MCP」里对应的服务行会出现「打开授权」按钮，点击后用系统浏览器打开授权页面，你确认完，Drora 会自动重连并加载它的工具。Drora
+            不会擅自弹出浏览器窗口，主动权在你。
+          </p>
+          <p data-i18n="doc.mcp.oauth.p3">插件自带的 MCP 服务同样支持，列表行会显示「需要授权」。</p>
+          <p data-i18n="doc.mcp.oauth.p4">
+            两点需要知道：这只适用于 HTTP 和 SSE 类型的远程服务，本地服务仍然通过环境变量传凭据；如果新建会话时授权一直没完成，Drora 只会把这一个服务标记为失败，不会拖住整个会话。之后如果换了服务地址或授权范围，需要重新授权一次。
+          </p>
+
+          <h3 data-i18n="doc.mcp.import.h">从外部 Agent 导入 MCP 服务器</h3>
+          <p data-i18n="doc.mcp.import.p1">
+            如果你已经在 Claude Code、Codex CLI、OpenCode 等外部 Agent 中配置了一批 MCP 服务器，不需要在 Drora
+            里逐个重建。在「MCP 服务器」页面右上角点击「导入」图标，Drora 会自动扫描这些外部 Agent 的配置文件，把已有的 MCP 服务器集中列出，供你一次性导入。
+          </p>
+          <p data-i18n="doc.mcp.import.p2">Drora 会从以下来源发现可导入的 MCP 服务器：</p>
+          <ul>
+            <li>
+              <span data-i18n="doc.mcp.import.src1.a">Claude Code：</span><code>~/.claude/settings.json</code><span data-i18n="doc.mcp.import.src1.b">（以及项目根的 </span><code>.mcp.json</code><span data-i18n="doc.mcp.import.src1.c">）</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.import.src2.a">Codex CLI：</span><code>~/.codex/config.toml</code>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.import.src3.a">OpenCode：</span><code>~/.config/opencode/opencode.json</code>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.import.src4.a">通用 </span><code>.agents</code><span data-i18n="doc.mcp.import.src4.b">：</span><code>~/.agents/mcp.json</code>
+            </li>
+            <li data-i18n="doc.mcp.import.src5">
+              其他兼容工具：Qwen Code、Qoder、Trae、Kiro CLI、Roo、CodeBuddy 等工具的用户级 settings.json 与对应项目级配置
+            </li>
+          </ul>
+          <p data-i18n="doc.mcp.import.p3">操作步骤：</p>
+          <ol>
+            <li data-i18n="doc.mcp.import.step1">在 Drora 设置中进入「MCP 服务器」页面。</li>
+            <li data-i18n="doc.mcp.import.step2">点击右上角的「导入」图标，打开「导入外部 Agent MCP 服务器」弹窗。</li>
+            <li data-i18n="doc.mcp.import.step3">在弹窗右上角选择导入的「作用域」（全局或当前工作区）。</li>
+            <li data-i18n="doc.mcp.import.step4">勾选要导入的服务器，或点击「全选」；弹窗会实时显示发现的可导入数量与已选数量。</li>
+            <li data-i18n="doc.mcp.import.step5">点击「导入」完成导入，服务器会出现在列表中并默认启用。</li>
+          </ol>
+          <p>
+            <span data-i18n="doc.mcp.import.p4.a">导入后的服务器会和手动添加的服务一样保存在对应作用域的 </span><code>.drora</code><span data-i18n="doc.mcp.import.p4.b"> 配置文件中，可以在 Drora 内继续编辑、启停或删除，原外部 Agent 的配置文件不会被修改。</span>
+          </p>
+
+          <h3 data-i18n="doc.mcp.files.h">配置文件与默认读取路径</h3>
+          <p data-i18n="doc.mcp.files.p1">
+            设置面板只是入口之一。Drora 按固定的目录约定读取 MCP 配置文件，你也可以直接手工编辑这些文件来批量管理服务：
           </p>
           <table class="docs-table">
             <thead>
@@ -78,7 +151,7 @@
               </tr>
               <tr>
                 <td data-i18n="doc.mcp.tdScopeWorkspace">工作区（仅当前项目可用）</td>
-                <td><code>&lt;项目&gt;/.drora/config.json</code></td>
+                <td><code>&lt;项目根&gt;/.drora/config.json</code></td>
                 <td><code>mcp.servers</code></td>
               </tr>
               <tr>
@@ -88,16 +161,21 @@
               </tr>
               <tr>
                 <td data-i18n="doc.mcp.tdScopeWorkspaceAgents">工作区 · .agents 兼容</td>
-                <td><code>&lt;项目&gt;/.agents/mcp.json</code></td>
+                <td><code>&lt;项目根&gt;/.agents/mcp.json</code></td>
                 <td><code>mcpServers</code></td>
               </tr>
             </tbody>
           </table>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.files.note1">
+            注意：用户级原生配置在 .drora/cli/ 目录下，而工作区级直接在 .drora/ 目录下，两个文件同名为 config.json 但层级不同。
+          </span>
+          </div>
+          <p data-i18n="doc.mcp.files.p2">Drora 原生配置（config.json）的 MCP 部分形如：</p>
           <div class="docs-code"><code>{
   "mcp": {
     "servers": {
       "memory": {
-        "type": "stdio",
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-memory"],
         "env": {}
@@ -106,56 +184,926 @@
   }
 }</code></div>
           <p>
-            <span data-i18n="doc.mcp.filesNote">
-            .agents/mcp.json 使用业界通用的 mcpServers 结构，便于跨工具共享。停用某个服务器会把 </span>
-            <code>enabled</code><span data-i18n="doc.mcp.filesNoteT"> 写为 </span>
-            <code>false</code><span data-i18n="doc.mcp.filesNoteE">，没有该字段视为启用。</span>
-          </p>
-          <div class="docs-note"><span data-i18n="doc.mcp.filesWarn">
-            工作区配置随仓库提交，团队成员打开项目即可获得同一份 MCP 配置。MCP 配置声明了要启动的本地命令与要访问的网络地址——打开陌生仓库前，建议先检查其中 .drora/config.json 的 MCP 配置。
-          </span></div>
-
-          <h2 id="import" data-i18n="doc.mcp.sub.import">从外部 Agent 导入</h2>
-          <p data-i18n="doc.mcp.import1">
-            「设置 → MCP 服务器」页面的导入入口会扫描本机其他 Agent 工具的 MCP 配置，来源包括 Claude Code、Codex CLI、OpenCode
-            与通用 .agents 配置等。选择导入作用域（全局或项目）并勾选条目后一键导入，结果写入 Drora 自己的配置文件。
+            <span data-i18n="doc.mcp.files.p3.a">.agents/mcp.json 则使用业界通用的 </span><code>{"mcpServers": {...}}</code><span data-i18n="doc.mcp.files.p3.b"> 结构，便于和其他支持 .agents 目录约定的 AI 工具共享同一份 MCP 配置。</span>
           </p>
 
-          <h2 id="oauth" data-i18n="doc.mcp.sub.oauth">OAuth 与鉴权</h2>
-          <p data-i18n="doc.mcp.oauth1">
-            部分 HTTP / SSE 远程服务要求浏览器授权：在列表中该服务器一行点「打开授权」，按提示完成一次浏览器授权即可。插件自带的 MCP
-            服务器同样支持，行内会显示「需要授权」。
+          <h4 data-i18n="doc.mcp.rules.h">读取规则与优先级</h4>
+          <ol>
+            <li data-i18n="doc.mcp.rules.li1">
+              工作区优先加载：打开工作区时先读取工作区作用域的配置，再读取用户作用域，两边的服务都会出现在列表中。
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.rules.li2.a">同作用域内 </span><code>.drora</code><span data-i18n="doc.mcp.rules.li2.b"> 强优先：只要 </span><code>.drora</code><span data-i18n="doc.mcp.rules.li2.c"> 配置文件里读到了任何 MCP 服务，同作用域的 </span><code>.agents/mcp.json</code><span data-i18n="doc.mcp.rules.li2.d"> 就会被整体跳过，不做合并。</span><code>.agents</code><span data-i18n="doc.mcp.rules.li2.e"> 只在 </span><code>.drora</code><span data-i18n="doc.mcp.rules.li2.f"> 没有配置任何服务时才作为兜底来源生效。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.rules.li3.a">启用状态记录在配置对象内：在列表里停用某个 MCP 时，Drora 会向该服务的配置对象写入 </span><code>"enabled": false</code><span data-i18n="doc.mcp.rules.li3.b">；没有这个字段即视为启用。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.mcp.rules.li4.a">面板写入永远落在 </span><code>.drora</code><span data-i18n="doc.mcp.rules.li4.b">：通过设置面板新增或编辑的服务，始终写回对应作用域的 </span><code>.drora</code><span data-i18n="doc.mcp.rules.li4.c"> 原生配置文件，</span><code>.agents</code><span data-i18n="doc.mcp.rules.li4.d"> 文件不会被修改。</span>
+            </li>
+          </ol>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.rules.note">
+            提示：如果你在 .agents/mcp.json 里维护了一批服务，又在设置面板里新建了一个服务，原来 .agents 里的服务会因为 .drora 优先规则而整体失效。此时把 .agents 里的配置合并进 .drora 配置文件即可。
+          </span>
+          </div>
+
+          <h4 data-i18n="doc.mcp.autoconn.h">工作区 MCP 会自动连接</h4>
+          <p data-i18n="doc.mcp.autoconn.p1">
+            写在项目配置里的 MCP 服务，在会话启动时会和用户级服务一样自动连接，不需要你每次手动授权。这让团队把 MCP 配置提交进仓库后，成员克隆下来就能直接用。
           </p>
-          <p data-i18n="doc.mcp.oauth2">
-            本地 stdio 服务没有授权流程，凭据通过环境变量传入。授权未完成或超时只会把该服务器标记为失败（提示重新授权），不会阻塞会话。
+          <p>
+            <span data-i18n="doc.mcp.autoconn.p2.a">方便之外有件事需要留意。打开一个项目，就等于连上了它配置里写的所有 MCP 服务，而 MCP 服务能执行命令、读写你的文件、访问网络。所以打开来路不明的仓库之前，建议先看一眼它的 </span><code>.drora/config.json</code><span data-i18n="doc.mcp.autoconn.p2.b">，确认里面的 MCP 配置你都认得。</span>
+          </p>
+          <p data-i18n="doc.mcp.autoconn.p3">同名服务以你自己的配置为准，项目配置覆盖不了它。</p>
+
+          <h3 data-i18n="doc.mcp.rec.h">推荐配置</h3>
+          <p data-i18n="doc.mcp.rec.p1">
+            下面这些 MCP 服务提供视觉理解、联网搜索与网页读取能力，推荐按需配置：
+          </p>
+          <ul>
+            <li>
+              <code>zai-mcp-server</code><span data-i18n="doc.mcp.rec.li1.b">：提供视觉理解能力，让 Agent 可以分析图片、截图和界面信息。</span>
+            </li>
+            <li>
+              <code>web-search-prime</code><span data-i18n="doc.mcp.rec.li2.b">：提供联网搜索能力，让 Agent 获取最新资料和外部信息。</span>
+            </li>
+            <li>
+              <code>web-reader</code><span data-i18n="doc.mcp.rec.li3.b">：提供网页读取能力，让 Agent 解析网页正文、结构和关键信息。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.mcp.rec.p2">
+            这些服务通常需要配置对应服务商的 API Token。团队内如果有统一 MCP 规范，建议用「用户」作用域共享通用服务，再按项目需要在「工作区」作用域补充专用服务，避免配置互相污染。
           </p>
 
-          <h2 id="plugins" data-i18n="doc.mcp.sub.plugins">插件市场</h2>
-          <p data-i18n="doc.mcp.plugins1">
-            插件把技能、命令、子智能体、Hooks 与 MCP 服务器打包成一个扩展包，启用后其中的能力统一注册、停用后一并停用。入口在设置中的插件市场（需先打开一个工作区）。
-          </p>
-          <p data-i18n="doc.mcp.plugins2">
-            商店列表分「公开」与「个人」两个分段：公开即官方市场 drora-plugins-official（内置插件与经 CDN 分发的插件）；个人分段汇总你自行登记的市场源（GitHub
-            仓库、Git 地址、URL、本地目录等），可在「市场源」面板添加、刷新与移除。
-          </p>
-          <p data-i18n="doc.mcp.plugins3">
-            「管理已安装」视图承载插件级开关：启用 / 停用、检查更新与卸载。
-          </p>
-          <div class="docs-note"><span data-i18n="doc.mcp.pluginsWarn">
-            插件可以携带 Hooks、MCP 服务器与技能，启用即表示信任其内容。安装第三方插件前，请先确认来源。
-          </span></div>
-          <p data-i18n="doc.mcp.pluginsRemote">
-            远程开发时，「同步 Plugin」「同步 MCP」可以把本地用户级的插件与 MCP 配置复制到 SSH 远端工作区。
-          </p>
-
-          <h2 id="usage" data-i18n="doc.mcp.sub.usage">在会话中使用</h2>
+          <h3 data-i18n="doc.mcp.sub.usage">在会话中使用</h3>
           <p data-i18n="doc.mcp.usage1">
             已启用的 MCP 服务器会随会话自动连接，其工具进入 Agent 的工具面，由模型按需调用；列表中每个服务器都显示连接状态与可用工具数量。
           </p>
           <p data-i18n="doc.mcp.usage2">
             连接失败时按状态提示排查：配置无效、网络或代理不通、连接超时，或协议协商失败——最后这种情况可在编辑服务器时把协议版本切换为「兼容旧版」。
           </p>
-        </article>
+
+          <h2 id="plugins" data-i18n="doc.mcp.sub.plugins">插件市场</h2>
+          <p data-i18n="doc.mcp.plugins1">
+            Plugin 用来扩展 Drora 的能力。一个插件可以把技能、命令、子智能体、MCP 服务器等能力打包在一起，让团队把可复用的工具沉淀成统一的扩展包，在同一个工作台里一键启用。
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-mcp-import-external.webp" alt="从外部 Agent 导入 MCP 服务器" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-mcp-create-modes-duo.webp" alt="左：HTTP 远程服务表单；右：完整配置模式直接粘贴 JSON" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-mcp-server-create-form.webp" alt="新建 MCP 服务器" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-mcp-server-list-groups.webp" alt="MCP 列表按来源分组：已配置服务可直接管理，Plugin 服务随插件托管" loading="lazy" /></figure>
+
+          <h3 data-i18n="doc.mcp.pp.what.h">插件里有什么</h3>
+          <p data-i18n="doc.mcp.pp.what.p">
+            一个插件可以同时包含多种能力。Drora 会根据插件目录里的内容自动识别它包含哪些组件，并在列表中以标签或数量的形式展示：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.what.th.comp">组件</th>
+                <th data-i18n="doc.mcp.pp.what.th.desc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.mcp.pp.what.tc.skill">Skill（技能）</td>
+                <td data-i18n="doc.mcp.pp.what.td.skill">教 Agent 如何完成特定任务的技能文件</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.what.tc.cmd">Command（命令）</td>
+                <td data-i18n="doc.mcp.pp.what.td.cmd">可通过 / 调用的快捷命令</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.what.tc.agent">Agent（子智能体）</td>
+                <td data-i18n="doc.mcp.pp.what.td.agent">随插件一起注册的子智能体</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.what.tc.mcp">MCP 服务器</td>
+                <td data-i18n="doc.mcp.pp.what.td.mcp">随插件注册的外部工具服务，会出现在 MCP 列表的「Plugin MCP 服务器」分组中</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.what.tc.hook">Hook（钩子）</td>
+                <td data-i18n="doc.mcp.pp.what.td.hook">在特定事件触发的自动化钩子</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.what.p2">
+            启用插件后，它附带的可运行组件——技能、命令和 MCP 服务器——会注册到当前工作台；停用后这些组件也会一起停用。
+          </p>
+
+          <h3 data-i18n="doc.mcp.pp.browse.h">浏览与安装插件</h3>
+          <p data-i18n="doc.mcp.pp.browse.p1">
+            进入「设置 → 插件」，看到的就是插件商店。顶部是一个搜索框，输入关键词可以跨所有来源查找插件；下方分成「公开」与「个人」两个分段：
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/plugin-detail-annotated.png" alt="插件详情页：MCP 服务器、技能、命令、子智能体与 Hooks 逐项列出，下方是开发者、类别、版本等信息" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/plugin-store-public-annotated.png" alt="插件商店：顶部搜索框、已安装图标带、公开与个人分段，以及按类别分组的插件目录" loading="lazy" /></figure>
+          <ul>
+            <li data-i18n="doc.mcp.pp.browse.li1">
+              公开：Drora 收录的插件目录，顶部是精选推荐，其余按「开发者工具」「生产力」「实用工具」「指南」「模板」等类别分组，分组内容多时可以展开查看全部。
+            </li>
+            <li data-i18n="doc.mcp.pp.browse.li2">
+              个人：你自己添加的插件市场，先展示推荐条目，其余按市场名称分组。Drora 已经为你预置了 Claude Code 的插件市场，不用自己添加就能在这个分段里浏览和安装；想接入别的来源时，再用右上角的「创建」添加市场源。
+            </li>
+          </ul>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.browse.note">
+            插件页需要在打开工作区后才可用。如果提示「打开一个工作区以管理插件」，先打开任意项目 / 工作区即可。目录、详情和安装都需要访问网络，网络访问不畅时可能加载失败；列表没及时更新时，点右上角的「刷新」重新拉取。
+          </span>
+          </div>
+          <p data-i18n="doc.mcp.pp.browse.p2">
+            找到想要的插件后，点卡片上的「安装」即可，状态会依次变为「安装中…」和「已安装」。新装的插件默认启用，组件立即可用。
+          </p>
+          <p data-i18n="doc.mcp.pp.browse.p3">
+            点击任意插件可打开详情页，Drora 会加载它实际包含的技能、命令、子智能体、MCP 服务器和 Hooks，并附上开发者、类别、版本、网站等信息，让你在安装前先看清它会带来哪些能力。已安装的插件如果有新版本，详情页底部也会直接给出更新入口。
+          </p>
+
+          <h4 id="custom" data-i18n="doc.mcp.pp.custom.h">添加自己的插件市场</h4>
+          <p data-i18n="doc.mcp.pp.custom.p1">你不必局限于公开目录。点右上角的「创建 → 添加插件市场」，在弹层里指定一个来源即可：</p>
+          <ul>
+            <li>
+              <span data-i18n="doc.mcp.pp.custom.li1.a">GitHub 仓库（例如 </span><code>owner/repo</code><span data-i18n="doc.mcp.pp.custom.li1.b"> 或其链接）</span>
+            </li>
+            <li data-i18n="doc.mcp.pp.custom.li2">Git URL</li>
+            <li data-i18n="doc.mcp.pp.custom.li3">本地的市场清单文件或目录，也可以直接把文件夹拖进来，或点「选择目录」</li>
+          </ul>
+          <p data-i18n="doc.mcp.pp.custom.p2">
+            添加前 Drora 会先校验这个市场，成功后它发布的插件会以市场名称分组出现在「个人」分段里，你可以像其他插件一样浏览安装。
+          </p>
+          <p data-i18n="doc.mcp.pp.custom.p3">
+            点搜索框上方的齿轮图标可以打开「市场源」面板，查看每个市场收录了多少插件、上次更新时间，并单独「刷新该市场」或「移除该市场」。Drora
+            自带的官方目录只能刷新，不会被移除。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.custom.note.a">
+            想自己做一个插件或搭建团队市场？见下方
+          </span><a href="#dev" data-i18n="doc.mcp.pp.custom.note.link">开发自己的插件</a><span data-i18n="doc.mcp.pp.custom.note.b">，里面有插件目录结构、plugin.json / marketplace.json 的字段速查和完整 JSON 用例。</span>
+          </div>
+
+          <h3 data-i18n="doc.mcp.pp.builtin.h">内置插件</h3>
+          <p data-i18n="doc.mcp.pp.builtin.p1">
+            Drora 内置了一批官方插件。其中一部分开箱即用、默认启用；其余随包内置，需要时再开启即可。
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.builtin.th.name">插件</th>
+                <th data-i18n="doc.mcp.pp.builtin.th.cap">能力</th>
+                <th data-i18n="doc.mcp.pp.builtin.th.state">默认状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>browser-use</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.bu">操作 Drora 内置浏览器，检查网页并验证交互</td>
+                <td data-i18n="doc.mcp.pp.on">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>documents</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.docx">创建、编辑与审阅 Word 文档（DOCX）</td>
+                <td data-i18n="doc.mcp.pp.on2">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>pdf</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.pdf">创建、编辑与审阅 PDF 文档</td>
+                <td data-i18n="doc.mcp.pp.on3">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>presentations</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.pptx">创建、编辑与审阅演示文档（PPTX）</td>
+                <td data-i18n="doc.mcp.pp.on4">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>spreadsheets</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.xlsx">创建、编辑与审阅电子表格（XLSX）</td>
+                <td data-i18n="doc.mcp.pp.on5">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>image-search</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.img">查找插图与参考配图</td>
+                <td data-i18n="doc.mcp.pp.on6">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>skill-creator</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.sc">创建和编辑你自己的本地技能</td>
+                <td data-i18n="doc.mcp.pp.on7">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>plugin-creator</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.pc">通过本地开发市场安装、试用和更新，开发并验证 Drora 插件</td>
+                <td data-i18n="doc.mcp.pp.on8">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>drora-guide</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.dg">提供 Drora 配置指南与插件、技能、MCP、命令和钩子诊断</td>
+                <td data-i18n="doc.mcp.pp.on9">默认启用</td>
+              </tr>
+              <tr>
+                <td><code>android-emulator</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.ae">Android 开发工作流与模拟器自动化</td>
+                <td data-i18n="doc.mcp.pp.off">默认关闭</td>
+              </tr>
+              <tr>
+                <td><code>ios-simulator</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.ios">iOS 开发工作流与模拟器自动化（macOS）</td>
+                <td data-i18n="doc.mcp.pp.off2">默认关闭</td>
+              </tr>
+              <tr>
+                <td><code>obsidian</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.obs">连接本地 Obsidian 笔记库，在库授权下读取、创建和整理 Markdown 笔记</td>
+                <td data-i18n="doc.mcp.pp.off3">默认关闭</td>
+              </tr>
+              <tr>
+                <td><code>restore-legacy-sessions</code></td>
+                <td data-i18n="doc.mcp.pp.builtin.td.rls">迁移并恢复旧版本的会话</td>
+                <td data-i18n="doc.mcp.pp.off4">默认关闭</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.builtin.p2">
+            其中最值得一提的是 android-emulator 和 ios-simulator 这两个移动开发插件——启用后，Drora
+            Agent 就能直接驱动 Android 模拟器或 iOS 模拟器，把构建运行、安装启动、界面验证等环节都放进同一条对话流里，不必再在
+            IDE、模拟器和命令行之间来回切换，移动开发体验更连贯、更高效。
+          </p>
+
+          <h3 data-i18n="doc.mcp.pp.manage.h">管理插件</h3>
+          <p data-i18n="doc.mcp.pp.manage.p1">
+            装过插件后，搜索框下方会出现一条「已安装」图标带，点图标直接进入该插件详情。点这一行右侧的齿轮图标，则进入「管理已安装」页面，本机所有插件会以列表形式展开，显示名称、版本、来源标签和它包含的组件数量。
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/plugin-manage-installed-annotated.webp" alt="管理已安装：插件列表带版本、来源标签、可更新标记与启用开关" loading="lazy" /></figure>
+          <p data-i18n="doc.mcp.pp.manage.p2">在这里可以完成几件事：</p>
+          <ul>
+            <li data-i18n="doc.mcp.pp.manage.li1">通过右上角的筛选器按启用 / 停用状态过滤。</li>
+            <li>
+              <span data-i18n="doc.mcp.pp.manage.li2.a">查看插件来源标签，例如 </span><code>内置</code><span data-i18n="doc.mcp.pp.manage.li2.b">，或某个市场的名称。</span>
+            </li>
+            <li data-i18n="doc.mcp.pp.manage.li3">通过右侧开关启用或停用插件。</li>
+            <li>
+              <span data-i18n="doc.mcp.pp.manage.li4.a">点「检查更新」，让 Drora 拉取各插件的最新版本，有更新的插件会带上标记。注意版本对比的口径：「最新版本」取自市场 </span><code>marketplace.json</code><span data-i18n="doc.mcp.pp.manage.li4.b"> 里该插件条目声明的 </span><code>version</code><span data-i18n="doc.mcp.pp.manage.li4.c">，「已安装版本」取自插件自身的 </span><code>plugin.json</code><span data-i18n="doc.mcp.pp.manage.li4.d">。如果市场条目发版时忘了更新 </span><code>version</code><span data-i18n="doc.mcp.pp.manage.li4.e">，即使插件代码已更新也不会提示可更新；自建市场发版务必同步修改 </span><code>marketplace.json</code><span data-i18n="doc.mcp.pp.manage.li4.f">。检测结果基于本地缓存的市场清单，怀疑不准时先到市场源面板「刷新该市场」再检查。</span>
+            </li>
+            <li data-i18n="doc.mcp.pp.manage.li5">
+              点击插件条目，查看它包含的具体技能、命令、MCP 等组件，并可在此卸载。内置官方插件同样可以卸载。
+            </li>
+          </ul>
+          <p data-i18n="doc.mcp.pp.manage.p3">
+            由于插件变更需要重新加载 Agent 运行环境，启用或停用插件后，Drora 会自动刷新受影响的技能和会话，让改动生效。停用插件后，它的全部组件会立即从会话中移除，再次启用即可恢复。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.manage.note">
+            停用还是卸载？停用只是让插件暂时不生效，随时可以开回来；卸载则把它从列表中移除。内置插件的安装包随应用一起分发，卸载它时 Drora 会记录一条屏蔽标记，应用升级后也不会把它装回来——想重新使用，在市场里重新安装即可。
+          </span>
+          </div>
+          <p>
+            <span data-i18n="doc.mcp.pp.manage.p4.a">在远程工作区里，本机装的插件默认不会跟过去。连上 SSH 或 WSL 远程后，可以用工作区标题栏「同步」下拉里的「同步 Plugin」把它们搬过去，「管理已安装」页面右上角也有同样的入口，详见</span><a href="remote-dev.html#sync" data-i18n="doc.mcp.pp.manage.p4.link">远程开发 → 把本地配置同步到远端</a><span data-i18n="doc.mcp.pp.manage.p4.b">。</span>
+          </p>
+
+          <h3 data-i18n="doc.mcp.pp.config.h">配置插件</h3>
+          <p data-i18n="doc.mcp.pp.config.p1">
+            有些插件需要你先提供参数才能工作，例如默认设备、开关或路径。点开插件详情，展开底部的「高级信息」，在「配置」区填写可填项——必填项会标注「必填」，填完点「保存配置」。
+          </p>
+          <p data-i18n="doc.mcp.pp.config.p2">
+            标记为敏感的项（例如 API 密钥）会提示「该值需要安全存储接入后才能配置」，当前暂不支持在界面里直接填写。遇到这类插件，按其说明在系统层面准备好密钥即可。
+          </p>
+
+          <h3 data-i18n="doc.mcp.pp.use.h">装好的插件怎么用</h3>
+          <p data-i18n="doc.mcp.pp.use.p1">插件启用后，它带来的能力会自动出现在客户端对应位置，无需额外设置：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.use.th.cap">能力</th>
+                <th data-i18n="doc.mcp.pp.use.th.where">在哪里用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.mcp.pp.use.tc.skill">技能</td>
+                <td data-i18n="doc.mcp.pp.use.td.skill">合适时机会自动触发；也可在输入框输入 /，从「技能」分组手动选用。在「设置 → 技能」的「Plugin 技能」分组可统一查看。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.use.tc.cmd">命令</td>
+                <td data-i18n="doc.mcp.pp.use.td.cmd">在输入框输入 /，从「命令」分组选用，可输入关键词搜索命令或技能。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.use.tc.agent">子智能体</td>
+                <td data-i18n="doc.mcp.pp.use.td.agent">会话中可被自动调度执行任务；在「设置 → 子智能体」的「插件子智能体」分组可查看（来自插件，只读）。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.use.tc.mcp">MCP 服务器</td>
+                <td data-i18n="doc.mcp.pp.use.td.mcp">在「设置 → MCP」中显示为「Plugin MCP 服务器」，随插件启停自动加载。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3 id="dev" data-i18n="doc.mcp.pp.dev.h">开发自己的插件</h3>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.p1.a">只需会写 JSON 和 Markdown，不用改 Drora 本体。做好后，通过上面的</span><a href="#custom" data-i18n="doc.mcp.pp.dev.p1.link">添加自己的插件市场</a><span data-i18n="doc.mcp.pp.dev.p1.b">把本地目录加进来，即可在客户端里直接安装测试。</span>
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.shape.h">一个插件长什么样</h4>
+          <p data-i18n="doc.mcp.pp.dev.shape.p1">
+            插件就是一个文件夹：根目录放一份清单 plugin.json，再按需放各类组件目录（全部可选）。
+          </p>
+          <div class="docs-code"><code>my-plugin/
+├── .zcode-plugin/
+│   └── plugin.json    清单（唯一必需）
+├── commands/          斜杠命令，每个一个 .md
+├── skills/            技能，每个子目录含 SKILL.md
+├── agents/            子智能体 .md
+├── hooks/hooks.json   钩子
+└── .mcp.json          MCP 服务声明</code></div>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.shape.p2.a">清单位置按优先级查找：</span><code>.zcode-plugin/plugin.json</code><span data-i18n="doc.mcp.pp.dev.shape.p2.b">（推荐）→ </span><code>.claude-plugin/plugin.json</code><span data-i18n="doc.mcp.pp.dev.shape.p2.c">（兼容 Claude Code）。</span>
+          </p>
+          <p data-i18n="doc.mcp.pp.dev.shape.p3">五种组件的写法：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.shape.th.comp">组件</th>
+                <th data-i18n="doc.mcp.pp.dev.shape.th.fmt">格式与位置</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.mcp.pp.dev.shape.tc.cmd">命令</td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.shape.td.cmd.a">commands/*.md，YAML frontmatter + 正文；正文用 </span><code>$ARGUMENTS</code><span data-i18n="doc.mcp.pp.dev.shape.td.cmd.b"> 接收参数</span>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.dev.shape.tc.skill">技能</td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.shape.td.skill.a">skills/&lt;名&gt;/SKILL.md，frontmatter 写清 </span><code>name</code><span data-i18n="doc.mcp.pp.dev.shape.td.skill.b"> / </span><code>description</code><span data-i18n="doc.mcp.pp.dev.shape.td.skill.c">，描述越准越易被自动触发</span>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.dev.shape.tc.agent">子智能体</td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.shape.td.agent.a">agents/*.md，frontmatter 必填 </span><code>name</code><span data-i18n="doc.mcp.pp.dev.shape.td.agent.b"> / </span><code>description</code><span data-i18n="doc.mcp.pp.dev.shape.td.agent.c">，正文即其 system prompt</span>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.dev.shape.tc.hook">Hooks</td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.shape.td.hook.a">hooks/hooks.json，在特定事件时机自动执行；随插件启停，详见</span><a href="hooks.html" data-i18n="doc.nav.hooks">Hooks</a>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.pp.dev.shape.tc.mcp">MCP 服务</td>
+                <td data-i18n="doc.mcp.pp.dev.shape.td.mcp">根目录 .mcp.json 或清单 mcpServers，接入外部工具，键名自动加命名空间避免冲突</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.dev.shape.p4">最小清单只需要一个 name：</p>
+          <div class="docs-code"><code>{
+  "name": "hello-world",
+  "version": "0.1.0",
+  "description": "我的第一个插件"
+}</code></div>
+
+          <h4 data-i18n="doc.mcp.pp.dev.pjson.h">plugin.json 字段速查</h4>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.req">必填</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes">是</td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.pjson.td.name.a">插件名，须匹配 </span><code>^[a-z0-9][a-z0-9._-]{0,127}$</code><span data-i18n="doc.mcp.pp.dev.pjson.td.name.b">（小写字母 / 数字开头，可含 . _ -，1–128 字符）</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>version</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.version">版本号，缺省 0.0.0，建议语义化版本</td>
+              </tr>
+              <tr>
+                <td><code>description</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.desc">一句话描述，显示在插件管理界面</td>
+              </tr>
+              <tr>
+                <td><code>author</code></td>
+                <td></td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.pjson.td.author.a">作者，可写字符串或对象 </span><code>{ name, email, url }</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>homepage</code> / <code>repository</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.home">主页与仓库地址</td>
+              </tr>
+              <tr>
+                <td><code>license</code></td>
+                <td></td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.pjson.td.license.a">许可证，如 </span><code>MIT</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>keywords</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.kw">关键词数组</td>
+              </tr>
+              <tr>
+                <td><code>commands</code> / <code>skills</code> / <code>hooks</code> / <code>mcpServers</code> / <code>agents</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.comp">各类组件声明，可写目录路径字符串、路径数组或内联对象</td>
+              </tr>
+              <tr>
+                <td><code>dependencies</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.dep">依赖的其他插件，写 name@market 或同市场内裸 name</td>
+              </tr>
+              <tr>
+                <td><code>userConfig</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.pjson.td.uc">用户可配置项（见下表）</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.dev.pjson.note">
+            清单里写了 channels / lspServers / outputStyles / settings 这几个字段时，当前运行时仅登记、不执行，会给出诊断提示，不影响其它组件加载。
+          </span>
+          </div>
+          <p data-i18n="doc.mcp.pp.dev.pjson.p1">
+            userConfig 里的每一项都会出现在插件详情弹窗的「配置」区，供用户在界面里填写：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field2">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean2">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>type</code></td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.uc.td.type.a">类型：</span><code>string</code><span data-i18n="doc.mcp.pp.dev.uc.td.type.b"> / </span><code>number</code><span data-i18n="doc.mcp.pp.dev.uc.td.type.c"> / </span><code>boolean</code><span data-i18n="doc.mcp.pp.dev.uc.td.type.d"> / </span><code>directory</code><span data-i18n="doc.mcp.pp.dev.uc.td.type.e"> / </span><code>file</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>title</code></td>
+                <td data-i18n="doc.mcp.pp.dev.uc.td.title">界面上显示的标题</td>
+              </tr>
+              <tr>
+                <td><code>description</code></td>
+                <td data-i18n="doc.mcp.pp.dev.uc.td.desc">配置项说明</td>
+              </tr>
+              <tr>
+                <td><code>default</code></td>
+                <td data-i18n="doc.mcp.pp.dev.uc.td.def">默认值</td>
+              </tr>
+              <tr>
+                <td><code>required</code></td>
+                <td data-i18n="doc.mcp.pp.dev.uc.td.req">布尔；是否必填，界面标「必填」</td>
+              </tr>
+              <tr>
+                <td><code>sensitive</code></td>
+                <td data-i18n="doc.mcp.pp.dev.uc.td.sens">布尔；敏感值，界面打码且暂不支持在界面直接填写</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.pjson.p2.a">敏感配置（</span><code>sensitive</code><span data-i18n="doc.mcp.pp.dev.pjson.p2.b">）的值可以在 MCP 声明里用 </span><code>${user_config.键}</code><span data-i18n="doc.mcp.pp.dev.pjson.p2.c"> 引用。</span>
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.mjson.h">marketplace.json 字段速查</h4>
+          <p data-i18n="doc.mcp.pp.dev.mjson.p1">
+            「插件市场」是一份目录清单，告诉客户端有哪些插件可装、各自在哪。
+          </p>
+          <p data-i18n="doc.mcp.pp.dev.mjson.p2">顶层字段：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field3">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.req3">必填</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean3">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes2">是</td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.name">市场名，命名规则同插件名</td>
+              </tr>
+              <tr>
+                <td><code>description</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.desc">市场描述</td>
+              </tr>
+              <tr>
+                <td><code>plugins</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes3">是</td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.plugins">插件条目数组（见下表）</td>
+              </tr>
+              <tr>
+                <td><code>pluginRoot</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.root">解析各条目 source 时的基准目录，相对市场根目录</td>
+              </tr>
+              <tr>
+                <td><code>allowCrossMarketplaceDependenciesOn</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.cross">允许跨市场依赖的市场名数组</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.dev.mjson.p3">plugins[] 每个条目：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field4">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.req4">必填</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean4">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes4">是</td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.pname">插件名</td>
+              </tr>
+              <tr>
+                <td><code>source</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.psource">插件代码在哪。最常用是相对路径字符串，也可写对象（见下表）</td>
+              </tr>
+              <tr>
+                <td><code>description</code> / <code>version</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.pdesc">展示用描述与版本</td>
+              </tr>
+              <tr>
+                <td><code>category</code> / <code>tags</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.pcat">分类（字符串）与标签（字符串数组），便于检索</td>
+              </tr>
+              <tr>
+                <td><code>dependencies</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.pdep">依赖的其他插件，写 name@market 或同市场内裸 name</td>
+              </tr>
+              <tr>
+                <td><code>strict</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.mjson.td.pstrict">布尔；对该条目做更严格的校验</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.dev.mjson.p4">source 的几种写法：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.form">写法</th>
+                <th data-i18n="doc.mcp.pp.dev.th.meanF">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>"./plugins/hello"</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.rel">最常用。相对市场根目录的子目录（插件与市场同仓库）</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "directory", "path": "/abs/path" }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.dir">本地绝对路径目录</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "github", "repo": "owner/repo", "path": "subdir", "ref": "main" }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.gh">从 GitHub 仓库取，可指定子目录与分支</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "git", "url": "https://...git", "path": "subdir", "ref": "..." }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.git">从任意 Git 仓库取</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "file", "path": "..." }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.file">读取一个本地清单文件</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "url", "url": "https://.../marketplace.json" }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.url">指向一个 JSON 文件的 HTTP 地址，可带 headers</td>
+              </tr>
+              <tr>
+                <td><code>{ "source": "npm", "package": "..." }</code></td>
+                <td data-i18n="doc.mcp.pp.dev.src.td.npm">从 npm 包取</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4 data-i18n="doc.mcp.pp.dev.cmd.h">命令 .md 字段速查</h4>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.cmd.p1.a">commands/*.md 的 frontmatter 支持以下字段：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field5">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.req5">必填</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean5">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>description</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes5">是</td>
+                <td data-i18n="doc.mcp.pp.dev.cmd.td.desc">命令描述（或正文非空即可）</td>
+              </tr>
+              <tr>
+                <td><code>argument-hint</code></td>
+                <td></td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.cmd.td.hint.a">参数提示，如 </span><code>"[topic]"</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>allowed-tools</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.cmd.td.tools">逗号分隔，限制该命令可用的工具</td>
+              </tr>
+              <tr>
+                <td><code>model</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.cmd.td.model">覆盖默认模型</td>
+              </tr>
+              <tr>
+                <td><code>skills</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.cmd.td.skills">逗号分隔，自动挂载的技能</td>
+              </tr>
+              <tr>
+                <td><code>disable-noninteractive</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.cmd.td.nonint">布尔；是否在非交互模式下禁用</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.cmd.p2.a">正文里 </span><code>$ARGUMENTS</code><span data-i18n="doc.mcp.pp.dev.cmd.p2.b"> 代表用户传入的全部参数，</span><code>$1</code><span data-i18n="doc.mcp.pp.dev.cmd.p2.c"> / </span><code>$2</code><span data-i18n="doc.mcp.pp.dev.cmd.p2.d"> 代表位置参数。命令名取自文件名，须匹配 </span><code>^[a-z0-9][a-z0-9_:-]{0,63}$</code><span data-i18n="doc.mcp.pp.dev.cmd.p2.e">。</span>
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.skillmd.h">技能 SKILL.md 字段速查</h4>
+          <p data-i18n="doc.mcp.pp.dev.skillmd.p1">skills/&lt;名&gt;/SKILL.md 的 frontmatter 支持以下字段：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.field6">字段</th>
+                <th data-i18n="doc.mcp.pp.dev.th.req6">必填</th>
+                <th data-i18n="doc.mcp.pp.dev.th.mean6">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes6">是</td>
+                <td data-i18n="doc.mcp.pp.dev.skillmd.td.name">技能名，缺省取所在目录名</td>
+              </tr>
+              <tr>
+                <td><code>description</code></td>
+                <td data-i18n="doc.mcp.pp.dev.td.yes7">是</td>
+                <td data-i18n="doc.mcp.pp.dev.skillmd.td.desc">触发说明，写清「什么时候用」；最长 1024 字符，越准越易被自动调用</td>
+              </tr>
+              <tr>
+                <td><code>when_to_use</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.skillmd.td.when">补充触发时机描述</td>
+              </tr>
+              <tr>
+                <td><code>license</code></td>
+                <td></td>
+                <td data-i18n="doc.mcp.pp.dev.skillmd.td.lic">许可证</td>
+              </tr>
+              <tr>
+                <td><code>metadata</code></td>
+                <td></td>
+                <td>
+                  <span data-i18n="doc.mcp.pp.dev.skillmd.td.meta.a">对象，可放 </span><code>author</code><span data-i18n="doc.mcp.pp.dev.skillmd.td.meta.b"> / </span><code>version</code><span data-i18n="doc.mcp.pp.dev.skillmd.td.meta.c"> 等附加信息</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.dev.skillmd.p2">
+            其余非白名单字段（如 homepage）会被忽略，不影响加载。
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.json.h">完整 JSON 用例</h4>
+
+          <h4 data-i18n="doc.mcp.pp.dev.json.pjson.h">plugin.json（全字段）</h4>
+          <div class="docs-code"><code>{
+  "name": "ios-simulator",
+  "version": "1.2.0",
+  "description": "iOS 模拟器开发循环：技能 + 命令 + MCP + 钩子",
+  "author": { "name": "你的名字", "email": "you@example.com", "url": "https://example.com" },
+  "homepage": "https://example.com/ios-simulator",
+  "repository": "https://github.com/your-team/ios-simulator",
+  "license": "MIT",
+  "keywords": ["ios", "simulator", "mobile"],
+  "commands": "commands",
+  "skills": ["skills", "extra-skills"],
+  "agents": "agents",
+  "hooks": "hooks/hooks.json",
+  "mcpServers": ".mcp.json",
+  "dependencies": ["skill-creator@drora-plugins-official"],
+  "userConfig": {
+    "api_key": {
+      "title": "API 密钥",
+      "description": "访问第三方服务用",
+      "type": "string",
+      "required": true,
+      "sensitive": true
+    },
+    "default_device": { "title": "默认设备", "type": "string", "default": "iPhone 16" },
+    "max_retries": { "type": "number", "default": 3 },
+    "verbose": { "type": "boolean", "default": false },
+    "workspace_dir": { "type": "directory" },
+    "config_file": { "type": "file" }
+  }
+}</code></div>
+          <p data-i18n="doc.mcp.pp.dev.json.p1">
+            commands / skills / hooks / mcpServers / agents 三种写法均可——目录字符串（如 "commands"）、路径数组（如 ["skills",
+            "extra-skills"]）、或直接内联对象。上例分别演示了字符串、数组与文件路径。
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.json.mjson.h">marketplace.json（全字段 + 所有 source 写法）</h4>
+          <div class="docs-code"><code>{
+  "name": "my-market",
+  "description": "团队内部插件市场",
+  "pluginRoot": "plugins",
+  "allowCrossMarketplaceDependenciesOn": ["drora-plugins-official"],
+  "plugins": [
+    {
+      "name": "hello-world",
+      "source": "./hello-world",
+      "description": "打招呼插件",
+      "version": "0.1.0",
+      "category": "demo",
+      "tags": ["starter", "demo"],
+      "strict": true
+    },
+    {
+      "name": "from-github",
+      "source": { "source": "github", "repo": "your-team/another", "path": "plugins/x", "ref": "main" },
+      "dependencies": ["hello-world", "skill-creator@drora-plugins-official"]
+    },
+    {
+      "name": "from-git",
+      "source": { "source": "git", "url": "https://git.example.com/x.git", "path": "sub", "ref": "v1.0" }
+    },
+    {
+      "name": "from-dir",
+      "source": { "source": "directory", "path": "/abs/path/to/plugin" }
+    },
+    {
+      "name": "from-url",
+      "source": { "source": "url", "url": "https://example.com/plugin-manifest.json", "headers": { "Authorization": "Bearer xxx" } }
+    },
+    {
+      "name": "from-npm",
+      "source": { "source": "npm", "package": "@scope/plugin" }
+    }
+  ]
+}</code></div>
+          <p data-i18n="doc.mcp.pp.dev.json.p2">
+            设了 pluginRoot 后，相对 source（如 "./hello-world"）以它为基准解析，即 plugins/hello-world。
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.json.hooks.h">hooks/hooks.json</h4>
+          <div class="docs-code"><code>{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${DRORA_PLUGIN_ROOT}/hooks/run.sh\" start",
+            "async": false,
+            "shell": true,
+            "timeout": 30,
+            "statusMessage": "初始化中…"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${DRORA_PLUGIN_ROOT}/hooks/check.js"],
+            "timeoutMs": 5000,
+            "statusMessage": "校验命令…"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      { "hooks": [ { "type": "command", "command": "echo done" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "\"${DRORA_PLUGIN_ROOT}/hooks/cleanup.sh\"", "async": true } ] }
+    ]
+  }
+}</code></div>
+          <p>
+            <span data-i18n="doc.mcp.pp.dev.json.p3.a">当前支持 SessionStart、UserPromptSubmit、PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、Stop
+            七个事件。每个事件下是 matcher 组数组；</span><code>process</code><span data-i18n="doc.mcp.pp.dev.json.p3.b"> 使用 argv 执行，</span><code>command</code><span data-i18n="doc.mcp.pp.dev.json.p3.c"> 使用 shell 字符串并支持 </span><code>async</code><span data-i18n="doc.mcp.pp.dev.json.p3.d">。标准位置 </span><code>hooks/hooks.json</code><span data-i18n="doc.mcp.pp.dev.json.p3.e"> 会自动发现，不要再在 manifest 中重复指向同一文件。插件启用后 Hook 才进入新 session，完整语义见</span><a href="hooks.html" data-i18n="doc.nav.hooks">Hooks</a><span data-i18n="doc.mcp.pp.dev.json.p3.f">。</span>
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.json.mcp.h">.mcp.json（stdio + http + sse）</h4>
+          <div class="docs-code"><code>{
+  "mcpServers": {
+    "ios-simulator": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${DRORA_PLUGIN_ROOT}/dist/mcp/server.js"],
+      "cwd": "${DRORA_PROJECT_DIR}",
+      "env": {
+        "IOS_SIM_ROOT": "${DRORA_PLUGIN_ROOT}",
+        "IOS_SIM_DEVICE": "${user_config.default_device}"
+      },
+      "enabled": true,
+      "timeoutMs": 60000
+    },
+    "remote-http": {
+      "type": "http",
+      "url": "https://mcp.example.com/api",
+      "headers": { "Authorization": "Bearer ${user_config.api_key}" },
+      "enabled": true,
+      "timeoutMs": 30000
+    },
+    "remote-sse": {
+      "type": "sse",
+      "url": "https://mcp.example.com/sse",
+      "headers": { "X-Token": "${user_config.api_key}" }
+    }
+  }
+}</code></div>
+          <p data-i18n="doc.mcp.pp.dev.json.p4.a">type 可省略——有 command 默认 stdio，有 url 默认 http。可用模板变量：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.pp.dev.th.var">变量</th>
+                <th data-i18n="doc.mcp.pp.dev.th.varmean">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>${DRORA_PLUGIN_ROOT}</code></td>
+                <td data-i18n="doc.mcp.pp.dev.vars.td.root">插件根目录，亦可写 ${CLAUDE_PLUGIN_ROOT}</td>
+              </tr>
+              <tr>
+                <td><code>${DRORA_PLUGIN_DATA}</code></td>
+                <td data-i18n="doc.mcp.pp.dev.vars.td.data">插件数据目录</td>
+              </tr>
+              <tr>
+                <td><code>${DRORA_PROJECT_DIR}</code></td>
+                <td data-i18n="doc.mcp.pp.dev.vars.td.cwd">当前工作目录</td>
+              </tr>
+              <tr>
+                <td><code>${user_config.键}</code></td>
+                <td data-i18n="doc.mcp.pp.dev.vars.td.uc">引用 userConfig 中对应配置项的值</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.mcp.pp.dev.json.p5">
+            服务键名会自动加命名空间 plugin:&lt;插件名&gt;:&lt;服务名&gt; 避免冲突。
+          </p>
+
+          <h4 data-i18n="doc.mcp.pp.dev.test.h">在客户端本地测试</h4>
+          <ol>
+            <li>
+              <span data-i18n="doc.mcp.pp.dev.test.li1.a">本地建好插件目录，再写一份 </span><code>marketplace.json</code><span data-i18n="doc.mcp.pp.dev.test.li1.b">，</span><code>plugins[].source</code><span data-i18n="doc.mcp.pp.dev.test.li1.c"> 用相对路径指向插件目录。</span>
+            </li>
+            <li data-i18n="doc.mcp.pp.dev.test.li2">
+              打开「设置 → 插件」，点右上角「创建 → 添加插件市场」，填该目录的本地路径（本地路径需真实存在）。
+            </li>
+            <li data-i18n="doc.mcp.pp.dev.test.li3">
+              在「个人」分段找到它，点「安装」并启用，在会话里触发组件验证；改完代码回到「市场源」面板刷新该市场即可。
+            </li>
+          </ol>
+
+          <h4 data-i18n="doc.mcp.pp.dev.team.h">做一个市场分发给团队</h4>
+          <p data-i18n="doc.mcp.pp.dev.team.p1">
+            把插件放进市场仓库的 plugins/ 目录，根目录写 marketplace.json 列出条目，推到 GitHub。队友点「创建 → 添加插件市场」填仓库地址，即可一次拿到全部插件。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.dev.team.note">
+            自带的官方插件是最好的范例（skill-creator 最简，android-emulator / ios-simulator 最完整）。从纯技能插件起步，跑通后再加命令、Hooks、MCP。
+          </span>
+          </div>
+          <div class="docs-note">
+            <span data-i18n="doc.mcp.pp.dev.team.sec">
+            安全提示：启用插件就是授予代码执行信任。已启用的第三方市场插件与官方插件一样，可以执行本地进程并读取继承的 Agent 环境变量。启用前请审查来源、hooks/hooks.json 和脚本，不信任时停用或卸载插件。
+          </span>
+          </div>
+
+          <p>
+            <span data-i18n="doc.mcp.next.a">把常用提示词沉淀成可复用命令、通过 Markdown 文件让 Agent 掌握特定的工作方式，见</span><a href="skills.html" data-i18n="doc.nav.skills">技能与斜杠命令</a><span data-i18n="doc.mcp.next.b">；事件自动化的 Hooks 见</span><a href="hooks.html" data-i18n="doc.nav.hooks">Hooks</a><span data-i18n="doc.dot">。</span>
+          </p>
+        <figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-mcp-server-list.webp" alt="ZCode Agent MCP 服务器列表" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/plugin-store-personal-annotated.png" alt="个人分段：自己添加的两个市场，插件按市场名称分组展示" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/plugin-marketplace-sources-annotated.png" alt="市场源面板：每个市场的插件数量与更新时间，自建市场带刷新和移除按钮" loading="lazy" /></figure></article>
 
         <aside class="docs-toc" id="docsToc">
           <p data-i18n="doc.toc">本页目录</p>

@@ -3,6 +3,21 @@
    (design reference only; all copy and branding are Drora's own).
    ========================================================================== */
 
+/* Geist Sans（OFL 许可）自托管：与参考站同源字体，中文回退系统字体（参考站同行为） */
+@font-face {
+  font-family: "GeistSans";
+  src: url("../fonts/geist-regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GeistSans";
+  src: url("../fonts/geist-medium.woff2") format("woff2");
+  font-weight: 500 900;
+  font-display: swap;
+}
+
 :root {
   --bg: #161616;
   --bg-deep: #101012;
@@ -24,8 +39,7 @@
   --orange: #fb923c;
   --radius-card: 18px;
   --header-h: 64px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Geist", "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-sans: "GeistSans", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -563,7 +577,7 @@ a {
 }
 
 .side-item .dot.dot-brand {
-  background: var(--blue);
+  background: oklch(0.685 0.169 237.323);
 }
 
 .side-item .dot.dot-red {
@@ -694,7 +708,7 @@ a {
   width: 28px;
   height: 28px;
   border-radius: 10px;
-  background: var(--blue);
+  background: oklch(0.685 0.169 237.323);
   color: #0b0b0c;
   font-weight: 700;
   display: inline-flex;
@@ -719,7 +733,7 @@ a {
 }
 
 .wt-icons .wt-icon-active {
-  background: var(--blue);
+  background: oklch(0.685 0.169 237.323);
   color: #0b0b0c;
   border-radius: 5px;
 }
@@ -770,6 +784,7 @@ a {
 .si-body p {
   flex: 1;
   font-size: 14px;
+  color: oklch(0.985 0 0);
   line-height: 1.45;
   white-space: nowrap;
   overflow: hidden;
@@ -814,7 +829,7 @@ a {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg-window);
+  background: oklch(0.205 0 0);
 }
 
 /* 交通灯覆盖层：对齐参考站 mock——浮在整窗左上，侧栏顶部让出等高空拖拽区 */

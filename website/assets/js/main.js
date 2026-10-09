@@ -350,27 +350,7 @@
     }
   }
 
-  /* ------------------------------ pets ------------------------------ */
-
-  function attachPets() {
-    document.querySelectorAll(".pet").forEach(function (pet) {
-      var sprite = pet.querySelector(".pet-sprite");
-      var atlas = pet.getAttribute("data-atlas");
-      if (sprite && atlas) sprite.style.backgroundImage = "url('" + atlas + "')";
-    });
-  }
-
   /* --------------------------- interactions --------------------------- */
-
-  /* 当前页导航高亮：按链接路径末段匹配 body[data-page] */
-  function initActiveNav() {
-    var page = document.body.getAttribute("data-page");
-    if (!page || page === "home") return;
-    document.querySelectorAll(".main-nav a, .mobile-nav a").forEach(function (a) {
-      var m = /(?:^|\/)(docs|changelog)\/?$/.exec(a.getAttribute("href") || "");
-      if (m && m[1] === page) a.classList.add("active");
-    });
-  }
 
   /* 文档页 scrollspy：视口上部区域命中的 h2 高亮侧栏与目录项 */
   function initDocsSpy() {
@@ -463,10 +443,8 @@
     cacheZh();
     applyLang(currentLang());
     applyPlatform();
-    attachPets();
     initHeader();
     initReveal();
-    initActiveNav();
     initDocsSpy();
 
     var langBtn = document.getElementById("langBtn");

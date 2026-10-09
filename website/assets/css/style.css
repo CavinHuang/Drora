@@ -66,8 +66,9 @@ a {
    -------------------------------------------------------------------------- */
 
 .site-header {
-  position: fixed;
-  inset: 0 0 auto 0;
+  /* 复刻参考站：sticky 跟随文档流（不再 fixed 覆盖内容），滚动后显现底边框 */
+  position: sticky;
+  top: 0;
   z-index: 50;
   background: rgba(22, 22, 22, 0.72);
   -webkit-backdrop-filter: blur(14px);
@@ -109,9 +110,12 @@ a {
   letter-spacing: 0.14em;
 }
 
+/* 主导航 flex-1 左对齐（紧跟品牌区），与参考站桌面行一致 */
 .main-nav {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 30px;
   font-size: 14px;
   font-weight: 500;
@@ -144,7 +148,7 @@ a {
 }
 
 .header-actions {
-  margin-left: auto;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1484,8 +1488,13 @@ section h2 {
    -------------------------------------------------------------------------- */
 
 .site-footer {
+  padding: 26px 0 34px;
+}
+
+.footer-rule {
+  border: none;
   border-top: 1px solid var(--border);
-  padding: 30px 0 34px;
+  margin: 0 0 26px;
 }
 
 .footer-inner {
@@ -1693,6 +1702,13 @@ section h2 {
    Changelog page（复刻 zcode.z.ai/cn/changelog 版式）
    ========================================================================== */
 
+/* Web Components 默认 inline，显式块级（drora-pet 由 .pet 控制布局） */
+site-header,
+site-footer,
+release-block {
+  display: block;
+}
+
 .page-hero {
   padding: 96px 24px 40px;
   text-align: center;
@@ -1717,12 +1733,9 @@ section h2 {
   padding: 24px 24px 40px;
 }
 
-.release {
+.release-block {
   padding: 44px 0 40px;
-}
-
-.release + .release {
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .release-meta {
@@ -1811,26 +1824,26 @@ section h2 {
   color: var(--fg-subtle);
 }
 
-.release h2 {
+.release-title {
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0 0 8px;
 }
 
-.release h3 {
+.release-body h2 {
   font-size: 17px;
   font-weight: 600;
   margin: 26px 0 12px;
 }
 
-.release ul {
+.release-body ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.release li {
+.release-body li {
   position: relative;
   padding: 5px 0 5px 18px;
   color: rgba(250, 250, 250, 0.86);
@@ -1869,16 +1882,22 @@ section h2 {
    ========================================================================== */
 
 .docs-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 200px;
+  display: flex;
   gap: 44px;
   max-width: 1280px;
   margin: 0 auto;
   padding: 34px 24px 80px;
-  align-items: start;
+  align-items: flex-start;
+}
+
+/* 内容列在 DOM 中先行（参考站同构），侧栏以 order 提到左侧 */
+.docs-content {
+  order: 0;
 }
 
 .docs-sidebar {
+  order: -1;
+  flex: 0 0 240px;
   position: sticky;
   top: calc(var(--header-h) + 24px);
   max-height: calc(100vh - var(--header-h) - 48px);
@@ -1918,6 +1937,7 @@ section h2 {
 }
 
 .docs-content {
+  flex: 1;
   max-width: 780px;
   min-width: 0;
 }
@@ -2044,6 +2064,7 @@ section h2 {
 }
 
 .docs-toc {
+  flex: 0 0 200px;
   position: sticky;
   top: calc(var(--header-h) + 24px);
   font-size: 13px;
@@ -2071,13 +2092,21 @@ section h2 {
   border-left-color: var(--blue);
 }
 
+.noscript-nav {
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
 /* --------------------------- subpage responsive --------------------------- */
 
-@media (max-width: 1120px) {
-  .docs-layout {
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
-
+/* 参考站侧栏均为 hidden xl:flex：<1280 只剩内容列 */
+@media (max-width: 1279px) {
+  .docs-sidebar,
   .docs-toc {
     display: none;
   }
@@ -2114,22 +2143,7 @@ section h2 {
   }
 
   .docs-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    /* 单列时侧栏顶到页面最上，必须让出固定头部的高度，否则首项被遮挡 */
-    padding-top: calc(var(--header-h) + 12px);
-  }
-
-  .docs-sidebar {
-    position: static;
-    max-height: none;
-    overflow: visible;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 18px;
-  }
-
-  .docs-nav-group + .docs-nav-group {
-    margin-top: 16px;
+    padding-top: 28px;
   }
 
   .docs-content h1 {

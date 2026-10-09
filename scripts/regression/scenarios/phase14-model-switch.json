@@ -1,0 +1,36 @@
+{
+  "scenarios": [
+    {
+      "id": "n1",
+      "title": "N1·模型切换真值面：setModel 后回合+compact 摘要请求模型随切（requests.jsonl 断言经 request-diff）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "workspace/upsertModelProvider", "timeoutMs": 20000,
+          "params": {
+            "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "provider": {
+              "providerId": "pv2",
+              "kind": "openai-compatible",
+              "apiFormat": "openai-chat-completions",
+              "label": "pv2",
+              "baseURL": "$MOCK",
+              "apiKey": { "source": "inline", "value": "mock-key" },
+              "models": [ { "modelId": "m2", "label": "m2" } ]
+            }
+          } },
+        { "op": "request", "method": "session/setModel", "timeoutMs": 20000,
+          "params": { "sessionId": "$sessionId", "model": { "providerId": "pv2", "modelId": "m2" } } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_n1_1", "content": "切换后一轮 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/compact", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "inputId": "in_n1_compact", "instructions": "总结为要点" } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

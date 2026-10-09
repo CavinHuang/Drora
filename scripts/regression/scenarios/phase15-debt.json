@@ -1,0 +1,46 @@
+{
+  "plans": {
+    "bt6-dwf-real": [
+      { "toolCalls": [ { "name": "Skill", "arguments": { "skill": "dynamic-workflows" } } ] },
+      { "toolCalls": [ { "name": "CreateWorkflow", "arguments": { "name": "电池探针", "script": "report(\"bt6 probe ok\"); log(\"bt6 done\");" } } ] },
+      { "toolCalls": [ { "name": "ListSavedWorkflows", "arguments": {} } ] },
+      { "text": "dwf 真跑探针完成。" }
+    ],
+    "bt7-models-offpeak": [
+      { "toolCalls": [ { "name": "ListModels", "arguments": {} } ] },
+      { "toolCalls": [ { "name": "OffPeakList", "arguments": {} } ] },
+      { "text": "模型目录/offpeak 探针完成。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "bt6", "title": "清偿债·CreateWorkflow 真跑链（技能门→typecheck→确认→子进程执行→report 落账）", "serial": true,
+      "ops": [
+        { "op": "writeFile", "path": ".drora/skills/dynamic-workflows/SKILL.md",
+          "content": "---\nname: dynamic-workflows\ndescription: dynamic-workflows 门种子（电池夹具）\n---\n门种子正文" },
+        { "op": "writeFile", "path": ".zcode/skills/dynamic-workflows/SKILL.md",
+          "content": "---\nname: dynamic-workflows\ndescription: dynamic-workflows 门种子（电池夹具）\n---\n门种子正文" },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "dynamicWorkflowEnabled": true, "offPeakToolEnabled": true } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt6", "content": "dwf 真跑探针 [[bt6-dwf-real]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 120000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+        { "op": "request", "method": "workflow/list", "params": { "limit": 20 } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "bt7", "title": "清偿债·ListModels 目录面+OffPeakList 只读面", "serial": true,
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "dynamicWorkflowEnabled": true, "offPeakToolEnabled": true } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt7", "content": "模型目录探针 [[bt7-models-offpeak]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

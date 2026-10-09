@@ -1,0 +1,40 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "i01",
+      "title": "生态·install 家族真实面：本地市场 add→install→目录→describe→configure→uninstall→remove",
+      "serial": true,
+      "ops": [
+        { "op": "writeFile", "path": "mkt/marketplace.json",
+          "content": "{\"name\":\"reg-local\",\"plugins\":[{\"name\":\"reg-hello\",\"version\":\"1.0.0\",\"description\":\"回归夹具插件\",\"source\":\"./plugins/reg-hello\"}]}" },
+        { "op": "writeFile", "path": "mkt/plugins/reg-hello/.zcode-plugin/plugin.json",
+          "content": "{\"name\":\"reg-hello\",\"version\":\"1.0.0\",\"description\":\"回归夹具插件\"}" },
+        { "op": "writeFile", "path": "mkt/plugins/reg-hello/commands/reg-hello.md",
+          "content": "---\ndescription: 回归夹具命令\n---\n说\"reg-hello 命令已触发\"" },
+        { "op": "writeFile", "path": "mkt/plugins/reg-hello/skills/reg-hello-skill/SKILL.md",
+          "content": "---\nname: reg-hello-skill\ndescription: 回归夹具技能\n---\n技能说明正文" },
+        { "op": "request", "method": "plugins/marketplace/add", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "source": "$WS/mkt", "operationId": "op-i01-add" } },
+        { "op": "request", "method": "plugins/overview",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "plugins/install", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local", "scope": "workspace", "operationId": "op-i01-install" } },
+        { "op": "request", "method": "plugins/list",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "skills/referenceCatalog",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "plugins/describe",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local" } },
+        { "op": "request", "method": "plugins/configure",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginId": "reg-hello", "options": {}, "dryRun": true } },
+        { "op": "request", "method": "plugins/uninstall",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local" } },
+        { "op": "request", "method": "plugins/marketplace/remove",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "marketplace": "reg-local" } },
+        { "op": "request", "method": "plugins/overview",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } }
+      ]
+    }
+  ]
+}

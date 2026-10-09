@@ -1,0 +1,27 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "ps1",
+      "title": "盲区方法面探测：plugins/operationProgress+process 域+automation 正向+interaction 正向",
+      "ops": [
+        { "op": "request", "method": "plugins/operationProgress",
+          "params": { "operationId": "op_none" } },
+        { "op": "request", "method": "process/resourceSample",
+          "params": {} },
+        { "op": "request", "method": "process/mcpTelemetry",
+          "params": {} },
+        { "op": "request", "method": "automation/create",
+          "params": { "name": "reg-probe", "schedule": { "kind": "cron", "expression": "0 9 * * *" } } },
+        { "op": "request", "method": "automation/checkTaskBinding",
+          "params": { "taskName": "reg-probe" } },
+        { "op": "request", "method": "interaction/browserList",
+          "params": {} },
+        { "op": "request", "method": "interaction/browserExecute",
+          "params": { "browserId": "b_none", "code": "1" } },
+        { "op": "request", "method": "session/requestRuntimePreferences",
+          "params": { "sessionId": "sess_none" } }
+      ]
+    }
+  ]
+}

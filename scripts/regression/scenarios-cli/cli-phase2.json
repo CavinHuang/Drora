@@ -1,0 +1,37 @@
+{
+  "plans": {
+    "cli2-1": [
+      { "text": "第一轮回复。 [[cli2-1]]" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "c11",
+      "title": "CLI --continue 续会话（prompt 轮→continue 轮）",
+      "commands": [
+        ["--prompt", "记住暗号苹果 [[cli2-1]]", "--output-format", "text", "--mode", "build"],
+        ["--continue", "--prompt", "暗号是什么", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "c12",
+      "title": "CLI --locale 透传",
+      "args": ["--prompt", "回复 [[cli2-1]]", "--output-format", "text", "--locale", "zh-CN", "--mode", "build"]
+    },
+    {
+      "id": "c13",
+      "title": "CLI --verbose --no-color 组合",
+      "args": ["--prompt", "回复 [[cli2-1]]", "--output-format", "text", "--verbose", "--no-color", "--mode", "build"]
+    },
+    {
+      "id": "c14",
+      "title": "CLI --disallowed-tools 禁 Bash（模型试图调用→拒绝面）",
+      "args": ["--prompt", "用 Bash 跑 echo hi [[cli2-1]]", "--output-format", "text", "--disallowed-tools", "Bash", "--mode", "build"]
+    },
+    {
+      "id": "c15",
+      "title": "CLI --allowed-tools 仅 Read（调用 Bash→拒绝面）",
+      "args": ["--prompt", "用 Bash 跑 echo hi [[cli2-1]]", "--output-format", "text", "--allowed-tools", "Read", "--mode", "build"]
+    }
+  ]
+}

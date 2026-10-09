@@ -1,0 +1,19 @@
+{
+  "plans": {
+    "cli3-1": [{ "text": "图里有一条红线。" }],
+    "cli3-2": [{ "text": "附件正文我已读取。" }]
+  },
+  "scenarios": [
+    {
+      "id": "c16",
+      "title": "CLI --attach 图像面：P0-2 inline 图片直达模型（mock 请求面为证据）",
+      "args": ["--prompt", "看这张图 [[cli3-1]] 说说有什么", "--output-format", "text", "--attach", "$REPO/scripts/regression/fixtures/tiny-red.png", "--mode", "build"]
+    },
+    {
+      "id": "c17",
+      "title": "CLI --attach 文本文件面：path 附件派发读取 vs 提示块（P1#98 仲裁）",
+      "files": [{ "path": "attach-note.txt", "content": "ATTACH-CONTENT-7Q5：这是附件文件的确定性正文。" }],
+      "args": ["--prompt", "读一下附件 [[cli3-2]]", "--output-format", "text", "--attach", "$WS/attach-note.txt", "--mode", "build"]
+    }
+  ]
+}

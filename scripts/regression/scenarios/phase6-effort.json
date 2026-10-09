@@ -1,0 +1,18 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "tl2",
+      "title": "setThoughtLevel 值域边界：low/medium/high/max 全探（真值 q6 解析 @11814305 区，Unsupported reasoning effort 逐字）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/setThoughtLevel", "params": { "sessionId": "$sessionId", "thoughtLevel": "low" } },
+        { "op": "request", "method": "session/setThoughtLevel", "params": { "sessionId": "$sessionId", "thoughtLevel": "medium" } },
+        { "op": "request", "method": "session/setThoughtLevel", "params": { "sessionId": "$sessionId", "thoughtLevel": "high" } },
+        { "op": "request", "method": "session/setThoughtLevel", "params": { "sessionId": "$sessionId", "thoughtLevel": "max" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "plans": {
+    "d24": [{ "text": "d24 确定性回复。" }],
+    "d25": [{ "text": "d25 确定性回复。" }],
+    "d26": [{ "text": "d26 确定性回复。" }],
+    "d27": [{ "text": "d27 确定性回复。" }],
+    "d28": [{ "text": "d28 确定性回复。" }],
+    "d29": [{ "text": "d29 确定性回复。" }],
+    "d30": [{ "text": "d30 确定性回复。" }],
+    "d31": [{ "text": "d31 确定性回复。" }],
+    "d32": [{ "text": "d32 确定性回复。" }],
+    "d33": [{ "text": "d33 确定性回复。" }]
+  },
+  "scenarios": [
+    {
+      "id": "d1",
+      "title": "doctor 文本面（本机 path/version 由行归一化折叠）",
+      "args": ["doctor"]
+    },
+    {
+      "id": "d2",
+      "title": "doctor --json 结构面",
+      "args": ["doctor", "--json"]
+    },
+    {
+      "id": "d3",
+      "title": "skills 列表（假 home 零种子面 + zcode official 插件 bootstrap 差异观察）",
+      "args": ["skills"]
+    },
+    {
+      "id": "d4",
+      "title": "skills list 子命令面",
+      "args": ["skills", "list"]
+    },
+    {
+      "id": "d5",
+      "title": "skills --json 结构面",
+      "args": ["skills", "--json"]
+    },
+    {
+      "id": "d6",
+      "title": "子命令 help 面扫描：skills/plugins/commands/login --help（help 文本差异=发现）",
+      "commands": [["skills", "--help"], ["plugins", "--help"], ["commands", "--help"], ["login", "--help"]]
+    },
+    {
+      "id": "d7",
+      "title": "commands 列表（空 home 面）",
+      "args": ["commands"]
+    },
+    {
+      "id": "d8",
+      "title": "commands --json 结构面",
+      "args": ["commands", "--json"]
+    },
+    {
+      "id": "d9",
+      "title": "plugins 列表（假 home 零种子面 + bootstrap 差异观察）",
+      "args": ["plugins"]
+    },
+    {
+      "id": "d10",
+      "title": "plugins list 子命令面",
+      "args": ["plugins", "list"]
+    },
+    {
+      "id": "d11",
+      "title": "plugins --json 结构面",
+      "args": ["plugins", "--json"]
+    },
+    {
+      "id": "d12",
+      "title": "hooks --help 错误面（Unknown hooks command + usage）",
+      "args": ["hooks", "--help"]
+    },
+    {
+      "id": "d13",
+      "title": "hooks trust status --json（workspace hooks 声明种子→pending_trust/digest 结构面）",
+      "files": [
+        { "path": ".zcode/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+      ],
+      "args": ["hooks", "trust", "status", "--json"]
+    },
+    {
+      "id": "d14",
+      "title": "hooks trust grant→status 迁移面（真实 digest，内容确定性）",
+      "files": [
+        { "path": ".zcode/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+      ],
+      "commands": [
+        ["hooks", "trust", "status"],
+        ["hooks", "trust", "grant", "--workspace", "$WS", "--hook-digest", "ffe539a4cbb1eedb4adfc969cb2dbd2e610098d1dee8e8a75ff01ee546bf2c7b"],
+        ["hooks", "trust", "status", "--json"]
+      ]
+    },
+    {
+      "id": "d15",
+      "title": "agent-server --help（非命令→顶层 help，防真启动）",
+      "args": ["agent-server", "--help"]
+    },
+    {
+      "id": "d16",
+      "title": "隐藏命令 __internal-search 无参（受控错误面）",
+      "args": ["__internal-search"]
+    },
+    {
+      "id": "d17",
+      "title": "隐藏命令 __zcode-plugin-host 无参（usage+exit1 面）",
+      "args": ["__zcode-plugin-host"]
+    },
+    {
+      "id": "d18",
+      "title": "logout 未登录面（假 home 无凭据）",
+      "args": ["logout"]
+    },
+    {
+      "id": "d19",
+      "title": "login --help（不真登录，防外网）",
+      "args": ["login", "--help"]
+    },
+    {
+      "id": "d20",
+      "title": "幽灵旗标 --session-id x（真值 Unknown option + exit 1）",
+      "args": ["--session-id", "x"]
+    },
+    {
+      "id": "d21",
+      "title": "裸 --permission-mode plan（无 prompt 上下文→Unknown option 面）",
+      "args": ["--permission-mode", "plan"]
+    },
+    {
+      "id": "d22",
+      "title": "裸 --max-turns 3（无 prompt 上下文→Unknown option 面）",
+      "args": ["--max-turns", "3"]
+    },
+    {
+      "id": "d23",
+      "title": "裸 --settings foo.json（无 prompt 上下文→Unknown option 面）",
+      "args": ["--settings", "foo.json"]
+    },
+    {
+      "id": "d24",
+      "title": "实旗标错误面：--cwd 缺参（值被下一 argv 占位）",
+      "args": ["--cwd", "--prompt", "回复 [[d24]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d25",
+      "title": "实旗标面：--cwd 指向存在的空目录（$WS 本身）",
+      "args": ["--cwd", "$WS", "--prompt", "回复 [[d25]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d26",
+      "title": "实旗标面：--force（help 未列，接受/拒绝面）",
+      "args": ["--force", "--prompt", "回复 [[d26]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d27",
+      "title": "实旗标面：--force-mcs（help 已列）",
+      "args": ["--force-mcs", "--prompt", "回复 [[d27]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d28",
+      "title": "实旗标面：--surface desktop（headless prompt 上下文）",
+      "args": ["--surface", "desktop", "--prompt", "回复 [[d28]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d29",
+      "title": "实旗标面：--no-browser（headless prompt 上下文）",
+      "args": ["--no-browser", "--prompt", "回复 [[d29]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d30",
+      "title": "实旗标面：--stdio（非 app-server 上下文，接受/拒绝面）",
+      "args": ["--stdio", "--prompt", "回复 [[d30]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d31",
+      "title": "实旗标面：--browser-use headless（无浏览器环境受控失败面）",
+      "args": ["--browser-use", "headless", "--prompt", "回复 [[d31]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d32",
+      "title": "env 面：<BRAND>_MODEL 覆盖（证据=mock requests.jsonl 的 model 字段）",
+      "env": { "<BRAND>_MODEL": "env-model-x" },
+      "args": ["--prompt", "回复 [[d32]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d33",
+      "title": "env 面：ZCODE_LOG_FORMAT=json 双侧同值（观察日志面，天然不同=发现）",
+      "env": { "ZCODE_LOG_FORMAT": "json" },
+      "args": ["--prompt", "回复 [[d33]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "d34",
+      "title": "custom command 用户域（homeFiles <BRAND>/commands）：commands 列表 + /mycmd 展开喂模（证据=requests.jsonl）",
+      "homeFiles": [
+        { "path": "<BRAND>/commands/mycmd.md", "content": "---\ndescription: mycmd desc\n---\nMYCMD-TEMPLATE-BODY args=[$ARGUMENTS]" }
+      ],
+      "commands": [
+        ["commands"],
+        ["--prompt", "/mycmd", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "d35",
+      "title": "custom command 项目域（workspace .zcode/commands，zcode 锚目录）：commands 列表 + /mycmd2 展开喂模",
+      "files": [
+        { "path": ".zcode/commands/mycmd2.md", "content": "---\ndescription: mycmd2 desc\n---\nMYCMD2-TEMPLATE-BODY args=[$ARGUMENTS]" }
+      ],
+      "commands": [
+        ["commands"],
+        ["--prompt", "/mycmd2", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "d36",
+      "title": "hooks trust status --json（drora 锚 .drora/config.json 种子→drora 发现、zcode not_applicable，品牌锚镜像面）",
+      "files": [
+        { "path": ".drora/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+      ],
+      "args": ["hooks", "trust", "status", "--json"]
+    }
+  ]
+}

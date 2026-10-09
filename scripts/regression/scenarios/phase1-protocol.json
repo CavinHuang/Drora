@@ -1,0 +1,161 @@
+{
+  "plans": {
+    "default": [{ "text": "你好，我是 mock 模型。" }],
+    "text-1": [{ "text": "这是一段确定性回复：1+1=2。" }],
+    "text-2": [{ "text": "第二轮确定性回复：2+2=4。" }]
+  },
+  "scenarios": [
+    {
+      "id": "s01",
+      "title": "生命周期：create→read→close",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "s02",
+      "title": "订阅快照：create→subscribe(includeSnapshot)",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": true } }
+      ]
+    },
+    {
+      "id": "s03",
+      "title": "文本轮：send→turn.completed→read/messages/events/usage",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s03_1", "content": "请回复一段话 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        { "op": "request", "method": "session/events", "params": { "sessionId": "$sessionId", "limit": 50 } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "s04",
+      "title": "双轮：send×2→messages→usage",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s04_1", "content": "第一轮 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s04_2", "content": "第二轮 [[text-2]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 2 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "s05",
+      "title": "模式切换：setMode plan/build + auto 拒绝",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "plan" } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "build" } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "auto" } }
+      ]
+    },
+    {
+      "id": "s06",
+      "title": "错误码：未知方法/legacy text/setMode auto/缺 sessionId/未知 operation/未知会话",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "no/such/method", "params": {} },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "text": "legacy 字段" } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "auto" } },
+        { "op": "request", "method": "session/read", "params": {} },
+        { "op": "request", "method": "plugins/cancelOperation", "params": { "operationId": "op_neverIssued" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "sess_doesNotExist" } }
+      ]
+    },
+    {
+      "id": "s07",
+      "title": "列表与恢复：send→close→list→resume→read",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s07_1", "content": "恢复前一轮 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/list",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "includeArchived": false } },
+        { "op": "request", "method": "session/resume", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 10 } }
+      ]
+    },
+    {
+      "id": "s08",
+      "title": "目标：goal set→show→pause→resume→clear",
+      "dirtyPair": true,
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/goal",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s08_goal", "action": "set", "objective": "目标 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "show" } },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "pause" } },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "resume" } },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "clear" } }
+      ]
+    },
+    {
+      "id": "s09",
+      "title": "压缩：send→compact→usage",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s09_1", "content": "压缩前内容 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/compact", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "inputId": "in_s09_compact", "instructions": "总结为要点" } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "s10",
+      "title": "分叉：send→fork(latestCheckpoint)→read forked",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_s10_1", "content": "分叉前一轮 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/fork", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "target": "latestCheckpoint" } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$forkedSessionId" } }
+      ]
+    }
+  ]
+}

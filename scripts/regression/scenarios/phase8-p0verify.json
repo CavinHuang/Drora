@@ -1,0 +1,286 @@
+{
+  "plans": {
+    "pa1": [
+      {
+        "text": "已收到图片，图里是一条红线。"
+      }
+    ],
+    "pa2": [
+      {
+        "text": "已读取附件文件内容。"
+      }
+    ],
+    "pt1": [
+      {
+        "reasoning": "先算一下：2+2 等于 4，这是确定性的。",
+        "text": "答案是 4。"
+      },
+      {
+        "reasoning": "用户再次提问，我重新确认一遍：2+2 依然等于 4。",
+        "text": "确认：仍然是 4。"
+      }
+    ],
+    "ph1": [
+      {
+        "toolCalls": [
+          {
+            "name": "Bash",
+            "arguments": {
+              "command": "echo blocked-evidence > gate-probe.txt",
+              "description": "写重定向触发权限问询"
+            }
+          }
+        ]
+      },
+      {
+        "text": "已获得许可并执行完毕。"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "pa1",
+      "title": "P0-2·inline 图片附件面：data:URL 图像直达模型（mock 请求面为证据）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_pa1",
+            "content": "看这张图 [[pa1]] 说说里面有什么",
+            "attachments": [
+              {
+                "type": "image",
+                "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+              }
+            ]
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "pa2",
+      "title": "P1#98 仲裁·path 附件面：{type:file,path} 派发时读文件 vs 提示块渲染",
+      "ops": [
+        {
+          "op": "writeFile",
+          "path": "attach-note.txt",
+          "content": "ATTACH-CONTENT-7Q5：这是附件文件的确定性正文。"
+        },
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_pa2",
+            "content": "读一下附件 [[pa2]]",
+            "attachments": [
+              {
+                "type": "file",
+                "path": "$WS/attach-note.txt"
+              }
+            ]
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "pt1",
+      "title": "P0-3·思考链面：reasoning 流帧+第二轮回档（mock 请求面 reasoning_content/thinking 块为证据）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_pt1a",
+            "content": "第一问 [[pt1]]：2+2=?"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_pt1b",
+            "content": "再确认一遍 [[pt1]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "count": 2
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "ph1",
+      "title": "P0-5·无宿主 ask 面：plan 模式 Bash 反向许可零应答——真值应自行 deny 快收 vs 我方悬置",
+      "reversePolicy": {
+        "interaction/requestPermission": "none"
+      },
+      "dirtyPair": true,
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/setMode",
+          "params": {
+            "sessionId": "$sessionId",
+            "mode": "plan"
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_ph1",
+            "content": "跑个命令 [[ph1]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "timeoutMs": 8000
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    }
+  ]
+}

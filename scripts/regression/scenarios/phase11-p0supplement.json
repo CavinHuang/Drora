@@ -1,0 +1,26 @@
+{
+  "plans": {
+    "pj1": [
+      { "toolCalls": [{ "name": "Bash", "arguments": { "command": "echo project-mode-probe > pj-probe.txt", "description": "项目层权限模式探针" } }] },
+      { "text": "已执行。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "pj1",
+      "title": "P0-11·项目层 settings：permission.mode/model.main 项目层是否生效（各侧读自家候选文件，同内容双写）",
+      "ops": [
+        { "op": "writeFile", "path": "zcode.json", "content": "{\"permission\":{\"mode\":\"plan\"},\"model\":{\"main\":\"mock-project-model\"}}" },
+        { "op": "writeFile", "path": ".zcode/config.json", "content": "{\"permission\":{\"mode\":\"plan\"},\"model\":{\"main\":\"mock-project-model\"}}" },
+        { "op": "writeFile", "path": ".drora/config.json", "content": "{\"permission\":{\"mode\":\"plan\"},\"model\":{\"main\":\"mock-project-model\"}}" },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "workspace/readState", "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_pj1", "content": "跑探针 [[pj1]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 15000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } }
+      ]
+    }
+  ]
+}

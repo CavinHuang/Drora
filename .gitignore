@@ -91,3 +91,8 @@ packages/mobile-web/remote-dist/
 .zcode/
 # relay CLI 默认资产缓存（--asset-cache-dir 缺省目录），官方资产字节不入库。
 remote-asset-cache/
+
+# 对拍回归台的过程产物不入库：harness 与 scenarios/ 在库，跑批输出/快照/临时探针本地留存。
+scripts/regression/reports/
+scripts/regression/tmp-gate/
+scripts/regression/tmp-*.mjs

@@ -1,0 +1,37 @@
+{
+  "plans": {
+    "h1-bash": [
+      { "toolCalls": [{ "name": "Bash", "arguments": { "command": "echo hook-round", "description": "hook 触发轮" } }] },
+      { "text": "hook 轮完成。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "h01",
+      "title": "hooks·真实执行面：workspace 装载→trust 舞蹈→PreToolUse 触发",
+      "serial": true,
+      "ops": [
+        { "op": "writeFile", "path": ".drora/config.json",
+          "content": "{\"hooks\":{\"events\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"node -e \\\"\\\"\",\"timeout\":10}]}]}}}" },
+        { "op": "writeFile", "path": ".zcode/config.json",
+          "content": "{\"hooks\":{\"events\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"node -e \\\"\\\"\",\"timeout\":10}]}]}}}" },
+        { "op": "request", "method": "workspace/hooks/trustGrant",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "bundleDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "hookDeclarationDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+          "capture": { "$bundleDigest": "bundleDigest", "$hookDeclarationDigest": "hookDeclarationDigest" } },
+        { "op": "request", "method": "workspace/hooks/trustGrant",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "bundleDigest": "$bundleDigest", "hookDeclarationDigest": "$hookDeclarationDigest" } },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_h01", "content": "触发 hook 的 bash [[h1-bash]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

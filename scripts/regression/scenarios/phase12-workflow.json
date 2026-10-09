@@ -1,0 +1,21 @@
+{
+  "plans": {
+    "default": [{ "text": "你好，我是 mock 模型。" }]
+  },
+  "scenarios": [
+    {
+      "id": "zw1",
+      "title": "workflow 域 RPC 路由存在性+只读面：list/status/validate/expert-status",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "workflow/list", "params": { "limit": 20 } },
+        { "op": "request", "method": "workflow/status", "params": { "runId": "wf-nonexistent" } },
+        { "op": "request", "method": "workflow/validate", "params": { "scriptPath": "nowhere/zz.workflow.js" } },
+        { "op": "request", "method": "expert/status", "params": {} },
+        { "op": "request", "method": "expert/status", "params": { "runId": "exp-nonexistent" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

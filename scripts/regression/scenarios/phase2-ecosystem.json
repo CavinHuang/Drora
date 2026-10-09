@@ -1,0 +1,56 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "e01",
+      "title": "生态·目录面：mcp/list + plugins/list + overview + referenceCatalog + skills",
+      "ops": [
+        { "op": "request", "method": "mcp/list",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "plugins/list",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "plugins/overview",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "plugins/referenceCatalog",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "skills/referenceCatalog",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } }
+      ]
+    },
+    {
+      "id": "e02",
+      "title": "生态·插件操作错误面：setEnabled 未知插件/cancelOperation/describe/validate 未知",
+      "ops": [
+        { "op": "request", "method": "plugins/setEnabled",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginId": "plugin_none", "enabled": false, "operationId": "op-e2-enable" } },
+        { "op": "request", "method": "plugins/cancelOperation", "params": { "operationId": "op-e2-enable" } },
+        { "op": "request", "method": "plugins/validate",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "plugin_none" } },
+        { "op": "request", "method": "plugins/describe",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "plugin_none", "marketplace": "market_none" } },
+        { "op": "request", "method": "plugins/resolveSuggestedReference",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "stableId": "ref_none", "operationId": "op-e2-resolve", "clientMode": "desktop-continuous", "deliveryKind": "desktop-continuous" } },
+        { "op": "request", "method": "plugins/restoreBuiltin",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginId": "plugin_none" } }
+      ]
+    },
+    {
+      "id": "e03",
+      "title": "生态·marketplace 错误面：remove/update 未知",
+      "ops": [
+        { "op": "request", "method": "plugins/marketplace/remove",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "marketplace": "market_none" } },
+        { "op": "request", "method": "plugins/marketplace/update",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "operationId": "op-e3-update" } }
+      ]
+    },
+    {
+      "id": "e04",
+      "title": "用量·usage/stats 7d 空库面（须假 home 隔离下运行方有意义）",
+      "ops": [
+        { "op": "request", "method": "usage/stats", "params": { "range": "7d" } },
+        { "op": "request", "method": "usage/stats", "params": { "range": "all" } }
+      ]
+    }
+  ]
+}

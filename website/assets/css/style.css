@@ -2102,6 +2102,81 @@ release-block {
   color: var(--fg-muted);
 }
 
+.page-narrow {
+  max-width: 848px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* 社区渠道卡片 */
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 8px 0 20px;
+}
+
+.channel-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.channel-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.channel-card p {
+  flex: 1;
+  color: var(--fg-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+
+.docs-content .channel-link {
+  color: var(--fg);
+}
+
+.channel-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 13px;
+  color: var(--fg);
+  transition: background 0.15s ease;
+}
+
+.channel-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 页脚 © 行的 GitHub 链接 */
+.footer-gh {
+  margin-left: 10px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.footer-gh:hover {
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .channel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --------------------------- subpage responsive --------------------------- */
 
 /* 参考站侧栏均为 hidden xl:flex：<1280 只剩内容列 */

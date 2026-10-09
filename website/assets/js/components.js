@@ -29,8 +29,8 @@
   var NAV_LINKS = [
     { key: "nav.docs", zh: "文档", page: "docs", href: function (base) { return base + "docs/"; } },
     { key: "nav.changelog", zh: "更新日志", page: "changelog", href: function (base) { return base + "changelog/"; } },
-    { key: "nav.issues", zh: "问题反馈", href: function () { return "https://github.com/CavinHuang/Drora/issues"; } },
-    { key: "nav.community", zh: "社区", href: function () { return "https://github.com/CavinHuang/Drora/discussions"; } },
+    { key: "nav.security", zh: "提交漏洞", page: "security", href: function (base) { return base + "security/"; } },
+    { key: "nav.community", zh: "社区", page: "community", href: function (base) { return base + "community/"; } },
   ];
 
   function renderNav(base, currentPage) {
@@ -68,15 +68,16 @@
     connectedCallback() {
       if (this.dataset.rendered) return;
       this.dataset.rendered = "1";
+      var base = this.getAttribute("data-base") || "";
       this.innerHTML =
         '<div class="container"><hr class="footer-rule"/></div>' +
         '<div class="container footer-inner">' +
-        '  <p>© 2026 <span data-i18n="footer.rights">Drora Contributors · 基于 ZCode 开源复刻</span></p>' +
+        '  <p>© 2026 <span data-i18n="footer.rights">Drora Contributors · 基于 ZCode 开源复刻</span>' +
+        '    <a class="footer-gh" href="https://github.com/CavinHuang/Drora" target="_blank" rel="noopener">GitHub</a></p>' +
         '  <nav class="footer-links">' +
-        '    <a href="https://github.com/CavinHuang/Drora" data-i18n="footer.github">GitHub</a>' +
-        '    <a href="https://github.com/CavinHuang/Drora/releases" data-i18n="footer.releases">发布页</a>' +
-        '    <a href="https://github.com/CavinHuang/Drora/issues" data-i18n="footer.issues">问题反馈</a>' +
-        '    <a href="https://github.com/zai-org/ZCode" data-i18n="footer.upstream">上游致谢</a>' +
+        '    <a href="' + base + 'terms/" data-i18n="footer.terms">服务条款</a>' +
+        '    <a href="' + base + 'privacy/" data-i18n="footer.privacy">隐私政策</a>' +
+        '    <a href="' + base + 'support/" data-i18n="footer.support">支持与反馈</a>' +
         "  </nav>" +
         "</div>";
     }

@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>常见问题 | Drora 文档</title>
-    <meta name="description" content="安装拦截、Linux 桌面版、更新方式与反馈渠道等高频问题。" />
+    <meta name="description" content="安装拦截、Linux 桌面版、模型连接、自动压缩时机、换机迁移与反馈渠道等高频问题。" />
     <meta property="og:title" content="常见问题 | Drora 文档" />
-    <meta property="og:description" content="安装拦截、Linux 桌面版、更新方式与反馈渠道等高频问题。" />
+    <meta property="og:description" content="安装拦截、Linux 桌面版、模型连接、自动压缩时机、换机迁移与反馈渠道等高频问题。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,6 +37,11 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.faq">常见问题</h1>
+          <p data-i18n="doc.faq.lead">
+            这里汇总安装与更新、模型连接、Agent 行为与数据迁移的高频问题。
+          </p>
+
+          <h2 id="install-update" data-i18n="doc.faq.sub.install">安装与更新</h2>
           <h3 data-i18n="doc.faq.q1">安装时提示「已损坏」或 SmartScreen 拦截？</h3>
           <p>
             <span data-i18n="doc.faq.a1">
@@ -53,6 +58,81 @@
           </p>
           <h3 data-i18n="doc.faq.q3">如何更新？</h3>
           <p data-i18n="doc.faq.a3">桌面应用内置自动更新（latest 通道），也可以随时到 Releases 页下载新版本覆盖安装。</p>
+
+          <h2 id="model" data-i18n="doc.faq.sub.model">模型与连接</h2>
+          <h3 data-i18n="doc.faq.q5">终端里已经配置好 GLM 环境，应用里还要再配吗？</h3>
+          <p>
+            <span data-i18n="doc.faq.a5">
+            需要。模型连接在应用内完成：桌面端在「设置」中登录 Z.ai 账号，或在「模型供应商」里手动添加 Base URL 与 API Key；CLI 执行
+            </span>
+            <code>drora login</code>
+            <span data-i18n="doc.faq.a5t">
+            完成浏览器授权。终端环境变量与这些入口相互独立，见
+            </span>
+            <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.dot">。</span>
+          </p>
+          <h3 data-i18n="doc.faq.q6">MCP 服务器连接失败怎么办？</h3>
+          <p>
+            <span data-i18n="doc.faq.a6">
+            在「设置 → MCP 服务器」查看该服务器的状态与失败原因：配置无效就检查字段填写；网络不可达就检查网络与代理；协议协商失败可在编辑服务器时把协议版本切换为「兼容旧版」；要求授权的服务重新「打开授权」。详见
+            </span>
+            <a href="mcp.html" data-i18n="doc.nav.mcp">MCP 与插件</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="agent" data-i18n="doc.faq.sub.agent">Agent 行为</h2>
+          <h3 data-i18n="doc.faq.q7">为什么上下文没用满就开始自动压缩？</h3>
+          <p data-i18n="doc.faq.a7">
+            自动压缩不会等窗口填满：触发点按「上下文窗口 − 输出预留 − 安全缓冲」计算，要为模型输出留出空间（输出预留默认 32K、安全缓冲 13K）；没有单独配置时，窗口默认按 200K 计算。窗口越小触发越早，属正常现象。模型实际的上下文窗口可在「设置 → 模型供应商」中按模型编辑，填准后压缩时机即会后移。
+          </p>
+          <h3 data-i18n="doc.faq.q8">指令发错了、文件被改坏了怎么办？</h3>
+          <p>
+            <span data-i18n="doc.faq.a8">
+            不用重开任务：悬停自己发送过的消息点「编辑」，改写后重发；需要回退文件时用「对话 + 文件重置」；每轮回复下方的文件变更摘要支持「撤销 / 重新应用」。详见
+            </span>
+            <a href="history.html" data-i18n="doc.nav.sessions">会话与编辑历史</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="data" data-i18n="doc.faq.sub.data">数据与迁移</h2>
+          <h3 data-i18n="doc.faq.q9">换电脑，要复制哪些配置文件？</h3>
+          <p data-i18n="doc.faq.a9">
+            把下面这些复制到新机器的相同位置，即可带走绝大部分配置：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.faq.thPath">路径</th>
+                <th data-i18n="doc.faq.thWhat">带走什么</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>~/.drora/cli/config.json</code></td>
+                <td data-i18n="doc.faq.tdConfig">MCP 服务器、权限默认值、插件与技能开关、Hooks 等 Agent 配置</td>
+              </tr>
+              <tr>
+                <td><code>~/.drora/AGENTS.md</code></td>
+                <td data-i18n="doc.faq.tdAgents">全局规则</td>
+              </tr>
+              <tr>
+                <td><code>~/.drora/skills/</code></td>
+                <td data-i18n="doc.faq.tdSkills">用户级技能</td>
+              </tr>
+              <tr>
+                <td><code>&lt;项目&gt;/.drora/</code></td>
+                <td data-i18n="doc.faq.tdProject">项目级配置，随仓库走，不用单独复制</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.faq.a9no">
+            有两个文件不要复制：~/.drora/v2/credentials.json（登录凭据为加密存储，在新机器重新登录即可）与 ~/.drora/v2/telemetry-state.json（含设备标识，不应跨机器共用）。会话数据（~/.drora/cli/db/）可按需搬运。
+          </p>
+          <h3 data-i18n="doc.faq.q10">在哪里查看版本号？</h3>
+          <p>
+            <span data-i18n="doc.faq.a10">
+            桌面端在菜单「帮助 → 关于 Drora」查看当前版本，「帮助 → 检查更新」会提示新版本；CLI 在终端执行
+            </span>
+            <code>drora --version</code><span data-i18n="doc.dot">。</span>
+          </p>
           <h3 data-i18n="doc.faq.q4">遇到问题如何反馈？</h3>
           <p>
             <span data-i18n="doc.faq.a4">欢迎到</span>

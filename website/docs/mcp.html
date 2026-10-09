@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MCP 与插件 | Drora 文档</title>
-    <meta name="description" content="通过 MCP 接入外部工具服务；插件进一步打包技能、命令、Hooks 与 MCP 配置，可在插件市场安装。" />
+    <meta name="description" content="配置 stdio / HTTP / SSE 的 MCP 服务器，从外部 Agent 导入，完成 OAuth 授权；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
     <meta property="og:title" content="MCP 与插件 | Drora 文档" />
-    <meta property="og:description" content="通过 MCP 接入外部工具服务；插件进一步打包技能、命令、Hooks 与 MCP 配置，可在插件市场安装。" />
+    <meta property="og:description" content="配置 stdio / HTTP / SSE 的 MCP 服务器，从外部 Agent 导入，完成 OAuth 授权；插件市场把技能、命令、Hooks 与 MCP 打包启用。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,9 +37,123 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.mcp">MCP 与插件</h1>
-          <p data-i18n="doc.mcp.p1">
-            通过 MCP（Model Context Protocol）接入外部工具服务：在工作区或全局配置 stdio/HTTP 服务器后，其工具自动进入 Agent
-            的工具面。插件则进一步打包技能、命令、Hooks 与 MCP 配置，可在应用内插件市场浏览安装。
+          <p data-i18n="doc.mcp.lead">
+            MCP（Model Context Protocol）把文件系统、数据库、联网搜索等外部能力接入 Agent：配置好服务器后，它的工具会自动进入 Agent
+            的工具面。插件则把技能、命令、子智能体、Hooks 与 MCP 服务器打包成一个扩展包，在应用内插件市场一键安装启用。
+          </p>
+
+          <h2 id="manage" data-i18n="doc.mcp.sub.manage">管理 MCP 服务器</h2>
+          <p data-i18n="doc.mcp.manage1">
+            入口在「设置 → MCP 服务器」。列表分为两组：「已配置 MCP 服务器」是你手动添加的，可以编辑、删除、启停；「Plugin MCP
+            服务器」由已启用的插件提供，配置跟随插件管理。
+          </p>
+          <p data-i18n="doc.mcp.manage2">
+            点「新建 MCP 服务器」创建：先选作用域（用户对所有工作区生效，工作区仅当前项目），再填名称与类型。
+          </p>
+          <p data-i18n="doc.mcp.manageStdio">
+            类型 stdio 是本地命令：填命令与参数（如命令 npx、参数 -y @modelcontextprotocol/server-memory），需要时展开环境变量传入凭据。
+          </p>
+          <p data-i18n="doc.mcp.manageRemote">
+            类型 HTTP / SSE 是远程服务：填服务地址，需要鉴权时展开请求头补充 Authorization 等信息。表单还提供超时时间与协议版本（自动 /
+            兼容旧版）；已有 JSON 配置可切到「完整配置」模式直接粘贴。
+          </p>
+
+          <h2 id="files" data-i18n="doc.mcp.sub.files">配置文件与作用域</h2>
+          <p data-i18n="doc.mcp.files1">
+            MCP 配置落在本机文件里，设置面板与文件互相同步。同一个作用域下，Drora 原生格式与 .agents 兼容格式都可用：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.mcp.thScope">作用域</th>
+                <th data-i18n="doc.mcp.thPath">文件路径</th>
+                <th data-i18n="doc.mcp.thKey">配置键</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.mcp.tdScopeUser">用户（所有工作区可用）</td>
+                <td><code>~/.drora/cli/config.json</code></td>
+                <td><code>mcp.servers</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.tdScopeWorkspace">工作区（仅当前项目可用）</td>
+                <td><code>&lt;项目&gt;/.drora/config.json</code></td>
+                <td><code>mcp.servers</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.tdScopeUserAgents">用户 · .agents 兼容</td>
+                <td><code>~/.agents/mcp.json</code></td>
+                <td><code>mcpServers</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.mcp.tdScopeWorkspaceAgents">工作区 · .agents 兼容</td>
+                <td><code>&lt;项目&gt;/.agents/mcp.json</code></td>
+                <td><code>mcpServers</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-code"><code>{
+  "mcp": {
+    "servers": {
+      "memory": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"],
+        "env": {}
+      }
+    }
+  }
+}</code></div>
+          <p>
+            <span data-i18n="doc.mcp.filesNote">
+            .agents/mcp.json 使用业界通用的 mcpServers 结构，便于跨工具共享。停用某个服务器会把 </span>
+            <code>enabled</code><span data-i18n="doc.mcp.filesNoteT"> 写为 </span>
+            <code>false</code><span data-i18n="doc.mcp.filesNoteE">，没有该字段视为启用。</span>
+          </p>
+          <div class="docs-note"><span data-i18n="doc.mcp.filesWarn">
+            工作区配置随仓库提交，团队成员打开项目即可获得同一份 MCP 配置。MCP 配置声明了要启动的本地命令与要访问的网络地址——打开陌生仓库前，建议先检查其中 .drora/config.json 的 MCP 配置。
+          </span></div>
+
+          <h2 id="import" data-i18n="doc.mcp.sub.import">从外部 Agent 导入</h2>
+          <p data-i18n="doc.mcp.import1">
+            「设置 → MCP 服务器」页面的导入入口会扫描本机其他 Agent 工具的 MCP 配置，来源包括 Claude Code、Codex CLI、OpenCode
+            与通用 .agents 配置等。选择导入作用域（全局或项目）并勾选条目后一键导入，结果写入 Drora 自己的配置文件。
+          </p>
+
+          <h2 id="oauth" data-i18n="doc.mcp.sub.oauth">OAuth 与鉴权</h2>
+          <p data-i18n="doc.mcp.oauth1">
+            部分 HTTP / SSE 远程服务要求浏览器授权：在列表中该服务器一行点「打开授权」，按提示完成一次浏览器授权即可。插件自带的 MCP
+            服务器同样支持，行内会显示「需要授权」。
+          </p>
+          <p data-i18n="doc.mcp.oauth2">
+            本地 stdio 服务没有授权流程，凭据通过环境变量传入。授权未完成或超时只会把该服务器标记为失败（提示重新授权），不会阻塞会话。
+          </p>
+
+          <h2 id="plugins" data-i18n="doc.mcp.sub.plugins">插件市场</h2>
+          <p data-i18n="doc.mcp.plugins1">
+            插件把技能、命令、子智能体、Hooks 与 MCP 服务器打包成一个扩展包，启用后其中的能力统一注册、停用后一并停用。入口在设置中的插件市场（需先打开一个工作区）。
+          </p>
+          <p data-i18n="doc.mcp.plugins2">
+            商店列表分「公开」与「个人」两个分段：公开即官方市场 drora-plugins-official（内置插件与经 CDN 分发的插件）；个人分段汇总你自行登记的市场源（GitHub
+            仓库、Git 地址、URL、本地目录等），可在「市场源」面板添加、刷新与移除。
+          </p>
+          <p data-i18n="doc.mcp.plugins3">
+            「管理已安装」视图承载插件级开关：启用 / 停用、检查更新与卸载。
+          </p>
+          <div class="docs-note"><span data-i18n="doc.mcp.pluginsWarn">
+            插件可以携带 Hooks、MCP 服务器与技能，启用即表示信任其内容。安装第三方插件前，请先确认来源。
+          </span></div>
+          <p data-i18n="doc.mcp.pluginsRemote">
+            远程开发时，「同步 Plugin」「同步 MCP」可以把本地用户级的插件与 MCP 配置复制到 SSH 远端工作区。
+          </p>
+
+          <h2 id="usage" data-i18n="doc.mcp.sub.usage">在会话中使用</h2>
+          <p data-i18n="doc.mcp.usage1">
+            已启用的 MCP 服务器会随会话自动连接，其工具进入 Agent 的工具面，由模型按需调用；列表中每个服务器都显示连接状态与可用工具数量。
+          </p>
+          <p data-i18n="doc.mcp.usage2">
+            连接失败时按状态提示排查：配置无效、网络或代理不通、连接超时，或协议协商失败——最后这种情况可在编辑服务器时把协议版本切换为「兼容旧版」。
           </p>
         </article>
 

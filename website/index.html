@@ -33,9 +33,9 @@
       <!-- ======================= Hero ======================= -->
       <section class="hero">
         <div class="container hero-head">
-          <a class="hero-pill reveal" href="https://github.com/CavinHuang/Drora/releases">
+          <a class="hero-pill reveal" href="changelog/">
             <span class="hero-pill-emoji" aria-hidden="true">🎉</span>
-            <span data-i18n="hero.pill">开源复刻版发布：现已支持 GLM-5.3 与桌面宠物</span>
+            <span data-i18n="hero.pill">v0.0.8 开源发布：桌面、手机与终端三形态齐备</span>
           </a>
           <h1 class="hero-title reveal" data-i18n="hero.title">简单、迅捷、氛围十足！</h1>
           <p class="hero-sub reveal" data-i18n="hero.subtitle">
@@ -72,19 +72,19 @@
               </div>
               <div class="win-side-label">
                 <span data-i18n="mock.tasks">任务</span>
-                <span class="side-trash">🗑</span>
+                <span aria-hidden="true">⌄</span>
               </div>
               <div class="win-side-list">
-                <div class="side-item active"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.task1">创建一个智能五子棋游戏，支持策略性落子</p><time>5m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.task2">重构开始界面，合并状态与动画</p><time>5m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.task3">接入启发式 AI 落子与胜负判断</p><time>47m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.task4">添加劫争、禁手与连珠判定</p><time>27m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.task5">补一版玩法说明</p><time>5h</time></div></div>
-              </div>
-              <div class="win-side-folders">
-                <div class="side-folder"><span class="sf-icon">📁</span>gomoku-ai</div>
-                <div class="side-folder"><span class="sf-icon">📁</span>drora-website</div>
-                <div class="side-folder"><span class="sf-icon">📁</span>drora-desktop</div>
+                <div class="win-side-label"><span>gomoku-ai</span><span aria-hidden="true">3</span></div>
+                <div class="side-item active"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t1">创建一个智能五子棋游戏，支持策略性落子与胜负判断</p><time>2m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t2">接入启发式 AI 落子与玩家先手流程</p><time>14m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t3">补一版规则说明、重开入口和空状态引导</p><time>51m</time></div></div>
+                <div class="win-side-label"><span>drora-website</span><span aria-hidden="true">2</span></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t4">对齐首页 hero 与下载区的版块结构</p><time>8m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t5">修复对话区在 resize 时的底部吸附逻辑</p><time>1h</time></div></div>
+                <div class="win-side-label"><span>drora-desktop</span><span aria-hidden="true">2</span></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t6">排查会话恢复后右侧面板状态不同步</p><time>1h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t7">优化终端面板拖拽 resize 后的重绘性能</p><time>2h</time></div></div>
               </div>
             </div>
 
@@ -102,39 +102,49 @@
                 <span class="wt-icons"><i>⊞</i><i>▣</i><i>◱</i><i>▥</i></span>
               </div>
               <div class="win-chat">
-                <p class="msg dim" data-i18n="mock.m1">步响应、平局处理和长连胜负等边界情况。</p>
-                <div class="tool-row"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>node --check app.js</code></div>
-                <p class="msg">
-                  <span data-i18n="mock.m2a">我发现了一个可以避免的依赖：页面原来拉取了在线字体。我正在去掉它，这样整个游戏可以完全本地运行，直接打开</span>
-                  <u>index.html</u>
-                  <span data-i18n="mock.m2b">就不需要网络。</span>
-                </p>
+                <p class="msg" data-i18n="mock.userMsg">创建一个智能五子棋游戏，让玩家与能进行策略性落子并准确判断胜负的算法对战。</p>
                 <div class="tool-row">
-                  <span class="tr-icon">✎</span><span data-i18n="mock.updated">已更新</span>
-                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span>
-                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span>
-                  <span class="diff add">+4</span><span class="diff del">−2</span>
+                  <span class="tr-icon">✎</span><span data-i18n="mock.written">已写入</span>
+                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span><span class="diff add">+62</span>
+                  <span class="file-chip"><i class="fc-dot js"></i>app.js</span><span class="diff add">+471</span>
+                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span><span class="diff add">+200</span>
                 </div>
                 <p class="msg">
-                  <span data-i18n="mock.m3a">已在</span><u>index.html</u><span>、</span><u>styles.css</u><span>和</span><u>app.js</u>
-                  <span data-i18n="mock.m3b">中完成一个独立运行的浏览器五子棋游戏。它会渲染一个 15x15 棋盘，允许双方放置黑棋，支持四个方向的胜负判断，高亮连成五子的路径，跟踪当前回合和步数，并支持重新开始对局。</span>
+                  <span data-i18n="mock.m3a">已在</span><u>index.html</u><span data-i18n="mock.m3sep">、</span><u>styles.css</u><span data-i18n="mock.m3and">和</span><u>app.js</u>
+                  <span data-i18n="mock.m3b">中完成一个独立运行的浏览器五子棋游戏。它会渲染一个 15x15 棋盘，支持四个方向的胜负判断，并支持重新开始对局。</span>
                 </p>
-                <p class="msg">
-                  <span data-i18n="mock.m4">AI 不是随机落子，而是启发式评分。它会搜索附近候选点，为自身的进攻棋型评分，也为阻挡玩家的防守棋型评分，同时保留对一步致胜和急连的拦截优先级。</span>
-                </p>
+                <div class="tool-row"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>node --check app.js</code></div>
                 <div class="files-card">
                   <div class="fc-head">
                     <span data-i18n="mock.filesChanged">3 个文件已更改</span>
                     <span class="diff add">+734</span><span class="diff del">−7</span>
                     <span class="fc-expand" data-i18n="mock.expand">展开 ⌄</span>
                   </div>
-                  <div class="fc-row"><i class="fc-dot js"></i>app.js<span class="diff add">+671</span><span class="diff del">−0</span></div>
-                  <div class="fc-row"><i class="fc-dot html"></i>index.html<span class="diff add">+63</span><span class="diff del">−7</span></div>
+                  <div class="fc-row"><i class="fc-dot js"></i>app.js<span class="diff add">+471</span><span class="diff del">−0</span></div>
+                  <div class="fc-row"><i class="fc-dot html"></i>index.html<span class="diff add">+62</span><span class="diff del">−6</span></div>
+                  <div class="fc-row"><i class="fc-dot css"></i>styles.css<span class="diff add">+201</span><span class="diff del">−1</span></div>
+                </div>
+                <div class="files-card">
+                  <div class="fc-row"><span class="tr-icon">⊕</span><span data-i18n="mock.inputPh">继续输入后续修改需求</span></div>
+                  <div class="pc-divider"></div>
+                  <div class="fc-row">
+                    <span class="file-chip"><span class="tr-icon">＋</span><span data-i18n="mock.addContext">添加上下文</span></span>
+                    <span class="file-chip"><span class="tr-icon">✓</span><span data-i18n="mock.confirmEdit">变更前确认</span></span>
+                  </div>
+                  <div class="fc-row">
+                    <span class="chip">GLM-5.3</span>
+                    <span class="chip" data-i18n="mock.effort">推理：最大</span>
+                    <span class="fc-expand" aria-hidden="true">➤</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <aside class="win-panel">
+              <div class="panel-card">
+                <div class="pc-head-row"><p class="pc-title" data-i18n="mock.terminal">终端</p><span class="pc-badge">zsh</span></div>
+                <p class="pc-tag">dev@drora drora-website % ▋</p>
+              </div>
               <div class="panel-card">
                 <p class="pc-title" data-i18n="mock.gitTools">Git tools</p>
                 <div class="pc-row"><span class="pcr-icon">⑃</span><span data-i18n="mock.changes">Changes</span><span class="pcr-diff"><b class="diff add">+734</b> <b class="diff del">−7</b></span></div>
@@ -143,17 +153,16 @@
                 <div class="pc-row muted"><span class="pcr-icon">→</span><span data-i18n="mock.commit">Commit</span></div>
               </div>
               <div class="panel-card">
-                <div class="pc-head-row"><p class="pc-title">Goal</p><span class="pc-badge" data-i18n="mock.complete">Complete</span></div>
+                <div class="pc-head-row"><p class="pc-title">Goal</p><span class="pc-badge" data-i18n="mock.running">进行中</span></div>
                 <p class="pc-goal" data-i18n="mock.goalDesc">创建五子棋游戏：一局用启发式 AI 完成双人对弈</p>
-                <div class="pc-tags"><span class="pc-tag">5/8</span><span class="pc-tag">~ 90% tokens</span></div>
+                <div class="pc-tags"><span class="pc-tag">3/4</span><span class="pc-tag">2m</span><span class="pc-tag">89K tokens</span></div>
               </div>
               <div class="panel-card">
                 <p class="pc-title">Progress</p>
                 <div class="progress-item done"><span>✓</span><span data-i18n="mock.p1">搭建 15x15 棋盘与落子渲染</span></div>
                 <div class="progress-item done"><span>✓</span><span data-i18n="mock.p2">实现四方向连珠胜负判定</span></div>
                 <div class="progress-item done"><span>✓</span><span data-i18n="mock.p3">接入启发式 AI 落子评分</span></div>
-                <div class="progress-item"><span>○</span><span data-i18n="mock.p4">添加悔棋与重新开始</span></div>
-                <div class="progress-item"><span>○</span><span data-i18n="mock.p5">编写玩法说明面板</span></div>
+                <div class="progress-item"><span>○</span><span data-i18n="mock.t3">补一版规则说明、重开入口和空状态引导</span></div>
               </div>
             </aside>
           </div>
@@ -214,7 +223,7 @@
               <h3 data-i18n="ed.cli.name">终端</h3>
               <p class="ec-desc" data-i18n="ed.cli.desc">脚本化与自动化的 Agent 运行时</p>
               <p class="ec-price">¥0<small> / <span data-i18n="ed.forever">永久免费</span></small></p>
-              <p class="ec-feature-main"><span class="star">✱</span><span data-i18n="ed.cli.f1">drora-cli 单文件可执行，离线部署</span></p>
+              <p class="ec-feature-main"><span class="star">✱</span><span data-i18n="ed.cli.f1">Agent CLI 单文件发布，在终端随处运行</span></p>
               <div class="ec-divider"></div>
               <ul class="ec-list">
                 <li><span>✓</span><span data-i18n="ed.cli.f2">与桌面端共享同一 Agent 运行时</span></li>
@@ -231,8 +240,8 @@
       <section class="capabilities" id="capabilities">
         <div class="container">
           <p class="section-label reveal" data-i18n="cap.label">产品能力</p>
-          <h2 class="reveal" data-i18n="cap.title">保持在技术前沿</h2>
-          <p class="section-sub reveal" data-i18n="cap.subtitle">无论是清理遗留系统还是交付实时特性，Drora 都能让团队保持高效和稳健。</p>
+          <h2 class="reveal" data-i18n="cap.title">长程任务，尽在掌控</h2>
+          <p class="section-sub reveal" data-i18n="cap.subtitle">目标管理、手机远控、桌面宠物——每一项都是这个开源仓库真实交付的能力。</p>
 
           <div class="cap-grid">
             <article class="cap-card reveal">
@@ -299,7 +308,7 @@ return stream(block, { renderer });</code></pre>
       <section class="downloads" id="downloads">
         <div class="container">
           <h2 class="reveal" data-i18n="dl.title">全部下载</h2>
-          <p class="section-sub reveal" data-i18n="dl.subtitle">Drora 支持的所有平台安装包</p>
+          <p class="section-sub reveal" data-i18n="dl.subtitle">v0.0.8 快照的全部构建产物，均由 GitHub Actions 从源码构建。</p>
 
           <div class="dl-grid">
             <div class="dl-col reveal">
@@ -324,7 +333,7 @@ return stream(block, { renderer });</code></pre>
                 <span data-i18n="dl.win64">Windows（64 位）</span><code>.exe</code><span class="dl-ver">v0.0.8</span>
               </a>
               <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-arm64.exe">
-                <span>Windows (ARM64)</span><code>.exe</code><span class="dl-ver">v0.0.8</span>
+                <span data-i18n="dl.winArm">Windows (ARM64)</span><code>.exe</code><span class="dl-ver">v0.0.8</span>
               </a>
             </div>
 

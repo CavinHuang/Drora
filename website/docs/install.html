@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>安装 | Drora 文档</title>
-    <meta name="description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，了解校验与自动更新。" />
+    <meta name="description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，配置网络代理，了解校验与自动更新。" />
     <meta property="og:title" content="安装 | Drora 文档" />
-    <meta property="og:description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，了解校验与自动更新。" />
+    <meta property="og:description" content="下载 Drora 桌面安装包与 Agent CLI 单文件，处理首次运行的签名提示，配置网络代理，了解校验与自动更新。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,6 +37,11 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.install">安装</h1>
+          <p data-i18n="doc.install.lead">
+            无需从源码构建，下载对应平台的产物即可使用。全程通常只需两分钟：下载安装包 → 完成安装 → 首次启动连接模型。
+          </p>
+
+          <h2 id="download" data-i18n="doc.install.sub.download">下载</h2>
           <p>
             <span data-i18n="doc.install.p1">无需从源码构建，直接在</span>
             <a href="https://github.com/CavinHuang/Drora/releases/latest">Releases</a><span data-i18n="doc.colon">：</span>
@@ -54,7 +59,7 @@
                 <td data-i18n="doc.install.td1">Windows 桌面应用安装包（NSIS）</td>
               </tr>
               <tr>
-                <td><code data-i18n="doc.file.mac">Drora-&lt;版本&gt;-mac-arm64.dmg</code> / <code>mac-x64.dmg</code></td>
+                <td><code data-i18n="doc.file.mac">Drora-&lt;版本&gt;-mac-arm64.dmg</code> / <code>mac-x64.dmg</code>（及 <code>.zip</code>）</td>
                 <td data-i18n="doc.install.td2">macOS 桌面应用</td>
               </tr>
               <tr>
@@ -63,6 +68,26 @@
               </tr>
             </tbody>
           </table>
+          <p data-i18n="doc.install.downloadNote">
+            暂不提供 Linux 桌面安装包，Linux 用户可先使用 CLI 单文件，或从源码自行构建桌面应用。
+          </p>
+
+          <h2 id="steps" data-i18n="doc.install.sub.steps">安装步骤</h2>
+          <h3 data-i18n="doc.install.step.mac">macOS</h3>
+          <p data-i18n="doc.install.stepMac">
+            打开下载的 DMG，把 Drora 拖入「应用程序」，然后从启动台或应用程序文件夹启动。
+          </p>
+          <h3 data-i18n="doc.install.step.win">Windows</h3>
+          <p data-i18n="doc.install.stepWin">
+            运行下载的 .exe 安装程序，按向导完成安装，然后从开始菜单或桌面快捷方式启动。
+          </p>
+          <h3 data-i18n="doc.install.step.cli">Agent CLI</h3>
+          <p>
+            <span data-i18n="doc.install.stepCli">
+            单文件可执行，放到 PATH 目录或直接以路径运行；必须在终端中启动，双击会闪退。首次使用先执行
+            </span>
+            <code>drora login</code><span data-i18n="doc.install.stepCliT">完成浏览器授权，即可开始提问。</span>
+          </p>
 
           <h2 id="first-run" data-i18n="doc.install.sub.first">首次运行与签名提示</h2>
           <div class="docs-note">
@@ -76,11 +101,85 @@
           <h2 id="verify" data-i18n="doc.install.sub.verify">校验与更新</h2>
           <p>
             <span data-i18n="doc.install.p2">所有产物均由 GitHub Actions 从源码构建，</span>
-            <code>SHA256SUMS.txt</code><span data-i18n="doc.install.p2t">提供校验和；桌面应用内置自动更新（latest 通道）。</span>
+            <code>SHA256SUMS.txt</code><span data-i18n="doc.install.p2t">提供校验和。</span>
+          </p>
+          <p data-i18n="doc.install.update1">
+            桌面应用内置自动更新（latest 通道），也可以在「帮助 → 检查更新」手动检查；随时可到 Releases 页下载新版本覆盖安装。
+          </p>
+          <p>
+            <span data-i18n="doc.install.update2">CLI 单文件没有自更新：重新下载新版本的</span>
+            <code>drora-&lt;os&gt;-&lt;arch&gt;</code><span data-i18n="doc.install.update2t">替换旧文件即可。</span>
           </p>
 
-          <h2 id="from-source" data-i18n="doc.install.sub.source">从源码构建</h2>
-          <p><span data-i18n="doc.install.source">偏好自建？见</span> <a href="build.html" data-i18n="doc.nav.build">从源码构建</a><span data-i18n="doc.dot">。</span></p>
+          <h2 id="proxy" data-i18n="doc.install.sub.proxy">网络代理</h2>
+          <p>
+            <span data-i18n="doc.install.proxy1">
+            走公司网络或代理上网时，在设置的「HTTP 代理」中填写代理地址（如 http://127.0.0.1:7890），模型、MCP、命令工具与应用渲染层的出口流量都会经过它。
+            </span>
+          </p>
+          <div class="docs-note"><span data-i18n="doc.install.proxyDirect">
+            留空不等于跟随系统：代理字段为空时出口流量直连，不会读取系统代理环境变量——「终端里能联网而应用不行」多半是这个原因。
+          </span></div>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.install.proxyTh1">设置项</th>
+                <th data-i18n="doc.install.proxyTh2">用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.install.proxyTd1">HTTP 代理</td>
+                <td data-i18n="doc.install.proxyTd1d">如 http://127.0.0.1:7890；留空时直连</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.install.proxyTd2">不使用代理的地址</td>
+                <td data-i18n="doc.install.proxyTd2d">逗号分隔的主机列表，匹配的请求直连、不经过代理</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.install.proxyTd3">自定义证书</td>
+                <td data-i18n="doc.install.proxyTd3d">PEM 根证书文件路径（企业 HTTPS 解密网关场景），会作为 NODE_EXTRA_CA_CERTS 注入模型、MCP 与命令工具</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.install.proxyCli">代理设置修改后需重启应用生效。CLI 侧可在用户配置文件 </span>
+            <code>~/.drora/cli/config.json</code>
+            <span data-i18n="doc.install.proxyCliT"> 中设置 </span>
+            <code>network.httpProxy</code><span data-i18n="doc.install.proxyCliM">、</span>
+            <code>network.noProxy</code><span data-i18n="doc.install.proxyCliM2">、</span>
+            <code>network.caCertFile</code><span data-i18n="doc.install.proxyCliE">，语义相同。</span>
+          </p>
+
+          <h2 id="windows" data-i18n="doc.install.sub.windows">Windows 专属设置</h2>
+          <p data-i18n="doc.install.windows">
+            设置中可开启「关闭窗口时隐藏到托盘」：开启后点击关闭按钮只会隐藏窗口到系统托盘，托盘菜单中的退出才会完全退出应用。该设置仅 Windows 生效。
+          </p>
+
+          <h2 id="troubleshoot" data-i18n="doc.install.sub.trouble">故障排查</h2>
+          <h3 data-i18n="doc.install.trouble.mac">macOS 提示「已损坏，无法打开」</h3>
+          <p>
+            <span data-i18n="doc.install.troubleMac">这是未签名安装包被 Gatekeeper 隔离的正常表现，执行</span>
+            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code>
+            <span data-i18n="doc.install.troubleMacT">解除隔离后再打开。</span>
+          </p>
+          <h3 data-i18n="doc.install.trouble.win">Windows 安装或启动被拦截</h3>
+          <p data-i18n="doc.install.troubleWin">
+            在 SmartScreen 提示时选择「更多信息 → 仍要运行」。安装包未做代码签名，安全软件的拦截提示属于预期行为。
+          </p>
+          <h3 data-i18n="doc.install.trouble.cli">CLI 提示没有执行权限</h3>
+          <p>
+            <span data-i18n="doc.install.troubleCli">macOS / Linux 下载的单文件需要执行权限：</span>
+            <code>chmod +x drora-*</code><span data-i18n="doc.install.troubleCliT"> 后再运行。</span>
+          </p>
+
+          <h2 id="more" data-i18n="doc.install.sub.more">了解更多</h2>
+          <p>
+            <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a>
+            · <a href="cli.html" data-i18n="doc.nav.cli">命令行 CLI</a>
+            · <a href="faq.html" data-i18n="doc.nav.faq">常见问题</a>
+            · <a href="build.html" data-i18n="doc.nav.build">从源码构建</a>
+          </p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

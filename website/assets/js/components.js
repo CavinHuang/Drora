@@ -80,6 +80,9 @@
         { slug: "pets", key: "doc.nav.pets", zh: "桌面宠物" },
         { slug: "skin", key: "doc.nav.skin", zh: "皮肤中心" },
         { slug: "usage-stats", key: "doc.nav.usage", zh: "使用统计" },
+        { slug: "agents", key: "doc.nav.agent", zh: "Drora Agent" },
+        { slug: "task-management", key: "doc.nav.taskFiles", zh: "任务与文件管理" },
+        { slug: "memory", key: "doc.nav.memory", zh: "Memory 记忆" },
       ],
     },
     {
@@ -91,6 +94,8 @@
         { slug: "mcp", key: "doc.nav.mcp", zh: "MCP 与插件" },
         { slug: "hooks", key: "doc.nav.hooks", zh: "Hooks" },
         { slug: "automation", key: "doc.nav.automation", zh: "自动化任务" },
+        { slug: "safety-confirm", key: "doc.nav.safety", zh: "安全操作确认" },
+        { slug: "ADE-tools", key: "doc.nav.ade", zh: "智能体开发环境工具" },
       ],
     },
     {
@@ -101,6 +106,11 @@
         { slug: "build", key: "doc.nav.build", zh: "从源码构建" },
         { slug: "faq", key: "doc.nav.faq", zh: "常见问题" },
       ],
+    },
+    {
+      group: "doc.group.help",
+      groupZh: "帮助",
+      items: [{ slug: "keyboard-shortcuts", key: "doc.nav.shortcuts", zh: "快捷键表" }],
     },
   ];
 

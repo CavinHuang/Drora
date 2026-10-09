@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memory 记忆 | Drora 文档</title>
+    <meta name="description" content="Memory 为 Agent 提供项目级的长期记忆：沉淀偏好、纠正与项目约束，跨会话自动复用。独立 CLI 默认启用，桌面应用默认关闭。" />
+    <meta property="og:title" content="Memory 记忆 | Drora 文档" />
+    <meta property="og:description" content="Memory 为 Agent 提供项目级的长期记忆：沉淀偏好、纠正与项目约束，跨会话自动复用。独立 CLI 默认启用，桌面应用默认关闭。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="memory">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="memory"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.memory">Memory 记忆</h1>
+          <p data-i18n="doc.memory.p1">
+            有些信息只值得告诉 Agent 一次：你习惯的提交说明写法、项目用的包管理器、团队的评审约定。Memory 为 Agent 提供工作区级的长期记忆，让这类信息延续到后续会话，而不需要每次对话开头都重复交代。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.memory.note1">
+            默认值按形态区分：独立 CLI 的默认配置启用记忆，桌面应用设置默认关闭。启用后可分析已保存会话、持久化记忆，并在后续任务中复用；相关提取或整理可产生额外模型请求。
+            </span>
+          </div>
+
+          <h2 id="enable" data-i18n="doc.memory.enable.h2">开启记忆</h2>
+          <p data-i18n="doc.memory.enable.p1">
+            桌面应用在「设置 → 记忆」中打开「工作区记忆」；独立 CLI 由其默认配置启用。使用前有两点需要了解：
+          </p>
+          <ul>
+            <li data-i18n="doc.memory.enable.li1">只对新会话生效：修改设置影响新建会话和应用重启后恢复的会话，进行中的对话保持原有设定。</li>
+            <li data-i18n="doc.memory.enable.li2">可能增加 Token 用量：开启后系统可能发起额外的模型请求来提取和召回长期记忆，可以在使用统计中关注消耗。</li>
+          </ul>
+
+          <h2 id="what" data-i18n="doc.memory.what.h2">会记住什么</h2>
+          <p data-i18n="doc.memory.what.p1">
+            每条记忆是一个只讲一件事的小文件，按四种类型组织：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.memory.what.th1">类型</th>
+                <th data-i18n="doc.memory.what.th2">覆盖内容</th>
+                <th data-i18n="doc.memory.what.th3">示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.memory.what.td1a">user（用户）</td>
+                <td data-i18n="doc.memory.what.td1b">你的身份、专长和偏好</td>
+                <td data-i18n="doc.memory.what.td1c">「习惯用 pnpm 和 Conventional Commits」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td2a">feedback（反馈）</td>
+                <td data-i18n="doc.memory.what.td2b">对 Agent 工作方式的纠正或确认，含原因与用法</td>
+                <td data-i18n="doc.memory.what.td2c">「不要顺手修改无关文件里的 lint 报错」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td3a">project（项目）</td>
+                <td data-i18n="doc.memory.what.td3b">无法从代码或 Git 历史推出的目标、约束与进展</td>
+                <td data-i18n="doc.memory.what.td3c">「站点需要保持兼容 Node 20」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td4a">reference（参考）</td>
+                <td data-i18n="doc.memory.what.td4b">你提供过的外部资源指针</td>
+                <td data-i18n="doc.memory.what.td4c">「设计规范在团队 Wiki 的某个链接」</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.memory.what.p2">
+            同样重要的是记忆刻意不记的内容：仓库已经记录的信息（代码结构、过往修复、Git 历史、AGENTS.md），以及只在当前对话内有效的临时信息——这些 Agent 随时可以重新读取。
+          </p>
+
+          <h2 id="mechanism" data-i18n="doc.memory.mech.h2">工作机制</h2>
+          <p data-i18n="doc.memory.mech.p1">
+            一轮对话成功结束后，后台的提取子代理会回顾最近的交流：发现有值得保留的信息，就把它写成一个小的 Markdown 事实文件并更新 MEMORY.md 索引；没有则什么都不保存。整个过程发生在你的回合结束之后，不会拖慢对话本身。
+          </p>
+          <p data-i18n="doc.memory.mech.p2">
+            在同一工作区的后续会话里，MEMORY.md 索引会自动加载进 Agent 的上下文；索引有大小上限，记忆过多时会被截断，简短的条目效果最好。记忆按工作区隔离：在一个工作区学到的内容不会带到另一个工作区。
+          </p>
+          <p data-i18n="doc.memory.mech.p3">
+            你也可以在对话中直接管理记忆：说「记住，我们从 staging 分支发布」即可立刻保存；说「忘掉刚才说的发布分支」即可删除对应记忆。
+          </p>
+
+          <h2 id="storage" data-i18n="doc.memory.storage.h2">记忆存在哪里</h2>
+          <p data-i18n="doc.memory.storage.p1">
+            记忆是保存在你本机的普通 Markdown 文件，按工作区身份分目录存放：
+          </p>
+          <div class="docs-code"><code>~/.drora/cli/memories/projects/&lt;项目&gt;-&lt;标识&gt;/memory/
+├── MEMORY.md        # 索引，一行一条
+└── *.md             # 每条事实一个文件</code></div>
+          <p data-i18n="doc.memory.storage.p2">
+            记忆功能本身不会把这些内容上传到任何地方。因为是普通文件，你随时可以手动打开、编辑或删除；删除对应工作区的记忆目录即可完全重置它的记忆。桌面应用也在「设置 → 记忆」提供已保存工作区记忆的查看器（仅本地桌面端可用）。
+          </p>
+
+          <h2 id="limits" data-i18n="doc.memory.limits.h2">限制与说明</h2>
+          <ul>
+            <li data-i18n="doc.memory.limits.li1">桌面应用默认关闭：按工作流需要在「设置 → 记忆」中开启；独立 CLI 默认启用。</li>
+            <li data-i18n="doc.memory.limits.li2">记忆与 AGENTS.md 是两回事：AGENTS.md 由你手写、放在仓库里跟着代码走；记忆由 Agent 自动提炼、只存在你本机。</li>
+            <li data-i18n="doc.memory.limits.li3">记忆只存本机：与任何 MCP 记忆类工具相互独立，启用与否互不影响。</li>
+            <li data-i18n="doc.memory.limits.li4">复制日志、分享对话或备份数据目录前，应检查接收范围，避免把私人项目内容带出本机。</li>
+          </ul>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>技能与斜杠命令 | Drora 文档</title>
-    <meta name="description" content="技能把可复用工作流打包成一等公民；斜杠命令提供轻量提示词快捷方式，均可在工作区或用户目录自定义。" />
+    <meta name="description" content="技能用 SKILL.md 沉淀可复用的工作说明，斜杠命令保存常用提示词；均可自定义、导入外部 Agent 技能，并通过插件市场分发。" />
     <meta property="og:title" content="技能与斜杠命令 | Drora 文档" />
-    <meta property="og:description" content="技能把可复用工作流打包成一等公民；斜杠命令提供轻量提示词快捷方式，均可在工作区或用户目录自定义。" />
+    <meta property="og:description" content="技能用 SKILL.md 沉淀可复用的工作说明，斜杠命令保存常用提示词；均可自定义、导入外部 Agent 技能，并通过插件市场分发。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -38,32 +38,78 @@
           </div>
           <h1 data-i18n="doc.nav.skills">技能与斜杠命令</h1>
           <p>
-            <span data-i18n="doc.skills.intro">技能（Skill）把可复用的工作说明打包成一等公民，让 Agent 在特定任务上按同一套标准执行；斜杠命令（Command）则提供轻量的提示词快捷方式。两者都可以放在工作区或用户目录中自定义。</span>
+            <span data-i18n="doc.skills.intro">技能（Skill）是一组可复用的工作说明，通常用一个 </span>
+            <code>SKILL.md</code>
+            <span data-i18n="doc.skills.intro.t"> 描述触发场景、处理步骤和输出要求，让 Agent 在遇到特定任务时按同一套标准执行；斜杠命令（Command）则用来快速调用 Drora Agent 的内置能力、保存常用提示词。</span>
           </p>
 
           <h2 id="skills" data-i18n="doc.skills.sub.skills">技能（Skill）</h2>
           <p>
-            <span data-i18n="doc.skills.skills.p1">一个技能就是目录下的一个 </span>
-            <code>SKILL.md</code>
-            <span data-i18n="doc.skills.skills.p1t">：frontmatter 声明名称与触发时机，正文写给模型照做。会话中模型可按描述自行调用，也可以用</span>
-            <code>/skill</code>
-            <span data-i18n="doc.skills.skills.p1t2">强制下一轮先加载指定技能：</span>
+            <span data-i18n="doc.skills.focus.p1">在 Drora 中，建议优先围绕 Drora Agent 沉淀技能：</span>
           </p>
-          <div class="docs-code"><code>/skill                       # 列出当前可发现的技能
-/skill code-review           # 强制加载 code-review 技能
-/skill code-review 审查工作区改动   # 加载技能并附带任务</code></div>
+          <ul>
+            <li data-i18n="doc.skills.focus.li1">Drora Agent：适合在 Drora 内置 Agent 中使用，推荐放项目开发、文档协作、测试验证、飞书工作流等常用能力。</li>
+          </ul>
 
-          <h2 id="skill-anatomy" data-i18n="doc.skills.sub.anatomy">SKILL.md 结构</h2>
+          <h3 id="skill-manage" data-i18n="doc.skills.sub.manageUi">管理技能</h3>
+          <p>
+            <span data-i18n="doc.skills.manageUi.p1">进入「设置 → 技能」后，可以按来源查看技能。列表里会展示技能名称、来源标签、描述和启用开关。</span>
+          </p>
+          <p data-i18n="doc.skills.manageUi.p2">你可以在这里完成几件事：</p>
+          <ul>
+            <li data-i18n="doc.skills.manageUi.li1">通过搜索框按名称筛选技能。</li>
+            <li data-i18n="doc.skills.manageUi.li2">使用右侧开关启用或停用技能。</li>
+            <li data-i18n="doc.skills.manageUi.li3">点击右上角「新建技能」，Drora 会引导你在聊天中用 Agent 生成一个新技能。</li>
+          </ul>
+
+          <h3 id="skill-create" data-i18n="doc.skills.sub.create">创建技能</h3>
+          <p>
+            <span data-i18n="doc.skills.create.p1">一个技能本质上是一个目录加一个 </span>
+            <code>SKILL.md</code>
+            <span data-i18n="doc.skills.create.p1t"> 文件。目录名就是技能名，聊天中也会用这个名字引用。</span>
+          </p>
+          <p data-i18n="doc.skills.create.userDir">Drora Agent 的技能目录按作用域划分：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.scope">作用域</th>
+                <th data-i18n="doc.skills.th.dir">目录</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.skills.ts.project">项目</td>
+                <td><code>.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>.agents/skills/</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.ts.user">用户</td>
+                <td><code>~/.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>~/.agents/skills/</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.ts.plugin">插件 / 内置</td>
+                <td data-i18n="doc.skills.td.plugin">随插件分发（以 插件名:技能名 引用），内置技能如 dynamic-workflows</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.skills.locations.p1">项目作用域不只看当前目录：从工作目录向上到 Git 仓库根的每一层都会扫描，monorepo 的子包可以带自己的技能。同目录下 </span>
+            <code>.drora</code>
+            <span data-i18n="doc.skills.locations.p1t"> 优先于 </span>
+            <code>.agents</code>
+            <span data-i18n="doc.skills.locations.p1t2">，两套目录可以并存。</span>
+          </p>
+          <p data-i18n="doc.skills.create.example">一个最小可用的 SKILL.md 示例：</p>
           <div class="docs-code"><code>---
-name: code-review
-description: 按团队规范审查当前变更
-when_to_use: 用户要求审查代码、diff 或提交时使用
+name: code-review-checklist
+description: Review code changes with a focused checklist for correctness, regressions, tests, and maintainability.
 ---
 
-## 审查步骤
+# Code Review Checklist
 
-1. 先读取相关变更，再逐条给出意见。
-2. 按严重程度分组输出结论。</code></div>
+Use this skill when reviewing a pull request, merge request, or local diff.
+
+Focus on correctness, regressions, missing tests, risky API changes, and maintainability.</code></div>
+          <p data-i18n="doc.skills.create.refresh">创建或修改后，回到「设置 → 技能」点击「刷新」，确认技能出现在对应来源下，并保持开关开启。</p>
           <table class="docs-table">
             <thead>
               <tr>
@@ -94,43 +140,137 @@ when_to_use: 用户要求审查代码、diff 或提交时使用
             <span data-i18n="doc.skills.anatomy.notet2">，缺失或超长的描述会在扫描时报告诊断；正文没有大小写敏感的格式要求，普通 Markdown 即可。</span>
           </div>
 
-          <h2 id="skill-locations" data-i18n="doc.skills.sub.locations">技能存放位置</h2>
-          <table class="docs-table">
-            <thead>
-              <tr>
-                <th data-i18n="doc.skills.th.scope">作用域</th>
-                <th data-i18n="doc.skills.th.dir">目录</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td data-i18n="doc.skills.ts.project">项目</td>
-                <td><code>.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>.agents/skills/</code></td>
-              </tr>
-              <tr>
-                <td data-i18n="doc.skills.ts.user">用户</td>
-                <td><code>~/.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>~/.agents/skills/</code></td>
-              </tr>
-              <tr>
-                <td data-i18n="doc.skills.ts.plugin">插件 / 内置</td>
-                <td data-i18n="doc.skills.td.plugin">随插件分发（以 插件名:技能名 引用），内置技能如 dynamic-workflows</td>
-              </tr>
-            </tbody>
-          </table>
+          <h4 data-i18n="doc.skills.create.h4.format">格式限制</h4>
+          <ul>
+            <li>
+              <span data-i18n="doc.skills.format.li1a">frontmatter 必须包含 </span>
+              <code>name</code>
+              <span data-i18n="doc.skills.format.li1b"> 与 </span>
+              <code>description</code>
+              <span data-i18n="doc.skills.format.li1c">，缺失时该技能会被忽略，并在设置页的诊断里给出原因。</span>
+            </li>
+            <li>
+              <code>description</code>
+              <span data-i18n="doc.skills.format.li2"> 上限 1024 字符。超出后整个技能会被丢弃（诊断显示「description 超过 1024 字符」），不是截断——请把长说明放进正文。</span>
+            </li>
+            <li>
+              <code>SKILL.md</code>
+              <span data-i18n="doc.skills.format.li3"> 正文超过 100KB 时会被截断加载。</span>
+            </li>
+          </ul>
+
+          <h4 data-i18n="doc.skills.create.h4.budget">技能数量与上下文占用</h4>
+          <p data-i18n="doc.skills.budget.p1">每轮对话会把所有已启用技能的元数据（名称 + 描述摘要，单条描述最多 250 字符）注入模型上下文，正文只在技能被调用时按需加载。全部技能的元数据共享一个固定预算：安装大量技能导致超出预算时，注入会降级为只保留技能名，模型将难以判断何时该用哪个技能，自动触发率会明显下降。建议只启用常用技能——停用的技能不注入上下文、也不能被调用。</p>
+
+          <h4 data-i18n="doc.skills.create.h4.troubleshoot">「/ 面板里能看到，模型却不主动用」排查</h4>
+          <p data-i18n="doc.skills.trouble.p1">「/」面板与模型看到的是同一份技能清单，不存在「只给面板、不给模型」的开关。技能在面板可见但模型不主动调用时，按以下顺序排查：</p>
+          <ol>
+            <li data-i18n="doc.skills.trouble.li1">元数据被降级：技能装得太多、超出上述预算后，模型只能看到技能名（描述丢失），自动触发率骤降——停用不常用的技能即可恢复。</li>
+            <li>
+              <code>description</code>
+              <span data-i18n="doc.skills.trouble.li2"> 没有写清「什么时候用」，模型无从判断。触发条件写得越具体，自动触发越可靠。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.skills.trouble.li3a">在子智能体里：子智能体定义文件若声明了自定义 </span>
+              <code>tools</code>
+              <span data-i18n="doc.skills.trouble.li3b"> 白名单，技能工具可能不在允许列表内，子智能体便无法调用任何技能——删掉 </span>
+              <code>tools</code>
+              <span data-i18n="doc.skills.trouble.li3c"> 字段或把技能工具加入白名单。</span>
+            </li>
+            <li data-i18n="doc.skills.trouble.li4">所属插件被停用：插件停用后其技能立即从会话移除，面板列表刷新可能略有延迟。</li>
+          </ol>
+
+          <h4 data-i18n="doc.skills.create.h4.distribute">分发技能</h4>
           <p>
-            <span data-i18n="doc.skills.locations.p1">项目作用域不只看当前目录：从工作目录向上到 Git 仓库根的每一层都会扫描，monorepo 的子包可以带自己的技能。同目录下 </span>
-            <code>.drora</code>
-            <span data-i18n="doc.skills.locations.p1t"> 优先于 </span>
-            <code>.agents</code>
-            <span data-i18n="doc.skills.locations.p1t2">，两套目录可以并存。</span>
+            <span data-i18n="doc.skills.distribute.p1a">Drora 没有独立的技能市场。想把一组技能分发给团队，可以把它们打包成</span>
+            <a href="mcp.html#plugins" data-i18n="doc.skills.distribute.plugin">插件</a>
+            <span data-i18n="doc.skills.distribute.p1b">（skills/&lt;技能名&gt;/SKILL.md 的单层目录结构），通过插件市场分发——插件市场支持自建源（GitHub 仓库、git URL 或本地目录）。注意插件内的技能必须放在单层目录下，嵌套分组目录里的技能不会被 Agent 识别。</span>
           </p>
 
-          <h2 id="commands" data-i18n="doc.skills.sub.commands">内置斜杠命令</h2>
+          <h3 id="skill-import" data-i18n="doc.skills.sub.importUi">从外部 Agent 导入技能</h3>
+          <p data-i18n="doc.skills.importUi.p1">如果你已经在 Claude Code、Codex CLI、OpenClaw、Augment、Windsurf 等其他 AI 编程工具里维护了技能，不必在 Drora 里重新创建。在「设置 → 技能」页面右上角点击「导入」，Drora 会自动扫描这些外部 Agent 的技能目录，列出可一键导入的技能。</p>
+          <p data-i18n="doc.skills.importUi.p2">在弹窗中可以：</p>
+          <ul>
+            <li data-i18n="doc.skills.importUi.li1">按外部 Agent 分组查看检测到的技能，每个来源会显示对应的技能目录路径和可导入数量。</li>
+            <li data-i18n="doc.skills.importUi.li2">勾选需要的技能，或使用「全选」批量选择，顶部会实时显示已选数量。</li>
+            <li>
+              <span data-i18n="doc.skills.importUi.li3">选择「导入方式」：</span>
+              <ul>
+                <li data-i18n="doc.skills.importUi.li3a">软链：创建指向外部技能目录的链接。Drora 会跟随来源目录的后续变更，但该技能依赖来源路径持续可用。</li>
+                <li data-i18n="doc.skills.importUi.li3b">复制：把技能复制成 Drora 内的独立副本，与来源解耦，来源后续的修改不会再同步过来。</li>
+              </ul>
+            </li>
+            <li data-i18n="doc.skills.importUi.li4">选择「导入目标」：导入到「全局」（用户级，所有工作区可用）或导入到当前「项目」（仅当前工作区可用）。</li>
+          </ul>
           <p>
-            <span data-i18n="doc.skills.commands.p1">输入 </span>
-            <code>/</code>
-            <span data-i18n="doc.skills.commands.p1t"> 可查看全部可用命令；内置命令覆盖会话、模型、权限与工作流管理：</span>
+            <span data-i18n="doc.skills.importUi.p3">确认后即可完成导入。导入的技能会出现在技能列表中，和自建技能一样可以启用、停用，并在聊天中通过 </span>
+            <code>$skill-name</code>
+            <span data-i18n="doc.skills.importUi.p3t"> 调用。</span>
           </p>
+
+          <h3 id="skill-chat" data-i18n="doc.skills.sub.chat">在聊天中使用</h3>
+          <p>
+            <span data-i18n="doc.skills.chat.p1a">在输入框中输入 </span>
+            <code>$</code>
+            <span data-i18n="doc.skills.chat.p1b">，选择需要的技能。选中后，技能会以标签形式出现在输入框里，你可以继续补充具体需求。</span>
+          </p>
+          <div class="docs-code"><code>$code-review-checklist 帮我 review 当前改动
+$release-notes 根据这次提交写一版发版说明</code></div>
+          <p data-i18n="doc.skills.chat.p2">Drora 会把被引用的技能交给当前 Agent，让它按技能里的说明处理任务。</p>
+          <p>
+            <span data-i18n="doc.skills.chat.p3a">除了 </span>
+            <code>$</code>
+            <span data-i18n="doc.skills.chat.p3b">，斜杠菜单里也有「技能」分组，输入 </span>
+            <code>/</code>
+            <span data-i18n="doc.skills.chat.p3c"> 后同样能找到它们。</span>
+          </p>
+
+          <h3 id="skill-guide" data-i18n="doc.skills.sub.guide">内置的配置向导技能</h3>
+          <p>
+            <span data-i18n="doc.skills.guide.p1a">Drora 自带一个 </span>
+            <code>drora-configuration-guide</code>
+            <span data-i18n="doc.skills.guide.p1b"> 技能，随应用安装、默认启用，不用自己配。它把技能、命令、MCP、Hooks、插件和 </span>
+            <code>AGENTS.md</code>
+            <span data-i18n="doc.skills.guide.p1c"> 这六类扩展的配置位置、作用域和冲突规则整理在一处：</span>
+          </p>
+          <div class="docs-code"><code>$drora-configuration-guide 我想给这个项目加一个只在本仓库生效的命令，该放哪</code></div>
+          <p data-i18n="doc.skills.guide.p2">配套还有几个诊断技能，专门排查扩展不生效的问题——技能没被识别、命令调不出来、MCP 连不上、Hooks 没触发、插件装不上，都可以让 Agent 帮你从症状一路查到修复办法。</p>
+
+          <h3 id="skill-sync" data-i18n="doc.skills.sub.sync">把技能同步到远程主机</h3>
+          <p>
+            <span data-i18n="doc.skills.sync.p1">用户级技能存在本机，远程工作区里的 Agent 默认看不到它们。连上 SSH 或 WSL 远程后，可以在工作区标题栏的「同步」下拉里选择「同步 Skill」，把它们复制到远端。详见</span>
+            <a href="remote-dev.html#sync" data-i18n="doc.nav.remoteDev">远程开发</a>
+            <span data-i18n="doc.skills.sync.p2">的「把本地配置同步到远端」。</span>
+          </p>
+
+          <h3 id="skill-what" data-i18n="doc.skills.sub.what">适合沉淀成 Skill 的内容</h3>
+          <ul>
+            <li data-i18n="doc.skills.what.li1">任务有固定流程，例如 code review、接口排查、发版说明、测试报告。</li>
+            <li data-i18n="doc.skills.what.li2">团队对输出格式有固定要求。</li>
+            <li data-i18n="doc.skills.what.li3">任务需要附带背景知识、检查清单、模板或示例。</li>
+            <li data-i18n="doc.skills.what.li4">同一个能力会在多个项目或多次对话里重复使用。</li>
+          </ul>
+          <p data-i18n="doc.skills.what.p1">如果只是保存一句简单提示词，可以优先使用 Command；如果需要一套完整工作方法，就更适合做成 Skill。</p>
+
+          <h2 id="commands" data-i18n="doc.skills.sub.commands">斜杠命令（Command）</h2>
+          <p>
+            <span data-i18n="doc.skills.cmdsec.p1a">Command 用来快速调用 Drora Agent 的内置能力，也可以保存常用提示词。把重复使用的代码审查、提交说明、发布检查、文件解释等提示词保存成命令后，就可以在输入框里通过 </span>
+            <code>/</code>
+            <span data-i18n="doc.skills.cmdsec.p1b"> 快速调用。</span>
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-skill-invoke.webp" alt="在聊天中调用 Skill" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-skill-import-external.png" alt="导入外部 Agent 技能" loading="lazy" /></figure>
+          <p data-i18n="doc.skills.cmdsec.p2">Command 围绕 Drora Agent 工作流设计。日常在 Drora 里使用时，可以把团队反复使用的任务提示词沉淀成命令，让自研 Agent 更稳定地执行固定流程。</p>
+
+          <h3 id="command-use" data-i18n="doc.skills.sub.cmdUse">在 Drora Agent 中使用</h3>
+          <ol>
+            <li>
+              <span data-i18n="doc.skills.cmduse.li1a">在输入框输入 </span>
+              <code>/</code>
+              <span data-i18n="doc.skills.cmduse.li1b">，打开命令面板。面板分为「命令」和「技能」两个分组，可以继续输入关键字筛选。</span>
+            </li>
+            <li data-i18n="doc.skills.cmduse.li2">选择要使用的命令，或继续输入命令名进行筛选。</li>
+            <li data-i18n="doc.skills.cmduse.li3">如果命令需要参数，可以在命令后继续补充路径、模块名或说明。</li>
+          </ol>
+          <p data-i18n="doc.skills.cmdsec.builtinP">Drora Agent 内置的命令覆盖会话、模型、权限与工作流管理：</p>
           <table class="docs-table">
             <thead>
               <tr>
@@ -160,22 +300,60 @@ when_to_use: 用户要求审查代码、diff 或提交时使用
               <tr><td><code>/workflow [&lt;task&gt;]</code></td><td data-i18n="doc.skills.cmd.workflow">为任务设计并启动 dynamic workflow</td></tr>
             </tbody>
           </table>
-
-          <h2 id="custom-commands" data-i18n="doc.skills.sub.custom">自定义命令</h2>
           <p>
-            <span data-i18n="doc.skills.custom.p1">把常用提示词保存为 </span>
-            <code>命令名.md</code>
-            <span data-i18n="doc.skills.custom.p1t"> 文件，放在项目 </span>
-            <code>.drora/commands/</code>
-            <span data-i18n="doc.skills.custom.or"> 或 </span>
-            <code>.agents/commands/</code>
-            <span data-i18n="doc.skills.custom.p1t2">（用户级为 </span>
-            <code>~/.drora/commands/</code>
-            <span data-i18n="doc.skills.custom.and"> 与 </span>
-            <code>~/.agents/commands/</code>
-            <span data-i18n="doc.skills.custom.p1t3">），输入 </span>
+            <span data-i18n="doc.skills.cmdsec.egA">例如，在长任务中可以用 </span>
+            <code>/compact</code>
+            <span data-i18n="doc.skills.cmdsec.egB"> 整理上下文；需要让 Agent 围绕一个长期目标持续推进时，可以用 </span>
+            <code>/goal</code>
+            <span data-i18n="doc.skills.cmdsec.egC"> 设置目标。需要调用技能时，使用 </span>
+            <code>$</code>
+            <span data-i18n="doc.skills.cmdsec.egD"> 或在 </span>
             <code>/</code>
-            <span data-i18n="doc.skills.custom.p1t4"> 时即可选用：</span>
+            <span data-i18n="doc.skills.cmdsec.egE"> 面板的「技能」分组中选择。</span>
+          </p>
+
+          <h3 id="command-new" data-i18n="doc.skills.sub.cmdNew">新建 Command</h3>
+          <p data-i18n="doc.skills.cmdnew.p1">在 Drora 设置中进入「命令」页面，点击「新建命令」后填写以下内容：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.fm2">字段</th>
+                <th data-i18n="doc.skills.th.fm2desc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.skills.cmdnew.td1">作用域</td>
+                <td data-i18n="doc.skills.cmdnew.td2">选择「用户」（所有工作区可用）或「工作区」（仅当前项目可用）</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.cmdnew.td3">名称</td>
+                <td data-i18n="doc.skills.cmdnew.td4">命令名称，保存后可通过 /command-name 调用</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.cmdnew.td5">描述</td>
+                <td data-i18n="doc.skills.cmdnew.td6">可选，显示在命令选择器中的简短说明</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.cmdnew.td7">参数提示</td>
+                <td data-i18n="doc.skills.cmdnew.td8">可选，用来提示参数格式，例如 &lt;file-path&gt;</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.cmdnew.td9">提示词</td>
+                <td data-i18n="doc.skills.cmdnew.td10">命令真正发送给 Agent 的提示词内容</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.skills.cmdnew.p2a">自定义命令以 </span>
+            <code>.md</code>
+            <span data-i18n="doc.skills.cmdnew.p2b"> 文件形式保存在用户级 </span>
+            <code>~/.drora/commands/</code>
+            <span data-i18n="doc.skills.cmdnew.p2c">（兼容 </span>
+            <code>~/.agents/commands/</code>
+            <span data-i18n="doc.skills.cmdnew.p2d">），工作区级命令保存在项目的 </span>
+            <code>.drora/commands/</code>
+            <span data-i18n="doc.skills.cmdnew.p2e">（兼容 .agents/commands/）。保存后在任务输入框中通过 /command-name 即可调用：</span>
           </p>
           <div class="docs-code"><code>---
 description: 生成符合约定的提交信息
@@ -224,7 +402,23 @@ argument-hint: [补充要求]
             <span data-i18n="doc.skills.custom.argsShell"> 的动态 shell 展开暂不支持，会在展开时报错。</span>
           </p>
 
-          <h2 id="manage" data-i18n="doc.skills.sub.manage">管理与检查</h2>
+          <h3 id="command-import" data-i18n="doc.skills.sub.cmdImport">从外部 Agent 导入命令</h3>
+          <p data-i18n="doc.skills.cmdimport.p1">如果你已经在 Claude Code 等外部 Agent 中维护了一批命令，不需要在 Drora 里重新创建。在「命令」页面右上角点击「从外部 Agent 导入命令」，即可把外部 Agent 已有的命令直接导入到 Drora 中。</p>
+          <ol>
+            <li data-i18n="doc.skills.cmdimport.li1">在 Drora 设置中进入「命令」页面。</li>
+            <li data-i18n="doc.skills.cmdimport.li2">点击右上角的「从外部 Agent 导入命令」。</li>
+            <li data-i18n="doc.skills.cmdimport.li3">选择要导入的外部 Agent 命令，确认后即可导入到 Drora。</li>
+          </ol>
+          <p>
+            <span data-i18n="doc.skills.cmdimport.p2a">导入后的命令会和自建命令一样保存在命令列表中，通过 </span>
+            <code>/command-name</code>
+            <span data-i18n="doc.skills.cmdimport.p2b"> 调用；你也可以在 Drora 内继续修改名称、描述、参数提示或提示词内容。</span>
+          </p>
+
+          <h3 id="command-tips" data-i18n="doc.skills.sub.cmdTips">使用建议</h3>
+          <p data-i18n="doc.skills.cmdtips.p1">如果只是保存一段简单提示词，使用 Command 即可；如果流程需要脚本、模板或示例文件，可以考虑使用 Skill。</p>
+
+          <h3 id="manage" data-i18n="doc.skills.sub.manage">管理与检查</h3>
           <div class="docs-code"><code>drora skills list                  # 列出当前可发现的技能
 drora skills inspect &lt;name&gt;       # 查看技能元数据与正文
 drora commands list                # 列出自定义命令
@@ -235,7 +429,15 @@ drora commands inspect &lt;name&gt;     # 查看命令正文与参数展开</cod
             <span data-i18n="doc.skills.manage.p1t"> 输出结构化结果；把技能与命令同步到远程环境的方法见</span>
             <a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.dot">。</span>
           </p>
-        </article>
+
+          <h2 id="related" data-i18n="doc.skills.sub.related">相关页面</h2>
+          <p>
+            <span data-i18n="doc.skills.related.p1a">技能与命令的调用方是 Drora Agent，见</span>
+            <a href="agents.html" data-i18n="doc.nav.agent">Drora Agent</a>
+            <span data-i18n="doc.skills.related.p1b">；把技能与命令同步到远程工作区的方法，见</span>
+            <a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.dot">。</span>
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-command-import-external.webp" alt="从外部 Agent 导入命令" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-command-create-form.webp" alt="新建命令" loading="lazy" /></figure>
+        <figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-command-picker.webp" alt="ZCode Agent 调用命令" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260613-skill-list.webp" alt="ZCode Agent 技能列表" loading="lazy" /></figure></article>
 
         <aside class="docs-toc" id="docsToc">
           <p data-i18n="doc.toc">本页目录</p>

@@ -38,7 +38,7 @@
           </div>
           <h1 data-i18n="doc.nav.shortcuts">快捷键表</h1>
           <p data-i18n="doc.keys.p1">
-            这里保留的是 Drora 桌面端最常用、最值得记住的快捷键。下表中 Windows / Linux 列使用 Ctrl，macOS 列使用 Command；全部快捷键都可以在「设置 → 键盘快捷键」里查看和修改。
+            这里保留的是 Drora 桌面端最常用、最值得记住的快捷键。我们优先整理和任务流、聊天输入、日常高频操作直接相关的内容，不把系统原生菜单里的低频项全部堆上来。下表中 Windows / Linux 列使用 Ctrl，macOS 列使用 Command；全部快捷键都可以在「设置 → 键盘快捷键」里查看和修改。
           </p>
 
           <h2 id="global" data-i18n="doc.keys.global.h2">全局操作</h2>
@@ -52,29 +52,14 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>Ctrl+K</code> / <code>Ctrl+Shift+P</code></td>
-                <td><code>Command+K</code> / <code>Command+Shift+P</code></td>
-                <td data-i18n="doc.keys.global.r1">打开命令中心</td>
-              </tr>
-              <tr>
-                <td><code>Ctrl+,</code></td>
-                <td><code>Command+,</code></td>
-                <td data-i18n="doc.keys.global.r2">打开设置</td>
-              </tr>
-              <tr>
-                <td><code>Ctrl+F</code></td>
-                <td><code>Command+F</code></td>
-                <td data-i18n="doc.keys.global.r3">任务内查找</td>
+                <td><code>Ctrl+N</code></td>
+                <td><code>Command+N</code></td>
+                <td data-i18n="doc.keys.menu.r1">新建任务</td>
               </tr>
               <tr>
                 <td><code>Ctrl+B</code></td>
                 <td><code>Command+B</code></td>
-                <td data-i18n="doc.keys.global.r4">切换左侧栏</td>
-              </tr>
-              <tr>
-                <td><code>Ctrl+Alt+B</code></td>
-                <td><code>Option+Command+B</code></td>
-                <td data-i18n="doc.keys.global.r5">切换右侧面板</td>
+                <td data-i18n="doc.keys.global.r4">切换侧栏</td>
               </tr>
               <tr>
                 <td><code>Ctrl+J</code></td>
@@ -82,24 +67,29 @@
                 <td data-i18n="doc.keys.global.r6">切换终端面板</td>
               </tr>
               <tr>
-                <td><code>Ctrl+Shift+L</code></td>
-                <td><code>Command+Shift+L</code></td>
-                <td data-i18n="doc.keys.global.r7">切换深色 / 浅色主题</td>
+                <td><code>Ctrl+Alt+B</code></td>
+                <td><code>Option+Command+B</code></td>
+                <td data-i18n="doc.keys.global.r5">切换右侧面板</td>
               </tr>
               <tr>
-                <td><code>Ctrl+Shift+U</code></td>
-                <td><code>Command+Shift+U</code></td>
-                <td data-i18n="doc.keys.global.r8">切换编程 / 办公模式</td>
+                <td><code>Ctrl+K</code> / <code>Ctrl+Shift+P</code></td>
+                <td><code>Command+K</code> / <code>Command+Shift+P</code></td>
+                <td data-i18n="doc.keys.global.r1">打开命令中心</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl+F</code></td>
+                <td><code>Command+F</code></td>
+                <td data-i18n="doc.keys.global.r3">任务内查找</td>
               </tr>
               <tr>
                 <td><code>Ctrl+[</code></td>
                 <td><code>Command+[</code></td>
-                <td data-i18n="doc.keys.global.r9">后退</td>
+                <td data-i18n="doc.keys.global.r9">后退到上一个任务或工作区</td>
               </tr>
               <tr>
                 <td><code>Ctrl+]</code></td>
                 <td><code>Command+]</code></td>
-                <td data-i18n="doc.keys.global.r10">前进</td>
+                <td data-i18n="doc.keys.global.r10">前进到下一个任务或工作区</td>
               </tr>
               <tr>
                 <td><code>Ctrl+Shift+[</code></td>
@@ -110,6 +100,21 @@
                 <td><code>Ctrl+Shift+]</code></td>
                 <td><code>Command+Shift+]</code></td>
                 <td data-i18n="doc.keys.global.r12">切换到下一个任务</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl+,</code></td>
+                <td><code>Command+,</code></td>
+                <td data-i18n="doc.keys.global.r2">打开设置</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl+Shift+L</code></td>
+                <td><code>Command+Shift+L</code></td>
+                <td data-i18n="doc.keys.global.r7">切换深色 / 浅色主题</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl+Shift+U</code></td>
+                <td><code>Command+Shift+U</code></td>
+                <td data-i18n="doc.keys.global.r8">切换编程 / 办公模式</td>
               </tr>
               <tr>
                 <td><code>Ctrl+Shift+O</code></td>
@@ -130,16 +135,6 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>Enter</code></td>
-                <td><code>Enter</code></td>
-                <td data-i18n="doc.keys.composer.r1">发送消息</td>
-              </tr>
-              <tr>
-                <td><code>Shift+Enter</code></td>
-                <td><code>Shift+Enter</code></td>
-                <td data-i18n="doc.keys.composer.r2">输入框内换行</td>
-              </tr>
-              <tr>
                 <td><code>Ctrl+M</code></td>
                 <td><code>Ctrl+M</code></td>
                 <td data-i18n="doc.keys.composer.r3">打开模型菜单</td>
@@ -152,12 +147,37 @@
               <tr>
                 <td><code>Ctrl+T</code></td>
                 <td><code>Ctrl+T</code></td>
-                <td data-i18n="doc.keys.composer.r5">切换推理强度</td>
+                <td data-i18n="doc.keys.composer.r5">切换思考深度</td>
+              </tr>
+              <tr>
+                <td><code>↑ / ↓</code></td>
+                <td><code>↑ / ↓</code></td>
+                <td data-i18n="doc.keys.composer.r6">在 Slash 或 Mention 面板中切换选项</td>
+              </tr>
+              <tr>
+                <td><code>Enter / Tab</code></td>
+                <td><code>Enter / Tab</code></td>
+                <td data-i18n="doc.keys.composer.r7">选中当前高亮项</td>
+              </tr>
+              <tr>
+                <td><code>Esc</code></td>
+                <td><code>Esc</code></td>
+                <td data-i18n="doc.keys.composer.r8">关闭当前面板或菜单</td>
+              </tr>
+              <tr>
+                <td><code>Enter</code></td>
+                <td><code>Enter</code></td>
+                <td data-i18n="doc.keys.composer.r1">发送消息</td>
+              </tr>
+              <tr>
+                <td><code>Shift+Enter</code></td>
+                <td><code>Shift+Enter</code></td>
+                <td data-i18n="doc.keys.composer.r2">输入框内换行</td>
               </tr>
             </tbody>
           </table>
           <p data-i18n="doc.keys.composer.p1">
-            模型菜单、执行模式与推理强度三组工具条快捷键使用显式 Ctrl 修饰，在 macOS 上同样是 Ctrl 键。输入框内还支持 @、#、/、$ 触发符唤起补全面板，用上下键与 Enter 选中候选。
+            模型菜单、执行模式与思考深度三组工具条快捷键使用显式 Ctrl 修饰，在 macOS 上同样是 Ctrl 键。输入框内还支持 @、#、/、$ 触发符唤起补全面板，用上下键与 Enter 选中候选。
           </p>
 
           <h2 id="menu" data-i18n="doc.keys.menu.h2">桌面菜单</h2>
@@ -170,11 +190,6 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td><code>Ctrl+N</code></td>
-                <td><code>Command+N</code></td>
-                <td data-i18n="doc.keys.menu.r1">新建任务</td>
-              </tr>
               <tr>
                 <td><code>Ctrl+O</code></td>
                 <td><code>Command+O</code></td>

@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>会话与编辑历史 | Drora 文档</title>
-    <meta name="description" content="编辑已发送的消息、重置对话与文件、编辑队列消息、撤销 Agent 改过的文件，以及分叉会话与恢复中断任务。" />
+    <meta name="description" content="编辑已发送的消息、连同文件一起重置、编辑队列中的消息、撤销 Agent 改过的文件。" />
     <meta property="og:title" content="会话与编辑历史 | Drora 文档" />
-    <meta property="og:description" content="编辑已发送的消息、重置对话与文件、编辑队列消息、撤销 Agent 改过的文件，以及分叉会话与恢复中断任务。" />
+    <meta property="og:description" content="编辑已发送的消息、连同文件一起重置、编辑队列中的消息、撤销 Agent 改过的文件。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,62 +37,113 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.sessions">会话与编辑历史</h1>
-          <p data-i18n="doc.sessions.lead">
-            每个会话都保留完整的历史记录：消息、工具调用与文件改动可回放查看，关键节点有检查点兜底。发现前面的指令写错了，不必重开任务——直接编辑已发送的消息，或把这一轮连同文件改动一起重置；Agent 改过的文件也可以随时撤销。中断的任务可从任务列表恢复，接着上次的进度继续。
+          <p data-i18n="doc.sessions.p1">
+            编辑历史对话用于修正已经发送给 Drora Agent 的消息。当你发现前一条指令写得不够准确、缺少文件路径、需要补充约束，或想调整任务方向时，可以直接编辑原消息，让
+            Agent 按新的上下文重新理解任务，而不用重新创建任务。
+          </p>
+          <p data-i18n="doc.sessions.p2">
+            这对长任务尤其有用：你可以保留当前任务里的模型、工作区、分支和上下文，只修改关键指令，让后续执行围绕更新后的目标继续推进。
           </p>
 
-          <h2 id="edit" data-i18n="doc.sessions.sub.edit">编辑已发送的消息</h2>
-          <p data-i18n="doc.sessions.editEntry">
-            在对话记录中把鼠标悬停在自己发送过的消息上，消息右侧会出现快捷操作区：铅笔图标是「编辑」入口，旁边保留复制等常用操作。
+          <h2 id="entry" data-i18n="doc.sessions.entry.h">找到编辑入口</h2>
+          <p data-i18n="doc.sessions.entry.p1">
+            在对话历史记录中，将鼠标悬停在自己发送过的消息上。消息右侧会显示快捷操作区，其中铅笔图标就是编辑入口；旁边也会保留复制等常用操作。
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-edit-history-entry.webp" alt="ZCode 编辑历史入口" loading="lazy" /></figure>
+          <h3 data-i18n="doc.sessions.entry.traits.h">入口特点</h3>
+          <ul>
+            <li>
+              <strong data-i18n="doc.sessions.entry.t1a">只出现在用户消息上</strong>
+              <span data-i18n="doc.sessions.entry.t1b">：编辑入口用于修改你已经发送的指令，不会影响 Agent 的回复内容本身。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.entry.t2a">作用于最近一轮</strong>
+              <span data-i18n="doc.sessions.entry.t2b">：当前可编辑的是最后一轮的用户消息，任务运行中或有排队消息时暂不可编辑。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.entry.t3a">适合快速纠偏</strong>
+              <span data-i18n="doc.sessions.entry.t3b">：发现目标、路径或约束有误时，不需要重新开一个任务。</span>
+            </li>
+          </ul>
+
+          <h2 id="edit" data-i18n="doc.sessions.edit.h">编辑并重新发送</h2>
+          <p>
+            <span data-i18n="doc.sessions.edit.p1.a">点击编辑按钮后，原消息会展开为可编辑输入框。你可以直接改写文字，也可以继续使用</span>
+            <code>@</code>
+            <span data-i18n="doc.sessions.edit.p1.b">引用文件、使用</span>
+            <code>/</code>
+            <span data-i18n="doc.sessions.edit.p1.c">插入命令。确认无误后点击发送，Drora Agent
+            会按更新后的消息继续处理任务；如果不想保留修改，点击取消即可退出编辑状态。</span>
+          </p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/zcode-docs-20260612-edit-history-editing.webp" alt="ZCode 编辑历史状态" loading="lazy" /></figure>
+          <h3 data-i18n="doc.sessions.edit.logic.h">操作逻辑</h3>
+          <ol>
+            <li>
+              <strong data-i18n="doc.sessions.edit.s1a">进入编辑</strong>
+              <span data-i18n="doc.sessions.edit.s1b">：点击用户消息右侧的铅笔图标。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.edit.s2a">修改内容</strong>
+              <span data-i18n="doc.sessions.edit.s2b">：在展开的输入框里调整原始指令，补充文件、路径、目标或限制条件。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.edit.s3a">提交或取消</strong>
+              <span data-i18n="doc.sessions.edit.s3b">：点击发送让 Agent 基于新指令继续推进；点击取消则保留原消息不变。</span>
+            </li>
+          </ol>
+          <h3 data-i18n="doc.sessions.reset.h">连同文件一起重置</h3>
+          <p data-i18n="doc.sessions.reset.p1">
+            如果上一轮不只是说错了话，Agent 还已经按错误的理解改了文件，编辑器里的「对话 + 文件重置」会同时做两件事：把这一轮改动过的文件恢复原样，再用你改后的消息重新发送。
           </p>
-          <p data-i18n="doc.sessions.editTrait1">
-            编辑只出现在用户消息上：你修改的是自己发出的指令，不会改动 Agent 的回复内容本身。
+          <p data-i18n="doc.sessions.reset.p2">
+            万一有文件无法安全恢复（比如你在此期间手动改过它），Drora 会提示「文件无法安全重置」，你可以选择「仅重置对话并发送」。任务正在运行、正在压缩上下文，或者本轮压根没有可恢复的文件改动时，这个按钮不可用。
+          </p>
+
+          <h2 id="queue" data-i18n="doc.sessions.queue.h">修改待发送的消息</h2>
+          <p data-i18n="doc.sessions.queue.p1">
+            Agent 还在回复时你就接着输入，这些内容会先进入待发送消息队列。发出去之前发现写错了，把鼠标移到队列面板里那一条上，点「编辑」。
+          </p>
+          <p data-i18n="doc.sessions.queue.p2">
+            它的行为和「编辑历史对话」不同：不是在队列里原地改字，而是把整条内容连同附件一起退回输入框，该条从队列中移除，你改完重新发送。
           </p>
           <p>
-            <span data-i18n="doc.sessions.editTrait2">
-            发送修改后，Agent 会回退截断这一轮，再按你改后的文本重新执行；原消息携带的附件默认保留，无需重新上传。
-            </span>
-          </p>
-          <p data-i18n="doc.sessions.editTrait3">
-            这对长任务尤其有用：保留当前任务里的模型、工作区与上下文，只修正关键指令——目标、路径或约束写错时，不需要重新创建任务。
-          </p>
-          <h3 data-i18n="doc.sessions.sub.resetFiles">连同文件一起重置</h3>
-          <p data-i18n="doc.sessions.resetFiles">
-            如果上一轮不只说错了话，Agent 还按错误的理解改了文件，编辑时的「对话 + 文件重置」会同时做两件事：先恢复这一轮改动过的文件，再用你改后的消息重新发送。
-          </p>
-          <p data-i18n="doc.sessions.resetFilesLimit">
-            任务正在运行、正在压缩上下文或有待处理交互时，这个入口不可用。若有文件无法安全恢复（比如你在此期间手动改过它），会提示「文件无法安全重置」，此时可以选择「仅重置对话并发送」。
+            <span data-i18n="doc.sessions.queue.p3.a">两个前提：输入框里不能已经有草稿或正在上传的附件，否则会提示你先发送或清空；</span>
+            <code>/compact</code>
+            <span data-i18n="doc.sessions.queue.p3.b">这类压缩指令排在队列里时没有编辑入口，只能立即执行或删除。</span>
           </p>
 
-          <h2 id="queue" data-i18n="doc.sessions.sub.queue">编辑队列中的消息</h2>
-          <p data-i18n="doc.sessions.queue1">
-            Agent 还在回复时你接着输入的内容会先进入队列，按顺序依次发送。发出前发现写错了，把鼠标移到队列面板里的那一条上点「编辑」：整条内容会退回输入框（该条从队列中移除），改完重新发送。
+          <h2 id="undo" data-i18n="doc.sessions.undo.h">撤销 Agent 改过的文件</h2>
+          <p data-i18n="doc.sessions.undo.p1">
+            每轮回复下方的文件变更摘要里有「撤销」按钮，点击后会弹出确认窗口，先告诉你这一轮里哪些文件可以安全撤销、哪些不能、哪些会被忽略，确认后才真正写回。撤销之后按钮变成「重新应用」，可以再改回去。
           </p>
-          <p data-i18n="doc.sessions.queue2">
-            一个前提：输入框里已经有草稿时，需要先发送或清空草稿，再编辑队列消息。队列因中断或出错暂停后，内容不会丢失，点「继续」即可恢复按顺序发送。
+          <p>
+            <span data-i18n="doc.sessions.undo.p2">这里有一条重要规则：</span>
+            <strong data-i18n="doc.sessions.undo.p2b">要么全撤，要么都不撤</strong>
+            <span data-i18n="doc.sessions.undo.p2c">。只要其中一个文件没法安全还原，Drora
+            就一个都不动，不会让你落到改了一半的状态。</span>
           </p>
-
-          <h2 id="undo" data-i18n="doc.sessions.sub.undo">撤销 Agent 改过的文件</h2>
-          <p data-i18n="doc.sessions.undo1">
-            每轮回复下方的文件变更摘要里有「撤销」按钮。点击后会先弹出确认窗口，列出这一轮里哪些文件可以安全撤销、哪些不能、哪些会被忽略，确认后才真正写回。撤销之后按钮变成「重新应用」，可以再改回去。
-          </p>
-          <p data-i18n="doc.sessions.undoAll">
-            这里有一条重要规则：要么全撤，要么不动。只要其中有一个文件无法安全还原，就不会写入任何文件，不会让你落到改了一半的状态。
-          </p>
-          <p data-i18n="doc.sessions.undoLimit">
-            有几类改动无法从这里撤销：由终端命令造成的文件改动会被直接忽略，需要你用 Git 处理；没有检查点记录、已被外部修改或无法读取的文件，也会被归入「不能安全撤销」。
+          <p data-i18n="doc.sessions.undo.p3">
+            有三类改动没法从这里撤销：Drora 没有留下改动前内容的文件、你在此期间手动编辑过的文件，以及由终端命令造成的改动（这类会被直接忽略，需要你自己用
+            Git 处理）。
           </p>
 
-          <h2 id="fork" data-i18n="doc.sessions.sub.fork">分叉会话</h2>
-          <p data-i18n="doc.sessions.fork1">
-            助手消息的操作区有「分叉」入口：从对话中的这个位置复制出一个新任务。分叉只复制对话内容，原任务的运行状态与工作区文件都不受影响，适合想从某一步换个方向重试的场景。任务结束后才能分叉。
-          </p>
-
-          <h2 id="scenarios" data-i18n="doc.sessions.sub.scenarios">使用场景</h2>
-          <p data-i18n="doc.sessions.sc1">修正需求表达：发现前一条指令写错、遗漏目标或描述不够清楚。</p>
-          <p data-i18n="doc.sessions.sc2">补充关键上下文：追加文件路径、错误日志、约束条件等信息。</p>
-          <p data-i18n="doc.sessions.sc3">调整任务方向：让 Agent 从「分析问题」改为「直接修复」，或从「实现功能」改为「先给方案」。</p>
-          <p data-i18n="doc.sessions.sc4">减少重复对话：避免重新解释整段背景，让任务在同一个上下文里继续前进。</p>
+          <h2 id="scenarios" data-i18n="doc.sessions.scenarios.h">使用场景</h2>
+          <ul>
+            <li>
+              <strong data-i18n="doc.sessions.sc1a">修正需求表达</strong>
+              <span data-i18n="doc.sessions.sc1b">：发现前一条指令写错、遗漏目标或描述不够清楚。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.sc2a">补充关键上下文</strong>
+              <span data-i18n="doc.sessions.sc2b">：追加文件路径、错误日志、截图说明、接口参数等信息。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.sc3a">调整任务方向</strong>
+              <span data-i18n="doc.sessions.sc3b">：让 Agent 从「分析问题」改为「直接修复」，或从「实现功能」改为「先给方案」。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.sessions.sc4a">减少重复对话</strong>
+              <span data-i18n="doc.sessions.sc4b">：避免重新解释整段背景，让任务在同一个上下文里继续前进。</span>
+            </li>
+          </ul>
         </article>
 
         <aside class="docs-toc" id="docsToc">

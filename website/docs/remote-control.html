@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>手机远控 | Drora 文档</title>
-    <meta name="description" content="手机浏览器连接桌面已有 Host：LAN 直连或 relay 云中继转发，断线自动恢复、事件可回放。" />
+    <meta name="description" content="把当前桌面窗口临时开放给手机访问：扫码连接后查看与切换工作区、任务和会话，继续给 Agent 发指令。" />
     <meta property="og:title" content="手机远控 | Drora 文档" />
-    <meta property="og:description" content="手机浏览器连接桌面已有 Host：LAN 直连或 relay 云中继转发，断线自动恢复、事件可回放。" />
+    <meta property="og:description" content="把当前桌面窗口临时开放给手机访问：扫码连接后查看与切换工作区、任务和会话，继续给 Agent 发指令。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,23 +37,26 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.remote">手机远控</h1>
-          <p data-i18n="doc.remote.intro">
-            手机远控把当前桌面窗口临时开放给手机访问：桌面端开启后，用手机扫码或打开链接即可连接。手机只是一层控制面——它不同步代码、也不新建环境，你发出的指令仍由桌面已有的
-            Host 执行，不另起 Agent。
+          <p data-i18n="doc.remote.intro1">
+            Remote Control 用来把当前 Drora 桌面窗口临时开放给手机访问。扫码之后，你可以在手机上查看和切换这个窗口里已经打开的工作区、任务和会话，继续给
+            Agent 发指令。
+          </p>
+          <p data-i18n="doc.remote.intro2">
+            手机端是一层控制界面：它不同步代码，也不新建运行环境。你在上面发出的每一条指令，都由桌面端那个工作区原本连着的机器去执行。
           </p>
 
           <h2 id="scenarios" data-i18n="doc.remote.scen.h">适合什么场景</h2>
           <ul>
-            <li data-i18n="doc.remote.scen.li1">离开电脑后，继续查看正在运行的任务与进度。</li>
-            <li data-i18n="doc.remote.scen.li2">在手机上给会话补充指令；运行中的输入由运行时排队串行受理，不会丢失。</li>
-            <li data-i18n="doc.remote.scen.li3">长任务、长目标跑到一半要出门，进展随时可查，回来无缝接续。</li>
+            <li data-i18n="doc.remote.scen.li1">任务已经在桌面端跑起来，需要离开电脑后继续看进度。</li>
+            <li data-i18n="doc.remote.scen.li2">临时收到问题反馈，需要用手机快速追加一条指令。</li>
+            <li data-i18n="doc.remote.scen.li3">长任务执行中，需要随时检查 Agent 当前状态。</li>
           </ul>
 
           <h2 id="connect" data-i18n="doc.remote.connect.h">手机扫码连接</h2>
-          <p data-i18n="doc.remote.connect.p1">
-            在桌面端侧边栏打开「移动端远程控制」：弹层展示二维码与链接，可以复制链接、刷新二维码，连接状态一目了然——等待手机连接、正在连接、手机已连接。注意手机连接的是整个桌面窗口：手机上看到的是这个窗口里已打开的工作区与任务，而不只是单个工作区。
-          </p>
-          <p data-i18n="doc.remote.connect.p2">连接方式有两种：</p>
+          <p data-i18n="doc.remote.connect.p1">在 Drora 左下角侧栏点击手机图标，打开「移动端远程控制」。</p><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/rc-dialog-annotated.webp" alt="弹窗左侧是二维码与连接地址，右侧是 Bot Channel 入口" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="../assets/docs/rc-entry-annotated.webp" alt="左下角侧栏的手机图标是移动端远程控制的入口" loading="lazy" /></figure>
+          <p data-i18n="doc.remote.connect.p2">弹窗左侧生成二维码和连接地址，用手机扫码，或者复制链接在手机浏览器里打开。</p>
+          <p data-i18n="doc.remote.connect.p3">连接成功后，手机端接入的是整个桌面窗口，而不只是扫码时停留的那个工作区。</p>
+          <p data-i18n="doc.remote.trans.lead">手机与电脑之间的连接方式有两种：</p>
           <table class="docs-table">
             <thead>
               <tr>
@@ -75,17 +78,28 @@
 
           <h2 id="phone" data-i18n="doc.remote.phone.h">手机端能做什么</h2>
           <h3 data-i18n="doc.remote.phone.home">任务首页</h3>
-          <p data-i18n="doc.remote.phone.home.p">
-            按工作区分组列出电脑上的工作区与任务，运行状态一眼可见，并可为已有工作区直接新建任务。
+          <p data-i18n="doc.remote.phone.home.p">进来先看到的是这个窗口里的工作区和任务。你可以：</p>
+          <ul>
+            <li data-i18n="doc.remote.phone.home.li1">按「工作区」或「时间线」两种方式组织任务。</li>
+            <li data-i18n="doc.remote.phone.home.li2">按「创建时间」或「更新时间」排序。</li>
+            <li data-i18n="doc.remote.phone.home.li3">刷新列表，拿到桌面端的最新状态。</li>
+            <li data-i18n="doc.remote.phone.home.li4">在已有工作区里新建任务。</li>
+            <li data-i18n="doc.remote.phone.home.li5">对显示为「未连接」的远程工作区发起重新连接。</li>
+          </ul>
+          <p data-i18n="doc.remote.phone.home.p2">
+            每个工作区会标出它的类型——本地、远程或对话，任务右侧则是运行状态。
           </p>
           <h3 data-i18n="doc.remote.phone.task">会话页</h3>
           <p data-i18n="doc.remote.phone.task.p">
-            打开某个任务即是会话页：展示会话时间线与 Agent 的执行进度，可以直接输入后续指令继续推进。对应的任务正在被手机操作时，桌面任务列表会标出「手机正在操作此任务」。
+            点进任务就是会话界面。Agent 的回复、执行过程和进度都在这里，你可以直接在底部输入框补充需求让它继续。回复下方提供复制、点赞或点踩反馈，会话满足条件时还可以分叉。对应的任务正在被手机操作时，桌面任务列表会标出「手机正在操作此任务」。
           </p>
+          <div class="docs-note">
+            <span data-i18n="doc.remote.phone.task.note">同一时间只支持一个手机页面连接。如果已经在别的页面打开过，需要先关掉旧页面。</span>
+          </div>
 
           <h2 id="where-run" data-i18n="doc.remote.where.h">命令在哪台机器上执行</h2>
           <p data-i18n="doc.remote.where.p1">
-            手机端不创建任何执行环境。命令在哪台机器上执行，取决于该工作区在桌面端的连接类型：
+            手机端只是控制界面，本身不创建任何运行环境。实际执行的位置，取决于桌面端那个工作区当初是怎么连的：
           </p>
           <table class="docs-table">
             <thead>
@@ -97,7 +111,7 @@
             <tbody>
               <tr>
                 <td data-i18n="doc.remote.td.wlocal">本地</td>
-                <td data-i18n="doc.remote.td.rlocal">你的电脑</td>
+                <td data-i18n="doc.remote.td.rlocal">你的桌面电脑</td>
               </tr>
               <tr>
                 <td data-i18n="doc.remote.td.wssh">SSH</td>
@@ -117,23 +131,27 @@
               </tr>
             </tbody>
           </table>
+          <p data-i18n="doc.remote.where.p2">
+            换句话说，手机不会另外建立远程连接，它只是把指令转交给桌面端已经建好的那条通路。
+          </p>
 
           <h2 id="stop-safe" data-i18n="doc.remote.safe.h">停止与安全</h2>
-          <p data-i18n="doc.remote.safe.p1">
-            二维码与链接就是配对凭据，请勿转发给不可信的人；不确定时可在弹层点击「刷新二维码」重新生成。关闭弹层并不会停止远控——不用时请点「停止」。
-          </p>
+          <p data-i18n="doc.remote.safe.lead">连接地址本身就带远控授权，拿到它就能操作你的窗口，所以有几点需要留意。</p>
+          <p data-i18n="doc.remote.safe.p2">关闭弹窗不会停止远控。用完之后要点「停止」才真正结束这次连接。</p>
+          <p data-i18n="doc.remote.safe.p3">怀疑地址外泄就刷新二维码。刷新会让之前复制或扫过的地址立即失效，已连上的手机需要重新扫码。</p>
+          <p data-i18n="doc.remote.safe.p4">不要公开发布或转发连接地址。它等同于一把临时钥匙。</p>
           <div class="docs-note">
-            <span data-i18n="doc.remote.safe.note">桌面应用退出或窗口关闭即停止远控服务，不会在后台滞留；下次启动时可自动恢复上一次的开启状态（手动停止过则不恢复）。远控期间请保持桌面端运行并联网。</span>
+            <span data-i18n="doc.remote.safe.note">远控期间桌面端需要保持运行和联网，桌面端一旦断开或窗口关闭，手机端就无法继续。桌面应用退出即停止远控服务，不会在后台滞留；下次启动时可自动恢复上一次的开启状态（手动停止过则不恢复）。</span>
           </div>
 
           <h2 id="faq" data-i18n="doc.remote.faq.h">常见问题</h2>
-          <h3 data-i18n="doc.remote.faq.q1">手机能新建任务或远程工作区吗？</h3>
+          <h3 data-i18n="doc.remote.faq.q1">手机能新建或连接远程工作区吗？</h3>
           <p data-i18n="doc.remote.faq.a1">
-            可以为已有工作区新建任务；但新建远程连接（SSH / WSL / Docker / Server）需要在桌面端的连接向导里填写配置，手机端不做这件事。
+            不能创建全新的 SSH、WSL、Docker 或 Server 连接——填写连接参数这一步必须在桌面端完成。但如果某个远程工作区已经登记在当前窗口里、只是暂时断开了，手机端可以对它发起重新连接，实际的连接过程仍然由桌面端执行。
           </p>
           <h3 data-i18n="doc.remote.faq.q2">手机能打开桌面端没开过的项目吗？</h3>
           <p data-i18n="doc.remote.faq.a2">
-            不能。手机上看到的是当前桌面窗口已打开或注册的工作区与任务，没有任意目录浏览权限。
+            不能。手机端只能访问当前桌面窗口里已经打开或登记过的工作区，不能浏览这台机器上的任意目录，也不能连到窗口之外的环境。
           </p>
 
           <p><span data-i18n="doc.remote.next">连接远程主机开发见</span> <a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.dot">。</span></p>

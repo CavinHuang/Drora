@@ -64,6 +64,12 @@
         <div class="mock-wrap reveal" aria-hidden="true">
           <div class="mock-glow" aria-hidden="true"></div>
           <div class="window">
+            <div class="win-traffic">
+              <div class="traffic"><i class="t-red"></i><i class="t-yellow"></i><i class="t-green"></i></div>
+              <span class="tb-icon">◫</span>
+              <span class="tb-arrow">‹</span><span class="tb-arrow">›</span>
+              <span class="tb-icon">⊕</span>
+            </div>
             <div class="win-sidebar">
               <div class="win-side-actions">
                 <div class="side-action"><span class="sa-icon">⊕</span><span data-i18n="mock.newTask">新建任务</span><kbd>⌘N</kbd></div>
@@ -72,28 +78,42 @@
               </div>
               <div class="win-side-label">
                 <span data-i18n="mock.tasks">任务</span>
-                <span aria-hidden="true">⌄</span>
+                <span class="side-archive" aria-hidden="true">🗄</span>
               </div>
               <div class="win-side-list">
-                <div class="win-side-label"><span>gomoku-ai</span><span aria-hidden="true">3</span></div>
-                <div class="side-item active"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t1">创建一个智能五子棋游戏，支持策略性落子与胜负判断</p><time>2m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t2">接入启发式 AI 落子与玩家先手流程</p><time>14m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t3">补一版规则说明、重开入口和空状态引导</p><time>51m</time></div></div>
-                <div class="win-side-label"><span>drora-website</span><span aria-hidden="true">2</span></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t4">对齐首页 hero 与下载区的版块结构</p><time>8m</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t5">修复对话区在 resize 时的底部吸附逻辑</p><time>1h</time></div></div>
-                <div class="win-side-label"><span>drora-desktop</span><span aria-hidden="true">2</span></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t6">排查会话恢复后右侧面板状态不同步</p><time>1h</time></div></div>
-                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t7">优化终端面板拖拽 resize 后的重绘性能</p><time>2h</time></div></div>
+                <div class="win-side-label"><span>gomoku-ai</span><span aria-hidden="true">5</span></div>
+                <div class="side-item active"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t1">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。</p><time>2m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t2">整理开始提示、回合状态和胜利文案</p><time>9m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t3">接入启发式 AI 落子和玩家先手流程</p><time>14m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t4">适配移动端棋盘缩放和横竖屏布局</p><time>27m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t5">补一版规则说明、重开入口和空状态引导</p><time>51m</time></div></div>
+                <div class="win-side-label"><span>drora-website</span><span aria-hidden="true">6</span></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t6">修复对话区在 resize 时的底部吸附逻辑</p><time>8m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t7">重写 hero visual 的 workspace 和 task 假数据</p><time>3m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t8">整理官网首页英文文案，统一产品定位和 CTA</p><time>42m</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t9">调整首页 hero 在 13 寸和移动端下的布局断点</p><time>1h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t10">补一版下载页 FAQ 和企业能力说明</p><time>2h</time></div></div>
+                <div class="win-side-label"><span>drora-desktop</span><span aria-hidden="true">6</span></div>
+                <div class="side-item fail"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t11">排查会话恢复后右侧面板状态不同步的问题</p><time>1h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t12">优化 terminal 面板拖拽 resize 后的重绘性能</p><time>2h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t13">修复重启后 sidebar 折叠状态没有恢复的问题</p><time>3h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t14">梳理设置页分组信息架构，减少高级选项混杂</p><time>6h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t15">给 command palette 增加最近使用和键盘提示</p><time>9h</time></div></div>
+                <div class="win-side-label"><span>release-bot</span><span aria-hidden="true">5</span></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t16">接入 changelog 生成和 GitHub Release 草稿流程</p><time>4h</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t17">补一版失败 CI 汇总消息模板和重试建议</p><time>1d</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t18">串上 tag 校验、版本号同步和 release note 预览</p><time>1d</time></div></div>
+                <div class="side-item"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t19">生成版本发布公告模板，区分 patch 和 feature release</p><time>2d</time></div></div>
+                <div class="side-item fail"><span class="si-icon">▣</span><div class="si-body"><p data-i18n="mock.t20">给失败发布任务增加幂等重试和告警收敛策略</p><time>3d</time></div></div>
+              </div>
+              <div class="win-side-user">
+                <span class="wsu-avatar" aria-hidden="true">D</span>
+                <span class="wsu-name" data-i18n="mock.user">夜墨</span>
+                <span class="wsu-gear" aria-hidden="true">⚙</span>
               </div>
             </div>
 
             <div class="win-main">
-              <div class="win-titlebar">
-                <div class="traffic" aria-hidden="true"><i class="t-red"></i><i class="t-yellow"></i><i class="t-green"></i></div>
-                <span class="tb-icon">◫</span>
-                <span class="tb-arrow">‹</span><span class="tb-arrow">›</span>
-              </div>
               <div class="win-topbar">
                 <p class="wt-title" data-i18n="mock.goalTitle">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断…</p>
                 <span class="chip">gomoku-ai</span>
@@ -102,28 +122,69 @@
                 <span class="wt-icons"><i>⊞</i><i>▣</i><i>◱</i><i>▥</i></span>
               </div>
               <div class="win-chat">
-                <p class="msg" data-i18n="mock.userMsg">创建一个智能五子棋游戏，让玩家与能进行策略性落子并准确判断胜负的算法对战。</p>
+                <p class="msg user-msg" data-i18n="mock.userMsg">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。</p>
+                <div class="msg-meta">
+                  <span class="mm-time">05:10 PM</span>
+                  <span class="mm-act" data-i18n="mock.actEdit">编辑</span>
+                  <span class="mm-act" data-i18n="mock.actCopy">复制</span>
+                  <span class="mm-act" data-i18n="mock.actBranch">分支执行</span>
+                  <span class="mm-dur" data-i18n="mock.duration">执行了 3 分 1 秒</span>
+                </div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro1">我会先检查当前五子棋项目的结构，确认现有的棋盘状态、渲染和游戏流程已经做到什么程度，再接入 AI 和胜负判断。</span>
+                </p>
+                <div class="tool-row fail"><span class="tr-icon">🔍</span><span data-i18n="mock.explore">已探索</span><code data-i18n="mock.exploreRes">1 search, 1 file</code><span class="fail-tag" data-i18n="mock.fail">失败</span></div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro2">这个仓库看起来是空的，或者几乎没有现成代码。我现在继续确认目录内容，判断是基于已有应用扩展，还是需要从零开始实现。</span>
+                </p>
+                <div class="tool-row fail"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>git status --short</code><span class="fail-tag" data-i18n="mock.fail">失败</span></div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro3">这里没有现成应用，所以我会从零开始做一个自包含实现。我先确认是否有本地项目约定需要遵守，然后补上浏览器端五子棋、启发式 AI、回合处理，以及明确的五子连线胜负判断。</span>
+                </p>
                 <div class="tool-row">
                   <span class="tr-icon">✎</span><span data-i18n="mock.written">已写入</span>
-                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span><span class="diff add">+62</span>
-                  <span class="file-chip"><i class="fc-dot js"></i>app.js</span><span class="diff add">+471</span>
-                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span><span class="diff add">+200</span>
+                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span>
+                  <span class="file-chip"><i class="fc-dot js"></i>app.js</span>
+                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span>
+                  <span class="diff add">+733</span>
+                </div>
+                <p class="msg">
+                  <span data-i18n="mock.m3pre">完整 UI 和核心逻辑已经就位。我正在验证 JavaScript 是否可以正常解析，并复查落子评分逻辑，覆盖首步响应、平局处理和长连线胜利等边界情况。</span>
+                </p>
+                <div class="tool-row"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>node --check app.js</code></div>
+                <p class="msg">
+                  <span data-i18n="mock.m2a">我发现了一个可以避免的依赖：页面原来拉取了在线字体。我正在去掉它，这样整个游戏可以完全本地运行，直接打开</span>
+                  <u>index.html</u>
+                  <span data-i18n="mock.m2b">就不需要网络。</span>
+                </p>
+                <div class="tool-row">
+                  <span class="tr-icon">✎</span><span data-i18n="mock.updated">已更新</span>
+                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span>
+                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span>
+                  <span class="diff add">+1</span><span class="diff del">−7</span>
                 </div>
                 <p class="msg">
                   <span data-i18n="mock.m3a">已在</span><u>index.html</u><span data-i18n="mock.m3sep">、</span><u>styles.css</u><span data-i18n="mock.m3and">和</span><u>app.js</u>
-                  <span data-i18n="mock.m3b">中完成一个独立运行的浏览器五子棋游戏。它会渲染一个 15x15 棋盘，支持四个方向的胜负判断，并支持重新开始对局。</span>
+                  <span data-i18n="mock.m3b">中完成一个独立运行的浏览器五子棋游戏。它会渲染一个 15x15 棋盘，允许玩家放置黑棋，支持四个方向的胜负判断，高亮连成五子的路径，跟踪当前回合和步数，并支持重新开始对局。</span>
                 </p>
-                <div class="tool-row"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>node --check app.js</code></div>
+                <p class="msg">
+                  <span data-i18n="mock.m4">AI 不是随机落子，而是启发式评分。它会搜索附近候选点，为自身的进攻棋型评分，也为阻挡玩家的防守点评分，再叠加中心区域偏好，最后选择分数最高的一步。同时还提供可选的「AI 关注区域」覆盖层，用来展示它重点考虑过的候选位置。</span>
+                </p>
+                <p class="msg dim">
+                  <span data-i18n="mock.mVerify">验证：node --check app.js 已通过。我这里没有运行交互式浏览器会话，剩下的一步是在浏览器里打开 index.html 并实际体验一局。</span>
+                </p>
                 <div class="files-card">
                   <div class="fc-head">
                     <span data-i18n="mock.filesChanged">3 个文件已更改</span>
                     <span class="diff add">+734</span><span class="diff del">−7</span>
-                    <span class="fc-expand" data-i18n="mock.expand">展开 ⌄</span>
+                    <span class="fc-undo" data-i18n="mock.undo">撤销</span>
                   </div>
                   <div class="fc-row"><i class="fc-dot js"></i>app.js<span class="diff add">+471</span><span class="diff del">−0</span></div>
                   <div class="fc-row"><i class="fc-dot html"></i>index.html<span class="diff add">+62</span><span class="diff del">−6</span></div>
                   <div class="fc-row"><i class="fc-dot css"></i>styles.css<span class="diff add">+201</span><span class="diff del">−1</span></div>
                 </div>
+              </div>
+              <div class="win-input">
                 <div class="files-card">
                   <div class="fc-row"><span class="tr-icon">⊕</span><span data-i18n="mock.inputPh">继续输入后续修改需求</span></div>
                   <div class="pc-divider"></div>
@@ -133,8 +194,8 @@
                   </div>
                   <div class="fc-row">
                     <span class="chip">GLM-5.3</span>
-                    <span class="chip" data-i18n="mock.effort">推理：最大</span>
-                    <span class="fc-expand" aria-hidden="true">➤</span>
+                    <span class="chip" data-i18n="mock.effort">最大</span>
+                    <span class="fc-expand send-btn" data-i18n="mock.send">发送</span>
                   </div>
                 </div>
               </div>
@@ -153,16 +214,17 @@
                 <div class="pc-row muted"><span class="pcr-icon">→</span><span data-i18n="mock.commit">Commit</span></div>
               </div>
               <div class="panel-card">
-                <div class="pc-head-row"><p class="pc-title">Goal</p><span class="pc-badge" data-i18n="mock.running">进行中</span></div>
-                <p class="pc-goal" data-i18n="mock.goalDesc">创建五子棋游戏：一局用启发式 AI 完成双人对弈</p>
-                <div class="pc-tags"><span class="pc-tag">3/4</span><span class="pc-tag">2m</span><span class="pc-tag">89K tokens</span></div>
+                <div class="pc-head-row"><p class="pc-title">Goal</p><span class="pc-badge" data-i18n="mock.complete">Complete</span></div>
+                <p class="pc-goal" data-i18n="mock.goalDesc">五子棋人机对战 — 使用启发式 AI 算法实现电脑落子</p>
+                <div class="pc-tags"><span class="pc-tag">5/5</span><span class="pc-tag">2m</span><span class="pc-tag">89K tokens</span></div>
               </div>
               <div class="panel-card">
                 <p class="pc-title">Progress</p>
-                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p1">搭建 15x15 棋盘与落子渲染</span></div>
-                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p2">实现四方向连珠胜负判定</span></div>
-                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p3">接入启发式 AI 落子评分</span></div>
-                <div class="progress-item"><span>○</span><span data-i18n="mock.t3">补一版规则说明、重开入口和空状态引导</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p1">初始化棋盘、棋子渲染和 15×15 网格布局</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p2">实现玩家落子交互和胜负判定逻辑</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p3">接入启发式 AI 算法实现电脑自动落子</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p4">适配移动端棋盘缩放和横竖屏布局</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p5">补一版规则说明、重开入口和空状态引导</span></div>
               </div>
             </aside>
           </div>

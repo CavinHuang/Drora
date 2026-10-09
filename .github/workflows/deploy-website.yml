@@ -1,0 +1,59 @@
+name: Deploy website to GitHub Pages
+
+# Drora 产品官网（website/ 静态站）CI + 部署：
+#  - check：PR 与 main 推送 touching website/** 时运行零依赖门禁
+#    （scripts/check-website.mjs：内链/资源/锚点/i18n 键），坏链接不上线
+#  - deploy：仅 main 推送与手动触发，先过 check 再发布 Pages。
+#    仓库设置中 Pages Source 需选择「GitHub Actions」（一次性配置，已配置）。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "scripts/check-website.mjs"
+      - ".github/workflows/deploy-website.yml"
+  pull_request:
+    paths:
+      - "website/**"
+      - "scripts/check-website.mjs"
+      - ".github/workflows/deploy-website.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check website (links / assets / i18n)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-website.mjs
+
+  deploy:
+    name: Deploy static site
+    # PR 只做检查，绝不部署：Pages 环境只有一份，PR 预览会覆盖线上
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # concurrency 只约束部署（job 级），PR 的 check 不会打断进行中的发布
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website
+      - id: deployment
+        uses: actions/deploy-pages@v4

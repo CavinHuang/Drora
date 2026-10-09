@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drora 文档 | 安装、连接模型与功能指南</title>
+    <meta name="description" content="Drora 文档：安装桌面应用与 CLI、连接 GLM 模型、任务与目标模式、远程开发与手机远控、技能/MCP/Hooks 集成、自动化任务与常见问题。" />
+    <meta property="og:title" content="Drora 文档 | 安装、连接模型与功能指南" />
+    <meta property="og:description" content="Drora 文档：安装桌面应用与 CLI、连接 GLM 模型、任务与目标模式、远程开发与手机远控、技能/MCP/Hooks 集成、自动化任务与常见问题。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current=""></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.h1">欢迎使用 Drora</h1>
+          <p data-i18n="doc.intro.lead1">
+            Drora 是一个开源的 AI 编程工作台：桌面应用、浏览器界面和终端 Agent 三种形态共享同一运行时。它把长上下文、长程任务与
+            Agentic 编程能力转化为稳定可用的桌面体验，覆盖规划、编码、审查与迭代的完整流程。
+          </p>
+          <p>
+            <span data-i18n="doc.intro.lead2">
+            Drora 基于上游 ZCode 开源复刻并持续跟进，由社区维护。功能范围、维护规则与许可说明见
+            </span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/NOTICE.md">NOTICE.md</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="capabilities" data-i18n="doc.welcome.cap.h2">核心能力</h2>
+          <ul>
+            <li><a href="goal.html" data-i18n="doc.nav.tasks">任务与目标模式</a><span data-i18n="doc.welcome.cap.tasks">——用 Goal 承载长程目标，进度逐步打勾。</span></li>
+            <li><a href="remote-control.html" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.welcome.cap.remote">——手机浏览器直连桌面已有 Host，断线可恢复回放。</span></li>
+            <li><a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.welcome.cap.remoteDev">——连接 SSH/WSL 远程工作区开发。</span></li>
+            <li><a href="skills.html" data-i18n="doc.nav.skills">技能与斜杠命令</a><span data-i18n="doc.welcome.cap.skills">、</span><a href="mcp.html" data-i18n="doc.nav.mcp">MCP 与插件</a><span data-i18n="doc.welcome.cap.ext">——按需扩展 Agent 能力面。</span></li>
+            <li><a href="automation.html" data-i18n="doc.nav.automation">自动化任务</a><span data-i18n="doc.welcome.cap.auto">——定时任务与闲时任务，计划内自动执行。</span></li>
+            <li><a href="pets.html" data-i18n="doc.nav.pets">桌面宠物</a><span data-i18n="doc.welcome.cap.pets">——三只猫娘实时呈现任务状态，可拖动可隐藏。</span></li>
+          </ul>
+
+          <h2 id="quickstart" data-i18n="doc.welcome.quick.h2">快速开始</h2>
+          <p><span data-i18n="doc.welcome.quick.p1">从</span> <a href="https://github.com/CavinHuang/Drora/releases/latest">Releases</a><span data-i18n="doc.welcome.quick.p2">下载桌面安装包或 CLI 单文件，登录模型账号后即可开始第一个任务；详见</span> <a href="install.html" data-i18n="doc.nav.install">安装</a><span data-i18n="doc.welcome.quick.and">与</span> <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.dot">。</span></p>
+          <div class="docs-code"><code>pnpm bootstrap        # 从源码开发：安装依赖并准备运行资源
+pnpm dev:desktop      # 启动 Electron 桌面应用（开发模式）</code></div>
+
+          <h2 id="community" data-i18n="doc.welcome.comm.h2">加入社群</h2>
+          <p>
+            <span data-i18n="doc.welcome.comm.p1">使用问题与交流建议欢迎到</span>
+            <a href="../community/" data-i18n="doc.welcome.comm.link">社区页</a>
+            <span data-i18n="doc.welcome.comm.p2">：飞书社群、Discord 与 GitHub Discussions 都能到达维护者；安全问题请走</span>
+            <a href="../security/" data-i18n="doc.welcome.comm.sec">提交漏洞渠道</a><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

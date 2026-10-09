@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>远程开发 | Drora 文档</title>
+    <meta name="description" content="连接 SSH/WSL 远程工作区：会话在远程环境执行；自托管 Web 后端用 DRORA_SERVER_WORKSPACE 指定工作区。" />
+    <meta property="og:title" content="远程开发 | Drora 文档" />
+    <meta property="og:description" content="连接 SSH/WSL 远程工作区：会话在远程环境执行；自托管 Web 后端用 DRORA_SERVER_WORKSPACE 指定工作区。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="remote-dev">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="remote-dev"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.remoteDev">远程开发</h1>
+          <p>
+            <span data-i18n="doc.remoteDev.p1">
+            除本机项目外，Drora 还可连接远程工作区（SSH/WSL）进行开发：会话在远程环境中执行，文件与终端操作发生在对应主机上。自托管
+            Web 后端时，可用 </span><code>DRORA_SERVER_WORKSPACE</code><span data-i18n="doc.remoteDev.p1t">指定工作区路径；详见仓库</span>
+            <a href="https://github.com/CavinHuang/Drora#readme">README</a><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

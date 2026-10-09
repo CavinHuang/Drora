@@ -40,6 +40,160 @@
           <p data-i18n="doc.subagents.p1">
             主 Agent 可以把探索、检索与研究类工作委派给子智能体并行执行，只把结论带回主对话——在大型代码库中定位问题时尤其有用，能显著减少主上下文的占用。
           </p>
+
+          <h2 id="how" data-i18n="doc.subagents.sub.how">工作方式</h2>
+          <p data-i18n="doc.subagents.how.p1">当主 Agent 判断任务需要独立上下文或并行调研时，会通过 Agent 工具启动子智能体。子智能体在自己的上下文中工作，完成后把结果汇总回主对话，帮助主 Agent 继续推进任务。</p>
+          <p data-i18n="doc.subagents.how.p2">每个子智能体都是一个可复用的角色，拥有独立的名称、描述、工具权限与系统提示词。你可以在会话输入框里用 @ 直接引用某个子智能体，也可以把判断交给主 Agent——它会依据描述自动选用。</p>
+
+          <h2 id="general-purpose" data-i18n="doc.subagents.sub.general">内置：通用型子智能体</h2>
+          <p data-i18n="doc.subagents.general.p1">general-purpose 是默认的通用型子智能体，拥有全部工具权限，适合在独立上下文中处理需要读取、修改、运行命令或综合推进的任务。适合交给它的任务包括：</p>
+          <ul>
+            <li data-i18n="doc.subagents.general.li1">独立实现一个小功能或修复一个明确问题。</li>
+            <li data-i18n="doc.subagents.general.li2">在另一个上下文里整理文件、运行验证命令，并回传结果。</li>
+            <li data-i18n="doc.subagents.general.li3">把可并行的文档、代码或配置任务拆开处理。</li>
+          </ul>
+          <p data-i18n="doc.subagents.general.p2">如果任务只需要只读调研、证据收集或调用链梳理，优先使用下面的 Explore。</p>
+
+          <h2 id="explore" data-i18n="doc.subagents.sub.explore">内置：Explore</h2>
+          <p data-i18n="doc.subagents.explore.p1">Explore 是一个只读的搜索与代码库调研专家，适合处理大范围检索、调用链梳理、代码结构理解和证据收集这类探索任务。它定位代码而不做审查或修改，输出结论而不是文件堆；检索广度可以在提示词里指定——medium 表示适度探索，very thorough 表示多位置、多命名约定地翻找。</p>
+          <p data-i18n="doc.subagents.explore.p2">你可以直接在提示词里要求先做探索，例如：</p>
+          <div class="docs-code"><code>请先用 Explore 调研这个模块的调用链，再总结修改入口和风险点。
+请用只读方式搜索这个功能的实现位置，列出相关文件和证据。</code></div>
+
+          <h2 id="custom" data-i18n="doc.subagents.sub.custom">自定义子智能体</h2>
+          <p data-i18n="doc.subagents.custom.p1">在「设置 → 子智能体」中可以查看全部可用的子智能体（内置、用户与插件三组），新建、编辑、删除、启用或停用你创建的用户级子智能体。内置与插件子智能体不可编辑正文，但可以为它们单独指定模型与思考强度。</p>
+          <h3 data-i18n="doc.subagents.custom.h3.form">新建子智能体</h3>
+          <p data-i18n="doc.subagents.custom.form.p1">点击「新建」，在表单中配置这个可复用角色：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.subagents.custom.form.th1">字段</th>
+                <th data-i18n="doc.subagents.custom.form.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td1">名称</td>
+                <td data-i18n="doc.subagents.custom.form.td2">子智能体的标识，例如 code-reviewer；不能与内置角色重名</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td3">颜色标记</td>
+                <td data-i18n="doc.subagents.custom.form.td4">在列表和会话中区分该子智能体身份的颜色，仅作标识，不表达状态</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td5">模型</td>
+                <td data-i18n="doc.subagents.custom.form.td6">可选「继承默认」（跟随主 Agent 当前模型），或指定一个具体模型</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td7">思考强度</td>
+                <td data-i18n="doc.subagents.custom.form.td8">为该子智能体单独设置推理档位，仅在指定了具体模型时生效；选择「继承默认」时此项不参与</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td9">描述</td>
+                <td data-i18n="doc.subagents.custom.form.td10">展示给主 Agent 的简短说明。描述越准确，越容易在合适的任务中被自动选用</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td11">可用工具</td>
+                <td data-i18n="doc.subagents.custom.form.td12">控制该子智能体能调用的工具范围：默认继承全部工具，或逐个勾选自定义列表</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td13">系统提示词</td>
+                <td data-i18n="doc.subagents.custom.form.td14">描述这个子智能体的角色、边界和规则</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.subagents.custom.form.td15">注入 AGENTS.md</td>
+                <td data-i18n="doc.subagents.custom.form.td16">默认开启，让子智能体与主 Agent 读取同样的项目指令</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3 data-i18n="doc.subagents.custom.h3.file">定义文件</h3>
+          <p><span data-i18n="doc.subagents.custom.file.p1">用户级定义保存在应用数据目录的 </span><code>agents/</code><span data-i18n="doc.subagents.custom.file.p2"> 文件夹，项目级放在工作区的 </span><code>.drora/agents/</code><span data-i18n="doc.subagents.custom.file.p3"> 下，都是带 frontmatter 的 Markdown，正文即系统提示词。定义在 Agent 运行时启动时加载，修改后新会话生效。手工编辑示例：</span></p>
+          <div class="docs-code"><code>---
+name: code-reviewer
+description: 审查当前改动，输出问题清单与风险提示
+model: inherit        # 跟随主 Agent；也可写具体模型
+tools:                # 留空 = 全部工具；也可逐个列出
+  - Read
+  - Grep
+  - Glob
+maxTurns: 40          # 单次调用的最大轮数
+---
+你是一名严格的代码审查员。只审查，不修改文件，按严重程度输出问题清单。</code></div>
+          <p data-i18n="doc.subagents.custom.file.p4">定义文件字段参考（camelCase，大小写敏感）：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.subagents.custom.fields.th1">字段</th>
+                <th data-i18n="doc.subagents.custom.fields.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code> / <code>description</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td1">必填；缺失时该定义文件会被忽略并产生诊断</td>
+              </tr>
+              <tr>
+                <td><code>model</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td2">指定具体模型；写 inherit 或不填表示跟随主 Agent 当前模型</td>
+              </tr>
+              <tr>
+                <td><code>thoughtLevel</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td3">思考强度档位。仅在同时配置了具体 model 时生效，档位必须是该模型支持的值</td>
+              </tr>
+              <tr>
+                <td><code>color</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td4">颜色标记（预设色）</td>
+              </tr>
+              <tr>
+                <td><code>tools</code> / <code>disallowedTools</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td5">可用 / 禁用工具列表，边界规则见下文「工具与 MCP」</td>
+              </tr>
+              <tr>
+                <td><code>maxTurns</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td6">单次调用的最大轮数（正整数）</td>
+              </tr>
+              <tr>
+                <td><code>injectAgentsMd</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td7">是否注入 AGENTS.md，默认注入；内置的 Explore 默认不注入</td>
+              </tr>
+              <tr>
+                <td><code>mcpServers</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td8">声明该子智能体依赖的 MCP 服务名列表；声明的服务未连接时，调用会直接报错</td>
+              </tr>
+              <tr>
+                <td><code>background</code></td>
+                <td data-i18n="doc.subagents.custom.fields.td9">设为 true 时该子智能体默认后台执行，见下文「前台与后台执行」</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="tools-mcp" data-i18n="doc.subagents.sub.tools">工具与 MCP</h2>
+          <ul>
+            <li><span data-i18n="doc.subagents.tools.li1">默认所有权限（tools 留空或 *）：继承主会话的全部工具，包括已连接的 MCP 工具。</span></li>
+            <li><span data-i18n="doc.subagents.tools.li2">自定义可用工具：列表里写了什么就只有什么。确需在自定义列表中保留 MCP 工具，可以在定义文件里写工具全名，格式为 </span><code>mcp__&lt;服务名&gt;__&lt;工具名&gt;</code><span data-i18n="doc.subagents.tools.li3">，也可以写 </span><code>mcp__*</code><span data-i18n="doc.subagents.tools.li4"> 表示任意已连接的 MCP 服务。</span></li>
+            <li><span data-i18n="doc.subagents.tools.li5">声明的 MCP 服务未连接时，子智能体调用会直接报错，并指出缺失的服务名。</span></li>
+          </ul>
+
+          <h2 id="background" data-i18n="doc.subagents.sub.background">前台与后台执行</h2>
+          <ul>
+            <li><span data-i18n="doc.subagents.background.li1">前台执行：同时启动多个时并行跑，主任务等它们全部完成后再继续。适合结果马上就要用上的调研。</span></li>
+            <li><span data-i18n="doc.subagents.background.li2">后台执行：主任务不必等待，可以继续推进甚至先结束当前回合；跑完后自动回到主对话。适合耗时较长、又不该打断当前思路的调研。</span></li>
+          </ul>
+          <p data-i18n="doc.subagents.background.p1">后台执行由发起方式决定：Agent 调用时要求后台运行，或定义文件里写了 background: true。注意闲时任务不支持后台子智能体——后台派发会收到明确报错，配置了后台执行的自定义子智能体在闲时任务里会调用失败。</p>
+
+          <h2 id="limits" data-i18n="doc.subagents.sub.limits">范围与限制</h2>
+          <ul>
+            <li><span data-i18n="doc.subagents.limits.li1">用户级子智能体目前仅在桌面端可用，Web 端暂不支持在设置中管理。</span></li>
+            <li><span data-i18n="doc.subagents.limits.li2">项目级 .drora/agents/ 下的定义属于仓库内容，出于安全考虑不能通过 frontmatter 设置执行权限模式，防止仓库输入给子运行时提权。</span></li>
+            <li><span data-i18n="doc.subagents.limits.li3">内置角色不可编辑正文、删除或停用，名称也被保留；但可以在设置页为它们单独指定模型和思考强度。</span></li>
+          </ul>
+
+          <h2 id="related" data-i18n="doc.subagents.sub.related">相关页面</h2>
+          <p>
+            <span data-i18n="doc.subagents.related.p1">为子智能体接入外部工具，见</span>
+            <a href="mcp.html" data-i18n="doc.nav.mcp">MCP</a><span data-i18n="doc.subagents.related.p2">；把可复用工作流打包成技能，见</span>
+            <a href="skills.html" data-i18n="doc.nav.skills">技能与斜杠命令</a><span data-i18n="doc.dot">。</span>
+          </p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

@@ -38,11 +38,117 @@
           </div>
           <h1 data-i18n="doc.nav.remoteDev">远程开发</h1>
           <p>
-            <span data-i18n="doc.remoteDev.p1">
-            除本机项目外，Drora 还可连接远程工作区（SSH/WSL）进行开发：会话在远程环境中执行，文件与终端操作发生在对应主机上。自托管
-            Web 后端时，可用 </span><code>DRORA_SERVER_WORKSPACE</code><span data-i18n="doc.remoteDev.p1t">指定工作区路径；详见仓库</span>
-            <a href="https://github.com/CavinHuang/Drora#readme">README</a><span data-i18n="doc.dot">。</span>
+            <span data-i18n="doc.remoteDev.intro">除本机项目外，Drora 还可以把工作区放到远程主机、WSL 发行版、本机容器或一台已运行的 Drora 服务上：连接成功后，文件读取、终端命令、Git 操作和 Agent 都在目标环境中执行，本地窗口只负责展示与交互。</span>
           </p>
+
+          <h2 id="methods" data-i18n="doc.remoteDev.sub.methods">连接方式</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.methods.p1">在窗口侧栏选择「远程连接」，按向导选择方式并填写配置：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.remoteDev.th.kind">方式</th>
+                <th data-i18n="doc.remoteDev.th.kinddesc">适用场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.remoteDev.tk.ssh">SSH</td>
+                <td data-i18n="doc.remoteDev.td.ssh">连接远程 Linux 主机，把代码和运行环境放在开发机上</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.tk.wsl">WSL</td>
+                <td data-i18n="doc.remoteDev.td.wsl">在 Windows 上通过 WSL 发行版打开 Linux 工作区</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.tk.docker">Docker</td>
+                <td data-i18n="doc.remoteDev.td.docker">在本机容器中打开项目，获得干净、可随时重建的环境</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.tk.server">Server</td>
+                <td data-i18n="doc.remoteDev.td.server">连接一台已运行的 Drora 服务，直接打开其工作区</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="connect" data-i18n="doc.remoteDev.sub.connect">连接步骤</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.connect.p1">向导按「选择方式 → 填写配置 → 连接 → 选择目录」进行；连接就绪后选择要在当前窗口打开的目录。</span>
+          </p>
+          <h3 data-i18n="doc.remoteDev.connect.ssh">SSH</h3>
+          <p>
+            <span data-i18n="doc.remoteDev.connect.sshp1">填写主机地址、端口和用户名，认证方式选择</span>
+            <code data-i18n="doc.remoteDev.connect.pwd">密码</code>
+            <span data-i18n="doc.remoteDev.connect.or">或</span>
+            <code data-i18n="doc.remoteDev.connect.key">私钥</code>
+            <span data-i18n="doc.remoteDev.connect.sshp2">（私钥口令可选）。本机 SSH 配置里有别名时可直接选择，会自动填充主机、端口、用户名和私钥路径。</span>
+          </p>
+          <h3 data-i18n="doc.remoteDev.connect.wsl">WSL</h3>
+          <p>
+            <span data-i18n="doc.remoteDev.connect.wslp1">自动检测本机已安装的 WSL 发行版，选择后可指定运行命令的 Linux 用户，留空使用发行版默认用户。打开形如</span>
+            <code>\\wsl$\…</code>
+            <span data-i18n="doc.remoteDev.connect.wslp2">的 WSL 路径时，Drora 会建议改用 WSL 远程连接打开。</span>
+          </p>
+          <h3 data-i18n="doc.remoteDev.connect.docker">Docker</h3>
+          <p>
+            <span data-i18n="doc.remoteDev.connect.dockerp1">选择本机正在运行的容器，再选择容器内的目录。</span>
+          </p>
+
+          <h2 id="assets" data-i18n="doc.remoteDev.sub.assets">远程资源准备</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.assets.p1">首次连接 SSH 环境时，Drora 会把运行所需的 Agent 资源准备到目标主机。资源下载方式二选一：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.remoteDev.th.mode">方式</th>
+                <th data-i18n="doc.remoteDev.th.modedesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.remoteDev.tm.local">本地下载后上传</td>
+                <td data-i18n="doc.remoteDev.tdm.local">本机下载后经 SFTP 上传，服务器无法直连外网时也稳定可用</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.tm.remote">远端服务器下载</td>
+                <td data-i18n="doc.remoteDev.tdm.remote">减少上传等待；要求服务器能访问 Drora CDN，并具备下载、解压和校验工具</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="sync" data-i18n="doc.remoteDev.sub.sync">同步到远程环境</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.sync.p1">连接远程环境后，可在设置中把本机已有的能力同步到目标环境，入口分别在 Skills、插件与 MCP 设置中；个人提供商配置与允许同步的账号凭据也会在连接存续期间自动传入目标环境，无需在远端重复登录。</span>
+          </p>
+
+          <h2 id="web" data-i18n="doc.remoteDev.sub.web">自托管 Web 服务</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.web.p1">命令行发行包可以把工作区暴露为浏览器可访问的 Web 服务，实现无桌面的远程开发：</span>
+          </p>
+          <div class="docs-code"><code>drora --web                                                  # 启动 Web 界面
+drora --web --workspace /path/to/project --port 3030 --no-open
+drora --web --host 0.0.0.0                                   # 允许局域网访问</code></div>
+          <p>
+            <span data-i18n="doc.remoteDev.web.p2">Web 模式默认监听</span>
+            <code>127.0.0.1</code>
+            <span data-i18n="doc.remoteDev.web.p2t">并自动打开浏览器；监听非本机地址时默认生成访问令牌，请使用终端输出的带令牌链接，也可用</span>
+            <code>--token</code>
+            <span data-i18n="doc.remoteDev.web.p2t2">指定令牌或</span>
+            <code>--no-token</code>
+            <span data-i18n="doc.remoteDev.web.p2t3">关闭令牌认证。自托管后端的工作区路径可用</span>
+            <code>DRORA_SERVER_WORKSPACE</code>
+            <span data-i18n="doc.remoteDev.web.p2t4">指定；直接部署通用 Web 服务时，用</span>
+            <code>DRORA_SERVER_AUTH_TOKEN</code>
+            <span data-i18n="doc.remoteDev.web.p2t5">配置 API／WebSocket 认证。</span>
+          </p>
+
+          <h2 id="notes" data-i18n="doc.remoteDev.sub.notes">注意事项</h2>
+          <div class="docs-note">
+            <span data-i18n="doc.remoteDev.notes.p1">会话、文件与终端操作都发生在目标环境，执行身份是远端账号而不是本地用户；认证默认值因启动入口和监听地址而异，不要把开发服务或本机核心端口直接视为适合公开暴露的服务。需要在手机上继续桌面会话时，见</span>
+            <a href="remote-control.html" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.dot">。</span>
+          </div>
         </article>
 
         <aside class="docs-toc" id="docsToc">

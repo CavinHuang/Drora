@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drora Agent | Drora 文档</title>
+    <meta name="description" content="Drora Agent 是新建任务时最直接的提问入口：@、#、/、$ 补充上下文，执行模式与推理强度可调，支持辅助对话与会话分叉。" />
+    <meta property="og:title" content="Drora Agent | Drora 文档" />
+    <meta property="og:description" content="Drora Agent 是新建任务时最直接的提问入口：@、#、/、$ 补充上下文，执行模式与推理强度可调，支持辅助对话与会话分叉。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="agents">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="agents"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.agent">Drora Agent</h1>
+          <p data-i18n="doc.agent.p1">
+            Drora Agent 是新建任务时最直接的提问入口。在同一个工作台里提出需求、补充上下文、引用文件、调用命令，并为当前任务选择模型与执行模式，让一次任务从需求理解一路推进到落地改动。
+          </p>
+          <p data-i18n="doc.agent.p2">
+            桌面应用以任务组织日常工作：每个任务有独立的会话、工具执行与 Git 上下文，输入框、文件引用与执行模式都围绕当前任务工作。对多步骤的复杂目标，可以配合目标模式承载长程计划。
+          </p>
+
+          <h2 id="entry" data-i18n="doc.agent.entry.h2">工作台入口</h2>
+          <p>
+            <span data-i18n="doc.agent.entry.p1">在桌面端新建任务（</span>
+            <code>Ctrl/Command+N</code><span data-i18n="doc.agent.entry.p2">）即可开始与 Agent 对话。输入框提示：</span>
+            <em data-i18n="doc.agent.entry.quote">向 Drora 提问，使用 @ 添加上下文，使用 / 选择命令或能力</em>
+            <span data-i18n="doc.agent.entry.p3">——先描述目标，再用触发符精准补充材料，通常能让 Agent 更快理解任务。</span>
+          </p>
+          <p data-i18n="doc.agent.entry.outside">
+            只是想问个问题、算点东西或起草一段文字，并不涉及某个代码仓库时，不必先选文件夹：在开始页选择「不在项目中工作」即可直接对话，这类对话同样收在侧栏任务列表里。注意对话结束不会撤销 Agent 已写入的文件，需要时请自行清理。
+          </p>
+
+          <h2 id="context" data-i18n="doc.agent.context.h2">补充上下文</h2>
+          <p data-i18n="doc.agent.context.p1">
+            在输入框中键入触发符号，即可为当前任务快速补充上下文：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.agent.context.th1">入口</th>
+                <th data-i18n="doc.agent.context.th2">触发符号</th>
+                <th data-i18n="doc.agent.context.th3">作用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.agent.context.td1a">添加附件</td>
+                <td>—</td>
+                <td data-i18n="doc.agent.context.td1b">上传截图、文档、需求材料等文件，作为当前任务的上下文</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.context.td2a">引用上下文</td>
+                <td><code>@</code></td>
+                <td data-i18n="doc.agent.context.td2b">引用文件、文件夹、历史会话、白板或插件，让 Agent 精准定位相关材料</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.context.td3a">关联会话</td>
+                <td><code>#</code></td>
+                <td data-i18n="doc.agent.context.td3b">关联已有任务，把历史对话的上下文带入当前任务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.context.td4a">调用命令</td>
+                <td><code>/</code></td>
+                <td data-i18n="doc.agent.context.td4b">调用已保存的命令，快速复用固定提示词或流程</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.context.td5a">调用技能</td>
+                <td><code>$</code></td>
+                <td data-i18n="doc.agent.context.td5b">唤起技能面板；部分输入法产生的全角 ¥ / ￥ 也会触发同一面板</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="instructions" data-i18n="doc.agent.instr.h2">项目指令文件</h2>
+          <p data-i18n="doc.agent.instr.p1">
+            希望长期约束 Agent 的行为时，可以添加 AGENTS.md 指令文件：项目的技术栈与目录说明、代码风格与提交前要执行的验证命令、对高风险文件与生产配置的注意事项，以及团队协作约定，都适合写进去。Drora 启动任务时读取两个来源：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.agent.instr.th1">来源</th>
+                <th data-i18n="doc.agent.instr.th2">路径</th>
+                <th data-i18n="doc.agent.instr.th3">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.agent.instr.td1a">用户全局指令</td>
+                <td><code>~/.drora/AGENTS.md</code></td>
+                <td data-i18n="doc.agent.instr.td1b">跨项目通用的个人偏好与协作方式</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.instr.td2a">工作区指令</td>
+                <td><code>&lt;工作区&gt;/AGENTS.md</code></td>
+                <td data-i18n="doc.agent.instr.td2b">当前项目专属的工程约定，视为任务的主要项目来源</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.agent.instr.p2">
+            两个来源都存在时，全局指令在前、工作区指令在后拼接注入；两者都不存在则不注入项目指令内容。
+          </p>
+
+          <h2 id="memory" data-i18n="doc.agent.memory.h2">项目记忆</h2>
+          <p>
+            <span data-i18n="doc.agent.memory.p1">AGENTS.md 需要你亲自维护，</span>
+            <a href="memory.html" data-i18n="doc.nav.memory">Memory 记忆</a>
+            <span data-i18n="doc.agent.memory.p2">则由 Agent 自动沉淀：把跨会话可复用的偏好、纠正与项目约束记下来，在后续会话中自动带上。独立 CLI 默认启用，桌面应用默认关闭，详见</span>
+            <a href="memory.html" data-i18n="doc.agent.memory.link">Memory 记忆</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="modes" data-i18n="doc.agent.modes.h2">执行模式</h2>
+          <p data-i18n="doc.agent.modes.p1">
+            执行模式控制 Agent 修改文件、执行命令前的确认策略：是每步先确认、先出计划，还是尽量连续地完成任务。共享运行配置默认采用 build 权限模式；独立 CLI 通过 --prompt 执行非交互任务时，未指定 --mode 会采用 yolo。交互会话、桌面会话、恢复的任务及宿主可使用各自配置、保存或传入的模式。
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.agent.modes.th1">执行模式</th>
+                <th data-i18n="doc.agent.modes.th2">工作方式</th>
+                <th data-i18n="doc.agent.modes.th3">适用场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.agent.modes.td1a">变更前确认</td>
+                <td data-i18n="doc.agent.modes.td1b">每次修改文件前先询问确认，也是默认档位</td>
+                <td data-i18n="doc.agent.modes.td1c">关键代码、生产配置等高风险改动</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.modes.td2a">自动编辑</td>
+                <td data-i18n="doc.agent.modes.td2b">自动编辑文件</td>
+                <td data-i18n="doc.agent.modes.td2c">常规迭代开发，希望减少编辑确认</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.modes.td3a">计划模式</td>
+                <td data-i18n="doc.agent.modes.td3b">编辑前先出计划，确认后再开始实施</td>
+                <td data-i18n="doc.agent.modes.td3c">需求复杂、步骤较多、希望先校准方案的任务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.agent.modes.td4a">完全访问</td>
+                <td data-i18n="doc.agent.modes.td4b">减少确认次数，尽量连续执行</td>
+                <td data-i18n="doc.agent.modes.td4c">目标明确、上下文可信、希望快速推进的任务</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.agent.modes.p2">聊天输入框聚焦时按</span>
+            <code>Ctrl+Shift+M</code>
+            <span data-i18n="doc.agent.modes.p3">可在模式之间循环切换，也可以在输入框工具条的模式菜单里直接选择。权限确认的完整说明见</span>
+            <a href="safety-confirm.html" data-i18n="doc.nav.safety">安全操作确认</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="thought" data-i18n="doc.agent.thought.h2">推理强度</h2>
+          <p>
+            <span data-i18n="doc.agent.thought.p1">推理强度控制模型回答前的思考深度：通常越高越稳，但响应也会更慢一些。通过输入框工具条的推理强度菜单或</span>
+            <code>Ctrl+T</code>
+            <span data-i18n="doc.agent.thought.p2">切换；可选档位随模型能力而定，从关闭到最高按需选择。默认档位适合大多数任务，追求更快响应时可降档。</span>
+          </p>
+
+          <h2 id="side-chat" data-i18n="doc.agent.side.h2">辅助对话</h2>
+          <p data-i18n="doc.agent.side.p1">
+            主任务正在推进时想问一句「这个函数是干嘛的」，又不希望打断它的思路——辅助对话就是为这种情况准备的：它在右侧面板开一个独立对话，与主对话并行，互不干扰。
+          </p>
+          <ul>
+            <li data-i18n="doc.agent.side.li1">在主对话输入框输入 /side 或 /btw，即可新建并打开一个辅助对话。</li>
+            <li data-i18n="doc.agent.side.li2">选中主对话里的一段文字，从浮层选择「在辅助对话中提问」，选区会作为引用一并带过去。</li>
+            <li data-i18n="doc.agent.side.li3">辅助对话继承主会话历史作为上下文，可以直接追问；它是功能完整的对话，能调用工具并走权限确认。</li>
+            <li data-i18n="doc.agent.side.li4">主对话处于权限确认或提问等待状态时，划选入口不可用；草稿态与辅助对话自身也不能再开辅助对话。</li>
+          </ul>
+          <p data-i18n="doc.agent.side.p2">
+            辅助对话适合临时追问；需要长期保留的讨论，开一个正式任务更合适。
+          </p>
+
+          <h2 id="fork" data-i18n="doc.agent.fork.h2">会话分叉</h2>
+          <p data-i18n="doc.agent.fork.p1">
+            想在某一步换个方向试试，又不想弄丢现在的进度：把鼠标移到已完成的助手消息上，点操作行里的「分叉」，Drora 会以该消息的检查点为起点创建一个新任务，任务行带「从对话中派生」标记；原任务完整保留，继续按原样运行。
+          </p>
+          <ul>
+            <li data-i18n="doc.agent.fork.li1">任务结束后才可分叉，进行中或被中断的回复没有分叉入口。</li>
+            <li data-i18n="doc.agent.fork.li2">找不到分叉点检查点时无法分叉；分叉新建的是会话，不改变原任务。</li>
+          </ul>
+
+          <h2 id="tips" data-i18n="doc.agent.tips.h2">使用建议</h2>
+          <ol>
+            <li data-i18n="doc.agent.tips.li1">先描述目标：直接说明要实现、修复或分析的内容；多轮迭代的长任务用目标模式设定可校验的目标。</li>
+            <li data-i18n="doc.agent.tips.li2">再补充上下文：用 @ 引用关键文件，或通过附件补充截图、文档和需求材料。</li>
+            <li data-i18n="doc.agent.tips.li3">用命令和技能提效：固定流程用 / 调用命令，复用能力用 $ 调用技能。</li>
+            <li data-i18n="doc.agent.tips.li4">按风险选执行模式：普通编辑用自动编辑；涉及关键文件或命令执行时，用计划模式先校准方案。</li>
+            <li data-i18n="doc.agent.tips.li5">保持同一任务连续推进：持续追问、补充约束并查看改动，避免把上下文拆散。</li>
+          </ol>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

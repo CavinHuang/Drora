@@ -37,21 +37,143 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.model">连接模型</h1>
-          <h2 id="login" data-i18n="doc.model.sub.login">登录与账号</h2>
           <p>
-            <span data-i18n="doc.model.p1">
-            Drora 面向 GLM 系列模型设计。桌面端在「设置」中登录 Z.ai 账号（GLM Coding Plan）或按需配置模型服务；CLI 通过
-            </span>
-            <code>drora login</code><span data-i18n="doc.model.p1t">完成浏览器授权后即可提问。</span>
+            <span data-i18n="doc.model.intro">Drora 支持多种方式接入模型：推荐在桌面端登录 Z.ai / BigModel 账号使用 Coding Plan；也可以用 API Key 接入常见模型服务，或添加完全自定义的端点。所有供应商统一在「设置 → 模型设置」中管理。</span>
           </p>
 
-          <h2 id="self-host" data-i18n="doc.model.sub.self">自托管与私有接入</h2>
+          <h2 id="coding-plan" data-i18n="doc.model.sub.plan">账号登录（推荐）</h2>
           <p>
-            <span data-i18n="doc.model.p2">自托管或私有接入时，可用</span>
-            <code>DRORA_BUILTIN_PROVIDER_CONFIG_FILE</code>
-            <span data-i18n="doc.model.p2m">指定本地 Provider 配置文件；服务地址等构建配置见仓库</span>
+            <span data-i18n="doc.model.plan.p1">桌面端在欢迎页或「设置 → 模型设置」中选择登录</span>
+            <code>Z.ai</code><span data-i18n="doc.model.plan.or">或</span>
+            <code>BigModel</code>
+            <span data-i18n="doc.model.plan.p1t">账号：浏览器打开授权页面，完成授权后凭据保存在本机，可用模型列表自动刷新。</span>
+          </p>
+          <p>
+            <span data-i18n="doc.model.plan.p2">CLI 通过</span>
+            <code>drora login</code>
+            <span data-i18n="doc.model.plan.p2t">完成浏览器授权；无浏览器环境加</span>
+            <code>--no-browser</code>
+            <span data-i18n="doc.model.plan.p2t2">手动打开授权链接。</span>
+            <code>drora logout</code>
+            <span data-i18n="doc.model.plan.p2t3">清除已保存的登录凭据；会话内也可用</span>
+            <code>/login</code>
+            <span data-i18n="doc.model.plan.and">与</span>
+            <code>/logout</code><span data-i18n="doc.dot">。</span>
+          </p>
+          <div class="docs-code"><code>drora login                    # 浏览器授权登录 Z.ai
+drora login bigmodel           # 登录 BigModel
+drora login zai --no-browser   # 不自动打开浏览器，手动打开授权链接
+drora logout                   # 清除已保存的登录凭据</code></div>
+
+          <h2 id="catalog" data-i18n="doc.model.sub.catalog">API Key 接入</h2>
+          <p>
+            <span data-i18n="doc.model.catalog.p1">在「设置 → 模型设置 → 添加供应商」的供应商目录中选择模板，填入 API Key 即可。目录覆盖常见的官方与聚合服务：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.provider">供应商</th>
+                <th data-i18n="doc.model.th.desc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.model.tp.zhipu">Z.ai API / BigModel API</td>
+                <td data-i18n="doc.model.td.zhipu">智谱开放平台接口，Coding Plan 之外的 API 接入方式</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.first">Anthropic / OpenAI / xAI</td>
+                <td data-i18n="doc.model.td.first">官方接口</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.openrouter">OpenRouter</td>
+                <td data-i18n="doc.model.td.openrouter">聚合多种模型的中转服务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.cn">Kimi / MiniMax / DeepSeek / 阿里云百炼 / Xiaomi MiMo</td>
+                <td data-i18n="doc.model.td.cn">国内模型服务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.custom">自定义端点</td>
+                <td data-i18n="doc.model.td.custom">任何兼容下述 API 格式的服务</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.model.catalog.note">供应商目录随客户端内置（仓库 </span>
+            <code>config/provider/drora-builtin.json</code>
+            <span data-i18n="doc.model.catalog.notet">，目前 20 个模板）；也可改用本地配置文件，见</span>
+            <a href="#env">相关环境变量</a><span data-i18n="doc.dot">。</span>
+          </div>
+
+          <h2 id="custom" data-i18n="doc.model.sub.custom">自定义模型服务</h2>
+          <p>
+            <span data-i18n="doc.model.custom.p1">目录之外的模型服务选择「自定义端点」，手动填写名称、API Key 和以下字段：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.field">字段</th>
+                <th data-i18n="doc.model.th.fielddesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.model.tf.baseurl">Base URL</td>
+                <td data-i18n="doc.model.tfd.baseurl">模型服务的 API 地址</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tf.modelid">模型 ID</td>
+                <td data-i18n="doc.model.tfd.modelid">请求时使用的模型名，可添加多个模型</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tf.format">API 格式</td>
+                <td><span data-i18n="doc.model.tfd.format">三选一：</span><code>Chat Completions</code><span data-i18n="doc.model.tfd.format2">、</span><code>Responses</code><span data-i18n="doc.model.tfd.format3">、</span><code>Anthropic Messages</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.model.custom.p2">每个模型还可单独配置</span>
+            <code data-i18n="doc.model.tf.ctx">上下文窗口</code><span data-i18n="doc.model.custom.sep1">、</span>
+            <code data-i18n="doc.model.tf.maxout">最大输出 Token</code><span data-i18n="doc.model.custom.sep2">、</span>
+            <span data-i18n="doc.model.custom.modalities">输入模态（文本 / 图片 / 视频 / PDF）与可选的推理等级。开启「智能配置」时，Drora 按模型 ID、Base URL 和 API 格式自动匹配推荐配置；手动修改过的字段转为手动管理，其余仍自动跟随更新。</span>
+          </p>
+
+          <h2 id="params" data-i18n="doc.model.sub.params">模型参数与网络</h2>
+          <p>
+            <span data-i18n="doc.model.params.thought">聊天输入框的「思考档位」用于调整回答前的思考深度：通常越高越稳，响应也越慢；可选档位来自当前模型的推理等级配置。</span>
+          </p>
+          <p>
+            <span data-i18n="doc.model.params.proxy">「设置 → HTTP 代理」可统一指定模型、MCP、命令工具与应用渲染层的出口流量，不读取系统环境变量；留空时这些流量直连（内置浏览器跟随系统代理）。修改后需重启应用生效。</span>
+          </p>
+
+          <h2 id="verify" data-i18n="doc.model.sub.verify">验证与切换</h2>
+          <p>
+            <span data-i18n="doc.model.verify.p1">每个模型配置提供「测试模型」：发送一条固定探测消息验证连通性。会话中通过聊天工具栏的「管理模型」或</span>
+            <code>/model</code>
+            <span data-i18n="doc.model.verify.p1t">切换当前模型；实际消耗的 Token 与调用次数见</span>
+            <a href="usage-stats.html" data-i18n="doc.nav.usage">使用统计</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="env" data-i18n="doc.model.sub.env">相关环境变量</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.env">变量</th>
+                <th data-i18n="doc.model.th.envdesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>DRORA_BUILTIN_PROVIDER_CONFIG_FILE</code></td>
+                <td data-i18n="doc.model.td.envfile">本地 Provider 配置文件路径；未设置时使用内置配置</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.model.env.p2">服务地址与构建配置示例见仓库</span>
             <a href="https://github.com/CavinHuang/Drora/blob/main/.env.example">.env.example</a>
-            <span data-i18n="doc.model.p2and">与</span>
+            <span data-i18n="doc.model.env.and">与</span>
             <a href="https://github.com/CavinHuang/Drora/blob/main/config/README.md">config/README.md</a><span data-i18n="doc.dot">。</span>
           </p>
         </article>

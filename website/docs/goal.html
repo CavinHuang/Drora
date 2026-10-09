@@ -37,16 +37,68 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.tasks">任务与目标模式</h1>
-          <p data-i18n="doc.tasks.p1">
-            桌面应用以任务组织日常工作：每个任务有独立的会话、工具执行与 Git 上下文。对多步骤的复杂目标，用 Goal
-            承载长程计划——Agent 持续规划、执行与验证，进度面板逐步打勾，你随时可以查看状态或补充指令。
+          <p>
+            <span data-i18n="doc.goal.intro.a">面对要跑很久的复杂任务，可以用</span> <code>/goal</code><span data-i18n="doc.goal.intro.b">给当前会话设一个目标。设定之后，Agent
+            会围绕这个目标持续推进：每一轮结束都自动校验是否达成，没达成就自己接着下一轮，确认完成才收尾——把「盯着
+            Agent 一步步催」交给运行时。</span>
           </p>
           <ul>
-            <li data-i18n="doc.tasks.li1">文件改动、终端执行与 Git 状态保持在同一任务上下文里。</li>
-            <li data-i18n="doc.tasks.li2">Goal 面板展示目标描述、完成进度与 token 消耗。</li>
-            <li data-i18n="doc.tasks.li3">排队中的指令由运行时串行受理，不会丢失。</li>
+            <li data-i18n="doc.goal.li1">适合「一句话说得清、但要多轮才能做完」的任务：重构一个模块、清完一批类型错误、把某个指标调到目标值。</li>
+            <li data-i18n="doc.goal.li2">摘要面板的目标卡片实时展示目标状态、token 与时间用量、迭代轮次。</li>
+            <li data-i18n="doc.goal.li3">待办清单按迭代轮次分组，每一轮推进了什么一目了然。</li>
           </ul>
-          <p><span data-i18n="doc.tasks.next">任务的历史与回放见</span> <a href="history.html" data-i18n="doc.nav.sessions">会话与编辑历史</a><span data-i18n="doc.dot">。</span></p>
+          <div class="docs-note">
+            <span data-i18n="doc.goal.tip">目标写得越具体、越可校验，自动推进就越稳：把要改的文件、要通过的测试、要达到的指标写进目标描述里。</span>
+          </div>
+
+          <h2 id="set-goal" data-i18n="doc.goal.set.h">设定目标</h2>
+          <p>
+            <span data-i18n="doc.goal.set.p1.a">在会话输入框输入</span> <code>/goal</code><span data-i18n="doc.goal.set.p1.b">加一句话即可设定目标。同一会话同时只有一个目标；不带参数的</span> <code>/goal</code><span data-i18n="doc.goal.set.p1.c">可随时查看当前目标：</span>
+          </p>
+          <div class="docs-code"><code>/goal                     # 查看当前目标（描述、状态与用量）
+/goal &lt;目标描述&gt;          # 设定目标并立即开始推进
+/goal replace &lt;目标描述&gt;  # 不经确认直接替换现有目标
+/goal pause               # 暂停自动推进
+/goal resume              # 恢复推进
+/goal clear               # 清空目标</code></div>
+          <p>
+            <span data-i18n="doc.goal.set.p2.a">目标最长 4000 字符；不带</span> <code>replace</code><span data-i18n="doc.goal.set.p2.b">设定时若已有目标，会先要求确认是否覆盖。headless 模式下也可以在单次运行中设定目标：</span>
+          </p>
+          <div class="docs-code"><code>drora -p "继续修复剩余的类型错误" --target "类型检查全部通过" --target-replace</code></div>
+          <p data-i18n="doc.goal.set.p3">摘要面板中的目标卡片展示目标描述与状态（进行中 / 已暂停 / 预算受限 / 已完成），以及 token、时间用量和已进行的迭代次数；待办清单按「第 N 轮迭代」分组，清单项归属它首次出现的轮次。</p>
+
+          <h2 id="verify" data-i18n="doc.goal.verify.h">每轮自动校验</h2>
+          <p data-i18n="doc.goal.verify.p1">
+            每一轮结束后，运行时会发起一次独立的完成校验，对照目标逐项核对当前实际状态，产出通过与否、原因和下一步建议。校验未通过时，结果会注入下一轮继续推进；通过才把目标置为已完成并收尾总结。
+          </p>
+          <p data-i18n="doc.goal.verify.p2">校验看的是实据——改动的文件、命令输出、测试结果；待办没做完就不会被判成完成，完成与否由校验裁定，模型不能自行宣布完成。会话时间线中每次校验以分隔条呈现：</p>
+          <ul>
+            <li data-i18n="doc.goal.verify.li1">目标校验中</li>
+            <li data-i18n="doc.goal.verify.li2">目标未完成，任务继续</li>
+            <li data-i18n="doc.goal.verify.li3">目标已完成，任务结束</li>
+          </ul>
+
+          <h2 id="intervene" data-i18n="doc.goal.intervene.h">中途介入</h2>
+          <p data-i18n="doc.goal.intervene.p1">
+            随时可以暂停、恢复或清空目标：暂停不丢失上下文，恢复后从当前状态继续推进。目标停止自动推进只有三种情况：
+          </p>
+          <ul>
+            <li data-i18n="doc.goal.intervene.li1">完成校验通过，目标收尾；</li>
+            <li data-i18n="doc.goal.intervene.li2">你主动暂停或清空；</li>
+            <li data-i18n="doc.goal.intervene.li3">你中断了正在推进的一轮，校验随之中断，等待你的下一条指令。</li>
+          </ul>
+
+          <h2 id="limits" data-i18n="doc.goal.limits.h">什么情况下设不了目标</h2>
+          <ul>
+            <li data-i18n="doc.goal.limits.li1">Plan 模式：计划模式与自动续跑冲突，目标只记录、不会自动继续——请切换到其他执行模式后再设。</li>
+            <li data-i18n="doc.goal.limits.li2">任务运行中：请等当前任务结束或先停止，再设定目标。</li>
+          </ul>
+
+          <h2 id="modes" data-i18n="doc.goal.modes.h">与执行模式搭配</h2>
+          <p data-i18n="doc.goal.modes.p1">
+            目标和执行模式职责不同：目标管「何时算完」，执行模式（build / edit / plan / yolo）管「哪些操作需要确认」。跑长目标可以搭配自动化程度更高的模式，让推进不被确认打断；涉及重要改动的目标，用更严格的模式保留每一步确认。
+          </p>
+          <p><span data-i18n="doc.goal.modes.p2">命令与 headless 参数的完整列表见</span> <a href="cli.html" data-i18n="doc.nav.cli">CLI</a><span data-i18n="doc.dot">；</span><span data-i18n="doc.tasks.next">任务的历史与回放见</span> <a href="history.html" data-i18n="doc.nav.sessions">会话与编辑历史</a><span data-i18n="doc.dot">。</span></p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

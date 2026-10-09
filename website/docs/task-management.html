@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>任务与文件管理 | Drora 文档</title>
+    <meta name="description" content="用分组、项目与时间线组织任务，命令中心快速触达操作，工作区文件树浏览文件、查看变更并把文件引用进对话。" />
+    <meta property="og:title" content="任务与文件管理 | Drora 文档" />
+    <meta property="og:description" content="用分组、项目与时间线组织任务，命令中心快速触达操作，工作区文件树浏览文件、查看变更并把文件引用进对话。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="task-management">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="task-management"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.taskFiles">任务与文件管理</h1>
+          <p data-i18n="doc.taskfiles.p1">
+            随着任务越积越多，左侧边栏提供了几个高频管理能力：任务视图让你按分组、项目或时间线组织任务列表，命令中心在一个面板里快速触达操作、任务与文件，工作区文件树则让你不离开 Drora 就能浏览文件、查看变更并把文件引用进对话。
+          </p>
+
+          <h2 id="views" data-i18n="doc.taskfiles.views.h2">任务视图</h2>
+          <p data-i18n="doc.taskfiles.views.p1">
+            侧栏顶部的视图菜单提供三种组织方式，可以随时切换：
+          </p>
+          <ul>
+            <li data-i18n="doc.taskfiles.views.li1">分组：按自定义分组归类任务，适合按主题或优先级整理。</li>
+            <li data-i18n="doc.taskfiles.views.li2">项目：任务跟着项目走，每个项目下平铺它的任务。</li>
+            <li data-i18n="doc.taskfiles.views.li3">时间线：按时间倒序排列，找最近做过的事最快。</li>
+          </ul>
+          <p data-i18n="doc.taskfiles.views.p2">
+            视图旁还有几个常用入口：排序方式（按创建时间或更新时间）、任务搜索，以及归档——已完成等不再活跃的任务可移入归档列表，列表里随时可以恢复或删除；删除任务会连同它的会话快照与 checkpoint 一起清理。
+          </p>
+
+          <h2 id="groups" data-i18n="doc.taskfiles.groups.h2">任务分组</h2>
+          <p data-i18n="doc.taskfiles.groups.p1">
+            切换到分组视图后，可以把相关任务整理到自定义分组里：
+          </p>
+          <ul>
+            <li data-i18n="doc.taskfiles.groups.li1">新建分组并命名；点击分组标题旁的颜色点，可在灰、红、橙、黄、绿、蓝、紫七种颜色中选择。</li>
+            <li data-i18n="doc.taskfiles.groups.li2">随时重命名分组；右键分组可选择「取消分组并删除」——只删除分组本身，组内任务保留并移出分组。</li>
+            <li data-i18n="doc.taskfiles.groups.li3">把任务拖进目标分组，或在任务上右键选择「移动到分组 / 移出分组 / 移动到顶部」。</li>
+            <li data-i18n="doc.taskfiles.groups.li4">点击分组标题折叠单个分组，或用列表顶部按钮全部展开 / 收起。</li>
+          </ul>
+
+          <h2 id="command-center" data-i18n="doc.taskfiles.cc.h2">命令中心</h2>
+          <p>
+            <span data-i18n="doc.taskfiles.cc.p1">按</span>
+            <code>Ctrl/Command+K</code>
+            <span data-i18n="doc.taskfiles.cc.p2">（或</span>
+            <code>Ctrl/Command+Shift+P</code>
+            <span data-i18n="doc.taskfiles.cc.p3">）打开命令中心，在一个面板里搜索操作、任务或文件：新建对话、打开文件夹、切换主题、打开设置等常用操作都能直接执行，不必到处找菜单。范围可按「全部 / 操作 / 任务 / 文件」筛选。全部快捷键见</span>
+            <a href="keyboard-shortcuts.html" data-i18n="doc.nav.shortcuts">快捷键表</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="file-tree" data-i18n="doc.taskfiles.tree.h2">工作区文件树</h2>
+          <p data-i18n="doc.taskfiles.tree.p1">
+            从工作区卡片的「显示文件树」入口切换到当前工作区的文件树，不离开任务就能浏览文件：
+          </p>
+          <ul>
+            <li data-i18n="doc.taskfiles.tree.li1">按文件名或路径实时筛选，支持在设置中配置搜索忽略规则。</li>
+            <li data-i18n="doc.taskfiles.tree.li2">「仅显示变更文件」一键过滤出有 Git 变更的文件，代码评审或提交前检查特别好用。</li>
+            <li data-i18n="doc.taskfiles.tree.li3">单击文件在预览面板打开；右键菜单提供「添加到聊天」「复制路径」「在资源管理器中打开」等操作，本地 HTML 文件还能「用内置浏览器打开」。</li>
+            <li data-i18n="doc.taskfiles.tree.li4">把文件添加到聊天，可以让 Agent 围绕该文件工作——「仅显示变更文件」加「添加到聊天」组合使用，能快速把本次改动喂给 Agent 做自查或生成提交说明。</li>
+          </ul>
+          <p>
+            <span data-i18n="doc.taskfiles.tree.p2">附件也支持拖放与粘贴的方式加入输入区，详见</span>
+            <a href="agents.html" data-i18n="doc.nav.agent">Drora Agent</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="git-graph" data-i18n="doc.taskfiles.git.h2">Git 图谱</h2>
+          <p data-i18n="doc.taskfiles.git.p1">
+            工作区顶部的分支切换器旁可以打开 Git 图谱：一张只读的提交历史图，分支并排画出泳道，合并发生在哪里一目了然，适合理清「这个分支从哪儿分出去」「这两条线什么时候合的」。顶部会汇总提交数、泳道数、合并与引用数量。
+          </p>
+          <p data-i18n="doc.taskfiles.git.p2">
+            它只负责看：切换分支走同一个分支切换器；如果切换时有未提交的改动，Drora 会提示先提交，也可以选择提交后自动继续切换。
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

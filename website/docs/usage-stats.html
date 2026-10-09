@@ -40,6 +40,39 @@
           <p data-i18n="doc.usage.p1">
             应用内置用量统计：查看各会话的 token 消耗、请求次数与工具调用分布，掌握成本与负载；统计数据基于本地会话记录生成。
           </p>
+
+          <h2 id="app" data-i18n="doc.usage.sub.app">应用用量</h2>
+          <p data-i18n="doc.usage.app.p1">应用用量统计当前设备上的会话记录，数据来自本地会话聚合，适合回看自己最近在 Drora 里完成了多少任务。可以看到：</p>
+          <ul>
+            <li data-i18n="doc.usage.app.li1">Token 用量（输入 / 输出 / 缓存命中率）、会话数、轮次数与工具调用次数。</li>
+            <li data-i18n="doc.usage.app.li2">当前连续使用天数、最长连续使用天数、最长单次会话与单日 Token 峰值。</li>
+            <li data-i18n="doc.usage.app.li3">最常用模型及其用量占比。</li>
+          </ul>
+          <p data-i18n="doc.usage.app.p2">图表区域提供按天 Token 趋势（悬停可查看当日各模型的用量明细）、活跃热力图和模型用量环图；右上角可以切换全部时间 / 最近 30 天 / 最近 7 天，用于快速对比近期使用情况。</p>
+
+          <h2 id="coding-plan" data-i18n="doc.usage.sub.plan">编程套餐</h2>
+          <p data-i18n="doc.usage.plan.p1">编程套餐读取当前连接的 Z.ai / BigModel Coding Plan 远端统计，适合查看套餐额度、模型消耗和工具调用情况：</p>
+          <ul>
+            <li data-i18n="doc.usage.plan.li1">5 小时额度、每周额度等套餐状态与剩余进度。</li>
+            <li data-i18n="doc.usage.plan.li2">各模型的 Token 与 credits 消耗。</li>
+            <li data-i18n="doc.usage.plan.li3">联网搜索、网页读取等 MCP 工具的调用次数。</li>
+          </ul>
+          <p data-i18n="doc.usage.plan.p2">时间范围支持今天 / 最近 7 天 / 最近 30 天 / 自定义（最长 30 天）。使用编程套餐面板需要登录账号并连接对应的 Coding Plan；未登录、未开通或仅以 API Key 接入时，页面会给出对应提示。</p>
+
+          <h2 id="reset-card" data-i18n="doc.usage.sub.reset">额度重置卡</h2>
+          <p data-i18n="doc.usage.reset.p1">5 小时额度或每周额度用完后，不一定要干等下一个周期：端内会显示当前可用的重置机会，有重置机会时直接点击即可重置对应额度，重置后额度立即恢复并在卡片上标记「已重置」。</p>
+          <ul>
+            <li data-i18n="doc.usage.reset.li1">重置卡有有效期，必须在有效期内使用，过期自动失效。</li>
+            <li data-i18n="doc.usage.reset.li2">点击重置会打开「可重置额度」面板，列出每张卡的剩余有效期；有多张时自动使用最早获得的那张。</li>
+            <li data-i18n="doc.usage.reset.li3">重置机会只下发给登录并连接了当前账号 Coding Plan 的用户；仅用 API Key 接入不会收到。</li>
+          </ul>
+
+          <h2 id="related" data-i18n="doc.usage.sub.related">相关页面</h2>
+          <p>
+            <span data-i18n="doc.usage.related.p1">还没有连接模型？先看</span>
+            <a href="configuration.html" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.usage.related.p2">；把不急的工作排进低峰时段，见</span>
+            <a href="automation.html" data-i18n="doc.nav.automation">自动化任务</a><span data-i18n="doc.dot">。</span>
+          </p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>智能体开发环境工具 | Drora 文档</title>
+    <meta name="description" content="Drora 是一套面向真实开发任务的智能体开发环境：任务列表、归档、命令中心、SSH/WSL/Docker 远程开发、文件预览与终端面板在同一个窗口。" />
+    <meta property="og:title" content="智能体开发环境工具 | Drora 文档" />
+    <meta property="og:description" content="Drora 是一套面向真实开发任务的智能体开发环境：任务列表、归档、命令中心、SSH/WSL/Docker 远程开发、文件预览与终端面板在同一个窗口。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="../assets/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+    <link rel="apple-touch-icon" href="../assets/icon.png" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script src="../assets/js/components.js"></script>
+  </head>
+  <body data-page="docs" data-doc="ADE-tools">
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="../docs/">文档</a>
+        <a href="../changelog/">更新日志</a>
+        <a href="../security/">提交漏洞</a>
+        <a href="../community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="ADE-tools"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.advanced">深度集成</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.ade">智能体开发环境工具</h1>
+          <p data-i18n="doc.ade.p1">
+            Drora 不只是一个 Agent 输入框，也是一套面向真实开发任务的智能体开发环境（ADE，Agent Development Environment）：你可以在一个窗口里管理任务、按项目组织对话、进入远程开发环境、预览文件，并在终端面板里跑构建与测试。
+          </p>
+
+          <h2 id="tasks" data-i18n="doc.ade.tasks.h2">工作区与任务列表</h2>
+          <p data-i18n="doc.ade.tasks.p1">
+            左侧边栏跟随当前工作区展示任务列表，顶部提供新建任务、搜索与视图切换。任务视图支持分组、项目、时间线三种组织方式，非分组视图下还能按创建时间或更新时间排序。每一行会显示任务标题、相对时间与状态（运行中、等待确认等）；任务产生改动后还会显示该任务的 +/- 变更行数，方便快速判断 Agent 在哪些任务里改了多少内容。
+          </p>
+
+          <h2 id="archive" data-i18n="doc.ade.archive.h2">归档任务</h2>
+          <p data-i18n="doc.ade.archive.p1">
+            不再活跃的任务可以归档，从主列表里收起来。归档列表里每一行同样显示标题、相对时间、变更统计和所属工作区，并提供恢复和删除操作；确认无用后也可以删除所有归档任务。删除任务会连同它的会话快照与 checkpoint 一起清理，需要回顾旧任务时先恢复再操作。
+          </p>
+
+          <h2 id="command-center" data-i18n="doc.ade.cc.h2">命令中心</h2>
+          <p>
+            <span data-i18n="doc.ade.cc.p1">按</span>
+            <code>Ctrl/Command+K</code>
+            <span data-i18n="doc.ade.cc.p2">（或</span>
+            <code>Ctrl/Command+Shift+P</code>
+            <span data-i18n="doc.ade.cc.p3">）打开命令中心，在一个面板里快速触达常用操作和导航。它同时覆盖操作、任务和文件三类搜索：新建对话、打开文件夹、搜索文件、打开设置、切换主题、切换终端等都能直接执行。全部快捷键见</span>
+            <a href="keyboard-shortcuts.html" data-i18n="doc.nav.shortcuts">快捷键表</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="remote" data-i18n="doc.ade.remote.h2">远程开发与远程接入</h2>
+          <p data-i18n="doc.ade.remote.p1">
+            在「打开工作区」页面可以选择本地文件夹，也可以进入远程连接：通过 SSH 远程主机、WSL（Windows Linux 子系统）、Docker 本地容器或已运行的 Drora Server 打开远程工作区，让 Agent 在真实运行环境中读取文件、执行命令和推进任务，连接过程与日志在窗口内可见。
+          </p>
+          <p>
+            <span data-i18n="doc.ade.remote.p2">人不在电脑前时的操作入口是手机远控：手机浏览器直连桌面已有 Host，复用同一会话运行时，断线可恢复回放。详见</span>
+            <a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a>
+            <span data-i18n="doc.ade.remote.and">与</span>
+            <a href="remote-control.html" data-i18n="doc.nav.remote">手机远控</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="preview" data-i18n="doc.ade.preview.h2">文件与内容预览</h2>
+          <p data-i18n="doc.ade.preview.p1">
+            点击文件树里的文件会在预览面板打开，除了代码，几类常见格式也能直接看：
+          </p>
+          <ul>
+            <li data-i18n="doc.ade.preview.li1">PDF：只读查看，适合看需求文档与设计稿，不提供编辑和批注。</li>
+            <li data-i18n="doc.ade.preview.li2">Mermaid 图表：回复里的 mermaid 代码块直接渲染成图，可放大查看。</li>
+            <li data-i18n="doc.ade.preview.li3">图片：Markdown 图片可以点开预览，连续多张会自动排成图集翻看。</li>
+            <li data-i18n="doc.ade.preview.li4">表格：Markdown 表格自带工具栏，可以复制成 Markdown、下载成 CSV，或打开更大的预览窗口，很宽的表格还能展开滚动区域。</li>
+          </ul>
+
+          <h2 id="terminal" data-i18n="doc.ade.term.h2">终端与搜索</h2>
+          <p>
+            <span data-i18n="doc.ade.term.p1">按</span>
+            <code>Ctrl/Command+J</code>
+            <span data-i18n="doc.ade.term.p2">可以打开终端面板，在同一个工作区里运行构建、测试、启动服务、查看日志，再把结果继续交给 Agent 分析。</span>
+          </p>
+          <p data-i18n="doc.ade.term.p3">
+            大仓库里搜东西容易慢，而且结果取决于本机装的是哪个版本的 find 和 grep。「设置 → 增强 Find 和 Grep」开启后，新建会话会使用增强的搜索工具，各台机器上的表现更一致；当前会话保持现有设置，Windows 的 Find 保持不变。
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="../"></site-footer>
+
+    <script src="../assets/js/i18n.js"></script>
+    <script src="../assets/js/main.js"></script>
+  </body>
+</html>

@@ -38,9 +38,202 @@
           </div>
           <h1 data-i18n="doc.nav.skills">技能与斜杠命令</h1>
           <p>
-            <span data-i18n="doc.skills.p1">
-            技能（Skill）把可复用的工作流打包成一等公民：在会话中用 </span><code>/</code><span data-i18n="doc.skills.p1t">
-            调用，参数通过模板展开；斜杠命令（Command）则提供轻量的提示词快捷方式。两者都可以在工作区或用户目录中自定义。</span>
+            <span data-i18n="doc.skills.intro">技能（Skill）把可复用的工作说明打包成一等公民，让 Agent 在特定任务上按同一套标准执行；斜杠命令（Command）则提供轻量的提示词快捷方式。两者都可以放在工作区或用户目录中自定义。</span>
+          </p>
+
+          <h2 id="skills" data-i18n="doc.skills.sub.skills">技能（Skill）</h2>
+          <p>
+            <span data-i18n="doc.skills.skills.p1">一个技能就是目录下的一个 </span>
+            <code>SKILL.md</code>
+            <span data-i18n="doc.skills.skills.p1t">：frontmatter 声明名称与触发时机，正文写给模型照做。会话中模型可按描述自行调用，也可以用</span>
+            <code>/skill</code>
+            <span data-i18n="doc.skills.skills.p1t2">强制下一轮先加载指定技能：</span>
+          </p>
+          <div class="docs-code"><code>/skill                       # 列出当前可发现的技能
+/skill code-review           # 强制加载 code-review 技能
+/skill code-review 审查工作区改动   # 加载技能并附带任务</code></div>
+
+          <h2 id="skill-anatomy" data-i18n="doc.skills.sub.anatomy">SKILL.md 结构</h2>
+          <div class="docs-code"><code>---
+name: code-review
+description: 按团队规范审查当前变更
+when_to_use: 用户要求审查代码、diff 或提交时使用
+---
+
+## 审查步骤
+
+1. 先读取相关变更，再逐条给出意见。
+2. 按严重程度分组输出结论。</code></div>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.fm">字段</th>
+                <th data-i18n="doc.skills.th.fmdesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>name</code></td>
+                <td data-i18n="doc.skills.td.name">技能名称，调用与检索时使用；缺省时按目录名加载</td>
+              </tr>
+              <tr>
+                <td><code>description</code></td>
+                <td data-i18n="doc.skills.td.desc">一句话说明技能做什么，模型据此判断是否适用</td>
+              </tr>
+              <tr>
+                <td><code>when_to_use</code></td>
+                <td data-i18n="doc.skills.td.when">可选；进一步说明触发场景，帮助模型在合适时机调用</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.skills.anatomy.note">带 frontmatter 的技能必须提供 </span>
+            <code>name</code>
+            <span data-i18n="doc.skills.anatomy.notet">与 </span>
+            <code>description</code>
+            <span data-i18n="doc.skills.anatomy.notet2">，缺失或超长的描述会在扫描时报告诊断；正文没有大小写敏感的格式要求，普通 Markdown 即可。</span>
+          </div>
+
+          <h2 id="skill-locations" data-i18n="doc.skills.sub.locations">技能存放位置</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.scope">作用域</th>
+                <th data-i18n="doc.skills.th.dir">目录</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.skills.ts.project">项目</td>
+                <td><code>.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>.agents/skills/</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.ts.user">用户</td>
+                <td><code>~/.drora/skills/</code><span data-i18n="doc.skills.td.agents"> 与 </span><code>~/.agents/skills/</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.skills.ts.plugin">插件 / 内置</td>
+                <td data-i18n="doc.skills.td.plugin">随插件分发（以 插件名:技能名 引用），内置技能如 dynamic-workflows</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.skills.locations.p1">项目作用域不只看当前目录：从工作目录向上到 Git 仓库根的每一层都会扫描，monorepo 的子包可以带自己的技能。同目录下 </span>
+            <code>.drora</code>
+            <span data-i18n="doc.skills.locations.p1t"> 优先于 </span>
+            <code>.agents</code>
+            <span data-i18n="doc.skills.locations.p1t2">，两套目录可以并存。</span>
+          </p>
+
+          <h2 id="commands" data-i18n="doc.skills.sub.commands">内置斜杠命令</h2>
+          <p>
+            <span data-i18n="doc.skills.commands.p1">输入 </span>
+            <code>/</code>
+            <span data-i18n="doc.skills.commands.p1t"> 可查看全部可用命令；内置命令覆盖会话、模型、权限与工作流管理：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.cmd">命令</th>
+                <th data-i18n="doc.skills.th.cmddesc">用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>/help [command]</code></td><td data-i18n="doc.skills.cmd.help">查看斜杠命令帮助</td></tr>
+              <tr><td><code>/login</code> / <code>/logout</code></td><td data-i18n="doc.skills.cmd.login">配置或清除 Coding Plan 登录</td></tr>
+              <tr><td><code>/compact [instructions]</code></td><td data-i18n="doc.skills.cmd.compact">压缩当前会话，可附带摘要要求</td></tr>
+              <tr><td><code>/init [notes]</code></td><td data-i18n="doc.skills.cmd.init">创建或更新工作区 AGENTS.md</td></tr>
+              <tr><td><code>/expert [status|resume|stop|&lt;task&gt;]</code></td><td data-i18n="doc.skills.cmd.expert">运行或管理专家工作流</td></tr>
+              <tr><td><code>/effort [list|&lt;level&gt;]</code> / <code>/variant</code></td><td data-i18n="doc.skills.cmd.effort">查看或切换会话推理等级</td></tr>
+              <tr><td><code>/dwf [list|cancel|resume]</code></td><td data-i18n="doc.skills.cmd.dwf">查看、取消或恢复 dynamic workflow 运行</td></tr>
+              <tr><td><code>/fork [latest|checkpointId]</code></td><td data-i18n="doc.skills.cmd.fork">从工作区检查点派生新会话</td></tr>
+              <tr><td><code>/locale [auto|en-US|zh-CN]</code> / <code>/language</code></td><td data-i18n="doc.skills.cmd.locale">查看或切换界面语言</td></tr>
+              <tr><td><code>/mcp [list|status|connect|disconnect]</code></td><td data-i18n="doc.skills.cmd.mcp">查看或管理已配置的 MCP 服务器</td></tr>
+              <tr><td><code>/plugins [list|enable|disable]</code> / <code>/plugin</code></td><td data-i18n="doc.skills.cmd.plugins">打开插件管理</td></tr>
+              <tr><td><code>/mode [plan|build|edit|yolo]</code></td><td data-i18n="doc.skills.cmd.mode">查看或切换权限模式</td></tr>
+              <tr><td><code>/model [list|main|lite|provider/model]</code></td><td data-i18n="doc.skills.cmd.model">查看或切换当前会话模型</td></tr>
+              <tr><td><code>/new</code> / <code>/clear</code></td><td data-i18n="doc.skills.cmd.new">开始全新会话</td></tr>
+              <tr><td><code>/resume [sessionId]</code> / <code>/continue</code></td><td data-i18n="doc.skills.cmd.resume">恢复已保存的会话</td></tr>
+              <tr><td><code>/rewind [latest|checkpointId]</code></td><td data-i18n="doc.skills.cmd.rewind">查看或恢复工作区检查点</td></tr>
+              <tr><td><code>/skill [&lt;skill-name&gt; [task]]</code></td><td data-i18n="doc.skills.cmd.skill">列出技能，或强制下一轮加载某个技能</td></tr>
+              <tr><td><code>/goal [&lt;objective&gt;]</code> / <code>/target</code></td><td data-i18n="doc.skills.cmd.goal">查看、设置或管理会话目标</td></tr>
+              <tr><td><code>/workflow [&lt;task&gt;]</code></td><td data-i18n="doc.skills.cmd.workflow">为任务设计并启动 dynamic workflow</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="custom-commands" data-i18n="doc.skills.sub.custom">自定义命令</h2>
+          <p>
+            <span data-i18n="doc.skills.custom.p1">把常用提示词保存为 </span>
+            <code>命令名.md</code>
+            <span data-i18n="doc.skills.custom.p1t"> 文件，放在项目 </span>
+            <code>.drora/commands/</code>
+            <span data-i18n="doc.skills.custom.or"> 或 </span>
+            <code>.agents/commands/</code>
+            <span data-i18n="doc.skills.custom.p1t2">（用户级为 </span>
+            <code>~/.drora/commands/</code>
+            <span data-i18n="doc.skills.custom.and"> 与 </span>
+            <code>~/.agents/commands/</code>
+            <span data-i18n="doc.skills.custom.p1t3">），输入 </span>
+            <code>/</code>
+            <span data-i18n="doc.skills.custom.p1t4"> 时即可选用：</span>
+          </p>
+          <div class="docs-code"><code>---
+description: 生成符合约定的提交信息
+argument-hint: [补充要求]
+---
+
+阅读当前暂存区的变更，生成一条符合 Conventional Commits 的提交信息。
+补充要求：$ARGUMENTS</code></div>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.skills.th.fm2">字段</th>
+                <th data-i18n="doc.skills.th.fm2desc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>description</code></td>
+                <td data-i18n="doc.skills.tfd.desc">命令用途，显示在提示列表中</td>
+              </tr>
+              <tr>
+                <td><code>argument-hint</code></td>
+                <td data-i18n="doc.skills.tfd.hint">参数提示，如 [补充要求]</td>
+              </tr>
+              <tr>
+                <td><code>skills</code></td>
+                <td data-i18n="doc.skills.tfd.skills">执行前先加载指定的技能</td>
+              </tr>
+              <tr>
+                <td><code>disable-noninteractive</code></td>
+                <td data-i18n="doc.skills.tfd.noninteractive">标记该命令仅限交互使用；带此标记的命令会被排除在应用的 / 命令面板目录之外</td>
+              </tr>
+              <tr>
+                <td><code>allowed-tools</code> / <code>model</code></td>
+                <td data-i18n="doc.skills.tfd.meta">已识别的元数据字段，可由 drora commands inspect 查看；运行时限制尚未接入</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.skills.custom.args">命令正文支持 </span>
+            <code>$ARGUMENTS</code>
+            <span data-i18n="doc.skills.custom.argsAll"> 整体替换与 </span>
+            <code>$1</code>
+            <span data-i18n="doc.skills.custom.argsPos"> 式位置参数；给出了参数却没有占位符时，参数会附加到提示词末尾。形如 </span>
+            <code>!`cmd`</code>
+            <span data-i18n="doc.skills.custom.argsShell"> 的动态 shell 展开暂不支持，会在展开时报错。</span>
+          </p>
+
+          <h2 id="manage" data-i18n="doc.skills.sub.manage">管理与检查</h2>
+          <div class="docs-code"><code>drora skills list                  # 列出当前可发现的技能
+drora skills inspect &lt;name&gt;       # 查看技能元数据与正文
+drora commands list                # 列出自定义命令
+drora commands inspect &lt;name&gt;     # 查看命令正文与参数展开</code></div>
+          <p>
+            <span data-i18n="doc.skills.manage.p1">两条命令都支持 </span>
+            <code>--json</code>
+            <span data-i18n="doc.skills.manage.p1t"> 输出结构化结果；把技能与命令同步到远程环境的方法见</span>
+            <a href="remote-dev.html" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.dot">。</span>
           </p>
         </article>
 

@@ -40,6 +40,216 @@
           <p data-i18n="doc.automation.p1">
             定时任务按计划自动运行提示词；闲时任务把可延迟的工作排入空闲队列，在算力空闲时执行。自动化产生的运行与结果都有持久化记录，可在应用内查看。
           </p>
+
+          <h2 id="types" data-i18n="doc.automation.sub.types">两类自动化任务</h2>
+          <p data-i18n="doc.automation.types.p1">不是所有工作都需要你每次亲自发起：每天早上汇总代码变更、每周五整理发布简报、批量补一轮注释——这类工作都可以交给自动化。</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.automation.types.th1">任务类型</th>
+                <th data-i18n="doc.automation.types.th2">触发方式</th>
+                <th data-i18n="doc.automation.types.th3">执行节奏</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.automation.types.td1">定时任务</td>
+                <td data-i18n="doc.automation.types.td2">你指定时间与重复规则，到点自动执行</td>
+                <td data-i18n="doc.automation.types.td3">按计划反复运行，可设上限或结束日期</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.types.td4">闲时任务</td>
+                <td data-i18n="doc.automation.types.td5">不排时间表，提交后进入全局队列</td>
+                <td data-i18n="doc.automation.types.td6">等算力富余时执行，只跑一次</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.automation.types.p2">两者都在应用内的「自动化」区域管理，分为</span>
+            <code>定时任务</code><span data-i18n="doc.automation.types.p3">与</span><code>闲时任务</code><span data-i18n="doc.automation.types.p4">两个标签页；打开它不会影响左侧的会话列表，随时可以退回原来的会话。</span>
+          </p>
+
+          <h2 id="scheduled" data-i18n="doc.automation.sub.scheduled">创建定时任务</h2>
+          <p data-i18n="doc.automation.scheduled.p1">有三种方式，效果一致，选顺手的即可。</p>
+          <h3 data-i18n="doc.automation.scheduled.h3.form">用表单创建</h3>
+          <p><span data-i18n="doc.automation.scheduled.form.p1">点击「创建定时任务」，填写四样东西：</span></p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.automation.scheduled.form.th1">字段</th>
+                <th data-i18n="doc.automation.scheduled.form.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.automation.scheduled.form.td1">任务标题</td>
+                <td data-i18n="doc.automation.scheduled.form.td2">用于在列表和历史里识别这个任务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.scheduled.form.td3">执行计划</td>
+                <td data-i18n="doc.automation.scheduled.form.td4">什么时候跑、多久跑一次，见下文调度规则</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.scheduled.form.td5">指令</td>
+                <td data-i18n="doc.automation.scheduled.form.td6">每次触发时发给 Agent 的内容，写清楚要做什么、产出什么</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.scheduled.form.td7">项目 / 权限 / 模型 / 推理强度</td>
+                <td data-i18n="doc.automation.scheduled.form.td8">指令输入框下方的工具条，见下文任务配置</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3 data-i18n="doc.automation.scheduled.h3.chat">在会话里创建</h3>
+          <p data-i18n="doc.automation.scheduled.chat.p1">点击创建按钮右侧的箭头，选择「去会话中创建」，输入框会预填一句示例，你可以直接改成自己的需求，例如：</p>
+          <div class="docs-code"><code>每个工作日 9 点，汇总当前项目的代码变更和待跟进事项。</code></div>
+          <p data-i18n="doc.automation.scheduled.chat.p2">用这种方式创建的任务会绑定到当前会话：后续每次触发都把结果投递回同一个会话，而不是每次新开一个。创建成功后，会话里会出现一张任务卡片，点击「去到定时任务」可以直接跳到它的详情。</p>
+          <h3 data-i18n="doc.automation.scheduled.h3.template">从模板创建</h3>
+          <p data-i18n="doc.automation.scheduled.template.p1">自动化首页为定时任务与闲时任务分别提供现成模板，点击即可预填完整指令，改改就能用。</p>
+
+          <h2 id="schedule" data-i18n="doc.automation.sub.schedule">调度规则</h2>
+          <p data-i18n="doc.automation.schedule.p1">在执行计划里选择频率：每小时 / 每天 / 每工作日 / 每周 / 每月 / 自定义。选择「自定义」会打开重复规则对话框，可以组合出更细的节奏：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.automation.schedule.th1">维度</th>
+                <th data-i18n="doc.automation.schedule.th2">可选值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.automation.schedule.td1">重复单位</td>
+                <td data-i18n="doc.automation.schedule.td2">分钟、小时、天、周、月、年</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.schedule.td3">间隔</td>
+                <td data-i18n="doc.automation.schedule.td4">每 N 个单位执行一次，例如「每 2 小时」「每 3 天」（1–200）</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.schedule.td5">具体时点</td>
+                <td data-i18n="doc.automation.schedule.td6">周几、每月几号、几月份，以及具体的时和分</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.schedule.td7">按日期或按星期</td>
+                <td data-i18n="doc.automation.schedule.td8">每月重复时，可选「每月 15 号」或「每月第三个周一」</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.automation.schedule.p2">在会话里创建时，也可以直接让 Agent 按 5 段 cron 表达式（本地时区）安排：</p>
+          <div class="docs-code"><code>*/20 * * * *   # 每 20 分钟
+0 * * * *     # 每小时
+0 9 * * 1-5   # 每个工作日 09:00</code></div>
+          <h3 data-i18n="doc.automation.schedule.h3.stop">什么时候停下来</h3>
+          <p data-i18n="doc.automation.schedule.stop.p1">定时任务默认无限重复。希望它自动停下来有两种方式：在自定义重复对话框里设置结束日期，到期后任务进入「已完成」；或在表单里设置最大运行次数并关闭「重复」，运行固定次数即停止。</p>
+          <div class="docs-note">
+            <span data-i18n="doc.automation.schedule.note1">所有时间都按你电脑的本地时区计算。任务卡片上会显示下次运行时间与已运行次数。</span>
+          </div>
+
+          <h2 id="config" data-i18n="doc.automation.sub.config">任务配置</h2>
+          <p data-i18n="doc.automation.config.p1">指令输入框下方的工具条决定这个任务以什么身份、什么能力执行：</p>
+          <ul>
+            <li><span data-i18n="doc.automation.config.li1">项目：任务在哪个项目目录下运行。只能选当前窗口已打开的本地项目，创建后不可修改。</span></li>
+            <li><span data-i18n="doc.automation.config.li2">权限：与会话里一样的执行模式，决定 Agent 能不能自己动手改文件、跑命令；缺省跟随项目默认。</span></li>
+            <li><span data-i18n="doc.automation.config.li3">模型 / 推理强度：指定执行时使用的模型与思考档位，留空则跟随项目默认。</span></li>
+          </ul>
+          <p data-i18n="doc.automation.config.p2">因为定时任务在你不在场的时候执行，权限选择尤其值得斟酌——需要 Agent 自主改代码就放开权限，只想要一份分析报告就保持只读。</p>
+
+          <h2 id="manage" data-i18n="doc.automation.sub.manage">管理与运行</h2>
+          <h3 data-i18n="doc.automation.manage.h3.run">立即运行</h3>
+          <p data-i18n="doc.automation.manage.run.p1">任务菜单里的「立即运行」会马上执行一次。它不打乱原本的计划——下次运行时间、已运行次数、启停状态都不会因此改变。如果上一次触发还没跑完，重复点击不会排第二条，界面会提示「上一条正在运行中」。</p>
+          <h3 data-i18n="doc.automation.manage.h3.status">暂停、编辑与删除</h3>
+          <p data-i18n="doc.automation.manage.status.p1">任务有四种状态：运行中、已暂停、已完成、失败。暂停后任务保留但不再触发，随时可以恢复；编辑时如果有未保存的改动，返回前会提示你确认是否丢弃。</p>
+          <h3 data-i18n="doc.automation.manage.h3.history">运行历史</h3>
+          <p data-i18n="doc.automation.manage.history.p1">任务详情页可以在「设置 / 历史」之间切换。历史里记录每一次触发的结果：执行中、成功、失败、停止，以及因为电脑未唤醒而跳过的那些。有对应会话的记录可以直接跳转过去，查看当时发生了什么。</p>
+
+          <h2 id="limits" data-i18n="doc.automation.sub.limits">需要注意的限制</h2>
+          <ul>
+            <li><span data-i18n="doc.automation.limits.li1">电脑需保持唤醒。定时任务在你的电脑上执行，机器睡眠或应用未启动时不会触发。如果任务安排在夜间或午休时段，请在自动化页面打开「保持电脑运行」——这是一个全局开关，定时任务和闲时任务共用。</span></li>
+            <li><span data-i18n="doc.automation.limits.li2">最多 20 条。这是所有项目共享的总数，暂停、已完成、失败的任务同样占用名额，只有删除任务定义才会释放；达到上限时新建会被拦下，需要先清理不再需要的任务。</span></li>
+            <li><span data-i18n="doc.automation.limits.li3">只支持本地项目。新建任务时只能选当前窗口打开的本地项目，远程工作区不在支持范围内。</span></li>
+          </ul>
+
+          <h2 id="idle" data-i18n="doc.automation.sub.idle">闲时任务</h2>
+          <p data-i18n="doc.automation.idle.p1">闲时任务不排时间表、只跑一次：提交后进入全局队列，等算力富余的低峰时段自动执行。整理一份代码库分析、批量补一轮注释、跑一遍文档同步检查——这类晚几个小时拿到结果也不影响的工作都适合交给它。</p>
+          <h3 data-i18n="doc.automation.idle.h3.prereq">使用前提</h3>
+          <p data-i18n="doc.automation.idle.prereq.p1">闲时任务需要登录账号并连接 Z.AI 或 BigModel 的 Coding Plan（个人版或团队版均可）；Start Plan 与纯 API Key 模式不支持。不满足条件时，创建入口会直接给出提示。</p>
+          <h3 data-i18n="doc.automation.idle.h3.create">创建闲时任务</h3>
+          <p data-i18n="doc.automation.idle.create.p1">切到「闲时任务」标签，点击「创建闲时任务」，也可以直接使用闲时模板。表单需要填写：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.automation.idle.create.th1">字段</th>
+                <th data-i18n="doc.automation.idle.create.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.automation.idle.create.td1">任务标题</td>
+                <td data-i18n="doc.automation.idle.create.td2">建议改成能一眼认出的名字</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.create.td3">指令</td>
+                <td data-i18n="doc.automation.idle.create.td4">任务的全部内容。因为是无人值守执行，指令要尽量完整、自足：做什么、产出什么格式、怎么验证</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.create.td5">项目</td>
+                <td data-i18n="doc.automation.idle.create.td6">只能选当前窗口已打开的本地项目，创建后不可修改</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.create.td7">权限</td>
+                <td data-i18n="doc.automation.idle.create.td8">默认「变更前确认」。执行中遇到需要确认的操作会暂停任务直到你响应；想减少失败率可以切换为完全访问</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.create.td9">模型 / 思考档位</td>
+                <td data-i18n="doc.automation.idle.create.td10">为这次执行指定模型与推理强度</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.automation.idle.note1">建议先提交一次 Git commit 再创建闲时任务——无人值守执行会产生文件修改，对结果不满意时可以干净地回退。</span>
+          </div>
+          <h3 data-i18n="doc.automation.idle.h3.queue">排队与执行</h3>
+          <ul>
+            <li><span data-i18n="doc.automation.idle.queue.li1">排队可见：提交后按先后顺序排队，任务卡片显示当前排到第几位；排队期间可以核对配置，发现写漏了直接改。</span></li>
+            <li><span data-i18n="doc.automation.idle.queue.li2">无需在场：轮到后自动开始执行，你可以继续做别的事。</span></li>
+            <li><span data-i18n="doc.automation.idle.queue.li3">长任务接着跑：单次执行有时长上限，到点后任务会自动重新取号，接着原来的会话继续，不会从头再来；任务与状态都落库，应用重启也不丢。</span></li>
+            <li><span data-i18n="doc.automation.idle.queue.li4">不承诺具体时间：队列取决于整体低峰窗口，界面不会给出「预计几点开始」的估算；不想再等，取消即可。</span></li>
+          </ul>
+          <h3 data-i18n="doc.automation.idle.h3.manage">状态与操作</h3>
+          <p data-i18n="doc.automation.idle.manage.p1">任务有六种状态：排队中、已暂停、执行中、已完成、失败、已取消。卡片菜单随状态变化：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.automation.idle.manage.th1">当前状态</th>
+                <th data-i18n="doc.automation.idle.manage.th2">可用操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.automation.idle.manage.td1">排队中</td>
+                <td data-i18n="doc.automation.idle.manage.td2">暂停、删除</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.manage.td3">已暂停</td>
+                <td data-i18n="doc.automation.idle.manage.td4">继续、删除</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.automation.idle.manage.td5">执行中</td>
+                <td data-i18n="doc.automation.idle.manage.td6">取消、删除</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.automation.idle.manage.p2">暂停太久的任务会被重新放回队列，位次可能因此往后；票据已失效时，「继续」会把任务重新排到队尾。失败的任务不会自动重试，检查指令和配置后可以重新提交一个新任务。</p>
+          <h3 data-i18n="doc.automation.idle.h3.sidebar">侧栏与历史</h3>
+          <p data-i18n="doc.automation.idle.sidebar.p1">已经开始执行过的闲时任务，会在左侧边栏的「闲时任务」分组里出现一行，行尾带月亮标识，点击进入对应会话。任务详情页的「历史」最多一条记录：指令、触发时间、状态与耗时，行末菜单可以打开当次会话或删除记录。</p>
+          <h3 data-i18n="doc.automation.idle.h3.subagents">与子智能体</h3>
+          <p data-i18n="doc.automation.idle.subagents.p1">闲时任务执行中可以正常使用前台子智能体；不支持后台子智能体——尝试后台派发会收到明确报错，配置了后台执行的自定义子智能体在闲时任务里会调用失败。详见子智能体页面的「前台与后台执行」。</p>
+
+          <h2 id="related" data-i18n="doc.automation.sub.related">相关页面</h2>
+          <p>
+            <span data-i18n="doc.automation.related.p1">想了解闲时任务里提到的子智能体，见</span>
+            <a href="subagents.html" data-i18n="doc.nav.subagents">子智能体</a><span data-i18n="doc.automation.related.p2">；想核对会话与套餐的消耗，见</span>
+            <a href="usage-stats.html" data-i18n="doc.nav.usage">使用统计</a><span data-i18n="doc.dot">。</span>
+          </p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>会话与编辑历史 | Drora 文档</title>
-    <meta name="description" content="每个会话保留完整历史：消息、工具调用与文件编辑可回放；检查点回到任意一步，中断会话可恢复。" />
+    <meta name="description" content="编辑已发送的消息、重置对话与文件、编辑队列消息、撤销 Agent 改过的文件，以及分叉会话与恢复中断任务。" />
     <meta property="og:title" content="会话与编辑历史 | Drora 文档" />
-    <meta property="og:description" content="每个会话保留完整历史：消息、工具调用与文件编辑可回放；检查点回到任意一步，中断会话可恢复。" />
+    <meta property="og:description" content="编辑已发送的消息、重置对话与文件、编辑队列消息、撤销 Agent 改过的文件，以及分叉会话与恢复中断任务。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="../assets/icon.png" />
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
@@ -37,9 +37,62 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.sessions">会话与编辑历史</h1>
-          <p data-i18n="doc.sessions.p1">
-            每个会话都有完整的历史记录：消息、工具调用与文件编辑可回放查看；检查点让你回到任意一步之前的状态重新开始。中断的会话可以恢复，接着上次的进度继续。
+          <p data-i18n="doc.sessions.lead">
+            每个会话都保留完整的历史记录：消息、工具调用与文件改动可回放查看，关键节点有检查点兜底。发现前面的指令写错了，不必重开任务——直接编辑已发送的消息，或把这一轮连同文件改动一起重置；Agent 改过的文件也可以随时撤销。中断的任务可从任务列表恢复，接着上次的进度继续。
           </p>
+
+          <h2 id="edit" data-i18n="doc.sessions.sub.edit">编辑已发送的消息</h2>
+          <p data-i18n="doc.sessions.editEntry">
+            在对话记录中把鼠标悬停在自己发送过的消息上，消息右侧会出现快捷操作区：铅笔图标是「编辑」入口，旁边保留复制等常用操作。
+          </p>
+          <p data-i18n="doc.sessions.editTrait1">
+            编辑只出现在用户消息上：你修改的是自己发出的指令，不会改动 Agent 的回复内容本身。
+          </p>
+          <p>
+            <span data-i18n="doc.sessions.editTrait2">
+            发送修改后，Agent 会回退截断这一轮，再按你改后的文本重新执行；原消息携带的附件默认保留，无需重新上传。
+            </span>
+          </p>
+          <p data-i18n="doc.sessions.editTrait3">
+            这对长任务尤其有用：保留当前任务里的模型、工作区与上下文，只修正关键指令——目标、路径或约束写错时，不需要重新创建任务。
+          </p>
+          <h3 data-i18n="doc.sessions.sub.resetFiles">连同文件一起重置</h3>
+          <p data-i18n="doc.sessions.resetFiles">
+            如果上一轮不只说错了话，Agent 还按错误的理解改了文件，编辑时的「对话 + 文件重置」会同时做两件事：先恢复这一轮改动过的文件，再用你改后的消息重新发送。
+          </p>
+          <p data-i18n="doc.sessions.resetFilesLimit">
+            任务正在运行、正在压缩上下文或有待处理交互时，这个入口不可用。若有文件无法安全恢复（比如你在此期间手动改过它），会提示「文件无法安全重置」，此时可以选择「仅重置对话并发送」。
+          </p>
+
+          <h2 id="queue" data-i18n="doc.sessions.sub.queue">编辑队列中的消息</h2>
+          <p data-i18n="doc.sessions.queue1">
+            Agent 还在回复时你接着输入的内容会先进入队列，按顺序依次发送。发出前发现写错了，把鼠标移到队列面板里的那一条上点「编辑」：整条内容会退回输入框（该条从队列中移除），改完重新发送。
+          </p>
+          <p data-i18n="doc.sessions.queue2">
+            一个前提：输入框里已经有草稿时，需要先发送或清空草稿，再编辑队列消息。队列因中断或出错暂停后，内容不会丢失，点「继续」即可恢复按顺序发送。
+          </p>
+
+          <h2 id="undo" data-i18n="doc.sessions.sub.undo">撤销 Agent 改过的文件</h2>
+          <p data-i18n="doc.sessions.undo1">
+            每轮回复下方的文件变更摘要里有「撤销」按钮。点击后会先弹出确认窗口，列出这一轮里哪些文件可以安全撤销、哪些不能、哪些会被忽略，确认后才真正写回。撤销之后按钮变成「重新应用」，可以再改回去。
+          </p>
+          <p data-i18n="doc.sessions.undoAll">
+            这里有一条重要规则：要么全撤，要么不动。只要其中有一个文件无法安全还原，就不会写入任何文件，不会让你落到改了一半的状态。
+          </p>
+          <p data-i18n="doc.sessions.undoLimit">
+            有几类改动无法从这里撤销：由终端命令造成的文件改动会被直接忽略，需要你用 Git 处理；没有检查点记录、已被外部修改或无法读取的文件，也会被归入「不能安全撤销」。
+          </p>
+
+          <h2 id="fork" data-i18n="doc.sessions.sub.fork">分叉会话</h2>
+          <p data-i18n="doc.sessions.fork1">
+            助手消息的操作区有「分叉」入口：从对话中的这个位置复制出一个新任务。分叉只复制对话内容，原任务的运行状态与工作区文件都不受影响，适合想从某一步换个方向重试的场景。任务结束后才能分叉。
+          </p>
+
+          <h2 id="scenarios" data-i18n="doc.sessions.sub.scenarios">使用场景</h2>
+          <p data-i18n="doc.sessions.sc1">修正需求表达：发现前一条指令写错、遗漏目标或描述不够清楚。</p>
+          <p data-i18n="doc.sessions.sc2">补充关键上下文：追加文件路径、错误日志、约束条件等信息。</p>
+          <p data-i18n="doc.sessions.sc3">调整任务方向：让 Agent 从「分析问题」改为「直接修复」，或从「实现功能」改为「先给方案」。</p>
+          <p data-i18n="doc.sessions.sc4">减少重复对话：避免重新解释整段背景，让任务在同一个上下文里继续前进。</p>
         </article>
 
         <aside class="docs-toc" id="docsToc">

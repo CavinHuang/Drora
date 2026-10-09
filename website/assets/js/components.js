@@ -34,10 +34,25 @@
   ];
 
   function renderNav(base, currentPage) {
-    return NAV_LINKS.map(function (link) {
+    // 前三项平链接；社区项复刻参考站的「社区⌄」下拉（原生 details，零 JS）
+    var links = NAV_LINKS.slice(0, 3).map(function (link) {
       var active = link.page && link.page === currentPage ? ' class="active"' : "";
       return '<a href="' + link.href(base) + '"' + active + ' data-i18n="' + link.key + '">' + link.zh + "</a>";
     }).join("");
+
+    var communityActive = currentPage === "community" ? " active" : "";
+    return (
+      links +
+      '<details class="nav-drop">' +
+      '  <summary class="nav-drop-btn' + communityActive + '"><span data-i18n="nav.community">社区</span><span class="nav-drop-caret" aria-hidden="true">⌄</span></summary>' +
+      '  <div class="nav-drop-menu">' +
+      '    <a href="' + base + 'community/" data-i18n="com.drop.page">社区主页</a>' +
+      '    <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true" target="_blank" rel="noopener" data-i18n="com.fs.name">飞书社群</a>' +
+      '    <a href="https://discord.gg/z9aBcQXZQ3" target="_blank" rel="noopener">Discord</a>' +
+      '    <a href="https://github.com/CavinHuang/Drora/discussions" target="_blank" rel="noopener">GitHub Discussions</a>' +
+      "  </div>" +
+      "</details>"
+    );
   }
 
   /* ------------------------------ <site-header> ------------------------------ */
@@ -48,10 +63,16 @@
       this.dataset.rendered = "1";
       var page = this.getAttribute("data-page") || "home";
       var base = this.getAttribute("data-base") || "";
+      // 文档页复刻参考站 docs 头部的搜索入口（弹层与过滤逻辑在 main.js）
+      var searchBtn =
+        page === "docs"
+          ? '<button class="doc-search-btn" id="docSearchBtn" type="button"><span class="ds-icon" aria-hidden="true">⌕</span><span data-i18n="doc.search.placeholder">搜索文档…</span><kbd>⌘K</kbd></button>'
+          : "";
       this.innerHTML =
         '<div class="header-inner">' +
         '  <a class="brand" href="' + (base || "./") + '" aria-label="Drora home">' + D_MARK + '<span class="brand-name">DRORA</span></a>' +
         '  <nav class="main-nav" aria-label="Main">' + renderNav(base, page) + "</nav>" +
+        searchBtn +
         '  <div class="header-actions">' +
         '    <button class="pill-btn lang-btn" id="langBtn" type="button" aria-label="Switch language">' + GLOBE + '<span id="langLabel">EN</span></button>' +
         '    <a class="pill-btn github-btn" href="https://github.com/CavinHuang/Drora" target="_blank" rel="noopener">' + GITHUB + "<span>GitHub</span></a>" +

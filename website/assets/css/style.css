@@ -2177,12 +2177,270 @@ release-block {
   }
 }
 
+/* ------------------------ 导航「社区⌄」下拉（复刻参考站） ------------------------ */
+
+.nav-drop {
+  position: relative;
+}
+
+.nav-drop summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.nav-drop summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-drop summary:hover {
+  color: #fff;
+}
+
+.nav-drop[open] summary {
+  color: #fff;
+}
+
+.nav-drop-caret {
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.nav-drop[open] .nav-drop-caret {
+  transform: rotate(180deg);
+}
+
+.nav-drop summary.active {
+  color: #fff;
+  position: relative;
+}
+
+.nav-drop summary.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.nav-drop-menu {
+  position: absolute;
+  left: -12px;
+  top: calc(100% + 12px);
+  min-width: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
+.nav-drop-menu a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--fg-muted);
+  font-size: 13.5px;
+}
+
+.nav-drop-menu a:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+
+/* ------------------------ docs 搜索（复刻参考站 ⌘K） ------------------------ */
+
+.doc-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  min-width: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg-subtle);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.doc-search-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--fg-muted);
+}
+
+.doc-search-btn .ds-icon {
+  font-size: 15px;
+}
+
+.doc-search-btn kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.doc-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 20px 0;
+}
+
+/* display:flex 会覆盖 hidden 的 UA 样式，必须显式关死，否则浮层常驻页面 */
+.doc-search-overlay[hidden] {
+  display: none;
+}
+
+.doc-search-panel {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.doc-search-panel input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-search-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.doc-search-panel li a {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--fg-muted);
+  font-size: 14px;
+}
+
+.doc-search-panel li a:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+
+.doc-search-panel .ds-empty {
+  padding: 14px 12px;
+  color: var(--fg-subtle);
+  font-size: 13.5px;
+}
+
+/* ------------------------ docs 面包屑行 + 复制全文 ------------------------ */
+
+.doc-crumb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 6px 0 18px;
+}
+
+.doc-crumb-row .doc-crumb {
+  margin: 0;
+}
+
+.copy-article-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg-muted);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copy-article-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+/* --------------------------- 404 --------------------------- */
+
+.not-found {
+  min-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.not-found h1 {
+  font-size: 88px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+  background: linear-gradient(180deg, #fafafa 20%, rgba(250, 250, 250, 0.25));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.not-found p {
+  color: var(--fg-muted);
+  font-size: 16px;
+  margin: 0 0 26px;
+}
+
+.not-found .cta-btn {
+  text-decoration: none;
+}
+
 /* --------------------------- subpage responsive --------------------------- */
 
 /* 参考站侧栏均为 hidden xl:flex：<1280 只剩内容列 */
 @media (max-width: 1279px) {
   .docs-sidebar,
   .docs-toc {
+    display: none;
+  }
+
+  /* 侧栏隐藏后头部空间变小：搜索钮收成纯图标 */
+  .doc-search-btn {
+    min-width: 0;
+  }
+
+  .doc-search-btn kbd,
+  .doc-search-btn [data-i18n] {
     display: none;
   }
 }

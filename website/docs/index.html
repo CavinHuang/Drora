@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Drora 文档 | 安装、连接模型与功能指南</title>
-    <meta name="description" content="Drora 文档：安装桌面应用与 CLI、连接 GLM 模型、使用手机远控、桌面宠物与皮肤中心，以及从源码构建。" />
+    <meta name="description" content="Drora 文档：安装桌面应用与 CLI、连接 GLM 模型、任务与目标模式、远程开发与手机远控、技能/MCP/Hooks 集成、自动化任务与常见问题。" />
     <meta property="og:title" content="Drora 文档" />
     <meta property="og:description" content="安装、连接模型与功能指南。" />
     <meta property="og:type" content="website" />
@@ -15,7 +15,6 @@
     <script src="../assets/js/components.js"></script>
   </head>
   <body data-page="docs">
-        <!-- 头部为 <site-header> 组件（assets/js/components.js），结构复刻参考站；no-JS 时回退到下方链接 -->
     <site-header class="site-header" id="siteHeader" data-page="docs" data-base="../"></site-header>
     <noscript>
       <nav class="noscript-nav" aria-label="Main">
@@ -28,7 +27,7 @@
 
     <main>
       <div class="docs-layout">
-        <!-- ======================= 左侧栏（文档导航） ======================= -->
+        <!-- ======================= 左侧栏（文档导航，分组对齐参考站 docs IA） ======================= -->
         <aside class="docs-sidebar">
           <nav aria-label="Docs">
             <div class="docs-nav-group">
@@ -39,13 +38,24 @@
             </div>
             <div class="docs-nav-group">
               <p data-i18n="doc.group.features">核心功能</p>
-              <a href="#desktop" data-i18n="doc.nav.desktop">桌面端</a>
+              <a href="#tasks" data-i18n="doc.nav.tasks">任务与目标模式</a>
+              <a href="#sessions" data-i18n="doc.nav.sessions">会话与编辑历史</a>
               <a href="#remote" data-i18n="doc.nav.remote">手机远控</a>
+              <a href="#remote-dev" data-i18n="doc.nav.remoteDev">远程开发</a>
               <a href="#pets" data-i18n="doc.nav.pets">桌面宠物</a>
               <a href="#skin" data-i18n="doc.nav.skin">皮肤中心</a>
+              <a href="#usage" data-i18n="doc.nav.usage">使用统计</a>
             </div>
             <div class="docs-nav-group">
-              <p data-i18n="doc.group.advanced">深入使用</p>
+              <p data-i18n="doc.group.advanced">深度集成</p>
+              <a href="#skills" data-i18n="doc.nav.skills">技能与斜杠命令</a>
+              <a href="#subagents" data-i18n="doc.nav.subagents">子智能体</a>
+              <a href="#mcp" data-i18n="doc.nav.mcp">MCP 与插件</a>
+              <a href="#hooks" data-i18n="doc.nav.hooks">Hooks</a>
+              <a href="#automation" data-i18n="doc.nav.automation">自动化任务</a>
+            </div>
+            <div class="docs-nav-group">
+              <p data-i18n="doc.group.more">更多</p>
               <a href="#cli" data-i18n="doc.nav.cli">命令行 CLI</a>
               <a href="#build" data-i18n="doc.nav.build">从源码构建</a>
               <a href="#faq" data-i18n="doc.nav.faq">常见问题</a>
@@ -55,7 +65,10 @@
 
         <!-- ======================= 内容列 ======================= -->
         <article class="docs-content">
-          <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
           <h1 data-i18n="doc.h1">欢迎使用 Drora</h1>
           <p data-i18n="doc.intro.lead1">
             Drora 是一个开源的 AI 编程工作台：桌面应用、浏览器界面和终端 Agent 三种形态共享同一运行时。它把长上下文、长程任务与
@@ -123,16 +136,21 @@
             <a href="https://github.com/CavinHuang/Drora/blob/main/config/README.md">config/README.md</a><span data-i18n="doc.dot">。</span>
           </p>
 
-          <h2 id="desktop" data-i18n="doc.desktop.h2">桌面端</h2>
-          <p data-i18n="doc.desktop.p1">
-            桌面应用是 Drora 的主力形态：以任务和 Goal 管理从规划到验收的长程工作，Agent 的文件改动、终端执行、Git
-            状态保持在同一个任务上下文里，随时查看进度并补充指令。
+          <h2 id="tasks" data-i18n="doc.tasks.h2">任务与目标模式</h2>
+          <p data-i18n="doc.tasks.p1">
+            桌面应用以任务组织日常工作：每个任务有独立的会话、工具执行与 Git 上下文。对多步骤的复杂目标，用 Goal
+            承载长程计划——Agent 持续规划、执行与验证，进度面板逐步打勾，你随时可以查看状态或补充指令。
           </p>
           <ul>
-            <li data-i18n="doc.desktop.li1">会话历史、回放与检查点：随时回到任意一步。</li>
-            <li data-i18n="doc.desktop.li2">技能、斜杠命令与 MCP 插件生态，可扩展 Agent 能力。</li>
-            <li data-i18n="doc.desktop.li3">远程工作区（SSH/WSL）：连接远程项目进行开发。</li>
+            <li data-i18n="doc.tasks.li1">文件改动、终端执行与 Git 状态保持在同一任务上下文里。</li>
+            <li data-i18n="doc.tasks.li2">Goal 面板展示目标描述、完成进度与 token 消耗。</li>
+            <li data-i18n="doc.tasks.li3">排队中的指令由运行时串行受理，不会丢失。</li>
           </ul>
+
+          <h2 id="sessions" data-i18n="doc.sessions.h2">会话与编辑历史</h2>
+          <p data-i18n="doc.sessions.p1">
+            每个会话都有完整的历史记录：消息、工具调用与文件编辑可回放查看；检查点让你回到任意一步之前的状态重新开始。中断的会话可以恢复，接着上次的进度继续。
+          </p>
 
           <h2 id="remote" data-i18n="doc.remote.h2">手机远控</h2>
           <p data-i18n="doc.remote.p1">
@@ -140,6 +158,14 @@
             Agent。局域网内可直连；跨网络时经 relay 云中继转发——relay 只做鉴权、配对、心跳与转发，不保存任务队列等业务状态。
           </p>
           <p data-i18n="doc.remote.p2">连接断开后自动恢复，历史事件可回放；窗口关闭即停止服务，不会在后台滞留。</p>
+
+          <h2 id="remote-dev" data-i18n="doc.remoteDev.h2">远程开发</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.p1">
+            除本机项目外，Drora 还可连接远程工作区（SSH/WSL）进行开发：会话在远程环境中执行，文件与终端操作发生在对应主机上。自托管
+            Web 后端时，可用 </span><code>DRORA_SERVER_WORKSPACE</code><span data-i18n="doc.remoteDev.p1t">指定工作区路径；详见仓库</span>
+            <a href="https://github.com/CavinHuang/Drora#readme">README</a><span data-i18n="doc.dot">。</span>
+          </p>
 
           <h2 id="pets" data-i18n="doc.pets.h2">桌面宠物</h2>
           <p data-i18n="doc.pets.p1">
@@ -149,6 +175,42 @@
           <h2 id="skin" data-i18n="doc.skin.h2">皮肤中心</h2>
           <p data-i18n="doc.skin.p1">
             内置多套插画预设壁纸，支持自定义面板透明度与强调色，让工作台符合你的审美；所有预设都对齐设计规范，深浅细节都经过打磨。
+          </p>
+
+          <h2 id="usage" data-i18n="doc.usage.h2">使用统计</h2>
+          <p data-i18n="doc.usage.p1">
+            应用内置用量统计：查看各会话的 token 消耗、请求次数与工具调用分布，掌握成本与负载；统计数据基于本地会话记录生成。
+          </p>
+
+          <h2 id="skills" data-i18n="doc.skills.h2">技能与斜杠命令</h2>
+          <p>
+            <span data-i18n="doc.skills.p1">
+            技能（Skill）把可复用的工作流打包成一等公民：在会话中用 </span><code>/</code><span data-i18n="doc.skills.p1t">
+            调用，参数通过模板展开；斜杠命令（Command）则提供轻量的提示词快捷方式。两者都可以在工作区或用户目录中自定义。</span>
+          </p>
+
+          <h2 id="subagents" data-i18n="doc.subagents.h2">子智能体</h2>
+          <p data-i18n="doc.subagents.p1">
+            主 Agent 可以把探索、检索与研究类工作委派给子智能体并行执行，只把结论带回主对话——在大型代码库中定位问题时尤其有用，能显著减少主上下文的占用。
+          </p>
+
+          <h2 id="mcp" data-i18n="doc.mcp.h2">MCP 与插件</h2>
+          <p>
+            <span data-i18n="doc.mcp.p1">
+            通过 MCP（Model Context Protocol）接入外部工具服务：在工作区或全局配置 stdio/HTTP 服务器后，其工具自动进入 Agent
+            的工具面。插件则进一步打包技能、命令、Hooks 与 MCP 配置，可在应用内插件市场浏览安装。</span>
+          </p>
+
+          <h2 id="hooks" data-i18n="doc.hooks.h2">Hooks</h2>
+          <p>
+            <span data-i18n="doc.hooks.p1">
+            在会话与工具生命周期的关键节点注入自定义脚本：如 SessionStart、UserPromptSubmit、PreToolUse、PostToolUse
+            等。Hooks 可以补充上下文、校验或改写工具输入，并参与权限决策；工作区 Hook 按工作区身份与声明摘要审查信任。</span>
+          </p>
+
+          <h2 id="automation" data-i18n="doc.automation.h2">自动化任务</h2>
+          <p data-i18n="doc.automation.p1">
+            定时任务按计划自动运行提示词；闲时任务把可延迟的工作排入空闲队列，在算力空闲时执行。自动化产生的运行与结果都有持久化记录，可在应用内查看。
           </p>
 
           <h2 id="cli" data-i18n="doc.cli.h2">命令行 CLI</h2>
@@ -221,10 +283,18 @@ pnpm dev:web          # 启动 Web + 后端（localhost:5173 / :3030）</code></
             <a href="#intro" data-i18n="doc.nav.intro">什么是 Drora</a>
             <a href="#install" data-i18n="doc.nav.install">安装</a>
             <a href="#model" data-i18n="doc.nav.model">连接模型</a>
-            <a href="#desktop" data-i18n="doc.nav.desktop">桌面端</a>
+            <a href="#tasks" data-i18n="doc.nav.tasks">任务与目标模式</a>
+            <a href="#sessions" data-i18n="doc.nav.sessions">会话与编辑历史</a>
             <a href="#remote" data-i18n="doc.nav.remote">手机远控</a>
+            <a href="#remote-dev" data-i18n="doc.nav.remoteDev">远程开发</a>
             <a href="#pets" data-i18n="doc.nav.pets">桌面宠物</a>
             <a href="#skin" data-i18n="doc.nav.skin">皮肤中心</a>
+            <a href="#usage" data-i18n="doc.nav.usage">使用统计</a>
+            <a href="#skills" data-i18n="doc.nav.skills">技能与斜杠命令</a>
+            <a href="#subagents" data-i18n="doc.nav.subagents">子智能体</a>
+            <a href="#mcp" data-i18n="doc.nav.mcp">MCP 与插件</a>
+            <a href="#hooks" data-i18n="doc.nav.hooks">Hooks</a>
+            <a href="#automation" data-i18n="doc.nav.automation">自动化任务</a>
             <a href="#cli" data-i18n="doc.nav.cli">命令行 CLI</a>
             <a href="#build" data-i18n="doc.nav.build">从源码构建</a>
             <a href="#faq" data-i18n="doc.nav.faq">常见问题</a>
@@ -233,7 +303,6 @@ pnpm dev:web          # 启动 Web + 后端（localhost:5173 / :3030）</code></
       </div>
     </main>
 
-        <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
     <site-footer class="site-footer" data-base="../"></site-footer>
 
     <script src="../assets/js/main.js"></script>

@@ -248,6 +248,57 @@
       "doc.faq.a4link": "community channels",
       "doc.faq.a4e": " linked in the README.",
 
+      "doc.group.more": "More",
+      "doc.nav.tasks": "Tasks & Goal mode",
+      "doc.nav.sessions": "Sessions & history",
+      "doc.nav.remoteDev": "Remote development",
+      "doc.nav.usage": "Usage stats",
+      "doc.nav.skills": "Skills & slash commands",
+      "doc.nav.subagents": "Subagents",
+      "doc.nav.mcp": "MCP & plugins",
+      "doc.nav.hooks": "Hooks",
+      "doc.nav.automation": "Automation",
+      "doc.copy": "Copy article",
+      "doc.search.placeholder": "Search docs…",
+      "doc.search.empty": "No matching sections",
+
+      "doc.tasks.h2": "Tasks & Goal mode",
+      "doc.tasks.p1":
+        "The desktop app organizes daily work as tasks: each task has its own session, tool runs and Git context. For complex multi-step goals, use Goal to carry the long-range plan — the agent keeps planning, executing and verifying while the progress panel ticks along; check status or add instructions anytime.",
+      "doc.tasks.li1": "File edits, terminal runs and Git state stay in one task context.",
+      "doc.tasks.li2": "The Goal panel shows the objective, progress and token usage.",
+      "doc.tasks.li3": "Queued instructions are admitted serially by the runtime — nothing gets lost.",
+      "doc.sessions.h2": "Sessions & history",
+      "doc.sessions.p1":
+        "Every session keeps a full history: messages, tool calls and file edits can be replayed; checkpoints take you back to any point to start over. Interrupted sessions can be resumed right where they left off.",
+      "doc.remoteDev.h2": "Remote development",
+      "doc.remoteDev.p1":
+        "Beyond local projects, Drora connects to remote workspaces (SSH/WSL): sessions execute in the remote environment, with file and terminal operations happening on that host. When self-hosting the web backend, point",
+      "doc.remoteDev.p1t": "at your workspace path — see the repo",
+      "doc.usage.h2": "Usage stats",
+      "doc.usage.p1":
+        "Built-in usage stats show token consumption, request counts and tool-call distribution per session, so you can track cost and load. Statistics are generated from local session records.",
+      "doc.skills.h2": "Skills & slash commands",
+      "doc.skills.p1":
+        "Skills package reusable workflows as first-class citizens: invoke them in a session with",
+      "doc.skills.p1t":
+        "and parameters expand through templates. Slash commands (Command) are lighter-weight prompt shortcuts. Both can be customized in workspace or user directories.",
+      "doc.subagents.h2": "Subagents",
+      "doc.subagents.p1":
+        "The main agent can delegate exploration, retrieval and research to subagents running in parallel, bringing only conclusions back into the main conversation — especially useful for locating things in large codebases, keeping the main context lean.",
+      "doc.mcp.h2": "MCP & plugins",
+      "doc.mcp.p1":
+        "Connect external tool services over MCP (Model Context Protocol): once stdio/HTTP servers are configured for a workspace or globally, their tools join the agent's tool surface automatically. Plugins go further, bundling skills, commands, hooks and MCP config — browse and install them from the in-app marketplace.",
+      "doc.hooks.h2": "Hooks",
+      "doc.hooks.p1":
+        "Inject custom scripts at key points of the session and tool lifecycle: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and more. Hooks can add context, validate or rewrite tool inputs, and take part in permission decisions; workspace hooks are trusted per workspace identity and declaration digest.",
+      "doc.automation.h2": "Automation",
+      "doc.automation.p1":
+        "Scheduled tasks run prompts on a plan; idle-time tasks queue deferrable work and execute when compute is free. Runs and results are persisted and viewable in the app.",
+
+      "com.drop.page": "Community home",
+      "nf.text": "This page doesn't exist — it may have been moved or removed.",
+      "nf.home": "Back to home",
       "nav.security": "Security",
 
       "sec.title": "Report a Vulnerability",
@@ -374,6 +425,7 @@
 
   /* zh strings are the document's own text; re-applying them restores defaults. */
   var zhNodes = null;
+  var phNodes = null;
 
   /* 每个页面的标题（切换语言时同步，避免子页沿用首页标题） */
   var PAGE_TITLES = {
@@ -388,6 +440,7 @@
     terms: { zh: "Drora 使用条款 | 开源许可与声明", en: "Drora Terms | License & Notices" },
     privacy: { zh: "Drora 隐私说明 | 本地优先的数据与网络行为", en: "Drora Privacy | Local-first Data & Network" },
     support: { zh: "Drora 支持与反馈 | Issue 指南与社区渠道", en: "Drora Support | Feedback Guide & Channels" },
+    notfound: { zh: "404 | Drora", en: "404 | Drora" },
   };
 
   function pageTitle(lang) {
@@ -414,6 +467,11 @@
     for (var i = 0; i < nodes.length; i++) {
       zhNodes.push({ el: nodes[i], text: nodes[i].textContent });
     }
+    phNodes = [];
+    var phs = document.querySelectorAll("[data-i18n-placeholder]");
+    for (var j = 0; j < phs.length; j++) {
+      phNodes.push({ el: phs[j], text: phs[j].getAttribute("placeholder") });
+    }
   }
 
   function applyLang(lang) {
@@ -424,12 +482,21 @@
         var key = el.getAttribute("data-i18n");
         if (dict[key]) el.textContent = dict[key];
       });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
+        var key = el.getAttribute("data-i18n-placeholder");
+        if (dict[key]) el.setAttribute("placeholder", dict[key]);
+      });
       document.title = pageTitle("en");
     } else {
       cacheZh();
       zhNodes.forEach(function (n) {
         n.el.textContent = n.text;
       });
+      if (phNodes) {
+        phNodes.forEach(function (n) {
+          n.el.setAttribute("placeholder", n.text);
+        });
+      }
       document.title = pageTitle("zh");
     }
     var label = document.getElementById("langLabel");
@@ -469,6 +536,110 @@
       var names = { mac: "macOS", win: "Windows", linux: "Linux" };
       label.textContent = "适用于 " + names[platform];
     }
+  }
+
+  /* --------------------- docs search（复刻参考站 docs 头部 ⌘K） --------------------- */
+
+  function initDocsSearch() {
+    var btn = document.getElementById("docSearchBtn");
+    if (!btn) return;
+    var overlay = document.createElement("div");
+    overlay.className = "doc-search-overlay";
+    overlay.hidden = true;
+    overlay.innerHTML =
+      '<div class="doc-search-panel" role="dialog" aria-label="Search docs">' +
+      '  <input id="docSearchInput" type="text" autocomplete="off" data-i18n-placeholder="doc.search.placeholder" />' +
+      '  <ul id="docSearchResults"></ul>' +
+      "</div>";
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector("#docSearchInput");
+    var list = overlay.querySelector("#docSearchResults");
+
+    var sections = [];
+    document.querySelectorAll(".docs-content h2[id]").forEach(function (h) {
+      sections.push({ id: h.id, title: h.textContent });
+    });
+
+    function renderResults(query) {
+      var q = query.trim().toLowerCase();
+      var hits = sections.filter(function (s) {
+        return !q || s.title.toLowerCase().indexOf(q) >= 0;
+      });
+      list.innerHTML =
+        hits
+          .map(function (s) {
+            return '<li><a href="#' + s.id + '" data-target="' + s.id + '">' + s.title + "</a></li>";
+          })
+          .join("") || '<li class="ds-empty" data-i18n="doc.search.empty">没有匹配的章节</li>';
+    }
+
+    function open() {
+      overlay.hidden = false;
+      renderResults("");
+      input.value = "";
+      input.focus();
+    }
+
+    function close() {
+      overlay.hidden = true;
+    }
+
+    btn.addEventListener("click", open);
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) close();
+    });
+    input.addEventListener("input", function () {
+      renderResults(input.value);
+    });
+    list.addEventListener("click", function (e) {
+      if (e.target.closest("a[data-target]")) close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (overlay.hidden) open();
+        else close();
+      } else if (e.key === "Escape" && !overlay.hidden) {
+        close();
+      }
+    });
+  }
+
+  /* --------------------- 复制全文（复刻参考站 docs 面包屑行按钮） --------------------- */
+
+  function initCopyArticle() {
+    var btn = document.getElementById("copyArticleBtn");
+    var article = document.querySelector(".docs-content");
+    if (!btn || !article) return;
+    var label = btn.querySelector("[data-i18n]");
+    btn.addEventListener("click", function () {
+      var done = function () {
+        if (!label) return;
+        label.textContent = currentLang() === "en" ? "Copied!" : "已复制";
+        setTimeout(function () {
+          label.textContent = currentLang() === "en" ? "Copy article" : "复制全文";
+        }, 1600);
+      };
+      function fallbackCopy() {
+        var range = document.createRange();
+        range.selectNodeContents(article);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        done();
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(article.innerText || "").then(done, fallbackCopy);
+      } else {
+        // 无 Clipboard API 时的回退：选中正文让用户手动复制
+        var range = document.createRange();
+        range.selectNodeContents(article);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        done();
+      }
+    });
   }
 
   /* --------------------------- interactions --------------------------- */
@@ -567,6 +738,8 @@
     initHeader();
     initReveal();
     initDocsSpy();
+    initDocsSearch();
+    initCopyArticle();
 
     var langBtn = document.getElementById("langBtn");
     if (langBtn) {

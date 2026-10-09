@@ -108,6 +108,145 @@
       "dl.macIntel": "macOS (Intel)",
       "dl.windows": "Windows",
       "dl.win64": "Windows (64-bit)",
+      "dl.winArm": "Windows (ARM64)",
+      "dl.linuxCli": "Agent CLI (x64)",
+      "dl.singleFile": "single file",
+      "dl.linuxHint": "Linux desktop installers are on the way; the CLI runs in a terminal.",
+      "dl.cliNote":
+        "Prefer the terminal? Single-file CLI builds for macOS and Windows (drora-darwin-arm64 / drora-windows-x64.exe) ship alongside:",
+      "dl.cliNoteLink": "Get them from Releases ↗",
+
+      "ch.title": "Release Notes & Updates",
+      "ch.subtitle": "Release notes and desktop downloads for every Drora version.",
+      "ch.date0927": "Released Sep 27, 2026",
+      "ch.date0926": "Released Sep 26, 2026",
+      "ch.date0925": "Released Sep 25, 2026",
+      "ch.download": "Download",
+      "ch.allAssets": "All assets on GitHub",
+      "ch.group.features": "New",
+      "ch.group.fixes": "Fixed",
+      "ch.group.maintenance": "Maintenance",
+      "ch.group.changes": "Changed",
+      "ch.tail": "Thanks to everyone who tried Drora and shared feedback.",
+      "ch.v8.f1":
+        "In-app auto-update on macOS is now closed-loop: CI self-signing wired in, with recovery from failed installs.",
+      "ch.v8.f2":
+        "Fixed the production relay path for phone remote control: the WebSocket constructor now falls back to the ws package.",
+      "ch.v8.f3": "Fixed workspace wallpapers bleeding through transparent skin panels.",
+      "ch.v7.f1": "The skin center now ships several illustrated preset wallpapers.",
+      "ch.v7.f2": "Polished skin sliders and preset selection states to match the design spec.",
+      "ch.v6.f1":
+        "Phone remote control now supports the relay cloud service: cross-network control alongside LAN direct connections.",
+      "ch.v6.f2": "rpc-frame transparent bridge: the phone page can drive desktop tasks directly.",
+      "ch.v6.f3":
+        "CI packaging reliability: retry with backoff for packaging copy races, real-time monitoring disabled on Windows builds.",
+      "ch.v5.f1": "Skin center launched: custom wallpapers, panel opacity and accent colors.",
+      "ch.v5.f2": "Two-column remote-control overlay with a connection status card.",
+      "ch.v5.f3": "Fixed pet bubble positioning: top-centered hover, width cap and better line wrapping.",
+      "ch.v4.f1":
+        "Phone remote control round two: six-state connection machine, auto-resume on app start, and the server stops when the window closes.",
+      "ch.v3.f1": "macOS Computer Use aligned with upstream ZCode 3.14.3: bundled Helper with first-use trust onboarding.",
+      "ch.v3.f2": "\"Start Plan\" now goes through the captcha check, fixing the 3007 auth failure.",
+      "ch.v3.f3": "Pet bubble content and drag-layout channel.",
+      "ch.v3.f4":
+        "The Obsidian plugin dropped its MCP surface in favor of direct hooks (SessionStart / PermissionRequest / UserPromptSubmit).",
+      "ch.v2.f1": "Aligned all official upstream ZCode 3.14.3 plugins (including the Computer Use 0.6.3 generation migration).",
+      "ch.v2.f2": "Output style system (outputStyle) landed.",
+      "ch.v2.f3": "Marketplace personal data alignment: built-in source and CDN icon index.",
+      "ch.v2.f4": "Server remote closeout: share gating, disposal, snapshots and the workspaces UI.",
+      "ch.v1.f1": "First public build: Windows / macOS desktop installers and a single-file Agent CLI.",
+      "ch.v1.f2": "Phone remote pairing protocol and server foundation.",
+
+      "doc.group.start": "Get started",
+      "doc.group.features": "Core features",
+      "doc.group.advanced": "Dive deeper",
+      "doc.nav.intro": "What is Drora",
+      "doc.nav.install": "Install",
+      "doc.nav.model": "Connect a model",
+      "doc.nav.desktop": "Desktop app",
+      "doc.nav.remote": "Phone remote",
+      "doc.nav.pets": "Desktop pets",
+      "doc.nav.skin": "Skin center",
+      "doc.nav.cli": "CLI",
+      "doc.nav.build": "Build from source",
+      "doc.nav.faq": "FAQ",
+      "doc.h1": "Welcome to Drora",
+      "doc.dot": ".",
+      "doc.colon": ":",
+      "doc.toc": "On this page",
+      "doc.intro.lead1":
+        "Drora is an open-source AI coding workbench: desktop app, browser UI and terminal agent share one runtime. It turns long context, long-running tasks and agentic coding into a dependable desktop experience covering planning, coding, review and iteration.",
+      "doc.intro.lead2":
+        "Drora is a community-maintained open-source remake of upstream ZCode with continuous catch-up. Scope, maintenance rules and licensing live in",
+      "doc.install.h2": "Install",
+      "doc.install.p1": "No need to build from source — grab the latest build from",
+      "doc.install.th1": "File",
+      "doc.install.th2": "What it is",
+      "doc.file.win": "Drora-<version>-win-x64.exe",
+      "doc.file.mac": "Drora-<version>-mac-arm64.dmg",
+      "doc.install.td1": "Windows desktop installer (NSIS)",
+      "doc.install.td2": "macOS desktop app",
+      "doc.install.td3": "Single-file Agent CLI — must run in a terminal (double-clicking flashes and exits)",
+      "doc.install.note1":
+        "Installers are unsigned: on Windows choose \"More info → Run anyway\" at the SmartScreen prompt; on macOS allow it under System Settings → Privacy & Security, or run",
+      "doc.install.p2": "All artifacts are built from source by GitHub Actions,",
+      "doc.install.p2t": " provides checksums; the desktop app updates itself over the latest channel.",
+      "doc.model.h2": "Connect a model",
+      "doc.model.p1":
+        "Drora is designed for the GLM model family. Sign in to a Z.ai account (GLM Coding Plan) or configure a model service in desktop Settings; the CLI authenticates via",
+      "doc.model.p1t": " and you're ready to ask.",
+      "doc.model.p2": "For self-hosting or private endpoints, point",
+      "doc.model.p2m":
+        " at a local provider config; service addresses and build config live in",
+      "doc.model.p2and": " and",
+      "doc.desktop.h2": "Desktop app",
+      "doc.desktop.p1":
+        "The desktop app is Drora's daily driver: tasks and Goals carry long-running work from planning to acceptance, while the agent's file edits, terminal runs and Git state stay in one task context — check progress and add instructions anytime.",
+      "doc.desktop.li1": "Session history, replay and checkpoints: step back to any point in time.",
+      "doc.desktop.li2": "Skills, slash commands and the MCP plugin ecosystem extend the agent.",
+      "doc.desktop.li3": "Remote workspaces (SSH/WSL): develop against remote projects.",
+      "doc.remote.h2": "Phone remote",
+      "doc.remote.p1":
+        "Once remote access is on, connect from your phone's browser by scanning a code or entering the address: the phone attaches to the existing desktop host and reuses the same session runtime — no extra agent. LAN connections go direct; across networks traffic is forwarded by the relay, which only authenticates, pairs and forwards — never storing task queues or business state.",
+      "doc.remote.p2":
+        "Disconnects recover automatically and past events replay; closing the window stops the server, so nothing lingers in the background.",
+      "doc.pets.h2": "Desktop pets",
+      "doc.pets.p1":
+        "Noir, Snow and Ginger reflect live task status and keep you company through every commit. Pets are draggable, hideable and never block input — pick a character or turn them off in Settings.",
+      "doc.skin.h2": "Skin center",
+      "doc.skin.p1":
+        "Several illustrated preset wallpapers ship built in, with custom panel opacity and accent colors so the workbench matches your taste; every preset is tuned against the design spec.",
+      "doc.cli.h2": "CLI",
+      "doc.cli.p1": "The",
+      "doc.cli.p1t":
+        " artifact is a single-file Agent CLI that must run in a terminal. It works standalone and shares the same runtime as the desktop app:",
+      "doc.cli.p2": "Web mode listens locally and opens your browser by default; use",
+      "doc.cli.p2t":
+        " for LAN access — non-local addresses generate an access token automatically:",
+      "doc.build.h2": "Build from source",
+      "doc.build.p1": "Prepare Git, Node.js",
+      "doc.build.p1m": " and pnpm",
+      "doc.build.p1t": " (versions per",
+      "doc.build.p1e": " in the repo), then run from the repository root:",
+      "doc.build.p2": "Package desktop installers:",
+      "doc.build.p3": "Repository layout, configuration keys (such as",
+      "doc.build.p3t": " for the data directory) and full packaging docs live in the",
+      "doc.faq.h2": "FAQ",
+      "doc.faq.q1": "macOS says the app is damaged, or Windows SmartScreen blocks it?",
+      "doc.faq.a1":
+        "Community builds are unsigned: on Windows choose \"More info → Run anyway\"; on macOS allow it under System Settings → Privacy & Security, or run",
+      "doc.faq.q2": "Is there a Linux desktop build?",
+      "doc.faq.a2": "Not yet as a prebuilt installer. Linux users can start with the single-file CLI (",
+      "doc.faq.a2t": ") or build the desktop app from source with",
+      "doc.faq.a2e": "yourself.",
+      "doc.faq.q3": "How do I update?",
+      "doc.faq.a3":
+        "The desktop app updates itself over the latest channel; you can also download any newer build from the Releases page and install over it.",
+      "doc.faq.q4": "Where do I report problems?",
+      "doc.faq.a4": "Feel free to open a",
+      "doc.faq.a4m": " thread, or join the",
+      "doc.faq.a4link": "community channels",
+      "doc.faq.a4e": " linked in the README.",
 
       "footer.rights": "Drora Contributors · Open-source remake of ZCode",
       "footer.github": "GitHub",
@@ -119,6 +258,22 @@
 
   /* zh strings are the document's own text; re-applying them restores defaults. */
   var zhNodes = null;
+
+  /* 每个页面的标题（切换语言时同步，避免子页沿用首页标题） */
+  var PAGE_TITLES = {
+    home: {
+      zh: "Drora | GLM-5.3 开源氛围编程工具",
+      en: "Drora | Open-source vibe coding powered by GLM-5.3",
+    },
+    changelog: { zh: "Drora 版本发布与更新", en: "Drora Release Notes" },
+    docs: { zh: "Drora 文档 | 安装、连接模型与功能指南", en: "Drora Docs | Install, models & guides" },
+  };
+
+  function pageTitle(lang) {
+    var page = document.body.getAttribute("data-page") || "home";
+    var titles = PAGE_TITLES[page] || PAGE_TITLES.home;
+    return lang === "en" ? titles.en : titles.zh;
+  }
 
   function currentLang() {
     var saved = null;
@@ -148,13 +303,13 @@
         var key = el.getAttribute("data-i18n");
         if (dict[key]) el.textContent = dict[key];
       });
-      document.title = "Drora | Open-source vibe coding powered by GLM-5.3";
+      document.title = pageTitle("en");
     } else {
       cacheZh();
       zhNodes.forEach(function (n) {
         n.el.textContent = n.text;
       });
-      document.title = "Drora | GLM-5.3 开源氛围编程工具";
+      document.title = pageTitle("zh");
     }
     var label = document.getElementById("langLabel");
     if (label) label.textContent = lang === "en" ? "中" : "EN";
@@ -181,11 +336,11 @@
     var label = document.getElementById("ctaPlatform");
     if (!cta || !label) return;
     var assets = {
-      mac: "Drora-3.14.3-mac-arm64.dmg",
-      win: "Drora-3.14.3-win-x64.exe",
-      linux: "Drora-3.14.3-linux-x64.AppImage",
+      mac: "Drora-0.0.8-mac-arm64.dmg",
+      win: "Drora-0.0.8-win-x64.exe",
+      linux: "drora-linux-x64",
     };
-    cta.href = "https://github.com/CavinHuang/Drora/releases/latest/download/" + assets[platform];
+    cta.href = "https://github.com/CavinHuang/Drora/releases/download/v0.0.8/" + assets[platform];
     if (lang === "en") {
       var keys = { mac: "hero.forMac", win: "hero.forWindows", linux: "hero.forLinux" };
       label.textContent = I18N.en[keys[platform]];
@@ -206,6 +361,49 @@
   }
 
   /* --------------------------- interactions --------------------------- */
+
+  /* 当前页导航高亮：按链接路径末段匹配 body[data-page] */
+  function initActiveNav() {
+    var page = document.body.getAttribute("data-page");
+    if (!page || page === "home") return;
+    document.querySelectorAll(".main-nav a, .mobile-nav a").forEach(function (a) {
+      var m = /(?:^|\/)(docs|changelog)\/?$/.exec(a.getAttribute("href") || "");
+      if (m && m[1] === page) a.classList.add("active");
+    });
+  }
+
+  /* 文档页 scrollspy：视口上部区域命中的 h2 高亮侧栏与目录项 */
+  function initDocsSpy() {
+    var heads = document.querySelectorAll(".docs-content h2[id]");
+    var links = document.querySelectorAll(".docs-toc a, .docs-nav-group a");
+    if (!heads.length || !links.length || !("IntersectionObserver" in window)) return;
+    var byId = {};
+    links.forEach(function (a) {
+      var id = (a.getAttribute("href") || "").slice(1);
+      if (!id) return;
+      (byId[id] = byId[id] || []).push(a);
+    });
+    function setActive(id) {
+      links.forEach(function (a) {
+        a.classList.remove("current");
+      });
+      (byId[id] || []).forEach(function (a) {
+        a.classList.add("current");
+      });
+    }
+    var io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        });
+      },
+      { rootMargin: "-72px 0px -66% 0px" }
+    );
+    heads.forEach(function (h) {
+      io.observe(h);
+    });
+    setActive(heads[0].id);
+  }
 
   function initHeader() {
     var header = document.getElementById("siteHeader");
@@ -268,6 +466,8 @@
     attachPets();
     initHeader();
     initReveal();
+    initActiveNav();
+    initDocsSpy();
 
     var langBtn = document.getElementById("langBtn");
     if (langBtn) {

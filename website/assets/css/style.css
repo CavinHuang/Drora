@@ -361,10 +361,11 @@ a {
 
 .mock-wrap {
   position: relative;
-  max-width: 1240px;
+  max-width: 1280px;
   margin: 72px auto 0;
   padding: 0 28px;
 }
+
 
 .mock-glow {
   position: absolute;
@@ -380,16 +381,39 @@ a {
 .window {
   position: relative;
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr) 292px;
+  grid-template-columns: 224px minmax(0, 1fr) 292px;
   /* 固定行高：内容超出时由各列内部裁切，禁止隐式行把窗口撑爆 */
   grid-template-rows: minmax(0, 1fr);
-  height: 560px;
+  /* 高度断点对齐参考站：520 / sm:620 / md:576 / lg:768 */
+  height: 520px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-card);
+  border-radius: 20px;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   background: var(--bg-window);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
   overflow: hidden;
   text-align: left;
+}
+
+@media (min-width: 640px) {
+  .window {
+    height: 620px;
+  }
+}
+
+@media (min-width: 768px) {
+  .window {
+    height: 576px;
+    grid-template-columns: 240px minmax(0, 1fr) 292px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .window {
+    height: 768px;
+    grid-template-columns: 256px minmax(0, 1fr) 292px;
+  }
 }
 
 /* ---- window: sidebar ---- */
@@ -677,6 +701,35 @@ a {
   align-items: center;
   justify-content: center;
   font-size: 13px;
+}
+
+.comp-btn.icon-only .tr-icon {
+  font-size: 14px;
+}
+
+.comp-caret {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--fg-subtle);
+}
+
+.pcr-more {
+  margin-left: auto;
+  color: var(--fg-subtle);
+}
+
+.wt-icons .wt-icon-active {
+  background: var(--blue);
+  color: #0b0b0c;
+  border-radius: 5px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 /* 失败任务条目：图标转红 */
@@ -1071,6 +1124,10 @@ a {
   padding: 14px;
   border-left: 1px solid var(--border);
   background: #171718;
+  overflow: hidden;
+  /* 面板底部渐隐（对齐参考站 Progress 末条淡出） */
+  -webkit-mask-image: linear-gradient(to bottom, #000 93%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 93%, transparent 100%);
   overflow: hidden;
 }
 
@@ -1910,7 +1967,7 @@ section h2 {
 
   .window {
     grid-template-columns: minmax(0, 1fr);
-    height: 480px;
+    height: 520px;
   }
 
   .win-sidebar {

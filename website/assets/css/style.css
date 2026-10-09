@@ -502,6 +502,183 @@ a {
   font-size: 13px;
 }
 
+/* 组行：folder 图标 + hover 淡入按钮（对齐参考站 collapsible 组头） */
+.win-side-label {
+  align-items: center;
+}
+
+.win-side-label .wsl-icon {
+  display: inline-flex;
+  color: var(--fg-subtle);
+}
+
+.win-side-label .wsl-name {
+  color: var(--fg-subtle);
+}
+
+.win-side-label .wsl-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+  color: var(--fg-subtle);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.win-side-label:hover .wsl-actions {
+  opacity: 1;
+}
+
+/* 任务条目状态点：活跃=品牌点，失败=红点，普通任务无点（对齐参考站） */
+.side-item .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.side-item .dot.dot-brand {
+  background: var(--blue);
+}
+
+.side-item .dot.dot-red {
+  background: var(--red);
+}
+
+.side-item .dot:empty {
+  display: none;
+}
+
+/* 归档切换按钮：带边框的小方钮（对齐参考站 lucide-archive 按钮） */
+.side-archive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-subtle);
+}
+
+/* 用户消息气泡（对齐参考站：右对齐圆角卡） */
+.user-msg-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.user-bubble {
+  max-width: 88%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 12px;
+  border-top-right-radius: 3px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--fg);
+  text-align: left;
+}
+
+.user-msg-row .msg-meta {
+  margin: 0;
+  width: 100%;
+}
+
+/* 工具行 hover 展开指示 chevron（对齐参考站折叠摘要） */
+.tool-row {
+  align-items: center;
+}
+
+.tool-row .tr-chev {
+  margin-left: auto;
+  color: var(--fg-subtle);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tool-row:hover .tr-chev {
+  opacity: 1;
+}
+
+/* 终端卡关闭钮 */
+.pc-close {
+  margin-left: auto;
+  color: var(--fg-subtle);
+  font-size: 11px;
+}
+
+/* Goal 计数点分式（5/5 · 2m · 89K tokens） */
+.pc-dotmeta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pc-dotmeta i {
+  font-style: normal;
+  color: var(--fg-subtle);
+}
+
+/* 输入区：单一 composer 卡（输入行 + 工具条 + 右侧品牌色发送方块） */
+.composer {
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-window);
+  padding: 10px 12px 8px;
+}
+
+.comp-input {
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding: 2px 2px 12px;
+}
+
+.comp-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.comp-btn.plain {
+  border: none;
+  background: none;
+}
+
+.comp-spacer {
+  flex: 1;
+}
+
+.comp-send {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--blue);
+  color: #0b0b0c;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
 /* 失败任务条目：图标转红 */
 .side-item.fail .si-icon {
   color: var(--red);

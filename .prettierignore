@@ -7,3 +7,7 @@ apps/drora-cli/
 # oxfmt 解析会报错；只排除这两个文件，其余 graphs fixture 仍参与格式检查。
 apps/drora-cli/packages/dynamic-workflow/tests/graphs/control-flow-for-await.ts
 apps/drora-cli/packages/dynamic-workflow/tests/graphs/async-promise-for-await-of.ts
+
+# 产品官网是纯静态 HTML/CSS/JS（specs/website.md），物理隔离于工作区构建与格式工具链，
+# oxfmt 会把 index.html 的内联 SVG 属性重排导致与源资产不一致，整目录排除。
+website/

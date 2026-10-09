@@ -252,9 +252,12 @@ jobs:
         run: pnpm typecheck
       - name: Build CLI bundle with dependency closure
         run: node scripts/build-desktop-agent-cli.mjs
-      - name: Build @drora/tui dist (SEA 打包依赖)
-        # build-desktop-agent-cli 的清单不含 tui；build-sea.mjs 要求 tui dist 已存在。
-        run: pnpm --filter @drora/tui build
+      - name: Build @drora/tui 闭包（SEA 打包依赖）
+        # build-desktop-agent-cli 的清单不含 SEA 运行时收集面：tui dist 及其
+        # 运行时依赖 model-option-map。build-sea.mjs 硬依赖两者已构建。
+        run: |
+          pnpm --filter @drora/model-option-map build
+          pnpm --filter @drora/tui build
       - name: Build plugin MCP runtimes
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致

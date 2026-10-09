@@ -128,9 +128,7 @@ async function readClaudeSettings(env: OutputStyleServiceEnv): Promise<Record<st
   try {
     const raw = await readFile(resolveClaudeSettingsPath(env), "utf8");
     const parsed = JSON.parse(raw) as unknown;
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : {};
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
   } catch {
     return {};
   }
@@ -155,11 +153,7 @@ export function createOutputStyleService(
     await mkdir(resolveClaudeConfigDir(env), { recursive: true });
     const settings = await readClaudeSettings(env);
     settings.outputStyle = params.styleId;
-    await writeFile(
-      resolveClaudeSettingsPath(env),
-      JSON.stringify(settings, null, 2),
-      "utf8",
-    );
+    await writeFile(resolveClaudeSettingsPath(env), JSON.stringify(settings, null, 2), "utf8");
   }
 
   async function listStyles(): Promise<{ styles: OutputStyle[] }> {

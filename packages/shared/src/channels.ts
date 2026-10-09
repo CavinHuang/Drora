@@ -71,6 +71,19 @@ import type {
 // RPC 服务频道 —— 通过 ChannelServer/ChannelClient 传输
 // ============================================================================
 
+/**
+ * 官方托管手机页按官方通道名（zcode-task 等）调用服务；Drora 改名后为 drora-*。
+ * 改名规则 0 同族的 wire 兼容桥：web-remote-replayable 附着会为每个 drora-*
+ * 通道同时注册 zcode-* 别名（services collection 的 officialChannelAliases）。
+ */
+export const OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-";
+const DRORA_RPC_CHANNEL_PREFIX = "drora-";
+export function toOfficialRpcChannelAlias(channelName: string): string | null {
+  return channelName.startsWith(DRORA_RPC_CHANNEL_PREFIX)
+    ? `${OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX}${channelName.slice(DRORA_RPC_CHANNEL_PREFIX.length)}`
+    : null;
+}
+
 /** RPC 服务频道名。与 ServiceDescriptor.channelName 对应。 */
 export const ServiceChannels = {
   File: "file",
@@ -137,8 +150,6 @@ export const ServiceChannels = {
   Hooks: "hooks",
   /** Memory 管理服务 */
   Memory: "memory",
-  /** Claude Code 兼容的输出风格服务（第 48 轮，~/.claude/output-styles） */
-  OutputStyle: "output-style",
   /** 首次启动设置同步服务 */
   SettingsSync: "settings-sync",
   /** Bots 远程聊天控制服务 */
@@ -149,6 +160,8 @@ export const ServiceChannels = {
   PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** 闲时任务管理服务（与 automation 服务面独立） */
   OffPeakTask: "off-peak-task",
+  /** 输出风格服务（Claude Code 兼容，~/.claude/output-styles 本机状态） */
+  OutputStyle: "output-style",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
   OnboardingRecord: "onboarding-record",
   /** Obsidian Vault 面板服务（host 常驻；配置与 obsidian MCP server 共享 vault-config.json） */
@@ -160,22 +173,6 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 // ============================================================================
 // 平台频道 —— 仅 Desktop main 进程能处理的操作（Electron IPC）
 // ============================================================================
-
-/**
- * 官方 rpc 通道名兼容前缀（M4b，spec: mobile-web-remote.md）：
- * 官方托管手机页按官方通道名（zcode-task 等）调用服务；Drora 改名后为 drora-*。
- * web-remote-replayable 附着会为每个 drora-* 通道同时注册 zcode-* 别名
- * （仅别名映射，不改变 drora-* 本名），参照插件市场官方源改名桥接先例。
- */
-export const OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-";
-const DRORA_RPC_CHANNEL_PREFIX = "drora-";
-
-/** drora-* 通道名 → 官方别名；非 drora- 前缀返回 null（不衍生）。 */
-export function toOfficialRpcChannelAlias(channelName: string): string | null {
-  return channelName.startsWith(DRORA_RPC_CHANNEL_PREFIX)
-    ? `${OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX}${channelName.slice(DRORA_RPC_CHANNEL_PREFIX.length)}`
-    : null;
-}
 
 /** Electron IPC 频道名。仅在 preload ↔ main 之间使用。 */
 export const PlatformChannels = {
@@ -199,7 +196,7 @@ export const PlatformChannels = {
   MobileRelaySyncSidePane: "drora:mobile-relay-sync-side-pane",
   /**
    * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
-   * zcode:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
+   * drora:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
    * main→renderer 发 {requestId, workspaceKey}，renderer 处理后经同一通道回
    * {requestId, workspaceKey, success, error?}——重连事实（历史/target/凭据）归
    * 窗口 renderer，main 只做转发与等待（官方 qb 语义，120s 超时）。
@@ -385,10 +382,15 @@ export const PlatformChannels = {
   TaskNotificationSound: "drora:task-notification-sound",
   /** Main → Preload：用户点击了系统通知，携带 taskId 让 renderer 跳转到对应任务 */
   TaskNotificationClick: "drora:task-notification-click",
+  /** Renderer → Main：发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
   DesktopPetPublish: "drora:desktop-pet-publish",
+  /** Pet → Main：点击宠物打开对应任务 */
   DesktopPetOpenTask: "drora:desktop-pet-open-task",
+  /** Main → Pet：向宠物窗口推送任务状态渲染帧 */
   DesktopPetRender: "drora:desktop-pet-render",
+  /** Pet → Main：宠物被点击激活 */
   DesktopPetActivate: "drora:desktop-pet-activate",
+  /** Pet → Main：宠物拖拽事件（start/move/end） */
   DesktopPetDrag: "drora:desktop-pet-drag",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
@@ -535,6 +537,8 @@ export interface CodingPlanWebviewLangChangeDetail {
 /** 内部传输频道。用于 MessagePort 转发等框架级通信。 */
 export const InternalChannels = {
   DatabaseStartupState: "drora:database-startup-state",
+  /** host → main：Start Plan 人机验证采集结果（按 requestId 关联） */
+  CaptchaSolveResult: "captcha-solve-result",
   DatabaseStartupControl: "drora:database-startup-control",
   /** main → renderer 转发 MessagePort（通过 webContents.postMessage） */
   ServicePort: "drora:service-port",
@@ -632,6 +636,8 @@ export const HostResponseTypes = {
   Log: "log",
   /** host 内拉起新的 agent 子进程 */
   AgentProcessSpawned: "agent-process-spawned",
+  /** host → main：请求 main 隐藏窗口采集 Start Plan 人机验证凭证 */
+  CaptchaSolveRequest: "captcha-solve-request",
   /** host 内 agent runtime 首次通过模型执行门禁 */
   AgentProcessReady: "agent-process-ready",
   /** host 内的 agent 子进程退出 */
@@ -703,8 +709,6 @@ export const HostResponseTypes = {
   OffPeakSchedulerWakeRequest: "off-peak-scheduler-wake-request",
   /** host → main：执行一条 browser-use 命令（main 用 WebContentsView+CDP 执行，按 requestId 关联） */
   BrowserExecuteRequest: "browser-execute-request",
-  /** host → main：请求 main 隐藏窗口采集一次阿里云 Start Plan 人机验证凭证（按 requestId 关联） */
-  CaptchaSolveRequest: "captcha-solve-request",
   /** host → main：请求授权 Agent 已精确校验的本地视频路径 */
   LocalMediaPreviewPathAuthorizeRequest: "local-media-preview-path-authorize-request",
   /** host → main：RPC 网络遥测批次（channel.command 成功率/耗时） */

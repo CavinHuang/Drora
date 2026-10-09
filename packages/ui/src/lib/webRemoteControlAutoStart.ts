@@ -38,14 +38,20 @@ export function createWebRemoteControlAutoStartGate() {
       started.clear();
     },
     /**
-     * 服务未运行（idle）且该传输本次打开还未自动开启过时准许，并占用该传输名额；
-     * state 为 undefined（平台未提供查询方法，如 Web）时一律拒绝，与修复前行为一致。
+     * Main 原始状态为 idle，或明确属于另一传输时，准许本 tab 启动一次。
+     * 修复依据：展示投影会过滤另一传输的 active 状态；若闸门也读投影，就会把
+     * cloud/active → LAN 误作「无状态」，二维码永久停在准备中。
+     * state 为 undefined（平台未提供查询方法，如 Web）时仍拒绝。
      */
     admit(
-      state: Pick<MobilePairingRuntimeState, "status"> | undefined,
+      state: Pick<MobilePairingRuntimeState, "status" | "transport"> | undefined,
       transport: WebRemoteControlTransport,
     ): boolean {
-      if (state?.status !== "idle" || started.has(transport)) return false;
+      if (!state || started.has(transport)) return false;
+      const canStart =
+        state.status === "idle" ||
+        (state.transport !== undefined && !stateMatchesTransport(state, transport));
+      if (!canStart) return false;
       started.add(transport);
       return true;
     },

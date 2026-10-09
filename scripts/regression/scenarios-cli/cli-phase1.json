@@ -1,0 +1,59 @@
+{
+  "plans": {
+    "cli-1": [
+      { "text": "CLI 单轮确定性回复。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "c01",
+      "title": "CLI --help 使用文本",
+      "args": ["--help"]
+    },
+    {
+      "id": "c02",
+      "title": "CLI --version",
+      "args": ["--version"]
+    },
+    {
+      "id": "c03",
+      "title": "CLI 单轮 json 输出",
+      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "json", "--mode", "build"]
+    },
+    {
+      "id": "c04",
+      "title": "CLI 单轮 text 输出",
+      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "text", "--mode", "build"]
+    },
+    {
+      "id": "c05",
+      "title": "CLI 单轮 stream-json 输出",
+      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "stream-json", "--mode", "build"]
+    },
+    {
+      "id": "c06",
+      "title": "CLI 冲突面：target+prompt",
+      "args": ["--target", "x", "--prompt", "y"]
+    },
+    {
+      "id": "c07",
+      "title": "CLI 错误面：--target-replace 缺 target",
+      "args": ["--target-replace"]
+    },
+    {
+      "id": "c08",
+      "title": "CLI 错误面：未知输出格式",
+      "args": ["--prompt", "x", "--output-format", "nope"]
+    },
+    {
+      "id": "c09",
+      "title": "CLI 错误面：resume 不存在会话",
+      "args": ["--resume", "sess_none", "--prompt", "y"]
+    },
+    {
+      "id": "c10",
+      "title": "CLI --model 覆盖",
+      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "json", "--model", "mock", "--mode", "build"]
+    }
+  ]
+}

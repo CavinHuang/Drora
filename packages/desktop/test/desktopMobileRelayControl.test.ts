@@ -888,13 +888,9 @@ test("超限消息被拒：空消息与超 16MiB", async () => {
   );
 });
 
-test("通道名别名推导：drora-* → zcode-*，其余不衍生", async () => {
-  const { toOfficialRpcChannelAlias } = await import("@drora/shared");
-  assert.equal(toOfficialRpcChannelAlias("drora-task"), "zcode-task");
-  assert.equal(toOfficialRpcChannelAlias("drora-session"), "zcode-session");
-  assert.equal(toOfficialRpcChannelAlias("window-controller"), null);
-  assert.equal(toOfficialRpcChannelAlias("drora-"), "zcode-");
-});
+// fork 的「通道名别名推导」用例不迁：base 内部服务通道名本就是官方 drora-*，
+// 不存在 fork 的 drora-*→drora-* 改名缝合线（shared 亦无 toOfficialRpcChannelAlias
+// 导出，避免引入恒等死代码）。
 
 test("deriveSelfHostedRelayEndpoints：自建 relay 端点推导（spec §8）", () => {
   const http = deriveSelfHostedRelayEndpoints("http://relay.lan:4430");

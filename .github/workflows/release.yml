@@ -99,7 +99,7 @@ jobs:
       - name: Emit workspace dists (tsc -b project references)
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
-        run: pnpm --filter @drora/cli... build
+        run: pnpm --filter drora-cli... build
       - name: Build plugin MCP runtimes
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致
@@ -251,7 +251,7 @@ jobs:
       - name: Emit workspace dists
         run: pnpm typecheck
       - name: Build CLI bundle with dependency closure
-        run: pnpm --filter @drora/cli... build
+        run: pnpm --filter drora-cli... build
       - name: Build plugin MCP runtimes
         # android/ios 插件被主 workspace 排除(seed 资产包),--filter 匹配不到,
         # 必须按包目录直入构建;node-repl-host/browser-use 同法保持一致

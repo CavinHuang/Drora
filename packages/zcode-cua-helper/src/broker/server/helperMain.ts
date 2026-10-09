@@ -416,7 +416,7 @@ export async function runHelper(options: any) {
     // drain 不会发生——必须像 startup-claim-timeout 一样显式 process.exit(0)。
     onIdleExit: (reason) => {
       process.stderr.write(
-        `[helper-exit] trigger=${reason} → process.exit(0) at ${new Date().toISOString()} launcherPid=${launcherPid}
+        `[helper-exit] trigger=${reason} → process.exit(0) at ${new Date().toISOString()} launcherPid=${options.launcherPid ?? null}
 `,
       );
       process.exit(0);
@@ -583,7 +583,7 @@ export async function main(argv, runtimePolicy: any = {}) {
     return;
   }
   const brokerLaunchAllowed = () => !shouldCancelCuaHelperBrokerLaunch(argv, socketPath);
-  if (!brokerLaunchAllowed()) return;
+
   const version2 = resolveHelperRuntimeVersion(argv, runtimePolicy);
   const bundleId = resolveHelperRuntimeBundleId(runtimePolicy);
   const displayName = resolveHelperRuntimeDisplayName(runtimePolicy);
@@ -623,7 +623,6 @@ export async function main(argv, runtimePolicy: any = {}) {
   if (argv.includes(HELPER_BACKGROUND_MODE_ARG) && typeof native.preventActivation === "function") {
     native.preventActivation();
   }
-  if (!brokerLaunchAllowed()) return;
   if (!brokerLaunchAllowed()) return;
   const launcherPid = parseLauncherPid(argOf(argv, "--launcher-pid"));
   const unsignedLauncherLocalDev = isUnsignedLauncherLocalDevAllowed(
@@ -773,6 +772,7 @@ export async function main(argv, runtimePolicy: any = {}) {
       authorizationSubject: authorizationSubject2,
     }),
     verifyPeer,
+    launcherPid,
     startupAllowed: brokerLaunchAllowed,
     admitControllerAction: controller.admitAction,
     getControllerStatus: controller.status,

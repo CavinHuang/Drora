@@ -56,7 +56,7 @@ test("§32.72 草稿面：问候 + 内嵌工作区行 + 全句占位 + 工具条
   // 上午 10 点 → morning 段（P5b 既有键，值 = 官方逐字）。
   assert.match(html, /上午好呀，有什么想让我帮忙的吗/);
   // §32.72 官方活体全句占位（chat.placeholder.newTask，非 newTaskMobile 短句）。
-  assert.match(html, /向 ZCode 提问，使用 @ 添加上下文，使用 \/ 选择命令或能力/);
+  assert.match(html, /向 Drora 提问，使用 @ 添加上下文，使用 \/ 选择命令或能力/);
   // composer 内嵌工作区行（工作区名）+ 分支占位图标。
   assert.match(html, /demo/);
   // 工具条四件：＋ 添加上下文 / 模式触发器（Hand+变更前确认+▾）/ 管理模型 / 发送。

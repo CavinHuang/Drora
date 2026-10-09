@@ -42,6 +42,8 @@ export interface ConversationRowRenderContext {
   workspaceRemoteSessionId?: string;
   /** SessionPane 从目标 Host 读取的同一份模型选择 View。 */
   modelSelectionView?: ModelSelectionView | null;
+  /** §32.51 手机远控（官方 compactForRemoteControl 同语义）：消息操作行常显。 */
+  compactForRemoteControl?: boolean;
   theme: Theme;
   /** 需保持引用稳定（MessageResponse/ToolCallBlock 的 memo 依赖）。 */
   codePreviewSettings: CodePreviewSettings;
@@ -52,8 +54,6 @@ export interface ConversationRowRenderContext {
   /** @deprecated 旧内联下钻标记；新的子会话统一打开侧栏详情。 */
   inSubagentDrilldown?: boolean;
   /** 手机 /remote 紧凑模式：隐藏外部 App 打开下拉，只保留应用内预览。 */
-  /** §32.51 手机远控（官方 compactForRemoteControl 同语义）：消息操作行常显。 */
-  compactForRemoteControl?: boolean;
   /** 当前 session 正在 compact 或 goal verify；专用状态 UI 独占进度反馈。 */
   chatLoadingBlockedByActiveWork?: boolean;
   /** 当前 session 正在等待权限确认或 AskUserQuestion 回答，隐藏底部 ChatLoading。 */

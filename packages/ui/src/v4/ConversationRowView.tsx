@@ -258,11 +258,6 @@ interface ConversationRowViewProps {
   /** renderer-only 提交状态；不写入协议 row，也不冒充已 drain 的历史事实。 */
   userInputStatus?: string;
   /**
-   * §32.51 手机远控行为（官方 compactForRemoteControl 同语义）：远控端无 hover，
-   * 消息操作行（复制/编辑）常显。桌面端保持 hover/focus 降噪。
-   */
-  compactForRemoteControl?: boolean;
-  /**
    * 一轮对用户是一个回复：非最后一段 text 不显示任何
    * action（复制/fork 都没有），入口只在轮尾段。
    */
@@ -859,14 +854,12 @@ const UserInputRowView = memo(function UserInputRowView({
   onEdit,
   editWorkspaceRewindAvailability,
   status,
-  compactForRemoteControl,
 }: {
   row: UserInputRow;
   context: ConversationRowRenderContext;
   onEdit?: UserInputEditHandler;
   editWorkspaceRewindAvailability?: EditWorkspaceRewindAvailability;
   status?: string;
-  compactForRemoteControl?: boolean;
 }) {
   const { intl } = useDroraIntl();
   // 引擎尾注折叠：正文只到 epilogueStart，
@@ -1286,8 +1279,8 @@ const UserInputRowView = memo(function UserInputRowView({
           {status}
         </div>
       ) : null}
-      {/* 手机远控没有 hover：操作行常显（§32.51 官方 compactForRemoteControl 同语义）；
-          桌面端继续通过 hover/focus 降噪。 */}
+      {/* 手机远控没有 hover，v4 迁移时漏掉了旧 UserMessage 的常显分支，
+          导致复制和编辑入口不可发现；远控直接显示，桌面端继续通过 hover/focus 降噪。 */}
       <MessageActions
         className={cn(
           "mt-1",
@@ -1592,7 +1585,8 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           onFeedbackChange={onFeedbackChange}
           className={cn(
             "mt-1",
-            // §32.51 官方 compactForRemoteControl 同语义：手机远控无 hover，操作行常显。
+            // §32.51 官方 compactForRemoteControl 同语义：手机远控无 hover，操作行常显；
+            // 桌面端继续 hover/focus 降噪。hover:none 媒体降级兜底真机触屏。
             context.compactForRemoteControl
               ? "opacity-100"
               : "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100",
@@ -2123,7 +2117,6 @@ function ConversationRowViewImpl({
   assistantCodeCommentProjectionEnabled,
   reasoningContentVariant,
   userInputStatus,
-  compactForRemoteControl,
 }: ConversationRowViewProps) {
   switch (row.kind) {
     case "userInput":
@@ -2134,7 +2127,6 @@ function ConversationRowViewImpl({
           onEdit={onEdit}
           editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
           status={userInputStatus}
-          compactForRemoteControl={compactForRemoteControl}
         />
       );
     case "assistantText":

@@ -73,7 +73,12 @@ export function createStartPlanCaptchaMainBridge(deps: {
           }
         }, timeoutMs);
         pending.set(bridgeRequestId, { resolve, timer });
-        deps.postToMain({ type: HostResponseTypes.CaptchaSolveRequest, requestId: bridgeRequestId, captcha, language });
+        deps.postToMain({
+          type: HostResponseTypes.CaptchaSolveRequest,
+          requestId: bridgeRequestId,
+          captcha,
+          language,
+        });
       });
       if (!result.ok || !result.captchaVerifyParam?.trim()) {
         return null;

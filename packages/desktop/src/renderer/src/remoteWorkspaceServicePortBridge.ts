@@ -10,10 +10,7 @@ export interface RemoteWorkspaceServicePortRegistration {
   port: MessagePort;
   sessionId: string;
   target: RemoteTarget;
-  /**
-   * 第四十九轮：server 形态连接的 server-info 自描述。
-   * main 随 ScopedServicePort 元数据透出，目录步骤据此展示快捷 workspace 列表。
-   */
+  /** 第四十九轮：server 形态连接的 server-info 自描述（其余远程形态为 undefined）。 */
   serverInfo?: ServerRemoteInfo;
 }
 

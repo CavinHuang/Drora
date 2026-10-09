@@ -610,14 +610,14 @@ export function createDesktopMobileRelayControl(deps: {
       // 对齐官方 isOversize 拒收（maxPhysicalFrameBytes=1MiB，取证 et 常量表）：
       // 超限帧 warn 并丢弃——relay 会整帧丢弃，发了也到不了手机。
       logger.warn("[mobile-relay] rejected oversize app payload", {
-        zcodeType: frame.zcode_type,
+        droraType: frame.zcode_type,
         bytes: jsonBytes,
         maxBytes: MAX_APP_FRAME_BYTES,
       });
       return { status: "oversize" };
     }
     logger.info("[mobile-relay] 出站应用帧", {
-      zcodeType: frame.zcode_type,
+      droraType: frame.zcode_type,
       bytes: jsonBytes,
       ...(frame.zcode_type === "bootstrap-response" ||
       frame.zcode_type === "workspace-list-response"
@@ -1236,7 +1236,7 @@ export function createDesktopMobileRelayControl(deps: {
    * workspace-reconnect-request 真实处理（M4c，对齐官方
    * respondToWorkspaceReconnectRequest，lt，index.js@399799）：委托属主窗口
    * renderer 重连该远程工作区（官方 e.reconnectWorkspace → IPC
-   * zcode:web-remote-control-reconnect-workspace；重连事实归窗口），成功回
+   * drora:web-remote-control-reconnect-workspace；重连事实归窗口），成功回
    * `{zcode_type, requestId, workspaceKey, success:true}`，任何失败回
    * `success:false + error=错误消息`——官方无独立 reason 字段，requestId 与
    * workspaceKey 必须回显（手机页按两者匹配响应，托管页取证 @6086587；
@@ -1357,8 +1357,8 @@ export function createDesktopMobileRelayControl(deps: {
    *
    * 线格式与走向（官方 3.14.3 取证，specs/mobile-web-remote.md「flow-state sideband」）：
    * MessagePortProtocol.sendFlowState（chunk-BMP2VTTL.js@7872）postMessage
-   * {__zcodeRpcControl:"connection-flow-v1", state:"saturated"|"drained"}——官方
-   * 字面量为 __zcodeRpcControl，本仓按改名规则用 __droraRpcControl（rpc 包
+   * {__droraRpcControl:"connection-flow-v1", state:"saturated"|"drained"}——官方
+   * 字面量为 __droraRpcControl，本仓按改名规则用 __droraRpcControl（rpc 包
    * messagePortFlowControl 工厂，单一出处）。这是 main→Host 本地 sideband，
    * 不进 relay 数据面；护栏对齐官方事件接线（index.js@397846/397922）：
    * 桥存活且未降级才发。
@@ -1424,12 +1424,12 @@ export function createDesktopMobileRelayControl(deps: {
   }
 
   async function handleAppFrame(frame: Record<string, unknown>): Promise<void> {
-    const zcodeType = frame.zcode_type;
-    if (zcodeType !== "telemetry-report" && zcodeType !== "mobile-diagnostic") {
+    const droraType = frame.zcode_type;
+    if (droraType !== "telemetry-report" && droraType !== "mobile-diagnostic") {
       // 调试可见性：非噪音应用帧逐条记录（手机侧失败定位第一手证据）。
-      logger.info("[mobile-relay] 入站应用帧", { zcodeType, requestId: frame.requestId });
+      logger.info("[mobile-relay] 入站应用帧", { droraType, requestId: frame.requestId });
     }
-    switch (zcodeType) {
+    switch (droraType) {
       case "bootstrap-request": {
         const workspace = currentWorkspaceSummary();
         if (!workspace || !credential) {
@@ -1614,7 +1614,7 @@ export function createDesktopMobileRelayControl(deps: {
             });
           });
         } else {
-          logger.info("[mobile-relay] 手机端帧（遥测未转发）", { zcodeType });
+          logger.info("[mobile-relay] 手机端帧（遥测未转发）", { droraType });
         }
         return;
       }
@@ -1622,7 +1622,7 @@ export function createDesktopMobileRelayControl(deps: {
         // 只记日志，不上报（保守姿态，官方 logMobileDiagnostic 同款）。载荷是页面
         // 状态机事件（event/state/previousState），是手机侧失败定位的第一手证据。
         logger.info("[mobile-relay] 手机端帧", {
-          zcodeType,
+          droraType,
           ...(["event", "state", "previousState", "reason", "detail"] as const).reduce<
             Record<string, unknown>
           >((acc, key) => {
@@ -1794,7 +1794,7 @@ export function createDesktopMobileRelayControl(deps: {
       code === "WRONG_PARAM" &&
       (transportState === "paired" || transportState === "waiting_terminal")
     ) {
-      // 对齐官方 3.14.3（取证 /d/software/ZCode bundle handleError）：
+      // 对齐官方 3.14.3（取证 /d/software/Drora bundle handleError）：
       // `WRONG_PARAM && (paired || waiting_terminal)` 走 options.onError——官方接线
       // 只 logger.warn，不断连、不停心跳。relay 在手机接管/离开的过渡期会对
       // pair_status_query 周期性回 WRONG_PARAM（真机实测 10s 心跳节奏），属链路常态

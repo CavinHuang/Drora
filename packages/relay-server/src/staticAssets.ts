@@ -4,6 +4,8 @@
 // 单文件行数门禁；语义与安全约束见 spec。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve as resolvePath, sep } from "node:path";
+import { injectOfficialPageClipboardShim } from "./insecureContextClipboardShim.js";
+import { injectOfficialPageHtmlShim } from "./insecureContextCryptoShim.js";
 import { PHONE_PAGE_HTML } from "./phonePage.js";
 
 /** Content-Type 表（未列出回落 application/octet-stream）。 */
@@ -218,6 +220,19 @@ function okRoute(contentType: string, body: string | Buffer): StaticRouteResult 
 }
 
 /**
+ * /remote/** 的 200 HTML 出站统一注入非安全上下文适配（spec §12.10–12.11）：
+ * LAN 纯 HTTP 下官方页的 crypto.subtle、randomUUID、clipboard.writeText 缺失。
+ * 三来源（staticRoot/mobileRoot/内建代理）在此单点汇合后统一处理；
+ * 脚本自门控（安全上下文零改动），磁盘/缓存字节不动。JS 资产出站改写
+ * （rewriteHostedAsset）与其正交：HTML 无需 JS 改写、JS 无需 HTML 注入。
+ */
+function outboundBodyWithShim(contentType: string, body: string | Buffer): string | Buffer {
+  if (!contentType.startsWith("text/html")) return body;
+  const html = typeof body === "string" ? body : body.toString("utf8");
+  return injectOfficialPageClipboardShim(injectOfficialPageHtmlShim(html));
+}
+
+/**
  * GET /remote/** 托管资产路由（spec §12.5/§12.9）：①staticRoot 文件映射优先
  * （dev 测试床语义不变）→ mobileRoot 本地包 → ②内建资产代理 → ③离线回退：
  * 入口文档 302 重定向到 /m/index.html（保留原查询串，R2 极简页兜底），其余资产
@@ -236,12 +251,14 @@ async function routeRemoteAssetRequest(params: {
   // ① staticRoot 优先（spec §12.5）：命中即服务，未命中落入内建代理。
   if (params.staticRootAbs) {
     const asset = await serveStaticAsset(params.pathname, params.staticRootAbs);
-    if (asset) return okRoute(asset.contentType, asset.body);
+    if (asset)
+      return okRoute(asset.contentType, outboundBodyWithShim(asset.contentType, asset.body));
   }
   // 自建同源部署的 v4 恢复稿：与测试床同一受限路径读取，优先于联网代理。
   if (params.mobileRootAbs) {
     const asset = await serveStaticAsset(params.pathname, params.mobileRootAbs);
-    if (asset) return okRoute(asset.contentType, asset.body);
+    if (asset)
+      return okRoute(asset.contentType, outboundBodyWithShim(asset.contentType, asset.body));
   }
   // ② 内建资产代理（spec §12.9）。
   if (params.remoteAssetsAbs) {
@@ -250,7 +267,8 @@ async function routeRemoteAssetRequest(params: {
       cacheDirAbs: params.remoteAssetsAbs,
       fetchImpl: params.fetchImpl,
     });
-    if (asset) return okRoute(asset.contentType, asset.body);
+    if (asset)
+      return okRoute(asset.contentType, outboundBodyWithShim(asset.contentType, asset.body));
   }
   // ③ 本地资产缺失或代理离线：入口文档回退 R2 页，查询串中的 QR 参数保留。
   if ((params.mobileRootAbs || params.remoteAssetsAbs) && isHostedEntryDoc(params.pathname)) {

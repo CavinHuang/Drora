@@ -1,0 +1,41 @@
+{
+  "plans": {
+    "us-1": [ { "text": "用量一轮。" } ],
+    "us-2": [ { "text": "用量两轮。" } ]
+  },
+  "scenarios": [
+    {
+      "id": "us1",
+      "title": "usage/stats 非空库面：两轮后按日/模型聚合（e04 只测空库）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_us1_a", "content": "一轮 [[us-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_us1_b", "content": "两轮 [[us-2]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 2 },
+        { "op": "request", "method": "usage/stats", "params": {} },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "tl1",
+      "title": "thoughtLevel 持久化回归：set high→close→同 ws create→read 继承（波 5 Uan/Ent 臂验证）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/setThoughtLevel", "params": { "sessionId": "$sessionId", "thoughtLevel": "high" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/create", "capture": { "$sidB": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sidB" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sidB" } }
+      ]
+    }
+  ]
+}

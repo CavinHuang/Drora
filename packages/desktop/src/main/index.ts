@@ -60,12 +60,12 @@ import {
   createTelemetryAuthorizationLoader,
   buildRuntimeProcessEnvPatch,
   captureLoginShellEnvSnapshot,
+  createTerminalService,
   getConversationWorkspaceDir,
   getDataBaseDir,
   getDroraDataRootDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
-  createTerminalService,
 } from "@drora/services/node";
 import {
   desktopMenuMessageIds,
@@ -557,9 +557,6 @@ let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
 const settingsFile = join(homedir(), ".drora", "v2", "setting.json");
-// 移动端远程控制统一走 relay 控制链（specs/mobile-relay-server.md §12）：
-// 旧 LAN 直连配对服务栈（desktopMobilePairingServer/Core/Restore）已整体删除，
-// 「局域网连接」传输 = 进程内嵌 relay（desktopMobileLanRelayHost）。
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -1247,6 +1244,9 @@ function syncImmediateAppSettings(patch: Partial<AppSettings>) {
   syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
   if (typeof patch.desktopPetEnabled === "boolean") {
     desktopPetWindow?.setEnabled(patch.desktopPetEnabled);
+  }
+  if (patch.desktopPetCharacter) {
+    desktopPetWindow?.setCharacter(patch.desktopPetCharacter);
   }
 
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
@@ -2000,9 +2000,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }),
     windowHostProcessMap,
     onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
-    // 旧 LAN 直连配对栈（含 desktopMobilePairingRestore）已删除（specs/mobile-relay-server.md
-    // §12.4）：移动远控恢复由 relay 控制链的 startupRestoreStorage 接管，transport=lan
-    // 恢复内嵌服务端，此处不再有任何 pairing 恢复触发点。
     awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(
@@ -2257,8 +2254,10 @@ app.whenReady().then(async () => {
   } catch {
     // 读取失败不影响启动，使用默认 homedir
   }
+
   desktopPetWindow = registerDesktopPetWindow({
     enabled: bootstrapSettings?.desktopPetEnabled ?? false,
+    character: bootstrapSettings?.desktopPetCharacter,
     position: bootstrapSettings?.desktopPetPosition,
     locale: () => currentApplicationLocale,
     isMainWindow: (win) => windowHostProcessMap.has(win.webContents.id),
@@ -2341,6 +2340,9 @@ app.whenReady().then(async () => {
         await prepareWindowsProcessesForUpdateInstall();
       }
     },
+    settingService: mainSettingService,
+    locale: currentApplicationLocale,
+    deviceMid,
     onQuitAndInstallFailed: (error) => {
       // specs/update-feed-github.md「macOS quitAndInstall 失败恢复」：
       // 退出准备已完成且不可逆，renderer 可能已不可交互——用原生弹窗兜底反馈，
@@ -2360,8 +2362,6 @@ app.whenReady().then(async () => {
       );
       exitPreparedApp("auto-update-install-failed");
     },
-    settingService: mainSettingService,
-    locale: currentApplicationLocale,
   });
 
   if (process.platform === "darwin" || process.platform === "win32") {
@@ -2389,10 +2389,10 @@ app.whenReady().then(async () => {
     logger,
   });
 
-  // 移动端远程控制（relay 双传输，specs/mobile-relay-server.md §12）：服务与状态块
-  // 声明见 settingsFile 旁（模块前部）；这里只做 IPC 装配。手机附着的是发起窗口所属的
-  // Local Host，复用 web-remote-replayable 链路。
   registerPlatformIpcHandlers({
+    // 移动端远程控制（relay 双传输，specs/mobile-relay-server.md §12）：服务与状态块
+    // 声明见 settingsFile 旁（模块前部）；这里只做 IPC 装配。手机附着的是发起窗口所属的
+    // Local Host，复用 web-remote-replayable 链路。
     mobileRelay: {
       start: async (params) => {
         mobileRelaySenderWebContentsId = params.senderWebContentsId;
@@ -2694,9 +2694,6 @@ app.on("browser-window-created", (_, win) => {
     browserGuestManager.closeWindow(win.id);
     windowWorkspaceMap.delete(win.id);
     windowTaskRealtimeHostIdMap.delete(win.id);
-    // 旧 LAN 直连连的「窗口关闭即停服」已随配对栈删除。relay 链路生命周期边界
-    // （specs/mobile-relay-server.md §12.1）：弹层显式 stop / 应用退出 will-quit
-    // 兜底停内嵌服务端，不随承载窗口关闭而停。
     if (windowUnreadCountMap.delete(win.id)) {
       syncApplicationUnreadBadge(windowUnreadCountMap);
     }

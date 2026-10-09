@@ -468,7 +468,7 @@ export const zhCN: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH 连接", // 官方逐字
   "workspaceSidebar.taskViewOptions": "筛选和排序", // 官方逐字
   "workspaceSidebar.toggleSidebar": "切换侧边栏", // 官方逐字
-  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。", // 官方逐字
+  "workspaceSidebar.unavailableLocalDirectory": "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 Drora 即可继续使用。", // 官方逐字
   "workspaceSidebar.viewByWorkspace": "按项目", // 官方逐字
   "workspaceSidebar.windowsReservedNameRisk": "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}", // 官方逐字
   // —— P6 sidePane 侧板面（spec §23）：官方 zh 值逐字（25/25 全有值，{title} 插值）——
@@ -526,8 +526,8 @@ export const zhCN: Record<string, string> = {
   "chat.plan.removeMarker": "关闭计划模式", // 官方逐字（§32.22 composer plan 标记钮）
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，zh）
   "chat.empty.greeting.morningEarly": "早上好呀，新的一天开始啦", // 官方逐字
-  "chat.placeholder.newTaskMobile": "向 ZCode 提问…", // 官方逐字
-  "chat.placeholder.newTask": "向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
+  "chat.placeholder.newTaskMobile": "向 Drora 提问…", // 官方逐字
+  "chat.placeholder.newTask": "向 Drora 提问，使用 @ 添加上下文，使用 / 选择命令或能力", // 官方 zh:4174 逐字（§32.72 新任务草稿页占位，活体全句）
   "workspace.context.lastActivity": "最近活动 {time}", // 官方逐字（§32.11 信息弹层）
   "chat.draft.suggestedPrompt.recentCommits": "检查近 7 天的 commit", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。", // 官方逐字

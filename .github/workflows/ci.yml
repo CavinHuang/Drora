@@ -72,9 +72,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build plugin MCP runtimes
         # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
-        # 必须先走依赖闭包;android/ios 插件被 workspace 排除,--dir 直入
-        run: >-
-          pnpm --filter @drora/cli... build
+        # 必须先走依赖闭包。turbo 2.9 在「子目录 turbo.json + 仓库根 workspace」
+        # 布局下找不到根配置（分叉原命令从未真正执行过，filter 匹配不到包被
+        # 静默跳过），改走仓库正统的有序闭包构建脚本（dev 同款）。
+        run: node scripts/build-desktop-agent-cli.mjs
         shell: bash
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
@@ -117,7 +118,8 @@ jobs:
       - name: Emit workspace dists (tsc -b project references)
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
-        run: pnpm --filter @drora/cli... build
+        # 同上：turbo 布局问题，走有序闭包脚本（见 CLI bundle job 注释）。
+        run: node scripts/build-desktop-agent-cli.mjs
       - name: Build plugin MCP runtimes (excluded seed packages)
         run: >-
           for pkg in browser-use-plugin android-emulator-plugin ios-simulator-plugin obsidian-plugin; do

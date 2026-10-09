@@ -34,7 +34,7 @@ Drora Server（`packages/server` 的 HTTP/WS 服务），复用其上的 Agent �
    `Host capability response is invalid`；返回一次性 capability 字符串。
 3. `connectServerRemoteTarget({ url, token? }, options?)` — 组合 1→2→WS：
    `new WebSocket(authenticatedUrl(hostWsUrl), { headers: { authorization?, 
-   x-drora-rpc-host-capability: capability } })`；open 前错误/关闭分别
+x-drora-rpc-host-capability: capability } })`；open 前错误/关闭分别
    reject；close-before-open 的 reason 文案 `WebSocket closed before ready: <reason>`
    或 `WebSocket closed before ready (<code>)`。成功返回
    `{ serverInfo, capability, socket, dispose }`。`fetchImpl` 与 WebSocket

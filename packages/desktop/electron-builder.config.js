@@ -1,9 +1,9 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
@@ -589,13 +589,6 @@ export default {
         writeWindowsInstallManifest(context),
       );
     }
-    // 路线 A 分发（无签名身份，spec §七.0）：mac 打包时 electron-builder 会跳过
-    // 签名，预构建 Electron 的陈旧 ad-hoc 签名残留（seal 与重命名/实际资源不符）
-    // 会让 macOS 报"已损坏，无法打开"——嵌套 Helper (GPU) 等同样失配。整包
-    // --deep ad-hoc 重签修复。代价（如实）：嵌套 cua-helper 的官方 Developer ID
-    // 签名被替换为 ad-hoc（identifier 保留，运行无碍；TCC 授权随更新重授）。
-    // 启用签名身份的正式构建（DRORA_ENABLE_MAC_SIGN=1）由 electron-builder
-    // 自行签名，不走此分支。
   },
   afterSign: async (context) => {
     // 路线 A adhoc 分发签名链（第五十一轮自 afterPack 迁移，并新增 addon 字节恢复）：
@@ -663,6 +656,7 @@ export default {
     }
   },
   extraResources: [
+    { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
     {
       // 本地远控页与桌面同包发布，LAN 无外网时仍完整加载 v4 双布局。
       from: resolve(workspaceRoot, "packages/mobile-web/dist"),
@@ -671,14 +665,11 @@ export default {
     {
       // §33.11 产物一致性（raw 优先修正）：官方 remote 页原始字节冻结件随包
       // （upstream 根——布局含 remote/v4/index.html，与 LAN host 候选探测对齐；
-      // §33.9 曾误用 src/recovered，其 JS 是可读化格式化版非官方原始字节）。
-      // 安装态 LAN relay 候选序首位伺服官方原始字节。与旧 dist 姊妹目录分置——
       // remote/v4/** 路径同形但字节不同，不可同目录合并。60MB 为官方全量资产集
       // （逐图标 chunk/字体/材质图标），不裁剪保字节保真。
       from: resolve(workspaceRoot, "packages/mobile-web/upstream"),
       to: "mobile-web-official",
     },
-    { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
     ...(targetPlatform.os === "darwin"
       ? [
           {
@@ -811,8 +802,7 @@ export default {
   protocols: [
     {
       // 协议处理器的展示名之前使用小写 scheme，打包产物里的协议描述无法体现产品名。
-      // 展示名跟随安装包身份。zcode:// 是官网 OAuth 中转页白名单的回调契约，必须登记；
-      // drora:// 是应用自有 deep link。两个 scheme 同名冲突时最后安装/注册者生效。
+      // 展示名跟随安装包身份；scheme 仍保持 drora，因此两个应用中最后注册者会成为默认 handler。
       name: desktopProductIdentity.productName,
       schemes: ["zcode", "drora"],
     },

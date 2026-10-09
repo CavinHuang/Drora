@@ -3,6 +3,7 @@ import {
   sessionCreateTelemetrySchema,
   automationSessionCreateTelemetrySchema,
 } from "./sessionCreateTelemetry.js";
+import { serverRemoteInfoSchema } from "./server-remote.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
 import { droraProcessDiagnosticSchema } from "./process-diagnostic.js";
@@ -15,7 +16,6 @@ import { droraProviderSchema } from "./providers.js";
 import { droraAgentProviderSchema } from "./drora-agent-policy.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
-import { serverRemoteInfoSchema } from "./server-remote.js";
 import {
   droraMcpTelemetryEventSchema,
   droraMcpResourceSamplesSchema,
@@ -494,7 +494,25 @@ export type HostResourceUsageSnapshotRequestMessage = z.infer<
   typeof hostResourceUsageSnapshotRequestMessageSchema
 >;
 
+// host → main：请求 main 隐藏窗口采集一次阿里云 Start Plan 人机验证凭证。
+export const hostCaptchaSolveRequestResponseSchema = z
+  .object({
+    type: z.literal("captcha-solve-request"),
+    requestId: nonEmptyStringSchema,
+    captcha: z
+      .object({
+        enabled: z.boolean(),
+        region: nonEmptyStringSchema,
+        prefix: nonEmptyStringSchema,
+        sceneId: nonEmptyStringSchema,
+      })
+      .strict(),
+    language: z.enum(["cn", "en"]),
+  })
+  .strict();
+
 export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
+  hostCaptchaSolveResultMessageSchema,
   z
     .object({ type: z.literal("database-startup-control"), control: databaseStartupControlSchema })
     .strict(),
@@ -941,23 +959,6 @@ export const hostBrowserExecuteRequestResponseSchema = z.object({
   command: browserCommandSchema,
 });
 
-// host → main：请求 main 隐藏窗口采集一次阿里云 Start Plan 人机验证凭证。
-export const hostCaptchaSolveRequestResponseSchema = z
-  .object({
-    type: z.literal("captcha-solve-request"),
-    requestId: nonEmptyStringSchema,
-    captcha: z
-      .object({
-        enabled: z.boolean(),
-        region: nonEmptyStringSchema,
-        prefix: nonEmptyStringSchema,
-        sceneId: nonEmptyStringSchema,
-      })
-      .strict(),
-    language: z.enum(["cn", "en"]),
-  })
-  .strict();
-
 export const hostLocalMediaPreviewPathAuthorizeRequestResponseSchema = z
   .object({
     type: z.literal("local-media-preview-path-authorize-request"),
@@ -1028,6 +1029,7 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
 >;
 
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
+  hostCaptchaSolveRequestResponseSchema,
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
     .strict(),

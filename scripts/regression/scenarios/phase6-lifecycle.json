@@ -1,0 +1,62 @@
+{
+  "plans": {
+    "p1-1": [ { "text": "第一轮。" } ],
+    "p3-1": [ { "text": "第一轮。" } ],
+    "p3-2": [ { "text": "第二轮。" } ]
+  },
+  "scenarios": [
+    {
+      "id": "pd1",
+      "title": "订阅矩阵：desktop-continuous+includeSnapshot=true 快照面",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_pd1_a", "content": "先来一轮 [[p1-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": true } },
+        { "op": "sleep", "ms": 300 },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "pd2",
+      "title": "关停后错误面：二次 close/resume/events/messages/subscribe/setMode 于已 close 会话",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/resume", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/events", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "plan" } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "pd3",
+      "title": "事件分页：afterSeq 中段+limit+越界 afterSeq",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_pd3_a", "content": "一轮 [[p3-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_pd3_b", "content": "两轮 [[p3-2]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 2 },
+        { "op": "request", "method": "session/events", "params": { "sessionId": "$sessionId", "afterSeq": 3, "limit": 2 } },
+        { "op": "request", "method": "session/events", "params": { "sessionId": "$sessionId", "afterSeq": 999 } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

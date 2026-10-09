@@ -1,0 +1,35 @@
+{
+  "plans": {
+    "ms-1": [ { "text": "会话 A 的回复。" } ],
+    "ms-2": [ { "text": "会话 B 的回复。" } ]
+  },
+  "scenarios": [
+    {
+      "id": "ms1",
+      "title": "多会话交错：双会话并发轮的事件路由隔离+messages/usage 归属",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sidA": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/create", "capture": { "$sidB": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sidA", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sidB", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sidA", "inputId": "in_ms1_a", "content": "A 轮 [[ms-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sidB", "inputId": "in_ms1_b", "content": "B 轮 [[ms-2]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 2, "timeoutMs": 60000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sidA" } },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sidB" } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sidA" } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sidB" } },
+        { "op": "request", "method": "session/list", "params": {} },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sidA" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sidB" } }
+      ]
+    }
+  ]
+}

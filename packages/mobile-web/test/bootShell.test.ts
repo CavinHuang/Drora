@@ -49,7 +49,7 @@ test("首帧脚本：单一主题源 drora-theme（zai-* 值族/默认 zai-dark/
   assert.ok(/catch[\s\S]{0,400}syncBrowserThemeSurface\("dark"\)/.test(html));
 });
 
-test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 .zcode-boot-loading 结构）", async () => {
+test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 .drora-boot-loading 结构）", async () => {
   const html = await readEntryHtml();
   assert.ok(html.includes('class="drora-boot-loading"'));
   assert.ok(html.includes('role="status"'));

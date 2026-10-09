@@ -650,6 +650,7 @@ contextBridge.exposeInMainWorld("drora", {
     ipcRenderer.on(PlatformChannels.TaskNotificationClick, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.TaskNotificationClick, handler);
   },
+  /** 注册宠物点击打开任务的回调（仅桌面宠物窗口链路），返回 disposer */
   onDesktopPetOpenTask: (
     callback: (target: import("@drora/shared").DesktopPetTarget) => void,
   ): (() => void) => {
@@ -756,6 +757,7 @@ contextBridge.exposeInMainWorld("drora", {
   /** 通过 main process 触发原生任务通知 */
   showTaskNotification: (payload: TaskNotificationPayload) =>
     ipcRenderer.send(PlatformChannels.ShowTaskNotification, payload),
+  /** 发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
   publishDesktopPet: (presentation: import("@drora/shared").DesktopPetPresentation) =>
     ipcRenderer.send(PlatformChannels.DesktopPetPublish, presentation),
   /** 导出日志：打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */

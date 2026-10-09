@@ -1,6 +1,7 @@
 # 保持脚本文件 LF 换行，避免 Windows CRLF 导致 shebang 解析失败
 *.mjs text eol=lf
 *.sh  text eol=lf
+
 # 上游许可原文与生成的声明按字节保存，不能自动转换换行或裁剪空白。
 # 原文中的 License / ======= 是 Markdown 标题，不是合并冲突。
 THIRD-PARTY-NOTICES.md -text -whitespace conflict-marker-size=32 linguist-generated=true
@@ -8,5 +9,16 @@ third-party/upstream/** -text -whitespace
 third-party/native-search/licenses/** -text -whitespace
 third-party/runtime/*.txt -text -whitespace
 third-party/inventory.json linguist-generated=true
-packages/desktop/resources/cua-helper/** filter=lfs diff=lfs merge=lfs -text
-packages/zcode-cua-helper/native/ax_native.node filter=lfs diff=lfs merge=lfs -text
+
+# 手机远控冻结快照按字节保存（specs/mobile-web-remote.md §33.11 产物一致性；
+# upstream/SHA256SUMS.txt 是完整性锚点），禁止 autocrlf 行尾改写。
+packages/mobile-web/upstream/** -text -whitespace
+packages/mobile-web/src/recovered/** -text -whitespace
+packages/mobile-web/public/** -text -whitespace
+
+# CUA helper 随包运行时按字节保存：runtime-manifest.json 钉住 entry/addon 的
+# SHA-256（windowsCuaDevRuntime requireArtifactHash 校验），autocrlf 改写行尾
+# 会让 Windows 本地打包/测试全部 fail-closed（分叉侧仅因 CI LF checkout 幸免）。
+packages/zcode-cua-helper/runtime/** -text -whitespace
+packages/zcode-cua-helper/native/*.node -text -whitespace
+packages/zcode-cua/upstream/** -text -whitespace

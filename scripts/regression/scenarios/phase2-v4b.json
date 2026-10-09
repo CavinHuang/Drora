@@ -1,0 +1,23 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "v02",
+      "title": "v4·合法参数深探：connection/flow 合法体+controller 生命周期",
+      "ops": [
+        { "op": "request", "method": "v4/connection/flow",
+          "params": { "connectionId": "conn-v02", "state": "drained" } },
+        { "op": "request", "method": "v4/controller/subscribe",
+          "params": { "connectionId": "conn-v02", "clientMode": "desktop-continuous" } },
+        { "op": "request", "method": "v4/controller/resync",
+          "params": { "connectionId": "conn-v02" } },
+        { "op": "request", "method": "v4/controller/unsubscribe",
+          "params": { "connectionId": "conn-v02" } },
+        { "op": "request", "method": "v4/attachment/begin",
+          "params": { "connectionId": "conn-v02", "name": "a.txt", "sizeBytes": 5, "mimeType": "text/plain" } },
+        { "op": "request", "method": "v4/commands/query",
+          "params": { "connectionId": "conn-v02", "query": "goal" } }
+      ]
+    }
+  ]
+}

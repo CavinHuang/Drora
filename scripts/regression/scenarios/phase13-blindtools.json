@@ -1,0 +1,93 @@
+{
+ "plans": {
+  "bt1-task": [
+   { "toolCalls": [ { "name": "TaskList", "arguments": {} } ] },
+   { "toolCalls": [ { "name": "TaskGet", "arguments": { "taskId": "task_unknown_id" } } ] },
+   { "toolCalls": [ { "name": "TaskCreate", "arguments": { "prompt": "bt1 探针任务", "title": "bt1" } } ] },
+   { "toolCalls": [ { "name": "TaskUpdate", "arguments": { "taskId": "task_unknown_id", "status": "done" } } ] },
+   { "text": "任务族探针完成。" }
+  ],
+  "bt2-notebook-lsp": [
+   { "toolCalls": [ { "name": "NotebookEdit", "arguments": { "notebook_path": "nb.ipynb", "new_source": "print(1)", "cell_id": "cell-0" } } ] },
+   { "toolCalls": [ { "name": "LSP", "arguments": { "operation": "hover", "filePath": "nope.ts", "line": 1, "column": 1 } } ] },
+   { "text": "notebook/lsp 探针完成。" }
+  ],
+  "bt3-worktree": [
+   { "toolCalls": [ { "name": "EnterWorktree", "arguments": { "name": "bt-wt" } } ] },
+   { "toolCalls": [ { "name": "ExitWorktree", "arguments": {} } ] },
+   { "text": "worktree 探针完成。" }
+  ],
+  "bt4-websearch": [
+   { "toolCalls": [ { "name": "WebSearch", "arguments": { "query": "drora zcode alignment probe [[bt4]]" } } ] },
+   { "text": "搜索探针完成。" }
+  ],
+  "bt5-wakeup-flow": [
+   { "toolCalls": [ { "name": "ScheduleWakeup", "arguments": { "delayMinutes": 600, "prompt": "bt5 唤醒" } } ] },
+   { "toolCalls": [ { "name": "Workflow", "arguments": { "resumeFromRunId": "wf_nofind01" } } ] },
+   { "toolCalls": [ { "name": "mcp__node_repl__js_add_node_module_dir", "arguments": { "path": "$REG/fixtures" } } ] },
+   { "text": "唤醒/工作流/repl 探针完成。" }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "bt1", "title": "盲区·Task 族四法执行面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt1", "content": "任务族探针 [[bt1-task]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "bt2", "title": "盲区·NotebookEdit+LSP 执行面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt2", "content": "notebook/lsp 探针 [[bt2-notebook-lsp]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "bt3", "title": "盲区·EnterWorktree/ExitWorktree 执行面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt3", "content": "worktree 探针 [[bt3-worktree]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "bt4", "title": "盲区·WebSearch 执行面（委托通道实探）", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt4", "content": "搜索探针 [[bt4-websearch]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 90000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "bt5", "title": "盲区·ScheduleWakeup+Workflow+js_add_node_module_dir 执行面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_bt5", "content": "唤醒/工作流/repl 探针 [[bt5-wakeup-flow]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 90000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  }
+ ]
+}

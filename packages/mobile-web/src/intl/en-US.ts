@@ -321,8 +321,8 @@ export const enUS: Record<string, string> = {
   "mobileShell.wide.greeting.lateNight": "It's late—remember to take care of yourself.", // P5b 自建键（值 = 官方 chat.empty.greeting.lateNight en:4669）
   // §32.9 新建任务草稿页（官方 chat.empty/chat.draft 族逐字，en）
   "chat.empty.greeting.morningEarly": "Morning, ready when you are", // 官方逐字
-  "chat.placeholder.newTaskMobile": "Ask ZCode anything…", // 官方逐字
-  "chat.placeholder.newTask": "Ask ZCode anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
+  "chat.placeholder.newTaskMobile": "Ask Drora anything…", // 官方逐字
+  "chat.placeholder.newTask": "Ask Drora anything, @ to add context, / for commands or capabilities", // 官方 en:10332 逐字（§32.72）
   "workspace.context.lastActivity": "Last active {time}", // official
   "chat.draft.suggestedPrompt.recentCommits": "Review commits from the last 7 days", // 官方逐字
   "chat.draft.suggestedPrompt.recentCommits.prompt": "Review Git commits from the last 7 days in this workspace, summarize the main changes, and identify potential risks.", // 官方逐字
@@ -495,7 +495,7 @@ export const enUS: Record<string, string> = {
   "workspaceSidebar.sshConnectionTitle": "SSH connection", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.taskViewOptions": "Filter and sort", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.toggleSidebar": "Toggle sidebar", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
-  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart ZCode to continue.", // 官方 en 逐字（校准）
+  "workspaceSidebar.unavailableLocalDirectory": "The workspace directory does not exist or cannot be accessed. You can only view history for now. Restore the directory and restart Drora to continue.", // 官方 en 逐字（校准）
   "workspaceSidebar.viewByWorkspace": "By project", // 官方逐字（en 校准一致）（zh 官方逐字；SSH 三键官方 locale 缺值）
   "workspaceSidebar.windowsReservedNameRisk": "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}", // 官方 en 逐字（校准）
   // —— P6 sidePane 侧板面（spec §23）：en 语义补译——

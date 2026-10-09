@@ -1,0 +1,36 @@
+{
+  "plans": {
+    "default": [{ "text": "你好，我是 mock 模型。" }]
+  },
+  "scenarios": [
+    {
+      "id": "d37",
+      "title": "workflow 域 CLI 面：/workflows 无参（文本回退状态）",
+      "commands": [
+        ["--prompt", "/workflows", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "d38",
+      "title": "workflow 域 CLI 面：/workflow status",
+      "commands": [
+        ["--prompt", "/workflow status", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "d39",
+      "title": "workflow 域 CLI 面：/expert status",
+      "commands": [
+        ["--prompt", "/expert status", "--output-format", "text", "--mode", "build"]
+      ]
+    },
+    {
+      "id": "d40",
+      "title": "--locale 旗标面：合法值直通（zh）+ 大写门（ZH）",
+      "commands": [
+        ["--prompt", "hi", "--output-format", "text", "--mode", "build", "--locale", "zh"],
+        ["--prompt", "hi", "--output-format", "text", "--mode", "build", "--locale", "ZH"]
+      ]
+    }
+  ]
+}

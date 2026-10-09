@@ -1,0 +1,16 @@
+{
+  "plans": {
+    "pj2": [{ "text": "回复 [[pj2]]" }]
+  },
+  "scenarios": [
+    {
+      "id": "d20",
+      "title": "#122·SQLite 迁移失败拒启面：损坏 db.sqlite 种子→真值应 exit 1 拒启 vs 我方降级内存续跑",
+      "homeFiles": [
+        { "path": "<BRAND>/cli/db/db.sqlite", "content": "CORRUPT-NOT-A-SQLITE-FILE-9Q8" },
+        { "path": "<BRAND>/db/db.sqlite", "content": "CORRUPT-NOT-A-SQLITE-FILE-9Q8" }
+      ],
+      "args": ["--prompt", "回复 [[pj2]]", "--output-format", "text", "--mode", "build"]
+    }
+  ]
+}

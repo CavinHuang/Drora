@@ -40,9 +40,9 @@ import { TabStoreProvider, useTabStore, useTabStoreApi } from "@/store/TabStoreP
 import { isSettingsTab, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import { logger } from "@/logger.js";
 import { RootShell } from "@/root/RootShell.js";
+import { WebRemoteControlTaskSync } from "@/root/WebRemoteControlTaskSync.js";
 import { RootWorkspaceContent } from "@/root/RootWorkspaceContent.js";
 import { resolveRootWorkspaceShellTarget } from "@/root/rootWorkspaceShellTarget.js";
-import { WebRemoteControlTaskSync } from "@/root/WebRemoteControlTaskSync.js";
 import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
 import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";

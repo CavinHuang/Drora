@@ -1,0 +1,108 @@
+{
+ "plans": {
+  "vf1-round": [{ "text": "v4 只读面探针第一轮。" }]
+ },
+ "scenarios": [
+  {
+   "id": "vf1",
+   "title": "v4·订阅生命周期+只读五法+usage 双法+flow 背压",
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_vf1", "content": "跑一轮 [[vf1-round]]" } },
+    { "op": "waitEvent", "type": "turn.completed" },
+    { "op": "request", "method": "v4/conversation/subscribe", "capture": { "$subscriptionId": "ack.subscriptionId", "$logEpoch": "ack.logEpoch" }, "timeoutMs": 30000,
+      "params": { "topic": "conversation/$sessionId", "connectionId": "conn_vf1", "clientMode": "desktop-continuous" } },
+    { "op": "sleep", "ms": 300 },
+    { "op": "request", "method": "v4/conversation/rowsRange", "capture": { "$rowEntityId": "rows.0.entityId" }, "timeoutMs": 30000, "params": { "sessionId": "$sessionId", "limit": 200 } },
+    { "op": "request", "method": "v4/conversation/resync", "timeoutMs": 30000,
+      "params": { "topic": "conversation/$sessionId", "connectionId": "conn_vf1", "subscriptionId": "$subscriptionId", "base": { "logEpoch": "$logEpoch", "seq": 0 } } },
+    { "op": "request", "method": "v4/conversation/plans", "timeoutMs": 30000, "params": { "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/conversation/usage", "timeoutMs": 30000, "params": { "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/usage/stats", "timeoutMs": 30000, "params": { "range": "all" } },
+    { "op": "request", "method": "v4/conversation/fileChanges", "timeoutMs": 30000,
+      "params": { "sessionId": "$sessionId", "target": { "rowId": 1, "entityId": "$rowEntityId" }, "baseRevision": 0, "baseLogEpoch": "$logEpoch" } },
+    { "op": "request", "method": "v4/conversation/fileRewindPreview", "timeoutMs": 30000,
+      "params": { "sessionId": "$sessionId", "target": { "rowId": 1, "entityId": "$rowEntityId" }, "baseRevision": 0, "baseLogEpoch": "$logEpoch" } },
+    { "op": "request", "method": "v4/connection/flow", "timeoutMs": 30000, "params": { "connectionId": "conn_vf1", "state": "saturated" } },
+    { "op": "request", "method": "v4/connection/flow", "timeoutMs": 30000, "params": { "connectionId": "conn_vf1", "state": "drained" } },
+    { "op": "request", "method": "v4/conversation/unsubscribe", "timeoutMs": 30000,
+      "params": { "topic": "conversation/$sessionId", "subscriptionId": "$subscriptionId", "connectionId": "conn_vf1" } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "vf2",
+   "title": "v4·附件六法全链：begin→chunk→commit→read→previewSource+abort 臂",
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "v4/attachment/begin", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_1", "sessionId": "$sessionId", "fileName": "hello.txt", "mime": "text/plain", "totalBytes": 16, "totalChunks": 1, "checksum": "sha256:7fa36b95d5c98859ed72b4787f3c28b29eaa103970786755c9711cbb19be631c" } },
+    { "op": "request", "method": "v4/attachment/chunk", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_1", "sessionId": "$sessionId", "chunkIndex": 0, "dataBase64": "aGVsbG8gYXR0YWNobWVudA==" } },
+    { "op": "request", "method": "v4/attachment/commit", "capture": { "$attRef": "ref" }, "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_1", "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/attachment/read", "timeoutMs": 30000,
+      "params": { "sessionId": "$sessionId", "ref": "$attRef", "offset": 0, "limit": 65536 } },
+    { "op": "request", "method": "v4/attachment/previewSource", "timeoutMs": 30000,
+      "params": { "sessionId": "$sessionId", "ref": "$attRef", "clientMode": "desktop-continuous" } },
+    { "op": "request", "method": "v4/attachment/begin", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId", "fileName": "parts.txt", "mime": "text/plain", "totalBytes": 17, "totalChunks": 2, "checksum": "sha256:9d2f787024e3fc9b07aba44ed9152db08e796dfa91128928fdf68a7d81c95bf5" } },
+    { "op": "request", "method": "v4/attachment/chunk", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId", "chunkIndex": 0, "dataBase64": "cGFydC1vbmV8" } },
+    { "op": "request", "method": "v4/attachment/chunk", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId", "chunkIndex": 1, "dataBase64": "cGFydC10d28=" } },
+    { "op": "request", "method": "v4/attachment/abort", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/attachment/abort", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/attachment/commit", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_2", "sessionId": "$sessionId" } },
+    { "op": "request", "method": "v4/attachment/read", "timeoutMs": 30000,
+      "params": { "sessionId": "$sessionId", "ref": "att_unknown_ref", "offset": 0, "limit": 65536 } },
+    { "op": "request", "method": "v4/attachment/begin", "timeoutMs": 30000,
+      "params": { "connectionId": "conn_vf2", "uploadId": "up_vf2_1", "sessionId": "$sessionId", "fileName": "dup.txt", "mime": "text/plain", "totalBytes": 16, "totalChunks": 1, "checksum": "sha256:7fa36b95d5c98859ed72b4787f3c28b29eaa103970786755c9711cbb19be631c" } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "vf3",
+   "title": "v4·命令通道 CAS 门+批量查询+controller 死项+未知会话错误面",
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "v4/command", "timeoutMs": 30000,
+      "params": { "commandId": "cmd_vf3_1", "clientId": "client_vf3", "sessionId": "$sessionId", "type": "setAutoDrain", "payload": { "enabled": true }, "issuedAt": 1700000000 } },
+    { "op": "request", "method": "v4/command", "timeoutMs": 30000,
+      "params": { "commandId": "cmd_vf3_1", "clientId": "client_vf3", "sessionId": "$sessionId", "type": "setAutoDrain", "payload": { "enabled": true }, "issuedAt": 1700000000 } },
+    { "op": "request", "method": "v4/command", "timeoutMs": 30000,
+      "params": { "commandId": "cmd_vf3_2", "clientId": "client_vf3", "sessionId": "$sessionId", "type": "bogusCommandType", "payload": {}, "issuedAt": 1700000000 } },
+    { "op": "request", "method": "v4/commands/query", "timeoutMs": 30000,
+      "params": { "commands": [ { "sessionId": "$sessionId", "commandId": "cmd_vf3_1" }, { "sessionId": null, "commandId": "cmd_vf3_missing" } ] } },
+    { "op": "request", "method": "v4/controller/subscribe", "timeoutMs": 30000, "params": { "topic": "conversation/$sessionId", "connectionId": "conn_vf3", "clientMode": "desktop-continuous" } },
+    { "op": "request", "method": "v4/conversation/rowsRange", "timeoutMs": 30000, "params": { "sessionId": "sess_none", "limit": 10 } },
+    { "op": "request", "method": "v4/conversation/rowsRange", "timeoutMs": 30000, "params": { "sessionId": "$sessionId", "limit": 0 } },
+    { "op": "request", "method": "v4/usage/stats", "timeoutMs": 30000, "params": { "range": "bogus" } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "af1",
+   "title": "automation·正向五法+read 别名（zcode 反向专用域的 forward 接受面）",
+   "ops": [
+    { "op": "request", "method": "automation/create", "capture": { "$automationId": "automationId" }, "timeoutMs": 30000,
+      "params": { "cronExpr": "0 0 1 1 *", "prompt": "af1 提示词", "title": "af1 计划", "recurring": true } },
+    { "op": "request", "method": "automation/list", "timeoutMs": 30000, "params": {} },
+    { "op": "request", "method": "automation/update", "timeoutMs": 30000,
+      "params": { "automationId": "$automationId", "prompt": "af1 提示词改", "enabled": false } },
+    { "op": "request", "method": "automation/update", "timeoutMs": 30000,
+      "params": { "automationId": "auto_none", "prompt": "af1 缺席改" } },
+    { "op": "request", "method": "automation/checkTaskBinding", "timeoutMs": 30000, "params": { "targetTaskId": "task_none" } },
+    { "op": "request", "method": "automation/read", "timeoutMs": 30000, "params": {} },
+    { "op": "request", "method": "automation/delete", "timeoutMs": 30000, "params": { "automationId": "auto_none" } }
+   ]
+  }
+ ]
+}

@@ -1,5 +1,7 @@
 import type {
   DesktopCommandId,
+  DesktopPetPresentation,
+  DesktopPetTarget,
   DesktopZoomState,
   DesktopWindowChromeState,
   DesktopTitleBarTheme,
@@ -27,6 +29,11 @@ import type {
   ApplicationIconInfo,
   ApplicationIconRequest,
   Locale,
+  MobilePairingRuntimeState,
+  MobileRelaySidePaneSyncEntry,
+  MobileRelayTaskSyncEntry,
+  MobileRelayTransport,
+  MobileRelayWorkspaceSyncEntry,
   OAuthStateRegistration,
   PostUpdateReleaseNotesPayload,
   RemoteConnectionRuntimeLog,
@@ -40,8 +47,6 @@ import type {
   RendererHeapSample,
   TelemetryRendererContext,
   TaskNotificationPayload,
-  DesktopPetPresentation,
-  DesktopPetTarget,
   WindowScreenshotResult,
   EmbeddedBrowserDataClearResult,
   WSLDistro,
@@ -185,8 +190,34 @@ declare global {
       onDesktopZoomLevelChanged?(handler: (state: DesktopZoomState) => void): () => void;
       /** 注册用户点击系统通知后跳转到对应任务的回调，返回 disposer */
       onTaskNotificationClick(handler: (taskId: string) => void): () => void;
-      publishDesktopPet?(presentation: DesktopPetPresentation): void;
+      /** 注册宠物点击打开任务的回调（仅桌面宠物链路），返回 disposer */
       onDesktopPetOpenTask?(handler: (target: DesktopPetTarget) => void): () => void;
+      /** relay 远控：transport=cloud（缺省）连云中继；transport=lan 启动进程内嵌自建 relay */
+      startMobileRelayControl(params: {
+        workspacePath: string;
+        workspaceIdentity?: string;
+        transport?: MobileRelayTransport;
+      }): Promise<{ url: string; sessionId: string }>;
+      stopMobileRelayControl(): Promise<void>;
+      /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
+      refreshMobileRelayControl(): Promise<{ url: string; sessionId: string }>;
+      getMobileRelayControlState(): Promise<MobilePairingRuntimeState>;
+      onMobileRelayStateChanged(callback: (state: MobilePairingRuntimeState) => void): () => void;
+      /** 同步窗口全部工作区到 relay 远控（多工作区聚合） */
+      syncWebRemoteControlWorkspaces(workspaces: MobileRelayWorkspaceSyncEntry[]): Promise<void>;
+      /** 同步跨工作区任务摘要到 relay 远控 */
+      syncWebRemoteControlTasks(tasks: MobileRelayTaskSyncEntry[]): Promise<void>;
+      /** §33.18.16 侧板初态投影：同步窗口侧板当前 tab（手机映射词表） */
+      syncWebRemoteControlSidePane?(entry: MobileRelaySidePaneSyncEntry): Promise<void>;
+      /** 注册手机 workspace-reconnect-request 的窗口重连委托，返回 disposer */
+      onWebRemoteControlReconnectWorkspace(
+        callback: (request: { requestId: string; workspaceKey: string }) => Promise<{
+          requestId: string;
+          workspaceKey: string;
+          success: boolean;
+          error?: string;
+        }>,
+      ): () => void;
       /** 打开外部 URL */
       openExternal(url: string): void;
       /** 查询当前语言下是否存在可用的用户社群入口 */
@@ -229,6 +260,8 @@ declare global {
       reportRendererHeapSample?(sample: RendererHeapSample): void;
       /** 触发任务状态对应的系统通知 */
       showTaskNotification(payload: TaskNotificationPayload): void;
+      /** 发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
+      publishDesktopPet?(presentation: DesktopPetPresentation): void;
       /** 导出日志：打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
       exportLogs(): Promise<{
         success: boolean;

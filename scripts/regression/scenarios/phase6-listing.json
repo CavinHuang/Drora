@@ -1,0 +1,24 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "pd4",
+      "title": "list 懒持久化面：零轮次会话 close 后 list（真值 mqr @11117345 sessionPersisted 懒建账——零轮次无记录）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sidZero": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sidZero" } },
+        { "op": "request", "method": "session/list", "params": {} },
+        { "op": "request", "method": "session/create", "capture": { "$sidTurn": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sidTurn", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sidTurn", "inputId": "in_pd4", "content": "有轮对照 [[p4-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sidTurn" } },
+        { "op": "request", "method": "session/list", "params": {} }
+      ]
+    }
+  ]
+}

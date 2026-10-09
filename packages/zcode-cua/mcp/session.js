@@ -1788,14 +1788,14 @@ function capturedDisplay(selected, topology) {
 async function resolveCapturedDisplay(_deps, reply) {
   if (reply.coordinate_contract !== "frame_pixel_projection_v1") {
     throw new Error(
-      "screenshot: Helper does not support the atomic frame-pixel coordinate contract; upgrade/restart Drora Computer Use before retrying."
+      "screenshot: Helper does not support the atomic frame-pixel coordinate contract; upgrade/restart ZCode Computer Use before retrying."
     );
   }
   const directTopology = parseTopology(reply.display_topology);
   const direct = parseDisplay(reply.display);
   if (!direct || !directTopology) {
     throw new Error(
-      "screenshot: Helper returned an image without atomic display provenance; upgrade/restart Drora Computer Use before retrying."
+      "screenshot: Helper returned an image without atomic display provenance; upgrade/restart ZCode Computer Use before retrying."
     );
   }
   const matching = directTopology.filter(

@@ -28,8 +28,6 @@ import { registerHostServiceResourceTelemetry } from "./hostServiceResourceTelem
 import { resolveResourceTelemetryEnvironmentKey } from "./hostResourceTelemetryEnvironment.js";
 import { reportHostSessionCreate } from "./hostSessionCreateTelemetry.js";
 import { createBrowserControlMainBridge } from "./browserControlMainBridge.js";
-import { createStartPlanCaptchaMainBridge } from "./startPlanCaptchaMainBridge.js";
-import type { StartPlanCaptchaResolver } from "@drora/services";
 import { materializeBrowserRecordingArtifact } from "./browserRecordingArtifactMaterializer.js";
 import {
   ServiceCollection,
@@ -124,11 +122,6 @@ import {
 import { watchCronRunBotDelivery } from "./cronBotDelivery.js";
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
-import {
-  connectServerRemoteHostConnection,
-  createServerRemoteWorkspaceServiceCollection,
-  type ServerRemoteHostConnection,
-} from "./serverRemoteConnection.js";
 import { getRemoteProviderProvisioningExecutor } from "./remoteProviderProvisioningService.js";
 import { createRemotePromptAttachmentTransferService } from "./promptAttachmentTransferService.js";
 import { shouldReportHostConsoleError, stringifyHostLogArg } from "./hostLog.js";
@@ -155,6 +148,11 @@ import {
   type WindowRemoteConnectionHandle,
 } from "./windowRemoteConnectionRegistry.js";
 import { createWindowHostControllerRuntime } from "./windowHostControllerService.js";
+import {
+  connectServerRemoteHostConnection,
+  createServerRemoteWorkspaceServiceCollection,
+  type ServerRemoteHostConnection,
+} from "./serverRemoteConnection.js";
 import { resolveAutomationSubmissionModelSelection } from "./automationModelSelection.js";
 import { createRemoteConnectionProgressContext } from "@drora/server/remote/remoteConnectionProgressContext.js";
 import { startHostSelfResourceTelemetry } from "./hostSelfResourceTelemetry.js";
@@ -189,6 +187,9 @@ type RemoteAssetDirs = Pick<
   "mockCdnDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
 >;
 
+import { createStartPlanCaptchaMainBridge } from "./startPlanCaptchaMainBridge.js";
+import type { StartPlanCaptchaResolver } from "@drora/services";
+
 const { parentPort } = process;
 
 // 进程检索体验优化：host 由 utilityProcess 拉起时外壳仍是 Electron Helper，
@@ -196,6 +197,55 @@ const { parentPort } = process;
 process.title = formatDroraHostProcessName(process.env["DRORA_PROCESS_LABEL"]);
 
 type HostLogLevel = "info" | "warn" | "error";
+
+// Start Plan 人机验证采集桥：把采集请求经 parentPort 转给 main 的隐藏窗口跑阿里云 SDK。
+// 配置来自 client-configs（clientConfigService 自带 TTL 缓存），服务集合就绪前/缺失时按未启用降级。
+const captchaConfigServiceHolder: { current: IClientConfigService | undefined } = {
+  current: undefined,
+};
+const startPlanCaptchaMainBridge = createStartPlanCaptchaMainBridge({
+  postToMain: (message) => {
+    if (!parentPort) {
+      throw new Error("parentPort unavailable");
+    }
+    parentPort.postMessage(message);
+  },
+});
+
+function resolveStartPlanCaptchaResolver(): StartPlanCaptchaResolver {
+  return {
+    async resolve({ providerId, requestId }) {
+      const clientConfigService = captchaConfigServiceHolder.current;
+      if (!clientConfigService) {
+        return null;
+      }
+      const snapshot = await clientConfigService.getSnapshot();
+      const captcha = snapshot.captcha;
+      // 官方语义：配置缺失/enabled=false/缺 region|prefix|sceneId 均按未启用处理。
+      if (!captcha || captcha.enabled === false) {
+        return null;
+      }
+      // 语言只影响 SDK 文案（无感模式不渲染 UI）；host 无 localStorage，按 env 近似官方规则。
+      const language = (process.env.LANG ?? process.env.LANGUAGE ?? "")
+        .toLowerCase()
+        .startsWith("zh")
+        ? ("cn" as const)
+        : ("en" as const);
+      return startPlanCaptchaMainBridge
+        .resolveCaptcha({
+          requestId,
+          captcha,
+          language,
+        })
+        .then((material) => {
+          if (!material) {
+            logger.warn("Start Plan captcha 未取得凭证", { providerId, requestId });
+          }
+          return material;
+        });
+    },
+  };
+}
 
 interface PendingFeedbackLogArchiveRequest {
   resolve: (archive: { path: string; size: number }) => void;
@@ -266,49 +316,6 @@ const browserControlMainBridge = createBrowserControlMainBridge({
     });
   },
 });
-
-// Start Plan 人机验证采集桥：把采集请求经 parentPort 转给 main 的隐藏窗口跑阿里云 SDK。
-// 配置来自 client-configs（clientConfigService 自带 TTL 缓存），服务集合就绪前/缺失时按未启用降级。
-const captchaConfigServiceHolder: { current: IClientConfigService | undefined } = { current: undefined };
-const startPlanCaptchaMainBridge = createStartPlanCaptchaMainBridge({
-  postToMain: (message) => {
-    if (!parentPort) {
-      throw new Error("parentPort unavailable");
-    }
-    parentPort.postMessage(message);
-  },
-});
-
-function resolveStartPlanCaptchaResolver(): StartPlanCaptchaResolver {
-  return {
-    async resolve({ providerId, requestId }) {
-      const clientConfigService = captchaConfigServiceHolder.current;
-      if (!clientConfigService) {
-        return null;
-      }
-      const snapshot = await clientConfigService.getSnapshot();
-      const captcha = snapshot.captcha;
-      // 官方语义：配置缺失/enabled=false/缺 region|prefix|sceneId 均按未启用处理。
-      if (!captcha || captcha.enabled === false) {
-        return null;
-      }
-      // 语言只影响 SDK 文案（无感模式不渲染 UI）；host 无 localStorage，按 env 近似官方 knn 规则。
-      const language = (process.env.LANG ?? process.env.LANGUAGE ?? "").toLowerCase().startsWith("zh")
-        ? ("cn" as const)
-        : ("en" as const);
-      return startPlanCaptchaMainBridge.resolveCaptcha({
-        requestId,
-        captcha,
-        language,
-      }).then((material) => {
-        if (!material) {
-          logger.warn("Start Plan captcha 未取得凭证", { providerId, requestId });
-        }
-        return material;
-      });
-    },
-  };
-}
 
 function reportHostLog(level: HostLogLevel, args: unknown[]): void {
   if (!parentPort) {
@@ -1685,7 +1692,6 @@ async function resolveDesktopRemoteRuntimeNetwork(
 async function disposeHostRemoteConnection(
   connection: HostRemoteConnection | ServerRemoteHostConnection,
 ): Promise<void> {
-  // 官方 m4：有 disposeAndWait 用之带 5s 超时；server 形态同样提供该收口语义。
   await connection.disposeAndWait({ timeoutMs: 5_000 });
 }
 
@@ -1733,11 +1739,9 @@ async function createWindowRemoteConnectionHandle(params: {
     throw new Error("远程连接已取消");
   }
 
-  let services: ServiceCollection;
   const isServerRemoteConnection = "serverInfo" in connection;
+  let services: ServiceCollection;
   if (isServerRemoteConnection) {
-    // 官方 MJ：server 形态无 backend、无 promptAttachment 物化/transfer 桥，
-    // 远端服务代理直接组成新容器，clientConfig 保留本地实例。
     services = createServerRemoteWorkspaceServiceCollection({
       clientConfigService,
       connectionServices: connection.services,
@@ -1786,16 +1790,15 @@ async function createWindowRemoteConnectionHandle(params: {
     });
   }
 
+  const serverInfo = isServerRemoteConnection ? connection.serverInfo : undefined;
   let disposed = false;
   // 远端 workspace 的 CLI 与 MCP 样本走与本地同一条路径：远端 drora-server → 本地 Host → main。
   // 订阅寿命等于这份远端 services 的寿命：由 connection handle 持有，registry 释放 entry
   // （WSL idle 回收、最后一个 logical session 关闭、掉线后的 session 清理）时随 dispose 一起收口。
-  const serverInfo = isServerRemoteConnection ? connection.serverInfo : undefined;
   const resourceTelemetry = registerHostServiceResourceTelemetry({
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "remote",
-    // 对齐官方 l0(target, serverInfo?.serverId)：server 形态优先用 serverId 做环境身份。
     environmentKey: resolveResourceTelemetryEnvironmentKey(params.target, serverInfo?.serverId),
     // 对齐官方 yAe：独立 Server 必须在 server-info 里显式声明 processResourceTelemetry，
     // 未声明（旧 Server）时完全跳过订阅，避免未知事件打进对端读循环。
@@ -1827,9 +1830,6 @@ async function createWindowRemoteConnectionHandle(params: {
             ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
           }
         : {},
-    // 第四十九轮：server 形态把 server-info 自描述挂在 connection handle 上，
-    // registry 会带进 descriptor → main → renderer，供目录步骤展示快捷 workspace 列表。
-    ...(serverInfo ? { serverInfo } : {}),
     onDidClose(listener) {
       closeListeners.add(listener);
       return { dispose: () => closeListeners.delete(listener) };
@@ -1841,11 +1841,6 @@ async function createWindowRemoteConnectionHandle(params: {
       disposed = true;
       closeListeners.clear();
       resourceTelemetry.dispose();
-      // 第四十九轮对齐（官方 TE = disposeServiceResourcesAndWait 语义）：官方对
-      // server 远程同样调用服务资源收口——内部按 hasDisposeAllAndWait/hasDisposeAll
-      // 能力探测逐个处理，RemoteServiceAccess 的远端代理没有这两个方法，天然跳过，
-      // 不会向共享 Server 发 disposeAll；实际收口的是容器内 WeakMap 注册的本地
-      // 资源（遥测桥、本地 clientConfig 等）。
       await disposeServiceResourcesAndWait(services);
       await disposeHostRemoteConnection(connection);
     },
@@ -2139,8 +2134,7 @@ function exposeServicesOnMessagePort(
     );
   }
   services.exposeOnChannelServer(server, overrides, {
-    // 官方托管手机页（M4b relay 桥）按官方通道名调用服务：为 web-remote 附着注册
-    // zcode-* 别名（同一 channel 实例，不改本名；spec: mobile-web-remote.md）。
+    // web-remote-replayable 附着同时注册 zcode-* 官方别名：托管手机页按官方名调用服务。
     officialChannelAliases: clientMode === "web-remote-replayable",
   });
   let disposed = false;
@@ -2456,6 +2450,11 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     }
     return;
   }
+  if (msg.type === HostMessageTypes.CaptchaSolveResult) {
+    // main 隐藏窗口跑完阿里云 captcha SDK，按 requestId 关联回 captcha 桥的 pending。
+    startPlanCaptchaMainBridge.handleResult(msg);
+    return;
+  }
 
   if (msg.type === HostMessageTypes.CronRun) {
     if (databaseStartup?.coordinator.snapshot.phase !== "ready") {
@@ -2534,12 +2533,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
       requestId: msg.requestId,
       result: msg.result,
     });
-    return;
-  }
-
-  if (msg.type === HostMessageTypes.CaptchaSolveResult) {
-    // main 隐藏窗口跑完阿里云 captcha SDK，按 requestId 关联回 captcha 桥的 pending。
-    startPlanCaptchaMainBridge.handleResult(msg);
     return;
   }
 
@@ -2980,16 +2973,15 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // browser-use：agent 的 interaction/browserExecute 经 droraAgentService 转到这个 executor，
               // 再经 parentPort 到 main 的 WebContentsView+CDP 执行。
               browserControlExecutor: browserControlMainBridge,
-              // Start Plan 人机验证：runtime-headers 应答前经 parentPort 到 main 隐藏窗口采集凭证。
               startPlanCaptchaResolver: resolveStartPlanCaptchaResolver(),
               // CUA 顶部提示属于物理 Windows 桌面投影；非 Windows 和远端 authority 都不得上报。
               cuaOperationStateReporter:
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,
             });
             activeServices = initializedServices;
-            activeHostApiNetworkTransport = hostApiNetworkTransport;
             captchaConfigServiceHolder.current =
               initializedServices.getOptional(IClientConfigService);
+            activeHostApiNetworkTransport = hostApiNetworkTransport;
             return initializedServices;
           },
         });

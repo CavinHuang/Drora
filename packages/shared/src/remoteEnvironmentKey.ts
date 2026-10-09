@@ -3,8 +3,8 @@ import { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
 
 /**
  * Provider Provisioning 等 Environment 级状态的稳定身份；不得混用 workspace/session 身份。
- * serverId 仅用于 server 形态（对齐官方 l0(target, serverId)）：同一 Server 的稳定身份
- * 优先取 server-info 的 serverId；连接建立前拿不到 server-info 时退回 URL。
+ * serverId 仅用于 server 形态（对齐官方 l0(target, serverId)）：来自 server-info 自描述，
+ * 与 URL 二选一作为身份主体。
  */
 export function buildRemoteEnvironmentKey(target: RemoteTarget, serverId?: string): string {
   switch (target.kind) {

@@ -1,18 +1,6 @@
 import { z } from "zod";
 import { parsePluginStoreOrder, type PluginStoreOrder } from "./pluginStoreOrder.js";
 
-/**
- * Start Plan 人机验证配置（官方 client-configs `configs.captcha`）。
- * 三元组 region/prefix/sceneId 缺一不可：官方以"缺任一字段即视为不可用"处理，
- * 这里解析失败/不完整统一回 null，调用方按未启用降级。
- */
-export interface CaptchaClientConfig {
-  enabled: boolean;
-  region: string;
-  prefix: string;
-  sceneId: string;
-}
-
 /** 只允许显式接入的公开字段进入服务快照，不透传账户或 Provider 配置。 */
 export interface ClientConfigSnapshot {
   pluginStoreOrder: PluginStoreOrder | null;
@@ -24,12 +12,17 @@ export const clientConfigReadOptionsSchema = z.object({
 });
 export type ClientConfigReadOptions = z.infer<typeof clientConfigReadOptionsSchema>;
 
-const captchaConfigSchema = z.object({
-  enabled: z.boolean(),
-  region: z.string().trim().min(1),
-  prefix: z.string().trim().min(1),
-  sceneId: z.string().trim().min(1),
-});
+/**
+ * Start Plan 人机验证配置（官方 client-configs `configs.captcha`）。
+ * 三元组 region/prefix/sceneId 缺一不可：官方以"缺任一字段即视为不可用"处理，
+ * 这里解析失败/不完整统一回 null，调用方按未启用降级。
+ */
+export interface CaptchaClientConfig {
+  enabled: boolean;
+  region: string;
+  prefix: string;
+  sceneId: string;
+}
 
 const envelopeSchema = z.object({
   code: z.literal(0),
@@ -43,6 +36,13 @@ const envelopeSchema = z.object({
         .nullish(),
     })
     .nullish(),
+});
+
+const captchaConfigSchema = z.object({
+  enabled: z.boolean(),
+  region: z.string().trim().min(1),
+  prefix: z.string().trim().min(1),
+  sceneId: z.string().trim().min(1),
 });
 
 export function parseClientConfigSnapshot(payload: unknown): ClientConfigSnapshot {

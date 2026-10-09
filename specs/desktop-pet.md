@@ -64,3 +64,12 @@ The CLI/runtime remains the task state owner. The main Renderer owns only a deri
 ## Upstream boundary
 
 Keep pet projection, native window, rendering, artwork and tests in new files. Existing shell, preload, platform and settings files receive only the minimum registration hooks. Do not add pet logic to restored upstream sections or make restored files import the pet module. The feature is a deliberate Drora-only extension.
+
+## Catgirl characters (second release)
+
+三只猫娘角色（夜墨 noir / 雪铃 snow / 杏桃 ginger）以可选角色并入同一宠物窗口与设置面：
+
+- 资产来源为 codex worktree 的 v5 全套动画（每角色 11 动作 × 8 帧，320×640 透明帧、4×2 精灵图）。入库物 = `assets/desktop-pet-catgirls/`（33 张 WEBP atlas + 轻量 manifest.json）；QA/预览/提示词留在产出侧不入仓。
+- `scripts/generate-desktop-pet-catgirl-art.mjs` 按角色合成单张 8 列图集（96×192 显示格）并生成 `desktopPetCatgirlArtwork.ts` 数据模块；运行链与 violet 管线同构（CSS steps 游标、data URL 内嵌、`prefers-reduced-motion` 冻结）。
+- 任务态→动作映射沿用 TASK-STATES.md：idle/working/attention/error 直连，completed 播 happy 一遍（once）后停在末帧；blink/talk/wave/think/sleep/walk 为附加动作数据，待 v4 快照级解析器接入（本轮不接业务状态面）。
+- `desktopPetCharacter` 设置键（violet|noir|snow|ginger，缺省 violet）；切换在主进程原位重建宠物窗口，窗口尺寸随角色（紫猫 112×128，猫娘 112×224）。设置页"宠物角色"选择器与 desktop 侧 id 列表对齐，UI 包不反向依赖 desktop。

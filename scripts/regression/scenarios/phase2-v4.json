@@ -1,0 +1,17 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "v01",
+      "title": "v4·连接面：connection/flow + controller/conversation 订阅（app-server 未初始化 → -32603 或真值行为）",
+      "ops": [
+        { "op": "request", "method": "v4/connection/flow", "params": { "clientMode": "desktop-continuous" } },
+        { "op": "request", "method": "v4/controller/subscribe", "params": { "clientMode": "desktop-continuous" } },
+        { "op": "request", "method": "v4/conversation/subscribe", "params": { "clientMode": "desktop-continuous" } },
+        { "op": "request", "method": "v4/conversation/rowsRange", "params": {} },
+        { "op": "request", "method": "v4/usage/stats", "params": {} },
+        { "op": "request", "method": "v4/commands/query", "params": { "query": "goal" } }
+      ]
+    }
+  ]
+}

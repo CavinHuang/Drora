@@ -11,7 +11,7 @@
 `desktopMobileLanRelayHost.ts`）；D7 已将 LAN 与同仓 relay CLI 的默认入口改为本地快照。
 旧形态三处硬伤：①依赖官方源站在线与资产布局稳定；
 ②`wss://zcode.z.ai/ws` 字面量改写脆弱（§12.5 二次实测教训，浏览器内存缓存还要求破
-缓存）；③官方页含账号/营销/WAF 验证码面（`zcode-aliyun-captcha-container`），非我方可
+缓存）；③官方页含账号/营销/WAF 验证码面（`drora-aliyun-captcha-container`），非我方可
 控。§12.5–12.8 双栈对比已证明**官方页可完整跑在我们的栈上**（配对/引导/桥/九深服务面
 逐字节同构）——即桌面侧与 relay 侧的 v4 服务面已经就绪；D7 提供可离线托管的冻结页，
 后续 P2–P4 仍需替换成自有源码前端。
@@ -213,7 +213,7 @@ busy/running 输入仍由 CLI/runtime CommandInbox 串行 admission（composer �
 v1 桥 `drora-page-request`/`drora-page-response` 属 R2 兜底面（D5 不演进）：`phonePage.ts:332/:354`、
 `desktopMobileRelayControl.ts:1340/:1356/:1400/:1407`。
 
-特例：`packages/shared/src/drora-protocol-v4/wire-codec.ts:60` 出现 `drora_type:"rpc-frame"`——
+特例：`packages/shared/src/drora-protocol-v4/wire-codec.ts:60` 出现 `zcode_type:"rpc-frame"`——
 仅 `measureTopicNotificationEnvelopeBytes` 最坏情形字节计量（与 `zcode_type` 等长，测量等价），
 **非线上生产/消费**；收敛时保留该口径注释，防止被误读为第二命名空间。
 
@@ -353,7 +353,7 @@ relay-server 的 JS 出站路径。资产检查应拒绝这两个诊断标记。
 
 ### 2026-09-29 发行资产源码恢复取证
 
-官方公开仓库 `zai-org/ZCode` 的 `v3.14.3` tag 指向
+官方公开仓库 `zai-org/Drora` 的 `v3.14.3` tag 指向
 `29628c9acdb81b703bbd4080c207a0e7ce5e276e`；GitHub 完整 tree（7458 项，
 `truncated=false`）中没有 `remote/v4`、`mobile-web` 或 `relay-client` 源码。
 本地 3.14.3 快照中的 2488 个 JS 文件均无 `sourceMappingURL`；源站主入口
@@ -390,7 +390,7 @@ React/TypeScript 重写。
 
 | #   | 证据                                                                                                                                                                  | 结论                                                 |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 1   | `zai-org/ZCode` 公开仓（Apache-2.0）`v3.14.3` tag → `29628c9`，完整 tree 7458 项无 `remote/v4`/`mobile-web`/`relay-client` 源码；GitHub 代码搜索 `"remote/v4"` 0 命中 | 远控页部署变体源码不在公开仓                         |
+| 1   | `zai-org/Drora` 公开仓（Apache-2.0）`v3.14.3` tag → `29628c9`，完整 tree 7458 项无 `remote/v4`/`mobile-web`/`relay-client` 源码；GitHub 代码搜索 `"remote/v4"` 0 命中 | 远控页部署变体源码不在公开仓                         |
 | 2   | 公开版 `packages/web/src/main.tsx` `connectRemote()` 直接抛 `"Remote connect is not supported in Web mode yet"`                                                       | Web 端远控连接实现在公开入口被显式禁用，未随源码发布 |
 | 3   | 官方 `packages/web/vite.config.ts` 生产构建 `sourcemap: "hidden"`，注释明言"生产不在浏览器产物暴露 sourceMappingURL，避免客户端侧还原业务源码"                        | 官方有意不发布 sourcemap                             |
 | 4   | CDN 实测 `zcode.z.ai/remote/v4/3.14.3/assets/` 下 6/6 个 `.js.map`/`.css.map` 全部 404（对照同源真实资产 200）；全部发行 JS 尾部无 `sourceMappingURL` 注释            | sourcemap 不可得，非探测方式问题                     |
@@ -567,7 +567,7 @@ workspaceHookReview 类交互本轮不渲染（private 面未开放）；队列�
 ## 16. P3c（本轮实施）：整理任务 + 模型选择器第一档 + 上下文用量
 
 取证（2026-09-30）：官方整理菜单持久化键
-`zcode-web-remote-control-mobile-task-home-preferences`（默认
+`drora-web-remote-control-mobile-task-home-preferences`（默认
 `{organizeBy:"workspace", sortBy:"updated"}`，读取闭集校验非法回默认；与桌面侧栏
 键/值域是两套独立偏好）；官方手机首页数据源是 relay `listWorkspaces` 而非
 sessions-index（bundle 内含该栈是整包桌面栈所致）；模型清单 =
@@ -683,7 +683,7 @@ rowsRange/命令 ACK/fileChanges/模型视图——形状全部由 shared schema
 
 **Host 桩服务面 + node 协议级验证**：内存端口对（真 MessagePortMain 排队语义：
 host→control 在 control 挂监听前排队、注册即冲刷）+ 真 MessagePortProtocol +
-ChannelServer（deferInit）+ ProxyChannel 注册 drora-agent/zcode-agent 与
+ChannelServer（deferInit）+ ProxyChannel 注册 drora-agent/drora-agent 与
 model-selection 通道（含官方别名）。node 侧 ChannelClient + RemoteServiceAccess
 （移动页同款消费面）12 步断言全绿：hello/initialize/subscribe(ACK+initial 帧)/
 rowsRange/sendText(ACK+增量帧)/stop/resolveInteraction(清交互帧)/switchModel
@@ -776,7 +776,7 @@ P5d 分包与体积验收（对照官方 6.2MB 基线）。
 props 四件套（restoreSession:!1/allowOpenWorkspace:!1/switcher 七方法/ PairedCard
 fallback）；服务注册表 oHn()=35+ 服务 pre-bridge stub → 桥附着按通道升级
 （skills/commands 官方桩即 desktop*only 降级先例）。**服务端零改动**：Host 对
-web-remote-replayable 附着注册全量 drora-*/zcode-\_ 服务——缺口全在手机侧
+web-remote-replayable 附着注册全量 drora-*/drora-\_ 服务——缺口全在手机侧
 accessor 组装层（stub→桥升级）与 UI。
 
 **三期切分**：P5b 侧栏+主区骨架（布局+新建/搜索/项目树/用户页脚+问候空态；
@@ -920,7 +920,7 @@ totalCount、phase → 包装器只读渲染。切换 sessionId 时重建时间�
 
 ### P5c 活性合并渲染验证（内置浏览器，2026-09-30）
 
-ZCode 内置浏览器（IAB，414×896，Playwright evaluate）复验：**活性合并生效**——
+Drora 内置浏览器（IAB，414×896，Playwright evaluate）复验：**活性合并生效**——
 首页任务行显示「E2E 冒烟任务 1分 **运行中**」（sessions-index 相位覆盖投影态）；
 任务面全要素：今天分桶 + 运行中轮 pill + 双气泡 + FileChangesBar(+12 -3) +
 队列横幅 + stub-model + 用量徽标（5120/12.8万 4%）+ 停止按钮 + 排队占位。
@@ -1181,7 +1181,7 @@ sed，逐处 Edit 或读后删**。
 
 ### 23.7 P6 双视口 E2E 验收（2026-09-30，IAB 真浏览器）
 
-harness（真 relay × 真 control × Host 桩，port 62176）× ZCode 内置浏览器：
+harness（真 relay × 真 control × Host 桩，port 62176）× Drora 内置浏览器：
 
 - **宽壳 1280**：项目树官方键全要素（「项目」/g1/任务数/「E2E 冒烟任务」活性「刚刚」）+
   问候空态「下午好呀」+ 页脚（用户/已连接/EN）；点击任务行 → 任务面全链路（交互卡
@@ -1802,7 +1802,7 @@ FileRewindDialog/BottomDockTransition/…——lazy chunk 内按需激活）。�
 「命令面板区块」翻转再翻转终局：逐元素 getBoundingClientRect+computedStyle 判定——
 该区块 **w:1×h:1 absolute = sr-only 语义层**（可见文本「命令面板/搜索并执行…」系
 sr-only 进 innerText 的取证假象）。官方宽壳首页**可见层 = 侧栏（新建/搜索/项目/
-ZCode）+ 工作区任务列表列**（双列/分栏 Workbench 降级投影）——**无问候空态、无
+Drora）+ 工作区任务列表列**（双列/分栏 Workbench 降级投影）——**无问候空态、无
 命令面板可见区块**。我方 GreetingEmptyState（问候+新建主按钮）为自创可见层（P5b
 有意偏差）——**终版裁定维持**（移动优先问候态合理；官方双列布局系桌面 Workbench
 降级形态，替换成本/信息架构收益不成比），本节补完「官方无问候可见层」证据供后续
@@ -2134,7 +2134,7 @@ locale 键在 `IntlProvider-BiPABK16.js`，命令 schema 在 `index-NjWRUABD.js`
 | 1   | 任务更多菜单（⋯：置顶/重命名/归档/标记未读/复制路径×3/复制会话 ID/调用轨迹/反馈）          | `workspace-more-button` 装配缝在，未装配菜单                                                         | 本轮落一期（见 32.3）；其余见 32.4                                                                                                                                                      |
 | 2   | 模式切换菜单（`chat-mode-select-trigger` → `chat-mode-select-item`，build/edit/plan/yolo） | 只读展示 `mode.label.glm.{mode}`（aria-disabled，P6 时命令未确认）                                   | **本轮实现**：`switchCollaborationMode` 命令 shared/command.ts:215 与官方 bundle index-NjWRUABD.js:6194 schema 逐字一致（`Ga({mode: Si([build,edit,plan,yolo])})`），CAS 集合 6234 同族 |
 | 3   | 重命名任务                                                                                 | 未接线；`renameSession{title}` 官方 schema（index-NjWRUABD.js:6206）= shared/command.ts:244 逐字一致 | **本轮实现**（v4 命令，meta.title 经快照回流，titleSource=custom 防自动标题覆盖）                                                                                                       |
-| 4   | 任务信息弹层（ZCode·main：工作区+路径/最近活动/分支）                                      | 无                                                                                                   | 记录；数据可由现有投影拼装，装配归后续轮                                                                                                                                                |
+| 4   | 任务信息弹层（Drora·main：工作区+路径/最近活动/分支）                                      | 无                                                                                                   | 记录；数据可由现有投影拼装，装配归后续轮                                                                                                                                                |
 | 5   | 新建任务草稿页（问候语/项目选择/分支切换/快捷提示 chips/发送即建会话）                     | 「+」直接 createSession 开任务面（§30 capability 第四例）                                            | ui 包有 ConversationDraftEmptyState/SuggestedPrompts 复原件；草稿态装配归后续轮                                                                                                         |
 | 6   | 终端侧板（新增标签→终端，真实 PTY）                                                        | 侧板启动壳无终端项                                                                                   | 跨包扩展：desktop 手机附着（desktopMobileServiceAttach）未挂 Terminal 通道（现只 task/session/agent）；accessor 代理面（client/remoteServiceAccess.ts）已含 terminalService             |
 | 7   | 上下文选择器（附件/工作流/插件 + @//$ 搜索）                                               | paperclip disabled（P7 能力矩阵裁定）                                                                | 附件上传协议面未还原；归 P7                                                                                                                                                             |
@@ -2164,7 +2164,7 @@ locale 键在 `IntlProvider-BiPABK16.js`，命令 schema 在 `index-NjWRUABD.js`
 - 置顶/归档/标记未读：host 服务面齐备（droraTaskService.setTaskPinned/archiveTask/
   setTaskUnread，桌面手机附着已暴露 task 通道），但 **v4 sessions-index 摘要不含
   pinned/archived 标志**（sessions-index.ts sessionSummarySchema 无此三态；官方手机首页
-  数据走 zcodeTaskService.listTasks，DroraTaskMeta 亦不携带布尔，官方以 task_index 库 +
+  数据走 droraTaskService.listTasks，DroraTaskMeta 亦不携带布尔，官方以 task_index 库 +
   membership{pinned,archived,active} 投影，index-NjWRUABD.js:6623）。缺状态源的盲切换属
   臆造行为——归协议扩展（首页投影补 task membership 三态）。
 - 复制任务路径/复制日志路径：v4 快照 meta 只有 title/titleSource（snapshot.ts:172），
@@ -2242,7 +2242,7 @@ bundle 级证据（对照通过）。残余观察：行级 `v4-row` testid 在�
 ### 32.9 新建任务草稿页还原（§32.2#5 解封，2026-10-01）
 
 官方语义（活页实拍 + bundle/locale 取证）：工作区「+」先开**草稿面**（不建会话）——
-时段问候语 + 项目标识 + composer（占位 `chat.placeholder.newTaskMobile`=「向 ZCode 提问…」）
+时段问候语 + 项目标识 + composer（占位 `chat.placeholder.newTaskMobile`=「向 Drora 提问…」）
 
 - 发送；首条输入才 createSession → sendText；返回/丢弃不产生会话。
 
@@ -2255,7 +2255,7 @@ bundle 级证据（对照通过）。残余观察：行级 `v4-row` testid 在�
   （en：Morning, ready when you are / Morning, how can I help? / Noon break? /
   Good afternoon! Leave the rest to me. / Evening, nice work today /
   It's late—remember to take care of yourself.）；
-- 移动端占位：向 ZCode 提问…（Ask ZCode anything…）；
+- 移动端占位：向 Drora 提问…（Ask Drora anything…）；
 - **静态建议词**（locale 既有，非 coding-plan 动态词）：recentCommits「检查近 7 天的 commit」
   （prompt 检查当前工作区近 7 天的 Git commit，概括主要改动并指出潜在风险。）与
   createPdf「制作一份 PDF」（prompt 根据当前工作区内容制作一份 PDF 文档。）——chips 点击
@@ -2348,7 +2348,7 @@ Palette 钮（复用 mobileShell.home.theme 键），App 传 toggleTheme。IAB �
 composer 卡（newTaskMobile 占位）+ 静态建议词 chips（复用窄壳同款键/链路），替换原新建钮；
 无 onDraftSend 保持原新建钮（向后兼容）。WideShell 透传 onDraftSend/draftSending；
 App 宽壳接线 handleDraftSend(liveWorkspaces[0], text)（handleDraftSend 改 ws 入参，
-窄壳传 draftTarget）。IAB 1280 实拍：问候+📁 demo+composer（向 ZCode 提问…）+chips ×2
+窄壳传 draftTarget）。IAB 1280 实拍：问候+📁 demo+composer（向 Drora 提问…）+chips ×2
 上屏，与官方宽壳空态同构。门禁：182/182 + tsc 绿 + build 800。
 
 ### 32.15 真实服务复测：入口与首页状态（2026-10-01）
@@ -2529,13 +2529,13 @@ color-scheme meta、内嵌 base64 favicon、预渲染启动壳四项全缺。
 
 **官方入口壳取证**（upstream index.html 冻结字节）：
 
-- 内联首帧脚本（模块加载前执行）：单一主题源 zcode-theme（值族 zai-dark/zai-light/
+- 内联首帧脚本（模块加载前执行）：单一主题源 drora-theme（值族 zai-dark/zai-light/
   dark/light/system，默认 zai-dark）+ normalizeResolvedTheme 四分支 + system 走 matchMedia +
   syncBrowserThemeSurface（meta theme-color #161616/#f8f8f8 + color-scheme + html 表面属性
   - style.colorScheme）；storage 异常回落暗色面；
-- 预渲染启动壳：#root 内 .zcode-boot-loading（role=status/aria-busy）+ 96px 深色渐变
+- 预渲染启动壳：#root 内 .drora-boot-loading（role=status/aria-busy）+ 96px 深色渐变
   logo 壳（呼吸动画 SVG）——JS 执行前的白屏空档修复；
-- body 表面背景链（--zcode-bootstrap-bg 变量族 + browser-theme-surface !important 覆盖，
+- body 表面背景链（--drora-bootstrap-bg 变量族 + browser-theme-surface !important 覆盖，
   防 ui 全局样式 vibrancy 透明根背景在浏览器露出白底）；
 - 内嵌 base64 favicon 32x32（Chrome dev 不发 favicon 请求的 Bugfix 注释）。
 
@@ -2647,7 +2647,7 @@ deleteAllArchived 服务面本仓缺失）为桌面域 backlog，非手机面缺
 
 **19 键族值级 diff 收口（§32.21 续）**：上轮未核的 10 键逐一对照——
 sectionTitle/summary/taskCount/updatedAt/connected/disconnected/reconnect 本已逐字一致；
-title=品牌分歧（ZCode 远程控制→Drora 远程控制，改名规则）；notice 逐字一致（上轮反查
+title=品牌分歧（Drora 远程控制→Drora 远程控制，改名规则）；notice 逐字一致（上轮反查
 脚本未处理跨行值，误报）；**唯一真漂移 = home 重连态 zh**：正在重新连接 → **连接中**
 （官方 webRemoteControl.mobileHome.reconnecting；en 两侧本就 Reconnecting 一致）。
 任务面横幅 正在自动重连...（=官方 webRemoteControl.mobileShell.reconnecting）独立无涉。
@@ -2712,7 +2712,7 @@ handleDataPayload 帧门打日志补丁——官方页静默拒收（零控制�
 |---|---|---|
 | 1 | viewState 缺 `updatedAt`（必填 finite） | gb schema @11759：initialViewState/mobileViewState 各拒一次 |
 | 2 | workspace-bridge-ready 桥信息须嵌套 `bridge` 子对象（local 变体必填 workspaceKey） | hb 判别联合 @11729；真桌面 toExternalBridge 同形 |
-| 3 | 通道名：官方页按官方 ServiceChannels 开 `zcode-agent/zcode-task/zcode-session`（bundle @308654 全表）；ChannelServer 对未知通道请求**无限排队不报错** | 官方页只调到 setting/model-selection 时定位 |
+| 3 | 通道名：官方页按官方 ServiceChannels 开 `drora-agent/drora-task/drora-session`（bundle @308654 全表）；ChannelServer 对未知通道请求**无限排队不报错** | 官方页只调到 setting/model-selection 时定位 |
 | 4 | hello 响应 `capabilities` 必填四键（nativeDialogs/localTerminal/binaryFrames 布尔 + compression ∈ none\|permessage-deflate） | 官方页错误面板直接回显 zod issues |
 | 5 | 任务行状态读 **displayStatus**（独立 enum 字段）非 status；unreadAt 是 number.optional（**null 即拒帧**）；setting.get 须返回 {locale,...}；model-selection.getView 须返回 {revision,providers}（null → 读 revision 崩） | pb schema @11696 + IntlProvider 运行时 |
 
@@ -2847,14 +2847,14 @@ harness 草稿态确认为 §32.29 归档差异的正确表述，**本轮无新�
 ### 32.31 readSession 响应形状取证与桩实现（2026-10-02）
 
 **§32.30 harness backlog 首项落地**：readSession 全语义取证（bundle QTe @703661 /
-UTe @701541 / WTe @701600）：zcodeAgentService.readSession({workspacePath,
+UTe @701541 / WTe @701600）：droraAgentService.readSession({workspacePath,
 workspaceIdentity?, sessionId, messageLimit}) → `{session:{sessionId, **title**,
 workspace:{workspacePath, workspaceIdentity?}, createdAt, updatedAt, mode},
 settings:{thoughtLevel:{current}}, projection:{lastError?}, messages}`——UTe 投影
 taskId/title/workspace/mode/thoughtLevel；title 取 **session.title**（WTe）。
 桩已实现（title 从 BASE_TASKS 取）。
 
-**实证进展**：官方页确实调用 readSession（经 **zcode-session** 通道——官方对该方法
+**实证进展**：官方页确实调用 readSession（经 **drora-session** 通道——官方对该方法
 走 session 通道而非 agent 通道）且**收到了完整 title**（通道日志实证）——但 h1 仍
 「新建任务」。结论：标题绑定还有更深一层（疑首页行点击的导航路径本身进了新建流程，
 readSession 结果供侧板/composer 而非 header）。草稿语境定性维持 §32.30 归档。
@@ -2900,7 +2900,7 @@ shape 对齐官方 yb schema）。**验证结果：h1 仍「新建任务」**。
 - 容器装配：`ain.onSelectTask: Nr` → `Nr(...)`（@5210953，automations 远程工作区守卫）→
   `it = handleSelectTask`（@5201157 prop）→ `lEn` hook 的 `g`（@5242398）；
 - **g 核心**：模型重建门（P8 = `pending && stage==='restartingRuntime'`，undefined 安全
-  ——假设否证）→ 未读清理（**zcodeTaskService.setTaskUnread({taskId,workspacePath,
+  ——假设否证）→ 未读清理（**droraTaskService.setTaskUnread({taskId,workspacePath,
   workspaceIdentity,unread:false,expectedUnreadAt})**——乐观并发形状新证据）→
   **dc.setActiveTaskId(path, taskId, identity)**（zustand 纯写入，不可能静默失败）；
 - **推论**：Te 恒 null ⇒ 点击从未到达 g ⇒ Xnn 走了**跨工作区分支**——页面 active
@@ -2920,7 +2920,7 @@ switchWorkspace(workspaceKey, {taskId, mobileNavigationIntent, markTaskReadExpec
 
 ```
 XVn: POST {relayOrigin}/api/remote-control/windows/{token}/workspace-bridge
-     body {workspaceKey, taskId?}，头 X-ZCode-Mobile-Connection-Id
+     body {workspaceKey, taskId?}，头 X-Drora-Mobile-Connection-Id
      → {wsUrl, workspaceKey, initialTaskId}
 → kzn(wsUrl)：页面为桥新开 WebSocket
 → MVn 组新 services/桥 → 未读清理 → activeWorkspaceKey/activeTaskId 就位
@@ -2973,7 +2973,7 @@ switchWorkspace 的 fetch 404 → h() 抛错 → activeTaskId 永不设置 → �
 | 1   | `coding-plan-subscription.getDynamicWorkflowClientConfig` | 本仓 `dynamic-workflow-feature.ts:44`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `{mode:"disabled",enabled:false,source:"default"}`                                                                                                                             |
 | 2   | `provider-settings.getView`（官方页启动即拉×2）           | 本仓 `ProviderSettingsView`（provider/facades.ts:171）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `{revision,providerTemplates:[],providerOrder:[],providers:[]}`——空 provider 集即官方「当前没有可用模型」横幅的桩成因                                                          |
 | 3   | `onboarding-record.shouldOnboard` **必须 boolean**        | 本仓 `IOnboardingRecordService`（onboardingRecord.ts:26）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `false`——回 null 官方页引导分支静默断裂，卡在空壳渲染（黑屏无加载卡，零 JS 异常）                                                                                              |
-| 4   | 其余全通道注册兜底                                        | 官方 ServiceChannels **全表 41+ 通道**（bundle src-dNkcRypW.js @307000-311500）：file/media-preview/system/terminal/git/git-checkpoint/setting/credential/cua-permission/cua-pip-session/broadcast/zcode-task/window-controller/zcode-agent/zcode-session/conversation-share/file-watcher/oauth/provider-settings/model-selection/provider-provisioning-target/usage-stats/coding-plan-subscription/client-config/client-scenes/cloud-content/marketing-touch/skills/skill-sync/mcp-sync/plugin-sync/plugins/plugin-management/subagents/commands/hooks/memory/output-style/settings-sync/bots/feedback/prompt-attachment-transfer/off-peak-task/onboarding-record | gentle：call→null（全量日志）、listen→no-op——未注册通道被 ChannelServer 无限排队（§32.24#3 机制），启动期扫一批（oauth/credential/marketing-touch/onboarding-record 实测排队） |
+| 4   | 其余全通道注册兜底                                        | 官方 ServiceChannels **全表 41+ 通道**（bundle src-dNkcRypW.js @307000-311500）：file/media-preview/system/terminal/git/git-checkpoint/setting/credential/cua-permission/cua-pip-session/broadcast/drora-task/window-controller/drora-agent/drora-session/conversation-share/file-watcher/oauth/provider-settings/model-selection/provider-provisioning-target/usage-stats/coding-plan-subscription/client-config/client-scenes/cloud-content/marketing-touch/skills/skill-sync/mcp-sync/plugin-sync/plugins/plugin-management/subagents/commands/hooks/memory/output-style/settings-sync/bots/feedback/prompt-attachment-transfer/off-peak-task/onboarding-record | gentle：call→null（全量日志）、listen→no-op——未注册通道被 ChannelServer 无限排队（§32.24#3 机制），启动期扫一批（oauth/credential/marketing-touch/onboarding-record 实测排队） |
 
 **补齐后官方页完整启动**：配对→bootstrap→首页全渲染（宽壳+窄壳）→任务时间线
 逐行渲染。harness 工具（私有副本，不进共享桩）：`scripts/.tmp-stub-official.mjs`
@@ -2985,7 +2985,7 @@ switchWorkspace 的 fetch 404 → h() 抛错 → activeTaskId 永不设置 → �
 
 | 视图              | 官方页                                                                                          | 源码页     | 判定                                                                                                                                          |
 | ----------------- | ----------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 窄壳首页 390×844  | ✓                                                                                               | ✓          | **逐位同构**（组卡/工具栏/徽标/说明卡）；差异仅品牌名（ZCode→Drora 有意分歧）、EN 钮（我方增强）、搜索 FAB（官方=sr-only 命令面板，协议扩展） |
+| 窄壳首页 390×844  | ✓                                                                                               | ✓          | **逐位同构**（组卡/工具栏/徽标/说明卡）；差异仅品牌名（Drora→Drora 有意分歧）、EN 钮（我方增强）、搜索 FAB（官方=sr-only 命令面板，协议扩展） |
 | 宽壳首页 1280×800 | ✓                                                                                               | ✓          | 结构同构，形态差见 33.4                                                                                                                       |
 | 宽壳任务面        | ✓（时间线逐行同构；h1「新建任务」=§32.35 relay HTTP 缺口，非 UI 差）                            | ✓          | 时间线同构                                                                                                                                    |
 | 手机任务面        | ✓（同宽壳组件栈）                                                                               | ✓          | 同构                                                                                                                                          |
@@ -3014,7 +3014,7 @@ switchWorkspace 的 fetch 404 → h() 抛错 → activeTaskId 永不设置 → �
 1. **relay-server HTTP API 面**（§32.35 backlog，前置）：`/api/remote-control/`
    platform/bootstrap/workspace-bridge/mobile-view-state 四组端点 + token 鉴权 +
    桥 wsUrl 签发——官方页 switchWorkspace/视图态同步的硬依赖。
-2. **桌面 attach 通道面**：①zcode-_ 通道别名（官方页按官方名开通道，本仓改名后
+2. **桌面 attach 通道面**：①drora-_ 通道别名（官方页按官方名开通道，本仓改名后
    为 drora-_——attach 路径注册别名即可，服务实现复用）；②§33.2 表中官方页消费的
    通道按真实服务接（provider-settings/coding-plan-subscription/onboarding-record/
    broadcast 等本仓已有服务实现，marketing-touch/cloud-content 为未还原域=有意
@@ -3052,15 +3052,15 @@ ignorePatterns（prepare-agent-node-bundle.mjs 先例）。存量 3 max-lines（
 
 ### 33.6 桌面侧生产缺口审计与修复——displayStatus 字段链 + unreadAt 拒帧守卫（2026-10-02）
 
-**审计结论（对 §33.5 路线图项 ② 的修正）**：**zcode-\* 通道别名机制早已存在**——
+**审计结论（对 §33.5 路线图项 ② 的修正）**：**drora-\* 通道别名机制早已存在**——
 `services/collection.ts exposeOnChannelServer({officialChannelAliases})`，host 对
-web-remote-replayable 附着按 `toOfficialRpcChannelAlias`（drora-_→zcode-_ 前缀映射）
+web-remote-replayable 附着按 `toOfficialRpcChannelAlias`（drora-_→drora-_ 前缀映射）
 注册别名（desktop/host/index.ts:2141 已启用）；其余官方页消费通道
 （provider-settings/coding-plan-subscription/onboarding-record/oauth/credential/
 marketing-touch/broadcast/setting/settings-sync/model-selection/git/file/window-controller）
 本就保持官方名，host 全服务注册面自然覆盖。hello capabilities 四键真桌面已满足
 （droraAgentService.ts:4970）。**通道面无需任何改动**；曾试改 channels.ts 常量真值
-为 zcode-_，因（a）别名机制已覆盖（b）attachmentUploadTransaction.ts:111 会把通道名
+为 drora-_，因（a）别名机制已覆盖（b）attachmentUploadTransaction.ts:111 会把通道名
 序列化进事务 blob（版本偏斜风险）而回退——线名保持 drora-_ 本名 + web-remote 附着别名。
 
 **两处真实缺口已修（官方页活体+schema 取证）**：
@@ -3197,7 +3197,7 @@ remote-dist 保持取证（manifest/api-samples）与 harness 显式引用（--d
 不进 bundled 候选链。
 
 **活体验证**：CLI 探针（node main.ts --port 4461）→ GET /remote/v4 = 200 且
-`<title>ZCode</title>`（官方页）；LAN host 测试同步更新断言（resolvedRoot 恒=
+`<title>Drora</title>`（官方页）；LAN host 测试同步更新断言（resolvedRoot 恒=
 snapshotRoot + 官方 title）。
 
 **门禁**：relay-server 35/35（bundledMobileRoot 纯函数测试不受候选序影响）+
@@ -3298,7 +3298,7 @@ transport:"lan"})` → 真 LAN relay（端口 57045）→ IAB 打开真配对 UR
 **四数据面真值验证（全部通过）**：
 | 面 | 真值证据 |
 |---|---|
-| 项目/任务列表 | 真工作区 ZCode(本地)+路径；手机"+"新建会话→宽壳列表实时出现该任务（"刚刚"）；任务计数 0→1 |
+| 项目/任务列表 | 真工作区 Drora(本地)+路径；手机"+"新建会话→宽壳列表实时出现该任务（"刚刚"）；任务计数 0→1 |
 | 会话消息列表 | 真用户气泡（复制/编辑钮）+真 turn 头（工作中 5 秒→41 秒→已停止）+真重试态（重新连接中 3/10→5/10=CLI 真实状态流）+真 git 更改徽章（+322292/-408 实时跳动） |
 | 输入框 | 真模型 **GLM-5.3**（真 provider-settings，无「无可用模型」横幅）+真思考档位「最高」+草稿持久化+发送→真会话创建+停止钮→真停止链 |
 | 右侧面板 | Git 工具弹层（真分支 **main** ▾/提交或推送）+侧板标签页（辅助对话/审查/终端）+**真终端 PowerShell 7.6.6**（真提示符+光标，真 pty 流）+真实账户区（zcqjhas9 Pro） |
@@ -3375,7 +3375,7 @@ rounded-md border bg-surface + Square fill-current size-3.5→size-4 对齐）�
 
 **§33.9 口径修正（重要）**：全量资产差分（recovered vs remote-dist，2573 文件）暴露
 ——**src/recovered 的 JS chunk 是"可读化格式化"再生版**（文件头"还原自发行 bundle:
-ZCode 3.14.3 /remote/v4；仅格式化"），非官方原始字节；官方原始字节冻结件是
+Drora 3.14.3 /remote/v4；仅格式化"），非官方原始字节；官方原始字节冻结件是
 `upstream/remote/v4`（SHA256SUMS 证据资产）。两份官方抓取（upstream 冻结 9/29 与
 remote-dist 爬取 10/1）对入口 chunk/src chunk/icon chunk 抽验**逐字节一致**——
 官方未更新，差异全部来自 recovered 的格式化。§33.7/§33.9 的"字节同源"表述仅对
@@ -3390,13 +3390,13 @@ index.html 成立，对 JS chunk 不成立，特此修正。
 3. electron-builder `mobile-web-official` staging 源改 `upstream/remote/v4`
    （布局恰满足 `remote/v4/index.html` 候选校验）。
 
-**伺服保真验证**：relay 探针（:4463）——entry `<title>ZCode</title>` ✓；
+**伺服保真验证**：relay 探针（:4463）——entry `<title>Drora</title>` ✓；
 `src-dNkcRypW.js` **served === upstream 原始字节 + 仅出站改写两字面量**（与官方
 CDN 交付形态一致：CDN 给原始字节，端点由页面运行时构造）。
 
 **安装产物验证**：bundle.mjs --os=win --arch=x64 真打包（182.6MiB，体积审计
 500MB 内通过）——win-unpacked `resources/mobile-web-official/remote/v4/index.html`
-= 官方字节（title ZCode/2573 assets/入口与 src chunk sha256 与 upstream 抽验一致）+
+= 官方字节（title Drora/2573 assets/入口与 src chunk sha256 与 upstream 抽验一致）+
 `resources/mobile-web`（旧 dist 兜底/799 assets）双产物就位。第二轮打包随 raw 修正
 重新出包验证。
 
@@ -3428,7 +3428,7 @@ Edit/python 写入。
 层级吃掉（staging 根=`mobile-web-official/3.14.3/...`，候选探测
 `root/remote/v4/index.html` 不命中→回落旧 dist）。终态=`from: upstream`（根级映射，
 保留 `remote/v4/` 层）。三轮真打包断言（win-unpacked
-`resources/mobile-web-official/remote/v4/index.html`=title ZCode、src chunk sha256
+`resources/mobile-web-official/remote/v4/index.html`=title Drora、src chunk sha256
 与 upstream 逐字节一致、2573 官方资产、legacy dist 兜底就位）全部通过；
 181.7MiB 体积审计 500MB 内。
 
@@ -3544,7 +3544,7 @@ MacBook 端未在线接受；本轮重开即配对）。双在线服务同账号
 | 视图       | 官方(zcode.z.ai, MacBook 真数据)                                                                                       | 本仓(127.0.0.1:59702, Windows dev 真数据)                                                                                                       | 判定                                         |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | 宽壳任务面 | 真任务"分析本地 Proma 项目地址"+真 markdown 表格回复+更改 +85-0+真额度横幅(4 次重置额度)+完全访问▾+GLM-5.3-Flash▾+最高 | 真任务"hi"+真多轮历史(模型已切换系统消息/1+1→2/5+7)+**3007 TLS 错误经官方错误面渲染**(展开详情/复制/反馈问题/×)+变更前确认▾+GLM-5.3-Flash▾+最高 | **同构**（差异=数据:各自任务状态/mode/错误） |
-| 宽壳侧栏   | 多工作区组(Drorа 9/ZCode 3,MacBook 的)+真账户 zcqjhas9 Pro                                                             | 多工作区组(server/server/Drorá 155/zcode-plugins/lume,Windows dev 的)+同账户                                                                    | 同构                                         |
+| 宽壳侧栏   | 多工作区组(Drorа 9/Drora 3,MacBook 的)+真账户 zcqjhas9 Pro                                                             | 多工作区组(server/server/Drorá 155/drora-plugins/lume,Windows dev 的)+同账户                                                                    | 同构                                         |
 | 手机首页   | 「5 个工作区·133 个任务」组卡+已完成徽标+说明卡                                                                        | 「8 个工作区·166 个任务」组卡+**行级「错误」徽章**(3007 任务态)+同构说明卡                                                                      | 同构                                         |
 | 手机任务面 | （同宽壳组件栈）                                                                                                       | 真历史+错误横幅+composer                                                                                                                        | 同构                                         |
 
@@ -3675,7 +3675,7 @@ Sidebar 并行域）。工作区 214 处变更待提交（由用户决定提交�
 ### 32.55 扩展对比——亮色模式与英文模式（2026-10-02，§32.54 续）
 
 **亮色模式**：我方切换后正确渲染（bg-background → 浅灰、卡片 → 白、文字 → 深色，
-token 主题切换链完整）。官方页主题切换在 stub 环境未生效（其 `zcode-theme` 键 +
+token 主题切换链完整）。官方页主题切换在 stub 环境未生效（其 `drora-theme` 键 +
 bootstrap 属性机制与桩的 session 存储交互不完整）——harness 限制非 UI 差。结构
 逐位一致（已有暗色模式验证）。
 
@@ -3735,7 +3735,7 @@ harness 草稿态菜单不开（Radix 限制）。模型菜单真值对照归真
 ### 33.17 对照操作事故记录与官方侧交互封线（2026-10-02）
 
 **事故**：对官方在线页(MacBook 真桌面)做侧栏交互时，坐标误触任务行悬停菜单，
-把用户真实任务「派出 subagent 审查插件与 zcode…」**误置顶**（列表重排+📌 标记）。
+把用户真实任务「派出 subagent 审查插件与 drora…」**误置顶**（列表重排+📌 标记）。
 **恢复**：定位该行 📌 图标点击切换回未置顶，列表顺序与最初截图一致（已还原）。
 
 **裁定**：官方在线页=用户真实生产数据，此后**官方侧只做只读交互**（视图切换/
@@ -3765,7 +3765,7 @@ popover——Radix 监听 `pointerdown` 而非 `click`。改用 CDP `Input.dispa
 
 **结果**：我方亮色任务面正确渲染——浅色背景/白色卡片/深色文字/所有控件正确主题化
 （工作区头/composer 工具排/停止钮/时间线气泡/复制钮/更改徽章）。官方页在 stub 环境
-保持暗色（其主题 bootstrap 依赖 `zcode-theme` localStorage + `data-zcode-bootstrap-theme`
+保持暗色（其主题 bootstrap 依赖 `drora-theme` localStorage + `data-drora-bootstrap-theme`
 属性，stub 的 setting 通道未持久化该值——harness 限制）。官方暗色任务面结构与我们
 暗色任务面已在 §32.40/§32.51 确认逐位一致。亮色结构 = 暗色结构 + token 切换，
 无独立布局分支。**亮色任务面对比通过**（token 层验证，非截图层——官方 stub 不出
@@ -3840,7 +3840,7 @@ CDP `Emulation.setDeviceMetricsOverride(mobile:true)` **不仿真 hover 媒体�
 
 ### 32.68 亮色任务面双页对照——readSession 契约补全 + composer/头部六项清偿（2026-10-02）
 
-**背景**：亮色模式（drora-theme/zcode-theme=zai-light 预种子重载法）首次跑通双页
+**背景**：亮色模式（drora-theme/drora-theme=zai-light 预种子重载法）首次跑通双页
 （390×844）同数据对照。此前 harness 三缺陷修复：① newTab 返回的已是 sessionId 字符串，
 误用 `s.sessionId` → Page 域调用挂起无输出；② about:blank null-origin localStorage
 种子静默失败 → 改「首载→setItem→重载」同源种子法；③ 旧脚本 DOM 强加 `.dark` 类会把
@@ -3907,7 +3907,7 @@ i18n 切换），官方远控页无对应元素（官方搜索归宽壳 workspac
 2. 宽壳 composer 占位应取 followUpAsk「提出后续修改要求」（现用窄壳 followUpQueue）。
 3. 宽壳 composer running 态官方=v4-composer-send↑发送（活体探针无 v4-stop），
    我方仍渲染 StateBar 停止钮——停止能力语义与 204 基线测试需同轮裁定迁移。
-4. 品牌词 Drora vs 官方 ZCode：specs/drora-rename.md 规则 4 政策性有意分歧（豁免区外
+4. 品牌词 Drora vs 官方 Drora：specs/drora-rename.md 规则 4 政策性有意分歧（豁免区外
    强制改名），不随本裁定回改。
 
 ### 32.69 交互面双页对照——更多菜单全项/模式菜单结构/侧板覆盖/已完成任务（2026-10-03）
@@ -4017,7 +4017,7 @@ w-[88%] max-w-[88vw] z-40；遮罩层 absolute inset-0（被 composer 槽兄弟�
   草稿=§32.56、亮色=§32.61、i18n=§32.67。后续跑弹层矩阵前先单跑一次 diag 探针
   确认任务行点击，再入长跑。
 - 首页对照（r8 v8 双页意外同帧）：双方结构/文案/行形态逐项一致，唯品牌词
-  Drora/ZCode（rename 规则 4 政策性分歧）。
+  Drora/Drora（rename 规则 4 政策性分歧）。
 
 #### 33.18.5 弹层专项短跑与已知环境问题（2026-10-03）
 
@@ -4040,12 +4040,12 @@ aria=新建任务 仅我方有；官方 ＋ 在首页卡片行 y≈429）。
 |---|---|---|---|
 | 1 | 返回钮 | ↓（ArrowUp rotate-180） | ←（ArrowLeft，活体） |
 | 2 | 工作区选择 | 独立卡片 | **内嵌 composer 卡首行**（📁 名；多工作区下拉 + ⑂ 分支占位图标——分支数据源归 P-next） |
-| 3 | 占位 | chat.placeholder.newTaskMobile 短句 | **chat.placeholder.newTask 全句**「向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力」（zh:4174/en:10332 逐字，双 locale 新增） |
+| 3 | 占位 | chat.placeholder.newTaskMobile 短句 | **chat.placeholder.newTask 全句**「向 Drora 提问，使用 @ 添加上下文，使用 / 选择命令或能力」（zh:4174/en:10332 逐字，双 locale 新增） |
 | 4 | 工具条 | [📎][↑] | [＋ 添加上下文][✋ 模式名 ▾（TaskModeMenu，本地 draftMode 缺省 build=活体）][管理模型 ▾（ModelMenu 空态单条面）][↑] |
 | 5 | 建议 chips | 无条件渲染 | **suggestions 服务门控**（官方桩缺位不渲染，活体一致）→ props.suggestions 装配缝，App 现不传=隐藏 |
 | 6 | 模式默认 | 无模式面 | build=变更前确认（官方活体；createSession 协议无初始 mode 字段，wire 归协议扩展轮，App onSend 第三参暂收不转） |
 
-**记录不拆**：品牌水印（官方 ZCode「Z」底纹）= 品牌政策面（drora-rename 规则 4）；
+**记录不拆**：品牌水印（官方 Drora「Z」底纹）= 品牌政策面（drora-rename 规则 4）；
 套餐 banner（套餐查询失败，重试/配置）= coding-plan 服务 harness 失败面（P7 家族）。
 
 **门禁**：208/208 + typecheck 0 + lint 3 存量 + build 797 + nt-ours/official 双页对照。
@@ -4237,11 +4237,11 @@ sessionId=任务 id 保活键、workspaceKey=身份回收键、cwd=工作区路�
 
 **立项（S7 协议扩展轮，待用户裁定范围）**： faithful 实现跨四层——
 A. ui renderer：paneLayoutStore（侧板状态所有者）变化时经新 sync 推 main（镜像
-   syncWebRemoteControlWorkspaces 模式：preload 方法+IPC+main 缓存）；
+syncWebRemoteControlWorkspaces 模式：preload 方法+IPC+main 缓存）；
 B. wire：bootstrap-response 增 `sidePane` 初值字段 + 变更活推帧（或并入既有广播）；
 C. 手机消费：sidePaneMode 初值/跟随（本侧 App 已就绪，仅消费）；
 D. 映射：桌面审查→git、终端→terminal、其余→launcher；辅助对话维持现状（数据面
-   独立挂账）。
+独立挂账）。
 范围二选一：**最小切片**=仅 bootstrap 初值（无活推，覆盖"刷新后直达"主场景，
 不动 renderer 活推链）；**完整形态**=A-D 全链活体跟随。桌面 renderer 侧触碰 ui
 App 壳层（paneLayoutStore 消费点），需 spec 先行。
@@ -4296,7 +4296,6 @@ evaluate 静默 undefined（先清标签）、rpc-frame 载荷需 base64 解码�
 
 **门禁**：pinnedSectionRow 2/2 + homeTaskRow 5/5；本轮改动文件
 PinnedTaskSection.tsx lint 0；spec-only 轮其余门禁未动。
-
 
 **§33.18.17 修复验证（同日）**：从干净工作树重建 dist
 （`pnpm --filter @drora/mobile-web build`，797 资产，index-CgpEoKq7）后活体复验：
@@ -4409,6 +4408,7 @@ catalog 自动读取（随编辑器已在）。
 **§33.18.20 附件上传链接线（2026-10-03 深夜，composer 全量对齐收官）**：
 P7 附件面清偿——schema（sendText.attachments/attachmentRef）与服务面
 （attachmentBegin/Chunk/Commit/Abort）原本已在，缺的只是 UI 上传流：
+
 - ui 包新增窄导出 `./attachment-upload-transaction`（uploadAttachmentTransaction：
   begin→384KiB chunk→commit 编排 + sha256 校验和 + 失败 abort + 进度回调 +
   指纹/去重语义——桌面同件直复用，零自研编排）；
@@ -4419,24 +4419,25 @@ P7 附件面清偿——schema（sendText.attachments/attachmentRef）与服务�
   sendText(text, attachments)；App sendDraft 增 attachments 参数；
 - 结构：TaskComposer 412 行（代码行低于 max-lines 阈值）；附件控制簇抽
   ui/TaskAttachmentControl（自包含 D6 域）。
-真链活体（4430×真桌面）：hidden file input(multiple)+附件钮+富文本编辑器共存 ✓
-（IAB 无法驱动文件选择对话框——真实选发归用户侧/真机轮）。门禁：typecheck 0 +
-mobile 8+211 + build 811 + lint（TaskComposer 未上榜）+ 架构 0。
-**composer 全量对齐收官**：双形态触发钮/停止钮/模型名/富文本输入面/@ 面板/附件
-芯片+上传全链——与官方页差异仅剩品牌词与 slash 命令源深度（catalog 已自动读取）。
+  真链活体（4430×真桌面）：hidden file input(multiple)+附件钮+富文本编辑器共存 ✓
+  （IAB 无法驱动文件选择对话框——真实选发归用户侧/真机轮）。门禁：typecheck 0 +
+  mobile 8+211 + build 811 + lint（TaskComposer 未上榜）+ 架构 0。
+  **composer 全量对齐收官**：双形态触发钮/停止钮/模型名/富文本输入面/@ 面板/附件
+  芯片+上传全链——与官方页差异仅剩品牌词与 slash 命令源深度（catalog 已自动读取）。
 
 **§33.18.21 草稿持久化（2026-10-03 深夜，官方 localStorage 实证驱动）**：官方页
-localStorage 取证 `zcode-v4-composer-drafts:v1:<encoded-workspace>`（scopes 按
+localStorage 取证 `drora-v4-composer-drafts:v1:<encoded-workspace>`（scopes 按
 session，text+editorStateJson+mode）——本仓同语义件早已存在（ui composerDraftStore，
 键已 Drora 化 drora-v4-composer-drafts:v1:）但手机页未接。落地：ui 新增窄导出
 `./composer-draft-store` → app composerDraftPersistence.ts 包装（App 白名单按文件
-收口）→ App 三点接线：onDraftChange 即持久化（scope=selectedTaskId??__draft__）、
+收口）→ App 三点接线：onDraftChange 即持久化（scope=selectedTaskId??**draft**）、
 openTask 回填该会话草稿、sendDraft 成功清内容（官方语义：发送只清内容）。编辑器
 回填=ComposerRichInput 初值轮询（懒 chunk 就绪后 setText 一次，文本同值跳过——
 镜像桌面 syncInitialValueOnMount 模式，适配懒 chunk 就绪时机）。真链活体（4430×
 真桌面）：输入 draft persistence check → localStorage 键逐字同构落盘 ✓ → 刷新
 重开任务 → 编辑器自动回填 ✓（测试草稿已清理）。门禁：typecheck 0 + mobile 8+211
-+ build 811 + lint 0 + 架构 0。
+
+- build 811 + lint 0 + 架构 0。
 
 #### 33.18.22 终端数据面桥接——rpc 帧级 demux 立项（2026-10-03 深夜，待裁定后实施）
 
@@ -4453,6 +4454,7 @@ services/node.ts ServiceCollection 的 createTerminalService（node-pty））在
 （node.ts:2562 注册 ITerminalService）→ 桌面/手机服务面不同层即数据面差异根因。
 
 **实施方案（S9，跨 main 服务装配 + 桥核心，须 spec 先行+真机回归）**：
+
 1. deps 注入：control 增 `terminalService?: ITerminalService`（index 装配处取
    ServiceCollection 实例，或 `createTerminalService({ settingService })` 独立实例
    ——独立实例=手机 PTY 与桌面 PTY 注册表隔离，relay stop 的 PTY 回收需随 control
@@ -4467,10 +4469,10 @@ services/node.ts ServiceCollection 的 createTerminalService（node-pty））在
    deferInit=false 语义复核（手机 ChannelClient 无 Initialize 帧路径确认）；
 4. 回归面：非 terminal 帧（含 67KB drora-agent 流）解析失败必须原样转发；
    terminal 帧服务后 relay 层 ack 时序不变。
-门禁设计：desktop 控制测试增 demux 用例（terminal 帧入 shim/非 terminal 帧转发
-Host/解析失败帧转发）+ 真链活体（xterm 出真 PowerShell）。
-**改动性质**：触及手机桥 rpc 帧核心路径（全部手机流量经此）——实施后需全量
-矩阵回归。待用户裁定后进 S9 实现轮。
+   门禁设计：desktop 控制测试增 demux 用例（terminal 帧入 shim/非 terminal 帧转发
+   Host/解析失败帧转发）+ 真链活体（xterm 出真 PowerShell）。
+   **改动性质**：触及手机桥 rpc 帧核心路径（全部手机流量经此）——实施后需全量
+   矩阵回归。待用户裁定后进 S9 实现轮。
 
 **§33.18.22 实现记录（2026-10-04 凌晨，S9 实现轮完成 ✅）**：落地四件——
 ①desktopMobileRelayControl deps 增 `terminalService?: ITerminalService`（缺省不启用
@@ -4536,3 +4538,13 @@ Mac 页额度数据被 TLS 切断不显示该钮）——渲染无行为死按�
 ①官方页活体取证（需额度数据可用的官方桌面在场）；②按 CodingPlanEntryButton
 （settings 域既有件）接移动端入口形态。与 @ 面板解阻塞（clientConfig 桥接）同轮
 打包实施最优（同属 clientConfig/额度数据面）。
+
+**§33.18.24 行数门禁收口（2026-10-04）**：源码参照页宽壳侧栏超过
+`max-lines:400`，将工作区树行与置顶任务节提取为同包私有组件；侧栏继续持有
+折叠组、菜单开合和移除目标等局部状态，子组件只消费参数并回传点击意图。
+DOM 顺序、testid、文案、class、回调与排序保持逐项不变。`src/intl` 的 zh/en
+字典是键值数据，与仓库 `**/i18n/locales/*.ts` 同类，纳入相同的行数豁免，
+不改 key/value。验收：宽壳行交互与置顶行测试、移动页全套测试、typecheck、
+全仓 lint；仅此重组不改变官方资产优先级或生产页面字节。
+实测：侧栏 11 项、移动页 8+212 项、源码构建 811 assets、typecheck 均通过；
+`pnpm lint` 为 0 error（既有 386 warning）。

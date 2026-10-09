@@ -1,0 +1,25 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "sg1",
+      "title": "项目 scope slug 截断：80 字符后变体共项目（真值 JCe=projectIdFromDirectory @10705985：proj_${slugify(path).slice(0,80)||default}，slugify 含 toLowerCase）",
+      "ops": [
+        { "op": "writeFile", "path": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-aaaa/.seed", "content": "s" },
+        { "op": "writeFile", "path": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-bbbb/.seed", "content": "s" },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-aaaa", "workspaceKey": "$WS/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-aaaa" } } },
+        { "op": "request", "method": "session/setMode", "params": { "sessionId": "$sessionId", "mode": "plan" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } },
+        { "op": "request", "method": "session/create", "capture": { "$sessionIdB": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-bbbb", "workspaceKey": "$WS/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-bbbb" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionIdB" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionIdB" } },
+        { "op": "request", "method": "session/create", "capture": { "$sessionIdC": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS/ctl-short", "workspaceKey": "$WS/ctl-short" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionIdC" } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionIdC" } }
+      ]
+    }
+  ]
+}

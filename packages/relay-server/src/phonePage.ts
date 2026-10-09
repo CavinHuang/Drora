@@ -5,8 +5,13 @@
 // 纯 HTTP 部署下 crypto.subtle 不可用，proof 用内嵌纯 JS HMAC-SHA256（常量独立导出，
 // 由 test/phonePageCrypto.test.ts 对照 node:crypto 与 RFC 4231 向量校验）。
 
-/** 纯 JS HMAC-SHA256 + base64url（页面内联执行；不依赖 window，可在 node 校验）。 */
-export const PHONE_PAGE_CRYPTO_JS = `
+/**
+ * 纯 JS SHA-256 核心（`__shaK` 轮常量 + `__sha256Bytes` 字节摘要）：R2 页加密与
+ * 非安全上下文 WebCrypto shim（insecureContextCryptoShim.ts，spec §12.10）共用
+ * 的唯一算法出处——两处消费任何一处改动都要过 test/phonePageCrypto.test.ts 的
+ * RFC 4231/node:crypto 交叉校验。不要手抄副本（轮换表达式抄错即静默错摘要）。
+ */
+export const PURE_JS_SHA256_CORE_JS = `
 var __shaK = (function () {
   var primes = [];
   var n = 2;
@@ -18,15 +23,6 @@ var __shaK = (function () {
   }
   return primes.map(function (p) { return ((Math.cbrt(p) % 1) * 4294967296) | 0; });
 })();
-function __strBytes(s) {
-  var out = [];
-  var enc = encodeURIComponent(s);
-  for (var i = 0; i < enc.length; i += 1) {
-    if (enc[i] === "%") { out.push(parseInt(enc.substr(i + 1, 2), 16)); i += 2; }
-    else { out.push(enc.charCodeAt(i)); }
-  }
-  return out;
-}
 function __sha256Bytes(bytes) {
   var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
   var l = bytes.length;
@@ -62,6 +58,19 @@ function __sha256Bytes(bytes) {
   }
   var out = [];
   for (var i = 0; i < 8; i += 1) out.push((H[i] >>> 24) & 255, (H[i] >>> 16) & 255, (H[i] >>> 8) & 255, H[i] & 255);
+  return out;
+}
+`;
+
+/** 纯 JS HMAC-SHA256 + base64url（页面内联执行；不依赖 window，可在 node 校验）。 */
+export const PHONE_PAGE_CRYPTO_JS = `${PURE_JS_SHA256_CORE_JS}
+function __strBytes(s) {
+  var out = [];
+  var enc = encodeURIComponent(s);
+  for (var i = 0; i < enc.length; i += 1) {
+    if (enc[i] === "%") { out.push(parseInt(enc.substr(i + 1, 2), 16)); i += 2; }
+    else { out.push(enc.charCodeAt(i)); }
+  }
   return out;
 }
 function __hmacSha256Bytes(keyStr, messageStr) {

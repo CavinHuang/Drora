@@ -30,7 +30,7 @@ await cp(snapshot, recovered, { recursive: true });
 await new Promise((r) => setTimeout(r, 2000));
 
 const assetNames = await readdir(assetDir);
-const provenance = "还原自发行 bundle：ZCode 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。";
+const provenance = "还原自发行 bundle：Drora 3.14.3 /remote/v4；仅格式化，原始字节见 upstream/。";
 
 // 修复依据：Windows Defender 会短暂锁住刚拷贝完成的大批资产文件，
 // 紧随 cp 的首轮回写偶发 errno -4094(UNKNOWN)。带退避重试后可稳定通过。

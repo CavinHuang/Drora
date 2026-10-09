@@ -1980,6 +1980,7 @@ export function SettingsPage({
                         {activeSection === "general" && isDesktop ? (
                           <DesktopPetSettingsRow
                             checked={sharedSettings?.desktopPetEnabled ?? false}
+                            character={sharedSettings?.desktopPetCharacter}
                             onChange={(enabled) => {
                               void runSettingsActionAsync({
                                 featureId: "settings.desktop",
@@ -1990,6 +1991,20 @@ export function SettingsPage({
                                 completed: {
                                   resultSource: "shared_settings",
                                   stateAfter: enabled ? "enabled" : "disabled",
+                                },
+                              });
+                            }}
+                            onCharacterChange={(character) => {
+                              void runSettingsActionAsync({
+                                featureId: "settings.desktop",
+                                action: "change_desktop_pet_character",
+                                trigger: "select",
+                                operation: () =>
+                                  updateSharedSettings({
+                                    desktopPetCharacter: character as AppSettings["desktopPetCharacter"],
+                                  }),
+                                completed: {
+                                  resultSource: "shared_settings",
                                 },
                               });
                             }}

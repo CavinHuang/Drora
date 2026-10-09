@@ -199,8 +199,9 @@ export default defineConfig(({ mode }) => {
       // 兼容旧 renderer 读取名；新代码统一读 VITE_DRORA_BASE_URL。
       "import.meta.env.VITE_DRORA_ENDPOINT_ORIGIN": JSON.stringify(droraEndpointOrigin),
       "import.meta.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN": JSON.stringify(codingPlanWebviewOrigin),
-      // VITE_REWARDS_WEBVIEW_ORIGIN define 已删：rewards 商城面跟随开源基线裁剪
-      // （renderer 零引用；specs/plugin-marketplaces.md §10 记录）。
+      "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(
+        env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? "",
+      ),
       // E2E store bridge 只能由 WDIO 专用变量打开，避免把 DRORA_ENV=test 产品环境误当成测试运行态。
       "import.meta.env.VITE_DRORA_E2E_STORE_BRIDGE": JSON.stringify(
         e2eStoreBridgeEnabled ? "1" : "",

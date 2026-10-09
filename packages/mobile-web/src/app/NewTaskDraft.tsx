@@ -8,7 +8,7 @@
 //   （ModelMenu；草稿页无模型管线 → 空态单条面，§32.70）][↑ 发送]；
 //   建议词 chips 官方由 suggestions 服务门控（桩缺位不渲染，活体一致）→
 //   props.suggestions 装配缝，App 现不传=隐藏。
-// 记录：品牌水印（官方 ZCode「Z」底纹）= 品牌政策面（specs/drora-rename.md 规则 4）；
+// 记录：品牌水印（官方 Drora「Z」底纹）= 品牌政策面（specs/drora-rename.md 规则 4）；
 // 套餐 banner = coding-plan 服务 harness 面（P7 家族）。
 // 发送语义：首输 createSession → sendText（App 装配）；返回 = 丢弃草稿。
 import { useState } from "react";

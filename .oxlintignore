@@ -1,3 +1,0 @@
-packages/zcode-cua/restored-drafts/
-
-# tsc 产物（src/ 的编译输出，等价 dist），不参与 lint

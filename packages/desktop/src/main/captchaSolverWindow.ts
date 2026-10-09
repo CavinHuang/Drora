@@ -146,10 +146,7 @@ export function createCaptchaSolver(): CaptchaSolver {
  * 超时/SDK 失败都以 {ok:false} 结算，绝不 reject（executeJavaScript 的 reject 只留给
  * 页面崩溃等传输层异常，由 solveOnce 的调用链兜底）。
  */
-function buildSolveScript(
-  captcha: CaptchaClientConfig,
-  language: "cn" | "en",
-): string {
+function buildSolveScript(captcha: CaptchaClientConfig, language: "cn" | "en"): string {
   const configJson = JSON.stringify({
     region: captcha.region,
     prefix: captcha.prefix,

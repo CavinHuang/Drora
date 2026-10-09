@@ -1,0 +1,74 @@
+{
+  "plans": {
+    "w4-gen": [
+      { "text": "workspace 直发文本生成的回复。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "w01",
+      "title": "workspace·readState + 交互/IO 偏好",
+      "ops": [
+        { "op": "request", "method": "workspace/readState",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "workspace/updateInteractionPreferences",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "preferences": { "askUserQuestionAutoResolutionEnabled": false } } },
+        { "op": "request", "method": "workspace/updateModelIoPreferences",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "preferences": { "fullRetentionEnabled": true } } },
+        { "op": "request", "method": "workspace/readState",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } }
+      ]
+    },
+    {
+      "id": "w02",
+      "title": "workspace·默认项三连：model/thoughtLevel/mode",
+      "ops": [
+        { "op": "request", "method": "workspace/readState",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "workspace/setDefaultMode",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "mode": "plan" } },
+        { "op": "request", "method": "workspace/setDefaultThoughtLevel",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "thoughtLevel": "high" } },
+        { "op": "request", "method": "workspace/setDefaultModel",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "model": { "providerId": "anthropic", "modelId": "mock" } } },
+        { "op": "request", "method": "workspace/readState",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } }
+      ]
+    },
+    {
+      "id": "w03",
+      "title": "workspace·provider 注册表：upsert/remove/update",
+      "ops": [
+        { "op": "request", "method": "workspace/upsertModelProvider",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "provider": { "providerId": "prov-w3", "kind": "anthropic", "baseURL": "http://127.0.0.1:9/v1", "apiKey": "sk-w3", "model": "mock-w3" } } },
+        { "op": "request", "method": "workspace/updateProviderRegistry",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "registry": { "providers": [] } } },
+        { "op": "request", "method": "workspace/removeModelProvider",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "providerId": "prov-w3" } },
+        { "op": "request", "method": "workspace/removeModelProvider",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "providerId": "prov_missing" } }
+      ]
+    },
+    {
+      "id": "w04",
+      "title": "workspace·generateText 直发 + cancel 未知 operationId",
+      "ops": [
+        { "op": "request", "method": "workspace/generateText", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "querySource": "main_turn",
+            "modelRef": { "providerId": "anthropic", "modelId": "mock" }, "prompt": "直接生成 [[w4-gen]]", "operationId": "op-w4-gen" } },
+        { "op": "request", "method": "workspace/cancelGenerateText", "params": { "operationId": "op_unknown" } }
+      ]
+    },
+    {
+      "id": "w05",
+      "title": "workspace·hooks/trustGrant 双面（未装载工作区拒绝面）",
+      "ops": [
+        { "op": "request", "method": "workspace/hooks/trustGrant",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "bundleDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "hookDeclarationDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } }
+      ]
+    }
+  ]
+}

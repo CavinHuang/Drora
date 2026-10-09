@@ -23,6 +23,9 @@ export function createDesktopPlatform(options: {
     syncWebRemoteControlWorkspaces: (workspaces) =>
       window.drora.syncWebRemoteControlWorkspaces(workspaces),
     syncWebRemoteControlTasks: (tasks) => window.drora.syncWebRemoteControlTasks(tasks),
+    // fork 原版漏转 syncWebRemoteControlSidePane（preload 有暴露但 renderer 未转发，
+    // SidePaneSync 组件在桌面 renderer 恒 no-op）——迁移时补齐该接线。
+    syncWebRemoteControlSidePane: (entry) => window.drora.syncWebRemoteControlSidePane?.(entry),
     onWebRemoteControlReconnectWorkspace: (callback) =>
       window.drora.onWebRemoteControlReconnectWorkspace(callback),
     selectFile: () => window.drora.selectFile(),

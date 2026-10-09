@@ -446,12 +446,12 @@ function openBridge(identity) {
     return origRegister(name, impl);
   };
   server.registerChannel("drora-agent", makeAgentChannel());
-  // §32.24 官方页 ServiceChannels（bundle src chunk @308654 字节取证）：ZCodeAgent=`zcode-agent`、
-  // ZCodeTask=`zcode-task`、ZCodeSession=`zcode-session`——官方还原页按官方名开通道；
+  // §32.24 官方页 ServiceChannels（bundle src chunk @308654 字节取证）：DroraAgent=`drora-agent`、
+  // DroraTask=`drora-task`、DroraSession=`drora-session`——官方还原页按官方名开通道；
   // ChannelServer 对未知通道的请求是无限排队（不报错不超时），必须注册官方名别名。
-  server.registerChannel("zcode-agent", makeAgentChannel());
-  server.registerChannel("zcode-task", makeAgentChannel());
-  server.registerChannel("zcode-session", makeAgentChannel());
+  server.registerChannel("drora-agent", makeAgentChannel());
+  server.registerChannel("drora-task", makeAgentChannel());
+  server.registerChannel("drora-session", makeAgentChannel());
   server.registerChannel("model-selection", {
     // §32.24 官方页契约：getView 必须返回 {revision, providers}（null → 页面读
     // r.revision 即崩 TypeError unhandled）。最小合法 view 即可（§32.6 桩语义）。
@@ -460,7 +460,7 @@ function openBridge(identity) {
   });
   // §32.27 官方页首启面抑制（bundle aLn @5828277 取证）：settingsSyncService.getChannel
   // 'settings-sync'——getFirstRunPromptState 未 handled 且 detect 抛错（桩 null → r.agents
-  // 读取崩）即开「欢迎使用 ZCode」迁移弹窗。桩回 handled=true + detect 空 agents，
+  // 读取崩）即开「欢迎使用 Drora」迁移弹窗。桩回 handled=true + detect 空 agents，
   // 官方还原页按非首启设备渲染，解锁菜单面交互对照。
   server.registerChannel("settings-sync", {
     async call(_ctx, cmd) {

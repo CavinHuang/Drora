@@ -1,0 +1,88 @@
+{
+  "plans": {
+    "x6-slow": [
+      { "delayMs": 4000, "text": "慢速轮的回复。" }
+    ],
+    "x6-fast": [
+      { "text": "快速轮的回复。" }
+    ],
+    "x7-text": [
+      { "text": "变体订阅下的回复。" }
+    ],
+    "m1-echo": [
+      { "toolCalls": [{ "name": "mcp__regmcp__echo", "arguments": { "text": "mcp 回声" } }] },
+      { "text": "MCP 工具轮完成。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "c01",
+      "title": "配置域：双侧假 home 种子 zcode 形状 config.json→create/setModel 持久化面",
+      "ops": [
+        { "op": "writeHome", "side": "zcode", "path": ".zcode/cli/config.json",
+          "content": "{\"model\":{\"main\":\"zai-coding-plan/glm-5.3\"}}" },
+        { "op": "writeHome", "side": "drora", "path": ".drora/cli/config.json",
+          "content": "{\"model\":{\"main\":\"zai-coding-plan/glm-5.3\"}}" },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/setModel",
+          "params": { "sessionId": "$sessionId", "model": { "providerId": "anthropic", "modelId": "mock" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "x06",
+      "title": "会话·steer：活动轮中二次发送→排队/排空面",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x06_1", "content": "慢轮 [[x6-slow]]" } },
+        { "op": "sleep", "ms": 500 },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x06_2", "content": "插队 [[x6-fast]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 1, "timeoutMs": 45000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "$sessionId" } }
+      ]
+    },
+    {
+      "id": "x07",
+      "title": "会话·web-remote-replayable 订阅变体",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "web-remote-replayable", "includeSnapshot": true } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x07", "content": "变体订阅轮 [[x7-text]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/events", "params": { "sessionId": "$sessionId", "limit": 50 } }
+      ]
+    },
+    {
+      "id": "x08",
+      "title": "会话·usage 未知会话错误面",
+      "ops": [
+        { "op": "request", "method": "session/usage", "params": { "sessionId": "sess_none" } }
+      ]
+    },
+    {
+      "id": "m01",
+      "title": "MCP·会话级 mcpServers：连接面+工具轮",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "mcpServers": [{ "name": "regmcp", "command": "node", "args": ["$REPO/scripts/mcp-v2-probe.server.mjs"], "env": [] }] } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "mcp/list",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_m01", "content": "调 MCP 回声 [[m1-echo]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 45000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

@@ -138,7 +138,7 @@ export function createMobileServiceAttacher(options: {
   /**
    * 为 relay rpc 桥新建一个独立附着端口（M4b）：每次 workspace-bridge-open 一个新
    * MessageChannelMain（对齐原版 createWorkspaceBridge 每桥一端口），Host 侧按
-   * clientMode=web-remote-replayable 注册服务（含 zcode-* 别名通道）。
+   * clientMode=web-remote-replayable 注册服务（含 drora-* 别名通道）。
    * 返回 Main 侧端口；调用方负责 close（close 即触发 Host 侧 attachment 清理）。
    */
   function attachBridgePort(): MessagePortMain {

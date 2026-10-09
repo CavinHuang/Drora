@@ -1,0 +1,780 @@
+{
+  "plans": {
+    "pv1-boom": [
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      },
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock boom"
+          }
+        }
+      }
+    ],
+    "pv2-ctx": [
+      {
+        "httpStatus": 400,
+        "body": {
+          "error": {
+            "type": "invalid_request_error",
+            "message": "This model's maximum context length is 200000 tokens. However, your messages resulted in 250000 tokens. Please reduce the length of the messages."
+          }
+        }
+      },
+      {
+        "httpStatus": 400,
+        "body": {
+          "error": {
+            "type": "invalid_request_error",
+            "message": "This model's maximum context length is 200000 tokens. However, your messages resulted in 250000 tokens. Please reduce the length of the messages."
+          }
+        }
+      }
+    ],
+    "pv3-recover": [
+      {
+        "httpStatus": 500,
+        "body": {
+          "error": {
+            "message": "mock stream drop"
+          }
+        }
+      },
+      {
+        "text": "恢复后的确定性回复。"
+      }
+    ],
+    "pv4-queue": [
+      {
+        "delayMs": 4000,
+        "text": "队列第一轮慢回复。"
+      },
+      {
+        "delayMs": 4000,
+        "text": "插队转向轮回复。"
+      },
+      {
+        "delayMs": 4000,
+        "text": "关排水后慢回复。"
+      },
+      {
+        "delayMs": 4000,
+        "text": "关排水后插队轮回复。"
+      }
+    ],
+    "pv6-think": [
+      {
+        "text": "思考档位刺激轮回复。"
+      }
+    ],
+    "pv7-memory": [
+      {
+        "text": "已收到你的偏好陈述。"
+      },
+      {
+        "text": "记忆提取轮文本回复。"
+      },
+      {
+        "text": "记忆提取兜底回复。"
+      }
+    ],
+    "pv9-a": [
+      {
+        "text": "回档锚点第一轮回复。"
+      }
+    ],
+    "pv9-b": [
+      {
+        "text": "回档锚点第二轮回复。"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "v1",
+      "title": "事件残余·turn.failed 归因面·500 臂：maxAttempts=11 重试马拉松（60s 窗内双侧同构重试中态=节拍对称证据；快速终态归因由 v2 400 臂承接）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v1",
+            "content": "触发一次故障 [[pv1-boom]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.failed",
+          "timeoutMs": 60000
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v2",
+      "title": "事件残余·上下文超限归因面：400 invalid_request_error+context length 文案 → error.type 真值 model_context_exceeded 族",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v2",
+            "content": "触发一次超限 [[pv2-ctx]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.failed",
+          "timeoutMs": 20000
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v3",
+      "title": "事件残余·rewind.triggered+streamRecovery 面：500 重试恢复轮后 session/rewind conversation（真值无 session/rewind RPC，F10/P2-1 活体面）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v3a",
+            "content": "锚点轮 [[pv9-a]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v3b",
+            "content": "故障恢复轮 [[pv3-recover]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "count": 2,
+          "timeoutMs": 30000
+        },
+        {
+          "op": "request",
+          "method": "session/rewind",
+          "timeoutMs": 30000,
+          "params": {
+            "sessionId": "$sessionId",
+            "scope": "conversation"
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v4",
+      "title": "事件残余·queue 通知面：busy 二次 send 排队→steer/queue 面观察；v4/command setAutoDrain false 关排水后排队轮不排水（#19-23 邻接）",
+      "dirtyPair": true,
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v4a",
+            "content": "慢轮 [[pv4-queue]]"
+          }
+        },
+        {
+          "op": "sleep",
+          "ms": 600
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v4b",
+            "content": "busy 中插队 [[pv4-queue]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "count": 2,
+          "timeoutMs": 30000
+        },
+        {
+          "op": "request",
+          "method": "v4/command",
+          "timeoutMs": 30000,
+          "params": {
+            "commandId": "cmd_v4_ad1",
+            "clientId": "client_v4",
+            "sessionId": "$sessionId",
+            "type": "setAutoDrain",
+            "payload": {
+              "enabled": false
+            },
+            "issuedAt": 1700000000
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v4c",
+            "content": "关排水后慢轮 [[pv4-queue]]"
+          }
+        },
+        {
+          "op": "sleep",
+          "ms": 600
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v4d",
+            "content": "关排水后插队 [[pv4-queue]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "count": 3,
+          "timeoutMs": 30000
+        },
+        {
+          "op": "sleep",
+          "ms": 1500
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "v6",
+      "title": "P0-4·thoughtLevel 接线动态面：setThoughtLevel high 后请求体思考载体（真值 anthropic thinking budget vs 我方零载体）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/setThoughtLevel",
+          "params": {
+            "sessionId": "$sessionId",
+            "thoughtLevel": "high"
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v6",
+            "content": "思考档位刺激轮 [[pv6-think]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v7",
+      "title": "P0-12·memory 提取链动态面：requestRuntimePreferences memoryEnabled:true 覆写 + 偏好陈述 → memory 类模型请求与落盘（真值应跑提取链，我方恒死）",
+      "reversePolicy": {
+        "session/requestRuntimePreferences": {
+          "nativeSearchEnhancementsEnabled": true,
+          "memoryEnabled": true,
+          "askUserQuestionAutoResolutionEnabled": true,
+          "modelContextBudgetStrategy": "preflight-v1"
+        }
+      },
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v7",
+            "content": "记住我喜欢用 tabs 缩进 [[pv7-memory]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "sleep",
+          "ms": 9000
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v8",
+      "title": "P0-7 替身·custom command 服务端面：writeHome 种子 /mycmd → session/send 后模型收到展开模板还是字面（mock 请求面为证据）",
+      "ops": [
+        {
+          "op": "writeHome",
+          "side": "zcode",
+          "path": ".zcode/commands/mycmd.md",
+          "content": "MYCMD-TEMPLATE-BODY 请输出 ABC123"
+        },
+        {
+          "op": "writeHome",
+          "side": "drora",
+          "path": ".drora/commands/mycmd.md",
+          "content": "MYCMD-TEMPLATE-BODY 请输出 ABC123"
+        },
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v8",
+            "content": "/mycmd"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "timeoutMs": 15000
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "v9",
+      "title": "事件残余·removed 面：两轮后 session/rewind message 臂裁掉目标消息 → message.removed/part.removed 有无（以实测为准）",
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": {
+            "$sessionId": "session.sessionId"
+          },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v9a",
+            "content": "回档锚点一 [[pv9-a]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed"
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_v9b",
+            "content": "回档锚点二 [[pv9-b]]"
+          }
+        },
+        {
+          "op": "waitEvent",
+          "type": "turn.completed",
+          "count": 2
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "capture": {
+            "$targetMsgId": "messages.0.info.id"
+          },
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 20
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/rewind",
+          "timeoutMs": 30000,
+          "params": {
+            "sessionId": "$sessionId",
+            "scope": "conversation",
+            "target": {
+              "kind": "message",
+              "messageId": "$targetMsgId"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": {
+            "sessionId": "$sessionId",
+            "limit": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "v10",
+      "title": "错误码面·-32022 动态探针：requestRuntimePreferences 零应答（真值 timeoutMs 15e3 @440648 → 重抛）→ create/send 错误码对拍；-32020/-32021 不可达仅取证",
+      "reversePolicy": {
+        "session/requestRuntimePreferences": "none"
+      },
+      "dirtyPair": true,
+      "ops": [
+        {
+          "op": "request",
+          "method": "session/create",
+          "timeoutMs": 45000,
+          "params": {
+            "workspace": {
+              "workspacePath": "$WS",
+              "workspaceKey": "$WS"
+            }
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "timeoutMs": 45000,
+          "params": {
+            "sessionId": "sess_none",
+            "inputId": "in_v10",
+            "content": "不应达成的轮次"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -56,7 +56,7 @@ export async function probeHelperHealth(socketPath, options = {}) {
         }
         catch (error) {
             if (error instanceof BrokerAuthRejectedError) {
-                throw new CuaHelperError("auth_failed", "Drora Computer Use rejected this process as a broker peer (code-signature gate). ZCode and the helper may be version-mismatched; reinstall or repair the helper component.");
+                throw new CuaHelperError("auth_failed", "ZCode Computer Use rejected this process as a broker peer (code-signature gate). ZCode and the helper may be version-mismatched; reinstall or repair the helper component.");
             }
             lastError = error;
         }
@@ -64,5 +64,5 @@ export async function probeHelperHealth(socketPath, options = {}) {
             break;
         await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
     }
-    throw new CuaHelperError("health_timeout", `Drora Computer Use did not become ready within ${timeoutMs}ms. It may have failed to launch or lacks required permissions (${lastError instanceof Error ? lastError.message : String(lastError ?? "no connection")}).`);
+    throw new CuaHelperError("health_timeout", `ZCode Computer Use did not become ready within ${timeoutMs}ms. It may have failed to launch or lacks required permissions (${lastError instanceof Error ? lastError.message : String(lastError ?? "no connection")}).`);
 }

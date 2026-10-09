@@ -1,0 +1,113 @@
+{
+  "plans": {
+    "t9-ask": [
+      { "toolCalls": [{ "name": "AskUserQuestion", "arguments": { "questions": [ { "question": "选择方案", "header": "方案", "options": [ { "label": "方案甲", "description": "第一个" }, { "label": "方案乙", "description": "第二个" } ], "multiSelect": false } ] } }] },
+      { "text": "已收到你的选择。" }
+    ],
+    "t10-skill": [
+      { "toolCalls": [{ "name": "Skill", "arguments": { "skill": "reg-fixture-skill" } }] },
+      { "text": "技能调用轮完成。" }
+    ],
+    "t11-plan": [
+      { "toolCalls": [{ "name": "ExitPlanMode", "arguments": { "plan": "实现方案：第一步甲，第二步乙" } }] },
+      { "text": "计划批准后完成。" }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "t09",
+      "title": "工具·AskUserQuestion：userInput 反向面",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_t09", "content": "问我一个问题 [[t9-ask]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 45000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } }
+      ]
+    },
+    {
+      "id": "t10",
+      "title": "工具·Skill：workspace 双品牌技能调用",
+      "ops": [
+        { "op": "writeFile", "path": ".drora/skills/reg-fixture-skill/SKILL.md",
+          "content": "---\nname: reg-fixture-skill\ndescription: 回归夹具技能\n---\n技能正文：输出 reg-skill-ok" },
+        { "op": "writeFile", "path": ".zcode/skills/reg-fixture-skill/SKILL.md",
+          "content": "---\nname: reg-fixture-skill\ndescription: 回归夹具技能\n---\n技能正文：输出 reg-skill-ok" },
+        { "op": "request", "method": "skills/referenceCatalog",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_t10", "content": "调用夹具技能 [[t10-skill]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 45000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } }
+      ]
+    },
+    {
+      "id": "t11",
+      "title": "工具·ExitPlanMode：计划批准反向面",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "mode": "plan" } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_t11", "content": "提出计划并请求批准 [[t11-plan]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 45000 },
+        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } }
+      ]
+    },
+    {
+      "id": "x11",
+      "title": "会话·importedHistory 导入面（claudeCode 源）",
+      "ops": [
+        { "op": "request", "method": "session/create", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "importedHistory": { "source": "claudeCode", "title": "导入的会话", "messages": [ { "role": "user", "content": "历史第一条" }, { "role": "assistant", "content": "历史回复" } ] } } },
+        { "op": "request", "method": "session/create",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "importedHistory": { "source": "unknownSource", "messages": [ { "role": "user", "content": "x" } ] } } }
+      ]
+    },
+    {
+      "id": "x12",
+      "title": "会话·goal replace 动作补面",
+      "dirtyPair": true,
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/goal",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x12_1", "action": "set", "objective": "初始目标 [[text-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/goal",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x12_2", "action": "replace", "objective": "替换后目标 [[text-2]]" } },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "show" } },
+        { "op": "request", "method": "session/goal", "params": { "sessionId": "$sessionId", "action": "clear" } }
+      ]
+    },
+    {
+      "id": "i02",
+      "title": "生态·plugins/update 真实面（本地市场同版更新）",
+      "serial": true,
+      "ops": [
+        { "op": "writeFile", "path": "mkt/marketplace.json",
+          "content": "{\"name\":\"reg-local\",\"plugins\":[{\"name\":\"reg-hello\",\"version\":\"1.0.0\",\"description\":\"回归夹具插件\",\"source\":\"./plugins/reg-hello\"}]}" },
+        { "op": "writeFile", "path": "mkt/plugins/reg-hello/.zcode-plugin/plugin.json",
+          "content": "{\"name\":\"reg-hello\",\"version\":\"1.0.0\",\"description\":\"回归夹具插件\"}" },
+        { "op": "request", "method": "plugins/marketplace/add", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "source": "$WS/mkt", "operationId": "op-i02-add" } },
+        { "op": "request", "method": "plugins/install", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local", "scope": "workspace", "operationId": "op-i02-install" } },
+        { "op": "request", "method": "plugins/update", "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local" } },
+        { "op": "request", "method": "plugins/uninstall",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "pluginName": "reg-hello", "marketplace": "reg-local" } },
+        { "op": "request", "method": "plugins/marketplace/remove",
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "marketplace": "reg-local" } }
+      ]
+    }
+  ]
+}

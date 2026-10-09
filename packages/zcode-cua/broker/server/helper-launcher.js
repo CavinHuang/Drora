@@ -169,8 +169,8 @@ export function Mz(e, t = {}) {
         qC(e).catch(() => { });
     }, o).unref?.();
 }
-export var xt = "Drora Computer Use.app", DEV_HELPER_APP_NAME_APP = "Drora Computer Use Dev.app";
-export var Ss = "dev.drora.cua-helper", DEV_CUA_HELPER_BUNDLE_ID_VALUE = "dev.drora.cua-helper.dev";
+export var xt = "ZCode Computer Use.app", DEV_HELPER_APP_NAME_APP = "ZCode Computer Use Dev.app";
+export var Ss = "dev.zcode.cua-helper", DEV_CUA_HELPER_BUNDLE_ID_VALUE = "dev.zcode.cua-helper.dev";
 export var ha = "8A5X4JJ39T", GC = "ZCODE_CUA_LAUNCHER_PID", HELPER_INSTALL_VARIANT_ENV = "ZCODE_CUA_HELPER_INSTALL_VARIANT", $u = ["stable", "preview", "dev-desktop", "standalone"], Sh = "--controller-variant", kh = "--disable-cps-activation";
 export function xz(e = process.env) {
     let t = e.ZCODE_CUA_DISABLE_CPS_ACTIVATION?.trim().toLowerCase();
@@ -402,7 +402,7 @@ export async function ooe(e) {
                 }));
         }
         catch (r) {
-            n(new CuaHelperError("launch_failed", `Refusing to launch a changed Drora Computer Use: ${r instanceof Error ? r.message : String(r)}`, {
+            n(new CuaHelperError("launch_failed", `Refusing to launch a changed ZCode Computer Use: ${r instanceof Error ? r.message : String(r)}`, {
                 cause: r,
             }));
         }
@@ -413,7 +413,7 @@ export function ioe(e, t) {
     return soe(t, n)
         ? `${r}
 
-LaunchServices timed out after ${CUA_DEV_TIMEOUT_MS}ms while dispatching Drora Computer Use. This usually means macOS is still verifying the helper, Gatekeeper blocked first launch, the installed bundle still carries a quarantine attribute, or a stale running Helper instance prevented fresh broker arguments from being delivered. Ask the user to open Drora's CUA readiness panel, reveal the helper, repair the helper install, or fully quit Drora and retry; diagnostic command: xattr -dr com.apple.quarantine ${JSON.stringify(e)}`
+LaunchServices timed out after ${CUA_DEV_TIMEOUT_MS}ms while dispatching ZCode Computer Use. This usually means macOS is still verifying the helper, Gatekeeper blocked first launch, the installed bundle still carries a quarantine attribute, or a stale running Helper instance prevented fresh broker arguments from being delivered. Ask the user to open ZCode's CUA readiness panel, reveal the helper, repair the helper install, or fully quit ZCode and retry; diagnostic command: xattr -dr com.apple.quarantine ${JSON.stringify(e)}`
         : r;
 }
 export function soe(e, t) {

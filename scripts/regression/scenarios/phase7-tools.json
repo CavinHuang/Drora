@@ -1,0 +1,127 @@
+{
+ "plans": {
+  "tf1-todo": [
+   { "toolCalls": [ { "name": "TodoWrite", "arguments": { "todos": [ { "content": "相位甲", "status": "in_progress", "priority": "high" }, { "content": "相位乙", "status": "pending", "priority": "low" } ] } } ] },
+   { "toolCalls": [ { "name": "TodoRead", "arguments": {} } ] },
+   { "text": "待办写读闭环。" }
+  ],
+  "tf2-task": [
+   { "toolCalls": [ { "name": "Bash", "arguments": { "command": "echo tf2-fg-ok" } } ] },
+   { "toolCalls": [ { "name": "TaskOutput", "arguments": { "task_id": "task_unknown_id" } } ] },
+   { "toolCalls": [ { "name": "TaskStop", "arguments": { "task_id": "task_unknown_id" } } ] },
+   { "text": "任务族错误面完成。" }
+  ],
+  "tf3-fetch": [
+   { "toolCalls": [ { "name": "WebFetch", "arguments": { "url": "$MOCKURL/v1/models", "prompt": "列出模型 id" } } ] },
+   { "text": "抓取完成。" }
+  ],
+  "tf4-cron": [
+   { "toolCalls": [ { "name": "CronCreate", "arguments": { "prompt": "tf4 每日报数", "title": "tf4 计划", "recurring": false, "maxRuns": 1, "delayMinutes": 600 } } ] },
+   { "toolCalls": [ { "name": "CronList", "arguments": {} } ] },
+   { "toolCalls": [ { "name": "CronUpdate", "arguments": { "id": "cron_unknown_id", "prompt": "tf4 改" } } ] },
+   { "toolCalls": [ { "name": "CronDelete", "arguments": { "id": "cron_unknown_id" } } ] },
+   { "text": "计划任务族完成。" }
+  ],
+  "tf5-plan": [
+   { "toolCalls": [ { "name": "EnterPlanMode", "arguments": {} } ] },
+   { "toolCalls": [ { "name": "ExitPlanMode", "arguments": { "plan": "方案：第一步甲，第二步乙" } } ] },
+   { "text": "计划进出闭环。" }
+  ],
+  "tf6-msg": [
+   { "toolCalls": [ { "name": "SendMessage", "arguments": { "to": "agent_nonexistent", "message": "tf6 ping" } } ] },
+   { "toolCalls": [ { "name": "ReadSessionContext", "arguments": { "sessionId": "#sess_00000000-0000-0000-0000-000000000000", "query": "tf6 查询" } } ] },
+   { "text": "消息族错误面完成。" }
+  ],
+  "tf7-repl": [
+   { "toolCalls": [ { "name": "mcp__node_repl__js", "arguments": { "code": "1+1", "title": "tf7 算术" } } ] },
+   { "toolCalls": [ { "name": "mcp__node_repl__js_reset", "arguments": {} } ] },
+   { "text": "repl 族完成。" }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "tf1", "title": "工具·TodoWrite+TodoRead 写读闭环", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf1", "content": "记两件事再读回 [[tf1-todo]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf2", "title": "工具·TaskOutput/TaskStop 未知任务错误面+前台 Bash", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf2", "content": "跑任务族 [[tf2-task]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf3", "title": "工具·WebFetch 抓 mock 自身 /v1/models（确定性零外网）", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf3", "content": "抓一下 [[tf3-fetch]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf4", "title": "工具·Cron 四族：create/list 真面+update/delete 未知 id 错误面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf4", "content": "建计划任务 [[tf4-cron]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf5", "title": "工具·EnterPlanMode+ExitPlanMode 进出闭环（批准反向面）", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf5", "content": "进计划再退出 [[tf5-plan]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf6", "title": "工具·SendMessage+ReadSessionContext 未知目标错误面", "serial": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf6", "content": "发消息 [[tf6-msg]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 60000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  },
+  {
+   "id": "tf7", "title": "工具·mcp node_repl 三族：js 真算+js_reset", "serial": true, "dirtyPair": true,
+   "ops": [
+    { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+      "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+    { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+    { "op": "request", "method": "session/send", "params": { "sessionId": "$sessionId", "inputId": "in_tf7", "content": "算个数 [[tf7-repl]]" } },
+    { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 120000 },
+    { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 30 } },
+    { "op": "request", "method": "session/close", "params": { "sessionId": "$sessionId" } }
+   ]
+  }
+ ]
+}

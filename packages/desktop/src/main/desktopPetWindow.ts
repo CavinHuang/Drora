@@ -9,11 +9,14 @@ import {
 import { desktopPetBubbleContent } from "./desktopPetBubbleContent.js";
 import { desktopPetContent } from "./desktopPetContent.js";
 import {
+  resolveDesktopPetCharacter,
+  type DesktopPetCharacterId,
+  type DesktopPetCharacterSpec,
+} from "./desktopPetCharacter.js";
+import {
   BUBBLE_HEIGHT,
   BUBBLE_WIDTH,
   draggedPetPosition,
-  PET_HEIGHT,
-  PET_WIDTH,
   bubblePositionForPet,
   visiblePetPosition,
   type Point,
@@ -21,17 +24,19 @@ import {
 
 const IDLE: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };
 
-function visiblePosition(saved?: Point): Point {
+function visiblePosition(saved?: Point, size?: { width: number; height: number }): Point {
   return visiblePetPosition(
     saved,
     screen.getAllDisplays().map((display) => display.workArea),
     screen.getPrimaryDisplay().workArea,
+    size,
   );
 }
 
 /** Native presentation adapter. Task facts are owned by the Host/renderer, never this controller. */
 export function registerDesktopPetWindow(options: {
   enabled: boolean;
+  character?: DesktopPetCharacterId;
   position?: { x: number; y: number };
   locale: () => Locale;
   isMainWindow: (window: BrowserWindow) => boolean;
@@ -41,6 +46,7 @@ export function registerDesktopPetWindow(options: {
   const byWindow = new Map<number, DesktopPetPresentation>();
   const observedWindowIds = new Set<number>();
   let enabled = options.enabled;
+  let character: DesktopPetCharacterSpec = resolveDesktopPetCharacter(options.character);
   let window: BrowserWindow | null = null;
   let petReady = false;
   let bubble: BrowserWindow | null = null;
@@ -66,13 +72,21 @@ export function registerDesktopPetWindow(options: {
   const bubblePosition = () => {
     if (!window || window.isDestroyed() || !bubble || bubble.isDestroyed()) return;
     const bounds = window.getBounds();
-    const point = bubblePositionForPet(bounds, screen.getDisplayMatching(bounds).workArea);
+    const point = bubblePositionForPet(
+      bounds,
+      screen.getDisplayMatching(bounds).workArea,
+      character.window.width,
+    );
     bubble.setPosition(point.x, point.y);
   };
   const createBubble = () => {
     if (!window || window.isDestroyed() || (bubble && !bubble.isDestroyed())) return;
     const bounds = window.getBounds();
-    const point = bubblePositionForPet(bounds, screen.getDisplayMatching(bounds).workArea);
+    const point = bubblePositionForPet(
+      bounds,
+      screen.getDisplayMatching(bounds).workArea,
+      character.window.width,
+    );
     let created: BrowserWindow;
     try {
       created = new BrowserWindow({
@@ -159,11 +173,11 @@ export function registerDesktopPetWindow(options: {
     if (!enabled || (window && !window.isDestroyed())) return;
     let created: BrowserWindow;
     try {
-      const bounds = visiblePosition(position);
+      const bounds = visiblePosition(position, character.window);
       created = new BrowserWindow({
         ...bounds,
-        width: PET_WIDTH,
-        height: PET_HEIGHT,
+        width: character.window.width,
+        height: character.window.height,
         show: false,
         frame: false,
         transparent: true,
@@ -202,7 +216,7 @@ export function registerDesktopPetWindow(options: {
       drag = null;
       if (bubble && !bubble.isDestroyed()) bubble.destroy();
     });
-    const html = desktopPetContent(options.locale());
+    const html = desktopPetContent(options.locale(), character.id);
     void created
       .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
       .then(() => {
@@ -225,7 +239,7 @@ export function registerDesktopPetWindow(options: {
   const onDisplayChange = () => {
     if (!window || window.isDestroyed()) return;
     try {
-      const next = visiblePosition(window.getBounds());
+      const next = visiblePosition(window.getBounds(), character.window);
       window.setPosition(next.x, next.y);
       afterPositionChange(window);
     } catch (error) {
@@ -296,7 +310,7 @@ export function registerDesktopPetWindow(options: {
     drag = null;
     const bounds = window.getBounds();
     if (bounds.x === origin.x && bounds.y === origin.y) return;
-    const next = visiblePosition(bounds);
+    const next = visiblePosition(bounds, character.window);
     window.setPosition(next.x, next.y);
     afterPositionChange(window);
   };
@@ -316,7 +330,7 @@ export function registerDesktopPetWindow(options: {
       const current = window;
       if (!current || current.isDestroyed()) return;
       petReady = false;
-      const html = desktopPetContent(options.locale());
+      const html = desktopPetContent(options.locale(), character.id);
       void current
         .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
         .then(() => {
@@ -347,6 +361,14 @@ export function registerDesktopPetWindow(options: {
       if (enabled) create();
       else if (window && !window.isDestroyed()) window.destroy();
       else if (bubble && !bubble.isDestroyed()) bubble.destroy();
+    },
+    setCharacter(next: DesktopPetCharacterId) {
+      const resolved = resolveDesktopPetCharacter(next);
+      if (resolved.id === character.id) return;
+      character = resolved;
+      // 角色切换=窗口尺寸与图集都变；整体重建，位置沿用（create 内再走一次可见性钳制）。
+      if (window && !window.isDestroyed()) window.destroy();
+      if (enabled) create();
     },
   };
 }

@@ -67,7 +67,7 @@ type ManualReconnectRemoteWorkspaceParams = {
 export interface SshReconnectCredentials {
   password: string | null;
   privateKeyPassphrase: string | null;
-  /** server 远程重连时从 credentialService 恢复的访问令牌；非 server 目标为 null。 */
+  // server 形态连接的访问令牌：与 SSH 凭据同边界（只经 credentialService 读取）。
   serverToken?: string | null;
 }
 

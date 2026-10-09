@@ -1,0 +1,1099 @@
+{
+ "plans": {
+  "q1a": [
+   {
+    "text": "q1 首轮回复。"
+   }
+  ],
+  "q1b": [
+   {
+    "text": "q1 CAS 通过后的回复。"
+   }
+  ],
+  "q2x": [
+   {
+    "text": "q2 回复。"
+   }
+  ],
+  "q4a": [
+   {
+    "text": "q4 deferred 轮回复。"
+   }
+  ],
+  "q5a": [
+   {
+    "text": "q5 首轮回复。"
+   }
+  ],
+  "q5b": [
+   {
+    "text": "q5 次轮回复。"
+   }
+  ],
+  "q10-tools": [
+   {
+    "toolCalls": [
+     {
+      "name": "Read",
+      "arguments": {
+       "file_path": "D:/workspace/projects/Drora/tmp/q-e2/seed-a.txt"
+      }
+     },
+     {
+      "name": "Read",
+      "arguments": {
+       "file_path": "D:/workspace/projects/Drora/tmp/q-e2/seed-b.txt"
+      }
+     }
+    ]
+   },
+   {
+    "text": "q10 双工具轮完成。"
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "q1",
+   "title": "send CAS 门：expectedRevision 错值拒绝/正确值放行 + provider/modelRuntime CAS 族",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/subscribe",
+     "params": {
+      "sessionId": "$sessionId",
+      "deliveryKind": "desktop-continuous",
+      "includeSnapshot": false
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_base",
+      "content": "基线轮 [[q1a]]"
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed"
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_cas0",
+      "content": "陈旧零值 [[q1b]]",
+      "expectedRevision": 0
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_cas999",
+      "content": "越界值 [[q1b]]",
+      "expectedRevision": 999
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_prov",
+      "content": "provider CAS [[q1b]]",
+      "expectedProviderRevision": "bogus-prov-rev"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_rt",
+      "content": "runtime CAS [[q1b]]",
+      "expectedModelRuntimeRevision": "bogus-rt-rev"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q1_ok",
+      "content": "正确值重发 [[q1b]]",
+      "expectedRevision": 2
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed",
+     "count": 2,
+     "timeoutMs": 45000
+    }
+   ]
+  },
+  {
+   "id": "q2",
+   "title": "workspace CAS 族：upsert/remove expectedWorkspaceRevision 拒绝与放行 + send provider/modelRuntime 注册表 CAS",
+   "ops": [
+    {
+     "op": "request",
+     "method": "workspace/upsertModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "expectedWorkspaceRevision": 999,
+      "provider": {
+       "providerId": "prov-q2",
+       "kind": "openai-compatible",
+       "apiFormat": "openai-chat-completions",
+       "label": "prov-q2",
+       "baseURL": "http://127.0.0.1:9/v1",
+       "apiKey": {
+        "source": "inline",
+        "value": "sk-q2"
+       },
+       "models": [
+        {
+         "modelId": "m-q2",
+         "label": "m-q2"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/upsertModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "provider": {
+       "providerId": "prov-q2",
+       "kind": "openai-compatible",
+       "apiFormat": "openai-chat-completions",
+       "label": "prov-q2",
+       "baseURL": "http://127.0.0.1:9/v1",
+       "apiKey": {
+        "source": "inline",
+        "value": "sk-q2"
+       },
+       "models": [
+        {
+         "modelId": "m-q2",
+         "label": "m-q2"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/upsertModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "expectedWorkspaceRevision": 0,
+      "provider": {
+       "providerId": "prov-q2b",
+       "kind": "openai-compatible",
+       "apiFormat": "openai-chat-completions",
+       "label": "prov-q2b",
+       "baseURL": "http://127.0.0.1:9/v1",
+       "apiKey": {
+        "source": "inline",
+        "value": "sk-q2b"
+       },
+       "models": [
+        {
+         "modelId": "m-q2b",
+         "label": "m-q2b"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/removeModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "providerId": "prov-q2",
+      "expectedWorkspaceRevision": 999
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/removeModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "providerId": "prov-q2"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q2_prov",
+      "content": "注册表 CAS [[q2x]]",
+      "expectedProviderRevision": "bogus-prov-rev"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q2_rt",
+      "content": "runtime CAS [[q2x]]",
+      "expectedModelRuntimeRevision": "bogus-rt-rev"
+     }
+    }
+   ]
+  },
+  {
+   "id": "q3",
+   "title": "generateText operationId 冲突/取消面：同 opId 连发 + cancelGenerateText",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "request",
+     "method": "workspace/upsertModelProvider",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "provider": {
+       "providerId": "prov-q3",
+       "kind": "openai-compatible",
+       "apiFormat": "openai-chat-completions",
+       "label": "prov-q3",
+       "baseURL": "http://10.255.255.1:9/v1",
+       "apiKey": {
+        "source": "inline",
+        "value": "sk-q3"
+       },
+       "models": [
+        {
+         "modelId": "m-q3",
+         "label": "m-q3"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/generateText",
+     "timeoutMs": 4500,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "querySource": "main_turn",
+      "modelRef": {
+       "providerId": "prov-q3",
+       "modelId": "m-q3"
+      },
+      "prompt": "占用 opId [[q2x]]",
+      "operationId": "op-q3"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/generateText",
+     "timeoutMs": 8000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "querySource": "main_turn",
+      "modelRef": {
+       "providerId": "prov-q3",
+       "modelId": "m-q3"
+      },
+      "prompt": "冲突重入 [[q2x]]",
+      "operationId": "op-q3"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/cancelGenerateText",
+     "timeoutMs": 8000,
+     "params": {
+      "operationId": "op-q3"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/generateText",
+     "timeoutMs": 4500,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "querySource": "main_turn",
+      "modelRef": {
+       "providerId": "prov-q3",
+       "modelId": "m-q3"
+      },
+      "prompt": "新 opId 对照 [[q2x]]",
+      "operationId": "op-q3b"
+     }
+    }
+   ]
+  },
+  {
+   "id": "q4",
+   "title": "create params 可选面：persistence=deferred / parentSessionId / titleGenerationEnabled / toolAllowlist + list 可见性",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$dSess": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "persistence": "deferred"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$pSess": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$cSess": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "parentSessionId": "$pSess",
+      "titleGenerationEnabled": false
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/read",
+     "params": {
+      "sessionId": "$cSess"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$aSess": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "toolAllowlist": [
+       "Read"
+      ]
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/list",
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/subscribe",
+     "params": {
+      "sessionId": "$dSess",
+      "deliveryKind": "desktop-continuous",
+      "includeSnapshot": false
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$dSess",
+      "inputId": "in_q4_defer",
+      "content": "deferred 首轮 [[q4a]]"
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed"
+    },
+    {
+     "op": "request",
+     "method": "session/list",
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "q5",
+   "title": "messages afterMessageId 分页面：锚首条 assistant id 翻页 + 未知锚错误面",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/subscribe",
+     "params": {
+      "sessionId": "$sessionId",
+      "deliveryKind": "desktop-continuous",
+      "includeSnapshot": false
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q5_a",
+      "content": "第一轮 [[q5a]]"
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed"
+    },
+    {
+     "op": "request",
+     "method": "session/messages",
+     "params": {
+      "sessionId": "$sessionId",
+      "limit": 20
+     },
+     "capture": {
+      "$mid": "messages.1.info.messageId"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q5_b",
+      "content": "第二轮 [[q5b]]"
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed",
+     "count": 2,
+     "timeoutMs": 45000
+    },
+    {
+     "op": "request",
+     "method": "session/messages",
+     "params": {
+      "sessionId": "$sessionId",
+      "afterMessageId": "$mid",
+      "limit": 20
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/messages",
+     "params": {
+      "sessionId": "$sessionId",
+      "afterMessageId": "bogus-message-id",
+      "limit": 20
+     }
+    }
+   ]
+  },
+  {
+   "id": "q6",
+   "title": "readState preferWorkspaceDefaults 面：workspace 默认模型/模式置后 ±prefer 读态对比 + create 采纳",
+   "ops": [
+    {
+     "op": "request",
+     "method": "workspace/setDefaultModel",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "model": {
+       "providerId": "anthropic",
+       "modelId": "mock"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/setDefaultMode",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "mode": "plan"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "preferWorkspaceDefaults": true
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/read",
+     "params": {
+      "sessionId": "$sessionId"
+     }
+    }
+   ]
+  },
+  {
+   "id": "q7",
+   "title": "resume 透传面：thoughtLevel=high + mcpServers 空表重水化",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/close",
+     "params": {
+      "sessionId": "$sessionId"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/resume",
+     "timeoutMs": 30000,
+     "params": {
+      "sessionId": "$sessionId",
+      "thoughtLevel": "high",
+      "mcpServers": []
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/read",
+     "params": {
+      "sessionId": "$sessionId"
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/list",
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "q8a",
+   "title": "q8 种子：未知键 bogusKey+model.main（zod passthrough 面）+ 重生",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".zcode/cli/config.json",
+     "content": "{\"model\":{\"main\":\"zai/glm-5.1\"},\"bogusKey\":1}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/cli/config.json",
+     "content": "{\"model\":{\"main\":\"zai/glm-5.1\"},\"bogusKey\":1}"
+    }
+   ]
+  },
+  {
+   "id": "q8",
+   "title": "q8 未知键容忍面：create/read/readState 模型装配",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/read",
+     "params": {
+      "sessionId": "$sessionId"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "q9a",
+   "title": "q9 种子：features.mcp=false 总闸 + mcp.servers stdio echo + 重生",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".zcode/cli/config.json",
+     "content": "{\"features\":{\"mcp\":false},\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/cli/config.json",
+     "content": "{\"features\":{\"mcp\":false},\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/config.json",
+     "content": "{\"features\":{\"mcp\":false},\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}}}"
+    }
+   ]
+  },
+  {
+   "id": "q9",
+   "title": "q9 features.mcp 总闸面：config 级 server 在 mcp/list 的连接状态",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "sleep",
+     "ms": 1200
+    },
+    {
+     "op": "request",
+     "method": "mcp/list",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "q10a",
+   "title": "q10 种子：toolConcurrency 对象形 maxConcurrency=1（真值对象形）+ 根路径清理 + 重生",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".zcode/cli/config.json",
+     "content": "{\"toolConcurrency\":{\"maxConcurrency\":1}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".drora/config.json",
+     "content": "{}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/cli/config.json",
+     "content": "{\"toolConcurrency\":{\"maxConcurrency\":1}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/config.json",
+     "content": "{\"toolConcurrency\":{\"maxConcurrency\":1}}"
+    }
+   ]
+  },
+  {
+   "id": "q10",
+   "title": "q10 toolConcurrency 对象形观察面：单步双工具轮流面/结果面",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/subscribe",
+     "params": {
+      "sessionId": "$sessionId",
+      "deliveryKind": "desktop-continuous",
+      "includeSnapshot": false
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/send",
+     "params": {
+      "sessionId": "$sessionId",
+      "inputId": "in_q10",
+      "content": "双工具轮 [[q10-tools]]"
+     }
+    },
+    {
+     "op": "waitEvent",
+     "type": "turn.completed",
+     "timeoutMs": 45000
+    },
+    {
+     "op": "request",
+     "method": "session/messages",
+     "params": {
+      "sessionId": "$sessionId",
+      "limit": 20
+     }
+    }
+   ]
+  },
+  {
+   "id": "q11a",
+   "title": "q11 种子：small_model 显式拒收键 + mcp.servers（zod 全文件拒载判别面）+ 重生",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".zcode/cli/config.json",
+     "content": "{\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}},\"small_model\":\"x\"}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/cli/config.json",
+     "content": "{\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}},\"small_model\":\"x\"}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/config.json",
+     "content": "{\"mcp\":{\"servers\":{\"regmcp\":{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"D:/workspace/projects/Drora/scripts/mcp-v2-probe.server.mjs\"],\"env\":{}}}},\"small_model\":\"x\"}"
+    }
+   ]
+  },
+  {
+   "id": "q11",
+   "title": "q11 small_model 拒收面：zod 全文件拒载 vs 逐键忽略——以 regmcp 存活集判别",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "sleep",
+     "ms": 1200
+    },
+    {
+     "op": "request",
+     "method": "mcp/list",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "q12a",
+   "title": "q12 种子：coding-plan 登录写形（嵌套 provider.zai，黑洞 baseURL 保离线）+ 根路径清理 + 重生",
+   "dirtyPair": true,
+   "ops": [
+    {
+     "op": "writeHome",
+     "side": "zcode",
+     "path": ".zcode/cli/config.json",
+     "content": "{\"provider\":{\"zai\":{\"kind\":\"anthropic\",\"name\":\"Z.AI Coding Plan\",\"options\":{\"apiKeyRequired\":true,\"baseURL\":\"http://10.255.255.1:9/v1\",\"apiKey\":\"sk-q12-seed\"},\"models\":{\"zai/glm-5.1\":{\"name\":\"GLM-5.1\"},\"zai/glm-4.7\":{\"name\":\"GLM-4.7\"}}}},\"model\":{\"main\":\"zai/glm-5.1\",\"lite\":\"zai/glm-4.7\"}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/cli/config.json",
+     "content": "{\"provider\":{\"zai\":{\"kind\":\"anthropic\",\"name\":\"Z.AI Coding Plan\",\"options\":{\"apiKeyRequired\":true,\"baseURL\":\"http://10.255.255.1:9/v1\",\"apiKey\":\"sk-q12-seed\"},\"models\":{\"zai/glm-5.1\":{\"name\":\"GLM-5.1\"},\"zai/glm-4.7\":{\"name\":\"GLM-4.7\"}}}},\"model\":{\"main\":\"zai/glm-5.1\",\"lite\":\"zai/glm-4.7\"}}"
+    },
+    {
+     "op": "writeHome",
+     "side": "drora",
+     "path": ".drora/config.json",
+     "content": "{\"provider\":{\"zai\":{\"kind\":\"anthropic\",\"name\":\"Z.AI Coding Plan\",\"options\":{\"apiKeyRequired\":true,\"baseURL\":\"http://10.255.255.1:9/v1\",\"apiKey\":\"sk-q12-seed\"},\"models\":{\"zai/glm-5.1\":{\"name\":\"GLM-5.1\"},\"zai/glm-4.7\":{\"name\":\"GLM-4.7\"}}}},\"model\":{\"main\":\"zai/glm-5.1\",\"lite\":\"zai/glm-4.7\"}}"
+    }
+   ]
+  },
+  {
+   "id": "q12",
+   "title": "q12 登录写形消费面：create 装配 + readState + generateText zai 路由",
+   "ops": [
+    {
+     "op": "request",
+     "method": "session/create",
+     "capture": {
+      "$sessionId": "session.sessionId"
+     },
+     "timeoutMs": 30000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "session/read",
+     "params": {
+      "sessionId": "$sessionId"
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/readState",
+     "timeoutMs": 20000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      }
+     }
+    },
+    {
+     "op": "request",
+     "method": "workspace/generateText",
+     "timeoutMs": 6000,
+     "params": {
+      "workspace": {
+       "workspacePath": "$WS",
+       "workspaceKey": "$WS"
+      },
+      "querySource": "main_turn",
+      "modelRef": {
+       "providerId": "zai",
+       "modelId": "zai/glm-5.1"
+      },
+      "prompt": "登录写形路由 [[q2x]]",
+      "operationId": "op-q12"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1596,7 +1596,6 @@ const enUS: Record<string, string> = {
   "workspace.addNewWorkspace": "Add new workspace",
   "workspace.startFromScratch": "Start from scratch",
   "workspace.openFolder": "Open folder",
-  "workspace.openPluginsSettings": "Plugin Marketplace",
   "workspace.openVault": "Obsidian Vault",
   "vault.unavailable": "The Vault service is not available in this environment.",
   "vault.unconfigured.title": "No Vault configured",
@@ -1701,6 +1700,7 @@ const enUS: Record<string, string> = {
   "vault.tutorial.helpAria": "{name} help",
   "vault.tutorial.helpTitle": "{name} help (autosave; Cmd/Ctrl + S to save now)",
   "vault.tutorial.gotIt": "Got it",
+  "workspace.openPluginsSettings": "Plugin Marketplace",
   "workspace.backToWorkspace": "Back to workspace",
   "workspace.noActiveForNewTask": "There is no available workspace yet. Open a workspace first.",
   "workspace.wslUncPrompt.title": "Open this through WSL remote connection?",
@@ -1829,6 +1829,9 @@ const enUS: Record<string, string> = {
   "remote.connectingStepDescription":
     "We are establishing the {method} connection. You can follow the live setup progress here.",
   "webRemoteControl.trigger": "Mobile remote control",
+  "webRemoteControl.title": "Mobile remote control",
+  "webRemoteControl.description":
+    "Scan the QR code or open the link on your phone to control this workspace.",
   "webRemoteControl.status.idle": "Idle",
   "webRemoteControl.status.starting": "Starting",
   "webRemoteControl.status.running": "Waiting for phone",
@@ -1857,9 +1860,6 @@ const enUS: Record<string, string> = {
   "webRemoteControl.copyLink.copied": "Remote control link copied",
   "webRemoteControl.refreshQr": "Refresh QR",
   "webRemoteControl.stop": "Stop",
-  "webRemoteControl.title": "Mobile remote control",
-  "webRemoteControl.description":
-    "Scan the QR code or open the link on your phone to control this workspace.",
   "webRemoteControl.botChannel.title": "Use a bot channel",
   "webRemoteControl.botChannel.description": "Connect a chat bot for longer-running mobile access.",
   "webRemoteControl.botChannel.weixin.title": "Weixin",
@@ -2338,12 +2338,6 @@ const enUS: Record<string, string> = {
     "Optional. Set a PEM root certificate path to inject it as NODE_EXTRA_CA_CERTS for models, MCP, and command tools, and to trust it in renderer certificate verification. Restart the app to take effect.",
   "settings.httpProxyCaCertPathPlaceholder": "e.g. /Users/name/certs/root-ca.pem",
   "settings.httpProxySavedHint": "Network proxy settings saved. Restart the app to take effect.",
-  "settings.relayServerUrl": "Relay server",
-  "settings.relayServerUrlDescription":
-    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
-  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
-  "settings.relayServerUrlSavedHint":
-    "Relay server settings saved. Restart the app to take effect.",
   "settings.desktopChromiumHardwareAcceleration": "Chrome hardware acceleration",
   "settings.desktopChromiumHardwareAccelerationDescription":
     "Turn this off to work around blank windows, crashes, or rendering issues caused by some GPUs or drivers. Restart the app to take effect.",
@@ -2358,6 +2352,8 @@ const enUS: Record<string, string> = {
   "settings.notification": "Task notifications",
   "settings.notificationDescription":
     "Send desktop notifications when a task completes, fails, or needs approval.",
+  "settings.desktopPetCharacter": "Pet character",
+  "settings.desktopPetCharacterDescription": "Choose the desktop pet character. Switching rebuilds the pet window in place.",
   "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Show task status on the desktop. Click the pet to open its task.",
@@ -2418,6 +2414,12 @@ const enUS: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.7": "Archive after 7 days",
   "settings.taskAutoArchiveDays.option.14": "Archive after 14 days",
   "settings.taskAutoArchiveDays.option.30": "Archive after 30 days",
+  "settings.relayServerUrl": "Relay server",
+  "settings.relayServerUrlDescription":
+    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
+  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
+  "settings.relayServerUrlSavedHint":
+    "Relay server settings saved. Restart the app to take effect.",
   "settings.dataBaseDir": "Data storage path",
   "settings.dataBaseDirDescription":
     "Root directory for app data (defaults to user home directory). Existing data will be copied to the new location. The .drora/v2 suffix cannot be changed.",
@@ -2690,6 +2692,7 @@ const enUS: Record<string, string> = {
   "settings.mcp.remoteSync.resultEmpty": "No MCP sync results were returned.",
   "settings.mcp.remoteSync.selectionCount": "{selected}/{total} selected",
   "settings.mcp.remoteSync.noSelection": "Select at least one missing MCP server.",
+  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code Plugins",
   "settings.plugins.remoteContext": "Current remote workspace: {target}",
   "settings.plugins.remoteSync.open": "Sync Plugin",
   "settings.plugins.remoteSync.title": "Sync Plugins to remote target",
@@ -4231,7 +4234,6 @@ const enUS: Record<string, string> = {
   "settings.plugins.marketplacePlugins.install": "Install",
   "settings.plugins.marketplacePlugins.installed": "Installed",
   "settings.plugins.marketplace.searchPlaceholder": "Search Plugins, Skills, MCPs...",
-  "settings.plugins.marketplace.claudeCodePlugins": "Claude Code Plugins",
   "settings.plugins.marketplace.catalogLoading": "Loading plugins…",
   "settings.plugins.marketplace.sourceInfo.label": "Discover source information",
   "settings.plugins.marketplace.sourceInfo.title": "Discover uses GitHub marketplaces",
@@ -6965,168 +6967,6 @@ const enUS: Record<string, string> = {
   "scheduledPreview.toast.running": "Running “{title}”…",
   "scheduledPreview.toast.view": "View",
   "scheduledPreview.addSchedule": "Add schedule",
-  // ── mobileShell：R3 mobile shell (packages/ui/src/mobile, spec specs/mobile-relay-r3-frontend.md D1) ──
-  // Copy aligned with the official 3.14.3 hosted page: status cards / home / chat top bar are
-  // verbatim from the .tmp-work/official-page asset mirror and .tmp-work/official-live-*.html DOM.
-  // Brand display words follow specs/drora-rename.md rule 4 (ZCode → Drora); the rest stays verbatim.
-  "mobileShell.connection.connected": "Connected to this desktop window",
-  "mobileShell.connection.connecting": "Connecting",
-  "mobileShell.connection.reconnecting": "Reconnecting",
-  "mobileShell.connection.disconnected": "Disconnected",
-  "mobileShell.home.reconnect": "Reconnect",
-  "mobileShell.home.title": "Drora remote control",
-  "mobileShell.home.notice":
-    "This connection can view the projects, tasks, and sessions currently open on this device. If the QR code expires, return to desktop and connect again.",
-  "mobileShell.home.sectionTitle": "Workspaces and tasks on this device",
-  "mobileShell.home.summary": "{workspaceCount} workspaces · {taskCount} tasks",
-  "mobileShell.home.collapseAll": "Collapse all workspaces",
-  "mobileShell.home.expandAll": "Expand all workspaces",
-  "mobileShell.home.organize": "Organize tasks",
-  "mobileShell.home.refresh": "Refresh workspaces and tasks",
-  "mobileShell.home.theme": "Choose theme",
-  "mobileShell.home.workspaceEmpty": "No open workspaces on this device",
-  "mobileShell.workspace.kind.local": "Local",
-  "mobileShell.workspace.kind.remote": "Remote",
-  "mobileShell.workspace.updatedAt": "Updated {time}",
-  "mobileShell.workspace.taskCount": "{count} tasks",
-  "mobileShell.workspace.newTask": "New task",
-  "mobileShell.workspace.tasksEmpty": "No tasks in this workspace",
-  "mobileShell.task.status.running": "Running",
-  "mobileShell.task.status.completed": "Completed",
-  "mobileShell.task.backHome": "Back to task home",
-  "mobileShell.task.chatTitle": "Task chat",
-  "mobileShell.task.more": "More",
-  "mobileShell.task.sidePaneExpand": "Expand side panel",
-  "mobileShell.task.sidePaneCollapse": "Collapse side panel",
-  "mobileShell.task.reconnectingBanner": "Reconnecting automatically...",
-  "mobileShell.loading.step.relay": "Connect to relay service",
-  "mobileShell.loading.step.auth": "Authenticate device",
-  "mobileShell.loading.step.pairing": "Wait for desktop pairing",
-  "mobileShell.loading.step.sync": "Sync workspace",
-  "mobileShell.loading.connecting.title": "Connecting relay service…",
-  "mobileShell.loading.connecting.description":
-    "Establishing a connection between your phone and the relay.",
-  "mobileShell.loading.authenticating.title": "Authenticating device…",
-  "mobileShell.loading.authenticating.description":
-    "Relay connected. Verifying your remote-control identity.",
-  "mobileShell.loading.waiting.title": "Waiting for desktop pairing…",
-  "mobileShell.loading.waiting.description":
-    "Phone is ready. Waiting for desktop to match this connection.",
-  "mobileShell.loading.reconnecting.title": "Connection interrupted, reconnecting…",
-  "mobileShell.loading.reconnecting.description":
-    "Auto-reconnecting after network or wake-up changes.",
-  "mobileShell.loading.paired.title": "Paired. Loading workspace…",
-  "mobileShell.loading.paired.description": "Connection established. Syncing workspace and tasks.",
-  "mobileShell.loading.suspended.title": "Page is in background, waiting to recover…",
-  "mobileShell.loading.suspended.description":
-    "Connection will recover automatically when back in foreground.",
-  "mobileShell.loading.preparing.title": "Preparing remote control…",
-  "mobileShell.loading.preparing.description": "Initializing mobile remote-control session.",
-  "mobileShell.failure.sessionNotFound.badge": "Link unavailable",
-  "mobileShell.failure.sessionNotFound.title": "Access Link Expired",
-  "mobileShell.failure.sessionNotFound.description":
-    "This Web remote control link no longer exists, usually because desktop generated a new QR code.",
-  "mobileShell.failure.sessionNotFound.detailLabel": "Relay detail",
-  "mobileShell.failure.sessionNotFound.stepsTitle": "Next steps",
-  "mobileShell.failure.sessionNotFound.step1": "Open Web remote control again on desktop.",
-  "mobileShell.failure.sessionNotFound.step2": "Scan the latest QR code.",
-  "mobileShell.failure.sessionNotFound.action": "Reload",
-  "mobileShell.failure.sessionExpired.badge": "Session ended",
-  "mobileShell.failure.sessionExpired.title": "Remote Control Ended",
-  "mobileShell.failure.sessionExpired.description":
-    "This remote control session expired or was closed from desktop.",
-  "mobileShell.failure.sessionExpired.detailLabel": "Close reason",
-  "mobileShell.failure.sessionExpired.stepsTitle": "Next steps",
-  "mobileShell.failure.sessionExpired.step1": "Start Web remote control again on desktop.",
-  "mobileShell.failure.sessionExpired.step2": "Open the workspace from a new link.",
-  "mobileShell.failure.sessionExpired.action": "Reload",
-  "mobileShell.failure.sessionConflict.badge": "Device takeover",
-  "mobileShell.failure.sessionConflict.title": "Taken Over By Another Device",
-  "mobileShell.failure.sessionConflict.description":
-    "Another remote control device connected and replaced this phone. Only one mobile controller can stay active at a time.",
-  "mobileShell.failure.sessionConflict.detailLabel": "Relay detail",
-  "mobileShell.failure.sessionConflict.stepsTitle": "Next steps",
-  "mobileShell.failure.sessionConflict.step1": "Continue on the newer device.",
-  "mobileShell.failure.sessionConflict.step2": "Scan the desktop QR code again to use this phone.",
-  "mobileShell.failure.sessionConflict.action": "Try Again",
-  "mobileShell.failure.workspaceClosed.badge": "Workspace closed",
-  "mobileShell.failure.workspaceClosed.title": "Workspace Closed",
-  "mobileShell.failure.workspaceClosed.description":
-    "The shared workspace was closed on desktop, so this phone can no longer access it.",
-  "mobileShell.failure.workspaceClosed.detailLabel": "Desktop detail",
-  "mobileShell.failure.workspaceClosed.stepsTitle": "Next steps",
-  "mobileShell.failure.workspaceClosed.step1": "Reopen the target workspace on desktop.",
-  "mobileShell.failure.workspaceClosed.step2": "Start Web remote control again.",
-  "mobileShell.failure.workspaceClosed.action": "Reload",
-  "mobileShell.failure.desktopDisconnected.badge": "Desktop offline",
-  "mobileShell.failure.desktopDisconnected.title": "Desktop Offline",
-  "mobileShell.failure.desktopDisconnected.description":
-    "The desktop side disconnected. This phone can no longer control the desktop workspace.",
-  "mobileShell.failure.desktopDisconnected.detailLabel": "Relay detail",
-  "mobileShell.failure.desktopDisconnected.stepsTitle": "What happened",
-  "mobileShell.failure.desktopDisconnected.step1":
-    "Make sure Drora is still running and online on desktop.",
-  "mobileShell.failure.desktopDisconnected.step2": "Start Web remote control again from desktop.",
-  "mobileShell.failure.desktopDisconnected.action": "Try Again",
-  "mobileShell.failure.invalidMobileConnection.badge": "Invalid connection",
-  "mobileShell.failure.invalidMobileConnection.title": "Mobile Connection Invalid",
-  "mobileShell.failure.invalidMobileConnection.description":
-    "The QR parameters or authentication proof for this page are no longer valid.",
-  "mobileShell.failure.invalidMobileConnection.detailLabel": "Failure detail",
-  "mobileShell.failure.invalidMobileConnection.stepsTitle": "Next steps",
-  "mobileShell.failure.invalidMobileConnection.step1":
-    "Do not reuse an old screenshot or copied link.",
-  "mobileShell.failure.invalidMobileConnection.step2": "Scan the latest desktop QR code.",
-  "mobileShell.failure.invalidMobileConnection.action": "Try Again",
-  "mobileShell.failure.desktopBootstrapTimeout.badge": "Timed out",
-  "mobileShell.failure.desktopBootstrapTimeout.title": "Desktop Timed Out",
-  "mobileShell.failure.desktopBootstrapTimeout.description":
-    "This phone reached the relay, but desktop did not return workspace data in time.",
-  "mobileShell.failure.desktopBootstrapTimeout.detailLabel": "Timeout detail",
-  "mobileShell.failure.desktopBootstrapTimeout.stepsTitle": "Next steps",
-  "mobileShell.failure.desktopBootstrapTimeout.step1":
-    "Check that desktop is not asleep or waiting for confirmation.",
-  "mobileShell.failure.desktopBootstrapTimeout.step2": "Keep both devices online and retry.",
-  "mobileShell.failure.desktopBootstrapTimeout.action": "Retry",
-  "mobileShell.failure.connectionRecoveryTimeout.badge": "Recovery timed out",
-  "mobileShell.failure.connectionRecoveryTimeout.title": "Connection Recovery Timed Out",
-  "mobileShell.failure.connectionRecoveryTimeout.description":
-    "This phone did not recover its remote control connection in time, so the current page cannot keep syncing yet.",
-  "mobileShell.failure.connectionRecoveryTimeout.detailLabel": "Recovery detail",
-  "mobileShell.failure.connectionRecoveryTimeout.stepsTitle": "Next steps",
-  "mobileShell.failure.connectionRecoveryTimeout.step1":
-    "Keep the phone network available and retry.",
-  "mobileShell.failure.connectionRecoveryTimeout.step2":
-    "If it still cannot recover, start Web remote control again from desktop.",
-  "mobileShell.failure.connectionRecoveryTimeout.action": "Retry",
-  "mobileShell.failure.relayUnavailable.badge": "Relay unavailable",
-  "mobileShell.failure.relayUnavailable.title": "Relay Unavailable",
-  "mobileShell.failure.relayUnavailable.description":
-    "This phone cannot maintain a connection to the Web remote control relay.",
-  "mobileShell.failure.relayUnavailable.detailLabel": "Connection detail",
-  "mobileShell.failure.relayUnavailable.stepsTitle": "Next steps",
-  "mobileShell.failure.relayUnavailable.step1": "Check the phone network.",
-  "mobileShell.failure.relayUnavailable.step2": "Refresh later if desktop is still online.",
-  "mobileShell.failure.relayUnavailable.action": "Retry",
-  "mobileShell.failure.unsupportedAction.badge": "Unsupported",
-  "mobileShell.failure.unsupportedAction.title": "Action Not Supported",
-  "mobileShell.failure.unsupportedAction.description":
-    "Web remote control can only access workspaces already open on desktop.",
-  "mobileShell.failure.unsupportedAction.detailLabel": "Limitation",
-  "mobileShell.failure.unsupportedAction.stepsTitle": "Next steps",
-  "mobileShell.failure.unsupportedAction.step1": "Open the target workspace on desktop first.",
-  "mobileShell.failure.unsupportedAction.step2": "Select it from this phone afterward.",
-  "mobileShell.failure.unsupportedAction.action": "Reload",
-  "mobileShell.failure.unexpectedError.badge": "Unexpected error",
-  "mobileShell.failure.unexpectedError.title": "Web Remote Control Failed",
-  "mobileShell.failure.unexpectedError.description":
-    "An unexpected error occurred while opening Web remote control.",
-  "mobileShell.failure.unexpectedError.detailLabel": "Error detail",
-  "mobileShell.failure.unexpectedError.stepsTitle": "Next steps",
-  "mobileShell.failure.unexpectedError.step1": "Refresh this page once.",
-  "mobileShell.failure.unexpectedError.step2":
-    "If it still fails, generate a new QR code on desktop.",
-  "mobileShell.failure.unexpectedError.action": "Retry",
 };
 
 export default enUS;

@@ -60,6 +60,28 @@ export { IFileService } from "./file/file.js";
 export { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 
+// OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
+// 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
+export { IOutputStyleService } from "./outputStyle/outputStyle.js";
+export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
+
+// Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
+export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
+export type {
+  ObsidianVaultCandidate,
+  ObsidianVaultConfigureOptions,
+  ObsidianVaultDeleteInput,
+  ObsidianVaultFocus,
+  ObsidianVaultReadResult,
+  ObsidianVaultRenameInput,
+  ObsidianVaultSavePastedImageInput,
+  ObsidianVaultSummary,
+  ObsidianVaultTreeEntry,
+  ObsidianVaultUserContextSnapshot,
+  ObsidianVaultWriteInput,
+  ObsidianVaultWriteResult,
+} from "./obsidian-vault/obsidianVault.js";
+
 // Git service — IGitService is both a type (interface) and value (descriptor)
 export { IGitService } from "./git/git.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";
@@ -218,29 +240,7 @@ export {
 } from "./memory/memory.js";
 export type { ProjectMemoryFileSummary, ProjectMemoryWorkspaceSummary } from "./memory/memory.js";
 
-// OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
-// 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
-export { IOutputStyleService } from "./outputStyle/outputStyle.js";
-export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
-
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
-
-// Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
-export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
-export type {
-  ObsidianVaultCandidate,
-  ObsidianVaultConfigureOptions,
-  ObsidianVaultDeleteInput,
-  ObsidianVaultFocus,
-  ObsidianVaultReadResult,
-  ObsidianVaultRenameInput,
-  ObsidianVaultSavePastedImageInput,
-  ObsidianVaultSummary,
-  ObsidianVaultTreeEntry,
-  ObsidianVaultUserContextSnapshot,
-  ObsidianVaultWriteInput,
-  ObsidianVaultWriteResult,
-} from "./obsidian-vault/obsidianVault.js";
 
 // FileWatcher service — IFileWatcherService is both a type (interface) and value (descriptor)
 export { IFileWatcherService } from "./fileWatcher/fileWatcher.js";

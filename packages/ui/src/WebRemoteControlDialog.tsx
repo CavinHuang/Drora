@@ -215,7 +215,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
             failure: null,
           },
         );
-        if (autoStartGateRef.current.admit(stateForTab, transport)) void handleStart();
+        // 展示只消费当前 tab；命令准入读 Main 原始状态，才能从另一传输切过来。
+        if (autoStartGateRef.current.admit(state, transport)) void handleStart();
       } catch {
         // 查询失败静默；starting 态兜底显示
       }

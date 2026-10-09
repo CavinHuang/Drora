@@ -1,10 +1,9 @@
-import { resolveDroraHome } from "./desktopRuntimeEnv.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、Drora Agent，拆分前先保持跨进程消息收口。 */
 import { bindDatabaseStartupRelay } from "./databaseStartupRelay.js";
 import { randomUUID } from "node:crypto";
-import { homedir, join } from "node:path";
+import { join } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -49,6 +48,7 @@ import {
   buildHostProcessEnv,
   hostModulePath,
   resolveBundledGlmBinaryPath,
+  resolveDroraHome,
 } from "./desktopRuntimeEnv.js";
 import { ingestHostNetworkObservations } from "./desktopNetworkTelemetry.js";
 import { ingestCliResourceSample } from "./processResourceCliSource.js";
@@ -509,19 +509,20 @@ export function spawnHostProcess(
       // 缺省实现时返回 captcha_unavailable，host 侧降级为无验证头请求。
       const requestId = result.data.requestId;
       const handler = dependencies.handleCaptchaSolveRequest;
-      void (handler
-        ? handler({ captcha: result.data.captcha, language: result.data.language }).catch(
-            (error: unknown) => ({
+      void (
+        handler
+          ? handler({ captcha: result.data.captcha, language: result.data.language }).catch(
+              (error: unknown) => ({
+                ok: false as const,
+                errorCode: "solve_error",
+                errorMessage: error instanceof Error ? error.message : String(error),
+              }),
+            )
+          : Promise.resolve({
               ok: false as const,
-              errorCode: "solve_error",
-              errorMessage: error instanceof Error ? error.message : String(error),
-            }),
-          )
-        : Promise.resolve({
-            ok: false as const,
-            errorCode: "captcha_unavailable",
-            errorMessage: "captcha solver not ready",
-          })
+              errorCode: "captcha_unavailable",
+              errorMessage: "captcha solver not ready",
+            })
       ).then((outcome) => {
         child.postMessage({ type: HostMessageTypes.CaptchaSolveResult, requestId, ...outcome });
       });

@@ -122,10 +122,7 @@ export function registerPlatformIpcHandlers(options: {
       workspaces: MobileRelayWorkspaceSyncEntry[],
     ) => void;
     syncTasks: (senderWebContentsId: number, tasks: MobileRelayTaskSyncEntry[]) => void;
-    syncSidePane: (
-      senderWebContentsId: number,
-      entry: MobileRelaySidePaneSyncEntry,
-    ) => void;
+    syncSidePane: (senderWebContentsId: number, entry: MobileRelaySidePaneSyncEntry) => void;
   };
 }) {
   ipcMain.handle(PlatformChannels.SelectDirectory, async () => {

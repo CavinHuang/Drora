@@ -37,6 +37,9 @@ modules:
   - id: server
     roots: [packages/server/src]
     managed: false
+  - id: drora-server-cli
+    roots: [packages/drora-server-cli/src]
+    managed: false
   - id: relay-server
     roots: [packages/relay-server/src]
     managed: false
@@ -48,9 +51,6 @@ modules:
     roots: [packages/mobile-web/scripts, packages/mobile-web/src]
     managed: false
     requires: [shared, rpc, client, services, relay-client, ui]
-  - id: drora-server-cli
-    roots: [packages/drora-server-cli/src]
-    managed: false
   - id: ui
     roots: [packages/ui/src]
     managed: false

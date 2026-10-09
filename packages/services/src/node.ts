@@ -10,6 +10,11 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@drora/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
+import { IOutputStyleService } from "./outputStyle/outputStyle.js";
+import { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
+import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
+import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -137,6 +142,9 @@ export type {
   AccountProviderCredentialStoreOptions,
 } from "./model-provider/accountProviderCredentialStore.js";
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
+export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
+export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
+export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,
@@ -186,7 +194,6 @@ export {
 } from "./model-provider/providerFacadeServices.js";
 export { createAccountRequestAuthService } from "./model-provider/accountRequestAuthService.js";
 export type { IAccountRequestAuthService } from "./model-provider/accountRequestAuthService.js";
-export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createAccountProviderRequestAuthService } from "./model-provider/accountProviderRequestAuthService.js";
 export { resolveAccountTeamPlanRuntimeApiKey } from "./model-provider/accountProviderTeamPlanRequestKey.js";
 export { createAccountProviderCredentialService } from "./model-provider/accountProviderCredentialService.js";
@@ -220,8 +227,6 @@ export { createSubagentsService } from "./subagents/subagentsService.js";
 export { createCommandsService } from "./commands/commandsService.js";
 export { createHooksService } from "./hooks/hooksService.js";
 export { createMemoryService } from "./memory/memoryService.js";
-export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
-export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
 export { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 export { createFeedbackDiagnosticArchive } from "./feedback/feedbackLogArchive.js";
 export { createFeedbackService } from "./feedback/feedbackService.js";
@@ -328,8 +333,6 @@ import { ISubagentsService } from "./subagents/subagents.js";
 import { ICommandsService } from "./commands/commands.js";
 import { IHooksService } from "./hooks/hooks.js";
 import { IMemoryService } from "./memory/memory.js";
-import { IOutputStyleService } from "./outputStyle/outputStyle.js";
-import { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import { IFeedbackService } from "./feedback/feedback.js";
 import { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -402,7 +405,6 @@ import {
   createAccountRequestAuthService,
   type IAccountRequestAuthService,
 } from "./model-provider/accountRequestAuthService.js";
-import type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 import { createUsageStatsService } from "./usage-stats/usageStatsService.js";
 import { createCodingPlanSubscriptionService } from "./coding-plan-subscription/codingPlanSubscriptionService.js";
 import { createClientConfigService } from "./client-config/clientConfigService.js";
@@ -418,8 +420,6 @@ import { createSubagentsService } from "./subagents/subagentsService.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
-import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
-import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
   createFeedbackService,
@@ -2709,10 +2709,10 @@ export function createLocalServices(options: {
     )
     .register(IMemoryService, createMemoryService())
     // 第 48 轮：Claude Code 兼容的输出风格服务。官方 createLocalServices 注册链里
-    // .register(Tl, pf()) 使用本地实例——output style 是本机 ~/.claude 的状态。
+    // .register 使用本地实例——output style 是本机 ~/.claude 的状态。
     .register(IOutputStyleService, createOutputStyleService())
-    // Obsidian Vault 面板服务无条件注册：面板未配置 vault 时显示引导而非报错；
-    // 配置与 obsidian MCP server 共享同一份 vault-config.json（路径由服务内推导）。
+    // Obsidian Vault 面板服务：无条件注册，未配置 vault 时面板展示引导；是
+    // 面板写路径的唯一安全门面（路径逐段 lstat 拒软链 + sha256 CAS 乐观锁）。
     .register(IObsidianVaultService, createObsidianVaultService())
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(

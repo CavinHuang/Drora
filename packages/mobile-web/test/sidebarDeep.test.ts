@@ -45,10 +45,7 @@ test("organize 官方 RadioGroup：aria-label「视图」+ 三值 radio（项目
 test("organize 选中态：aria-checked + check 图标只随当前值", () => {
   const html = renderMenu({ organize: "workspace" });
   // 渲染属性序：aria-checked 先于 data-testid（JSX 声明序）。
-  assert.ok(
-    /aria-checked="true"[^>]*sidebar-organize-workspace/.test(html),
-    "workspace 项选中",
-  );
+  assert.ok(/aria-checked="true"[^>]*sidebar-organize-workspace/.test(html), "workspace 项选中");
   const projectChecked = /aria-checked="true"[^>]*sidebar-organize-project/.test(html);
   assert.ok(!projectChecked, "project 项未选中");
 });
@@ -83,7 +80,11 @@ test("移除对话官方三键：title/description/confirm 逐字 + common.cance
   const html = renderDialog();
   assert.ok(html.includes('role="alertdialog"'));
   assert.ok(html.includes("移除运行中的项目？"));
-  assert.ok(html.includes("该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。"));
+  assert.ok(
+    html.includes(
+      "该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。",
+    ),
+  );
   assert.ok(html.includes("移除并停止运行"));
   assert.ok(html.includes("取消"), "官方 cancelLabel=common.cancel");
   assert.ok(html.includes('data-testid="sidebar-remove-confirm"'));
@@ -111,7 +112,7 @@ test("SSH 徽标：官方「SSH 连接」+ alias/host/path 插值进 title 详�
     ),
   );
   assert.ok(html.includes("SSH 连接"));
-  assert.ok(html.includes("title=\"dev-box（SSH）"), "alias 插值（官方缺值补译形态）");
+  assert.ok(html.includes('title="dev-box（SSH）'), "alias 插值（官方缺值补译形态）");
   assert.ok(html.includes("主机：10.0.0.8"));
   assert.ok(html.includes("路径：/srv"));
 });
@@ -172,4 +173,31 @@ test("键位官方化：切换侧边栏（官方一键双向）/项目/新建任
   const html = renderSidebar();
   assert.ok(html.includes('aria-label="切换侧边栏"'), "官方 toggleSidebar");
   assert.ok(html.includes("新建任务"));
+});
+
+test("宽壳置顶节仍先于项目树，置顶行和组内行保留同一任务契约", () => {
+  const html = renderSidebar({
+    workspaces: [
+      {
+        workspaceKey: "project-1",
+        name: "Project",
+        kind: "local",
+        path: "C:/project",
+        updatedAtMs: null,
+        tasks: [
+          {
+            sessionId: "task-1",
+            title: "Pinned task",
+            status: "idle",
+            pinned: true,
+            createdAtMs: 1,
+            updatedAtMs: 2,
+          },
+        ],
+      },
+    ],
+  });
+  assert.ok(html.indexOf("已置顶") < html.indexOf("Project"));
+  assert.equal((html.match(/data-testid="task-item-task-1"/g) ?? []).length, 2);
+  assert.ok(html.includes('aria-label="打开任务 Pinned task"'));
 });

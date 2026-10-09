@@ -4,7 +4,7 @@
 浏览器里查看会话、发送输入、处理权限请求。
 
 原版实现依赖 z.ai 云端 relay（`webRemoteControl.failure.relayUnavailable` 等失败面）
-与托管手机 Web 应用，均未随开源树发布（上游 zai-org/ZCode 亦无）。Drora 需自建，
+与托管手机 Web 应用，均未随开源树发布（上游 zai-org/Drora 亦无）。Drora 需自建，
 路线已裁定：**LAN 直连优先**（无需任何服务器；协议层预留中继抽象，将来可叠加云中继）。
 
 ## 架构
@@ -125,7 +125,7 @@ clientLabel:"mobile-web"})`、`respondPermission`、`stopGeneration`
 ```
 手机浏览器                      z.ai relay                        桌面 Main
 ┌──────────────┐  WSS(role:mobile) ┌─────────────┐  WSS(role:device) ┌──────────────────┐
-│ zcode.z.ai/  │ ◄───────────────► │ wss://zcode │ ◄───────────────► │ webRemoteControl │
+│ zcode.z.ai/  │ ◄───────────────► │ wss://drora │ ◄───────────────► │ webRemoteControl │
 │ remote/v3|v4 │                   │ .z.ai/ws    │                   │ Manager + 桥接    │
 └──────────────┘                   └─────────────┘                   └────────┬─────────┘
                                                                      MessagePort 附着窗口 Host
@@ -210,8 +210,8 @@ relay 接受无账号的设备级注册。
   kind=remote 须同时带 workspaceIdentity+remoteSessionId，官方 pl 同语义）。
   （第一版曾用 Host Window Controller 投影订阅，实测 facts 不可靠已废弃。）
 - **M4b（已落地）**：rpc-frame 透明桥——`workspace-bridge-open` 每桥新建 Host 附着端口
-  （clientMode=web-remote-replayable），Host 侧为该附着同时注册 `zcode-*` 官方通道别名
-  （`toOfficialRpcChannelAlias`：drora-_ → zcode-_，同一 channel 实例；参照插件市场
+  （clientMode=web-remote-replayable），Host 侧为该附着同时注册 `drora-*` 官方通道别名
+  （`toOfficialRpcChannelAlias`：drora-_ → drora-_，同一 channel 实例；参照插件市场
   改名桥接先例）。帧封装对齐官方 frameShell/L3（2026-09-27 终审定案，取证官方
   chunk-GJUBRD53.js 的 ko schema 与 frameShell 构造）：{zcode_type:"rpc-frame",
   bridgeSessionId,[bridgeGeneration],[recoveryId],seq,messageSeq,fragmentIndex,
@@ -288,7 +288,7 @@ transport flow gate）。官方接线（createWorkspaceBridge 内）：
 
 | 字段                | 类型                         | 值                     | 说明                                                               |
 | ------------------- | ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| `__zcodeRpcControl` | 字符串字面量                 | `"connection-flow-v1"` | 控制对象判别键；本仓改名 `__droraRpcControl`（rpc 包工厂单一出处） |
+| `__droraRpcControl` | 字符串字面量                 | `"connection-flow-v1"` | 控制对象判别键；本仓改名 `__droraRpcControl`（rpc 包工厂单一出处） |
 | `state`             | `"saturated"` \| `"drained"` | 水位沿状态             | 恰好 2 个键，多余字段即非法（isMessagePortFlowControl 校验）       |
 
 本仓消费链（取证时已具备，本次仅补 main 侧发送端）：Host `host/index.ts`
@@ -297,10 +297,10 @@ setTransportFlowState`（serial chain，dispose 时补发 "closed"），与官�
 `exposeServicesOnMessagePort`（host index.js@1482463：`c.onFlowState →
 f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowStateV4`
 （host index.js@360242，trusted-host-relay 校验）进入 CLI flow route。改名分歧：
-官方判别键 `__zcodeRpcControl`，本仓 `__droraRpcControl`（两端同为自研代码，不与
+官方判别键 `__droraRpcControl`，本仓 `__droraRpcControl`（两端同为自研代码，不与
 官方互操作——附着端口不出机器）。
 
-### 原版证据索引（2026-09-28，官方 3.14.3 安装树 `D:\software\zcode\resources\app\out\main\`，偏移为该构建 minified 文件的字节偏移）
+### 原版证据索引（2026-09-28，官方 3.14.3 安装树 `D:\software\drora\resources\app\out\main\`，偏移为该构建 minified 文件的字节偏移）
 
 | 结论                                                            | 位置                   | 偏移                             |
 | --------------------------------------------------------------- | ---------------------- | -------------------------------- | ----------------- | -------------------------------- |
@@ -343,7 +343,7 @@ f.setTransportFlowState`）同构；官方更下游经 RPC `setConnectionFlowSta
 | respondToWorkspaceReconnectRequest（reconnect 分支全貌）        | index.js               | 399799                           |
 | reconnectWorkspace=reconnectWebRemoteControlWorkspaceIn…        | index.js               | 409793                           |
 | routePayload reconnect case（无前置守卫直发）                   | index.js               | 401307                           |
-| reconnect IPC 通道名 zcode:web-remote-control-reconnect-…       | chunk-GJUBRD53.js      | 11408                            |
+| reconnect IPC 通道名 drora:web-remote-control-reconnect-…       | chunk-GJUBRD53.js      | 11408                            |
 | preload onWebRemoteControlReconnectWorkspace（同通道回复）      | preload/index.cjs      | onWebRemoteControlReconnectWork… |
 | renderer 重连处理（handleReconnectRemoteWorkspace 委托）        | 托管页 index-NjWRUABD  | 5942240                          |
 | 手机页 reconnect 请求/响应匹配（workspaceKey 必须回显）         | 托管页 index-NjWRUABD  | 6086587                          |
@@ -433,7 +433,7 @@ lt(h,b)`，无前置守卫。
 4. `reconnectWorkspace` = `reconnectWebRemoteControlWorkspaceInRenderer`（qb
    @409793）：BrowserWindow.fromId(windowId) 缺失 → throw "Desktop window is not
    available for Web remote control reconnect."；经 IPC 通道
-   `zcode:web-remote-control-reconnect-workspace`（chunk-GJUBRD53.js@11408）向
+   `drora:web-remote-control-reconnect-workspace`（chunk-GJUBRD53.js@11408）向
    **发起窗口 renderer** 发 `{requestId:"web-remote-reconnect-<ts>-<rand>",
 workspaceKey}`，等 renderer 同通道回复（sender.id 过滤 + schema
    {requestId, workspaceKey, success, error?} + requestId 匹配），120s 超时 →
@@ -617,6 +617,30 @@ start/stop/get 三项，relay 全部 5 个方法（`startMobileRelayControl` /
    验收：隔离 Electron 实例打开弹层后，无需手动刷新即出现可复制的本地 QR URL；
    LAN 与云中继切换仍各自最多自动启动一次；已在其他传输运行时不得误判为本 tab
    可用状态。
+
+5. 2026-10-04 真窗口复测：Main 回报 `cloud/active` 时，LAN tab 的展示投影为
+   `undefined`（不显示云中继 URL），但启动闸门原先也读取这个投影，因而拒绝启动
+   LAN，弹层永久停「正在准备二维码」。**展示投影与命令准入必须读取不同形状的
+   同一事实**：展示仍只认本 tab；闸门读取 Main 原始状态，遇 `idle` 或明确属于
+   另一传输的状态时准许目标传输启动一次。原始状态缺失、当前传输已在
+   `starting/running/active/error`、或本次弹层已尝试过目标传输时拒绝。Main 的
+   `startMobileRelayControl` 仍是唯一切换所有者，负责停旧连接、起新连接及发布
+   新状态；Renderer 不保留第二份运行事实。
+
+   ```text
+   Main cloud/active ── getState ──> Renderer LAN tab：隐藏 cloud URL
+                                      └─ gate(raw state, LAN) 准入一次
+                                          └─ Main start(LAN)：停止 cloud → 建 LAN relay → 出 QR
+   ```
+
+   验收：云中继已运行时切 LAN，自动出现 LAN QR；反向切换同理；同一 tab
+   重复状态查询不重复启动；当前 tab 的 URL 仍不泄露到另一 tab。断线/重连语义
+   继续由 Main 状态决定，Renderer 不用超时伪造 idle。
+
+   实测：连接中的 Desktop Main 回报 `cloud/active`，重新打开 LAN tab 后自动
+   切至 `lan/running` 并生成可用二维码；桌面 Chrome 用该二维码访问真实局域网
+   HTTP 地址，完成 `auth_init → auth_challenge → auth_response → auth_ack` 和
+   bootstrap，进入工作区首页（详见 `specs/mobile-relay-server.md` §12.10）。
 
 ### 边界
 

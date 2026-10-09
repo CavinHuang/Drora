@@ -27,13 +27,24 @@ function makeTempRoot(prefix) {
   return mkdtempSync(join(base, prefix));
 }
 
+// manifest 里的相对路径是正斜杠；Windows join 出的是反斜杠路径，endsWith 逐字比较
+// 会恒假（分叉原版断言只在 POSIX 成立，Windows 本地跑必挂）。按段比较与分隔符无关。
+const endsWithManifestPath = (runtimePath, manifestRelative) => {
+  const segments = runtimePath.split(/[\\/]/u);
+  const expected = manifestRelative.split("/");
+  return (
+    segments.length >= expected.length &&
+    expected.every((segment, index) => segments[segments.length - expected.length + index] === segment)
+  );
+};
+
 test("dev 路径：随仓运行时包（含 droraCuaRuntime 契约）解析成功", async () => {
   const runtime = await resolveWindowsCuaRuntime({
     platform: "win32",
     env: { DRORA_CUA_DEV_ROOT: REPO_RUNTIME_ROOT },
   });
-  assert.equal(runtime.entryPath.endsWith(manifest.entry), true);
-  assert.equal(runtime.addonPath.endsWith(manifest.addon), true);
+  assert.equal(endsWithManifestPath(runtime.entryPath, manifest.entry), true);
+  assert.equal(endsWithManifestPath(runtime.addonPath, manifest.addon), true);
   assert.equal(runtime.commandEnv.ELECTRON_RUN_AS_NODE, "1");
 });
 
@@ -62,7 +73,7 @@ test("产品路径：staged 布局（resources/tools/cua-helper + 上游 manifes
       electronVersion: manifest.electronVersion,
     });
     assert.equal(runtime.root, join(resourcesRoot, "tools", "cua-helper"));
-    assert.equal(runtime.entryPath.endsWith(manifest.entry), true);
+    assert.equal(endsWithManifestPath(runtime.entryPath, manifest.entry), true);
   } finally {
     rmSync(resourcesRoot, { recursive: true, force: true });
   }

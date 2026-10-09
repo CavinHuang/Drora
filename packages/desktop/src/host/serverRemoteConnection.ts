@@ -224,61 +224,63 @@ export function createServerRemoteWorkspaceServiceCollection(params: {
 }): ServiceCollection {
   assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
   const remote = params.connectionServices;
-  return new ServiceCollection()
-    .register(IFileService, remote.fileService)
-    .register(IMediaPreviewService, remote.mediaPreviewService)
-    .register(IGitService, remote.gitService)
-    .register(IGitCheckpointService, remote.gitCheckpointService)
-    .register(ISystemService, remote.systemService)
-    .register(ITerminalService, remote.terminalService)
-    .register(ISettingService, remote.settingService)
-    .register(ICredentialService, remote.credentialService)
-    .register(IBroadcastService, remote.broadcastService)
-    .register(IDroraTaskService, remote.droraTaskService)
-    .register(IDroraAgentService, remote.droraAgentService)
-    .register(IDroraSessionService, remote.droraSessionService)
-    // 第四十九轮对齐（官方 cRe 定案）：server 远程的会话分享在官方实现中明确禁用——
-    // createUnsupportedRemoteConversationShareService，message 固定、onRejected 记
-    // kind:"feature_disabled", reason:"server_remote_unsupported"。此前注册的远端
-    // 代理是超出官方的能力面（server 端虽暴露 channel），按官方形态回退为禁用门禁。
-    .register(
-      IConversationShareService,
-      createUnsupportedConversationShareService({
-        message: "Conversation sharing is not available for this client or remote target",
-        onRejected: (action) => {
-          logger.warn(
-            void 0,
-            "conversation share action rejected",
-            JSON.stringify({
-              action,
-              kind: "feature_disabled",
-              reason: "server_remote_unsupported",
-            }),
-          );
-        },
-      }),
-    )
-    .register(IBotsService, remote.botsService)
-    .register(IFileWatcherService, remote.fileWatcherService)
-    .register(IOAuthService, remote.oauthService)
-    .register(IModelSelectionService, remote.modelSelectionService)
-    .register(IProviderSettingsService, remote.providerSettingsService)
-    .register(IUsageStatsService, remote.usageStatsService)
-    .register(ICodingPlanSubscriptionService, remote.codingPlanSubscriptionService)
-    .register(IClientConfigService, params.clientConfigService)
-    .register(IClientScenesService, remote.clientScenesService)
-    .register(ISkillsService, remote.skillsService)
-    .register(ISkillSyncService, remote.skillSyncService)
-    .register(IMcpSyncService, remote.mcpSyncService)
-    .register(IPluginSyncService, remote.pluginSyncService)
-    .register(IPluginsService, remote.pluginsService)
-    .register(IPluginManagementService, remote.pluginManagementService)
-    .register(ISubagentsService, remote.subagentsService)
-    .register(ICommandsService, remote.commandsService)
-    .register(IHooksService, remote.hooksService)
-    .register(IMemoryService, remote.memoryService)
-    // 第 48 轮：官方 MJ 注册远端代理（e.connectionServices.outputStyleService）。
-    .register(IOutputStyleService, remote.outputStyleService)
-    .register(ISettingsSyncService, remote.settingsSyncService)
-    .register(IPromptAttachmentTransferService, remote.promptAttachmentTransferService);
+  return (
+    new ServiceCollection()
+      .register(IFileService, remote.fileService)
+      .register(IMediaPreviewService, remote.mediaPreviewService)
+      .register(IGitService, remote.gitService)
+      .register(IGitCheckpointService, remote.gitCheckpointService)
+      .register(ISystemService, remote.systemService)
+      .register(ITerminalService, remote.terminalService)
+      .register(ISettingService, remote.settingService)
+      .register(ICredentialService, remote.credentialService)
+      .register(IBroadcastService, remote.broadcastService)
+      .register(IDroraTaskService, remote.droraTaskService)
+      .register(IDroraAgentService, remote.droraAgentService)
+      .register(IDroraSessionService, remote.droraSessionService)
+      // 第四十九轮对齐（官方 cRe 定案）：server 远程的会话分享在官方实现中明确禁用——
+      // createUnsupportedRemoteConversationShareService，message 固定、onRejected 记
+      // kind:"feature_disabled", reason:"server_remote_unsupported"。此前注册的远端
+      // 代理是超出官方的能力面（server 端虽暴露 channel），按官方形态回退为禁用门禁。
+      .register(
+        IConversationShareService,
+        createUnsupportedConversationShareService({
+          message: "Conversation sharing is not available for this client or remote target",
+          onRejected: (action) => {
+            logger.warn(
+              void 0,
+              "conversation share action rejected",
+              JSON.stringify({
+                action,
+                kind: "feature_disabled",
+                reason: "server_remote_unsupported",
+              }),
+            );
+          },
+        }),
+      )
+      .register(IBotsService, remote.botsService)
+      .register(IFileWatcherService, remote.fileWatcherService)
+      .register(IOAuthService, remote.oauthService)
+      .register(IModelSelectionService, remote.modelSelectionService)
+      .register(IProviderSettingsService, remote.providerSettingsService)
+      .register(IUsageStatsService, remote.usageStatsService)
+      .register(ICodingPlanSubscriptionService, remote.codingPlanSubscriptionService)
+      .register(IClientConfigService, params.clientConfigService)
+      .register(IClientScenesService, remote.clientScenesService)
+      .register(ISkillsService, remote.skillsService)
+      .register(ISkillSyncService, remote.skillSyncService)
+      .register(IMcpSyncService, remote.mcpSyncService)
+      .register(IPluginSyncService, remote.pluginSyncService)
+      .register(IPluginsService, remote.pluginsService)
+      .register(IPluginManagementService, remote.pluginManagementService)
+      .register(ISubagentsService, remote.subagentsService)
+      .register(ICommandsService, remote.commandsService)
+      .register(IHooksService, remote.hooksService)
+      .register(IMemoryService, remote.memoryService)
+      // 第 48 轮：官方 MJ 注册远端代理——output style 属远端 Server 的本机 ~/.claude 状态。
+      .register(IOutputStyleService, remote.outputStyleService)
+      .register(ISettingsSyncService, remote.settingsSyncService)
+      .register(IPromptAttachmentTransferService, remote.promptAttachmentTransferService)
+  );
 }

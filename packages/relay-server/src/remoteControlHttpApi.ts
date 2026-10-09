@@ -1,7 +1,7 @@
 // 官方 relay HTTP API（specs/mobile-relay-r3-frontend.md §32.35 客户端全量取证）：
 // 手机页的跨工作区切换与视图态同步走 HTTP，而非 WS 应用帧——
 //   POST /api/remote-control/windows/{token}/workspace-bridge
-//     body {workspaceKey, taskId?}，头 X-ZCode-Mobile-Connection-Id
+//     body {workspaceKey, taskId?}，头 X-Drora-Mobile-Connection-Id
 //     → {wsUrl, workspaceKey, initialTaskId}（页面为新桥开第二个 WebSocket）
 //   POST /api/remote-control/windows/{token}/mobile-view-state
 //     body {activeWorkspaceKey, activeTaskId?, updatedAt} → {ok:true}（转发桌面端）

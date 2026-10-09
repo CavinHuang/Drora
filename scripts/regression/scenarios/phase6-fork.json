@@ -1,0 +1,34 @@
+{
+  "plans": {
+    "fk-1": [ { "text": "第一轮分叉前。" } ],
+    "fk-2": [ { "text": "第二轮分叉前。" } ]
+  },
+  "scenarios": [
+    {
+      "id": "fk1",
+      "title": "fork 深语义：latestCheckpoint/turn 锚裁剪/bogus kind 错误面/expectedRevision 面（真值 bCt @443458 target 判别联合）",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
+        { "op": "request", "method": "session/subscribe",
+          "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_fk1_a", "content": "第一轮 [[fk-1]]" } },
+        { "op": "waitEvent", "type": "turn.completed" },
+        { "op": "request", "method": "session/fork", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "target": { "kind": "latestCheckpoint" } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$forkedSessionId" } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_fk1_b", "content": "第二轮 [[fk-2]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "count": 2 },
+        { "op": "request", "method": "session/fork", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "target": { "kind": "turn", "turnIndex": 0 } } },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$forkedSessionId" } },
+        { "op": "request", "method": "session/fork", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "target": { "kind": "bogus" } } },
+        { "op": "request", "method": "session/fork", "timeoutMs": 30000,
+          "params": { "sessionId": "$sessionId", "target": { "kind": "latestCheckpoint" }, "expectedRevision": 999 } }
+      ]
+    }
+  ]
+}

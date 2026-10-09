@@ -65,6 +65,7 @@ import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js"
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { useDesktopPet } from "@/hooks/useDesktopPet.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
+import { WebRemoteControlSidePaneSync } from "@/root/WebRemoteControlSidePaneSync.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -72,7 +73,6 @@ import type {
   ConversationFindMatchState,
 } from "@/v4/legacyChatViewTypes.js";
 import { getActiveSidePaneTab } from "@/lib/workspaceSidePane.js";
-import { WebRemoteControlSidePaneSync } from "@/root/WebRemoteControlSidePaneSync.js";
 import { logger } from "@/logger.js";
 import { taskListE2EActions } from "@/lib/taskListE2EActions.js";
 import {
@@ -297,6 +297,14 @@ export function App({
     platform,
     enabled: Boolean(notificationEnabled && isDesktop),
     formatMessage: intl.formatMessage,
+  });
+  useDesktopPet({
+    workspacePath: workspaceAbsPath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(workspaceRemoteSessionId ? { endpointKey: workspaceRemoteSessionId } : {}),
+    rpcReady: workspaceRpcReady,
+    enabled: Boolean(isDesktop),
+    platform,
   });
   const lastHandledDraftSidePaneCloseRef = useRef({
     workspaceKey,

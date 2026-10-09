@@ -1,0 +1,18 @@
+{
+  "plans": {},
+  "scenarios": [
+    {
+      "id": "x90",
+      "title": "波5取证：denylist Read 单变量——隔离共享工具契约字节差",
+      "ops": [
+        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "toolDenylist": ["Read"] } },
+        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
+        { "op": "request", "method": "session/send",
+          "params": { "sessionId": "$sessionId", "inputId": "in_x90", "content": "单变量 [[x5-text]]" } },
+        { "op": "waitEvent", "type": "turn.completed", "timeoutMs": 45000 },
+        { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } }
+      ]
+    }
+  ]
+}

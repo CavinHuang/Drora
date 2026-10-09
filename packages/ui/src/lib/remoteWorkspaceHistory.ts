@@ -64,15 +64,15 @@ export function hasRemoteWorkspaceIdentity(entry: {
 
 type WslRemoteTargetLike = Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "wsl" }>;
 
-function getWslRemoteTargetUser(target: WslRemoteTargetLike): string | undefined {
-  return target.user?.trim() || undefined;
-}
-
 /** server 连接的显示名称随连接流程与恢复快照传递；官方提交形态快照 target 同样带 name。 */
 function getServerRemoteTargetDisplayName(
   target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
 ): string | undefined {
   return target.name?.trim() || undefined;
+}
+
+function getWslRemoteTargetUser(target: WslRemoteTargetLike): string | undefined {
+  return target.user?.trim() || undefined;
 }
 
 function formatWslRemoteTargetAuthority(target: WslRemoteTargetLike): string {

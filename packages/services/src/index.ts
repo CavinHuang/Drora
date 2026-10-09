@@ -16,6 +16,7 @@ export {
   type AccountRequestAuthMaterial,
   type AccountRequestAuthResolver,
 } from "./model-provider/accountRequestAuthService.js";
+export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { IProviderProvisioningTargetService } from "./model-provider/providerProvisioning.js";
 export {
   collectServiceMemoryDiagnostics,
@@ -63,7 +64,6 @@ export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 // 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
 export { IOutputStyleService } from "./outputStyle/outputStyle.js";
 export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
-export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 
 // Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
 export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";

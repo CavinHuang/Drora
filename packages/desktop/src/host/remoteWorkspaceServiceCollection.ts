@@ -34,6 +34,7 @@ import {
   IHooksService,
   IMemoryService,
   ISettingsSyncService,
+  IOutputStyleService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
 } from "@drora/services";
@@ -63,6 +64,7 @@ import {
   createServiceLogger,
   createSubagentsService,
   createMemoryService,
+  createOutputStyleService,
   createRemoteConversationShareArtifactSource,
   OAuthCredentialRepo,
 } from "@drora/services/node";
@@ -374,6 +376,10 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(ISubagentsService, createSubagentsService({ isDesktopRuntime: true }))
     .register(IHooksService, params.connectionServices.hooksService)
     .register(IMemoryService, createMemoryService())
+    // 第 48 轮：对齐官方 TJ（createRemoteWorkspaceServiceCollection）里的
+    // .register(Tl, pf())——ssh/wsl/docker 远程也用本地实例：output style 是
+    // 本机 ~/.claude 的状态，不属于远端文件系统。
+    .register(IOutputStyleService, createOutputStyleService())
     .register(
       ISettingsSyncService,
       createSettingsSyncService({ settingService: localSettingService }),

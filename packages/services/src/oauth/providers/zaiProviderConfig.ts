@@ -24,6 +24,7 @@ const ZAI_OAUTH_PROVIDER_CONFIG: Omit<OAuthProviderRuntimeConfig, "appSecret"> =
   businessLoginUrl: "https://api.z.ai/api/auth/z/login",
   // 生产 client_id 不是 secret，但保留 fallback 可以避免未配置 env 的旧构建直接无法登录。
   appId: "client_P8X5CMWmlaRO9gyO-KSqtg",
+  // redirectUri 是官网中转页白名单契约，必须保持 zcode://，不能本地改名。
   redirectUri: "zcode://oauth/callback",
 };
 

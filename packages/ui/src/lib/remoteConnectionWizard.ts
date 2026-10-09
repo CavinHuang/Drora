@@ -179,6 +179,36 @@ export function buildRemoteTarget(
         },
       };
     }
+    // 第 47 轮：server 连接表单接入。校验对齐官方：url 必填 + 协议仅接受
+    // http(s)/ws(s)（其余协议或非法 URL 报 invalidUrl，文案与官方逐字一致）。
+    case "server": {
+      const serverUrl = snapshot.serverUrl.trim();
+      if (!serverUrl) {
+        return {
+          errorMessage: intl.formatMessage({ id: "server.validation.urlRequired" }),
+        };
+      }
+      try {
+        // 端点解析与连接链共用同一入口，保证表单校验和真实连接对 URL 的判定一致。
+        resolveServerRemoteEndpoints(serverUrl);
+      } catch {
+        return {
+          errorMessage: intl.formatMessage({ id: "server.validation.invalidUrl" }),
+        };
+      }
+      const serverName = snapshot.serverName.trim();
+      const serverToken = snapshot.serverToken.trim();
+      const serverWorkspacePath = snapshot.serverWorkspacePath.trim();
+      return {
+        target: {
+          kind: "server",
+          url: serverUrl,
+          ...(serverName ? { name: serverName } : {}),
+          ...(serverToken ? { token: serverToken } : {}),
+          ...(serverWorkspacePath ? { workspacePath: serverWorkspacePath } : {}),
+        },
+      };
+    }
   }
 }
 

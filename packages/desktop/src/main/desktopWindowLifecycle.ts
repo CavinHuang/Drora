@@ -67,6 +67,14 @@ export function createWindow(options: {
   awaitFirstHostSpawnDecision?: () => Promise<void>;
   /** Local Host map insertion completed; presentation facts can now be replayed safely. */
   onHostProcessReady?: (windowKey: number) => void;
+  /**
+   * 窗口 Local Host 就绪并携带主工作区信息（移动端远控启动恢复的对齐挂点：
+   * 原版 restorePreviouslyEnabled 在窗口工作区可用后判定是否自动恢复远控）。
+   */
+  onWindowHostWorkspaceReady?: (
+    windowKey: number,
+    workspace: { workspacePath?: string; workspaceIdentity?: string } | undefined,
+  ) => void;
   resolveBrowserViewOwner?: Parameters<typeof createBrowserWindow>[0]["resolveBrowserViewOwner"];
 }) {
   const win = createBrowserWindow({
@@ -205,6 +213,7 @@ export function createWindow(options: {
       });
       options.windowHostProcessMap.set(wcId, child);
       options.onHostProcessReady?.(wcId);
+      options.onWindowHostWorkspaceReady?.(wcId, primaryWarmupTarget);
       options.syncAutoUpdaterStateToWindow(win);
       options.syncReadyUpdateToWindow(win);
       options.syncPostUpdateReleaseNotesToWindow(win);

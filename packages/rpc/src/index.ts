@@ -59,6 +59,7 @@ export {
   type ConnectionFlowControl,
   type MessagePortFlowControl,
   type MessagePortFlowState,
+  messagePortFlowControl,
   type MessagePortPayload,
   type ISocket,
   ChunkStream,
@@ -68,7 +69,6 @@ export {
   MessagePortProtocol,
   type MessagePortLike,
   createQueuePair,
-  messagePortFlowControl,
 } from "./protocol.js";
 export { PersistentProtocol, type PersistentProtocolOptions } from "./persistent-protocol.js";
 

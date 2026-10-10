@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -12,6 +13,16 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   transpilePackages: ["@drora/ui", "@drora/shared"],
+  resolve: {
+    // ui 包（Vite 语义）的 ?url 资产导入（如 pdf.js worker 的 ESM 无 default 导出）
+    // 在 esbuild 打包下报 No matching export——alias 垫片绕开。
+    alias: {
+      "pdfjs-dist/build/pdf.worker.min.mjs?url": path.resolve(
+        __dirname,
+        "src/shims/pdf-worker-url.js",
+      ),
+    },
+  },
   webpack: (config) => {
     // ui 包（Vite 语义）的 ?url 资产导入（如 pdf.js worker）：按 asset/resource
     // 处理——源文件随产物发出、导出 URL 字符串，对齐 Vite 的 ?url 后缀语义。

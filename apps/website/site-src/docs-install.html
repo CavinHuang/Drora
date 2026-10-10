@@ -20,48 +20,75 @@
             <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
           </div>
           <h1 data-i18n="doc.nav.install">安装</h1>
+          <!-- 时长信息归位到步骤条卡片内（对齐参考站：导语只讲一句，步骤条右侧展示总时长） -->
           <p data-i18n="doc.install.lead2">
-            下载并安装 Drora 桌面应用，开始体验 Drora Agent 驱动的端到端开发工作流。全程约 2 分钟：下载安装包 →
-            完成安装 → 首次启动。
+            下载并安装 Drora 桌面应用，开始体验 Drora Agent 驱动的端到端开发工作流。
           </p>
-          <ol>
-            <li><a href="#download" data-i18n="doc.install.step1">下载安装包</a></li>
-            <li><a href="#steps" data-i18n="doc.install.step2">完成安装</a></li>
-            <li><a href="#first-run" data-i18n="doc.install.step3">首次启动</a></li>
-          </ol>
+          <!-- 步骤条卡片：复刻参考站 ①②③ 圆号步骤条 + 右侧总时长 -->
+          <div class="install-steps-card">
+            <span class="is-num" aria-hidden="true">1</span><a class="is-label" href="#download" data-i18n="doc.install.step1">下载安装包</a>
+            <span class="is-sep" aria-hidden="true">›</span>
+            <span class="is-num" aria-hidden="true">2</span><a class="is-label" href="#steps" data-i18n="doc.install.step2">完成安装</a>
+            <span class="is-sep" aria-hidden="true">›</span>
+            <span class="is-num" aria-hidden="true">3</span><a class="is-label" href="#first-run" data-i18n="doc.install.step3">首次启动</a>
+            <span class="is-time" data-i18n="doc.install.timeTotal">全程约 2 分钟</span>
+          </div>
 
           <h2 id="download" data-i18n="doc.install.sub.download">下载</h2>
           <p>
             <span data-i18n="doc.install.p0">立即下载 Drora：桌面安装包与 CLI 单文件均发布在</span>
             <a href="https://github.com/CavinHuang/Drora/releases/latest">Releases</a><span data-i18n="doc.dot">。</span>
           </p>
-          <table class="docs-table">
-            <thead>
-              <tr>
-                <th data-i18n="doc.install.th1">文件</th>
-                <th data-i18n="doc.install.th2">说明</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code data-i18n="doc.file.win">Drora-&lt;版本&gt;-win-x64.exe</code> / <code>win-arm64.exe</code></td>
-                <td data-i18n="doc.install.td1">Windows 桌面应用安装包（NSIS）</td>
-              </tr>
-              <tr>
-                <td><code data-i18n="doc.file.mac">Drora-&lt;版本&gt;-mac-arm64.dmg</code> / <code>mac-x64.dmg</code>（及 <code>.zip</code>）</td>
-                <td data-i18n="doc.install.td2">macOS 桌面应用</td>
-              </tr>
-              <tr>
-                <td><code>drora-windows-x64.exe</code> / <code>drora-darwin-arm64</code> / <code>drora-linux-x64</code></td>
-                <td data-i18n="doc.install.td3">Agent CLI 单文件，须在终端中运行（双击会闪退）</td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- 下载卡模块：主按钮（平台感知，复用首页 #ctaDownload/#ctaPlatform 机制）+
+               版本徽章 + 其他平台 2×2 卡 + 支持说明；替代原「文件/说明」两列表格 -->
+          <div class="install-dl-card">
+            <div class="idc-cta-row">
+              <a class="cta-btn" id="ctaDownload" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-x64.exe">
+                <span class="cta-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    <rect x="3" y="3" width="8.4" height="8.4" fill="#f25022" />
+                    <rect x="12.6" y="3" width="8.4" height="8.4" fill="#7fba00" />
+                    <rect x="3" y="12.6" width="8.4" height="8.4" fill="#00a4ef" />
+                    <rect x="12.6" y="12.6" width="8.4" height="8.4" fill="#ffb900" />
+                  </svg>
+                </span>
+                <span class="cta-text">
+                  <strong data-i18n="hero.cta">立即下载 Drora</strong>
+                  <small id="ctaPlatform" data-i18n="hero.forWindows">适用于 Windows</small>
+                </span>
+              </a>
+              <span class="idc-ver"><i class="idc-dot" aria-hidden="true"></i><span data-i18n="doc.install.verBadge">v0.0.8 · 最新版本</span></span>
+            </div>
+            <p class="idc-platforms-title" data-i18n="doc.install.otherPlatforms">其他平台</p>
+            <div class="idc-grid">
+              <a class="idc-item" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-arm64.exe">
+                <span class="idc-item-title" data-i18n="dl.winArm">Windows (ARM64)</span>
+                <span class="idc-item-sub" data-i18n="doc.install.pc.armSub">ARM64 架构安装包（.exe）</span>
+              </a>
+              <a class="idc-item" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-mac-arm64.dmg">
+                <span class="idc-item-title" data-i18n="dl.macArm">macOS（Apple 芯片）</span>
+                <span class="idc-item-sub" data-i18n="doc.install.pc.macArmSub">Apple Silicon（M 系列）.dmg</span>
+              </a>
+              <a class="idc-item" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-mac-x64.dmg">
+                <span class="idc-item-title" data-i18n="dl.macIntel">macOS（Intel 芯片）</span>
+                <span class="idc-item-sub" data-i18n="doc.install.pc.macIntelSub">Intel 芯片 .dmg</span>
+              </a>
+              <a class="idc-item" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/drora-linux-x64">
+                <span class="idc-item-title" data-i18n="dl.linuxCli">Agent CLI（x64）</span>
+                <span class="idc-item-sub" data-i18n="doc.install.pc.cliSub">单文件，须在终端中运行</span>
+              </a>
+            </div>
+            <p class="idc-note">
+              <i class="idc-info" aria-hidden="true">ⓘ</i>
+              <span><span data-i18n="doc.install.p2">所有产物均由 GitHub Actions 从源码构建，</span><code>SHA256SUMS.txt</code><span data-i18n="doc.install.p2t">提供校验和。</span></span>
+            </p>
+          </div>
           <p data-i18n="doc.install.platforms">
             支持 macOS（Apple Silicon / Intel）与 Windows（x64 / ARM64）。暂不提供 Linux
             桌面安装包：Linux 用户可先使用 CLI 单文件，或从源码构建桌面应用。
           </p>
 
+          <hr />
           <h2 id="steps" data-i18n="doc.install.sub.steps">安装步骤</h2>
           <h3 data-i18n="doc.install.step.mac">macOS</h3>
           <ol>
@@ -80,14 +107,14 @@
             <span data-i18n="doc.install.stepCli">
             单文件可执行，放到 PATH 目录或直接以路径运行；必须在终端中启动，双击会闪退。首次使用先执行
             </span>
-            <code>drora login</code><span data-i18n="doc.install.stepCliT">完成浏览器授权，即可开始提问。</span>
+            <code class="docs-cmd">drora login</code><span data-i18n="doc.install.stepCliT">完成浏览器授权，即可开始提问。</span>
           </p>
           <div class="docs-note">
             <span data-i18n="doc.install.note1">
             安装包未做签名：Windows 首次运行请在 SmartScreen 提示时选择「更多信息 → 仍要运行」；macOS 首次打开若被拦截，可在「系统设置 →
             隐私与安全性」中放行，或执行
             </span>
-            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
+            <code class="docs-cmd">sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
           </div>
 
           <h2 id="first-run" data-i18n="doc.install.sub.firstrun">首次启动</h2>
@@ -179,7 +206,7 @@
           <h3 data-i18n="doc.install.trouble.cli">CLI 提示没有执行权限</h3>
           <p>
             <span data-i18n="doc.install.troubleCli">macOS / Linux 下载的单文件需要执行权限：</span>
-            <code>chmod +x drora-*</code><span data-i18n="doc.install.troubleCliT"> 后再运行。</span>
+            <code class="docs-cmd">chmod +x drora-*</code><span data-i18n="doc.install.troubleCliT"> 后再运行。</span>
           </p>
 
           <h2 id="more" data-i18n="doc.install.sub.more">了解更多</h2>
@@ -192,7 +219,7 @@
         </article>
 
         <aside class="docs-toc" id="docsToc">
-          <p data-i18n="doc.toc">本页目录</p>
+          <p data-i18n="doc.toc">On this page</p>
           <nav aria-label="On this page" id="tocList"></nav>
         </aside>
       </div>

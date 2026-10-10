@@ -21,11 +21,13 @@
           </div>
           <h1 data-i18n="doc.nav.tasks">任务与目标模式</h1>
           <p>
-            <span data-i18n="doc.goal.intro.a">面对需要跑很久的复杂任务，可以用</span> <code>/goal</code>
+            <span data-i18n="doc.goal.intro.a">面对需要跑很久的复杂任务，可以用</span> <code class="docs-cmd">/goal</code>
             <span data-i18n="doc.goal.intro.b">给当前会话设一个目标。设定之后，Drora Agent
             会围绕这个目标持续推进：每一轮结束都会自动校验目标是否达成，没达成就自己接着下一轮，确认完成才收尾——把「盯着
             Agent 反复说继续」变成「设一个目标，等结果」。</span>
           </p>
+          <!-- 应用截图前移至引言后（对齐参考站 goal 页顺序：引言 → 截图 → 「适合什么任务」） -->
+          <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-summary-panel-annotated.webp" alt="目标摘要面板：目标与已用时间、按迭代分组的清单项，以及当前这轮的进度与待办" loading="lazy" /></figure>
           <p>
             <strong data-i18n="doc.goal.suitable.lead">适合什么任务</strong>
             <span data-i18n="doc.goal.suitable.p">：一句话说得清、但要多轮才能做完的活，例如——</span>
@@ -43,7 +45,7 @@
 
           <h2 id="set-goal" data-i18n="doc.goal.set.h">设定目标</h2>
           <p>
-            <span data-i18n="doc.goal.set.p1.a">在输入框里输入</span> <code>/goal</code>
+            <span data-i18n="doc.goal.set.p1.a">在输入框里输入</span> <code class="docs-cmd">/goal</code>
             <span data-i18n="doc.goal.set.p1.b">，后面接一句话，就是这轮会话的目标。也可以先输入</span> <code>/</code>
             <span data-i18n="doc.goal.set.p1.c">，在建议面板里选 goal。</span>
           </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-set-command-annotated.webp" alt="在输入框输入 /goal，建议面板中高亮「查看或设定当前会话目标」" loading="lazy" /></figure>
@@ -114,10 +116,10 @@
               <span data-i18n="doc.goal.next.d3">——将常用提示词保存为可重用的命令。</span>
             </li>
           </ul>
-        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-summary-panel-annotated.webp" alt="目标摘要面板：目标与已用时间、按迭代分组的清单项，以及当前这轮的进度与待办" loading="lazy" /></figure></article>
+        </article>
 
         <aside class="docs-toc" id="docsToc">
-          <p data-i18n="doc.toc">本页目录</p>
+          <p data-i18n="doc.toc">On this page</p>
           <nav aria-label="On this page" id="tocList"></nav>
         </aside>
       </div>

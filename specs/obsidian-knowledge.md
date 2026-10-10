@@ -79,7 +79,10 @@ PermissionRequest hook（matcher `Write|Edit`）的自动 allow 判定，全部�
 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §3.9）。面板门面
 （`packages/services/src/obsidian-vault/`）不变量不受影响：hook 收窄后与面板
 `normalizeRelativeMarkdownPath` 的"仅非隐藏 `.md`"语义对齐，消除"W01 前 hook 对
-`.obsidian` 与非 .md 自动 allow 而面板拒绝"的不对称。
+`.obsidian` 与非 .md 自动 allow 而面板拒绝"的不对称。路径分隔符在所有平台统一按 `/`
+解释：候选路径先做反斜杠归一再解析，与面板门面同一可见性语义；POSIX 上反斜杠是合法
+文件名字符，不按字面文件名放行（否则 `notes\.obsidian\x.md` 会被当作单段字面名绕过
+隐藏段检查），绝对路径/UNC 判定先于归一对原始串做（K-POL-7，CI ubuntu/macos 实证）。
 
 **与未来 Proposal（L2）的区别**：L1 自动放行只覆盖"根内非隐藏目录的普通 .md 的 Write/Edit
 ask 询问"，无持久化规则、每次询问重新校验、不可翻案 deny；L2 面向治理类/批量写，必须显式
@@ -354,6 +357,7 @@ A21（主题/平台/窄屏）：静态令牌纪律已由 W07 回归锁定——
 | K-POL-3 | 防逃逸：根外绝对路径、UNC 路径、`\\?\` 扩展路径、`..` 穿越、根内软链文件/目录逃逸、已存在目录冒充 `.md` | 一律静默（交回问询） | 已实现（同上） |
 | K-POL-4 | 相对路径带根内 cwd / 无 cwd / 根外 cwd | 放行 / 静默 / 静默 | 已实现（同上） |
 | K-POL-5 | 缺失/坏配置：env 未设、目录缺失、JSON 损坏、根被删、根是文件、`allowAgentWrites=false` | 全部静默，不产生 allow 决策 | 已实现（既有 + 新增用例） |
+| K-POL-7 | 分隔符等价：`notes\sub\b.md` 在任何平台按 `/` 分隔解析（先归一再解析，与面板 `normalizeRelativeMarkdownPath` 一致） | 解析为 `notes/sub/b.md`，绝不作为字面文件名放行；POSIX 上不绕过隐藏段检查 | 已实现（CI ubuntu/macos 实证修复，`test/permission-path-policy.test.mjs`） |
 | K-HOOK-1 | hook stdin/stdout E2E：根内 `.md` Write/Edit + allow → allow 决策，无持久化规则 | 结构化 allow，其余静默 exit 0 | 已实现（`test/hooks-e2e.mjs`） |
 | K-HOOK-2 | E2E：`.obsidian/**`、`.hidden/**`、非 Markdown、软链、root 外、`allowAgentWrites=false` | 均不得自动 allow（静默） | 已实现（A29） |
 | K-HOOK-3 | 合法 Markdown 编辑与既有默认问询不回归 | 根内 .md 仍 allow；其余行为不变 | 已实现（A30） |

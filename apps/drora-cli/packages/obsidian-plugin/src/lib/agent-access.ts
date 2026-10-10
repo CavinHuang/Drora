@@ -50,7 +50,7 @@ export async function resolveAuthorizedVaultPath(
   try {
     const realRoot = await realpath(rootPath);
     const baseDir = typeof cwd === "string" && cwd.trim() !== "" ? cwd : realRoot;
-    const target = resolve(baseDir, candidatePath);
+    const target = resolve(baseDir, candidatePath.replace(/\\/g, "/"));
     const rel = relative(realRoot, target);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       return null;
@@ -96,7 +96,12 @@ export async function resolveAuthorizedVaultWritePath(
       // 相对路径 + 无 cwd：无法与运行时工作目录对齐，按异常交回问询。
       return null;
     }
-    const target = resolve(baseDir ?? realRoot, candidatePath);
+    // 跨平台分隔符归一：`\` 一律按分隔符解释，与面板门面 normalizeRelativeMarkdownPath
+    // 的无条件反斜杠归一保持同一可见性语义。POSIX 上反斜杠是合法文件名字符，若按字面名
+    // 解析会产生"hook 放行字面名、面板解释为子路径"的不对称，且 `notes\.obsidian\x.md`
+    // 会被当作单段字面名绕过隐藏段检查（CI ubuntu/macos 实证，K-POL-7）。
+    // 绝对路径判定必须先于归一（对原始串做），保住 UNC/盘符两种写法的识别。
+    const target = resolve(baseDir ?? realRoot, candidatePath.replace(/\\/g, "/"));
     const rel = relative(realRoot, target);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       return null;

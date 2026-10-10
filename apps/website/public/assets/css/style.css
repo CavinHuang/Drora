@@ -2916,3 +2916,255 @@ release-block {
     margin-top: 40px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Docs install: steps card + download panel（复刻参考站计算值；此前 HTML 结构在而样式缺失）
+   -------------------------------------------------------------------------- */
+
+.install-steps-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 18px;
+  row-gap: 12px;
+  margin: 24px 0;
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.is-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: #171717;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.is-label {
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+
+.is-label:hover {
+  color: var(--fg);
+}
+
+.is-sep {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.is-time {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.install-dl-card {
+  margin: 20px 0 24px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.idc-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.idc-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+
+.idc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #28c840;
+}
+
+.idc-platforms-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.idc-platforms-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.idc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.idc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.idc-item:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.idc-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.idc-item-sub {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+
+.idc-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13.5px;
+  color: var(--fg-muted);
+}
+
+.idc-info {
+  font-style: normal;
+  color: var(--fg-subtle);
+}
+
+@media (max-width: 640px) {
+  .idc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .is-time {
+    margin-left: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Docs screenshot figures（16 个 docs 页嵌入的产品截图；参考站为圆角描边框）
+   -------------------------------------------------------------------------- */
+
+.docs-shot {
+  margin: 20px 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.docs-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.docs-shot-embed {
+  margin: 20px 0 24px;
+}
+
+/* docs 内联命令 chip（goal/install 页用） */
+.docs-cmd {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* home 下载列防御 + 法务页头 + hero pill emoji */
+.dl-col {
+  min-width: 0;
+}
+
+.page-hero-legal {
+  padding-bottom: 24px;
+}
+
+.hero-pill-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* idc-item 图标 tile + 文本列（对齐参考站平台卡 anatomy） */
+.idc-item {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.idc-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.idc-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* install 页 CTA 尾部下载箭头（参考站白按钮右侧 ⬇） */
+.cta-dl-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: #6b6b6b;
+}

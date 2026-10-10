@@ -16,6 +16,24 @@ import { WebsiteMock } from "./WebsiteMock.mock";
 export function HeroMockSlot({ fallbackHtml }: { fallbackHtml: string }) {
   const [live, setLive] = useState(false);
   useEffect(() => setLive(true), []);
+  // 参考站初始停在对话末尾（最新轮次+文件卡贴着 composer）；虚拟化时间线挂载后
+  // 需等测高完成，延时把滚动容器推到底。
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setTimeout(() => {
+      const timeline = document.querySelector("[data-testid='v4-timeline']");
+      let node: HTMLElement | null = timeline instanceof HTMLElement ? timeline : null;
+      while (node && node !== document.body) {
+        const overflowY = getComputedStyle(node).overflowY;
+        if (overflowY === "auto" || overflowY === "scroll") {
+          node.scrollTop = node.scrollHeight;
+          break;
+        }
+        node = node.parentElement;
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [live]);
   if (!live) {
     return <div dangerouslySetInnerHTML={{ __html: fallbackHtml }} />;
   }

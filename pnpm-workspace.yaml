@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - apps/website
   - apps/drora-cli
   - apps/drora-cli/packages/*
   - apps/drora-cli/tools/*

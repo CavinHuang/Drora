@@ -1,0 +1,413 @@
+1:"$Sreact.fragment"
+2:I[5341,[],""]
+3:I[25,[],""]
+4:I[5165,["177","static/chunks/app/layout-ce9ee417794c6ebc.js"],""]
+8:I[4431,[],""]
+:HL["/Drora/_next/static/css/ac08906b33ab02f2.css","style"]
+5:T8710,<!-- 头部为 <site-header> 组件（assets/js/components.js），结构复刻参考站；no-JS 时回退到下方链接 -->
+    <site-header class="site-header" id="siteHeader" data-page="home" data-base=""></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="docs/">文档</a>
+        <a href="changelog/">更新日志</a>
+        <a href="security/">提交漏洞</a>
+        <a href="community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main id="top">
+      <!-- ======================= Hero ======================= -->
+      <section class="hero">
+        <div class="container hero-head">
+          <a class="hero-pill reveal" href="changelog/">
+            <span class="hero-pill-emoji" aria-hidden="true">🎉</span>
+            <span data-i18n="hero.pill">v0.0.8 开源发布：桌面、手机与终端三形态齐备</span>
+          </a>
+          <h1 class="hero-title reveal" data-i18n="hero.title">简单、迅捷、氛围十足！</h1>
+          <p class="hero-sub reveal" data-i18n="hero.subtitle">
+            Drora 是新一代氛围编程工具：多智能体协作完成复杂目标，桌面宠物一路陪伴，随时随地尽在掌控。
+          </p>
+          <div class="hero-cta reveal">
+            <a class="cta-btn" id="ctaDownload" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-x64.exe">
+              <span class="cta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <rect x="3" y="3" width="8.4" height="8.4" fill="#f25022" />
+                  <rect x="12.6" y="3" width="8.4" height="8.4" fill="#7fba00" />
+                  <rect x="3" y="12.6" width="8.4" height="8.4" fill="#00a4ef" />
+                  <rect x="12.6" y="12.6" width="8.4" height="8.4" fill="#ffb900" />
+                </svg>
+              </span>
+              <span class="cta-text">
+                <strong data-i18n="hero.cta">立即下载 Drora</strong>
+                <small id="ctaPlatform" data-i18n="hero.forWindows">适用于 Windows</small>
+              </span>
+            </a>
+          </div>
+          <a class="hero-all-downloads reveal" href="#downloads" data-i18n="hero.allDownloads">查看全部下载</a>
+        </div>
+
+        <!-- App window mock (pure DOM, decorative) -->
+        <div class="mock-wrap reveal" aria-hidden="true">
+          <div class="mock-glow" aria-hidden="true"></div>
+          <div class="window">
+            <div class="win-traffic">
+              <div class="traffic"><i class="t-red"></i><i class="t-yellow"></i><i class="t-green"></i></div>
+              <span class="tb-icon">◫</span>
+              <span class="tb-arrow">‹</span><span class="tb-arrow">›</span>
+              <span class="tb-icon">⊕</span>
+            </div>
+            <div class="win-sidebar">
+              <div class="win-side-actions">
+                <div class="side-action"><span class="sa-icon">⊕</span><span data-i18n="mock.newTask">新建任务</span><kbd>⌘N</kbd></div>
+                <div class="side-action"><span class="sa-icon">▤</span><span data-i18n="mock.openWorkspace">打开工作区</span></div>
+                <div class="side-action"><span class="sa-icon">⚡</span><span data-i18n="mock.skills">技能</span></div>
+              </div>
+              <div class="win-side-label">
+                <span data-i18n="mock.tasks">任务</span>
+                <span class="side-archive" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></span>
+              </div>
+              <div class="win-side-list">
+                <div class="win-side-label"><span class="wsl-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></span><span class="wsl-name">gomoku-ai</span><span class="wsl-actions" aria-hidden="true"><i>⋯</i><i>⊕</i></span></div>
+                <div class="side-item active"><span class="dot dot-brand"></span><div class="si-body"><p data-i18n="mock.t1">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。</p><time>2m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t2">整理开始提示、回合状态和胜利文案</p><time>9m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t3">接入启发式 AI 落子和玩家先手流程</p><time>14m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t4">适配移动端棋盘缩放和横竖屏布局</p><time>27m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t5">补一版规则说明、重开入口和空状态引导</p><time>51m</time></div></div>
+                <div class="win-side-label"><span class="wsl-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></span><span class="wsl-name">zcode-website</span><span class="wsl-actions" aria-hidden="true"><i>⋯</i><i>⊕</i></span></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t6">修复对话区在 resize 时的底部吸附逻辑</p><time>8m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t7">重写 hero visual 的 workspace 和 task 假数据</p><time>3m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t8">整理官网首页英文文案，统一产品定位和 CTA</p><time>42m</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t9">调整首页 hero 在 13 寸和移动端下的布局断点</p><time>1h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t10">补一版定价页 FAQ 和企业版能力说明</p><time>2h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t21">优化 docs 搜索结果高亮和空状态反馈</p><time>5h</time></div></div>
+                <div class="win-side-label"><span class="wsl-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></span><span class="wsl-name">zcode-desktop</span><span class="wsl-actions" aria-hidden="true"><i>⋯</i><i>⊕</i></span></div>
+                <div class="side-item fail"><span class="dot dot-red"></span><div class="si-body"><p data-i18n="mock.t11">排查会话恢复后右侧面板状态不同步的问题</p><time>1h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t12">优化 terminal 面板拖拽 resize 后的重绘性能</p><time>2h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t13">修复重启后 sidebar 折叠状态没有恢复的问题</p><time>3h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t14">梳理设置页分组信息架构，减少高级选项混杂</p><time>6h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t15">给 command palette 增加最近使用和键盘提示</p><time>9h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t22">补首启动 onboarding 的远程开发说明和权限提示</p><time>1d</time></div></div>
+                <div class="win-side-label"><span class="wsl-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></span><span class="wsl-name">release-bot</span><span class="wsl-actions" aria-hidden="true"><i>⋯</i><i>⊕</i></span></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t16">接入 changelog 生成和 GitHub Release 草稿流程</p><time>4h</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t17">补一版失败 CI 汇总消息模板和重试建议</p><time>1d</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t18">串上 tag 校验、版本号同步和 release note 预览</p><time>1d</time></div></div>
+                <div class="side-item"><span class="dot"></span><div class="si-body"><p data-i18n="mock.t19">生成版本发布公告模板，区分 patch 和 feature release</p><time>2d</time></div></div>
+                <div class="side-item fail"><span class="dot dot-red"></span><div class="si-body"><p data-i18n="mock.t20">给失败发布任务增加幂等重试和告警收敛策略</p><time>3d</time></div></div>
+              </div>
+              <div class="win-side-user">
+                <span class="wsu-avatar" aria-hidden="true">D</span>
+                <span class="wsu-name" data-i18n="mock.user">Ryan Bot</span>
+                <span class="wsu-gear" aria-hidden="true">⚙</span>
+              </div>
+            </div>
+
+            <div class="win-main">
+              <div class="win-topbar">
+                <p class="wt-title" data-i18n="mock.goalTitle">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断…</p>
+                <span class="chip">gomoku-ai</span>
+                <span class="chip chip-branch">⎇ upgrade/v3.0 <i>⌄</i></span>
+                <span class="wt-spacer"></span>
+                <span class="wt-icons"><i class="wt-icon-active">▣</i><i>⊞</i><i>◱</i><i>▥</i></span>
+              </div>
+              <div class="win-chat">
+                <div class="user-msg-row"><div class="user-bubble" data-i18n="mock.userMsg">创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。</div><div class="msg-meta"><span class="mm-time">05:10 PM</span><span class="mm-act" data-i18n="mock.actEdit">编辑</span><span class="mm-act" data-i18n="mock.actCopy">复制</span><span class="mm-act" data-i18n="mock.actBranch">分支执行</span><span class="mm-dur" data-i18n="mock.duration">执行了 3 分 1 秒</span></div></div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro1">我会先检查当前五子棋项目的结构，确认现有的棋盘状态、渲染和游戏流程已经做到什么程度，再接入 AI 和胜负判断。</span>
+                </p>
+                <div class="tool-row fail"><span class="tr-icon">🔍</span><span data-i18n="mock.explore">已探索</span><code data-i18n="mock.exploreRes">1 search, 1 file</code><span class="fail-tag" data-i18n="mock.fail">失败</span><span class="tr-chev">›</span></div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro2">这个仓库看起来是空的，或者几乎没有现成代码。我现在继续确认目录内容，判断是基于已有应用扩展，还是需要从零开始实现。</span>
+                </p>
+                <div class="tool-row fail"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>git status --short</code><span class="fail-tag" data-i18n="mock.fail">失败</span><span class="tr-chev">›</span></div>
+                <p class="msg">
+                  <span data-i18n="mock.mIntro3">这里没有现成应用，所以我会从零开始做一个自包含实现。我先确认是否有本地项目约定需要遵守，然后补上浏览器端五子棋、启发式 AI、回合处理，以及明确的五子连线胜负判断。</span>
+                </p>
+                <div class="tool-row">
+                  <span class="tr-icon">✎</span><span data-i18n="mock.written">已写入</span>
+                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span>
+                  <span class="file-chip"><i class="fc-dot js"></i>app.js</span>
+                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span>
+                  <span class="diff add">+733</span><span class="tr-chev">›</span>
+                </div>
+                <p class="msg">
+                  <span data-i18n="mock.m3pre">完整 UI 和核心逻辑已经就位。我正在验证 JavaScript 是否可以正常解析，并复查落子评分逻辑，覆盖首步响应、平局处理和长连线胜利等边界情况。</span>
+                </p>
+                <div class="tool-row"><span class="tr-icon">▢</span><span data-i18n="mock.ran">已运行</span><code>node --check app.js</code><span class="tr-chev">›</span></div>
+                <p class="msg">
+                  <span data-i18n="mock.m2a">我发现了一个可以避免的依赖：页面原来拉取了在线字体。我正在去掉它，这样整个游戏可以完全本地运行，直接打开</span>
+                  <u>index.html</u>
+                  <span data-i18n="mock.m2b">就不需要网络。</span>
+                </p>
+                <div class="tool-row">
+                  <span class="tr-icon">✎</span><span data-i18n="mock.updated">已更新</span>
+                  <span class="file-chip"><i class="fc-dot css"></i>styles.css</span>
+                  <span class="file-chip"><i class="fc-dot html"></i>index.html</span>
+                  <span class="diff add">+1</span><span class="diff del">−7</span><span class="tr-chev">›</span>
+                </div>
+                <p class="msg">
+                  <span data-i18n="mock.m3a">已在</span><u>index.html</u><span data-i18n="mock.m3sep">、</span><u>styles.css</u><span data-i18n="mock.m3and">和</span><u>app.js</u>
+                  <span data-i18n="mock.m3b">中完成一个独立运行的浏览器五子棋游戏。它会渲染一个 15x15 棋盘，允许玩家放置黑棋，支持四个方向的胜负判断，高亮连成五子的路径，跟踪当前回合和步数，并支持重新开始对局。</span>
+                </p>
+                <p class="msg">
+                  <span data-i18n="mock.m4">AI 不是随机落子，而是启发式评分。它会搜索附近候选点，为自身的进攻棋型评分，也为阻挡玩家的防守点评分，再叠加中心区域偏好，最后选择分数最高的一步。同时还提供可选的「AI 关注区域」覆盖层，用来展示它重点考虑过的候选位置。</span>
+                </p>
+                <p class="msg dim">
+                  <span data-i18n="mock.mVerify">验证：node --check app.js 已通过。我这里没有运行交互式浏览器会话，剩下的一步是在浏览器里打开 index.html 并实际体验一局。</span>
+                </p>
+                <div class="files-card">
+                  <div class="fc-head">
+                    <span data-i18n="mock.filesChanged">3 个文件已更改</span>
+                    <span class="diff add">+734</span><span class="diff del">−7</span>
+                    <span class="fc-undo" data-i18n="mock.undo">撤销</span>
+                  </div>
+                  <div class="fc-row"><i class="fc-dot js"></i>app.js<span class="diff add">+471</span><span class="diff del">−0</span></div>
+                  <div class="fc-row"><i class="fc-dot html"></i>index.html<span class="diff add">+62</span><span class="diff del">−6</span></div>
+                  <div class="fc-row"><i class="fc-dot css"></i>styles.css<span class="diff add">+201</span><span class="diff del">−1</span></div>
+                </div>
+              </div>
+              <div class="win-input">
+                <div class="composer">
+                  <div class="comp-input" data-i18n="mock.inputPh">继续输入后续修改需求</div>
+                  <div class="comp-bar">
+                    <span class="comp-btn icon-only"><span class="tr-icon">＋</span><span class="sr-only" data-i18n="mock.addContext">添加上下文</span></span>
+                    <span class="comp-btn plain"><span class="tr-icon">✋</span><span data-i18n="mock.confirmEdit">变更前确认</span><i class="comp-caret">⌄</i></span>
+                    <span class="comp-spacer"></span>
+                    <span class="chip"><span class="tr-icon">◌</span>GLM-5.3<i class="comp-caret">⌄</i></span>
+                    <span class="chip"><span class="tr-icon">◉</span><span data-i18n="mock.effort">最大</span><i class="comp-caret">⌄</i></span>
+                    <span class="comp-send" aria-hidden="true">↑</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="win-panel">
+              <div class="panel-card">
+                <div class="pc-head-row"><p class="pc-title" data-i18n="mock.terminal">终端</p><span class="pc-badge">zsh</span><span class="pc-close" aria-hidden="true">✕</span></div>
+                <p class="pc-tag">ryan@mac zcode-website % ▋</p>
+              </div>
+              <div class="panel-card">
+                <p class="pc-title" data-i18n="mock.gitTools">Git tools</p>
+                <div class="pc-row"><span class="pcr-icon">⑃</span><span data-i18n="mock.changes">Changes</span><span class="pcr-diff"><b class="diff add">+734</b> <b class="diff del">−7</b></span></div>
+                <div class="pc-row"><span class="pcr-icon">⎇</span>feat/gomoku-ai<i class="pcr-caret">⌄</i></div>
+                <div class="pc-divider"></div>
+                <div class="pc-row muted"><span class="pcr-icon">→</span><span data-i18n="mock.commit">Commit</span><span class="pcr-more">⋯</span></div>
+              </div>
+              <div class="panel-card">
+                <div class="pc-head-row"><p class="pc-title">Goal</p><span class="pc-badge" data-i18n="mock.complete">Complete</span></div>
+                <p class="pc-goal" data-i18n="mock.goalDesc">五子棋人机对战 — 使用启发式 AI 算法实现电脑落子</p>
+                <p class="pc-dotmeta"><span>5/5</span><i>·</i><span>2m</span><i>·</i><span>89K tokens</span></p>
+              </div>
+              <div class="panel-card">
+                <p class="pc-title">Progress</p>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p1">初始化棋盘、棋子渲染和 15×15 网格布局</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p2">实现玩家落子交互和胜负判定逻辑</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p3">接入启发式 AI 算法实现电脑自动落子</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p4">适配移动端棋盘缩放和横竖屏布局</span></div>
+                <div class="progress-item done"><span>✓</span><span data-i18n="mock.p5">补一版规则说明、重开入口和空状态引导</span></div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= Editions ======================= -->
+      <section class="editions" id="editions">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <p class="section-label reveal" data-i18n="editions.label">100% 开源免费</p>
+              <h2 class="reveal" data-i18n="editions.title">一个 Drora，三种形态</h2>
+              <p class="section-sub reveal" data-i18n="editions.subtitle">桌面、浏览器与终端全端覆盖，同一运行时，全部免费开源。</p>
+            </div>
+            <a class="white-pill reveal" href="https://github.com/CavinHuang/Drora" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.36 1.12 2.94.85.09-.67.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.36 9.36 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
+              </svg>
+              <span data-i18n="editions.view">在 GitHub 查看</span>
+              <i class="arrow">↗</i>
+            </a>
+          </div>
+
+          <div class="edition-grid">
+            <article class="edition-card reveal">
+              <p class="ec-label">Drora Desktop</p>
+              <h3 data-i18n="ed.desktop.name">桌面端</h3>
+              <p class="ec-desc" data-i18n="ed.desktop.desc">适合日常开发的主力战场</p>
+              <p class="ec-price">¥0<small> / <span data-i18n="ed.forever">永久免费</span></small></p>
+              <p class="ec-feature-main"><span class="star">✱</span><span data-i18n="ed.desktop.f1">完整桌面 Agent：会话、任务与 Goal 长程目标</span></p>
+              <div class="ec-divider"></div>
+              <ul class="ec-list">
+                <li><span>✓</span><span data-i18n="ed.desktop.f2">会话历史、回放与检查点</span></li>
+                <li><span>✓</span><span data-i18n="ed.desktop.f3">技能、斜杠命令与 MCP 插件生态</span></li>
+                <li><span>✓</span><span data-i18n="ed.desktop.f4">桌面宠物猫娘三角色陪伴</span></li>
+              </ul>
+            </article>
+
+            <article class="edition-card featured reveal">
+              <p class="ec-label">Drora Web</p>
+              <span class="ec-badge" data-i18n="ed.badge.recommended">推荐</span>
+              <h3 data-i18n="ed.web.name">浏览器与手机</h3>
+              <p class="ec-desc" data-i18n="ed.web.desc">随时随地掌控你的桌面 Agent</p>
+              <p class="ec-price">¥0<small> / <span data-i18n="ed.forever">永久免费</span></small></p>
+              <p class="ec-feature-main"><span class="star">✱</span><span data-i18n="ed.web.f1">手机远控桌面已有 Host，复用会话运行时</span></p>
+              <div class="ec-divider"></div>
+              <ul class="ec-list">
+                <li><span>✓</span><span data-i18n="ed.web.f2">响应式布局，手机、平板、桌面皆宜</span></li>
+                <li><span>✓</span><span data-i18n="ed.web.f3">断线恢复与可回放的事件流</span></li>
+                <li><span>✓</span><span data-i18n="ed.web.f4">relay 只做鉴权配对转发，不存业务状态</span></li>
+              </ul>
+            </article>
+
+            <article class="edition-card gold reveal">
+              <p class="ec-label">Drora CLI</p>
+              <span class="ec-badge gold" data-i18n="ed.badge.geek">极客之选</span>
+              <h3 data-i18n="ed.cli.name">终端</h3>
+              <p class="ec-desc" data-i18n="ed.cli.desc">脚本化与自动化的 Agent 运行时</p>
+              <p class="ec-price">¥0<small> / <span data-i18n="ed.forever">永久免费</span></small></p>
+              <p class="ec-feature-main"><span class="star">✱</span><span data-i18n="ed.cli.f1">Agent CLI 单文件发布，在终端随处运行</span></p>
+              <div class="ec-divider"></div>
+              <ul class="ec-list">
+                <li><span>✓</span><span data-i18n="ed.cli.f2">与桌面端共享同一 Agent 运行时</span></li>
+                <li><span>✓</span><span data-i18n="ed.cli.f3">hooks、输出样式与 headless 模式</span></li>
+                <li><span>✓</span><span data-i18n="ed.cli.f4">stdio 协议，易于集成到任何工作流</span></li>
+              </ul>
+            </article>
+          </div>
+          <p class="edition-note reveal" data-i18n="editions.note">Drora 遵循上游许可证开源，欢迎自托管与贡献。</p>
+        </div>
+      </section>
+
+      <!-- ======================= Capabilities ======================= -->
+      <section class="capabilities" id="capabilities">
+        <div class="container">
+          <p class="section-label reveal" data-i18n="cap.label">产品能力</p>
+          <h2 class="reveal" data-i18n="cap.title">长程任务，尽在掌控</h2>
+          <p class="section-sub reveal" data-i18n="cap.subtitle">目标管理、手机远控、桌面宠物——每一项都是这个开源仓库真实交付的能力。</p>
+
+          <div class="cap-grid">
+            <article class="cap-card reveal">
+              <div class="cap-media">
+                <pre class="code-bg" aria-hidden="true"><code>return { complete: buffer.slice(0, -2), incom...
+
+// Split on double newlines to respect paragraph boundaries
+const blocks = buffer.split("\n\n");
+
+// Single pass: keep partial trailing block in the buffer
+if (block.length === 0) return;
+
+if (isFenced(block)) { ... }
+
+return stream(block, { renderer });</code></pre>
+                <div class="goal-float">
+                  <div class="gf-head"><span class="gf-logo">◍</span><b>Goal</b><time>3m 10s</time><span class="gf-more">⋯</span></div>
+                  <p class="gf-title"><span class="gf-ic">▣</span><span data-i18n="cap.goalCard">流式 Markdown 渲染器</span><span class="gf-count">7/8</span></p>
+                  <p class="gf-sub">Progress <b>5 completed</b></p>
+                  <div class="gf-item done"><span>✓</span><span data-i18n="cap.goalItem1">创建流式 Markdown 渲染组件</span></div>
+                  <div class="gf-item done"><span>✓</span><span data-i18n="cap.goalItem2">处理围栏代码块边界</span></div>
+                </div>
+              </div>
+              <h3 data-i18n="cap.goal.title">长程任务</h3>
+              <p data-i18n="cap.goal.desc">用 Goal 管理复杂目标，持续规划、执行与验证，让多步骤工作稳步推进。</p>
+            </article>
+
+            <article class="cap-card reveal">
+              <div class="cap-media media-remote">
+                <div class="desktop-behind" aria-hidden="true">
+                  <div class="db-dots"><i></i><i></i><i></i></div>
+                  <div class="db-lines"><i style="width: 72%"></i><i style="width: 54%"></i><i style="width: 63%"></i><i style="width: 40%"></i></div>
+                </div>
+                <div class="phone">
+                  <div class="phone-notch"></div>
+                  <div class="phone-chat">
+                    <div class="bubble user" data-i18n="cap.remoteIn">跑一下测试，把失败的修好</div>
+                    <div class="bubble bot"><span data-i18n="cap.remoteOut1">收到，已连接桌面 Drora…</span></div>
+                    <div class="bubble bot"><span class="tool-mini">▢</span><span>pnpm test</span></div>
+                    <div class="bubble bot"><span data-i18n="cap.remoteOut2">2 处失败已修复，全部通过 ✓</span></div>
+                    <div class="phone-input"><span data-i18n="cap.remoteInput">发送消息…</span></div>
+                  </div>
+                </div>
+                <span class="relay-pill" aria-hidden="true">⇄ relay</span>
+              </div>
+              <h3 data-i18n="cap.remote.title">手机远控</h3>
+              <p data-i18n="cap.remote.desc">通过手机浏览器远程唤起桌面 Drora，任务随时进入执行状态，断线也能恢复回放。</p>
+            </article>
+
+            <article class="cap-card reveal">
+              <div class="cap-media media-pets">
+                <drora-pet class="pet" atlas="assets/pets/noir-idle.webp" name="夜墨"></drora-pet>
+                <drora-pet class="pet" atlas="assets/pets/snow-idle.webp" name="雪铃"></drora-pet>
+                <drora-pet class="pet" atlas="assets/pets/ginger-idle.webp" name="杏桃"></drora-pet>
+              </div>
+              <h3 data-i18n="cap.pet.title">桌面宠物</h3>
+              <p data-i18n="cap.pet.desc">夜墨、雪铃、杏桃三位猫娘实时呈现任务状态，陪伴你的每一次提交，可隐藏、可拖动，不挡操作。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= Downloads ======================= -->
+      <section class="downloads" id="downloads">
+        <div class="container">
+          <h2 class="reveal" data-i18n="dl.title">全部下载</h2>
+          <p class="section-sub reveal" data-i18n="dl.subtitle">v0.0.8 快照的全部构建产物，均由 GitHub Actions 从源码构建。</p>
+
+          <div class="dl-grid">
+            <div class="dl-col reveal">
+              <h3 class="dl-platform">
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="currentColor" d="M17.05 12.54c-.03-2.89 2.36-4.27 2.47-4.34-1.35-1.97-3.44-2.24-4.18-2.27-1.78-.18-3.47 1.05-4.37 1.05-.9 0-2.29-1.02-3.77-1-1.94.03-3.72 1.13-4.72 2.86-2.01 3.49-.51 8.66 1.45 11.49.96 1.39 2.1 2.94 3.6 2.88 1.44-.06 1.99-.93 3.73-.93s2.23.93 3.76.9c1.55-.03 2.53-1.41 3.48-2.8 1.1-1.61 1.55-3.17 1.58-3.25-.04-.02-3.03-1.16-3.06-4.59zM14.14 4.06c.79-.96 1.33-2.29 1.18-3.62-1.14.05-2.53.76-3.35 1.72-.73.85-1.38 2.21-1.21 3.51 1.28.1 2.58-.65 3.38-1.61z"/></svg>
+                <span data-i18n="dl.macos">MacOS</span>
+              </h3>
+              <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-mac-arm64.dmg">
+                <span data-i18n="dl.macArm">macOS（Apple 芯片）</span><code>.dmg</code><span class="dl-ver">v0.0.8</span>
+              </a>
+              <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-mac-x64.dmg">
+                <span data-i18n="dl.macIntel">macOS（Intel 芯片）</span><code>.dmg</code><span class="dl-ver">v0.0.8</span>
+              </a>
+            </div>
+
+            <div class="dl-col reveal">
+              <h3 class="dl-platform">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="8.4" height="8.4" fill="#f25022"/><rect x="12.6" y="3" width="8.4" height="8.4" fill="#7fba00"/><rect x="3" y="12.6" width="8.4" height="8.4" fill="#00a4ef"/><rect x="12.6" y="12.6" width="8.4" height="8.4" fill="#ffb900"/></svg>
+                <span data-i18n="dl.windows">Windows</span>
+              </h3>
+              <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-x64.exe">
+                <span data-i18n="dl.win64">Windows（64 位）</span><code>.exe</code><span class="dl-ver">v0.0.8</span>
+              </a>
+              <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-arm64.exe">
+                <span data-i18n="dl.winArm">Windows (ARM64)</span><code>.exe</code><span class="dl-ver">v0.0.8</span>
+              </a>
+            </div>
+
+            <div class="dl-col reveal">
+              <h3 class="dl-platform">
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="currentColor" d="M12 1.6c-2.9 0-4.4 2.3-4.4 5.3 0 1.7.5 3 .5 4.2 0 .8-.9 2.6-2 4.3-1.2 1.8-2.4 3.5-2.1 4.6.3 1.1 1.6.6 2.8 1.1.9.4 2 .9 2.7.5.5-.3.7-.3 1.2-.3.6 0 .9.2 1.3.5.4.3 1 .4 1.6.3.8-.1 1.4-.6 2-1 .9-.6 2.2-1.1 3.4-1.6 1-.4 2.2-.9 1.9-2-.2-.9-1.3-1.5-2.3-2.7-.9-1-1.6-2.3-1.8-3.1.6-1.1 1.4-2.6 1.4-4.7 0-3-1.7-5.4-4.2-5.4zm-1.6 3.1c.3 0 .5.2.6.5.1.4 0 .8-.3.8-.3 0-.6-.3-.6-.7-.1-.3.1-.6.3-.6zm3.4.1c.2 0 .4.3.3.6 0 .4-.3.7-.6.7-.2 0-.4-.4-.3-.8.1-.3.4-.5.6-.5zm-5.9 6.7c.6-.1 1.4.2 2 .6.4.3.9.5 1.9.5s1.6-.2 2-.5c.6-.4 1.4-.7 2-.6.6.1 1 .5 1 1.2 0 1.2-1.3 2.9-3 2.9-.9 0-1.4-.4-2-.4s-1.1.4-2 .4c-1.7 0-3-1.7-3-2.9 0-.7.5-1.1 1.1-1.2z"/></svg>
+                <span>Linux</span>
+                <span class="beta-badge">Beta</span>
+              </h3>
+              <a class="dl-row" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/drora-linux-x64">
+                <span data-i18n="dl.linuxCli">Agent CLI（x64）</span><code data-i18n="dl.singleFile">单文件</code><span class="dl-ver">v0.0.8</span>
+              </a>
+              <p class="dl-hint" data-i18n="dl.linuxHint">Linux 桌面安装包筹备中；CLI 须在终端中运行。</p>
+            </div>
+          </div>
+          <p class="edition-note reveal">
+            <span data-i18n="dl.cliNote">偏好终端？macOS 与 Windows 的 CLI 单文件（drora-darwin-arm64 / drora-windows-x64.exe）也一并发布：</span>
+            <a href="https://github.com/CavinHuang/Drora/releases/latest" data-i18n="dl.cliNoteLink">前往 Release 页 ↗</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+        <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base=""></site-footer>0:{"P":null,"b":"wZv2HEHUJ0a8kzIQa9R39","p":"/Drora","c":["",""],"i":false,"f":[[["",{"children":["__PAGE__",{}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/Drora/_next/static/css/ac08906b33ab02f2.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"zh-CN","children":["$","body",null,{"children":[["$","$L2",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L3",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}],["$","$L4",null,{"src":"/Drora/assets/js/components.js","strategy":"afterInteractive"}],["$","$L4",null,{"src":"/Drora/assets/js/i18n.js","strategy":"afterInteractive"}],["$","$L4",null,{"src":"/Drora/assets/js/main.js","strategy":"afterInteractive"}]]}]}]]}],{"children":["__PAGE__",["$","$1","c",{"children":[["$","div",null,{"dangerouslySetInnerHTML":{"__html":"$5"}}],null,"$L6"]}],{},null,false]},null,false],"$L7",false]],"m":"$undefined","G":["$8",[]],"s":false,"S":true}
+9:I[5104,[],"OutletBoundary"]
+b:I[7158,[],"AsyncMetadataOutlet"]
+d:I[5104,[],"ViewportBoundary"]
+f:I[5104,[],"MetadataBoundary"]
+10:"$Sreact.suspense"
+6:["$","$L9",null,{"children":["$La",["$","$Lb",null,{"promise":"$@c"}]]}]
+7:["$","$1","h",{"children":[null,[["$","$Ld",null,{"children":"$Le"}],null],["$","$Lf",null,{"children":["$","div",null,{"hidden":true,"children":["$","$10",null,{"fallback":null,"children":"$L11"}]}]}]]}]
+e:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+a:null
+c:{"metadata":[["$","title","0",{"children":"Drora | GLM-5.3 开源氛围编程工具"}],["$","meta","1",{"name":"description","content":"Drora 是新一代氛围编程工具：多智能体协作完成复杂目标，桌面宠物一路陪伴，手机远控随时随地尽在掌控。"}]],"error":null,"digest":"$undefined"}
+11:"$c:metadata"

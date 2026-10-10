@@ -1,0 +1,24 @@
+/* Drora 官网（Next.js）全局样式。
+ * 层序：@drora/ui 设计令牌与 Tailwind → 官网 legacy 样式（站点覆盖层）。
+ * Geist 字体用部署绝对路径（GitHub Pages 项目子路径 /Drora/）。 */
+@import "@drora/ui/styles.css";
+@import "../../public/assets/css/style.css";
+
+/* Geist Sans（OFL 许可）自托管，与参考站同源字体 */
+@font-face {
+  font-family: "GeistSans";
+  src: url("/Drora/assets/fonts/geist-regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GeistSans";
+  src: url("/Drora/assets/fonts/geist-medium.woff2") format("woff2");
+  font-weight: 500 900;
+  font-display: swap;
+}
+
+body {
+  font-family: var(--font-sans);
+}

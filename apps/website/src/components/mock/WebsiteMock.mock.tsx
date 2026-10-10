@@ -101,7 +101,7 @@ function HeroMockWindow() {
           {/* composer：手写（图1 同款视觉）。ChatPromptEditor 为 Lexical 真输入壳，
               其依赖链带 Vite import.meta.env（Next 构建不支持）且交互对装饰区无意义，故回退 */}
           <div className="win-input">
-            <div className="composer">
+            <div className="composer" data-testid="chat-input">
               <div className="comp-input">{heroComposer.placeholder}</div>
               <div className="comp-bar">
                 <span className="comp-btn icon-only">

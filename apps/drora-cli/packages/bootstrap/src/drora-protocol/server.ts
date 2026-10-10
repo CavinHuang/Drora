@@ -262,6 +262,10 @@ export class DroraProtocolAgentServer {
       v4Interactions: new V4InteractionRegistry(
         resolveV4InteractionRegistryOptionsFromEnv(deps.env ?? process.env),
       ),
+      // W03 Evidence 执行时复验：入口注入生产 gate；未注入 = additive 不复验。
+      ...(deps.knowledgeEvidenceVerifier
+        ? { knowledgeEvidenceVerifier: deps.knowledgeEvidenceVerifier }
+        : {}),
     };
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);

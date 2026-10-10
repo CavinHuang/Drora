@@ -160,6 +160,8 @@ export interface KnowledgeRunView {
   status: KnowledgeQueryStatus;
   /** 原样查询文本（回显），不参与任何范围/日期扩展。 */
   query: string;
+  /** 发起会话（createRun 透传）；null = 无会话的纯检索，Receipt 不绑会话（W03 §5.1）。 */
+  sessionId: string | null;
   source: KnowledgeSourceRef | null;
   createdAtMs: number;
   finishedAtMs: number | null;
@@ -176,4 +178,26 @@ export interface KnowledgeRunUpdatedEvent {
   runGeneration: number;
   seq: number;
   status: KnowledgeQueryStatus;
+}
+
+// ── Evidence（W03 / spec §5）────────────────────────────────
+// 结构化结果类型从 evidenceRegistry 的返回判别式推导（单一出处），此处只 re-export
+// RPC 面需要的别名，避免消费方深入实现层导入。
+
+export type {
+  KnowledgeEvidenceReceipt,
+  KnowledgePrepareEvidenceResult,
+  KnowledgeResolveCitationResult,
+} from "./evidence/evidenceRegistry.js";
+
+/** prepareEvidence 入参：run + 候选定位；session 可选绑定（缺省取 run 的发起会话）。 */
+export interface KnowledgePrepareEvidenceParams {
+  runId: string;
+  articleId: string;
+}
+
+/** resolveCitation 入参：opaque receiptId + 调用方会话（跨会话拒绝依据，spec §5.2）。 */
+export interface KnowledgeResolveCitationParams {
+  receiptId: string;
+  sessionId?: string;
 }

@@ -23,13 +23,13 @@
 | Vault 配置（rootPath/displayName/inboxPath/allowAgentWrites） | `vault-config.json` 单文件（插件数据目录），由 `packages/services/src/obsidian-vault/` 门面写入 | hooks 与 SessionStart 上下文只读、每次询问重读 | `specs/obsidian-plugin.md`「形态与状态所有者」 |
 | 会话焦点投影 | `vault-focus.json`（services 面板单写，7 天/50 会话修剪） | UserPromptSubmit hook 只读 | 同上「焦点上下文联动」 |
 | Knowledge 索引（chunk/FTS/rowid） | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存 | 跨 Host lease/fencing 防迟到提交 | 【已实现，W02】（§5b） |
-| EvidenceReceipt / 引用账本 | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector | 模型文字不得自行构造可信 citation | 【未实现，属 W03】 |
+| EvidenceReceipt / 引用账本 | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector；持久化在共享 knowledge-index.sqlite（v2 `evidence_receipts`），宿主（services）写、CLI Runtime gate 只读 | 模型文字不得自行构造可信 citation | 【已实现，W03】（§5） |
 | L2 治理 Proposal 与批准账本 | Proposal + 人工批准 + 版本校验和持久账本 | 未批准/过期批准绝不写文件 | 【未实现，属 W06】 |
 | Session / CommandInbox / Memory / 手机远控 | 复用现有 Drora 运行时 | 禁止复制第二套（ADR #7、交接纪律） | 不变 |
 
 配置事实源唯一：Knowledge 链路的 SourceRegistry 只由当前活动 Vault + Profile 推导，
 sourceEpoch 变化使旧 Query、Index Job、Receipt 失效；不得复制独立 Vault 配置
-（交接纪律「禁止第二份 Vault 配置事实源」）。【已实现，W02】（§5b.2；Receipt 失效侧属 W03）
+（交接纪律「禁止第二份 Vault 配置事实源」）。【已实现，W02】（§5b.2；Receipt 失效侧见 §5，W03 已实现）
 
 ## 2. 方案 C：分级写入（已批准风险方案）
 
@@ -92,15 +92,76 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
   授权范围或日期筛选条件。
 - 只索引现有安全门面接受的 Markdown；隐藏/软链/超配额排除并计入 coverage。
 
-## 5. Evidence 语义【未实现，属 W03】
+## 5. Evidence 语义【已实现，W03】
 
-- 服务端创建 opaque EvidenceReceipt，绑定 session/run/sourceEpoch/fileSha/quote selector；
-  打开引用与发送前再次验证授权与文件当前版本（改动 → `stale`，删除 → `missing`，
-  切库/撤权 → `forbidden/stale`）。
-- `# userselect` 的 `{text,path}` 不是 Receipt；模型文字不得自行构造可信 citation；点击前
-  必须由服务端 resolveCitation。
-- busy 排队期间源更改/撤权 → admission 不信任旧证据（复用 W00 S02 结论的接线点）。
-- 本地检索默认可用；未经授权不把笔记正文或片段送 Jev/Embedding/回答模型（ADR #11）。
+### 5.1 Receipt 创建（服务端 prepareEvidence）
+
+- `IKnowledgeQueryService.prepareEvidence({ runId, articleId, sessionId? })`：从已完成的
+  run 候选创建 opaque EvidenceReceipt。receipt 由服务端生成随机 id（`evr_` + 32 hex），
+  绑定 `sessionId / runId / articleId / vaultId / sourceEpoch / sourceFingerprint /
+  relativePath / fileSha256 / chunkSha256 / heading / quote selector / title / 有界 excerpt
+  / createdAt`，持久化在 knowledge-index.sqlite v2 `evidence_receipts` 表。
+- 创建时即复验：run 必须存在且携带该候选；源指纹仍与 run 绑定一致；文件当前 sha256 仍等于
+  候选 fileSha256；quote selector 反解出的文本 sha256 仍等于候选 chunkSha256。任一不满足
+  → 返回结构化 `stale/missing/source_stale/no_source`，**不签发 receipt**（receipt 只为
+  创建时刻已验证为 current 的证据存在）。
+- quote selector 偏移是「按 `\r?\n` 切行后以 `\n` 重组」的规范化文本字符偏移
+  （markdownChunker 口径）；复验按同一规范化切片 + sha256 比对，天然免疫换行符差异与
+  同名 quote 多次出现（位置选择器固定唯一位置，A15）。
+- `sessionId` 绑定取 run 的发起会话；run 无会话（纯 FIND_ARTICLE）时 receipt 不绑会话，
+  resolveCitation 不做跨会话拒绝（仍受源身份/文件版本校验）。
+
+### 5.2 引用解析（服务端 resolveCitation）
+
+- `IKnowledgeQueryService.resolveCitation({ receiptId, sessionId? })` 是引用可信的唯一入口：
+  - 未知 receiptId → `forbidden/unknown_receipt`（伪造 id 永远不可信，A14）；
+  - receipt 绑定了会话且与会话不符 → `forbidden/cross_session`（A19）；
+  - 源未配置/根失效 → `forbidden/source_unconfigured`；vaultId 不一致（切库）→
+    `forbidden/vault_switched`；源指纹变化（撤权重授）→ `stale/source_reauthorized`（A13）；
+  - 文件已删除 → `missing/file_deleted`；文件 sha256 不符 → `stale/file_modified`；
+    quote 切片 sha 不符 → `stale/quote_moved`（A12）；
+  - 全部通过 → `current` + 有界 excerpt（≤240 字符，与候选同界）。
+- 解析结果绝不包含 receipt 之外的新增授权：excerpt 有界，正文全文只能经面板/Agent 既有
+  只读通道读取。
+
+### 5.3 发送链路复验（CLI Runtime gate，W00 S02 三层接线）
+
+- **契约载体**：`sendText` payload 携带可选 `evidenceRefs: [{ receiptId }]`（≤8 条，仅
+  opaque id，正文/路径/sha 一律不随线传输）；`ConversationInputIntent`（queue item 与
+  durable `session_input` 账本）同形透传，busy 排队后 refs 随队首提升进入复验。
+- **执行时复验**：CLI Runtime 内置只读 Evidence gate（`bootstrap/src/knowledge-evidence/`），
+  读同一份 vault-config.json + knowledge-index.sqlite（只读连接）+ 当前文件内容，语义与
+  §5.2 相同。接线点（W00 S02 结论）：
+  1. `sendText` handler 在 admission 前复验 payload.evidenceRefs——idle 直发在提交给模型
+     前复验；
+  2. `sendQueuedNow` handler（手动提升与 auto-drain 合成信封的唯一漏斗）在 reserve 前复验
+     queueItem.evidenceRefs——**排队期间改文件/撤权/切库，旧 evidence 在执行时必然被拒，
+     不得静默降级为 current（A17）**；
+  3. guide 通道禁用：携带 evidenceRefs 的输入不得按 guide/steer 投递（requestedDelivery
+     强制回退 queue，记录 `guard.evidenceGuideForbidden`）——guide 行内消费不经过提升漏斗，
+     也就没有执行时复验点。
+- 复验失败 → handler 抛出带 reasonCode 的领域错误 → ACK `failed` + `guard.evidence*`；
+  sendQueuedNow 失败回滚 reservation，队首原位保留，auto-drain 路径暂停自动提升。gate 不可
+  用（配置/DB 读取失败）按 `guard.evidenceUnavailable` 拒绝，不 fail-open。
+- 宿主未注入 gate（旧宿主/测试桩）→ 不复验，保持既有行为（additive 演进，与 sendText
+  payload 的旧 CLI 静默丢键同规则）。
+
+### 5.4 不可信数据的边界
+
+- `# userselect` 的 `{text,path}`（`buildPromptWithConversationSelections`）是剪贴板式
+  引用，**不是 Receipt**：不进 evidence 账本、不获执行时复验、不可作为可信 citation 解析。
+- 模型输出文字中出现的任何 receiptId/path/quote 都是数据：只有服务端 resolveCitation 返回
+  `current` 才可作为引用回跳；伪造 id 得到 `forbidden/unknown_receipt`。
+- 本地检索/Receipt/复验全部零出站：不经任何模型与网络（ADR #11）；FIND_ARTICLE 无模型、
+  断网仍可检索与浏览（A18 的 W03 部分）。
+
+### 5.5 验收映射
+
+A12/A13/A14/A15（服务端 Receipt 语义）、A16/A17（真实会话发送链路复验）、A18 的 W03 部分
+（检索与 Receipt 全链无模型可用）、A19（会话绑定）——证据见
+`docs/vaultview/delivery/W03_DELIVERY.md` 与 `packages/services/test/knowledgeEvidence.test.ts`、
+`apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`、
+`apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
 
 ## 5b. 索引与本地检索（W02，2026-10-10 落地）
 
@@ -204,7 +265,7 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 | K-HOOK-3 | 合法 Markdown 编辑与既有默认问询不回归 | 根内 .md 仍 allow；其余行为不变 | 已实现（A30） |
 | K-DOC-1 | matcher `Write|Edit` 真实边界写入 spec；代码/UI 不宣称能拦 Bash/MCP L2/L3 写入 | 文档与代码一致 | 已实现（本 spec §2 + `specs/obsidian-plugin.md`） |
 | K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05 |
-| K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | 未实现，属 W03 |
+| K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`） |
 | K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | 未实现，属 W04 |
 | K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | 未实现，属 W05 |
 | K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 未实现，属 W06 |

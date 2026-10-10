@@ -97,6 +97,7 @@ export class QueryOrchestrator {
         runGeneration,
         status: sourceRef ? "retrieving" : "no_source",
         query,
+        sessionId: params.sessionId ?? null,
         source: sourceRef,
         createdAtMs: nowMs,
         finishedAtMs: sourceRef ? null : nowMs,

@@ -16,9 +16,20 @@ import { QueryOrchestrator } from "./query/queryOrchestrator.js";
 import { createSemanticContext, type KnowledgeEmbeddingPort } from "./search/embeddingPort.js";
 import { loadCoverage } from "./store/indexRepository.js";
 import { resolveKnowledgeDatabasePath, resolveKnowledgeSource } from "./source/sourceRegistry.js";
+import {
+  createVaultFileReader,
+  prepareEvidenceFromRun,
+  resolveCitationReceipt,
+} from "./evidence/evidenceRegistry.js";
 import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
-import type { KnowledgeIndexStatus } from "./knowledgeTypes.js";
+import type {
+  KnowledgeIndexStatus,
+  KnowledgePrepareEvidenceParams,
+  KnowledgePrepareEvidenceResult,
+  KnowledgeResolveCitationParams,
+  KnowledgeResolveCitationResult,
+} from "./knowledgeTypes.js";
 import type { KnowledgeCreateRunParams } from "./knowledgeQuery.js";
 
 export interface KnowledgeServicesOptions {
@@ -141,6 +152,45 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         throw new Error("runId 不能为空");
       }
       return orchestrator.cancelRun(params);
+    },
+    async prepareEvidence(
+      params: KnowledgePrepareEvidenceParams,
+    ): Promise<KnowledgePrepareEvidenceResult> {
+      if (!params || typeof params.runId !== "string" || !params.runId) {
+        throw new Error("runId 不能为空");
+      }
+      if (typeof params.articleId !== "string" || !params.articleId) {
+        throw new Error("articleId 不能为空");
+      }
+      const run = orchestrator.getRun({ runId: params.runId });
+      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
+      const rootPath = source.config?.rootPath ?? null;
+      const reader = rootPath ? createVaultFileReader(rootPath) : null;
+      return prepareEvidenceFromRun({
+        db,
+        run,
+        articleId: params.articleId,
+        source,
+        readVaultFile: reader ? reader.read : async () => null,
+        nowMs: Date.now(),
+      });
+    },
+    async resolveCitation(
+      params: KnowledgeResolveCitationParams,
+    ): Promise<KnowledgeResolveCitationResult> {
+      if (!params || typeof params.receiptId !== "string" || !params.receiptId) {
+        throw new Error("receiptId 不能为空");
+      }
+      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
+      const rootPath = source.config?.rootPath ?? null;
+      const reader = rootPath ? createVaultFileReader(rootPath) : null;
+      return resolveCitationReceipt({
+        db,
+        receiptId: params.receiptId,
+        sessionId: typeof params.sessionId === "string" ? params.sessionId : null,
+        source,
+        readVaultFile: reader ? reader.read : async () => null,
+      });
     },
     onRunUpdated: orchestrator.onRunUpdated,
   };

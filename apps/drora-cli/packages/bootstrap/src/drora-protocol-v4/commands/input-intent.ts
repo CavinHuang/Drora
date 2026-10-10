@@ -33,6 +33,7 @@ export function inputIntentMetadata(
     mode?: SubmissionMode;
     planEnabled?: boolean;
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+    evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
   },
 ): TurnInputIntentMetadata {
   const admission = commandAdmissionOf(envelope);
@@ -65,6 +66,9 @@ export function inputIntentMetadata(
     ...(options.fallbackReasonCode ? { fallbackReasonCode: options.fallbackReasonCode } : {}),
     ...(options.attachmentRefs ? { attachmentRefs: [...options.attachmentRefs] } : {}),
     ...(options.sharedContextRefs ? { sharedContextRefs: [...options.sharedContextRefs] } : {}),
+    // W03：evidence 引用固定进 canonical intent，随 queue item 与 durable 账本存活，
+    // sendQueuedNow 提升时按同一组 refs 执行时复验。
+    ...(options.evidenceRefs ? { evidenceRefs: [...options.evidenceRefs] } : {}),
   };
 }
 
@@ -129,6 +133,9 @@ export function inputIntentMetadataFromQueueItem(
       : {}),
     attachmentRefs: item.attachments,
     ...(item.sharedContextRefs ? { sharedContextRefs: [...item.sharedContextRefs] } : {}),
+    // W03：提升只改变调度状态；evidence 引用与来源关联一样必须原样随行，
+    // transcript/projection 上的提升输入仍携带同一组 receipt 绑定。
+    ...(item.evidenceRefs ? { evidenceRefs: [...item.evidenceRefs] } : {}),
     // 提升只改变调度状态；重试／编辑原始输入的来源关联不能在此丢失。
     ...(item.provenance ? { provenance: { ...item.provenance } } : {}),
   };

@@ -28,6 +28,8 @@ import {
   type DroraSessionMode,
   type DroraSessionPersistence,
   type DroraWorkspaceRef,
+  type KnowledgeEvidenceGuard,
+  type KnowledgeEvidenceReason,
 } from "@drora/shared";
 import type { DroraApp, DroraAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../drora-protocol-v4/interaction-registry.js";
@@ -64,6 +66,11 @@ export interface DroraProtocolAgentDependencies {
   syncAccountProviderConfig?: (snapshot: AccountProviderConfigSnapshot) => Promise<boolean>;
   /** 连接测试前主动重读当前进程的 Config Source 并等待 Registry 发布。 */
   refreshProviderRegistry?: (reason: string) => Promise<void>;
+  /**
+   * W03 VaultView Evidence 执行时复验（specs/obsidian-knowledge.md §5.3）。
+   * 生产入口注入 createKnowledgeEvidenceGate；未注入 → 不复验（additive）。
+   */
+  knowledgeEvidenceVerifier?: DroraProtocolAgentServerContext["knowledgeEvidenceVerifier"];
 }
 
 export type DroraProtocolAgentResolvedDependencies = DroraProtocolAgentDependencies & {
@@ -147,6 +154,25 @@ export interface DroraProtocolAgentServerContext {
   // v4 前向命令 resolveInteraction 与反向请求（permission/AskUserQuestion）的汇合点。
   // broker 注册 deferred、v4 命令面投递应答（同一实例经 binder 注入 V4CommandCoreHost）。
   v4Interactions: V4InteractionRegistry;
+  /**
+   * VaultView Evidence 执行时复验（W03 / specs/obsidian-knowledge.md §5.3）。
+   * entrypoint 按本进程 storage 推导注入生产 gate；宿主/测试未注入 → 输入复验按
+   * additive 语义放行（payload 契约不存在时不影响旧链路）。形状与
+   * V4CommandCoreHost.verifyInputEvidence 完全一致，binder 直接透传。
+   */
+  knowledgeEvidenceVerifier?: {
+    verify(input: {
+      sessionId: string;
+      evidenceRefs: ReadonlyArray<{ receiptId: string }>;
+    }): Promise<
+      | { ok: true }
+      | {
+          ok: false;
+          guard: KnowledgeEvidenceGuard;
+          reason: KnowledgeEvidenceReason | "gate_unavailable";
+        }
+    >;
+  };
   // 单 CLI resident session 池。冷恢复入口经 waitForDeactivation 等待旧 app.close 收尾，
   // 协议请求则持有 operation lease，禁止异步 handler 与容量回收交错。
   sessionResidentPool?: SessionResidentPool;

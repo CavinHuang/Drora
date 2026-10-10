@@ -3377,6 +3377,10 @@ export class ProductProjection {
       mode: payload.intent?.mode ?? existing?.mode,
       planEnabled: payload.intent?.planEnabled ?? existing?.planEnabled,
       sharedContextRefs: payload.intent?.sharedContextRefs ?? existing?.sharedContextRefs,
+      // W03 §5.3 第 2 层：QueueItem 同时是 sendQueuedNow 提升复验的输入——
+      // 漏映射 evidenceRefs 会让执行时复验恒为空放行（排队期间改文件/撤权/切库后
+      // 旧 evidence 被当 current 提升）。intent 缺省时保留同项原事实（同 modelSelection 规则）。
+      evidenceRefs: payload.intent?.evidenceRefs ?? existing?.evidenceRefs,
       provenance: payload.intent?.provenance ?? existing?.provenance,
       delivery: {
         requested: requestedDelivery,

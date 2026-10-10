@@ -1,5 +1,5 @@
 /**
- * knowledge-index.sqlite schema migrations（W02）。
+ * knowledge-index.sqlite schema migrations（W02/W03）。
  *
  * v1（初始）：
  * - sources：源身份 + 当前 sourceEpoch（fingerprint 变化 → epoch+1，见 sourceRegistry）；
@@ -7,7 +7,15 @@
  * - chunks_fts：独立 FTS5 表，rowid === chunks.id（工作单"FTS index/rowid"），
  *   插入/删除与 chunks 行同事务同步；
  * - index_jobs / index_lease / coverage。
+ *
+ * v2（W03 EvidenceReceipt）：
+ * - evidence_receipts：opaque 引用账本（specs/obsidian-knowledge.md §5.1）。DDL 列清单
+ *   以 @drora/shared knowledge-evidence 常量为单一出处——CLI Runtime gate 以只读连接
+ *   消费同一张表，两侧禁止手写第二份字面量。
  */
+import {
+  KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS,
+} from "@drora/shared";
 import type { DatabaseSync } from "node:sqlite";
 
 /** 仅供类型标注：DatabaseSync 已具备 prepare/exec，这里统一收口类型引用。 */
@@ -100,6 +108,10 @@ const MIGRATIONS: Migration[] = [
         PRIMARY KEY(vault_id, source_epoch)
       )`,
     ],
+  },
+  {
+    version: 2,
+    statements: [...KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS],
   },
 ];
 

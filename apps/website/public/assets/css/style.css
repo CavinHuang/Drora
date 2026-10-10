@@ -251,7 +251,7 @@ a {
 
 .hero {
   position: relative;
-  padding: calc(var(--header-h) + 96px) 0 0;
+  padding: calc(var(--header-h) + 30px) 0 0;
   overflow: hidden;
 }
 
@@ -292,14 +292,14 @@ a {
 }
 
 .hero-sub {
-  margin-top: 22px;
-  max-width: 620px;
+  margin-top: 16px;
+  max-width: 880px;
   font-size: clamp(1rem, 1.6vw, 1.185rem);
   color: var(--fg-muted);
 }
 
 .hero-cta {
-  margin-top: 38px;
+  margin-top: 42px;
 }
 
 .cta-btn {
@@ -343,7 +343,7 @@ a {
 }
 
 .hero-all-downloads {
-  margin-top: 22px;
+  margin-top: 18px;
   font-size: 13.5px;
   color: var(--fg-muted);
   text-decoration: underline;
@@ -362,7 +362,7 @@ a {
 .mock-wrap {
   position: relative;
   max-width: 1280px;
-  margin: 72px auto 0;
+  margin: 76px auto 0;
   padding: 0 28px;
 }
 

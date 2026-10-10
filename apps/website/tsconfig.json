@@ -14,7 +14,10 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["../../packages/ui/src/*"] }
+    "paths": {
+      "@/assets/plugin-icons/*.png": ["./src/shims/plugin-icon-asset.ts"],
+      "@/*": ["../../packages/ui/src/*"]
+    }
   },
   "include": [
     "next-env.d.ts",

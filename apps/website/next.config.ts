@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
     },
   },
   webpack: (config) => {
+    // ui 包源码内部以 `.js` 后缀导入 `.ts/.tsx` 文件（NodeNext 风格，如
+    // websiteHeroMock 的 `@/WorkspaceSidebarItem.js`）；webpack 需 extensionAlias 解析。
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      ".js": [".ts", ".tsx", ".js"],
+    };
+    // webpack 的 alias 按 query 前的请求串匹配，带 `?url` 的键永不命中——
+    // 这里再挂无 query 的键，让 pdf worker 的 ?url 导入落到垫片（与 resolve.alias 同值）。
+    config.resolve.alias["pdfjs-dist/build/pdf.worker.min.mjs"] = path.resolve(
+      __dirname,
+      "src/shims/pdf-worker-url.js",
+    );
     // ui 包（Vite 语义）的 ?url 资产导入（如 pdf.js worker）：按 asset/resource
     // 处理——源文件随产物发出、导出 URL 字符串，对齐 Vite 的 ?url 后缀语义。
     // unshift 保证先于 js 处理规则匹配。

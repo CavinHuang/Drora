@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   transpilePackages: ["@drora/ui", "@drora/shared"],
+  webpack: (config) => {
+    // ui 包（Vite 语义）的 ?url 资产导入（如 pdf.js worker）：按 asset/resource
+    // 处理——源文件随产物发出、导出 URL 字符串，对齐 Vite 的 ?url 后缀语义。
+    // unshift 保证先于 js 处理规则匹配。
+    config.module.rules.unshift({
+      test: /\?url$/,
+      type: "asset/resource",
+      generator: { filename: "static/assets/[hash][ext]" },
+    });
+    return config;
+  },
 };
 
 export default nextConfig;

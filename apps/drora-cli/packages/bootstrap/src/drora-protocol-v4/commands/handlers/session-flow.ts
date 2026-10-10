@@ -18,6 +18,7 @@ import { startPromptTurn, turnBackgroundAttributionOf } from "../prompt-turn.js"
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
+import { resolveEvidenceSafeDelivery, verifyEvidenceOrThrow } from "./evidence-admission.js";
 
 /** 等 idle 轮询参数：25ms 间隔、5s 超时。 */
 const IDLE_POLL_INTERVAL_MS = 25;
@@ -191,11 +192,21 @@ async function sendText(
   if (!hasPromptInput(payload.text, payload.attachments)) {
     throw new V4InputAdmissionRejectedError("proto.invalidPayload", "input must not be empty");
   }
+  // W03 §5.3：idle 直发也要在提交给模型前复验 evidence（失败=ACK failed guard.evidence*）。
+  await verifyEvidenceOrThrow(host, envelope.sessionId!, payload.evidenceRefs);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, payload.attachments);
   const submittedExecutionState = resolveSubmittedExecutionState(record, payload);
   const submissionIntent = (options: Parameters<typeof inputIntentMetadata>[1]) =>
     inputIntentMetadata(envelope, { ...options, ...submittedExecutionState });
   const routingMode = host.getInputRoutingMode?.(envelope.sessionId ?? "") ?? null;
+  // W03 §5.3 第 3 层：证据输入禁用 guide/steer 投递（无复验点），回退 queue。
+  const evidenceDelivery = resolveEvidenceSafeDelivery({
+    requestedDelivery:
+      payload.requestedDelivery ??
+      (routingMode === "guide" ? "guide" : routingMode === "enqueue" ? "queue" : "startNow"),
+    routingMode,
+    hasEvidence: Boolean(payload.evidenceRefs?.length),
+  });
   const forceStartNow = payload.requestedDelivery === "startNow";
   const foregroundPromotionLeaseId = forceStartNow ? `send-now:${envelope.commandId}` : undefined;
   let foregroundPromotionLeaseAcquired = false;
@@ -253,12 +264,14 @@ async function sendText(
   try {
     const intent = submissionIntent({
       text: payload.text,
-      requestedDelivery:
-        payload.requestedDelivery ??
-        (routingMode === "guide" ? "guide" : routingMode === "enqueue" ? "queue" : "startNow"),
-      ...(routingMode === "guide" && attachments?.length
-        ? { fallbackReasonCode: "guide.attachmentsUnsupported" }
-        : {}),
+      // W03：证据输入已回退 guide→queue（evidenceDelivery）；无证据输入保持原裁决。
+      requestedDelivery: evidenceDelivery.requestedDelivery,
+      ...(evidenceDelivery.fallbackReasonCode
+        ? { fallbackReasonCode: evidenceDelivery.fallbackReasonCode }
+        : routingMode === "guide" && attachments?.length
+          ? { fallbackReasonCode: "guide.attachmentsUnsupported" }
+          : {}),
+      ...(payload.evidenceRefs?.length ? { evidenceRefs: payload.evidenceRefs } : {}),
       attachmentRefs: payload.attachments,
       sharedContextRefs: payload.context_refs,
     });

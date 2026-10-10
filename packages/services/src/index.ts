@@ -82,6 +82,65 @@ export type {
   ObsidianVaultWriteResult,
 } from "./obsidian-vault/obsidianVault.js";
 
+// Knowledge 索引/检索服务（VaultView 2.0 W02/W03/W05）— descriptors + 纯类型，禁止携带实现值。
+export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+export {
+  IKnowledgeQueryService,
+  type KnowledgeCreateRunParams,
+  type KnowledgeSearchParams,
+} from "./knowledge/knowledgeQuery.js";
+// 审核写入服务（W06）：接口+descriptor browser-safe；实现工厂只在 node 侧（reviewEngine.ts）。
+export { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
+export type {
+  KnowledgeReviewCreateProposalParams,
+  KnowledgeReviewReviseProposalParams,
+} from "./knowledge/review/reviewService.js";
+export type {
+  KnowledgeReviewApprovalView,
+  KnowledgeReviewApplyResult,
+  KnowledgeReviewChangeContentResult,
+  KnowledgeReviewChangeInput,
+  KnowledgeReviewChangeKind,
+  KnowledgeReviewChangeView,
+  KnowledgeReviewEvidenceInput,
+  KnowledgeReviewEvidenceView,
+  KnowledgeReviewFileStatus,
+  KnowledgeReviewOperationFileView,
+  KnowledgeReviewOperationStatus,
+  KnowledgeReviewOperationView,
+  KnowledgeReviewProposalView,
+  KnowledgeReviewReconcileResult,
+  KnowledgeReviewRejectionCode,
+  KnowledgeReviewUndoResult,
+} from "./knowledge/review/reviewTypes.js";
+export type {
+  KnowledgeArticleCandidate,
+  KnowledgeCoverage,
+  KnowledgeDecisionAction,
+  KnowledgeDecisionConsentGrantResult,
+  KnowledgeDecisionDiagnostics,
+  KnowledgeDecisionFallbackReason,
+  KnowledgeDecisionStageStatus,
+  KnowledgeEvidenceReceipt,
+  KnowledgeIndexJobKind,
+  KnowledgeIndexJobStartResult,
+  KnowledgeIndexJobStatus,
+  KnowledgeIndexJobView,
+  KnowledgeIndexStatus,
+  KnowledgeLeaseView,
+  KnowledgePrepareEvidenceParams,
+  KnowledgePrepareEvidenceResult,
+  KnowledgeQueryStatus,
+  KnowledgeResolveCitationParams,
+  KnowledgeResolveCitationResult,
+  KnowledgeRunUpdatedEvent,
+  KnowledgeRunView,
+  KnowledgeSearchDiagnostics,
+  KnowledgeSemanticAvailability,
+  KnowledgeSemanticStage,
+  KnowledgeSourceRef,
+} from "./knowledge/knowledgeTypes.js";
+
 // Git service — IGitService is both a type (interface) and value (descriptor)
 export { IGitService } from "./git/git.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";

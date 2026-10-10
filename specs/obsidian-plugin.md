@@ -132,6 +132,8 @@ Vault 体验（左侧面板入口 + Vault 树 + 笔记查看/编辑）。架构�
      **不携带 permissionUpdates，不持久化任何规则**，每次询问重新校验；根外或写门禁
      关闭时**静默**（不返回决策），走运行时正常询问流程，用户保留逐次决定权。
      hook 仅在基础判定为 ask 时被触发，deny 不可被翻案（运行时既有语义）。
+     **2026-10-10 修订（W01）**：自动 allow 进一步收窄为"根内非隐藏目录的普通 `.md`
+     笔记"，完整策略见下文「W01 自动 allow 收窄（2026-10-10）」；未收窄前的描述仅存档。
 3. **安全模型（agent 路径）**：原生工具行为受运行时权限系统约束；hook 的授权判定
    自带防逃逸校验：解析 stdin `cwd` 相对路径 → `realpath` 最深已存在祖先 + 与
    `realpath` 后的 vault 根做包含判定（防 `..` 与符号链接逃逸），任何异常静默放行给
@@ -176,6 +178,62 @@ Vault 体验（左侧面板入口 + Vault 树 + 笔记查看/编辑）。架构�
     `["__drora-plugin-hook"]`。
 13. 移除 MCP 后：`tools/list` 不再出现 obsidian 工具；`obsidian_configure_vault` 等
     名称在运行时零引用；面板全部操作（配置/授权/读写/新建）不受影响。
+
+## W01 自动 allow 收窄（2026-10-10 修订）
+
+### 动机
+
+收窄前 hook 对 vault 根内**一切** Write/Edit 询问（含 `.obsidian/**`、隐藏目录、非 Markdown
+文件）自动 allow，而面板安全门面（`normalizeRelativeMarkdownPath`）拒绝隐藏段且仅接受
+`.md`——同一文件"hook 放行、面板拒绝"的不对称构成授权口径漏洞。VaultView 2.0 工作单
+W01 按"仅普通 Markdown 明确授权"收窄，策略全文见 `specs/obsidian-knowledge.md` §3。
+
+### 收窄后的自动 allow 策略（全部满足才 allow，否则静默交回问询）
+
+1. 有效配置 + 根真实存在 + `allowAgentWrites=true`；
+2. 工具为 `Write`/`Edit`；`file_path` 非空且无 NUL；
+3. 相对路径必须携带 stdin `cwd`（缺失视为异常 → 静默）；解析语义与 Write handler 的
+   `resolveWorkspacePath`（按工作目录解析相对路径）一致；
+4. 目标落在 `realpath(根)` 内 + 逐段 `lstat` 拒符号链接（含 Windows junction）；
+5. 相对 realpath 根的路径每段非空、非 `.`/`..`、不以 `.` 开头，末段以 `.md` 结尾
+   （大小写不敏感）；已存在目标必须是普通文件；
+6. Unicode 文件名原样保留（不做 NFC/NFD 折叠）；任何 IO/解析异常 → 静默（fail-closed，
+   绝不 fail-open 到 allow）。
+
+实现：形状策略为纯函数 `obsidian-plugin/src/lib/paths.ts` 的 `isPlainVaultMarkdownPath`；
+防逃逸解析为 `agent-access.ts` 的 `resolveAuthorizedVaultWritePath`（返回相对 realpath 根的
+路径，调用方不得对原始 rootPath 二次 `relative`——修正候选补丁的 realRoot 拼写错位，
+见 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §3.9）。
+
+### matcher `Write|Edit` 的真实边界（不得夸大宣传）
+
+- hook 只匹配 `Write|Edit`（`plugin.json` matcher），且只在运行时基础判定为 **ask** 时被
+  触发；yolo 模式、整工具 allow 规则、会话 allow 在 hook 之前短路，deny 不可被翻案。
+- **Bash、node_repl(js)、MCP 工具与插件 server 进程内的写盘完全不经过本 hook**；这是单工具
+  matcher 的结构极限，不是实现缺陷（实测：`docs/vaultview/delivery/W00_TOOL_WRITE_MATRIX.md`
+  §3/§4/§8）。
+- 因此**禁止在代码、UI、文档中宣称本 hook 能阻断 Bash/MCP 的 L2/L3 写入**；Runtime 层全写盘
+  分级门控属 W00/W06 议题（`specs/obsidian-knowledge.md` §2 方案 C）。
+
+### L1（现行 allowAgentWrites hook）与未来 Proposal（L2）的区别
+
+| | L1：allowAgentWrites 自动放行（现行） | L2：知识治理 Proposal（未实现，属 W06） |
+| --- | --- | --- |
+| 覆盖 | 根内非隐藏目录普通 `.md` 的 Write/Edit ask 询问 | 结构性/批量治理写（重组、批量改名、索引物化等） |
+| 判定 | hook 逐次实时校验，无持久化规则 | 显式 Proposal → 人工批准 → 版本校验和持久账本，未批准/过期绝不写 |
+| 语义 | 用户一次性授权 `allowAgentWrites` 后减少逐次弹窗 | 单操作级人工审核 + 幂等（operationId） |
+| 关系 | L1 的存在不构成 L2 的豁免；两者不共享放行路径 | 账本与 conflict/Undo 语义见 `specs/obsidian-knowledge.md` §2 |
+
+### 验收场景（W01 收窄新增/修订）
+
+17. 根内 `.obsidian/workspace.json`、`.hidden/x.md`、`notes/a.txt`、目录冒充的 `x.md`、
+    点文件 `.hidden.md`：hook 静默（无决策字段、exit 0）。
+18. 根内合法 `notes/a.md`、`中文目录/笔记.MD`：hook 返回 allow（大小写不敏感后缀、Unicode
+    原样保留）；新文件/新目录仍可放行（原生 Write 允许新建）。
+19. 相对路径 + stdin 缺 `cwd`、相对路径 + 根外 cwd：hook 静默。
+20. `\\?\` 扩展路径、UNC 形式的目标路径：hook 静默（保守交回问询，不尝试展开）。
+21. SessionStart 注入的写授权说明与收窄后策略一致（普通 `.md` 自动放行、其他逐次询问、
+    不覆盖 Bash/MCP 通道）。
 
 ## 焦点上下文联动（2026-09-26 增量：Proma `<user_vault_context>` 等价物）
 

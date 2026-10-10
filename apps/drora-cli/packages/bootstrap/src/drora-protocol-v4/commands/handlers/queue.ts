@@ -13,6 +13,7 @@ import { inputIntentMetadataFromQueueItem } from "../input-intent.js";
 import { startPromptTurn } from "../prompt-turn.js";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
+import { verifyEvidenceOrThrow } from "./evidence-admission.js";
 import {
   applyGoalCommand,
   parseGoalObjectiveFromCommandText,
@@ -181,6 +182,10 @@ async function sendQueuedNow(
     if (queueItem === null) {
       throw new V4QueueItemTextUnavailableError(payload.queueItemId);
     }
+    // W03 §5.3 第 2 层：队列提升漏斗（手动 + auto-drain 汇合点）在 reserve 前执行时
+    // 复验 evidence。排队期间改文件/撤权/切库 → 旧 evidence 在此被拒（ACK failed
+    // guard.evidence*），finally 回滚 reservation，队首原位保留——绝不静默当 current。
+    await verifyEvidenceOrThrow(host, envelope.sessionId!, queueItem.evidenceRefs);
     const acquirePromotionLease = (mode: "after-current" | "idle-only"): void => {
       const leaseResult = record.app.runtime.acquireForegroundPromotionLease({
         leaseId: foregroundPromotionLeaseId,

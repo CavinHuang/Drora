@@ -1,0 +1,69 @@
+{
+  "project": "Drora VaultView 2.0",
+  "baseline": "c1870c9c730975a02117e93e025ae486eb757cf1",
+  "warning": "All files are design targets; validate repository HEAD. No implementation has been merged.",
+  "tasks": [
+    {
+      "id": "W00",
+      "deps": [],
+      "file": "W00_BASELINE_AND_SPIKES.md"
+    },
+    {
+      "id": "W01",
+      "deps": [
+        "W00"
+      ],
+      "file": "W01_SPEC_AND_MINIMAL_PERMISSION.md"
+    },
+    {
+      "id": "W02",
+      "deps": [
+        "W00",
+        "W01"
+      ],
+      "file": "W02_SOURCE_INDEX_AND_QUERY.md"
+    },
+    {
+      "id": "W03",
+      "deps": [
+        "W02"
+      ],
+      "file": "W03_EVIDENCE_AND_REAL_AGENT.md"
+    },
+    {
+      "id": "W04",
+      "deps": [
+        "W02",
+        "W03"
+      ],
+      "file": "W04_VAULTVIEW_PRODUCT_UI.md"
+    },
+    {
+      "id": "W05",
+      "deps": [
+        "W02",
+        "W03",
+        "W04"
+      ],
+      "file": "W05_JEV_AND_EVALUATION.md"
+    },
+    {
+      "id": "W06",
+      "deps": [
+        "W00",
+        "W01",
+        "W02",
+        "W03"
+      ],
+      "file": "W06_REVIEW_WRITES_AND_SECURITY.md",
+      "gate": "S03 Hard Write Safety GO"
+    },
+    {
+      "id": "W07",
+      "deps": [
+        "W04"
+      ],
+      "file": "W07_RELEASE_HARDENING.md"
+    }
+  ]
+}

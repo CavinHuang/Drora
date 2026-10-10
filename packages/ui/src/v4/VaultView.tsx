@@ -101,6 +101,11 @@ import {
   getVaultSidebarDisplayWidth,
   getVaultSidebarToggleLabel,
 } from "./vault/vault-sidebar-layout.js";
+import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
+import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
+import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
+import { KnowledgeReviewView } from "./vault/knowledge/KnowledgeReviewView.js";
+import type { KnowledgeEvidenceQuote } from "./vault/knowledge/knowledgeAskModel.js";
 import { cn } from "@/components/lib/utils.js";
 
 const VAULT_NAME = "Vault";
@@ -546,9 +551,19 @@ type VaultRename = (
   flush: VaultEditorFlush,
   shouldFocusBody?: () => boolean,
 ) => Promise<boolean>;
+
+/**
+ * 四视图切换（W04 / spec §5c.1）：笔记（默认）/ 智能问库 / 洞察 / 审核。
+ * 会话内易失状态，不持久化（spec §5c.2 状态所有者表）。
+ */
+type VaultViewTab = "notes" | "ask" | "insights" | "review";
+const VAULT_VIEW_TABS: readonly VaultViewTab[] = ["notes", "ask", "insights", "review"];
+
 interface VaultBodyFocusRequest {
   vaultId: string;
   relativePath: string;
+  /** 引用回跳（W04）：携带 quote 行号区间时按行锚定选中，而非聚焦正文开头。 */
+  reveal?: KnowledgeEvidenceQuote;
 }
 
 function VaultMarkdownEditor({
@@ -620,7 +635,9 @@ function VaultMarkdownEditor({
     if (!view) return;
     // 显式编辑意图优先于历史阅读位置恢复；只操作实际挂载的实例。
     takeOverScrollRestore();
-    focusVaultBody(view);
+    // 引用回跳（W04）：按 quote 行号区间锚定选中；普通编辑意图仍聚焦正文开头。
+    if (bodyFocusRequest.reveal) revealVaultQuote(view, bodyFocusRequest.reveal);
+    else focusVaultBody(view);
     onBodyFocused(bodyFocusRequest);
   }, [
     bodyFocusRequest,
@@ -961,7 +978,14 @@ export function VaultView({
   const { intl } = useDroraIntl();
   const vaultSidebarContentId = React.useId();
   const vaultSessionScope = getVaultSessionScope(sessionId);
-  const vaultService = useOptionalServices()?.obsidianVaultService;
+  const serviceAccessor = useOptionalServices();
+  const vaultService = serviceAccessor?.obsidianVaultService;
+  // Knowledge 索引/检索（W04 智能问库）：与 Vault 面板同源注册；host 未提供时由
+  // 子视图自身呈现「服务不可用」，不影响笔记视图。
+  const knowledgeIndexService = serviceAccessor?.knowledgeIndexService ?? null;
+  const knowledgeQueryService = serviceAccessor?.knowledgeQueryService ?? null;
+  // 四视图激活 tab（spec §5c.2）：组件内易失状态，默认「笔记」。
+  const [viewTab, setViewTab] = React.useState<VaultViewTab>("notes");
   const platform = useOptionalPlatform();
   const [config, setConfig] = React.useState<VaultSummary | null>(null);
   const mountedRef = React.useRef(true);
@@ -1292,6 +1316,26 @@ export function VaultView({
     [entries, readResult, openFile],
   );
 
+  /**
+   * 智能问库的引用回跳（W04 / spec §5c.3）：打开目标笔记并按 quote 行号区间锚定。
+   * 复用既有 openFile 只读通道与 bodyFocusRequest 消费机制（用户转向其他控件时
+   * 既有 pointerdown/keydown 取消守卫会消费掉本次请求，不抢焦点）。
+   */
+  const openNoteFromKnowledge = React.useCallback(
+    async (relativePath: string, reveal?: KnowledgeEvidenceQuote): Promise<void> => {
+      const vaultId = config?.vaultId;
+      await openFile(relativePath);
+      if (!vaultId) return;
+      setBodyFocusRequest({ vaultId, relativePath, reveal });
+      setViewTab("notes");
+    },
+    [config?.vaultId, openFile],
+  );
+
+  const goToNotesView = React.useCallback((): void => {
+    setViewTab("notes");
+  }, []);
+
   const selectVaultManually = async (): Promise<void> => {
     if (!vaultService || !platform) return;
     if (!(await flushCurrentEditor())) return;
@@ -1547,8 +1591,36 @@ export function VaultView({
           embedded && "min-w-[360px] bg-content-area",
         )}
       >
-        <div className="relative flex min-h-0 flex-1">
-          <aside
+        {/* 四视图切换（W04 / spec §5c.1）：默认「笔记」，不新增顶级入口 */}
+        <div
+          role="tablist"
+          aria-label={intl.formatMessage({ id: "vault.views.label" })}
+          className="titlebar-no-drag flex shrink-0 items-center gap-1 border-b border-border/50 px-3 py-1.5"
+        >
+          {VAULT_VIEW_TABS.map((tab) => {
+            const active = viewTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setViewTab(tab)}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-ui-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active
+                    ? "bg-selected font-medium text-foreground"
+                    : "text-foreground-subtle hover:bg-hover hover:text-foreground",
+                )}
+              >
+                {intl.formatMessage({ id: `vault.tabs.${tab}` })}
+              </button>
+            );
+          })}
+        </div>
+        {viewTab === "notes" ? (
+          <div className="relative flex min-h-0 flex-1">
+            <aside
             className={cn(
               "relative flex shrink-0 flex-col overflow-hidden bg-muted/25",
               !vaultSidebarCollapsed && "border-r border-border/50",
@@ -1769,29 +1841,45 @@ export function VaultView({
               />
             )}
           </aside>
-          <VaultMarkdownPane
-            readResult={readResult}
-            vaultId={config?.vaultId}
-            selectionTarget={selectionTarget}
-            loading={fileLoading}
-            hasVault={config !== null}
-            reopenVersion={editorReopenVersion}
-            onSave={save}
-            onRename={rename}
-            onReload={() => {
-              if (readResult)
-                void openFile(readResult.relativePath, {
-                  discardLocalDraft: true,
-                  forceReopen: true,
-                });
+            <VaultMarkdownPane
+              readResult={readResult}
+              vaultId={config?.vaultId}
+              selectionTarget={selectionTarget}
+              loading={fileLoading}
+              hasVault={config !== null}
+              reopenVersion={editorReopenVersion}
+              onSave={save}
+              onRename={rename}
+              onReload={() => {
+                if (readResult)
+                  void openFile(readResult.relativePath, {
+                    discardLocalDraft: true,
+                    forceReopen: true,
+                  });
+              }}
+              onRegisterFlush={registerEditorFlush}
+              bodyFocusRequest={bodyFocusRequest}
+              onBodyFocused={consumeBodyFocus}
+              onOpenTutorial={() => setVaultHelpOpen(true)}
+              onOpenWikiLink={openWikiLink}
+            />
+          </div>
+        ) : viewTab === "ask" ? (
+          <KnowledgeAskView
+            indexService={knowledgeIndexService}
+            queryService={knowledgeQueryService}
+            sessionId={sessionId}
+            workspaceKey={workspaceKey}
+            onOpenNote={(relativePath, reveal) => {
+              void openNoteFromKnowledge(relativePath, reveal);
             }}
-            onRegisterFlush={registerEditorFlush}
-            bodyFocusRequest={bodyFocusRequest}
-            onBodyFocused={consumeBodyFocus}
-            onOpenTutorial={() => setVaultHelpOpen(true)}
-            onOpenWikiLink={openWikiLink}
+            onGoToNotes={goToNotesView}
           />
-        </div>
+        ) : viewTab === "insights" ? (
+          <KnowledgeInsightsView indexService={knowledgeIndexService} />
+        ) : (
+          <KnowledgeReviewView vaultService={vaultService ?? null} />
+        )}
       </main>
       <ConfirmDialog
         open={deleteTarget !== null}

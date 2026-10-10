@@ -62,6 +62,9 @@ await test("SessionStart：已配置 → 输出含根路径的 additionalContext
     assert.equal(output.additionalContext.includes(vault), true);
     assert.match(output.additionalContext, /## Obsidian Vault/);
     assert.match(output.additionalContext, /写授权已开启/);
+    // W01 收窄后的诚实口径：只覆盖非隐藏 .md 的 Write/Edit，不宣称拦截 Bash/MCP。
+    assert.match(output.additionalContext, /普通 \.md 笔记/);
+    assert.match(output.additionalContext, /不能约束 Bash、MCP 等其他写入通道/);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
@@ -132,6 +135,60 @@ await test("PermissionRequest：根外路径 → 静默", () => {
     );
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), "");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// W01 收窄（specs/obsidian-plugin.md「W01 自动 allow 收窄」验收场景 17/19）：
+// 根内隐藏目录、点文件与非 Markdown 一律不自动 allow。
+await test("PermissionRequest：根内 .obsidian/**、.hidden/**、点文件、非 Markdown → 静默", () => {
+  const { base, vault, env } = makeEnv();
+  try {
+    mkdirSync(join(vault, ".obsidian"), { recursive: true });
+    mkdirSync(join(vault, ".hidden"), { recursive: true });
+    writeFileSync(join(vault, ".obsidian", "workspace.json"), "{}");
+    writeFileSync(join(vault, ".hidden", "x.md"), "x");
+    writeFileSync(join(vault, "notes", ".draft.md"), "x");
+    writeFileSync(join(vault, "notes", "a.txt"), "x");
+    for (const filePath of [
+      join(vault, ".obsidian", "workspace.json"),
+      join(vault, ".hidden", "x.md"),
+      join(vault, "notes", ".draft.md"),
+      join(vault, "notes", "a.txt"),
+    ]) {
+      const result = runHook(
+        permissionRequestScript,
+        { toolName: "Write", toolInput: { file_path: filePath }, cwd: vault },
+        env,
+      );
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout.trim(), "", `应静默：${filePath}`);
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// W01 收窄（验收场景 19）：相对路径缺 cwd / 根外 cwd 视为异常 → 静默。
+await test("PermissionRequest：相对路径缺 cwd / 根外 cwd → 静默", () => {
+  const { base, vault, env } = makeEnv();
+  try {
+    const noCwd = runHook(
+      permissionRequestScript,
+      { toolName: "Write", toolInput: { file_path: join("notes", "a.md") } },
+      env,
+    );
+    assert.equal(noCwd.status, 0, noCwd.stderr);
+    assert.equal(noCwd.stdout.trim(), "");
+
+    const outsideCwd = runHook(
+      permissionRequestScript,
+      { toolName: "Write", toolInput: { file_path: "escape.md" }, cwd: base },
+      env,
+    );
+    assert.equal(outsideCwd.status, 0, outsideCwd.stderr);
+    assert.equal(outsideCwd.stdout.trim(), "");
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

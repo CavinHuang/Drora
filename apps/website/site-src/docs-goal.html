@@ -1,0 +1,127 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="goal" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.tasks">任务与目标模式</h1>
+          <p>
+            <span data-i18n="doc.goal.intro.a">面对需要跑很久的复杂任务，可以用</span> <code>/goal</code>
+            <span data-i18n="doc.goal.intro.b">给当前会话设一个目标。设定之后，Drora Agent
+            会围绕这个目标持续推进：每一轮结束都会自动校验目标是否达成，没达成就自己接着下一轮，确认完成才收尾——把「盯着
+            Agent 反复说继续」变成「设一个目标，等结果」。</span>
+          </p>
+          <p>
+            <strong data-i18n="doc.goal.suitable.lead">适合什么任务</strong>
+            <span data-i18n="doc.goal.suitable.p">：一句话说得清、但要多轮才能做完的活，例如——</span>
+          </p>
+          <ul>
+            <li data-i18n="doc.goal.suitable.li1">「重构整个模块并保持测试通过」</li>
+            <li data-i18n="doc.goal.suitable.li2">「修复所有 TypeScript 编译错误」</li>
+            <li data-i18n="doc.goal.suitable.li3">「把这个页面的 Lighthouse 性能分提到 90 以上」</li>
+          </ul>
+          <p>
+            <span data-i18n="doc.goal.specific.a">目标描述越具体、越可校验，每轮的判断就越准。比起「优化一下性能」，「把</span>
+            <code>pnpm test</code>
+            <span data-i18n="doc.goal.specific.b">跑通，并且首屏加载控制在 2 秒内」这样的说法效果会好很多。</span>
+          </p>
+
+          <h2 id="set-goal" data-i18n="doc.goal.set.h">设定目标</h2>
+          <p>
+            <span data-i18n="doc.goal.set.p1.a">在输入框里输入</span> <code>/goal</code>
+            <span data-i18n="doc.goal.set.p1.b">，后面接一句话，就是这轮会话的目标。也可以先输入</span> <code>/</code>
+            <span data-i18n="doc.goal.set.p1.c">，在建议面板里选 goal。</span>
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-set-command-annotated.webp" alt="在输入框输入 /goal，建议面板中高亮「查看或设定当前会话目标」" loading="lazy" /></figure>
+          <p data-i18n="doc.goal.set.only">一个会话同一时间只有一个目标。常用写法：</p>
+          <div class="docs-code"><code>/goal                   查看当前目标
+/goal &lt;目标描述&gt;        设定目标；已经有目标时会替换掉它
+/goal replace &lt;目标&gt;    明确替换当前目标
+/goal pause             暂停
+/goal resume            恢复
+/goal clear             清除</code></div>
+          <p data-i18n="doc.goal.set.headless">headless 模式下也可以在单次运行中直接设定目标：</p>
+          <div class="docs-code"><code>drora -p "继续修复剩余的类型错误" --target "类型检查全部通过" --target-replace</code></div>
+          <p data-i18n="doc.goal.set.p4">目标设定后，摘要面板会出现目标卡片，显示目标描述和已用时间，并标注当前状态（进行中 /
+            已暂停 / 预算受限 / 已完成）以及 token、时间用量和已进行的迭代次数。下面按迭代分组，列出每一轮做完的清单项；最下方是当前这一轮的进度和待办。每轮的标题来自上一轮校验给出的下一步动作，所以顺着往下看，就是这个任务一路是怎么推进的。</p>
+          <p data-i18n="doc.goal.set.p5">一件小事值得知道：清单项归属于它第一次出现的那一轮，哪怕是在后面几轮才做完，也仍然显示在原来那一组里。这样回头看每轮的实际产出才不会错位。</p>
+
+          <h2 id="verify" data-i18n="doc.goal.verify.h">每轮自动校验</h2>
+          <p data-i18n="doc.goal.verify.p1">一轮结束后，Drora 会单独做一次校验，判断目标有没有达成。</p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-verification-complete-annotated.webp" alt="对话流中出现「第 20 次迭代 · 目标已完成，任务结束」的分隔线，下面是收尾总结" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-verification-continue-annotated.webp" alt="对话流中出现「第 18 次迭代 · 目标未完成，任务继续」的分隔线，下面自动接上第 19 轮" loading="lazy" /></figure>
+          <p data-i18n="doc.goal.verify.p2">没达成时，会给出下一步该做什么，并自动开启下一轮——不需要你手动追问「继续」。</p>
+          <p data-i18n="doc.goal.verify.p3">达成时才会收尾，输出总结。</p>
+          <p data-i18n="doc.goal.verify.p4">会话时间线中的每次校验以分隔条呈现：</p>
+          <ul>
+            <li data-i18n="doc.goal.verify.li1">目标校验中</li>
+            <li data-i18n="doc.goal.verify.li2">目标未完成，任务继续</li>
+            <li data-i18n="doc.goal.verify.li3">目标已完成，任务结束</li>
+          </ul>
+          <p data-i18n="doc.goal.verify.p5">校验看的是实据。写了一份计划、列了一份待办清单、跑了很久，或者给出一段听起来很像结论的回复，这些本身都不算数；要有改出来的文件、命令输出、测试结果这类能核对的东西才算。另外，只要还有待办没做完，校验就不会判定完成，而是优先把它做完。完成与否由校验裁定，模型不能自行宣布完成。</p>
+
+          <h2 id="intervene" data-i18n="doc.goal.intervene.h">中途介入</h2>
+          <p data-i18n="doc.goal.intervene.p1">目标设定后随时可以调整。最省事的办法是直接用自然语言告诉 Agent
+            你的想法——换个方向、先停一下、这个目标不要了，它会据此替换、暂停或清除，不用记命令格式。</p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-paused-annotated.webp" alt="执行 /goal pause 后，目标进入暂停，记录与产物都保留" loading="lazy" /></figure>
+          <p data-i18n="doc.goal.intervene.p2">暂停不会丢东西：已经跑过的轮次、工具调用记录和产出的文件都在，摘要面板顶部的图标会变成继续，随时可以接着跑。中途按停止键取消任务时，目标也会自动暂停，不会在你没留意的时候继续运行。</p>
+          <p data-i18n="doc.goal.intervene.p3">关掉会话再打开也一样。目标状态由系统保存，重新进入这个会话时它还在，可以从上次的地方继续。</p>
+          <p data-i18n="doc.goal.intervene.p4">目标会在以下几种情况下停止自动推进：校验判定完成；你主动暂停或清除；你中断了正在推进的一轮，校验随之中止，等待你的下一条指令；以及跑到为这个目标配置的用量上限。</p>
+
+          <h2 id="limits" data-i18n="doc.goal.limits.h">什么情况下设不了目标</h2>
+          <p data-i18n="doc.goal.limits.p1">有两种情况会被拦下来，界面上会直接说明原因。</p>
+          <p data-i18n="doc.goal.limits.p2">计划模式专注于先把方案讨论清楚，不会自动往下执行，所以和目标模式的自动续跑是冲突的，需要先切回其他执行模式。任务正在跑的时候也设不了目标，等这一轮跑完，或者先按停止。</p>
+
+          <h2 id="modes" data-i18n="doc.goal.modes.h">与执行模式搭配</h2>
+          <p>
+            <span data-i18n="doc.goal.modes.p1.a">目标模式和</span>
+            <a href="/Drora/docs/agents/#modes" data-i18n="doc.goal.modes.link">执行模式</a>
+            <span data-i18n="doc.goal.modes.p1.b">管的是两件事：目标决定「做到什么程度才算完」，执行模式决定「过程中多少操作需要你确认」。</span>
+          </p>
+          <p>
+            <span data-i18n="doc.goal.modes.p2.a">长目标任务建议搭配</span>
+            <strong data-i18n="doc.goal.modes.p2.b">完全访问</strong>
+            <span data-i18n="doc.goal.modes.p2.c">或</span>
+            <strong data-i18n="doc.goal.modes.p2.d">自动编辑</strong>
+            <span data-i18n="doc.goal.modes.p2.e">，中途打断少，迭代会更连贯。反过来，如果这个任务会改动重要文件，用</span>
+            <strong data-i18n="doc.goal.modes.p2.f">变更前确认</strong>
+            <span data-i18n="doc.goal.modes.p2.g">也没问题，只是需要你在旁边盯着确认。</span>
+          </p>
+
+          <h2 id="next" data-i18n="doc.goal.next.h">下一步</h2>
+          <ul>
+            <li>
+              <a href="/Drora/docs/agents/" data-i18n="doc.nav.agent">Drora Agent</a>
+              <span data-i18n="doc.goal.next.d1">——了解提问入口、模型选择与执行模式。</span>
+            </li>
+            <li>
+              <a href="/Drora/docs/task-management/" data-i18n="doc.nav.taskFiles">任务与文件管理</a>
+              <span data-i18n="doc.goal.next.d2">——用任务分组和文件树管理你的工作台。</span>
+            </li>
+            <li>
+              <a href="/Drora/docs/skills/" data-i18n="doc.nav.skills">技能与斜杠命令</a>
+              <span data-i18n="doc.goal.next.d3">——将常用提示词保存为可重用的命令。</span>
+            </li>
+          </ul>
+        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/goal-summary-panel-annotated.webp" alt="目标摘要面板：目标与已用时间、按迭代分组的清单项，以及当前这轮的进度与待办" loading="lazy" /></figure></article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

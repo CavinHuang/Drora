@@ -1,0 +1,123 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.h1">欢迎使用 Drora</h1>
+          <p data-i18n="doc.welcome.intro.p1">
+            Drora 是一个把 GLM-5.3 带入真实编程工作流的 Agentic Development Environment (ADE)，帮助你把 GLM-5.3
+            的长上下文、长程任务与 Agentic 编程能力，转化为稳定可用的桌面体验，覆盖复杂开发任务中的规划、编码、审查与迭代。
+          </p>
+          <p data-i18n="doc.welcome.intro.p2">
+            依托 GLM-5.3 稳定的 1M 上下文与长程任务能力，Drora Agent
+            可以把目标、文件、终端结果、浏览器上下文、执行模式和 Git 状态保持在同一个任务里，让复杂开发任务从规划一路推进到实现与验证收口，而不丢失连续性。
+          </p>
+          <p data-i18n="doc.welcome.intro.p3">
+            Drora 聚焦 Agent 能力：模型、工具和执行工作流结合更紧密，让复杂开发任务可以在同一个上下文里从规划一路推进到验证收口。
+          </p>
+          <p>
+            <span data-i18n="doc.intro.lead2">
+            Drora 基于上游 ZCode 开源复刻并持续跟进，由社区维护。功能范围、维护规则与许可说明见
+            </span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/NOTICE.md">NOTICE.md</a><span data-i18n="doc.dot">。</span>
+          </p>
+          <p data-i18n="doc.welcome.intro.p5">
+            通过自然语言指令，你可以让 Drora Agent 处理编码、调试、测试、项目预览和变更审查等工作；通过桌面端工作区与手机端
+            Remote，也可以在长任务执行中持续查看进度并补充指令。
+          </p>
+
+          <h2 id="capabilities" data-i18n="doc.welcome.cap.h2">核心能力</h2>
+          <p data-i18n="doc.welcome.cap.lead">Drora 围绕 Drora Agent 组织开发体验，并针对 GLM-5.3 系列模型做了深度适配，重点强化以下能力：</p>
+          <ul>
+            <li><strong data-i18n="doc.welcome.caplist.t1">GLM-5.3 深度联调</strong><span data-i18n="doc.welcome.caplist.d1">：围绕模型能力、工具调用和执行链路进行多轮打磨，让 Agent 更适合连续、多步骤的真实开发任务。</span></li>
+            <li><strong data-i18n="doc.welcome.caplist.t2">长任务执行</strong><span data-i18n="doc.welcome.caplist.d2">：在同一个任务里完成需求理解、计划拆解、代码修改、验证和 Review，减少频繁切换上下文带来的中断。</span></li>
+            <li><strong data-i18n="doc.welcome.caplist.t3">稳定上下文保持</strong><span data-i18n="doc.welcome.caplist.d3">：结合 GLM-5.3 的长上下文能力，持续读取文件、终端、浏览器、执行模式和 Git 状态，提升长程任务的持续推理能力。</span></li>
+            <li><strong data-i18n="doc.welcome.caplist.t4">Agent 工作流</strong><span data-i18n="doc.welcome.caplist.d4">：任务、权限、上下文、工具调用和提交流都围绕 Drora Agent 组织，模型输出可以更自然地落到实际工程操作中。</span></li>
+            <li><strong data-i18n="doc.welcome.caplist.t5">多端持续跟进</strong><span data-i18n="doc.welcome.caplist.d5">：桌面端与手机端 Remote 可以共同推进同一个工作区任务。</span></li>
+            <li><strong data-i18n="doc.welcome.caplist.t6">安全可控</strong><span data-i18n="doc.welcome.caplist.d6">：关键命令、文件修改和高权限操作会在执行前进入确认流程。</span></li>
+          </ul>
+
+          <h2 id="glm" data-i18n="doc.welcome.glm.h2">GLM-5.3 与套餐</h2>
+          <p data-i18n="doc.welcome.glm.p1">
+            借助 GLM-5.3 的长上下文，Drora 能在一个任务里持续跟进更多文件和更长的开发过程。它会结合当前工作区、工具执行结果和 Git
+            变更继续推进，即使任务跨越多个步骤，也不用反复补充背景。
+          </p>
+          <p>
+            <span data-i18n="doc.welcome.glm.p2">「闲时任务」可以把不着急的工作交给队列，Drora 在算力富余时段完成，定时任务则按计划自动触发，详见</span>
+            <a href="/Drora/docs/automation/" data-i18n="doc.nav.automation">自动化任务</a><span data-i18n="doc.dot">。</span>
+          </p>
+          <p data-i18n="doc.welcome.glm.p3">
+            Drora 本身不销售任何套餐：GLM Coding Plan 等编程套餐的档位与额度以 Z.ai / BigModel
+            订阅页为准，登录账号后即可在 Drora 中直接使用。
+          </p>
+          <ul>
+            <li><a href="/Drora/docs/configuration/" data-i18n="doc.welcome.glm.l1">连接 GLM Coding Plan</a><span data-i18n="doc.welcome.glm.l1d">：绑定 BigModel 或 Z.ai 账号，使用 GLM-5.3、GLM-5.3-Flash 等内置模型。</span></li>
+            <li><a href="/Drora/docs/usage-stats/" data-i18n="doc.welcome.glm.l2">查看编程套餐用量</a><span data-i18n="doc.welcome.glm.l2d">：在使用统计中查看 Coding Plan 额度、模型消耗和工具调用。</span></li>
+          </ul>
+
+          <h2 id="quickstart" data-i18n="doc.welcome.quick.h2">快速开始</h2>
+          <ul>
+            <li><a href="/Drora/docs/install/" data-i18n="doc.welcome.quick.i1">安装 Drora</a><span data-i18n="doc.welcome.quick.i1d">：下载桌面端或 CLI 单文件，开启端到端开发工作流。</span></li>
+            <li><a href="/Drora/docs/configuration/" data-i18n="doc.welcome.quick.i2">连接模型</a><span data-i18n="doc.welcome.quick.i2d">：为 Agent 接入 GLM 模型与 Coding Plan。</span></li>
+            <li><a href="/Drora/support/" data-i18n="doc.welcome.quick.i3">用户反馈与支持</a><span data-i18n="doc.welcome.quick.i3d">：遇到问题时，了解如何提供有效反馈。</span></li>
+          </ul>
+
+          <h2 id="map" data-i18n="doc.welcome.map.h2">功能一览</h2>
+          <ul>
+            <li><a href="/Drora/docs/install/" data-i18n="doc.nav.install">安装</a><span data-i18n="doc.welcome.cap.install">——下载桌面安装包或 CLI 单文件，处理首次运行的签名提示。</span></li>
+            <li><a href="/Drora/docs/configuration/" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.welcome.cap.model">——登录 GLM 账号或接入自建端点。</span></li>
+            <li><a href="/Drora/docs/agents/" data-i18n="doc.nav.agent">Drora Agent</a><span data-i18n="doc.welcome.cap.agent">——新建任务的主入口：@、#、/、$ 补充上下文，执行模式与推理强度可调。</span></li>
+            <li><a href="/Drora/docs/goal/" data-i18n="doc.nav.tasks">任务与目标模式</a><span data-i18n="doc.welcome.cap.tasks">——用 Goal 承载长程目标，进度逐步打勾。</span></li>
+            <li><a href="/Drora/docs/task-management/" data-i18n="doc.nav.taskFiles">任务与文件管理</a><span data-i18n="doc.welcome.cap.taskFiles">——分组、项目与时间线组织任务，文件树里引用变更文件。</span></li>
+            <li><a href="/Drora/docs/memory/" data-i18n="doc.nav.memory">Memory 记忆</a><span data-i18n="doc.welcome.cap.memory">——跨会话沉淀项目记忆（CLI 默认开启，桌面默认关闭）。</span></li>
+            <li><a href="/Drora/docs/history/" data-i18n="doc.nav.sessions">会话与编辑历史</a><span data-i18n="doc.welcome.cap.sessions">——回放历史、检查点回退与恢复中断任务。</span></li>
+            <li><a href="/Drora/docs/remote-control/" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.welcome.cap.remote">——手机浏览器直连桌面已有 Host，断线可恢复回放。</span></li>
+            <li><a href="/Drora/docs/remote-dev/" data-i18n="doc.nav.remoteDev">远程开发</a><span data-i18n="doc.welcome.cap.remoteDev">——连接 SSH/WSL 远程工作区开发。</span></li>
+            <li><a href="/Drora/docs/usage-stats/" data-i18n="doc.nav.usage">使用统计</a><span data-i18n="doc.welcome.cap.usage">——按会话查看 token 消耗与工具调用分布。</span></li>
+            <li><a href="/Drora/docs/safety-confirm/" data-i18n="doc.nav.safety">安全操作确认</a><span data-i18n="doc.welcome.cap.safety">——权限模式与逐次确认，执行前看清每一步。</span></li>
+            <li><a href="/Drora/docs/ADE-tools/" data-i18n="doc.nav.ade">智能体开发环境工具</a><span data-i18n="doc.welcome.cap.ade">——命令中心、文件预览与终端面板一体的开发环境。</span></li>
+            <li><a href="/Drora/docs/skills/" data-i18n="doc.nav.skills">技能与斜杠命令</a><span data-i18n="doc.welcome.cap.skills">、</span><a href="/Drora/docs/mcp/" data-i18n="doc.nav.mcp">MCP 与插件</a><span data-i18n="doc.welcome.cap.ext">——按需扩展 Agent 能力面。</span></li>
+            <li><a href="/Drora/docs/subagents/" data-i18n="doc.nav.subagents">子智能体</a><span data-i18n="doc.welcome.cap.subagents">——并行委派探索与检索，只把结论带回主对话。</span></li>
+            <li><a href="/Drora/docs/hooks/" data-i18n="doc.nav.hooks">Hooks</a><span data-i18n="doc.welcome.cap.hooks">——在会话与工具生命周期关键点注入脚本。</span></li>
+            <li><a href="/Drora/docs/automation/" data-i18n="doc.nav.automation">自动化任务</a><span data-i18n="doc.welcome.cap.auto">——定时任务与闲时任务，计划内自动执行。</span></li>
+            <li><a href="/Drora/docs/pets/" data-i18n="doc.nav.pets">桌面宠物</a><span data-i18n="doc.welcome.cap.pets">——三只猫娘实时呈现任务状态，可拖动可隐藏。</span></li>
+            <li><a href="/Drora/docs/skin/" data-i18n="doc.nav.skin">皮肤中心</a><span data-i18n="doc.welcome.cap.skin">——内置插画壁纸，面板透明度与主题色自定义。</span></li>
+            <li><a href="/Drora/docs/cli/" data-i18n="doc.nav.cli">命令行 CLI</a><span data-i18n="doc.welcome.cap.cli">——drora 单文件可执行：TUI、Web 模式与脚本化运行。</span></li>
+            <li><a href="/Drora/docs/build/" data-i18n="doc.nav.build">从源码构建</a><span data-i18n="doc.welcome.cap.build">——pnpm bootstrap 起步的源码开发与打包。</span></li>
+            <li><a href="/Drora/docs/faq/" data-i18n="doc.nav.faq">常见问题</a><span data-i18n="doc.welcome.cap.faq">——安装、更新与常见问题排查。</span></li>
+          </ul>
+
+          <h2 id="community" data-i18n="doc.welcome.comm.h2">加入社群</h2>
+          <p>
+            <span data-i18n="doc.welcome.comm.p1">使用问题与交流建议欢迎到</span>
+            <a href="/Drora/community/" data-i18n="doc.welcome.comm.link">社区页</a>
+            <span data-i18n="doc.welcome.comm.p2">：飞书社群、Discord 与 GitHub Discussions 都能到达维护者；安全问题请走</span>
+            <a href="/Drora/security/" data-i18n="doc.welcome.comm.sec">提交漏洞渠道</a><span data-i18n="doc.dot">。</span>
+          </p>
+        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-glm53-new-task-cn.png" alt="ZCode 3.6.4 新建任务界面，已选择 GLM-5.3" loading="lazy" /></figure></article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

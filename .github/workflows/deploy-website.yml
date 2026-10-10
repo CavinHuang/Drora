@@ -1,20 +1,27 @@
 name: Deploy website to GitHub Pages
 
-# Drora 产品官网（website/ 静态站）CI + 部署：
-#  - check：PR 与 main 推送 touching website/** 时运行零依赖门禁
-#    （scripts/check-website.mjs：内链/资源/锚点/i18n 键），坏链接不上线
-#  - deploy：仅 main 推送与手动触发，先过 check 再发布 Pages。
+# Drora 产品官网（apps/website 的 Next.js 静态导出，见 specs/website.md）CI + 部署：
+#  - check：PR 与 main 推送 touching 官网输入时运行零依赖门禁
+#    （scripts/check-website.mjs：site-src 片段的 /Drora 绝对内链、片段↔路由配对、
+#    DOCS_SLUGS 清单一致性、i18n 键），坏链接不上线
+#  - deploy：仅 main 推送与手动触发，先过 check，再 `pnpm --filter @drora/website build`
+#    （build 先经 scripts/generate-hero-mock.mjs 烘焙 hero mock）产出静态导出目录
+#    apps/website/out，跑 --out 产物探针后发布到 Pages（项目站点子路径 /Drora/）。
 #    仓库设置中 Pages Source 需选择「GitHub Actions」（一次性配置，已配置）。
 on:
   push:
     branches: [main]
     paths:
-      - "website/**"
+      - "apps/website/**"
+      - "packages/ui/**"
+      - "packages/shared/**"
       - "scripts/check-website.mjs"
       - ".github/workflows/deploy-website.yml"
   pull_request:
     paths:
-      - "website/**"
+      - "apps/website/**"
+      - "packages/ui/**"
+      - "packages/shared/**"
       - "scripts/check-website.mjs"
       - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
@@ -24,7 +31,7 @@ permissions:
 
 jobs:
   check:
-    name: Check website (links / assets / i18n)
+    name: Check website (links / routes / i18n)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,9 +58,18 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build static export
+        run: pnpm --filter @drora/website build
+      - name: Probe static export
+        run: node scripts/check-website.mjs --out
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: website
+          path: apps/website/out
       - id: deployment
         uses: actions/deploy-pages@v4

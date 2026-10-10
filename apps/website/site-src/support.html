@@ -1,0 +1,52 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js）；no-JS 时回退到下方链接。迁移自 website/support/index.html，链接重写为 /Drora 绝对路径 -->
+    <site-header class="site-header" id="siteHeader" data-page="support" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="page-hero">
+        <h1 data-i18n="sup.title">支持与反馈</h1>
+        <p data-i18n="sup.subtitle">遇到问题或有建议？这些渠道都能到达维护者。</p>
+      </div>
+      <div class="page-narrow">
+        <article class="docs-content">
+          <p data-i18n="sup.lead">遇到问题、有功能建议或想聊聊用法，以下渠道都能到达维护者。</p>
+
+          <h2 data-i18n="sup.channel.h2">反馈渠道</h2>
+          <table class="docs-table">
+            <thead><tr><th data-i18n="sup.channel.th1">渠道</th><th data-i18n="sup.channel.th2">适合</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/CavinHuang/Drora/issues">GitHub Issues</a></td><td data-i18n="sup.channel.td1">Bug 报告与功能请求（可追踪进展）</td></tr>
+              <tr><td><a href="https://github.com/CavinHuang/Drora/discussions">Discussions</a></td><td data-i18n="sup.channel.td2">使用问答与方案讨论</td></tr>
+              <tr><td><span data-i18n="sup.channel.td3a">飞书社群 /</span> <a href="https://discord.gg/z9aBcQXZQ3">Discord</a></td><td data-i18n="sup.channel.td3">即时交流与快速答疑</td></tr>
+            </tbody>
+          </table>
+
+          <h2 data-i18n="sup.include.h2">反馈时请附上</h2>
+          <ul>
+            <li data-i18n="sup.include.li1">Drora 版本号与安装方式；</li>
+            <li data-i18n="sup.include.li2">操作系统与 CPU 架构；</li>
+            <li data-i18n="sup.include.li3">复现步骤，以及预期与实际行为；</li>
+            <li><span data-i18n="sup.include.li4">相关日志片段（请先去除令牌、密钥等敏感信息）。</span></li>
+          </ul>
+
+          <h2 data-i18n="sup.format.h2">Issue 标题建议</h2>
+          <p data-i18n="sup.format.p">用「[形态] 平台 + 一句话现象」的格式，便于检索，例如：</p>
+          <div class="docs-code"><code>[桌面] macOS 15 Apple 芯片 启动后窗口白屏
+[CLI] drora --web 指定端口被占用时未提示
+[远控] 手机连接后桌面无响应</code></div>
+
+          <h2 data-i18n="sup.faq.h2">先看常见问题</h2>
+          <p><span data-i18n="sup.faq.p">安装拦截、更新方式等高频问题已收录在</span> <a href="/Drora/docs/faq/" data-i18n="sup.faq.link">文档的常见问题节</a><span>.</span></p>
+        </article>
+      </div>
+    </main>
+
+    <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>

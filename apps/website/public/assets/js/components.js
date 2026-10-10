@@ -57,7 +57,9 @@
 
   /* ------------------------------ docs IA ------------------------------ */
   /* 文档信息架构单一出处：<docs-nav> 侧栏与 ⌘K 搜索都从这里取数，不会漂移。
-     slug = website/docs/ 下的文件名（空串 = index.html 欢迎页）。 */
+     slug = 文档站页面名（空串 = 欢迎页）。链接一律目录形态：data-base + slug + "/"
+     （欢迎页为 data-base 本身）；data-base 由注入页提供（Pages 子路径部署下为
+     /Drora/docs/ 绝对路径）。 */
 
   var DOCS_IA = [
     {
@@ -122,11 +124,13 @@
       if (this.dataset.rendered) return;
       this.dataset.rendered = "1";
       var current = this.getAttribute("data-current");
+      var base = this.getAttribute("data-base") || "";
       var html = '<nav aria-label="Docs">';
       DOCS_IA.forEach(function (group) {
         html += '<div class="docs-nav-group"><p data-i18n="' + group.group + '">' + group.groupZh + "</p>";
         group.items.forEach(function (item) {
-          var href = item.slug ? item.slug + ".html" : "./";
+          // 目录形态链接（Next 静态导出 trailingSlash 路由）；欢迎页链接 = base 本身
+          var href = item.slug ? base + item.slug + "/" : base;
           var currentAttr = item.slug === current ? " current" : "";
           html +=
             '<a href="' + href + '" class="docs-nav-link' + currentAttr + '" data-i18n="' + item.key + '">' + item.zh + "</a>";

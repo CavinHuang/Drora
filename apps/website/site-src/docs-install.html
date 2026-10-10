@@ -1,0 +1,202 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="install" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.install">安装</h1>
+          <p data-i18n="doc.install.lead2">
+            下载并安装 Drora 桌面应用，开始体验 Drora Agent 驱动的端到端开发工作流。全程约 2 分钟：下载安装包 →
+            完成安装 → 首次启动。
+          </p>
+          <ol>
+            <li><a href="#download" data-i18n="doc.install.step1">下载安装包</a></li>
+            <li><a href="#steps" data-i18n="doc.install.step2">完成安装</a></li>
+            <li><a href="#first-run" data-i18n="doc.install.step3">首次启动</a></li>
+          </ol>
+
+          <h2 id="download" data-i18n="doc.install.sub.download">下载</h2>
+          <p>
+            <span data-i18n="doc.install.p0">立即下载 Drora：桌面安装包与 CLI 单文件均发布在</span>
+            <a href="https://github.com/CavinHuang/Drora/releases/latest">Releases</a><span data-i18n="doc.dot">。</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.install.th1">文件</th>
+                <th data-i18n="doc.install.th2">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code data-i18n="doc.file.win">Drora-&lt;版本&gt;-win-x64.exe</code> / <code>win-arm64.exe</code></td>
+                <td data-i18n="doc.install.td1">Windows 桌面应用安装包（NSIS）</td>
+              </tr>
+              <tr>
+                <td><code data-i18n="doc.file.mac">Drora-&lt;版本&gt;-mac-arm64.dmg</code> / <code>mac-x64.dmg</code>（及 <code>.zip</code>）</td>
+                <td data-i18n="doc.install.td2">macOS 桌面应用</td>
+              </tr>
+              <tr>
+                <td><code>drora-windows-x64.exe</code> / <code>drora-darwin-arm64</code> / <code>drora-linux-x64</code></td>
+                <td data-i18n="doc.install.td3">Agent CLI 单文件，须在终端中运行（双击会闪退）</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.install.platforms">
+            支持 macOS（Apple Silicon / Intel）与 Windows（x64 / ARM64）。暂不提供 Linux
+            桌面安装包：Linux 用户可先使用 CLI 单文件，或从源码构建桌面应用。
+          </p>
+
+          <h2 id="steps" data-i18n="doc.install.sub.steps">安装步骤</h2>
+          <h3 data-i18n="doc.install.step.mac">macOS</h3>
+          <ol>
+            <li data-i18n="doc.install.mac1">打开下载的 Drora.dmg 安装镜像。</li>
+            <li data-i18n="doc.install.mac2">将 Drora.app 拖动到 Applications 文件夹。</li>
+            <li data-i18n="doc.install.mac3">在启动台中找到 Drora 并启动。</li>
+          </ol>
+          <h3 data-i18n="doc.install.step.win">Windows</h3>
+          <ol>
+            <li data-i18n="doc.install.win1">下载 Drora 安装程序。</li>
+            <li data-i18n="doc.install.win2">双击运行，按照安装向导完成安装。</li>
+            <li data-i18n="doc.install.win3">从开始菜单或桌面快捷方式启动 Drora。</li>
+          </ol>
+          <h3 data-i18n="doc.install.step.cli">Agent CLI</h3>
+          <p>
+            <span data-i18n="doc.install.stepCli">
+            单文件可执行，放到 PATH 目录或直接以路径运行；必须在终端中启动，双击会闪退。首次使用先执行
+            </span>
+            <code>drora login</code><span data-i18n="doc.install.stepCliT">完成浏览器授权，即可开始提问。</span>
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.install.note1">
+            安装包未做签名：Windows 首次运行请在 SmartScreen 提示时选择「更多信息 → 仍要运行」；macOS 首次打开若被拦截，可在「系统设置 →
+            隐私与安全性」中放行，或执行
+            </span>
+            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
+          </div>
+
+          <h2 id="first-run" data-i18n="doc.install.sub.firstrun">首次启动</h2>
+          <p data-i18n="doc.install.first.p1">
+            首次启动会进入「首次启动设置」页面，完成后在左下角点击「连接使用」进入登录页面：
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/install-first-launch-login-20260727.webp" alt="ZCode 首次启动与登录页面" loading="lazy" /></figure>
+          <ol>
+            <li data-i18n="doc.install.first.s1">
+              点击「开始使用 Drora」直接进入。如需迁移历史数据，可选择「数据迁移向导」：目前支持导入 Claude
+              Code 的对话记录，不支持其他工具；也可以先跳过，稍后在设置中继续迁移。
+            </li>
+            <li data-i18n="doc.install.first.s2">进入后选择一个项目目录作为工作区。</li>
+            <li data-i18n="doc.install.first.s3">在对话框输入一句简单指令，比如让 Agent「列出当前目录的文件」，确认响应正常。</li>
+          </ol>
+          <p>
+            <span data-i18n="doc.install.first.p2">如果还没有配置模型，点击左下角「连接使用」进入登录页面，引导你「连接 Z.ai」「连接 BigModel」或「使用 API Key」完成接入，详见</span>
+            <a href="/Drora/docs/configuration/" data-i18n="doc.nav.model">连接模型</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="verify" data-i18n="doc.install.sub.verify">校验与更新</h2>
+          <p>
+            <span data-i18n="doc.install.p2">所有产物均由 GitHub Actions 从源码构建，</span>
+            <code>SHA256SUMS.txt</code><span data-i18n="doc.install.p2t">提供校验和。</span>
+          </p>
+          <p data-i18n="doc.install.update1">
+            桌面应用内置自动更新（latest 通道），也可以在「帮助 → 检查更新」手动检查；随时可到 Releases 页下载新版本覆盖安装。
+          </p>
+          <p>
+            <span data-i18n="doc.install.update2">CLI 单文件没有自更新：重新下载新版本的</span>
+            <code>drora-&lt;os&gt;-&lt;arch&gt;</code><span data-i18n="doc.install.update2t">替换旧文件即可。</span>
+          </p>
+
+          <h2 id="proxy" data-i18n="doc.install.sub.proxy">网络代理</h2>
+          <p data-i18n="doc.install.proxyIntro">
+            如果你的网络需要走代理才能访问模型服务，在「设置 → 常规」里可以配置。这里有三个字段，填完点保存，需要重启应用才生效。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/proxy-configuration.webp" alt="设置 → 常规 的网络代理：HTTP 代理、代理例外与自定义证书三个字段（图中为演示值）" loading="lazy" /></figure>
+          <p>
+            <span data-i18n="doc.install.proxyHttp">「HTTP 代理」：填入代理地址，例如</span>
+            <code>http://127.0.0.1:7890</code><span data-i18n="doc.dot">。</span>
+          </p>
+          <div class="docs-note"><span data-i18n="doc.install.proxyNote">
+            留空不等于跟随系统。这个字段为空时 Drora 直连，不会读取 HTTP_PROXY
+            等系统环境变量。这一点和很多命令行工具的默认行为相反，如果你发现终端里能联网而 Drora 不行，多半就是这个原因。
+          </span></div>
+          <p data-i18n="doc.install.proxyScope">
+            配置后，模型请求、MCP 服务、Agent 执行的命令工具以及应用界面的网络请求都会走这个代理。
+          </p>
+          <p data-i18n="doc.install.proxyNoProxy">「不使用代理的地址」：不想走代理的地址，用英文逗号分隔，例如：</p>
+          <div class="docs-code"><code>localhost,127.0.0.1,::1,.example.com,*.corp.com</code></div>
+          <p data-i18n="doc.install.proxyNoProxyNote">
+            主机名、.example.com 这样的域名后缀、*.corp.com 通配写法都支持，需要时还能带上端口。
+          </p>
+          <p data-i18n="doc.install.proxyCa">
+            「自定义证书」：填 PEM 格式根证书的本地文件路径。企业内网如果用了会解密 HTTPS
+            的安全网关，它签发的证书默认不被信任，把对应的根证书填在这里即可。注意这「不是」跳过证书校验——Drora
+            只放行证书链里确实包含这张根证书的连接，其余照常校验。
+          </p>
+          <p>
+            <span data-i18n="doc.install.proxyCli">代理设置修改后需重启应用生效。CLI 侧可在用户配置文件 </span>
+            <code>~/.drora/cli/config.json</code>
+            <span data-i18n="doc.install.proxyCliT"> 中设置 </span>
+            <code>network.httpProxy</code><span data-i18n="doc.install.proxyCliM">、</span>
+            <code>network.noProxy</code><span data-i18n="doc.install.proxyCliM2">、</span>
+            <code>network.caCertFile</code><span data-i18n="doc.install.proxyCliE">，语义相同。</span>
+          </p>
+
+          <h2 id="windows" data-i18n="doc.install.sub.windows">Windows 专属设置</h2>
+          <p data-i18n="doc.install.winShell">
+            「选择命令行环境」：在「设置 → 常规 → 终端」里可以指定 Agent 执行命令时用哪个
+            shell，可选「自动选择」「CMD」和「Git Bash」（检测到已安装时才出现）。默认是自动，优先用 Git
+            Bash，找不到就回退到 cmd.exe。改动只对新建会话生效。
+          </p>
+          <p data-i18n="doc.install.winTray">
+            「关闭窗口时隐藏到托盘」：Windows 上默认开启，点窗口的关闭按钮不会退出应用，而是收进系统托盘继续运行，定时任务和闲时任务也因此能在后台照常推进。托盘图标右键有打开
+            Drora、新建任务、打开工作区、检查更新、退出等菜单项，左键点击可以把窗口叫回来。想让关闭按钮直接退出，在设置里关掉「关闭窗口时隐藏到托盘」即可。这个开关只有
+            Windows 有。
+          </p>
+
+          <h2 id="troubleshoot" data-i18n="doc.install.sub.trouble">故障排查</h2>
+          <h3 data-i18n="doc.install.trouble.mac">macOS 提示「Drora 已损坏，无法打开」</h3>
+          <p>
+            <span data-i18n="doc.install.troubleMac">这是未签名安装包被 Gatekeeper 隔离的正常表现，在终端执行以下命令解除隔离属性后重新打开：</span>
+          </p>
+          <div class="docs-code"><code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code></div>
+          <h3 data-i18n="doc.install.trouble.win">Windows 安装时被防火墙 / 杀软拦截</h3>
+          <p data-i18n="doc.install.troubleWin">
+            安装包未做代码签名，SmartScreen 拦截属预期行为：在提示时选择「更多信息 → 仍要运行」；安全软件拦截时，暂时关闭实时防护或将安装目录加入白名单后重试。
+          </p>
+          <h3 data-i18n="doc.install.trouble.cli">CLI 提示没有执行权限</h3>
+          <p>
+            <span data-i18n="doc.install.troubleCli">macOS / Linux 下载的单文件需要执行权限：</span>
+            <code>chmod +x drora-*</code><span data-i18n="doc.install.troubleCliT"> 后再运行。</span>
+          </p>
+
+          <h2 id="more" data-i18n="doc.install.sub.more">了解更多</h2>
+          <p>
+            <a href="/Drora/docs/configuration/" data-i18n="doc.nav.model">连接模型</a>
+            · <a href="/Drora/docs/faq/" data-i18n="doc.nav.faq">常见问题</a>
+            · <a href="/Drora/support/" data-i18n="doc.install.moreSupport">用户反馈与支持</a>
+            · <a href="/Drora/docs/build/" data-i18n="doc.nav.build">从源码构建</a>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

@@ -1,0 +1,57 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js）；no-JS 时回退到下方链接。迁移自 website/security/index.html，链接重写为 /Drora 绝对路径 -->
+    <site-header class="site-header" id="siteHeader" data-page="security" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="page-hero">
+        <h1 data-i18n="sec.title">提交漏洞</h1>
+        <p data-i18n="sec.subtitle">报告 Drora 的安全与隐私问题，帮助我们让项目更安全。</p>
+      </div>
+      <div class="page-narrow">
+        <article class="docs-content">
+          <h2 data-i18n="sec.report.h2">报告渠道</h2>
+          <p data-i18n="sec.report.p">Drora 是社区维护的开源项目。发现安全或隐私问题时，请按敏感程度选择渠道：</p>
+          <ul>
+            <li><span data-i18n="sec.report.private">GitHub 私密漏洞报告（推荐）：敏感漏洞请通过</span> <a href="https://github.com/CavinHuang/Drora/security/advisories/new" data-i18n="sec.report.privateLink">私密安全咨询</a><span data-i18n="sec.report.privateTail">提交，仅维护者可见。</span></li>
+            <li><span data-i18n="sec.report.public">GitHub Issues：非敏感的加固建议与配置问题，可到</span> <a href="https://github.com/CavinHuang/Drora/issues">Issues</a><span data-i18n="sec.report.publicTail">公开讨论。</span></li>
+          </ul>
+          <div class="docs-note"><span data-i18n="sec.report.note">在漏洞修复发布前，请勿在公开渠道描述可被直接利用的细节或发布利用代码。</span></div>
+
+          <h2 data-i18n="sec.scope.h2">测试范围</h2>
+          <p data-i18n="sec.scope.p">欢迎研究本仓库实际发布的形态：</p>
+          <table class="docs-table">
+            <thead><tr><th data-i18n="sec.scope.th1">形态</th><th data-i18n="sec.scope.th2">说明</th></tr></thead>
+            <tbody>
+              <tr><td data-i18n="sec.scope.td1">桌面客户端</td><td data-i18n="sec.scope.td2">macOS / Windows 安装包（Releases 发布）</td></tr>
+              <tr><td>Agent CLI</td><td data-i18n="sec.scope.td3">单文件可执行（drora-&lt;os&gt;-&lt;arch&gt;）</td></tr>
+              <tr><td>Web / Server</td><td data-i18n="sec.scope.td4">本地与自托管部署（dev:web 或发行包）</td></tr>
+            </tbody>
+          </table>
+          <p><span data-i18n="sec.scope.deps">第三方依赖的安全问题，除报告本仓外也欢迎同步告知上游项目。</span></p>
+
+          <h2 data-i18n="sec.flow.h2">处理流程</h2>
+          <ol>
+            <li data-i18n="sec.flow.s1">提交报告：附复现步骤、影响评估与环境版本。</li>
+            <li data-i18n="sec.flow.s2">确认与评估：维护者复现问题并评定严重程度。</li>
+            <li data-i18n="sec.flow.s3">修复与发布：严重问题优先修复并发版。</li>
+            <li data-i18n="sec.flow.s4">披露与致谢：修复发布后公开披露，并（征得同意后）致谢报告者。</li>
+          </ol>
+
+          <h2 data-i18n="sec.bounty.h2">关于奖励</h2>
+          <p data-i18n="sec.bounty.p">本项目为社区开源项目，暂无漏洞赏金计划；有效的安全报告是对项目最直接的帮助，我们会在披露中如实致谢。</p>
+
+          <h2 data-i18n="sec.advice.h2">用户安全建议</h2>
+          <p><span data-i18n="sec.advice.p">Agent 具备文件、终端与网络操作能力，会以你的账号权限真实执行。建议限制运行账号与网络权限、在重要操作前备份，并阅读</span> <a href="https://github.com/CavinHuang/Drora/blob/main/NOTICE.md">NOTICE.md</a><span>.</span></p>
+        </article>
+      </div>
+    </main>
+
+    <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>

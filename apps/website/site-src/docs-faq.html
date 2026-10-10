@@ -1,0 +1,308 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="faq" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.more">更多</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.faq">常见问题</h1>
+          <p data-i18n="doc.faq.lead">
+            在这里，我们汇总了关于 Drora 的产品定位、模型接入以及在使用过程中可能遇到的技术问题的解答。
+          </p>
+
+          <h2 id="q-positioning" data-i18n="doc.faq.q.pos">1. Drora 的产品定位是什么？</h2>
+          <p data-i18n="doc.faq.a.pos">
+            Drora 是一个基于上游 ZCode 开源复刻的智能体开发环境（Agentic Development Environment，ADE）。与传统 IDE
+            不同，Drora 不以手动编写代码为核心，而是让 AI Agent
+            成为开发的主角——您只需用自然语言描述需求，Agent 即可驱动从编码、调试到预览的完整开发流程。
+          </p>
+          <ul>
+            <li><strong data-i18n="doc.faq.a.pos1t">ADE 平台</strong><span data-i18n="doc.faq.a.pos1d">：围绕 Drora Agent 内置文件管理、终端、Git 提交及实时浏览器预览，通过自然语言指令驱动 Agent 完成全生命周期开发任务。</span></li>
+            <li><strong data-i18n="doc.faq.a.pos2t">全上下文感知</strong><span data-i18n="doc.faq.a.pos2d">：Agent 能够深入理解项目结构、文件内容以及 UI 视觉元素，无需记忆复杂的命令行参数。</span></li>
+            <li><strong data-i18n="doc.faq.a.pos3t">当前重点</strong><span data-i18n="doc.faq.a.pos3d">：围绕 Drora Agent 强化长任务执行和稳定性，把工作区、工具、模型、权限和 Review 串成连续的开发流程。</span></li>
+          </ul>
+
+          <h2 id="q-free" data-i18n="doc.faq.q.free">2. Drora 免费吗？</h2>
+          <p data-i18n="doc.faq.a.free">
+            Drora 工具本身完全免费、开源。但作为开发者，您需要准备自己的 API Key 或模型服务套餐。目前支持以下接入方式：
+          </p>
+          <ul>
+            <li><strong data-i18n="doc.faq.a.free1t">智谱系列</strong><span data-i18n="doc.faq.a.free1d">：GLM Coding Plan 编程套餐、智谱开放平台模型资源包/充值余额、智谱 Z.ai。</span></li>
+            <li><strong data-i18n="doc.faq.a.free2t">模型服务</strong><span data-i18n="doc.faq.a.free2d">：Drora Agent 可使用已接入的模型服务和套餐。</span></li>
+            <li><strong data-i18n="doc.faq.a.free3t">企业模型通道</strong><span data-i18n="doc.faq.a.free3d">：团队统一维护、供 Drora Agent 稳定调用的模型通道。</span></li>
+            <li><strong data-i18n="doc.faq.a.free4t">自托管服务</strong><span data-i18n="doc.faq.a.free4d">：团队批准的私有化模型服务或专有网络模型资源。</span></li>
+          </ul>
+
+          <h2 id="q-reconfigure" data-i18n="doc.faq.q.reconf">3. 我的终端已配置好 GLM API，还需要在 Drora 重新配置吗？</h2>
+          <p data-i18n="doc.faq.a.reconf">
+            需要。终端环境变量和 Drora 桌面端的模型配置是两套独立入口，配置不会自动同步。您可以选择以下任一方式：
+          </p>
+          <ul>
+            <li><strong data-i18n="doc.faq.a.reconf1t">快速连接</strong><span data-i18n="doc.faq.a.reconf1d">：在欢迎页面或个人头像处连接 BigModel/Z.ai 账号，若账户内有可用套餐将自动连接。</span></li>
+            <li><strong data-i18n="doc.faq.a.reconf2t">手动管理</strong><span data-i18n="doc.faq.a.reconf2d">：通过模型选择器底部的「管理模型」进入「模型设置」，手动添加 Base URL 和 API Key。</span></li>
+          </ul>
+
+          <h2 id="q-loading" data-i18n="doc.faq.q.loading">4. Connect 之后一直 Loading？</h2>
+          <p data-i18n="doc.faq.a.loading">如果模型服务连接一直处于 Loading，请优先检查：</p>
+          <ol>
+            <li><strong data-i18n="doc.faq.a.load1t">网络环境</strong><span data-i18n="doc.faq.a.load1d">：确保当前网络可以访问对应模型服务。</span></li>
+            <li><strong data-i18n="doc.faq.a.load2t">账号权限</strong><span data-i18n="doc.faq.a.load2d">：确保登录账号或 API Key 拥有可用额度和模型访问权限。</span></li>
+          </ol>
+
+          <h2 id="q-folder" data-i18n="doc.faq.q.folder">5. 怎么把整个文件夹作为上下文交给 Agent？</h2>
+          <p data-i18n="doc.faq.a.folder">有两种方式，都可以。</p>
+          <p>
+            <strong data-i18n="doc.faq.a.folderAtT">用 @ 直接选</strong><span data-i18n="doc.faq.a.folderAtD">：输入框中的 @ 选择器会同时列出文件和文件夹，也可以选择技能和智能体。输入 @ 后继续输入名称筛选，用方向键在候选项之间循环选择即可。</span>
+          </p>
+          <p>
+            <strong data-i18n="doc.faq.a.folderDragT">拖拽进输入框</strong><span data-i18n="doc.faq.a.folderDragD">：</span>
+          </p>
+          <ul>
+            <li data-i18n="doc.faq.a.folderL1">从 Drora 左侧文件树中拖拽文件夹到输入框。</li>
+            <li data-i18n="doc.faq.a.folderL2">从 Finder、资源管理器等系统文件管理器中拖拽文件夹到输入框。</li>
+          </ul>
+          <p data-i18n="doc.faq.a.folderEnd">
+            无论哪种方式，Drora 都会把该文件夹作为上下文引用，Agent 可以围绕目录结构和其中的文件继续分析或执行任务。
+          </p>
+
+          <h2 id="q-endpoints" data-i18n="doc.faq.q.endpoints">6. GLM Coding Plan、Anthropic 端点、OpenAI 通用端点有什么区别？</h2>
+          <p>
+            <span data-i18n="doc.faq.a.ep.p1">BigModel（国内）与 Z.ai（海外）在供应商目录中提供「Coding Plan」与「标准 API」两类模板，对应不同的端点与计费来源（详见</span>
+            <a href="/Drora/docs/configuration/" data-i18n="doc.nav.model">连接模型</a>
+            <span data-i18n="doc.faq.a.ep.p1t">的端点说明）：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.faq.a.ep.thEnd">端点</th>
+                <th data-i18n="doc.faq.a.ep.thUrl">典型地址（BigModel）</th>
+                <th data-i18n="doc.faq.a.ep.thWhen">何时使用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.faq.a.ep.r1c1">Anthropic 接口（Coding Plan 模板）</td>
+                <td><code>https://open.bigmodel.cn/api/anthropic</code></td>
+                <td data-i18n="doc.faq.a.ep.r1c3">已开通 GLM Coding Plan，用「编程套餐」或 Coding Plan 模板接入 GLM-5.3 编程场景</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.faq.a.ep.r2c1">OpenAI 通用</td>
+                <td><code>https://open.bigmodel.cn/api/paas/v4</code></td>
+                <td data-i18n="doc.faq.a.ep.r2c3">开放平台模型资源包 / 充值余额，走 OpenAI 兼容协议</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.faq.a.ep.misuse">常见误区：</p>
+          <ul>
+            <li data-i18n="doc.faq.a.ep.m1">只有资源包 / 余额，却选了 Coding Plan 模板 → Coding 端点仅限编程场景，不适用于通用 API。</li>
+            <li data-i18n="doc.faq.a.ep.m2">通过「编程套餐」账号授权（非 API Key）连接时，无需手动填端点，Drora 会自动路由。</li>
+          </ul>
+          <p>
+            <span data-i18n="doc.faq.a.ep.zai">海外 Z.ai 请将地址中的域名替换为 </span>
+            <code>api.z.ai</code><span data-i18n="doc.faq.a.ep.zaiT">，路径规则相同。</span>
+          </p>
+
+          <h2 id="q-context-window" data-i18n="doc.faq.q.ctx">7. 上下文容量显示得比模型实际窗口小？自定义模型的窗口怎么填？</h2>
+          <p data-i18n="doc.faq.a.ctx.p1">
+            每个模型条目都带一个「上下文窗口」值，Drora 按这个值计算容量，规则如下：
+          </p>
+          <ul>
+            <li data-i18n="doc.faq.a.ctx.l1">
+              新加的模型、或没带窗口信息的模型，默认按 20 万（200000）计算。这就是接入百万上下文模型后，容量仍显示 20 万的原因。
+            </li>
+            <li data-i18n="doc.faq.a.ctx.l2">模型 ID 以 [1m] 结尾会被识别为百万上下文，自动按 100 万处理，不需要手填。</li>
+            <li>
+              <span data-i18n="doc.faq.a.ctx.l3">其他情况以你填写的数值为准——需要 1M 就填 </span>
+              <code>1000000</code><span data-i18n="doc.dot">。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.faq.a.ctx.p2">
+            在「设置 → 模型供应商」里展开对应模型即可修改。注意：通过编程套餐（Plan）连接的内置 GLM 模型，窗口由产品统一固定、不可编辑；只有用
+            API Key 方式添加的模型才允许自己改。
+          </p>
+          <p data-i18n="doc.faq.a.ctx.p3">
+            会话显示的容量取自该会话「当前所选模型」的窗口，所以同一个项目里不同会话显示不同容量是正常的——旧会话沿用它当时用的模型。
+          </p>
+
+          <h2 id="q-compact" data-i18n="doc.faq.q.compact">8. 为什么远没用满就开始「自动压缩」？</h2>
+          <p data-i18n="doc.faq.a.cmp.p1">自动压缩不是等窗口用满才触发，而是提前留出输出空间和安全缓冲：</p>
+          <div class="docs-code"><code>触发点 = 上下文窗口 − 输出预留（至多 21000）− 约 13000 的安全缓冲</code></div>
+          <ul>
+            <li data-i18n="doc.faq.a.cmp.l1">
+              输出预留取「最大输出 Token」与 21000 中的较小值，所以通常合计固定扣掉约 3.4 万 token。
+            </li>
+            <li data-i18n="doc.faq.a.cmp.l2">
+              换算下来：128K 窗口约在 9.4 万 token 触发（约 73%），200K 约在 16.6 万，1M 约在 96.6
+              万。窗口越小，触发点占比越低，属正常现象。
+            </li>
+            <li data-i18n="doc.faq.a.cmp.l3">
+              触发判定的计数包含本轮工具结果的实时估算，可能与界面显示的用量略有出入——所以有时看起来「没到线」就压缩了。
+            </li>
+          </ul>
+          <p data-i18n="doc.faq.a.cmp.p2">
+            如果窗口本身还在按默认的 20 万计算（见上一条），提前压缩会更明显——先把窗口值填对，再看压缩时机。自动压缩目前没有可配置的开关或阈值。
+          </p>
+
+          <h2 id="q-subagent-model" data-i18n="doc.faq.q.subagent">9. 子智能体没有用我指定的模型？</h2>
+          <p data-i18n="doc.faq.a.sub.p1">分两种情况：</p>
+          <ul>
+            <li>
+              <strong data-i18n="doc.faq.a.sub.l1t">内置的 general-purpose 和 Explore</strong><span data-i18n="doc.faq.a.sub.l1d">：可以在设置里分别为它们指定模型；不指定时继承父会话的主模型——这是设计行为。想让它们固定用某个模型，就在设置里配上持久覆盖，清空即恢复继承。</span>
+            </li>
+            <li>
+              <strong data-i18n="doc.faq.a.sub.l2t">自定义 / 工作区 / 插件子智能体</strong><span data-i18n="doc.faq.a.sub.l2d">：仍以各自 Markdown 文件里的 model 字段为准。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.faq.a.sub.p2">
+            所以「派出去的子智能体跟着主会话的模型跑」在没有配置覆盖时是预期结果，不是故障。
+          </p>
+
+          <h2 id="q-skills" data-i18n="doc.faq.q.skills">10. 技能列表是空的，全局技能不显示？</h2>
+          <p data-i18n="doc.faq.a.sk.p1">先确认技能文件放对了位置：</p>
+          <ul>
+            <li>
+              <span data-i18n="doc.faq.a.sk.l1">用户级（全局）：</span>
+              <code>~/.drora/skills/&lt;技能名&gt;/SKILL.md</code>
+              <span data-i18n="doc.faq.a.sk.l1t">（也识别 ~/.agents/skills/ 下的同名结构）。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.faq.a.sk.l2">工作区级：</span>
+              <code>&lt;工作区&gt;/.drora/skills/&lt;技能名&gt;/SKILL.md</code>
+              <span data-i18n="doc.faq.a.sk.l2t">（也识别 .agents/skills/）。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.faq.a.sk.p2">
+            目录为空时，列表里自然不会有全局技能。确认目录里确实有技能后，再按这三步排查：
+          </p>
+          <ol>
+            <li data-i18n="doc.faq.a.sk.s1">在「设置 → 技能」里按来源查看，确认没有被搜索框或来源筛选挡住。</li>
+            <li data-i18n="doc.faq.a.sk.s2">新建或导入的技能需要点「刷新」才会出现。</li>
+            <li data-i18n="doc.faq.a.sk.s3">检查每项右侧的启用开关是否处于开启状态。</li>
+          </ol>
+          <p>
+            <span data-i18n="doc.faq.a.sk.p3">完整的目录结构与导入方式见</span>
+            <a href="/Drora/docs/skills/" data-i18n="doc.nav.skills">技能与斜杠命令</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="q-migrate" data-i18n="doc.faq.q.migrate">11. 换电脑，要复制哪些配置文件？</h2>
+          <p data-i18n="doc.faq.a.mig.p1">把这几处复制到新机器的相同位置，即可带走绝大部分配置：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.faq.thPath">路径</th>
+                <th data-i18n="doc.faq.thWhat">带走什么</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>~/.drora/cli/config.json</code></td>
+                <td data-i18n="doc.faq.tdConfig">MCP 服务器、权限默认值、插件与技能开关、Hooks 等 Agent 配置</td>
+              </tr>
+              <tr>
+                <td><code>~/.drora/v2/config.json</code></td>
+                <td data-i18n="doc.faq.tdV2Config">模型供应商配置（含 API Key、Base URL、模型列表）</td>
+              </tr>
+              <tr>
+                <td><code>~/.drora/AGENTS.md</code></td>
+                <td data-i18n="doc.faq.tdAgents">全局规则</td>
+              </tr>
+              <tr>
+                <td><code>~/.drora/agents/</code> / <code>~/.drora/skills/</code> / <code>~/.drora/commands/</code></td>
+                <td data-i18n="doc.faq.tdDirs">自定义子智能体、技能、命令</td>
+              </tr>
+              <tr>
+                <td><code>&lt;项目&gt;/.drora/</code></td>
+                <td data-i18n="doc.faq.tdProject">项目级配置，随仓库走，不用单独复制</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.faq.a.mig.p3a">不要复制这两个文件：</span>
+            <code>~/.drora/v2/credentials.json</code>
+            <span data-i18n="doc.faq.a.mig.p3b">（登录凭据按设备加密，换机后无法解密，直接在新机器重新登录即可）和</span>
+            <code>~/.drora/v2/telemetry-state.json</code>
+            <span data-i18n="doc.faq.a.mig.p3c">（含设备标识，不应在两台机器间共用）。会话历史、日志等运行数据也不建议搬运。</span>
+          </p>
+
+          <h2 id="q-exec-dir" data-i18n="doc.faq.q.exec">12. ~/.drora/cli/exec 目录占了很多空间，能删吗？</h2>
+          <p data-i18n="doc.faq.a.exec">
+            能删。这个目录存放的是历史会话中终端命令的输出记录，目前不会自动清理，长期使用会越积越大。在 Drora 完全退出、且没有后台命令在跑的情况下，可以整个删除——Drora
+            会在需要时自动重建。删除的代价只是历史任务里的命令输出无法再回看，不影响任何配置和会话记录。
+          </p>
+
+          <h2 id="q-version" data-i18n="doc.faq.q.version">13. 在哪里查看 Drora 的版本号？</h2>
+          <p>
+            <span data-i18n="doc.faq.a.ver.p1">
+            桌面端在标题栏菜单「帮助 → 关于 Drora」查看当前版本，「帮助 → 检查更新」的提示也会带版本号；CLI 在终端执行
+            </span>
+            <code>drora --version</code><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="q-blocked" data-i18n="doc.faq.q1">14. 安装时提示「已损坏」或 SmartScreen 拦截？</h2>
+          <p>
+            <span data-i18n="doc.faq.a1">
+            社区构建未做签名：Windows 选择「更多信息 → 仍要运行」；macOS 在「系统设置 → 隐私与安全性」放行，或执行
+            </span>
+            <code>sudo xattr -rd com.apple.quarantine /Applications/Drora.app</code><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="q-linux" data-i18n="doc.faq.q2">15. 有 Linux 桌面版吗？</h2>
+          <p>
+            <span data-i18n="doc.faq.a2">暂未提供 Linux 预编译安装包；Linux 用户可先使用 CLI 单文件（</span>
+            <code>drora-linux-x64</code>
+            <span data-i18n="doc.faq.a2t">），或从源码</span>
+            <code>pnpm bundle:desktop -- --os linux</code><span data-i18n="doc.faq.a2e">自行构建。</span>
+          </p>
+
+          <h2 id="q-update" data-i18n="doc.faq.q3">16. 如何更新？</h2>
+          <p data-i18n="doc.faq.a3">桌面应用内置自动更新（latest 通道），也可以随时到 Releases 页下载新版本覆盖安装。</p>
+
+          <h2 id="q-mcp" data-i18n="doc.faq.q6">17. MCP 服务器连接失败怎么办？</h2>
+          <p>
+            <span data-i18n="doc.faq.a6">
+            在「设置 → MCP 服务器」查看该服务器的状态与失败原因：配置无效就检查字段填写；网络不可达就检查网络与代理；协议协商失败可在编辑服务器时把协议版本切换为「兼容旧版」；要求授权的服务重新「打开授权」。详见
+            </span>
+            <a href="/Drora/docs/mcp/" data-i18n="doc.nav.mcp">MCP 与插件</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="q-mistake" data-i18n="doc.faq.q8">18. 指令发错了、文件被改坏了怎么办？</h2>
+          <p>
+            <span data-i18n="doc.faq.a8">
+            不用重开任务：悬停自己发送过的消息点「编辑」，改写后重发；需要回退文件时用「对话 + 文件重置」；每轮回复下方的文件变更摘要支持「撤销 / 重新应用」。详见
+            </span>
+            <a href="/Drora/docs/history/" data-i18n="doc.nav.sessions">会话与编辑历史</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="q-feedback" data-i18n="doc.faq.q4">19. 遇到问题如何反馈？</h2>
+          <p>
+            <span data-i18n="doc.faq.a4">欢迎到</span>
+            <a href="https://github.com/CavinHuang/Drora/issues">GitHub Issues</a>
+            <span data-i18n="doc.faq.a4m">提交问题，或加入 README 中的</span>
+            <a href="https://github.com/CavinHuang/Drora#readme" data-i18n="doc.faq.a4link">社区渠道</a>
+            <span data-i18n="doc.faq.a4e">交流</span><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

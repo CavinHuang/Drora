@@ -2,9 +2,11 @@
   "name": "@drora/website",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "generate:hero-mock": "node scripts/generate-hero-mock.mjs",
+    "build": "node scripts/generate-hero-mock.mjs && next build",
     "lint": "next lint"
   },
   "dependencies": {

@@ -1,0 +1,186 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="safety-confirm" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.advanced">深度集成</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.safety">安全操作确认</h1>
+          <p data-i18n="doc.safety.p1">
+            Drora 会把 Drora Agent 的权限控制放在任务界面里。执行模式选择器位于输入框附近，用户可以根据任务风险决定 Agent 的执行方式。
+          </p>
+          <p data-i18n="doc.safety.p2">
+            这套机制的核心是：在允许执行前，先看清 Agent 准备做什么。对于命令、文件改动、网络访问、脚本执行等操作，Drora 会在任务里展示对应内容；如果进入高权限或全自动模式，工具栏会持续显示风险提示。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.safety.note1">
+            是否逐次确认受工具声明、权限规则及运行模式影响；模型工具审批不是整个应用的统一权限开关，不能据此推定终端操作、插件进程或更新下载都会经过同一审批流程。共享运行配置默认采用 build 权限模式；独立 CLI 通过 --prompt 执行非交互任务时，未指定 --mode 会采用 yolo。
+            </span>
+          </div>
+
+          <h2 id="modes" data-i18n="doc.safety.modes.h2">Drora Agent 权限模式</h2>
+          <p data-i18n="doc.safety.agent.p1">
+            Drora Agent 是 Drora 的主 Agent。它与 GLM 系列模型适配更紧，长任务和多步骤开发任务更适合从这里开始。
+          </p>
+          <p>
+            <span data-i18n="doc.safety.modes.p1">执行模式共四档，聊天输入框聚焦时按</span>
+            <code>Ctrl+Shift+M</code>
+            <span data-i18n="doc.safety.modes.p2">可以快速循环切换，也可以在输入框工具条的模式菜单里直接选择：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.safety.modes.th1">模式</th>
+                <th data-i18n="doc.safety.modes.th2">说明</th>
+                <th data-i18n="doc.safety.modes.th3">适合场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.safety.modes.td1a">变更前确认</td>
+                <td data-i18n="doc.safety.modes.td1b">每次修改文件或执行命令前都先确认，也是默认档位。</td>
+                <td data-i18n="doc.safety.modes.td1c">关键代码、生产配置等高风险改动。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.modes.td2a">自动编辑</td>
+                <td data-i18n="doc.safety.modes.td2b">文件编辑自动执行，命令等操作仍需确认。</td>
+                <td data-i18n="doc.safety.modes.td2c">常规迭代开发。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.modes.td3a">计划模式</td>
+                <td data-i18n="doc.safety.modes.td3b">先制定计划，确认后再开始实施。</td>
+                <td data-i18n="doc.safety.modes.td3c">重构、迁移、长任务。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.modes.td4a">完全访问</td>
+                <td data-i18n="doc.safety.modes.td4b">尽量自动执行，减少确认。</td>
+                <td data-i18n="doc.safety.modes.td4c">已确认上下文可信、希望连续执行的任务。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="flow" data-i18n="doc.safety.flow.h2">工作流程</h2>
+          <ol>
+            <li data-i18n="doc.safety.flow.li1">触发确认：Agent 发起需要授权的操作时，当前任务会暂停，输入区也会进入阻塞状态，避免继续追加新的执行要求。</li>
+            <li data-i18n="doc.safety.flow.li2">弹出请求：界面会展示 Agent 计划执行的具体命令、文件改动或工具调用内容。</li>
+            <li data-i18n="doc.safety.flow.li3">用户决策：确认后 Agent 才会继续执行；拒绝后会中止本次操作或回到可调整状态。可用 Tab / 上下键选择、回车确认。</li>
+            <li data-i18n="doc.safety.flow.li4">任务同步：权限请求属于当前任务。切换任务后再回来，确认状态仍会保留；侧边栏也会显示等待确认状态。</li>
+          </ol>
+
+          <h2 id="decisions" data-i18n="doc.safety.decide.h2">决策选项</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.safety.decide.th1">选项</th>
+                <th data-i18n="doc.safety.decide.th2">说明</th>
+                <th data-i18n="doc.safety.decide.th3">建议场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.safety.decide.td1a">允许</td>
+                <td data-i18n="doc.safety.decide.td1b">仅授权 Agent 执行当前这一次操作。</td>
+                <td data-i18n="doc.safety.decide.td1c">临时或不确定的单次任务。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.decide.td2a">始终允许</td>
+                <td data-i18n="doc.safety.decide.td2b">授权当前及后续同类型操作，无需再次询问。</td>
+                <td data-i18n="doc.safety.decide.td2c">操作安全可信且需要高频执行，例如常规编译。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.decide.td3a">拒绝</td>
+                <td data-i18n="doc.safety.decide.td3b">禁止 Agent 执行当前操作。</td>
+                <td data-i18n="doc.safety.decide.td3c">发现指令、路径或风险不符合预期。</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.safety.decide.td4a">始终拒绝</td>
+                <td data-i18n="doc.safety.decide.td4b">禁止当前及后续同类型操作。</td>
+                <td data-i18n="doc.safety.decide.td4c">明确不希望 Agent 执行的某类操作。</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.safety.decide.p1">
+            部分场景下还会出现「允许本会话」、「始终允许本项目」、「始终允许此命令」（项目范围内相同命令不再询问）等更细粒度的选项，按需选择即可。
+          </p>
+
+          <h2 id="ask-timeout" data-i18n="doc.safety.timeout.h2">提问超时自动继续</h2>
+          <p data-i18n="doc.safety.timeout.p1">
+            除了权限确认，Agent 有时会主动问你一个选择题（比如「用方案 A 还是方案 B」）。这类提问默认带 5 分钟倒计时，快到时间时面板上会显示剩余时长。到点还没人回答，Agent 会按自己的判断挑一个方向继续推进，这一步在历史记录里标记为「未回答，已自动继续」。
+          </p>
+          <p>
+            <span data-i18n="doc.safety.timeout.p2">只要你有任何动作——鼠标移到问答面板上、开始选择、点击秒数、或在侧栏点「停止计时」——倒计时就会</span>
+            <strong data-i18n="doc.safety.timeout.p2b">永久停止</strong>
+            <span data-i18n="doc.safety.timeout.p2c">，安心思考即可。</span>
+          </p>
+          <p data-i18n="doc.safety.timeout.p3">
+            不希望它自动继续，可以在「设置 → 常规 → 提问自动继续」关掉，之后所有提问都会一直等你回答。注意这个开关不可追溯：关闭期间产生的提问，即使之后重新打开也不会恢复计时。
+          </p>
+          <p>
+            <span data-i18n="doc.safety.timeout.p4">倒计时只作用于这类普通提问，</span>
+            <strong data-i18n="doc.safety.timeout.p4b">权限请求和计划审批本来就会一直等待</strong>
+            <span data-i18n="doc.safety.timeout.p4c">，不受影响。</span>
+          </p>
+
+          <h2 id="scenarios" data-i18n="doc.safety.scen.h2">常见场景</h2>
+          <ul>
+            <li data-i18n="doc.safety.scen.li1">运行第三方脚本：Agent 尝试运行项目中的 Python、Shell 或 Node.js 脚本。</li>
+            <li>
+              <span data-i18n="doc.safety.scen.li2">网络请求：Agent 需要通过</span>
+              <code>curl</code>
+              <span data-i18n="doc.safety.scen.li2b">或其它方式访问外部 API。</span>
+            </li>
+            <li data-i18n="doc.safety.scen.li3">文件改动：Agent 创建、编辑、删除或重命名文件。Drora 会在任务结果中展示文件改动摘要，并提供打开和撤销入口。</li>
+            <li data-i18n="doc.safety.scen.li4">系统级命令：执行可能修改系统配置、安装依赖或删除文件的命令。</li>
+          </ul>
+          <p data-i18n="doc.safety.scen.p1">
+            任务快照、Git 检查点和会话恢复不能替代对全部本地文件、数据库及外部服务的备份；停止会话或取消请求，也不能撤销已经完成的文件写入和外部操作。
+          </p>
+
+          <h2 id="tips" data-i18n="doc.safety.tips.h2">使用建议</h2>
+          <ul>
+            <li data-i18n="doc.safety.tips.li1">在允许执行前，仔细阅读即将执行的命令、路径和文件名。</li>
+            <li data-i18n="doc.safety.tips.li2">不确定时优先用「允许」，不要直接用「始终允许」。</li>
+            <li data-i18n="doc.safety.tips.li3">「始终允许」和完全访问模式都会减少后续确认，请只在确认安全可信时使用。</li>
+            <li data-i18n="doc.safety.tips.li4">大改动优先使用「计划模式」，先确认方案，再开始实施。</li>
+          </ul>
+
+          <h2 id="next" data-i18n="doc.safety.next.h2">下一步</h2>
+          <ul>
+            <li>
+              <a href="/Drora/docs/ADE-tools/" data-i18n="doc.nav.ade">智能体开发环境工具</a>
+              <span data-i18n="doc.safety.next.ade.p">——了解 Drora 内置的各种专业开发工具。</span>
+            </li>
+            <li>
+              <a href="/Drora/docs/keyboard-shortcuts/" data-i18n="doc.nav.shortcuts">快捷键表</a>
+              <span data-i18n="doc.safety.next.keys.p">——掌握常用快捷键，提升操作效率。</span>
+            </li>
+            <li>
+              <a href="/Drora/docs/faq/" data-i18n="doc.nav.faq">常见问题</a>
+              <span data-i18n="doc.safety.next.faq.p">——快速解决您在使用中遇到的问题。</span>
+            </li>
+          </ul>
+        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-glm53-permission-modes-cn.png" alt="ZCode Agent 权限模式" loading="lazy" /></figure></article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

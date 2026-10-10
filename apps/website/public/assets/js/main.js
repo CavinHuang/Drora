@@ -52,6 +52,13 @@
     return lang === "en" ? titles.en : titles.zh;
   }
 
+  /* 注入式迁移页的 body 上没有 data-page（Next 布局持有静态 <title>）：
+     此时不得回退到首页标题覆盖 <title>，语言切换只翻译正文；vanilla 形态的页面
+     （body 带 data-page/data-doc）仍按 PAGE_TITLES/IA 切换标题。 */
+  function setTitleForPage(lang) {
+    if (document.body.getAttribute("data-page")) document.title = pageTitle(lang);
+  }
+
   function currentLang() {
     var saved = null;
     try {
@@ -89,7 +96,7 @@
         var key = el.getAttribute("data-i18n-placeholder");
         if (dict[key]) el.setAttribute("placeholder", dict[key]);
       });
-      document.title = pageTitle("en");
+      setTitleForPage("en");
     } else {
       cacheZh();
       zhNodes.forEach(function (n) {
@@ -100,7 +107,7 @@
           n.el.setAttribute("placeholder", n.text);
         });
       }
-      document.title = pageTitle("zh");
+      setTitleForPage("zh");
     }
     var label = document.getElementById("langLabel");
     if (label) label.textContent = lang === "en" ? "中" : "EN";
@@ -167,6 +174,11 @@
       });
     });
 
+    // 结果链接与侧栏 docs-nav 同一 data-base（Next 静态导出路由为 /Drora/docs/ 目录形态）；
+    // 搜索入口只出现在 docs 页，docs-nav 与搜索按钮同页共存
+    var docsNavEl = document.querySelector("docs-nav");
+    var docsBase = docsNavEl ? docsNavEl.getAttribute("data-base") || "" : "";
+
     function renderResults(query) {
       var lang = currentLang();
       var q = query.trim().toLowerCase();
@@ -178,7 +190,7 @@
         hits
           .map(function (pg) {
             var name = lang === "en" ? I18N.en[pg.key] || pg.zh : pg.zh;
-            return '<li><a href="' + (pg.slug ? pg.slug + ".html" : "./") + '">' + name + "</a></li>";
+            return '<li><a href="' + (pg.slug ? docsBase + pg.slug + "/" : docsBase) + '">' + name + "</a></li>";
           })
           .join("") || '<li class="ds-empty" data-i18n="doc.search.empty">没有匹配的章节</li>';
     }

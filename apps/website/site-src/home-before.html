@@ -1,0 +1,42 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js），结构复刻参考站；no-JS 时回退到下方链接 -->
+    <site-header class="site-header" id="siteHeader" data-page="home" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main id="top">
+      <!-- ======================= Hero ======================= -->
+      <section class="hero">
+        <div class="container hero-head">
+          <a class="hero-pill reveal" href="/Drora/changelog/">
+            <span class="hero-pill-emoji" aria-hidden="true">🎉</span>
+            <span data-i18n="hero.pill">v0.0.8 开源发布：桌面、手机与终端三形态齐备</span>
+          </a>
+          <h1 class="hero-title reveal" data-i18n="hero.title">简单、迅捷、氛围十足！</h1>
+          <p class="hero-sub reveal" data-i18n="hero.subtitle">
+            Drora 是新一代氛围编程工具：多智能体协作完成复杂目标，桌面宠物一路陪伴，随时随地尽在掌控。
+          </p>
+          <div class="hero-cta reveal">
+            <a class="cta-btn" id="ctaDownload" href="https://github.com/CavinHuang/Drora/releases/download/v0.0.8/Drora-0.0.8-win-x64.exe">
+              <span class="cta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <rect x="3" y="3" width="8.4" height="8.4" fill="#f25022" />
+                  <rect x="12.6" y="3" width="8.4" height="8.4" fill="#7fba00" />
+                  <rect x="3" y="12.6" width="8.4" height="8.4" fill="#00a4ef" />
+                  <rect x="12.6" y="12.6" width="8.4" height="8.4" fill="#ffb900" />
+                </svg>
+              </span>
+              <span class="cta-text">
+                <strong data-i18n="hero.cta">立即下载 Drora</strong>
+                <small id="ctaPlatform" data-i18n="hero.forWindows">适用于 Windows</small>
+              </span>
+            </a>
+          </div>
+          <a class="hero-all-downloads reveal" href="#downloads" data-i18n="hero.allDownloads">查看全部下载</a>
+        </div>
+        <!-- mock 窗口接缝：此处由真组件 mock（src/components/mock/WebsiteMock.mock.tsx，构建期烘焙）渲染 -->

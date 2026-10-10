@@ -1,0 +1,529 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="configuration" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.start">开始使用</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.model">连接模型</h1>
+          <p data-i18n="doc.model.intro">
+            Drora 支持多种方式接入 GLM 模型用于编程工作流。推荐在桌面端登录 BigModel 或 Z.ai
+            账号运行 GLM-5.3，账号登录即可使用，配置简单；也可以用 API Key 接入常见模型服务，或添加完全自定义的端点。CLI 通过
+            drora login 完成浏览器授权。
+          </p>
+
+          <h2 id="plan" data-i18n="doc.model.sub.recommend">推荐方式</h2>
+          <p data-i18n="doc.model.rec.p1">
+            登录 BigModel 或 Z.ai 账号即可在 Drora 中使用 GLM 模型。若账号已开通 GLM Coding Plan
+            编程套餐，Drora 会直接使用该账号下的套餐与额度。
+          </p>
+          <h3 data-i18n="doc.model.rec.bigmodel">GLM Coding Plan（BigModel）</h3>
+          <p data-i18n="doc.model.rec.bigmodeld">
+            国内首选。适合 GLM-5.3 编程工作流、账号登录即用，以及已开通 GLM Coding Plan 的国内用户。
+          </p>
+          <h3 data-i18n="doc.model.rec.zai">Z.ai Coding Plan</h3>
+          <p data-i18n="doc.model.rec.zaid">
+            海外推荐。海外用户推荐通过 Z.ai 账号运行 GLM-5.3，同样使用 GLM Coding Plan 套餐与额度。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.model.rec.note">套餐档位、用量规则与额度以 BigModel / Z.ai 订阅页为准；账号开通套餐后，Drora 会直接使用该套餐额度。</span>
+          </div>
+          <p>
+            <span data-i18n="doc.model.plan.p2">CLI 通过</span>
+            <code>drora login</code>
+            <span data-i18n="doc.model.plan.p2t">完成浏览器授权；无浏览器环境加</span>
+            <code>--no-browser</code>
+            <span data-i18n="doc.model.plan.p2t2">手动打开授权链接。</span>
+            <code>drora logout</code>
+            <span data-i18n="doc.model.plan.p2t3">清除已保存的登录凭据；会话内也可用</span>
+            <code>/login</code>
+            <span data-i18n="doc.model.plan.and">与</span>
+            <code>/logout</code><span data-i18n="doc.dot">。</span>
+          </p>
+          <div class="docs-code"><code>drora login                    # 浏览器授权登录 Z.ai
+drora login bigmodel           # 登录 BigModel
+drora login zai --no-browser   # 不自动打开浏览器，手动打开授权链接
+drora logout                   # 清除已保存的登录凭据</code></div>
+
+          <h2 id="others" data-i18n="doc.model.sub.others">其他接入方式</h2>
+          <p data-i18n="doc.model.others.third">
+            「第三方供应商」：接入兼容 Anthropic / OpenAI 协议的模型服务，包括团队自建通道。
+          </p>
+          <p data-i18n="doc.model.others.apikey">
+            「使用 API Key」：如果你自行管理模型访问，可使用 API Key 直接接入模型服务。
+          </p>
+          <h3 data-i18n="doc.model.sub.catalog">供应商目录</h3>
+          <p>
+            <span data-i18n="doc.model.catalog.p1">在「设置 → 模型设置 → 添加供应商」的供应商目录中选择模板，填入 API Key 即可。目录覆盖常见的官方与聚合服务：</span>
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.provider">供应商</th>
+                <th data-i18n="doc.model.th.desc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.model.tp.zhipu">Z.ai API / BigModel API</td>
+                <td data-i18n="doc.model.td.zhipu">智谱开放平台接口，Coding Plan 之外的 API 接入方式</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.first">Anthropic / OpenAI / xAI</td>
+                <td data-i18n="doc.model.td.first">官方接口</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.openrouter">OpenRouter</td>
+                <td data-i18n="doc.model.td.openrouter">聚合多种模型的中转服务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.cn">Kimi / MiniMax / DeepSeek / 阿里云百炼 / Xiaomi MiMo</td>
+                <td data-i18n="doc.model.td.cn">国内模型服务</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tp.custom">自定义端点</td>
+                <td data-i18n="doc.model.td.custom">任何兼容下述 API 格式的服务</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.model.catalog.note">供应商目录随客户端内置（仓库 </span>
+            <code>config/provider/drora-builtin.json</code>
+            <span data-i18n="doc.model.catalog.notet">，目前 20 个模板）；也可改用本地配置文件，见</span>
+            <a href="#env">相关环境变量</a><span data-i18n="doc.dot">。</span>
+          </div>
+
+          <h2 id="entry" data-i18n="doc.model.sub.entry">配置入口</h2>
+          <h3 data-i18n="doc.model.entry.welcome">方式一：首次启动欢迎页</h3>
+          <p data-i18n="doc.model.entry.welcomep">
+            首次打开 Drora、还没有可用模型时，欢迎页面会直接提供接入选项：
+          </p>
+          <ul>
+            <li data-i18n="doc.model.entry.opt1">「连接 Z.ai 继续使用」：通过 Z.ai 账号授权登录。</li>
+            <li data-i18n="doc.model.entry.opt2">「连接 BigModel 继续使用」：通过智谱 BigModel 账号授权登录。</li>
+            <li data-i18n="doc.model.entry.opt3">「使用 API Key」：直接填写 API Key，进入模型供应商配置。</li>
+          </ul>
+          <p data-i18n="doc.model.entry.authp">
+            选择「连接 Z.ai」或「连接 BigModel」后，应用会弹出授权窗口并等待平台完成认证，认证通过后即自动绑定账号。
+          </p>
+          <h3 data-i18n="doc.model.entry.selector">方式二：模型选择器</h3>
+          <p data-i18n="doc.model.entry.selectorp">
+            进入 Drora 后，点击对话框中的模型名称打开模型选择器，在列表底部点击「管理模型」，即可进入「设置 →
+            模型设置」面板，管理 Drora Agent 可用的模型通道。
+          </p>
+
+          <h2 id="endpoints" data-i18n="doc.model.sub.endpoints">BigModel / Z.ai API 端点说明</h2>
+          <p data-i18n="doc.model.ep.p1">
+            通过「编程套餐」授权绑定账号（非 API Key 模式）时，Drora 会自动选择正确通道，无需手动填写。使用 API Key
+            时，供应商目录中的模板已按账号类型预填接口地址；手动核对时，先选你的账号类型，再按所用平台填写对应地址，并使用对应的 API Key。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-glm53-model-menu-cn.png" alt="模型选择器：GLM-5.3 与底部「管理模型」入口" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-welcome-bigmodel-auth-20260611.webp" alt="等待 BigModel 完成认证" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-welcome-connect-20260610.webp" alt="ZCode 欢迎页：连接账号" loading="lazy" /></figure>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.ep.thTpl">供应商模板</th>
+                <th data-i18n="doc.model.ep.thApi">接口协议</th>
+                <th data-i18n="doc.model.ep.thUrl">接口地址</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Z.ai Coding Plan</code></td>
+                <td><code>Anthropic</code></td>
+                <td><code>https://api.z.ai/api/anthropic</code></td>
+              </tr>
+              <tr>
+                <td><code>Z.ai API</code></td>
+                <td><code>OpenAI Chat Completions</code></td>
+                <td><code>https://api.z.ai/api/paas/v4</code></td>
+              </tr>
+              <tr>
+                <td><code>BigModel Coding Plan</code></td>
+                <td><code>Anthropic</code></td>
+                <td><code>https://open.bigmodel.cn/api/anthropic</code></td>
+              </tr>
+              <tr>
+                <td><code>BigModel API</code></td>
+                <td><code>OpenAI Chat Completions</code></td>
+                <td><code>https://open.bigmodel.cn/api/paas/v4</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="docs-note">
+            <span data-i18n="doc.model.ep.note">资源包 / 充值余额等通用 API 场景请使用 OpenAI 通用端点（paas/v4），不要选择 Anthropic 协议；Coding Plan 套餐额度请使用对应的 Coding Plan 模板。</span>
+          </div>
+
+          <h2 id="bigmodel" data-i18n="doc.model.sub.bigmodel">连接 BigModel</h2>
+          <ol>
+            <li data-i18n="doc.model.bm.s1">通过上述任一方式进入「模型设置」面板。</li>
+            <li data-i18n="doc.model.bm.s2">在左侧供应商列表中选择「BigModel」。</li>
+            <li data-i18n="doc.model.bm.s3">完成账号连接并开启启用开关，即可按账号权限使用 GLM-5.3、GLM-5.3-Flash 等内置模型。</li>
+            <li data-i18n="doc.model.bm.s4">右上角可切换连接方式：使用「编程套餐」绑定 GLM Coding Plan，或改用 API Key 接入。</li>
+          </ol>
+          <h3 data-i18n="doc.model.bm.teamh">使用团队套餐</h3>
+          <p data-i18n="doc.model.bm.team1">
+            如果你所在的团队开通了 GLM Coding Plan 团队版，登录后不需要额外配置：在 BigModel
+            供应商页面的「连接方式」菜单里，你有权限的每个团队会各自显示成一个「团队套餐」条目（按组织名称命名），选中即用该团队的额度跑任务。同一个菜单里也能切回「个人套餐」或
+            API Key。
+          </p>
+          <p data-i18n="doc.model.bm.team2">
+            切换连接方式后，侧边栏和用量统计展示的额度会跟着切到对应来源，额度卡片上会标明是个人还是团队。
+          </p>
+          <p data-i18n="doc.model.bm.team3">
+            如果菜单里看到团队条目却提示「团队套餐未分配」，说明管理员还没给你分配席位——席位的添加和管理需要到
+            BigModel 的团队套餐管理页完成，客户端里做不了，页面上有直达入口。
+          </p>
+          <h3 data-i18n="doc.model.bm.apikeyh">使用 API Key 接入</h3>
+          <p data-i18n="doc.model.bm.apikeyp">根据你的账号类型选择连接方式：</p>
+          <p>
+            <strong data-i18n="doc.model.bm.keyAh">方式 A：GLM Coding Plan（编程套餐 API Key）</strong>
+          </p>
+          <ol>
+            <li data-i18n="doc.model.bm.keyA1">在 BigModel 供应商页面右上角，将连接方式切换为「API Key」，选择「BigModel Coding Plan」模板。</li>
+            <li>
+              <span data-i18n="doc.model.bm.keyA2">接口地址使用模板预填的 Anthropic 接口地址</span>
+              <code>https://open.bigmodel.cn/api/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.bm.keyA3">填入从智谱开放平台获取的 API Key。</li>
+            <li data-i18n="doc.model.bm.keyA4">可用模型以账号权限和供应商返回的模型列表为准。</li>
+          </ol>
+          <p>
+            <strong data-i18n="doc.model.bm.keyBh">方式 B：模型资源包 / 充值余额</strong>
+          </p>
+          <ol>
+            <li data-i18n="doc.model.bm.keyB1">在 BigModel 供应商页面右上角，将连接方式切换为「API Key」，选择「BigModel API」模板。</li>
+            <li>
+              <span data-i18n="doc.model.bm.keyB2">使用 OpenAI 协议，接口地址填写</span>
+              <code>https://open.bigmodel.cn/api/paas/v4</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.bm.keyB3">填入从智谱开放平台获取的 API Key。</li>
+            <li data-i18n="doc.model.bm.keyB4">可用模型以账号权限和供应商返回的模型列表为准；也可以点击「添加模型」补充其他可用模型。</li>
+          </ol>
+          <div class="docs-note">
+            <span data-i18n="doc.model.bm.keynote">资源包 / 充值余额场景不要选择 Anthropic 协议。</span>
+          </div>
+
+          <h2 id="zai" data-i18n="doc.model.sub.zai">连接 Z.ai</h2>
+          <p data-i18n="doc.model.zai.p1">Z.ai 是面向海外用户的接入方式，配置流程与 BigModel 基本一致：</p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-zai-apikey-glm53-20260814.png" alt="Z.ai API Key 连接方式，模型列表包含 GLM-5.3" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-bigmodel-apikey-glm53-20260828.png" alt="BigModel API Key 连接方式，资源包 / 充值余额使用 OpenAI 通用端点，模型列表包含 GLM-5.3 与 GLM-5.3-Flash" loading="lazy" /></figure>
+          <ol>
+            <li data-i18n="doc.model.zai.s1">通过上述任一方式进入「模型设置」面板。</li>
+            <li data-i18n="doc.model.zai.s2">在左侧供应商列表中选择「Z.ai」。</li>
+            <li data-i18n="doc.model.zai.s3">完成账号连接并开启启用开关，即可使用 GLM-5.3、GLM-5.3-Flash 等内置模型。</li>
+            <li data-i18n="doc.model.zai.s4">右上角同样可以在「编程套餐」与「API Key」两种连接方式之间切换。</li>
+          </ol>
+          <p data-i18n="doc.model.zai.p2">连接后，供应商页面会展示当前套餐与今日各模型的余额、已用量。</p>
+          <h3 data-i18n="doc.model.bm.apikeyh">使用 API Key 接入</h3>
+          <p data-i18n="doc.model.bm.apikeyp">根据你的账号类型选择连接方式：</p>
+          <p>
+            <strong data-i18n="doc.model.zai.keyAh">方式 A：GLM Coding Plan（编程套餐 API Key）</strong>
+          </p>
+          <ol>
+            <li data-i18n="doc.model.zai.keyA1">在 Z.ai 供应商页面右上角，将连接方式切换为「API Key」，选择「Z.ai Coding Plan」模板。</li>
+            <li>
+              <span data-i18n="doc.model.zai.keyA2">接口地址使用模板预填的 Anthropic 接口地址</span>
+              <code>https://api.z.ai/api/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.zai.keyA3">填入从 Z.ai 平台获取的 API Key。</li>
+            <li data-i18n="doc.model.bm.keyA4">可用模型以账号权限和供应商返回的模型列表为准。</li>
+          </ol>
+          <p>
+            <strong data-i18n="doc.model.bm.keyBh">方式 B：模型资源包 / 充值余额</strong>
+          </p>
+          <ol>
+            <li data-i18n="doc.model.zai.keyB1">在 Z.ai 供应商页面右上角，将连接方式切换为「API Key」，选择「Z.ai API」模板。</li>
+            <li>
+              <span data-i18n="doc.model.zai.keyB2">使用 OpenAI 协议，接口地址填写</span>
+              <code>https://api.z.ai/api/paas/v4</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.zai.keyB3">填入从 Z.ai 平台获取的 API Key。</li>
+            <li data-i18n="doc.model.bm.keyB4">可用模型以账号权限和供应商返回的模型列表为准；也可以点击「添加模型」补充其他可用模型。</li>
+          </ol>
+          <div class="docs-note">
+            <span data-i18n="doc.model.bm.keynote">资源包 / 充值余额场景不要选择 Anthropic 协议。</span>
+          </div>
+
+          <h2 id="anthropic" data-i18n="doc.model.sub.anthropic">Anthropic（Claude API）</h2>
+          <ol>
+            <li data-i18n="doc.model.anthro.s1">进入「模型设置」面板，在左侧供应商列表选择「Anthropic」模板；目录外也可在列表底部点击「添加供应商」，名称填写「Anthropic」。</li>
+            <li>
+              <span data-i18n="doc.model.anthro.s2">Anthropic 接口地址使用模板预填的</span>
+              <code>https://api.anthropic.com/v1</code>
+              <span data-i18n="doc.model.anthro.s2t">（手动添加时填写 </span>
+              <code>https://api.anthropic.com</code><span data-i18n="doc.model.anthro.s2e">）。</span>
+            </li>
+            <li data-i18n="doc.model.anthro.s3">在「API Key」输入框中填入从 Anthropic 平台获取的 API Key（可在平台内查看用量与套餐）。</li>
+            <li data-i18n="doc.model.anthro.s4">保存后，点击「添加模型」手动填写 Anthropic 支持的模型 ID。</li>
+            <li data-i18n="doc.model.anthro.s5">开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="openrouter" data-i18n="doc.model.sub.openrouter">OpenRouter 平台</h2>
+          <ol>
+            <li>
+              <span data-i18n="doc.model.openrouter.s1">前往</span>
+              <a href="https://openrouter.ai" rel="noopener">OpenRouter 平台</a>
+              <span data-i18n="doc.model.openrouter.s1t">注册账号并创建 API Key，然后进入「模型设置」面板，在左侧供应商列表选择「OpenRouter」模板。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.openrouter.s2">API 基础 URL 使用模板预填的</span>
+              <code>https://openrouter.ai/api</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.openrouter.s3">填入 API Key。</li>
+            <li data-i18n="doc.model.openrouter.s4">开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="moonshot" data-i18n="doc.model.sub.moonshot">Moonshot（Kimi）</h2>
+          <ol>
+            <li data-i18n="doc.model.moonshot.s1">进入「模型设置」面板，在左侧供应商列表选择「Kimi」模板（目录外可点击「添加供应商」，名称填写「Moonshot」）。</li>
+            <li>
+              <span data-i18n="doc.model.moonshot.s2">Anthropic 接口地址使用模板预填的</span>
+              <code>https://api.moonshot.cn/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.moonshot.s3">前往</span>
+              <a href="https://platform.kimi.com" rel="noopener">KIMI 开放平台</a>
+              <span data-i18n="doc.model.moonshot.s3t">获取 API Key（可在平台内查看资源包与用量），并填入「API Key」输入框。</span>
+            </li>
+            <li data-i18n="doc.model.moonshot.s4">保存后，需要时点击「添加模型」手动填写 Moonshot 支持的模型 ID。</li>
+            <li data-i18n="doc.model.moonshot.s5">开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="openai" data-i18n="doc.model.sub.openai">OpenAI</h2>
+          <ol>
+            <li data-i18n="doc.model.openai.s1">进入「模型设置」面板，在左侧供应商列表选择「OpenAI」模板。</li>
+            <li>
+              <span data-i18n="doc.model.openai.s2">API 基础 URL 使用模板预填的</span>
+              <code>https://api.openai.com/v1</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.openai.s3">在「API Key」输入框中填入从</span>
+              <a href="https://platform.openai.com/api-keys" rel="noopener">OpenAI 平台</a>
+              <span data-i18n="doc.model.openai.s3t">获取的 API Key。</span>
+            </li>
+            <li data-i18n="doc.model.openai.s4">保存后，点击「添加模型」手动填写 OpenAI 支持的模型 ID，开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="minimax" data-i18n="doc.model.sub.minimax">MiniMax</h2>
+          <ol>
+            <li data-i18n="doc.model.minimax.s1">进入「模型设置」面板，在左侧供应商列表选择「MiniMax」模板。</li>
+            <li>
+              <span data-i18n="doc.model.minimax.s2">Anthropic 接口地址使用模板预填的</span>
+              <code>https://api.minimaxi.com/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.minimax.s3">前往</span>
+              <a href="https://platform.minimaxi.com" rel="noopener">MiniMax 开放平台</a>
+              <span data-i18n="doc.model.minimax.s3t">获取 API Key（可在平台内查看套餐与计费），并填入「API Key」输入框。</span>
+            </li>
+            <li data-i18n="doc.model.minimax.s4">保存后，点击「添加模型」手动填写 MiniMax 支持的模型 ID，开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="mimo" data-i18n="doc.model.sub.mimo">小米 MiMo</h2>
+          <ol>
+            <li data-i18n="doc.model.mimo.s1">进入「模型设置」面板，在左侧供应商列表选择「Xiaomi MiMo」模板。</li>
+            <li>
+              <span data-i18n="doc.model.mimo.s2">Anthropic 接口地址使用模板预填的</span>
+              <code>https://api.xiaomimimo.com/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.mimo.s3">前往</span>
+              <a href="https://platform.xiaomimimo.com" rel="noopener">小米 MiMo 开放平台</a>
+              <span data-i18n="doc.model.mimo.s3t">获取 API Key（平台提供 Token Plan 套餐，可按需开通），并填入「API Key」输入框。</span>
+            </li>
+            <li data-i18n="doc.model.mimo.s4">保存后，点击「添加模型」手动填写 Xiaomi MiMo 支持的模型 ID，开启启用开关即可使用。</li>
+          </ol>
+
+          <h2 id="custom" data-i18n="doc.model.sub.custom">自定义供应商（兼容 Anthropic / OpenAI 协议）</h2>
+          <p data-i18n="doc.model.custom.p1">
+            Drora 支持添加任何兼容 Anthropic / OpenAI 协议的模型服务作为自定义供应商——既可以是公网模型服务，也可以是团队统一维护的企业模型通道或内网自托管服务。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-xiaomi-mimo-20260728.webp" alt="Xiaomi MiMo 供应商配置" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-minimax-20260728.webp" alt="MiniMax 供应商配置" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-openai-20260728.webp" alt="OpenAI 供应商配置" loading="lazy" /></figure>
+          <p data-i18n="doc.model.custom.p0">
+            填写接口地址和 API Key 后，通过「添加模型」手动填写该服务支持的模型 ID 即可使用。
+          </p>
+          <h3 data-i18n="doc.model.custom.stepsh">配置步骤</h3>
+          <ol>
+            <li data-i18n="doc.model.custom.s1">进入「模型设置」面板。</li>
+            <li data-i18n="doc.model.custom.s2">在左侧供应商列表底部点击「添加供应商」。</li>
+            <li data-i18n="doc.model.custom.s3">自定义填写名称：为供应商命名（如 claude、deepseek 等）。</li>
+            <li data-i18n="doc.model.custom.s4">选择对应厂商 Base URL：从下拉列表中选择或手动输入 API 基础 URL。</li>
+            <li data-i18n="doc.model.custom.s5">填写 API Key：输入对应服务的 API 密钥。</li>
+            <li data-i18n="doc.model.custom.s6">添加模型：点击「添加模型」，手动填写该服务支持的模型 ID。</li>
+            <li data-i18n="doc.model.custom.s7">开启启用开关后即可开始使用。</li>
+          </ol>
+          <p data-i18n="doc.model.custom.dsp">以 DeepSeek 兼容接口为例：</p>
+          <ul>
+            <li><span data-i18n="doc.model.custom.ds1">名称填写「DeepSeek」。</span></li>
+            <li>
+              <span data-i18n="doc.model.custom.ds2">Anthropic 接口地址填写</span>
+              <code>https://api.deepseek.com/anthropic</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.model.custom.ds3">OpenAI 接口地址填写</span>
+              <code>https://api.deepseek.com/v1</code><span data-i18n="doc.dot">。</span>
+            </li>
+            <li data-i18n="doc.model.custom.ds4">填入从 DeepSeek 开放平台获取的 API Key。</li>
+            <li>
+              <span data-i18n="doc.model.custom.ds5">点击「添加模型」填写 DeepSeek 支持的模型 ID（如 </span>
+              <code>deepseek-chat</code><span data-i18n="doc.model.custom.ds5m">、</span>
+              <code>deepseek-reasoner</code><span data-i18n="doc.model.custom.ds5t">），或团队约定的模型 ID。</span>
+            </li>
+            <li data-i18n="doc.model.custom.ds6">点击保存即可。</li>
+          </ul>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.field">字段</th>
+                <th data-i18n="doc.model.th.fielddesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.model.tf.baseurl">Base URL</td>
+                <td data-i18n="doc.model.tfd.baseurl">模型服务的 API 地址</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tf.modelid">模型 ID</td>
+                <td data-i18n="doc.model.tfd.modelid">请求时使用的模型名，可添加多个模型</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.model.tf.format">API 格式</td>
+                <td><span data-i18n="doc.model.tfd.format">三选一：</span><code>Chat Completions</code><span data-i18n="doc.model.tfd.format2">、</span><code>Responses</code><span data-i18n="doc.model.tfd.format3">、</span><code>Anthropic Messages</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.model.custom.p2">每个模型还可单独配置</span>
+            <code data-i18n="doc.model.tf.ctx">上下文窗口</code><span data-i18n="doc.model.custom.sep1">、</span>
+            <code data-i18n="doc.model.tf.maxout">最大输出 Token</code><span data-i18n="doc.model.custom.sep2">、</span>
+            <span data-i18n="doc.model.custom.modalities">输入模态（文本 / 图片 / 视频 / PDF）与可选的推理等级。开启「智能配置」时，Drora 按模型 ID、Base URL 和 API 格式自动匹配推荐配置；手动修改过的字段转为手动管理，其余仍自动跟随更新。</span>
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.model.custom.teamnote">团队使用建议：企业模型通道建议由团队统一管理 Base URL、API Key、模型列表与访问权限，保证长任务执行过程中的连接稳定性和可追踪性。</span>
+          </div>
+
+          <h2 id="params" data-i18n="doc.model.sub.params">单个模型的高级参数</h2>
+          <p data-i18n="doc.model.params.maxout1">
+            在「设置 → 模型供应商」里点开某个模型，展开「高级」，可以为这一个模型单独设置「最大输出
+            Token」——也就是它单次回复的长度上限。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-custom-deepseek-20260728.webp" alt="自定义供应商配置（以 DeepSeek 为例）" loading="lazy" /></figure>
+          <p data-i18n="doc.model.params.maxout2">
+            默认留空，跟随模型自己支持的上限，通常保持留空就好。只有当你确定某个模型能输出更长内容、而 Drora
+            没有识别到时，才需要手动调大。
+          </p>
+          <p data-i18n="doc.model.params.maxout3">
+            调大之后要留意：输出空间和历史对话共用同一个上下文，输出上限调得越高，能带上的历史对话就越少，自动压缩也会来得更早。
+          </p>
+          <h3 data-i18n="doc.model.params.ctxh">上下文窗口：哪些能改、哪些不能</h3>
+          <p data-i18n="doc.model.params.ctx1">
+            同一个「高级」面板里也能看到模型的「上下文窗口」。三类模型的行为不同：
+          </p>
+          <ul>
+            <li><strong data-i18n="doc.model.params.ctx2t">自定义供应商的模型</strong><span data-i18n="doc.model.params.ctx2d">：可以修改，保存后对新会话生效。</span></li>
+            <li><strong data-i18n="doc.model.params.ctx3t">编程套餐（Coding Plan / Start Plan）的内置模型</strong><span data-i18n="doc.model.params.ctx3d">：上下文窗口由服务端统一下发，本地修改会在下一次同步时恢复为官方值——这是有意设计，不是配置丢失。</span></li>
+            <li><strong data-i18n="doc.model.params.ctx4t">名称以 [1m] 结尾的模型</strong><span data-i18n="doc.model.params.ctx4d">：固定按 1M 上下文处理，不可修改。</span></li>
+          </ul>
+          <p data-i18n="doc.model.params.ctx5">
+            会话的「自动上下文压缩」会在接近窗口上限前提前触发：系统会为模型输出预留空间并保留安全缓冲（合计约 3.4 万
+            token），因此压缩点低于窗口标称值属于正常现象——例如 128K 窗口约在 9.4 万 token 时触发，1M 窗口约在 96.6 万
+            token 时触发。自动压缩目前没有可配置的开关或阈值。
+          </p>
+          <h3 data-i18n="doc.model.params.thoughth">思考强度</h3>
+          <p data-i18n="doc.model.params.thought1">
+            Drora 会根据当前模型的实际能力显示可用的思考强度（推理档位），不同模型的档位并不相同，界面会按从低到高排列这些选项。选择档位后，Drora
+            再按当前接口的协议转换请求参数（OpenAI 兼容接口与 Anthropic 兼容接口使用各自的思考参数字段）。如果某个第三方模型没有显示细分档位，通常表示还没有该模型的档位映射，并不是配置丢失。
+          </p>
+          <p data-i18n="doc.model.params.thought2">
+            需要注意：同名模型的第三方部署，接受的档位可能与官方端点不一致——此时选最高档可能返回 400
+            参数错误，改选低一档即可正常使用。非推理模型则通常只有「开启 / 关闭」两档，或不提供档位。
+          </p>
+          <h3 data-i18n="doc.model.params.imgh">图片输入的支持判定</h3>
+          <p data-i18n="doc.model.params.img1">
+            Drora 会综合供应商与模型配置、模型目录中的能力信息、内置模型规则，以及当前接口协议，判断所选模型能否接收图片。判断结果分为三种：
+          </p>
+          <ul>
+            <li><strong data-i18n="doc.model.params.img2t">支持</strong><span data-i18n="doc.model.params.img2d">：保留图片，并随请求发送给模型服务。</span></li>
+            <li><strong data-i18n="doc.model.params.img3t">不支持</strong><span data-i18n="doc.model.params.img3d">：在请求发出前移除图片数据，并用文字提示替代，避免把不受支持的图片传给模型服务。</span></li>
+            <li><strong data-i18n="doc.model.params.img4t">能力未知</strong><span data-i18n="doc.model.params.img4d">：不提前拦截图片，由模型服务最终决定是否接受；如果服务端不支持图片，请求可能直接报错。</span></li>
+          </ul>
+          <p data-i18n="doc.model.params.img5">
+            通过编程套餐连接 BigModel / Z.ai 时，内置的 GLM-5.3-Flash
+            是面向截图理解、看图分析和视觉问答的多模态模型，选中它后发送图片会直接按「支持」处理，无需额外配置。
+          </p>
+          <p data-i18n="doc.model.params.img6">
+            模型 ID 会参与能力匹配，但并非唯一依据。同一个 GLM 模型通过不同供应商或接口协议接入时，判断结果也可能不同。
+          </p>
+          <p data-i18n="doc.model.params.img7">
+            遇到图片相关报错时，建议先使用供应商文档中的标准模型 ID，并确认当前接口本身支持图片输入；如果使用自定义模型或第三方部署，还应在模型配置中明确声明图片能力。无法确认时，请暂时不要在该模型下发送图片。
+          </p>
+          <h3 data-i18n="doc.model.params.proxyh">HTTP 代理的作用范围</h3>
+          <p data-i18n="doc.model.params.proxy1">设置中的 HTTP 代理并非「全局代理」，它覆盖的流量范围如下：</p>
+          <p>
+            <strong data-i18n="doc.model.params.proxy2t">走代理</strong><span data-i18n="doc.model.params.proxy2d">：模型 API 请求、MCP 服务器（stdio / HTTP / SSE 三种连接方式）、WebFetch 网页抓取、终端命令子进程（注入 HTTP_PROXY 等环境变量）、插件市场、应用内页面加载。</span>
+          </p>
+          <p>
+            <strong data-i18n="doc.model.params.proxy3t">不走代理</strong><span data-i18n="doc.model.params.proxy3d">：桌面端的账号登录与后端服务请求、Web 远程控制通道（WebSocket）、SSH 远程连接。</span>
+          </p>
+          <ul>
+            <li data-i18n="doc.model.params.proxy4">Drora 默认「不」读取系统的 HTTP_PROXY / HTTPS_PROXY 环境变量（仅 WebFetch 在未配置代理时会兜底使用），以设置页里填写的代理为准。</li>
+            <li data-i18n="doc.model.params.proxy5">修改代理设置后需要「重启 Drora」才会对全部链路生效。</li>
+          </ul>
+
+          <h2 id="verify" data-i18n="doc.model.sub.verify">验证配置</h2>
+          <p>
+            <span data-i18n="doc.model.verify.p1">配置完成后，在对话框的模型选择器中选择对应通道，发送一句简单指令测试，确认模型可用、响应稳定即可开始使用。每个模型配置提供「测试模型」：发送一条固定探测消息验证连通性。会话中通过聊天工具栏的「管理模型」或</span>
+            <code>/model</code>
+            <span data-i18n="doc.model.verify.p1t">切换当前模型；实际消耗的 Token 与调用次数见</span>
+            <a href="/Drora/docs/usage-stats/" data-i18n="doc.nav.usage">使用统计</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="env" data-i18n="doc.model.sub.env">相关环境变量</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.model.th.env">变量</th>
+                <th data-i18n="doc.model.th.envdesc">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>DRORA_BUILTIN_PROVIDER_CONFIG_FILE</code></td>
+                <td data-i18n="doc.model.td.envfile">本地 Provider 配置文件路径；未设置时使用内置配置</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.model.env.p2">服务地址与构建配置示例见仓库</span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/.env.example">.env.example</a>
+            <span data-i18n="doc.model.env.and">与</span>
+            <a href="https://github.com/CavinHuang/Drora/blob/main/config/README.md">config/README.md</a><span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="next" data-i18n="doc.model.sub.next">下一步</h2>
+          <ul>
+            <li><a href="/Drora/docs/install/" data-i18n="doc.nav.install">安装</a><span data-i18n="doc.model.next.i1">：下载并安装 Drora 桌面应用。</span></li>
+            <li><a href="/Drora/support/" data-i18n="doc.model.next.i2">用户反馈与支持</a><span data-i18n="doc.model.next.i2d">：遇到问题时，了解如何提供有效反馈。</span></li>
+            <li><a href="/Drora/docs/faq/" data-i18n="doc.nav.faq">常见问题</a><span data-i18n="doc.model.next.i3">：查看配置、安装与使用中的常见疑问。</span></li>
+          </ul>
+        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-anthropic-20260728.webp" alt="Anthropic 供应商配置" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-openrouter-20260728.webp" alt="OpenRouter 供应商配置" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/apikey-moonshot-20260728.webp" alt="Moonshot 供应商配置" loading="lazy" /></figure></article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

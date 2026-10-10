@@ -1,25 +1,15 @@
 /**
- * hero mock 右栏卡片（终端 / Git tools / Goal / Progress）。
- * 配方 §6 结论：这四张卡没有可静态挂载的真实组件（终端要 PTY、Git/Goal/Progress 是 dock/工具行形态），
+ * hero mock 右栏卡片（Git tools / Goal / Progress）。
+ * 配方 §6 结论：这三张卡没有可静态挂载的真实组件（Git/Goal/Progress 是 dock/工具行形态），
  * 按配方以站点 legacy 卡片结构 + 逐字参考站数据手写；样式沿用 style.css 的 .panel-card 族。
+ * 参考站右栏没有终端卡（终端是其独立可折叠面板，mock 里保持折叠不渲染）。
  */
 import { heroRightPanel } from "./mock-data.mock";
 
 export function RightPanelCards() {
-  const { terminal, git, goal, progress } = heroRightPanel;
+  const { git, goal, progress } = heroRightPanel;
   return (
     <aside className="win-panel">
-      <div className="panel-card">
-        <div className="pc-head-row">
-          <p className="pc-title">{terminal.title}</p>
-          <span className="pc-badge">{terminal.badge}</span>
-          <span className="pc-close" aria-hidden="true">
-            ✕
-          </span>
-        </div>
-        <p className="pc-tag">{terminal.prompt}</p>
-      </div>
-
       <div className="panel-card">
         <p className="pc-title">{git.title}</p>
         <div className="pc-row">

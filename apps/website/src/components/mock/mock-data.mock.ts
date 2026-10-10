@@ -254,6 +254,7 @@ export const heroComposer = {
   placeholder: "继续输入后续修改需求",
   addContext: "添加上下文",
   confirmEdit: "变更前确认",
+  usage: "上下文用量 14,238 / 200,000",
   model: "GLM-5.3",
   effort: "最大",
 } as const;
@@ -297,6 +298,7 @@ export const heroRightPanel = {
 /** 侧栏顶部动作区与底部用户区（参考站同款；用户头像用 Drora D 标=唯一分歧） */
 export const heroSidebarChrome: {
   actions: ReadonlyArray<{ icon: string; label: string; kbd?: string }>;
+  tasksSectionLabel: string;
   user: { name: string; avatar: string };
 } = {
   actions: [
@@ -304,5 +306,6 @@ export const heroSidebarChrome: {
     { icon: "▤", label: "打开工作区" },
     { icon: "⚡", label: "技能" },
   ],
+  tasksSectionLabel: "任务",
   user: { name: "Ryan Bot", avatar: "D" },
 };

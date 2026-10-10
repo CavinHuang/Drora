@@ -472,6 +472,29 @@ a {
   color: var(--fg-subtle);
 }
 
+/* 任务分区头（参考站「任务」+🗑）：组森林顶部的分区行 */
+.win-side-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  margin: 2px 0 4px;
+}
+
+.wss-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.wss-trash {
+  display: inline-flex;
+  color: var(--fg-subtle);
+}
+
+.wss-trash svg {
+  display: block;
+}
+
 .win-side-list {
   display: flex;
   flex-direction: column;
@@ -659,9 +682,19 @@ a {
 }
 
 .comp-input {
+  /* 参考站输入区 min-h-10（40px）：单行占位也保持两行高的卡内空间 */
+  min-height: 40px;
   font-size: 13px;
   color: var(--fg-muted);
   padding: 2px 2px 12px;
+}
+
+.comp-ring {
+  color: var(--fg-subtle);
+}
+
+.comp-ring svg {
+  display: block;
 }
 
 .comp-bar {
@@ -718,10 +751,34 @@ a {
   color: var(--fg-subtle);
 }
 
-.wt-icons .wt-icon-active {
-  background: var(--blue);
-  color: #0b0b0c;
-  border-radius: 5px;
+/* 顶栏右侧簇：应用胶囊（参考站 h-7 border bg-input rounded-lg）+ 三个独立图标钮 */
+.wt-icons svg {
+  display: block;
+}
+
+.wt-icons i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 28px;
+  padding: 0 5px 0 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wt-pill .wt-icon-active {
+  color: var(--fg);
+}
+
+.wt-pill-caret {
+  color: var(--fg-subtle);
 }
 
 .sr-only {
@@ -855,6 +912,13 @@ a {
 .tb-arrow {
   color: var(--fg-subtle);
   font-size: 14px;
+}
+
+.tb-icon svg,
+.tb-arrow svg {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 .win-topbar {

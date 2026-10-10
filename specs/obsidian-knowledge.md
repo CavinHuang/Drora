@@ -10,9 +10,10 @@
 ## 0. 范围与产品边界
 
 - 一个活动 Vault 的精确文章找回（FIND_ARTICLE）、问库/比较（ANSWER/COMPARE）、来源验证与
-  原文回跳；后续阶段扩展 Jev 可选决策（W05）与审核写入（W06）。
+  原文回跳；Jev 可选决策与离线评测框架【已实现，W05】（§5d；真实联调/真实标注集对比未实测，
+  默认关闭）；审核写入【未实现，属 W06】。
 - UI 唯一入口 VaultView；四视图：笔记、智能问库、洞察、审核。不新增 Knowledge 顶级导航，
-  不重建编辑器（ADR #2）。【已实现，W04】（§5c；洞察/审核的完整功能分别属 W05/W06，当前只呈现真实状态）
+  不重建编辑器（ADR #2）。【已实现，W04】（§5c；洞察/审核的完整功能属后续阶段，当前只呈现真实状态）
 - 原 Markdown 是唯一事实源；Knowledge 索引可重建，不得改写笔记冒充事实（ADR #4）。
 - Drora 是唯一产品主体；不新建独立桌面 Agent（ADR #1）。
 
@@ -354,10 +355,158 @@ A22（取消/切库旧结果不覆盖）。证据见 `docs/vaultview/delivery/W0
 | K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05 |
 | K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`） |
 | K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`） |
-| K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | 未实现，属 W05 |
+| K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | W05 已实现决策层与评测框架（§5d）；A24 真实联调与 A28 真实标注集对比保持未实测（缺凭据/标注集） |
 | K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 未实现，属 W06 |
 
-## 7. 测试与日志边界
+## 5d. Jev 多阶段决策与离线评测（W05，2026-10-10 落地）
+
+本节是工作单 W05 的行为契约。实现位于 `packages/services/src/knowledge/decision/` 与
+`packages/services/src/knowledge/eval/`（自研新模块，不触碰任何还原/上游对齐目录）。
+ADR #5/#11 继续有效：**Jev 默认关闭；未经授权不把笔记内容送任何出站模型**。
+
+### 5d.1 模块构成与默认关闭
+
+| 单元 | 文件 | 职责 |
+| --- | --- | --- |
+| DecisionProvider 端口 | `decision/decisionProvider.ts` | `KnowledgeDecisionProvider.decide(request)`：对**已召回的候选片段**做命题级相关性判断；实现自带出站授权责任（与 Embedding 端口同形） |
+| LocalFallback | `decision/localFallback.ts` | 确定性本地产出：全部候选 `status:"fallback"`、保持本地名次；任何远端失败/关闭都落到这里，本地候选永远可用 |
+| JevAdapter | `decision/jevAdapter.ts` | DecisionProvider 的 Jev 实现：逐候选一次 TypeSafe `systemOne` Noul 调用（经注入 transport），校验分数/ID，失败单候选回退 |
+| HTTP transport | `decision/jevTransport.ts` | `JevTransport.post(request)` 端口 + 默认 `fetch` 实现（POST `{baseURL}/v1/systemone`，`Authorization: Bearer`）；API Key 只从 Host 侧安全配置注入，不进 renderer/日志 |
+| DecisionPolicy | `decision/decisionPolicy.ts` | 本地确定性策略：五动作裁决、扩搜一次、单调融合（纯函数，可脱离 IO 单测） |
+| Consent 账本 | `decision/decisionConsent.ts` | Host 内存授权账本：授予/撤销/逐调用重查 |
+| 决策缓存 | `decision/decisionCache.ts` | 进程内有界缓存（键含 provider/model/policy/vault/epoch/queryHash/chunkSha），换源/撤权/版本变化即失效 |
+| Telemetry | `decision/decisionTelemetry.ts` | 出站计数/延迟样本/token 用量计数器；不落任何查询与片段文本 |
+| 决策管线 | `decision/decisionPipeline.ts` | 编排：授权门 → 缓存 → provider → 校验 → 融合 → 迟到丢弃；产出 run 的 `decision` 诊断 |
+| 离线评测 | `eval/evaluationMetrics.ts`、`eval/evaluationHarness.ts` | 纯指标函数 + 走真实检索代码路径的 A/B harness |
+
+**默认关闭的实现含义**：`createKnowledgeServices` 不注入 `decisionProvider`（与
+`embeddingPort` 同形可选）→ 管线恒走 `off` 分支，`outboundCount=0`，`grantDecisionConsent`
+返回 `granted:false, reason:"disabled"`。renderer 无法注入 provider（端口只在 Host 侧工厂
+注入），凭证不进 RPC 面。远端 Embedding 与回答模型的授权是各自独立的端口/会话通道，
+决策授权不复用、不隐含（ADR #11）。
+
+### 5d.2 状态所有者（补 §1 表）
+
+| 状态 | 所有者 | 说明 |
+| --- | --- | --- |
+| 授权账本（consent receipt） | Query 服务进程内存（`decisionConsent.ts`） | 按 consentId 索引；绑定 provider/vaultId/sourceEpoch/queryHash/candidateHashes/TTL；不持久化，进程重启即丢（重新询问用户） |
+| 决策缓存 | Query 服务进程内存（`decisionCache.ts`） | 键 = sha256(providerId\|model\|policyVersion\|vaultId\|sourceEpoch\|queryHash\|chunkSha)；仅本机、不持久化请求全文；epoch 变化/撤权/policy 或 model 版本变化即失效；LRU 有界 |
+| 出站计数与延迟样本 | `decisionTelemetry.ts`（服务生命周期内累计） | `outboundCount` 是 A23 的断言面；日志不写查询/片段/凭据 |
+| run 的 decision 诊断 | run 视图字段（§5b.6 run 所有权的延伸） | `KnowledgeRunView.decision`，见 §5d.6 |
+
+### 5d.3 TypeSafe 契约（2026-10-10 真实文档验证，非 Python 示例猜测）
+
+适配目标以当日抓取的官方文档为准（记录于 W05 交付报告 §3）：
+HTTP API（docs.typesafe.ai/api.md）：`POST {baseURL}/v1/systemone`，头
+`Authorization: Bearer <KEY>` + `Content-Type: application/json`，请求体
+`{ state, model, questions: { <name>: { type: "noul", instructions, criteria?{true,false} } } }`，
+响应 `{ model, answers: { <name>: { type: "noul", noul: 0..1 } }, usage: { input_tokens, output_tokens } }`；
+错误语义 401/422/429（退避）/529（过载）。JS SDK（docs.typesafe.ai/sdk/javascript.md）：
+npm `@typesafe-ai/sdk`，`new TypeSafeClient({ apiKey, baseURL, timeout, maxRetries, fetch })`，
+`client.systemOne({ state, questions, model? }, options?)` → `answers.<name>.noul` + model/usage，
+`noul(instructions?, criteria?)` 辅助构造问题。
+
+- 适配器面向**注入的 transport 端口**编码，默认实现按上述 HTTP 契约；未引入 npm 依赖
+  `@typesafe-ai/sdk`（避免为本仓库默认关闭的可选能力增加硬依赖；SDK 形状与 HTTP 形状已
+  双向核对一致，切换 SDK 只是替换 transport 实现）。
+- 凭证仅存在于 Host 侧安全配置（构造 transport 时注入）；RPC 面、日志、诊断、缓存键
+  一律不含 Key 与绝对路径。
+
+### 5d.4 P0 合并决策（不为每条 Query 固定连跑 9 次）
+
+- P0 每**候选**恰好一次出站调用：单条 Noul 问题同时承载「相关性 + 直接证据」判定
+  （instructions 要求命题级匹配而非话题相似；criteria.true = 直接陈述/具体回答查询所指向
+  的观点，criteria.false = 仅主题相关或泛泛而谈）。
+- 意图歧义、充分性、引用支持**不在 P0 触发远端决策**：意图由 UI 既有启发式承担（§5c.3，
+  不改 RPC）；充分性由本地 policy 阈值裁决（§5d.5）；引用支持由 Receipt 复验链承担
+  （§5，服务端事实，模型评分不可替代）。仅当离线评测证明 P0 单问题不足时，后续工作单
+  才按「真正需要」增量引入远端子决策。
+- 出站候选上限默认 20（候选池 30 内截断），并发默认 4，单调用超时默认 3s，阶段预算
+  默认 6s（JEV_DETAIL §0C.4 实验初值，全部可经 policy 配置覆盖）。
+
+### 5d.5 本地 DecisionPolicy（纯函数）
+
+动作词表：`SHOW_CANDIDATES / EXPAND_ONCE / ASK_CLARIFICATION / PREPARE_EVIDENCE_FOR_AGENT /
+NO_RELIABLE_MATCH`。裁决顺序（硬条件优先，Jev 不可越权）：
+
+1. 首轮检索无命中且未扩搜过且查询词元 ≥2 → `EXPAND_ONCE`，编排器以同一 query/scope/
+   硬过滤做 OR 降级重试**一次**（A11 上限；`matchRelaxedToOr` 如实入诊断）——先于空候选
+   终态判定，否则不可达；
+2. 无候选（两轮检索后仍空）→ `NO_RELIABLE_MATCH`——Jev 不能补召回（D32-01）。
+3. 有候选且有合法 Jev 分数：top noul ≥ `directThreshold`（实验默认 0.75）→
+   `PREPARE_EVIDENCE_FOR_AGENT`（**仅建议**：表示该候选可直接走 prepareEvidence 送
+   Agent；不自动签发 receipt，实际签发永远经 §5.1 复验）。
+4. 有候选且 top noul < `abstainThreshold`（实验默认 0.45）但存在非零中段分数，或前两名
+   分差 ≤ `ambiguityBand`（实验默认 0.08）→ `ASK_CLARIFICATION`（呈现"不确定，可能是
+   这几篇"，不强选一篇，A09/A27）。
+5. 其余 → `SHOW_CANDIDATES`。无 Jev 分数（off/denied/fallback）时在 1/2/5 中裁决。
+
+融合：`finalScore = 0.35 × normalizedLocal + 0.65 × noul`（JEV_DETAIL §0C.3 实验起始权重，
+policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`（bm25 跨查询量纲
+不可比，名次单调鲁棒）。单候选回退时 `finalScore = 0.35 × normalizedLocal`（仅本地项，
+相对名次保持）；**绝不把 noul 数值展示为正确率**（§5c.3 score 折叠纪律延伸）。
+
+### 5d.6 授权绑定与 run 诊断
+
+- `grantDecisionConsent({ runId, candidateIds? })`：run 落定且有候选时授予
+  `{ granted:true, consentId, expiresAtMs }`，绑定授予时刻的 provider/vaultId/sourceEpoch/
+  queryHash(=sha256(规范化 query))/candidateHashes（候选 chunkSha256 集合，可被子集授权）/
+  TTL（默认 60s，单 query）。追问/新 Query 是新 run，必须重新授权（§0C.5 追问行）。
+- `revokeDecisionConsent({ consentId })`：撤销并清除该授权关联的缓存条目；撤销后进行中的
+  阶段在**下一次逐调用重查**时失败回退。
+- **实际调用前重查**：JevAdapter 在每个候选的出站调用前重验完整绑定（provider/vault/
+  epoch/queryHash/该候选 chunkSha/未过期/未撤销），任一不匹配 → 该候选本地回退，不再出站。
+  阶段结束后管线重验 sourceEpoch，已变 → 整个决策丢弃（按 source_stale 语义，§5b.6）。
+- `KnowledgeRunView.decision`（nullable，RPC additive）：
+  `{ status: "off"|"denied"|"applied"|"fallback"|"cancelled", reason, action, providerId,
+  modelVersion, policyVersion, outboundCount, scoredCount, fallbackCount, cacheHitCount,
+  latencyMs }`。`reason` 机器可读（`disabled_no_provider / consent_missing / consent_expired /
+  consent_revoked / timeout / http_429 / http_5xx / invalid_score / unknown_candidate /
+  provider_error / cancelled`），不含查询文本、路径与凭据。
+
+### 5d.7 降级与竞态
+
+- 单候选失败（超时/429 短退避一次后仍失败/5xx/529/取消/非法评分（非有限数或出 [0,1]）/
+  未知候选 ID/授权失效）→ 该候选 `fallback`，**其余候选照常**；整阶段失败（budget 耗尽、
+  provider 抛错、授权整体失效）→ 全部回退 LocalFallback。本地候选与排序永远完整可用
+  （A25）。
+- 迟到响应：决策结果落定时校验 `runGeneration`（cancelRun/新提交即失效，A22/A26 语义
+  延伸）与 sourceEpoch；不匹配即整包丢弃，绝不覆盖新 Query 的候选。跨 run 结构隔离：
+  决策阶段按 runId 作用域，不存在 A 覆盖 B 的路径（J07）。
+- 缓存失效：键含 policyVersion/model/sourceEpoch/vaultId/queryHash/chunkSha（J09）；撤权
+  清除关联条目；命中不产生出站（`cacheHitCount` 计入诊断，`outboundCount` 不增）。
+
+### 5d.8 离线评测框架（A07/A28 的工具面）
+
+- `evaluationHarness` 走**真实**检索代码路径（`searchKnowledgeLexical` + 决策管线）对比
+  变体：`lexical`（无语义端口）/ `hybrid`（+Embedding 端口）/ `hybrid+jev`（+DecisionProvider）/
+  `hybrid+reranker`（同端口注入另一 provider 实现）。
+- 指标（`evaluationMetrics.ts` 纯函数，逐个可单测）：Recall@30、Hit@1/Hit@5、MRR、
+  No-answer FP（无答案样本被宣布命中的比例）、Evidence Precision（top-1 候选是否含相关
+  chunk）、P50/P95 延迟、成本代理（outboundCalls / inputTokens / outputTokens / cacheHits）。
+- 数据集要求（EVAL_DATASET_SPEC）：真实脱敏、人工标注的中文查询；标注分歧复核仲裁；
+  Jev 自身评分不得作为真值。**本阶段仓库内只有合成脱敏试点样例（测试 fixture，非人工
+  标注集）**——指标数字只证明框架计算正确，不构成任何真实收益声明（A28 保持未实测）。
+
+### 5d.9 验收映射
+
+证据规则同 §6：真实 command / environment / exit code；`NOT_RUN` 必须写原因。
+证据见 `docs/vaultview/delivery/W05_DELIVERY.md` 与
+`packages/services/test/knowledgeDecisionPolicy.test.ts`、`knowledgeJevAdapter.test.ts`、
+`knowledgeDecisionPipeline.test.ts`、`knowledgeEvaluationHarness.test.ts`。
+
+| ID | 场景 | 状态 |
+| --- | --- | --- |
+| A23 / K-JEV-1 | 默认关闭/拒绝 → `outboundCount=0`、grant 返回 disabled | 已实现（pipeline 测试） |
+| A24 / K-JEV-2 | 真实非私密 Noul 请求 + SDK/model/耗时记录 | **未实测（缺凭据）**：transport 线格式经本地假服务器逐字段断言；真实出站待用户提供 API Key |
+| A25 / K-JEV-3 | 429/5xx/timeout/NaN/未知候选 ID → 本地候选保留 + 降级标记 | 已实现（adapter/pipeline 测试） |
+| A26 / K-JEV-4 | 迟到/取消决策不覆盖新 Query；重排不改候选事实（articleId 稳定） | 已实现（pipeline 测试；UI 选中锚点由 W04 reducer 按 articleId 保持） |
+| A27 / K-JEV-5 | 无答案负样本不被强选（NO_RELIABLE_MATCH / ASK_CLARIFICATION 硬条件） | 已实现（policy 测试） |
+| A28 / K-JEV-6 | 真实人工标注中文集 A/B | **未实测（缺标注集）**：框架 + 合成脱敏试点集已交付 |
+| A11 | 扩搜上限一次由 policy 执行 | 已实现（policy 测试 + 既有 OR 降级回归） |
+| A35 | 决策出站独立授权、日志无全文/凭据 | 已实现（consent/telemetry 测试） |
+
+
 
 - 测试只用合成临时 Vault（`mkdtemp`），绝不修改用户真实 Vault；软链不可用平台（Windows 非
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。

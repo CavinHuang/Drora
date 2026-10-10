@@ -82,12 +82,21 @@ export type {
   ObsidianVaultWriteResult,
 } from "./obsidian-vault/obsidianVault.js";
 
-// Knowledge 索引/检索服务（VaultView 2.0 W02/W03）— descriptors + 纯类型，禁止携带实现值。
+// Knowledge 索引/检索服务（VaultView 2.0 W02/W03/W05）— descriptors + 纯类型，禁止携带实现值。
 export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
-export { IKnowledgeQueryService, type KnowledgeCreateRunParams } from "./knowledge/knowledgeQuery.js";
+export {
+  IKnowledgeQueryService,
+  type KnowledgeCreateRunParams,
+  type KnowledgeSearchParams,
+} from "./knowledge/knowledgeQuery.js";
 export type {
   KnowledgeArticleCandidate,
   KnowledgeCoverage,
+  KnowledgeDecisionAction,
+  KnowledgeDecisionConsentGrantResult,
+  KnowledgeDecisionDiagnostics,
+  KnowledgeDecisionFallbackReason,
+  KnowledgeDecisionStageStatus,
   KnowledgeEvidenceReceipt,
   KnowledgeIndexJobKind,
   KnowledgeIndexJobStartResult,

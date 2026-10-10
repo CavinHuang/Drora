@@ -1,11 +1,13 @@
 /**
- * 词法检索 + 候选融合（W02 / spec §5b.5–5b.6）。
+ * 词法检索 + 候选融合（W02 引入；W05 拆出单轮检索 `searchLexicalPass`）。
  *
  * - FTS5 `MATCH ?` 严格参数化：表达式只来自 tokenizer 产物；
  * - bm25() 升序（更负 = 更相关）；
  * - 候选隔离：JOIN documents 后按 (vaultId, sourceEpoch) 过滤；
  * - 文章级去重聚合：同文档多 chunk 合并为一条候选（最佳 chunk 代表 + 命中数）；
- * - AND 无命中 → 同规则 OR 降级重试一次（至多一次扩搜，工作单 6/A11 的 W02 部分）。
+ * - 扩搜（AND 无命中 → OR 降级）的上限一次：W05 起由本地 DecisionPolicy 裁决
+ *   （编排器先跑 AND 轮，policy 判 EXPAND_ONCE 后再跑 OR 轮；`searchKnowledgeLexical`
+ *   保留为等价复合入口，供既有调用方与评测基线使用）。
  */
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { articleIdOf } from "../store/indexRepository.js";
@@ -22,6 +24,14 @@ export interface LexicalSearchResult {
   candidates: KnowledgeArticleCandidate[];
   diagnostics: KnowledgeSearchDiagnostics;
   status: "ready" | "partial" | "empty";
+}
+
+/** 单轮检索结果：附该轮 MATCH 表达式信息（policy 的 EXPAND_ONCE 依据）。 */
+export interface LexicalPassResult extends LexicalSearchResult {
+  /** 本轮 MATCH 的词元数（≥2 才具备 OR 扩搜前提）。 */
+  tokenCount: number;
+  /** 本轮是否 OR 连接。 */
+  relaxed: boolean;
 }
 
 interface ChunkHit {
@@ -107,10 +117,10 @@ export function fuseChunkHitsToArticles(
 }
 
 /**
- * 本地混合检索主入口：词法必做；语义端口可用时对词法池做余弦重排（§5b.5）。
- * 返回结构化状态：partial 来自 coverage.partial（由调用方传入）。
+ * 单轮检索（W05 拆分）：`relaxed=false` 为 AND 轮，`true` 为 OR 扩搜轮。
+ * 词法必做；语义端口可用时对词法池做余弦重排（§5b.5）。
  */
-export async function searchKnowledgeLexical(
+export async function searchLexicalPass(
   db: KnowledgeDatabase,
   source: { vaultId: string; sourceEpoch: number },
   query: string,
@@ -118,26 +128,20 @@ export async function searchKnowledgeLexical(
     semantic: KnowledgeSemanticContext;
     partial: boolean;
     limit?: number;
+    relaxed: boolean;
   },
-): Promise<LexicalSearchResult> {
+): Promise<LexicalPassResult> {
   const limit = Math.min(Math.max(options.limit ?? DEFAULT_CANDIDATE_LIMIT, 1), MAX_CANDIDATE_LIMIT);
+  const expression = buildMatchExpression(query, options.relaxed);
   let diagnostics: KnowledgeSearchDiagnostics = {
     semantic: "skipped",
     semanticReason: null,
     lexicalChunkHits: 0,
     lexicalCandidates: 0,
-    matchRelaxedToOr: false,
+    matchRelaxedToOr: options.relaxed && expression.tokenCount > 1,
   };
 
-  let hits: ChunkHit[] = [];
-  const andExpression = buildMatchExpression(query, false);
-  hits = searchChunks(db, source, andExpression.expression, CANDIDATE_CHUNK_POOL);
-  if (hits.length === 0 && andExpression.tokenCount > 1) {
-    const orExpression = buildMatchExpression(query, true);
-    hits = searchChunks(db, source, orExpression.expression, CANDIDATE_CHUNK_POOL);
-    diagnostics = { ...diagnostics, matchRelaxedToOr: true };
-  }
-
+  let hits = searchChunks(db, source, expression.expression, CANDIDATE_CHUNK_POOL);
   let pool = hits;
   if (options.semantic.port) {
     try {
@@ -174,7 +178,35 @@ export async function searchKnowledgeLexical(
     candidates,
     diagnostics: resolvedDiagnostics,
     status: candidates.length === 0 ? "empty" : options.partial ? "partial" : "ready",
+    tokenCount: expression.tokenCount,
+    relaxed: options.relaxed,
   };
+}
+
+/**
+ * 本地混合检索复合入口（W02 行为保持）：AND 无命中且词元 ≥2 时以同一转义规则
+ * OR 降级重试一次（扩搜上限一次）。新编排路径走 `searchLexicalPass` + DecisionPolicy。
+ */
+export async function searchKnowledgeLexical(
+  db: KnowledgeDatabase,
+  source: { vaultId: string; sourceEpoch: number },
+  query: string,
+  options: {
+    semantic: KnowledgeSemanticContext;
+    partial: boolean;
+    limit?: number;
+  },
+): Promise<LexicalSearchResult> {
+  const andPass = await searchLexicalPass(db, source, query, { ...options, relaxed: false });
+  if (andPass.candidates.length === 0 && andPass.tokenCount > 1) {
+    const orPass = await searchLexicalPass(db, source, query, { ...options, relaxed: true });
+    return {
+      candidates: orPass.candidates,
+      diagnostics: orPass.diagnostics,
+      status: orPass.status,
+    };
+  }
+  return andPass;
 }
 
 /**

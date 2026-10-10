@@ -12,7 +12,7 @@ import { resolveObsidianPluginDataDir } from "../obsidian-vault/obsidianVaultSer
 import type { VaultConfig } from "../obsidian-vault/config.js";
 import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledgeDatabase.js";
 import { IndexCoordinator } from "./index/indexCoordinator.js";
-import { QueryOrchestrator } from "./query/queryOrchestrator.js";
+import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
 import { createSemanticContext, type KnowledgeEmbeddingPort } from "./search/embeddingPort.js";
 import { loadCoverage } from "./store/indexRepository.js";
 import { resolveKnowledgeDatabasePath, resolveKnowledgeSource } from "./source/sourceRegistry.js";
@@ -21,6 +21,12 @@ import {
   prepareEvidenceFromRun,
   resolveCitationReceipt,
 } from "./evidence/evidenceRegistry.js";
+import { DecisionConsentRegistry } from "./decision/decisionConsent.js";
+import { DecisionCache } from "./decision/decisionCache.js";
+import { DecisionTelemetry } from "./decision/decisionTelemetry.js";
+import { DecisionPipeline } from "./decision/decisionPipeline.js";
+import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
+import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
 import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
 import type {
@@ -30,7 +36,7 @@ import type {
   KnowledgeResolveCitationParams,
   KnowledgeResolveCitationResult,
 } from "./knowledgeTypes.js";
-import type { KnowledgeCreateRunParams } from "./knowledgeQuery.js";
+import type { KnowledgeCreateRunParams, KnowledgeSearchParams } from "./knowledgeQuery.js";
 
 export interface KnowledgeServicesOptions {
   /** 覆盖 DB 路径（测试用）；生产默认按 Profile 数据根推导。 */
@@ -39,6 +45,23 @@ export interface KnowledgeServicesOptions {
   pluginDataDir?: string;
   /** Embedding 端口；缺省 = semantic_unavailable（显式降级，零出站）。 */
   embeddingPort?: KnowledgeEmbeddingPort;
+  /**
+   * Jev 决策 provider（W05 §5d）；**缺省 = 功能关闭**（零出站，grant 返回 disabled）。
+   * 注入即代表 Host 侧已完成 feature flag 与安全凭证配置（ADR #5/#11）。
+   * 适合不需要逐调用授权重查的 provider（本地 stub/评测 reranker）。
+   */
+  decisionProvider?: KnowledgeDecisionProvider;
+  /**
+   * provider 工厂（优先于 decisionProvider）：接收服务自有授权账本，供出站 provider
+   * （JevAdapter）做「实际调用前逐候选重查」——**出站实现必须走工厂**，否则逐调用
+   * 重查落在与授权账本不同的实例上（fail-closed 失效）。
+   */
+  decisionProviderFactory?: (deps: {
+    consentRegistry: DecisionConsentRegistry;
+    config: KnowledgeDecisionPolicyConfig;
+  }) => KnowledgeDecisionProvider;
+  /** 决策策略覆写（阈值/预算/权重；实验初值见 DEFAULT_DECISION_POLICY）。 */
+  decisionPolicyOverrides?: Partial<KnowledgeDecisionPolicyConfig>;
   /** 租约 TTL/心跳（测试可收紧）。 */
   leaseTtlMs?: number;
   heartbeatIntervalMs?: number;
@@ -47,6 +70,12 @@ export interface KnowledgeServicesOptions {
 export interface KnowledgeServices {
   indexService: IKnowledgeIndexService;
   queryService: IKnowledgeQueryService;
+  /**
+   * 决策上下文（W05；关闭时 null）。**绝不挂到 queryService 上**——RPC 面只暴露
+   * 接口方法（ProxyChannel.fromService 会把一切函数属性暴露为命令）；
+   * telemetry 快照供评测/测试观察 A23。
+   */
+  decision: KnowledgeDecisionContext | null;
   /** 生命周期：停心跳 → 释放租约 → 关闭 DB（同步，dispose 链安全）。 */
   dispose(): void;
 }
@@ -62,7 +91,32 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     heartbeatIntervalMs: options.heartbeatIntervalMs,
   });
   const semantic = createSemanticContext(options.embeddingPort ?? null);
-  const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir);
+
+  // 决策上下文（W05）：管线恒在（provider 可为 null → off 分支产出零出站诊断，A23）。
+  const config = resolvePolicyConfig(options.decisionPolicyOverrides);
+  const registry = new DecisionConsentRegistry();
+  const cache = new DecisionCache(config.cacheMaxEntries);
+  const telemetry = new DecisionTelemetry();
+  const provider = options.decisionProviderFactory
+    ? options.decisionProviderFactory({ consentRegistry: registry, config })
+    : (options.decisionProvider ?? null);
+  const pipeline = new DecisionPipeline({
+    provider,
+    config,
+    consentRegistry: registry,
+    cache,
+    telemetry,
+  });
+  const decision: KnowledgeDecisionContext = {
+    provider,
+    pipeline,
+    registry,
+    cache,
+    telemetry,
+    config,
+  };
+
+  const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
 
   const indexService: IKnowledgeIndexService = {
     async getStatus(): Promise<KnowledgeIndexStatus> {
@@ -137,11 +191,26 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       if (!params || typeof params !== "object") throw new Error("参数非法");
       return orchestrator.createRun(params);
     },
-    async search(params) {
+    async search(params: KnowledgeSearchParams) {
       if (!params || typeof params.runId !== "string" || !params.runId) {
         throw new Error("runId 不能为空");
       }
+      if (params.decisionConsentId !== undefined && typeof params.decisionConsentId !== "string") {
+        throw new Error("decisionConsentId 非法");
+      }
       return orchestrator.search(params);
+    },
+    async grantDecisionConsent(params: { runId: string; candidateIds?: string[] }) {
+      if (!params || typeof params.runId !== "string" || !params.runId) {
+        throw new Error("runId 不能为空");
+      }
+      return orchestrator.grantDecisionConsent(params);
+    },
+    async revokeDecisionConsent(params: { consentId: string }) {
+      if (!params || typeof params.consentId !== "string" || !params.consentId) {
+        throw new Error("consentId 不能为空");
+      }
+      return orchestrator.revokeDecisionConsent(params);
     },
     async getRun(params) {
       if (!params || typeof params.runId !== "string") return null;
@@ -211,6 +280,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   return {
     indexService,
     queryService,
+    decision,
     dispose(): void {
       // 停 run 事件流（检索是易失状态）；心跳定时器已 unref，
       // 租约正常路径由任务 finally 释放，异常路径靠 TTL 过期兜底（W00 spike §4.4）。

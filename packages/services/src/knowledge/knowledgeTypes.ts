@@ -168,6 +168,11 @@ export interface KnowledgeRunView {
   candidates: KnowledgeArticleCandidate[];
   coverage: KnowledgeCoverage | null;
   diagnostics: KnowledgeSearchDiagnostics | null;
+  /**
+   * Jev 决策诊断（W05 §5d；additive）。createRun 即 null；落定时产出——默认关闭时为
+   * `{status:"off", reason:"disabled_no_provider", outboundCount:0}`（A23 断言面）。
+   */
+  decision: KnowledgeDecisionDiagnostics | null;
   /** failed 的机器可读原因；不含绝对路径与笔记内容。 */
   reason: string | null;
 }
@@ -189,6 +194,22 @@ export type {
   KnowledgePrepareEvidenceResult,
   KnowledgeResolveCitationResult,
 } from "./evidence/evidenceRegistry.js";
+
+/** 决策诊断与授权 RPC 契约（W05 §5d，单一出处 re-export）。 */
+import type {
+  KnowledgeDecisionAction,
+  KnowledgeDecisionConsentGrantResult,
+  KnowledgeDecisionDiagnostics,
+  KnowledgeDecisionFallbackReason,
+  KnowledgeDecisionStageStatus,
+} from "./decision/decisionTypes.js";
+export type {
+  KnowledgeDecisionAction,
+  KnowledgeDecisionConsentGrantResult,
+  KnowledgeDecisionDiagnostics,
+  KnowledgeDecisionFallbackReason,
+  KnowledgeDecisionStageStatus,
+} from "./decision/decisionTypes.js";
 
 /** prepareEvidence 入参：run + 候选定位；session 可选绑定（缺省取 run 的发起会话）。 */
 export interface KnowledgePrepareEvidenceParams {

@@ -150,6 +150,54 @@ export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
 export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
 export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
+// Knowledge 决策层（W05 / spec §5d）：Host 侧装配入口（凭证只在 Host 安全配置注入）。
+export { createJevAdapter, JEV_PROVIDER_ID, mergedNoulQuestion } from "./knowledge/decision/jevAdapter.js";
+export { createTypeSafeHttpTransport } from "./knowledge/decision/jevTransport.js";
+export type { TypeSafeTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
+export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
+export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
+export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";
+export { DecisionTelemetry } from "./knowledge/decision/decisionTelemetry.js";
+export type { DecisionTelemetrySnapshot } from "./knowledge/decision/decisionTelemetry.js";
+export { DecisionPipeline } from "./knowledge/decision/decisionPipeline.js";
+export type { DecisionPipelineOptions, DecisionStageInput, DecisionStageOutput } from "./knowledge/decision/decisionPipeline.js";
+export {
+  DECISION_POLICY_VERSION,
+  DEFAULT_DECISION_POLICY,
+  resolvePolicyConfig,
+  decideByPolicy,
+  queryHashOf,
+  normalizeQueryForHash,
+} from "./knowledge/decision/decisionPolicy.js";
+export type {
+  KnowledgeDecisionProvider,
+  KnowledgeDecisionRequest,
+  KnowledgeDecisionResult,
+  KnowledgeDecisionCandidate,
+  KnowledgeDecisionOutcome,
+  KnowledgeDecisionPolicyConfig,
+  KnowledgeDecisionConsent,
+} from "./knowledge/decision/decisionTypes.js";
+export type { KnowledgeDecisionContext } from "./knowledge/query/queryOrchestrator.js";
+// Knowledge 离线评测（W05 / spec §5d.8）：真实检索代码路径上的 A/B harness。
+export {
+  runKnowledgeEvaluation,
+} from "./knowledge/eval/evaluationHarness.js";
+export type {
+  EvaluationQueryCase,
+  EvaluationVariant,
+  EvaluationVariantReport,
+  EvaluationPerQueryResult,
+  EvaluationRunOptions,
+} from "./knowledge/eval/evaluationHarness.js";
+export {
+  recallAtK,
+  hitAtK,
+  reciprocalRank,
+  percentileNearestRank,
+  evidencePrecisionTop1,
+  averageNonNull,
+} from "./knowledge/eval/evaluationMetrics.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,

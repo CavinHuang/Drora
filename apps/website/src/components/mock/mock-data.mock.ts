@@ -252,7 +252,10 @@ export const heroChatRows = rowInputs;
 /** composer 文案（参考站同款） */
 export const heroComposer = {
   placeholder: "继续输入后续修改需求",
-  submitLabel: "发送",
+  addContext: "添加上下文",
+  confirmEdit: "变更前确认",
+  model: "GLM-5.3",
+  effort: "最大",
 } as const;
 
 /** hero 顶栏（win-topbar）逐字文案 */

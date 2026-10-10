@@ -45,7 +45,30 @@ try {
     outfile,
     // ui 源码按 vite 语义 import 资产（pluginIconSource.ts 的官方插件图标 png 等）；
     // mock 子树不渲染这些图标，置空即可，避免为构建期 bundle 内联资产
-    loader: { ".png": "empty", ".svg": "empty", ".webp": "empty", ".jpg": "empty" },
+    loader: {
+      ".png": "empty",
+      ".svg": "empty",
+      ".webp": "empty",
+      ".jpg": "empty",
+      ".mjs?url": "empty",
+    },
+    plugins: [
+      {
+        name: "vite-url-shim",
+        setup(build) {
+          // Vite 的 ?url 资产导入（如 pdf.js worker 的 ESM 无 default 导出）：
+          // 导出请求路径字符串垫片（装饰 mock 不实例化 worker），对齐 Vite ?url 语义。
+          build.onResolve({ filter: /\?url$/ }, (args) => ({
+            path: args.path,
+            namespace: "vite-url",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "vite-url" }, (args) => ({
+            contents: `export default ${JSON.stringify(args.path)};`,
+            loader: "js",
+          }));
+        },
+      },
+    ],
     // 产物是构建期输入而非运行时代码：固定 production 语义，避免开发版 react 的额外分支
     define: { "process.env.NODE_ENV": '"production"' },
     // ESM 产物里 react-dom/server.node（CJS）动态 require node 内建模块，

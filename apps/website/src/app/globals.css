@@ -1,0 +1,55 @@
+/* Drora 官网（Next.js）全局样式。
+ * 层序：@drora/ui 设计令牌与 Tailwind → 官网 legacy 样式（站点覆盖层）→ 宿主恢复层。
+ * Geist 字体用部署绝对路径（GitHub Pages 项目子路径 /Drora/）。 */
+@import "@drora/ui/styles.css";
+@import "../../public/assets/css/style.css";
+
+/* Geist Sans（OFL 许可）自托管，与参考站同源字体 */
+@font-face {
+  font-family: "GeistSans";
+  src: url("/Drora/assets/fonts/geist-regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GeistSans";
+  src: url("/Drora/assets/fonts/geist-medium.woff2") format("woff2");
+  font-weight: 500 900;
+  font-display: swap;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* ------------------------------------------------------------------
+ * 宿主恢复层（host boundary）。
+ * @drora/ui/styles.css 的全局元素层按 Electron vibrancy 磨砂玻璃设计：
+ * html/body/#root 透明背景 !important、body overflow:hidden、*:focus 清 outline
+ * （packages/ui/src/styles.css:48-66,122-133）。官网是普通 Web 宿主，不是
+ * Electron：不恢复就会白底白字、滚动语义依赖浏览器兜底、键盘焦点不可见。
+ * 本层必须位于 ui import 之后——同特异性同 !important 的规则后到者胜；
+ * 背景取 legacy 单一出处 --bg（style.css :root），mock 组件子树的
+ * token/Tailwind 工具类不受影响（本层只作用于 html/body 元素级与焦点环）。
+ * ------------------------------------------------------------------ */
+html,
+body {
+  background: var(--bg) !important;
+}
+
+body {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  /* legacy body 的横向裁剪意图（style.css body 规则）；纵向保持文档流正常滚动 */
+  overflow-x: hidden !important;
+}
+
+/* ui 全局层清掉了所有 outline（*:focus, *:focus-visible !important）。
+ * 官网交互元素（链接/语言切换/菜单/details）需要键盘焦点可见；
+ * 只恢复 :focus-visible（键盘导航），不恢复鼠标点击的 :focus 外框。 */
+:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65) !important;
+  outline-offset: 2px !important;
+}

@@ -1,0 +1,37 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js）；no-JS 时回退到下方链接。迁移自 website/privacy/index.html，链接重写为 /Drora 绝对路径 -->
+    <site-header class="site-header" id="siteHeader" data-page="privacy" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="page-hero">
+        <h1 data-i18n="pri.title">隐私说明</h1>
+        <p data-i18n="pri.subtitle">Drora 本地优先，数据保存在你自己的设备上。</p>
+      </div>
+      <div class="page-narrow">
+        <article class="docs-content">
+          <p data-i18n="pri.lead">Drora 本地优先：会话与配置数据保存在你自己的设备上。以下是数据存储与网络行为的如实说明。</p>
+
+          <h2 data-i18n="pri.local.h2">本地存储</h2>
+          <p><span data-i18n="pri.local.p">应用的会话、设置、缓存与任务记录保存在本机应用数据目录；CLI 会话数据库位于</span> <code>~/.drora/cli/db/</code><span>；</span><span data-i18n="pri.local.tail">可用环境变量</span> <code>DRORA_DATA_BASE_DIR</code><span data-i18n="pri.local.tail2">重定向数据位置，详见 README 配置节。</span></p>
+
+          <h2 data-i18n="pri.net.h2">网络请求</h2>
+          <p><span data-i18n="pri.net.p">模型请求会发送到你配置的模型服务端点（含请求中的认证信息）；启用自动更新后会访问 GitHub Releases 检查新版本；插件市场、帮助内容等功能会按需访问相应服务。完整的对外请求矩阵以</span> <a href="https://github.com/CavinHuang/Drora/blob/main/NOTICE.md">NOTICE.md</a><span data-i18n="pri.net.tail">第二节为准。</span></p>
+
+          <h2 data-i18n="pri.creds.h2">凭据与反馈附件</h2>
+          <p data-i18n="pri.creds.p">凭据保存在本机，不写入提交与日志。提交 Issue 或反馈附件前，请自行检查内容并去除令牌、密钥等敏感信息。</p>
+
+          <h2 data-i18n="pri.site.h2">关于本网站</h2>
+          <p data-i18n="pri.site.p">本网站为纯静态页面：不嵌入统计、追踪或第三方脚本，不设置 Cookie。</p>
+        </article>
+      </div>
+    </main>
+
+    <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>

@@ -1,0 +1,320 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="remote-dev" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.remoteDev">远程开发</h1>
+          <p data-i18n="doc.remoteDev.intro1">
+            Drora 远程开发用于把工作区放到远程主机、WSL 发行版、本机容器或一台已运行的 Drora
+            服务上运行。连接成功后，文件读取、终端命令、Git 操作和 Drora
+            Agent 都会在目标环境内执行；桌面端仍负责账号、模型配置、任务入口和界面交互。
+          </p>
+          <p data-i18n="doc.remoteDev.intro2">
+            这适合需要在服务器、内网机器、GPU 开发机或容器环境中工作的项目。你可以在本机继续使用 Drora
+            的桌面体验，同时让 Agent 直接访问目标环境里的代码、依赖和命令行。
+          </p>
+
+          <h2 id="scenarios" data-i18n="doc.remoteDev.sub.scen">适合什么场景</h2>
+          <ul>
+            <li data-i18n="doc.remoteDev.scen.li1">项目代码和依赖只在远程 Linux 服务器上可用。</li>
+            <li data-i18n="doc.remoteDev.scen.li2">需要使用远程机器上的 GPU、内网服务、数据库或专用工具链。</li>
+            <li data-i18n="doc.remoteDev.scen.li3">在 Windows 上开发，但项目依赖 Linux 环境，希望直接在 WSL 里跑。</li>
+            <li data-i18n="doc.remoteDev.scen.li4">想在本机 Docker 容器中隔离项目依赖，不污染本机环境。</li>
+            <li data-i18n="doc.remoteDev.scen.li5">本机性能或系统环境不适合直接运行项目，但仍希望使用 Drora Agent 完成开发、调试和验证。</li>
+          </ul>
+
+          <h2 id="prepare" data-i18n="doc.remoteDev.sub.prepare">连接前准备</h2>
+          <div class="docs-note">
+            <span data-i18n="doc.remoteDev.prepare.note">目标环境需要 POSIX shell。当前不支持连接原生 Windows 远程主机。如果你要用的是 Windows 本机上的 Linux 环境，请选择 WSL。</span>
+          </div>
+          <p data-i18n="doc.remoteDev.prepare.sshLead">使用 SSH 连接前，请先确认：</p>
+          <ul>
+            <li data-i18n="doc.remoteDev.prepare.ssh.li1">本机可以通过 SSH 访问目标主机。</li>
+            <li data-i18n="doc.remoteDev.prepare.ssh.li2">你知道主机地址、端口和用户名。</li>
+            <li data-i18n="doc.remoteDev.prepare.ssh.li3">目标主机支持密码登录，或你已经准备好私钥文件和可选的私钥口令。</li>
+            <li>
+              <span data-i18n="doc.remoteDev.prepare.ssh.li4.a">如果使用 </span><code>~/.ssh/config</code><span data-i18n="doc.remoteDev.prepare.ssh.li4.b">，可以先在终端执行 </span><code>ssh &lt;Host别名&gt;</code><span data-i18n="doc.remoteDev.prepare.ssh.li4.c"> 验证别名可用。</span>
+            </li>
+          </ul>
+          <p data-i18n="doc.remoteDev.prepare.wslLead">使用 WSL 连接前，请先确认：</p>
+          <ul>
+            <li data-i18n="doc.remoteDev.prepare.wsl.li1">你在 Windows 桌面端，这是 WSL 入口出现的前提。</li>
+            <li data-i18n="doc.remoteDev.prepare.wsl.li2">本机已经安装 WSL，并且至少有一个发行版可用。</li>
+            <li data-i18n="doc.remoteDev.prepare.wsl.li3">想指定某个 Linux 用户时，确认该用户在发行版里确实存在。</li>
+          </ul>
+          <p data-i18n="doc.remoteDev.prepare.dockerLead">使用 Docker 连接前，请先确认：</p>
+          <ul>
+            <li data-i18n="doc.remoteDev.prepare.docker.li1">本机 Docker daemon 正在运行。</li>
+            <li data-i18n="doc.remoteDev.prepare.docker.li2">目标容器已经启动。</li>
+            <li data-i18n="doc.remoteDev.prepare.docker.li3">容器内能访问项目目录，并具备项目运行需要的 shell、Git、Node.js 或其他工具链。</li>
+            <li data-i18n="doc.remoteDev.prepare.docker.li4">如果容器列表没有显示目标容器，你仍可以手动输入容器名或容器 ID。</li>
+          </ul>
+
+          <h2 id="open" data-i18n="doc.remoteDev.sub.open">从 Drora 打开远程连接</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.open.p1.a">在左侧边栏的「项目」区域点击右侧的 </span><code>+</code><span data-i18n="doc.remoteDev.open.p1.b">，选择「远程连接」。新任务页的工作区选择器里也能进入，主界面右下角的项目名称菜单同样保留了这个入口。</span>
+          </p>
+          <p data-i18n="doc.remoteDev.open.p2">向导会先让你选择连接方式：</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.remoteDev.open.th.kind">方式</th>
+                <th data-i18n="doc.remoteDev.open.th.dest">连到哪里</th>
+                <th data-i18n="doc.remoteDev.open.th.cond">出现条件</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.remoteDev.open.k.ssh">SSH</td>
+                <td data-i18n="doc.remoteDev.open.d.ssh">远程主机</td>
+                <td data-i18n="doc.remoteDev.open.c.all">全平台</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.open.k.wsl">WSL</td>
+                <td data-i18n="doc.remoteDev.open.d.wsl">本机的 Windows Linux 子系统</td>
+                <td data-i18n="doc.remoteDev.open.c.win">仅 Windows 桌面端</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.open.k.docker">Docker</td>
+                <td data-i18n="doc.remoteDev.open.d.docker">本机正在运行的容器</td>
+                <td data-i18n="doc.remoteDev.open.c.all2">全平台</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.open.k.server">Server</td>
+                <td data-i18n="doc.remoteDev.open.d.server">一台已运行的 Drora 服务</td>
+                <td data-i18n="doc.remoteDev.open.c.all3">全平台</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.remoteDev.open.p3">
+            选择方式后点击「下一步」，进入对应的配置页面。向导左侧会显示当前步骤：选择方式、填写配置、连接中、选择目录。连接过程较慢时，可以根据日志判断当前进度。
+          </p>
+
+          <h2 id="ssh" data-i18n="doc.remoteDev.sub.ssh">使用 SSH 连接远程主机</h2>
+          <p data-i18n="doc.remoteDev.ssh.p1">SSH 页面用于填写远程主机的连接信息。你可以按下面顺序配置：</p>
+          <ol>
+            <li>
+              <span data-i18n="doc.remoteDev.ssh.li1.a">SSH 配置别名（可选）：Drora 会读取本机 SSH config 中的可用别名。选择别名后，会自动填充主机、端口、用户名和私钥路径。没有别名时，保留「不使用别名」并手动填写即可。注意：Drora 使用内置 SSH 客户端直连，别名只用于预填以上四个字段——</span><code>ProxyJump</code><span data-i18n="doc.remoteDev.ssh.li1.b"> / </span><code>ProxyCommand</code><span data-i18n="doc.remoteDev.ssh.li1.c"> 等跳板配置不会生效，含跳板的别名会被当作直连主机处理。需要经跳板访问的主机，请先在本地建立端口转发（如 </span><code>ssh -L</code><span data-i18n="doc.remoteDev.ssh.li1.d">），再让 Drora 连接转发端口。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.remoteDev.ssh.li2.a">主机：填写远程主机地址或 IP，例如 </span><code>192.168.1.100</code><span data-i18n="doc.remoteDev.ssh.li2.b">、</span><code>dev.example.com</code><span data-i18n="doc.remoteDev.ssh.li2.c">。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.remoteDev.ssh.li3.a">端口：默认是 </span><code>22</code><span data-i18n="doc.remoteDev.ssh.li3.b">。如果服务器使用跳板端口或自定义端口，请改成实际端口。</span>
+            </li>
+            <li>
+              <span data-i18n="doc.remoteDev.ssh.li4.a">用户名：填写远程登录用户，例如 </span><code>root</code><span data-i18n="doc.remoteDev.ssh.li4.b">、</span><code>ubuntu</code><span data-i18n="doc.remoteDev.ssh.li4.c">、</span><code>deploy</code><span data-i18n="doc.remoteDev.ssh.li4.d">。</span>
+            </li>
+            <li data-i18n="doc.remoteDev.ssh.li5">
+              认证方式：选择「密码」或「私钥」。私钥方式需要填写私钥文件路径，私钥有口令时再填写私钥口令。密码和私钥口令不会明文写进连接历史；连接成功后它们会加密保存在本机的凭据存储里，供之后重连使用。
+            </li>
+            <li>
+              <span data-i18n="doc.remoteDev.ssh.li6.a">资源下载方式：首次连接时，Drora 会准备远端运行所需组件。默认「本地下载后上传」由本机下载资源后传到远端；「远端服务器下载」会让远端直接访问 Drora
+              CDN，可减少上传等待，但远端需要能联网，并具备下载、解压和校验工具。</span>
+            </li>
+          </ol>
+          <p data-i18n="doc.remoteDev.ssh.p2">
+            填写完成后点击「开始连接」。连接成功后，Drora 会进入远端目录选择步骤，你可以选择要作为工作区打开的目录。
+          </p>
+
+          <h2 id="wsl" data-i18n="doc.remoteDev.sub.wsl">使用 WSL 连接本机 Linux 子系统</h2>
+          <p data-i18n="doc.remoteDev.wsl.p1">WSL 入口只在 Windows 桌面端显示，适合项目依赖 Linux 工具链或运行环境的场景。</p>
+          <p data-i18n="doc.remoteDev.wsl.p2">连接配置只有两项，均可留空：</p>
+          <ol>
+            <li data-i18n="doc.remoteDev.wsl.li1">
+              发行版：Drora 会检测本机已安装的 WSL 发行版供你选择。留空时连接系统默认发行版。即使没有检测到发行版，也可以保留为空，直接尝试连接默认发行版。
+            </li>
+            <li data-i18n="doc.remoteDev.wsl.li2">
+              Linux 用户：决定 Drora 在 WSL 中以哪个用户身份工作。留空时使用该发行版的默认用户；填写后，Agent、终端命令、Git 操作以及文件的读取和创建都会使用这个用户的身份和权限。填写的用户必须已存在于该发行版中。
+            </li>
+          </ol>
+          <div class="docs-note">
+            <span data-i18n="doc.remoteDev.wsl.note">请谨慎使用 root。以 root 连接后，在工作区中新建的文件可能归 root 所有，之后使用普通用户时可能无法修改。除非确有必要，建议使用日常开发所用的普通用户。</span>
+          </div>
+          <p>
+            <span data-i18n="doc.remoteDev.wsl.p3.a">连接成功并选择工作区目录后，文件读写、终端命令、Git 操作和 Agent 都会在所选的 WSL 环境中执行。和 SSH 一样，WSL 也支持将本机的 Skills、MCP 配置和 Plugins </span><a href="#sync" data-i18n="doc.remoteDev.wsl.p3.link">手动同步</a><span data-i18n="doc.remoteDev.wsl.p3.b">到当前 WSL 用户的环境中。</span>
+          </p>
+          <p>
+            <span data-i18n="doc.remoteDev.wsl.p4.a">打开形如 </span><code>\\wsl$\…</code><span data-i18n="doc.remoteDev.wsl.p4.b"> 的 WSL 路径时，Drora 会建议改用 WSL 远程连接打开。</span>
+          </p>
+
+          <h2 id="docker" data-i18n="doc.remoteDev.sub.docker">使用 Docker 连接本机容器</h2>
+          <p data-i18n="doc.remoteDev.docker.p1">
+            Docker 页面用于选择或填写本机正在运行的容器。如果 Drora 检测到运行中的容器，可以从「选择正在运行的容器」中选择。打开下拉框时，Drora 会刷新一次容器列表，避免使用已经停止的旧容器。
+          </p>
+          <p data-i18n="doc.remoteDev.docker.p2">
+            如果列表为空，或 Docker 当前没有返回完整列表，可以在「容器」输入框中手动填写容器名或容器 ID，例如：
+          </p>
+          <div class="docs-code"><code>drora-dev
+7f3a8c2d9e10</code></div>
+          <p>
+            <span data-i18n="doc.remoteDev.docker.p3.a">Docker 连接通过 </span><code>docker exec</code><span data-i18n="doc.remoteDev.docker.p3.b"> 和 </span><code>docker cp</code><span data-i18n="doc.remoteDev.docker.p3.c"> 进入本机容器。它适合连接已经准备好项目环境的开发容器；如果容器尚未启动，请先在终端运行 </span><code>docker ps</code><span data-i18n="doc.remoteDev.docker.p3.d"> 确认可见。</span>
+          </p>
+
+          <h2 id="log" data-i18n="doc.remoteDev.sub.log">首次连接与连接日志</h2>
+          <p data-i18n="doc.remoteDev.log.p1">
+            点击「开始连接」后，向导会进入「连接中」页面。这里会显示实时连接日志，包括环境检测、远端资源准备、运行时初始化和失败原因。
+          </p>
+          <p data-i18n="doc.remoteDev.log.p2">
+            首次连接通常比后续连接慢，因为 Drora 需要在目标环境准备远端服务和 Agent runtime。后续连接会复用已准备好的资源，只在版本变化或资源缺失时重新安装。
+          </p>
+          <p data-i18n="doc.remoteDev.log.p3">
+            如果连接失败，页面底部会显示错误摘要。你可以点击「上一步」修改配置后重试，也可以点击「去反馈」，Drora 会带上当前连接日志和截图，方便排查问题。
+          </p>
+
+          <h2 id="after" data-i18n="doc.remoteDev.sub.after">进入远程工作区后</h2>
+          <p data-i18n="doc.remoteDev.after.p1">
+            连接成功并选择目录后，Drora 会把该目录作为远程工作区打开。进入后你可以像本地工作区一样使用：
+          </p>
+          <ul>
+            <li data-i18n="doc.remoteDev.after.li1">在文件树中查看和编辑远程文件。</li>
+            <li data-i18n="doc.remoteDev.after.li2">让 Agent 阅读代码、修改文件、运行测试或执行命令。</li>
+            <li data-i18n="doc.remoteDev.after.li3">使用终端操作远程主机或容器内的 shell。</li>
+            <li data-i18n="doc.remoteDev.after.li4">使用 Git 查看状态、分支和提交。</li>
+            <li data-i18n="doc.remoteDev.after.li5">从左侧工作区列表重新进入或重新连接最近使用的远程工作区。</li>
+          </ul>
+          <p>
+            <span data-i18n="doc.remoteDev.after.p2.a">需要注意的是，远程工作区的项目文件、命令执行和 Agent runtime 都在目标环境内；模型供应商、登录账号、全局设置和用量信息仍保存在桌面端。需要在手机上继续桌面会话时，见「</span><a href="/Drora/docs/remote-control/" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.remoteDev.after.p2.b">」。</span>
+          </p>
+
+          <h2 id="sync" data-i18n="doc.remoteDev.sub.sync">把本地配置同步到远端</h2>
+          <p data-i18n="doc.remoteDev.sync.p1">
+            远程工作区里的 Agent 跑在目标主机上，因此本机装的技能、配置的 MCP 服务器和插件默认不会跟过去。Drora 提供了三个同步入口，把它们一次性搬到远端。
+          </p>
+          <p data-i18n="doc.remoteDev.sync.p2">
+            入口有好几处。最早的一处在连接向导里——SSH 和 WSL 走到「选择远程目录」这一步时，就已经可以先把配置同步过去，不必等工作区打开。连上之后，工作区标题栏的「同步」下拉里有三项：「同步 Skill」「同步 MCP」「同步 Plugin」；侧边栏工作区行的「更多」菜单，以及设置里对应的技能、MCP、插件页面也都有同一入口。本地工作区不显示这些菜单。
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.remoteDev.sync.th.item">同步项</th>
+                <th data-i18n="doc.remoteDev.sync.th.what">同步什么</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.remoteDev.sync.t.skill">Skill</td>
+                <td data-i18n="doc.remoteDev.sync.td.skill">你本机的「用户级」技能</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.sync.t.mcp">MCP</td>
+                <td data-i18n="doc.remoteDev.sync.td.mcp">你本机的「用户级」MCP 服务器配置</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.remoteDev.sync.t.plugin">Plugin</td>
+                <td data-i18n="doc.remoteDev.sync.td.plugin">你本机的用户级插件；来自市场的插件会在远端重新安装</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.remoteDev.sync.p3">三者的共同规则：</p>
+          <ul>
+            <li data-i18n="doc.remoteDev.sync.r1">逐条勾选、手动触发，不会自动同步。</li>
+            <li data-i18n="doc.remoteDev.sync.r2">远端已存在同名项一律跳过，不覆盖，列表里会标出来并默认不勾选。</li>
+            <li data-i18n="doc.remoteDev.sync.r3">只同步「用户级」内容。项目级技能、工作区级 MCP、插件自带的 MCP 都不在范围内。</li>
+            <li data-i18n="doc.remoteDev.sync.r4">如果远端目录写不进去，或者连接超时，Drora 会在开始复制前就告诉你。</li>
+            <li data-i18n="doc.remoteDev.sync.r5">部分失败不影响已成功的项，失败项会单独列出原因。</li>
+          </ul>
+          <p data-i18n="doc.remoteDev.sync.p4">有几点需要特别留意：</p>
+          <p data-i18n="doc.remoteDev.sync.w1">
+            同步不保证能用。远端是否装了 npx、Python 依赖或技能需要的命令行工具，Drora 不做检查。同步过去的东西起不来，通常要你到远端手动补依赖。
+          </p>
+          <p data-i18n="doc.remoteDev.sync.w2">
+            MCP 配置里的密钥会原样写到远端配置文件。如果 MCP 服务器配置里有 API Key 或 Authorization 头，同步会把它们一起写过去，所以只对你信任的主机做这个操作。
+          </p>
+          <p data-i18n="doc.remoteDev.sync.w3">
+            插件的敏感配置项不会同步。标记为敏感的配置和路径类配置会被跳过，界面会提示还有几项需要你在远端手动填。另外市场插件是在远端重新安装的，远端需要能访问对应的市场地址。
+          </p>
+          <p data-i18n="doc.remoteDev.sync.w4">
+            同步过去的插件会在远端执行。插件里的技能、命令、Hooks 和 MCP 都会在远端环境里加载运行，同步前请确认插件来源可靠。
+          </p>
+          <p data-i18n="doc.remoteDev.sync.p5">目前 SSH 和 WSL 远程支持这些同步操作。</p>
+          <p data-i18n="doc.remoteDev.sync.p6">
+            此外，个人提供商配置与允许同步的账号凭据会在连接存续期间自动传入目标环境，无需在远端重复登录。
+          </p>
+
+          <h2 id="web" data-i18n="doc.remoteDev.sub.web">自托管 Web 服务</h2>
+          <p>
+            <span data-i18n="doc.remoteDev.web.p1">命令行发行包可以把工作区暴露为浏览器可访问的 Web 服务，实现无桌面的远程开发：</span>
+          </p>
+          <div class="docs-code"><code>drora --web                                                  # 启动 Web 界面
+drora --web --workspace /path/to/project --port 3030 --no-open
+drora --web --host 0.0.0.0                                   # 允许局域网访问</code></div>
+          <p>
+            <span data-i18n="doc.remoteDev.web.p2">Web 模式默认监听</span>
+            <code>127.0.0.1</code>
+            <span data-i18n="doc.remoteDev.web.p2t">并自动打开浏览器；监听非本机地址时默认生成访问令牌，请使用终端输出的带令牌链接，也可用</span>
+            <code>--token</code>
+            <span data-i18n="doc.remoteDev.web.p2t2">指定令牌或</span>
+            <code>--no-token</code>
+            <span data-i18n="doc.remoteDev.web.p2t3">关闭令牌认证。自托管后端的工作区路径可用</span>
+            <code>DRORA_SERVER_WORKSPACE</code>
+            <span data-i18n="doc.remoteDev.web.p2t4">指定；直接部署通用 Web 服务时，用</span>
+            <code>DRORA_SERVER_AUTH_TOKEN</code>
+            <span data-i18n="doc.remoteDev.web.p2t5">配置 API／WebSocket 认证。</span>
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.remoteDev.web.note">远程开发时，会话、文件与终端操作都发生在目标环境，执行身份是远端账号而不是本地用户；认证默认值因启动入口和监听地址而异，不要把开发服务或本机核心端口直接视为适合公开暴露的服务。</span>
+          </div>
+
+          <h2 id="faq" data-i18n="doc.remoteDev.sub.faq">常见问题</h2>
+          <h3 data-i18n="doc.remoteDev.faq.q1">为什么 SSH 配置别名没有出现？</h3>
+          <p data-i18n="doc.remoteDev.faq.a1">
+            Drora 会读取本机 SSH config 中可解析的别名。如果列表为空，可以先检查 ~/.ssh/config 是否存在、格式是否正确，并在终端执行 ssh &lt;别名&gt;
+            验证。即使别名没有出现，也可以手动填写主机、端口、用户名和认证信息。
+          </p>
+          <h3 data-i18n="doc.remoteDev.faq.q2">什么时候选择「远端服务器下载」？</h3>
+          <p data-i18n="doc.remoteDev.faq.a2">
+            当远端服务器访问 Drora CDN 更快，或者本机上传到远端很慢时，可以选择「远端服务器下载」。远端需要具备 curl 或 wget、tar，以及 sha256sum、shasum 或
+            openssl 中的校验工具。远端无法访问公网时（内网、离线环境），使用默认的「本地下载后上传」：由本机下载全部组件后经 SFTP 传到远端并安装到
+            ~/.drora/server，远端全程无需联网。
+          </p>
+          <h3 data-i18n="doc.remoteDev.faq.q3">远程连接会走设置里的 HTTP 代理吗？</h3>
+          <p>
+            <span data-i18n="doc.remoteDev.faq.a3.a">不会。SSH 连接和 Web 远程控制通道都不经过设置中的 HTTP 代理，代理只覆盖模型、MCP 等出网请求——完整范围见</span>
+            <a href="/Drora/docs/configuration/#params" data-i18n="doc.remoteDev.faq.a3.link">模型参数与网络</a>
+            <span data-i18n="doc.remoteDev.faq.a3.b">。远端服务器自身需要代理时，请在远端 shell 环境中自行配置。</span>
+          </p>
+          <h3 data-i18n="doc.remoteDev.faq.q4">Docker 页面没有容器怎么办？</h3>
+          <p data-i18n="doc.remoteDev.faq.a4">先在终端执行：</p>
+          <div class="docs-code"><code>docker ps</code></div>
+          <p data-i18n="doc.remoteDev.faq.a5">
+            如果没有运行中的容器，请先启动容器。如果终端里能看到容器，但 Drora 列表为空，可以手动输入容器名或容器 ID 后连接。
+          </p>
+          <h3 data-i18n="doc.remoteDev.faq.q6">连接失败时应该看哪里？</h3>
+          <p data-i18n="doc.remoteDev.faq.a7">
+            优先看「连接日志」最后一条 ERROR 或页面底部的错误摘要。常见原因包括 SSH 主机不可达、端口错误、用户名或密码错误、私钥口令错误、远端缺少下载 / 解压工具、Docker
+            容器未运行。错误信息不足时，点击「去反馈」提交日志。
+          </p>
+          <h3 data-i18n="doc.remoteDev.faq.q8">手机 Remote Control 能新建或连接远程工作区吗？</h3>
+          <p>
+            <span data-i18n="doc.remoteDev.faq.a9.a">不能创建全新的 SSH、WSL 或 Docker 连接——填写连接参数这一步必须在桌面端完成。但如果某个远程工作区已经登记在当前桌面窗口里、只是显示为断开，</span><a href="/Drora/docs/remote-control/" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.remoteDev.faq.a9.b">可以对它发起重新连接，实际连接过程仍由桌面端执行。</span>
+          </p>
+
+          <p><span data-i18n="doc.remoteDev.next">把本地能力同步到远端的规则见上方</span> <a href="#sync" data-i18n="doc.remoteDev.sub.sync">把本地配置同步到远端</a><span data-i18n="doc.dot">；</span><span data-i18n="doc.remoteDev.next2">在手机上继续桌面会话见</span> <a href="/Drora/docs/remote-control/" data-i18n="doc.nav.remote">手机远控</a><span data-i18n="doc.dot">。</span></p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

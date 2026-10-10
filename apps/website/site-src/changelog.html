@@ -1,0 +1,108 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js），结构复刻参考站；no-JS 时回退到下方链接。迁移自 website/changelog/index.html，链接重写为 /Drora 绝对路径 -->
+    <site-header class="site-header" id="siteHeader" data-page="changelog" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <!-- ======================= Page hero ======================= -->
+      <div class="page-hero">
+        <h1 data-i18n="ch.title">版本发布与更新</h1>
+        <p data-i18n="ch.subtitle">Drora 各版本的更新说明与桌面端下载。</p>
+      </div>
+
+      <!-- ======================= Releases（内容取自仓库真实历史，新增版本手工追加） ======================= -->
+      <div class="release-list">
+        <release-block class="release-block" version="0.0.8" date-key="ch.date0927" date-text="发布于 2026年9月27日" download="v0.0.8">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v8.f1">macOS 应用内自动更新链路闭环：CI 自签名接入，安装失败自动恢复。</li>
+          </ul>
+          <h2 data-i18n="ch.group.fixes">问题修复</h2>
+          <ul>
+            <li data-i18n="ch.v8.f2">手机远控云中继生产路径修复：WebSocket 构造器回退到 ws 包。</li>
+            <li data-i18n="ch.v8.f3">修复工作区壁纸穿透透明皮肤面板的层级问题。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.7" date-key="ch.date0927" date-text="发布于 2026年9月27日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v7.f1">皮肤中心内置多套插画预设壁纸。</li>
+            <li data-i18n="ch.v7.f2">皮肤滑块与预设选中态视觉打磨，对齐设计规范。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.6" date-key="ch.date0927" date-text="发布于 2026年9月27日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v6.f1">手机远控接入 relay 云中继：跨网络远控与局域网直连并存。</li>
+            <li data-i18n="ch.v6.f2">rpc-frame 透明桥：手机页面可直接操控桌面任务。</li>
+          </ul>
+          <h2 data-i18n="ch.group.maintenance">维护</h2>
+          <ul>
+            <li data-i18n="ch.v6.f3">CI 打包稳定性：打包复制竞速退避重试，Windows 构建关闭实时监控。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.5" date-key="ch.date0927" date-text="发布于 2026年9月27日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v5.f1">皮肤中心上线：自定义壁纸、面板透明度与强调色。</li>
+            <li data-i18n="ch.v5.f2">手机远控弹层双栏布局与连接状态卡。</li>
+          </ul>
+          <h2 data-i18n="ch.group.fixes">问题修复</h2>
+          <ul>
+            <li data-i18n="ch.v5.f3">桌宠气泡悬停位置修正：顶部居中、限宽与换行优化。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.4" date-key="ch.date0927" date-text="发布于 2026年9月27日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v4.f1">手机远控二轮打磨：六态连接状态机、应用启动自动恢复、窗口关闭即停服。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.3" date-key="ch.date0927" date-text="发布于 2026年9月27日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v3.f1">macOS Computer Use（屏幕操作助手）对齐上游 ZCode 3.14.3：独立 Helper 随包分发与信任链引导。</li>
+            <li data-i18n="ch.v3.f2">「开始计划」接入验证码校验，修复 3007 鉴权失败。</li>
+            <li data-i18n="ch.v3.f3">桌宠气泡内容与拖拽布局通道。</li>
+          </ul>
+          <h2 data-i18n="ch.group.changes">变更</h2>
+          <ul>
+            <li data-i18n="ch.v3.f4">Obsidian 插件 MCP 面移除，改为 hooks 直连（SessionStart / PermissionRequest / UserPromptSubmit）。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.2" date-key="ch.date0926" date-text="发布于 2026年9月26日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v2.f1">对齐上游 ZCode 3.14.3 全量官方插件（含 Computer Use 0.6.3 整代迁移）。</li>
+            <li data-i18n="ch.v2.f2">输出风格系统（outputStyle）功能域落地。</li>
+            <li data-i18n="ch.v2.f3">市场个人数据对齐：内置源与 CDN 图标索引。</li>
+            <li data-i18n="ch.v2.f4">server 远程五项收口：共享门禁、资源释放、快照与工作区界面。</li>
+          </ul>
+    </release-block>
+
+        <release-block class="release-block" version="0.0.1" date-key="ch.date0925" date-text="发布于 2026年9月25日">
+<h2 data-i18n="ch.group.features">新功能</h2>
+          <ul>
+            <li data-i18n="ch.v1.f1">首个公开构建：Windows / macOS 桌面安装包与 Agent CLI 单文件可执行。</li>
+            <li data-i18n="ch.v1.f2">手机远程配对协议与服务端基础。</li>
+          </ul>
+    </release-block>
+      </div>
+
+      <p class="changelog-tail" data-i18n="ch.tail">谢谢每一位试用与反馈的伙伴。</p>
+    </main>
+
+        <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>

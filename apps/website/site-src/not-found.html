@@ -1,0 +1,21 @@
+<!-- 头部为 <site-header> 组件（assets/js/components.js）；no-JS 时回退到下方链接。迁移自 website/404.html，链接重写为 /Drora 绝对路径 -->
+    <site-header class="site-header" id="siteHeader" data-page="home" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="not-found">
+        <h1>404</h1>
+        <p data-i18n="nf.text">这个页面不存在，可能已被移动或删除。</p>
+        <a class="cta-btn" href="/Drora/" data-i18n="nf.home">返回首页</a>
+      </div>
+    </main>
+
+    <!-- 页脚为 <site-footer> 组件（assets/js/components.js） -->
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>

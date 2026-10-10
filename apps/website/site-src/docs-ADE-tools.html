@@ -1,0 +1,153 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="ADE-tools" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.advanced">深度集成</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.ade">智能体开发环境工具</h1>
+          <p>
+            <span data-i18n="doc.ade.p1">Drora 不只是一个 Agent 输入框，也是一套面向真实开发任务的智能体开发环境（</span>
+            <strong data-i18n="doc.ade.p1b">Agent Development Environment</strong>
+            <span data-i18n="doc.ade.p1c">）。你可以在一个窗口里管理任务、按项目组织对话、进入远程开发环境、预览网页、点选页面元素作为上下文，并在 Review 面板里确认 Agent 生成的改动。</span>
+          </p>
+
+          <h2 id="tasks" data-i18n="doc.ade.tasks.h2">工作区与任务列表</h2>
+          <p data-i18n="doc.ade.tasks.p1">
+            左侧边栏会跟随当前工作区展示任务列表。顶部是「新建任务」「搜索」「视图」三个入口，下面按项目（如 DroraProject）归类列出每个对话任务。每一行会显示任务标题、相对时间（如「1 天」），以及运行中、未读、失败等状态点；任务产生改动后还会显示该任务的 +/- 变更行数，方便快速判断 Agent 在哪些任务里改了多少内容。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-task-groups.webp" alt="任务分组" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-task-view-sort.webp" alt="任务视图与排序方式" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-workspace-task-list.webp" alt="工作区任务列表" loading="lazy" /></figure>
+          <p data-i18n="doc.ade.tasks.p2">
+            点击列表上方的视图按钮可以切换任务的组织方式：「分组」「项目」和「时间线」。在非分组视图下还能选择「排序方式」，按「创建时间」或「更新时间」排列任务。
+          </p>
+          <p data-i18n="doc.ade.tasks.p3">
+            切换到「分组」视图后，可以新建分组，把相关任务整理到自定义分组里，适合按项目、需求或主题把长期任务归拢在一起。
+          </p>
+
+          <h2 id="archive" data-i18n="doc.ade.archive.h2">归档任务</h2>
+          <p data-i18n="doc.ade.archive.p1">
+            不再活跃的任务可以归档，从主列表里收起来。打开归档视图后会看到所有已归档任务的扁平列表，每一行同样显示标题、相对时间、变更统计和所属工作区，并提供「恢复」和「删除」操作。需要回顾旧任务时可以随时恢复，确认无用后再永久删除；也可以一键删除所有归档任务。注意删除任务会连同它的会话快照与 checkpoint 一起清理。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-archived-tasks.webp" alt="归档任务" loading="lazy" /></figure>
+
+          <h2 id="command-center" data-i18n="doc.ade.cc.h2">命令中心</h2>
+          <p>
+            <span data-i18n="doc.ade.cc.p1">按</span>
+            <code>Ctrl/Command+K</code>
+            <span data-i18n="doc.ade.cc.p2">（或</span>
+            <code>Ctrl/Command+Shift+P</code>
+            <span data-i18n="doc.ade.cc.p3">）可以打开命令中心，在一个面板里快速触达常用操作和导航。它同时覆盖命令、对话和文件三类搜索：新建任务、打开工作区、搜索文件、设置、上一个 / 下一个任务、查找、返回 / 前进、切换主题、MCP 服务器、个性化、切换终端等都能直接执行，不必到处找菜单。全部快捷键见</span>
+            <a href="/Drora/docs/keyboard-shortcuts/" data-i18n="doc.nav.shortcuts">快捷键表</a>
+            <span data-i18n="doc.dot">。</span>
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-command-center.webp" alt="命令中心快捷入口" loading="lazy" /></figure>
+
+          <h2 id="remote" data-i18n="doc.ade.remote.h2">远程开发与远程接入</h2>
+          <p data-i18n="doc.ade.remote.p1">
+            在「打开工作区」页面可以选择本地文件夹，也可以进入「远程连接」：远程开发决定代码和命令在哪台机器上跑，让 Agent 在真实运行环境中读取文件、执行命令和推进任务。连接方式包含 SSH 远程主机、WSL（Windows Linux 子系统）、Docker 本地容器和已运行的 Drora Server——SSH 适合连接远端服务器或开发机，Docker 适合进入本机已有的容器环境，连接过程与日志在窗口内可见。
+          </p>
+          <p>
+            <span data-i18n="doc.ade.remote.p2">人不在电脑前时的操作入口是手机远控：手机浏览器直连桌面已有 Host，复用同一会话运行时，断线可恢复回放。详见</span>
+            <a href="/Drora/docs/remote-dev/" data-i18n="doc.nav.remoteDev">远程开发</a>
+            <span data-i18n="doc.ade.remote.and">与</span>
+            <a href="/Drora/docs/remote-control/" data-i18n="doc.nav.remote">手机远控</a>
+            <span data-i18n="doc.dot">。</span>
+          </p>
+
+          <h2 id="browser" data-i18n="doc.ade.browser.h2">内置浏览器</h2>
+          <p data-i18n="doc.ade.browser.p1">
+            Drora 内置了一个浏览器面板，可以在应用里直接打开本地开发地址或线上页面。它带地址栏和前进、后退、刷新、开发者工具按钮，支持 http、https 等协议。除了你自己浏览，Agent 也可以驱动它去访问和操作网页。浏览器面板仅桌面端可用。
+          </p>
+          <h3 data-i18n="doc.ade.browser.picker.h3">把页面元素选成上下文</h3>
+          <p data-i18n="doc.ade.browser.picker.p1">
+            打开浏览器标签、输入页面地址后，点击工具栏里的元素选择按钮进入点选模式。
+          </p>
+          <p data-i18n="doc.ade.browser.picker.p2">
+            点击页面里的按钮、卡片、标题或其他元素，Drora 会采集页面标题、URL、元素文本、选择器、位置和安全的 HTML 摘要，并把它加入当前聊天。这样你可以直接对 Agent 说「修改刚才选中的卡片」或「优化这个按钮文案」，不用描述它在页面的哪个位置。
+          </p>
+          <h3 data-i18n="doc.ade.browser.control.h3">让 Agent 操作网页</h3>
+          <p data-i18n="doc.ade.browser.control.p1">
+            开启内置浏览器控制后，Agent 可以自己打开网址、点击、填表并验证结果，过程在面板里实时可见。开关、登录态导入和数据清理都在「设置 → 浏览器控制」。
+          </p>
+
+          <h2 id="preview" data-i18n="doc.ade.preview.h2">文件与内容预览</h2>
+          <p data-i18n="doc.ade.preview.p1">
+            点击文件树里的文件会在右侧预览面板打开，除了代码，几类常见格式也能直接看。
+          </p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/markdown-release-report.webp" alt="左侧文件树带 Git 状态标识，右侧预览面板打开 Agent 生成的 Markdown 发布报告：执行摘要、风险分级表格与发布门禁清单都渲染完整" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-browser-element-picker.webp" alt="浏览器元素选择" loading="lazy" /></figure>
+          <p>
+            <strong data-i18n="doc.ade.preview.pdf.a">PDF</strong>
+            <span data-i18n="doc.ade.preview.pdf.b">支持翻页、跳页和缩放（</span>
+            <code>Command / Ctrl</code>
+            <span data-i18n="doc.ade.preview.pdf.c">+ 滚轮可以按指针位置连续缩放），文字能选中复制。它是只读的，不提供编辑和批注。</span>
+          </p>
+          <p>
+            <strong data-i18n="doc.ade.preview.html.a">HTML 文件</strong>
+            <span data-i18n="doc.ade.preview.html.b">在文件树里右键选择「用内置浏览器打开」，会在浏览器面板里新开一个标签渲染它。这个菜单项只在本地工作区出现，远程工作区不提供。</span>
+          </p>
+          <p data-i18n="doc.ade.preview.p2">
+            对话里的内容也有对应的查看方式：
+          </p>
+          <ul>
+            <li data-i18n="doc.ade.preview.li1">Mermaid 图表：回复里的 mermaid 代码块会直接渲染成图，点右上角的放大按钮或双击图表可以打开大图，支持缩放、拖拽平移，Esc 关闭。消息还在输出时会先显示源码，写完才切换成图。</li>
+            <li data-i18n="doc.ade.preview.li2">图片：Markdown 图片可以点开预览，连续多张会自动排成图集，用左右箭头或方向键翻看，支持缩放、拖拽和下载当前这张。</li>
+            <li data-i18n="doc.ade.preview.li3">表格：Markdown 表格自带工具栏，可以复制成 Markdown、下载成 CSV，或者打开一个更大的预览窗口（滚动时表头吸顶）。很宽的表格还能展开滚动区域，让它横向占用更多空间，再点一次收回。</li>
+          </ul>
+
+          <h2 id="terminal" data-i18n="doc.ade.term.h2">命令行与调试</h2>
+          <p>
+            <span data-i18n="doc.ade.term.p1">右上角的终端按钮或</span>
+            <code>Ctrl/Command+J</code>
+            <span data-i18n="doc.ade.term.p2">可以打开命令行面板。你可以在同一个工作区里运行构建、测试、启动服务、查看日志，再把结果继续交给 Agent 分析。命令行面板也集成在右侧面板中，可以边看预览边执行命令。</span>
+          </p>
+          <p data-i18n="doc.ade.term.p3">
+            内置浏览器也提供调试工具入口，适合前端项目在预览页面的同时检查 DOM、控制台输出和样式问题。
+          </p>
+          <h3 data-i18n="doc.ade.term.bg.h3">后台执行长命令</h3>
+          <p>
+            <span data-i18n="doc.ade.term.bg.p1">启动开发服务器、跑一整套测试这类耗时命令，Agent 可以放到后台执行：命令继续跑，当前回合不必等它结束，你可以接着提问或让 Agent 做别的事，需要时再回来查看输出。</span>
+            <a href="/Drora/docs/subagents/#background" data-i18n="doc.nav.subagents">子智能体</a>
+            <span data-i18n="doc.ade.term.bg.p2">同样支持后台执行。</span>
+          </p>
+          <h3 data-i18n="doc.ade.term.find.h3">增强的 Find 和 Grep</h3>
+          <p data-i18n="doc.ade.term.find.p1">
+            在大仓库里搜东西容易慢，而且结果还取决于你机器上装的是哪个版本的 find 和 grep。Drora 自带了更快的替代品，Agent 默认就用它们，搜得更快，各台机器上的表现也一致。
+          </p>
+          <p>
+            <span data-i18n="doc.ade.term.find.p2">这项设置在「设置 → 常规 → 增强 Find 和 Grep」，默认开启。改完要</span>
+            <strong data-i18n="doc.ade.term.find.p2b">新建会话才生效</strong>
+            <span data-i18n="doc.ade.term.find.p2c">，正在进行的会话保持原样；Windows 上只替换 grep，find 保持系统原样。远程工作区（WSL / SSH / Docker）暂不适用。</span>
+          </p>
+
+          <h2 id="next" data-i18n="doc.ade.next.h2">下一步</h2>
+          <ul>
+            <li>
+              <a href="/Drora/docs/keyboard-shortcuts/" data-i18n="doc.nav.shortcuts">快捷键表</a>
+              <span data-i18n="doc.ade.next.keys.p">——掌握常用快捷键，提升操作效率。</span>
+            </li>
+            <li>
+              <a href="/Drora/docs/faq/" data-i18n="doc.nav.faq">常见问题</a>
+              <span data-i18n="doc.ade.next.faq.p">——快速解决您在使用中遇到的问题。</span>
+            </li>
+          </ul>
+        <figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/zcode-docs-20260613-ade-ssh-connection-method.webp" alt="选择远程连接方式" loading="lazy" /></figure></article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

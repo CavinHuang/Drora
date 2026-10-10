@@ -1,0 +1,457 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="hooks" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.advanced">深度集成</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.hooks">Hooks</h1>
+          <p data-i18n="doc.hooks.intro1">
+            Hook 用来在特定事件时机自动执行动作——在会话开始时注入团队约束、在工具调用前做安全检查、在模型准备结束时校验产出。适合希望在会话、模型请求、工具调用和停止阶段自动执行检查、补充上下文或实施策略的插件开发者与项目维护者。
+          </p>
+          <p data-i18n="doc.hooks.intro2">
+            Hook 本质上是一个本地子进程协议：Drora 向进程的 stdin 写入一行 JSON，进程通过退出码和 stdout JSON 返回结果。Hook 不会获得可直接调用 Drora 模型的内部对象。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.hooks.secnote">安全提示：Hook 会执行本地代码。启用第三方插件前请审查其来源、hooks/hooks.json 和脚本。</span>
+          </div>
+          <p data-i18n="doc.hooks.reader">
+            这一页怎么读：只想在设置页里配几条 Hook，看「执行顺序与事件」「配置来源」和「在设置页创建和维护 Hook」就够了。从「快速上手」开始是面向开发者的部分——输入输出契约、退出码和插件打包，不打算自己写脚本可以直接跳过。
+          </p>
+
+          <h2 id="lifecycle" data-i18n="doc.hooks.lifecycle.h">执行顺序与事件</h2>
+          <div class="docs-code"><code>新 session → SessionStart
+用户提交 → UserPromptSubmit → 主模型
+主模型请求工具 → PreToolUse → 需要确认时 PermissionRequest → 执行工具
+工具成功 → PostToolUse；工具失败 → PostToolUseFailure
+主模型准备结束 → Stop → 结束，或注入反馈后继续主模型</code></div>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.hooks.th.event">事件</th>
+                <th data-i18n="doc.hooks.th.matcher">matcher</th>
+                <th data-i18n="doc.hooks.th.effect">主要用途与效果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.hooks.te.ss">SessionStart</td>
+                <td data-i18n="doc.hooks.tm.ss">匹配 source，常见值为 startup / resume / clear / compact</td>
+                <td data-i18n="doc.hooks.tf.ss">首轮模型请求前初始化环境、注入项目约束或操作说明</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.ups">UserPromptSubmit</td>
+                <td data-i18n="doc.hooks.tm.ups">不参与过滤，即使填写也会执行</td>
+                <td data-i18n="doc.hooks.tf.ups">模型调用前补充上下文，或阻断本次用户请求；不能改写原始 prompt</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.ptu">PreToolUse</td>
+                <td data-i18n="doc.hooks.tm.tool">匹配工具名</td>
+                <td data-i18n="doc.hooks.tf.ptu">允许、询问或拒绝工具；可完整替换工具输入，替换后会重新校验 schema</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.pr">PermissionRequest</td>
+                <td data-i18n="doc.hooks.tm.tool2">匹配工具名</td>
+                <td data-i18n="doc.hooks.tf.pr">只在权限结果需要询问时触发；可允许、拒绝、更新输入或权限规则</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.post">PostToolUse</td>
+                <td data-i18n="doc.hooks.tm.tool3">匹配工具名</td>
+                <td data-i18n="doc.hooks.tf.post">工具成功后追加模型可见上下文；不能替换工具输出</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.postf">PostToolUseFailure</td>
+                <td data-i18n="doc.hooks.tm.tool4">匹配工具名</td>
+                <td data-i18n="doc.hooks.tf.postf">工具失败后追加恢复建议、诊断或重试约束</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.te.stop">Stop</td>
+                <td data-i18n="doc.hooks.tm.stop">不参与过滤，即使填写也会执行</td>
+                <td data-i18n="doc.hooks.tf.stop">模型准备结束时检查结果；返回 block 可让现有主模型循环继续，最多连续 3 次</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="sources" data-i18n="doc.hooks.sources.h">配置来源</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.hooks.src.th.source">来源</th>
+                <th data-i18n="doc.hooks.src.th.scene">适用场景</th>
+                <th data-i18n="doc.hooks.src.th.how">生效方式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>~/.drora/cli/config.json</code></td>
+                <td data-i18n="doc.hooks.src.ts.user">当前用户的所有工作区</td>
+                <td data-i18n="doc.hooks.src.tt.user">必须在该文件中设置 hooks.enabled: true</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.src.ts.plugin">插件 hooks/hooks.json</td>
+                <td data-i18n="doc.hooks.src.ts.pluginScene">随插件安装和分发</td>
+                <td data-i18n="doc.hooks.src.tt.plugin">标准位置自动发现，随插件启停；不需要再在 manifest 中重复声明同一文件</td>
+              </tr>
+              <tr>
+                <td><code>&lt;工作区&gt;/.drora/config.json</code></td>
+                <td data-i18n="doc.hooks.src.ts.proj">项目级、随仓库共享的 Hook</td>
+                <td data-i18n="doc.hooks.src.tt.proj">通过工作区信任审查后执行；声明改动后需重新审查（见「安全边界与信任审查」）</td>
+              </tr>
+              <tr>
+                <td><code>.agents/settings.json</code> / <code>.claude/settings.json</code></td>
+                <td data-i18n="doc.hooks.src.ts.legacy">迁移旧配置</td>
+                <td data-i18n="doc.hooks.src.tt.legacy">只读展示，不直接执行；需在设置页显式导入到 .drora</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.hooks.sources.order">
+            user Hook、已启用插件的 Hook 与已通过审查的项目 Hook 都会生效；同一来源内按数组顺序执行。
+          </p>
+          <p data-i18n="doc.hooks.sources.snap">
+            每个 session 启动时会捕获一份 Hook 配置快照。修改文件、在设置页保存或启停插件后，请新建 session 验证；已经启动的 session
+            不保证热更新。
+          </p>
+          <p data-i18n="doc.hooks.sources.example">用户配置示例：</p>
+          <div class="docs-code"><code>{
+  "hooks": {
+    "enabled": true,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 32768,
+    "events": {
+      "PreToolUse": [
+        {
+          "matcher": "Write|Edit",
+          "hooks": [
+            {
+              "type": "process",
+              "command": "node",
+              "args": ["scripts/check-write.mjs"],
+              "enabled": true,
+              "timeoutMs": 10000
+            }
+          ]
+        }
+      ]
+    }
+  }
+}</code></div>
+
+          <h2 id="quick-start" data-i18n="doc.hooks.start.h">快速上手：第一个插件 Hook</h2>
+          <p data-i18n="doc.hooks.start.p1">
+            下面的插件在新 session 启动时给模型补充一条团队约束。示例依赖系统 PATH 中可用的 node。
+          </p>
+          <div class="docs-code"><code>context-guard/
+├── .zcode-plugin/
+│   └── plugin.json
+└── hooks/
+    ├── hooks.json
+    └── context.mjs</code></div>
+          <p data-i18n="doc.hooks.start.p2">plugin.json（hooks/hooks.json 是标准位置会自动加载，manifest 不必再写 hooks 字段）：</p>
+          <div class="docs-code"><code>{
+  "name": "context-guard",
+  "version": "0.1.0",
+  "description": "在会话开始时注入团队开发约束"
+}</code></div>
+          <p data-i18n="doc.hooks.start.p3">hooks/hooks.json：</p>
+          <div class="docs-code"><code>{
+  "description": "Context Guard hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${DRORA_PLUGIN_ROOT}/hooks/context.mjs"],
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    ]
+  }
+}</code></div>
+          <p data-i18n="doc.hooks.start.p4">hooks/context.mjs：</p>
+          <div class="docs-code"><code>let raw = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) raw += chunk;
+
+const input = JSON.parse(raw);
+process.stderr.write("[context-guard] " + input.hook_event_name + "\n");
+process.stdout.write(JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: input.hook_event_name,
+    additionalContext: "本项目提交前必须运行类型检查和受影响测试。"
+  }
+}));</code></div>
+          <p data-i18n="doc.hooks.start.p5">验证步骤：</p>
+          <ol>
+            <li data-i18n="doc.hooks.start.v1">在「设置 → 插件」中点右上角「创建 → 添加插件市场」加入本地来源，安装并启用插件。</li>
+            <li data-i18n="doc.hooks.start.v2">到「设置 → Hooks」确认插件 Hook 以只读条目出现，事件、matcher、命令和来源路径正确。</li>
+            <li data-i18n="doc.hooks.start.v3">新建 session 并发起请求；首轮模型应能看到注入的团队约束。</li>
+            <li data-i18n="doc.hooks.start.v4">调试时把日志写到 stderr，stdout 只输出协议结果，避免诊断文字破坏 JSON。</li>
+          </ol>
+
+          <h2 id="executors" data-i18n="doc.hooks.exec.h">执行器、超时与 matcher</h2>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.hooks.exec.th.type">类型</th>
+                <th data-i18n="doc.hooks.exec.th.sem">语义</th>
+                <th data-i18n="doc.hooks.exec.th.hint">建议</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>process</code></td>
+                <td data-i18n="doc.hooks.exec.ts.proc">command + args[]，直接按 argv 执行，不经过 shell；只支持同步</td>
+                <td data-i18n="doc.hooks.exec.tt.proc">参数边界清楚，跨平台更稳定，优先用于 Node、Python 或二进制脚本</td>
+              </tr>
+              <tr>
+                <td><code>command</code></td>
+                <td data-i18n="doc.hooks.exec.ts.cmd">把完整字符串交给系统 shell；可设置 shell、async、timeout</td>
+                <td data-i18n="doc.hooks.exec.tt.cmd">适合兼容现有 Claude Marketplace 插件；注意 Windows、macOS、Linux 的 shell 和引用差异</td>
+              </tr>
+            </tbody>
+          </table>
+          <ul>
+            <li>
+              <span data-i18n="doc.hooks.exec.li1.a">timeoutMs 单位是毫秒；兼容字段 timeout 单位是秒。两者同时存在时优先 timeoutMs。根级默认超时是 60000 ms，默认 stdout 上限是 32768 bytes（</span><code>maxOutputBytes</code><span data-i18n="doc.hooks.exec.li1.b">）。</span>
+            </li>
+            <li data-i18n="doc.hooks.exec.li2">
+              单条 Hook 可写 enabled: false；runtime 会真正跳过，不只是界面置灰。
+            </li>
+            <li>
+              <span data-i18n="doc.hooks.exec.li3.a">command 的 </span><code>async: true</code><span data-i18n="doc.hooks.exec.li3.b"> 是 fire-and-forget：当前事件立即继续，后台 stdout 不能阻断、改输入或注入上下文；超时、取消、完成和失败仍记录生命周期。</span>
+            </li>
+            <li data-i18n="doc.hooks.exec.li4">
+              statusMessage 当前会保存并在设置页展示，但还不是运行时的实时状态提示。
+            </li>
+          </ul>
+          <p data-i18n="doc.hooks.exec.matcherLead">matcher 规则：</p>
+          <ul>
+            <li data-i18n="doc.hooks.exec.m1">缺省、空字符串或 *：匹配全部。</li>
+            <li data-i18n="doc.hooks.exec.m2">只含字母、数字、下划线和 |：按精确名称列表匹配，例如 Write|Edit。</li>
+            <li data-i18n="doc.hooks.exec.m3">包含其他字符：按 JavaScript 正则处理；非法正则不执行该 matcher，并产生诊断。</li>
+            <li data-i18n="doc.hooks.exec.m4">工具事件匹配实际工具名，并兼容 Agent / Task alias。</li>
+            <li data-i18n="doc.hooks.exec.m5">SessionStart 匹配 source；UserPromptSubmit 和 Stop 不使用 matcher 过滤。</li>
+          </ul>
+
+          <h2 id="stdin" data-i18n="doc.hooks.stdin.h">stdin 输入契约</h2>
+          <p data-i18n="doc.hooks.stdin.p1">
+            Drora 向每个 Hook 写入「一行 JSON + 换行」。同一份输入同时保留 Drora camelCase 字段与 Claude Code snake_case
+            alias，旧插件可以继续读取 snake_case。
+          </p>
+          <div class="docs-code"><code>{
+  "session_id": "session-123",
+  "transcript_path": "/tmp/drora-hook/transcript.jsonl",
+  "cwd": "/workspace/demo",
+  "permission_mode": "build",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "src/index.ts",
+    "content": "..."
+  },
+  "tool_use_id": "tool-123"
+}</code></div>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.hooks.stdin.th.event">事件</th>
+                <th data-i18n="doc.hooks.stdin.th.fields">重点字段</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.ss">SessionStart</td>
+                <td>
+                  <code>source</code><span data-i18n="doc.hooks.stdin.td.ss.a">，可选 </span><code>agent_type</code><span data-i18n="doc.hooks.stdin.td.ss.b">、</span><code>model</code>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.ups">UserPromptSubmit</td>
+                <td><code>prompt</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.ptu">PreToolUse</td>
+                <td>
+                  <code>tool_name</code><span data-i18n="doc.hooks.stdin.td.ptu.a">、</span><code>tool_input</code><span data-i18n="doc.hooks.stdin.td.ptu.b">、</span><code>tool_use_id</code>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.pr">PermissionRequest</td>
+                <td>
+                  <span data-i18n="doc.hooks.stdin.td.pr.a">tool_name、tool_input，有真实数据时包含 </span><code>permission_suggestions</code>
+                </td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.post">PostToolUse</td>
+                <td data-i18n="doc.hooks.stdin.td.post">完整结构化 tool_response，以及工具名、输入和调用 ID</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.postf">PostToolUseFailure</td>
+                <td data-i18n="doc.hooks.stdin.td.postf">字符串 error、is_interrupt，以及工具字段</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.stdin.te.stop">Stop</td>
+                <td data-i18n="doc.hooks.stdin.td.stop">stop_hook_active、last_assistant_message</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <span data-i18n="doc.hooks.stdin.p2.a">transcript_path 指向本次 Hook 可读的临时 JSONL 文件。Drora 会在 Hook 完成后清理临时目录，不要把它当作长期存储；插件持久化数据请写入 </span><code>DRORA_PLUGIN_DATA</code><span data-i18n="doc.hooks.stdin.p2.b">。</span>
+          </p>
+
+          <h2 id="output" data-i18n="doc.hooks.output.h">stdout、退出码与常用返回值</h2>
+          <p data-i18n="doc.hooks.output.p1">
+            stdout 为空表示成功且无附加效果；非 JSON stdout 只作为诊断，不进入模型上下文。只有去除前导空白后以 { 开头的合法 JSON
+            才按协议解析。未知字段会忽略，已知字段类型错误或事件名不符会让当前 Hook 可恢复失败，不影响后续 Hook。
+          </p>
+          <p data-i18n="doc.hooks.output.p2">
+            注入上下文（推荐使用 hookSpecificOutput，事件归属最清楚；也兼容顶层 additionalContext / additional_context）：
+          </p>
+          <div class="docs-code"><code>{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "只修改与当前任务相关的文件。"
+  }
+}</code></div>
+
+          <h3 data-i18n="doc.hooks.pre.h">PreToolUse：修改或拒绝工具调用</h3>
+          <div class="docs-code"><code>{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "permissionDecisionReason": "已重定向到允许目录",
+    "updatedInput": {
+      "file_path": "generated/index.ts",
+      "content": "..."
+    },
+    "additionalContext": "文件已被重定向到 generated 目录。"
+  }
+}</code></div>
+          <p data-i18n="doc.hooks.pre.p1">
+            updatedInput 是完整替代对象，不是局部 patch；Drora 会用工具 schema 重新校验。拒绝时返回 permissionDecision: "deny" 和
+            permissionDecisionReason。多个 Hook 聚合时，deny 优先于 ask，ask 优先于 allow。
+          </p>
+
+          <h3 data-i18n="doc.hooks.perm.h">PermissionRequest：自动允许或拒绝权限询问</h3>
+          <div class="docs-code"><code>{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "deny",
+      "message": "生产目录只能在发布流程中修改"
+    }
+  }
+}</code></div>
+          <p data-i18n="doc.hooks.perm.p1">
+            允许时把 behavior 改为 allow，并可在 decision 中返回 updatedInput、updatedPermissions；历史字段
+            permissionUpdates 也兼容。显式 deny 规则、Plan 模式写入禁令和工具硬限制不能被 Hook allow 绕过。
+          </p>
+
+          <h3 data-i18n="doc.hooks.prompt.h">UserPromptSubmit：阻断本次模型请求</h3>
+          <div class="docs-code"><code>{
+  "continue": false,
+  "reason": "请先提供工单号",
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "该请求被团队策略阻断。"
+  }
+}</code></div>
+
+          <h3 data-i18n="doc.hooks.stop.h">Stop：让主模型继续一轮</h3>
+          <div class="docs-code"><code>{
+  "decision": "block",
+  "reason": "还没有给出测试命令和结果，请补齐后再结束。"
+}</code></div>
+          <p data-i18n="doc.hooks.stop.p1">
+            decision: "block" 需要带 reason 或 additionalContext 才会续跑。为兼容旧版配置，也接受 continue: true 且带
+            additionalContext。连续续跑达到 3 次后会强制结束，防止无限循环。
+          </p>
+
+          <h3 data-i18n="doc.hooks.exit.h">退出码</h3>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.hooks.exit.th.code">退出码</th>
+                <th data-i18n="doc.hooks.exit.th.meaning">含义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>0</code></td>
+                <td data-i18n="doc.hooks.exit.tc.zero">成功，解析 stdout</td>
+              </tr>
+              <tr>
+                <td><code>2</code></td>
+                <td data-i18n="doc.hooks.exit.tc.two">阻断快捷方式；在可阻断事件中产生 block / deny，在 Stop 中产生继续一轮的反馈</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.hooks.exit.tc.other">其他非零</td>
+                <td data-i18n="doc.hooks.exit.tm.other">当前 Hook 可恢复失败，记录诊断，turn 不会因此整体崩溃</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="discovery" data-i18n="doc.hooks.disc.h">插件发现、变量与安全边界</h2>
+          <ul>
+            <li>
+              <span data-i18n="doc.hooks.disc.li1.a">manifest 查找优先级：</span><code>.zcode-plugin/plugin.json</code><span data-i18n="doc.hooks.disc.li1.b"> → </span><code>.claude-plugin/plugin.json</code><span data-i18n="doc.hooks.disc.li1.c">。</span>
+            </li>
+            <li data-i18n="doc.hooks.disc.li2">
+              标准 hooks/hooks.json 自动加载；manifest 的 hooks 还支持相对 JSON 路径、inline 对象或二者数组。不要让 manifest
+              再指向同一个标准文件，否则会记录重复诊断并跳过重复项。
+            </li>
+            <li>
+              <span data-i18n="doc.hooks.disc.li3.a">插件进程可读取 </span><code>DRORA_PLUGIN_ROOT</code><span data-i18n="doc.hooks.disc.li3.b">、</span><code>DRORA_PLUGIN_DATA</code><span data-i18n="doc.hooks.disc.li3.c">、</span><code>DRORA_PLUGIN_ID</code><span data-i18n="doc.hooks.disc.li3.d">、</span><code>DRORA_PLUGIN_NAME</code><span data-i18n="doc.hooks.disc.li3.e">；兼容变量 </span><code>CLAUDE_PLUGIN_ROOT</code><span data-i18n="doc.hooks.disc.li3.f">、</span><code>CLAUDE_PLUGIN_DATA</code><span data-i18n="doc.hooks.disc.li3.g"> 也会注入。</span>
+            </li>
+            <li data-i18n="doc.hooks.disc.li4">
+              命令、参数里的插件路径变量会在执行前替换。长期数据写入 DRORA_PLUGIN_DATA，不要写回安装目录。
+            </li>
+            <li data-i18n="doc.hooks.disc.li5">插件 Hook 在设置页只读，启停跟随插件本身。</li>
+          </ul>
+
+          <h2 id="settings" data-i18n="doc.hooks.settings.h">在设置页创建和维护 Hook</h2>
+          <ol>
+            <li data-i18n="doc.hooks.settings.s1">打开「设置 → Hooks」。</li>
+            <li data-i18n="doc.hooks.settings.s2">选择 user 或 workspace scope，新增事件、执行类型、matcher、命令 / 参数、超时、async 和状态文案。</li>
+            <li data-i18n="doc.hooks.settings.s3">已有 .drora Hook 支持查看、编辑、删除和单条启停。编辑时不能直接改变 scope；需要删除后在目标 scope 重建。</li>
+          </ol>
+          <p data-i18n="doc.hooks.settings.p1">
+            Hook 不生效时先确认：项目级 Hook 是否已通过工作区信任审查（见「配置来源」）、配置来源里 hooks.enabled 是否为 true、插件是否处于启用状态，然后新建一个
+            session——Hook 配置在 session 启动时形成快照，修改配置或启停插件不会影响已经启动的 session。
+          </p>
+          <p>
+            <span data-i18n="doc.hooks.settings.p2.a">仍有问题时可以查日志：</span><code>~/.drora/cli/log/drora-&lt;日期&gt;.jsonl</code><span data-i18n="doc.hooks.settings.p2.b"> 中会记录 Hook 的执行失败（</span><code>hook.run.failed</code><span data-i18n="doc.hooks.settings.p2.c">，含来源和耗时）。</span>
+          </p>
+
+          <p>
+            <span data-i18n="doc.hooks.next.a">把可复用能力打包成插件、为 Agent 接入外部工具，见</span> <a href="/Drora/docs/mcp/" data-i18n="doc.nav.mcp">MCP 与插件</a><span data-i18n="doc.dot">。</span>
+          </p>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

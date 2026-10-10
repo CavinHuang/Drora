@@ -1,0 +1,127 @@
+    <site-header class="site-header" id="siteHeader" data-page="docs" data-base="/Drora/"></site-header>
+    <noscript>
+      <nav class="noscript-nav" aria-label="Main">
+        <a href="/Drora/docs/">文档</a>
+        <a href="/Drora/changelog/">更新日志</a>
+        <a href="/Drora/security/">提交漏洞</a>
+        <a href="/Drora/community/">社区</a>
+      </nav>
+    </noscript>
+
+    <main>
+      <div class="docs-layout">
+        <aside class="docs-sidebar">
+          <docs-nav data-current="memory" data-base="/Drora/docs/"></docs-nav>
+        </aside>
+
+        <article class="docs-content">
+          <div class="doc-crumb-row">
+            <p class="doc-crumb" data-i18n="doc.group.features">核心功能</p>
+            <button class="copy-article-btn" id="copyArticleBtn" type="button"><span aria-hidden="true">⧉</span><span data-i18n="doc.copy">复制全文</span></button>
+          </div>
+          <h1 data-i18n="doc.nav.memory">Memory 记忆</h1>
+          <p data-i18n="doc.memory.p1">
+            有些信息只值得告诉 Agent 一次：你习惯的 commit message 写法、项目用的包管理器、团队的评审约定。Memory 为 Drora Agent 提供工作区级的长期记忆，让这类信息延续到后续会话，而不需要每次对话开头都重复交代。
+          </p>
+          <p data-i18n="doc.memory.p2">
+            开启后，Drora 会在每轮对话成功结束后于后台回顾最近的交流，判断是否有值得长期保留的内容——你的偏好、你对 Agent 工作方式的纠正、项目目标与约束、你提供过的外部资料。保存下来的记忆会在同一工作区的后续会话中自动带入上下文。
+          </p>
+          <p data-i18n="doc.memory.mech.p3">
+            你也可以在对话中直接管理记忆：说「记住，我们从 staging 分支发布」即可立刻保存；说「忘掉刚才说的发布分支」即可删除对应记忆。
+          </p>
+          <div class="docs-note">
+            <span data-i18n="doc.memory.note1">
+            默认值按形态区分：独立 CLI 的默认配置启用记忆，桌面应用设置默认关闭。启用后可分析已保存会话、持久化记忆，并在后续任务中复用；相关提取或整理可产生额外模型请求。
+            </span>
+          </div>
+
+          <h2 id="enable" data-i18n="doc.memory.enable.h2">开启 Memory</h2>
+          <p data-i18n="doc.memory.enable.p1">
+            桌面应用在「设置 → 记忆」中打开「工作区记忆」；独立 CLI 由其默认配置启用。使用前有两点需要了解：
+          </p>
+          <ul>
+            <li data-i18n="doc.memory.enable.li1">只对新会话生效。修改设置影响新建会话和应用重启后恢复的会话；进行中的对话保持原有设定。</li>
+            <li>
+              <span data-i18n="doc.memory.enable.li2a">可能增加 Token 用量。开启后，系统可能发起额外的模型请求来提取和召回长期记忆，可以在</span>
+              <a href="/Drora/docs/usage-stats/" data-i18n="doc.nav.usage">使用统计</a>
+              <span data-i18n="doc.memory.enable.li2b">中关注消耗情况。</span>
+            </li>
+          </ul>
+
+          <h2 id="what" data-i18n="doc.memory.what.h2">会记住什么</h2>
+          <p data-i18n="doc.memory.what.p1">
+            Memory 聚焦四类信息，每条记忆是一个只讲一件事的小文件：
+          </p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th data-i18n="doc.memory.what.th1">类型</th>
+                <th data-i18n="doc.memory.what.th2">覆盖内容</th>
+                <th data-i18n="doc.memory.what.th3">示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="doc.memory.what.td1a">user（用户）</td>
+                <td data-i18n="doc.memory.what.td1b">你的身份、专长和偏好</td>
+                <td data-i18n="doc.memory.what.td1c">「习惯用 pnpm 和 Conventional Commits」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td2a">feedback（反馈）</td>
+                <td data-i18n="doc.memory.what.td2b">对 Agent 工作方式的纠正或确认，含原因与用法</td>
+                <td data-i18n="doc.memory.what.td2c">「不要顺手修改无关文件里的 lint 报错」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td3a">project（项目）</td>
+                <td data-i18n="doc.memory.what.td3b">无法从代码或 Git 历史推出的目标、约束与进展</td>
+                <td data-i18n="doc.memory.what.td3c">「站点需要保持兼容 Node 20」</td>
+              </tr>
+              <tr>
+                <td data-i18n="doc.memory.what.td4a">reference（参考）</td>
+                <td data-i18n="doc.memory.what.td4b">你提供过的外部资源指针</td>
+                <td data-i18n="doc.memory.what.td4c">「设计规范在团队 Wiki 的某个链接」</td>
+              </tr>
+            </tbody>
+          </table>
+          <p data-i18n="doc.memory.what.p2">
+            同样重要的是 Memory 刻意不记的内容：代码结构和 Git 历史（Agent 随时可以重新读取）、项目指令文件（如 AGENTS.md）里已有的内容，以及只在当前对话内有效的临时信息。
+          </p>
+
+          <h2 id="mechanism" data-i18n="doc.memory.mech.h2">工作机制</h2>
+          <p data-i18n="doc.memory.mech.p1">
+            一轮对话成功结束后，后台的提取子代理会回顾最近的交流。如果发现值得保留的信息，就把它写成一个小的 Markdown 事实文件，并更新 MEMORY.md 索引；没有则什么都不保存。整个过程发生在你的回合结束之后，不会拖慢对话本身。
+          </p>
+          <p data-i18n="doc.memory.mech.p2">
+            在同一工作区的后续会话里，MEMORY.md 索引会自动加载进 Agent 的上下文；索引有大小上限，记忆过多时会被截断，简短的条目效果最好。记忆按工作区隔离：在一个工作区学到的内容不会带到另一个工作区。
+          </p>
+
+          <h2 id="storage" data-i18n="doc.memory.storage.h2">记忆存在哪里</h2>
+          <p data-i18n="doc.memory.storage.p1">
+            记忆是保存在你本机的普通 Markdown 文件，按工作区身份分目录存放：
+          </p>
+          <div class="docs-code"><code>~/.drora/cli/memories/projects/&lt;项目&gt;-&lt;标识&gt;/memory/
+├── MEMORY.md        # 索引，一行一条
+└── *.md             # 每条事实一个文件</code></div>
+          <p data-i18n="doc.memory.storage.p2">
+            记忆功能本身不会把这些内容上传到任何地方。因为是普通文件，你随时可以手动打开、编辑或删除；删除对应工作区的记忆目录即可完全重置它的记忆。桌面应用也在「设置 → 记忆」提供已保存工作区记忆的查看器（仅本地桌面端可用）。
+          </p>
+
+          <h2 id="limits" data-i18n="doc.memory.limits.h2">限制与说明</h2>
+          <ul>
+            <li data-i18n="doc.memory.limits.li1">桌面应用默认关闭：按工作流需要在「设置 → 记忆」中开启；独立 CLI 默认启用。</li>
+            <li data-i18n="doc.memory.limits.li2">记忆与 AGENTS.md 是两回事：AGENTS.md 由你手写、放在仓库里跟着代码走；记忆由 Agent 自动提炼、只存在你本机。</li>
+            <li data-i18n="doc.memory.limits.li3">与 MCP 记忆类工具不是一回事：Memory 是 Drora 内置能力，无需任何 MCP 配置即可使用；如果你已在用记忆类 MCP 工具，两者相互独立。</li>
+            <li data-i18n="doc.memory.limits.li5">暂不支持远程工作区：当前版本仅对本地项目执行记忆提取。</li>
+            <li data-i18n="doc.memory.limits.li4">复制日志、分享对话或备份数据目录前，应检查接收范围，避免把私人项目内容带出本机。</li>
+          </ul>
+        </article>
+
+        <aside class="docs-toc" id="docsToc">
+          <p data-i18n="doc.toc">本页目录</p>
+          <nav aria-label="On this page" id="tocList"></nav>
+        </aside>
+      </div>
+    </main>
+
+    <site-footer class="site-footer" data-base="/Drora/"></site-footer>
+

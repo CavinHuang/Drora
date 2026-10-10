@@ -15,6 +15,9 @@ import { IOutputStyleService } from "./outputStyle/outputStyle.js";
 import { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
+import { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
+import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -145,6 +148,8 @@ export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPerso
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
+export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
+export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,
@@ -2553,6 +2558,10 @@ export function createLocalServices(options: {
   // 注册链上的懒工厂（如 OffPeak）会各自创建 tasks-index sqlite repo；先收集到本数组，
   // services 集合建好后在 return 前统一登记进 sharedSqliteRepos 侧表
   const sqliteReposToClose: Array<{ close(): void }> = [];
+  // Knowledge 索引/检索服务（VaultView 2.0 W02）：与面板 Vault 门面共享 vault-config.json
+  // 唯一事实源；自带可重建 SQLite 索引缓存（WAL + lease/fencing），dispose 记入统一关闭链。
+  const knowledgeServices: KnowledgeServices = createKnowledgeServices();
+  sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
@@ -2714,6 +2723,10 @@ export function createLocalServices(options: {
     // Obsidian Vault 面板服务：无条件注册，未配置 vault 时面板展示引导；是
     // 面板写路径的唯一安全门面（路径逐段 lstat 拒软链 + sha256 CAS 乐观锁）。
     .register(IObsidianVaultService, createObsidianVaultService())
+    // Knowledge 索引/检索服务：无条件注册（未配置 vault 时 getStatus configured=false，
+    // 检索返回 no_source run）；源身份只由 vault-config.json + Profile 推导。
+    .register(IKnowledgeIndexService, knowledgeServices.indexService)
+    .register(IKnowledgeQueryService, knowledgeServices.queryService)
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,

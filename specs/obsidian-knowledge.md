@@ -22,14 +22,14 @@
 | --- | --- | --- | --- |
 | Vault 配置（rootPath/displayName/inboxPath/allowAgentWrites） | `vault-config.json` 单文件（插件数据目录），由 `packages/services/src/obsidian-vault/` 门面写入 | hooks 与 SessionStart 上下文只读、每次询问重读 | `specs/obsidian-plugin.md`「形态与状态所有者」 |
 | 会话焦点投影 | `vault-focus.json`（services 面板单写，7 天/50 会话修剪） | UserPromptSubmit hook 只读 | 同上「焦点上下文联动」 |
-| Knowledge 索引（chunk/FTS/rowid） | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存 | 跨 Host lease/fencing 防迟到提交 | 【未实现，属 W02】 |
+| Knowledge 索引（chunk/FTS/rowid） | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存 | 跨 Host lease/fencing 防迟到提交 | 【已实现，W02】（§5b） |
 | EvidenceReceipt / 引用账本 | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector | 模型文字不得自行构造可信 citation | 【未实现，属 W03】 |
 | L2 治理 Proposal 与批准账本 | Proposal + 人工批准 + 版本校验和持久账本 | 未批准/过期批准绝不写文件 | 【未实现，属 W06】 |
 | Session / CommandInbox / Memory / 手机远控 | 复用现有 Drora 运行时 | 禁止复制第二套（ADR #7、交接纪律） | 不变 |
 
 配置事实源唯一：Knowledge 链路的 SourceRegistry 只由当前活动 Vault + Profile 推导，
 sourceEpoch 变化使旧 Query、Index Job、Receipt 失效；不得复制独立 Vault 配置
-（交接纪律「禁止第二份 Vault 配置事实源」）。【未实现，属 W02】
+（交接纪律「禁止第二份 Vault 配置事实源」）。【已实现，W02】（§5b.2；Receipt 失效侧属 W03）
 
 ## 2. 方案 C：分级写入（已批准风险方案）
 
@@ -82,7 +82,7 @@ PermissionRequest hook（matcher `Write|Edit`）的自动 allow 判定，全部�
 ask 询问"，无持久化规则、每次询问重新校验、不可翻案 deny；L2 面向治理类/批量写，必须显式
 Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的存在不构成 L2 的豁免。
 
-## 4. 查询语义【未实现，属 W02/W04】
+## 4. 查询语义【W02 已实现本地检索；问答/决策属 W03/W04】
 
 - FIND_ARTICLE 首先返回 3–5 篇候选及可核验证据（原文片段 + 位置），不默认写冗长总结（ADR #3）。
 - ANSWER/COMPARE 只在有权威来源时经已有 Agent Session 生成；无模型/断网仍可浏览检索结果。
@@ -102,7 +102,93 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
 - busy 排队期间源更改/撤权 → admission 不信任旧证据（复用 W00 S02 结论的接线点）。
 - 本地检索默认可用；未经授权不把笔记正文或片段送 Jev/Embedding/回答模型（ADR #11）。
 
-## 6. 验收矩阵（本 spec 范围）
+## 5b. 索引与本地检索（W02，2026-10-10 落地）
+
+本节是工作单 W02 的行为契约。实现位于 `packages/services/src/knowledge/`（自研新模块，
+不触碰任何还原/上游对齐目录）；channel 与类型单一出处见 §5b.1。
+
+### 5b.1 RPC 面与单一出处
+
+- `ServiceChannels.KnowledgeIndex = "knowledge-index"`、`ServiceChannels.KnowledgeQuery =
+  "knowledge-query"` 定义于 `packages/shared/src/channels.ts`（契约字面量唯一出处）；
+  `IKnowledgeIndexService`/`IKnowledgeQueryService` 接口与同名 descriptor 常量定义于
+  `packages/services/src/knowledge/{knowledgeIndex,knowledgeQuery}.ts`，经
+  `packages/services/src/{index,node}.ts` 导出并注册（与 `IObsidianVaultService` 同形）。
+- `IKnowledgeIndexService`：`getStatus` / `startReconcile` / `requestRebuild` / `cancelJob`。
+- `IKnowledgeQueryService`：`createRun` / `search` / `getRun` / `cancelRun` /
+  `onRunUpdated`（`runGeneration+seq` 事件）。`prepareEvidence`/`resolveCitation` 属 W03，
+  本阶段不在接口面上伪装。
+- Query 入参只有 `query + clientRequestId(+sessionId)`：**不提供任何日期、路径范围、
+  数量上限之外的可选过滤参数**，模型/UI 无法借 RPC 扩展授权范围（ADR #3、工作单 6）。
+  `clientRequestId` 幂等：重复提交返回同一 run。
+
+### 5b.2 状态所有者（补 §1 表）
+
+| 状态 | 所有者 | 说明 |
+| --- | --- | --- |
+| 索引 DB（documents/chunks/chunks_fts/index_jobs/index_lease/coverage） | `node:sqlite`（node 24 内置，SQLite ≥3.49）单文件：`<Profile 数据根>/knowledge/knowledge-index.sqlite`，WAL 模式 | 可重建缓存；删除/重建绝不触及审核账本（W06 才存在）与 vault-config.json |
+| Source 身份与 epoch | 同一 DB 的 `sources` 表，由 SourceRegistry 每次 RPC 前从 `vault-config.json`（唯一配置事实源）+ Profile 数据根推导 | 不复制第二份 Vault 配置；`loadVaultConfig` 失败（未配置/根失效）→ 无源 |
+| Query run（runGeneration/seq） | Query 服务进程内存 | 不持久化；进程重启即丢（检索无状态可重来） |
+
+**sourceEpoch 语义**：源指纹 = `vaultId(realpath 根 sha256) + configuredAt`。SourceRegistry
+每次解析时对比 DB 内指纹，不一致即 `epoch+1` 并清除旧 epoch 的 documents/chunks/jobs 缓存行。
+因此**换根（切库）、撤权后重新授权（configuredAt 变化）都会使旧 Query 结果、进行中 Index
+Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（它门控写入，不改变读取
+范围，读操作不受限是本 spec 既有语义）。
+
+### 5b.3 SQLite 纪律（W00 DB Spike §4 全量采纳）
+
+1. 每条连接显式 `PRAGMA journal_mode=WAL` + `busy_timeout=5000`；`errcode===5`
+   （SQLITE_BUSY）单独分类，不与一般错误混淆。
+2. 写路径一律 `BEGIN IMMEDIATE` 短事务：**每个 document 的替换是独立事务**，事务内第一条
+   语句前重验 lease（owner+epoch(fence)+未过期），Spike3 反例（列戳 CAS 不设防）不复现。
+3. `index_lease` 表单行租约：epoch 单调递增为 fence token；TTL（默认 10s）+ 心跳（默认 3s）
+   是死亡检测唯一手段；接管成功后 `wal_checkpoint(TRUNCATE)` + `integrity_check` 体检。
+4. FTS5 独立表 `chunks_fts(tokens)`，`rowid === chunks.id`；插入/删除与 chunks 行同事务同步；
+   检索 `JOIN chunks ON chunks.id = chunks_fts.rowid` 再按 `vaultId+sourceEpoch` 过滤。
+5. service 生命周期：`createKnowledgeServices()` 返回的 `dispose()` 停心跳 → 释放租约 →
+   关闭连接；在 `node.ts` 记入 `sharedSqliteRepos`（与 OffPeakTaskRepo 同链）统一关闭。
+
+### 5b.4 收录范围与 coverage
+
+- 扫描器与 `vault-fs.ts` 门面同一套不变量：拒绝隐藏段/软链、仅 `.md`、深度 ≤16、
+  文件 ≤5000、目录 ≤1000、单文件 ≤2MB；文件内容一律经 `createVaultFileSystem(root).readFile`
+  读取（逐段 lstat + sha256 与面板同源）。
+- 被排除条目按原因计数（hidden/symlink/notMarkdown/overSize/overQuota/depth），任一非零或
+  配额截断 → 该 epoch coverage `partial=true`；`getStatus`/检索结果如实返回 coverage，
+  不假装全库完整。
+- chunk 记录：heading 路径（`A > B`）、quote selector（起止行 1-based + 全文字符偏移）、
+  chunk 文本 sha256、所属文件 sha256；单文件 chunk 上限 512，超出计入截断（partial）。
+
+### 5b.5 词法与语义
+
+- 中文汉字按 bigram 切分（连续汉字串 ≥2 → 相邻二元组序列作 phrase；单字 → prefix 查询），
+  英文/数字按词小写，均走 FTS5 默认 unicode61 + `bm25()` 排序（英文 BM25 语义由 FTS5 保证）。
+- MATCH 表达式只由 tokenizer 产物构造：token 内引号转义为 `""` 后整体加双引号，用户输入
+  永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。AND 无命中时以
+  同一转义规则降级 OR 重试一次。简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
+- Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
+  或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
+  时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口
+  实现自身负责出站授权，默认无端口=零出站。
+
+### 5b.6 run 语义
+
+- `createRun` 即绑定当前 sourceEpoch；`search` 完成时重验：epoch 已变 → run 置
+  `source_stale` 并丢弃候选；`cancelRun` 后到达的结果按 `runGeneration` 丢弃（事件与状态
+  一律携带 `runGeneration+seq`，迟到消息不得覆盖新 run）。
+- 无源（未配置/根失效）→ `no_source`；有源但索引未建 → 空候选 + coverage 如实呈现；
+  检索失败 → `failed`（带原因，不含绝对路径）。候选按 `scope(vaultId)+sourceEpoch+
+  runGeneration` 隔离，文章级去重聚合（同文档多 chunk 合并为单候选，附命中 chunk 数）。
+
+### 5b.7 验收映射
+
+A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可见）、A04（隐藏/软链/超限→
+排除与 partial）、A05（两真实进程 writer 竞争→旧 fence 拒绝、TTL 接管可恢复）、A06/A10
+（找回与空结果不编造）、A13 的 W02 部分（切库/撤权使旧 run 失效）——证据见
+`docs/vaultview/delivery/W02_DELIVERY.md` 与 `packages/services/test/knowledge*.test.ts`。
+
+
 
 证据规则：每项记录真实 command / environment / exit code；`NOT_RUN` 必须写原因。
 
@@ -117,7 +203,7 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
 | K-HOOK-2 | E2E：`.obsidian/**`、`.hidden/**`、非 Markdown、软链、root 外、`allowAgentWrites=false` | 均不得自动 allow（静默） | 已实现（A29） |
 | K-HOOK-3 | 合法 Markdown 编辑与既有默认问询不回归 | 根内 .md 仍 allow；其余行为不变 | 已实现（A30） |
 | K-DOC-1 | matcher `Write|Edit` 真实边界写入 spec；代码/UI 不宣称能拦 Bash/MCP L2/L3 写入 | 文档与代码一致 | 已实现（本 spec §2 + `specs/obsidian-plugin.md`） |
-| K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | 未实现，属 W02 |
+| K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05 |
 | K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | 未实现，属 W03 |
 | K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | 未实现，属 W04 |
 | K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | 未实现，属 W05 |

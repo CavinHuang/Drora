@@ -35,6 +35,8 @@ import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
 import type { IOutputStyleService } from "./outputStyle/outputStyle.js";
 import type { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
+import type { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+import type { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -91,6 +93,9 @@ export interface IServiceAccessor {
   readonly outputStyleService: IOutputStyleService;
   /** Obsidian Vault 面板（host-local 能力；远端/bots host 不提供，故可选）。 */
   readonly obsidianVaultService?: IObsidianVaultService;
+  /** Knowledge 索引/检索（VaultView 智能问库；与 Vault 面板同源授权，host-local，故可选）。 */
+  readonly knowledgeIndexService?: IKnowledgeIndexService;
+  readonly knowledgeQueryService?: IKnowledgeQueryService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

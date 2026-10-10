@@ -12,7 +12,7 @@
 - 一个活动 Vault 的精确文章找回（FIND_ARTICLE）、问库/比较（ANSWER/COMPARE）、来源验证与
   原文回跳；后续阶段扩展 Jev 可选决策（W05）与审核写入（W06）。
 - UI 唯一入口 VaultView；四视图：笔记、智能问库、洞察、审核。不新增 Knowledge 顶级导航，
-  不重建编辑器（ADR #2）。【未实现，属 W04】
+  不重建编辑器（ADR #2）。【已实现，W04】（§5c；洞察/审核的完整功能分别属 W05/W06，当前只呈现真实状态）
 - 原 Markdown 是唯一事实源；Knowledge 索引可重建，不得改写笔记冒充事实（ADR #4）。
 - Drora 是唯一产品主体；不新建独立桌面 Agent（ADR #1）。
 
@@ -249,7 +249,94 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 （找回与空结果不编造）、A13 的 W02 部分（切库/撤权使旧 run 失效）——证据见
 `docs/vaultview/delivery/W02_DELIVERY.md` 与 `packages/services/test/knowledge*.test.ts`。
 
+## 5c. VaultView 四视图 UI（W04，2026-10-10 落地）
 
+本节是工作单 W04 的行为契约。实现位于 `packages/ui/src/v4/vault/knowledge/`（自研新模块，
+不触碰任何还原/上游对齐目录）与 `packages/ui/src/v4/VaultView.tsx`（既有面板的整合点）。
+渲染进程消费的 accessor 接入：`packages/services/src/accessor.ts` 增加可选
+`knowledgeIndexService`/`knowledgeQueryService`；`packages/client/src/remoteServiceAccess.ts`
+经 RPC channel 建代理（与 `obsidianVaultService` 同形，远端/bots host 未注册该频道时为
+调用期失败，由 UI 错误态呈现，不在构造期抛错）。
+
+### 5c.1 信息架构与导航
+
+- 四视图 = VaultView 内顶部切换：`笔记 / 智能问库 / 洞察 / 审核`，默认「笔记」；
+  不新增 Knowledge 顶级导航（PRD §2.1，ADR #2 不重建编辑器）。
+- 「笔记」是既有 VaultView 能力的原样保留：文件树、Markdown 编辑器（CodeMirror）、
+  wiki link、图片粘贴、选区引用/右侧问答、滚动记忆、草稿冲突恢复。本阶段唯一增量是
+  「引用回跳」：智能问库的证据跳转携带 quote selector 的行号区间，打开笔记后按行锚定
+  并选中原引用区间（`vault-quote-reveal.ts`，行号口径免疫 CRLF 差异——quote selector 的
+  行号在原始与规范化文本中同义，字符偏移则随换行符漂移，不用偏移锚定）。
+- 「智能问库」接真实 Query/Index/Citation RPC（§5b/§5）；「洞察」「审核」在 W05/W06
+  落地前只呈现真实索引/授权状态与"未开放"说明，不伪装功能。
+
+### 5c.2 状态所有者（补 §1 表）
+
+| 状态 | 所有者 | 说明 |
+| --- | --- | --- |
+| 四视图激活 tab | VaultView 组件内 React state | 会话内易失；不持久化、不进全局 store（无跨面板订阅需求） |
+| 智能问库 run 事实（候选/status/diagnostics） | 服务端 Query 服务（§5b.6） | UI 只保留「当前 runId + runGeneration + seq」投影，`onRunUpdated` 迟到事件按 runId+代数丢弃（A22） |
+| 候选列表展示序 | 本地 rank（服务端 bm25+融合） | Jev（W05）未来只覆盖排序提示，不改候选事实、不抢已选文章焦点（PRD 检索原则 2/3） |
+| Evidence Inspector 态 | UI 组件内状态（按 articleId 键） | 数据源只有 `prepareEvidence`/`resolveCitation` 结构化结果；UI 不本地复验 sha、不缓存跨 run 的可信判定 |
+| 索引状态条 | `IKnowledgeIndexService.getStatus` 快照 | UI 只显示不缓存权威事实；每次 run 落定与手动刷新时重取 |
+| 提交幂等键 | UI 生成 `clientRequestId`（randomUUID） | 重试同一次提交复用同键（§5b.1 幂等契约） |
+
+### 5c.3 智能问库交互契约
+
+- **意图**：`自动识别（默认）/ 找文章 / 问内容 / 比较` 四选一；auto 为 UI 启发式分类
+  （比较/对比/区别 → compare；找/哪篇/那篇/文章/标题/记得 → find；问/为什么/如何/是什么/总结 →
+  answer；默认 find——FIND 是默认形态，候选优先，ADR #3）。意图只决定呈现形态与空态提示，
+  **不改变 RPC 请求参数**（`createRun` 无 intent 字段，§5b.1；UI 不得伪造第二套契约）。
+- **输入**：多行自然语言；Enter 提交、Shift+Enter 换行、IME composition 期间 Enter 不提交。
+- **run 生命周期**：提交 = `createRun`（携带 sessionId 与 clientRequestId）→ `search`；
+  检索中可取消（`cancelRun`，结果按 runGeneration 丢弃）；取消不清空上一轮可用结果（PRD §8
+  `searching_local` 禁止行为）。新提交使旧 run 投影立即失效（runId 替换 + 旧事件不匹配即丢）。
+- **候选**：按文章聚合（服务端已去重），默认露出前 5 篇、可「展开全部」；每篇显示标题、
+  相对路径、命中章节（matchedHeading）、有界原文节选（excerpt）、命中 chunk 数与
+  「为何候选」（章节 + 命中数；**不展示百分比分数冒充准确率**，score 只进默认折叠的
+  Decision trace）。多候选并列展示，不自动选一篇（A09）；用户点击才有选中态。
+- **证据 Inspector**：候选卡「核验」→ `prepareEvidence`（签发 receipt，§5.1）→ 立即
+  `resolveCitation` 复验（§5.2）→ `current` 显示有界 excerpt + 行号区间 + 「跳到原文」；
+  `stale/missing/forbidden/no_source/source_stale` 各自显式呈现机器原因。跳到原文只在
+  current 后可用：切到笔记视图打开 `relativePath` 并按 quote 行号区间锚定选中。
+- **追问**：沿用同一 Vault 源发起新 run（上一轮候选折叠保留在「上一轮」区）；
+  「把引用加入当前 Agent」走既有 selection 引用注入（userselect 数据语义，**不是 Receipt、
+  不获执行时复验**，§5.4，UI 必须以文案明示）；无会话时该入口禁用并提示。
+- **扩搜**：检索扩搜上限一次由服务端承担（OR 降级，§5b.5）；UI 只通过
+  `diagnostics.matchRelaxedToOr` 如实呈现「已自动扩大检索一次」，不提供第二轮人工扩搜入口。
+- **Decision trace** 默认折叠：diagnostics（lexicalChunkHits/lexicalCandidates/
+  matchRelaxedToOr/semantic+原因）、score、quote selector、runId/sourceEpoch 全部在折叠区。
+- **模型不可用/无会话**：问内容/比较意图仍执行同一本地检索；答案生成入口 = 把证据引用送入
+  既有 Agent 会话（复用 selection 机制，不新建会话，ADR #7）。无模型/断网/无会话时检索与
+  浏览完全可用，该入口禁用并提示（A18）。
+
+### 5c.4 UI 状态映射（工作单 9 态 → 真实数据源）
+
+| UI 态 | 数据源 | 呈现 |
+| --- | --- | --- |
+| 无 Vault | `getStatus.configured=false` 或 run `no_source` | 连接引导卡（指向笔记视图左下角 Vault 切换器），不自动扫描（A01） |
+| 索引 partial | `coverage.partial` + 各排除计数 | 状态条显示已索引数与排除原因计数（A04 的 UI 面） |
+| 索引未建 | configured 且 `coverage.indexedFiles=0` 且无进行中 job | 提供「建立索引」按钮 → `startReconcile`；进行中显示 job 状态 |
+| semantic unavailable | `getStatus.semantic` / `diagnostics.semantic` | 显式「语义检索不可用（本地词法检索正常）」+ 原因，不冒充语义结果 |
+| Jev 拒绝/超时 | W05 前 Jev 默认关闭（ADR #5） | 排序增强区显示「未启用，当前为本地排序」；拒绝/超时分支的交互归 W05，本阶段不存在 Jev 请求 |
+| 无答案 | run `empty` | 「未找到可核验来源」+ 改写建议；不编造标题/链接（A10） |
+| 多候选 | 候选 >1 | 并列展示不强选；用户点击才有选中态（A09） |
+| 过期/撤权 | run `source_stale`、`prepareEvidence` 同名结果、resolve `forbidden/*` | 显式提示源已失效；旧候选禁止签发新 receipt（服务端已拒绝，UI 如实透传） |
+| 模型不可用 | 无 sessionId / selection 注入失败 | 检索可用，答案入口禁用并说明（A18） |
+| Host 重连/RPC 失败 | service 调用 reject（含断连代理错误码） | 错误态 + 重试按钮；重试复用同一 clientRequestId 幂等语义 |
+
+### 5c.5 渲染与跨平台纪律
+
+- 全部排版走 `text-ui-*` 令牌（DESIGN.md 强制约束），颜色只用语义 token；浅/深色、
+  Windows/macOS/Linux、窄屏（390px）布局用 flex/min-w-0/min-h-0 适配，不引入固定宽度。
+- 键盘可达：输入区可 Tab 到达；候选卡为 button（Enter 触发）；折叠区/展开按钮 focus 可见。
+
+### 5c.6 验收映射
+
+A01（无 Vault 引导）、A06/A08/A09/A10 的 UI 部分（候选优先、多候选并列、负例不编造）、
+A18 的 UI 部分（无模型可浏览）、A20（旧编辑器回归）、A21（主题/平台/窄屏，W07 复核）、
+A22（取消/切库旧结果不覆盖）。证据见 `docs/vaultview/delivery/W04_DELIVERY.md`、
+`packages/ui/test/knowledgeAskModel.test.ts`、`packages/services/test/knowledgeAskUiFlow.test.ts`。
 
 证据规则：每项记录真实 command / environment / exit code；`NOT_RUN` 必须写原因。
 
@@ -266,7 +353,7 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 | K-DOC-1 | matcher `Write|Edit` 真实边界写入 spec；代码/UI 不宣称能拦 Bash/MCP L2/L3 写入 | 文档与代码一致 | 已实现（本 spec §2 + `specs/obsidian-plugin.md`） |
 | K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05 |
 | K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`） |
-| K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | 未实现，属 W04 |
+| K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`） |
 | K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | 未实现，属 W05 |
 | K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 未实现，属 W06 |
 

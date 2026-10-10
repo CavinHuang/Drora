@@ -337,8 +337,12 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 ### 5c.6 验收映射
 
 A01（无 Vault 引导）、A06/A08/A09/A10 的 UI 部分（候选优先、多候选并列、负例不编造）、
-A18 的 UI 部分（无模型可浏览）、A20（旧编辑器回归）、A21（主题/平台/窄屏，W07 复核）、
-A22（取消/切库旧结果不覆盖）。证据见 `docs/vaultview/delivery/W04_DELIVERY.md`、
+A18 的 UI 部分（无模型可浏览）、A20（旧编辑器回归）、A22（取消/切库旧结果不覆盖）。
+A21（主题/平台/窄屏）：静态令牌纪律已由 W07 回归锁定——
+`packages/ui/test/knowledgeUiDiscipline.test.ts` 对 knowledge UI 源文件禁任意字号
+（`text-[..px]`/行内 `fontSize`/根字号突变）与裸色值，并锁 i18n 两语言齐全与对等；
+跨平台真实渲染与 GUI 截图仍未实测（本环境无显示服务器，缺口见 W07 交付报告）。
+证据见 `docs/vaultview/delivery/W04_DELIVERY.md`、`docs/vaultview/delivery/W07_DELIVERY.md`、
 `packages/ui/test/knowledgeAskModel.test.ts`、`packages/services/test/knowledgeAskUiFlow.test.ts`。
 
 证据规则：每项记录真实 command / environment / exit code；`NOT_RUN` 必须写原因。
@@ -359,6 +363,7 @@ A22（取消/切库旧结果不覆盖）。证据见 `docs/vaultview/delivery/W0
 | K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`） |
 | K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | W05 已实现决策层与评测框架（§5d）；A24 真实联调与 A28 真实标注集对比保持未实测（缺凭据/标注集） |
 | K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 机制已实现（§5e，证据 `docs/vaultview/delivery/W06_DELIVERY.md`）；A31 的 P0 通道硬阻断未实现 → 门禁未满足，正式裁定 `WRITE_SAFETY_NO_GO.md`，写路径默认关闭（§5e 引言/§5e.8） |
+| K-W07-1..n | 发布前集成与回归（A16 服务面全链、A21 静态面、A23/A35 零出站、A36 仓库门禁、A37 协议面、双 Host 索引竞争/切源迟到丢弃/撤权/索引 partial/伪造 receipt/提示词注入） | 每项真实 command/exit code | W07 已执行（证据 `docs/vaultview/delivery/W07_DELIVERY.md`：`knowledgeE2EFullChain.test.ts` 全链 3 用例、`knowledgeUiDiscipline.test.ts` 4 用例、knowledge 全量 110 用例、手机远控 51、远端 20、CLI wiring 15、obsidian-plugin 套件；A24/A28 真实联调与真实标注集、真实 Electron/真机 GUI E2E 未执行并写明原因） |
 
 ## 5d. Jev 多阶段决策与离线评测（W05，2026-10-10 落地）
 

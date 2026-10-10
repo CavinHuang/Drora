@@ -6,6 +6,7 @@
 export { WorkspaceSidebarItem } from "@/WorkspaceSidebarItem.js";
 export { TaskList } from "@/TaskList.js";
 export { MemoTaskItem } from "@/TaskListItem.js";
+export { ConversationTimeline } from "@/v4/ConversationTimeline.js";
 export { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 export { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 export { TabStoreProvider } from "@/store/TabStoreProvider.js";

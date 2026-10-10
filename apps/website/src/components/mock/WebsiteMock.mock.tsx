@@ -18,7 +18,6 @@
  * 由 public/assets/css/style.css 提供样式。
  */
 import {
-  ChatPromptEditor,
   DroraIntlProvider,
   PlatformProvider,
   ServiceProvider,
@@ -26,7 +25,7 @@ import {
   TooltipProvider,
   type IServiceAccessor,
 } from "@drora/ui/website-hero";
-import { ConversationShareReadonlyTimeline } from "@drora/ui/conversation-share-readonly";
+import { ConversationTimeline } from "@drora/ui/website-hero";
 import type { IPlatformService } from "@drora/shared";
 import { activeHeroWorkspace, heroChatRows, heroComposer, heroTopbar } from "./mock-data.mock";
 import { HeroSidebar } from "./HeroSidebar.mock";
@@ -80,22 +79,54 @@ function HeroMockWindow() {
             </span>
           </div>
 
-          {/* 聊天流：真实组件（自带 DroraIntlProvider/TooltipProvider，零外部 provider 依赖），
-              用户气泡 / 工具摘要行 / markdown 在构建期烘焙；行序规则见 mock-data.mock.ts */}
           <div className="win-chat">
-            <ConversationShareReadonlyTimeline rows={heroChatRows} locale="zh-CN" theme="dark" />
+            <ConversationTimeline
+              rows={heroChatRows}
+              totalCount={heroChatRows.length}
+              sessionKey="hero-mock"
+              rowContext={{
+                theme: "dark",
+                workspacePath: activeHeroWorkspace.workspacePath,
+                codePreviewSettings: {
+                  lightTheme: "github-light",
+                  darkTheme: "github-dark",
+                  showLineNumbers: false,
+                  wrapLongLines: false,
+                  fontSizePx: 13,
+                },
+              }}
+            />
           </div>
 
-          {/* composer：真实 Lexical 输入壳，test-id 与产品一致（chat-input / chat-send-button） */}
+          {/* composer：手写（图1 同款视觉）。ChatPromptEditor 为 Lexical 真输入壳，
+              其依赖链带 Vite import.meta.env（Next 构建不支持）且交互对装饰区无意义，故回退 */}
           <div className="win-input">
-            <ChatPromptEditor
-              workspacePath={activeHeroWorkspace.workspacePath}
-              taskId={null}
-              submitLabel={heroComposer.submitLabel}
-              placeholder={heroComposer.placeholder}
-              onSubmit={() => true}
-              inputTestId="chat-input"
-            />
+            <div className="composer">
+              <div className="comp-input">{heroComposer.placeholder}</div>
+              <div className="comp-bar">
+                <span className="comp-btn icon-only">
+                  <span className="tr-icon">＋</span>
+                  <span className="sr-only">{heroComposer.addContext}</span>
+                </span>
+                <span className="comp-btn plain">
+                  <span className="tr-icon">✋</span>
+                  {heroComposer.confirmEdit}
+                  <i className="comp-caret">⌄</i>
+                </span>
+                <span className="comp-spacer"></span>
+                <span className="chip">
+                  <span className="tr-icon">◌</span>
+                  {heroComposer.model}
+                  <i className="comp-caret">⌄</i>
+                </span>
+                <span className="chip">
+                  <span className="tr-icon">◉</span>
+                  {heroComposer.effort}
+                  <i className="comp-caret">⌄</i>
+                </span>
+                <span className="comp-send">↑</span>
+              </div>
+            </div>
           </div>
         </div>
 

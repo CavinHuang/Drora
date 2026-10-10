@@ -795,7 +795,9 @@ export function ChatContextUsage({
   }, [intl, numberFormatter, renderableTaskUsage]);
   const cacheHitRateLabel = useMemo(() => {
     return formatContextCacheHitRateLabel(renderableTaskUsage?.cache?.hitRate, locale, {
-      showBelowThreshold: import.meta.env.DEV,
+      // 跨构建器通用写法：import.meta.env.DEV 是 Vite 特有 API，Next（webpack）构建
+      // 无法解析该成员（apps/website 官网构建踩雷）；NODE_ENV 比较三方原生支持。
+      showBelowThreshold: process.env.NODE_ENV !== "production",
     });
   }, [locale, renderableTaskUsage]);
   const breakdownSegments = useMemo(

@@ -1474,6 +1474,11 @@ window.DRORA_I18N = {
       "doc.memory.limits.li3": "Not the same thing as MCP memory tools: Memory is built into Drora and works with no MCP configuration at all; if you already use a memory MCP server, the two stay independent.",
       "doc.memory.limits.li4":
         "Before copying logs, sharing conversations or backing up the data directory, check who will receive it so private project content does not leave your machine.",
+      "doc.memory.next.h2": "Next steps",
+      "doc.memory.next.d1":
+        "—— schedule idle-time and timed tasks so the Agent keeps making progress on plan.",
+      "doc.memory.next.d2":
+        "—— use the same Agent capabilities inside SSH/WSL remote workspaces.",
       "doc.safety.p1": "Drora puts the Drora Agent's permission controls right in the task UI. The execution mode selector sits near the composer, so you can decide how the agent executes based on the risk of the task.",
       "doc.safety.note1":
         "Whether each action is confirmed depends on tool declarations, permission rules and the run mode; the model tool approval is not a single app-wide permission switch, so you cannot assume terminal operations, plugin processes or update downloads go through the same approval flow. The shared run configuration defaults to the build permission mode; when the standalone CLI runs a non-interactive task via --prompt and --mode is not set, it falls back to yolo.",
@@ -1616,7 +1621,6 @@ window.DRORA_I18N = {
       "doc.welcome.cap.cli": " — the single-file drora executable: TUI, web mode and scripted runs.",
       "doc.welcome.cap.build": " — source development and packaging starting from pnpm bootstrap.",
       "doc.welcome.cap.faq": " — installs, updates and troubleshooting answers.",
-    },
       "doc.welcome.intro.p1": "Drora is an Agentic Development Environment (ADE) that brings GLM-5.3 into real programming workflows. It turns GLM-5.3's long context, long-horizon tasks, and agentic coding capabilities into a dependable desktop experience, covering planning, coding, review, and iteration across complex development tasks.",
       "doc.welcome.intro.p2": "Building on GLM-5.3's stable 1M context and long-horizon capabilities, the Drora Agent keeps goals, files, terminal output, browser context, execution modes, and Git status in the same task, so complex work can move from planning all the way to implementation and verification without losing continuity.",
       "doc.welcome.intro.p3": "Drora focuses on agent capabilities: models, tools, and execution workflows work more closely together, so complex development tasks can advance from planning to verified completion within a single context.",
@@ -1649,10 +1653,18 @@ window.DRORA_I18N = {
       "doc.welcome.quick.i3": "User feedback and support",
       "doc.welcome.quick.i3d": ": learn how to give effective feedback when something goes wrong.",
       "doc.welcome.map.h2": "Feature map",
-      "doc.install.lead2": "Download and install the Drora desktop app to start an end-to-end development workflow driven by the Drora Agent. It takes about 2 minutes: download the installer → complete installation → first launch.",
+      "doc.install.lead2":
+        "Download and install the Drora desktop app to start an end-to-end development workflow driven by the Drora Agent.",
       "doc.install.step1": "Download the installer",
       "doc.install.step2": "Complete installation",
       "doc.install.step3": "First launch",
+      "doc.install.timeTotal": "Takes about 2 minutes in total",
+      "doc.install.verBadge": "v0.0.8 · Latest release",
+      "doc.install.otherPlatforms": "Other platforms",
+      "doc.install.pc.armSub": "Windows on ARM installer (.exe)",
+      "doc.install.pc.macArmSub": "For Apple silicon (.dmg)",
+      "doc.install.pc.macIntelSub": "For Intel Macs (.dmg)",
+      "doc.install.pc.cliSub": "Single file, run in a terminal",
       "doc.install.p0": "Download Drora now: desktop installers and the single-file CLI are all published on",
       "doc.install.platforms": "Supported platforms are macOS (Apple Silicon / Intel) and Windows (x64 / ARM64). Linux desktop installers are not provided yet: Linux users can use the single-file CLI for now, or build the desktop app from source.",
       "doc.install.mac1": "Open the downloaded Drora.dmg disk image.",
@@ -3011,4 +3023,5 @@ window.DRORA_I18N = {
       "doc.keys.composer.r6": "Move between options in the Slash or Mention panel",
       "doc.keys.composer.r7": "Pick the highlighted item",
       "doc.keys.composer.r8": "Close the current panel or menu",
+    },
 };

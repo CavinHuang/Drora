@@ -329,6 +329,10 @@
     if (btn && nav) {
       btn.addEventListener("click", function () {
         var open = nav.classList.toggle("open");
+        // Tailwind preflight 的 [hidden]{display:none!important} 会压过 .open 类，
+        // 打开时必须移除 hidden 属性本身
+        if (open) nav.removeAttribute("hidden");
+        else nav.setAttribute("hidden", "");
         btn.setAttribute("aria-expanded", open ? "true" : "false");
       });
       nav.addEventListener("click", function (event) {

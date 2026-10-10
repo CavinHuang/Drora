@@ -117,7 +117,7 @@ a {
   align-items: center;
   justify-content: flex-start;
   gap: 30px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   color: #d4d4d4;
 }
@@ -2202,7 +2202,7 @@ release-block {
 }
 
 .release-body ul {
-  list-style: none;
+  list-style: disc;
   margin: 0;
   padding: 0;
 }

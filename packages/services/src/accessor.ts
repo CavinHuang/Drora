@@ -37,6 +37,7 @@ import type { IOutputStyleService } from "./outputStyle/outputStyle.js";
 import type { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import type { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
+import type { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -96,6 +97,8 @@ export interface IServiceAccessor {
   /** Knowledge 索引/检索（VaultView 智能问库；与 Vault 面板同源授权，host-local，故可选）。 */
   readonly knowledgeIndexService?: IKnowledgeIndexService;
   readonly knowledgeQueryService?: IKnowledgeQueryService;
+  /** Knowledge 审核写入（W06；L2 治理写唯一入口，host-local，故可选）。 */
+  readonly knowledgeReviewService?: IKnowledgeReviewService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

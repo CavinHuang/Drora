@@ -40,6 +40,7 @@ import {
   IObsidianVaultService,
   IKnowledgeIndexService,
   IKnowledgeQueryService,
+  IKnowledgeReviewService,
   ISettingsSyncService,
   IFeedbackService,
   IPromptAttachmentTransferService,
@@ -103,6 +104,8 @@ export class RemoteServiceAccess implements IServiceAccessor {
   // （ChannelClient.getChannel 不抛错），由 UI 错误态呈现，不在构造期失败。
   readonly knowledgeIndexService: IKnowledgeIndexService;
   readonly knowledgeQueryService: IKnowledgeQueryService;
+  // 审核写入（W06）：与 Knowledge 同形，host 未注册时为调用期失败，由 UI 错误态呈现。
+  readonly knowledgeReviewService: IKnowledgeReviewService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -238,6 +241,10 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.knowledgeQueryService = ProxyChannel.toService<IKnowledgeQueryService>(
       channelClient.getChannel(IKnowledgeQueryService.channelName),
+    );
+    // 审核写入（W06）：与 Knowledge 同形，host 未注册该频道时为调用期失败。
+    this.knowledgeReviewService = ProxyChannel.toService<IKnowledgeReviewService>(
+      channelClient.getChannel(IKnowledgeReviewService.channelName),
     );
     this.feedbackService = ProxyChannel.toService<IFeedbackService>(
       channelClient.getChannel(IFeedbackService.channelName),

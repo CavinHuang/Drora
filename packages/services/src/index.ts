@@ -89,6 +89,30 @@ export {
   type KnowledgeCreateRunParams,
   type KnowledgeSearchParams,
 } from "./knowledge/knowledgeQuery.js";
+// 审核写入服务（W06）：接口+descriptor browser-safe；实现工厂只在 node 侧（reviewEngine.ts）。
+export { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
+export type {
+  KnowledgeReviewCreateProposalParams,
+  KnowledgeReviewReviseProposalParams,
+} from "./knowledge/review/reviewService.js";
+export type {
+  KnowledgeReviewApprovalView,
+  KnowledgeReviewApplyResult,
+  KnowledgeReviewChangeContentResult,
+  KnowledgeReviewChangeInput,
+  KnowledgeReviewChangeKind,
+  KnowledgeReviewChangeView,
+  KnowledgeReviewEvidenceInput,
+  KnowledgeReviewEvidenceView,
+  KnowledgeReviewFileStatus,
+  KnowledgeReviewOperationFileView,
+  KnowledgeReviewOperationStatus,
+  KnowledgeReviewOperationView,
+  KnowledgeReviewProposalView,
+  KnowledgeReviewReconcileResult,
+  KnowledgeReviewRejectionCode,
+  KnowledgeReviewUndoResult,
+} from "./knowledge/review/reviewTypes.js";
 export type {
   KnowledgeArticleCandidate,
   KnowledgeCoverage,

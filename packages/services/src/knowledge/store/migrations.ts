@@ -12,6 +12,13 @@
  * - evidence_receipts：opaque 引用账本（specs/obsidian-knowledge.md §5.1）。DDL 列清单
  *   以 @drora/shared knowledge-evidence 常量为单一出处——CLI Runtime gate 以只读连接
  *   消费同一张表，两侧禁止手写第二份字面量。
+ *
+ * v3（W06 审核写入账本，specs/obsidian-knowledge.md §5e）：
+ * - review_proposals / review_approvals / review_operations / review_operation_files：
+ *   L2 治理提案、批准绑定（revision+changesHash+sourceEpoch）、Operation ledger
+ *   （operationId 唯一约束，prepared→applying→applied/conflict/uncertain）与写前快照。
+ *   这四张表是**持久账本**：索引可重建（documents/chunks/chunks_fts/index_jobs/coverage
+ *   可被 prune/rebuild 清除），审核账本绝不在任何清除路径上。
  */
 import {
   KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS,
@@ -112,6 +119,62 @@ const MIGRATIONS: Migration[] = [
   {
     version: 2,
     statements: [...KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS],
+  },
+  {
+    version: 3,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS review_proposals(
+        proposal_id TEXT PRIMARY KEY,
+        vault_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        changes_hash TEXT NOT NULL,
+        changes_json TEXT NOT NULL,
+        evidence_json TEXT NOT NULL,
+        rejected_at_ms INTEGER,
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS review_approvals(
+        proposal_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        changes_hash TEXT NOT NULL,
+        source_epoch INTEGER NOT NULL,
+        approved_at_ms INTEGER NOT NULL,
+        expires_at_ms INTEGER NOT NULL,
+        PRIMARY KEY(proposal_id, revision)
+      )`,
+      `CREATE TABLE IF NOT EXISTS review_operations(
+        operation_id TEXT PRIMARY KEY,
+        proposal_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        vault_id TEXT NOT NULL,
+        source_epoch INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        error TEXT,
+        created_at_ms INTEGER NOT NULL,
+        finished_at_ms INTEGER,
+        reconciled_at_ms INTEGER
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_review_operations_proposal
+        ON review_operations(proposal_id)`,
+      `CREATE TABLE IF NOT EXISTS review_operation_files(
+        operation_id TEXT NOT NULL REFERENCES review_operations(operation_id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        relative_path TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        base_sha256 TEXT,
+        next_sha256 TEXT,
+        next_content TEXT,
+        snapshot_content TEXT,
+        snapshot_sha256 TEXT,
+        status TEXT NOT NULL,
+        error TEXT,
+        updated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY(operation_id, ordinal)
+      )`,
+    ],
   },
 ];
 

@@ -17,6 +17,7 @@ import { createOutputStyleService } from "./outputStyle/outputStyleService.js";
 import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
 import { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
+import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
 import {
   buildLocalMediaPreviewUrl,
@@ -2775,6 +2776,8 @@ export function createLocalServices(options: {
     // 检索返回 no_source run）；源身份只由 vault-config.json + Profile 推导。
     .register(IKnowledgeIndexService, knowledgeServices.indexService)
     .register(IKnowledgeQueryService, knowledgeServices.queryService)
+    // 审核写入服务（W06）：L2 治理写唯一入口；与索引共享 DB 连接与 dispose 链。
+    .register(IKnowledgeReviewService, knowledgeServices.reviewService)
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,

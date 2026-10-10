@@ -2,8 +2,9 @@
  * Knowledge 索引服务接口 + descriptor（W02）。
  *
  * RPC 面：getStatus / startReconcile / requestRebuild / cancelJob。
- * 索引是可重建缓存：任务只写 knowledge-index.sqlite，绝不改写笔记、
- * 绝不触及审核账本（W06 才存在）。行为契约见 specs/obsidian-knowledge.md §5b。
+ * 索引是可重建缓存：任务只写 knowledge-index.sqlite 的索引侧表，绝不改写笔记、
+ * 绝不触及审核账本（W06 起同库的 review_* 四表，spec §5e.2）。行为契约见
+ * specs/obsidian-knowledge.md §5b。
  */
 import { ServiceChannels } from "@drora/shared";
 import { createServiceDescriptor } from "../descriptors.js";

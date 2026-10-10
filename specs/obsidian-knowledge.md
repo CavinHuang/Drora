@@ -10,8 +10,10 @@
 ## 0. 范围与产品边界
 
 - 一个活动 Vault 的精确文章找回（FIND_ARTICLE）、问库/比较（ANSWER/COMPARE）、来源验证与
-  原文回跳；Jev 可选决策与离线评测框架【已实现，W05】（§5d；真实联调/真实标注集对比未实测，
-  默认关闭）；审核写入【未实现，属 W06】。
+原文回跳；Jev 可选决策与离线评测框架【已实现，W05】（§5d；真实联调/真实标注集对比未实测，
+默认关闭）；审核写入【机制已实现，W06；写路径默认关闭】（§5e：S03 Hard Write Safety GO
+门禁未满足——三洞与 P0 分级门控未在 runtime 层落地，正式裁定
+`docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`；提案/账本面可用，apply/undo fail-closed）。
 - UI 唯一入口 VaultView；四视图：笔记、智能问库、洞察、审核。不新增 Knowledge 顶级导航，
   不重建编辑器（ADR #2）。【已实现，W04】（§5c；洞察/审核的完整功能属后续阶段，当前只呈现真实状态）
 - 原 Markdown 是唯一事实源；Knowledge 索引可重建，不得改写笔记冒充事实（ADR #4）。
@@ -25,7 +27,7 @@
 | 会话焦点投影 | `vault-focus.json`（services 面板单写，7 天/50 会话修剪） | UserPromptSubmit hook 只读 | 同上「焦点上下文联动」 |
 | Knowledge 索引（chunk/FTS/rowid） | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存 | 跨 Host lease/fencing 防迟到提交 | 【已实现，W02】（§5b） |
 | EvidenceReceipt / 引用账本 | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector；持久化在共享 knowledge-index.sqlite（v2 `evidence_receipts`），宿主（services）写、CLI Runtime gate 只读 | 模型文字不得自行构造可信 citation | 【已实现，W03】（§5） |
-| L2 治理 Proposal 与批准账本 | Proposal + 人工批准 + 版本校验和持久账本 | 未批准/过期批准绝不写文件 | 【未实现，属 W06】 |
+| L2 治理 Proposal 与批准账本 | Proposal + 人工批准 + 版本校验和持久账本 | 未批准/过期批准绝不写文件 | 【机制已实现，W06】（§5e）；执行/撤销写路径默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md） |
 | Session / CommandInbox / Memory / 手机远控 | 复用现有 Drora 运行时 | 禁止复制第二套（ADR #7、交接纪律） | 不变 |
 
 配置事实源唯一：Knowledge 链路的 SourceRegistry 只由当前活动 Vault + Profile 推导，
@@ -41,7 +43,7 @@ ADR #8。风险分级与运行时落盘通道的映射以 `docs/vaultview/delive
 | --- | --- | --- |
 | L0 只读 | 原生 Read/Glob/Grep 直接读 Vault（授权根内），不触及写路径 | 【已实现】（SessionStart 注入，`specs/obsidian-plugin.md`） |
 | L1 经授权编辑 | `allowAgentWrites=true` 时，PermissionRequest hook 对根内**普通 Markdown 笔记**的 Write/Edit 权限询问自动放行（收窄策略见 §3） | 【已实现，W01 收窄】 |
-| L2 知识治理 | 结构性/批量治理写（重组、批量改名、索引物化等）必须走 Proposal → 人工批准 → 版本校验和持久账本；重复 operationId 幂等 | 【未实现，属 W06】 |
+| L2 知识治理 | 结构性/批量治理写（重组、批量改名、索引物化等）必须走 Proposal → 人工批准 → 版本校验和持久账本；重复 operationId 幂等 | 【机制已实现，W06】（§5e）；写路径默认关闭（S03 门禁未满足），Bash/js 属未满足的 P0 门控前提而非有意分歧（§5e.8） |
 | L3 高风险 | 默认不自动执行（Bash/MCP/js 等可旁路通道的强制写承诺） | 【永久默认关闭，除非真实 Runtime 审计通过（ADR #10）】 |
 
 **明确的不变量**：hook 只匹配 Write/Edit，且只在运行时基础判定为 ask 时被触发。yolo/整工具
@@ -356,7 +358,7 @@ A22（取消/切库旧结果不覆盖）。证据见 `docs/vaultview/delivery/W0
 | K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`） |
 | K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`） |
 | K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | W05 已实现决策层与评测框架（§5d）；A24 真实联调与 A28 真实标注集对比保持未实测（缺凭据/标注集） |
-| K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 未实现，属 W06 |
+| K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 机制已实现（§5e，证据 `docs/vaultview/delivery/W06_DELIVERY.md`）；A31 的 P0 通道硬阻断未实现 → 门禁未满足，正式裁定 `WRITE_SAFETY_NO_GO.md`，写路径默认关闭（§5e 引言/§5e.8） |
 
 ## 5d. Jev 多阶段决策与离线评测（W05，2026-10-10 落地）
 
@@ -506,7 +508,178 @@ policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`�
 | A11 | 扩搜上限一次由 policy 执行 | 已实现（policy 测试 + 既有 OR 降级回归） |
 | A35 | 决策出站独立授权、日志无全文/凭据 | 已实现（consent/telemetry 测试） |
 
+## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 
+本节是工作单 W06 的行为契约。实现位于 `packages/services/src/knowledge/review/`（自研新模块，
+不触碰任何还原/上游对齐目录）；channel 字面量 `ServiceChannels.KnowledgeReview =
+"knowledge-review"` 在 `packages/shared/src/channels.ts`（单一出处）。
+
+**门禁裁定（诚实口径，完整引用 W00 条件）**：W06 的门禁是 TASK_GRAPH `tasks[6].gate =
+"S03 Hard Write Safety GO"`。W00 对 S03 的判定是**有条件 GO**（`W00_EVIDENCE_REPORT.md` §7），
+其 GO 前提为：
+
+1. **先修三洞**（全部位于 runtime 层，须程序化门控、不依赖插件 hook）：
+   (1) plan 模式两处打洞——无 `destructiveHint` 的 MCP 直通（`core/src/permission/service.ts:415-422`）
+   + memory md 覆盖 plan deny（`core/src/tool/executor/memory-file-permission.ts:38-46`）；
+   (2) node_repl/MCP 无内容规则粒度，一次「总是允许」即持久化整工具 allow
+   （`core/src/tool/executor/permission-suggestions.ts:24-36` + `permission/service.ts:292`）；
+   (3) Bash 整工具 allow 规则短路含重定向在内的一切命令
+   （`core/src/tool/handlers/bash-command-rule-evaluator.ts:14`）；
+2. **P0 分级门控**：任意路径写（Bash/js/未声明 destructive 的 MCP）强制逐次确认 + 禁整工具
+   持久 allow；统一挂点 `resolveToolCallCapabilityFlags`（`permission-capability.ts:28-39`）；
+3. **有意分歧集合仅限**：MCP server 进程内写盘、宿主自动写盘、yolo 直通（改审计+receipt）。
+
+截至 W06 交付，`c39ce371..HEAD` 对上述三洞文件零改动、P0 门控未实现——**门禁未满足**。
+按工作单「没有强硬阻断的真实证据，只提交 `WRITE_SAFETY_NO_GO.md`」执行：
+
+- 本节机制（Proposal/批准/账本/Undo/reconcile）已落地并测试，但**执行/撤销写路径默认
+  fail-closed**：`createKnowledgeReviewService` 的 `writePathEnabled` 缺省 false，
+  `applyProposal`/`undoOperation` 返回结构化 `write_path_disabled`，文件零触碰；
+  生产装配（`node.ts` 经 `knowledgeServices`）不传使能，仅测试显式开启；
+- 提案/批准/账本/只读 reconcile 面保持可用，供审计与门禁复验；
+- 正式交付裁定见 `docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`（含 GO 路径）。
+  门禁通过前，不得在代码、UI 或文档中宣称审核写入已生效。
+
+### 5e.1 模块构成
+
+| 单元 | 文件 | 职责 |
+| --- | --- | --- |
+| DTO 与状态机词表 | `review/reviewTypes.ts` | Proposal/批准/Operation 视图、变更类型、结构化拒绝原因（RPC 面唯一定义处） |
+| 账本存取 | `review/reviewStore.ts` | `review_proposals / review_approvals / review_operations / review_operation_files` 行映射、operationId 唯一约束、prepared→applying 单赢家转移（BEGIN IMMEDIATE） |
+| 审核服务 | `review/reviewService.ts` | `IKnowledgeReviewService` 接口 + descriptor + 实现：Proposal 生命周期、批准绑定、经 Vault 门面的 CAS 写执行、Undo、reconcile；每 vault 进程内异步互斥 |
+
+### 5e.2 状态所有者（补 §1 表）
+
+| 状态 | 所有者 | 说明 |
+| --- | --- | --- |
+| Proposal（目标源/来源证据/base SHA/revision/精确内容） | knowledge-index.sqlite v3 `review_proposals`（vaultId + revision + changesHash + changes JSON） | 与索引同库但**不在任何清除路径上**：`requestRebuild`/reconcile/`pruneStaleSourceRows` 只清 documents/chunks/chunks_fts/index_jobs/coverage，绝不触及 review 四表与 evidence_receipts |
+| 批准账本 | 同库 `review_approvals`，主键 (proposal_id, revision)；绑定 changesHash + sourceEpoch + expiresAtMs | 过期/换 revision/换 epoch 的批准自然失效，不删行（审计历史） |
+| Operation ledger | 同库 `review_operations`（operationId PRIMARY KEY，唯一约束）+ `review_operation_files`（每文件 base/next/snapshot/状态） | 快照（写前内容）在落盘前先入账本；崩溃后凭账本 reconcile |
+| 进程内写互斥 | 服务实例内存 per-vault 异步互斥 | 只防同进程交错；跨 Host 串行靠账本转移 + 门面 CAS（§5e.6） |
+| 审核视图选中态等 UI 局部状态 | 归后续 UI 工作单（W04「审核」视图当前只呈现真实状态） | UI 不缓存权威事实 |
+
+### 5e.3 RPC 面（`IKnowledgeReviewService`）
+
+`createProposal / reviseProposal / getProposal / listProposals / approveProposal /
+rejectProposal / applyProposal / reconcileOperation / reconcileStuckOperations /
+undoOperation / getProposalChangeContent`。
+
+- `createProposal({ title, reason, evidence, changes })`：每条 change = `{ kind:
+  "write"|"create"|"delete", relativePath, baseSha256?(write 必填/create 必为 null/
+  delete 必填), content?(write/create) }`。创建即绑定当前 vaultId 并逐条校验：
+  路径经 `normalizeRelativeMarkdownPath`（仅非隐藏 `.md`）+ `getSafeVaultTarget`
+  （逐段 lstat 拒软链）；write 的 baseSha256 必须等于当前文件实际 sha256（创建时即对
+  齐现实，杜绝「批准一个基于幻觉旧版」的提案）；content ≤2MB（与门面上限一致）。
+- `reviseProposal`：任何 changes/标题/理由/证据变化 → `revision+1` + changesHash 重算；
+  旧 revision 的批准仍在账本但**只对旧 revision 有效**——apply 只认当前 revision 的批准
+  （A32「Diff 改后旧 revision 无效」）。
+- `approveProposal({ proposalId, ttlMs? })`：记录 `(proposalId, revision, changesHash,
+  sourceEpoch, approvedAtMs, expiresAtMs)`（TTL 默认 10 分钟，钳位 [30s, 24h]）。
+- `applyProposal({ proposalId, operationId? })`：全量前置校验（§5e.5）通过才执行；
+  operationId 是调用方幂等键——已存在则**原样返回账本记录，绝不二次执行**（A33）。
+  **S03 总门（评审修复轮 1）**：`writePathEnabled` 缺省 false 时 apply/undo 直接返回
+  结构化 `write_path_disabled`（先于一切其他校验），文件零触碰（§5e 引言）。
+- `reconcileOperation / reconcileStuckOperations`：对 `applying`/`uncertain` 的账本行做
+  **只读文件证据核验 + 账本状态落定**，绝不执行任何文件写（A33「未知结果 reconcile 后
+  才继续」；重启恢复入口）。
+- `undoOperation({ operationId })`：对该 operation 内已 applied 的文件按逆序做带当前
+  SHA 验证的逆操作（§5e.7）。
+- `getProposalChangeContent({ proposalId, relativePath })`：读取提案内某文件的精确目标
+  内容（Diff 预览用；≤2MB）。正文原文继续走既有只读通道，本方法只回提案内声明的内容。
+
+### 5e.4 Proposal 契约（L2）
+
+- **目标源**：创建时解析当前源（`resolveKnowledgeSource`，vault-config.json 唯一事实源），
+  绑定 vaultId；未配置/根失效 → 结构化 `no_source` 拒绝。
+- **来源证据**：`evidence` 数组（receiptId 引用或文字说明）原样入账本，供审批人核对
+  「为什么改」；服务不校验 receiptId 的 current 性（证据是审批上下文，不是写授权）。
+- **目标 base SHA**：每条 write/delete change 携带 baseSha256；create 携带 null。
+- **proposalRevision**：从 1 起单调递增；changes 内容集的任何变化都产生新 revision。
+- **精确 Diff**：changes JSON 保存目标精确内容（nextContent），Diff 由 (baseSha 内容,
+  nextContent) 完全决定；**不存模糊指令**（「把这些文件整理一下」不是合法提案）。
+- **L3 不可表达**：路径规则（仅普通非隐藏 `.md`）+ 内容 ≤2MB + 无批量通配/目录操作 →
+  批量重构、修改 `.obsidian`、非 Markdown 写在类型面上无法构造（ADR #8 的 L3
+  「默认不自动执行」在本门面是结构性排除，不是开关）。
+
+### 5e.5 批准绑定与 apply 前置校验（未批准/过期批准绝不写文件）
+
+apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒绝（机器可读 reason），
+不产生半写状态：
+
+1. 提案存在且未 rejected；当前 vaultId 与提案一致；`allowAgentWrites=true`（撤权即拒）；
+2. 当前 revision 存在批准行：revision 匹配、changesHash 与当前 changes 重算一致、
+   sourceEpoch 与当前 epoch 一致（切库/撤权重授即失效）、未过期；
+3. operationId 幂等检查：账本已存在 → 返回既有记录（不执行）；`applying` 状态的既存
+   operation → 拒绝并指向 reconcile；
+4. 单赢家转移：`INSERT operation(prepared)` → `UPDATE ... SET status='applying'
+   WHERE operation_id=? AND status='prepared'`（BEGIN IMMEDIATE；影响行数=0 即另一
+   Host 在执行 → `busy` 拒绝，绝不并发进文件写）。
+
+### 5e.6 Operation ledger 与双 Host 串行
+
+- operationId 唯一约束（PRIMARY KEY）；状态机 `prepared → applying → applied /
+  conflict / uncertain`；per-file 状态 `prepared / applying / applied / conflict /
+  not_landed / undo_applied / undo_conflict`。
+- **先保护快照**：每个文件写前，把当前内容（≤2MB）+ sha256 写入
+  `review_operation_files`（snapshot 列），再执行门面写入；快照落账本失败即中止该
+  operation（无快照不写，Undo 无依据）。
+- **冲突即停**：任一文件 conflict（base sha 失配 / 门面 CAS conflict / 删除时 sha 不符）
+  → 立即停止后续文件，operation 置 `conflict`；已 applied 的文件保持独立可 Undo。
+- **双 Host 串行**：同 operationId 由唯一约束 + prepared→applying 单赢家转移串行；
+  不同 operationId 写同一文件由门面 read-SHA + atomic rename CAS 串行（后写者
+  conflict）；同进程并发由 per-vault 互斥排队。三层合起来保证：同一文件的两次审核写
+  绝不交错落盘，第二个操作者拿到结构化 conflict 而非静默覆盖。
+- **结果未知（断线/崩溃）**：process 死亡让账本停在 `applying`；恢复后只能经
+  reconcile 落定：文件 sha==next → `applied`；sha 与 base、next 均不同 → `conflict`
+  （外部编辑介入）；sha==base → `not_landed`（operation 回 `prepared`，**重放必须
+  显式再次调用 apply**，服务任何路径都绝不自动重放）。诚实的已知限制：sha==base 无法
+  区分「从未写入」与「写入后被外部还原为逐字节相同内容」——因此 not_landed 只表述
+  「当前文件处于 base 版本」这一事实，不含对执行史的断言。
+
+### 5e.7 Undo（带当前 SHA 验证的逆操作）
+
+- write 的逆 = 用快照覆盖（门面 CAS `expectedSha256 = applied 时记录的 nextSha`）；
+  create 的逆 = 删除（CAS 同上）；delete 的逆 = `createOnly` 重建快照内容。
+- 执行前验证当前文件 sha 与账本记录一致；不一致（外部编辑/旁路写入）→ `undo_conflict`，
+  文件原样保留，绝不覆盖。Undo 同样要求 allowAgentWrites=true 且 vault 匹配；不需要
+  新批准（它恢复的是已批准操作之前的状态），但全程留账本痕迹（undo 状态 + 时间）。
+- Undo 不可用（快照缺失/已 undo）→ 结构化拒绝；部分文件的 undo 失败不影响其他文件
+  继续（逐文件独立，operation 视图如实呈现每文件结果）。
+
+### 5e.8 覆盖边界与门禁前提（A31 的诚实结论）
+
+- **本门面硬覆盖（门禁通过后生效）**：经 `IKnowledgeReviewService` 的 L2 写——未批准/过期/
+  换 revision/换 epoch/撤权/冲突一律结构化拒绝，文件零触碰（A32/A33/A34 的测试面）；
+  当前因总门关闭（§5e 引言）暂不可达。
+- **未满足的 GO 前提（不是有意分歧，必须修）**：P0 任意路径写通道——Bash、node_repl(js)、
+  未声明 destructive 的 MCP——按 W00 GO 前提必须在 runtime permission 层程序化实现
+  「强制逐次确认 + 禁整工具持久 allow」（三洞清单见 §5e 引言）。这些通道当前可绕过
+  PermissionRequest hook（W00 矩阵 §3–§4 实证），在前提落地前构成 NO-GO 的直接理由。
+- **有意分歧集合（仅限以下三项，按 W00 收窄口径）**：MCP server 进程内写盘、宿主自动写盘
+  （artifacts/exec 日志/memory md/workflow 草稿等 8 类）、yolo 直通——这些无法逐路径硬阻断，
+  按 W00 改为「模型可见工具全覆盖 + 自动写盘审计日志 + yolo 需显式 receipt」并在本 spec 记录
+  （审计事件面属后续工作单，当前以账本快照 + SHA 证据检测作为本门面范围内的补偿控制：
+  旁路写入必然改变文件 SHA → 后续 apply/undo/提案 base 校验结构化 conflict，绝不静默覆盖）。
+- **线性化限制（必须随实现声明）**：门面的 read-SHA + atomic rename 不是严格线性化
+  CAS——SHA 校验与 rename 之间存在窗口，外部 Obsidian（或任何进程）在该窗口内保存
+  会被本次写入覆盖（外部编辑丢失，本方写入成功）。本服务不做跨进程文件锁（Windows/
+  macOS/Linux 无可移植的强制锁语义），只承诺：a) 窗口最小化（校验后立即 rename）；
+  b) 账本快照 + SHA 证据让丢失可被发现（后续操作 conflict）；c) 本服务自身的并发写
+  （双 Host/双 operation）经账本转移串行。对外部并发编辑不承诺零丢失——这是
+  read-SHA 乐观锁的结构极限，不是可修的实现缺陷。
+
+### 5e.9 验收映射
+
+证据规则同 §6：真实 command / environment / exit code；`NOT_RUN` 必须写原因。
+证据见 `docs/vaultview/delivery/W06_DELIVERY.md`、`docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`
+与 `packages/services/test/knowledgeReview.test.ts`。
+
+| ID | 场景 | 状态 |
+| --- | --- | --- |
+| A31 | Write/Edit（W01 hook 收窄）/Bash/MCP/js/宿主自动写的真实覆盖报告 | **有条件**：报告=本节 §5e.8 + `W00_TOOL_WRITE_MATRIX.md`；P0 通道（Bash/js/MCP）硬阻断未实现 → 门禁未满足，正式裁定 WRITE_SAFETY_NO_GO.md |
+| A32 | 未批准/过期批准/审批后改稿（revision+1）绝不写文件 | 已实现（review 服务测试；机制层面，写路径当前默认关闭） |
+| A33 | 重复 operationId 只执行一次；断线未知结果 reconcile 后才继续；重启 reconcile 不自动重放 | 已实现（review 服务测试） |
+| A34 | 外部并发修改 conflict 不静默覆盖；Undo 验证当前 SHA；双 Host 同文件串行；旁路写盘可检测 | 已实现（review 服务测试） |
 
 - 测试只用合成临时 Vault（`mkdtemp`），绝不修改用户真实 Vault；软链不可用平台（Windows 非
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。

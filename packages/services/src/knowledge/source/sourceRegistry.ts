@@ -6,8 +6,9 @@
  * - 未配置 / 根失效 → 无源（configured=false）；
  * - 源指纹 = vaultId(realpath 根 sha256) + configuredAt；
  * - 指纹相对 DB 记录变化 → sourceEpoch+1，并清除旧 epoch 的缓存行
- *   （documents/chunks/chunks_fts/index_jobs/coverage；审核账本本阶段不存在，
- *   索引可整体重建，不违背「不删账本」不变量）。
+ *   （documents/chunks/chunks_fts/index_jobs/coverage；W06 起审核账本
+ *   review_proposals/review_approvals/review_operations/review_operation_files 与
+ *   evidence_receipts 同库共存，但**不在本清除路径上**——账本是持久事实，索引可重建）。
  * allowAgentWrites 翻转不换 epoch：它门控写入，不改变读取范围（读不受限是既有语义）。
  */
 import { join } from "node:path";
@@ -98,7 +99,8 @@ export async function resolveKnowledgeSource(
 
 /**
  * 只保留 (keepVaultId, keepEpoch) 的缓存行：单 Vault 配置模型下，切库后旧 vault 的
- * documents/chunks/jobs/coverage 一律失效清除（索引可重建；不触及本库之外任何账本）。
+ * documents/chunks/jobs/coverage 一律失效清除（索引可重建）。**绝不触及**审核账本
+ * review_* 四表与 evidence_receipts——它们是持久事实（W06/spec §5e.2）。
  */
 function pruneStaleSourceRows(tx: KnowledgeDatabase, keepVaultId: string, keepEpoch: number): void {
   tx.raw

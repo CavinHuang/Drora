@@ -170,6 +170,8 @@ export const ServiceChannels = {
   KnowledgeIndex: "knowledge-index",
   /** Knowledge 检索服务（host 常驻；本地词法/语义召回与 run 生命周期） */
   KnowledgeQuery: "knowledge-query",
+  /** Knowledge 审核写入服务（W06；L2 治理写唯一入口：Proposal→批准→账本→门面 CAS） */
+  KnowledgeReview: "knowledge-review",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

@@ -26,9 +26,11 @@ import { DecisionCache } from "./decision/decisionCache.js";
 import { DecisionTelemetry } from "./decision/decisionTelemetry.js";
 import { DecisionPipeline } from "./decision/decisionPipeline.js";
 import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
+import { createKnowledgeReviewService } from "./review/reviewEngine.js";
 import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
 import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
+import type { IKnowledgeReviewService } from "./review/reviewService.js";
 import type {
   KnowledgeIndexStatus,
   KnowledgePrepareEvidenceParams,
@@ -62,6 +64,12 @@ export interface KnowledgeServicesOptions {
   }) => KnowledgeDecisionProvider;
   /** 决策策略覆写（阈值/预算/权重；实验初值见 DEFAULT_DECISION_POLICY）。 */
   decisionPolicyOverrides?: Partial<KnowledgeDecisionPolicyConfig>;
+  /**
+   * 审核写路径总门（W06 修复轮 1）：**生产装配（node.ts）绝不传——保持缺省 false**，
+   * S03 Hard Write Safety GO 门禁未满足前 apply/undo 返回 `write_path_disabled`
+   * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅测试环境显式置 true。
+   */
+  reviewWritePathEnabled?: boolean;
   /** 租约 TTL/心跳（测试可收紧）。 */
   leaseTtlMs?: number;
   heartbeatIntervalMs?: number;
@@ -70,6 +78,11 @@ export interface KnowledgeServicesOptions {
 export interface KnowledgeServices {
   indexService: IKnowledgeIndexService;
   queryService: IKnowledgeQueryService;
+  /**
+   * 审核写入服务（W06 §5e）：L2 治理写唯一入口。与索引/检索共享同一 DB 连接与
+   * 同一份 vault-config.json 推导；账本四表不在任何索引清除路径上。
+   */
+  reviewService: IKnowledgeReviewService;
   /**
    * 决策上下文（W05；关闭时 null）。**绝不挂到 queryService 上**——RPC 面只暴露
    * 接口方法（ProxyChannel.fromService 会把一切函数属性暴露为命令）；
@@ -117,6 +130,14 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   };
 
   const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
+
+  // 审核写入服务（W06）：与索引/检索共享同一 DB 连接；账本随 dispose 统一关闭。
+  // 写路径总门默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md）；生产装配不透传使能。
+  const reviewService = createKnowledgeReviewService({
+    db,
+    pluginDataDir,
+    writePathEnabled: options.reviewWritePathEnabled === true,
+  });
 
   const indexService: IKnowledgeIndexService = {
     async getStatus(): Promise<KnowledgeIndexStatus> {
@@ -280,6 +301,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   return {
     indexService,
     queryService,
+    reviewService,
     decision,
     dispose(): void {
       // 停 run 事件流（检索是易失状态）；心跳定时器已 unref，

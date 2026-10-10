@@ -736,8 +736,6 @@ a {
 .side-item.fail .si-icon {
   color: var(--red);
 }
-  overflow: hidden;
-}
 
 .side-item {
   display: flex;

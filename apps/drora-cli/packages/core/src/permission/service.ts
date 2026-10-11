@@ -244,16 +244,25 @@ export class PermissionService {
     );
     if (toolRules.length === 0) return false;
     if (rulePolicy) return rulePolicy.evaluateRules(behavior, toolRules);
-    return toolRules.some((rule) => this.matchesRule(rule, context, capability));
+    return toolRules.some((rule) => this.matchesRule(rule, behavior, context, capability));
   }
 
   private matchesRule(
     rule: PermissionRuleValue,
+    behavior: PermissionBehavior,
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): boolean {
     if (!this.matchesRuleScope(rule, context.toolName, capability)) return false;
-    if (!rule.ruleContent) return true;
+    if (!rule.ruleContent) {
+      // P0 写安全门禁（specs/write-safety-gating.md §3.1，W00 三洞 P5/P6 判定侧收口）：
+      // 空内容规则（整工具规则）在 allow 方向只对「声明 readOnly 的能力」或「宿主验证后
+      // 的可信能力组（OfficialCua）」生效；非 readOnly 普通工具的整工具 allow 不再匹配，
+      // 「一次总是允许=持久化全权」的通道在判定侧封死，降级回缺省 ask。
+      // deny/ask 方向保持全量匹配（fail-closed 方向不变）。
+      if (behavior !== "allow") return true;
+      return capability.readOnly || capability.permissionCapabilityGroup === PermissionCapabilityGroup.OfficialCua;
+    }
 
     const subjects = this.ruleSubjects(context.input, context.toolName);
     if (subjects.length === 0) return false;
@@ -289,7 +298,7 @@ export class PermissionService {
       return webFetchRuleSubjects(record.url);
     }
 
-    for (const key of ["command", "url", "file_path", "path", "pattern", "patch_text"]) {
+    for (const key of ["command", "url", "file_path", "path", "pattern", "patch_text", "code"]) {
       const value = record[key];
       if (typeof value === "string") return [value];
     }
@@ -412,14 +421,11 @@ export class PermissionService {
       );
     }
 
-    if (this.isMcpToolCapability(capability) && !capability.destructive) {
-      return this.allow(
-        context,
-        capability,
-        "mode.plan.mcp",
-        "Plan mode allows non-destructive MCP tool execution",
-      );
-    }
+    // W08 写安全门禁（specs/write-safety-gating.md §2.1，W00 三洞洞 1a）：删除原
+    // `mode.plan.mcp` 分支——它对未声明 destructiveHint 的 MCP 工具直接 allow，而
+    // destructive/readOnly 全凭 server 自报 hint（mcp/index.ts），未声明即放行等于打洞。
+    // 现在 plan 模式下 MCP 工具只有声明 readOnly 才走上方 readOnly 分支自动放行，
+    // 否则落到下方 mode.plan.nonReadOnly deny（可恢复：退出 plan 或逐次批准）。
 
     if (
       capability.allowedInPlanMode &&
@@ -441,10 +447,6 @@ export class PermissionService {
       "mode.plan.nonReadOnly",
       "Plan mode only allows read-only, non-destructive tools",
     );
-  }
-
-  private isMcpToolCapability(capability: ResolvedPermissionCapability): boolean {
-    return capability.permissionName === "mcp";
   }
 
   private checkBuildMode(

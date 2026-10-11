@@ -11,7 +11,14 @@ interface BashRuleEvaluationInput {
 }
 
 export function evaluateBashRules(input: BashRuleEvaluationInput): boolean {
-  if (input.rules.some((rule) => !rule.ruleContent)) return true;
+  const hasWholeToolRule = input.rules.some((rule) => !rule.ruleContent);
+  if (hasWholeToolRule) {
+    // W08 写安全门禁（specs/write-safety-gating.md §2.4，W00 三洞 B4）：整工具 allow
+    // 规则只豁免安全命令（safe=可解析、无重定向、无动态词）；不安全命令不再短路，
+    // 回落内容规则匹配，仍无匹配则由调用方维持缺省 ask。deny/ask 方向保持全量匹配
+    // （fail-closed 方向不变）。
+    if (input.behavior !== "allow" || input.safe) return true;
+  }
   if (
     input.exactCommands.some((command) => command.length > 0) &&
     input.rules.some((rule) => input.exactCommands.includes(rule.ruleContent ?? ""))
@@ -26,19 +33,28 @@ export function evaluateBashRules(input: BashRuleEvaluationInput): boolean {
   if (input.behavior !== "allow") {
     return subjectGroups.some((subjects) =>
       subjects.some((subject) =>
-        input.rules.some((rule) => matchesInvocationRule(subject, rule.ruleContent)),
+        input.rules.some((rule) => matchesInvocationRule(subject, rule.ruleContent, input.behavior)),
       ),
     );
   }
   return subjectGroups.every((subjects) =>
     subjects.some((subject) =>
-      input.rules.some((rule) => matchesInvocationRule(subject, rule.ruleContent)),
+      input.rules.some((rule) => matchesInvocationRule(subject, rule.ruleContent, input.behavior)),
     ),
   );
 }
 
-function matchesInvocationRule(subject: string, ruleContent: string | undefined): boolean {
-  if (!ruleContent) return true;
+function matchesInvocationRule(
+  subject: string,
+  ruleContent: string | undefined,
+  behavior: PermissionRuleBehavior,
+): boolean {
+  if (!ruleContent) {
+    // allow 行为下空内容规则不计入逐主体匹配——否则整工具 allow 经由 subjectGroups
+    // 重新短路一切命令，绕过上方「只豁免安全命令」的闸（与 specs/write-safety-gating.md
+    // §2.4 同一契约的求值内层）。deny/ask 保持全量匹配。
+    return behavior !== "allow";
+  }
   if (ruleContent.endsWith(":*")) {
     const prefix = ruleContent.slice(0, -2);
     return (

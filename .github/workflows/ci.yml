@@ -162,12 +162,12 @@ jobs:
         run: pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
       - name: Provenance smoke
         run: >-
-          'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/MacOS/ZCode Computer Use'
+          'packages/zcode-cua-helper/dist-cua-helper/Drora Computer Use.app/Contents/MacOS/Drora Computer Use'
           --cua-helper-provenance-smoke
       - name: Native addon interface
         run: |
-          node packages/zcode-cua-helper/tools/probe-ax-native.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
-          node packages/zcode-cua-helper/tools/check-ax-native-interface.mjs 'packages/zcode-cua-helper/dist-cua-helper/ZCode Computer Use.app/Contents/Resources/ax_native.node'
+          node packages/zcode-cua-helper/tools/probe-ax-native.mjs 'packages/zcode-cua-helper/dist-cua-helper/Drora Computer Use.app/Contents/Resources/ax_native.node'
+          node packages/zcode-cua-helper/tools/check-ax-native-interface.mjs 'packages/zcode-cua-helper/dist-cua-helper/Drora Computer Use.app/Contents/Resources/ax_native.node'
       # 离线段（A/B）：token 文件契约 + 原版参数序。E2E 段（C/F）需要产品
       # launcher 祖先与官方签名 staging 资产，仅本机可跑（parity-mac-helper、
       # embedded-build-id 同理，对照物不入库）。

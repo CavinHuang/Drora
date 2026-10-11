@@ -713,6 +713,10 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   未声明 destructive 的 MCP——按 W00 GO 前提必须在 runtime permission 层程序化实现
   「强制逐次确认 + 禁整工具持久 allow」（三洞清单见 §5e 引言）。这些通道当前可绕过
   PermissionRequest hook（W00 矩阵 §3–§4 实证），在前提落地前构成 NO-GO 的直接理由。
+  **2026-10-11 进展**：三洞修复与 P0/P1/P2 分级门控已在 runtime permission 层程序化落地
+  （`specs/agent-write-safety.md`，28/28 专项测试，逐路径证据
+  `docs/vaultview/delivery/S03_WRITE_SAFETY_RUNTIME_COVERAGE.md`）；**写路径仍默认关闭**，
+  本门与总门状态不变，待 S03 复评通过后按 NO-GO §3.4 以独立改动翻转。
 - **有意分歧集合（仅限以下三项，按 W00 收窄口径）**：MCP server 进程内写盘、宿主自动写盘
   （artifacts/exec 日志/memory md/workflow 草稿等 8 类）、yolo 直通——这些无法逐路径硬阻断，
   按 W00 改为「模型可见工具全覆盖 + 自动写盘审计日志 + yolo 需显式 receipt」并在本 spec 记录

@@ -29,6 +29,7 @@ import {
 } from "./permission-capability.js";
 import { buildDefaultPermissionUpdates } from "./permission-suggestions.js";
 import { recheckPermissionHookModifiedInput } from "./permission-input-recheck.js";
+import { resolveWriteToolTier } from "../../permission/write-tier-policy.js";
 import type { ToolExecutorDeps } from "./types.js";
 import { summarizeInput } from "./utils.js";
 import { validateInput } from "./validation.js";
@@ -61,10 +62,18 @@ export async function resolveToolPermission(
     workingDirectory: deps.getWorkingDirectory(),
   };
   const runtimePermissionContext = resolveRuntimePermissionContext(deps);
+  const runtimeCapability = resolveRuntimePermissionCapability(
+    entry,
+    executionInput,
+    runtimePermissionContext,
+  );
   const rulePolicy = entry.resolvePermissionRulePolicy?.(executionInput, runtimePermissionContext);
   const suggestedPermissionUpdates =
     rulePolicy?.suggestedPermissionUpdates ??
-    buildDefaultPermissionUpdates(toolCall.name, executionInput, entry.permissionCapabilityGroup);
+    buildDefaultPermissionUpdates(toolCall.name, executionInput, entry.permissionCapabilityGroup, {
+      permissionName: runtimeCapability.permission?.permission,
+      readOnly: runtimeCapability.readOnly,
+    });
 
   let projectRules: PermissionRuleset | null;
   try {
@@ -85,7 +94,7 @@ export async function resolveToolPermission(
 
   let permissionDecision = deps.permissionService.checkPermission(
     permissionContext,
-    resolveRuntimePermissionCapability(entry, executionInput, runtimePermissionContext),
+    runtimeCapability,
     projectRules,
     rulePolicy,
   );
@@ -108,6 +117,13 @@ export async function resolveToolPermission(
     module: "core.tool.executor",
     reason: permissionDecision.reason,
     riskLevel: permissionDecision.riskLevel,
+    // 写入分级审计（S03 / specs/agent-write-safety.md）：P0 逐次确认与 P2 免确认
+    // 的留痕都靠这条结构化日志的 ruleId + writeTier 组合检索。
+    writeTier: resolveWriteToolTier({
+      toolName: toolCall.name,
+      permissionName: runtimeCapability.permission?.permission,
+      readOnly: runtimeCapability.readOnly,
+    }),
     ruleId: permissionDecision.ruleId,
     sideEffectScope: permissionDecision.sideEffectScope,
     status:

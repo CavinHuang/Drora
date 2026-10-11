@@ -9,6 +9,7 @@ import {
   type TraceContext,
 } from "@drora/contracts";
 import { applyPermissionUpdates } from "./permission-rules.js";
+import { sanitizePermissionUpdatesForPersistence } from "../../permission/write-tier-policy.js";
 import type { ToolExecutorDeps } from "./types.js";
 
 export async function loadProjectPermissionRuleset(
@@ -26,6 +27,33 @@ export async function persistProjectPermissionUpdates(
   traceContext: TraceContext,
 ): Promise<void> {
   if (updates.length === 0) return;
+
+  // S03 洞 2 持久化边界（specs/agent-write-safety.md §2）：建议侧不给 P0 工具整工具
+  // 「总是允许」，但 updates 来自 broker 应答（客户端可回传任意内容）——落盘前消毒，
+  // P0 工具的无内容 allow 规则一律丢弃并留审计，与建议侧互为纵深。
+  const sanitized = sanitizePermissionUpdatesForPersistence(updates);
+  if (sanitized.updates.length === 0) {
+    deps.logger?.warn("Project permission update fully rejected by write-tier sanitize", {
+      ...traceContextToLogContext(traceContext),
+      droppedWholeToolAllowRules: sanitized.droppedWholeToolAllowRules,
+      event: "tool.permission.project_update.sanitized",
+      module: "core.tool.executor",
+      requestedCount: updates.length,
+      status: "completed",
+    });
+    return;
+  }
+  if (sanitized.droppedWholeToolAllowRules > 0) {
+    deps.logger?.warn("Dropped whole-tool allow rules for P0 write tools", {
+      ...traceContextToLogContext(traceContext),
+      droppedWholeToolAllowRules: sanitized.droppedWholeToolAllowRules,
+      event: "tool.permission.project_update.sanitized",
+      module: "core.tool.executor",
+      requestedCount: updates.length,
+      status: "completed",
+    });
+  }
+  const effectiveUpdates = sanitized.updates;
 
   if (!deps.sessionStore) {
     deps.logger?.warn("Project permission update skipped without session store", {
@@ -49,7 +77,7 @@ export async function persistProjectPermissionUpdates(
   }
 
   const current = (await deps.sessionStore.getProjectPermission(projectID)) ?? { version: 1 };
-  const next = applyPermissionUpdates(current, updates);
+  const next = applyPermissionUpdates(current, effectiveUpdates);
   await deps.sessionStore.saveProjectPermission({ projectID, permission: next });
 
   deps.logger?.info("Project permission updated", {
@@ -57,7 +85,7 @@ export async function persistProjectPermissionUpdates(
     event: "tool.permission.project_update.saved",
     module: "core.tool.executor",
     status: "completed",
-    updateCount: updates.length,
+    updateCount: effectiveUpdates.length,
   });
 }
 

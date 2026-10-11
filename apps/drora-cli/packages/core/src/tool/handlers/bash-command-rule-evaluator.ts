@@ -11,7 +11,11 @@ interface BashRuleEvaluationInput {
 }
 
 export function evaluateBashRules(input: BashRuleEvaluationInput): boolean {
-  if (input.rules.some((rule) => !rule.ruleContent)) return true;
+  // S03 洞 3（specs/agent-write-safety.md §2）：整工具 allow（无 ruleContent）不再短路——
+  // 非 safe 命令（重定向等任意路径写）不吃整工具 allow，落到逐次确认；deny/ask 是安全
+  // 方向照旧匹配一切；精确命令 allow 是用户逐条看过的内容规则，保持原语义不受 safe 限制。
+  const hasWholeToolRule = input.rules.some((rule) => !rule.ruleContent);
+  if (hasWholeToolRule && (input.behavior !== "allow" || input.safe)) return true;
   if (
     input.exactCommands.some((command) => command.length > 0) &&
     input.rules.some((rule) => input.exactCommands.includes(rule.ruleContent ?? ""))

@@ -12,7 +12,13 @@
  */
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
+// 与 tasksDatabase/startup.ts 同因：静态 ESM import "node:sqlite" 会被构建器外部化并
+// 剥掉 node: 前缀，产出运行时不可解析的裸 "sqlite"（Electron main 启动即
+// ERR_MODULE_NOT_FOUND）；require 形式在产物中保留完整前缀。
+const { DatabaseSync } = createRequire(import.meta.url)(
+  "node:sqlite",
+) as typeof import("node:sqlite");
 import { runKnowledgeMigrations, type KnowledgeDatabaseRaw } from "./migrations.js";
 
 /** SQLITE_BUSY：W00 spike 实测 node:sqlite errcode=5；等待 busy_timeout 耗尽后抛出。 */

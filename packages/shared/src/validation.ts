@@ -511,6 +511,9 @@ export const hostCaptchaSolveRequestResponseSchema = z
   })
   .strict();
 
+// 判别联合成员必须唯一：同一 union 重复成员会让 Zod 在首次 parse 时抛
+// Duplicate discriminator value，main/host 收到任意消息即未捕获异常（2026-10-11
+// 修复：captcha 结果/请求成员曾各重复登记一次）。
 export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostCaptchaSolveResultMessageSchema,
   z
@@ -543,7 +546,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostCronRunMessageSchema,
   hostOffPeakRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
-  hostCaptchaSolveResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
   hostProviderProvisioningExecuteMessageSchema,
@@ -1028,6 +1030,7 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
   typeof hostResourceUsageSnapshotResultResponseSchema
 >;
 
+// 同上：union 成员唯一性不变量（captcha 请求成员曾重复，已去重）。
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostCaptchaSolveRequestResponseSchema,
   z
@@ -1071,7 +1074,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostSessionMessageDeliverResultResponseSchema,
   hostFeedbackLogArchiveRequestResponseSchema,
   hostBrowserExecuteRequestResponseSchema,
-  hostCaptchaSolveRequestResponseSchema,
   hostLocalMediaPreviewPathAuthorizeRequestResponseSchema,
   hostNetworkTelemetryBatchResponseSchema,
   hostProviderProvisioningSourceChangedResponseSchema,

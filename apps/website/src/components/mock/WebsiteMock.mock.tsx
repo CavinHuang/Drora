@@ -274,7 +274,7 @@ function HeroMockWindow() {
                 </span>
                 <span className="comp-btn plain">
                   <span className="tr-icon">✋</span>
-                  {heroComposer.confirmEdit}
+                  <span className="comp-label">{heroComposer.confirmEdit}</span>
                   <i className="comp-caret">⌄</i>
                 </span>
                 <span className="comp-spacer"></span>
@@ -283,12 +283,12 @@ function HeroMockWindow() {
                   <span className="sr-only">{heroComposer.usage}</span>
                 </span>
                 <span className="chip">
-                  {heroComposer.model}
+                  <span className="comp-label">{heroComposer.model}</span>
                   <i className="comp-caret">⌄</i>
                 </span>
                 <span className="comp-btn plain">
                   <BrainIcon />
-                  {heroComposer.effort}
+                  <span className="comp-label">{heroComposer.effort}</span>
                 </span>
                 <span className="comp-send">↑</span>
               </div>

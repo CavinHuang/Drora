@@ -2031,8 +2031,20 @@ section h2 {
     height: 520px;
   }
 
-  .win-sidebar {
+  .win-sidebar,
+  .win-panel {
     display: none;
+  }
+
+  /* 参考站移动端：顶栏只留标题行（无交通灯/chips/图标簇） */
+  .win-traffic,
+  .win-topbar .chip,
+  .win-topbar .wt-icons {
+    display: none;
+  }
+
+  .win-topbar {
+    padding: 14px 16px;
   }
 
   .mock-wrap {
@@ -3076,6 +3088,11 @@ release-block {
 }
 
 @media (max-width: 640px) {
+  /* 参考站移动 composer：按钮文字隐藏只留图标（hidden sm:inline-flex 同语义） */
+  .comp-label {
+    display: none;
+  }
+
   .idc-grid {
     grid-template-columns: 1fr;
   }

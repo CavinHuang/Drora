@@ -11,9 +11,16 @@
  * main 进程已由 W00 spike 实测可用（SQLite 3.51.2），此处不引入第三方 sqlite 依赖。
  */
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { runKnowledgeMigrations, type KnowledgeDatabaseRaw } from "./migrations.js";
+
+// W10 GUI E2E 首跑实证：tsup 对 ESM 产物把内建 `node:*` 导入剥成裸名——`fs`/`path` 等
+// 老内建的裸名恰好可用，但 `node:sqlite` 没有裸名别名，裸 "sqlite" 解析到不存在的 npm
+// 包，Electron main / 打包产物加载即崩。import 语句会被重写而字符串字面量不会，故经
+// createRequire 动态绑定（Electron 41 main 已由 W00 spike 实测可用）。
+const nodeRequire = createRequire(import.meta.url);
+const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
 
 /** SQLITE_BUSY：W00 spike 实测 node:sqlite errcode=5；等待 busy_timeout 耗尽后抛出。 */
 export class KnowledgeBusyError extends Error {

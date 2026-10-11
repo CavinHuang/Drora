@@ -109,6 +109,33 @@ const ChevronDownIcon = ({ size = 14 }: IconProps) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+const PlusIcon = () => (
+  <Svg sw={2}>
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
+  </Svg>
+);
+const HandIcon = () => (
+  <Svg sw={2}>
+    <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+    <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+    <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+  </Svg>
+);
+const ArrowUpIcon = () => (
+  <Svg sw={2}>
+    <path d="m5 12 7-7 7 7" />
+    <path d="M12 19V5" />
+  </Svg>
+);
+const MoreHorizontalIcon = () => (
+  <Svg sw={2}>
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+    <circle cx="5" cy="12" r="1" />
+  </Svg>
+);
 /** composer 的 reasoning 档位按钮：lucide brain（参考站逐字）。 */
 const BrainIcon = () => (
   <Svg sw={2}>
@@ -197,6 +224,7 @@ function HeroMockWindow() {
         <HeroSidebar />
 
         <div className="win-main">
+          <div className="win-card">
           <div className="win-topbar">
             <p className="wt-title">{heroTopbar.goalTitle}</p>
             <span className="chip">
@@ -209,6 +237,9 @@ function HeroMockWindow() {
               <i className="comp-caret">
                 <ChevronDownIcon size={11} />
               </i>
+            </span>
+            <span className="wt-more" aria-hidden="true">
+              <MoreHorizontalIcon />
             </span>
             <span className="wt-spacer"></span>
             <span className="wt-icons">
@@ -269,30 +300,41 @@ function HeroMockWindow() {
               <div className="comp-input">{heroComposer.placeholder}</div>
               <div className="comp-bar">
                 <span className="comp-btn icon-only">
-                  <span className="tr-icon">＋</span>
+                  <span className="tr-icon">
+                    <PlusIcon />
+                  </span>
                   <span className="sr-only">{heroComposer.addContext}</span>
                 </span>
                 <span className="comp-btn plain">
-                  <span className="tr-icon">✋</span>
+                  <span className="tr-icon">
+                    <HandIcon />
+                  </span>
                   <span className="comp-label">{heroComposer.confirmEdit}</span>
-                  <i className="comp-caret">⌄</i>
+                  <i className="comp-caret">
+                    <ChevronDownIcon size={14} />
+                  </i>
                 </span>
                 <span className="comp-spacer"></span>
                 <span className="comp-btn icon-only comp-ring">
                   <UsageRingIcon />
                   <span className="sr-only">{heroComposer.usage}</span>
                 </span>
-                <span className="chip">
+                <span className="comp-btn plain comp-model">
                   <span className="comp-label">{heroComposer.model}</span>
-                  <i className="comp-caret">⌄</i>
+                  <i className="comp-caret">
+                    <ChevronDownIcon size={14} />
+                  </i>
                 </span>
                 <span className="comp-btn plain">
                   <BrainIcon />
                   <span className="comp-label">{heroComposer.effort}</span>
                 </span>
-                <span className="comp-send">↑</span>
+                <span className="comp-send">
+                  <ArrowUpIcon />
+                </span>
               </div>
             </div>
+          </div>
           </div>
         </div>
 

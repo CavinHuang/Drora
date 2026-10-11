@@ -7,11 +7,62 @@
  * 进不了静态 HTML（实测验证）；改走 TaskList 的公开 activeTaskId prop，语义一致。
  * 组名与任务数据逐字对齐参考站（见 mock-data.mock.ts）；本子树仅作装饰渲染，禁止挂 client 交互。
  */
+import type { ReactNode } from "react";
 import { TaskList } from "@drora/ui/website-hero";
 import { activeHeroTaskId, heroSidebarChrome, heroWorkspaces } from "./mock-data.mock";
 
 const noop = () => {};
 const noopAsync = async () => null;
+
+const Sw = ({ size = 16, children }: { size?: number; children: ReactNode }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {children}
+  </svg>
+);
+
+/** 顶部动作区图标（参考站 lucide 同形）：圆加号 / 闪灼。 */
+const CirclePlusIcon = () => (
+  <Sw>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 12h8" />
+    <path d="M12 8v8" />
+  </Sw>
+);
+const ZapIcon = () => (
+  <Sw>
+    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+  </Sw>
+);
+/** 组头动作钮：⋯ / ＋；用户区齿轮。 */
+const MoreIcon = () => (
+  <Sw size={14}>
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+    <circle cx="5" cy="12" r="1" />
+  </Sw>
+);
+const SidebarPlusIcon = () => (
+  <Sw size={14}>
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
+  </Sw>
+);
+const SettingsIcon = () => (
+  <Sw>
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <circle cx="12" cy="12" r="3" />
+  </Sw>
+);
 
 /** 参考站组头 anatomy 的 folder 图标（与 legacy 注入版逐字一致）。 */
 function FolderIcon() {
@@ -39,7 +90,9 @@ export function HeroSidebar() {
       <div className="win-side-actions">
         {heroSidebarChrome.actions.map((action) => (
           <div className="side-action" key={action.label}>
-            <span className="sa-icon">{action.icon}</span>
+            <span className="sa-icon">
+              {action.label === "新建任务" ? <CirclePlusIcon /> : action.label === "技能" ? <ZapIcon /> : <FolderIcon />}
+            </span>
             <span>{action.label}</span>
             {action.kbd ? <kbd>{action.kbd}</kbd> : null}
           </div>
@@ -78,8 +131,8 @@ export function HeroSidebar() {
               </span>
               <span className="wsl-name">{workspace.label}</span>
               <span className="wsl-actions" aria-hidden="true">
-                <i>⋯</i>
-                <i>⊕</i>
+                <MoreIcon />
+                <SidebarPlusIcon />
               </span>
             </div>
             {workspace.tasks.length > 0 ? (
@@ -108,7 +161,7 @@ export function HeroSidebar() {
         </span>
         <span className="wsu-name">{heroSidebarChrome.user.name}</span>
         <span className="wsu-gear" aria-hidden="true">
-          ⚙
+          <SettingsIcon />
         </span>
       </div>
     </div>

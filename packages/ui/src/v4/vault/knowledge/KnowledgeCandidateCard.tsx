@@ -23,6 +23,7 @@ import {
   dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
+import { dispatchKnowledgeEvidenceAttachmentAdd } from "@/lib/knowledgeEvidenceAttachment.js";
 import {
   deriveAskBanners,
   type KnowledgeEvidenceInspectState,
@@ -222,6 +223,53 @@ export function KnowledgeCandidateCard({
             {intl.formatMessage({ id: "vault.ask.candidate.addToAgentHint" })}
           </TooltipContent>
         </Tooltip>
+        {verified && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                disabled={!selectionTarget}
+                onClick={() => {
+                  if (!selectionTarget || !verified) return;
+                  // W09 证据附件（spec §5f.1）：opaque receipt 进入目标会话 composer
+                  // 附件区，发送时以 evidenceRefs 随 sendText 提交，admission/队列提升
+                  // 时由 CLI gate 复验（当前/stale/跨会话拒绝）。附件区不做发送前预检。
+                  const result = dispatchKnowledgeEvidenceAttachmentAdd({
+                    targetSessionId: selectionTarget.sessionId,
+                    workspaceKey: selectionTarget.workspaceKey,
+                    attachment: {
+                      receiptId: verified.receiptId,
+                      relativePath: verified.relativePath,
+                      quoteExcerpt:
+                        verified.excerpt.length > 160
+                          ? `${verified.excerpt.slice(0, 160)}…`
+                          : verified.excerpt,
+                      title: displayCandidateTitle(candidate),
+                    },
+                  });
+                  if (!result.ok) {
+                    toast.error(intl.formatMessage({ id: "vault.ask.evidence.limitReached" }));
+                    return;
+                  }
+                  if (!result.duplicate) {
+                    droraToast(
+                      intl.formatMessage({ id: "vault.ask.evidence.attached" }),
+                      { variant: "info" },
+                    );
+                  }
+                }}
+              >
+                <ShieldCheck className="size-3.5" />
+                {intl.formatMessage({ id: "vault.ask.candidate.attachEvidence" })}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-72">
+              {intl.formatMessage({ id: "vault.ask.candidate.attachEvidenceHint" })}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Button
           type="button"
           size="xs"

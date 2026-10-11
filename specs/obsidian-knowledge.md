@@ -694,3 +694,71 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。
 - 日志不写笔记全文、凭据、绝对路径；hook 静默路径不产生任何输出。
 - Jev 与一切外发默认关闭（ADR #5/#11）。
+
+## 5f. Evidence 生产者、审核消费与 L2 开关（W09，2026-10-11 落地）
+
+### 5f.1 composer 附件化 evidenceRefs（W03 建议①的 UI 半边）
+
+- **状态所有者**：附件 scope 存储唯一出处 `packages/ui/src/lib/knowledgeEvidenceAttachment.ts`（镜像
+  `conversationSelectionReference` 的 scope 存储 + CustomEvent 模式）；composer 侧唯一消费
+  `useKnowledgeEvidenceAttachments`；发送链唯一注入点 `SessionPane.dispatchSendTextAfterConfig`
+  的两处 `sendText` payload。
+- **语义**：候选卡「核验」产生的 receipt（`prepareEvidence` 签发、绑定 sessionId）经
+  「作为证据附给 Agent」进入目标会话 composer 的证据附件区（chip 展示 receiptId 短形、笔记
+  路径、quote 摘要与「发送时服务端复验」提示）；发送时以 `evidenceRefs: [{receiptId}]`
+  （≤8，契约 `MAX_EVIDENCE_REFS_PER_INPUT`）随 sendText payload 提交，admission 固定进
+  intent，队列提升时由 CLI gate 复验（W03 三层接线）。发送受理成功后清空附件区（与附件/
+  selection 同边界）；发送失败保留。
+- **边界（如实）**：附件区不做发送前预检（不预调 resolveCitation）；stale/cross_session/
+  forbidden 由 CLI gate 在 admission/提升时裁决并结构化报错——UI 提示语必须写明「发送时
+  复验」，不得宣称附件即可靠证据。与「加入 Agent」（userselect 普通引用）并存，按钮文案
+  与 Tooltip 明确区分两种语义。
+- **上限与去重**：每会话附件区最多 8 条（契约上限），按 receiptId 去重；跨会话调度
+  （targetSessionId）复用 selection 的 workspaceKey 作用域模型。
+
+### 5f.2 审核视图消费 review 服务
+
+- `KnowledgeReviewView` 改为消费真实 `IKnowledgeReviewService`（accessor `knowledgeReviewService`，
+  本地 ServiceCollection 与远端代理均已注册）：提案列表（按创建倒序）、逐提案
+  revision/changesHash/文件清单与目标内容预览（`getProposalChangeContent`，delete 显示删除态）、
+  动作批准/拒绝（待审）、应用（已批准，`operationId=randomUUID` 幂等键）、undo（applied）、
+  reconcile（applying/uncertain）。全部动作的错误以服务端结构化拒绝码呈现，不本地伪造状态。
+- 空态：未配置 Vault → 引导；无提案 → 说明提案从何而来（当前无提案生产者入口，见 §5f.4
+  如实边界）；服务不可用 → 真实错误态。
+
+### 5f.3 L2 写路径开关（writePathEnabled）
+
+- **缺省仍为关闭**（fail-closed 不变）；S03 GO（`S03_GATE_REVERIFICATION.md`）后允许显式开启。
+- **持久化唯一事实源**：`vault-config.json` 新增可选字段 `reviewWritePathEnabled?: boolean`
+  （缺省/非 boolean 视为关闭）；写入唯一入口 `obsidian-vault/config.ts`
+  `setVaultReviewWritePathEnabled`（与 `configureVaultAt` 同文件同格式，读-改-原子写，不新增
+  第二写方）；`parseVaultConfigShape` 同步接受该字段（additive，旧文件兼容）。
+- **生效链**：`createKnowledgeServices` 未显式传 `reviewWritePathEnabled` 时（生产路径），
+  review 服务创建后异步从 vault-config.json 加载初值（加载完成前按关闭判定，fail-closed）；
+  `IKnowledgeReviewService` 新增 `isWritePathEnabled()` 与 `setWritePathEnabled(enabled)`
+  （进程内立即生效 + 经上述唯一入口持久化）。测试显式传参时以参数为准、不读配置（确定性）。
+- **UI**：审核视图顶部开关（缺省关，明确标注「L2 审核写回：缺省关闭」与 S03 依据）；关闭态
+  下 apply/undo 的服务端 `write_path_disabled` 结构化错误照实显示并引导开关。
+
+### 5f.4 如实边界
+
+- 本阶段**不新增提案生产者**：提案仍只能由测试或后续「知识治理写回」工作单创建；审核视图
+  的价值是让已存在的机制可被人工完整走通（批准→应用→undo→reconcile）。UI 不得伪造提案。
+- 证据附件区不跨 Host 同步（与 selection 同级，会话内一次发送有效）。
+- `KnowledgeResolveCitationResult` 失败分支 status 含 `"current"` 的类型歧义维持现状（W04
+  §4 建议），本阶段以 citation 存在性窄化，不在 services 侧改契约（避免破坏 W03 已锁定的
+  CLI 契约面）。
+
+### 5f.5 验收映射
+
+证据规则同 §6；证据见 `docs/vaultview/delivery/W09_DELIVERY.md`、
+`packages/ui/test/knowledgeEvidenceAttachment.test.ts`、
+`packages/services/test/knowledgeReviewWritePath.test.ts`。
+
+| ID | 场景 | 状态 |
+| --- | --- | --- |
+| WSG-UI-1 | 附件区上限 8 / receiptId 去重 / 跨作用域隔离 / 事件驱动刷新 | 已实现（lib 测试） |
+| WSG-UI-2 | 发送 payload 携带 evidenceRefs 且受理后清空、失败保留 | 已实现（lib + 编排测试） |
+| WSG-UI-3 | 开关持久化：写后重读为 true/缺省文件视为 false/坏值视为 false | 已实现（services 测试） |
+| WSG-UI-4 | 关闭态 apply/undo 返回 write_path_disabled；开启后走真实 CAS 写盘 | 已实现（services 测试，沿用 W06 账本断言） |
+| WSG-UI-5 | UI 纪律：无任意字号/裸色值；i18n 两语言键齐全 | 已实现（ui 纪律测试扩展） |

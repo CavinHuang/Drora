@@ -151,6 +151,8 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
+import { useKnowledgeEvidenceAttachments } from "@/v4/composer/useKnowledgeEvidenceAttachments.js";
+import { toEvidenceRefPayload } from "@/lib/knowledgeEvidenceAttachment.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import {
@@ -164,6 +166,7 @@ import {
 } from "@/v4/composer/configPickerState.js";
 import { WebElementContextAttachmentChip } from "@/v4/composer/WebElementContextAttachmentChip.js";
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
+import { KnowledgeEvidenceChip } from "@/v4/composer/KnowledgeEvidenceChip.js";
 import type { AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
 import { useScopedConversationTelemetrySupervisor } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
 import type { ConversationPromptTelemetrySeed } from "@/v4/telemetry/conversationTelemetrySupervisor.js";
@@ -188,6 +191,12 @@ export interface ConversationComposerSendOptions {
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
   requestedDelivery?: "startNow" | "queue" | "guide";
   sharedContextRefs?: Array<{ kind: "shared_context_import"; context_id: string }>;
+  /**
+   * W09 证据附件（specs/obsidian-knowledge.md §5f.1）：随 sendText payload 提交的
+   * opaque receipt 引用（≤8，契约 MAX_EVIDENCE_REFS_PER_INPUT）；admission 固定进
+   * intent，队列提升时 CLI gate 复验。
+   */
+  evidenceRefs?: ReadonlyArray<{ receiptId: string }>;
 }
 
 export type ConversationComposerSendResult = "sent" | "blocked" | "confirmationRequired";
@@ -745,6 +754,14 @@ function ConversationComposerImpl({
     clearReferences: clearConversationSelectionReferences,
   } = useConversationSelectionReferences({ sessionId, workspaceKey });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
+  // W09 证据附件区（specs/obsidian-knowledge.md §5f.1）：核验 receipt 经
+  // 「作为证据附给 Agent」进入本区，发送时以 evidenceRefs 随 sendText payload 提交，
+  // CLI gate 在 admission/队列提升时复验。超限原因由派发侧（候选卡 toast）呈现，
+  // composer 只负责展示与移除。
+  const {
+    attachments: knowledgeEvidenceAttachments,
+    removeAttachment: removeKnowledgeEvidenceAttachment,
+  } = useKnowledgeEvidenceAttachments({ sessionId, workspaceKey });
 
   // ── 草稿 per-session 持久化（切会话/刷新不丢；mention pill 经 editorStateJson 保真）──
   const draftScopeRef = useRef(draftScopeId);
@@ -1159,6 +1176,8 @@ function ConversationComposerImpl({
       const hasPendingPptxElementReferences = currentPptxElementReferences.length > 0;
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
+      // 发送开始时冻结真正提交的证据附件；等待期间新加入的属于下一条消息。
+      const submittedEvidenceAttachments = knowledgeEvidenceAttachments;
       const submittedShareContext = pendingShareContext;
       // 草稿首发 accepted 后同一 composer 会原地从 __draft__ promotion 到
       // session scope；若成功清理时再读可变 ref，会误清新 scope，并把首条输入残留在
@@ -1350,6 +1369,9 @@ function ConversationComposerImpl({
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
           ...(readyAttachmentRefs.length > 0 ? { attachments: readyAttachmentRefs } : {}),
+          ...(submittedEvidenceAttachments.length > 0
+            ? { evidenceRefs: toEvidenceRefPayload(submittedEvidenceAttachments) }
+            : {}),
           ...(contextAttachmentCount > 0 ? { contextAttachmentCount } : {}),
           ...(submittedShareContext
             ? {
@@ -1414,6 +1436,10 @@ function ConversationComposerImpl({
         currentConversationSelections.forEach((reference) =>
           removeConversationSelectionReference(reference.id),
         );
+        // 证据附件同边界：只清本次冻结的 receipt；等待期间新加入的属于下一条消息。
+        submittedEvidenceAttachments.forEach((attachment) =>
+          removeKnowledgeEvidenceAttachment(attachment.receiptId),
+        );
         // 发送成功：清本次提交捕获的 scope 草稿；prompt history 已在真实发送前同步写盘，
         // 避免首发 promote 丢失或误清 promotion 后的新 scope。
         finalizeSubmittedDraft();
@@ -1442,6 +1468,7 @@ function ConversationComposerImpl({
       attachmentsApi,
       conversationSelectionReferences,
       conversationTelemetry,
+      knowledgeEvidenceAttachments,
       draftConfig,
       createSubmissionFromComposer,
       submissionReady,
@@ -1454,6 +1481,7 @@ function ConversationComposerImpl({
       readPlanIdentitySnapshot,
       removeCodeCommentContext,
       removeConversationSelectionReference,
+      removeKnowledgeEvidenceAttachment,
       removePptxElementReference,
       removeWebElementContext,
       sessionId,
@@ -1961,7 +1989,8 @@ function ConversationComposerImpl({
         {codeCommentContexts.length > 0 ||
         webElementContexts.length > 0 ||
         pptxElementReferences.length > 0 ||
-        conversationSelectionReferences.length > 0 ? (
+        conversationSelectionReferences.length > 0 ||
+        knowledgeEvidenceAttachments.length > 0 ? (
           <div
             className="flex max-w-full flex-wrap items-center gap-2"
             data-composer-context-attachments-row="true"
@@ -1987,6 +2016,10 @@ function ConversationComposerImpl({
               onRemove={removeConversationSelectionReference}
               onRemoveAll={clearConversationSelectionReferences}
             />
+            <KnowledgeEvidenceChip
+              attachments={knowledgeEvidenceAttachments}
+              onRemove={removeKnowledgeEvidenceAttachment}
+            />
           </div>
         ) : null}
       </div>
@@ -2001,11 +2034,13 @@ function ConversationComposerImpl({
     codeCommentContexts,
     composerAttachments,
     composerMediaPreviewItems,
+    knowledgeEvidenceAttachments,
     orderedComposerAttachments,
     intl,
     locale,
     removeCodeCommentContext,
     removeConversationSelectionReference,
+    removeKnowledgeEvidenceAttachment,
     removeWebElementContext,
     removePptxElementReference,
     conversationSelectionReferences,

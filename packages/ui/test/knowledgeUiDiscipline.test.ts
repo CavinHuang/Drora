@@ -69,9 +69,10 @@ test("A21：knowledge UI 静态 i18n 键在 zh-CN / en-US 两语言齐全", () =
   assert.deepEqual(missing, [], "所有静态引用的 i18n 键必须两语言齐全");
 });
 
-test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4）两语言齐全", () => {
-  // 词表与 knowledgeAskModel.ts 的 KnowledgeAskIntentChoice / KnowledgeAskBannerCode
-  // 及 VaultView.tsx 的 VaultViewTab 一一对应；新增成员必须同步两语言字典。
+test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4 / 审核态×4）两语言齐全", () => {
+  // 词表与 knowledgeAskModel.ts 的 KnowledgeAskIntentChoice / KnowledgeAskBannerCode、
+  // VaultView.tsx 的 VaultViewTab 及 KnowledgeReviewView.tsx 的提案阶段一一对应；
+  // 新增成员必须同步两语言字典。
   const dynamicIds = [
     ...["auto", "find", "answer", "compare"].map((choice) => `vault.ask.intent.${choice}`),
     ...[
@@ -88,6 +89,10 @@ test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4）两语
       "modelUnavailable",
     ].map((code) => `vault.ask.banner.${code}`),
     ...["notes", "ask", "insights", "review"].map((tab) => `vault.tabs.${tab}`),
+    // W09 审核视图提案阶段（KnowledgeReviewView proposalPhaseKey）。
+    ...["pending", "approvedCurrent", "approvalExpired", "rejected"].map(
+      (phase) => `vault.review.phase.${phase}`,
+    ),
   ];
   const missing = dynamicIds.filter((id) => !(id in zhCN) || !(id in enUS));
   assert.deepEqual(missing, [], "动态模板键必须两语言齐全");

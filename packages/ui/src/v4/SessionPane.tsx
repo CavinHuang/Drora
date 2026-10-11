@@ -2856,6 +2856,10 @@ export function SessionPane({
             text: effectiveText,
             attachments: readyAttachments,
             ...submission,
+            // W09 证据附件（specs/obsidian-knowledge.md §5f.1）：置于 submission 展开之后，
+            // 防止未来 submission 载体新增同名字段时被覆盖；admission 固定进 intent，
+            // 队列提升时 CLI gate 复验。
+            ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
             ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
           },
           newSessionId,
@@ -2891,6 +2895,8 @@ export function SessionPane({
             : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
+          // W09 证据附件：admission 固定进 intent，队列提升时 CLI gate 复验。
+          ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
           ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
         },
         sessionId,

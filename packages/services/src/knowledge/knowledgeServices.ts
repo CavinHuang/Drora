@@ -132,11 +132,12 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
 
   // 审核写入服务（W06）：与索引/检索共享同一 DB 连接；账本随 dispose 统一关闭。
-  // 写路径总门默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md）；生产装配不透传使能。
+  // 写路径总门缺省关闭（fail-closed）。W09：undefined（生产形态）透传 undefined——
+  // 引擎从 vault-config.json 异步加载初值；显式 true/false（测试形态）为确定性覆盖。
   const reviewService = createKnowledgeReviewService({
     db,
     pluginDataDir,
-    writePathEnabled: options.reviewWritePathEnabled === true,
+    writePathEnabled: options.reviewWritePathEnabled,
   });
 
   const indexService: IKnowledgeIndexService = {

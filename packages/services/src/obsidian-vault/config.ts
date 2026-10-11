@@ -21,6 +21,12 @@ export interface VaultConfig {
   displayName: string;
   inboxPath: string;
   allowAgentWrites: boolean;
+  /**
+   * W09 L2 审核写回总门（specs/obsidian-knowledge.md §5f.3）：缺省/非 boolean 视为关闭
+   * （fail-closed）；S03 GO 后由审核视图经 setVaultReviewWritePathEnabled 显式开启。
+   * configureVaultAt 重建配置时不携带本字段——重新授权 Vault 视为回到安全缺省。
+   */
+  reviewWritePathEnabled?: boolean;
   configuredAt: number;
 }
 
@@ -58,6 +64,9 @@ function parseVaultConfigShape(value: unknown): Omit<VaultConfig, "rootPath"> & 
     displayName: config.displayName,
     inboxPath: normalizeInboxPath(config.inboxPath),
     allowAgentWrites: config.allowAgentWrites,
+    ...(typeof config.reviewWritePathEnabled === "boolean"
+      ? { reviewWritePathEnabled: config.reviewWritePathEnabled }
+      : {}),
     configuredAt: config.configuredAt,
   };
 }
@@ -131,6 +140,23 @@ export async function configureManagedVault(
   const managedRoot = managedVaultDirPath(pluginDataDir);
   await mkdir(managedRoot, { recursive: true });
   return configureVaultAt(pluginDataDir, managedRoot, options);
+}
+
+/**
+ * W09 L2 写路径开关的唯一持久化入口（specs/obsidian-knowledge.md §5f.3）：读-改-原子写
+ * vault-config.json。除本函数外不得写该字段（configureVaultAt 重建配置时不携带，重新
+ * 授权 Vault 视为回到安全缺省关闭）。
+ * 返回 null = 配置不存在或根失效（无法持久化；调用方呈现错误，进程内状态不变）。
+ */
+export async function setVaultReviewWritePathEnabled(
+  pluginDataDir: string,
+  enabled: boolean,
+): Promise<VaultSummary | null> {
+  const config = await loadVaultConfig(pluginDataDir);
+  if (!config) return null;
+  const next: VaultConfig = { ...config, reviewWritePathEnabled: enabled === true };
+  await jsonFileIO.write(vaultConfigPath(pluginDataDir), next);
+  return toSummary(next);
 }
 
 export async function listCandidates(pluginDataDir: string): Promise<VaultCandidate[]> {

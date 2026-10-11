@@ -88,6 +88,16 @@ export interface IKnowledgeReviewService {
     proposalId: string;
     relativePath: string;
   }): Promise<KnowledgeReviewChangeContentResult | null>;
+
+  /** L2 写路径总门当前状态（W09：缺省 false；S03 GO 后经 UI/config 显式开启）。 */
+  isWritePathEnabled(): boolean;
+
+  /**
+   * 显式开启/关闭 L2 写路径总门：持久化到 vault-config.json（唯一写入入口
+   * `obsidian-vault/config.setVaultReviewWritePathEnabled`）成功后才翻转进程内状态；
+   * 持久化失败时上抛、状态不变。
+   */
+  setWritePathEnabled(enabled: boolean): Promise<void>;
 }
 
 export const IKnowledgeReviewService = createServiceDescriptor<IKnowledgeReviewService>(

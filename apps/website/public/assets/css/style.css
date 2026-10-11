@@ -2170,8 +2170,18 @@ section h2 {
   /* 参考站移动端：顶栏只留标题行（无交通灯/chips/图标簇） */
   .win-traffic,
   .win-topbar .chip,
-  .win-topbar .wt-icons {
+  .win-topbar .wt-icons,
+  .win-topbar .wt-more {
     display: none;
+  }
+
+  /* 桌面为悬浮右栏让位的右内距在移动（无右栏）还原 */
+  .win-chat {
+    padding: 14px 16px 6px;
+  }
+
+  .win-input {
+    padding: 0 16px 12px;
   }
 
   .win-topbar {

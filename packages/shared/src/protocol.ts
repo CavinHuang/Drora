@@ -390,4 +390,12 @@ export interface AppSettings {
   droraEndpointOrigin?: string;
   /** 自建 relay 服务端地址（specs/mobile-relay-server.md §8）；空=官方 zcode.z.ai。 */
   relayServerUrl?: string;
+  /**
+   * VaultView 智能问库 Jev 出站决策开关（specs/obsidian-knowledge.md §5d.10）。
+   * 默认关闭（ADR #5：零出站）；开启仅表示允许装配，实际出站仍需逐 run 用户授权。
+   * 装配期快照，变更重启 Host 后生效。
+   */
+  knowledgeJevEnabled?: boolean;
+  /** Jev TypeSafe 端点覆盖（网关/代理场景）；空/缺省 = 官方默认端点。重启后生效。 */
+  knowledgeJevBaseUrl?: string;
 }

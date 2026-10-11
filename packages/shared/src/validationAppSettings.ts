@@ -486,6 +486,9 @@ const appSettingsObjectSchema = z.object({
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   /** 自建 relay 服务端地址（mobile-relay-server.md §8；空=官方 zcode.z.ai）。 */
   relayServerUrl: nonEmptyStringSchema.optional(),
+  // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
+  knowledgeJevEnabled: z.boolean().default(false),
+  knowledgeJevBaseUrl: nonEmptyStringSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -578,4 +581,7 @@ export const appSettingsPatchSchema = z.object({
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   /** 自建 relay 服务端地址（清空=回落官方；与 relayServerUrl 设置键同名同义）。 */
   relayServerUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
+  knowledgeJevEnabled: z.boolean().optional(),
+  knowledgeJevBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
 });

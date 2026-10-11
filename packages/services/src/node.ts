@@ -20,6 +20,11 @@ import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
 import {
+  createKnowledgeJevProviderFactory,
+  resolveKnowledgeJevAssembly,
+  type KnowledgeJevAssembly,
+} from "./knowledge/decision/jevAssembly.js";
+import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
   type ProviderProvisioningTrigger,
@@ -153,6 +158,12 @@ export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
 export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
 // Knowledge 决策层（W05 / spec §5d）：Host 侧装配入口（凭证只在 Host 安全配置注入）。
 export { createJevAdapter, JEV_PROVIDER_ID, mergedNoulQuestion } from "./knowledge/decision/jevAdapter.js";
+// Jev 装配（§5d.10）：Host 异步初始化段预解析快照 → createLocalServices option。
+export {
+  createKnowledgeJevProviderFactory,
+  resolveKnowledgeJevAssembly,
+} from "./knowledge/decision/jevAssembly.js";
+export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
 export { createTypeSafeHttpTransport } from "./knowledge/decision/jevTransport.js";
 export type { TypeSafeTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
 export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
@@ -1506,6 +1517,12 @@ export function createLocalServices(options: {
   };
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
+  /**
+   * Jev 决策装配快照（specs/obsidian-knowledge.md §5d.10）：由调用方在异步初始化段
+   * 经 resolveKnowledgeJevAssembly 预解析后传入。null/缺省 = 功能关闭（fail-closed，
+   * 不注入 provider，grant 走 disabled）。V1 仅 desktop local host 预取。
+   */
+  knowledgeJevAssembly?: KnowledgeJevAssembly | null;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
@@ -2609,7 +2626,15 @@ export function createLocalServices(options: {
   const sqliteReposToClose: Array<{ close(): void }> = [];
   // Knowledge 索引/检索服务（VaultView 2.0 W02）：与面板 Vault 门面共享 vault-config.json
   // 唯一事实源；自带可重建 SQLite 索引缓存（WAL + lease/fencing），dispose 记入统一关闭链。
-  const knowledgeServices: KnowledgeServices = createKnowledgeServices();
+  // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
+  // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
+  const knowledgeServices: KnowledgeServices = createKnowledgeServices(
+    options.knowledgeJevAssembly
+      ? {
+          decisionProviderFactory: createKnowledgeJevProviderFactory(options.knowledgeJevAssembly),
+        }
+      : {},
+  );
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()
     .register(IFileService, fileService)

@@ -517,6 +517,55 @@ policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`�
 | A11 | 扩搜上限一次由 policy 执行 | 已实现（policy 测试 + 既有 OR 降级回归） |
 | A35 | 决策出站独立授权、日志无全文/凭据 | 已实现（consent/telemetry 测试） |
 
+### 5d.10 配置来源与 Host 装配（2026-10-11 补：打通「模型设置」最后一公里）
+
+W05 交付了完整的决策层实现，但 `createLocalServices` 调 `createKnowledgeServices()` 时从未注入
+`decisionProviderFactory`——功能在生产链路恒为关闭，且没有任何设置面能配置凭据。本节定义配置的
+唯一来源、装配的唯一路径与生效语义，作为实现依据。
+
+**配置项与所有者（单一出处）：**
+
+| 配置 | 所有者 | 键/字段 | 默认值 |
+| --- | --- | --- | --- |
+| Jev 开关 | `AppSettings`（app 级，非 workspace 级） | `knowledgeJevEnabled` | `false`（ADR #5：缺省关闭） |
+| TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = transport 内置官方端点 |
+| TypeSafe API Key | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量） | 无 |
+
+**装配路径（唯一写入方是 `createLocalServices`）：**
+
+```text
+设置 UI（开关/baseURL → settingService.update；Key → credentialService.save 经既有 RPC）
+        │
+desktop host 异步初始化段（initializeServices）：
+  knowledgeJevAssembly = await resolveKnowledgeJevAssembly({ settingService })
+        │   开关关 或 Key 缺失 → null（fail-closed，功能关闭）
+        ▼
+createLocalServices({ knowledgeJevAssembly })
+        │  非空才传 decisionProviderFactory（快照闭包 → TypeSafe transport + JevAdapter）
+        ▼
+createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5d.1 语义）
+```
+
+- **同步约束**：`createLocalServices` 是同步函数，而凭据/设置读取是异步——预解析必须发生在
+  host 已有的异步初始化段，经新 option 传入；禁止在装配函数内部引入半异步状态。
+- **生效语义**：装配期快照，设置变更**重启 Host 后生效**（与 `httpProxy`、
+  `embeddedBrowserAllowInsecureCertificates` 等既有设置先例一致）；设置页文案如实标注。
+- **范围裁定（V1）**：仅 desktop local host 预取装配。server/stdio/core 三条 `createLocalServices`
+  调用链不预取 → Jev 恒关闭；远程 workspace 的 knowledge 频道本就不在
+  `legacyRemoteWorkspaceRpcContract` 内，手机链路自然不可达，不触碰 `web-remote-replayable` 语义。
+- **策略参数**：阈值/预算/权重维持 policy 实验初值（§5d.5），首版不进设置 UI。
+- **安全不变式（延续 ADR #5/#11、A35）**：API Key 只存 credentialService；设置表单经既有
+  credentialService RPC 写入、不回显明文、不进日志；renderer 不持有 Key 事实；grant 流程不变。
+
+**验收场景（本轮新增）：**
+
+| ID | 场景 | 断言 |
+| --- | --- | --- |
+| K-JEV-7 | 开关关（或缺省）→ 装配 | `resolveKnowledgeJevAssembly` 返回 null；knowledge 服务 decision.provider 为 null；grant 返回 disabled（A23 语义不变） |
+| K-JEV-8 | 开关开、Key 缺失 → 装配 | 同上 fail-closed：返回 null，不出站、grant disabled |
+| K-JEV-9 | 开关开、Key 存在 → 装配 | 返回 `{ baseUrl, apiKey }` 快照；decisionProviderFactory 注入后 grant 正常签发；baseURL 覆盖生效（空串/空白回落官方默认） |
+| K-JEV-10 | 设置面写入 | 开关/baseURL 走 `settingService.update`，Key 走 `credentialService.save/delete`；AppSettings 校验 schema 接受新字段 |
+
 ## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 
 本节是工作单 W06 的行为契约。实现位于 `packages/services/src/knowledge/review/`（自研新模块，

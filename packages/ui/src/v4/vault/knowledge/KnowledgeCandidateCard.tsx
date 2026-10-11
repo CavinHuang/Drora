@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
+import { useTabStore } from "@/store/TabStoreProvider.js";
+import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
@@ -74,6 +76,13 @@ export function AskBannerList({
   banners: ReturnType<typeof deriveAskBanners>;
 }): React.ReactElement | null {
   const { intl } = useDroraIntl();
+  // jevOff 是唯一带配置入口的横幅：跳设置页「知识问答」分区（桌面端分区可见）。
+  // 与 App.handleOpenSettingsSection 同一机制：先写意图再开设置 tab，不另开路径。
+  const openSettingsTab = useTabStore((state) => state.openSettingsTab);
+  const goKnowledgeSettings = React.useCallback(() => {
+    setPendingSettingsSection("knowledge");
+    openSettingsTab();
+  }, [openSettingsTab]);
   if (banners.length === 0) return null;
   return (
     <div className="flex flex-col gap-1" data-testid="ask-banners">
@@ -84,6 +93,16 @@ export function AskBannerList({
           className={cn("text-ui-sm leading-5", BANNER_TONE[code] ?? "text-foreground-subtle")}
         >
           {intl.formatMessage({ id: `vault.ask.banner.${code}` })}
+          {code === "jevOff" ? (
+            <button
+              type="button"
+              data-testid="ask-banner-jev-settings"
+              className="underline underline-offset-2 hover:opacity-80"
+              onClick={goKnowledgeSettings}
+            >
+              {intl.formatMessage({ id: "vault.ask.banner.jevOff.settings" })}
+            </button>
+          ) : null}
         </p>
       ))}
     </div>

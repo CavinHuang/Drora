@@ -33,7 +33,7 @@
 本仓全量 node:test 套件不在 CI 门禁内，基线须取自**无本分支改动的干净检出**，否则无法区分「改动引入」与「基线既有」：
 
 1. 以 `git worktree add` 建立基线 `00135862` 的干净检出并 `pnpm install --frozen-lockfile`；
-2. 基线全量套件（10 目录）：**tests 519 / pass 509 / fail 10**，失败文件集 = `desktopMobileRelayControl`（2，并行时序敏感：两检出隔离复跑均 41/41 全绿）、`desktopPetCatgirlArtwork`（3，main 上既有——与 website 合并带入的 `pnpm-lock.yaml` 变更（+463/−41）后依赖树相关，CI 不覆盖该套件故未被发现）、`desktopRendererPlatformMobileFace` / `services+ui nonCliAcpRetirement` / `computerUseSettingsNavigation`（既有基线红名单）；
+2. 基线全量套件（10 目录）：**tests 519 / pass 509 / fail 10**，失败文件集 = `desktopMobileRelayControl`（2，并行时序敏感：两检出隔离复跑均 41/41 全绿）、`desktopPetCatgirlArtwork`（3，**勘误 2026-10-11**：与 pnpm-lock 变更无关——根因是生成器构造漏发 `cellWidth/cellHeight/columns` 致生成物违反自身接口 + 两处过期断言（completed 小数毫秒/violet 768×480），自猫娘三角色引入（f02f7fea）即存在；本仓初判「与 lockfile 相关」证伪，`git show c1870c9c:<生成文件>` 字面量 `"cellWidth"` 计数为 0 可复核；已由独立修复修复）、`desktopRendererPlatformMobileFace` / `services+ui nonCliAcpRetirement` / `computerUseSettingsNavigation`（既有基线红名单）；
 3. 本分支全量套件（11 目录，含新增 core 测试）：**tests 534 / pass 525 / fail 9**，失败文件集与基线**完全一致**（同一 6 文件；9 vs 10 为 relayControl 并行涨落）；
 4. 结论：**本分支零新增测试失败**，且新增 15 用例全绿。
 

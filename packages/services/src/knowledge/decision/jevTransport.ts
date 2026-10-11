@@ -1,17 +1,17 @@
 /**
- * Jev HTTP transport 端口 + 提供商实现（W05 / spec §5d.3、§5d.10）。
+ * Jev systemOne HTTP transport（W05 端口 / spec §5d.3、§5d.10 提供商维度）。
  *
- * 端口是「提供商中立评分契约」：post() 收 systemOne 形状的评分请求
- * （state={query,note_excerpt,title} + questions.relevance 判定标准），返回
- * {model, answers.relevance.noul, usage} 形状的评分结果；每个提供商实现负责把
- * 该契约翻译成自家线格式（TypeSafe 原生；OpenAI 兼容走 chat/completions + JSON 裁决）。
- * adapter（授权/超时/重试/校验）只面向本端口，与提供商无关。
- *
- * TypeSafe 契约来源：2026-10-10 抓取的官方文档（docs.typesafe.ai/api.md、
- * docs.typesafe.ai/sdk/javascript.md）——POST {baseURL}/v1/systemone、
+ * systemOne 是 Jev 全生态唯一的线协议：官方托管端点契约来自 2026-10-10 抓取的
+ * 官方文档（docs.typesafe.ai/api.md、sdk/javascript.md）——POST {baseURL}/v1/systemone、
  * Authorization: Bearer、请求 {state, model, questions}、响应 {model, answers, usage}、
- * 错误 401/422/429/529。不从 Python 示例猜接口。
+ * 错误 401/422/429/529。第三方 AI Gateway（TrueFoundry / Kong / Vercel AI Gateway /
+ * LiteLLM / Pydantic AI 等）与 OpenRouter 的 Jev 决策端点都按原样代理同一协议形状
+ * （Kong 文档：请求路由至 {网关route}/v1/systemone），不存在 chat/completions 翻译层
+ * ——Jev 没有 OpenAI 兼容端点。提供商之间只有 baseURL 部署、凭据与模型别名的差异
+ * （2026-10-11 用户裁定：不硬编码无法证实公开规范 URL 的提供商端点——openrouter /
+ * ai-gateway 的 baseURL 必填、由发行方文档/部署方提供，缺失即该提供商禁用）。
  *
+ * adapter（授权/超时/重试/校验）只面向本端口，与提供商无关。
  * API Key 只在 Host 侧构造 transport 时注入；不进 RPC 面、日志与诊断。
  */
 
@@ -48,26 +48,32 @@ export interface JevTransport {
   post(request: JevTransportRequest): Promise<JevTransportResponse>;
 }
 
-export interface TypeSafeTransportOptions {
+/** TypeSafe 官方托管端点（docs.typesafe.ai，2026-10-10）；typesafe 提供商的缺省 baseURL。 */
+export const TYPESAFE_OFFICIAL_BASE_URL = "https://api.typesafe.ai";
+
+const DEFAULT_MODEL = "jev-latest";
+
+export interface SystemOneTransportOptions {
   /** Host 侧安全配置注入；缺失时构造即抛错（绝不静默出站）。 */
   apiKey: string;
-  /** 默认官方端点（https://api.typesafe.ai）。 */
-  baseUrl?: string;
+  /** 提供商/网关部署的 Jev 端点 baseURL，必填（不做任何隐藏默认）；末尾斜杠剥除。 */
+  baseUrl: string;
+  /** 提供商侧模型别名覆盖（如命名空间 slug）；缺省用请求携带的官方别名（jev-latest）。 */
   model?: string;
   /** 注入 fetch 便于测试与宿主网络策略（默认 globalThis.fetch）。 */
   fetchImpl?: typeof fetch;
 }
 
-const DEFAULT_BASE_URL = "https://api.typesafe.ai";
-const DEFAULT_MODEL = "jev-latest";
-
-/** TypeSafe systemOne 的默认 HTTP transport（spec §5d.3 已验证契约）。 */
-export function createTypeSafeHttpTransport(options: TypeSafeTransportOptions): JevTransport {
+/** systemOne 线协议的默认 HTTP transport；所有具名提供商（typesafe/openrouter/ai-gateway）共用。 */
+export function createSystemOneHttpTransport(options: SystemOneTransportOptions): JevTransport {
   if (!options.apiKey || !options.apiKey.trim()) {
-    throw new Error("TypeSafe transport 需要 API Key（Host 侧安全配置）");
+    throw new Error("systemOne transport 需要 API Key（Host 侧安全配置）");
   }
-  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/u, "");
-  const model = options.model ?? DEFAULT_MODEL;
+  if (!options.baseUrl || !options.baseUrl.trim()) {
+    throw new Error("systemOne transport 需要端点 baseURL（提供商/网关部署方提供）");
+  }
+  const baseUrl = options.baseUrl.trim().replace(/\/+$/u, "");
+  const modelOverride = options.model?.trim() || undefined;
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
     async post(request: JevTransportRequest): Promise<JevTransportResponse> {
@@ -77,7 +83,11 @@ export function createTypeSafeHttpTransport(options: TypeSafeTransportOptions): 
           "Content-Type": "application/json",
           Authorization: `Bearer ${options.apiKey}`,
         },
-        body: JSON.stringify({ state: request.state, model: request.model || model, questions: request.questions }),
+        body: JSON.stringify({
+          state: request.state,
+          model: modelOverride || request.model || DEFAULT_MODEL,
+          questions: request.questions,
+        }),
         signal: request.signal,
       });
       let body: JevSystemOneResponse | null = null;
@@ -91,145 +101,4 @@ export function createTypeSafeHttpTransport(options: TypeSafeTransportOptions): 
       return { status: response.status, body };
     },
   };
-}
-
-/** chat-completions 协议族具名提供商的规范端点与协议细节（specs/agent-write-safety 无关；§5d.10）。 */
-export type ChatCompletionsProvider = "openrouter" | "ai-gateway";
-
-const CHAT_COMPLETIONS_PROVIDER_ENDPOINTS: Record<ChatCompletionsProvider, string> = {
-  openrouter: "https://openrouter.ai/api/v1",
-  "ai-gateway": "https://ai-gateway.vercel.sh/v1",
-};
-
-export interface ChatCompletionsScoringTransportOptions {
-  provider: ChatCompletionsProvider;
-  apiKey: string;
-  /** 提供商模型标识（OpenRouter/AI Gateway 均为 vendor/model slug），必填。 */
-  model: string;
-  /** 端点覆盖（网关/代理场景）；空/缺省 = 该提供商规范端点。 */
-  baseUrl?: string;
-  /** 注入 fetch 便于测试与宿主网络策略（默认 globalThis.fetch）。 */
-  fetchImpl?: typeof fetch;
-}
-
-const SCORING_SYSTEM_PROMPT =
-  "你是笔记检索的相关性裁判。对给定的「查询 + 笔记片段」做命题级匹配判定，只输出一个 JSON 对象，不要输出任何其它文字。";
-
-/**
- * chat-completions 协议族具名提供商传输（spec §5d.10）：OpenRouter 与 Vercel AI Gateway
- * 各有规范端点/鉴权/模型空间，作为**具名提供商**各自接入（不做用户自填的通用兼容端点）；
- * 两者线协议当前同族（POST {canonical|override}/chat/completions + Bearer），故共享本实现，
- * 协议分叉时按 provider 分叉。把提供商中立评分契约翻译成裁决请求——要求模型只输出
- * {"type":"noul","noul":<0-1>}；解析宽松（容忍代码围栏/前后缀文字/裸数字）。解析失败返回
- * 2xx + body=null——adapter 按 provider_error 单候选回退，429/5xx 语义与 TypeSafe 路径一致。
- */
-export function createChatCompletionsScoringTransport(
-  options: ChatCompletionsScoringTransportOptions,
-): JevTransport {
-  if (!options.apiKey?.trim()) {
-    throw new Error(`${options.provider} transport 需要 API Key（Host 侧安全配置）`);
-  }
-  if (!options.model?.trim()) {
-    throw new Error(`${options.provider} transport 需要模型名（Host 侧安全配置）`);
-  }
-  const baseUrl = (
-    options.baseUrl?.trim() || CHAT_COMPLETIONS_PROVIDER_ENDPOINTS[options.provider]
-  ).replace(/\/+$/u, "");
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${options.apiKey}`,
-  };
-  if (options.provider === "openrouter") {
-    // OpenRouter 可选署名头（排名/归因用途）。
-    headers["X-Title"] = "Drora";
-  }
-  return {
-    async post(request: JevTransportRequest): Promise<JevTransportResponse> {
-      const criterion = request.questions.relevance;
-      const userPrompt = [
-        `查询：${request.state.query ?? ""}`,
-        `笔记标题：${request.state.title ?? ""}`,
-        `笔记片段：${request.state.note_excerpt ?? ""}`,
-        "",
-        `判定指令：${criterion?.instructions ?? ""}`,
-        `满足 → noul 接近 1：${criterion?.criteria?.true ?? ""}`,
-        `不满足 → noul 接近 0：${criterion?.criteria?.false ?? ""}`,
-        '',
-        '只输出 JSON：{"type":"noul","noul":<0 到 1 之间的小数>}',
-      ].join("\n");
-      const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: options.model,
-          temperature: 0,
-          messages: [
-            { role: "system", content: SCORING_SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        signal: request.signal,
-      });
-      if (response.status < 200 || response.status >= 300) {
-        return { status: response.status, body: null };
-      }
-      let payload: unknown = null;
-      try {
-        payload = await response.json();
-      } catch {
-        return { status: response.status, body: null };
-      }
-      const parsed = parseChatCompletionsScoringResponse(payload, options.model);
-      return parsed
-        ? { status: response.status, body: parsed }
-        : { status: response.status, body: null };
-    },
-  };
-}
-
-/** 从 chat/completions 响应提取评分；任何不合法形态都返回 null（由 adapter 统一回退）。 */
-function parseChatCompletionsScoringResponse(
-  payload: unknown,
-  fallbackModel: string,
-): JevSystemOneResponse | null {
-  const record = payload as Record<string, unknown> | null;
-  const choice = (record?.choices as Array<{ message?: { content?: unknown } }> | undefined)?.[0];
-  const content = choice?.message?.content;
-  if (typeof content !== "string") return null;
-  const noul = extractNoulScore(content);
-  if (noul === null) return null;
-  const model = typeof record?.model === "string" ? record.model : fallbackModel;
-  const usage = (record?.usage ?? {}) as Record<string, unknown>;
-  return {
-    model,
-    answers: { relevance: { type: "noul", noul } },
-    usage: {
-      input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0,
-      output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0,
-    },
-  };
-}
-
-/** 宽松提取 [0,1] 分数：JSON 对象 → 围栏 JSON → 裸数字；范围校验交给 adapter（invalid_score）。 */
-export function extractNoulScore(content: string): number | null {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/u);
-  const candidates = [trimmed, fenced?.[1]?.trim() ?? ""];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    try {
-      const parsed = JSON.parse(candidate) as unknown;
-      const noul = (parsed as { noul?: unknown })?.noul;
-      if (typeof noul === "number") return noul;
-    } catch {
-      // 继续尝试其它候选形态
-    }
-  }
-  const bare = trimmed.match(/-?\d+(?:\.\d+)?/u);
-  if (bare) {
-    const value = Number.parseFloat(bare[0]);
-    if (Number.isFinite(value)) return value;
-  }
-  return null;
 }

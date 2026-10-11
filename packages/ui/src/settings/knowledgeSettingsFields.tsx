@@ -1,7 +1,8 @@
 /**
  * 知识问答设置的字段级组件与配置（从 KnowledgeSettingsSection 拆出，收口 max-lines 门禁）。
- * 详见 specs/obsidian-knowledge.md §5d.10：每个具名提供商有各自的协议适配，
- * 凭据键/设置字段/i18n 键集中在 REMOTE_PROVIDER_CONFIGS 单一出处。
+ * 详见 specs/obsidian-knowledge.md §5d.10：三类提供商共用 systemOne 线协议，远程提供商
+ * （OpenRouter / AI Gateway）差异在凭据键/设置字段/端点 baseURL，集中在
+ * REMOTE_PROVIDER_CONFIGS 单一出处。
  */
 import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
@@ -47,7 +48,7 @@ export function useApiKeyPresence(key: string, load: Credentials["load"]) {
   return [present, setPresent] as const;
 }
 
-/** chat-completions 协议族具名提供商的表单配置（凭据键/设置字段/i18n）。 */
+/** 远程具名提供商（OpenRouter / AI Gateway）的表单配置（凭据键/设置字段/i18n）。 */
 export interface RemoteProviderFieldConfig {
   provider: Exclude<KnowledgeJevProvider, "typesafe">;
   credentialKey: string;
@@ -162,7 +163,7 @@ export function ApiKeyRow({
   );
 }
 
-/** 远程提供商（OpenRouter / AI Gateway）的模型与端点覆盖行。 */
+/** 远程提供商（OpenRouter / AI Gateway）的模型别名与端点 baseURL 行（均必填）。 */
 export function RemoteProviderModelRows({
   config,
   update,
@@ -198,7 +199,7 @@ export function RemoteProviderModelRows({
           setModelDraft(normalized);
           toast(intl.formatMessage({ id: "settings.knowledge.model.saved" }));
         } else {
-          // 清空必须传空串（RPC 丢 undefined）——覆盖空 = 回落提供商官方端点。
+          // 清空必须传空串（RPC 丢 undefined）——端点 baseURL 必填，清空 = 该提供商禁用。
           const normalized = baseUrlDraft.trim();
           await update({ [config.baseUrlSetting]: normalized });
           setBaseUrlDraft(normalized);

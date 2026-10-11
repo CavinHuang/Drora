@@ -393,7 +393,7 @@ test("出站候选截断：maxCandidates 之外的候选不进请求池（skippe
 });
 
 test("默认 HTTP transport：对本地假服务器逐字段断言已验证的官方线格式", async () => {
-  const { createTypeSafeHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
+  const { createSystemOneHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
   const { createServer } = await import("node:http");
   const seen: Array<{ url: string | undefined; auth: string | undefined; body: unknown }> = [];
   const server = createServer((req, res) => {
@@ -415,7 +415,7 @@ test("默认 HTTP transport：对本地假服务器逐字段断言已验证的�
   const address = server.address();
   assert.ok(address && typeof address === "object");
   try {
-    const transport = createTypeSafeHttpTransport({
+    const transport = createSystemOneHttpTransport({
       apiKey: "test-key-do-not-use",
       baseUrl: `http://127.0.0.1:${address.port}`,
       model: "jev-latest",
@@ -440,6 +440,9 @@ test("默认 HTTP transport：对本地假服务器逐字段断言已验证的�
 });
 
 test("默认 HTTP transport：缺 API Key 构造即抛错（绝不静默出站）", async () => {
-  const { createTypeSafeHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
-  assert.throws(() => createTypeSafeHttpTransport({ apiKey: "  " }), /API Key/u);
+  const { createSystemOneHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
+  assert.throws(
+    () => createSystemOneHttpTransport({ apiKey: "  ", baseUrl: "https://api.typesafe.ai" }),
+    /API Key/u,
+  );
 });

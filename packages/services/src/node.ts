@@ -164,8 +164,11 @@ export {
   resolveKnowledgeJevAssembly,
 } from "./knowledge/decision/jevAssembly.js";
 export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
-export { createTypeSafeHttpTransport } from "./knowledge/decision/jevTransport.js";
-export type { TypeSafeTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
+export {
+  TYPESAFE_OFFICIAL_BASE_URL,
+  createSystemOneHttpTransport,
+} from "./knowledge/decision/jevTransport.js";
+export type { SystemOneTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
 export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
 export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
 export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";

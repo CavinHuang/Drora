@@ -7,8 +7,12 @@
  *    null（fail-closed，装配层据此不注入 decisionProviderFactory，grant 走 disabled，
  *    零出站）；
  * 2. createKnowledgeJevProviderFactory：把快照闭包成 W05 约定的 provider 工厂
- *    （必须走工厂而非静态 provider——逐调用授权重查要求与管线共享同一账本实例），
- *    按 provider 选择传输实现（TypeSafe 原生 / OpenAI 兼容 chat/completions）。
+ *    （必须走工厂而非静态 provider——逐调用授权重查要求与管线共享同一账本实例）。
+ *
+ * 提供商维度（2026-10-11 收敛）：systemOne 是 Jev 全生态唯一线协议，三类提供商
+ * 共用同一 transport，差异只在端点部署/凭据/模型别名——typesafe 用官方缺省端点
+ * （可覆盖），openrouter / ai-gateway 的 baseURL 由发行方文档/部署方提供、必填
+ * （不硬编码未证实公开规范 URL 的端点）。
  *
  * 安全不变式（ADR #5/#11）：API Key 只从 credentialService 读出、只在 Host 侧
  * 闭包内使用；不进 RPC 面、日志与诊断。
@@ -26,15 +30,15 @@ import type { KnowledgeDecisionPolicyConfig, KnowledgeDecisionProvider } from ".
 import type { DecisionConsentRegistry } from "./decisionConsent.js";
 import { createJevAdapter } from "./jevAdapter.js";
 import {
-  createChatCompletionsScoringTransport,
-  createTypeSafeHttpTransport,
+  TYPESAFE_OFFICIAL_BASE_URL,
+  createSystemOneHttpTransport,
 } from "./jevTransport.js";
 
 /** 装配期快照（按提供商判别）：开关开且该提供商必填项齐备时才产生。 */
 export type KnowledgeJevAssembly =
-  | { provider: "typesafe"; apiKey: string; baseUrl?: string }
-  | { provider: "openrouter"; apiKey: string; model: string; baseUrl?: string }
-  | { provider: "ai-gateway"; apiKey: string; model: string; baseUrl?: string };
+  | { provider: "typesafe"; apiKey: string; baseUrl: string }
+  | { provider: "openrouter"; apiKey: string; baseUrl: string; model: string }
+  | { provider: "ai-gateway"; apiKey: string; baseUrl: string; model: string };
 
 export interface ResolveKnowledgeJevAssemblyOptions {
   settingService: Pick<ISettingService, "get">;
@@ -56,36 +60,32 @@ export async function resolveKnowledgeJevAssembly(
     return null;
   }
   const credentialService = options.credentialService ?? createCredentialService();
-  // chat-completions 协议族具名提供商（OpenRouter / Vercel AI Gateway）：各自规范端点，
-  // Key + 模型名必填（fail-closed），端点覆盖可选（空 = 官方端点）。
+  // 远程具名提供商（OpenRouter / AI Gateway）：端点 baseURL 由发行方文档/部署方提供，
+  // 与 Key、模型别名同为必填（fail-closed，缺任一即禁用）——不硬编码猜测端点。
   if (settings.knowledgeJevProvider === "openrouter") {
     const apiKey = (await credentialService.load(KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY))?.trim();
     const model = normalizeBaseURL(settings.knowledgeJevOpenrouterModel);
-    if (!apiKey || !model) return null;
-    return {
-      provider: "openrouter",
-      apiKey,
-      model,
-      baseUrl: normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl),
-    };
+    const baseUrl = normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl);
+    if (!apiKey || !model || !baseUrl) return null;
+    return { provider: "openrouter", apiKey, model, baseUrl };
   }
   if (settings.knowledgeJevProvider === "ai-gateway") {
     const apiKey = (await credentialService.load(KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY))?.trim();
     const model = normalizeBaseURL(settings.knowledgeJevAiGatewayModel);
-    if (!apiKey || !model) return null;
-    return {
-      provider: "ai-gateway",
-      apiKey,
-      model,
-      baseUrl: normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl),
-    };
+    const baseUrl = normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl);
+    if (!apiKey || !model || !baseUrl) return null;
+    return { provider: "ai-gateway", apiKey, model, baseUrl };
   }
   const apiKey = (await credentialService.load(KNOWLEDGE_JEV_CREDENTIAL_KEY))?.trim();
   if (!apiKey) {
     // fail-closed：开关开了但凭据缺失，与关闭同语义（K-JEV-8）。
     return null;
   }
-  return { provider: "typesafe", apiKey, baseUrl: normalizeBaseURL(settings.knowledgeJevBaseUrl) };
+  return {
+    provider: "typesafe",
+    apiKey,
+    baseUrl: normalizeBaseURL(settings.knowledgeJevBaseUrl) ?? TYPESAFE_OFFICIAL_BASE_URL,
+  };
 }
 
 /** 把装配快照闭包成 W05 decisionProviderFactory 契约（policy 预算全部来自管线同一 config）。 */
@@ -96,18 +96,12 @@ export function createKnowledgeJevProviderFactory(
   config: KnowledgeDecisionPolicyConfig;
 }) => KnowledgeDecisionProvider {
   return ({ consentRegistry, config }) => {
-    const transport =
-      assembly.provider === "typesafe"
-        ? createTypeSafeHttpTransport({
-            apiKey: assembly.apiKey,
-            baseUrl: assembly.baseUrl,
-          })
-        : createChatCompletionsScoringTransport({
-            provider: assembly.provider,
-            apiKey: assembly.apiKey,
-            model: assembly.model,
-            baseUrl: assembly.baseUrl,
-          });
+    const transport = createSystemOneHttpTransport({
+      apiKey: assembly.apiKey,
+      baseUrl: assembly.baseUrl,
+      // typesafe 走 adapter 请求携带的官方别名（jev-latest）；远程提供商用其模型标识覆盖。
+      ...(assembly.provider === "typesafe" ? {} : { model: assembly.model }),
+    });
     return createJevAdapter({
       transport,
       consentRegistry,

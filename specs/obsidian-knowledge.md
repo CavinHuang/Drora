@@ -529,31 +529,40 @@ W05 交付了完整的决策层实现，但 `createLocalServices` 调 `createKno
 | --- | --- | --- | --- |
 | Jev 开关 | `AppSettings`（app 级，非 workspace 级） | `knowledgeJevEnabled` | `false`（ADR #5：缺省关闭） |
 | 决策模型提供商 | `AppSettings` | `knowledgeJevProvider`（`typesafe`/`openrouter`/`ai-gateway`） | `typesafe` |
-| TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = transport 内置官方端点 |
+| TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = 官方托管端点 `https://api.typesafe.ai` |
 | TypeSafe API Key | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量） | 无 |
-| OpenRouter 模型 slug | `AppSettings` | `knowledgeJevOpenrouterModel`（该提供商必填） | 无（空 = 该提供商禁用） |
-| OpenRouter 端点覆盖 | `AppSettings` | `knowledgeJevOpenrouterBaseUrl` | 官方端点 openrouter.ai |
+| OpenRouter Jev 模型标识 | `AppSettings` | `knowledgeJevOpenrouterModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| OpenRouter Jev 端点 baseURL | `AppSettings` | `knowledgeJevOpenrouterBaseUrl`（该提供商必填，由 OpenRouter 文档提供） | 无（空 = 该提供商禁用） |
 | OpenRouter API Key | `credentialService` | `KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY` | 无 |
-| AI Gateway 模型 | `AppSettings` | `knowledgeJevAiGatewayModel`（该提供商必填） | 无（空 = 该提供商禁用） |
-| AI Gateway 端点覆盖 | `AppSettings` | `knowledgeJevAiGatewayBaseUrl` | 官方端点 ai-gateway.vercel.sh |
+| AI Gateway Jev 模型标识 | `AppSettings` | `knowledgeJevAiGatewayModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| AI Gateway 部署 baseURL | `AppSettings` | `knowledgeJevAiGatewayBaseUrl`（该提供商必填，形如 `{网关部署}/v1/systemone`，由部署方提供） | 无（空 = 该提供商禁用） |
 | AI Gateway API Key | `credentialService` | `KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY` | 无 |
 
-**决策模型提供商（2026-10-11 补）**：评分模型与 agent 聊天模型相互独立，不进 provider
-registry。每个具名提供商有**各自的协议适配**（规范端点/鉴权/模型空间），不做「用户自填
-通用兼容端点」的泛化模式；`JevTransport` 端口是提供商中立评分契约（systemOne 形状为内部
-lingua franca），adapter（授权/超时/重试/校验）与提供商无关：
+**决策模型提供商（2026-10-11 补，同日二修）**：评分模型与 agent 聊天模型相互独立，不进
+provider registry。**systemOne 是 Jev 全生态唯一的线协议**（Jev 没有 OpenAI 兼容端点）——
+官方托管之外，第三方 AI Gateway（TrueFoundry / Kong / Vercel AI Gateway / LiteLLM /
+Pydantic AI 等）与 OpenRouter 的 Jev 决策端点都按原样代理同一协议形状（Kong 文档：请求
+路由至 `{网关route}/v1/systemone`；OpenRouter 以 Decisions API 形态列出 Jev）。提供商之间
+只有**端点部署、凭据与模型别名**的差异，不存在协议翻译层；`JevTransport` 端口即 systemOne
+线协议本身（`createSystemOneHttpTransport`，`POST {baseURL}/v1/systemone` + Bearer），adapter
+（授权/超时/重试/校验）与提供商无关：
 
-- `typesafe`：原生 `POST {base|https://api.typesafe.ai}/v1/systemone`（§5d.3 已验证契约）。
-- `openrouter`：`POST {base|https://openrouter.ai/api/v1}/chat/completions`，
-  `Authorization: Bearer` + `X-Title: Drora` 署名头，模型为 `vendor/model` slug。
-- `ai-gateway`：`POST {base|https://ai-gateway.vercel.sh/v1}/chat/completions`，
-  `Authorization: Bearer`（AI Gateway API Key），模型为提供商目录标识。
+- `typesafe`：官方托管端点 `POST {base|https://api.typesafe.ai}/v1/systemone`（§5d.3 已验证
+  契约），baseURL 可覆盖（网关/代理场景），是唯一有内置缺省端点的提供商。
+- `openrouter`：`POST {baseURL}/v1/systemone`，baseURL **必填**、由 OpenRouter 文档/控制台
+  提供——本仓不硬编码未证实公开规范 URL 的端点；模型标识为提供商侧 Jev 别名（如
+  `typesafe/jev-latest`）。
+- `ai-gateway`：`POST {baseURL}/v1/systemone`，baseURL **必填**、由网关部署方提供（各部署
+  各自的 Jev 路由，无跨部署统一默认值）；模型标识为部署侧 Jev 别名。
 
-后两者线协议当前同族（chat-completions 形状），共享参数化实现但按 provider 保留各自
-端点/头，协议分叉时各自分叉；评分裁决要求模型只输出 `{"type":"noul","noul":<0-1>}`，
-解析宽松容忍围栏/裸数字，解析失败 → body=null → adapter 按 provider_error 单候选回退，
-429/5xx 语义与 TypeSafe 路径一致。fail-closed：远程提供商的 model/Key 缺一即禁用；
-各提供商凭据键独立、不混用。
+fail-closed：远程提供商的 model/baseURL/Key 缺一即禁用（装配返回 null，grant 走 disabled，
+零出站）；typesafe 仅 Key 必填、baseURL 空白回落官方端点。各提供商凭据键独立、不混用。
+
+**决策记录（2026-10-11）**：初版曾把 openrouter / ai-gateway 适配为 chat/completions 形状
+（JSON 裁决翻译层），并给 ai-gateway 硬编码了 `ai-gateway.vercel.sh/v1` 缺省端点。经证据
+复核（Kong/TrueFoundry/Pydantic 网关文档均按 `{route}/v1/systemone` 原样代理；Jev 无
+OpenAI 兼容端点）与用户裁定，该翻译层整体拆除，统一走 systemOne 传输；无法证实公开规范
+URL 的提供商一律 baseURL 必填（fail-closed），不做隐藏默认。
 
 **装配路径（唯一写入方是 `createLocalServices`）：**
 
@@ -565,7 +574,7 @@ desktop host 异步初始化段（initializeServices）：
         │   开关关 或 Key 缺失 → null（fail-closed，功能关闭）
         ▼
 createLocalServices({ knowledgeJevAssembly })
-        │  非空才传 decisionProviderFactory（快照闭包 → TypeSafe transport + JevAdapter）
+        │  非空才传 decisionProviderFactory（快照闭包 → systemOne transport + JevAdapter）
         ▼
 createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5d.1 语义）
 ```

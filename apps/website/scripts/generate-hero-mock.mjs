@@ -13,7 +13,7 @@
  * 临时 bundle 落在 .hero-mock-tmp/，用后即删。
  */
 import { build } from "esbuild";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -85,7 +85,19 @@ try {
   if (typeof html !== "string" || html.length < 10_000 || !html.includes("mock-wrap")) {
     throw new Error(`hero mock 渲染结果异常（${typeof html}，${html?.length ?? 0}B）`);
   }
-  await writeFile(generatedPath, html);
+  // Windows 下 Defender/索引器会对刚生成的文件短暂持锁，直接 open-for-write 复现
+  // UNKNOWN(-4094)：先写同目录临时文件再原子改名，并在锁上做短重试。
+  const tmpPath = `${generatedPath}.${process.pid}.tmp`;
+  await writeFile(tmpPath, html);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rename(tmpPath, generatedPath);
+      break;
+    } catch (error) {
+      if (attempt >= 5) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 120 * attempt));
+    }
+  }
   console.log(
     `hero mock baked: ${path.relative(pkgDir, generatedPath)} (${Buffer.byteLength(html)}B)`,
   );

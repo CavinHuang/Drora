@@ -245,6 +245,20 @@ const rowInputs: ConversationRow[] = [
     inputText: "node --check app.js",
     output: { text: "**node --check app.js**\n\n通过，无语法错误。" },
   },
+  {
+    ...turnBase,
+    rowId: 15,
+    createdAtSeq: 15,
+    kind: "turnHeader",
+    origin: "userInput",
+    state: "completedSuccess",
+    startedAt: NOW - 2 * MIN,
+    endedAt: NOW,
+    entityId: "hero-entity-1",
+    // 参考站末轮「3 个文件已更改 +734 -7」文件摘要卡（ConversationFileSummaryPanel
+    // 读 unit.header.fileChanges 出折叠头；明细经 rowContext.fetchFileChanges 桩）
+    fileChanges: { additions: 734, deletions: 7, files: 3 },
+  },
 ];
 
 export const heroChatRows = rowInputs;
@@ -254,15 +268,16 @@ export const heroComposer = {
   placeholder: "继续输入后续修改需求",
   addContext: "添加上下文",
   confirmEdit: "变更前确认",
+  usage: "上下文用量 14,238 / 200,000",
   model: "GLM-5.3",
   effort: "最大",
 } as const;
 
-/** hero 顶栏（win-topbar）逐字文案 */
+/** hero 顶栏（win-topbar）逐字文案；标题不烘焙省略号（.wt-title CSS truncate 同参考站） */
 export const heroTopbar = {
-  goalTitle: "创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断…",
+  goalTitle: "创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。",
   workspaceChip: "gomoku-ai",
-  branchChip: "⎇ upgrade/v3.0",
+  branchChip: "upgrade/v3.0",
 } as const;
 
 /** 右栏卡片（终端 / Git tools / Goal / Progress）逐字文案 */
@@ -297,6 +312,7 @@ export const heroRightPanel = {
 /** 侧栏顶部动作区与底部用户区（参考站同款；用户头像用 Drora D 标=唯一分歧） */
 export const heroSidebarChrome: {
   actions: ReadonlyArray<{ icon: string; label: string; kbd?: string }>;
+  tasksSectionLabel: string;
   user: { name: string; avatar: string };
 } = {
   actions: [
@@ -304,5 +320,6 @@ export const heroSidebarChrome: {
     { icon: "▤", label: "打开工作区" },
     { icon: "⚡", label: "技能" },
   ],
+  tasksSectionLabel: "任务",
   user: { name: "Ryan Bot", avatar: "D" },
 };

@@ -363,7 +363,7 @@ a {
   position: relative;
   max-width: 1280px;
   margin: 76px auto 0;
-  padding: 0 28px;
+  padding: 0 16px;
 }
 
 
@@ -372,8 +372,8 @@ a {
   inset: 12% -4% auto;
   height: 70%;
   background:
-    radial-gradient(42% 55% at 24% 62%, rgba(94, 163, 250, 0.13), transparent 70%),
-    radial-gradient(40% 55% at 78% 55%, rgba(255, 171, 82, 0.1), transparent 70%);
+    radial-gradient(42% 55% at 24% 62%, rgba(94, 163, 250, 0.07), transparent 70%),
+    radial-gradient(40% 55% at 78% 55%, rgba(255, 171, 82, 0.05), transparent 70%);
   filter: blur(24px);
   pointer-events: none;
 }
@@ -676,9 +676,9 @@ a {
 /* 输入区：单一 composer 卡（输入行 + 工具条 + 右侧品牌色发送方块） */
 .composer {
   border: 1px solid var(--border-strong);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--bg-window);
-  padding: 10px 12px 8px;
+  padding: 12px;
 }
 
 .comp-input {
@@ -1182,9 +1182,9 @@ a {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
-  border-left: 1px solid var(--border);
-  background: #171718;
+  width: 320px;
+  padding: 12px;
+  background: transparent;
   overflow: hidden;
   /* 面板底部渐隐（对齐参考站 Progress 末条淡出） */
   -webkit-mask-image: linear-gradient(to bottom, #000 93%, transparent 100%);

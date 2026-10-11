@@ -75,11 +75,29 @@ export const heroWorkspaces: HeroWorkspaceMock[] = [
   {
     workspacePath: "D:\\workspace\\projects\\zcode-desktop",
     label: "zcode-desktop",
-    hasErrorTask: false,
-    // 参考站当前该组折叠（组头下无任务行）；失败红点任务数据见 git 历史
-    tasks: [],
+    hasErrorTask: true,
+    tasks: [
+      // status:"error" → 任务行失败红点（lib/taskListItemPresentation.ts）
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d1", "排查会话恢复后右侧面板状态不同步的问题", 1 * 60, { status: "error" }),
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d2", "优化 terminal 面板拖拽 resize 后的重绘性能", 2 * 60),
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d3", "修复重启后 sidebar 折叠状态没有恢复的问题", 3 * 60),
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d4", "梳理设置页分组信息架构，减少高级选项混杂", 6 * 60),
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d5", "给 command palette 增加最近使用和键盘提示", 9 * 60),
+      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d6", "补首启动 onboarding 的远程开发说明和权限提示", 1 * DAY),
+    ],
   },
-  // release-bot 组已删：参考站当前侧栏只有三组（gomoku-ai / zcode-website / zcode-desktop）
+  {
+    workspacePath: "D:\\workspace\\projects\\release-bot",
+    label: "release-bot",
+    hasErrorTask: true,
+    tasks: [
+      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r1", "接入 changelog 生成和 GitHub Release 草稿流程", 4 * 60),
+      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r2", "补一版失败 CI 汇总消息模板和重试建议", 1 * DAY),
+      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r3", "串上 tag 校验、版本号同步和 release note 预览", 1 * DAY),
+      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r4", "生成版本发布公告模板，区分 patch 和 feature release", 2 * DAY),
+      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r5", "给失败发布任务增加幂等重试和告警收敛策略", 3 * DAY, { status: "error" }),
+    ],
+  },
 ];
 
 /** 参考站激活组：gomoku-ai 的第一条任务带品牌色高亮（经 TaskList 的 activeTaskId prop 驱动，

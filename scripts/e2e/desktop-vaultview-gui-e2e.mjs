@@ -47,10 +47,18 @@ function shutdown() {
   }
 }
 
-/** 守卫：真实打包桌面实例（Drora.exe）运行中返回 true。 */
+/** 守卫：机器上存在任何 electron 进程（真实打包实例、dev 实例、残留）即拒绝——
+ * 它们会与本 E2E 竞争 setting.json / 单例锁 / 端口（W10 实测：真实应用带活跃会话
+ * 使用中时并发跑 E2E 会互相污染）。 */
 function evalGuard() {
   if (process.platform !== "win32") return false;
   try {
+    const electronAlive = execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", "(Get-Process electron -ErrorAction SilentlyContinue | Measure-Object).Count"],
+      { encoding: "utf-8" },
+    ).trim();
+    if (Number(electronAlive) > 0) return true;
     const out = execFileSync("tasklist", ["/FI", "IMAGENAME eq Drora.exe", "/FO", "CSV"], { encoding: "utf-8" });
     return out.includes("Drora.exe");
   } catch {
@@ -186,15 +194,21 @@ async function main() {
   log("CDP 就绪：", target.url);
 
   cdp = await connectCdp(target.webSocketDebuggerUrl);
-  await cdp.send("Runtime.enable");
-  await cdp.send("Page.enable");
+  await cdp.send("Runtime.enable", {}, 10_000);
+  await cdp.send("Page.enable", {}, 10_000);
 
+  // 每次 CDP 消息带超时：DevTools 服务在本机环境存在「首应答后失聪」的窗口，
+  // 挂死的 evaluate 必须能超时返回，waitFor 的轮询才有机会重试。
   const evalJs = async (expression) => {
-    const result = await cdp.send("Runtime.evaluate", {
-      expression,
-      returnByValue: true,
-      awaitPromise: true,
-    });
+    const result = await cdp.send(
+      "Runtime.evaluate",
+      {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+      },
+      8_000,
+    );
     if (result.exceptionDetails) {
       throw new Error(`evaluate 失败: ${result.exceptionDetails.exception?.description ?? "unknown"}`);
     }
@@ -331,11 +345,19 @@ function connectCdp(url) {
     const pending = new Map();
     ws.onopen = () =>
       resolveConnect({
-        send(method, params = {}) {
+        send(method, params = {}, timeoutMs) {
           const id = nextId++;
           return new Promise((resolveSend, rejectSend) => {
             pending.set(id, { resolveSend, rejectSend });
             ws.send(JSON.stringify({ id, method, params }));
+            if (timeoutMs) {
+              setTimeout(() => {
+                if (pending.has(id)) {
+                  pending.delete(id);
+                  rejectSend(new Error(`CDP ${method} 响应超时`));
+                }
+              }, timeoutMs);
+            }
           });
         },
         close: () => ws.close(),

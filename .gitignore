@@ -96,3 +96,4 @@ remote-asset-cache/
 scripts/regression/reports/
 scripts/regression/tmp-gate/
 scripts/regression/tmp-*.mjs
+.e2e-artifacts-vaultview/

@@ -73,7 +73,11 @@ function filePathFromInput(input: unknown): string | undefined {
 
 function preservesExistingPermissionDecision(decision: PermissionDecisionResult): boolean {
   if (decision.decision === "deny") {
-    return decision.ruleId !== "mode.plan.nonReadOnly";
+    // W08 写安全门禁（specs/write-safety-gating.md §2.2，W00 三洞洞 1b/P7）：deny 一律
+    // 保留。原实现仅保留非 plan deny，导致 plan 模式的 `mode.plan.nonReadOnly` deny 被
+    // 改写为 `allow memory.file.markdown`——免确认区翻案了模式 deny。免确认区只允许把
+    // 「缺省 ask」提升为 allow，绝不翻案任何 deny。
+    return true;
   }
   // alwaysAsk 是工具自报的"任何情况都要问"，这里不能把它放行掉。今天走不到这条分支
   // （只有 Write/Edit 会命中 memory 目标，二者都没声明 alwaysAsk），但一旦有人给它们加上，

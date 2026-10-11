@@ -75,29 +75,11 @@ export const heroWorkspaces: HeroWorkspaceMock[] = [
   {
     workspacePath: "D:\\workspace\\projects\\zcode-desktop",
     label: "zcode-desktop",
-    hasErrorTask: true,
-    tasks: [
-      // status:"error" → 任务行失败红点（lib/taskListItemPresentation.ts）
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d1", "排查会话恢复后右侧面板状态不同步的问题", 1 * 60, { status: "error" }),
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d2", "优化 terminal 面板拖拽 resize 后的重绘性能", 2 * 60),
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d3", "修复重启后 sidebar 折叠状态没有恢复的问题", 3 * 60),
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d4", "梳理设置页分组信息架构，减少高级选项混杂", 6 * 60),
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d5", "给 command palette 增加最近使用和键盘提示", 9 * 60),
-      mkTask("D:\\workspace\\projects\\zcode-desktop", "hero-task-d6", "补首启动 onboarding 的远程开发说明和权限提示", 1 * DAY),
-    ],
+    hasErrorTask: false,
+    // 参考站当前该组折叠（组头下无任务行）；失败红点任务数据见 git 历史
+    tasks: [],
   },
-  {
-    workspacePath: "D:\\workspace\\projects\\release-bot",
-    label: "release-bot",
-    hasErrorTask: true,
-    tasks: [
-      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r1", "接入 changelog 生成和 GitHub Release 草稿流程", 4 * 60),
-      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r2", "补一版失败 CI 汇总消息模板和重试建议", 1 * DAY),
-      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r3", "串上 tag 校验、版本号同步和 release note 预览", 1 * DAY),
-      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r4", "生成版本发布公告模板，区分 patch 和 feature release", 2 * DAY),
-      mkTask("D:\\workspace\\projects\\release-bot", "hero-task-r5", "给失败发布任务增加幂等重试和告警收敛策略", 3 * DAY, { status: "error" }),
-    ],
-  },
+  // release-bot 组已删：参考站当前侧栏只有三组（gomoku-ai / zcode-website / zcode-desktop）
 ];
 
 /** 参考站激活组：gomoku-ai 的第一条任务带品牌色高亮（经 TaskList 的 activeTaskId prop 驱动，
@@ -245,6 +227,20 @@ const rowInputs: ConversationRow[] = [
     inputText: "node --check app.js",
     output: { text: "**node --check app.js**\n\n通过，无语法错误。" },
   },
+  {
+    ...turnBase,
+    rowId: 15,
+    createdAtSeq: 15,
+    kind: "turnHeader",
+    origin: "userInput",
+    state: "completedSuccess",
+    startedAt: NOW - 2 * MIN,
+    endedAt: NOW,
+    entityId: "hero-entity-1",
+    // 参考站末轮「3 个文件已更改 +734 -7」文件摘要卡（ConversationFileSummaryPanel
+    // 读 unit.header.fileChanges 出折叠头；明细经 rowContext.fetchFileChanges 桩）
+    fileChanges: { additions: 734, deletions: 7, files: 3 },
+  },
 ];
 
 export const heroChatRows = rowInputs;
@@ -259,11 +255,11 @@ export const heroComposer = {
   effort: "最大",
 } as const;
 
-/** hero 顶栏（win-topbar）逐字文案 */
+/** hero 顶栏（win-topbar）逐字文案；标题不烘焙省略号（.wt-title CSS truncate 同参考站） */
 export const heroTopbar = {
-  goalTitle: "创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断…",
+  goalTitle: "创建一个智能五子棋游戏，让玩家与能够进行策略性落子并准确判断胜负的算法对战。",
   workspaceChip: "gomoku-ai",
-  branchChip: "⎇ upgrade/v3.0",
+  branchChip: "upgrade/v3.0",
 } as const;
 
 /** 右栏卡片（终端 / Git tools / Goal / Progress）逐字文案 */

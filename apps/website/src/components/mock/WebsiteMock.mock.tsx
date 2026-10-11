@@ -140,6 +140,19 @@ const UsageRingIcon = () => (
     />
   </svg>
 );
+/** 顶栏 chips 图标：folder / git-branch（参考站 lucide 逐字 path）。 */
+const FolderChipIcon = () => (
+  <Svg size={12}>
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
+  </Svg>
+);
+const GitBranchChipIcon = () => (
+  <Svg size={12}>
+    <path d="M15 6a9 9 0 0 0-9 9V3" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+  </Svg>
+);
 /** 顶栏应用胶囊：Finder 风格双色调脸（参考站为 Finder png，此处品牌蓝近似绘制）。 */
 const FinderFaceIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
@@ -186,9 +199,16 @@ function HeroMockWindow() {
         <div className="win-main">
           <div className="win-topbar">
             <p className="wt-title">{heroTopbar.goalTitle}</p>
-            <span className="chip">{heroTopbar.workspaceChip}</span>
+            <span className="chip">
+              <FolderChipIcon />
+              {heroTopbar.workspaceChip}
+            </span>
             <span className="chip chip-branch">
-              {heroTopbar.branchChip} <i>⌄</i>
+              <GitBranchChipIcon />
+              {heroTopbar.branchChip}
+              <i className="comp-caret">
+                <ChevronDownIcon size={11} />
+              </i>
             </span>
             <span className="wt-spacer"></span>
             <span className="wt-icons">
@@ -227,6 +247,17 @@ function HeroMockWindow() {
                   wrapLongLines: false,
                   fontSizePx: 13,
                 },
+                // 文件摘要卡（turnHeader.fileChanges）展开时的明细桩：参考站同款三文件
+                fetchFileChanges: async () => ({
+                  files: 3,
+                  additions: 734,
+                  deletions: 7,
+                  items: [
+                    { path: "app.js", additions: 471, deletions: 0, writeCount: 1, toolNames: ["write"], patches: [] },
+                    { path: "index.html", additions: 82, deletions: 9, writeCount: 2, toolNames: ["edit"], patches: [] },
+                    { path: "styles.css", additions: 201, deletions: 3, writeCount: 1, toolNames: ["edit"], patches: [] },
+                  ],
+                }),
               }}
             />
           </div>

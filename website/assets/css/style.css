@@ -980,9 +980,8 @@ a {
   min-height: 0;
   overflow: hidden;
   padding: 14px 22px 6px;
-  /* 底部渐隐：被裁的最后一段柔和过渡，不与输入区硬切 */
-  -webkit-mask-image: linear-gradient(to bottom, #000 90%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 90%, transparent 100%);
+  /* 渐隐 mask 已撤：静态烘焙时代的裁切柔化在真组件滚动模式下会把视口底部
+     内容（文件摘要卡）永久淡出，参考站无此效果 */
   display: flex;
   flex-direction: column;
   gap: 13px;
@@ -3167,4 +3166,10 @@ release-block {
   display: inline-flex;
   align-items: center;
   color: #6b6b6b;
+}
+
+/* 顶栏 chips 内 SVG（folder/branch 图标） */
+.chip svg {
+  display: block;
+  flex-shrink: 0;
 }

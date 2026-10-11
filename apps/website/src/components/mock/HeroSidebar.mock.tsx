@@ -82,19 +82,21 @@ export function HeroSidebar() {
                 <i>⊕</i>
               </span>
             </div>
-            <TaskList
-              workspacePath={workspace.workspacePath}
-              tasks={workspace.tasks}
-              activeTaskId={workspace.label === "gomoku-ai" ? activeHeroTaskId : null}
-              onSelectTask={noop}
-              showCreateButton={false}
-              showFooter={false}
-              loading={false}
-              onRenameTask={noopAsync}
-              onSetTaskPinned={noopAsync}
-              onArchiveTask={noopAsync}
-              onSetTaskUnread={noopAsync}
-            />
+            {workspace.tasks.length > 0 ? (
+              <TaskList
+                workspacePath={workspace.workspacePath}
+                tasks={workspace.tasks}
+                activeTaskId={workspace.label === "gomoku-ai" ? activeHeroTaskId : null}
+                onSelectTask={noop}
+                showCreateButton={false}
+                showFooter={false}
+                loading={false}
+                onRenameTask={noopAsync}
+                onSetTaskPinned={noopAsync}
+                onArchiveTask={noopAsync}
+                onSetTaskUnread={noopAsync}
+              />
+            ) : null}
           </div>
         ))}
       </div>

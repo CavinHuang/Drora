@@ -36,6 +36,11 @@ export type {
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { KNOWLEDGE_JEV_CREDENTIAL_KEY } from "./knowledge-jev.js";
+export {
+  KNOWLEDGE_JEV_OPENAI_CREDENTIAL_KEY,
+  KNOWLEDGE_JEV_PROVIDERS,
+} from "./knowledge-jev.js";
+export type { KnowledgeJevProvider } from "./knowledge-jev.js";
 export { DRORA_VERSION, DRORA_COMMIT, DRORA_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ArmsRumEnv, DroraEnv, DroraProductFlavor } from "./env.js";

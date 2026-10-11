@@ -1,3 +1,4 @@
+import type { KnowledgeJevProvider } from "./knowledge-jev.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -396,6 +397,12 @@ export interface AppSettings {
    * 装配期快照，变更重启 Host 后生效。
    */
   knowledgeJevEnabled?: boolean;
-  /** Jev TypeSafe 端点覆盖（网关/代理场景）；空/缺省 = 官方默认端点。重启后生效。 */
+  /** Jev 决策模型提供商；缺省 typesafe。决策模型与 agent 聊天模型相互独立。 */
+  knowledgeJevProvider?: KnowledgeJevProvider;
+  /** TypeSafe 端点覆盖（网关/代理场景）；空/缺省 = 官方默认端点。重启后生效。 */
   knowledgeJevBaseUrl?: string;
+  /** OpenAI 兼容端点（provider=openai-compatible 时必填）；空 = 该提供商禁用（fail-closed）。 */
+  knowledgeJevOpenaiBaseUrl?: string;
+  /** OpenAI 兼容模型名（provider=openai-compatible 时必填），例如 glm-4.7。 */
+  knowledgeJevOpenaiModel?: string;
 }

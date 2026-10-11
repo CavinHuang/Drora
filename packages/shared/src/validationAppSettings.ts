@@ -488,7 +488,10 @@ const appSettingsObjectSchema = z.object({
   relayServerUrl: nonEmptyStringSchema.optional(),
   // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
   knowledgeJevEnabled: z.boolean().default(false),
+  knowledgeJevProvider: z.enum(["typesafe", "openai-compatible"]).default("typesafe"),
   knowledgeJevBaseUrl: nonEmptyStringSchema.optional(),
+  knowledgeJevOpenaiBaseUrl: nonEmptyStringSchema.optional(),
+  knowledgeJevOpenaiModel: nonEmptyStringSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -583,5 +586,8 @@ export const appSettingsPatchSchema = z.object({
   relayServerUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
   /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
   knowledgeJevEnabled: z.boolean().optional(),
+  knowledgeJevProvider: z.enum(["typesafe", "openai-compatible"]).optional(),
   knowledgeJevBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevOpenaiBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevOpenaiModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
 });

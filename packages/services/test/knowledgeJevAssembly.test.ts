@@ -18,7 +18,16 @@ import { DEFAULT_DECISION_POLICY } from "../src/knowledge/decision/decisionPolic
 import { DecisionConsentRegistry } from "../src/knowledge/decision/decisionConsent.js";
 import type { AppSettings } from "@drora/shared";
 
-type SettingsOverride = Partial<Pick<AppSettings, "knowledgeJevEnabled" | "knowledgeJevBaseUrl">>;
+type SettingsOverride = Partial<
+  Pick<
+    AppSettings,
+    | "knowledgeJevEnabled"
+    | "knowledgeJevBaseUrl"
+    | "knowledgeJevProvider"
+    | "knowledgeJevOpenaiBaseUrl"
+    | "knowledgeJevOpenaiModel"
+  >
+>;
 
 function fakeSettingService(settings: SettingsOverride) {
   return {
@@ -69,7 +78,7 @@ test("K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回
     settingService: fakeSettingService({ knowledgeJevEnabled: true }),
     credentialService: fakeCredentialService(" sk-test "),
   });
-  assert.deepEqual(basic, { apiKey: "sk-test", baseUrl: undefined });
+  assert.deepEqual(basic, { provider: "typesafe", apiKey: "sk-test", baseUrl: undefined });
 
   const overridden = await resolveKnowledgeJevAssembly({
     settingService: fakeSettingService({
@@ -78,7 +87,11 @@ test("K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回
     }),
     credentialService: fakeCredentialService("sk-test"),
   });
-  assert.deepEqual(overridden, { apiKey: "sk-test", baseUrl: "https://gateway.example.ai" });
+  assert.deepEqual(overridden, {
+    provider: "typesafe",
+    apiKey: "sk-test",
+    baseUrl: "https://gateway.example.ai",
+  });
 
   const blankOverridden = await resolveKnowledgeJevAssembly({
     settingService: fakeSettingService({
@@ -87,7 +100,54 @@ test("K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回
     }),
     credentialService: fakeCredentialService("sk-test"),
   });
-  assert.deepEqual(blankOverridden, { apiKey: "sk-test", baseUrl: undefined });
+  assert.deepEqual(blankOverridden, {
+    provider: "typesafe",
+    apiKey: "sk-test",
+    baseUrl: undefined,
+  });
+});
+
+test("K-JEV-11：openai-compatible 缺 baseUrl/model/Key 任一 → fail-closed 禁用", async () => {
+  const base = { knowledgeJevEnabled: true, knowledgeJevProvider: "openai-compatible" } as const;
+  const credential = fakeCredentialService("sk-openai");
+  for (const settings of [
+    base,
+    { ...base, knowledgeJevOpenaiBaseUrl: "https://api.example.ai" },
+    { ...base, knowledgeJevOpenaiModel: "glm-4.7" },
+  ]) {
+    assert.equal(
+      await resolveKnowledgeJevAssembly({ settingService: fakeSettingService(settings), credentialService: credential }),
+      null,
+      JSON.stringify(settings),
+    );
+  }
+});
+
+test("K-JEV-11：openai-compatible 配置齐备 → openai 快照（独立凭据键）", async () => {
+  const loaded: string[] = [];
+  const assembly = await resolveKnowledgeJevAssembly({
+    settingService: fakeSettingService({
+      knowledgeJevEnabled: true,
+      knowledgeJevProvider: "openai-compatible",
+      knowledgeJevOpenaiBaseUrl: " https://api.example.ai/v4 ",
+      knowledgeJevOpenaiModel: " glm-4.7 ",
+    }),
+    credentialService: {
+      load: async (key: string) => {
+        loaded.push(key);
+        // 只喂 TypeSafe 键值：openai 提供商必须读自己的凭据键，读到 TypeSafe 键也不该混用。
+        return key.endsWith("openai-api-key") ? "sk-openai" : null;
+      },
+    },
+  });
+  assert.deepEqual(assembly, {
+    provider: "openai-compatible",
+    apiKey: "sk-openai",
+    baseUrl: "https://api.example.ai/v4",
+    model: "glm-4.7",
+  });
+  assert.ok(loaded.length > 0);
+  assert.ok(loaded.every((key) => key.endsWith("openai-api-key")));
 });
 
 test("provider 工厂：JEV 身份 + policy 预算映射 + 共享同一授权账本实例", () => {

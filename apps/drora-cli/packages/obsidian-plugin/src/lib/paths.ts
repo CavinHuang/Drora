@@ -52,6 +52,25 @@ export function isWithinRoot(rootPath: string, targetPath: string): boolean {
   return fromRoot === "" || (!fromRoot.startsWith(`..${sep}`) && fromRoot !== ".." && !isAbsolute(fromRoot));
 }
 
+/**
+ * PermissionRequest hook 自动 allow 的路径形状策略（W01 收窄，独立可测的纯函数）：
+ * 仅授权"非隐藏目录下的普通 Markdown 笔记"——每个路径段非空、不为 `.`/`..`、
+ * 不以 `.` 开头（拒绝 `.obsidian/**`、`.hidden/**` 与点文件），末段以 `.md` 结尾
+ * （大小写不敏感）。与面板门面 normalizeRelativeMarkdownPath 的可见性语义对齐，
+ * 消除"hook 放行、面板拒绝"的不对称。Unicode 文件名原样保留，不做 NFC/NFD 折叠。
+ * 输入约定：相对授权根的 `/` 分隔路径（不含根本身）。
+ */
+export function isPlainVaultMarkdownPath(relativePath: string): boolean {
+  if (typeof relativePath !== "string" || relativePath.trim() === "") {
+    return false;
+  }
+  const segments = relativePath.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." || segment.startsWith(HIDDEN_DIRECTORY_PREFIX))) {
+    return false;
+  }
+  return segments[segments.length - 1].toLowerCase().endsWith(".md");
+}
+
 export interface SafeVaultPath {
   absolutePath: string;
   relativePath: string;

@@ -48,6 +48,7 @@ import { startProtocolResourceSampler } from "./drora-protocol/resource-sampler.
 import { acquireProtocolStartupResource } from "./drora-protocol/startup-resource.js";
 import type { DroraProcessResourceSampler } from "./process-resource-sampler.js";
 import { prepareDroraTelemetryEnv, shutdownDroraTelemetry } from "./telemetry-bootstrap.js";
+import { createKnowledgeEvidenceGate } from "./knowledge-evidence/evidence-gate.js";
 
 function applyProtocolPresentationSurface(
   options: Omit<DroraAppOptions, "providerRegistry">,
@@ -291,6 +292,10 @@ export async function runDroraProtocolAgent(
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },
+      // W03 VaultView Evidence 执行时复验（specs/obsidian-knowledge.md §5.3）：
+      // 生产 gate 读本进程可推导的同一份 vault-config.json + knowledge-index.sqlite
+      // （只读）+ 当前 Vault 文件；sendText/sendQueuedNow 在 admission/提升前调用。
+      knowledgeEvidenceVerifier: createKnowledgeEvidenceGate(),
       version: options.version,
     }));
     officialMcpAuthContext = server.officialMcpAuthRequestContext;

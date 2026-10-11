@@ -25,7 +25,10 @@ import {
   droraProtocolMcpServerSchema,
 } from "../drora-protocol/index.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
-export type { SharedContextRef } from "./shared-context-ref.js";
+import {
+  MAX_EVIDENCE_REFS_PER_INPUT,
+  KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
+} from "../knowledge-evidence.js";
 
 const createSessionRequestedConfigSchema = z.object({
   modelSelection: modelSelectionSchema.optional(),
@@ -101,6 +104,21 @@ export const commandPayloadSchemas = {
       // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
       modelExecution: modelExecutionSchema.optional(),
+      // VaultView Evidence 引用（W03 / specs/obsidian-knowledge.md §5.3）：只传 opaque
+      // receiptId；绑定事实在服务端账本，由 CLI Runtime gate 在 admission 与队列提升时
+      // 复验。additive：旧 CLI 的 z.object 静默丢弃该键（fail-closed）。
+      evidenceRefs: z
+        .array(
+          z
+            .object({ receiptId: z.string().min(1) })
+            .strict()
+            .refine(
+              (ref) => ref.receiptId.startsWith(KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX),
+              "receiptId shape invalid",
+            ),
+        )
+        .max(MAX_EVIDENCE_REFS_PER_INPUT)
+        .optional(),
       automationId: z.string().min(1).optional(),
       offPeakTaskId: z.string().min(1).optional(),
       offPeakRunType: z.enum(["init", "resume"]).optional(),

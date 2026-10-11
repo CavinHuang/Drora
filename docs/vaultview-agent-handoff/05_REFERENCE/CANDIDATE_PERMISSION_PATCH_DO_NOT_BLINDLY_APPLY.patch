@@ -1,0 +1,23 @@
+diff --git a/apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts b/apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts
+--- a/apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts
++++ b/apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts
+@@ -1,4 +1,5 @@
+ import { pathToFileURL } from "node:url";
++import { relative, sep } from "node:path";
+ import { loadAgentVaultAccess, resolveAuthorizedVaultPath } from "../lib/agent-access.js";
+ import { pluginDataDirFromEnv, readHookStdinJson } from "./support.js";
+ 
+@@ -33,6 +34,13 @@
+       : undefined;
+   const authorizedPath = await resolveAuthorizedVaultPath(access.rootPath, input.cwd, candidate);
+   if (!authorizedPath) return null;
++  // 仅为显式授权 Vault 内的普通 Markdown 路径自动放行，禁止自动授权
++  // .obsidian 等隐藏目录及非笔记文件；其余操作交还 Runtime 原生询问。
++  // 注意：这里不能识别高风险任务意图，亦不能拦截 Bash/MCP 写盘。
++  const rel = relative(access.rootPath, authorizedPath);
++  const segments = rel.split(sep);
++  if (!rel || segments.some((item) => !item || item.startsWith("."))) return null;
++  if (!segments[segments.length - 1]?.toLowerCase().endsWith(".md")) return null;
+   return {
+     hookSpecificOutput: {
+       hookEventName: "PermissionRequest",

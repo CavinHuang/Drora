@@ -12,6 +12,7 @@ import { readBackgroundBashOutputFromOwner } from "./background-work-owner.js";
 import {
   isConversationRealUserTurnStarter,
   parseRemoteWorkspaceIdentity,
+  KNOWLEDGE_EVIDENCE_GUARDS,
   type DroraSessionContextUsage,
   type DroraWorkspaceRef,
 } from "@drora/shared";
@@ -269,6 +270,8 @@ interface InputCommandForAdmission {
   admittedDelivery?: ConversationInputIntent["delivery"]["admitted"];
   fallbackReasonCode?: string;
   provenance?: ConversationInputIntent["provenance"];
+  /** W03：sendText payload 的 opaque evidence 引用，随 durable 账本与 queue item 存活。 */
+  evidenceRefs?: ConversationInputIntent["evidenceRefs"];
 }
 
 type ResolveAdmissionRowTarget = (
@@ -341,12 +344,14 @@ function resolveInputCommandForAdmission(
       text: string;
       attachments?: AttachmentRef[];
       context_refs?: ConversationInputIntent["sharedContextRefs"];
+      evidenceRefs?: ConversationInputIntent["evidenceRefs"];
     };
     return {
       kind: envelope.type,
       text: payload.text,
       attachments: payload.attachments ?? [],
       ...(payload.context_refs ? { sharedContextRefs: payload.context_refs } : {}),
+      ...(payload.evidenceRefs ? { evidenceRefs: payload.evidenceRefs } : {}),
     };
   }
   if (envelope.type === "compact") {
@@ -692,6 +697,11 @@ export function createConversationV4Gateway(
     // 同一登记表实例：broker（旧目录）注册反向请求 deferred，
     // v4 resolveInteraction handler 经此投递应答（v4 原生基础设施，非过渡钩子）。
     interactions: context.v4Interactions,
+    // W03 VaultView Evidence 执行时复验：entrypoint 注入生产 gate；未注入 = 不复验
+    // （additive）。形状一致，直接透传（非过渡钩子，v4 自持后随 host 原生持有）。
+    verifyInputEvidence: context.knowledgeEvidenceVerifier
+      ? (input) => context.knowledgeEvidenceVerifier!.verify(input)
+      : undefined,
     logger: {
       info: (message, fields) => context.logger?.info(message, fields),
       warn: (message, fields) => context.logger?.warn(message, fields),
@@ -736,7 +746,7 @@ export function createConversationV4Gateway(
       const routingMode = context.v4Gateway?.getInputRoutingMode(sessionId) ?? null;
       // 这是执行前账本的“预计投递边界”；TurnSteerQueued 会用实际 delivery/回退原因
       // 幂等更新同一记录。startNow 不能伪装成 queue，否则重启 discarded 的诊断事实失真。
-      const requestedDelivery =
+      const rawRequestedDelivery =
         input.requestedDelivery ??
         (kind === "compact" && routingMode !== null && routingMode !== "startNow"
           ? "queue"
@@ -745,12 +755,18 @@ export function createConversationV4Gateway(
             : routingMode === "guide" && kind === "sendText"
               ? "guide"
               : "startNow");
+      // W03 §5.3：证据输入禁用 guide/steer（无执行时复验点）——账本与 handler 的
+      // resolveEvidenceSafeDelivery 保持同一裁决，否则账本会记录一个不会发生的投递。
+      const evidenceGuarded = (input.evidenceRefs?.length ?? 0) > 0;
+      const evidenceGuideFallback = evidenceGuarded && rawRequestedDelivery === "guide";
+      const requestedDelivery = evidenceGuideFallback ? "queue" : rawRequestedDelivery;
       const attachmentRefs = input.attachments;
-      const fallbackReasonCode =
-        input.fallbackReasonCode ??
-        (requestedDelivery === "guide" && attachmentRefs.length > 0
-          ? "guide.attachmentsUnsupported"
-          : undefined);
+      const fallbackReasonCode = evidenceGuideFallback
+        ? KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden
+        : (input.fallbackReasonCode ??
+          (requestedDelivery === "guide" && attachmentRefs.length > 0
+            ? "guide.attachmentsUnsupported"
+            : undefined));
       const admittedDelivery =
         input.admittedDelivery ??
         (fallbackReasonCode
@@ -766,6 +782,7 @@ export function createConversationV4Gateway(
         text: input.text ?? "",
         attachments: attachmentRefs,
         ...(input.sharedContextRefs ? { sharedContextRefs: input.sharedContextRefs } : {}),
+        ...(input.evidenceRefs ? { evidenceRefs: input.evidenceRefs } : {}),
         delivery: {
           requested: requestedDelivery,
           admitted: admittedDelivery,
@@ -801,6 +818,9 @@ export function createConversationV4Gateway(
             attachmentRefs,
             ...(conversationInputIntent.sharedContextRefs
               ? { sharedContextRefs: conversationInputIntent.sharedContextRefs }
+              : {}),
+            ...(conversationInputIntent.evidenceRefs
+              ? { evidenceRefs: conversationInputIntent.evidenceRefs }
               : {}),
           },
           conversationInputIntent,

@@ -1,7 +1,7 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { loadVaultConfig } from "./config.js";
-import { getSafeVaultPath } from "./paths.js";
+import { getSafeVaultPath, isPlainVaultMarkdownPath, isWindowsAbsolutePath } from "./paths.js";
 
 export interface AgentVaultAccess {
   rootPath: string;
@@ -50,7 +50,7 @@ export async function resolveAuthorizedVaultPath(
   try {
     const realRoot = await realpath(rootPath);
     const baseDir = typeof cwd === "string" && cwd.trim() !== "" ? cwd : realRoot;
-    const target = resolve(baseDir, candidatePath);
+    const target = resolve(baseDir, candidatePath.replace(/\\/g, "/"));
     const rel = relative(realRoot, target);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       return null;
@@ -58,6 +58,70 @@ export async function resolveAuthorizedVaultPath(
     const safe = await getSafeVaultPath(realRoot, rel.split(sep).join("/"));
     return safe.absolutePath;
   } catch {
+    return null;
+  }
+}
+
+/**
+ * hook 自动 allow 的授权解析结果：absolutePath 基于 realpath 根；relativePath 是相对
+ * realpath 根的 `/` 分隔路径。调用方（permission-request hook）必须直接使用本结果，
+ * 不得再对原始 rootPath 做二次 `relative` —— 根为软链/junction/subst 时两者会错位
+ * （W00 证据报告 §3.9：候选补丁的 realRoot 拼写缺陷）。
+ */
+export interface AuthorizedVaultWritePath {
+  absolutePath: string;
+  relativePath: string;
+}
+
+/**
+ * PermissionRequest hook 自动 allow 的完整判定（W01 收窄，specs/obsidian-knowledge.md §3）：
+ * 仅当目标解析后落在授权根内、逐段无符号链接、且是"非隐藏目录下的普通 .md"时返回结果；
+ * 相对路径必须携带 cwd（与 Write handler resolveWorkspacePath 的按工作目录解析一致，
+ * 缺 cwd 时按根猜测会与运行时实际落点错位，视为异常）。
+ * 返回 null = 无法确证可自动授权，调用方静默交回 Runtime 默认问询（fail-closed）。
+ */
+export async function resolveAuthorizedVaultWritePath(
+  rootPath: string,
+  cwd: unknown,
+  candidatePath: unknown,
+): Promise<AuthorizedVaultWritePath | null> {
+  if (typeof candidatePath !== "string" || candidatePath.trim() === "" || candidatePath.includes("\0")) {
+    return null;
+  }
+  try {
+    const realRoot = await realpath(rootPath);
+    const baseDir = typeof cwd === "string" && cwd.trim() !== "" ? cwd : undefined;
+    const candidateIsAbsolute = isAbsolute(candidatePath) || isWindowsAbsolutePath(candidatePath);
+    if (!baseDir && !candidateIsAbsolute) {
+      // 相对路径 + 无 cwd：无法与运行时工作目录对齐，按异常交回问询。
+      return null;
+    }
+    // 跨平台分隔符归一：`\` 一律按分隔符解释，与面板门面 normalizeRelativeMarkdownPath
+    // 的无条件反斜杠归一保持同一可见性语义。POSIX 上反斜杠是合法文件名字符，若按字面名
+    // 解析会产生"hook 放行字面名、面板解释为子路径"的不对称，且 `notes\.obsidian\x.md`
+    // 会被当作单段字面名绕过隐藏段检查（CI ubuntu/macos 实证，K-POL-7）。
+    // 绝对路径判定必须先于归一（对原始串做），保住 UNC/盘符两种写法的识别。
+    const target = resolve(baseDir ?? realRoot, candidatePath.replace(/\\/g, "/"));
+    const rel = relative(realRoot, target);
+    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      return null;
+    }
+    const relNormalized = rel.split(sep).join("/");
+    if (!isPlainVaultMarkdownPath(relNormalized)) {
+      // 隐藏段（.obsidian/.hidden/点文件）、非 .md、空段等一律不自动授权。
+      return null;
+    }
+    const safe = await getSafeVaultPath(realRoot, relNormalized);
+    try {
+      const stats = await lstat(safe.absolutePath);
+      // 已存在目标必须是普通文件：拒绝目录冒充 .md（新文件走 ENOENT 分支放行）。
+      if (!stats.isFile()) return null;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") return null;
+    }
+    return { absolutePath: safe.absolutePath, relativePath: relNormalized };
+  } catch {
+    // 根失效/不可达等异常：静默交回问询，绝不 fail-open 到 allow。
     return null;
   }
 }
@@ -73,7 +137,7 @@ export function buildSessionStartContext(access: AgentVaultAccess | null): strin
     ].join("\n");
   }
   const writeLine = access.allowAgentWrites
-    ? "- 写授权已开启（allowAgentWrites=true）：Vault 内的文件写入无需用户逐次确认。"
+    ? "- 写授权已开启（allowAgentWrites=true）：Vault 内非隐藏目录的普通 .md 笔记，其 Write/Edit 权限询问会自动放行；隐藏目录（如 .obsidian/）与非 .md 文件仍会逐次询问。该授权只作用于 Write/Edit 工具，不能约束 Bash、MCP 等其他写入通道。"
     : "- 写授权未开启（allowAgentWrites=false）：Vault 内的写入会向用户逐次请求确认，发起编辑前先征得用户同意。";
   return [
     "## Obsidian Vault",

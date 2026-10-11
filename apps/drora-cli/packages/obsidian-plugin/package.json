@@ -10,7 +10,7 @@
     "build": "tsc && node scripts/build-hooks.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node test/agent-access.test.mjs && node test/hooks-e2e.mjs"
+    "test": "node test/agent-access.test.mjs && node test/permission-path-policy.test.mjs && node test/hooks-e2e.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

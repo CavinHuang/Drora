@@ -307,6 +307,13 @@ export interface TurnInputIntentMetadata {
     kind: "shared_context_import";
     context_id: string;
   }>;
+  /**
+   * VaultView Evidence 引用（W03 / specs/obsidian-knowledge.md §5.3）：opaque receiptId
+   * 集合，admission 时从 sendText payload 固定；sendQueuedNow 提升时由 CLI gate 按
+   * 同一组 refs 执行时复验（排队期间改文件/撤权/切库 → 旧 evidence 不当 current）。
+   * 形状单一出处 = @drora/shared KnowledgeEvidenceRef。
+   */
+  evidenceRefs?: Array<{ receiptId: string }>;
   /** edit/retry 重建的新 command 对原始 canonical input cause 的稳定追溯。 */
   provenance?: {
     sourceCommandId: string;

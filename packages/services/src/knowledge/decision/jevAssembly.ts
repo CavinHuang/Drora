@@ -14,8 +14,9 @@
  * 闭包内使用；不进 RPC 面、日志与诊断。
  */
 import {
+  KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY,
   KNOWLEDGE_JEV_CREDENTIAL_KEY,
-  KNOWLEDGE_JEV_OPENAI_CREDENTIAL_KEY,
+  KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY,
 } from "@drora/shared";
 
 import { createCredentialService } from "../../credential/credentialService.js";
@@ -25,14 +26,15 @@ import type { KnowledgeDecisionPolicyConfig, KnowledgeDecisionProvider } from ".
 import type { DecisionConsentRegistry } from "./decisionConsent.js";
 import { createJevAdapter } from "./jevAdapter.js";
 import {
-  createOpenAICompatibleTransport,
+  createChatCompletionsScoringTransport,
   createTypeSafeHttpTransport,
 } from "./jevTransport.js";
 
 /** 装配期快照（按提供商判别）：开关开且该提供商必填项齐备时才产生。 */
 export type KnowledgeJevAssembly =
   | { provider: "typesafe"; apiKey: string; baseUrl?: string }
-  | { provider: "openai-compatible"; apiKey: string; baseUrl: string; model: string };
+  | { provider: "openrouter"; apiKey: string; model: string; baseUrl?: string }
+  | { provider: "ai-gateway"; apiKey: string; model: string; baseUrl?: string };
 
 export interface ResolveKnowledgeJevAssemblyOptions {
   settingService: Pick<ISettingService, "get">;
@@ -54,13 +56,29 @@ export async function resolveKnowledgeJevAssembly(
     return null;
   }
   const credentialService = options.credentialService ?? createCredentialService();
-  if (settings.knowledgeJevProvider === "openai-compatible") {
-    // fail-closed：兼容端点必填 baseUrl + model + Key，缺一即禁用（K-JEV-8 同语义）。
-    const apiKey = (await credentialService.load(KNOWLEDGE_JEV_OPENAI_CREDENTIAL_KEY))?.trim();
-    const baseUrl = normalizeBaseURL(settings.knowledgeJevOpenaiBaseUrl);
-    const model = normalizeBaseURL(settings.knowledgeJevOpenaiModel);
-    if (!apiKey || !baseUrl || !model) return null;
-    return { provider: "openai-compatible", apiKey, baseUrl, model };
+  // chat-completions 协议族具名提供商（OpenRouter / Vercel AI Gateway）：各自规范端点，
+  // Key + 模型名必填（fail-closed），端点覆盖可选（空 = 官方端点）。
+  if (settings.knowledgeJevProvider === "openrouter") {
+    const apiKey = (await credentialService.load(KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY))?.trim();
+    const model = normalizeBaseURL(settings.knowledgeJevOpenrouterModel);
+    if (!apiKey || !model) return null;
+    return {
+      provider: "openrouter",
+      apiKey,
+      model,
+      baseUrl: normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl),
+    };
+  }
+  if (settings.knowledgeJevProvider === "ai-gateway") {
+    const apiKey = (await credentialService.load(KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY))?.trim();
+    const model = normalizeBaseURL(settings.knowledgeJevAiGatewayModel);
+    if (!apiKey || !model) return null;
+    return {
+      provider: "ai-gateway",
+      apiKey,
+      model,
+      baseUrl: normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl),
+    };
   }
   const apiKey = (await credentialService.load(KNOWLEDGE_JEV_CREDENTIAL_KEY))?.trim();
   if (!apiKey) {
@@ -79,14 +97,15 @@ export function createKnowledgeJevProviderFactory(
 }) => KnowledgeDecisionProvider {
   return ({ consentRegistry, config }) => {
     const transport =
-      assembly.provider === "openai-compatible"
-        ? createOpenAICompatibleTransport({
+      assembly.provider === "typesafe"
+        ? createTypeSafeHttpTransport({
+            apiKey: assembly.apiKey,
             baseUrl: assembly.baseUrl,
+          })
+        : createChatCompletionsScoringTransport({
+            provider: assembly.provider,
             apiKey: assembly.apiKey,
             model: assembly.model,
-          })
-        : createTypeSafeHttpTransport({
-            apiKey: assembly.apiKey,
             baseUrl: assembly.baseUrl,
           });
     return createJevAdapter({

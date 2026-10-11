@@ -528,20 +528,32 @@ W05 交付了完整的决策层实现，但 `createLocalServices` 调 `createKno
 | 配置 | 所有者 | 键/字段 | 默认值 |
 | --- | --- | --- | --- |
 | Jev 开关 | `AppSettings`（app 级，非 workspace 级） | `knowledgeJevEnabled` | `false`（ADR #5：缺省关闭） |
-| 决策模型提供商 | `AppSettings` | `knowledgeJevProvider`（`typesafe`/`openai-compatible`） | `typesafe` |
+| 决策模型提供商 | `AppSettings` | `knowledgeJevProvider`（`typesafe`/`openrouter`/`ai-gateway`） | `typesafe` |
 | TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = transport 内置官方端点 |
 | TypeSafe API Key | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量） | 无 |
-| OpenAI 兼容端点 | `AppSettings` | `knowledgeJevOpenaiBaseUrl`（该提供商必填） | 无（空 = 该提供商禁用） |
-| OpenAI 兼容模型名 | `AppSettings` | `knowledgeJevOpenaiModel`（该提供商必填） | 无（空 = 该提供商禁用） |
-| OpenAI 兼容 API Key | `credentialService` | `KNOWLEDGE_JEV_OPENAI_CREDENTIAL_KEY` | 无 |
+| OpenRouter 模型 slug | `AppSettings` | `knowledgeJevOpenrouterModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| OpenRouter 端点覆盖 | `AppSettings` | `knowledgeJevOpenrouterBaseUrl` | 官方端点 openrouter.ai |
+| OpenRouter API Key | `credentialService` | `KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY` | 无 |
+| AI Gateway 模型 | `AppSettings` | `knowledgeJevAiGatewayModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| AI Gateway 端点覆盖 | `AppSettings` | `knowledgeJevAiGatewayBaseUrl` | 官方端点 ai-gateway.vercel.sh |
+| AI Gateway API Key | `credentialService` | `KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY` | 无 |
 
 **决策模型提供商（2026-10-11 补）**：评分模型与 agent 聊天模型相互独立，不进 provider
-registry。`JevTransport` 端口是提供商中立评分契约（systemOne 形状为内部 lingua franca）——
-adapter（授权/超时/重试/校验）与提供商无关；TypeSafe 走原生 `/v1/systemone`，OpenAI 兼容走
-`{baseUrl}/chat/completions`（temperature=0，要求只输出 `{"type":"noul","noul":<0-1>}`，
-解析宽松容忍围栏/裸数字，解析失败 → body=null → adapter 按 provider_error 单候选回退；
-429/5xx 语义与 TypeSafe 路径一致）。fail-closed：openai-compatible 的 baseUrl/model/Key
-缺一即禁用；两提供商凭据键独立、不混用。
+registry。每个具名提供商有**各自的协议适配**（规范端点/鉴权/模型空间），不做「用户自填
+通用兼容端点」的泛化模式；`JevTransport` 端口是提供商中立评分契约（systemOne 形状为内部
+lingua franca），adapter（授权/超时/重试/校验）与提供商无关：
+
+- `typesafe`：原生 `POST {base|https://api.typesafe.ai}/v1/systemone`（§5d.3 已验证契约）。
+- `openrouter`：`POST {base|https://openrouter.ai/api/v1}/chat/completions`，
+  `Authorization: Bearer` + `X-Title: Drora` 署名头，模型为 `vendor/model` slug。
+- `ai-gateway`：`POST {base|https://ai-gateway.vercel.sh/v1}/chat/completions`，
+  `Authorization: Bearer`（AI Gateway API Key），模型为提供商目录标识。
+
+后两者线协议当前同族（chat-completions 形状），共享参数化实现但按 provider 保留各自
+端点/头，协议分叉时各自分叉；评分裁决要求模型只输出 `{"type":"noul","noul":<0-1>}`，
+解析宽松容忍围栏/裸数字，解析失败 → body=null → adapter 按 provider_error 单候选回退，
+429/5xx 语义与 TypeSafe 路径一致。fail-closed：远程提供商的 model/Key 缺一即禁用；
+各提供商凭据键独立、不混用。
 
 **装配路径（唯一写入方是 `createLocalServices`）：**
 
@@ -577,7 +589,7 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 | K-JEV-8 | 开关开、Key 缺失 → 装配 | 同上 fail-closed：返回 null，不出站、grant disabled |
 | K-JEV-9 | 开关开、Key 存在 → 装配 | 返回 `{ baseUrl, apiKey }` 快照；decisionProviderFactory 注入后 grant 正常签发；baseURL 覆盖生效（空串/空白回落官方默认） |
 | K-JEV-10 | 设置面写入 | 开关/baseURL 走 `settingService.update`，Key 走 `credentialService.save/delete`；AppSettings 校验 schema 接受新字段 |
-| K-JEV-11 | 提供商分发 | openai-compatible 缺 baseUrl/model/Key 任一 → null（禁用）；齐备 → openai 快照且只读独立凭据键；openai 传输线格式/解析宽松度经假 fetch 逐字段断言 |
+| K-JEV-11 | 提供商分发 | openrouter/ai-gateway 缺 model/Key 任一 → null（禁用）；齐备 → 对应快照且只读各自独立凭据键；三提供商线格式（规范端点/署名头/覆盖）与解析宽松度经假 fetch 逐字段断言 |
 
 ## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 

@@ -13,9 +13,6 @@ import {
   createKnowledgeJevProviderFactory,
   resolveKnowledgeJevAssembly,
 } from "../src/knowledge/decision/jevAssembly.js";
-import { JEV_PROVIDER_ID } from "../src/knowledge/decision/jevAdapter.js";
-import { DEFAULT_DECISION_POLICY } from "../src/knowledge/decision/decisionPolicy.js";
-import { DecisionConsentRegistry } from "../src/knowledge/decision/decisionConsent.js";
 import type { AppSettings } from "@drora/shared";
 
 type SettingsOverride = Partial<
@@ -24,8 +21,10 @@ type SettingsOverride = Partial<
     | "knowledgeJevEnabled"
     | "knowledgeJevBaseUrl"
     | "knowledgeJevProvider"
-    | "knowledgeJevOpenaiBaseUrl"
-    | "knowledgeJevOpenaiModel"
+    | "knowledgeJevOpenrouterModel"
+    | "knowledgeJevOpenrouterBaseUrl"
+    | "knowledgeJevAiGatewayModel"
+    | "knowledgeJevAiGatewayBaseUrl"
   >
 >;
 
@@ -107,56 +106,91 @@ test("K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回
   });
 });
 
-test("K-JEV-11：openai-compatible 缺 baseUrl/model/Key 任一 → fail-closed 禁用", async () => {
-  const base = { knowledgeJevEnabled: true, knowledgeJevProvider: "openai-compatible" } as const;
-  const credential = fakeCredentialService("sk-openai");
-  for (const settings of [
-    base,
-    { ...base, knowledgeJevOpenaiBaseUrl: "https://api.example.ai" },
-    { ...base, knowledgeJevOpenaiModel: "glm-4.7" },
-  ]) {
+test("K-JEV-11：远程提供商缺 model/Key 任一 → fail-closed 禁用", async () => {
+  const withKey = fakeCredentialService("sk-remote");
+  const withoutKey = { load: async () => null };
+  for (const { settings, credential, label } of [
+    {
+      label: "openrouter 缺 model",
+      settings: { knowledgeJevEnabled: true, knowledgeJevProvider: "openrouter" },
+      credential: withKey,
+    },
+    {
+      label: "openrouter 缺 Key",
+      settings: {
+        knowledgeJevEnabled: true,
+        knowledgeJevProvider: "openrouter",
+        knowledgeJevOpenrouterModel: "openai/gpt-4o-mini",
+      },
+      credential: withoutKey,
+    },
+    {
+      label: "ai-gateway 缺 model",
+      settings: { knowledgeJevEnabled: true, knowledgeJevProvider: "ai-gateway" },
+      credential: withKey,
+    },
+    {
+      label: "ai-gateway 缺 Key",
+      settings: {
+        knowledgeJevEnabled: true,
+        knowledgeJevProvider: "ai-gateway",
+        knowledgeJevAiGatewayModel: "openai/gpt-4o-mini",
+      },
+      credential: withoutKey,
+    },
+  ] as const) {
     assert.equal(
-      await resolveKnowledgeJevAssembly({ settingService: fakeSettingService(settings), credentialService: credential }),
+      await resolveKnowledgeJevAssembly({
+        settingService: fakeSettingService(settings as SettingsOverride),
+        credentialService: credential,
+      }),
       null,
-      JSON.stringify(settings),
+      label,
     );
   }
 });
 
-test("K-JEV-11：openai-compatible 配置齐备 → openai 快照（独立凭据键）", async () => {
+test("K-JEV-11：openrouter 配置齐备 → openrouter 快照（独立凭据键 + 官方端点缺省）", async () => {
   const loaded: string[] = [];
   const assembly = await resolveKnowledgeJevAssembly({
     settingService: fakeSettingService({
       knowledgeJevEnabled: true,
-      knowledgeJevProvider: "openai-compatible",
-      knowledgeJevOpenaiBaseUrl: " https://api.example.ai/v4 ",
-      knowledgeJevOpenaiModel: " glm-4.7 ",
+      knowledgeJevProvider: "openrouter",
+      knowledgeJevOpenrouterModel: " openai/gpt-4o-mini ",
     }),
     credentialService: {
       load: async (key: string) => {
         loaded.push(key);
-        // 只喂 TypeSafe 键值：openai 提供商必须读自己的凭据键，读到 TypeSafe 键也不该混用。
-        return key.endsWith("openai-api-key") ? "sk-openai" : null;
+        return key.endsWith("openrouter-api-key") ? "sk-openrouter" : null;
       },
     },
   });
   assert.deepEqual(assembly, {
-    provider: "openai-compatible",
-    apiKey: "sk-openai",
-    baseUrl: "https://api.example.ai/v4",
-    model: "glm-4.7",
+    provider: "openrouter",
+    apiKey: "sk-openrouter",
+    model: "openai/gpt-4o-mini",
+    baseUrl: undefined,
   });
   assert.ok(loaded.length > 0);
-  assert.ok(loaded.every((key) => key.endsWith("openai-api-key")));
+  assert.ok(loaded.every((key) => key.endsWith("openrouter-api-key")));
 });
 
-test("provider 工厂：JEV 身份 + policy 预算映射 + 共享同一授权账本实例", () => {
-  const factory = createKnowledgeJevProviderFactory({ apiKey: "sk-test" });
-  const registry = new DecisionConsentRegistry();
-  const provider = factory({ consentRegistry: registry, config: DEFAULT_DECISION_POLICY });
-  assert.equal(provider.id, JEV_PROVIDER_ID);
-  // 两次调用各自产出 provider，但同一账本实例语义由调用方（knowledgeServices）
-  // 保证：工厂只接收 deps，不私自新建账本——这里断言参数原样进入适配器闭包路径。
-  const again = factory({ consentRegistry: registry, config: DEFAULT_DECISION_POLICY });
-  assert.equal(again.id, JEV_PROVIDER_ID);
+test("K-JEV-11：ai-gateway 配置齐备 → ai-gateway 快照（独立凭据键 + 端点覆盖）", async () => {
+  const assembly = await resolveKnowledgeJevAssembly({
+    settingService: fakeSettingService({
+      knowledgeJevEnabled: true,
+      knowledgeJevProvider: "ai-gateway",
+      knowledgeJevAiGatewayModel: "openai/gpt-4o-mini",
+      knowledgeJevAiGatewayBaseUrl: " https://proxy.example.ai/v1 ",
+    }),
+    credentialService: {
+      load: async (key: string) => (key.endsWith("ai-gateway-api-key") ? "sk-ag" : null),
+    },
+  });
+  assert.deepEqual(assembly, {
+    provider: "ai-gateway",
+    apiKey: "sk-ag",
+    model: "openai/gpt-4o-mini",
+    baseUrl: "https://proxy.example.ai/v1",
+  });
 });

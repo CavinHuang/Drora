@@ -401,8 +401,12 @@ export interface AppSettings {
   knowledgeJevProvider?: KnowledgeJevProvider;
   /** TypeSafe 端点覆盖（网关/代理场景）；空/缺省 = 官方默认端点。重启后生效。 */
   knowledgeJevBaseUrl?: string;
-  /** OpenAI 兼容端点（provider=openai-compatible 时必填）；空 = 该提供商禁用（fail-closed）。 */
-  knowledgeJevOpenaiBaseUrl?: string;
-  /** OpenAI 兼容模型名（provider=openai-compatible 时必填），例如 glm-4.7。 */
-  knowledgeJevOpenaiModel?: string;
+  /** OpenRouter 模型 slug（provider=openrouter 时必填），例如 openai/gpt-4o-mini。 */
+  knowledgeJevOpenrouterModel?: string;
+  /** OpenRouter 端点覆盖；空/缺省 = 官方端点 openrouter.ai。 */
+  knowledgeJevOpenrouterBaseUrl?: string;
+  /** AI Gateway 模型（provider=ai-gateway 时必填），例如 openai/gpt-4o-mini。 */
+  knowledgeJevAiGatewayModel?: string;
+  /** AI Gateway 端点覆盖；空/缺省 = 官方端点 ai-gateway.vercel.sh。 */
+  knowledgeJevAiGatewayBaseUrl?: string;
 }

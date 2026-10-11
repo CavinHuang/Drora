@@ -93,12 +93,21 @@ export function createTypeSafeHttpTransport(options: TypeSafeTransportOptions): 
   };
 }
 
-export interface OpenAICompatibleTransportOptions {
-  /** OpenAI 兼容端点根（如 https://open.bigmodel.cn/api/paas/v4），必填；缺失构造即抛错。 */
-  baseUrl: string;
+/** chat-completions 协议族具名提供商的规范端点与协议细节（specs/agent-write-safety 无关；§5d.10）。 */
+export type ChatCompletionsProvider = "openrouter" | "ai-gateway";
+
+const CHAT_COMPLETIONS_PROVIDER_ENDPOINTS: Record<ChatCompletionsProvider, string> = {
+  openrouter: "https://openrouter.ai/api/v1",
+  "ai-gateway": "https://ai-gateway.vercel.sh/v1",
+};
+
+export interface ChatCompletionsScoringTransportOptions {
+  provider: ChatCompletionsProvider;
   apiKey: string;
-  /** 评分用模型名（如 glm-4.7），必填；缺失构造即抛错。 */
+  /** 提供商模型标识（OpenRouter/AI Gateway 均为 vendor/model slug），必填。 */
   model: string;
+  /** 端点覆盖（网关/代理场景）；空/缺省 = 该提供商规范端点。 */
+  baseUrl?: string;
   /** 注入 fetch 便于测试与宿主网络策略（默认 globalThis.fetch）。 */
   fetchImpl?: typeof fetch;
 }
@@ -107,20 +116,34 @@ const SCORING_SYSTEM_PROMPT =
   "你是笔记检索的相关性裁判。对给定的「查询 + 笔记片段」做命题级匹配判定，只输出一个 JSON 对象，不要输出任何其它文字。";
 
 /**
- * OpenAI 兼容提供商传输（spec §5d.10）：把提供商中立评分契约翻译成
- * POST {baseUrl}/chat/completions（Authorization: Bearer，temperature=0），
- * 要求模型只输出 {"type":"noul","noul":<0-1>}；解析宽松（容忍代码围栏/前后缀文字/
- * 裸数字）。解析失败返回 2xx + body=null——adapter 按 provider_error 单候选回退，
- * 429/5xx 语义与 TypeSafe 路径一致。
+ * chat-completions 协议族具名提供商传输（spec §5d.10）：OpenRouter 与 Vercel AI Gateway
+ * 各有规范端点/鉴权/模型空间，作为**具名提供商**各自接入（不做用户自填的通用兼容端点）；
+ * 两者线协议当前同族（POST {canonical|override}/chat/completions + Bearer），故共享本实现，
+ * 协议分叉时按 provider 分叉。把提供商中立评分契约翻译成裁决请求——要求模型只输出
+ * {"type":"noul","noul":<0-1>}；解析宽松（容忍代码围栏/前后缀文字/裸数字）。解析失败返回
+ * 2xx + body=null——adapter 按 provider_error 单候选回退，429/5xx 语义与 TypeSafe 路径一致。
  */
-export function createOpenAICompatibleTransport(
-  options: OpenAICompatibleTransportOptions,
+export function createChatCompletionsScoringTransport(
+  options: ChatCompletionsScoringTransportOptions,
 ): JevTransport {
-  const baseUrl = options.baseUrl.trim().replace(/\/+$/u, "");
-  if (!baseUrl) throw new Error("OpenAI 兼容 transport 需要 baseUrl（Host 侧安全配置）");
-  if (!options.apiKey?.trim()) throw new Error("OpenAI 兼容 transport 需要 API Key（Host 侧安全配置）");
-  if (!options.model?.trim()) throw new Error("OpenAI 兼容 transport 需要模型名（Host 侧安全配置）");
+  if (!options.apiKey?.trim()) {
+    throw new Error(`${options.provider} transport 需要 API Key（Host 侧安全配置）`);
+  }
+  if (!options.model?.trim()) {
+    throw new Error(`${options.provider} transport 需要模型名（Host 侧安全配置）`);
+  }
+  const baseUrl = (
+    options.baseUrl?.trim() || CHAT_COMPLETIONS_PROVIDER_ENDPOINTS[options.provider]
+  ).replace(/\/+$/u, "");
   const fetchImpl = options.fetchImpl ?? fetch;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${options.apiKey}`,
+  };
+  if (options.provider === "openrouter") {
+    // OpenRouter 可选署名头（排名/归因用途）。
+    headers["X-Title"] = "Drora";
+  }
   return {
     async post(request: JevTransportRequest): Promise<JevTransportResponse> {
       const criterion = request.questions.relevance;
@@ -137,10 +160,7 @@ export function createOpenAICompatibleTransport(
       ].join("\n");
       const response = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${options.apiKey}`,
-        },
+        headers,
         body: JSON.stringify({
           model: options.model,
           temperature: 0,
@@ -160,14 +180,16 @@ export function createOpenAICompatibleTransport(
       } catch {
         return { status: response.status, body: null };
       }
-      const parsed = parseOpenAiScoringResponse(payload, options.model);
-      return parsed ? { status: response.status, body: parsed } : { status: response.status, body: null };
+      const parsed = parseChatCompletionsScoringResponse(payload, options.model);
+      return parsed
+        ? { status: response.status, body: parsed }
+        : { status: response.status, body: null };
     },
   };
 }
 
 /** 从 chat/completions 响应提取评分；任何不合法形态都返回 null（由 adapter 统一回退）。 */
-function parseOpenAiScoringResponse(
+function parseChatCompletionsScoringResponse(
   payload: unknown,
   fallbackModel: string,
 ): JevSystemOneResponse | null {

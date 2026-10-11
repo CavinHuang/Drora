@@ -762,3 +762,19 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 | WSG-UI-3 | 开关持久化：写后重读为 true/缺省文件视为 false/坏值视为 false | 已实现（services 测试） |
 | WSG-UI-4 | 关闭态 apply/undo 返回 write_path_disabled；开启后走真实 CAS 写盘 | 已实现（services 测试，沿用 W06 账本断言） |
 | WSG-UI-5 | UI 纪律：无任意字号/裸色值；i18n 两语言键齐全 | 已实现（ui 纪律测试扩展） |
+
+### 5f.6 GUI E2E（W10：真实 Electron 全链路演示，A16 UI 半边 / A20 / A21 收口）
+
+- **隔离不变量（绝不触碰用户真实数据）**：
+  1. `DRORA_DATA_BASE_DIR=<mkdtemp>` 重定向 services 数据根（vault-config/账本/索引全落临时目录）；
+  2. `DRORA_DESKTOP_USER_DATA_DIR=<mkdtemp>/userData` 隔离 Electron userData；
+  3. 启动前预置 `<BASE>/.drora/cli/data/obsidian@drora-plugins-official/vault-config.json`
+     指向 `<BASE>/vault`（合成笔记）——App 启动即「已配置」态，全程不需要原生目录对话框；
+  4. 临时目录使用 `.e2e-home-*` 前缀（dev watch 的既定忽略模式）。
+- **驱动**：dev（非打包）启动固定开 CDP 9229（`main/index.ts` appendSwitch）；E2E 脚本以
+  原生 WebSocket 直连页面 target，Runtime.evaluate 驱动 + Page.captureScreenshot 截图。
+- **范围（首轮）**：四视图 tab 切换 → 智能问库检索（中文关键词恰中 1 篇）→ 候选核验
+  （prepareEvidence）→「作为证据附给 Agent」→ 跳到原文（quote 回跳）→ 审核视图
+  （L2 开关开/关 + 空态）；浅色截图 ×4 视图。
+- **诚实边界**：不覆盖模型生成半边（无凭据）；深色/390px 窄屏截图与键盘焦点链归增量
+  （脚本支持 `--narrow`/主题开关后补）；手机重连/远端隔离不在本脚本范围。

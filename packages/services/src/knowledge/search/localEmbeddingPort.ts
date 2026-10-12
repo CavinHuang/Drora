@@ -135,11 +135,32 @@ function wordPiece(word: string, vocab: Map<string, number>, out: number[]): voi
   }
 }
 
-/** 编码单条文本：基础切分 → WordPiece → 截断窗口 + [CLS]/[SEP]。 */
+/** 内容 token 的单窗口容量（512 减去 [CLS]/[SEP]）。 */
+const CONTENT_TOKENS_PER_WINDOW = MAX_SEQUENCE_TOKENS - 2;
+
+/** 编码单条文本：基础切分 → WordPiece → [CLS] + 内容 + [SEP]（单窗）。 */
 export function encodeForBge(text: string, vocab: Map<string, number>): number[] {
   const ids: number[] = [];
   for (const word of basicTokenize(text)) wordPiece(word, vocab, ids);
-  return [CLS_ID, ...ids.slice(0, MAX_SEQUENCE_TOKENS - 2), SEP_ID];
+  return [CLS_ID, ...ids.slice(0, CONTENT_TOKENS_PER_WINDOW), SEP_ID];
+}
+
+/**
+ * 窗口化编码（spec §5b.9 准确性保障）：超窗文本按内容 token 切多窗，每窗独立
+ * [CLS]/[SEP]——整段语义保留，不做静默截断（截断会让 1200 字符 chunk 的尾部
+ * 近半内容对语义检索不可见）。短文本恒为单窗。
+ */
+export function encodeWindowsForBge(text: string, vocab: Map<string, number>): number[][] {
+  const ids: number[] = [];
+  for (const word of basicTokenize(text)) wordPiece(word, vocab, ids);
+  if (ids.length <= CONTENT_TOKENS_PER_WINDOW) {
+    return [[CLS_ID, ...ids, SEP_ID]];
+  }
+  const windows: number[][] = [];
+  for (let start = 0; start < ids.length; start += CONTENT_TOKENS_PER_WINDOW) {
+    windows.push([CLS_ID, ...ids.slice(start, start + CONTENT_TOKENS_PER_WINDOW), SEP_ID]);
+  }
+  return windows;
 }
 
 async function fileWithinBounds(path: string, min: number, max: number): Promise<boolean> {
@@ -223,6 +244,29 @@ function toEmbedding(tensor: { data: ArrayLike<number>; dims: number[] }): Float
   return embedding;
 }
 
+/** 多窗口向量均值池化 + L2 归一（spec §5b.9 准确性保障：超窗文本整段语义保留）。 */
+function meanPool(vectors: Float32Array[]): Float32Array {
+  const first = vectors[0];
+  if (first === undefined || vectors.length === 0 || first.length === 0) {
+    return new Float32Array(0);
+  }
+  const dim = first.length;
+  const mean = new Float32Array(dim);
+  for (const vector of vectors) {
+    if (vector.length !== dim) continue;
+    for (let index = 0; index < dim; index++) {
+      mean[index] = mean[index]! + vector[index]! / vectors.length;
+    }
+  }
+  let norm = 0;
+  for (let index = 0; index < dim; index++) norm += mean[index]! ** 2;
+  norm = Math.sqrt(norm);
+  if (norm > 0) {
+    for (let index = 0; index < dim; index++) mean[index] = mean[index]! / norm;
+  }
+  return mean;
+}
+
 export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): KnowledgeEmbeddingPort {
   const logger = options.logger;
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -282,23 +326,27 @@ export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): Kn
       for (let start = 0; start < texts.length; start += INFERENCE_BATCH) {
         const batch = texts.slice(start, start + INFERENCE_BATCH);
         for (const text of batch) {
-          const ids = encodeForBge(text, runtime.vocab);
-          const length = ids.length;
-          const feeds: Record<string, unknown> = {
-            input_ids: new runtime.ort.Tensor("int64", BigInt64Array.from(ids.map((id) => BigInt(id))), [1, length]),
-            attention_mask: new runtime.ort.Tensor("int64", BigInt64Array.from({ length }, () => BigInt(1)), [1, length]),
-          };
-          if (runtime.session.inputNames.includes("token_type_ids")) {
-            feeds.token_type_ids = new runtime.ort.Tensor(
-              "int64",
-              BigInt64Array.from({ length }, () => BigInt(0)),
-              [1, length],
-            );
+          const windows = encodeWindowsForBge(text, runtime.vocab);
+          const windowVectors: Float32Array[] = [];
+          for (const ids of windows) {
+            const length = ids.length;
+            const feeds: Record<string, unknown> = {
+              input_ids: new runtime.ort.Tensor("int64", BigInt64Array.from(ids.map((id) => BigInt(id))), [1, length]),
+              attention_mask: new runtime.ort.Tensor("int64", BigInt64Array.from({ length }, () => BigInt(1)), [1, length]),
+            };
+            if (runtime.session.inputNames.includes("token_type_ids")) {
+              feeds.token_type_ids = new runtime.ort.Tensor(
+                "int64",
+                BigInt64Array.from({ length }, () => BigInt(0)),
+                [1, length],
+              );
+            }
+            const output = await runtime.session.run(feeds);
+            const raw = output[runtime.outputName];
+            if (!raw) return null;
+            windowVectors.push(toEmbedding(raw as { data: ArrayLike<number>; dims: number[] }));
           }
-          const output = await runtime.session.run(feeds);
-          const raw = output[runtime.outputName];
-          if (!raw) return null;
-          embeddings.push(toEmbedding(raw as { data: ArrayLike<number>; dims: number[] }));
+          embeddings.push(meanPool(windowVectors));
         }
       }
       if (embeddings.length !== texts.length) return null;

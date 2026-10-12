@@ -1641,6 +1641,7 @@ const zhCN: Record<string, string> = {
   "vault.insights.inventory.chunks": "片段",
   "vault.insights.inventory.tagged": "含标签文档",
   "vault.insights.inventory.wikilinks": "双链总数",
+  "vault.insights.inventory.vectorCoverage": "语义向量覆盖",
   "vault.insights.coverage": "收录覆盖",
   "vault.insights.coverageComplete": "完整收录",
   "vault.insights.coveragePartial": "部分收录（索引不完整）",

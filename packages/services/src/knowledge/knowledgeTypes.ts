@@ -111,6 +111,11 @@ export interface KnowledgeInventoryInsights {
   taggedDocuments: number;
   /** [[wikilink]] 目标总数：chunk 内去重、跨 chunk/跨文档累计。 */
   wikilinkCount: number;
+  /**
+   * 向量覆盖（spec §5b.9 准确性可观测，additive）：语义端口在场时统计；
+   * modelId = 产生这些向量的模型（换模型后旧向量不计入，直至回填/重建追上）。
+   */
+  vectorCoverage?: { chunksWithVectors: number; totalChunks: number; modelId: string };
 }
 
 /** 洞察视图的最近任务条目（getStatus.job 的列表化；时长由服务端聚合）。 */

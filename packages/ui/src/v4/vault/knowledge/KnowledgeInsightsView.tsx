@@ -166,6 +166,14 @@ export function KnowledgeInsightsView({
                   label={intl.formatMessage({ id: "vault.insights.inventory.wikilinks" })}
                 />
               </div>
+              {snapshot.inventory.vectorCoverage ? (
+                <p className="mt-2 text-ui-xs text-foreground-subtle">
+                  {intl.formatMessage({ id: "vault.insights.inventory.vectorCoverage" })}
+                  {" · "}
+                  {snapshot.inventory.vectorCoverage.chunksWithVectors}/
+                  {snapshot.inventory.vectorCoverage.totalChunks}
+                </p>
+              ) : null}
             </InsightCard>
 
             {/* ── 收录覆盖（spec §5g.3）────────────────────────── */}

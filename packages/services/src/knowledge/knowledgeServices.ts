@@ -12,6 +12,7 @@ import { resolveObsidianPluginDataDir } from "../obsidian-vault/obsidianVaultSer
 import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledgeDatabase.js";
 import { IndexCoordinator } from "./index/indexCoordinator.js";
 import { createAutoReconcileController } from "./index/autoReconcile.js";
+import { loadVectorCoverage } from "./store/vectorRepository.js";
 import { createCitationFacade } from "./evidence/citationFacade.js";
 import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
 import {

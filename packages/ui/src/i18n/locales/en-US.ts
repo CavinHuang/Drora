@@ -1765,6 +1765,7 @@ const enUS: Record<string, string> = {
   "vault.insights.inventory.chunks": "Chunks",
   "vault.insights.inventory.tagged": "Tagged notes",
   "vault.insights.inventory.wikilinks": "Wiki links",
+  "vault.insights.inventory.vectorCoverage": "Semantic vector coverage",
   "vault.insights.coverage": "Coverage",
   "vault.insights.coverageComplete": "Fully covered",
   "vault.insights.coveragePartial": "Partial (index incomplete)",

@@ -390,6 +390,20 @@ UI 同链受益。
 K-VEC-3 回填阶段补齐存量；K-VEC-4 词面零重叠文档经向量召回进入候选（stub 端口）；
 K-VEC-5 各层降级独立且诊断如实。
 
+**准确性保障（2026-10-13 增补，用户要求「必须保证准确性」）**：
+
+- **超长 chunk 的窗口化嵌入**：bge 512 token 窗口下，1200 字符 chunk 的尾部内容语义
+  不可见（中文 ≈ 1 token/字，截断损失近半）。本地端口对超窗文本按 510 token 切多窗
+  分别推理，CLS 向量**取均值后再归一**——整段语义保留；查询天然单窗，两侧口径一致。
+  索引耗时随窗口数线性上升（可接受）。
+- **向量覆盖可观测**：洞察快照 additive `vectorCoverage`（chunksWithVectors/
+  totalChunks/modelId）——语义是否真的覆盖全库，用户看得见，不靠猜。
+- **准确性棘轮（A28 前置）**：手工核对中文标注集
+  （`packages/services/test/fixtures/semanticAccuracyDataset.ts`，语义意图问句 +
+  已知目标笔记 + 无答案负例，零/低词面重叠设计）+ 阈值门禁（Recall@30 ≥ 0.9 /
+  Hit@1 ≥ 0.6 / MRR ≥ 0.7，初值待真机首跑校准后**只许上调**）。模型在位时真跑
+  本地端口全链；模型缺失时显式 skip（NOT_RUN 诚实语义），绝不静默编造数字。
+
 ## 5c. VaultView 四视图 UI（W04，2026-10-10 落地）
 
 本节是工作单 W04 的行为契约。实现位于 `packages/ui/src/v4/vault/knowledge/`（自研新模块，

@@ -114,3 +114,24 @@ export function insertVectorsInTransaction(
     insert.run(row.chunkId, modelId, float32.length, Buffer.from(float32.buffer));
   }
 }
+
+/** 向量覆盖统计（spec §5b.9 准确性可观测）：当前源 chunk 总数 vs 有该模型向量的数量。 */
+export function loadVectorCoverage(
+  db: KnowledgeDatabase,
+  source: { vaultId: string; sourceEpoch: number },
+  modelId: string,
+): { chunksWithVectors: number; totalChunks: number } {
+  const row = db.raw
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN v.chunk_id IS NOT NULL THEN 1 ELSE 0 END) AS covered
+       FROM chunks c JOIN documents d ON d.id = c.document_id
+       LEFT JOIN chunk_vectors v ON v.chunk_id = c.id AND v.model_id = ?
+       WHERE d.vault_id = ? AND d.source_epoch = ?`,
+    )
+    .get(modelId, source.vaultId, source.sourceEpoch) as {
+    total: number;
+    covered: number | null;
+  };
+  return { chunksWithVectors: row.covered ?? 0, totalChunks: row.total };
+}

@@ -413,6 +413,17 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 | 模型不可用 | 无 sessionId / selection 注入失败 | 检索可用，答案入口禁用并说明（A18） |
 | Host 重连/RPC 失败 | service 调用 reject（含断连代理错误码） | 错误态 + 重试按钮；重试复用同一 clientRequestId 幂等语义 |
 
+**冷启动索引引导（2026-10-12 补）**：vault 已配置但 `coverage.indexedFiles=0`（或索引
+job 进行中）时，智能问库给常驻引导，不再限于空查询态——冷启动时一次检索必然拿到空
+结果，引导若只在 idle/failed 出现，用户检索后反而失去入口。实现为结果区引导块，与
+状态条（`indexMissing`/`indexing` 两码语义不变，派生自同一模型纯函数）互补：
+- 无进行中 job：说明文案 + 「建立索引」按钮 → `startReconcile`；服务端
+  `alreadyRunning=true` 幂等返回既有任务（§5b.8），UI 以 busy 态 + 建立中态替换按钮
+  双层防重复触发；
+- job 进行中：同一位置显示进行中状态（spinner + 已索引文件计数，来自 job 视图真实
+  字段），不渲染第二个触发入口；状态随既有轮询刷新，job 离场后回到按钮或消失。
+- 未配置 vault 的既有语义（noVault 引导卡，A01）不变：`configured=false` 时不出现本块。
+
 ### 5c.5 渲染与跨平台纪律
 
 - 全部排版走 `text-ui-*` 令牌（DESIGN.md 强制约束），颜色只用语义 token；浅/深色、

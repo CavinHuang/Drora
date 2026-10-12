@@ -11,6 +11,7 @@ import {
   ASK_DEFAULT_VISIBLE_CANDIDATES,
   createInitialKnowledgeAskState,
   deriveAskBanners,
+  deriveIndexColdStart,
   detectAskIntentHint,
   getAskOutcome,
   reduceKnowledgeAsk,
@@ -80,6 +81,37 @@ function makeIndexStatus(overrides: Partial<KnowledgeIndexStatus> = {}): Knowled
     lease: { heldBySelf: false, owner: null, fence: 1, expiresAtMs: null },
     semantic: "unavailable",
     ...overrides,
+  };
+}
+
+function makeRunningJob(indexedFiles = 0): KnowledgeIndexStatus["job"] {
+  return {
+    jobId: "job-1",
+    kind: "reconcile",
+    status: "running",
+    generation: 1,
+    fence: 1,
+    sourceEpoch: 1,
+    startedAtMs: 1,
+    finishedAtMs: null,
+    reason: null,
+    indexedFiles,
+    indexedChunks: 0,
+  };
+}
+
+function makeCoverage(indexedFiles: number): KnowledgeIndexStatus["coverage"] {
+  return {
+    indexedFiles,
+    indexedChunks: indexedFiles * 2,
+    excludedHidden: 0,
+    excludedSymlink: 0,
+    excludedNotMarkdown: 0,
+    excludedOverSize: 0,
+    excludedOverQuota: 0,
+    excludedDepth: 0,
+    truncatedFiles: 0,
+    partial: false,
   };
 }
 
@@ -411,4 +443,41 @@ test("deriveAskBanners：九态映射——无源/索引缺失/partial/语义不
     run: makeRun({ runId: "run-6", status: "source_stale", candidates: [] }),
   });
   assert.ok(deriveAskBanners({ state: staleState, indexStatus: makeIndexStatus(), hasSession: true }).includes("sourceStale"));
+});
+
+test("deriveIndexColdStart：索引缺失可建 / 建立中互斥，未配置不引导（spec §5c.4）", () => {
+  // 冷启动：configured + 索引为空 + 无 job → 引导建索引。
+  assert.deepEqual(deriveIndexColdStart(makeIndexStatus({ coverage: makeCoverage(0) })), {
+    needsBuild: true,
+    building: false,
+  });
+  // 索引为空 + job 进行中 → 建立中（不渲染第二个触发入口）。
+  const buildingEmpty = deriveIndexColdStart(makeIndexStatus({ job: makeRunningJob(0) }));
+  assert.deepEqual(buildingEmpty, { needsBuild: false, building: true });
+  // 已有索引 + reconcile 进行中 → 同样显示进行中状态。
+  const buildingHealthy = deriveIndexColdStart(makeIndexStatus({ job: makeRunningJob(4) }));
+  assert.deepEqual(buildingHealthy, { needsBuild: false, building: true });
+  // 上次 job 已结束（failed）但索引仍为空 → 回到可建态。
+  const failedJobIndex = makeIndexStatus({
+    coverage: makeCoverage(0),
+    job: { ...makeRunningJob(0), status: "failed", finishedAtMs: 2, reason: "lease_lost" },
+  });
+  assert.deepEqual(deriveIndexColdStart(failedJobIndex), { needsBuild: true, building: false });
+  // 索引健康且无 job → 不引导。
+  assert.deepEqual(deriveIndexColdStart(makeIndexStatus()), { needsBuild: false, building: false });
+  // 未配置 vault：两态皆 false（noVault 既有语义不变，A01）。
+  assert.deepEqual(deriveIndexColdStart(makeIndexStatus({ configured: false })), {
+    needsBuild: false,
+    building: false,
+  });
+  assert.deepEqual(deriveIndexColdStart(null), { needsBuild: false, building: false });
+
+  // 状态条与引导块派生自同一判定：建立中出 indexing、缺失出 indexMissing，互斥成立。
+  const buildingBanners = deriveAskBanners({
+    state: createInitialKnowledgeAskState(),
+    indexStatus: makeIndexStatus({ job: makeRunningJob(4) }),
+    hasSession: true,
+  });
+  assert.ok(buildingBanners.includes("indexing"));
+  assert.ok(!buildingBanners.includes("indexMissing"));
 });

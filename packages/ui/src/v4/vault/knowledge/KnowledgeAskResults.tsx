@@ -129,20 +129,53 @@ export function AskNoVaultState({ onConnect }: { onConnect: () => void }): React
   );
 }
 
-export function AskBuildIndexButton({
+/**
+ * 冷启动索引引导块（spec §5c.4）：vault 已配置但索引为空/正在建立时常驻呈现，
+ * 不限于空查询态——冷启动检索必然为空，引导若只在 idle/failed 出现，用户检索后
+ * 反而失去入口。building 时显示进行中状态（真实 job 计数），不渲染第二个触发入口。
+ */
+export function AskIndexColdStart({
+  building,
   busy,
+  jobIndexedFiles,
   onStart,
 }: {
+  building: boolean;
   busy: boolean;
+  /** 进行中 job 的已索引文件计数（job 视图真实字段）；非进行中为 null 不显示。 */
+  jobIndexedFiles: number | null;
   onStart: () => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   return (
-    <div className="flex justify-center pb-2">
-      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onStart}>
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-        {intl.formatMessage({ id: "vault.ask.index.build" })}
-      </Button>
+    <div
+      className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-surface px-4 py-4 text-center"
+      data-testid="ask-index-cold-start"
+    >
+      {building ? (
+        <p
+          className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle"
+          data-testid="ask-index-building"
+        >
+          <Loader2 className="size-3.5 shrink-0 animate-spin" />
+          {intl.formatMessage({ id: "vault.ask.index.building" })}
+          {jobIndexedFiles !== null && (
+            <span className="text-ui-xs text-foreground-subtlest">
+              {intl.formatMessage({ id: "vault.ask.index.buildingProgress" }, { count: jobIndexedFiles })}
+            </span>
+          )}
+        </p>
+      ) : (
+        <>
+          <p className="text-ui-sm text-foreground-subtle">
+            {intl.formatMessage({ id: "vault.ask.index.hint" })}
+          </p>
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onStart}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+            {intl.formatMessage({ id: "vault.ask.index.build" })}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

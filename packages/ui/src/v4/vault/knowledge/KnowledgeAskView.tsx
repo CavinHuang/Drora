@@ -28,6 +28,7 @@ import {
   ASK_DEFAULT_VISIBLE_CANDIDATES,
   createInitialKnowledgeAskState,
   deriveAskBanners,
+  deriveIndexColdStart,
   getAskOutcome,
   reduceKnowledgeAsk,
   resolveAskIntent,
@@ -41,9 +42,9 @@ import {
   displayCandidateTitle,
 } from "./KnowledgeCandidateCard.js";
 import {
-  AskBuildIndexButton,
   AskDecisionTrace,
   AskEmptyState,
+  AskIndexColdStart,
   AskNoVaultState,
   AskPreviousRound,
   AskSourceStaleState,
@@ -190,6 +191,9 @@ export function KnowledgeAskView({
     if (!indexService || indexActionBusy) return;
     setIndexActionBusy(true);
     try {
+      // startReconcile 幂等（spec §5b.8）：任务已在跑时服务端返回 alreadyRunning=true
+      // 的既有任务、不产生第二个 job——重复点击被服务端幂等吸收，UI 再以 busy 态 +
+      // 「建立中」态替换按钮防抖；随后刷新状态条，引导块切到进行中展示。
       await indexService.startReconcile();
       await refreshIndexStatus();
     } catch (error) {
@@ -297,7 +301,7 @@ export function KnowledgeAskView({
   const currentRound = state.current;
   const currentRun = currentRound?.run ?? null;
   const slice = sliceCandidates(currentRun?.candidates ?? [], state.visibleCandidateLimit);
-  const job = indexStatus?.job ?? null;
+  const coldStart = deriveIndexColdStart(indexStatus);
   const isRetrieving = outcome === "retrieving" || outcome === "submitting";
   const isEmptyQueryState = outcome === "idle" || outcome === "failed";
 
@@ -339,8 +343,15 @@ export function KnowledgeAskView({
           )}
           {isEmptyQueryState && !state.error && <AskEmptyState />}
           {outcome === "noVault" && <AskNoVaultState onConnect={onGoToNotes} />}
-          {indexStatus?.configured && indexStatus.coverage.indexedFiles === 0 && !job && isEmptyQueryState && (
-            <AskBuildIndexButton busy={indexActionBusy} onStart={() => void startPageIndex()} />
+          {/* 冷启动索引引导（spec §5c.4）：configured 且索引为空/建立中时常驻，
+              不再限于空查询态；未配置 vault 的 noVault 既有语义不受影响。 */}
+          {indexStatus?.configured && (coldStart.needsBuild || coldStart.building) && (
+            <AskIndexColdStart
+              building={coldStart.building}
+              busy={indexActionBusy}
+              jobIndexedFiles={coldStart.building ? (indexStatus.job?.indexedFiles ?? 0) : null}
+              onStart={() => void startPageIndex()}
+            />
           )}
           {currentRound &&
             (outcome === "ready" || outcome === "partial" || outcome === "empty" || outcome === "cancelled") && (

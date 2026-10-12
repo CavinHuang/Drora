@@ -1710,6 +1710,9 @@ const enUS: Record<string, string> = {
   "vault.ask.noVault.hint":
     "Ask Vault searches the currently authorized Vault; pick or create one in Notes view first.",
   "vault.ask.index.build": "Build index",
+  "vault.ask.index.hint": "Ask Vault relies on the local index; build it once to search your notes.",
+  "vault.ask.index.building": "Building the index…",
+  "vault.ask.index.buildingProgress": "{count} files indexed so far",
   "vault.ask.candidates.count": "{count} candidate(s) found",
   "vault.ask.expandMore": "Show {count} more",
   "vault.ask.cancelled.suffix": "cancelled; local results kept",

@@ -264,6 +264,15 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   两侧截断以「…」标注；无任何词元命中时回落正文开头。quote selector、sha256 等事实
   字段一律不变——摘要只影响展示与 Jev 出站的 note_excerpt（W03 Receipt 的摘录仍由
   prepareEvidence 依 quote 切片独立生成，两处口径互不依赖）。
+- **查询词元与命中区间规划单一出处（2026-10-12 补）**：`extractQueryTerms`（CJK
+  bigram/单字 + 英文小写词，去重保序）与其所需词元基元（CJK/词 run 提取、bigram、
+  token 安全守卫）单一出处为 `packages/shared/src/knowledge/queryTerms.ts`——services
+  的命中感知摘要与 UI 的摘录命中高亮（§5c.3）共用同一实现，杜绝两份词元口径漂移；
+  `packages/services/src/knowledge/search/tokenizer.ts` 改为引用共享基元并 re-export
+  `extractQueryTerms`（依赖方向 services→shared，shared 禁止反向依赖），tokenizer 的
+  既有导出面与测试不变。同文件另提供 `planTextHitIntervals`（大小写不敏感子串匹配、
+  命中区间按起点合并且互不重叠；折叠大小写改变串长的罕见 Unicode 回落大小写敏感
+  匹配，保证区间偏移对原文逐字可信），供 UI 渲染 `<mark>`。
 - **FTS 多列与列权重（2026-10-12 补，schema v4）**：`chunks_fts` 由单列 `tokens` 迁移为
   `(tokens, title, meta)` 三列。FTS5 不能 ALTER，迁移 = 建 `chunks_fts_v4` → 按
   chunks+documents 重填 → drop 旧表 → rename，与版本号推进同事务一次完成。列语义：
@@ -369,6 +378,11 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   相对路径、命中章节（matchedHeading）、有界原文节选（excerpt）、命中 chunk 数与
   「为何候选」（章节 + 命中数；**不展示百分比分数冒充准确率**，score 只进默认折叠的
   Decision trace）。多候选并列展示，不自动选一篇（A09）；用户点击才有选中态。
+- **摘录命中高亮（2026-10-12 补）**：候选 excerpt 内按本轮查询词元（§5b.5
+  `extractQueryTerms`，shared 单一出处）做 `<mark>` 高亮——大小写不敏感子串匹配、
+  命中区间不重叠（§5b.5 `planTextHitIntervals`）。纯展示层行为：excerpt 事实字段、
+  「加入 Agent」携带的引用文本与证据 Inspector 的 Receipt 摘录一律原样，不经高亮
+  逻辑改写；查询无可检索词元（如纯标点）时不渲染高亮。
 - **证据 Inspector**：候选卡「核验」→ `prepareEvidence`（签发 receipt，§5.1）→ 立即
   `resolveCitation` 复验（§5.2）→ `current` 显示有界 excerpt + 行号区间 + 「跳到原文」；
   `stale/missing/forbidden/no_source/source_stale` 各自显式呈现机器原因。跳到原文只在

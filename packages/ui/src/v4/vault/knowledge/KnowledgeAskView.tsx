@@ -360,6 +360,7 @@ export function KnowledgeAskView({
                 <KnowledgeCandidateCard
                   key={candidate.articleId}
                   candidate={candidate}
+                  query={currentRound.submittedQuery}
                   selected={state.selectedArticleId === candidate.articleId}
                   inspect={state.evidence[candidate.articleId]}
                   sessionId={sessionId}

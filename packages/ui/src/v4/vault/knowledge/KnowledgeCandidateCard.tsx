@@ -14,6 +14,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { KnowledgeArticleCandidate } from "@drora/services";
+import { extractQueryTerms } from "@drora/shared";
+import { HighlightedMatchText } from "@/quickpick/HighlightedMatchText.js";
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -115,6 +117,7 @@ export function displayCandidateTitle(candidate: KnowledgeArticleCandidate): str
 
 export function KnowledgeCandidateCard({
   candidate,
+  query,
   selected,
   inspect,
   sessionId,
@@ -125,6 +128,8 @@ export function KnowledgeCandidateCard({
   onFollowUp,
 }: {
   candidate: KnowledgeArticleCandidate;
+  /** 本轮提交的原始查询（spec §5c.3）：提取词元做摘录 <mark> 高亮，空查询不高亮。 */
+  query: string;
   selected: boolean;
   inspect: KnowledgeEvidenceInspectState | undefined;
   sessionId?: string;
@@ -136,6 +141,8 @@ export function KnowledgeCandidateCard({
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   const verified = inspect?.phase === "verified" ? inspect : null;
+  // 词元提取是 shared 单一出处（spec §5b.5），与 services 命中感知摘要同一口径。
+  const highlightTerms = React.useMemo(() => extractQueryTerms(query), [query]);
   return (
     <article
       data-testid="ask-candidate"
@@ -167,7 +174,9 @@ export function KnowledgeCandidateCard({
           </span>
         )}
         <span className="line-clamp-3 whitespace-pre-wrap text-ui-sm leading-5 text-foreground-subtle">
-          {candidate.excerpt}
+          {/* 摘录命中高亮是纯展示（spec §5c.3）：excerpt 事实字段与「加入 Agent」
+              携带的 candidate.excerpt 原文一律不变，仅渲染层标出命中词元。 */}
+          <HighlightedMatchText text={candidate.excerpt} terms={highlightTerms} />
         </span>
       </button>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

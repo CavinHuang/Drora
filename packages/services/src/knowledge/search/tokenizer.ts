@@ -10,60 +10,35 @@
  * - 两级阶梯（spec §5b.5）：strict 轮 AND（CJK run 作整体 phrase）；零命中且
  *   canRelax 时唯一一次降级轮——CJK run = phrase OR 全部 bigram（修复单段长查询
  *   只有一个 AND 部件、旧判据「词元 ≥2」永不触发降级的死降级缺陷）。
- * 纯函数：不做任何 IO。
+ *
+ * 词元基元与 `extractQueryTerms` 自 2026-10-12 起单一出处为 `@drora/shared`
+ * （`knowledge/queryTerms.ts`，spec §5b.5）：services 的命中感知摘要与 UI 的摘录
+ * 命中高亮共用同一词元口径，本文件经 re-export 保持既有导出面与测试不变。
+ * 本文件保留 FTS 专属的 token 流产出与 MATCH 表达式构造。纯函数：不做任何 IO。
  */
+import {
+  cjkBigrams,
+  extractQueryTerms,
+  isSafeToken,
+  matchCjkRuns,
+  matchWordRuns,
+} from "@drora/shared";
 
-/** CJK 统一表意文字 + 扩展A + 兼容表意文字（spec §5b.5 范围；谚文/假名不展开）。 */
-const CJK_CHAR = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;
-const CJK_RUN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+/gu;
-const WORD_RUN = /[A-Za-z0-9_]+/g;
+export { extractQueryTerms };
 
 /** 英文/数字词前缀查询的最小长度：更短的词（"js"/"ai"）前缀召回噪声过大。 */
 const PREFIX_MIN_CHARS = 3;
 
-/** 单个 token 的合法性守卫：只接受 bigram/词切分产物能产生的形态。 */
-function isSafeToken(token: string): boolean {
-  return token.length > 0 && [...token].every((ch) => CJK_CHAR.test(ch) || /[A-Za-z0-9_]/.test(ch));
-}
-
-function cjkBigrams(run: string): string[] {
-  if (run.length === 1) return [run];
-  const bigrams: string[] = [];
-  for (let index = 0; index < run.length - 1; index++) {
-    bigrams.push(run.slice(index, index + 2));
-  }
-  return bigrams;
-}
-
 /** 索引侧：文本 → token 流（空格连接）。 */
 export function tokenizeForIndex(text: string): string {
   const tokens: string[] = [];
-  for (const run of text.match(CJK_RUN) ?? []) {
+  for (const run of matchCjkRuns(text)) {
     tokens.push(...cjkBigrams(run));
   }
-  for (const run of text.match(WORD_RUN) ?? []) {
+  for (const run of matchWordRuns(text)) {
     tokens.push(run.toLowerCase());
   }
   return tokens.filter(isSafeToken).join(" ");
-}
-
-/**
- * 查询词元提取（命中感知摘要用，spec §5b.5）：CJK bigram/单字 + 英文小写词，
- * 去重保序。这些词元以子串形态在 chunk 正文中查找——bigram/前缀词按索引构造
- * 必然是命中文本的子串。
- */
-export function extractQueryTerms(query: string): string[] {
-  const terms: string[] = [];
-  for (const run of query.match(CJK_RUN) ?? []) {
-    for (const bigram of cjkBigrams(run)) {
-      if (bigram && !terms.includes(bigram)) terms.push(bigram);
-    }
-  }
-  for (const run of query.match(WORD_RUN) ?? []) {
-    const word = run.toLowerCase();
-    if (isSafeToken(word) && !terms.includes(word)) terms.push(word);
-  }
-  return terms;
 }
 
 export interface MatchExpression {
@@ -121,7 +96,7 @@ function wordQueryPart(word: string): string {
 export function buildMatchExpression(query: string, relaxed: boolean): MatchExpression {
   const parts: string[] = [];
   let canRelax = false;
-  for (const run of query.match(CJK_RUN) ?? []) {
+  for (const run of matchCjkRuns(query)) {
     if (run.length === 1) {
       parts.push(`${quoteToken(run)} *`);
     } else {
@@ -131,7 +106,7 @@ export function buildMatchExpression(query: string, relaxed: boolean): MatchExpr
       parts.push(relaxed ? relaxedCjkPart(run) : bigramPhrase(run));
     }
   }
-  for (const run of query.match(WORD_RUN) ?? []) {
+  for (const run of matchWordRuns(query)) {
     const word = run.toLowerCase();
     if (isSafeToken(word)) parts.push(wordQueryPart(word));
   }

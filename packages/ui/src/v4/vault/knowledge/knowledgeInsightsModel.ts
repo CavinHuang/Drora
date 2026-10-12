@@ -44,9 +44,9 @@ export function nonZeroCoverageExclusions(coverage: KnowledgeCoverage): InsightC
   });
 }
 
-/** 最近任务存在 running 条目 → 轮询窗口开启（快照为空/离场即停）。 */
+/** recentJobs 存在 running 条目 → 轮询窗口开启（spec §5g.6；快照为空/离场即停）。 */
 export function deriveInsightsPolling(snapshot: KnowledgeInsightsSnapshot | null): boolean {
-  return snapshot?.recentJobs[0]?.status === "running";
+  return snapshot?.recentJobs.some((job) => job.status === "running") ?? false;
 }
 
 /**

@@ -117,6 +117,37 @@ test("deriveInsightsPolling：最近任务 running → 轮询开启；无快照/
     ),
     true,
   );
+  // §5g.6 口径是「存在 running 条目」，不依赖「running 恰在最新位置」——
+  // 残留 running 行位于列表后部时轮询窗口同样不漏开（独立复核发现3）。
+  assert.equal(
+    deriveInsightsPolling(
+      makeSnapshot({
+        recentJobs: [
+          {
+            kind: "reconcile",
+            status: "completed",
+            startedAtMs: 3,
+            finishedAtMs: 4,
+            durationMs: 1,
+            indexedFiles: 2,
+            indexedChunks: 2,
+            reason: null,
+          },
+          {
+            kind: "rebuild",
+            status: "running",
+            startedAtMs: 1,
+            finishedAtMs: null,
+            durationMs: null,
+            indexedFiles: 0,
+            indexedChunks: 0,
+            reason: null,
+          },
+        ],
+      }),
+    ),
+    true,
+  );
 });
 
 test("formatInsightsDuration：null 空串（进行中另呈状态）；ms/s/分秒各档", () => {

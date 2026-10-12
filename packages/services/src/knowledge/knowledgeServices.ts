@@ -70,6 +70,16 @@ export interface KnowledgeServicesOptions {
    * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅测试环境显式置 true。
    */
   reviewWritePathEnabled?: boolean;
+  /**
+   * 索引自动 reconcile（spec §5b.8）：缺省 false，仅 desktop 本地 host 装配显式开启。
+   * 触发点：装配后延迟一次 + search 入口 TTL 过期时；均 fire-and-forget，检索照旧用
+   * 当前快照（陈旧一度语义）。job 仍由 IndexCoordinator 独占，与手动触发同路径幂等。
+   */
+  autoIndexEnabled?: boolean;
+  /** 自动 reconcile 的陈旧 TTL（毫秒）；缺省 10 分钟。 */
+  autoIndexStaleTtlMs?: number;
+  /** 装配后首次自动 reconcile 的延迟（毫秒）；缺省 4s。 */
+  autoIndexInitialDelayMs?: number;
   /** 租约 TTL/心跳（测试可收紧）。 */
   leaseTtlMs?: number;
   heartbeatIntervalMs?: number;
@@ -207,6 +217,54 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     },
   };
 
+  // ── 索引自动 reconcile（spec §5b.8）─────────────────────────────
+  // fire-and-forget：与手动触发走同一 startJob（alreadyRunning 幂等，lease/fence 不变）；
+  // 未配置源静默跳过；任何失败只记日志，绝不传播到 search/装配调用方。
+  const autoIndexStaleTtlMs = options.autoIndexStaleTtlMs ?? 10 * 60_000;
+  let autoIndexTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleAutoReconcile(): void {
+    if (options.autoIndexEnabled !== true) return;
+    void (async () => {
+      try {
+        const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
+        if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
+          return;
+        }
+        const started = coordinator.startJob({
+          kind: "reconcile",
+          config: source.config,
+          vaultId: source.summary.vaultId,
+          sourceEpoch: source.sourceEpoch,
+          nowMs: Date.now(),
+        });
+        logger.info("自动索引已触发", {
+          jobId: started.jobId,
+          alreadyRunning: started.alreadyRunning,
+        });
+      } catch (error) {
+        logger.warn("自动索引触发失败（不阻塞调用方）", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+  }
+
+  /** search 入口的 TTL 门：无 running job 且最近完成 reconcile 超过 TTL 才触发。 */
+  function maybeAutoReconcileOnSearch(): void {
+    if (options.autoIndexEnabled !== true) return;
+    const latest = coordinator.getActiveOrLatestJobView();
+    if (latest !== null && latest.status === "running") return;
+    const finishedAtMs = latest?.finishedAtMs;
+    if (typeof finishedAtMs === "number" && Date.now() - finishedAtMs < autoIndexStaleTtlMs) return;
+    scheduleAutoReconcile();
+  }
+
+  if (options.autoIndexEnabled === true) {
+    autoIndexTimer = setTimeout(scheduleAutoReconcile, options.autoIndexInitialDelayMs ?? 4_000);
+    autoIndexTimer.unref?.();
+  }
+
   const queryService: IKnowledgeQueryService = {
     async createRun(params: KnowledgeCreateRunParams) {
       if (!params || typeof params !== "object") throw new Error("参数非法");
@@ -219,6 +277,8 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       if (params.decisionConsentId !== undefined && typeof params.decisionConsentId !== "string") {
         throw new Error("decisionConsentId 非法");
       }
+      // 陈旧一度语义（§5b.8）：本次检索照旧用当前快照，后台刷新对下一次查询可见。
+      maybeAutoReconcileOnSearch();
       return orchestrator.search(params);
     },
     async grantDecisionConsent(params: { runId: string; candidateIds?: string[] }) {
@@ -307,6 +367,12 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       // 停 run 事件流（检索是易失状态）；心跳定时器已 unref，
       // 租约正常路径由任务 finally 释放，异常路径靠 TTL 过期兜底（W00 spike §4.4）。
       orchestrator.dispose();
+      // 自动索引的延迟定时器一并清理（§5b.8）；in-flight job 由 coordinator 自身
+      // 的 finally/异常路径收尾，不在此等待（dispose 链同步）。
+      if (autoIndexTimer !== null) {
+        clearTimeout(autoIndexTimer);
+        autoIndexTimer = null;
+      }
       db.close();
     },
   };

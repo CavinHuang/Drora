@@ -1526,6 +1526,12 @@ export function createLocalServices(options: {
    * 不注入 provider，grant 走 disabled）。V1 仅 desktop local host 预取。
    */
   knowledgeJevAssembly?: KnowledgeJevAssembly | null;
+  /**
+   * 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：缺省 false，仅 desktop
+   * 本地 host 装配传 true（V1 范围纪律，同 knowledgeJevAssembly）；server/stdio/
+   * 远程 host 不传即维持手动触发现状。
+   */
+  knowledgeAutoIndex?: boolean;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
@@ -2634,13 +2640,13 @@ export function createLocalServices(options: {
   // 唯一事实源；自带可重建 SQLite 索引缓存（WAL + lease/fencing），dispose 记入统一关闭链。
   // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
   // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
-  const knowledgeServices: KnowledgeServices = createKnowledgeServices(
-    options.knowledgeJevAssembly
-      ? {
-          decisionProviderFactory: createKnowledgeJevProviderFactory(options.knowledgeJevAssembly),
-        }
-      : {},
-  );
+  const knowledgeServices: KnowledgeServices = createKnowledgeServices({
+    ...(options.knowledgeJevAssembly
+      ? { decisionProviderFactory: createKnowledgeJevProviderFactory(options.knowledgeJevAssembly) }
+      : {}),
+    // 索引自动 reconcile（§5b.8）：仅 desktop 本地 host 开启，其余 host 维持手动触发。
+    ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),
+  });
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()
     .register(IFileService, fileService)

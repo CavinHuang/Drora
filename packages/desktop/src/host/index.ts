@@ -2951,6 +2951,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               settingService,
               prepareLegacyAccountConnections,
               knowledgeJevAssembly,
+              // 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：desktop 本地 host 开启，
+              // 其余 host（server/stdio/远程）维持手动触发现状。
+              knowledgeAutoIndex: true,
               hostApiNetworkTransport,
               authorizeLocalMediaPreviewPath,
               runtimeProcessEnvPatch: msg.runtimeProcessEnvPatch,

@@ -65,6 +65,7 @@ export const vaultSearchToolEntry: ToolEntry = {
       "If the vault lives outside the current workspace, the excerpt may be the only content you can see — do not fabricate file contents beyond it; reading full files outside the workspace may be restricted.",
       "status field is honest: 'no_source' means no vault is configured (tell the user to configure one in settings), 'partial' means the index is incomplete and results may miss matches, 'empty' means nothing matched (do not invent notes).",
       "No filters exist (path/date/tag are not supported); express intent in the query text itself.",
+      "Results reflect the last completed index of the vault; searching may trigger a background refresh in the host, so a follow-up search moments later can surface newer notes. If the vault was just edited, mention that the freshest edits may not be searchable yet.",
     ],
     readOnly: true,
     destructive: false,

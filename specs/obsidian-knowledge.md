@@ -271,6 +271,29 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 （找回与空结果不编造）、A13 的 W02 部分（切库/撤权使旧 run 失效）——证据见
 `docs/vaultview/delivery/W02_DELIVERY.md` 与 `packages/services/test/knowledge*.test.ts`。
 
+### 5b.8 索引新鲜度与自动 reconcile（2026-10-12 补）
+
+此前索引只在用户手动触发（ask 视图按钮 / requestRebuild）；vault 文件变更后索引静默
+变旧，检索（UI 与 agent VaultSearch 同样）拿到的是**上次完成索引的快照**且无任何提示。
+本节定义自动 reconcile 的触发点、边界与语义，作为实现依据。
+
+- **触发点（两处，均为 fire-and-forget，绝不阻塞调用方）**：
+  1. 装配后延迟（缺省 4s，测试可调）：host 启动即对齐一次索引——未配置源时静默跳过；
+  2. `search` 入口：距上次完成 reconcile（job 视图 finishedAtMs，取最近一次 reconcile/
+     rebuild）超过 TTL（缺省 10 分钟，测试可调）且无 running job 时触发。
+- **快照语义（陈旧一度，honest-by-design）**：触发当次的检索照旧用当前索引快照完成，
+  后台刷新结果对**下一次**查询可见；不等待、不重跑本次 run。coverage/partial 与
+  job 状态的既有如实呈现不变。
+- **范围（V1，§5d.10 同款纪律）**：`autoIndexEnabled` 缺省 false，仅 desktop 本地 host
+  装配显式开启；server/stdio/远程 host 不传即维持手动触发现状。自动触发只读本地
+  vault（无出站，ADR #5/#11 不涉）。
+- **所有者与幂等**：job 仍由 IndexCoordinator 独占（lease/fence 不变）；自动触发与
+  手动触发走同一 `startReconcile`（alreadyRunning 幂等），不新增第二条写入路径；
+  dispose 清理延迟定时器（in-flight job 由 coordinator 自身的异常路径收尾）。
+- **验收映射**：AI-1 装配后自动完成一次索引（不调 startReconcile）；AI-2 缺省关闭
+  不产生任何 job；AI-3 TTL 过期后 search 触发后台刷新且本次检索正常落定；AI-4
+  未配置源静默跳过（无未处理拒绝）。
+
 ## 5c. VaultView 四视图 UI（W04，2026-10-10 落地）
 
 本节是工作单 W04 的行为契约。实现位于 `packages/ui/src/v4/vault/knowledge/`（自研新模块，
@@ -838,6 +861,9 @@ IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
   （§5b.6）。`status` 直通 `KnowledgeQueryStatus`（retrieving 不会出现在落定后）。
 - 摘录即证据边界：vault ≠ workspace 时 excerpt 就是 agent 可见的全部内容，读全文受
   read 工具既有 path-policy 约束（工具描述如实写明，不伪造可达性）。
+- **快照新鲜度**：检索结果反映「上次完成的索引」（§5b.8 陈旧一度语义）——host 开启
+  自动 reconcile 时，一次查询可能触发后台刷新，稍后重搜可见新笔记；工具描述如实
+  写明，不声称实时。
 
 ### 5f.3 验收映射
 

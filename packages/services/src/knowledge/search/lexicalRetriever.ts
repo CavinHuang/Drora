@@ -12,9 +12,13 @@
  */
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { articleIdOf } from "../store/indexRepository.js";
+import { loadVectorChunks } from "../store/vectorRepository.js";
 import { buildMatchExpression, extractQueryTerms } from "./tokenizer.js";
 import { cosineSimilarity, type KnowledgeSemanticContext } from "./embeddingPort.js";
 import type { KnowledgeArticleCandidate, KnowledgeSearchDiagnostics } from "../knowledgeTypes.js";
+
+/** bge-zh 查询侧指令前缀（模型卡要求；仅查询加，索引侧不加——spec §5b.9）。 */
+export const QUERY_EMBEDDING_INSTRUCTION = "为这个句子生成表示以用于检索相关文章：";
 
 const EXCERPT_MAX_CHARS = 240;
 /** 命中位置前的引导上下文（可读性；窗口仍受 EXCERPT_MAX_CHARS 总长约束）。 */
@@ -85,6 +89,49 @@ function searchChunks(
        LIMIT ?`,
     )
     .all(matchExpression, source.vaultId, source.sourceEpoch, limit) as unknown as ChunkHit[];
+}
+
+/**
+ * 向量召回（spec §5b.9 混合召回）：查询向量 vs 当前源全量 chunk_vectors 的余弦 top-K。
+ * 返回的 hit 不带 bm25 分（score=0，天然排在词法命中之后），由既有语义余弦重排接管
+ * 最终次序。端口缺席/查询嵌入失败/库无向量 → 空数组（该层独立降级）。
+ */
+async function recallByVector(
+  db: KnowledgeDatabase,
+  source: { vaultId: string; sourceEpoch: number },
+  port: NonNullable<KnowledgeSemanticContext["port"]>,
+  query: string,
+): Promise<ChunkHit[]> {
+  try {
+    const vectors = await port.embed([QUERY_EMBEDDING_INSTRUCTION + query]);
+    const queryVector = vectors?.[0];
+    if (!queryVector || queryVector.length === 0) return [];
+    const rows = loadVectorChunks(db, source, port.id);
+    const dim = queryVector.length;
+    const scored = rows
+      .filter((row) => row.vector.length === dim)
+      .map((row) => ({ row, similarity: cosineSimilarity(queryVector, Array.from(row.vector)) }));
+    scored.sort(
+      (left, right) => right.similarity - left.similarity || left.row.chunkId - right.row.chunkId,
+    );
+    return scored.slice(0, CANDIDATE_CHUNK_POOL).map(({ row }) => ({
+      chunkId: row.chunkId,
+      documentId: row.documentId,
+      relativePath: row.relativePath,
+      title: row.title,
+      sha256: row.docSha256,
+      chunkSha256: row.chunkSha256,
+      headingPath: row.headingPath,
+      body: row.body,
+      startLine: row.startLine,
+      endLine: row.endLine,
+      startOffset: row.startOffset,
+      endOffset: row.endOffset,
+      score: 0,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function excerptOf(body: string): string {
@@ -206,6 +253,16 @@ export async function searchLexicalPass(
   };
 
   let hits = searchChunks(db, source, expression.expression, CANDIDATE_CHUNK_POOL);
+  // 混合召回（spec §5b.9）：向量 top-K 与词法命中按 chunkId 去重合并；向量独有命中
+  // score=0 排在词法之后，语义余弦重排再按相似度接管全池次序。
+  const embeddingPort = options.semantic.port;
+  const vectorOnlyHits = embeddingPort === null ? [] : await recallByVector(db, source, embeddingPort, query);
+  if (vectorOnlyHits.length > 0) {
+    const lexicalIds = new Set(hits.map((hit) => hit.chunkId));
+    const recalled = vectorOnlyHits.filter((hit) => !lexicalIds.has(hit.chunkId));
+    if (recalled.length > 0) hits = [...hits, ...recalled];
+    diagnostics = { ...diagnostics, semanticRecalled: recalled.length };
+  }
   let pool = hits;
   if (options.semantic.port) {
     try {

@@ -62,7 +62,8 @@ export function deleteDocumentRows(
 }
 
 /** 单文档替换（调用方必须已在短事务内并完成 fence 校验）：删旧 chunk+FTS → 插新。 */
-export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: ReplaceDocumentInput): number {
+/** 替换文档（短事务内调用）：返回本次写入的 chunk id 列表（同序于 input.chunks；调用方据以同事务写向量）。 */
+export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: ReplaceDocumentInput): number[] {
   deleteDocumentRows(tx, input.vaultId, input.sourceEpoch, input.relativePath);
 
   const docResult = tx.raw
@@ -96,6 +97,7 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
   const insertFts = tx.raw.prepare(
     `INSERT INTO chunks_fts(rowid, tokens, title, meta) VALUES (?, ?, ?, ?)`,
   );
+  const chunkIds: number[] = [];
   for (const chunk of input.chunks) {
     const chunkResult = insertChunk.run(
       documentId,
@@ -109,16 +111,18 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
       chunk.sha256,
       chunk.text,
     );
+    const chunkId = Number(chunkResult.lastInsertRowid);
     const titleSource = chunk.headingPath ? `${input.title} ${chunk.headingPath}` : input.title;
     const metaSource = [...(chunk.tags ?? []), ...(chunk.links ?? [])].join(" ");
     insertFts.run(
-      Number(chunkResult.lastInsertRowid),
+      chunkId,
       tokenizeForIndex(chunk.text),
       tokenizeForIndex(titleSource),
       tokenizeForIndex(metaSource),
     );
+    chunkIds.push(chunkId);
   }
-  return documentId;
+  return chunkIds;
 }
 
 export function deleteDocumentInTransaction(

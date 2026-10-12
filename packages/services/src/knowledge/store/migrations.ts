@@ -198,6 +198,21 @@ export const KNOWLEDGE_MIGRATIONS: Migration[] = [
     ],
     refill: rebuildChunksFtsColumns,
   },
+  {
+    version: 5,
+    statements: [
+      // 本地向量存储（spec §5b.9）：与 chunks 级联同生共死（连接已 foreign_keys=ON）；
+      // vector = Float32 小端 BLOB，dim 校验防止换模型后维度错配；model_id 参与检索过滤，
+      // 换模型 = 旧行自然失配、随回填/重建以新 id 重写。
+      `CREATE TABLE IF NOT EXISTS chunk_vectors(
+         chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
+         model_id TEXT NOT NULL,
+         dim INTEGER NOT NULL,
+         vector BLOB NOT NULL
+       )`,
+      `CREATE INDEX IF NOT EXISTS idx_chunk_vectors_model ON chunk_vectors(model_id)`,
+    ],
+  },
 ];
 
 /**

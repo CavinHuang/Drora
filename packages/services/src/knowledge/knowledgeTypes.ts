@@ -201,6 +201,8 @@ export interface KnowledgeSearchDiagnostics {
   lexicalCandidates: number;
   /** MATCH 是否使用了 OR 降级（AND 无命中时的一次扩搜上限）。 */
   matchRelaxedToOr: boolean;
+  /** 向量独有进入候选池的数量（spec §5b.9 混合召回；无端口/无向量时为 0 或缺省）。 */
+  semanticRecalled?: number;
 }
 
 /** 检索 run 的完整视图：getRun/search/createRun 的统一返回。 */

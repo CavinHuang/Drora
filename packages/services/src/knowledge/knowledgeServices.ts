@@ -134,11 +134,13 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const db: KnowledgeDatabase = openKnowledgeDatabase(
     options.databasePath ?? resolveKnowledgeDatabasePath(),
   );
+  // 语义上下文先于协调器构造（spec §5b.9）：索引写向量与查询余弦重排共用同一端口。
+  const semantic = createSemanticContext(options.embeddingPort ?? null);
   const coordinator = new IndexCoordinator(db, {
     leaseTtlMs: options.leaseTtlMs,
     heartbeatIntervalMs: options.heartbeatIntervalMs,
+    semantic,
   });
-  const semantic = createSemanticContext(options.embeddingPort ?? null);
 
   // 决策上下文（W05）：管线恒在（provider 可为 null → off 分支产出零出站诊断，A23）。
   const config = resolvePolicyConfig(options.decisionPolicyOverrides);

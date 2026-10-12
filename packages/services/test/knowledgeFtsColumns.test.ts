@@ -102,7 +102,7 @@ test("迁移 v4：旧单列 FTS 库打开自动升级，旧数据 tokens/title �
       const versionRow = db.raw
         .prepare("SELECT MAX(version) AS version FROM schema_version")
         .get() as { version: number };
-      assert.equal(versionRow.version, 4, "打开即应升级到 v4");
+      assert.ok(versionRow.version >= 4, "打开即应升级到 v4+（v5 向量表随阶梯推进）");
       // 三列存在（缺任一列此查询直接抛错）。
       assert.ok(db.raw.prepare("SELECT tokens, title, meta FROM chunks_fts LIMIT 1").get());
 
@@ -143,7 +143,7 @@ test("runKnowledgeMigrations：全新空库按阶梯推进到 v4 且重填循环
       const versionRow = db.raw
         .prepare("SELECT MAX(version) AS version FROM schema_version")
         .get() as { version: number };
-      assert.equal(versionRow.version, 4);
+      assert.ok(versionRow.version >= 4, "空库阶梯推进到 v4+");
       // 无 chunks 数据时重填循环零次，drop/rename 仍完整执行。
       assert.equal((db.raw.prepare("SELECT COUNT(*) AS n FROM chunks_fts").get() as { n: number }).n, 0);
     } finally {

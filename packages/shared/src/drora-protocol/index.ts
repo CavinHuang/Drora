@@ -3623,6 +3623,8 @@ export const droraKnowledgeSearchResultSchema = z
         matchRelaxedToOr: z.boolean().nullable(),
         // 语义阶段词表（§5b.5）：unavailable/applied/skipped。
         semantic: z.enum(["unavailable", "applied", "skipped"]),
+        // 向量独有进入候选池的数量（§5b.9 混合召回，additive 可选；旧 host 不带此键）。
+        semanticRecalled: z.number().int().nonnegative().optional(),
       })
       .strict()
       .nullable(),

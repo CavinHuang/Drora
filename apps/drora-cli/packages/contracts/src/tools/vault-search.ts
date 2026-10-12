@@ -91,6 +91,8 @@ export const VaultSearchOutputSchema = z
         matchRelaxedToOr: z.boolean().nullable(),
         /** 语义通道阶段：unavailable/applied/skipped。 */
         semantic: z.enum(["unavailable", "applied", "skipped"]),
+        /** 向量独有进入候选池的数量（§5b.9 混合召回；缺省 = 无向量通道）。 */
+        semanticRecalled: z.number().int().nonnegative().optional(),
       })
       .strict()
       .nullable(),

@@ -764,9 +764,19 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
   兜底：未触发 refresh 时，签名比较基于「上次解析时刻」，TTL 语义由每次 stage
   解析天然覆盖（每次 stage 都重读配置，无陈旧窗口）。
   ```
-  边界：consent 账本不受 provider 重建影响（providerId 常量）；语义检索开关
-  （§5b.9）仍为装配期语义、重启生效；动态源缺席（server/stdio/远程）时回退
-  静态注入或功能关闭，行为与本节早先版本一致。
+  边界：consent 账本不受 provider 重建影响（providerId 常量）；动态源缺席
+  （server/stdio/远程）时回退静态注入或功能关闭，行为与本节早先版本一致。
+- **测试连接（2026-10-13 配置 UX）**：设置页「测试连接」按钮 →
+  `IKnowledgeIndexService.testJevConnection()`——用当前装配真实发一次最小
+  systemOne 探测（10s 超时）：2xx+合法答案=ok（含延迟）；401/403=Key 无效；
+  其余非 2xx/异常原文携带。装配缺失（开关未开/必填项缺失）→ ok=false +
+  配置未完成提示。Jev 决策与语义检索的**全部配置项变更即时生效，无需重启**
+  （语义端口经 KnowledgeSemanticContext.setPort 热切换，§5b.9）。
+- **语义端口热切换（2026-10-13）**：`KnowledgeSemanticContext` 改可变持有
+  （get port / setPort）——协调器/编排器/检索器持有同一上下文引用，setPort 后
+  全链即刻可见；`knowledgeSemanticSource`（host 侧按开关解析 lazy 本地端口）
+  经 refresh RPC 触发切换。语义检索开关从「重启生效」升级为「即时生效」；
+  模型文件缺失时下载/回填路径不变。
 - **范围裁定（V1）**：仅 desktop local host 预取装配。server/stdio/core 三条 `createLocalServices`
   调用链不预取 → Jev 恒关闭；远程 workspace 的 knowledge 频道本就不在
   `legacyRemoteWorkspaceRpcContract` 内，手机链路自然不可达，不触碰 `web-remote-replayable` 语义。

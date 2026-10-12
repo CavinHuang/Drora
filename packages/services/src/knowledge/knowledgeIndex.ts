@@ -39,6 +39,12 @@ export interface IKnowledgeIndexService {
    * 重解析装配并按签名清缓存。无动态源时 refreshed=false（静态注入路径）。
    */
   refreshDecisionConfig(): Promise<{ refreshed: boolean }>;
+  /**
+   * 用当前 Jev 装配真实发一次最小探测（spec §5d.10 配置 UX）：填完 Key/端点立刻
+   * 验证（2xx+合法答案=ok；401/403=Key 无效；10s 超时/网络错误按原文携带）。
+   * 装配缺失（开关未开或必填项缺失）→ ok=false + 配置未完成提示。
+   */
+  testJevConnection(): Promise<{ ok: boolean; latencyMs: number; error: string | null }>;
 
   /**
    * 本地语义检索状态面（spec §5b.9）：模型文件/下载/失败的粗粒度状态。

@@ -27,7 +27,7 @@ import {
   updateJobInTransaction,
 } from "../store/indexRepository.js";
 import { executeIndexJob } from "./indexJobRunner.js";
-import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
+import { createSemanticContext, type KnowledgeSemanticContext } from "../search/embeddingPort.js";
 import type {
   KnowledgeIndexJobKind,
   KnowledgeIndexJobStartResult,
@@ -73,7 +73,7 @@ export class IndexCoordinator {
   ) {
     this.leaseTtlMs = options.leaseTtlMs ?? 10_000;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 3_000;
-    this.semantic = options.semantic ?? { port: null };
+    this.semantic = options.semantic ?? createSemanticContext(null);
   }
 
   get ownerIdentity(): string {

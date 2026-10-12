@@ -275,3 +275,31 @@ export function RemoteProviderModelRows({
     </>
   );
 }
+
+/** 测试连接按钮 + 结果（spec §5d.10 配置 UX；从设置区块拆出收口门禁）。 */
+export function ConnectionTestDetail({
+  testing,
+  result,
+  onTest,
+}: {
+  testing: boolean;
+  result: { ok: boolean; latencyMs: number; error: string | null } | null;
+  onTest: () => void;
+}) {
+  const { intl } = useDroraIntl();
+  return (
+    <div className="flex items-center gap-2">
+      <Button type="button" variant="outline" size="sm" disabled={testing} onClick={onTest}>
+        {testing ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : null}
+        {intl.formatMessage({ id: "settings.knowledge.testConnection.action" })}
+      </Button>
+      {result !== null ? (
+        <span className={result.ok ? "text-ui-xs text-foreground-subtle" : "text-ui-xs text-destructive"}>
+          {result.ok
+            ? `${intl.formatMessage({ id: "settings.knowledge.testConnection.ok" })} · ${result.latencyMs}ms`
+            : `${intl.formatMessage({ id: "settings.knowledge.testConnection.failed" })}：${result.error ?? ""}`}
+        </span>
+      ) : null}
+    </div>
+  );
+}

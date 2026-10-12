@@ -23,6 +23,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import {
   ApiKeyRow,
+  ConnectionTestDetail,
   REMOTE_PROVIDER_CONFIGS,
   RemoteProviderModelRows,
 } from "@/settings/knowledgeSettingsFields.js";
@@ -43,6 +44,9 @@ export function KnowledgeSettingsSection() {
     setBaseUrlDraft(settings?.knowledgeJevBaseUrl ?? "");
   }, [settings?.knowledgeJevBaseUrl]);
 
+  const semanticEnabled = settings?.knowledgeSemanticEnabled === true;
+  const indexService = useOptionalServices()?.knowledgeIndexService ?? null;
+
   const handleEnabledChange = useCallback(
     async (enabled: boolean) => {
       const trace = startUserAction({
@@ -52,6 +56,7 @@ export function KnowledgeSettingsSection() {
       });
       try {
         await update({ knowledgeJevEnabled: enabled });
+        await indexService?.refreshDecisionConfig(); // 配置热生效（§5d.10）
         toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
         trace.complete({ resultSource: "setting_service", stateAfter: enabled ? "enabled" : "disabled" });
       } catch (error) {
@@ -59,15 +64,42 @@ export function KnowledgeSettingsSection() {
         throw error;
       }
     },
-    [intl, update],
+    [indexService, intl, update],
   );
 
-  const semanticEnabled = settings?.knowledgeSemanticEnabled === true;
-  const indexService = useOptionalServices()?.knowledgeIndexService ?? null;
+  const [connectionTesting, setConnectionTesting] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<
+    { ok: boolean; latencyMs: number; error: string | null } | null
+  >(null);
+
+  const handleTestConnection = useCallback(async () => {
+    if (!indexService) return;
+    const trace = startUserAction({
+      featureId: "settings.knowledge",
+      action: "test_jev_connection",
+      trigger: "button",
+    });
+    setConnectionTesting(true);
+    setConnectionResult(null);
+    try {
+      const result = await indexService.testJevConnection();
+      setConnectionResult(result);
+      if (result.ok) {
+        trace.complete({ resultSource: "authority_ack" });
+      } else {
+        trace.fail({ failureStage: "connection_test" });
+      }
+    } catch (error) {
+      trace.fail({ failureStage: "connection_test" });
+      setConnectionResult({ ok: false, latencyMs: 0, error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setConnectionTesting(false);
+    }
+  }, [indexService]);
   const [semanticStatus, setSemanticStatus] = useState<KnowledgeSemanticPortStatus | null>(null);
   const [modelDownloading, setModelDownloading] = useState(false);
 
-  // 状态面轮询（spec §5b.9）：开启时取一次；下载中每 1.5s 跟进直到落定。
+  // 状态面轮询（§5b.9）：开启时取一次；下载中每 1.5s 跟进直到落定。
   useEffect(() => {
     if (!semanticEnabled || !indexService) return;
     let cancelled = false;
@@ -131,18 +163,15 @@ export function KnowledgeSettingsSection() {
       });
       try {
         await update({ knowledgeSemanticEnabled: enabled });
+        await indexService?.refreshDecisionConfig(); // 语义端口热切换（§5b.9 配置热生效）
         toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
-        trace.complete({
-          resultSource: "setting_service",
-          stateAfter: enabled ? "enabled" : "disabled",
-          requiresRestart: true,
-        });
+        trace.complete({ resultSource: "setting_service", stateAfter: enabled ? "enabled" : "disabled" });
       } catch (error) {
         trace.fail({ failureStage: "setting_update" });
         throw error;
       }
     },
-    [intl, update],
+    [indexService, intl, update],
   );
 
   const handleProviderChange = useCallback(
@@ -154,6 +183,7 @@ export function KnowledgeSettingsSection() {
       });
       try {
         await update({ knowledgeJevProvider: next });
+        await indexService?.refreshDecisionConfig(); // 配置热生效（§5d.10）
         toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
         trace.complete({ resultSource: "setting_service" });
       } catch (error) {
@@ -161,7 +191,7 @@ export function KnowledgeSettingsSection() {
         throw error;
       }
     },
-    [intl, update],
+    [indexService, intl, update],
   );
 
   const handleSaveBaseUrl = useCallback(async () => {
@@ -178,11 +208,7 @@ export function KnowledgeSettingsSection() {
       await indexService?.refreshDecisionConfig(); // 配置热生效（§5d.10）
       setBaseUrlDraft(normalized);
       toast(intl.formatMessage({ id: "settings.knowledge.baseUrl.saved" }));
-      trace.complete({
-        resultSource: "setting_service",
-        configured: normalized.length > 0,
-        requiresRestart: true,
-      });
+      trace.complete({ resultSource: "setting_service", configured: normalized.length > 0 });
     } catch (error) {
       trace.fail({ failureStage: "setting_update" });
       throw error;
@@ -190,6 +216,15 @@ export function KnowledgeSettingsSection() {
       setSavingBaseUrl(false);
     }
   }, [baseUrlDraft, intl, update]);
+
+  const connectionDetail =
+    jevEnabled === true ? (
+      <ConnectionTestDetail
+        testing={connectionTesting}
+        result={connectionResult}
+        onTest={() => void handleTestConnection()}
+      />
+    ) : undefined;
 
   return (
     <div className="space-y-5">
@@ -206,6 +241,7 @@ export function KnowledgeSettingsSection() {
                 onCheckedChange={(checked) => void handleEnabledChange(checked)}
               />
             }
+            detail={connectionDetail}
           />
           <SettingsRow
             label={intl.formatMessage({ id: "settings.knowledge.semantic.title" })}
@@ -356,9 +392,6 @@ export function KnowledgeSettingsSection() {
             </>
           )}
         </SettingsGroupCard>
-        <p className="text-muted-foreground text-xs">
-          {intl.formatMessage({ id: "settings.knowledge.restartHint" })}
-        </p>
       </section>
     </div>
   );

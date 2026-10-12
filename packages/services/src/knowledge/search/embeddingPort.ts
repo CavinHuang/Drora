@@ -46,11 +46,22 @@ export function semanticDownloadViaPort(
 }
 
 export interface KnowledgeSemanticContext {
+  /** 当前端口（getter 实时读——配置热生效换端口后所有持有方即刻可见，spec §5b.9）。 */
   readonly port: KnowledgeEmbeddingPort | null;
+  /** 配置热生效换端口（knowledgeSemanticEnabled 开关/模型变更路径）。 */
+  setPort(port: KnowledgeEmbeddingPort | null): void;
 }
 
 export function createSemanticContext(port: KnowledgeEmbeddingPort | null = null): KnowledgeSemanticContext {
-  return { port };
+  let current: KnowledgeEmbeddingPort | null = port;
+  return {
+    get port() {
+      return current;
+    },
+    setPort(next: KnowledgeEmbeddingPort | null): void {
+      current = next;
+    },
+  };
 }
 
 /** 余弦相似度；零向量/维度不齐返回 0（不猜测）。 */

@@ -25,7 +25,8 @@ type ExclusionField =
   | "excludedDepth"
   | "truncatedFiles";
 
-const COVERAGE_EXCLUSION_FIELDS: ReadonlyArray<[InsightCoverageExclusion["key"], ExclusionField]> =
+/** 导出供 A21 纪律测试锁动态 i18n 键族（exclude.<key> 的非循环事实源）。 */
+export const COVERAGE_EXCLUSION_FIELDS: ReadonlyArray<[InsightCoverageExclusion["key"], ExclusionField]> =
   [
     ["hidden", "excludedHidden"],
     ["symlink", "excludedSymlink"],

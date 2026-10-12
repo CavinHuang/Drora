@@ -1005,4 +1005,4 @@ fallbackCountTotal/scoredCountTotal/inputTokensTotal/outputTokensTotal（latency
 | K-INS-1 | 服务级 getInsights：写入含 frontmatter tags 与 `[[wikilink]]` 的真实笔记并完成索引 | configured=true；taggedDocuments/wikilinkCount 与写入内容精确一致；recentJobs 含本次 job 且时长=终态差值；未配置 vault 时 configured=false 且 inventory 全零 | 已实现（`packages/services/test/knowledgeInsights.test.ts`） |
 | K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言 | 已实现（同上） |
 | K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化 | 纯模型断言 | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`） |
-| K-INS-4 | i18n：insights 全部键 zh/en 成对 | A21 纪律测试既有断言覆盖（键集合对等 + 静态引用齐全） | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`） |
+| K-INS-4 | i18n：insights 全部键 zh/en 成对（含动态键族 exclude×7/jobKind×2/jobStatus×5，独立复核发现4 后纳入门禁） | A21 纪律测试断言（键集合对等 + 静态引用齐全 + 动态键族成员清单两语言齐全） | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`） |

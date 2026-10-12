@@ -337,6 +337,56 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   不产生任何 job；AI-3 TTL 过期后 search 触发后台刷新且本次检索正常落定；AI-4
   未配置源静默跳过（无未处理拒绝）。
 
+### 5b.9 本地语义召回与向量存储（2026-10-12 立项：用户裁定 route A 本地嵌入）
+
+用户裁定：语义搜索走**本地嵌入模型**（零出站、无 LLM 依赖），检索形态 = 嵌入召回 + 词法
+兜底 + （可选）Jev 打分。本节定义向量存储、生命周期、混合召回与降级语义。
+
+**模型与运行时**：
+- 模型：`BAAI/bge-small-zh-v1.5` 的 Xenova ONNX int8 量化版（~24MB，512 维，中文优化），
+  CLS 池化 + L2 归一；查询侧加 bge-zh 指令前缀「为这个句子生成表示以用于检索相关文章：」，
+  索引侧不加。
+- 运行时：`onnxruntime-node`（N-API，Electron main 可用），**动态 import**——模块缺失 =
+  端口不可用（`semantic_unavailable`，词法照常），不构成硬依赖。
+- 分发：**首次使用时下载**（不内置安装包）：镜像清单 hf-mirror.com → huggingface.co 逐个
+  尝试，sha256 固定校验，落盘 `<pluginDataDir>/knowledge/models/bge-small-zh-v1.5/`
+  （model_quantized.onnx + vocab.txt）。下载失败 → 端口不可用，下次使用重试。
+  打包核对项（后续）：electron-builder 需 asarUnpack onnxruntime 的 .node 原生产物。
+
+**向量存储（schema v5）**：
+```sql
+CREATE TABLE chunk_vectors(
+  chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
+  model_id TEXT NOT NULL, dim INTEGER NOT NULL, vector BLOB NOT NULL
+)
+```
+- 向量 = Float32 小端 BLOB；model_id 记录产生模型（换模型 = 全量重建向量，模型 id 不匹配
+  的行不参与检索）。
+- **生命周期与 chunks 同生共死**：文档替换时按 chunks 级联清掉旧向量，新向量在
+  **embed-before-tx** 写入——嵌入（慢，纯计算）在事务外逐文档批量完成，向量行与 chunks
+  行**同事务**提交（短事务纪律不变，一致性问题不靠超时兜底）。
+- **reconcile 尾部回填**：任务走完文档扫描后，若端口可用且当前 epoch 存在缺向量的
+  chunk（存量索引/历史失败），分批嵌入补齐——启用语义检索后首次 reconcile 一次性
+  回填全库（325 文档/6255 chunk 量级为分钟级 CPU 时间，job 异步不阻塞 UI）。
+
+**混合召回（查询语义扩展）**：
+- 候选池 = 词法 FTS 命中 ∪ **向量 top-K**（K=池上限 64）：向量检索对当前 epoch 全量
+  chunk_vectors（model_id 匹配）算余弦取最近——JS 侧计算（6255×512 量级为毫秒级，
+  sqlite 向量扩展不做）。词面零重叠但语义相近的文档由此进入候选池。
+- 向量独有命中不带 bm25 分：先与词法命中按 chunkId 去重合并，再走既有「语义余弦重排」
+  （对所有池成员可用，自然交错排序）；融合/聚合/事实字段全部不变。
+- 诊断 additive：`semanticRecalled`（向量独有进入池的数量）。失败/缺数据各层独立降级：
+  模块缺/模型缺/下载失败/嵌入抛错 → 该层不可用，词法照常（既有语义）。
+
+**装配与开关**：`knowledgeSemanticEnabled` 缺省 false（仅 desktop 本地 host 暴露开关，
+V1 纪律同 §5d.10/§5b.8）；开启后装配注入 **lazy 端口**——首次 embed 时才加载
+onnxruntime/下载模型（createLocalServices 同步约束不受影响）。VaultSearch 工具与
+UI 同链受益。
+
+**验收映射**：K-VEC-1 迁移 v5 与级联清理；K-VEC-2 变更文档向量同事务写入（stub 端口）；
+K-VEC-3 回填阶段补齐存量；K-VEC-4 词面零重叠文档经向量召回进入候选（stub 端口）；
+K-VEC-5 各层降级独立且诊断如实。
+
 ## 5c. VaultView 四视图 UI（W04，2026-10-10 落地）
 
 本节是工作单 W04 的行为契约。实现位于 `packages/ui/src/v4/vault/knowledge/`（自研新模块，

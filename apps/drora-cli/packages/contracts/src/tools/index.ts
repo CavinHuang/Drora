@@ -57,3 +57,4 @@ export * from "./performance.js";
 
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";
+export * from "./vault-search.js";

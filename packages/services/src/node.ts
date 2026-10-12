@@ -2285,6 +2285,9 @@ export function createLocalServices(options: {
     // 是它自己那些 workspace 的唯一裁决者，灰度开启时远程 workspace 同样提供工作流。
     resolveDynamicWorkflowClientConfig: () =>
       codingPlanSubscriptionService.getDynamicWorkflowClientConfig(),
+    // agent 只读 vault 检索（obsidian-knowledge.md §5f）：thunk 解引用 knowledgeServices
+    // ——它在下方才构造（声明顺序晚于本调用），只在协议请求期被调用，不提前触达。
+    knowledgeQuerySource: () => knowledgeServices.queryService,
     commandResolver: options?.droraAgentCommandResolver,
     presentationSurface: resolveDroraAgentPresentationSurface({
       runtimeSurface: options?.agentRuntimeContext?.runtimeSurface,

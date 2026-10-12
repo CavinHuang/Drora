@@ -799,3 +799,52 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。
 - 日志不写笔记全文、凭据、绝对路径；hook 静默路径不产生任何输出。
 - Jev 与一切外发默认关闭（ADR #5/#11）。
+
+## 5f. agent VaultSearch 工具（2026-10-12 落地：agent 的只读 vault 检索入口）
+
+此前知识流是单向的「UI 检索 → Evidence → agent 消费」，agent 自己没有检索工具（只能
+grep/read 全库暴力扫）。本节给 agent 一个与 UI 同链的只读检索入口：**复用
+`IKnowledgeQueryService` 同一条服务链（scope/sourceEpoch/coverage 语义全继承 §5b），
+agent 是第二个消费方，不是第二条链**；不新增任何存储与状态所有者。
+
+### 5f.1 协议面与桥接（方向 CLI→host）
+
+```text
+VaultSearch 工具（core handler，context.vaultSearchPort）
+    │  contracts VaultSearchPort（端口缺席 = 工具不注册，同 includeAutomation 门式）
+    ▼
+bootstrap createProtocolVaultSearchPort（drora-protocol/，requestClient 反向请求）
+    │  droraProtocolMethods.knowledgeSearch = "knowledge/search"（shared 单一出处）
+    ▼
+droraAgentService 协议分发（host 侧 if 链，同 automation/offPeak 先例）
+    │  options.knowledgeQuerySource thunk（node.ts 装配处闭包引用 knowledgeServices；
+    │  声明顺序晚于 agent service，thunk 只在请求期调用）→ 缺席 = 结构化不可用
+    ▼
+IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
+```
+
+### 5f.2 工具契约与边界
+
+- 名称 `VaultSearch`；**只读、无权限 gate**——「读操作不受限」是本 spec 既有语义
+  （§5b.2），vault 是用户显式授权配置的事实源。
+- 入参只有 `query`（必填，≤512 字符）+ `limit`（1–10，缺省 5）。§5b.1「不提供日期/
+  路径范围过滤」对 agent 面同样成立：模型无法借工具扩展授权范围（ADR #3）。
+- **零出站**：工具路径不携带 `decisionConsentId`，决策管线按 off/denied 处理
+  （§5d.6）——Jev 全局开关与逐 run 授权面完全不被该工具触达，A23 语义原样继承。
+- 结果字段白名单：`articleId/relativePath/title/matchedHeading/excerpt/quote/rank/
+  matchedChunkCount` + `status/reason` + `diagnostics{coveragePartial,
+  matchRelaxedToOr,semantic}`。**不含 score**（bm25 值不是正确率，§5d 同口径）、
+  **不含 sha 字段**（可验证性归 W03 Receipt，工具摘录是「未验证引用」）与绝对路径
+  （§5b.6）。`status` 直通 `KnowledgeQueryStatus`（retrieving 不会出现在落定后）。
+- 摘录即证据边界：vault ≠ workspace 时 excerpt 就是 agent 可见的全部内容，读全文受
+  read 工具既有 path-policy 约束（工具描述如实写明，不伪造可达性）。
+
+### 5f.3 验收映射
+
+| ID | 场景 | 状态 |
+| --- | --- | --- |
+| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实 | 已实现（services 映射纯函数测试 + core handler 测试） |
+| VS-2 | 无源/空结果/失败 → 结构化 status，不编造 | 已实现（同上） |
+| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面） |
+| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误 | 已实现（分发 case 单测） |
+| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面） | 已实现（includeVaultSearch 门，同 includeAutomation） |

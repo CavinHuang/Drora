@@ -3560,6 +3560,76 @@ export const droraOffPeakListResultSchema = z
   .strict();
 export type DroraOffPeakListProtocolResult = z.infer<typeof droraOffPeakListResultSchema>;
 
+// ---- Knowledge（VaultView）agent 检索协议----
+// agent 的只读 vault 检索入口（obsidian-knowledge.md §5f）：CLI VaultSearch 工具 →
+// bootstrap 协议端口 → host droraAgentService 分发 → 进程内 IKnowledgeQueryService。
+// 与 UI 检索同一条服务链（scope/sourceEpoch/coverage 语义全继承 §5b），agent 是第二个
+// 消费方而非第二条链。入参只有 query + limit——§5b.1「无日期/路径范围过滤」对 agent
+// 面同样成立；协议面不携带 decisionConsentId（决策出站与该工具无涉，§5d.6 零出站）。
+export const droraKnowledgeSearchParamsSchema = z
+  .object({
+    // 原样查询文本；≤512 字符（与 KnowledgeCreateRunParams 同口径），由 host 服务校验兜底。
+    query: nonEmptyString.max(512),
+    limit: z.number().int().min(1).max(10).optional(),
+  })
+  .strict();
+export type DroraKnowledgeSearchProtocolParams = z.infer<typeof droraKnowledgeSearchParamsSchema>;
+
+export const droraKnowledgeSearchCandidateSchema = z
+  .object({
+    // 稳定文章 id = sha256(vaultId + relativePath)；不含根路径，可安全出站（§5d.6 同口径）。
+    articleId: nonEmptyString,
+    relativePath: z.string(),
+    title: z.string(),
+    matchedHeading: z.string().nullable(),
+    // 命中 chunk 的原文逐字节选（≤240 字符，§5b.5 命中感知窗口）。
+    excerpt: z.string(),
+    quote: z
+      .object({
+        startLine: z.number().int().positive(),
+        endLine: z.number().int().positive(),
+        startOffset: z.number().int().nonnegative(),
+        endOffset: z.number().int().nonnegative(),
+      })
+      .strict(),
+    rank: z.number().int().positive(),
+    matchedChunkCount: z.number().int().positive(),
+  })
+  .strict();
+export type DroraKnowledgeSearchProtocolCandidate = z.infer<
+  typeof droraKnowledgeSearchCandidateSchema
+>;
+
+export const droraKnowledgeSearchResultSchema = z
+  .object({
+    // KnowledgeQueryStatus 直通（retrieving 不会出现在 search 落定后）。
+    status: z.enum([
+      "ready",
+      "partial",
+      "empty",
+      "no_source",
+      "source_stale",
+      "cancelled",
+      "failed",
+    ]),
+    // failed 的机器可读原因；不含绝对路径与笔记内容（§5b.6）。
+    reason: z.string().nullable(),
+    candidates: z.array(droraKnowledgeSearchCandidateSchema),
+    diagnostics: z
+      .object({
+        // 索引 coverage 截断如实呈现（§5b.4）；无源为 null。
+        coveragePartial: z.boolean().nullable(),
+        // 检索是否自动扩大了一次（§5b.5 降级）；无源为 null。
+        matchRelaxedToOr: z.boolean().nullable(),
+        // 语义阶段词表（§5b.5）：unavailable/applied/skipped。
+        semantic: z.enum(["unavailable", "applied", "skipped"]),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type DroraKnowledgeSearchProtocolResult = z.infer<typeof droraKnowledgeSearchResultSchema>;
+
 export const droraProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
@@ -3664,6 +3734,9 @@ export const droraProtocolMethods = {
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",
+  // agent 只读 vault 检索（VaultSearch 工具，obsidian-knowledge.md §5f）：CLI→host，
+  // host 分发到进程内 knowledge query 服务；无 knowledge 服务的 host 结构化报不可用。
+  knowledgeSearch: "knowledge/search",
 } as const;
 
 export type DroraProtocolMethod = (typeof droraProtocolMethods)[keyof typeof droraProtocolMethods];

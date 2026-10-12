@@ -44,6 +44,7 @@ import {
   cronUpdateToolEntry,
 } from "./cron.js";
 import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
+import { vaultSearchToolEntry } from "./vault-search.js";
 import {
   createEnterPlanModeToolEntry,
   enterPlanModeToolEntry,
@@ -91,6 +92,9 @@ export const builtInTools: ToolEntry[] = [
   cronDeleteToolEntry,
   offPeakCreateToolEntry,
   offPeakListToolEntry,
+  // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 注入 VaultSearchPort 才注册，
+  // 与 automationPort 同一门式——端口缺席时不产生指向不存在能力的工具面。
+  vaultSearchToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,
@@ -174,6 +178,8 @@ interface RegisterBuiltInToolsOptions {
   includeAutomation?: boolean;
   /** Off-Peak 会话内创建工具面；由 host 的 offPeakToolEnabled flag（灰度/远程门）驱动。 */
   includeOffPeak?: boolean;
+  /** VaultSearch 工具面；由 host 注入 VaultSearchPort 与否驱动（§5f，同 includeAutomation 门式）。 */
+  includeVaultSearch?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -251,6 +257,9 @@ export function registerBuiltInTools(
       (entry.metadata.name === "OffPeakCreate" || entry.metadata.name === "OffPeakList") &&
       options.includeOffPeak !== true
     ) {
+      continue;
+    }
+    if (entry.metadata.name === "VaultSearch" && options.includeVaultSearch !== true) {
       continue;
     }
     if (

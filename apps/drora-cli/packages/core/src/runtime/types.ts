@@ -71,6 +71,7 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
+  VaultSearchPort,
   OffPeakPort,
   FileSystemPort,
   HttpClientPort,
@@ -366,6 +367,8 @@ export interface AgentRuntimeDeps {
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
+  vaultSearchPort?: VaultSearchPort;
   offPeakPort?: OffPeakPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;

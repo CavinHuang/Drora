@@ -206,6 +206,9 @@ export const KNOWLEDGE_MIGRATIONS: Migration[] = [
  * - title：文档标题 + heading 路径的 token 产物（`>` 非词元，tokenizer 自然丢弃）；
  * - meta：旧数据未经结构抽取，如实置空——新产物随文件变更/重建自然补齐。
  * 同步执行：prepared 语句循环复用，循环体只有纯计算，无任何外部 IO（§5b.3 纪律）。
+ * 逐行流式（iterate）：读游标与写入不同表（chunks/documents → chunks_fts_v4），同一
+ * 连接上游标推进边插边安全——不把全库 chunks（含 body）一次性物化进内存
+ * （独立复核发现2：大索引一次性迁移的内存峰值应 O(1) 行而非 O(全库)）。
  */
 function rebuildChunksFtsColumns(raw: KnowledgeDatabaseRaw): void {
   const rows = raw
@@ -213,7 +216,7 @@ function rebuildChunksFtsColumns(raw: KnowledgeDatabaseRaw): void {
       `SELECT c.id AS id, c.body AS body, c.heading_path AS headingPath, d.title AS title
        FROM chunks c JOIN documents d ON d.id = c.document_id`,
     )
-    .all() as Array<{ id: number; body: string; headingPath: string | null; title: string }>;
+    .iterate() as IterableIterator<{ id: number; body: string; headingPath: string | null; title: string }>;
   const insert = raw.prepare(
     `INSERT INTO chunks_fts_v4(rowid, tokens, title, meta) VALUES (?, ?, ?, ?)`,
   );

@@ -285,7 +285,8 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   注明，待 W05 评测数据集校准）。§5b.1「无过滤参数」不变：tags **不做查询语法**、不提供
   任何 `tag:` 过滤参数，只参与命中与加权。
   升级语义：schema_version <4 的旧库打开即自动升级；重填在迁移事务内复用同一 tokenizer
-  （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；旧数据未经结构抽取，
+  （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；重填**逐行流式**（读游标
+  `iterate()` 与写入不同表，不把全库 chunks 物化进内存，内存峰值 O(1) 行）；旧数据未经结构抽取，
   `meta` 重填为空串（tokens/title 如实重填可检索），新抽取产物随文件变更/重建自然补齐
   ——与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败

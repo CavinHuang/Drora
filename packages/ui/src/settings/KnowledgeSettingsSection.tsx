@@ -60,6 +60,31 @@ export function KnowledgeSettingsSection() {
     [intl, update],
   );
 
+  const semanticEnabled = settings?.knowledgeSemanticEnabled === true;
+
+  const handleSemanticChange = useCallback(
+    async (enabled: boolean) => {
+      const trace = startUserAction({
+        featureId: "settings.knowledge",
+        action: "toggle_knowledge_semantic",
+        trigger: "switch",
+      });
+      try {
+        await update({ knowledgeSemanticEnabled: enabled });
+        toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
+        trace.complete({
+          resultSource: "setting_service",
+          stateAfter: enabled ? "enabled" : "disabled",
+          requiresRestart: true,
+        });
+      } catch (error) {
+        trace.fail({ failureStage: "setting_update" });
+        throw error;
+      }
+    },
+    [intl, update],
+  );
+
   const handleProviderChange = useCallback(
     async (next: KnowledgeJevProvider) => {
       const trace = startUserAction({
@@ -118,6 +143,18 @@ export function KnowledgeSettingsSection() {
                 checked={jevEnabled}
                 disabled={settingsLoading}
                 onCheckedChange={(checked) => void handleEnabledChange(checked)}
+              />
+            }
+          />
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.knowledge.semantic.title" })}
+            description={intl.formatMessage({ id: "settings.knowledge.semantic.description" })}
+            control={
+              <Switch
+                aria-label={intl.formatMessage({ id: "settings.knowledge.semantic.title" })}
+                checked={semanticEnabled}
+                disabled={settingsLoading}
+                onCheckedChange={(checked) => void handleSemanticChange(checked)}
               />
             }
           />

@@ -62,9 +62,12 @@ import {
   createSettingServiceWithMigrations,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
+  type KnowledgeEmbeddingPort,
   resolveKnowledgeJevAssembly,
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
+  createLocalEmbeddingPort,
+  resolveKnowledgeModelRoot,
 } from "@drora/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import {
@@ -2934,6 +2937,21 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
             error: error instanceof Error ? error.message : String(error),
           });
         }
+        // 本地语义检索端口（obsidian-knowledge.md §5b.9）：开关开启才注入 lazy 端口
+        // （构造不 IO，首次 embed 才下载/建会话，推理零出站）。读取失败只降级为纯词法。
+        let knowledgeEmbeddingPort: KnowledgeEmbeddingPort | null = null;
+        try {
+          if ((await settingService.get()).knowledgeSemanticEnabled === true) {
+            knowledgeEmbeddingPort = createLocalEmbeddingPort({
+              modelRoot: resolveKnowledgeModelRoot(),
+              logger: { warn: (message, details) => logger.warn(message, details) },
+            });
+          }
+        } catch (error) {
+          logger.warn("[host-init] 语义检索端口预构建失败，保持纯词法", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
           const settings = await settingService.get();
           return {
@@ -2951,6 +2969,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               settingService,
               prepareLegacyAccountConnections,
               knowledgeJevAssembly,
+              knowledgeEmbeddingPort,
               // 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：desktop 本地 host 开启，
               // 其余 host（server/stdio/远程）维持手动触发现状。
               knowledgeAutoIndex: true,

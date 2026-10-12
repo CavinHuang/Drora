@@ -2268,6 +2268,8 @@ const zhCN: Record<string, string> = {
   "settings.knowledge.title": "知识问答",
   "settings.knowledge.jev.title": "Jev 智能排序",
   "settings.knowledge.jev.description": "将候选笔记片段发送给所选的决策模型提供商做相关性评分，提升排序质量。默认关闭；开启后每次检索仍需你在问库视图内单独授权。",
+  "settings.knowledge.semantic.title": "本地语义检索",
+  "settings.knowledge.semantic.description": "用本地嵌入模型按意思检索（零出站，模型 ~24MB 首次使用时下载）；与词法检索自动融合。重启后生效。",
   "settings.knowledge.provider.title": "决策模型提供商",
   "settings.knowledge.provider.description": "评分用模型独立于对话模型；切换后需重启生效。",
   "settings.knowledge.provider.typesafe": "TypeSafe",

@@ -488,6 +488,7 @@ const appSettingsObjectSchema = z.object({
   relayServerUrl: nonEmptyStringSchema.optional(),
   // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
   knowledgeJevEnabled: z.boolean().default(false),
+  knowledgeSemanticEnabled: z.boolean().default(false),
   // catch：历史/非法落盘值（如已废弃的枚举项）回落缺省，避免整个 settings 被判损坏隔离。
   knowledgeJevProvider: z
     .enum(["typesafe", "openrouter", "ai-gateway"])
@@ -592,6 +593,7 @@ export const appSettingsPatchSchema = z.object({
   relayServerUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
   /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
   knowledgeJevEnabled: z.boolean().optional(),
+  knowledgeSemanticEnabled: z.boolean().optional(),
   knowledgeJevProvider: z.enum(["typesafe", "openrouter", "ai-gateway"]).optional(),
   knowledgeJevBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
   knowledgeJevOpenrouterModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),

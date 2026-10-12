@@ -344,14 +344,17 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 
 **模型与运行时**：
 - 模型：`BAAI/bge-small-zh-v1.5` 的 Xenova ONNX int8 量化版（~24MB，512 维，中文优化），
-  CLS 池化 + L2 归一；查询侧加 bge-zh 指令前缀「为这个句子生成表示以用于检索相关文章：」，
-  索引侧不加。
+  CLS 池化 + L2 归一。指令前缀（bge-zh 短查询增强）v1 **不启用**——召回与重排两处
+  必须同口径，统一无前缀；前缀收益归 A28 评测校准项。
 - 运行时：`onnxruntime-node`（N-API，Electron main 可用），**动态 import**——模块缺失 =
   端口不可用（`semantic_unavailable`，词法照常），不构成硬依赖。
 - 分发：**首次使用时下载**（不内置安装包）：镜像清单 hf-mirror.com → huggingface.co 逐个
-  尝试，sha256 固定校验，落盘 `<pluginDataDir>/knowledge/models/bge-small-zh-v1.5/`
-  （model_quantized.onnx + vocab.txt）。下载失败 → 端口不可用，下次使用重试。
-  打包核对项（后续）：electron-builder 需 asarUnpack onnxruntime 的 .node 原生产物。
+  尝试，落盘 `<pluginDataDir>/knowledge/models/bge-small-zh-v1.5/`
+  （model_quantized.onnx + vocab.txt）。校验策略（如实降级）：v1 以**尺寸界**校验
+  （onnx 5–60MB / vocab 100KB–2MB，越界即删重下）+ 运行时 sha256 写日志——预固定
+  哈希因开发环境网络受限无法预下载，**发布前必须补 pin**（发布门禁）。下载失败 →
+  端口不可用，下次使用重试。打包核对项（后续）：electron-builder 需 asarUnpack
+  onnxruntime 的 .node 原生产物。
 
 **向量存储（schema v5）**：
 ```sql

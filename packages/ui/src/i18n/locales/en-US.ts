@@ -2410,6 +2410,8 @@ const enUS: Record<string, string> = {
   "settings.knowledge.title": "Knowledge Q&A",
   "settings.knowledge.jev.title": "Jev Smart Ranking",
   "settings.knowledge.jev.description": "Send candidate note excerpts to the selected decision model provider for relevance scoring. Off by default; each retrieval still requires your explicit consent in the ask view.",
+  "settings.knowledge.semantic.title": "Local semantic search",
+  "settings.knowledge.semantic.description": "Search by meaning with a local embedding model (zero outbound; the ~24MB model downloads on first use). Fused with lexical search automatically. Restart to apply.",
   "settings.knowledge.provider.title": "Decision model provider",
   "settings.knowledge.provider.description": "The scoring model is independent of the chat model. Restart to apply changes.",
   "settings.knowledge.provider.typesafe": "TypeSafe",

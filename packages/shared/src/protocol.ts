@@ -409,4 +409,9 @@ export interface AppSettings {
   knowledgeJevAiGatewayModel?: string;
   /** AI Gateway 部署的 Jev 路由 baseURL（provider=ai-gateway 时必填，形如 {网关部署}/v1/systemone，由部署方提供）；缺失该提供商禁用。 */
   knowledgeJevAiGatewayBaseUrl?: string;
+  /**
+   * 本地语义检索开关（specs/obsidian-knowledge.md §5b.9）：开启后装配注入本地嵌入
+   * 端口（bge-small-zh int8，首次使用下载模型，推理零出站）。缺省 false；重启生效。
+   */
+  knowledgeSemanticEnabled?: boolean;
 }

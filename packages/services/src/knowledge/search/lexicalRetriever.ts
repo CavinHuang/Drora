@@ -17,9 +17,6 @@ import { buildMatchExpression, extractQueryTerms } from "./tokenizer.js";
 import { cosineSimilarity, type KnowledgeSemanticContext } from "./embeddingPort.js";
 import type { KnowledgeArticleCandidate, KnowledgeSearchDiagnostics } from "../knowledgeTypes.js";
 
-/** bge-zh 查询侧指令前缀（模型卡要求；仅查询加，索引侧不加——spec §5b.9）。 */
-export const QUERY_EMBEDDING_INSTRUCTION = "为这个句子生成表示以用于检索相关文章：";
-
 const EXCERPT_MAX_CHARS = 240;
 /** 命中位置前的引导上下文（可读性；窗口仍受 EXCERPT_MAX_CHARS 总长约束）。 */
 const EXCERPT_CONTEXT_LEAD = 48;
@@ -103,7 +100,8 @@ async function recallByVector(
   query: string,
 ): Promise<ChunkHit[]> {
   try {
-    const vectors = await port.embed([QUERY_EMBEDDING_INSTRUCTION + query]);
+    // 与索引侧同口径：无指令前缀（统一性优先，前缀收益归 A28 校准项）。
+    const vectors = await port.embed([query]);
     const queryVector = vectors?.[0];
     if (!queryVector || queryVector.length === 0) return [];
     const rows = loadVectorChunks(db, source, port.id);

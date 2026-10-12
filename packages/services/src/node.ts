@@ -164,11 +164,19 @@ export {
   resolveKnowledgeJevAssembly,
 } from "./knowledge/decision/jevAssembly.js";
 export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
+import type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
 export {
   TYPESAFE_OFFICIAL_BASE_URL,
   createSystemOneHttpTransport,
 } from "./knowledge/decision/jevTransport.js";
 export type { SystemOneTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
+export {
+  LOCAL_EMBEDDING_MODEL_ID,
+  createLocalEmbeddingPort,
+  resolveKnowledgeModelRoot,
+} from "./knowledge/search/localEmbeddingPort.js";
+export type { LocalEmbeddingPortOptions } from "./knowledge/search/localEmbeddingPort.js";
+export type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
 export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
 export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
 export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";
@@ -1532,6 +1540,12 @@ export function createLocalServices(options: {
    * 远程 host 不传即维持手动触发现状。
    */
   knowledgeAutoIndex?: boolean;
+  /**
+   * 本地语义检索端口（specs/obsidian-knowledge.md §5b.9）：由调用方在异步初始化段
+   * 依据 knowledgeSemanticEnabled 预构建（lazy，构造不 IO）后传入；缺省 null =
+   * 纯词法（零出站语义降级，既有语义）。
+   */
+  knowledgeEmbeddingPort?: KnowledgeEmbeddingPort | null;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
@@ -2646,6 +2660,8 @@ export function createLocalServices(options: {
       : {}),
     // 索引自动 reconcile（§5b.8）：仅 desktop 本地 host 开启，其余 host 维持手动触发。
     ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),
+    // 本地语义检索（§5b.9）：端口由调用方依据开关预构建；缺省 null = 纯词法。
+    ...(options.knowledgeEmbeddingPort ? { embeddingPort: options.knowledgeEmbeddingPort } : {}),
   });
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()

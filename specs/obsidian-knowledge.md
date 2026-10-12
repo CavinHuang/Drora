@@ -226,6 +226,12 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   不假装全库完整。
 - chunk 记录：heading 路径（`A > B`）、quote selector（起止行 1-based + 全文字符偏移）、
   chunk 文本 sha256、所属文件 sha256；单文件 chunk 上限 512，超出计入截断（partial）。
+- **尺寸上限与块级切分（2026-10-12 补）**：标题段文本超过 `MAX_CHUNK_CHARS`（1200 字符）
+  时按**空行（段落）边界**二次切分，无段落边界的超长块按行硬切（单行超上限时整行成块，
+  行不可再分）；子块继承所在段的 heading 路径与级别，quote selector 仍为精确行区间——
+  W03 Receipt 的切片复验不受影响。512 上限与 truncated 标志语义不变（子切分会更早触顶，
+  照实计 partial）。动机：无字符上限时「无标题长文 = 单巨块」，bm25 区分度、excerpt
+  窗口与 Jev 出站输入质量都被噪声稀释。已建索引随文件变更/重建自然迁移到新切分。
 
 ### 5b.5 词法与语义
 

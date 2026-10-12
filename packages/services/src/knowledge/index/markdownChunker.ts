@@ -1,16 +1,21 @@
 /**
- * Markdown chunker（W02 / spec §5b.4）。
+ * Markdown chunker（W02 / spec §5b.4；2026-10-12 尺寸上限与块级切分）。
  *
  * - 按 ATX 标题（#..######）切 chunk，heading 路径形如 `A > B`；
  * - chunk 保存 quote selector：1-based 起止行 + 全文字符偏移（W03 Receipt 绑定）；
  * - chunk 文本含标题行本身（标题词可命中正文检索）；
  * - 文首 frontmatter（--- 包围）单独成 chunk（heading=null）；
+ * - 标题段文本超过 MAX_CHUNK_CHARS 时按空行（段落）边界二次切分，无段落边界按行
+ *   硬切；子块继承段的 heading 路径与级别，quote selector 仍为精确行区间；
  * - 单文件 chunk 上限 MAX_CHUNKS_PER_FILE，超出截断并标记 truncated（partial coverage）。
  * 纯函数：不做任何 IO。
  */
 import { createHash } from "node:crypto";
 
 export const MAX_CHUNKS_PER_FILE = 512;
+
+/** 单 chunk 文本上限（字符）；超过的标题段按段落/行边界二次切分（spec §5b.4）。 */
+export const MAX_CHUNK_CHARS = 1200;
 
 export interface MarkdownChunk {
   ordinal: number;
@@ -74,6 +79,7 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
   const chunks: MarkdownChunk[] = [];
   let truncated = false;
 
+  // pushChunk：按行区间产出 chunk（含上限守卫与空顶层块跳过）。
   const pushChunk = (
     startLine: number,
     endLine: number,
@@ -97,6 +103,48 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
       text,
       sha256: createHash("sha256").update(text, "utf-8").digest("hex"),
     });
+  };
+
+  /**
+   * 段超上限的二次切分（spec §5b.4）：贪心按行累积到上限，优先回退到窗口内最后一个
+   * 空行（段落边界）；无空行按行硬切；单行超上限整行成块（行不可再分）。含段首行
+   * （标题行）的子块永不跳过——标题词必须可检索；纯空白子块跳过不加噪声。
+   */
+  const pushSectionWithCap = (
+    startLine: number,
+    endLine: number,
+    headingPath: string | null,
+    level: number,
+  ): void => {
+    const sectionLength = (prefixOffsets[endLine + 1] ?? totalChars) - (prefixOffsets[startLine] ?? totalChars);
+    if (sectionLength <= MAX_CHUNK_CHARS) {
+      pushChunk(startLine, endLine, headingPath, level);
+      return;
+    }
+    let subStart = startLine;
+    while (subStart <= endLine && !truncated) {
+      let subEnd = subStart;
+      while (
+        subEnd + 1 <= endLine &&
+        (prefixOffsets[subEnd + 2] ?? totalChars) - (prefixOffsets[subStart] ?? totalChars) <= MAX_CHUNK_CHARS
+      ) {
+        subEnd += 1;
+      }
+      // 窗口内（不含 subStart 自身）回退最后一个空行，避免切断段落。
+      if (subEnd < endLine) {
+        for (let candidate = subEnd; candidate > subStart; candidate--) {
+          if ((lines[candidate] ?? "").trim() === "") {
+            subEnd = candidate;
+            break;
+          }
+        }
+      }
+      const text = lines.slice(subStart, subEnd + 1).join("\n");
+      if (text.trim() !== "" || subStart === startLine) {
+        pushChunk(subStart, subEnd, headingPath, level);
+      }
+      subStart = subEnd + 1;
+    }
   };
 
   // lineIndex 处生效的标题链（含当行标题）：栈内保存层级，弹栈按栈顶层级比较，
@@ -133,13 +181,13 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     }
   }
 
-  // 正文按标题切分：每个标题行开启新 chunk（含标题行）。
+  // 正文按标题切分：每个标题行开启新 chunk（含标题行）；超上限的段做块级二次切分。
   const bodyHeadings = headings.filter((heading) => heading.lineIndex >= bodyStartLine);
   const firstBodyHeadingLine = bodyHeadings[0]?.lineIndex ?? lines.length;
 
   // 第一个正文标题前的内容作为顶层 chunk。
   if (firstBodyHeadingLine - 1 >= bodyStartLine) {
-    pushChunk(bodyStartLine, firstBodyHeadingLine - 1, null, 0);
+    pushSectionWithCap(bodyStartLine, firstBodyHeadingLine - 1, null, 0);
   }
 
   for (let index = 0; index < bodyHeadings.length && !truncated; index++) {
@@ -149,7 +197,7 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     const next = bodyHeadings[index + 1];
     const end = next ? next.lineIndex - 1 : lines.length - 1;
     const { path, level } = headingPathAt(start);
-    pushChunk(start, end, path, level);
+    pushSectionWithCap(start, end, path, level);
   }
 
   return { title: resolveDocumentTitle(content, fallbackName), chunks, truncated };

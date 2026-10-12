@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chunkMarkdown, resolveDocumentTitle } from "../src/knowledge/index/markdownChunker.js";
+import { chunkMarkdown, MAX_CHUNK_CHARS, resolveDocumentTitle } from "../src/knowledge/index/markdownChunker.js";
 import { buildMatchExpression, extractQueryTerms, tokenizeForIndex } from "../src/knowledge/search/tokenizer.js";
 import { matchAwareExcerpt } from "../src/knowledge/search/lexicalRetriever.js";
 import { cosineSimilarity } from "../src/knowledge/search/embeddingPort.js";
@@ -50,6 +50,61 @@ test("chunker：超出单文件 chunk 上限时截断并标记", () => {
 
 test("chunker：文档标题回退文件名", () => {
   assert.equal(resolveDocumentTitle("没有标题的正文", "我的笔记"), "我的笔记");
+});
+
+test("chunker：超上限标题段按空行（段落）边界二次切分，headingPath 继承且 quote 可回原文", () => {
+  const paragraph = "这是一段用于撑爆单块上限的正文内容。".repeat(20); // ≈360 字符
+  const content = [
+    "# 长文",
+    "",
+    paragraph,
+    "",
+    paragraph,
+    "",
+    paragraph,
+    "",
+    paragraph,
+    "",
+  ].join("\n");
+  const result = chunkMarkdown(content, "长文");
+  const section = result.chunks.filter((chunk) => chunk.headingPath === "长文");
+  assert.ok(section.length >= 2, "应切成多个子块");
+  for (const chunk of section) {
+    assert.ok(chunk.text.length <= MAX_CHUNK_CHARS, "每个子块不超上限");
+    assert.ok(chunk.level === 1);
+    // quote selector 逐字回原文（W03 Receipt 复验语义不变）；行尾 +1 的偏移约定
+    // 使 slice 可能多含结尾换行——逐字前缀成立且残差全为空白即可。
+    const sliced = content.slice(chunk.startOffset, chunk.endOffset);
+    assert.ok(sliced.startsWith(chunk.text), "切片应以 chunk 文本为逐字前缀");
+    assert.equal(sliced.slice(chunk.text.length).trim(), "");
+    assert.ok(content.split(/\r?\n/)[chunk.startLine - 1] !== undefined);
+  }
+  // 行区间连续覆盖：子块首尾相接无缝隙。
+  for (let index = 1; index < section.length; index++) {
+    const previous = section[index - 1];
+    const current = section[index];
+    assert.ok(previous && current);
+    assert.equal(current.startLine, (previous.endLine ?? 0) + 1, "子块行区间应相接");
+  }
+});
+
+test("chunker：无空行超长块按行硬切；单行超上限整行成块", () => {
+  // 无空行的多行列表（每行短）：行级硬切后每块 ≤ 上限。
+  const listLines = Array.from({ length: 40 }, (_, index) => `- 列表项 ${index}：${"细节内容。".repeat(8)}`);
+  const listDoc = ["# 清单", ...listLines].join("\n");
+  const listResult = chunkMarkdown(listDoc, "清单");
+  const listChunks = listResult.chunks.filter((chunk) => chunk.headingPath === "清单");
+  assert.ok(listChunks.length >= 2);
+  for (const chunk of listChunks) {
+    assert.ok(chunk.text.length <= MAX_CHUNK_CHARS);
+  }
+
+  // 单行超上限：整行独立成块（行不可再分），不抛错、不丢内容。
+  const longLine = "无断行超长单行。".repeat(300); // ≈2400 字符单行
+  const singleDoc = ["# 单行", longLine, "", "尾段"].join("\n");
+  const singleResult = chunkMarkdown(singleDoc, "单行");
+  const bigChunk = singleResult.chunks.find((chunk) => chunk.text.includes(longLine));
+  assert.ok(bigChunk, "超长单行应完整保留在某个 chunk 中");
 });
 
 test("tokenizer：索引侧中文 bigram + 英文小写词（CJK 串先产出，串内相邻保序）", () => {

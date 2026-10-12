@@ -2,7 +2,8 @@
  * 词法检索 + 候选融合（W02 引入；W05 拆出单轮检索 `searchLexicalPass`）。
  *
  * - FTS5 `MATCH ?` 严格参数化：表达式只来自 tokenizer 产物；
- * - bm25() 升序（更负 = 更相关）；
+ * - bm25() 升序（更负 = 更相关）；列权重 tokens/title/meta = 1.0/3.0/2.0（实验初值，
+ *   spec §5b.5）——MATCH 不限列，标题/标签/链接词可命中，权重只体现排序主次；
  * - 候选隔离：JOIN documents 后按 (vaultId, sourceEpoch) 过滤；
  * - 文章级去重聚合：同文档多 chunk 合并为一条候选（最佳 chunk 代表 + 命中数）；
  * - 扩搜（AND 无命中 → OR 降级）的上限一次：W05 起由本地 DecisionPolicy 裁决
@@ -23,6 +24,13 @@ const MAX_OCCURRENCES_PER_TERM = 8;
 const CANDIDATE_CHUNK_POOL = 64;
 const DEFAULT_CANDIDATE_LIMIT = 5;
 const MAX_CANDIDATE_LIMIT = 20;
+
+/**
+ * bm25 列权重（spec §5b.5，schema v4 三列 tokens/title/meta）：正文 1.0 / 标题 3.0 /
+ * meta(tags+links) 2.0。实验初值——标题表达文档主旨应压过正文长尾，结构化信号次之；
+ * 待 W05 评测数据集校准。MATCH 不限列：三列都参与命中，权重只体现排序主次。
+ */
+const BM25_COLUMN_WEIGHTS = "1.0, 3.0, 2.0";
 
 export interface LexicalSearchResult {
   candidates: KnowledgeArticleCandidate[];
@@ -68,7 +76,7 @@ function searchChunks(
               c.start_line AS startLine, c.end_line AS endLine, c.start_offset AS startOffset,
               c.end_offset AS endOffset, c.sha256 AS chunkSha256,
               d.relative_path AS relativePath, d.title, d.sha256,
-              bm25(chunks_fts) AS score
+              bm25(chunks_fts, ${BM25_COLUMN_WEIGHTS}) AS score
        FROM chunks_fts
        JOIN chunks c ON c.id = chunks_fts.rowid
        JOIN documents d ON d.id = c.document_id

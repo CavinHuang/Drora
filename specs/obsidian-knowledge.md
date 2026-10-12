@@ -211,8 +211,9 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
    语句前重验 lease（owner+epoch(fence)+未过期），Spike3 反例（列戳 CAS 不设防）不复现。
 3. `index_lease` 表单行租约：epoch 单调递增为 fence token；TTL（默认 10s）+ 心跳（默认 3s）
    是死亡检测唯一手段；接管成功后 `wal_checkpoint(TRUNCATE)` + `integrity_check` 体检。
-4. FTS5 独立表 `chunks_fts(tokens)`，`rowid === chunks.id`；插入/删除与 chunks 行同事务同步；
+4. FTS5 独立表 `chunks_fts`，`rowid === chunks.id`；插入/删除与 chunks 行同事务同步；
    检索 `JOIN chunks ON chunks.id = chunks_fts.rowid` 再按 `vaultId+sourceEpoch` 过滤。
+   列面自 schema v4 起为 `(tokens, title, meta)`（§5b.5；v3 及以前为单列 `tokens`）。
 5. service 生命周期：`createKnowledgeServices()` 返回的 `dispose()` 停心跳 → 释放租约 →
    关闭连接；在 `node.ts` 记入 `sharedSqliteRepos`（与 OffPeakTaskRepo 同链）统一关闭。
 
@@ -232,6 +233,13 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   W03 Receipt 的切片复验不受影响。512 上限与 truncated 标志语义不变（子切分会更早触顶，
   照实计 partial）。动机：无字符上限时「无标题长文 = 单巨块」，bm25 区分度、excerpt
   窗口与 Jev 出站输入质量都被噪声稀释。已建索引随文件变更/重建自然迁移到新切分。
+- **结构抽取（2026-10-12 补）**：chunker 在切分同时抽取两类结构化元数据，作为索引侧
+  检索信号（§5b.5 `meta` 列），**不进 RPC 出站面**（候选/Receipt 结构与字段不变）：
+  - 正文 `[[wikilink]]` 目标，逐 chunk 记录：别名取 `|` 前部分；去重保序；V1 不拆
+    `#标题`/`^块` 引用（目标整体保留），`![[embed]]` 同按链接目标收录，空目标跳过；
+  - frontmatter `tags`（含旧写法 `tag` 键）：支持 flow（`[a, b]`）与 block（`- a` 逐行）
+    两种形态，剥离首尾引号与 `#` 前缀，去重保序；**文档级**——作用于该文档全部 chunk。
+    正文行内 `#标签` 不在 V1 范围（frontmatter 是 Obsidian 标签的主事实源）。
 
 ### 5b.5 词法与语义
 
@@ -256,6 +264,21 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   两侧截断以「…」标注；无任何词元命中时回落正文开头。quote selector、sha256 等事实
   字段一律不变——摘要只影响展示与 Jev 出站的 note_excerpt（W03 Receipt 的摘录仍由
   prepareEvidence 依 quote 切片独立生成，两处口径互不依赖）。
+- **FTS 多列与列权重（2026-10-12 补，schema v4）**：`chunks_fts` 由单列 `tokens` 迁移为
+  `(tokens, title, meta)` 三列。FTS5 不能 ALTER，迁移 = 建 `chunks_fts_v4` → 按
+  chunks+documents 重填 → drop 旧表 → rename，与版本号推进同事务一次完成。列语义：
+  - `tokens` = chunk 正文 token 产物（与 v3 单列同物，口径不变）；
+  - `title` = 文档标题 + 该 chunk heading 路径的 token 产物（`A > B` 中 `>` 非词元，
+    tokenizer 自然丢弃）；
+  - `meta` = 该 chunk 的 tags+links（§5b.4 结构抽取产物）的 token 产物。
+  **MATCH 不限列**：三列都参与匹配——标题词/标签词/链接词可命中，属自然语义；主次由
+  列权重表达：`bm25(chunks_fts, 1.0, 3.0, 2.0)`（tokens/title/meta；实验初值，代码注释
+  注明，待 W05 评测数据集校准）。§5b.1「无过滤参数」不变：tags **不做查询语法**、不提供
+  任何 `tag:` 过滤参数，只参与命中与加权。
+  升级语义：schema_version <4 的旧库打开即自动升级；重填在迁移事务内复用同一 tokenizer
+  （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；旧数据未经结构抽取，
+  `meta` 重填为空串（tokens/title 如实重填可检索），新抽取产物随文件变更/重建自然补齐
+  ——与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
   或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
   时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口

@@ -1,5 +1,5 @@
 /**
- * Markdown chunker（W02 / spec §5b.4；2026-10-12 尺寸上限与块级切分）。
+ * Markdown chunker（W02 / spec §5b.4；2026-10-12 尺寸上限与块级切分 + 结构抽取）。
  *
  * - 按 ATX 标题（#..######）切 chunk，heading 路径形如 `A > B`；
  * - chunk 保存 quote selector：1-based 起止行 + 全文字符偏移（W03 Receipt 绑定）；
@@ -7,7 +7,10 @@
  * - 文首 frontmatter（--- 包围）单独成 chunk（heading=null）；
  * - 标题段文本超过 MAX_CHUNK_CHARS 时按空行（段落）边界二次切分，无段落边界按行
  *   硬切；子块继承段的 heading 路径与级别，quote selector 仍为精确行区间；
- * - 单文件 chunk 上限 MAX_CHUNKS_PER_FILE，超出截断并标记 truncated（partial coverage）。
+ * - 单文件 chunk 上限 MAX_CHUNKS_PER_FILE，超出截断并标记 truncated（partial coverage）；
+ * - 结构抽取（spec §5b.4）：逐 chunk 抽正文 [[wikilink]] 目标（别名取 | 前部分，
+ *   去重保序）；frontmatter tags 为文档级，作用于该文档全部 chunk。元数据只作
+ *   索引侧检索信号（§5b.5 meta 列），不进 RPC 出站面。
  * 纯函数：不做任何 IO。
  */
 import { createHash } from "node:crypto";
@@ -31,6 +34,10 @@ export interface MarkdownChunk {
   endOffset: number;
   text: string;
   sha256: string;
+  /** 正文 [[wikilink]] 目标（别名取 `|` 前部分；去重保序；spec §5b.4）。 */
+  links?: string[];
+  /** 文档级 frontmatter tags（作用于该文档全部 chunk；去重保序；spec §5b.4）。 */
+  tags?: string[];
 }
 
 export interface ChunkDocumentResult {
@@ -62,6 +69,54 @@ export function resolveDocumentTitle(content: string, fallbackName: string): str
   return fallbackName;
 }
 
+/**
+ * 正文 [[wikilink]] 目标抽取（spec §5b.4）：别名取 `|` 前部分，去重保序；空目标跳过。
+ * V1 边界：不拆 `#标题`/`^块` 引用（目标整体保留）；`![[embed]]` 同按链接目标收录。
+ */
+export function extractWikilinkTargets(text: string): string[] {
+  const targets: string[] = [];
+  for (const match of text.matchAll(/\[\[([^[\]]+?)\]\]/gu)) {
+    const raw = match[1] ?? "";
+    const target = raw.split("|")[0]?.trim() ?? "";
+    if (target && !targets.includes(target)) targets.push(target);
+  }
+  return targets;
+}
+
+/**
+ * frontmatter tags 解析（spec §5b.4，文档级）：只识别 `tags`/`tag` 键，flow（`[a, b]`）
+ * 与 block（缩进 `- a` 逐行）两种形态；剥离首尾引号与 `#` 前缀，去重保序。
+ * 宽松解析（非完整 YAML）：行首缩进内的其他键、无法识别的形态一律跳过不加噪声。
+ */
+export function parseFrontmatterTags(frontmatterText: string): string[] {
+  const tags: string[] = [];
+  const pushTag = (value: string): void => {
+    const tag = value.trim().replace(/^#/, "").replace(/^["']|["']$/g, "").trim();
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  };
+  const lines = frontmatterText.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? "";
+    const keyMatch = /^(tags|tag)\s*:(.*)$/u.exec(line);
+    if (!keyMatch) continue;
+    const inline = keyMatch[2]?.trim() ?? "";
+    if (inline) {
+      // flow 形态：`tags: [a, b]`（含裸值 `tags: a`）。
+      const flow = /^\[(.*)\]$/u.exec(inline);
+      for (const part of (flow?.[1] ?? inline).split(",")) pushTag(part);
+      continue;
+    }
+    // block 形态：后续缩进行 `- a`，直到首个非列表行。
+    for (let next = index + 1; next < lines.length; next++) {
+      const item = /^(\s*)-\s+(.+?)\s*$/u.exec(lines[next] ?? "");
+      if (!item || (item[1]?.length ?? 0) === 0) break;
+      pushTag(item[2] ?? "");
+      index = next;
+    }
+  }
+  return tags;
+}
+
 export function chunkMarkdown(content: string, fallbackName: string): ChunkDocumentResult {
   const lines = content.split(/\r?\n/);
   const headings: HeadingLine[] = [];
@@ -75,6 +130,21 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     prefixOffsets[index + 1] = (prefixOffsets[index] ?? 0) + line.length + 1;
   }
   const totalChars = content.length;
+
+  // frontmatter（文首 --- 包围）边界先于切分确定：tags 是文档级元数据（spec §5b.4），
+  // 作用于该文档全部 chunk；frontmatter 本身仍单独成 chunk（见下方 bodyStartLine）。
+  let frontmatterClosing = -1;
+  if (lines[0]?.trim() === "---") {
+    for (let index = 1; index < lines.length; index++) {
+      if (lines[index]?.trim() === "---") {
+        frontmatterClosing = index;
+        break;
+      }
+    }
+  }
+  const documentTags = frontmatterClosing > 0
+    ? parseFrontmatterTags(lines.slice(0, frontmatterClosing + 1).join("\n"))
+    : [];
 
   const chunks: MarkdownChunk[] = [];
   let truncated = false;
@@ -102,6 +172,8 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
       endOffset: Math.min(prefixOffsets[endLine + 1] ?? totalChars, totalChars),
       text,
       sha256: createHash("sha256").update(text, "utf-8").digest("hex"),
+      links: extractWikilinkTargets(text),
+      tags: documentTags,
     });
   };
 
@@ -165,20 +237,11 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     };
   };
 
-  // frontmatter（文首 --- 包围）单独成 chunk。
+  // frontmatter（文首 --- 包围）单独成 chunk（边界已在切分前确定）。
   let bodyStartLine = 0;
-  if (lines[0]?.trim() === "---") {
-    let closing = -1;
-    for (let index = 1; index < lines.length; index++) {
-      if (lines[index]?.trim() === "---") {
-        closing = index;
-        break;
-      }
-    }
-    if (closing > 0) {
-      pushChunk(0, closing, null, 0);
-      bodyStartLine = closing + 1;
-    }
+  if (frontmatterClosing > 0) {
+    pushChunk(0, frontmatterClosing, null, 0);
+    bodyStartLine = frontmatterClosing + 1;
   }
 
   // 正文按标题切分：每个标题行开启新 chunk（含标题行）；超上限的段做块级二次切分。

@@ -90,7 +90,12 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
        start_offset, end_offset, sha256, body)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const insertFts = tx.raw.prepare(`INSERT INTO chunks_fts(rowid, tokens) VALUES (?, ?)`);
+  // FTS 三列（schema v4，spec §5b.5）：tokens=正文产物；title=文档标题+heading 路径
+  // 产物（`>` 非词元自然丢弃）；meta=该 chunk tags+links 的产物（chunker 结构抽取，
+  // 旧调用方/手工构造 chunk 无可选字段时如实为空）。
+  const insertFts = tx.raw.prepare(
+    `INSERT INTO chunks_fts(rowid, tokens, title, meta) VALUES (?, ?, ?, ?)`,
+  );
   for (const chunk of input.chunks) {
     const chunkResult = insertChunk.run(
       documentId,
@@ -104,7 +109,14 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
       chunk.sha256,
       chunk.text,
     );
-    insertFts.run(Number(chunkResult.lastInsertRowid), tokenizeForIndex(chunk.text));
+    const titleSource = chunk.headingPath ? `${input.title} ${chunk.headingPath}` : input.title;
+    const metaSource = [...(chunk.tags ?? []), ...(chunk.links ?? [])].join(" ");
+    insertFts.run(
+      Number(chunkResult.lastInsertRowid),
+      tokenizeForIndex(chunk.text),
+      tokenizeForIndex(titleSource),
+      tokenizeForIndex(metaSource),
+    );
   }
   return documentId;
 }

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chunkMarkdown, MAX_CHUNK_CHARS, resolveDocumentTitle } from "../src/knowledge/index/markdownChunker.js";
+import {
+  chunkMarkdown,
+  extractWikilinkTargets,
+  MAX_CHUNK_CHARS,
+  parseFrontmatterTags,
+  resolveDocumentTitle,
+} from "../src/knowledge/index/markdownChunker.js";
 import { buildMatchExpression, extractQueryTerms, tokenizeForIndex } from "../src/knowledge/search/tokenizer.js";
 import { matchAwareExcerpt } from "../src/knowledge/search/lexicalRetriever.js";
 import { cosineSimilarity } from "../src/knowledge/search/embeddingPort.js";
@@ -50,6 +56,61 @@ test("chunker：超出单文件 chunk 上限时截断并标记", () => {
 
 test("chunker：文档标题回退文件名", () => {
   assert.equal(resolveDocumentTitle("没有标题的正文", "我的笔记"), "我的笔记");
+});
+
+test("chunker：wikilink 目标抽取——别名取 | 前部分、去重保序（spec §5b.4）", () => {
+  // 别名形态：目标取 `|` 前部分。
+  assert.deepEqual(extractWikilinkTargets("[[知识图谱|KG]]"), ["知识图谱"]);
+  // 普通形态与相邻多链接保序；重复目标去重。
+  assert.deepEqual(extractWikilinkTargets("见 [[甲]] 与 [[乙|别名]]，再看 [[甲|again]]。"), ["甲", "乙"]);
+  // V1 边界：#标题/^块 引用整体保留不拆；embed 同按目标收录；空目标跳过。
+  assert.deepEqual(extractWikilinkTargets("[[笔记#小节]] [[画布]]"), ["笔记#小节", "画布"]);
+  assert.deepEqual(extractWikilinkTargets("![[image.png]] [[]] [[ ]]"), ["image.png"]);
+  assert.deepEqual(extractWikilinkTargets("没有链接的正文"), []);
+});
+
+test("chunker：frontmatter tags 解析——flow/block/引号/# 前缀/去重保序（spec §5b.4）", () => {
+  // flow 形态（含引号与 # 前缀剥离）。
+  assert.deepEqual(parseFrontmatterTags("---\ntags: [项目/甲, \"带 空格\", #zettel, 项目/甲]\n---"), [
+    "项目/甲",
+    "带 空格",
+    "zettel",
+  ]);
+  // block 形态：缩进 `- ` 逐行；遇到非列表行停止。
+  assert.deepEqual(parseFrontmatterTags("---\ntags:\n  - 甲\n  - 乙\ntitle: 无关键\n---"), ["甲", "乙"]);
+  // 旧写法 `tag` 键与裸值。
+  assert.deepEqual(parseFrontmatterTags("---\ntag: 读书\n---"), ["读书"]);
+  // 无 tags 键 → 空。
+  assert.deepEqual(parseFrontmatterTags("---\ntitle: 笔记\n---"), []);
+});
+
+test("chunker：结构抽取挂载——tags 文档级作用于全部 chunk，links 逐 chunk（spec §5b.4）", () => {
+  const content = [
+    "---",
+    "tags: [项目/atlas, zettel]",
+    "---",
+    "引言，链到 [[方法论文档|method]]。",
+    "## 节一",
+    "正文提到 [[另一个笔记]] 与 [[方法论文档]]。",
+  ].join("\n");
+  const result = chunkMarkdown(content, "fallback");
+  assert.ok(result.chunks.length >= 2);
+  for (const chunk of result.chunks) {
+    // 文档级 tags：frontmatter chunk 与正文 chunk 拿到同一份。
+    assert.deepEqual(chunk.tags, ["项目/atlas", "zettel"]);
+    assert.ok(Array.isArray(chunk.links));
+  }
+  const preamble = result.chunks.find((chunk) => chunk.text.includes("引言"));
+  assert.ok(preamble);
+  assert.deepEqual(preamble.links, ["方法论文档"]);
+  const section = result.chunks.find((chunk) => chunk.text.includes("另一个笔记"));
+  assert.ok(section);
+  assert.deepEqual(section.links, ["另一个笔记", "方法论文档"]);
+  // 无 frontmatter 的文档 tags 为空数组（缺省事实，不加噪声）。
+  const plain = chunkMarkdown("# 纯正文\n没有标签", "plain");
+  for (const chunk of plain.chunks) {
+    assert.deepEqual(chunk.tags, []);
+  }
 });
 
 test("chunker：超上限标题段按空行（段落）边界二次切分，headingPath 继承且 quote 可回原文", () => {

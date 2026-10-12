@@ -10,7 +10,10 @@ Proma 的 Vault 能力由三部分组成，本插件完整复刻前两部分；�
 
 1. **Vault 发现与配置**（复刻）：从 Obsidian 注册表（`obsidian.json`，win/mac/linux 三平台
    路径同 Proma）发现候选 Vault；支持配置一个活动 Vault（rootPath、displayName、inboxPath、
-   allowAgentWrites）；提供插件数据目录下的托管 Vault（无 Obsidian 的用户也能用）。
+   allowAgentWrites）；提供插件数据目录下的托管 Vault（无 Obsidian 的用户也能用，
+   displayName 恒为「Drora Vault」——托管根判定双侧 realpath 归一（2026-10-12 修复：
+   pluginDataDir 含软链段时，如 macOS /var→/private/var，未归一比较使 isManagedRoot
+   恒 false、显示名回落目录名）。
 2. **安全 Vault 文件操作**（复刻）：listFiles / readFile / writeFile / createUntitledNote /
    createUntitledNoteInFolder / createFolder / renameFile / deleteFile / resolveMedia /
    savePastedImage，全部经同一安全门面。

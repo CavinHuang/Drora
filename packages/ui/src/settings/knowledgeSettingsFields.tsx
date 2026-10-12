@@ -85,6 +85,7 @@ export function ApiKeyRow({
   load,
   save,
   deleteCredential,
+  refreshConfig,
 }: {
   credentialKey: string;
   titleId: string;
@@ -92,6 +93,8 @@ export function ApiKeyRow({
   load: Credentials["load"];
   save: Credentials["save"];
   deleteCredential: Credentials["delete"];
+  /** Jev 配置热生效（§5d.10）：Key 变更后触发决策配置重解析。 */
+  refreshConfig?: () => Promise<unknown>;
 }) {
   const { intl } = useDroraIntl();
   const [present, setPresent] = useApiKeyPresence(credentialKey, load);
@@ -115,6 +118,7 @@ export function ApiKeyRow({
         setPresent(false);
       }
       setDraft("");
+      await refreshConfig?.(); // Key 变更热生效（§5d.10）
       toast(intl.formatMessage({ id: "settings.knowledge.apiKey.saved" }));
       trace.complete({ resultSource: "authority_ack", configured: normalized.length > 0 });
     } catch (error) {
@@ -167,9 +171,12 @@ export function ApiKeyRow({
 export function RemoteProviderModelRows({
   config,
   update,
+  refreshConfig,
 }: {
   config: RemoteProviderFieldConfig;
   update: (patch: Record<string, string>) => Promise<void>;
+  /** Jev 配置热生效（§5d.10）：模型/端点变更后触发决策配置重解析。 */
+  refreshConfig?: () => Promise<unknown>;
 }) {
   const { intl } = useDroraIntl();
   const { settings } = useSettings();
@@ -197,12 +204,14 @@ export function RemoteProviderModelRows({
           const normalized = modelDraft.trim();
           await update({ [config.modelSetting]: normalized });
           setModelDraft(normalized);
+          await refreshConfig?.(); // 配置热生效（§5d.10）
           toast(intl.formatMessage({ id: "settings.knowledge.model.saved" }));
         } else {
-          // 清空必须传空串（RPC 丢 undefined）——端点 baseURL 必填，清空 = 该提供商禁用。
+          // 清空传空串 = 回落该提供商内置默认端点（§5d.10）。
           const normalized = baseUrlDraft.trim();
           await update({ [config.baseUrlSetting]: normalized });
           setBaseUrlDraft(normalized);
+          await refreshConfig?.(); // 配置热生效（§5d.10）
           toast(intl.formatMessage({ id: "settings.knowledge.baseUrl.saved" }));
         }
         trace.complete({ resultSource: "setting_service", requiresRestart: true });

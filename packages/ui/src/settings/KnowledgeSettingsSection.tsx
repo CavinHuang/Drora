@@ -172,9 +172,10 @@ export function KnowledgeSettingsSection() {
     });
     setSavingBaseUrl(true);
     try {
-      // 清空必须传空串（RPC 丢 undefined），由装配层回落官方默认端点。
+      // 清空传空串 = 回落 TypeSafe 内置默认端点（§5d.10）。
       const normalized = baseUrlDraft.trim();
       await update({ knowledgeJevBaseUrl: normalized });
+      await indexService?.refreshDecisionConfig(); // 配置热生效（§5d.10）
       setBaseUrlDraft(normalized);
       toast(intl.formatMessage({ id: "settings.knowledge.baseUrl.saved" }));
       trace.complete({
@@ -300,6 +301,9 @@ export function KnowledgeSettingsSection() {
                 load={load}
                 save={save}
                 deleteCredential={deleteCredential}
+                refreshConfig={async () => {
+                  await indexService?.refreshDecisionConfig();
+                }}
               />
               <SettingsRow
                 label={intl.formatMessage({ id: "settings.knowledge.baseUrl.title" })}
@@ -338,10 +342,16 @@ export function KnowledgeSettingsSection() {
                 load={load}
                 save={save}
                 deleteCredential={deleteCredential}
+                refreshConfig={async () => {
+                  await indexService?.refreshDecisionConfig();
+                }}
               />
               <RemoteProviderModelRows
                 config={REMOTE_PROVIDER_CONFIGS[provider]}
                 update={update as (patch: Record<string, string>) => Promise<void>}
+                refreshConfig={async () => {
+                  await indexService?.refreshDecisionConfig();
+                }}
               />
             </>
           )}

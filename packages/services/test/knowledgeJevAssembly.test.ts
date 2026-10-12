@@ -111,22 +111,13 @@ test("K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回
   });
 });
 
-test("K-JEV-11：远程提供商缺 Key/model/baseURL 任一 → fail-closed 禁用", async () => {
+test("K-JEV-11：远程提供商缺 Key/model 任一 → fail-closed 禁用（baseURL 缺省回落内置端点）", async () => {
   const withKey = fakeCredentialService("sk-remote");
   const withoutKey = { load: async () => null };
   const cases = [
     {
       label: "openrouter 缺 model",
       settings: { knowledgeJevEnabled: true, knowledgeJevProvider: "openrouter" },
-      credential: withKey,
-    },
-    {
-      label: "openrouter 缺 baseURL",
-      settings: {
-        knowledgeJevEnabled: true,
-        knowledgeJevProvider: "openrouter",
-        knowledgeJevOpenrouterModel: "typesafe/jev-latest",
-      },
       credential: withKey,
     },
     {
@@ -145,15 +136,6 @@ test("K-JEV-11：远程提供商缺 Key/model/baseURL 任一 → fail-closed 禁
         knowledgeJevEnabled: true,
         knowledgeJevProvider: "ai-gateway",
         knowledgeJevAiGatewayBaseUrl: "https://agw.example.ai/jev",
-      },
-      credential: withKey,
-    },
-    {
-      label: "ai-gateway 缺 baseURL",
-      settings: {
-        knowledgeJevEnabled: true,
-        knowledgeJevProvider: "ai-gateway",
-        knowledgeJevAiGatewayModel: "typesafe/jev-latest",
       },
       credential: withKey,
     },
@@ -202,6 +184,24 @@ test("K-JEV-11：openrouter 配置齐备 → openrouter 快照（独立凭据键
     model: "typesafe/jev-latest",
     baseUrl: "https://openrouter.example/api",
   });
+
+  // 缺省回落内置端点（spec §5d.10 内置端点表）。
+  const defaulted = await resolveKnowledgeJevAssembly({
+    settingService: fakeSettingService({
+      knowledgeJevEnabled: true,
+      knowledgeJevProvider: "openrouter",
+      knowledgeJevOpenrouterModel: "typesafe/jev-latest",
+    }),
+    credentialService: {
+      load: async (key: string) => (key.endsWith("openrouter-api-key") ? "sk-openrouter" : null),
+    },
+  });
+  assert.deepEqual(defaulted, {
+    provider: "openrouter",
+    apiKey: "sk-openrouter",
+    model: "typesafe/jev-latest",
+    baseUrl: "https://openrouter.ai/api/v1",
+  });
   assert.ok(loaded.length > 0);
   assert.ok(loaded.every((key) => key.endsWith("openrouter-api-key")));
 });
@@ -223,6 +223,24 @@ test("K-JEV-11：ai-gateway 配置齐备 → ai-gateway 快照（独立凭据键
     apiKey: "sk-ag",
     model: "tenant/jev-1.13.0",
     baseUrl: "https://agw.example.ai/jev",
+  });
+
+  // 缺省回落内置端点（Vercel AI Gateway，初值依据见 spec 决策记录）。
+  const agwDefaulted = await resolveKnowledgeJevAssembly({
+    settingService: fakeSettingService({
+      knowledgeJevEnabled: true,
+      knowledgeJevProvider: "ai-gateway",
+      knowledgeJevAiGatewayModel: "typesafe/jev-latest",
+    }),
+    credentialService: {
+      load: async (key: string) => (key.endsWith("ai-gateway-api-key") ? "sk-ag" : null),
+    },
+  });
+  assert.deepEqual(agwDefaulted, {
+    provider: "ai-gateway",
+    apiKey: "sk-ag",
+    model: "typesafe/jev-latest",
+    baseUrl: "https://ai-gateway.vercel.sh/v1",
   });
 });
 

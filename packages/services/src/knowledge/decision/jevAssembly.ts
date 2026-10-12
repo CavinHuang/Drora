@@ -30,6 +30,8 @@ import type { KnowledgeDecisionPolicyConfig, KnowledgeDecisionProvider } from ".
 import type { DecisionConsentRegistry } from "./decisionConsent.js";
 import { createJevAdapter } from "./jevAdapter.js";
 import {
+  AI_GATEWAY_OFFICIAL_BASE_URL,
+  OPENROUTER_OFFICIAL_BASE_URL,
   TYPESAFE_OFFICIAL_BASE_URL,
   createSystemOneHttpTransport,
 } from "./jevTransport.js";
@@ -65,16 +67,27 @@ export async function resolveKnowledgeJevAssembly(
   if (settings.knowledgeJevProvider === "openrouter") {
     const apiKey = (await credentialService.load(KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY))?.trim();
     const model = normalizeBaseURL(settings.knowledgeJevOpenrouterModel);
-    const baseUrl = normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl);
-    if (!apiKey || !model || !baseUrl) return null;
-    return { provider: "openrouter", apiKey, model, baseUrl };
+    if (!apiKey || !model) return null;
+    return {
+      provider: "openrouter",
+      apiKey,
+      model,
+      // 端点缺省回落内置（openrouter.ai 官方）；自有网关经设置覆盖。
+      baseUrl: normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl) ?? OPENROUTER_OFFICIAL_BASE_URL,
+    };
   }
   if (settings.knowledgeJevProvider === "ai-gateway") {
     const apiKey = (await credentialService.load(KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY))?.trim();
     const model = normalizeBaseURL(settings.knowledgeJevAiGatewayModel);
-    const baseUrl = normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl);
-    if (!apiKey || !model || !baseUrl) return null;
-    return { provider: "ai-gateway", apiKey, model, baseUrl };
+    if (!apiKey || !model) return null;
+    return {
+      provider: "ai-gateway",
+      apiKey,
+      model,
+      // 端点缺省回落内置（Vercel AI Gateway，初值依据见 spec §5d.10 决策记录）；
+      // 自有网关部署（Kong/TrueFoundry 等）经设置覆盖。
+      baseUrl: normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl) ?? AI_GATEWAY_OFFICIAL_BASE_URL,
+    };
   }
   const apiKey = (await credentialService.load(KNOWLEDGE_JEV_CREDENTIAL_KEY))?.trim();
   if (!apiKey) {

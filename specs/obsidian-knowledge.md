@@ -749,8 +749,24 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 - **同步约束**：`createLocalServices` 是同步函数，而凭据/设置读取是异步——预解析必须发生在
   host 已有的异步初始化段，经新 option 传入；禁止在装配函数内部引入半异步状态。
-- **生效语义**：装配期快照，设置变更**重启 Host 后生效**（与 `httpProxy`、
-  `embeddedBrowserAllowInsecureCertificates` 等既有设置先例一致）；设置页文案如实标注。
+- **内置端点（2026-10-13）**：typesafe → `https://api.typesafe.ai`（官方文档实证）；
+  openrouter → `https://openrouter.ai/api/v1`（官方标准端点）；ai-gateway →
+  `https://ai-gateway.vercel.sh/v1`（初值依据：最知名 AI Gateway 产品；自有网关部署
+  ——Kong/TrueFoundry 等按部署路由 Jev——经设置覆盖）。`baseURL` 留空 = 内置缺省。
+- **配置热生效（2026-10-13）**：Jev 配置（开关/提供商/Key/端点/模型）变更**即时生效，
+  免重启**。机制与时序：
+  ```
+  设置 UI 写配置 → indexService.refreshDecisionConfig()（确定性即时路径）
+                        ↘ 置空装配签名
+  下一决策 stage：providerSource() 解析当前装配（settings+credentials）
+        → 签名变更 → 清决策缓存（键不含端点/凭据）→ 以新装配重建 provider
+        → 授权链（grant）经同一 providerSource 绑定当前 provider
+  兜底：未触发 refresh 时，签名比较基于「上次解析时刻」，TTL 语义由每次 stage
+  解析天然覆盖（每次 stage 都重读配置，无陈旧窗口）。
+  ```
+  边界：consent 账本不受 provider 重建影响（providerId 常量）；语义检索开关
+  （§5b.9）仍为装配期语义、重启生效；动态源缺席（server/stdio/远程）时回退
+  静态注入或功能关闭，行为与本节早先版本一致。
 - **范围裁定（V1）**：仅 desktop local host 预取装配。server/stdio/core 三条 `createLocalServices`
   调用链不预取 → Jev 恒关闭；远程 workspace 的 knowledge 频道本就不在
   `legacyRemoteWorkspaceRpcContract` 内，手机链路自然不可达，不触碰 `web-remote-replayable` 语义。

@@ -403,11 +403,11 @@ export interface AppSettings {
   knowledgeJevBaseUrl?: string;
   /** OpenRouter 侧 Jev 模型标识（provider=openrouter 时必填），例如 typesafe/jev-latest。 */
   knowledgeJevOpenrouterModel?: string;
-  /** OpenRouter Jev 决策端点 baseURL（provider=openrouter 时必填，由 OpenRouter 文档提供）；缺失该提供商禁用。 */
+  /** OpenRouter Jev 决策端点 baseURL；缺省回落内置官方端点（openrouter.ai/api/v1），可覆盖自有网关。 */
   knowledgeJevOpenrouterBaseUrl?: string;
   /** AI Gateway 部署侧 Jev 模型标识（provider=ai-gateway 时必填），例如 typesafe/jev-latest。 */
   knowledgeJevAiGatewayModel?: string;
-  /** AI Gateway 部署的 Jev 路由 baseURL（provider=ai-gateway 时必填，形如 {网关部署}/v1/systemone，由部署方提供）；缺失该提供商禁用。 */
+  /** AI Gateway 部署的 Jev 路由 baseURL；缺省回落内置端点（Vercel AI Gateway），自有部署覆盖。 */
   knowledgeJevAiGatewayBaseUrl?: string;
   /**
    * 本地语义检索开关（specs/obsidian-knowledge.md §5b.9）：开启后装配注入本地嵌入

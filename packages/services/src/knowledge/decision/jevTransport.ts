@@ -51,6 +51,13 @@ export interface JevTransport {
 /** TypeSafe 官方托管端点（docs.typesafe.ai，2026-10-10）；typesafe 提供商的缺省 baseURL。 */
 export const TYPESAFE_OFFICIAL_BASE_URL = "https://api.typesafe.ai";
 
+/** OpenRouter 标准端点（openrouter.ai 官方文档）；openrouter 提供商的缺省 baseURL。 */
+export const OPENROUTER_OFFICIAL_BASE_URL = "https://openrouter.ai/api/v1";
+
+/** Vercel AI Gateway 端点（vercel.com/docs/ai-gateway）；ai-gateway 提供商的缺省 baseURL——
+ *  自有网关部署（Kong/TrueFoundry 等按部署路由 Jev）经设置覆盖。 */
+export const AI_GATEWAY_OFFICIAL_BASE_URL = "https://ai-gateway.vercel.sh/v1";
+
 const DEFAULT_MODEL = "jev-latest";
 
 export interface SystemOneTransportOptions {

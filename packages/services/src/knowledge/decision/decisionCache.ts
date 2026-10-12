@@ -67,11 +67,12 @@ export class DecisionCache {
     return removed;
   }
 
-  get size(): number {
-    return this.entries.size;
-  }
-
+  /** 清空全部条目（配置热生效时由管线调用方触发——缓存键不含端点/凭据）。 */
   clear(): void {
     this.entries.clear();
+  }
+
+  get size(): number {
+    return this.entries.size;
   }
 }

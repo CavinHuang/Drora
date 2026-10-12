@@ -35,6 +35,12 @@ export interface IKnowledgeIndexService {
    * 已有任务进行中时不重复起任务（alreadyRunning=true 返回既有任务）。
    */
   /**
+   * Jev 配置热生效（spec §5d.10）：UI 写入 Jev 配置后调用；下一轮决策 stage 强制
+   * 重解析装配并按签名清缓存。无动态源时 refreshed=false（静态注入路径）。
+   */
+  refreshDecisionConfig(): Promise<{ refreshed: boolean }>;
+
+  /**
    * 本地语义检索状态面（spec §5b.9）：模型文件/下载/失败的粗粒度状态。
    * 功能关闭 → state="model_missing" 且 lastError="semantic_disabled"（与装配缺省一致）。
    */

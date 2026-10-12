@@ -20,6 +20,11 @@ import type { KnowledgeRunView } from "../knowledgeTypes.js";
 /** W05 决策上下文：provider 为 null 即功能关闭（默认）——管线仍产出 off 诊断（A23 断言面）。 */
 export interface KnowledgeDecisionContext {
   provider: KnowledgeDecisionProvider | null;
+  /**
+   * 动态 provider 解析（spec §5d.10 配置热生效，additive）：与管线 providerSource
+   * 同源——grant 链据此绑定当前 provider；静态注入时缺省。
+   */
+  providerSource?: () => Promise<KnowledgeDecisionProvider | null>;
   pipeline: DecisionPipeline;
   registry: DecisionConsentRegistry;
   cache: DecisionCache;
@@ -69,14 +74,16 @@ export function reorderCandidates(
  * queryHash(=sha256(规范化 query))/candidateHashes/TTL（单 query）。追问/新 Query
  * 是新 run，必须重新授权。run 未落定/无候选/关闭时拒绝。
  */
-export function grantDecisionConsentForRun(params: {
+export async function grantDecisionConsentForRun(params: {
   decision: KnowledgeDecisionContext;
   run: { view: KnowledgeRunView; sourceRef: { vaultId: string; sourceEpoch: number } | null } | null;
   candidateIds?: string[];
   nowMs: number;
-}): KnowledgeDecisionConsentGrantResult {
+}): Promise<KnowledgeDecisionConsentGrantResult> {
   const { decision, run, nowMs } = params;
-  if (!decision.provider) return { granted: false, reason: "disabled" };
+  // 配置热生效（spec §5d.10）：动态源在场时解析当前 provider 绑定授权（与管线同源）。
+  const provider = decision.provider ?? ((await decision.providerSource?.()) ?? null);
+  if (!provider) return { granted: false, reason: "disabled" };
   if (!run || run.view.status === "retrieving") return { granted: false, reason: "run_not_settled" };
   if (!["ready", "partial", "empty"].includes(run.view.status)) {
     return { granted: false, reason: "run_not_settled" };
@@ -91,7 +98,7 @@ export function grantDecisionConsentForRun(params: {
       : requested;
   if (selected.length === 0) return { granted: false, reason: "no_candidates" };
   const consent = decision.registry.grant({
-    providerId: decision.provider.id,
+    providerId: provider.id,
     vaultId: run.sourceRef.vaultId,
     sourceEpoch: run.sourceRef.sourceEpoch,
     queryHash: queryHashOf(run.view.query),

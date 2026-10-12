@@ -20,7 +20,6 @@ import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
 import {
-  createKnowledgeJevProviderFactory,
   resolveKnowledgeJevAssembly,
   type KnowledgeJevAssembly,
 } from "./knowledge/decision/jevAssembly.js";
@@ -1529,11 +1528,11 @@ export function createLocalServices(options: {
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
   /**
-   * Jev 决策装配快照（specs/obsidian-knowledge.md §5d.10）：由调用方在异步初始化段
-   * 经 resolveKnowledgeJevAssembly 预解析后传入。null/缺省 = 功能关闭（fail-closed，
-   * 不注入 provider，grant 走 disabled）。V1 仅 desktop local host 预取。
+   * Jev 配置动态源（specs/obsidian-knowledge.md §5d.10 配置热生效）：调用方注入
+   * （desktop 本地 host：异步初始化段闭包 settingService 的解析器）。每个决策
+   * stage 解析当前装配，null = 功能关闭；配置变更即时生效（免重启）。
    */
-  knowledgeJevAssembly?: KnowledgeJevAssembly | null;
+  knowledgeJevConfigSource?: () => Promise<KnowledgeJevAssembly | null>;
   /**
    * 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：缺省 false，仅 desktop
    * 本地 host 装配传 true（V1 范围纪律，同 knowledgeJevAssembly）；server/stdio/
@@ -2655,8 +2654,9 @@ export function createLocalServices(options: {
   // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
   // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
   const knowledgeServices: KnowledgeServices = createKnowledgeServices({
-    ...(options.knowledgeJevAssembly
-      ? { decisionProviderFactory: createKnowledgeJevProviderFactory(options.knowledgeJevAssembly) }
+    // Jev 配置动态源（§5d.10 热生效）：装配解析延迟到决策 stage，配置变更免重启。
+    ...(options.knowledgeJevConfigSource
+      ? { knowledgeJevConfigSource: options.knowledgeJevConfigSource }
       : {}),
     // 索引自动 reconcile（§5b.8）：仅 desktop 本地 host 开启，其余 host 维持手动触发。
     ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),

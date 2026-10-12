@@ -10,9 +10,9 @@
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { resolveObsidianPluginDataDir } from "../obsidian-vault/obsidianVaultService.js";
 import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledgeDatabase.js";
+import { loadCoverage } from "./store/indexRepository.js";
 import { IndexCoordinator } from "./index/indexCoordinator.js";
 import { createAutoReconcileController } from "./index/autoReconcile.js";
-import { loadVectorCoverage } from "./store/vectorRepository.js";
 import { createCitationFacade } from "./evidence/citationFacade.js";
 import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
 import {
@@ -22,13 +22,6 @@ import {
   type KnowledgeEmbeddingPort,
   type KnowledgeSemanticPortStatus,
 } from "./search/embeddingPort.js";
-import { loadCoverage, listRecentJobs } from "./store/indexRepository.js";
-import {
-  aggregateDocumentStructure,
-  toDecisionInsights,
-  toInsightJobEntries,
-  type InsightDocumentChunkRow,
-} from "./index/insightsAggregator.js";
 import {
   requireKnowledgeSource,
   resolveKnowledgeDatabasePath,
@@ -39,6 +32,8 @@ import { DecisionConsentRegistry } from "./decision/decisionConsent.js";
 import { DecisionCache } from "./decision/decisionCache.js";
 import { DecisionTelemetry } from "./decision/decisionTelemetry.js";
 import { DecisionPipeline } from "./decision/decisionPipeline.js";
+import { createJevDynamicProvider } from "./decision/jevDynamicProvider.js";
+import { loadInsightsSnapshot } from "./insightsSnapshot.js";
 import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
 import { createKnowledgeReviewService } from "./review/reviewEngine.js";
 import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
@@ -48,7 +43,6 @@ import type { IKnowledgeReviewService } from "./review/reviewService.js";
 import type {
   KnowledgeCoverage,
   KnowledgeIndexStatus,
-  KnowledgeInsightsSnapshot,
   KnowledgePrepareEvidenceParams,
   KnowledgePrepareEvidenceResult,
   KnowledgeResolveCitationParams,
@@ -69,9 +63,6 @@ const EMPTY_COVERAGE: Readonly<KnowledgeCoverage> = Object.freeze({
   truncatedFiles: 0,
   partial: false,
 });
-
-/** 洞察视图最近任务条数上限（spec §5g.4）。 */
-const INSIGHTS_RECENT_JOB_LIMIT = 10;
 
 export interface KnowledgeServicesOptions {
   /** 覆盖 DB 路径（测试用）；生产默认按 Profile 数据根推导。 */
@@ -97,6 +88,14 @@ export interface KnowledgeServicesOptions {
   }) => KnowledgeDecisionProvider;
   /** 决策策略覆写（阈值/预算/权重；实验初值见 DEFAULT_DECISION_POLICY）。 */
   decisionPolicyOverrides?: Partial<KnowledgeDecisionPolicyConfig>;
+  /**
+   * Jev 配置动态源（spec §5d.10 配置热生效）：每个决策 stage 解析当前装配
+   * （开关/提供商/Key/端点/模型），null = 功能关闭。提供时优先于静态注入；
+   * 配置签名变更自动清决策缓存（缓存键不含端点/凭据）。
+   */
+  knowledgeJevConfigSource?: () => Promise<
+    import("./decision/jevAssembly.js").KnowledgeJevAssembly | null
+  >;
   /**
    * 审核写路径总门（W06 修复轮 1）：**生产装配（node.ts）绝不传——保持缺省 false**，
    * S03 Hard Write Safety GO 门禁未满足前 apply/undo 返回 `write_path_disabled`
@@ -155,18 +154,32 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const registry = new DecisionConsentRegistry();
   const cache = new DecisionCache(config.cacheMaxEntries);
   const telemetry = new DecisionTelemetry();
-  const provider = options.decisionProviderFactory
-    ? options.decisionProviderFactory({ consentRegistry: registry, config })
-    : (options.decisionProvider ?? null);
+  // Jev 配置热生效（spec §5d.10；控制器在 decision/jevDynamicProvider.ts）。
+  const dynamicProviderAvailable = options.knowledgeJevConfigSource !== undefined;
+  const jevDynamic = dynamicProviderAvailable && options.knowledgeJevConfigSource
+    ? createJevDynamicProvider({
+        source: options.knowledgeJevConfigSource,
+        consentRegistry: registry,
+        config,
+        cache,
+      })
+    : null;
+  const staticProvider = jevDynamic
+    ? null
+    : (options.decisionProviderFactory
+      ? options.decisionProviderFactory({ consentRegistry: registry, config })
+      : (options.decisionProvider ?? null));
   const pipeline = new DecisionPipeline({
-    provider,
+    provider: staticProvider,
+    ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
     config,
     consentRegistry: registry,
     cache,
     telemetry,
   });
   const decision: KnowledgeDecisionContext = {
-    provider,
+    provider: staticProvider,
+    ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
     pipeline,
     registry,
     cache,
@@ -219,74 +232,16 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     },
 
     /**
-     * 洞察快照（spec §5g）：聚合纯查询。结构口径（tags/双链）从 chunk body 流式重提取
-     * （逐行 iterate，按 document 分组喂纯函数，不整表物化）；job 列表与 telemetry
-     * 为既有事实的直接投影，不预估、不读 vault 文件。
+     * 洞察快照（spec §5g）：实现见 insights/loadInsightsSnapshot（db 触达模块），
+     * 本面只做薄委托（max-lines 门禁）。
      */
-    async getInsights(): Promise<KnowledgeInsightsSnapshot> {
-      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-      const recentJobs = toInsightJobEntries(listRecentJobs(db, INSIGHTS_RECENT_JOB_LIMIT));
-      const decisionTelemetry = toDecisionInsights(decision.telemetry.snapshot());
-      if (!source.configured || source.summary === null || source.sourceEpoch === null) {
-        return {
-          configured: false,
-          source: null,
-          inventory: { documents: 0, chunks: 0, taggedDocuments: 0, wikilinkCount: 0 },
-          coverage: { ...EMPTY_COVERAGE },
-          recentJobs,
-          decision: decisionTelemetry,
-        };
-      }
-      const coverage =
-        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
-      let taggedDocuments = 0;
-      let wikilinkCount = 0;
-      let currentDocumentId: number | null = null;
-      let documentRows: InsightDocumentChunkRow[] = [];
-      const flushDocument = (): void => {
-        if (documentRows.length === 0) return;
-        const aggregate = aggregateDocumentStructure(documentRows);
-        if (aggregate.tagged) taggedDocuments += 1;
-        wikilinkCount += aggregate.wikilinkCount;
-        documentRows = [];
-      };
-      const chunkStatement = db.raw.prepare(
-        `SELECT c.document_id AS documentId, c.ordinal AS ordinal, c.body AS body
-         FROM chunks c JOIN documents d ON d.id = c.document_id
-         WHERE d.vault_id = ? AND d.source_epoch = ?
-         ORDER BY c.document_id, c.ordinal`,
-      );
-      const rows = chunkStatement.iterate(source.summary.vaultId, source.sourceEpoch) as Iterable<{
-        documentId: number;
-        ordinal: number;
-        body: string;
-      }>;
-      for (const row of rows) {
-        if (row.documentId !== currentDocumentId) {
-          flushDocument();
-          currentDocumentId = row.documentId;
-        }
-        documentRows.push({ ordinal: row.ordinal, body: row.body });
-      }
-      flushDocument();
-      return {
-        configured: true,
-        source: {
-          vaultId: source.summary.vaultId,
-          sourceEpoch: source.sourceEpoch,
-          displayName: source.summary.displayName,
-        },
-        inventory: {
-          documents: coverage.indexedFiles,
-          chunks: coverage.indexedChunks,
-          taggedDocuments,
-          wikilinkCount,
-        },
-        coverage,
-        recentJobs,
-        decision: decisionTelemetry,
-      };
-    },
+    getInsights: () =>
+      loadInsightsSnapshot({
+        db,
+        pluginDataDir,
+        semanticPortId: semantic.port?.id ?? null,
+        decisionTelemetry: decision.telemetry.snapshot(),
+      }),
 
     async requestRebuild() {
       const source = await requireKnowledgeSource(db, pluginDataDir, Date.now());
@@ -298,6 +253,13 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         throw new Error("jobId 不能为空");
       }
       return coordinator.cancelJob(params.jobId, Date.now());
+    },
+    refreshDecisionConfig(): Promise<{ refreshed: boolean }> {
+      // UI 写入 Jev 配置后调用（spec §5d.10 热生效的确定性即时路径）：置空签名，
+      // 下一轮决策 stage 强制重解析装配并按签名清缓存。无动态源 refreshed=false。
+      const refreshed = jevDynamic !== null;
+      jevDynamic?.refresh();
+      return Promise.resolve({ refreshed });
     },
     getSemanticStatus(): Promise<KnowledgeSemanticPortStatus> {
       // 纯状态读取（spec §5b.9 状态面）：无端口 = 功能关闭（与装配缺省一致）。

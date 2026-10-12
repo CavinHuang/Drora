@@ -25,6 +25,12 @@ import { DECISION_POLICY_VERSION, decideByPolicy, type DecisionPolicyDecision } 
 export interface DecisionPipelineOptions {
   /** null = 功能关闭（默认）；注入即代表 Host 侧已完成 flag + 凭证配置。 */
   provider: KnowledgeDecisionProvider | null;
+  /**
+   * 动态 provider 解析（spec §5d.10 配置热生效）：每次 stage 调用解析当前 provider，
+   * 返回 null = 本轮按功能关闭处理。提供时忽略静态 provider 字段；实现方负责
+   * 配置变更时的决策缓存清理（缓存键不含端点/凭据）。
+   */
+  providerSource?: () => Promise<KnowledgeDecisionProvider | null>;
   config: KnowledgeDecisionPolicyConfig;
   consentRegistry: DecisionConsentRegistry;
   cache: DecisionCache;
@@ -72,6 +78,9 @@ export class DecisionPipeline {
   async runStage(input: DecisionStageInput): Promise<DecisionStageOutput> {
     const { options } = this;
     const startedAtMs = Date.now();
+    // 配置热生效（spec §5d.10）：providerSource 在场时每 stage 解析当前 provider——
+    // 配置写入后下一轮 stage 即用新值（配合 refresh RPC 为确定性即时）。
+    const provider = options.providerSource ? await options.providerSource() : options.provider;
     const localOnly = (outcomes: KnowledgeDecisionOutcome[]) =>
       decideByPolicy({
         candidates: input.candidates,
@@ -82,7 +91,7 @@ export class DecisionPipeline {
       });
 
     // ① 功能关闭（默认路径）：零出站，本地排序（A23）。policy 仍做本地五动作裁决。
-    if (!options.provider) {
+    if (!provider) {
       const policy = localOnly([]);
       return {
         diagnostics: assembleDiagnostics({
@@ -104,7 +113,7 @@ export class DecisionPipeline {
     // ② 授权门（fail-closed）：缺失/过期/撤销/范围不匹配 → denied，本地候选照常。
     const gate = options.consentRegistry.verifyBinding({
       consentId: input.consentId ?? "",
-      providerId: options.provider.id,
+      providerId: provider.id,
       vaultId: input.vaultId,
       sourceEpoch: input.sourceEpoch,
       queryHash: input.queryHash,
@@ -116,8 +125,8 @@ export class DecisionPipeline {
         diagnostics: assembleDiagnostics({
           status: "denied",
           reason: gate.reason,
-          providerId: options.provider.id,
-          modelVersion: options.provider.modelId,
+          providerId: provider.id,
+          modelVersion: provider.modelId,
           outboundCount: 0,
           outcomes: [],
           cacheHitCount: 0,
@@ -134,7 +143,7 @@ export class DecisionPipeline {
     const cacheHitOutcomes: KnowledgeDecisionOutcome[] = [];
     const pending: KnowledgeDecisionCandidate[] = [];
     for (const candidate of pool) {
-      const entry = options.cache.get(cacheKey(options, input, candidate.chunkSha256));
+      const entry = options.cache.get(cacheKey(provider, input, candidate.chunkSha256));
       if (entry) {
         for (const outcome of entry.outcomes) {
           if (outcome.candidateId === candidate.candidateId) cacheHitOutcomes.push(outcome);
@@ -159,7 +168,7 @@ export class DecisionPipeline {
         signal: input.signal,
       };
       try {
-        fresh = await options.provider.decide(request);
+        fresh = await provider.decide(request);
       } catch {
         stageReason = "provider_error";
       }
@@ -182,7 +191,7 @@ export class DecisionPipeline {
         if (outcome.status === "scored") {
           const candidate = pending.find((entry) => entry.candidateId === outcome.candidateId);
           if (candidate) {
-            options.cache.set(cacheKey(options, input, candidate.chunkSha256), {
+            options.cache.set(cacheKey(provider, input, candidate.chunkSha256), {
               outcomes: [outcome],
               modelVersion: fresh.modelVersion,
               createdAtMs: Date.now(),
@@ -225,7 +234,7 @@ export class DecisionPipeline {
       diagnostics: assembleDiagnostics({
         status,
         reason: status === "applied" ? null : (stageReason ?? residualReason),
-        providerId: options.provider.id,
+        providerId: provider.id,
         modelVersion: fresh?.modelVersion ?? null,
         outboundCount,
         outcomes,
@@ -247,14 +256,14 @@ function firstFallbackReason(outcomes: KnowledgeDecisionOutcome[]): KnowledgeDec
 }
 
 function cacheKey(
-  options: DecisionPipelineOptions,
+  provider: KnowledgeDecisionProvider | null,
   input: DecisionStageInput,
   chunkSha256: string,
 ): string {
   // 键分量与 spec §5d.7 一致：provider/model/policy/vault/epoch/queryHash/chunkSha。
   return decisionCacheKeyOf({
-    providerId: options.provider?.id ?? "none",
-    modelId: options.provider?.modelId ?? "none",
+    providerId: provider?.id ?? "none",
+    modelId: provider?.modelId ?? "none",
     policyVersion: DECISION_POLICY_VERSION,
     vaultId: input.vaultId,
     sourceEpoch: input.sourceEpoch,

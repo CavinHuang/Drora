@@ -14,7 +14,13 @@ import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledge
 import { IndexCoordinator } from "./index/indexCoordinator.js";
 import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
 import { createSemanticContext, type KnowledgeEmbeddingPort } from "./search/embeddingPort.js";
-import { loadCoverage } from "./store/indexRepository.js";
+import { loadCoverage, listRecentJobs } from "./store/indexRepository.js";
+import {
+  aggregateDocumentStructure,
+  toDecisionInsights,
+  toInsightJobEntries,
+  type InsightDocumentChunkRow,
+} from "./index/insightsAggregator.js";
 import { resolveKnowledgeDatabasePath, resolveKnowledgeSource } from "./source/sourceRegistry.js";
 import {
   createVaultFileReader,
@@ -32,13 +38,32 @@ import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./review/reviewService.js";
 import type {
+  KnowledgeCoverage,
   KnowledgeIndexStatus,
+  KnowledgeInsightsSnapshot,
   KnowledgePrepareEvidenceParams,
   KnowledgePrepareEvidenceResult,
   KnowledgeResolveCitationParams,
   KnowledgeResolveCitationResult,
 } from "./knowledgeTypes.js";
 import type { KnowledgeCreateRunParams, KnowledgeSearchParams } from "./knowledgeQuery.js";
+
+/** 全零 coverage（未配置源/索引未建时的如实零值，与 getStatus 既有零值结构同形）。 */
+const EMPTY_COVERAGE: Readonly<KnowledgeCoverage> = Object.freeze({
+  indexedFiles: 0,
+  indexedChunks: 0,
+  excludedHidden: 0,
+  excludedSymlink: 0,
+  excludedNotMarkdown: 0,
+  excludedOverSize: 0,
+  excludedOverQuota: 0,
+  excludedDepth: 0,
+  truncatedFiles: 0,
+  partial: false,
+});
+
+/** 洞察视图最近任务条数上限（spec §5g.4）。 */
+const INSIGHTS_RECENT_JOB_LIMIT = 10;
 
 export interface KnowledgeServicesOptions {
   /** 覆盖 DB 路径（测试用）；生产默认按 Profile 数据根推导。 */
@@ -156,35 +181,14 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         return {
           configured: false,
           source: null,
-          coverage: {
-            indexedFiles: 0,
-            indexedChunks: 0,
-            excludedHidden: 0,
-            excludedSymlink: 0,
-            excludedNotMarkdown: 0,
-            excludedOverSize: 0,
-            excludedOverQuota: 0,
-            excludedDepth: 0,
-            truncatedFiles: 0,
-            partial: false,
-          },
+          coverage: { ...EMPTY_COVERAGE },
           job: coordinator.getLatestJobView(),
           lease: coordinator.getLeaseView(),
           semantic: semantic.port ? "available" : "unavailable",
         };
       }
-      const coverage = loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? {
-        indexedFiles: 0,
-        indexedChunks: 0,
-        excludedHidden: 0,
-        excludedSymlink: 0,
-        excludedNotMarkdown: 0,
-        excludedOverSize: 0,
-        excludedOverQuota: 0,
-        excludedDepth: 0,
-        truncatedFiles: 0,
-        partial: false,
-      };
+      const coverage =
+        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
       return {
         configured: true,
         source: {
@@ -202,6 +206,76 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     async startReconcile() {
       const source = await requireSource();
       return coordinator.startJob({ kind: "reconcile", ...source, nowMs: Date.now() });
+    },
+
+    /**
+     * 洞察快照（spec §5g）：聚合纯查询。结构口径（tags/双链）从 chunk body 流式重提取
+     * （逐行 iterate，按 document 分组喂纯函数，不整表物化）；job 列表与 telemetry
+     * 为既有事实的直接投影，不预估、不读 vault 文件。
+     */
+    async getInsights(): Promise<KnowledgeInsightsSnapshot> {
+      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
+      const recentJobs = toInsightJobEntries(listRecentJobs(db, INSIGHTS_RECENT_JOB_LIMIT));
+      const decisionTelemetry = toDecisionInsights(decision.telemetry.snapshot());
+      if (!source.configured || source.summary === null || source.sourceEpoch === null) {
+        return {
+          configured: false,
+          source: null,
+          inventory: { documents: 0, chunks: 0, taggedDocuments: 0, wikilinkCount: 0 },
+          coverage: { ...EMPTY_COVERAGE },
+          recentJobs,
+          decision: decisionTelemetry,
+        };
+      }
+      const coverage =
+        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
+      let taggedDocuments = 0;
+      let wikilinkCount = 0;
+      let currentDocumentId: number | null = null;
+      let documentRows: InsightDocumentChunkRow[] = [];
+      const flushDocument = (): void => {
+        if (documentRows.length === 0) return;
+        const aggregate = aggregateDocumentStructure(documentRows);
+        if (aggregate.tagged) taggedDocuments += 1;
+        wikilinkCount += aggregate.wikilinkCount;
+        documentRows = [];
+      };
+      const chunkStatement = db.raw.prepare(
+        `SELECT c.document_id AS documentId, c.ordinal AS ordinal, c.body AS body
+         FROM chunks c JOIN documents d ON d.id = c.document_id
+         WHERE d.vault_id = ? AND d.source_epoch = ?
+         ORDER BY c.document_id, c.ordinal`,
+      );
+      const rows = chunkStatement.iterate(source.summary.vaultId, source.sourceEpoch) as Iterable<{
+        documentId: number;
+        ordinal: number;
+        body: string;
+      }>;
+      for (const row of rows) {
+        if (row.documentId !== currentDocumentId) {
+          flushDocument();
+          currentDocumentId = row.documentId;
+        }
+        documentRows.push({ ordinal: row.ordinal, body: row.body });
+      }
+      flushDocument();
+      return {
+        configured: true,
+        source: {
+          vaultId: source.summary.vaultId,
+          sourceEpoch: source.sourceEpoch,
+          displayName: source.summary.displayName,
+        },
+        inventory: {
+          documents: coverage.indexedFiles,
+          chunks: coverage.indexedChunks,
+          taggedDocuments,
+          wikilinkCount,
+        },
+        coverage,
+        recentJobs,
+        decision: decisionTelemetry,
+      };
     },
 
     async requestRebuild() {

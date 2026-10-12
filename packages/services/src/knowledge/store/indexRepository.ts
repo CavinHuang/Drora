@@ -372,6 +372,20 @@ export function getLatestJob(db: KnowledgeDatabase): KnowledgeIndexJobView | nul
   return row ? getJob(db, row.id) : null;
 }
 
+/**
+ * 洞察视图的最近任务列表（spec §5g.4）：与 getLatestJob 同口径（任意 epoch/status），
+ * 按 requested_at_ms 取最近 limit 条；行映射复用 getJob，不复制第二份字段映射。
+ */
+export function listRecentJobs(db: KnowledgeDatabase, limit: number): KnowledgeIndexJobView[] {
+  const rows = db.raw
+    .prepare(`SELECT id FROM index_jobs ORDER BY requested_at_ms DESC, rowid DESC LIMIT ?`)
+    .all(limit) as Array<{ id: string }>;
+  return rows.flatMap((row) => {
+    const job = getJob(db, row.id);
+    return job ? [job] : [];
+  });
+}
+
 /** 文章级候选 id：sha256(vaultId + relativePath)，不含根路径，可安全出站。 */
 export function articleIdOf(vaultId: string, relativePath: string): string {
   return createHash("sha256").update(`${vaultId}\n${relativePath}`, "utf-8").digest("hex");

@@ -928,3 +928,79 @@ IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
 | VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面） |
 | VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误 | 已实现（分发 case 单测） |
 | VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面） | 已实现（includeVaultSearch 门，同 includeAutomation） |
+
+## 5g. 洞察视图（2026-10-12 落地：VaultView 四视图之三的真实数据面）
+
+本节替代 §5c.1 中洞察视图的占位语义（「洞察建议未开放」说明随之移除）。诚实呈现原则
+不变：四区卡片全部数字来自索引 DB 与进程内 telemetry 的真实聚合，**不预估、不编造、
+不引入第二事实源**；实现位于 `packages/services/src/knowledge/index/insightsAggregator.ts`
+（聚合纯函数）与 `packages/ui/src/v4/vault/knowledge/KnowledgeInsightsView.tsx`，均为自研
+新模块，不触碰还原/上游对齐目录。
+
+### 5g.1 RPC 面（additive）
+
+- `IKnowledgeIndexService` 增 `getInsights(): Promise<KnowledgeInsightsSnapshot>`：host
+  端聚合纯查询——只读当前 `(vaultId, sourceEpoch)` 的索引 DB 行 + `DecisionTelemetry`
+  进程内快照；**不新增表、不新增列、不做后台任务、不读 vault 文件**。呈现的是索引快照
+  事实而非实时文件事实；文件变更后的新鲜度由 §5b.8 reconcile 与 coverage/job 呈现承担。
+  DTO 类型单一出处 `knowledgeTypes.ts`；ProxyChannel 面随接口自动暴露（§5c 引言同形），
+  `remoteServiceAccess` 无需改动。
+- 未配置 vault：`configured=false`，inventory 为零值结构，recentJobs 如实返回（可能为
+  空），UI 呈现既有 noVault 空态（A01 语义，不自动扫描）。
+
+### 5g.2 库存（inventory）与结构口径
+
+- documents/chunks 计数 = 当前 epoch `loadCoverage` 的 `indexedFiles`/`indexedChunks`
+  （§5b.4 同一口径，单一查询口，不做第二份 COUNT/SUM）。
+- **含 tags 文档数 / 双链总数**：从 **chunk body** 以阶段一同款纯函数重提取：
+  - frontmatter 单独成 chunk（§5b.4：ordinal=0、heading_path=null、body=完整 frontmatter
+    块含首尾 `---`）；文档级 tags = 该 chunk body 经 `parseFrontmatterChunkTags`
+    （首行 `---` + 闭合 `---` 边界判定 + `parseFrontmatterTags`，单一出处
+    markdownChunker.ts，chunker 自身同函数复用）重提取；有非空 tags 的文档计入
+    `taggedDocuments`；
+  - 双链 = 逐 chunk body 经 `extractWikilinkTargets` 重提取；**口径 = chunk 内去重、
+    跨 chunk/跨文档累计**（与索引侧写入 FTS meta 的信号一一对应）。
+  - 为什么重提取而非查 `chunks_fts.meta`：meta 是 tokenizer 产物（CJK bigram/小写词），
+    无法区分 tags 与 links、无法还原目标原文；v4 迁移前的旧数据 meta 恒为空串而 body
+    恒在——body 重提取对全部存量索引立即生效，且与索引快照严格一致（不读文件＝不为
+    洞察引入第二份文件事实）。
+- 聚合逐行流式执行（`StatementSync.iterate()`），host 内存占用与单行 body 有界，不整表
+  物化；聚合逻辑为纯函数（输入=行迭代，输出=计数），可脱离 DB 单测。
+
+### 5g.3 覆盖（coverage）
+
+复用 `loadCoverage`（§5b.4）：hidden/symlink/notMarkdown/overSize/overQuota/depth/
+truncatedFiles 逐项明细 + partial。UI 按固定顺序列出非零排除项；全零呈现「完整」，不
+渲染零计数噪声。
+
+### 5g.4 索引活动（recentJobs）
+
+`indexRepository.listRecentJobs(db, limit=10)`：按 `requested_at_ms DESC, rowid DESC`
+取最近 10 条，**任意 epoch**（与 `getStatus.job`「查看旧任务也属于诚实呈现」同口径）。
+每条呈 kind/status/时长（`finishedAtMs - startedAtMs`；未结束为进行中，不预估剩余时间）/
+indexedFiles/indexedChunks/reason/startedAtMs。
+
+### 5g.5 检索与决策（decision telemetry 快照）
+
+`DecisionTelemetry.snapshot()` 的投影子集：outboundCountTotal/cacheHitCountTotal/
+fallbackCountTotal/scoredCountTotal/inputTokensTotal/outputTokensTotal（latencySamplesMs
+不进 RPC 面——UI 无逐样本用途，避免无界数组过线）。**进程内事实：界面必须注明
+「进程内计数，重启后清零」**；Jev 默认关闭时各项为零，如实呈现为零，不冒充有决策活动。
+
+### 5g.6 UI 与验收
+
+- 四区卡片顺序：库存 → 覆盖 → 索引活动 → 检索与决策。排版只用 `text-ui-*` 令牌与语义
+  色 token（DESIGN.md）；窄屏 flex/min-w-0 适配；i18n zh/en 成对（A21 纪律测试锁定
+  `vault.*` 键集合对等）。
+- 数据获取：进入视图拉取一次 `getInsights`；`recentJobs` 存在 running 条目时以固定间隔
+  轮询（与 ask 视图 job 轮询同模式），离场即停；手动刷新按钮保留；加载/失败三态保留。
+- 服务不可用（host 未注册该频道/断连）：沿用既有 serviceUnavailable 错误态。
+
+验收映射（本节新增 K-INS-*）：
+
+| ID | 场景 | 期望 | 状态 |
+| --- | --- | --- | --- |
+| K-INS-1 | 服务级 getInsights：写入含 frontmatter tags 与 `[[wikilink]]` 的真实笔记并完成索引 | configured=true；taggedDocuments/wikilinkCount 与写入内容精确一致；recentJobs 含本次 job 且时长=终态差值；未配置 vault 时 configured=false 且 inventory 全零 | 已实现（`packages/services/test/knowledgeInsights.test.ts`） |
+| K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言 | 已实现（同上） |
+| K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化 | 纯模型断言 | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`） |
+| K-INS-4 | i18n：insights 全部键 zh/en 成对 | A21 纪律测试既有断言覆盖（键集合对等 + 静态引用齐全） | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`） |

@@ -1,7 +1,7 @@
 /**
  * Knowledge 索引服务接口 + descriptor（W02）。
  *
- * RPC 面：getStatus / startReconcile / requestRebuild / cancelJob。
+ * RPC 面：getStatus / getInsights / startReconcile / requestRebuild / cancelJob。
  * 索引是可重建缓存：任务只写 knowledge-index.sqlite 的索引侧表，绝不改写笔记、
  * 绝不触及审核账本（W06 起同库的 review_* 四表，spec §5e.2）。行为契约见
  * specs/obsidian-knowledge.md §5b。
@@ -11,6 +11,7 @@ import { createServiceDescriptor } from "../descriptors.js";
 import type {
   KnowledgeIndexJobStartResult,
   KnowledgeIndexStatus,
+  KnowledgeInsightsSnapshot,
   KnowledgeJobCancelResult,
 } from "./knowledgeTypes.js";
 
@@ -21,6 +22,12 @@ import type {
 export interface IKnowledgeIndexService {
   /** 当前源身份 + coverage + 最近任务 + 租约持有方。未配置 Vault 时 configured=false。 */
   getStatus(): Promise<KnowledgeIndexStatus>;
+
+  /**
+   * 洞察视图快照（spec §5g，additive）：host 端聚合纯查询——库存/覆盖/最近任务/
+   * 决策 telemetry 投影；不新增表、不做后台任务、不读 vault 文件。
+   */
+  getInsights(): Promise<KnowledgeInsightsSnapshot>;
 
   /**
    * 增量对账：全量扫描（门面不变量）+ 与索引差异对比，落实增删改/重命名/漏事件。

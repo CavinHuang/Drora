@@ -117,6 +117,21 @@ export function parseFrontmatterTags(frontmatterText: string): string[] {
   return tags;
 }
 
+/**
+ * frontmatter chunk 文本 → 文档级 tags（spec §5g.2 单一口径）：首行 `---` 且存在闭合
+ * `---` 才解析，否则返回 `[]`（正文任意 `tags:` 行永不误判为 frontmatter）。索引切分
+ * （chunkMarkdown）与洞察聚合（§5g 从落盘 frontmatter chunk body 重提取）共用本函数，
+ * 保证两处 tags 口径严格一致，不出现第二份解析逻辑。
+ */
+export function parseFrontmatterChunkTags(chunkText: string): string[] {
+  const lines = chunkText.split(/\r?\n/);
+  if (lines[0]?.trim() !== "---") return [];
+  for (let index = 1; index < lines.length; index++) {
+    if (lines[index]?.trim() === "---") return parseFrontmatterTags(chunkText);
+  }
+  return [];
+}
+
 export function chunkMarkdown(content: string, fallbackName: string): ChunkDocumentResult {
   const lines = content.split(/\r?\n/);
   const headings: HeadingLine[] = [];
@@ -143,7 +158,7 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     }
   }
   const documentTags = frontmatterClosing > 0
-    ? parseFrontmatterTags(lines.slice(0, frontmatterClosing + 1).join("\n"))
+    ? parseFrontmatterChunkTags(lines.slice(0, frontmatterClosing + 1).join("\n"))
     : [];
 
   const chunks: MarkdownChunk[] = [];

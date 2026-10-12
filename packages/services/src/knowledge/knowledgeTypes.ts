@@ -99,6 +99,54 @@ export interface KnowledgeIndexJobStartResult {
   alreadyRunning: boolean;
 }
 
+// ── 洞察视图（spec §5g）──────────────────────────────────────
+// host 端聚合纯查询的快照 DTO：只读当前 epoch 索引行 + 进程内 telemetry，
+// 不新增表、不做后台任务、不读 vault 文件（呈现索引快照事实，非实时文件事实）。
+
+/** 库存四计数的结构口径见 spec §5g.2。 */
+export interface KnowledgeInventoryInsights {
+  documents: number;
+  chunks: number;
+  /** frontmatter tags 非空的文档数（阶段一同款解析函数从 chunk body 重提取）。 */
+  taggedDocuments: number;
+  /** [[wikilink]] 目标总数：chunk 内去重、跨 chunk/跨文档累计。 */
+  wikilinkCount: number;
+}
+
+/** 洞察视图的最近任务条目（getStatus.job 的列表化；时长由服务端聚合）。 */
+export interface KnowledgeInsightsJobEntry {
+  kind: KnowledgeIndexJobKind;
+  status: KnowledgeIndexJobStatus;
+  startedAtMs: number;
+  finishedAtMs: number | null;
+  /** finishedAtMs - startedAtMs；进行中（无终态）为 null，不预估剩余时间。 */
+  durationMs: number | null;
+  indexedFiles: number;
+  indexedChunks: number;
+  /** cancelled/superseded/failed 的机器可读原因；不含绝对路径。 */
+  reason: string | null;
+}
+
+/** 决策 telemetry 投影子集（spec §5g.5）：latencySamplesMs 不出 RPC 面（无逐样本用途）。 */
+export interface KnowledgeDecisionTelemetryInsights {
+  outboundCountTotal: number;
+  cacheHitCountTotal: number;
+  fallbackCountTotal: number;
+  scoredCountTotal: number;
+  inputTokensTotal: number;
+  outputTokensTotal: number;
+}
+
+/** getInsights 快照：未配置 vault 时 configured=false，inventory 零值、recentJobs 如实。 */
+export interface KnowledgeInsightsSnapshot {
+  configured: boolean;
+  source: (KnowledgeSourceRef & { displayName: string }) | null;
+  inventory: KnowledgeInventoryInsights;
+  coverage: KnowledgeCoverage;
+  recentJobs: KnowledgeInsightsJobEntry[];
+  decision: KnowledgeDecisionTelemetryInsights;
+}
+
 /** 文章级候选：同文档多 chunk 命中聚合为一条（去重），附命中 chunk 数。 */
 export interface KnowledgeArticleCandidate {
   /** 稳定文章 id = sha256(vaultId + relativePath)；不含根路径，可安全出站。 */
@@ -126,7 +174,10 @@ export interface KnowledgeArticleCandidate {
 }
 
 /** cancelJob 结果：not_found 表示 jobId 不存在或任务已结束离场。 */
-export type KnowledgeJobCancelResult = { cancelled: boolean; status: KnowledgeIndexJobStatus | "not_found" };
+export type KnowledgeJobCancelResult = {
+  cancelled: boolean;
+  status: KnowledgeIndexJobStatus | "not_found";
+};
 
 export type KnowledgeQueryStatus =
   | "retrieving"

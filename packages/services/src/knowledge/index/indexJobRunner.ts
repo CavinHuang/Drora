@@ -29,6 +29,7 @@ import {
 import { chunkMarkdown } from "./markdownChunker.js";
 import { scanVaultSource, type ScanExclusions } from "./sourceScanner.js";
 import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
+import { composeEmbeddingText } from "../search/embeddingInput.js";
 
 /** 执行上下文：协调器注入的已持租约任务事实与依赖（fence/取消位由协调器记账）。 */
 export interface IndexJobExecutionContext {
@@ -137,7 +138,16 @@ export async function executeIndexJob(ctx: IndexJobExecutionContext, config: Vau
       const embeddingPort = ctx.semantic.port;
       if (embeddingPort && chunked.chunks.length > 0) {
         try {
-          const values = await embeddingPort.embed(chunked.chunks.map((chunk) => chunk.text));
+          // 嵌入输入 = 标题 + 标题路径 + 净化正文（spec §5b.9 准确性保障）。
+          const values = await embeddingPort.embed(
+            chunked.chunks.map((chunk) =>
+              composeEmbeddingText({
+                title: chunked.title,
+                headingPath: chunk.headingPath,
+                body: chunk.text,
+              }),
+            ),
+          );
           if (values && values.length === chunked.chunks.length) {
             vectors = { modelId: embeddingPort.id, values };
           }

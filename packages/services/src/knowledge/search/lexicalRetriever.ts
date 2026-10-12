@@ -15,6 +15,7 @@ import { articleIdOf } from "../store/indexRepository.js";
 import { loadVectorChunks } from "../store/vectorRepository.js";
 import { buildMatchExpression, extractQueryTerms } from "./tokenizer.js";
 import { cosineSimilarity, type KnowledgeSemanticContext } from "./embeddingPort.js";
+import { composeEmbeddingText } from "./embeddingInput.js";
 import type { KnowledgeArticleCandidate, KnowledgeSearchDiagnostics } from "../knowledgeTypes.js";
 
 const EXCERPT_MAX_CHARS = 240;
@@ -22,6 +23,13 @@ const EXCERPT_MAX_CHARS = 240;
 const EXCERPT_CONTEXT_LEAD = 48;
 /** 每词元最多统计的正文出现次数（防超长单段落退化；窗口选择只需局部密度）。 */
 const MAX_OCCURRENCES_PER_TERM = 8;
+/**
+ * 向量独有召回的余弦下限（spec §5b.9 准确性保障，初值）：bge 余弦尺度下，
+ * 无答案问句的「最近邻」也会有一定相似度——下限门控防止不相关文档混入候选
+ * （词法命中不受此限）。初值待 A28/棘轮真跑校准后只许上调。
+ */
+export const SEMANTIC_RECALL_FLOOR = 0.3;
+
 const CANDIDATE_CHUNK_POOL = 64;
 const DEFAULT_CANDIDATE_LIMIT = 5;
 const MAX_CANDIDATE_LIMIT = 20;
@@ -98,21 +106,34 @@ async function recallByVector(
   source: { vaultId: string; sourceEpoch: number },
   port: NonNullable<KnowledgeSemanticContext["port"]>,
   query: string,
-): Promise<ChunkHit[]> {
+): Promise<{
+  hits: ChunkHit[];
+  vectorByChunkId: Map<number, Float32Array>;
+  queryVector: number[] | null;
+}> {
+  const empty = {
+    hits: [] as ChunkHit[],
+    vectorByChunkId: new Map<number, Float32Array>(),
+    queryVector: null as number[] | null,
+  };
   try {
     // 与索引侧同口径：无指令前缀（统一性优先，前缀收益归 A28 校准项）。
     const vectors = await port.embed([query]);
     const queryVector = vectors?.[0];
-    if (!queryVector || queryVector.length === 0) return [];
+    if (!queryVector || queryVector.length === 0) return empty;
     const rows = loadVectorChunks(db, source, port.id);
     const dim = queryVector.length;
     const scored = rows
       .filter((row) => row.vector.length === dim)
-      .map((row) => ({ row, similarity: cosineSimilarity(queryVector, Array.from(row.vector)) }));
+      .map((row) => ({ row, similarity: cosineSimilarity(queryVector, Array.from(row.vector)) }))
+      // 余弦下限（spec §5b.9 准确性保障）：无答案问句的「最近邻」也会有一定相似度，
+      // 不设门控会让不相关文档混入候选（词法命中不受此限）。
+      .filter((entry) => entry.similarity >= SEMANTIC_RECALL_FLOOR);
     scored.sort(
       (left, right) => right.similarity - left.similarity || left.row.chunkId - right.row.chunkId,
     );
-    return scored.slice(0, CANDIDATE_CHUNK_POOL).map(({ row }) => ({
+    const vectorByChunkId = new Map<number, Float32Array>();
+    const hits = scored.slice(0, CANDIDATE_CHUNK_POOL).map(({ row }) => ({
       chunkId: row.chunkId,
       documentId: row.documentId,
       relativePath: row.relativePath,
@@ -127,8 +148,9 @@ async function recallByVector(
       endOffset: row.endOffset,
       score: 0,
     }));
+    return { hits, vectorByChunkId, queryVector };
   } catch {
-    return [];
+    return empty;
   }
 }
 
@@ -251,40 +273,54 @@ export async function searchLexicalPass(
   };
 
   let hits = searchChunks(db, source, expression.expression, CANDIDATE_CHUNK_POOL);
-  // 混合召回（spec §5b.9）：向量 top-K 与词法命中按 chunkId 去重合并；向量独有命中
-  // score=0 排在词法之后，语义余弦重排再按相似度接管全池次序。
+  // 混合召回（spec §5b.9）：向量 top-K（余弦 ≥ SEMANTIC_RECALL_FLOOR，防不相关
+  // 最近邻混入）与词法命中按 chunkId 去重合并；向量独有命中 score=0 排在词法之后，
+  // 语义余弦重排按相似度接管全池次序。已存向量直接复用（与索引侧同源，避免两次
+  // 嵌入口径/开销）。
   const embeddingPort = options.semantic.port;
-  const vectorOnlyHits = embeddingPort === null ? [] : await recallByVector(db, source, embeddingPort, query);
-  if (vectorOnlyHits.length > 0) {
+  const recall =
+    embeddingPort === null
+      ? { hits: [], vectorByChunkId: new Map<number, Float32Array>(), queryVector: null }
+      : await recallByVector(db, source, embeddingPort, query);
+  if (recall.hits.length > 0) {
     const lexicalIds = new Set(hits.map((hit) => hit.chunkId));
-    const recalled = vectorOnlyHits.filter((hit) => !lexicalIds.has(hit.chunkId));
+    const recalled = recall.hits.filter((hit) => !lexicalIds.has(hit.chunkId));
     if (recalled.length > 0) hits = [...hits, ...recalled];
     diagnostics = { ...diagnostics, semanticRecalled: recalled.length };
   }
   let pool = hits;
-  if (options.semantic.port) {
-    try {
-      const vectors = await options.semantic.port.embed([query, ...hits.map((hit) => hit.body)]);
-      const queryVector = vectors?.[0];
-      if (!vectors || !queryVector || vectors.length !== hits.length + 1) {
-        diagnostics = {
-          ...diagnostics,
-          semantic: "unavailable",
-          semanticReason: `embed_failed:${options.semantic.port.id}`,
-        };
-      } else {
-        pool = rankBySemantic(hits, queryVector, vectors.slice(1));
-        diagnostics = { ...diagnostics, semantic: "applied", semanticReason: null };
-      }
-    } catch (error) {
-      diagnostics = {
-        ...diagnostics,
-        semantic: "unavailable",
-        semanticReason: `embed_threw:${error instanceof Error ? error.name : "unknown"}`,
-      };
-    }
-  } else {
+  if (embeddingPort === null) {
     diagnostics = { ...diagnostics, semantic: "unavailable", semanticReason: "port_not_configured" };
+  } else if (recall.queryVector === null) {
+    diagnostics = {
+      ...diagnostics,
+      semantic: "unavailable",
+      semanticReason: `embed_failed:${embeddingPort.id}`,
+    };
+  } else {
+    // 重排兜底：池内缺已存向量的成员（词法命中于回填完成前等）按组合输入补嵌。
+    const missing = pool.filter((hit) => !recall.vectorByChunkId.has(hit.chunkId));
+    if (missing.length > 0) {
+      try {
+        const vectors = await embeddingPort.embed(
+          missing.map((hit) =>
+            composeEmbeddingText({ title: hit.title, headingPath: hit.headingPath, body: hit.body }),
+          ),
+        );
+        if (vectors && vectors.length === missing.length) {
+          missing.forEach((hit, index) => {
+            const value = vectors[index];
+            if (value !== undefined) {
+              recall.vectorByChunkId.set(hit.chunkId, Float32Array.from(value));
+            }
+          });
+        }
+      } catch {
+        // 补嵌失败：缺向量成员不参与余弦重排，保持 bm25 名次（诚实降级）。
+      }
+    }
+    pool = rankByCosine(pool, recall.queryVector, recall.vectorByChunkId);
+    diagnostics = { ...diagnostics, semantic: "applied", semanticReason: null };
   }
 
   const candidates = fuseChunkHitsToArticles(source, pool, limit, extractQueryTerms(query));
@@ -331,19 +367,28 @@ export async function searchKnowledgeLexical(
 }
 
 /**
- * 语义重排：对词法命中池按余弦相似度降序稳定重排（相似度并列保持 bm25 名次）。
- * score 字段仍为 bm25 值——语义只影响排序，不伪造第二套分数。
+ * 语义重排（spec §5b.9）：有向量的池成员按余弦相似度降序稳定重排（并列保持原
+ * 名次）；缺向量成员（补嵌失败等边角）保持原相对顺序殿后。score 字段仍为 bm25
+ * 值——语义只影响排序，不伪造第二套分数。
  */
-function rankBySemantic(hits: ChunkHit[], queryVector: number[], chunkVectors: number[][]): ChunkHit[] {
-  if (hits.length === 0 || hits.length !== chunkVectors.length) return hits;
-  const decorated = hits.map((hit, index) => ({
-    hit,
-    similarity: cosineSimilarity(queryVector, chunkVectors[index] ?? []),
-    bm25Order: index,
-  }));
+function rankByCosine(
+  pool: ChunkHit[],
+  queryVector: number[],
+  vectorByChunkId: Map<number, Float32Array>,
+): ChunkHit[] {
+  const decorated = pool.map((hit, order) => {
+    const vector = vectorByChunkId.get(hit.chunkId);
+    return {
+      hit,
+      order,
+      similarity: vector
+        ? cosineSimilarity(queryVector, Array.from(vector))
+        : Number.NEGATIVE_INFINITY,
+    };
+  });
   decorated.sort((left, right) => {
     if (right.similarity !== left.similarity) return right.similarity - left.similarity;
-    return left.bm25Order - right.bm25Order;
+    return left.order - right.order;
   });
   return decorated.map((entry) => entry.hit);
 }

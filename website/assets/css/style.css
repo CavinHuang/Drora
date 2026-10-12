@@ -29,10 +29,16 @@
   --font-mono: ui-monospace, "Cascadia Code", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* 站点星号重置进 @layer base：无层规则会压过 ui 样式里 @layer utilities 的
+ * Tailwind 工具类（p-3 等），导致 mock 产品子树（ChatPromptEditor 壳）padding
+ * 失效。base 层语义不变（全站重置仍生效、仍可被站点无层规则覆盖），但工具类
+ * 恢复正常的覆盖优先级。 */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html {

@@ -23,7 +23,7 @@ import {
   TooltipProvider,
   type IServiceAccessor,
 } from "@drora/ui/website-hero";
-import { ConversationTimeline } from "@drora/ui/website-hero";
+import { ChatPromptEditor, ConversationTimeline } from "@drora/ui/website-hero";
 import type { IPlatformService } from "@drora/shared";
 import { activeHeroWorkspace, heroChatRows, heroComposer, heroTopbar } from "./mock-data.mock";
 import { HeroSidebar } from "./HeroSidebar.mock";
@@ -293,47 +293,63 @@ function HeroMockWindow() {
             />
           </div>
 
-          {/* composer：手写（参考站同款视觉与工具行）。ChatPromptEditor 为 Lexical 真输入壳，
-              其依赖链带 Vite import.meta.env（Next 构建不支持）且交互对装饰区无意义，故回退 */}
+          {/* composer：真产品输入壳 ChatPromptEditor（Lexical，挂载门仅客户端渲染）。
+              工具行走产品槽位：leadingActions=左组（＋/变更前确认）、
+              submitControl=右组（用量环/模型/档位/发送），与 zai DOM 对齐 */}
           <div className="win-input">
-            <div className="composer" data-testid="chat-input">
-              <div className="comp-input">{heroComposer.placeholder}</div>
-              <div className="comp-bar">
-                <span className="comp-btn icon-only">
-                  <span className="tr-icon">
-                    <PlusIcon />
+            <ChatPromptEditor
+              workspacePath={activeHeroWorkspace.workspacePath}
+              taskId="hero-task-1"
+              placeholder={heroComposer.placeholder}
+              submitLabel={heroComposer.submitLabel}
+              inputTestId="chat-input"
+              onSubmit={() => {}}
+              className="w-full"
+              leadingActions={
+                <>
+                  <span className="comp-btn icon-only">
+                    <span className="tr-icon">
+                      <PlusIcon />
+                    </span>
+                    <span className="sr-only">{heroComposer.addContext}</span>
                   </span>
-                  <span className="sr-only">{heroComposer.addContext}</span>
-                </span>
-                <span className="comp-btn plain">
-                  <span className="tr-icon">
-                    <HandIcon />
+                  <span className="comp-btn plain">
+                    <span className="tr-icon">
+                      <HandIcon />
+                    </span>
+                    <span className="comp-label">{heroComposer.confirmEdit}</span>
+                    <i className="comp-caret">
+                      <ChevronDownIcon size={14} />
+                    </i>
                   </span>
-                  <span className="comp-label">{heroComposer.confirmEdit}</span>
-                  <i className="comp-caret">
-                    <ChevronDownIcon size={14} />
-                  </i>
-                </span>
-                <span className="comp-spacer"></span>
-                <span className="comp-btn icon-only comp-ring">
-                  <UsageRingIcon />
-                  <span className="sr-only">{heroComposer.usage}</span>
-                </span>
-                <span className="comp-btn plain comp-model">
-                  <span className="comp-label">{heroComposer.model}</span>
-                  <i className="comp-caret">
-                    <ChevronDownIcon size={14} />
-                  </i>
-                </span>
-                <span className="comp-btn plain">
-                  <BrainIcon />
-                  <span className="comp-label">{heroComposer.effort}</span>
-                </span>
-                <span className="comp-send">
-                  <ArrowUpIcon />
-                </span>
-              </div>
-            </div>
+                </>
+              }
+              submitControl={
+                <div className="flex items-center gap-1.5">
+                  <span className="comp-btn icon-only comp-ring">
+                    <UsageRingIcon />
+                    <span className="sr-only">{heroComposer.usage}</span>
+                  </span>
+                  <span className="comp-btn plain comp-model">
+                    <span className="comp-label">{heroComposer.model}</span>
+                    <i className="comp-caret">
+                      <ChevronDownIcon size={14} />
+                    </i>
+                  </span>
+                  <span className="comp-btn plain">
+                    <BrainIcon />
+                    <span className="comp-label">{heroComposer.effort}</span>
+                  </span>
+                  <button
+                    type="submit"
+                    className="comp-send"
+                    aria-label={heroComposer.submitLabel}
+                  >
+                    <ArrowUpIcon />
+                  </button>
+                </div>
+              }
+            />
           </div>
           </div>
         </div>

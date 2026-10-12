@@ -230,10 +230,20 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
 ### 5b.5 词法与语义
 
 - 中文汉字按 bigram 切分（连续汉字串 ≥2 → 相邻二元组序列作 phrase；单字 → prefix 查询），
-  英文/数字按词小写，均走 FTS5 默认 unicode61 + `bm25()` 排序（英文 BM25 语义由 FTS5 保证）。
+  英文/数字按词小写；均走 FTS5 默认 unicode61 + `bm25()` 排序（英文 BM25 语义由 FTS5 保证）。
+  **英文/数字词 ≥3 字符作前缀查询（`"词" *`，前缀含本词），<3 字符保持精确词**（2026-10-12 补：
+  短词前缀如 `"js" *`/`"ai" *` 召回噪声过大；Obsidian 库内英文标识符常以查询前缀形态出现，
+  与中文单字 prefix 同一待遇）。
 - MATCH 表达式只由 tokenizer 产物构造：token 内引号转义为 `""` 后整体加双引号，用户输入
-  永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。AND 无命中时以
-  同一转义规则降级 OR 重试一次。简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
+  永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。检索为两级阶梯：
+  strict 轮（AND，CJK run 作整体 phrase）；零命中且 `canRelax` 时执行**唯一一次**降级轮
+  （A11 扩搜上限一次不变，由 DecisionPolicy EXPAND_ONCE 裁决）。降级轮形态（2026-10-12 补）：
+  - CJK run（≥3 字符）= 该 run 的 phrase `OR` 其全部 bigram（phrase 命中经 bm25 自然排前；
+    任一 bigram 命中即有候选）——修复单段长查询只有一个 AND 部件、旧判据 `词元 ≥2` 永不
+    触发降级的死降级缺陷；
+  - 英文部件沿用 strict 形态（前缀已在 strict 生效）；
+  - 降级资格 `canRelax` 由 tokenizer 在 strict 形态下判定：存在 ≥3 字 CJK run，或部件数 ≥2。
+    简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
   或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
   时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口
@@ -440,8 +450,10 @@ npm `@typesafe-ai/sdk`，`new TypeSafeClient({ apiKey, baseURL, timeout, maxRetr
 动作词表：`SHOW_CANDIDATES / EXPAND_ONCE / ASK_CLARIFICATION / PREPARE_EVIDENCE_FOR_AGENT /
 NO_RELIABLE_MATCH`。裁决顺序（硬条件优先，Jev 不可越权）：
 
-1. 首轮检索无命中且未扩搜过且查询词元 ≥2 → `EXPAND_ONCE`，编排器以同一 query/scope/
-   硬过滤做 OR 降级重试**一次**（A11 上限；`matchRelaxedToOr` 如实入诊断）——先于空候选
+1. 首轮检索无命中且未扩搜过且 tokenizer 判定 `canRelax`（存在 ≥3 字 CJK run 或部件
+   ≥2，§5b.5；2026-10-12 前旧判据为「词元 ≥2」，单段长中文查询因此永不降级）→
+   `EXPAND_ONCE`，编排器以同一 query/scope/
+   硬过滤做 §5b.5 降级形态重试**一次**（A11 上限；`matchRelaxedToOr` 如实入诊断）——先于空候选
    终态判定，否则不可达；
 2. 无候选（两轮检索后仍空）→ `NO_RELIABLE_MATCH`——Jev 不能补召回（D32-01）。
 3. 有候选且有合法 Jev 分数：top noul ≥ `directThreshold`（实验默认 0.75）→

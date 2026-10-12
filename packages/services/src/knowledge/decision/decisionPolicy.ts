@@ -58,7 +58,7 @@ export function normalizeLocalScores(candidates: KnowledgeDecisionCandidate[]): 
 export interface DecisionPolicyInput {
   /** 本轮检索是否为 OR 扩搜产物。 */
   expanded: boolean;
-  /** 第一轮 AND 无命中且查询存在多词元（具备扩搜前提）。 */
+  /** 第一轮 AND 无命中且 tokenizer 判定 canRelax（降级形态确会产生不同表达式，具备扩搜前提）。 */
   canExpand: boolean;
   candidates: KnowledgeDecisionCandidate[];
   /** 已校验合法的决策产出（无/部分/全部）。 */
@@ -78,8 +78,9 @@ export interface DecisionPolicyDecision {
 
 /**
  * 五动作裁决（spec §5d.5 顺序）：
- * 1. 可扩搜且未扩过（首轮空且词元 ≥2）→ EXPAND_ONCE（同一 query/scope/硬过滤，OR
- *    降级一次）——先于空候选终态判定，否则不可达；
+ * 1. 可扩搜且未扩过（首轮空且 tokenizer 判定 canRelax，spec §5b.5）→ EXPAND_ONCE
+ *    （同一 query/scope/硬过滤，按 §5b.5 降级形态重试一次）——先于空候选终态判定，
+ *    否则不可达；
  * 2. 无候选 → NO_RELIABLE_MATCH（Jev 不能补召回）；
  * 3. top noul ≥ directThreshold → PREPARE_EVIDENCE_FOR_AGENT（仅建议，不自动签发 receipt）；
  * 4. top noul < abstainThreshold 且存在中段分数，或前两名分差 ≤ ambiguityBand →

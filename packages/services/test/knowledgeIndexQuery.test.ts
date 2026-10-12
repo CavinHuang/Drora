@@ -275,8 +275,18 @@ test("中英混搜 + 负例不编造（A06/A10）", async () => {
     const singleChar = await runSearch(env, "窗");
     assert.ok(singleChar.candidates.some((c) => c.relativePath === "m1.md"));
 
-    // 负例：库里只有"上下文窗口优化"，没有"长期记忆不能替代"的观点 → 不得声称找到。
-    const negative = await runSearch(env, "长期记忆不能替代");
+    // 英文前缀（≥3 字符，strict 轮即生效）：部分输入可命中完整词。
+    const enPrefix = await runSearch(env, "memo");
+    assert.ok(enPrefix.candidates.some((c) => c.relativePath === "m2.md"));
+
+    // 单段长中文查询 phrase 零命中（"上下文窗口最佳实践"整段不在库内）→ 降级轮按
+    // bigram 备选找回 m1，且 matchRelaxedToOr 如实入诊断（§5b.5 死降级修复）。
+    const widened = await runSearch(env, "上下文窗口最佳实践");
+    assert.ok(widened.candidates.some((c) => c.relativePath === "m1.md"));
+    assert.equal(widened.diagnostics?.matchRelaxedToOr, true);
+
+    // 负例（真负例：与库内无任何共享 bigram）→ 两轮检索后仍空，不编造。
+    const negative = await runSearch(env, "量子纠缠贝尔实验");
     assert.equal(negative.status, "empty");
     assert.equal(negative.candidates.length, 0);
 

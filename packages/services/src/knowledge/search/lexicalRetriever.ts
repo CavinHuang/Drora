@@ -28,10 +28,12 @@ export interface LexicalSearchResult {
 
 /** 单轮检索结果：附该轮 MATCH 表达式信息（policy 的 EXPAND_ONCE 依据）。 */
 export interface LexicalPassResult extends LexicalSearchResult {
-  /** 本轮 MATCH 的词元数（≥2 才具备 OR 扩搜前提）。 */
+  /** 本轮 MATCH 的词元数（诊断口径）。 */
   tokenCount: number;
-  /** 本轮是否 OR 连接。 */
+  /** 本轮是否降级轮（OR 形态）。 */
   relaxed: boolean;
+  /** strict 形态下判定：降级形态确会产生不同表达式（§5b.5 扩搜资格）。 */
+  canRelax: boolean;
 }
 
 interface ChunkHit {
@@ -138,7 +140,7 @@ export async function searchLexicalPass(
     semanticReason: null,
     lexicalChunkHits: 0,
     lexicalCandidates: 0,
-    matchRelaxedToOr: options.relaxed && expression.tokenCount > 1,
+    matchRelaxedToOr: options.relaxed && expression.canRelax,
   };
 
   let hits = searchChunks(db, source, expression.expression, CANDIDATE_CHUNK_POOL);
@@ -180,12 +182,14 @@ export async function searchLexicalPass(
     status: candidates.length === 0 ? "empty" : options.partial ? "partial" : "ready",
     tokenCount: expression.tokenCount,
     relaxed: options.relaxed,
+    canRelax: expression.canRelax,
   };
 }
 
 /**
- * 本地混合检索复合入口（W02 行为保持）：AND 无命中且词元 ≥2 时以同一转义规则
- * OR 降级重试一次（扩搜上限一次）。新编排路径走 `searchLexicalPass` + DecisionPolicy。
+ * 本地混合检索复合入口（W02 行为保持）：AND 无命中且降级形态确会不同（canRelax，
+ * §5b.5）时执行唯一一次降级轮（扩搜上限一次）。新编排路径走 `searchLexicalPass` +
+ * DecisionPolicy。
  */
 export async function searchKnowledgeLexical(
   db: KnowledgeDatabase,
@@ -198,7 +202,7 @@ export async function searchKnowledgeLexical(
   },
 ): Promise<LexicalSearchResult> {
   const andPass = await searchLexicalPass(db, source, query, { ...options, relaxed: false });
-  if (andPass.candidates.length === 0 && andPass.tokenCount > 1) {
+  if (andPass.candidates.length === 0 && andPass.canRelax) {
     const orPass = await searchLexicalPass(db, source, query, { ...options, relaxed: true });
     return {
       candidates: orPass.candidates,

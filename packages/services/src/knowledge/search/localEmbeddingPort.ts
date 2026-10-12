@@ -14,7 +14,11 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getDroraDataRootDir } from "../../paths.js";
-import type { KnowledgeEmbeddingPort } from "./embeddingPort.js";
+import type {
+  KnowledgeEmbeddingPort,
+  KnowledgeSemanticPortState,
+  KnowledgeSemanticPortStatus,
+} from "./embeddingPort.js";
 
 export const LOCAL_EMBEDDING_MODEL_ID = "local-bge-small-zh-v1.5-int8";
 const MODEL_DIR_NAME = "bge-small-zh-v1.5";
@@ -170,7 +174,10 @@ async function downloadModelFiles(
     let downloaded = false;
     for (const mirror of MIRRORS) {
       try {
-        const response = await fetchImpl(`${mirror.baseUrl}/${bound.file}`);
+        // 单镜像尝试 120s 超时：镜像失联时快速轮换下一个，而非无限挂起。
+        const response = await fetchImpl(`${mirror.baseUrl}/${bound.file}`, {
+          signal: AbortSignal.timeout(120_000),
+        });
         if (!response.ok || !response.body) {
           lastError = `http_${response.status}`;
           continue;
@@ -221,25 +228,38 @@ export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): Kn
   const fetchImpl = options.fetchImpl ?? fetch;
   const modelDir = join(options.modelRoot, MODEL_DIR_NAME);
   let runtimePromise: Promise<RuntimeState> | null = null;
+  // 状态面（spec §5b.9）：model_missing（缺文件未下载）→ downloading → ready/failed。
+  let portState: KnowledgeSemanticPortState = "model_missing";
+  let portLastError: string | null = null;
 
   function ensureRuntime(): Promise<RuntimeState> {
     if (runtimePromise === null) {
       runtimePromise = (async () => {
+        let filesReady = true;
         for (const bound of SIZE_BOUNDS) {
           const path = join(modelDir, bound.file);
           if (!(await fileWithinBounds(path, bound.min, bound.max))) {
-            await downloadModelFiles(modelDir, logger, fetchImpl);
+            filesReady = false;
             break;
           }
+        }
+        if (!filesReady) {
+          portState = "downloading";
+          portLastError = null;
+          await downloadModelFiles(modelDir, logger, fetchImpl);
         }
         // 动态 import：onnxruntime-node 是可选运行时（缺模块 = 端口不可用，词法照常）。
         const ort = (await import("onnxruntime-node")) as unknown as OnnxRuntime;
         const session = await ort.InferenceSession.create(join(modelDir, "model_quantized.onnx"));
         const vocab = await loadVocab(modelDir);
         const outputName = session.outputNames[0] ?? "last_hidden_state";
+        portState = "ready";
+        portLastError = null;
         return { ort, session, vocab, outputName };
       })();
-      runtimePromise.catch(() => {
+      runtimePromise.catch((error: unknown) => {
+        portState = "failed";
+        portLastError = error instanceof Error ? error.message : String(error);
         // 允许下次重试（下载失败后环境可能恢复）；原始异常仍交给首次调用方。
         runtimePromise = null;
       });
@@ -249,6 +269,12 @@ export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): Kn
 
   return {
     id: LOCAL_EMBEDDING_MODEL_ID,
+    status(): KnowledgeSemanticPortStatus {
+      return { state: portState, lastError: portLastError };
+    },
+    async ensureReady(): Promise<void> {
+      await ensureRuntime();
+    },
     async embed(texts: string[]): Promise<number[][] | null> {
       if (texts.length === 0) return [];
       const runtime = await ensureRuntime();

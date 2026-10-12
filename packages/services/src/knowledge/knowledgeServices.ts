@@ -9,11 +9,18 @@
  */
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { resolveObsidianPluginDataDir } from "../obsidian-vault/obsidianVaultService.js";
-import type { VaultConfig } from "../obsidian-vault/config.js";
 import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledgeDatabase.js";
 import { IndexCoordinator } from "./index/indexCoordinator.js";
+import { createAutoReconcileController } from "./index/autoReconcile.js";
+import { createCitationFacade } from "./evidence/citationFacade.js";
 import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
-import { createSemanticContext, type KnowledgeEmbeddingPort } from "./search/embeddingPort.js";
+import {
+  createSemanticContext,
+  semanticDownloadViaPort,
+  semanticStatusOf,
+  type KnowledgeEmbeddingPort,
+  type KnowledgeSemanticPortStatus,
+} from "./search/embeddingPort.js";
 import { loadCoverage, listRecentJobs } from "./store/indexRepository.js";
 import {
   aggregateDocumentStructure,
@@ -21,12 +28,12 @@ import {
   toInsightJobEntries,
   type InsightDocumentChunkRow,
 } from "./index/insightsAggregator.js";
-import { resolveKnowledgeDatabasePath, resolveKnowledgeSource } from "./source/sourceRegistry.js";
 import {
-  createVaultFileReader,
-  prepareEvidenceFromRun,
-  resolveCitationReceipt,
-} from "./evidence/evidenceRegistry.js";
+  requireKnowledgeSource,
+  resolveKnowledgeDatabasePath,
+  resolveKnowledgeSource,
+} from "./source/sourceRegistry.js";
+
 import { DecisionConsentRegistry } from "./decision/decisionConsent.js";
 import { DecisionCache } from "./decision/decisionCache.js";
 import { DecisionTelemetry } from "./decision/decisionTelemetry.js";
@@ -206,7 +213,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     },
 
     async startReconcile() {
-      const source = await requireSource();
+      const source = await requireKnowledgeSource(db, pluginDataDir, Date.now());
       return coordinator.startJob({ kind: "reconcile", ...source, nowMs: Date.now() });
     },
 
@@ -281,7 +288,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     },
 
     async requestRebuild() {
-      const source = await requireSource();
+      const source = await requireKnowledgeSource(db, pluginDataDir, Date.now());
       return coordinator.startJob({ kind: "rebuild", ...source, nowMs: Date.now() });
     },
 
@@ -291,55 +298,33 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       }
       return coordinator.cancelJob(params.jobId, Date.now());
     },
+    getSemanticStatus(): Promise<KnowledgeSemanticPortStatus> {
+      // 纯状态读取（spec §5b.9 状态面）：无端口 = 功能关闭（与装配缺省一致）。
+      return Promise.resolve(semanticStatusOf(semantic.port));
+    },
+    downloadSemanticModel(): Promise<{ started: boolean; error: string | null }> {
+      // 长耗时手动下载：失败以结果携带（UI 轮询 status 呈现），不抛业务错。
+      return semanticDownloadViaPort(semantic.port);
+    },
   };
 
-  // ── 索引自动 reconcile（spec §5b.8）─────────────────────────────
-  // fire-and-forget：与手动触发走同一 startJob（alreadyRunning 幂等，lease/fence 不变）；
-  // 未配置源静默跳过；任何失败只记日志，绝不传播到 search/装配调用方。
-  const autoIndexStaleTtlMs = options.autoIndexStaleTtlMs ?? 10 * 60_000;
-  let autoIndexTimer: ReturnType<typeof setTimeout> | null = null;
+  // 索引自动 reconcile（spec §5b.8，控制器在 index/autoReconcile.ts）。
+  const autoReconcile = createAutoReconcileController({
+    db,
+    coordinator,
+    pluginDataDir,
+    enabled: options.autoIndexEnabled === true,
+    staleTtlMs: options.autoIndexStaleTtlMs,
+    initialDelayMs: options.autoIndexInitialDelayMs,
+    logger,
+  });
 
-  function scheduleAutoReconcile(): void {
-    if (options.autoIndexEnabled !== true) return;
-    void (async () => {
-      try {
-        const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-        if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
-          return;
-        }
-        const started = coordinator.startJob({
-          kind: "reconcile",
-          config: source.config,
-          vaultId: source.summary.vaultId,
-          sourceEpoch: source.sourceEpoch,
-          nowMs: Date.now(),
-        });
-        logger.info("自动索引已触发", {
-          jobId: started.jobId,
-          alreadyRunning: started.alreadyRunning,
-        });
-      } catch (error) {
-        logger.warn("自动索引触发失败（不阻塞调用方）", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    })();
-  }
-
-  /** search 入口的 TTL 门：无 running job 且最近完成 reconcile 超过 TTL 才触发。 */
-  function maybeAutoReconcileOnSearch(): void {
-    if (options.autoIndexEnabled !== true) return;
-    const latest = coordinator.getActiveOrLatestJobView();
-    if (latest !== null && latest.status === "running") return;
-    const finishedAtMs = latest?.finishedAtMs;
-    if (typeof finishedAtMs === "number" && Date.now() - finishedAtMs < autoIndexStaleTtlMs) return;
-    scheduleAutoReconcile();
-  }
-
-  if (options.autoIndexEnabled === true) {
-    autoIndexTimer = setTimeout(scheduleAutoReconcile, options.autoIndexInitialDelayMs ?? 4_000);
-    autoIndexTimer.unref?.();
-  }
+  // 引用/Evidence 门面（W03；从本文件拆出，见 evidence/citationFacade.ts）。
+  const citationFacade = createCitationFacade({
+    db,
+    pluginDataDir,
+    getRun: (params) => orchestrator.getRun(params),
+  });
 
   const queryService: IKnowledgeQueryService = {
     async createRun(params: KnowledgeCreateRunParams) {
@@ -354,7 +339,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         throw new Error("decisionConsentId 非法");
       }
       // 陈旧一度语义（§5b.8）：本次检索照旧用当前快照，后台刷新对下一次查询可见。
-      maybeAutoReconcileOnSearch();
+      autoReconcile.onSearch();
       return orchestrator.search(params);
     },
     async grantDecisionConsent(params: { runId: string; candidateIds?: string[] }) {
@@ -382,57 +367,15 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     async prepareEvidence(
       params: KnowledgePrepareEvidenceParams,
     ): Promise<KnowledgePrepareEvidenceResult> {
-      if (!params || typeof params.runId !== "string" || !params.runId) {
-        throw new Error("runId 不能为空");
-      }
-      if (typeof params.articleId !== "string" || !params.articleId) {
-        throw new Error("articleId 不能为空");
-      }
-      const run = orchestrator.getRun({ runId: params.runId });
-      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-      const rootPath = source.config?.rootPath ?? null;
-      const reader = rootPath ? createVaultFileReader(rootPath) : null;
-      return prepareEvidenceFromRun({
-        db,
-        run,
-        articleId: params.articleId,
-        source,
-        readVaultFile: reader ? reader.read : async () => null,
-        nowMs: Date.now(),
-      });
+      return citationFacade.prepareEvidence(params);
     },
     async resolveCitation(
       params: KnowledgeResolveCitationParams,
     ): Promise<KnowledgeResolveCitationResult> {
-      if (!params || typeof params.receiptId !== "string" || !params.receiptId) {
-        throw new Error("receiptId 不能为空");
-      }
-      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-      const rootPath = source.config?.rootPath ?? null;
-      const reader = rootPath ? createVaultFileReader(rootPath) : null;
-      return resolveCitationReceipt({
-        db,
-        receiptId: params.receiptId,
-        sessionId: typeof params.sessionId === "string" ? params.sessionId : null,
-        source,
-        readVaultFile: reader ? reader.read : async () => null,
-      });
+      return citationFacade.resolveCitation(params);
     },
     onRunUpdated: orchestrator.onRunUpdated,
   };
-
-  async function requireSource(): Promise<{
-    config: VaultConfig;
-    vaultId: string;
-    sourceEpoch: number;
-  }> {
-    const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-    if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
-      throw new Error("尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
-    }
-    logger.debug("源就绪", { vaultId: source.summary.vaultId, epoch: source.sourceEpoch });
-    return { config: source.config, vaultId: source.summary.vaultId, sourceEpoch: source.sourceEpoch };
-  }
 
   return {
     indexService,
@@ -445,10 +388,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       orchestrator.dispose();
       // 自动索引的延迟定时器一并清理（§5b.8）；in-flight job 由 coordinator 自身
       // 的 finally/异常路径收尾，不在此等待（dispose 链同步）。
-      if (autoIndexTimer !== null) {
-        clearTimeout(autoIndexTimer);
-        autoIndexTimer = null;
-      }
+      autoReconcile.dispose();
       db.close();
     },
   };

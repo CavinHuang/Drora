@@ -14,6 +14,7 @@ import type {
   KnowledgeInsightsSnapshot,
   KnowledgeJobCancelResult,
 } from "./knowledgeTypes.js";
+import type { KnowledgeSemanticPortStatus } from "./search/embeddingPort.js";
 
 /**
  * Obsidian Knowledge 索引 RPC 服务面。
@@ -33,6 +34,18 @@ export interface IKnowledgeIndexService {
    * 增量对账：全量扫描（门面不变量）+ 与索引差异对比，落实增删改/重命名/漏事件。
    * 已有任务进行中时不重复起任务（alreadyRunning=true 返回既有任务）。
    */
+  /**
+   * 本地语义检索状态面（spec §5b.9）：模型文件/下载/失败的粗粒度状态。
+   * 功能关闭 → state="model_missing" 且 lastError="semantic_disabled"（与装配缺省一致）。
+   */
+  getSemanticStatus(): Promise<KnowledgeSemanticPortStatus>;
+
+  /**
+   * 手动触发模型就绪（下载 + 会话初始化）；长耗时，调用方轮询 getSemanticStatus。
+   * started=false 表示无端口可触发（功能关闭）；失败以 error 携带（不抛业务错）。
+   */
+  downloadSemanticModel(): Promise<{ started: boolean; error: string | null }>;
+
   startReconcile(): Promise<KnowledgeIndexJobStartResult>;
 
   /** 全量重建：清空当前 epoch 缓存后重新扫描索引。 */

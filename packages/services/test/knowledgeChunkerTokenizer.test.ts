@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chunkMarkdown, resolveDocumentTitle } from "../src/knowledge/index/markdownChunker.js";
-import { buildMatchExpression, tokenizeForIndex } from "../src/knowledge/search/tokenizer.js";
+import { buildMatchExpression, extractQueryTerms, tokenizeForIndex } from "../src/knowledge/search/tokenizer.js";
+import { matchAwareExcerpt } from "../src/knowledge/search/lexicalRetriever.js";
 import { cosineSimilarity } from "../src/knowledge/search/embeddingPort.js";
 
 test("chunker：标题路径、行号与字符偏移可对回原文", () => {
@@ -126,6 +127,35 @@ test("tokenizer：降级轮表达式同样严格转义（括号分组不引入�
     .replace(/"(?:[^"]|"")*"( \*)?/gu, "")
     .replace(/[()\s]|OR/gu, "");
   assert.equal(residue, "", `降级表达式存在非法残留: ${expression}`);
+});
+
+test("tokenizer：extractQueryTerms 供命中感知摘要（去重保序、英文小写）", () => {
+  assert.deepEqual(extractQueryTerms("上下文窗口 tuning"), ["上下", "下文", "文窗", "窗口", "tuning"]);
+  assert.deepEqual(extractQueryTerms("Token Tokenizer"), ["token", "tokenizer"]);
+  assert.deepEqual(extractQueryTerms("窗口 窗口"), ["窗口"]);
+  assert.deepEqual(extractQueryTerms("窗"), ["窗"]);
+});
+
+test("命中感知摘要：窗口对准命中位置，省略号标注逐字截断（spec §5b.5）", () => {
+  const preamble = "背景铺垫与常识笔记。".repeat(20); // 200 字
+  const body = `${preamble}斐波那契数列与上下文窗口相关。${"收尾内容。".repeat(40)}`;
+  const excerpt = matchAwareExcerpt(body, ["斐波", "波那", "那契"]);
+  assert.ok(excerpt.startsWith("…"), "命中在正文后段 → 前侧截断标注");
+  assert.ok(excerpt.endsWith("…"));
+  assert.ok(excerpt.includes("斐波那契"));
+  assert.ok(excerpt.length <= 240 + 2, "窗口总长受 240 字符约束（不含省略号）");
+
+  // 命中在正文开头 → 无前导省略号；短正文无后侧省略号。
+  const head = matchAwareExcerpt("上下文窗口优化是第一优先级", ["上下"]);
+  assert.equal(head, "上下文窗口优化是第一优先级");
+
+  // 多词元：窗口选择偏向同时覆盖两个词元的位置（并列取最早）。
+  const spread = `${"前段铺垫。".repeat(30)}唯一甲出现。${"中段填充。".repeat(10)}唯一乙出现。${"尾部填充。".repeat(30)}`;
+  const dual = matchAwareExcerpt(spread, ["唯一甲", "唯一乙"]);
+  assert.ok(dual.includes("唯一甲") && dual.includes("唯一乙"), "窗口应覆盖两个词元");
+
+  // 无词元命中 → 回落正文开头（兜底；正常词法命中不可达）。
+  assert.equal(matchAwareExcerpt("完全无关的正文内容", ["量子"]), "完全无关的正文内容");
 });
 
 test("cosineSimilarity：零向量/维度不齐返回 0", () => {

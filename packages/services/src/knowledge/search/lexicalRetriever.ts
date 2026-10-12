@@ -11,11 +11,15 @@
  */
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { articleIdOf } from "../store/indexRepository.js";
-import { buildMatchExpression } from "./tokenizer.js";
+import { buildMatchExpression, extractQueryTerms } from "./tokenizer.js";
 import { cosineSimilarity, type KnowledgeSemanticContext } from "./embeddingPort.js";
 import type { KnowledgeArticleCandidate, KnowledgeSearchDiagnostics } from "../knowledgeTypes.js";
 
 const EXCERPT_MAX_CHARS = 240;
+/** 命中位置前的引导上下文（可读性；窗口仍受 EXCERPT_MAX_CHARS 总长约束）。 */
+const EXCERPT_CONTEXT_LEAD = 48;
+/** 每词元最多统计的正文出现次数（防超长单段落退化；窗口选择只需局部密度）。 */
+const MAX_OCCURRENCES_PER_TERM = 8;
 const CANDIDATE_CHUNK_POOL = 64;
 const DEFAULT_CANDIDATE_LIMIT = 5;
 const MAX_CANDIDATE_LIMIT = 20;
@@ -80,11 +84,61 @@ function excerptOf(body: string): string {
   return compact.length > EXCERPT_MAX_CHARS ? `${compact.slice(0, EXCERPT_MAX_CHARS)}…` : compact;
 }
 
-/** chunk 命中 → 文章候选（去重聚合，保持 bm25 名次）。 */
+/**
+ * 命中感知摘要（spec §5b.5）：逐字滑窗选取覆盖最多不同查询词元的窗口（并列取最早），
+ * 窗口两侧截断以「…」标注。词元以子串形态在正文中查找（英文小写化比对；bigram/
+ * 前缀词按索引构造必然出现在命中文本里）；无任何词元命中时回落正文开头（兜底，
+ * 正常词法命中不可达）。摘要是逐字切片，不引入任何非原文内容。
+ */
+export function matchAwareExcerpt(body: string, terms: readonly string[]): string {
+  const lower = body.toLowerCase();
+  const occurrences: Array<{ position: number; termIndex: number }> = [];
+  for (let termIndex = 0; termIndex < terms.length; termIndex++) {
+    const term = terms[termIndex];
+    if (!term) continue;
+    const needle = term.toLowerCase();
+    let found = 0;
+    let index = lower.indexOf(needle);
+    while (index !== -1 && found < MAX_OCCURRENCES_PER_TERM) {
+      occurrences.push({ position: index, termIndex });
+      found += 1;
+      index = lower.indexOf(needle, index + needle.length);
+    }
+  }
+  if (occurrences.length === 0) return excerptOf(body);
+
+  // 候选窗口左界：每个出现位置回退固定引导上下文；取覆盖不同词元数最多者（并列最早）。
+  let bestStart = -1;
+  let bestCovered = -1;
+  const starts = [
+    ...new Set(occurrences.map((occurrence) => Math.max(0, occurrence.position - EXCERPT_CONTEXT_LEAD))),
+  ].sort((left, right) => left - right);
+  for (const start of starts) {
+    const end = start + EXCERPT_MAX_CHARS;
+    const covered = new Set<number>();
+    for (const occurrence of occurrences) {
+      if (occurrence.position >= start && occurrence.position < end) covered.add(occurrence.termIndex);
+    }
+    if (covered.size > bestCovered) {
+      bestCovered = covered.size;
+      bestStart = start;
+    }
+  }
+  if (bestStart < 0) return excerptOf(body);
+
+  const sliceEnd = Math.min(body.length, bestStart + EXCERPT_MAX_CHARS);
+  const compact = body.slice(bestStart, sliceEnd).replace(/\s+/gu, " ").trim();
+  const prefix = bestStart > 0 ? "…" : "";
+  const suffix = sliceEnd < body.length ? "…" : "";
+  return `${prefix}${compact}${suffix}`;
+}
+
+/** chunk 命中 → 文章候选（去重聚合，保持 bm25 名次）；terms 供命中感知摘要（spec §5b.5）。 */
 export function fuseChunkHitsToArticles(
   source: { vaultId: string },
   hits: ChunkHit[],
   limit: number,
+  terms: readonly string[] = [],
 ): KnowledgeArticleCandidate[] {
   const byArticle = new Map<string, { hit: ChunkHit; count: number; bestScore: number }>();
   for (const hit of hits) {
@@ -102,7 +156,7 @@ export function fuseChunkHitsToArticles(
     title: entry.hit.title,
     relativePath: entry.hit.relativePath,
     matchedHeading: entry.hit.headingPath,
-    excerpt: excerptOf(entry.hit.body),
+    excerpt: matchAwareExcerpt(entry.hit.body, terms),
     quote: {
       startLine: entry.hit.startLine,
       endLine: entry.hit.endLine,
@@ -170,7 +224,7 @@ export async function searchLexicalPass(
     diagnostics = { ...diagnostics, semantic: "unavailable", semanticReason: "port_not_configured" };
   }
 
-  const candidates = fuseChunkHitsToArticles(source, pool, limit);
+  const candidates = fuseChunkHitsToArticles(source, pool, limit, extractQueryTerms(query));
   const resolvedDiagnostics: KnowledgeSearchDiagnostics = {
     ...diagnostics,
     lexicalChunkHits: hits.length,

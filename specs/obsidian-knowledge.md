@@ -244,6 +244,12 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   - 英文部件沿用 strict 形态（前缀已在 strict 生效）；
   - 降级资格 `canRelax` 由 tokenizer 在 strict 形态下判定：存在 ≥3 字 CJK run，或部件数 ≥2。
     简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
+- **命中感知摘要（2026-10-12 补）**：候选 excerpt 为 chunk 正文的逐字窗口，不再固定取
+  开头 240 字符——按查询词元（CJK bigram/单字与英文小写词）的正文出现位置滑窗，选取
+  覆盖最多不同词元的窗口（并列取最早；每词元计前 8 处出现，防超长段落退化），窗口
+  两侧截断以「…」标注；无任何词元命中时回落正文开头。quote selector、sha256 等事实
+  字段一律不变——摘要只影响展示与 Jev 出站的 note_excerpt（W03 Receipt 的摘录仍由
+  prepareEvidence 依 quote 切片独立生成，两处口径互不依赖）。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
   或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
   时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口

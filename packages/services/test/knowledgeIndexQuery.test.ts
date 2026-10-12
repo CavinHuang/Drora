@@ -263,6 +263,12 @@ test("中英混搜 + 负例不编造（A06/A10）", async () => {
     await configureVaultAt(env.pluginDataDir, env.vaultA);
     await writeNote(env.vaultA, "m1.md", "# 上下文工程\n\n上下文窗口优化 是第一优先级 context window tuning");
     await writeNote(env.vaultA, "m2.md", "# Memory\n\n长期记忆系统 memory system design");
+    // 长前奏 + 命中词在正文后段：验证命中感知摘要窗口（§5b.5）。
+    await writeNote(
+      env.vaultA,
+      "m3.md",
+      `# 背景与延伸阅读\n\n${"背景铺垫与常识笔记，仅供日后翻查。".repeat(20)}\n\n斐波那契数列的推导见下文。\n`,
+    );
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
 
@@ -278,6 +284,15 @@ test("中英混搜 + 负例不编造（A06/A10）", async () => {
     // 英文前缀（≥3 字符，strict 轮即生效）：部分输入可命中完整词。
     const enPrefix = await runSearch(env, "memo");
     assert.ok(enPrefix.candidates.some((c) => c.relativePath === "m2.md"));
+
+    // 命中感知摘要：命中在长正文后段 → excerpt 窗口对准命中位置并标注截断，
+    // quote selector 等事实字段不受影响（仍指向 chunk 原文切片）。
+    const lateHit = await runSearch(env, "斐波那契");
+    const m3 = lateHit.candidates.find((c) => c.relativePath === "m3.md");
+    assert.ok(m3, "长前奏笔记应被命中");
+    assert.ok(m3.excerpt.startsWith("…"), "命中在正文后段 → 前侧截断标注");
+    assert.ok(m3.excerpt.includes("斐波那契"), "摘要窗口应包含命中词");
+    assert.equal(m3.quote.startLine, 1, "quote 事实字段不变");
 
     // 单段长中文查询 phrase 零命中（"上下文窗口最佳实践"整段不在库内）→ 降级轮按
     // bigram 备选找回 m1，且 matchRelaxedToOr 如实入诊断（§5b.5 死降级修复）。

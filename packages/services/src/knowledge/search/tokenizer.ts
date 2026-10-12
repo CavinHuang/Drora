@@ -47,6 +47,25 @@ export function tokenizeForIndex(text: string): string {
   return tokens.filter(isSafeToken).join(" ");
 }
 
+/**
+ * 查询词元提取（命中感知摘要用，spec §5b.5）：CJK bigram/单字 + 英文小写词，
+ * 去重保序。这些词元以子串形态在 chunk 正文中查找——bigram/前缀词按索引构造
+ * 必然是命中文本的子串。
+ */
+export function extractQueryTerms(query: string): string[] {
+  const terms: string[] = [];
+  for (const run of query.match(CJK_RUN) ?? []) {
+    for (const bigram of cjkBigrams(run)) {
+      if (bigram && !terms.includes(bigram)) terms.push(bigram);
+    }
+  }
+  for (const run of query.match(WORD_RUN) ?? []) {
+    const word = run.toLowerCase();
+    if (isSafeToken(word) && !terms.includes(word)) terms.push(word);
+  }
+  return terms;
+}
+
 export interface MatchExpression {
   /** 可直接作为 `MATCH ?` 参数的表达式（已严格转义）。 */
   expression: string;

@@ -8,8 +8,9 @@
  *   只允许 [token]/[phrase]/[prefix] 三种字面形式，引号转义为 "" 后整体加双引号。
  * - 英文/数字词 ≥3 字符作前缀（`"词" *`，前缀含本词）；<3 字符保持精确词。
  * - 两级阶梯（spec §5b.5）：strict 轮 AND（CJK run 作整体 phrase）；零命中且
- *   canRelax 时唯一一次降级轮——CJK run = phrase OR 全部 bigram（修复单段长查询
- *   只有一个 AND 部件、旧判据「词元 ≥2」永不触发降级的死降级缺陷）。
+ *   canRelax 时唯一一次降级轮——CJK run = phrase OR 内容 bigram 备选（修复单段长
+ *   查询的死降级缺陷；2026-10-12 起备选过滤含虚词字的 bigram，防高频虚词以数量
+ *   压过高区分度命中）。
  *
  * 词元基元与 `extractQueryTerms` 自 2026-10-12 起单一出处为 `@drora/shared`
  * （`knowledge/queryTerms.ts`，spec §5b.5）：services 的命中感知摘要与 UI 的摘录
@@ -28,6 +29,20 @@ export { extractQueryTerms };
 
 /** 英文/数字词前缀查询的最小长度：更短的词（"js"/"ai"）前缀召回噪声过大。 */
 const PREFIX_MIN_CHARS = 3;
+
+/**
+ * 查询侧虚词字表（2026-10-12，用户真库反馈收口）：只用于**降级轮 bigram 备选**的过滤
+ * ——含任一虚词字的 bigram（如「的文」「关的」）在任何文档库都是高频词，作为 OR 备选
+ * 会以数量压过真正的高区分度命中（实测「agent 相关的文章」的降级轮被面试文以
+ * 相关/关的/的文/文章 四个 bigram 压过 35 篇 agent 文档，去掉 关的/的文 后 agent
+ * 文档进入前四）。刻意保守：只收几乎纯功能用法的字；「上/下/中/里/得/地」等多义字
+ * 不收（中文/上海/地方会误伤）。strict 轮 phrase 不受影响——最坏情况只是降级轮少一个
+ * 备选，不新增任何误召回。
+ */
+const QUERY_STOPCHARS = new Set([
+  "的", "了", "是", "在", "我", "有", "和", "与", "及", "或", "把", "被", "到", "为", "之",
+  "这", "那", "个", "们", "就", "都", "也", "很", "吧", "吗", "呢", "给", "跟", "让", "往", "着",
+]);
 
 /** 索引侧：文本 → token 流（空格连接）。 */
 export function tokenizeForIndex(text: string): string {
@@ -64,11 +79,20 @@ function bigramPhrase(run: string): string {
   return quoteToken(cjkBigrams(run).join(" "));
 }
 
-/** 降级轮 CJK 部件：phrase OR 全部 bigram（phrase 命中经 bm25 自然排前；2 字 run 退化为 phrase 本身）。 */
+/**
+ * 降级轮 CJK 部件：phrase OR 内容 bigram 备选（phrase 命中经 bm25 自然排前；2 字 run
+ * 退化为 phrase 本身）。bigram 备选过滤含虚词字的组合（QUERY_STOPCHARS）——虚词
+ * bigram 在全库高频，作为 OR 备选会以数量压过真正的高区分度命中；全部被过滤时保留
+ * 原始 bigram 集合（绝不交出空备选）。
+ */
 function relaxedCjkPart(run: string): string {
   const bigrams = cjkBigrams(run);
   if (bigrams.length <= 1) return bigramPhrase(run);
-  return `(${bigramPhrase(run)}) OR (${bigrams.map((bigram) => quoteToken(bigram)).join(" OR ")})`;
+  const contentBigrams = bigrams.filter(
+    (bigram) => ![...bigram].some((char) => QUERY_STOPCHARS.has(char)),
+  );
+  const alternatives = (contentBigrams.length > 0 ? contentBigrams : bigrams).map(quoteToken);
+  return `(${bigramPhrase(run)}) OR (${alternatives.join(" OR ")})`;
 }
 
 function andExpression(parts: string[]): string {

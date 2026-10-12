@@ -203,7 +203,7 @@ test("tokenizer：canRelax 判定扩搜资格（§5b.5）", () => {
   assert.equal(buildMatchExpression("gpt", false).canRelax, false);
 });
 
-test("tokenizer：降级轮形态——CJK run 为 phrase OR 全部 bigram（修复死降级）", () => {
+test("tokenizer：降级轮形态——CJK run 为 phrase OR 内容 bigram 备选（修复死降级）", () => {
   const relaxed = buildMatchExpression("知识图谱入门", true);
   assert.equal(
     relaxed.expression,
@@ -213,6 +213,21 @@ test("tokenizer：降级轮形态——CJK run 为 phrase OR 全部 bigram（修
   // 多部件查询降级：部件间 OR；2 字 run 退化为 phrase 本身（无可拆 bigram）。
   const multi = buildMatchExpression("窗口 memory", true);
   assert.equal(multi.expression, '"窗口" OR "memory" *');
+});
+
+test("tokenizer：降级备选过滤含虚词字的 bigram（真库反馈：虚词以数量压过高区分度命中）", () => {
+  // 「相关的文章」的 bigram 备选去掉 关的/的文（含虚词「的」），保留 相关/文章。
+  const relaxed = buildMatchExpression("相关的文章", true);
+  assert.equal(
+    relaxed.expression,
+    '("相关 关的 的文 文章") OR ("相关" OR "文章")',
+  );
+  // 全部备选被滤时保留原始集合，绝不交空（「的了」的 bigram 含「的」「了」双虚词）。
+  const allFiltered = buildMatchExpression("的了", true);
+  assert.equal(allFiltered.expression, '"的了"');
+  // strict 轮不受影响：phrase 完整保留。
+  const strict = buildMatchExpression("相关的文章", false);
+  assert.equal(strict.expression, '"相关 关的 的文 文章"');
 });
 
 test("tokenizer：MATCH 表达式严格转义（注入输入无法改变语法形状）", () => {

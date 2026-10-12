@@ -252,8 +252,12 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。检索为两级阶梯：
   strict 轮（AND，CJK run 作整体 phrase）；零命中且 `canRelax` 时执行**唯一一次**降级轮
   （A11 扩搜上限一次不变，由 DecisionPolicy EXPAND_ONCE 裁决）。降级轮形态（2026-10-12 补）：
-  - CJK run（≥3 字符）= 该 run 的 phrase `OR` 其全部 bigram（phrase 命中经 bm25 自然排前；
-    任一 bigram 命中即有候选）——修复单段长查询只有一个 AND 部件、旧判据 `词元 ≥2` 永不
+  - CJK run（≥3 字符）= 该 run 的 phrase `OR` 其**内容 bigram 备选**——含虚词字的
+    bigram（QUERY_STOPCHARS：的/了/是/在/我/有/和/与/到/这/那/个 等约 30 个几乎纯功能
+    用法的字，多义字「上下中里得地」刻意不收）不作为备选（2026-10-12 补：真库实测
+    「agent 相关的文章」的降级轮被 相关/关的/的文/文章 四个高频虚词 bigram 以数量压过
+    35 篇 agent 文档；备选全部被滤时保留原始集合，绝不交空）。phrase 命中仍完整保留
+    并经 bm25 自然排前——修复单段长查询只有一个 AND 部件、旧判据 `词元 ≥2` 永不
     触发降级的死降级缺陷；
   - 英文部件沿用 strict 形态（前缀已在 strict 生效）；
   - 降级资格 `canRelax` 由 tokenizer 在 strict 形态下判定：存在 ≥3 字 CJK run，或部件数 ≥2。

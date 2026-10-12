@@ -266,6 +266,7 @@ export const heroChatRows = rowInputs;
 /** composer 文案（参考站同款） */
 export const heroComposer = {
   placeholder: "继续输入后续修改需求",
+  submitLabel: "发送",
   addContext: "添加上下文",
   confirmEdit: "变更前确认",
   usage: "上下文用量 14,238 / 200,000",

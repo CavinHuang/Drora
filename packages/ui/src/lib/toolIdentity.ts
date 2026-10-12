@@ -6,7 +6,9 @@ import {
   type DroraKnownToolName,
   type DroraToolFamily,
 } from "@drora/shared";
-import { normalizeAskUserQuestionInput, readAskUserQuestionInput } from "@/lib/askUserQuestion.js";
+// 包内运行时导入用相对路径（tsconfig 约定）：tsx 按进程 CWD 发现 tsconfig，从仓库根
+// 跑 node --test 时 @/ 别名不可解析（全量门禁失败修复）。
+import { normalizeAskUserQuestionInput, readAskUserQuestionInput } from "./askUserQuestion.js";
 
 export type ToolCallPresentationFamily =
   | DroraToolFamily

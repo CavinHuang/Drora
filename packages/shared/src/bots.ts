@@ -34,6 +34,10 @@ export const botProviders = [
   "wecom",
 ] as const;
 
+// 官方默认 wire 契约与 Drora 旧别名分别定义，调用方不能自行品牌化。
+export const BOT_WEBHOOK_SECRET_HEADER = "x-zcode-bot-secret";
+export const DRORA_LEGACY_WEBHOOK_SECRET_HEADER = "x-drora-bot-secret";
+
 export type BotProvider = (typeof botProviders)[number];
 export type FeishuBotProvider = Extract<BotProvider, "feishu" | "lark">;
 

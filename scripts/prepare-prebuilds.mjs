@@ -21,6 +21,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { access, cp, mkdir } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -284,7 +285,7 @@ function readDroraAgentRuntimeVersion() {
   return match[1];
 }
 
-async function download(url, destinationPath) {
+export async function download(url, destinationPath) {
   // Windows CI runner 上 fetch(undici)对 nodejs.org/npmmirror 都会出现连接
   // 建立后长期停滞:无字节、无异常,且 AbortSignal.timeout 也不触发(实测
   // 50 分钟零重试,pipeline 与 signal 均救不了 undici 连接池停滞)。改用系统

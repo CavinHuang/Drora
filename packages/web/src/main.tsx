@@ -1,4 +1,5 @@
 import { resolveHostedRemoteRelayUrl } from "./drora-extensions/remoteEndpoint.js";
+import { WEB_REMOTE_CONTROL_MOBILE_CONNECTION_ID_HEADER } from "@drora/shared";
 import { sessionCreateTelemetrySchema, type RendererTelemetryEventPayload } from "@drora/shared";
 /* eslint-disable max-lines -- Web 远程控制启动、错误页和 web 平台桥接暂时集中在入口编排。 */
 import { createRoot } from "react-dom/client";
@@ -544,7 +545,7 @@ async function requestWebRemoteControlWorkspaceBridge(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Drora-Mobile-Connection-Id": proxy.mobileConnectionId,
+        [WEB_REMOTE_CONTROL_MOBILE_CONNECTION_ID_HEADER]: proxy.mobileConnectionId,
       },
       body: JSON.stringify({
         workspaceKey,
@@ -584,7 +585,7 @@ async function updateWebRemoteControlMobileViewState(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Drora-Mobile-Connection-Id": proxy.mobileConnectionId,
+        [WEB_REMOTE_CONTROL_MOBILE_CONNECTION_ID_HEADER]: proxy.mobileConnectionId,
       },
       body: JSON.stringify({
         activeWorkspaceKey: workspaceKey,

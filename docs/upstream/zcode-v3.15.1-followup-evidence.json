@@ -1,0 +1,726 @@
+{
+  "upstream": "aac4755666d09fdcd70272fcf063c077a639015f",
+  "oldUpstream": "29628c9acdb81b703bbd4080c207a0e7ce5e276e",
+  "localParent": "4831598b",
+  "generatedAt": "2026-10-13T20:58:08.165242+08:00",
+  "reports": {
+    "root-final": {
+      "total": 18112,
+      "passed": 18091,
+      "failed": 0,
+      "skipped": 21,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/root-final.json",
+      "sha256": "e194a0dd5ef07090f833f66327dad91667f28ca5c1f2192735fa16f57c13cba8",
+      "files": 1936
+    },
+    "core-baseline": {
+      "total": 3938,
+      "passed": 3898,
+      "failed": 0,
+      "skipped": 38,
+      "todo": 2,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/core-baseline.json",
+      "sha256": "dac6a7baf549a287f64ea59a4bddb6d2d73c083fdbf348db2441aa89e80585fd",
+      "files": 240
+    },
+    "adapters-release": {
+      "total": 2058,
+      "passed": 2019,
+      "failed": 35,
+      "skipped": 4,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/adapters-release.json",
+      "sha256": "5185de066ed742bb69c446e453bf2a71f40796abcdf0e515121e2401cfa8a3ee",
+      "files": 145
+    },
+    "adapters-complete": {
+      "total": 2058,
+      "passed": 2020,
+      "failed": 34,
+      "skipped": 4,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/adapters-complete.json",
+      "sha256": "10e40a1e1f94a4c947cc8a27b14b96e61b6631c141d8cacb2735958b81ed4a83",
+      "files": 145
+    },
+    "bootstrap-final": {
+      "total": 2968,
+      "passed": 2932,
+      "failed": 24,
+      "skipped": 12,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/bootstrap-final.json",
+      "sha256": "720a2ff1269fd920df0705a8ffa23dca13bfbbe8721960af0a1c03b24cdfeaf3",
+      "files": 218
+    },
+    "bootstrap-release": {
+      "total": 2968,
+      "passed": 2939,
+      "failed": 17,
+      "skipped": 12,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/bootstrap-release.json",
+      "sha256": "883a61f0636c17d2ababc901ba2738ac161362b01854768c006ad79689547321",
+      "files": 218
+    },
+    "contracts-final": {
+      "total": 340,
+      "passed": 340,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/contracts-final.json",
+      "sha256": "6e60f3c79fc25dea87d0eab3f66e7a13140a9dd0b88a38715473850535814694",
+      "files": 45
+    },
+    "node-repl-host-final": {
+      "total": 51,
+      "passed": 51,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/node-repl-host-final.json",
+      "sha256": "b3ad87bb6ed88ec3e563db84212aff911e404a56a84e76179ce304047503721d",
+      "files": 6
+    },
+    "debug-final": {
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/debug-final.json",
+      "sha256": "01d79d55b5a8ad9b57168cde3e04988a17344c3edfa4a5b9a1ac9fec2ada3c4a",
+      "files": 5
+    },
+    "workflow-service-final": {
+      "total": 243,
+      "passed": 243,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/workflow-service-final.json",
+      "sha256": "58cb0ce278f9575af24622e3a6cd0c7e3d2564ff19d2d755454c861d0b9cb914",
+      "files": 1
+    },
+    "adapters-cross-process-final": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/adapters-cross-process-final.json",
+      "sha256": "006704b21ba9df00fc917d2e3af989dd4672b534934f20b52f65e7ece13939f3",
+      "files": 1
+    },
+    "adapters-lifecycle-final": {
+      "total": 17,
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/adapters-lifecycle-final.json",
+      "sha256": "08791fabc05f030d5c82f1f01c374b773cea53cf0e486ed39722fad260421ebe",
+      "files": 2
+    },
+    "plugins-final": {
+      "total": 81,
+      "passed": 81,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/plugins-final.json",
+      "sha256": "26025c850298960b49ecfb0fef77f19b6a3dca870b9367b8ec9378b47fcc7f0b",
+      "files": 1
+    },
+    "bootstrap-focused-final": {
+      "total": 386,
+      "passed": 7,
+      "failed": 1,
+      "skipped": 378,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/bootstrap-focused-final.json",
+      "sha256": "88981f9cb81bd9ca9a5520866c01f8299da00e64f6873e4c8b1a722e3d162a6c",
+      "files": 5
+    },
+    "official-lock-runner": {
+      "total": 53,
+      "passed": 8,
+      "failed": 45,
+      "skipped": 0,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/official-lock-runner.json",
+      "sha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6",
+      "files": 1
+    },
+    "official-lock-bootstrap": {
+      "total": 325,
+      "passed": 280,
+      "failed": 45,
+      "skipped": 0,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/official-lock-bootstrap.json",
+      "sha256": "19180efe84851da11acee5ad99f948ec3fba82c7fd2aa0dbe1753521df4e3358",
+      "files": 7
+    },
+    "official-lock-lifecycle": {
+      "total": 17,
+      "passed": 14,
+      "failed": 3,
+      "skipped": 0,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/official-lock-lifecycle.json",
+      "sha256": "ba460fe5199d5375f26b95ae560ea526d6a56fd79c80bab8ed43b4097af8b19d",
+      "files": 2
+    },
+    "official-lock-timing": {
+      "total": 249,
+      "passed": 4,
+      "failed": 2,
+      "skipped": 243,
+      "todo": 0,
+      "success": false,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/official-lock-timing.json",
+      "sha256": "fcd302e3ebad53675ebd0966af61ae10da20e9e5a4bab9cb0a7abc600589babe",
+      "files": 3
+    },
+    "official-lock-leader": {
+      "total": 4,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 3,
+      "todo": 0,
+      "success": true,
+      "report": "/workspace/.drora-migration-v3.15.1/followup/official-lock-leader.json",
+      "sha256": "04293b1d0c4166427d4a00ae17397cea4696336c3e125c4eea01898f5dc5cbf5",
+      "files": 1
+    },
+    "cli": {
+      "log": "/workspace/.drora-migration-v3.15.1/followup/cli-entry-final/_drora_cli.log",
+      "sha256": "071a7b90a688c048533ea0adae91105312a9d478b8fe229632da7415e0434532",
+      "tests": 511,
+      "pass": 511,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "tui": {
+      "log": "/tmp/drora-followup-tui-final.log",
+      "sha256": "689016cb1f7d71a0b3ca6e0710c6a9a8c0bd698340cecdfcced75ecbdbb925b9",
+      "tests": 230,
+      "pass": 230,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "node": {
+      "log": "/tmp/drora-followup-node-final.log",
+      "sha256": "9cd0dbe6ce7b14831e14765f70907f058ebd28baf6fea45c9f0a939d6c103e9a",
+      "tests": 573,
+      "pass": 572,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 1,
+      "todo": 0
+    }
+  },
+  "knownUpstreamFailureCount": 49,
+  "knownUpstreamFailures": [
+    {
+      "caseId": "7e0f92b901f25e81",
+      "file": "runner-options.test.ts",
+      "name": "shouldIncludeStreamResponseBody enables responseBody capture for drora-plan openai-compatible providers",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "a08e3ecea6c9f5d4",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps explicit generateText schemas on the native Anthropic output format",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "992cd10615eeace1",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions passes resolved image support into generateText message transforms",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "a63d780b780f3396",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions strips video before the OpenAI Responses adapter sees an unsupported file part",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "5f015afb54d83614",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions subtracts fixed Anthropic thinking from the explicit model-level generateText budget",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "74dafb1cbfa2c85d",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions subtracts fixed Anthropic thinking from the explicit model-level streamText budget",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "df1b4ee0b766c3c4",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions fits oversized fixed Anthropic thinking into one immutable request budget",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "38b01c49ed6fc3e3",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions rejects Anthropic fixed thinking when the total request budget is 0.5",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "4a573542d510b6fe",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions rejects Anthropic fixed thinking when the total request budget is 1",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "524b1ebbe797955d",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps explicit model-level output tokens on non-Anthropic transport",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "adeae085ca6a8360",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'OTB01' resolves model capability undefined to 32000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "ba0b43266d0cacdb",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'OTB02' resolves model capability 16000 to 16000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "9fb89732095dafbc",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'OTB03' resolves model capability 64000 to 64000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "8e2f92d79b1accc2",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'fractional normalization' resolves model capability 16000.9 to 16000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "f5d1996069a6903f",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'invalid zero' resolves model capability +0 to 32000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "9f9d83c7c67f0f48",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'invalid negative' resolves model capability -1 to 32000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "9f3bb24b5ac13cd2",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions 'invalid non-finite' resolves model capability NaN to 32000",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "7758cce15d2584a7",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps the missing-budget compatibility behavior for 'model-capability source'",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "062412ddcc86bdf0",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps the missing-budget compatibility behavior for 'runtime-default source'",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "8a78f32e30670170",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps the missing-budget compatibility behavior for 'legacy Anthropic request'",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "5f3186ce869072a2",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps normal model capability budget for openai providers",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "5de4db6086c3669a",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps normal model capability budget for openai-compatible providers",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "ea3e26177b81d223",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps normal model capability budget for gateway providers",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "463079061ed0c5ec",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps normal model capability budget for custom providers",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "6137b2fc0177b95f",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps the Compact summary budget for OpenAI-compatible runtime-default requests",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "cdaf701c4470150e",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions lets the canonical budget override native OpenAI-compatible output params",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "476bb062cded3540",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps native output params for legacy requests without a canonical budget",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "1baf8da49fcbe337",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps explicit Anthropic runtime-default output tokens",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "3dcbc93249015e49",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions keeps the Compact summary budget on Anthropic requests",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "9662634aaa8cde5b",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions unwraps OpenAI-compatible extra_body into the SDK provider namespace",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "8534c7ab8f5d1dd5",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions preserves raw and sibling namespaces while projecting canonical options",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "c92a6c51ccda05fd",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions rejects a non-object canonical extra_body",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "07e72ebb569b8f5d",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions passes experimental_include.responseBody for drora-plan streams",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "2b4b38909ec1be62",
+      "file": "runner-options.test.ts",
+      "name": "createStreamTextOptions packages native OpenAI reasoning effort without dropping static OpenAI options",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "official-lock-runner.json",
+      "baselineCondition": "原始官方源码/测试 + 官方 frozen lock，构建 contracts 后执行",
+      "baselineReportSha256": "f607c159fd9a6ccc4b74cf18ae605793b146742d0fab544b6fccff7504761ba6"
+    },
+    {
+      "caseId": "a899c1434820516b",
+      "file": "app-subagent-legacy-init.test.ts",
+      "name": "App 初始化旧 Subagent 身份 用户目录完成原地迁移再构造 Runtime；项目文件不迁移也不暗中换身份",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "555b78fc2c93a7dd",
+      "file": "zcode-protocol.test.ts",
+      "name": "DroraProtocolAgentServer injects pull access only into advertised local sessions (undefined)",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "d8b882a063d37961",
+      "file": "zcode-protocol.test.ts",
+      "name": "DroraProtocolAgentServer 通过独立协议同步 Account Config，不再从 Workspace Snapshot 反向投影",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "1155fa50763f5c4e",
+      "file": "model-default-headers-wire.test.ts",
+      "name": "模型请求默认 Header：Bootstrap → Adapter → 真实 SDK 真实 Runtime 标题 sidecar 沿公共工厂携带版本、other 类型和会话追踪",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "21147b0cbfbfa6c9",
+      "file": "script-workflow.test.ts",
+      "name": "script workflow runtime persists child sessions before linking workflow activities",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "f161de50a0669eed",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence initializes the Bash shell snapshot before direct expert workflow child sessions",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "834d97eddbabd699",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence blocks Drora Protocol startup on database migration before protocol connection",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "db7fa025ed1f3aa9",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence schedules log retention cleanup after Drora Protocol startup completes",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "f3f104019bbe78f6",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence routes AI SDK warnings away from Drora Protocol stdout",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "60a4f7ba4ce7fca4",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence hydrates persisted history when resuming a session in a fresh app",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "1181b0319d808ebd",
+      "file": "session-persistence.test.ts",
+      "name": "session persistence can explicitly hydrate a resumed app before the next prompt",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "8f2d2ebb3f4acd8f",
+      "file": "v4-cold-resume.test.ts",
+      "name": "v4 冷恢复（集成：真 sqlite + server + binder） 重启后冷订阅：优先从 Agent durable selection 恢复 task-local thought",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "56c611894069576a",
+      "file": "v4-cold-resume.test.ts",
+      "name": "v4 冷恢复（集成：真 sqlite + server + binder） 重启后冷订阅：旧 fork 消息缺档位时不借用相邻消息的档位",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "867cf107257af7db",
+      "file": "v4-cold-resume.test.ts",
+      "name": "v4 冷恢复（集成：真 sqlite + server + binder） 重启后冷订阅：旧 transcript 无档位时留空，不读取 task-index 提示",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    },
+    {
+      "caseId": "f35f21dd3e7e8994",
+      "file": "v4-gateway.test.ts",
+      "name": "v4/command 收口 Core admission ACK 不等待 TurnStarted projection；旧 revision retry/file rewind 只 stale",
+      "classification": "upstream-test-implementation-mismatch",
+      "baseline": "pristine-bootstrap/result.json",
+      "baselineCondition": "原始官方 bootstrap 源码/测试，仅品牌目录映射 + Drora 锁定依赖",
+      "baselineReportSha256": "7e06a7bc1d0cd6cf8d17f4e6b47c5120c2238a40646d1117cc05783aa9e98117"
+    }
+  ],
+  "bootstrapSourceProvenance": {
+    "files": 283,
+    "sha256": "de29c77d32f58c0723eccd4ebf952c6f6892fc853f944091bd50fe8322cf9f9b"
+  },
+  "inventory": {
+    "total": 11737,
+    "counts": {
+      "brand-equal": 5443,
+      "byte-equal": 5848,
+      "text-different": 420,
+      "deleted-absent": 16,
+      "whitespace-equal": 2,
+      "missing": 8
+    },
+    "sha256": "47b08bc59c2c58abf3e15bac5aa2d59c882670f4a8429f78958ba5700d0c2ac3",
+    "modeDifferences": [],
+    "deletedPresent": [],
+    "binaryDifferent": [],
+    "missing": [
+      "apps/drora-cli/packages/zcode-cua-plugin/tsconfig.json",
+      "packages/desktop/src/main/forceUpdateGuard.ts",
+      "packages/desktop/src/main/forceUpdatePrompt.ts",
+      "packages/desktop/src/main/manifestUpdateProvider.ts",
+      "packages/desktop/test/forceUpdateGuard.test.ts",
+      "packages/desktop/test/manifestUpdateProvider.test.ts",
+      "packages/services/src/gen-ui/adapters/service.test.ts",
+      "packages/shared/test/forceUpdate.test.ts"
+    ]
+  },
+  "policy": "没有测试失败豁免；test:upstream-cli 保留各包 runner，任何失败返回非零。各报告范围/时间不同，不汇总相加。",
+  "limitations": [
+    "官方 frozen-lock bootstrap 的 325 项运行有 45 失败，包含 /home/agent/.zcode 写入受限；不把它们全部归为上游语义失败。15 项逐案例证据来自品牌映射后的官方源码 + Drora 依赖的独立重放。",
+    "两个公网 GitHub marketplace 归档用例受当前网络访问限制，保留失败记录，不宣称外网端到端通过。",
+    "官方 CDN 公网资源、云 Relay 服务、macOS/Windows 原生平台及新版发行 bundle parity 未在此环境验收。"
+  ]
+}

@@ -1,3 +1,4 @@
+import "./isolated-debug-home.js";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,9 +24,10 @@ describe("debug API", () => {
 
     const app = createDebugApp();
     const response = await app.request(
-      `/api/traces/trace-api?eventPath=${encodeURIComponent(eventPath)}&dbPath=${encodeURIComponent(
+      `http://localhost/api/traces/trace-api?eventPath=${encodeURIComponent(eventPath)}&dbPath=${encodeURIComponent(
         join(root, "missing.sqlite"),
       )}`,
+      { headers: { host: "localhost" } },
     );
     const body = (await response.json()) as { traceId: string; timeline: unknown[] };
 
@@ -36,7 +38,7 @@ describe("debug API", () => {
 
   it("returns a stable disabled status when network capture is not attached", async () => {
     const app = createDebugApp();
-    const response = await app.request("/api/network/status");
+    const response = await app.request("http://localhost/api/network/status", { headers: { host: "localhost" } });
     const body = (await response.json()) as { enabled: boolean; running: boolean };
 
     expect(response.status).toBe(200);

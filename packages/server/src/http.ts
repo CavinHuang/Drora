@@ -16,7 +16,7 @@ import {
   LoggingChannelServer,
   type ISocket,
 } from "@drora/rpc";
-import type { TopicResourcePeers } from "@drora/services/node";
+import { resolveDroraWebhookSecret, type TopicResourcePeers } from "@drora/services/node";
 import { TOPIC_RESOURCE_RELAY_CHANNEL } from "@drora/shared";
 import {
   ServiceCollection,
@@ -405,7 +405,11 @@ export function createHttpServer(
         rawBody = { payload: rawBodyText };
       }
     }
-    const webhookSecret = c.req.header("x-zcode-bot-secret");
+    const secretResolution = resolveDroraWebhookSecret((name) => c.req.header(name));
+    if (!secretResolution.ok) {
+      return c.json({ error: "Conflicting webhook authentication headers." }, 401);
+    }
+    const webhookSecret = secretResolution.secret;
     const botId = c.req.param("botId");
     const result = await botsService.handleProviderCallbackResponse(provider, {
       ...(typeof rawBody === "object" && rawBody !== null ? rawBody : { payload: rawBody }),

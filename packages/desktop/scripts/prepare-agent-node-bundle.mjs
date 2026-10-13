@@ -198,15 +198,18 @@ const officialPluginPackages = [
   {
     packageName: "@drora/android-emulator-plugin",
     relativePath: "apps/drora-cli/packages/android-emulator-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["dist/mcp/server.js"],
+    // 3.15.1 公开的是源码，不能继续假设 checkout 已携带旧的预编译 dist。
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    runtimeBuildScript: "scripts/build-mcp.mjs",
     stagedPath: "packages/android-emulator-plugin",
   },
   {
     packageName: "@drora/ios-simulator-plugin",
     relativePath: "apps/drora-cli/packages/ios-simulator-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["dist/mcp/server.js"],
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    runtimeBuildScript: "scripts/build-mcp.mjs",
     stagedPath: "packages/ios-simulator-plugin",
   },
   {
@@ -215,7 +218,11 @@ const officialPluginPackages = [
     requiresRuntime: true,
     // hook 运行时与 skill 正文是同一发布单元，缺任一项打包期即报错。
     runtimeBuildScript: "scripts/build-hooks.mjs",
-    requiredRuntimePaths: ["dist/hooks/session-start.mjs", "dist/hooks/permission-request.mjs", "dist/hooks/user-prompt-submit.mjs"],
+    requiredRuntimePaths: [
+      "dist/hooks/session-start.mjs",
+      "dist/hooks/permission-request.mjs",
+      "dist/hooks/user-prompt-submit.mjs",
+    ],
     requiredSeedPaths: [
       "dist/hooks/session-start.mjs",
       "dist/hooks/permission-request.mjs",
@@ -543,5 +550,7 @@ async function stageCuaHelperRuntime() {
     const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
     await access(stagedAssetPath);
   }
-  console.log(`[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`);
+  console.log(
+    `[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`,
+  );
 }

@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -488,6 +489,16 @@ async function waitFor<T>(
 }
 
 function isPidAlive(pid: number): boolean {
+  if (process.platform === "linux") {
+    try {
+      // 容器 PID 1 可能不回收孤儿；僵尸已终止，kill(pid, 0) 却仍成功。
+      // 只排除明确的 Z 状态，运行/阻塞进程仍必须通过原有退出检查。
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      if (stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z ")) return false;
+    } catch {
+      // 非 procfs 环境仍使用跨平台 signal probe。
+    }
+  }
   try {
     process.kill(pid, 0);
     return true;

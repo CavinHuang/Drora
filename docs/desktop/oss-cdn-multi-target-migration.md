@@ -1,5 +1,13 @@
 # OSS/CDN 多目标迁移
 
+## v3.15.1 远端资源来源修正
+
+官方 CDN 的对象目录固定为 `zcode/electron/releases`；产品改名不改变外部桶的对象 key。
+构建注入已知官方域名且未配置 `OSS_PATH_PREFIX` 时使用该目录；自建域名必须显式指定发布目录。
+`DRORA_REMOTE_ASSET_CDN_BASE_URL` 的显式 runtime 覆盖仍优先于构建注入。
+独立 Drora 制品通过自己的发布根装配，不自动把官方桶内不存在的 `/drora/` 当作回退来源。
+所选 Agent 的协议、插件和扩展能力须独立验收，URL 修复不代表制品兼容或已经发布。
+
 ## 背景
 
 当前仓库版本已经是 `3.1.2`，因此 CDN/OSS 迁移桥接版从 `3.1.3` 开始。已安装的旧版本会固定读取包内 `app-update.yml` 写入的 generic stable feed，所以旧 CDN 的 stable feed 不能在桥接版前下线。

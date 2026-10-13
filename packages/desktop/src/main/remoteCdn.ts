@@ -3,9 +3,10 @@ import { DRORA_VERSION, type DroraEnv } from "@drora/shared";
 declare const __DRORA_REMOTE_CDN_RELEASE_ROOTS__: readonly string[] | undefined;
 
 const REMOTE_CDN_RELEASE_ROOTS = {
-  domestic: "https://cdn.codegeex.cn/drora/electron/releases",
+  // 官方桶的对象 key 是外部契约；3.15.1 新 CDN 路径不能随产品品牌改名。
+  domestic: "https://cdn.codegeex.cn/zcode/electron/releases",
   // 开发构建未注入 CDN_DOMAIN 时也须使用当前发布域名，避免仍请求旧域名。
-  overseas: "https://cdn-zcode.z.ai/drora/electron/releases",
+  overseas: "https://cdn-zcode.z.ai/zcode/electron/releases",
 } as const;
 const TEST_REMOTE_CDN_RELEASE_ROOT = "http://intranet.example.invalid:12345/ssh-remote-assets";
 

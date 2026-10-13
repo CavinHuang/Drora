@@ -1,3 +1,4 @@
+import "./isolated-debug-home.js";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

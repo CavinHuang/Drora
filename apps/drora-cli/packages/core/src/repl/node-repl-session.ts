@@ -1,4 +1,4 @@
-import { NODE_REPL_TOOL_SURFACE_META_KEY } from "@drora/contracts";
+import { NODE_REPL_TOOL_SURFACE_META_KEY } from "@drora/contracts/mcp";
 import { createContext, runInContext, type Context } from "node:vm";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";

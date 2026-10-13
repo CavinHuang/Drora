@@ -315,14 +315,6 @@ export function App({
     enabled: Boolean(notificationEnabled && isDesktop),
     formatMessage: intl.formatMessage,
   });
-  useDesktopPet({
-    workspacePath: workspaceAbsPath,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    ...(workspaceRemoteSessionId ? { endpointKey: workspaceRemoteSessionId } : {}),
-    rpcReady: workspaceRpcReady,
-    enabled: Boolean(isDesktop),
-    platform,
-  });
   const lastHandledDraftSidePaneCloseRef = useRef({
     workspaceKey,
     draftFocusVersion,

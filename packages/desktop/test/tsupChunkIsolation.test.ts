@@ -128,6 +128,27 @@ describe("desktop tsup chunk isolation", () => {
     ).toThrow("OSS_PATH_PREFIX must contain one value or match CDN_DOMAIN count");
   });
 
+  it("官方 CDN 缺少显式路径时保持官方对象目录，不执行品牌改名", () => {
+    expect(
+      resolveBuildRemoteCdnReleaseRoots({ CDN_DOMAIN: "cdn-zcode.z.ai,cdn.codegeex.cn" }),
+    ).toEqual([
+      "https://cdn-zcode.z.ai/zcode/electron/releases",
+      "https://cdn.codegeex.cn/zcode/electron/releases",
+    ]);
+  });
+
+  it("自建 CDN 必须显式指定发布目录，不能猜测对象 key", () => {
+    expect(() =>
+      resolveBuildRemoteCdnReleaseRoots({ CDN_DOMAIN: "assets.example.invalid" }),
+    ).toThrow("OSS_PATH_PREFIX is required for a custom CDN_DOMAIN");
+    expect(
+      resolveBuildRemoteCdnReleaseRoots({
+        CDN_DOMAIN: "assets.example.invalid",
+        OSS_PATH_PREFIX: "drora/releases",
+      }),
+    ).toEqual(["https://assets.example.invalid/drora/releases"]);
+  });
+
   it("正式安装包 Agent OTLP 配置应映射为 Main 使用的标准环境字段", () => {
     expect(
       resolveBuildPackagedAgentTelemetryEnv({
@@ -182,7 +203,7 @@ describe("desktop tsup chunk isolation", () => {
       const defines = getDefines(entry);
       expect(defines).toHaveProperty("__DRORA_ENV__");
       expect(defines).toHaveProperty("__DRORA_PRODUCT_FLAVOR__");
-      expect(["\"production\"", "\"preview\""]).toContain(defines.__DRORA_PRODUCT_FLAVOR__);
+      expect(['"production"', '"preview"']).toContain(defines.__DRORA_PRODUCT_FLAVOR__);
     }
   });
 

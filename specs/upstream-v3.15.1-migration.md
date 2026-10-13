@@ -1,6 +1,8 @@
 # ZCode v3.15.1 同步与模块化扩展策略
 
-状态：源码迁移与本地验收完成；CLI 上游旧测试漂移和平台限制见验证记录。用户于 2026-10-13 授权同步官方特性，优先确定远控迁移策略，再推进其余合并。
+状态：公开源码迁移补齐与本地集成验证已完成；49 项上游测试/实现不一致和两项公网归档访问限制单列保留。跨平台、官方云服务和发行 bundle 验收不在此结论内。实施结果见 [补齐验收](../docs/upstream/zcode-v3.15.1-followup-result.md)。
+
+后续执行依据：[完整性复核](../docs/upstream/zcode-v3.15.1-completeness-review.md)、[补齐合并方案](../docs/upstream/zcode-v3.15.1-followup-plan.md)。仅 runner-options 有独立上游失败证据，不能把其余 CLI 失败统一归因于上游。
 
 ## 固定基线
 
@@ -22,15 +24,15 @@
 
 ## 状态所有者与事件顺序
 
-| 状态 | 唯一所有者 |
-|---|---|
+| 状态                                     | 唯一所有者                         |
+| ---------------------------------------- | ---------------------------------- |
 | task/session、被接受的输入、权限、工作流 | 既有 Agent/runtime 与 CommandInbox |
-| workspace scope、owner/lease 与服务实例 | 窗口 scoped Host |
-| attachment 创建/释放与远控会话路由 | 官方 desktop manager |
-| WebSocket 握手、心跳、重连 | 官方 device/terminal transport |
-| Relay 注册/鉴权/配对和透明转发 | 自建或官方 Relay 服务端 |
-| LAN listen/stop、端点与凭据 origin | 独立 Drora LAN/endpoint 适配模块 |
-| 手机当前选中任务、视图、主题、草稿 | 官方 Web 页面；不回写桌面选中态 |
+| workspace scope、owner/lease 与服务实例  | 窗口 scoped Host                   |
+| attachment 创建/释放与远控会话路由       | 官方 desktop manager               |
+| WebSocket 握手、心跳、重连               | 官方 device/terminal transport     |
+| Relay 注册/鉴权/配对和透明转发           | 自建或官方 Relay 服务端            |
+| LAN listen/stop、端点与凭据 origin       | 独立 Drora LAN/endpoint 适配模块   |
+| 手机当前选中任务、视图、主题、草稿       | 官方 Web 页面；不回写桌面选中态    |
 
 ```mermaid
 sequenceDiagram
@@ -70,17 +72,17 @@ sequenceDiagram
 5. Relay/LAN 适配与部署资产入口。
 6. 类型检查、Lint、架构门禁、行为测试、构建与平台发行验证。
 
-| 场景 | 验收 |
-|---|---|
-| 官方页面 + 自建云 Relay | 握手/配对、任务列表、输入、停止和审批实际贯通 |
-| 官方页面 + 内嵌 LAN Relay | 本地端点和新源码页正确；凭据与云端隔离 |
-| 桌面与手机在线 | 同一 owner；独立选中态；输入只 admission 一次 |
-| 断网/切后台/重连 | ACK、gap、snapshot/replay 不丢失、不重复、不串 workspace |
-| SSH/远程工作区 | 使用原 workspaceIdentity/remoteSessionId，已有连接重连 |
-| VaultView/知识检索 | accessor、knowledge/search、引用/审批/索引迁移保持有效 |
-| 新权限流程 | P0 逐次确认、plan 禁写、hook/inputAdjustments 不能绕过 |
-| MCP/Gen UI | 实例归属、CSP、手势、资源预算与失效实例验证；Web 依官方降级 |
-| 发行 | Drora 品牌/Helper/更新源不回退；许可和资产 provenance 完整 |
+| 场景                      | 验收                                                        |
+| ------------------------- | ----------------------------------------------------------- |
+| 官方页面 + 自建云 Relay   | 握手/配对、任务列表、输入、停止和审批实际贯通               |
+| 官方页面 + 内嵌 LAN Relay | 本地端点和新源码页正确；凭据与云端隔离                      |
+| 桌面与手机在线            | 同一 owner；独立选中态；输入只 admission 一次               |
+| 断网/切后台/重连          | ACK、gap、snapshot/replay 不丢失、不重复、不串 workspace    |
+| SSH/远程工作区            | 使用原 workspaceIdentity/remoteSessionId，已有连接重连      |
+| VaultView/知识检索        | accessor、knowledge/search、引用/审批/索引迁移保持有效      |
+| 新权限流程                | P0 逐次确认、plan 禁写、hook/inputAdjustments 不能绕过      |
+| MCP/Gen UI                | 实例归属、CSP、手势、资源预算与失效实例验证；Web 依官方降级 |
+| 发行                      | Drora 品牌/Helper/更新源不回退；许可和资产 provenance 完整  |
 
 固定版本 `pnpm typecheck`、`pnpm lint`、架构门禁、CLI 深度 smoke 和模块行为测试必须实际运行。真实 Electron/Windows/macOS/移动浏览器/网络验证与 mock 分别报告，不把 mock 通过写成真机通过。旧上游 bundle 对拍不能代替 3.15.1 真值；未取得新版官方 bundle 时记录该限制，不伪造 parity 通过。
 
@@ -96,6 +98,11 @@ Drora 发行源由独立适配层配置，默认复用安装包的 GitHub feed�
 `assembleDroraKnowledgeHost` 归属 services 自研扩展，由 `@drora/services/node` 提供公开入口；Desktop Host 只调用装配结果，不导入 Host tsconfig 范围外的桌面源码。装配读取设置，按需创建零出站本地 embedding 端口；Jev 每轮重新解析设置，失败降级，不新增会话所有者。
 
 ### 回归测试入口
+
+补齐复核发现 CLI `/model` 与 `/effort` 的成功分支未调用既有偏好保存端口。
+恢复官方 `rememberCurrentModelSelection` 调用：会话选择先成功，再由唯一 Personal 配置端口写默认；保存失败只追加警告，不撤销成功的选择。
+Drora `/model main` 解析保留，不能因此丢失普通模型/推理档选择的跨会话持久化。
+REPL/Browser bridge 的元数据常量改用已有公开 `@drora/contracts/mcp` 入口，保持常量单一出处且不加载整个 Agent 契约 barrel。
 
 上游 Vitest 测试与 Drora 的 Node test runner 用例保持各自原生运行器。根 `test:unit` 必须运行两者；通过导入 `node:test` 识别 Node 用例，避免 Vitest 报零 suite，禁止排除后不执行。Node TS 用例用已声明的 tsx loader，保留原断言与跳过统计。
 
@@ -120,3 +127,11 @@ CLI 构建产物冒烟保持 stdin pipe，按 Desktop 的真实 stdio 生命周�
 实施结果：[合并记录](../docs/upstream/zcode-v3.15.1-merge.md)、[验证记录](../docs/upstream/zcode-v3.15.1-validation.md)。
 
 全量架构检查补齐 Gen UI 服务的契约测试入口：把已有的 sandbox provenance/状态转义/完整文档拒绝回归迁到 `gen-ui/contract.test.ts`，改经公开 `node.ts` 构造服务。保留全部原断言，不增加重复 suite，不修改产品行为或 baseline。
+
+### CLI 回归夹具与工作区边界
+
+合并后 CLI 属于根 pnpm 工作区，SEA 的依赖重建使用 `pnpm --filter @drora/cli... build`，每次实际执行 build，不使用 Turbo 缓存。验证应检查根工作区依赖闭包及构建顺序，不能要求不存在的内层 lockfile。冻结 CUA SDK 仍需向可信 REPL 宿主临时交付 scoped token；非授权入口、模块求值阶段及宿主退出后不得暴露凭据。Debug 测试通过隔离 home 验证现有路径和 loopback Host 限制，不放宽生产边界。
+
+CLI Node runner 将测试文件并行度限制为 2，避免云环境并行构建造成终端渲染饥饿；保留原有用例超时和断言。TUI 登录测试在 runner 的 after hook 中释放 renderer，即使 highlighting 等待超时也不得遗留循环使 CI 挂起。
+
+回归夹具保留真实进程/HTTP/SQLite：并发授权与兄弟取消通过显式启动屏障建立现场，不依赖冷启动速度；非 Git 夹具只隐藏夹具边界外的沙箱 `.git` 占位，正向 Git 用例不变。Linux 进程退出检查将明确的僵尸 Z 状态视为已终止，运行/阻塞进程继续检查；Windows taskkill/EPERM 分支保持原断言。插件本地枚举用例仅模拟可选 CDN 图标，独立图标下载/缓存断言与真实 Git 克隆保持原路径。

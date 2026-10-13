@@ -10,9 +10,12 @@
 import { createSharedDroraCredentialStore } from "../../src/auth/shared-credentials.js";
 import { createMcpAdapter } from "../../src/mcp/index.js";
 import { createMcpOAuthTokenProvider } from "../../src/mcp/oauth-provider.js";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 interface DriverConfig {
   autoDrive?: boolean;
+  authorizationBarrierDir?: string;
   credentialsPath: string;
   keyPrefix?: string;
   mcpUrl: string;
@@ -52,13 +55,23 @@ async function main(): Promise<void> {
         ? {
             openAuthorizationUrl: async ({ authorizationUrl }) => {
               authorizationUrls.push(authorizationUrl);
+              // 并发选举用例必须让 follower 看见在飞授权，不能在它冷启动前完成整个授权。
+              if (config.authorizationBarrierDir) {
+                while ((await readdir(config.authorizationBarrierDir)).length < 2) {
+                  await new Promise((resolve) => setTimeout(resolve, 10));
+                }
+              }
               const response = await fetch(authorizationUrl, { redirect: "manual" });
               const location = response.headers.get("location");
               if (location) await fetch(location);
             },
           }
         : {}),
-      onAuthorizationRequired: () => undefined,
+      onAuthorizationRequired: async () => {
+        if (!config.authorizationBarrierDir) return;
+        await mkdir(config.authorizationBarrierDir, { recursive: true });
+        await writeFile(join(config.authorizationBarrierDir, `${process.pid}.ready`), "ready");
+      },
     },
   });
   try {

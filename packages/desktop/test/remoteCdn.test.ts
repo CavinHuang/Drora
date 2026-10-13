@@ -21,8 +21,8 @@ describe("remoteCdn", () => {
         version: "0.0.0-test",
       }),
     ).toEqual([
-      "https://cdn.codegeex.cn/drora/electron/releases/0.0.0-test",
-      "https://cdn-zcode.z.ai/drora/electron/releases/0.0.0-test",
+      "https://cdn.codegeex.cn/zcode/electron/releases/0.0.0-test",
+      "https://cdn-zcode.z.ai/zcode/electron/releases/0.0.0-test",
     ]);
   });
 
@@ -47,8 +47,8 @@ describe("remoteCdn", () => {
         version: "0.0.0-test",
       }),
     ).toEqual([
-      "https://cdn-zcode.z.ai/drora/electron/releases/0.0.0-test",
-      "https://cdn.codegeex.cn/drora/electron/releases/0.0.0-test",
+      "https://cdn-zcode.z.ai/zcode/electron/releases/0.0.0-test",
+      "https://cdn.codegeex.cn/zcode/electron/releases/0.0.0-test",
     ]);
   });
 
@@ -66,9 +66,7 @@ describe("remoteCdn", () => {
         timeZone: "Asia/Shanghai",
         version: "0.0.0-test",
       }),
-    ).toEqual([
-      "http://intranet.example.invalid:12345/ssh-remote-assets/0.0.0-test",
-    ]);
+    ).toEqual(["http://intranet.example.invalid:12345/ssh-remote-assets/0.0.0-test"]);
   });
 
   it("显式覆盖 CDN 基址时不再按产品环境选择默认值", () => {

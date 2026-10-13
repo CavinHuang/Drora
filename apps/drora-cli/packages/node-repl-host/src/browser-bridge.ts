@@ -1,4 +1,4 @@
-import { NODE_REPL_BROWSER_USE_META_KEY, NODE_REPL_TOOL_SURFACE_META_KEY, NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY } from "@drora/contracts";
+import { NODE_REPL_BROWSER_USE_META_KEY, NODE_REPL_TOOL_SURFACE_META_KEY, NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY } from "@drora/contracts/mcp";
 import { randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
 import type { BrowserClientTransport } from "@drora/core/browser-client";

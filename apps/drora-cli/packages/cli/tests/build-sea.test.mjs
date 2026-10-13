@@ -178,7 +178,7 @@ test("keeps package SEA build scripts aligned with the existing all-target contr
 
   assert.equal(
     cliPackage.scripts["build:sea"],
-    "pnpm --dir ../../../.. exec turbo --skip-infer --cwd apps/drora-cli run build --filter=!@drora/cli --force && pnpm build && node scripts/build-sea.mjs --all",
+    "pnpm --filter @drora/cli... build && node scripts/build-sea.mjs --all",
   );
   assert.equal(cliPackage.scripts["build:sea:all"], undefined);
   assert.equal(cliWorkspacePackage.scripts["build:sea"], "pnpm --filter @drora/cli build:sea");
@@ -836,6 +836,7 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
 
   try {
     await writeTestFile(root, "packages/android-emulator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeVisualizePluginFixtures(root);
     await writeTestFile(root, "packages/android-emulator-plugin/dist/mcp/server.js", "");
     await writeTestFile(root, "packages/node-repl-host/.zcode-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/node-repl-host/dist/mcp/server.js", "");
@@ -871,6 +872,8 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
     await writeTestFile(root, "packages/skill-creator-plugin/hooks/hooks.json", "{}");
     await writeTestFile(root, "packages/skill-creator-plugin/hooks/run-hook.cmd", "");
     await writeTestFile(root, "packages/drora-guide-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/visualize-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeVisualizePluginFixtures(root);
     await writeTestFile(
       root,
       "packages/drora-guide-plugin/skills/drora-configuration-guide/SKILL.md",
@@ -969,6 +972,8 @@ test("requires SEA runtime assets for runtime-backed official plugins", async ()
     );
     await writeTestFile(root, "packages/skill-creator-plugin/.zcode-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/drora-guide-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/visualize-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeVisualizePluginFixtures(root);
 
     await assert.rejects(
       collectSeaOfficialPluginAssets({
@@ -1000,9 +1005,11 @@ test("requires the Browser Use client alongside the SEA MCP runtime", async () =
       "restore-legacy-sessions-plugin",
       "skill-creator-plugin",
       "drora-guide-plugin",
+      "visualize-plugin",
     ]) {
       await writeTestFile(root, `packages/${pluginName}/.zcode-plugin/plugin.json`, "{}");
     }
+    await writeVisualizePluginFixtures(root);
     await writeTestFile(root, "packages/android-emulator-plugin/dist/mcp/server.js", "");
     await writeTestFile(root, "packages/node-repl-host/.zcode-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/node-repl-host/dist/mcp/server.js", "");
@@ -1238,30 +1245,17 @@ test("rebuilds workspace dependencies without caching SEA outputs before packagi
 
   assert.equal(
     packageJson.scripts?.["build:sea"],
-    "pnpm --dir ../../../.. exec turbo --skip-infer --cwd apps/drora-cli run build --filter=!@drora/cli --force && pnpm build && node scripts/build-sea.mjs --all",
+    "pnpm --filter @drora/cli... build && node scripts/build-sea.mjs --all",
   );
 });
 
-test("resolves Turbo from the repository while retaining the CLI workspace graph", () => {
+test("resolves the complete CLI dependency closure in the root pnpm workspace", () => {
   const cliPackageRoot = new URL("..", import.meta.url);
 
-  // 回归原因：CLI 是嵌套 workspace，--workspace-root 会把 Turbo 限定到未安装 binary 的内层 node_modules。
+  // CLI 已合入根 workspace；SEA 重建必须包含所有运行时依赖。
   const result = spawnSync(
     "pnpm",
-    [
-      "--dir",
-      "../../../..",
-      "exec",
-      "turbo",
-      "--skip-infer",
-      "--cwd",
-      "apps/drora-cli",
-      "run",
-      "build",
-      "--filter=!@drora/cli",
-      "--force",
-      "--dry=json",
-    ],
+    ["--filter", "@drora/cli...", "list", "--depth", "-1", "--json"],
     {
       cwd: cliPackageRoot,
       encoding: "utf8",
@@ -1270,8 +1264,10 @@ test("resolves Turbo from the repository while retaining the CLI workspace graph
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /"taskId":/u);
-  assert.doesNotMatch(result.stdout, /"package": "@drora\/cli"/u);
+  const names = new Set(JSON.parse(result.stdout).map((pkg) => pkg.name));
+  for (const name of ["cli", "core", "contracts", "adapters", "bootstrap", "tui", "shared", "model-option-map"]) {
+    assert.equal(names.has(`@drora/${name}`), true, `missing SEA build dependency ${name}`);
+  }
 });
 
 test("can be dynamically imported when argv[1] is missing", () => {
@@ -1304,4 +1300,13 @@ async function writeDocumentPluginFixtures(root) {
   }
   await writeTestFile(root, "packages/image-search-plugin/.zcode-plugin/plugin.json", "{}");
   await writeTestFile(root, "packages/image-search-plugin/.mcp.json", "{}");
+}
+
+async function writeVisualizePluginFixtures(root) {
+  const { officialSeaPlugins } = await import("../scripts/sea-official-plugin-assets.mjs");
+  const plugin = officialSeaPlugins.find((entry) => entry.name === "visualize");
+  await writeTestFile(root, "packages/visualize-plugin/.zcode-plugin/plugin.json", "{}");
+  for (const path of plugin.requiredSeedPaths) {
+    await writeTestFile(root, `packages/visualize-plugin/${path}`, "");
+  }
 }

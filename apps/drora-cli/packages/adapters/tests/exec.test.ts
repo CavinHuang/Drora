@@ -3480,8 +3480,8 @@ describe("NodeExecutionAdapter", () => {
     const result = await adapter.run({
       command: {
         mode: "argv",
-        file: process.execPath,
-        args: ["-e", "process.exit(0)"],
+        file: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "/bin/sh",
+        args: process.platform === "win32" ? ["/c", "exit 0"] : ["-c", "exit 0"],
       },
       timeoutMs: 60,
     });

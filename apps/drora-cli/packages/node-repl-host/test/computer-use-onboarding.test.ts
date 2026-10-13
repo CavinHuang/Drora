@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { NODE_REPL_CUA_BRIDGE_SYMBOL } from "../src/cua-bridge.js";
 
 /**
  * CUA 的输出策略：参考按需取用，宿主不主动推。
@@ -17,7 +18,7 @@ const WRITTEN: string[] = [];
 async function makeGlobals(bridgeOverrides: Record<string, unknown> = {}) {
   const { join, dirname } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
-  const clientUrl = fileURLToPath(new URL("../../drora-cua-plugin/scripts/computer-use-client.mjs", import.meta.url));
+  const clientUrl = fileURLToPath(new URL("../../zcode-cua-plugin/scripts/computer-use-client.mjs", import.meta.url));
   const documentationRoot = join(dirname(clientUrl), "..", "docs");
   const bridge = {
     call: vi.fn(async () => ({ content: [{ type: "text", text: "ok" }] })),
@@ -26,7 +27,7 @@ async function makeGlobals(bridgeOverrides: Record<string, unknown> = {}) {
     ...bridgeOverrides,
   };
   const globals = {
-    [Symbol.for("drora.node-repl.computer-use-bridge")]: bridge,
+    [NODE_REPL_CUA_BRIDGE_SYMBOL]: bridge,
     nodeRepl: { write: (text: string) => { WRITTEN.push(text); } },
   };
   const mod = await import(clientUrl);

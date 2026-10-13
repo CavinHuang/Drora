@@ -103,3 +103,6 @@ packages/desktop/.e2e-home-*/
 .codex-runtime/
 .claude/worktrees/
 .drora-runtime
+
+# 独立 CLI 包级回归日志
+.drora-cli-test-results/

@@ -161,7 +161,7 @@ interface ModelRequestLog {
 /** 脚本化 model adapter（同 workflow-driver.helpers 的模式，本文件按 actor 键取计划）。 */
 function scriptedModelAdapter(
   responses: ActorPlan[],
-  onCall?: () => void,
+  onCall?: () => void | Promise<void>,
   log?: ModelRequestLog,
 ): unknown {
   let index = 0;
@@ -171,7 +171,8 @@ function scriptedModelAdapter(
       messages?: unknown;
       tools?: readonly { name: string }[];
     }) {
-      onCall?.();
+      const onCallResult = onCall?.();
+      if (onCallResult) await onCallResult;
       log?.requests.push({ messages: request?.messages, tools: request?.tools });
       const planned: ActorPlan = responses[index++] ?? {
         kind: "text",
@@ -251,6 +252,7 @@ function scriptedModelAdapter(
 
 interface HarnessOptions {
   actorScripts?: Record<string, ActorPlan[]>;
+  beforeActorModelRequest?: (actorRef: string) => void | Promise<void>;
   availableParallelism?: () => number;
   /** 进程级治理器的窄端口；缺省不接（actor 不受闸门约束，launch 也不登记上界）。 */
   concurrency?: WorkflowConcurrencyPort;
@@ -553,7 +555,10 @@ function makeHarness(options: HarnessOptions = {}): Harness {
               }
             : scriptedModelAdapter(
                 responses,
-                () => order.push(`turn:${refToString(input.actor)}`),
+                () => {
+                  order.push(`turn:${refToString(input.actor)}`);
+                  return options.beforeActorModelRequest?.(key);
+                },
                 modelRequests,
               )) as never,
           workflowSubmitPort: input.submitPort,
@@ -8085,7 +8090,14 @@ describe("dynamic workflow run service — 模型侧错误的收容（apps/drora
     });
 
   it("一个子代理撞上确定性模型错误 → run stopped(provider)，兄弟在飞 ask 被 abort，可恢复", async () => {
+    let siblingStarted!: () => void;
+    const siblingInFlight = new Promise<void>((resolve) => { siblingStarted = resolve; });
     const harness = makeHarness({
+      // 确保兄弟 ask 真正在飞再触发失败；不靠 Promise.all 的调度速度猜测两个节点已创建。
+      beforeActorModelRequest: (actorRef) => {
+        if (actorRef === "actor#2@1") siblingStarted();
+        if (actorRef === "actor#1@1") return siblingInFlight;
+      },
       actorScripts: {
         "actor#1@1": [
           {

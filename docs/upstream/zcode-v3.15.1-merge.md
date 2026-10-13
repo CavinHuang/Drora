@@ -10,18 +10,18 @@ Drora `82b02c1411a995a4c33080d5ea497b1477ae6ded`，官方旧基线 `29628c9acdb8
 
 ## 接入边界
 
-| 能力 | 官方实现与 Drora 扩展 |
-| --- | --- |
-| 手机远控 | 官方 web/UI、manager、device/browser transport、Host attachment；Drora 只在装配层提供 LAN/Relay 端点与按 origin 隔离的凭据 |
-| 页面部署 | mobile-web 从 packages/web 构建当前版本资产；旧冻结件退出生产候选列表 |
-| Vault/知识库 | services/knowledge 与 ui/v4/vault 独立保留；Host 通过 services 扩展公开入口装配 |
-| CUA | 保留已有 0.6.3 SDK/Helper 复原资产；公开上游 0.6.4 为占位包；惰性环境适配放入 services 扩展 |
-| 桌面宠物 | Desktop 生命周期扩展和独立 UI，沿用宿主设置 |
-| 更新器 | 官方轮询、重试、替换和下载状态机；Drora GitHub 发布源及安装失败恢复独立接入；保留已移除的启动最低版本门禁决策 |
-| 权限 | 采用官方最新输入与审批路径，最终输入仍通过独立 S03 写入分级复核 |
-| 新官方能力 | MCP Apps/Visualize、Gen UI、辅助对话、工作流修补与保存、Bot/远程连接/终端/Provider 更新采用公开实现 |
+| 能力         | 官方实现与 Drora 扩展                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| 手机远控     | 官方 web/UI、manager、device/browser transport、Host attachment；Drora 只在装配层提供 LAN/Relay 端点与按 origin 隔离的凭据 |
+| 页面部署     | mobile-web 从 packages/web 构建当前版本资产；旧冻结件退出生产候选列表                                                      |
+| Vault/知识库 | services/knowledge 与 ui/v4/vault 独立保留；Host 通过 services 扩展公开入口装配                                            |
+| CUA          | 保留已有 0.6.3 SDK/Helper 复原资产；公开上游 0.6.4 为占位包；惰性环境适配放入 services 扩展                                |
+| 桌面宠物     | Desktop 生命周期扩展和独立 UI，沿用宿主设置                                                                                |
+| 更新器       | 官方轮询、重试、替换和下载状态机；Drora GitHub 发布源及安装失败恢复独立接入；保留已移除的启动最低版本门禁决策              |
+| 权限         | 采用官方最新输入与审批路径，最终输入仍通过独立 S03 写入分级复核                                                            |
+| 新官方能力   | MCP Apps/Visualize、Gen UI、辅助对话、工作流修补与保存、Bot/远程连接/终端/Provider 更新采用公开实现                        |
 
-新扩展目录均有 module/contract/example/test/CONTRACT 和架构策略登记。外部 `zcode_type`、MCP `zcode/csp`、x-zcode headers、服务域名/API 路径、OAuth 回调和原始插件 seed 保持官方契约。
+新扩展目录均有 module/contract/example/test/CONTRACT 和架构策略登记。外部 `zcode_type`、MCP `zcode/csp`、OAuth 回调和原始插件 seed 已按官方契约处理。完整性复核发现的 CDN 对象目录、手机 HTTP header 和 Guide 图标误改已修复；真实 HTTP 契约已复核。公网制品兼容与平台验收边界见 [补齐验收](zcode-v3.15.1-followup-result.md)。
 
 ## 公开实现的限制
 
@@ -34,5 +34,7 @@ CLI 的旧测试存在上游自身漂移：单独复制官方 runner-options 源
 ## 验证
 
 完整验证结果与命令见 [验证记录](zcode-v3.15.1-validation.md)。
+
+当前状态：公开源码迁移补齐与本地集成验证完成。Android/iOS 构建/staging、外部契约和 CLI 缺口已处理；49 项上游测试/实现不一致与两项公网归档访问失败保持可见，不宣称整个 CLI 工作区全绿。结果与原始证据见 [补齐验收](zcode-v3.15.1-followup-result.md)。未推送或发布。
 
 后续同步先固定新的官方 commit 与已有 ancestor，按 [迁移策略](../../specs/upstream-v3.15.1-migration.md) 对照各扩展端口。不要重新修改冻结资产或在 UI/Host 中建立第二个远控控制器和任务所有者。

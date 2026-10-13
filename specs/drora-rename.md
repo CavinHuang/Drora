@@ -45,13 +45,13 @@
      `HELPER_BUNDLE_ID` "dev.zcode.cua-helper" → "dev.drora.cua-helper"；
      `DEV_CUA_HELPER_BUNDLE_ID` → "dev.drora.cua-helper.dev"（两棵常量树
      helperConstants.ts / broker-helper-constants.js 为单一出处，散落字面量随常量走）。
-     连带：buildId 前缀本就为 drora-*；安装路径 ~/.drora/computer-use/<新 app 名>；
+     连带：buildId 前缀本就为 drora-\*；安装路径 ~/.drora/computer-use/<新 app 名>；
      TCC 授权主体随 bundle id 变更一次性重置（发布前执行，无存量授权损失）。
    - **保留逐字（官方锚点，非 Drora 身份）**：launcher 门钉扎 `dev.zcode.app` +
      TeamID `8A5X4JJ39T`（`HELPER_TEAM_ID`，官方发射门与严格链锚定的是官方发行物，
      改名即篡改还原语义）；`resources/cua-helper*/` 官方 staging/参照副本（含其
      "ZCode Computer Use.app" 原名与 bundle id）；上游仓库名/目录名
-     （packages/zcode-cua* 等）；dist/windows-helper.js 原版 bundle；
+     （packages/zcode-cua\* 等）；dist/windows-helper.js 原版 bundle；
      parity 工具中「官方侧」路径与断言。
    - 验收：zcode-cua 全套测试（restored-smoke/embedded-build-id/mac-launch-contract/
      cua-tool-layer-smoke/adhoc-distribution-profile）+ parity（our 侧新名/orig 侧
@@ -129,3 +129,14 @@ network-capture.ts 捕获列表同时认 zcode/drora 两种前缀。改名重放
 已知遗留（P2 备案）：`drora-source-headers.ts` 的出站源 header 组内一半改名
 （User-Agent/X-Drora-App-Version）一半保留（X-Title "Z Code@"），z.ai 端灰度/客户端
 识别会把 Drora 归入未知桶——待确认服务端消费语义后整组统一。
+
+## v3.15.1 外部契约豁免补记（2026-10-13）
+
+以下属于规则 0 的外部契约例外，不参与兜底品牌替换；[完整性复核](../docs/upstream/zcode-v3.15.1-completeness-review.md) 已发现对应待修实现。本节明确目标规则，不表示实现已修复。
+
+- 官方远端 CDN：`https://cdn.codegeex.cn/zcode/electron/releases` 和 `https://cdn-zcode.z.ai/zcode/electron/releases`，保留对象目录 `zcode/electron/releases`。Drora 自建发布根经已有显式配置和独立装配接入，不能仅改官方桶内的路径。
+- 官方插件图标：`/zcode/official-plugin/assets/zcode-guide/icon.png` 原样保留；本地插件 ID/市场映射与远端图片对象 key 分开处理。
+- 手机 HTTP 控制面的 `X-ZCode-Mobile-Connection-Id` 保留官方 header 名；大小写不敏感不能解释 ZCode/Drora 前缀不同。
+- Webhook 默认 wire header 使用 `x-zcode-bot-secret`。已持久化的 Drora 旧别名兼容经独立 adapter 处理；用户配置的自定义出站 header 不进行全量重写，验密规则保持严格。
+
+跨包契约键在 shared/contracts 定义一次，生产消费方引用同一出处；原始插件 seed、上游资产和 provenance 不经过品牌归一化。补齐批次与验收见 [后续合并方案](../docs/upstream/zcode-v3.15.1-followup-plan.md)。

@@ -401,6 +401,7 @@ describe("MCP OAuth cross-process end-to-end", () => {
     const { credentialsPath } = await createCredentials("cross-process-authorize");
     const config = {
       autoDrive: true,
+      authorizationBarrierDir: `${credentialsPath}.authorization-barrier`,
       credentialsPath,
       mcpUrl: stack.mcpUrl,
       mode: "authorize" as const,
@@ -482,10 +483,13 @@ describe("MCP OAuth cross-process end-to-end", () => {
     const { credentialStore, credentialsPath } = await createCredentials("cross-process-budget");
     const secret = "cross-process-budget";
     const { createMcpAdapter } = await import("../src/mcp/index.js");
+    let markAuthorizationShown!: () => void;
+    const authorizationShown = new Promise<void>((resolve) => { markAuthorizationShown = resolve; });
     const adapter = createMcpAdapter({
       mcpOAuth: {
         credentialStore,
         openAuthorizationUrl: async ({ authorizationUrl }) => {
+          markAuthorizationShown();
           await new Promise((resolve) => setTimeout(resolve, 1500));
           const response = await fetch(authorizationUrl, { redirect: "manual" });
           const location = response.headers.get("location");
@@ -502,7 +506,9 @@ describe("MCP OAuth cross-process end-to-end", () => {
       );
       // 预算到点只返回快照:connecting + 授权 URL,事务没有被杀。
       expect(budgeted.status).toBe("connecting");
-      expect(budgeted.authorization?.authorizationUrl).toContain(stack.asBaseUrl);
+      // 100ms 预算不保证冷初始化已生成 URL；公开授权事件后状态必须可恢复。
+      await authorizationShown;
+      expect((await adapter.status()).budget?.authorization?.authorizationUrl).toContain(stack.asBaseUrl);
 
       let final = budgeted;
       for (let attempt = 0; attempt < 100 && final.status !== "connected"; attempt += 1) {

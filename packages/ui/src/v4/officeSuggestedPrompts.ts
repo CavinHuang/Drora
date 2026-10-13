@@ -331,7 +331,7 @@ export const officeSuggestedPrompts: RecommendedPrompt[] = [
   {
     id: "official-16",
     category: "utility",
-    iconUrl: "https://cdn-zcode.z.ai/zcode/official-plugin/assets/drora-guide/icon.png",
+    iconUrl: "https://cdn-zcode.z.ai/zcode/official-plugin/assets/zcode-guide/icon.png",
     label: {
       cn: "帮我检查当前的 Drora 配置，看看有哪些可以调整",
       en: "Review my Drora configuration and suggest useful adjustments.",

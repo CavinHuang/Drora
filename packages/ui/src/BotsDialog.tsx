@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import QRCode from "qrcode";
 import { Bot, Loader2, Plus } from "lucide-react";
+import { BOT_WEBHOOK_SECRET_HEADER } from "@drora/shared";
 import type {
   BotConfig,
   BotProvider,
@@ -697,7 +698,7 @@ export function BotsDialog({
         await saveBot({
           ...bot,
           name: "",
-          ...(provider === "webhook" ? { webhookAuthHeaderName: "x-drora-bot-secret" } : {}),
+          ...(provider === "webhook" ? { webhookAuthHeaderName: BOT_WEBHOOK_SECRET_HEADER } : {}),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

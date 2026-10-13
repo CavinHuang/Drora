@@ -23,6 +23,14 @@ Remote workspace execution is guarded by an injectable runtime connector. A disc
 
 ## Bot Config
 
+### Webhook wire header 与旧 Drora 配置兼容
+
+新建 Webhook bot 的默认出站 secret header 为官方 `x-zcode-bot-secret`。
+已保存的用户自定义 `webhookAuthHeaderName` 保留，不进行批量改写。
+HTTP 入站在独立 services Drora adapter 中兼容旧 `x-drora-bot-secret`，只产生一个 `webhookSecret` 交给既有 Bot 服务验密。
+两个 header 同时存在且值不同直接返回 401；同值视为一个凭据，缺失/错误仍由既有服务拒绝。
+adapter 不读取 CredentialService、不存储 secret、不记录 header 值，不改变绑定、任务 owner 或回调权限。
+
 Each bot contains:
 
 - `id`, `name`, `provider`, `enabled`

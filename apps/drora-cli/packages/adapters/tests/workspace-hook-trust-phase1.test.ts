@@ -1,7 +1,21 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const fixtureBoundary = vi.hoisted(() => ({ root: undefined as string | undefined }));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    existsSync(path: import("node:fs").PathLike) {
+      const text = String(path);
+      // 云沙箱在 /tmp 注入只读 .git 占位；非 Git 夹具须隔离真实祖先标记。
+      if (fixtureBoundary.root && text.endsWith("/.git") && !text.startsWith(`${fixtureBoundary.root}/`)) return false;
+      return actual.existsSync(path);
+    },
+  };
+});
 import { createConfig } from "../src/config/index.js";
 
 async function createWorkspace(options: { git?: boolean } = {}): Promise<string> {
@@ -286,6 +300,7 @@ describe("workspace hook trust phase 1 discovery", () => {
 
   it("非 Git workspace 只扫描 cwd，不纳入父目录 project hooks", async () => {
     const parent = await createWorkspace({ git: false });
+    fixtureBoundary.root = parent;
     const child = join(parent, "child");
     try {
       await mkdir(child, { recursive: true });
@@ -302,6 +317,7 @@ describe("workspace hook trust phase 1 discovery", () => {
       expect(result.sources.project.workspaceHookSnapshot?.hooks).toHaveLength(1);
       expect(result.sources.project.workspaceHookSnapshot?.hooks[0]?.command).toBe("echo child");
     } finally {
+      fixtureBoundary.root = undefined;
       await rm(parent, { force: true, recursive: true });
     }
   });

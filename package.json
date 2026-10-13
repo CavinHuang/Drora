@@ -2,6 +2,7 @@
   "name": "drora",
   "version": "3.15.1",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @drora/server dev\" \"pnpm --filter @drora/web dev\"",
@@ -76,6 +77,7 @@
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
     "test:architecture": "node --test scripts/test/architecture-governance.test.mjs",
     "test:unit:vitest": "vitest run --exclude \"packages/desktop/test/e2e/**/*.test.ts\"",
+    "test:upstream-cli": "node scripts/test-upstream-cli.mjs",
     "test:unit:node": "node scripts/run-node-unit-tests.mjs"
   },
   "dependencies": {
@@ -129,6 +131,5 @@
       "@ai-sdk/openai-compatible@2.0.60": "patches/@ai-sdk__openai-compatible@2.0.60.patch",
       "@ai-sdk/anthropic@3.0.81": "patches/@ai-sdk__anthropic@3.0.81.patch"
     }
-  },
-  "license": "Apache-2.0"
+  }
 }

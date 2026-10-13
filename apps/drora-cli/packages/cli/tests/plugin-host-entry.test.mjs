@@ -114,8 +114,8 @@ export async function main() {
         // 确认是可信 node_repl 宿主后才恢复到 env，供 broker bridge 读取。
         socketVisibleAtImport: false,
         socketVisibleAtMain: true,
-        // token 已从凭据组删除，宿主不再恢复它。
-        tokenVisibleAtMain: false,
+        // 冻结 SDK 需要 scoped token，仅可信宿主运行期间可见。
+        tokenVisibleAtMain: true,
       });
 
       // 非 node_repl 宿主必须在插件 import 前被拒绝，不能因入口提前分流绕过产品鉴权。

@@ -6,7 +6,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addMarketplace,
   applyClaudePluginIcons,
@@ -54,6 +54,18 @@ import {
 const execFileAsync = promisify(execFile);
 
 describe("NodePluginAdapter", () => {
+  beforeEach(() => {
+    const realFetch = globalThis.fetch;
+    // 本地插件用例默认使用空的可选 CDN 图标；专门的下载/缓存用例会显式覆盖此 fixture。
+    // 其它 URL 仍走真实 HTTP，包括本地代理、GitHub 归档和来源安全测试。
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url === "https://cdn-zcode.z.ai/zcode/official-plugin/assets/icon-sources.json") {
+        return Promise.resolve(new Response("[]", { status: 200 }));
+      }
+      return realFetch(input, init);
+    });
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();

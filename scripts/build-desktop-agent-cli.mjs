@@ -59,7 +59,19 @@ const cliWorkspaceBuilds = [
 // 连接 MCP 才报错，造成“Helper ready 但 CUA 工具不存在”的半启动状态。所有普通 Dev 必需的
 // 独立 MCP runtime 必须集中登记，并在构建后验证真实入口文件，再允许 Agent bundle 启动。
 const requiredDevPluginRuntimeBuilds = [
-  { packageName: "@drora/obsidian-plugin", artifactPath: "obsidian-plugin/dist/hooks/session-start.mjs" },
+  // 与 packaged/remote staging 同步：源码插件先构建，不能直到首次 MCP 连接才发现 dist 缺失。
+  {
+    packageName: "@drora/android-emulator-plugin",
+    artifactPath: "android-emulator-plugin/dist/mcp/server.js",
+  },
+  {
+    packageName: "@drora/ios-simulator-plugin",
+    artifactPath: "ios-simulator-plugin/dist/mcp/server.js",
+  },
+  {
+    packageName: "@drora/obsidian-plugin",
+    artifactPath: "obsidian-plugin/dist/hooks/session-start.mjs",
+  },
   {
     // node_repl 宿主：Browser Use 与 Computer Use 共用，产物归属独立包。
     packageName: "@drora/node-repl-host",

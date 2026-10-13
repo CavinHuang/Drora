@@ -18,6 +18,8 @@ import type { WebRemoteControlRpcTransportPayload } from "./web-remote-control-r
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 
 export const WEB_REMOTE_CONTROL_WORKSPACE_RECONNECT_TIMEOUT_MS = 120_000;
+// 官方 HTTP 控制面按此 wire header 关联手机连接，不能随品牌改名。
+export const WEB_REMOTE_CONTROL_MOBILE_CONNECTION_ID_HEADER = "X-ZCode-Mobile-Connection-Id";
 export const WEB_REMOTE_CONTROL_OUTBOUND_PAYLOAD_BUFFER_TIMEOUT_MS = 5_000;
 
 export type WebRemoteControlThemeSeed = "light" | "dark" | "zai-light" | "zai-dark" | "system";

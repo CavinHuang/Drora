@@ -81,10 +81,18 @@ function parseCsvEnv(value: string | undefined): string[] {
 
 export function resolveBuildRemoteCdnReleaseRoots(runtimeEnv: Record<string, string | undefined>) {
   const domains = parseCsvEnv(runtimeEnv.CDN_DOMAIN);
-  const pathPrefixes = parseCsvEnv(runtimeEnv.OSS_PATH_PREFIX || "drora/electron/releases");
   if (domains.length === 0) {
     return [];
   }
+  // 官方目录不能品牌化；自建 CDN 没有可推断的对象 key，必须沿已有配置显式指定。
+  const officialDomains = new Set(["cdn-zcode.z.ai", "cdn.codegeex.cn"]);
+  if (
+    !runtimeEnv.OSS_PATH_PREFIX?.trim() &&
+    domains.some((domain) => !officialDomains.has(domain.toLowerCase()))
+  ) {
+    throw new Error("OSS_PATH_PREFIX is required for a custom CDN_DOMAIN");
+  }
+  const pathPrefixes = parseCsvEnv(runtimeEnv.OSS_PATH_PREFIX?.trim() || "zcode/electron/releases");
   if (pathPrefixes.length !== 1 && pathPrefixes.length !== domains.length) {
     throw new Error(
       `OSS_PATH_PREFIX must contain one value or match CDN_DOMAIN count (${domains.length}), got ${pathPrefixes.length}`,

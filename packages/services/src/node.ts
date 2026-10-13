@@ -1,4 +1,5 @@
 export { assembleDroraKnowledgeHost } from "./drora-extensions/knowledgeHost.js";
+export { resolveDroraWebhookSecret } from "./drora-extensions/webhookSecret.js";
 import { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 export { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 import { IGenUiService } from "./gen-ui/contract.js";
@@ -175,11 +176,18 @@ export type {
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createOutputStyleService } from "./output-style/outputStyleService.js";
-export { createObsidianVaultService, resolveObsidianPluginDataDir } from "./obsidian-vault/obsidianVaultService.js";
+export {
+  createObsidianVaultService,
+  resolveObsidianPluginDataDir,
+} from "./obsidian-vault/obsidianVaultService.js";
 export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
 export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
 // Knowledge 决策层（W05 / spec §5d）：Host 侧装配入口（凭证只在 Host 安全配置注入）。
-export { createJevAdapter, JEV_PROVIDER_ID, mergedNoulQuestion } from "./knowledge/decision/jevAdapter.js";
+export {
+  createJevAdapter,
+  JEV_PROVIDER_ID,
+  mergedNoulQuestion,
+} from "./knowledge/decision/jevAdapter.js";
 // Jev 装配（§5d.10）：Host 异步初始化段预解析快照 → createLocalServices option。
 export {
   createKnowledgeJevProviderFactory,
@@ -199,13 +207,20 @@ export {
 } from "./knowledge/search/localEmbeddingPort.js";
 export type { LocalEmbeddingPortOptions } from "./knowledge/search/localEmbeddingPort.js";
 export type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
-export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
+export {
+  createLocalFallbackProvider,
+  localFallbackOutcomes,
+} from "./knowledge/decision/localFallback.js";
 export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
 export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";
 export { DecisionTelemetry } from "./knowledge/decision/decisionTelemetry.js";
 export type { DecisionTelemetrySnapshot } from "./knowledge/decision/decisionTelemetry.js";
 export { DecisionPipeline } from "./knowledge/decision/decisionPipeline.js";
-export type { DecisionPipelineOptions, DecisionStageInput, DecisionStageOutput } from "./knowledge/decision/decisionPipeline.js";
+export type {
+  DecisionPipelineOptions,
+  DecisionStageInput,
+  DecisionStageOutput,
+} from "./knowledge/decision/decisionPipeline.js";
 export {
   DECISION_POLICY_VERSION,
   DEFAULT_DECISION_POLICY,
@@ -225,9 +240,7 @@ export type {
 } from "./knowledge/decision/decisionTypes.js";
 export type { KnowledgeDecisionContext } from "./knowledge/query/queryOrchestrator.js";
 // Knowledge 离线评测（W05 / spec §5d.8）：真实检索代码路径上的 A/B harness。
-export {
-  runKnowledgeEvaluation,
-} from "./knowledge/eval/evaluationHarness.js";
+export { runKnowledgeEvaluation } from "./knowledge/eval/evaluationHarness.js";
 export type {
   EvaluationQueryCase,
   EvaluationVariant,
@@ -1189,9 +1202,10 @@ export function buildStandaloneCuaHelperLaunchArgs(options: {
   );
 }
 
-export function readEmbeddedCuaHelperBuildIdentityFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): { embeddedBuildId?: string; version?: string } {
+export function readEmbeddedCuaHelperBuildIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): {
+  embeddedBuildId?: string;
+  version?: string;
+} {
   const embeddedBuildId = env[DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV]?.trim();
   const version = env[DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]?.trim();
   return {
@@ -1252,10 +1266,6 @@ function isGlobalCliDroraCuaServer(name: string, config: unknown): boolean {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
-
-
-
 
 /**
  * 创建包含所有本地服务的 ServiceCollection
@@ -2015,7 +2025,7 @@ export function createLocalServices(options: {
         if (!stable) {
           stable =
             process.platform === "darwin"
-              ? (await launchStandaloneCuaHelperForStatus())?.socketPath ?? null
+              ? ((await launchStandaloneCuaHelperForStatus())?.socketPath ?? null)
               : await launchWindowsCuaHelperForStatus();
         }
         if (!stable) {
@@ -2320,14 +2330,21 @@ export function createLocalServices(options: {
             };
       const cuaPluginEnabled = isCuaEnabledForContext(context);
       const helper = await getOrCreateDefaultCuaProductHelper(context);
-      let cuaProductHelperEnv: Record<string, string> = helper ? await buildCuaProductHelperAgentEnv(helper.host) : {};
-      if (!helper && cuaPluginEnabled && (process.platform === "darwin" || process.platform === "win32")) {
+      let cuaProductHelperEnv: Record<string, string> = helper
+        ? await buildCuaProductHelperAgentEnv(helper.host)
+        : {};
+      if (
+        !helper &&
+        cuaPluginEnabled &&
+        (process.platform === "darwin" || process.platform === "win32")
+      ) {
         // 懒启动：无托管 host 时注入稳定 socket；无 token（身份模式）、无 pluginAuthority
         // （其校验方就是 host，host 缺席时无意义）。SDK ensureBrokerAvailable 负责拉起。
         // pluginAuthority 是 agent 进程内的 config-provenance 随机数（bootstrap 捕获后写进
         // node_repl 配置 env，core 比对两者证明该配置出自本 bootstrap 而非用户配置文件）；
         // 它不需要 host——托管态由 host 铸造，懒启动态在此按 spawn 铸造，语义与校验完全一致。
-        const lazySocketPath = process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath();
+        const lazySocketPath =
+          process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath();
         const lazyStandaloneToken = standaloneTokenBySocket.get(lazySocketPath);
         cuaProductHelperEnv = {
           [BROKER_SOCKET_ENV]: lazySocketPath,

@@ -1,3 +1,4 @@
+import "./isolated-debug-home.js";
 import { appendFile, mkdir, mkdtemp, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,9 +45,10 @@ describe("observation events", () => {
 
     const app = createDebugApp();
     const response = await app.request(
-      `/api/observations/events?logDir=${encodeURIComponent(logDir)}&dbPath=${encodeURIComponent(
+      `http://localhost/api/observations/events?logDir=${encodeURIComponent(logDir)}&dbPath=${encodeURIComponent(
         join(root, "missing.sqlite"),
       )}`,
+      { headers: { host: "localhost" } },
     );
     const reader = response.body?.getReader();
     if (!reader) throw new Error("response body is missing");

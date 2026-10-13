@@ -601,11 +601,9 @@ test("borrows one process provider registry for a headless prompt and disposes i
     userConfigPath: "/tmp/drora-legacy-cli.json",
     startProcessProviderRegistryRuntime: async (_env, options) => {
       runtimeStarts += 1;
-      assert.deepEqual(options, {
-        standalone: {
-          legacyCliUserConfigFilePath: "/tmp/drora-legacy-cli.json",
-        },
-      });
+      assert.equal(options?.standalone?.legacyCliUserConfigFilePath, "/tmp/drora-legacy-cli.json");
+      assert.equal(typeof options?.standalone?.onBuiltinRefreshError, "function");
+      assert.equal(typeof options?.standalone?.onBuiltinRefreshResult, "function");
       return {
         accountSource: {} as never,
         dispose: () => {
@@ -4221,16 +4219,14 @@ export async function main() {
 
     const ctx = createContext([DRORA_PLUGIN_HOST_COMMAND, serverPath]);
     assert.equal(await runPluginHostCommand(ctx, [serverPath]), 0);
-    // identity 模式：恢复给宿主的只有 socket（配 authority），没有口令。环境里那个遗留
-    // token 是历史键，sanitize 会连它一起剔除，因此宿主根本看不到它 —— 否则旧版 Helper
-    // （认 bearer token 的那些）就能被同 agent 内的其它子进程直接驱动。
+    // 冻结 CUA 客户端仍需 token 鉴权；只向可信宿主临时恢复，普通子进程及父进程均剔除。
     // 逐字段断言：JSON.stringify 会把值为 undefined 的键整个省掉，深比较对不上。
     const hostEnv = JSON.parse(await readFile(outputPath, "utf8")) as {
       socket?: string;
       token?: string;
     };
     assert.equal(hostEnv.socket, "/tmp/cua-broker.sock");
-    assert.equal(hostEnv.token, undefined);
+    assert.equal(hostEnv.token, "scoped-secret-token");
     // 宿主只在运行期间短暂恢复，跑完父进程 env 必须回到已剔除状态。
     assert.equal(process.env.DRORA_CUA_PERMISSION_BROKER_SOCKET, undefined);
     assert.equal(process.env.DRORA_CUA_PERMISSION_BROKER_TOKEN, undefined);
@@ -6272,11 +6268,9 @@ test("reuses one process provider registry across TUI app replacements", async (
     userConfigPath: "/tmp/drora-legacy-tui.json",
     startProcessProviderRegistryRuntime: async (_env, options) => {
       runtimeStarts += 1;
-      assert.deepEqual(options, {
-        standalone: {
-          legacyCliUserConfigFilePath: "/tmp/drora-legacy-tui.json",
-        },
-      });
+      assert.equal(options?.standalone?.legacyCliUserConfigFilePath, "/tmp/drora-legacy-tui.json");
+      assert.equal(typeof options?.standalone?.onBuiltinRefreshError, "function");
+      assert.equal(typeof options?.standalone?.onBuiltinRefreshResult, "function");
       return {
         accountSource: {} as never,
         dispose: () => {
@@ -6327,6 +6321,7 @@ test("reuses one process provider registry across TUI app replacements", async (
       } as never;
     },
     runTui: async (options) => {
+      options = await loadTuiStartup(options);
       await options.submitPrompt("/new", {
         requestPermission: async () => ({
           decision: "deny",
@@ -6337,7 +6332,7 @@ test("reuses one process provider registry across TUI app replacements", async (
     },
   });
 
-  assert.equal(exitCode, 0);
+  assert.equal(exitCode, 0, ctx.stderr.output());
   assert.equal(appCreations, 2);
   assert.equal(runtimeStarts, 1);
   assert.equal(runtimeDisposals, 1);

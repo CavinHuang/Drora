@@ -394,6 +394,20 @@ test(
       useThread: false,
     });
     const root = createRoot(terminal.renderer);
+    let disposed = false;
+    const disposeTerminal = () => {
+      if (disposed) return;
+      disposed = true;
+      root.unmount();
+      terminal.renderer.destroy();
+      if (previous === undefined) delete environment.IS_REACT_ACT_ENVIRONMENT;
+      else environment.IS_REACT_ACT_ENVIRONMENT = previous;
+    };
+    // 超时也必须释放渲染循环；只靠 finally 会卡在未完成的 highlighting barrier。
+    t.after(() => {
+      authorize();
+      disposeTerminal();
+    });
     let loginCompletion: ReturnType<typeof handler> | undefined;
     const seenEvents: SessionEvent[] = [];
     const options: TuiOptions = {
@@ -465,10 +479,7 @@ test(
         authorize();
         await loginCompletion;
       });
-      await React.act(() => root.unmount());
-      terminal.renderer.destroy();
-      if (previous === undefined) delete environment.IS_REACT_ACT_ENVIRONMENT;
-      else environment.IS_REACT_ACT_ENVIRONMENT = previous;
+      await React.act(disposeTerminal);
     }
   },
 );

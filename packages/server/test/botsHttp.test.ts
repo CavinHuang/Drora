@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AddressInfo } from "node:net";
-import {
-  ServiceCollection,
-  IBotsService,
-  type IBotsService as BotsService,
-} from "@drora/services";
+import { ServiceCollection, IBotsService, type IBotsService as BotsService } from "@drora/services";
 import { createHttpServer } from "../src/http.js";
 
 describe("bots HTTP callback", () => {
@@ -100,6 +96,35 @@ describe("bots HTTP callback", () => {
     expect(response.status).toBe(400);
   });
 
+  it.each([
+    [{ "x-drora-bot-secret": "secret" }, 200, "secret"],
+    [{ "x-zcode-bot-secret": "secret", "x-drora-bot-secret": "secret" }, 200, "secret"],
+    [{ "x-zcode-bot-secret": "secret", "x-drora-bot-secret": "different" }, 401, undefined],
+  ])(
+    "normalizes legacy credentials and rejects conflicts before business handling: %j",
+    async (headers, status, secret) => {
+      const handleProviderCallbackResponse = vi.fn(async () => ({ ok: true, replies: [] }));
+      const services = new ServiceCollection().register(IBotsService, {
+        handleProviderCallbackResponse,
+      } as unknown as BotsService);
+      const server = createHttpServer(services, 0);
+      servers.push(server);
+      const address = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/bots/webhook`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ botId: "webhook-1", userId: "user-1", text: "/status" }),
+      });
+      expect(response.status).toBe(status);
+      if (status === 401) expect(handleProviderCallbackResponse).not.toHaveBeenCalled();
+      else
+        expect(handleProviderCallbackResponse).toHaveBeenCalledWith(
+          "webhook",
+          expect.objectContaining({ webhookSecret: secret }),
+        );
+    },
+  );
+
   it("returns a retryable HTTP status when bot business handling fails", async () => {
     const services = new ServiceCollection().register(IBotsService, {
       handleProviderCallbackResponse: vi.fn(async () => ({
@@ -112,10 +137,10 @@ describe("bots HTTP callback", () => {
     servers.push(server);
     const address = server.address() as AddressInfo;
 
-    const response = await fetch(
-      `http://127.0.0.1:${address.port}/api/bots/webhook`,
-      { method: "POST", body: "{}" },
-    );
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/bots/webhook`, {
+      method: "POST",
+      body: "{}",
+    });
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ ok: false });

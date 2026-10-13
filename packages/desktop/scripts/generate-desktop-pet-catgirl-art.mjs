@@ -30,6 +30,12 @@ for (const character of manifest.characters) {
     name: character.name,
     nameEn: NAME_EN[character.id] ?? character.id,
     actions: rows,
+    // 接口 DesktopPetCatgirlCharacter 声明这三个字段必填（测试按接口断言
+    // columns/cellWidth/cellHeight）；此前生成器漏发，生成物违反自身类型
+    // （desktop 的 src/main 不在 root typecheck 范围，编译期不可见）。
+    cellWidth: CELL_WIDTH,
+    cellHeight: CELL_HEIGHT,
+    columns: COLUMNS,
   });
 }
 

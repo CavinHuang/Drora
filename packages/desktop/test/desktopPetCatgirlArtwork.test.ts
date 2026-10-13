@@ -37,7 +37,9 @@ test("catgirl pet document embeds the character atlas and maps modes to actions"
     assert.match(html, new RegExp(`#pet\\[data-mode=${mode}\\] #pet-art\\{[^}]*animation:pet-${mode}`));
   }
   // completed 播一遍 happy 后停在末帧（once → 1 forwards）。
-  assert.match(html, /animation:pet-completed \d+ms steps\(1,end\) 1 forwards/);
+  // 时长公式 = frameCount / fps * 1000，可产生小数毫秒（如 8 帧 / 6fps → 1333.33…ms），
+  // 故毫秒段用 [\d.]+ 而非 \d+（desktopPetCatgirlMotionCss 的既有契约）。
+  assert.match(html, /animation:pet-completed [\d.]+ms steps\(1,end\) 1 forwards/);
   // 窗口尺寸随角色变化（猫娘 112×224）。
   assert.ok(resolveDesktopPetCharacter("noir").window.height > 200);
   assert.deepEqual([...DESKTOP_PET_CHARACTER_IDS], ["violet", "noir", "snow", "ginger"]);
@@ -45,5 +47,6 @@ test("catgirl pet document embeds the character atlas and maps modes to actions"
 
 test("unknown character id falls back to violet document", () => {
   const fallback = desktopPetContent("en-US", "not-a-character");
-  assert.match(fallback, /background-size:768px 960px/);
+  // violet spec art = 96×96、图集 8 列 × 5 行（desktopPetCharacter.ts VIOLET）→ 768×480。
+  assert.match(fallback, /background-size:768px 480px/);
 });

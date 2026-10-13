@@ -2925,18 +2925,20 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         // 只注入 service 会跳过默认装配分支，导致缺组织的升级用户永远无法恢复连接。
         const { service: settingService, prepareLegacyAccountConnections } =
           createSettingServiceWithMigrations();
-        // Jev 决策装配快照（obsidian-knowledge.md §5d.10）：createLocalServices 是同步
-        // 装配，开关/凭据的异步预解析只能在 host 异步初始化段完成；关/缺 Key 返回 null
-        // 即功能关闭（fail-closed）。变更设置后重启 Host 生效。
-        // 读取失败（如凭据文件损坏）只降级为功能关闭，绝不阻断 Host 初始化。
-        let knowledgeJevAssembly: Awaited<ReturnType<typeof resolveKnowledgeJevAssembly>> = null;
-        try {
-          knowledgeJevAssembly = await resolveKnowledgeJevAssembly({ settingService });
-        } catch (error) {
-          logger.warn("[host-init] Jev 装配配置预解析失败，功能保持关闭", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        // Jev 配置动态源（obsidian-knowledge.md §5d.10 配置热生效）：解析闭包携带
+        // settingService，每个决策 stage 解析当前装配——配置变更即时生效（免重启）。
+        // 解析失败（如凭据文件损坏）只降级为功能关闭，绝不阻断 Host 初始化。
+        type JevAssemblyResult = Awaited<ReturnType<typeof resolveKnowledgeJevAssembly>>;
+        const knowledgeJevConfigSource = async (): Promise<JevAssemblyResult> => {
+          try {
+            return await resolveKnowledgeJevAssembly({ settingService });
+          } catch (error) {
+            logger.warn("[host] Jev 配置解析失败，本轮功能关闭", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return null;
+          }
+        };
         // 本地语义检索端口（obsidian-knowledge.md §5b.9）：开关开启才注入 lazy 端口
         // （构造不 IO，首次 embed 才下载/建会话，推理零出站）。读取失败只降级为纯词法。
         let knowledgeEmbeddingPort: KnowledgeEmbeddingPort | null = null;
@@ -2968,7 +2970,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               parentPort,
               settingService,
               prepareLegacyAccountConnections,
-              knowledgeJevAssembly,
+              knowledgeJevConfigSource,
               knowledgeEmbeddingPort,
               // 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：desktop 本地 host 开启，
               // 其余 host（server/stdio/远程）维持手动触发现状。

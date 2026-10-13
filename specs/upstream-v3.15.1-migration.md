@@ -2,7 +2,7 @@
 
 状态：公开源码迁移补齐与本地集成验证已完成；49 项上游测试/实现不一致和两项公网归档访问限制单列保留。跨平台、官方云服务和发行 bundle 验收不在此结论内。实施结果见 [补齐验收](../docs/upstream/zcode-v3.15.1-followup-result.md)。
 
-后续执行依据：[完整性复核](../docs/upstream/zcode-v3.15.1-completeness-review.md)、[补齐合并方案](../docs/upstream/zcode-v3.15.1-followup-plan.md)。仅 runner-options 有独立上游失败证据，不能把其余 CLI 失败统一归因于上游。
+后续执行依据：[完整性复核](../docs/upstream/zcode-v3.15.1-completeness-review.md)、[补齐合并方案](../docs/upstream/zcode-v3.15.1-followup-plan.md)与[逐案例基线证据](../docs/upstream/zcode-v3.15.1-followup-evidence.json)。49 项失败已经逐案例对拍；后续新增失败仍须独立定位，不能自动归因于上游。
 
 ## 固定基线
 
@@ -10,6 +10,34 @@
 - 官方旧基线：`29628c9acdb81b703bbd4080c207a0e7ce5e276e`（v3.14.3）。
 - 官方新基线：`aac4755666d09fdcd70272fcf063c077a639015f`（v3.15.1）。
 - 实施分支：`integrate/upstream-v3.15.1`；不重写现有历史、不创建 worktree。
+
+## 官方实现优先（2026-10-13）
+
+用户确认以 ZCode 实现为准。每次上游同步先比较官方实现与同职责的 Drora 实现：官方已覆盖现有需求时，采用官方实现并删除重复业务链路；仅部署参数、品牌或发行差异时，通过端口装配到官方入口；官方尚未覆盖的能力才保留独立扩展。覆盖判断包括持久化兼容、权限、取消、恢复、workspace identity 与平台要求，不能只比较功能名称或 UI。
+
+迁移以官方契约、状态所有者和执行路径为单位。自研测试中的既有需求仍须验收；确需数据转换时在适配层一次迁移，不长期维护双写或两份会话事实。每项保留差异记录官方缺少什么及重新评估条件；后续官方补齐时再次替换，不能把旧的自研实现自动当成不可更改的基线。
+
+| 同职责范围                                   | 当前取舍                                               | 接入或保留依据                                                                                           |
+| -------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 手机页面、聊天、任务与远控控制面             | 已采用官方 Web/UI、manager、transport、Host attachment | `mobile-web` 只构建/部署官方产物；旧 UI 不在生产入口                                                     |
+| 输入排队、模型执行材料、session finalization | 已采用官方行为，共用单一实现                           | `CommandInbox` 持有已接受输入；共享 helper 迁址到 app 层，旧协议仅 re-export，不维护复制函数             |
+| 输出风格                                     | 已采用官方服务实现                                     | `outputStyleService.ts` 与固定上游除包名外一致，继续使用同一 `.claude` 配置和 service，不另建 Drora 服务 |
+| Gen UI、MCP Apps、Visualize、Bot、工作流     | 已采用官方公开实现                                     | 旧 webhook 名只在独立无状态入站适配中兼容，不复制 Bot 验密或执行逻辑                                     |
+| 更新轮询、下载、重试与菜单状态               | 已采用官方状态机                                       | Drora GitHub feed 与安装恢复是发行装配；保持已决定移除启动强制更新门控                                   |
+| LAN / 自建云 Relay                           | 保留独立部署适配与 Relay 服务                          | 公开上游没有云 Relay 服务端；适配只持有端点、鉴权、转发和生命周期，不持有任务状态                        |
+| 知识库、VaultView、Jev/ONNX、证据审批        | 保留独立扩展                                           | 上游 memory/output-style 不覆盖 Vault 索引、检索与证据账本，不能直接替换                                 |
+| S03 Plan/P0 写入保护                         | 保留已记录的策略差异                                   | 当前官方权限不覆盖这些约束；共用官方执行入口，并复核最终输入，不另建 admission                           |
+| 桌面宠物                                     | 保留独立扩展                                           | 固定上游没有同等功能；由独立窗口控制器和 hook 接入                                                       |
+| Computer Use                                 | 官方宿主/Skill 接入，保留冻结 SDK/Helper               | 上游 0.6.4 为占位包，不足以替换可运行的 0.6.3；宿主完整性检查仍必须覆盖官方 Skill                        |
+
+### CUA 完整性收敛验收
+
+二次审查 R01：Bootstrap 的 `OFFICIAL_CUA_REQUIRED_SEED_PATHS` 漏掉 `skills/computer-use/SKILL.md`，与官方要求及 Desktop staging 不一致。本轮仅补回宿主声明，不更改冻结 SDK、Helper 或原生依赖。
+
+- filesystem 与 SEA 使用既有 `findMissingOfficialPluginSeedPaths` 和单一 seed 链路。
+- 全新缓存收到仅缺 Skill 的源时拒绝缓存，诊断准确列出缺少的 Skill，启动可降级。
+- 同版本完整缓存已存在时，残缺源不能替换缓存或修改 seed marker；CUA 不能退回旧版本 cache 混用 consumer。
+- 完整源继续 seed，保留 package/sharp 的额外运行时检查；Desktop staging 与 Bootstrap 要求的五个路径保持一致。
 
 ## 远控迁移决定
 

@@ -72,6 +72,9 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 ] as const;
 
 export const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
+  // 官方 manifest 声明了 skills；漏校验正文会让 filesystem/SEA 缓存静默丢失电脑控制指导。
+  // 与官方 requiredSeedPaths 和 Desktop staging 保持一致，冻结 0.6.3 SDK 也包含此 Skill。
+  "skills/computer-use/SKILL.md",
   "docs/computer-use.md",
   "scripts/computer-use-client.mjs",
   "package.json",

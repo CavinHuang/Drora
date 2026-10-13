@@ -8,7 +8,7 @@
 | --- | --- |
 | `pnpm typecheck` | 通过 |
 | `pnpm lint` | 0 错误、395 警告；保留已有/上游警告 |
-| `pnpm architecture:check --changed` | 0 violation / 0 baseline / 0 new；未刷新 baseline |
+| `pnpm architecture:check`（全量）/ `--changed` | 0 violation / 0 baseline / 0 new；未刷新 baseline |
 | `pnpm test:unit:vitest` | 1,930 文件通过，2 文件跳过；18,070 用例通过，21 跳过 |
 | `pnpm test:unit:node` | 572 用例通过，1 跳过，0 失败；包含历史页面辅助函数回归 |
 | `pnpm --filter @drora/mobile-web test` | 8 项资产/历史字节完整性与当前部署检查、212 项历史辅助用例通过 |
@@ -18,7 +18,7 @@
 | `pnpm --filter @drora/web build` / `pnpm --filter @drora/mobile-web build` | Web 与同一源码的 3.15.1 手机资产构建通过 |
 | Desktop `tsup` / `vite build` | Main、Host、scheduler、preload、sandbox 与 renderer 构建通过 |
 
-各套件有交集，表中计数不相加。全量初跑失败后逐项修复，最终完整 Vitest 重跑得到上表结果。移动历史代码随后只迁移物理路径，完整 Node 和 mobile-web 包测试重跑通过。
+各套件有交集，表中计数不相加。全量初跑失败后逐项修复，最终完整 Vitest 重跑得到上表结果。移动历史代码随后只迁移物理路径，完整 Node 和 mobile-web 包测试重跑通过。Gen UI 的既有服务回归迁为契约入口后，公开入口与文件/状态 adapter 的 12 项回归通过，全量架构检查通过。
 
 ## 行为与当前机器启动
 

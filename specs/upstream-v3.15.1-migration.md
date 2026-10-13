@@ -118,3 +118,5 @@ CUA 懒启动仍由官方 Helper lifecycle 统一 admission；Windows 的懒启�
 CLI 构建产物冒烟保持 stdin pipe，按 Desktop 的真实 stdio 生命周期等待首条 startup 通知；stdin EOF 是单独退出事件，不能把启动前直接 EOF 与协议就绪混为一谈。
 
 实施结果：[合并记录](../docs/upstream/zcode-v3.15.1-merge.md)、[验证记录](../docs/upstream/zcode-v3.15.1-validation.md)。
+
+全量架构检查补齐 Gen UI 服务的契约测试入口：把已有的 sandbox provenance/状态转义/完整文档拒绝回归迁到 `gen-ui/contract.test.ts`，改经公开 `node.ts` 构造服务。保留全部原断言，不增加重复 suite，不修改产品行为或 baseline。

@@ -3,7 +3,7 @@ import type { DroraTaskMeta } from "@drora/shared";
 import { useDroraSessionService } from "@/hooks/useDroraSessionService.js";
 import { droraSessionSnapshotToTaskMeta } from "@/lib/droraSessionProjection.js";
 
-function resolveImmediateActiveTaskSnapshotMeta(
+export function resolveImmediateActiveTaskSnapshotMeta(
   previousSnapshotMeta: DroraTaskMeta | null,
   taskId: string | null,
   taskMetaFromLists?: DroraTaskMeta | null,
@@ -45,7 +45,11 @@ export function useActiveTaskSnapshotMeta(
     let cancelled = false;
 
     setSnapshotMeta((currentSnapshotMeta) =>
-      resolveImmediateActiveTaskSnapshotMeta(currentSnapshotMeta, taskId, taskMetaFromLists),
+      resolveImmediateActiveTaskSnapshotMeta(
+        currentSnapshotMeta,
+        taskId,
+        taskMetaFromLists,
+      ),
     );
 
     if (!taskId) {

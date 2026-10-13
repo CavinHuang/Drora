@@ -15,8 +15,21 @@ export function buildRemoteEnvironmentKey(target: RemoteTarget, serverId?: strin
     case "docker":
       return `docker:${target.container.trim()}`;
     case "server":
-      // server 远端的运行环境就是目标 Server 本身；serverId 与 URL 都只做 trim，
-      // 不做端点归一，避免非法输入让遥测键构造抛错。
-      return `server:${serverId?.trim() || target.url.trim()}`;
+      return `server:${target.serverId?.trim() || normalizeServerEndpoint(target.url)}`;
+  }
+}
+
+function normalizeServerEndpoint(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol === "ws:") parsed.protocol = "http:";
+    if (parsed.protocol === "wss:") parsed.protocol = "https:";
+    parsed.hash = "";
+    parsed.search = "";
+    const path = parsed.pathname.replace(/\/+$/gu, "");
+    parsed.pathname = path.endsWith("/ws") ? path.slice(0, -3) || "/" : path || "/";
+    return parsed.toString().replace(/\/$/gu, "");
+  } catch {
+    return url.trim().replace(/\/+$/gu, "");
   }
 }

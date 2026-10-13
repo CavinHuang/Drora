@@ -8,7 +8,7 @@ const h = React.createElement as (
   ...children: React.ReactNode[]
 ) => React.ReactElement;
 
-const DRORA_LOGO_LINES = [
+export const DRORA_LOGO_LINES = [
   "███████╗ ██████╗ ██████╗ ██████╗ ███████╗",
   "   ███╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝",
   "  ███╔╝ ██║     ██║   ██║██║  ██║█████╗  ",

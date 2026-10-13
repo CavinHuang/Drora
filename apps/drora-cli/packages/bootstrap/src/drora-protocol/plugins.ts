@@ -35,7 +35,7 @@ import {
   addDroraPluginMarketplace,
   configureDroraPlugin,
   describeDroraPlugin,
-  enrichCachedClaudePluginMarketplaceIcons,
+  enrichCachedClaudeMarketplaceIconsForOverview,
   getDroraPluginsOverview,
   installDroraMarketplacePlugin,
   removeDroraPluginMarketplace,
@@ -174,20 +174,24 @@ function createMissingConfiguredPluginInfos(
         rootPath: "",
         packageStatus: "missing",
         ...(enabledSource ? { enabledSource } : {}),
-        ...(optionSources && Object.keys(optionSources).length > 0 ? { optionSources } : {}),
+        ...(optionSources && Object.keys(optionSources).length > 0
+          ? { optionSources }
+          : {}),
       },
     ];
   });
 }
 
-function normalizePluginRootForComparison(
+export function normalizePluginRootForComparison(
   rootPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
   const resolvedRoot = resolvePath(rootPath);
   // Windows 路径不区分大小写，且配置与 loader 可能分别返回正斜杠和反斜杠。
   // 若直接做字符串比较，会把同一个 Workspace plugins.dirs 根误判为无归属。
-  return platform === "win32" ? resolvedRoot.replaceAll("\\", "/").toLowerCase() : resolvedRoot;
+  return platform === "win32"
+    ? resolvedRoot.replaceAll("\\", "/").toLowerCase()
+    : resolvedRoot;
 }
 
 function toPluginDiagnostic(diagnostic: PluginDiagnostic): DroraPluginDiagnostic {
@@ -214,7 +218,9 @@ export async function listPlugins(
     logger: context.logger,
     workingDirectory: params.workspace.workspacePath,
   });
-  const plugins = outcome.plugins.map((plugin) => toPluginInfo(plugin, configResult));
+  const plugins = outcome.plugins.map((plugin) =>
+    toPluginInfo(plugin, configResult),
+  );
   return {
     plugins: [
       ...plugins,
@@ -257,8 +263,7 @@ export async function getPluginsOverview(
   rawParams: unknown,
 ): Promise<DroraPluginsOverviewResult> {
   const params = parseParams(droraPluginsOverviewParamsSchema, rawParams);
-  // 原版 _Zo：overview 读入口先触发 claude 市场 icon 的每进程一次懒修补（不等待）。
-  enrichCachedClaudePluginMarketplaceIcons({
+  enrichCachedClaudeMarketplaceIconsForOverview({
     logger: context.logger,
     workingDirectory: params.workspace.workspacePath,
   });

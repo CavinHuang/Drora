@@ -1,19 +1,31 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "target": "es2022",
-    "lib": ["es2023"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "types": ["node"],
-    "strict": true,
-    "noUncheckedIndexedAccess": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "declaration": true,
-    "sourceMap": false,
     "declarationMap": true,
-    "skipLibCheck": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "dist",
-    "rootDir": "src"
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": false,
+    "types": [
+      "node"
+    ],
+    "target": "es2022",
+    "lib": [
+      "es2023"
+    ],
+    "sourceMap": false
   },
-  "include": ["src"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

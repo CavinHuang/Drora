@@ -58,12 +58,14 @@ export {
 // File service — IFileService is both a type (interface) and value (descriptor)
 export { IFileService } from "./file/file.js";
 export { IMediaPreviewService } from "./media-preview/mediaPreview.js";
+export { ICloudContentService } from "#src/cloud-content/cloudContent.js";
+export { IMarketingTouchService } from "#src/marketing-touch/marketingTouch.js";
 export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 
 // OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
 // 第 48 轮：Claude Code 兼容的输出风格（~/.claude/output-styles + settings.json）。
-export { IOutputStyleService } from "./outputStyle/outputStyle.js";
-export type { OutputStyle, OutputStyleConfig } from "./outputStyle/outputStyle.js";
+export { IOutputStyleService } from "./output-style/outputStyle.js";
+export type { OutputStyle, OutputStyleConfig } from "@drora/shared";
 
 // Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
 export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
@@ -254,6 +256,7 @@ export type {
   DroraAgentRuntimeLifecycleEvent,
   DroraAgentRuntimePolicy,
   DroraAgentReadSessionParams,
+  DroraAgentRespondProviderRuntimeHeadersParams,
   DroraAgentResumeSessionParams,
   DroraAgentRunAutomationNowResult,
   DroraAgentSavedWorkflowTarget,
@@ -307,6 +310,8 @@ export {
 } from "./memory/memory.js";
 export type { ProjectMemoryFileSummary, ProjectMemoryWorkspaceSummary } from "./memory/memory.js";
 
+// OutputStyle service — IOutputStyleService is both a type (interface) and value (descriptor).
+
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
 
 // FileWatcher service — IFileWatcherService is both a type (interface) and value (descriptor)
@@ -319,7 +324,7 @@ export { IOAuthService } from "./oauth/oauth.js";
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
 
 // Storage（资源管理器「存储」tab）：数据类型在 @drora/shared；这里只导出服务接口与卷分组纯函数
-export type { IStorageService } from "./storage/contract.js";
+export type { IStorageService, StorageRootSpec } from "./storage/contract.js";
 
 // CodingPlanSubscription service — ICodingPlanSubscriptionService is both a type (interface) and value (descriptor)
 export {
@@ -398,4 +403,48 @@ export type {
   FeedbackTicketSummary,
   FeedbackTicketType,
 } from "@drora/shared";
+
+// 插件 UI 桥：描述符、参数类型与工厂；App-Provided Tools 另有独立描述符。
+export {
+  createPluginUiBridgeService,
+  createPluginUiAppToolsService,
+  createPluginUiSamplingService,
+  IPluginUiSamplingService,
+  type PluginUiSamplingParams,
+  type PluginUiCancelSamplingParams,
+  PluginUiBridgeError,
+  IPluginUiAppToolsService,
+  type PluginUiAppToolInstanceParams,
+  type PluginUiAppToolCallParams,
+  type PluginUiAppToolAcceptedResult,
+  type PluginUiRegisterAppToolsParams,
+  type PluginUiRegisterAppToolsResult,
+  type PluginUiResolveAppToolCallParams,
+} from "./plugin-ui-bridge/index.js";
+export {
+  IPluginUiBridgeService,
+  type PluginUiCallToolParams,
+  type PluginUiCallToolResult,
+  type PluginUiPrepareSandboxParams,
+  type PluginUiReadResourceParams,
+  type PluginUiReadResourceResult,
+  type PluginUiPluginScope,
+  type PluginUiListResourcesParams,
+  type PluginUiListResourcesResult,
+  type PluginUiListResourceTemplatesResult,
+  type PluginUiResourceSubscriptionParams,
+  type PluginUiSurfaceEntry,
+  type PluginUiWorkspaceTarget,
+} from "./plugin-ui-bridge/contract.js";
 export { IClientConfigService } from "./client-config/clientConfig.js";
+
+export { IHighspeedCardService } from "./highspeed/highspeedCard.js";
+export {
+  HighspeedCardService,
+  createHighspeedHttpTransport,
+  buildHighspeedTurnExecution,
+} from "./highspeed/highspeedCardService.js";
+export { createHighspeedMockTransport } from "./highspeed/highspeedMockTransport.js";
+
+export { IGenUiService } from "./gen-ui/contract.js";
+export type { GenUiPrepareParams } from "./gen-ui/contract.js";

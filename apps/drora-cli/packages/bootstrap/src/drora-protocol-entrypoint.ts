@@ -1,4 +1,5 @@
 import { createConfig } from "@drora/adapters/config";
+import type { McpElicitationPort, McpNotificationPort } from "@drora/contracts";
 import { createNodeModelSelectionFacade } from "@drora/provider-node";
 import { createNodeLoggerFactory } from "@drora/adapters/logging";
 import {
@@ -29,6 +30,7 @@ import {
 import { closeSessionStore, getSessionDbPath } from "./app/session-store.js";
 import { startProcessProviderRegistryRuntime } from "./app/process-provider-registry-runtime.js";
 import { scheduleStartupLogRetentionCleanup } from "./log-retention.js";
+import { resolveProcessProviderEndpointRoutingPort } from "./provider-endpoint-routing.js";
 import { StartupTimer, startupNow } from "./startup-logging.js";
 import { installDroraProtocolAiSdkWarningLogger } from "./drora-protocol/ai-sdk-warning-logger.js";
 import {
@@ -46,11 +48,11 @@ import { DroraProtocolNdjsonConnection } from "./drora-protocol/transport.js";
 import { cleanupProtocolRuntime } from "./drora-protocol/runtime-cleanup.js";
 import { startProtocolResourceSampler } from "./drora-protocol/resource-sampler.js";
 import { acquireProtocolStartupResource } from "./drora-protocol/startup-resource.js";
-import type { DroraProcessResourceSampler } from "./process-resource-sampler.js";
 import { prepareDroraTelemetryEnv, shutdownDroraTelemetry } from "./telemetry-bootstrap.js";
+import type { DroraProcessResourceSampler } from "./process-resource-sampler.js";
 import { createKnowledgeEvidenceGate } from "./knowledge-evidence/evidence-gate.js";
 
-function applyProtocolPresentationSurface(
+export function applyProtocolPresentationSurface(
   options: Omit<DroraAppOptions, "providerRegistry">,
   presentationSurface: PresentationSurface,
 ): Omit<DroraAppOptions, "providerRegistry"> {
@@ -68,7 +70,7 @@ function applyProtocolPresentationSurface(
  *
  * 旧 workspace snapshot 不再参与 Provider 和 Model 执行。
  */
-function applyProtocolProviderRegistry(
+export function applyProtocolProviderRegistry(
   options: Omit<DroraAppOptions, "providerRegistry">,
   providerRegistry: DroraAppOptions["providerRegistry"],
   configuredDefaultModelSelection?: ModelSelection,
@@ -185,11 +187,20 @@ export async function runDroraProtocolAgent(
       configResult.config.features.mcp === false
         ? undefined
         : createMcpTelemetryTracker({
-            idSalt: traceContext.traceId,
+            idSalt: telemetryDeviceMid ?? traceContext.traceId,
             onEvent: (event) => mcpTelemetrySink?.(event),
             onResourceSamples: (samples) => mcpResourceSink?.(samples),
           });
-    // 官方 MCP 身份头端口：连接池构造早于 server，故用惰性 holder 回填。
+    const providerEndpointRoutingPort =
+      options.providerEndpointRoutingPort ??
+      resolveProcessProviderEndpointRoutingPort({
+        appVersion: options.version,
+        env: options.env,
+        logger,
+        network: configResult.config.network,
+        sourceTitle: "electron",
+      });
+    // 官方 MCP 身份头端口（spec §7.1/§7.2）：连接池构造早于 server，故用惰性 holder 回填。
     // server 就绪前该端口返回 official_auth_unavailable；HTTP tools/call 会匿名交给服务端
     // 返回结构化权限错误，stdio 则把 reason 下发给插件。连接与工具发现都不受影响。
     let officialMcpAuthContext: OfficialMcpAuthRequestContext | undefined;
@@ -225,10 +236,26 @@ export async function runDroraProtocolAgent(
         resolveDroraApiOrigin,
       }),
     };
+    // MCP elicitation 归属到协议 server 的会话；pool 先于 server 创建，端口延迟绑定。
+    let elicitationServer: {
+      requestMcpElicitation: McpElicitationPort["requestElicitation"];
+      handleMcpNotification: McpNotificationPort["onNotification"];
+    } | null = null;
     mcpConnectionPool =
       configResult.config.features.mcp === false
         ? undefined
         : createMcpAdapterConnectionPool({
+            elicitation: {
+              requestElicitation: (request, elicitationOptions) =>
+                elicitationServer
+                  ? elicitationServer.requestMcpElicitation(request, elicitationOptions)
+                  : Promise.resolve({ action: "decline" as const }),
+            },
+            // server 通知同样延迟绑定到协议 server。
+            notifications: {
+              onNotification: (notification) =>
+                elicitationServer?.handleMcpNotification(notification),
+            },
             clientVersion: options.version ?? "0.0.0",
             env: options.env,
             logger,
@@ -278,6 +305,7 @@ export async function runDroraProtocolAgent(
                   }),
               }
             : {}),
+          providerEndpointRoutingPort,
           sourceTitle: "electron",
           onToolExecResource: (params) =>
             connection.send({ method: droraProtocolNotifications.toolExecResource, params }),
@@ -299,6 +327,7 @@ export async function runDroraProtocolAgent(
       version: options.version,
     }));
     officialMcpAuthContext = server.officialMcpAuthRequestContext;
+    elicitationServer = server;
     if (configResult.config.features.mcp !== false) {
       nodeReplBrowserBroker = createNodeReplBrowserBroker({
         browserControlPort: server.browserControlPort,

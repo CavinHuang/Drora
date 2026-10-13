@@ -11,17 +11,17 @@ import type {
   ConversationSnapshot,
 } from "@drora/shared/drora-protocol-v4";
 import { V4_WIRE_PROTOCOL_VERSION } from "@drora/shared/drora-protocol-v4";
-import { createConversationStore } from "../src/app/conversationStore.js";
+import { createConversationStore } from "../legacy-v3.14.3/app/conversationStore.js";
 import {
   sendSwitchCollaborationModeCas,
   TaskSession,
   type TaskSessionTarget,
-} from "../src/app/taskSession.js";
-import { MODE_SELECT_ITEMS } from "../src/app/TaskComposer.js";
-import { TaskComposer } from "../src/app/TaskComposer.js";
-import { TaskMoreMenu } from "../src/app/TaskMoreMenu.js";
-import { IntlProvider } from "../src/ui/intl.js";
-import { EMPTY_MODEL_SELECTION_STATE } from "../src/app/conversationStore.js";
+} from "../legacy-v3.14.3/app/taskSession.js";
+import { MODE_SELECT_ITEMS } from "../legacy-v3.14.3/app/TaskComposer.js";
+import { TaskComposer } from "../legacy-v3.14.3/app/TaskComposer.js";
+import { TaskMoreMenu } from "../legacy-v3.14.3/app/TaskMoreMenu.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
+import { EMPTY_MODEL_SELECTION_STATE } from "../legacy-v3.14.3/app/conversationStore.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });

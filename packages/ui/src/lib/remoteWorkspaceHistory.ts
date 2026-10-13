@@ -6,6 +6,7 @@ import type {
   RemoteTargetSnapshot,
   RemoteWorkspaceSessionEntry,
 } from "@drora/shared";
+import { buildServerRemoteWorkspaceIdentity } from "@drora/shared";
 import type { WindowTabState } from "@/store/tabStore.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 
@@ -54,6 +55,12 @@ function collectRemoteWorkspaceCredentialKeys(snapshot: RemoteTargetSnapshot): s
   return [];
 }
 
+export function getWorkspaceDisplayLabel(workspacePath: string): string {
+  const normalized = workspacePath.replace(/\\/g, "/");
+  const segments = normalized.split("/").filter(Boolean);
+  return segments[segments.length - 1] ?? workspacePath;
+}
+
 export function hasRemoteWorkspaceIdentity(entry: {
   remoteSessionId?: string;
   remoteTarget?: RemoteTarget;
@@ -62,14 +69,11 @@ export function hasRemoteWorkspaceIdentity(entry: {
   return Boolean(entry.remoteSessionId || entry.remoteTarget || entry.workspaceIdentity);
 }
 
-type WslRemoteTargetLike = Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "wsl" }>;
-
-/** server 连接的显示名称随连接流程与恢复快照传递；官方提交形态快照 target 同样带 name。 */
-function getServerRemoteTargetDisplayName(
-  target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
-): string | undefined {
-  return target.name?.trim() || undefined;
+export function isSshRemoteWorkspaceIdentity(workspaceIdentity?: string | null): boolean {
+  return workspaceIdentity?.trim().startsWith("remote:ssh:") === true;
 }
+
+type WslRemoteTargetLike = Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "wsl" }>;
 
 function getWslRemoteTargetUser(target: WslRemoteTargetLike): string | undefined {
   return target.user?.trim() || undefined;
@@ -82,6 +86,22 @@ function formatWslRemoteTargetAuthority(target: WslRemoteTargetLike): string {
   }
 
   return user ? `wsl:default:${user}` : "wsl";
+}
+
+function getServerRemoteTargetDisplayName(
+  target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
+): string {
+  return target.name?.trim() || target.serverId?.trim() || formatServerRemoteTargetHost(target);
+}
+
+function formatServerRemoteTargetHost(
+  target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
+): string {
+  try {
+    return new URL(target.url.trim()).host;
+  } catch {
+    return target.url.trim();
+  }
 }
 
 export function formatRemoteWorkspaceTargetSubtitle(
@@ -97,7 +117,7 @@ export function formatRemoteWorkspaceTargetSubtitle(
     case "docker":
       return `Docker · ${target.container}`;
     case "server":
-      return `Server · ${getServerRemoteTargetDisplayName(target) ?? target.url}`;
+      return `Server · ${getServerRemoteTargetDisplayName(target)}`;
   }
 }
 
@@ -112,7 +132,7 @@ export function formatRemoteWorkspaceHeaderHostLabel(
     case "docker":
       return `docker:${target.container}`;
     case "server":
-      return getServerRemoteTargetDisplayName(target) ?? target.url;
+      return formatServerRemoteTargetHost(target);
   }
 }
 
@@ -152,10 +172,13 @@ function getRemoteWorkspaceAuthorityKey(target: RemoteTarget | RemoteTargetSnaps
     }
     case "docker":
       return ["docker", target.container].join(":");
-    case "server":
-      // 与 shared 的 remote-workspace-identity 契约对齐：URL 含 ":" 与 "/"，
-      // authority 段必须整体 encodeURIComponent，否则按段解析身份会错位。
-      return ["server", encodeURIComponent(target.url.trim())].join(":");
+    case "server": {
+      const identity = buildServerRemoteWorkspaceIdentity({
+        serverId: getServerRemoteTargetIdentityId(target),
+        workspacePath: "/",
+      });
+      return identity.slice("remote:".length, -":/".length);
+    }
   }
 }
 
@@ -163,9 +186,22 @@ export function buildRemoteWorkspaceIdentity(
   workspacePath: string,
   target: RemoteTarget | RemoteTargetSnapshot,
 ): string {
+  if (target.kind === "server") {
+    return buildServerRemoteWorkspaceIdentity({
+      serverId: getServerRemoteTargetIdentityId(target),
+      workspacePath,
+    });
+  }
+
   const authority = getRemoteWorkspaceAuthorityKey(target);
   const normalizedPath = normalizeWorkspacePathForIdentity(workspacePath);
   return `remote:${authority}:${normalizedPath}`;
+}
+
+function getServerRemoteTargetIdentityId(
+  target: Extract<RemoteTarget | RemoteTargetSnapshot, { kind: "server" }>,
+): string {
+  return target.serverId?.trim() || target.name?.trim() || formatServerRemoteTargetHost(target);
 }
 
 export function resolveRemoteWorkspaceSessionIdentity(
@@ -186,7 +222,7 @@ function normalizeOptionalPath(path: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function findMatchingRemoteWorkspaceSessionEntry(
+export function findMatchingRemoteWorkspaceSessionEntry(
   sessions: RemoteWorkspaceSessionEntry[],
   workspacePath: string,
   target: RemoteTarget | RemoteTargetSnapshot,
@@ -198,7 +234,7 @@ function findMatchingRemoteWorkspaceSessionEntry(
   );
 }
 
-function createRemoteTargetSnapshot(
+export function createRemoteTargetSnapshot(
   workspaceKey: string,
   target: RemoteTarget,
   previousSnapshot?: RemoteTargetSnapshot,
@@ -239,18 +275,13 @@ function createRemoteTargetSnapshot(
         kind: "docker",
         container: target.container,
       };
-    case "server": {
-      // 第四十九轮对齐官方提交形态：name/workspacePath 随快照持久化，恢复连接时
-      // 分别用于 tab 副标题展示与默认目录；token 仍只写 credentialService（快照仅存键名）。
-      const serverName = target.name?.trim();
-      const serverWorkspacePath = target.workspacePath?.trim();
+    case "server":
       return {
         kind: "server",
         url: target.url,
-        ...(serverName ? { name: serverName } : {}),
-        ...(serverWorkspacePath ? { workspacePath: serverWorkspacePath } : {}),
-        // server token 与 SSH password 同边界：连接参数里的真实 token 只写
-        // credentialService，快照仅保留键名；复连沿用旧键避免重复落凭据。
+        ...(target.name?.trim() ? { name: target.name.trim() } : {}),
+        ...(target.workspacePath?.trim() ? { workspacePath: target.workspacePath.trim() } : {}),
+        ...(target.serverId?.trim() ? { serverId: target.serverId.trim() } : {}),
         tokenCredentialKey:
           target.token && target.token.length > 0
             ? previousSnapshot?.kind === "server" && previousSnapshot.tokenCredentialKey
@@ -258,7 +289,6 @@ function createRemoteTargetSnapshot(
               : buildRemoteWorkspaceServerTokenCredentialKey(workspaceKey)
             : undefined,
       };
-    }
   }
 }
 
@@ -267,7 +297,7 @@ export function createRemoteTargetFromSnapshot(
   credentials: {
     password: string | null;
     privateKeyPassphrase: string | null;
-    serverToken?: string | null;
+    token?: string | null;
   },
 ): RemoteTarget {
   switch (snapshot.kind) {
@@ -300,16 +330,15 @@ export function createRemoteTargetFromSnapshot(
       return {
         kind: "server",
         url: snapshot.url,
-        // 第四十九轮对齐官方提交形态：恢复连接沿用快照里的展示名与默认目录，
-        // 保证重连后 tab 副标题与“连接成功自动打开默认目录”语义不丢。
-        ...(snapshot.name?.trim() ? { name: snapshot.name.trim() } : {}),
-        ...(snapshot.workspacePath?.trim() ? { workspacePath: snapshot.workspacePath.trim() } : {}),
-        ...(credentials.serverToken ? { token: credentials.serverToken } : {}),
+        ...(snapshot.name ? { name: snapshot.name } : {}),
+        ...(snapshot.workspacePath ? { workspacePath: snapshot.workspacePath } : {}),
+        ...(snapshot.serverId ? { serverId: snapshot.serverId } : {}),
+        ...(credentials.token ? { token: credentials.token } : {}),
       };
   }
 }
 
-function upsertRemoteWorkspaceSessionEntries(
+export function upsertRemoteWorkspaceSessionEntries(
   sessions: RemoteWorkspaceSessionEntry[],
   nextEntry: RemoteWorkspaceSessionEntry,
 ): RemoteWorkspaceSessionEntry[] {
@@ -492,7 +521,9 @@ export function buildPersistedWorkspaceSessionEntries(
     entries.push({
       kind: "local",
       workspacePath: tab.workspacePath,
-      ...(tab.workspacePurpose ? { workspacePurpose: tab.workspacePurpose } : {}),
+      ...(tab.workspacePurpose
+        ? { workspacePurpose: tab.workspacePurpose }
+        : {}),
     });
     return entries;
   }, []);

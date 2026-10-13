@@ -14,11 +14,13 @@ const timestampMsSchema = z.number().int().nonnegative();
 export const droraDeliveryKindSchema = z.enum(["desktop-continuous", "web-remote-replayable"]);
 export const droraMessageVisibilitySchema = z.enum(["user-visible", "model-only"]);
 export const droraSyntheticUserMessageSourceSchema = z.enum([
+  "agent_listing_delta",
   "background_task",
   "fork",
   "goal_state_change",
   "goal-continuation",
   "plugin_reference",
+  "bot_topic_context",
   "rewind",
   "selection_side_chat",
   "subagent",
@@ -71,7 +73,7 @@ export const droraPermissionResponseSchema = z
   })
   .strict();
 export type DroraPermissionResponse = z.infer<typeof droraPermissionResponseSchema>;
-export const droraSessionModeSchema = z.enum(["plan", "build", "edit", "yolo", "auto"]);
+export const droraSessionModeSchema = z.enum(["plan", "build", "edit", "yolo", "guarded", "auto"]);
 export const droraSessionStatusSchema = z.enum([
   "idle",
   "running",

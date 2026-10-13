@@ -2,7 +2,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { data, inside, rel } from "../lib/path.js";
-import { brief, ok, run } from "../lib/run.js";
+import { brief, ok, run, type Run } from "../lib/run.js";
 import { install, launch } from "./app.js";
 import { ensureDevice } from "./avd.js";
 import { discover, findApks } from "./project.js";
@@ -22,21 +22,7 @@ type RunApp = Build & {
   launchActivity?: string;
 };
 
-type BuildResult = {
-  ok: boolean;
-  root: string;
-  module: string;
-  variant: string;
-  task: string;
-  apkPath: string | undefined;
-  applicationId: string | undefined;
-  logPath: string;
-  code: number;
-  timedOut: boolean;
-  output: string;
-};
-
-export async function buildApp(input: Build = {}): Promise<BuildResult> {
+export async function buildApp(input: Build = {}) {
   const root = await projectRoot(input.projectDir);
   const found = await discover(root);
   const module = normalizeModule(input.module || found.modules[0] || "app");
@@ -51,6 +37,7 @@ export async function buildApp(input: Build = {}): Promise<BuildResult> {
   const log = await record("build", out);
   const apk = ok(out) ? await findApk(root, module, variant) : undefined;
   const applicationId = input.applicationId || found.applicationIds[0];
+
   return {
     ok: ok(out),
     root: rel(root),
@@ -91,14 +78,18 @@ export async function buildAndRun(input: RunApp = {}) {
   return { ...built, device, installed, launched };
 }
 
-async function projectRoot(raw: string | undefined): Promise<string> {
+async function projectRoot(raw?: string): Promise<string> {
   if (raw) return inside(process.cwd(), raw);
   const found = await discover();
   if (found.root !== undefined) return inside(process.cwd(), found.root || ".");
   throw new Error("No Android Gradle project found. Use android_create_app first.");
 }
 
-async function findApk(root: string, module: string, variant: string): Promise<string | undefined> {
+async function findApk(
+  root: string,
+  module: string,
+  variant: string,
+): Promise<string | undefined> {
   const hits = await findApks(root, [module]);
   return pickApk(hits, variant);
 }
@@ -121,10 +112,12 @@ async function gradleCommand(root: string): Promise<string[]> {
     if (ok(generated) && (await exists(wrapper))) return [wrapper];
     return [gradle];
   }
-  throw new Error("No Gradle wrapper or gradle executable found. Generate a wrapper or install Gradle.");
+  throw new Error(
+    "No Gradle wrapper or gradle executable found. Generate a wrapper or install Gradle.",
+  );
 }
 
-async function record(name: string, out: Awaited<ReturnType<typeof run>>): Promise<string> {
+async function record(name: string, out: Run): Promise<string> {
   const dir = await data("logs");
   const file = path.join(dir, `${stamp()}-${name}-${key(process.cwd())}.log`);
   await mkdir(dir, { recursive: true });

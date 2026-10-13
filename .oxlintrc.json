@@ -30,7 +30,7 @@
     },
     {
       // 手机远控手机页的 locale 文件与桌面 i18n 同性质（键值对词表，天然超 400 行）。
-      "files": ["packages/mobile-web/src/intl/*.ts"],
+      "files": ["packages/mobile-web/legacy-v3.14.3/intl/*.ts"],
       "rules": {
         "max-lines": "off"
       }
@@ -73,6 +73,7 @@
     "dist-release",
     "packages/ui/src/components/ui",
     "packages/ui/src/components/ai-elements",
+    ".claude/skills",
     ".agents/skills",
     "packages/formal-proof",
     "apps/drora-cli",

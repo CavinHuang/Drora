@@ -1,3 +1,4 @@
+import { installPluginSandboxHostBridge } from "./pluginSandbox/hostBridge.js";
 import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
@@ -48,6 +49,11 @@ import type {
   DesktopCommandId,
   DesktopTitleBarTheme,
   EmbeddedBrowserOpenUrlRequest,
+  EmbeddedBrowserPermissionPromptEvent,
+  EmbeddedBrowserPermissionResolveRequest,
+  EmbeddedBrowserSitePermissionUpdateRequest,
+  EmbeddedBrowserSitePermissionResetRequest,
+  EmbeddedBrowserSitePermissionsSnapshot,
   Locale,
   OAuthStateRegistration,
   OpenInEditorOptions,
@@ -70,10 +76,17 @@ import type {
   SaveFileResult,
   PrintPageToPdfResult,
   SSHConfigAliasOption,
+  WebRemoteControlContext,
+  WebRemoteControlReconnectWorkspaceRequest,
+  WebRemoteControlReconnectWorkspaceResult,
+  WebRemoteControlStatus,
+  WebRemoteControlTaskTarget,
+  WebRemoteControlWorkspaceTarget,
   RemoteConnectionRuntimeLog,
   WindowControlsOverlayMetrics,
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
+  MaterializeWorkflowArtifactFileRequest,
   MobilePairingRuntimeState,
   MobileRelaySidePaneSyncEntry,
   MobileRelayTaskSyncEntry,
@@ -274,6 +287,21 @@ contextBridge.exposeInMainWorld("drora", {
     workspaceIdentity?: string;
   }): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.BindRemoteWorkspaceSessionContext, context),
+  startWebRemoteControl: (context: WebRemoteControlContext) =>
+    ipcRenderer.invoke(PlatformChannels.StartWebRemoteControl, context),
+  refreshWebRemoteControlPairing: (context: WebRemoteControlContext) =>
+    ipcRenderer.invoke(PlatformChannels.ResetWebRemoteControlPairing, context),
+  stopWebRemoteControl: (): Promise<void> =>
+    ipcRenderer.invoke(PlatformChannels.StopWebRemoteControl),
+  getWebRemoteControlStatus: () => ipcRenderer.invoke(PlatformChannels.GetWebRemoteControlStatus),
+  onWebRemoteControlStatusChanged: (
+    callback: (status: WebRemoteControlStatus) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, payload: WebRemoteControlStatus) => callback(payload);
+    ipcRenderer.on(PlatformChannels.WebRemoteControlStatusChanged, handler);
+    return () =>
+      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlStatusChanged, handler);
+  },
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
   isDockerAvailable: (): Promise<boolean> => ipcRenderer.invoke(PlatformChannels.IsDockerAvailable),
@@ -316,50 +344,6 @@ contextBridge.exposeInMainWorld("drora", {
     };
   },
   /** 同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
-  syncWebRemoteControlWorkspaces: (workspaces: MobileRelayWorkspaceSyncEntry[]) =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncWorkspaces, workspaces),
-  /** 同步跨工作区任务摘要到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
-  syncWebRemoteControlTasks: (tasks: MobileRelayTaskSyncEntry[]) =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncTasks, tasks),
-  /** §33.18.16 侧板初态投影：同步窗口侧板当前 tab（手机映射词表） */
-  syncWebRemoteControlSidePane: (entry: MobileRelaySidePaneSyncEntry) =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelaySyncSidePane, entry),
-  /**
-   * 注册手机 workspace-reconnect-request 的窗口重连委托（官方 preload 同款，
-   * 2026-09-28 取证 preload/index.cjs onWebRemoteControlReconnectWorkspace）：
-   * main 经同一通道发 {requestId, workspaceKey}，await 回调后把结果发回同通道；
-   * 回调抛错折叠为 {requestId, workspaceKey, success:false, error}——官方语义
-   * （失败也必须回复，否则 main 侧 120s 等待只会以超时收场）。
-   */
-  onWebRemoteControlReconnectWorkspace: (
-    callback: (request: { requestId: string; workspaceKey: string }) => Promise<{
-      requestId: string;
-      workspaceKey: string;
-      success: boolean;
-      error?: string;
-    }>,
-  ) => {
-    const handler = async (
-      event: { sender: { send: (channel: string, payload: unknown) => void } },
-      payload: { requestId: string; workspaceKey: string },
-    ) => {
-      try {
-        const result = await callback(payload);
-        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, result);
-      } catch (error) {
-        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, {
-          requestId: payload.requestId,
-          workspaceKey: payload.workspaceKey,
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
-    ipcRenderer.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
-    return () => {
-      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
-    };
-  },
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */
@@ -380,6 +364,9 @@ contextBridge.exposeInMainWorld("drora", {
   /** 长文本粘贴落盘为真正的本地附件，避免正文和 prompt payload 被撑大 */
   createTempTextAttachment: (payload: CreateTempTextAttachmentRequest) =>
     ipcRenderer.invoke(PlatformChannels.CreateTempTextAttachment, payload),
+  /** dwf 产物「作为文件打开」：把某一版的字节落成本机副本 */
+  materializeWorkflowArtifactFile: (payload: MaterializeWorkflowArtifactFileRequest) =>
+    ipcRenderer.invoke(PlatformChannels.MaterializeWorkflowArtifactFile, payload),
   /** 订阅当前窗口内远程连接过程日志，返回 disposer */
   onRemoteConnectionLog: (callback: (entry: RemoteConnectionRuntimeLog) => void) => {
     const handler = (_event: unknown, payload: unknown) =>
@@ -410,7 +397,34 @@ contextBridge.exposeInMainWorld("drora", {
   /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程 */
   syncWindowTabs: (paths: string[]) => ipcRenderer.send(PlatformChannels.SyncWindowTabs, paths),
   /** 同步当前窗口里 Web 远程控制允许切换的 workspace */
+  syncWebRemoteControlWorkspaces: (workspaces: WebRemoteControlWorkspaceTarget[]) =>
+    ipcRenderer.send(PlatformChannels.SyncWebRemoteControlWorkspaces, workspaces),
   /** 同步当前窗口里 Web 远程控制可展示的 task 快照 */
+  syncWebRemoteControlTasks: (tasks: WebRemoteControlTaskTarget[]) =>
+    ipcRenderer.send(PlatformChannels.SyncWebRemoteControlTasks, tasks),
+  onWebRemoteControlReconnectWorkspace: (
+    callback: (
+      request: WebRemoteControlReconnectWorkspaceRequest,
+    ) => Promise<WebRemoteControlReconnectWorkspaceResult>,
+  ) => {
+    const handler = async (event: Electron.IpcRendererEvent, payload: unknown) => {
+      const request = payload as WebRemoteControlReconnectWorkspaceRequest;
+      try {
+        const result = await callback(request);
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, result);
+      } catch (error) {
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } satisfies WebRemoteControlReconnectWorkspaceResult);
+      }
+    };
+    ipcRenderer.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+    return () =>
+      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+  },
   /** 同步当前窗口的未读 task 数到 main 进程 */
   syncWindowUnreadCount: (count: number) =>
     ipcRenderer.send(PlatformChannels.SyncWindowUnreadCount, count),
@@ -419,6 +433,8 @@ contextBridge.exposeInMainWorld("drora", {
   /** 同步需要 main 进程即时感知的应用设置 */
   syncAppSettings: (patch: Partial<AppSettings>) =>
     ipcRenderer.send(PlatformChannels.SyncAppSettings, patch),
+  /** 查询关闭驻留托盘能力（Linux 置灰判断；spec：docs/desktop/linux-close-to-tray.md） */
+  getCloseToTrayCapability: () => ipcRenderer.invoke(PlatformChannels.GetCloseToTrayCapability),
   /** 快捷键设置页录制态开关：main 暂时摘除可配置菜单 accelerator，防止录制按键触发原命令 */
   setShortcutRecordingActive: (active: boolean) =>
     ipcRenderer.send(PlatformChannels.SetShortcutRecordingActive, active),
@@ -446,6 +462,38 @@ contextBridge.exposeInMainWorld("drora", {
     ipcRenderer.on(PlatformChannels.OpenBrowserUrl, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.OpenBrowserUrl, handler);
   },
+  /** 注册内置浏览器网页权限/源选择/设备选择弹窗请求，返回 disposer */
+  onEmbeddedBrowserPermissionPrompt: (
+    callback: (event: EmbeddedBrowserPermissionPromptEvent) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, payload: EmbeddedBrowserPermissionPromptEvent) =>
+      callback(payload);
+    ipcRenderer.on(PlatformChannels.EmbeddedBrowserPermissionPrompt, handler);
+    return () =>
+      ipcRenderer.removeListener(PlatformChannels.EmbeddedBrowserPermissionPrompt, handler);
+  },
+  /** 回传用户对内置浏览器权限弹窗的决策 */
+  resolveEmbeddedBrowserPermissionPrompt: (
+    request: EmbeddedBrowserPermissionResolveRequest,
+  ): void => {
+    ipcRenderer.send(PlatformChannels.EmbeddedBrowserPermissionResolve, request);
+  },
+  /** 读取内置浏览器站点权限记录（设置页「网站权限」） */
+  getEmbeddedBrowserSitePermissions: (): Promise<EmbeddedBrowserSitePermissionsSnapshot> =>
+    ipcRenderer.invoke(PlatformChannels.GetEmbeddedBrowserSitePermissions),
+  /** 修改/删除单条站点权限 */
+  setEmbeddedBrowserSitePermission: (
+    request: EmbeddedBrowserSitePermissionUpdateRequest,
+  ): Promise<EmbeddedBrowserSitePermissionsSnapshot> =>
+    ipcRenderer.invoke(PlatformChannels.SetEmbeddedBrowserSitePermission, request),
+  /** 清空全部站点权限记录 */
+  clearEmbeddedBrowserSitePermissions: (): Promise<EmbeddedBrowserSitePermissionsSnapshot> =>
+    ipcRenderer.invoke(PlatformChannels.ClearEmbeddedBrowserSitePermissions),
+  /** 重置单个站点的全部权限记录 */
+  resetEmbeddedBrowserSitePermission: (
+    request: EmbeddedBrowserSitePermissionResetRequest,
+  ): Promise<EmbeddedBrowserSitePermissionsSnapshot> =>
+    ipcRenderer.invoke(PlatformChannels.ResetEmbeddedBrowserSitePermission, request),
   /** 注册 agent 首次 browser 命令建好受控 view 的回调（自动开 browser-use tab），返回 disposer */
   onBrowserViewReady: (
     callback: (payload: {
@@ -906,6 +954,8 @@ contextBridge.exposeInMainWorld("drora", {
   /** 获取桌面端设备标识符（deviceMid） */
   getDeviceId: () => ipcRenderer.invoke(PlatformChannels.GetDeviceId),
 });
+
+installPluginSandboxHostBridge();
 
 /**
  * MessagePort 不能通过 contextBridge 传递（contextBridge 会把它包成 Proxy，

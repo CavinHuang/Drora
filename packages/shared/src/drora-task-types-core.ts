@@ -146,8 +146,8 @@ export interface DroraTaskGoalChangedPatch {
 }
 // ---- Drora task 模式 ----
 
-/** wire/存储面 canonical 六值（原版 task meta 的 mode 实际出现域）。 */
-export type DroraCanonicalTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEdit" | "build";
+/** 兼容旧扩展类型名：v3.15 的存储/协议模式域以官方 DroraTaskMode 为准。 */
+export type DroraCanonicalTaskMode = DroraTaskMode;
 
 /** legacy permissionMode 词（default/acceptEdits/dontAsk/bypassPermissions）是
  * 原版桌面投影 uYa（zcode.cjs @14452100）的合法输入域——本地持久化的旧任务/
@@ -156,6 +156,7 @@ export type DroraCanonicalTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEd
  */
 export type DroraTaskMode =
   | "yolo"
+  | "guarded"
   | "plan"
   | "edit"
   | "auto"
@@ -233,7 +234,8 @@ export interface DroraPromptFileAttachment {
   mimeType: string;
   sizeBytes: number;
   /** 附件来源；clipboard-text 表示由长文本粘贴落盘生成，agent 只应按临时文件引用处理。 */
-  sourceKind?: "clipboard-text";
+  sourceKind?: "clipboard-text" | "topic-history";
+  messageCount?: number;
   /** 旧版/无路径环境的兼容回退；新桌面 GUI 不再为普通文件发送 base64。 */
   dataBase64?: string;
   /** 无本地路径时的小文本回退；有 localPath 时由 agent 自行读取。 */
@@ -373,10 +375,18 @@ export interface DroraTaskMeta {
    * 但拿不到错误正文，用户会以为发送没有触发。这里把失败原因随 task meta 一起持久化。
    */
   lastError?: DroraTaskLastError;
+  /** task 级历史修复状态，用于避免读 snapshot 时重复执行一次性迁移逻辑。 */
+  repairState?: DroraTaskRepairState;
   /** 任务级文件改动摘要，仅用于列表/标题展示，真实回滚仍以 fileChanges 为准 */
   changeSummary?: DroraTaskChangeSummary;
   /** drora-cli /goal 会话目标；null 表示已显式清空。 */
   target?: DroraTaskGoal | null;
+}
+export interface DroraTaskRepairState {
+  /** Claude 原生日志补齐历史 snapshot assistant 正文的修复版本。 */
+  claudeNativeSnapshotAssistantContentVersion?: number;
+  /** Codex 原生日志补齐历史 snapshot 子 agent 工具块的修复版本。 */
+  codexNativeSnapshotSubagentToolsVersion?: number;
 }
 export interface DroraTaskChangeSummary {
   /** 整个任务里涉及过的唯一文件数 */
@@ -735,6 +745,7 @@ export interface DroraTaskComplete {
   usage?: DroraUsage;
 }
 export interface DroraTaskRunStarted {
+  inputOrigin?: "desktop" | "mobile";
   type: "task_run_started";
   taskId: string;
   traceId: TraceId;

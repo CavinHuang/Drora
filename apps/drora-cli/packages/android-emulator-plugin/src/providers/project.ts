@@ -1,5 +1,5 @@
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { inside } from "../lib/path.js";
 import { androidApiLevel } from "./config.js";
@@ -29,6 +29,7 @@ export async function discover(dir = process.cwd()): Promise<Found> {
     if (item.isFile() && item.name === "AndroidManifest.xml")
       manifests.push(path.relative(dir, file));
   });
+
   const root = gradleRoots.find((item) => item === "") ?? gradleRoots[0];
   const absRoot = root === undefined ? undefined : path.join(dir, root);
   const modules = absRoot ? await modulesFor(absRoot) : [];
@@ -44,6 +45,7 @@ export async function discover(dir = process.cwd()): Promise<Found> {
     : false;
   const hasLocalProperties = absRoot ? await exists(path.join(absRoot, "local.properties")) : false;
   const warnings = projectWarnings({ hasWrapper, hasGradleProperties, hasLocalProperties });
+
   return {
     root,
     gradleRoots,
@@ -66,10 +68,14 @@ function projectWarnings(input: {
 }): string[] {
   const warnings: string[] = [];
   if (!input.hasGradleProperties) {
-    warnings.push("Missing gradle.properties. Add android.useAndroidX=true for AndroidX/Compose projects.");
+    warnings.push(
+      "Missing gradle.properties. Add android.useAndroidX=true for AndroidX/Compose projects.",
+    );
   }
   if (!input.hasLocalProperties) {
-    warnings.push("Missing local.properties. Add sdk.dir=<Android SDK path> when Gradle cannot infer the SDK from the environment.");
+    warnings.push(
+      "Missing local.properties. Add sdk.dir=<Android SDK path> when Gradle cannot infer the SDK from the environment.",
+    );
   }
   if (!input.hasWrapper) {
     warnings.push("Missing Gradle wrapper. Install Gradle or generate ./gradlew before building.");
@@ -92,6 +98,7 @@ export async function create(input: {
   const minSdk = sdkLevel(input.minSdk ?? 23, "minSdk");
   const compileSdk = sdkLevel(input.compileSdk ?? androidApiLevel(), "compileSdk");
   const files = templateFiles(root, pkg, await sdkRoot());
+
   if (!input.overwrite) {
     const hits = await present(files.map((item) => item.path));
     if (hits.length) {
@@ -100,10 +107,12 @@ export async function create(input: {
       );
     }
   }
+
   for (const file of files) {
     await mkdir(path.dirname(file.path), { recursive: true });
     await writeFile(file.path, file.body({ name, pkg, minSdk, compileSdk }), "utf8");
   }
+
   return {
     root: path.relative(cwd, root) || ".",
     module: "app",
@@ -120,7 +129,9 @@ async function modulesFor(root: string): Promise<string[]> {
     (await readFile(path.join(root, "settings.gradle.kts"), "utf8").catch(() => undefined)) ??
     (await readFile(path.join(root, "settings.gradle"), "utf8").catch(() => ""));
   const modules = [...settings.matchAll(/include\(([^)]+)\)/g)]
-    .flatMap((match) => [...String(match[1]).matchAll(/["'](:[^"']+)["']/g)].map((hit) => hit[1] ?? ""))
+    .flatMap((match) =>
+      [...String(match[1]).matchAll(/["'](:[^"']+)["']/g)].map((hit) => hit[1] ?? ""),
+    )
     .filter(Boolean);
   return modules.length ? modules : ["app"];
 }
@@ -131,7 +142,9 @@ async function applicationIds(root: string): Promise<string[]> {
     if (!item.isFile()) return;
     if (/build\.gradle(\.kts)?$/.test(item.name)) {
       const text = await readFile(file, "utf8").catch(() => "");
-      for (const match of text.matchAll(/(?:applicationId|namespace)\s*(?:=|\s)\s*["']([^"']+)["']/g)) {
+      for (const match of text.matchAll(
+        /(?:applicationId|namespace)\s*(?:=|\s)\s*["']([^"']+)["']/g,
+      )) {
         if (match[1]) ids.add(match[1]);
       }
     }
@@ -160,10 +173,13 @@ async function walkProjectFiles(
   cb: (file: string, item: Dirent) => Promise<void>,
 ): Promise<void> {
   if (depth < 0) return;
-  const items = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const items: Dirent[] = await readdir(dir, { withFileTypes: true }).catch(() => []);
   await Promise.all(
     items
-      .filter((item) => !item.name.startsWith(".") && !["node_modules", "build", ".gradle"].includes(item.name))
+      .filter(
+        (item) =>
+          !item.name.startsWith(".") && !["node_modules", "build", ".gradle"].includes(item.name),
+      )
       .map(async (item) => {
         const file = path.join(dir, item.name);
         await cb(file, item);
@@ -197,7 +213,7 @@ async function present(files: string[]): Promise<string[]> {
         return hit ? file : undefined;
       }),
     )
-  ).filter((file) => file !== undefined);
+  ).filter((file): file is string => file !== undefined);
 }
 
 async function exists(file: string): Promise<boolean> {

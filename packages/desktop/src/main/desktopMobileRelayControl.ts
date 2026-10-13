@@ -938,7 +938,7 @@ export function createDesktopMobileRelayControl(deps: {
     clearBridgeGraceTimer();
     const oldestQueuedAt = bridge.replayBuffer.oldestQueuedAt();
     if (oldestQueuedAt === null) return;
-    const delayMs = Math.max(0, oldestQueuedAt + bridge.replayBuffer.graceMs - Date.now());
+    const delayMs = Math.max(0, oldestQueuedAt + bridge.replayBuffer.graceMs + 1 - Date.now());
     const timer = setTimeout(() => {
       if (!bridge || bridge.degraded) return;
       if (!bridge.replayBuffer.graceExceeded()) return;

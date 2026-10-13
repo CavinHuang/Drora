@@ -46,7 +46,7 @@ export function buildDroraSourceHeadersFromContext(
     ...DRORA_SOURCE_HEADERS,
     "HTTP-Referer": endpointOrigin,
     "User-Agent": `Drora/${appVersion ?? "unknown"}`,
-    ...(appVersion ? { "X-Drora-App-Version": appVersion } : {}),
+    ...(appVersion ? { "X-Zcode-App-Version": appVersion } : {}),
     "X-Title": `Z Code@${sourceTitle}`,
     ...(platform && arch ? { "X-Platform": `${platform}-${arch}` } : {}),
     ...(releaseChannel ? { "X-Release-Channel": releaseChannel } : {}),

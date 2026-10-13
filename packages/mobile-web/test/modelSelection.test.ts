@@ -11,20 +11,20 @@ import {
   type CommandEnvelope,
   type ConversationSnapshot,
 } from "@drora/shared/drora-protocol-v4";
-import { createConversationStore } from "../src/app/conversationStore.js";
+import { createConversationStore } from "../legacy-v3.14.3/app/conversationStore.js";
 import {
   sendSwitchModelConfigCas,
   TaskSession,
   type SwitchModelSelection,
   type TaskSessionTarget,
-} from "../src/app/taskSession.js";
+} from "../legacy-v3.14.3/app/taskSession.js";
 import {
   formatCompactTokenCount,
   isModelSelected,
   resolveCurrentThoughtLevel,
   resolveModelThoughtLevels,
   type ModelMenuState,
-} from "../src/ui/ModelMenu.js";
+} from "../legacy-v3.14.3/ui/ModelMenu.js";
 
 const SESSION_ID = "sess-model";
 const SUBSCRIPTION_ID = "sub-1";

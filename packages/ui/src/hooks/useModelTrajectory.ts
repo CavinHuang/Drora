@@ -3,7 +3,7 @@ import type { DroraModelTrajectory } from "@drora/services";
 import { logger } from "@/logger.js";
 import { useDroraTaskService } from "@/hooks/useDroraTaskService.js";
 
-interface ModelTrajectoryState {
+export interface ModelTrajectoryState {
   loading: boolean;
   data: DroraModelTrajectory | null;
   error: string | null;

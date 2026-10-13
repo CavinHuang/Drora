@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { GitFileChange, GitRepositorySummary } from "@drora/shared";
-import { AttachmentGitSummaryGate } from "../src/app/attachmentGitSummary.js";
+import { AttachmentGitSummaryGate } from "../legacy-v3.14.3/app/attachmentGitSummary.js";
 
 const SUMMARY: GitRepositorySummary = {
   workspacePath: "C:/repo",

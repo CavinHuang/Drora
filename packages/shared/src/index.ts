@@ -1,3 +1,10 @@
+export { cloudContentPayloadSchema, contentBundleSchema } from "./cloudContent.js";
+export * from "./networkCapture.js";
+export type {
+  CloudContentPayload,
+  CloudContentBundle,
+  CloudContentHeroType,
+} from "./cloudContent.js";
 export {
   desktopPetDragSchema,
   desktopPetPresentationSchema,
@@ -80,16 +87,14 @@ export {
   DRORA_APP_VERSION_ENV,
   DRORA_BUILD_COMMIT_ID_ENV,
   RUNTIME_DRORA_DEBUG,
-  DRORA_TELEMETRY_REPORT_ENDPOINT,
   DRORA_ARMS_RUM_ENDPOINT,
-  DRORA_TELEMETRY_ENABLED,
+  DRORA_TELEMETRY_REPORT_ENDPOINT,
+  DRORA_AUTO_UPDATE_ENABLED,
   mapDroraEnvToArmsRumEnv,
   normalizeDroraEnv,
   normalizeDroraProductFlavor,
 } from "./env.js";
 export * from "./errors.js";
-export type { SessionCreateSource } from "./sessionCreateSource.js";
-export { resolveSafeEndpointHostname } from "./endpointHostname.js";
 export * from "./rendererActionTrace.js";
 export * from "./validation.js";
 export * from "./api.js";
@@ -109,6 +114,7 @@ export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";
 export * from "./conversation-preview-artifacts.js";
 export * from "./drora-session-task-status.js";
+export * from "./drora-session-content-profile.js";
 export * from "./drora-tool-projection-memory.js";
 export * from "./drora-slash-command-help.js";
 export * from "./droraEndpoint.js";
@@ -209,9 +215,12 @@ export type {
   ConnectRemoteRequest,
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,
+  MaterializeWorkflowArtifactFileRequest,
+  MaterializeWorkflowArtifactFileResult,
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,
+  DesktopCloseToTrayCapability,
   DesktopCommandId,
   CuaOsSupport,
   DesktopWindowChromeState,
@@ -225,6 +234,14 @@ export type {
   BrowserGuestAttachResult,
   EmbeddedBrowserDataClearResult,
   EmbeddedBrowserOpenUrlRequest,
+  EmbeddedBrowserPermissionDeviceOption,
+  EmbeddedBrowserPermissionPromptEvent,
+  EmbeddedBrowserPermissionResolution,
+  EmbeddedBrowserPermissionResolveRequest,
+  EmbeddedBrowserPermissionScreenOption,
+  EmbeddedBrowserSitePermissionResetRequest,
+  EmbeddedBrowserSitePermissionUpdateRequest,
+  EmbeddedBrowserSitePermissionsSnapshot,
   IPlatformService,
   MobilePairingFailure,
   MobilePairingRuntimeState,
@@ -298,6 +315,9 @@ export * from "./tool-identity.js";
 export * from "./streaming-tool-input-preview.js";
 export * from "./tool-plan-adapter.js";
 export * from "./permission-request-preview.js";
+export * from "./web-remote-control.js";
+export * from "./web-remote-control-heartbeat.js";
+export * from "./web-remote-control-rpc-transport.js";
 export * from "./settings-sync.js";
 export * from "./uuid.js";
 export * from "./usage-stats.js";
@@ -305,12 +325,15 @@ export * from "./coding-plan-subscription.js";
 export * from "./intranetProbe.js";
 export * from "./intranetDefaults.js";
 export * from "./hooks.js";
+export * from "./memory.js";
+export * from "./output-style.js";
 export * from "./openrouter-attribution.js";
 export * from "./workspaceSessionRestore.js";
 export * from "./skill-scan-policy.js";
 export * from "./browser-use/index.js";
 
 export * from "./coding-plan-reset.js";
+export * from "./highspeed.js";
 export {
   parseSubagentMarkdownSelection,
   formatSubagentMarkdownModel,
@@ -322,11 +345,40 @@ export * from "./execution-state.js";
 
 export { bashOutputDisplaySchema } from "./bash-output-display.js";
 
+export * from "./subagent-runtime-config.js";
+
+export * from "./subagent-profile.js";
+export { parseAgentProfileFromMarkdown } from "./subagent-profile-parser.js";
+
 export * from "./localTtft.js";
 export * from "./pluginStoreOrder.js";
 export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
+export * from "./marketingTouch.js";
+export * from "./rewardsEmbedded.js";
+export * from "./rewardsBridge.js";
 export * from "./session-debug.js";
 export { redactFeedbackText } from "./feedbackPrivacy.js";
+export { API_KEY_USAGE_SCENE, type ApiKeyCreationUsageScene } from "./api-key-usage-scene.js";
+export {
+  projectAccessTokenFingerprint,
+  ProjectAccessTokenTransientError,
+} from "./project-access-token.js";
+export {
+  ProjectAccessTokenClient,
+  type ProjectAccessTokenInput,
+  type ProjectAccessTokenMaterial,
+} from "./project-access-token-client.js";
+
+export * from "./conversationSelection.js";
+export * from "./attachment-source.js";
+
+export * from "./channel-mention.js";
+
+export {
+  requestSecuritySensitiveHeaders,
+  isRequestSecurityFailure,
+} from "./request-security-edition/policy.js";
+export * from "./request-security-edition/verification-policy.js";
 // relay 线协议纯逻辑（spec D2：desktop/relay-server/relay-client 三方同源）。
 export * from "./relay-wire/index.js";

@@ -103,7 +103,8 @@ export function createTurnFailureError(
 
   if (
     isCoreError(error) &&
-    (error.type === CoreErrorType.ModelContextExceeded ||
+    (error.type === CoreErrorType.ConfigurationError ||
+      error.type === CoreErrorType.ModelContextExceeded ||
       (fallbackMessage === "Turn execution failed" && error.type === CoreErrorType.ModelError))
   ) {
     return error;

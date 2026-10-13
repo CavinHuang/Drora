@@ -15,7 +15,7 @@ import {
 } from "@drora/shared/drora-protocol-v4";
 import { logger } from "@/logger.js";
 
-interface WindowControllerTaskListRegistry {
+export interface WindowControllerTaskListRegistry {
   subscribe(listener: () => void): () => void;
   getRevision(): number;
   list(

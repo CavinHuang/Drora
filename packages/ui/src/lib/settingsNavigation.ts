@@ -24,9 +24,9 @@ export type SettingsSectionId =
   | "automations"
   | "shortcuts";
 
-type SettingsUsageTabTarget = "app" | "codingPlan";
-type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
-type SettingsPluginNavigationOrigin = "plugin-store";
+export type SettingsUsageTabTarget = "app" | "codingPlan";
+export type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
+export type SettingsPluginNavigationOrigin = "plugin-store";
 
 const SETTINGS_SECTION_INTENT_KEY = "drora-settings-section-intent",
   SETTINGS_USAGE_TAB_INTENT_KEY = "drora-settings-usage-tab-intent",
@@ -45,13 +45,9 @@ const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   // 工作区搜索（.droraignore）设置入口先隐藏：规则文件仍生效并可手动编辑，
   // 编辑页代码保留，放开时从这里移除即可。
   "workspaceFileSearch",
-  // computerUse 不在此列：原版发行物（3.14.3 renderer 隐藏集为
-  // automations/plugins/workspaceFileSearch）在桌面端设置页展示电脑控制分区，
-  // 由 settingsPageConfig.createSettingsPageConfig 按 isDesktop 等平台事实动态加入；
-  // Web 视图仍由 SETTINGS_SECTIONS 的显式 computerUse 过滤与 showComputerUse 门控排除。
 ]);
 
-interface SettingsSectionIntentEventDetail {
+export interface SettingsSectionIntentEventDetail {
   section: SettingsSectionId;
   pluginTab?: SettingsPluginTabTarget;
   pluginOrigin?: SettingsPluginNavigationOrigin;
@@ -116,7 +112,7 @@ function getLocalStorage(): Storage | null {
   }
 }
 
-function readLastSettingsSectionPreference(
+export function readLastSettingsSectionPreference(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   const storage = getLocalStorage();
@@ -296,7 +292,7 @@ function clearPendingSettingsSectionIntent(): void {
   }
 }
 
-function consumePendingSettingsSection(
+export function consumePendingSettingsSection(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   if (typeof window === "undefined") {

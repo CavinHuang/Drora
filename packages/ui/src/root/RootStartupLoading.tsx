@@ -33,7 +33,7 @@ export function DroraStartupLogoBadge({ animated = true }: { animated?: boolean 
   );
 }
 
-function DroraStartupLogo({
+export function DroraStartupLogo({
   className,
   animated = true,
 }: {

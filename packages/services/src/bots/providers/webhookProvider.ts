@@ -186,7 +186,7 @@ export function createWebhookBotProvider(
           method: "POST",
           headers: {
             "content-type": "application/json",
-            [bot.webhookAuthHeaderName || "x-drora-bot-secret"]: secret ?? "",
+            [bot.webhookAuthHeaderName || "x-zcode-bot-secret"]: secret ?? "",
           },
           body: JSON.stringify({
             type: "drora.bot.test",
@@ -219,7 +219,7 @@ export function createWebhookBotProvider(
         "content-type": "application/json",
       };
       if (secret) {
-        headers[bot.webhookAuthHeaderName || "x-drora-bot-secret"] = secret;
+        headers[bot.webhookAuthHeaderName || "x-zcode-bot-secret"] = secret;
       }
       const response = await postWebhookWithRetry(bot.webhookUrl, {
         method: "POST",

@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { HomeTaskRow } from "../src/ui/OrganizeMenu.js";
-import { IntlProvider } from "../src/ui/intl.js";
-import { projectHomeData } from "../src/app/entry.js";
-import { mergeHomeWorkspaceLiveness } from "../src/app/sessionsIndexStore.js";
+import { HomeTaskRow } from "../legacy-v3.14.3/ui/OrganizeMenu.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
+import { projectHomeData } from "../legacy-v3.14.3/app/entry.js";
+import { mergeHomeWorkspaceLiveness } from "../legacy-v3.14.3/app/sessionsIndexStore.js";
 
 Object.assign(globalThis, { React });
 

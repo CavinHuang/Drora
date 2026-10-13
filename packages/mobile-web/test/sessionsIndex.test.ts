@@ -14,8 +14,8 @@ import {
   createSessionsIndexStore,
   mapSessionPhaseToStatus,
   mergeHomeWorkspaceLiveness,
-} from "../src/app/sessionsIndexStore.js";
-import type { ProjectedWorkspace } from "../src/app/entry.js";
+} from "../legacy-v3.14.3/app/sessionsIndexStore.js";
+import type { ProjectedWorkspace } from "../legacy-v3.14.3/app/entry.js";
 
 const WORKSPACE_KEY = "C:\\repo\\demo";
 const TOPIC = `sessions-index/${WORKSPACE_KEY}`;

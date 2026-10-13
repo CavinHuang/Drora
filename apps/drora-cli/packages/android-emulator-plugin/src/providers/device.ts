@@ -43,13 +43,13 @@ export function parseAdbDevices(value: string): Device[] {
       return {
         serial,
         state,
-        kind: serial.startsWith("emulator-") ? ("emulator" as const) : ("device" as const),
+        kind: serial.startsWith("emulator-") ? "emulator" : "device",
         model: attrs.get("model"),
         product: attrs.get("product"),
         device: attrs.get("device"),
         transportId: attrs.get("transport_id"),
         raw: line,
-      };
+      } satisfies Device;
     })
     .filter((item) => item.serial.length > 0);
 }

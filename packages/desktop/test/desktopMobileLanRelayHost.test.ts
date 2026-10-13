@@ -81,7 +81,7 @@ function connectTerminal(url: string): Promise<{
   });
 }
 
-test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端口/registry 落盘", async () => {
+test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端口/registry 落盘", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "drora-lan-host-"));
   tempDirs.push(dir);
   const registryPath = join(dir, "nested", "registry.json");
@@ -89,6 +89,8 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
     logger: silentLogger,
     registryFilePath: registryPath,
   });
+
+  t.after(() => host.stop());
 
   // 启动：port=0 → 系统分配有效端口；重复 ensureStarted 幂等同端口。
   const first = await host.ensureStarted();
@@ -98,25 +100,19 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
   assert.equal(host.currentPort(), first.port);
   assert.equal(host.isRunning(), true);
 
-  // LAN 内嵌服务由独立 mobile-web 包离线供给 v4 入口和版本资产。
-  // §33.11 raw 优先：仓库 upstream（官方原始字节冻结件）恒存在 → resolvedRoot 恒为
-  // upstream 根；recovered（可读化）与 dist 仅为回退候选。
-  const upstreamRoot = fileURLToPath(new URL("../../mobile-web/upstream/", import.meta.url));
-  const resolvedRoot = await resolveLocalMobileWebRoot();
-  assert.equal(resolvedRoot, upstreamRoot);
+  // 当前官方源码构建页是唯一入口，旧冻结快照不能重新进入生产路径。
+  const builtRoot = fileURLToPath(new URL("../../mobile-web/dist/", import.meta.url));
+  assert.equal(await resolveLocalMobileWebRoot(), builtRoot);
   const entry = await fetch(`http://127.0.0.1:${first.port}/remote/v4`);
   assert.equal(entry.status, 200);
   const entryHtml = await entry.text();
-  assert.match(entryHtml, /3\.14\.3\/assets\/index-/u);
-  // 官方快照入口 title=官方品牌静态值（运行时 JS 再置完整标题）；出站改写不因页面主体切换而失效。
-  assert.match(entryHtml, /<title>ZCode<\/title>/u);
+  assert.match(entryHtml, /3\.15\.1\/assets\/index-/u);
+  assert.match(entryHtml, /<title>Drora<\/title>/u);
   const bundlePath = entryHtml.match(
-    /src="(\/remote\/v4\/3\.14\.3\/assets\/index-[^"]+\.js)"/u,
+    /src="(\/remote\/v4\/3\.15\.1\/assets\/index-[^"]+\.js)"/u,
   )?.[1];
   assert.ok(bundlePath);
-  const bundle = await fetch(`http://127.0.0.1:${first.port}${bundlePath}`);
-  assert.equal(bundle.status, 200);
-  assert.doesNotMatch(await bundle.text(), /`wss:\/\/zcode\.z\.ai\/ws`/u);
+  assert.equal((await fetch(`http://127.0.0.1:${first.port}${bundlePath}`)).status, 200);
 
   // 真实可达：WS 入口在同一端口应答注册。
   const probe = await connectTerminal(`ws://127.0.0.1:${first.port}/ws`);
@@ -280,30 +276,14 @@ test("进程内一致性：真 desktopMobileRelayControl × 真内嵌 relayServe
   assert.equal(persistedCredential.deviceSid, deviceSid);
 });
 
-test("§33.11 页面根候选序（raw 优先）：开发态/安装态/存量安装三形态", () => {
+test("当前构建页候选：开发 dist 与安装 mobile-web，不再使用历史快照", () => {
   const toSlash = (value: string) => value.split("\\").join("/");
-  const endsWith = (value: string, suffix: string) => toSlash(value).endsWith(suffix);
-  // 开发态：仓库 upstream（官方原始字节冻结件）首选；recovered（可读化）回退；dist 末位。
   const dev = buildMobileWebRootCandidates(undefined);
-  assert.equal(dev.length, 3);
-  assert.ok(endsWith(dev[0]!, "mobile-web/upstream/"), "开发态首选官方原始字节冻结件");
-  assert.ok(endsWith(dev[1]!, "mobile-web/src/recovered/"), "recovered（可读化）为回退");
-  assert.ok(endsWith(dev[2]!, "mobile-web/dist/"), "dist 为末位兜底");
-  // 安装态（§33.11 extraResources mobile-web-official=upstream raw）：随包官方原始字节
-  // 优先于随包旧 dist 产物；仓库两根在安装态不存在，排其后作为源码运行兜底。
+  assert.equal(dev.length, 1);
+  assert.ok(toSlash(dev[0]!).endsWith("mobile-web/dist/"));
   const installed = buildMobileWebRootCandidates("C:/app/resources");
-  assert.equal(installed.length, 5);
-  assert.ok(endsWith(installed[0]!, "mobile-web/upstream/"));
-  assert.equal(
-    toSlash(installed[1]!),
-    "C:/app/resources/mobile-web-official",
-    "安装态首选随包官方原始字节",
-  );
-  assert.equal(
-    toSlash(installed[2]!),
-    "C:/app/resources/mobile-web",
-    "旧 dist 产物为存量安装兜底",
-  );
-  assert.ok(endsWith(installed[3]!, "mobile-web/src/recovered/"));
-  assert.ok(endsWith(installed[4]!, "mobile-web/dist/"));
+  assert.equal(installed.length, 2);
+  assert.equal(toSlash(installed[0]!), "C:/app/resources/mobile-web");
+  assert.equal(installed[1], dev[0]);
+  assert.ok(installed.every(root => !/upstream|recovered|mobile-web-official/u.test(root)));
 });

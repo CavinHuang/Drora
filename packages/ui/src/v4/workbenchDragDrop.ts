@@ -1,6 +1,6 @@
 import type { PaneSplitSide } from "@/v4/paneLayoutTree.js";
 
-export const WORKBENCH_SESSION_DRAG_MIME = "application/x-drora-session";
+export const WORKBENCH_SESSION_DRAG_MIME = "application/x-zcode-session";
 
 export interface WorkbenchSessionDragPayload {
   readonly kind: "drora/session";

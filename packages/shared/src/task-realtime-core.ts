@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 import type { DroraTaskMigrationSource, DroraTaskMode } from "./drora-task-types-core.js";
-import { droraAgentProviderSchema } from "./drora-agent-policy.js";
+import { legacyDroraProviderSchema } from "./drora-agent-policy.js";
 import { droraPermissionResponseSchema } from "./drora-protocol-legacy-types.js";
 // merge 冲突解决：两侧分别在相邻行新增独立 import（本分支 hook trust review
 // 决策 schema、staging telemetry error attribution schema），二者无语义交集，均保留。
@@ -15,10 +15,15 @@ import { errorAttributionSchema } from "./drora-protocol-v4/snapshot.js";
 
 const nonEmptyString = z.string().trim().min(1);
 const droraTaskModeRealtimeValues = [
+  "default",
   "yolo",
+  "guarded",
   "plan",
   "edit",
+  "acceptEdits",
   "auto",
+  "dontAsk",
+  "bypassPermissions",
   "autoEdit",
   "build",
 ] as const satisfies readonly DroraTaskMode[];
@@ -57,7 +62,8 @@ const taskMetaRealtimeSchema = z.object({
   mode: z.enum(droraTaskModeRealtimeValues),
   model: z.string().optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: droraAgentProviderSchema.optional(),
+  // relay payload 可能由旧版本桌面投影；历史 provider 值在此归一为 glm。
+  provider: legacyDroraProviderSchema.optional(),
   migrationSource: z.enum(droraTaskMigrationSourceRealtimeValues).optional(),
   forkedFromTaskId: nonEmptyString.optional(),
   unreadAt: z.number().int().nonnegative().optional(),

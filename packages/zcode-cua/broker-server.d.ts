@@ -272,3 +272,7 @@ export declare function requestHelperScreenRecordingPermissionViaLaunchServices(
 ): Promise<HelperPermissionRequestResult>;
 
 export type { CuaPermissionRestartOptions, CuaPermissionRestartResult };
+/** v3.15 公共位置契约；实际 SDK 与 Drora 品牌/数据根之间由装配适配转换。 */
+export function resolveHelperAppName(env?: NodeJS.ProcessEnv): string;
+export function resolveCuaHelperInstallRoot(env?: NodeJS.ProcessEnv): string | null;
+export function standaloneHelperCandidatePaths(env?: NodeJS.ProcessEnv): string[];

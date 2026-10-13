@@ -1,10 +1,18 @@
 import type { TurnInputIntentMetadata } from "@drora/contracts";
 import type { ModelSelection } from "@drora/shared";
-import type { AttachmentRef, CommandEnvelope, QueueItem } from "@drora/shared/drora-protocol-v4";
-import type { SubmissionMode } from "@drora/shared/drora-protocol-v4";
+import type {
+  AttachmentRef,
+  CommandEnvelope,
+  CommandPayloadMap,
+  QueueItem,
+  SubmissionMode,
+} from "@drora/shared/drora-protocol-v4";
 import { commandAdmissionOf } from "./executor.js";
 
-interface CanonicalCommandIntent {
+export interface CanonicalCommandIntent {
+  inputOrigin?: "desktop" | "mobile";
+  conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+  botGroupSource?: TurnInputIntentMetadata["botGroupSource"];
   kind: "sendText" | "sendGoalCommand";
   text: string;
   modelSelection?: ModelSelection;
@@ -19,12 +27,16 @@ interface CanonicalCommandIntent {
   attachmentRefs?: readonly AttachmentRef[];
   sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
   provenance?: TurnInputIntentMetadata["provenance"];
+  source?: TurnInputIntentMetadata["source"];
 }
 
 export function inputIntentMetadata(
   envelope: CommandEnvelope,
   options: {
     text: string;
+    inputOrigin?: "desktop" | "mobile";
+    conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+    botGroupSource?: TurnInputIntentMetadata["botGroupSource"];
     requestedDelivery: TurnInputIntentMetadata["requestedDelivery"];
     admittedDelivery?: TurnInputIntentMetadata["admittedDelivery"];
     fallbackReasonCode?: string;
@@ -33,11 +45,19 @@ export function inputIntentMetadata(
     mode?: SubmissionMode;
     planEnabled?: boolean;
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+    source?: TurnInputIntentMetadata["source"];
     evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
   },
 ): TurnInputIntentMetadata {
   const admission = commandAdmissionOf(envelope);
+  const highspeed =
+    envelope.type === "sendText"
+      ? (envelope.payload as CommandPayloadMap["sendText"]).highspeedMeta
+      : undefined;
   return {
+    ...(options.inputOrigin ? { inputOrigin: options.inputOrigin } : {}),
+    ...(options.conversationQuotes ? { conversationQuotes: options.conversationQuotes } : {}),
+    ...(options.botGroupSource ? { botGroupSource: options.botGroupSource } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,
     clientId: envelope.clientId || "cli",
@@ -66,6 +86,8 @@ export function inputIntentMetadata(
     ...(options.fallbackReasonCode ? { fallbackReasonCode: options.fallbackReasonCode } : {}),
     ...(options.attachmentRefs ? { attachmentRefs: [...options.attachmentRefs] } : {}),
     ...(options.sharedContextRefs ? { sharedContextRefs: [...options.sharedContextRefs] } : {}),
+    ...(highspeed ? { highspeed } : {}),
+    ...(options.source ? { source: options.source } : {}),
     // W03：evidence 引用固定进 canonical intent，随 queue item 与 durable 账本存活，
     // sendQueuedNow 提升时按同一组 refs 执行时复验。
     ...(options.evidenceRefs ? { evidenceRefs: [...options.evidenceRefs] } : {}),
@@ -82,6 +104,9 @@ export function inputIntentMetadataFromCanonical(
   const originalSourceCommandId =
     canonical.provenance?.sourceCommandId ?? canonical.sourceCommandId;
   return {
+    ...(canonical.inputOrigin ? { inputOrigin: canonical.inputOrigin } : {}),
+    ...(canonical.conversationQuotes ? { conversationQuotes: canonical.conversationQuotes } : {}),
+    ...(canonical.botGroupSource ? { botGroupSource: canonical.botGroupSource } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,
     clientId: envelope.clientId || canonical.clientId || "cli",
@@ -97,6 +122,7 @@ export function inputIntentMetadataFromCanonical(
     ...(canonical.fallbackReasonCode ? { fallbackReasonCode: canonical.fallbackReasonCode } : {}),
     ...(canonical.attachmentRefs ? { attachmentRefs: [...canonical.attachmentRefs] } : {}),
     ...(canonical.sharedContextRefs ? { sharedContextRefs: [...canonical.sharedContextRefs] } : {}),
+    ...(canonical.source ? { source: canonical.source } : {}),
     ...(originalSourceCommandId
       ? {
           provenance: canonical.provenance ?? {
@@ -115,6 +141,9 @@ export function inputIntentMetadataFromQueueItem(
   canonicalText: string,
 ): TurnInputIntentMetadata {
   return {
+    ...(item.inputOrigin ? { inputOrigin: item.inputOrigin } : {}),
+    ...(item.conversationQuotes ? { conversationQuotes: item.conversationQuotes } : {}),
+    ...(item.botGroupSource ? { botGroupSource: item.botGroupSource } : {}),
     sourceCommandId: item.sourceCommandId,
     queueItemId: item.queueItemId,
     clientId: item.clientId,
@@ -133,6 +162,8 @@ export function inputIntentMetadataFromQueueItem(
       : {}),
     attachmentRefs: item.attachments,
     ...(item.sharedContextRefs ? { sharedContextRefs: [...item.sharedContextRefs] } : {}),
+    ...(item.highspeed ? { highspeed: item.highspeed } : {}),
+    ...(item.source ? { source: item.source } : {}),
     // W03：提升只改变调度状态；evidence 引用与来源关联一样必须原样随行，
     // transcript/projection 上的提升输入仍携带同一组 receipt 绑定。
     ...(item.evidenceRefs ? { evidenceRefs: [...item.evidenceRefs] } : {}),

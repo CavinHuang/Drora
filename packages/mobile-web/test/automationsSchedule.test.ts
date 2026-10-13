@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { zhCN } from "../src/intl/zh-CN.js";
+import { zhCN } from "../legacy-v3.14.3/intl/zh-CN.js";
 import {
   WEEKDAY_ORDER,
   defaultSchedule,
@@ -14,7 +14,7 @@ import {
   weekdayName,
   type AutomationSchedule,
   type FormatMessage,
-} from "../src/app/automationsSchedule.js";
+} from "../legacy-v3.14.3/app/automationsSchedule.js";
 
 // 真实 zh-CN 字典构造 formatMessage（与 IntlProvider 同源插值语义 {name} 逐字替换）。
 const fmt: FormatMessage = (descriptor, values) => {

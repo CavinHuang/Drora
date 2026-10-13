@@ -1,26 +1,17 @@
 #!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/server";
+import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
-import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { fail, image, json } from "../lib/result.js";
-import { install, launch, openUrl, terminate } from "../providers/app.js";
-import { createAvd, listAvds, startEmulator, stopEmulator } from "../providers/avd.js";
-import { buildAndRun, buildApp } from "../providers/build.js";
-import { listDevices } from "../providers/device.js";
-import { logs } from "../providers/logs.js";
+import { json, fail, image } from "../lib/result.js";
 import { preflight } from "../providers/preflight.js";
-import { create, discover } from "../providers/project.js";
+import { discover, create } from "../providers/project.js";
+import { buildApp, buildAndRun } from "../providers/build.js";
+import { listDevices } from "../providers/device.js";
+import { createAvd, listAvds, startEmulator, stopEmulator } from "../providers/avd.js";
+import { install, launch, openUrl, terminate } from "../providers/app.js";
 import { shot } from "../providers/screenshot.js";
-import {
-  describe,
-  keyevent,
-  resolve,
-  status,
-  swipe,
-  tap,
-  typeText,
-} from "../providers/ui.js";
+import { logs } from "../providers/logs.js";
+import * as ui from "../providers/ui.js";
 
 const target = {
   serial: z
@@ -33,22 +24,12 @@ const target = {
     .string()
     .optional()
     .describe("Android Virtual Device name, used when an emulator needs to be started."),
-  timeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Operation timeout in milliseconds."),
+  timeoutMs: z.number().int().positive().optional().describe("Operation timeout in milliseconds."),
 };
 
 const emulatorStart = {
   avd: z.string().optional().describe("Android Virtual Device name to start."),
-  timeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Startup timeout in milliseconds."),
+  timeoutMs: z.number().int().positive().optional().describe("Startup timeout in milliseconds."),
 };
 
 const build = {
@@ -59,9 +40,7 @@ const build = {
   applicationId: z
     .string()
     .optional()
-    .describe(
-      "applicationId override to use when automatic discovery cannot resolve the app ID.",
-    ),
+    .describe("applicationId override to use when automatic discovery cannot resolve the app ID."),
 };
 
 const server = new McpServer({
@@ -288,18 +267,17 @@ server.registerTool(
     description: "Report whether the Android UI automation backend is available.",
     inputSchema: {},
   },
-  async () => guard(async () => json(await status())),
+  async () => guard(async () => json(await ui.status())),
 );
 
 server.registerTool(
   "android_ui_describe",
   {
     title: "Describe Android UI",
-    description:
-      "Return a compact UI Automator element tree for the current Android screen.",
+    description: "Return a compact UI Automator element tree for the current Android screen.",
     inputSchema: target,
   },
-  async (args) => guard(async () => json(await describe(args))),
+  async (args) => guard(async () => json(await ui.describe(args))),
 );
 
 server.registerTool(
@@ -313,7 +291,7 @@ server.registerTool(
       query: z.string().min(1),
     },
   },
-  async (args) => guard(async () => json(await resolve(args))),
+  async (args) => guard(async () => json(await ui.resolve(args))),
 );
 
 server.registerTool(
@@ -327,7 +305,7 @@ server.registerTool(
       y: z.number(),
     },
   },
-  async (args) => guard(async () => json(await tap(args))),
+  async (args) => guard(async () => json(await ui.tap(args))),
 );
 
 server.registerTool(
@@ -344,7 +322,7 @@ server.registerTool(
       durationMs: z.number().positive().optional(),
     },
   },
-  async (args) => guard(async () => json(await swipe(args))),
+  async (args) => guard(async () => json(await ui.swipe(args))),
 );
 
 server.registerTool(
@@ -357,7 +335,7 @@ server.registerTool(
       text: z.string(),
     },
   },
-  async (args) => guard(async () => json(await typeText(args))),
+  async (args) => guard(async () => json(await ui.typeText(args))),
 );
 
 server.registerTool(
@@ -371,7 +349,7 @@ server.registerTool(
       key: z.enum(["BACK", "HOME", "ENTER", "APP_SWITCH", "MENU", "SEARCH"]),
     },
   },
-  async (args) => guard(async () => json(await keyevent(args))),
+  async (args) => guard(async () => json(await ui.keyevent(args))),
 );
 
 export async function main(): Promise<void> {

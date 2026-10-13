@@ -1,4 +1,5 @@
 import { createLocalServices, type DroraAgentCommandResolver } from "@drora/services/node";
+import type { IChannel } from "@drora/rpc";
 import {
   parseServiceAuthorityMode,
   DRORA_REMOTE_HTTP_PROXY_ENV_KEY,
@@ -6,18 +7,19 @@ import {
   DRORA_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY,
 } from "@drora/shared";
 
-interface CreateStdioServicesOptions {
+export interface CreateStdioServicesOptions {
+  topicResourceRelayChannel?: () => IChannel;
   env?: Record<string, string | undefined>;
   droraBuiltinProviderConfigFilePath: string;
   droraAgentCommandResolver?: DroraAgentCommandResolver;
 }
 
-interface RemoteAgentNetworkOptions {
+export interface RemoteAgentNetworkOptions {
   httpProxy?: string;
   noProxy?: string;
 }
 
-function resolveRemoteAgentNetworkFromEnv(
+export function resolveRemoteAgentNetworkFromEnv(
   env: Record<string, string | undefined>,
 ): RemoteAgentNetworkOptions | undefined {
   if (env[DRORA_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY]?.trim() !== "1") {
@@ -37,6 +39,7 @@ export function createStdioServices(options: CreateStdioServicesOptions) {
   // 测试注入 resolver 只用于在 spawn 前观察最终命令，不改变生产默认 resolver。
   const services = createLocalServices({
     droraBuiltinProviderConfigFilePath: options.droraBuiltinProviderConfigFilePath,
+    topicResourceRelayChannel: options.topicResourceRelayChannel,
     serviceAuthorityMode: authorityModeParseResult.mode,
     droraAgentCommandResolver: options.droraAgentCommandResolver,
     remoteAgentNetwork,

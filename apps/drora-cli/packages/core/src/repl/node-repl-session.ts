@@ -338,7 +338,7 @@ export class NodeReplSession {
     ) {
       this.setResponseMeta({
         ...meta,
-        NODE_REPL_TOOL_SURFACE_META_KEY: {
+        [NODE_REPL_TOOL_SURFACE_META_KEY]: {
           ...(currentSurface as Record<string, unknown>),
           ...(nextSurface as Record<string, unknown>),
         },

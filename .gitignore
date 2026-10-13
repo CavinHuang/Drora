@@ -96,3 +96,10 @@ remote-asset-cache/
 scripts/regression/reports/
 scripts/regression/tmp-gate/
 scripts/regression/tmp-*.mjs
+
+# Upstream v3.15.1 build outputs
+packages/desktop/.e2e-home/
+packages/desktop/.e2e-home-*/
+.codex-runtime/
+.claude/worktrees/
+.drora-runtime

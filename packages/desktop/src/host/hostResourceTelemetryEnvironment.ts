@@ -6,5 +6,6 @@ export function resolveResourceTelemetryEnvironmentKey(
   target: RemoteTarget,
   serverId?: string,
 ): string {
-  return createHash("sha256").update(buildRemoteEnvironmentKey(target, serverId)).digest("hex");
+  const environment = target.kind === "server" && serverId ? { ...target, serverId } : target;
+  return createHash("sha256").update(buildRemoteEnvironmentKey(environment)).digest("hex");
 }

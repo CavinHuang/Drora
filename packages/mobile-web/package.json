@@ -1,12 +1,12 @@
 {
   "name": "@drora/mobile-web",
-  "version": "3.14.3",
+  "version": "3.15.1",
   "private": true,
   "type": "module",
   "scripts": {
     "recover": "node scripts/recover.mjs",
     "build:snapshot": "node scripts/build.mjs",
-    "dev": "vite",
+    "dev": "pnpm --dir ../web dev",
     "build": "node scripts/build-app.mjs",
     "test": "node --test test/*.test.mjs && node --import tsx --test test/*.test.ts"
   },

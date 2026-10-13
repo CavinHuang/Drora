@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep, win32 } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
   addSuppressedBuiltinInFileConfig,
@@ -13,35 +13,7 @@ import {
   updatePluginOptionsInFileConfig,
   type ConfigResult,
 } from "@drora/adapters/config";
-import {
-  addMarketplace,
-  comparePluginUpdate,
-  describeMarketplacePlugin,
-  ensureDefaultPluginMarketplaces,
-  discoverNodePluginsSync,
-  ensureMarketplaceManifestAvailable,
-  getPluginSourceDiagnosticCode,
-  getPluginDataDir,
-  installMarketplacePlugin,
-  listInstalledPluginRecords,
-  loadKnownMarketplacesSync,
-  loadMarketplaceManifestSync,
-  parseMarketplaceSourceInput,
-  parseEntryStoreListing,
-  readPluginSourceIdentityPin,
-  removeMarketplace,
-  enrichCachedClaudeMarketplaceIcons,
-  uninstallMarketplacePlugin,
-  updateMarketplace,
-  validateLocalPluginPath,
-  validateMarketplacePlugin,
-  validateMarketplaceSource,
-  type DescribeMarketplacePluginResult,
-  type InstalledPluginRecord,
-  type KnownMarketplaceRecord,
-  type MarketplaceSource,
-  type PluginMarketplaceEntry,
-} from "@drora/adapters/plugins";
+import { addMarketplace, comparePluginUpdate, describeMarketplacePlugin, enrichCachedClaudeMarketplaceIcons, ensureDefaultPluginMarketplaces, discoverNodePluginsSync, ensureMarketplaceManifestAvailable, getPluginSourceDiagnosticCode, getPluginDataDir, installMarketplacePlugin, listInstalledPluginRecords, loadKnownMarketplacesSync, loadMarketplaceManifestSync, parseMarketplaceSourceInput, parseEntryStoreListing, readPluginSourceIdentityPin, removeMarketplace, uninstallMarketplacePlugin, updateMarketplace, validateLocalPluginPath, validateMarketplacePlugin, validateMarketplaceSource, type DescribeMarketplacePluginResult, type InstalledPluginRecord, type KnownMarketplaceRecord, type MarketplaceSource, type PluginMarketplaceEntry } from "@drora/adapters/plugins";
 import type {
   Logger,
   PluginHookDetail,
@@ -195,11 +167,11 @@ export interface DroraPluginUpdateData extends DroraPluginInstallData {
   previousVersion: string;
 }
 
-interface RestoreBuiltinPluginOptions extends ResolveDroraPluginsOptions {
+export interface RestoreBuiltinPluginOptions extends ResolveDroraPluginsOptions {
   pluginId: string;
 }
 
-interface ConfigureDroraPluginOptions extends ResolveDroraPluginsOptions {
+export interface ConfigureDroraPluginOptions extends ResolveDroraPluginsOptions {
   clearOptionKeys?: string[];
   dryRun?: boolean;
   options: Record<string, unknown>;
@@ -207,18 +179,18 @@ interface ConfigureDroraPluginOptions extends ResolveDroraPluginsOptions {
   scope?: "user" | "workspace";
 }
 
-interface ResetDroraPluginConfigOptions extends ResolveDroraPluginsOptions {
+export interface ResetDroraPluginConfigOptions extends ResolveDroraPluginsOptions {
   pluginId: string;
   scope?: "user" | "workspace";
 }
 
-interface ValidateDroraPluginOptions extends ResolveDroraPluginsOptions {
+export interface ValidateDroraPluginOptions extends ResolveDroraPluginsOptions {
   marketplace?: string;
   pluginName?: string;
   source?: string;
 }
 
-interface DescribeDroraPluginOptions extends ResolveDroraPluginsOptions {
+export interface DescribeDroraPluginOptions extends ResolveDroraPluginsOptions {
   marketplace: string;
   pluginName: string;
 }
@@ -415,6 +387,16 @@ export function getDroraPluginsOverview(
       ),
     ],
   };
+}
+
+export function enrichCachedClaudeMarketplaceIconsForOverview(
+  options: ResolveDroraPluginsOptions = {},
+): void {
+  const { pluginStorageRoot } = resolvePluginContext(options);
+  // 图标是可选展示增强：overview 不等待网络；仅写回阶段进入 storage lock。
+  void enrichCachedClaudeMarketplaceIcons(pluginStorageRoot, (write) =>
+    withPluginStorageLock(pluginStorageRoot, write),
+  );
 }
 
 export function listDroraPlugins(options: ListDroraPluginsOptions = {}): PluginLoadOutcome {
@@ -1332,7 +1314,20 @@ function normalizePluginConfigPathForComparison(
   return platform === "win32" ? resolvedPath.replaceAll("\\", "/").toLowerCase() : resolvedPath;
 }
 
-function resolveMarketplaceRefreshTargetIds(input: {
+export function isWorkspacePluginConfigPath(
+  path: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform === "win32") {
+    return (
+      win32.basename(path).toLowerCase() === "config.json" &&
+      win32.basename(win32.dirname(path)).toLowerCase() === ".drora"
+    );
+  }
+  return basename(path) === "config.json" && basename(dirname(path)) === ".drora";
+}
+
+export function resolveMarketplaceRefreshTargetIds(input: {
   declaredIds: Iterable<string>;
   knownIds: Iterable<string>;
   marketplace?: string;

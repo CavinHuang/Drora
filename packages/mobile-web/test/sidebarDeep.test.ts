@@ -6,12 +6,12 @@ import {
   SidebarOrganizeMenu,
   type SidebarOrganizeMode,
   type SidebarSortMode,
-} from "../src/ui/wide/SidebarOrganizeMenu.js";
+} from "../legacy-v3.14.3/ui/wide/SidebarOrganizeMenu.js";
 import {
   SidebarRemoveWorkspaceDialog,
   WorkspaceSshBadge,
-} from "../src/ui/wide/SidebarRemoveWorkspaceDialog.js";
-import { IntlProvider } from "../src/ui/intl.js";
+} from "../legacy-v3.14.3/ui/wide/SidebarRemoveWorkspaceDialog.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });
@@ -118,7 +118,7 @@ test("SSH 徽标：官方「SSH 连接」+ alias/host/path 插值进 title 详�
 });
 
 // —— Sidebar 组装级装配缝（P6 深面接线；键位官方化后空态/入口行为）——
-import { Sidebar } from "../src/ui/wide/Sidebar.js";
+import { Sidebar } from "../legacy-v3.14.3/ui/wide/Sidebar.js";
 
 const ws = {
   workspaceKey: "C:/g1",

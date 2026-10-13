@@ -20,7 +20,7 @@ import {
   resolveGreetingSlot,
   storeSidebarCollapsed,
   type WideShellWorkspace,
-} from "../src/ui/wide/wideShellModel.js";
+} from "../legacy-v3.14.3/ui/wide/wideShellModel.js";
 
 // —— 断点判定（matchMedia mock） ——
 

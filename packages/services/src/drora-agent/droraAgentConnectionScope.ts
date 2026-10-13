@@ -44,7 +44,7 @@ type TrustedConnectionCarrier = {
   [TRUSTED_CONNECTION_FIELD]?: DroraAgentV4ConnectionContext;
 };
 
-interface TrustedDroraAgentV4UnsubscribeRoute {
+export interface TrustedDroraAgentV4UnsubscribeRoute {
   topic: string;
   connectionId: string;
 }

@@ -3,17 +3,17 @@ import { quotePosixPathArg } from "@drora/server/remote/posixShell.js";
 import type { TraceId, DroraPromptAttachment } from "@drora/shared";
 import { randomUUID } from "node:crypto";
 
-const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.drora/tmp/prompt-attachments";
+export const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.drora/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".drora/tmp/prompt-attachments";
 
-interface RemotePromptAttachmentMaterializeInput {
+export interface RemotePromptAttachmentMaterializeInput {
   taskId?: string;
   content: string;
   traceId: TraceId | string;
   attachments?: DroraPromptAttachment[];
 }
 
-interface RemotePromptAttachmentMaterializeResult {
+export interface RemotePromptAttachmentMaterializeResult {
   content: string;
   attachments?: DroraPromptAttachment[];
   uploadedCount: number;
@@ -127,7 +127,7 @@ export async function cleanupStaleRemotePromptAttachments(
   );
 }
 
-function buildRemotePromptAttachmentPath(params: {
+export function buildRemotePromptAttachmentPath(params: {
   filename: string;
   index: number;
   nonce?: string;

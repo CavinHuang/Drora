@@ -15,6 +15,7 @@ import {
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
+  quotePosixShellArg,
 } from "@drora/server/remote/posixShell.js";
 import { createTarGzArchive } from "@drora/server/remote/localTarGz.js";
 import {
@@ -196,6 +197,7 @@ async function shouldSkipDevelopmentDroraAgentDeploy(params: {
   runtimeResourceDir: string;
   runtimeVersion: string;
   devVersion: string;
+  localBundleSha256: string;
   force: boolean;
   missingOfficialPluginAssetPaths: string[];
   loggers: DeployLoggers;
@@ -240,7 +242,28 @@ async function shouldSkipDevelopmentDroraAgentDeploy(params: {
     return false;
   }
 
-  params.loggers.log(`[drora-agent-deploy] ${DRORA_AGENT_PROVIDER}: 开发态 drora.cjs 未变化，跳过`);
+  // 旧发布包或另一客户端可能覆盖 bundle，却留下相同的 .dev-version。
+  // 标记只描述上次部署意图；跳过上传前必须在远端校验实际文件，避免 PAT 交给旧版 Agent 的过时鉴权逻辑。
+  const verifyBundleScript =
+    "require('node:fs/promises').readFile(process.argv[1]).then(content => {" +
+    "process.exitCode = require('node:crypto').createHash('sha256').update(content).digest('hex') === process.argv[2] ? 0 : 1;" +
+    "}).catch(() => { process.exitCode = 1; });";
+  try {
+    await waitForClose(
+      await params.backend.exec(
+        `"\${DRORA_SERVER_RUNTIME_ROOT:-$HOME/.drora/server}/node" -e ${quotePosixShellArg(verifyBundleScript)} ${quotePosixPathArg(params.remoteBundlePath)} ${quotePosixShellArg(params.localBundleSha256)}`,
+      ),
+    );
+  } catch {
+    params.loggers.logWarn(
+      `[drora-agent-deploy] ${DRORA_AGENT_PROVIDER}: 远端 bundle SHA 不匹配或无法校验，重新上传`,
+    );
+    return false;
+  }
+
+  params.loggers.log(
+    `[drora-agent-deploy] ${DRORA_AGENT_PROVIDER}: 开发态 drora.cjs 未变化，跳过`,
+  );
   return true;
 }
 
@@ -376,6 +399,9 @@ export async function deployDevelopmentDroraAgentRuntime(
       runtimeResourceDir: params.runtimeResourceDir,
       runtimeVersion: params.runtimeVersion,
       devVersion,
+      localBundleSha256: createHash("sha256")
+        .update(await readFile(developmentBundle.localBundlePath))
+        .digest("hex"),
       force: params.force,
       missingOfficialPluginAssetPaths,
       loggers,

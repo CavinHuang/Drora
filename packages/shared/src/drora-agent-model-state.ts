@@ -1,8 +1,12 @@
 // ── 旧协议兼容面（过渡期）──────────────────────────────
 // 剩余 5 个导出：旧 configOptions 投影函数（formatModelPickerValue/normalizeAvailableDroraMode/
 // getDroraAgentModeSelectOptions/getDroraAgentAvailableModes/
-// droraSessionSettingsToDroraConfigOptions）。
-// 消费者：services droraConfigOptions、UI droraSessionProjection 等旧栈。
+// droraSessionSettingsToDroraConfigOptions；B 类，死期=波次3）。
+// 消费者：services droraConfigOptions/botsService、UI droraSessionProjection 等旧栈。
+// 2026-09 Guarded 收尾后，DRORA_AGENT_MODE_OPTIONS 成为 Desktop/手机 Composer、Automation/OffPeak
+// 表单共用的唯一模式目录（UI droraSessionProjection / automationAgentConfigOptions 直接消费
+// getDroraAgentAvailableModes / getDroraAgentModeSelectOptions / normalizeAvailableDroraMode）。
+// 波次3 删除这些导出前必须先把模式目录迁到非 legacy 位置，不能连带删掉目录本身。
 import { formatModelPickerValue } from "./model-selection.js";
 import type { DroraSessionMode, DroraSessionSettingsState } from "./drora-protocol/index.js";
 import type { DroraConfigOption, DroraTaskModeInfo } from "./drora-task-types-core.js";
@@ -19,9 +23,9 @@ const DRORA_AGENT_MODE_OPTIONS = [
     description: "Ask before each file changes.",
   },
   {
-    id: "edit",
-    name: "Edit automatically",
-    description: "Edit selected files or relevant workspace files automatically.",
+    id: "guarded",
+    name: "Autonomous mode",
+    description: "Ask when there’s risk",
   },
   {
     id: "plan",
@@ -34,7 +38,11 @@ const DRORA_AGENT_MODE_OPTIONS = [
     description: "Edit and run commands with fewer confirmations.",
   },
 ] as const satisfies readonly DroraTaskModeInfo[];
-const DRORA_AGENT_MODE_ID_SET = new Set<string>(DRORA_AGENT_MODE_OPTIONS.map((mode) => mode.id));
+// 菜单隐藏 Edit 不等于删除历史值；恢复/投影不能因候选变化把旧 edit 降为 build。
+const DRORA_AGENT_MODE_ID_SET = new Set<string>([
+  ...DRORA_AGENT_MODE_OPTIONS.map((mode) => mode.id),
+  "edit",
+]);
 
 // OpenRouter 会把 `:free` 作为模型 ID 的一部分。UI/configOptions 的展示态
 // 不能再用冒号分隔 thought level，否则草稿选择会静默截断真实 modelId。

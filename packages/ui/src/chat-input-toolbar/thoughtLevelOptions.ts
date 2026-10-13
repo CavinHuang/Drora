@@ -2,7 +2,7 @@ import type { DroraConfigOption, DroraProvider } from "@drora/shared";
 import type { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { getConfigOptionEntryLabel } from "@/chat-input-toolbar/display.js";
 
-type ThoughtLevelEntry = NonNullable<DroraConfigOption["options"]>[number];
+export type ThoughtLevelEntry = NonNullable<DroraConfigOption["options"]>[number];
 
 const NO_THOUGHT_LEVEL_VALUES = new Set([
   "disabled",

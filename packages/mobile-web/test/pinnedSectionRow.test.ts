@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { IntlProvider } from "../src/ui/intl.js";
-import { PinnedTaskSection } from "../src/ui/PinnedTaskSection.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
+import { PinnedTaskSection } from "../legacy-v3.14.3/ui/PinnedTaskSection.js";
 
 Object.assign(globalThis, { React });
 

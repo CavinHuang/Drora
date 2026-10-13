@@ -7,8 +7,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   NewTaskDraft,
   resolveChatEmptyGreetingKey,
-} from "../src/app/NewTaskDraft.js";
-import { IntlProvider } from "../src/ui/intl.js";
+} from "../legacy-v3.14.3/app/NewTaskDraft.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
 
 Object.assign(globalThis, { React });
 

@@ -16,7 +16,7 @@ import type { IBroadcastService } from "@drora/services";
 import { createDroraStore, type DroraStore, type DroraState } from "./index.js";
 
 // 导出 Context 供测试直接注入已构造的 store 实例（如跨窗口广播抑制用例）。
-const StoreContext = createContext<DroraStore | null>(null);
+export const StoreContext = createContext<DroraStore | null>(null);
 
 export function StoreProvider({
   broadcastService,

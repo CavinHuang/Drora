@@ -6,6 +6,7 @@ import type {
   DroraMessageWithParts,
   ModelSelection,
   DroraPermissionRequestParams,
+  DroraProviderRuntimeHeadersRequestParams,
   DroraUserInputRequestParams,
   DroraUserInputResponse,
   DroraSessionInfo,
@@ -18,6 +19,7 @@ import type {
   DroraWorkspacePresentation,
 } from "@drora/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
+import type { ProviderRuntimeHeadersUiResponse } from "#src/drora-agent/droraAgent.js";
 
 export interface DroraSessionWorkspaceTarget {
   workspacePath: string;
@@ -93,6 +95,11 @@ export interface DroraSessionSetModeParams extends DroraTaskTarget {
   expectedRevision?: number;
 }
 
+export interface DroraSessionRespondProviderRuntimeHeadersParams extends DroraTaskTarget {
+  requestId: string;
+  response: ProviderRuntimeHeadersUiResponse;
+}
+
 export interface DroraSessionSubscribeParams extends DroraTaskTarget {
   deliveryKind: DroraDeliveryKind;
   afterSeq?: number;
@@ -113,6 +120,7 @@ export type DroraSessionServiceEvent =
       requestId: string;
       response: DroraUserInputResponse;
     }
+  | { type: "providerRuntimeHeaders.request"; request: DroraProviderRuntimeHeadersRequestParams }
   | { type: "snapshot"; snapshot: DroraSessionStateSnapshot };
 
 export interface DroraSessionInitializeResult {
@@ -152,7 +160,12 @@ export interface IDroraSessionService {
   setModel(params: DroraSessionSetModelParams): Promise<DroraSessionStateSnapshot>;
   setThoughtLevel(params: DroraSessionSetThoughtLevelParams): Promise<DroraSessionStateSnapshot>;
   setMode(params: DroraSessionSetModeParams): Promise<DroraSessionStateSnapshot>;
-  // renderer 订阅面走 agentService 的 conversation/sessions-index 帧通道。
+  respondProviderRuntimeHeaders(
+    params: DroraSessionRespondProviderRuntimeHeadersParams,
+  ): Promise<void>;
+  // M5 删波次 2：onDynamicSessionEvent（旧 session/subscribe 词表的 renderer 订阅面）
+  // 已删除——v4 UI 走 agentService 的 conversation/sessions-index 帧通道，
+  // 该方法在 renderer 侧已无任何调用者（grep packages/ui packages/desktop 为零）。
 }
 
 export const IDroraSessionService = createServiceDescriptor<IDroraSessionService>(

@@ -3,6 +3,7 @@ import type {
   AiSdkNetworkConfig,
   EnvRecord,
 } from "@drora/adapters/model";
+import type { ProviderEndpointRoutingPort } from "@drora/contracts";
 import {
   resolveRuntimeDroraEnv,
   resolveRuntimeDroraEndpointOrigin,
@@ -17,6 +18,7 @@ export type ModelProviderSourceTitle = "cli" | "electron";
 
 interface RuntimeExecutionConfigOptions {
   appVersion?: string;
+  endpointRoutingPort?: ProviderEndpointRoutingPort;
   network?: AiSdkNetworkConfig;
   sourceTitle?: ModelProviderSourceTitle;
 }
@@ -30,6 +32,7 @@ export function createRuntimeAiSdkModelExecutionConfig(
     defaultHeaders: buildCliDroraSourceHeaders(env, options),
     env,
     ...(network ? { network } : {}),
+    ...(options.endpointRoutingPort ? { endpointRoutingPort: options.endpointRoutingPort } : {}),
   };
 }
 
@@ -44,7 +47,7 @@ function normalizeAiSdkNetworkConfig(
   };
 }
 
-function buildCliDroraSourceHeaders(
+export function buildCliDroraSourceHeaders(
   env: EnvRecord,
   options: Pick<RuntimeExecutionConfigOptions, "appVersion" | "sourceTitle"> = {},
 ): Record<string, string> {
@@ -55,12 +58,12 @@ function buildCliDroraSourceHeaders(
   return {
     "HTTP-Referer": resolveRuntimeDroraEndpointOrigin(env),
     "User-Agent": `Drora/${appVersion ?? "unknown"}`,
-    ...(appVersion ? { "X-Drora-App-Version": appVersion } : {}),
+    ...(appVersion ? { "X-Zcode-App-Version": appVersion } : {}),
     "X-Title": `Z Code@${sourceTitle}`,
     "X-Release-Channel": resolveRuntimeDroraEnv(env),
     "X-Client-Language": locale ?? "unknown",
     "X-Client-Timezone": timezone ?? "unknown",
-    "X-Drora-Agent": "glm",
+    "X-Zcode-Agent": "glm",
     ...createRuntimePlatformHeaders(),
   };
 }

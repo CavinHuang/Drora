@@ -1,3 +1,11 @@
+# 手机远控资产部署
+
+当前版本以 packages/web + packages/ui 为唯一页面实现。`pnpm --filter @drora/mobile-web build` 构建并部署 `dist/remote/v4/index.html` 与 `dist/remote/v4/<根版本>/` 资产；`dev` 转发 packages/web。Desktop LAN 从当前 dist 或随包 mobile-web 读取，不回退到旧 snapshot。
+
+3.14.3 的逆向页面在 legacy-v3.14.3；原始 snapshot/recovered 保留取证。以下为历史恢复记录，不是当前产品启动或开发说明。
+
+---
+
 # Drora mobile web 包
 
 双轨构建（specs/mobile-relay-r3-frontend.md §13 P2a / §33 页面主体裁定）：

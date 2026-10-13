@@ -1,18 +1,17 @@
 #!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/server";
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import path from "node:path";
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
-import { fail, image, json } from "../lib/result.js";
+import { json, fail, image } from "../lib/result.js";
 import { inside } from "../lib/path.js";
-import { app, runApp } from "../providers/build.js";
-import { logs } from "../providers/logs.js";
 import { preflight } from "../providers/preflight.js";
-import { create, discover } from "../providers/project.js";
+import { list, boot, show, install, launch, terminate, url } from "../providers/sim.js";
+import { discover, create } from "../providers/project.js";
+import { app, runApp } from "../providers/build.js";
 import { shot } from "../providers/screenshot.js";
-import { boot, install, launch, list, show, terminate, url } from "../providers/sim.js";
-import { button, describe, status, swipe, tap, typeText } from "../providers/ui.js";
+import { logs } from "../providers/logs.js";
+import * as ui from "../providers/ui.js";
 
 const target = {
   udid: z
@@ -21,14 +20,8 @@ const target = {
     .describe(
       "Simulator UDID. When omitted, the plugin uses a booted or default iPhone simulator.",
     ),
-  device: z
-    .string()
-    .optional()
-    .describe("Simulator device name fragment, for example iPhone 16."),
-  runtime: z
-    .string()
-    .optional()
-    .describe("Runtime name fragment, for example iOS-18."),
+  device: z.string().optional().describe("Simulator device name fragment, for example iPhone 16."),
+  runtime: z.string().optional().describe("Runtime name fragment, for example iOS-18."),
 };
 
 const build = {
@@ -43,9 +36,7 @@ const build = {
   derivedDataPath: z
     .string()
     .optional()
-    .describe(
-      "DerivedData path as a relative path. Defaults to the plugin data directory.",
-    ),
+    .describe("DerivedData path as a relative path. Defaults to the plugin data directory."),
   bundleId: z
     .string()
     .optional()
@@ -84,24 +75,22 @@ server.registerTool(
   "ios_boot_simulator",
   {
     title: "Boot iOS Simulator",
-    description:
-      "Boot the selected simulator and optionally open the macOS Simulator window.",
+    description: "Boot the selected simulator and optionally open the macOS Simulator window.",
     inputSchema: {
       ...target,
       openSimulator: z.boolean().optional(),
     },
   },
   async (args) =>
-    guard(
-      async () =>
-        json(
-          await boot({
-            udid: args.udid,
-            name: args.device,
-            runtime: args.runtime,
-            open: args.openSimulator ?? true,
-          }),
-        ),
+    guard(async () =>
+      json(
+        await boot({
+          udid: args.udid,
+          name: args.device,
+          runtime: args.runtime,
+          open: args.openSimulator ?? true,
+        }),
+      ),
     ),
 );
 
@@ -132,8 +121,7 @@ server.registerTool(
   "ios_create_app",
   {
     title: "Create SwiftUI App",
-    description:
-      "Create a minimal SwiftUI iOS app and Xcode project in the current workspace.",
+    description: "Create a minimal SwiftUI iOS app and Xcode project in the current workspace.",
     inputSchema: {
       name: z.string().min(1),
       bundleId: z.string().optional(),
@@ -292,7 +280,7 @@ server.registerTool(
       "Report whether the optional UI automation backend is available. P0 uses idb when available.",
     inputSchema: {},
   },
-  async () => guard(async () => json(await status())),
+  async () => guard(async () => json(await ui.status())),
 );
 
 server.registerTool(
@@ -307,7 +295,7 @@ server.registerTool(
       duration: z.number().positive().optional(),
     },
   },
-  async (args) => guard(async () => json(await tap(args))),
+  async (args) => guard(async () => json(await ui.tap(args))),
 );
 
 server.registerTool(
@@ -324,7 +312,7 @@ server.registerTool(
       delta: z.number().positive().optional(),
     },
   },
-  async (args) => guard(async () => json(await swipe(args))),
+  async (args) => guard(async () => json(await ui.swipe(args))),
 );
 
 server.registerTool(
@@ -337,7 +325,7 @@ server.registerTool(
       text: z.string(),
     },
   },
-  async (args) => guard(async () => json(await typeText(args))),
+  async (args) => guard(async () => json(await ui.typeText(args))),
 );
 
 server.registerTool(
@@ -352,7 +340,7 @@ server.registerTool(
       duration: z.number().positive().optional(),
     },
   },
-  async (args) => guard(async () => json(await button(args))),
+  async (args) => guard(async () => json(await ui.button(args))),
 );
 
 server.registerTool(
@@ -363,7 +351,7 @@ server.registerTool(
       "Return accessibility information for the current screen using the optional idb UI backend.",
     inputSchema: target,
   },
-  async (args) => guard(async () => json(await describe(args))),
+  async (args) => guard(async () => json(await ui.describe(args))),
 );
 
 export async function main(): Promise<void> {

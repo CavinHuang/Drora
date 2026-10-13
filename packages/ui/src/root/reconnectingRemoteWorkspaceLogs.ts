@@ -25,11 +25,11 @@ function getRemoteWorkspaceReconnectLogTargetSuffix(
     case "docker":
       return target.container;
     case "server":
-      return target.url;
+      return target.name?.trim() || target.serverId?.trim() || target.url;
   }
 }
 
-function buildRemoteWorkspaceReconnectLogLabelPrefix(
+export function buildRemoteWorkspaceReconnectLogLabelPrefix(
   target: RemoteWorkspaceSessionEntry["target"],
 ): string {
   return `remote-workspace-${target.kind}-${sanitizeRemoteWorkspaceReconnectLogLabelSegment(getRemoteWorkspaceReconnectLogTargetSuffix(target))}-`;
@@ -70,3 +70,6 @@ export function resolveRemoteWorkspaceReconnectLogWorkspaceKeys({
     .map((entry) => entry.workspaceKey ?? entry.id ?? "")
     .filter((workspaceKey) => workspaceKey.length > 0);
 }
+
+export const resolveRemoteWorkspaceReconnectLogHistoryIds =
+  resolveRemoteWorkspaceReconnectLogWorkspaceKeys;

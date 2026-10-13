@@ -8,11 +8,11 @@ interface DroraStdioTapStateFile {
   enabled?: boolean;
 }
 
-function isDroraStdioTapDevVisible(): boolean {
+export function isDroraStdioTapDevVisible(): boolean {
   return isEffectiveDevelopmentNodeEnv();
 }
 
-function getDroraStdioTapDevDir(): string {
+export function getDroraStdioTapDevDir(): string {
   return join(getAppConfigDir(), "dev");
 }
 
@@ -20,7 +20,7 @@ export function getDroraStdioTapDevLogDir(): string {
   return join(getDroraStdioTapDevDir(), "stdio-traffic");
 }
 
-function getDroraStdioTapDevStatePath(): string {
+export function getDroraStdioTapDevStatePath(): string {
   return join(getDroraStdioTapDevDir(), "drora-stdio-tap.json");
 }
 

@@ -1,6 +1,4 @@
-import { spawn as spawnChild } from "node:child_process";
-import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process";
-import type { Readable } from "node:stream";
+import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 
 export type Run = {
   cmd: string[];
@@ -19,9 +17,11 @@ type RunOpts = {
 
 export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
   const env = Object.fromEntries(
-    Object.entries({ ...process.env, ...(opts.env ?? {}) }).filter((item) => {
-      return typeof item[1] === "string";
-    }),
+    Object.entries({ ...process.env, ...(opts.env ?? {}) }).filter(
+      (item): item is [string, string] => {
+        return typeof item[1] === "string";
+      },
+    ),
   );
   const actual = commandForPlatform(cmd);
   const child = spawn(actual, opts.cwd, env, opts.input !== undefined);
@@ -49,13 +49,13 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
   }
   const code = await new Promise<number>((resolve) => {
     let settled = false;
-    // `?? 1` 只留在 close 调用点（官方 android 出源形态）；settle 本体保持纯函数。
     const settle = (exitCode: number) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       resolve(exitCode);
     };
+
     child.once("error", (error) => {
       spawnError = error instanceof Error ? error : new Error(String(error));
       settle(127);
@@ -68,9 +68,7 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
     cmd,
     code,
     stdout,
-    stderr: spawnError
-      ? [stderr.trim(), spawnError.message].filter(Boolean).join("\n")
-      : stderr,
+    stderr: spawnError ? [stderr.trim(), spawnError.message].filter(Boolean).join("\n") : stderr,
     timed,
   };
 }
@@ -78,7 +76,7 @@ export async function run(cmd: string[], opts: RunOpts = {}): Promise<Run> {
 function spawn(
   cmd: string[],
   cwd: string | undefined,
-  env: Record<string, string | undefined>,
+  env: Record<string, string>,
   pipeStdin: boolean,
 ): ChildProcess | Error {
   const [command, ...args] = cmd;
@@ -89,13 +87,13 @@ function spawn(
       env,
       shell: false,
       stdio: [pipeStdin ? "pipe" : "ignore", "pipe", "pipe"],
-    }) as ChildProcessWithoutNullStreams;
+    });
   } catch (err) {
     return err instanceof Error ? err : new Error(String(err));
   }
 }
 
-async function collect(stream: Readable | null): Promise<string> {
+async function collect(stream: NodeJS.ReadableStream | null): Promise<string> {
   if (!stream) return "";
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {

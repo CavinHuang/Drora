@@ -14,7 +14,7 @@ function readRendererImportMetaEnv(): RendererImportMetaEnv {
     {}) as RendererImportMetaEnv;
 }
 
-function createRendererDroraEndpointEnv(
+export function createRendererDroraEndpointEnv(
   env: RendererImportMetaEnv = readRendererImportMetaEnv(),
 ): RuntimeDroraEndpointEnv {
   return {

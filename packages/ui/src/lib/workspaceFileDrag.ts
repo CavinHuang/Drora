@@ -1,6 +1,6 @@
 import { buildFileMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 
-export const WORKSPACE_FILE_DRAG_MIME = "application/x-drora-workspace-file";
+export const WORKSPACE_FILE_DRAG_MIME = "application/x-zcode-workspace-file";
 export const WORKSPACE_FILE_ADD_TO_CHAT_EVENT = "drora:add-workspace-file-to-chat";
 export const WORKSPACE_FILE_DRAG_STATE_EVENT = "drora:workspace-file-drag-state";
 
@@ -35,7 +35,7 @@ export function serializeWorkspaceFileDragPayload(payload: WorkspaceFileDragPayl
   return JSON.stringify(payload);
 }
 
-function parseWorkspaceFileDragPayload(
+export function parseWorkspaceFileDragPayload(
   rawPayload: string | null | undefined,
 ): WorkspaceFileDragPayload | null {
   if (!rawPayload) {

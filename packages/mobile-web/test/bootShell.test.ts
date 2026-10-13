@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 async function readEntryHtml(): Promise<string> {
-  return readFile(join(packageRoot, "src/app/index.html"), "utf8");
+  return readFile(join(packageRoot, "legacy-v3.14.3/app/index.html"), "utf8");
 }
 
 test("入口 meta：theme-color 暗色默认 #161616 + color-scheme（官方壳语义）", async () => {
@@ -61,7 +61,7 @@ test("预渲染启动壳：loading 屏 + logo 壳 + 表面背景覆盖（官方 
 });
 
 test("运行时切换同步：toggleTheme 写单源 drora-theme（zai-* 值）+ meta/theme-zai 类联动", async () => {
-  const app = await readFile(join(packageRoot, "src/app/App.tsx"), "utf8");
+  const app = await readFile(join(packageRoot, "legacy-v3.14.3/app/App.tsx"), "utf8");
   assert.ok(app.includes('localStorage.setItem("drora-theme"'));
   assert.ok(app.includes('"zai-dark"'));
   assert.ok(app.includes('"zai-light"'));

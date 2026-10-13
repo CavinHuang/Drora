@@ -3,6 +3,17 @@ import type { McpServerConfig, DroraMcpServer } from "@drora/shared";
 export const MCP_SECTIONS = ["droraagentmcp"] as const;
 
 export type ServerScope = (typeof MCP_SECTIONS)[number];
+
+export const SOURCE_META: Record<
+  ServerScope,
+  { label: string; section: string; badgeClass: string }
+> = {
+  droraagentmcp: {
+    label: "Drora Agent",
+    section: "Drora Agent",
+    badgeClass: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  },
+};
 export type ConfigStorageLevel = "user" | "workspace";
 export type McpEditorMode = "form" | "json";
 

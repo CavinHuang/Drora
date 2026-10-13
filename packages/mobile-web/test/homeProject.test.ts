@@ -4,7 +4,7 @@
 // 方法学：响应形状逐字段对照 desktop buildBootstrapResult（desktopMobileRelayProtocol.ts）。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectHomeData } from "../src/app/entry.js";
+import { projectHomeData } from "../legacy-v3.14.3/app/entry.js";
 
 const BOOTSTRAP_RESULT = {
   windowControlSessionId: "d_x",

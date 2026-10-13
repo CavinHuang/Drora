@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AutomationsPanel, type AutomationTaskItem } from "../src/ui/AutomationsPanel.js";
-import { IntlProvider } from "../src/ui/intl.js";
-import { defaultSchedule, parseCron, type AutomationSchedule } from "../src/app/automationsSchedule.js";
+import { AutomationsPanel, type AutomationTaskItem } from "../legacy-v3.14.3/ui/AutomationsPanel.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
+import { defaultSchedule, parseCron, type AutomationSchedule } from "../legacy-v3.14.3/app/automationsSchedule.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });

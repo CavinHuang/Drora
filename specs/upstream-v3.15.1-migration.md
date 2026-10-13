@@ -134,6 +134,8 @@ REPL/Browser bridge 的元数据常量改用已有公开 `@drora/contracts/mcp` 
 
 上游 Vitest 测试与 Drora 的 Node test runner 用例保持各自原生运行器。根 `test:unit` 必须运行两者；通过导入 `node:test` 识别 Node 用例，避免 Vitest 报零 suite，禁止排除后不执行。Node TS 用例用已声明的 tsx loader，保留原断言与跳过统计。
 
+CI 的「Official plugin hook runtime tests」专项显式执行 `node --import tsx apps/drora-cli/packages/bootstrap/test/official-plugin-hook-runtime.test.mjs`，覆盖既有 manifest 重写、env overlay 与 hook runner 全部断言。迁移前 Bootstrap 的 `test` 指向此原生入口；迁移后同名脚本指向官方 `vitest tests`，不能继续用脚本名代替专项职责。官方包级完整测试仍通过原生 `test` / `test:upstream-cli` 执行并保留真实非零失败结果，不增加白名单、skip 或 continue-on-error。
+
 桌面冷启动仍按官方时序在平台 IPC 注册后调用 `primaryWindowCoordinator.ensurePrimaryWindow("app-ready")`，再绑定首屏性能监控；后台更新不能阻止该入口。实际 Electron 验收必须有渲染页面和 Host 响应，不能只检查进程。
 
 清理三路合并产生的重复 switch/object 键。Server/Docker 按官方 dedicated remoteSessionId 保持逻辑会话生命周期，不采用被遮蔽的旧 Server 同目标复用分支；SSH/WSL 仍按官方规则复用。旧冻结控制器只保留取证与回归：其 grace 定时器依据 `relay-wire/replayBuffer.ts` 的严格 `now > queuedAt + graceMs` 和官方 chunk-C6VCYWB4.js @8551 所记录 deadline 口径，触发时间加 1ms，防止恰好落在边界时一次性看门狗失效。

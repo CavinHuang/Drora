@@ -114,6 +114,8 @@ export function createKnowledgeJevProviderFactory(
       baseUrl: assembly.baseUrl,
       // typesafe 走 adapter 请求携带的官方别名（jev-latest）；远程提供商用其模型标识覆盖。
       ...(assembly.provider === "typesafe" ? {} : { model: assembly.model }),
+      // openrouter 决策走独立路径（alpha/decisions）；其余提供商标准 systemOne 路径。
+      ...(assembly.provider === "openrouter" ? { endpointPath: "/decisions" } : {}),
     });
     return createJevAdapter({
       transport,

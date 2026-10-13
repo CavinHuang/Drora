@@ -185,7 +185,7 @@ test("K-JEV-11：openrouter 配置齐备 → openrouter 快照（独立凭据键
     baseUrl: "https://openrouter.example/api",
   });
 
-  // 缺省回落内置端点（spec §5d.10 内置端点表）。
+  // 缺省回落内置端点（spec §5d.10 内置端点表：openrouter = alpha/decisions）。
   const defaulted = await resolveKnowledgeJevAssembly({
     settingService: fakeSettingService({
       knowledgeJevEnabled: true,
@@ -200,7 +200,7 @@ test("K-JEV-11：openrouter 配置齐备 → openrouter 快照（独立凭据键
     provider: "openrouter",
     apiKey: "sk-openrouter",
     model: "typesafe/jev-latest",
-    baseUrl: "https://openrouter.ai/api/v1",
+    baseUrl: "https://openrouter.ai/api/alpha",
   });
   assert.ok(loaded.length > 0);
   assert.ok(loaded.every((key) => key.endsWith("openrouter-api-key")));

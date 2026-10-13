@@ -761,10 +761,13 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 - **同步约束**：`createLocalServices` 是同步函数，而凭据/设置读取是异步——预解析必须发生在
   host 已有的异步初始化段，经新 option 传入；禁止在装配函数内部引入半异步状态。
-- **内置端点（2026-10-13）**：typesafe → `https://api.typesafe.ai`（官方文档实证）；
-  openrouter → `https://openrouter.ai/api/v1`（官方标准端点）；ai-gateway →
-  `https://ai-gateway.vercel.sh/v1`（初值依据：最知名 AI Gateway 产品；自有网关部署
-  ——Kong/TrueFoundry 等按部署路由 Jev——经设置覆盖）。`baseURL` 留空 = 内置缺省。
+- **内置端点（2026-10-13；同日二修 openrouter）**：typesafe → `https://api.typesafe.ai`
+  （官方文档实证）+ 路径 `/v1/systemone`；openrouter → `https://openrouter.ai/api/alpha`
+  + 路径 `/decisions`（OpenRouter「alpha/decisions」决策端点，出现在 Jev/TypeSafe 模型
+  页——openrouter **不代理** /v1/systemone 形状，首版误用标准 /api/v1 已修正）；
+  ai-gateway → `https://ai-gateway.vercel.sh/v1` + 路径 `/v1/systemone`（初值依据：
+  最知名 AI Gateway 产品；自有网关部署——Kong/TrueFoundry 等按部署路由 Jev——经设置
+  覆盖）。`baseURL` 留空 = 内置缺省；用户覆盖 baseURL 时路径仍按提供商固定。
 - **配置热生效（2026-10-13）**：Jev 配置（开关/提供商/Key/端点/模型）变更**即时生效，
   免重启**。机制与时序：
   ```

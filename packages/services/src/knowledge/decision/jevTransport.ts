@@ -51,8 +51,11 @@ export interface JevTransport {
 /** TypeSafe 官方托管端点（docs.typesafe.ai，2026-10-10）；typesafe 提供商的缺省 baseURL。 */
 export const TYPESAFE_OFFICIAL_BASE_URL = "https://api.typesafe.ai";
 
-/** OpenRouter 标准端点（openrouter.ai 官方文档）；openrouter 提供商的缺省 baseURL。 */
-export const OPENROUTER_OFFICIAL_BASE_URL = "https://openrouter.ai/api/v1";
+/** OpenRouter Jev 决策端点（openrouter.ai「alpha/decisions」，出现在 Jev/TypeSafe 模型页）。
+ *  注意：OpenRouter 不代理 /v1/systemone 形状——决策走独立路径，由 endpointPath 承载。 */
+export const OPENROUTER_OFFICIAL_BASE_URL = "https://openrouter.ai/api/alpha";
+/** OpenRouter 决策路径（拼在 baseURL 后）。 */
+export const OPENROUTER_DECISIONS_PATH = "/decisions";
 
 /** Vercel AI Gateway 端点（vercel.com/docs/ai-gateway）；ai-gateway 提供商的缺省 baseURL——
  *  自有网关部署（Kong/TrueFoundry 等按部署路由 Jev）经设置覆盖。 */
@@ -67,6 +70,8 @@ export interface SystemOneTransportOptions {
   baseUrl: string;
   /** 提供商侧模型别名覆盖（如命名空间 slug）；缺省用请求携带的官方别名（jev-latest）。 */
   model?: string;
+  /** systemOne 端点路径（默认 "/v1/systemone"）；openrouter 等按提供商覆盖（"/decisions"）。 */
+  endpointPath?: string;
   /** 注入 fetch 便于测试与宿主网络策略（默认 globalThis.fetch）。 */
   fetchImpl?: typeof fetch;
 }
@@ -84,7 +89,8 @@ export function createSystemOneHttpTransport(options: SystemOneTransportOptions)
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
     async post(request: JevTransportRequest): Promise<JevTransportResponse> {
-      const response = await fetchImpl(`${baseUrl}/v1/systemone`, {
+      const endpointPath = options.endpointPath ?? "/v1/systemone";
+      const response = await fetchImpl(`${baseUrl}${endpointPath}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

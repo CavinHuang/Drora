@@ -288,6 +288,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         apiKey: assembly.apiKey,
         baseUrl: assembly.baseUrl,
         ...(assembly.provider === "typesafe" ? {} : { model: assembly.model }),
+        ...(assembly.provider === "openrouter" ? { endpointPath: "/decisions" } : {}),
       });
       const startedAtMs = Date.now();
       try {

@@ -403,7 +403,7 @@ export interface AppSettings {
   knowledgeJevBaseUrl?: string;
   /** OpenRouter 侧 Jev 模型标识（provider=openrouter 时必填），例如 typesafe/jev-latest。 */
   knowledgeJevOpenrouterModel?: string;
-  /** OpenRouter Jev 决策端点 baseURL；缺省回落内置官方端点（openrouter.ai/api/v1），可覆盖自有网关。 */
+  /** OpenRouter Jev 决策端点 baseURL；缺省回落内置端点（openrouter.ai/api/alpha + /decisions 决策路径），可覆盖。 */
   knowledgeJevOpenrouterBaseUrl?: string;
   /** AI Gateway 部署侧 Jev 模型标识（provider=ai-gateway 时必填），例如 typesafe/jev-latest。 */
   knowledgeJevAiGatewayModel?: string;

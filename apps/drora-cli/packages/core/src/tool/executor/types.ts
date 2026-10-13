@@ -12,6 +12,7 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
+  VaultSearchPort,
   OffPeakPort,
   FileSystemPort,
   HttpClientPort,
@@ -105,6 +106,8 @@ export interface ToolExecutorOptions {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
+  vaultSearchPort?: VaultSearchPort;
   offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
@@ -211,6 +214,8 @@ export interface ToolExecutorDeps {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
+  vaultSearchPort?: VaultSearchPort;
   offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;

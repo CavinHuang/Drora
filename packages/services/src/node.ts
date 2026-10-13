@@ -20,6 +20,10 @@ import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
 import {
+  resolveKnowledgeJevAssembly,
+  type KnowledgeJevAssembly,
+} from "./knowledge/decision/jevAssembly.js";
+import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
   type ProviderProvisioningTrigger,
@@ -153,8 +157,25 @@ export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
 export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
 // Knowledge 决策层（W05 / spec §5d）：Host 侧装配入口（凭证只在 Host 安全配置注入）。
 export { createJevAdapter, JEV_PROVIDER_ID, mergedNoulQuestion } from "./knowledge/decision/jevAdapter.js";
-export { createTypeSafeHttpTransport } from "./knowledge/decision/jevTransport.js";
-export type { TypeSafeTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
+// Jev 装配（§5d.10）：Host 异步初始化段预解析快照 → createLocalServices option。
+export {
+  createKnowledgeJevProviderFactory,
+  resolveKnowledgeJevAssembly,
+} from "./knowledge/decision/jevAssembly.js";
+export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
+import type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
+export {
+  TYPESAFE_OFFICIAL_BASE_URL,
+  createSystemOneHttpTransport,
+} from "./knowledge/decision/jevTransport.js";
+export type { SystemOneTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
+export {
+  LOCAL_EMBEDDING_MODEL_ID,
+  createLocalEmbeddingPort,
+  resolveKnowledgeModelRoot,
+} from "./knowledge/search/localEmbeddingPort.js";
+export type { LocalEmbeddingPortOptions } from "./knowledge/search/localEmbeddingPort.js";
+export type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
 export { createLocalFallbackProvider, localFallbackOutcomes } from "./knowledge/decision/localFallback.js";
 export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
 export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";
@@ -1506,6 +1527,24 @@ export function createLocalServices(options: {
   };
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
+  /**
+   * Jev 配置动态源（specs/obsidian-knowledge.md §5d.10 配置热生效）：调用方注入
+   * （desktop 本地 host：异步初始化段闭包 settingService 的解析器）。每个决策
+   * stage 解析当前装配，null = 功能关闭；配置变更即时生效（免重启）。
+   */
+  knowledgeJevConfigSource?: () => Promise<KnowledgeJevAssembly | null>;
+  /**
+   * 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：缺省 false，仅 desktop
+   * 本地 host 装配传 true（V1 范围纪律，同 knowledgeJevAssembly）；server/stdio/
+   * 远程 host 不传即维持手动触发现状。
+   */
+  knowledgeAutoIndex?: boolean;
+  /**
+   * 本地语义检索端口（specs/obsidian-knowledge.md §5b.9）：由调用方在异步初始化段
+   * 依据 knowledgeSemanticEnabled 预构建（lazy，构造不 IO）后传入；缺省 null =
+   * 纯词法（零出站语义降级，既有语义）。
+   */
+  knowledgeEmbeddingPort?: KnowledgeEmbeddingPort | null;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
@@ -2265,6 +2304,9 @@ export function createLocalServices(options: {
     // 是它自己那些 workspace 的唯一裁决者，灰度开启时远程 workspace 同样提供工作流。
     resolveDynamicWorkflowClientConfig: () =>
       codingPlanSubscriptionService.getDynamicWorkflowClientConfig(),
+    // agent 只读 vault 检索（obsidian-knowledge.md §5f）：thunk 解引用 knowledgeServices
+    // ——它在下方才构造（声明顺序晚于本调用），只在协议请求期被调用，不提前触达。
+    knowledgeQuerySource: () => knowledgeServices.queryService,
     commandResolver: options?.droraAgentCommandResolver,
     presentationSurface: resolveDroraAgentPresentationSurface({
       runtimeSurface: options?.agentRuntimeContext?.runtimeSurface,
@@ -2609,7 +2651,18 @@ export function createLocalServices(options: {
   const sqliteReposToClose: Array<{ close(): void }> = [];
   // Knowledge 索引/检索服务（VaultView 2.0 W02）：与面板 Vault 门面共享 vault-config.json
   // 唯一事实源；自带可重建 SQLite 索引缓存（WAL + lease/fencing），dispose 记入统一关闭链。
-  const knowledgeServices: KnowledgeServices = createKnowledgeServices();
+  // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
+  // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
+  const knowledgeServices: KnowledgeServices = createKnowledgeServices({
+    // Jev 配置动态源（§5d.10 热生效）：装配解析延迟到决策 stage，配置变更免重启。
+    ...(options.knowledgeJevConfigSource
+      ? { knowledgeJevConfigSource: options.knowledgeJevConfigSource }
+      : {}),
+    // 索引自动 reconcile（§5b.8）：仅 desktop 本地 host 开启，其余 host 维持手动触发。
+    ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),
+    // 本地语义检索（§5b.9）：端口由调用方依据开关预构建；缺省 null = 纯词法。
+    ...(options.knowledgeEmbeddingPort ? { embeddingPort: options.knowledgeEmbeddingPort } : {}),
+  });
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()
     .register(IFileService, fileService)

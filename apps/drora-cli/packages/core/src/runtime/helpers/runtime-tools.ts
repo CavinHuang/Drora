@@ -65,6 +65,8 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     includeEscalate: Boolean(deps.workflowEscalatePort),
     includeWorkflow: Boolean(deps.workflowPort),
     includeAutomation: Boolean(deps.automationPort) && runtime.config.taskType !== "subagent_child",
+    // VaultSearch 只读、无门禁语义；跟随端口在场即注册（§5f VS-5）。
+    includeVaultSearch: Boolean(deps.vaultSearchPort),
     // offPeakPort 只在 host 下发 offPeakToolEnabled 时注入（灰度/远程门在 host 端），
     // 端口存在即代表曝光允许；subagent 子会话与 automation 同规则不暴露。
     includeOffPeak: Boolean(deps.offPeakPort) && runtime.config.taskType !== "subagent_child",
@@ -189,6 +191,7 @@ function createRuntimeToolExecutor(
     workflowEscalatePort: deps.workflowEscalatePort,
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
+    vaultSearchPort: deps.vaultSearchPort,
     offPeakPort: deps.offPeakPort,
     sessionStore: deps.sessionStore,
     sessionModePort: createRuntimeSessionModePort(runtime),

@@ -2,7 +2,7 @@
 // 与 obsidian MCP server 共享同一份 vault-config.json 与同一安全不变量集；
 // 逐条保留：相对路径校验/软链拒绝/根内前缀判定/2MB 读写上限/目录配额/
 // wx 独占临时文件 0o600 + rename 原子写/sha256 乐观锁/图片 MIME+魔数+10MB 白名单。
-import { mkdir } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { jsonFileIO } from "./atomic.js";
 import {
@@ -15,6 +15,20 @@ import {
   type VaultCandidate,
 } from "./discovery.js";
 import { normalizeRelativeMarkdownPath } from "./paths.js";
+
+/**
+ * realpath 归一（不存在时回落原值）。托管根判定必须双侧归一：assertVaultRoot 返回
+ * realpath 后的根（macOS 上 mkdtemp 的 /var/... 会解析成 /private/var/...），若与未
+ * 归一的 resolve 结果做字符串相等，isManagedRoot 恒 false，托管 Vault 显示名恒回落
+ * 目录名 "managed-vault"（W07 E2E 在 macOS 暴露，见 knowledgeE2EFullChain）。
+ */
+async function realpathOrSelf(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch {
+    return path;
+  }
+}
 
 export interface VaultConfig {
   rootPath: string;
@@ -109,7 +123,9 @@ export async function configureVaultAt(
 ): Promise<VaultSummary> {
   const root = await assertVaultRoot(rootPath);
   const inboxPath = normalizeInboxPath(options.inboxPath?.trim() || DEFAULT_INBOX_PATH);
-  const managedRootPath = managedVaultDirPath(configDirOf(vaultConfigPath(pluginDataDir)));
+  const managedRootPath = await realpathOrSelf(
+    managedVaultDirPath(configDirOf(vaultConfigPath(pluginDataDir))),
+  );
   const isManagedRoot = managedRootPath === root;
   const config: VaultConfig = {
     rootPath: root,

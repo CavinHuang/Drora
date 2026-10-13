@@ -33,6 +33,11 @@ export async function recheckPermissionHookModifiedInput(input: {
   traceContext: TraceContext;
 }): Promise<PermissionHookInputRecheckResult> {
   const runtimePermissionContext = resolveRuntimePermissionContext(input.deps);
+  const runtimeCapability = resolveRuntimePermissionCapability(
+    input.entry,
+    input.modifiedInput,
+    runtimePermissionContext,
+  );
   const permissionContext: PermissionContext = {
     input: input.modifiedInput,
     mode: input.mode,
@@ -49,7 +54,7 @@ export async function recheckPermissionHookModifiedInput(input: {
   );
   let decision = input.deps.permissionService.checkPermission(
     permissionContext,
-    resolveRuntimePermissionCapability(input.entry, input.modifiedInput, runtimePermissionContext),
+    runtimeCapability,
     input.projectRules,
     rulePolicy,
   );
@@ -84,7 +89,10 @@ export async function recheckPermissionHookModifiedInput(input: {
 
   const suggestedPermissionUpdates =
     rulePolicy?.suggestedPermissionUpdates ??
-    buildDefaultPermissionUpdates(input.toolCall.name, input.modifiedInput);
+    buildDefaultPermissionUpdates(input.toolCall.name, input.modifiedInput, undefined, {
+      permissionName: runtimeCapability.permission?.permission,
+      readOnly: runtimeCapability.readOnly,
+    });
   const brokerResult = await input.deps.permissionBroker.requestPermission(
     {
       input: input.modifiedInput,

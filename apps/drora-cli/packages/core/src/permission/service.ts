@@ -18,6 +18,7 @@ import {
 import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@drora/shared";
 import { resolvePlanModeTransitionPermission } from "./plan-mode-policy.js";
 import { webFetchRuleSubjects, wildcardToRegExp } from "./rule-matching.js";
+import { isP0WriteTarget } from "./write-tier-policy.js";
 import { isPreapprovedWorkflowDraftWrite } from "./workflow-draft-path.js";
 import { applyPermissionUpdates } from "../tool/executor/permission-rules.js";
 import { isWebFetchPreapprovedUrl } from "../tool/webfetch-preapproved.js";
@@ -243,8 +244,26 @@ export class PermissionService {
       this.matchesRuleScope(rule, context.toolName, capability),
     );
     if (toolRules.length === 0) return false;
-    if (rulePolicy) return rulePolicy.evaluateRules(behavior, toolRules);
-    return toolRules.some((rule) => this.matchesRule(rule, context, capability));
+    if (rulePolicy) {
+      // 有内容级评估器的工具（Bash）由它自己处理整工具规则 × 安全性
+      // （洞 3 修复后：整工具 allow 只对 safe 命令生效），这里不过滤。
+      return rulePolicy.evaluateRules(behavior, toolRules);
+    }
+    // S03 洞 2 评估侧（specs/agent-write-safety.md §2）：无 rulePolicy 的 P0 工具
+    // （js / 未自报 readOnly 的 MCP），无内容 allow 规则（整工具「总是允许」）不匹配——
+    // 一次确认、永久放行的通道必须不存在。宿主验证能力组（OfficialCua）豁免。
+    const effectiveRules =
+      behavior === "allow" &&
+      capability.permissionCapabilityGroup !== PermissionCapabilityGroup.OfficialCua &&
+      isP0WriteTarget({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        readOnly: capability.readOnly,
+      })
+        ? toolRules.filter((rule) => Boolean(rule.ruleContent))
+        : toolRules;
+    if (effectiveRules.length === 0) return false;
+    return effectiveRules.some((rule) => this.matchesRule(rule, context, capability));
   }
 
   private matchesRule(
@@ -412,14 +431,10 @@ export class PermissionService {
       );
     }
 
-    if (this.isMcpToolCapability(capability) && !capability.destructive) {
-      return this.allow(
-        context,
-        capability,
-        "mode.plan.mcp",
-        "Plan mode allows non-destructive MCP tool execution",
-      );
-    }
+    // S03 洞 1a（specs/agent-write-safety.md §2）：原「未自报 destructive 的 MCP 一律放行」
+    // 分支已删除——destructive/readOnly 是 server 自报，写盘型 MCP 漏报 destructive 即可在
+    // plan 模式直通。MCP 与其它工具同规则：自报 readOnly 且非 destructive 才放行
+    // （自报只在收紧方向采信，漏报由本模式的 deny 兜底）。
 
     if (
       capability.allowedInPlanMode &&
@@ -441,10 +456,6 @@ export class PermissionService {
       "mode.plan.nonReadOnly",
       "Plan mode only allows read-only, non-destructive tools",
     );
-  }
-
-  private isMcpToolCapability(capability: ResolvedPermissionCapability): boolean {
-    return capability.permissionName === "mcp";
   }
 
   private checkBuildMode(

@@ -14,10 +14,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { KnowledgeArticleCandidate } from "@drora/services";
+import { extractQueryTerms } from "@drora/shared";
+import { HighlightedMatchText } from "@/quickpick/HighlightedMatchText.js";
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
+import { useTabStore } from "@/store/TabStoreProvider.js";
+import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
@@ -74,6 +78,13 @@ export function AskBannerList({
   banners: ReturnType<typeof deriveAskBanners>;
 }): React.ReactElement | null {
   const { intl } = useDroraIntl();
+  // jevOff 是唯一带配置入口的横幅：跳设置页「知识问答」分区（桌面端分区可见）。
+  // 与 App.handleOpenSettingsSection 同一机制：先写意图再开设置 tab，不另开路径。
+  const openSettingsTab = useTabStore((state) => state.openSettingsTab);
+  const goKnowledgeSettings = React.useCallback(() => {
+    setPendingSettingsSection("knowledge");
+    openSettingsTab();
+  }, [openSettingsTab]);
   if (banners.length === 0) return null;
   return (
     <div className="flex flex-col gap-1" data-testid="ask-banners">
@@ -84,6 +95,16 @@ export function AskBannerList({
           className={cn("text-ui-sm leading-5", BANNER_TONE[code] ?? "text-foreground-subtle")}
         >
           {intl.formatMessage({ id: `vault.ask.banner.${code}` })}
+          {code === "jevOff" ? (
+            <button
+              type="button"
+              data-testid="ask-banner-jev-settings"
+              className="underline underline-offset-2 hover:opacity-80"
+              onClick={goKnowledgeSettings}
+            >
+              {intl.formatMessage({ id: "vault.ask.banner.jevOff.settings" })}
+            </button>
+          ) : null}
         </p>
       ))}
     </div>
@@ -96,6 +117,7 @@ export function displayCandidateTitle(candidate: KnowledgeArticleCandidate): str
 
 export function KnowledgeCandidateCard({
   candidate,
+  query,
   selected,
   inspect,
   sessionId,
@@ -106,6 +128,8 @@ export function KnowledgeCandidateCard({
   onFollowUp,
 }: {
   candidate: KnowledgeArticleCandidate;
+  /** 本轮提交的原始查询（spec §5c.3）：提取词元做摘录 <mark> 高亮，空查询不高亮。 */
+  query: string;
   selected: boolean;
   inspect: KnowledgeEvidenceInspectState | undefined;
   sessionId?: string;
@@ -117,6 +141,8 @@ export function KnowledgeCandidateCard({
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   const verified = inspect?.phase === "verified" ? inspect : null;
+  // 词元提取是 shared 单一出处（spec §5b.5），与 services 命中感知摘要同一口径。
+  const highlightTerms = React.useMemo(() => extractQueryTerms(query), [query]);
   return (
     <article
       data-testid="ask-candidate"
@@ -148,7 +174,9 @@ export function KnowledgeCandidateCard({
           </span>
         )}
         <span className="line-clamp-3 whitespace-pre-wrap text-ui-sm leading-5 text-foreground-subtle">
-          {candidate.excerpt}
+          {/* 摘录命中高亮是纯展示（spec §5c.3）：excerpt 事实字段与「加入 Agent」
+              携带的 candidate.excerpt 原文一律不变，仅渲染层标出命中词元。 */}
+          <HighlightedMatchText text={candidate.excerpt} terms={highlightTerms} />
         </span>
       </button>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

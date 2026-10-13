@@ -84,6 +84,10 @@ export type {
 
 // Knowledge 索引/检索服务（VaultView 2.0 W02/W03/W05）— descriptors + 纯类型，禁止携带实现值。
 export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+export type {
+  KnowledgeSemanticPortStatus,
+  KnowledgeSemanticPortState,
+} from "./knowledge/search/embeddingPort.js";
 export {
   IKnowledgeQueryService,
   type KnowledgeCreateRunParams,
@@ -121,12 +125,16 @@ export type {
   KnowledgeDecisionDiagnostics,
   KnowledgeDecisionFallbackReason,
   KnowledgeDecisionStageStatus,
+  KnowledgeDecisionTelemetryInsights,
   KnowledgeEvidenceReceipt,
   KnowledgeIndexJobKind,
   KnowledgeIndexJobStartResult,
   KnowledgeIndexJobStatus,
   KnowledgeIndexJobView,
   KnowledgeIndexStatus,
+  KnowledgeInsightsJobEntry,
+  KnowledgeInsightsSnapshot,
+  KnowledgeInventoryInsights,
   KnowledgeLeaseView,
   KnowledgePrepareEvidenceParams,
   KnowledgePrepareEvidenceResult,

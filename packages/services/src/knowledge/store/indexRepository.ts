@@ -62,7 +62,8 @@ export function deleteDocumentRows(
 }
 
 /** 单文档替换（调用方必须已在短事务内并完成 fence 校验）：删旧 chunk+FTS → 插新。 */
-export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: ReplaceDocumentInput): number {
+/** 替换文档（短事务内调用）：返回本次写入的 chunk id 列表（同序于 input.chunks；调用方据以同事务写向量）。 */
+export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: ReplaceDocumentInput): number[] {
   deleteDocumentRows(tx, input.vaultId, input.sourceEpoch, input.relativePath);
 
   const docResult = tx.raw
@@ -90,7 +91,13 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
        start_offset, end_offset, sha256, body)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const insertFts = tx.raw.prepare(`INSERT INTO chunks_fts(rowid, tokens) VALUES (?, ?)`);
+  // FTS 三列（schema v4，spec §5b.5）：tokens=正文产物；title=文档标题+heading 路径
+  // 产物（`>` 非词元自然丢弃）；meta=该 chunk tags+links 的产物（chunker 结构抽取，
+  // 旧调用方/手工构造 chunk 无可选字段时如实为空）。
+  const insertFts = tx.raw.prepare(
+    `INSERT INTO chunks_fts(rowid, tokens, title, meta) VALUES (?, ?, ?, ?)`,
+  );
+  const chunkIds: number[] = [];
   for (const chunk of input.chunks) {
     const chunkResult = insertChunk.run(
       documentId,
@@ -104,9 +111,18 @@ export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: Repla
       chunk.sha256,
       chunk.text,
     );
-    insertFts.run(Number(chunkResult.lastInsertRowid), tokenizeForIndex(chunk.text));
+    const chunkId = Number(chunkResult.lastInsertRowid);
+    const titleSource = chunk.headingPath ? `${input.title} ${chunk.headingPath}` : input.title;
+    const metaSource = [...(chunk.tags ?? []), ...(chunk.links ?? [])].join(" ");
+    insertFts.run(
+      chunkId,
+      tokenizeForIndex(chunk.text),
+      tokenizeForIndex(titleSource),
+      tokenizeForIndex(metaSource),
+    );
+    chunkIds.push(chunkId);
   }
-  return documentId;
+  return chunkIds;
 }
 
 export function deleteDocumentInTransaction(
@@ -358,6 +374,20 @@ export function getLatestJob(db: KnowledgeDatabase): KnowledgeIndexJobView | nul
     .prepare(`SELECT id FROM index_jobs ORDER BY requested_at_ms DESC, rowid DESC LIMIT 1`)
     .get() as { id: string } | undefined;
   return row ? getJob(db, row.id) : null;
+}
+
+/**
+ * 洞察视图的最近任务列表（spec §5g.4）：与 getLatestJob 同口径（任意 epoch/status），
+ * 按 requested_at_ms 取最近 limit 条；行映射复用 getJob，不复制第二份字段映射。
+ */
+export function listRecentJobs(db: KnowledgeDatabase, limit: number): KnowledgeIndexJobView[] {
+  const rows = db.raw
+    .prepare(`SELECT id FROM index_jobs ORDER BY requested_at_ms DESC, rowid DESC LIMIT ?`)
+    .all(limit) as Array<{ id: string }>;
+  return rows.flatMap((row) => {
+    const job = getJob(db, row.id);
+    return job ? [job] : [];
+  });
 }
 
 /** 文章级候选 id：sha256(vaultId + relativePath)，不含根路径，可安全出站。 */

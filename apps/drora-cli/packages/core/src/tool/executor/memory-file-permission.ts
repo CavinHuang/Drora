@@ -72,8 +72,11 @@ function filePathFromInput(input: unknown): string | undefined {
 }
 
 function preservesExistingPermissionDecision(decision: PermissionDecisionResult): boolean {
+  // S03 洞 1b（specs/agent-write-safety.md §2）：deny 一律保留——原实现对
+  // mode.plan.nonReadOnly 豁免，导致 plan 模式下 memory md 写入的 deny 被下面的
+  // 覆盖翻转成 allow（plan 拦一切写入的不变量被旁路）。P2 免确认只属于非 plan 场景。
   if (decision.decision === "deny") {
-    return decision.ruleId !== "mode.plan.nonReadOnly";
+    return true;
   }
   // alwaysAsk 是工具自报的"任何情况都要问"，这里不能把它放行掉。今天走不到这条分支
   // （只有 Write/Edit 会命中 memory 目标，二者都没声明 alwaysAsk），但一旦有人给它们加上，

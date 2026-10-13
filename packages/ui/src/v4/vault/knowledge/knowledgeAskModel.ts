@@ -293,6 +293,28 @@ export type KnowledgeAskBannerCode =
   | "cancelled"
   | "modelUnavailable";
 
+// ── 冷启动索引引导（spec §5c.4） ────────────────────────────
+
+/** 冷启动索引引导的派生态：索引缺失可建 / 建立中，二者互斥（同一 job 判定）。 */
+export interface KnowledgeIndexColdStart {
+  /** vault 已配置且当前 epoch 索引为空、无进行中 job → 提供「建立索引」入口。 */
+  needsBuild: boolean;
+  /** 索引 job 进行中 → 显示进行中状态，不再渲染第二个触发入口。 */
+  building: boolean;
+}
+
+/**
+ * 冷启动引导判定（结果区引导块与状态条 indexMissing/indexing 共用同一来源，
+ * 避免两处条件漂移）。未配置 vault 两态皆 false——noVault 既有语义不变（A01）。
+ */
+export function deriveIndexColdStart(indexStatus: KnowledgeIndexStatus | null): KnowledgeIndexColdStart {
+  const building = indexStatus?.job?.status === "running";
+  return {
+    building,
+    needsBuild: Boolean(indexStatus?.configured) && indexStatus?.coverage.indexedFiles === 0 && !building,
+  };
+}
+
 export function deriveAskBanners(params: {
   state: KnowledgeAskState;
   indexStatus: KnowledgeIndexStatus | null;
@@ -306,15 +328,10 @@ export function deriveAskBanners(params: {
     banners.push("noVault");
     return banners;
   }
-  const job = indexStatus?.job ?? null;
-  if (job && (job.status === "running")) banners.push("indexing");
-  if (
-    indexStatus?.configured &&
-    (indexStatus.coverage.indexedFiles === 0) &&
-    !(job && job.status === "running")
-  ) {
-    banners.push("indexMissing");
-  }
+  // 索引两码与结果区引导块派生自同一判定（deriveIndexColdStart），语义不漂移。
+  const coldStart = deriveIndexColdStart(indexStatus);
+  if (coldStart.building) banners.push("indexing");
+  if (coldStart.needsBuild) banners.push("indexMissing");
   if (indexStatus?.coverage.partial) banners.push("indexPartial");
   if (indexStatus?.semantic === "unavailable") banners.push("semanticUnavailable");
   if (outcome === "sourceStale") banners.push("sourceStale");

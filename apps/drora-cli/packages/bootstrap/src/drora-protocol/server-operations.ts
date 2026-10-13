@@ -108,6 +108,7 @@ import { createWorkspaceDroraApp, ensureSessionModelAvailable } from "./workspac
 import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
+import { createProtocolVaultSearchPort } from "./vault-search-port.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
@@ -3386,6 +3387,9 @@ async function createRecord(
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
+    // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 无 knowledge 服务时工具
+    // 报结构化不可用；端口恒注入（工具注册由 includeVaultSearch 门 + 错误语义双层兜底）。
+    vaultSearchPort: createProtocolVaultSearchPort(context),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
     ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||

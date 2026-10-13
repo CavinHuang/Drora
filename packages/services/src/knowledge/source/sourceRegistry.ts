@@ -49,6 +49,19 @@ export function resolveKnowledgeDatabasePath(): string {
  * 解析当前源并与 DB 对账 epoch。每次 RPC（索引/检索）入口调用：
  * 切库、撤权后重新授权在这里显式失效旧身份。
  */
+/** 解析并要求已配置源（未配置抛业务错；indexService 的 startReconcile/requestRebuild 入口用）。 */
+export async function requireKnowledgeSource(
+  db: KnowledgeDatabase,
+  pluginDataDir: string,
+  nowMs: number,
+): Promise<{ config: NonNullable<Awaited<ReturnType<typeof resolveKnowledgeSource>>["config"]>; vaultId: string; sourceEpoch: number }> {
+  const source = await resolveKnowledgeSource(db, pluginDataDir, nowMs);
+  if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
+    throw new Error("尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
+  }
+  return { config: source.config, vaultId: source.summary.vaultId, sourceEpoch: source.sourceEpoch };
+}
+
 export async function resolveKnowledgeSource(
   db: KnowledgeDatabase,
   pluginDataDir: string,

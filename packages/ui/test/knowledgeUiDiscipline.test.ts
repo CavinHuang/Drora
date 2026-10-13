@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import zhCN from "../src/i18n/locales/zh-CN.js";
 import enUS from "../src/i18n/locales/en-US.js";
+import { COVERAGE_EXCLUSION_FIELDS } from "../src/v4/vault/knowledge/knowledgeInsightsModel.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const knowledgeDir = join(here, "../src/v4/vault/knowledge");
@@ -69,9 +70,12 @@ test("A21：knowledge UI 静态 i18n 键在 zh-CN / en-US 两语言齐全", () =
   assert.deepEqual(missing, [], "所有静态引用的 i18n 键必须两语言齐全");
 });
 
-test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4）两语言齐全", () => {
-  // 词表与 knowledgeAskModel.ts 的 KnowledgeAskIntentChoice / KnowledgeAskBannerCode
-  // 及 VaultView.tsx 的 VaultViewTab 一一对应；新增成员必须同步两语言字典。
+test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4 / 洞察 exclude×7·jobKind×2·jobStatus×5）两语言齐全", () => {
+  // 词表与 knowledgeAskModel.ts 的 KnowledgeAskIntentChoice / KnowledgeAskBannerCode、
+  // VaultView.tsx 的 VaultViewTab、services knowledgeTypes 的 KnowledgeIndexJobKind /
+  // KnowledgeIndexJobStatus 及 knowledgeInsightsModel.ts 的 COVERAGE_EXCLUSION_FIELDS
+  // 一一对应；新增成员必须同步两语言字典（独立复核发现4：insights 动态键此前无门禁）。
+  const insightExcludeKeys = COVERAGE_EXCLUSION_FIELDS.map(([key]) => key);
   const dynamicIds = [
     ...["auto", "find", "answer", "compare"].map((choice) => `vault.ask.intent.${choice}`),
     ...[
@@ -88,6 +92,12 @@ test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4）两语
       "modelUnavailable",
     ].map((code) => `vault.ask.banner.${code}`),
     ...["notes", "ask", "insights", "review"].map((tab) => `vault.tabs.${tab}`),
+    // 洞察视图的三个动态键族（KnowledgeInsightsView.tsx 模板串拼接）。
+    ...insightExcludeKeys.map((key) => `vault.insights.exclude.${key}`),
+    ...["reconcile", "rebuild"].map((kind) => `vault.insights.jobKind.${kind}`),
+    ...["running", "completed", "cancelled", "failed", "superseded"].map(
+      (status) => `vault.insights.jobStatus.${status}`,
+    ),
   ];
   const missing = dynamicIds.filter((id) => !(id in zhCN) || !(id in enUS));
   assert.deepEqual(missing, [], "动态模板键必须两语言齐全");

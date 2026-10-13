@@ -773,6 +773,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
+      vaultSearchPort: options.vaultSearchPort,
       offPeakPort: options.offPeakPort,
       appVersion,
       traceContext,

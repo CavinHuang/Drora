@@ -72,6 +72,7 @@ import {
   summarizeOfficialMcpIdentityHeaders,
   droraProtocolEmptyResultSchema,
   droraProtocolMethods,
+  droraKnowledgeSearchParamsSchema,
   droraProtocolNotifications,
   droraMcpTelemetryEventSchema,
   droraMcpResourceSamplesSchema,
@@ -113,6 +114,8 @@ import {
   type DroraPluginOperationProgressNotification,
   type DroraTaskMode,
 } from "@drora/shared";
+import type { IKnowledgeQueryService } from "#src/knowledge/knowledgeQuery.js";
+import { toVaultSearchProtocolResult } from "#src/knowledge/vaultSearchProtocol.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type {
@@ -869,6 +872,12 @@ interface CreateDroraAgentServiceOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
+  /**
+   * agent 只读 vault 检索入口（obsidian-knowledge.md §5f）：返回 null = 本 host 无
+   * knowledge 服务（远程/降级），knowledge/search 分发为结构化不可用。thunk 形式——
+   * knowledgeServices 在 createLocalServices 内晚于本服务构造，只在请求期解引用。
+   */
+  knowledgeQuerySource?: () => Pick<IKnowledgeQueryService, "createRun" | "search"> | null;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
   /**
@@ -2751,6 +2760,46 @@ export function createDroraAgentService(
               });
             } catch (error) {
               await respondOffPeakInternalError(client, request, workspace, error);
+            }
+          })();
+          return;
+        }
+
+        // agent 只读 vault 检索（obsidian-knowledge.md §5f）：分发到进程内 knowledge
+        // query 服务（与 UI 同链）。无 knowledge 服务的 host（远程/降级）结构化不可用；
+        // 入参校验失败 -32602；服务异常 -32603 透传消息。零出站：不携带 decisionConsentId。
+        if (request.method === droraProtocolMethods.knowledgeSearch) {
+          const parsed = droraKnowledgeSearchParamsSchema.safeParse(request.params ?? {});
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid knowledge search params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          void (async () => {
+            try {
+              const knowledgeQuery = options?.knowledgeQuerySource?.();
+              if (!knowledgeQuery) {
+                await client.respondError(request.id, {
+                  code: -32603,
+                  message: "Vault search is unavailable on this host (no knowledge service).",
+                });
+                return;
+              }
+              const run = await knowledgeQuery.createRun({
+                query: parsed.data.query,
+                // 纯检索 run：不绑会话（§5.1 无会话语义），不携带决策授权（§5f.2 零出站）。
+                clientRequestId: `vault-search-${randomUUID()}`,
+              });
+              const finished = await knowledgeQuery.search({ runId: run.runId });
+              await client.respond(request.id, toVaultSearchProtocolResult(finished));
+            } catch (error) {
+              await client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              });
             }
           })();
           return;

@@ -1,40 +1,56 @@
 /**
- * 词法分析（W02 / spec §5b.5）。
+ * 词法分析（W02 / spec §5b.5；2026-10-12 查询能力增强）。
  *
  * - 连续汉字串（CJK 统一表意文字）按相邻二元组（bigram）切分；
  * - 英文/数字串按词切分并小写；
  * - 索引侧产出空格分隔的 token 流（FTS5 默认 unicode61 以空白切词）；
  * - 查询侧构造严格转义的 MATCH 表达式：用户输入永不原样进入查询串，
- *   只允许 [token] 与 [phrase] 两种字面形式，引号转义为 "" 后整体加双引号。
- * 纯函数：不做任何 IO。
+ *   只允许 [token]/[phrase]/[prefix] 三种字面形式，引号转义为 "" 后整体加双引号。
+ * - 英文/数字词 ≥3 字符作前缀（`"词" *`，前缀含本词）；<3 字符保持精确词。
+ * - 两级阶梯（spec §5b.5）：strict 轮 AND（CJK run 作整体 phrase）；零命中且
+ *   canRelax 时唯一一次降级轮——CJK run = phrase OR 内容 bigram 备选（修复单段长
+ *   查询的死降级缺陷；2026-10-12 起备选过滤含虚词字的 bigram，防高频虚词以数量
+ *   压过高区分度命中）。
+ *
+ * 词元基元与 `extractQueryTerms` 自 2026-10-12 起单一出处为 `@drora/shared`
+ * （`knowledge/queryTerms.ts`，spec §5b.5）：services 的命中感知摘要与 UI 的摘录
+ * 命中高亮共用同一词元口径，本文件经 re-export 保持既有导出面与测试不变。
+ * 本文件保留 FTS 专属的 token 流产出与 MATCH 表达式构造。纯函数：不做任何 IO。
  */
+import {
+  cjkBigrams,
+  extractQueryTerms,
+  isSafeToken,
+  matchCjkRuns,
+  matchWordRuns,
+} from "@drora/shared";
 
-/** CJK 统一表意文字 + 扩展A + 兼容表意文字（spec §5b.5 范围；谚文/假名不展开）。 */
-const CJK_CHAR = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;
-const CJK_RUN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+/gu;
-const WORD_RUN = /[A-Za-z0-9_]+/g;
+export { extractQueryTerms };
 
-/** 单个 token 的合法性守卫：只接受 bigram/词切分产物能产生的形态。 */
-function isSafeToken(token: string): boolean {
-  return token.length > 0 && [...token].every((ch) => CJK_CHAR.test(ch) || /[A-Za-z0-9_]/.test(ch));
-}
+/** 英文/数字词前缀查询的最小长度：更短的词（"js"/"ai"）前缀召回噪声过大。 */
+const PREFIX_MIN_CHARS = 3;
 
-function cjkBigrams(run: string): string[] {
-  if (run.length === 1) return [run];
-  const bigrams: string[] = [];
-  for (let index = 0; index < run.length - 1; index++) {
-    bigrams.push(run.slice(index, index + 2));
-  }
-  return bigrams;
-}
+/**
+ * 查询侧虚词字表（2026-10-12，用户真库反馈收口）：只用于**降级轮 bigram 备选**的过滤
+ * ——含任一虚词字的 bigram（如「的文」「关的」）在任何文档库都是高频词，作为 OR 备选
+ * 会以数量压过真正的高区分度命中（实测「agent 相关的文章」的降级轮被面试文以
+ * 相关/关的/的文/文章 四个 bigram 压过 35 篇 agent 文档，去掉 关的/的文 后 agent
+ * 文档进入前四）。刻意保守：只收几乎纯功能用法的字；「上/下/中/里/得/地」等多义字
+ * 不收（中文/上海/地方会误伤）。strict 轮 phrase 不受影响——最坏情况只是降级轮少一个
+ * 备选，不新增任何误召回。
+ */
+const QUERY_STOPCHARS = new Set([
+  "的", "了", "是", "在", "我", "有", "和", "与", "及", "或", "把", "被", "到", "为", "之",
+  "这", "那", "个", "们", "就", "都", "也", "很", "吧", "吗", "呢", "给", "跟", "让", "往", "着",
+]);
 
 /** 索引侧：文本 → token 流（空格连接）。 */
 export function tokenizeForIndex(text: string): string {
   const tokens: string[] = [];
-  for (const run of text.match(CJK_RUN) ?? []) {
+  for (const run of matchCjkRuns(text)) {
     tokens.push(...cjkBigrams(run));
   }
-  for (const run of text.match(WORD_RUN) ?? []) {
+  for (const run of matchWordRuns(text)) {
     tokens.push(run.toLowerCase());
   }
   return tokens.filter(isSafeToken).join(" ");
@@ -43,9 +59,16 @@ export function tokenizeForIndex(text: string): string {
 export interface MatchExpression {
   /** 可直接作为 `MATCH ?` 参数的表达式（已严格转义）。 */
   expression: string;
-  /** 是否 OR 连接（AND 无命中时的一次降级）。 */
+  /** 是否降级轮（AND 无命中后的唯一一次扩搜）。 */
   relaxed: boolean;
   tokenCount: number;
+  /**
+   * strict 形态下判定：降级形态是否确会产生不同表达式（§5b.5 扩搜资格，
+   * DecisionPolicy EXPAND_ONCE 的前提）。存在 ≥3 字 CJK run（可拆 bigram 备选）
+   * 或部件数 ≥2（AND→OR 改变语义）即为 true；单个英文词（前缀已在 strict 生效）
+   * 等形态为 false——此时降级轮不可能改变结果，编排器不得浪费一轮。
+   */
+  canRelax: boolean;
 }
 
 function quoteToken(token: string): string {
@@ -54,6 +77,22 @@ function quoteToken(token: string): string {
 
 function bigramPhrase(run: string): string {
   return quoteToken(cjkBigrams(run).join(" "));
+}
+
+/**
+ * 降级轮 CJK 部件：phrase OR 内容 bigram 备选（phrase 命中经 bm25 自然排前；2 字 run
+ * 退化为 phrase 本身）。bigram 备选过滤含虚词字的组合（QUERY_STOPCHARS）——虚词
+ * bigram 在全库高频，作为 OR 备选会以数量压过真正的高区分度命中；全部被过滤时保留
+ * 原始 bigram 集合（绝不交出空备选）。
+ */
+function relaxedCjkPart(run: string): string {
+  const bigrams = cjkBigrams(run);
+  if (bigrams.length <= 1) return bigramPhrase(run);
+  const contentBigrams = bigrams.filter(
+    (bigram) => ![...bigram].some((char) => QUERY_STOPCHARS.has(char)),
+  );
+  const alternatives = (contentBigrams.length > 0 ? contentBigrams : bigrams).map(quoteToken);
+  return `(${bigramPhrase(run)}) OR (${alternatives.join(" OR ")})`;
 }
 
 function andExpression(parts: string[]): string {
@@ -65,32 +104,46 @@ function orExpression(parts: string[]): string {
   return parts.join(" OR ");
 }
 
+/** 英文/数字词的查询形态：≥3 字符前缀（含本词），短词精确。 */
+function wordQueryPart(word: string): string {
+  return word.length >= PREFIX_MIN_CHARS ? `${quoteToken(word)} *` : quoteToken(word);
+}
+
 /**
  * 查询侧：查询文本 → MATCH 表达式。
- * - 汉字串 ≥2 → bigram phrase；单字 → prefix（`"字" *`，可命中以该字开头的大词元）；
- * - 英文/数字 → 小写词 term；
- * - 先 AND；tokenCount ≥2 时允许降级 OR（调用方在 AND 无命中时使用）。
+ * - 汉字串 ≥2 → bigram phrase（降级轮为 phrase OR bigram 集合）；单字 → prefix；
+ * - 英文/数字 → 小写词，≥3 字符前缀、<3 精确（两轮同形）；
+ * - strict 轮 AND；`canRelax`（strict 形态下判定）= 降级资格，编排器在 AND 零命中时
+ *   据此决定是否执行唯一一次降级轮。
  * 任何非法产物（理论上不可达）直接报错，绝不回退为原始用户输入。
  */
 export function buildMatchExpression(query: string, relaxed: boolean): MatchExpression {
   const parts: string[] = [];
-  for (const run of query.match(CJK_RUN) ?? []) {
+  let canRelax = false;
+  for (const run of matchCjkRuns(query)) {
     if (run.length === 1) {
       parts.push(`${quoteToken(run)} *`);
     } else {
-      parts.push(bigramPhrase(run));
+      // ≥3 字 run 降级时可拆出 bigram 备选；2 字 run 的 phrase 与 bigram 相同，无可放松。
+      // canRelax 与当前轮次无关——它描述「降级形态 ≠ strict 形态」，供降级轮诊断复用。
+      if (run.length >= 3) canRelax = true;
+      parts.push(relaxed ? relaxedCjkPart(run) : bigramPhrase(run));
     }
   }
-  for (const run of query.match(WORD_RUN) ?? []) {
+  for (const run of matchWordRuns(query)) {
     const word = run.toLowerCase();
-    if (isSafeToken(word)) parts.push(quoteToken(word));
+    if (isSafeToken(word)) parts.push(wordQueryPart(word));
   }
   if (parts.length === 0) {
     throw new Error("查询文本没有可检索词元");
   }
+  if (parts.length >= 2) {
+    // 多部件：AND→OR 本身改变语义。
+    canRelax = true;
+  }
   for (const part of parts) {
-    // 纵深防御：表达式只允许引号包裹字面量、空白、OR 与 prefix 星号。
-    if (!/^("[^"]*"|\s|\*|OR)+$/.test(part)) {
+    // 纵深防御：表达式只允许引号包裹字面量、空白、OR、prefix 星号与分组括号。
+    if (!/^("[^"]*"|\s|\*|OR|\(|\))+$/u.test(part)) {
       throw new Error("MATCH 表达式构造异常");
     }
   }
@@ -98,5 +151,6 @@ export function buildMatchExpression(query: string, relaxed: boolean): MatchExpr
     expression: relaxed ? orExpression(parts) : andExpression(parts),
     relaxed,
     tokenCount: parts.length,
+    canRelax,
   };
 }

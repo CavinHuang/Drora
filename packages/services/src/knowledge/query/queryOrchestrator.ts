@@ -181,13 +181,14 @@ export class QueryOrchestrator {
       const coverage = loadCoverage(this.db, source.summary.vaultId, source.sourceEpoch);
       const sharedOptions = { semantic: this.semantic, partial: coverage?.partial ?? false } as const;
 
-      // ① AND 轮；② policy 裁决 EXPAND_ONCE（至多一次 OR 扩搜，A11）。
+      // ① AND 轮；② policy 裁决 EXPAND_ONCE（至多一次降级扩搜，A11；资格=tokenizer
+      // 判定 canRelax——存在可拆 bigram 的 CJK run 或多部件，spec §5b.5）。
       let pass = await searchLexicalPass(this.db, record.sourceRef, record.query, {
         ...sharedOptions,
         relaxed: false,
       });
       let expanded = false;
-      let canExpand = pass.candidates.length === 0 && pass.tokenCount > 1;
+      let canExpand = pass.candidates.length === 0 && pass.canRelax;
       const policyPre = decideByPolicy({
         candidates: toDecisionCandidates(pass.candidates),
         outcomes: [],

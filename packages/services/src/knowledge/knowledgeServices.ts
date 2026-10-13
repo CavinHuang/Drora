@@ -9,22 +9,33 @@
  */
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { resolveObsidianPluginDataDir } from "../obsidian-vault/obsidianVaultService.js";
-import type { VaultConfig } from "../obsidian-vault/config.js";
 import { openKnowledgeDatabase, type KnowledgeDatabase } from "./store/knowledgeDatabase.js";
-import { IndexCoordinator } from "./index/indexCoordinator.js";
-import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
-import { createSemanticContext, type KnowledgeEmbeddingPort } from "./search/embeddingPort.js";
 import { loadCoverage } from "./store/indexRepository.js";
-import { resolveKnowledgeDatabasePath, resolveKnowledgeSource } from "./source/sourceRegistry.js";
+import { IndexCoordinator } from "./index/indexCoordinator.js";
+import { createAutoReconcileController } from "./index/autoReconcile.js";
+import { createCitationFacade } from "./evidence/citationFacade.js";
+import { QueryOrchestrator, type KnowledgeDecisionContext } from "./query/queryOrchestrator.js";
 import {
-  createVaultFileReader,
-  prepareEvidenceFromRun,
-  resolveCitationReceipt,
-} from "./evidence/evidenceRegistry.js";
+  createSemanticContext,
+  semanticDownloadViaPort,
+  semanticStatusOf,
+  type KnowledgeEmbeddingPort,
+  type KnowledgeSemanticPortStatus,
+} from "./search/embeddingPort.js";
+import {
+  requireKnowledgeSource,
+  resolveKnowledgeDatabasePath,
+  resolveKnowledgeSource,
+} from "./source/sourceRegistry.js";
+
 import { DecisionConsentRegistry } from "./decision/decisionConsent.js";
 import { DecisionCache } from "./decision/decisionCache.js";
 import { DecisionTelemetry } from "./decision/decisionTelemetry.js";
 import { DecisionPipeline } from "./decision/decisionPipeline.js";
+import { JEV_MODEL_ID } from "./decision/jevAdapter.js";
+import { createJevDynamicProvider } from "./decision/jevDynamicProvider.js";
+import { createSystemOneHttpTransport } from "./decision/jevTransport.js";
+import { loadInsightsSnapshot } from "./insightsSnapshot.js";
 import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
 import { createKnowledgeReviewService } from "./review/reviewEngine.js";
 import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
@@ -32,6 +43,7 @@ import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./review/reviewService.js";
 import type {
+  KnowledgeCoverage,
   KnowledgeIndexStatus,
   KnowledgePrepareEvidenceParams,
   KnowledgePrepareEvidenceResult,
@@ -39,6 +51,20 @@ import type {
   KnowledgeResolveCitationResult,
 } from "./knowledgeTypes.js";
 import type { KnowledgeCreateRunParams, KnowledgeSearchParams } from "./knowledgeQuery.js";
+
+/** 全零 coverage（未配置源/索引未建时的如实零值，与 getStatus 既有零值结构同形）。 */
+const EMPTY_COVERAGE: Readonly<KnowledgeCoverage> = Object.freeze({
+  indexedFiles: 0,
+  indexedChunks: 0,
+  excludedHidden: 0,
+  excludedSymlink: 0,
+  excludedNotMarkdown: 0,
+  excludedOverSize: 0,
+  excludedOverQuota: 0,
+  excludedDepth: 0,
+  truncatedFiles: 0,
+  partial: false,
+});
 
 export interface KnowledgeServicesOptions {
   /** 覆盖 DB 路径（测试用）；生产默认按 Profile 数据根推导。 */
@@ -65,11 +91,35 @@ export interface KnowledgeServicesOptions {
   /** 决策策略覆写（阈值/预算/权重；实验初值见 DEFAULT_DECISION_POLICY）。 */
   decisionPolicyOverrides?: Partial<KnowledgeDecisionPolicyConfig>;
   /**
+   * Jev 配置动态源（spec §5d.10 配置热生效）：每个决策 stage 解析当前装配
+   * （开关/提供商/Key/端点/模型），null = 功能关闭。提供时优先于静态注入；
+   * 配置签名变更自动清决策缓存（缓存键不含端点/凭据）。
+   */
+  knowledgeJevConfigSource?: () => Promise<
+    import("./decision/jevAssembly.js").KnowledgeJevAssembly | null
+  >;
+  /**
+   * 本地语义端口动态源（spec §5b.9 配置热生效）：refresh 时按
+   * knowledgeSemanticEnabled 解析当前端口（enabled → lazy 本地端口；disabled → null）。
+   * 缺省 null = 语义保持装配期状态（重启语义，兼容旧装配）。
+   */
+  knowledgeSemanticSource?: () => Promise<KnowledgeEmbeddingPort | null>;
+  /**
    * 审核写路径总门（W06 修复轮 1）：**生产装配（node.ts）绝不传——保持缺省 false**，
    * S03 Hard Write Safety GO 门禁未满足前 apply/undo 返回 `write_path_disabled`
    * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅测试环境显式置 true。
    */
   reviewWritePathEnabled?: boolean;
+  /**
+   * 索引自动 reconcile（spec §5b.8）：缺省 false，仅 desktop 本地 host 装配显式开启。
+   * 触发点：装配后延迟一次 + search 入口 TTL 过期时；均 fire-and-forget，检索照旧用
+   * 当前快照（陈旧一度语义）。job 仍由 IndexCoordinator 独占，与手动触发同路径幂等。
+   */
+  autoIndexEnabled?: boolean;
+  /** 自动 reconcile 的陈旧 TTL（毫秒）；缺省 10 分钟。 */
+  autoIndexStaleTtlMs?: number;
+  /** 装配后首次自动 reconcile 的延迟（毫秒）；缺省 4s。 */
+  autoIndexInitialDelayMs?: number;
   /** 租约 TTL/心跳（测试可收紧）。 */
   leaseTtlMs?: number;
   heartbeatIntervalMs?: number;
@@ -99,29 +149,45 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const db: KnowledgeDatabase = openKnowledgeDatabase(
     options.databasePath ?? resolveKnowledgeDatabasePath(),
   );
+  // 语义上下文先于协调器构造（spec §5b.9）：索引写向量与查询余弦重排共用同一端口。
+  const semantic = createSemanticContext(options.embeddingPort ?? null);
   const coordinator = new IndexCoordinator(db, {
     leaseTtlMs: options.leaseTtlMs,
     heartbeatIntervalMs: options.heartbeatIntervalMs,
+    semantic,
   });
-  const semantic = createSemanticContext(options.embeddingPort ?? null);
 
   // 决策上下文（W05）：管线恒在（provider 可为 null → off 分支产出零出站诊断，A23）。
   const config = resolvePolicyConfig(options.decisionPolicyOverrides);
   const registry = new DecisionConsentRegistry();
   const cache = new DecisionCache(config.cacheMaxEntries);
   const telemetry = new DecisionTelemetry();
-  const provider = options.decisionProviderFactory
-    ? options.decisionProviderFactory({ consentRegistry: registry, config })
-    : (options.decisionProvider ?? null);
+  // Jev 配置热生效（spec §5d.10；控制器在 decision/jevDynamicProvider.ts）。
+  const dynamicProviderAvailable = options.knowledgeJevConfigSource !== undefined;
+  const jevDynamic = dynamicProviderAvailable && options.knowledgeJevConfigSource
+    ? createJevDynamicProvider({
+        source: options.knowledgeJevConfigSource,
+        consentRegistry: registry,
+        config,
+        cache,
+      })
+    : null;
+  const staticProvider = jevDynamic
+    ? null
+    : (options.decisionProviderFactory
+      ? options.decisionProviderFactory({ consentRegistry: registry, config })
+      : (options.decisionProvider ?? null));
   const pipeline = new DecisionPipeline({
-    provider,
+    provider: staticProvider,
+    ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
     config,
     consentRegistry: registry,
     cache,
     telemetry,
   });
   const decision: KnowledgeDecisionContext = {
-    provider,
+    provider: staticProvider,
+    ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
     pipeline,
     registry,
     cache,
@@ -146,35 +212,14 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
         return {
           configured: false,
           source: null,
-          coverage: {
-            indexedFiles: 0,
-            indexedChunks: 0,
-            excludedHidden: 0,
-            excludedSymlink: 0,
-            excludedNotMarkdown: 0,
-            excludedOverSize: 0,
-            excludedOverQuota: 0,
-            excludedDepth: 0,
-            truncatedFiles: 0,
-            partial: false,
-          },
+          coverage: { ...EMPTY_COVERAGE },
           job: coordinator.getLatestJobView(),
           lease: coordinator.getLeaseView(),
           semantic: semantic.port ? "available" : "unavailable",
         };
       }
-      const coverage = loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? {
-        indexedFiles: 0,
-        indexedChunks: 0,
-        excludedHidden: 0,
-        excludedSymlink: 0,
-        excludedNotMarkdown: 0,
-        excludedOverSize: 0,
-        excludedOverQuota: 0,
-        excludedDepth: 0,
-        truncatedFiles: 0,
-        partial: false,
-      };
+      const coverage =
+        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
       return {
         configured: true,
         source: {
@@ -190,12 +235,24 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     },
 
     async startReconcile() {
-      const source = await requireSource();
+      const source = await requireKnowledgeSource(db, pluginDataDir, Date.now());
       return coordinator.startJob({ kind: "reconcile", ...source, nowMs: Date.now() });
     },
 
+    /**
+     * 洞察快照（spec §5g）：实现见 insights/loadInsightsSnapshot（db 触达模块），
+     * 本面只做薄委托（max-lines 门禁）。
+     */
+    getInsights: () =>
+      loadInsightsSnapshot({
+        db,
+        pluginDataDir,
+        semanticPortId: semantic.port?.id ?? null,
+        decisionTelemetry: decision.telemetry.snapshot(),
+      }),
+
     async requestRebuild() {
-      const source = await requireSource();
+      const source = await requireKnowledgeSource(db, pluginDataDir, Date.now());
       return coordinator.startJob({ kind: "rebuild", ...source, nowMs: Date.now() });
     },
 
@@ -205,7 +262,96 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       }
       return coordinator.cancelJob(params.jobId, Date.now());
     },
+    async refreshDecisionConfig(): Promise<{ refreshed: boolean }> {
+      // UI 写入知识配置后调用（spec §5d.10 热生效的确定性即时路径）：
+      // ① Jev 决策：置空签名，下一轮决策 stage 强制重解析装配并按签名清缓存；
+      // ② 本地语义：按当前开关热切换端口（§5b.9 配置热生效，免重启）。
+      const refreshed = jevDynamic !== null;
+      jevDynamic?.refresh();
+      if (options.knowledgeSemanticSource) {
+        semantic.setPort((await options.knowledgeSemanticSource()) ?? null);
+      }
+      return Promise.resolve({ refreshed });
+    },
+    async testJevConnection(): Promise<{
+      ok: boolean;
+      latencyMs: number;
+      error: string | null;
+    }> {
+      // 用当前装配真实发一次最小探测（spec §5d.10 配置 UX）：2xx+合法答案=ok；
+      // 401/403=Key 无效；其余非 2xx/异常按原文携带。装配缺失=未配置完成。
+      const assembly = jevDynamic !== null ? ((await options.knowledgeJevConfigSource?.()) ?? null) : null;
+      if (assembly === null) {
+        return { ok: false, latencyMs: 0, error: "配置未完成：开关未开或 Key/评分模型缺失" };
+      }
+      const transport = createSystemOneHttpTransport({
+        apiKey: assembly.apiKey,
+        baseUrl: assembly.baseUrl,
+        ...(assembly.provider === "typesafe" ? {} : { model: assembly.model }),
+        ...(assembly.provider === "openrouter" ? { endpointPath: "/decisions" } : {}),
+      });
+      const startedAtMs = Date.now();
+      try {
+        const response = await transport.post({
+          state: { query: "连接测试", note_excerpt: "连接测试", title: "连接测试" },
+          model: assembly.provider === "typesafe" ? JEV_MODEL_ID : assembly.model,
+          questions: {
+            relevance: {
+              type: "noul",
+              instructions: "连接测试：恒定返回 0 到 1 之间任意数值即可。",
+            },
+          },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const latencyMs = Date.now() - startedAtMs;
+        if (response.status === 401 || response.status === 403) {
+          return { ok: false, latencyMs, error: "认证失败：API Key 无效或无权限" };
+        }
+        if (response.status === 429) {
+          return { ok: true, latencyMs, error: "连接成功，但当前限流（稍后重试评分）" };
+        }
+        if (response.status >= 400) {
+          return { ok: false, latencyMs, error: `端点返回 ${response.status}` };
+        }
+        if (response.body === null) {
+          return { ok: false, latencyMs, error: "端点响应不是合法 JSON" };
+        }
+        return { ok: true, latencyMs, error: null };
+      } catch (error) {
+        return {
+          ok: false,
+          latencyMs: Date.now() - startedAtMs,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    getSemanticStatus(): Promise<KnowledgeSemanticPortStatus> {
+      // 纯状态读取（spec §5b.9 状态面）：无端口 = 功能关闭（与装配缺省一致）。
+      return Promise.resolve(semanticStatusOf(semantic.port));
+    },
+    downloadSemanticModel(): Promise<{ started: boolean; error: string | null }> {
+      // 长耗时手动下载：失败以结果携带（UI 轮询 status 呈现），不抛业务错。
+      return semanticDownloadViaPort(semantic.port);
+    },
   };
+
+  // 索引自动 reconcile（spec §5b.8，控制器在 index/autoReconcile.ts）。
+  const autoReconcile = createAutoReconcileController({
+    db,
+    coordinator,
+    pluginDataDir,
+    enabled: options.autoIndexEnabled === true,
+    staleTtlMs: options.autoIndexStaleTtlMs,
+    initialDelayMs: options.autoIndexInitialDelayMs,
+    logger,
+  });
+
+  // 引用/Evidence 门面（W03；从本文件拆出，见 evidence/citationFacade.ts）。
+  const citationFacade = createCitationFacade({
+    db,
+    pluginDataDir,
+    getRun: (params) => orchestrator.getRun(params),
+  });
 
   const queryService: IKnowledgeQueryService = {
     async createRun(params: KnowledgeCreateRunParams) {
@@ -219,6 +365,8 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       if (params.decisionConsentId !== undefined && typeof params.decisionConsentId !== "string") {
         throw new Error("decisionConsentId 非法");
       }
+      // 陈旧一度语义（§5b.8）：本次检索照旧用当前快照，后台刷新对下一次查询可见。
+      autoReconcile.onSearch();
       return orchestrator.search(params);
     },
     async grantDecisionConsent(params: { runId: string; candidateIds?: string[] }) {
@@ -246,57 +394,15 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     async prepareEvidence(
       params: KnowledgePrepareEvidenceParams,
     ): Promise<KnowledgePrepareEvidenceResult> {
-      if (!params || typeof params.runId !== "string" || !params.runId) {
-        throw new Error("runId 不能为空");
-      }
-      if (typeof params.articleId !== "string" || !params.articleId) {
-        throw new Error("articleId 不能为空");
-      }
-      const run = orchestrator.getRun({ runId: params.runId });
-      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-      const rootPath = source.config?.rootPath ?? null;
-      const reader = rootPath ? createVaultFileReader(rootPath) : null;
-      return prepareEvidenceFromRun({
-        db,
-        run,
-        articleId: params.articleId,
-        source,
-        readVaultFile: reader ? reader.read : async () => null,
-        nowMs: Date.now(),
-      });
+      return citationFacade.prepareEvidence(params);
     },
     async resolveCitation(
       params: KnowledgeResolveCitationParams,
     ): Promise<KnowledgeResolveCitationResult> {
-      if (!params || typeof params.receiptId !== "string" || !params.receiptId) {
-        throw new Error("receiptId 不能为空");
-      }
-      const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-      const rootPath = source.config?.rootPath ?? null;
-      const reader = rootPath ? createVaultFileReader(rootPath) : null;
-      return resolveCitationReceipt({
-        db,
-        receiptId: params.receiptId,
-        sessionId: typeof params.sessionId === "string" ? params.sessionId : null,
-        source,
-        readVaultFile: reader ? reader.read : async () => null,
-      });
+      return citationFacade.resolveCitation(params);
     },
     onRunUpdated: orchestrator.onRunUpdated,
   };
-
-  async function requireSource(): Promise<{
-    config: VaultConfig;
-    vaultId: string;
-    sourceEpoch: number;
-  }> {
-    const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-    if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
-      throw new Error("尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
-    }
-    logger.debug("源就绪", { vaultId: source.summary.vaultId, epoch: source.sourceEpoch });
-    return { config: source.config, vaultId: source.summary.vaultId, sourceEpoch: source.sourceEpoch };
-  }
 
   return {
     indexService,
@@ -307,6 +413,9 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       // 停 run 事件流（检索是易失状态）；心跳定时器已 unref，
       // 租约正常路径由任务 finally 释放，异常路径靠 TTL 过期兜底（W00 spike §4.4）。
       orchestrator.dispose();
+      // 自动索引的延迟定时器一并清理（§5b.8）；in-flight job 由 coordinator 自身
+      // 的 finally/异常路径收尾，不在此等待（dispose 链同步）。
+      autoReconcile.dispose();
       db.close();
     },
   };

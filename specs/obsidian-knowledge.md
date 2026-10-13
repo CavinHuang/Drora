@@ -211,8 +211,9 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
    语句前重验 lease（owner+epoch(fence)+未过期），Spike3 反例（列戳 CAS 不设防）不复现。
 3. `index_lease` 表单行租约：epoch 单调递增为 fence token；TTL（默认 10s）+ 心跳（默认 3s）
    是死亡检测唯一手段；接管成功后 `wal_checkpoint(TRUNCATE)` + `integrity_check` 体检。
-4. FTS5 独立表 `chunks_fts(tokens)`，`rowid === chunks.id`；插入/删除与 chunks 行同事务同步；
+4. FTS5 独立表 `chunks_fts`，`rowid === chunks.id`；插入/删除与 chunks 行同事务同步；
    检索 `JOIN chunks ON chunks.id = chunks_fts.rowid` 再按 `vaultId+sourceEpoch` 过滤。
+   列面自 schema v4 起为 `(tokens, title, meta)`（§5b.5；v3 及以前为单列 `tokens`）。
 5. service 生命周期：`createKnowledgeServices()` 返回的 `dispose()` 停心跳 → 释放租约 →
    关闭连接；在 `node.ts` 记入 `sharedSqliteRepos`（与 OffPeakTaskRepo 同链）统一关闭。
 
@@ -226,14 +227,72 @@ Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（
   不假装全库完整。
 - chunk 记录：heading 路径（`A > B`）、quote selector（起止行 1-based + 全文字符偏移）、
   chunk 文本 sha256、所属文件 sha256；单文件 chunk 上限 512，超出计入截断（partial）。
+- **尺寸上限与块级切分（2026-10-12 补）**：标题段文本超过 `MAX_CHUNK_CHARS`（1200 字符）
+  时按**空行（段落）边界**二次切分，无段落边界的超长块按行硬切（单行超上限时整行成块，
+  行不可再分）；子块继承所在段的 heading 路径与级别，quote selector 仍为精确行区间——
+  W03 Receipt 的切片复验不受影响。512 上限与 truncated 标志语义不变（子切分会更早触顶，
+  照实计 partial）。动机：无字符上限时「无标题长文 = 单巨块」，bm25 区分度、excerpt
+  窗口与 Jev 出站输入质量都被噪声稀释。已建索引随文件变更/重建自然迁移到新切分。
+- **结构抽取（2026-10-12 补）**：chunker 在切分同时抽取两类结构化元数据，作为索引侧
+  检索信号（§5b.5 `meta` 列），**不进 RPC 出站面**（候选/Receipt 结构与字段不变）：
+  - 正文 `[[wikilink]]` 目标，逐 chunk 记录：别名取 `|` 前部分；去重保序；V1 不拆
+    `#标题`/`^块` 引用（目标整体保留），`![[embed]]` 同按链接目标收录，空目标跳过；
+  - frontmatter `tags`（含旧写法 `tag` 键）：支持 flow（`[a, b]`）与 block（`- a` 逐行）
+    两种形态，剥离首尾引号与 `#` 前缀，去重保序；**文档级**——作用于该文档全部 chunk。
+    正文行内 `#标签` 不在 V1 范围（frontmatter 是 Obsidian 标签的主事实源）。
 
 ### 5b.5 词法与语义
 
 - 中文汉字按 bigram 切分（连续汉字串 ≥2 → 相邻二元组序列作 phrase；单字 → prefix 查询），
-  英文/数字按词小写，均走 FTS5 默认 unicode61 + `bm25()` 排序（英文 BM25 语义由 FTS5 保证）。
+  英文/数字按词小写；均走 FTS5 默认 unicode61 + `bm25()` 排序（英文 BM25 语义由 FTS5 保证）。
+  **英文/数字词 ≥3 字符作前缀查询（`"词" *`，前缀含本词），<3 字符保持精确词**（2026-10-12 补：
+  短词前缀如 `"js" *`/`"ai" *` 召回噪声过大；Obsidian 库内英文标识符常以查询前缀形态出现，
+  与中文单字 prefix 同一待遇）。
 - MATCH 表达式只由 tokenizer 产物构造：token 内引号转义为 `""` 后整体加双引号，用户输入
-  永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。AND 无命中时以
-  同一转义规则降级 OR 重试一次。简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
+  永不拼入原始查询串（严格参数化：`WHERE chunks_fts MATCH ?` 绑定参数）。检索为两级阶梯：
+  strict 轮（AND，CJK run 作整体 phrase）；零命中且 `canRelax` 时执行**唯一一次**降级轮
+  （A11 扩搜上限一次不变，由 DecisionPolicy EXPAND_ONCE 裁决）。降级轮形态（2026-10-12 补）：
+  - CJK run（≥3 字符）= 该 run 的 phrase `OR` 其**内容 bigram 备选**——含虚词字的
+    bigram（QUERY_STOPCHARS：的/了/是/在/我/有/和/与/到/这/那/个 等约 30 个几乎纯功能
+    用法的字，多义字「上下中里得地」刻意不收）不作为备选（2026-10-12 补：真库实测
+    「agent 相关的文章」的降级轮被 相关/关的/的文/文章 四个高频虚词 bigram 以数量压过
+    35 篇 agent 文档；备选全部被滤时保留原始集合，绝不交空）。phrase 命中仍完整保留
+    并经 bm25 自然排前——修复单段长查询只有一个 AND 部件、旧判据 `词元 ≥2` 永不
+    触发降级的死降级缺陷；
+  - 英文部件沿用 strict 形态（前缀已在 strict 生效）；
+  - 降级资格 `canRelax` 由 tokenizer 在 strict 形态下判定：存在 ≥3 字 CJK run，或部件数 ≥2。
+    简繁互检不在本阶段承诺（bigram 不折叠字形，归 W05 数据集）。
+- **命中感知摘要（2026-10-12 补）**：候选 excerpt 为 chunk 正文的逐字窗口，不再固定取
+  开头 240 字符——按查询词元（CJK bigram/单字与英文小写词）的正文出现位置滑窗，选取
+  覆盖最多不同词元的窗口（并列取最早；每词元计前 8 处出现，防超长段落退化），窗口
+  两侧截断以「…」标注；无任何词元命中时回落正文开头。quote selector、sha256 等事实
+  字段一律不变——摘要只影响展示与 Jev 出站的 note_excerpt（W03 Receipt 的摘录仍由
+  prepareEvidence 依 quote 切片独立生成，两处口径互不依赖）。
+- **查询词元与命中区间规划单一出处（2026-10-12 补）**：`extractQueryTerms`（CJK
+  bigram/单字 + 英文小写词，去重保序）与其所需词元基元（CJK/词 run 提取、bigram、
+  token 安全守卫）单一出处为 `packages/shared/src/knowledge/queryTerms.ts`——services
+  的命中感知摘要与 UI 的摘录命中高亮（§5c.3）共用同一实现，杜绝两份词元口径漂移；
+  `packages/services/src/knowledge/search/tokenizer.ts` 改为引用共享基元并 re-export
+  `extractQueryTerms`（依赖方向 services→shared，shared 禁止反向依赖），tokenizer 的
+  既有导出面与测试不变。同文件另提供 `planTextHitIntervals`（大小写不敏感子串匹配、
+  命中区间按起点合并且互不重叠；折叠大小写改变串长的罕见 Unicode 回落大小写敏感
+  匹配，保证区间偏移对原文逐字可信），供 UI 渲染 `<mark>`。
+- **FTS 多列与列权重（2026-10-12 补，schema v4）**：`chunks_fts` 由单列 `tokens` 迁移为
+  `(tokens, title, meta)` 三列。FTS5 不能 ALTER，迁移 = 建 `chunks_fts_v4` → 按
+  chunks+documents 重填 → drop 旧表 → rename，与版本号推进同事务一次完成。列语义：
+  - `tokens` = chunk 正文 token 产物（与 v3 单列同物，口径不变）；
+  - `title` = 文档标题 + 该 chunk heading 路径的 token 产物（`A > B` 中 `>` 非词元，
+    tokenizer 自然丢弃）；
+  - `meta` = 该 chunk 的 tags+links（§5b.4 结构抽取产物）的 token 产物。
+  **MATCH 不限列**：三列都参与匹配——标题词/标签词/链接词可命中，属自然语义；主次由
+  列权重表达：`bm25(chunks_fts, 1.0, 3.0, 2.0)`（tokens/title/meta；实验初值，代码注释
+  注明，待 W05 评测数据集校准）。§5b.1「无过滤参数」不变：tags **不做查询语法**、不提供
+  任何 `tag:` 过滤参数，只参与命中与加权。
+  升级语义：schema_version <4 的旧库打开即自动升级；重填在迁移事务内复用同一 tokenizer
+  （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；重填**逐行流式**（读游标
+  `iterate()` 与写入不同表，不把全库 chunks 物化进内存，内存峰值 O(1) 行）；旧数据未经结构抽取，
+  `meta` 重填为空串（tokens/title 如实重填可检索），新抽取产物随文件变更/重建自然补齐
+  ——与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
   或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
   时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口
@@ -255,6 +314,108 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 （找回与空结果不编造）、A13 的 W02 部分（切库/撤权使旧 run 失效）——证据见
 `docs/vaultview/delivery/W02_DELIVERY.md` 与 `packages/services/test/knowledge*.test.ts`。
 
+### 5b.8 索引新鲜度与自动 reconcile（2026-10-12 补）
+
+此前索引只在用户手动触发（ask 视图按钮 / requestRebuild）；vault 文件变更后索引静默
+变旧，检索（UI 与 agent VaultSearch 同样）拿到的是**上次完成索引的快照**且无任何提示。
+本节定义自动 reconcile 的触发点、边界与语义，作为实现依据。
+
+- **触发点（两处，均为 fire-and-forget，绝不阻塞调用方）**：
+  1. 装配后延迟（缺省 4s，测试可调）：host 启动即对齐一次索引——未配置源时静默跳过；
+  2. `search` 入口：距上次完成 reconcile（job 视图 finishedAtMs，取最近一次 reconcile/
+     rebuild）超过 TTL（缺省 10 分钟，测试可调）且无 running job 时触发。
+- **快照语义（陈旧一度，honest-by-design）**：触发当次的检索照旧用当前索引快照完成，
+  后台刷新结果对**下一次**查询可见；不等待、不重跑本次 run。coverage/partial 与
+  job 状态的既有如实呈现不变。
+- **范围（V1，§5d.10 同款纪律）**：`autoIndexEnabled` 缺省 false，仅 desktop 本地 host
+  装配显式开启；server/stdio/远程 host 不传即维持手动触发现状。自动触发只读本地
+  vault（无出站，ADR #5/#11 不涉）。
+- **所有者与幂等**：job 仍由 IndexCoordinator 独占（lease/fence 不变）；自动触发与
+  手动触发走同一 `startReconcile`（alreadyRunning 幂等），不新增第二条写入路径；
+  dispose 清理延迟定时器（in-flight job 由 coordinator 自身的异常路径收尾）。
+- **验收映射**：AI-1 装配后自动完成一次索引（不调 startReconcile）；AI-2 缺省关闭
+  不产生任何 job；AI-3 TTL 过期后 search 触发后台刷新且本次检索正常落定；AI-4
+  未配置源静默跳过（无未处理拒绝）。
+
+### 5b.9 本地语义召回与向量存储（2026-10-12 立项：用户裁定 route A 本地嵌入）
+
+用户裁定：语义搜索走**本地嵌入模型**（零出站、无 LLM 依赖），检索形态 = 嵌入召回 + 词法
+兜底 + （可选）Jev 打分。本节定义向量存储、生命周期、混合召回与降级语义。
+
+**模型与运行时**：
+- 模型：`BAAI/bge-small-zh-v1.5` 的 Xenova ONNX int8 量化版（~24MB，512 维，中文优化），
+  CLS 池化 + L2 归一。指令前缀（bge-zh 短查询增强）v1 **不启用**——召回与重排两处
+  必须同口径，统一无前缀；前缀收益归 A28 评测校准项。
+- 运行时：`onnxruntime-node`（N-API，Electron main 可用），**动态 import**——模块缺失 =
+  端口不可用（`semantic_unavailable`，词法照常），不构成硬依赖。
+- 分发：**首次使用时下载**（不内置安装包）：镜像清单 hf-mirror.com → huggingface.co 逐个
+  尝试，落盘 `<pluginDataDir>/knowledge/models/bge-small-zh-v1.5/`
+  （model_quantized.onnx + vocab.txt）。校验策略（如实降级）：v1 以**尺寸界**校验
+  （onnx 5–60MB / vocab 100KB–2MB，越界即删重下）+ 运行时 sha256 写日志——预固定
+  哈希因开发环境网络受限无法预下载，**发布前必须补 pin**（发布门禁）。下载失败 →
+  端口不可用，下次使用重试。打包核对项（后续）：electron-builder 需 asarUnpack
+  onnxruntime 的 .node 原生产物。
+
+**向量存储（schema v5）**：
+```sql
+CREATE TABLE chunk_vectors(
+  chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
+  model_id TEXT NOT NULL, dim INTEGER NOT NULL, vector BLOB NOT NULL
+)
+```
+- 向量 = Float32 小端 BLOB；model_id 记录产生模型（换模型 = 全量重建向量，模型 id 不匹配
+  的行不参与检索）。
+- **生命周期与 chunks 同生共死**：文档替换时按 chunks 级联清掉旧向量，新向量在
+  **embed-before-tx** 写入——嵌入（慢，纯计算）在事务外逐文档批量完成，向量行与 chunks
+  行**同事务**提交（短事务纪律不变，一致性问题不靠超时兜底）。
+- **reconcile 尾部回填**：任务走完文档扫描后，若端口可用且当前 epoch 存在缺向量的
+  chunk（存量索引/历史失败），分批嵌入补齐——启用语义检索后首次 reconcile 一次性
+  回填全库（325 文档/6255 chunk 量级为分钟级 CPU 时间，job 异步不阻塞 UI）。
+
+**混合召回（查询语义扩展）**：
+- 候选池 = 词法 FTS 命中 ∪ **向量 top-K**（K=池上限 64）：向量检索对当前 epoch 全量
+  chunk_vectors（model_id 匹配）算余弦取最近——JS 侧计算（6255×512 量级为毫秒级，
+  sqlite 向量扩展不做）。词面零重叠但语义相近的文档由此进入候选池。
+- 向量独有命中不带 bm25 分：先与词法命中按 chunkId 去重合并，再走既有「语义余弦重排」
+  （对所有池成员可用，自然交错排序）；融合/聚合/事实字段全部不变。
+- 诊断 additive：`semanticRecalled`（向量独有进入池的数量）。失败/缺数据各层独立降级：
+  模块缺/模型缺/下载失败/嵌入抛错 → 该层不可用，词法照常（既有语义）。
+
+**装配与开关**：`knowledgeSemanticEnabled` 缺省 false（仅 desktop 本地 host 暴露开关，
+V1 纪律同 §5d.10/§5b.8）；开启后装配注入 **lazy 端口**——首次 embed 时才加载
+onnxruntime/下载模型（createLocalServices 同步约束不受影响）。VaultSearch 工具与
+UI 同链受益。
+
+**验收映射**：K-VEC-1 迁移 v5 与级联清理；K-VEC-2 变更文档向量同事务写入（stub 端口）；
+K-VEC-3 回填阶段补齐存量；K-VEC-4 词面零重叠文档经向量召回进入候选（stub 端口）；
+K-VEC-5 各层降级独立且诊断如实。
+
+**准确性保障（2026-10-13 增补，用户要求「必须保证准确性」）**：
+
+- **超长 chunk 的窗口化嵌入**：bge 512 token 窗口下，1200 字符 chunk 的尾部内容语义
+  不可见（中文 ≈ 1 token/字，截断损失近半）。本地端口对超窗文本按 510 token 切多窗
+  分别推理，CLS 向量**取均值后再归一**——整段语义保留；查询天然单窗，两侧口径一致。
+  索引耗时随窗口数线性上升（可接受）。
+- **向量覆盖可观测**：洞察快照 additive `vectorCoverage`（chunksWithVectors/
+  totalChunks/modelId）——语义是否真的覆盖全库，用户看得见，不靠猜。
+- **嵌入输入构造（2026-10-13）**：嵌入输入 = 标题 + 标题路径 + **净化正文**
+  （`search/embeddingInput.ts` 纯函数：markdown 链接取文字、wikilink 别名优先、
+  裸 URL 整体移除、HTML/强调/代码标记剥离、连续空白折叠——URL 与语法标记是
+  嵌入 token 汤，会把向量拉向语法噪声）。索引侧 embed-before-tx、检索侧重排
+  补嵌共用同一组合函数（口径分叉会让余弦失去意义）。
+- **余弦下限门控（2026-10-13）**：向量独有召回仅收录余弦 ≥
+  `SEMANTIC_RECALL_FLOOR`（0.3，初值待棘轮校准后只许上调）——无答案问句的
+  「最近邻」也会有一定相似度，不设门控会让不相关文档混入候选；词法命中不受此限。
+- **重排复用已存向量（2026-10-13）**：语义重排优先复用 chunk_vectors 的已存
+  向量（与索引侧同源），仅对池内缺向量成员（回填未完成等）按组合输入补嵌——
+  消除「召回用存储向量、重排用现嵌正文」的两次嵌入不一致；缺向量成员不参与
+  余弦重排、保持原名次殿后（诚实降级）。
+- **准确性棘轮（A28 前置）**：手工核对中文标注集
+  （`packages/services/test/fixtures/semanticAccuracyDataset.ts`，语义意图问句 +
+  已知目标笔记 + 无答案负例，零/低词面重叠设计）+ 阈值门禁（Recall@30 ≥ 0.9 /
+  Hit@1 ≥ 0.6 / MRR ≥ 0.7，初值待真机首跑校准后**只许上调**）。模型在位时真跑
+  本地端口全链；模型缺失时显式 skip（NOT_RUN 诚实语义），绝不静默编造数字。
+
 ## 5c. VaultView 四视图 UI（W04，2026-10-10 落地）
 
 本节是工作单 W04 的行为契约。实现位于 `packages/ui/src/v4/vault/knowledge/`（自研新模块，
@@ -273,8 +434,9 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   「引用回跳」：智能问库的证据跳转携带 quote selector 的行号区间，打开笔记后按行锚定
   并选中原引用区间（`vault-quote-reveal.ts`，行号口径免疫 CRLF 差异——quote selector 的
   行号在原始与规范化文本中同义，字符偏移则随换行符漂移，不用偏移锚定）。
-- 「智能问库」接真实 Query/Index/Citation RPC（§5b/§5）；「洞察」「审核」在 W05/W06
-  落地前只呈现真实索引/授权状态与"未开放"说明，不伪装功能。
+- 「智能问库」接真实 Query/Index/Citation RPC（§5b/§5）；「洞察」已由 §5g 落地为
+  真实数据四区（2026-10-12，替代本节早先的占位语义）；「审核」在 W06 写路径翻转前
+  只呈现真实授权状态与"未开放"说明，不伪装功能。
 
 ### 5c.2 状态所有者（补 §1 表）
 
@@ -301,6 +463,11 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   相对路径、命中章节（matchedHeading）、有界原文节选（excerpt）、命中 chunk 数与
   「为何候选」（章节 + 命中数；**不展示百分比分数冒充准确率**，score 只进默认折叠的
   Decision trace）。多候选并列展示，不自动选一篇（A09）；用户点击才有选中态。
+- **摘录命中高亮（2026-10-12 补）**：候选 excerpt 内按本轮查询词元（§5b.5
+  `extractQueryTerms`，shared 单一出处）做 `<mark>` 高亮——大小写不敏感子串匹配、
+  命中区间不重叠（§5b.5 `planTextHitIntervals`）。纯展示层行为：excerpt 事实字段、
+  「加入 Agent」携带的引用文本与证据 Inspector 的 Receipt 摘录一律原样，不经高亮
+  逻辑改写；查询无可检索词元（如纯标点）时不渲染高亮。
 - **证据 Inspector**：候选卡「核验」→ `prepareEvidence`（签发 receipt，§5.1）→ 立即
   `resolveCitation` 复验（§5.2）→ `current` 显示有界 excerpt + 行号区间 + 「跳到原文」；
   `stale/missing/forbidden/no_source/source_stale` 各自显式呈现机器原因。跳到原文只在
@@ -330,6 +497,17 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 | 过期/撤权 | run `source_stale`、`prepareEvidence` 同名结果、resolve `forbidden/*` | 显式提示源已失效；旧候选禁止签发新 receipt（服务端已拒绝，UI 如实透传） |
 | 模型不可用 | 无 sessionId / selection 注入失败 | 检索可用，答案入口禁用并说明（A18） |
 | Host 重连/RPC 失败 | service 调用 reject（含断连代理错误码） | 错误态 + 重试按钮；重试复用同一 clientRequestId 幂等语义 |
+
+**冷启动索引引导（2026-10-12 补）**：vault 已配置但 `coverage.indexedFiles=0`（或索引
+job 进行中）时，智能问库给常驻引导，不再限于空查询态——冷启动时一次检索必然拿到空
+结果，引导若只在 idle/failed 出现，用户检索后反而失去入口。实现为结果区引导块，与
+状态条（`indexMissing`/`indexing` 两码语义不变，派生自同一模型纯函数）互补：
+- 无进行中 job：说明文案 + 「建立索引」按钮 → `startReconcile`；服务端
+  `alreadyRunning=true` 幂等返回既有任务（§5b.8），UI 以 busy 态 + 建立中态替换按钮
+  双层防重复触发；
+- job 进行中：同一位置显示进行中状态（spinner + 已索引文件计数，来自 job 视图真实
+  字段），不渲染第二个触发入口；状态随既有轮询刷新，job 离场后回到按钮或消失。
+- 未配置 vault 的既有语义（noVault 引导卡，A01）不变：`configured=false` 时不出现本块。
 
 ### 5c.5 渲染与跨平台纪律
 
@@ -440,8 +618,10 @@ npm `@typesafe-ai/sdk`，`new TypeSafeClient({ apiKey, baseURL, timeout, maxRetr
 动作词表：`SHOW_CANDIDATES / EXPAND_ONCE / ASK_CLARIFICATION / PREPARE_EVIDENCE_FOR_AGENT /
 NO_RELIABLE_MATCH`。裁决顺序（硬条件优先，Jev 不可越权）：
 
-1. 首轮检索无命中且未扩搜过且查询词元 ≥2 → `EXPAND_ONCE`，编排器以同一 query/scope/
-   硬过滤做 OR 降级重试**一次**（A11 上限；`matchRelaxedToOr` 如实入诊断）——先于空候选
+1. 首轮检索无命中且未扩搜过且 tokenizer 判定 `canRelax`（存在 ≥3 字 CJK run 或部件
+   ≥2，§5b.5；2026-10-12 前旧判据为「词元 ≥2」，单段长中文查询因此永不降级）→
+   `EXPAND_ONCE`，编排器以同一 query/scope/
+   硬过滤做 §5b.5 降级形态重试**一次**（A11 上限；`matchRelaxedToOr` 如实入诊断）——先于空候选
    终态判定，否则不可达；
 2. 无候选（两轮检索后仍空）→ `NO_RELIABLE_MATCH`——Jev 不能补召回（D32-01）。
 3. 有候选且有合法 Jev 分数：top noul ≥ `directThreshold`（实验默认 0.75）→
@@ -516,6 +696,118 @@ policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`�
 | A28 / K-JEV-6 | 真实人工标注中文集 A/B | **未实测（缺标注集）**：框架 + 合成脱敏试点集已交付 |
 | A11 | 扩搜上限一次由 policy 执行 | 已实现（policy 测试 + 既有 OR 降级回归） |
 | A35 | 决策出站独立授权、日志无全文/凭据 | 已实现（consent/telemetry 测试） |
+
+### 5d.10 配置来源与 Host 装配（2026-10-11 补：打通「模型设置」最后一公里）
+
+W05 交付了完整的决策层实现，但 `createLocalServices` 调 `createKnowledgeServices()` 时从未注入
+`decisionProviderFactory`——功能在生产链路恒为关闭，且没有任何设置面能配置凭据。本节定义配置的
+唯一来源、装配的唯一路径与生效语义，作为实现依据。
+
+**配置项与所有者（单一出处）：**
+
+| 配置 | 所有者 | 键/字段 | 默认值 |
+| --- | --- | --- | --- |
+| Jev 开关 | `AppSettings`（app 级，非 workspace 级） | `knowledgeJevEnabled` | `false`（ADR #5：缺省关闭） |
+| 决策模型提供商 | `AppSettings` | `knowledgeJevProvider`（`typesafe`/`openrouter`/`ai-gateway`） | `typesafe` |
+| TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = 官方托管端点 `https://api.typesafe.ai` |
+| TypeSafe API Key | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量） | 无 |
+| OpenRouter Jev 模型标识 | `AppSettings` | `knowledgeJevOpenrouterModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| OpenRouter Jev 端点 baseURL | `AppSettings` | `knowledgeJevOpenrouterBaseUrl`（该提供商必填，由 OpenRouter 文档提供） | 无（空 = 该提供商禁用） |
+| OpenRouter API Key | `credentialService` | `KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY` | 无 |
+| AI Gateway Jev 模型标识 | `AppSettings` | `knowledgeJevAiGatewayModel`（该提供商必填） | 无（空 = 该提供商禁用） |
+| AI Gateway 部署 baseURL | `AppSettings` | `knowledgeJevAiGatewayBaseUrl`（该提供商必填，形如 `{网关部署}/v1/systemone`，由部署方提供） | 无（空 = 该提供商禁用） |
+| AI Gateway API Key | `credentialService` | `KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY` | 无 |
+
+**决策模型提供商（2026-10-11 补，同日二修）**：评分模型与 agent 聊天模型相互独立，不进
+provider registry。**systemOne 是 Jev 全生态唯一的线协议**（Jev 没有 OpenAI 兼容端点）——
+官方托管之外，第三方 AI Gateway（TrueFoundry / Kong / Vercel AI Gateway / LiteLLM /
+Pydantic AI 等）与 OpenRouter 的 Jev 决策端点都按原样代理同一协议形状（Kong 文档：请求
+路由至 `{网关route}/v1/systemone`；OpenRouter 以 Decisions API 形态列出 Jev）。提供商之间
+只有**端点部署、凭据与模型别名**的差异，不存在协议翻译层；`JevTransport` 端口即 systemOne
+线协议本身（`createSystemOneHttpTransport`，`POST {baseURL}/v1/systemone` + Bearer），adapter
+（授权/超时/重试/校验）与提供商无关：
+
+- `typesafe`：官方托管端点 `POST {base|https://api.typesafe.ai}/v1/systemone`（§5d.3 已验证
+  契约），baseURL 可覆盖（网关/代理场景），是唯一有内置缺省端点的提供商。
+- `openrouter`：`POST {baseURL}/v1/systemone`，baseURL **必填**、由 OpenRouter 文档/控制台
+  提供——本仓不硬编码未证实公开规范 URL 的端点；模型标识为提供商侧 Jev 别名（如
+  `typesafe/jev-latest`）。
+- `ai-gateway`：`POST {baseURL}/v1/systemone`，baseURL **必填**、由网关部署方提供（各部署
+  各自的 Jev 路由，无跨部署统一默认值）；模型标识为部署侧 Jev 别名。
+
+fail-closed：远程提供商的 model/baseURL/Key 缺一即禁用（装配返回 null，grant 走 disabled，
+零出站）；typesafe 仅 Key 必填、baseURL 空白回落官方端点。各提供商凭据键独立、不混用。
+
+**决策记录（2026-10-11）**：初版曾把 openrouter / ai-gateway 适配为 chat/completions 形状
+（JSON 裁决翻译层），并给 ai-gateway 硬编码了 `ai-gateway.vercel.sh/v1` 缺省端点。经证据
+复核（Kong/TrueFoundry/Pydantic 网关文档均按 `{route}/v1/systemone` 原样代理；Jev 无
+OpenAI 兼容端点）与用户裁定，该翻译层整体拆除，统一走 systemOne 传输；无法证实公开规范
+URL 的提供商一律 baseURL 必填（fail-closed），不做隐藏默认。
+
+**装配路径（唯一写入方是 `createLocalServices`）：**
+
+```text
+设置 UI（开关/baseURL → settingService.update；Key → credentialService.save 经既有 RPC）
+        │
+desktop host 异步初始化段（initializeServices）：
+  knowledgeJevAssembly = await resolveKnowledgeJevAssembly({ settingService })
+        │   开关关 或 Key 缺失 → null（fail-closed，功能关闭）
+        ▼
+createLocalServices({ knowledgeJevAssembly })
+        │  非空才传 decisionProviderFactory（快照闭包 → systemOne transport + JevAdapter）
+        ▼
+createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5d.1 语义）
+```
+
+- **同步约束**：`createLocalServices` 是同步函数，而凭据/设置读取是异步——预解析必须发生在
+  host 已有的异步初始化段，经新 option 传入；禁止在装配函数内部引入半异步状态。
+- **内置端点（2026-10-13；同日二修 openrouter）**：typesafe → `https://api.typesafe.ai`
+  （官方文档实证）+ 路径 `/v1/systemone`；openrouter → `https://openrouter.ai/api/alpha`
+  + 路径 `/decisions`（OpenRouter「alpha/decisions」决策端点，出现在 Jev/TypeSafe 模型
+  页——openrouter **不代理** /v1/systemone 形状，首版误用标准 /api/v1 已修正）；
+  ai-gateway → `https://ai-gateway.vercel.sh/v1` + 路径 `/v1/systemone`（初值依据：
+  最知名 AI Gateway 产品；自有网关部署——Kong/TrueFoundry 等按部署路由 Jev——经设置
+  覆盖）。`baseURL` 留空 = 内置缺省；用户覆盖 baseURL 时路径仍按提供商固定。
+- **配置热生效（2026-10-13）**：Jev 配置（开关/提供商/Key/端点/模型）变更**即时生效，
+  免重启**。机制与时序：
+  ```
+  设置 UI 写配置 → indexService.refreshDecisionConfig()（确定性即时路径）
+                        ↘ 置空装配签名
+  下一决策 stage：providerSource() 解析当前装配（settings+credentials）
+        → 签名变更 → 清决策缓存（键不含端点/凭据）→ 以新装配重建 provider
+        → 授权链（grant）经同一 providerSource 绑定当前 provider
+  兜底：未触发 refresh 时，签名比较基于「上次解析时刻」，TTL 语义由每次 stage
+  解析天然覆盖（每次 stage 都重读配置，无陈旧窗口）。
+  ```
+  边界：consent 账本不受 provider 重建影响（providerId 常量）；动态源缺席
+  （server/stdio/远程）时回退静态注入或功能关闭，行为与本节早先版本一致。
+- **测试连接（2026-10-13 配置 UX）**：设置页「测试连接」按钮 →
+  `IKnowledgeIndexService.testJevConnection()`——用当前装配真实发一次最小
+  systemOne 探测（10s 超时）：2xx+合法答案=ok（含延迟）；401/403=Key 无效；
+  其余非 2xx/异常原文携带。装配缺失（开关未开/必填项缺失）→ ok=false +
+  配置未完成提示。Jev 决策与语义检索的**全部配置项变更即时生效，无需重启**
+  （语义端口经 KnowledgeSemanticContext.setPort 热切换，§5b.9）。
+- **语义端口热切换（2026-10-13）**：`KnowledgeSemanticContext` 改可变持有
+  （get port / setPort）——协调器/编排器/检索器持有同一上下文引用，setPort 后
+  全链即刻可见；`knowledgeSemanticSource`（host 侧按开关解析 lazy 本地端口）
+  经 refresh RPC 触发切换。语义检索开关从「重启生效」升级为「即时生效」；
+  模型文件缺失时下载/回填路径不变。
+- **范围裁定（V1）**：仅 desktop local host 预取装配。server/stdio/core 三条 `createLocalServices`
+  调用链不预取 → Jev 恒关闭；远程 workspace 的 knowledge 频道本就不在
+  `legacyRemoteWorkspaceRpcContract` 内，手机链路自然不可达，不触碰 `web-remote-replayable` 语义。
+- **策略参数**：阈值/预算/权重维持 policy 实验初值（§5d.5），首版不进设置 UI。
+- **安全不变式（延续 ADR #5/#11、A35）**：API Key 只存 credentialService；设置表单经既有
+  credentialService RPC 写入、不回显明文、不进日志；renderer 不持有 Key 事实；grant 流程不变。
+
+**验收场景（本轮新增）：**
+
+| ID | 场景 | 断言 |
+| --- | --- | --- |
+| K-JEV-7 | 开关关（或缺省）→ 装配 | `resolveKnowledgeJevAssembly` 返回 null；knowledge 服务 decision.provider 为 null；grant 返回 disabled（A23 语义不变） |
+| K-JEV-8 | 开关开、Key 缺失 → 装配 | 同上 fail-closed：返回 null，不出站、grant disabled |
+| K-JEV-9 | 开关开、Key 存在 → 装配 | 返回 `{ baseUrl, apiKey }` 快照；decisionProviderFactory 注入后 grant 正常签发；baseURL 覆盖生效（空串/空白回落官方默认） |
+| K-JEV-10 | 设置面写入 | 开关/baseURL 走 `settingService.update`，Key 走 `credentialService.save/delete`；AppSettings 校验 schema 接受新字段 |
+| K-JEV-11 | 提供商分发 | openrouter/ai-gateway 缺 model/Key 任一 → null（禁用）；齐备 → 对应快照且只读各自独立凭据键；三提供商线格式（规范端点/署名头/覆盖）与解析宽松度经假 fetch 逐字段断言 |
 
 ## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 
@@ -664,6 +956,10 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   未声明 destructive 的 MCP——按 W00 GO 前提必须在 runtime permission 层程序化实现
   「强制逐次确认 + 禁整工具持久 allow」（三洞清单见 §5e 引言）。这些通道当前可绕过
   PermissionRequest hook（W00 矩阵 §3–§4 实证），在前提落地前构成 NO-GO 的直接理由。
+  **2026-10-11 进展**：三洞修复与 P0/P1/P2 分级门控已在 runtime permission 层程序化落地
+  （`specs/agent-write-safety.md`，28/28 专项测试，逐路径证据
+  `docs/vaultview/delivery/S03_WRITE_SAFETY_RUNTIME_COVERAGE.md`）；**写路径仍默认关闭**，
+  本门与总门状态不变，待 S03 复评通过后按 NO-GO §3.4 以独立改动翻转。
 - **有意分歧集合（仅限以下三项，按 W00 收窄口径）**：MCP server 进程内写盘、宿主自动写盘
   （artifacts/exec 日志/memory md/workflow 草稿等 8 类）、yolo 直通——这些无法逐路径硬阻断，
   按 W00 改为「模型可见工具全覆盖 + 自动写盘审计日志 + yolo 需显式 receipt」并在本 spec 记录
@@ -694,3 +990,131 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。
 - 日志不写笔记全文、凭据、绝对路径；hook 静默路径不产生任何输出。
 - Jev 与一切外发默认关闭（ADR #5/#11）。
+
+## 5f. agent VaultSearch 工具（2026-10-12 落地：agent 的只读 vault 检索入口）
+
+此前知识流是单向的「UI 检索 → Evidence → agent 消费」，agent 自己没有检索工具（只能
+grep/read 全库暴力扫）。本节给 agent 一个与 UI 同链的只读检索入口：**复用
+`IKnowledgeQueryService` 同一条服务链（scope/sourceEpoch/coverage 语义全继承 §5b），
+agent 是第二个消费方，不是第二条链**；不新增任何存储与状态所有者。
+
+### 5f.1 协议面与桥接（方向 CLI→host）
+
+```text
+VaultSearch 工具（core handler，context.vaultSearchPort）
+    │  contracts VaultSearchPort（端口缺席 = 工具不注册，同 includeAutomation 门式）
+    ▼
+bootstrap createProtocolVaultSearchPort（drora-protocol/，requestClient 反向请求）
+    │  droraProtocolMethods.knowledgeSearch = "knowledge/search"（shared 单一出处）
+    ▼
+droraAgentService 协议分发（host 侧 if 链，同 automation/offPeak 先例）
+    │  options.knowledgeQuerySource thunk（node.ts 装配处闭包引用 knowledgeServices；
+    │  声明顺序晚于 agent service，thunk 只在请求期调用）→ 缺席 = 结构化不可用
+    ▼
+IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
+```
+
+### 5f.2 工具契约与边界
+
+- 名称 `VaultSearch`；**只读、无权限 gate**——「读操作不受限」是本 spec 既有语义
+  （§5b.2），vault 是用户显式授权配置的事实源。
+- 入参只有 `query`（必填，≤512 字符）+ `limit`（1–10，缺省 5）。§5b.1「不提供日期/
+  路径范围过滤」对 agent 面同样成立：模型无法借工具扩展授权范围（ADR #3）。
+- **零出站**：工具路径不携带 `decisionConsentId`，决策管线按 off/denied 处理
+  （§5d.6）——Jev 全局开关与逐 run 授权面完全不被该工具触达，A23 语义原样继承。
+- 结果字段白名单：`articleId/relativePath/title/matchedHeading/excerpt/quote/rank/
+  matchedChunkCount` + `status/reason` + `diagnostics{coveragePartial,
+  matchRelaxedToOr,semantic}`。**不含 score**（bm25 值不是正确率，§5d 同口径）、
+  **不含 sha 字段**（可验证性归 W03 Receipt，工具摘录是「未验证引用」）与绝对路径
+  （§5b.6）。`status` 直通 `KnowledgeQueryStatus`（retrieving 不会出现在落定后）。
+- 摘录即证据边界：vault ≠ workspace 时 excerpt 就是 agent 可见的全部内容，读全文受
+  read 工具既有 path-policy 约束（工具描述如实写明，不伪造可达性）。
+- **快照新鲜度**：检索结果反映「上次完成的索引」（§5b.8 陈旧一度语义）——host 开启
+  自动 reconcile 时，一次查询可能触发后台刷新，稍后重搜可见新笔记；工具描述如实
+  写明，不声称实时。
+
+### 5f.3 验收映射
+
+| ID | 场景 | 状态 |
+| --- | --- | --- |
+| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实 | 已实现（services 映射纯函数测试 + core handler 测试） |
+| VS-2 | 无源/空结果/失败 → 结构化 status，不编造 | 已实现（同上） |
+| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面） |
+| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误 | 已实现（分发 case 单测） |
+| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面） | 已实现（includeVaultSearch 门，同 includeAutomation） |
+
+## 5g. 洞察视图（2026-10-12 落地：VaultView 四视图之三的真实数据面）
+
+本节替代 §5c.1 中洞察视图的占位语义（「洞察建议未开放」说明随之移除）。诚实呈现原则
+不变：四区卡片全部数字来自索引 DB 与进程内 telemetry 的真实聚合，**不预估、不编造、
+不引入第二事实源**；实现位于 `packages/services/src/knowledge/index/insightsAggregator.ts`
+（聚合纯函数）与 `packages/ui/src/v4/vault/knowledge/KnowledgeInsightsView.tsx`，均为自研
+新模块，不触碰还原/上游对齐目录。
+
+### 5g.1 RPC 面（additive）
+
+- `IKnowledgeIndexService` 增 `getInsights(): Promise<KnowledgeInsightsSnapshot>`：host
+  端聚合纯查询——只读当前 `(vaultId, sourceEpoch)` 的索引 DB 行 + `DecisionTelemetry`
+  进程内快照；**不新增表、不新增列、不做后台任务、不读 vault 文件**。呈现的是索引快照
+  事实而非实时文件事实；文件变更后的新鲜度由 §5b.8 reconcile 与 coverage/job 呈现承担。
+  DTO 类型单一出处 `knowledgeTypes.ts`；ProxyChannel 面随接口自动暴露（§5c 引言同形），
+  `remoteServiceAccess` 无需改动。
+- 未配置 vault：`configured=false`，inventory 为零值结构，recentJobs 如实返回（可能为
+  空），UI 呈现既有 noVault 空态（A01 语义，不自动扫描）。
+
+### 5g.2 库存（inventory）与结构口径
+
+- documents/chunks 计数 = 当前 epoch `loadCoverage` 的 `indexedFiles`/`indexedChunks`
+  （§5b.4 同一口径，单一查询口，不做第二份 COUNT/SUM）。
+- **含 tags 文档数 / 双链总数**：从 **chunk body** 以阶段一同款纯函数重提取：
+  - frontmatter 单独成 chunk（§5b.4：ordinal=0、heading_path=null、body=完整 frontmatter
+    块含首尾 `---`）；文档级 tags = 该 chunk body 经 `parseFrontmatterChunkTags`
+    （首行 `---` + 闭合 `---` 边界判定 + `parseFrontmatterTags`，单一出处
+    markdownChunker.ts，chunker 自身同函数复用）重提取；有非空 tags 的文档计入
+    `taggedDocuments`；
+  - 双链 = 逐 chunk body 经 `extractWikilinkTargets` 重提取；**口径 = chunk 内去重、
+    跨 chunk/跨文档累计**（与索引侧写入 FTS meta 的信号一一对应）。
+  - 为什么重提取而非查 `chunks_fts.meta`：meta 是 tokenizer 产物（CJK bigram/小写词），
+    无法区分 tags 与 links、无法还原目标原文；v4 迁移前的旧数据 meta 恒为空串而 body
+    恒在——body 重提取对全部存量索引立即生效，且与索引快照严格一致（不读文件＝不为
+    洞察引入第二份文件事实）。
+- 聚合逐行流式执行（`StatementSync.iterate()`），host 内存占用与单行 body 有界，不整表
+  物化；聚合逻辑为纯函数（输入=行迭代，输出=计数），可脱离 DB 单测。
+
+### 5g.3 覆盖（coverage）
+
+复用 `loadCoverage`（§5b.4）：hidden/symlink/notMarkdown/overSize/overQuota/depth/
+truncatedFiles 逐项明细 + partial。UI 按固定顺序列出非零排除项；全零呈现「完整」，不
+渲染零计数噪声。
+
+### 5g.4 索引活动（recentJobs）
+
+`indexRepository.listRecentJobs(db, limit=10)`：按 `requested_at_ms DESC, rowid DESC`
+取最近 10 条，**任意 epoch**（与 `getStatus.job`「查看旧任务也属于诚实呈现」同口径）。
+每条呈 kind/status/时长（`finishedAtMs - startedAtMs`；未结束为进行中，不预估剩余时间）/
+indexedFiles/indexedChunks/reason/startedAtMs。
+
+### 5g.5 检索与决策（decision telemetry 快照）
+
+`DecisionTelemetry.snapshot()` 的投影子集：outboundCountTotal/cacheHitCountTotal/
+fallbackCountTotal/scoredCountTotal/inputTokensTotal/outputTokensTotal（latencySamplesMs
+不进 RPC 面——UI 无逐样本用途，避免无界数组过线）。**进程内事实：界面必须注明
+「进程内计数，重启后清零」**；Jev 默认关闭时各项为零，如实呈现为零，不冒充有决策活动。
+
+### 5g.6 UI 与验收
+
+- 四区卡片顺序：库存 → 覆盖 → 索引活动 → 检索与决策。排版只用 `text-ui-*` 令牌与语义
+  色 token（DESIGN.md）；窄屏 flex/min-w-0 适配；i18n zh/en 成对（A21 纪律测试锁定
+  `vault.*` 键集合对等）。
+- 数据获取：进入视图拉取一次 `getInsights`；`recentJobs` 存在 running 条目时以固定间隔
+  轮询（与 ask 视图 job 轮询同模式），离场即停；手动刷新按钮保留；加载/失败三态保留。
+- 服务不可用（host 未注册该频道/断连）：沿用既有 serviceUnavailable 错误态。
+
+验收映射（本节新增 K-INS-*）：
+
+| ID | 场景 | 期望 | 状态 |
+| --- | --- | --- | --- |
+| K-INS-1 | 服务级 getInsights：写入含 frontmatter tags 与 `[[wikilink]]` 的真实笔记并完成索引 | configured=true；taggedDocuments/wikilinkCount 与写入内容精确一致；recentJobs 含本次 job 且时长=终态差值；未配置 vault 时 configured=false 且 inventory 全零 | 已实现（`packages/services/test/knowledgeInsights.test.ts`） |
+| K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言 | 已实现（同上） |
+| K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化 | 纯模型断言 | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`） |
+| K-INS-4 | i18n：insights 全部键 zh/en 成对（含动态键族 exclude×7/jobKind×2/jobStatus×5，独立复核发现4 后纳入门禁） | A21 纪律测试断言（键集合对等 + 静态引用齐全 + 动态键族成员清单两语言齐全） | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`） |

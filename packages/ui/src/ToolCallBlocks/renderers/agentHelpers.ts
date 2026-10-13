@@ -1,6 +1,8 @@
 import type { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
-import { isSubagentColor } from "@/lib/subagentColors.js";
+// 运行时导入用相对路径（tsconfig 约定）：tsx 按进程 CWD 发现 tsconfig，从仓库根跑
+// node --test 时 @/ 别名不可解析（全量门禁失败修复）；type-only 导入被擦除，不受影响。
+import { isSubagentColor } from "../../lib/subagentColors.js";
 
 type AgentIntl = ReturnType<typeof useDroraIntl>["intl"];
 type AgentToolCall = ToolCallBlockRenderContext["toolCallNode"]["toolCall"];

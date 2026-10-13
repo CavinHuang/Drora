@@ -486,6 +486,19 @@ const appSettingsObjectSchema = z.object({
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   /** 自建 relay 服务端地址（mobile-relay-server.md §8；空=官方 zcode.z.ai）。 */
   relayServerUrl: nonEmptyStringSchema.optional(),
+  // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
+  knowledgeJevEnabled: z.boolean().default(false),
+  knowledgeSemanticEnabled: z.boolean().default(false),
+  // catch：历史/非法落盘值（如已废弃的枚举项）回落缺省，避免整个 settings 被判损坏隔离。
+  knowledgeJevProvider: z
+    .enum(["typesafe", "openrouter", "ai-gateway"])
+    .default("typesafe")
+    .catch("typesafe"),
+  knowledgeJevBaseUrl: nonEmptyStringSchema.optional(),
+  knowledgeJevOpenrouterModel: nonEmptyStringSchema.optional(),
+  knowledgeJevOpenrouterBaseUrl: nonEmptyStringSchema.optional(),
+  knowledgeJevAiGatewayModel: nonEmptyStringSchema.optional(),
+  knowledgeJevAiGatewayBaseUrl: nonEmptyStringSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -578,4 +591,13 @@ export const appSettingsPatchSchema = z.object({
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   /** 自建 relay 服务端地址（清空=回落官方；与 relayServerUrl 设置键同名同义）。 */
   relayServerUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
+  knowledgeJevEnabled: z.boolean().optional(),
+  knowledgeSemanticEnabled: z.boolean().optional(),
+  knowledgeJevProvider: z.enum(["typesafe", "openrouter", "ai-gateway"]).optional(),
+  knowledgeJevBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevOpenrouterModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevOpenrouterBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevAiGatewayModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
+  knowledgeJevAiGatewayBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
 });

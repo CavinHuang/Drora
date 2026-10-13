@@ -1,11 +1,17 @@
 /**
- * Jev HTTP transport 端口 + TypeSafe 默认实现（W05 / spec §5d.3）。
+ * Jev systemOne HTTP transport（W05 端口 / spec §5d.3、§5d.10 提供商维度）。
  *
- * 契约来源：2026-10-10 抓取的官方文档（docs.typesafe.ai/api.md、
- * docs.typesafe.ai/sdk/javascript.md）——POST {baseURL}/v1/systemone、
+ * systemOne 是 Jev 全生态唯一的线协议：官方托管端点契约来自 2026-10-10 抓取的
+ * 官方文档（docs.typesafe.ai/api.md、sdk/javascript.md）——POST {baseURL}/v1/systemone、
  * Authorization: Bearer、请求 {state, model, questions}、响应 {model, answers, usage}、
- * 错误 401/422/429/529。不从 Python 示例猜接口。
+ * 错误 401/422/429/529。第三方 AI Gateway（TrueFoundry / Kong / Vercel AI Gateway /
+ * LiteLLM / Pydantic AI 等）与 OpenRouter 的 Jev 决策端点都按原样代理同一协议形状
+ * （Kong 文档：请求路由至 {网关route}/v1/systemone），不存在 chat/completions 翻译层
+ * ——Jev 没有 OpenAI 兼容端点。提供商之间只有 baseURL 部署、凭据与模型别名的差异
+ * （2026-10-11 用户裁定：不硬编码无法证实公开规范 URL 的提供商端点——openrouter /
+ * ai-gateway 的 baseURL 必填、由发行方文档/部署方提供，缺失即该提供商禁用）。
  *
+ * adapter（授权/超时/重试/校验）只面向本端口，与提供商无关。
  * API Key 只在 Host 侧构造 transport 时注入；不进 RPC 面、日志与诊断。
  */
 
@@ -42,36 +48,59 @@ export interface JevTransport {
   post(request: JevTransportRequest): Promise<JevTransportResponse>;
 }
 
-export interface TypeSafeTransportOptions {
+/** TypeSafe 官方托管端点（docs.typesafe.ai，2026-10-10）；typesafe 提供商的缺省 baseURL。 */
+export const TYPESAFE_OFFICIAL_BASE_URL = "https://api.typesafe.ai";
+
+/** OpenRouter Jev 决策端点（openrouter.ai「alpha/decisions」，出现在 Jev/TypeSafe 模型页）。
+ *  注意：OpenRouter 不代理 /v1/systemone 形状——决策走独立路径，由 endpointPath 承载。 */
+export const OPENROUTER_OFFICIAL_BASE_URL = "https://openrouter.ai/api/alpha";
+/** OpenRouter 决策路径（拼在 baseURL 后）。 */
+export const OPENROUTER_DECISIONS_PATH = "/decisions";
+
+/** Vercel AI Gateway 端点（vercel.com/docs/ai-gateway）；ai-gateway 提供商的缺省 baseURL——
+ *  自有网关部署（Kong/TrueFoundry 等按部署路由 Jev）经设置覆盖。 */
+export const AI_GATEWAY_OFFICIAL_BASE_URL = "https://ai-gateway.vercel.sh/v1";
+
+const DEFAULT_MODEL = "jev-latest";
+
+export interface SystemOneTransportOptions {
   /** Host 侧安全配置注入；缺失时构造即抛错（绝不静默出站）。 */
   apiKey: string;
-  /** 默认官方端点（https://api.typesafe.ai）。 */
-  baseUrl?: string;
+  /** 提供商/网关部署的 Jev 端点 baseURL，必填（不做任何隐藏默认）；末尾斜杠剥除。 */
+  baseUrl: string;
+  /** 提供商侧模型别名覆盖（如命名空间 slug）；缺省用请求携带的官方别名（jev-latest）。 */
   model?: string;
+  /** systemOne 端点路径（默认 "/v1/systemone"）；openrouter 等按提供商覆盖（"/decisions"）。 */
+  endpointPath?: string;
   /** 注入 fetch 便于测试与宿主网络策略（默认 globalThis.fetch）。 */
   fetchImpl?: typeof fetch;
 }
 
-const DEFAULT_BASE_URL = "https://api.typesafe.ai";
-const DEFAULT_MODEL = "jev-latest";
-
-/** TypeSafe systemOne 的默认 HTTP transport（spec §5d.3 已验证契约）。 */
-export function createTypeSafeHttpTransport(options: TypeSafeTransportOptions): JevTransport {
+/** systemOne 线协议的默认 HTTP transport；所有具名提供商（typesafe/openrouter/ai-gateway）共用。 */
+export function createSystemOneHttpTransport(options: SystemOneTransportOptions): JevTransport {
   if (!options.apiKey || !options.apiKey.trim()) {
-    throw new Error("TypeSafe transport 需要 API Key（Host 侧安全配置）");
+    throw new Error("systemOne transport 需要 API Key（Host 侧安全配置）");
   }
-  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/u, "");
-  const model = options.model ?? DEFAULT_MODEL;
+  if (!options.baseUrl || !options.baseUrl.trim()) {
+    throw new Error("systemOne transport 需要端点 baseURL（提供商/网关部署方提供）");
+  }
+  const baseUrl = options.baseUrl.trim().replace(/\/+$/u, "");
+  const modelOverride = options.model?.trim() || undefined;
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
     async post(request: JevTransportRequest): Promise<JevTransportResponse> {
-      const response = await fetchImpl(`${baseUrl}/v1/systemone`, {
+      const endpointPath = options.endpointPath ?? "/v1/systemone";
+      const response = await fetchImpl(`${baseUrl}${endpointPath}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${options.apiKey}`,
         },
-        body: JSON.stringify({ state: request.state, model: request.model || model, questions: request.questions }),
+        body: JSON.stringify({
+          state: request.state,
+          model: modelOverride || request.model || DEFAULT_MODEL,
+          questions: request.questions,
+        }),
         signal: request.signal,
       });
       let body: JevSystemOneResponse | null = null;

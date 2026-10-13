@@ -1,5 +1,6 @@
 import { PermissionCapabilityGroup, type PermissionUpdate } from "@drora/contracts";
 import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@drora/shared";
+import { isP0WriteTarget } from "../../permission/write-tier-policy.js";
 
 const PROJECT_RULE_INPUT_KEYS = ["command", "url", "file_path", "path", "pattern"] as const;
 
@@ -7,6 +8,7 @@ export function buildDefaultPermissionUpdates(
   toolName: string,
   input: unknown,
   capabilityGroup?: PermissionCapabilityGroup,
+  capability?: { permissionName?: string; readOnly?: boolean },
 ): PermissionUpdate[] {
   if (capabilityGroup) {
     if (capabilityGroup !== PermissionCapabilityGroup.OfficialCua) {
@@ -22,6 +24,12 @@ export function buildDefaultPermissionUpdates(
   }
 
   const ruleContent = ruleContentFromInput(input);
+  // S03 洞 2 建议侧（specs/agent-write-safety.md §2）：P0 工具（Bash/js/未自报 readOnly
+  // 的 MCP）提取不到内容时不给「总是允许」建议——整工具持久 allow 是被禁的通道，确认窗
+  // 不应该提供它。Bash 走自有 rulePolicy（内容级建议），正常到不了这里。
+  if (!ruleContent && isP0WriteTarget({ toolName, ...capability })) {
+    return [];
+  }
   return [
     {
       behavior: "allow",

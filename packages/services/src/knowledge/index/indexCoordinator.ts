@@ -11,30 +11,23 @@
  */
 import { randomUUID } from "node:crypto";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
-import { createVaultFileSystem } from "../../obsidian-vault/vault-fs.js";
 import type { VaultConfig } from "../../obsidian-vault/config.js";
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import {
   acquireIndexLease,
   heartbeatIndexLease,
   KNOWLEDGE_INDEX_LEASE_NAME,
-  KnowledgeLeaseLostError,
   readIndexLease,
   releaseIndexLease,
-  verifyLeaseInsideTransaction,
 } from "../store/indexLease.js";
 import {
-  deleteDocumentInTransaction,
   getJob,
   getLatestJob,
   insertJobInTransaction,
-  listDocuments,
-  replaceDocumentInTransaction,
-  saveCoverageInTransaction,
   updateJobInTransaction,
 } from "../store/indexRepository.js";
-import { chunkMarkdown } from "./markdownChunker.js";
-import { scanVaultSource, type ScanExclusions } from "./sourceScanner.js";
+import { executeIndexJob } from "./indexJobRunner.js";
+import { createSemanticContext, type KnowledgeSemanticContext } from "../search/embeddingPort.js";
 import type {
   KnowledgeIndexJobKind,
   KnowledgeIndexJobStartResult,
@@ -47,6 +40,8 @@ export interface IndexCoordinatorOptions {
   leaseTtlMs?: number;
   /** 心跳间隔（默认 3s）。 */
   heartbeatIntervalMs?: number;
+  /** 语义端口上下文（spec §5b.9）：在场时索引写向量并在任务尾部回填存量；缺省 null = 纯词法。 */
+  semantic?: KnowledgeSemanticContext;
 }
 
 interface ActiveJob {
@@ -66,6 +61,7 @@ export class IndexCoordinator {
   private readonly logger = createServiceLogger("knowledge-index");
   private readonly leaseTtlMs: number;
   private readonly heartbeatIntervalMs: number;
+  private readonly semantic: KnowledgeSemanticContext;
   private readonly owner = `host-${randomUUID()}`;
   private activeJob: ActiveJob | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -77,6 +73,7 @@ export class IndexCoordinator {
   ) {
     this.leaseTtlMs = options.leaseTtlMs ?? 10_000;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 3_000;
+    this.semantic = options.semantic ?? createSemanticContext(null);
   }
 
   get ownerIdentity(): string {
@@ -279,140 +276,26 @@ export class IndexCoordinator {
     }
   }
 
-  /** 任务主体：扫描 → 对账 → 逐文档短事务（fence 校验）→ coverage/终态。 */
+  /** 任务主体委托给 indexJobRunner（扫描/对账/回填）；本方法只做生命周期收尾。 */
   private async runJob(job: ActiveJob, config: VaultConfig, sourceEpoch: number): Promise<void> {
     const startedMs = Date.now();
     try {
-      if (job.kind === "rebuild") {
-        // 重建：逐文档短事务清空当前 epoch（缓存可重建），随后与 reconcile 同一扫描路径。
-        for (const doc of listDocuments(this.db, job.vaultId, sourceEpoch)) {
-          if (job.cancelled) break;
-          try {
-            this.db.transaction((tx) => {
-              verifyLeaseInsideTransaction(tx, KNOWLEDGE_INDEX_LEASE_NAME, this.owner, job.fence, Date.now());
-              deleteDocumentInTransaction(tx, job.vaultId, sourceEpoch, doc.relativePath);
-            });
-          } catch (error) {
-            if (error instanceof KnowledgeLeaseLostError) throw error;
-            throw error;
-          }
-        }
-      }
-
-      const vault = createVaultFileSystem(config.rootPath);
-      const scan = await scanVaultSource(config.rootPath);
-      const indexed = listDocuments(this.db, job.vaultId, sourceEpoch);
-      const byPath = new Map(indexed.map((doc) => [doc.relativePath, doc]));
-      let indexedFiles = 0;
-      let indexedChunks = 0;
-      let truncatedFiles = 0;
-      let leaseLost = false;
-
-      for (const candidate of scan.files) {
-        if (job.cancelled || leaseLost) break;
-        const existing = byPath.get(candidate.relativePath);
-        if (existing && existing.mtimeMs === candidate.mtimeMs && existing.sizeBytes === candidate.size) {
-          indexedFiles += 1;
-          indexedChunks += existing.chunkCount;
-          continue; // 未变化：跳过读取（reconcile 增量语义）。
-        }
-        // 内容一律过安全门面（逐段 lstat + 2MB 上限 + sha256 同面板）。
-        const content = await vault.readFile(candidate.relativePath);
-        if (existing && existing.sha256 === content.sha256) {
-          // 内容未变（仅 mtime 抖动）：跳过重切。
-          indexedFiles += 1;
-          indexedChunks += existing.chunkCount;
-          continue;
-        }
-        const name = candidate.name.replace(/\.md$/i, "");
-        const chunked = chunkMarkdown(content.content, name);
-        try {
-          this.db.transaction((tx) => {
-            verifyLeaseInsideTransaction(tx, KNOWLEDGE_INDEX_LEASE_NAME, this.owner, job.fence, Date.now());
-            replaceDocumentInTransaction(tx, {
-              vaultId: job.vaultId,
-              sourceEpoch,
-              relativePath: content.relativePath,
-              title: chunked.title,
-              sha256: content.sha256,
-              sizeBytes: candidate.size,
-              mtimeMs: candidate.mtimeMs,
-              chunks: chunked.chunks,
-              truncated: chunked.truncated,
-              indexedAtMs: Date.now(),
-            });
-          });
-        } catch (error) {
-          if (error instanceof KnowledgeLeaseLostError) {
-            leaseLost = true;
-            break;
-          }
-          throw error;
-        }
-        indexedFiles += 1;
-        indexedChunks += chunked.chunks.length;
-        if (chunked.truncated) truncatedFiles += 1;
-      }
-
-      // 删除已消失的文档（含重命名旧路径；重命名 = 旧路径删除 + 新路径新增）。
-      const scanned = new Set(scan.files.map((file) => file.relativePath));
-      for (const doc of indexed) {
-        if (job.cancelled || leaseLost) break;
-        if (scanned.has(doc.relativePath)) continue;
-        try {
-          this.db.transaction((tx) => {
-            verifyLeaseInsideTransaction(tx, KNOWLEDGE_INDEX_LEASE_NAME, this.owner, job.fence, Date.now());
-            deleteDocumentInTransaction(tx, job.vaultId, sourceEpoch, doc.relativePath);
-          });
-        } catch (error) {
-          if (error instanceof KnowledgeLeaseLostError) {
-            leaseLost = true;
-            break;
-          }
-          throw error;
-        }
-      }
-
-      const finishedMs = Date.now();
-      if (leaseLost) {
-        // 租约已失：终态由心跳/异常路径负责；不写 coverage（新 writer 会重建）。
-        return;
-      }
-      const counters: ScanExclusions & { truncatedFiles: number } = {
-        ...scan.exclusions,
-        truncatedFiles,
-      };
-      this.db.transaction((tx) => {
-        verifyLeaseInsideTransaction(tx, KNOWLEDGE_INDEX_LEASE_NAME, this.owner, job.fence, finishedMs);
-        saveCoverageInTransaction(tx, job.vaultId, sourceEpoch, counters, indexedFiles, indexedChunks, finishedMs);
-        updateJobInTransaction(
-          tx,
-          job.jobId,
-          job.superseded
-            ? {
-                status: "superseded",
-                finishedAtMs: finishedMs,
-                reason: "source_epoch_changed",
-                indexedFiles,
-                indexedChunks,
-              }
-            : job.cancelled
-              ? {
-                  status: "cancelled",
-                  finishedAtMs: finishedMs,
-                  reason: "cancelled_by_caller",
-                  indexedFiles,
-                  indexedChunks,
-                }
-              : {
-                  status: "completed",
-                  finishedAtMs: finishedMs,
-                  reason: null,
-                  indexedFiles,
-                  indexedChunks,
-                },
-        );
-      });
+      await executeIndexJob(
+        {
+          db: this.db,
+          semantic: this.semantic,
+          owner: this.owner,
+          jobId: job.jobId,
+          kind: job.kind,
+          fence: job.fence,
+          vaultId: job.vaultId,
+          sourceEpoch,
+          superseded: job.superseded,
+          isCancelled: () => job.cancelled,
+        },
+        config,
+        sourceEpoch,
+      );
     } finally {
       if (this.activeJob?.jobId === job.jobId) {
         this.activeJob = null;

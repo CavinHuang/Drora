@@ -1,5 +1,7 @@
 /* eslint-disable max-lines -- 设置导航意图集中管理 sessionStorage、事件桥接和解析校验，拆分会让一次性意图消费顺序更难保证。 */
-import { logger } from "@/logger.js";
+// 包内导入用相对路径（tsconfig 约定）：tsx 按进程 CWD 发现 tsconfig，从仓库根跑
+// node --test 时 packages/ui/tsconfig.json 的 @/ 别名不可解析，node --test 全量门禁因此挂掉。
+import { logger } from "../logger.js";
 
 export type SettingsSectionId =
   | "general"
@@ -8,6 +10,7 @@ export type SettingsSectionId =
   | "browser"
   | "modelProvider"
   | "memory"
+  | "knowledge"
   | "plugin"
   | "mcp"
   | "skill"
@@ -69,6 +72,7 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "browser" ||
     value === "modelProvider" ||
     value === "memory" ||
+    value === "knowledge" ||
     value === "plugin" ||
     value === "mcp" ||
     value === "skill" ||

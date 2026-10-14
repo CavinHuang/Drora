@@ -23,6 +23,7 @@ import { hasPromptInput, V4InputAdmissionRejectedError } from "../input-admissio
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import { startCanonicalIntent, stableAttachmentRefs } from "./canonical-intent-replay.js";
+import { verifyEvidenceOrThrow } from "./evidence-admission.js";
 import { preemptActiveTurnAndWait } from "./session-flow.js";
 
 const CONVERSATION_COMMAND_LOG_MODULE = "bootstrap.drora_protocol_v4.commands";
@@ -128,6 +129,9 @@ async function editUserQuery(
     throw new V4EditTargetNotLatestError(payload.target.rowId);
   }
   const editTarget = resolution.editTarget;
+  // 在任何抢占、workspace rewind 与对话截断前验证旧证据。
+  // 若原文已经失效，保留用户现有的消息与工作区原状。
+  await verifyEvidenceOrThrow(host, record.app.sessionId, editTarget.intent.evidenceRefs);
   const attachmentRefs = payload.attachments ?? stableAttachmentRefs(editTarget);
   // attachments 缺省与 [] 语义不同；必须基于 effective refs 校验，
   // 才能同时允许 attachment-only edit，并在正文和附件都被清空时于 rewind 前拒绝。
@@ -309,6 +313,8 @@ async function retryTurn(
   if (!resolution?.ok || !resolution.messageId || !resolution.editTarget) {
     throw new V4RetryTargetNotLatestError(payload.target.rowId);
   }
+  // retry 同样会截断已有对话；必须先拒绝过期/失权证据。
+  await verifyEvidenceOrThrow(host, record.app.sessionId, resolution.editTarget.intent.evidenceRefs);
   const attachmentRefs = stableAttachmentRefs(resolution.editTarget);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, attachmentRefs);
   await submitConversationRewind(host, record, resolution.messageId);

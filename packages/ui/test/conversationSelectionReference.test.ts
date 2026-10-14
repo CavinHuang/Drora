@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendConversationSelectionReference,
-  appendConversationSelectionReferences,
   requestKnowledgeAgentHandoff,
+  commitKnowledgeAgentHandoff,
+  appendConversationSelectionReferences,
+  getKnowledgeAgentHandoffEventName,
+  isKnowledgeAgentHandoffEvent,
   collectConversationEvidenceRefs,
   buildPromptWithConversationSelections,
   clearConversationSelectionReferenceScope,
@@ -173,6 +176,46 @@ describe("conversation selection references", () => {
     });
     expect(result).toEqual({ ok: false, reason: "unavailable" });
     expect(getConversationSelectionReferenceScope(targetSessionId, workspaceKey)).toEqual([]);
+  });
+
+  it("Agent 接收方确认后，问题交接一次性提交真实 receipt 引用", () => {
+    vi.stubGlobal("window", new EventTarget());
+    const sessionId = "handoff-session";
+    const workspaceKey = "/handoff-space";
+    const markdown = {
+      contentType: "markdown" as const,
+      id: "verified-source",
+      sourceKey: "vault:a.md",
+      sourceTitle: "A",
+      path: "a.md",
+      text: "来自笔记 A 的真实片段",
+      evidenceReceiptId: "evr_a1",
+    };
+    let dispatched = 0;
+    window.addEventListener(getKnowledgeAgentHandoffEventName(), (event) => {
+      if (!isKnowledgeAgentHandoffEvent(event)) return;
+      const detail = event.detail;
+      if (detail.targetSessionId !== sessionId || detail.workspaceKey !== workspaceKey) return;
+      const appended = appendConversationSelectionReferences(
+        getConversationSelectionReferenceScope(sessionId, workspaceKey),
+        detail.references,
+      );
+      if (!appended.ok) return;
+      commitKnowledgeAgentHandoff(detail, appended);
+      detail.result = appended;
+      dispatched += 1;
+    });
+    expect(requestKnowledgeAgentHandoff({
+      targetSessionId: sessionId,
+      workspaceKey,
+      prompt: "比较一下",
+      references: [markdown],
+    })).toMatchObject({ ok: true });
+    expect(dispatched).toBe(1);
+    expect(collectConversationEvidenceRefs(
+      getConversationSelectionReferenceScope(sessionId, workspaceKey),
+    )).toEqual([{ receiptId: "evr_a1" }]);
+    clearConversationSelectionReferenceScope(sessionId, workspaceKey);
   });
 
   it("新发送只序列化 userselect text，并恢复可见正文与 chips", () => {

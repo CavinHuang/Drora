@@ -111,6 +111,12 @@ export interface KnowledgeServicesOptions {
    */
   reviewWritePathEnabled?: boolean;
   /**
+   * S03 hard safety gate proof supplied by a verified host runtime.
+   * The current production node.ts deliberately does not supply this: NO-GO.
+   * Only use true in dedicated safety-gate tests until S03 lands.
+   */
+  reviewWriteSafetyGatePassed?: boolean;
+  /**
    * 索引自动 reconcile（spec §5b.8）：缺省 false，仅 desktop 本地 host 装配显式开启。
    * 触发点：装配后延迟一次 + search 入口 TTL 过期时；均 fire-and-forget，检索照旧用
    * 当前快照（陈旧一度语义）。job 仍由 IndexCoordinator 独占，与手动触发同路径幂等。
@@ -204,6 +210,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     db,
     pluginDataDir,
     writePathEnabled: options.reviewWritePathEnabled,
+    writeSafetyGatePassed: options.reviewWriteSafetyGatePassed === true,
   });
 
   const indexService: IKnowledgeIndexService = {

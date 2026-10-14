@@ -72,6 +72,7 @@ export function KnowledgeReviewView({
   const [proposals, setProposals] = React.useState<readonly KnowledgeReviewProposalView[] | null>(null);
   const [listFailed, setListFailed] = React.useState(false);
   const [writePathEnabled, setWritePathEnabled] = React.useState<boolean | null>(null);
+  const [writeSafetyGatePassed, setWriteSafetyGatePassed] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set());
@@ -96,12 +97,14 @@ export function KnowledgeReviewView({
   const refresh = React.useCallback(async (): Promise<void> => {
     if (!reviewService) return;
     try {
-      const [list, writePath] = await Promise.all([
+      const [list, writePath, gate] = await Promise.all([
         reviewService.listProposals(),
         Promise.resolve(reviewService.isWritePathEnabled()),
+        Promise.resolve(reviewService.isWritePathActivationAllowed()),
       ]);
       setProposals(list);
       setWritePathEnabled(writePath);
+      setWriteSafetyGatePassed(gate);
       setListFailed(false);
     } catch {
       setListFailed(true);
@@ -316,13 +319,18 @@ export function KnowledgeReviewView({
                 <p className="mt-0.5 text-ui-sm text-foreground-subtle">
                   {intl.formatMessage({ id: "vault.review.writePathToggleHint" })}
                 </p>
+                {!writeSafetyGatePassed && (
+                  <p className="mt-1 text-ui-sm text-warning" data-testid="review-write-safety-gate-blocked">
+                    {intl.formatMessage({ id: "vault.review.s03GateBlocked" })}
+                  </p>
+                )}
               </div>
               {writePathEnabled === null ? (
                 <Loader2 className="size-4 shrink-0 animate-spin text-foreground-subtle" />
               ) : (
                 <Switch
                   checked={writePathEnabled}
-                  disabled={busy !== null}
+                  disabled={busy !== null || !writeSafetyGatePassed}
                   onCheckedChange={toggleWritePath}
                   aria-label={intl.formatMessage({ id: "vault.review.writePathToggle" })}
                 />

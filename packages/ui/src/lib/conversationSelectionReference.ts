@@ -63,6 +63,51 @@ export type ConversationSelectionAppendResult =
 
 const ADD_EVENT = "drora:conversation-selection-add";
 const KNOWLEDGE_HANDOFF_EVENT = "drora:knowledge-agent-handoff";
+const KNOWLEDGE_CITATION_OPEN_EVENT = "drora:knowledge-citation-open";
+
+export type KnowledgeCitationOpenResult =
+  | { ok: true }
+  | { ok: false; reason: "unavailable" | "stale" | "missing" | "forbidden" | "failed" };
+
+export interface KnowledgeCitationOpenEventDetail {
+  targetSessionId: string;
+  workspaceKey: string;
+  receiptId: string;
+  /** Set immediately by exactly one active VaultView to acknowledge ownership. */
+  accepted: boolean;
+  finish: (result: KnowledgeCitationOpenResult) => void;
+}
+
+/** Do not trust path, quote, or heading from the caller: resolve the receipt in VaultView. */
+export async function requestKnowledgeCitationOpen(input: {
+  targetSessionId: string;
+  workspaceKey: string;
+  receiptId: string;
+}): Promise<KnowledgeCitationOpenResult> {
+  if (!input.targetSessionId.trim() || !input.workspaceKey.trim() || !input.receiptId.trim()) {
+    return { ok: false, reason: "unavailable" };
+  }
+  return new Promise((resolve) => {
+    const detail: KnowledgeCitationOpenEventDetail = {
+      ...input,
+      accepted: false,
+      finish: resolve,
+    };
+    window.dispatchEvent(new CustomEvent(KNOWLEDGE_CITATION_OPEN_EVENT, { detail }));
+    if (!detail.accepted) resolve({ ok: false, reason: "unavailable" });
+  });
+}
+
+export function getKnowledgeCitationOpenEventName(): string {
+  return KNOWLEDGE_CITATION_OPEN_EVENT;
+}
+
+export function isKnowledgeCitationOpenEvent(
+  event: Event,
+): event is CustomEvent<KnowledgeCitationOpenEventDetail> {
+  return event.type === KNOWLEDGE_CITATION_OPEN_EVENT && event instanceof CustomEvent;
+}
+
 
 export type KnowledgeAgentHandoffResult =
   | ConversationSelectionAppendResult

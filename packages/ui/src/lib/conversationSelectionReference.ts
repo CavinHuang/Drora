@@ -28,6 +28,8 @@ export interface MarkdownSelectionReference extends ConversationSelectionText {
   contentType: "markdown";
   sourceKey: string;
   sourceTitle: string;
+  /** Renderer-only: opaque server-issued receipt; never serialize into the model-facing userselect block. */
+  evidenceReceiptId?: string;
 }
 
 export type ConversationSelectionReference = MessageSelectionReference | MarkdownSelectionReference;
@@ -136,7 +138,20 @@ export function appendConversationSelectionReference(
     return { ok: false, reason: "single" };
   }
   const key = getConversationSelectionDedupeKey(reference);
-  if (current.some((item) => getConversationSelectionDedupeKey(item) === key)) {
+  const duplicateIndex = current.findIndex((item) => getConversationSelectionDedupeKey(item) === key);
+  if (duplicateIndex !== -1) {
+    const existing = current[duplicateIndex];
+    // A reverified receipt must replace the stale one even when the visible quote is identical.
+    if (
+      reference.contentType === "markdown" &&
+      reference.evidenceReceiptId &&
+      existing?.contentType === "markdown" &&
+      existing.evidenceReceiptId !== reference.evidenceReceiptId
+    ) {
+      const next = [...current];
+      next[duplicateIndex] = reference;
+      return { ok: true, references: next, duplicate: false };
+    }
     return { ok: true, references: current, duplicate: true };
   }
   if (current.length >= CONVERSATION_SELECTION_MAX_COUNT) {
@@ -147,6 +162,19 @@ export function appendConversationSelectionReference(
     return { ok: false, reason: "total" };
   }
   return { ok: true, references: [...current, reference], duplicate: false };
+}
+
+/** Read the only trusted receipt identifiers from frozen composer selections; ordinary quotes carry none. */
+export function collectConversationEvidenceRefs(
+  references: readonly ConversationSelectionReference[],
+): Array<{ receiptId: string }> {
+  const receipts = new Set<string>();
+  for (const ref of references) {
+    if (ref.contentType === "markdown" && ref.evidenceReceiptId) {
+      receipts.add(ref.evidenceReceiptId);
+    }
+  }
+  return [...receipts].map((receiptId) => ({ receiptId }));
 }
 
 export function parsePromptConversationSelections(text: string): {

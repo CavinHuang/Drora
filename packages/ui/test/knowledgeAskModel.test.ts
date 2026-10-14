@@ -281,6 +281,33 @@ test("候选展开：默认 5 篇，可展开全部；选中只由用户动作�
   assert.equal(state.selectedArticleId, "art-3");
 });
 
+test("COMPARE 候选手选多选、再次点击取消，新查询必须清空选择", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted",
+    query: "比较两个笔记",
+    clientRequestId: "compare-1",
+    intent: "compare",
+  });
+  state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "compare-run" }) });
+  expectSelectedNone();
+  function expectSelectedNone() {
+    assert.deepEqual(state.selectedArticleIds, []);
+    assert.equal(state.selectedArticleId, null);
+  }
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "a" });
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "b" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "a" });
+  assert.deepEqual(state.selectedArticleIds, ["b"]);
+  state = reduceKnowledgeAsk(state, {
+    type: "submitStarted",
+    query: "新的比较",
+    clientRequestId: "compare-2",
+    intent: "compare",
+  });
+  expectSelectedNone();
+});
+
 test("getAskOutcome：服务端结构化状态完整映射（含 partial/无源/过期）", () => {
   const base = submitStarted();
   assert.equal(getAskOutcome(base), "submitting");

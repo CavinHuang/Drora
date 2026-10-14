@@ -33,6 +33,7 @@ const SOURCE_LINE =
 export function readKnowledgeTurnCitations(
   turnId: string,
   userInputs: readonly SourceInput[],
+  headerSourceCommandId?: string,
 ): KnowledgeTurnCitation[] {
   // One source-bound canonical input per turn. Multiple independent user
   // inputs (e.g. a guide/steer) must not be combined into an invented mapping.
@@ -44,6 +45,13 @@ export function readKnowledgeTurnCitations(
   );
   if (bound.length !== 1) return [];
   const input = bound[0]!;
+  if (headerSourceCommandId && input.sourceCommandId !== headerSourceCommandId) return [];
+  // A second real user command in the same product turn is an ambiguous
+  // citation scope. Do not silently attach original receipts to a later answer.
+  if (userInputs.some((row) =>
+    row.turnId === turnId && row.origin === "realUser" &&
+    row.sourceCommandId !== input.sourceCommandId
+  )) return [];
   const receipts = input.evidenceRefs ?? [];
   if (receipts.length < 1 || receipts.length > 5) return [];
   if (new Set(receipts.map((r) => r.receiptId)).size !== receipts.length) return [];

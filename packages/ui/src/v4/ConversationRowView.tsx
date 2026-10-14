@@ -1702,6 +1702,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           messageKey={`${row.rowId}:${row.entityId ?? ""}`}
           renderDroraFileCitations
           knowledgeCitationIndices={row.state === "complete" ? context.knowledgeCitationIndices : undefined}
+          knowledgeCitationScopeKey={row.state === "complete" ? context.knowledgeCitationScopeKey : undefined}
           onOpenKnowledgeCitation={row.state === "complete" ? context.onOpenKnowledgeCitation : undefined}
           streaming={streaming}
           workspacePath={context.workspacePath}

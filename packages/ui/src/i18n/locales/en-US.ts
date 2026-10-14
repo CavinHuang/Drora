@@ -7717,6 +7717,7 @@ const enUS: Record<string, string> = {
   "vault.ask.evidence.attached": "Evidence receipt attached to the session composer; server re-verifies on send",
   "vault.review.subtitle": "Proposal → manual approval → ledger execution (the single entry for L2 governed writes; every action lands in the ledger)",
   "vault.review.writePathToggle": "L2 reviewed write-back",
+  "vault.review.s03GateBlocked": "The S03 hard write-safety gate has not passed. L2 writing stays disabled; reviewing and approving remain available.",
   "vault.review.writePathToggleHint":
     "Off by default. When enabled, applying/undoing approved proposals actually writes to disk (S03 gate is GO; see specs/write-safety-gating.md). Each execution still requires its own approval.",
   "vault.review.listFailed": "Failed to load proposals",

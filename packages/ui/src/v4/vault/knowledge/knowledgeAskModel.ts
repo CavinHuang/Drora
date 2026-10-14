@@ -94,6 +94,8 @@ export interface KnowledgeAskState {
   visibleCandidateLimit: number;
   /** 用户显式选中的候选；模型从不自动选中（A09 多候选不强选）。 */
   selectedArticleId: string | null;
+  /** Explicit multi-selection for COMPARE; never implicitly select search results. */
+  selectedArticleIds: string[];
   evidence: Readonly<Record<string, KnowledgeEvidenceInspectState>>;
   /** host 层失败（RPC reject / 断连代理），区别于 run 的结构化 status。 */
   error: string | null;
@@ -109,6 +111,7 @@ export function createInitialKnowledgeAskState(): KnowledgeAskState {
     pendingSubmit: null,
     visibleCandidateLimit: ASK_DEFAULT_VISIBLE_CANDIDATES,
     selectedArticleId: null,
+    selectedArticleIds: [],
     evidence: {},
     error: null,
   };
@@ -148,6 +151,7 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
         },
         visibleCandidateLimit: ASK_DEFAULT_VISIBLE_CANDIDATES,
         selectedArticleId: null,
+        selectedArticleIds: [],
         evidence: {},
         error: null,
       };
@@ -207,8 +211,15 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
     }
     case "expandCandidates":
       return { ...state, visibleCandidateLimit: Math.max(1, action.limit) };
-    case "candidateSelected":
-      return { ...state, selectedArticleId: action.articleId };
+    case "candidateSelected": {
+      if (state.current?.intent === "compare" && action.articleId) {
+        const selectedArticleIds = state.selectedArticleIds.includes(action.articleId)
+          ? state.selectedArticleIds.filter((id) => id !== action.articleId)
+          : [...state.selectedArticleIds, action.articleId];
+        return { ...state, selectedArticleIds, selectedArticleId: null };
+      }
+      return { ...state, selectedArticleId: action.articleId, selectedArticleIds: [] };
+    }
     case "evidenceChecking":
       return { ...state, evidence: { ...state.evidence, [action.articleId]: { phase: "checking" } } };
     case "evidenceResolved":

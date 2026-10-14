@@ -415,6 +415,63 @@ test("run 语义：clientRequestId 幂等；cancelRun 后 in-flight 结果按代
   }
 });
 
+test("查询幂等：并发重试只建一个 Run，变更问题/跨会话复用 key 必须拒绝", async () => {
+  const env = await createEnv();
+  try {
+    await configureVaultAt(env.pluginDataDir, env.vaultA);
+
+    // 同一轮 RPC 断线重试并发抵达：源解析未结束前也只能产生一个 Run。
+    const requests = Array.from({ length: 12 }, () =>
+      env.services.queryService.createRun({
+        query: "唯一查询 alpha",
+        clientRequestId: "singleflight-key",
+        sessionId: "session-a",
+      }),
+    );
+    const runs = await Promise.all(requests);
+    assert.equal(new Set(runs.map((run) => run.runId)).size, 1);
+    assert.equal(runs[0]?.sessionId, "session-a");
+    assert.equal(runs[0]?.query, "唯一查询 alpha");
+
+    // 完成后的重试仍返回同一 Run，不能偷偷重新检索或重新绑定输入。
+    const retry = await env.services.queryService.createRun({
+      query: "唯一查询 alpha",
+      clientRequestId: "singleflight-key",
+      sessionId: "session-a",
+    });
+    assert.equal(retry.runId, runs[0]?.runId);
+
+    // 错复用客户端键，绝不能返回另一问题或另一会话的旧结果。
+    await assert.rejects(
+      () => env.services.queryService.createRun({
+        query: "另一个问题 beta",
+        clientRequestId: "singleflight-key",
+        sessionId: "session-a",
+      }),
+      /clientRequestId 已绑定其他查询或会话/,
+    );
+    await assert.rejects(
+      () => env.services.queryService.createRun({
+        query: "唯一查询 alpha",
+        clientRequestId: "singleflight-key",
+        sessionId: "session-b",
+      }),
+      /clientRequestId 已绑定其他查询或会话/,
+    );
+
+    // 不携带 sessionId 的纯检索请求不能借用已绑定 session 的 key。
+    await assert.rejects(
+      () => env.services.queryService.createRun({
+        query: "唯一查询 alpha",
+        clientRequestId: "singleflight-key",
+      }),
+      /clientRequestId 已绑定其他查询或会话/,
+    );
+  } finally {
+    await destroyEnv(env);
+  }
+});
+
 test("requestRebuild 清空重建；同 epoch 重复提交幂等", async () => {
   const env = await createEnv();
   try {

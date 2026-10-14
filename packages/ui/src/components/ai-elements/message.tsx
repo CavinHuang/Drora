@@ -42,7 +42,8 @@ import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from "streamdo
 import type { Pluggable, PluggableList } from "unified";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import {
-  createKnowledgeCitationRemarkPlugin,
+  knowledgeCitationRemarkPlugin,
+  knowledgeCitationScopeDefinition,
   resolveBoundKnowledgeCitation,
 } from "@/lib/knowledgeCitationMarkdown.js";
 import {
@@ -1369,6 +1370,18 @@ export const MessageResponse = memo(
     // Streamdown drops mdast custom hProperties, so mint a capability *after*
     // model output and tie it to the rendered turn/scope.
     const knowledgeCitationNonce = useMemo(() => createUuid(), [knowledgeCitationScopeKey]);
+    const knowledgeCitationSourceDefinition = useMemo(
+      () => !renderStreaming && onOpenKnowledgeCitation && knowledgeCitationIndices?.length
+        ? knowledgeCitationScopeDefinition(knowledgeCitationNonce, knowledgeCitationIndices)
+        : "",
+      [knowledgeCitationIndices, knowledgeCitationNonce, onOpenKnowledgeCitation, renderStreaming],
+    );
+    const scopedMarkdown = useMemo(
+      () => knowledgeCitationSourceDefinition
+        ? `${targetMarkdown}\\n\\n${knowledgeCitationSourceDefinition}\\n`
+        : targetMarkdown,
+      [targetMarkdown, knowledgeCitationSourceDefinition],
+    );
     const messageRemarkPlugins = useMemo<PluggableList>(
       () => [
         // 显式传 remarkPlugins 会覆盖 Streamdown 默认插件；
@@ -1381,7 +1394,7 @@ export const MessageResponse = memo(
           ? [createDroraFileCitationRemarkPlugin(workspacePath, workspaceHomePath)]
           : []),
         ...(onOpenKnowledgeCitation && knowledgeCitationIndices?.length && !renderStreaming
-          ? [createKnowledgeCitationRemarkPlugin(knowledgeCitationIndices, knowledgeCitationNonce)]
+          ? [knowledgeCitationRemarkPlugin]
           : []),
       ],
       [
@@ -1711,7 +1724,7 @@ export const MessageResponse = memo(
           animated={false}
           isAnimating={false}
         >
-          {targetMarkdown}
+          {scopedMarkdown}
         </Streamdown>
       </MessageResponseMarkdownBoundary>
     );

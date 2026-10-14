@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createKnowledgeCitationRemarkPlugin,
+  knowledgeCitationScopeDefinition,
+  linkKnowledgeCitationsFromScopeDefinition,
   linkKnownKnowledgeCitations,
   parseKnowledgeCitationHref,
   resolveBoundKnowledgeCitation,
@@ -75,4 +77,46 @@ describe("Obsidian turn-scoped inline source markers", () => {
     expect(tree.children?.[0]?.children?.filter((n) => n.type === "link")).toHaveLength(2);
     expect(tree.children?.[1]?.url).toBe("https://example.com");
   });
+  it("pulls current indices and nonce from a parsed per-render marker, not a cached plugin closure", () => {
+    const first = {
+      type: "root",
+      children: [
+        paragraph("Evidence [1] [2]"),
+        {
+          type: "definition",
+          identifier: "drora-knowledge-scope-nonce_one--1",
+          url: "#drora-knowledge-scope-nonce_one",
+        },
+      ],
+    };
+    const second = {
+      type: "root",
+      children: [
+        paragraph("Evidence [1] [2]"),
+        {
+          type: "definition",
+          identifier: "drora-knowledge-scope-nonce_two--2",
+          url: "#drora-knowledge-scope-nonce_two",
+        },
+      ],
+    };
+    expect(knowledgeCitationScopeDefinition("nonce_one", [1, 1])).toBe(
+      "[drora-knowledge-scope-nonce_one--1]: #drora-knowledge-scope-nonce_one",
+    );
+    linkKnowledgeCitationsFromScopeDefinition(first);
+    linkKnowledgeCitationsFromScopeDefinition(second);
+    expect(first.children[0]?.children?.filter((node) => node.type === "link").map((node) => node.url))
+      .toEqual(["#drora-knowledge-source-1--nonce_one"]);
+    expect(second.children[0]?.children?.filter((node) => node.type === "link").map((node) => node.url))
+      .toEqual(["#drora-knowledge-source-2--nonce_two"]);
+  });
+
+  it("does not allow unmarked AST text to become a clickable source", () => {
+    const tree = { type: "root", children: [paragraph("[1]") ] };
+    linkKnowledgeCitationsFromScopeDefinition(tree);
+    expect(tree.children[0]?.children?.[0]?.type).toBe("text");
+    expect(knowledgeCitationScopeDefinition("", [1])).toBe("");
+    expect(knowledgeCitationScopeDefinition("nonce", [8])).toBe("");
+  });
+
 });

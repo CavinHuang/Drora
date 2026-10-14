@@ -52,6 +52,7 @@ export function linkKnownKnowledgeCitations(
         const index = Number(match[1]);
         if (!allowed.has(index)) continue;
         const at = match.index;
+        if (at === undefined) continue;
         if (at > offset) children.push({ type: "text", value: child.value.slice(offset, at) });
         children.push({
           type: "link",

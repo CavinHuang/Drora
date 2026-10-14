@@ -120,6 +120,10 @@ test("S03 explicit verified gate: persisted preference restores, toggles are ser
       await first.reviewService.setWritePathEnabled(true);
       assert.equal(first.reviewService.isWritePathEnabled(), true);
       assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, true);
+      const immediateRevocation = first.reviewService.setWritePathEnabled(false);
+      assert.equal(first.reviewService.isWritePathEnabled(), false, "revocation must not await IO");
+      await immediateRevocation;
+      await first.reviewService.setWritePathEnabled(true);
       // Three concurrent requests must commit in invocation order, not IO completion order.
       await Promise.all([
         first.reviewService.setWritePathEnabled(false),

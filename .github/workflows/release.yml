@@ -151,9 +151,15 @@ jobs:
         # macOS runner 默认 ulimit -n 256:mobile-web-official 海量小文件拷贝
         # 会 EMFILE 崩溃(v0.0.9 首跑实证)——每个 step 新 shell,须在本步内抬限。
         run: |
-          # Windows bash 不允许修改 open files 限制——失败忽略（win 无 EMFILE 问题）；
-          # macOS 抬到 10240 防 mobile-web-official 海量小文件 EMFILE（v0.0.9 首跑实证）。
-          ulimit -n 10240 2>/dev/null || true
+          # macOS runner 的 kern.maxfilesperproc 系统上限太低：单抬 ulimit 软限仍会
+          # EMFILE（v0.0.9 三跑实证：10240 下 electron-builder 拷 mobile-web/app
+          # 依赖海量小文件依旧打满）——先 sysctl 调系统上限再抬软限。
+          # Windows bash 不允许改 open files 限制——失败忽略（win 无 EMFILE 问题）。
+          if [ "${{ matrix.builder-os }}" = "mac" ]; then
+            sudo sysctl -w kern.maxfiles=65536
+            sudo sysctl -w kern.maxfilesperproc=65536
+            ulimit -n 65536
+          fi
           for attempt in 1 2 3; do
             if node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}; then
               exit 0

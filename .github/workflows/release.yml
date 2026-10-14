@@ -97,6 +97,9 @@ jobs:
       # node-repl-host 还依赖 @drora/core、@drora/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包
       - name: Emit workspace dists (tsc -b project references)
+        # 32 提交后类型图贴 CI 默认堆上限，间歇 OOM（v0.0.9 二跑实证）——抬堆。
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
         run: node scripts/build-desktop-agent-cli.mjs
@@ -149,7 +152,9 @@ jobs:
         # macOS runner 默认 ulimit -n 256:mobile-web-official 海量小文件拷贝
         # 会 EMFILE 崩溃(v0.0.9 首跑实证)——每个 step 新 shell,须在本步内抬限。
         run: |
-          ulimit -n 10240
+          # Windows bash 不允许修改 open files 限制——失败忽略（win 无 EMFILE 问题）；
+          # macOS 抬到 10240 防 mobile-web-official 海量小文件 EMFILE（v0.0.9 首跑实证）。
+          ulimit -n 10240 2>/dev/null || true
           for attempt in 1 2 3; do
             if node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}; then
               exit 0
@@ -252,6 +257,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Emit workspace dists
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
       - name: Build CLI bundle with dependency closure
         run: node scripts/build-desktop-agent-cli.mjs

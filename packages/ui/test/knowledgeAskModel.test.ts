@@ -559,3 +559,23 @@ test("late search completion cannot resurrect a cancelled run", () => {
   assert.equal(unchanged, state);
   assert.equal(unchanged.current?.cancelledByUser, true);
 });
+
+test("comparison picker enforces the same five-source limit as Agent handoff", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted", query: "compare", clientRequestId: "compare-limit", intent: "compare",
+  });
+  state = reduceKnowledgeAsk(state, {
+    type: "runCreated", run: makeRun({ runId: "run-compare", status: "ready" }),
+  });
+  for (const articleId of ["a", "b", "c", "d", "e"]) {
+    state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId });
+  }
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "c", "d", "e"]);
+  const full = state;
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.equal(state, full, "sixth candidate is rejected without changing the selection");
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "c" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e", "f"]);
+});

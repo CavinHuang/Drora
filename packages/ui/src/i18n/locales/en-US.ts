@@ -7515,9 +7515,9 @@ const enUS: Record<string, string> = {
 "vault.ask.candidate.verify": "Verify",
 "vault.ask.candidate.reverify": "Verify again",
 "vault.ask.candidate.openNote": "Open source",
-"vault.ask.candidate.addToAgent": "Add to Agent (plain quote)",
+"vault.ask.candidate.addToAgent": "Add verified evidence to Agent",
 "vault.ask.candidate.addToAgentHint":
-    "Adds the candidate excerpt to the current session input as a plain userselect quote — not a verified evidence receipt.",
+    "Rechecks the source now and attaches an evidence receipt. Agent admission and queued execution will check it again.",
 "vault.ask.candidate.askAbout": "Ask about this",
 "vault.ask.candidate.needSession": "Open Obsidian from the right of an Agent session to use this action",
 "vault.ask.evidence.verified": "Verified: current file version matches the citation",

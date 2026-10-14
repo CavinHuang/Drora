@@ -579,3 +579,37 @@ test("comparison picker enforces the same five-source limit as Agent handoff", (
   state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
   assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e", "f"]);
 });
+
+test("ANSWER supports explicit multi-note selection, deselection and the five-source limit", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted", query: "总结这些笔记", clientRequestId: "answer-multi", intent: "answer",
+  });
+  state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "answer-run", status: "ready" }) });
+  for (const id of ["a", "b", "c", "d", "e"]) {
+    state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: id });
+  }
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "c", "d", "e"]);
+  assert.equal(state.selectedArticleId, null);
+  assert.equal(reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" }), state);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "c" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e", "f"]);
+  state = reduceKnowledgeAsk(state, {
+    type: "submitStarted", query: "another question", clientRequestId: "answer-new", intent: "answer",
+  });
+  assert.deepEqual(state.selectedArticleIds, []);
+});
+
+test("cancel acknowledgement immediately exits retrieving, without waiting for the service search result", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "run-cancel", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-cancel" });
+  assert.equal(getAskOutcome(state), "cancelled");
+  assert.equal(state.phase, "settled");
+  const late = reduceKnowledgeAsk(state, {
+    type: "runSettled", run: makeRun({ runId: "run-cancel", status: "ready" }),
+  });
+  assert.equal(getAskOutcome(late), "cancelled");
+});

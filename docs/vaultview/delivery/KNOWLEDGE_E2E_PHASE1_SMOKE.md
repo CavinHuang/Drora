@@ -39,16 +39,20 @@
 | G14 | ANSWER / COMPARE 尝试选第六篇、取消一篇后重选 | 第六篇不能添加；取消后可以换选，COMPARE 最少两篇才能交接 | 未执行 |
 | G15 | 正在搜索时点击取消，并让原搜索 RPC 延迟返回；再创建新搜索 | UI 不持续显示“检索中”；已取消请求和晚到结果不能覆盖新查询 | 未执行 |
 | G16 | 在多篇 ANSWER 中修改其中一篇后点击准备交接 | 整批交接 fail-closed，不能只将另一篇可信材料送进 Agent | 未执行 |
+| G17 | 完成两轮检索后展开上一轮，点击旧笔记 | 点击时重新 prepareEvidence + resolveCitation，仅在 current 时按新 quote 位置打开 | 未执行 |
+| G18 | 在两轮检索之间修改/删除上一轮笔记或切换 Vault，再点击旧候选 | 拒绝历史路径直接回跳；显示结构化 stale/missing/forbidden，不打开错误文件 | 未执行 |
+| G19 | 在同一 Agent Session 中将上一轮笔记重新「加入 Agent」后追问 | 重新签发当前 Receipt，Composer 收到原文与新 ID；发送及队列提升继续复验 | 未执行 |
+| G20 | 旧笔记复验 RPC 挂起时切换会话或发起新检索 | 迟到引用不打开笔记，也不进入新 Session 的 Composer | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G16 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G20 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 
 - FIND/ANSWER/COMPARE 的独立答案生成服务；当前跨文章回答仅完成“经用户选源 → 全部核验 → 交给现有 Agent”的交接，不能宣称已经完成模型回答质量评测。
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
-- 「就此追问」侧会话仍走原普通选区引用语义，不将其声称为 Receipt 可信链路。
+- 候选卡的「就此追问」侧会话仍走普通选区引用语义，不将其声称为 Receipt 可信链路。与此不同，「上一轮 → 加入 Agent」是同 Session 的显式可信证据重新核验流程。

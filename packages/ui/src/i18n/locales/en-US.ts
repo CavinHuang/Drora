@@ -1178,6 +1178,7 @@ const enUS: Record<string, string> = {
   "chat.selections.evidenceSourceMismatch": "The source list no longer matches your trusted references. Restore the sources or prepare the question again from Knowledge Search.",
   "chat.knowledgeTurn.sources": "Sources for this answer",
   "chat.knowledgeTurn.disclaimer": "Bound to receipts submitted with this turn; each click revalidates the source. Model citations are not fact-checking.",
+  "chat.knowledgeTurn.mentioned": "Mentioned",
   "chat.knowledgeTurn.gaps": "{missing} of {total} answer prose blocks lack a known source number. Review manually; this is not a factual accuracy verdict.",
   "chat.knowledgeTurn.unknown": "The answer cites unknown source numbers: {numbers}. Check the original notes.",
   "chat.selections.openVerifiedSource": "Verify and open source",

@@ -6,6 +6,8 @@
  * Transform mdast text nodes (not raw Markdown strings) so code, HTML, links,
  * headings and reference definitions cannot be silently rewritten.
  */
+import type { Plugin } from "unified";
+
 export const KNOWLEDGE_CITATION_HASH_PREFIX = "#drora-knowledge-source-";
 
 interface MarkdownNode {
@@ -84,8 +86,8 @@ export function linkKnownKnowledgeCitations(
   visit(tree);
 }
 
-export function createKnowledgeCitationRemarkPlugin(indices: readonly number[]) {
+export function createKnowledgeCitationRemarkPlugin(indices: readonly number[]): Plugin {
   return function knowledgeCitationRemarkPlugin() {
-    return (tree: MarkdownNode): void => linkKnownKnowledgeCitations(tree, indices);
+    return (tree: unknown): void => linkKnownKnowledgeCitations(tree as MarkdownNode, indices);
   };
 }

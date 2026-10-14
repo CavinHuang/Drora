@@ -25,6 +25,7 @@ export function useKnowledgeAgentActions(params: {
   selectionTarget: MarkdownSelectionTarget | null;
   state: KnowledgeAskState;
   submitSeqRef: React.RefObject<number>;
+  selectionVersionRef: React.RefObject<number>;
   verifyEvidence: (candidate: KnowledgeArticleCandidate) => Promise<KnowledgeEvidenceInspectState | null>;
 }): {
   addingArticleId: string | null;
@@ -33,7 +34,7 @@ export function useKnowledgeAgentActions(params: {
   handoffQuestionToAgent: () => Promise<void>;
 } {
   const { intl } = useDroraIntl();
-  const { queryService, selectionTarget, state, submitSeqRef, verifyEvidence } = params;
+  const { queryService, selectionTarget, state, submitSeqRef, selectionVersionRef, verifyEvidence } = params;
   const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
   const [handoffBusy, setHandoffBusy] = React.useState(false);
   // Ref locks are synchronous: double-clicks must not start two receipt batches.
@@ -42,7 +43,7 @@ export function useKnowledgeAgentActions(params: {
   const latestRef = React.useRef<{
     queryService: IKnowledgeQueryService | null;
     scope: KnowledgeHandoffScope;
-  }>({ queryService: null, scope: { runId: null, sessionId: null, workspaceKey: null, articleIds: [] } });
+  }>({ queryService: null, scope: { runId: null, sessionId: null, workspaceKey: null, articleIds: [], selectionVersion: 0 } });
   latestRef.current = {
     queryService,
     scope: {
@@ -50,6 +51,7 @@ export function useKnowledgeAgentActions(params: {
       sessionId: selectionTarget?.sessionId ?? null,
       workspaceKey: selectionTarget?.workspaceKey ?? null,
       articleIds: state.selectedArticleIds,
+      selectionVersion: selectionVersionRef.current,
     },
   };
 
@@ -123,6 +125,7 @@ export function useKnowledgeAgentActions(params: {
       sessionId: selectionTarget.sessionId,
       workspaceKey: selectionTarget.workspaceKey,
       articleIds,
+      selectionVersion: selectionVersionRef.current,
     };
     setHandoffBusy(true);
     try {
@@ -135,6 +138,7 @@ export function useKnowledgeAgentActions(params: {
       });
       if (
         seq !== submitSeqRef.current ||
+        scope.selectionVersion !== selectionVersionRef.current ||
         latestRef.current.queryService !== queryService ||
         !sameKnowledgeHandoffScope(scope, latestRef.current.scope)
       ) return;
@@ -157,7 +161,7 @@ export function useKnowledgeAgentActions(params: {
       handoffRef.current = false;
       setHandoffBusy(false);
     }
-  }, [intl, queryService, selectionTarget, state.current, state.selectedArticleIds, submitSeqRef]);
+  }, [intl, queryService, selectionTarget, state.current, state.selectedArticleIds, submitSeqRef, selectionVersionRef]);
 
   return { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent };
 }

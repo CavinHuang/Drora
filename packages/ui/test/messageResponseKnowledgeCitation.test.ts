@@ -67,7 +67,7 @@ describe("Obsidian receipt-backed inline Markdown source navigation (rendered)",
   it("does not activate code or headings as sources", async () => {
     const open = vi.fn();
     const view = render(renderCitationAnswer(
-      "# Heading [1]\n\n`[1]` and `[2]`\n\n```txt\n[1]\n```\n\nNormal paragraph ends [2].",
+      "# Heading [1]\n\n`[1]` and `[2]`\n\n```javascript\n// [1]\n```\n\nNormal paragraph ends [2].",
       [1, 2], open,
     ));
     const citation = await waitFor(() => view.getByTestId("knowledge-inline-citation-2"));

@@ -393,7 +393,20 @@ test("断线未知结果：账本停在 applying + 部分落盘 → reconcile �
     await writeFile(join(env.vault, "a.md"), "nextA", "utf-8");
     // b.md 保持 baseB：reconcile 绝不能替执行器把它写成 nextB。
 
-    const reconciled = await env.review.reconcileOperation({ operationId });
+    // Reconcile is a read-only recovery operation and must remain available
+    // after S03 revoke / a production NO-GO restart. It must not write Vault files.
+    const reconciled = await (async () => {
+      const noGo = createKnowledgeServices({
+        databasePath: env.databasePath,
+        pluginDataDir: env.pluginDataDir,
+      });
+      try {
+        assert.equal(noGo.reviewService.isWritePathEnabled(), false);
+        return await noGo.reviewService.reconcileOperation({ operationId });
+      } finally {
+        noGo.dispose();
+      }
+    })();
     assert.equal(reconciled.outcome, "reconciled");
     assert.equal(reconciled.operation?.status, "prepared");
     const fileA = reconciled.operation?.files.find((f) => f.relativePath === "a.md");

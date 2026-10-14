@@ -33,7 +33,7 @@ jobs:
       - name: Lint
         run: pnpm lint
       - name: Obsidian knowledge UI and evidence transport regression
-        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts
+        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts
       - name: Obsidian source-to-receipt integration and CLI admission gate
         run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
       - name: Gen UI asset checkout integrity (autocrlf)

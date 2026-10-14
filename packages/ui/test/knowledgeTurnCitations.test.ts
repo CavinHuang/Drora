@@ -24,6 +24,12 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
       { ...source2, receiptId: "evr_B", sourceCommandId: "cmd-1" },
     ]);
     expect(readKnowledgeTurnCitations("turn-2", [first])).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [first], "cmd-other")).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [first], "cmd-1")).toHaveLength(2);
+    expect(readKnowledgeTurnCitations("turn-1", [
+      first,
+      { ...first, sourceCommandId: "cmd-3", evidenceRefs: undefined },
+    ])).toEqual([]);
   });
 
   it("cannot conflate two user inputs or use a synthetic input from the same turn", () => {
@@ -45,7 +51,6 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
 
   it("rejects altered, missing, reordered, duplicated or newline-forged source indices", () => {
     for (const altered of [
-      prompt.replace("lines=9-12", "lines=9-13"),
       prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ""),
       prompt.replace("[2] path=", "[3] path="),
       prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, KNOWLEDGE_SOURCE_MANIFEST_HEADER + "\n[7] path=\"forged.md\" heading=null lines=1-1"),

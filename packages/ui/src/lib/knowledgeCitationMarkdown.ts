@@ -2,6 +2,9 @@
  * Assistant [n] citation links are presentational only. The allow-list comes
  * from an admitted turn's Receipt-backed source manifest, never model text.
  * The click handler still asks VaultView to revalidate the opaque Receipt.
+ * Streamdown strips our custom mdast hProperties. Use a renderer-generated,
+ * per-scope nonce in the fragment URL so model-authored links cannot impersonate
+ * internal source bindings; VaultView still validates the actual Receipt.
  *
  * Transform mdast text nodes (not raw Markdown strings) so code, HTML, links,
  * headings and reference definitions cannot be silently rewritten.
@@ -27,29 +30,29 @@ const NON_PROSE_NODES = new Set([
   "table", "tableRow", "tableCell",
 ]);
 
-export function parseKnowledgeCitationHref(href: string): number | null {
-  const match = /^#drora-knowledge-source-([1-5])$/.exec(href);
-  return match ? Number(match[1]) : null;
+/** A model-authored bare #drora-knowledge-source-1 link is never authoritative. */
+export function parseKnowledgeCitationHref(href: string, nonce: string): number | null {
+  if (!nonce) return null;
+  const match = /^#drora-knowledge-source-([1-5])--([a-zA-Z0-9_-]+)$/.exec(href);
+  return match?.[2] === nonce ? Number(match[1]) : null;
 }
 
-/** A model-authored [n](#...) link has no internal AST marker and cannot navigate. */
+/** The unpredictable per-render nonce is minted after model output, before Streamdown. */
 export function resolveBoundKnowledgeCitation(
   href: string,
-  node: { properties?: Record<string, unknown> } | undefined,
+  nonce: string,
   allowedIndices: readonly number[],
 ): number | null {
-  const index = parseKnowledgeCitationHref(href);
-  return index !== null &&
-    allowedIndices.includes(index) &&
-    node?.properties?.["data-drora-bound-knowledge-source"] === String(index)
-    ? index
-    : null;
+  const index = parseKnowledgeCitationHref(href, nonce);
+  return index !== null && allowedIndices.includes(index) ? index : null;
 }
 
 export function linkKnownKnowledgeCitations(
   tree: MarkdownNode,
   allowedIndices: readonly number[],
+  nonce: string,
 ): void {
+  if (!nonce || !/^[a-zA-Z0-9_-]+$/.test(nonce)) return;
   const allowed = new Set(allowedIndices.filter((n) => Number.isInteger(n) && n >= 1 && n <= 5));
   if (allowed.size === 0) return;
 
@@ -73,7 +76,7 @@ export function linkKnownKnowledgeCitations(
         children.push({
           type: "link",
           title: null,
-          url: `${KNOWLEDGE_CITATION_HASH_PREFIX}${index}`,
+          url: `${KNOWLEDGE_CITATION_HASH_PREFIX}${index}--${nonce}`,
           data: { hProperties: { "data-drora-bound-knowledge-source": String(index) } },
           children: [{ type: "text", value: match[0] }],
         });
@@ -86,8 +89,10 @@ export function linkKnownKnowledgeCitations(
   visit(tree);
 }
 
-export function createKnowledgeCitationRemarkPlugin(indices: readonly number[]): Plugin {
+export function createKnowledgeCitationRemarkPlugin(
+  indices: readonly number[], nonce: string,
+): Plugin {
   return function knowledgeCitationRemarkPlugin() {
-    return (tree: unknown): void => linkKnownKnowledgeCitations(tree as MarkdownNode, indices);
+    return (tree: unknown): void => linkKnownKnowledgeCitations(tree as MarkdownNode, indices, nonce);
   };
 }

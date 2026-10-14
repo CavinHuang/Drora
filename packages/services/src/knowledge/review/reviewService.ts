@@ -91,6 +91,8 @@ export interface IKnowledgeReviewService {
 
   /** L2 写路径总门当前状态（W09：缺省 false；S03 GO 后经 UI/config 显式开启）。 */
   isWritePathEnabled(): boolean;
+  /** Whether the independently verified runtime S03 hard safety gate allows enabling L2. */
+  isWritePathActivationAllowed(): boolean;
 
   /**
    * 显式开启/关闭 L2 写路径总门：持久化到 vault-config.json（唯一写入入口

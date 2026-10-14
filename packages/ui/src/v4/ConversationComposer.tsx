@@ -163,7 +163,14 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
-import { collectConversationEvidenceRefs } from "@/lib/conversationSelectionReference.js";
+import {
+  appendConversationSelectionReferences,
+  collectConversationEvidenceRefs,
+  commitKnowledgeAgentHandoff,
+  getConversationSelectionReferenceScope,
+  getKnowledgeAgentHandoffEventName,
+  isKnowledgeAgentHandoffEvent,
+} from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import {
@@ -1137,6 +1144,52 @@ function ConversationComposerImpl({
     scheduleDraftPersist,
     updateText,
   ]);
+
+  // Obsidian ANSWER/COMPARE: trusted references + original question are one scoped,
+  // synchronous user-triggered handoff. Never overwrite a pre-existing user draft.
+  useEffect(() => {
+    if (!listenAddToChatEvents || disabled || !sessionId || typeof window === "undefined") return;
+    const handleKnowledgeHandoff = (event: Event) => {
+      if (!isKnowledgeAgentHandoffEvent(event)) return;
+      const detail = event.detail;
+      if (
+        detail.result ||
+        detail.targetSessionId !== sessionId ||
+        detail.workspaceKey !== workspaceKey
+      ) return;
+      const inputApi = inputApiRef.current;
+      if (!inputApi || !detail.prompt.trim() || detail.references.length === 0 ||
+          detail.references.some((ref) => ref.contentType !== "markdown" || !ref.evidenceReceiptId)) {
+        detail.result = { ok: false, reason: "unavailable" };
+        return;
+      }
+      if (textRef.current.trim() || inputApi.getMarkdown().trim()) {
+        detail.result = { ok: false, reason: "draft-not-empty" };
+        return;
+      }
+      const appended = appendConversationSelectionReferences(
+        getConversationSelectionReferenceScope(sessionId, workspaceKey),
+        detail.references,
+      );
+      if (!appended.ok) {
+        detail.result = appended;
+        return;
+      }
+      try {
+        // preflight all refs before changing either the prompt or the selection scope.
+        inputApi.setText(detail.prompt);
+        updateText(detail.prompt);
+        scheduleDraftPersist();
+        commitKnowledgeAgentHandoff(detail, appended);
+        detail.result = appended;
+        requestComposerFocus();
+      } catch {
+        detail.result = { ok: false, reason: "unavailable" };
+      }
+    };
+    window.addEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
+    return () => window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
+  }, [disabled, listenAddToChatEvents, requestComposerFocus, scheduleDraftPersist, sessionId, updateText, workspaceKey]);
 
   // 新建任务（含已在草稿态重复 Cmd/Ctrl+N，scope 未变）：startDraft 递增 nonce 即重新聚焦。
   const lastFocusVersionRef = useRef(draftFocusVersion);

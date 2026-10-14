@@ -53,6 +53,7 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
+import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
 
 const toast = {
   error: (message: string): void => {
@@ -213,40 +214,12 @@ export function KnowledgeAskView({
       const submitSeq = submitSeqRef.current;
       if (!queryService || !runId) return null;
       dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
-      let proof: KnowledgeEvidenceInspectState;
-      try {
-        const prepared = await queryService.prepareEvidence({ runId, articleId: candidate.articleId });
-        if (prepared.status !== "current") {
-          proof = { phase: "unavailable", status: prepared.status, reason: null };
-        } else {
-          const resolved = await queryService.resolveCitation({
-            receiptId: prepared.receipt.receiptId,
-            sessionId: sessionId ?? undefined,
-          });
-          const reason = "reason" in resolved ? resolved.reason : null;
-          proof =
-            resolved.status === "current" && resolved.citation
-              ? {
-                  phase: "verified",
-                  receiptId: resolved.citation.receiptId,
-                  excerpt: resolved.citation.excerpt,
-                  relativePath: resolved.citation.relativePath,
-                  title: resolved.citation.title,
-                  heading: resolved.citation.heading,
-                  quote: resolved.citation.quote,
-                }
-              : {
-                  phase: "unavailable",
-                  status: resolved.status === "current" ? "forbidden" : resolved.status,
-                  reason,
-                };
-        }
-      } catch (error) {
-        proof = {
-          phase: "failed",
-          message: error instanceof Error ? error.message : String(error),
-        };
-      }
+      const proof = await verifyKnowledgeCandidateEvidence({
+        queryService,
+        runId,
+        articleId: candidate.articleId,
+        sessionId,
+      });
       // A delayed verification must never populate the next query's evidence state or composer.
       if (submitSeq !== submitSeqRef.current) return null;
       dispatch({ type: "evidenceResolved", articleId: candidate.articleId, state: proof });

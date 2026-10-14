@@ -5,7 +5,7 @@ import { toast as droraToast } from "@/components/ui/toast.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { requestKnowledgeCitationOpen } from "@/lib/conversationSelectionReference.js";
 import {
-  readAnswerCitationNumbers,
+  auditKnowledgeAnswerCitationCoverage,
   type KnowledgeTurnCitation,
 } from "./knowledgeTurnCitations.js";
 
@@ -29,9 +29,9 @@ export function KnowledgeAnswerSources({
   const [opening, setOpening] = React.useState<string | null>(null);
   if (citations.length === 0) return null;
 
-  const used = readAnswerCitationNumbers(assistantText);
-  const cited = new Set(used);
-  const unknown = used.filter((index) => index > citations.length);
+  const audit = auditKnowledgeAnswerCitationCoverage(assistantText, citations.length);
+  const cited = new Set(audit.knownNumbers);
+  const unknown = audit.unknownNumbers;
   const open = async (receiptId: string): Promise<void> => {
     if (opening !== null) return;
     setOpening(receiptId);
@@ -80,6 +80,15 @@ export function KnowledgeAnswerSources({
           </Button>
         ))}
       </div>
+      {audit.unattributedBlocks > 0 ? (
+        <p role="status" data-testid="knowledge-answer-attribution-gaps"
+          className="mt-2 text-ui-xs text-foreground-subtle">
+          {intl.formatMessage({ id: "chat.knowledgeTurn.gaps" }, {
+            missing: audit.unattributedBlocks,
+            total: audit.proseBlocks,
+          })}
+        </p>
+      ) : null}
       {unknown.length > 0 ? (
         <p role="status" className="mt-2 flex items-center gap-1 text-ui-xs text-warning"
           data-testid="knowledge-answer-unknown-citations">

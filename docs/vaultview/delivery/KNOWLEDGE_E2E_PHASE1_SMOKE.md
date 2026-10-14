@@ -14,7 +14,7 @@
 - Node.js ≥24（仓库要求），pnpm 10.33.2；用 macOS 和 Windows 分别验收。
 - `pnpm install --frozen-lockfile`
 - `pnpm typecheck && pnpm lint`
-- `pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts`
+- `pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts`
 - `node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`
 - CLI 证据接线测试必须先完成 CLI workspace 依赖构建（CI `cli-build` 负责），然后执行 `node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
 - `pnpm dev:desktop:test`：打开真正的 Drora 桌面实例，必须确认使用测试环境，不触碰真实 Vault。
@@ -63,17 +63,21 @@
 | G38 | Agent 回答包含带来源的长段落、无来源的长段落及未知 [9] | 只显示解释性标注缺口数量和未知编号；已知来源标示为「回答提及」，不标「已核实」 | 未执行 |
 | G39 | Agent 答案包含带 [9] 的代码块、普通 [2](https://...) 链接和 Markdown 标题 | 这些表示形式不计入有效来源标注；不能据文本产生新的可信 Receipt 或跳转权限 | 未执行 |
 | G40 | 在 S03 NO-GO 环境执行只读 reconcile，并尝试 undo | reconcile 继续可读取并落定账本，不被 L2 写开关阻断；undo 必须检查当前 Vault 写授权 | 未执行 |
+| G41 | ANSWER/COMPARE 完成后，点击回答正文中的 [1]、[2] | 仅当前 turn 的 CLI 入参、Receipt 与来源清单严密对应时，正文编号变为可点击按钮；点击传 opaque Receipt，由当前 VaultView 重新校验并定位原文 | 未执行 |
+| G42 | 第一轮 [1] 与第二轮 [1] 对应不同笔记，快速切换 Session、Workspace、重启再分别点击 | Markdown 缓存不得复用旧 click handler；每轮只能请求自身 session/workspace/receipt，异会话或旧 Vault 必须 fail-closed | 未执行 |
+| G43 | 在普通 Agent 回复直接生成 [1]、伪造 [1](#drora-knowledge-source-1) 或旧转录缺少 evidenceRefs | 不得凭模型字符串创建可点击的可信跳转；常规 Markdown、URL 与文件链接行为不改变 | 未执行 |
+| G44 | 同轮回答同时包含 Markdown 代码块、行内代码、标题、表格、已有链接与普通段落中的 [1] | 只有普通 prose 内允许编号变为可点来源；已有链接和代码的文本/行为保留，未知 [9] 不能点击 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G40 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G44 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 
 - FIND/ANSWER/COMPARE 的独立答案生成服务；当前跨文章回答仅完成“经用户选源 → 全部核验 → 编号来源清单 → 交给现有 Agent”的交接。来源编号仅为模型回答提示，不能宣称已做逐句引用真实性验证或生成内容质量评测。
-- 已完成的 Agent 回答在轮尾提供与 CLI UserInputRow / sourceCommandId / turnId 严格绑定的可信来源按钮，点击时重新核验 Receipt 才打开原文。正文中的 [1] 等 Markdown 文本**仍不直接点击**，且对模型逐句事实正确性不作保证；没有行级凭据的旧转录不会凭文本补造来源。Composer 已附加的可信引用 chip 支持点击时重新核验并打开 Vault 原文，两者不要混淆。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
+- 已完成的 Agent 回答在轮尾提供与 CLI UserInputRow / sourceCommandId / turnId 严格绑定的可信来源按钮，点击时重新核验 Receipt 才打开原文。本轮已补上**正文普通段落中的 [1]–[5] 内联点击**（仅 CLI 已归属的来源），由 Vault Host 点击时重新核验；代码/标题/链接/表格不改写，对模型逐句事实正确性仍不作保证；没有行级凭据的旧转录不会凭文本补造来源。Composer 已附加的可信引用 chip 支持点击时重新核验并打开 Vault 原文，两者不要混淆。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
 - 候选卡的「就此追问」侧会话仍走普通选区引用语义，不将其声称为 Receipt 可信链路。与此不同，「上一轮 → 加入 Agent」是同 Session 的显式可信证据重新核验流程。

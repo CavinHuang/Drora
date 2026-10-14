@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button.js";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { displayCandidateTitle } from "./KnowledgeCandidateCard.js";
-import type { KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 
 export function AskDecisionTrace({
   run,
@@ -63,11 +62,14 @@ export function AskDecisionTrace({
 export function AskPreviousRound({
   candidates,
   submittedQuery,
+  openingArticleId,
   onOpenNote,
 }: {
   candidates: KnowledgeArticleCandidate[];
   submittedQuery: string;
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  openingArticleId: string | null;
+  /** Historical candidates must pass fresh evidence verification in the parent view. */
+  onOpenNote: (candidate: KnowledgeArticleCandidate) => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   return (
@@ -84,9 +86,12 @@ export function AskPreviousRound({
             <button
               key={candidate.articleId}
               type="button"
-              onClick={() => onOpenNote(candidate.relativePath)}
-              className="flex min-w-0 items-center gap-2 rounded-lg border border-card-border bg-surface px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onOpenNote(candidate)}
+              disabled={openingArticleId !== null}
+              data-testid="ask-previous-candidate"
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-card-border bg-surface px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
             >
+              {openingArticleId === candidate.articleId && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
               <span className="min-w-0 truncate text-ui-sm text-foreground">
                 {displayCandidateTitle(candidate)}
               </span>

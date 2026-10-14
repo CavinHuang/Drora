@@ -158,6 +158,37 @@ test("S03 explicit verified gate: persisted preference restores, toggles are ser
   }
 });
 
+test("S03 approved runtime cannot carry an L2 preference to a newly configured Vault", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-toggle-cross-vault-"));
+  setDataBaseDir(root);
+  try {
+    const pluginDataDir = join(root, "plugin-data");
+    const firstVault = join(root, "first-vault");
+    const secondVault = join(root, "second-vault");
+    await mkdir(firstVault, { recursive: true });
+    await mkdir(secondVault, { recursive: true });
+    await configureVaultAt(pluginDataDir, firstVault, { allowAgentWrites: true });
+    const services = createKnowledgeServices({
+      databasePath: join(root, "knowledge", "knowledge-index.sqlite"),
+      pluginDataDir,
+      reviewWriteSafetyGatePassed: true,
+    });
+    try {
+      await services.reviewService.setWritePathEnabled(true);
+      assert.equal(services.reviewService.isWritePathEnabled(), true);
+      await configureVaultAt(pluginDataDir, secondVault, { allowAgentWrites: true });
+      assert.notEqual((await readConfigField(pluginDataDir)).reviewWritePathEnabled, true);
+      const rejected = await services.reviewService.applyProposal({ proposalId: "missing" });
+      assert.equal(rejected.outcome, "blocked");
+      assert.equal(rejected.reason, "write_path_disabled");
+    } finally {
+      services.dispose();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("L2 toggle fails closed when no valid Vault configuration is available", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-toggle-no-vault-"));
   setDataBaseDir(root);

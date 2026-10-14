@@ -3465,6 +3465,7 @@ export function SessionPane({
                   ? { requestedDelivery: options.requestedDelivery }
                   : {}),
                 conversationQuotes: options?.conversationQuotes,
+                ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
                 ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
                 ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
                 ...(options?.source ? { source: options.source } : {}),
@@ -3553,6 +3554,7 @@ export function SessionPane({
             ...(options?.source ? { source: options.source } : {}),
             ...highspeed.override,
             conversationQuotes: options?.conversationQuotes,
+                ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
           },
           newSessionId,
           undefined,
@@ -3588,6 +3590,7 @@ export function SessionPane({
           ...submission,
           ...(options?.requestedDelivery ? { requestedDelivery: options.requestedDelivery } : {}),
           conversationQuotes: options?.conversationQuotes,
+                ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
           ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),

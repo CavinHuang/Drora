@@ -39,7 +39,7 @@ function verifier(failAt?: string) {
     status: "current" as const,
     citation: {
       receiptId,
-      relativePath: `notes/${receiptId.slice(9, 10)}.md`,
+      relativePath: `notes/${receiptId.slice(-1)}.md`,
       title: receiptId,
       excerpt: `Original text from ${receiptId}`,
       heading: null,

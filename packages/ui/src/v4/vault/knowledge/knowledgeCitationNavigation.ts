@@ -72,3 +72,37 @@ export function decideKnowledgeCitationNavigation(input: {
   }
   return { ok: true, relativePath: citation.relativePath, quote: citation.quote };
 }
+
+/**
+ * Testable source-to-note navigation transaction. Never trust model links as
+ * destination authority: only the fresh, matching server citation may open.
+ * VaultView's isCurrent callback also checks request timeout/unmount and scope.
+ */
+export async function navigateKnowledgeCitation(input: {
+  sessionId: string;
+  receiptId: string;
+  isCurrent: () => boolean;
+  resolveCitation: () => Promise<KnowledgeResolveCitationResult>;
+  openNote: (
+    relativePath: string,
+    quote: KnowledgeEvidenceQuote,
+    isCurrent: () => boolean,
+  ) => Promise<boolean>;
+}): Promise<KnowledgeCitationOpenResult> {
+  const forbidden: KnowledgeCitationOpenResult = { ok: false, reason: "forbidden" };
+  try {
+    if (!input.isCurrent()) return forbidden;
+    const resolved = await input.resolveCitation();
+    if (!input.isCurrent()) return forbidden;
+    const decision = decideKnowledgeCitationNavigation({
+      resolved, sessionId: input.sessionId, receiptId: input.receiptId,
+    });
+    if (!decision.ok) return decision;
+    if (!input.isCurrent()) return forbidden;
+    const opened = await input.openNote(decision.relativePath, decision.quote, input.isCurrent);
+    if (!input.isCurrent()) return forbidden;
+    return opened ? { ok: true } : { ok: false, reason: "failed" };
+  } catch {
+    return input.isCurrent() ? { ok: false, reason: "failed" } : forbidden;
+  }
+}

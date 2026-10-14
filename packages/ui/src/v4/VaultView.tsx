@@ -106,8 +106,8 @@ import {
 import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
 import {
-  decideKnowledgeCitationNavigation,
   isKnowledgeCitationScopeCurrent,
+  navigateKnowledgeCitation,
 } from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
 import { KnowledgeReviewView } from "./vault/knowledge/KnowledgeReviewView.js";
@@ -1373,53 +1373,30 @@ export function VaultView({
         detail.finish({ ok: false, reason: "unavailable" });
         return;
       }
-      void (async (): Promise<void> => {
-        try {
-          const resolved = await knowledgeQueryService.resolveCitation({
-            receiptId: detail.receiptId,
-            sessionId,
-          });
-          const stillAuthorized = (): boolean => {
-            const active = citationScopeRef.current;
-            return isKnowledgeCitationScopeCurrent({
-              requestActive: detail.isActive(),
-              mounted: mountedRef.current,
-              originalVaultId: vaultId,
-              currentVaultId: vaultIdRef.current,
-              sessionId,
-              activeSessionId: active.sessionId,
-              workspaceKey,
-              activeWorkspaceKey: active.workspaceKey,
-              sameQueryService: active.queryService === knowledgeQueryService,
-            });
-          };
-          if (!stillAuthorized()) {
-            detail.finish({ ok: false, reason: "forbidden" });
-            return;
-          }
-          const target = decideKnowledgeCitationNavigation({
-            resolved,
-            sessionId,
-            receiptId: detail.receiptId,
-          });
-          if (!target.ok) {
-            detail.finish(target);
-            return;
-          }
-          // A failed editor flush, superseded read or scope change cannot
-          // commit the source selection or falsely report success.
-          if (!stillAuthorized()) return;
-          const opened = await openNoteFromKnowledge(
-            target.relativePath, target.quote, stillAuthorized,
-          );
-          detail.finish(opened ? { ok: true } : {
-            ok: false,
-            reason: stillAuthorized() ? "failed" : "forbidden",
-          });
-        } catch {
-          detail.finish({ ok: false, reason: "failed" });
-        }
-      })();
+      const stillAuthorized = (): boolean => {
+        const active = citationScopeRef.current;
+        return isKnowledgeCitationScopeCurrent({
+          requestActive: detail.isActive(),
+          mounted: mountedRef.current,
+          originalVaultId: vaultId,
+          currentVaultId: vaultIdRef.current,
+          sessionId,
+          activeSessionId: active.sessionId,
+          workspaceKey,
+          activeWorkspaceKey: active.workspaceKey,
+          sameQueryService: active.queryService === knowledgeQueryService,
+        });
+      };
+      void navigateKnowledgeCitation({
+        sessionId,
+        receiptId: detail.receiptId,
+        isCurrent: stillAuthorized,
+        resolveCitation: () => knowledgeQueryService.resolveCitation({
+          receiptId: detail.receiptId,
+          sessionId,
+        }),
+        openNote: openNoteFromKnowledge,
+      }).then(detail.finish);
     };
     window.addEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
     return () => window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);

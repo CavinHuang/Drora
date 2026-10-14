@@ -1163,7 +1163,10 @@ function ConversationComposerImpl({
         detail.result = { ok: false, reason: "unavailable" };
         return;
       }
-      if (textRef.current.trim() || inputApi.getMarkdown().trim()) {
+      if (textRef.current.trim() || inputApi.getMarkdown().trim() ||
+          hasAttachments || hasCodeCommentContexts || hasWebElementContexts ||
+          hasPptxElementReferences || hasPluginUiContexts || pendingShareContext ||
+          getConversationSelectionReferenceScope(sessionId, workspaceKey).length > 0) {
         detail.result = { ok: false, reason: "draft-not-empty" };
         return;
       }
@@ -1189,7 +1192,7 @@ function ConversationComposerImpl({
     };
     window.addEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
     return () => window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
-  }, [disabled, listenAddToChatEvents, requestComposerFocus, scheduleDraftPersist, sessionId, updateText, workspaceKey]);
+  }, [disabled, hasAttachments, hasCodeCommentContexts, hasWebElementContexts, hasPptxElementReferences, hasPluginUiContexts, listenAddToChatEvents, pendingShareContext, requestComposerFocus, scheduleDraftPersist, sessionId, updateText, workspaceKey]);
 
   // 新建任务（含已在草稿态重复 Cmd/Ctrl+N，scope 未变）：startDraft 递增 nonce 即重新聚焦。
   const lastFocusVersionRef = useRef(draftFocusVersion);

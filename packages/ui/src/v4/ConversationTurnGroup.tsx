@@ -1673,7 +1673,7 @@ function ConversationTurnGroupImpl({
           ) : null}
           {canRenderAssistantActions && context.sessionId && context.workspaceKey ? (
             <KnowledgeAnswerSources
-              citations={readKnowledgeTurnCitations(unit.turnId, unit.visibleUserInputs)}
+              citations={readKnowledgeTurnCitations(unit.turnId, unit.visibleUserInputs, unit.header?.sourceCommandId)}
               assistantText={assistantCopyText ?? ""}
               sessionId={context.sessionId}
               workspaceKey={context.workspaceKey}

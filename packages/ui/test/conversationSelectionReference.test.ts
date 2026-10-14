@@ -3,6 +3,7 @@ import {
   appendConversationSelectionReference,
   requestKnowledgeAgentHandoff,
   requestKnowledgeCitationOpen,
+  KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS,
   getKnowledgeCitationOpenEventName,
   isKnowledgeCitationOpenEvent,
   commitKnowledgeAgentHandoff,
@@ -38,7 +39,7 @@ function reference(
 }
 
 describe("conversation selection references", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("在 composer 挂载前先写入 session scope，首次打开不会丢引用", () => {
     vi.stubGlobal("window", new EventTarget());
@@ -364,6 +365,62 @@ describe("conversation selection references", () => {
       targetSessionId: "session-1", workspaceKey: "/vault", receiptId: " ",
     })).toEqual({ ok: false, reason: "unavailable" });
     expect(observed).toBe(false);
+  });
+
+  it("deduplicates rapid identical receipt opens and releases the lock after completion", async () => {
+    vi.stubGlobal("window", new EventTarget());
+    let events = 0;
+    let finish: ((result: { ok: true }) => void) | undefined;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      events++;
+      event.detail.accepted = true;
+      finish = event.detail.finish;
+    });
+    const input = { targetSessionId: "s1", workspaceKey: "/vault", receiptId: "evr_one" };
+    const first = requestKnowledgeCitationOpen(input);
+    const second = requestKnowledgeCitationOpen(input);
+    expect(first).toBe(second);
+    expect(events).toBe(1);
+    finish?.({ ok: true });
+    expect(await first).toEqual({ ok: true });
+    await Promise.resolve();
+    expect(await requestKnowledgeCitationOpen(input)).toEqual({ ok: false, reason: "failed" });
+  });
+
+  it("fails closed after a hung accepted RPC and invalidates late navigation", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", new EventTarget());
+    let detail: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      event.detail.accepted = true;
+      detail = event.detail;
+    });
+    const request = requestKnowledgeCitationOpen({
+      targetSessionId: "s2", workspaceKey: "/vault", receiptId: "evr_hung",
+    });
+    expect(detail?.isActive()).toBe(true);
+    await vi.advanceTimersByTimeAsync(KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
+    expect(await request).toEqual({ ok: false, reason: "failed" });
+    expect(detail?.isActive()).toBe(false);
+    detail?.finish({ ok: true });
+    expect(detail?.isActive()).toBe(false);
+  });
+
+  it("invalidates a synchronously finished navigation and does not leave a timer running", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", new EventTarget());
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      event.detail.accepted = true;
+      event.detail.finish({ ok: true });
+      expect(event.detail.isActive()).toBe(false);
+    });
+    expect(await requestKnowledgeCitationOpen({
+      targetSessionId: "s3", workspaceKey: "/vault", receiptId: "evr_sync",
+    })).toEqual({ ok: true });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
 });

@@ -1363,7 +1363,7 @@ export function VaultView({
             sessionId,
           });
           const active = citationScopeRef.current;
-          if (!mountedRef.current || vaultIdRef.current !== vaultId ||
+          if (!detail.isActive() || !mountedRef.current || vaultIdRef.current !== vaultId ||
               active.sessionId !== sessionId || active.workspaceKey !== workspaceKey ||
               active.queryService !== knowledgeQueryService) {
             detail.finish({ ok: false, reason: "forbidden" });
@@ -1378,6 +1378,9 @@ export function VaultView({
             detail.finish(target);
             return;
           }
+          // An accepted request may have expired while the resolver was running.
+          // Only the still-active owner can start navigation.
+          if (!detail.isActive()) return;
           await openNoteFromKnowledge(target.relativePath, target.quote);
           detail.finish({ ok: true });
         } catch {

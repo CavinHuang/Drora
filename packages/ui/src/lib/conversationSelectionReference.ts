@@ -75,27 +75,65 @@ export interface KnowledgeCitationOpenEventDetail {
   receiptId: string;
   /** Set immediately by exactly one active VaultView to acknowledge ownership. */
   accepted: boolean;
+  /** Turns false on completion or timeout; async Vault handlers must check before navigation. */
+  isActive: () => boolean;
   finish: (result: KnowledgeCitationOpenResult) => void;
 }
 
-/** Do not trust path, quote, or heading from the caller: resolve the receipt in VaultView. */
-export async function requestKnowledgeCitationOpen(input: {
+/** A hung Vault RPC must not leave a permanent spinner or authorize a late navigation. */
+export const KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS = 15_000;
+const pendingCitationOpens = new Map<string, Promise<KnowledgeCitationOpenResult>>();
+
+/**
+ * The only navigation capability is the opaque Receipt, freshly resolved by
+ * VaultView. Identical rapid clicks share one in-flight RPC; every request
+ * settles even when the Vault accepts but never responds.
+ */
+export function requestKnowledgeCitationOpen(input: {
   targetSessionId: string;
   workspaceKey: string;
   receiptId: string;
 }): Promise<KnowledgeCitationOpenResult> {
   if (!input.targetSessionId.trim() || !input.workspaceKey.trim() || !input.receiptId.trim()) {
-    return { ok: false, reason: "unavailable" };
+    return Promise.resolve({ ok: false, reason: "unavailable" });
   }
-  return new Promise((resolve) => {
+  const key = [input.workspaceKey, input.targetSessionId, input.receiptId].join("\0");
+  const pending = pendingCitationOpens.get(key);
+  if (pending) return pending;
+
+  const request = new Promise<KnowledgeCitationOpenResult>((resolve) => {
+    let active = true;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: KnowledgeCitationOpenResult): void => {
+      if (!active) return;
+      active = false;
+      if (timeout !== undefined) clearTimeout(timeout);
+      resolve(result);
+    };
     const detail: KnowledgeCitationOpenEventDetail = {
       ...input,
       accepted: false,
-      finish: resolve,
+      isActive: () => active,
+      finish,
     };
-    window.dispatchEvent(new CustomEvent(KNOWLEDGE_CITATION_OPEN_EVENT, { detail }));
-    if (!detail.accepted) resolve({ ok: false, reason: "unavailable" });
+    try {
+      window.dispatchEvent(new CustomEvent(KNOWLEDGE_CITATION_OPEN_EVENT, { detail }));
+    } catch {
+      finish({ ok: false, reason: "failed" });
+      return;
+    }
+    if (!detail.accepted) {
+      finish({ ok: false, reason: "unavailable" });
+    } else if (active) {
+      timeout = setTimeout(() => finish({ ok: false, reason: "failed" }),
+        KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
+    }
   });
+  pendingCitationOpens.set(key, request);
+  void request.then(() => {
+    if (pendingCitationOpens.get(key) === request) pendingCitationOpens.delete(key);
+  });
+  return request;
 }
 
 export function getKnowledgeCitationOpenEventName(): string {

@@ -317,6 +317,7 @@ export interface ConversationEditTarget {
   intent: {
     inputOrigin?: "desktop" | "mobile";
     conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+    evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
     botGroupSource?: CanonicalUserIntentFact["botGroupSource"];
     kind: "sendText" | "sendGoalCommand";
     text: string;
@@ -2163,6 +2164,7 @@ export class ProductProjection {
                 ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
                 ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
                 ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
+                ...(fact.evidenceRefs ? { evidenceRefs: fact.evidenceRefs } : {}),
                 ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
                 ...(fact.clientId ? { clientId: fact.clientId } : {}),
                 ...(fact.attachments ? { attachments: fact.attachments } : {}),
@@ -3891,6 +3893,7 @@ export class ProductProjection {
                 ...(item.intent?.conversationQuotes
                   ? { conversationQuotes: item.intent.conversationQuotes }
                   : {}),
+                ...(item.intent?.evidenceRefs ? { evidenceRefs: item.intent.evidenceRefs } : {}),
                 ...(item.intent?.botGroupSource
                   ? { botGroupSource: item.intent.botGroupSource }
                   : {}),

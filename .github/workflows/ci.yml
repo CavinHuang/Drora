@@ -27,6 +27,8 @@ jobs:
         run: node scripts/check-workspace-freshness.mjs
         continue-on-error: true
       - name: Typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
@@ -117,6 +119,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Emit workspace dists (tsc -b project references)
+        # 明确各 runner 的编译堆资源；macOS 首次运行曾中止（exit 134），检查范围保持一致。
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
         # 同上：turbo 布局问题，走有序闭包脚本（见 CLI bundle job 注释）。

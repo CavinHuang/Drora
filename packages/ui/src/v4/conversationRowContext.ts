@@ -38,6 +38,8 @@ export type ConversationFileChangesState = Exclude<
 export interface ConversationRowRenderContext {
   logEpoch?: string;
   workspacePath: string;
+  /** Exact SessionPane workspace scope (may differ from filesystem path for remote hosts). */
+  workspaceKey?: string;
   /** 当前 workspace Host 的用户 Home，用于解析 Assistant 输出中的 ~/ 路径。 */
   workspaceHomePath?: string;
   workspaceIdentity?: string;

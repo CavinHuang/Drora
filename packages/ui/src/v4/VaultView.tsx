@@ -108,6 +108,7 @@ import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
 import {
   createKnowledgeCitationScopeEpoch,
   isKnowledgeCitationScopeCurrent,
+  isVaultCitationFocusCurrent,
   navigateKnowledgeCitation,
 } from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
@@ -569,6 +570,8 @@ const VAULT_VIEW_TABS: readonly VaultViewTab[] = ["notes", "ask", "insights", "r
 interface VaultBodyFocusRequest {
   vaultId: string;
   relativePath: string;
+  /** The epoch captured when the source was first opened. */
+  citationEpoch?: number;
   /** 引用回跳（W04）：携带 quote 行号区间时按行锚定选中，而非聚焦正文开头。 */
   reveal?: KnowledgeEvidenceQuote;
 }
@@ -582,6 +585,7 @@ function VaultMarkdownEditor({
   onReload,
   onRegisterFlush,
   bodyFocusRequest,
+  citationEpoch,
   onBodyFocused,
   onOpenTutorial,
   onOpenWikiLink,
@@ -596,6 +600,7 @@ function VaultMarkdownEditor({
   onReload: () => void;
   onRegisterFlush?: (flush: VaultEditorFlush | null) => void;
   bodyFocusRequest: VaultBodyFocusRequest | null;
+  citationEpoch: number;
   onBodyFocused: (request: VaultBodyFocusRequest) => void;
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
@@ -635,7 +640,8 @@ function VaultMarkdownEditor({
       !editorReady ||
       !bodyFocusRequest ||
       bodyFocusRequest.vaultId !== vaultId ||
-      bodyFocusRequest.relativePath !== readResult.relativePath
+      bodyFocusRequest.relativePath !== readResult.relativePath ||
+      !isVaultCitationFocusCurrent(bodyFocusRequest.citationEpoch, citationEpoch)
     )
       return;
     const view = getEditorView();
@@ -648,6 +654,7 @@ function VaultMarkdownEditor({
     onBodyFocused(bodyFocusRequest);
   }, [
     bodyFocusRequest,
+    citationEpoch,
     editorReady,
     getEditorView,
     onBodyFocused,
@@ -903,6 +910,7 @@ function VaultMarkdownPane({
   onReload,
   onRegisterFlush,
   bodyFocusRequest,
+  citationEpoch,
   onBodyFocused,
   onOpenTutorial,
   onOpenWikiLink,
@@ -918,6 +926,7 @@ function VaultMarkdownPane({
   onReload: () => void;
   onRegisterFlush: (flush: VaultEditorFlush | null) => void;
   bodyFocusRequest: VaultBodyFocusRequest | null;
+  citationEpoch: number;
   onBodyFocused: (request: VaultBodyFocusRequest) => void;
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
@@ -961,6 +970,7 @@ function VaultMarkdownPane({
           onReload={onReload}
           onRegisterFlush={onRegisterFlush}
           bodyFocusRequest={bodyFocusRequest}
+          citationEpoch={citationEpoch}
           onBodyFocused={onBodyFocused}
           onOpenTutorial={onOpenTutorial}
           onOpenWikiLink={onOpenWikiLink}
@@ -1006,6 +1016,13 @@ export function VaultView({
   }, []);
   const vaultIdRef = React.useRef(config?.vaultId);
   vaultIdRef.current = config?.vaultId;
+  // Observe before rendering the editor to revoke pending quote focus even
+  // when a user changes scope A→B→A before CodeMirror finishes mounting.
+  const citationEpochRef = React.useRef(createKnowledgeCitationScopeEpoch());
+  const activeCitationEpoch = citationEpochRef.current.observe({
+    sessionId, workspaceKey, vaultId: config?.vaultId,
+    queryService: knowledgeQueryService,
+  });
   const [bodyFocusRequest, setBodyFocusRequest] = React.useState<VaultBodyFocusRequest | null>(
     null,
   );
@@ -1014,7 +1031,10 @@ export function VaultView({
   }, []);
   React.useEffect(() => {
     if (!bodyFocusRequest) return;
-    if (bodyFocusRequest.vaultId !== config?.vaultId) {
+    if (bodyFocusRequest.vaultId !== config?.vaultId ||
+        !isVaultCitationFocusCurrent(
+          bodyFocusRequest.citationEpoch, citationEpochRef.current.currentVersion(),
+        )) {
       consumeBodyFocus(bodyFocusRequest);
       return;
     }
@@ -1026,7 +1046,7 @@ export function VaultView({
       window.removeEventListener("pointerdown", cancel, true);
       window.removeEventListener("keydown", cancel, true);
     };
-  }, [bodyFocusRequest, config?.vaultId, consumeBodyFocus]);
+  }, [bodyFocusRequest, config?.vaultId, activeCitationEpoch, consumeBodyFocus]);
   const [candidates, setCandidates] = React.useState<VaultCandidate[]>([]);
   const [vaultSwitcherOpen, setVaultSwitcherOpen] = React.useState(false);
   const [candidatesLoading, setCandidatesLoading] = React.useState(false);
@@ -1345,10 +1365,11 @@ export function VaultView({
     ): Promise<boolean> => {
       const vaultId = config?.vaultId;
       if (!vaultId || (isCurrent && !isCurrent())) return false;
+      const citationEpoch = isCurrent ? citationEpochRef.current.currentVersion() : undefined;
       const opened = await openFile(relativePath, { isCurrent });
       if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||
           (isCurrent && !isCurrent())) return false;
-      setBodyFocusRequest({ vaultId, relativePath, reveal });
+      setBodyFocusRequest({ vaultId, relativePath, reveal, citationEpoch });
       setViewTab("notes");
       return true;
     },
@@ -1362,13 +1383,6 @@ export function VaultView({
   citationScopeRef.current = { sessionId, workspaceKey, queryService: knowledgeQueryService };
   // Changing away and back to the same Vault/Session must *not* revive an old
   // in-flight request. Version every transition, including service replacement.
-  const citationEpochRef = React.useRef(createKnowledgeCitationScopeEpoch());
-  citationEpochRef.current.observe({
-    sessionId,
-    workspaceKey,
-    vaultId: config?.vaultId,
-    queryService: knowledgeQueryService,
-  });
   React.useEffect(() => {
     const epoch = citationEpochRef.current;
     epoch.observe({
@@ -1950,6 +1964,7 @@ export function VaultView({
               }}
               onRegisterFlush={registerEditorFlush}
               bodyFocusRequest={bodyFocusRequest}
+              citationEpoch={activeCitationEpoch}
               onBodyFocused={consumeBodyFocus}
               onOpenTutorial={() => setVaultHelpOpen(true)}
               onOpenWikiLink={openWikiLink}

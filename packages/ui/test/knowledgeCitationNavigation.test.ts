@@ -4,6 +4,7 @@ import {
   createKnowledgeCitationScopeEpoch,
   decideKnowledgeCitationNavigation,
   isKnowledgeCitationScopeCurrent,
+  isVaultCitationFocusCurrent,
 } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
@@ -114,6 +115,21 @@ describe("Obsidian citation navigation authorization", () => {
     const captured = tracker.observe(scope);
     tracker.observe({ ...scope, queryService: {} });
     expect(tracker.isCurrent(captured)).toBe(false);
+  });
+
+  it("does not apply a pending quote highlight across A→B→A or unmount", () => {
+    const epoch = createKnowledgeCitationScopeEpoch();
+    const scope = { sessionId: "A", workspaceKey: "/work", vaultId: "V", queryService: {} };
+    const original = epoch.observe(scope);
+    expect(isVaultCitationFocusCurrent(original, epoch.currentVersion())).toBe(true);
+    expect(isVaultCitationFocusCurrent(undefined, epoch.currentVersion())).toBe(true);
+    epoch.observe({ ...scope, sessionId: "B" });
+    const returnToA = epoch.observe(scope);
+    expect(isVaultCitationFocusCurrent(original, returnToA)).toBe(false);
+    expect(isVaultCitationFocusCurrent(returnToA, returnToA)).toBe(true);
+    epoch.revoke();
+    expect(isVaultCitationFocusCurrent(returnToA, epoch.currentVersion())).toBe(false);
+    expect(isVaultCitationFocusCurrent(0, returnToA)).toBe(false);
   });
 
 });

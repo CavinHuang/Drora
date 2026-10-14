@@ -50,6 +50,14 @@ export function createKnowledgeCitationScopeEpoch() {
   };
 }
 
+/** Prevent a delayed CodeMirror mount from applying revoked source highlights. */
+export function isVaultCitationFocusCurrent(
+  requestEpoch: number | undefined,
+  activeEpoch: number,
+): boolean {
+  return requestEpoch === undefined || (requestEpoch > 0 && requestEpoch === activeEpoch);
+}
+
 /** Confirm that navigation still belongs to this live Vault, Session and request. */
 export function isKnowledgeCitationScopeCurrent(input: {
   requestActive: boolean;

@@ -221,7 +221,7 @@ test("取消保留已有结果；失败保留上一轮", () => {
   // search 返回 cancelled 视图（候选已清空，previous 保留）。
   let state = submitStarted();
   state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "run-1", status: "retrieving" }) });
-  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded" });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-1" });
   assert.equal(state.current?.cancelledByUser, true);
   assert.equal(state.phase, "settled");
   state = reduceKnowledgeAsk(state, {
@@ -241,7 +241,7 @@ test("取消保留已有结果；失败保留上一轮", () => {
     type: "runSettled",
     run: makeRun({ runId: "run-2", status: "ready", candidates: [makeCandidate()] }),
   });
-  settledState = reduceKnowledgeAsk(settledState, { type: "cancelSucceeded" });
+  settledState = reduceKnowledgeAsk(settledState, { type: "cancelSucceeded", runId: "run-1" });
   assert.equal(getAskOutcome(settledState), "ready");
   assert.equal(settledState.current?.run.candidates.length, 1);
 
@@ -507,4 +507,23 @@ test("deriveIndexColdStart：索引缺失可建 / 建立中互斥，未配置不
   });
   assert.ok(buildingBanners.includes("indexing"));
   assert.ok(!buildingBanners.includes("indexMissing"));
+});
+
+
+test("取消结果只能作用于当前正在检索的 run，旧请求不得取消新查询", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated",
+    run: makeRun({ runId: "run-old", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "submitStarted", query: "新问题", clientRequestId: "req-new", intent: "find" });
+  state = reduceKnowledgeAsk(state, {
+    type: "runCreated", run: makeRun({ runId: "run-new", status: "retrieving" }),
+  });
+  const unchanged = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-old" });
+  assert.equal(unchanged, state);
+  const cancelled = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-new" });
+  assert.equal(cancelled.phase, "settled");
+  assert.equal(cancelled.current?.cancelledByUser, true);
+  assert.equal(cancelled.current?.run.runId, "run-new");
+  assert.equal(reduceKnowledgeAsk(cancelled, { type: "cancelSucceeded", runId: "run-new" }), cancelled);
 });

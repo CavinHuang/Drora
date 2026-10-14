@@ -7,6 +7,7 @@
  */
 import type { IKnowledgeQueryService, KnowledgeRunView } from "@drora/services";
 import { citationMatchesSelectedCandidate } from "./knowledgeEvidenceVerification.js";
+import { MAX_KNOWLEDGE_HANDOFF_SOURCES } from "./knowledgeAskModel.js";
 import {
   createConversationSelectionReference,
   type MarkdownSelectionReference,
@@ -23,7 +24,7 @@ export type KnowledgeHandoffPreparation =
   | { ok: true; prompt: string; references: MarkdownSelectionReference[] }
   | { ok: false; reason: KnowledgeHandoffFailure };
 
-export const MAX_KNOWLEDGE_HANDOFF_SOURCES = 5;
+export { MAX_KNOWLEDGE_HANDOFF_SOURCES } from "./knowledgeAskModel.js";
 
 export function buildKnowledgeAnswerPrompt(query: string, intent: KnowledgeAnswerIntent): string {
   const question = query.trim();

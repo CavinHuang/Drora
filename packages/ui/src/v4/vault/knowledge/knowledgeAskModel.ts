@@ -118,6 +118,7 @@ export function createInitialKnowledgeAskState(): KnowledgeAskState {
 }
 
 export type KnowledgeAskAction =
+  | { type: "scopeReset" }
   /** createRun 已发出（等待返回）；组件在此刻生成并持有 clientRequestId。 */
   | { type: "submitStarted"; query: string; clientRequestId: string; intent: KnowledgeAskIntent }
   | { type: "runCreated"; run: KnowledgeRunView }
@@ -136,6 +137,8 @@ function runIsSettled(run: KnowledgeRunView): boolean {
 
 export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAskAction): KnowledgeAskState {
   switch (action.type) {
+    case "scopeReset":
+      return createInitialKnowledgeAskState();
     case "submitStarted": {
       // 新提交使旧 run 投影立即失效：current → previous（折叠保留），证据态全部作废
       // （receipt 绑定旧 run，跨 run 的 Inspector 判定不可复用）。

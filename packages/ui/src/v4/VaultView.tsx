@@ -41,6 +41,8 @@ import {
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  getKnowledgeCitationOpenEventName,
+  isKnowledgeCitationOpenEvent,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -1331,6 +1333,65 @@ export function VaultView({
     },
     [config?.vaultId, openFile],
   );
+
+  // Composer only provides an opaque receipt; this mounted, session-scoped Vault
+  // resolves the current path + quote before opening any note. Never navigate from
+  // a model-produced path, a stale receipt, or a response for another Vault scope.
+  const citationScopeRef = React.useRef({ sessionId, workspaceKey, queryService: knowledgeQueryService });
+  citationScopeRef.current = { sessionId, workspaceKey, queryService: knowledgeQueryService };
+  React.useEffect(() => {
+    if (!sessionId || !workspaceKey || !knowledgeQueryService) return;
+    const handleCitationOpen = (event: Event): void => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      const detail = event.detail;
+      if (detail.accepted ||
+          detail.targetSessionId !== sessionId ||
+          detail.workspaceKey !== workspaceKey) return;
+      detail.accepted = true;
+      const vaultId = vaultIdRef.current;
+      if (!vaultId) {
+        detail.finish({ ok: false, reason: "unavailable" });
+        return;
+      }
+      void (async (): Promise<void> => {
+        try {
+          const resolved = await knowledgeQueryService.resolveCitation({
+            receiptId: detail.receiptId,
+            sessionId,
+          });
+          const active = citationScopeRef.current;
+          if (!mountedRef.current || vaultIdRef.current !== vaultId ||
+              active.sessionId !== sessionId || active.workspaceKey !== workspaceKey ||
+              active.queryService !== knowledgeQueryService) {
+            detail.finish({ ok: false, reason: "forbidden" });
+            return;
+          }
+          if (resolved.status !== "current") {
+            const reason = resolved.status;
+            detail.finish({
+              ok: false,
+              reason: reason === "stale" || reason === "missing" || reason === "forbidden"
+                ? reason : "unavailable",
+            });
+            return;
+          }
+          const citation = resolved.citation;
+          if (!citation || citation.receiptId !== detail.receiptId ||
+              citation.sessionId !== sessionId ||
+              !citation.relativePath.trim()) {
+            detail.finish({ ok: false, reason: "forbidden" });
+            return;
+          }
+          await openNoteFromKnowledge(citation.relativePath, citation.quote);
+          detail.finish({ ok: true });
+        } catch {
+          detail.finish({ ok: false, reason: "failed" });
+        }
+      })();
+    };
+    window.addEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+    return () => window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+  }, [knowledgeQueryService, openNoteFromKnowledge, sessionId, workspaceKey]);
 
   const goToNotesView = React.useCallback((): void => {
     setViewTab("notes");

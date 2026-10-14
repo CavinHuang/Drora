@@ -15,16 +15,14 @@ import { randomUUID } from "node:crypto";
 import { Emitter, type Event } from "@drora/rpc";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
-import { loadCoverage } from "../store/indexRepository.js";
 import { resolveKnowledgeSource, type KnowledgeSourceResolution } from "../source/sourceRegistry.js";
-import { searchLexicalPass } from "../search/lexicalRetriever.js";
 import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
-import { decideByPolicy, DEFAULT_DECISION_POLICY, queryHashOf } from "../decision/decisionPolicy.js";
+import { executeKnowledgeSearch } from "./querySearchPipeline.js";
+import { queryHashOf } from "../decision/decisionPolicy.js";
 import type {
   KnowledgeDecisionConsentGrantResult,
 } from "../decision/decisionTypes.js";
 import type {
-  KnowledgeCoverage,
   KnowledgeRunUpdatedEvent,
   KnowledgeRunView,
 } from "../knowledgeTypes.js";
@@ -230,96 +228,19 @@ export class QueryOrchestrator {
     record.abort = abort;
 
     try {
-      const source = await this.resolveSource();
-      if (!source.configured || source.sourceEpoch === null || !source.summary) {
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "vault_not_configured",
-          decision: null,
-        });
-      }
-      if (
-        !record.sourceRef ||
-        source.summary.vaultId !== record.sourceRef.vaultId ||
-        source.sourceEpoch !== record.sourceRef.sourceEpoch
-      ) {
-        // 源身份/epoch 在检索期间变化：旧 Query 失效（spec §5b.6）。
-        // vaultId 必须一并比较：epoch 是 vault 内计数，换库后新 vault 可能同为 1。
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "source_epoch_changed",
-          decision: null,
-        });
-      }
-
-      const coverage = loadCoverage(this.db, source.summary.vaultId, source.sourceEpoch);
-      const sharedOptions = { semantic: this.semantic, partial: coverage?.partial ?? false } as const;
-
-      // ① AND 轮；② policy 裁决 EXPAND_ONCE（至多一次降级扩搜，A11；资格=tokenizer
-      // 判定 canRelax——存在可拆 bigram 的 CJK run 或多部件，spec §5b.5）。
-      let pass = await searchLexicalPass(this.db, record.sourceRef, record.query, {
-        ...sharedOptions,
-        relaxed: false,
+      const patch = await executeKnowledgeSearch({
+        db: this.db,
+        semantic: this.semantic,
+        sourceRef: record.sourceRef,
+        runId: record.runId,
+        query: record.query,
+        decisionConsentId: params.decisionConsentId,
+        decision: this.decision,
+        signal: abort.signal,
+        resolveSource: () => this.resolveSource(),
+        sourceChangedSince: () => this.sourceChangedSince(record.sourceRef),
       });
-      let expanded = false;
-      let canExpand = pass.candidates.length === 0 && pass.canRelax;
-      const policyPre = decideByPolicy({
-        candidates: toDecisionCandidates(pass.candidates),
-        outcomes: [],
-        canExpand,
-        expanded,
-        config: this.decision?.config ?? DEFAULT_DECISION_POLICY,
-      });
-      if (policyPre.shouldExpand) {
-        pass = await searchLexicalPass(this.db, record.sourceRef, record.query, {
-          ...sharedOptions,
-          relaxed: true,
-        });
-        expanded = true;
-        canExpand = false;
-      }
-
-      // ③ 决策阶段（provider 未注入 → off/零出站）；授权绑定在管线门与 adapter 逐调用重查。
-      const stage = this.decision
-        ? await this.decision.pipeline.runStage({
-            runId: record.runId,
-            vaultId: record.sourceRef.vaultId,
-            sourceEpoch: record.sourceRef.sourceEpoch,
-            query: record.query,
-            queryHash: queryHashOf(record.query),
-            candidates: toDecisionCandidates(pass.candidates),
-            consentId: params.decisionConsentId ?? null,
-            canExpand,
-            expanded,
-            signal: abort.signal,
-          })
-        : null;
-
-      // ④ 阶段后重验源（换源/撤权发生在出站期间 → 整个决策与结果失效）。
-      if (await this.sourceChangedSince(record.sourceRef)) {
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "source_epoch_changed",
-          candidates: [],
-          coverage: null,
-          diagnostics: pass.diagnostics,
-          decision: stage?.diagnostics ?? null,
-        });
-      }
-
-      // ⑤ 融合只重排次序，不改候选事实（articleId/quote/sha 原样，A26）。
-      const finalCoverage: KnowledgeCoverage | null = coverage ?? EMPTY_COVERAGE;
-      const orderedCandidates = stage
-        ? reorderCandidates(pass.candidates, stage.policy.fusedRankByCandidateId)
-        : pass.candidates;
-      return this.applyResult(record, generationAtStart, {
-        status: pass.status,
-        candidates: orderedCandidates,
-        coverage: finalCoverage,
-        diagnostics: pass.diagnostics,
-        decision: stage?.diagnostics ?? null,
-        reason: null,
-      });
+      return this.applyResult(record, generationAtStart, patch);
     } catch (error) {
       this.logger.error("检索失败", { runId: record.runId });
       return this.applyResult(record, generationAtStart, {
@@ -503,16 +424,3 @@ export class QueryOrchestrator {
 }
 
 const MAX_QUERY_CHARS = 512;
-
-const EMPTY_COVERAGE: KnowledgeCoverage = {
-  indexedFiles: 0,
-  indexedChunks: 0,
-  excludedHidden: 0,
-  excludedSymlink: 0,
-  excludedNotMarkdown: 0,
-  excludedOverSize: 0,
-  excludedOverQuota: 0,
-  excludedDepth: 0,
-  truncatedFiles: 0,
-  partial: false,
-};

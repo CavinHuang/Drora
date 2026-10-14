@@ -219,7 +219,7 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
     case "expandCandidates":
       return { ...state, visibleCandidateLimit: Math.max(1, action.limit) };
     case "candidateSelected": {
-      if (state.current?.intent === "compare" && action.articleId) {
+      if ((state.current?.intent === "compare" || state.current?.intent === "answer") && action.articleId) {
         const alreadySelected = state.selectedArticleIds.includes(action.articleId);
         if (!alreadySelected && state.selectedArticleIds.length >= MAX_KNOWLEDGE_HANDOFF_SOURCES) {
           return state;
@@ -281,6 +281,9 @@ export function getAskOutcome(state: KnowledgeAskState): KnowledgeAskOutcome {
   if (!round) return state.phase === "submitting" ? "submitting" : "idle";
   if (state.phase === "submitting") return "submitting";
   if (state.phase === "retrieving") return "retrieving";
+  // cancelRun acknowledgement may arrive before search() returns a settled snapshot.
+  // Once the user cancelled, do not keep showing an endless retrieval spinner.
+  if (round.cancelledByUser) return "cancelled";
   switch (round.run.status) {
     case "no_source":
       return "noVault";

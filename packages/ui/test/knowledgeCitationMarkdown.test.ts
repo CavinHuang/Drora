@@ -12,6 +12,7 @@ type Node = {
   type: string;
   value?: string;
   url?: string;
+  identifier?: string;
   data?: { hProperties?: Record<string, string> };
   children?: Node[];
 };
@@ -78,7 +79,7 @@ describe("Obsidian turn-scoped inline source markers", () => {
     expect(tree.children?.[1]?.url).toBe("https://example.com");
   });
   it("pulls current indices and nonce from a parsed per-render marker, not a cached plugin closure", () => {
-    const first = {
+    const first: Node = {
       type: "root",
       children: [
         paragraph("Evidence [1] [2]"),
@@ -89,7 +90,7 @@ describe("Obsidian turn-scoped inline source markers", () => {
         },
       ],
     };
-    const second = {
+    const second: Node = {
       type: "root",
       children: [
         paragraph("Evidence [1] [2]"),

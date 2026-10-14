@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildUserInputRow } from "../src/drora-protocol-v4/projection-rows.ts";
+import { userInputRowSchema } from "@drora/shared/drora-protocol-v4";
 
 const base = { rowId: 22, turnId: "turn-22", createdAt: 1, createdAtSeq: 1 };
 
@@ -21,6 +22,7 @@ test("admitted evidence receipts survive CLI userInput row projection with sourc
   assert.equal(row.origin, "realUser");
   assert.deepEqual(row.evidenceRefs, refs);
   assert.notEqual(row.evidenceRefs, refs, "projector must snapshot the canonical refs");
+  assert.deepEqual(userInputRowSchema.parse(row).evidenceRefs, refs, "Zod protocol must not strip the receipts");
 });
 
 test("ordinary and legacy inputs never gain synthetic evidence provenance", () => {

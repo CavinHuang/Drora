@@ -30,6 +30,8 @@ export interface MarkdownSelectionReference extends ConversationSelectionText {
   sourceTitle: string;
   /** Renderer-only: opaque server-issued receipt; never serialize into the model-facing userselect block. */
   evidenceReceiptId?: string;
+  /** Renderer-only numbered source label; never included in the model-facing userselect block. */
+  evidenceSource?: import("./conversationKnowledgeSources.js").KnowledgeDraftSource;
 }
 
 export type ConversationSelectionReference = MessageSelectionReference | MarkdownSelectionReference;

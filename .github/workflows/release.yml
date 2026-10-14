@@ -379,8 +379,9 @@ jobs:
               # (v0.0.9 首个 arm64 覆盖发布实证)。
               Drora-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
               Drora-*x64*.exe) have_installer=true; have_installer_x64=true ;;
-              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
-              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true ;;
+              # 专项命中同时计入通用 dmg/zip 覆盖（专项前置后通用模式不再触达）。
+              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true; have_dmg=true; have_zip=true ;;
+              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true; have_dmg=true; have_zip=true ;;
               *.dmg) have_dmg=true ;;
               *.zip) have_zip=true ;;
               drora-windows*) have_sea_win=true ;;

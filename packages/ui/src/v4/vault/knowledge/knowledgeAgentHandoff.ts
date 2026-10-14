@@ -26,6 +26,28 @@ export type KnowledgeHandoffPreparation =
 
 export { MAX_KNOWLEDGE_HANDOFF_SOURCES } from "./knowledgeAskModel.js";
 
+/** Snapshot the exact selection and composer target used for a verified async handoff. */
+export interface KnowledgeHandoffScope {
+  runId: string | null;
+  sessionId: string | null;
+  workspaceKey: string | null;
+  articleIds: readonly string[];
+}
+
+export function sameKnowledgeHandoffScope(
+  expected: KnowledgeHandoffScope,
+  current: KnowledgeHandoffScope,
+): boolean {
+  return (
+    expected.runId === current.runId &&
+    expected.sessionId === current.sessionId &&
+    expected.workspaceKey === current.workspaceKey &&
+    expected.articleIds.length === current.articleIds.length &&
+    expected.articleIds.every((id, index) => id === current.articleIds[index])
+  );
+}
+
+
 export function buildKnowledgeAnswerPrompt(query: string, intent: KnowledgeAnswerIntent): string {
   const question = query.trim();
   if (intent === "compare") {

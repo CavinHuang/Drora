@@ -42,6 +42,7 @@ import {
   AskBannerList,
   KnowledgeCandidateCard,
   displayCandidateTitle,
+  evidenceUnavailableMessageKey,
 } from "./KnowledgeCandidateCard.js";
 import {
   AskDecisionTrace,
@@ -52,7 +53,10 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
-import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
+import {
+  verifyKnowledgeCandidateEvidence,
+  verifyPreviousKnowledgeCandidateEvidence,
+} from "./knowledgeEvidenceVerification.js";
 import { useKnowledgeAgentActions } from "./useKnowledgeAgentActions.js";
 
 const toast = {
@@ -91,6 +95,8 @@ export function KnowledgeAskView({
   const [indexStatus, setIndexStatus] = React.useState<KnowledgeIndexStatus | null>(null);
   const [indexActionBusy, setIndexActionBusy] = React.useState(false);
   const [traceOpen, setTraceOpen] = React.useState(false);
+  const [openingPreviousId, setOpeningPreviousId] = React.useState<string | null>(null);
+  const openingPreviousRef = React.useRef<{ articleId: string; seq: number } | null>(null);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
@@ -108,6 +114,8 @@ export function KnowledgeAskView({
     submitSeqRef.current += 1;
     inFlightRunIdRef.current = null;
     lastSubmitRef.current = null;
+    openingPreviousRef.current = null;
+    setOpeningPreviousId(null);
     dispatch({ type: "scopeReset" });
     setInput("");
     setIndexStatus(null);
@@ -159,6 +167,8 @@ export function KnowledgeAskView({
       lastSubmitRef.current = { query, clientRequestId, intent };
       const seq = ++submitSeqRef.current;
       inFlightRunIdRef.current = null;
+      openingPreviousRef.current = null;
+      setOpeningPreviousId(null);
       dispatch({ type: "submitStarted", query, clientRequestId, intent });
       try {
         const run = await queryService.createRun({
@@ -263,6 +273,40 @@ export function KnowledgeAskView({
       submitSeqRef,
       verifyEvidence,
     });
+
+  const openPreviousNote = React.useCallback(
+    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
+      const previous = state.previous;
+      if (!previous || !queryService || openingPreviousRef.current) return;
+      const seq = submitSeqRef.current;
+      const token = { articleId: candidate.articleId, seq };
+      openingPreviousRef.current = token;
+      setOpeningPreviousId(candidate.articleId);
+      try {
+        const proof = await verifyPreviousKnowledgeCandidateEvidence({
+          queryService,
+          run: previous.run,
+          candidate,
+          sessionId,
+        });
+        // Never open an old note after a new search, session or host has replaced this one.
+        if (seq !== submitSeqRef.current || openingPreviousRef.current !== token) return;
+        if (proof.phase === "verified") {
+          onOpenNote(proof.relativePath, proof.quote);
+        } else if (proof.phase === "failed") {
+          toast.error(intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: proof.message }));
+        } else if (proof.phase === "unavailable") {
+          toast.error(intl.formatMessage({ id: evidenceUnavailableMessageKey(proof.status) }));
+        }
+      } finally {
+        if (openingPreviousRef.current === token) {
+          openingPreviousRef.current = null;
+          setOpeningPreviousId(null);
+        }
+      }
+    },
+    [intl, onOpenNote, queryService, sessionId, state.previous],
+  );
 
   const openFollowUpSideChat = React.useCallback(
     (candidate: KnowledgeArticleCandidate): void => {
@@ -437,7 +481,8 @@ export function KnowledgeAskView({
             <AskPreviousRound
               candidates={state.previous.run.candidates}
               submittedQuery={state.previous.submittedQuery}
-              onOpenNote={(relativePath) => onOpenNote(relativePath)}
+              openingArticleId={openingPreviousId}
+              onOpenNote={(candidate) => void openPreviousNote(candidate)}
             />
           )}
 

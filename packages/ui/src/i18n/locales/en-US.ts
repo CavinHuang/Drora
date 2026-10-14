@@ -7521,7 +7521,7 @@ const enUS: Record<string, string> = {
 "vault.ask.candidate.askAbout": "Ask about this",
 "vault.ask.handoff.answer": "Ask Agent with selected evidence",
 "vault.ask.handoff.compare": "Compare selected notes",
-"vault.ask.handoff.answerHint": "Select one candidate first. The Agent composer must be empty.",
+"vault.ask.handoff.answerHint": "Select 1–5 notes to answer across sources. The Agent composer must be empty.",
 "vault.ask.handoff.compareHint": "Select at least two and at most five candidates.",
 "vault.ask.handoff.checking": "Verifying sources…",
 "vault.ask.handoff.prepared": "The question and verified sources are in the Agent draft. Review and send it.",

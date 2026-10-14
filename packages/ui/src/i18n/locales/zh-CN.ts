@@ -1084,6 +1084,7 @@ const zhCN: Record<string, string> = {
   "chat.selections.sideBlocked": "请先处理辅助对话中的待处理请求。",
   "chat.selections.count": "{count} 条对话引用",
   "chat.selections.remove": "移除对话引用",
+  "chat.selections.evidenceRecheckOnSend": "已签发可信引用 · 发送时复验",
   "chat.selections.type.user": "用户消息",
   "chat.selections.type.assistant": "助手消息",
   "chat.selections.type.reasoning": "推理内容",

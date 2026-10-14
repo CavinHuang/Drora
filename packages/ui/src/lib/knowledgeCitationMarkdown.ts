@@ -13,6 +13,8 @@ interface MarkdownNode {
   value?: string;
   url?: string;
   title?: string | null;
+  /** Internal mdast-to-hast marker; ordinary model Markdown links lack it. */
+  data?: { hProperties?: Record<string, string> };
   children?: MarkdownNode[];
 }
 
@@ -55,6 +57,7 @@ export function linkKnownKnowledgeCitations(
           type: "link",
           title: null,
           url: `${KNOWLEDGE_CITATION_HASH_PREFIX}${index}`,
+          data: { hProperties: { "data-drora-bound-knowledge-source": String(index) } },
           children: [{ type: "text", value: match[0] }],
         });
         offset = at + match[0].length;

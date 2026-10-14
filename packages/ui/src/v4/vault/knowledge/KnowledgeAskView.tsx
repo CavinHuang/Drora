@@ -4,8 +4,8 @@
  * 接真实 Query/Index/Citation RPC：createRun→search、getStatus、cancelRun、
  * prepareEvidence→resolveCitation。呈现边界（诚实优先）：
  * - 候选永远是本地检索结果；Jev（W05）未接入前排序增强区只显示「未启用」。
- * - 「加入 Agent」走既有 selection 引用通道（userselect 数据语义，不是 Receipt，
- *   不获执行时复验——spec §5.4），按钮文案明示。
+ * - 「加入 Agent」复用 selection UI 承载摘录，并随 sendText 单独携带可信 Receipt；
+ *   CLI gate 在 admission / queued promotion 复验。普通 userselect 仍不自带证据特权。
  * - 「跳到原文」只在 resolveCitation 返回 current 后可用。
  * - 全部业务失败以结构化状态呈现，不编造标题/链接（A10）。
  */

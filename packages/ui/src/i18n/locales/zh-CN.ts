@@ -7349,6 +7349,7 @@ const zhCN: Record<string, string> = {
   "vault.ask.evidence.attached": "证据 Receipt 已附给会话输入框；发送时服务端复验",
   "vault.review.subtitle": "提案 → 人工批准 → 账本执行（L2 治理写唯一入口，全部动作落审核账本）",
   "vault.review.writePathToggle": "L2 审核写回",
+  "vault.review.s03GateBlocked": "S03 写安全门禁尚未通过，L2 写路径保持关闭；审阅和审批仍可使用。",
   "vault.review.writePathToggleHint": "缺省关闭。开启后「已批准提案」的应用/撤销才会真实写盘（S03 门禁已 GO，见 specs/write-safety-gating.md）；每次执行仍需逐案批准。",
   "vault.review.listFailed": "无法读取提案列表",
   "vault.review.emptyTitle": "暂无提案",

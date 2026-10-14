@@ -623,6 +623,18 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
     const source = await resolveSource();
+    // A Vault reconfiguration drops the preference. An in-memory true for the
+    // previous root must not authorize new-root writes. Explicit test overrides
+    // are isolated from production preference loading.
+    if (options.writePathEnabled === undefined &&
+        source.config.reviewWritePathEnabled !== true) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+        message: "当前 Vault 未授权 L2 写入；切库后须重新通过安全门禁并显式启用",
+        operation: null,
+      };
+    }
     const row = store.getProposal(params.proposalId);
     if (!row) {
       return {
@@ -899,6 +911,15 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
     }
     const source = await resolveSource();
+    if (options.writePathEnabled === undefined &&
+        source.config.reviewWritePathEnabled !== true) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+        message: "当前 Vault 未授权 L2 撤销写入",
+        operation: buildOperationView(opRow),
+      };
+    }
     if (opRow.vaultId !== source.vaultId) {
       return {
         outcome: "blocked",

@@ -19,11 +19,7 @@ import type {
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
-import {
-  createConversationSelectionReference,
-  type MarkdownSelectionTarget,
-} from "@/lib/conversationSelectionReference.js";
-import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
+import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 import {
   ASK_DEFAULT_VISIBLE_CANDIDATES,
   createInitialKnowledgeAskState,
@@ -41,7 +37,6 @@ import {
 import {
   AskBannerList,
   KnowledgeCandidateCard,
-  displayCandidateTitle,
 } from "./KnowledgeCandidateCard.js";
 import {
   AskDecisionTrace,
@@ -99,7 +94,7 @@ export function KnowledgeAskView({
   const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
-  const { openingPreviousId, usePreviousCandidate, cancelPendingPrevious } = usePreviousKnowledgeActions({
+  const { openingPreviousId, usePreviousCandidate, cancelPendingPrevious, openFollowUpSideChat } = usePreviousKnowledgeActions({
     previous: state.previous,
     queryService,
     sessionId,
@@ -273,28 +268,6 @@ export function KnowledgeAskView({
       submitSeqRef,
       verifyEvidence,
     });
-
-  const openFollowUpSideChat = React.useCallback(
-    (candidate: KnowledgeArticleCandidate): void => {
-      // MarkdownSelectionTarget.sessionId 类型允许 null；追问需要真实会话 id。
-      if (!selectionTarget?.sessionId) {
-        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-        return;
-      }
-      const sideChatKey = buildSelectionSideChatKey(selectionTarget.workspaceKey, selectionTarget.sessionId);
-      const reference = createConversationSelectionReference({
-        contentType: "markdown",
-        sourceKey: `vault:${candidate.relativePath}`,
-        sourceTitle: displayCandidateTitle(candidate),
-        path: candidate.relativePath,
-        text: candidate.excerpt,
-      });
-      if (!requestSelectionSideChatOpen(sideChatKey, reference)) {
-        toast.error(intl.formatMessage({ id: "vault.selection.sideChatFailed" }));
-      }
-    },
-    [intl, selectionTarget],
-  );
 
   if (!queryService || !indexService) {
     return (

@@ -42,9 +42,8 @@ jobs:
           - os: windows-2022
             builder-os: win
             builder-arch: x64
-          - os: windows-2022
-            builder-os: win
-            builder-arch: arm64
+          # windows-arm64 暂不上架（2026-10-13）：retained CUA helper 无 arm64
+          # 原生产物（sharp/ax_native 仅 x64），PE 校验必挂——补齐后按 spec 再启用。
     runs-on: ${{ matrix.os }}
     env:
       # secrets 不允许出现在 step 的 if 条件里（GitHub 编译期拒绝，run 秒败 0 job）；

@@ -30,6 +30,20 @@ export function parseKnowledgeCitationHref(href: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** A model-authored [n](#...) link has no internal AST marker and cannot navigate. */
+export function resolveBoundKnowledgeCitation(
+  href: string,
+  node: { properties?: Record<string, unknown> } | undefined,
+  allowedIndices: readonly number[],
+): number | null {
+  const index = parseKnowledgeCitationHref(href);
+  return index !== null &&
+    allowedIndices.includes(index) &&
+    node?.properties?.["data-drora-bound-knowledge-source"] === String(index)
+    ? index
+    : null;
+}
+
 export function linkKnownKnowledgeCitations(
   tree: MarkdownNode,
   allowedIndices: readonly number[],

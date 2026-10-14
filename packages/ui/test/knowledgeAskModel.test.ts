@@ -527,3 +527,23 @@ test("取消结果只能作用于当前正在检索的 run，旧请求不得取�
   assert.equal(cancelled.current?.run.runId, "run-new");
   assert.equal(reduceKnowledgeAsk(cancelled, { type: "cancelSucceeded", runId: "run-new" }), cancelled);
 });
+
+
+test("scopeReset isolates a new session from prior candidates, receipts and retry context", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "prior-session", status: "ready" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "art-1" });
+  state = reduceKnowledgeAsk(state, {
+    type: "evidenceResolved", articleId: "art-1",
+    state: { phase: "verified", receiptId: "old-receipt", excerpt: "old",
+      relativePath: "notes/old.md", title: "old", heading: null,
+      quote: { startLine: 1, endLine: 1, startOffset: 0, endOffset: 3 } },
+  });
+  const reset = reduceKnowledgeAsk(state, { type: "scopeReset" });
+  assert.deepEqual(reset, createInitialKnowledgeAskState());
+  assert.equal(reduceKnowledgeAsk(reset, {
+    type: "runSettled", run: makeRun({ runId: "prior-session", status: "ready" }),
+  }), reset);
+  assert.equal(reduceKnowledgeAsk(reset, { type: "cancelSucceeded", runId: "prior-session" }), reset);
+});

@@ -53,12 +53,15 @@
 | G28 | 将可信笔记加入已有 Agent Composer，点击该引用的「核验后打开原文」 | 对当前 Session 执行 resolveCitation=current，打开 VaultView 中服务端给出的相对路径并定位 quote 行号 | 未执行 |
 | G29 | 修改/删除原文、切换 Vault/Session 或关闭对应 VaultView 后点击引用 | 禁止按缓存路径跳转；结构化显示 stale/missing/forbidden/unavailable，不打开其他 Vault 的同名文件 | 未执行 |
 | G30 | 在 Composer 中附加普通 Markdown 选区而非可信 Receipt | 不出现「核验后打开原文」动作，不会因本地 path 文本获得可信来源权限 | 未执行 |
+| G31 | 在未引入 S03 写安全门禁的生产桌面端打开 Vault 审核视图 | L2 开关禁用，并明确显示 S03 NO-GO；批准、拒绝、提案预览仍可用 | 未执行 |
+| G32 | 手动把 `vault-config.json.reviewWritePathEnabled` 设置 true 后重启 Drora | 不自动激活 L2；apply/undo 返回 write_path_disabled，不能写入 Vault 文件 | 未执行 |
+| G33 | 已显式通过安全门禁的测试环境中快速切换开启/关闭，或切换到另一个 Vault | 关闭立即撤销权限，旧配置读不能复活开关；切库后不能沿用旧 Vault 写授权 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G30 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G33 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

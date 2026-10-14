@@ -62,7 +62,8 @@ describe("Obsidian turn-scoped inline source markers", () => {
     linkKnownKnowledgeCitations(original, []);
     expect(original.children).toEqual([{ type: "text", value: "This is [1] and [4]." }]);
     const plugin = createKnowledgeCitationRemarkPlugin([2])();
-    plugin(original);
+    expect(plugin).toBeTypeOf("function");
+    if (typeof plugin === "function") plugin(original);
     expect(original.children).toEqual([{ type: "text", value: "This is [1] and [4]." }]);
   });
 

@@ -6,7 +6,10 @@ import type {
   KnowledgeEvidenceReceipt,
   KnowledgeRunView,
 } from "@drora/services";
-import { verifyKnowledgeCandidateEvidence } from "../src/v4/vault/knowledge/knowledgeEvidenceVerification.js";
+import {
+  verifyKnowledgeCandidateEvidence,
+  verifyPreviousKnowledgeCandidateEvidence,
+} from "../src/v4/vault/knowledge/knowledgeEvidenceVerification.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 12, endOffset: 38 };
 const candidate: KnowledgeArticleCandidate = {
@@ -164,4 +167,65 @@ test("citation verification: an unbound lookup may inspect current text without 
   assert.deepEqual(await verify(service), {
     phase: "unavailable", status: "forbidden", reason: "citation_mismatch",
   });
+});
+
+test("previous-round navigation issues a fresh receipt and uses verified source position", async () => {
+  const calls: unknown[] = [];
+  const service = mockService(
+    async (params) => {
+      calls.push(["prepare", params]);
+      return { status: "current", receipt };
+    },
+    async (params) => {
+      calls.push(["resolve", params]);
+      return { status: "current", citation };
+    },
+  );
+  const previousRun = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
+  const result = await verifyPreviousKnowledgeCandidateEvidence({
+    queryService: service, run: previousRun, candidate, sessionId: "session-1",
+  });
+  assert.equal(result.phase, "verified");
+  if (result.phase === "verified") {
+    assert.equal(result.relativePath, "notes/a.md");
+    assert.deepEqual(result.quote, quote);
+  }
+  assert.deepEqual(calls, [
+    ["prepare", { runId: "run-1", articleId: "article-1" }],
+    ["resolve", { receiptId: "evr_verified", sessionId: "session-1" }],
+  ]);
+});
+
+test("previous-round navigation rejects cancelled runs and candidates not in the historical run", async () => {
+  let callCount = 0;
+  const service = mockService(
+    async () => { callCount++; return { status: "current", receipt }; },
+    async () => { callCount++; return { status: "current", citation }; },
+  );
+  const historical = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
+  for (const invalid of [
+    { run: { ...historical, status: "cancelled" as const }, candidate },
+    { run: historical, candidate: { ...candidate, articleId: "different" } },
+    { run: historical, candidate: { ...candidate, quote: { ...quote, startLine: 7 } } },
+  ]) {
+    assert.deepEqual(await verifyPreviousKnowledgeCandidateEvidence({
+      queryService: service, ...invalid, sessionId: "session-1",
+    }), { phase: "unavailable", status: "forbidden", reason: "previous_candidate_unavailable" });
+  }
+  assert.equal(callCount, 0);
+});
+
+test("previous-round navigation fails closed for changed or deleted sources", async () => {
+  const historical = { ...run, status: "partial", candidates: [candidate] } as KnowledgeRunView;
+  for (const status of ["stale", "missing"] as const) {
+    const service = mockService(
+      async () => ({ status: "current", receipt }),
+      async () => ({ status, reason: status === "stale" ? "file_modified" : "file_deleted", citation: null }),
+    );
+    const result = await verifyPreviousKnowledgeCandidateEvidence({
+      queryService: service, run: historical, candidate, sessionId: "session-1",
+    });
+    assert.equal(result.phase, "unavailable");
+    if (result.phase === "unavailable") assert.equal(result.status, status);
+  }
 });

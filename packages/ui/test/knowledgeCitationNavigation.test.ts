@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import type { KnowledgeResolveCitationResult } from "@drora/services";
+import { decideKnowledgeCitationNavigation } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
+
+const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
+const citation = {
+  receiptId: "evr_open",
+  sessionId: "session-1",
+  runId: "run-1",
+  articleId: "note-1",
+  relativePath: "notes/a.md",
+  title: "Note A",
+  heading: "Section",
+  quote,
+  excerpt: "Verified text",
+  createdAtMs: 1,
+};
+function validate(resolved: KnowledgeResolveCitationResult, sessionId = "session-1") {
+  return decideKnowledgeCitationNavigation({ resolved, receiptId: "evr_open", sessionId });
+}
+function current(changes: Partial<typeof citation> = {}): KnowledgeResolveCitationResult {
+  return { status: "current", citation: { ...citation, ...changes } };
+}
+
+describe("Obsidian citation navigation authorization", () => {
+  it("uses only the current server-resolved destination and exact quote", () => {
+    expect(validate(current())).toEqual({ ok: true, relativePath: "notes/a.md", quote });
+  });
+
+  it("rejects receipts issued for a different session or identifier", () => {
+    expect(validate(current(), "another-session")).toEqual({ ok: false, reason: "forbidden" });
+    expect(validate(current({ receiptId: "evr_elsewhere" }))).toEqual({ ok: false, reason: "forbidden" });
+    expect(validate(current({ sessionId: "another-session" }))).toEqual({ ok: false, reason: "forbidden" });
+  });
+
+  it("cannot use an absolute path, parent traversal or a malformed quote", () => {
+    for (const relativePath of ["../../outside.md", "/etc/passwd", "C:/secrets.md", "notes/../else.md", "notes\\a.md", "notes//a.md"]) {
+      expect(validate(current({ relativePath }))).toEqual({ ok: false, reason: "forbidden" });
+    }
+    for (const invalid of [
+      { ...quote, startLine: 0 },
+      { ...quote, endLine: 1 },
+      { ...quote, startOffset: -1 },
+      { ...quote, endOffset: 2 },
+    ]) {
+      expect(validate(current({ quote: invalid }))).toEqual({ ok: false, reason: "forbidden" });
+    }
+  });
+
+  it("fails closed for stale/missing/forbidden or unavailable source", () => {
+    for (const status of ["stale", "missing", "forbidden", "source_stale"] as const) {
+      const result = validate({ status, reason: null } as unknown as KnowledgeResolveCitationResult);
+      expect(result).toEqual({
+        ok: false,
+        reason: status === "source_stale" ? "unavailable" : status,
+      });
+    }
+  });
+});

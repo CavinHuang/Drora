@@ -76,7 +76,9 @@ export function KnowledgeAnswerSources({
               ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
               : <BookOpenText className="size-3.5" aria-hidden="true" />}
             {[`[${source.index}]`, source.relativePath.split("/").at(-1)].filter(Boolean).join(" ")}
-            {cited.has(source.index) ? " · ✓" : ""}
+            {cited.has(source.index)
+              ? ` · ${intl.formatMessage({ id: "chat.knowledgeTurn.mentioned" })}`
+              : ""}
           </Button>
         ))}
       </div>

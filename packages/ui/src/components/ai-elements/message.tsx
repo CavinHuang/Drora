@@ -390,6 +390,8 @@ export type MessageResponseProps = {
   renderDroraFileCitations?: boolean;
   /** Only the canonical Receipt-backed indices of this completed product turn. */
   knowledgeCitationIndices?: readonly number[];
+  /** Stable session + turn + Receipt identity. Required to remount a cached renderer. */
+  knowledgeCitationScopeKey?: string;
   /** Navigate via host Receipt revalidation; never infer a path from model text. */
   onOpenKnowledgeCitation?: (index: number) => void;
 };
@@ -1314,6 +1316,7 @@ export const messageResponsePropsAreEqual = (
   nextProps.readAttachment === prevProps.readAttachment &&
   nextProps.renderDroraFileCitations === prevProps.renderDroraFileCitations &&
   nextProps.knowledgeCitationIndices === prevProps.knowledgeCitationIndices &&
+  nextProps.knowledgeCitationScopeKey === prevProps.knowledgeCitationScopeKey &&
   nextProps.onOpenKnowledgeCitation === prevProps.onOpenKnowledgeCitation &&
   nextProps.theme === prevProps.theme &&
   nextProps.codePreviewSettings === prevProps.codePreviewSettings &&
@@ -1331,6 +1334,7 @@ export const MessageResponse = memo(
     onOpenExternalUrl,
     renderDroraFileCitations = false,
     knowledgeCitationIndices,
+    knowledgeCitationScopeKey,
     onOpenKnowledgeCitation,
     workspacePath,
     workspaceHomePath,
@@ -1432,7 +1436,7 @@ export const MessageResponse = memo(
           workspaceRemoteSessionId,
           wrapLongLines,
         }) + (forceCodeWrap ? ":wrap-locked" : "") +
-        `:knowledge:${onOpenKnowledgeCitation ? knowledgeCitationIndices?.join(",") ?? "" : ""}`
+        `:knowledge:${onOpenKnowledgeCitation ? knowledgeCitationIndices?.join(",") ?? "" : ""}:${knowledgeCitationScopeKey ?? ""}`
       );
     }, [
       codeBlockTheme,
@@ -1441,6 +1445,7 @@ export const MessageResponse = memo(
       forceCodeWrap,
       renderDroraFileCitations,
       knowledgeCitationIndices,
+      knowledgeCitationScopeKey,
       onOpenKnowledgeCitation,
       readAttachment,
       sessionId,

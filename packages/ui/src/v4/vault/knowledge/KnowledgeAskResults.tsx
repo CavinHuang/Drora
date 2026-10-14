@@ -5,7 +5,7 @@
  * （追问保留，默认折叠）、结构化空态/引导/过期态。
  */
 import * as React from "react";
-import { ChevronDown, ChevronRight, FileSearch, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSearch, Loader2, Search, SendHorizonal } from "lucide-react";
 import type { KnowledgeArticleCandidate, KnowledgeRunView } from "@drora/services";
 import { Button } from "@/components/ui/button.js";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible.js";
@@ -63,13 +63,17 @@ export function AskPreviousRound({
   candidates,
   submittedQuery,
   openingArticleId,
+  canAddToAgent,
   onOpenNote,
+  onAddToAgent,
 }: {
   candidates: KnowledgeArticleCandidate[];
   submittedQuery: string;
   openingArticleId: string | null;
-  /** Historical candidates must pass fresh evidence verification in the parent view. */
+  canAddToAgent: boolean;
+  /** Both actions must pass fresh evidence verification in the parent view. */
   onOpenNote: (candidate: KnowledgeArticleCandidate) => void;
+  onAddToAgent: (candidate: KnowledgeArticleCandidate) => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   return (
@@ -83,22 +87,37 @@ export function AskPreviousRound({
       <CollapsibleContent>
         <div className="flex flex-col gap-2 pt-2">
           {candidates.slice(0, 5).map((candidate) => (
-            <button
-              key={candidate.articleId}
-              type="button"
-              onClick={() => onOpenNote(candidate)}
-              disabled={openingArticleId !== null}
-              data-testid="ask-previous-candidate"
-              className="flex min-w-0 items-center gap-2 rounded-lg border border-card-border bg-surface px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
-            >
-              {openingArticleId === candidate.articleId && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-              <span className="min-w-0 truncate text-ui-sm text-foreground">
-                {displayCandidateTitle(candidate)}
-              </span>
-              <span className="ml-auto shrink-0 truncate font-mono text-ui-xs text-foreground-subtlest">
-                {candidate.relativePath}
-              </span>
-            </button>
+            <div key={candidate.articleId} className="flex min-w-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onOpenNote(candidate)}
+                disabled={openingArticleId !== null}
+                data-testid="ask-previous-candidate"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-card-border bg-surface px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
+              >
+                {openingArticleId === candidate.articleId && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
+                <span className="min-w-0 truncate text-ui-sm text-foreground">
+                  {displayCandidateTitle(candidate)}
+                </span>
+                <span className="ml-auto shrink-0 truncate font-mono text-ui-xs text-foreground-subtlest">
+                  {candidate.relativePath}
+                </span>
+              </button>
+              {canAddToAgent && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  disabled={openingArticleId !== null}
+                  onClick={() => onAddToAgent(candidate)}
+                  data-testid="ask-previous-add-to-agent"
+                  className="shrink-0"
+                >
+                  <SendHorizonal className="size-3.5" />
+                  {intl.formatMessage({ id: "vault.ask.candidate.addToAgent" })}
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       </CollapsibleContent>

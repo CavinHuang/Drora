@@ -120,7 +120,7 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
   });
 
   it("returns empty coverage for code-only answers and does not claim fact verification", () => {
-    const answer = ["\`\`\`ts", 'const value = "[9]"', "\`\`\`"].join("\n");
+    const answer = ["```ts", 'const value = "[9]"', "```"].join("\n");
     expect(auditKnowledgeAnswerCitationCoverage(answer, 2)).toEqual({
       proseBlocks: 0,
       attributedBlocks: 0,

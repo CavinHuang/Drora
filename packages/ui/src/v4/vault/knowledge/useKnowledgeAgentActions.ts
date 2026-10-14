@@ -81,9 +81,8 @@ export function useKnowledgeAgentActions(params: {
     }
     const intent = round.intent;
     if (intent === "find") return;
-    const articleIds = intent === "compare"
-      ? state.selectedArticleIds
-      : state.selectedArticleId ? [state.selectedArticleId] : [];
+    // ANSWER and COMPARE both accept an explicit 1–5 source selection.
+    const articleIds = [...state.selectedArticleIds];
     const seq = submitSeqRef.current;
     setHandoffBusy(true);
     try {

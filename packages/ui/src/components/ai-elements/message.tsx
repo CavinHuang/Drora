@@ -1460,7 +1460,7 @@ export const MessageResponse = memo(
           children,
           className: linkClassName,
           href,
-          node: _node,
+          node,
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
@@ -1470,6 +1470,8 @@ export const MessageResponse = memo(
             !renderStreaming &&
             onOpenKnowledgeCitation &&
             knowledgeCitationIndices?.includes(knowledgeIndex) &&
+            (node as { properties?: Record<string, unknown> } | undefined)
+              ?.properties?.["data-drora-bound-knowledge-source"] === String(knowledgeIndex) &&
             extractLinkLabelText(children) === `[${knowledgeIndex}]`
           ) {
             return (

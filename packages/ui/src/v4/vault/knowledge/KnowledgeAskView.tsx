@@ -21,8 +21,6 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
-  dispatchConversationSelectionAdd,
-  requestKnowledgeAgentHandoff,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
@@ -54,8 +52,8 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
-import { prepareKnowledgeAgentHandoff } from "./knowledgeAgentHandoff.js";
 import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
+import { useKnowledgeAgentActions } from "./useKnowledgeAgentActions.js";
 
 const toast = {
   error: (message: string): void => {
@@ -93,8 +91,6 @@ export function KnowledgeAskView({
   const [indexStatus, setIndexStatus] = React.useState<KnowledgeIndexStatus | null>(null);
   const [indexActionBusy, setIndexActionBusy] = React.useState(false);
   const [traceOpen, setTraceOpen] = React.useState(false);
-  const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
-  const [handoffBusy, setHandoffBusy] = React.useState(false);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
@@ -231,88 +227,14 @@ export function KnowledgeAskView({
     [queryService, sessionId, state.current?.run.runId],
   );
 
-  const addVerifiedEvidenceToAgent = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
-      if (!selectionTarget?.sessionId) {
-        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-        return;
-      }
-      const submitSeq = submitSeqRef.current;
-      setAddingArticleId(candidate.articleId);
-      try {
-        // Always issue a fresh receipt on click. A previously displayed "verified" badge
-        // does not attest that the source is still current at submission time.
-        const proof = await verifyEvidence(candidate);
-        if (!proof || proof.phase !== "verified" || submitSeq !== submitSeqRef.current) return;
-        const reference = createConversationSelectionReference({
-          contentType: "markdown",
-          sourceKey: `vault:${proof.relativePath}`,
-          sourceTitle: proof.title,
-          path: proof.relativePath,
-          text: proof.excerpt,
-          evidenceReceiptId: proof.receiptId,
-        });
-        const result = dispatchConversationSelectionAdd({
-          targetSessionId: selectionTarget.sessionId,
-          workspaceKey: selectionTarget.workspaceKey,
-          reference,
-        });
-        if (!result.ok) {
-          toast.error(
-            intl.formatMessage({
-              id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
-            }),
-          );
-        }
-      } finally {
-        setAddingArticleId(null);
-      }
-    },
-    [intl, selectionTarget, verifyEvidence],
-  );
-
-  /** User-selected ANSWER/COMPARE: verify all sources before any composer mutation. */
-  const handoffQuestionToAgent = React.useCallback(async (): Promise<void> => {
-    const round = state.current;
-    if (!queryService || !selectionTarget?.sessionId || !round) {
-      toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-      return;
-    }
-    const intent = round.intent;
-    if (intent === "find") return;
-    const articleIds = intent === "compare"
-      ? state.selectedArticleIds
-      : state.selectedArticleId ? [state.selectedArticleId] : [];
-    const seq = submitSeqRef.current;
-    setHandoffBusy(true);
-    try {
-      const preparation = await prepareKnowledgeAgentHandoff({
-        run: round.run,
-        articleIds,
-        sessionId: selectionTarget.sessionId,
-        intent,
-        queryService,
-      });
-      if (seq !== submitSeqRef.current) return; // User started a new query while verification ran.
-      if (!preparation.ok) {
-        toast.error(intl.formatMessage({ id: `vault.ask.handoff.error.${preparation.reason}` }));
-        return;
-      }
-      const result = requestKnowledgeAgentHandoff({
-        targetSessionId: selectionTarget.sessionId,
-        workspaceKey: selectionTarget.workspaceKey,
-        prompt: preparation.prompt,
-        references: preparation.references,
-      });
-      if (!result.ok) {
-        toast.error(intl.formatMessage({ id: `vault.ask.handoff.error.${result.reason}` }));
-        return;
-      }
-      droraToast(intl.formatMessage({ id: "vault.ask.handoff.prepared" }));
-    } finally {
-      setHandoffBusy(false);
-    }
-  }, [intl, queryService, selectionTarget, state.current, state.selectedArticleId, state.selectedArticleIds]);
+  const { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent } =
+    useKnowledgeAgentActions({
+      queryService,
+      selectionTarget,
+      state,
+      submitSeqRef,
+      verifyEvidence,
+    });
 
   const openFollowUpSideChat = React.useCallback(
     (candidate: KnowledgeArticleCandidate): void => {

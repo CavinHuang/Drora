@@ -102,3 +102,29 @@ export async function verifyKnowledgeCandidateEvidence(params: {
     return { phase: "failed", message: error instanceof Error ? error.message : String(error) };
   }
 }
+
+/**
+ * Previous-round results are historical search candidates, not trusted navigation targets.
+ * Revalidate their original run, candidate and source before returning a line-accurate link.
+ * A newly created receipt is used only for verification; it is never carried to a different
+ * session or converted into a plain-path navigation on failure.
+ */
+export async function verifyPreviousKnowledgeCandidateEvidence(params: {
+  queryService: Pick<IKnowledgeQueryService, "prepareEvidence" | "resolveCitation">;
+  run: KnowledgeRunView;
+  candidate: KnowledgeArticleCandidate;
+  sessionId?: string;
+}): Promise<KnowledgeEvidenceInspectState> {
+  const { run, candidate } = params;
+  const belongsToRun = run.candidates.some((entry) =>
+    entry.articleId === candidate.articleId &&
+    entry.relativePath === candidate.relativePath &&
+    entry.fileSha256 === candidate.fileSha256 &&
+    entry.chunkSha256 === candidate.chunkSha256 &&
+    sameQuote(entry.quote, candidate.quote)
+  );
+  if (!["ready", "partial"].includes(run.status) || !belongsToRun) {
+    return { phase: "unavailable", status: "forbidden", reason: "previous_candidate_unavailable" };
+  }
+  return verifyKnowledgeCandidateEvidence(params);
+}

@@ -1141,7 +1141,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       const next = enabled === true;
       // Invalidate any pending async initialization at invocation time, not when
       // persistence eventually finishes. Stale reads must never turn writes back on.
-      preferenceGeneration += 1;
+      const generation = ++preferenceGeneration;
+      // Revocation takes effect synchronously, even while config persistence is pending.
+      if (!next) writePathEnabled = false;
       const operation = preferenceWrites.then(async () => {
         if (next && !writeSafetyGatePassed) {
           reject(
@@ -1154,7 +1156,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
           throw new Error("Vault configuration unavailable; review write-path preference was not changed");
         }
         // State changes only after the sole vault-config writer has committed.
-        writePathEnabled = writeSafetyGatePassed && next;
+        if (generation === preferenceGeneration) {
+          writePathEnabled = writeSafetyGatePassed && next;
+        }
       });
       // Serialize concurrent toggle requests, including a failed predecessor.
       preferenceWrites = operation.then(() => undefined, () => undefined);

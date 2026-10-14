@@ -105,6 +105,7 @@ import {
 } from "./vault/vault-sidebar-layout.js";
 import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
+import { decideKnowledgeCitationNavigation } from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
 import { KnowledgeReviewView } from "./vault/knowledge/KnowledgeReviewView.js";
 import type { KnowledgeEvidenceQuote } from "./vault/knowledge/knowledgeAskModel.js";
@@ -1366,23 +1367,16 @@ export function VaultView({
             detail.finish({ ok: false, reason: "forbidden" });
             return;
           }
-          if (resolved.status !== "current") {
-            const reason = resolved.status;
-            detail.finish({
-              ok: false,
-              reason: reason === "stale" || reason === "missing" || reason === "forbidden"
-                ? reason : "unavailable",
-            });
+          const target = decideKnowledgeCitationNavigation({
+            resolved,
+            sessionId,
+            receiptId: detail.receiptId,
+          });
+          if (!target.ok) {
+            detail.finish(target);
             return;
           }
-          const citation = resolved.citation;
-          if (!citation || citation.receiptId !== detail.receiptId ||
-              citation.sessionId !== sessionId ||
-              !citation.relativePath.trim()) {
-            detail.finish({ ok: false, reason: "forbidden" });
-            return;
-          }
-          await openNoteFromKnowledge(citation.relativePath, citation.quote);
+          await openNoteFromKnowledge(target.relativePath, target.quote);
           detail.finish({ ok: true });
         } catch {
           detail.finish({ ok: false, reason: "failed" });

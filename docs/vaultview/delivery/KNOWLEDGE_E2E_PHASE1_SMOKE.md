@@ -14,8 +14,9 @@
 - Node.js ≥24（仓库要求），pnpm 10.33.2；用 macOS 和 Windows 分别验收。
 - `pnpm install --frozen-lockfile`
 - `pnpm typecheck && pnpm lint`
-- `pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts`
-- `node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`
+- `pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts`
+- `node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`
+- CLI 证据接线测试必须先完成 CLI workspace 依赖构建（CI `cli-build` 负责），然后执行 `node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
 - `pnpm dev:desktop:test`：打开真正的 Drora 桌面实例，必须确认使用测试环境，不触碰真实 Vault。
 
 ## GUI 实操验收矩阵
@@ -34,16 +35,20 @@
 | G10 | 查询 RPC/Host 断开后重试相同检索 | 复用原 clientRequestId，不产生重复 Run | 未执行 |
 | G11 | 证据核验未完成时提交新的检索 | 旧结果不能污染新 Run，也不能被加入 Composer | 未执行 |
 | G12 | 保存证据后重启 Electron，再打开源文件和已有会话 | 未出现旧 Receipt 被误判为 current；真实会话仍可正常发送 | 未执行 |
+| G13 | ANSWER 模式选择两篇真实笔记后准备 Agent 问题并发送 | 两篇来源均被单独签发和复验；Agent 输入仅包含通过验证的两篇原文；回答能区分不同来源 | 未执行 |
+| G14 | ANSWER / COMPARE 尝试选第六篇、取消一篇后重选 | 第六篇不能添加；取消后可以换选，COMPARE 最少两篇才能交接 | 未执行 |
+| G15 | 正在搜索时点击取消，并让原搜索 RPC 延迟返回；再创建新搜索 | UI 不持续显示“检索中”；已取消请求和晚到结果不能覆盖新查询 | 未执行 |
+| G16 | 在多篇 ANSWER 中修改其中一篇后点击准备交接 | 整批交接 fail-closed，不能只将另一篇可信材料送进 Agent | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G16 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 
-- FIND/ANSWER/COMPARE 的独立 Agent 答案生成、跨文章对照。
+- FIND/ANSWER/COMPARE 的独立答案生成服务；当前跨文章回答仅完成“经用户选源 → 全部核验 → 交给现有 Agent”的交接，不能宣称已经完成模型回答质量评测。
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
 - 「就此追问」侧会话仍走原普通选区引用语义，不将其声称为 Receipt 可信链路。

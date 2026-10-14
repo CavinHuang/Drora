@@ -108,6 +108,24 @@ describe("Obsidian trusted Agent handoff", () => {
     expect(resolveCitation).toHaveBeenCalledTimes(2);
   });
 
+  it("ANSWER prepares two selected notes for one grounded cross-note synthesis", async () => {
+    const { ports, prepareEvidence } = verifier();
+    const result = await prepareKnowledgeAgentHandoff({
+      run: run({ query: "总结 A 和 B 的观点" }),
+      articleIds: ["note-a", "note-b"],
+      sessionId: "session-1",
+      intent: "answer",
+      queryService: ports,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.references.map((r) => r.path)).toEqual(["notes/a.md", "notes/b.md"]);
+    expect(result.references.every((r) => r.evidenceReceiptId?.startsWith("evr_"))).toBe(true);
+    expect(result.prompt).toContain("问题：总结 A 和 B 的观点");
+    expect(result.prompt).toContain("不同来源有冲突时分别说明");
+    expect(prepareEvidence).toHaveBeenCalledTimes(2);
+  });
+
   it("does not return even the first reference if a later source is stale", async () => {
     const { ports } = verifier("note-b");
     expect(await prepareKnowledgeAgentHandoff({

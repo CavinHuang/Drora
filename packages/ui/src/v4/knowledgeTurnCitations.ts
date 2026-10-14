@@ -23,7 +23,7 @@ export interface KnowledgeTurnCitation {
 
 type SourceInput = Pick<
   UserInputRow,
-  "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "text"
+  "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "conversationQuotes" | "text"
 >;
 
 /** The manifest uses JSON strings; a filename cannot create an extra source line. */
@@ -54,6 +54,9 @@ export function readKnowledgeTurnCitations(
   )) return [];
   const receipts = input.evidenceRefs ?? [];
   if (receipts.length < 1 || receipts.length > 5) return [];
+  // The structured excerpts were submitted in the same canonical input.
+  // Reject a model-facing legend that names different files or drops excerpts.
+  if (input.conversationQuotes?.length !== receipts.length) return [];
   if (new Set(receipts.map((r) => r.receiptId)).size !== receipts.length) return [];
   if (receipts.some((r) => !r.receiptId.startsWith("evr_"))) return [];
 
@@ -78,6 +81,8 @@ export function readKnowledgeTurnCitations(
       const endLine = Number(match[5]);
       if (
         typeof relativePath !== "string" || !relativePath ||
+        input.conversationQuotes?.[index]?.path !== relativePath ||
+        !input.conversationQuotes[index]?.text.trim() ||
         (heading !== null && typeof heading !== "string") ||
         !Number.isSafeInteger(startLine) || startLine < 1 ||
         !Number.isSafeInteger(endLine) || endLine < startLine

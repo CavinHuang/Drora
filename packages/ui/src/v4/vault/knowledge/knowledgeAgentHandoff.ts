@@ -39,7 +39,8 @@ export function buildKnowledgeAnswerPrompt(query: string, intent: KnowledgeAnswe
   }
   return [
     "请仅依据附带的 Obsidian 可信证据回答下面的问题。",
-    "关键结论需指出所依据的来源文件；如果材料不足以回答，请明确说明，不要编造。",
+    "综合选中笔记里的信息，关键结论逐条指出来源文件；不同来源有冲突时分别说明，不强行合并。",
+    "如果材料不足以回答，请明确说明，不要编造。",
     "",
     `问题：${question}`,
   ].join("\n");

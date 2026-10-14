@@ -180,6 +180,8 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       const current = state.current;
       // runId 不匹配 = 旧 run 的迟到结果，直接丢弃（A22）。
       if (!current || action.run.runId !== current.run.runId) return state;
+      // Cancellation is terminal for this view: an already-running search may settle late.
+      if (current.cancelledByUser) return state;
       if (action.run.runGeneration < current.run.runGeneration) return state;
       return {
         ...state,

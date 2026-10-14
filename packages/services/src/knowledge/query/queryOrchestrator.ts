@@ -58,6 +58,12 @@ export class QueryOrchestrator {
   private readonly logger = createServiceLogger("knowledge-query");
   private readonly runs = new Map<string, RunRecord>();
   private readonly runsByClientRequestId = new Map<string, string>();
+  /** 在源解析期间，同一请求键只允许创建一个 Run。 */
+  private readonly pendingCreates = new Map<string, {
+    query: string;
+    sessionId: string | null;
+    result: Promise<KnowledgeRunView>;
+  }>();
   private generation = 0;
   private readonly runUpdated = new Emitter<KnowledgeRunUpdatedEvent>();
 
@@ -81,6 +87,7 @@ export class QueryOrchestrator {
     }
     this.runs.clear();
     this.runsByClientRequestId.clear();
+    this.pendingCreates.clear();
     this.decision?.registry.clear();
     this.runUpdated.dispose();
   }
@@ -91,13 +98,50 @@ export class QueryOrchestrator {
     if (query.length > MAX_QUERY_CHARS) throw new Error(`查询文本超过 ${MAX_QUERY_CHARS} 字符上限`);
     const clientRequestId = typeof params.clientRequestId === "string" ? params.clientRequestId.trim() : "";
     if (!clientRequestId) throw new Error("clientRequestId 不能为空");
+    const sessionId = params.sessionId ?? null;
 
+    // 相同 key 只允许同一查询和同一会话重试，避免断线或 UI 重用 key 时串问题/串会话。
     const existingRunId = this.runsByClientRequestId.get(clientRequestId);
     if (existingRunId) {
       const existing = this.runs.get(existingRunId);
-      if (existing) return existing.view;
+      if (existing) {
+        this.assertSameRequest(existing.query, existing.sessionId, query, sessionId);
+        return existing.view;
+      }
     }
 
+    // 在等待源解析前登记 pending：并发同 key 只能生成一个 Run。
+    const pending = this.pendingCreates.get(clientRequestId);
+    if (pending) {
+      this.assertSameRequest(pending.query, pending.sessionId, query, sessionId);
+      return pending.result;
+    }
+    const result = this.createRunOnce(query, clientRequestId, sessionId);
+    this.pendingCreates.set(clientRequestId, { query, sessionId, result });
+    try {
+      return await result;
+    } finally {
+      this.pendingCreates.delete(clientRequestId);
+    }
+  }
+
+  private assertSameRequest(
+    storedQuery: string,
+    storedSessionId: string | null,
+    query: string,
+    sessionId: string | null,
+  ): void {
+    if (storedQuery !== query || storedSessionId !== sessionId) {
+      // 不回显另一会话的查询文本或 Vault 数据。
+      throw new Error("clientRequestId 已绑定其他查询或会话");
+    }
+  }
+
+  private async createRunOnce(
+    query: string,
+    clientRequestId: string,
+    sessionId: string | null,
+  ): Promise<KnowledgeRunView> {
     const source = await this.resolveSource();
     const sourceRef =
       source.configured && source.summary && source.sourceEpoch !== null
@@ -110,7 +154,7 @@ export class QueryOrchestrator {
       runId,
       runGeneration,
       clientRequestId,
-      sessionId: params.sessionId ?? null,
+      sessionId: sessionId,
       query,
       sourceRef,
       seq: 0,
@@ -120,7 +164,7 @@ export class QueryOrchestrator {
         runGeneration,
         status: sourceRef ? "retrieving" : "no_source",
         query,
-        sessionId: params.sessionId ?? null,
+        sessionId: sessionId,
         source: sourceRef,
         createdAtMs: nowMs,
         finishedAtMs: sourceRef ? null : nowMs,

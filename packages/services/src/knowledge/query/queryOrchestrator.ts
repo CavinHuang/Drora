@@ -64,6 +64,11 @@ export class QueryOrchestrator {
     sessionId: string | null;
     result: Promise<KnowledgeRunView>;
   }>();
+  /** 同一 run 的在途检索只允许执行一次；重试复用该结果。 */
+  private readonly pendingSearches = new Map<string, {
+    consentId: string | null;
+    result: Promise<KnowledgeRunView>;
+  }>();
   private generation = 0;
   private readonly runUpdated = new Emitter<KnowledgeRunUpdatedEvent>();
 
@@ -88,6 +93,7 @@ export class QueryOrchestrator {
     this.runs.clear();
     this.runsByClientRequestId.clear();
     this.pendingCreates.clear();
+    this.pendingSearches.clear();
     this.decision?.registry.clear();
     this.runUpdated.dispose();
   }
@@ -187,8 +193,7 @@ export class QueryOrchestrator {
     if (!record) throw new Error("run 不存在或已丢弃");
     const generationAtStart = record.runGeneration;
 
-    // 已落定 run 的再检索：携带授权 = 只补跑决策阶段（本地候选事实不变，只重排）。
-    // 这是「本地候选先显示 → 用户授权 → Jev 优化排序」交互的服务端形态（spec §5d.6）。
+    // 已落定 run 的再检索只允许补跑决策；不重新检索已落定候选。
     if (record.view.status !== "retrieving") {
       if (params.decisionConsentId) {
         return this.runDecisionRefresh(record, generationAtStart, params.decisionConsentId);
@@ -196,6 +201,31 @@ export class QueryOrchestrator {
       return record.view;
     }
 
+    const consentId = params.decisionConsentId ?? null;
+    const pending = this.pendingSearches.get(record.runId);
+    if (pending) {
+      if (pending.consentId !== consentId) {
+        // 并发检索不能替换已启动任务的出站授权语义。
+        throw new Error("run 检索已启动，不能使用不同的 decisionConsentId");
+      }
+      return pending.result;
+    }
+    const result = this.runSearchOnce(record, generationAtStart, params);
+    this.pendingSearches.set(record.runId, { consentId, result });
+    try {
+      return await result;
+    } finally {
+      if (this.pendingSearches.get(record.runId)?.result === result) {
+        this.pendingSearches.delete(record.runId);
+      }
+    }
+  }
+
+  private async runSearchOnce(
+    record: RunRecord,
+    generationAtStart: number,
+    params: KnowledgeSearchParams,
+  ): Promise<KnowledgeRunView> {
     const abort = new AbortController();
     record.abort = abort;
 

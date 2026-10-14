@@ -12,7 +12,8 @@ import {
   dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
-import { evidenceUnavailableMessageKey } from "./KnowledgeCandidateCard.js";
+import { displayCandidateTitle, evidenceUnavailableMessageKey } from "./KnowledgeCandidateCard.js";
+import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
 import { verifyPreviousKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
 import type { KnowledgeAskRound, KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 
@@ -34,6 +35,7 @@ export function usePreviousKnowledgeActions({
   openingPreviousId: string | null;
   usePreviousCandidate: (candidate: KnowledgeArticleCandidate, action: "open" | "attach") => Promise<void>;
   cancelPendingPrevious: () => void;
+  openFollowUpSideChat: (candidate: KnowledgeArticleCandidate) => void;
 } {
   const { intl } = useDroraIntl();
   const [openingPreviousId, setOpeningPreviousId] = React.useState<string | null>(null);
@@ -101,5 +103,24 @@ export function usePreviousKnowledgeActions({
     [intl, onOpenNote, previous, queryService, selectionTarget, sessionId, submitSeqRef],
   );
 
-  return { openingPreviousId, usePreviousCandidate, cancelPendingPrevious };
+  const openFollowUpSideChat = React.useCallback((candidate: KnowledgeArticleCandidate): void => {
+    if (!selectionTarget?.sessionId) {
+      droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), { variant: "warning" });
+      return;
+    }
+    // A side chat is an ordinary selection, not a transferable Evidence Receipt.
+    const key = buildSelectionSideChatKey(selectionTarget.workspaceKey, selectionTarget.sessionId);
+    const reference = createConversationSelectionReference({
+      contentType: "markdown",
+      sourceKey: `vault:${candidate.relativePath}`,
+      sourceTitle: displayCandidateTitle(candidate),
+      path: candidate.relativePath,
+      text: candidate.excerpt,
+    });
+    if (!requestSelectionSideChatOpen(key, reference)) {
+      droraToast(intl.formatMessage({ id: "vault.selection.sideChatFailed" }), { variant: "warning" });
+    }
+  }, [intl, selectionTarget]);
+
+  return { openingPreviousId, usePreviousCandidate, cancelPendingPrevious, openFollowUpSideChat };
 }

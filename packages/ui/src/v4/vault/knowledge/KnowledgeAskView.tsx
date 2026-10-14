@@ -171,9 +171,17 @@ export function KnowledgeAskView({
         dispatch({ type: "runCreated", run });
         if (run.status === "retrieving") {
           inFlightRunIdRef.current = run.runId;
-          const settled = await queryService.search({ runId: run.runId });
-          // runId 守卫在 reducer（A22）；这里无需再比对。
-          dispatch({ type: "runSettled", run: settled });
+          try {
+            const settled = await queryService.search({ runId: run.runId });
+            // Cancellation or a newer submission invalidates this async result.
+            if (seq === submitSeqRef.current && inFlightRunIdRef.current === run.runId) {
+              dispatch({ type: "runSettled", run: settled });
+            }
+          } finally {
+            if (seq === submitSeqRef.current && inFlightRunIdRef.current === run.runId) {
+              inFlightRunIdRef.current = null;
+            }
+          }
         }
         void refreshIndexStatus();
       } catch (error) {

@@ -1085,6 +1085,7 @@ const zhCN: Record<string, string> = {
   "chat.selections.count": "{count} 条对话引用",
   "chat.selections.remove": "移除对话引用",
   "chat.selections.evidenceRecheckOnSend": "已签发可信引用 · 发送时复验",
+  "chat.selections.evidenceSourceMismatch": "来源清单与已附加的可信引用不一致。请恢复或重新从智能问库准备问题后再发送。",
   "chat.selections.type.user": "用户消息",
   "chat.selections.type.assistant": "助手消息",
   "chat.selections.type.reasoning": "推理内容",

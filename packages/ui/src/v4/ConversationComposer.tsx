@@ -163,6 +163,7 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
+import { validateKnowledgeSourceManifest } from "@/lib/conversationKnowledgeSources.js";
 import {
   appendConversationSelectionReferences,
   collectConversationEvidenceRefs,
@@ -1241,6 +1242,8 @@ function ConversationComposerImpl({
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = text.trim().length > 0;
+  const knowledgeSourceMismatch =
+    validateKnowledgeSourceManifest(text, conversationSelectionReferences) === "mismatch";
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||
@@ -1276,7 +1279,8 @@ function ConversationComposerImpl({
     hasDraftToSubmit &&
     routingAllowsSend &&
     attachmentsReady &&
-    submissionReady;
+    submissionReady &&
+    !knowledgeSourceMismatch;
   // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
   const showStopControl = canStop && !hasDraftToSubmit;
 
@@ -1306,6 +1310,11 @@ function ConversationComposerImpl({
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
       const submittedShareContext = pendingShareContext;
+      // This runs again at the actual submit boundary, not just as a disabled
+      // button state. Enter/queue confirmations must not bypass the source map.
+      if (validateKnowledgeSourceManifest(trimmed, currentConversationSelections) === "mismatch") {
+        return;
+      }
       // 草稿首发 accepted 后同一 composer 会原地从 __draft__ promotion 到
       // session scope；若成功清理时再读可变 ref，会误清新 scope，并把首条输入残留在
       // __draft__，下次新建任务又恢复。发送开始时冻结真正提交的 scope。
@@ -2449,6 +2458,15 @@ function ConversationComposerImpl({
             {contextHeader}
           </div>
         ) : null}
+        {knowledgeSourceMismatch ? (
+          <div
+            role="alert"
+            data-testid="knowledge-source-manifest-mismatch"
+            className="relative z-10 mb-2 w-full rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-ui-base text-foreground"
+          >
+            {intl.formatMessage({ id: "chat.selections.evidenceSourceMismatch" })}
+          </div>
+        ) : null}
         {conversationSelectionLimitReason ? (
           <div
             role="alert"
@@ -2467,7 +2485,7 @@ function ConversationComposerImpl({
           placeholder={placeholder}
           disabled={disabled || mode === "reject"}
           submitting={pending}
-          submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady}
+          submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady || knowledgeSourceMismatch}
           allowSubmitWhenEmpty={
             // 发送按钮已把代码评论视为可发送上下文，但这里曾漏掉同一状态，
             // 导致空文本仅附代码评论时 Enter 被编辑器判为空，必须改点发送按钮。

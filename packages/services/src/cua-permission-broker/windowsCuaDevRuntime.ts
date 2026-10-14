@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep, win32 as windowsPath } from "node:path";
+import {
+  CUA_HELPER_RUNTIME_PACKAGE_NAME,
+  CUA_PACKAGED_MANIFEST_PACKAGE_NAME,
+} from "@drora/shared/cua-runtime-artifact-identity";
 
 const DEV_ROOT_ENV = "DRORA_CUA_DEV_ROOT";
 // 第四十四轮修复：拆分 dev/product 两套期望——改名清扫把两者统一成 @drora/drora-cua 后，
@@ -10,8 +14,8 @@ const DEV_ROOT_ENV = "DRORA_CUA_DEV_ROOT";
 // - dev root 是随仓的 Windows 运行时包（packages/zcode-cua-helper/runtime/cua-helper，
 //   上游豁免区产物，package.json 保留上游包名）；
 // - 产品 manifest 随 glm/tools → resources/tools 发行，同为上游字节保持，包名 @zcode/zcode-cua。
-const DEV_RUNTIME_PACKAGE_NAME = "@zcode/zcode-cua-helper-runtime";
-const PRODUCT_MANIFEST_PACKAGE_NAME = "@zcode/zcode-cua";
+const DEV_RUNTIME_PACKAGE_NAME = CUA_HELPER_RUNTIME_PACKAGE_NAME;
+const PRODUCT_MANIFEST_PACKAGE_NAME = CUA_PACKAGED_MANIFEST_PACKAGE_NAME;
 const PACKAGE_JSON = "package.json";
 const PRODUCT_RUNTIME_MANIFEST = "runtime-manifest.json";
 const PRODUCT_RUNTIME_SEGMENTS = ["tools", "cua-helper"] as const;

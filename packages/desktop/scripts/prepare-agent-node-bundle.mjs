@@ -13,7 +13,7 @@
 // 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
 
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,10 @@ import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
 import { stageSharpIntoBundledAgents } from "./sharp-package-assets.mjs";
 import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
+import {
+  prepareWindowsCuaHelperAssets,
+  resolveWindowsCuaHelperSourceRoot,
+} from "./windows-cua-helper-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -530,26 +534,19 @@ async function stageCuaHelperRuntime() {
     );
     return;
   }
-  const sourceRoot = resolve(repoRoot, "packages/zcode-cua-helper/runtime/cua-helper");
-  const targetRoot = resolve(
-    repoRoot,
-    "packages",
-    "desktop",
-    "bundled-tools",
-    platformKey,
-    "cua-helper",
-  );
-  await rm(targetRoot, { recursive: true, force: true });
-  await mkdir(targetRoot, { recursive: true });
-  await cp(sourceRoot, targetRoot, { recursive: true });
-  for (const relativePath of [
-    "dist/windows-helper.js",
-    "build/Release/ax_native.node",
-    "runtime-manifest.json",
-  ]) {
-    const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
-    await access(stagedAssetPath);
-  }
+  // 两条独立写入链曾先拷真实 Helper、再从无产物契约的 SDK 重建并失败；统一 staging owner。
+  const sourceRoot = await resolveWindowsCuaHelperSourceRoot({
+    runtimePackageDir: process.env.DRORA_CUA_HELPER_RUNTIME_PACKAGE_DIR,
+    devRoot: process.env.DRORA_CUA_DEV_ROOT,
+    servicesPackageRoot: resolve(repoRoot, "packages/services"),
+  });
+  const desktopPackage = JSON.parse(await readFile(resolve(desktopRoot, "package.json"), "utf8"));
+  await prepareWindowsCuaHelperAssets({
+    sourceRoot,
+    outputRoot: resolve(desktopRoot, "bundled-tools"),
+    targetPlatform: { os: platform, arch, key: platformKey },
+    electronVersion: desktopPackage.devDependencies.electron,
+  });
   console.log(
     `[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`,
   );

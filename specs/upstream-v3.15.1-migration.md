@@ -138,6 +138,25 @@ CI 的「Official plugin hook runtime tests」专项显式执行 `node --import 
 
 根项目引用类型检查在 CI 显式使用 `NODE_OPTIONS=--max-old-space-size=4096`（4 GiB V8 堆），避免各 OS/runner 的默认堆上限不同影响全工作区编译。该设置仅作用于 CI 的 Typecheck / Emit workspace dists 步骤，不进入产品配置、不缩减项目引用或修改类型规则。macOS 首次运行退出 134 是此资源验证的触发证据；是否解决由重跑结果判定，不能将进程中止写成类型检查通过。
 
+### Windows CUA 打包来源与唯一 staging
+
+CI `38491068939` 已验证 macOS 资源调整有效；Windows 在 `prepare:windows-cua-helper` 失败，因为解析到 SDK `packages/zcode-cua`，该包没有 Windows 产物契约。此错配也存在于迁移前主分支，并非本次删除了 producer 声明。实际 0.6.3 产物位于 `packages/zcode-cua-helper/runtime/cua-helper`，包含原版 package/manifest、entry、PE addon 与运行依赖。
+
+- SDK、Helper 运行时包、发行 manifest 是三个不同身份；名称在 shared 的公开 `cua-runtime-artifact-identity` 入口声明，打包端与 services 运行时引用同一常量。冻结 package/manifest 及二进制保持原字节和原版名字。
+- 显式 `DRORA_CUA_HELPER_RUNTIME_PACKAGE_DIR` / `DRORA_CUA_DEV_ROOT` 优先级保持原约定，错误的显式源直接失败；无覆盖时优先解析本工作区的冻结 Helper。冻结目录不存在时仍支持已安装 producer 的路径，不向用户目录或其他仓库扫描。
+- `prepare-agent-node-bundle` 调用既有 `prepareWindowsCuaHelperAssets`，该函数独占 Windows Helper staging；移除 `prepare-runtime-assets` 的第二次 producer staging。独立 `prepare:windows-cua-helper` 继续调用同一函数。
+- 源契约只接受已知 SDK producer 或冻结 Helper 身份；生成 manifest 使用 services 已要求的原版 producer 名，生成 ESM package 使用原版 Helper 身份及其契约。继续验证规范路径、realpath、PE 架构、SHA256、完整依赖闭包与签名后哈希，不用占位标志跳过 Computer Use。
+- 验收：真实冻结产物在 Linux 上做 win32-x64 staging 后，经打包 verifier 与实际 services resolver 双重验证；entry/addon 字节与原始 manifest 哈希一致。坏 hash、错误架构及缺契约的显式 SDK 源必须失败。最终 Windows CI 仍须实际通过。
+
+```mermaid
+flowchart LR
+    Source[冻结 Helper / 显式 producer] --> Stage[prepareWindowsCuaHelperAssets 唯一写入者]
+    Stage --> Bundle[bundled-tools/win32-x64/cua-helper]
+    Bundle --> Pack[extraResources / 签名]
+    Pack --> Finalize[afterPack 哈希刷新与严格验证]
+    Finalize --> Host[既有 Host Windows runtime resolver]
+```
+
 桌面冷启动仍按官方时序在平台 IPC 注册后调用 `primaryWindowCoordinator.ensurePrimaryWindow("app-ready")`，再绑定首屏性能监控；后台更新不能阻止该入口。实际 Electron 验收必须有渲染页面和 Host 响应，不能只检查进程。
 
 清理三路合并产生的重复 switch/object 键。Server/Docker 按官方 dedicated remoteSessionId 保持逻辑会话生命周期，不采用被遮蔽的旧 Server 同目标复用分支；SSH/WSL 仍按官方规则复用。旧冻结控制器只保留取证与回归：其 grace 定时器依据 `relay-wire/replayBuffer.ts` 的严格 `now > queuedAt + graceMs` 和官方 chunk-C6VCYWB4.js @8551 所记录 deadline 口径，触发时间加 1ms，防止恰好落在边界时一次性看门狗失效。

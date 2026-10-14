@@ -15,8 +15,12 @@ import {
 import { setTimeout as delay } from "node:timers/promises";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
 import { resolveSharpRuntimePackageNames } from "./sharp-package-assets.mjs";
+import {
+  CUA_HELPER_RUNTIME_PACKAGE_NAME,
+  CUA_PACKAGED_MANIFEST_PACKAGE_NAME,
+  CUA_SDK_PACKAGE_NAME,
+} from "@drora/shared/cua-runtime-artifact-identity";
 
-const EXPECTED_PACKAGE_NAME = "@drora/drora-cua";
 const RUNTIME_MANIFEST = "runtime-manifest.json";
 const MODULE_TYPE_PACKAGE_JSON = "package.json";
 const REMOVE_DIRECTORY_OPTIONS = {
@@ -280,7 +284,7 @@ function resolveCanonicalPackagedArtifact(root, artifact, label) {
 // 报错必须自证：谁（包名@版本）、在哪（源目录）、缺哪一条。
 function describeRuntimeContractViolation(packageJson) {
   if (!isPlainRecord(packageJson)) return "source package.json is not a JSON object";
-  if (packageJson.name !== EXPECTED_PACKAGE_NAME) {
+  if (![CUA_SDK_PACKAGE_NAME, CUA_HELPER_RUNTIME_PACKAGE_NAME].includes(packageJson.name)) {
     return `unexpected package name ${JSON.stringify(packageJson.name)}`;
   }
   if (!isNonEmptyTrimmedString(packageJson.version)) {
@@ -548,7 +552,7 @@ async function inspectPackagedWindowsCuaHelper({
 
   const expectedManifestFields = {
     schemaVersion: 1,
-    packageName: EXPECTED_PACKAGE_NAME,
+    packageName: CUA_PACKAGED_MANIFEST_PACKAGE_NAME,
     platform: "win32",
     arch: targetPlatform.arch,
     electronVersion: expectedElectronVersion,
@@ -751,6 +755,23 @@ export async function resolveWindowsCuaHelperSourceRoot({
     );
   }
 
+  // SDK 没有 Windows 产物契约；默认使用已入库的真实 Helper，不能把 SDK 当作 producer。
+  const retainedRuntimeRoot = resolve(
+    workspaceRoot,
+    "packages/zcode-cua-helper/runtime/cua-helper",
+  );
+  try {
+    const stats = await lstat(retainedRuntimeRoot);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error("[windows-cua-helper-assets] retained Helper must be a regular directory");
+    }
+    const physicalRoot = await realpath(retainedRuntimeRoot);
+    assertPhysicalContainment(await realpath(workspaceRoot), physicalRoot, "retained Helper");
+    return physicalRoot;
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
   const packagePathSegments = ["node_modules", "@drora", "drora-cua"];
   const packageCandidates = [
     resolve(servicesPackageRoot, ...packagePathSegments),
@@ -827,7 +848,7 @@ export async function prepareWindowsCuaHelperAssets({
     "source package",
     { lstatOperation, realpathOperation, readFileOperation },
   );
-  if (packageJson.name !== EXPECTED_PACKAGE_NAME) {
+  if (![CUA_SDK_PACKAGE_NAME, CUA_HELPER_RUNTIME_PACKAGE_NAME].includes(packageJson.name)) {
     throw new Error(
       `[windows-cua-helper-assets] unexpected package name: ${String(packageJson.name)}`,
     );
@@ -940,7 +961,7 @@ export async function prepareWindowsCuaHelperAssets({
     ]);
     const manifest = {
       schemaVersion: 1,
-      packageName: EXPECTED_PACKAGE_NAME,
+      packageName: CUA_PACKAGED_MANIFEST_PACKAGE_NAME,
       packageVersion: producerContract.packageVersion,
       platform: "win32",
       arch: targetPlatform.arch,
@@ -963,11 +984,15 @@ export async function prepareWindowsCuaHelperAssets({
     // package.json 都会禁用探测，fork 将以 SyntaxError exit 1 变成 broker_unavailable。
     // 在运行时根落一份显式 module 声明，让 entry 的模块类型不依赖探测、不受外部目录影响。
     const moduleTypePackageJson = {
-      name: "@drora/drora-cua-helper-runtime",
+      name: CUA_HELPER_RUNTIME_PACKAGE_NAME,
       version: producerContract.packageVersion,
       type: "module",
       private: true,
       main: producerContract.entry,
+      droraCuaRuntime: {
+        schema: 1,
+        windows: { entry: producerContract.entry, nativeAddon: producerContract.addon },
+      },
     };
     await writeFile(
       resolve(stagedTempRoot, MODULE_TYPE_PACKAGE_JSON),

@@ -1658,6 +1658,7 @@ export const MessageResponse = memo(
         onOpenExternalUrl,
         onOpenKnowledgeCitation,
         knowledgeCitationIndices,
+        knowledgeCitationNonce,
         readAttachment,
         renderStreaming,
         sessionId,

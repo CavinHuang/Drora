@@ -21,6 +21,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
+  dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
@@ -274,10 +275,14 @@ export function KnowledgeAskView({
       verifyEvidence,
     });
 
-  const openPreviousNote = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
+  const usePreviousCandidate = React.useCallback(
+    async (candidate: KnowledgeArticleCandidate, action: "open" | "attach"): Promise<void> => {
       const previous = state.previous;
       if (!previous || !queryService || openingPreviousRef.current) return;
+      if (action === "attach" && !selectionTarget?.sessionId) {
+        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
+        return;
+      }
       const seq = submitSeqRef.current;
       const token = { articleId: candidate.articleId, seq };
       openingPreviousRef.current = token;
@@ -289,10 +294,33 @@ export function KnowledgeAskView({
           candidate,
           sessionId,
         });
-        // Never open an old note after a new search, session or host has replaced this one.
+        // No old receipt/reference may cross a changed search, session, workspace or host.
         if (seq !== submitSeqRef.current || openingPreviousRef.current !== token) return;
         if (proof.phase === "verified") {
-          onOpenNote(proof.relativePath, proof.quote);
+          if (action === "open") {
+            onOpenNote(proof.relativePath, proof.quote);
+          } else if (selectionTarget?.sessionId) {
+            // A follow-up explicitly reuses the original note with a fresh trusted receipt.
+            // It is still verified again by the CLI admission and queue-promotion gates.
+            const reference = createConversationSelectionReference({
+              contentType: "markdown",
+              sourceKey: `vault:${proof.relativePath}`,
+              sourceTitle: proof.title,
+              path: proof.relativePath,
+              text: proof.excerpt,
+              evidenceReceiptId: proof.receiptId,
+            });
+            const result = dispatchConversationSelectionAdd({
+              targetSessionId: selectionTarget.sessionId,
+              workspaceKey: selectionTarget.workspaceKey,
+              reference,
+            });
+            if (!result.ok) {
+              toast.error(intl.formatMessage({
+                id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
+              }));
+            }
+          }
         } else if (proof.phase === "failed") {
           toast.error(intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: proof.message }));
         } else if (proof.phase === "unavailable") {
@@ -305,7 +333,7 @@ export function KnowledgeAskView({
         }
       }
     },
-    [intl, onOpenNote, queryService, sessionId, state.previous],
+    [intl, onOpenNote, queryService, selectionTarget, sessionId, state.previous],
   );
 
   const openFollowUpSideChat = React.useCallback(
@@ -482,7 +510,9 @@ export function KnowledgeAskView({
               candidates={state.previous.run.candidates}
               submittedQuery={state.previous.submittedQuery}
               openingArticleId={openingPreviousId}
-              onOpenNote={(candidate) => void openPreviousNote(candidate)}
+              canAddToAgent={Boolean(selectionTarget?.sessionId)}
+              onOpenNote={(candidate) => void usePreviousCandidate(candidate, "open")}
+              onAddToAgent={(candidate) => void usePreviousCandidate(candidate, "attach")}
             />
           )}
 

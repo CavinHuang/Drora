@@ -10,6 +10,11 @@ import {
   verifyKnowledgeCandidateEvidence,
   verifyPreviousKnowledgeCandidateEvidence,
 } from "../src/v4/vault/knowledge/knowledgeEvidenceVerification.js";
+import {
+  appendConversationSelectionReference,
+  collectConversationEvidenceRefs,
+  createConversationSelectionReference,
+} from "../src/lib/conversationSelectionReference.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 12, endOffset: 38 };
 const candidate: KnowledgeArticleCandidate = {
@@ -228,4 +233,42 @@ test("previous-round navigation fails closed for changed or deleted sources", as
     assert.equal(result.phase, "unavailable");
     if (result.phase === "unavailable") assert.equal(result.status, status);
   }
+});
+
+test("a follow-up explicitly reattaches a previous note with a freshly verified receipt", async () => {
+  const historical = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
+  const service = mockService(
+    async () => ({ status: "current", receipt: { ...receipt, receiptId: "evr_new_followup" } }),
+    async () => ({ status: "current", citation: { ...citation, receiptId: "evr_new_followup" } }),
+  );
+  const proof = await verifyPreviousKnowledgeCandidateEvidence({
+    queryService: service, run: historical, candidate, sessionId: "session-1",
+  });
+  assert.equal(proof.phase, "verified");
+  if (proof.phase !== "verified") return;
+  const reference = createConversationSelectionReference({
+    contentType: "markdown",
+    sourceKey: "vault:" + proof.relativePath,
+    sourceTitle: proof.title,
+    path: proof.relativePath,
+    text: proof.excerpt,
+    evidenceReceiptId: proof.receiptId,
+  });
+  const added = appendConversationSelectionReference([], reference);
+  assert.equal(added.ok, true);
+  if (!added.ok) return;
+  assert.deepEqual(collectConversationEvidenceRefs(added.references), [
+    { receiptId: "evr_new_followup" },
+  ]);
+});
+
+test("a prior session's note cannot be silently promoted into a new Agent session", async () => {
+  const historical = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
+  const service = mockService(
+    async () => ({ status: "current", receipt }),
+    async () => ({ status: "current", citation }),
+  );
+  assert.deepEqual(await verifyPreviousKnowledgeCandidateEvidence({
+    queryService: service, run: historical, candidate, sessionId: "session-other",
+  }), { phase: "unavailable", status: "forbidden", reason: "citation_mismatch" });
 });

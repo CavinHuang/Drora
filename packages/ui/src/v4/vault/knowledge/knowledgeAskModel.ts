@@ -102,6 +102,8 @@ export interface KnowledgeAskState {
 }
 
 export const ASK_DEFAULT_VISIBLE_CANDIDATES = 5;
+/** Shared source limit: the comparison picker and Agent handoff must agree. */
+export const MAX_KNOWLEDGE_HANDOFF_SOURCES = 5;
 
 export function createInitialKnowledgeAskState(): KnowledgeAskState {
   return {
@@ -218,7 +220,11 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       return { ...state, visibleCandidateLimit: Math.max(1, action.limit) };
     case "candidateSelected": {
       if (state.current?.intent === "compare" && action.articleId) {
-        const selectedArticleIds = state.selectedArticleIds.includes(action.articleId)
+        const alreadySelected = state.selectedArticleIds.includes(action.articleId);
+        if (!alreadySelected && state.selectedArticleIds.length >= MAX_KNOWLEDGE_HANDOFF_SOURCES) {
+          return state;
+        }
+        const selectedArticleIds = alreadySelected
           ? state.selectedArticleIds.filter((id) => id !== action.articleId)
           : [...state.selectedArticleIds, action.articleId];
         return { ...state, selectedArticleIds, selectedArticleId: null };

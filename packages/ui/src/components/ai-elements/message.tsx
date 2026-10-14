@@ -1378,7 +1378,7 @@ export const MessageResponse = memo(
     );
     const scopedMarkdown = useMemo(
       () => knowledgeCitationSourceDefinition
-        ? `${targetMarkdown}\\n\\n${knowledgeCitationSourceDefinition}\\n`
+        ? `${targetMarkdown}\n\n${knowledgeCitationSourceDefinition}\n`
         : targetMarkdown,
       [targetMarkdown, knowledgeCitationSourceDefinition],
     );

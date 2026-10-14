@@ -7152,9 +7152,9 @@ const zhCN: Record<string, string> = {
 "vault.ask.candidate.verify": "核验",
 "vault.ask.candidate.reverify": "重新核验",
 "vault.ask.candidate.openNote": "跳到原文",
-"vault.ask.candidate.addToAgent": "加入 Agent（普通引用）",
+"vault.ask.candidate.addToAgent": "加入 Agent（可信证据）",
 "vault.ask.candidate.addToAgentHint":
-    "把候选节选作为普通引用加入当前会话输入；这是 userselect 引用，不是核验证据（Receipt）。",
+    "点击时重新核验证据并携带 Receipt；Agent 发送和队列执行时还会复验，过期证据将被拒绝。",
 "vault.ask.candidate.askAbout": "就此追问",
 "vault.ask.candidate.needSession": "请从 Agent 会话右侧打开 Obsidian 后再使用该动作",
 "vault.ask.evidence.verified": "已核验：当前文件版本与引用一致",

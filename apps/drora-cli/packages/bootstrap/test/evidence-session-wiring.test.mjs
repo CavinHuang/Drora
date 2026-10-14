@@ -11,6 +11,8 @@ import { KNOWLEDGE_EVIDENCE_GUARDS } from "@drora/shared";
 import { SessionEventType } from "@drora/contracts";
 import { NATIVE_HANDLERS } from "../src/drora-protocol-v4/commands/handlers/index.js";
 import { ProductProjection } from "../src/drora-protocol-v4/product-projection.js";
+import { startCanonicalIntent } from "../src/drora-protocol-v4/commands/handlers/canonical-intent-replay.js";
+import { normalizeConversationEvent } from "../src/drora-protocol-v4/event-normalizer.js";
 
 const SESSION_ID = "session-e2e";
 
@@ -476,4 +478,98 @@ test("真投影→sendQueuedNow：复验通过后提升，提升 intent 携带�
   assert.equal(calls.sendInput.length, 1);
   assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, refs);
   assert.equal(calls.sendInput[0].options.intent.sourceCommandId, "cmd-proj-1");
+});
+
+function historicalEvidenceTarget() {
+  return {
+    entityId: "user-row-1",
+    productTurnId: "turn-1",
+    transcriptMessageId: "message-1",
+    coveredByStableCompact: false,
+    intent: {
+      kind: "sendText",
+      text: "用原笔记回答问题",
+      requestedDelivery: "guide",
+      evidenceRefs: [{ receiptId: "evr_historical" }],
+    },
+  };
+}
+
+test("历史证据：TurnStarted normalizer 保留凭据给可编辑目标", () => {
+  const event = {
+    type: SessionEventType.TurnStarted,
+    id: "event-historical",
+    sessionId: SESSION_ID,
+    turnId: "turn-1",
+    sequenceNumber: 1,
+    timestamp: new Date(),
+    payload: {
+      input: "用原笔记回答问题",
+      inputSource: "user",
+      inputVisibility: "visible",
+      messageId: "message-1",
+      turnNumber: 1,
+      intent: {
+        kind: "sendText",
+        text: "用原笔记回答问题",
+        evidenceRefs: [{ receiptId: "evr_historical" }],
+      },
+    },
+  };
+  const fact = normalizeConversationEvent(event);
+  assert.deepEqual(fact.evidenceRefs, [{ receiptId: "evr_historical" }]);
+});
+
+test("历史证据：编辑或重试前拒绝失效引用，不进行 rewind", async () => {
+  for (const type of ["editUserQuery", "retryTurn"]) {
+    const { app, calls } = createRecordApp();
+    const target = historicalEvidenceTarget();
+    const host = createHost({
+      app,
+      calls,
+      verifier: () => ({ ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.stale, reason: "file_modified" }),
+    });
+    host.resolveRowActionTarget = () => ({
+      ok: true,
+      row: { rowId: 1, turnId: "turn-1" },
+      messageId: "message-1",
+      editTarget: target,
+    });
+    const envelope = {
+      ...sendTextEnvelope(),
+      type,
+      payload: {
+        target: { rowId: 1, entityId: "user-row-1" },
+        ...(type === "editUserQuery" ? { newText: "修改后的问题" } : {}),
+      },
+    };
+    await assert.rejects(
+      () => NATIVE_HANDLERS[type](host, envelope),
+      (error) => error.reasonCode === KNOWLEDGE_EVIDENCE_GUARDS.stale,
+      `${type}: expected stale receipt rejection before rewind`,
+    );
+    assert.equal(calls.verifierInputs.length, 1);
+    assert.equal(calls.sendInput.length, 0);
+  }
+});
+
+test("历史证据：重新发送强制复验并携带原引用，不允许 guide", async () => {
+  const { app, calls } = createRecordApp();
+  const host = createHost({ app, calls, verifier: () => ({ ok: true }) });
+  const record = host.getRecord(SESSION_ID);
+  await startCanonicalIntent(
+    host,
+    record,
+    { ...sendTextEnvelope(), type: "retryTurn" },
+    historicalEvidenceTarget(),
+    "用原笔记回答问题",
+    [],
+    undefined,
+  );
+  assert.equal(calls.verifierInputs.length, 1);
+  assert.deepEqual(calls.verifierInputs[0].evidenceRefs, [{ receiptId: "evr_historical" }]);
+  assert.equal(calls.sendInput.length, 1);
+  assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_historical" }]);
+  assert.equal(calls.sendInput[0].options.intent.requestedDelivery, "queue");
+  assert.equal(calls.sendInput[0].options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
 });

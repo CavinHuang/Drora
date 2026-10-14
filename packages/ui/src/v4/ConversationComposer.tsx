@@ -73,6 +73,7 @@ import {
   AttachmentPreview,
 } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
+import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   Dialog,
   DialogClose,
@@ -171,6 +172,7 @@ import {
   getConversationSelectionReferenceScope,
   getKnowledgeAgentHandoffEventName,
   isKnowledgeAgentHandoffEvent,
+  requestKnowledgeCitationOpen,
 } from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
@@ -836,6 +838,20 @@ function ConversationComposerImpl({
     clearReferences: clearConversationSelectionReferences,
   } = useConversationSelectionReferences({ sessionId, workspaceKey });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
+  const openKnowledgeCitation = useCallback(async (receiptId: string): Promise<void> => {
+    if (!sessionId) return;
+    const result = await requestKnowledgeCitationOpen({
+      targetSessionId: sessionId,
+      workspaceKey,
+      receiptId,
+    });
+    if (!result.ok) {
+      droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
+        variant: "warning",
+      });
+    }
+  }, [intl, sessionId, workspaceKey]);
+
 
   // ── 草稿 per-session 持久化（切会话/刷新不丢；mention pill 经 editorStateJson 保真）──
   const draftScopeRef = useRef(draftScopeId);
@@ -2176,6 +2192,7 @@ function ConversationComposerImpl({
               references={conversationSelectionReferences}
               onRemove={removeConversationSelectionReference}
               onRemoveAll={clearConversationSelectionReferences}
+              onOpenCitation={sessionId ? openKnowledgeCitation : undefined}
             />
           </div>
         ) : null}
@@ -2197,6 +2214,8 @@ function ConversationComposerImpl({
     locale,
     removeCodeCommentContext,
     removeConversationSelectionReference,
+    openKnowledgeCitation,
+    sessionId,
     removeWebElementContext,
     removePluginUiContext,
     removePptxElementReference,

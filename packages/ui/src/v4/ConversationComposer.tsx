@@ -163,6 +163,7 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
+import { collectConversationEvidenceRefs } from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import {
@@ -196,6 +197,8 @@ export interface ConversationComposerSendOptions {
   /** Prompt 文本内携带的上下文附件数量；用于阻止 /goal 等本地命令误消费。 */
   contextAttachmentCount?: number;
   conversationQuotes?: import("@drora/shared").ConversationSelectionText[];
+  /** Opaque trusted citations travel beside (never inside) model-facing userselect quotes. */
+  evidenceRefs?: Array<{ receiptId: string }>;
   /** renderer-only：ACK accepted 后由 SessionPane 绑定真实 commandId/sessionId。 */
   telemetrySeed?: ConversationPromptTelemetrySeed;
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
@@ -1448,6 +1451,9 @@ function ConversationComposerImpl({
                   }),
                 ),
               }
+            : {}),
+          ...(currentConversationSelections.length
+            ? { evidenceRefs: collectConversationEvidenceRefs(currentConversationSelections) }
             : {}),
           telemetrySeed,
           ...(requestedDelivery ? { requestedDelivery } : {}),

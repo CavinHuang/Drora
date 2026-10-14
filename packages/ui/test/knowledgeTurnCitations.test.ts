@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
 import { formatKnowledgeDraftSource, KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "../src/lib/conversationKnowledgeSources.js";
-import { readKnowledgeTurnCitations, readAnswerCitationNumbers } from "../src/v4/knowledgeTurnCitations.js";
+import {
+  auditKnowledgeAnswerCitationCoverage,
+  readKnowledgeTurnCitations,
+  readAnswerCitationNumbers,
+} from "../src/v4/knowledgeTurnCitations.js";
 
 type SourceInput = Pick<UserInputRow, "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "conversationQuotes" | "text">;
 const source1 = { index: 1, relativePath: "notes/a.md", heading: "Context", startLine: 2, endLine: 5 };
@@ -89,6 +93,45 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
       { path: "notes/a.md", text: " " },
       { path: "notes/b.md", text: "B" },
     ] }])).toEqual([]);
+  });
+
+  it("audits long answer paragraphs without promoting text to trusted receipts", () => {
+    const answer = [
+      "## 小结",
+      "第一段陈述了明确的结论，同时已经标记可信来源编号，便于人工核对。[1]",
+      "",
+      "第二段也是具体的事实判断，但完全没有标明来自哪篇笔记的任何证据。",
+      "",
+      "~~~markdown",
+      "模型代码块内写着 [9] 和错误的引用编号，不应计算成可信证据来源。",
+      "~~~",
+      "",
+      "- 第三条提出另外一些观察，却使用了不属于本轮来源集合的 [8] 编号。",
+      "",
+      "[2](https://example.com) 这里是普通 Markdown 超链接，不应该成为来源引用编号。",
+    ].join("\n");
+    expect(auditKnowledgeAnswerCitationCoverage(answer, 2)).toEqual({
+      proseBlocks: 4,
+      attributedBlocks: 1,
+      unattributedBlocks: 3,
+      knownNumbers: [1],
+      unknownNumbers: [8],
+    });
+  });
+
+  it("returns empty coverage for code-only answers and does not claim fact verification", () => {
+    const answer = ["\`\`\`ts", 'const value = "[9]"', "\`\`\`"].join("\n");
+    expect(auditKnowledgeAnswerCitationCoverage(answer, 2)).toEqual({
+      proseBlocks: 0,
+      attributedBlocks: 0,
+      unattributedBlocks: 0,
+      knownNumbers: [],
+      unknownNumbers: [],
+    });
+    const plain = "这份回答没有进行任何引用，不过仍然可能提供了有用的上下文。";
+    const result = auditKnowledgeAnswerCitationCoverage(plain, 2);
+    expect(result.unattributedBlocks).toBe(1);
+    expect(result.knownNumbers).toEqual([]);
   });
 
   it("recognizes generated citations as display-only and surfaces unknown indices", () => {

@@ -3,6 +3,7 @@ import {
   createKnowledgeCitationRemarkPlugin,
   linkKnownKnowledgeCitations,
   parseKnowledgeCitationHref,
+  resolveBoundKnowledgeCitation,
 } from "../src/lib/knowledgeCitationMarkdown.js";
 
 type Node = {
@@ -34,6 +35,12 @@ describe("Obsidian turn-scoped inline source markers", () => {
     expect(parseKnowledgeCitationHref("#drora-knowledge-source-1")).toBe(1);
     expect(parseKnowledgeCitationHref("#drora-knowledge-source-9")).toBe(null);
     expect(parseKnowledgeCitationHref("https://example.com/#drora-knowledge-source-1")).toBe(null);
+    const marked = { properties: { "data-drora-bound-knowledge-source": "1" } };
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", marked, [1, 2])).toBe(1);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", undefined, [1])).toBe(null);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", { properties: {} }, [1])).toBe(null);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", marked, [2])).toBe(null);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-2", marked, [1, 2])).toBe(null);
   });
 
   it("does not rewrite existing Markdown links, inline/fenced code, quotes, tables or headings", () => {

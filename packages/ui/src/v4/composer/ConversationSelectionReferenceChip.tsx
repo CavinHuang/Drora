@@ -1,4 +1,4 @@
-import { QuoteIcon, Trash2Icon } from "lucide-react";
+import { QuoteIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -94,6 +94,17 @@ export function ConversationSelectionReferenceChip({
                 ) : null}
               </div>
             ) : null}
+            {isConversationSelectionReference(reference) &&
+              reference.contentType === "markdown" &&
+              Boolean(reference.evidenceReceiptId) ? (
+                <div
+                  className="mt-1 inline-flex items-center gap-1 text-ui-xs text-foreground-subtle"
+                  data-testid="composer-evidence-pending-revalidation"
+                >
+                  <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
+                  {intl.formatMessage({ id: "chat.selections.evidenceRecheckOnSend" })}
+                </div>
+              ) : null}
           </div>
           {onRemove && isConversationSelectionReference(reference) ? (
             <Button

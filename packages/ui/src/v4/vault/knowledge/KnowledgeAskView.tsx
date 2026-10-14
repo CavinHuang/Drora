@@ -97,6 +97,23 @@ export function KnowledgeAskView({
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
   const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
 
+  // A mounted query view may be reused for another session/workspace or RPC host.
+  // Discard previous candidates, receipts, retries and pending async completions.
+  const scopeRef = React.useRef({ sessionId, workspaceKey, queryService, indexService });
+  React.useEffect(() => {
+    const prior = scopeRef.current;
+    if (prior.sessionId === sessionId && prior.workspaceKey === workspaceKey &&
+        prior.queryService === queryService && prior.indexService === indexService) return;
+    scopeRef.current = { sessionId, workspaceKey, queryService, indexService };
+    submitSeqRef.current += 1;
+    inFlightRunIdRef.current = null;
+    lastSubmitRef.current = null;
+    dispatch({ type: "scopeReset" });
+    setInput("");
+    setIndexStatus(null);
+    setTraceOpen(false);
+  }, [sessionId, workspaceKey, queryService, indexService]);
+
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
 

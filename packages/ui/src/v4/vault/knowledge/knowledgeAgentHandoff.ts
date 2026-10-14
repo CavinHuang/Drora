@@ -32,6 +32,8 @@ export interface KnowledgeHandoffScope {
   sessionId: string | null;
   workspaceKey: string | null;
   articleIds: readonly string[];
+  /** Increments immediately on a user selection click, before React commits a render. */
+  selectionVersion: number;
 }
 
 export function sameKnowledgeHandoffScope(
@@ -42,6 +44,7 @@ export function sameKnowledgeHandoffScope(
     expected.runId === current.runId &&
     expected.sessionId === current.sessionId &&
     expected.workspaceKey === current.workspaceKey &&
+    expected.selectionVersion === current.selectionVersion &&
     expected.articleIds.length === current.articleIds.length &&
     expected.articleIds.every((id, index) => id === current.articleIds[index])
   );

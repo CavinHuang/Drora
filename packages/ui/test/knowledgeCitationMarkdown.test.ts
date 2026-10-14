@@ -21,10 +21,10 @@ function paragraph(value: string): Node {
 describe("Obsidian turn-scoped inline source markers", () => {
   it("links only canonical allow-listed indices without authorizing unknown model labels", () => {
     const tree = { type: "root", children: [paragraph("A [1], B [2], unknown [3] and [99].")] };
-    linkKnownKnowledgeCitations(tree, [1, 2]);
+    linkKnownKnowledgeCitations(tree, [1, 2], "test_nonce_9b0f");
     const children = tree.children[0]!.children!;
     expect(children.filter((n) => n.type === "link").map((n) => n.url)).toEqual([
-      "#drora-knowledge-source-1", "#drora-knowledge-source-2",
+      "#drora-knowledge-source-1--test_nonce_9b0f", "#drora-knowledge-source-2--test_nonce_9b0f",
     ]);
     expect(children.filter((n) => n.type === "link").map((n) =>
       n.data?.hProperties?.["data-drora-bound-knowledge-source"],
@@ -32,15 +32,16 @@ describe("Obsidian turn-scoped inline source markers", () => {
     expect(children.map((n) => n.value ?? n.children?.[0]?.value).join("")).toBe(
       "A [1], B [2], unknown [3] and [99].",
     );
-    expect(parseKnowledgeCitationHref("#drora-knowledge-source-1")).toBe(1);
-    expect(parseKnowledgeCitationHref("#drora-knowledge-source-9")).toBe(null);
-    expect(parseKnowledgeCitationHref("https://example.com/#drora-knowledge-source-1")).toBe(null);
-    const marked = { properties: { "data-drora-bound-knowledge-source": "1" } };
-    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", marked, [1, 2])).toBe(1);
-    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", undefined, [1])).toBe(null);
-    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", { properties: {} }, [1])).toBe(null);
-    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", marked, [2])).toBe(null);
-    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-2", marked, [1, 2])).toBe(null);
+    const bound = "#drora-knowledge-source-1--test_nonce_9b0f";
+    expect(parseKnowledgeCitationHref(bound, "test_nonce_9b0f")).toBe(1);
+    expect(parseKnowledgeCitationHref("#drora-knowledge-source-1", "test_nonce_9b0f")).toBe(null);
+    expect(parseKnowledgeCitationHref("#drora-knowledge-source-9--test_nonce_9b0f", "test_nonce_9b0f")).toBe(null);
+    expect(parseKnowledgeCitationHref("https://example.com/" + bound, "test_nonce_9b0f")).toBe(null);
+    expect(resolveBoundKnowledgeCitation(bound, "test_nonce_9b0f", [1, 2])).toBe(1);
+    expect(resolveBoundKnowledgeCitation(bound, "wrong-nonce", [1, 2])).toBe(null);
+    expect(resolveBoundKnowledgeCitation(bound, "test_nonce_9b0f", [2])).toBe(null);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-2--test_nonce_9b0f", "test_nonce_9b0f", [1, 2])).toBe(2);
+    expect(resolveBoundKnowledgeCitation("#drora-knowledge-source-1", "test_nonce_9b0f", [1, 2])).toBe(null);
   });
 
   it("does not rewrite existing Markdown links, inline/fenced code, quotes, tables or headings", () => {
@@ -49,7 +50,7 @@ describe("Obsidian turn-scoped inline source markers", () => {
       paragraph("Ordinary prose [1]."),
       ...excluded.map((type) => ({ type, value: "[1]", children: [{ type: "text", value: "[1]" }] })),
     ] };
-    linkKnownKnowledgeCitations(tree, [1]);
+    linkKnownKnowledgeCitations(tree, [1], "test_nonce_9b0f");
     expect(tree.children?.[0]?.children?.some((n) => n.type === "link")).toBe(true);
     for (const item of tree.children!.slice(1)) {
       expect(item.children?.[0]?.type).toBe("text");
@@ -59,9 +60,9 @@ describe("Obsidian turn-scoped inline source markers", () => {
 
   it("keeps unknown and ordinary messages inert even for manufactured fragments", () => {
     const original = paragraph("This is [1] and [4].");
-    linkKnownKnowledgeCitations(original, []);
+    linkKnownKnowledgeCitations(original, [], "test_nonce_9b0f");
     expect(original.children).toEqual([{ type: "text", value: "This is [1] and [4]." }]);
-    expect(typeof createKnowledgeCitationRemarkPlugin([2])).toBe("function");
+    expect(typeof createKnowledgeCitationRemarkPlugin([2], "test_nonce_9b0f")).toBe("function");
     expect(original.children).toEqual([{ type: "text", value: "This is [1] and [4]." }]);
   });
 
@@ -70,7 +71,7 @@ describe("Obsidian turn-scoped inline source markers", () => {
       { type: "strong", children: [{ type: "text", value: "[1] and [1]" }] },
       { type: "link", url: "https://example.com", children: [{ type: "text", value: "[1]" }] },
     ] };
-    linkKnownKnowledgeCitations(tree, [1]);
+    linkKnownKnowledgeCitations(tree, [1], "test_nonce_9b0f");
     expect(tree.children?.[0]?.children?.filter((n) => n.type === "link")).toHaveLength(2);
     expect(tree.children?.[1]?.url).toBe("https://example.com");
   });

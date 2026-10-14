@@ -2694,6 +2694,7 @@ export function SessionPane({
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
+      workspaceKey,
       workspaceHomePath,
       workspaceIdentity,
       workspaceRemoteSessionId: remoteSessionId ?? undefined,
@@ -2764,6 +2765,7 @@ export function SessionPane({
     }),
     [
       workspacePath,
+      workspaceKey,
       workspaceHomePath,
       workspaceIdentity,
       remoteSessionId,

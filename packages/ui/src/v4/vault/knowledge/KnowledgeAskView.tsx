@@ -21,7 +21,6 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
-  dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
@@ -43,7 +42,6 @@ import {
   AskBannerList,
   KnowledgeCandidateCard,
   displayCandidateTitle,
-  evidenceUnavailableMessageKey,
 } from "./KnowledgeCandidateCard.js";
 import {
   AskDecisionTrace,
@@ -54,10 +52,8 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
-import {
-  verifyKnowledgeCandidateEvidence,
-  verifyPreviousKnowledgeCandidateEvidence,
-} from "./knowledgeEvidenceVerification.js";
+import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
+import { usePreviousKnowledgeActions } from "./usePreviousKnowledgeActions.js";
 import { useKnowledgeAgentActions } from "./useKnowledgeAgentActions.js";
 
 const toast = {
@@ -96,13 +92,21 @@ export function KnowledgeAskView({
   const [indexStatus, setIndexStatus] = React.useState<KnowledgeIndexStatus | null>(null);
   const [indexActionBusy, setIndexActionBusy] = React.useState(false);
   const [traceOpen, setTraceOpen] = React.useState(false);
-  const [openingPreviousId, setOpeningPreviousId] = React.useState<string | null>(null);
-  const openingPreviousRef = React.useRef<{ articleId: string; seq: number } | null>(null);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
   const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
+  const selectionTarget: MarkdownSelectionTarget | null =
+    sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
+  const { openingPreviousId, usePreviousCandidate, cancelPendingPrevious } = usePreviousKnowledgeActions({
+    previous: state.previous,
+    queryService,
+    sessionId,
+    selectionTarget,
+    submitSeqRef,
+    onOpenNote,
+  });
 
   // A mounted query view may be reused for another session/workspace or RPC host.
   // Discard previous candidates, receipts, retries and pending async completions.
@@ -115,16 +119,12 @@ export function KnowledgeAskView({
     submitSeqRef.current += 1;
     inFlightRunIdRef.current = null;
     lastSubmitRef.current = null;
-    openingPreviousRef.current = null;
-    setOpeningPreviousId(null);
+    cancelPendingPrevious();
     dispatch({ type: "scopeReset" });
     setInput("");
     setIndexStatus(null);
     setTraceOpen(false);
-  }, [sessionId, workspaceKey, queryService, indexService]);
-
-  const selectionTarget: MarkdownSelectionTarget | null =
-    sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
+  }, [sessionId, workspaceKey, queryService, indexService, cancelPendingPrevious]);
 
   const refreshIndexStatus = React.useCallback(async (): Promise<void> => {
     if (!indexService) return;
@@ -168,8 +168,7 @@ export function KnowledgeAskView({
       lastSubmitRef.current = { query, clientRequestId, intent };
       const seq = ++submitSeqRef.current;
       inFlightRunIdRef.current = null;
-      openingPreviousRef.current = null;
-      setOpeningPreviousId(null);
+      cancelPendingPrevious();
       dispatch({ type: "submitStarted", query, clientRequestId, intent });
       try {
         const run = await queryService.createRun({
@@ -203,7 +202,7 @@ export function KnowledgeAskView({
         });
       }
     },
-    [intentChoice, queryService, refreshIndexStatus, sessionId],
+    [cancelPendingPrevious, intentChoice, queryService, refreshIndexStatus, sessionId],
   );
 
   const retryLast = React.useCallback((): void => {
@@ -274,67 +273,6 @@ export function KnowledgeAskView({
       submitSeqRef,
       verifyEvidence,
     });
-
-  const usePreviousCandidate = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate, action: "open" | "attach"): Promise<void> => {
-      const previous = state.previous;
-      if (!previous || !queryService || openingPreviousRef.current) return;
-      if (action === "attach" && !selectionTarget?.sessionId) {
-        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-        return;
-      }
-      const seq = submitSeqRef.current;
-      const token = { articleId: candidate.articleId, seq };
-      openingPreviousRef.current = token;
-      setOpeningPreviousId(candidate.articleId);
-      try {
-        const proof = await verifyPreviousKnowledgeCandidateEvidence({
-          queryService,
-          run: previous.run,
-          candidate,
-          sessionId,
-        });
-        // No old receipt/reference may cross a changed search, session, workspace or host.
-        if (seq !== submitSeqRef.current || openingPreviousRef.current !== token) return;
-        if (proof.phase === "verified") {
-          if (action === "open") {
-            onOpenNote(proof.relativePath, proof.quote);
-          } else if (selectionTarget?.sessionId) {
-            // A follow-up explicitly reuses the original note with a fresh trusted receipt.
-            // It is still verified again by the CLI admission and queue-promotion gates.
-            const reference = createConversationSelectionReference({
-              contentType: "markdown",
-              sourceKey: `vault:${proof.relativePath}`,
-              sourceTitle: proof.title,
-              path: proof.relativePath,
-              text: proof.excerpt,
-              evidenceReceiptId: proof.receiptId,
-            });
-            const result = dispatchConversationSelectionAdd({
-              targetSessionId: selectionTarget.sessionId,
-              workspaceKey: selectionTarget.workspaceKey,
-              reference,
-            });
-            if (!result.ok) {
-              toast.error(intl.formatMessage({
-                id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
-              }));
-            }
-          }
-        } else if (proof.phase === "failed") {
-          toast.error(intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: proof.message }));
-        } else if (proof.phase === "unavailable") {
-          toast.error(intl.formatMessage({ id: evidenceUnavailableMessageKey(proof.status) }));
-        }
-      } finally {
-        if (openingPreviousRef.current === token) {
-          openingPreviousRef.current = null;
-          setOpeningPreviousId(null);
-        }
-      }
-    },
-    [intl, onOpenNote, queryService, selectionTarget, sessionId, state.previous],
-  );
 
   const openFollowUpSideChat = React.useCallback(
     (candidate: KnowledgeArticleCandidate): void => {

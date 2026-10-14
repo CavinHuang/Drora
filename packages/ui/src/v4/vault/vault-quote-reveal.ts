@@ -1,4 +1,5 @@
 import { EditorView } from "@codemirror/view";
+import { isVaultCitationFocusCurrent } from "./knowledge/knowledgeCitationNavigation.js";
 
 /**
  * 引用回跳的行锚定（W04 / specs/obsidian-knowledge.md §5c.1）。
@@ -18,4 +19,20 @@ export function revealVaultQuote(view: EditorView, quote: { startLine: number; e
     effects: EditorView.scrollIntoView(from, { y: "center" }),
   });
   view.focus();
+}
+
+/**
+ * The actual CodeMirror entrypoint for a delayed citation focus. Revalidate
+ * the captured epoch immediately before mutating selection or focus, even if
+ * the editor mounted after the session/Vault switched A→B→A.
+ */
+export function revealVaultQuoteIfCurrent(
+  view: EditorView,
+  quote: { startLine: number; endLine: number },
+  requestEpoch: number | undefined,
+  activeEpoch: number,
+): boolean {
+  if (!isVaultCitationFocusCurrent(requestEpoch, activeEpoch)) return false;
+  revealVaultQuote(view, quote);
+  return true;
 }

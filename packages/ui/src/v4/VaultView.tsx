@@ -103,7 +103,7 @@ import {
   getVaultSidebarDisplayWidth,
   getVaultSidebarToggleLabel,
 } from "./vault/vault-sidebar-layout.js";
-import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
+import { revealVaultQuoteIfCurrent } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
 import {
   createKnowledgeCitationScopeEpoch,
@@ -650,8 +650,11 @@ function VaultMarkdownEditor({
     // 显式编辑意图优先于历史阅读位置恢复；只操作实际挂载的实例。
     takeOverScrollRestore();
     // 引用回跳（W04）：按 quote 行号区间锚定选中；普通编辑意图仍聚焦正文开头。
-    if (bodyFocusRequest.reveal) revealVaultQuote(view, bodyFocusRequest.reveal);
-    else focusVaultBody(view);
+    if (bodyFocusRequest.reveal) {
+      if (!revealVaultQuoteIfCurrent(
+        view, bodyFocusRequest.reveal, bodyFocusRequest.citationEpoch, citationEpoch,
+      )) return;
+    } else focusVaultBody(view);
     onBodyFocused(bodyFocusRequest);
   }, [
     bodyFocusRequest,

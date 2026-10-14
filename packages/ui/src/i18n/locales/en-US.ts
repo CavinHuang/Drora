@@ -1174,6 +1174,7 @@ const enUS: Record<string, string> = {
     "Resolve the side conversation request before adding another selection.",
   "chat.selections.count": "{count} conversation selections",
   "chat.selections.remove": "Remove conversation selection",
+  "chat.selections.evidenceRecheckOnSend": "Evidence receipt · rechecked on send",
   "chat.selections.type.user": "User message",
   "chat.selections.type.assistant": "Assistant message",
   "chat.selections.type.reasoning": "Reasoning",

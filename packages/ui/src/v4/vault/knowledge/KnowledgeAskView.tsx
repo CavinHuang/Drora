@@ -207,9 +207,10 @@ export function KnowledgeAskView({
     if (!runId || !queryService) return;
     const cancelSeq = submitSeqRef.current;
     try {
-      await queryService.cancelRun({ runId });
-      // A newer search may have started while cancellation was awaiting the host.
-      if (submitSeqRef.current === cancelSeq && inFlightRunIdRef.current === runId) {
+      const result = await queryService.cancelRun({ runId });
+      // A completed query must not be marked cancelled just because its ACK arrives late.
+      // If cancellation lost the race, let the original search() settle normally.
+      if (result.cancelled && submitSeqRef.current === cancelSeq && inFlightRunIdRef.current === runId) {
         dispatch({ type: "cancelSucceeded", runId });
         inFlightRunIdRef.current = null;
       }
@@ -375,9 +376,7 @@ export function KnowledgeAskView({
                     disabled={
                       handoffBusy ||
                       !selectionTarget ||
-                      (currentRound.intent === "compare"
-                        ? state.selectedArticleIds.length < 2
-                        : !state.selectedArticleId)
+                      state.selectedArticleIds.length < (currentRound.intent === "compare" ? 2 : 1)
                     }
                     onClick={() => void handoffQuestionToAgent()}
                   >
@@ -399,7 +398,7 @@ export function KnowledgeAskView({
                   key={candidate.articleId}
                   candidate={candidate}
                   query={currentRound.submittedQuery}
-                  selected={currentRound.intent === "compare" ? state.selectedArticleIds.includes(candidate.articleId) : state.selectedArticleId === candidate.articleId}
+                  selected={currentRound.intent === "find" ? state.selectedArticleId === candidate.articleId : state.selectedArticleIds.includes(candidate.articleId)}
                   inspect={state.evidence[candidate.articleId]}
                   sessionId={sessionId}
                   selectionTarget={selectionTarget}

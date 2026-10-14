@@ -134,9 +134,11 @@ describe("Obsidian trusted Agent handoff", () => {
       sessionId: "session-1",
       workspaceKey: "/workspace",
       articleIds: ["note-a", "note-b"],
+      selectionVersion: 1,
     };
     expect(sameKnowledgeHandoffScope(captured, { ...captured, articleIds: [...captured.articleIds] })).toBe(true);
     for (const stale of [
+      { ...captured, selectionVersion: 2 }, // Changed and returned before React commit.
       { ...captured, articleIds: ["note-b", "note-a"] },
       { ...captured, articleIds: ["note-a"] },
       { ...captured, articleIds: ["note-a", "note-c"] },

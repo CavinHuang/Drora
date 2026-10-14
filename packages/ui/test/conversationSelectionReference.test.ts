@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendConversationSelectionReference,
+  appendConversationSelectionReferences,
+  requestKnowledgeAgentHandoff,
   collectConversationEvidenceRefs,
   buildPromptWithConversationSelections,
   clearConversationSelectionReferenceScope,
@@ -126,6 +128,51 @@ describe("conversation selection references", () => {
     expect(rejected).toEqual({ ok: false, reason: "single" });
     expect(existing).toHaveLength(1);
     expect(existing[0]?.text).toHaveLength(8_000);
+  });
+
+  it("批量可信引用必须原子加入：第二项超限时首项也不能落库", () => {
+    const existing = [reference("ref-existing", 1, "old")];
+    const first = {
+      contentType: "markdown" as const,
+      id: "md1",
+      sourceKey: "vault:a.md",
+      sourceTitle: "A",
+      path: "a.md",
+      text: "verified A",
+      evidenceReceiptId: "evr_a",
+    };
+    const large = { ...first, id: "md2", sourceKey: "vault:b.md", text: "z".repeat(20_000) };
+    expect(appendConversationSelectionReferences(existing, [first, large]))
+      .toEqual({ ok: false, reason: "single" });
+    expect(existing).toHaveLength(1);
+    const success = appendConversationSelectionReferences(existing, [first, { ...first, id: "md3", evidenceReceiptId: "evr_new" }]);
+    expect(success.ok).toBe(true);
+    if (success.ok) {
+      expect(success.references).toHaveLength(2);
+      expect(collectConversationEvidenceRefs(success.references)).toEqual([{ receiptId: "evr_new" }]);
+    }
+  });
+
+  it("未挂载目标 Agent 时不能静默写入引用 scope", () => {
+    vi.stubGlobal("window", new EventTarget());
+    const targetSessionId = "absent-composer";
+    const workspaceKey = "/workspace-missing";
+    const result = requestKnowledgeAgentHandoff({
+      targetSessionId,
+      workspaceKey,
+      prompt: "请解释",
+      references: [{
+        contentType: "markdown",
+        id: "md-evidence",
+        sourceKey: "vault:a.md",
+        sourceTitle: "A",
+        path: "a.md",
+        text: "真实片段",
+        evidenceReceiptId: "evr_current",
+      }],
+    });
+    expect(result).toEqual({ ok: false, reason: "unavailable" });
+    expect(getConversationSelectionReferenceScope(targetSessionId, workspaceKey)).toEqual([]);
   });
 
   it("新发送只序列化 userselect text，并恢复可见正文与 chips", () => {

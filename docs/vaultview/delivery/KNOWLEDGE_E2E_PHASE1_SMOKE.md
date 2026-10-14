@@ -56,17 +56,21 @@
 | G31 | 在未引入 S03 写安全门禁的生产桌面端打开 Vault 审核视图 | L2 开关禁用，并明确显示 S03 NO-GO；批准、拒绝、提案预览仍可用 | 未执行 |
 | G32 | 手动把 `vault-config.json.reviewWritePathEnabled` 设置 true 后重启 Drora | 不自动激活 L2；apply/undo 返回 write_path_disabled，不能写入 Vault 文件 | 未执行 |
 | G33 | 已显式通过安全门禁的测试环境中快速切换开启/关闭，或切换到另一个 Vault | 关闭立即撤销权限，旧配置读不能复活开关；切库后不能沿用旧 Vault 写授权 | 未执行 |
+| G34 | ANSWER/COMPARE 发送两篇可信笔记并得到完整 Agent 回答 | 对应本轮 assistant 回复下方出现 [1]/[2] 来源操作；点击只传当前 turn 绑定的 receiptId，重新 resolve 后按实际原文路径和行号打开 | 未执行 |
+| G35 | 连续发送两轮包含 [1] 的问答、切换会话并重启桌面端恢复转录 | 两轮只使用各自 CLI UserInputRow 上持久化的 evidenceRefs；相同编号不得跨 turn 借用上一轮凭据 | 未执行 |
+| G36 | 普通对话手写 [1]、用户清除来源或旧转录不含 evidenceRefs | 不显示可信来源操作；模型生成的 [1] 不会凭文字获得任何原文打开权限 | 未执行 |
+| G37 | Agent 答案写出不存在的 [9] 或引用未包含在原始清单中的编号 | 给出未知来源编号提示，只有实际携带 Receipt 的来源可点击；不宣称完成逐句语义事实验证 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G33 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G37 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 
 - FIND/ANSWER/COMPARE 的独立答案生成服务；当前跨文章回答仅完成“经用户选源 → 全部核验 → 编号来源清单 → 交给现有 Agent”的交接。来源编号仅为模型回答提示，不能宣称已做逐句引用真实性验证或生成内容质量评测。
-- Agent 回答正文中的 [1] 等编号尚未绑定可信 Receipt 做点击时复验与 Obsidian 原文定位；现有一般文件链接不应作为可信引用替代品。Composer 已附加的可信引用 chip 支持点击时重新核验并打开 Vault 原文，两者不要混淆。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
+- 已完成的 Agent 回答在轮尾提供与 CLI UserInputRow / sourceCommandId / turnId 严格绑定的可信来源按钮，点击时重新核验 Receipt 才打开原文。正文中的 [1] 等 Markdown 文本**仍不直接点击**，且对模型逐句事实正确性不作保证；没有行级凭据的旧转录不会凭文本补造来源。Composer 已附加的可信引用 chip 支持点击时重新核验并打开 Vault 原文，两者不要混淆。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
 - 候选卡的「就此追问」侧会话仍走普通选区引用语义，不将其声称为 Receipt 可信链路。与此不同，「上一轮 → 加入 Agent」是同 Session 的显式可信证据重新核验流程。

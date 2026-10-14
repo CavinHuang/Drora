@@ -106,6 +106,7 @@ import {
 import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
 import {
+  createKnowledgeCitationScopeEpoch,
   isKnowledgeCitationScopeCurrent,
   navigateKnowledgeCitation,
 } from "./vault/knowledge/knowledgeCitationNavigation.js";
@@ -1359,6 +1360,25 @@ export function VaultView({
   // a model-produced path, a stale receipt, or a response for another Vault scope.
   const citationScopeRef = React.useRef({ sessionId, workspaceKey, queryService: knowledgeQueryService });
   citationScopeRef.current = { sessionId, workspaceKey, queryService: knowledgeQueryService };
+  // Changing away and back to the same Vault/Session must *not* revive an old
+  // in-flight request. Version every transition, including service replacement.
+  const citationEpochRef = React.useRef(createKnowledgeCitationScopeEpoch());
+  citationEpochRef.current.observe({
+    sessionId,
+    workspaceKey,
+    vaultId: config?.vaultId,
+    queryService: knowledgeQueryService,
+  });
+  React.useEffect(() => {
+    const epoch = citationEpochRef.current;
+    epoch.observe({
+      sessionId,
+      workspaceKey,
+      vaultId: config?.vaultId,
+      queryService: knowledgeQueryService,
+    });
+    return () => epoch.revoke();
+  }, [sessionId, workspaceKey, config?.vaultId, knowledgeQueryService]);
   React.useEffect(() => {
     if (!sessionId || !workspaceKey || !knowledgeQueryService) return;
     const handleCitationOpen = (event: Event): void => {
@@ -1369,6 +1389,7 @@ export function VaultView({
           detail.workspaceKey !== workspaceKey) return;
       detail.accepted = true;
       const vaultId = vaultIdRef.current;
+      const capturedEpoch = citationEpochRef.current.currentVersion();
       if (!vaultId) {
         detail.finish({ ok: false, reason: "unavailable" });
         return;
@@ -1376,7 +1397,7 @@ export function VaultView({
       const stillAuthorized = (): boolean => {
         const active = citationScopeRef.current;
         return isKnowledgeCitationScopeCurrent({
-          requestActive: detail.isActive(),
+          requestActive: detail.isActive() && citationEpochRef.current.isCurrent(capturedEpoch),
           mounted: mountedRef.current,
           originalVaultId: vaultId,
           currentVaultId: vaultIdRef.current,

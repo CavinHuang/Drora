@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { KnowledgeResolveCitationResult } from "@drora/services";
-import { navigateKnowledgeCitation } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
+import {
+  createKnowledgeCitationScopeEpoch,
+  navigateKnowledgeCitation,
+} from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
 const current: KnowledgeResolveCitationResult = {
@@ -94,4 +97,31 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
       openNote: async () => { throw new Error("file unavailable"); },
     })).toEqual({ ok: false, reason: "failed" });
   });
+  it("never revives a delayed resolver across A→B→A even when all identities match again", async () => {
+    const tracker = createKnowledgeCitationScopeEpoch();
+    const scope = {
+      sessionId: "session-1", workspaceKey: "/workspace", vaultId: "vault-a",
+      queryService: {},
+    };
+    const oldVersion = tracker.observe(scope);
+    let finish: ((result: KnowledgeResolveCitationResult) => void) | undefined;
+    const opened: string[] = [];
+    const pending = run({
+      isCurrent: () => tracker.isCurrent(oldVersion),
+      resolveCitation: () => new Promise((resolve) => { finish = resolve; }),
+      openNote: async (path) => { opened.push(path); return true; },
+    });
+    tracker.observe({ ...scope, sessionId: "session-2" });
+    const newVersion = tracker.observe(scope);
+    expect(newVersion).toBeGreaterThan(oldVersion);
+    finish?.(current);
+    expect(await pending).toEqual({ ok: false, reason: "forbidden" });
+    expect(opened).toEqual([]);
+    expect(await run({
+      isCurrent: () => tracker.isCurrent(newVersion),
+      openNote: async (path) => { opened.push(path); return true; },
+    })).toEqual({ ok: true });
+    expect(opened).toEqual(["notes/a.md"]);
+  });
+
 });

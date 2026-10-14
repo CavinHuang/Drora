@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { KnowledgeResolveCitationResult } from "@drora/services";
 import {
+  createKnowledgeCitationScopeEpoch,
   decideKnowledgeCitationNavigation,
   isKnowledgeCitationScopeCurrent,
 } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
@@ -77,4 +78,42 @@ describe("Obsidian citation navigation authorization", () => {
       expect(isKnowledgeCitationScopeCurrent({ ...baseline, ...changes })).toBe(false);
     }
   });
+  it("invalidates an old request permanently across A→B→A and unmount/remount", () => {
+    const tracker = createKnowledgeCitationScopeEpoch();
+    const service = {};
+    const vaultA = {
+      sessionId: "session-1", workspaceKey: "/workspace",
+      vaultId: "vault-a", queryService: service,
+    };
+    const original = tracker.observe(vaultA);
+    expect(tracker.observe(vaultA)).toBe(original);
+    expect(tracker.isCurrent(original)).toBe(true);
+    tracker.observe({ ...vaultA, sessionId: "session-2" });
+    expect(tracker.isCurrent(original)).toBe(false);
+    const returned = tracker.observe(vaultA);
+    expect(returned).toBeGreaterThan(original);
+    expect(tracker.isCurrent(returned)).toBe(true);
+    expect(tracker.isCurrent(original)).toBe(false);
+    tracker.observe({ ...vaultA, vaultId: "vault-b" });
+    tracker.observe(vaultA);
+    expect(tracker.isCurrent(returned)).toBe(false);
+    const active = tracker.currentVersion();
+    tracker.revoke();
+    expect(tracker.isCurrent(active)).toBe(false);
+    const remounted = tracker.observe(vaultA);
+    expect(tracker.isCurrent(remounted)).toBe(true);
+    expect(tracker.isCurrent(active)).toBe(false);
+  });
+
+  it("invalidates pending opens when replacing the query service without changing the Vault", () => {
+    const tracker = createKnowledgeCitationScopeEpoch();
+    const scope = {
+      sessionId: "session-1", workspaceKey: "/workspace", vaultId: "vault-a",
+      queryService: {},
+    };
+    const captured = tracker.observe(scope);
+    tracker.observe({ ...scope, queryService: {} });
+    expect(tracker.isCurrent(captured)).toBe(false);
+  });
+
 });

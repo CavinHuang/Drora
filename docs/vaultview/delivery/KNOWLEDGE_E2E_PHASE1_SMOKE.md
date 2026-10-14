@@ -74,12 +74,13 @@
 | G49 | 同一 Agent 回答同时包含已准入 [1]、未准入 [4]、模型伪造的 [1](#drora-knowledge-source-1)、代码/标题中的 [1]，随后切换到另一历史会话 | 仅正文真实准入 [n] 可点击，模型链接不能借身份触发导航；切换后旧来源回调完全失效 | 未执行 |
 | G50 | 点击完成态 Agent 回答的可信引用，由当前 Session VaultView 解析 Receipt；再在 RPC 尚未完成时切换 Vault/Session，或使来源 stale | 实际 Markdown 按钮→全局事件→新鲜 Receipt 解析→安全读文件整条链路成功；stale/作用域失效不打开笔记，模型伪造 fragment 不派发事件 | 未执行 |
 | G51 | 连续多次点击同一条 stale 来源、等待核验过程中切换会话或退出再返回同一轮 | 同 Receipt 的 RPC/警告仅触发一次；旧作用域完成后不弹过期提示；返回后可重新点击并核验 | 未执行 |
+| G52 | 点击可信来源让核验 RPC 挂起，快速从 Session A → B → A（或 Vault A → B → A、切换 QueryService），之后旧 RPC 返回 current | 作用域 epoch 单调前进，旧请求一经失效永久 forbidden，即使最终身份与初始完全相同也绝不重新打开原文；用户新点击可正常核验 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G51 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G52 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

@@ -3,6 +3,53 @@ import type { KnowledgeResolveCitationResult } from "@drora/services";
 import type { KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 import type { KnowledgeCitationOpenResult } from "@/lib/conversationSelectionReference.js";
 
+/**
+ * An asynchronous citation must not become authorized again after A→B→A
+ * navigation. Checking only current identity lets an old resolver regain
+ * permission when the same Vault/session is reselected.
+ *
+ * This monotonic epoch is local to one mounted VaultView and never persisted.
+ * Query services use identity comparison, not serialized object values.
+ */
+export function createKnowledgeCitationScopeEpoch() {
+  let version = 0;
+  let current: {
+    sessionId: string | null | undefined;
+    workspaceKey: string | null | undefined;
+    vaultId: string | null | undefined;
+    queryService: unknown;
+  } | null = null;
+
+  return {
+    observe(next: {
+      sessionId: string | null | undefined;
+      workspaceKey: string | null | undefined;
+      vaultId: string | null | undefined;
+      queryService: unknown;
+    }): number {
+      if (!current ||
+          current.sessionId !== next.sessionId ||
+          current.workspaceKey !== next.workspaceKey ||
+          current.vaultId !== next.vaultId ||
+          current.queryService !== next.queryService) {
+        version++;
+        current = { ...next };
+      }
+      return version;
+    },
+    currentVersion(): number {
+      return version;
+    },
+    isCurrent(capturedVersion: number): boolean {
+      return capturedVersion > 0 && capturedVersion === version && current !== null;
+    },
+    revoke(): void {
+      version++;
+      current = null;
+    },
+  };
+}
+
 /** Confirm that navigation still belongs to this live Vault, Session and request. */
 export function isKnowledgeCitationScopeCurrent(input: {
   requestActive: boolean;

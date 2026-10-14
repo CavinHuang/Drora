@@ -911,15 +911,6 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
     }
     const source = await resolveSource();
-    if (options.writePathEnabled === undefined &&
-        source.config.reviewWritePathEnabled !== true) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
-        message: "当前 Vault 未授权 L2 撤销写入",
-        operation: buildOperationView(opRow),
-      };
-    }
     if (opRow.vaultId !== source.vaultId) {
       return {
         outcome: "blocked",
@@ -1011,6 +1002,17 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
     const source = await resolveSource();
+    // Undo writes too: a preference enabled for the old Vault must not authorize
+    // the newly selected root, even when the process gate was previously open.
+    if (options.writePathEnabled === undefined &&
+        source.config.reviewWritePathEnabled !== true) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+        message: "当前 Vault 未授权 L2 撤销写入",
+        operation: buildOperationView(opRow),
+      };
+    }
     if (opRow.vaultId !== source.vaultId) {
       return {
         outcome: "blocked",

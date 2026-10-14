@@ -32,6 +32,8 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
+      - name: Gen UI asset checkout integrity (autocrlf)
+        run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
       # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
       # 永久红灯;待仓库决定格式化基线后再启用。
       # - name: Format check

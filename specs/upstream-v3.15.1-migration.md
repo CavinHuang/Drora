@@ -157,6 +157,12 @@ flowchart LR
     Finalize --> Host[既有 Host Windows runtime resolver]
 ```
 
+### Gen UI 冻结资产的 checkout 字节保护
+
+CI `38496390329` 的 Windows 构建已完成 CUA staging，随后因 `floating-ui-core-1.7.3.min.js` 的 vendor 哈希不符失败。`.gitattributes` 只保护 `.mjs`/`.sh` 及其他冻结区，未覆盖 Visualize 的固定哈希资源；Windows `core.autocrlf=true` 会改写文本字节。
+
+Visualize `skills/visualize/assets/**`（runtime、vendor、manifest、license）统一 `-text -whitespace`，保持原版资源字节。使用实际临时 Git 仓库执行 autocrlf checkout，验证资源与原文件逐字一致、vendor SHA256 与原 manifest 一致；CI verify job 显式执行此原生 Node 回归。构建 `copyGenUiRuntimeAssets` 的哈希检查、资源内容和预期摘要均保持原样。
+
 桌面冷启动仍按官方时序在平台 IPC 注册后调用 `primaryWindowCoordinator.ensurePrimaryWindow("app-ready")`，再绑定首屏性能监控；后台更新不能阻止该入口。实际 Electron 验收必须有渲染页面和 Host 响应，不能只检查进程。
 
 清理三路合并产生的重复 switch/object 键。Server/Docker 按官方 dedicated remoteSessionId 保持逻辑会话生命周期，不采用被遮蔽的旧 Server 同目标复用分支；SSH/WSL 仍按官方规则复用。旧冻结控制器只保留取证与回归：其 grace 定时器依据 `relay-wire/replayBuffer.ts` 的严格 `now > queuedAt + graceMs` 和官方 chunk-C6VCYWB4.js @8551 所记录 deadline 口径，触发时间加 1ms，防止恰好落在边界时一次性看门狗失效。

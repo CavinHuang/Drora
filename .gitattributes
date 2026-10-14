@@ -27,3 +27,6 @@ packages/mobile-web/public/** -text -whitespace
 packages/zcode-cua-helper/runtime/** -text -whitespace
 packages/zcode-cua-helper/native/*.node -text -whitespace
 packages/zcode-cua/upstream/** -text -whitespace
+
+# Gen UI runtime/vendor/license 由 manifest 钉住 SHA256；Windows autocrlf 不能改写发行字节。
+apps/drora-cli/packages/visualize-plugin/skills/visualize/assets/** -text -whitespace

@@ -987,6 +987,8 @@ export function VaultView({
   // 子视图自身呈现「服务不可用」，不影响笔记视图。
   const knowledgeIndexService = serviceAccessor?.knowledgeIndexService ?? null;
   const knowledgeQueryService = serviceAccessor?.knowledgeQueryService ?? null;
+  // W09 审核视图：消费真实 IKnowledgeReviewService（提案/批准/应用/undo/L2 开关）。
+  const knowledgeReviewService = serviceAccessor?.knowledgeReviewService ?? null;
   // 四视图激活 tab（spec §5c.2）：组件内易失状态，默认「笔记」。
   const [viewTab, setViewTab] = React.useState<VaultViewTab>("notes");
   const platform = useOptionalPlatform();
@@ -1933,7 +1935,10 @@ export function VaultView({
         ) : viewTab === "insights" ? (
           <KnowledgeInsightsView indexService={knowledgeIndexService} />
         ) : (
-          <KnowledgeReviewView vaultService={vaultService ?? null} />
+          <KnowledgeReviewView
+            vaultService={vaultService ?? null}
+            reviewService={knowledgeReviewService}
+          />
         )}
       </main>
       <ConfirmDialog

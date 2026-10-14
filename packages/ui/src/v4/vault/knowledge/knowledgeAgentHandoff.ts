@@ -92,7 +92,14 @@ export async function prepareKnowledgeAgentHandoff(input: {
         return { ok: false, reason: "evidence_unavailable" };
       }
       // A source must remain the candidate the user actually selected.
-      if (citation.relativePath !== candidate.relativePath) {
+      if (
+        citation.sessionId !== sessionId ||
+        citation.runId !== run.runId ||
+        citation.articleId !== articleId ||
+        citation.relativePath !== candidate.relativePath
+      ) {
+        // A valid-looking receipt from another run, session or candidate
+        // must never be substituted for the user-selected source.
         return { ok: false, reason: "evidence_unavailable" };
       }
       references.push(

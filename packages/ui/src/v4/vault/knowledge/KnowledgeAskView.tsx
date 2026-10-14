@@ -22,6 +22,7 @@ import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  requestKnowledgeAgentHandoff,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
@@ -53,6 +54,7 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
+import { prepareKnowledgeAgentHandoff } from "./knowledgeAgentHandoff.js";
 import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
 
 const toast = {
@@ -92,6 +94,7 @@ export function KnowledgeAskView({
   const [indexActionBusy, setIndexActionBusy] = React.useState(false);
   const [traceOpen, setTraceOpen] = React.useState(false);
   const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
+  const [handoffBusy, setHandoffBusy] = React.useState(false);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
@@ -268,6 +271,49 @@ export function KnowledgeAskView({
     [intl, selectionTarget, verifyEvidence],
   );
 
+  /** User-selected ANSWER/COMPARE: verify all sources before any composer mutation. */
+  const handoffQuestionToAgent = React.useCallback(async (): Promise<void> => {
+    const round = state.current;
+    if (!queryService || !selectionTarget?.sessionId || !round) {
+      toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
+      return;
+    }
+    const intent = round.intent;
+    if (intent === "find") return;
+    const articleIds = intent === "compare"
+      ? state.selectedArticleIds
+      : state.selectedArticleId ? [state.selectedArticleId] : [];
+    const seq = submitSeqRef.current;
+    setHandoffBusy(true);
+    try {
+      const preparation = await prepareKnowledgeAgentHandoff({
+        run: round.run,
+        articleIds,
+        sessionId: selectionTarget.sessionId,
+        intent,
+        queryService,
+      });
+      if (seq !== submitSeqRef.current) return; // User started a new query while verification ran.
+      if (!preparation.ok) {
+        toast.error(intl.formatMessage({ id: `vault.ask.handoff.error.${preparation.reason}` }));
+        return;
+      }
+      const result = requestKnowledgeAgentHandoff({
+        targetSessionId: selectionTarget.sessionId,
+        workspaceKey: selectionTarget.workspaceKey,
+        prompt: preparation.prompt,
+        references: preparation.references,
+      });
+      if (!result.ok) {
+        toast.error(intl.formatMessage({ id: `vault.ask.handoff.error.${result.reason}` }));
+        return;
+      }
+      droraToast(intl.formatMessage({ id: "vault.ask.handoff.prepared" }));
+    } finally {
+      setHandoffBusy(false);
+    }
+  }, [intl, queryService, selectionTarget, state.current, state.selectedArticleId, state.selectedArticleIds]);
+
   const openFollowUpSideChat = React.useCallback(
     (candidate: KnowledgeArticleCandidate): void => {
       // MarkdownSelectionTarget.sessionId 类型允许 null；追问需要真实会话 id。
@@ -371,12 +417,40 @@ export function KnowledgeAskView({
                   </span>
                 )}
               </p>
+              {currentRound.intent !== "find" && (
+                <div className="flex flex-wrap items-center gap-2" data-testid="ask-agent-handoff">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      handoffBusy ||
+                      !selectionTarget ||
+                      (currentRound.intent === "compare"
+                        ? state.selectedArticleIds.length < 2
+                        : !state.selectedArticleId)
+                    }
+                    onClick={() => void handoffQuestionToAgent()}
+                  >
+                    {handoffBusy
+                      ? intl.formatMessage({ id: "vault.ask.handoff.checking" })
+                      : intl.formatMessage({ id: `vault.ask.handoff.${currentRound.intent}` })}
+                  </Button>
+                  <span className="text-ui-xs text-foreground-subtle">
+                    {intl.formatMessage({
+                      id: currentRound.intent === "compare"
+                        ? "vault.ask.handoff.compareHint"
+                        : "vault.ask.handoff.answerHint",
+                    })}
+                  </span>
+                </div>
+              )}
               {slice.visible.map((candidate) => (
                 <KnowledgeCandidateCard
                   key={candidate.articleId}
                   candidate={candidate}
                   query={currentRound.submittedQuery}
-                  selected={state.selectedArticleId === candidate.articleId}
+                  selected={currentRound.intent === "compare" ? state.selectedArticleIds.includes(candidate.articleId) : state.selectedArticleId === candidate.articleId}
                   inspect={state.evidence[candidate.articleId]}
                   sessionId={sessionId}
                   selectionTarget={selectionTarget}

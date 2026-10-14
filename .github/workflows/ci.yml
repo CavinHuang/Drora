@@ -33,7 +33,7 @@ jobs:
       - name: Lint
         run: pnpm lint
       - name: Obsidian knowledge UI and evidence transport regression
-        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeCitationTransaction.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts
+        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeCitationTransaction.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts packages/ui/test/knowledgeCitationOpenFeedback.test.ts
       - name: Obsidian source-to-receipt integration and CLI admission gate
         # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
         # wiring suite in cli-build after its dependency closure has been built.

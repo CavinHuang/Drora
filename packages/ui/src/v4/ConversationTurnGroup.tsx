@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -58,6 +59,7 @@ import {
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import { requestKnowledgeCitationOpen } from "@/lib/conversationSelectionReference.js";
+import { createKnowledgeCitationOpenFeedbackController } from "@/v4/knowledgeCitationOpenFeedback.js";
 import { HighspeedShareDialog } from "@/highspeed/HighspeedShareNoticeCard.js";
 import { isHighspeedShareEligible } from "@/highspeed/highspeedShare.js";
 import {
@@ -1356,25 +1358,6 @@ function ConversationTurnGroupImpl({
       unit.turnId, unit.visibleUserInputs,
     ],
   );
-  const onOpenKnowledgeCitation = useCallback((index: number): void => {
-    const source = turnCitations.find((citation) => citation.index === index);
-    if (!source || !context.sessionId || !context.workspaceKey) return;
-    void requestKnowledgeCitationOpen({
-      targetSessionId: context.sessionId,
-      workspaceKey: context.workspaceKey,
-      receiptId: source.receiptId,
-    }).then((result) => {
-      if (!result.ok) {
-        droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
-          variant: "warning",
-        });
-      }
-    }).catch(() => {
-      droraToast(intl.formatMessage({ id: "chat.selections.evidenceOpen.failed" }), {
-        variant: "warning",
-      });
-    });
-  }, [context.sessionId, context.workspaceKey, intl, turnCitations]);
   const inlineCitationIndices = useMemo(
     () => turnCitations.map((source) => source.index),
     [turnCitations],
@@ -1386,6 +1369,30 @@ function ConversationTurnGroupImpl({
     ]),
     [context.sessionId, context.workspaceKey, unit.turnId, turnCitations],
   );
+  // The transport deduplicates requests, but each additional click previously
+  // attached another error toast. Suppress duplicate feedback and notifications
+  // from a turn that has since been unmounted or replaced.
+  const citationFeedbackRef = useRef(
+    createKnowledgeCitationOpenFeedbackController(requestKnowledgeCitationOpen),
+  );
+  useEffect(() => {
+    const controller = citationFeedbackRef.current;
+    controller.setScope(inlineCitationScopeKey);
+    return () => controller.setScope(null);
+  }, [inlineCitationScopeKey]);
+  const onOpenKnowledgeCitation = useCallback((index: number): void => {
+    const source = turnCitations.find((citation) => citation.index === index);
+    if (!source || !context.sessionId || !context.workspaceKey) return;
+    citationFeedbackRef.current.open({
+      targetSessionId: context.sessionId,
+      workspaceKey: context.workspaceKey,
+      receiptId: source.receiptId,
+    }, inlineCitationScopeKey, (reason) => {
+      droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${reason}` }), {
+        variant: "warning",
+      });
+    });
+  }, [context.sessionId, context.workspaceKey, inlineCitationScopeKey, intl, turnCitations]);
   const assistantRowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       ...context,

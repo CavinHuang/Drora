@@ -5,7 +5,13 @@ import {
   parseKnowledgeCitationHref,
 } from "../src/lib/knowledgeCitationMarkdown.js";
 
-type Node = { type: string; value?: string; url?: string; children?: Node[] };
+type Node = {
+  type: string;
+  value?: string;
+  url?: string;
+  data?: { hProperties?: Record<string, string> };
+  children?: Node[];
+};
 
 function paragraph(value: string): Node {
   return { type: "paragraph", children: [{ type: "text", value }] };
@@ -19,6 +25,9 @@ describe("Obsidian turn-scoped inline source markers", () => {
     expect(children.filter((n) => n.type === "link").map((n) => n.url)).toEqual([
       "#drora-knowledge-source-1", "#drora-knowledge-source-2",
     ]);
+    expect(children.filter((n) => n.type === "link").map((n) =>
+      n.data?.hProperties?.["data-drora-bound-knowledge-source"],
+    )).toEqual(["1", "2"]);
     expect(children.map((n) => n.value ?? n.children?.[0]?.value).join("")).toBe(
       "A [1], B [2], unknown [3] and [99].",
     );

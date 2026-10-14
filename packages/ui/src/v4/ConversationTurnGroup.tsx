@@ -56,6 +56,8 @@ import {
   type OffPeakCreateTaskSummary,
 } from "@/ToolCallBlocks/renderers/offpeak-create.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { toast as droraToast } from "@/components/ui/toast.js";
+import { requestKnowledgeCitationOpen } from "@/lib/conversationSelectionReference.js";
 import { HighspeedShareDialog } from "@/highspeed/HighspeedShareNoticeCard.js";
 import { isHighspeedShareEligible } from "@/highspeed/highspeedShare.js";
 import {
@@ -1339,16 +1341,68 @@ function ConversationTurnGroupImpl({
     () => unit.assistantWorkRows.find((row) => row.kind === "reasoning")?.rowId,
     [unit.assistantWorkRows],
   );
+  const latestAssistantTextRow = unit.latestAssistantTextRow;
+  const turnCitations = useMemo(
+    () => !unit.timelineOnly && !unit.isRunning &&
+      latestAssistantTextRow?.state === "complete" &&
+      context.sessionId && context.workspaceKey
+      ? readKnowledgeTurnCitations(
+          unit.turnId, unit.visibleUserInputs, unit.header?.sourceCommandId,
+        )
+      : [],
+    [
+      context.sessionId, context.workspaceKey, latestAssistantTextRow?.state,
+      unit.header?.sourceCommandId, unit.isRunning, unit.timelineOnly,
+      unit.turnId, unit.visibleUserInputs,
+    ],
+  );
+  const onOpenKnowledgeCitation = useCallback((index: number): void => {
+    const source = turnCitations.find((citation) => citation.index === index);
+    if (!source || !context.sessionId || !context.workspaceKey) return;
+    void requestKnowledgeCitationOpen({
+      targetSessionId: context.sessionId,
+      workspaceKey: context.workspaceKey,
+      receiptId: source.receiptId,
+    }).then((result) => {
+      if (!result.ok) {
+        droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
+          variant: "warning",
+        });
+      }
+    }).catch(() => {
+      droraToast(intl.formatMessage({ id: "chat.selections.evidenceOpen.failed" }), {
+        variant: "warning",
+      });
+    });
+  }, [context.sessionId, context.workspaceKey, intl, turnCitations]);
+  const inlineCitationIndices = useMemo(
+    () => turnCitations.map((source) => source.index),
+    [turnCitations],
+  );
+  const inlineCitationScopeKey = useMemo(
+    () => JSON.stringify([
+      context.sessionId, context.workspaceKey, unit.turnId,
+      ...turnCitations.map((source) => source.receiptId),
+    ]),
+    [context.sessionId, context.workspaceKey, unit.turnId, turnCitations],
+  );
   const assistantRowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       ...context,
       ...(firstReasoningRowId !== undefined
         ? { messageStreamFirstReasoningRowId: firstReasoningRowId }
         : {}),
+      ...(turnCitations.length > 0 ? {
+        knowledgeCitationIndices: inlineCitationIndices,
+        knowledgeCitationScopeKey: inlineCitationScopeKey,
+        onOpenKnowledgeCitation,
+      } : {}),
     }),
-    [context, firstReasoningRowId],
+    [
+      context, firstReasoningRowId, inlineCitationIndices,
+      inlineCitationScopeKey, onOpenKnowledgeCitation, turnCitations.length,
+    ],
   );
-  const latestAssistantTextRow = unit.latestAssistantTextRow;
   const assistantPreviewPptxAutoOpenTarget = context.assistantPreviewPptxAutoOpenTarget;
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const assistantCodeCommentProjectionEnabled =
@@ -1673,7 +1727,7 @@ function ConversationTurnGroupImpl({
           ) : null}
           {canRenderAssistantActions && context.sessionId && context.workspaceKey ? (
             <KnowledgeAnswerSources
-              citations={readKnowledgeTurnCitations(unit.turnId, unit.visibleUserInputs, unit.header?.sourceCommandId)}
+              citations={turnCitations}
               assistantText={assistantCopyText ?? ""}
               sessionId={context.sessionId}
               workspaceKey={context.workspaceKey}

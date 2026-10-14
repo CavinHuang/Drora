@@ -48,7 +48,18 @@ export async function verifyEvidenceOrThrow(
       refs[0]?.receiptId ?? "",
     );
   }
-  const verdict = await host.verifyInputEvidence({ sessionId, evidenceRefs: refs });
+  // 宿主可能在 RPC 断连、账本关闭等情况下抛异常；统一转为结构化拒绝，
+  // 而不是让异常逃出 ACK guard 分类。任何异常都不得降级成无证据发送。
+  let verdict: Awaited<ReturnType<NonNullable<V4CommandCoreHost["verifyInputEvidence"]>>>;
+  try {
+    verdict = await host.verifyInputEvidence({ sessionId, evidenceRefs: refs });
+  } catch {
+    throw new EvidenceGuardRejectionError(
+      KNOWLEDGE_EVIDENCE_GUARDS.unavailable,
+      "gate_unavailable",
+      refs[0]?.receiptId ?? "",
+    );
+  }
   if (verdict.ok) return;
   throw new EvidenceGuardRejectionError(verdict.guard, verdict.reason, refs[0]?.receiptId ?? "");
 }

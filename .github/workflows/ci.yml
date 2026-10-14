@@ -33,7 +33,7 @@ jobs:
       - name: Lint
         run: pnpm lint
       - name: Obsidian knowledge UI and evidence transport regression
-        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts
+        run: pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeTurnCitations.test.ts
       - name: Obsidian source-to-receipt integration and CLI admission gate
         # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
         # wiring suite in cli-build after its dependency closure has been built.
@@ -94,7 +94,7 @@ jobs:
           done
         shell: bash
       - name: Obsidian evidence session wiring (built CLI dependency closure)
-        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs apps/drora-cli/packages/bootstrap/test/knowledge-user-input-provenance.test.mjs
       - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
         run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
       - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)

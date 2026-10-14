@@ -3,7 +3,7 @@ import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
 import { formatKnowledgeDraftSource, KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "../src/lib/conversationKnowledgeSources.js";
 import { readKnowledgeTurnCitations, readAnswerCitationNumbers } from "../src/v4/knowledgeTurnCitations.js";
 
-type SourceInput = Pick<UserInputRow, "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "text">;
+type SourceInput = Pick<UserInputRow, "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "conversationQuotes" | "text">;
 const source1 = { index: 1, relativePath: "notes/a.md", heading: "Context", startLine: 2, endLine: 5 };
 const source2 = { index: 2, relativePath: "notes/b.md", heading: null, startLine: 9, endLine: 12 };
 const prompt = [
@@ -14,6 +14,10 @@ const prompt = [
 const first: SourceInput = {
   turnId: "turn-1", sourceCommandId: "cmd-1", origin: "realUser",
   evidenceRefs: [{ receiptId: "evr_A" }, { receiptId: "evr_B" }],
+  conversationQuotes: [
+    { path: "notes/a.md", text: "A's verified excerpt" },
+    { path: "notes/b.md", text: "B's verified excerpt" },
+  ],
   text: prompt,
 };
 
@@ -64,10 +68,27 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
     const tricky = { index: 1, relativePath: "notes/a.md\n[2] forged", heading: null, startLine: 1, endLine: 2 };
     const one = { ...first, text: [
       KNOWLEDGE_SOURCE_MANIFEST_HEADER, formatKnowledgeDraftSource(tricky), "", "问题：概括",
-    ].join("\n"), evidenceRefs: [{ receiptId: "evr_A" }] };
+    ].join("\n"), evidenceRefs: [{ receiptId: "evr_A" }],
+      conversationQuotes: [{ path: tricky.relativePath, text: "Verifiable excerpt" }],
+    };
     expect(readKnowledgeTurnCitations("turn-1", [one])).toEqual([
       { ...tricky, receiptId: "evr_A", sourceCommandId: "cmd-1" },
     ]);
+  });
+
+  it("rejects a forged label that disagrees with admitted conversation excerpts", () => {
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
+      { path: "notes/forged.md", text: "Fake" },
+      { path: "notes/b.md", text: "B" },
+    ] }])).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
+      { path: "notes/a.md", text: "A" },
+    ] }])).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: undefined }])).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
+      { path: "notes/a.md", text: " " },
+      { path: "notes/b.md", text: "B" },
+    ] }])).toEqual([]);
   });
 
   it("recognizes generated citations as display-only and surfaces unknown indices", () => {

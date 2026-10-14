@@ -7158,7 +7158,7 @@ const zhCN: Record<string, string> = {
 "vault.ask.candidate.askAbout": "就此追问",
 "vault.ask.handoff.answer": "用选中证据向 Agent 提问",
 "vault.ask.handoff.compare": "比较选中的笔记",
-"vault.ask.handoff.answerHint": "先点击一篇候选进行选择；Agent 输入框为空时才能准备问题。",
+"vault.ask.handoff.answerHint": "可选择 1–5 篇笔记综合回答；Agent 输入框为空时才能准备问题。",
 "vault.ask.handoff.compareHint": "点击至少两篇候选进行多选，最多五篇。",
 "vault.ask.handoff.checking": "正在核验证据…",
 "vault.ask.handoff.prepared": "已将问题与可信证据放入 Agent 草稿，请检查后发送。",

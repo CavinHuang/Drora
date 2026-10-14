@@ -547,3 +547,15 @@ test("scopeReset isolates a new session from prior candidates, receipts and retr
   }), reset);
   assert.equal(reduceKnowledgeAsk(reset, { type: "cancelSucceeded", runId: "prior-session" }), reset);
 });
+
+test("late search completion cannot resurrect a cancelled run", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "cancelled-run", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "cancelled-run" });
+  const unchanged = reduceKnowledgeAsk(state, {
+    type: "runSettled", run: makeRun({ runId: "cancelled-run", status: "ready" }),
+  });
+  assert.equal(unchanged, state);
+  assert.equal(unchanged.current?.cancelledByUser, true);
+});

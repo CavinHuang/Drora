@@ -55,6 +55,8 @@ export interface ConversationRowRenderContext {
   sessionId?: string | null;
   /** The enclosing turn's admitted Obsidian source indices (1–5), not model claims. */
   knowledgeCitationIndices?: readonly number[];
+  /** Remount Markdown renderer on a different turn / source Receipt map. */
+  knowledgeCitationScopeKey?: string;
   /** Resolves the corresponding opaque Receipt again before opening the Vault note. */
   onOpenKnowledgeCitation?: (index: number) => void;
   /** 当前下钻树的顶层 session；详情 tab 跨嵌套层级按该 id 分组。 */

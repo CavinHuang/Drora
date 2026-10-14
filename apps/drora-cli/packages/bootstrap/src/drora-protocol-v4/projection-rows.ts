@@ -96,6 +96,10 @@ export function buildUserInputRow(base: RowBaseInput, payload: TurnStartedPayloa
     ...(payload.intent?.conversationQuotes
       ? { conversationQuotes: payload.intent.conversationQuotes }
       : {}),
+    // Project the admitted canonical intent, not the user's text or a renderer cache.
+    ...(payload.intent?.evidenceRefs?.length
+      ? { evidenceRefs: [...payload.intent.evidenceRefs] }
+      : {}),
     ...(payload.intent?.botGroupSource ? { botGroupSource: payload.intent.botGroupSource } : {}),
     text:
       payload.intent?.conversationQuotes || payload.intent?.botGroupSource

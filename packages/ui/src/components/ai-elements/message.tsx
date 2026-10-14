@@ -13,7 +13,7 @@ import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
-import type { EditorInfo, FileStat, OpenInEditorOptions } from "@drora/shared";
+import { createUuid, type EditorInfo, type FileStat, type OpenInEditorOptions } from "@drora/shared";
 import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
 import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough";
@@ -1366,6 +1366,9 @@ export const MessageResponse = memo(
       [projectedCitationMarkdown],
     );
     const streamdownMode = resolveMessageStreamdownMode(renderStreaming);
+    // Streamdown drops mdast custom hProperties, so mint a capability *after*
+    // model output and tie it to the rendered turn/scope.
+    const knowledgeCitationNonce = useMemo(() => createUuid(), [knowledgeCitationScopeKey]);
     const messageRemarkPlugins = useMemo<PluggableList>(
       () => [
         // 显式传 remarkPlugins 会覆盖 Streamdown 默认插件；
@@ -1378,11 +1381,12 @@ export const MessageResponse = memo(
           ? [createDroraFileCitationRemarkPlugin(workspacePath, workspaceHomePath)]
           : []),
         ...(onOpenKnowledgeCitation && knowledgeCitationIndices?.length && !renderStreaming
-          ? [createKnowledgeCitationRemarkPlugin(knowledgeCitationIndices)]
+          ? [createKnowledgeCitationRemarkPlugin(knowledgeCitationIndices, knowledgeCitationNonce)]
           : []),
       ],
       [
         knowledgeCitationIndices,
+        knowledgeCitationNonce,
         onOpenKnowledgeCitation,
         renderDroraFileCitations,
         renderStreaming,
@@ -1399,8 +1403,8 @@ export const MessageResponse = memo(
       () =>
         renderStreaming
           ? `streaming:${streamdownMode}`
-          : `${streamdownMode}:${renderDroraFileCitations ? "citations" : "plain"}:${knowledgeCitationIndices?.join(",") ?? ""}:${hashMarkdownCacheKey(targetMarkdown)}`,
-      [renderStreaming, renderDroraFileCitations, knowledgeCitationIndices, streamdownMode, targetMarkdown],
+          : `${streamdownMode}:${renderDroraFileCitations ? "citations" : "plain"}:${knowledgeCitationIndices?.join(",") ?? ""}:${knowledgeCitationNonce}:${hashMarkdownCacheKey(targetMarkdown)}`,
+      [renderStreaming, renderDroraFileCitations, knowledgeCitationIndices, knowledgeCitationNonce, streamdownMode, targetMarkdown],
     );
     const boundaryScope = useMemo<MessageResponseBoundaryScope>(
       () => ({
@@ -1436,7 +1440,7 @@ export const MessageResponse = memo(
           workspaceRemoteSessionId,
           wrapLongLines,
         }) + (forceCodeWrap ? ":wrap-locked" : "") +
-        `:knowledge:${onOpenKnowledgeCitation ? knowledgeCitationIndices?.join(",") ?? "" : ""}:${knowledgeCitationScopeKey ?? ""}`
+        `:knowledge:${onOpenKnowledgeCitation ? knowledgeCitationIndices?.join(",") ?? "" : ""}:${knowledgeCitationScopeKey ?? ""}:${knowledgeCitationNonce}`
       );
     }, [
       codeBlockTheme,
@@ -1446,6 +1450,7 @@ export const MessageResponse = memo(
       renderDroraFileCitations,
       knowledgeCitationIndices,
       knowledgeCitationScopeKey,
+      knowledgeCitationNonce,
       onOpenKnowledgeCitation,
       readAttachment,
       sessionId,
@@ -1460,13 +1465,13 @@ export const MessageResponse = memo(
           children,
           className: linkClassName,
           href,
-          node,
+          node: _node,
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
           const knowledgeIndex = resolveBoundKnowledgeCitation(
             resolvedHref,
-            node as { properties?: Record<string, unknown> } | undefined,
+            knowledgeCitationNonce,
             knowledgeCitationIndices ?? [],
           );
           if (

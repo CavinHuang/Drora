@@ -177,17 +177,24 @@ test("sendText：复验拒绝 → 领域错误带 guard reasonCode，模型输�
   assert.equal(calls.sendInput.length, 0);
 });
 
-test("sendText：宿主未注入复验端口（旧宿主）→ additive 放行", async () => {
+test("sendText：宿主未注入复验端口 → fail-closed，模型不得启动", async () => {
   const { app, calls } = createRecordApp();
   const host = createHost({ app, calls, verifier: undefined });
-  const result = await NATIVE_HANDLERS.sendText(
-    host,
-    sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_legacy" }] } }),
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_legacy" }] } }),
+    ),
+    (error) => {
+      assert.equal(error.name, "EvidenceGuardRejectionError");
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.forbidden);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
   );
-  assert.equal(result.type, "inputAccepted");
-  assert.equal(calls.sendInput.length, 1);
-  assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_legacy" }]);
+  assert.equal(calls.sendInput.length, 0);
 });
+
 
 function queuedItem(overrides = {}) {
   return {
@@ -260,6 +267,23 @@ test("sendQueuedNow：复验拒绝 → 在 reserve 前抛 guard 错误，队列�
   // 复验拒绝发生在 reserve 之前：无 reservation、无提升、无删除——队首原位保留。
   assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.markQueueItemPromoting.length, 0);
+  assert.equal(calls.removeQueueItem.length, 0);
+  assert.equal(calls.sendInput.length, 0);
+});
+
+test("sendQueuedNow：宿主未注入复验端口 → 不得提升队列中的可信证据", async () => {
+  const { app, calls } = createRecordApp();
+  const item = queuedItem({ evidenceRefs: [{ receiptId: "evr_legacy_queue" }] });
+  const host = createHost({ app, calls, queueItem: item });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+    (error) => {
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.forbidden);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.removeQueueItem.length, 0);
   assert.equal(calls.sendInput.length, 0);
 });

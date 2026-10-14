@@ -472,6 +472,57 @@ test("查询幂等：并发重试只建一个 Run，变更问题/跨会话复用
   }
 });
 
+test("检索执行：并发 search 同 Run 只落定一次，不允许改变在途授权", async () => {
+  const env = await createEnv();
+  try {
+    await configureVaultAt(env.pluginDataDir, env.vaultA);
+    await writeNote(env.vaultA, "singleflight.md", "# 示例\n\n检索唯一标记 singleflightmarker");
+    const job = await env.services.indexService.startReconcile();
+    await waitForJobTerminal(env.services, job.jobId);
+    const run = await env.services.queryService.createRun({
+      query: "singleflightmarker",
+      clientRequestId: "search-singleflight",
+      sessionId: "session-a",
+    });
+    assert.equal(run.status, "retrieving");
+
+    const updates: Array<{ runId: string; status: string }> = [];
+    const sub = env.services.queryService.onRunUpdated((event) => {
+      updates.push({ runId: event.runId, status: event.status });
+    });
+    try {
+      const firstSearch = env.services.queryService.search({ runId: run.runId });
+      // 在同一 microtask 内发出不同授权的检索：不能搭便车到另一授权的请求上。
+      await assert.rejects(
+        () => env.services.queryService.search({
+          runId: run.runId,
+          decisionConsentId: "different-consent",
+        }),
+        /不能使用不同的 decisionConsentId/,
+      );
+      const settled = await Promise.all([
+        firstSearch,
+        ...Array.from({ length: 10 }, () =>
+          env.services.queryService.search({ runId: run.runId }),
+        ),
+      ]);
+      assert.equal(new Set(settled.map((item) => item.runId)).size, 1);
+      assert.ok(settled.every((item) => item === settled[0]), "并发请求必须共享同一落定快照");
+      assert.equal(settled[0]?.status, "ready");
+      assert.equal(settled[0]?.candidates[0]?.relativePath, "singleflight.md");
+      assert.equal(
+        updates.filter((event) => event.runId === run.runId && event.status === "ready").length,
+        1,
+        "并发 search 不得多次落定并发射重复事件",
+      );
+    } finally {
+      sub.dispose();
+    }
+  } finally {
+    await destroyEnv(env);
+  }
+});
+
 test("requestRebuild 清空重建；同 epoch 重复提交幂等", async () => {
   const env = await createEnv();
   try {

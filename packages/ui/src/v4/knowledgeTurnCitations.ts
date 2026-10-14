@@ -1,0 +1,101 @@
+/**
+ * Per-product-turn Obsidian provenance. The CLI projects evidenceRefs from the
+ * admitted canonical TurnInputIntent onto UserInputRow; do not read mutable
+ * Composer state or find receipts by searching an assistant's generated text.
+ *
+ * The label index comes from the original prompt. Labels are NOT authority:
+ * clicking a source passes only the opaque receipt to the Vault host, which
+ * resolves a fresh citation and determines the actual file/quote.
+ */
+import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
+import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/lib/conversationKnowledgeSources.js";
+
+export interface KnowledgeTurnCitation {
+  index: number;
+  receiptId: string;
+  /** Display hint from the submitted source index, never a navigation target. */
+  relativePath: string;
+  heading: string | null;
+  startLine: number;
+  endLine: number;
+  sourceCommandId: string;
+}
+
+type SourceInput = Pick<
+  UserInputRow,
+  "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "text"
+>;
+
+/** The manifest uses JSON strings; a filename cannot create an extra source line. */
+const SOURCE_LINE =
+  /^\[(\d+)\] path=("(?:\\.|[^"\\])*") heading=(null|"(?:\\.|[^"\\])*") lines=(\d+)-(\d+)$/;
+
+export function readKnowledgeTurnCitations(
+  turnId: string,
+  userInputs: readonly SourceInput[],
+): KnowledgeTurnCitation[] {
+  // One source-bound canonical input per turn. Multiple independent user
+  // inputs (e.g. a guide/steer) must not be combined into an invented mapping.
+  const bound = userInputs.filter((row) =>
+    row.turnId === turnId &&
+    row.origin === "realUser" &&
+    row.sourceCommandId &&
+    row.evidenceRefs?.length,
+  );
+  if (bound.length !== 1) return [];
+  const input = bound[0]!;
+  const receipts = input.evidenceRefs ?? [];
+  if (receipts.length < 1 || receipts.length > 5) return [];
+  if (new Set(receipts.map((r) => r.receiptId)).size !== receipts.length) return [];
+  if (receipts.some((r) => !r.receiptId.startsWith("evr_"))) return [];
+
+  const text = input.text;
+  if (text.split(KNOWLEDGE_SOURCE_MANIFEST_HEADER).length !== 2) return [];
+  const lines = text.split("\n");
+  const header = lines.findIndex((line) => line === KNOWLEDGE_SOURCE_MANIFEST_HEADER);
+  if (header === -1) return [];
+  const sourceLines: string[] = [];
+  for (let at = header + 1; at < lines.length && lines[at]?.trim(); at += 1) {
+    sourceLines.push(lines[at]!);
+  }
+  if (sourceLines.length !== receipts.length) return [];
+
+  try {
+    return sourceLines.map((line, index) => {
+      const match = SOURCE_LINE.exec(line);
+      if (!match || Number(match[1]) !== index + 1) throw new Error("noncontiguous index");
+      const relativePath: unknown = JSON.parse(match[2]!);
+      const heading: unknown = JSON.parse(match[3]!);
+      const startLine = Number(match[4]);
+      const endLine = Number(match[5]);
+      if (
+        typeof relativePath !== "string" || !relativePath ||
+        (heading !== null && typeof heading !== "string") ||
+        !Number.isSafeInteger(startLine) || startLine < 1 ||
+        !Number.isSafeInteger(endLine) || endLine < startLine
+      ) throw new Error("invalid source record");
+      return {
+        index: index + 1,
+        receiptId: receipts[index]!.receiptId,
+        relativePath,
+        heading: heading as string | null,
+        startLine,
+        endLine,
+        sourceCommandId: input.sourceCommandId!,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Display-only diagnostic. Presence of [n] cannot prove factual support. */
+export function readAnswerCitationNumbers(text: string): number[] {
+  const seen = new Set<number>();
+  // Strict numeric citation shape; do not treat ordinary paths as sources.
+  for (const match of text.matchAll(/\[(\d{1,2})\]/g)) {
+    const id = Number(match[1]);
+    if (id > 0) seen.add(id);
+  }
+  return [...seen].sort((a, b) => a - b);
+}

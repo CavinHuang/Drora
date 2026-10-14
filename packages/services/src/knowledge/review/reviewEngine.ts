@@ -17,7 +17,11 @@
  */
 import { randomBytes } from "node:crypto";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
-import type { VaultConfig } from "../../obsidian-vault/config.js";
+import {
+  loadVaultConfig,
+  setVaultReviewWritePathEnabled,
+  type VaultConfig,
+} from "../../obsidian-vault/config.js";
 import {
   createVaultFileSystem,
   type VaultFileSystem,
@@ -105,7 +109,19 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
   // fail-closed：缺省（含 undefined）一律视为门禁未通过。
-  const writePathEnabled = options.writePathEnabled === true;
+  // W09（specs/obsidian-knowledge.md §5f.3）：显式传参（测试）时以参数为准且不读配置；
+  // 未传参（生产路径）创建后异步从 vault-config.json 加载初值——加载完成前按关闭判定
+  // （fail-closed），加载失败仅记日志保持关闭。
+  let writePathEnabled = options.writePathEnabled === true;
+  if (options.writePathEnabled === undefined) {
+    void loadVaultConfig(options.pluginDataDir)
+      .then((config) => {
+        if (config?.reviewWritePathEnabled === true) writePathEnabled = true;
+      })
+      .catch(() => {
+        logger.warn("knowledge review write path config load failed; staying disabled");
+      });
+  }
 
   // per-vault 进程内互斥：同一 vault 的执行/撤销串行排队，防同进程交错。
   const vaultLocks = new Map<string, Promise<unknown>>();
@@ -1106,5 +1122,13 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     reconcileStuckOperations,
     undoOperation,
     getProposalChangeContent,
+    // W09 L2 开关：进程内立即生效；持久化走唯一入口，先落盘再翻转（持久化失败时
+    // 进程内状态不变，错误上抛由 UI 呈现）。
+    isWritePathEnabled: () => writePathEnabled,
+    async setWritePathEnabled(enabled: boolean) {
+      const next = enabled === true;
+      await setVaultReviewWritePathEnabled(options.pluginDataDir, next);
+      writePathEnabled = next;
+    },
   };
 }

@@ -146,7 +146,10 @@ jobs:
         # (x64 Windows 用户装不上);矩阵显式覆盖两个架构。
         # Windows 上 electron-builder 复制 cua-helper 资产偶发 EBUSY(资源锁,
         # 禁 Defender 后仍复现,重跑必过=复制竞态);步骤级 3 次退避重试兜底。
+        # macOS runner 默认 ulimit -n 256:mobile-web-official 海量小文件拷贝
+        # 会 EMFILE 崩溃(v0.0.9 首跑实证)——每个 step 新 shell,须在本步内抬限。
         run: |
+          ulimit -n 10240
           for attempt in 1 2 3; do
             if node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}; then
               exit 0

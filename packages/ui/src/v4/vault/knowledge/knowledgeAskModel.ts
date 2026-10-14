@@ -124,7 +124,7 @@ export type KnowledgeAskAction =
   | { type: "runSettled"; run: KnowledgeRunView }
   | { type: "runEvent"; event: KnowledgeRunUpdatedEvent }
   | { type: "submitFailed"; message: string }
-  | { type: "cancelSucceeded" }
+  | { type: "cancelSucceeded"; runId: string }
   | { type: "expandCandidates"; limit: number }
   | { type: "candidateSelected"; articleId: string | null }
   | { type: "evidenceChecking"; articleId: string }
@@ -201,7 +201,7 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       return { ...state, phase: "failed", error: action.message, pendingSubmit: null };
     }
     case "cancelSucceeded": {
-      if (!state.current) return state;
+      if (!state.current || state.current.run.runId !== action.runId || state.phase !== "retrieving") return state;
       // 取消只停止 in-flight；保留本轮已有的候选展示（PRD：取消不清空上次可用结果）。
       return {
         ...state,

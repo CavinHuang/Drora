@@ -108,6 +108,8 @@ import type {
 } from "@/v4/conversationTurnRenderUnits.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
+import { KnowledgeAnswerSources } from "@/v4/KnowledgeAnswerSources.js";
+import { readKnowledgeTurnCitations } from "@/v4/knowledgeTurnCitations.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 
@@ -1667,6 +1669,14 @@ function ConversationTurnGroupImpl({
               rows={unit.browserTurnEndRows}
               context={assistantRowContext}
               assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
+            />
+          ) : null}
+          {canRenderAssistantActions && context.sessionId && context.workspaceKey ? (
+            <KnowledgeAnswerSources
+              citations={readKnowledgeTurnCitations(unit.turnId, unit.visibleUserInputs)}
+              assistantText={assistantCopyText ?? ""}
+              sessionId={context.sessionId}
+              workspaceKey={context.workspaceKey}
             />
           ) : null}
           {canRenderAssistantActions && latestAssistantTextRow ? (

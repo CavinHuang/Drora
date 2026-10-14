@@ -3,6 +3,7 @@ import type { IKnowledgeQueryService, KnowledgeRunView } from "@drora/services";
 import {
   buildKnowledgeAnswerPrompt,
   prepareKnowledgeAgentHandoff,
+  sameKnowledgeHandoffScope,
 } from "../src/v4/vault/knowledge/knowledgeAgentHandoff.js";
 
 const quote = { startLine: 1, endLine: 1, startOffset: 0, endOffset: 10 };
@@ -124,6 +125,27 @@ describe("Obsidian trusted Agent handoff", () => {
     expect(result.prompt).toContain("问题：总结 A 和 B 的观点");
     expect(result.prompt).toContain("不同来源有冲突时分别说明");
     expect(prepareEvidence).toHaveBeenCalledTimes(2);
+  });
+
+
+  it("rejects async handoff when the source selection, order, run or target changes", () => {
+    const captured = {
+      runId: "run-1",
+      sessionId: "session-1",
+      workspaceKey: "/workspace",
+      articleIds: ["note-a", "note-b"],
+    };
+    expect(sameKnowledgeHandoffScope(captured, { ...captured, articleIds: [...captured.articleIds] })).toBe(true);
+    for (const stale of [
+      { ...captured, articleIds: ["note-b", "note-a"] },
+      { ...captured, articleIds: ["note-a"] },
+      { ...captured, articleIds: ["note-a", "note-c"] },
+      { ...captured, runId: "run-2" },
+      { ...captured, sessionId: "session-2" },
+      { ...captured, workspaceKey: "/another" },
+    ]) {
+      expect(sameKnowledgeHandoffScope(captured, stale)).toBe(false);
+    }
   });
 
   it("does not return even the first reference if a later source is stale", async () => {

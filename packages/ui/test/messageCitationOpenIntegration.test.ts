@@ -95,7 +95,9 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       expect(requests).toHaveLength(1);
       expect(await requests[0]).toEqual({ ok: true });
       expect(resolveCitation).toHaveBeenCalledOnce();
-      expect(openNote).toHaveBeenCalledExactlyOnceWith("notes/evidence.md", quote, expect.any(Function));
+      expect(openNote).toHaveBeenCalledExactlyOnceWith(
+        "notes/evidence.md", quote, expect.any(Function), "Verified original content",
+      );
     } finally {
       window.removeEventListener(getKnowledgeCitationOpenEventName(), onEvent);
     }

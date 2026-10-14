@@ -28,12 +28,12 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
   it("uses the server-resolved path and quote, never model-authored links", async () => {
     const opened: unknown[] = [];
     expect(await run({
-      openNote: async (path, resolvedQuote, isCurrent) => {
-        opened.push([path, resolvedQuote, isCurrent()]);
+      openNote: async (path, resolvedQuote, isCurrent, excerpt) => {
+        opened.push([path, resolvedQuote, isCurrent(), excerpt]);
         return true;
       },
     })).toEqual({ ok: true });
-    expect(opened).toEqual([["notes/a.md", quote, true]]);
+    expect(opened).toEqual([["notes/a.md", quote, true, "Verified content"]]);
   });
 
   it("will not call the resolver when no longer mounted or authorized", async () => {

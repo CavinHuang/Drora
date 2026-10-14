@@ -5,6 +5,7 @@ import {
   decideKnowledgeCitationNavigation,
   isKnowledgeCitationScopeCurrent,
   isVaultCitationFocusCurrent,
+  matchesKnowledgeCitationReadback,
 } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
@@ -29,7 +30,9 @@ function current(changes: Partial<typeof citation> = {}): KnowledgeResolveCitati
 
 describe("Obsidian citation navigation authorization", () => {
   it("uses only the current server-resolved destination and exact quote", () => {
-    expect(validate(current())).toEqual({ ok: true, relativePath: "notes/a.md", quote });
+    expect(validate(current())).toEqual({
+      ok: true, relativePath: "notes/a.md", quote, excerpt: "Verified text",
+    });
   });
 
   it("rejects receipts issued for a different session or identifier", () => {
@@ -130,6 +133,33 @@ describe("Obsidian citation navigation authorization", () => {
     epoch.revoke();
     expect(isVaultCitationFocusCurrent(returnToA, epoch.currentVersion())).toBe(false);
     expect(isVaultCitationFocusCurrent(0, returnToA)).toBe(false);
+  });
+
+  it("rejects a changed second file read before any editor navigation", () => {
+    const original = "Intro\r\nAlpha   original\r\nTrailing";
+    const startOffset = "Intro\n".length;
+    const endOffset = "Intro\nAlpha   original".length;
+    const position = { startLine: 2, endLine: 2, startOffset, endOffset };
+    expect(matchesKnowledgeCitationReadback(original, position, "Alpha original")).toBe(true);
+    expect(matchesKnowledgeCitationReadback(
+      "Intro\r\nAlpha   replaced\r\nTrailing", position, "Alpha original",
+    )).toBe(false);
+    expect(matchesKnowledgeCitationReadback("Intro\nAlpha", position, "Alpha original")).toBe(false);
+    expect(matchesKnowledgeCitationReadback(original, position, "")).toBe(false);
+    expect(matchesKnowledgeCitationReadback(
+      original, { ...position, endOffset: 10_000 }, "Alpha original",
+    )).toBe(false);
+  });
+
+  it("matches long/truncated excerpts using exactly the Receipt producer projection", () => {
+    const quoteText = "source ".repeat(55);
+    const full = "header\n" + quoteText + "\nfooter";
+    const position = { startLine: 2, endLine: 2, startOffset: 7, endOffset: 7 + quoteText.length };
+    const expected = quoteText.trim().slice(0, 240) + "…";
+    expect(matchesKnowledgeCitationReadback(full, position, expected)).toBe(true);
+    expect(matchesKnowledgeCitationReadback(
+      "header\n" + "damage " + quoteText.slice(7) + "\nfooter", position, expected,
+    )).toBe(false);
   });
 
 });

@@ -76,12 +76,13 @@
 | G51 | 连续多次点击同一条 stale 来源、等待核验过程中切换会话或退出再返回同一轮 | 同 Receipt 的 RPC/警告仅触发一次；旧作用域完成后不弹过期提示；返回后可重新点击并核验 | 未执行 |
 | G52 | 点击可信来源让核验 RPC 挂起，快速从 Session A → B → A（或 Vault A → B → A、切换 QueryService），之后旧 RPC 返回 current | 作用域 epoch 单调前进，旧请求一经失效永久 forbidden，即使最终身份与初始完全相同也绝不重新打开原文；用户新点击可正常核验 | 未执行 |
 | G53 | 点击已核验来源，在 CodeMirror 尚未 ready/定位 quote 前快速 Session A → B → A 或切换 Vault | 旧引用的待处理选区与聚焦请求被取消；即使回到同名文件也不重新选中旧 quote 或抢焦点；普通非引用编辑聚焦不受影响 | 未执行 |
+| G54 | 在服务端 `resolveCitation=current` 之后、VaultView 第二次 `readFile` 之前修改来源 Markdown 的引用片段 | 第二次读取的 quote excerpt 必须与签发时一致，变化时保留原编辑器/选中文件，不跳错行、不抢焦点、反馈失败；未变化或仅 CRLF 规范化时正常定位 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G53 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G54 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

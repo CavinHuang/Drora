@@ -14,6 +14,7 @@ import {
   KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
   KNOWLEDGE_EVIDENCE_REASONS,
   knowledgeSourceFingerprint,
+  knowledgeEvidenceExcerpt,
   normalizeContentForQuoteSelector,
   type KnowledgeEvidenceReceiptRow,
   type KnowledgeEvidenceReason,
@@ -23,8 +24,6 @@ import { createVaultFileSystem, type VaultReadResult } from "../../obsidian-vaul
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import type { KnowledgeArticleCandidate, KnowledgeRunView } from "../knowledgeTypes.js";
 import type { KnowledgeSourceResolution } from "../source/sourceRegistry.js";
-
-const EXCERPT_MAX_CHARS = 240;
 
 export interface KnowledgeEvidenceReceipt extends KnowledgeEvidenceReceiptRow {}
 
@@ -54,12 +53,6 @@ export type KnowledgeResolveCitationResult =
 
 function sha256(content: string): string {
   return createHash("sha256").update(content, "utf-8").digest("hex");
-}
-
-/** 有界摘录（与 lexicalRetriever.excerptOf 同口径；此处独立成函数避免反向依赖检索层）。 */
-function excerptOf(body: string): string {
-  const compact = body.replace(/\s+/gu, " ").trim();
-  return compact.length > EXCERPT_MAX_CHARS ? `${compact.slice(0, EXCERPT_MAX_CHARS)}…` : compact;
 }
 
 /** quote 切片复验：规范化文本偏移切片的 sha256 必须等于绑定的 chunk sha。 */
@@ -160,7 +153,7 @@ export async function prepareEvidenceFromRun(params: {
     fileSha256: candidate.fileSha256,
     chunkSha256: candidate.chunkSha256,
     quote: candidate.quote,
-    excerpt: excerptOf(
+    excerpt: knowledgeEvidenceExcerpt(
       normalizeContentForQuoteSelector(file.content).slice(
         candidate.quote.startOffset,
         candidate.quote.endOffset,

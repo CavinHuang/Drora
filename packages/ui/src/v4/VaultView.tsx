@@ -109,6 +109,7 @@ import {
   createKnowledgeCitationScopeEpoch,
   isKnowledgeCitationScopeCurrent,
   isVaultCitationFocusCurrent,
+  matchesKnowledgeCitationReadback,
   navigateKnowledgeCitation,
 } from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
@@ -1294,10 +1295,13 @@ export function VaultView({
         discardLocalDraft = false,
         forceReopen = false,
         isCurrent,
+        validateRead,
       }: {
         discardLocalDraft?: boolean;
         forceReopen?: boolean;
         isCurrent?: () => boolean;
+        /** Citation-only: verify the second read before changing the editor. */
+        validateRead?: (read: VaultReadResult) => boolean;
       } = {},
     ): Promise<boolean> => {
       if (!vaultService || (isCurrent && !isCurrent())) return false;
@@ -1315,6 +1319,7 @@ export function VaultView({
       try {
         const result = await vaultService.readFile({ relativePath });
         if (requestId !== readRequestRef.current || (isCurrent && !isCurrent())) return false;
+        if (validateRead && !validateRead(result)) return false;
         if (isCurrent) selectFile(relativePath);
         setReadResult(result);
         // Only the explicit conflict-recovery action recreates the editor.
@@ -1362,11 +1367,19 @@ export function VaultView({
       relativePath: string,
       reveal?: KnowledgeEvidenceQuote,
       isCurrent?: () => boolean,
+      expectedExcerpt?: string,
     ): Promise<boolean> => {
       const vaultId = config?.vaultId;
       if (!vaultId || (isCurrent && !isCurrent())) return false;
       const citationEpoch = isCurrent ? citationEpochRef.current.currentVersion() : undefined;
-      const opened = await openFile(relativePath, { isCurrent });
+      const opened = await openFile(relativePath, {
+        isCurrent,
+        ...(isCurrent ? {
+          validateRead: (read: VaultReadResult) =>
+            Boolean(reveal && expectedExcerpt &&
+              matchesKnowledgeCitationReadback(read.content, reveal, expectedExcerpt)),
+        } : {}),
+      });
       if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||
           (isCurrent && !isCurrent())) return false;
       setBodyFocusRequest({ vaultId, relativePath, reveal, citationEpoch });

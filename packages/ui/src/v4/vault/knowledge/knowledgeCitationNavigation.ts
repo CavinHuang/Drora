@@ -1,5 +1,6 @@
 /** Final renderer guard for opening a citation from an existing Agent composer. */
 import type { KnowledgeResolveCitationResult } from "@drora/services";
+import { knowledgeEvidenceExcerpt, normalizeContentForQuoteSelector } from "@drora/shared";
 import type { KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 import type { KnowledgeCitationOpenResult } from "@/lib/conversationSelectionReference.js";
 
@@ -58,6 +59,26 @@ export function isVaultCitationFocusCurrent(
   return requestEpoch === undefined || (requestEpoch > 0 && requestEpoch === activeEpoch);
 }
 
+/**
+ * A Receipt may be current at resolution time, yet the file can change before
+ * the Vault editor performs its independent read. Recheck the exact quote slice
+ * before mutating the selected file or CodeMirror state.
+ */
+export function matchesKnowledgeCitationReadback(
+  content: string,
+  quote: KnowledgeEvidenceQuote,
+  expectedExcerpt: string,
+): boolean {
+  if (!expectedExcerpt || !Number.isSafeInteger(quote.startOffset) ||
+      !Number.isSafeInteger(quote.endOffset) ||
+      quote.startOffset < 0 || quote.endOffset <= quote.startOffset) return false;
+  const normalized = normalizeContentForQuoteSelector(content);
+  if (quote.endOffset > normalized.length) return false;
+  return knowledgeEvidenceExcerpt(
+    normalized.slice(quote.startOffset, quote.endOffset),
+  ) === expectedExcerpt;
+}
+
 /** Confirm that navigation still belongs to this live Vault, Session and request. */
 export function isKnowledgeCitationScopeCurrent(input: {
   requestActive: boolean;
@@ -78,7 +99,7 @@ export function isKnowledgeCitationScopeCurrent(input: {
 }
 
 export type KnowledgeCitationNavigationDecision =
-  | { ok: true; relativePath: string; quote: KnowledgeEvidenceQuote }
+  | { ok: true; relativePath: string; quote: KnowledgeEvidenceQuote; excerpt: string }
   | Extract<KnowledgeCitationOpenResult, { ok: false }>;
 
 function isSafeVaultRelativePath(path: string): boolean {
@@ -121,11 +142,15 @@ export function decideKnowledgeCitationNavigation(input: {
     citation.receiptId !== receiptId ||
     citation.sessionId !== sessionId ||
     !isSafeVaultRelativePath(citation.relativePath) ||
-    !isValidQuote(citation.quote)
+    !isValidQuote(citation.quote) ||
+    typeof citation.excerpt !== "string" || !citation.excerpt
   ) {
     return { ok: false, reason: "forbidden" };
   }
-  return { ok: true, relativePath: citation.relativePath, quote: citation.quote };
+  return {
+    ok: true, relativePath: citation.relativePath,
+    quote: citation.quote, excerpt: citation.excerpt,
+  };
 }
 
 /**
@@ -142,6 +167,7 @@ export async function navigateKnowledgeCitation(input: {
     relativePath: string,
     quote: KnowledgeEvidenceQuote,
     isCurrent: () => boolean,
+    expectedExcerpt: string,
   ) => Promise<boolean>;
 }): Promise<KnowledgeCitationOpenResult> {
   const forbidden: KnowledgeCitationOpenResult = { ok: false, reason: "forbidden" };
@@ -154,7 +180,9 @@ export async function navigateKnowledgeCitation(input: {
     });
     if (!decision.ok) return decision;
     if (!input.isCurrent()) return forbidden;
-    const opened = await input.openNote(decision.relativePath, decision.quote, input.isCurrent);
+    const opened = await input.openNote(
+      decision.relativePath, decision.quote, input.isCurrent, decision.excerpt,
+    );
     if (!input.isCurrent()) return forbidden;
     return opened ? { ok: true } : { ok: false, reason: "failed" };
   } catch {

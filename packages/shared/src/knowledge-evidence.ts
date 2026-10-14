@@ -149,3 +149,13 @@ export function knowledgeSourceFingerprint(vaultId: string, configuredAt: number
 export function normalizeContentForQuoteSelector(content: string): string {
   return content.split(/\r?\n/).join("\n");
 }
+
+/**
+ * Quote excerpt projection shared by the Receipt issuer and renderer readback.
+ * Keep truncation and whitespace normalization in one place.
+ */
+export function knowledgeEvidenceExcerpt(content: string): string {
+  const compact = content.replace(/\s+/gu, " ").trim();
+  const maxChars = 240;
+  return compact.length > maxChars ? `${compact.slice(0, maxChars)}…` : compact;
+}

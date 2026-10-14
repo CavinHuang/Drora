@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createOutputStyleService } from "../src/outputStyle/outputStyleService.ts";
+import { createOutputStyleService } from "../src/output-style/outputStyleService.ts";
 
 async function createIsolatedHome() {
   const originalHome = process.env.HOME;
@@ -91,7 +91,7 @@ test("listStyles: 内置三档逐字对齐且 active 缺省 default", async () =
     assert.deepEqual(styles[0], {
       id: "default",
       name: "Default",
-      description: "Claude completes coding tasks efficiently and provides concise responses",
+      description: "Completes coding tasks efficiently and provides concise responses",
       content: "",
       isBuiltIn: true,
       enabled: true,
@@ -99,7 +99,7 @@ test("listStyles: 内置三档逐字对齐且 active 缺省 default", async () =
     assert.deepEqual(styles[1], {
       id: "explanatory",
       name: "Explanatory",
-      description: "Claude explains its implementation choices and codebase patterns",
+      description: "Explains implementation choices and codebase patterns",
       content: "",
       isBuiltIn: true,
       enabled: false,
@@ -107,7 +107,7 @@ test("listStyles: 内置三档逐字对齐且 active 缺省 default", async () =
     assert.deepEqual(styles[2], {
       id: "learning",
       name: "Learning",
-      description: "Claude pauses and asks you to write small pieces of code for hands-on practice",
+      description: "Pauses and asks you to write small pieces of code for hands-on practice",
       content: "",
       isBuiltIn: true,
       enabled: false,

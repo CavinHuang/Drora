@@ -24,7 +24,9 @@ const check = (name, ok, detail) => {
 {
   const firstLine = await new Promise((resolve) => {
     const child = spawn(process.execPath, [bundle, "app-server"], {
-      stdio: ["ignore", "pipe", "pipe"],
+      // 与 Desktop 的实际 stdio 契约一致：保持 stdin，收到通知后由测试结束进程。
+      // ignore 会在慢启动时提前触发 EOF，让健康 server 在首条通知前正常退出。
+      stdio: ["pipe", "pipe", "pipe"],
     });
     let buf = "";
     const done = (v) => {

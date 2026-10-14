@@ -8,7 +8,7 @@ import {
 } from "@drora/shared";
 import { logger } from "@/logger.js";
 
-interface SubagentsContextSnapshot {
+export interface SubagentsContextSnapshot {
   workspacePath: string;
   workspaceIdentity: string | null;
   provider: DroraProvider;

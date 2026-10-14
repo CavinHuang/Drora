@@ -1,7 +1,6 @@
 import { spawn as spawnChild } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Readable } from "node:stream";
 import { data, inside, rel } from "../lib/path.js";
 import { ensureDevice } from "./avd.js";
 import { androidEnv, requireTool } from "./sdk.js";
@@ -34,7 +33,9 @@ async function screencap(serial: string, timeoutMs: number): Promise<Buffer> {
   const env = await androidEnv();
   const child = spawnChild(adb, ["-s", serial, "exec-out", "screencap", "-p"], {
     env: Object.fromEntries(
-      Object.entries({ ...process.env, ...env }).filter((item) => typeof item[1] === "string"),
+      Object.entries({ ...process.env, ...env }).filter(
+        (item): item is [string, string] => typeof item[1] === "string",
+      ),
     ),
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -49,11 +50,11 @@ async function screencap(serial: string, timeoutMs: number): Promise<Buffer> {
   const err = collectText(child.stderr);
   const code = await new Promise<number>((resolve) => {
     let settled = false;
-    const settle = (exitCode: number | null) => {
+    const settle = (exitCode: number) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(exitCode ?? 1);
+      resolve(exitCode);
     };
     child.once("error", (error) => {
       spawnError = error instanceof Error ? error : new Error(String(error));
@@ -68,7 +69,7 @@ async function screencap(serial: string, timeoutMs: number): Promise<Buffer> {
   return out;
 }
 
-async function collectBuffer(stream: Readable | null): Promise<Buffer> {
+async function collectBuffer(stream: NodeJS.ReadableStream | null): Promise<Buffer> {
   if (!stream) return Buffer.alloc(0);
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
@@ -77,7 +78,7 @@ async function collectBuffer(stream: Readable | null): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function collectText(stream: Readable | null): Promise<string> {
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
   return (await collectBuffer(stream)).toString("utf8");
 }
 

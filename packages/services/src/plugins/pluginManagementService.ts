@@ -5,7 +5,7 @@
 import type { IDroraAgentService } from "../drora-agent/droraAgent.js";
 import type { IPluginManagementService } from "./pluginManagement.js";
 
-interface PluginManagementServiceDependencies {
+export interface PluginManagementServiceDependencies {
   droraAgentService: Pick<
     IDroraAgentService,
     | "listPlugins"

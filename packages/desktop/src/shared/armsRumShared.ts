@@ -36,7 +36,7 @@ export function parseArmsViewName(url: string): string {
 /** Renderer Browser SDK init 配置（与主进程 endpoint/env/version 对齐） */
 export function buildArmsBrowserInitConfig(runtimeEnv: DroraRuntimeEnv) {
   return {
-    enable: true,
+    enable: DRORA_ARMS_RUM_ENDPOINT !== "",
     version: DRORA_VERSION,
     endpoint: DRORA_ARMS_RUM_ENDPOINT,
     env: mapDroraEnvToArmsRumEnv(runtimeEnv),

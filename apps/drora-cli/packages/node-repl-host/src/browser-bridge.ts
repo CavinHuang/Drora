@@ -1,4 +1,4 @@
-import { NODE_REPL_BROWSER_USE_META_KEY, NODE_REPL_TOOL_SURFACE_META_KEY, NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY } from "@drora/contracts";
+import { NODE_REPL_BROWSER_USE_META_KEY, NODE_REPL_TOOL_SURFACE_META_KEY, NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY } from "@drora/contracts/mcp";
 import { randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
 import type { BrowserClientTransport } from "@drora/core/browser-client";
@@ -10,10 +10,7 @@ import {
   NODE_REPL_BROWSER_BROKER_TOKEN_ENV,
   nodeReplBrowserBrokerResponseSchema,
 } from "@drora/shared/node-repl-browser-broker";
-import {
-  BROWSER_UNAVAILABLE_IN_SUBAGENT_MESSAGE,
-  NODE_REPL_BROWSER_BRIDGE_SYMBOL,
-} from "./runtime-bridge.js";
+import { NODE_REPL_BROWSER_BRIDGE_SYMBOL } from "./runtime-bridge.js";
 
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 type BrokerResponse = ReturnType<typeof nodeReplBrowserBrokerResponseSchema.parse>;
@@ -45,18 +42,9 @@ export function createBrowserBridgeGlobals(input: {
     }
     return active;
   };
-  const assertAvailable = (): ActiveNodeReplCall => {
-    const active = assertActive();
-    // 共享 node_repl 子进程会同时服务 main/subagent。即使每次调用都是新内核，
-    // Browser 权限也必须按当前调用的可信 metadata 拒绝，不能从 session id 或代码内容猜测。
-    if (active.requestMeta.runtime_scope === "subagent") {
-      throw new Error(BROWSER_UNAVAILABLE_IN_SUBAGENT_MESSAGE);
-    }
-    return active;
-  };
   const transport: BrowserClientTransport = {
     list: async () => {
-      const active = assertAvailable();
+      const active = assertActive();
       const response = await sendBrokerRequest(
         { op: "list", ...requestContext(active.requestMeta) },
         active.signal,
@@ -65,7 +53,7 @@ export function createBrowserBridgeGlobals(input: {
       return response.browsers ?? [];
     },
     execute: async (browserId, browserGeneration, command) => {
-      const active = assertAvailable();
+      const active = assertActive();
       const response = await sendBrokerRequest(
         {
           op: "execute",
@@ -82,16 +70,10 @@ export function createBrowserBridgeGlobals(input: {
       return response.result;
     },
   };
-  const bridge = {
-    ...transport,
-    documentationRoot: input.documentationRoot,
-    assertAvailable,
-  };
+  const bridge = { ...transport, documentationRoot: input.documentationRoot, assertAvailable: assertActive };
   return {
     [NODE_REPL_BROWSER_BRIDGE_SYMBOL]: bridge,
-    // Symbol.for 注册表键是跨包互操作契约：市场安装的上游 browser-use client
-    // （scripts/browser-client.mjs）用原版 zcode.* 键从 globalThis 取 bridge。
-    // 双挂保证原版 client 逐字可用（与 cua-bridge 同一兼容模式）。
+    // 原始官方 client 与 Drora 包作用于同一个 bridge，保留 SDK symbol 契约。
     [Symbol.for("zcode.node-repl.browser-control-bridge")]: bridge,
   };
 }
@@ -199,8 +181,8 @@ function mergeBrowserResponseMeta(
   const finalized = result.ok && command.method === "finalizeTabs";
   const includeOpenTabs = result.ok && isBrowserSurfaceSideEffect(command);
   session.mergeResponseMeta({
-    NODE_REPL_BROWSER_USE_META_KEY: true,
-    NODE_REPL_TOOL_SURFACE_META_KEY: {
+    [NODE_REPL_BROWSER_USE_META_KEY]: true,
+    [NODE_REPL_TOOL_SURFACE_META_KEY]: {
       kind: "browserUse",
       backend: meta.backendType,
       browserId: meta.browserId,
@@ -210,7 +192,7 @@ function mergeBrowserResponseMeta(
     browser_use: meta.currentUrl ? { url: meta.currentUrl } : {},
     ...(result.ok && meta.tabId && isAutoScreenshotTriggerCommand(command)
       ? {
-          NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY: {
+          [NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY]: {
             browserGeneration: meta.browserGeneration,
             browserId: meta.browserId,
             tabId: meta.tabId,

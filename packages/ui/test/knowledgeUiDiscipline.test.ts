@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import { it as test } from "vitest";
 import zhCN from "../src/i18n/locales/zh-CN.js";
 import enUS from "../src/i18n/locales/en-US.js";
 import { COVERAGE_EXCLUSION_FIELDS } from "../src/v4/vault/knowledge/knowledgeInsightsModel.js";

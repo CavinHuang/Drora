@@ -54,8 +54,16 @@ export async function status() {
 
 export async function describe(input: UiTarget = {}) {
   const device = await ensureDevice(input);
-  await adbShell(device.serial, ["uiautomator", "dump", "/sdcard/window.xml"], input.timeoutMs ?? 30_000);
-  const out = await adbShell(device.serial, ["cat", "/sdcard/window.xml"], input.timeoutMs ?? 30_000);
+  await adbShell(
+    device.serial,
+    ["uiautomator", "dump", "/sdcard/window.xml"],
+    input.timeoutMs ?? 30_000,
+  );
+  const out = await adbShell(
+    device.serial,
+    ["cat", "/sdcard/window.xml"],
+    input.timeoutMs ?? 30_000,
+  );
   const elements = parseUiAutomator(out.stdout);
   return { device, elements };
 }
@@ -64,7 +72,9 @@ export async function resolve(input: UiTarget & { query: string }) {
   const tree = await describe(input);
   const query = input.query.trim().toLowerCase();
   if (!query) throw new Error("UI query must not be empty.");
-  const hit = tree.elements.find((item) => elementText(item).toLowerCase().includes(query) && item.bounds);
+  const hit = tree.elements.find(
+    (item) => elementText(item).toLowerCase().includes(query) && item.bounds,
+  );
   if (!hit?.bounds) throw new Error(`No visible Android UI element matched: ${input.query}`);
   return {
     device: tree.device,
@@ -84,7 +94,9 @@ export async function tap(input: UiTarget & { x: number; y: number }) {
   return { tapped: true, serial: device.serial, x: input.x, y: input.y };
 }
 
-export async function swipe(input: UiTarget & { x1: number; y1: number; x2: number; y2: number; durationMs?: number }) {
+export async function swipe(
+  input: UiTarget & { x1: number; y1: number; x2: number; y2: number; durationMs?: number },
+) {
   const device = await ensureDevice(input);
   await adbShell(
     device.serial,
@@ -118,7 +130,11 @@ export async function typeText(input: UiTarget & { text: string }) {
 
 export async function keyevent(input: UiTarget & { key: keyof typeof KEY_EVENTS }) {
   const device = await ensureDevice(input);
-  await adbShell(device.serial, ["input", "keyevent", KEY_EVENTS[input.key]], input.timeoutMs ?? 30_000);
+  await adbShell(
+    device.serial,
+    ["input", "keyevent", KEY_EVENTS[input.key]],
+    input.timeoutMs ?? 30_000,
+  );
   return { pressed: true, serial: device.serial, key: input.key };
 }
 

@@ -21,6 +21,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { access, cp, mkdir } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -118,6 +119,117 @@ const remoteOfficialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+  {
+    packageName: "@drora/android-emulator-plugin",
+    relativePath: "apps/drora-cli/packages/android-emulator-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    runtimeBuildScript: "scripts/build-mcp.mjs",
+    stagedPath: "packages/android-emulator-plugin",
+  },
+  {
+    packageName: "@drora/documents-plugin",
+    relativePath: "apps/drora-cli/packages/documents-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/documents-plugin",
+  },
+  {
+    packageName: "@drora/image-search-plugin",
+    relativePath: "apps/drora-cli/packages/image-search-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/image-search-plugin",
+  },
+  {
+    packageName: "@drora/pdf-plugin",
+    relativePath: "apps/drora-cli/packages/pdf-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/pdf-plugin",
+  },
+  {
+    packageName: "@drora/presentations-plugin",
+    relativePath: "apps/drora-cli/packages/presentations-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/presentations-plugin",
+  },
+  {
+    packageName: "@drora/spreadsheets-plugin",
+    relativePath: "apps/drora-cli/packages/spreadsheets-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/spreadsheets-plugin",
+  },
+  {
+    packageName: "@drora/visualize-plugin",
+    relativePath: "apps/drora-cli/packages/visualize-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "skills/visualize/SKILL.md",
+      "skills/visualize/references/api.md",
+      "skills/visualize/references/styles.md",
+      "skills/visualize/tweak.md",
+      "skills/visualize/LICENSE.md",
+      "skills/visualize/scripts/render.py",
+      "skills/visualize/assets/visualize.css",
+      "skills/visualize/assets/visualize.html",
+      "skills/visualize/assets/calendar.js",
+      "skills/visualize/assets/runtime-manifest.json",
+      "skills/visualize/scripts/vendor.py",
+      "skills/visualize/assets/vendor/manifest.json",
+      "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js",
+      "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE",
+      "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js",
+      "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE",
+      "skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE",
+      "skills/visualize/assets/vendor/d3-7.9.0.min.js",
+      "skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE",
+      "skills/visualize/widgets/calendar.md",
+      "skills/visualize/examples/calendar.html",
+      "skills/visualize/assets/standalone-host-bridge.js",
+      "skills/visualize/assets/standalone-shell.js",
+    ],
+    requiredRuntimePaths: [],
+    stagedPath: "packages/visualize-plugin",
+  },
+  {
+    // CUA 远端只部署 SDK/skill/docs；runtime 仍必须 attachment 到 desktop shared host，
+    // 不在 remote workspace 安装或启动 native Helper。
+    packageName: "@drora/drora-cua-plugin",
+    relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/zcode-cua-plugin",
+  },
+  {
+    packageName: "@drora/ios-simulator-plugin",
+    relativePath: "apps/drora-cli/packages/ios-simulator-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    runtimeBuildScript: "scripts/build-mcp.mjs",
+    stagedPath: "packages/ios-simulator-plugin",
+  },
+  {
+    packageName: "@drora/restore-legacy-sessions-plugin",
+    relativePath: "apps/drora-cli/packages/restore-legacy-sessions-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/restore-legacy-sessions-plugin",
+  },
+  {
+    packageName: "@drora/skill-creator-plugin",
+    relativePath: "apps/drora-cli/packages/skill-creator-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/skill-creator-plugin",
+  },
+  {
+    packageName: "@drora/plugin-creator-plugin",
+    relativePath: "apps/drora-cli/packages/plugin-creator-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/plugin-creator-plugin",
+  },
+  {
+    packageName: "@drora/drora-guide-plugin",
+    relativePath: "apps/drora-cli/packages/drora-guide-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/drora-guide-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：远端 agent 的 bootstrap 沿官方插件同款候选目录在 drora.cjs 旁
 // 找 packages/bundled-skills 并原地读取；与 packages/desktop/scripts/prepare-agent-node-bundle.mjs 同一份清单。
@@ -129,7 +241,7 @@ const remoteBundledSkillPack = {
     "skills/dynamic-workflows/examples.md",
   ],
   stagedPath: "packages/bundled-skills",
-  topLevelPaths: ["skills"], // 远端 bundle 不带 README（desktop 版含）；两处清单不同是有意的,
+  topLevelPaths: ["README.md", "skills"], // 远端 bundle 不带 README（desktop 版含）；两处清单不同是有意的,
 };
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -173,7 +285,7 @@ function readDroraAgentRuntimeVersion() {
   return match[1];
 }
 
-async function download(url, destinationPath) {
+export async function download(url, destinationPath) {
   // Windows CI runner 上 fetch(undici)对 nodejs.org/npmmirror 都会出现连接
   // 建立后长期停滞:无字节、无异常,且 AbortSignal.timeout 也不触发(实测
   // 50 分钟零重试,pipeline 与 signal 均救不了 undici 连接池停滞)。改用系统

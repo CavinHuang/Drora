@@ -128,8 +128,8 @@ function buildInjectedGlobals(
             const includeOpenTabs = result.ok && isBrowserSurfaceSideEffect(command);
 
             onBrowserResponseMeta({
-              NODE_REPL_BROWSER_USE_META_KEY: true,
-              NODE_REPL_TOOL_SURFACE_META_KEY: {
+              [NODE_REPL_BROWSER_USE_META_KEY]: true,
+              [NODE_REPL_TOOL_SURFACE_META_KEY]: {
                 kind: "browserUse",
                 backend: meta.backendType,
                 browserId: meta.browserId,
@@ -139,7 +139,7 @@ function buildInjectedGlobals(
               browser_use: meta.currentUrl ? { url: meta.currentUrl } : {},
               ...(result.ok && meta.tabId && isAutoScreenshotTriggerCommand(command)
                 ? {
-                    NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY: {
+                    [NODE_REPL_BROWSER_TURN_SCREENSHOT_META_KEY]: {
                       browserGeneration: meta.browserGeneration,
                       browserId: meta.browserId,
                       tabId: meta.tabId,
@@ -411,3 +411,5 @@ export const jsToolEntry: ToolEntry = {
   },
   trace: TRACE,
 };
+
+export const nodeReplToolEntries: ToolEntry[] = [jsToolEntry];

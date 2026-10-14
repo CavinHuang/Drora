@@ -1,14 +1,14 @@
 import type { IDisposable } from "@drora/rpc";
 import { resolveWorkspaceKey } from "@drora/shared";
 
-interface HostRemoteTaskMeta {
+export interface HostRemoteTaskMeta {
   taskId: string;
   traceId: string;
   workspacePath: string;
   workspaceIdentity?: string;
 }
 
-interface HostRemoteWorkspaceContext {
+export interface HostRemoteWorkspaceContext {
   workspacePath: string;
   workspaceIdentity?: string;
 }

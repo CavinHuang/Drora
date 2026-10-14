@@ -11,15 +11,15 @@
 // （node:test + tsx 先例同 organize.test.ts；window.localStorage 以进程内假体注入做往返。）
 import assert from "node:assert/strict";
 import test from "node:test";
-import { searchTasks } from "../src/app/taskSession.js";
+import { searchTasks } from "../legacy-v3.14.3/app/taskSession.js";
 import {
   MOBILE_SEARCH_HISTORY_MAX,
   MOBILE_SEARCH_HISTORY_STORAGE_KEY,
   addSearchHistory,
   clearSearchHistory,
   loadSearchHistory,
-} from "../src/ui/searchHistory.js";
-import { collectHomeSearchTasks } from "../src/ui/TaskSearchPanel.js";
+} from "../legacy-v3.14.3/ui/searchHistory.js";
+import { collectHomeSearchTasks } from "../legacy-v3.14.3/ui/TaskSearchPanel.js";
 import type { IServiceAccessor } from "@drora/services";
 
 // —— 脚手架：脚本化 accessor（spec §18 验收口径）与进程内 localStorage 假体 ——

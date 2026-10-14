@@ -21,7 +21,8 @@ import {
   HELP_TOGGLE_DEV_TOOLS_MENU_ID,
 } from "./desktopCommandHandlers.js";
 
-const HELP_DRORA_ENDPOINT_PRODUCTION_MENU_ID = "help.drora-endpoint.production";
+export const HELP_DRORA_ENDPOINT_PRODUCTION_MENU_ID = "help.drora-endpoint.production";
+export const HELP_DRORA_ENDPOINT_TEST_MENU_ID = "help.drora-endpoint.test";
 
 export function getDesktopMenuLabel(
   locale: Locale,
@@ -304,6 +305,14 @@ function buildApplicationMenuTemplate(options: {
                       void options.executeDesktopCommand(
                         DesktopCommandIds.SetDroraEndpointProduction,
                       ),
+                  },
+                  {
+                    id: HELP_DRORA_ENDPOINT_TEST_MENU_ID,
+                    label: getLabel(desktopMenuMessageIds.helpDroraEndpointTest),
+                    type: "radio" as const,
+                    checked: options.droraEndpointSelection === "test",
+                    click: () =>
+                      void options.executeDesktopCommand(DesktopCommandIds.SetDroraEndpointTest),
                   },
                   { type: "separator" as const },
                   {

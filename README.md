@@ -1,6 +1,5 @@
 # Drora
 
-</div>
   <p>
     <a href="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml"><img src="https://github.com/CavinHuang/Drora/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   </p>
@@ -13,6 +12,8 @@
 </p>
 
 Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+
+当前同步官方 ZCode v3.15.1。远控复用官方公开页面与控制链路，自研能力通过扩展模块接入；详见 [迁移策略](specs/upstream-v3.15.1-migration.md) 和 [合并记录](docs/upstream/zcode-v3.15.1-merge.md)。
 
 | 入口                 | 用途                                                           | 开发命令                       |
 | -------------------- | -------------------------------------------------------------- | ------------------------------ |

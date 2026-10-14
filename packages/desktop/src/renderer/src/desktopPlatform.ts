@@ -2,12 +2,14 @@ import { recordArmsCustomEventForE2E } from "@drora/ui";
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@drora/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
+import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
 
 export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
     canSelectFilePath: true,
+    pluginSandbox: createDesktopPluginSandboxPlatform(),
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.drora.selectDirectory(),
@@ -20,17 +22,11 @@ export function createDesktopPlatform(options: {
     refreshMobileRelayControl: () => window.drora.refreshMobileRelayControl(),
     getMobileRelayControlState: () => window.drora.getMobileRelayControlState(),
     onMobileRelayStateChanged: (handler) => window.drora.onMobileRelayStateChanged(handler),
-    syncWebRemoteControlWorkspaces: (workspaces) =>
-      window.drora.syncWebRemoteControlWorkspaces(workspaces),
-    syncWebRemoteControlTasks: (tasks) => window.drora.syncWebRemoteControlTasks(tasks),
-    // fork 原版漏转 syncWebRemoteControlSidePane（preload 有暴露但 renderer 未转发，
-    // SidePaneSync 组件在桌面 renderer 恒 no-op）——迁移时补齐该接线。
-    syncWebRemoteControlSidePane: (entry) => window.drora.syncWebRemoteControlSidePane?.(entry),
-    onWebRemoteControlReconnectWorkspace: (callback) =>
-      window.drora.onWebRemoteControlReconnectWorkspace(callback),
     selectFile: () => window.drora.selectFile(),
     selectFiles: () => window.drora.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.drora.createTempTextAttachment(payload),
+    materializeWorkflowArtifactFile: (payload) =>
+      window.drora.materializeWorkflowArtifactFile(payload),
     onRemoteConnectionLog: (handler) => window.drora.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.drora.onRemoteSessionClosed(handler),
     onBotRemoteWorkspaceReconnected: (handler) =>
@@ -43,6 +39,13 @@ export function createDesktopPlatform(options: {
       window.drora.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve(),
     bindRemoteWorkspaceSessionContext: (context) =>
       window.drora.bindRemoteWorkspaceSessionContext?.(context) ?? Promise.resolve(),
+    startWebRemoteControl: (context) => window.drora.startWebRemoteControl(context),
+    refreshWebRemoteControlPairing: (context) =>
+      window.drora.refreshWebRemoteControlPairing(context),
+    stopWebRemoteControl: () => window.drora.stopWebRemoteControl(),
+    getWebRemoteControlStatus: () => window.drora.getWebRemoteControlStatus(),
+    onWebRemoteControlStatusChanged: (handler) =>
+      window.drora.onWebRemoteControlStatusChanged?.(handler) ?? (() => {}),
     disposeRemoteSession: (sessionId) => window.drora.disposeRemoteSession(sessionId),
     isDockerAvailable: () => window.drora.isDockerAvailable(),
     listWSLDistros: () => window.drora.listWSLDistros(),
@@ -96,15 +99,36 @@ export function createDesktopPlatform(options: {
     showTaskNotification: (payload) => window.drora.showTaskNotification(payload),
     publishDesktopPet: (presentation) => window.drora.publishDesktopPet?.(presentation),
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
+    syncWebRemoteControlWorkspaces: (workspaces) =>
+      window.drora.syncWebRemoteControlWorkspaces?.(workspaces),
+    syncWebRemoteControlTasks: (tasks) => window.drora.syncWebRemoteControlTasks?.(tasks),
+    onWebRemoteControlReconnectWorkspace: (handler) =>
+      window.drora.onWebRemoteControlReconnectWorkspace?.(handler) ?? (() => {}),
     syncWindowUnreadCount: (count) => window.drora.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.drora.syncActiveTaskSession(sessionId),
     syncAppSettings: (patch) => window.drora.syncAppSettings?.(patch),
+    // 桥缺失（旧 preload 升级窗口）时按 supported 兜底，与 Windows 现状一致，设置开关可用。
+    getCloseToTrayCapability: () =>
+      window.drora.getCloseToTrayCapability?.() ??
+      Promise.resolve({ supported: true, gnomeLikeWithoutTray: false }),
     setShortcutRecordingActive: (active) => window.drora.setShortcutRecordingActive?.(active),
     onFocusTab: (handler) => window.drora.onFocusTab(handler),
     onNewTab: (handler) => window.drora.onNewTab(handler),
     onCloseActiveContextRequest: (handler) =>
       window.drora.onCloseActiveContextRequest?.(handler) ?? (() => {}),
     onOpenBrowserUrl: (handler) => window.drora.onOpenBrowserUrl?.(handler) ?? (() => {}),
+    onEmbeddedBrowserPermissionPrompt: (handler) =>
+      window.drora.onEmbeddedBrowserPermissionPrompt?.(handler) ?? (() => {}),
+    resolveEmbeddedBrowserPermissionPrompt: (request) =>
+      window.drora.resolveEmbeddedBrowserPermissionPrompt?.(request),
+    getEmbeddedBrowserSitePermissions: () =>
+      window.drora.getEmbeddedBrowserSitePermissions?.() ?? Promise.resolve({}),
+    setEmbeddedBrowserSitePermission: (request) =>
+      window.drora.setEmbeddedBrowserSitePermission?.(request) ?? Promise.resolve({}),
+    clearEmbeddedBrowserSitePermissions: () =>
+      window.drora.clearEmbeddedBrowserSitePermissions?.() ?? Promise.resolve({}),
+    resetEmbeddedBrowserSitePermission: (request) =>
+      window.drora.resetEmbeddedBrowserSitePermission?.(request) ?? Promise.resolve({}),
     onBrowserViewScreenshotSurfacePrepare: (handler) =>
       window.drora.onBrowserViewScreenshotSurfacePrepare?.(handler) ?? (() => {}),
     onBrowserViewScreenshotSurfaceRelease: (handler) =>

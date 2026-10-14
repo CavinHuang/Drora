@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mock, test } from "node:test";
+import { it as test, vi } from "vitest";
 
 // 守护 renderer 平台适配层的移动远控方法面（spec: mobile-web-remote.md
 // 「Renderer 集成面」）：IPlatformService 的 relay 5 项 + 重连委托必须在
@@ -12,22 +12,19 @@ import { mock, test } from "node:test";
 // 删除（specs/mobile-relay-server.md §12.4），不再属于方法面。
 //
 // 运行：cd packages/desktop &&
-//   node --import tsx/esm --experimental-test-module-mocks --test \
-//     test/desktopRendererPlatformMobileFace.test.ts
+//   pnpm exec vitest run packages/desktop/test/desktopRendererPlatformMobileFace.test.ts
 // （@drora/ui 源入口含 vite 路径别名，node 下无法加载，这里 mock 掉
 // desktopPlatform 顶层唯一的 ui 依赖；desktopBrowserPlatformBridge 在模块求值期
 // 只读 window.drora 的可选能力，空 stub 下可安全加载。）
 
-mock.module("@drora/ui", {
-  namedExports: { recordArmsCustomEventForE2E: () => {} },
-});
+vi.mock("@drora/ui", () => ({ recordArmsCustomEventForE2E: () => {} }));
 
 const MOBILE_FACE_METHODS = [
-  "startMobileRelayControl",
-  "stopMobileRelayControl",
-  "refreshMobileRelayControl",
-  "getMobileRelayControlState",
-  "onMobileRelayStateChanged",
+  "startWebRemoteControl",
+  "stopWebRemoteControl",
+  "refreshWebRemoteControlPairing",
+  "getWebRemoteControlStatus",
+  "onWebRemoteControlStatusChanged",
   "onWebRemoteControlReconnectWorkspace",
 ] as const;
 
@@ -39,16 +36,16 @@ function installWindowDroraStub() {
     stub[method] = (...args: unknown[]) => {
       invocations.push({ method, args });
       if (
-        method === "onMobileRelayStateChanged" ||
+        method === "onWebRemoteControlStatusChanged" ||
         method === "onWebRemoteControlReconnectWorkspace"
       ) {
         listeners.set(method, args[0] as (state: unknown) => void);
         return () => {};
       }
-      if (method === "getMobileRelayControlState") {
+      if (method === "getWebRemoteControlStatus") {
         return { running: false, status: "idle" };
       }
-      if (method === "startMobileRelayControl" || method === "refreshMobileRelayControl") {
+      if (method === "startWebRemoteControl" || method === "refreshWebRemoteControlPairing") {
         return { url: `stub://${method}`, sessionId: "stub-session" };
       }
       return undefined;
@@ -60,7 +57,7 @@ function installWindowDroraStub() {
   return { invocations, listeners };
 }
 
-test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委托）", async () => {
+test("createDesktopPlatform 转发移动远控全方法面（官方 5 项 + 重连委托）", async () => {
   const { invocations, listeners } = installWindowDroraStub();
   const { createDesktopPlatform } = await import("../src/renderer/src/desktopPlatform.js");
   const platform = createDesktopPlatform({ isLocalDevelopmentRuntime: false });
@@ -70,42 +67,29 @@ test("createDesktopPlatform 转发移动远控全方法面（relay 5 + 重连委
     assert.equal(
       typeof platform[method],
       "function",
-      `platform.${method} 未转发到 window.drora（云中继/局域网弹层将无法工作）`,
+      `platform.${method} 未转发到 window.drora（官方远控弹层将无法工作）`,
     );
   }
 
-  await platform.startMobileRelayControl?.({ workspacePath: "D:/w" });
+  await platform.startWebRemoteControl?.({ workspacePath: "D:/w" });
   assert.deepEqual(invocations.at(-1), {
-    method: "startMobileRelayControl",
+    method: "startWebRemoteControl",
     args: [{ workspacePath: "D:/w" }],
   });
 
-  // transport 维度（specs/mobile-relay-server.md §12）必须原样透传：弹层 LAN tab
-  // 传 lan（内嵌 relay），云中继 tab 传 cloud——转发层丢参会让两条传输同化。
-  await platform.startMobileRelayControl?.({ workspacePath: "D:/w", transport: "lan" });
-  assert.deepEqual(invocations.at(-1), {
-    method: "startMobileRelayControl",
-    args: [{ workspacePath: "D:/w", transport: "lan" }],
-  });
-  await platform.startMobileRelayControl?.({ workspacePath: "D:/w", transport: "cloud" });
-  assert.deepEqual(invocations.at(-1), {
-    method: "startMobileRelayControl",
-    args: [{ workspacePath: "D:/w", transport: "cloud" }],
-  });
+  await platform.getWebRemoteControlStatus?.();
+  assert.equal(invocations.at(-1)?.method, "getWebRemoteControlStatus");
 
-  await platform.getMobileRelayControlState?.();
-  assert.equal(invocations.at(-1)?.method, "getMobileRelayControlState");
+  await platform.refreshWebRemoteControlPairing?.();
+  assert.equal(invocations.at(-1)?.method, "refreshWebRemoteControlPairing");
 
-  await platform.refreshMobileRelayControl?.();
-  assert.equal(invocations.at(-1)?.method, "refreshMobileRelayControl");
-
-  await platform.stopMobileRelayControl?.();
-  assert.equal(invocations.at(-1)?.method, "stopMobileRelayControl");
+  await platform.stopWebRemoteControl?.();
+  assert.equal(invocations.at(-1)?.method, "stopWebRemoteControl");
 
   // 订阅面：回调必须接到 window.drora 的同名订阅上，否则弹层收不到状态推送。
   const relayListener = (state: unknown) => state;
-  platform.onMobileRelayStateChanged?.(relayListener);
-  assert.equal(listeners.get("onMobileRelayStateChanged"), relayListener);
+  platform.onWebRemoteControlStatusChanged?.(relayListener);
+  assert.equal(listeners.get("onWebRemoteControlStatusChanged"), relayListener);
 
   // 手机 workspace-reconnect-request 的窗口重连委托（M4c）：缺失转发会让手机端
   // 重连请求在 main 侧 120s 超时（回复永远到不了 main）。

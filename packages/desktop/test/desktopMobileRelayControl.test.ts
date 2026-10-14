@@ -1089,8 +1089,8 @@ async function driveRelayToMatched(
   deviceSid: string,
 ): Promise<FakeSocket> {
   const startPromise = control.start({ workspacePath: "C:/demo" });
-  // start 先 await 凭据读盘再建 socket；等一拍再取 fake 连接。
-  await new Promise((r) => setTimeout(r, 10));
+  // 凭据读盘完成后才建 socket；按可观察状态等待，不能假设 10ms 内完成 IO。
+  await waitForCondition(() => harness.sockets.length > 0);
   const socket = harness.sockets[0];
   assert.ok(socket, "socket 必须已创建");
   socket.serverOpen();
@@ -1454,7 +1454,7 @@ test("桥流控：grace 超时未确认 → 终态降级；降级后出站拒绝
   bridgePort.hostEmits(new Uint8Array([1]));
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(rpcFrames().length, 1);
-  await new Promise((r) => setTimeout(r, 120));
+  await waitForCondition(() => warns.some((w) => w.includes("终态降级")));
   assert.equal(
     warns.some((w) => w.includes("终态降级")),
     true,
@@ -1637,7 +1637,7 @@ test("onSendReady 重放：设备重连后 matched 触发未确认帧全量重�
 
   // 重连（RECONNECT_DELAY_MS=1s）：persisted 直连 auth_init → waiting（stale 路径）
   // → matched（跨代 = reconnected-socket）→ onSendReady 重放
-  await new Promise((r) => setTimeout(r, 1_150));
+  await waitForCondition(() => harness.sockets.length >= 2);
   const socket2 = harness.sockets[1];
   assert.ok(socket2, "重连后必须有新 socket");
   socket2.serverOpen();
@@ -1694,7 +1694,7 @@ test("onSendReady：无活跃桥/缓冲已空不触发重放，重发沿只按�
   });
   await new Promise((r) => setTimeout(r, 10));
   socket.close();
-  await new Promise((r) => setTimeout(r, 1_150));
+  await waitForCondition(() => harness.sockets.length >= 2);
   const socket2 = harness.sockets[1];
   assert.ok(socket2, "重连后必须有新 socket");
   socket2.serverOpen();
@@ -2379,3 +2379,11 @@ test("§33.18.15 批 B TODO 清偿：bootstrap 携带 desktopPlatform（缺省�
   });
   assert.equal("desktopPlatform" in withoutPlatform, false, "缺省不下发（手机按未知 OS 处理）");
 });
+
+async function waitForCondition(condition: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (!condition()) {
+    assert.ok(Date.now() < deadline, "等待可观察状态超时");
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}

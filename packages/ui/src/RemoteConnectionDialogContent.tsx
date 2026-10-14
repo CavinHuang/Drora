@@ -5,7 +5,6 @@ import type {
   RemoteAssetInstallMode,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
-  ServerRemoteWorkspaceInfo,
   SSHConfigAliasOption,
   WSLDistro,
 } from "@drora/shared";
@@ -25,7 +24,7 @@ import type {
 import {
   AlertTriangleIcon,
   ChevronRightIcon,
-  FolderIcon,
+  CloudIcon,
   LoaderIcon,
   MonitorCogIcon,
   ServerIcon,
@@ -48,69 +47,13 @@ function getKindIcon(kind: RemoteTarget["kind"]) {
   switch (kind) {
     case "ssh":
       return ServerIcon;
+    case "server":
+      return CloudIcon;
     case "docker":
       return MonitorCogIcon;
     case "wsl":
       return TerminalIcon;
-    // server 是已独立运行的目标 Server，与 SSH 同用 Server 图标（第 47 轮接入）。
-    case "server":
-      return ServerIcon;
   }
-}
-
-/** serverInfo.workspaces 无 label 时退回路径末段，与 DirectoryBrowser 的目录名展示习惯一致。 */
-function getServerWorkspaceListLabel(workspace: ServerRemoteWorkspaceInfo): string {
-  const label = workspace.label?.trim();
-  if (label) {
-    return label;
-  }
-  const trimmedPath = workspace.path.replace(/\/+$/, "");
-  const lastSegment = trimmedPath.split("/").pop();
-  return lastSegment ? lastSegment : workspace.path;
-}
-
-/**
- * server 形态连接成功后的 serverInfo.workspaces 快捷选择列表（第四十九轮）。
- * 点击行为与手动浏览选目录一致：直接以该 path 触发 onSelect；列表为空时整体不渲染，
- * 用户回落到下方完整目录浏览器。
- */
-function ServerWorkspacesList({
-  workspaces,
-  selecting,
-  onSelect,
-}: {
-  workspaces: ServerRemoteWorkspaceInfo[];
-  selecting: boolean;
-  onSelect: (path: string) => void;
-}) {
-  const { intl } = useDroraIntl();
-
-  return (
-    <div className="shrink-0 rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-3 py-2 text-ui-base text-foreground-subtle">
-        {intl.formatMessage({ id: "remote.serverWorkspacesTitle" })}
-      </div>
-      <div className="max-h-40 overflow-y-auto">
-        {workspaces.map((workspace) => (
-          <button
-            key={workspace.path}
-            type="button"
-            disabled={selecting}
-            onClick={() => onSelect(workspace.path)}
-            className="flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-left text-ui-base transition hover:bg-hover/50 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <FolderIcon className="size-4 shrink-0 text-foreground-subtle" />
-            <span className="min-w-0 shrink-0 truncate text-foreground">
-              {getServerWorkspaceListLabel(workspace)}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-right text-ui-sm text-foreground-subtle">
-              {workspace.path}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function RemoteConnectionKindStep({
@@ -140,13 +83,17 @@ export function RemoteConnectionKindStep({
               key={value}
               type="button"
               onClick={() => onKindChange(value)}
+              onDoubleClick={() => {
+                onKindChange(value);
+                onNext();
+              }}
               data-testid={
                 value === "ssh"
                   ? TID_REMOTE_KIND_SSH
-                  : value === "wsl"
-                    ? TID_REMOTE_KIND_WSL
-                    : value === "server"
-                      ? TID_REMOTE_KIND_SERVER
+                  : value === "server"
+                    ? TID_REMOTE_KIND_SERVER
+                    : value === "wsl"
+                      ? TID_REMOTE_KIND_WSL
                       : TID_REMOTE_KIND_DOCKER
               }
               className={cn(
@@ -215,12 +162,12 @@ export function RemoteConnectionSettingsStep({
   wslDistros,
   dockerContainer,
   manualDockerContainer,
-  dockerContainers,
-  dockerAvailable,
   serverUrl,
   serverName,
   serverToken,
   serverWorkspacePath,
+  dockerContainers,
+  dockerAvailable,
   sshConfigAliases,
   sshConfigAliasesLoading,
   sshConfigAliasesError,
@@ -266,12 +213,12 @@ export function RemoteConnectionSettingsStep({
   wslDistros: WSLDistro[];
   dockerContainer: string;
   manualDockerContainer: string;
-  dockerContainers: DockerContainerInfo[];
-  dockerAvailable: boolean | null;
   serverUrl: string;
   serverName: string;
   serverToken: string;
   serverWorkspacePath: string;
+  dockerContainers: DockerContainerInfo[];
+  dockerAvailable: boolean | null;
   sshConfigAliases: SSHConfigAliasOption[];
   sshConfigAliasesLoading: boolean;
   sshConfigAliasesError: string;
@@ -335,12 +282,12 @@ export function RemoteConnectionSettingsStep({
           wslDistros={wslDistros}
           dockerContainer={dockerContainer}
           manualDockerContainer={manualDockerContainer}
-          dockerContainers={dockerContainers}
-          dockerAvailable={dockerAvailable}
           serverUrl={serverUrl}
           serverName={serverName}
           serverToken={serverToken}
           serverWorkspacePath={serverWorkspacePath}
+          dockerContainers={dockerContainers}
+          dockerAvailable={dockerAvailable}
           sshConfigAliases={sshConfigAliases}
           sshConfigAliasesLoading={sshConfigAliasesLoading}
           sshConfigAliasesError={sshConfigAliasesError}
@@ -412,7 +359,6 @@ export function RemoteConnectionSettingsStep({
 export function RemoteConnectionDirectoryStep({
   services,
   remoteTarget,
-  serverWorkspaces = [],
   localSkillSyncService,
   remoteSkillSyncService,
   localMcpSyncService,
@@ -432,8 +378,6 @@ export function RemoteConnectionDirectoryStep({
 }: {
   services: IServiceAccessor | null;
   remoteTarget?: RemoteTarget | null;
-  /** server 形态连接的 serverInfo.workspaces 快捷选择列表；为空时不展示，回落到目录浏览器。 */
-  serverWorkspaces?: ServerRemoteWorkspaceInfo[];
   localSkillSyncService?: ISkillSyncService;
   remoteSkillSyncService?: ISkillSyncService | null;
   localMcpSyncService?: IMcpSyncService;
@@ -511,16 +455,7 @@ export function RemoteConnectionDirectoryStep({
             onOpenPluginSync={() => setRemotePluginSyncOpen(true)}
           />
         </div>
-        {/* server 形态优先展示 serverInfo.workspaces 快捷列表（第四十九轮）；
-            点击与手动浏览选目录走同一条 onSelect 提交链，空列表时直接进浏览器。 */}
-        {serverWorkspaces.length > 0 ? (
-          <ServerWorkspacesList
-            workspaces={serverWorkspaces}
-            selecting={selecting}
-            onSelect={onSelect}
-          />
-        ) : null}
-        {/* 该容器之前不是 flex，导致子级 DirectoryBrowser 的 flex-1 无法拿到有效高度，
+        {/* Bugfix: 该容器之前不是 flex，导致子级 DirectoryBrowser 的 flex-1 无法拿到有效高度，
             目录项变多时 overflow-y-auto 不生效，列表不能垂直滚动。 */}
         <div
           className={cn(

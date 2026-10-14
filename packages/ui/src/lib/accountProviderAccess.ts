@@ -1,7 +1,7 @@
 import type { ProviderSettingsView } from "@drora/services";
 import { type DroraProviderAccountAccess, droraProviderAccountAccessSchema } from "@drora/shared";
 
-interface EntitledAccountProviderAccess {
+export interface EntitledAccountProviderAccess {
   readonly providerId: string;
   readonly access: DroraProviderAccountAccess;
   readonly label?: string;

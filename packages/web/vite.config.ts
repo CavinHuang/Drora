@@ -6,11 +6,11 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
-// Vite 配置在 Node 加载期执行，不能导入 @drora/shared 根入口。
+import { resolveRemoteFrontendVersion } from "./vite/remoteFrontendVersion.mjs";
+// Bugfix: Vite 配置在 Node 加载期执行，不能导入 @drora/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
 import {
   resolveRuntimeDroraEndpointOrigin,
-  pickProductEndpointEnv,
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
 } from "@drora/shared/droraEndpoint";
@@ -82,8 +82,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      __DRORA_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
-      __DRORA_VERSION__: JSON.stringify(version),
+      __DRORA_VERSION__: JSON.stringify(
+        resolveRemoteFrontendVersion(version, process.env.WEB_REMOTE_FRONTEND_VERSION),
+      ),
       __DRORA_COMMIT__: JSON.stringify(env.DRORA_COMMIT || "unknown"),
       __DRORA_ENV__: JSON.stringify(droraEnv),
       "import.meta.env.VITE_DRORA_BASE_URL": JSON.stringify(droraEndpointOrigin),

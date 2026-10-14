@@ -18,10 +18,12 @@
   "scripts": {
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
+    "test": "vitest tests",
+    "test:fault-matrix": "DRORA_FAULT_MATRIX=full vitest run tests/workflow-fault-matrix tests/fault-matrix-harness.test.ts tests/fake-provider-server.test.ts",
+    "coverage": "vitest run tests --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
-    "lint:fix": "oxlint --write src",
-    "test": "tsx test/official-plugin-hook-runtime.test.mjs"
+    "lint:fix": "oxlint --write src"
   },
   "dependencies": {
     "@drora/adapters": "workspace:*",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/yazl": "^3.3.1",
-    "yazl": "^3.3.1"
+    "yazl": "^3.3.1",
+    "@drora/formal-proof": "workspace:*"
   }
 }

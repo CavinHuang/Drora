@@ -5,11 +5,11 @@ import {
   sessionsIndexTopic,
   type SessionSummary,
 } from "@drora/shared/drora-protocol-v4";
-import { createInitialFrameGate } from "../src/app/sessionsIndexInitialFrameGate.js";
+import { createInitialFrameGate } from "../legacy-v3.14.3/app/sessionsIndexInitialFrameGate.js";
 import {
   createSessionsIndexStore,
   mergeHomeWorkspaceLiveness,
-} from "../src/app/sessionsIndexStore.js";
+} from "../legacy-v3.14.3/app/sessionsIndexStore.js";
 
 const workspaceKey = "C:/demo";
 const topic = sessionsIndexTopic(workspaceKey);

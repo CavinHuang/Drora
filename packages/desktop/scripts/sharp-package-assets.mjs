@@ -9,7 +9,7 @@
 // 入库的 node_modules 基线（当前为 win32-x64 natives；darwin/linux 目标需 desktop
 // 安装 sharp 或基线含对应 @img 包，缺失即 fail-closed 报错）。
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 function resolveVirtualStoreRoots(packageRoot) {
   const roots = [];
@@ -206,4 +206,56 @@ export function verifyStagedSharp({
   return existsSync(nativePath) && existsSync(resolve(sharpRoot, "package.json"))
     ? []
     : [`missing staged sharp runtime for ${key}: ${nativePath}`];
+}
+
+export function resolveSharpPlatformSuffix(targetPlatform) {
+  if (targetPlatform.os === "linux") {
+    return `linux-${targetPlatform.arch}`;
+  }
+  return `${targetPlatform.os}-${targetPlatform.arch}`;
+}
+
+export function resolveSharpRuntimePackageNames(targetPlatform) {
+  const suffix = resolveSharpPlatformSuffix(targetPlatform);
+  const packageNames = ["sharp", "detect-libc", "semver", "@img/colour", `@img/sharp-${suffix}`];
+  if (targetPlatform.os !== "win32") {
+    packageNames.push(`@img/sharp-libvips-${suffix}`);
+  }
+  return packageNames;
+}
+
+export function isSharpRequiredByComputerUse({ desktopPackageRoot }) {
+  for (let dir = resolve(desktopPackageRoot); ; dir = dirname(dir)) {
+    const manifestPath = resolve(dir, "node_modules", "@drora", "drora-cua", "package.json");
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      return ["dependencies", "optionalDependencies", "peerDependencies"].some(
+        (field) => typeof manifest[field]?.sharp === "string",
+      );
+    }
+    if (dirname(dir) === dir) return false;
+  }
+}
+
+export function resolvePackagedSharpDir({
+  resourcesDir,
+  pluginRelativePath = "packages/browser-use-plugin",
+}) {
+  return resolve(resourcesDir, "glm", pluginRelativePath, "node_modules", "sharp");
+}
+
+export function resolvePackagedSharpNativeDir({
+  resourcesDir,
+  targetPlatform,
+  pluginRelativePath = "packages/browser-use-plugin",
+}) {
+  const suffix = resolveSharpPlatformSuffix(targetPlatform);
+  return resolve(
+    resourcesDir,
+    "glm",
+    pluginRelativePath,
+    "node_modules",
+    "@img",
+    `sharp-${suffix}`,
+  );
 }

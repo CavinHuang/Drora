@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import { planTextHitIntervals } from "@drora/shared";
+
+interface TextMatchRange {
+  start: number;
+  end: number;
+}
 
 function getQueryParts(query: string): string[] {
   const seen = new Set<string>();
@@ -17,32 +21,68 @@ function getQueryParts(query: string): string[] {
     });
 }
 
-export function HighlightedMatchText({
-  text,
-  query,
-  terms,
-}: {
-  text: string;
-  /** 空白分隔的查询串（默认形态）：拆词去重后作匹配词元。 */
-  query?: string;
-  /** 预提取的匹配词元（如知识检索的 CJK bigram/小写词，spec §5b.5）：提供时优先于 query。 */
-  terms?: string[];
-}) {
-  const matchTerms = terms ?? getQueryParts(query ?? "");
-  const ranges = planTextHitIntervals(text, matchTerms);
+function mergeRanges(ranges: TextMatchRange[]): TextMatchRange[] {
+  const sortedRanges = [...ranges].sort(
+    (left, right) => left.start - right.start || left.end - right.end,
+  );
+  const mergedRanges: TextMatchRange[] = [];
+
+  for (const range of sortedRanges) {
+    const lastRange = mergedRanges.at(-1);
+    if (!lastRange || range.start > lastRange.end) {
+      mergedRanges.push({ ...range });
+      continue;
+    }
+
+    lastRange.end = Math.max(lastRange.end, range.end);
+  }
+
+  return mergedRanges;
+}
+
+export function findTextMatchRanges(text: string, query: string): TextMatchRange[] {
+  const parts = getQueryParts(query);
+  if (parts.length === 0 || text.length === 0) {
+    return [];
+  }
+
+  const normalizedText = text.toLocaleLowerCase();
+  const ranges: TextMatchRange[] = [];
+
+  for (const part of parts) {
+    let searchIndex = 0;
+    while (searchIndex < normalizedText.length) {
+      const matchIndex = normalizedText.indexOf(part, searchIndex);
+      if (matchIndex === -1) {
+        break;
+      }
+
+      ranges.push({
+        start: matchIndex,
+        end: matchIndex + part.length,
+      });
+      searchIndex = matchIndex + part.length;
+    }
+  }
+
+  return mergeRanges(ranges);
+}
+
+export function HighlightedMatchText({ text, query }: { text: string; query: string }) {
+  const ranges = findTextMatchRanges(text, query);
   if (ranges.length === 0) {
     return <>{text}</>;
   }
 
-  const segments: ReactNode[] = [];
+  const parts: ReactNode[] = [];
   let cursor = 0;
 
   ranges.forEach((range, index) => {
     if (cursor < range.start) {
-      segments.push(<span key={`plain-${index}`}>{text.slice(cursor, range.start)}</span>);
+      parts.push(<span key={`plain-${index}`}>{text.slice(cursor, range.start)}</span>);
     }
 
-    segments.push(
+    parts.push(
       <mark key={`match-${index}`} className="rounded-sm bg-accent font-semibold text-foreground">
         {text.slice(range.start, range.end)}
       </mark>,
@@ -51,8 +91,8 @@ export function HighlightedMatchText({
   });
 
   if (cursor < text.length) {
-    segments.push(<span key="plain-end">{text.slice(cursor)}</span>);
+    parts.push(<span key="plain-end">{text.slice(cursor)}</span>);
   }
 
-  return <>{segments}</>;
+  return <>{parts}</>;
 }

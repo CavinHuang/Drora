@@ -11,7 +11,10 @@ export function androidSystemImageVariant(): string {
 }
 
 export function androidSystemImageAbi(): string {
-  return stringEnv("ANDROID_PLUGIN_SYSTEM_IMAGE_ABI", process.arch === "arm64" ? "arm64-v8a" : "x86_64");
+  return stringEnv(
+    "ANDROID_PLUGIN_SYSTEM_IMAGE_ABI",
+    process.arch === "arm64" ? "arm64-v8a" : "x86_64",
+  );
 }
 
 export function androidSystemImagePackage(): string {

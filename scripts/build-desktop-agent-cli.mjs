@@ -7,6 +7,7 @@ import { runCommand } from "./spawn-command.mjs";
 
 // adapters tsc 在内存受限机器上会 OOM（exit 134），给整条构建链路提高堆上限。
 process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ? process.env.NODE_OPTIONS + " " : ""}--max-old-space-size=8192`;
+import { stageDevCuaPluginRuntime } from "./stage-dev-cua-plugin-runtime.mjs";
 import {
   stageBuiltinProviderConfig,
   resolveBuiltinProviderBuildEnvironment,
@@ -23,9 +24,17 @@ const pnpmRunEnv = {
   // 自动 install 无法解析根 workspace 包，导致 dev:desktop:test 和 E2E onPrepare 失败。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
-// 桌面 Agent 构建有普通 pnpm 和 bootstrap:with-remote 直跑 tsc 两条路径。
-// 过去两条路径分别维护依赖顺序，新增 workspace 依赖时只更新了 bootstrap 依赖，
-// 干净 CI 中该依赖的 dist 尚不存在，bootstrap 会因无法解析类型入口而失败。
+// Bug 根因：filesystem plugin seed 若缺少 Sharp closure，会一直到 screenshot/zoom 才报错。
+// 此脚本同时服务本地 Dev、prebuild、server CLI 和 packaged desktop agent；三条构建分支
+// 都必须补齐同一份可复制 runtime。DRORA_CUA_DEV_MODE 只传给 staging helper，不进入最终
+// product/runtime 环境，因此这里描述的是 staging 输入，而不是产品运行模式。
+const cuaPluginRuntimeStagingEnv = {
+  ...process.env,
+  DRORA_CUA_DEV_MODE: "1",
+};
+// 修复原因：桌面 Agent 构建有普通 pnpm 和 bootstrap:with-remote 直跑 tsc 两条路径。
+// 过去两条路径分别维护依赖顺序，新增 @drora/telemetry 后只更新了 bootstrap 依赖，
+// 干净 CI 中 telemetry/dist 尚不存在，bootstrap 会因无法解析类型入口而失败。
 // 两条路径统一从这一份有序清单派生，避免后续新增 workspace 依赖时再次漂移。
 const cliWorkspaceBuilds = [
   { packageName: "@drora/shared-types", packageDir: "shared-types" },
@@ -50,6 +59,19 @@ const cliWorkspaceBuilds = [
 // 连接 MCP 才报错，造成“Helper ready 但 CUA 工具不存在”的半启动状态。所有普通 Dev 必需的
 // 独立 MCP runtime 必须集中登记，并在构建后验证真实入口文件，再允许 Agent bundle 启动。
 const requiredDevPluginRuntimeBuilds = [
+  // 与 packaged/remote staging 同步：源码插件先构建，不能直到首次 MCP 连接才发现 dist 缺失。
+  {
+    packageName: "@drora/android-emulator-plugin",
+    artifactPath: "android-emulator-plugin/dist/mcp/server.js",
+  },
+  {
+    packageName: "@drora/ios-simulator-plugin",
+    artifactPath: "ios-simulator-plugin/dist/mcp/server.js",
+  },
+  {
+    packageName: "@drora/obsidian-plugin",
+    artifactPath: "obsidian-plugin/dist/hooks/session-start.mjs",
+  },
   {
     // node_repl 宿主：Browser Use 与 Computer Use 共用，产物归属独立包。
     packageName: "@drora/node-repl-host",
@@ -139,6 +161,7 @@ async function runBootstrapWithRemoteBuild() {
 if (useBootstrapWithRemoteBuild) {
   await runBootstrapWithRemoteBuild();
   stageDevAgentBundle();
+  stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
   process.exit(0);
 }
 
@@ -160,6 +183,7 @@ if (!useTurboBuild) {
     stdio: "inherit",
   });
   stageDevAgentBundle();
+  stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
   process.exit(0);
 }
 
@@ -181,3 +205,4 @@ runCommand(
   },
 );
 stageDevAgentBundle();
+stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });

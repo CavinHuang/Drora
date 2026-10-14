@@ -1,0 +1,15 @@
+{
+  "upstream": "aac4755666d09fdcd70272fcf063c077a639015f",
+  "file": "src/model/runner-options.ts",
+  "equal_after_product_rename": false,
+  "equal_tokens_after_product_rename": true,
+  "upstream_source_sha256": "8b7c667e8233381547054d6152d729e77a67e9b68b059a5036e0f15b570b0072",
+  "upstream_test_sha256": "d980629d390b17cee4f2bd2e5ad16fc167e124ce3108087e7eab00746a2dadc7",
+  "pristine_source_test_result": {
+    "passed": 8,
+    "failed": 45,
+    "total": 53,
+    "skipped": 0
+  },
+  "dependencies": "Drora 当前锁定依赖；上游源码与测试仅执行产品改名，未使用旧 DTO 适配器"
+}

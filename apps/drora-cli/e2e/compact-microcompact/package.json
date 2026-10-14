@@ -1,0 +1,11 @@
+{
+  "name": "drora-compact-microcompact-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry-run": "node run.mjs --dry-run",
+    "e2e": "node run.mjs",
+    "docker:build": "docker build -f Dockerfile -t drora-compact-microcompact ../..",
+    "docker:e2e": "docker run --rm -e DRORA_API_KEY drora-compact-microcompact"
+  }
+}

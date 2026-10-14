@@ -15,13 +15,23 @@ import {
   DRORA_PLUGIN_ID_ENV_KEY,
 } from "@drora/shared";
 
-export { DRORA_CUA_BROKER_SOCKET_ENV_KEY as DRORA_CUA_BROKER_SOCKET_ENV } from "@drora/shared";
+export {
+  DRORA_CUA_BROKER_SOCKET_ENV_KEY as DRORA_CUA_BROKER_SOCKET_ENV,
+} from "@drora/shared";
+// 保留环境变量名供旧诊断脚本读取；迁移后的配置路径不会据此启动独立 CUA MCP。
+export const DRORA_CUA_BROKER_UNAVAILABLE_ENV = "DRORA_CUA_PERMISSION_BROKER_UNAVAILABLE";
 // CLI 入口会先清理 broker 凭据；shared node_repl 的可信配置随后从进程内捕获快照恢复它们。
 function resolveDroraCuaBrokerSocket(): string | undefined {
   // captured 优先；运行时残留的 stale socket 不能覆盖可信快照。
   return (
     getCapturedDroraCuaBrokerCredentials().socket ||
     process.env[DRORA_CUA_BROKER_SOCKET_ENV_KEY]?.trim()
+  );
+}
+
+function resolveDroraCuaBrokerToken(): string | undefined {
+  return (
+    undefined
   );
 }
 
@@ -89,7 +99,9 @@ export function omitMcpServers(
 ): Record<string, McpServerConfig> {
   const kept = Object.fromEntries(
     Object.entries(servers).filter(
-      ([name, config]) => !omittedNames.has(name) && !isRetiredCuaMcpServer(name, config),
+      ([name, config]) =>
+        !omittedNames.has(name) &&
+        !isRetiredCuaMcpServer(name, config),
     ),
   );
 
@@ -100,7 +112,7 @@ export function omitMcpServers(
   );
 }
 
-function injectDroraCuaBrokerMcpServers(
+export function injectDroraCuaBrokerMcpServers(
   servers: Record<string, McpServerConfig>,
   socketPath: string | undefined,
   trustedOfficialCuaServerNames: ReadonlySet<string> = new Set(),
@@ -179,9 +191,7 @@ function isDroraCuaStdioServer(
 function isRetiredCuaMcpServer(name: string, config: McpServerConfig | undefined): boolean {
   // node_repl is the single supported CUA host and may share the CUA plugin's
   // authority marker; all other CUA-shaped MCP entries are retired.
-  return (
-    name !== NODE_REPL_SERVER_NAME && config !== undefined && isDroraCuaStdioServer(name, config)
-  );
+  return name !== NODE_REPL_SERVER_NAME && config !== undefined && isDroraCuaStdioServer(name, config);
 }
 
 function getConfiguredServerStatus(

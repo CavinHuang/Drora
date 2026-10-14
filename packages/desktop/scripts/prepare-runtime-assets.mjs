@@ -25,7 +25,8 @@ const shouldPrepareMacosWindowBounds = target.os === "darwin";
 
 // 本机桌面包内置 agent 的 JS bundle（prepare:agent-bundle），运行时由 app 的 Electron Node runtime 执行。
 // 远端跨平台原生二进制仍由上面的 prepare:remote-assets 提供。
-// native-search 归档随仓库分发，准备步骤只做本地解包校验，不需要任何下载源配置。
+// native-search 由 prepare-native-search-tools.mjs 统一准备：内网依赖源已配置时下载固定摘要的归档，
+// 未配置时解包仓库内置的同名归档，两种情况都不需要额外开关。
 const localRuntimeScripts = [
   "prepare:agent-bundle",
   ...(nativeSearchReleasePlan.enabled ? ["prepare:native-search"] : []),

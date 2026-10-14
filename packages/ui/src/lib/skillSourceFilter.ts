@@ -2,7 +2,7 @@ import type { DroraProvider } from "@drora/shared";
 
 type SkillSourceType = "glm" | "unknown";
 
-function resolveSkillSourceType(skillPath: string): SkillSourceType {
+export function resolveSkillSourceType(skillPath: string): SkillSourceType {
   const normalized = skillPath.replaceAll("\\", "/").toLowerCase();
   if (normalized.includes("/.drora/skills/")) {
     return "glm";

@@ -19,3 +19,14 @@ export function DroraAboutLogo({ className }: { className?: string }) {
     </svg>
   );
 }
+/** 分享等新增官方场景使用 Drora 品牌，不复制上游 ZCode 的字标资产。 */
+export function DroraWordmarkLogo({ className }: { className?: string }) {
+  return (
+    <span role="img" aria-label="Drora" className={className}>
+      <span className="inline-flex h-full items-center gap-2">
+        <DroraAboutLogo className="h-full w-auto" />
+        <span className="text-ui-base font-semibold">Drora</span>
+      </span>
+    </span>
+  );
+}

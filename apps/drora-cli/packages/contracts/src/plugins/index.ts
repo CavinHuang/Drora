@@ -5,16 +5,9 @@ import type { SkillRoot } from "../skills/index.js";
 import type { ExecutionContext, TraceContext } from "../tracing/tracer.js";
 
 export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE = "drora-plugins-official";
-/**
- * 上游共享 CDN（rename 规则 0 豁免的外部设施）发布的官方市场原名。Drora 加载
- * 官方市场源时经改名桥接归一到 {@link DRORA_OFFICIAL_PLUGIN_MARKETPLACE}。
- */
+export const CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE = "claude-plugins-official";
 export const OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS = "zcode-plugins-official";
-/**
- * 原版默认种子中的第二市场（anthropics 社区目录）。上游品牌名不在改名范围，
- * id 保持原样；与官方市场一样受保留名守卫与 30s 刷新 deadline 保护。
- */
-export const CLAUDE_PLUGIN_MARKETPLACE = "claude-plugins-official";
+export const CLAUDE_PLUGIN_MARKETPLACE = CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE;
 export const DRORA_INLINE_PLUGIN_MARKETPLACE = "inline";
 export const DRORA_PLUGIN_HOST_COMMAND = "__drora-plugin-host";
 /**
@@ -45,11 +38,7 @@ export const DRORA_DWF_CHILD_COMMAND = "__drora-dwf-child";
  * 仅 drora canonical id 享受 CDN 双分区合并与公开商店分段；别名与 claude 不享受。
  */
 export function isOfficialMarketplaceId(id: string): boolean {
-  return (
-    id === DRORA_OFFICIAL_PLUGIN_MARKETPLACE ||
-    id === OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS ||
-    id === CLAUDE_PLUGIN_MARKETPLACE
-  );
+  return id === DRORA_OFFICIAL_PLUGIN_MARKETPLACE || id === OFFICIAL_MARKETPLACE_UPSTREAM_ALIAS || id === CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE;
 }
 
 export type PluginSource = "official" | "inline" | "cache";
@@ -185,8 +174,27 @@ export interface PluginManifest {
   repository?: string;
   settings?: unknown;
   skills?: unknown;
+  /** 插件 UI：`ui.surfaces[]` 面板入口声明，adapters 解析。 */
+  ui?: unknown;
   userConfig?: Record<string, PluginUserConfigOption>;
   version?: string;
+}
+
+/** 面板生命周期：第一版只接受会话级；`draft` 留待需要时放开。 */
+export type PluginUiSurfaceAvailability = "session";
+/** 标题：单一字符串或按 locale 键的映射（`{ "zh-CN": "...", "en-US": "..." }`）。 */
+export type PluginUiSurfaceTitle = string | Record<string, string>;
+export interface PluginUiSurfaceDefinition {
+  id: string;
+  title: PluginUiSurfaceTitle;
+  icon?: string;
+  /** 运行时 namespaced MCP server 名（`plugin:${name}:${server}`），UI 直接用它调 mcp/uiReadResource。 */
+  server: string;
+  /** 清单里声明的原始 server 键，仅供诊断与展示。 */
+  declaredServer: string;
+  /** 必须以 `ui://` 开头。 */
+  resourceUri: string;
+  availability: PluginUiSurfaceAvailability;
 }
 
 export interface PluginConfig {
@@ -225,6 +233,8 @@ export interface PluginMetadata {
   skillCount: number;
   skillRootCount: number;
   source: PluginSource;
+  /** 清单 `ui.surfaces[]` 解析结果（已校验）；未声明或全部非法时缺省。 */
+  uiSurfaces?: PluginUiSurfaceDefinition[];
   userConfig?: Record<string, PluginUserConfigOption>;
   version?: string;
 }
@@ -268,6 +278,8 @@ export interface PluginReferenceCatalogEntry {
    * 禁止进入 provider reminder 或协议投影——路径不属于 identifiers-only 契约。
    */
   rootPath: string;
+  /** 面板入口声明（A5）；供 host 在 session 冻结 catalog 里查面板定义。 */
+  uiSurfaces?: PluginUiSurfaceDefinition[];
 }
 
 export interface PluginReferenceCatalog {

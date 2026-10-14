@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ModelMenu } from "../src/ui/ModelMenu.js";
-import { IntlProvider } from "../src/ui/intl.js";
-import { EMPTY_MODEL_SELECTION_STATE } from "../src/app/conversationStore.js";
+import { ModelMenu } from "../legacy-v3.14.3/ui/ModelMenu.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
+import { EMPTY_MODEL_SELECTION_STATE } from "../legacy-v3.14.3/app/conversationStore.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
 Object.assign(globalThis, { React });

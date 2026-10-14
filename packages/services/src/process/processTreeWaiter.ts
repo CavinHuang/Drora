@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import type {
   ProcessIdentity,
   ProcessTreeOwnershipResolution,
@@ -126,7 +127,28 @@ export async function waitForProcessTreeTermination(
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ remainingPids });
+      // Linux 容器的 PID 1 可能保留 Z 条目：kill(pid, 0) 成功不能证明还在执行。
+      // 只在终态排除 procfs 已确认的僵尸，不改变身份复核、发信号和 deadline。
+      if (process.platform === "linux" && remainingPids.length > 0) {
+        void Promise.all(
+          remainingPids.map(async (pid) => {
+            try {
+              const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+              const state = stat
+                .slice(stat.lastIndexOf(")") + 1)
+                .trim()
+                .split(/\s+/u)[0];
+              return state === "Z" ? undefined : pid;
+            } catch {
+              return pid; // 无法验证时保留失败，不借读取错误丢掉 ownership。
+            }
+          }),
+        ).then((pids) =>
+          resolve({ remainingPids: pids.filter((pid): pid is number => pid !== undefined) }),
+        );
+      } else {
+        resolve({ remainingPids });
+      }
     };
     const settleIfTreeExited = () => {
       const hasRunningVerifiedProcess = trackedIdentities.some((identity) =>

@@ -1,5 +1,6 @@
 import { app } from "electron";
 import { join } from "node:path";
+import { DRORA_ENV } from "@drora/shared";
 
 export function resolveDroraBuiltinProviderConfigFilePath(options?: {
   readonly appPath?: string;
@@ -15,7 +16,7 @@ export function resolveDroraBuiltinProviderConfigFilePath(options?: {
       "config/provider/drora-builtin.json",
     );
   }
-  // 开发态与打包共用唯一线上配置源。
-  const filename = "drora-builtin.json";
+  // 开发态没有 resources 复制步骤，必须与构建注入的产品环境读取同一份源文件。
+  const filename = DRORA_ENV === "production" ? "drora-builtin.json" : "drora-builtin.test.json";
   return join(options?.appPath ?? app.getAppPath(), "../../config/provider", filename);
 }

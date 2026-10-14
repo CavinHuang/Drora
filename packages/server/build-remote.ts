@@ -35,6 +35,8 @@ const buildResult = await build({
   format: "cjs",
   target: "node22",
   plugins: [nativeAddonPlugin],
+  // 远端不装配本机语义推理端口；惰性依赖缺失时保持知识词法检索。
+  external: ["onnxruntime-node"],
   // CJS 环境没有 import.meta.url，通过 banner 注入等价变量，
   // 再用 define 全局替换，这样源码无需关心最终打包格式。
   banner: {

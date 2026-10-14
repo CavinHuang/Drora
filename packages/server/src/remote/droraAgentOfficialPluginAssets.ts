@@ -2,11 +2,6 @@ import { posix } from "node:path";
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
 
-/**
- * 远端 Agent 随 bundle 发布的官方插件包合同（对齐原版 13 包，Drora 命名差异仅
- * zcode-guide-plugin → drora-guide-plugin）。生产 remote 校验、开发态 SSH 复制与
- * release source 校验共用这份清单；缺任一 required path 即触发重部署。
- */
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
   "android-emulator-plugin",
   "browser-use-plugin",
@@ -21,6 +16,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "drora-guide-plugin",
+  "visualize-plugin",
 ] as const;
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = [
@@ -46,12 +42,39 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   ...REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES.map(
     (packageName) => `${packageName}/.zcode-plugin/plugin.json`,
   ),
-  // 只校验 manifest 会把“有插件壳”的残缺目录误判为可复用；正文资产缺失同样要重部署。
+  // 只校验 Browser Use manifest 会把“有插件壳”的残缺目录
+  // 误判为可复用。生产 remote、开发态 remote 与 release source 校验共用这份必需资产合同。
   //
-  // 这里只能列各插件**自己产出**的资产。node_repl 宿主抽成 @drora/node-repl-host 后
-  // browser-use 不再产出 dist/mcp/server.js；本清单里指向不存在的文件，会让远端资产
-  // 校验对着幽灵路径报缺失。远程工作区要承载 node-repl 宿主时，应把 node-repl-host
-  // 补进上面的 PACKAGE_NAMES 并在此声明它的 dist/mcp/server.js。
+  // 这里只能列 browser-use **自己产出**的资产。node_repl 宿主抽成 @drora/node-repl-host 后
+  // browser-use 不再产出 dist/mcp/server.js；
+  // 本清单里指向不存在的文件，会让远端资产校验对着幽灵路径报缺失。
+  // 远程工作区当前不承载 Browser Use / Computer Use，因此宿主 runtime 不进这份远端合同——
+  // 要支持远程 bua/cua 时，应把 node-repl-host 补进上面的 PACKAGE_NAMES 并在此声明它的
+  // dist/mcp/server.js，而不是把宿主产物挂回 browser-use 名下。
+  "visualize-plugin/skills/visualize/SKILL.md",
+  "visualize-plugin/skills/visualize/references/api.md",
+  "visualize-plugin/skills/visualize/references/styles.md",
+  "visualize-plugin/skills/visualize/tweak.md",
+  "visualize-plugin/skills/visualize/LICENSE.md",
+  "visualize-plugin/skills/visualize/scripts/render.py",
+  "visualize-plugin/skills/visualize/assets/visualize.css",
+  "visualize-plugin/skills/visualize/assets/visualize.html",
+  "visualize-plugin/skills/visualize/assets/calendar.js",
+  "visualize-plugin/skills/visualize/assets/runtime-manifest.json",
+  "visualize-plugin/skills/visualize/scripts/vendor.py",
+  "visualize-plugin/skills/visualize/assets/vendor/manifest.json",
+  "visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js",
+  "visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE",
+  "visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js",
+  "visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE",
+  "visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js",
+  "visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE",
+  "visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js",
+  "visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE",
+  "visualize-plugin/skills/visualize/assets/standalone-host-bridge.js",
+  "visualize-plugin/skills/visualize/assets/standalone-shell.js",
+  "visualize-plugin/skills/visualize/widgets/calendar.md",
+  "visualize-plugin/skills/visualize/examples/calendar.html",
   "browser-use-plugin/docs/api.json",
   "browser-use-plugin/docs/documents.json",
   "browser-use-plugin/docs/overview.md",
@@ -61,9 +84,8 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   "browser-use-plugin/scripts/browser-client.mjs",
   "browser-use-plugin/skills/control-browser/SKILL.md",
   "browser-use-plugin/skills/web-gui-tester/SKILL.md",
-  // image-search 的 MCP server 声明在 .mcp.json，缺失则远端插件只有技能没有工具。
+  // 修复原因：仅校验 manifest 无法发现文档插件缺少技能正文或视觉评审 Agent。
   "image-search-plugin/.mcp.json",
-  // 文档插件缺技能正文或视觉评审 Agent 时同样残缺（原版合同含四件套）。
   "documents-plugin/agents/visual-judge.md",
   "documents-plugin/skills/docx/SKILL.md",
   "pdf-plugin/agents/visual-judge.md",
@@ -72,15 +94,18 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   "presentations-plugin/skills/pptx/SKILL.md",
   "spreadsheets-plugin/agents/visual-judge.md",
   "spreadsheets-plugin/skills/xlsx/SKILL.md",
-  // cua 0.6.3 起为 SDK+skill 包：client 供 kernel 引导挂 agent.computerUse，
-  // docs 是 agent.documentation 的正文（与原版 13 包合同逐条一致）。
   "zcode-cua-plugin/docs/computer-use.md",
   "zcode-cua-plugin/scripts/computer-use-client.mjs",
   "zcode-cua-plugin/skills/computer-use/SKILL.md",
 ] as const;
 
-export function buildRemoteAgentOfficialPluginDir(remoteProviderDir: string): string {
-  return posix.join(remoteProviderDir, REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME);
+export function buildRemoteAgentOfficialPluginDir(
+  remoteProviderDir: string,
+): string {
+  return posix.join(
+    remoteProviderDir,
+    REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME,
+  );
 }
 
 export function buildRemoteAgentOfficialPluginSourceRelativePath(params: {
@@ -94,9 +119,12 @@ export function buildRemoteAgentOfficialPluginSourceRelativePath(params: {
   );
 }
 
-export function buildRemoteAgentOfficialPluginRequiredPaths(remoteProviderDir: string): string[] {
-  const remoteOfficialPluginDir = buildRemoteAgentOfficialPluginDir(remoteProviderDir);
-  return REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS.map((relativePath) =>
-    posix.join(remoteOfficialPluginDir, relativePath),
+export function buildRemoteAgentOfficialPluginRequiredPaths(
+  remoteProviderDir: string,
+): string[] {
+  const remoteOfficialPluginDir =
+    buildRemoteAgentOfficialPluginDir(remoteProviderDir);
+  return REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS.map(
+    (relativePath) => posix.join(remoteOfficialPluginDir, relativePath),
   );
 }

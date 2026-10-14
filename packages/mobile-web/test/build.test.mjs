@@ -11,7 +11,9 @@ import { dirname, join } from "node:path";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const distEntry = join(packageRoot, "dist", "remote", "v4", "index.html");
-const distAssets = join(packageRoot, "dist", "remote", "v4", "3.14.3", "assets");
+const { version } = JSON.parse(await readFile(join(packageRoot, "../../package.json"), "utf8"));
+const assetPrefix = `/remote/v4/${version}/assets/`;
+const distAssets = join(packageRoot, "dist", "remote", "v4", version, "assets");
 
 test("dist：官方路径形状入口存在", async () => {
   const info = await stat(distEntry);
@@ -22,26 +24,26 @@ test("dist：资产图闭合（入口引用全部存在）且无违面字面量"
   const entry = await readFile(distEntry, "utf8");
   // P4a E2E 实证（spec §17）：入口在 /remote/v4（无尾斜杠）下服务，相对引用会解析
   // 到 /remote/ 下丢 v4 段——必须为绝对官方形状引用。
-  const refs = [...entry.matchAll(/(?:src|href)="(\/remote\/v4\/3\.14\.3\/assets\/[^"]+)"/g)].map(
-    (m) => m[1],
-  );
+  const refs = [...entry.matchAll(/(?:src|href)="([^"]+)"/g)]
+    .map(m => m[1]).filter(value => value.startsWith(assetPrefix));
   assert.ok(refs.length >= 2, `entry should reference >=2 assets, got ${refs.length}`);
   const assetNames = new Set(await readdir(distAssets));
   for (const ref of refs) {
-    const name = ref.slice("/remote/v4/3.14.3/assets/".length);
+    const name = ref.slice(assetPrefix.length);
     assert.ok(assetNames.has(name), `missing referenced asset: ${name}`);
   }
   for (const name of assetNames) {
     const text = await readFile(join(distAssets, name), "utf8");
-    assert.equal(text.includes("zcode.z.ai"), false, `${name} contains official relay URL`);
-    assert.equal(text.includes("sourceMappingURL"), false, `${name} contains sourcemap comment`);
+    // 官方部署仍保留其端点；LAN 同源选择由 Web 扩展契约与真实 manager 验证。
+    assert.equal(name.endsWith(".map"), false, `${name} exposes a source map file`);
+    assert.equal(/^[ \t]*\/\/[#@]\s*sourceMappingURL=/mu.test(text), false, `${name} contains a physical sourcemap comment`);
   }
-  assert.equal(entry.includes("zcode.z.ai"), false);
+  assert.ok(!entry.includes("/remote/v4/3.14.3/assets/"), "historical UI cannot override the canonical version");
 });
 
 test("i18n：zh-CN / en-US 键集同构", async () => {
   const keySet = async (locale) => {
-    const text = await readFile(join(packageRoot, "src", "intl", `${locale}.ts`), "utf8");
+    const text = await readFile(join(packageRoot, "legacy-v3.14.3", "intl", `${locale}.ts`), "utf8");
     // 全文解析（oxfmt 可能把长值折行，逐行解析会漏键/误报）：先剥离整行注释，
     // 再以键值对正则抽取；值内转义引号不跨界。
     const stripped = text
@@ -73,8 +75,8 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
     return out;
   };
   const files = [
-    ...(await walk(join(packageRoot, "src", "ui"))),
-    ...(await walk(join(packageRoot, "src", "app"))),
+    ...(await walk(join(packageRoot, "legacy-v3.14.3", "ui"))),
+    ...(await walk(join(packageRoot, "legacy-v3.14.3", "app"))),
   ];
   for (const file of files) {
     const text = await readFile(file, "utf8");
@@ -85,25 +87,25 @@ test("自包含边界：仅受控远控入口可导入 UI（D6 §§22–25 例�
       ...[...text.matchAll(/\bimport\(["'](@drora\/ui[^"']*)["']\)/g)].map((match) => match[1]),
     ];
     const allowed =
-      file === join(packageRoot, "src", "app", "RemoteTaskTimeline.tsx")
+      file === join(packageRoot, "legacy-v3.14.3", "app", "RemoteTaskTimeline.tsx")
         ? ["@drora/ui/remote-timeline"]
-        : file === join(packageRoot, "src", "app", "main.tsx")
+        : file === join(packageRoot, "legacy-v3.14.3", "app", "main.tsx")
           ? ["@drora/ui/remote-frame"]
-          : file === join(packageRoot, "src", "app", "RemoteGitSidePane.tsx")
+          : file === join(packageRoot, "legacy-v3.14.3", "app", "RemoteGitSidePane.tsx")
           ? ["@drora/ui/git-pane"]
           : // §33.18.18 输入面换装：ui LexicalChatInput 窄入口（官方富文本编辑器）。
-            file === join(packageRoot, "src", "app", "ComposerRichInput.tsx")
+            file === join(packageRoot, "legacy-v3.14.3", "app", "ComposerRichInput.tsx")
           ? ["@drora/ui/git-pane", "@drora/ui/lexical-chat-input"]
           : // §33.18.20 附件上传链：ui uploadAttachmentTransaction 窄入口（begin/chunk/commit）。
-            file === join(packageRoot, "src", "app", "composerAttachmentUpload.ts")
+            file === join(packageRoot, "legacy-v3.14.3", "app", "composerAttachmentUpload.ts")
           ? ["@drora/ui/attachment-upload-transaction"]
           : // §33.18.21 草稿持久化：ui composerDraftStore 窄入口（官方 parity 键空间）。
-            file === join(packageRoot, "src", "app", "composerDraftPersistence.ts")
+            file === join(packageRoot, "legacy-v3.14.3", "app", "composerDraftPersistence.ts")
           ? ["@drora/ui/composer-draft-store"]
           : // §33.18.15 终端侧板换装：ui SidePaneTerminalPane 窄入口（xterm+PTY）。
-            file === join(packageRoot, "src", "app", "RemoteSidePaneTerminal.tsx")
+            file === join(packageRoot, "legacy-v3.14.3", "app", "RemoteSidePaneTerminal.tsx")
           ? ["@drora/ui/git-pane", "@drora/ui/side-pane-terminal"]
-          : file === join(packageRoot, "src", "app", "App.tsx")
+          : file === join(packageRoot, "legacy-v3.14.3", "app", "App.tsx")
           ? // GitPane 一期姊妹件+App 塔（spec §25/§27.1/§30.2）：官方复原件窄入口装配。
             // §32.12 队列面板（spec）：官方复原件受控窄入口（composer 上方逐条卡片）。
             // §32.20 文件 chip 相对目录基准（官方 zCe 语义窄入口）。

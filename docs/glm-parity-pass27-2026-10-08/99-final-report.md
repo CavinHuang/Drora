@@ -54,7 +54,7 @@
 **修复**：Wave 1 首项。先运行时取证 gate 现状（抓 `/api/v1/agent/configs`），再按真值栈移植签名链+遥测面。
 
 ### P1-5 内置目录 3 条 siteRules 半截改品牌（b17，主控三副本复证坐实）
-我方 `config/provider/drora-builtin.json`（及 cli/dist、desktop dist 两副本）siteRules[28][35][36] 的 baseUrlMatch 被改成 `drora.z.ai`，而 providerRules 真实 baseUrl 仍是 `zcode.z.ai` ⇒ 3 条规则永不命中 ⇒ start-plan/off-peak GLM 丢图片/视频 inputFormat 与 supportsNativeWebSearch（WebSearch 将抛 InvalidModelRequest）。
+我方 `config/provider/drora-builtin.json`（及 cli/dist、desktop dist 两副本）siteRules[28][35][36] 的 baseUrlMatch 被改成 `zcode.z.ai`，而 providerRules 真实 baseUrl 仍是 `zcode.z.ai` ⇒ 3 条规则永不命中 ⇒ start-plan/off-peak GLM 丢图片/视频 inputFormat 与 supportsNativeWebSearch（WebSearch 将抛 InvalidModelRequest）。
 **修复**：3 处一行回退（`drora\.z\.ai` → `zcode\.z\.ai`），随即同步桌面打包副本。
 
 ## 三、P2 清单（11 项）

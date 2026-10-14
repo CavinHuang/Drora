@@ -33,7 +33,7 @@ export function templateFiles(root: string, pkg: string, sdk?: string): Template
   ];
 }
 
-function settings(input: TemplateInput): string {
+function settings(input: TemplateInput) {
   return `pluginManagement {
     repositories {
         google()
@@ -55,7 +55,7 @@ include(":app")
 `;
 }
 
-function rootBuild(): string {
+function rootBuild() {
   return `plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
@@ -64,19 +64,19 @@ function rootBuild(): string {
 `;
 }
 
-function gradleProperties(): string {
+function gradleProperties() {
   return `android.useAndroidX=true
 android.nonTransitiveRClass=true
 org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 `;
 }
 
-function localProperties(sdk: string): string {
+function localProperties(sdk: string) {
   return `sdk.dir=${sdk.replaceAll("\\", "\\\\")}
 `;
 }
 
-function versions(): string {
+function versions() {
   return `[versions]
 agp = "8.7.3"
 kotlin = "2.0.21"
@@ -99,7 +99,7 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 `;
 }
 
-function appBuild(input: TemplateInput): string {
+function appBuild(input: TemplateInput) {
   return `plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -130,7 +130,7 @@ dependencies {
 `;
 }
 
-function manifest(): string {
+function manifest() {
   return `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
@@ -150,21 +150,21 @@ function manifest(): string {
 `;
 }
 
-function strings(input: TemplateInput): string {
+function strings(input: TemplateInput) {
   return `<resources>
     <string name="app_name">${input.name}</string>
 </resources>
 `;
 }
 
-function styles(): string {
+function styles() {
   return `<resources>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />
 </resources>
 `;
 }
 
-function activity(input: TemplateInput): string {
+function activity(input: TemplateInput) {
   return `package ${input.pkg}
 
 import android.os.Bundle

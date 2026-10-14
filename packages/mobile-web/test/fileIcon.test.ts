@@ -18,7 +18,7 @@ import {
   fileIconNameFor,
   fileIconSrc,
   resolveFileIconFallbackSrc,
-} from "../src/ui/fileIcon.js";
+} from "../legacy-v3.14.3/ui/fileIcon.js";
 
 const packageRoot = resolve(import.meta.dirname, "..");
 

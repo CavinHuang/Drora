@@ -13,7 +13,7 @@
 import { createHash } from "node:crypto";
 import { access } from "node:fs/promises";
 import { homedir, networkInterfaces } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createDeviceRegistry,
@@ -30,42 +30,20 @@ type HostLogger = {
 // 服务级日志（AGENTS.md 日志规范）：模块级单例，宿主生命周期与 LAN 地址诊断共用。
 const serviceLog = createServiceLogger("mobile-lan-relay");
 
-/**
- * §33.11 产物一致性（raw 优先修正）：本地 v4 页面根候选序（纯函数，单测覆盖三种
- * 部署形态）。序 = ①仓库 upstream（官方原始字节冻结件——recovered 的 JS 是可读化
- * 格式化版，非官方原始字节，§33.11 修正）→ ②安装态随包 `mobile-web-official`
- * （electron-builder 自 upstream/remote/v4 staging，同原始字节）→ ③随包
- * `mobile-web`（旧 dist 产物，存量安装兜底）→ ④仓库 recovered（可读化回退）→
- * ⑤仓库 dist（末位兜底）。
- */
+/** 当前源码构建是唯一生产页面；冻结快照只作历史取证，不参与启动。 */
 export function buildMobileWebRootCandidates(resourcesPath?: string): string[] {
-  const repoUpstreamRoot = fileURLToPath(new URL("../../../mobile-web/upstream/", import.meta.url));
-  const repoRecoveredRoot = fileURLToPath(
-    new URL("../../../mobile-web/src/recovered/", import.meta.url),
-  );
-  const repoSourceBuildRoot = fileURLToPath(new URL("../../../mobile-web/dist/", import.meta.url));
   return [
-    repoUpstreamRoot,
-    ...(resourcesPath
-      ? [
-          join(resourcesPath, "mobile-web-official"),
-          join(resourcesPath, "mobile-web"),
-        ]
-      : []),
-    repoRecoveredRoot,
-    repoSourceBuildRoot,
+    ...(resourcesPath ? [join(resourcesPath, "mobile-web")] : []),
+    fileURLToPath(new URL("../../../mobile-web/dist/", import.meta.url)),
   ];
 }
 
-/** 开发态优先仓库官方原始冻结件，安装态优先随包官方快照（§33.11）；无本地页时走资产代理。 */
 export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
   for (const root of buildMobileWebRootCandidates(process.resourcesPath)) {
     try {
       await access(join(root, "remote", "v4", "index.html"));
       return root;
-    } catch {
-      // 此候选不存在时尝试下一个；没有本地页才允许走旧资产代理。
-    }
+    } catch { /* 尝试下一个当前构建。 */ }
   }
   return undefined;
 }
@@ -132,6 +110,7 @@ export function createDesktopMobileLanRelayHost(deps: {
       if (server && port !== null) return Promise.resolve({ port });
       starting ??= (async () => {
         const mobileRoot = await resolveLocalMobileWebRoot();
+        if (!mobileRoot) throw new Error("Remote UI assets are missing; build @drora/mobile-web first.");
         const registry = createDeviceRegistry({
           storage: createFileDeviceRegistryStorage(registryFilePath),
         });
@@ -141,9 +120,7 @@ export function createDesktopMobileLanRelayHost(deps: {
           host: listenHost,
           mobileRoot,
           // 自带页面时禁用官方代理，保证 LAN 可离线且不向 z.ai 请求资产。
-          remoteAssets: mobileRoot
-            ? undefined
-            : { cacheDir: join(dirname(registryFilePath), "remote-assets") },
+          remoteAssets: undefined,
           log: relayLog,
         });
         try {

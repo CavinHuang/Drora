@@ -6,8 +6,8 @@ import {
   type CommandEnvelope,
   type ConversationSnapshot,
 } from "@drora/shared/drora-protocol-v4";
-import { createConversationStore } from "../src/app/conversationStore.js";
-import { TaskSession, type TaskSessionTarget } from "../src/app/taskSession.js";
+import { createConversationStore } from "../legacy-v3.14.3/app/conversationStore.js";
+import { TaskSession, type TaskSessionTarget } from "../legacy-v3.14.3/app/taskSession.js";
 
 const SESSION_ID = "status-task";
 

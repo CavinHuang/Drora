@@ -5,9 +5,9 @@ import {
   findUnclosedAssistantDirectiveStart,
 } from "@/lib/assistantDirectiveParser.js";
 
-type DroraFileCitationPreviewKind = "docx" | "xlsx" | "pptx" | "pdf" | "video" | "audio";
+export type DroraFileCitationPreviewKind = "docx" | "xlsx" | "pptx" | "pdf" | "video" | "audio";
 
-interface DroraFileCitation {
+export interface DroraFileCitation {
   artifactKind?: string;
   end: number;
   path: string;
@@ -16,7 +16,7 @@ interface DroraFileCitation {
   start: number;
 }
 
-interface DroraFileCitationDirective {
+export interface DroraFileCitationDirective {
   artifactKind?: string;
   end: number;
   path?: string;
@@ -25,7 +25,7 @@ interface DroraFileCitationDirective {
   start: number;
 }
 
-interface DroraFileCitationProjection {
+export interface DroraFileCitationProjection {
   visibleText: string;
 }
 

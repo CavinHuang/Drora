@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RemoteOpenTabShell } from "../src/ui/RemoteOpenTabShell.js";
-import { IntlProvider } from "../src/ui/intl.js";
+import { RemoteOpenTabShell } from "../legacy-v3.14.3/ui/RemoteOpenTabShell.js";
+import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
 
 Object.assign(globalThis, { React });
 

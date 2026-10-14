@@ -4,13 +4,6 @@ import path from "node:path";
 import { brief, ok, run } from "../lib/run.js";
 import { javaMajorVersion } from "./config.js";
 
-type ToolCheck = {
-  name: string;
-  path?: string;
-  ok: boolean;
-  detail: string;
-};
-
 const TOOL_PATHS: Record<string, string[]> = {
   adb: ["platform-tools/adb"],
   emulator: ["emulator/emulator"],
@@ -27,7 +20,14 @@ const TOOL_PATHS: Record<string, string[]> = {
   apkanalyzer: ["cmdline-tools/latest/bin/apkanalyzer", "cmdline-tools/bin/apkanalyzer"],
 };
 
-function sdkRoots(env: Record<string, string | undefined> = process.env): string[] {
+type ToolCheck = {
+  name: string;
+  path?: string;
+  ok: boolean;
+  detail: string;
+};
+
+function sdkRoots(env: NodeJS.ProcessEnv = process.env): string[] {
   const configured = [env.ANDROID_PLUGIN_SDK_PATH, env.ANDROID_HOME, env.ANDROID_SDK_ROOT].filter(
     (item): item is string => Boolean(item && item.trim()),
   );
@@ -69,7 +69,10 @@ export async function requireTool(name: string): Promise<string> {
   throw new Error(`Missing Android tool: ${name}. Run android_preflight for setup details.`);
 }
 
-export async function checkTool(name: string, versionArgs: string[] = ["--version"]): Promise<ToolCheck> {
+export async function checkTool(
+  name: string,
+  versionArgs: string[] = ["--version"],
+): Promise<ToolCheck> {
   const found = await findTool(name);
   if (!found) {
     return {
@@ -111,6 +114,7 @@ export async function javaHome(): Promise<string | undefined> {
   const version = javaMajorVersion();
   const configured = process.env.JAVA_HOME?.trim();
   if (configured && (await exists(path.join(configured, "bin", javaBin())))) return configured;
+
   if (process.platform === "darwin") {
     const home = await run(["/usr/libexec/java_home", "-v", version], { timeout: 5000 });
     if (ok(home)) {
@@ -118,6 +122,7 @@ export async function javaHome(): Promise<string | undefined> {
       if (value) return value;
     }
   }
+
   for (const candidate of await javaHomes(version)) {
     if (await exists(path.join(candidate, "bin", javaBin()))) return candidate;
   }
@@ -162,7 +167,7 @@ function javaBin(): string {
   return process.platform === "win32" ? "java.exe" : "java";
 }
 
-function windowsSdkRoots(env: Record<string, string | undefined>): string[] {
+function windowsSdkRoots(env: NodeJS.ProcessEnv): string[] {
   return [
     env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "Android", "Sdk") : undefined,
     path.join(os.homedir(), "AppData", "Local", "Android", "Sdk"),
@@ -175,7 +180,7 @@ async function javaHomes(version: string): Promise<string[]> {
     `/Library/Java/JavaVirtualMachines/openjdk-${version}.jdk/Contents/Home`,
     path.join(process.env.ProgramFiles || "", "Eclipse Adoptium", `jdk-${version}`),
     path.join(process.env.ProgramFiles || "", "Java", `jdk-${version}`),
-  ].filter((item): item is string => Boolean(item));
+  ].filter(Boolean);
   if (process.platform !== "win32") return fixed;
   const pattern = new RegExp(`^jdk-${escapeRegex(version)}`, "i");
   return unique([

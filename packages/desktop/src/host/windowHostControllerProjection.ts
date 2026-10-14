@@ -29,7 +29,7 @@ export type WindowHostControllerSourceScope =
       workspaceIdentity: string;
     };
 
-interface WindowHostControllerTaskMembership {
+export interface WindowHostControllerTaskMembership {
   meta: DroraTaskMeta;
   membership: {
     pinned: boolean;

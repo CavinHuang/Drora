@@ -1,16 +1,6 @@
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、Drora Agent，拆分前先保持跨进程消息收口。 */
-import { bindDatabaseStartupRelay } from "./databaseStartupRelay.js";
-import { randomUUID } from "node:crypto";
-import { join } from "node:path";
-import {
-  app,
-  BrowserWindow,
-  MessageChannelMain,
-  utilityProcess as electronUtilityProcess,
-} from "electron";
-import type { MessagePortMain, UtilityProcess as ElectronUtilityProcess } from "electron";
 import {
   type HostAgentProcessErrorResponse,
   type HostAgentProcessExceptionResponse,
@@ -20,41 +10,57 @@ import {
   type HostCuaOperationStateResponse,
   type HostMcpTelemetryResponse,
   type HostSessionCreateTelemetryResponse,
+  type RemoteTarget,
   type TaskRealtimeHostDeliveryKind,
+  type WorkspacePurpose,
   formatDroraHostProcessName,
   HostMessageTypes,
-  HostResponseTypes,
   hostResponseMessageSchema,
+  HostResponseTypes,
   InternalChannels,
   LAUNCH_MARKS_QUERY_KEY,
   RUNTIME_DRORA_DEBUG,
   serializeLaunchMarks,
-  type RemoteTarget,
-  type WorkspacePurpose,
   DRORA_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@drora/shared";
-import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
-import { BroadcastHub } from "./broadcastHub.js";
-import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
-import { createHostLogRelay } from "./hostLogRelay.js";
+import type {
+  PluginSandboxHandle,
+  PluginSandboxRegisterRequestPayload,
+  PluginSandboxRegisterResultPayload,
+} from "@drora/shared/mcp-apps";
+import type { UtilityProcess as ElectronUtilityProcess, MessagePortMain } from "electron";
 import {
-  registerHostAgentProcess,
-  registerHostProcess,
-  unregisterHostAgentProcess,
-  unregisterHostProcess,
-} from "./resourceManagerWindow.js";
-import { resolveHostResourceUsageResult } from "./resourceManagerHostSampling.js";
+  app,
+  BrowserWindow,
+  utilityProcess as electronUtilityProcess,
+  MessageChannelMain,
+} from "electron";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
+import { BroadcastHub } from "./broadcastHub.js";
+import { bindDatabaseStartupRelay } from "./databaseStartupRelay.js";
+import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
+import { ingestHostNetworkObservations } from "./desktopNetworkTelemetry.js";
 import {
   buildHostProcessEnv,
   hostModulePath,
   resolveBundledGlmBinaryPath,
   resolveDroraHome,
 } from "./desktopRuntimeEnv.js";
-import { ingestHostNetworkObservations } from "./desktopNetworkTelemetry.js";
+import { ingestHostNetworkCapture } from "./resourceManagerNetwork.js";
+import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
+import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
+import { createHostLogRelay } from "./hostLogRelay.js";
 import { ingestCliResourceSample } from "./processResourceCliSource.js";
 import { ingestHostSelfResourceSample } from "./processResourceSelfHeapSource.js";
-import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
-import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
+import { resolveHostResourceUsageResult } from "./resourceManagerHostSampling.js";
+import {
+  registerHostAgentProcess,
+  registerHostProcess,
+  unregisterHostAgentProcess,
+  unregisterHostProcess,
+} from "./resourceManagerWindow.js";
+import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
 
 export interface WindowBootstrapOptions {
   restoreSession?: boolean;
@@ -86,7 +92,7 @@ export interface HostInitMessage {
   runtimeProcessEnvPatch?: Record<string, string>;
 }
 
-interface SpawnHostProcessOptions {
+export interface SpawnHostProcessOptions {
   internalChannel?: typeof InternalChannels.ServicePort | typeof InternalChannels.ScopedServicePort;
   internalPayload?: unknown;
   registerBroadcast?: boolean;
@@ -262,6 +268,10 @@ export function spawnHostProcess(
     }>;
     /** Host 已完成附件授权后，由 Main 将本地视频 realpath 加入精确协议授权集合。 */
     authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
+    /** Host 校验完插件 UI HTML 后交给 Main 沙箱注册表登记，返回句柄。 */
+    registerPluginSandbox?: (
+      input: PluginSandboxRegisterRequestPayload,
+    ) => PluginSandboxHandle | Promise<PluginSandboxHandle>;
   },
   options?: SpawnHostProcessOptions,
 ): ElectronUtilityProcess {
@@ -349,7 +359,10 @@ export function spawnHostProcess(
       ingestHostNetworkObservations(result.data.observations);
       return;
     }
-
+    if (result.data.type === HostResponseTypes.NetworkCaptureBatch) {
+      ingestHostNetworkCapture(result.data.batch, child.pid ?? 0);
+      return;
+    }
     // CLI 自采的 60 秒样本：按 services 打的 lane 归入 cli_chat / cli_aux 角色。
     if (result.data.type === HostResponseTypes.AgentResourceSample) {
       ingestCliResourceSample(
@@ -424,6 +437,32 @@ export function spawnHostProcess(
             error: error instanceof Error ? error.message : String(error),
           });
         });
+      return;
+    }
+
+    if (result.data.type === HostResponseTypes.PluginSandboxRegisterRequest) {
+      const request = result.data;
+      const register = dependencies.registerPluginSandbox;
+      const reply = (payload: PluginSandboxRegisterResultPayload) =>
+        child.postMessage({ type: HostMessageTypes.PluginSandboxRegisterResult, ...payload });
+      if (!register || win.isDestroyed() || request.ownerWebContentsId !== win.webContents.id) {
+        reply({
+          requestId: request.requestId,
+          ok: false,
+          error: "Plugin UI sandbox is unavailable.",
+        });
+        return;
+      }
+      void Promise.resolve()
+        .then(() => register(request))
+        .then((handle) => reply({ requestId: request.requestId, ok: true, ...handle }))
+        .catch((error: unknown) =>
+          reply({
+            requestId: request.requestId,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
       return;
     }
 

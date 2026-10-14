@@ -2,12 +2,17 @@
 *.mjs text eol=lf
 *.sh  text eol=lf
 
+# E2E PDF fixture 含规范 xref 尾空格，必须按二进制处理，避免 diff --check 误报。
+packages/desktop/test/e2e/fixtures/fs/**/*.pdf binary
+
 # 上游许可原文与生成的声明按字节保存，不能自动转换换行或裁剪空白。
 # 原文中的 License / ======= 是 Markdown 标题，不是合并冲突。
 THIRD-PARTY-NOTICES.md -text -whitespace conflict-marker-size=32 linguist-generated=true
 third-party/upstream/** -text -whitespace
 third-party/native-search/licenses/** -text -whitespace
 third-party/runtime/*.txt -text -whitespace
+docs/knip/docs/LICENSE -text -whitespace
+docs/knip/docs/licenses/** -text -whitespace
 third-party/inventory.json linguist-generated=true
 
 # 手机远控冻结快照按字节保存（specs/mobile-web-remote.md §33.11 产物一致性；
@@ -22,3 +27,6 @@ packages/mobile-web/public/** -text -whitespace
 packages/zcode-cua-helper/runtime/** -text -whitespace
 packages/zcode-cua-helper/native/*.node -text -whitespace
 packages/zcode-cua/upstream/** -text -whitespace
+
+# Gen UI runtime/vendor/license 由 manifest 钉住 SHA256；Windows autocrlf 不能改写发行字节。
+apps/drora-cli/packages/visualize-plugin/skills/visualize/assets/** -text -whitespace

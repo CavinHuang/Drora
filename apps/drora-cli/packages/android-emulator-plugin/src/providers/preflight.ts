@@ -8,7 +8,7 @@ import {
   androidSystemImageVariant,
   javaMajorVersion,
 } from "./config.js";
-import { listDevices } from "./device.js";
+import { type Device, listDevices } from "./device.js";
 import { discover } from "./project.js";
 import { androidEnv, checkTool, findTool, javaHome, sdkRoot } from "./sdk.js";
 
@@ -27,12 +27,7 @@ const READY_TARGET_OPTIONAL_CHECKS = new Set([
   "Emulator acceleration",
 ]);
 
-export function preflightOk(
-  checks: Check[],
-  input: {
-    hasReadyTarget: boolean;
-  },
-): boolean {
+export function preflightOk(checks: Check[], input: { hasReadyTarget: boolean }): boolean {
   return checks.every(
     (item) =>
       item.ok ||
@@ -49,6 +44,7 @@ export async function preflight() {
     detail: process.platform,
     fix: "Run this plugin on macOS or Windows for the desktop Android Emulator workflow.",
   });
+
   const root = await sdkRoot();
   checks.push({
     name: "Android SDK root",
@@ -66,13 +62,13 @@ export async function preflight() {
       `jdkMajor=${javaMajorVersion()}`,
     ].join("\n"),
   });
-  // 工具检查表内联在 for...of（官方 android 出源形态，无具名局部变量）。
+
   for (const item of [
     ["adb", ["version"]],
     ["emulator", ["-version"]],
     ["sdkmanager", ["--version"]],
     ["avdmanager", ["list", "avd"]],
-  ] as [string, string[]][]) {
+  ] as const) {
     const check = await checkTool(item[0], [...item[1]]);
     checks.push({
       name: item[0],
@@ -81,6 +77,7 @@ export async function preflight() {
       fix: `Install Android SDK ${item[0]} support with Android Studio SDK Manager or command-line tools.`,
     });
   }
+
   const env = await androidEnv();
   const home = await javaHome();
   const javaCmd = home
@@ -95,6 +92,7 @@ export async function preflight() {
       : brief(java, 1000) || "not found",
     fix: "Install a JDK compatible with the Android Gradle Plugin.",
   });
+
   const project = await discover().catch(() => undefined);
   const gradle = await findTool("gradle");
   checks.push({
@@ -107,6 +105,7 @@ export async function preflight() {
         : "not found",
     fix: "Install Gradle or generate a Gradle wrapper in the Android project root.",
   });
+
   const emulator = await findTool("emulator");
   if (process.platform === "win32" && emulator) {
     const accel = await run([emulator, "-accel-check"], { timeout: 10_000, env });
@@ -117,6 +116,7 @@ export async function preflight() {
       fix: "Enable CPU virtualization/WHPX or finish Android Emulator driver setup in Android Studio Device Manager.",
     });
   }
+
   const avds = await listAvds().catch((err) => err);
   checks.push({
     name: "Android Virtual Devices",
@@ -128,6 +128,7 @@ export async function preflight() {
       "Create an emulator in Android Studio Device Manager or call android_create_avd " +
       "only when no ready USB device target is available.",
   });
+
   const devices = await listDevices().catch((err) => err);
   const hasReadyTarget = readyDevices(devices).length > 0;
   checks.push({
@@ -138,6 +139,7 @@ export async function preflight() {
       : String(devices),
     fix: "Start an Android Emulator or connect a device with USB debugging enabled.",
   });
+
   return {
     ok: preflightOk(checks, { hasReadyTarget }),
     backend: "sdk",
@@ -145,6 +147,6 @@ export async function preflight() {
   };
 }
 
-function readyDevices(value: unknown): { state: string }[] {
+function readyDevices(value: Device[] | unknown): Device[] {
   return Array.isArray(value) ? value.filter((item) => item.state === "device") : [];
 }

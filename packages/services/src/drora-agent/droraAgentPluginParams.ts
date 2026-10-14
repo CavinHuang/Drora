@@ -1,9 +1,10 @@
 import type {
+  ModelSelection,
   DroraAgentMcpServer,
   DroraAutomationScheduleRule,
   DroraMcpListMode,
-  ModelSelection,
 } from "@drora/shared";
+import type { McpAppsAppToolCallResult, McpAppsAppToolDescriptor } from "@drora/shared/mcp-apps";
 
 export interface DroraAgentWorkspaceTarget {
   workspacePath: string;
@@ -106,6 +107,73 @@ export interface DroraAgentPluginReferenceCatalogParams extends DroraAgentWorksp
 // resident Session runtime 快照；不参与 Settings 管理目录。
 export interface DroraAgentSkillReferenceCatalogParams extends DroraAgentWorkspaceTarget {
   sessionId?: string;
+}
+
+/** 插件 UI：UI 发起的 `ui://` 资源读取。 */
+export interface DroraAgentReadMcpResourceParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  uri: string;
+}
+
+/** 插件 UI 页面发起的 `resources/read`；参数与 readMcpResource 同形，结果受 8 MiB 与 mimeType 白名单约束。 */
+export type DroraAgentReadMcpResourceForUiParams = DroraAgentReadMcpResourceParams;
+
+/** 插件 UI：UI 回调本插件工具；不进审批流，归属由 agent 侧 catalog fail closed。 */
+export interface DroraAgentCallMcpToolForUiParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  toolName: string;
+  arguments?: Record<string, unknown>;
+  /** 宿主生成的调用 id，配合 cancelMcpToolCallForUi。 */
+  callId: string;
+}
+/** 插件 UI 页面发起的 resources/list、resources/templates/list、subscribe、unsubscribe。 */
+export interface DroraAgentListMcpResourcesForUiParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  cursor?: string;
+}
+/** App-Provided Tools：实例身份 = 会话 + 沙箱作用域 + 代际。 */
+export interface DroraAgentAppToolInstanceForUiParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  scopeId: string;
+  generation: number;
+}
+export interface DroraAgentRegisterAppToolsForUiParams extends DroraAgentAppToolInstanceForUiParams {
+  tools: McpAppsAppToolDescriptor[];
+}
+export interface DroraAgentAppToolCallForUiParams extends DroraAgentAppToolInstanceForUiParams {
+  callId: string;
+}
+export interface DroraAgentResolveAppToolCallForUiParams extends DroraAgentAppToolCallForUiParams {
+  result?: McpAppsAppToolCallResult;
+  error?: { message: string };
+}
+export interface DroraAgentMcpResourceSubscriptionForUiParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  scopeId: string;
+  generation: number;
+  uri: string;
+}
+export interface DroraAgentCancelMcpToolCallForUiParams extends DroraAgentWorkspaceTarget {
+  instance: import("@drora/shared/mcp-apps").McpAppInstance;
+  sessionId: string;
+  pluginId: string;
+  serverName: string;
+  callId: string;
 }
 export interface DroraAgentResolveSuggestedPluginReferenceParams extends DroraAgentWorkspaceTarget {
   stableId: string;

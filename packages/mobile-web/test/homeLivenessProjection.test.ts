@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
-import type { ProjectedWorkspace } from "../src/app/entry.js";
-import { projectHomeWorkspacesWithLiveness } from "../src/app/useHomeSessionsIndex.js";
+import type { ProjectedWorkspace } from "../legacy-v3.14.3/app/entry.js";
+import { projectHomeWorkspacesWithLiveness } from "../legacy-v3.14.3/app/useHomeSessionsIndex.js";
 
 test("双视口共用的活性投影更新运行态并保留工作区身份", () => {
   const workspace: ProjectedWorkspace = {

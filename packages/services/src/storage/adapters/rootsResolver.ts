@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import type { RootsResolverPort } from "../app/ports.js";
 import type { StorageRootSpec } from "@drora/shared";
 
-const DRORA_DATA_DIR_NAME = ".drora";
+export const DRORA_DATA_DIR_NAME = ".drora";
 
 export function resolveStorageRoots(params: {
   homeDir: string;

@@ -1,8 +1,7 @@
 import { spawn as spawnChild } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
 import { brief, ok, run } from "../lib/run.js";
 import { androidSystemImagePackage } from "./config.js";
-import { type Device, isBootComplete, listDevices, pickDevice, validSerial } from "./device.js";
+import { isBootComplete, listDevices, pickDevice, validSerial, type Device } from "./device.js";
 import { androidEnv, requireTool } from "./sdk.js";
 
 type Avd = {
@@ -66,7 +65,9 @@ export async function startEmulator(input: StartInput = {}): Promise<StartResult
   const env = await androidEnv();
   const child = spawnChild(emulator, ["-avd", avd.name], {
     env: Object.fromEntries(
-      Object.entries({ ...process.env, ...env }).filter((item) => typeof item[1] === "string"),
+      Object.entries({ ...process.env, ...env }).filter(
+        (item): item is [string, string] => typeof item[1] === "string",
+      ),
     ),
     shell: false,
     stdio: "ignore",
@@ -88,12 +89,9 @@ export async function stopEmulator(input: { serial: string }) {
   return { stopped: true, serial: input.serial };
 }
 
-export async function createAvd(input: {
-  name?: string;
-  packageId?: string;
-  device?: string;
-  force?: boolean;
-} = {}) {
+export async function createAvd(
+  input: { name?: string; packageId?: string; device?: string; force?: boolean } = {},
+) {
   const name = cleanAvd(input.name || process.env.ANDROID_PLUGIN_DEFAULT_AVD || "medium_phone");
   const pkg = input.packageId || defaultSystemImage();
   const avdmanager = await requireTool("avdmanager");
@@ -114,7 +112,7 @@ export async function createAvd(input: {
   };
 }
 
-async function pickAvd(name: string | undefined): Promise<Avd> {
+async function pickAvd(name?: string): Promise<Avd> {
   if (name && !AVD.test(name)) throw new Error(`Invalid Android AVD name: ${name}`);
   const avds = await listAvds();
   const want = name || process.env.ANDROID_PLUGIN_DEFAULT_AVD;
@@ -205,7 +203,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function waitForSpawn(child: ChildProcess): Promise<void> {
+function waitForSpawn(child: ReturnType<typeof spawnChild>): Promise<void> {
   return new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("spawn", resolve);

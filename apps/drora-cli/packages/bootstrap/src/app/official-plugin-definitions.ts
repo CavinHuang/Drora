@@ -18,7 +18,7 @@ export interface OfficialPluginListingSeed {
   examplePrompts_i18n?: Record<string, string[]>;
 }
 
-const OFFICIAL_BROWSER_USE_PLUGIN_NAME = "browser-use";
+export const OFFICIAL_BROWSER_USE_PLUGIN_NAME = "browser-use";
 export const OFFICIAL_BROWSER_USE_PLUGIN_ID = `${OFFICIAL_BROWSER_USE_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
 /**
  * node_repl 宿主。它不是面向用户的插件：没有 skill、没有 listing、不进市场，唯一职责是
@@ -31,7 +31,7 @@ export const OFFICIAL_BROWSER_USE_PLUGIN_ID = `${OFFICIAL_BROWSER_USE_PLUGIN_NAM
  */
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME = "node-repl-host";
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_ID = `${OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
-const OFFICIAL_CUA_PLUGIN_NAME = "computer-use";
+export const OFFICIAL_CUA_PLUGIN_NAME = "computer-use";
 export const OFFICIAL_CUA_PLUGIN_ID = `${OFFICIAL_CUA_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
 
 export interface OfficialPluginDefinition {
@@ -57,7 +57,7 @@ export interface OfficialPluginDefinition {
 const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
+export const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
 
 export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
   "docs/api.json",
@@ -71,10 +71,9 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
   "skills/web-gui-tester/SKILL.md",
 ] as const;
 
-const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  // 与原版发行物对齐（第三十八轮基线 0.6.3，官方桌面 3.14.3 内置）：插件不再自带 MCP
-  // server bundle，改由共享 node_repl host 执行 scripts/computer-use-client.mjs SDK 桥。
-  // skill / 按需文档 / client 三者缺一即装出引导必失败的残缺插件，必须在 seed 阶段就报错。
+export const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
+  // 官方 manifest 声明了 skills；漏校验正文会让 filesystem/SEA 缓存静默丢失电脑控制指导。
+  // 与官方 requiredSeedPaths 和 Desktop staging 保持一致，冻结 0.6.3 SDK 也包含此 Skill。
   "skills/computer-use/SKILL.md",
   "docs/computer-use.md",
   "scripts/computer-use-client.mjs",
@@ -84,19 +83,59 @@ const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
   "node_modules/sharp/package.json",
 ] as const;
 
-// drora-guide 官方 0.3.0 形态不再携带 dynamic-workflows 技能与 /workflow 命令（官方已
-// 将该技能移入 bundled-skills 随 CLI 分发）；此处钉住 0.3.0 实际载荷的六个诊断技能正文，
-// seed 丢文件时立即报错，而不是静默装出没有诊断技能的插件。
-const OFFICIAL_DRORA_GUIDE_REQUIRED_SEED_PATHS = [
-  "skills/diagnosing-commands/SKILL.md",
-  "skills/diagnosing-hooks/SKILL.md",
-  "skills/diagnosing-mcp/SKILL.md",
-  "skills/diagnosing-plugins/SKILL.md",
-  "skills/diagnosing-skills/SKILL.md",
+// 修复原因（2026-08-24）：drora-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
+// 残缺插件而没有任何诊断。0.3.0 起 `/workflow` 与 dynamic-workflows 技能不再随本插件发布
+// （命令编进 CLI，技能进 packages/bundled-skills，见 docs/dynamic-workflow/authoring.md），
+// 这里钉住的是配置指南技能正文。
+export const OFFICIAL_DRORA_GUIDE_REQUIRED_SEED_PATHS = [
   "skills/drora-configuration-guide/SKILL.md",
 ] as const;
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
+  {
+    defaultEnabled: true,
+    listing: {
+      author: ZAI_AUTHOR,
+      category: "productivity",
+      displayName: "Visualize",
+      displayName_i18n: { "zh-CN": "交互视图" },
+      description_i18n: { "zh-CN": "在对话中创建交互图表、解释和设计预览。" },
+    },
+    name: "visualize",
+    requiredSeedPaths: [
+      "skills/visualize/SKILL.md",
+      "skills/visualize/references/api.md",
+      "skills/visualize/references/styles.md",
+      "skills/visualize/tweak.md",
+      "skills/visualize/LICENSE.md",
+      "skills/visualize/scripts/render.py",
+      "skills/visualize/assets/visualize.css",
+      "skills/visualize/assets/visualize.html",
+      "skills/visualize/assets/calendar.js",
+      "skills/visualize/assets/runtime-manifest.json",
+      "skills/visualize/scripts/vendor.py",
+      "skills/visualize/assets/vendor/manifest.json",
+      "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js",
+      "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE",
+      "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js",
+      "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE",
+      "skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE",
+      "skills/visualize/assets/vendor/d3-7.9.0.min.js",
+      "skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE",
+      "skills/visualize/widgets/calendar.md",
+      "skills/visualize/examples/calendar.html",
+      "skills/visualize/assets/standalone-host-bridge.js",
+      "skills/visualize/assets/standalone-shell.js",
+    ],
+    rootCandidates: [
+      "packages/visualize-plugin",
+      "../visualize-plugin",
+      "../../visualize-plugin",
+      "../../../visualize-plugin",
+    ],
+    version: "0.1.0",
+  },
   {
     // 无 listing：宿主不进市场、不对用户露出。它必须始终可用，因为 node_repl 的注册门禁
     // 是「Browser Use 或 Computer Use 任一启用」，宿主自己不参与那个判断。
@@ -113,7 +152,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../node-repl-host",
       "../../../node-repl-host",
     ],
-    version: "0.6.0",
+    version: "0.6.1",
   },
   {
     listing: {
@@ -200,7 +239,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         `../../${name}-plugin`,
         `../../../${name}-plugin`,
       ],
-      version: "0.1.7",
+      version: "0.1.8",
     }),
   ),
   {
@@ -397,7 +436,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         "zh-CN": "自动化桌面应用：智能体驱动鼠标、键盘与界面元素，代你完成实际任务。",
       },
       // 插件更名为 computer-use 后，CDN 图标仍发布在 drora-cua 目录；沿用资源路径避免 404。
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/drora-cua/icon.png`,
+      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/zcode-cua/icon.png`,
     },
     rootCandidates: [
       "packages/zcode-cua-plugin",
@@ -406,15 +445,12 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../zcode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // 原版 0.6.3 发行物自带 seed 级 native 依赖（sharp/koffi/semver/detect-libc），
-    // node_repl 宿主 bundle externalize sharp 后按插件自身 node_modules 解析；
-    // 不随包 seed 的话 SDK 首次调用即 MODULE_NOT_FOUND。node_modules 顶层默认被
-    // seed 走向排除，必须显式声明才会进入 bundled plugin 包。
+    // Bug 根因：迁移 node_repl 时把旧 MCP launcher 与 SDK 仍需的 Sharp runtime 一并裁掉了。
+    // Dev/desktop 会把最小 Sharp 闭包 stage 到这里；官方 cache 必须继续携带 node_modules，
+    // 否则 seed 原子替换后首次截图才会报 Cannot find module 'sharp'。
     runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 drora-cua runtime 版本，使插件 UI 展示、缓存路径、
-    // marketplace 条目都对齐。0.6.3（2026-09-25）：对齐原版发行物当前形态——
-    // 0.6.x 起 CUA 包是 SDK+skill 包（client/docs 由 shared node_repl 宿主消费），
-    // 执行面在 node-repl-host；宿主库 runtime 仍由本仓 @drora/zcode-cua 提供。
+    // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
     version: "0.6.3",
   },
 ];

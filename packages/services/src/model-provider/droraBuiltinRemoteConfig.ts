@@ -1,7 +1,7 @@
 import { downloadDroraBuiltinRelease, type DroraBuiltinRelease } from "@drora/provider-node";
 import type { ApiClient } from "@drora/shared";
 
-interface FetchDroraBuiltinRemoteReleaseOptions {
+export interface FetchDroraBuiltinRemoteReleaseOptions {
   readonly apiClient: ApiClient;
   readonly endpointOrigin: string;
   readonly appVersion: string;

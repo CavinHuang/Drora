@@ -10,6 +10,10 @@ import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js"
 
 export function createWebPlatform(): IPlatformService {
   return {
+    startWebRemoteControl: () => Promise.reject(new Error("Web remote control can only be started from desktop")),
+    refreshWebRemoteControlPairing: () => Promise.reject(new Error("Web remote control pairing can only be refreshed from desktop")),
+    stopWebRemoteControl: () => Promise.resolve(),
+    getWebRemoteControlStatus: () => Promise.resolve({ status: "idle" as const }),
     canSelectFilePath: false,
     // Web 端无法打开系统目录选择框
     selectDirectory: () => Promise.resolve(null),

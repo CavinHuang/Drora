@@ -14,7 +14,7 @@ import {
   loadHomeOrganizePreferences,
   parseHomeOrganizePreferences,
   type HomeOrganizeTask,
-} from "../src/ui/OrganizeMenu.js";
+} from "../legacy-v3.14.3/ui/OrganizeMenu.js";
 
 /** 本地时区构造（月份 1 基），缺省正午避开夏令时切沿（同 timeBuckets.test.ts）。 */
 const at = (year: number, month: number, day: number, hour = 12): number =>

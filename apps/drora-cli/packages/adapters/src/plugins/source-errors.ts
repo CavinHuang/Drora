@@ -1,9 +1,5 @@
 import type { PluginDiagnosticCode } from "@drora/contracts";
 
-/**
- * 导出供错误重建场景复用：claude 市场 30s 刷新超时需保留原诊断码、只替换文案，
- * 保证 refresh failure 持久化的分类不丢（对齐原版 Sre/wre 的超时包装）。
- */
 export class PluginSourceMaterializationError extends Error {
   readonly diagnosticCode: PluginDiagnosticCode;
 
@@ -38,7 +34,7 @@ export function createArchiveFetchError(source: string, cause: unknown): Error {
  * source materialization 错误现在会被持久化并投影到桌面/Web UI，不能把 URL
  * userinfo 带入状态文件、日志或截图。凭据只在诊断生成边界清理，所有消费者共享同一规则。
  */
-function redactPluginSource(source: string): string {
+export function redactPluginSource(source: string): string {
   const trimmed = source.trim();
   try {
     const url = new URL(trimmed);
@@ -53,7 +49,9 @@ function redactPluginSource(source: string): string {
 
 function redactPluginDiagnosticText(text: string): string {
   return text
-    .replace(/\b[a-z][a-z\d+.-]*:\/\/[^\s"'<>()[\]{}]+/giu, (source) => redactPluginSource(source))
+    .replace(/\b[a-z][a-z\d+.-]*:\/\/[^\s"'<>()[\]{}]+/giu, (source) =>
+      redactPluginSource(source),
+    )
     .replace(/\b[^\s:@]+:[^\s@]+@[^\s]+/gu, "configured Git source");
 }
 

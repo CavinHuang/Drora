@@ -44,7 +44,7 @@ There are two ways to work with configuration in the Drora client, and this plug
 - **Workspace scope**: `<repo>/AGENTS.md`. Use this for repository-specific rules that should be shared with the project, such as architecture boundaries, logging rules, testing requirements, and commit/MR policy.
 - **Resolution**: Drora searches for the workspace `AGENTS.md` from the current working directory upward until the detected project root. The user default file is resolved from the user's home directory.
 - **Merge order**: when both files exist, Drora injects `~/.drora/AGENTS.md` first, then the resolved workspace `AGENTS.md`. Workspace instructions appear later, so they can narrow or override broad user defaults for that repository.
-- **Migration and creation**: onboarding can copy Claude user memory from `~/.claude/CLAUDE.md` into `~/.drora/AGENTS.md`. The built-in `/init` command targets the current workspace `AGENTS.md`, creating or updating repository instructions instead of editing the user default file.
+- **Migration and creation**: onboarding can copy existing user memory from `~/.claude/CLAUDE.md` into `~/.drora/AGENTS.md`. The built-in `/init` command targets the current workspace `AGENTS.md`, creating or updating repository instructions instead of editing the user default file.
 
 ## Skills and commands: discovery order (identical)
 
@@ -83,7 +83,7 @@ Within a level, `.drora` is scanned before `.agents`. A deeper working-directory
 
 - Personal, used across projects → user scope (`~/.drora/...` or `~/.agents/...`).
 - Team- or project-shared, versioned with the repository → workspace scope (`<repo>/.drora/...` or `.agents/...`).
-- Shared across tools (Claude, Codex, Cursor) → put skills in `~/.agents/skills/`; to override a same-named skill only inside Drora, use `.drora/skills/`.
+- Shared with other coding agents that read `~/.agents/skills/` → put skills there; to override a same-named skill only inside Drora, use `.drora/skills/`.
 - Personal default instructions → `~/.drora/AGENTS.md`; repository-specific instructions → `<repo>/AGENTS.md`. If both exist, keep broad preferences in the user file and project rules in the workspace file.
 - MCP servers → user configuration for personal servers, or workspace configuration to share with a team; both scopes connect automatically. Because opening a project now auto-connects the MCP servers declared in its configuration, only open workspaces you trust.
 - Secrets → never commit them to version control; use environment variables or local settings.

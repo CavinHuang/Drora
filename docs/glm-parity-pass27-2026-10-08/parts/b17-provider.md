@@ -31,7 +31,7 @@
 - 我方 `packages/provider/src/config/model-config.ts:415-419` 按 `baseUrlMatch` 匹配 provider 的 `api.baseUrl`；
 - 我方目录内 providerRules 的 start/off-peak baseUrl 仍是 `https://zcode.z.ai/api/v1/zcode-plan|off-peak/anthropic`（与真值逐字节相同）；
 - ⇒ 这 3 条站点规则在我方**永不命中**：start-plan/off-peak 的 GLM 模型丢失图片/视频输入声明与 native web search 能力位（回落 modelRules[0] 的 `supportsImage:false` 默认）；`supportsNativeWebSearch` 缺 true 后，WebSearch 原生工具在 anthropic 路径会抛 InvalidModelRequest（`apps/drora-cli/packages/adapters/src/model/tool-transform.ts:258-262`）。
-- 判定：**REAL-GAP P1**（目录被半截改品牌：域名替换只做了匹配正则、没改 providerRules 的真实 baseUrl，二者自相矛盾）。drora.z.ai 在真值 bundle 中不存在；我方仓内也没有任何其他 drora.z.ai 引用。
+- 判定：**REAL-GAP P1**（目录被半截改品牌：域名替换只做了匹配正则、没改 providerRules 的真实 baseUrl，二者自相矛盾）。zcode.z.ai 在真值 bundle 中不存在；我方仓内也没有任何其他 zcode.z.ai 引用。
 
 其余目录字段（providerId/模板清单/api.type/baseUrl/builtinModelIds/optionSpecs DSL/manual 规则 schema）逐字段一致：
 - 8 个 provider：zai individual/team/start、bigmodel individual/team/start、zai/bigmodel off-peak（hidden）；start/off-peak baseUrl 指 zcode.z.ai 代理，individual/team 直连官方端点。
@@ -114,7 +114,7 @@
 | # | 分类 | 等级 | 项 | 证据 |
 | --- | --- | --- | --- | --- |
 | G1 | REAL-GAP | **P1** | ClientRequestSigningV4 全链缺失：handshake `/api/paas/c1f3a7e2/v2/client`、get_sign_key、ed25519+HKDF、PoW(8bit)、七头、feature gate `/api/v1/agent/configs`、bypass/重试 2 次、共享 key cache、按 provider/access/domain 的判定面 | truth@846500-857000, 3711997, 3718900, 843500；我方 grep 全 0 |
-| G2 | REAL-GAP | **P1** | 内置目录 siteRules[28][35][36] baseUrlMatch 被改 `zcode.z.ai`→`drora.z.ai`，与 providerRules 真实 baseUrl（zcode.z.ai）失配 ⇒ start/off-peak 丢 inputFormat 图片/视频与 supportsNativeWebSearch | 目录 diff（§1）；我方 model-config.ts:417；tool-transform.ts:258 |
+| G2 | REAL-GAP | **P1** | 内置目录 siteRules[28][35][36] baseUrlMatch 被改 `zcode.z.ai`→`zcode.z.ai`，与 providerRules 真实 baseUrl（zcode.z.ai）失配 ⇒ start/off-peak 丢 inputFormat 图片/视频与 supportsNativeWebSearch | 目录 diff（§1）；我方 model-config.ts:417；tool-transform.ts:258 |
 | G3 | REAL-GAP | P2 | endpointRoutingPort 动态端点路由（服务端 proxyEndpoint mapping）缺失 | truth@3709296, 4064700, 14094400 |
 | G4 | REAL-GAP | P3 | anthropic 兼容层缺 restoreMemorySelectorMessageBoundaries（selected_memories 记忆前缀拆分） | truth@3701200 区；我方 anthropic-stream-compat.ts |
 | G5 | REAL-GAP | P3 | custom:/ghost: 供应商标识与 telemetry supplier 归因缺失 | truth@959000-961500, CUSTOM_MODEL_VALUE_PREFIX @1002700 区 |
@@ -130,6 +130,6 @@
 
 1. **Q1（挂 G1）**：签名 feature gate（/api/v1/agent/configs 的 codingPlanSignature）当前线上是否已开启？若开启，我方 coding-plan 请求现网应已被拒（3007）；若未开启，G1 是"定时炸弹"而非现行故障。需运行时取证。
 2. **Q2（挂 E1）**：zcode.z.ai 网关是否真实存在 `/api/v1/ultra/anthropic/v1/messages`、`/api/v1/ultra-zai/anthropic/v1/messages` 路由（Drora 平台新增），还是我方单方面假设？真值 0.16.9 客户端直连官方端点，无法从 bundle 证实服务端路由。
-3. **Q3（挂 G2）**：`drora.z.ai` 是否为规划的独立代理域名（未来 DNS/网关上线后 siteRules 才生效）？若是，providerRules baseUrl 也应同步改，现在处于半截状态。
+3. **Q3（挂 G2）**：`zcode.z.ai` 是否为规划的独立代理域名（未来 DNS/网关上线后 siteRules 才生效）？若是，providerRules baseUrl 也应同步改，现在处于半截状态。
 4. **Q4**：truth 内置目录远端刷新协议（Built-in 刷新 reporter，truth@1067400 区；我方 drora-builtin-remote-synchronizer 的 fetchRelease）的 URL、revision 协商与缓存失效细节本次未逐字节对拍，待下一批。
 5. **Q5**：truth `speed`/`inferenceGeo` providerOptions 的上游赋值面（builtin 目录 speed×17 仅在 modelMatch/DSL 命中名）我方已同源；但 truth 3470300 schema 中 `mcpServers`（type:"url"+authorizationToken）的调用方装配是否存在于核心层，未完整追迹（SDK 区间外无命中，倾向休眠，与 §6 同判）。

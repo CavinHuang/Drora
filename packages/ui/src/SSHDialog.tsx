@@ -152,10 +152,9 @@ export function RemoteConnectionDialog({
     preferredKind,
     preferredWslDistro,
   });
-  const directoryBrowserSession = useRemoteWorkspaceSessionStore((state) =>
-    connectedSessionId ? (state.sessionsById[connectedSessionId] ?? null) : null,
+  const directoryBrowserServices = useRemoteWorkspaceSessionStore((state) =>
+    connectedSessionId ? (state.sessionsById[connectedSessionId]?.services ?? null) : null,
   );
-  const directoryBrowserServices = directoryBrowserSession?.services ?? null;
   const baseServices = useBaseWorkspaceServices();
   const flowSnapshot = useMemo(
     () => ({
@@ -303,13 +302,6 @@ export function RemoteConnectionDialog({
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
       trace.complete({ resultSource: "platform_result" });
-      // 对齐官方 server 表单文案语义："默认目录"非空时连接成功后直接打开该目录，
-      // 跳过目录浏览；打开失败（目录不存在等）停留在目录步骤并展示错误，允许手动重选。
-      const presetWorkspacePath =
-        nextTarget.kind === "server" ? nextTarget.workspacePath?.trim() : undefined;
-      if (presetWorkspacePath) {
-        await selectRemoteDirectory(sessionId, presetWorkspacePath);
-      }
     } catch (connectError) {
       const completionState = getRemoteConnectionCompletionDialogState("error");
       const errorMessage = getErrorMessage(connectError);
@@ -387,9 +379,9 @@ export function RemoteConnectionDialog({
     }
   }, [connectedSessionId, onCancelSession, updateConnectingRequestId]);
 
-  const selectRemoteDirectory = useCallback(
-    async (sessionId: string, path: string) => {
-      if (selectingDirectoryRef.current) {
+  const handleSelectDirectory = useCallback(
+    async (path: string) => {
+      if (!connectedSessionId || selectingDirectoryRef.current) {
         return;
       }
 
@@ -399,7 +391,7 @@ export function RemoteConnectionDialog({
       setSelectingDirectory(true);
       resetFeedback();
       try {
-        await onSelectProject(sessionId, path, localWorkspacePath);
+        await onSelectProject(connectedSessionId, path, localWorkspacePath);
         resetConnectionLogs();
         setCurrentStep("kind");
         setConnectedSessionId(null);
@@ -408,10 +400,10 @@ export function RemoteConnectionDialog({
         applyOpenState(false);
       } catch (selectionError) {
         const failureState = getRemoteConnectionDirectoryFailureState({
-          connectedSessionId: sessionId,
+          connectedSessionId,
           // 事件处理器只在失败时读取一次最新 snapshot，避免为了回调判断新增重复 Zustand 订阅。
           sessionStillRegistered: Boolean(
-            useRemoteWorkspaceSessionStore.getState().sessionsById[sessionId],
+            useRemoteWorkspaceSessionStore.getState().sessionsById[connectedSessionId],
           ),
         });
         if (!failureState.connectedSessionId) {
@@ -425,23 +417,12 @@ export function RemoteConnectionDialog({
       }
     },
     [
+      connectedSessionId,
       localWorkspacePath,
       onSelectProject,
       resetDirectorySelectionState,
-      resetFeedback,
-      resetConnectionLogs,
       updateConnectingRequestId,
     ],
-  );
-
-  const handleSelectDirectory = useCallback(
-    async (path: string) => {
-      if (!connectedSessionId) {
-        return;
-      }
-      await selectRemoteDirectory(connectedSessionId, path);
-    },
-    [connectedSessionId, selectRemoteDirectory],
   );
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -557,12 +538,12 @@ export function RemoteConnectionDialog({
                     wslDistros={wslDistros}
                     dockerContainer={dockerContainer}
                     manualDockerContainer={manualDockerContainer}
-                    dockerContainers={dockerContainers}
-                    dockerAvailable={dockerAvailable}
                     serverUrl={serverUrl}
                     serverName={serverName}
                     serverToken={serverToken}
                     serverWorkspacePath={serverWorkspacePath}
+                    dockerContainers={dockerContainers}
+                    dockerAvailable={dockerAvailable}
                     sshConfigAliases={sshConfigAliases}
                     sshConfigAliasesLoading={sshConfigAliasesLoading}
                     sshConfigAliasesError={sshConfigAliasesError}
@@ -634,7 +615,6 @@ export function RemoteConnectionDialog({
                     <RemoteConnectionDirectoryStep
                       services={directoryBrowserServices}
                       remoteTarget={pendingRemoteTarget}
-                      serverWorkspaces={directoryBrowserSession?.serverInfo?.workspaces ?? []}
                       localSkillSyncService={baseServices.skillSyncService}
                       remoteSkillSyncService={directoryBrowserServices?.skillSyncService ?? null}
                       localMcpSyncService={baseServices.mcpSyncService}
@@ -642,7 +622,9 @@ export function RemoteConnectionDialog({
                       localPluginSyncService={baseServices.pluginSyncService}
                       remotePluginSyncService={directoryBrowserServices?.pluginSyncService ?? null}
                       localDroraAgentService={baseServices.droraAgentService}
-                      remoteDroraAgentService={directoryBrowserServices?.droraAgentService ?? null}
+                      remoteDroraAgentService={
+                        directoryBrowserServices?.droraAgentService ?? null
+                      }
                       localWorkspacePath={localWorkspacePath}
                       selecting={selectingDirectory}
                       onSelect={(path) => {

@@ -27,14 +27,16 @@ export interface DockerConnectOptions {
 
 export interface ServerConnectOptions {
   kind: "server";
-  /** Server 基地址；支持 http(s) 与 ws(s)。 */
+  /** 已运行的 drora-server HTTP(S)/WS(S) 入口。 */
   url: string;
-  /** Server 访问令牌；只存在于连接流程内，持久化时仅保留 credentialService 键名。 */
-  token?: string;
-  /** 连接显示名称；仅连接流程与窗口标签展示使用，不进入恢复快照。 */
+  /** 用户可读名称，仅用于展示。 */
   name?: string;
-  /** 默认目录；留空时连接成功后再选择 server 上的目录（对齐官方表单语义）。 */
+  /** 临时连接凭据；持久化时必须转成 credential key。 */
+  token?: string;
+  /** 服务端默认工作区路径，可被连接流程中的 workspacePath 覆盖。 */
   workspacePath?: string;
+  /** 远端服务实例稳定标识，用于 workspaceIdentity authority。 */
+  serverId?: string;
 }
 
 export type RemoteTarget =

@@ -9,14 +9,13 @@ export interface DefaultPluginMarketplace {
 
 export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID = "drora-plugins-official";
 
-/** Claude 生态内置市场（anthropics/claude-plugins-official），与官方原版内置清单同名同源补录。
- *  id 与 source 保持上游原名：claude 是第三方品牌，不属于 zcode→drora 改名范围；
- *  原版对该 id 同样按官方保留名保护（isOfficialMarketplaceId 覆盖）。 */
-export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = "claude-plugins-official";
-
-/** 官方 CDN 插件资产基址（市场图标索引 icon-sources.json 与插件图标共用）。 */
-export const OFFICIAL_PLUGIN_ASSETS_BASE_URL =
-  "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
+/**
+ * Claude Code 官方市场（GitHub git 源）。它不是 Drora 的强依赖：GitHub 不可达时刷新必然失败，
+ * 该失败不应作为错误提示打扰用户，UI 侧按此 id 静默处理其刷新失败（任何原因）。
+ */
+export const CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "claude-plugins-official";
+export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID;
+export const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
@@ -33,6 +32,9 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
   "skill-creator@drora-plugins-official",
   "plugin-creator@drora-plugins-official",
   "drora-guide@drora-plugins-official",
+  // visualize（交互视图）随 UI 插件合入时 CLI 定义已标 defaultEnabled，但这里漏加，
+  // Settings 会把它当成默认关闭，与 CLI 实际启用状态不一致。
+  "visualize@drora-plugins-official",
   // 电脑控制回退为默认关闭，故 computer-use 不在此名单内。
   // 该集合必须与 official-plugin-definitions.ts 里标了 defaultEnabled 的插件逐一对应，
   // bootstrap 的「Settings 默认启用集合与 CLI 的官方插件声明一致」单测机械对照两者。
@@ -49,15 +51,12 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
     pluginCount: 0,
   },
   {
-    // 与官方原版内置清单（Bqt）对齐：Claude 生态市场源（GitHub anthropics/
-    // claude-plugins-official）同样随首载自动补录，驱动发现页「Claude Code 插件」分段；
-    // pluginCount 初始 0，首次浏览/安装时经懒刷新拉取真实清单。其插件图标由官方 CDN 的
-    // icon-sources.json 索引补全（adapters 侧 syncClaudePluginsOfficialIcons）。
-    id: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+    id: CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     source: "anthropics/claude-plugins-official",
-    name: CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+    name: CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     description:
       "Directory of popular Claude Code extensions including development tools, productivity plugins, and MCP integrations",
+    // 只内置官方 catalog 来源，不把远端 manifest 快照打包进仓库；首次刷新前数量未知。
     pluginCount: 0,
   },
 ];

@@ -13,7 +13,7 @@ import {
   serializeTaskTimelineBucketLabel,
   taskTimelineBucketMessage,
   type TimelineBucketingRow,
-} from "../src/ui/timeBuckets.js";
+} from "../legacy-v3.14.3/ui/timeBuckets.js";
 
 /** 本地时区构造（月份 1 基），缺省正午避开夏令时切沿。 */
 const at = (year: number, month: number, day: number, hour = 12): number =>

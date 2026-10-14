@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { KnowledgeArticleCandidate } from "@drora/services";
 import { extractQueryTerms } from "@drora/shared";
-import { HighlightedMatchText } from "@/quickpick/HighlightedMatchText.js";
+import { KnowledgeHighlightedText } from "@/v4/vault/knowledge/KnowledgeHighlightedText.js";
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -176,7 +176,7 @@ export function KnowledgeCandidateCard({
         <span className="line-clamp-3 whitespace-pre-wrap text-ui-sm leading-5 text-foreground-subtle">
           {/* 摘录命中高亮是纯展示（spec §5c.3）：excerpt 事实字段与「加入 Agent」
               携带的 candidate.excerpt 原文一律不变，仅渲染层标出命中词元。 */}
-          <HighlightedMatchText text={candidate.excerpt} terms={highlightTerms} />
+          <KnowledgeHighlightedText text={candidate.excerpt} terms={highlightTerms} />
         </span>
       </button>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

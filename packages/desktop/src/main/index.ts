@@ -1,6 +1,8 @@
+import { createDroraRemoteControlDeployment } from "../drora-extensions/remoteControl.js";
+import { createDroraDesktopPetExtension } from "../drora-extensions/desktopPet.js";
+import { createCaptchaSolver } from "./captchaSolverWindow.js";
+import { installRequestSecurityDiagnostics } from "./request-security-edition/index.js";
 import { createLocalTtftExporter } from "./localTtftExporter.js";
-import { registerDesktopPetWindow } from "./desktopPetWindow.js";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
@@ -20,7 +22,6 @@ import {
 } from "./desktopContextPromptRollout.js";
 import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
-import { createCaptchaSolver } from "./captchaSolverWindow.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
 import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
 import {
@@ -43,8 +44,8 @@ import {
   nativeImage,
   net,
   protocol,
-  safeStorage,
   session,
+  safeStorage,
   webContents,
 } from "electron";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
@@ -60,7 +61,6 @@ import {
   createTelemetryAuthorizationLoader,
   buildRuntimeProcessEnvPatch,
   captureLoginShellEnvSnapshot,
-  createTerminalService,
   getConversationWorkspaceDir,
   getDataBaseDir,
   getDroraDataRootDir,
@@ -69,27 +69,25 @@ import {
 } from "@drora/services/node";
 import {
   desktopMenuMessageIds,
-  formatDesktopMenuMessage,
   type Locale,
   type AppSettings,
   PlatformChannels,
   DRORA_ENV,
   DRORA_PRODUCT_FLAVOR,
+  DRORA_AUTO_UPDATE_ENABLED,
   DEFAULT_DRORA_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
+  TEST_DRORA_ENDPOINT_ORIGIN,
   DRORA_VERSION,
-  DRORA_TELEMETRY_ENABLED,
-  DRORA_ARMS_RUM_ENDPOINT,
   buildDroraEndpointUrls,
+  resolveWebRemoteControlRelayWsUrl,
   resolveDroraEndpointOrigin,
   shouldEnableE2ETestBridge,
-  rendererTelemetryEventPayloadSchema,
-  type MobileRelayTransport,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
 } from "@drora/shared";
-import { logger } from "./logger.js";
+import { logger, webRemoteControlRelayLogger } from "./logger.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
@@ -127,6 +125,12 @@ import {
   type ExplicitStartupWorkspaceRequest,
   resolveExplicitStartupWorkspaceBootstrap,
 } from "./startupWorkspaceDeepLinkGate.js";
+import { createWebRemoteControlManager } from "./webRemoteControlManager.js";
+import { createNodeWebRemoteControlRelayAuthProvider } from "./webRemoteControlRelayAuthProvider.js";
+import { createWebRemoteControlRelayAuthStorageProvider } from "./webRemoteControlRelayAuthStorageProvider.js";
+import { createWebRemoteControlFeatureGate } from "./webRemoteControlFeatureGate.js";
+import { reconnectWebRemoteControlWorkspaceInRenderer } from "./webRemoteControlRendererReconnect.js";
+import { sendWebRemoteControlStatusChangedToWindow } from "./webRemoteControlStatusEvents.js";
 import { executeDesktopCommand } from "./desktopCommandHandlers.js";
 import { clampDesktopZoomLevel, resolveDesktopZoomLevelFromFactor } from "./desktopZoom.js";
 import {
@@ -136,11 +140,16 @@ import {
   updateDroraStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
 import { applyAppIcon } from "./desktopWindowChrome.js";
-import { renderDevBadgeIcon } from "./desktopDevBadge.js";
 import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
 import type { DesktopWindowSize } from "./desktopWindowSize.js";
 import { maybeWarnArchitectureMismatch } from "./desktopArchitectureGuard.js";
-import { createWindowsDesktopTray, updateWindowsDesktopTrayMenu } from "./desktopTray.js";
+import { createDesktopTray, updateWindowsDesktopTrayMenu } from "./desktopTray.js";
+import {
+  createCloseToTrayCapabilityMonitor,
+  resolveCloseToTrayBootstrapValue,
+  resolveCloseToTrayRuntimeValue,
+  resolveCloseToTraySupported,
+} from "./desktopTraySupport.js";
 import { createWindowsCuaOperationIndicator } from "./windowsCuaOperationIndicator.js";
 import {
   configureDockMenu,
@@ -204,21 +213,9 @@ import {
   listRegisteredHostAgentProcessIds,
   setBrowserUseGuestWebContentsIdsProvider,
 } from "./resourceManagerWindow.js";
+import { createWebRemoteControlSharedHostAttachments } from "./webRemoteControlSharedHostAttachments.js";
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
-import { createDesktopMobileRelayControl } from "./desktopMobileRelayControl.js";
-import {
-  MobileRelayCredentialStore,
-  OFFICIAL_RELAY_WS_URL,
-  deriveSelfHostedRelayEndpoints,
-} from "./desktopMobileRelayProtocol.js";
-import {
-  LAN_EMBEDDED_RELAY_ORIGIN,
-  buildLanRemotePageUrl,
-  createDesktopMobileLanRelayHost,
-  credentialFileNameForOrigin,
-  resolveCloudRelayOrigin,
-} from "./desktopMobileLanRelayHost.js";
 import {
   loadCliMcpFromUserDirectory,
   migrateLegacyCommonMcp,
@@ -257,6 +254,12 @@ import {
   stopDesktopNetworkTelemetry,
 } from "./desktopNetworkTelemetry.js";
 import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
+import { applyEmbeddedBrowserPermissionPolicy } from "./embeddedBrowserPermissionPolicy.js";
+import { createEmbeddedBrowserSitePermissionStore } from "./embeddedBrowserSitePermissionStore.js";
+import {
+  createEmbeddedBrowserPermissionUiBridge,
+  setActiveEmbeddedBrowserPermissionUiBridge,
+} from "./embeddedBrowserPermissionUiBridge.js";
 import { mapDroraEnvToArmsRumEnv } from "@drora/shared";
 import {
   findWindowsProcessesReferencingResourceMarkers,
@@ -267,8 +270,13 @@ import {
   WINDOWS_UPDATE_LOCK_RELEASE_GRACE_MS,
 } from "./windowsInstallResourceLocks.js";
 import { mainMemoryDiagnosticsRegistry } from "./mainMemoryDiagnostics.js";
+import {
+  PLUGIN_SANDBOX_PRIVILEGED_SCHEME,
+  getPluginSandboxHost,
+  installPluginSandboxHost,
+} from "./pluginSandbox/index.js";
 
-registerLocalMediaPreviewScheme(protocol);
+registerLocalMediaPreviewScheme(protocol, [PLUGIN_SANDBOX_PRIVILEGED_SCHEME]);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
@@ -313,6 +321,14 @@ const linuxDesktopIntegrationIconPath =
     : iconPath;
 let currentApplicationLocale: Locale = DEFAULT_LOCALE;
 let closeToTrayOnWindows = true;
+// CR-01：托盘实例创建结果（模块级，关窗分支读取）。DBus 能力探测通过不等于 Electron
+// Tray 创建成功；隐藏窗口前必须确认最终用户入口真实存在，否则隐藏即失联。
+let desktopTrayReady = false;
+// 关闭驻留托盘能力 monitor（spec：docs/desktop/linux-close-to-tray.md）。
+// Linux 关窗分支是同步回调，只能读缓存；启动后首次探测完成前按"不可用"安全默认。
+const closeToTrayCapabilityMonitor = createCloseToTrayCapabilityMonitor({
+  platform: process.platform,
+});
 // keep-awake：全局开关 keepAwakeWhileRunning。打开后主进程持有
 // powerSaveBlocker("prevent-app-suspension")，阻止系统闲置休眠（防不了合盖/手动睡眠）。
 // 不再绑定闲时任务活跃计数——设置页「常规」与 Automations 入口镜像同一配置。
@@ -466,13 +482,6 @@ const browserGuestManager = new BrowserGuestManager(
   (windowId) => BrowserWindow.fromId(windowId),
 );
 setBrowserUseGuestWebContentsIdsProvider(() => browserGuestManager.listGuestWebContentsIds());
-
-// Start Plan 人机验证采集器：main 隐藏窗口跑阿里云 SDK，惰性建窗、进程退出时销毁
-// （specs/start-plan-captcha-verification.md）。
-const captchaSolver = createCaptchaSolver();
-app.on("will-quit", () => {
-  captchaSolver.dispose();
-});
 
 // browser-use：带诊断日志地执行 browser 命令（两处 spawnHostProcess wiring 共用）。
 // 打入口/出口便于定位卡点（如 navigate loadURL 挂起、CDP 报错等）。
@@ -689,6 +698,9 @@ const disposingHostProcessTimers = new WeakMap<
   ElectronUtilityProcess,
   ReturnType<typeof setTimeout>
 >();
+const webRemoteControlManagerRef = {
+  current: null as ReturnType<typeof createWebRemoteControlManager> | null,
+};
 let updateStatusWindow: BrowserWindow | null = null;
 const UPDATE_STATUS_WINDOW_WIDTH = 512;
 const UPDATE_STATUS_WINDOW_COMPACT_HEIGHT = 205;
@@ -696,7 +708,16 @@ const UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT = 224;
 const UPDATE_STATUS_WINDOW_READY_HEIGHT = UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT - 54;
 const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
-let desktopPetWindow: ReturnType<typeof registerDesktopPetWindow> | null = null;
+const webRemoteControlCredentialService = createCredentialService();
+const captchaSolver = createCaptchaSolver();
+app.on("before-quit", () => captchaSolver.dispose());
+const droraDesktopPet = createDroraDesktopPetExtension({
+  getLocale: () => currentApplicationLocale,
+  isMainWindow: (win) => windowHostProcessMap.has(win.webContents.id),
+  updateSettings: async (patch) => { await mainSettingService.update(patch); },
+  logger,
+});
+app.on("before-quit", () => droraDesktopPet.dispose());
 const appLaunchGate = createAppLaunchGate();
 const appLaunchCoordinator = createAppLaunchCoordinator(appLaunchGate);
 const appTelemetryCredentialService = createCredentialService();
@@ -814,303 +835,16 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
   resolveWslTarget: resolveCanonicalWslTarget,
   reportRemoteConnectionStateChanged: reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnect: reportRemoteDisconnectToArms,
+  webRemoteControlManagerRef,
 });
 
-const deviceMid = ensureDesktopDeviceMidSync();
-// 官方 relay 云中继远控（M4a，spec: mobile-web-remote.md）：复用 z.ai 官方 relay 与
-// 托管手机页（remote/v4），跨网络可用；与 LAN 内嵌传输共用同一控制链（specs/
-// mobile-relay-server.md §12），默认关闭、弹层内显式开启。
-// 凭据持久化：deviceSid+passHash 按 effective origin 路由的 Main 自有单键文件，
-// safeStorage 可用时加密 passHash。
-let mobileRelaySenderWebContentsId: number | null = null;
-// 各窗口最近一次推送的 relay 工作区/任务清单（官方 syncWebRemoteControl* 语义：
-// 无 runtime 时丢弃；这里额外缓存，relay 后启动也能立即拿到全量）。
-const mobileRelaySyncedWorkspaces = new Map<
-  number,
-  import("@drora/shared").MobileRelayWorkspaceSyncEntry[]
->();
-const mobileRelaySyncedTasks = new Map<
-  number,
-  import("@drora/shared").MobileRelayTaskSyncEntry[]
->();
-// §33.18.16 侧板初态投影：各窗口最近一次推送的侧板 tab（手机映射词表）。
-const mobileRelaySyncedSidePane = new Map<
-  number,
-  import("@drora/shared").MobileRelaySidePaneSyncEntry
->();
-
-// —— 内嵌 LAN relay 宿主（§12）：局域网传输=进程内自建 relay-server ——
-const mobileLanRelayHost = createDesktopMobileLanRelayHost({ logger });
-// 应用退出兜底清理（stop 语义见 §12.1；registry 持久保留，端口随机不复用）。
-app.on("will-quit", () => {
-  void mobileLanRelayHost.stop().catch(() => {});
-});
-
-// —— 凭据按端点 origin 隔离（§12.2）：云端（官方/自建）与 LAN 内嵌是不同服务端，
-// sid 命名空间独立，混用必然 AUTH_FAILED。路由键 = 云端 relayWsUrl 的 origin；
-// LAN 内嵌用稳定逻辑 origin（端口随机，registry.json 才是身份域）。旧单文件
-// mobile-relay-device.json 不迁移不删除：首次按新 origin 重新注册，无害。
-const mobileRelayCredentialDir = join(homedir(), ".drora", "v2");
-const mobileRelayCredentialEncryption = safeStorage.isEncryptionAvailable()
-  ? {
-      encrypt: (plain: string) => safeStorage.encryptString(plain).toString("base64"),
-      decrypt: (stored: string) => safeStorage.decryptString(Buffer.from(stored, "base64")),
-    }
-  : undefined;
-const mobileRelayCredentialStoresByOrigin = new Map<string, MobileRelayCredentialStore>();
-function mobileRelayCredentialStoreForOrigin(origin: string): MobileRelayCredentialStore {
-  let store = mobileRelayCredentialStoresByOrigin.get(origin);
-  if (!store) {
-    store = new MobileRelayCredentialStore(
-      mobileRelayCredentialDir,
-      mobileRelayCredentialEncryption,
-      credentialFileNameForOrigin(origin),
-    );
-    mobileRelayCredentialStoresByOrigin.set(origin, store);
-  }
-  return store;
-}
-// 当前会话的凭据路由键：prepareMobileRelayTransport 在每次 control.start 前设置
-//（IPC start / 恢复链路 load 钩子两个入口，control.start 内部才读凭据）。
-let activeRelayCredentialOrigin = LAN_EMBEDDED_RELAY_ORIGIN;
-const mobileRelayCredentialStore = {
-  load: () => mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).load(),
-  save: (credential: { deviceSid: string; passHash: string }) =>
-    mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).save(credential),
-  clear: () => mobileRelayCredentialStoreForOrigin(activeRelayCredentialOrigin).clear(),
-};
-
-// —— 传输准备（§12.1）：每次 control.start 前调用。lan=确保内嵌 relay 已监听并
-// 固定注入端点（桌面客户端走环回、QR 指向手机可达 LAN 地址）；cloud=按设置键/
-// env 解析端点并回填凭据路由键。preparedEndpoints 供 resolveEndpoints 闭包返回。
-let preparedRelayEndpoints: { relayWsUrl: string; remotePageUrl: string } | null = null;
-let activeRelayTransport: MobileRelayTransport | null = null;
-async function prepareMobileRelayTransport(transport: MobileRelayTransport): Promise<void> {
-  activeRelayTransport = transport;
-  if (transport === "lan") {
-    const { port } = await mobileLanRelayHost.ensureStarted();
-    // buildLanRemotePageUrl 挑选手机可达 IPv4（desktopMobileLanRelayHost 迁入逻辑）；
-    // 找不到 LAN 地址直接失败——环回地址对手机不可达，出码必然连不上。
-    const remotePageUrl = buildLanRemotePageUrl({ port });
-    preparedRelayEndpoints = {
-      relayWsUrl: `ws://127.0.0.1:${port}/ws`,
-      remotePageUrl,
-    };
-    activeRelayCredentialOrigin = LAN_EMBEDDED_RELAY_ORIGIN;
-    return;
-  }
-  // 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
-  // relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。
-  // 传输切换（lan→cloud）时同步摘除内嵌服务端：旧二维码不得在无设备附着的
-  // 服务端上永久 waiting。
-  if (mobileLanRelayHost.isRunning()) {
-    await mobileLanRelayHost.stop();
-  }
-  let base = "";
-  try {
-    base = (await mainSettingService.get()).relayServerUrl?.trim() || "";
-  } catch {
-    // 设置服务不可用时回落 env
-  }
-  if (!base) base = process.env.DRORA_RELAY_SERVER_URL?.trim() || "";
-  preparedRelayEndpoints = deriveSelfHostedRelayEndpoints(base);
-  activeRelayCredentialOrigin = resolveCloudRelayOrigin(
-    preparedRelayEndpoints?.relayWsUrl ?? OFFICIAL_RELAY_WS_URL,
-  );
-}
-
-// 自建 relay 服务端覆盖（spec: mobile-relay-server.md §8）：优先级 = 设置键
-// relayServerUrl → env DRORA_RELAY_SERVER_URL → 官方 zcode.z.ai。每次 start 解析
-// 一次，设置变更后重启远控（停止→开启）即生效。
-const mobileRelayControl = createDesktopMobileRelayControl({
+const webRemoteControlAuthProvider = createNodeWebRemoteControlRelayAuthProvider();
+const webRemoteControlSharedHostAttachments = createWebRemoteControlSharedHostAttachments({
+  windowHostProcessMap,
+  attachRemoteWorkspaceSessionHost: remoteSessionManager.attachRemoteWorkspaceSessionHost,
   logger,
-  deviceMid,
-  credentialStore: mobileRelayCredentialStore,
-  // §33.18.22 终端数据面桥接：手机 terminal 通道由 main 层 node-pty 服务承接
-  // （独立实例=手机 PTY 注册表与桌面终端隔离；服务生命周期随 main，不随 relay stop）。
-  terminalService: createTerminalService({ settingService: mainSettingService }),
-  // 端点由 prepareMobileRelayTransport 在 start 前备好（lan=内嵌固定注入）；
-  // 返回 undefined 时控制链回落固定注入值（默认官方）。
-  resolveEndpoints: async () => preparedRelayEndpoints,
-  // 配对/桥结果遥测（对齐官方 reportRemoteUsageEvent 事件族）。
-  reportUsageEvent: (event) => {
-    if (mobileRelaySenderWebContentsId === null) return;
-    reportRemoteUsageEventForRenderer(mobileRelaySenderWebContentsId, event);
-  },
-  // 重启自动恢复上下文（对齐官方 startupRestoreStorageProvider）：start 成功保存、
-  // 手动 stop 清除、renderer 首次推送工作区时经 restorePreviouslyEnabled 恢复。
-  // load 钩子兼作恢复链路的传输准备点（§12.4）：控制链随后的 start→load 凭据与
-  // resolveEndpoints 都依赖 prepare 产出的路由键与端点。
-  startupRestoreStorage: {
-    load: async () => {
-      try {
-        const raw = await readFile(
-          join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
-          "utf8",
-        );
-        const parsed = JSON.parse(raw) as {
-          workspacePath?: string;
-          workspaceIdentity?: string;
-          transport?: MobileRelayTransport;
-        };
-        if (typeof parsed.workspacePath !== "string" || !parsed.workspacePath.trim()) return null;
-        const context = {
-          workspacePath: parsed.workspacePath,
-          ...(typeof parsed.workspaceIdentity === "string" && parsed.workspaceIdentity.trim()
-            ? { workspaceIdentity: parsed.workspaceIdentity }
-            : {}),
-          ...(parsed.transport === "lan" ? { transport: parsed.transport } : {}),
-        };
-        // 旧记录无 transport → cloud（现链路）；lan 记录先拉起内嵌 relay。
-        await prepareMobileRelayTransport(context.transport ?? "cloud");
-        return context;
-      } catch {
-        return null;
-      }
-    },
-    save: async (context) => {
-      await mkdir(join(homedir(), ".drora", "v2"), { recursive: true });
-      await writeFile(
-        join(homedir(), ".drora", "v2", "mobile-relay-restore.json"),
-        `${JSON.stringify(context)}\n`,
-        "utf8",
-      );
-    },
-    clear: async () => {
-      await rm(join(homedir(), ".drora", "v2", "mobile-relay-restore.json"), { force: true });
-    },
-  },
-  // relay 远控同样惰性解析发起窗口的 Host；resolveHostChild 闭包在 start 接线时替换为
-  // 持有 senderWebContentsId 的版本（见 registerPlatformIpcHandlers 装配处）。
-  resolveHostChild: () => {
-    if (mobileRelaySenderWebContentsId === null) return null;
-    return windowHostProcessMap.get(mobileRelaySenderWebContentsId) ?? null;
-  },
-  // 手机页 platform-request 的方法表（对齐官方 8 方法注册表；复用 main IPC 同名实现）。
-  platformHandlers: {
-    isDockerAvailable: () => isDockerDaemonAvailable(),
-    listWSLDistros: () => listAvailableWSLDistros(),
-    listDockerContainers: () => listAvailableDockerContainers(),
-    listSSHConfigAliases: () => listSSHConfigAliases(),
-    createTempTextAttachment: (args) => createTempTextAttachment(args),
-    loadMcpFromUserDirectory: (args) => loadCliMcpFromUserDirectory(args ?? {}),
-    saveMcpToUserDirectory: async (args) => {
-      // 对齐官方：MCP 保存失败折叠为 {success:false,error} 结果帧而不是错误。
-      try {
-        await saveCliMcpToUserDirectory(args);
-        return { success: true };
-      } catch (error) {
-        logger.warn(
-          "[web-remote-control] MCP save failed",
-          error instanceof Error ? error.message : String(error),
-        );
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    },
-    migrateLegacyCommonMcp: (args) => migrateLegacyCommonMcp(args ?? {}),
-  },
-  // 手机遥测事件并入桌面遥测汇（对齐官方 reportRendererTelemetryEvent）。
-  reportPhoneTelemetryEvent: async (event) => {
-    const result = rendererTelemetryEventPayloadSchema.safeParse(event);
-    if (!result.success) return;
-    await appTelemetryCore.reportEvent(result.data);
-  },
-  onStatusChanged: (state) => {
-    if (mobileRelaySenderWebContentsId === null) return;
-    const sender = webContents.fromId(mobileRelaySenderWebContentsId);
-    if (sender && !sender.isDestroyed()) {
-      sender.send(PlatformChannels.MobileRelayStateChanged, state);
-    }
-  },
-  // 远程工作区开桥的 remote-scoped attach（M4c，官方 attachWorkspaceHost 远程分支
-  // index.js@584400 → attachRemoteWorkspaceSessionHost @577400）：按 remoteSessionId
-  // 经 Main 远程连接注册表校验（REMOTE_SESSION_MISSING/OFFLINE/WINDOW_MISMATCH、
-  // REMOTE_WORKSPACE_IDENTITY_MISMATCH，错误码与官方同名）后向窗口 Host 发
-  // scope kind=remote + clientMode=web-remote-replayable 的附着端口。
-  attachRemoteBridgePort: (params) => {
-    const ownerWindow =
-      mobileRelaySenderWebContentsId === null
-        ? undefined
-        : BrowserWindow.getAllWindows().find(
-            (candidate) => candidate.webContents.id === mobileRelaySenderWebContentsId,
-          );
-    if (!ownerWindow) {
-      throw Object.assign(new Error("未找到 relay 远控属主窗口"), {
-        code: "DESKTOP_HOST_MISSING" as const,
-      });
-    }
-    return remoteSessionManager.attachRemoteWorkspaceSessionHost({
-      windowId: ownerWindow.id,
-      remoteSessionId: params.remoteSessionId,
-      workspacePath: params.workspacePath,
-      // 官方 re 校验要求 workspaceKey===workspaceIdentity（identity-first，
-      // chunk-GJUBRD53.js resolveWorkspaceKey 同语义）。
-      workspaceIdentity: params.workspaceIdentity,
-      workspaceKey: params.workspaceIdentity,
-      clientMode: "web-remote-replayable",
-    });
-  },
-  // 手机 workspace-reconnect-request 的重连委托（官方 qb
-  // reconnectWebRemoteControlWorkspaceInRenderer 同款，index.js@409793）：重连事实
-  // （远程历史/target/凭据）归窗口 renderer，main 经 IPC 请求属主窗口重连并等待
-  // 同通道回复（sender + requestId 校验，120s 超时）。
-  reconnectWorkspace: (workspaceKey) => reconnectWebRemoteControlWorkspaceInRenderer(workspaceKey),
 });
-
-/**
- * 手机 workspace-reconnect-request 的重连委托实现（官方 qb 同款逐项对齐）：
- * BrowserWindow 缺失 → "Desktop window is not available for Web remote control
- * reconnect."；请求 id `web-remote-reconnect-<ts>-<rand>`；等 renderer 回
- * {requestId, workspaceKey, success, error?}；120s 超时 → "Web remote control
- * reconnect request timed out."。
- */
-function reconnectWebRemoteControlWorkspaceInRenderer(workspaceKey: string): Promise<void> {
-  const ownerWindow =
-    mobileRelaySenderWebContentsId === null
-      ? undefined
-      : BrowserWindow.getAllWindows().find(
-          (candidate) => candidate.webContents.id === mobileRelaySenderWebContentsId,
-        );
-  if (!ownerWindow || ownerWindow.isDestroyed() || ownerWindow.webContents.isDestroyed()) {
-    throw new Error("Desktop window is not available for Web remote control reconnect.");
-  }
-  const request = {
-    requestId: `web-remote-reconnect-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    workspaceKey,
-  };
-  return new Promise<void>((resolve, reject) => {
-    const handleResult = (event: Electron.IpcMainEvent, payload: unknown) => {
-      // 仅接受属主窗口 renderer 的回复；requestId 匹配（官方 qb 的 sender/schema 过滤）。
-      if (event.sender.id !== ownerWindow.webContents.id) return;
-      const shape = (payload ?? {}) as {
-        requestId?: unknown;
-        success?: unknown;
-        error?: unknown;
-      };
-      if (shape.requestId !== request.requestId) return;
-      dispose();
-      if (shape.success === true) {
-        resolve();
-        return;
-      }
-      reject(new Error(typeof shape.error === "string" ? shape.error : "reconnect failed"));
-    };
-    const dispose = () => {
-      clearTimeout(timer);
-      ipcMain.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handleResult);
-    };
-    const timer = setTimeout(() => {
-      dispose();
-      reject(new Error("Web remote control reconnect request timed out."));
-    }, 120_000);
-    timer.unref?.();
-    ipcMain.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handleResult);
-    ownerWindow.webContents.send(PlatformChannels.WebRemoteControlReconnectWorkspace, request);
-  });
-}
+const deviceMid = ensureDesktopDeviceMidSync();
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
   appVersion: DRORA_VERSION || app.getVersion(),
@@ -1150,12 +884,15 @@ const rendererActionTraceBroker = createRendererActionTraceBroker({
 let disposeRendererActionTraceIpc: (() => void) | undefined;
 const armsUserIdentitySync = createArmsUserIdentitySync({
   deviceMid,
-  // 采集停用时 SDK 未初始化，setConfig 会抛错。
-  setUser:
-    DRORA_TELEMETRY_ENABLED && DRORA_ARMS_RUM_ENDPOINT
-      ? (user) => armsRum.setConfig("user", user)
-      : () => {},
+  setUser: (user) => armsRum.setConfig("user", user),
 });
+const webRemoteControlAppVersion = DRORA_VERSION || app.getVersion();
+const defaultDroraEndpointUrls = buildDroraEndpointUrls(DEFAULT_DRORA_ENDPOINT_ORIGIN, {
+  appVersion: webRemoteControlAppVersion,
+});
+const webRemoteControlRelayWsEnvOverride =
+  process.env["DRORA_WEB_REMOTE_CONTROL_RELAY_WS_URL"]?.trim();
+const webRemoteControlUrlEnvOverride = process.env["DRORA_WEB_REMOTE_CONTROL_URL"]?.trim();
 
 function extractOpenWorkspacePathFromDeepLinkUrl(url: string): string | null {
   try {
@@ -1178,6 +915,100 @@ let startupOpenWorkspaceRequest: ExplicitStartupWorkspaceRequest | null =
     : startupDeepLinkWorkspacePath
       ? { path: startupDeepLinkWorkspacePath, source: "deep-link" }
       : null;
+
+const droraRemoteControlDeployment = createDroraRemoteControlDeployment({
+  loadSettings: () => mainSettingService.get(),
+  officialEndpoints: async () => buildDroraEndpointUrls(await resolveCurrentDroraEndpointOrigin(), { appVersion: webRemoteControlAppVersion }),
+  appVersion: webRemoteControlAppVersion,
+  relayWsOverride: webRemoteControlRelayWsEnvOverride,
+  remoteUrlOverride: webRemoteControlUrlEnvOverride,
+  resolveEncryption: () => safeStorage.isEncryptionAvailable() ? {
+    encrypt: plain => safeStorage.encryptString(plain).toString("base64"),
+    decrypt: stored => safeStorage.decryptString(Buffer.from(stored, "base64")),
+  } : undefined,
+  logger,
+});
+app.on("before-quit", () => { void droraRemoteControlDeployment.dispose(); });
+const webRemoteControlManager = createWebRemoteControlManager({
+  getEndpointUrls: () => droraRemoteControlDeployment.getEndpointUrls(),
+  resolveAuthStorageProvider: relayWsUrl => droraRemoteControlDeployment.resolveAuthStorageProvider(relayWsUrl),
+  relayWsUrl: resolveWebRemoteControlRelayWsUrl({
+    endpointOrigin: DEFAULT_DRORA_ENDPOINT_ORIGIN,
+    overrideUrl: webRemoteControlRelayWsEnvOverride,
+  }),
+  mobileRemoteControlUrl: webRemoteControlUrlEnvOverride || defaultDroraEndpointUrls.remoteUrl,
+  deviceMid,
+  deviceName: hostname(),
+  appVersion: webRemoteControlAppVersion,
+  authProvider: webRemoteControlAuthProvider,
+  authStorageProvider: createWebRemoteControlRelayAuthStorageProvider({
+    credentialService: webRemoteControlCredentialService,
+    loadSettings: () => mainSettingService.get(),
+    patchSettings: (patch) => mainSettingService.update(patch),
+    logger,
+  }),
+  startupRestoreStorageProvider: {
+    load: async () => (await mainSettingService.get()).webRemoteControlLastEnabledContext,
+    save: async (context) => {
+      await mainSettingService.update({
+        webRemoteControlLastEnabledContext: {
+          workspacePath: context.workspacePath,
+          workspaceIdentity: context.workspaceIdentity,
+          initialTaskId: context.initialTaskId,
+        },
+      });
+    },
+    clear: async () => {
+      await mainSettingService.update({
+        webRemoteControlLastEnabledContext: undefined,
+      });
+    },
+  },
+  featureGate: createWebRemoteControlFeatureGate(),
+  logger,
+  relayMessageLogger: webRemoteControlRelayLogger,
+  platformHandlers: {
+    isDockerAvailable: () => isDockerDaemonAvailable(),
+    listWSLDistros: () => listAvailableWSLDistros(),
+    listDockerContainers: () => listAvailableDockerContainers(),
+    listSSHConfigAliases: () => listSSHConfigAliases(),
+    createTempTextAttachment: (payload) => createTempTextAttachment(payload),
+    loadMcpFromUserDirectory: (payload) => loadCliMcpFromUserDirectory(payload),
+    saveMcpToUserDirectory: async (payload) => {
+      try {
+        await saveCliMcpToUserDirectory(payload);
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[web-remote-control] MCP save failed", message);
+        return { success: false, error: message };
+      }
+    },
+    migrateLegacyCommonMcp: (payload) => migrateLegacyCommonMcp(payload),
+  },
+  reconnectWorkspace: reconnectWebRemoteControlWorkspaceInRenderer,
+  reportRendererTelemetryEvent: (event) => {
+    void appTelemetryCore.reportEvent(event).catch(() => {});
+  },
+  reportRemoteUsageEvent: (windowId, event) => {
+    const win = BrowserWindow.fromId(windowId);
+    if (!win || win.webContents.isDestroyed()) {
+      return;
+    }
+    reportRemoteUsageEventForRenderer(win.webContents.id, event);
+  },
+  onStatusChanged: (windowId, status) => {
+    sendWebRemoteControlStatusChangedToWindow(BrowserWindow.fromId(windowId), status);
+  },
+  attachWorkspaceHost: webRemoteControlSharedHostAttachments.attachWorkspaceHost,
+  releaseWorkspaceHostAttachment: webRemoteControlSharedHostAttachments.releaseAttachment,
+  disposeWorkspaceHostAttachmentsForWindow: (windowId) =>
+    webRemoteControlSharedHostAttachments.disposeWindow(windowId),
+  disposeWorkspaceHostAttachmentsForRemoteSession: (remoteSessionId) =>
+    webRemoteControlSharedHostAttachments.disposeRemoteSession(remoteSessionId),
+});
+webRemoteControlManagerRef.current = webRemoteControlManager;
+
 
 function resolveExternalWorkspaceConfirmationCopy() {
   const effectiveLocale =
@@ -1241,13 +1072,8 @@ function syncCloseToTrayOnWindows(value: unknown) {
 }
 
 function syncImmediateAppSettings(patch: Partial<AppSettings>) {
+  droraDesktopPet.updateSettings(patch);
   syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
-  if (typeof patch.desktopPetEnabled === "boolean") {
-    desktopPetWindow?.setEnabled(patch.desktopPetEnabled);
-  }
-  if (patch.desktopPetCharacter) {
-    desktopPetWindow?.setCharacter(patch.desktopPetCharacter);
-  }
 
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
     keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
@@ -1683,11 +1509,17 @@ async function resolveDroraEndpointSelection(): Promise<"production" | "test" | 
   if (origin === DEFAULT_DRORA_ENDPOINT_ORIGIN) {
     return "production";
   }
+  if (origin === TEST_DRORA_ENDPOINT_ORIGIN) {
+    return "test";
+  }
   return "custom";
 }
 
 async function handleDroraEndpointChanged() {
   rebuildMenu();
+  for (const win of getApplicationWindowsExcludingCuaIndicator()) {
+    await webRemoteControlManagerRef.current?.suspend(win.id, "endpoint-changed");
+  }
 }
 
 /** 快捷键设置页录制态（renderer 经 SetShortcutRecordingActive 同步）；true 时菜单摘除可配置 accelerator。 */
@@ -1753,10 +1585,7 @@ function resolveFocusedDesktopZoomLevel(): number {
 
 function getApplicationWindowsExcludingCuaIndicator(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter(
-    (win) =>
-      !win.isDestroyed() &&
-      !windowsCuaOperationIndicator.ownsWindow(win) &&
-      !desktopPetWindow?.ownsWindow(win),
+    (win) => !win.isDestroyed() && !windowsCuaOperationIndicator.ownsWindow(win) && !droraDesktopPet.ownsWindow(win),
   );
 }
 
@@ -1986,7 +1815,14 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         platform: process.platform,
         forceQuit: forceQuitRef.current,
         explicitQuitRequested: explicitQuitRef.current,
-        closeToTrayOnWindows,
+        closeToTray: closeToTrayOnWindows,
+        // 空缓存按不可用处理：隐藏前兜底确认托盘真的可渲染，防 GNOME 静默失败失联。
+        // CR-01：DBus 探测 ∧ Tray 实例创建成功才可隐藏；任一不满足按不可用走确认退出。
+        closeToTraySupported: resolveCloseToTraySupported({
+          platform: process.platform,
+          desktopTrayReady,
+          capabilitySupported: closeToTrayCapabilityMonitor.getSync()?.supported,
+        }),
         isLastWindow: getMainApplicationWindows().length === 1,
         label,
         logger,
@@ -2007,9 +1843,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         label,
         {
           ...initMessage,
-          droraBuiltinProviderConfigFilePath: resolveDroraBuiltinProviderConfigFilePath({
-            env: { ...hostProcessLocalEnv, ...process.env },
-          }),
+          droraBuiltinProviderConfigFilePath: resolveDroraBuiltinProviderConfigFilePath(),
         },
         {
           hostProcessLocalEnv,
@@ -2038,6 +1872,12 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           onCronSchedulerWakeRequested: wakeCronScheduler,
           onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
+          registerPluginSandbox: (input) => {
+            const host = getPluginSandboxHost();
+            if (!host) throw new Error("Plugin UI sandbox host is not installed.");
+            const { requestId: _requestId, ...registerInput } = input;
+            return host.registerFromHost(registerInput);
+          },
           // Bugfix: bot service 运行在本地窗口 host 内，/reconnect 必须能从本地 host 请求 main 创建远端 session。
           handleBotRemoteWorkspaceReconnectRequest: async ({
             win,
@@ -2111,9 +1951,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
-          // Start Plan 人机验证：隐藏窗口跑阿里云 captcha SDK，凭证一次性（specs/start-plan-captcha-verification.md）。
-          handleCaptchaSolveRequest: ({ captcha, language }) =>
-            captchaSolver.solve({ captcha, language }),
+          handleCaptchaSolveRequest: ({ captcha, language }) => captchaSolver.solve({ captcha, language }),
         },
         {
           taskRealtime: {
@@ -2137,6 +1975,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
     syncAutoUpdaterStateToWindow,
     syncReadyUpdateToWindow,
     syncPostUpdateReleaseNotesToWindow,
+    webRemoteControlManager,
     disposeRemoteWorkspaceSessionsForWindow:
       remoteSessionManager.disposeRemoteWorkspaceSessionsForWindow,
     reattachRemoteWorkspaceSessionsForWindow:
@@ -2205,6 +2044,7 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
             (() => getApplicationWindowsExcludingCuaIndicator()[0] ?? null),
         }),
       resolveApplicationWindow: () => getApplicationWindowsExcludingCuaIndicator()[0] ?? null,
+      logger,
       workspaceConfirmationCopy: resolveExternalWorkspaceConfirmationCopy(),
     })
   ) {
@@ -2225,8 +2065,26 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
+  installRequestSecurityDiagnostics(session.defaultSession.webRequest, logger);
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
+  });
+  // 插件 UI 沙箱：注册表 + renderer 可调 IPC；scheme 的 privileged 注册已随 drora-media 在 ready 前完成。
+  installPluginSandboxHost({
+    preloadPath: join(import.meta.dirname, "../preload/pluginSandbox.cjs"),
+    rendererDir: join(import.meta.dirname, "../renderer"),
+    aliasDir: join(import.meta.dirname, "../plugin-sandbox"),
+    // 开发模式 out/renderer 没有 shell 产物，从 renderer dev server 代理（同 cua-permission-panel 的做法）。
+    ...(!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]
+      ? { devServerUrl: process.env["ELECTRON_RENDERER_URL"] }
+      : {}),
+    logger: console,
+    // e2e L05（配额）：只在 e2e run 里允许缩小注册表容量。
+    ...(process.env.DRORA_E2E_RUN_ID?.trim() &&
+    Number.isInteger(Number(process.env.DRORA_E2E_PLUGIN_SANDBOX_MAX_ENTRIES)) &&
+    Number(process.env.DRORA_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) > 0
+      ? { registryMaxEntries: Number(process.env.DRORA_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
+      : {}),
   });
   // Electron 的 net.request 只能在 app ready 后使用；灰度请求仍是旁路预热，不阻塞首个 Host。
   void desktopContextPromptRollout?.refresh();
@@ -2245,7 +2103,36 @@ app.whenReady().then(async () => {
       loadedBootstrapLocale = true;
       currentApplicationLocale = bootstrapSettings.locale;
     }
-    closeToTrayOnWindows = bootstrapSettings.closeToTrayOnWindows ?? true;
+    // Linux 默认值归位迁移（spec：docs/desktop/linux-close-to-tray.md）：shared 迁移无平台
+    // 概念、曾把存量 Linux 用户归为 true，但 Linux 此前无设置入口，存量 true 非用户显式
+    // 选择；首次启动强制归位为默认关并落标记，之后尊重用户选择。
+    const closeToTrayBootstrap = resolveCloseToTrayBootstrapValue({
+      platform: process.platform,
+      stored: bootstrapSettings.closeToTrayOnWindows,
+      linuxMigrationInitialized: bootstrapSettings.closeToTrayLinuxMigrationInitialized,
+    });
+    // CR-02：必须 await 持久化完成再继续启动，renderer 设置页才不会读到文件旧值。
+    // 写失败时不阻断启动，但内存值回退为文件当前值（resolveCloseToTrayRuntimeValue）：
+    // 持久层不可写时维持"文件是唯一可信来源"，避免 main 按 false、设置页显示 true 的
+    // 双数据源；迁移在下次启动重试，失败期间保持迁移未完成的旧行为。
+    let closeToTrayMigrationPersisted = true;
+    if (closeToTrayBootstrap.needsLinuxMigration) {
+      try {
+        await mainSettingService.update({
+          closeToTrayOnWindows: false,
+          closeToTrayLinuxMigrationInitialized: true,
+        });
+      } catch (error) {
+        closeToTrayMigrationPersisted = false;
+        logger.warn("[settings] failed to persist linux close-to-tray default migration", error);
+      }
+    }
+    closeToTrayOnWindows = resolveCloseToTrayRuntimeValue({
+      platform: process.platform,
+      stored: bootstrapSettings.closeToTrayOnWindows,
+      linuxMigrationInitialized: bootstrapSettings.closeToTrayLinuxMigrationInitialized,
+      migrationPersisted: closeToTrayMigrationPersisted,
+    });
     keepAwakeWhileRunning = bootstrapSettings.keepAwakeWhileRunning ?? false;
     currentDesktopZoomLevel = clampDesktopZoomLevel(bootstrapSettings.desktopZoomLevel ?? 0);
     currentDesktopWindowSize = bootstrapSettings.desktopWindowSize;
@@ -2255,19 +2142,9 @@ app.whenReady().then(async () => {
     // 读取失败不影响启动，使用默认 homedir
   }
 
-  desktopPetWindow = registerDesktopPetWindow({
-    enabled: bootstrapSettings?.desktopPetEnabled ?? false,
-    character: bootstrapSettings?.desktopPetCharacter,
-    position: bootstrapSettings?.desktopPetPosition,
-    locale: () => currentApplicationLocale,
-    isMainWindow: (win) => windowHostProcessMap.has(win.webContents.id),
-    savePosition: async (position) => {
-      await mainSettingService.update({ desktopPetPosition: position });
-    },
-    logger,
-  });
-
   // scheduler 也会打开 tasks-index；等 Host 完成统一准备，避免在启动页出现前抢先迁移。
+  droraDesktopPet.initialize(bootstrapSettings);
+
   configureDatabaseStartupQuit(() => {
     markExplicitQuit("database-startup-exit");
     app.quit();
@@ -2294,14 +2171,7 @@ app.whenReady().then(async () => {
     );
   }
 
-  // dev 构建叠加 DEV 角标（官方 renderDevBadgeIcon 对齐）：与打包版图标区分，
-  // 多实例并存时避免误操作；渲染失败回退默认图标。
-  if (!app.isPackaged) {
-    const devBadgeIcon = await renderDevBadgeIcon(iconPath, logger);
-    applyAppIcon(devBadgeIcon ?? iconPath);
-  } else {
-    applyAppIcon(iconPath);
-  }
+  applyAppIcon(iconPath);
   if (!loadedBootstrapLocale) {
     currentApplicationLocale = resolveSystemApplicationLocale();
   }
@@ -2325,14 +2195,34 @@ app.whenReady().then(async () => {
     logger.warn("[desktop-network] Chromium network policy bootstrap failed:", error);
   }
 
+  // 内置浏览器权限闸门（CNVD 未授权访问修复）：必须在任何 guest attach 前完成注册。
+  // 弹窗桥把策略决策点接到主窗口 UI；store 落盘「访问此网站时允许/阻止」的站点同意记录。
+  const embeddedBrowserPermissionUiBridge = createEmbeddedBrowserPermissionUiBridge({ logger });
+  embeddedBrowserPermissionUiBridge.registerResolveListener();
+  setActiveEmbeddedBrowserPermissionUiBridge(embeddedBrowserPermissionUiBridge);
+  try {
+    await applyEmbeddedBrowserPermissionPolicy(session.fromPartition(EMBEDDED_BROWSER_PARTITION), {
+      logger,
+      prompt: embeddedBrowserPermissionUiBridge.promptPermission,
+      devicePicker: embeddedBrowserPermissionUiBridge.devicePicker,
+      onDisplayMediaRequest: embeddedBrowserPermissionUiBridge.onDisplayMediaRequest,
+      store: createEmbeddedBrowserSitePermissionStore(
+        join(app.getPath("userData"), "embedded-browser-site-permissions.json"),
+      ),
+    });
+  } catch (error) {
+    logger.warn("[embedded-browser-permission] policy bootstrap failed:", error);
+  }
+
   await hydratePendingPostUpdateReleaseNotes(mainSettingService);
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
   // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 Drora 安装包，
-  // 不向 Preview 渠道提供更新。
+  // 不向 Preview 渠道提供更新。构建期未启用自动更新时同样不更新
+  // （见 docs/desktop/build-time-optional-capabilities.md）。
   void initAutoUpdater({
-    enabled: DRORA_PRODUCT_FLAVOR === "production",
+    enabled: DRORA_PRODUCT_FLAVOR === "production" && DRORA_AUTO_UPDATE_ENABLED,
     onBeforeQuitAndInstall: async () => {
       notifyStabilityLifecycle("update_install");
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
@@ -2340,9 +2230,6 @@ app.whenReady().then(async () => {
         await prepareWindowsProcessesForUpdateInstall();
       }
     },
-    settingService: mainSettingService,
-    locale: currentApplicationLocale,
-    deviceMid,
     onQuitAndInstallFailed: (error) => {
       // specs/update-feed-github.md「macOS quitAndInstall 失败恢复」：
       // 退出准备已完成且不可逆，renderer 可能已不可交互——用原生弹窗兜底反馈，
@@ -2362,6 +2249,9 @@ app.whenReady().then(async () => {
       );
       exitPreparedApp("auto-update-install-failed");
     },
+    settingService: mainSettingService,
+    locale: currentApplicationLocale,
+
   });
 
   if (process.platform === "darwin" || process.platform === "win32") {
@@ -2377,7 +2267,7 @@ app.whenReady().then(async () => {
       ),
     () => showCurrentWindowFromDock(primaryWindowCoordinator),
   );
-  createWindowsDesktopTray({
+  const desktopTrayOptions = {
     getLocale: () => currentApplicationLocale,
     showCurrentWindow: () =>
       primaryWindowCoordinator.ensurePrimaryWindow("tray-show-current-window"),
@@ -2387,86 +2277,33 @@ app.whenReady().then(async () => {
       app.quit();
     },
     logger,
-  });
+  };
+  // CR-01：托盘实例是否创建成功必须成为可隐藏能力的一部分。DBus watcher 只能证明桌面
+  // 可能有 host，new Tray() 仍可能因图标缺失/会话未就绪抛错；此时隐藏窗口会让用户失去
+  // 唯一入口（失联）。trayReady 由创建结果置位，关窗与设置页能力查询都读它。
+  if (process.platform === "win32") {
+    desktopTrayReady = createDesktopTray(desktopTrayOptions) !== null;
+  }
+
+  const ensureLinuxDesktopTray = async (): Promise<void> => {
+    if (process.platform !== "linux" || desktopTrayReady) {
+      return;
+    }
+    // Linux 托盘创建跟随能力而非设置开关（spec：docs/desktop/linux-close-to-tray.md）：
+    // 无 StatusNotifierWatcher 的桌面（GNOME 默认）上 new Tray() 静默失败，注册无人渲染的
+    // DBus name 没有意义；能力探测通过后再创建。用户装扩展后经设置页查询也会走到这里补建。
+    const capability = await closeToTrayCapabilityMonitor.refresh();
+    if (capability.supported) {
+      desktopTrayReady = createDesktopTray({ ...desktopTrayOptions, platform: "linux" }) !== null;
+    }
+  };
+  if (process.platform === "linux") {
+    void ensureLinuxDesktopTray().catch((error: unknown) => {
+      logger.warn("[desktop-tray] linux tray capability probe failed", error);
+    });
+  }
 
   registerPlatformIpcHandlers({
-    // 移动端远程控制（relay 双传输，specs/mobile-relay-server.md §12）：服务与状态块
-    // 声明见 settingsFile 旁（模块前部）；这里只做 IPC 装配。手机附着的是发起窗口所属的
-    // Local Host，复用 web-remote-replayable 链路。
-    mobileRelay: {
-      start: async (params) => {
-        mobileRelaySenderWebContentsId = params.senderWebContentsId;
-        // 传输准备（§12.1）：lan 先拉起内嵌 relay 并注入端点；cloud 解析设置键/env。
-        // 必须先于 control.start——凭据路由与 resolveEndpoints 都消费其产出。
-        await prepareMobileRelayTransport(params.transport ?? "cloud");
-        // relay 启动即灌入该窗口最近一次同步的工作区清单（renderer 在 tab 变化时
-        // 推送；官方语义为无 runtime 即丢弃，这里缓存以便后启动的 relay 立即拿全量）。
-        mobileRelayControl.syncAvailableWorkspaces(
-          mobileRelaySyncedWorkspaces.get(params.senderWebContentsId) ?? [],
-        );
-        mobileRelayControl.syncAvailableTasks(
-          mobileRelaySyncedTasks.get(params.senderWebContentsId) ?? [],
-        );
-        // §33.18.16：侧板初值同样随 relay 启动灌入（renderer 无变化时也有当前值）。
-        const syncedSidePane = mobileRelaySyncedSidePane.get(params.senderWebContentsId);
-        if (syncedSidePane) {
-          mobileRelayControl.syncAvailableSidePane(syncedSidePane);
-        }
-        return mobileRelayControl.start({
-          workspacePath: params.workspacePath,
-          workspaceIdentity: params.workspaceIdentity,
-          transport: params.transport ?? "cloud",
-        });
-      },
-      reset: async (params) => {
-        mobileRelaySenderWebContentsId = params.senderWebContentsId;
-        // 刷新（二维码泄露轮换）沿用当前会话的传输与端点准备；未运行时 control.reset 抛错。
-        if (activeRelayTransport !== null) {
-          await prepareMobileRelayTransport(activeRelayTransport);
-        }
-        return mobileRelayControl.reset();
-      },
-      stop: async () => {
-        const transport = activeRelayTransport;
-        await mobileRelayControl.stop();
-        // stop 语义（§12.1）：transport=lan 同时停内嵌服务端；cloud 只停控制链。
-        if (transport === "lan") {
-          await mobileLanRelayHost.stop();
-        }
-        activeRelayTransport = null;
-        preparedRelayEndpoints = null;
-      },
-      state: () => mobileRelayControl.runtimeState(),
-      syncWorkspaces: (senderWebContentsId, workspaces) => {
-        mobileRelaySyncedWorkspaces.set(senderWebContentsId, workspaces);
-        // 重启自动恢复的首个触发窗口：恢复出的 relay 需要绑定属主窗口（Host 解析
-        // 与状态推送都走该 id），否则手机开桥会 desktop-host-missing。
-        if (mobileRelaySenderWebContentsId === null) {
-          mobileRelaySenderWebContentsId = senderWebContentsId;
-        }
-        // 仅属主窗口的推送进入运行时（官方同款条件；非属主窗口只更新缓存）。
-        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
-          mobileRelayControl.syncAvailableWorkspaces(workspaces);
-        }
-        // 重启自动恢复（对齐官方 syncWebRemoteControlWorkspaces 处理器内联的
-        // restorePreviouslyEnabled）：renderer 首次推送工作区时尝试恢复上次启用的
-        // relay；至多一次，手动 stop 已清除上下文不会误恢复。
-        void mobileRelayControl.restorePreviouslyEnabled(workspaces);
-      },
-      syncTasks: (senderWebContentsId, tasks) => {
-        mobileRelaySyncedTasks.set(senderWebContentsId, tasks);
-        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
-          mobileRelayControl.syncAvailableTasks(tasks);
-        }
-      },
-      // §33.18.16 侧板初态投影：属主窗口的推送进运行时（bootstrap 初值+活体跟随）。
-      syncSidePane: (senderWebContentsId, entry) => {
-        mobileRelaySyncedSidePane.set(senderWebContentsId, entry);
-        if (mobileRelaySenderWebContentsId === senderWebContentsId) {
-          mobileRelayControl.syncAvailableSidePane(entry);
-        }
-      },
-    },
     fetchHelpConfig: readHelpConfig,
     logger,
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。
@@ -2507,7 +2344,7 @@ app.whenReady().then(async () => {
     },
     applyApplicationLocale: async (locale) => {
       currentApplicationLocale = locale;
-      desktopPetWindow?.refreshLocale();
+      droraDesktopPet.refreshLocale();
       windowsCuaOperationIndicator.refreshContent();
       rebuildMenu();
       for (const win of getApplicationWindowsExcludingCuaIndicator()) {
@@ -2557,6 +2394,9 @@ app.whenReady().then(async () => {
         taskRealtimeBus.updateHostWorkspaceKeys(hostId, workspaceKeys);
       }
     },
+    restorePreviouslyEnabledWebRemoteControl: (windowId, contexts) => {
+      void webRemoteControlManager.restorePreviouslyEnabled(windowId, contexts);
+    },
     getUpdateState: getAutoUpdaterState,
     openUpdateStatusWindow,
     getAutoUpdatePreferences,
@@ -2564,7 +2404,28 @@ app.whenReady().then(async () => {
     getDesktopSessionActivity: () => ({
       runningAgentSessionCount: getRunningAgentSessionCount(),
     }),
+    syncWebRemoteControlWorkspaces: (windowId, workspaces) => {
+      webRemoteControlManager.syncAvailableWorkspaces(windowId, workspaces);
+      void webRemoteControlManager.restorePreviouslyEnabled(windowId, workspaces);
+    },
+    syncWebRemoteControlTasks: (windowId, tasks) =>
+      webRemoteControlManager.syncAvailableTasks(windowId, tasks),
     syncAppSettings: syncImmediateAppSettings,
+    // 设置页置灰查询：monitor 带 stale 缓存，装完 AppIndicator 扩展重开设置页即可刷新。
+    // 设置页置灰查询：先确保托盘实例就绪（用户装扩展后首次查询会补建），再返回合并了
+    // trayReady 的最终能力，避免设置页显示可开启但关窗实际走确认退出的不一致（CR-01）。
+    refreshCloseToTrayCapability: async () => {
+      await ensureLinuxDesktopTray();
+      const capability = await closeToTrayCapabilityMonitor.refresh();
+      return {
+        supported: resolveCloseToTraySupported({
+          platform: process.platform,
+          desktopTrayReady,
+          capabilitySupported: capability.supported,
+        }),
+        gnomeLikeWithoutTray: capability.gnomeLikeWithoutTray,
+      };
+    },
     setShortcutRecordingActive,
     deviceMid,
   });
@@ -2591,6 +2452,7 @@ app.whenReady().then(async () => {
       armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
     },
     finalArmsCustomEventE2EEnabled: shouldEnableE2ETestBridge(process.env),
+    webRemoteControlManager,
     createRemoteWorkspaceSession: remoteSessionManager.createRemoteWorkspaceSession,
     getRemoteConnectionStats: remoteSessionManager.getRemoteConnectionStats,
     disposeRemoteWorkspaceSession: remoteSessionManager.disposeRemoteWorkspaceSession,
@@ -2610,29 +2472,26 @@ app.whenReady().then(async () => {
   // ARMS init 完成后首次写入 user.name（落 device_mid）
   void armsUserIdentitySync.refresh();
 
-  // 未配置 ARMS 端点时不初始化上报 context，避免把空转误当成已启用。
-  if (DRORA_TELEMETRY_ENABLED && DRORA_ARMS_RUM_ENDPOINT) {
-    configureDesktopStabilityTelemetry({
-      deviceMid,
-      platform: process.platform,
-      appVersion: DRORA_VERSION,
-      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
-    });
-    configureDesktopResourceTelemetry({
-      deviceMid,
-      platform: process.platform,
-      appVersion: DRORA_VERSION,
-      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
-    });
-    configureDesktopNetworkTelemetry({
-      deviceMid,
-      platform: process.platform,
-      appVersion: DRORA_VERSION,
-      armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
-    });
-  }
+  configureDesktopStabilityTelemetry({
+    deviceMid,
+    platform: process.platform,
+    appVersion: DRORA_VERSION,
+    armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
+  });
+  configureDesktopResourceTelemetry({
+    deviceMid,
+    platform: process.platform,
+    appVersion: DRORA_VERSION,
+    armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
+  });
   configureDesktopMcpTelemetry({
     deviceMid,
+    appVersion: DRORA_VERSION,
+    armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
+  });
+  configureDesktopNetworkTelemetry({
+    deviceMid,
+    platform: process.platform,
     appVersion: DRORA_VERSION,
     armsEnv: mapDroraEnvToArmsRumEnv(desktopRuntimeEnv),
   });
@@ -2659,7 +2518,8 @@ app.whenReady().then(async () => {
   });
   registerDesktopNetworkTelemetry(logger);
 
-  logger.info("[startup] 创建主窗口");
+  // 修复依据：官方 v3.15.1 在 ready 阶段通过同一 coordinator 创建主窗口。
+  // 移除旧强制升级 gate 时仍须保留该调用，否则 Linux 冷启动没有窗口。
   await primaryWindowCoordinator.ensurePrimaryWindow("app-ready");
 
   const primaryWindow = getApplicationWindowsExcludingCuaIndicator()[0];

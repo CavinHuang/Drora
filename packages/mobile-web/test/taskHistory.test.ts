@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ConversationRow, ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
-import { TaskSession, type TaskSessionTarget } from "../src/app/taskSession.js";
-import type { ConversationStore } from "../src/app/conversationStore.js";
+import { TaskSession, type TaskSessionTarget } from "../legacy-v3.14.3/app/taskSession.js";
+import type { ConversationStore } from "../legacy-v3.14.3/app/conversationStore.js";
 
 const row = (rowId: number) => ({ rowId }) as ConversationRow;
 

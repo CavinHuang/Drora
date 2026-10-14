@@ -11,18 +11,18 @@ import { scanDroraDataDirectoryInWorker } from "./droraDataSizeWorkerClient.js";
 
 export type { DroraDataSizeTelemetryState } from "./droraDataSizeTelemetryState.js";
 
-const DRORA_DATA_SIZE_SCAN_MAX_DURATION_MS = 30_000;
-const DRORA_DATA_SIZE_SCAN_MAX_FILES = 200_000;
-const DRORA_DATA_SIZE_DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const DRORA_DATA_SIZE_IDLE_POLL_MS = 5 * 60 * 1000;
-const DRORA_DATA_SIZE_IDLE_WAIT_FALLBACK_MS = 6 * 60 * 60 * 1000;
-const DRORA_DATA_SIZE_MINIMUM_IDLE_SECONDS = 5 * 60;
-const DRORA_DATA_SIZE_STARTUP_MIN_DELAY_MS = 2 * 60 * 1000;
-const DRORA_DATA_SIZE_STARTUP_JITTER_MAX_MS = 8 * 60 * 1000;
-const DRORA_DATA_SIZE_DAILY_JITTER_MAX_MS = 60 * 60 * 1000;
-const DRORA_DATA_SIZE_ABORTED_RETRY_MS = 30 * 60 * 1000;
-const DRORA_DATA_SIZE_FAILURE_RETRY_MS = 6 * 60 * 60 * 1000;
-const DRORA_DATA_SIZE_ACTIVITY_POLL_MS = 1_000;
+export const DRORA_DATA_SIZE_SCAN_MAX_DURATION_MS = 30_000;
+export const DRORA_DATA_SIZE_SCAN_MAX_FILES = 200_000;
+export const DRORA_DATA_SIZE_DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const DRORA_DATA_SIZE_IDLE_POLL_MS = 5 * 60 * 1000;
+export const DRORA_DATA_SIZE_IDLE_WAIT_FALLBACK_MS = 6 * 60 * 60 * 1000;
+export const DRORA_DATA_SIZE_MINIMUM_IDLE_SECONDS = 5 * 60;
+export const DRORA_DATA_SIZE_STARTUP_MIN_DELAY_MS = 2 * 60 * 1000;
+export const DRORA_DATA_SIZE_STARTUP_JITTER_MAX_MS = 8 * 60 * 1000;
+export const DRORA_DATA_SIZE_DAILY_JITTER_MAX_MS = 60 * 60 * 1000;
+export const DRORA_DATA_SIZE_ABORTED_RETRY_MS = 30 * 60 * 1000;
+export const DRORA_DATA_SIZE_FAILURE_RETRY_MS = 6 * 60 * 60 * 1000;
+export const DRORA_DATA_SIZE_ACTIVITY_POLL_MS = 1_000;
 
 interface DroraDataSizeTelemetryTiming {
   abortedRetryMs: number;
@@ -89,7 +89,7 @@ function stringifyProperties(
   );
 }
 
-function buildDroraDataSizeArmsPayload(params: {
+export function buildDroraDataSizeArmsPayload(params: {
   context: {
     appVersion: string;
     armsEnv: ArmsRumEnv;
@@ -149,7 +149,7 @@ function unrefTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof set
   }
 }
 
-function createDroraDataSizeTelemetryScheduler(
+export function createDroraDataSizeTelemetryScheduler(
   dependencies: DroraDataSizeTelemetrySchedulerDependencies,
 ): { start: () => Promise<void>; stop: () => void } {
   const timing = { ...DEFAULT_TIMING, ...dependencies.timing };

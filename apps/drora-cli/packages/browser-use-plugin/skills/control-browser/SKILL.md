@@ -96,7 +96,7 @@ Do not slice, truncate, or summarize it. Only if the tool output itself reports 
 4. If the task names a new URL, prefer the reuse-aware entry: `await agent.browsers.open(url)` reuses an existing
    same-site controlled tab (same hostname), activates it so the user sees it, and navigates in place, instead of
    stacking a new tab on every navigation. Only when the task genuinely needs a parallel independent tab, create one
-   explicitly and preserve the Codex navigation sequence:
+   explicitly and use this navigation sequence:
 
    ```js
    const tab = await browser.tabs.new();
@@ -151,10 +151,10 @@ string id, recover the same verified tab before every status/cancel batch, and p
 - `tab.dom_cua.*` — node path (`node_id` comes from `get_visible_dom()`): `click({node_id})`, `double_click({node_id})`, `scroll({node_id?,x,y})`, `keypress({keys})`, and `type({text})` after focusing the target.
 - `tab.playwright.waitForTimeout(timeoutMs)` — Codex-compatible fixed wait for the rare case where no concrete
   page state can be observed yet. `timeoutMs` must be a non-negative integer. Do not call
-  `tab.waitForTimeout(...)`; that root-level API does not exist in Codex or Drora. Prefer a targeted wait or fresh `domSnapshot()`
+  `tab.waitForTimeout(...)`; that root-level API does not exist. Prefer a targeted wait or fresh `domSnapshot()`
   over routine sleeps.
-- `tab.playwright.getByRole/getByText/getByLabel/getByPlaceholder/getByTestId/locator` — Codex-compatible
-  lazy locator builders. Prefer these when a targeted state wait or a strict DOM action is clearer than a
+- `tab.playwright.getByRole/getByText/getByLabel/getByPlaceholder/getByTestId/locator` — lazy
+  locator builders. Prefer these when a targeted state wait or a strict DOM action is clearer than a
   snapshot ref. Common terminal methods include `click`, `dblclick`, `fill`, `type`, `press`, `check`,
   `uncheck`, `selectOption`, `waitFor`, `count`, `allTextContents`, `textContent`, `innerText`,
   `getAttribute`, `isVisible`, `isEnabled`, `evaluate`, and `downloadMedia`.
@@ -164,7 +164,7 @@ string id, recover the same verified tab before every status/cancel batch, and p
 - `goto()` accepts `http:`, `https:`, and exact `about:blank`. `file:`, other `about:*`, `data:`, and
   `javascript:` targets are not navigable. A `file:` URL may still be used only as a `getForUrl()` backend-selection
   hint when multiple backends exist.
-- `networkidle` is present in the shared type but is rejected by the current Codex IAB backend. For
+- `networkidle` is present in the shared type but is rejected by the IAB backend. For
   `expectNavigation(...)`, pass an expected `url` when the action must prove a new navigation; without `url`, an
   already-loaded old page can satisfy the load-state waiter, matching the current Codex runtime.
 

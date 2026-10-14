@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 
-function text(value: string) {
-  return { content: [{ type: "text" as const, text: value }] };
+function text(value: string): CallToolResult {
+  return { content: [{ type: "text", text: value }] };
 }
 
 export function json(value: unknown): CallToolResult {

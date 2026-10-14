@@ -10,7 +10,7 @@ import {
   type ConversationRow,
   type ConversationSnapshot,
 } from "@drora/shared/drora-protocol-v4";
-import { createConversationStore } from "../src/app/conversationStore.js";
+import { createConversationStore } from "../legacy-v3.14.3/app/conversationStore.js";
 
 const SESSION_ID = "sess-store";
 const TOPIC = `conversation/${SESSION_ID}`;

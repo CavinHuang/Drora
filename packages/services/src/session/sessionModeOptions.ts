@@ -4,10 +4,15 @@ import type { DroraConfigOption, DroraProvider, DroraTaskMode } from "@drora/sha
 // permissionMode 词（default/acceptEdits/dontAsk/bypassPermissions）。本地持久化的
 // 旧数据可能携带这些词，按原版逐值恢复（批 3 审查 P3-1）。
 const CANONICAL_SESSION_MODES = new Set<DroraTaskMode>([
+  "default",
   "yolo",
+  "guarded",
   "plan",
   "edit",
+  "acceptEdits",
   "auto",
+  "dontAsk",
+  "bypassPermissions",
   "autoEdit",
   "build",
   "default",
@@ -48,19 +53,22 @@ function normalizePersistedSessionMode(
     case "read-only":
     case "read_only":
       return "plan";
+    case "auto_edit":
+    case "auto-edit":
+    case "autoEdit":
+    case "accept_edits":
+    case "accept-edits":
+      return "acceptEdits";
     case "full-auto":
     case "full_auto":
       return "yolo";
-    // 原版 bundle 的三族额外别名（方向同批 1 权限审查的 Txa 映射）：
-    // accept_edits/auto-edit→acceptEdits、agent→default、
-    // agent-full-access/full-access→bypassPermissions。
-    case "accept_edits":
-    case "auto-edit":
-      return "acceptEdits";
     case "agent":
-      return "default";
+      // 该 modeId 专属于已下线的第三方 provider；不再映射到任何本地 mode。
+      return undefined;
     case "agent-full-access":
+    case "agent_full_access":
     case "full-access":
+    case "full_access":
       return "bypassPermissions";
     default:
       return undefined;

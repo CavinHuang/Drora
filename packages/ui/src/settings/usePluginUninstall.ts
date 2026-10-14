@@ -1,5 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import type { DroraInstalledPluginSummary, DroraPluginInfo } from "@drora/shared";
+import type {
+  DroraInstalledPluginSummary,
+  DroraPluginInfo,
+} from "@drora/shared";
 import type { IPluginManagementService } from "@drora/services";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 
@@ -12,7 +15,7 @@ interface UsePluginUninstallInput {
   onAfterUninstall: () => Promise<void>;
 }
 
-interface PluginUninstallController {
+export interface PluginUninstallController {
   pendingPlugin: DroraPluginInfo | DroraInstalledPluginSummary | null;
   uninstalling: boolean;
   requestUninstall: (pluginId: string) => void;

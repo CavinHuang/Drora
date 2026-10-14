@@ -20,7 +20,7 @@ export interface DroraDataSizeScanRequest {
   maxFiles: number;
 }
 
-interface DroraDataSizeScanOptions extends DroraDataSizeScanRequest {
+export interface DroraDataSizeScanOptions extends DroraDataSizeScanRequest {
   signal?: AbortSignal;
   /** 仅用于定向测试时间上限，不进入 Worker 消息。 */
   now?: () => number;

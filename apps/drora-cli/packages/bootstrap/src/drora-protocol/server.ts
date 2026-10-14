@@ -1,4 +1,6 @@
 import { querySessionDebug } from "./session-debug.js";
+import { createNodeNetworkCapture } from "@drora/shared/node";
+import { networkCaptureControlSchema, droraProtocolNotifications } from "@drora/shared";
 import {
   droraPluginsCancelOperationParamsSchema,
   droraProtocolMethods,
@@ -6,6 +8,12 @@ import {
   droraWorkspaceHookTrustGrantParamsSchema,
 } from "@drora/shared";
 import type { BrowserControlPort } from "@drora/contracts";
+import type {
+  McpElicitationRequest,
+  McpElicitationResult,
+  McpServerNotification,
+} from "@drora/contracts";
+import { requestMcpElicitation } from "./interaction-broker.js";
 import { InMemoryWorkspaceHookPolicyProvider } from "@drora/core";
 import {
   V4_METHODS,
@@ -81,7 +89,26 @@ import {
   moveSavedWorkflowOp,
   updateSavedWorkflowMetaOp,
 } from "./saved-workflows.js";
+import { findSavedWorkflowForRunOp, saveSavedWorkflowFromRunOp } from "./saved-workflows-run.js";
 import { listMcpServers } from "./mcp.js";
+import {
+  callMcpUiTool,
+  sampleMcpUi,
+  cancelMcpUiSampling,
+  cancelMcpUiToolCall,
+  listMcpUiResourceTemplates,
+  listMcpUiResources,
+  claimMcpUiAppToolCall,
+  registerMcpUiAppTools,
+  resolveMcpUiAppToolCall,
+  unregisterMcpUiAppTools,
+  readMcpUiResource,
+  readMcpUiResourceForUi,
+  routeMcpServerNotification,
+  subscribeMcpUiResource,
+  unsubscribeMcpUiResource,
+} from "./mcp-ui/index.js";
+import { listPluginUiSurfaces } from "./plugin-ui-surfaces.js";
 import { updateInteractionPreferences } from "./interaction-preferences.js";
 import { updateAccountProviderConfig } from "./account-provider-config.js";
 import { updateModelIoPreferences } from "./model-io-preferences.js";
@@ -105,6 +132,7 @@ import {
   isNotification,
   isRequest,
   isResponse,
+  PROTOCOL_CLIENT_REQUEST_ERROR_CODES,
   ProtocolRequestError,
   type ParamsSchema,
   parseParams,
@@ -118,6 +146,7 @@ import { createInMemorySessionEventStore } from "@drora/contracts";
 
 export type { DroraProtocolAgentDependencies, DroraProtocolSessionRecord };
 
+import { closeMcpUiInstance, openMcpUiInstance, validateMcpUiInstance } from "./mcp-ui/index.js";
 const MAX_CLIENT_REQUEST_REANNOUNCE_INTERVAL_MS = 10_000;
 
 type DroraProtocolOutboundMessage = DroraProtocolNotification | DroraProtocolRequest;
@@ -128,7 +157,7 @@ type DroraProtocolOutboundMessage = DroraProtocolNotification | DroraProtocolReq
  * 停留旧值。pretrust 授权成功后按 workspaceKey 通知所有匹配的活跃 session 重载。
  * 独立导出为纯调度函数（不触网、不发事件），便于回归测试直接构造 sessions Map。
  */
-async function notifyWorkspaceHookTrustGrantSessions(input: {
+export async function notifyWorkspaceHookTrustGrantSessions(input: {
   grantedWorkspaceKey?: string;
   sessions: Map<string, DroraProtocolSessionRecord>;
 }): Promise<void> {
@@ -183,7 +212,7 @@ function getOperationId(params: unknown): string | undefined {
     : undefined;
 }
 
-interface DroraProtocolPostResponseBatch {
+export interface DroraProtocolPostResponseBatch {
   readonly messages: readonly DroraProtocolOutboundMessage[];
   commit(): boolean;
 }
@@ -201,6 +230,12 @@ interface PendingClientRequest<T> {
 }
 
 export class DroraProtocolAgentServer {
+  private readonly networkCapture = createNodeNetworkCapture("cli", (batch) => {
+    this.messageSink?.({
+      method: droraProtocolNotifications.processNetworkRequests,
+      params: batch,
+    });
+  });
   private readonly runtimeResources: ProtocolRuntimeResources;
   private shutdownPromise?: Promise<void>;
   readonly browserControlPort: BrowserControlPort;
@@ -209,6 +244,19 @@ export class DroraProtocolAgentServer {
    * MCP 连接池的构造早于 server，需要在 server 就绪后回填闭包持有的引用——
    * 与 v4Gateway 同样的构造顺序收口方式。只暴露 requestClient，不外泄整个 context。
    */
+  /** MCP server 发起的 elicitation/create → 用户提问。 */
+  requestMcpElicitation(
+    request: McpElicitationRequest,
+    options?: { signal?: AbortSignal },
+  ): Promise<McpElicitationResult> {
+    return requestMcpElicitation(this.context, request, options);
+  }
+
+  /** MCP server 通知 → 会话 live 事件 / agent 日志。 */
+  handleMcpNotification(notification: McpServerNotification): void {
+    routeMcpServerNotification(this.context, notification);
+  }
+
   get officialMcpAuthRequestContext(): Pick<DroraProtocolAgentServerContext, "requestClient"> {
     return this.context;
   }
@@ -348,6 +396,7 @@ export class DroraProtocolAgentServer {
   }
 
   disconnectClient(error: Error): void {
+    this.networkCapture.setCaptureId(null);
     this.clientDisconnectError = error;
     // 连接关闭后反向请求已不可能收到响应，必须先结束 pending，
     // 否则正在物化 Session 的 handler 会阻塞 connection 的关闭流程。
@@ -426,6 +475,11 @@ export class DroraProtocolAgentServer {
       return await this.handleRequest(message);
     }
     if (isNotification(message)) {
+      if (message.method === droraProtocolMethods.processNetworkCapture) {
+        const control = networkCaptureControlSchema.safeParse(message.params);
+        if (control.success) this.networkCapture.setCaptureId(control.data.captureId);
+        return undefined;
+      }
       this.logger?.debug("Drora Protocol notification ignored", {
         event: "drora_protocol.notification.ignored",
         method: message.method,
@@ -647,12 +701,48 @@ export class DroraProtocolAgentServer {
         return await testProviderModelConnectivity(this.context, request.params);
       case droraProtocolMethods.mcpList:
         return await listMcpServers(this.context, request.params);
+      case droraProtocolMethods.mcpReadResource:
+        return await readMcpUiResource(this.context, request.params);
+      case droraProtocolMethods.mcpUiOpenInstance:
+        return openMcpUiInstance(this.context, request.params);
+      case droraProtocolMethods.mcpUiValidateInstance:
+        return validateMcpUiInstance(this.context, request.params);
+      case droraProtocolMethods.mcpUiCloseInstance:
+        return closeMcpUiInstance(this.context, request.params);
+      case droraProtocolMethods.mcpUiSampling:
+        return sampleMcpUi(this.context, request.params);
+      case droraProtocolMethods.mcpUiCancelSampling:
+        return cancelMcpUiSampling(this.context, request.params);
+      case droraProtocolMethods.mcpUiCallTool:
+        return await callMcpUiTool(this.context, request.params);
+      case droraProtocolMethods.mcpUiCancelCall:
+        return await cancelMcpUiToolCall(this.context, request.params);
+      case droraProtocolMethods.mcpUiReadResource:
+        return await readMcpUiResourceForUi(this.context, request.params);
+      case droraProtocolMethods.mcpUiListResources:
+        return await listMcpUiResources(this.context, request.params);
+      case droraProtocolMethods.mcpUiListResourceTemplates:
+        return await listMcpUiResourceTemplates(this.context, request.params);
+      case droraProtocolMethods.mcpUiSubscribeResource:
+        return await subscribeMcpUiResource(this.context, request.params);
+      case droraProtocolMethods.mcpUiUnsubscribeResource:
+        return await unsubscribeMcpUiResource(this.context, request.params);
+      case droraProtocolMethods.mcpUiRegisterAppTools:
+        return await registerMcpUiAppTools(this.context, request.params);
+      case droraProtocolMethods.mcpUiUnregisterAppTools:
+        return await unregisterMcpUiAppTools(this.context, request.params);
+      case droraProtocolMethods.mcpUiClaimAppToolCall:
+        return await claimMcpUiAppToolCall(this.context, request.params);
+      case droraProtocolMethods.mcpUiResolveAppToolCall:
+        return await resolveMcpUiAppToolCall(this.context, request.params);
       case droraProtocolMethods.pluginsList:
         return await listPlugins(this.context, request.params);
       case droraProtocolMethods.pluginsReferenceCatalogWithCategory:
         return await getPluginReferenceCatalog(this.context, request.params, true);
       case droraProtocolMethods.pluginsReferenceCatalog:
         return await getPluginReferenceCatalog(this.context, request.params);
+      case droraProtocolMethods.pluginsListUiSurfaces:
+        return await listPluginUiSurfaces(this.context, request.params);
       case droraProtocolMethods.skillsReferenceCatalog:
         return await getSkillReferenceCatalog(this.context, request.params);
       case droraProtocolMethods.workflowsList:
@@ -667,6 +757,10 @@ export class DroraProtocolAgentServer {
         return await listSavedWorkflowRunsOp(this.context, request.params);
       case droraProtocolMethods.workflowsMove:
         return await moveSavedWorkflowOp(this.context, request.params);
+      case droraProtocolMethods.workflowsSave:
+        return await saveSavedWorkflowFromRunOp(this.context, request.params);
+      case droraProtocolMethods.workflowsForRun:
+        return await findSavedWorkflowForRunOp(this.context, request.params);
       case droraProtocolMethods.pluginsResolveSuggestedReference:
         return await this.withPluginOperationSignal(request, (signal) =>
           resolveSuggestedPluginReference(this.context, request.params, signal),
@@ -816,7 +910,10 @@ export class DroraProtocolAgentServer {
       throw this.clientDisconnectError;
     }
     if (!this.messageSink) {
-      throw new ProtocolRequestError(-32020, `No Drora Protocol client is attached for ${method}`);
+      throw new ProtocolRequestError(
+        PROTOCOL_CLIENT_REQUEST_ERROR_CODES.noClientAttached,
+        `No Drora Protocol client is attached for ${method}`,
+      );
     }
 
     return new Promise<T>((resolve, reject) => {
@@ -835,7 +932,12 @@ export class DroraProtocolAgentServer {
       };
       pending.abortHandler = () => {
         cleanup();
-        reject(new ProtocolRequestError(-32021, `Client request cancelled: ${method}`));
+        reject(
+          new ProtocolRequestError(
+            PROTOCOL_CLIENT_REQUEST_ERROR_CODES.cancelled,
+            `Client request cancelled: ${method}`,
+          ),
+        );
       };
       if (options?.signal?.aborted) {
         pending.abortHandler();
@@ -845,9 +947,13 @@ export class DroraProtocolAgentServer {
         pending.timeout = setTimeout(() => {
           cleanup();
           reject(
-            new ProtocolRequestError(-32022, `Client request timed out: ${method}`, {
-              timeoutMs: options.timeoutMs,
-            }),
+            new ProtocolRequestError(
+              PROTOCOL_CLIENT_REQUEST_ERROR_CODES.timedOut,
+              `Client request timed out: ${method}`,
+              {
+                timeoutMs: options.timeoutMs,
+              },
+            ),
           );
         }, options.timeoutMs);
       }

@@ -2,7 +2,7 @@ import { materializeDroraBuiltinProviderConfig } from "@drora/services/node";
 
 declare const __DRORA_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
 
-interface MaterializeBundledDroraBuiltinProviderConfigOptions {
+export interface MaterializeBundledDroraBuiltinProviderConfigOptions {
   readonly environmentConfigRoot: string;
   readonly content: string;
 }

@@ -7,7 +7,7 @@ import {
 } from "@drora/shared/drora-protocol-v4";
 import { logger } from "@/logger.js";
 
-interface TopicWireDecoder {
+export interface TopicWireDecoder {
   accept(wire: TopicWireFrameCandidate): void;
   /** same-sub recovery：只清 fail-closed flag，保留 assembler ordinal tombstone。 */
   recover(topic: string, subscriptionId: string): void;

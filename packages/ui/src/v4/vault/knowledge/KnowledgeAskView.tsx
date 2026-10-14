@@ -21,6 +21,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
+  dispatchConversationSelectionAdd,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
@@ -35,6 +36,7 @@ import {
   sliceCandidates,
   type KnowledgeAskIntentChoice,
   type KnowledgeEvidenceQuote,
+  type KnowledgeEvidenceInspectState,
 } from "./knowledgeAskModel.js";
 import {
   AskBannerList,
@@ -87,11 +89,12 @@ export function KnowledgeAskView({
   const [indexStatus, setIndexStatus] = React.useState<KnowledgeIndexStatus | null>(null);
   const [indexActionBusy, setIndexActionBusy] = React.useState(false);
   const [traceOpen, setTraceOpen] = React.useState(false);
+  const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
-  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string } | null>(null);
+  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntentChoice } | null>(null);
 
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
@@ -130,12 +133,12 @@ export function KnowledgeAskView({
   }, [queryService]);
 
   const submit = React.useCallback(
-    async (rawQuery: string): Promise<void> => {
+    async (rawQuery: string, retry?: { clientRequestId: string; intent: KnowledgeAskIntentChoice }): Promise<void> => {
       const query = rawQuery.trim();
       if (!query || !queryService) return;
-      const clientRequestId = crypto.randomUUID();
-      const intent = resolveAskIntent(intentChoice, query);
-      lastSubmitRef.current = { query, clientRequestId };
+      const clientRequestId = retry?.clientRequestId ?? crypto.randomUUID();
+      const intent = retry?.intent ?? resolveAskIntent(intentChoice, query);
+      lastSubmitRef.current = { query, clientRequestId, intent };
       const seq = ++submitSeqRef.current;
       inFlightRunIdRef.current = null;
       dispatch({ type: "submitStarted", query, clientRequestId, intent });
@@ -170,7 +173,7 @@ export function KnowledgeAskView({
     const last = lastSubmitRef.current;
     if (!last) return;
     // 复用同一 clientRequestId：Host 重连后服务端幂等返回同一 run（spec §5c.4）。
-    void submit(last.query);
+    void submit(last.query, last);
   }, [submit]);
 
   const cancel = React.useCallback(async (): Promise<void> => {
@@ -204,64 +207,91 @@ export function KnowledgeAskView({
   }, [indexActionBusy, indexService, refreshIndexStatus]);
 
   const verifyEvidence = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
+    async (candidate: KnowledgeArticleCandidate): Promise<KnowledgeEvidenceInspectState | null> => {
       const runId = state.current?.run.runId;
-      if (!queryService || !runId) return;
+      const submitSeq = submitSeqRef.current;
+      if (!queryService || !runId) return null;
       dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
+      let proof: KnowledgeEvidenceInspectState;
       try {
         const prepared = await queryService.prepareEvidence({ runId, articleId: candidate.articleId });
         if (prepared.status !== "current") {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: { phase: "unavailable", status: prepared.status, reason: null },
-          });
-          return;
-        }
-        const resolved = await queryService.resolveCitation({
-          receiptId: prepared.receipt.receiptId,
-          sessionId: sessionId ?? undefined,
-        });
-        // KnowledgeResolveCitationResult 的失败分支 status 词表含 "current"（类型上不可
-        // 区分），因此以 citation 是否存在为准做窄化，status/reason 经 "in" 守卫读取。
-        const resolvedReason = "reason" in resolved ? resolved.reason : null;
-        if (resolved.status === "current" && resolved.citation) {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: {
-              phase: "verified",
-              receiptId: resolved.citation.receiptId,
-              excerpt: resolved.citation.excerpt,
-              relativePath: resolved.citation.relativePath,
-              title: resolved.citation.title,
-              heading: resolved.citation.heading,
-              quote: resolved.citation.quote,
-            },
-          });
+          proof = { phase: "unavailable", status: prepared.status, reason: null };
         } else {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: {
-              phase: "unavailable",
-              status: resolved.status === "current" ? "forbidden" : resolved.status,
-              reason: resolvedReason,
-            },
+          const resolved = await queryService.resolveCitation({
+            receiptId: prepared.receipt.receiptId,
+            sessionId: sessionId ?? undefined,
           });
+          const reason = "reason" in resolved ? resolved.reason : null;
+          proof =
+            resolved.status === "current" && resolved.citation
+              ? {
+                  phase: "verified",
+                  receiptId: resolved.citation.receiptId,
+                  excerpt: resolved.citation.excerpt,
+                  relativePath: resolved.citation.relativePath,
+                  title: resolved.citation.title,
+                  heading: resolved.citation.heading,
+                  quote: resolved.citation.quote,
+                }
+              : {
+                  phase: "unavailable",
+                  status: resolved.status === "current" ? "forbidden" : resolved.status,
+                  reason,
+                };
         }
       } catch (error) {
-        dispatch({
-          type: "evidenceResolved",
-          articleId: candidate.articleId,
-          state: {
-            phase: "failed",
-            message: error instanceof Error ? error.message : String(error),
-          },
-        });
+        proof = {
+          phase: "failed",
+          message: error instanceof Error ? error.message : String(error),
+        };
       }
+      // A delayed verification must never populate the next query's evidence state or composer.
+      if (submitSeq !== submitSeqRef.current) return null;
+      dispatch({ type: "evidenceResolved", articleId: candidate.articleId, state: proof });
+      return proof;
     },
     [queryService, sessionId, state.current?.run.runId],
+  );
+
+  const addVerifiedEvidenceToAgent = React.useCallback(
+    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
+      if (!selectionTarget?.sessionId) {
+        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
+        return;
+      }
+      const submitSeq = submitSeqRef.current;
+      setAddingArticleId(candidate.articleId);
+      try {
+        // Always issue a fresh receipt on click. A previously displayed "verified" badge
+        // does not attest that the source is still current at submission time.
+        const proof = await verifyEvidence(candidate);
+        if (!proof || proof.phase !== "verified" || submitSeq !== submitSeqRef.current) return;
+        const reference = createConversationSelectionReference({
+          contentType: "markdown",
+          sourceKey: `vault:${proof.relativePath}`,
+          sourceTitle: proof.title,
+          path: proof.relativePath,
+          text: proof.excerpt,
+          evidenceReceiptId: proof.receiptId,
+        });
+        const result = dispatchConversationSelectionAdd({
+          targetSessionId: selectionTarget.sessionId,
+          workspaceKey: selectionTarget.workspaceKey,
+          reference,
+        });
+        if (!result.ok) {
+          toast.error(
+            intl.formatMessage({
+              id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
+            }),
+          );
+        }
+      } finally {
+        setAddingArticleId(null);
+      }
+    },
+    [intl, selectionTarget, verifyEvidence],
   );
 
   const openFollowUpSideChat = React.useCallback(
@@ -376,6 +406,8 @@ export function KnowledgeAskView({
                   inspect={state.evidence[candidate.articleId]}
                   sessionId={sessionId}
                   selectionTarget={selectionTarget}
+                  adding={addingArticleId === candidate.articleId}
+                  onAddToAgent={(entry) => void addVerifiedEvidenceToAgent(entry)}
                   onOpenNote={(relativePath, reveal) => {
                     onOpenNote(relativePath, reveal);
                   }}

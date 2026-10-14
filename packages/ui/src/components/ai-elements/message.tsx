@@ -43,7 +43,7 @@ import type { Pluggable, PluggableList } from "unified";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import {
   createKnowledgeCitationRemarkPlugin,
-  parseKnowledgeCitationHref,
+  resolveBoundKnowledgeCitation,
 } from "@/lib/knowledgeCitationMarkdown.js";
 import {
   ContextMenu,
@@ -1464,14 +1464,15 @@ export const MessageResponse = memo(
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
-          const knowledgeIndex = parseKnowledgeCitationHref(resolvedHref);
+          const knowledgeIndex = resolveBoundKnowledgeCitation(
+            resolvedHref,
+            node as { properties?: Record<string, unknown> } | undefined,
+            knowledgeCitationIndices ?? [],
+          );
           if (
             knowledgeIndex !== null &&
             !renderStreaming &&
             onOpenKnowledgeCitation &&
-            knowledgeCitationIndices?.includes(knowledgeIndex) &&
-            (node as { properties?: Record<string, unknown> } | undefined)
-              ?.properties?.["data-drora-bound-knowledge-source"] === String(knowledgeIndex) &&
             extractLinkLabelText(children) === `[${knowledgeIndex}]`
           ) {
             return (

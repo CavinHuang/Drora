@@ -385,7 +385,10 @@ describe("conversation selection references", () => {
     finish?.({ ok: true });
     expect(await first).toEqual({ ok: true });
     await Promise.resolve();
-    expect(await requestKnowledgeCitationOpen(input)).toEqual({ ok: false, reason: "failed" });
+    const nextOpen = requestKnowledgeCitationOpen(input);
+    expect(events).toBe(2);
+    finish?.({ ok: true });
+    expect(await nextOpen).toEqual({ ok: true });
   });
 
   it("fails closed after a hung accepted RPC and invalidates late navigation", async () => {

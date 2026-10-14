@@ -34,6 +34,7 @@ import {
   reduceKnowledgeAsk,
   resolveAskIntent,
   sliceCandidates,
+  type KnowledgeAskIntent,
   type KnowledgeAskIntentChoice,
   type KnowledgeEvidenceQuote,
   type KnowledgeEvidenceInspectState,
@@ -94,7 +95,7 @@ export function KnowledgeAskView({
   const submitSeqRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
-  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntentChoice } | null>(null);
+  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
 
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
@@ -133,7 +134,7 @@ export function KnowledgeAskView({
   }, [queryService]);
 
   const submit = React.useCallback(
-    async (rawQuery: string, retry?: { clientRequestId: string; intent: KnowledgeAskIntentChoice }): Promise<void> => {
+    async (rawQuery: string, retry?: { clientRequestId: string; intent: KnowledgeAskIntent }): Promise<void> => {
       const query = rawQuery.trim();
       if (!query || !queryService) return;
       const clientRequestId = retry?.clientRequestId ?? crypto.randomUUID();

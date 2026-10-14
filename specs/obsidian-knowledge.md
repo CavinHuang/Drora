@@ -993,25 +993,15 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 
 ## 5f. Evidence 生产者、审核消费与 L2 开关（W09，2026-10-11 落地）
 
-### 5f.1 composer 附件化 evidenceRefs（W03 建议①的 UI 半边）
+### 5f.1 Composer 可信 Evidence 接线（整合至 PR #23，取代 W09 独立附件实现）
 
-- **状态所有者**：附件 scope 存储唯一出处 `packages/ui/src/lib/knowledgeEvidenceAttachment.ts`（镜像
-  `conversationSelectionReference` 的 scope 存储 + CustomEvent 模式）；composer 侧唯一消费
-  `useKnowledgeEvidenceAttachments`；发送链唯一注入点 `SessionPane.dispatchSendTextAfterConfig`
-  的两处 `sendText` payload。
-- **语义**：候选卡「核验」产生的 receipt（`prepareEvidence` 签发、绑定 sessionId）经
-  「作为证据附给 Agent」进入目标会话 composer 的证据附件区（chip 展示 receiptId 短形、笔记
-  路径、quote 摘要与「发送时服务端复验」提示）；发送时以 `evidenceRefs: [{receiptId}]`
-  （≤8，契约 `MAX_EVIDENCE_REFS_PER_INPUT`）随 sendText payload 提交，admission 固定进
-  intent，队列提升时由 CLI gate 复验（W03 三层接线）。发送受理成功后清空附件区（与附件/
-  selection 同边界）；发送失败保留。
-- **边界（如实）**：附件区不做发送前预检（不预调 resolveCitation）；stale/cross_session/
-  forbidden 由 CLI gate 在 admission/提升时裁决并结构化报错——UI 提示语必须写明「发送时
-  复验」，不得宣称附件即可靠证据。与「加入 Agent」（userselect 普通引用）并存，按钮文案
-  与 Tooltip 明确区分两种语义。
-- **上限与去重**：每会话附件区最多 8 条（契约上限），按 receiptId 去重；跨会话调度
-  （targetSessionId）复用 selection 的 workspaceKey 作用域模型。
-
+- **唯一状态所有者**：`packages/ui/src/lib/conversationSelectionReference.ts` 的会话／工作区作用域引用列表；不另建 `knowledgeEvidenceAttachment` scope 或平行的附件组件。
+- **原文与凭据**：`KnowledgeAskView → prepareEvidence → resolveCitation → knowledgeAgentHandoff` 逐来源验证；`MarkdownSelectionReference` 同时持有模型可见的 excerpt/path 和 renderer-only 的 opaque `evidenceReceiptId`。`evidenceSource` 记录已验证的 index/path/heading/lines，供发送前一致性校验，绝不序列化进 `userselect`。
+- **发送链**：Composer 冻结引用快照、`collectConversationEvidenceRefs` 只从带 Receipt 的 Markdown 引用提取 `[{receiptId}]`，经 `ConversationComposer → SessionPane → CLI` 协议提交；CLI admission 和 queue promotion 再次独立复验。普通选区不获得可信语义。
+- **Agent handoff**：ANSWER 可选 1–5 篇，COMPARE 至少 2 篇、最多 5 篇；任一来源准备或解析失败则整批失败，不部分进入 Composer。修改来源数量、顺序、路径、章节、行号会令 `conversationKnowledgeSources.validateKnowledgeSourceManifest` 拒绝发送。只修改自然语言提问可继续发送。
+- **回跳**：已附加可信引用在 Composer 可请求核验后打开原文；事件只传 receiptId/session/workspace，VaultView 重新 `resolveCitation` 后校验路径与 quote。普通引用和模型生成的 `[1]` 文本不获得这一权限。
+- **迁移原则**：旧 PR #15 的 `knowledgeEvidenceAttachment.ts`、`useKnowledgeEvidenceAttachments.ts` 和 `KnowledgeEvidenceChip.tsx` 属于已被统一可信引用链路替代的历史实现，不要重新加入并行状态系统。W09 的 L2 审核功能和开关则保留并迁移至本 PR。对于任何没有服务端 Receipt 的材料，严格标示为普通引用。
+  
 ### 5f.2 审核视图消费 review 服务
 
 - `KnowledgeReviewView` 改为消费真实 `IKnowledgeReviewService`（accessor `knowledgeReviewService`，
@@ -1040,24 +1030,26 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 
 - 本阶段**不新增提案生产者**：提案仍只能由测试或后续「知识治理写回」工作单创建；审核视图
   的价值是让已存在的机制可被人工完整走通（批准→应用→undo→reconcile）。UI 不得伪造提案。
-- 证据附件区不跨 Host 同步（与 selection 同级，会话内一次发送有效）。
+- 可信引用由 Composer 会话与工作区作用域持有，不将未经校验的凭据跨 Host／跨会话自动传递；普通引用仍可独立存在。
 - `KnowledgeResolveCitationResult` 失败分支 status 含 `"current"` 的类型歧义维持现状（W04
   §4 建议），本阶段以 citation 存在性窄化，不在 services 侧改契约（避免破坏 W03 已锁定的
   CLI 契约面）。
 
-### 5f.5 验收映射
+### 5f.5 验收映射（整合基线）
 
-证据规则同 §6；证据见 `docs/vaultview/delivery/W09_DELIVERY.md`、
-`packages/ui/test/knowledgeEvidenceAttachment.test.ts`、
+以 `docs/vaultview/delivery/KNOWLEDGE_E2E_PHASE1_SMOKE.md` 的 G01–G30
+为最终 Electron 人工验收矩阵；`docs/vaultview/delivery/W09_DELIVERY.md` 仅保留旧 PR 的历史测试证据。
+自动化入口：`packages/ui/test/knowledgeAgentHandoff.test.ts`、
+`packages/ui/test/conversationKnowledgeSources.test.ts`、
+`packages/ui/test/knowledgeCitationNavigation.test.ts`、
 `packages/services/test/knowledgeReviewWritePath.test.ts`。
 
-| ID | 场景 | 状态 |
+| ID | 场景 | 验证来源 |
 | --- | --- | --- |
-| WSG-UI-1 | 附件区上限 8 / receiptId 去重 / 跨作用域隔离 / 事件驱动刷新 | 已实现（lib 测试） |
-| WSG-UI-2 | 发送 payload 携带 evidenceRefs 且受理后清空、失败保留 | 已实现（lib + 编排测试） |
-| WSG-UI-3 | 开关持久化：写后重读为 true/缺省文件视为 false/坏值视为 false | 已实现（services 测试） |
-| WSG-UI-4 | 关闭态 apply/undo 返回 write_path_disabled；开启后走真实 CAS 写盘 | 已实现（services 测试，沿用 W06 账本断言） |
-| WSG-UI-5 | UI 纪律：无任意字号/裸色值；i18n 两语言键齐全 | 已实现（ui 纪律测试扩展） |
+| WSG-UI-1/2 | 可信引用的有界批量交接、Receipt 去重、发送前清单一致性与 CLI 二次复验 | 现行 Composer/Knowledge UI 测试 + CLI gate |
+| WSG-UI-3 | L2 总门缺省关闭；配置持久化与重启后状态 | `knowledgeReviewWritePath.test.ts` |
+| WSG-UI-4 | L2 关闭时 apply/undo 拒绝；开启仅走人工审核 CAS 路径 | 服务端 review 测试 + GUI 验收 |
+| WSG-UI-5 | 中英文审核文案和结构化状态、错误反馈 | UI i18n 和审核视图测试 |
 
 ## 5f. agent VaultSearch 工具（2026-10-12 落地：agent 的只读 vault 检索入口）
 

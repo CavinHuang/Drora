@@ -328,6 +328,14 @@ jobs:
               sys.exit("PyYAML is required for channel manifest merge")
           import os
 
+          # electron-builder 对带 arch 的产物名会产出 per-arch 通道文件
+          # （latest-x64.yml 等）；base 通道名（latest.yml/latest-mac.yml）缺失时
+          # 以唯一 per-arch 文件顶替——发布通道约定名恒为 latest.yml/latest-mac.yml。
+          if not os.path.exists("latest.yml") and os.path.exists("latest-x64.yml"):
+              os.replace("latest-x64.yml", "latest.yml")
+          if not os.path.exists("latest-mac.yml") and os.path.exists("latest-mac-arm64.yml"):
+              os.replace("latest-mac-arm64.yml", "latest-mac.yml")
+
           def merge(base_name, extra_name):
               if not os.path.exists(extra_name):
                   return

@@ -43,12 +43,14 @@
 | G18 | 在两轮检索之间修改/删除上一轮笔记或切换 Vault，再点击旧候选 | 拒绝历史路径直接回跳；显示结构化 stale/missing/forbidden，不打开错误文件 | 未执行 |
 | G19 | 在同一 Agent Session 中将上一轮笔记重新「加入 Agent」后追问 | 重新签发当前 Receipt，Composer 收到原文与新 ID；发送及队列提升继续复验 | 未执行 |
 | G20 | 旧笔记复验 RPC 挂起时切换会话或发起新检索 | 迟到引用不打开笔记，也不进入新 Session 的 Composer | 未执行 |
+| G21 | ANSWER 选中两篇笔记并触发 Agent 交接，核验期间改选第二篇 | 旧两篇引用不得进入 Composer；需要对新选择重新执行交接 | 未执行 |
+| G22 | 在核验 RPC 未返回时快速双击「交给 Agent」，然后切换 Session/Workspace | 仅执行一次有效核验批次；旧会话结果不得写入新会话 Composer | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G20 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G22 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

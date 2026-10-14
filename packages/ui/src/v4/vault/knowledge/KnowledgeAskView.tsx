@@ -236,14 +236,14 @@ export function KnowledgeAskView({
 
   const verifyEvidence = React.useCallback(
     async (candidate: KnowledgeArticleCandidate): Promise<KnowledgeEvidenceInspectState | null> => {
-      const runId = state.current?.run.runId;
+      const run = state.current?.run;
       const submitSeq = submitSeqRef.current;
-      if (!queryService || !runId) return null;
+      if (!queryService || !run) return null;
       dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
       const proof = await verifyKnowledgeCandidateEvidence({
         queryService,
-        runId,
-        articleId: candidate.articleId,
+        run,
+        candidate,
         sessionId,
       });
       // A delayed verification must never populate the next query's evidence state or composer.

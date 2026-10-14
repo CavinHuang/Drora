@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendConversationSelectionReference,
   requestKnowledgeAgentHandoff,
+  requestKnowledgeCitationOpen,
+  getKnowledgeCitationOpenEventName,
+  isKnowledgeCitationOpenEvent,
   commitKnowledgeAgentHandoff,
   appendConversationSelectionReferences,
   getKnowledgeAgentHandoffEventName,
@@ -325,4 +328,42 @@ describe("conversation selection references", () => {
       references: [{ text: "selected text" }],
     });
   });
+  it("trusted citation navigation is handled only by a mounted matching-session Vault", async () => {
+    vi.stubGlobal("window", new EventTarget());
+    const noView = await requestKnowledgeCitationOpen({
+      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: "evr_a",
+    });
+    expect(noView).toEqual({ ok: false, reason: "unavailable" });
+    let received = 0;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      if (event.detail.targetSessionId !== "session-1" || event.detail.workspaceKey !== "/vault") return;
+      if (event.detail.accepted) return;
+      received++;
+      event.detail.accepted = true;
+      event.detail.finish({ ok: true });
+    });
+    expect(await requestKnowledgeCitationOpen({
+      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: "evr_a",
+    })).toEqual({ ok: true });
+    expect(received).toBe(1);
+    expect(await requestKnowledgeCitationOpen({
+      targetSessionId: "session-other", workspaceKey: "/vault", receiptId: "evr_a",
+    })).toEqual({ ok: false, reason: "unavailable" });
+    expect(received).toBe(1);
+  });
+
+  it("malformed navigation requests never dispatch a source-open event", async () => {
+    vi.stubGlobal("window", new EventTarget());
+    let observed = false;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), () => { observed = true; });
+    expect(await requestKnowledgeCitationOpen({
+      targetSessionId: "", workspaceKey: "/vault", receiptId: "evr_a",
+    })).toEqual({ ok: false, reason: "unavailable" });
+    expect(await requestKnowledgeCitationOpen({
+      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: " ",
+    })).toEqual({ ok: false, reason: "unavailable" });
+    expect(observed).toBe(false);
+  });
+
 });

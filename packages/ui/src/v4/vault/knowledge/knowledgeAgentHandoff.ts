@@ -6,6 +6,7 @@
  * until every selected source passes. CLI admission/queue promotion still reverify receipts.
  */
 import type { IKnowledgeQueryService, KnowledgeRunView } from "@drora/services";
+import { citationMatchesSelectedCandidate } from "./knowledgeEvidenceVerification.js";
 import {
   createConversationSelectionReference,
   type MarkdownSelectionReference,
@@ -88,18 +89,9 @@ export async function prepareKnowledgeAgentHandoff(input: {
       }
       const citation = resolved.citation;
       const candidate = candidateById.get(articleId);
-      if (!candidate || !citation.receiptId || !citation.excerpt.trim()) {
-        return { ok: false, reason: "evidence_unavailable" };
-      }
-      // A source must remain the candidate the user actually selected.
-      if (
-        citation.sessionId !== sessionId ||
-        citation.runId !== run.runId ||
-        citation.articleId !== articleId ||
-        citation.relativePath !== candidate.relativePath
-      ) {
-        // A valid-looking receipt from another run, session or candidate
-        // must never be substituted for the user-selected source.
+      if (!candidate || !citationMatchesSelectedCandidate({
+        run, candidate, sessionId, receipt: prepared.receipt, citation,
+      })) {
         return { ok: false, reason: "evidence_unavailable" };
       }
       references.push(

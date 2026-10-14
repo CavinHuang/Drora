@@ -3,6 +3,25 @@ import type { KnowledgeResolveCitationResult } from "@drora/services";
 import type { KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 import type { KnowledgeCitationOpenResult } from "@/lib/conversationSelectionReference.js";
 
+/** Confirm that navigation still belongs to this live Vault, Session and request. */
+export function isKnowledgeCitationScopeCurrent(input: {
+  requestActive: boolean;
+  mounted: boolean;
+  originalVaultId: string;
+  currentVaultId: string | null | undefined;
+  sessionId: string;
+  activeSessionId: string | null | undefined;
+  workspaceKey: string;
+  activeWorkspaceKey: string | null | undefined;
+  sameQueryService: boolean;
+}): boolean {
+  return input.requestActive && input.mounted &&
+    input.originalVaultId === input.currentVaultId &&
+    input.sessionId === input.activeSessionId &&
+    input.workspaceKey === input.activeWorkspaceKey &&
+    input.sameQueryService;
+}
+
 export type KnowledgeCitationNavigationDecision =
   | { ok: true; relativePath: string; quote: KnowledgeEvidenceQuote }
   | Extract<KnowledgeCitationOpenResult, { ok: false }>;

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { KnowledgeResolveCitationResult } from "@drora/services";
-import { decideKnowledgeCitationNavigation } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
+import {
+  decideKnowledgeCitationNavigation,
+  isKnowledgeCitationScopeCurrent,
+} from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
 
 const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
 const citation = {
@@ -54,6 +57,24 @@ describe("Obsidian citation navigation authorization", () => {
         ok: false,
         reason: status === "source_stale" ? "unavailable" : status,
       });
+    }
+  });
+  it("revokes a pending navigation when request, mount, Vault, session, workspace or service changes", () => {
+    const baseline = {
+      requestActive: true, mounted: true,
+      originalVaultId: "vault-1", currentVaultId: "vault-1",
+      sessionId: "session-1", activeSessionId: "session-1",
+      workspaceKey: "/workspace-1", activeWorkspaceKey: "/workspace-1",
+      sameQueryService: true,
+    };
+    expect(isKnowledgeCitationScopeCurrent(baseline)).toBe(true);
+    for (const changes of [
+      { requestActive: false }, { mounted: false },
+      { currentVaultId: "vault-2" }, { currentVaultId: null },
+      { activeSessionId: "session-2" }, { activeWorkspaceKey: "/workspace-2" },
+      { sameQueryService: false },
+    ]) {
+      expect(isKnowledgeCitationScopeCurrent({ ...baseline, ...changes })).toBe(false);
     }
   });
 });

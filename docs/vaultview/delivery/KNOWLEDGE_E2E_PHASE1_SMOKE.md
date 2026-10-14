@@ -69,12 +69,13 @@
 | G44 | 同轮回答同时包含 Markdown 代码块、行内代码、标题、表格、已有链接与普通段落中的 [1] | 只有普通 prose 内允许编号变为可点来源；已有链接和代码的文本/行为保留，未知 [9] 不能点击 | 未执行 |
 | G45 | 快速多次点击同一可信 Receipt，模拟 resolveCitation RPC 挂起超过 15 秒 | 同一身份只请求一次；超时结束等待并提示失败，迟到的 current 回复不能再打开笔记 | 未执行 |
 | G46 | 点击引用后立即关闭 VaultView、切换 Session/Workspace 或切换 Vault，直到 RPC 返回 | 请求按最新 mounted/scope/Vault 身份 fail-closed；历史弹出结果不应重新打开笔记 | 未执行 |
+| G47 | 点击可信来源时本地编辑器存在无法保存的草稿，或目标笔记读取失败/请求被更新的读取取代 | 不改变笔记选择或显示错误原文定位；引用打开返回失败而不是伪造成功，不覆盖原编辑器内容 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G46 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G47 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

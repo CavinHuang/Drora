@@ -105,7 +105,10 @@ import {
 } from "./vault/vault-sidebar-layout.js";
 import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
-import { decideKnowledgeCitationNavigation } from "./vault/knowledge/knowledgeCitationNavigation.js";
+import {
+  decideKnowledgeCitationNavigation,
+  isKnowledgeCitationScopeCurrent,
+} from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
 import { KnowledgeReviewView } from "./vault/knowledge/KnowledgeReviewView.js";
 import type { KnowledgeEvidenceQuote } from "./vault/knowledge/knowledgeAskModel.js";
@@ -1269,34 +1272,41 @@ export function VaultView({
       {
         discardLocalDraft = false,
         forceReopen = false,
-      }: { discardLocalDraft?: boolean; forceReopen?: boolean } = {},
-    ): Promise<void> => {
-      if (!vaultService) return;
-      if (!discardLocalDraft && !(await flushCurrentEditor())) return;
+        isCurrent,
+      }: {
+        discardLocalDraft?: boolean;
+        forceReopen?: boolean;
+        isCurrent?: () => boolean;
+      } = {},
+    ): Promise<boolean> => {
+      if (!vaultService || (isCurrent && !isCurrent())) return false;
+      if (!discardLocalDraft && !(await flushCurrentEditor())) return false;
+      if (isCurrent && !isCurrent()) return false;
       const remountEditor = shouldRemountVaultEditor(
         selectedFileRef.current,
         relativePath,
         forceReopen,
       );
       const requestId = ++readRequestRef.current;
-      selectFile(relativePath);
+      // For citation navigation, retain the current note until the guarded read succeeds.
+      if (!isCurrent) selectFile(relativePath);
       setFileLoading(true);
       try {
         const result = await vaultService.readFile({ relativePath });
-        if (requestId === readRequestRef.current) {
-          setReadResult(result);
-          // Only the explicit conflict-recovery action recreates the editor.
-          // Repeated ordinary clicks must preserve its CodeMirror instance.
-          if (remountEditor) setEditorReopenVersion((version) => version + 1);
-        }
+        if (requestId !== readRequestRef.current || (isCurrent && !isCurrent())) return false;
+        if (isCurrent) selectFile(relativePath);
+        setReadResult(result);
+        // Only the explicit conflict-recovery action recreates the editor.
+        // Repeated ordinary clicks must preserve its CodeMirror instance.
+        if (remountEditor) setEditorReopenVersion((version) => version + 1);
+        return true;
       } catch (error) {
-        if (requestId === readRequestRef.current) {
-          // The tree can be stale when a note is deleted or renamed outside this
-          // renderer. Refresh it once so the unavailable note is removed.
+        if (requestId === readRequestRef.current && (!isCurrent || isCurrent())) {
           if (isVaultFileNotFoundError(error)) void refresh();
           toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.openFailed" }));
-          setReadResult(null);
+          if (!isCurrent) setReadResult(null);
         }
+        return false;
       } finally {
         if (requestId === readRequestRef.current) setFileLoading(false);
       }
@@ -1327,12 +1337,19 @@ export function VaultView({
    * 既有 pointerdown/keydown 取消守卫会消费掉本次请求，不抢焦点）。
    */
   const openNoteFromKnowledge = React.useCallback(
-    async (relativePath: string, reveal?: KnowledgeEvidenceQuote): Promise<void> => {
+    async (
+      relativePath: string,
+      reveal?: KnowledgeEvidenceQuote,
+      isCurrent?: () => boolean,
+    ): Promise<boolean> => {
       const vaultId = config?.vaultId;
-      await openFile(relativePath);
-      if (!vaultId) return;
+      if (!vaultId || (isCurrent && !isCurrent())) return false;
+      const opened = await openFile(relativePath, { isCurrent });
+      if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||
+          (isCurrent && !isCurrent())) return false;
       setBodyFocusRequest({ vaultId, relativePath, reveal });
       setViewTab("notes");
+      return true;
     },
     [config?.vaultId, openFile],
   );
@@ -1362,10 +1379,21 @@ export function VaultView({
             receiptId: detail.receiptId,
             sessionId,
           });
-          const active = citationScopeRef.current;
-          if (!detail.isActive() || !mountedRef.current || vaultIdRef.current !== vaultId ||
-              active.sessionId !== sessionId || active.workspaceKey !== workspaceKey ||
-              active.queryService !== knowledgeQueryService) {
+          const stillAuthorized = (): boolean => {
+            const active = citationScopeRef.current;
+            return isKnowledgeCitationScopeCurrent({
+              requestActive: detail.isActive(),
+              mounted: mountedRef.current,
+              originalVaultId: vaultId,
+              currentVaultId: vaultIdRef.current,
+              sessionId,
+              activeSessionId: active.sessionId,
+              workspaceKey,
+              activeWorkspaceKey: active.workspaceKey,
+              sameQueryService: active.queryService === knowledgeQueryService,
+            });
+          };
+          if (!stillAuthorized()) {
             detail.finish({ ok: false, reason: "forbidden" });
             return;
           }
@@ -1378,11 +1406,16 @@ export function VaultView({
             detail.finish(target);
             return;
           }
-          // An accepted request may have expired while the resolver was running.
-          // Only the still-active owner can start navigation.
-          if (!detail.isActive()) return;
-          await openNoteFromKnowledge(target.relativePath, target.quote);
-          detail.finish({ ok: true });
+          // A failed editor flush, superseded read or scope change cannot
+          // commit the source selection or falsely report success.
+          if (!stillAuthorized()) return;
+          const opened = await openNoteFromKnowledge(
+            target.relativePath, target.quote, stillAuthorized,
+          );
+          detail.finish(opened ? { ok: true } : {
+            ok: false,
+            reason: stillAuthorized() ? "failed" : "forbidden",
+          });
         } catch {
           detail.finish({ ok: false, reason: "failed" });
         }

@@ -89,6 +89,7 @@ export function KnowledgeAskView({
   const [traceOpen, setTraceOpen] = React.useState(false);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
+  const selectionVersionRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
   const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
@@ -266,6 +267,7 @@ export function KnowledgeAskView({
       selectionTarget,
       state,
       submitSeqRef,
+      selectionVersionRef,
       verifyEvidence,
     });
 
@@ -390,7 +392,11 @@ export function KnowledgeAskView({
                   onOpenNote={(relativePath, reveal) => {
                     onOpenNote(relativePath, reveal);
                   }}
-                  onSelect={(articleId) => dispatch({ type: "candidateSelected", articleId })}
+                  onSelect={(articleId) => {
+                    // Invalidate pending evidence batches synchronously before React render.
+                    selectionVersionRef.current += 1;
+                    dispatch({ type: "candidateSelected", articleId });
+                  }}
                   onVerify={(entry) => void verifyEvidence(entry)}
                   onFollowUp={openFollowUpSideChat}
                 />

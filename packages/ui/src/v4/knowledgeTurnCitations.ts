@@ -112,3 +112,75 @@ export function readAnswerCitationNumbers(text: string): number[] {
   }
   return [...seen].sort((a, b) => a - b);
 }
+
+/**
+ * Heuristic coverage audit of model-generated prose, never semantic fact-checking.
+ * Code, table rows, quoted blocks and headings are skipped so that their numeric
+ * markers are not mistaken for sources.
+ */
+export interface KnowledgeAnswerCitationCoverage {
+  proseBlocks: number;
+  attributedBlocks: number;
+  unattributedBlocks: number;
+  unknownNumbers: number[];
+  knownNumbers: number[];
+}
+
+export function auditKnowledgeAnswerCitationCoverage(
+  text: string,
+  sourceCount: number,
+): KnowledgeAnswerCitationCoverage {
+  const blocks: string[] = [];
+  let chunk: string[] = [];
+  let fence: string | null = null;
+  const flush = (): void => {
+    if (chunk.length) blocks.push(chunk.join(" "));
+    chunk = [];
+  };
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (match) {
+      flush();
+      const symbol = match[1]![0]!;
+      if (!fence) fence = symbol;
+      else if (fence === symbol) fence = null;
+      continue;
+    }
+    if (fence || /^\s*(?:#{1,6}\s|>|[|]|-{3,}$|\*{3,}$)/.test(line)) {
+      flush();
+      continue;
+    }
+    if (!line.trim()) {
+      flush();
+      continue;
+    }
+    if (/^\s*(?:[-*+]\s|\d+[.)]\s)/.test(line)) flush();
+    chunk.push(line);
+  }
+  flush();
+  const knownNumbers = new Set<number>();
+  const unknownNumbers = new Set<number>();
+  let proseBlocks = 0;
+  let attributedBlocks = 0;
+  for (const block of blocks) {
+    // Inline code / normal Markdown links must not count as [n] provenance.
+    const plain = block
+      .replace(/\x60+[^\x60]*\x60+/g, "")
+      .replace(/!?\[[^\]]*\]\([^)]*\)/g, "");
+    const numbers = [...plain.matchAll(/\[([1-9]\d?)\]/g)].map((match) => Number(match[1]));
+    if (plain.replace(/\[[1-9]\d?\]/g, "").trim().length < 16) continue;
+    proseBlocks++;
+    for (const n of numbers) {
+      if (n <= sourceCount) knownNumbers.add(n);
+      else unknownNumbers.add(n);
+    }
+    if (numbers.some((n) => n <= sourceCount)) attributedBlocks++;
+  }
+  return {
+    proseBlocks,
+    attributedBlocks,
+    unattributedBlocks: proseBlocks - attributedBlocks,
+    knownNumbers: [...knownNumbers].sort((a, b) => a - b),
+    unknownNumbers: [...unknownNumbers].sort((a, b) => a - b),
+  };
+}

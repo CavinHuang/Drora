@@ -4,7 +4,7 @@
 // - sendQueuedNow：reserve 前复验 queueItem.evidenceRefs（手动提升与 auto-drain 合成信封
 //   的唯一漏斗，W00 S02 接线点）。失败 → 抛 EvidenceGuardRejectionError → ACK failed
 //   （guard.evidence*）；提升路径的 finally 会回滚 reservation，队首原位保留。
-// 宿主未注入 verifyInputEvidence（旧宿主/测试桩）→ 不复验，保持既有行为（additive）。
+// 宿主未注入 verifyInputEvidence 时拒绝携带证据的输入（fail-closed），普通输入不受影响。
 import {
   KNOWLEDGE_EVIDENCE_GUARDS,
   type KnowledgeEvidenceGuard,
@@ -34,14 +34,20 @@ export interface EvidenceAdmissionDecision {
   hasEvidence: boolean;
 }
 
-/** 复验入口：refs 为空直接放行；宿主无 port 放行（additive 语义）。 */
+/** 复验入口：refs 为空直接放行；宿主无 port 拒绝（fail-closed）。 */
 export async function verifyEvidenceOrThrow(
   host: V4CommandCoreHost,
   sessionId: string,
   refs: ReadonlyArray<{ receiptId: string }> | undefined,
 ): Promise<void> {
   if (!refs || refs.length === 0) return;
-  if (!host.verifyInputEvidence) return;
+  if (!host.verifyInputEvidence) {
+    throw new EvidenceGuardRejectionError(
+      KNOWLEDGE_EVIDENCE_GUARDS.forbidden,
+      "gate_unavailable",
+      refs[0]?.receiptId ?? "",
+    );
+  }
   const verdict = await host.verifyInputEvidence({ sessionId, evidenceRefs: refs });
   if (verdict.ok) return;
   throw new EvidenceGuardRejectionError(verdict.guard, verdict.reason, refs[0]?.receiptId ?? "");

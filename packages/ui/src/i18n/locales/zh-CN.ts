@@ -1088,6 +1088,7 @@ const zhCN: Record<string, string> = {
   "chat.selections.evidenceSourceMismatch": "来源清单与已附加的可信引用不一致。请恢复或重新从智能问库准备问题后再发送。",
   "chat.knowledgeTurn.sources": "本轮证据来源",
   "chat.knowledgeTurn.disclaimer": "与本轮已提交的凭据对应；点击会再次核验。模型的引用编号不代表结论已通过事实核查。",
+  "chat.knowledgeTurn.mentioned": "回答提及",
   "chat.knowledgeTurn.gaps": "回答中有 {missing}/{total} 个正文段落未标注有效来源编号。仅供人工核对，不代表内容一定错误。",
   "chat.knowledgeTurn.unknown": "回答出现未知来源编号：{numbers}。请核对原文。",
   "chat.selections.openVerifiedSource": "核验后打开原文",

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendConversationSelectionReference,
+  collectConversationEvidenceRefs,
   buildPromptWithConversationSelections,
   clearConversationSelectionReferenceScope,
   dispatchConversationSelectionAdd,
@@ -60,6 +61,59 @@ describe("conversation selection references", () => {
     const otherRow = appendConversationSelectionReference(first.references, reference("ref-3", 2));
     expect(otherRow).toMatchObject({ ok: true, duplicate: false });
     if (otherRow.ok) expect(otherRow.references).toHaveLength(2);
+  });
+
+  it("可信知识引用只在独立 command evidenceRefs 中发送 Receipt，不泄漏给 userselect", () => {
+    const trusted = {
+      contentType: "markdown" as const,
+      id: "verified-1",
+      sourceKey: "vault:notes/agent.md",
+      sourceTitle: "Agent memory",
+      path: "notes/agent.md",
+      text: "A verified source excerpt.",
+      evidenceReceiptId: "evr_verified0000000000000000000000001",
+    };
+    const plain = { ...trusted, id: "plain-1", sourceKey: "vault:other.md", evidenceReceiptId: undefined };
+    const refs = [trusted, plain, reference("normal-1")];
+    expect(collectConversationEvidenceRefs(refs)).toEqual([
+      { receiptId: trusted.evidenceReceiptId },
+    ]);
+    const prompt = buildPromptWithConversationSelections("Compare sources", refs);
+    expect(prompt).not.toContain("evidenceReceiptId");
+    expect(prompt).not.toContain(trusted.evidenceReceiptId);
+    expect(parsePromptConversationSelections(prompt).references).toEqual([
+      { path: trusted.path, text: trusted.text },
+      { path: plain.path, text: plain.text },
+      { text: "selected text" },
+    ]);
+  });
+
+  it("对同一段文字重新核验证据，应替换过期 Receipt 而非去重保留旧凭据", () => {
+    const base = {
+      contentType: "markdown" as const,
+      sourceKey: "vault:topic.md",
+      sourceTitle: "topic",
+      path: "topic.md",
+      text: "same text",
+    };
+    const first = appendConversationSelectionReference([], {
+      ...base, id: "ref-old", evidenceReceiptId: "evr_old",
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const updated = appendConversationSelectionReference(first.references, {
+      ...base, id: "ref-fresh", evidenceReceiptId: "evr_fresh",
+    });
+    expect(updated).toMatchObject({ ok: true, duplicate: false });
+    if (!updated.ok) return;
+    expect(updated.references).toHaveLength(1);
+    expect(collectConversationEvidenceRefs(updated.references)).toEqual([
+      { receiptId: "evr_fresh" },
+    ]);
+    const repeated = appendConversationSelectionReference(updated.references, {
+      ...base, id: "ref-third", evidenceReceiptId: "evr_fresh",
+    });
+    expect(repeated).toMatchObject({ ok: true, duplicate: true });
   });
 
   it("超限原子拒绝，不截断或修改已有引用", () => {

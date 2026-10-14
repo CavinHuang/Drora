@@ -50,17 +50,20 @@
 | G25 | 已签发凭据后修改原文并尝试发送 | 虽显示凭据待复验提示，发送门禁仍必须拒绝失效来源；提示不能误导为永久有效 | 未执行 |
 | G26 | 从多篇 ANSWER 交接到 Composer 后删除第二篇引用，再按 Enter 或发送 | 发送按钮禁用并显示来源清单不一致；命令不出站，草稿保留；重回问库重新准备可恢复 | 未执行 |
 | G27 | 交接后换序、替换一篇或编辑来源行号/标题；只修改自然语言问题作为对照 | 换序/替换/篡改来源行必定拒绝；只修改问题但完整保留索引和凭据可以发送，并由 CLI 再次复验 | 未执行 |
+| G28 | 将可信笔记加入已有 Agent Composer，点击该引用的「核验后打开原文」 | 对当前 Session 执行 resolveCitation=current，打开 VaultView 中服务端给出的相对路径并定位 quote 行号 | 未执行 |
+| G29 | 修改/删除原文、切换 Vault/Session 或关闭对应 VaultView 后点击引用 | 禁止按缓存路径跳转；结构化显示 stale/missing/forbidden/unavailable，不打开其他 Vault 的同名文件 | 未执行 |
+| G30 | 在 Composer 中附加普通 Markdown 选区而非可信 Receipt | 不出现「核验后打开原文」动作，不会因本地 path 文本获得可信来源权限 | 未执行 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G27 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G30 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 
 - FIND/ANSWER/COMPARE 的独立答案生成服务；当前跨文章回答仅完成“经用户选源 → 全部核验 → 编号来源清单 → 交给现有 Agent”的交接。来源编号仅为模型回答提示，不能宣称已做逐句引用真实性验证或生成内容质量评测。
-- Agent 回答正文中的 [1] 等编号尚未绑定可信 Receipt 做点击时复验与 Obsidian 原文定位；现有一般文件链接不应作为可信引用替代品。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
+- Agent 回答正文中的 [1] 等编号尚未绑定可信 Receipt 做点击时复验与 Obsidian 原文定位；现有一般文件链接不应作为可信引用替代品。Composer 已附加的可信引用 chip 支持点击时重新核验并打开 Vault 原文，两者不要混淆。Composer 发送前只做编号清单与当前凭据的一致性保护，不能代替 CLI 的可信证据验收。
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
 - 候选卡的「就此追问」侧会话仍走普通选区引用语义，不将其声称为 Receipt 可信链路。与此不同，「上一轮 → 加入 Agent」是同 Session 的显式可信证据重新核验流程。

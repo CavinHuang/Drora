@@ -39,6 +39,9 @@ function verifier(failAt?: string) {
     status: "current" as const,
     citation: {
       receiptId,
+      sessionId: "session-1",
+      runId: "run-1",
+      articleId: receiptId.replace(/^evr_/, ""),
       relativePath: `notes/${receiptId.slice(-1)}.md`,
       title: receiptId,
       excerpt: `Original text from ${receiptId}`,
@@ -119,4 +122,36 @@ describe("Obsidian trusted Agent handoff", () => {
     expect(buildKnowledgeAnswerPrompt("  为什么?  ", "answer")).toContain("问题：为什么?");
     expect(buildKnowledgeAnswerPrompt("test", "answer")).toContain("不要编造");
   });
+  it("rejects a valid receipt that points to a different run, session or article", async () => {
+    for (const violation of [
+      { sessionId: "session-other" },
+      { runId: "run-other" },
+      { articleId: "note-b" },
+    ]) {
+      const { ports, resolveCitation } = verifier();
+      resolveCitation.mockImplementationOnce(async ({ receiptId }) => ({
+        status: "current" as const,
+        citation: {
+          receiptId,
+          sessionId: "session-1",
+          runId: "run-1",
+          articleId: "note-a",
+          relativePath: "notes/a.md",
+          title: "A",
+          excerpt: "Original text",
+          heading: null,
+          quote: { startLine: 1, endLine: 1, startOffset: 0, endOffset: 10 },
+          ...violation,
+        },
+      }));
+      expect(await prepareKnowledgeAgentHandoff({
+        run: run(),
+        articleIds: ["note-a"],
+        sessionId: "session-1",
+        intent: "answer",
+        queryService: ports,
+      })).toEqual({ ok: false, reason: "evidence_unavailable" });
+    }
+  });
+
 });

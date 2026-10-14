@@ -53,6 +53,10 @@ export interface ConversationRowRenderContext {
   codePreviewSettings: CodePreviewSettings;
   /** 当前 pane 绑定的父 session；subagent 右侧 tab 用它做父任务分组。 */
   sessionId?: string | null;
+  /** The enclosing turn's admitted Obsidian source indices (1–5), not model claims. */
+  knowledgeCitationIndices?: readonly number[];
+  /** Resolves the corresponding opaque Receipt again before opening the Vault note. */
+  onOpenKnowledgeCitation?: (index: number) => void;
   /** 当前下钻树的顶层 session；详情 tab 跨嵌套层级按该 id 分组。 */
   rootSessionId?: string | null;
   /** @deprecated 旧内联下钻标记；新的子会话统一打开侧栏详情。 */

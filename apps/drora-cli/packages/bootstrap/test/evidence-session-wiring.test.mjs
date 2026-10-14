@@ -177,6 +177,65 @@ test("sendText：复验拒绝 → 领域错误带 guard reasonCode，模型输�
   assert.equal(calls.sendInput.length, 0);
 });
 
+test("sendText：复验端口异常 → 结构化 unavailable，不提交模型", async () => {
+  const { app, calls } = createRecordApp();
+  const host = createHost({
+    app,
+    calls,
+    verifier: async () => { throw new Error("temporary RPC disconnection"); },
+  });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_disconnected" }] } }),
+    ),
+    (error) => {
+      assert.equal(error.name, "EvidenceGuardRejectionError");
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.unavailable);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.sendInput.length, 0);
+});
+
+for (const providerId of ["account:zai-highspeed-card", "account:bigmodel-highspeed-card"]) {
+  test(`sendText：Highspeed 强制入队保留可信证据且不允许 guide (${providerId})`, async () => {
+    const { app, calls } = createRecordApp();
+    app.sendInput = async (input, options) => {
+      calls.sendInput.push({ input, options });
+      return { kind: "queued", queueItemId: "queue_cmd-1" };
+    };
+    const refs = [{ receiptId: "evr_highspeed_1" }];
+    const host = createHost({
+      app,
+      calls,
+      routingMode: "guide",
+      verifier: () => ({ ok: true }),
+    });
+    const result = await NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({
+        payload: {
+          evidenceRefs: refs,
+          modelSelection: { providerId, modelId: "highspeed-test-model" },
+          modelExecution: { selectionScope: "execution" },
+        },
+      }),
+    );
+    assert.equal(result.type, "inputAccepted");
+    assert.equal(result.delivery, "queue");
+    assert.equal(calls.verifierInputs.length, 1);
+    assert.equal(calls.sendInput.length, 1);
+    const { options } = calls.sendInput[0];
+    assert.equal(options.requireQueue, true);
+    assert.equal(options.queueDelivery, undefined, "可信证据不得走 guide");
+    assert.equal(options.intent.requestedDelivery, "queue");
+    assert.equal(options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+    assert.deepEqual(options.intent.evidenceRefs, refs);
+  });
+}
+
 test("sendText：宿主未注入复验端口 → fail-closed，模型不得启动", async () => {
   const { app, calls } = createRecordApp();
   const host = createHost({ app, calls, verifier: undefined });
@@ -267,6 +326,28 @@ test("sendQueuedNow：复验拒绝 → 在 reserve 前抛 guard 错误，队列�
   // 复验拒绝发生在 reserve 之前：无 reservation、无提升、无删除——队首原位保留。
   assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.markQueueItemPromoting.length, 0);
+  assert.equal(calls.removeQueueItem.length, 0);
+  assert.equal(calls.sendInput.length, 0);
+});
+
+test("sendQueuedNow：复验端口异常 → 队列保持原位，拒绝提升", async () => {
+  const { app, calls } = createRecordApp();
+  const item = queuedItem({ evidenceRefs: [{ receiptId: "evr_disconnect_queue" }] });
+  const host = createHost({
+    app,
+    calls,
+    queueItem: item,
+    verifier: async () => { throw new Error("ledger disconnected"); },
+  });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+    (error) => {
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.unavailable);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.removeQueueItem.length, 0);
   assert.equal(calls.sendInput.length, 0);
 });

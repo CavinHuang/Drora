@@ -60,6 +60,20 @@ export type ConversationSelectionAppendResult =
   | { ok: false; reason: ConversationSelectionLimitReason };
 
 const ADD_EVENT = "drora:conversation-selection-add";
+const KNOWLEDGE_HANDOFF_EVENT = "drora:knowledge-agent-handoff";
+
+export type KnowledgeAgentHandoffResult =
+  | ConversationSelectionAppendResult
+  | { ok: false; reason: "unavailable" | "draft-not-empty" };
+
+export interface KnowledgeAgentHandoffEventDetail {
+  targetSessionId: string;
+  workspaceKey: string;
+  prompt: string;
+  references: readonly MarkdownSelectionReference[];
+  /** Synchronous acknowledgment from the session-scoped, mounted composer. */
+  result?: KnowledgeAgentHandoffResult;
+}
 const USER_SELECT_BLOCK_PATTERN = /(?:\n\n)?# userselect:\n```userselect\n([\s\S]*?)\n```\s*$/;
 const LEGACY_BLOCK_PATTERN =
   /(?:\n\n)?# Conversation selections:\n```drora-conversation-selections\n([\s\S]*?)\n```\s*$/;
@@ -162,6 +176,61 @@ export function appendConversationSelectionReference(
     return { ok: false, reason: "total" };
   }
   return { ok: true, references: [...current, reference], duplicate: false };
+}
+
+/** Validate a whole batch before mutating the composer scope; never attach only a prefix. */
+export function appendConversationSelectionReferences(
+  current: readonly ConversationSelectionReference[],
+  references: readonly ConversationSelectionReference[],
+): ConversationSelectionAppendResult {
+  if (references.length === 0) return { ok: false, reason: "count" };
+  let next = current;
+  let duplicate = true;
+  for (const reference of references) {
+    const result = appendConversationSelectionReference(next, reference);
+    if (!result.ok) return result;
+    next = result.references;
+    duplicate &&= result.duplicate;
+  }
+  return { ok: true, references: next, duplicate };
+}
+
+/**
+ * Only an active composer can acknowledge this handoff. No session/global draft is mutated
+ * when a target composer is absent, busy or already contains user-authored text.
+ */
+export function requestKnowledgeAgentHandoff(
+  input: Omit<KnowledgeAgentHandoffEventDetail, "result">,
+): KnowledgeAgentHandoffResult {
+  const detail: KnowledgeAgentHandoffEventDetail = { ...input };
+  window.dispatchEvent(new CustomEvent(KNOWLEDGE_HANDOFF_EVENT, { detail }));
+  return detail.result ?? { ok: false, reason: "unavailable" };
+}
+
+export function isKnowledgeAgentHandoffEvent(
+  event: Event,
+): event is CustomEvent<KnowledgeAgentHandoffEventDetail> {
+  return event.type === KNOWLEDGE_HANDOFF_EVENT && event instanceof CustomEvent;
+}
+
+export function getKnowledgeAgentHandoffEventName(): string {
+  return KNOWLEDGE_HANDOFF_EVENT;
+}
+
+/** Commit an already preflighted set of refs and notify the existing selection hook once. */
+export function commitKnowledgeAgentHandoff(
+  input: KnowledgeAgentHandoffEventDetail,
+  result: Extract<ConversationSelectionAppendResult, { ok: true }>,
+): void {
+  setConversationSelectionReferenceScope(input.targetSessionId, input.workspaceKey, result.references);
+  window.dispatchEvent(new CustomEvent(ADD_EVENT, {
+    detail: {
+      targetSessionId: input.targetSessionId,
+      workspaceKey: input.workspaceKey,
+      reference: input.references[0],
+      result,
+    },
+  }));
 }
 
 /** Read the only trusted receipt identifiers from frozen composer selections; ordinary quotes carry none. */

@@ -1175,6 +1175,7 @@ const enUS: Record<string, string> = {
   "chat.selections.count": "{count} conversation selections",
   "chat.selections.remove": "Remove conversation selection",
   "chat.selections.evidenceRecheckOnSend": "Evidence receipt · rechecked on send",
+  "chat.selections.evidenceSourceMismatch": "The source list no longer matches your trusted references. Restore the sources or prepare the question again from Knowledge Search.",
   "chat.selections.type.user": "User message",
   "chat.selections.type.assistant": "Assistant message",
   "chat.selections.type.reasoning": "Reasoning",

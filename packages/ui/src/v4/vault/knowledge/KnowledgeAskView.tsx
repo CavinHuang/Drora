@@ -180,14 +180,16 @@ export function KnowledgeAskView({
   const cancel = React.useCallback(async (): Promise<void> => {
     const runId = inFlightRunIdRef.current;
     if (!runId || !queryService) return;
+    const cancelSeq = submitSeqRef.current;
     try {
       await queryService.cancelRun({ runId });
+      // A newer search may have started while cancellation was awaiting the host.
+      if (submitSeqRef.current === cancelSeq && inFlightRunIdRef.current === runId) {
+        dispatch({ type: "cancelSucceeded", runId });
+        inFlightRunIdRef.current = null;
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      // 取消后保留已有候选展示（PRD：禁止清空上次可用结果）。
-      dispatch({ type: "cancelSucceeded" });
-      inFlightRunIdRef.current = null;
     }
   }, [queryService]);
 

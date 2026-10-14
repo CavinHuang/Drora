@@ -19,6 +19,7 @@ const citation = {
   heading: "Section",
   quote,
   excerpt: "Verified text",
+  fileSha256: "a".repeat(64),
   createdAtMs: 1,
 };
 function validate(resolved: KnowledgeResolveCitationResult, sessionId = "session-1") {
@@ -32,6 +33,7 @@ describe("Obsidian citation navigation authorization", () => {
   it("uses only the current server-resolved destination and exact quote", () => {
     expect(validate(current())).toEqual({
       ok: true, relativePath: "notes/a.md", quote, excerpt: "Verified text",
+      fileSha256: "a".repeat(64),
     });
   });
 
@@ -45,6 +47,9 @@ describe("Obsidian citation navigation authorization", () => {
     for (const relativePath of ["../../outside.md", "/etc/passwd", "C:/secrets.md", "notes/../else.md", "notes\\a.md", "notes//a.md"]) {
       expect(validate(current({ relativePath }))).toEqual({ ok: false, reason: "forbidden" });
     }
+    expect(validate(current({ fileSha256: "bad" }))).toEqual({
+      ok: false, reason: "forbidden",
+    });
     for (const invalid of [
       { ...quote, startLine: 0 },
       { ...quote, endLine: 1 },

@@ -11,7 +11,8 @@ const current: KnowledgeResolveCitationResult = {
   citation: {
     receiptId: "evr_ok", sessionId: "session-1",
     runId: "run-1", articleId: "note-1", relativePath: "notes/a.md",
-    title: "A", heading: "Section", quote, excerpt: "Verified content", createdAtMs: 1,
+    title: "A", heading: "Section", quote, excerpt: "Verified content",
+    fileSha256: "a".repeat(64), createdAtMs: 1,
   },
 };
 const run = (overrides: Partial<Parameters<typeof navigateKnowledgeCitation>[0]> = {}) =>
@@ -28,12 +29,12 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
   it("uses the server-resolved path and quote, never model-authored links", async () => {
     const opened: unknown[] = [];
     expect(await run({
-      openNote: async (path, resolvedQuote, isCurrent, excerpt) => {
-        opened.push([path, resolvedQuote, isCurrent(), excerpt]);
+      openNote: async (path, resolvedQuote, isCurrent, excerpt, sha256) => {
+        opened.push([path, resolvedQuote, isCurrent(), excerpt, sha256]);
         return true;
       },
     })).toEqual({ ok: true });
-    expect(opened).toEqual([["notes/a.md", quote, true, "Verified content"]]);
+    expect(opened).toEqual([["notes/a.md", quote, true, "Verified content", "a".repeat(64)]]);
   });
 
   it("will not call the resolver when no longer mounted or authorized", async () => {

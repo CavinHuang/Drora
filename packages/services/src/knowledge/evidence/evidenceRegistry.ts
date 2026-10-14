@@ -46,6 +46,8 @@ export type KnowledgeResolveCitationResult =
         heading: string | null;
         quote: KnowledgeEvidenceReceiptRow["quote"];
         excerpt: string;
+        /** Same entire-file SHA-256 used by VaultFileSystem readFile(). */
+        fileSha256: string;
         createdAtMs: number;
       };
     }
@@ -261,6 +263,7 @@ export async function resolveCitationReceipt(params: {
       heading: receipt.heading,
       quote: receipt.quote,
       excerpt: receipt.excerpt,
+      fileSha256: receipt.fileSha256,
       createdAtMs: receipt.createdAtMs,
     },
   };

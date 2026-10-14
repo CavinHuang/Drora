@@ -24,7 +24,7 @@ const resolved: KnowledgeResolveCitationResult = {
     receiptId: receipt, sessionId: session, runId: "run-1",
     articleId: "article-1", relativePath: "notes/evidence.md",
     title: "Evidence", heading: null, quote, excerpt: "Verified original content",
-    createdAtMs: 1,
+    fileSha256: "a".repeat(64), createdAtMs: 1,
   },
 };
 
@@ -96,7 +96,8 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       expect(await requests[0]).toEqual({ ok: true });
       expect(resolveCitation).toHaveBeenCalledOnce();
       expect(openNote).toHaveBeenCalledExactlyOnceWith(
-        "notes/evidence.md", quote, expect.any(Function), "Verified original content",
+        "notes/evidence.md", quote, expect.any(Function),
+        "Verified original content", "a".repeat(64),
       );
     } finally {
       window.removeEventListener(getKnowledgeCitationOpenEventName(), onEvent);

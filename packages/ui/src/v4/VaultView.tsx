@@ -1368,6 +1368,7 @@ export function VaultView({
       reveal?: KnowledgeEvidenceQuote,
       isCurrent?: () => boolean,
       expectedExcerpt?: string,
+      expectedFileSha256?: string,
     ): Promise<boolean> => {
       const vaultId = config?.vaultId;
       if (!vaultId || (isCurrent && !isCurrent())) return false;
@@ -1376,7 +1377,8 @@ export function VaultView({
         isCurrent,
         ...(isCurrent ? {
           validateRead: (read: VaultReadResult) =>
-            Boolean(reveal && expectedExcerpt &&
+            Boolean(reveal && expectedExcerpt && expectedFileSha256 &&
+              read.sha256 === expectedFileSha256 &&
               matchesKnowledgeCitationReadback(read.content, reveal, expectedExcerpt)),
         } : {}),
       });

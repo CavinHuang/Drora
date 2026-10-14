@@ -99,7 +99,13 @@ export function isKnowledgeCitationScopeCurrent(input: {
 }
 
 export type KnowledgeCitationNavigationDecision =
-  | { ok: true; relativePath: string; quote: KnowledgeEvidenceQuote; excerpt: string }
+  | {
+      ok: true;
+      relativePath: string;
+      quote: KnowledgeEvidenceQuote;
+      excerpt: string;
+      fileSha256: string;
+    }
   | Extract<KnowledgeCitationOpenResult, { ok: false }>;
 
 function isSafeVaultRelativePath(path: string): boolean {
@@ -143,13 +149,15 @@ export function decideKnowledgeCitationNavigation(input: {
     citation.sessionId !== sessionId ||
     !isSafeVaultRelativePath(citation.relativePath) ||
     !isValidQuote(citation.quote) ||
-    typeof citation.excerpt !== "string" || !citation.excerpt
+    typeof citation.excerpt !== "string" || !citation.excerpt ||
+    !/^[a-f0-9]{64}$/.test(citation.fileSha256)
   ) {
     return { ok: false, reason: "forbidden" };
   }
   return {
     ok: true, relativePath: citation.relativePath,
     quote: citation.quote, excerpt: citation.excerpt,
+    fileSha256: citation.fileSha256,
   };
 }
 
@@ -168,6 +176,7 @@ export async function navigateKnowledgeCitation(input: {
     quote: KnowledgeEvidenceQuote,
     isCurrent: () => boolean,
     expectedExcerpt: string,
+    expectedFileSha256: string,
   ) => Promise<boolean>;
 }): Promise<KnowledgeCitationOpenResult> {
   const forbidden: KnowledgeCitationOpenResult = { ok: false, reason: "forbidden" };
@@ -181,7 +190,8 @@ export async function navigateKnowledgeCitation(input: {
     if (!decision.ok) return decision;
     if (!input.isCurrent()) return forbidden;
     const opened = await input.openNote(
-      decision.relativePath, decision.quote, input.isCurrent, decision.excerpt,
+      decision.relativePath, decision.quote, input.isCurrent,
+      decision.excerpt, decision.fileSha256,
     );
     if (!input.isCurrent()) return forbidden;
     return opened ? { ok: true } : { ok: false, reason: "failed" };

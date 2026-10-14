@@ -150,6 +150,7 @@ test("A12 前置：prepare 签发绑定完整的 opaque receipt，resolveCitatio
     });
     assert.equal(summary.status, "current");
     assert.equal(summary.citation!.relativePath, "notes/evidence.md");
+    assert.equal(summary.citation!.fileSha256, receipt.fileSha256);
     assert.equal(summary.citation!.sessionId, "session-A");
     assert.equal(summary.citation!.quote.startLine, receipt.quote.startLine);
   } finally {

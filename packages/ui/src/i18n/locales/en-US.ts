@@ -7704,6 +7704,51 @@ const enUS: Record<string, string> = {
 "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
 "settings.relayServerUrlSavedHint":
     "Relay server settings saved. Restart the app to take effect.",
+  "chat.evidence.one": "Evidence receipt: {name}",
+  "chat.evidence.count": "Evidence receipts ×{count}",
+  "chat.evidence.remove": "Remove evidence attachment",
+  "chat.evidence.removeAll": "Remove all evidence attachments",
+  "chat.evidence.reverifyHint":
+    "Submitted with the message and re-verified server-side at admission and queue promotion (current/stale/cross-session rejected); attaching does not mean currently valid.",
+  "vault.ask.candidate.attachEvidence": "Attach as evidence to Agent",
+  "vault.ask.candidate.attachEvidenceHint":
+    "Attaches this verification's receipt to the target session composer; submitted with the message and re-verified before execution. Distinct from the plain-quote \"Add to Agent\" semantics.",
+  "vault.ask.evidence.limitReached": "At most 8 evidence attachments",
+  "vault.ask.evidence.attached": "Evidence receipt attached to the session composer; server re-verifies on send",
+  "vault.review.subtitle": "Proposal → manual approval → ledger execution (the single entry for L2 governed writes; every action lands in the ledger)",
+  "vault.review.writePathToggle": "L2 reviewed write-back",
+  "vault.review.writePathToggleHint":
+    "Off by default. When enabled, applying/undoing approved proposals actually writes to disk (S03 gate is GO; see specs/write-safety-gating.md). Each execution still requires its own approval.",
+  "vault.review.listFailed": "Failed to load proposals",
+  "vault.review.emptyTitle": "No proposals",
+  "vault.review.emptyHint":
+    "Proposals are created by the knowledge governance write-back flow; the current version has no proposal producer entry. This view exists to exercise the full approve → apply → undo chain.",
+  "vault.review.revisionLabel": "rev {revision}",
+  "vault.review.phase.pending": "Pending approval",
+  "vault.review.phase.approvedCurrent": "Approved (ready to apply)",
+  "vault.review.phase.approvalExpired": "Approval expired/stale (re-approve required)",
+  "vault.review.phase.rejected": "Rejected",
+  "vault.review.approve": "Approve",
+  "vault.review.reject": "Reject",
+  "vault.review.apply": "Apply",
+  "vault.review.reapprove": "Re-approve",
+  "vault.review.undo": "Undo",
+  "vault.review.approved": "Approved",
+  "vault.review.rejected": "Rejected",
+  "vault.review.applied": "Applied",
+  "vault.review.undone": "Undone",
+  "vault.review.idempotentReplay": "Operation already in the ledger (idempotent replay; not executed twice)",
+  "vault.review.reconcileRequired": "An in-flight operation exists; reconcile before continuing",
+  "vault.review.deleteContent": "(delete this file)",
+  "vault.review.error.writePathDisabled":
+    "L2 reviewed write-back is currently off: enable it explicitly with the toggle above (off by default)",
+  "vault.review.error.approvalInvalid":
+    "Approval missing, expired, or bound to older content: re-approve before applying",
+  "vault.review.error.conflict": "Target file changed externally (base SHA mismatch): revise the proposal and retry",
+  "vault.review.error.revisionMismatch": "Proposal content was revised; the old approval is void — re-approve",
+  "vault.review.error.forbidden": "The current source is not allowed to perform this action",
+  "vault.review.error.noUndoTarget": "No undoable operation for this proposal in this session",
+  "vault.review.error.generic": "Action did not complete: {detail}",
 };
 
 export default enUS;

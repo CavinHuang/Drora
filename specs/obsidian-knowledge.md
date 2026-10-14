@@ -1012,19 +1012,14 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 - 空态：未配置 Vault → 引导；无提案 → 说明提案从何而来（当前无提案生产者入口，见 §5f.4
   如实边界）；服务不可用 → 真实错误态。
 
-### 5f.3 L2 写路径开关（writePathEnabled）
+### 5f.3 L2 写路径开关（writePathEnabled）：S03 NO-GO 运行时硬门
 
-- **缺省仍为关闭**（fail-closed 不变）；S03 GO（`S03_GATE_REVERIFICATION.md`）后允许显式开启。
-- **持久化唯一事实源**：`vault-config.json` 新增可选字段 `reviewWritePathEnabled?: boolean`
-  （缺省/非 boolean 视为关闭）；写入唯一入口 `obsidian-vault/config.ts`
-  `setVaultReviewWritePathEnabled`（与 `configureVaultAt` 同文件同格式，读-改-原子写，不新增
-  第二写方）；`parseVaultConfigShape` 同步接受该字段（additive，旧文件兼容）。
-- **生效链**：`createKnowledgeServices` 未显式传 `reviewWritePathEnabled` 时（生产路径），
-  review 服务创建后异步从 vault-config.json 加载初值（加载完成前按关闭判定，fail-closed）；
-  `IKnowledgeReviewService` 新增 `isWritePathEnabled()` 与 `setWritePathEnabled(enabled)`
-  （进程内立即生效 + 经上述唯一入口持久化）。测试显式传参时以参数为准、不读配置（确定性）。
-- **UI**：审核视图顶部开关（缺省关，明确标注「L2 审核写回：缺省关闭」与 S03 依据）；关闭态
-  下 apply/undo 的服务端 `write_path_disabled` 结构化错误照实显示并引导开关。
+- **S03 门禁仍是 NO-GO**（参见 `docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`）；W09 审核 UI 与真实提案/账本可用，但在 S03 的三处写安全修复及 P0 门控完成前，生产 L2 写入 **必须保持关闭**。此处不等同于允许切换后直接写盘。
+- **两个相互独立的必要条件**：只有通过 **独立运行时 S03 安全批准**（`writeSafetyGatePassed === true`）且用户偏好启用（`reviewWritePathEnabled === true` 或经授权的显式测试参数），引擎的 `writePathEnabled` 才可能为 true。生产 `node.ts` 不传安全批准，默认 false；**仅在配置文件中手工写 true、重启桌面端、或点击审核页开关，均不能获得写权限**。
+- **持久化**：`vault-config.json` 的 `reviewWritePathEnabled?: boolean` 仅记录用户偏好；`setVaultReviewWritePathEnabled` 是唯一写入口，读-改-原子写；重新配置 Vault 清除此字段。偏好并非安全门禁，配置读取出错时禁写。
+- **状态竞争**：初始化配置异步加载期间如发生用户切换，旧读取结果必须失效；并发开关写入串行且按调用顺序执行。关闭指令到达时运行时授权立即撤销（即使落盘未完成），失败不得重新开放。配置不存在时失败并保持禁写。
+- **UI**：审核页读取 `isWritePathActivationAllowed()`；门禁未满足时开关禁用并明确展示 S03 NO-GO 提示。提案浏览、批准/拒绝以及只读 reconcile 仍可用；apply/undo 均由服务端给出 `write_path_disabled` 结构化拒绝。
+- **解锁条件**：须由另一个经审计、通过自动化与桌面验收的 S03 工作单，在生产 host **显式**传入安全批准（不能从用户可编辑的 Vault 配置推导），届时再允许 L2 偏好产生写能力。仅测试夹具传 true 可用于验证后续写入状态机。
 
 ### 5f.4 如实边界
 

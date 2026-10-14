@@ -67,8 +67,43 @@ test("WSG-UI-3：setVaultReviewWritePathEnabled 持久化读-改-写；坏值视
   }
 });
 
-test("WSG-UI-4：未显式传参（生产形态）从配置加载；开关先持久化后翻转；重启（同 root 新实例）保持", async () => {
-  const root = await mkdtemp(join(tmpdir(), "drora-toggle-engine-"));
+test("S03 NO-GO: production never restores or activates L2 writes from a persisted true flag", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-toggle-nogo-"));
+  setDataBaseDir(root);
+  try {
+    const pluginDataDir = join(root, "plugin-data");
+    const vault = join(root, "vault");
+    await mkdir(vault, { recursive: true });
+    await configureVaultAt(pluginDataDir, vault, { allowAgentWrites: true });
+    assert.notEqual(await setVaultReviewWritePathEnabled(pluginDataDir, true), null);
+    const services = createKnowledgeServices({
+      databasePath: join(root, "knowledge", "knowledge-index.sqlite"),
+      pluginDataDir,
+    });
+    try {
+      assert.equal(services.reviewService.isWritePathActivationAllowed(), false);
+      assert.equal(services.reviewService.isWritePathEnabled(), false);
+      await sleep(40);
+      assert.equal(services.reviewService.isWritePathEnabled(), false);
+      await assert.rejects(
+        services.reviewService.setWritePathEnabled(true),
+        /S03 Hard Write Safety NO-GO/,
+      );
+      assert.equal(services.reviewService.isWritePathEnabled(), false);
+      // Config may still retain a stale true, but it grants no runtime permission.
+      assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, true);
+      await services.reviewService.setWritePathEnabled(false);
+      assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, false);
+    } finally {
+      services.dispose();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("S03 explicit verified gate: persisted preference restores, toggles are serialized and survive restart", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-toggle-approved-"));
   setDataBaseDir(root);
   try {
     const pluginDataDir = join(root, "plugin-data");
@@ -76,31 +111,63 @@ test("WSG-UI-4：未显式传参（生产形态）从配置加载；开关先持
     await mkdir(vault, { recursive: true });
     await configureVaultAt(pluginDataDir, vault, { allowAgentWrites: true });
     const databasePath = join(root, "knowledge", "knowledge-index.sqlite");
-
-    // 生产形态：不传 reviewWritePathEnabled → 加载完成前按关闭判定（fail-closed）。
-    const first = createKnowledgeServices({ databasePath, pluginDataDir });
+    // This flag is test-only until an independently verified S03 host gate is wired.
+    const options = { databasePath, pluginDataDir, reviewWriteSafetyGatePassed: true };
+    const first = createKnowledgeServices(options);
     try {
+      assert.equal(first.reviewService.isWritePathActivationAllowed(), true);
       assert.equal(first.reviewService.isWritePathEnabled(), false);
-      await sleep(30);
-      // 配置文件此时无字段 → 加载后仍为关闭。
-      assert.equal(first.reviewService.isWritePathEnabled(), false);
-
-      // 开关：持久化成功后进程内状态才翻转。
       await first.reviewService.setWritePathEnabled(true);
       assert.equal(first.reviewService.isWritePathEnabled(), true);
-      const persisted = await readConfigField(pluginDataDir);
-      assert.equal(persisted.reviewWritePathEnabled, true);
+      assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, true);
+      // Three concurrent requests must commit in invocation order, not IO completion order.
+      await Promise.all([
+        first.reviewService.setWritePathEnabled(false),
+        first.reviewService.setWritePathEnabled(true),
+        first.reviewService.setWritePathEnabled(false),
+      ]);
+      assert.equal(first.reviewService.isWritePathEnabled(), false);
+      assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, false);
+      await first.reviewService.setWritePathEnabled(true);
     } finally {
       first.dispose();
     }
-
-    // 重启语义：同一 root 的新实例（仍未显式传参）从配置加载到 true。
-    const second = createKnowledgeServices({ databasePath, pluginDataDir });
+    const second = createKnowledgeServices(options);
     try {
-      await sleep(30);
+      await sleep(40);
       assert.equal(second.reviewService.isWritePathEnabled(), true);
+      // A user toggle made while the startup read is in flight must win.
+      const third = createKnowledgeServices(options);
+      try {
+        await third.reviewService.setWritePathEnabled(false);
+        await sleep(40);
+        assert.equal(third.reviewService.isWritePathEnabled(), false);
+        assert.equal((await readConfigField(pluginDataDir)).reviewWritePathEnabled, false);
+      } finally {
+        third.dispose();
+      }
     } finally {
       second.dispose();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("L2 toggle fails closed when no valid Vault configuration is available", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-toggle-no-vault-"));
+  setDataBaseDir(root);
+  try {
+    const services = createKnowledgeServices({
+      databasePath: join(root, "knowledge", "knowledge-index.sqlite"),
+      pluginDataDir: join(root, "plugin-data"),
+      reviewWriteSafetyGatePassed: true,
+    });
+    try {
+      await assert.rejects(services.reviewService.setWritePathEnabled(true), /configuration unavailable/);
+      assert.equal(services.reviewService.isWritePathEnabled(), false);
+    } finally {
+      services.dispose();
     }
   } finally {
     await rm(root, { recursive: true, force: true });

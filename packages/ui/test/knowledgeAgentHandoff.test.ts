@@ -5,10 +5,22 @@ import {
   prepareKnowledgeAgentHandoff,
 } from "../src/v4/vault/knowledge/knowledgeAgentHandoff.js";
 
+const quote = { startLine: 1, endLine: 1, startOffset: 0, endOffset: 10 };
 const candidates = [
   { articleId: "note-a", relativePath: "notes/a.md", title: "A" },
   { articleId: "note-b", relativePath: "notes/b.md", title: "B" },
-] as KnowledgeRunView["candidates"];
+].map((item, i) => ({
+  ...item,
+  matchedHeading: null,
+  excerpt: "Original text",
+  quote,
+  fileSha256: "f".repeat(64),
+  chunkSha256: "c".repeat(64),
+  rank: i + 1,
+  score: 1,
+  matchedChunkCount: 1,
+  evidenceStatus: "unverified" as const,
+})) satisfies KnowledgeRunView["candidates"];
 
 function run(overrides: Partial<KnowledgeRunView> = {}): KnowledgeRunView {
   return {
@@ -33,7 +45,23 @@ function verifier(failAt?: string) {
   const prepareEvidence = vi.fn(async ({ articleId }: { runId: string; articleId: string }) => (
     articleId === failAt
       ? { status: "stale" as const }
-      : { status: "current" as const, receipt: { receiptId: `evr_${articleId}` } }
+      : { status: "current" as const, receipt: {
+        receiptId: `evr_${articleId}`,
+        sessionId: "session-1",
+        runId: "run-1",
+        articleId,
+        vaultId: "vault",
+        sourceEpoch: 1,
+        sourceFingerprint: "fixture",
+        relativePath: `notes/${articleId.slice(-1)}.md`,
+        title: articleId,
+        heading: null,
+        fileSha256: "f".repeat(64),
+        chunkSha256: "c".repeat(64),
+        quote,
+        excerpt: `Original text from evr_${articleId}`,
+        createdAtMs: 1,
+      } }
   ));
   const resolveCitation = vi.fn(async ({ receiptId }: { receiptId: string; sessionId: string }) => ({
     status: "current" as const,
@@ -46,7 +74,8 @@ function verifier(failAt?: string) {
       title: receiptId,
       excerpt: `Original text from ${receiptId}`,
       heading: null,
-      quote: { startLine: 1, endLine: 1, startOffset: 0, endOffset: 10 },
+      quote,
+      createdAtMs: 1,
     },
   }));
   // Keep the test stub narrow; the real implementation is exercised in knowledgeE2EFullChain.
@@ -141,6 +170,38 @@ describe("Obsidian trusted Agent handoff", () => {
           excerpt: "Original text",
           heading: null,
           quote: { startLine: 1, endLine: 1, startOffset: 0, endOffset: 10 },
+          ...violation,
+        },
+      }));
+      expect(await prepareKnowledgeAgentHandoff({
+        run: run(),
+        articleIds: ["note-a"],
+        sessionId: "session-1",
+        intent: "answer",
+        queryService: ports,
+      })).toEqual({ ok: false, reason: "evidence_unavailable" });
+    }
+  });
+
+  it("rejects a valid-looking citation with a different receipt or quote", async () => {
+    for (const violation of [
+      { receiptId: "evr_mismatched" },
+      { quote: { ...quote, endOffset: 11 } },
+    ]) {
+      const { ports, resolveCitation } = verifier();
+      resolveCitation.mockImplementationOnce(async ({ receiptId }) => ({
+        status: "current" as const,
+        citation: {
+          receiptId,
+          sessionId: "session-1",
+          runId: "run-1",
+          articleId: "note-a",
+          relativePath: "notes/a.md",
+          title: "A",
+          excerpt: "Original text",
+          heading: null,
+          quote,
+          createdAtMs: 1,
           ...violation,
         },
       }));

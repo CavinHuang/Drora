@@ -103,20 +103,31 @@ export interface KnowledgeReviewEngineOptions {
    * 仅测试环境经 KnowledgeServicesOptions.reviewWritePathEnabled 显式置 true。
    */
   writePathEnabled?: boolean;
+  /**
+   * Explicit S03 runtime hard-write-safety authorization. This must be set only
+   * by a future, independently verified S03 gate implementation. The normal
+   * desktop host does not pass it; persisted user preferences cannot grant it.
+   */
+  writeSafetyGatePassed?: boolean;
 }
 
 export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptions): IKnowledgeReviewService {
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
-  // fail-closed：缺省（含 undefined）一律视为门禁未通过。
-  // W09（specs/obsidian-knowledge.md §5f.3）：显式传参（测试）时以参数为准且不读配置；
-  // 未传参（生产路径）创建后异步从 vault-config.json 加载初值——加载完成前按关闭判定
-  // （fail-closed），加载失败仅记日志保持关闭。
-  let writePathEnabled = options.writePathEnabled === true;
-  if (options.writePathEnabled === undefined) {
+  // S03 NO-GO: persisted preferences are never sufficient to enable L2 writes.
+  // An independently verified runtime gate must authorize the write path first.
+  const writeSafetyGatePassed = options.writeSafetyGatePassed === true;
+  let writePathEnabled = writeSafetyGatePassed && options.writePathEnabled === true;
+  let preferenceGeneration = 0;
+  let preferenceWrites = Promise.resolve();
+  if (writeSafetyGatePassed && options.writePathEnabled === undefined) {
+    const generation = preferenceGeneration;
     void loadVaultConfig(options.pluginDataDir)
       .then((config) => {
-        if (config?.reviewWritePathEnabled === true) writePathEnabled = true;
+        // A user toggle can finish before the slow initial read. Never overwrite it.
+        if (generation === preferenceGeneration) {
+          writePathEnabled = config?.reviewWritePathEnabled === true;
+        }
       })
       .catch(() => {
         logger.warn("knowledge review write path config load failed; staying disabled");
@@ -1125,10 +1136,29 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // W09 L2 开关：进程内立即生效；持久化走唯一入口，先落盘再翻转（持久化失败时
     // 进程内状态不变，错误上抛由 UI 呈现）。
     isWritePathEnabled: () => writePathEnabled,
+    isWritePathActivationAllowed: () => writeSafetyGatePassed,
     async setWritePathEnabled(enabled: boolean) {
       const next = enabled === true;
-      await setVaultReviewWritePathEnabled(options.pluginDataDir, next);
-      writePathEnabled = next;
+      // Invalidate any pending async initialization at invocation time, not when
+      // persistence eventually finishes. Stale reads must never turn writes back on.
+      preferenceGeneration += 1;
+      const operation = preferenceWrites.then(async () => {
+        if (next && !writeSafetyGatePassed) {
+          reject(
+            KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+            "S03 Hard Write Safety NO-GO: runtime gate has not authorized L2 writes",
+          );
+        }
+        const result = await setVaultReviewWritePathEnabled(options.pluginDataDir, next);
+        if (!result) {
+          throw new Error("Vault configuration unavailable; review write-path preference was not changed");
+        }
+        // State changes only after the sole vault-config writer has committed.
+        writePathEnabled = writeSafetyGatePassed && next;
+      });
+      // Serialize concurrent toggle requests, including a failed predecessor.
+      preferenceWrites = operation.then(() => undefined, () => undefined);
+      return operation;
     },
   };
 }

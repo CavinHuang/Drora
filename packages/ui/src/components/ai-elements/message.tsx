@@ -42,6 +42,10 @@ import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from "streamdo
 import type { Pluggable, PluggableList } from "unified";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import {
+  createKnowledgeCitationRemarkPlugin,
+  parseKnowledgeCitationHref,
+} from "@/lib/knowledgeCitationMarkdown.js";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -384,6 +388,10 @@ export type MessageResponseProps = {
   onOpenExternalUrl?: (url: string) => void;
   /** 仅 Assistant 正文开启：把完整 drora-file-citation 投影为现有文件链接。 */
   renderDroraFileCitations?: boolean;
+  /** Only the canonical Receipt-backed indices of this completed product turn. */
+  knowledgeCitationIndices?: readonly number[];
+  /** Navigate via host Receipt revalidation; never infer a path from model text. */
+  onOpenKnowledgeCitation?: (index: number) => void;
 };
 
 export interface MessageFileLinkTarget {
@@ -1305,6 +1313,8 @@ export const messageResponsePropsAreEqual = (
   nextProps.sessionId === prevProps.sessionId &&
   nextProps.readAttachment === prevProps.readAttachment &&
   nextProps.renderDroraFileCitations === prevProps.renderDroraFileCitations &&
+  nextProps.knowledgeCitationIndices === prevProps.knowledgeCitationIndices &&
+  nextProps.onOpenKnowledgeCitation === prevProps.onOpenKnowledgeCitation &&
   nextProps.theme === prevProps.theme &&
   nextProps.codePreviewSettings === prevProps.codePreviewSettings &&
   nextProps.onOpenCodeViewer === prevProps.onOpenCodeViewer &&
@@ -1320,6 +1330,8 @@ export const MessageResponse = memo(
     onOpenFileLink,
     onOpenExternalUrl,
     renderDroraFileCitations = false,
+    knowledgeCitationIndices,
+    onOpenKnowledgeCitation,
     workspacePath,
     workspaceHomePath,
     workspaceIdentity,
@@ -1361,8 +1373,18 @@ export const MessageResponse = memo(
         ...(renderDroraFileCitations && workspacePath
           ? [createDroraFileCitationRemarkPlugin(workspacePath, workspaceHomePath)]
           : []),
+        ...(onOpenKnowledgeCitation && knowledgeCitationIndices?.length && !renderStreaming
+          ? [createKnowledgeCitationRemarkPlugin(knowledgeCitationIndices)]
+          : []),
       ],
-      [renderDroraFileCitations, workspaceHomePath, workspacePath],
+      [
+        knowledgeCitationIndices,
+        onOpenKnowledgeCitation,
+        renderDroraFileCitations,
+        renderStreaming,
+        workspaceHomePath,
+        workspacePath,
+      ],
     );
     const responseClassName = cn(
       "size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
@@ -1373,8 +1395,8 @@ export const MessageResponse = memo(
       () =>
         renderStreaming
           ? `streaming:${streamdownMode}`
-          : `${streamdownMode}:${renderDroraFileCitations ? "citations" : "plain"}:${hashMarkdownCacheKey(targetMarkdown)}`,
-      [renderStreaming, renderDroraFileCitations, streamdownMode, targetMarkdown],
+          : `${streamdownMode}:${renderDroraFileCitations ? "citations" : "plain"}:${knowledgeCitationIndices?.join(",") ?? ""}:${hashMarkdownCacheKey(targetMarkdown)}`,
+      [renderStreaming, renderDroraFileCitations, knowledgeCitationIndices, streamdownMode, targetMarkdown],
     );
     const boundaryScope = useMemo<MessageResponseBoundaryScope>(
       () => ({
@@ -1409,7 +1431,8 @@ export const MessageResponse = memo(
           workspaceIdentity,
           workspaceRemoteSessionId,
           wrapLongLines,
-        }) + (forceCodeWrap ? ":wrap-locked" : "")
+        }) + (forceCodeWrap ? ":wrap-locked" : "") +
+        `:knowledge:${onOpenKnowledgeCitation ? knowledgeCitationIndices?.join(",") ?? "" : ""}`
       );
     }, [
       codeBlockTheme,
@@ -1417,6 +1440,8 @@ export const MessageResponse = memo(
       wrapLongLines,
       forceCodeWrap,
       renderDroraFileCitations,
+      knowledgeCitationIndices,
+      onOpenKnowledgeCitation,
       readAttachment,
       sessionId,
       workspaceHomePath,
@@ -1434,6 +1459,25 @@ export const MessageResponse = memo(
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
+          const knowledgeIndex = parseKnowledgeCitationHref(resolvedHref);
+          if (
+            knowledgeIndex !== null &&
+            !renderStreaming &&
+            onOpenKnowledgeCitation &&
+            knowledgeCitationIndices?.includes(knowledgeIndex) &&
+            extractLinkLabelText(children) === `[${knowledgeIndex}]`
+          ) {
+            return (
+              <button
+                type="button"
+                className={cn(messageLinkClassName, linkClassName, "cursor-pointer")}
+                data-testid={`knowledge-inline-citation-${knowledgeIndex}`}
+                onClick={() => onOpenKnowledgeCitation(knowledgeIndex)}
+              >
+                {children}
+              </button>
+            );
+          }
           const fileLink = resolveMarkdownFileLink(workspacePath, resolvedHref, {
             homePath: workspaceHomePath,
           });
@@ -1599,6 +1643,8 @@ export const MessageResponse = memo(
         onOpenFileLink,
         onOpenCodeViewer,
         onOpenExternalUrl,
+        onOpenKnowledgeCitation,
+        knowledgeCitationIndices,
         readAttachment,
         renderStreaming,
         sessionId,

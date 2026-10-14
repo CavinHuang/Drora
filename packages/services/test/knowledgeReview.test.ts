@@ -51,6 +51,7 @@ async function createEnv(options: { writePathEnabled?: boolean } = {}): Promise<
     // S03 Hard Write Safety GO 门禁未满足，生产装配默认关闭写路径；
     // 本套件验证的是门禁通过后的机制行为，故显式使能（仅测试环境）。
     reviewWritePathEnabled: options.writePathEnabled ?? true,
+    reviewWriteSafetyGatePassed: true,
   });
   await configureVaultAt(pluginDataDir, vault, { allowAgentWrites: true });
   return { root, pluginDataDir, vault, databasePath, services, review: services.reviewService };
@@ -573,6 +574,7 @@ test("双 Host 串行：同一文件不同 operationId 由门面 CAS 串行，�
     databasePath: env.databasePath,
     pluginDataDir: env.pluginDataDir,
     reviewWritePathEnabled: true,
+    reviewWriteSafetyGatePassed: true,
   });
   try {
     await writeFile(join(env.vault, "a.md"), "base", "utf-8");
@@ -617,6 +619,7 @@ test("双 Host 并发：同一提案两实例同时 apply，最终文件必为�
     databasePath: env.databasePath,
     pluginDataDir: env.pluginDataDir,
     reviewWritePathEnabled: true,
+    reviewWriteSafetyGatePassed: true,
   });
   try {
     await writeFile(join(env.vault, "a.md"), "base", "utf-8");

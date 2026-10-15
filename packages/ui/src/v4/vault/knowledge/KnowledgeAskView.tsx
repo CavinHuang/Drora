@@ -70,6 +70,8 @@ export interface KnowledgeAskViewProps {
   ) => void;
   /** 无 Vault 时的引导动作（切回笔记视图使用左下角连接器）。 */
   onGoToNotes: () => void;
+  /** 仅在会话 Composer 同步确认接受了真实 Receipt 后返回聊天。 */
+  onAgentHandoffPrepared?: () => void;
 }
 
 export function KnowledgeAskView({
@@ -79,6 +81,7 @@ export function KnowledgeAskView({
   workspaceKey,
   onOpenNote,
   onGoToNotes,
+  onAgentHandoffPrepared,
 }: KnowledgeAskViewProps): React.ReactElement {
   const { intl } = useDroraIntl();
   const [state, dispatch] = React.useReducer(
@@ -257,6 +260,7 @@ export function KnowledgeAskView({
       submitSeqRef,
       selectionVersionRef,
       verifyEvidence,
+      onAgentHandoffPrepared,
     });
 
   if (!queryService || !indexService) {

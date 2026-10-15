@@ -56,6 +56,7 @@ async function clickControl(selector: string, label: string): Promise<void> {
 }
 
 describe("G58 real Electron managed Obsidian Vault: read-only positive flow", () => {
+  let candidateVerifiedBySearch = false;
   before(async function () {
     this.timeout(120_000);
     assertIsolatedVault();
@@ -87,18 +88,31 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await clickControl('[data-testid="vault-tab-ask"]', "Knowledge Ask tab");
     await waitForVisible('[data-testid="ask-input"]', "Knowledge Ask input");
 
-    // Index the actual file via production KnowledgeIndexService. The cold-start
-    // button disappears when coverage is nonzero; never forge an index snapshot.
-    const needsIndex = await browser.execute(() =>
-      Boolean(document.querySelector('[data-testid="ask-index-start"]')));
-    if (needsIndex) {
-      await clickControl('[data-testid="ask-index-start"]', "build real Vault index");
+    // First await the actual host getStatus reply. The absence of the cold-start
+    // button during the initial loading frame is NOT evidence of a ready index.
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelector('[data-testid="knowledge-ask-view"]')
+        ?.getAttribute("data-index-configured") === "true",
+    ), { timeout: 30_000, timeoutMsg: "Production Knowledge service did not report configured Vault" });
+
+    const initialIndex = await browser.execute(() => {
+      const view = document.querySelector('[data-testid="knowledge-ask-view"]');
+      return {
+        indexedFiles: Number(view?.getAttribute("data-indexed-files") ?? "-1"),
+        job: view?.getAttribute("data-index-job-status") ?? "none",
+      };
+    });
+    if (initialIndex.indexedFiles === 0 && initialIndex.job !== "running") {
+      await clickControl('[data-testid="ask-index-start"]', "start actual Vault reconcile");
     }
 
-    await browser.waitUntil(() => browser.execute(() =>
-      !document.querySelector('[data-testid="ask-index-building"]')
-      && !document.querySelector('[data-testid="ask-index-start"]'),
-    ), { timeout: 90_000, timeoutMsg: "Real Vault indexing did not finish" });
+    // A true, positive host-derived count is the barrier. Auto-reconcile may
+    // also start while we are navigating; a missing spinner alone is not enough.
+    await browser.waitUntil(() => browser.execute(() => {
+      const view = document.querySelector('[data-testid="knowledge-ask-view"]');
+      const count = Number(view?.getAttribute("data-indexed-files") ?? "-1");
+      return count >= 1 && view?.getAttribute("data-index-job-status") !== "running";
+    }), { timeout: 90_000, timeoutMsg: "Production Vault index never reported a completed file" });
 
     await browser.execute((query) => {
       const input = document.querySelector<HTMLTextAreaElement>('[data-testid="ask-input"]');
@@ -126,10 +140,12 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     }, NOTE_NAME);
     assert.equal(candidate?.file, true);
     assert.equal(candidate?.excerpt, true, "Index excerpt must come from the real file");
+    candidateVerifiedBySearch = true;
   });
 
   it("reissues a real Evidence Receipt and opens the verified original without editing it", async function () {
     this.timeout(120_000);
+    if (!candidateVerifiedBySearch) this.skip(); // G59 depends on successful G58 retrieval.
     await clickControl('[data-testid="ask-candidate-verify"]', "verify actual source");
     await browser.waitUntil(() => browser.execute(() =>
       Boolean(document.querySelector('[data-testid="ask-evidence"][data-evidence-phase="verified"]')),

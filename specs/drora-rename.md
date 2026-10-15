@@ -140,3 +140,13 @@ network-capture.ts 捕获列表同时认 zcode/drora 两种前缀。改名重放
 - Webhook 默认 wire header 使用 `x-zcode-bot-secret`。已持久化的 Drora 旧别名兼容经独立 adapter 处理；用户配置的自定义出站 header 不进行全量重写，验密规则保持严格。
 
 跨包契约键在 shared/contracts 定义一次，生产消费方引用同一出处；原始插件 seed、上游资产和 provenance 不经过品牌归一化。补齐批次与验收见 [后续合并方案](../docs/upstream/zcode-v3.15.1-followup-plan.md)。
+
+## 首页空态水印品牌回归修复（2026-10-14）
+
+v3.15.1 整合（780721e7）把上游 `ConversationDraftEmptyState` 的双变体结构原样搬回，覆盖了 eff2ee71 的品牌实现，产生两处回归：浅色 inline 路径为上游 Z 形水印几何（品牌泄漏，首页显示 ZCode 的 Z）；暗色 img 误指 `drora-mark.svg`（应用图标磁贴，风格错位）。`packages/ui/src/assets/Z.svg`（上游 Z 形辉光水印）随之成为零引用孤儿。
+
+决策与修复：
+
+- 首页空态水印双主题统一使用 D 形轮廓渐隐水印（`packages/desktop/assets/Drora-logo-outline-fade.svg` 原样内联于 `packages/ui/src/v4/ConversationDraftEmptyState.tsx`，源文件保留作单一出处）；`drora-mark.svg` 继续只承担应用图标/顶栏/侧栏角色。
+- 删除 live 资产 `packages/ui/src/assets/Z.svg`（零引用、Z 形品牌泄漏风险；git 史可考）。它与 mobile-web `upstream/`、`recovered/` 还原产物中的同名痕迹无关，后者属豁免区不动。
+- 对照说明：上游该组件为「浅色 Z inline + 暗色 Z.svg img」双变体；Drora 有意分歧为双主题 D 轮廓单变体，属品牌改名范畴，后续同步上游该文件时不得原样采纳 Z 形路径或 Z.svg 引用。如需暗色辉光专属版，须以 D glyph 按 Z.svg 工艺（辉光层+渐变）重新合成。

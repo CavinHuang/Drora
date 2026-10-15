@@ -4,6 +4,7 @@ import { buildUserInputRow } from "../src/drora-protocol-v4/projection-rows.ts";
 import { userInputRowSchema } from "@drora/shared/drora-protocol-v4";
 import { SessionEventType } from "@drora/contracts";
 import { synthesizeEventsFromMessages } from "../src/drora-protocol-v4/transcript-hydration.js";
+import { buildPersistedConversationInputIntent } from "../../core/src/runtime/methods/input-intent-persistence.ts";
 
 const base = { rowId: 22, turnId: "turn-22", createdAt: 1, createdAtSeq: 1 };
 
@@ -44,21 +45,26 @@ test("ordinary and legacy inputs never gain synthetic evidence provenance", () =
 test("G12 cold transcript hydration restores ONLY persisted, schema-validated CLI Receipt refs", () => {
   const receiptId = "evr_coldvalidated000000000000000000001";
   const prompt = "Answer from the selected local note [1]";
-  const canonical = {
+  // Generate the persisted record through the real Core serializer rather
+  // than hand-writing a complete metadata object (which previously masked
+  // an evidenceRefs omission on the persistence boundary).
+  const canonical = buildPersistedConversationInputIntent(prompt, {
     sourceCommandId: "cmd-cold-1",
     queueItemId: "queue_cmd-cold-1",
     clientId: "client-desktop",
     kind: "sendText",
     text: prompt,
-    attachments: [],
+    admissionSeq: 1,
     admittedAt: 200,
-    delivery: { requested: "startNow", admitted: "startNow" },
-    order: { admissionSeq: 1 },
-    steer: { state: "notRequested" },
-    dispatch: { state: "admitted" },
+    requestedDelivery: "startNow",
+    admittedDelivery: "startNow",
     conversationQuotes: [{ text: "Real local evidence excerpt", path: "note.md" }],
     evidenceRefs: [{ receiptId }],
-  };
+  }, "drained");
+  assert.ok(canonical);
+  assert.deepEqual(canonical.evidenceRefs, [{ receiptId }],
+    "The Core serializer must persist only already-admitted Receipt IDs");
+
   const message = {
     info: {
       id: "user-cold-1",

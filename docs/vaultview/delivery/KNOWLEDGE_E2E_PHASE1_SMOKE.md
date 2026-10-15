@@ -96,9 +96,10 @@
 | G62 | 从 G61 的 Composer 原文发送至真实 CLI/Host，模型回放仅输出普通 `[1]` | `evidenceRefs` 经真实 Session admission 复验，完成态 Agent 应答出现有 Receipt 的可信可点击编号；回放模型不携带预签发路径或证明 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（CLI 权威投影 + 非伪造可信引用） |
 | G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（真实引用点击 + 原文只读回跳） |
 | G64 | 真实 CLI 已准入的回答已渲染可信 `[1]` 后，在点击前修改原始 Markdown；拒绝后恢复文件，再执行 G63 | 过期来源在点击时重新 resolveCitation，不能打开被修改的笔记；修改后的文件保持原样（无写盘）；恢复为原始 SHA 后同一原始来源可重新验证并回跳 | Ubuntu Electron [38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954)：真实 4/4 通过；macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 同套测试成功 |
-| G65 | 在真实 Electron 中打开审核视图并等待生产 Knowledge Review RPC 回报 S03 门禁状态 | 显示 S03 NO-GO 提示，L2 开关必须既禁用又未勾选，测试 Vault Markdown 内容不变 | 新增跨平台实际 GUI 门禁；最新 CI 待跑 |
+| G65 | 在真实 Electron 中打开审核视图并等待生产 Knowledge Review RPC 回报 S03 门禁状态 | 显示 S03 NO-GO 提示，L2 开关必须既禁用又未勾选，测试 Vault Markdown 内容不变 | Linux [38698082728](https://github.com/CavinHuang/Drora/actions/runs/38698082728)；Windows/macOS [38698082386](https://github.com/CavinHuang/Drora/actions/runs/38698082386)：真实 Electron 全通过 |
+| G66 | 已有真实 Agent Session，在 Vault ANSWER 将当前 Receipt 交给 Composer 后、尚未发送前修改原 Markdown，随后点击发送 | 必须由真实 CLI admission 拒绝旧 Receipt，保留完整 Composer 草稿；没有新的权威对话行或 Agent 回答；源文件不写盘 | 新增 E2E 用例，待最终运行结果；结构化 guard reason 另由 CLI 单测断言 |
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G65 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G66 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

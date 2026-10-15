@@ -36,6 +36,11 @@ export function useKnowledgeCandidateVerification(input: {
   ) => void;
 }) {
   const { state, queryService, sessionId, submitSeqRef, scopeRef, dispatch, onOpenNote } = input;
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const verifyEvidence = React.useCallback(
     async (candidate: KnowledgeArticleCandidate): Promise<KnowledgeEvidenceInspectState | null> => {
@@ -46,7 +51,7 @@ export function useKnowledgeCandidateVerification(input: {
       const proof = await verifyKnowledgeCandidateEvidence({
         queryService, run, candidate, sessionId,
       });
-      if (seq !== submitSeqRef.current) return null;
+      if (!mountedRef.current || seq !== submitSeqRef.current) return null;
       dispatch({ type: "evidenceResolved", articleId: candidate.articleId, state: proof });
       return proof;
     },
@@ -58,7 +63,7 @@ export function useKnowledgeCandidateVerification(input: {
       const seq = submitSeqRef.current;
       const scope = scopeRef.current;
       const isCurrent = (): boolean =>
-        seq === submitSeqRef.current &&
+        mountedRef.current && seq === submitSeqRef.current &&
         scopeRef.current.sessionId === scope.sessionId &&
         scopeRef.current.workspaceKey === scope.workspaceKey &&
         scopeRef.current.queryService === scope.queryService &&

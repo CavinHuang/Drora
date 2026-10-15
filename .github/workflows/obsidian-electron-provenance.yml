@@ -13,6 +13,9 @@ on:
       - "packages/ui/src/drora-extensions/WorkspaceMainView.tsx"
       - "packages/ui/src/app-shell/WorkspaceShellLayout.tsx"
       - "packages/ui/src/v4/vault/knowledge/useKnowledgeAgentActions.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
+      - "apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs"
+      - "packages/ui/src/v4/ConversationTurnGroup.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskInput.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskResults.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeCandidateCard.tsx"
@@ -139,6 +142,8 @@ jobs:
         run: |
           pnpm --filter @drora/e2e-report build:node
           node scripts/build-desktop-agent-cli.mjs
+      - name: Verify direct and queued canonical evidence projections
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
       - name: Check deterministic upstream replay fixture
         run: test -f "$E2E_PROVIDER_REPLAY_FIXTURE_PATH"
       - name: Exercise genuine Composer to CLI to Vault provenance

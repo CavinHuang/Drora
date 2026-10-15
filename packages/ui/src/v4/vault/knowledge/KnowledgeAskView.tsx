@@ -13,7 +13,6 @@ import * as React from "react";
 import type {
   IKnowledgeIndexService,
   IKnowledgeQueryService,
-  KnowledgeArticleCandidate,
   KnowledgeIndexStatus,
 } from "@drora/services";
 import { Button } from "@/components/ui/button.js";
@@ -32,7 +31,6 @@ import {
   type KnowledgeAskIntent,
   type KnowledgeAskIntentChoice,
   type KnowledgeEvidenceQuote,
-  type KnowledgeEvidenceInspectState,
 } from "./knowledgeAskModel.js";
 import {
   AskBannerList,
@@ -47,9 +45,9 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
-import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
 import { usePreviousKnowledgeActions } from "./usePreviousKnowledgeActions.js";
 import { useKnowledgeAgentActions } from "./useKnowledgeAgentActions.js";
+import { useKnowledgeCandidateVerification } from "./useKnowledgeCandidateVerification.js";
 
 const toast = {
   error: (message: string): void => {
@@ -247,51 +245,9 @@ export function KnowledgeAskView({
     }
   }, [indexActionBusy, indexService, refreshIndexStatus]);
 
-  const verifyEvidence = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<KnowledgeEvidenceInspectState | null> => {
-      const run = state.current?.run;
-      const submitSeq = submitSeqRef.current;
-      if (!queryService || !run) return null;
-      dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
-      const proof = await verifyKnowledgeCandidateEvidence({
-        queryService,
-        run,
-        candidate,
-        sessionId,
-      });
-      // A delayed verification must never populate the next query's evidence state or composer.
-      if (submitSeq !== submitSeqRef.current) return null;
-      dispatch({ type: "evidenceResolved", articleId: candidate.articleId, state: proof });
-      return proof;
-    },
-    [queryService, sessionId, state.current?.run.runId],
-  );
-
-  // Inspector's green state is historical, not a permanent open capability.
-  // Reissue/resolve on click and use Vault's second-read SHA+quote CAS.
-  const openCurrentCandidate = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
-      const seq = submitSeqRef.current;
-      const captured = scopeRef.current;
-      const isCurrent = (): boolean =>
-        seq === submitSeqRef.current &&
-        scopeRef.current.sessionId === captured.sessionId &&
-        scopeRef.current.workspaceKey === captured.workspaceKey &&
-        scopeRef.current.queryService === captured.queryService &&
-        scopeRef.current.indexService === captured.indexService;
-      if (!isCurrent()) return;
-      const verified = await verifyEvidence(candidate);
-      if (!isCurrent() || verified?.phase !== "verified") return;
-      onOpenNote(
-        verified.relativePath,
-        verified.quote,
-        isCurrent,
-        verified.excerpt,
-        candidate.fileSha256,
-      );
-    },
-    [onOpenNote, verifyEvidence],
-  );
+  const { verifyEvidence, openCurrentCandidate } = useKnowledgeCandidateVerification({
+    state, queryService, sessionId, submitSeqRef, scopeRef, dispatch, onOpenNote,
+  });
 
   const { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent } =
     useKnowledgeAgentActions({

@@ -42,9 +42,8 @@ jobs:
           - os: windows-2022
             builder-os: win
             builder-arch: x64
-          - os: windows-2022
-            builder-os: win
-            builder-arch: arm64
+          # windows-arm64 暂不上架（2026-10-13）：retained CUA helper 无 arm64
+          # 原生产物（sharp/ax_native 仅 x64），PE 校验必挂——补齐后按 spec 再启用。
     runs-on: ${{ matrix.os }}
     env:
       # secrets 不允许出现在 step 的 if 条件里（GitHub 编译期拒绝，run 秒败 0 job）；
@@ -97,6 +96,9 @@ jobs:
       # node-repl-host 还依赖 @drora/core、@drora/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包
       - name: Emit workspace dists (tsc -b project references)
+        # 32 提交后类型图贴 CI 默认堆上限，间歇 OOM（v0.0.9 二跑实证）——抬堆。
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
       - name: Build CLI dependency closure (core/contracts dists)
         run: node scripts/build-desktop-agent-cli.mjs
@@ -146,7 +148,18 @@ jobs:
         # (x64 Windows 用户装不上);矩阵显式覆盖两个架构。
         # Windows 上 electron-builder 复制 cua-helper 资产偶发 EBUSY(资源锁,
         # 禁 Defender 后仍复现,重跑必过=复制竞态);步骤级 3 次退避重试兜底。
+        # macOS runner 默认 ulimit -n 256:mobile-web-official 海量小文件拷贝
+        # 会 EMFILE 崩溃(v0.0.9 首跑实证)——每个 step 新 shell,须在本步内抬限。
         run: |
+          # macOS runner 的 kern.maxfilesperproc 系统上限太低：单抬 ulimit 软限仍会
+          # EMFILE（v0.0.9 三跑实证：10240 下 electron-builder 拷 mobile-web/app
+          # 依赖海量小文件依旧打满）——先 sysctl 调系统上限再抬软限。
+          # Windows bash 不允许改 open files 限制——失败忽略（win 无 EMFILE 问题）。
+          if [ "${{ matrix.builder-os }}" = "mac" ]; then
+            sudo sysctl -w kern.maxfiles=65536
+            sudo sysctl -w kern.maxfilesperproc=65536
+            ulimit -n 65536
+          fi
           for attempt in 1 2 3; do
             if node scripts/bundle.mjs --os=${{ matrix.builder-os }} --arch=${{ matrix.builder-arch }}; then
               exit 0
@@ -249,6 +262,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Emit workspace dists
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
       - name: Build CLI bundle with dependency closure
         run: node scripts/build-desktop-agent-cli.mjs
@@ -313,6 +328,14 @@ jobs:
               sys.exit("PyYAML is required for channel manifest merge")
           import os
 
+          # electron-builder 对带 arch 的产物名会产出 per-arch 通道文件
+          # （latest-x64.yml 等）；base 通道名（latest.yml/latest-mac.yml）缺失时
+          # 以唯一 per-arch 文件顶替——发布通道约定名恒为 latest.yml/latest-mac.yml。
+          if not os.path.exists("latest.yml") and os.path.exists("latest-x64.yml"):
+              os.replace("latest-x64.yml", "latest.yml")
+          if not os.path.exists("latest-mac.yml") and os.path.exists("latest-mac-arm64.yml"):
+              os.replace("latest-mac-arm64.yml", "latest-mac.yml")
+
           def merge(base_name, extra_name):
               if not os.path.exists(extra_name):
                   return
@@ -351,12 +374,16 @@ jobs:
           have_installer_arm64=false; have_installer_x64=false
           for f in $(ls); do
             case "$f" in
-              *.dmg) have_dmg=true ;;
-              *.zip) have_zip=true ;;
+              # 专项(带 arch)模式必须先于通用 *.dmg/*.zip——bash case 命中首个
+              # 模式即停,否则 arm64 dmg/zip 被通用模式吞掉、专项标志恒 false
+              # (v0.0.9 首个 arm64 覆盖发布实证)。
               Drora-*arm64*.exe) have_installer=true; have_installer_arm64=true ;;
               Drora-*x64*.exe) have_installer=true; have_installer_x64=true ;;
-              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true ;;
-              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true ;;
+              # 专项命中同时计入通用 dmg/zip 覆盖（专项前置后通用模式不再触达）。
+              Drora-*arm64*.dmg|Drora-*arm64*.zip) have_installer=true; have_installer_arm64=true; have_dmg=true; have_zip=true ;;
+              Drora-*x64*.dmg|Drora-*x64*.zip) have_installer=true; have_installer_x64=true; have_dmg=true; have_zip=true ;;
+              *.dmg) have_dmg=true ;;
+              *.zip) have_zip=true ;;
               drora-windows*) have_sea_win=true ;;
               drora-darwin*|drora-linux*) have_sea=true ;;
             esac

@@ -988,6 +988,8 @@ export function VaultView({
   embedded = false,
   sessionId,
   workspaceKey,
+  onCitationOpen,
+  onAgentHandoffPrepared,
 }: {
   /** 预留：嵌入 Agent 右侧工作区时的紧凑模式。 */
   embedded?: boolean;
@@ -995,6 +997,8 @@ export function VaultView({
   sessionId?: string;
   /** 会话所属工作区 key（workspaceIdentity?.trim() || workspacePath），selectionSideChat 路由依赖。 */
   workspaceKey?: string;
+  onCitationOpen?: () => void;
+  onAgentHandoffPrepared?: () => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   const vaultSidebarContentId = React.useId();
@@ -1389,9 +1393,10 @@ export function VaultView({
           (isCurrent && !isCurrent())) return false;
       setBodyFocusRequest({ vaultId, relativePath, reveal, citationEpoch });
       setViewTab("notes");
+      if (isCurrent) onCitationOpen?.();
       return true;
     },
-    [config?.vaultId, openFile],
+    [config?.vaultId, onCitationOpen, openFile],
   );
 
   // Composer only provides an opaque receipt; this mounted, session-scoped Vault
@@ -1998,6 +2003,7 @@ export function VaultView({
             queryService={knowledgeQueryService}
             sessionId={sessionId}
             workspaceKey={workspaceKey}
+            onAgentHandoffPrepared={onAgentHandoffPrepared}
             onOpenNote={(relativePath, reveal, isCurrent, excerpt, fileSha256) => {
               void openNoteFromKnowledge(relativePath, reveal, isCurrent, excerpt, fileSha256);
             }}

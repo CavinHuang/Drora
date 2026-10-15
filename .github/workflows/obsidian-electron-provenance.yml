@@ -8,6 +8,11 @@ on:
       - ".github/workflows/obsidian-electron-provenance.yml"
       - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts"
       - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json"
+      - "packages/ui/src/drora-extensions/WorkspaceMainView.tsx"
+      - "packages/ui/src/app-shell/WorkspaceShellLayout.tsx"
+      - "packages/ui/src/v4/vault/knowledge/useKnowledgeAgentActions.ts"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskInput.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskResults.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeCandidateCard.tsx"
@@ -103,6 +108,48 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: obsidian-electron-positive-vault-evidence
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+
+  electron-authenticated-handoff:
+    name: Actual Electron Agent evidence handoff and source navigation (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+      DRORA_E2E_SPEC: "./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reporting and desktop Agent CLI
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Check deterministic upstream replay fixture
+        run: test -f "$E2E_PROVIDER_REPLAY_FIXTURE_PATH"
+      - name: Exercise genuine Composer to CLI to Vault provenance
+        run: |
+          xvfb-run -a pnpm --dir packages/desktop exec wdio run wdio.conf.ts \
+            --spec ./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts
+      - name: Upload live handoff evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-authenticated-handoff-evidence
           path: |
             packages/desktop/.e2e-artifacts/
             packages/desktop/.e2e-network-capture/

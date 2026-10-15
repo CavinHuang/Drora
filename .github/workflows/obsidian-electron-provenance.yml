@@ -7,6 +7,10 @@ on:
     paths:
       - ".github/workflows/obsidian-electron-provenance.yml"
       - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts"
+      - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
+      - "packages/ui/src/v4/vault/knowledge/KnowledgeAskInput.tsx"
+      - "packages/ui/src/v4/vault/knowledge/KnowledgeAskResults.tsx"
+      - "packages/ui/src/v4/vault/knowledge/KnowledgeCandidateCard.tsx"
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json"
       - "packages/ui/src/lib/knowledgeCitationMarkdown.ts"
       - "packages/ui/src/components/ai-elements/message.tsx"
@@ -54,6 +58,51 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: obsidian-electron-provenance-evidence
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+
+  electron-positive-vault:
+    name: Actual Electron managed Vault read-only positive (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      # Explicit local replay is a network safety guard, not a model-backed test.
+      E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+      DRORA_E2E_SPEC: "./test/e2e/obsidian-knowledge-positive.test.ts"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build UI/E2E reporting and CLI dependencies
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Verify test sandbox prerequisites
+        run: |
+          test -f "$E2E_PROVIDER_REPLAY_FIXTURE_PATH"
+          test -f packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts
+      - name: Verify real managed Vault indexing and Receipt Inspector
+        run: |
+          xvfb-run -a pnpm --dir packages/desktop exec wdio run wdio.conf.ts \
+            --spec ./test/e2e/obsidian-knowledge-positive.test.ts
+      - name: Upload real Vault Electron evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-positive-vault-evidence
           path: |
             packages/desktop/.e2e-artifacts/
             packages/desktop/.e2e-network-capture/

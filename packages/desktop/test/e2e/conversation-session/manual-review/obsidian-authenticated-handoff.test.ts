@@ -5,7 +5,7 @@
  * renderer injection of "trusted" source metadata, no user Vault writes.
  */
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DEFAULT_WORKSPACE, waitForWorkspaceApp } from "../../helpers/desktop-app.js";
 import { restartWithSeededOpenAIProviders } from "../../helpers/custom-openai-provider.js";
@@ -25,6 +25,8 @@ const HOME = resolve(dirname(DEFAULT_WORKSPACE));
 const DATA_BASE = resolve(process.env.DRORA_DATA_BASE_DIR?.trim() || HOME);
 const ROOT = join(DATA_BASE, ".drora", "cli", "data", "obsidian@drora-plugins-official", "managed-vault");
 const FILE = join(ROOT, "G61-Authenticated-Agent-Evidence.md");
+const CONFIG = join(dirname(ROOT), "vault-config.json");
+const REVOKED_CONFIG = `${CONFIG}.g07-revoked`;
 const SOURCE = "# G61 local Obsidian evidence\n\n" +
   `The original ${QUERY} note says: only a production-issued Receipt authorizes opening this text.\n`;
 
@@ -34,6 +36,8 @@ function assertSandbox(): void {
   assert.equal(DATA_BASE, HOME, "Do not operate outside isolated WDIO HOME");
   assert.match(HOME, /(?:^|[/\\])\.e2e-home(?:[/\\]|$)/, "G61 requires .e2e-home");
   assert.ok(FILE.startsWith(join(HOME, ".drora") + sep));
+  assert.ok(CONFIG.startsWith(join(HOME, ".drora") + sep));
+  assert.ok(REVOKED_CONFIG.startsWith(join(HOME, ".drora") + sep));
 }
 async function waitFor(selector: string, label: string, timeout = 30_000): Promise<void> {
   await browser.waitUntil(() => browser.execute((sel) => {
@@ -312,6 +316,58 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
     } finally {
       // Never leave the isolated fixture deleted for subsequent tests.
       await writeFile(FILE, SOURCE, { encoding: "utf8", flag: "wx" });
+    }
+  });
+
+  it("G07 revoked Vault before Send: real CLI rejects forbidden evidence and retains draft", async function () {
+    this.timeout(180_000);
+    if (!authenticatedCitationRendered) this.skip();
+    assertSandbox();
+
+    // The previous G06 rejection preserved the very same production-issued
+    // Receipt. Disabling the configured Vault now tests a distinct forbidden
+    // source boundary without fabricating a renderer Receipt or a mock RPC.
+    const originalConfig = await readFile(CONFIG, "utf8");
+    assert.ok(originalConfig.includes("configuredAt"), "G07 requires a real configured Vault");
+    const beforeRows = await browser.execute(() =>
+      document.querySelectorAll("[data-row-id]").length,
+    );
+    await browser.waitUntil(() => browser.execute((token) =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+        .some((el) => el.textContent?.includes(token)),
+    QUERY), { timeout: 15_000, timeoutMsg: "G07 needs a retained genuine evidence draft" });
+
+    // Only temporarily relocate the exact isolated test configuration.
+    // The CLI admission gate must reject a missing Vault configuration even
+    // if the Composer still displays a previously authenticated source chip.
+    await rename(CONFIG, REVOKED_CONFIG);
+    try {
+      await assert.rejects(readFile(CONFIG, "utf8"), { code: "ENOENT" });
+      await click('[data-testid="v4-composer-send"]', "send after real Vault authorization removal");
+      await browser.waitUntil(() => browser.execute(() =>
+        Boolean(document.querySelector('[data-error-code="SEND_FAILED"] button[data-testid]')),
+      ), { timeout: 30_000, timeoutMsg: "G07 did not surface a rejected CLI Send" });
+      await click('[data-error-code="SEND_FAILED"] button[data-testid]', "inspect forbidden CLI guard");
+      await browser.waitUntil(() => browser.execute(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] pre'))
+          .some((el) => el.textContent?.includes("guard.evidenceForbidden")),
+      ), { timeout: 30_000, timeoutMsg: "G07 CLI did not reject with guard.evidenceForbidden" });
+
+      await waitForV4ConversationState(
+        (state) => state.state === "idle" && state.queueCount === 0,
+        "G07 revoked evidence must never dispatch a model turn", 20_000,
+      );
+      const outcome = await browser.execute((token) => ({
+        draftPresent: Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+          .some((el) => el.textContent?.includes(token)),
+        rowCount: document.querySelectorAll("[data-row-id]").length,
+      }), QUERY);
+      assert.equal(outcome.draftPresent, true, "Revoked source must retain the user's draft");
+      assert.equal(outcome.rowCount, beforeRows, "Revoked evidence must not create a canonical user row");
+    } finally {
+      await rename(REVOKED_CONFIG, CONFIG);
+      assert.equal(await readFile(CONFIG, "utf8"), originalConfig, "G07 must fully restore test authorization");
+      assert.equal(await readFile(FILE, "utf8"), SOURCE, "G07 must not modify source Markdown");
     }
   });
 

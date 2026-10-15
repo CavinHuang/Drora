@@ -25,6 +25,8 @@ jobs:
     env:
       CI: "1"
       E2E_PROVIDER_HTTP_MODE: replay
+      # Manual-review specs require an explicit replay fixture; otherwise WDIO refuses to boot.
+      E2E_PROVIDER_REPLAY_FIXTURE_PATH: ./test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
       VITE_DRORA_E2E_STORE_BRIDGE: "1"
       DRORA_E2E_MANUAL_REVIEW: "1"
       DRORA_SKIP_REMOTE_ASSETS: "1"

@@ -404,8 +404,25 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
       "G12 restarted Electron did not recover the original Agent session", 60_000,
     );
     await waitForV4AssistantMessageContaining(ANSWER_MARKER, 60_000);
-    await waitFor('[data-testid^="knowledge-inline-citation-"]',
-      "restarted actual CLI-backed source citation", 30_000);
+    try {
+      await waitFor('[data-testid^="knowledge-inline-citation-"]',
+        "restarted actual CLI-backed source citation", 20_000);
+    } catch (error) {
+      // Identify which canonical provenance field was lost during cold
+      // hydration. These are safe booleans/counts, never raw Receipt IDs.
+      const diagnostic = await browser.execute(() => ({
+        turnDiagnostics: Array.from(document.querySelectorAll<HTMLElement>(
+          "[data-e2e-knowledge-diagnostics]",
+        )).map((el) => el.getAttribute("data-e2e-knowledge-diagnostics")),
+        visibleInlineCount: document.querySelectorAll('[data-testid^="knowledge-inline-citation-"]').length,
+        sessionPaneIds: Array.from(document.querySelectorAll<HTMLElement>(
+          '[data-testid^="v4-session-pane"]',
+        )).map((el) => el.getAttribute("data-session-id")),
+      }));
+      throw new Error(`G12 cold-recovered authoritative citation missing: ${JSON.stringify(diagnostic)}`, {
+        cause: error,
+      });
+    }
 
     // Post-restart TOCTOU: a source change must reject an old persisted
     // Receipt even if the original model response has a visible [1].

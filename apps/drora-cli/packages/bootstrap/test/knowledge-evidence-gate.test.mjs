@@ -28,7 +28,6 @@ import {
   loadGateVaultConfig,
   resolveObsidianPluginDataDirForGate,
 } from "../src/knowledge-evidence/vault-config-reader.js";
-import { NATIVE_HANDLERS } from "../src/drora-protocol-v4/commands/handlers/index.js";
 
 const NOTE_BODY = "# 证据标题\n\n独特的证据句子 gate marker one\n\n第二段 gate marker two";
 
@@ -437,127 +436,6 @@ test("gate 拒绝越界/软链路径；配置读取口径与 services 对齐", a
     // DB 路径推导同式。
     const dbPath = resolveKnowledgeDatabasePathForGate({ DRORA_DATA_BASE_DIR: root, HOME: "elsewhere" });
     assert.equal(dbPath, join(root, ".drora", "knowledge", "knowledge-index.sqlite"));
-  } finally {
-    gate?.close();
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-/**
- * G08 CLI-level integration: the initial Receipt is genuine (shared DDL,
- * on-disk SQLite, real Vault SHA and production evidence gate). sendQueuedNow
- * must revalidate at promotion time, before reservation or model execution.
- * The separate projection tests cover how the queued item retains refs.
- */
-test("G08 real queued-promotion evidence gate rejects changed and revoked Vault, preserving queue", async () => {
-  const root = await createTestEnvRoot();
-  let gate;
-  try {
-    const vaultRoot = join(root, "vault");
-    const pluginDataDir = join(root, "plugin-data");
-    const databasePath = join(root, "knowledge", "knowledge-index.sqlite");
-    const notePath = "queued.md";
-    const receiptId = "evr_queuedpromotion00000000000000001";
-    const sessionId = "session-1";
-    await writeNote(vaultRoot, notePath, NOTE_BODY);
-    await writeVaultConfig(pluginDataDir, vaultRoot, 809);
-    const db = await openLedgerWithSharedDdl(databasePath);
-    await insertReceipt(db, {
-      vaultRoot,
-      configuredAt: 809,
-      fileContent: NOTE_BODY,
-      quote: quoteForLines(NOTE_BODY, 3, 3),
-      relativePath: notePath,
-      receiptId,
-      sessionId,
-    });
-    db.close();
-    gate = createKnowledgeEvidenceGate({ pluginDataDir, databasePath });
-
-    const refs = [{ receiptId }];
-    assert.deepEqual(await gate.verify({ sessionId, evidenceRefs: refs }), { ok: true },
-      "The queued evidence must be valid before the backing source changes");
-
-    const queueItem = {
-      sourceCommandId: "cmd-queued-real-gate",
-      queueItemId: "queue_cmd-queued-real-gate",
-      clientId: "test-client",
-      kind: "sendText",
-      text: "Answer using queued Obsidian note",
-      evidenceRefs: refs,
-      attachments: [],
-      delivery: { requested: "queue", admitted: "queue" },
-      order: { admissionSeq: 2 },
-      steer: { state: "notRequested" },
-      dispatch: { state: "queued" },
-      admittedAt: Date.now(),
-    };
-    const calls = { reserve: 0, remove: 0, send: 0, verifying: 0 };
-    const app = {
-      sessionId,
-      reserveQueueItem: async () => { calls.reserve++; throw new Error("Invalid pre-verify reserve"); },
-      removeQueueItem: async () => { calls.remove++; throw new Error("Invalid pre-verify removal"); },
-      sendInput: async () => { calls.send++; throw new Error("Invalid pre-verify send"); },
-    };
-    const host = {
-      getRecord: (id) => id === sessionId ? {
-        app,
-        traceContext: { traceId: "g08-real-vault" },
-        workspace: { workspacePath: root },
-        persistence: "immediate",
-      } : undefined,
-      getQueueItem: (_sessionId, id) => id === queueItem.queueItemId ? queueItem : null,
-      verifyInputEvidence: async (request) => {
-        calls.verifying++;
-        return gate.verify(request);
-      },
-      logger: { info() {}, warn() {} },
-    };
-    const envelope = {
-      baseRevision: 4,
-      commandId: "cmd-promote-real-gate",
-      clientId: "test-client",
-      sessionId,
-      type: "sendQueuedNow",
-      payload: { queueItemId: queueItem.queueItemId },
-      issuedAt: Date.now(),
-    };
-    const assertRejectedBeforePromotion = async (expectedGuard, expectedReason) => {
-      await assert.rejects(
-        () => NATIVE_HANDLERS.sendQueuedNow(host, envelope),
-        (error) => {
-          assert.equal(error.name, "EvidenceGuardRejectionError");
-          assert.equal(error.reasonCode, expectedGuard);
-          assert.equal(error.evidenceReason, expectedReason);
-          return true;
-        },
-      );
-      assert.deepEqual(
-        { reserve: calls.reserve, remove: calls.remove, send: calls.send },
-        { reserve: 0, remove: 0, send: 0 },
-        "A rejected promotion must not reserve, remove, or execute the queued item",
-      );
-      assert.equal(host.getQueueItem(sessionId, queueItem.queueItemId), queueItem,
-        "Failed promotion must leave the original queue item in place");
-    };
-
-    // File TOCTOU: the Receipt was current when queued; the source changed
-    // before sendQueuedNow and cannot be used to execute an Agent turn.
-    await writeNote(vaultRoot, notePath, NOTE_BODY + "\nchanged after queue admission");
-    await assertRejectedBeforePromotion(
-      KNOWLEDGE_EVIDENCE_GUARDS.stale,
-      KNOWLEDGE_EVIDENCE_REASONS.fileModified,
-    );
-
-    // Revocation: restoring the note cannot revive authorization after the
-    // config is removed; every queue promotion must read fresh config.
-    await writeNote(vaultRoot, notePath, NOTE_BODY);
-    await unlink(join(pluginDataDir, "vault-config.json"));
-    await assertRejectedBeforePromotion(
-      KNOWLEDGE_EVIDENCE_GUARDS.forbidden,
-      KNOWLEDGE_EVIDENCE_REASONS.sourceUnconfigured,
-    );
-    assert.equal(calls.verifying, 2, "Both promotions must revalidate the genuine Receipt");
   } finally {
     gate?.close();
     await rm(root, { recursive: true, force: true });

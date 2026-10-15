@@ -1585,6 +1585,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     workspaceAbsPath,
     workspaceIdentity,
   ]);
+  // Keep the Vault's citation resolver and the session composer mounted after
+  // the first Vault visit. CSS-hiding a view must not revoke its event listeners.
+  const [vaultHasOpened, setVaultHasOpened] = useState(false);
+  useEffect(() => {
+    if (isDroraWorkspaceMainView(workspaceMainView)) setVaultHasOpened(true);
+  }, [workspaceMainView]);
   const handleOpenVault = useCallback(
     () => onWorkspaceMainViewChange("vault"),
     [onWorkspaceMainViewChange],
@@ -2404,12 +2410,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         </Button>
                       ) : null}
                       <div className="min-h-0 flex-1 overflow-hidden">
-                        {isDroraWorkspaceMainView(workspaceMainView) ? (
-                          <DroraWorkspaceMainView
-                            sessionId={activeTaskId ?? undefined}
-                            workspaceKey={workspaceKey}
-                          />
-                        ) : workspaceMainView === "automations" && !isWebRemoteControlShell ? (
+                        {workspaceMainView === "automations" && !isWebRemoteControlShell ? (
                           <main
                             id={AUTOMATIONS_TOAST_ANCHOR_ID}
                             className="flex h-full min-h-0 flex-1 flex-col bg-background"
@@ -2490,7 +2491,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             </AutomationsMainBreadcrumbFrame>
                           </main>
                         ) : (
-                          <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                          <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                          <main className={cn(
+                            "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden",
+                            isDroraWorkspaceMainView(workspaceMainView) && "hidden",
+                          )}>
                             {renderChatFindDialog()}
                             <ScopedErrorBoundary
                               scope="workspace-chat"
@@ -2566,6 +2571,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               />
                             </ScopedErrorBoundary>
                           </main>
+                          {(vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView)) && (
+                            <div className={cn(
+                              "flex h-full min-h-0 flex-1 flex-col",
+                              !isDroraWorkspaceMainView(workspaceMainView) && "hidden",
+                            )}>
+                              <DroraWorkspaceMainView
+                                sessionId={activeTaskId ?? undefined}
+                                workspaceKey={workspaceKey}
+                                onCitationOpen={() => onWorkspaceMainViewChange("vault")}
+                                onAgentHandoffPrepared={() => onWorkspaceMainViewChange("chat")}
+                              />
+                            </div>
+                          )}
+                          </div>
                         )}
                       </div>
                     </section>

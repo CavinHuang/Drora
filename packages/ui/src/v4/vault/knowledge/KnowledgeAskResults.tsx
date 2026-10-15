@@ -194,7 +194,7 @@ export function AskIndexColdStart({
           <p className="text-ui-sm text-foreground-subtle">
             {intl.formatMessage({ id: "vault.ask.index.hint" })}
           </p>
-          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onStart}>
+          <Button type="button" size="sm" variant="outline" data-testid="ask-index-start" disabled={busy} onClick={onStart}>
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
             {intl.formatMessage({ id: "vault.ask.index.build" })}
           </Button>

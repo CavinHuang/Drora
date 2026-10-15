@@ -1616,6 +1616,25 @@ function ConversationTurnGroupImpl({
     <section
       data-turn-id={unit.turnId}
       data-turn-key={unit.key}
+      data-e2e-knowledge-diagnostics={import.meta.env.VITE_DRORA_E2E_STORE_BRIDGE === "1"
+        ? JSON.stringify({
+            running: unit.isRunning,
+            timelineOnly: unit.timelineOnly,
+            assistantState: latestAssistantTextRow?.state ?? "none",
+            turnCitationCount: turnCitations.length,
+            headerSourceCommand: Boolean(unit.header?.sourceCommandId),
+            users: unit.visibleUserInputs.map((row) => ({
+              turnMatches: row.turnId === unit.turnId,
+              origin: row.origin,
+              hasSourceCommand: Boolean(row.sourceCommandId),
+              headerMatches: !unit.header?.sourceCommandId ||
+                row.sourceCommandId === unit.header.sourceCommandId,
+              receiptCount: row.evidenceRefs?.length ?? 0,
+              quoteCount: row.conversationQuotes?.length ?? 0,
+              hasManifest: row.text.includes("来源索引（顺序与附带的原文证据片段一致）："),
+            })),
+          })
+        : undefined}
       data-highspeed-gradient={showHighspeedAnimatedGradient ? "true" : undefined}
       className={cn(
         "relative mx-auto flex w-full flex-col gap-5 px-4 @md/conversation:px-6 pb-5",

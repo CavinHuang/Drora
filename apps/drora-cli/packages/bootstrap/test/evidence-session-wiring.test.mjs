@@ -495,6 +495,57 @@ function historicalEvidenceTarget() {
   };
 }
 
+test("completed citation: direct TurnStarted user row preserves admitted opaque evidenceRefs", () => {
+  const projection = new ProductProjection(SESSION_ID, "epoch-receipt-direct");
+  projection.applyEvent({
+    type: SessionEventType.SessionCreated, sequenceNumber: 1, timestamp: new Date(),
+    payload: { config: {} },
+  });
+  const refs = [{ receiptId: "evr_projected_direct" }];
+  const quoted = [{ text: "only signed evidence", path: "G61-source.md" }];
+  projection.applyEvent({
+    type: SessionEventType.TurnStarted,
+    sequenceNumber: 2, timestamp: new Date(), turnId: "turn-direct",
+    payload: {
+      input: "Review note [1]",
+      inputSource: "user",
+      inputVisibility: "visible",
+      messageId: "message-direct",
+      turnNumber: 1,
+      intent: {
+        kind: "sendText", text: "Review note [1]", sourceCommandId: "cmd-direct",
+        conversationQuotes: quoted, evidenceRefs: refs,
+      },
+    },
+  });
+  const row = projection.getSnapshot().rows.window.find((candidate) =>
+    candidate.kind === "userInput");
+  assert.ok(row, "the real SessionEvent must produce a canonical UserInputRow");
+  assert.deepEqual(row.evidenceRefs, refs, "never discard CLI-admitted receipts when projecting the input");
+  assert.deepEqual(row.conversationQuotes, quoted);
+  assert.equal(row.origin, "realUser");
+  assert.ok(!row.text.includes("evr_"), "model-facing content must not serialize opaque receipts");
+});
+
+test("completed citation: legacy queue drain preserves already-admitted evidenceRefs", () => {
+  const { projection, refs } = projectionWithQueuedEvidenceItem();
+  projection.applyEvent({
+    type: SessionEventType.TurnSteerDrained,
+    sequenceNumber: 3,
+    timestamp: new Date(),
+    turnId: "turn-1",
+    payload: {
+      pendingInputIds: ["queue_cmd-proj-1"],
+      injectedMessageIds: ["message-queued-1"],
+      targetTurnId: "turn-1",
+    },
+  });
+  const row = projection.getSnapshot().rows.window.find((candidate) =>
+    candidate.kind === "userInput" && candidate.origin === "realUser");
+  assert.ok(row, "drained real-user item must become a canonical UserInputRow");
+  assert.deepEqual(row.evidenceRefs, refs);
+});
+
 test("历史证据：TurnStarted normalizer 保留凭据给可编辑目标", () => {
   const event = {
     type: SessionEventType.TurnStarted,

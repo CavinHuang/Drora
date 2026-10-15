@@ -1,6 +1,6 @@
 # Obsidian Knowledge → Agent 第一轮验收（真实桌面门禁）
 
-> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G63 Agent 全链路 Ubuntu Electron 已 3/3 通过；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
+> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G64 Agent 全链路 Ubuntu Electron 已 4/4 通过，macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 真桌面两项 Job 均通过；G65 仍待复验；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
 
 ## 验收边界
 
@@ -95,9 +95,10 @@
 | G61 | 在真实会话中打开 Vault ANSWER 搜索真实索引候选，显式选中并提交给 Agent | 可信 `prepareEvidence + resolveCitation` 之后，保活的真实会话 Composer 接受来源索引与摘录，再回到聊天；不可自行创造 Receipt | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（实际 CLI Session + Vault / Composer 同步 ACK） |
 | G62 | 从 G61 的 Composer 原文发送至真实 CLI/Host，模型回放仅输出普通 `[1]` | `evidenceRefs` 经真实 Session admission 复验，完成态 Agent 应答出现有 Receipt 的可信可点击编号；回放模型不携带预签发路径或证明 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（CLI 权威投影 + 非伪造可信引用） |
 | G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（真实引用点击 + 原文只读回跳） |
-| G64 | 真实 CLI 已准入的回答已渲染可信 `[1]` 后，在点击前修改原始 Markdown；拒绝后恢复文件，再执行 G63 | 过期来源在点击时重新 resolveCitation，不能打开被修改的笔记；修改后的文件保持原样（无写盘）；恢复为原始 SHA 后同一原始来源可重新验证并回跳 | 新增真实 Electron 正/负向用例，待最新 CI 实际结果 |
+| G64 | 真实 CLI 已准入的回答已渲染可信 `[1]` 后，在点击前修改原始 Markdown；拒绝后恢复文件，再执行 G63 | 过期来源在点击时重新 resolveCitation，不能打开被修改的笔记；修改后的文件保持原样（无写盘）；恢复为原始 SHA 后同一原始来源可重新验证并回跳 | Ubuntu Electron [38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954)：真实 4/4 通过；macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 同套测试成功 |
+| G65 | 在真实 Electron 中打开审核视图并等待生产 Knowledge Review RPC 回报 S03 门禁状态 | 显示 S03 NO-GO 提示，L2 开关必须既禁用又未勾选，测试 Vault Markdown 内容不变 | 新增跨平台实际 GUI 门禁；最新 CI 待跑 |
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G64 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G65 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

@@ -161,4 +161,45 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     const diskContent = await readFile(NOTE_FILE, "utf8");
     assert.equal(diskContent, NOTE_BODY, "Read-only Evidence smoke must never mutate the Vault");
   });
+
+  it("G60 source edited after Inspector verification cannot open a stale note", async function () {
+    this.timeout(120_000);
+    if (!candidateVerifiedBySearch) this.skip();
+    await clickControl('[data-testid="vault-tab-ask"]', "return to Knowledge Ask");
+    await waitForVisible('[data-testid="ask-input"]', "Knowledge Ask input");
+    await browser.execute((query) => {
+      const input = document.querySelector<HTMLTextAreaElement>('[data-testid="ask-input"]');
+      if (!input) throw new Error("G60 Ask textarea missing");
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setter) throw new Error("G60 native input setter missing");
+      setter.call(input, query);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, SEARCH_TOKEN);
+    await clickControl('[data-testid="ask-submit"]', "repeat FIND query");
+    await browser.waitUntil(() => browser.execute((filename) =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid="ask-candidate"]'))
+        .some((card) => card.textContent?.includes(filename)),
+    NOTE_NAME), { timeout: 60_000, timeoutMsg: "G60 original indexed candidate unavailable" });
+    await clickControl('[data-testid="ask-candidate-verify"]', "verify current source");
+    await browser.waitUntil(() => browser.execute(() =>
+      Boolean(document.querySelector('[data-testid="ask-evidence"][data-evidence-phase="verified"]')),
+    ), { timeout: 60_000, timeoutMsg: "G60 source did not initially verify" });
+
+    const mutated = NOTE_BODY.replace(SEARCH_TOKEN, `${SEARCH_TOKEN}-edited-after-verification`);
+    assert.notEqual(mutated, NOTE_BODY);
+    await writeFile(NOTE_FILE, mutated, "utf8");
+    try {
+      await clickControl('[data-testid="ask-candidate-open-note"]', "attempt stale source open");
+      await browser.waitUntil(() => browser.execute(() =>
+        Boolean(document.querySelector('[data-testid="ask-evidence"][data-evidence-phase="unavailable"]')),
+      ), { timeout: 30_000, timeoutMsg: "G60 stale Receipt was not rejected at click time" });
+      const remainedInAsk = await browser.execute(() =>
+        document.querySelector('[data-testid="vault-tab-ask"]')?.getAttribute("aria-selected") === "true"
+        && Boolean(document.querySelector('[data-testid="knowledge-ask-view"]')));
+      assert.equal(remainedInAsk, true, "Stale Inspector cannot silently navigate to a changed note");
+    } finally {
+      await writeFile(NOTE_FILE, NOTE_BODY, "utf8");
+    }
+  });
+
 });

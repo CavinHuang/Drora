@@ -27,6 +27,7 @@ export function useKnowledgeAgentActions(params: {
   submitSeqRef: React.RefObject<number>;
   selectionVersionRef: React.RefObject<number>;
   verifyEvidence: (candidate: KnowledgeArticleCandidate) => Promise<KnowledgeEvidenceInspectState | null>;
+  onAgentHandoffPrepared?: () => void;
 }): {
   addingArticleId: string | null;
   handoffBusy: boolean;
@@ -34,7 +35,7 @@ export function useKnowledgeAgentActions(params: {
   handoffQuestionToAgent: () => Promise<void>;
 } {
   const { intl } = useDroraIntl();
-  const { queryService, selectionTarget, state, submitSeqRef, selectionVersionRef, verifyEvidence } = params;
+  const { queryService, selectionTarget, state, submitSeqRef, selectionVersionRef, verifyEvidence, onAgentHandoffPrepared } = params;
   const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
   const [handoffBusy, setHandoffBusy] = React.useState(false);
   // Ref locks are synchronous: double-clicks must not start two receipt batches.
@@ -92,6 +93,7 @@ export function useKnowledgeAgentActions(params: {
           workspaceKey: targetWorkspace,
           reference,
         });
+        if (result.ok) onAgentHandoffPrepared?.();
         if (!result.ok) {
           droraToast(
             intl.formatMessage({
@@ -105,7 +107,7 @@ export function useKnowledgeAgentActions(params: {
         setAddingArticleId(null);
       }
     },
-    [intl, queryService, selectionTarget, state.current?.run.runId, submitSeqRef, verifyEvidence],
+    [intl, onAgentHandoffPrepared, queryService, selectionTarget, state.current?.run.runId, submitSeqRef, verifyEvidence],
   );
 
   const handoffQuestionToAgent = React.useCallback(async (): Promise<void> => {
@@ -157,11 +159,12 @@ export function useKnowledgeAgentActions(params: {
         return;
       }
       droraToast(intl.formatMessage({ id: "vault.ask.handoff.prepared" }));
+      onAgentHandoffPrepared?.();
     } finally {
       handoffRef.current = false;
       setHandoffBusy(false);
     }
-  }, [intl, queryService, selectionTarget, state.current, state.selectedArticleIds, submitSeqRef, selectionVersionRef]);
+  }, [intl, onAgentHandoffPrepared, queryService, selectionTarget, state.current, state.selectedArticleIds, submitSeqRef, selectionVersionRef]);
 
   return { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent };
 }

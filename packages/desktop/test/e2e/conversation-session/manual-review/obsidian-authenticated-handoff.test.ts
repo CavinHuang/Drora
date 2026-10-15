@@ -266,4 +266,53 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
     }
   });
 
+  it("G06 deleted before Send: CLI rejects a missing note and keeps the trusted draft", async function () {
+    this.timeout(180_000);
+    if (!authenticatedCitationRendered) this.skip();
+    assertSandbox();
+
+    // G66 leaves the genuine, previously rejected Composer draft in place.
+    // Restoring SOURCE makes the original Receipt valid again; deleting the
+    // exact note then exercises the distinct CLI file_deleted/missing path.
+    await browser.waitUntil(() => browser.execute((token) =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+        .some((el) => el.textContent?.includes(token)),
+    QUERY), { timeout: 15_000, timeoutMsg: "G06 requires the actual trusted Composer draft" });
+    const beforeRows = await browser.execute(() =>
+      document.querySelectorAll("[data-row-id]").length,
+    );
+    await rm(FILE);
+
+    try {
+      await click('[data-testid="v4-composer-send"]', "send with a deleted backing Markdown file");
+
+      // Check the actual rejected CLI ACK reason, not just an idle UI or a
+      // retained textarea (either could pass if Send never reached the host).
+      await browser.waitUntil(() => browser.execute(() =>
+        Boolean(document.querySelector('[data-error-code="SEND_FAILED"] button[data-testid]')),
+      ), { timeout: 30_000, timeoutMsg: "G06 did not surface the rejected send" });
+      await click('[data-error-code="SEND_FAILED"] button[data-testid]', "inspect CLI rejection reason");
+      await browser.waitUntil(() => browser.execute(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] pre'))
+          .some((el) => el.textContent?.includes("guard.evidenceMissing")),
+      ), { timeout: 30_000, timeoutMsg: "G06 CLI did not return guard.evidenceMissing" });
+
+      await waitForV4ConversationState(
+        (s) => s.state === "idle" && s.queueCount === 0,
+        "G06 missing evidence must never dispatch a model turn", 20_000,
+      );
+      const outcome = await browser.execute((token) => ({
+        draftPresent: Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+          .some((el) => el.textContent?.includes(token)),
+        rowCount: document.querySelectorAll("[data-row-id]").length,
+      }), QUERY);
+      assert.equal(outcome.draftPresent, true, "Missing source must retain the user Composer draft");
+      assert.equal(outcome.rowCount, beforeRows, "Missing source must not create a canonical user row");
+      await assert.rejects(readFile(FILE, "utf8"), { code: "ENOENT" });
+    } finally {
+      // Never leave the isolated fixture deleted for subsequent tests.
+      await writeFile(FILE, SOURCE, { encoding: "utf8", flag: "wx" });
+    }
+  });
+
 });

@@ -58,4 +58,5 @@ jobs:
             packages/desktop/.e2e-artifacts/
             packages/desktop/.e2e-network-capture/
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7

@@ -1,6 +1,6 @@
 # Obsidian Knowledge → Agent 第一轮验收（真实桌面门禁）
 
-> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58/G59 已接线真实测试 Vault 正向自动化但仍待运行；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
+> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 已接线真实测试 Vault 正/负向自动化但仍待运行；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
 
 ## 验收边界
 
@@ -19,7 +19,7 @@
 - CLI 证据接线测试必须先完成 CLI workspace 依赖构建（CI `cli-build` 负责），然后执行 `node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
 - `pnpm dev:desktop:test`：打开真正的 Drora 桌面实例，必须确认使用测试环境，不触碰真实 Vault。
 - G58/G59 正向 Electron：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/obsidian-knowledge-positive.test.ts`；仅在 `.e2e-home/.drora/cli/data/obsidian@drora-plugins-official/managed-vault` 中预置文件，不发起模型请求，测试前必须验证 E2E HOME 隔离。
-- G56 真实 Electron 负向来源验证：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts`。使用隔离 E2E HOME 和仓内合成回放；G56 已在 Ubuntu Actions run [38668209293](https://github.com/CavinHuang/Drora/actions/runs/38668209293) 实际通过（1/1）；G57 亦已在 Ubuntu [38669023497](https://github.com/CavinHuang/Drora/actions/runs/38669023497) 的真实 Electron 工作流通过（同一 WDIO spec 2/2）。新增 G58/G59 独立正向用例尚待 CI 实跑。
+- G56 真实 Electron 负向来源验证：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts`。使用隔离 E2E HOME 和仓内合成回放；G56 已在 Ubuntu Actions run [38668209293](https://github.com/CavinHuang/Drora/actions/runs/38668209293) 实际通过（1/1）；G57 亦已在 Ubuntu [38669023497](https://github.com/CavinHuang/Drora/actions/runs/38669023497) 的真实 Electron 工作流通过（同一 WDIO spec 2/2）。新增 G58–G60 独立真实 Vault 用例尚待 CI 实跑。
 
 ## GUI 实操验收矩阵
 
@@ -84,12 +84,13 @@
 | G57 | 在相同真实 Electron Agent Session 连续得到两轮模型回放伪造 [1] 和 fragment 链接，第二轮包含列表、引用、行内代码 | 第二轮回复的伪造链接保持非可信；任一轮不得产生可信来源按钮、Receipt 打开事件或意外 URL hash 导航；不把 G57 视为真实 Receipt 正向证据 | Ubuntu Electron CI [38669023497](https://github.com/CavinHuang/Drora/actions/runs/38669023497)：2/2 通过；Windows/macOS 未验收 |
 | G58 | 在隔离 E2E HOME 中预置真实 Markdown，Electron UI 选择托管 Vault 后执行真实索引和 FIND | KnowledgeIndexService 从真实文件建立索引、Candidate 指向准确文件并包含原文关键字；不使用模拟 Knowledge 服务或生产 Vault | 新增 `obsidian-knowledge-positive.test.ts`，独立 Electron CI job；待实际运行 |
 | G59 | 从 G58 的真实检索候选点击 Inspector 复验后「打开原文」 | prepareEvidence/resolveCitation 当前版本通过；CodeMirror 显示原文件，磁盘内容保持不变。不代表 Agent Turn admission/inline citation 回跳已通过 | 同一正向 WDIO spec 第二项；待实际运行 |
+| G60 | G58/G59 原文件已成功检索，Inspector 显示已验证后修改该文件，再点击「打开原文」 | 必须重新 prepareEvidence+resolveCitation；已更改的版本不可按缓存路径进入笔记，Ask 保持激活并标注来源失效，文件始终只在 E2E HOME 内修改并恢复 | 同一正向 Electron WDIO 第三项；待 CI 最终结果 |
 
 ## 核验回执
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G59 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
+**GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G60 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 
 ## 已知不在第一轮承诺范围
 

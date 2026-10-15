@@ -361,6 +361,7 @@ export function KnowledgeAskView({
                       !selectionTarget ||
                       state.selectedArticleIds.length < (currentRound.intent === "compare" ? 2 : 1)
                     }
+                    data-testid="ask-agent-handoff-submit"
                     onClick={() => void handoffQuestionToAgent()}
                   >
                     {handoffBusy

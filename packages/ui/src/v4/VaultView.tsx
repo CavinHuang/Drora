@@ -1709,6 +1709,7 @@ export function VaultView({
   return (
     <>
       <main
+        data-testid="vault-view"
         className={cn(
           "flex h-full min-h-0 flex-col bg-muted/25",
           embedded && "min-w-[360px] bg-content-area",
@@ -1727,6 +1728,7 @@ export function VaultView({
                 key={tab}
                 type="button"
                 role="tab"
+                data-testid={`vault-tab-${tab}`}
                 aria-selected={active}
                 onClick={() => setViewTab(tab)}
                 className={cn(
@@ -1888,6 +1890,7 @@ export function VaultView({
                     <button
                       type="button"
                       aria-label={intl.formatMessage({ id: "vault.switchVault" })}
+                      data-testid="vault-switcher-trigger"
                       className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
@@ -1936,6 +1939,7 @@ export function VaultView({
                         onClick={() => {
                           void createDroraVault();
                         }}
+                        data-testid="vault-create-managed"
                         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
                       >
                         <Plus size={15} className="shrink-0 text-muted-foreground" />

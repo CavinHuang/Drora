@@ -172,6 +172,33 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
     }
   });
 
+  it("G64 rejects an already-rendered trusted citation after its source changes", async function () {
+    this.timeout(90_000);
+    if (!authenticatedCitationRendered) this.skip();
+    assertSandbox();
+    // The real CLI has already admitted this turn. The existing rendered
+    // button must not authorize a path after its backing Markdown changed.
+    const changed = SOURCE.replace(QUERY, `${QUERY}-edited-after-answer`);
+    assert.notEqual(changed, SOURCE);
+    await writeFile(FILE, changed, "utf8");
+    try {
+      await click('[data-testid^="knowledge-inline-citation-"]', "click expired CLI-backed citation");
+      // Citation resolution is async. A forbidden/stale receipt must settle
+      // without activating Vault or opening CodeMirror on the changed source.
+      await browser.pause(1800);
+      const navigation = await browser.execute(() => ({
+        vaultActive: Boolean(document.querySelector('[data-testid="vault-view"]')?.getClientRects().length),
+        codeMirrorVisible: Array.from(document.querySelectorAll<HTMLElement>(".cm-content"))
+          .some((el) => Boolean(el.getClientRects().length)),
+      }));
+      assert.equal(navigation.vaultActive, false, "Stale answer source must not navigate to Vault");
+      assert.equal(navigation.codeMirrorVisible, false, "Stale answer source must not open CodeMirror");
+      assert.equal(await readFile(FILE, "utf8"), changed, "Citation rejection must never modify the source");
+    } finally {
+      await writeFile(FILE, SOURCE, "utf8");
+    }
+  });
+
   it("G63 clicking the genuine citation opens the exact Vault Markdown in CodeMirror", async function () {
     this.timeout(90_000);
     if (!authenticatedCitationRendered) this.skip();

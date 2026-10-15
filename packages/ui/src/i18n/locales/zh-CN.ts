@@ -5979,6 +5979,11 @@ const zhCN: Record<string, string> = {
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
   "chat.error.noAvailableModel": "当前没有可用模型。请开通编程套餐或配置自定义模型。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
+  "chat.selections.evidenceSend.stale": "可信笔记内容已变更，消息未发送。请从智能问库重新核验并添加来源。",
+  "chat.selections.evidenceSend.missing": "可信笔记已被删除，消息未发送。请恢复原文或重新选择有效来源。",
+  "chat.selections.evidenceSend.forbidden": "会话或 Vault 的来源授权已变更，消息未发送。请重新授权并准备来源。",
+  "chat.selections.evidenceSend.unknown": "可信引用凭据无效，消息未发送。请重新准备来源。",
+  "chat.selections.evidenceSend.unavailable": "暂时无法核验可信来源，消息未发送。请检查 Obsidian 连接后重试。",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
 

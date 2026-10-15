@@ -34,7 +34,9 @@ describe("Real Electron: model-authored Obsidian citation cannot manufacture a R
     replay = await startConversationModelProviderReplayServer(CASE_NAME);
     // Every WDIO beforeSession has already created an isolated E2E HOME.
     // Do not clear app data while Electron is attached.
-    await prepareV4ConversationE2E({ skipProvider: true });
+    // Workspace readiness uses the production Escape dismissal path for
+    // first-run onboarding. Calling the three-step "Skip" flow first can
+    // race with a modal confirmation overlay and intercept its own button.
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 30_000);
     const [provider] = await restartWithSeededOpenAIProviders([{
       modelId: MODEL_ID, providerId: PROVIDER_ID, providerName: PROVIDER_NAME,

@@ -1998,8 +1998,8 @@ export function VaultView({
             queryService={knowledgeQueryService}
             sessionId={sessionId}
             workspaceKey={workspaceKey}
-            onOpenNote={(relativePath, reveal) => {
-              void openNoteFromKnowledge(relativePath, reveal);
+            onOpenNote={(relativePath, reveal, isCurrent, excerpt, fileSha256) => {
+              void openNoteFromKnowledge(relativePath, reveal, isCurrent, excerpt, fileSha256);
             }}
             onGoToNotes={goToNotesView}
           />

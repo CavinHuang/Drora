@@ -1,0 +1,73 @@
+name: Obsidian Electron Cross-platform Acceptance
+
+# Do not report Windows/macOS bundle builds as Obsidian UI acceptance.
+# Run actual Electron + ChromeDriver with the same isolated real Vault tests.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/obsidian-electron-cross-platform.yml"
+      - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json"
+      - "packages/ui/src/v4/VaultView.tsx"
+      - "packages/ui/src/v4/vault/knowledge/**"
+      - "packages/ui/src/components/ai-elements/message.tsx"
+      - "packages/ui/src/v4/ConversationTurnGroup.tsx"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
+  workflow_dispatch:
+
+concurrency:
+  group: obsidian-cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-acceptance:
+    name: Real Vault + Agent evidence E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-14]
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reporting and actual desktop Agent CLI
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Confirm direct and queued authoritative Receipt projection
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
+      - name: Run real local Vault index/Inspector/TOCTOU Electron E2E
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/obsidian-knowledge-positive.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+        run: pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/obsidian-knowledge-positive.test.ts
+      - name: Run real Agent Session/CLI/Receipt/navigation Electron E2E
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json
+        run: pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts
+      - name: Upload cross-platform Electron diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-${{ matrix.os }}-acceptance
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7

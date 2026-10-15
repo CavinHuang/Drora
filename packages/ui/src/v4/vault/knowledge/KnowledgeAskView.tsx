@@ -63,7 +63,13 @@ export interface KnowledgeAskViewProps {
   sessionId?: string;
   workspaceKey?: string;
   /** 证据回跳：切到笔记视图并打开目标笔记（reveal = quote 行号区间）。 */
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  onOpenNote: (
+    relativePath: string,
+    reveal?: KnowledgeEvidenceQuote,
+    isCurrent?: () => boolean,
+    expectedExcerpt?: string,
+    expectedFileSha256?: string,
+  ) => void;
   /** 无 Vault 时的引导动作（切回笔记视图使用左下角连接器）。 */
   onGoToNotes: () => void;
 }
@@ -261,6 +267,32 @@ export function KnowledgeAskView({
     [queryService, sessionId, state.current?.run.runId],
   );
 
+  // Inspector's green state is historical, not a permanent open capability.
+  // Reissue/resolve on click and use Vault's second-read SHA+quote CAS.
+  const openCurrentCandidate = React.useCallback(
+    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
+      const seq = submitSeqRef.current;
+      const captured = scopeRef.current;
+      const isCurrent = (): boolean =>
+        seq === submitSeqRef.current &&
+        scopeRef.current.sessionId === captured.sessionId &&
+        scopeRef.current.workspaceKey === captured.workspaceKey &&
+        scopeRef.current.queryService === captured.queryService &&
+        scopeRef.current.indexService === captured.indexService;
+      if (!isCurrent()) return;
+      const verified = await verifyEvidence(candidate);
+      if (!isCurrent() || verified?.phase !== "verified") return;
+      onOpenNote(
+        verified.relativePath,
+        verified.quote,
+        isCurrent,
+        verified.excerpt,
+        candidate.fileSha256,
+      );
+    },
+    [onOpenNote, verifyEvidence],
+  );
+
   const { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent } =
     useKnowledgeAgentActions({
       queryService,
@@ -395,9 +427,7 @@ export function KnowledgeAskView({
                   selectionTarget={selectionTarget}
                   adding={addingArticleId === candidate.articleId}
                   onAddToAgent={(entry) => void addVerifiedEvidenceToAgent(entry)}
-                  onOpenNote={(relativePath, reveal) => {
-                    onOpenNote(relativePath, reveal);
-                  }}
+                  onOpenNote={(candidate) => void openCurrentCandidate(candidate)}
                   onSelect={(articleId) => {
                     // Invalidate pending evidence batches synchronously before React render.
                     selectionVersionRef.current += 1;

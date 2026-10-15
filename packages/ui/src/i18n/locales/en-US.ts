@@ -6258,6 +6258,11 @@ const enUS: Record<string, string> = {
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
   "chat.error.noAvailableModel": "No model available. Upgrade or set a custom model.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
+  "chat.selections.evidenceSend.stale": "The trusted note changed, so the message was not sent. Recheck and attach a fresh source from Knowledge Search.",
+  "chat.selections.evidenceSend.missing": "The trusted note was deleted, so the message was not sent. Restore the note or select another valid source.",
+  "chat.selections.evidenceSend.forbidden": "Source authorization for this session or Vault changed. Reauthorize and prepare the source again.",
+  "chat.selections.evidenceSend.unknown": "The trusted evidence receipt is invalid. Prepare the source again before sending.",
+  "chat.selections.evidenceSend.unavailable": "The trusted source could not be verified, so the message was not sent. Check your Obsidian connection and retry.",
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Set",
 

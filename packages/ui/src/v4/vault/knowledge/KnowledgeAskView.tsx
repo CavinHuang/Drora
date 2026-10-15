@@ -291,7 +291,13 @@ export function KnowledgeAskView({
   const isEmptyQueryState = outcome === "idle" || outcome === "failed";
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-ask-view">
+    <section
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-testid="knowledge-ask-view"
+      data-index-configured={indexStatus?.configured === undefined ? "loading" : String(indexStatus.configured)}
+      data-indexed-files={indexStatus?.coverage.indexedFiles ?? -1}
+      data-index-job-status={indexStatus?.job?.status ?? "none"}
+    >
       <div className="mx-auto flex h-full w-full max-w-4xl min-h-0 flex-col gap-3 px-4 py-4">
         {/* 状态条：低噪音，位于输入上方（PRD V07：结果顶部固定状态说明） */}
         <AskBannerList banners={banners} />

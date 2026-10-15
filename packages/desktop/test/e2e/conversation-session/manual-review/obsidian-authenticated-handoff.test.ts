@@ -9,10 +9,12 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DEFAULT_WORKSPACE, waitForWorkspaceApp } from "../../helpers/desktop-app.js";
 import { restartWithSeededOpenAIProviders } from "../../helpers/custom-openai-provider.js";
+import { reloadElectronSessionPreservingBrowserProfile } from "../../helpers/e2e-electron-reload.js";
 import { startConversationModelProviderReplayServer } from "../../helpers/model-provider-replay.js";
 import { selectUpstreamProviderModelById, waitForUpstreamModelSelected } from "../../helpers/upstream-provider.js";
 import {
-  prepareV4ConversationE2E, sendV4Prompt, waitForV4AssistantMessageContaining, waitForV4ConversationState,
+  getV4ConversationState, prepareV4ConversationE2E, selectV4TaskById, sendV4Prompt,
+  waitForV4AssistantMessageContaining, waitForV4ConversationState,
 } from "../../helpers/v4-conversation.js";
 
 const CASE_NAME = "conversation-session-obsidian-authenticated-handoff";
@@ -369,6 +371,79 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
       assert.equal(await readFile(CONFIG, "utf8"), originalConfig, "G07 must fully restore test authorization");
       assert.equal(await readFile(FILE, "utf8"), SOURCE, "G07 must not modify source Markdown");
     }
+  });
+
+  it("G12 full Electron restart: persisted turn Receipt stays session-scoped and source navigation revalidates", async function () {
+    this.timeout(300_000);
+    if (!authenticatedCitationRendered) this.skip();
+    assertSandbox();
+
+    // G61/G62 produced a real CLI UserInputRow and a trusted [1] response.
+    // G66/G06/G07 were rejected before sending, so that completed turn is
+    // still the only authority for its existing inline citation.
+    const before = await waitForV4ConversationState(
+      (state) => Boolean(state.taskId) && Boolean(state.sessionId)
+        && state.state === "idle" && state.queueCount === 0,
+      "G12 requires the real original idle CLI session before restart", 30_000,
+    );
+    assert.ok(before.taskId && before.sessionId);
+    assert.equal(await readFile(FILE, "utf8"), SOURCE, "Restart fixture must be restored after G07");
+    const userDataBefore = await browser.electron.execute((electron) => electron.app.getPath("userData"));
+
+    // This helper flushes Chromium storage, actually exits the old Electron
+    // process tree, reuses its browser profile and rebuilds the service bridge.
+    // A renderer refresh alone is NOT a lifecycle test.
+    const userDataAfter = await reloadElectronSessionPreservingBrowserProfile(browser);
+    assert.equal(userDataAfter, userDataBefore, "G12 must reuse the same persisted profile");
+    await waitForWorkspaceApp(DEFAULT_WORKSPACE, 60_000);
+    await selectV4TaskById(before.taskId, 45_000);
+    await waitForV4ConversationState(
+      (state) => state.taskId === before.taskId
+        && state.sessionId === before.sessionId
+        && state.state === "idle" && state.queueCount === 0,
+      "G12 restarted Electron did not recover the original Agent session", 60_000,
+    );
+    await waitForV4AssistantMessageContaining(ANSWER_MARKER, 60_000);
+    await waitFor('[data-testid^="knowledge-inline-citation-"]',
+      "restarted actual CLI-backed source citation", 30_000);
+
+    // Post-restart TOCTOU: a source change must reject an old persisted
+    // Receipt even if the original model response has a visible [1].
+    const changed = SOURCE.replace(QUERY, `${QUERY}-edited-after-electron-restart`);
+    assert.notEqual(changed, SOURCE);
+    await writeFile(FILE, changed, "utf8");
+    try {
+      await click('[data-testid^="knowledge-inline-citation-"]',
+        "revalidate a persisted source after full Electron restart");
+      await browser.pause(1800);
+      const staleNavigation = await browser.execute(() => ({
+        vaultActive: Boolean(document.querySelector('[data-testid="vault-view"]')?.getClientRects().length),
+        codeMirrorVisible: Array.from(document.querySelectorAll<HTMLElement>(".cm-content"))
+          .some((element) => Boolean(element.getClientRects().length)),
+      }));
+      assert.equal(staleNavigation.vaultActive, false,
+        "A changed source must not navigate just because its Receipt survived restart");
+      assert.equal(staleNavigation.codeMirrorVisible, false,
+        "A changed source must not open CodeMirror after Electron restart");
+      assert.equal(await readFile(FILE, "utf8"), changed,
+        "Post-restart rejection must not overwrite user source content");
+    } finally {
+      await writeFile(FILE, SOURCE, "utf8");
+    }
+
+    // The originally signed version is current again: recovered citations
+    // should navigate via fresh host verification rather than be lost or
+    // receive authority from model prose.
+    await click('[data-testid^="knowledge-inline-citation-"]',
+      "open the restored original source from recovered Agent turn");
+    await browser.waitUntil(() => browser.execute((token) =>
+      document.querySelector('[data-testid="vault-tab-notes"]')?.getAttribute("aria-selected") === "true"
+        && Array.from(document.querySelectorAll<HTMLElement>(".cm-content"))
+          .some((editor) => editor.textContent?.includes(token) && editor.getClientRects().length),
+    QUERY), { timeout: 30_000, timeoutMsg: "G12 recovered Receipt did not open the original Vault note" });
+    assert.equal(await readFile(FILE, "utf8"), SOURCE, "Recovered navigation must not mutate source");
+    assert.equal((await getV4ConversationState()).sessionId, before.sessionId,
+      "G12 must not silently switch the authenticated Agent session");
   });
 
 });

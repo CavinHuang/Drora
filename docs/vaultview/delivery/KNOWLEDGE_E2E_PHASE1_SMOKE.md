@@ -1,6 +1,6 @@
 # Obsidian Knowledge → Agent 第一轮验收（真实桌面门禁）
 
-> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G63 Agent 交接新测试待实测；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
+> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G63 Agent 全链路 Ubuntu Electron 已 3/3 通过；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
 
 ## 验收边界
 
@@ -18,6 +18,8 @@
 - `node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`
 - CLI 证据接线测试必须先完成 CLI workspace 依赖构建（CI `cli-build` 负责），然后执行 `node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
 - `pnpm dev:desktop:test`：打开真正的 Drora 桌面实例，必须确认使用测试环境，不触碰真实 Vault。
+
+- G61–G63 跨视图 Agent 的真实 Electron 路径：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts`。此项使用隔离 `.e2e-home` 真实 Vault/Knowledge/CLI RPC，仅模型通过固定 SSE 回放返回普通 `[1]`；**不能以该模型回放代替真实用户笔记的人工验收**。同工作流先运行 `apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`，锁定 direct/queued canonical UserInputRow 的已准入 Receipt 投影。
 - G58/G59 正向 Electron：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/obsidian-knowledge-positive.test.ts`；仅在 `.e2e-home/.drora/cli/data/obsidian@drora-plugins-official/managed-vault` 中预置文件，不发起模型请求，测试前必须验证 E2E HOME 隔离。
 - G56 真实 Electron 负向来源验证：`pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts`。使用隔离 E2E HOME 和仓内合成回放；G56 已在 Ubuntu Actions run [38668209293](https://github.com/CavinHuang/Drora/actions/runs/38668209293) 实际通过（1/1）；G57 亦已在 Ubuntu [38669023497](https://github.com/CavinHuang/Drora/actions/runs/38669023497) 的真实 Electron 工作流通过（同一 WDIO spec 2/2）。G58–G60 已在 Ubuntu Electron [38671681092](https://github.com/CavinHuang/Drora/actions/runs/38671681092) 真实 3/3 通过，G56/G57 同一次 workflow 2/2 通过；相关完整 CI [38671681360](https://github.com/CavinHuang/Drora/actions/runs/38671681360) 成功。
 
@@ -90,9 +92,9 @@
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
-| G61 | 在真实会话中打开 Vault ANSWER 搜索真实索引候选，显式选中并提交给 Agent | 可信 `prepareEvidence + resolveCitation` 之后，保活的真实会话 Composer 接受来源索引与摘录，再回到聊天；不可自行创造 Receipt | 新增真实 Electron `obsidian-authenticated-handoff.test.ts`，待最新 CI 通过 |
-| G62 | 从 G61 的 Composer 原文发送至真实 CLI/Host，模型回放仅输出普通 `[1]` | `evidenceRefs` 经真实 Session admission 复验，完成态 Agent 应答出现有 Receipt 的可信可点击编号；回放模型不携带预签发路径或证明 | 与 G61 同一 E2E，待最新 CI 通过 |
-| G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | 与 G61 同一 E2E，待最新 CI 通过 |
+| G61 | 在真实会话中打开 Vault ANSWER 搜索真实索引候选，显式选中并提交给 Agent | 可信 `prepareEvidence + resolveCitation` 之后，保活的真实会话 Composer 接受来源索引与摘录，再回到聊天；不可自行创造 Receipt | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（实际 CLI Session + Vault / Composer 同步 ACK） |
+| G62 | 从 G61 的 Composer 原文发送至真实 CLI/Host，模型回放仅输出普通 `[1]` | `evidenceRefs` 经真实 Session admission 复验，完成态 Agent 应答出现有 Receipt 的可信可点击编号；回放模型不携带预签发路径或证明 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（CLI 权威投影 + 非伪造可信引用） |
+| G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（真实引用点击 + 原文只读回跳） |
 
 **GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G63 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 

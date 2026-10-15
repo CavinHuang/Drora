@@ -29,6 +29,7 @@ const SOURCE = "# G61 local Obsidian evidence\n\n" +
   `The original ${QUERY} note says: only a production-issued Receipt authorizes opening this text.\n`;
 
 let replay: Awaited<ReturnType<typeof startConversationModelProviderReplayServer>> | null = null;
+let authenticatedCitationRendered = false;
 function assertSandbox(): void {
   assert.equal(DATA_BASE, HOME, "Do not operate outside isolated WDIO HOME");
   assert.match(HOME, /(?:^|[/\\])\.e2e-home(?:[/\\]|$)/, "G61 requires .e2e-home");
@@ -155,11 +156,25 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
       (s) => s.state === "idle" && s.queueCount === 0,
       "Agent true evidence turn did not settle", 90_000,
     );
-    await waitFor('[data-testid^="knowledge-inline-citation-"]', "authenticated source button", 30_000);
+    try {
+      await waitFor('[data-testid^="knowledge-inline-citation-"]', "authenticated source button", 15_000);
+      authenticatedCitationRendered = true;
+    } catch (error) {
+      // E2E-only, non-sensitive turn diagnostics: never infer a trusted source
+      // from model prose. Identify which canonical boundary lost authority.
+      const diagnostic = await browser.execute(() =>
+        Array.from(document.querySelectorAll<HTMLElement>("[data-e2e-knowledge-diagnostics]"))
+          .map((el) => el.getAttribute("data-e2e-knowledge-diagnostics")),
+      );
+      throw new Error(`G62 missing authenticated [1]; projected-turn diagnostics=${JSON.stringify(diagnostic)}`, {
+        cause: error,
+      });
+    }
   });
 
   it("G63 clicking the genuine citation opens the exact Vault Markdown in CodeMirror", async function () {
     this.timeout(90_000);
+    if (!authenticatedCitationRendered) this.skip();
     await click('[data-testid^="knowledge-inline-citation-"]', "real CLI-backed citation");
     await browser.waitUntil(() => browser.execute((token) =>
       document.querySelector('[data-testid="vault-tab-notes"]')?.getAttribute("aria-selected") === "true"

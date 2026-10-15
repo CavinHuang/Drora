@@ -179,6 +179,7 @@ export function KnowledgeCandidateCard({
           size="xs"
           variant="outline"
           disabled={inspect?.phase === "checking"}
+          data-testid="ask-candidate-verify"
           onClick={() => onVerify(candidate)}
         >
           {inspect?.phase === "checking" ? (
@@ -195,6 +196,7 @@ export function KnowledgeCandidateCard({
             type="button"
             size="xs"
             variant="outline"
+            data-testid="ask-candidate-open-note"
             onClick={() => onOpenNote(verified.relativePath, verified.quote)}
           >
             <BookOpenText className="size-3.5" />

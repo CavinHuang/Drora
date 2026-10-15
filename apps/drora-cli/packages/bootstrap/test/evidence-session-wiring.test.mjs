@@ -7,7 +7,19 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KNOWLEDGE_EVIDENCE_GUARDS } from "@drora/shared";
+import {
+  KNOWLEDGE_EVIDENCE_GUARDS,
+  KNOWLEDGE_EVIDENCE_REASONS,
+  KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS,
+  knowledgeSourceFingerprint,
+  normalizeContentForQuoteSelector,
+} from "@drora/shared";
+import { mkdtemp, mkdir, rm, unlink, writeFile, realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { createKnowledgeEvidenceGate } from "../src/knowledge-evidence/evidence-gate.js";
 import { SessionEventType } from "@drora/contracts";
 import { NATIVE_HANDLERS } from "../src/drora-protocol-v4/commands/handlers/index.js";
 import { ProductProjection } from "../src/drora-protocol-v4/product-projection.js";
@@ -623,4 +635,111 @@ test("历史证据：重新发送强制复验并携带原引用，不允许 guid
   assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_historical" }]);
   assert.equal(calls.sendInput[0].options.intent.requestedDelivery, "queue");
   assert.equal(calls.sendInput[0].options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+});
+
+/**
+ * G08 actual gate + handler integration. The existing projection tests above
+ * prove evidenceRefs survive queuing. This test uses real SQLite and the
+ * on-disk authorized Vault to prove revalidation before promoting, reserving
+ * or executing a model turn. No synthetic verifier verdict is injected.
+ */
+test("G08 real queue promotion rejects stale or revoked on-disk Receipt before reservation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-queued-evidence-"));
+  let gate;
+  try {
+    const vaultRoot = join(root, "vault");
+    const pluginDataDir = join(root, "plugin");
+    const databasePath = join(root, "knowledge", "knowledge-index.sqlite");
+    const filePath = join(vaultRoot, "queued.md");
+    const configPath = join(pluginDataDir, "vault-config.json");
+    const marker = "G08 real queue promotion source";
+    const note = `# Evidence queue
+
+${marker}
+
+A valid Receipt is required to send this note.`;
+    const digest = (value) => createHash("sha256").update(value, "utf8").digest("hex");
+    const configuredAt = 810;
+    const receiptId = "evr_queue_real00000000000000000001";
+    await mkdir(vaultRoot, { recursive: true });
+    await mkdir(pluginDataDir, { recursive: true });
+    await mkdir(dirname(databasePath), { recursive: true });
+    await writeFile(filePath, note, "utf8");
+    const rootReal = await realpath(vaultRoot);
+    const vaultId = digest(rootReal);
+    await writeFile(configPath, JSON.stringify({
+      rootPath: rootReal,
+      displayName: "E2E isolated queue vault",
+      inboxPath: "Inbox",
+      allowAgentWrites: false,
+      configuredAt,
+    }), "utf8");
+    const normalized = normalizeContentForQuoteSelector(note);
+    const startOffset = normalized.indexOf(marker);
+    assert.ok(startOffset >= 0);
+    const endOffset = startOffset + marker.length;
+    const db = new DatabaseSync(databasePath);
+    try {
+      for (const statement of KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS) db.exec(statement);
+      db.prepare(
+        `INSERT INTO evidence_receipts(
+          receipt_id, session_id, run_id, article_id, vault_id, source_epoch,
+          source_fingerprint, relative_path, title, heading, file_sha256, chunk_sha256,
+          start_line, end_line, start_offset, end_offset, excerpt, created_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        receiptId, SESSION_ID, "run-g08", "article-g08", vaultId, 1,
+        knowledgeSourceFingerprint(vaultId, configuredAt),
+        "queued.md", "Evidence queue", null, digest(note), digest(marker),
+        3, 3, startOffset, endOffset, marker, Date.now(),
+      );
+    } finally {
+      db.close();
+    }
+    gate = createKnowledgeEvidenceGate({ pluginDataDir, databasePath });
+    const refs = [{ receiptId }];
+    assert.deepEqual(await gate.verify({ sessionId: SESSION_ID, evidenceRefs: refs }), { ok: true },
+      "The on-disk Receipt must be valid when entering the queue");
+
+    const { app, calls } = createRecordApp();
+    const item = queuedItem({ evidenceRefs: refs });
+    const host = createHost({
+      app,
+      calls,
+      queueItem: item,
+      verifier: (request) => gate.verify(request),
+    });
+    const assertPromotionRejected = async (guard, reason) => {
+      await assert.rejects(
+        () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+        (error) => {
+          assert.equal(error.name, "EvidenceGuardRejectionError");
+          assert.equal(error.reasonCode, guard);
+          assert.equal(error.evidenceReason, reason);
+          return true;
+        },
+      );
+      assert.equal(calls.reserveQueueItem.length, 0, "No queue reservation before evidence verification");
+      assert.equal(calls.markQueueItemPromoting.length, 0, "Stale evidence cannot start promoting");
+      assert.equal(calls.removeQueueItem.length, 0, "Rejected evidence must remain in queue");
+      assert.equal(calls.sendInput.length, 0, "Model must not execute rejected evidence");
+      assert.equal(host.getQueueItem(SESSION_ID, item.queueItemId), item);
+    };
+
+    await writeFile(filePath, note + "\nModified after admission.", "utf8");
+    await assertPromotionRejected(
+      KNOWLEDGE_EVIDENCE_GUARDS.stale,
+      KNOWLEDGE_EVIDENCE_REASONS.fileModified,
+    );
+    await writeFile(filePath, note, "utf8");
+    await unlink(configPath);
+    await assertPromotionRejected(
+      KNOWLEDGE_EVIDENCE_GUARDS.forbidden,
+      KNOWLEDGE_EVIDENCE_REASONS.sourceUnconfigured,
+    );
+    assert.equal(calls.verifierInputs.length, 2, "CLI revalidates every promotion attempt");
+  } finally {
+    gate?.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

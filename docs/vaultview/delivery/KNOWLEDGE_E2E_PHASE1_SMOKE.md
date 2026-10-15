@@ -1,6 +1,6 @@
 # Obsidian Knowledge → Agent 第一轮验收（真实桌面门禁）
 
-> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G64 Agent 全链路 Ubuntu Electron 已 4/4 通过，macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 真桌面两项 Job 均通过；G65 仍待复验；Windows/macOS 正向回跳 G01–G55 尚未验收**。本文件是分项验收执行单，不是完整验收通过报告。
+> 工作分支：`feat/obsidian-knowledge-e2e`。状态：**G56/G57 Ubuntu Electron/WebDriver 负向来源测试已通过；G58–G60 Ubuntu Electron 已 3/3 通过；G61–G64 Agent 全链路 Ubuntu Electron 已 4/4 通过，macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 真桌面两项 Job 均通过；G65 实机已通过；G66 在最新 Linux Electron 5/5 测试中已通过；Windows/macOS G01–G55 全量人工验收仍未完成**。本文件是分项验收执行单，不是完整验收通过报告。
 
 ## 验收边界
 
@@ -97,7 +97,9 @@
 | G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（真实引用点击 + 原文只读回跳） |
 | G64 | 真实 CLI 已准入的回答已渲染可信 `[1]` 后，在点击前修改原始 Markdown；拒绝后恢复文件，再执行 G63 | 过期来源在点击时重新 resolveCitation，不能打开被修改的笔记；修改后的文件保持原样（无写盘）；恢复为原始 SHA 后同一原始来源可重新验证并回跳 | Ubuntu Electron [38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954)：真实 4/4 通过；macOS/Windows [38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) 同套测试成功 |
 | G65 | 在真实 Electron 中打开审核视图并等待生产 Knowledge Review RPC 回报 S03 门禁状态 | 显示 S03 NO-GO 提示，L2 开关必须既禁用又未勾选，测试 Vault Markdown 内容不变 | Linux [38698082728](https://github.com/CavinHuang/Drora/actions/runs/38698082728)；Windows/macOS [38698082386](https://github.com/CavinHuang/Drora/actions/runs/38698082386)：真实 Electron 全通过 |
-| G66 | 已有真实 Agent Session，在 Vault ANSWER 将当前 Receipt 交给 Composer 后、尚未发送前修改原 Markdown，随后点击发送 | 必须由真实 CLI admission 拒绝旧 Receipt，保留完整 Composer 草稿；没有新的权威对话行或 Agent 回答；源文件不写盘 | 新增 E2E 用例，待最终运行结果；结构化 guard reason 另由 CLI 单测断言 |
+| G66 | 已有真实 Agent Session，在 Vault ANSWER 将当前 Receipt 交给 Composer 后、尚未发送前修改原 Markdown，随后点击发送 | 必须由真实 CLI admission 拒绝旧 Receipt，保留完整 Composer 草稿；没有新的权威对话行或 Agent 回答；源文件不写盘 | Ubuntu Electron [38699452742](https://github.com/CavinHuang/Drora/actions/runs/38699452742) 真实 Agent E2E 5/5 通过（Job 116304280716）；Windows/macOS [38699452739](https://github.com/CavinHuang/Drora/actions/runs/38699452739) 跨平台真实 Electron 通过；CLI guard reason 由单测验证 |
+
+**2026-10-15 最新自动化回执（head `335eb9d8`）**：Linux Electron [38699452742](https://github.com/CavinHuang/Drora/actions/runs/38699452742) 三个独立 Job 成功；Windows/macOS 实际 Electron [38699452739](https://github.com/CavinHuang/Drora/actions/runs/38699452739) 两个 Job 成功；完整 CI [38699452748](https://github.com/CavinHuang/Drora/actions/runs/38699452748) 八个 Job 成功。自动化覆盖与 G01–G55 人工逐项验收不同；后者仍不得标记通过，PR 仍处于 Draft。
 
 **GO 条件**：CI 的 typecheck、lint、知识库相关测试全部通过；G01–G11、G13–G66 在 Windows/macOS 上通过；G12 没有生命周期回归。否则 Draft PR 继续保持未合并。
 

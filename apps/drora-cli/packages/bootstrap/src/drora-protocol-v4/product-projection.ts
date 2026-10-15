@@ -3822,6 +3822,9 @@ export class ProductProjection {
             ? { fallbackReasonCode: queueItem.delivery.fallbackReasonCode }
             : {}),
           attachmentRefs: queueItem.attachments,
+          // Legacy drain payloads omit drainedInputs; recover ONLY receipts
+          // already admitted into the canonical queue item, never model text.
+          ...(queueItem.evidenceRefs?.length ? { evidenceRefs: queueItem.evidenceRefs } : {}),
         };
         return [
           {

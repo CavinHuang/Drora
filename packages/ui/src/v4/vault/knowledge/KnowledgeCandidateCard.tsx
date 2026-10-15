@@ -25,7 +25,6 @@ import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReferen
 import {
   deriveAskBanners,
   type KnowledgeEvidenceInspectState,
-  type KnowledgeEvidenceQuote,
 } from "./knowledgeAskModel.js";
 import { cn } from "@/components/lib/utils.js";
 
@@ -128,7 +127,7 @@ export function KnowledgeCandidateCard({
   adding: boolean;
   /** Verify a fresh receipt, then attach it to the existing Agent composer. */
   onAddToAgent: (candidate: KnowledgeArticleCandidate) => void;
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  onOpenNote: (candidate: KnowledgeArticleCandidate) => void;
   onSelect: (articleId: string) => void;
   onVerify: (candidate: KnowledgeArticleCandidate) => void;
   onFollowUp: (candidate: KnowledgeArticleCandidate) => void;
@@ -197,7 +196,7 @@ export function KnowledgeCandidateCard({
             size="xs"
             variant="outline"
             data-testid="ask-candidate-open-note"
-            onClick={() => onOpenNote(verified.relativePath, verified.quote)}
+            onClick={() => onOpenNote(candidate)}
           >
             <BookOpenText className="size-3.5" />
             {intl.formatMessage({ id: "vault.ask.candidate.openNote" })}

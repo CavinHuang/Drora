@@ -202,4 +202,37 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     }
   });
 
+
+  it("G65 review write safety remains NO-GO in the production host and real UI", async function () {
+    this.timeout(45_000);
+    await clickControl('[data-testid="vault-tab-review"]', "review tab in real Vault");
+    await waitForVisible('[data-testid="knowledge-review-view"]', "Knowledge review view");
+    await waitForVisible(
+      '[data-testid="review-write-safety-gate-blocked"]',
+      "S03 runtime gate blocked notice",
+    );
+
+    // Do not infer safety from a label alone: the actual switch must be
+    // disabled and unchecked after the host's asynchronous policy RPC.
+    await browser.waitUntil(() => browser.execute(() => {
+      const toggle = document.querySelector<HTMLElement>(
+        '[data-testid="review-write-path-toggle"] [role="switch"]',
+      );
+      return Boolean(toggle && toggle.getClientRects().length > 0);
+    }), { timeout: 30_000, timeoutMsg: "Production review write toggle was not rendered" });
+
+    const gate = await browser.execute(() => {
+      const toggle = document.querySelector<HTMLButtonElement>(
+        '[data-testid="review-write-path-toggle"] [role="switch"]',
+      );
+      return {
+        blockedMessage: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
+        disabled: Boolean(toggle?.disabled),
+        checked: toggle?.getAttribute("aria-checked") ?? "missing",
+      };
+    });
+    assert.deepEqual(gate, { blockedMessage: true, disabled: true, checked: "false" });
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "NO-GO review must not touch source");
+  });
+
 });

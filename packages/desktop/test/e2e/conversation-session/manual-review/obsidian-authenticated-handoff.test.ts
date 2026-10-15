@@ -210,4 +210,60 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
     QUERY), { timeout: 30_000, timeoutMsg: "Real citation did not navigate to original CodeMirror note" });
     assert.equal(await readFile(FILE, "utf8"), SOURCE);
   });
+
+  it("G66 stale at Send rejects genuine Composer evidence and retains draft", async function () {
+    this.timeout(180_000);
+    if (!authenticatedCitationRendered) this.skip();
+    assertSandbox();
+    // Return from the real CodeMirror note to a fresh ANSWER search. This
+    // prepares a new current receipt using real RPC, not the one from G62.
+    await click('[data-testid="vault-tab-ask"]', "return to Knowledge Ask");
+    await waitFor('[data-testid="ask-input"]', "Knowledge Ask");
+    await awaitIndex();
+    await click('[data-testid="ask-intent-answer"]', "ANSWER intent");
+    await setAskInput(QUERY);
+    await click('[data-testid="ask-submit"]', "search unchanged source for handoff");
+    await browser.waitUntil(() => browser.execute(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid="ask-candidate"]'))
+        .some((el) => el.textContent?.includes("G61-Authenticated-Agent-Evidence.md")),
+    ), { timeout: 60_000, timeoutMsg: "G66 actual candidate unavailable" });
+    await click('[data-testid="ask-candidate"] button', "select G66 actual source");
+    await click('[data-testid="ask-agent-handoff-submit"]', "prepare a newly issued Receipt");
+
+    await browser.waitUntil(() => browser.execute((token) =>
+      !document.querySelector('[data-testid="vault-view"]')?.getClientRects().length &&
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+        .some((el) => el.textContent?.includes(token)),
+    QUERY), { timeout: 45_000, timeoutMsg: "G66 trusted composer was not prepared" });
+    const beforeRows = await browser.execute(() =>
+      Array.from(document.querySelectorAll("[data-row-id]")).length,
+    );
+
+    // Mutate the exact source after handoff but before clicking Send. CLI
+    // admission, not the pre-send renderer chip, is the final authority.
+    const changed = SOURCE.replace(QUERY, `${QUERY}-edited-before-send`);
+    assert.notEqual(changed, SOURCE);
+    await writeFile(FILE, changed, "utf8");
+    try {
+      await click('[data-testid="v4-composer-send"]', "send stale sourced draft");
+      // Allow genuine host/CLI admission to return; do not mistake the
+      // initial pre-submit draft for a restored, rejected draft.
+      await browser.pause(2000);
+      await waitForV4ConversationState(
+        (s) => s.state === "idle" && s.queueCount === 0,
+        "G66 stale evidence must not start an Agent turn", 20_000,
+      );
+      const rejected = await browser.execute((token) => ({
+        draftPresent: Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'))
+          .some((el) => el.textContent?.includes(token)),
+        rowCount: Array.from(document.querySelectorAll("[data-row-id]")).length,
+      }), QUERY);
+      assert.equal(rejected.draftPresent, true, "Stale CLI admission must preserve trusted Composer draft");
+      assert.equal(rejected.rowCount, beforeRows, "Stale send must not create a canonical conversation row");
+      assert.equal(await readFile(FILE, "utf8"), changed, "Rejected send must never edit original Markdown");
+    } finally {
+      await writeFile(FILE, SOURCE, "utf8");
+    }
+  });
+
 });

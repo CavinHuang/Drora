@@ -26,7 +26,7 @@ jobs:
       CI: "1"
       E2E_PROVIDER_HTTP_MODE: replay
       # Manual-review specs require an explicit replay fixture; otherwise WDIO refuses to boot.
-      E2E_PROVIDER_REPLAY_FIXTURE_PATH: ./test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+      E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
       VITE_DRORA_E2E_STORE_BRIDGE: "1"
       DRORA_E2E_MANUAL_REVIEW: "1"
       DRORA_SKIP_REMOTE_ASSETS: "1"
@@ -43,6 +43,8 @@ jobs:
         run: |
           pnpm --filter @drora/e2e-report build:node
           node scripts/build-desktop-agent-cli.mjs
+      - name: Verify explicit replay fixture exists before launching Electron
+        run: test -f "$E2E_PROVIDER_REPLAY_FIXTURE_PATH"
       - name: Verify actual Electron response and no forged citation navigation
         run: |
           xvfb-run -a pnpm --dir packages/desktop exec wdio run wdio.conf.ts \

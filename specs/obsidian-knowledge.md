@@ -472,6 +472,11 @@ K-VEC-5 各层降级独立且诊断如实。
   `resolveCitation` 复验（§5.2）→ `current` 显示有界 excerpt + 行号区间 + 「跳到原文」；
   `stale/missing/forbidden/no_source/source_stale` 各自显式呈现机器原因。跳到原文只在
   current 后可用：切到笔记视图打开 `relativePath` 并按 quote 行号区间锚定选中。
+- **完成态引用冷启动回跳**：Electron 重启后即使用户尚未打开 Vault，Agent 回答里的可信
+  引用仍须一次点击完成回跳。Workspace shell 只可延后该次事件并惰性挂载隐藏的 VaultView；
+  路径解析、Receipt 复验、二次读文件与最终切换到笔记视图仍由挂载后的 VaultView 单一路径
+  完成。挂载失败、15 秒超时、Session/Workspace/Vault 作用域变化或复验非 `current` 均
+  fail-closed，且不得因预挂载而显示 Vault 或打开缓存路径。
 - **追问**：沿用同一 Vault 源发起新 run（上一轮候选折叠保留在「上一轮」区）；
   「把引用加入当前 Agent」走既有 selection 引用注入（userselect 数据语义，**不是 Receipt、
   不获执行时复验**，§5.4，UI 必须以文案明示）；无会话时该入口禁用并提示。

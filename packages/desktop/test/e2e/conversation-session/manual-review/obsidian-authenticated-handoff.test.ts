@@ -404,6 +404,11 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
       "G12 restarted Electron did not recover the original Agent session", 60_000,
     );
     await waitForV4AssistantMessageContaining(ANSWER_MARKER, 60_000);
+    const coldStartVaultMounted = await browser.execute(() =>
+      Boolean(document.querySelector('[data-testid="vault-view"]')),
+    );
+    assert.equal(coldStartVaultMounted, false,
+      "G12 must prove the first recovered citation can lazily mount VaultView");
     try {
       await waitFor('[data-testid^="knowledge-inline-citation-"]',
         "restarted actual CLI-backed source citation", 20_000);

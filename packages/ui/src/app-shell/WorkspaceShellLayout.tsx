@@ -89,6 +89,11 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { getPathLeaf, toFileUrl } from "@/lib/path.js";
 import { shouldOpenAssistantHtmlInBrowser } from "@/lib/assistantPreviewCards.js";
+import {
+  getKnowledgeCitationOpenEventName,
+  isKnowledgeCitationOpenEvent,
+  type KnowledgeCitationOpenEventDetail,
+} from "@/lib/conversationSelectionReference.js";
 import { setWorkspaceSidebarResizeActive } from "@/lib/workspaceSidebarResizeState.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
@@ -1588,9 +1593,50 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   // Keep the Vault's citation resolver and the session composer mounted after
   // the first Vault visit. CSS-hiding a view must not revoke its event listeners.
   const [vaultHasOpened, setVaultHasOpened] = useState(false);
+  const vaultHasOpenedRef = useRef(false);
+  const deferredCitationOpensRef = useRef(new Set<KnowledgeCitationOpenEventDetail>());
+  vaultHasOpenedRef.current = vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView);
   useEffect(() => {
-    if (isDroraWorkspaceMainView(workspaceMainView)) setVaultHasOpened(true);
+    if (isDroraWorkspaceMainView(workspaceMainView)) {
+      vaultHasOpenedRef.current = true;
+      setVaultHasOpened(true);
+    }
   }, [workspaceMainView]);
+  useEffect(() => {
+    if (isWebRemoteControlShell) return;
+    const deferred = deferredCitationOpensRef.current;
+    const handleColdCitationOpen = (event: Event): void => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      const detail = event.detail;
+      if (detail.accepted || vaultHasOpenedRef.current || !detail.isActive() ||
+          detail.targetSessionId !== activeTaskId || detail.workspaceKey !== workspaceKey ||
+          !detail.deferUntilMounted()) return;
+      // 修复原因：完整进程重启后 VaultView 尚未挂载，可信引用事件会在任何
+      // resolveCitation RPC 前同步失败。Shell 只负责惰性挂载隐藏视图；目的地与
+      // 文件读取仍由 VaultView 在 Receipt 复验后决定。
+      deferred.add(detail);
+      vaultHasOpenedRef.current = true;
+      setVaultHasOpened(true);
+    };
+    window.addEventListener(getKnowledgeCitationOpenEventName(), handleColdCitationOpen);
+    return () => {
+      window.removeEventListener(getKnowledgeCitationOpenEventName(), handleColdCitationOpen);
+      for (const detail of deferred) {
+        if (detail.targetSessionId === activeTaskId && detail.workspaceKey === workspaceKey) {
+          detail.finish({ ok: false, reason: "forbidden" });
+          deferred.delete(detail);
+        }
+      }
+    };
+  }, [activeTaskId, isWebRemoteControlShell, workspaceKey]);
+  useEffect(() => {
+    if (!vaultHasOpened) return;
+    const deferred = [...deferredCitationOpensRef.current];
+    deferredCitationOpensRef.current.clear();
+    // Child passive effects install VaultView's resolver listener before this
+    // parent effect retries the still-active event.
+    for (const detail of deferred) detail.retryAfterMount();
+  }, [vaultHasOpened]);
   const handleOpenVault = useCallback(
     () => onWorkspaceMainViewChange("vault"),
     [onWorkspaceMainViewChange],

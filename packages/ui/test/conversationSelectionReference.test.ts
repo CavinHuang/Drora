@@ -354,6 +354,53 @@ describe("conversation selection references", () => {
     expect(received).toBe(1);
   });
 
+  it("keeps one cold-start request active until the matching Vault mounts and retries it", async () => {
+    vi.stubGlobal("window", new EventTarget());
+    let mounted = false;
+    let dispatches = 0;
+    let deferred: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      dispatches++;
+      if (!mounted) {
+        expect(event.detail.deferUntilMounted()).toBe(true);
+        expect(event.detail.deferUntilMounted()).toBe(false);
+        deferred = event.detail;
+        return;
+      }
+      event.detail.accepted = true;
+      event.detail.finish({ ok: true });
+    });
+
+    const request = requestKnowledgeCitationOpen({
+      targetSessionId: "session-cold", workspaceKey: "/vault", receiptId: "evr_cold",
+    });
+    expect(deferred?.isActive()).toBe(true);
+    mounted = true;
+    expect(deferred?.retryAfterMount()).toBe(true);
+    expect(await request).toEqual({ ok: true });
+    expect(dispatches).toBe(2);
+    expect(deferred?.retryAfterMount()).toBe(false);
+  });
+
+  it("times out a deferred cold-start request and rejects a late mount retry", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", new EventTarget());
+    let deferred: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      expect(event.detail.deferUntilMounted()).toBe(true);
+      deferred = event.detail;
+    });
+    const request = requestKnowledgeCitationOpen({
+      targetSessionId: "session-cold", workspaceKey: "/vault", receiptId: "evr_timeout",
+    });
+    await vi.advanceTimersByTimeAsync(KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
+    expect(await request).toEqual({ ok: false, reason: "failed" });
+    expect(deferred?.isActive()).toBe(false);
+    expect(deferred?.retryAfterMount()).toBe(false);
+  });
+
   it("malformed navigation requests never dispatch a source-open event", async () => {
     vi.stubGlobal("window", new EventTarget());
     let observed = false;

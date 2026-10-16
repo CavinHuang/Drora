@@ -77,6 +77,10 @@ export interface KnowledgeCitationOpenEventDetail {
   accepted: boolean;
   /** Turns false on completion or timeout; async Vault handlers must check before navigation. */
   isActive: () => boolean;
+  /** Claim a one-time wait while the matching workspace lazily mounts VaultView. */
+  deferUntilMounted: () => boolean;
+  /** Re-dispatch the same active request after VaultView installed its resolver listener. */
+  retryAfterMount: () => boolean;
   finish: (result: KnowledgeCitationOpenResult) => void;
 }
 
@@ -103,31 +107,51 @@ export function requestKnowledgeCitationOpen(input: {
 
   const request = new Promise<KnowledgeCitationOpenResult>((resolve) => {
     let active = true;
+    let deferredUntilMounted = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let detail: KnowledgeCitationOpenEventDetail;
     const finish = (result: KnowledgeCitationOpenResult): void => {
       if (!active) return;
       active = false;
       if (timeout !== undefined) clearTimeout(timeout);
       resolve(result);
     };
-    const detail: KnowledgeCitationOpenEventDetail = {
+    const ensureTimeout = (): void => {
+      if (!active || timeout !== undefined) return;
+      timeout = setTimeout(() => finish({ ok: false, reason: "failed" }),
+        KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
+    };
+    const dispatch = (): void => {
+      if (!active) return;
+      detail.accepted = false;
+      try {
+        window.dispatchEvent(new CustomEvent(KNOWLEDGE_CITATION_OPEN_EVENT, { detail }));
+      } catch {
+        finish({ ok: false, reason: "failed" });
+        return;
+      }
+      if (detail.accepted || deferredUntilMounted) ensureTimeout();
+      else finish({ ok: false, reason: "unavailable" });
+    };
+    detail = {
       ...input,
       accepted: false,
       isActive: () => active,
+      deferUntilMounted: () => {
+        if (!active || detail.accepted || deferredUntilMounted) return false;
+        deferredUntilMounted = true;
+        ensureTimeout();
+        return true;
+      },
+      retryAfterMount: () => {
+        if (!active || !deferredUntilMounted) return false;
+        deferredUntilMounted = false;
+        dispatch();
+        return true;
+      },
       finish,
     };
-    try {
-      window.dispatchEvent(new CustomEvent(KNOWLEDGE_CITATION_OPEN_EVENT, { detail }));
-    } catch {
-      finish({ ok: false, reason: "failed" });
-      return;
-    }
-    if (!detail.accepted) {
-      finish({ ok: false, reason: "unavailable" });
-    } else if (active) {
-      timeout = setTimeout(() => finish({ ok: false, reason: "failed" }),
-        KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
-    }
+    dispatch();
   });
   pendingCitationOpens.set(key, request);
   void request.then(() => {

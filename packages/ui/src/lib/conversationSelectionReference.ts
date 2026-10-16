@@ -160,9 +160,7 @@ export function requestKnowledgeCitationOpen(input: {
   return request;
 }
 
-export function getKnowledgeCitationOpenEventName(): string {
-  return KNOWLEDGE_CITATION_OPEN_EVENT;
-}
+export function getKnowledgeCitationOpenEventName(): string { return KNOWLEDGE_CITATION_OPEN_EVENT; }
 
 export function isKnowledgeCitationOpenEvent(
   event: Event,
@@ -322,9 +320,7 @@ export function isKnowledgeAgentHandoffEvent(
   return event.type === KNOWLEDGE_HANDOFF_EVENT && event instanceof CustomEvent;
 }
 
-export function getKnowledgeAgentHandoffEventName(): string {
-  return KNOWLEDGE_HANDOFF_EVENT;
-}
+export function getKnowledgeAgentHandoffEventName(): string { return KNOWLEDGE_HANDOFF_EVENT; }
 
 /** Commit an already preflighted set of refs and notify the existing selection hook once. */
 export function commitKnowledgeAgentHandoff(
@@ -427,9 +423,7 @@ export function isConversationSelectionAddEvent(
   return event.type === ADD_EVENT && event instanceof CustomEvent;
 }
 
-export function getConversationSelectionAddEventName(): string {
-  return ADD_EVENT;
-}
+export function getConversationSelectionAddEventName(): string { return ADD_EVENT; }
 
 function isConversationSelectionText(value: unknown): value is ConversationSelectionText {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;

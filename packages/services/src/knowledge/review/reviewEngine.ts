@@ -1048,6 +1048,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     };
   }
 
+  async function listRecentOperations(): Promise<KnowledgeReviewOperationView[]> {
+    const source = await resolveSource();
+    return store.listRecentOperationsByVault(source.vaultId).map((row) => buildOperationView(row));
+  }
+
   async function reconcileStuckOperations(): Promise<KnowledgeReviewOperationView[]> {
     const source = await resolveSource();
     // Also surface interrupted undo claims. No writes are performed here:
@@ -1292,6 +1297,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     rejectProposal,
     applyProposal,
     reconcileOperation,
+    listRecentOperations,
     reconcileStuckOperations,
     undoOperation,
     getProposalChangeContent,

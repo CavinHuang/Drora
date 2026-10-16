@@ -261,13 +261,14 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       '[data-testid="review-proposal-title"]': "G67 isolated review",
       '[data-testid="review-proposal-path"]': NOTE_NAME,
       '[data-testid="review-proposal-reason"]': "Confirm proposal-only state while the runtime safety gate is NO-GO",
-      '[data-testid="review-proposal-content"]': proposed,
     });
     await clickControl('[data-testid="review-proposal-load"]', "read real current Vault Markdown");
-    await browser.waitUntil(() => browser.execute(() =>
-      Boolean(document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]')
-        ?.value.includes("G58 synthetic evidence")),
-    ), { timeout: 30_000, timeoutMsg: "G67 current note was not populated before editing" });
+    await browser.waitUntil(() => browser.execute((body) => {
+      const status = document.querySelector<HTMLElement>('[data-testid="review-proposal-load-status"]');
+      const editor = document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]');
+      return status?.getAttribute("data-loaded") === "true"
+        && editor !== null && !editor.disabled && editor.value === body;
+    }, NOTE_BODY), { timeout: 30_000, timeoutMsg: "G67 original note never finished loading into the editable React form" });
     // Use real WebDriver typing rather than a synthetic setter+event. The
     // latter can be coalesced with React-controlled textarea state and pass
     // the DOM-only wait before the host receives the intended draft.

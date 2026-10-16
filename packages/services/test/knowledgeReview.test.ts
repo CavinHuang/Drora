@@ -1207,3 +1207,79 @@ for (const crashMode of ["claimed", "inverse-written"] as const) {
     }
   });
 }
+
+
+for (const crashMode of ["claimed", "first-file-written"] as const) {
+  test(`L2 真进程 SIGKILL：Apply ${crashMode} 的恢复不得重放未落盘文件`, async () => {
+    const env = await createEnv();
+    let reopened: KnowledgeServices | null = null;
+    try {
+      await writeFile(join(env.vault, "a.md"), "baseA", "utf-8");
+      await writeFile(join(env.vault, "b.md"), "baseB", "utf-8");
+      const proposal = await env.review.createProposal({
+        title: `Apply crash ${crashMode}`,
+        reason: "restore on-disk evidence after real OS process termination",
+        changes: [
+          await writeChangeFor(env.vault, "a.md", "nextA"),
+          await writeChangeFor(env.vault, "b.md", "nextB"),
+        ],
+      });
+      await env.review.approveProposal({ proposalId: proposal.proposalId });
+      env.services.dispose();
+
+      const operationId = `rop-killed-apply-${crashMode}`;
+      const marker = join(env.root, "apply-kill-marker");
+      const worker = fileURLToPath(new URL("./fixtures/review-apply-crash-worker.ts", import.meta.url));
+      const exec = promisify(execFile);
+      await assert.rejects(
+        exec(process.execPath, [
+          "--import", "tsx", worker, env.databasePath, env.vault,
+          proposal.proposalId, operationId, crashMode, marker,
+        ], { timeout: 30_000 }),
+        (error: unknown) => typeof error === "object" && error !== null &&
+          "signal" in error && error.signal === "SIGKILL",
+      );
+      assert.equal(await readFile(marker, "utf-8"), crashMode);
+
+      const partial = crashMode === "first-file-written";
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), partial ? "nextA" : "baseA");
+      assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
+
+      reopened = createKnowledgeServices({
+        databasePath: env.databasePath, pluginDataDir: env.pluginDataDir,
+      });
+      assert.equal(reopened.reviewService.isWritePathEnabled(), false);
+      const recovered = await reopened.reviewService.reconcileStuckOperations();
+      assert.equal(recovered.length, 1);
+      assert.equal(recovered[0]?.operationId, operationId);
+      assert.equal(recovered[0]?.status, partial ? "conflict" : "prepared");
+      assert.equal(recovered[0]?.files[0]?.status, partial ? "applied" : "prepared");
+      assert.equal(recovered[0]?.files[1]?.status, "prepared");
+      assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
+      reopened.dispose();
+      reopened = null;
+
+      // Only the test harness opts in after the producer is confirmed dead;
+      // a partial write can selectively undo its first file without touching b.
+      if (partial) {
+        const testWriter = createKnowledgeServices({
+          databasePath: env.databasePath,
+          pluginDataDir: env.pluginDataDir,
+          reviewWritePathEnabled: true,
+          reviewWriteSafetyGatePassed: true,
+        });
+        try {
+          const undone = await testWriter.reviewService.undoOperation({ operationId });
+          assert.equal(undone.outcome, "applied");
+          assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "baseA");
+          assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
+        } finally {
+          testWriter.dispose();
+        }
+      }
+    } finally {
+      reopened?.dispose();
+      await destroyEnv(env);
+    }
+  });
+}

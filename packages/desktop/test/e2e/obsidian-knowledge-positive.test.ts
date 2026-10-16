@@ -8,6 +8,7 @@
  * completed-turn inline citation journey (those remain separate GUI gates).
  */
 import assert from "node:assert/strict";
+import { Key } from "webdriverio";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DEFAULT_WORKSPACE, waitForWorkspaceApp } from "./helpers/desktop-app.js";
@@ -282,7 +283,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await contentEditor.click();
     // Select the loaded original with an OS-appropriate keyboard shortcut;
     // do not invoke the ChromeDriver elementClear API.
-    await browser.keys([process.platform === "darwin" ? "Meta" : "Control", "a"]);
+    await browser.keys([Key.Ctrl, "a", Key.NULL]);
     await browser.keys(proposed);
     await browser.waitUntil(async () =>
       (await contentEditor.getValue()) === proposed,

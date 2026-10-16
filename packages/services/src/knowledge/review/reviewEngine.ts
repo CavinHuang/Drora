@@ -1026,14 +1026,20 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     const statuses = files.map((file) => file.status);
     const hasConflict = statuses.includes("conflict");
     const hasApplying = statuses.includes("applying");
+    const anyApplied = statuses.includes("applied");
     const allApplied = statuses.length > 0 && statuses.every((status) => status === "applied");
+    // If a crashed multi-file apply wrote at least one file, we cannot safely
+    // replay the remainder from its old base SHA. Mark a partial conflict so
+    // the already-written files remain eligible for explicit inverse recovery.
     const nextStatus: KnowledgeReviewOperationStatus = hasApplying
       ? "uncertain"
       : hasConflict
         ? "conflict"
         : allApplied
           ? "applied"
-          : "prepared";
+          : anyApplied
+            ? "conflict"
+            : "prepared";
     store.setOperationStatus(opRow.operationId, nextStatus, {
       reconciledAtMs: nowMs,
       ...(nextStatus === "applied" && opRow.finishedAtMs === null ? { finishedAtMs: nowMs } : {}),

@@ -13,6 +13,7 @@ import type {
   IKnowledgeReviewService,
   IObsidianVaultService,
   KnowledgeReviewApplyResult,
+  KnowledgeReviewOperationView,
   KnowledgeReviewProposalView,
   KnowledgeReviewUndoResult,
   ObsidianVaultSummary,
@@ -80,10 +81,21 @@ export function KnowledgeReviewView({
   const [changeContents, setChangeContents] = React.useState<
     ReadonlyMap<string, string | null>
   >(() => new Map());
-  /** 本会话已知的 operationId（apply 返回的账本视图）；undo 的目标。跨重启不保留。 */
-  const [appliedOperations, setAppliedOperations] = React.useState<
-    ReadonlyMap<string, string>
-  >(() => new Map());
+  /** Operation ledger is durable; do not keep undo targets only in renderer memory. */
+  const [operations, setOperations] = React.useState<readonly KnowledgeReviewOperationView[]>([]);
+  const appliedOperations = React.useMemo(() => {
+    const targets = new Map<string, string>();
+    for (const operation of operations) {
+      if (targets.has(operation.proposalId)) continue;
+      // A mixed/partially reverted operation can still contain undoable files,
+      // but an outstanding undo claim must first be handled, not overwritten.
+      if (operation.files.some((file) => file.status === "undoing")) continue;
+      if (operation.files.some((file) => file.status === "applied")) {
+        targets.set(operation.proposalId, operation.operationId);
+      }
+    }
+    return targets;
+  }, [operations]);
 
   const refreshSummary = React.useCallback(async (): Promise<void> => {
     if (!vaultService) return;
@@ -98,12 +110,14 @@ export function KnowledgeReviewView({
   const refresh = React.useCallback(async (): Promise<void> => {
     if (!reviewService) return;
     try {
-      const [list, writePath, gate] = await Promise.all([
+      const [list, history, writePath, gate] = await Promise.all([
         reviewService.listProposals(),
+        reviewService.listRecentOperations(),
         Promise.resolve(reviewService.isWritePathEnabled()),
         Promise.resolve(reviewService.isWritePathActivationAllowed()),
       ]);
       setProposals(list);
+      setOperations(history);
       setWritePathEnabled(writePath);
       setWriteSafetyGatePassed(gate);
       setListFailed(false);
@@ -159,12 +173,6 @@ export function KnowledgeReviewView({
           proposalId: proposal.proposalId,
           operationId: createUuid(),
         });
-        if (result.operation) {
-          // 记录本会话已知的 operation（含 idempotent_replay 的账本既有记录），
-          // 作为 undo 的目标；applied/conflict 均带账本视图。
-          const operationId = result.operation.operationId;
-          setAppliedOperations((current) => new Map(current).set(proposal.proposalId, operationId));
-        }
         if (result.outcome === "applied") return intl.formatMessage({ id: "vault.review.applied" });
         if (result.outcome === "idempotent_replay") {
           return intl.formatMessage({ id: "vault.review.idempotentReplay" });
@@ -362,7 +370,9 @@ export function KnowledgeReviewView({
           </div>
         )}
         {proposals?.map((proposal) => {
-          const phase = proposalPhaseKey(proposal, nowMs);          return (
+          const phase = proposalPhaseKey(proposal, nowMs);
+          const latestOperation = operations.find((operation) => operation.proposalId === proposal.proposalId);
+          return (
             <article
               key={proposal.proposalId}
               className="rounded-xl border border-card-border bg-card p-4"
@@ -453,6 +463,12 @@ export function KnowledgeReviewView({
                   </Button>
                 </div>
               </div>
+              {latestOperation && (
+                <p className="mt-2 text-ui-xs text-foreground-subtle" data-testid="review-operation-state">
+                  {latestOperation.operationId.slice(0, 16)} · {latestOperation.status} ·{" "}
+                  {latestOperation.files.map((file) => file.status).join(", ")}
+                </p>
+              )}
               {proposal.reason && (
                 <p className="mt-2 whitespace-pre-wrap text-ui-sm text-foreground-subtle">{proposal.reason}</p>
               )}

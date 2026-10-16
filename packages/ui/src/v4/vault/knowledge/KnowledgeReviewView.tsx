@@ -18,6 +18,7 @@ import type {
   ObsidianVaultSummary,
 } from "@drora/services";
 import { createUuid } from "@drora/shared";
+import { KnowledgeReviewProposalComposer } from "./KnowledgeReviewProposalComposer.js";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -338,6 +339,9 @@ export function KnowledgeReviewView({
             </div>
           )}
         </div>
+
+        <KnowledgeReviewProposalComposer vaultService={vaultService} reviewService={reviewService}
+          onCreated={refresh} disabled={busy !== null || !summary} />
 
         {listFailed && (
           <p className="text-ui-sm text-destructive">{intl.formatMessage({ id: "vault.review.listFailed" })}</p>

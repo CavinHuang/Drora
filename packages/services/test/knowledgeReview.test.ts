@@ -1148,3 +1148,57 @@ test("L2 重启后只读历史：Review 能从持久账本恢复操作和 Undo �
     await destroyEnv(env);
   }
 });
+
+
+for (const crashMode of ["claimed", "inverse-written"] as const) {
+  test(`L2 真实进程 SIGKILL：Undo ${crashMode} 后重启只读恢复，不重复写文件`, async () => {
+    const env = await createEnv();
+    let restarted: KnowledgeServices | null = null;
+    try {
+      await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+      const proposal = await env.review.createProposal({
+        title: `Crash at ${crashMode}`,
+        reason: "prove WAL/FS boundary survives actual process death",
+        changes: [await writeChangeFor(env.vault, "a.md", "next")],
+      });
+      await env.review.approveProposal({ proposalId: proposal.proposalId });
+      const operationId = `rop-kill-${crashMode}`;
+      assert.equal(
+        (await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome,
+        "applied",
+      );
+      env.services.dispose();
+
+      const marker = join(env.root, "crash-marker");
+      const worker = fileURLToPath(new URL("./fixtures/review-undo-crash-worker.ts", import.meta.url));
+      const exec = promisify(execFile);
+      await assert.rejects(
+        exec(process.execPath, [
+          "--import", "tsx", worker, env.databasePath, env.vault, operationId, crashMode, marker,
+        ], { timeout: 30_000 }),
+        (error: unknown) => typeof error === "object" && error !== null &&
+          "signal" in error && error.signal === "SIGKILL",
+      );
+      assert.equal(await readFile(marker, "utf-8"), crashMode);
+      const expectedContent = crashMode === "claimed" ? "next" : "base";
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), expectedContent);
+
+      // A fresh production-shaped service has no S03 write gate, but the
+      // ledger can be reconciled using disk evidence and without re-running IO.
+      restarted = createKnowledgeServices({
+        databasePath: env.databasePath,
+        pluginDataDir: env.pluginDataDir,
+      });
+      const recovered = await restarted.reviewService.reconcileStuckOperations();
+      assert.equal(recovered.length, 1);
+      assert.equal(recovered[0]?.operationId, operationId);
+      assert.equal(recovered[0]?.files[0]?.status,
+        crashMode === "claimed" ? "undo_conflict" : "undo_applied");
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), expectedContent);
+      assert.equal(restarted.reviewService.isWritePathEnabled(), false);
+    } finally {
+      restarted?.dispose();
+      await destroyEnv(env);
+    }
+  });
+}

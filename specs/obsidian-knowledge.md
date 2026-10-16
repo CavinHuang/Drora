@@ -1028,8 +1028,11 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 
 ### 5f.4 如实边界
 
-- 本阶段**不新增提案生产者**：提案仍只能由测试或后续「知识治理写回」工作单创建；审核视图
-  的价值是让已存在的机制可被人工完整走通（批准→应用→undo→reconcile）。UI 不得伪造提案。
+- **人工作业提案创建入口已实现（G67）**：审核页支持 `create/write/delete` 三种 Markdown 变更；
+  write/delete 经真实 Vault 门面读取当前 SHA，服务端 `createProposal` 再校验文件路径、版本与精确
+  内容，只有审核账本发生变化；创建和批准都不得直接写 Vault。S03 NO-GO 下 apply/undo 按钮
+  禁用，服务端仍一律 `write_path_disabled`。本入口不冒充已实现 Jev 自动知识治理提案 Agent。
+  G67 在独立真实 Electron 合成 Vault 中创建、预览、批准并核实文件内容完全未变。
 - 可信引用由 Composer 会话与工作区作用域持有，不将未经校验的凭据跨 Host／跨会话自动传递；普通引用仍可独立存在。
 - `KnowledgeResolveCitationResult` 失败分支 status 含 `"current"` 的类型歧义维持现状（W04
   §4 建议），本阶段以 citation 存在性窄化，不在 services 侧改契约（避免破坏 W03 已锁定的

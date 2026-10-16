@@ -235,4 +235,66 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "NO-GO review must not touch source");
   });
 
+  it("G67 actual Electron L2 proposal and approval never writes while S03 is NO-GO", async function () {
+    this.timeout(120_000);
+    assertIsolatedVault();
+    await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
+    const proposed = NOTE_BODY + "\nG67 proposed-only change; must never land on disk.\n";
+    await browser.execute(() => {
+      const select = document.querySelector<HTMLSelectElement>('[data-testid="review-proposal-kind"]');
+      if (!select) throw new Error("G67 kind select missing");
+      select.value = "write";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await browser.execute((fields) => {
+      for (const [selector, value] of Object.entries(fields)) {
+        const element = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
+        if (!element) throw new Error("G67 missing field " + selector);
+        const prototype = element instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+        if (!setter) throw new Error("G67 native input setter unavailable");
+        setter.call(element, value);
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }, {
+      '[data-testid="review-proposal-title"]': "G67 isolated review",
+      '[data-testid="review-proposal-path"]': NOTE_NAME,
+      '[data-testid="review-proposal-reason"]': "Confirm proposal-only state while the runtime safety gate is NO-GO",
+      '[data-testid="review-proposal-content"]': proposed,
+    });
+    await clickControl('[data-testid="review-proposal-submit"]', "persist real L2 proposal");
+    await waitForVisible('[data-testid="review-proposal-created"]', "L2 proposal created");
+    await browser.waitUntil(() => browser.execute((name) =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-proposal-card"]'))
+        .some((card) => card.textContent?.includes(name)),
+    NOTE_NAME), { timeout: 30_000, timeoutMsg: "G67 proposal missing from real review list" });
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Creating a proposal must not write a note");
+    await clickControl('[data-testid="review-change-toggle"]', "preview exact proposal content");
+    await browser.waitUntil(() => browser.execute(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-change-content"]'))
+        .some((pre) => pre.textContent?.includes("G67 proposed-only change")),
+    ), { timeout: 30_000, timeoutMsg: "G67 content not served by the real review RPC" });
+
+    const clicked = await browser.execute(() => {
+      const card = document.querySelector('[data-testid="review-proposal-card"]');
+      const approve = Array.from(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => ["批准", "Approve"].includes(button.textContent?.trim() ?? ""));
+      if (!approve || approve.disabled) return false;
+      approve.click();
+      return true;
+    });
+    assert.equal(clicked, true, "G67 requires actual human approval UI");
+    await browser.waitUntil(() => browser.execute(() =>
+      Boolean(document.querySelector('[data-testid="review-proposal-card"][data-proposal-phase="approvedCurrent"]')),
+    ), { timeout: 30_000, timeoutMsg: "G67 approval not returned from real ledger" });
+    const state = await browser.execute(() => ({
+      blocked: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
+      applyDisabled: Boolean(document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-apply"]')?.disabled),
+    }));
+    assert.deepEqual(state, { blocked: true, applyDisabled: true },
+      "Approved proposal must never enable L2 apply with S03 NO-GO");
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Approval must never touch the Vault");
+  });
+
 });

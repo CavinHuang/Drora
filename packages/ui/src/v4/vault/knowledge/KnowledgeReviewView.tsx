@@ -388,7 +388,9 @@ export function KnowledgeReviewView({
           // A stale/failed RPC or unviewed path fails closed.
           const previewsReviewed = proposal.changes.length > 0 && proposal.changes.every((change) => {
             const key = `${proposal.proposalId}\0${proposal.revision}\0${change.relativePath}`;
-            return expanded.has(key) && changeContents.has(key) && changeContents.get(key) !== false;
+            // An already fetched preview remains reviewed when the row is
+            // collapsed; require exact current-revision content, not open UI.
+            return changeContents.has(key) && changeContents.get(key) !== false;
           });
           return (
             <article

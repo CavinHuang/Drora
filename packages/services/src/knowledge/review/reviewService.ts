@@ -77,6 +77,9 @@ export interface IKnowledgeReviewService {
    */
   reconcileOperation(params: { operationId: string }): Promise<KnowledgeReviewReconcileResult>;
 
+  /** Read-only recent operation history (at most 100), scoped to the current Vault. */
+  listRecentOperations(): Promise<KnowledgeReviewOperationView[]>;
+
   /** 重启恢复入口：落定全部 applying/uncertain 操作（返回落定后的视图）。 */
   reconcileStuckOperations(): Promise<KnowledgeReviewOperationView[]>;
 

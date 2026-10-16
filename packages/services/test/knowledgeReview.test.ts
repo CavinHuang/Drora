@@ -413,7 +413,9 @@ test("断线未知结果：账本停在 applying + 部分落盘 → reconcile �
       }
     })();
     assert.equal(reconciled.outcome, "reconciled");
-    assert.equal(reconciled.operation?.status, "prepared");
+    // Partial disk writes must be represented as an auditable conflict,
+    // never as an apparently unexecuted 'prepared' operation.
+    assert.equal(reconciled.operation?.status, "conflict");
     const fileA = reconciled.operation?.files.find((f) => f.relativePath === "a.md");
     const fileB = reconciled.operation?.files.find((f) => f.relativePath === "b.md");
     assert.equal(fileA?.status, "applied");
@@ -436,7 +438,10 @@ test("断线未知结果：账本停在 applying + 部分落盘 → reconcile �
 
     const undo = await env.review.undoOperation({ operationId });
     assert.equal(undo.outcome, "applied");
+    assert.equal(undo.operation?.files.find((f) => f.relativePath === "a.md")?.status, "undo_applied");
+    assert.equal(undo.operation?.files.find((f) => f.relativePath === "b.md")?.status, "prepared");
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "baseA");
+    assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
 
     const retry = await env.review.applyProposal({
       proposalId: proposal.proposalId,

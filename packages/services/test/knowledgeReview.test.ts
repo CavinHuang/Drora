@@ -1108,3 +1108,43 @@ test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 
     await destroyEnv(env);
   }
 });
+
+
+test("L2 重启后只读历史：Review 能从持久账本恢复操作和 Undo 目标，切库后不可见", async () => {
+  const env = await createEnv();
+  let reopened: KnowledgeServices | null = null;
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Persistent history",
+      reason: "survive renderer/host restart",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    const operationId = "rop-history-restart";
+    assert.equal(
+      (await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome,
+      "applied",
+    );
+    assert.equal((await env.review.listRecentOperations())[0]?.operationId, operationId);
+    env.services.dispose();
+    // No S03 gate on the re-opened service. History is still safely readable.
+    reopened = createKnowledgeServices({
+      databasePath: env.databasePath,
+      pluginDataDir: env.pluginDataDir,
+    });
+    assert.equal(reopened.reviewService.isWritePathEnabled(), false);
+    const history = await reopened.reviewService.listRecentOperations();
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.proposalId, proposal.proposalId);
+    assert.equal(history[0]?.files[0]?.status, "applied");
+
+    const other = join(env.root, "other-vault");
+    await mkdir(other, { recursive: true });
+    await configureVaultAt(env.pluginDataDir, other, { allowAgentWrites: false });
+    assert.deepEqual(await reopened.reviewService.listRecentOperations(), []);
+  } finally {
+    reopened?.dispose();
+    await destroyEnv(env);
+  }
+});

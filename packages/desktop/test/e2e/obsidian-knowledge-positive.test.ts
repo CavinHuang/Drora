@@ -231,10 +231,15 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     });
     assert.deepEqual(gate, { noGo: false, enabled: true, checked: "false", agentChecked: "false" });
     await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "explicitly authorize Vault Agent writes");
-    await browser.waitUntil(() => browser.execute(() =>
-      document.querySelector('[data-testid="review-agent-writes-toggle"] [role="switch"]')
-        ?.getAttribute("aria-checked") === "true",
-    ), { timeout: 30_000, timeoutMsg: "G65 Vault write permission was not persisted" });
+    await browser.waitUntil(() => browser.execute(() => {
+      const grant = document.querySelector('[data-testid="review-agent-writes-toggle"] [role="switch"]');
+      const editor = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-title"]');
+      const toggle = document.querySelector<HTMLButtonElement>('[data-testid="review-write-path-toggle"] [role="switch"]');
+      // The grant's visible state can update before the async host action has
+      // completed. G67 must never start while the review form is still busy.
+      return grant?.getAttribute("aria-checked") === "true"
+        && Boolean(editor && !editor.disabled && toggle && !toggle.disabled);
+    }), { timeout: 30_000, timeoutMsg: "G65 Vault grant did not finish and unlock the Review form" });
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Changing write permissions must not touch source");
   });
 
@@ -242,7 +247,11 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     this.timeout(120_000);
     assertIsolatedVault();
     await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
-    const proposed = NOTE_BODY + "\nG67 proposed-only change; must never land on disk.\n";
+    await browser.waitUntil(() => browser.execute(() => {
+      const editor = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-title"]');
+      return Boolean(editor && !editor.disabled && editor.getClientRects().length > 0);
+    }), { timeout: 30_000, timeoutMsg: "G67 form is still locked by a previous Review operation" });
+    const proposed = NOTE_BODY + "\nG67 approved, applied and undone Markdown change.\n";
     // Interact like a user rather than mutating DOM values behind React's
     // controlled inputs. The synthetic setter previously left the form in
     // an indeterminate state on all three Electron platforms.
@@ -303,7 +312,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await clickControl('[data-testid="review-change-toggle"]', "preview exact proposal content");
     await browser.waitUntil(() => browser.execute(() =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-change-content"]'))
-        .some((pre) => pre.textContent?.includes("G67 proposed-only change")),
+        .some((pre) => pre.textContent?.includes("G67 approved, applied and undone Markdown change")),
     ), { timeout: 30_000, timeoutMsg: "G67 content not served by the real review RPC" });
 
     const clicked = await browser.execute(() => {

@@ -1178,6 +1178,14 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       let ok = false;
       let error: string | null = null;
       try {
+        // An undo may span multiple files. Check the live epoch and write gate
+        // before each inverse mutation; a mid-operation revocation stops the rest.
+        const live = await resolveSource();
+        if (!writePathEnabled || live.vaultId !== currentSource.vaultId ||
+            live.sourceEpoch !== currentSource.sourceEpoch || live.config.allowAgentWrites !== true ||
+            (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
+          throw new Error("撤销期间写权限或 Vault 已变化；停止剩余文件");
+        }
         const current = await readFileOrNull(facade, file.relativePath);
         if (file.kind === "write") {
           if (current === null) {

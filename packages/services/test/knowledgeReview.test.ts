@@ -19,6 +19,8 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { setDataBaseDir } from "../src/paths.js";
 import { configureVaultAt } from "../src/obsidian-vault/config.js";
+import { openKnowledgeDatabase } from "../src/knowledge/store/knowledgeDatabase.js";
+import { ReviewLedgerStore } from "../src/knowledge/review/reviewStore.js";
 import {
   createKnowledgeServices,
   type KnowledgeServices,
@@ -1011,6 +1013,38 @@ test("L2 实际双进程 Undo 竞争：共享 SQLite WAL 只能赢得一次逆�
     assert.equal(replay.reason, "undo_unavailable");
     assert.equal(replay.operation?.files[0]?.status, "undo_applied");
   } finally {
+    await destroyEnv(env);
+  }
+});
+
+
+test("L2 恢复竞态：迟到的 reconcile 不得覆盖已完成的 Undo 账本状态", async () => {
+  const env = await createEnv();
+  const secondConnection = openKnowledgeDatabase(env.databasePath);
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "CAS reconcile",
+      reason: "live owner wins over stale recovery evidence",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    const operationId = "rop-stale-recoverer";
+    assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+
+    const ledger = new ReviewLedgerStore(secondConnection);
+    secondConnection.raw.prepare(
+      "UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?",
+    ).run(operationId);
+    assert.equal(ledger.settleUndoClaim(operationId, 0, "undo_applied", null, Date.now()), true);
+    // Reconciler read stale on-disk evidence before the writer completed.
+    // Its delayed write must not clobber the completed owner's outcome.
+    assert.equal(ledger.settleUndoClaim(
+      operationId, 0, "undo_conflict", "stale snapshot", Date.now(),
+    ), false);
+    assert.equal(ledger.listOperationFiles(operationId)[0]?.status, "undo_applied");
+  } finally {
+    secondConnection.close();
     await destroyEnv(env);
   }
 });

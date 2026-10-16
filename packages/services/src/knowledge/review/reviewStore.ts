@@ -204,6 +204,16 @@ export class ReviewLedgerStore {
     return rows.map(mapOperation);
   }
 
+  /** Bounded read-only operation history, scoped to the currently authorized Vault. */
+  listRecentOperationsByVault(vaultId: string, limit = 100): ReviewOperationRow[] {
+    const count = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const rows = this.db.raw.prepare(
+      `SELECT * FROM review_operations WHERE vault_id = ?
+       ORDER BY created_at_ms DESC, operation_id DESC LIMIT ?`,
+    ).all(vaultId, count) as unknown as OperationDbRow[];
+    return rows.map(mapOperation);
+  }
+
   listOperationsByProposal(proposalId: string): ReviewOperationRow[] {
     const rows = this.db.raw
       .prepare(

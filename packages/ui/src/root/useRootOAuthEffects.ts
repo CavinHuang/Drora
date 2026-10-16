@@ -22,7 +22,10 @@ import {
   refreshLatestModelProviderFamilySelectionAfterLogin,
   refreshRestoredOAuthProviderFamilyAfterStartup,
 } from "@/root/oauthProviderFamilySelectionRefresh.js";
-import { applyCachedOAuthSessionRestoreResult } from "@/root/oauthCachedSessionRestore.js";
+import {
+  applyCachedOAuthSessionRestoreResult,
+  shouldShowJwtInvalidSessionDialog,
+} from "@/root/oauthCachedSessionRestore.js";
 import { markDroraJwtInvalidRestart } from "@/root/droraJwtInvalidRestartMarker.js";
 import { shouldApplyOAuthPollingFailure } from "@/root/oauthLoginAttemptGuard.js";
 import { useAccountConnectionLossNotification } from "@/root/useAccountConnectionLossNotification.js";
@@ -93,6 +96,7 @@ export async function handleOAuthCallbackSuccess(params: {
 
 export function useRootOAuthEffects({
   accountIntentKey,
+  hasAuthenticatedUser,
   platform,
   services,
   refreshProviderState,
@@ -106,6 +110,7 @@ export function useRootOAuthEffects({
   onReauthenticationRequired,
 }: {
   accountIntentKey: string;
+  hasAuthenticatedUser: boolean;
   platform: IPlatformService;
   services: IServiceAccessor;
   refreshProviderState: () => Promise<void>;
@@ -124,6 +129,10 @@ export function useRootOAuthEffects({
   const oauthLoginSucceededRef = useRef(false);
   const oauthLoginSuccessInFlightRef = useRef(false);
   const oauthLoginSuccessOwnerRef = useRef<"polling" | "deep-link" | null>(null);
+  // Keep the authentication fact current without resubscribing to the global
+  // broadcast on every provider or account-render update.
+  const authenticatedUserRef = useRef(hasAuthenticatedUser);
+  authenticatedUserRef.current = hasAuthenticatedUser;
 
   useEffect(() => {
     let disposed = false;
@@ -204,6 +213,13 @@ export function useRootOAuthEffects({
     let disposed = false;
     const disposable = services.broadcastService.onMessage((message) => {
       if (message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
+        return;
+      }
+      // Unrelated background provider requests can emit a JWT-invalid
+      // broadcast while already signed out. Never hijack an offline Vault
+      // workspace with an expired-session modal for a nonexistent login.
+      if (!shouldShowJwtInvalidSessionDialog(authenticatedUserRef.current)) {
+        logger.info("[Root] ignoring JWT-invalid broadcast: no signed-in user");
         return;
       }
       void (async () => {

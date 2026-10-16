@@ -1066,10 +1066,22 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // The file rows must be read inside the lock so a second undo sees the
     // first one's undo_applied/undo_conflict status rather than racing it.
     return withVaultLock(source.vaultId, async () => {
+    // A request may wait behind another file operation while the user revokes
+    // permission or switches Vaults. Re-read authority INSIDE the lock before
+    // claiming ledger rows or touching the filesystem.
+    const currentSource = await resolveSource();
+    if (!writePathEnabled || currentSource.vaultId !== source.vaultId) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+        message: "等待期间写权限或 Vault 已变化；撤销已取消",
+        operation: buildOperationView(opRow),
+      };
+    }
     // Undo writes too: a preference enabled for the old Vault must not authorize
     // the newly selected root, even when the process gate was previously open.
     if (options.writePathEnabled === undefined &&
-        source.config.reviewWritePathEnabled !== true) {
+        currentSource.config.reviewWritePathEnabled !== true) {
       return {
         outcome: "blocked",
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
@@ -1085,7 +1097,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         operation: buildOperationView(opRow),
       };
     }
-    if (source.config.allowAgentWrites !== true) {
+    if (currentSource.config.allowAgentWrites !== true) {
       return {
         outcome: "blocked",
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writesDisabled,
@@ -1096,6 +1108,14 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
     // This short SQLite transaction claims all applied rows before any file IO.
     // Per-Vault JS locks alone cannot protect two desktop hosts sharing a DB.
+    if (opRow.sourceEpoch !== currentSource.sourceEpoch) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
+        message: "原操作属于旧的 Vault 授权周期；不得跨撤权/重授自动撤销",
+        operation: buildOperationView(opRow),
+      };
+    }
     const claim = store.claimUndoFiles(opRow.operationId, Date.now());
     if (claim.outcome !== "claimed") {
       const latest = store.getOperation(opRow.operationId) ?? opRow;
@@ -1112,7 +1132,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     }
     const undoable = claim.files;
 
-    const facade = createVaultFileSystem(source.config.rootPath);
+    const facade = createVaultFileSystem(currentSource.config.rootPath);
     const nowMs = Date.now();
     let undone = 0;
     let conflicts = 0;

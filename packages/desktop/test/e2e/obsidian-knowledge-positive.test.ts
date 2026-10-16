@@ -56,6 +56,33 @@ async function clickControl(selector: string, label: string): Promise<void> {
   assert.equal(clicked, true, `G58 failed clicking ${label}`);
 }
 
+/** Explicitly close a leftover Vault confirmation before entering the L2 form.
+ * A background alert is modal and blocks ALL real WebDriver input. Never click
+ * the destructive Confirm action: only the user-visible Cancel control.
+ */
+async function dismissBlockingVaultDialog(): Promise<void> {
+  const modal = await browser.execute(() => {
+    const dialog = document.querySelector<HTMLElement>('[role="alertdialog"][data-state="open"]');
+    if (!dialog) return null;
+    return {
+      title: dialog.querySelector('[data-slot="alert-dialog-title"]')?.textContent?.trim() ?? "",
+      cancel: Boolean(dialog.querySelector<HTMLButtonElement>('[data-slot="alert-dialog-cancel"]:not(:disabled)')),
+    };
+  });
+  if (!modal) return;
+  assert.equal(modal.cancel, true, `G67 found an un-dismissable modal: ${modal.title}`);
+  console.info(`G67 closing unrelated modal by Cancel: ${modal.title}`);
+  await browser.execute(() => {
+    const cancel = document.querySelector<HTMLButtonElement>(
+      '[role="alertdialog"][data-state="open"] [data-slot="alert-dialog-cancel"]',
+    );
+    cancel?.click();
+  });
+  await browser.waitUntil(() => browser.execute(() =>
+    !document.querySelector('[data-slot="alert-dialog-overlay"][data-state="open"]'),
+  ), { timeout: 10_000, timeoutMsg: `G67 modal failed to close: ${modal.title}` });
+}
+
 describe("G58 real Electron managed Obsidian Vault: read-only positive flow", () => {
   let candidateVerifiedBySearch = false;
   before(async function () {
@@ -256,14 +283,18 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     // Interact like a user rather than mutating DOM values behind React's
     // controlled inputs. The synthetic setter previously left the form in
     // an indeterminate state on all three Electron platforms.
+    await dismissBlockingVaultDialog();
     await $('[data-testid="review-proposal-kind"]').selectByAttribute("value", "write");
+    await dismissBlockingVaultDialog();
     // ChromeDriver 146's clear-element command is rejected by this real
     // Electron renderer even for an enabled text input. Use real trusted
     // keyboard events throughout; the new fields start empty.
     await $('[data-testid="review-proposal-title"]').click();
     await browser.keys("G67 isolated review");
+    await dismissBlockingVaultDialog();
     await $('[data-testid="review-proposal-path"]').click();
     await browser.keys(NOTE_NAME);
+    await dismissBlockingVaultDialog();
     await $('[data-testid="review-proposal-reason"]').click();
     await browser.keys("G67 real approval and write-back");
     await browser.waitUntil(() => browser.execute((path) => {
@@ -280,6 +311,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
         && editor !== null && !editor.disabled && editor.value === body;
     }, NOTE_BODY), { timeout: 30_000, timeoutMsg: "G67 original note never finished loading into the editable React form" });
     const contentEditor = await $('[data-testid="review-proposal-content"]');
+    await dismissBlockingVaultDialog();
     await contentEditor.click();
     // Select the loaded original with an OS-appropriate keyboard shortcut;
     // do not invoke the ChromeDriver elementClear API.

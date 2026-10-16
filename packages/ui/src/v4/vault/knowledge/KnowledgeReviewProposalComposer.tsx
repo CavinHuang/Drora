@@ -1,6 +1,7 @@
 /**
  * Human-authored proposal entry. Proposal creation/approval is ledger-only;
- * production apply/undo remains blocked until an independent S03 safety GO.
+ * apply/undo require the runtime S03 gate, explicit Vault write authorization,
+ * the Review write-path opt-in, and the current proposal approval.
  */
 import * as React from "react";
 import type { IKnowledgeReviewService, IObsidianVaultService, KnowledgeReviewChangeKind } from "@drora/services";

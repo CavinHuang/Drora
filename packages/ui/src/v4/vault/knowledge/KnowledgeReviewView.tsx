@@ -3,7 +3,7 @@
  *
  * 消费真实 IKnowledgeReviewService：提案列表、目标内容预览（getProposalChangeContent）、
  * 批准/拒绝/应用/undo/reconcile 全链人工动作。全部错误以服务端结构化结果呈现，UI 不做
- * 二次推断、不伪造提案（本阶段无提案生产者入口，见 §5f.4）。
+ * 二次推断、不伪造提案；当前人工提案入口见 §5f.4。
  * L2 写路径开关（writePathEnabled）缺省关闭；开启经服务端 setWritePathEnabled 持久化到
  * vault-config.json（唯一写入入口），进程内立即生效。
  */
@@ -416,7 +416,8 @@ export function KnowledgeReviewView({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={busy !== null}
+                      disabled={busy !== null || !writeSafetyGatePassed || !writePathEnabled}
+                      data-testid="review-proposal-apply"
                       onClick={() => applyProposal(proposal)}
                     >
                       {busy === `apply:${proposal.proposalId}` && <Loader2 className="size-3.5 animate-spin" />}
@@ -443,7 +444,8 @@ export function KnowledgeReviewView({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    disabled={busy !== null}
+                    disabled={busy !== null || !writeSafetyGatePassed || !writePathEnabled}
+                    data-testid="review-proposal-undo"
                     onClick={() => undoOperation(proposal)}
                   >
                     {busy === `undo:${proposal.proposalId}` && <Loader2 className="size-3.5 animate-spin" />}
@@ -463,6 +465,7 @@ export function KnowledgeReviewView({
                       <button
                         type="button"
                         className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-ui-sm text-foreground hover:bg-menu-hover"
+                        data-testid="review-change-toggle"
                         onClick={() => toggleExpanded(proposal.proposalId, change.relativePath)}
                       >
                         {isOpen ? (

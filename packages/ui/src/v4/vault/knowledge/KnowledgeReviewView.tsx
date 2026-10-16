@@ -120,6 +120,11 @@ export function KnowledgeReviewView({
       ]);
       setProposals(list);
       setOperations(history);
+      // Reset both halves of the preview state. A failed/stale result must be
+      // refetchable via Refresh; keeping a panel open with an empty cache would
+      // otherwise leave it stuck on "loading" indefinitely.
+      setExpanded(new Set());
+      setChangeContents(new Map());
       setWritePathEnabled(writePath);
       setWriteSafetyGatePassed(gate);
       setListFailed(false);

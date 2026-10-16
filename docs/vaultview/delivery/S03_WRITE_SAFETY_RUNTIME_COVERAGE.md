@@ -1,8 +1,7 @@
 # S03 写入安全运行时覆盖报告（A31 素材，复评输入）
 
-**日期：** 2026-10-11　**分支：** `feat/knowledge-jev-assembly`　**spec：** `specs/agent-write-safety.md`
-**性质：** 复评素材，不是 GO 裁定。S03 复评通过前 `writePathEnabled` 维持关闭
-（`WRITE_SAFETY_NO_GO.md` 仍然有效），本文件只证明「GO 前提的运行时部分已程序化落地」。
+**日期：** 2026-10-16　**分支：** `feat/obsidian-knowledge-e2e`　**spec：** `specs/agent-write-safety.md`
+**性质：** 复评素材，不是 GO 裁定。三洞修复 + P0/P1/P2 runtime 门控已经程序化落地；`createLocalServices` 现在只对 `desktop-local` 注入 `reviewWriteSafetyGatePassed`。正式 S03 裁定仍需独立 Review，本文件不自行宣布 GO。
 
 ## 1. 逐洞修复证据
 
@@ -59,6 +58,12 @@ node --import tsx --test test/*.test.ts（apps/drora-cli/packages/core）
 
 ## 5. 复评路径
 
-本文件 + `specs/agent-write-safety.md` 交复评；S03 通过后以独立改动翻转
-`writePathEnabled`（生产装配 + `specs/obsidian-knowledge.md` §5e 引言同步），
-`WRITE_SAFETY_NO_GO.md` 撤销归档。在那之前任何文档/代码不得宣称审核写入已生效。
+本文件 + `specs/agent-write-safety.md` 交独立复评；当前 runtime gate 已由 desktop-local Host 显式注入，用户仍需开启 Review 写入开关并逐提案审批。正式 S03 GO 仍需要独立 reviewer 撤销 `WRITE_SAFETY_NO_GO.md` 的裁定；在该复评完成前，不能把“代码已接通”表述成“安全审查已通过”。
+
+
+## 6. 2026-10-16 实际验证更新
+
+- `packages/services/src/node.ts`：desktop-local 显式注入 `reviewWriteSafetyGatePassed`；remote/unspecified authority 不获得 L2 写能力。
+- `packages/services/src/obsidian-vault/atomic.ts`：Windows 临时文件共享占用导致的 rename 失败增加有界重试，仍保持 temp-file + rename，不退化为 copy/truncate。
+- 真实 Electron G67：Windows 2022 与 macOS 14 均通过 approval → preview → apply → undo；对应 Cross-platform Acceptance run `38915496910` 全部成功。
+- Full CI `38915497030` 与 Electron Provenance `38915496940` 同一 HEAD 通过。

@@ -220,11 +220,26 @@ export class ReviewLedgerStore {
   transitionOperationToApplying(operationId: string): boolean {
     let won = false;
     this.db.transaction((tx) => {
-      const result = tx.raw
-        .prepare(
-          "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
-        )
-        .run(operationId);
+      const operation = tx.raw.prepare(
+        "SELECT * FROM review_operations WHERE operation_id = ?",
+      ).get(operationId) as OperationDbRow | undefined;
+      if (!operation || operation.status !== "prepared") return;
+      // The vault facade's read-SHA + rename is not an atomic cross-process CAS.
+      // Serialize *different* governed L2 operations at the durable ledger
+      // boundary, not only multiple attempts with one operationId.
+      const activeApply = tx.raw.prepare(
+        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+         AND status IN ('applying', 'uncertain') LIMIT 1`,
+      ).get(operation.vault_id, operationId);
+      const activeUndo = tx.raw.prepare(
+        `SELECT 1 FROM review_operation_files f
+         JOIN review_operations o ON o.operation_id = f.operation_id
+         WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
+      ).get(operation.vault_id);
+      if (activeApply || activeUndo) return;
+      const result = tx.raw.prepare(
+        "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
+      ).run(operationId);
       won = Number(result.changes) === 1;
     });
     return won;
@@ -247,6 +262,21 @@ export class ReviewLedgerStore {
         .prepare("SELECT * FROM review_operations WHERE operation_id = ?")
         .get(operationId) as OperationDbRow | undefined;
       if (!op || op.status === "applying" || op.status === "uncertain" || op.status === "prepared") {
+        outcome = "busy";
+        return;
+      }
+      // A concurrent apply/undo of a different L2 operation in the same Vault
+      // must finish before this inverse write can begin.
+      const activeApply = tx.raw.prepare(
+        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+         AND status IN ('applying', 'uncertain') LIMIT 1`,
+      ).get(op.vault_id, operationId);
+      const activeUndo = tx.raw.prepare(
+        `SELECT 1 FROM review_operation_files f
+         JOIN review_operations o ON o.operation_id = f.operation_id
+         WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
+      ).get(op.vault_id);
+      if (activeApply || activeUndo) {
         outcome = "busy";
         return;
       }

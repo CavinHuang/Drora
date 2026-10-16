@@ -7766,6 +7766,8 @@ const enUS: Record<string, string> = {
   "vault.review.idempotentReplay": "Operation already in the ledger (idempotent replay; not executed twice)",
   "vault.review.reconcileRequired": "An in-flight operation exists; reconcile before continuing",
   "vault.review.deleteContent": "(delete this file)",
+  "vault.review.previewLoading": "Loading proposal preview…",
+  "vault.review.previewFailed": "Could not load this revision’s preview. Refresh and retry; do not approve based on stale content.",
   "vault.review.error.writePathDisabled":
     "L2 reviewed write-back is currently off: enable it explicitly with the toggle above (off by default)",
   "vault.review.error.approvalInvalid":

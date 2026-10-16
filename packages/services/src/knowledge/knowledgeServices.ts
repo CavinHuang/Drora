@@ -116,6 +116,8 @@ export interface KnowledgeServicesOptions {
    * Only use true in dedicated safety-gate tests until S03 lands.
    */
   reviewWriteSafetyGatePassed?: boolean;
+  /** Test-only barrier to pause an in-flight Review file mutation. Never set in desktop Host. */
+  reviewBeforeFileMutationForTest?: () => Promise<void>;
   /**
    * 索引自动 reconcile（spec §5b.8）：缺省 false，仅 desktop 本地 host 装配显式开启。
    * 触发点：装配后延迟一次 + search 入口 TTL 过期时；均 fire-and-forget，检索照旧用
@@ -211,6 +213,7 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     pluginDataDir,
     writePathEnabled: options.reviewWritePathEnabled,
     writeSafetyGatePassed: options.reviewWriteSafetyGatePassed === true,
+    beforeFileMutationForTest: options.reviewBeforeFileMutationForTest,
   });
 
   const indexService: IKnowledgeIndexService = {

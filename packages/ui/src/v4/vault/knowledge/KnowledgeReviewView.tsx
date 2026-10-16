@@ -78,8 +78,10 @@ export function KnowledgeReviewView({
   const [busy, setBusy] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set());
+  // null = a deliberate delete preview; false = RPC error/unavailable.
+  // Never render a read failure as if the proposal deleted the note.
   const [changeContents, setChangeContents] = React.useState<
-    ReadonlyMap<string, string | null>
+    ReadonlyMap<string, string | null | false>
   >(() => new Map());
   /** Operation ledger is durable; do not keep undo targets only in renderer memory. */
   const [operations, setOperations] = React.useState<readonly KnowledgeReviewOperationView[]>([]);
@@ -218,8 +220,10 @@ export function KnowledgeReviewView({
   );
 
   const toggleExpanded = React.useCallback(
-    (proposalId: string, relativePath: string) => {
-      const key = `${proposalId}\0${relativePath}`;
+    (proposalId: string, revision: number, relativePath: string) => {
+      // Revision is part of the cache identity: a re-approved/edited proposal
+      // must never expose a previous revision's target text as current.
+      const key = `${proposalId}\0${revision}\0${relativePath}`;
       setExpanded((current) => {
         const next = new Set(current);
         if (next.has(key)) {
@@ -233,10 +237,12 @@ export function KnowledgeReviewView({
         void reviewService
           ?.getProposalChangeContent({ proposalId, relativePath })
           .then((content) => {
-            setChangeContents((current) => new Map(current).set(key, content?.content ?? null));
+            setChangeContents((current) => new Map(current).set(
+              key, content && content.revision === revision ? content.content : false,
+            ));
           })
           .catch(() => {
-            setChangeContents((current) => new Map(current).set(key, null));
+            setChangeContents((current) => new Map(current).set(key, false));
           });
       }
     },
@@ -474,7 +480,7 @@ export function KnowledgeReviewView({
               )}
               <ul className="mt-3 flex flex-col gap-1">
                 {proposal.changes.map((change) => {
-                  const key = `${proposal.proposalId}\0${change.relativePath}`;
+                  const key = `${proposal.proposalId}\0${proposal.revision}\0${change.relativePath}`;
                   const isOpen = expanded.has(key);
                   return (
                     <li key={change.relativePath}>
@@ -482,7 +488,7 @@ export function KnowledgeReviewView({
                         type="button"
                         className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-ui-sm text-foreground hover:bg-menu-hover"
                         data-testid="review-change-toggle"
-                        onClick={() => toggleExpanded(proposal.proposalId, change.relativePath)}
+                        onClick={() => toggleExpanded(proposal.proposalId, proposal.revision, change.relativePath)}
                       >
                         {isOpen ? (
                           <ChevronDown className="size-3.5 shrink-0 text-foreground-subtle" />
@@ -496,10 +502,12 @@ export function KnowledgeReviewView({
                       </button>
                       {isOpen && (
                         <pre className="mt-1 max-h-72 overflow-auto rounded-lg border border-card-border bg-background p-2 text-ui-sm scrollbar-thin" data-testid="review-change-content">
-                          {changeContents.has(key)
-                            ? (changeContents.get(key) ??
-                              intl.formatMessage({ id: "vault.review.deleteContent" }))
-                            : ""}
+                          {!changeContents.has(key)
+                            ? intl.formatMessage({ id: "vault.review.previewLoading" })
+                            : changeContents.get(key) === false
+                              ? intl.formatMessage({ id: "vault.review.previewFailed" })
+                              : (changeContents.get(key) ??
+                                intl.formatMessage({ id: "vault.review.deleteContent" }))}
                         </pre>
                       )}
                     </li>

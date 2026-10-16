@@ -15,7 +15,12 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { configureManagedVault } from "../src/obsidian-vault/config.js";
+import {
+  configureManagedVault,
+  loadVaultConfig,
+  setVaultAgentWritesEnabled,
+  setVaultReviewWritePathEnabled,
+} from "../src/obsidian-vault/config.js";
 
 test("configureManagedVault：pluginDataDir 含软链段时 displayName 仍判为托管（Drora Vault）", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-vault-config-"));
@@ -32,6 +37,34 @@ test("configureManagedVault：pluginDataDir 含软链段时 displayName 仍判�
     // 幂等：二次配置（真实路径命中已有配置）不改变判定。
     const again = await configureManagedVault(linkData);
     assert.equal(again.displayName, "Drora Vault");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("L2 real Vault authorization: explicit grant, monotonic epoch, and revocation resets review-write", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-l2-vault-auth-"));
+  try {
+    const configured = await configureManagedVault(root);
+    assert.equal(configured.allowAgentWrites, false);
+    const first = await loadVaultConfig(root);
+    assert.ok(first);
+    assert.equal(first.reviewWritePathEnabled, undefined);
+    const granted = await setVaultAgentWritesEnabled(root, true);
+    assert.equal(granted?.allowAgentWrites, true);
+    const afterGrant = await loadVaultConfig(root);
+    assert.ok(afterGrant);
+    assert.ok(afterGrant.configuredAt > first.configuredAt);
+    assert.equal(afterGrant.reviewWritePathEnabled, false);
+    await setVaultReviewWritePathEnabled(root, true);
+    const beforeRevocation = await loadVaultConfig(root);
+    assert.equal(beforeRevocation?.reviewWritePathEnabled, true);
+    const revoked = await setVaultAgentWritesEnabled(root, false);
+    assert.equal(revoked?.allowAgentWrites, false);
+    const afterRevoke = await loadVaultConfig(root);
+    assert.ok(afterRevoke);
+    assert.equal(afterRevoke.reviewWritePathEnabled, false);
+    assert.ok(afterRevoke.configuredAt > afterGrant.configuredAt);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

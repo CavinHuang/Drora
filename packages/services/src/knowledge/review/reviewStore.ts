@@ -230,6 +230,59 @@ export class ReviewLedgerStore {
     return won;
   }
 
+  /**
+   * Cross-Host undo ownership: atomically claim every currently applied file
+   * before touching the Vault. BEGIN IMMEDIATE serializes contenders sharing
+   * this SQLite ledger; an interrupted owner leaves durable undoing rows.
+   * A second host must never retry those rows without evidence reconciliation.
+   */
+  claimUndoFiles(
+    operationId: string,
+    nowMs: number,
+  ): { outcome: "claimed" | "busy" | "unavailable"; files: ReviewOperationFileRow[] } {
+    let outcome: "claimed" | "busy" | "unavailable" = "unavailable";
+    let files: ReviewOperationFileRow[] = [];
+    this.db.transaction((tx) => {
+      const op = tx.raw
+        .prepare("SELECT * FROM review_operations WHERE operation_id = ?")
+        .get(operationId) as OperationDbRow | undefined;
+      if (!op || op.status === "applying" || op.status === "uncertain" || op.status === "prepared") {
+        outcome = "busy";
+        return;
+      }
+      const rows = tx.raw
+        .prepare("SELECT * FROM review_operation_files WHERE operation_id = ? ORDER BY ordinal ASC")
+        .all(operationId) as unknown as OperationFileDbRow[];
+      if (rows.some((row) => row.status === "undoing")) {
+        outcome = "busy";
+        return;
+      }
+      const eligible = rows.filter((row) => row.status === "applied");
+      if (eligible.length === 0) return;
+      const claimed = tx.raw
+        .prepare(
+          "UPDATE review_operation_files SET status = 'undoing', updated_at_ms = ? WHERE operation_id = ? AND status = 'applied'",
+        )
+        .run(nowMs, operationId);
+      if (Number(claimed.changes) !== eligible.length) {
+        throw new Error("undo claim ledger changed unexpectedly");
+      }
+      files = eligible.map((row) => ({ ...mapOperationFile(row), status: "undoing" }));
+      outcome = "claimed";
+    });
+    return { outcome, files };
+  }
+
+  /** Restart/manual recovery needs to locate orphan undo claims as well as apply claims. */
+  listOperationsWithUndoingFiles(): ReviewOperationRow[] {
+    const rows = this.db.raw.prepare(
+      `SELECT DISTINCT o.* FROM review_operations o
+       INNER JOIN review_operation_files f ON f.operation_id = o.operation_id
+       WHERE f.status = 'undoing' ORDER BY o.created_at_ms ASC`,
+    ).all() as unknown as OperationDbRow[];
+    return rows.map(mapOperation);
+  }
+
   setOperationStatus(
     operationId: string,
     status: KnowledgeReviewOperationStatus,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IObsidianVaultService } from "@drora/services";
+import type { IObsidianVaultService, ObsidianVaultSummary } from "@drora/services";
 import { prepareKnowledgeReviewProposal, type ReviewProposalDraft } from "../src/v4/vault/knowledge/knowledgeReviewProposalInput.js";
 
 const summary = { vaultId: "vault-1", configuredAt: 1, displayName: "Fixture",
@@ -7,7 +7,7 @@ const summary = { vaultId: "vault-1", configuredAt: 1, displayName: "Fixture",
 const file = { relativePath: "notes/current.md", content: "# Existing", sha256: "sha-original", modifiedAt: 1 };
 function vault() {
   return {
-    getSummary: vi.fn(async () => summary),
+    getSummary: vi.fn(async (): Promise<ObsidianVaultSummary | null> => summary),
     readFile: vi.fn(async () => file),
   } satisfies Pick<IObsidianVaultService, "getSummary" | "readFile">;
 }

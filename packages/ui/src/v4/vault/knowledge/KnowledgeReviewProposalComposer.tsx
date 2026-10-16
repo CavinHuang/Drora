@@ -23,7 +23,7 @@ export function KnowledgeReviewProposalComposer({
   const [working, setWorking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
-  const change = <K extends keyof ReviewProposalDraft>(key: K, value: ReviewProposalDraft[K]): void => {
+  const change = <K extends keyof ReviewProposalDraft,>(key: K, value: ReviewProposalDraft[K]): void => {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setError(null);
     setSuccess(false);

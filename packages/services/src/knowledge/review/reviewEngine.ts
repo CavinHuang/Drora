@@ -109,6 +109,8 @@ export interface KnowledgeReviewEngineOptions {
    * desktop host does not pass it; persisted user preferences cannot grant it.
    */
   writeSafetyGatePassed?: boolean;
+  /** Integration-test scheduling barrier; never configured by production Host. */
+  beforeFileMutationForTest?: () => Promise<void>;
 }
 
 /**
@@ -874,6 +876,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
             (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
           throw new Error("写入期间授权或 Vault 已变化；停止剩余变更");
         }
+        await options.beforeFileMutationForTest?.();
         if (change.kind === "delete") {
           await facade.deleteFile({ relativePath: change.relativePath, expectedSha256: change.baseSha256 ?? undefined });
           applied = true;
@@ -1231,6 +1234,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
             (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
           throw new Error("撤销期间写权限或 Vault 已变化；停止剩余文件");
         }
+        await options.beforeFileMutationForTest?.();
         const current = await readFileOrNull(facade, file.relativePath);
         if (file.kind === "write") {
           if (current === null) {

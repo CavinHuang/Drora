@@ -457,7 +457,7 @@ export function KnowledgeReviewView({
                       type="button"
                       size="sm"
                       variant="outline"
-                      disabled={busy !== null}
+                      disabled={busy !== null || !previewsReviewed}
                       onClick={() => {
                         void runAction(`approve:${proposal.proposalId}`, async () => {
                           await reviewService?.approveProposal({ proposalId: proposal.proposalId });

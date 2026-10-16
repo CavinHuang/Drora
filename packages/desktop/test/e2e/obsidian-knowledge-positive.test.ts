@@ -268,13 +268,15 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       Boolean(document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]')
         ?.value.includes("G58 synthetic evidence")),
     ), { timeout: 30_000, timeoutMsg: "G67 current note was not populated before editing" });
-    await browser.execute((value) => {
-      const el = document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]');
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-      if (!el || !setter) throw new Error("G67 content editor missing");
-      setter.call(el, value);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    }, proposed);
+    // Use real WebDriver typing rather than a synthetic setter+event. The
+    // latter can be coalesced with React-controlled textarea state and pass
+    // the DOM-only wait before the host receives the intended draft.
+    const contentEditor = await $('[data-testid="review-proposal-content"]');
+    await contentEditor.setValue(proposed);
+    await browser.waitUntil(async () => {
+      const text = await contentEditor.getValue();
+      return text === proposed;
+    }, { timeout: 10_000, timeoutMsg: "G67 proposed content not committed in the controlled editor" });
     await clickControl('[data-testid="review-proposal-submit"]', "persist real L2 proposal");
     await waitForVisible('[data-testid="review-proposal-created"]', "L2 proposal created");
     await browser.waitUntil(() => browser.execute((name) =>

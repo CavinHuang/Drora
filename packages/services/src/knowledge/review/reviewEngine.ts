@@ -641,8 +641,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       return {
         outcome: "blocked",
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
-        message:
-          "写安全门禁（S03 Hard Write Safety GO）未满足：三洞修复 + P0 分级门控未在 runtime 层落地前，审核写路径整体关闭（见 WRITE_SAFETY_NO_GO.md）",
+        message: writeSafetyGatePassed
+          ? "L2 写入尚未由用户启用：请先打开 Review 写入开关"
+          : "S03 runtime write-safety gate 未授权：当前 Host 不允许 L2 写回",
         operation: null,
       };
     }
@@ -1121,8 +1122,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       return {
         outcome: "blocked",
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
-        message:
-          "写安全门禁（S03 Hard Write Safety GO）未满足：审核撤销路径整体关闭（见 WRITE_SAFETY_NO_GO.md）",
+        message: writeSafetyGatePassed
+          ? "L2 撤销尚未由用户启用：请先打开 Review 写入开关"
+          : "S03 runtime write-safety gate 未授权：当前 Host 不允许 L2 撤销写回",
         operation: null,
       };
     }

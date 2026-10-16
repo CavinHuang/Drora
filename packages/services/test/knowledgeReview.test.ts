@@ -790,3 +790,33 @@ test("create/delete 混合提案的顺序执行与账本视图（快照先于落
     await destroyEnv(env);
   }
 });
+
+
+test("L2 审批 TTL 非法值 fail-closed：拒绝入账且不改变原有审批", async () => {
+  const env = await createEnv({ writePathEnabled: false });
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "TTL validation",
+      reason: "reject malformed approval expiration",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    for (const ttlMs of [NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, "1000", null]) {
+      await assert.rejects(
+        env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: ttlMs as number }),
+        /ttlMs/,
+      );
+      assert.equal((await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval, null);
+    }
+    const approval = await env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: 1000 });
+    assert.equal(approval.expired, false);
+    await assert.rejects(
+      env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: NaN }),
+      /ttlMs/,
+    );
+    assert.deepEqual((await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval, approval);
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+  } finally {
+    await destroyEnv(env);
+  }
+});

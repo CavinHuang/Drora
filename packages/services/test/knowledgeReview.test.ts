@@ -820,3 +820,35 @@ test("L2 审批 TTL 非法值 fail-closed：拒绝入账且不改变原有审批
     await destroyEnv(env);
   }
 });
+
+
+test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定账本", async () => {
+  const env = await createEnv();
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Concurrent undo",
+      reason: "single-winner inverse write",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    const applied = await env.review.applyProposal({
+      proposalId: proposal.proposalId,
+      operationId: "rop-parallel-undo",
+    });
+    assert.equal(applied.outcome, "applied");
+
+    const [first, second] = await Promise.all([
+      env.review.undoOperation({ operationId: "rop-parallel-undo" }),
+      env.review.undoOperation({ operationId: "rop-parallel-undo" }),
+    ]);
+    assert.equal(first.outcome, "applied");
+    assert.equal(second.outcome, "blocked");
+    assert.equal(second.reason, "undo_unavailable");
+    assert.equal(first.operation?.files[0]?.status, "undo_applied");
+    assert.equal(second.operation?.files[0]?.status, "undo_applied");
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+  } finally {
+    await destroyEnv(env);
+  }
+});

@@ -171,6 +171,24 @@ export function KnowledgeReviewView({
     [reviewService, runAction],
   );
 
+  const toggleAgentWrites = React.useCallback(
+    (enabled: boolean) => {
+      void runAction("agentWrites", async () => {
+        if (!vaultService) return null;
+        // Revoking or changing L1 permission also invalidates L2's current
+        // authorization and approval epoch; disable the L2 user switch first.
+        if (writePathEnabled && reviewService) {
+          await reviewService.setWritePathEnabled(false);
+        }
+        const nextSummary = await vaultService.setAgentWritesEnabled({ enabled });
+        setSummary(nextSummary);
+        setWritePathEnabled(false);
+        return null;
+      });
+    },
+    [reviewService, runAction, vaultService, writePathEnabled],
+  );
+
   const applyProposal = React.useCallback(
     (proposal: KnowledgeReviewProposalView) => {
       void runAction(`apply:${proposal.proposalId}`, async () => {
@@ -320,10 +338,18 @@ export function KnowledgeReviewView({
                 <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.vault" })}</dt>
                 <dd className="min-w-0 truncate text-foreground">{summary.displayName}</dd>
                 <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.agentWrites" })}</dt>
-                <dd className="text-foreground">
-                  {summary.allowAgentWrites
-                    ? intl.formatMessage({ id: "vault.review.agentWritesOn" })
-                    : intl.formatMessage({ id: "vault.review.agentWritesOff" })}
+                <dd className="flex items-center gap-2 text-foreground" data-testid="review-agent-writes-toggle">
+                  <span className="text-ui-sm">
+                    {summary.allowAgentWrites
+                      ? intl.formatMessage({ id: "vault.review.agentWritesOn" })
+                      : intl.formatMessage({ id: "vault.review.agentWritesOff" })}
+                  </span>
+                  <Switch
+                    checked={summary.allowAgentWrites}
+                    disabled={busy !== null || !vaultService}
+                    onCheckedChange={toggleAgentWrites}
+                    aria-label={intl.formatMessage({ id: "vault.review.agentWrites" })}
+                  />
                 </dd>
                 <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.hookScope" })}</dt>
                 <dd className="text-foreground">{intl.formatMessage({ id: "vault.review.hookScopeValue" })}</dd>

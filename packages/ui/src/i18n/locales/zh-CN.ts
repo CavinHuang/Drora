@@ -7396,6 +7396,8 @@ const zhCN: Record<string, string> = {
   "vault.review.idempotentReplay": "该操作已在账本中（幂等回放，未二次执行）",
   "vault.review.reconcileRequired": "存在在途操作，需先 reconcile 再继续",
   "vault.review.deleteContent": "（删除该文件）",
+  "vault.review.previewLoading": "正在读取提案预览…",
+  "vault.review.previewFailed": "无法加载当前修订版预览，请刷新后重试；勿依据旧内容审批。",
   "vault.review.error.writePathDisabled": "L2 审核写回当前关闭：请先在上方开关显式开启（缺省关闭）",
   "vault.review.error.approvalInvalid": "批准缺失、已过期或对应旧版本内容：请重新批准后再应用",
   "vault.review.error.conflict": "目标文件已被外部修改（base SHA 不匹配）：请修订提案后重试",

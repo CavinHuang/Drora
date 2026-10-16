@@ -903,6 +903,40 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     })();
   }
 
+  /**
+   * An interrupted undo must NEVER be automatically replayed. Reconciliation
+   * reads disk evidence only. A still-present applied version is marked
+   * undo_conflict (manual re-proposal required), not reclaimed for another
+   * writer. If IO evidence is unavailable, keep the durable undoing claim.
+   */
+  async function reconcileUndoingFile(
+    facade: VaultFileSystem,
+    file: ReviewOperationFileRow,
+  ): Promise<{ status: "undo_applied" | "undo_conflict" | "undoing"; error: string | null }> {
+    let current: VaultReadResult | null;
+    try {
+      current = await readFileOrNull(facade, file.relativePath);
+    } catch (error) {
+      return {
+        status: "undoing",
+        error: `撤销证据不可得：${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    const inverseLanded = file.kind === "create"
+      ? current === null
+      : current !== null && file.snapshotSha256 !== null && current.sha256 === file.snapshotSha256;
+    if (inverseLanded) return { status: "undo_applied", error: null };
+    const originalStillPresent = file.kind === "delete"
+      ? current === null
+      : current !== null && file.nextSha256 !== null && current.sha256 === file.nextSha256;
+    return {
+      status: "undo_conflict",
+      error: originalStillPresent
+        ? "撤销没有落盘；不自动重放，请人工检查并重新提案"
+        : "撤销后内容与原始快照均不符；保留当前文件，须人工处理",
+    };
+  }
+
   async function reconcileOperation(params: { operationId: string }): Promise<KnowledgeReviewReconcileResult> {
     if (!params || typeof params.operationId !== "string" || !params.operationId) {
       throw new Error("operationId 不能为空");
@@ -915,7 +949,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         operation: null,
       };
     }
-    if (opRow.status !== "applying" && opRow.status !== "uncertain") {
+    const pendingUndo = store.listOperationFiles(opRow.operationId)
+      .filter((file) => file.status === "undoing");
+    if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
     }
     const source = await resolveSource();
@@ -927,6 +963,17 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
     const facade = createVaultFileSystem(source.config.rootPath);
+    if (opRow.status !== "applying" && opRow.status !== "uncertain") {
+      // Explicit recovery only. The caller must ensure the former writing host
+      // has stopped before settling durable undo claims.
+      for (const file of pendingUndo) {
+        const settled = await reconcileUndoingFile(facade, file);
+        store.updateOperationFileStatus(opRow.operationId, file.ordinal, settled.status, settled.error, Date.now());
+      }
+      store.setOperationStatus(opRow.operationId, opRow.status, { reconciledAtMs: Date.now() });
+      const updated = store.getOperation(opRow.operationId);
+      return { outcome: "reconciled", reason: null, operation: updated ? buildOperationView(updated) : null };
+    }
     const files = store.listOperationFiles(opRow.operationId);
     const nowMs = Date.now();
     let ioFailed = false;
@@ -964,9 +1011,14 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   async function reconcileStuckOperations(): Promise<KnowledgeReviewOperationView[]> {
     const source = await resolveSource();
-    const stuck = store.listOperationsByStatus(["applying", "uncertain"]);
+    // Also surface interrupted undo claims. No writes are performed here:
+    // inverse-not-landed is a conflict, never an automatic retry.
+    const stuckById = new Map(
+      [...store.listOperationsByStatus(["applying", "uncertain"]), ...store.listOperationsWithUndoingFiles()]
+        .map((row) => [row.operationId, row]),
+    );
     const results: KnowledgeReviewOperationView[] = [];
-    for (const opRow of stuck) {
+    for (const opRow of stuckById.values()) {
       // 其他 vault 的在途行无法在当前根上安全核验，留待切回后处理（如实不静默清除）。
       if (opRow.vaultId !== source.vaultId) continue;
       const result = await reconcileOperation({ operationId: opRow.operationId });

@@ -256,11 +256,15 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     // controlled inputs. The synthetic setter previously left the form in
     // an indeterminate state on all three Electron platforms.
     await $('[data-testid="review-proposal-kind"]').selectByAttribute("value", "write");
-    await $('[data-testid="review-proposal-title"]').setValue("G67 isolated review");
-    await $('[data-testid="review-proposal-path"]').setValue(NOTE_NAME);
-    await $('[data-testid="review-proposal-reason"]').setValue(
-      "G67 real approval and write-back",
-    );
+    // ChromeDriver 146's clear-element command is rejected by this real
+    // Electron renderer even for an enabled text input. Use real trusted
+    // keyboard events throughout; the new fields start empty.
+    await $('[data-testid="review-proposal-title"]').click();
+    await browser.keys("G67 isolated review");
+    await $('[data-testid="review-proposal-path"]').click();
+    await browser.keys(NOTE_NAME);
+    await $('[data-testid="review-proposal-reason"]').click();
+    await browser.keys("G67 real approval and write-back");
     await browser.waitUntil(() => browser.execute((path) => {
       const input = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-path"]');
       const select = document.querySelector<HTMLSelectElement>('[data-testid="review-proposal-kind"]');
@@ -274,26 +278,15 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       return status?.getAttribute("data-loaded") === "true"
         && editor !== null && !editor.disabled && editor.value === body;
     }, NOTE_BODY), { timeout: 30_000, timeoutMsg: "G67 original note never finished loading into the editable React form" });
-    // Use real WebDriver typing rather than a synthetic setter+event. The
-    // latter can be coalesced with React-controlled textarea state and pass
-    // the DOM-only wait before the host receives the intended draft.
     const contentEditor = await $('[data-testid="review-proposal-content"]');
-    await browser.waitUntil(async () => {
-      const active = await browser.execute(() => {
-        const input = document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]');
-        return Boolean(input && !input.disabled && !input.readOnly && input.getClientRects().length > 0);
-      });
-      if (!active) return false;
-      try {
-        await contentEditor.setValue(proposed);
-      } catch (error) {
-        // React/Vault refresh can briefly disable the controlled editor.
-        // Wait for a genuinely editable frame, not a fixed sleep.
-        if (/invalid element state|not interactable|stale element reference/i.test(String(error))) return false;
-        throw error;
-      }
-      return await contentEditor.getValue() === proposed;
-    }, { timeout: 30_000, timeoutMsg: "G67 React editor never accepted the proposed Markdown" });
+    await contentEditor.click();
+    // Select the loaded original with an OS-appropriate keyboard shortcut;
+    // do not invoke the ChromeDriver elementClear API.
+    await browser.keys([process.platform === "darwin" ? "Meta" : "Control", "a"]);
+    await browser.keys(proposed);
+    await browser.waitUntil(async () =>
+      (await contentEditor.getValue()) === proposed,
+    { timeout: 30_000, timeoutMsg: "G67 React editor did not accept the keyboard-entered Markdown" });
     await clickControl('[data-testid="review-proposal-submit"]', "persist real L2 proposal");
     await waitForVisible('[data-testid="review-proposal-created"]', "L2 proposal created");
     await browser.waitUntil(() => browser.execute((name) =>

@@ -263,6 +263,18 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       '[data-testid="review-proposal-reason"]': "Confirm proposal-only state while the runtime safety gate is NO-GO",
       '[data-testid="review-proposal-content"]': proposed,
     });
+    await clickControl('[data-testid="review-proposal-load"]', "read real current Vault Markdown");
+    await browser.waitUntil(() => browser.execute(() =>
+      Boolean(document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]')
+        ?.value.includes("G58 synthetic evidence")),
+    ), { timeout: 30_000, timeoutMsg: "G67 current note was not populated before editing" });
+    await browser.execute((value) => {
+      const el = document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!el || !setter) throw new Error("G67 content editor missing");
+      setter.call(el, value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, proposed);
     await clickControl('[data-testid="review-proposal-submit"]', "persist real L2 proposal");
     await waitForVisible('[data-testid="review-proposal-created"]', "L2 proposal created");
     await browser.waitUntil(() => browser.execute((name) =>

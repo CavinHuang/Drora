@@ -23,14 +23,43 @@ export function KnowledgeReviewProposalComposer({
   const [working, setWorking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
+  const [loadedPath, setLoadedPath] = React.useState<string | null>(null);
   const change = <K extends keyof ReviewProposalDraft,>(key: K, value: ReviewProposalDraft[K]): void => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "kind" || key === "relativePath") setLoadedPath(null);
     setError(null);
     setSuccess(false);
   };
 
+  async function loadCurrentMarkdown(): Promise<void> {
+    if (!vaultService || working || disabled || draft.kind !== "write") return;
+    const requested = draft.relativePath.trim().replace(/\\/g, "/");
+    if (!requested) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const before = await vaultService.getSummary();
+      if (!before) throw new Error("Configure a Vault before editing");
+      const current = await vaultService.readFile({ relativePath: requested });
+      const after = await vaultService.getSummary();
+      if (!after || before.vaultId !== after.vaultId ||
+          before.configuredAt !== after.configuredAt ||
+          current.relativePath !== requested) {
+        throw new Error("Vault or source changed during the read");
+      }
+      setDraft((prev) => ({ ...prev, content: current.content }));
+      setLoadedPath(requested);
+    } catch (cause) {
+      setLoadedPath(null);
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function submit(): Promise<void> {
-    if (!reviewService || !vaultService || working || disabled) return;
+    if (!reviewService || !vaultService || working || disabled ||
+        (draft.kind === "write" && loadedPath !== draft.relativePath.trim().replace(/\\/g, "/"))) return;
     setWorking(true);
     setError(null);
     setSuccess(false);
@@ -40,6 +69,7 @@ export function KnowledgeReviewProposalComposer({
       await reviewService.createProposal(params);
       await onCreated();
       setDraft({ title: "", reason: "", relativePath: "", content: "", kind: "create" });
+      setLoadedPath(null);
       setSuccess(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -88,6 +118,20 @@ export function KnowledgeReviewProposalComposer({
           value={draft.reason} onChange={(event) => change("reason", event.target.value)}
           disabled={blocked} required />
       </label>
+      {draft.kind === "write" && (
+        <div className="mt-3 flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" data-testid="review-proposal-load"
+            disabled={blocked || !draft.relativePath.trim()}
+            onClick={() => { void loadCurrentMarkdown(); }}>
+            {intl.formatMessage({ id: "vault.review.proposalLoadExisting" })}
+          </Button>
+          <p className="text-ui-sm text-foreground-subtle">
+            {loadedPath === draft.relativePath.trim().replace(/\\/g, "/")
+              ? intl.formatMessage({ id: "vault.review.proposalLoaded" })
+              : intl.formatMessage({ id: "vault.review.proposalLoadRequired" })}
+          </p>
+        </div>
+      )}
       {draft.kind !== "delete" && (
         <label className="mt-3 flex flex-col gap-1 text-ui-sm text-foreground">
           {intl.formatMessage({ id: "vault.review.proposalContent" })}
@@ -102,7 +146,9 @@ export function KnowledgeReviewProposalComposer({
       </p>}
       <div className="mt-3 flex justify-end">
         <Button type="submit" size="sm" disabled={blocked || !draft.title.trim() ||
-          !draft.relativePath.trim() || !draft.reason.trim()} data-testid="review-proposal-submit">
+          !draft.relativePath.trim() || !draft.reason.trim() ||
+          (draft.kind === "write" && loadedPath !== draft.relativePath.trim().replace(/\\/g, "/"))}
+          data-testid="review-proposal-submit">
           {intl.formatMessage({ id: "vault.review.proposalSubmit" })}
         </Button>
       </div>

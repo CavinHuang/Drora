@@ -7731,6 +7731,9 @@ const enUS: Record<string, string> = {
   "vault.review.writePathToggleHint":
     "Off by default. When enabled, applying/undoing approved proposals actually writes to disk (S03 gate is GO; see specs/write-safety-gating.md). Each execution still requires its own approval.",
   "vault.review.listFailed": "Failed to load proposals",
+  "vault.review.proposalLoadExisting": "Load existing Markdown before editing",
+  "vault.review.proposalLoadRequired": "Load the current source before proposing a full replacement.",
+  "vault.review.proposalLoaded": "Current Markdown loaded; edit the full proposed replacement below.",
   "vault.review.createTitle": "Create a review proposal",
   "vault.review.createNoWriteHint": "Drafts and approvals only. Files cannot be written or undone until the independent S03 safety gate has passed.",
   "vault.review.proposalTitle": "Proposal title",

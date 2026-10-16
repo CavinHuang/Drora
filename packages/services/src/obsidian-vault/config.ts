@@ -159,6 +159,29 @@ export async function configureManagedVault(
 }
 
 /**
+ * Explicitly change the currently selected Vault's Agent write authorization.
+ * This is a user-facing setting, not an arbitrary root-path authorization.
+ * Force the review-write preference OFF and advance the source epoch when
+ * switching permissions so a previously approved proposal never survives a
+ * change to either write policy.
+ */
+export async function setVaultAgentWritesEnabled(
+  pluginDataDir: string,
+  enabled: boolean,
+): Promise<VaultSummary | null> {
+  const config = await loadVaultConfig(pluginDataDir);
+  if (!config) return null;
+  const next: VaultConfig = {
+    ...config,
+    allowAgentWrites: enabled === true,
+    reviewWritePathEnabled: false,
+    configuredAt: Math.max(Date.now(), config.configuredAt + 1),
+  };
+  await jsonFileIO.write(vaultConfigPath(pluginDataDir), next);
+  return toSummary(next);
+}
+
+/**
  * W09 L2 写路径开关的唯一持久化入口（specs/obsidian-knowledge.md §5f.3）：读-改-原子写
  * vault-config.json。除本函数外不得写该字段（configureVaultAt 重建配置时不携带，重新
  * 授权 Vault 视为回到安全缺省关闭）。

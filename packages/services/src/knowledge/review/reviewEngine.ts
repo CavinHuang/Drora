@@ -730,6 +730,35 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     proposalRow: ReviewProposalRow,
     source: ResolvedSource,
   ): Promise<KnowledgeReviewApplyResult> {
+    // A queued operation can outlive its original approval or Vault authority
+    // while waiting for the in-process lock. Never trust the captured source.
+    try {
+      const currentSource = await resolveSource();
+      if (!writePathEnabled ||
+          (options.writePathEnabled === undefined && currentSource.config.reviewWritePathEnabled !== true)) {
+        return {
+          outcome: "blocked",
+          reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+          message: "写入执行前 L2 授权已被关闭",
+          operation: buildOperationView(store.getOperation(operationId)!),
+        };
+      }
+      if (currentSource.vaultId !== source.vaultId ||
+          currentSource.sourceEpoch !== source.sourceEpoch) {
+        return {
+          outcome: "blocked",
+          reason: KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
+          message: "等待执行期间 Vault 或来源授权周期已改变",
+          operation: buildOperationView(store.getOperation(operationId)!),
+        };
+      }
+      checkApproval(proposalRow, currentSource, Date.now());
+    } catch (error) {
+      if (error instanceof ReviewRejection) {
+        return { outcome: "blocked", reason: error.code, message: error.message, operation: null };
+      }
+      throw error;
+    }
     const changes = parseStoredChanges(proposalRow);
     const facade = createVaultFileSystem(source.config.rootPath);
     const nowMs = () => Date.now();
@@ -817,6 +846,14 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       let applied = false;
       let fileError: string | null = null;
       try {
+        // Re-check between files: cancellation/revocation cannot authorize the
+        // rest of a multi-file proposal using a stale source snapshot.
+        const live = await resolveSource();
+        if (!writePathEnabled || live.vaultId !== source.vaultId ||
+            live.sourceEpoch !== source.sourceEpoch || live.config.allowAgentWrites !== true ||
+            (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
+          throw new Error("写入期间授权或 Vault 已变化；停止剩余变更");
+        }
         if (change.kind === "delete") {
           await facade.deleteFile({ relativePath: change.relativePath, expectedSha256: change.baseSha256 ?? undefined });
           applied = true;

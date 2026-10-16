@@ -125,7 +125,8 @@ export function KnowledgeReviewProposalComposer({
             onClick={() => { void loadCurrentMarkdown(); }}>
             {intl.formatMessage({ id: "vault.review.proposalLoadExisting" })}
           </Button>
-          <p className="text-ui-sm text-foreground-subtle">
+          <p className="text-ui-sm text-foreground-subtle" data-testid="review-proposal-load-status"
+            data-loaded={String(!working && loadedPath === draft.relativePath.trim().replace(/\\/g, "/"))}>
             {loadedPath === draft.relativePath.trim().replace(/\\/g, "/")
               ? intl.formatMessage({ id: "vault.review.proposalLoaded" })
               : intl.formatMessage({ id: "vault.review.proposalLoadRequired" })}

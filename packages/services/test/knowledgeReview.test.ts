@@ -852,3 +852,126 @@ test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定
     await destroyEnv(env);
   }
 });
+
+
+test("L2 双 Host 并发 Undo：SQLite claim 单赢家，文件和账本只逆写一次", async () => {
+  const env = await createEnv();
+  const hostB = createKnowledgeServices({
+    databasePath: env.databasePath,
+    pluginDataDir: env.pluginDataDir,
+    reviewWritePathEnabled: true,
+    reviewWriteSafetyGatePassed: true,
+  });
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Cross-host undo",
+      reason: "transactional claim",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    assert.equal((await env.review.applyProposal({
+      proposalId: proposal.proposalId, operationId: "rop-cross-host-undo",
+    })).outcome, "applied");
+
+    const [a, b] = await Promise.all([
+      env.review.undoOperation({ operationId: "rop-cross-host-undo" }),
+      hostB.reviewService.undoOperation({ operationId: "rop-cross-host-undo" }),
+    ]);
+    const outcomes = [a, b].map((result) => result.outcome).sort();
+    assert.deepEqual(outcomes, ["applied", "blocked"]);
+    const blocked = [a, b].find((result) => result.outcome === "blocked");
+    assert.ok(blocked?.reason === "operation_busy" || blocked?.reason === "undo_unavailable");
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+    const replay = await hostB.reviewService.undoOperation({ operationId: "rop-cross-host-undo" });
+    assert.equal(replay.outcome, "blocked");
+    assert.equal(replay.reason, "undo_unavailable");
+    assert.equal(replay.operation?.files[0]?.status, "undo_applied");
+  } finally {
+    hostB.dispose();
+    await destroyEnv(env);
+  }
+});
+
+test("L2 Undo 崩溃恢复：逆写已落盘的 undoing 经只读 reconcile 落为 undo_applied", async () => {
+  const env = await createEnv();
+  let restarted: KnowledgeServices | null = null;
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Recovered undo",
+      reason: "crash after inverse IO",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    const applied = await env.review.applyProposal({
+      proposalId: proposal.proposalId, operationId: "rop-undo-recover",
+    });
+    assert.equal(applied.outcome, "applied");
+
+    // Crash boundary: owner claimed its file but died after reverting it,
+    // before updating the ledger. A new instance may only read/reconcile it.
+    const raw = new DatabaseSync(env.databasePath);
+    try {
+      raw.prepare(
+        "UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?",
+      ).run("rop-undo-recover");
+    } finally {
+      raw.close();
+    }
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    env.services.dispose();
+    restarted = createKnowledgeServices({
+      databasePath: env.databasePath, pluginDataDir: env.pluginDataDir,
+    });
+    const recovered = await restarted.reviewService.reconcileStuckOperations();
+    assert.equal(recovered.length, 1);
+    assert.equal(recovered[0]?.files[0]?.status, "undo_applied");
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+    // Normal production gate stays OFF even when recovery is read-only.
+    assert.equal(restarted.reviewService.isWritePathEnabled(), false);
+  } finally {
+    restarted?.dispose();
+    await destroyEnv(env);
+  }
+});
+
+test("L2 Undo 崩溃未落盘：reconcile 不自动重放、保留原文且拒绝再次 Undo", async () => {
+  const env = await createEnv();
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Unlanded inverse",
+      reason: "fail closed after owner loss",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    assert.equal((await env.review.applyProposal({
+      proposalId: proposal.proposalId, operationId: "rop-undo-unlanded",
+    })).outcome, "applied");
+
+    const raw = new DatabaseSync(env.databasePath);
+    try {
+      raw.prepare("UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?")
+        .run("rop-undo-unlanded");
+    } finally {
+      raw.close();
+    }
+    // A second host must not claim the file again while the first owner's
+    // durable claim exists.
+    const pending = await env.review.undoOperation({ operationId: "rop-undo-unlanded" });
+    assert.equal(pending.outcome, "blocked");
+    assert.equal(pending.reason, "operation_busy");
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "next");
+
+    const recovered = await env.review.reconcileStuckOperations();
+    assert.equal(recovered.length, 1);
+    assert.equal(recovered[0]?.files[0]?.status, "undo_conflict");
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "next");
+    const again = await env.review.undoOperation({ operationId: "rop-undo-unlanded" });
+    assert.equal(again.outcome, "blocked");
+    assert.equal(again.reason, "undo_unavailable");
+  } finally {
+    await destroyEnv(env);
+  }
+});

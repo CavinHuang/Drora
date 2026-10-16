@@ -1005,7 +1005,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       // has stopped before settling durable undo claims.
       for (const file of pendingUndo) {
         const settled = await reconcileUndoingFile(facade, file);
-        store.updateOperationFileStatus(opRow.operationId, file.ordinal, settled.status, settled.error, Date.now());
+        // A live writer may finish between our read and this update.
+        // Settle only while the durable ownership claim still exists.
+        store.settleUndoClaim(opRow.operationId, file.ordinal, settled.status, settled.error, Date.now());
       }
       store.setOperationStatus(opRow.operationId, opRow.status, { reconciledAtMs: Date.now() });
       const updated = store.getOperation(opRow.operationId);

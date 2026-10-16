@@ -111,6 +111,21 @@ export interface KnowledgeReviewEngineOptions {
   writeSafetyGatePassed?: boolean;
 }
 
+/**
+ * A process may host multiple KnowledgeReviewService instances against the same
+ * ledger. Their instance-local Vault queues do NOT share ownership. Keep a
+ * process-wide signal so reconciliation never observes a still-running local
+ * apply/undo and misclassifies its in-flight filesystem changes as final.
+ *
+ * This does not prove liveness of a different OS process or remote Host:
+ * cross-process recovery must remain fail-closed until owner termination has
+ * been established by the caller.
+ */
+const liveReviewOperations = new Set<string>();
+function liveOperationKey(vaultId: string, operationId: string): string {
+  return `${vaultId}\0${operationId}`;
+}
+
 export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptions): IKnowledgeReviewService {
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
@@ -839,6 +854,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
 
+    // Reconciliation from another service instance in this Node process must
+    // not settle our ledger while this engine is still writing.
+    const liveKey = liveOperationKey(source.vaultId, operationId);
+    liveReviewOperations.add(liveKey);
+    try {
     // ── 阶段 3：顺序写（门面 CAS），冲突即停。 ──
     let stopMessage: string | null = null;
     for (const { ordinal, change } of verified) {
@@ -902,6 +922,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       message: stopMessage,
       operation: opRow ? buildOperationView(opRow) : null,
     };
+    } finally {
+      liveReviewOperations.delete(liveKey);
+    }
   }
 
   // ── reconcile（只读证据核验 + 账本落定；绝不写文件、绝不自动重放）─────────
@@ -992,6 +1015,13 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
     }
     const source = await resolveSource();
+    if (liveReviewOperations.has(liveOperationKey(opRow.vaultId, opRow.operationId))) {
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
+        operation: buildOperationView(opRow),
+      };
+    }
     if (opRow.vaultId !== source.vaultId) {
       return {
         outcome: "blocked",
@@ -1181,7 +1211,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
     const undoable = claim.files;
-
+    const liveKey = liveOperationKey(currentSource.vaultId, opRow.operationId);
+    liveReviewOperations.add(liveKey);
+    try {
     const facade = createVaultFileSystem(currentSource.config.rootPath);
     const nowMs = Date.now();
     let undone = 0;
@@ -1269,6 +1301,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       message: undone === 0 && conflicts > 0 ? "全部撤销被拒绝：文件已相对本操作发生变化" : null,
       operation: updated ? buildOperationView(updated) : null,
     };
+    } finally {
+      liveReviewOperations.delete(liveKey);
+    }
     });
   }
 

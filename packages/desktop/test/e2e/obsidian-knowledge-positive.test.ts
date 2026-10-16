@@ -203,39 +203,42 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
   });
 
 
-  it("G65 review write safety remains NO-GO in the production host and real UI", async function () {
+  it("G65 real Electron L2 is available but off until the user grants both write permissions", async function () {
     this.timeout(45_000);
     await clickControl('[data-testid="vault-tab-review"]', "review tab in real Vault");
     await waitForVisible('[data-testid="knowledge-review-view"]', "Knowledge review view");
-    await waitForVisible(
-      '[data-testid="review-write-safety-gate-blocked"]',
-      "S03 runtime gate blocked notice",
-    );
-
-    // Do not infer safety from a label alone: the actual switch must be
-    // disabled and unchecked after the host's asynchronous policy RPC.
+    // Check production Host capability, not a mocked feature flag. The Vault
+    // starts with both settings OFF; neither check should modify disk data.
     await browser.waitUntil(() => browser.execute(() => {
-      const toggle = document.querySelector<HTMLElement>(
+      const toggle = document.querySelector<HTMLButtonElement>(
         '[data-testid="review-write-path-toggle"] [role="switch"]',
       );
-      return Boolean(toggle && toggle.getClientRects().length > 0);
-    }), { timeout: 30_000, timeoutMsg: "Production review write toggle was not rendered" });
-
+      return Boolean(toggle && toggle.getClientRects().length > 0 && !toggle.disabled);
+    }), { timeout: 30_000, timeoutMsg: "G65 local production L2 switch never became available" });
     const gate = await browser.execute(() => {
       const toggle = document.querySelector<HTMLButtonElement>(
         '[data-testid="review-write-path-toggle"] [role="switch"]',
       );
+      const agent = document.querySelector<HTMLButtonElement>(
+        '[data-testid="review-agent-writes-toggle"] [role="switch"]',
+      );
       return {
-        blockedMessage: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
-        disabled: Boolean(toggle?.disabled),
-        checked: toggle?.getAttribute("aria-checked") ?? "missing",
+        noGo: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
+        enabled: !toggle?.disabled,
+        checked: toggle?.getAttribute("aria-checked"),
+        agentChecked: agent?.getAttribute("aria-checked"),
       };
     });
-    assert.deepEqual(gate, { blockedMessage: true, disabled: true, checked: "false" });
-    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "NO-GO review must not touch source");
+    assert.deepEqual(gate, { noGo: false, enabled: true, checked: "false", agentChecked: "false" });
+    await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "explicitly authorize Vault Agent writes");
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelector('[data-testid="review-agent-writes-toggle"] [role="switch"]')
+        ?.getAttribute("aria-checked") === "true",
+    ), { timeout: 30_000, timeoutMsg: "G65 Vault write permission was not persisted" });
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Changing write permissions must not touch source");
   });
 
-  it("G67 actual Electron L2 proposal and approval never writes while S03 is NO-GO", async function () {
+  it("G67 real Electron L2 complete proposal / preview / approval / apply / undo", async function () {
     this.timeout(120_000);
     assertIsolatedVault();
     await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
@@ -312,12 +315,27 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       Boolean(document.querySelector('[data-testid="review-proposal-card"][data-proposal-phase="approvedCurrent"]')),
     ), { timeout: 30_000, timeoutMsg: "G67 approval not returned from real ledger" });
     const state = await browser.execute(() => ({
-      blocked: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
+      gateOff: document.querySelector('[data-testid="review-write-path-toggle"] [role="switch"]')
+        ?.getAttribute("aria-checked") === "false",
       applyDisabled: Boolean(document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-apply"]')?.disabled),
     }));
-    assert.deepEqual(state, { blocked: true, applyDisabled: true },
-      "Approved proposal must never enable L2 apply with S03 NO-GO");
-    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Approval must never touch the Vault");
+    assert.deepEqual(state, { gateOff: true, applyDisabled: true },
+      "Human approval alone must never write a note without explicit L2 activation");
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Approval itself must not write");
+    await clickControl('[data-testid="review-write-path-toggle"] [role="switch"]', "enable reviewed L2 writes");
+    await browser.waitUntil(() => browser.execute(() => {
+      const gate = document.querySelector('[data-testid="review-write-path-toggle"] [role="switch"]');
+      const apply = document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-apply"]');
+      return gate?.getAttribute("aria-checked") === "true" && Boolean(apply && !apply.disabled);
+    }), { timeout: 30_000, timeoutMsg: "G67 approved L2 operation never became executable" });
+    await clickControl('[data-testid="review-proposal-apply"]', "apply approved Markdown write");
+    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === proposed, {
+      timeout: 30_000, timeoutMsg: "G67 approved Markdown was not actually written to the Vault",
+    });
+    await clickControl('[data-testid="review-proposal-undo"]', "undo the approved Markdown write");
+    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === NOTE_BODY, {
+      timeout: 30_000, timeoutMsg: "G67 Undo did not restore the exact original Markdown",
+    });
   });
 
 });

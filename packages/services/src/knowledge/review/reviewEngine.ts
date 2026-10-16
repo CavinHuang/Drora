@@ -1042,16 +1042,23 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
 
-    const files = store.listOperationFiles(opRow.operationId);
-    const undoable = files.filter((file) => file.status === "applied");
-    if (undoable.length === 0) {
+    // This short SQLite transaction claims all applied rows before any file IO.
+    // Per-Vault JS locks alone cannot protect two desktop hosts sharing a DB.
+    const claim = store.claimUndoFiles(opRow.operationId, Date.now());
+    if (claim.outcome !== "claimed") {
+      const latest = store.getOperation(opRow.operationId) ?? opRow;
       return {
         outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.undoUnavailable,
-        message: "该操作没有可撤销的已应用文件",
-        operation: buildOperationView(opRow, files),
+        reason: claim.outcome === "busy"
+          ? KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy
+          : KNOWLEDGE_REVIEW_REJECTION_CODES.undoUnavailable,
+        message: claim.outcome === "busy"
+          ? "另一 Host 正在撤销或等待撤销恢复；不能重复写盘"
+          : "该操作没有可撤销的已应用文件",
+        operation: buildOperationView(latest),
       };
     }
+    const undoable = claim.files;
 
     const facade = createVaultFileSystem(source.config.rootPath);
     const nowMs = Date.now();

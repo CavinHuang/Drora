@@ -635,8 +635,8 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     if (params.operationId !== undefined && (typeof params.operationId !== "string" || !params.operationId)) {
       throw new Error("operationId 非法");
     }
-    // S03 Hard Write Safety GO 总门：门禁未满足时执行面整体 fail-closed（含幂等回放——
-    // 统一语义，杜绝任何被认为可执行的入口）。
+    // The runtime safety gate and the user opt-in are both required. When either
+    // is absent, the execution surface remains fail-closed.
     if (!writePathEnabled) {
       return {
         outcome: "blocked",
@@ -1115,8 +1115,8 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     if (!params || typeof params.operationId !== "string" || !params.operationId) {
       throw new Error("operationId 不能为空");
     }
-    // S03 Hard Write Safety GO 总门：撤销同为文件写路径，门禁未满足时整体关闭
-    // （置于存在性检查之前——fail-closed 语义优先，不泄露账本存在性）。
+    // Undo is also a file-write path, so the same runtime safety gate and
+    // user opt-in are enforced before exposing ledger existence.
     if (!writePathEnabled) {
       return {
         outcome: "blocked",

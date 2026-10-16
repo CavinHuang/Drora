@@ -371,6 +371,28 @@ export class ReviewLedgerStore {
     });
   }
 
+  /**
+   * Reconcile may race with a still-live Undo owner. Only settle an unchanged
+   * durable claim; never overwrite an already completed owner result.
+   */
+  settleUndoClaim(
+    operationId: string,
+    ordinal: number,
+    status: "undo_applied" | "undo_conflict" | "undoing",
+    error: string | null,
+    nowMs: number,
+  ): boolean {
+    let settled = false;
+    this.db.transaction((tx) => {
+      const result = tx.raw.prepare(
+        `UPDATE review_operation_files SET status = ?, error = ?, updated_at_ms = ?
+         WHERE operation_id = ? AND ordinal = ? AND status = 'undoing'`,
+      ).run(status, error, nowMs, operationId, ordinal);
+      settled = Number(result.changes) === 1;
+    });
+    return settled;
+  }
+
   listOperationFiles(operationId: string): ReviewOperationFileRow[] {
     const rows = this.db.raw
       .prepare(

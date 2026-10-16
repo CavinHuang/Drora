@@ -14,6 +14,8 @@ on:
       - "packages/ui/src/components/ai-elements/message.tsx"
       - "packages/ui/src/v4/ConversationTurnGroup.tsx"
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
+      - "packages/services/src/obsidian-vault/**"
+      - "packages/services/src/knowledge/review/**"
   workflow_dispatch:
 
 concurrency:

@@ -924,6 +924,7 @@ function RootInner({
   }, [platform]);
 
   useRootOAuthEffects({
+    hasAuthenticatedUser: user !== null,
     accountIntentKey: JSON.stringify([
       user?.id,
       appSettings?.providerFamilyDomain,

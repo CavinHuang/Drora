@@ -383,6 +383,13 @@ export function KnowledgeReviewView({
         {proposals?.map((proposal) => {
           const phase = proposalPhaseKey(proposal, nowMs);
           const latestOperation = operations.find((operation) => operation.proposalId === proposal.proposalId);
+          // Every path of THIS revision must have had its exact content
+          // retrieved successfully before the human can grant approval.
+          // A stale/failed RPC or unviewed path fails closed.
+          const previewsReviewed = proposal.changes.length > 0 && proposal.changes.every((change) => {
+            const key = `${proposal.proposalId}\0${proposal.revision}\0${change.relativePath}`;
+            return expanded.has(key) && changeContents.has(key) && changeContents.get(key) !== false;
+          });
           return (
             <article
               key={proposal.proposalId}
@@ -406,7 +413,7 @@ export function KnowledgeReviewView({
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={busy !== null}
+                        disabled={busy !== null || !previewsReviewed}
                         onClick={() => {
                           void runAction(`approve:${proposal.proposalId}`, async () => {
                             await reviewService?.approveProposal({ proposalId: proposal.proposalId });
@@ -474,6 +481,11 @@ export function KnowledgeReviewView({
                   </Button>
                 </div>
               </div>
+              {!previewsReviewed && phase === "pending" && (
+                <p className="mt-2 text-ui-sm text-foreground-subtle" data-testid="review-approval-preview-required">
+                  {intl.formatMessage({ id: "vault.review.previewRequired" })}
+                </p>
+              )}
               {latestOperation && (
                 <p className="mt-2 text-ui-sm text-foreground-subtle" data-testid="review-operation-state">
                   {latestOperation.operationId.slice(0, 16)} · {latestOperation.status} ·{" "}

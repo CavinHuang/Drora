@@ -1283,3 +1283,58 @@ for (const crashMode of ["claimed", "first-file-written"] as const) {
     }
   });
 }
+
+
+for (const action of ["apply", "undo"] as const) {
+  test(`L2 同进程双服务活跃 ${action}：reconcile 必须拒绝而非伪造已落定状态`, async () => {
+    const env = await createEnv();
+    let owner: KnowledgeServices | null = null;
+    let releaseMutation: (() => void) | null = null;
+    try {
+      await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+      const proposal = await env.review.createProposal({
+        title: `Live ${action} owner`,
+        reason: "never reconcile while filesystem writer is still alive",
+        changes: [await writeChangeFor(env.vault, "a.md", "next")],
+      });
+      await env.review.approveProposal({ proposalId: proposal.proposalId });
+      const operationId = `rop-live-owner-${action}`;
+      if (action === "undo") {
+        assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+      }
+
+      let notifyEntered!: () => void;
+      const entered = new Promise<void>((resolve) => { notifyEntered = resolve; });
+      const hold = new Promise<void>((resolve) => { releaseMutation = resolve; });
+      owner = createKnowledgeServices({
+        databasePath: env.databasePath,
+        pluginDataDir: env.pluginDataDir,
+        reviewWritePathEnabled: true,
+        reviewWriteSafetyGatePassed: true,
+        reviewBeforeFileMutationForTest: async () => {
+          notifyEntered();
+          await hold;
+        },
+      });
+      const pending = action === "apply"
+        ? owner.reviewService.applyProposal({ proposalId: proposal.proposalId, operationId })
+        : owner.reviewService.undoOperation({ operationId });
+      await entered;
+      const blocked = await env.review.reconcileOperation({ operationId });
+      assert.equal(blocked.outcome, "blocked");
+      assert.equal(blocked.reason, "operation_busy");
+      releaseMutation();
+      releaseMutation = null;
+      const completed = await pending;
+      assert.equal(completed.outcome, "applied");
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"),
+        action === "apply" ? "next" : "base");
+      const noLongerActive = await env.review.reconcileOperation({ operationId });
+      assert.equal(noLongerActive.outcome, "not_applicable");
+    } finally {
+      releaseMutation?.();
+      owner?.dispose();
+      await destroyEnv(env);
+    }
+  });
+}

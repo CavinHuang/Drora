@@ -315,7 +315,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await contentEditor.click();
     // Select the loaded original with an OS-appropriate keyboard shortcut;
     // do not invoke the ChromeDriver elementClear API.
-    await browser.keys([Key.Ctrl, "a", Key.NULL]);
+    await browser.keys([process.platform === "darwin" ? Key.Meta : Key.Ctrl, "a", Key.NULL]);
     await browser.keys(proposed);
     await browser.waitUntil(async () =>
       (await contentEditor.getValue()) === proposed,

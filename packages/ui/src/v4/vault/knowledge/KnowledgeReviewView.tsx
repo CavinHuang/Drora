@@ -464,7 +464,7 @@ export function KnowledgeReviewView({
                 </div>
               </div>
               {latestOperation && (
-                <p className="mt-2 text-ui-xs text-foreground-subtle" data-testid="review-operation-state">
+                <p className="mt-2 text-ui-sm text-foreground-subtle" data-testid="review-operation-state">
                   {latestOperation.operationId.slice(0, 16)} · {latestOperation.status} ·{" "}
                   {latestOperation.files.map((file) => file.status).join(", ")}
                 </p>

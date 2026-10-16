@@ -95,18 +95,17 @@ export interface KnowledgeReviewEngineOptions {
   /** vault-config.json 所在插件数据目录（与面板/索引服务同源）。 */
   pluginDataDir: string;
   /**
-   * S03 Hard Write Safety GO 总门（W06 评审修复轮 1）：默认 **false**——门禁前提
-   * （三洞修复 + P0 分级门控，见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）未在
-   * runtime permission 层程序化落地前，applyProposal/undoOperation 一律返回结构化
-   * `write_path_disabled`，不产生任何文件写。提案/批准/账本/reconcile（只读核验）
-   * 面保持可用，供审计与门禁复验。生产使能必须在门禁通过后以独立改动完成；
-   * 仅测试环境经 KnowledgeServicesOptions.reviewWritePathEnabled 显式置 true。
+   * S03 Hard Write Safety GO 总门：默认 **false**；只有 runtime permission 层的三洞修复
+   * + P0/P1/P2 分级门控获得显式授权时才允许进入 L2 写路径。desktop-local Host
+   * 现在通过 `writeSafetyGatePassed` 显式注入该运行时授权；remote/unspecified
+   * authority 不获得此能力。用户的 reviewWritePathEnabled 仍只是独立的显式 opt-in，
+   * 不得单独充当安全门。
    */
   writePathEnabled?: boolean;
   /**
-   * Explicit S03 runtime hard-write-safety authorization. This must be set only
-   * by a future, independently verified S03 gate implementation. The normal
-   * desktop host does not pass it; persisted user preferences cannot grant it.
+   * Explicit S03 runtime hard-write-safety authorization. Only the desktop-local
+   * service authority may inject it after the runtime permission gate has been
+   * installed; persisted Vault preferences can never grant this capability.
    */
   writeSafetyGatePassed?: boolean;
   /** Integration-test scheduling barrier; never configured by production Host. */
@@ -131,8 +130,8 @@ function liveOperationKey(vaultId: string, operationId: string): string {
 export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptions): IKnowledgeReviewService {
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
-  // S03 NO-GO: persisted preferences are never sufficient to enable L2 writes.
-  // An independently verified runtime gate must authorize the write path first.
+  // The persisted preference is never sufficient by itself. The runtime authority
+  // gate is a separate capability injected by the desktop-local Host.
   const writeSafetyGatePassed = options.writeSafetyGatePassed === true;
   let writePathEnabled = writeSafetyGatePassed && options.writePathEnabled === true;
   let preferenceGeneration = 0;

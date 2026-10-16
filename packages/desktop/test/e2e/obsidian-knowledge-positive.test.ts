@@ -284,6 +284,14 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
         .some((card) => card.textContent?.includes(name)),
     NOTE_NAME), { timeout: 30_000, timeoutMsg: "G67 proposal missing from real review list" });
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Creating a proposal must not write a note");
+    const prematureApprovalDisabled = await browser.execute(() => {
+      const card = document.querySelector('[data-testid="review-proposal-card"]');
+      const approve = Array.from(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+        .find((button) => ["批准", "Approve"].includes(button.textContent?.trim() ?? ""));
+      return Boolean(approve?.disabled);
+    });
+    assert.equal(prematureApprovalDisabled, true,
+      "G67 must not approve this revision before fetching and reviewing the change preview");
     await clickControl('[data-testid="review-change-toggle"]', "preview exact proposal content");
     await browser.waitUntil(() => browser.execute(() =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-change-content"]'))

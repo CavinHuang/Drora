@@ -7776,7 +7776,7 @@ const enUS: Record<string, string> = {
   "vault.review.error.conflict": "Target file changed externally (base SHA mismatch): revise the proposal and retry",
   "vault.review.error.revisionMismatch": "Proposal content was revised; the old approval is void — re-approve",
   "vault.review.error.forbidden": "The current source is not allowed to perform this action",
-  "vault.review.error.noUndoTarget": "No undoable operation for this proposal in this session",
+  "vault.review.error.noUndoTarget": "No applied operation available to undo in this proposal’s ledger",
   "vault.review.error.generic": "Action did not complete: {detail}",
 };
 

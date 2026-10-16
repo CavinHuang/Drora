@@ -1,8 +1,8 @@
 # Obsidian / VaultView unified PR #23 — Merge Readiness Gate
 
-**Updated:** 2026-10-15. **PR:** https://github.com/CavinHuang/Drora/pull/23
+**Updated:** 2026-10-16 (A1 scope approved; no merge approval). **PR:** https://github.com/CavinHuang/Drora/pull/23
 **Branch:** `feat/obsidian-knowledge-e2e` → `main`
-**Decision:** **HOLD / DRAFT**. No unilateral merge, no production L2 write enablement.
+**Decision:** **A1 SCOPE APPROVED; HOLD / DRAFT**. [Owner A1 decision](https://github.com/CavinHuang/Drora/pull/23#issuecomment-6209580588); no unilateral merge, no production L2 write enablement.
 
 This page is the release gate, not a promise that every listed test passed. An OS
 bundle build and a Linux Electron smoke are not substitutes for real GUI
@@ -10,7 +10,13 @@ acceptance on Windows/macOS. Model SSE replay only controls generated answer
 text; the tested Vault, Knowledge RPC, CLI admission, receipts and CodeMirror
 are the production implementations.
 
-## Verified, independently traceable evidence
+## Current automated checkpoint and human gates
+
+At `1f1a457da384b2a5a9033715291b4ab163bddeff`: [Full CI](https://github.com/CavinHuang/Drora/actions/runs/38853003358) **8/8 success**; [Linux Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003236) **3/3 success**; [Windows/macOS Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003348) **2/2 success**. The genuine three-platform Agent test has **8 passing per OS**, including G12 real process restart and persisted Receipt revalidation. A new HEAD, including this docs commit, needs its own CI.
+
+**A1 now approved:** L0 read/index/Agent evidence + manual CodeMirror edits + **optional L1 Agent Write/Edit** restricted to ordinary non-hidden Markdown, with `allowAgentWrites=false` by default. **L1 is not read-only**, and Bash/js/MCP/persisted allow may bypass its hook. **L2** apply/undo remains S03 NO-GO (proposal/preview/read-only reconcile is distinct). Neither the [proposed nine-group human package](https://github.com/CavinHuang/Drora/pull/23#issuecomment-6209475838) nor independent code Review / S03-exclusion signoff has been completed. Keep Draft.
+
+## Historical independently traceable evidence
 
 | Gate | Evidence | Result / limit |
 | --- | --- | --- |
@@ -36,13 +42,10 @@ are the production implementations.
 3. **S03 hard-write-safety gate:** runtime P0 controls have separate coverage in
    `S03_WRITE_SAFETY_RUNTIME_COVERAGE.md`, but the formal `WRITE_SAFETY_NO_GO.md`
    ruling is *not* superseded. The production Review L2 apply/undo remains
-   fail-closed, including persisted true preferences. Require the designated
-   safety reviewer's explicit GO decision with observed P0 side-effect coverage
-   before enabling any production write path.
-4. **Release scope decision:** either meet the full documented G01–G65 plus
-   S03 owner GO condition, or explicitly approve a narrower L0/L1 read-only
-   release with L2 still inaccessible and track deferred work in a separate
-   accepted release scope. Silence is not approval.
+   fail-closed, including persisted true preferences. This A1 release needs
+   explicit independent safety approval to **exclude L2**; a later L2-enabling
+   change would require a separate S03 GO and observed P0 coverage.
+4. **Release scope decision:** A1 is now approved; L1 is explicitly opt-in **write**, not read-only, and L2 remains excluded under S03 NO-GO. Independently approve that L2 exclusion, and either execute G01–G55 human acceptance or explicitly approve the risk-based subset with documented deferrals. Silence is not approval.
 5. **Review and release:** no unresolved review objections; correct
    platform-specific screenshots/logs; final PR checks green and mergeability
    reconfirmed on the *same* head SHA.

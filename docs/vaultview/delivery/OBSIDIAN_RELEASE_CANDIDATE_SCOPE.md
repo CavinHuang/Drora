@@ -4,7 +4,7 @@
 **PR:** [#23](https://github.com/CavinHuang/Drora/pull/23)
 **Base synchronized:** `main@7ced6f898070eaae63822f4ae97d635c3dfb1567`
 **Sync commit:** `2b93f59f9ee52c6502dd412fe59e3c5f8e09ce55`
-**State:** **PROPOSED / NOT APPROVED**. This file is a release-review input, not a GO decision.
+**State:** **A1 SCOPE APPROVED / MERGE HOLD**. On 2026-10-16 the repository owner explicitly approved default-off, restricted L1 Markdown Write/Edit as part of the first release; L2 remains disabled. [A1 approval record](https://github.com/CavinHuang/Drora/pull/23#issuecomment-6209580588). **Not** approval of human acceptance, independent S03 exclusion signoff, formal Review or merge.
 
 ## 1. Scope correction: L1 is NOT read-only
 
@@ -29,7 +29,18 @@ The normative definition is `specs/obsidian-knowledge.md` §2–§3.
 - Before updating the branch, independently compared the prepared commit against both parents: versus main, the Obsidian diff was still 82 files; versus old feature HEAD, the expected 8 main commits contributed exactly five changed paths. Updated the feature branch using a non-force ref update with an expected prior SHA.
 - **Do not use the pre-sync green checks** for final merge approval. All mandated checks must succeed again on the latest HEAD, including any subsequent documentation commits.
 
-## 3. Acceptance evidence / still pending
+## 3. Latest verified automated evidence, distinct from human acceptance
+
+Final CI results verified at `1f1a457da384b2a5a9033715291b4ab163bddeff`:
+- [Full CI](https://github.com/CavinHuang/Drora/actions/runs/38853003358) **8/8 success** (including Typecheck/Lint and the CLI).
+- [Linux real Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003236) **3/3 success**.
+- [Windows/macOS real Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003348) **2/2 success**.
+- The actual Agent-to-Vault Electron acceptance suite was **8 passing on Linux, Windows and macOS**; G12 is a real Electron restart, not a page reload; G08 tests actual SQLite/Vault/CLI promotion but not a human Busy-session GUI.
+- See the [proposed nine-group manual checklist](https://github.com/CavinHuang/Drora/pull/23#issuecomment-6209475838). Its subset and every remaining G01–G55 human case remain **unapproved/unexecuted**, not PASS. Deterministic replay only replaces the model response, not the Vault/CLI implementation.
+
+**Any new documentation or code commit requires checking the new HEAD's CI before merge.**
+
+## 3a. Historical acceptance evidence / still pending
 
 Existing automated verification before the sync:
 
@@ -47,8 +58,8 @@ For the current G01–G55 manual cases, the authoritative status remains `未执
 - [ ] Final HEAD CI, Linux real Electron, macOS real Electron, Windows real Electron are all successful and linked on the same HEAD.
 - [ ] Real-world negative-path and lifecycle acceptance: revoke authorization before Send (G07), busy queue promotion recheck (G08), restart and independent multi-turn receipts (G12/G35/G42), async cancellation/timeouts / A→B→A / CodeMirror focus (G45–G55). Save anonymized logs/screenshots.
 - [ ] Human/manual test plan G01–G55: explicitly select a reviewed limited subset or execute and record the whole required matrix. Unexecuted tests are NOT passes.
-- [ ] Named maintainer approves the **release scope**, including the precise opt-in L1 behavior; if only L0/read-only is approved, ensure production cannot enable L1 without a subsequent explicit release change.
-- [ ] Independent S03 safety owner either signs GO with evidence (for a later L2 release) **or** explicitly approves excluding L2 while leaving the production write gate fail-closed.
+- [x] Owner approved **A1 scope** including opt-in L1; default false and exact Write/Edit limitations remain mandatory. [Decision](https://github.com/CavinHuang/Drora/pull/23#issuecomment-6209580588). This approval does **not** count as artificial/manual PASS.
+- [ ] Independent S03 safety owner **explicitly approves excluding L2** from this A1 release while keeping S03 NO-GO / production write gate fail-closed. **No L2 GO is requested in PR #23.**
 - [ ] Formal GitHub code review completed, with objections resolved; no automatic mark Ready or merge while the gates above are pending.
 
 ## 4. Immutable safety requirements

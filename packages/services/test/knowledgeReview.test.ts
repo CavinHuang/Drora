@@ -8,10 +8,13 @@
  * 运行：node --import tsx --test packages/services/test/knowledgeReview.test.ts
  */
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { setDataBaseDir } from "../src/paths.js";
@@ -971,6 +974,42 @@ test("L2 Undo 崩溃未落盘：reconcile 不自动重放、保留原文且拒�
     const again = await env.review.undoOperation({ operationId: "rop-undo-unlanded" });
     assert.equal(again.outcome, "blocked");
     assert.equal(again.reason, "undo_unavailable");
+  } finally {
+    await destroyEnv(env);
+  }
+});
+
+
+test("L2 实际双进程 Undo 竞争：共享 SQLite WAL 只能赢得一次逆写", async () => {
+  const env = await createEnv();
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    const proposal = await env.review.createProposal({
+      title: "Separate process undo",
+      reason: "prove SQLite ownership across Node processes",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: proposal.proposalId });
+    const operationId = "rop-process-undo";
+    assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+
+    const exec = promisify(execFile);
+    const worker = fileURLToPath(new URL("./fixtures/review-undo-worker.ts", import.meta.url));
+    const outputs = [join(env.root, "undo-worker-a.json"), join(env.root, "undo-worker-b.json")];
+    await Promise.all(outputs.map(async (output) => {
+      await exec(process.execPath, [
+        "--import", "tsx", worker, env.databasePath, env.pluginDataDir, operationId, output,
+      ], { timeout: 30_000 });
+    }));
+    const records = await Promise.all(outputs.map(async (file) =>
+      JSON.parse(await readFile(file, "utf-8")) as { outcome: string; reason: string | null },
+    ));
+    assert.deepEqual(records.map((result) => result.outcome).sort(), ["applied", "blocked"]);
+    assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+    const replay = await env.review.undoOperation({ operationId });
+    assert.equal(replay.outcome, "blocked");
+    assert.equal(replay.reason, "undo_unavailable");
+    assert.equal(replay.operation?.files[0]?.status, "undo_applied");
   } finally {
     await destroyEnv(env);
   }

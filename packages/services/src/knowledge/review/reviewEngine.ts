@@ -1010,6 +1010,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       };
     }
     const source = await resolveSource();
+    // Serialize all undo attempts for this Vault, including duplicate RPCs.
+    // The file rows must be read inside the lock so a second undo sees the
+    // first one's undo_applied/undo_conflict status rather than racing it.
+    return withVaultLock(source.vaultId, async () => {
     // Undo writes too: a preference enabled for the old Vault must not authorize
     // the newly selected root, even when the process gate was previously open.
     if (options.writePathEnabled === undefined &&
@@ -1128,6 +1132,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       message: undone === 0 && conflicts > 0 ? "全部撤销被拒绝：文件已相对本操作发生变化" : null,
       operation: updated ? buildOperationView(updated) : null,
     };
+    });
   }
 
   async function getProposalChangeContent(params: {

@@ -521,10 +521,18 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     if (row.rejectedAtMs !== null) {
       reject(KNOWLEDGE_REVIEW_REJECTION_CODES.proposalRejected, "提案已被拒绝；修订（revise）后可重新送审");
     }
+    // Reject malformed/non-finite TTLs instead of allowing NaN/Infinity to
+    // reach the durable approval ledger. Zero remains a test-only expiry hook.
+    if (
+      params.ttlMs !== undefined &&
+      (typeof params.ttlMs !== "number" || !Number.isFinite(params.ttlMs) || !Number.isSafeInteger(params.ttlMs))
+    ) {
+      throw new Error("ttlMs 必须是有限的安全整数毫秒数");
+    }
     const ttlMs =
       params.ttlMs === undefined
         ? DEFAULT_APPROVAL_TTL_MS
-        : Math.min(Math.max(0, Math.floor(params.ttlMs)), MAX_APPROVAL_TTL_MS);
+        : Math.min(Math.max(0, params.ttlMs), MAX_APPROVAL_TTL_MS);
     const nowMs = Date.now();
     const approval = {
       proposalId: row.proposalId,

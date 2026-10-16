@@ -658,8 +658,9 @@ test("双 Host 并发：同一提案两实例同时 apply，最终文件必为�
       if (result.operation?.status === "applied") {
         assert.equal(result.outcome, "applied");
       } else {
-        // 未 applied 者只能是 conflict（门面 CAS 拒绝），账本如实记录。
-        assert.equal(result.outcome, "conflict");
+        // Loser either fails snapshot CAS, or is fenced before touching the
+        // Vault while another operation holds the durable write boundary.
+        assert.ok(result.outcome === "conflict" || result.outcome === "reconcile_required");
       }
     }
   } finally {
@@ -1045,6 +1046,65 @@ test("L2 恢复竞态：迟到的 reconcile 不得覆盖已完成的 Undo 账本
     assert.equal(ledger.listOperationFiles(operationId)[0]?.status, "undo_applied");
   } finally {
     secondConnection.close();
+    await destroyEnv(env);
+  }
+});
+
+
+test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 apply 和 undo", async () => {
+  const env = await createEnv();
+  try {
+    await writeFile(join(env.vault, "a.md"), "base", "utf-8");
+    await writeFile(join(env.vault, "b.md"), "before", "utf-8");
+    const undoProposal = await env.review.createProposal({
+      title: "First operation",
+      reason: "seed undo target",
+      changes: [await writeChangeFor(env.vault, "a.md", "next")],
+    });
+    await env.review.approveProposal({ proposalId: undoProposal.proposalId });
+    assert.equal((await env.review.applyProposal({
+      proposalId: undoProposal.proposalId, operationId: "rop-fence-undo",
+    })).outcome, "applied");
+
+    const proposalB = await env.review.createProposal({
+      title: "Second operation",
+      reason: "blocked behind active other operation",
+      changes: [await writeChangeFor(env.vault, "b.md", "after")],
+    });
+    await env.review.approveProposal({ proposalId: proposalB.proposalId });
+    const raw = new DatabaseSync(env.databasePath);
+    try {
+      // Crash/live-writer ledger evidence: another operation owns this Vault.
+      raw.prepare(
+        `INSERT INTO review_operations
+         (operation_id, proposal_id, revision, vault_id, source_epoch, status,
+          error, created_at_ms, finished_at_ms, reconciled_at_ms)
+         VALUES (?, ?, 1, ?, 1, 'applying', NULL, ?, NULL, NULL)`,
+      ).run("rop-other-active", proposalB.proposalId, proposalB.vaultId, Date.now());
+
+      const blockedApply = await env.review.applyProposal({
+        proposalId: proposalB.proposalId, operationId: "rop-waiting-apply",
+      });
+      assert.equal(blockedApply.outcome, "reconcile_required");
+      const blockedUndo = await env.review.undoOperation({ operationId: "rop-fence-undo" });
+      assert.equal(blockedUndo.outcome, "blocked");
+      assert.equal(blockedUndo.reason, "operation_busy");
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "next");
+      assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "before");
+
+      // Complete former writer; a fresh claim may now proceed.
+      raw.prepare("UPDATE review_operations SET status = 'conflict' WHERE operation_id = ?")
+        .run("rop-other-active");
+      assert.equal((await env.review.applyProposal({
+        proposalId: proposalB.proposalId, operationId: "rop-waiting-apply",
+      })).outcome, "applied");
+      assert.equal((await env.review.undoOperation({ operationId: "rop-fence-undo" })).outcome, "applied");
+      assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "after");
+      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
+    } finally {
+      raw.close();
+    }
+  } finally {
     await destroyEnv(env);
   }
 });

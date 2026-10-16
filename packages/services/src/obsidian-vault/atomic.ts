@@ -4,6 +4,7 @@
 // wx 独占临时文件 0o600 + rename 原子写/sha256 乐观锁/图片 MIME+魔数+10MB 白名单。
 import { randomBytes } from "node:crypto";
 import { open, readFile, rename, unlink, type FileHandle } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { basename, dirname, join } from "node:path";
 
 /**
@@ -32,7 +33,8 @@ export async function writeTextFileAtomic(filePath: string, content: string): Pr
     await handle.writeFile(content, "utf-8");
     await handle.close();
     handle = null;
-    await rename(tmpPath, filePath);
+    await renameWithWindowsRetry(tmpPath, filePath);
+
     tmpPath = null;
   } finally {
     if (handle !== null) await handle.close().catch(() => {});
@@ -40,6 +42,38 @@ export async function writeTextFileAtomic(filePath: string, content: string): Pr
       await unlink(tmpPath).catch(() => {});
     }
   }
+}
+
+/**
+ * Windows may transiently deny replacement while an editor, indexer, or
+ * antivirus scanner briefly holds the destination without delete sharing.
+ * Keep the replacement operation rename-based (never copy/truncate): retry
+ * only the platform-specific sharing/permission errors so the write remains
+ * atomic once the OS releases the handle.
+ */
+async function renameWithWindowsRetry(sourcePath: string, targetPath: string): Promise<void> {
+  const maxAttempts = 8;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(sourcePath, targetPath);
+      return;
+    } catch (error) {
+      if (
+        process.platform !== "win32" ||
+        !isRetryableWindowsRenameError(error) ||
+        attempt >= maxAttempts - 1
+      ) {
+        throw error;
+      }
+      await delay(Math.min(25 * 2 ** attempt, 750));
+    }
+  }
+}
+
+function isRetryableWindowsRenameError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  const code = error.code;
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
 }
 
 export interface JsonFileIO {

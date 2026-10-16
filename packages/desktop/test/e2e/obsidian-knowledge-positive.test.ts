@@ -243,28 +243,21 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     assertIsolatedVault();
     await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
     const proposed = NOTE_BODY + "\nG67 proposed-only change; must never land on disk.\n";
-    await browser.execute(() => {
+    // Interact like a user rather than mutating DOM values behind React's
+    // controlled inputs. The synthetic setter previously left the form in
+    // an indeterminate state on all three Electron platforms.
+    await $('[data-testid="review-proposal-kind"]').selectByAttribute("value", "write");
+    await $('[data-testid="review-proposal-title"]').setValue("G67 isolated review");
+    await $('[data-testid="review-proposal-path"]').setValue(NOTE_NAME);
+    await $('[data-testid="review-proposal-reason"]').setValue(
+      "G67 real approval and write-back",
+    );
+    await browser.waitUntil(() => browser.execute((path) => {
+      const input = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-path"]');
       const select = document.querySelector<HTMLSelectElement>('[data-testid="review-proposal-kind"]');
-      if (!select) throw new Error("G67 kind select missing");
-      select.value = "write";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await browser.execute((fields) => {
-      for (const [selector, value] of Object.entries(fields)) {
-        const element = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
-        if (!element) throw new Error("G67 missing field " + selector);
-        const prototype = element instanceof HTMLTextAreaElement
-          ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-        if (!setter) throw new Error("G67 native input setter unavailable");
-        setter.call(element, value);
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    }, {
-      '[data-testid="review-proposal-title"]': "G67 isolated review",
-      '[data-testid="review-proposal-path"]': NOTE_NAME,
-      '[data-testid="review-proposal-reason"]': "Confirm proposal-only state while the runtime safety gate is NO-GO",
-    });
+      const button = document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-load"]');
+      return input?.value === path && select?.value === "write" && button && !button.disabled;
+    }, NOTE_NAME), { timeout: 30_000, timeoutMsg: "G67 form did not accept actual WebDriver inputs" });
     await clickControl('[data-testid="review-proposal-load"]', "read real current Vault Markdown");
     await browser.waitUntil(() => browser.execute((body) => {
       const status = document.querySelector<HTMLElement>('[data-testid="review-proposal-load-status"]');
@@ -276,11 +269,22 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     // latter can be coalesced with React-controlled textarea state and pass
     // the DOM-only wait before the host receives the intended draft.
     const contentEditor = await $('[data-testid="review-proposal-content"]');
-    await contentEditor.setValue(proposed);
     await browser.waitUntil(async () => {
-      const text = await contentEditor.getValue();
-      return text === proposed;
-    }, { timeout: 10_000, timeoutMsg: "G67 proposed content not committed in the controlled editor" });
+      const active = await browser.execute(() => {
+        const input = document.querySelector<HTMLTextAreaElement>('[data-testid="review-proposal-content"]');
+        return Boolean(input && !input.disabled && !input.readOnly && input.getClientRects().length > 0);
+      });
+      if (!active) return false;
+      try {
+        await contentEditor.setValue(proposed);
+      } catch (error) {
+        // React/Vault refresh can briefly disable the controlled editor.
+        // Wait for a genuinely editable frame, not a fixed sleep.
+        if (/invalid element state|not interactable|stale element reference/i.test(String(error))) return false;
+        throw error;
+      }
+      return await contentEditor.getValue() === proposed;
+    }, { timeout: 30_000, timeoutMsg: "G67 React editor never accepted the proposed Markdown" });
     await clickControl('[data-testid="review-proposal-submit"]', "persist real L2 proposal");
     await waitForVisible('[data-testid="review-proposal-created"]', "L2 proposal created");
     await browser.waitUntil(() => browser.execute((name) =>

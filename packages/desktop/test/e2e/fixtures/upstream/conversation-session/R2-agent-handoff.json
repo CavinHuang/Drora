@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "caseName": "R2-agent-handoff",
+  "spec": "./test/e2e/acceptance/r2-agent-handoff.test.ts",
+  "fixtures": [
+    {
+      "id": "r2-agent-handoff-title",
+      "description": "Deterministic session title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title generation is outside the evidence authority chain"
+      },
+      "maxMatches": 12,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r2-agent-handoff-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"R2 Agent Handoff E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r2-agent-handoff-session-start",
+      "description": "Initialize a real CLI session before any Vault handoff",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply only establishes the session; receipts stay host-issued"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R2_AGENT_HANDOFF_SESSION_START"],
+        "bodyIncludes": ["R2_AGENT_HANDOFF_SESSION_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r2-agent-handoff-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R2_AGENT_HANDOFF_SESSION_START: the existing session is idle and ready for trusted evidence.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r2-agent-handoff-g04-single",
+      "description": "G04 turn: composer chip evidence reaches the model as quoted original text only",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply verifies real CLI admission; the model never receives receipt ids"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R2_AGENT_G04_QUESTION"],
+        "bodyIncludes": ["R2_AGENT_G04_QUESTION", "R2SingleBeaconToken2026"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R2PairScope2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r2-agent-handoff-g04-single\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g04-single\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R2_AGENT_G04_ANSWER: the single trusted source was admitted by the real CLI gate [1].\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g04-single\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r2-agent-handoff-g13-answer-pair",
+      "description": "G13 ANSWER: exactly the two selected verified notes reach the model",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply distinguishes [1]/[2]; semantic answer quality is not under test"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "R2PairScope2026",
+          "R2PairAlphaLine2026",
+          "R2PairBetaLine2026",
+          "请仅依据附带的 Obsidian 可信证据回答"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R2PairGammaLine2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r2-agent-handoff-g13-answer-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g13-answer-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R2_G13_ANSWER_REPLY: source [1] and source [2] were both admitted from verified notes.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g13-answer-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r2-agent-handoff-g13-compare-pair",
+      "description": "G13 COMPARE: two selected verified notes, third unselected note excluded",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply distinguishes [1]/[2]; semantic answer quality is not under test"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "R2PairScope2026",
+          "R2PairAlphaLine2026",
+          "R2PairBetaLine2026",
+          "请根据附带的 Obsidian 可信证据比较相关笔记"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R2PairGammaLine2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r2-agent-handoff-g13-compare-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g13-compare-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R2_G13_COMPARE_REPLY: consensus cited [1], difference cited [2], both admitted.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r2-agent-handoff-g13-compare-pair\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r2-agent-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/obsidian-electron-cross-platform.yml"
+      - "packages/desktop/test/e2e/acceptance/**"
       - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
       - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json"
@@ -80,6 +81,130 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: obsidian-electron-${{ matrix.os }}-acceptance
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+
+  # R1–R9 验收包（2026-10-17 subagent 真实 Electron 执行，回执见
+  # docs/vaultview/delivery/ACCEPTANCE_SUBAGENT_2026-10-17.md）。逐 spec 运行
+  # acceptance/ 目录全部 spec；每个 spec 使用独立 E2E HOME，避免状态串扰。
+  # 已知预期红：D1/D2 修复前 r2-agent-handoff、G53 构造问题解决前
+  # r9-second-read-focus 对应步骤会失败（真实产品缺陷信号，非 CI 配置错误）。
+  desktop-acceptance-r1-r9:
+    name: R1-R9 acceptance suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-14]
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+      # Linux runner 无显示服务器：Electron 需要 xvfb 包装（obsidian-electron-provenance 同款）。
+      E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reporting and actual desktop Agent CLI
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Verify acceptance specs and replay fixtures exist
+        shell: bash
+        run: |
+          cd packages/desktop
+          for spec in acceptance/*.test.ts; do test -f "$spec" || exit 1; done
+          for fx in conversation-session/conversation-session-obsidian-inline-provenance.json \
+            conversation-session/R2-agent-handoff.json \
+            conversation-session/R3-time-based-reject.json \
+            conversation-session/R4-busy-queue.json \
+            conversation-session/R5-restart-isolation.json \
+            conversation-session/R6-source-manifest-guard.json \
+            conversation-session/R8-concurrency-late-requests.json \
+            conversation-session/R9-second-read-focus.json; do
+            test -f "test/e2e/fixtures/upstream/$fx" || { echo "missing fixture: $fx"; exit 1; }
+          done
+      - name: "R1 first use (G01/G02)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r1-first-use.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r1
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r1-first-use.test.ts
+      - name: "R2 agent handoff (G03/G04/G13)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r2-agent-handoff.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R2-agent-handoff.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r2
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r2-agent-handoff.test.ts
+      - name: "R3 time-based reject (G05/G06/G07)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r3-time-based-reject.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R3-time-based-reject.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r3
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r3-time-based-reject.test.ts
+      - name: "R4 busy queue (G08/G09)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r4-busy-queue.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R4-busy-queue.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r4
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r4-busy-queue.test.ts
+      - name: "R5 restart isolation (G12/G35/G42)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r5-restart-isolation.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R5-restart-isolation.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r5
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r5-restart-isolation.test.ts
+      - name: "R6 source manifest guard (G16/G26/G27)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r6-source-manifest-guard.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R6-source-manifest-guard.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r6
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r6-source-manifest-guard.test.ts
+      - name: "R7 write boundary (G31/G32/G40 + L1 hook)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r7-write-boundary.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r7
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r7-write-boundary.test.ts
+      - name: "R8 concurrency late requests (G45/G46/G52)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r8-concurrency-late-requests.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R8-concurrency-late-requests.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r8
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r8-concurrency-late-requests.test.ts
+      - name: "R9 second read focus (doc G47/G53/G54/G55)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r9-second-read-focus.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R9-second-read-focus.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r9
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r9-second-read-focus.test.ts
+      - name: Upload R1-R9 Electron diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-${{ matrix.os }}-r1-r9-acceptance
           path: |
             packages/desktop/.e2e-artifacts/
             packages/desktop/.e2e-network-capture/

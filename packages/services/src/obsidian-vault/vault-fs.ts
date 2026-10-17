@@ -293,7 +293,7 @@ export function createVaultFileSystem(rootPath: string) {
     await mkdir(dirname(target.absolutePath), { recursive: true });
     // 目录创建引入了新祖先，原子写入前按同一规则重新校验。
     const revalidated = await getSafeVaultTarget(root, target.relativePath);
-    await writeTextFileAtomic(revalidated.absolutePath, input.content);
+    await writeTextFileAtomic(revalidated.absolutePath, input.content, { createOnly: input.createOnly });
     const result = await readFileEntry(revalidated.relativePath);
     return { ok: true, relativePath: result.relativePath, sha256: result.sha256, modifiedAt: result.modifiedAt };
   };

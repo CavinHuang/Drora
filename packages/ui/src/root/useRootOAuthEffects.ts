@@ -22,7 +22,10 @@ import {
   refreshLatestModelProviderFamilySelectionAfterLogin,
   refreshRestoredOAuthProviderFamilyAfterStartup,
 } from "@/root/oauthProviderFamilySelectionRefresh.js";
-import { applyCachedOAuthSessionRestoreResult } from "@/root/oauthCachedSessionRestore.js";
+import {
+  applyCachedOAuthSessionRestoreResult,
+  shouldShowJwtInvalidSessionDialog,
+} from "@/root/oauthCachedSessionRestore.js";
 import { markDroraJwtInvalidRestart } from "@/root/droraJwtInvalidRestartMarker.js";
 import { shouldApplyOAuthPollingFailure } from "@/root/oauthLoginAttemptGuard.js";
 import { useAccountConnectionLossNotification } from "@/root/useAccountConnectionLossNotification.js";
@@ -93,6 +96,8 @@ export async function handleOAuthCallbackSuccess(params: {
 
 export function useRootOAuthEffects({
   accountIntentKey,
+  hasAuthenticatedUser,
+  isRestoringOAuthSession,
   platform,
   services,
   refreshProviderState,
@@ -106,6 +111,9 @@ export function useRootOAuthEffects({
   onReauthenticationRequired,
 }: {
   accountIntentKey: string;
+  hasAuthenticatedUser: boolean;
+  /** 启动会话恢复未落定期间，user===null 不等于「已登出」（ui-auth-1 修复）。 */
+  isRestoringOAuthSession: boolean;
   platform: IPlatformService;
   services: IServiceAccessor;
   refreshProviderState: () => Promise<void>;
@@ -124,6 +132,17 @@ export function useRootOAuthEffects({
   const oauthLoginSucceededRef = useRef(false);
   const oauthLoginSuccessInFlightRef = useRef(false);
   const oauthLoginSuccessOwnerRef = useRef<"polling" | "deep-link" | null>(null);
+  // Keep the authentication fact current without resubscribing to the global
+  // broadcast on every provider or account-render update.
+  const authenticatedUserRef = useRef(hasAuthenticatedUser);
+  authenticatedUserRef.current = hasAuthenticatedUser;
+  const oauthSessionRestoreInFlightRef = useRef(true);
+  oauthSessionRestoreInFlightRef.current = isRestoringOAuthSession;
+  // 恢复窗口内到达的 JWT-invalid 广播挂起待重判（修复 ui-auth-1：原实现以
+  // user!==null 为唯一判据，启动恢复完成前真实过期广播会被静默吞掉——恢复链
+  // 因 activeProvider 被清而收敛成 signed-out，用户被无提示登出）。
+  const pendingJwtInvalidDuringRestoreRef = useRef(false);
+  const showJwtInvalidDialogRef = useRef((): void => {});
 
   useEffect(() => {
     let disposed = false;
@@ -206,6 +225,44 @@ export function useRootOAuthEffects({
       if (message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
         return;
       }
+      // Unrelated background provider requests can emit a JWT-invalid
+      // broadcast while already signed out. Never hijack an offline Vault
+      // workspace with an expired-session modal for a nonexistent login.
+      if (!shouldShowJwtInvalidSessionDialog(authenticatedUserRef.current)) {
+        if (oauthSessionRestoreInFlightRef.current) {
+          // 启动恢复未落定：user===null 还不能证明已登出，挂起并等恢复结束后
+          // 重判——否则真实过期会被静默吞掉、用户被无提示登出（ui-auth-1）。
+          pendingJwtInvalidDuringRestoreRef.current = true;
+          logger.info("[Root] deferring JWT-invalid broadcast until session restore settles");
+          return;
+        }
+        logger.info("[Root] ignoring JWT-invalid broadcast: no signed-in user");
+        return;
+      }
+      showJwtInvalidDialogRef.current();
+    });
+    return () => {
+      disposed = true;
+      disposable.dispose();
+    };
+  }, [services.broadcastService]);
+
+  // 恢复落定后重判挂起的 JWT-invalid 广播：登录态恢复成功 → 照常走过期弹窗；
+  // 确为已登出 → 丢弃（离线 Vault 不被无关广播劫持）。
+  useEffect(() => {
+    if (isRestoringOAuthSession) return;
+    if (!pendingJwtInvalidDuringRestoreRef.current) return;
+    pendingJwtInvalidDuringRestoreRef.current = false;
+    if (!shouldShowJwtInvalidSessionDialog(authenticatedUserRef.current)) {
+      logger.info("[Root] 恢复落定后忽略挂起的 JWT-invalid 广播：确为已登出");
+      return;
+    }
+    showJwtInvalidDialogRef.current();
+  }, [isRestoringOAuthSession]);
+
+  useEffect(() => {
+    let disposed = false;
+    showJwtInvalidDialogRef.current = () => {
       void (async () => {
         const confirmed = await requestAlert({
           title: intl.formatMessage({ id: "login.expired.title" }),
@@ -227,12 +284,11 @@ export function useRootOAuthEffects({
         }
         await platform.executeDesktopCommand(DesktopCommandIds.RelaunchApp);
       })();
-    });
+    };
     return () => {
       disposed = true;
-      disposable.dispose();
     };
-  }, [intl, onReauthenticationRequired, platform, requestAlert, services.broadcastService]);
+  }, [intl, onReauthenticationRequired, platform, requestAlert]);
 
   useEffect(() => {
     if (!oauthPollingActive) {

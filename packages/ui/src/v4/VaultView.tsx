@@ -41,6 +41,8 @@ import {
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  getKnowledgeCitationOpenEventName,
+  isKnowledgeCitationOpenEvent,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -101,8 +103,15 @@ import {
   getVaultSidebarDisplayWidth,
   getVaultSidebarToggleLabel,
 } from "./vault/vault-sidebar-layout.js";
-import { revealVaultQuote } from "./vault/vault-quote-reveal.js";
+import { revealVaultQuoteIfCurrent } from "./vault/vault-quote-reveal.js";
 import { KnowledgeAskView } from "./vault/knowledge/KnowledgeAskView.js";
+import {
+  createKnowledgeCitationScopeEpoch,
+  isKnowledgeCitationScopeCurrent,
+  isVaultCitationFocusCurrent,
+  matchesKnowledgeCitationFileReadback,
+  navigateKnowledgeCitation,
+} from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
 import { KnowledgeReviewView } from "./vault/knowledge/KnowledgeReviewView.js";
 import type { KnowledgeEvidenceQuote } from "./vault/knowledge/knowledgeAskModel.js";
@@ -562,6 +571,8 @@ const VAULT_VIEW_TABS: readonly VaultViewTab[] = ["notes", "ask", "insights", "r
 interface VaultBodyFocusRequest {
   vaultId: string;
   relativePath: string;
+  /** The epoch captured when the source was first opened. */
+  citationEpoch?: number;
   /** 引用回跳（W04）：携带 quote 行号区间时按行锚定选中，而非聚焦正文开头。 */
   reveal?: KnowledgeEvidenceQuote;
 }
@@ -575,6 +586,7 @@ function VaultMarkdownEditor({
   onReload,
   onRegisterFlush,
   bodyFocusRequest,
+  citationEpoch,
   onBodyFocused,
   onOpenTutorial,
   onOpenWikiLink,
@@ -589,6 +601,7 @@ function VaultMarkdownEditor({
   onReload: () => void;
   onRegisterFlush?: (flush: VaultEditorFlush | null) => void;
   bodyFocusRequest: VaultBodyFocusRequest | null;
+  citationEpoch: number;
   onBodyFocused: (request: VaultBodyFocusRequest) => void;
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
@@ -628,7 +641,8 @@ function VaultMarkdownEditor({
       !editorReady ||
       !bodyFocusRequest ||
       bodyFocusRequest.vaultId !== vaultId ||
-      bodyFocusRequest.relativePath !== readResult.relativePath
+      bodyFocusRequest.relativePath !== readResult.relativePath ||
+      !isVaultCitationFocusCurrent(bodyFocusRequest.citationEpoch, citationEpoch)
     )
       return;
     const view = getEditorView();
@@ -636,11 +650,15 @@ function VaultMarkdownEditor({
     // 显式编辑意图优先于历史阅读位置恢复；只操作实际挂载的实例。
     takeOverScrollRestore();
     // 引用回跳（W04）：按 quote 行号区间锚定选中；普通编辑意图仍聚焦正文开头。
-    if (bodyFocusRequest.reveal) revealVaultQuote(view, bodyFocusRequest.reveal);
-    else focusVaultBody(view);
+    if (bodyFocusRequest.reveal) {
+      if (!revealVaultQuoteIfCurrent(
+        view, bodyFocusRequest.reveal, bodyFocusRequest.citationEpoch, citationEpoch,
+      )) return;
+    } else focusVaultBody(view);
     onBodyFocused(bodyFocusRequest);
   }, [
     bodyFocusRequest,
+    citationEpoch,
     editorReady,
     getEditorView,
     onBodyFocused,
@@ -896,6 +914,7 @@ function VaultMarkdownPane({
   onReload,
   onRegisterFlush,
   bodyFocusRequest,
+  citationEpoch,
   onBodyFocused,
   onOpenTutorial,
   onOpenWikiLink,
@@ -911,6 +930,7 @@ function VaultMarkdownPane({
   onReload: () => void;
   onRegisterFlush: (flush: VaultEditorFlush | null) => void;
   bodyFocusRequest: VaultBodyFocusRequest | null;
+  citationEpoch: number;
   onBodyFocused: (request: VaultBodyFocusRequest) => void;
   onOpenTutorial: () => void;
   onOpenWikiLink: (target: string) => void;
@@ -954,6 +974,7 @@ function VaultMarkdownPane({
           onReload={onReload}
           onRegisterFlush={onRegisterFlush}
           bodyFocusRequest={bodyFocusRequest}
+          citationEpoch={citationEpoch}
           onBodyFocused={onBodyFocused}
           onOpenTutorial={onOpenTutorial}
           onOpenWikiLink={onOpenWikiLink}
@@ -967,6 +988,8 @@ export function VaultView({
   embedded = false,
   sessionId,
   workspaceKey,
+  onCitationOpen,
+  onAgentHandoffPrepared,
 }: {
   /** 预留：嵌入 Agent 右侧工作区时的紧凑模式。 */
   embedded?: boolean;
@@ -974,6 +997,8 @@ export function VaultView({
   sessionId?: string;
   /** 会话所属工作区 key（workspaceIdentity?.trim() || workspacePath），selectionSideChat 路由依赖。 */
   workspaceKey?: string;
+  onCitationOpen?: () => void;
+  onAgentHandoffPrepared?: () => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   const vaultSidebarContentId = React.useId();
@@ -984,6 +1009,8 @@ export function VaultView({
   // 子视图自身呈现「服务不可用」，不影响笔记视图。
   const knowledgeIndexService = serviceAccessor?.knowledgeIndexService ?? null;
   const knowledgeQueryService = serviceAccessor?.knowledgeQueryService ?? null;
+  // W09 审核视图：消费真实 IKnowledgeReviewService（提案/批准/应用/undo/L2 开关）。
+  const knowledgeReviewService = serviceAccessor?.knowledgeReviewService ?? null;
   // 四视图激活 tab（spec §5c.2）：组件内易失状态，默认「笔记」。
   const [viewTab, setViewTab] = React.useState<VaultViewTab>("notes");
   const platform = useOptionalPlatform();
@@ -997,6 +1024,13 @@ export function VaultView({
   }, []);
   const vaultIdRef = React.useRef(config?.vaultId);
   vaultIdRef.current = config?.vaultId;
+  // Observe before rendering the editor to revoke pending quote focus even
+  // when a user changes scope A→B→A before CodeMirror finishes mounting.
+  const citationEpochRef = React.useRef(createKnowledgeCitationScopeEpoch());
+  const activeCitationEpoch = citationEpochRef.current.observe({
+    sessionId, workspaceKey, vaultId: config?.vaultId,
+    queryService: knowledgeQueryService,
+  });
   const [bodyFocusRequest, setBodyFocusRequest] = React.useState<VaultBodyFocusRequest | null>(
     null,
   );
@@ -1005,7 +1039,10 @@ export function VaultView({
   }, []);
   React.useEffect(() => {
     if (!bodyFocusRequest) return;
-    if (bodyFocusRequest.vaultId !== config?.vaultId) {
+    if (bodyFocusRequest.vaultId !== config?.vaultId ||
+        !isVaultCitationFocusCurrent(
+          bodyFocusRequest.citationEpoch, citationEpochRef.current.currentVersion(),
+        )) {
       consumeBodyFocus(bodyFocusRequest);
       return;
     }
@@ -1017,7 +1054,7 @@ export function VaultView({
       window.removeEventListener("pointerdown", cancel, true);
       window.removeEventListener("keydown", cancel, true);
     };
-  }, [bodyFocusRequest, config?.vaultId, consumeBodyFocus]);
+  }, [bodyFocusRequest, config?.vaultId, activeCitationEpoch, consumeBodyFocus]);
   const [candidates, setCandidates] = React.useState<VaultCandidate[]>([]);
   const [vaultSwitcherOpen, setVaultSwitcherOpen] = React.useState(false);
   const [candidatesLoading, setCandidatesLoading] = React.useState(false);
@@ -1264,34 +1301,45 @@ export function VaultView({
       {
         discardLocalDraft = false,
         forceReopen = false,
-      }: { discardLocalDraft?: boolean; forceReopen?: boolean } = {},
-    ): Promise<void> => {
-      if (!vaultService) return;
-      if (!discardLocalDraft && !(await flushCurrentEditor())) return;
+        isCurrent,
+        validateRead,
+      }: {
+        discardLocalDraft?: boolean;
+        forceReopen?: boolean;
+        isCurrent?: () => boolean;
+        /** Citation-only: verify the second read before changing the editor. */
+        validateRead?: (read: VaultReadResult) => boolean;
+      } = {},
+    ): Promise<boolean> => {
+      if (!vaultService || (isCurrent && !isCurrent())) return false;
+      if (!discardLocalDraft && !(await flushCurrentEditor())) return false;
+      if (isCurrent && !isCurrent()) return false;
       const remountEditor = shouldRemountVaultEditor(
         selectedFileRef.current,
         relativePath,
         forceReopen,
       );
       const requestId = ++readRequestRef.current;
-      selectFile(relativePath);
+      // For citation navigation, retain the current note until the guarded read succeeds.
+      if (!isCurrent) selectFile(relativePath);
       setFileLoading(true);
       try {
         const result = await vaultService.readFile({ relativePath });
-        if (requestId === readRequestRef.current) {
-          setReadResult(result);
-          // Only the explicit conflict-recovery action recreates the editor.
-          // Repeated ordinary clicks must preserve its CodeMirror instance.
-          if (remountEditor) setEditorReopenVersion((version) => version + 1);
-        }
+        if (requestId !== readRequestRef.current || (isCurrent && !isCurrent())) return false;
+        if (validateRead && !validateRead(result)) return false;
+        if (isCurrent) selectFile(relativePath);
+        setReadResult(result);
+        // Only the explicit conflict-recovery action recreates the editor.
+        // Repeated ordinary clicks must preserve its CodeMirror instance.
+        if (remountEditor) setEditorReopenVersion((version) => version + 1);
+        return true;
       } catch (error) {
-        if (requestId === readRequestRef.current) {
-          // The tree can be stale when a note is deleted or renamed outside this
-          // renderer. Refresh it once so the unavailable note is removed.
+        if (requestId === readRequestRef.current && (!isCurrent || isCurrent())) {
           if (isVaultFileNotFoundError(error)) void refresh();
           toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.openFailed" }));
-          setReadResult(null);
+          if (!isCurrent) setReadResult(null);
         }
+        return false;
       } finally {
         if (requestId === readRequestRef.current) setFileLoading(false);
       }
@@ -1322,15 +1370,96 @@ export function VaultView({
    * 既有 pointerdown/keydown 取消守卫会消费掉本次请求，不抢焦点）。
    */
   const openNoteFromKnowledge = React.useCallback(
-    async (relativePath: string, reveal?: KnowledgeEvidenceQuote): Promise<void> => {
+    async (
+      relativePath: string,
+      reveal?: KnowledgeEvidenceQuote,
+      isCurrent?: () => boolean,
+      expectedExcerpt?: string,
+      expectedFileSha256?: string,
+    ): Promise<boolean> => {
       const vaultId = config?.vaultId;
-      await openFile(relativePath);
-      if (!vaultId) return;
-      setBodyFocusRequest({ vaultId, relativePath, reveal });
+      if (!vaultId || (isCurrent && !isCurrent())) return false;
+      const citationEpoch = isCurrent ? citationEpochRef.current.currentVersion() : undefined;
+      const opened = await openFile(relativePath, {
+        isCurrent,
+        ...(isCurrent ? {
+          validateRead: (read: VaultReadResult) =>
+            Boolean(reveal && expectedExcerpt && expectedFileSha256 &&
+              matchesKnowledgeCitationFileReadback(
+                read.content, reveal, expectedExcerpt, read.sha256, expectedFileSha256,
+              )),
+        } : {}),
+      });
+      if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||
+          (isCurrent && !isCurrent())) return false;
+      setBodyFocusRequest({ vaultId, relativePath, reveal, citationEpoch });
       setViewTab("notes");
+      if (isCurrent) onCitationOpen?.();
+      return true;
     },
-    [config?.vaultId, openFile],
+    [config?.vaultId, onCitationOpen, openFile],
   );
+
+  // Composer only provides an opaque receipt; this mounted, session-scoped Vault
+  // resolves the current path + quote before opening any note. Never navigate from
+  // a model-produced path, a stale receipt, or a response for another Vault scope.
+  const citationScopeRef = React.useRef({ sessionId, workspaceKey, queryService: knowledgeQueryService });
+  citationScopeRef.current = { sessionId, workspaceKey, queryService: knowledgeQueryService };
+  // Changing away and back to the same Vault/Session must *not* revive an old
+  // in-flight request. Version every transition, including service replacement.
+  React.useEffect(() => {
+    const epoch = citationEpochRef.current;
+    epoch.observe({
+      sessionId,
+      workspaceKey,
+      vaultId: config?.vaultId,
+      queryService: knowledgeQueryService,
+    });
+    return () => epoch.revoke();
+  }, [sessionId, workspaceKey, config?.vaultId, knowledgeQueryService]);
+  React.useEffect(() => {
+    if (!sessionId || !workspaceKey || !knowledgeQueryService) return;
+    const handleCitationOpen = (event: Event): void => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      const detail = event.detail;
+      if (detail.accepted ||
+          detail.targetSessionId !== sessionId ||
+          detail.workspaceKey !== workspaceKey) return;
+      detail.accepted = true;
+      const vaultId = vaultIdRef.current;
+      const capturedEpoch = citationEpochRef.current.currentVersion();
+      if (!vaultId) {
+        detail.finish({ ok: false, reason: "unavailable" });
+        return;
+      }
+      const stillAuthorized = (): boolean => {
+        const active = citationScopeRef.current;
+        return isKnowledgeCitationScopeCurrent({
+          requestActive: detail.isActive() && citationEpochRef.current.isCurrent(capturedEpoch),
+          mounted: mountedRef.current,
+          originalVaultId: vaultId,
+          currentVaultId: vaultIdRef.current,
+          sessionId,
+          activeSessionId: active.sessionId,
+          workspaceKey,
+          activeWorkspaceKey: active.workspaceKey,
+          sameQueryService: active.queryService === knowledgeQueryService,
+        });
+      };
+      void navigateKnowledgeCitation({
+        sessionId,
+        receiptId: detail.receiptId,
+        isCurrent: stillAuthorized,
+        resolveCitation: () => knowledgeQueryService.resolveCitation({
+          receiptId: detail.receiptId,
+          sessionId,
+        }),
+        openNote: openNoteFromKnowledge,
+      }).then(detail.finish);
+    };
+    window.addEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+    return () => window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+  }, [knowledgeQueryService, openNoteFromKnowledge, sessionId, workspaceKey]);
 
   const goToNotesView = React.useCallback((): void => {
     setViewTab("notes");
@@ -1586,6 +1715,7 @@ export function VaultView({
   return (
     <>
       <main
+        data-testid="vault-view"
         className={cn(
           "flex h-full min-h-0 flex-col bg-muted/25",
           embedded && "min-w-[360px] bg-content-area",
@@ -1604,6 +1734,7 @@ export function VaultView({
                 key={tab}
                 type="button"
                 role="tab"
+                data-testid={`vault-tab-${tab}`}
                 aria-selected={active}
                 onClick={() => setViewTab(tab)}
                 className={cn(
@@ -1765,6 +1896,7 @@ export function VaultView({
                     <button
                       type="button"
                       aria-label={intl.formatMessage({ id: "vault.switchVault" })}
+                      data-testid="vault-switcher-trigger"
                       className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
@@ -1813,6 +1945,7 @@ export function VaultView({
                         onClick={() => {
                           void createDroraVault();
                         }}
+                        data-testid="vault-create-managed"
                         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
                       >
                         <Plus size={15} className="shrink-0 text-muted-foreground" />
@@ -1859,6 +1992,7 @@ export function VaultView({
               }}
               onRegisterFlush={registerEditorFlush}
               bodyFocusRequest={bodyFocusRequest}
+              citationEpoch={activeCitationEpoch}
               onBodyFocused={consumeBodyFocus}
               onOpenTutorial={() => setVaultHelpOpen(true)}
               onOpenWikiLink={openWikiLink}
@@ -1870,15 +2004,19 @@ export function VaultView({
             queryService={knowledgeQueryService}
             sessionId={sessionId}
             workspaceKey={workspaceKey}
-            onOpenNote={(relativePath, reveal) => {
-              void openNoteFromKnowledge(relativePath, reveal);
+            onAgentHandoffPrepared={onAgentHandoffPrepared}
+            onOpenNote={(relativePath, reveal, isCurrent, excerpt, fileSha256) => {
+              void openNoteFromKnowledge(relativePath, reveal, isCurrent, excerpt, fileSha256);
             }}
             onGoToNotes={goToNotesView}
           />
         ) : viewTab === "insights" ? (
           <KnowledgeInsightsView indexService={knowledgeIndexService} />
         ) : (
-          <KnowledgeReviewView vaultService={vaultService ?? null} />
+          <KnowledgeReviewView
+            vaultService={vaultService ?? null}
+            reviewService={knowledgeReviewService}
+          />
         )}
       </main>
       <ConfirmDialog

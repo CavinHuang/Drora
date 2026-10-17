@@ -204,6 +204,16 @@ export class ReviewLedgerStore {
     return rows.map(mapOperation);
   }
 
+  /** Bounded read-only operation history, scoped to the currently authorized Vault. */
+  listRecentOperationsByVault(vaultId: string, limit = 100): ReviewOperationRow[] {
+    const count = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const rows = this.db.raw.prepare(
+      `SELECT * FROM review_operations WHERE vault_id = ?
+       ORDER BY created_at_ms DESC, operation_id DESC LIMIT ?`,
+    ).all(vaultId, count) as unknown as OperationDbRow[];
+    return rows.map(mapOperation);
+  }
+
   listOperationsByProposal(proposalId: string): ReviewOperationRow[] {
     const rows = this.db.raw
       .prepare(
@@ -220,14 +230,97 @@ export class ReviewLedgerStore {
   transitionOperationToApplying(operationId: string): boolean {
     let won = false;
     this.db.transaction((tx) => {
-      const result = tx.raw
-        .prepare(
-          "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
-        )
-        .run(operationId);
+      const operation = tx.raw.prepare(
+        "SELECT * FROM review_operations WHERE operation_id = ?",
+      ).get(operationId) as OperationDbRow | undefined;
+      if (!operation || operation.status !== "prepared") return;
+      // The vault facade's read-SHA + rename is not an atomic cross-process CAS.
+      // Serialize *different* governed L2 operations at the durable ledger
+      // boundary, not only multiple attempts with one operationId.
+      const activeApply = tx.raw.prepare(
+        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+         AND status IN ('applying', 'uncertain') LIMIT 1`,
+      ).get(operation.vault_id, operationId);
+      const activeUndo = tx.raw.prepare(
+        `SELECT 1 FROM review_operation_files f
+         JOIN review_operations o ON o.operation_id = f.operation_id
+         WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
+      ).get(operation.vault_id);
+      if (activeApply || activeUndo) return;
+      const result = tx.raw.prepare(
+        "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
+      ).run(operationId);
       won = Number(result.changes) === 1;
     });
     return won;
+  }
+
+  /**
+   * Cross-Host undo ownership: atomically claim every currently applied file
+   * before touching the Vault. BEGIN IMMEDIATE serializes contenders sharing
+   * this SQLite ledger; an interrupted owner leaves durable undoing rows.
+   * A second host must never retry those rows without evidence reconciliation.
+   */
+  claimUndoFiles(
+    operationId: string,
+    nowMs: number,
+  ): { outcome: "claimed" | "busy" | "unavailable"; files: ReviewOperationFileRow[] } {
+    let outcome: "claimed" | "busy" | "unavailable" = "unavailable";
+    let files: ReviewOperationFileRow[] = [];
+    this.db.transaction((tx) => {
+      const op = tx.raw
+        .prepare("SELECT * FROM review_operations WHERE operation_id = ?")
+        .get(operationId) as OperationDbRow | undefined;
+      if (!op || op.status === "applying" || op.status === "uncertain" || op.status === "prepared") {
+        outcome = "busy";
+        return;
+      }
+      // A concurrent apply/undo of a different L2 operation in the same Vault
+      // must finish before this inverse write can begin.
+      const activeApply = tx.raw.prepare(
+        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+         AND status IN ('applying', 'uncertain') LIMIT 1`,
+      ).get(op.vault_id, operationId);
+      const activeUndo = tx.raw.prepare(
+        `SELECT 1 FROM review_operation_files f
+         JOIN review_operations o ON o.operation_id = f.operation_id
+         WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
+      ).get(op.vault_id);
+      if (activeApply || activeUndo) {
+        outcome = "busy";
+        return;
+      }
+      const rows = tx.raw
+        .prepare("SELECT * FROM review_operation_files WHERE operation_id = ? ORDER BY ordinal ASC")
+        .all(operationId) as unknown as OperationFileDbRow[];
+      if (rows.some((row) => row.status === "undoing")) {
+        outcome = "busy";
+        return;
+      }
+      const eligible = rows.filter((row) => row.status === "applied");
+      if (eligible.length === 0) return;
+      const claimed = tx.raw
+        .prepare(
+          "UPDATE review_operation_files SET status = 'undoing', updated_at_ms = ? WHERE operation_id = ? AND status = 'applied'",
+        )
+        .run(nowMs, operationId);
+      if (Number(claimed.changes) !== eligible.length) {
+        throw new Error("undo claim ledger changed unexpectedly");
+      }
+      files = eligible.map((row) => ({ ...mapOperationFile(row), status: "undoing" }));
+      outcome = "claimed";
+    });
+    return { outcome, files };
+  }
+
+  /** Restart/manual recovery needs to locate orphan undo claims as well as apply claims. */
+  listOperationsWithUndoingFiles(): ReviewOperationRow[] {
+    const rows = this.db.raw.prepare(
+      `SELECT DISTINCT o.* FROM review_operations o
+       INNER JOIN review_operation_files f ON f.operation_id = o.operation_id
+       WHERE f.status = 'undoing' ORDER BY o.created_at_ms ASC`,
+    ).all() as unknown as OperationDbRow[];
+    return rows.map(mapOperation);
   }
 
   setOperationStatus(
@@ -316,6 +409,28 @@ export class ReviewLedgerStore {
         )
         .run(status, error, nowMs, operationId, ordinal);
     });
+  }
+
+  /**
+   * Reconcile may race with a still-live Undo owner. Only settle an unchanged
+   * durable claim; never overwrite an already completed owner result.
+   */
+  settleUndoClaim(
+    operationId: string,
+    ordinal: number,
+    status: "undo_applied" | "undo_conflict" | "undoing",
+    error: string | null,
+    nowMs: number,
+  ): boolean {
+    let settled = false;
+    this.db.transaction((tx) => {
+      const result = tx.raw.prepare(
+        `UPDATE review_operation_files SET status = ?, error = ?, updated_at_ms = ?
+         WHERE operation_id = ? AND ordinal = ? AND status = 'undoing'`,
+      ).run(status, error, nowMs, operationId, ordinal);
+      settled = Number(result.changes) === 1;
+    });
+    return settled;
   }
 
   listOperationFiles(operationId: string): ReviewOperationFileRow[] {

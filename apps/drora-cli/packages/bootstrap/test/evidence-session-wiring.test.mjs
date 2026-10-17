@@ -7,10 +7,24 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KNOWLEDGE_EVIDENCE_GUARDS } from "@drora/shared";
+import {
+  KNOWLEDGE_EVIDENCE_GUARDS,
+  KNOWLEDGE_EVIDENCE_REASONS,
+  KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS,
+  knowledgeSourceFingerprint,
+  normalizeContentForQuoteSelector,
+} from "@drora/shared";
+import { mkdtemp, mkdir, rm, unlink, writeFile, realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { createKnowledgeEvidenceGate } from "../src/knowledge-evidence/evidence-gate.js";
 import { SessionEventType } from "@drora/contracts";
 import { NATIVE_HANDLERS } from "../src/drora-protocol-v4/commands/handlers/index.js";
 import { ProductProjection } from "../src/drora-protocol-v4/product-projection.js";
+import { startCanonicalIntent } from "../src/drora-protocol-v4/commands/handlers/canonical-intent-replay.js";
+import { normalizeConversationEvent } from "../src/drora-protocol-v4/event-normalizer.js";
 
 const SESSION_ID = "session-e2e";
 
@@ -177,17 +191,83 @@ test("sendText：复验拒绝 → 领域错误带 guard reasonCode，模型输�
   assert.equal(calls.sendInput.length, 0);
 });
 
-test("sendText：宿主未注入复验端口（旧宿主）→ additive 放行", async () => {
+test("sendText：复验端口异常 → 结构化 unavailable，不提交模型", async () => {
+  const { app, calls } = createRecordApp();
+  const host = createHost({
+    app,
+    calls,
+    verifier: async () => { throw new Error("temporary RPC disconnection"); },
+  });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_disconnected" }] } }),
+    ),
+    (error) => {
+      assert.equal(error.name, "EvidenceGuardRejectionError");
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.unavailable);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.sendInput.length, 0);
+});
+
+for (const providerId of ["account:zai-highspeed-card", "account:bigmodel-highspeed-card"]) {
+  test(`sendText：Highspeed 强制入队保留可信证据且不允许 guide (${providerId})`, async () => {
+    const { app, calls } = createRecordApp();
+    app.sendInput = async (input, options) => {
+      calls.sendInput.push({ input, options });
+      return { kind: "queued", queueItemId: "queue_cmd-1" };
+    };
+    const refs = [{ receiptId: "evr_highspeed_1" }];
+    const host = createHost({
+      app,
+      calls,
+      routingMode: "guide",
+      verifier: () => ({ ok: true }),
+    });
+    const result = await NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({
+        payload: {
+          evidenceRefs: refs,
+          modelSelection: { providerId, modelId: "highspeed-test-model" },
+          modelExecution: { selectionScope: "execution" },
+        },
+      }),
+    );
+    assert.equal(result.type, "inputAccepted");
+    assert.equal(result.delivery, "queue");
+    assert.equal(calls.verifierInputs.length, 1);
+    assert.equal(calls.sendInput.length, 1);
+    const { options } = calls.sendInput[0];
+    assert.equal(options.requireQueue, true);
+    assert.equal(options.queueDelivery, undefined, "可信证据不得走 guide");
+    assert.equal(options.intent.requestedDelivery, "queue");
+    assert.equal(options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+    assert.deepEqual(options.intent.evidenceRefs, refs);
+  });
+}
+
+test("sendText：宿主未注入复验端口 → fail-closed，模型不得启动", async () => {
   const { app, calls } = createRecordApp();
   const host = createHost({ app, calls, verifier: undefined });
-  const result = await NATIVE_HANDLERS.sendText(
-    host,
-    sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_legacy" }] } }),
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendText(
+      host,
+      sendTextEnvelope({ payload: { evidenceRefs: [{ receiptId: "evr_legacy" }] } }),
+    ),
+    (error) => {
+      assert.equal(error.name, "EvidenceGuardRejectionError");
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.forbidden);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
   );
-  assert.equal(result.type, "inputAccepted");
-  assert.equal(calls.sendInput.length, 1);
-  assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_legacy" }]);
+  assert.equal(calls.sendInput.length, 0);
 });
+
 
 function queuedItem(overrides = {}) {
   return {
@@ -260,6 +340,45 @@ test("sendQueuedNow：复验拒绝 → 在 reserve 前抛 guard 错误，队列�
   // 复验拒绝发生在 reserve 之前：无 reservation、无提升、无删除——队首原位保留。
   assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.markQueueItemPromoting.length, 0);
+  assert.equal(calls.removeQueueItem.length, 0);
+  assert.equal(calls.sendInput.length, 0);
+});
+
+test("sendQueuedNow：复验端口异常 → 队列保持原位，拒绝提升", async () => {
+  const { app, calls } = createRecordApp();
+  const item = queuedItem({ evidenceRefs: [{ receiptId: "evr_disconnect_queue" }] });
+  const host = createHost({
+    app,
+    calls,
+    queueItem: item,
+    verifier: async () => { throw new Error("ledger disconnected"); },
+  });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+    (error) => {
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.unavailable);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.reserveQueueItem.length, 0);
+  assert.equal(calls.removeQueueItem.length, 0);
+  assert.equal(calls.sendInput.length, 0);
+});
+
+test("sendQueuedNow：宿主未注入复验端口 → 不得提升队列中的可信证据", async () => {
+  const { app, calls } = createRecordApp();
+  const item = queuedItem({ evidenceRefs: [{ receiptId: "evr_legacy_queue" }] });
+  const host = createHost({ app, calls, queueItem: item });
+  await assert.rejects(
+    () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+    (error) => {
+      assert.equal(error.reasonCode, KNOWLEDGE_EVIDENCE_GUARDS.forbidden);
+      assert.equal(error.evidenceReason, "gate_unavailable");
+      return true;
+    },
+  );
+  assert.equal(calls.reserveQueueItem.length, 0);
   assert.equal(calls.removeQueueItem.length, 0);
   assert.equal(calls.sendInput.length, 0);
 });
@@ -371,4 +490,256 @@ test("真投影→sendQueuedNow：复验通过后提升，提升 intent 携带�
   assert.equal(calls.sendInput.length, 1);
   assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, refs);
   assert.equal(calls.sendInput[0].options.intent.sourceCommandId, "cmd-proj-1");
+});
+
+function historicalEvidenceTarget() {
+  return {
+    entityId: "user-row-1",
+    productTurnId: "turn-1",
+    transcriptMessageId: "message-1",
+    coveredByStableCompact: false,
+    intent: {
+      kind: "sendText",
+      text: "用原笔记回答问题",
+      requestedDelivery: "guide",
+      evidenceRefs: [{ receiptId: "evr_historical" }],
+    },
+  };
+}
+
+test("completed citation: direct TurnStarted user row preserves admitted opaque evidenceRefs", () => {
+  const projection = new ProductProjection(SESSION_ID, "epoch-receipt-direct");
+  projection.applyEvent({
+    type: SessionEventType.SessionCreated, sequenceNumber: 1, timestamp: new Date(),
+    payload: { config: {} },
+  });
+  const refs = [{ receiptId: "evr_projected_direct" }];
+  const quoted = [{ text: "only signed evidence", path: "G61-source.md" }];
+  projection.applyEvent({
+    type: SessionEventType.TurnStarted,
+    sequenceNumber: 2, timestamp: new Date(), turnId: "turn-direct",
+    payload: {
+      input: "Review note [1]",
+      inputSource: "user",
+      inputVisibility: "visible",
+      messageId: "message-direct",
+      turnNumber: 1,
+      intent: {
+        kind: "sendText", text: "Review note [1]", sourceCommandId: "cmd-direct",
+        conversationQuotes: quoted, evidenceRefs: refs,
+      },
+    },
+  });
+  const row = projection.getSnapshot().rows.window.find((candidate) =>
+    candidate.kind === "userInput");
+  assert.ok(row, "the real SessionEvent must produce a canonical UserInputRow");
+  assert.deepEqual(row.evidenceRefs, refs, "never discard CLI-admitted receipts when projecting the input");
+  assert.deepEqual(row.conversationQuotes, quoted);
+  assert.equal(row.origin, "realUser");
+  assert.ok(!row.text.includes("evr_"), "model-facing content must not serialize opaque receipts");
+});
+
+test("completed citation: legacy queue drain preserves already-admitted evidenceRefs", () => {
+  const { projection, refs } = projectionWithQueuedEvidenceItem();
+  projection.applyEvent({
+    type: SessionEventType.TurnSteerDrained,
+    sequenceNumber: 3,
+    timestamp: new Date(),
+    turnId: "turn-1",
+    payload: {
+      pendingInputIds: ["queue_cmd-proj-1"],
+      injectedMessageIds: ["message-queued-1"],
+      targetTurnId: "turn-1",
+    },
+  });
+  const row = projection.getSnapshot().rows.window.find((candidate) =>
+    candidate.kind === "userInput" && candidate.origin === "realUser");
+  assert.ok(row, "drained real-user item must become a canonical UserInputRow");
+  assert.deepEqual(row.evidenceRefs, refs);
+});
+
+test("历史证据：TurnStarted normalizer 保留凭据给可编辑目标", () => {
+  const event = {
+    type: SessionEventType.TurnStarted,
+    id: "event-historical",
+    sessionId: SESSION_ID,
+    turnId: "turn-1",
+    sequenceNumber: 1,
+    timestamp: new Date(),
+    payload: {
+      input: "用原笔记回答问题",
+      inputSource: "user",
+      inputVisibility: "visible",
+      messageId: "message-1",
+      turnNumber: 1,
+      intent: {
+        kind: "sendText",
+        text: "用原笔记回答问题",
+        evidenceRefs: [{ receiptId: "evr_historical" }],
+      },
+    },
+  };
+  const fact = normalizeConversationEvent(event);
+  assert.deepEqual(fact.evidenceRefs, [{ receiptId: "evr_historical" }]);
+});
+
+test("历史证据：编辑或重试前拒绝失效引用，不进行 rewind", async () => {
+  for (const type of ["editUserQuery", "retryTurn"]) {
+    const { app, calls } = createRecordApp();
+    const target = historicalEvidenceTarget();
+    const host = createHost({
+      app,
+      calls,
+      verifier: () => ({ ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.stale, reason: "file_modified" }),
+    });
+    host.resolveRowActionTarget = () => ({
+      ok: true,
+      row: { rowId: 1, turnId: "turn-1" },
+      messageId: "message-1",
+      editTarget: target,
+    });
+    const envelope = {
+      ...sendTextEnvelope(),
+      type,
+      payload: {
+        target: { rowId: 1, entityId: "user-row-1" },
+        ...(type === "editUserQuery" ? { newText: "修改后的问题" } : {}),
+      },
+    };
+    await assert.rejects(
+      () => NATIVE_HANDLERS[type](host, envelope),
+      (error) => error.reasonCode === KNOWLEDGE_EVIDENCE_GUARDS.stale,
+      `${type}: expected stale receipt rejection before rewind`,
+    );
+    assert.equal(calls.verifierInputs.length, 1);
+    assert.equal(calls.sendInput.length, 0);
+  }
+});
+
+test("历史证据：重新发送强制复验并携带原引用，不允许 guide", async () => {
+  const { app, calls } = createRecordApp();
+  const host = createHost({ app, calls, verifier: () => ({ ok: true }) });
+  const record = host.getRecord(SESSION_ID);
+  await startCanonicalIntent(
+    host,
+    record,
+    { ...sendTextEnvelope(), type: "retryTurn" },
+    historicalEvidenceTarget(),
+    "用原笔记回答问题",
+    [],
+    undefined,
+  );
+  assert.equal(calls.verifierInputs.length, 1);
+  assert.deepEqual(calls.verifierInputs[0].evidenceRefs, [{ receiptId: "evr_historical" }]);
+  assert.equal(calls.sendInput.length, 1);
+  assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_historical" }]);
+  assert.equal(calls.sendInput[0].options.intent.requestedDelivery, "queue");
+  assert.equal(calls.sendInput[0].options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+});
+
+/**
+ * G08 actual gate + handler integration. The existing projection tests above
+ * prove evidenceRefs survive queuing. This test uses real SQLite and the
+ * on-disk authorized Vault to prove revalidation before promoting, reserving
+ * or executing a model turn. No synthetic verifier verdict is injected.
+ */
+test("G08 real queue promotion rejects stale or revoked on-disk Receipt before reservation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-queued-evidence-"));
+  let gate;
+  try {
+    const vaultRoot = join(root, "vault");
+    const pluginDataDir = join(root, "plugin");
+    const databasePath = join(root, "knowledge", "knowledge-index.sqlite");
+    const filePath = join(vaultRoot, "queued.md");
+    const configPath = join(pluginDataDir, "vault-config.json");
+    const marker = "G08 real queue promotion source";
+    const note = `# Evidence queue
+
+${marker}
+
+A valid Receipt is required to send this note.`;
+    const digest = (value) => createHash("sha256").update(value, "utf8").digest("hex");
+    const configuredAt = 810;
+    const receiptId = "evr_queue_real00000000000000000001";
+    await mkdir(vaultRoot, { recursive: true });
+    await mkdir(pluginDataDir, { recursive: true });
+    await mkdir(dirname(databasePath), { recursive: true });
+    await writeFile(filePath, note, "utf8");
+    const rootReal = await realpath(vaultRoot);
+    const vaultId = digest(rootReal);
+    await writeFile(configPath, JSON.stringify({
+      rootPath: rootReal,
+      displayName: "E2E isolated queue vault",
+      inboxPath: "Inbox",
+      allowAgentWrites: false,
+      configuredAt,
+    }), "utf8");
+    const normalized = normalizeContentForQuoteSelector(note);
+    const startOffset = normalized.indexOf(marker);
+    assert.ok(startOffset >= 0);
+    const endOffset = startOffset + marker.length;
+    const db = new DatabaseSync(databasePath);
+    try {
+      for (const statement of KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS) db.exec(statement);
+      db.prepare(
+        `INSERT INTO evidence_receipts(
+          receipt_id, session_id, run_id, article_id, vault_id, source_epoch,
+          source_fingerprint, relative_path, title, heading, file_sha256, chunk_sha256,
+          start_line, end_line, start_offset, end_offset, excerpt, created_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        receiptId, SESSION_ID, "run-g08", "article-g08", vaultId, 1,
+        knowledgeSourceFingerprint(vaultId, configuredAt),
+        "queued.md", "Evidence queue", null, digest(note), digest(marker),
+        3, 3, startOffset, endOffset, marker, Date.now(),
+      );
+    } finally {
+      db.close();
+    }
+    gate = createKnowledgeEvidenceGate({ pluginDataDir, databasePath });
+    const refs = [{ receiptId }];
+    assert.deepEqual(await gate.verify({ sessionId: SESSION_ID, evidenceRefs: refs }), { ok: true },
+      "The on-disk Receipt must be valid when entering the queue");
+
+    const { app, calls } = createRecordApp();
+    const item = queuedItem({ evidenceRefs: refs });
+    const host = createHost({
+      app,
+      calls,
+      queueItem: item,
+      verifier: (request) => gate.verify(request),
+    });
+    const assertPromotionRejected = async (guard, reason) => {
+      await assert.rejects(
+        () => NATIVE_HANDLERS.sendQueuedNow(host, queuedNowEnvelope(item.queueItemId)),
+        (error) => {
+          assert.equal(error.name, "EvidenceGuardRejectionError");
+          assert.equal(error.reasonCode, guard);
+          assert.equal(error.evidenceReason, reason);
+          return true;
+        },
+      );
+      assert.equal(calls.reserveQueueItem.length, 0, "No queue reservation before evidence verification");
+      assert.equal(calls.markQueueItemPromoting.length, 0, "Stale evidence cannot start promoting");
+      assert.equal(calls.removeQueueItem.length, 0, "Rejected evidence must remain in queue");
+      assert.equal(calls.sendInput.length, 0, "Model must not execute rejected evidence");
+      assert.equal(host.getQueueItem(SESSION_ID, item.queueItemId), item);
+    };
+
+    await writeFile(filePath, note + "\nModified after admission.", "utf8");
+    await assertPromotionRejected(
+      KNOWLEDGE_EVIDENCE_GUARDS.stale,
+      KNOWLEDGE_EVIDENCE_REASONS.fileModified,
+    );
+    await writeFile(filePath, note, "utf8");
+    await unlink(configPath);
+    await assertPromotionRejected(
+      KNOWLEDGE_EVIDENCE_GUARDS.forbidden,
+      KNOWLEDGE_EVIDENCE_REASONS.sourceUnconfigured,
+    );
+    assert.equal(calls.verifierInputs.length, 2, "CLI revalidates every promotion attempt");
+  } finally {
+    gate?.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

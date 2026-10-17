@@ -51,6 +51,7 @@ export function KnowledgeAskInput({
             key={choice}
             type="button"
             aria-pressed={intentChoice === choice}
+            data-testid={`ask-intent-${choice}`}
             onClick={() => onIntentChoiceChange(choice)}
             className={cn(
               "rounded-lg px-2 py-1 text-ui-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -91,7 +92,7 @@ export function KnowledgeAskInput({
         className="min-h-20"
       />
       <div className="flex items-center gap-2 pt-2">
-        <Button type="button" size="sm" disabled={!input.trim() || retrieving} onClick={onSubmit}>
+        <Button type="button" size="sm" data-testid="ask-submit" disabled={!input.trim() || retrieving} onClick={onSubmit}>
           <Search className="size-4" />
           {intl.formatMessage({ id: "vault.ask.submit" })}
         </Button>

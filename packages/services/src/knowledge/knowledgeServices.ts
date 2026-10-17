@@ -38,7 +38,10 @@ import { createSystemOneHttpTransport } from "./decision/jevTransport.js";
 import { loadInsightsSnapshot } from "./insightsSnapshot.js";
 import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
 import { createKnowledgeReviewService } from "./review/reviewEngine.js";
-import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
+import type {
+  KnowledgeDecisionProvider,
+  KnowledgeDecisionPolicyConfig,
+} from "./decision/decisionTypes.js";
 import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./review/reviewService.js";
@@ -105,11 +108,16 @@ export interface KnowledgeServicesOptions {
    */
   knowledgeSemanticSource?: () => Promise<KnowledgeEmbeddingPort | null>;
   /**
-   * 审核写路径总门（W06 修复轮 1）：**生产装配（node.ts）绝不传——保持缺省 false**，
-   * S03 Hard Write Safety GO 门禁未满足前 apply/undo 返回 `write_path_disabled`
-   * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅测试环境显式置 true。
+   * 用户 L2 opt-in 的测试覆写；生产不传，由 Vault 配置加载，缺省关闭。
    */
   reviewWritePathEnabled?: boolean;
+  /**
+   * Versioned S03 runtime capability. The release policy grants desktop-local
+   * only; absent/remote authority stays closed. Persisted preferences cannot grant it.
+   */
+  reviewWriteSafetyGatePassed?: boolean;
+  /** Test-only barrier to pause an in-flight Review file mutation. Never set in desktop Host. */
+  reviewBeforeFileMutationForTest?: () => Promise<void>;
   /**
    * 索引自动 reconcile（spec §5b.8）：缺省 false，仅 desktop 本地 host 装配显式开启。
    * 触发点：装配后延迟一次 + search 入口 TTL 过期时；均 fire-and-forget，检索照旧用
@@ -164,19 +172,20 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const telemetry = new DecisionTelemetry();
   // Jev 配置热生效（spec §5d.10；控制器在 decision/jevDynamicProvider.ts）。
   const dynamicProviderAvailable = options.knowledgeJevConfigSource !== undefined;
-  const jevDynamic = dynamicProviderAvailable && options.knowledgeJevConfigSource
-    ? createJevDynamicProvider({
-        source: options.knowledgeJevConfigSource,
-        consentRegistry: registry,
-        config,
-        cache,
-      })
-    : null;
+  const jevDynamic =
+    dynamicProviderAvailable && options.knowledgeJevConfigSource
+      ? createJevDynamicProvider({
+          source: options.knowledgeJevConfigSource,
+          consentRegistry: registry,
+          config,
+          cache,
+        })
+      : null;
   const staticProvider = jevDynamic
     ? null
-    : (options.decisionProviderFactory
+    : options.decisionProviderFactory
       ? options.decisionProviderFactory({ consentRegistry: registry, config })
-      : (options.decisionProvider ?? null));
+      : (options.decisionProvider ?? null);
   const pipeline = new DecisionPipeline({
     provider: staticProvider,
     ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
@@ -198,11 +207,17 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
 
   // 审核写入服务（W06）：与索引/检索共享同一 DB 连接；账本随 dispose 统一关闭。
-  // 写路径总门默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md）；生产装配不透传使能。
+  // 写路径总门缺省关闭（fail-closed）。A-10 勘误（2026-10-17 增量评审）：此前注释称
+  // 「undefined（生产形态）透传 undefined——引擎从 vault-config.json 异步加载初值」
+  // 与引擎实现不符——reviewEngine 的异步加载分支以 writeSafetyGatePassed===true 为
+  // 前提，而生产 node.ts 显式传 false，该分支永不执行，生产 writePathEnabled 恒 false。
+  // 显式 true/false 仅为测试形态提供确定性覆盖。
   const reviewService = createKnowledgeReviewService({
     db,
     pluginDataDir,
-    writePathEnabled: options.reviewWritePathEnabled === true,
+    writePathEnabled: options.reviewWritePathEnabled,
+    writeSafetyGatePassed: options.reviewWriteSafetyGatePassed === true,
+    beforeFileMutationForTest: options.reviewBeforeFileMutationForTest,
   });
 
   const indexService: IKnowledgeIndexService = {
@@ -218,8 +233,9 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
           semantic: semantic.port ? "available" : "unavailable",
         };
       }
-      const coverage =
-        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
+      const coverage = loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? {
+        ...EMPTY_COVERAGE,
+      };
       return {
         configured: true,
         source: {
@@ -280,7 +296,8 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     }> {
       // 用当前装配真实发一次最小探测（spec §5d.10 配置 UX）：2xx+合法答案=ok；
       // 401/403=Key 无效；其余非 2xx/异常按原文携带。装配缺失=未配置完成。
-      const assembly = jevDynamic !== null ? ((await options.knowledgeJevConfigSource?.()) ?? null) : null;
+      const assembly =
+        jevDynamic !== null ? ((await options.knowledgeJevConfigSource?.()) ?? null) : null;
       if (assembly === null) {
         return { ok: false, latencyMs: 0, error: "配置未完成：开关未开或 Key/评分模型缺失" };
       }

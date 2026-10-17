@@ -20,7 +20,7 @@ import {
 import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@drora/shared";
 import { resolvePlanModeTransitionPermission } from "./plan-mode-policy.js";
 import { webFetchRuleSubjects, wildcardToRegExp } from "./rule-matching.js";
-import { isP0WriteTarget } from "./write-tier-policy.js";
+import { isP0WriteTarget, isTrustedReadOnlyTool } from "./write-tier-policy.js";
 import { isPreapprovedWorkflowDraftWrite } from "./workflow-draft-path.js";
 import { applyPermissionUpdates } from "../tool/executor/permission-rules.js";
 import { isWebFetchPreapprovedUrl } from "../tool/webfetch-preapproved.js";
@@ -250,7 +250,23 @@ export class PermissionService {
       );
     }
 
-    if (this.config.allowedTools.has(context.toolName)) {
+    // allowedTools 命中 P0 写向量（Bash/js/普通 MCP）时不得整工具放行（S03 不变量 2）。
+    // 修复依据（2026-10-17 增量评审 cli-p0-1/2）：allowedTools 并非注释曾声称的
+    // 「仅 CLI 启动参数」——它来自五层合并配置（System<User<Project<Env<Cli，
+    // create-app.ts 装配），项目级 drora.json/.drora/config.json 可无信任门注入，
+    // 不受信仓库提交配置文件即可为 P0 工具建立持久放行通道。e70019d1 曾加本守卫、
+    // d70baea5 以「操作员显式授权」为由回退——该前提与配置装配事实不符，故恢复守卫；
+    // P0 工具落回既有逐次/模式检查，非 P0 工具的 allowedTools 放行不受影响。
+    if (
+      this.config.allowedTools.has(context.toolName) &&
+      !isP0WriteTarget({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      })
+    ) {
       return this.allow(
         context,
         capability,
@@ -294,8 +310,11 @@ export class PermissionService {
         toolName: context.toolName,
         permissionName: capability.permissionName,
         readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
       })
-        ? toolRules.filter((rule) => Boolean(rule.ruleContent))
+        // path/command 只覆盖输入的一部分，不能授权 MCP/js 的其它任意负载。
+        ? []
         : toolRules;
     if (effectiveRules.length === 0) return false;
     return effectiveRules.some((rule) => this.matchesRule(rule, context, capability));
@@ -467,19 +486,24 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
-    if (capability.readOnly && !capability.destructive) {
+    if (isTrustedReadOnlyTool({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      readOnly: capability.readOnly,
+      destructive: capability.destructive,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    })) {
       return this.allow(
         context,
         capability,
         "mode.plan.readOnly",
-        "Plan mode allows read-only tool execution",
+        "Plan mode allows host-trusted read-only tool execution",
       );
     }
 
-    // S03 洞 1a（specs/agent-write-safety.md §2）：原「未自报 destructive 的 MCP 一律放行」
-    // 分支已删除——destructive/readOnly 是 server 自报，写盘型 MCP 漏报 destructive 即可在
-    // plan 模式直通。MCP 与其它工具同规则：自报 readOnly 且非 destructive 才放行
-    // （自报只在收紧方向采信，漏报由本模式的 deny 兜底）。
+    // MCP annotations are supplied by the server and cannot establish a trusted
+    // read-only capability. Only built-in host-trusted read-only tools and the
+    // host-verified OfficialCua group may use this fast path.
 
     if (
       capability.allowedInPlanMode &&
@@ -507,12 +531,28 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
-    if (capability.readOnly && !capability.destructive && !capability.needsApproval) {
+    // 即使插件声称无副作用，P0 仍需逐次确认；不得落入最后的 lowRisk 放行。
+    if (isP0WriteTarget({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    }) && context.toolName !== "Bash") {
+      return this.ask(context, capability,
+        capability.riskLevel === "high" ? "mode.build.highRisk" : "mode.build.sideEffect",
+        "P0 tools require explicit approval for each execution");
+    }
+    if (!capability.needsApproval && isTrustedReadOnlyTool({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      readOnly: capability.readOnly,
+      destructive: capability.destructive,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    })) {
       return this.allow(
         context,
         capability,
         "mode.build.readOnly",
-        "Build mode allows read-only tools",
+        "Build mode allows host-trusted read-only tool execution",
       );
     }
 
@@ -678,7 +718,13 @@ export class PermissionService {
     ruleId: string,
     reason: string,
   ): PermissionDecisionResult {
-    return this.result("ask", context, capability, ruleId, reason);
+    const result = this.result("ask", context, capability, ruleId, reason);
+    // P0 必须由用户逐次确认，复用 user-once 以阻止 Hook 代批和持久权限应答。
+    if (isP0WriteTarget({ toolName: context.toolName, permissionName: capability.permissionName,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup })) {
+      return { ...result, approvalMode: "user-once" };
+    }
+    return result;
   }
 
   private deny(

@@ -73,6 +73,7 @@ import {
   AttachmentPreview,
 } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
+import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   Dialog,
   DialogClose,
@@ -163,6 +164,16 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
+import { validateKnowledgeSourceManifest } from "@/lib/conversationKnowledgeSources.js";
+import {
+  appendConversationSelectionReferences,
+  collectConversationEvidenceRefs,
+  commitKnowledgeAgentHandoff,
+  getConversationSelectionReferenceScope,
+  getKnowledgeAgentHandoffEventName,
+  isKnowledgeAgentHandoffEvent,
+  requestKnowledgeCitationOpen,
+} from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import {
@@ -196,6 +207,8 @@ export interface ConversationComposerSendOptions {
   /** Prompt 文本内携带的上下文附件数量；用于阻止 /goal 等本地命令误消费。 */
   contextAttachmentCount?: number;
   conversationQuotes?: import("@drora/shared").ConversationSelectionText[];
+  /** Opaque trusted citations travel beside (never inside) model-facing userselect quotes. */
+  evidenceRefs?: Array<{ receiptId: string }>;
   /** renderer-only：ACK accepted 后由 SessionPane 绑定真实 commandId/sessionId。 */
   telemetrySeed?: ConversationPromptTelemetrySeed;
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
@@ -825,6 +838,22 @@ function ConversationComposerImpl({
     clearReferences: clearConversationSelectionReferences,
   } = useConversationSelectionReferences({ sessionId, workspaceKey });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
+  const openKnowledgeCitation = useCallback(
+    async (receiptId: string): Promise<void> => {
+      if (!sessionId) return;
+      const result = await requestKnowledgeCitationOpen({
+        targetSessionId: sessionId,
+        workspaceKey,
+        receiptId,
+      });
+      if (!result.ok) {
+        droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
+          variant: "warning",
+        });
+      }
+    },
+    [intl, sessionId, workspaceKey],
+  );
 
   // ── 草稿 per-session 持久化（切会话/刷新不丢；mention pill 经 editorStateJson 保真）──
   const draftScopeRef = useRef(draftScopeId);
@@ -1135,6 +1164,82 @@ function ConversationComposerImpl({
     updateText,
   ]);
 
+  // Obsidian ANSWER/COMPARE: trusted references + original question are one scoped,
+  // synchronous user-triggered handoff. Never overwrite a pre-existing user draft.
+  useEffect(() => {
+    if (!listenAddToChatEvents || disabled || !sessionId || typeof window === "undefined") return;
+    const handleKnowledgeHandoff = (event: Event) => {
+      if (!isKnowledgeAgentHandoffEvent(event)) return;
+      const detail = event.detail;
+      if (
+        detail.result ||
+        detail.targetSessionId !== sessionId ||
+        detail.workspaceKey !== workspaceKey
+      )
+        return;
+      const inputApi = inputApiRef.current;
+      if (
+        !inputApi ||
+        !detail.prompt.trim() ||
+        detail.references.length === 0 ||
+        detail.references.some((ref) => ref.contentType !== "markdown" || !ref.evidenceReceiptId)
+      ) {
+        detail.result = { ok: false, reason: "unavailable" };
+        return;
+      }
+      if (
+        textRef.current.trim() ||
+        inputApi.getMarkdown().trim() ||
+        hasAttachments ||
+        hasCodeCommentContexts ||
+        hasWebElementContexts ||
+        hasPptxElementReferences ||
+        hasPluginUiContexts ||
+        pendingShareContext ||
+        getConversationSelectionReferenceScope(sessionId, workspaceKey).length > 0
+      ) {
+        detail.result = { ok: false, reason: "draft-not-empty" };
+        return;
+      }
+      const appended = appendConversationSelectionReferences(
+        getConversationSelectionReferenceScope(sessionId, workspaceKey),
+        detail.references,
+      );
+      if (!appended.ok) {
+        detail.result = appended;
+        return;
+      }
+      try {
+        // preflight all refs before changing either the prompt or the selection scope.
+        inputApi.setText(detail.prompt);
+        updateText(detail.prompt);
+        scheduleDraftPersist();
+        commitKnowledgeAgentHandoff(detail, appended);
+        detail.result = appended;
+        requestComposerFocus();
+      } catch {
+        detail.result = { ok: false, reason: "unavailable" };
+      }
+    };
+    window.addEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
+    return () =>
+      window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
+  }, [
+    disabled,
+    hasAttachments,
+    hasCodeCommentContexts,
+    hasWebElementContexts,
+    hasPptxElementReferences,
+    hasPluginUiContexts,
+    listenAddToChatEvents,
+    pendingShareContext,
+    requestComposerFocus,
+    scheduleDraftPersist,
+    sessionId,
+    updateText,
+    workspaceKey,
+  ]);
+
   // 新建任务（含已在草稿态重复 Cmd/Ctrl+N，scope 未变）：startDraft 递增 nonce 即重新聚焦。
   const lastFocusVersionRef = useRef(draftFocusVersion);
   useEffect(() => {
@@ -1182,6 +1287,8 @@ function ConversationComposerImpl({
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = text.trim().length > 0;
+  const knowledgeSourceMismatch =
+    validateKnowledgeSourceManifest(text, conversationSelectionReferences) === "mismatch";
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||
@@ -1217,7 +1324,8 @@ function ConversationComposerImpl({
     hasDraftToSubmit &&
     routingAllowsSend &&
     attachmentsReady &&
-    submissionReady;
+    submissionReady &&
+    !knowledgeSourceMismatch;
   // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
   const showStopControl = canStop && !hasDraftToSubmit;
 
@@ -1247,6 +1355,11 @@ function ConversationComposerImpl({
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
       const submittedShareContext = pendingShareContext;
+      // This runs again at the actual submit boundary, not just as a disabled
+      // button state. Enter/queue confirmations must not bypass the source map.
+      if (validateKnowledgeSourceManifest(trimmed, currentConversationSelections) === "mismatch") {
+        return;
+      }
       // 草稿首发 accepted 后同一 composer 会原地从 __draft__ promotion 到
       // session scope；若成功清理时再读可变 ref，会误清新 scope，并把首条输入残留在
       // __draft__，下次新建任务又恢复。发送开始时冻结真正提交的 scope。
@@ -1438,16 +1551,23 @@ function ConversationComposerImpl({
           ...(currentConversationSelections.length
             ? {
                 conversationQuotes: currentConversationSelections.map(
-                  ({ text, path, senderName, senderId, messageId, sentAt }) => ({
+                  ({ text, path, senderName, senderId, messageId, sentAt, evidenceReceiptId }) => ({
                     text,
                     path,
                     senderName,
                     senderId,
                     messageId,
                     sentAt,
+                    // 可信 Markdown 引用携带收据绑定（D-2）：完成态读取端据此把可信
+                    // 引用与普通选区分开，混合输入不再整组丢引用。收据只进结构化
+                    // quote 元数据，不进模型可见提示词。
+                    evidenceReceiptId,
                   }),
                 ),
               }
+            : {}),
+          ...(currentConversationSelections.length
+            ? { evidenceRefs: collectConversationEvidenceRefs(currentConversationSelections) }
             : {}),
           telemetrySeed,
           ...(requestedDelivery ? { requestedDelivery } : {}),
@@ -2105,6 +2225,7 @@ function ConversationComposerImpl({
               references={conversationSelectionReferences}
               onRemove={removeConversationSelectionReference}
               onRemoveAll={clearConversationSelectionReferences}
+              onOpenCitation={sessionId ? openKnowledgeCitation : undefined}
             />
           </div>
         ) : null}
@@ -2126,6 +2247,8 @@ function ConversationComposerImpl({
     locale,
     removeCodeCommentContext,
     removeConversationSelectionReference,
+    openKnowledgeCitation,
+    sessionId,
     removeWebElementContext,
     removePluginUiContext,
     removePptxElementReference,
@@ -2387,6 +2510,15 @@ function ConversationComposerImpl({
             {contextHeader}
           </div>
         ) : null}
+        {knowledgeSourceMismatch ? (
+          <div
+            role="alert"
+            data-testid="knowledge-source-manifest-mismatch"
+            className="relative z-10 mb-2 w-full rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-ui-base text-foreground"
+          >
+            {intl.formatMessage({ id: "chat.selections.evidenceSourceMismatch" })}
+          </div>
+        ) : null}
         {conversationSelectionLimitReason ? (
           <div
             role="alert"
@@ -2405,7 +2537,13 @@ function ConversationComposerImpl({
           placeholder={placeholder}
           disabled={disabled || mode === "reject"}
           submitting={pending}
-          submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady}
+          submitDisabled={
+            pending ||
+            !routingAllowsSend ||
+            !attachmentsReady ||
+            !submissionReady ||
+            knowledgeSourceMismatch
+          }
           allowSubmitWhenEmpty={
             // 发送按钮已把代码评论视为可发送上下文，但这里曾漏掉同一状态，
             // 导致空文本仅附代码评论时 Enter 被编辑器判为空，必须改点发送按钮。

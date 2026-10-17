@@ -433,6 +433,9 @@ function inputIntentOfMessage(message: MessageWithParts): TurnInputIntentMetadat
           : {}),
       ...(value.inputOrigin ? { inputOrigin: value.inputOrigin } : {}),
       ...(value.conversationQuotes ? { conversationQuotes: value.conversationQuotes } : {}),
+      // Cold hydration must restore ONLY the validated receipts persisted in
+      // the canonical admission intent. Model [n] prose never creates authority.
+      ...(value.evidenceRefs?.length ? { evidenceRefs: value.evidenceRefs } : {}),
       ...(value.botGroupSource ? { botGroupSource: value.botGroupSource } : {}),
       ...(value.provenance ? { provenance: value.provenance } : {}),
       ...(value.source ? { source: value.source } : {}),

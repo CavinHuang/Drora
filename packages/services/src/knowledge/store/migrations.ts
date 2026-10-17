@@ -213,6 +213,17 @@ export const KNOWLEDGE_MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_chunk_vectors_model ON chunk_vectors(model_id)`,
     ],
   },
+  {
+    version: 6,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS review_runtime_owners(
+        vault_id TEXT PRIMARY KEY,
+        owner_pid INTEGER NOT NULL,
+        owner_host TEXT NOT NULL,
+        token TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 /**

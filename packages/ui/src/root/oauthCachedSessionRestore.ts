@@ -22,3 +22,14 @@ export async function applyCachedOAuthSessionRestoreResult(params: {
 
   return false;
 }
+
+/**
+ * The global JWT-invalid broadcast may arrive from an unrelated provider
+ * refresh while the desktop is already signed out. There is no authenticated
+ * user to reauthenticate: showing a modal would wrongly block local/offline
+ * Vault editing. This gate does not authorize any account request or preserve
+ * invalid credentials; signed-in sessions still enter the normal expiry flow.
+ */
+export function shouldShowJwtInvalidSessionDialog(hasAuthenticatedUser: boolean): boolean {
+  return hasAuthenticatedUser;
+}

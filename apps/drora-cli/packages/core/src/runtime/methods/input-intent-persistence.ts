@@ -24,6 +24,10 @@ export function buildPersistedConversationInputIntent(
   return {
     ...(intent.inputOrigin ? { inputOrigin: intent.inputOrigin } : {}),
     ...(intent.conversationQuotes ? { conversationQuotes: intent.conversationQuotes } : {}),
+    // Persist only the already CLI-admitted opaque receipts. Cold hydration
+    // reconstructs provenance from this schema-validated durable intent,
+    // never from model text, source labels, or an unverified path.
+    ...(intent.evidenceRefs?.length ? { evidenceRefs: [...intent.evidenceRefs] } : {}),
     ...(intent.botGroupSource ? { botGroupSource: intent.botGroupSource } : {}),
     sourceCommandId: intent.sourceCommandId,
     queueItemId: intent.queueItemId,

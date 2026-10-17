@@ -1,4 +1,5 @@
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
+import { resolveKnowledgeEvidenceSendFailure } from "@/v4/knowledgeEvidenceSendFailure.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@drora/shared";
 import { reportSessionCreate } from "@/lib/sessionCreateTelemetry.js";
@@ -2694,6 +2695,7 @@ export function SessionPane({
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
+      workspaceKey,
       workspaceHomePath,
       workspaceIdentity,
       workspaceRemoteSessionId: remoteSessionId ?? undefined,
@@ -2764,6 +2766,7 @@ export function SessionPane({
     }),
     [
       workspacePath,
+      workspaceKey,
       workspaceHomePath,
       workspaceIdentity,
       remoteSessionId,
@@ -3465,6 +3468,7 @@ export function SessionPane({
                   ? { requestedDelivery: options.requestedDelivery }
                   : {}),
                 conversationQuotes: options?.conversationQuotes,
+                ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
                 ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
                 ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
                 ...(options?.source ? { source: options.source } : {}),
@@ -3553,6 +3557,7 @@ export function SessionPane({
             ...(options?.source ? { source: options.source } : {}),
             ...highspeed.override,
             conversationQuotes: options?.conversationQuotes,
+            ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
           },
           newSessionId,
           undefined,
@@ -3588,6 +3593,7 @@ export function SessionPane({
           ...submission,
           ...(options?.requestedDelivery ? { requestedDelivery: options.requestedDelivery } : {}),
           conversationQuotes: options?.conversationQuotes,
+          ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
           ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
@@ -3719,11 +3725,16 @@ export function SessionPane({
         // 仅写日志，不会生成 snapshot.control.lastError，用户看到的结果就是“点击没反应”。
         // 这里把 admission 前失败收口为 pane-local 错误横幅，不改变 desktop continuous 或
         // Web remote replayable 的发送/恢复语义，草稿仍由 Composer 原路径保留。
+        const evidenceSendFailure = resolveKnowledgeEvidenceSendFailure(detail);
         setSendSubmissionError({
           code: runtimeModelUnavailable ? "DRORA_RUNTIME_MODEL_UNAVAILABLE" : "SEND_FAILED",
           message: runtimeModelUnavailable
             ? detail
-            : intl.formatMessage({ id: "chat.error.sendFailed" }),
+            : intl.formatMessage({
+                id: evidenceSendFailure
+                  ? `chat.selections.evidenceSend.${evidenceSendFailure}`
+                  : "chat.error.sendFailed",
+              }),
           detail,
           ...(sessionId ? { taskId: sessionId } : {}),
         });

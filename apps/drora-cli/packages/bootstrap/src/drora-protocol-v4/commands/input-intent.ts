@@ -12,6 +12,7 @@ import { commandAdmissionOf } from "./executor.js";
 export interface CanonicalCommandIntent {
   inputOrigin?: "desktop" | "mobile";
   conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+  evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
   botGroupSource?: TurnInputIntentMetadata["botGroupSource"];
   kind: "sendText" | "sendGoalCommand";
   text: string;
@@ -106,6 +107,7 @@ export function inputIntentMetadataFromCanonical(
   return {
     ...(canonical.inputOrigin ? { inputOrigin: canonical.inputOrigin } : {}),
     ...(canonical.conversationQuotes ? { conversationQuotes: canonical.conversationQuotes } : {}),
+    ...(canonical.evidenceRefs ? { evidenceRefs: [...canonical.evidenceRefs] } : {}),
     ...(canonical.botGroupSource ? { botGroupSource: canonical.botGroupSource } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,

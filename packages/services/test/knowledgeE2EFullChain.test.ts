@@ -185,6 +185,7 @@ test("W07 全链路：连接 → 索引 → 中文检索 → 候选 → 原文�
     assert.equal(resolved.status, "current");
     if (resolved.status !== "current") return;
     assert.equal(resolved.citation.relativePath, candidate.relativePath);
+    assert.equal(resolved.citation.fileSha256, receipt.fileSha256);
     assert.equal(resolved.citation.quote.startLine, candidate.quote.startLine);
 
     // 模型输出伪造的 receipt id 不是可信引用（A14）。

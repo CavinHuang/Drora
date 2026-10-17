@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-obsidian-authenticated-handoff",
+  "spec": "./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts",
+  "fixtures": [
+    {
+      "id": "obsidian-authenticated-title",
+      "description": "Deterministic title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the citation authority"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "Generate a concise title"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"obsidian-authenticated-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"Obsidian Authenticated E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "obsidian-authenticated-session",
+      "description": "Initialize an actual CLI Session without Vault refs",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": [
+          "E2E_OBSIDIAN_G61_START"
+        ],
+        "bodyIncludes": [
+          "E2E_OBSIDIAN_G61_START"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"obsidian-authenticated-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"E2E_OBSIDIAN_G61_START: the plain initial conversation is ready.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "obsidian-authenticated-answer",
+      "description": "Render [1] from real CLI-admitted source, without fabricating any receipt",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": [
+          "OrchidLedgerBeacon2026"
+        ],
+        "bodyIncludes": [
+          "来源索引（顺序与附带的原文证据片段一致）：",
+          "G61-Authenticated-Agent-Evidence.md",
+          "OrchidLedgerBeacon2026"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"obsidian-authenticated-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"E2E_OBSIDIAN_G61_VERIFIED_ANSWER: the original local note requires a production-issued source [1].\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"obsidian-authenticated-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-authenticated-handoff-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

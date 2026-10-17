@@ -95,7 +95,8 @@ export const conversationInputIntentSchema = z
     sharedContextRefs: z.array(sharedContextRefSchema).max(1).optional(),
     // VaultView Evidence 引用（W03）：admission 时从 sendText payload 固定进 intent，
     // 随 queue item 持久事实存活，sendQueuedNow 提升时由 CLI gate 执行时复验。
-    // optional：旧账本/旧快照无此键；edit/retry 重建的新输入不继承（不携带即不声明证据）。
+    // optional：旧账本/旧快照无此键；edit/retry 重建的新输入**继承**原 evidenceRefs 并在
+    // canonical-intent-replay 二次复验（cli-2 勘误 2026-10-17：原注释称「不继承」与实现相反）。
     evidenceRefs: z.array(evidenceRefSchema).max(MAX_EVIDENCE_REFS_PER_INPUT).optional(),
     delivery: conversationInputDeliverySchema,
     order: conversationInputOrderSchema,

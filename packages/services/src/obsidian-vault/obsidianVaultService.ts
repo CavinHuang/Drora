@@ -26,6 +26,7 @@ import {
   configureVaultAt,
   listCandidates,
   loadVaultConfig,
+  setVaultAgentWritesEnabled,
   vaultSummary,
   type ConfigureVaultOptions,
   type VaultConfig,
@@ -214,6 +215,16 @@ export function createObsidianVaultService(options?: {
         toConfigureOptions(params.options),
       );
       logger.info("authorized vault candidate");
+      return summary;
+    },
+
+    async setAgentWritesEnabled(params: { enabled: boolean }) {
+      if (!params || typeof params.enabled !== "boolean") {
+        throw new Error("enabled must be a boolean");
+      }
+      const summary = await setVaultAgentWritesEnabled(pluginDataDir, params.enabled);
+      if (!summary) throw new Error("Current Vault is no longer configured");
+      logger.info("updated Vault Agent write authorization", { enabled: params.enabled });
       return summary;
     },
 

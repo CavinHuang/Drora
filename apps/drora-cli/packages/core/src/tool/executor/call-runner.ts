@@ -364,7 +364,7 @@ async function executeToolCallImpl(
       turnId,
       startTime,
       createMcpToolDisplay(entry.metadata.mcpPresentation),
-      resolveToolCallCapabilityFlags(deps, entry, executionInput),
+      resolveToolCallCapabilityFlags(deps, entry, executionInput, canonicalToolCall.name),
     );
 
     deps.logger?.info("Tool call started", {

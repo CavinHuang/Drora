@@ -638,9 +638,18 @@ describe("R4 busy queue acceptance: G09 + G08 in one real Electron session", () 
       );
     } finally {
       // 先删队列项再恢复文件：文件一旦恢复，auto-drain 会对有效证据成功提升。
-      const deleted = await clickV4QueueItemDelete(queueItemId);
-      if (deleted) {
-        await waitForV4QueueCount(0, 30_000);
+      // 清理段重试（ubuntu CI 竞速实证 2026-10-17）：busy turn 恰在删除点击前后
+      // 结束时，一次 click 可能落在瞬时重渲染上未生效——循环点删直到归零。
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const deleted = await clickV4QueueItemDelete(queueItemId);
+        if (!deleted) break;
+        try {
+          await waitForV4QueueCount(0, 10_000);
+          break;
+        } catch {
+          // 队列项仍在（点击被重渲染吞掉），退避后重试。
+          await browser.pause(1_000);
+        }
       }
       await writeFile(NOTE_FILE, SOURCE, "utf8");
     }

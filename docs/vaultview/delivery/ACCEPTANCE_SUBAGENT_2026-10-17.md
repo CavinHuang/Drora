@@ -18,7 +18,7 @@
 | 包                | spec（packages/desktop/test/e2e/acceptance/） | 覆盖项与结果                                                                                              |
 | ----------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | R1 首次使用       | r1-first-use.test.ts                          | G01 **PASS**；G02 **PARTIAL**（机械断言全过，相关性待人工）；「中文检索相关性真人判断」**BLOCKED**        |
-| R2 Agent 交接     | r2-agent-handoff.test.ts                      | G04 **PASS**；G03 **FAIL**（缺陷 D1）；G13 **FAIL**（缺陷 D2 + 模型语义未验）                             |
+| R2 Agent 交接     | r2-agent-handoff.test.ts                      | G03/G04/G13 **PASS**（缺陷 D1 已修复后复跑 4/4；原报 D2 经插桩定谳为测试选择器/fixture 匹配置读，产品无缺陷） |
 | R3 时间差拒绝     | r3-time-based-reject.test.ts                  | G05/G06/G07 全 **PASS**（3/3）                                                                            |
 | R4 Busy 队列      | r4-busy-queue.test.ts                         | G08/G09 全 **PASS**（2/2）                                                                                |
 | R5 重启与跨轮隔离 | r5-restart-isolation.test.ts                  | G35/G42/G12 全 **PASS**（4/4 用例）                                                                       |
@@ -32,7 +32,10 @@
 ## 产品缺陷与观察（均未改产品代码，按验收铁律记录）
 
 - **D1（确定）`evidenceReceiptId` 泄漏进模型 prompt**：`packages/ui/src/v4/ConversationComposer.tsx:1558-1567` 将其写入 quote 元数据 → `apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts` 原样透传 → `apps/drora-cli/packages/core/src/runtime/helpers/conversation-quotes.ts:7-11` `JSON.stringify(quotes)` 拼入模型 user message。与 Composer 内注释「收据只进结构化 quote 元数据，不进模型可见提示词」及 G03 判据直接矛盾。证据：R2 run3 replay artifact 请求体含 `evidenceReceiptId:"evr_…"`（R4/R5/R6 各自 artifact 独立复证）。R2/G03 据此 FAIL；修复点建议在 CLI 模型边界剥除该字段。
-- **D2（疑似，未定位唯一分支）一次成功发送后再次 Knowledge handoff 在 renderer 被静默拒绝**：G13 场景证据 RPC 全 OK 但 Composer 落位超时，拒绝点疑似 `ConversationComposer.tsx:1180-1203` unavailable/draft-not-empty 分支之一；toast 有、日志无，「发送后再次交接」路径无单测覆盖。
+- **D1 已修复（2026-10-17 复跑）**：conversation-quotes.ts 改为模型可见字段白名单序列化（MODEL_VISIBLE_QUOTE_KEYS），回归测试 conversation-quotes.test.ts 3 例锁定；R2 spec 复跑 G03/G04/G13=4/4 EXIT=0。
+- **D2 定谳为误报（插桩实证）**：commit 轨迹 refs=2/appended=2/scopeAfter=2、hook add-event scopeNow=2、composer chip=2 全部正确；「被拒」实为 R2 spec 的两处测试侧缺陷——①chip 计数选择器首匹配误中非 composer 的同名元素（已改为 composer 容器锚定）；②回放 fixture g13-answer 条目在含历史的请求体上先于 compare 条目命中（已为两 g13 条目加 lastUserMessageIncludes 锚定）。产品代码无缺陷。
+- **D3 已修复（chunker 切口差一换行）**：markdownChunker endOffset 收紧为 chunk 文本精确末尾，回归测试锁死全 chunk 切片 sha==chunk sha；R9 G47（二次读取 SHA 守卫）由 PARTIAL 转 PASS（5 用例 4 过，G53 维持 PARTIAL：Windows 只读文件构造问题）。
+- ~~**D2（疑似，未定位唯一分支）一次成功发送后再次 Knowledge handoff 在 renderer 被静默拒绝**~~（定谳见上：误报）：G13 场景证据 RPC 全 OK 但 Composer 落位超时，拒绝点疑似 `ConversationComposer.tsx:1180-1203` unavailable/draft-not-empty 分支之一；toast 有、日志无，「发送后再次交接」路径无单测覆盖。
 - **D3（确定，R9 发现）中段 chunk 永远无法通过证据复验**：`markdownChunker.ts:178-189` 存的 chunk sha 基于「不含行尾换行」的 chunk 文本，而 `evidenceRegistry.ts:61-64` quoteSliceSha256 切片含 chunk 末行换行——仅文件最后一个 chunk 因幻影空行恰好相等，任何多段笔记的非末段命中在 prepareEvidence/resolveCitation 一律 stale（R9 以真实函数复现脚本证实 match:false，末 chunk match:true；既有单测全用单 chunk 笔记故未暴露）。影响：多节笔记非末节拿不到可信 Receipt。
 - **观察**：host `obsidian-vault.writeFile` 可替换 Windows 只读文件（chmod 0o444 期间 writeFile OK）——构造「不可保存草稿」类测试须改用 CAS conflict；该行为本身未按缺陷定级。
 

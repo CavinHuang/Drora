@@ -16,7 +16,9 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "bodyIncludes": ["Generate a concise title"]
+        "bodyIncludes": [
+          "Generate a concise title"
+        ]
       },
       "response": {
         "statusCode": 200,
@@ -40,9 +42,16 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "lastUserMessageIncludes": ["R2_AGENT_HANDOFF_SESSION_START"],
-        "bodyIncludes": ["R2_AGENT_HANDOFF_SESSION_START"],
-        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+        "lastUserMessageIncludes": [
+          "R2_AGENT_HANDOFF_SESSION_START"
+        ],
+        "bodyIncludes": [
+          "R2_AGENT_HANDOFF_SESSION_START"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY"
+        ]
       },
       "response": {
         "statusCode": 200,
@@ -66,8 +75,13 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "lastUserMessageIncludes": ["R2_AGENT_G04_QUESTION"],
-        "bodyIncludes": ["R2_AGENT_G04_QUESTION", "R2SingleBeaconToken2026"],
+        "lastUserMessageIncludes": [
+          "R2_AGENT_G04_QUESTION"
+        ],
+        "bodyIncludes": [
+          "R2_AGENT_G04_QUESTION",
+          "R2SingleBeaconToken2026"
+        ],
         "bodyExcludes": [
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY",
@@ -105,7 +119,11 @@
         "bodyExcludes": [
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY",
-          "R2PairGammaLine2026"
+          "R2PairGammaLine2026",
+          "请根据附带的 Obsidian 可信证据比较相关笔记"
+        ],
+        "lastUserMessageIncludes": [
+          "请仅依据附带的 Obsidian 可信证据回答"
         ]
       },
       "response": {
@@ -140,6 +158,9 @@
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY",
           "R2PairGammaLine2026"
+        ],
+        "lastUserMessageIncludes": [
+          "请根据附带的 Obsidian 可信证据比较相关笔记"
         ]
       },
       "response": {

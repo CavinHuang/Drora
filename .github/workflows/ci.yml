@@ -106,6 +106,7 @@ jobs:
           apps/drora-cli/packages/core/test/permission-suggestions.test.ts
           apps/drora-cli/packages/core/test/memory-file-permission.test.ts
           apps/drora-cli/packages/core/test/bash-command-rule-evaluator.test.ts
+          apps/drora-cli/packages/core/test/conversation-quotes.test.ts
       - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
         run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
       - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)

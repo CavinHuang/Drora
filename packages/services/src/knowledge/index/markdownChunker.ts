@@ -184,7 +184,16 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
       startLine: startLine + 1,
       endLine: endLine + 1,
       startOffset: Math.min(prefixOffsets[startLine] ?? totalChars, totalChars),
-      endOffset: Math.min(prefixOffsets[endLine + 1] ?? totalChars, totalChars),
+      // D3 修复（2026-10-17 R9 验收实证）：endOffset 必须精确落在 chunk 文本末尾。
+      // 旧口径 prefixOffsets[endLine+1] 比文本多含一个换行——非末段 chunk 的
+      // quoteSliceSha256（按 offset 切片）与 chunk.sha256（按无尾换行的 text 计算）
+      // 恒差一个换行符，多段笔记的非末段永远过不了 prepareEvidence 的 stale 校验、
+      // 签发不出可信 Receipt。末段以 totalChars 收口不变；既有索引需随 epoch
+      // 重建后生效新口径。
+      endOffset: Math.min(
+        (prefixOffsets[endLine] ?? 0) + (lines[endLine] ?? "").length,
+        totalChars,
+      ),
       text,
       sha256: createHash("sha256").update(text, "utf-8").digest("hex"),
       links: extractWikilinkTargets(text),

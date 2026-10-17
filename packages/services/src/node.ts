@@ -2602,11 +2602,11 @@ export function createLocalServices(options: {
   // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
   // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
   const knowledgeServices: KnowledgeServices = createKnowledgeServices({
-    // L2 only belongs to the local desktop authority; a background indexing
-    // option is NOT an authorization signal. Each Vault separately requires
-    // the user's write grant, review-write toggle and per-proposal approval.
-    // Remote and unspecified service authorities do not receive this power.
-    reviewWriteSafetyGatePassed: options.serviceAuthorityMode === "desktop-local",
+    // A1 release scope / S03 NO-GO: desktop-local authority alone is NOT
+    // independent security approval. Keep production L2 apply/undo disabled
+    // until a separate reviewer explicitly resolves WRITE_SAFETY_NO_GO.md.
+    // Dedicated service tests may still inject the gate to verify the mechanism.
+    reviewWriteSafetyGatePassed: false,
     // Jev 配置动态源（§5d.10 热生效）：装配解析延迟到决策 stage，配置变更免重启。
     ...(options.knowledgeJevConfigSource
       ? { knowledgeJevConfigSource: options.knowledgeJevConfigSource }

@@ -177,4 +177,40 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       window.removeEventListener(getKnowledgeCitationOpenEventName(), onEvent);
     }
   });
+
+  it("G45 deduplicates the open RPC and permanently rejects a late success after timeout", async () => {
+    vi.useFakeTimers();
+    let dispatchCount = 0;
+    let finishLate: (() => void) | undefined;
+    let isActive: (() => boolean) | undefined;
+    const onEvent = (event: Event) => {
+      if (!isKnowledgeCitationOpenEvent(event)) return;
+      const detail = event.detail;
+      detail.accepted = true;
+      dispatchCount += 1;
+      finishLate = () => detail.finish({ ok: true });
+      isActive = detail.isActive;
+    };
+    window.addEventListener(getKnowledgeCitationOpenEventName(), onEvent);
+    try {
+      const first = requestKnowledgeCitationOpen({
+        receiptId: receipt, targetSessionId: session, workspaceKey: workspace,
+      });
+      const duplicate = requestKnowledgeCitationOpen({
+        receiptId: receipt, targetSessionId: session, workspaceKey: workspace,
+      });
+      expect(duplicate).toBe(first);
+      expect(dispatchCount).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      await expect(first).resolves.toEqual({ ok: false, reason: "failed" });
+      finishLate?.({} as never);
+      expect(isActive?.()).toBe(false);
+      await expect(duplicate).resolves.toEqual({ ok: false, reason: "failed" });
+    } finally {
+      window.removeEventListener(getKnowledgeCitationOpenEventName(), onEvent);
+      vi.useRealTimers();
+    }
+  });
+
 });

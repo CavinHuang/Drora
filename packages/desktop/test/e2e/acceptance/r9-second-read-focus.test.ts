@@ -671,17 +671,18 @@ describe("R9 second read and focus: G47/G53/G54/G55", () => {
         { timeout: 15_000, timeoutMsg: "R9 G53 draft keystrokes did not land" },
       );
       // 700ms 防抖自动保存真实失败：横幅出现、磁盘保持原文（证明确实存不进去）。
-      await browser.pause(2_000);
-      const draftVisible = await browser.execute(
+      // B-5 同款反模式修复（2026-10-17）：固定 pause 后瞬时断言在慢环境下会先于
+      // 防抖+保存失败+重渲染完成——改为轮询横幅（vault.draftUnsaved）真实出现。
+      const draftVisible = await browser.waitUntil(
         () =>
-          /草稿未保存|Draft unsaved/.test(document.body.innerText) ||
-          /保存失败|Save failed/.test(document.body.innerText),
+          browser.execute(
+            () =>
+              /草稿未保存|Draft unsaved/.test(document.body.innerText) ||
+              /保存失败|Save failed/.test(document.body.innerText),
+          ),
+        { timeout: 20_000, timeoutMsg: "R9 G53 the read-only file must produce a visible unsavable-draft state" },
       );
-      assert.equal(
-        draftVisible,
-        true,
-        "R9 G53 the read-only file must produce a visible unsavable-draft state",
-      );
+      assert.equal(draftVisible, true, "R9 G53 the read-only file must produce a visible unsavable-draft state");
       assert.equal(
         await readFile(FILE, "utf8"),
         SOURCE,

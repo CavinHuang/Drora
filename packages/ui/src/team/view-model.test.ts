@@ -3,7 +3,7 @@ import type { TeamProjectionState } from "@drora/shared/drora-protocol-v4";
 
 import { mapTeamProjectionToViewModel } from "./view-model.js";
 
-function projection(overrides: Partial<TeamProjectionState> = {}): TeamProjectionState {
+function projection(_overrides: Partial<TeamProjectionState> = {}): TeamProjectionState {
   return {
     teamId: "team_1",
     status: "active",

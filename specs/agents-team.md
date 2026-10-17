@@ -722,3 +722,31 @@ README + docs/usage.md + docs/quality-gates.md + docs/progressive-loading.md。
 - dsh 的磁盘真相 + 回执准入在 Drora 由 team journal（真相源）+ TeamPort 直投
   （结构上无冒名）覆盖；需显式实现的是**世代过滤**与 **ack 只认注入**（16.3）。
 - contractSnapshot / verdictStartSnapshot 属 M5；§2.3 contract 字段已预留。
+
+### 实现登记(2026-10-17,M1 落地收官)
+
+M1 内核已实现并通过验证(分支 feat/agents-team,提交 7e82ba92..55019312;41 测试绿、
+team 相关 typecheck 零错误、架构检查 0 违规)。以下五项为实现期裁决,补充登记:
+
+1. **member-runtime 装配路线 = 路线 1(全复制,§11 v2 代价条款的修正登记)**:
+   原装配依赖 subagent.ts 模块私有 helper(resolveSubagentMcpAccess/resolveSubagentToolAllowlist/
+   resolveSubagentSkillPort/validateSubagentComputerUseConfiguration,约 400 行,不可导入)。
+   裁决保住「上游镜像文件零编辑」:member-runtime.ts 复刻可导入装配面 + v1 收窄(下条)。
+2. **v1 收窄**:teammate 不带 MCP / skills / CUA / 持久记忆(上述私有 helper 四域),
+   PR-1.6 补齐;运行时断言①④已实证收窄不阻碍协作面可达。
+3. **parentToolCallId 替代键**:模板的 traceStringAttribute(trace,"parentToolCallId")
+   依赖私有 helper,member-runtime 用 `team:{agentId}` 稳定键替代(deriveChildClientPorts
+   仅用于展示/路由,不影响持久化事实)。
+4. **灰度过渡**:v1 经 env `DRORA_AGENTS_TEAM=1` 显式开启(settings 键
+   `agentsTeam.enabled` 的设置面在 M2 与 /team 面板同批接入;builtin-prompt-command
+   分支与 create-app 接缝同门)。
+5. **PR-1.1′d 断言结果**(运行时可达,tests/team/team-install-runtime.test.ts):
+   ① 私有端口 spawn → 共享注册表同时含团队工具与内建工具(白名单断链问题类结构性不存在);
+   ② 终态复活投递消息体含零授权禁令(formatIncomingMessage 单一出处);
+   ③ 灰度关注册表无任何 Team* 工具;
+   ④ steer 载荷 presentation 中性无双包装。
+
+C 档 `/team` 命令(C1-C5)已落地:shared 帮助表条目 / builtin-team-command.ts /
+builtin-prompt-command 分支(env 同门灰度)/ 子上下文守卫为结构性满足
+(member-runtime 不装配 app 命令面,成员会话无斜杠命令入口)/ contracts
+`AGENTS_TEAM_SKILL_NAME` + bundled skill `skills/agents-team/SKILL.md`。

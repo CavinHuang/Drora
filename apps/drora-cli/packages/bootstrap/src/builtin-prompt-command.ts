@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import {
+  BUILTIN_TEAM_COMMAND_NAME,
+  expandBuiltinTeamCommandPrompt,
+} from "./builtin-team-command.js";
+import {
   BUILTIN_WORKFLOW_COMMAND_NAME,
   expandBuiltinWorkflowCommandPrompt,
 } from "./builtin-workflow-command.js";
@@ -59,6 +63,18 @@ export function resolveDroraBuiltinPromptCommandInvocation(
     return {
       name: BUILTIN_WORKFLOW_COMMAND_NAME,
       prompt: expandBuiltinWorkflowCommandPrompt(invocation.args),
+    };
+  }
+
+  if (invocation.name === BUILTIN_TEAM_COMMAND_NAME) {
+    // 灰度与装配接缝同门(DRORA_AGENTS_TEAM=1,specs/agents-team.md §11 v1 过渡);
+    // settings 键 agentsTeam.enabled 的设置面在 M2 接入后改走同一来源。
+    if (process.env.DRORA_AGENTS_TEAM !== "1") {
+      return undefined;
+    }
+    return {
+      name: BUILTIN_TEAM_COMMAND_NAME,
+      prompt: expandBuiltinTeamCommandPrompt(invocation.args),
     };
   }
 

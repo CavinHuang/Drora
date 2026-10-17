@@ -192,7 +192,7 @@ export async function resolveToolPermission(
             executionInput,
             entry.permissionCapabilityGroup,
             {
-              permissionName: runtimeCapability.permissionName,
+              permissionName: runtimeCapability.permission?.permission,
               readOnly: runtimeCapability.readOnly,
             },
           ));

@@ -46,7 +46,7 @@ export function resolveToolCallCapabilityFlags(
     readOnly:
       isTrustedReadOnlyTool({
         toolName,
-        permissionName: capability.permissionName,
+        permissionName: capability.permission?.permission,
         readOnly: capability.readOnly,
         destructive: capability.destructive,
         permissionCapabilityGroup: capability.permissionCapabilityGroup,

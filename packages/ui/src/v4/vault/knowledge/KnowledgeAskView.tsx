@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- 智能问库视图（Ask 流程 + 上一轮候选区 + handoff/侧聊编排）共享同一
+ * 提交序号与 scope 引用的状态编排，拆文件会割裂状态所有权（与 KnowledgeReviewView.tsx 同先例）。 */
 /**
  * 智能问库视图（W04 / specs/obsidian-knowledge.md §5c）。
  *

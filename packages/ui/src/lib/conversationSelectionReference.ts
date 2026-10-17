@@ -1,3 +1,6 @@
+/* eslint-disable max-lines -- 引用 scope（内存 Map + D-4 持久化快照/懒水合）与增删/去重/序列化
+ * 纯函数是同一引用模型的两半（持久化键与 scope 键共享 referenceScopeKey 语义），拆文件会
+ * 割裂唯一状态所有者（与 KnowledgeReviewView.tsx / reviewEngine.ts 同先例）。 */
 import {
   createUuid,
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,

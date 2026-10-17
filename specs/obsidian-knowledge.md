@@ -149,8 +149,10 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
 - 复验失败 → handler 抛出带 reasonCode 的领域错误 → ACK `failed` + `guard.evidence*`；
   sendQueuedNow 失败回滚 reservation，队首原位保留，auto-drain 路径暂停自动提升。gate 不可
   用（配置/DB 读取失败）按 `guard.evidenceUnavailable` 拒绝，不 fail-open。
-- 宿主未注入 gate（旧宿主/测试桩）→ 不复验，保持既有行为（additive 演进，与 sendText
-  payload 的旧 CLI 静默丢键同规则）。
+- 宿主未注入 gate（旧宿主/测试桩）→ **fail-closed 拒绝**（`guard.evidenceForbidden` /
+  `gate_unavailable`），携带证据的输入不得启动模型（PR #23 起生效；早期「additive 放行」
+  表述已废弃——携带 Receipt 的输入在无法复验时放行等于伪造通道，
+  `evidence-session-wiring.test.mjs` 两例锁定该行为）。
 
 ### 5.4 不可信数据的边界
 
@@ -200,8 +202,10 @@ A12/A13/A14/A15（服务端 Receipt 语义）、A16/A17（真实会话发送链�
 **sourceEpoch 语义**：源指纹 = `vaultId(realpath 根 sha256) + configuredAt`。SourceRegistry
 每次解析时对比 DB 内指纹，不一致即 `epoch+1` 并清除旧 epoch 的 documents/chunks/jobs 缓存行。
 因此**换根（切库）、撤权后重新授权（configuredAt 变化）都会使旧 Query 结果、进行中 Index
-Job、后续 Receipt（W03）失效**；`allowAgentWrites` 翻转不换 epoch（它门控写入，不改变读取
-范围，读操作不受限是本 spec 既有语义）。
+Job、后续 Receipt（W03）失效**。`allowAgentWrites` 翻转**会**换 epoch（2026-10-17 勘误：
+`setVaultAgentWritesEnabled` 推进 configuredAt——撤权必须让绑定 sourceEpoch 的既有批准
+失效，安全优先于「翻转不改变读取范围」的旧表述；代价是拨动 L1 写授权触发索引缓存按
+epoch 失效重建，属低频显式操作）。
 
 ### 5b.3 SQLite 纪律（W00 DB Spike §4 全量采纳）
 
@@ -478,8 +482,11 @@ K-VEC-5 各层降级独立且诊断如实。
   完成。挂载失败、15 秒超时、Session/Workspace/Vault 作用域变化或复验非 `current` 均
   fail-closed，且不得因预挂载而显示 Vault 或打开缓存路径。
 - **追问**：沿用同一 Vault 源发起新 run（上一轮候选折叠保留在「上一轮」区）；
-  「把引用加入当前 Agent」走既有 selection 引用注入（userselect 数据语义，**不是 Receipt、
-  不获执行时复验**，§5.4，UI 必须以文案明示）；无会话时该入口禁用并提示。
+  「把引用加入当前 Agent」是**可信证据语义**（PR #23 起，取代早期「userselect 普通引用」
+  表述）：点击时经 `verifyPreviousKnowledgeCandidateEvidence` 重新核验并签发新 Receipt，
+  引用携带 `evidenceReceiptId` 进入发送链，CLI admission 与队列提升照 §5.3 复验；wire 侧
+  conversationQuotes 的对应条目同样携带 `evidenceReceiptId`（完成态读取端据此区分可信
+  引用与普通选区，混合输入不丢引用）；无会话时该入口禁用并提示。
 - **扩搜**：检索扩搜上限一次由服务端承担（OR 降级，§5b.5）；UI 只通过
   `diagnostics.matchRelaxedToOr` 如实呈现「已自动扩大检索一次」，不提供第二轮人工扩搜入口。
 - **Decision trace** 默认折叠：diagnostics（lexicalChunkHits/lexicalCandidates/
@@ -869,13 +876,19 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 | 批准账本 | 同库 `review_approvals`，主键 (proposal_id, revision)；绑定 changesHash + sourceEpoch + expiresAtMs | 过期/换 revision/换 epoch 的批准自然失效，不删行（审计历史） |
 | Operation ledger | 同库 `review_operations`（operationId PRIMARY KEY，唯一约束）+ `review_operation_files`（每文件 base/next/snapshot/状态） | 快照（写前内容）在落盘前先入账本；崩溃后凭账本 reconcile |
 | 进程内写互斥 | 服务实例内存 per-vault 异步互斥 | 只防同进程交错；跨 Host 串行靠账本转移 + 门面 CAS（§5e.6） |
+| `undoing` 跨 Host 撤销领用（2026-10-17 增量回写） | 同库 `review_operation_files.status=undoing`（durable 单赢家 claim：CAS 领用 + settle） | 同一 operation 的 undo 只有一个领用者；领用后崩溃由只读 reconcile 依盘面证据落定（绝不自动重放） |
+| vault 级并发写栅栏（2026-10-17 增量回写） | `reviewStore` 转移检查：同 vault 存在 applying/undoing 行时新的 apply/undo 被 `reconcile_required`/`operation_busy` 拒绝 | 防同 vault 双写交错；非参与写者（绕过账本的进程外写）不可见——文档如实记录的 limitation |
 | 审核视图选中态等 UI 局部状态 | 归后续 UI 工作单（W04「审核」视图当前只呈现真实状态） | UI 不缓存权威事实 |
 
 ### 5e.3 RPC 面（`IKnowledgeReviewService`）
 
 `createProposal / reviseProposal / getProposal / listProposals / approveProposal /
 rejectProposal / applyProposal / reconcileOperation / reconcileStuckOperations /
-undoOperation / getProposalChangeContent`。
+undoOperation / getProposalChangeContent / listRecentOperations`。
+
+（2026-10-17 增量回写：`listRecentOperations` 为本轮新增的只读操作历史 RPC（vault 作用域、
+至多 100 条），供审核视图 undo 目标与操作状态展示；配套的 Vault 写授权 RPC
+`setAgentWritesEnabled`（含 epoch 失效）在 `IObsidianVaultService` 面而非本面。）
 
 - `createProposal({ title, reason, evidence, changes })`：每条 change = `{ kind:
   "write"|"create"|"delete", relativePath, baseSha256?(write 必填/create 必为 null/
@@ -887,7 +900,9 @@ undoOperation / getProposalChangeContent`。
   旧 revision 的批准仍在账本但**只对旧 revision 有效**——apply 只认当前 revision 的批准
   （A32「Diff 改后旧 revision 无效」）。
 - `approveProposal({ proposalId, ttlMs? })`：记录 `(proposalId, revision, changesHash,
-  sourceEpoch, approvedAtMs, expiresAtMs)`（TTL 默认 10 分钟，钳位 [30s, 24h]）。
+  sourceEpoch, approvedAtMs, expiresAtMs)`（TTL 默认 10 分钟，钳位 [0, 24h]——显式 0/negative 为测试钩子（立即过期），生产 UI
+  不传；非法 TTL 在账本持久化前整批拒绝且不改动既有批准。2026-10-17 勘误：原
+  「[30s, 24h]」与实现不符，实现无 30s 下限）。
 - `applyProposal({ proposalId, operationId? })`：全量前置校验（§5e.5）通过才执行；
   operationId 是调用方幂等键——已存在则**原样返回账本记录，绝不二次执行**（A33）。
   **S03 总门（评审修复轮 1）**：`writePathEnabled` 缺省 false 时 apply/undo 直接返回
@@ -932,7 +947,8 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 
 - operationId 唯一约束（PRIMARY KEY）；状态机 `prepared → applying → applied /
   conflict / uncertain`；per-file 状态 `prepared / applying / applied / conflict /
-  not_landed / undo_applied / undo_conflict`。
+  not_landed / undoing / undo_applied / undo_conflict`（`undoing` 为 2026-10-17 增量
+  回写：跨 Host durable 单赢家撤销领用，领用后崩溃经只读 reconcile 落定）。
 - **先保护快照**：每个文件写前，把当前内容（≤2MB）+ sha256 写入
   `review_operation_files`（snapshot 列），再执行门面写入；快照落账本失败即中止该
   operation（无快照不写，Undo 无依据）。
@@ -1003,9 +1019,9 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 - 日志不写笔记全文、凭据、绝对路径；hook 静默路径不产生任何输出。
 - Jev 与一切外发默认关闭（ADR #5/#11）。
 
-## 5f. Evidence 生产者、审核消费与 L2 开关（W09，2026-10-11 落地）
+### 5e.10 Evidence 生产者与 Composer 可信接线（W09，2026-10-11 落地；整合至 PR #23，取代 W09 独立附件实现）
 
-### 5f.1 Composer 可信 Evidence 接线（整合至 PR #23，取代 W09 独立附件实现）
+（原独立 §5f「Evidence 生产者、审核消费与 L2 开关」整体并入 §5e 作 5e.10–5e.14，2026-10-17 消除与 §5f agent VaultSearch 的编号冲突；既有「§5f.1–§5f.5」引用一律按本节序号对应。）
 
 - **唯一状态所有者**：`packages/ui/src/lib/conversationSelectionReference.ts` 的会话／工作区作用域引用列表；不另建 `knowledgeEvidenceAttachment` scope 或平行的附件组件。
 - **原文与凭据**：`KnowledgeAskView → prepareEvidence → resolveCitation → knowledgeAgentHandoff` 逐来源验证；`MarkdownSelectionReference` 同时持有模型可见的 excerpt/path 和 renderer-only 的 opaque `evidenceReceiptId`。`evidenceSource` 记录已验证的 index/path/heading/lines，供发送前一致性校验，绝不序列化进 `userselect`。
@@ -1014,26 +1030,30 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 - **回跳**：已附加可信引用在 Composer 可请求核验后打开原文；事件只传 receiptId/session/workspace，VaultView 重新 `resolveCitation` 后校验路径与 quote。普通引用和模型生成的 `[1]` 文本不获得这一权限。
 - **迁移原则**：旧 PR #15 的 `knowledgeEvidenceAttachment.ts`、`useKnowledgeEvidenceAttachments.ts` 和 `KnowledgeEvidenceChip.tsx` 属于已被统一可信引用链路替代的历史实现，不要重新加入并行状态系统。W09 的 L2 审核功能和开关则保留并迁移至本 PR。对于任何没有服务端 Receipt 的材料，严格标示为普通引用。
   
-### 5f.2 审核视图消费 review 服务
+### 5e.11 审核视图消费 review 服务
 
 - `KnowledgeReviewView` 改为消费真实 `IKnowledgeReviewService`（accessor `knowledgeReviewService`，
   本地 ServiceCollection 与远端代理均已注册）：提案列表（按创建倒序）、逐提案
   revision/changesHash/文件清单与目标内容预览（`getProposalChangeContent`，delete 显示删除态）、
-  动作批准/拒绝（待审）、应用（已批准，`operationId=randomUUID` 幂等键）、undo（applied）、
-  reconcile（applying/uncertain）。全部动作的错误以服务端结构化拒绝码呈现，不本地伪造状态。
-- 空态：未配置 Vault → 引导；无提案 → 说明提案从何而来（当前无提案生产者入口，见 §5f.4
-  如实边界）；服务不可用 → 真实错误态。
+  动作批准/拒绝（待审）、应用（已批准，`operationId=randomUUID` 幂等键）、undo（applied，
+  以持久账本派生目标）、reconcile（applying/uncertain/undoing——2026-10-17 起审核视图
+  提供 reconcile 人工动作入口，S03 NO-GO 期间亦可用，它是卡点态在产品内的唯一解除
+  路径）。全部动作的错误以服务端结构化拒绝码呈现，不本地伪造状态；批准/重新批准前
+  必须逐文件成功预览当前 revision 的精确内容（未看全/预览读失败 fail-closed 禁用批准，
+  过期重批同样受此门约束），预览缓存按 (proposalId, revision, path) 作用域。
+- 空态：未配置 Vault → 引导；无提案 → 说明提案从何而来（人工作业提案创建入口已实现，见 §5e.14/G67；
+  早期「无提案生产者入口」表述已过时）；服务不可用 → 真实错误态。
 
-### 5f.3 L2 写路径开关（writePathEnabled）：S03 NO-GO 运行时硬门
+### 5e.12 L2 写路径开关（writePathEnabled）：S03 NO-GO 运行时硬门
 
-- **S03 门禁仍是 NO-GO**（参见 `docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`）；W09 审核 UI 与真实提案/账本可用，但在 S03 的三处写安全修复及 P0 门控完成前，生产 L2 写入 **必须保持关闭**。此处不等同于允许切换后直接写盘。
-- **两个相互独立的必要条件**：只有通过 **独立运行时 S03 安全批准**（`writeSafetyGatePassed === true`）且用户偏好启用（`reviewWritePathEnabled === true` 或经授权的显式测试参数），引擎的 `writePathEnabled` 才可能为 true。生产 `node.ts` 不传安全批准，默认 false；**仅在配置文件中手工写 true、重启桌面端、或点击审核页开关，均不能获得写权限**。
+- **S03 裁定**：历史 NO-GO 裁定见 `WRITE_SAFETY_NO_GO.md`；2026-10-17 起按维护者委托的收尾复评（`S03_CLOSEOUT_2026-10-17.md` 与 §5e「收尾复评增量」）对 `desktop-local` Host 定向放行装配门；remote/unspecified 仍拒绝。L1/L2 两个用户开关仍默认关闭，用户显式启用后才可执行已批准提案（双重条件不变）。
+- **两个相互独立的必要条件**：只有装配门（`writeSafetyGatePassed === true`；2026-10-17 起 `node.ts` 经 `isReleasedReviewWriteAuthority` 对 `desktop-local` 放行，其余 authority 仍 false）且用户偏好启用（`reviewWritePathEnabled === true` 或经授权的显式测试参数），引擎的 `writePathEnabled` 才可能为 true；**仅在配置文件中手工写 true、重启桌面端、或点击审核页开关，均不能单独获得写权限**。
 - **持久化**：`vault-config.json` 的 `reviewWritePathEnabled?: boolean` 仅记录用户偏好；`setVaultReviewWritePathEnabled` 是唯一写入口，读-改-原子写；重新配置 Vault 清除此字段。偏好并非安全门禁，配置读取出错时禁写。
 - **状态竞争**：初始化配置异步加载期间如发生用户切换，旧读取结果必须失效；并发开关写入串行且按调用顺序执行。关闭指令到达时运行时授权立即撤销（即使落盘未完成），失败不得重新开放。配置不存在时失败并保持禁写。
 - **UI**：审核页读取 `isWritePathActivationAllowed()`；门禁未满足时开关禁用并明确展示 S03 NO-GO 提示。提案浏览、批准/拒绝以及只读 reconcile 仍可用；apply/undo 均由服务端给出 `write_path_disabled` 结构化拒绝。
 - **解锁条件**：须由另一个经审计、通过自动化与桌面验收的 S03 工作单，在生产 host **显式**传入安全批准（不能从用户可编辑的 Vault 配置推导），届时再允许 L2 偏好产生写能力。仅测试夹具传 true 可用于验证后续写入状态机。
 
-### 5f.4 如实边界
+### 5e.13 如实边界
 
 - **人工作业提案创建入口已实现（G67）**：审核页支持 `create/write/delete` 三种 Markdown 变更；
   write/delete 经真实 Vault 门面读取当前 SHA，服务端 `createProposal` 再校验文件路径、版本与精确
@@ -1045,10 +1065,11 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
   §4 建议），本阶段以 citation 存在性窄化，不在 services 侧改契约（避免破坏 W03 已锁定的
   CLI 契约面）。
 
-### 5f.5 验收映射（整合基线）
+### 5e.14 验收映射（整合基线）
 
-以 `docs/vaultview/delivery/KNOWLEDGE_E2E_PHASE1_SMOKE.md` 的 G01–G30
-为最终 Electron 人工验收矩阵；`docs/vaultview/delivery/W09_DELIVERY.md` 仅保留旧 PR 的历史测试证据。
+以 `docs/vaultview/delivery/KNOWLEDGE_E2E_PHASE1_SMOKE.md` 的 G01–G55
+为最终 Electron 人工验收矩阵（G56–G66 为已自动化用例；2026-10-17 勘误：原 G01–G30 口径
+与全库门禁文档矛盾，少认 25 个人工用例）；`docs/vaultview/delivery/W09_DELIVERY.md` 仅保留旧 PR 的历史测试证据。
 自动化入口：`packages/ui/test/knowledgeAgentHandoff.test.ts`、
 `packages/ui/test/conversationKnowledgeSources.test.ts`、
 `packages/ui/test/knowledgeCitationNavigation.test.ts`、

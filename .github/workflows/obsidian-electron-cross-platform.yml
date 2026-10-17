@@ -14,6 +14,8 @@ on:
       - "packages/ui/src/components/ai-elements/message.tsx"
       - "packages/ui/src/v4/ConversationTurnGroup.tsx"
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/evidence-admission.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts"
       - "packages/services/src/obsidian-vault/**"
       - "packages/services/src/knowledge/review/**"
       - "packages/services/src/node.ts"
@@ -21,6 +23,10 @@ on:
       - "packages/services/src/obsidian-vault/**"
       - "apps/drora-cli/packages/core/src/permission/**"
       - "apps/drora-cli/packages/core/src/tool/executor/permission-*.ts"
+      - "packages/ui/src/v4/ConversationComposer.tsx"
+      - "packages/ui/src/lib/conversationSelectionReference.ts"
+      - "packages/ui/src/lib/conversationKnowledgeSources.ts"
+      - "packages/ui/src/v4/knowledgeTurnCitations.ts"
   workflow_dispatch:
 
 concurrency:

@@ -126,7 +126,10 @@ test("S03-P0-5：宿主验证能力组（OfficialCua）整工具规则豁免门�
   assert.equal(decision.ruleId, "rule.project.allow");
 });
 
-test("CLI allowedTools remains explicit operator authorization for P0 and built-in tools", () => {
+test("P0 全局 allowedTools 不得绕过 js 与普通 MCP 的逐次检查", () => {
+  // 恢复 e70019d1 断言方向：d70baea5 曾把本用例翻转为 allow 并删守卫，
+  // 增量评审 cli-p0-1/2 证实 allowedTools 来自五层合并配置（含项目级
+  // drora.json），不能视作操作员会话级授权，P0 必须落回模式检查。
   const service = new PermissionService({
     ...defaultPermissionConfig,
     allowedTools: new Set(["js", "mcp__srv__search", "Read"]),
@@ -135,15 +138,15 @@ test("CLI allowedTools remains explicit operator authorization for P0 and built-
     { toolName: "js", input: { code: "process.stdout.write('x')" }, riskLevel: "high", mode: "build" },
     JS_CAPABILITY,
   );
-  assert.equal(jsDecision.decision, "allow");
-  assert.equal(jsDecision.ruleId, "rule.allowedTools");
+  assert.equal(jsDecision.decision, "ask");
+  assert.equal(jsDecision.ruleId, "mode.build.highRisk");
 
   const mcpDecision = service.checkPermission(
     { toolName: "mcp__srv__search", input: { query: "x" }, riskLevel: "medium", mode: "build" },
     mcpCapability({ readOnly: true }),
   );
-  assert.equal(mcpDecision.decision, "allow");
-  assert.equal(mcpDecision.ruleId, "rule.allowedTools");
+  assert.equal(mcpDecision.decision, "ask");
+  assert.equal(mcpDecision.ruleId, "mode.build.sideEffect");
 
   const readDecision = service.checkPermission(
     { toolName: "Read", input: { file_path: "/tmp/ws/a.md" }, riskLevel: "low", mode: "build" },

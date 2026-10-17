@@ -1,9 +1,9 @@
-/* eslint-disable max-lines -- 写授权状态卡、L2 开关与提案列表/动作是同一审核视图面（服务编排共享 state 与 runAction），拆文件会割裂状态所有权（与 reviewEngine.ts / host registry 同先例）。 *//**
- * 审核视图（W04 状态卡 + W09 真实 review 服务消费，specs/obsidian-knowledge.md §5f.2/§5f.3）。
+/* eslint-disable max-lines -- 写授权状态卡、L2 开关与提案列表/动作是同一审核视图面（服务编排共享 state 与 runAction），拆文件会割裂状态所有权（与 reviewEngine.ts / host registry 同先例）。 */ /**
+ * 审核视图（W04 状态卡 + W09 真实 review 服务消费，specs/obsidian-knowledge.md §5e.11/§5e.12）。
  *
  * 消费真实 IKnowledgeReviewService：提案列表、目标内容预览（getProposalChangeContent）、
  * 批准/拒绝/应用/undo/reconcile 全链人工动作。全部错误以服务端结构化结果呈现，UI 不做
- * 二次推断、不伪造提案；当前人工提案入口见 §5f.4。
+ * 二次推断、不伪造提案；当前人工提案入口见 §5e.14。
  * L2 写路径开关（writePathEnabled）缺省关闭；开启经服务端 setWritePathEnabled 持久化到
  * vault-config.json（唯一写入入口），进程内立即生效。
  */
@@ -13,6 +13,8 @@ import type {
   IKnowledgeReviewService,
   IObsidianVaultService,
   KnowledgeReviewApplyResult,
+  KnowledgeReviewFileStatus,
+  KnowledgeReviewOperationStatus,
   KnowledgeReviewOperationView,
   KnowledgeReviewProposalView,
   KnowledgeReviewUndoResult,
@@ -26,7 +28,10 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 
 /** 服务端结构化拒绝 → 用户可读文案；未知码原样透出（不本地伪造语义）。 */
-function reviewActionErrorMessage(error: unknown, intl: ReturnType<typeof useDroraIntl>["intl"]): string {
+function reviewActionErrorMessage(
+  error: unknown,
+  intl: ReturnType<typeof useDroraIntl>["intl"],
+): string {
   const raw = error instanceof Error ? error.message : String(error);
   if (raw.includes("write_path_disabled")) {
     return intl.formatMessage({ id: "vault.review.error.writePathDisabled" });
@@ -61,6 +66,39 @@ function proposalPhaseKey(
   return "pending";
 }
 
+/**
+ * 账本状态枚举 → i18n 键的静态映射（增量评审 ui-review-6：操作状态行不得把
+ * applied/applying/undoing 等英文枚举原样插进中文界面）。键集合双语对齐，
+ * 由 knowledgeUiDiscipline 测试兜底。
+ */
+const OPERATION_STATUS_KEYS: Record<KnowledgeReviewOperationStatus, string> = {
+  prepared: "vault.review.operationStatus.prepared",
+  applying: "vault.review.operationStatus.applying",
+  applied: "vault.review.operationStatus.applied",
+  conflict: "vault.review.operationStatus.conflict",
+  uncertain: "vault.review.operationStatus.uncertain",
+};
+const FILE_STATUS_KEYS: Record<KnowledgeReviewFileStatus, string> = {
+  prepared: "vault.review.fileStatus.prepared",
+  applying: "vault.review.fileStatus.applying",
+  applied: "vault.review.fileStatus.applied",
+  conflict: "vault.review.fileStatus.conflict",
+  not_landed: "vault.review.fileStatus.notLanded",
+  undoing: "vault.review.fileStatus.undoing",
+  undo_applied: "vault.review.fileStatus.undoApplied",
+  undo_conflict: "vault.review.fileStatus.undoConflict",
+};
+
+/** 操作是否处于需要人工 reconcile 落定的卡点态（applying/uncertain/undoing）。 */
+function isOperationStuck(operation: KnowledgeReviewOperationView): boolean {
+  return (
+    operation.status === "applying" ||
+    operation.status === "uncertain" ||
+    // file 状态联合无 uncertain（不确定态只落在 operation 级）；undoing 为跨 Host 撤销领用。
+    operation.files.some((file) => file.status === "applying" || file.status === "undoing")
+  );
+}
+
 export function KnowledgeReviewView({
   vaultService,
   reviewService,
@@ -71,7 +109,9 @@ export function KnowledgeReviewView({
   const { intl } = useDroraIntl();
   const [summary, setSummary] = React.useState<ObsidianVaultSummary | null>(null);
   const [loadFailed, setLoadFailed] = React.useState(false);
-  const [proposals, setProposals] = React.useState<readonly KnowledgeReviewProposalView[] | null>(null);
+  const [proposals, setProposals] = React.useState<readonly KnowledgeReviewProposalView[] | null>(
+    null,
+  );
   const [listFailed, setListFailed] = React.useState(false);
   const [writePathEnabled, setWritePathEnabled] = React.useState<boolean | null>(null);
   const [writeSafetyGatePassed, setWriteSafetyGatePassed] = React.useState(false);
@@ -85,6 +125,10 @@ export function KnowledgeReviewView({
   >(() => new Map());
   /** Operation ledger is durable; do not keep undo targets only in renderer memory. */
   const [operations, setOperations] = React.useState<readonly KnowledgeReviewOperationView[]>([]);
+  // 预览取数的代际令牌：refresh 重置预览状态时递增，迟到的在途响应按代际丢弃，
+  // 防止「refresh 强制收起面板 → 旧响应写回空缓存 → previewsReviewed 误真」的
+  // fail-open 竞态（增量评审 ui-review-1：批准门禁可能对从未渲染的内容放行）。
+  const previewGenerationRef = React.useRef(0);
   const appliedOperations = React.useMemo(() => {
     const targets = new Map<string, string>();
     for (const operation of operations) {
@@ -123,6 +167,7 @@ export function KnowledgeReviewView({
       // Reset both halves of the preview state. A failed/stale result must be
       // refetchable via Refresh; keeping a panel open with an empty cache would
       // otherwise leave it stuck on "loading" indefinitely.
+      previewGenerationRef.current += 1;
       setExpanded(new Set());
       setChangeContents(new Map());
       setWritePathEnabled(writePath);
@@ -210,7 +255,10 @@ export function KnowledgeReviewView({
           result.reason === "write_path_disabled"
             ? intl.formatMessage({ id: "vault.review.error.writePathDisabled" })
             : (result.message ??
-              intl.formatMessage({ id: "vault.review.error.generic" }, { detail: result.reason ?? "" })),
+                intl.formatMessage(
+                  { id: "vault.review.error.generic" },
+                  { detail: result.reason ?? "" },
+                )),
         );
         return null;
       });
@@ -234,12 +282,40 @@ export function KnowledgeReviewView({
           return intl.formatMessage({ id: "vault.review.undone" });
         }
         setActionMessage(
-          result.message ?? intl.formatMessage({ id: "vault.review.error.generic" }, { detail: result.outcome }),
+          result.message ??
+            intl.formatMessage({ id: "vault.review.error.generic" }, { detail: result.outcome }),
         );
         return null;
       });
     },
     [appliedOperations, intl, reviewService, runAction],
+  );
+
+  const reconcileStuck = React.useCallback(
+    (operationId: string) => {
+      void runAction(`reconcile:${operationId}`, async () => {
+        if (!reviewService) return null;
+        // reconcile 是只读盘面核验 + 账本落定（A33：绝不写盘、绝不自动重放），
+        // 是 applying/uncertain/undoing 卡点在产品内的唯一解除路径，S03 NO-GO
+        // 期间也必须可用（增量评审 D-1/l2-engine-4：此前接口存在但 UI 零接线，
+        // apply 返回 reconcile_required 后用户无路可走）。
+        const result = await reviewService.reconcileOperation({ operationId });
+        if (result.outcome === "reconciled") {
+          return intl.formatMessage({ id: "vault.review.reconciled" });
+        }
+        if (result.outcome === "not_applicable") {
+          return intl.formatMessage({ id: "vault.review.reconcileNotApplicable" });
+        }
+        setActionMessage(
+          intl.formatMessage(
+            { id: "vault.review.error.generic" },
+            { detail: result.reason ?? result.outcome },
+          ),
+        );
+        return null;
+      });
+    },
+    [intl, reviewService, runAction],
   );
 
   const toggleExpanded = React.useCallback(
@@ -257,14 +333,22 @@ export function KnowledgeReviewView({
         return next;
       });
       if (!changeContents.has(key)) {
+        // 代际守卫：取数发出后若发生过 refresh（重置预览缓存），迟到的响应
+        // 直接丢弃，避免把用户从未看到的内容写回缓存而误开批准门。
+        const generation = previewGenerationRef.current;
         void reviewService
           ?.getProposalChangeContent({ proposalId, relativePath })
           .then((content) => {
-            setChangeContents((current) => new Map(current).set(
-              key, content && content.revision === revision ? content.content : false,
-            ));
+            if (previewGenerationRef.current !== generation) return;
+            setChangeContents((current) =>
+              new Map(current).set(
+                key,
+                content && content.revision === revision ? content.content : false,
+              ),
+            );
           })
           .catch(() => {
+            if (previewGenerationRef.current !== generation) return;
             setChangeContents((current) => new Map(current).set(key, false));
           });
       }
@@ -285,7 +369,10 @@ export function KnowledgeReviewView({
   }
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-review-view">
+    <section
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-testid="knowledge-review-view"
+    >
       <div className="mx-auto flex h-full w-full max-w-4xl min-h-0 flex-col gap-3 overflow-y-auto px-4 py-4 scrollbar-thin">
         <header className="flex items-start justify-between gap-3">
           <div>
@@ -312,7 +399,10 @@ export function KnowledgeReviewView({
         </header>
 
         {actionMessage && (
-          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-ui-sm text-foreground" data-testid="review-action-message">
+          <p
+            className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-ui-sm text-foreground"
+            data-testid="review-action-message"
+          >
             {actionMessage}
           </p>
         )}
@@ -335,10 +425,17 @@ export function KnowledgeReviewView({
           {summary && (
             <>
               <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-ui-sm">
-                <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.vault" })}</dt>
+                <dt className="text-foreground-subtle">
+                  {intl.formatMessage({ id: "vault.review.vault" })}
+                </dt>
                 <dd className="min-w-0 truncate text-foreground">{summary.displayName}</dd>
-                <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.agentWrites" })}</dt>
-                <dd className="flex items-center gap-2 text-foreground" data-testid="review-agent-writes-toggle">
+                <dt className="text-foreground-subtle">
+                  {intl.formatMessage({ id: "vault.review.agentWrites" })}
+                </dt>
+                <dd
+                  className="flex items-center gap-2 text-foreground"
+                  data-testid="review-agent-writes-toggle"
+                >
                   <span className="text-ui-sm">
                     {summary.allowAgentWrites
                       ? intl.formatMessage({ id: "vault.review.agentWritesOn" })
@@ -351,13 +448,20 @@ export function KnowledgeReviewView({
                     aria-label={intl.formatMessage({ id: "vault.review.agentWrites" })}
                   />
                 </dd>
-                <dt className="text-foreground-subtle">{intl.formatMessage({ id: "vault.review.hookScope" })}</dt>
-                <dd className="text-foreground">{intl.formatMessage({ id: "vault.review.hookScopeValue" })}</dd>
+                <dt className="text-foreground-subtle">
+                  {intl.formatMessage({ id: "vault.review.hookScope" })}
+                </dt>
+                <dd className="text-foreground">
+                  {intl.formatMessage({ id: "vault.review.hookScopeValue" })}
+                </dd>
               </dl>
             </>
           )}
           {reviewService && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-card-border px-3 py-2.5" data-testid="review-write-path-toggle">
+            <div
+              className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-card-border px-3 py-2.5"
+              data-testid="review-write-path-toggle"
+            >
               <div className="min-w-0">
                 <p className="text-ui-sm font-medium text-foreground">
                   {intl.formatMessage({ id: "vault.review.writePathToggle" })}
@@ -366,7 +470,10 @@ export function KnowledgeReviewView({
                   {intl.formatMessage({ id: "vault.review.writePathToggleHint" })}
                 </p>
                 {!writeSafetyGatePassed && (
-                  <p className="mt-1 text-ui-sm text-warning" data-testid="review-write-safety-gate-blocked">
+                  <p
+                    className="mt-1 text-ui-sm text-warning"
+                    data-testid="review-write-safety-gate-blocked"
+                  >
                     {intl.formatMessage({ id: "vault.review.s03GateBlocked" })}
                   </p>
                 )}
@@ -385,11 +492,17 @@ export function KnowledgeReviewView({
           )}
         </div>
 
-        <KnowledgeReviewProposalComposer vaultService={vaultService} reviewService={reviewService}
-          onCreated={refresh} disabled={busy !== null || !summary} />
+        <KnowledgeReviewProposalComposer
+          vaultService={vaultService}
+          reviewService={reviewService}
+          onCreated={refresh}
+          disabled={busy !== null || !summary}
+        />
 
         {listFailed && (
-          <p className="text-ui-sm text-destructive">{intl.formatMessage({ id: "vault.review.listFailed" })}</p>
+          <p className="text-ui-sm text-destructive">
+            {intl.formatMessage({ id: "vault.review.listFailed" })}
+          </p>
         )}
         {!listFailed && proposals === null && reviewService && (
           <p className="flex items-center gap-1.5 text-ui-sm text-foreground-subtle">
@@ -403,21 +516,28 @@ export function KnowledgeReviewView({
             <p className="text-ui-base font-medium text-foreground">
               {intl.formatMessage({ id: "vault.review.emptyTitle" })}
             </p>
-            <p className="text-ui-sm text-foreground-subtle">{intl.formatMessage({ id: "vault.review.emptyHint" })}</p>
+            <p className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "vault.review.emptyHint" })}
+            </p>
           </div>
         )}
         {proposals?.map((proposal) => {
           const phase = proposalPhaseKey(proposal, nowMs);
-          const latestOperation = operations.find((operation) => operation.proposalId === proposal.proposalId);
+          const latestOperation = operations.find(
+            (operation) => operation.proposalId === proposal.proposalId,
+          );
+          const operationStuck = latestOperation ? isOperationStuck(latestOperation) : false;
           // Every path of THIS revision must have had its exact content
           // retrieved successfully before the human can grant approval.
           // A stale/failed RPC or unviewed path fails closed.
-          const previewsReviewed = proposal.changes.length > 0 && proposal.changes.every((change) => {
-            const key = `${proposal.proposalId}\0${proposal.revision}\0${change.relativePath}`;
-            // An already fetched preview remains reviewed when the row is
-            // collapsed; require exact current-revision content, not open UI.
-            return changeContents.has(key) && changeContents.get(key) !== false;
-          });
+          const previewsReviewed =
+            proposal.changes.length > 0 &&
+            proposal.changes.every((change) => {
+              const key = `${proposal.proposalId}\0${proposal.revision}\0${change.relativePath}`;
+              // An already fetched preview remains reviewed when the row is
+              // collapsed; require exact current-revision content, not open UI.
+              return changeContents.has(key) && changeContents.get(key) !== false;
+            });
           return (
             <article
               key={proposal.proposalId}
@@ -427,10 +547,15 @@ export function KnowledgeReviewView({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-ui-base font-medium text-foreground">{proposal.title}</p>
+                  <p className="truncate text-ui-base font-medium text-foreground">
+                    {proposal.title}
+                  </p>
                   <p className="mt-0.5 text-ui-sm text-foreground-subtle">
-                    {intl.formatMessage({ id: "vault.review.revisionLabel" }, { revision: String(proposal.revision) })} ·{" "}
-                    {proposal.changesHash.slice(0, 12)} ·{" "}
+                    {intl.formatMessage(
+                      { id: "vault.review.revisionLabel" },
+                      { revision: String(proposal.revision) },
+                    )}{" "}
+                    · {proposal.changesHash.slice(0, 12)} ·{" "}
                     {intl.formatMessage({ id: `vault.review.phase.${phase}` })}
                   </p>
                 </div>
@@ -444,12 +569,16 @@ export function KnowledgeReviewView({
                         disabled={busy !== null || !previewsReviewed}
                         onClick={() => {
                           void runAction(`approve:${proposal.proposalId}`, async () => {
-                            await reviewService?.approveProposal({ proposalId: proposal.proposalId });
+                            await reviewService?.approveProposal({
+                              proposalId: proposal.proposalId,
+                            });
                             return intl.formatMessage({ id: "vault.review.approved" });
                           });
                         }}
                       >
-                        {busy === `approve:${proposal.proposalId}` && <Loader2 className="size-3.5 animate-spin" />}
+                        {busy === `approve:${proposal.proposalId}` && (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        )}
                         {intl.formatMessage({ id: "vault.review.approve" })}
                       </Button>
                       <Button
@@ -459,7 +588,9 @@ export function KnowledgeReviewView({
                         disabled={busy !== null}
                         onClick={() => {
                           void runAction(`reject:${proposal.proposalId}`, async () => {
-                            await reviewService?.rejectProposal({ proposalId: proposal.proposalId });
+                            await reviewService?.rejectProposal({
+                              proposalId: proposal.proposalId,
+                            });
                             return intl.formatMessage({ id: "vault.review.rejected" });
                           });
                         }}
@@ -476,7 +607,9 @@ export function KnowledgeReviewView({
                       data-testid="review-proposal-apply"
                       onClick={() => applyProposal(proposal)}
                     >
-                      {busy === `apply:${proposal.proposalId}` && <Loader2 className="size-3.5 animate-spin" />}
+                      {busy === `apply:${proposal.proposalId}` && (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      )}
                       {intl.formatMessage({ id: "vault.review.apply" })}
                     </Button>
                   )}
@@ -496,32 +629,65 @@ export function KnowledgeReviewView({
                       {intl.formatMessage({ id: "vault.review.reapprove" })}
                     </Button>
                   )}
+                  {operationStuck && latestOperation && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={busy !== null}
+                      data-testid="review-proposal-reconcile"
+                      onClick={() => reconcileStuck(latestOperation.operationId)}
+                    >
+                      {busy === `reconcile:${latestOperation.operationId}` && (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      )}
+                      {intl.formatMessage({ id: "vault.review.reconcile" })}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
-                    disabled={busy !== null || !writeSafetyGatePassed || !writePathEnabled}
+                    disabled={
+                      busy !== null ||
+                      !writeSafetyGatePassed ||
+                      !writePathEnabled ||
+                      !appliedOperations.has(proposal.proposalId)
+                    }
                     data-testid="review-proposal-undo"
                     onClick={() => undoOperation(proposal)}
                   >
-                    {busy === `undo:${proposal.proposalId}` && <Loader2 className="size-3.5 animate-spin" />}
+                    {busy === `undo:${proposal.proposalId}` && (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    )}
                     {intl.formatMessage({ id: "vault.review.undo" })}
                   </Button>
                 </div>
               </div>
-              {!previewsReviewed && phase === "pending" && (
-                <p className="mt-2 text-ui-sm text-foreground-subtle" data-testid="review-approval-preview-required">
+              {!previewsReviewed && (phase === "pending" || phase === "approvalExpired") && (
+                <p
+                  className="mt-2 text-ui-sm text-foreground-subtle"
+                  data-testid="review-approval-preview-required"
+                >
                   {intl.formatMessage({ id: "vault.review.previewRequired" })}
                 </p>
               )}
               {latestOperation && (
-                <p className="mt-2 text-ui-sm text-foreground-subtle" data-testid="review-operation-state">
-                  {latestOperation.operationId.slice(0, 16)} · {latestOperation.status} ·{" "}
-                  {latestOperation.files.map((file) => file.status).join(", ")}
+                <p
+                  className="mt-2 text-ui-sm text-foreground-subtle"
+                  data-testid="review-operation-state"
+                >
+                  {latestOperation.operationId.slice(0, 16)} ·{" "}
+                  {intl.formatMessage({ id: OPERATION_STATUS_KEYS[latestOperation.status] })} ·{" "}
+                  {latestOperation.files
+                    .map((file) => intl.formatMessage({ id: FILE_STATUS_KEYS[file.status] }))
+                    .join(", ")}
                 </p>
               )}
               {proposal.reason && (
-                <p className="mt-2 whitespace-pre-wrap text-ui-sm text-foreground-subtle">{proposal.reason}</p>
+                <p className="mt-2 whitespace-pre-wrap text-ui-sm text-foreground-subtle">
+                  {proposal.reason}
+                </p>
               )}
               <ul className="mt-3 flex flex-col gap-1">
                 {proposal.changes.map((change) => {
@@ -533,7 +699,13 @@ export function KnowledgeReviewView({
                         type="button"
                         className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-ui-sm text-foreground hover:bg-menu-hover"
                         data-testid="review-change-toggle"
-                        onClick={() => toggleExpanded(proposal.proposalId, proposal.revision, change.relativePath)}
+                        onClick={() =>
+                          toggleExpanded(
+                            proposal.proposalId,
+                            proposal.revision,
+                            change.relativePath,
+                          )
+                        }
                       >
                         {isOpen ? (
                           <ChevronDown className="size-3.5 shrink-0 text-foreground-subtle" />
@@ -546,7 +718,10 @@ export function KnowledgeReviewView({
                         </span>
                       </button>
                       {isOpen && (
-                        <pre className="mt-1 max-h-72 overflow-auto rounded-lg border border-card-border bg-background p-2 text-ui-sm scrollbar-thin" data-testid="review-change-content">
+                        <pre
+                          className="mt-1 max-h-72 overflow-auto rounded-lg border border-card-border bg-background p-2 text-ui-sm scrollbar-thin"
+                          data-testid="review-change-content"
+                        >
                           {!changeContents.has(key)
                             ? intl.formatMessage({ id: "vault.review.previewLoading" })
                             : changeContents.get(key) === false

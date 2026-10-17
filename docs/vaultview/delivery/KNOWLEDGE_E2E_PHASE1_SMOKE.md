@@ -31,14 +31,14 @@
 | G02 | 在 VaultView 智能问库里用中文检索唯一标题/句子 | 匹配对应真实文章；候选路径、引用片段和位置准确 | 未执行 |
 | G03 | 在**已存在 Agent 会话**下点击「加入 Agent（可信证据）」 | 当前文件重新核验；Composer 出现引用；不会把 Receipt ID 拼入模型 prompt | 未执行 |
 | G04 | 点击 Composer 发送，对真实 CLI admission 打日志/断点 | `sendText.payload.evidenceRefs=[{receiptId:'evr_…'}]`；CLI gate 接受当前证据；Agent 收到原文片段 | 未执行 |
-| G05 | 先添加证据，**修改**原文，再发送 | CLI 返回 `guard.evidenceStale`，拒绝执行，Composer 保留待改输入 | 未执行 |
-| G06 | 先添加证据，**删除**原文，再发送 | CLI 返回 `guard.evidenceMissing`；没有使用旧引用生成回答 | 未执行 |
-| G07 | 先添加证据，断开 Vault / 撤销授权，再发送 | CLI 返回 `guard.evidenceForbidden`；原文不泄漏 | 未执行 |
+| G05 | 先添加证据，**修改**原文，再发送 | CLI 返回 `guard.evidenceStale`，拒绝执行，Composer 保留待改输入 | 已自动化（单测 evidence 复验族；PR #23 评论 6209475838 的 8 passing 含本场景；**人工 GUI 回执仍缺**） |
+| G06 | 先添加证据，**删除**原文，再发送 | CLI 返回 `guard.evidenceMissing`；没有使用旧引用生成回答 | 已自动化（同上；**人工 GUI 回执仍缺**） |
+| G07 | 先添加证据，断开 Vault / 撤销授权，再发送 | CLI 返回 `guard.evidenceForbidden`；原文不泄漏 | 已自动化（同上；**人工 GUI 回执仍缺**） |
 | G08 | Busy Session 下加入队列，在队列提升前修改原文 | `sendQueuedNow` 再次验证并拒绝过期证据；不能静默降级 | 未执行 |
 | G09 | 同一节选两次「加入 Agent」，第二次拿到新 Receipt | Composer 只保留一项；发送的是第二次签发的 ID | 未执行 |
 | G10 | 查询 RPC/Host 断开后重试相同检索 | 复用原 clientRequestId，不产生重复 Run | 未执行 |
 | G11 | 证据核验未完成时提交新的检索 | 旧结果不能污染新 Run，也不能被加入 Composer | 未执行 |
-| G12 | 保存证据后重启 Electron，再打开源文件和已有会话 | 未出现旧 Receipt 被误判为 current；真实会话仍可正常发送 | 未执行 |
+| G12 | 保存证据后重启 Electron，再打开源文件和已有会话 | 未出现旧 Receipt 被误判为 current；真实会话仍可正常发送 | 已自动化（真进程重启用例 obsidian-authenticated-restart；**Windows/macOS 人工回执仍缺**） |
 | G13 | ANSWER 模式选择两篇真实笔记后准备 Agent 问题并发送 | 两篇来源均被单独签发和复验；Agent 输入仅包含通过验证的两篇原文；回答能区分不同来源 | 未执行 |
 | G14 | ANSWER / COMPARE 尝试选第六篇、取消一篇后重选 | 第六篇不能添加；取消后可以换选，COMPARE 最少两篇才能交接 | 未执行 |
 | G15 | 正在搜索时点击取消，并让原搜索 RPC 延迟返回；再创建新搜索 | UI 不持续显示“检索中”；已取消请求和晚到结果不能覆盖新查询 | 未执行 |

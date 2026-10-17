@@ -45,6 +45,12 @@
 
 ## 5. 可验证演示路径
 
+> **失效提示（2026-10-17 增量评审 A-8）：** 本节第 2/3 条演示路径基于已废弃的旧
+> 「证据附件 chip」UI 与生产不可达的 L2 开启态，仅供历史参考。现行演示入口：
+> 可信引用经知识面板「加入 Agent（可信证据）」→ Composer Markdown 引用（无独立
+> chip）；L2 apply/undo 在 S03 NO-GO 撤销前生产禁用（spec §5e.12），仅账本级
+> 提案/审批可演示。第 1 条的 knowledgeEvidenceAttachment 测试已随旧实现移除。
+
 1. `pnpm --filter @drora/core typecheck && node --import tsx --test packages/ui/test/knowledgeEvidenceAttachment.test.ts packages/services/test/knowledgeReviewWritePath.test.ts`（开关持久化 + 附件区契约）
 2. GUI：问库 → 核验候选 → 「作为证据附给 Agent」→ 会话 composer 出现证据 chip → 发送 → CLI admission 复验（可拔掉笔记文件再发送观察 stale 拒绝）
 3. GUI：审核 tab → L2 开关（缺省关）→ 关闭态 apply 报 `write_path_disabled` → 开启后已批准提案可应用/撤销（需先有提案：现由测试造）

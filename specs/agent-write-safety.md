@@ -2,7 +2,9 @@
 
 ## 2026-10-17 收尾复评契约（优先于历史实现说明）
 
-- 普通 MCP/js 的任意 `path`/`command` 字段不能代表完整副作用；无专属 Host 规则评估器时，项目和会话的全部 allow 规则（包括带内容规则）均不能免除逐次确认，建议侧不生成持久授权，持久化侧丢弃这些 allow。deny/ask、Host 验证的 OfficialCua、操作员启动 allowedTools 和显式 YOLO 保留既有语义。
+- 普通 MCP/js 的任意 `path`/`command` 字段不能代表完整副作用；无专属 Host 规则评估器时，项目和会话的全部 allow 规则（包括带内容规则）均不能免除逐次确认，建议侧不生成持久授权，持久化侧丢弃这些 allow。deny/ask、Host 验证的 OfficialCua 和显式 YOLO 保留既有语义。allowedTools 例外已收窄（2026-10-17 增量评审 cli-p0-1/2 修正）：`allowedTools` 实为五层合并配置（含项目层
+drora.json，无信任门），不能整体视作操作员启动授权——命中 P0 写向量时不豁免逐次确认
+（非 P0 工具照旧放行），详见 §1 末注与 `permission-service-write-tier.test.ts` 用例。
 - build/edit 的低风险快速路径也不得授权 P0 MCP/js，即使能力数据声称 `readOnly=true`、`needsApproval=false`、`sideEffectScope=none`。
 - P0 ask 使用现有 `approvalMode=user-once` 通道，PreToolUse/PermissionRequest Hook 不得替代用户确认；应答不能持久化项目或会话规则。此约束复用已有 Guarded 单次审批生命周期，不新增审批状态所有者。
 - 本轮由维护者要求助手自行 review，取消额外人工走查依赖；审查结果须以新回归和真实三平台 Electron 为依据，不能把旧绿色结果当作本轮结果。
@@ -44,8 +46,17 @@
 2. 宿主自动写盘（安装器/更新器等）不经模型工具面；
 3. yolo 模式直通——保留，需显式 receipt（既有行为，不在本 spec 收口范围）。
 
-另：CLI 启动参数 `allowedTools` 是操作员显式授权（会话级启动配置），视同 yolo 级操作员
-决定，本门控不拦截，在此记录。
+另（2026-10-17 修订，增量评审 cli-p0-1/2）：`allowedTools` **不豁免 P0 门控**。此前
+「CLI 启动参数=操作员会话级授权、视同 yolo、不拦截」的定性不成立——`allowedTools` 实际
+来自五层合并配置（System<User<Project<Env<Cli，`create-app.ts` 装配），项目级
+`drora.json`/`.drora/config.json` 可携带 `permission.allowedTools` 且无信任门（对照：同层
+hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，不受信仓库提交一个配置
+文件即可为 Bash/js/任意 `mcp__*` 建立持久整工具放行——恰是不变量 2 明令禁止、且项目
+*规则*路径已在洞 2 封死的通道。因此：`allowedTools` 命中 P0 写向量时不放行，落回既有
+逐次/模式检查（见 `permission/service.ts` 守卫与 `permission-service-write-tier.test.ts`
+「P0 全局 allowedTools 不得绕过」用例）；非 P0 工具的 `allowedTools` 放行不变。残留
+跟进项：项目层 `permission.*` 是否应比照 hooks 加 pending-trust 信任门（非本门控前提，
+单列跟进）。
 
 ## 2. 三洞修复（逐洞：缺陷 → 修法 → 证据）
 

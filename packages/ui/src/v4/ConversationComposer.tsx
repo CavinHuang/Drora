@@ -838,20 +838,22 @@ function ConversationComposerImpl({
     clearReferences: clearConversationSelectionReferences,
   } = useConversationSelectionReferences({ sessionId, workspaceKey });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
-  const openKnowledgeCitation = useCallback(async (receiptId: string): Promise<void> => {
-    if (!sessionId) return;
-    const result = await requestKnowledgeCitationOpen({
-      targetSessionId: sessionId,
-      workspaceKey,
-      receiptId,
-    });
-    if (!result.ok) {
-      droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
-        variant: "warning",
+  const openKnowledgeCitation = useCallback(
+    async (receiptId: string): Promise<void> => {
+      if (!sessionId) return;
+      const result = await requestKnowledgeCitationOpen({
+        targetSessionId: sessionId,
+        workspaceKey,
+        receiptId,
       });
-    }
-  }, [intl, sessionId, workspaceKey]);
-
+      if (!result.ok) {
+        droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${result.reason}` }), {
+          variant: "warning",
+        });
+      }
+    },
+    [intl, sessionId, workspaceKey],
+  );
 
   // ── 草稿 per-session 持久化（切会话/刷新不丢；mention pill 经 editorStateJson 保真）──
   const draftScopeRef = useRef(draftScopeId);
@@ -1173,17 +1175,29 @@ function ConversationComposerImpl({
         detail.result ||
         detail.targetSessionId !== sessionId ||
         detail.workspaceKey !== workspaceKey
-      ) return;
+      )
+        return;
       const inputApi = inputApiRef.current;
-      if (!inputApi || !detail.prompt.trim() || detail.references.length === 0 ||
-          detail.references.some((ref) => ref.contentType !== "markdown" || !ref.evidenceReceiptId)) {
+      if (
+        !inputApi ||
+        !detail.prompt.trim() ||
+        detail.references.length === 0 ||
+        detail.references.some((ref) => ref.contentType !== "markdown" || !ref.evidenceReceiptId)
+      ) {
         detail.result = { ok: false, reason: "unavailable" };
         return;
       }
-      if (textRef.current.trim() || inputApi.getMarkdown().trim() ||
-          hasAttachments || hasCodeCommentContexts || hasWebElementContexts ||
-          hasPptxElementReferences || hasPluginUiContexts || pendingShareContext ||
-          getConversationSelectionReferenceScope(sessionId, workspaceKey).length > 0) {
+      if (
+        textRef.current.trim() ||
+        inputApi.getMarkdown().trim() ||
+        hasAttachments ||
+        hasCodeCommentContexts ||
+        hasWebElementContexts ||
+        hasPptxElementReferences ||
+        hasPluginUiContexts ||
+        pendingShareContext ||
+        getConversationSelectionReferenceScope(sessionId, workspaceKey).length > 0
+      ) {
         detail.result = { ok: false, reason: "draft-not-empty" };
         return;
       }
@@ -1208,8 +1222,23 @@ function ConversationComposerImpl({
       }
     };
     window.addEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
-    return () => window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
-  }, [disabled, hasAttachments, hasCodeCommentContexts, hasWebElementContexts, hasPptxElementReferences, hasPluginUiContexts, listenAddToChatEvents, pendingShareContext, requestComposerFocus, scheduleDraftPersist, sessionId, updateText, workspaceKey]);
+    return () =>
+      window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
+  }, [
+    disabled,
+    hasAttachments,
+    hasCodeCommentContexts,
+    hasWebElementContexts,
+    hasPptxElementReferences,
+    hasPluginUiContexts,
+    listenAddToChatEvents,
+    pendingShareContext,
+    requestComposerFocus,
+    scheduleDraftPersist,
+    sessionId,
+    updateText,
+    workspaceKey,
+  ]);
 
   // 新建任务（含已在草稿态重复 Cmd/Ctrl+N，scope 未变）：startDraft 递增 nonce 即重新聚焦。
   const lastFocusVersionRef = useRef(draftFocusVersion);
@@ -1522,13 +1551,17 @@ function ConversationComposerImpl({
           ...(currentConversationSelections.length
             ? {
                 conversationQuotes: currentConversationSelections.map(
-                  ({ text, path, senderName, senderId, messageId, sentAt }) => ({
+                  ({ text, path, senderName, senderId, messageId, sentAt, evidenceReceiptId }) => ({
                     text,
                     path,
                     senderName,
                     senderId,
                     messageId,
                     sentAt,
+                    // 可信 Markdown 引用携带收据绑定（D-2）：完成态读取端据此把可信
+                    // 引用与普通选区分开，混合输入不再整组丢引用。收据只进结构化
+                    // quote 元数据，不进模型可见提示词。
+                    evidenceReceiptId,
                   }),
                 ),
               }
@@ -2504,7 +2537,13 @@ function ConversationComposerImpl({
           placeholder={placeholder}
           disabled={disabled || mode === "reject"}
           submitting={pending}
-          submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady || knowledgeSourceMismatch}
+          submitDisabled={
+            pending ||
+            !routingAllowsSend ||
+            !attachmentsReady ||
+            !submissionReady ||
+            knowledgeSourceMismatch
+          }
           allowSubmitWhenEmpty={
             // 发送按钮已把代码评论视为可发送上下文，但这里曾漏掉同一状态，
             // 导致空文本仅附代码评论时 Enter 被编辑器判为空，必须改点发送按钮。

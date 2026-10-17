@@ -13,6 +13,7 @@ import {
   collectConversationEvidenceRefs,
   buildPromptWithConversationSelections,
   clearConversationSelectionReferenceScope,
+  setConversationSelectionReferenceScope,
   dispatchConversationSelectionAdd,
   getConversationSelectionReferenceScope,
   parsePromptConversationSelections,
@@ -39,7 +40,65 @@ function reference(
 }
 
 describe("conversation selection references", () => {
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("D-4：引用快照随 scope 写入持久化，重载后懒水合恢复（收据不丢）", () => {
+    // 2026-10-17 增量评审 D-4：草稿文本跨刷新持久化而 receipt 引用只在内存——
+    // 重载后 manifest 判 mismatch、发送永久禁用。修复后引用 write-through 到
+    // localStorage，新"模块实例"（模拟重载）读取时懒水合。
+    const store = new Map<string, string>();
+    const fakeWindow = {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("window", fakeWindow);
+    const trusted: ConversationSelectionReference = {
+      contentType: "markdown",
+      id: "ref-1",
+      sourceKey: "notes/a.md",
+      sourceTitle: "a",
+      text: "verified excerpt",
+      evidenceReceiptId: "evr_persist",
+    };
+    setConversationSelectionReferenceScope("session-1", "ws-1", [trusted]);
+    // 持久化文件已写入 per-workspace 键。
+    const persistedKey = [...store.keys()].find((key) =>
+      key.startsWith("drora-v4-selection-references:v1:"),
+    );
+    expect(persistedKey).toBeTruthy();
+    // 模拟 renderer 重载：清空模块级内存 Map 后（经 clear 前先直接清内存不可行，
+    // 用独立 scope id 不受污染）——直接验证同 scope 清空内存后仍能从快照水合。
+    clearConversationSelectionReferenceScope("session-1", "ws-1");
+    expect(getConversationSelectionReferenceScope("session-1", "ws-1")).toEqual([]);
+    // 重新写入并模拟"重载后首次读取"：清内存的唯一途径是模块重载；这里以新
+    // scope 写入→清 scope→重新读取来覆盖 write-through 与读取路径，另在下方
+    // 用持久化内容直接构造"重载"场景。
+    setConversationSelectionReferenceScope("session-2", "ws-1", [trusted]);
+    const raw = store.get(persistedKey!)!;
+    expect(raw).toContain("evr_persist");
+    // "重载"：新存储里仍有快照，而内存为空（新模块实例）。用 vi.resetModules 代价高；
+    // 以独立 session scope 读取（从未在内存设置过）验证懒水合路径：先手工移除内存
+    // 条目等价物不存在，直接读 session-2 前先构造等价状态——session-3 同快照注入。
+    store.set(
+      persistedKey!,
+      JSON.stringify({
+        version: 1,
+        scopes: { "session-3": [trusted] },
+      }),
+    );
+    const hydrated = getConversationSelectionReferenceScope("session-3", "ws-1");
+    expect(hydrated).toHaveLength(1);
+    expect(hydrated[0]?.evidenceReceiptId).toBe("evr_persist");
+    // 坏存储（非 JSON）不抛错，回落空引用态。
+    store.set(persistedKey!, "{broken");
+    expect(getConversationSelectionReferenceScope("session-4", "ws-1")).toEqual([]);
+  });
 
   it("在 composer 挂载前先写入 session scope，首次打开不会丢引用", () => {
     vi.stubGlobal("window", new EventTarget());
@@ -82,7 +141,12 @@ describe("conversation selection references", () => {
       text: "A verified source excerpt.",
       evidenceReceiptId: "evr_verified0000000000000000000000001",
     };
-    const plain = { ...trusted, id: "plain-1", sourceKey: "vault:other.md", evidenceReceiptId: undefined };
+    const plain = {
+      ...trusted,
+      id: "plain-1",
+      sourceKey: "vault:other.md",
+      evidenceReceiptId: undefined,
+    };
     const refs = [trusted, plain, reference("normal-1")];
     expect(collectConversationEvidenceRefs(refs)).toEqual([
       { receiptId: trusted.evidenceReceiptId },
@@ -106,12 +170,16 @@ describe("conversation selection references", () => {
       text: "same text",
     };
     const first = appendConversationSelectionReference([], {
-      ...base, id: "ref-old", evidenceReceiptId: "evr_old",
+      ...base,
+      id: "ref-old",
+      evidenceReceiptId: "evr_old",
     });
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     const updated = appendConversationSelectionReference(first.references, {
-      ...base, id: "ref-fresh", evidenceReceiptId: "evr_fresh",
+      ...base,
+      id: "ref-fresh",
+      evidenceReceiptId: "evr_fresh",
     });
     expect(updated).toMatchObject({ ok: true, duplicate: false });
     if (!updated.ok) return;
@@ -120,7 +188,9 @@ describe("conversation selection references", () => {
       { receiptId: "evr_fresh" },
     ]);
     const repeated = appendConversationSelectionReference(updated.references, {
-      ...base, id: "ref-third", evidenceReceiptId: "evr_fresh",
+      ...base,
+      id: "ref-third",
+      evidenceReceiptId: "evr_fresh",
     });
     expect(repeated).toMatchObject({ ok: true, duplicate: true });
   });
@@ -149,14 +219,21 @@ describe("conversation selection references", () => {
       evidenceReceiptId: "evr_a",
     };
     const large = { ...first, id: "md2", sourceKey: "vault:b.md", text: "z".repeat(20_000) };
-    expect(appendConversationSelectionReferences(existing, [first, large]))
-      .toEqual({ ok: false, reason: "single" });
+    expect(appendConversationSelectionReferences(existing, [first, large])).toEqual({
+      ok: false,
+      reason: "single",
+    });
     expect(existing).toHaveLength(1);
-    const success = appendConversationSelectionReferences(existing, [first, { ...first, id: "md3", evidenceReceiptId: "evr_new" }]);
+    const success = appendConversationSelectionReferences(existing, [
+      first,
+      { ...first, id: "md3", evidenceReceiptId: "evr_new" },
+    ]);
     expect(success.ok).toBe(true);
     if (success.ok) {
       expect(success.references).toHaveLength(2);
-      expect(collectConversationEvidenceRefs(success.references)).toEqual([{ receiptId: "evr_new" }]);
+      expect(collectConversationEvidenceRefs(success.references)).toEqual([
+        { receiptId: "evr_new" },
+      ]);
     }
   });
 
@@ -168,15 +245,17 @@ describe("conversation selection references", () => {
       targetSessionId,
       workspaceKey,
       prompt: "请解释",
-      references: [{
-        contentType: "markdown",
-        id: "md-evidence",
-        sourceKey: "vault:a.md",
-        sourceTitle: "A",
-        path: "a.md",
-        text: "真实片段",
-        evidenceReceiptId: "evr_current",
-      }],
+      references: [
+        {
+          contentType: "markdown",
+          id: "md-evidence",
+          sourceKey: "vault:a.md",
+          sourceTitle: "A",
+          path: "a.md",
+          text: "真实片段",
+          evidenceReceiptId: "evr_current",
+        },
+      ],
     });
     expect(result).toEqual({ ok: false, reason: "unavailable" });
     expect(getConversationSelectionReferenceScope(targetSessionId, workspaceKey)).toEqual([]);
@@ -209,16 +288,20 @@ describe("conversation selection references", () => {
       detail.result = appended;
       dispatched += 1;
     });
-    expect(requestKnowledgeAgentHandoff({
-      targetSessionId: sessionId,
-      workspaceKey,
-      prompt: "比较一下",
-      references: [markdown],
-    })).toMatchObject({ ok: true });
+    expect(
+      requestKnowledgeAgentHandoff({
+        targetSessionId: sessionId,
+        workspaceKey,
+        prompt: "比较一下",
+        references: [markdown],
+      }),
+    ).toMatchObject({ ok: true });
     expect(dispatched).toBe(1);
-    expect(collectConversationEvidenceRefs(
-      getConversationSelectionReferenceScope(sessionId, workspaceKey),
-    )).toEqual([{ receiptId: "evr_a1" }]);
+    expect(
+      collectConversationEvidenceRefs(
+        getConversationSelectionReferenceScope(sessionId, workspaceKey),
+      ),
+    ).toEqual([{ receiptId: "evr_a1" }]);
     clearConversationSelectionReferenceScope(sessionId, workspaceKey);
   });
 
@@ -332,25 +415,36 @@ describe("conversation selection references", () => {
   it("trusted citation navigation is handled only by a mounted matching-session Vault", async () => {
     vi.stubGlobal("window", new EventTarget());
     const noView = await requestKnowledgeCitationOpen({
-      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: "evr_a",
+      targetSessionId: "session-1",
+      workspaceKey: "/vault",
+      receiptId: "evr_a",
     });
     expect(noView).toEqual({ ok: false, reason: "unavailable" });
     let received = 0;
     window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
-      if (event.detail.targetSessionId !== "session-1" || event.detail.workspaceKey !== "/vault") return;
+      if (event.detail.targetSessionId !== "session-1" || event.detail.workspaceKey !== "/vault")
+        return;
       if (event.detail.accepted) return;
       received++;
       event.detail.accepted = true;
       event.detail.finish({ ok: true });
     });
-    expect(await requestKnowledgeCitationOpen({
-      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: "evr_a",
-    })).toEqual({ ok: true });
+    expect(
+      await requestKnowledgeCitationOpen({
+        targetSessionId: "session-1",
+        workspaceKey: "/vault",
+        receiptId: "evr_a",
+      }),
+    ).toEqual({ ok: true });
     expect(received).toBe(1);
-    expect(await requestKnowledgeCitationOpen({
-      targetSessionId: "session-other", workspaceKey: "/vault", receiptId: "evr_a",
-    })).toEqual({ ok: false, reason: "unavailable" });
+    expect(
+      await requestKnowledgeCitationOpen({
+        targetSessionId: "session-other",
+        workspaceKey: "/vault",
+        receiptId: "evr_a",
+      }),
+    ).toEqual({ ok: false, reason: "unavailable" });
     expect(received).toBe(1);
   });
 
@@ -358,7 +452,9 @@ describe("conversation selection references", () => {
     vi.stubGlobal("window", new EventTarget());
     let mounted = false;
     let dispatches = 0;
-    let deferred: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    let deferred:
+      | import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail
+      | undefined;
     window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       dispatches++;
@@ -373,7 +469,9 @@ describe("conversation selection references", () => {
     });
 
     const request = requestKnowledgeCitationOpen({
-      targetSessionId: "session-cold", workspaceKey: "/vault", receiptId: "evr_cold",
+      targetSessionId: "session-cold",
+      workspaceKey: "/vault",
+      receiptId: "evr_cold",
     });
     expect(deferred?.isActive()).toBe(true);
     mounted = true;
@@ -386,14 +484,18 @@ describe("conversation selection references", () => {
   it("times out a deferred cold-start request and rejects a late mount retry", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("window", new EventTarget());
-    let deferred: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    let deferred:
+      | import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail
+      | undefined;
     window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       expect(event.detail.deferUntilMounted()).toBe(true);
       deferred = event.detail;
     });
     const request = requestKnowledgeCitationOpen({
-      targetSessionId: "session-cold", workspaceKey: "/vault", receiptId: "evr_timeout",
+      targetSessionId: "session-cold",
+      workspaceKey: "/vault",
+      receiptId: "evr_timeout",
     });
     await vi.advanceTimersByTimeAsync(KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
     expect(await request).toEqual({ ok: false, reason: "failed" });
@@ -404,13 +506,23 @@ describe("conversation selection references", () => {
   it("malformed navigation requests never dispatch a source-open event", async () => {
     vi.stubGlobal("window", new EventTarget());
     let observed = false;
-    window.addEventListener(getKnowledgeCitationOpenEventName(), () => { observed = true; });
-    expect(await requestKnowledgeCitationOpen({
-      targetSessionId: "", workspaceKey: "/vault", receiptId: "evr_a",
-    })).toEqual({ ok: false, reason: "unavailable" });
-    expect(await requestKnowledgeCitationOpen({
-      targetSessionId: "session-1", workspaceKey: "/vault", receiptId: " ",
-    })).toEqual({ ok: false, reason: "unavailable" });
+    window.addEventListener(getKnowledgeCitationOpenEventName(), () => {
+      observed = true;
+    });
+    expect(
+      await requestKnowledgeCitationOpen({
+        targetSessionId: "",
+        workspaceKey: "/vault",
+        receiptId: "evr_a",
+      }),
+    ).toEqual({ ok: false, reason: "unavailable" });
+    expect(
+      await requestKnowledgeCitationOpen({
+        targetSessionId: "session-1",
+        workspaceKey: "/vault",
+        receiptId: " ",
+      }),
+    ).toEqual({ ok: false, reason: "unavailable" });
     expect(observed).toBe(false);
   });
 
@@ -441,14 +553,18 @@ describe("conversation selection references", () => {
   it("fails closed after a hung accepted RPC and invalidates late navigation", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("window", new EventTarget());
-    let detail: import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail | undefined;
+    let detail:
+      | import("../src/lib/conversationSelectionReference.js").KnowledgeCitationOpenEventDetail
+      | undefined;
     window.addEventListener(getKnowledgeCitationOpenEventName(), (event) => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       event.detail.accepted = true;
       detail = event.detail;
     });
     const request = requestKnowledgeCitationOpen({
-      targetSessionId: "s2", workspaceKey: "/vault", receiptId: "evr_hung",
+      targetSessionId: "s2",
+      workspaceKey: "/vault",
+      receiptId: "evr_hung",
     });
     expect(detail?.isActive()).toBe(true);
     await vi.advanceTimersByTimeAsync(KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
@@ -467,10 +583,13 @@ describe("conversation selection references", () => {
       event.detail.finish({ ok: true });
       expect(event.detail.isActive()).toBe(false);
     });
-    expect(await requestKnowledgeCitationOpen({
-      targetSessionId: "s3", workspaceKey: "/vault", receiptId: "evr_sync",
-    })).toEqual({ ok: true });
+    expect(
+      await requestKnowledgeCitationOpen({
+        targetSessionId: "s3",
+        workspaceKey: "/vault",
+        receiptId: "evr_sync",
+      }),
+    ).toEqual({ ok: true });
     expect(vi.getTimerCount()).toBe(0);
   });
-
 });

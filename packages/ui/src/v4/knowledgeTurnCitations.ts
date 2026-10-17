@@ -8,6 +8,7 @@
  * resolves a fresh citation and determines the actual file/quote.
  */
 import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
+import { KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX, MAX_EVIDENCE_REFS_PER_INPUT } from "@drora/shared";
 import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/lib/conversationKnowledgeSources.js";
 
 export interface KnowledgeTurnCitation {
@@ -37,28 +38,56 @@ export function readKnowledgeTurnCitations(
 ): KnowledgeTurnCitation[] {
   // One source-bound canonical input per turn. Multiple independent user
   // inputs (e.g. a guide/steer) must not be combined into an invented mapping.
-  const bound = userInputs.filter((row) =>
-    row.turnId === turnId &&
-    row.origin === "realUser" &&
-    row.sourceCommandId &&
-    row.evidenceRefs?.length,
+  const bound = userInputs.filter(
+    (row) =>
+      row.turnId === turnId &&
+      row.origin === "realUser" &&
+      row.sourceCommandId &&
+      row.evidenceRefs?.length,
   );
   if (bound.length !== 1) return [];
   const input = bound[0]!;
   if (headerSourceCommandId && input.sourceCommandId !== headerSourceCommandId) return [];
   // A second real user command in the same product turn is an ambiguous
   // citation scope. Do not silently attach original receipts to a later answer.
-  if (userInputs.some((row) =>
-    row.turnId === turnId && row.origin === "realUser" &&
-    row.sourceCommandId !== input.sourceCommandId
-  )) return [];
+  if (
+    userInputs.some(
+      (row) =>
+        row.turnId === turnId &&
+        row.origin === "realUser" &&
+        row.sourceCommandId !== input.sourceCommandId,
+    )
+  )
+    return [];
   const receipts = input.evidenceRefs ?? [];
-  if (receipts.length < 1 || receipts.length > 5) return [];
-  // The structured excerpts were submitted in the same canonical input.
-  // Reject a model-facing legend that names different files or drops excerpts.
-  if (input.conversationQuotes?.length !== receipts.length) return [];
+  // 上限取 wire 契约常量（C-3 修复）：读取端不再自造魔数 5——6–8 条合法
+  // evidenceRefs（单候选逐条「加入 Agent」路径可达）不再被整组静默丢弃。
+  if (receipts.length < 1 || receipts.length > MAX_EVIDENCE_REFS_PER_INPUT) return [];
   if (new Set(receipts.map((r) => r.receiptId)).size !== receipts.length) return [];
-  if (receipts.some((r) => !r.receiptId.startsWith("evr_"))) return [];
+  if (receipts.some((r) => !r.receiptId.startsWith(KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX)))
+    return [];
+
+  // D-2 修复：quote 级收据绑定（渲染器随可信 Markdown 引用携带 evidenceReceiptId）。
+  // 有绑定时按 receiptId 一一配对，普通对话选区不再使计数门必然失配；无绑定的
+  // 旧投影行回落整表等长校验（旧行不存在混合输入形态，语义不变）。
+  const quotes = input.conversationQuotes ?? [];
+  const receiptedQuotes = quotes.filter((quote) => typeof quote.evidenceReceiptId === "string");
+  let quoteByReceipt: ReadonlyMap<string, { path?: string; text: string }> | null = null;
+  if (receiptedQuotes.length > 0) {
+    if (receiptedQuotes.length !== receipts.length) return [];
+    const map = new Map<string, { path?: string; text: string }>();
+    for (const quote of receiptedQuotes) {
+      const receiptId = quote.evidenceReceiptId!;
+      if (!receipts.some((r) => r.receiptId === receiptId)) return [];
+      if (map.has(receiptId)) return [];
+      map.set(receiptId, { path: quote.path, text: quote.text });
+    }
+    quoteByReceipt = map;
+  } else if (quotes.length !== receipts.length) {
+    // The structured excerpts were submitted in the same canonical input.
+    // Reject a model-facing legend that names different files or drops excerpts.
+    return [];
+  }
 
   const text = input.text;
   if (text.split(KNOWLEDGE_SOURCE_MANIFEST_HEADER).length !== 2) return [];
@@ -79,14 +108,22 @@ export function readKnowledgeTurnCitations(
       const heading: unknown = JSON.parse(match[3]!);
       const startLine = Number(match[4]);
       const endLine = Number(match[5]);
+      // 收据绑定行按 receiptId 配对（顺序无关）；旧行沿用位置对齐。
+      const boundQuote = quoteByReceipt
+        ? quoteByReceipt.get(receipts[index]!.receiptId)
+        : quotes[index];
       if (
-        typeof relativePath !== "string" || !relativePath ||
-        input.conversationQuotes?.[index]?.path !== relativePath ||
-        !input.conversationQuotes[index]?.text.trim() ||
+        typeof relativePath !== "string" ||
+        !relativePath ||
+        boundQuote?.path !== relativePath ||
+        !boundQuote?.text.trim() ||
         (heading !== null && typeof heading !== "string") ||
-        !Number.isSafeInteger(startLine) || startLine < 1 ||
-        !Number.isSafeInteger(endLine) || endLine < startLine
-      ) throw new Error("invalid source record");
+        !Number.isSafeInteger(startLine) ||
+        startLine < 1 ||
+        !Number.isSafeInteger(endLine) ||
+        endLine < startLine
+      )
+        throw new Error("invalid source record");
       return {
         index: index + 1,
         receiptId: receipts[index]!.receiptId,
@@ -164,9 +201,7 @@ export function auditKnowledgeAnswerCitationCoverage(
   let attributedBlocks = 0;
   for (const block of blocks) {
     // Inline code / normal Markdown links must not count as [n] provenance.
-    const plain = block
-      .replace(/\x60+[^\x60]*\x60+/g, "")
-      .replace(/!?\[[^\]]*\]\([^)]*\)/g, "");
+    const plain = block.replace(/\x60+[^\x60]*\x60+/g, "").replace(/!?\[[^\]]*\]\([^)]*\)/g, "");
     const numbers = [...plain.matchAll(/\[([1-9]\d?)\]/g)].map((match) => Number(match[1]));
     if (plain.replace(/\[[1-9]\d?\]/g, "").trim().length < 16) continue;
     proseBlocks++;

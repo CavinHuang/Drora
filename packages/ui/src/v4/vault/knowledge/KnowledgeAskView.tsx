@@ -32,10 +32,7 @@ import {
   type KnowledgeAskIntentChoice,
   type KnowledgeEvidenceQuote,
 } from "./knowledgeAskModel.js";
-import {
-  AskBannerList,
-  KnowledgeCandidateCard,
-} from "./KnowledgeCandidateCard.js";
+import { AskBannerList, KnowledgeCandidateCard } from "./KnowledgeCandidateCard.js";
 import {
   AskDecisionTrace,
   AskEmptyState,
@@ -99,10 +96,19 @@ export function KnowledgeAskView({
   const selectionVersionRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
-  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string; intent: KnowledgeAskIntent } | null>(null);
+  const lastSubmitRef = React.useRef<{
+    query: string;
+    clientRequestId: string;
+    intent: KnowledgeAskIntent;
+  } | null>(null);
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
-  const { openingPreviousId, usePreviousCandidate, cancelPendingPrevious, openFollowUpSideChat } = usePreviousKnowledgeActions({
+  const {
+    openingPreviousId,
+    runPreviousCandidateAction,
+    cancelPendingPrevious,
+    openFollowUpSideChat,
+  } = usePreviousKnowledgeActions({
     previous: state.previous,
     queryService,
     sessionId,
@@ -116,8 +122,13 @@ export function KnowledgeAskView({
   const scopeRef = React.useRef({ sessionId, workspaceKey, queryService, indexService });
   React.useEffect(() => {
     const prior = scopeRef.current;
-    if (prior.sessionId === sessionId && prior.workspaceKey === workspaceKey &&
-        prior.queryService === queryService && prior.indexService === indexService) return;
+    if (
+      prior.sessionId === sessionId &&
+      prior.workspaceKey === workspaceKey &&
+      prior.queryService === queryService &&
+      prior.indexService === indexService
+    )
+      return;
     scopeRef.current = { sessionId, workspaceKey, queryService, indexService };
     submitSeqRef.current += 1;
     inFlightRunIdRef.current = null;
@@ -163,7 +174,10 @@ export function KnowledgeAskView({
   }, [queryService]);
 
   const submit = React.useCallback(
-    async (rawQuery: string, retry?: { clientRequestId: string; intent: KnowledgeAskIntent }): Promise<void> => {
+    async (
+      rawQuery: string,
+      retry?: { clientRequestId: string; intent: KnowledgeAskIntent },
+    ): Promise<void> => {
       const query = rawQuery.trim();
       if (!query || !queryService) return;
       const clientRequestId = retry?.clientRequestId ?? crypto.randomUUID();
@@ -223,7 +237,11 @@ export function KnowledgeAskView({
       const result = await queryService.cancelRun({ runId });
       // A completed query must not be marked cancelled just because its ACK arrives late.
       // If cancellation lost the race, let the original search() settle normally.
-      if (result.cancelled && submitSeqRef.current === cancelSeq && inFlightRunIdRef.current === runId) {
+      if (
+        result.cancelled &&
+        submitSeqRef.current === cancelSeq &&
+        inFlightRunIdRef.current === runId
+      ) {
         dispatch({ type: "cancelSucceeded", runId });
         inFlightRunIdRef.current = null;
       }
@@ -249,7 +267,13 @@ export function KnowledgeAskView({
   }, [indexActionBusy, indexService, refreshIndexStatus]);
 
   const { verifyEvidence, openCurrentCandidate } = useKnowledgeCandidateVerification({
-    state, queryService, sessionId, submitSeqRef, scopeRef, dispatch, onOpenNote,
+    state,
+    queryService,
+    sessionId,
+    submitSeqRef,
+    scopeRef,
+    dispatch,
+    onOpenNote,
   });
 
   const { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent } =
@@ -265,7 +289,10 @@ export function KnowledgeAskView({
 
   if (!queryService || !indexService) {
     return (
-      <section className="flex min-h-0 flex-1 items-center justify-center" data-testid="ask-unavailable">
+      <section
+        className="flex min-h-0 flex-1 items-center justify-center"
+        data-testid="ask-unavailable"
+      >
         <p className="px-6 text-center text-ui-sm text-muted-foreground">
           {intl.formatMessage({ id: "vault.ask.serviceUnavailable" })}
         </p>
@@ -286,7 +313,9 @@ export function KnowledgeAskView({
     <section
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="knowledge-ask-view"
-      data-index-configured={indexStatus?.configured === undefined ? "loading" : String(indexStatus.configured)}
+      data-index-configured={
+        indexStatus?.configured === undefined ? "loading" : String(indexStatus.configured)
+      }
       data-indexed-files={indexStatus?.coverage.indexedFiles ?? -1}
       data-index-job-status={indexStatus?.job?.status ?? "none"}
     >
@@ -337,85 +366,100 @@ export function KnowledgeAskView({
             />
           )}
           {currentRound &&
-            (outcome === "ready" || outcome === "partial" || outcome === "empty" || outcome === "cancelled") && (
-            <div className="flex flex-col gap-2">
-              <p className="text-ui-sm text-foreground-subtle" data-testid="ask-result-summary">
-                {intl.formatMessage(
-                  { id: "vault.ask.candidates.count" },
-                  { count: currentRun?.candidates.length ?? 0 },
+            (outcome === "ready" ||
+              outcome === "partial" ||
+              outcome === "empty" ||
+              outcome === "cancelled") && (
+              <div className="flex flex-col gap-2">
+                <p className="text-ui-sm text-foreground-subtle" data-testid="ask-result-summary">
+                  {intl.formatMessage(
+                    { id: "vault.ask.candidates.count" },
+                    { count: currentRun?.candidates.length ?? 0 },
+                  )}
+                  {currentRound.cancelledByUser && (
+                    <span className="ml-2 text-ui-xs text-foreground-subtlest">
+                      ({intl.formatMessage({ id: "vault.ask.cancelled.suffix" })})
+                    </span>
+                  )}
+                </p>
+                {currentRound.intent !== "find" && (
+                  <div
+                    className="flex flex-wrap items-center gap-2"
+                    data-testid="ask-agent-handoff"
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        handoffBusy ||
+                        !selectionTarget ||
+                        state.selectedArticleIds.length <
+                          (currentRound.intent === "compare" ? 2 : 1)
+                      }
+                      data-testid="ask-agent-handoff-submit"
+                      onClick={() => void handoffQuestionToAgent()}
+                    >
+                      {handoffBusy
+                        ? intl.formatMessage({ id: "vault.ask.handoff.checking" })
+                        : intl.formatMessage({ id: `vault.ask.handoff.${currentRound.intent}` })}
+                    </Button>
+                    <span className="text-ui-xs text-foreground-subtle">
+                      {intl.formatMessage({
+                        id:
+                          currentRound.intent === "compare"
+                            ? "vault.ask.handoff.compareHint"
+                            : "vault.ask.handoff.answerHint",
+                      })}
+                    </span>
+                  </div>
                 )}
-                {currentRound.cancelledByUser && (
-                  <span className="ml-2 text-ui-xs text-foreground-subtlest">
-                    ({intl.formatMessage({ id: "vault.ask.cancelled.suffix" })})
-                  </span>
-                )}
-              </p>
-              {currentRound.intent !== "find" && (
-                <div className="flex flex-wrap items-center gap-2" data-testid="ask-agent-handoff">
+                {slice.visible.map((candidate) => (
+                  <KnowledgeCandidateCard
+                    key={candidate.articleId}
+                    candidate={candidate}
+                    query={currentRound.submittedQuery}
+                    selected={
+                      currentRound.intent === "find"
+                        ? state.selectedArticleId === candidate.articleId
+                        : state.selectedArticleIds.includes(candidate.articleId)
+                    }
+                    inspect={state.evidence[candidate.articleId]}
+                    sessionId={sessionId}
+                    selectionTarget={selectionTarget}
+                    adding={addingArticleId === candidate.articleId}
+                    onAddToAgent={(entry) => void addVerifiedEvidenceToAgent(entry)}
+                    onOpenNote={(candidate) => void openCurrentCandidate(candidate)}
+                    onSelect={(articleId) => {
+                      // Invalidate pending evidence batches synchronously before React render.
+                      selectionVersionRef.current += 1;
+                      dispatch({ type: "candidateSelected", articleId });
+                    }}
+                    onVerify={(entry) => void verifyEvidence(entry)}
+                    onFollowUp={openFollowUpSideChat}
+                  />
+                ))}
+                {slice.canExpand && (
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    disabled={
-                      handoffBusy ||
-                      !selectionTarget ||
-                      state.selectedArticleIds.length < (currentRound.intent === "compare" ? 2 : 1)
+                    variant="ghost"
+                    className="self-center"
+                    onClick={() =>
+                      dispatch({
+                        type: "expandCandidates",
+                        limit: currentRun?.candidates.length ?? ASK_DEFAULT_VISIBLE_CANDIDATES,
+                      })
                     }
-                    data-testid="ask-agent-handoff-submit"
-                    onClick={() => void handoffQuestionToAgent()}
                   >
-                    {handoffBusy
-                      ? intl.formatMessage({ id: "vault.ask.handoff.checking" })
-                      : intl.formatMessage({ id: `vault.ask.handoff.${currentRound.intent}` })}
+                    {intl.formatMessage(
+                      { id: "vault.ask.expandMore" },
+                      { count: slice.hiddenCount },
+                    )}
                   </Button>
-                  <span className="text-ui-xs text-foreground-subtle">
-                    {intl.formatMessage({
-                      id: currentRound.intent === "compare"
-                        ? "vault.ask.handoff.compareHint"
-                        : "vault.ask.handoff.answerHint",
-                    })}
-                  </span>
-                </div>
-              )}
-              {slice.visible.map((candidate) => (
-                <KnowledgeCandidateCard
-                  key={candidate.articleId}
-                  candidate={candidate}
-                  query={currentRound.submittedQuery}
-                  selected={currentRound.intent === "find" ? state.selectedArticleId === candidate.articleId : state.selectedArticleIds.includes(candidate.articleId)}
-                  inspect={state.evidence[candidate.articleId]}
-                  sessionId={sessionId}
-                  selectionTarget={selectionTarget}
-                  adding={addingArticleId === candidate.articleId}
-                  onAddToAgent={(entry) => void addVerifiedEvidenceToAgent(entry)}
-                  onOpenNote={(candidate) => void openCurrentCandidate(candidate)}
-                  onSelect={(articleId) => {
-                    // Invalidate pending evidence batches synchronously before React render.
-                    selectionVersionRef.current += 1;
-                    dispatch({ type: "candidateSelected", articleId });
-                  }}
-                  onVerify={(entry) => void verifyEvidence(entry)}
-                  onFollowUp={openFollowUpSideChat}
-                />
-              ))}
-              {slice.canExpand && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="self-center"
-                  onClick={() =>
-                    dispatch({
-                      type: "expandCandidates",
-                      limit: currentRun?.candidates.length ?? ASK_DEFAULT_VISIBLE_CANDIDATES,
-                    })
-                  }
-                >
-                  {intl.formatMessage({ id: "vault.ask.expandMore" }, { count: slice.hiddenCount })}
-                </Button>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
           {outcome === "sourceStale" && currentRound && <AskSourceStaleState />}
 
           {/* 上一轮（追问后保留，默认折叠展示） */}
@@ -425,8 +469,8 @@ export function KnowledgeAskView({
               submittedQuery={state.previous.submittedQuery}
               openingArticleId={openingPreviousId}
               canAddToAgent={Boolean(selectionTarget?.sessionId)}
-              onOpenNote={(candidate) => void usePreviousCandidate(candidate, "open")}
-              onAddToAgent={(candidate) => void usePreviousCandidate(candidate, "attach")}
+              onOpenNote={(candidate) => void runPreviousCandidateAction(candidate, "open")}
+              onAddToAgent={(candidate) => void runPreviousCandidateAction(candidate, "attach")}
             />
           )}
 

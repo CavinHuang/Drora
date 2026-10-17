@@ -91,6 +91,10 @@ export async function resolveToolPermission(
         ),
       };
     const rulePolicy = entry.resolvePermissionRulePolicy?.(executionInput, context);
+    // 评估与建议共用同一份解析能力（增量评审 cli-p0-4 修复：建议路径此前不传
+    // capability，P0 识别退化为仅按 mcp__ 名前缀，app__* 工具会产出永不匹配的
+    // 整工具 allow 建议且持久化消毒不识别该前缀）。
+    const runtimeCapability = resolveRuntimePermissionCapability(entry, executionInput, context);
     let decision = deps.permissionService.checkPermission(
       {
         toolName: toolCall.name,
@@ -102,7 +106,7 @@ export async function resolveToolPermission(
         // 草稿预批与实际工具输入共用已准备的 cwd，不能在合并 Guarded 时漏传。
         workingDirectory: context.workingDirectory,
       },
-      resolveRuntimePermissionCapability(entry, executionInput, context),
+      runtimeCapability,
       projectRules,
       rulePolicy,
     );
@@ -187,6 +191,10 @@ export async function resolveToolPermission(
             toolCall.name,
             executionInput,
             entry.permissionCapabilityGroup,
+            {
+              permissionName: runtimeCapability.permissionName,
+              readOnly: runtimeCapability.readOnly,
+            },
           ));
     telemetry?.markPermissionRequested();
     let transition: PermissionResponseTransition;

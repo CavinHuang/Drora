@@ -38,7 +38,10 @@ import { createSystemOneHttpTransport } from "./decision/jevTransport.js";
 import { loadInsightsSnapshot } from "./insightsSnapshot.js";
 import { resolvePolicyConfig } from "./decision/decisionPolicy.js";
 import { createKnowledgeReviewService } from "./review/reviewEngine.js";
-import type { KnowledgeDecisionProvider, KnowledgeDecisionPolicyConfig } from "./decision/decisionTypes.js";
+import type {
+  KnowledgeDecisionProvider,
+  KnowledgeDecisionPolicyConfig,
+} from "./decision/decisionTypes.js";
 import type { IKnowledgeIndexService } from "./knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./review/reviewService.js";
@@ -169,19 +172,20 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const telemetry = new DecisionTelemetry();
   // Jev 配置热生效（spec §5d.10；控制器在 decision/jevDynamicProvider.ts）。
   const dynamicProviderAvailable = options.knowledgeJevConfigSource !== undefined;
-  const jevDynamic = dynamicProviderAvailable && options.knowledgeJevConfigSource
-    ? createJevDynamicProvider({
-        source: options.knowledgeJevConfigSource,
-        consentRegistry: registry,
-        config,
-        cache,
-      })
-    : null;
+  const jevDynamic =
+    dynamicProviderAvailable && options.knowledgeJevConfigSource
+      ? createJevDynamicProvider({
+          source: options.knowledgeJevConfigSource,
+          consentRegistry: registry,
+          config,
+          cache,
+        })
+      : null;
   const staticProvider = jevDynamic
     ? null
-    : (options.decisionProviderFactory
+    : options.decisionProviderFactory
       ? options.decisionProviderFactory({ consentRegistry: registry, config })
-      : (options.decisionProvider ?? null));
+      : (options.decisionProvider ?? null);
   const pipeline = new DecisionPipeline({
     provider: staticProvider,
     ...(jevDynamic ? { providerSource: jevDynamic.providerSource } : {}),
@@ -203,8 +207,11 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
 
   // 审核写入服务（W06）：与索引/检索共享同一 DB 连接；账本随 dispose 统一关闭。
-  // 写路径总门缺省关闭（fail-closed）。W09：undefined（生产形态）透传 undefined——
-  // 引擎从 vault-config.json 异步加载初值；显式 true/false（测试形态）为确定性覆盖。
+  // 写路径总门缺省关闭（fail-closed）。A-10 勘误（2026-10-17 增量评审）：此前注释称
+  // 「undefined（生产形态）透传 undefined——引擎从 vault-config.json 异步加载初值」
+  // 与引擎实现不符——reviewEngine 的异步加载分支以 writeSafetyGatePassed===true 为
+  // 前提，而生产 node.ts 显式传 false，该分支永不执行，生产 writePathEnabled 恒 false。
+  // 显式 true/false 仅为测试形态提供确定性覆盖。
   const reviewService = createKnowledgeReviewService({
     db,
     pluginDataDir,
@@ -226,8 +233,9 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
           semantic: semantic.port ? "available" : "unavailable",
         };
       }
-      const coverage =
-        loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
+      const coverage = loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? {
+        ...EMPTY_COVERAGE,
+      };
       return {
         configured: true,
         source: {
@@ -288,7 +296,8 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
     }> {
       // 用当前装配真实发一次最小探测（spec §5d.10 配置 UX）：2xx+合法答案=ok；
       // 401/403=Key 无效；其余非 2xx/异常按原文携带。装配缺失=未配置完成。
-      const assembly = jevDynamic !== null ? ((await options.knowledgeJevConfigSource?.()) ?? null) : null;
+      const assembly =
+        jevDynamic !== null ? ((await options.knowledgeJevConfigSource?.()) ?? null) : null;
       if (assembly === null) {
         return { ok: false, latencyMs: 0, error: "配置未完成：开关未开或 Key/评分模型缺失" };
       }

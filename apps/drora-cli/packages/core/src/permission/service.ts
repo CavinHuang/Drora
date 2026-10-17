@@ -250,11 +250,23 @@ export class PermissionService {
       );
     }
 
-    // CLI allowedTools is an explicit operator authorization (session-level
-    // startup configuration), documented as a yolo-level decision in
-    // specs/agent-write-safety.md §1. Keep that intentional exception distinct
-    // from model-suggested/project whole-tool allow rules.
-    if (this.config.allowedTools.has(context.toolName)) {
+    // allowedTools 命中 P0 写向量（Bash/js/普通 MCP）时不得整工具放行（S03 不变量 2）。
+    // 修复依据（2026-10-17 增量评审 cli-p0-1/2）：allowedTools 并非注释曾声称的
+    // 「仅 CLI 启动参数」——它来自五层合并配置（System<User<Project<Env<Cli，
+    // create-app.ts 装配），项目级 drora.json/.drora/config.json 可无信任门注入，
+    // 不受信仓库提交配置文件即可为 P0 工具建立持久放行通道。e70019d1 曾加本守卫、
+    // d70baea5 以「操作员显式授权」为由回退——该前提与配置装配事实不符，故恢复守卫；
+    // P0 工具落回既有逐次/模式检查，非 P0 工具的 allowedTools 放行不受影响。
+    if (
+      this.config.allowedTools.has(context.toolName) &&
+      !isP0WriteTarget({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      })
+    ) {
       return this.allow(
         context,
         capability,

@@ -13,7 +13,10 @@ import {
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { displayCandidateTitle, evidenceUnavailableMessageKey } from "./KnowledgeCandidateCard.js";
-import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
+import {
+  buildSelectionSideChatKey,
+  requestSelectionSideChatOpen,
+} from "@/lib/selectionSideChatRuntime.js";
 import { verifyPreviousKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
 import type { KnowledgeAskRound, KnowledgeEvidenceQuote } from "./knowledgeAskModel.js";
 
@@ -30,10 +33,20 @@ export function usePreviousKnowledgeActions({
   sessionId?: string;
   selectionTarget: MarkdownSelectionTarget | null;
   submitSeqRef: React.RefObject<number>;
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  onOpenNote: (
+    relativePath: string,
+    reveal?: KnowledgeEvidenceQuote,
+    isCurrent?: () => boolean,
+    expectedExcerpt?: string,
+    expectedFileSha256?: string,
+  ) => void;
 }): {
   openingPreviousId: string | null;
-  usePreviousCandidate: (candidate: KnowledgeArticleCandidate, action: "open" | "attach") => Promise<void>;
+  /** 非-hook 普通回调（D-8：use 前缀命名会误导 rules-of-hooks，已更名）。 */
+  runPreviousCandidateAction: (
+    candidate: KnowledgeArticleCandidate,
+    action: "open" | "attach",
+  ) => Promise<void>;
   cancelPendingPrevious: () => void;
   openFollowUpSideChat: (candidate: KnowledgeArticleCandidate) => void;
 } {
@@ -46,11 +59,13 @@ export function usePreviousKnowledgeActions({
     setOpeningPreviousId(null);
   }, []);
 
-  const usePreviousCandidate = React.useCallback(
+  const runPreviousCandidateAction = React.useCallback(
     async (candidate: KnowledgeArticleCandidate, action: "open" | "attach"): Promise<void> => {
       if (!previous || !queryService || openingPreviousRef.current) return;
       if (action === "attach" && !selectionTarget?.sessionId) {
-        droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), { variant: "warning" });
+        droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), {
+          variant: "warning",
+        });
         return;
       }
       const seq = submitSeqRef.current;
@@ -67,7 +82,16 @@ export function usePreviousKnowledgeActions({
         if (seq !== submitSeqRef.current || openingPreviousRef.current !== token) return;
         if (proof.phase === "verified") {
           if (action === "open") {
-            onOpenNote(proof.relativePath, proof.quote);
+            // D-5 修复（2026-10-17 增量评审）：与当前轮 openCurrentCandidate 同防护强度——
+            // 携带 isCurrent/expectedExcerpt/expectedFileSha256，VaultView 侧据此装配
+            // validateRead 二次读回校验；resolveCitation 之后文件被改时不按旧行号锚定。
+            onOpenNote(
+              proof.relativePath,
+              proof.quote,
+              () => openingPreviousRef.current === token,
+              proof.excerpt,
+              candidate.fileSha256,
+            );
           } else if (selectionTarget?.sessionId) {
             const reference = createConversationSelectionReference({
               contentType: "markdown",
@@ -83,15 +107,26 @@ export function usePreviousKnowledgeActions({
               reference,
             });
             if (!result.ok) {
-              droraToast(intl.formatMessage({
-                id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
-              }), { variant: "warning" });
+              droraToast(
+                intl.formatMessage({
+                  id:
+                    result.reason === "count"
+                      ? "vault.selection.limitReached"
+                      : "vault.selection.tooLong",
+                }),
+                { variant: "warning" },
+              );
             }
           }
         } else if (proof.phase === "failed") {
-          droraToast(intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: proof.message }), { variant: "warning" });
+          droraToast(
+            intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: proof.message }),
+            { variant: "warning" },
+          );
         } else if (proof.phase === "unavailable") {
-          droraToast(intl.formatMessage({ id: evidenceUnavailableMessageKey(proof.status) }), { variant: "warning" });
+          droraToast(intl.formatMessage({ id: evidenceUnavailableMessageKey(proof.status) }), {
+            variant: "warning",
+          });
         }
       } finally {
         if (openingPreviousRef.current === token) {
@@ -103,24 +138,39 @@ export function usePreviousKnowledgeActions({
     [intl, onOpenNote, previous, queryService, selectionTarget, sessionId, submitSeqRef],
   );
 
-  const openFollowUpSideChat = React.useCallback((candidate: KnowledgeArticleCandidate): void => {
-    if (!selectionTarget?.sessionId) {
-      droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), { variant: "warning" });
-      return;
-    }
-    // A side chat is an ordinary selection, not a transferable Evidence Receipt.
-    const key = buildSelectionSideChatKey(selectionTarget.workspaceKey, selectionTarget.sessionId);
-    const reference = createConversationSelectionReference({
-      contentType: "markdown",
-      sourceKey: `vault:${candidate.relativePath}`,
-      sourceTitle: displayCandidateTitle(candidate),
-      path: candidate.relativePath,
-      text: candidate.excerpt,
-    });
-    if (!requestSelectionSideChatOpen(key, reference)) {
-      droraToast(intl.formatMessage({ id: "vault.selection.sideChatFailed" }), { variant: "warning" });
-    }
-  }, [intl, selectionTarget]);
+  const openFollowUpSideChat = React.useCallback(
+    (candidate: KnowledgeArticleCandidate): void => {
+      if (!selectionTarget?.sessionId) {
+        droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), {
+          variant: "warning",
+        });
+        return;
+      }
+      // A side chat is an ordinary selection, not a transferable Evidence Receipt.
+      const key = buildSelectionSideChatKey(
+        selectionTarget.workspaceKey,
+        selectionTarget.sessionId,
+      );
+      const reference = createConversationSelectionReference({
+        contentType: "markdown",
+        sourceKey: `vault:${candidate.relativePath}`,
+        sourceTitle: displayCandidateTitle(candidate),
+        path: candidate.relativePath,
+        text: candidate.excerpt,
+      });
+      if (!requestSelectionSideChatOpen(key, reference)) {
+        droraToast(intl.formatMessage({ id: "vault.selection.sideChatFailed" }), {
+          variant: "warning",
+        });
+      }
+    },
+    [intl, selectionTarget],
+  );
 
-  return { openingPreviousId, usePreviousCandidate, cancelPendingPrevious, openFollowUpSideChat };
+  return {
+    openingPreviousId,
+    runPreviousCandidateAction,
+    cancelPendingPrevious,
+    openFollowUpSideChat,
+  };
 }

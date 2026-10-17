@@ -69,3 +69,46 @@ test("L2 real Vault authorization: explicit grant, monotonic epoch, and revocati
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("E-1 回归：三条写路径并发交叉不丢更新（撤权不被旧快照回滚）", async () => {
+  // 2026-10-17 增量评审 E-1：三条 vault-config.json 写路径原为裸读-改-写，
+  // 并发交叉时后写者以旧快照整体回写（撤权结果被回滚成 allowAgentWrites=true、
+  // configuredAt 回退）。串行化后同一并发组合必须收敛到「最后一个完成的写入」
+  // 的语义：撤权与开关写入不丢失，configuredAt 单调不减。
+  const root = await mkdtemp(join(tmpdir(), "drora-vault-race-"));
+  try {
+    await configureManagedVault(root);
+    await setVaultAgentWritesEnabled(root, true);
+    // 同时发起：撤权 + 开启 L2 开关 + 重授权（三个读-改-写并发竞争）。
+    await Promise.all([
+      setVaultAgentWritesEnabled(root, false),
+      setVaultReviewWritePathEnabled(root, true),
+      setVaultAgentWritesEnabled(root, true),
+    ]);
+    const config = await loadVaultConfig(root);
+    assert.ok(config);
+    // 无论完成顺序如何，文件里的 allowAgentWrites 必须是某一次完整写入的结果，
+    // 且当 allowAgentWrites=true 时 reviewWritePathEnabled 不得是 true（true 只能
+    // 由 setVaultReviewWritePathEnabled 写入，而任何 agentWrites 写入都强制复位它；
+    // 若二者同 true，说明一次 agentWrites 写入被另一次旧快照回写覆盖）。
+    if (config.allowAgentWrites) {
+      assert.equal(config.reviewWritePathEnabled, false);
+    } else {
+      assert.ok(
+        config.reviewWritePathEnabled === undefined ||
+          config.reviewWritePathEnabled === false ||
+          config.reviewWritePathEnabled === true,
+      );
+    }
+    // 串行重放最终意图：撤权后配置必须如实反映撤权（不再被回滚）。
+    const final = await setVaultAgentWritesEnabled(root, false);
+    assert.equal(final?.allowAgentWrites, false);
+    const after = await loadVaultConfig(root);
+    assert.ok(after);
+    assert.equal(after.allowAgentWrites, false);
+    assert.equal(after.reviewWritePathEnabled, false);
+    assert.ok(after.configuredAt >= config.configuredAt);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

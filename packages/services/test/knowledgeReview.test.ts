@@ -216,7 +216,9 @@ test("提案与现实对齐：base SHA 不符/目标已存在/非法路径在创
       env.review.createProposal({
         title: "t",
         reason: "r",
-        changes: [{ kind: "write", relativePath: "a.md", baseSha256: sha256("stale"), content: "x" }],
+        changes: [
+          { kind: "write", relativePath: "a.md", baseSha256: sha256("stale"), content: "x" },
+        ],
       }),
       /baseSha256 与当前文件不一致/,
     );
@@ -384,12 +386,28 @@ test("断线未知结果：账本停在 applying + 部分落盘 → reconcile �
       const changeA = proposal.changes[0]!;
       const changeB = proposal.changes[1]!;
       insertFile.run(
-        operationId, 0, changeA.relativePath, changeA.baseSha256, changeA.nextSha256,
-        "nextA", "baseA", sha256("baseA"), "applying", Date.now(),
+        operationId,
+        0,
+        changeA.relativePath,
+        changeA.baseSha256,
+        changeA.nextSha256,
+        "nextA",
+        "baseA",
+        sha256("baseA"),
+        "applying",
+        Date.now(),
       );
       insertFile.run(
-        operationId, 1, changeB.relativePath, changeB.baseSha256, changeB.nextSha256,
-        "nextB", "baseB", sha256("baseB"), "prepared", Date.now(),
+        operationId,
+        1,
+        changeB.relativePath,
+        changeB.baseSha256,
+        changeB.nextSha256,
+        "nextB",
+        "baseB",
+        sha256("baseB"),
+        "prepared",
+        Date.now(),
       );
       raw.exec("COMMIT");
     } finally {
@@ -438,7 +456,10 @@ test("断线未知结果：账本停在 applying + 部分落盘 → reconcile �
 
     const undo = await env.review.undoOperation({ operationId });
     assert.equal(undo.outcome, "applied");
-    assert.equal(undo.operation?.files.find((f) => f.relativePath === "a.md")?.status, "undo_applied");
+    assert.equal(
+      undo.operation?.files.find((f) => f.relativePath === "a.md")?.status,
+      "undo_applied",
+    );
     assert.equal(undo.operation?.files.find((f) => f.relativePath === "b.md")?.status, "prepared");
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "baseA");
     assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
@@ -655,7 +676,10 @@ test("双 Host 并发：同一提案两实例同时 apply，最终文件必为�
 
     const [ra, rb] = await Promise.all([
       env.review.applyProposal({ proposalId: proposal.proposalId, operationId: "rop-conc-a" }),
-      hostB.reviewService.applyProposal({ proposalId: proposal.proposalId, operationId: "rop-conc-b" }),
+      hostB.reviewService.applyProposal({
+        proposalId: proposal.proposalId,
+        operationId: "rop-conc-b",
+      }),
     ]);
     // 目标内容相同：无论谁先谁后（含 read-SHA 窗口内的重叠写），最终文件必为 next。
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "next");
@@ -684,7 +708,10 @@ test("Undo 正常：快照恢复原内容；Undo 冲突：外部编辑后拒绝�
       changes: [await writeChangeFor(env.vault, "a.md", "next")],
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
-    const applied = await env.review.applyProposal({ proposalId: proposal.proposalId, operationId: "rop-undo" });
+    const applied = await env.review.applyProposal({
+      proposalId: proposal.proposalId,
+      operationId: "rop-undo",
+    });
     assert.equal(applied.outcome, "applied");
 
     // 外部编辑后 undo：当前 SHA 与账本记录不符 → undo_conflict，外部内容保留。
@@ -729,7 +756,10 @@ test("Undo 正常路径：撤销已应用操作恢复快照；create/delete 的�
     // delete 的逆：快照内容被 createOnly 重建；create 的逆：文件被删除。
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
     await assert.rejects(readFile(join(env.vault, "new.md"), "utf-8"), /ENOENT/);
-    assert.equal(undo.operation?.files.find((f) => f.relativePath === "a.md")?.status, "undo_applied");
+    assert.equal(
+      undo.operation?.files.find((f) => f.relativePath === "a.md")?.status,
+      "undo_applied",
+    );
   } finally {
     await destroyEnv(env);
   }
@@ -752,7 +782,10 @@ test("旁路工具写盘（Bash/MCP/js 的等价最终形态：直接写文件�
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "bypass-write");
 
     // 补偿控制：审核执行在快照对齐阶段发现 base 失配 → conflict，旁路内容保留。
-    const result = await env.review.applyProposal({ proposalId: proposal.proposalId, operationId: "rop-bypass" });
+    const result = await env.review.applyProposal({
+      proposalId: proposal.proposalId,
+      operationId: "rop-bypass",
+    });
     assert.equal(result.outcome, "conflict");
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "bypass-write");
   } finally {
@@ -765,7 +798,11 @@ test("未配置 Vault：提案创建/执行返回结构化 no_source", async () 
   try {
     await unlink(join(env.pluginDataDir, "vault-config.json"));
     await assert.rejects(
-      env.review.createProposal({ title: "t", reason: "r", changes: [{ kind: "create", relativePath: "x.md", content: "" }] }),
+      env.review.createProposal({
+        title: "t",
+        reason: "r",
+        changes: [{ kind: "create", relativePath: "x.md", content: "" }],
+      }),
       /尚未配置 Vault/,
     );
   } finally {
@@ -802,7 +839,6 @@ test("create/delete 混合提案的顺序执行与账本视图（快照先于落
   }
 });
 
-
 test("L2 审批 TTL 非法值 fail-closed：拒绝入账且不改变原有审批", async () => {
   const env = await createEnv({ writePathEnabled: false });
   try {
@@ -812,26 +848,42 @@ test("L2 审批 TTL 非法值 fail-closed：拒绝入账且不改变原有审批
       reason: "reject malformed approval expiration",
       changes: [await writeChangeFor(env.vault, "a.md", "next")],
     });
-    for (const ttlMs of [NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, "1000", null]) {
+    for (const ttlMs of [
+      NaN,
+      Infinity,
+      -Infinity,
+      1.5,
+      Number.MAX_SAFE_INTEGER + 1,
+      "1000",
+      null,
+    ]) {
       await assert.rejects(
         env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: ttlMs as number }),
         /ttlMs/,
       );
-      assert.equal((await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval, null);
+      assert.equal(
+        (await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval,
+        null,
+      );
     }
-    const approval = await env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: 1000 });
+    const approval = await env.review.approveProposal({
+      proposalId: proposal.proposalId,
+      ttlMs: 1000,
+    });
     assert.equal(approval.expired, false);
     await assert.rejects(
       env.review.approveProposal({ proposalId: proposal.proposalId, ttlMs: NaN }),
       /ttlMs/,
     );
-    assert.deepEqual((await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval, approval);
+    assert.deepEqual(
+      (await env.review.getProposal({ proposalId: proposal.proposalId }))?.approval,
+      approval,
+    );
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
   } finally {
     await destroyEnv(env);
   }
 });
-
 
 test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定账本", async () => {
   const env = await createEnv();
@@ -864,7 +916,6 @@ test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定
   }
 });
 
-
 test("L2 双 Host 并发 Undo：SQLite claim 单赢家，文件和账本只逆写一次", async () => {
   const env = await createEnv();
   const hostB = createKnowledgeServices({
@@ -881,9 +932,15 @@ test("L2 双 Host 并发 Undo：SQLite claim 单赢家，文件和账本只逆�
       changes: [await writeChangeFor(env.vault, "a.md", "next")],
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
-    assert.equal((await env.review.applyProposal({
-      proposalId: proposal.proposalId, operationId: "rop-cross-host-undo",
-    })).outcome, "applied");
+    assert.equal(
+      (
+        await env.review.applyProposal({
+          proposalId: proposal.proposalId,
+          operationId: "rop-cross-host-undo",
+        })
+      ).outcome,
+      "applied",
+    );
 
     const [a, b] = await Promise.all([
       env.review.undoOperation({ operationId: "rop-cross-host-undo" }),
@@ -916,7 +973,8 @@ test("L2 Undo 崩溃恢复：逆写已落盘的 undoing 经只读 reconcile 落�
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
     const applied = await env.review.applyProposal({
-      proposalId: proposal.proposalId, operationId: "rop-undo-recover",
+      proposalId: proposal.proposalId,
+      operationId: "rop-undo-recover",
     });
     assert.equal(applied.outcome, "applied");
 
@@ -924,16 +982,17 @@ test("L2 Undo 崩溃恢复：逆写已落盘的 undoing 经只读 reconcile 落�
     // before updating the ledger. A new instance may only read/reconcile it.
     const raw = new DatabaseSync(env.databasePath);
     try {
-      raw.prepare(
-        "UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?",
-      ).run("rop-undo-recover");
+      raw
+        .prepare("UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?")
+        .run("rop-undo-recover");
     } finally {
       raw.close();
     }
     await writeFile(join(env.vault, "a.md"), "base", "utf-8");
     env.services.dispose();
     restarted = createKnowledgeServices({
-      databasePath: env.databasePath, pluginDataDir: env.pluginDataDir,
+      databasePath: env.databasePath,
+      pluginDataDir: env.pluginDataDir,
     });
     const recovered = await restarted.reviewService.reconcileStuckOperations();
     assert.equal(recovered.length, 1);
@@ -957,13 +1016,20 @@ test("L2 Undo 崩溃未落盘：reconcile 不自动重放、保留原文且拒�
       changes: [await writeChangeFor(env.vault, "a.md", "next")],
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
-    assert.equal((await env.review.applyProposal({
-      proposalId: proposal.proposalId, operationId: "rop-undo-unlanded",
-    })).outcome, "applied");
+    assert.equal(
+      (
+        await env.review.applyProposal({
+          proposalId: proposal.proposalId,
+          operationId: "rop-undo-unlanded",
+        })
+      ).outcome,
+      "applied",
+    );
 
     const raw = new DatabaseSync(env.databasePath);
     try {
-      raw.prepare("UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?")
+      raw
+        .prepare("UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?")
         .run("rop-undo-unlanded");
     } finally {
       raw.close();
@@ -987,7 +1053,6 @@ test("L2 Undo 崩溃未落盘：reconcile 不自动重放、保留原文且拒�
   }
 });
 
-
 test("L2 实际双进程 Undo 竞争：共享 SQLite WAL 只能赢得一次逆写", async () => {
   const env = await createEnv();
   try {
@@ -999,19 +1064,29 @@ test("L2 实际双进程 Undo 竞争：共享 SQLite WAL 只能赢得一次逆�
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
     const operationId = "rop-process-undo";
-    assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+    assert.equal(
+      (await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome,
+      "applied",
+    );
 
     const exec = promisify(execFile);
     const worker = fileURLToPath(new URL("./fixtures/review-undo-worker.ts", import.meta.url));
     const outputs = [join(env.root, "undo-worker-a.json"), join(env.root, "undo-worker-b.json")];
-    await Promise.all(outputs.map(async (output) => {
-      await exec(process.execPath, [
-        "--import", "tsx", worker, env.databasePath, env.pluginDataDir, operationId, output,
-      ], { timeout: 30_000 });
-    }));
-    const records = await Promise.all(outputs.map(async (file) =>
-      JSON.parse(await readFile(file, "utf-8")) as { outcome: string; reason: string | null },
-    ));
+    await Promise.all(
+      outputs.map(async (output) => {
+        await exec(
+          process.execPath,
+          ["--import", "tsx", worker, env.databasePath, env.pluginDataDir, operationId, output],
+          { timeout: 30_000 },
+        );
+      }),
+    );
+    const records = await Promise.all(
+      outputs.map(
+        async (file) =>
+          JSON.parse(await readFile(file, "utf-8")) as { outcome: string; reason: string | null },
+      ),
+    );
     assert.deepEqual(records.map((result) => result.outcome).sort(), ["applied", "blocked"]);
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
     const replay = await env.review.undoOperation({ operationId });
@@ -1022,7 +1097,6 @@ test("L2 实际双进程 Undo 竞争：共享 SQLite WAL 只能赢得一次逆�
     await destroyEnv(env);
   }
 });
-
 
 test("L2 恢复竞态：迟到的 reconcile 不得覆盖已完成的 Undo 账本状态", async () => {
   const env = await createEnv();
@@ -1036,25 +1110,28 @@ test("L2 恢复竞态：迟到的 reconcile 不得覆盖已完成的 Undo 账本
     });
     await env.review.approveProposal({ proposalId: proposal.proposalId });
     const operationId = "rop-stale-recoverer";
-    assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+    assert.equal(
+      (await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome,
+      "applied",
+    );
 
     const ledger = new ReviewLedgerStore(secondConnection);
-    secondConnection.raw.prepare(
-      "UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?",
-    ).run(operationId);
+    secondConnection.raw
+      .prepare("UPDATE review_operation_files SET status = 'undoing' WHERE operation_id = ?")
+      .run(operationId);
     assert.equal(ledger.settleUndoClaim(operationId, 0, "undo_applied", null, Date.now()), true);
     // Reconciler read stale on-disk evidence before the writer completed.
     // Its delayed write must not clobber the completed owner's outcome.
-    assert.equal(ledger.settleUndoClaim(
-      operationId, 0, "undo_conflict", "stale snapshot", Date.now(),
-    ), false);
+    assert.equal(
+      ledger.settleUndoClaim(operationId, 0, "undo_conflict", "stale snapshot", Date.now()),
+      false,
+    );
     assert.equal(ledger.listOperationFiles(operationId)[0]?.status, "undo_applied");
   } finally {
     secondConnection.close();
     await destroyEnv(env);
   }
 });
-
 
 test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 apply 和 undo", async () => {
   const env = await createEnv();
@@ -1067,9 +1144,15 @@ test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 
       changes: [await writeChangeFor(env.vault, "a.md", "next")],
     });
     await env.review.approveProposal({ proposalId: undoProposal.proposalId });
-    assert.equal((await env.review.applyProposal({
-      proposalId: undoProposal.proposalId, operationId: "rop-fence-undo",
-    })).outcome, "applied");
+    assert.equal(
+      (
+        await env.review.applyProposal({
+          proposalId: undoProposal.proposalId,
+          operationId: "rop-fence-undo",
+        })
+      ).outcome,
+      "applied",
+    );
 
     const proposalB = await env.review.createProposal({
       title: "Second operation",
@@ -1080,15 +1163,18 @@ test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 
     const raw = new DatabaseSync(env.databasePath);
     try {
       // Crash/live-writer ledger evidence: another operation owns this Vault.
-      raw.prepare(
-        `INSERT INTO review_operations
+      raw
+        .prepare(
+          `INSERT INTO review_operations
          (operation_id, proposal_id, revision, vault_id, source_epoch, status,
           error, created_at_ms, finished_at_ms, reconciled_at_ms)
          VALUES (?, ?, 1, ?, 1, 'applying', NULL, ?, NULL, NULL)`,
-      ).run("rop-other-active", proposalB.proposalId, proposalB.vaultId, Date.now());
+        )
+        .run("rop-other-active", proposalB.proposalId, proposalB.vaultId, Date.now());
 
       const blockedApply = await env.review.applyProposal({
-        proposalId: proposalB.proposalId, operationId: "rop-waiting-apply",
+        proposalId: proposalB.proposalId,
+        operationId: "rop-waiting-apply",
       });
       assert.equal(blockedApply.outcome, "reconcile_required");
       const blockedUndo = await env.review.undoOperation({ operationId: "rop-fence-undo" });
@@ -1098,12 +1184,22 @@ test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 
       assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "before");
 
       // Complete former writer; a fresh claim may now proceed.
-      raw.prepare("UPDATE review_operations SET status = 'conflict' WHERE operation_id = ?")
+      raw
+        .prepare("UPDATE review_operations SET status = 'conflict' WHERE operation_id = ?")
         .run("rop-other-active");
-      assert.equal((await env.review.applyProposal({
-        proposalId: proposalB.proposalId, operationId: "rop-waiting-apply",
-      })).outcome, "applied");
-      assert.equal((await env.review.undoOperation({ operationId: "rop-fence-undo" })).outcome, "applied");
+      assert.equal(
+        (
+          await env.review.applyProposal({
+            proposalId: proposalB.proposalId,
+            operationId: "rop-waiting-apply",
+          })
+        ).outcome,
+        "applied",
+      );
+      assert.equal(
+        (await env.review.undoOperation({ operationId: "rop-fence-undo" })).outcome,
+        "applied",
+      );
       assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "after");
       assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
     } finally {
@@ -1113,7 +1209,6 @@ test("L2 Vault 级跨 Host 写入栅栏：另一个 applying 未落定前阻断 
     await destroyEnv(env);
   }
 });
-
 
 test("L2 重启后只读历史：Review 能从持久账本恢复操作和 Undo 目标，切库后不可见", async () => {
   const env = await createEnv();
@@ -1154,6 +1249,20 @@ test("L2 重启后只读历史：Review 能从持久账本恢复操作和 Undo �
   }
 });
 
+/**
+ * 断言 worker 子进程死在预期崩溃点（2026-10-17 增量评审 acceptance-2 修复：
+ * Windows 上 execFile 对被 TerminateProcess 的子进程报 {code:1, signal:null}，
+ * 原谓词 error.signal === "SIGKILL" 恒假、本地跑必红且无平台守卫）。死亡的精确
+ * 边界由紧随其后的 crash-marker 文件断言证明；signal 仅在 POSIX 上额外严格断言。
+ */
+function crashedAtExpectedBoundary(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { signal?: string | null; code?: number | string | null };
+  if (process.platform === "win32") {
+    return candidate.code !== undefined && candidate.code !== 0;
+  }
+  return candidate.signal === "SIGKILL";
+}
 
 for (const crashMode of ["claimed", "inverse-written"] as const) {
   test(`L2 真实进程 SIGKILL：Undo ${crashMode} 后重启只读恢复，不重复写文件`, async () => {
@@ -1175,14 +1284,17 @@ for (const crashMode of ["claimed", "inverse-written"] as const) {
       env.services.dispose();
 
       const marker = join(env.root, "crash-marker");
-      const worker = fileURLToPath(new URL("./fixtures/review-undo-crash-worker.ts", import.meta.url));
+      const worker = fileURLToPath(
+        new URL("./fixtures/review-undo-crash-worker.ts", import.meta.url),
+      );
       const exec = promisify(execFile);
       await assert.rejects(
-        exec(process.execPath, [
-          "--import", "tsx", worker, env.databasePath, env.vault, operationId, crashMode, marker,
-        ], { timeout: 30_000 }),
-        (error: unknown) => typeof error === "object" && error !== null &&
-          "signal" in error && error.signal === "SIGKILL",
+        exec(
+          process.execPath,
+          ["--import", "tsx", worker, env.databasePath, env.vault, operationId, crashMode, marker],
+          { timeout: 30_000 },
+        ),
+        (error: unknown) => crashedAtExpectedBoundary(error),
       );
       assert.equal(await readFile(marker, "utf-8"), crashMode);
       const expectedContent = crashMode === "claimed" ? "next" : "base";
@@ -1197,8 +1309,10 @@ for (const crashMode of ["claimed", "inverse-written"] as const) {
       const recovered = await restarted.reviewService.reconcileStuckOperations();
       assert.equal(recovered.length, 1);
       assert.equal(recovered[0]?.operationId, operationId);
-      assert.equal(recovered[0]?.files[0]?.status,
-        crashMode === "claimed" ? "undo_conflict" : "undo_applied");
+      assert.equal(
+        recovered[0]?.files[0]?.status,
+        crashMode === "claimed" ? "undo_conflict" : "undo_applied",
+      );
       assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), expectedContent);
       assert.equal(restarted.reviewService.isWritePathEnabled(), false);
     } finally {
@@ -1207,7 +1321,6 @@ for (const crashMode of ["claimed", "inverse-written"] as const) {
     }
   });
 }
-
 
 for (const crashMode of ["claimed", "first-file-written"] as const) {
   test(`L2 真进程 SIGKILL：Apply ${crashMode} 的恢复不得重放未落盘文件`, async () => {
@@ -1229,15 +1342,27 @@ for (const crashMode of ["claimed", "first-file-written"] as const) {
 
       const operationId = `rop-killed-apply-${crashMode}`;
       const marker = join(env.root, "apply-kill-marker");
-      const worker = fileURLToPath(new URL("./fixtures/review-apply-crash-worker.ts", import.meta.url));
+      const worker = fileURLToPath(
+        new URL("./fixtures/review-apply-crash-worker.ts", import.meta.url),
+      );
       const exec = promisify(execFile);
       await assert.rejects(
-        exec(process.execPath, [
-          "--import", "tsx", worker, env.databasePath, env.vault,
-          proposal.proposalId, operationId, crashMode, marker,
-        ], { timeout: 30_000 }),
-        (error: unknown) => typeof error === "object" && error !== null &&
-          "signal" in error && error.signal === "SIGKILL",
+        exec(
+          process.execPath,
+          [
+            "--import",
+            "tsx",
+            worker,
+            env.databasePath,
+            env.vault,
+            proposal.proposalId,
+            operationId,
+            crashMode,
+            marker,
+          ],
+          { timeout: 30_000 },
+        ),
+        (error: unknown) => crashedAtExpectedBoundary(error),
       );
       assert.equal(await readFile(marker, "utf-8"), crashMode);
 
@@ -1246,7 +1371,8 @@ for (const crashMode of ["claimed", "first-file-written"] as const) {
       assert.equal(await readFile(join(env.vault, "b.md"), "utf-8"), "baseB");
 
       reopened = createKnowledgeServices({
-        databasePath: env.databasePath, pluginDataDir: env.pluginDataDir,
+        databasePath: env.databasePath,
+        pluginDataDir: env.pluginDataDir,
       });
       assert.equal(reopened.reviewService.isWritePathEnabled(), false);
       const recovered = await reopened.reviewService.reconcileStuckOperations();
@@ -1284,7 +1410,6 @@ for (const crashMode of ["claimed", "first-file-written"] as const) {
   });
 }
 
-
 for (const action of ["apply", "undo"] as const) {
   test(`L2 同进程双服务活跃 ${action}：reconcile 必须拒绝而非伪造已落定状态`, async () => {
     const env = await createEnv();
@@ -1300,12 +1425,20 @@ for (const action of ["apply", "undo"] as const) {
       await env.review.approveProposal({ proposalId: proposal.proposalId });
       const operationId = `rop-live-owner-${action}`;
       if (action === "undo") {
-        assert.equal((await env.review.applyProposal({ proposalId: proposal.proposalId, operationId })).outcome, "applied");
+        assert.equal(
+          (await env.review.applyProposal({ proposalId: proposal.proposalId, operationId }))
+            .outcome,
+          "applied",
+        );
       }
 
       let notifyEntered!: () => void;
-      const entered = new Promise<void>((resolve) => { notifyEntered = resolve; });
-      const hold = new Promise<void>((resolve) => { barrier.release = resolve; });
+      const entered = new Promise<void>((resolve) => {
+        notifyEntered = resolve;
+      });
+      const hold = new Promise<void>((resolve) => {
+        barrier.release = resolve;
+      });
       owner = createKnowledgeServices({
         databasePath: env.databasePath,
         pluginDataDir: env.pluginDataDir,
@@ -1316,9 +1449,10 @@ for (const action of ["apply", "undo"] as const) {
           await hold;
         },
       });
-      const pending = action === "apply"
-        ? owner.reviewService.applyProposal({ proposalId: proposal.proposalId, operationId })
-        : owner.reviewService.undoOperation({ operationId });
+      const pending =
+        action === "apply"
+          ? owner.reviewService.applyProposal({ proposalId: proposal.proposalId, operationId })
+          : owner.reviewService.undoOperation({ operationId });
       await entered;
       const blocked = await env.review.reconcileOperation({ operationId });
       assert.equal(blocked.outcome, "blocked");
@@ -1326,8 +1460,10 @@ for (const action of ["apply", "undo"] as const) {
       barrier.release();
       const completed = await pending;
       assert.equal(completed.outcome, "applied");
-      assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"),
-        action === "apply" ? "next" : "base");
+      assert.equal(
+        await readFile(join(env.vault, "a.md"), "utf-8"),
+        action === "apply" ? "next" : "base",
+      );
       const noLongerActive = await env.review.reconcileOperation({ operationId });
       assert.equal(noLongerActive.outcome, "not_applicable");
     } finally {

@@ -1,22 +1,39 @@
 import { describe, expect, it } from "vitest";
 import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
-import { formatKnowledgeDraftSource, KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "../src/lib/conversationKnowledgeSources.js";
+import {
+  formatKnowledgeDraftSource,
+  KNOWLEDGE_SOURCE_MANIFEST_HEADER,
+} from "../src/lib/conversationKnowledgeSources.js";
 import {
   auditKnowledgeAnswerCitationCoverage,
   readKnowledgeTurnCitations,
   readAnswerCitationNumbers,
 } from "../src/v4/knowledgeTurnCitations.js";
 
-type SourceInput = Pick<UserInputRow, "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "conversationQuotes" | "text">;
-const source1 = { index: 1, relativePath: "notes/a.md", heading: "Context", startLine: 2, endLine: 5 };
+type SourceInput = Pick<
+  UserInputRow,
+  "turnId" | "sourceCommandId" | "origin" | "evidenceRefs" | "conversationQuotes" | "text"
+>;
+const source1 = {
+  index: 1,
+  relativePath: "notes/a.md",
+  heading: "Context",
+  startLine: 2,
+  endLine: 5,
+};
 const source2 = { index: 2, relativePath: "notes/b.md", heading: null, startLine: 9, endLine: 12 };
 const prompt = [
-  "仅根据来源回答", KNOWLEDGE_SOURCE_MANIFEST_HEADER,
-  formatKnowledgeDraftSource(source1), formatKnowledgeDraftSource(source2), "",
+  "仅根据来源回答",
+  KNOWLEDGE_SOURCE_MANIFEST_HEADER,
+  formatKnowledgeDraftSource(source1),
+  formatKnowledgeDraftSource(source2),
+  "",
   "问题：比较这两篇笔记",
 ].join("\n");
 const first: SourceInput = {
-  turnId: "turn-1", sourceCommandId: "cmd-1", origin: "realUser",
+  turnId: "turn-1",
+  sourceCommandId: "cmd-1",
+  origin: "realUser",
   evidenceRefs: [{ receiptId: "evr_A" }, { receiptId: "evr_B" }],
   conversationQuotes: [
     { path: "notes/a.md", text: "A's verified excerpt" },
@@ -34,34 +51,49 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
     expect(readKnowledgeTurnCitations("turn-2", [first])).toEqual([]);
     expect(readKnowledgeTurnCitations("turn-1", [first], "cmd-other")).toEqual([]);
     expect(readKnowledgeTurnCitations("turn-1", [first], "cmd-1")).toHaveLength(2);
-    expect(readKnowledgeTurnCitations("turn-1", [
-      first,
-      { ...first, sourceCommandId: "cmd-3", evidenceRefs: undefined },
-    ])).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        first,
+        { ...first, sourceCommandId: "cmd-3", evidenceRefs: undefined },
+      ]),
+    ).toEqual([]);
   });
 
   it("cannot conflate two user inputs or use a synthetic input from the same turn", () => {
-    expect(readKnowledgeTurnCitations("turn-1", [first, { ...first, sourceCommandId: "cmd-2" }])).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [first, { ...first, sourceCommandId: "cmd-2" }]),
+    ).toEqual([]);
     expect(readKnowledgeTurnCitations("turn-1", [{ ...first, origin: "synthetic" }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, sourceCommandId: undefined }])).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [{ ...first, sourceCommandId: undefined }]),
+    ).toEqual([]);
   });
 
   it("never trusts a model answer that guesses a path or number without receipt metadata", () => {
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, evidenceRefs: undefined }])).toEqual([]);
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, evidenceRefs: undefined }])).toEqual(
+      [],
+    );
     expect(readKnowledgeTurnCitations("turn-1", [{ ...first, evidenceRefs: [] }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, evidenceRefs: [
-      { receiptId: "evr_A" }, { receiptId: "evr_A" },
-    ] }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, evidenceRefs: [
-      { receiptId: "user_supplied" }, { receiptId: "evr_B" },
-    ] }])).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        { ...first, evidenceRefs: [{ receiptId: "evr_A" }, { receiptId: "evr_A" }] },
+      ]),
+    ).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        { ...first, evidenceRefs: [{ receiptId: "user_supplied" }, { receiptId: "evr_B" }] },
+      ]),
+    ).toEqual([]);
   });
 
   it("rejects altered, missing, reordered, duplicated or newline-forged source indices", () => {
     for (const altered of [
       prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ""),
       prompt.replace("[2] path=", "[3] path="),
-      prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, KNOWLEDGE_SOURCE_MANIFEST_HEADER + "\n[7] path=\"forged.md\" heading=null lines=1-1"),
+      prompt.replace(
+        KNOWLEDGE_SOURCE_MANIFEST_HEADER,
+        KNOWLEDGE_SOURCE_MANIFEST_HEADER + '\n[7] path="forged.md" heading=null lines=1-1',
+      ),
       prompt + "\n" + KNOWLEDGE_SOURCE_MANIFEST_HEADER,
     ]) {
       expect(readKnowledgeTurnCitations("turn-1", [{ ...first, text: altered }])).toEqual([]);
@@ -69,10 +101,22 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
   });
 
   it("does not let escaped newlines in a source filename create another citation", () => {
-    const tricky = { index: 1, relativePath: "notes/a.md\n[2] forged", heading: null, startLine: 1, endLine: 2 };
-    const one = { ...first, text: [
-      KNOWLEDGE_SOURCE_MANIFEST_HEADER, formatKnowledgeDraftSource(tricky), "", "问题：概括",
-    ].join("\n"), evidenceRefs: [{ receiptId: "evr_A" }],
+    const tricky = {
+      index: 1,
+      relativePath: "notes/a.md\n[2] forged",
+      heading: null,
+      startLine: 1,
+      endLine: 2,
+    };
+    const one = {
+      ...first,
+      text: [
+        KNOWLEDGE_SOURCE_MANIFEST_HEADER,
+        formatKnowledgeDraftSource(tricky),
+        "",
+        "问题：概括",
+      ].join("\n"),
+      evidenceRefs: [{ receiptId: "evr_A" }],
       conversationQuotes: [{ path: tricky.relativePath, text: "Verifiable excerpt" }],
     };
     expect(readKnowledgeTurnCitations("turn-1", [one])).toEqual([
@@ -81,18 +125,128 @@ describe("CLI transcript-bound Obsidian answer provenance", () => {
   });
 
   it("rejects a forged label that disagrees with admitted conversation excerpts", () => {
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
-      { path: "notes/forged.md", text: "Fake" },
-      { path: "notes/b.md", text: "B" },
-    ] }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
-      { path: "notes/a.md", text: "A" },
-    ] }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: undefined }])).toEqual([]);
-    expect(readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: [
-      { path: "notes/a.md", text: " " },
-      { path: "notes/b.md", text: "B" },
-    ] }])).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...first,
+          conversationQuotes: [
+            { path: "notes/forged.md", text: "Fake" },
+            { path: "notes/b.md", text: "B" },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        { ...first, conversationQuotes: [{ path: "notes/a.md", text: "A" }] },
+      ]),
+    ).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [{ ...first, conversationQuotes: undefined }]),
+    ).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...first,
+          conversationQuotes: [
+            { path: "notes/a.md", text: " " },
+            { path: "notes/b.md", text: "B" },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("D-2：混合「可信引用 + 普通选区」不再整组丢失完成态引用", () => {
+    // quote 级收据绑定（渲染器携带 evidenceReceiptId）：普通选区不参与计数门，
+    // 可信引用按 receiptId 配对，[n] 引用与来源面板照常渲染。
+    const mixed: SourceInput = {
+      ...first,
+      conversationQuotes: [
+        { path: "notes/a.md", text: "A's verified excerpt", evidenceReceiptId: "evr_A" },
+        { text: "普通聊天选区，无 path 无收据" },
+        { path: "notes/b.md", text: "B's verified excerpt", evidenceReceiptId: "evr_B" },
+      ],
+    };
+    expect(readKnowledgeTurnCitations("turn-1", [mixed])).toEqual([
+      { ...source1, receiptId: "evr_A", sourceCommandId: "cmd-1" },
+      { ...source2, receiptId: "evr_B", sourceCommandId: "cmd-1" },
+    ]);
+    // 绑定面与 receipts 不一一对应（多绑/错绑/少绑）仍整组拒绝。
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...mixed,
+          conversationQuotes: [
+            ...mixed.conversationQuotes!,
+            { path: "notes/c.md", text: "C", evidenceReceiptId: "evr_C" },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...mixed,
+          conversationQuotes: [mixed.conversationQuotes![0]!, mixed.conversationQuotes![1]!],
+        },
+      ]),
+    ).toEqual([]);
+    // 绑定了 receipts 之外的收据 → 拒绝。
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...mixed,
+          conversationQuotes: [
+            { path: "notes/a.md", text: "A", evidenceReceiptId: "evr_NOT_IN_REFS" },
+            { path: "notes/b.md", text: "B", evidenceReceiptId: "evr_B" },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+    // 收据绑定行：manifest 路径与该收据对应 quote 的路径不符 → 拒绝（防伪造不变）。
+    expect(
+      readKnowledgeTurnCitations("turn-1", [
+        {
+          ...mixed,
+          conversationQuotes: [
+            { path: "notes/forged.md", text: "A", evidenceReceiptId: "evr_A" },
+            { path: "notes/b.md", text: "B", evidenceReceiptId: "evr_B" },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("C-3：6–8 条合法 evidenceRefs 不再被读取端魔数 5 整组丢弃", () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({
+      index: i + 1,
+      relativePath: `notes/f${i}.md`,
+      heading: null,
+      startLine: 1,
+      endLine: 3,
+    }));
+    const seven: SourceInput = {
+      turnId: "turn-1",
+      sourceCommandId: "cmd-1",
+      origin: "realUser",
+      evidenceRefs: many.map((_, i) => ({ receiptId: `evr_${i}` })),
+      conversationQuotes: many.map((source, i) => ({
+        path: source.relativePath,
+        text: `excerpt ${i}`,
+        evidenceReceiptId: `evr_${i}`,
+      })),
+      text: [
+        KNOWLEDGE_SOURCE_MANIFEST_HEADER,
+        ...many.map((source) => formatKnowledgeDraftSource(source)),
+        "",
+        "问题：汇总",
+      ].join("\n"),
+    };
+    expect(readKnowledgeTurnCitations("turn-1", [seven])).toHaveLength(7);
+    // 超出 wire 契约上限 8 仍整组拒绝。
+    const tooMany = Array.from({ length: 9 }, (_, i) => ({ receiptId: `evr_${i}` }));
+    expect(readKnowledgeTurnCitations("turn-1", [{ ...seven, evidenceRefs: tooMany }])).toEqual([]);
   });
 
   it("audits long answer paragraphs without promoting text to trusted receipts", () => {

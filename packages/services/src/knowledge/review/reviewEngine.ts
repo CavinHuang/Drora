@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- Proposal 生命周期、批准绑定与 Operation ledger 执行（快照→转移→CAS 写→reconcile/undo）是同一账本状态机，必须同文件原子演进（与 host registry / windowHostController 同先例）。 *//**
+/* eslint-disable max-lines -- Proposal 生命周期、批准绑定与 Operation ledger 执行（快照→转移→CAS 写→reconcile/undo）是同一账本状态机，必须同文件原子演进（与 host registry / windowHostController 同先例）。 */ /**
  * W06 审核写入引擎（specs/obsidian-knowledge.md §5e）。
  *
  * L2 治理写的唯一落盘路径：Proposal（目标源/来源证据/base SHA/proposalRevision/
@@ -76,7 +76,10 @@ const MAX_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** 业务拒绝（结构化 blocked.reason 的抛出形态；公共方法捕获后映射为结构化结果）。 */
 class ReviewRejection extends Error {
-  constructor(readonly code: KnowledgeReviewRejectionCode, message: string) {
+  constructor(
+    readonly code: KnowledgeReviewRejectionCode,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -127,7 +130,9 @@ function liveOperationKey(vaultId: string, operationId: string): string {
   return `${vaultId}\0${operationId}`;
 }
 
-export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptions): IKnowledgeReviewService {
+export function createKnowledgeReviewService(
+  options: KnowledgeReviewEngineOptions,
+): IKnowledgeReviewService {
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
   const runtimeOwnership = createReviewRuntimeOwnership(options.db);
@@ -153,13 +158,20 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   // per-vault 进程内互斥：同一 vault 的执行/撤销串行排队，防同进程交错。
   const vaultLocks = new Map<string, Promise<unknown>>();
-  async function withVaultLock<T>(vaultId: string, fn: () => Promise<T>, onBusy: () => T): Promise<T> {
+  async function withVaultLock<T>(
+    vaultId: string,
+    fn: () => Promise<T>,
+    onBusy: () => T,
+  ): Promise<T> {
     const previous = vaultLocks.get(vaultId) ?? Promise.resolve();
     const runOwned = async () => {
       const token = runtimeOwnership.acquire(vaultId);
       if (token === null) return onBusy();
-      try { return await fn(); }
-      finally { runtimeOwnership.release(vaultId, token); }
+      try {
+        return await fn();
+      } finally {
+        runtimeOwnership.release(vaultId, token);
+      }
     };
     const run = previous.then(runOwned, runOwned);
     vaultLocks.set(
@@ -181,10 +193,22 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   async function resolveSource(): Promise<ResolvedSource> {
     const source = await resolveKnowledgeSource(options.db, options.pluginDataDir, Date.now());
-    if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
-      return reject(KNOWLEDGE_REVIEW_REJECTION_CODES.noSource, "尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
+    if (
+      !source.configured ||
+      source.config === null ||
+      source.summary === null ||
+      source.sourceEpoch === null
+    ) {
+      return reject(
+        KNOWLEDGE_REVIEW_REJECTION_CODES.noSource,
+        "尚未配置 Vault：先在 Vault 面板选择或授权一个根目录",
+      );
     }
-    return { config: source.config, vaultId: source.summary.vaultId, sourceEpoch: source.sourceEpoch };
+    return {
+      config: source.config,
+      vaultId: source.summary.vaultId,
+      sourceEpoch: source.sourceEpoch,
+    };
   }
 
   function requireVaultMatch(row: ReviewProposalRow, source: ResolvedSource): void {
@@ -206,7 +230,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
   }
 
   /** 读取 vault 文件；「不存在」返回 null，其余 IO 异常上抛（由调用方按 conflict 处理）。 */
-  async function readFileOrNull(facade: VaultFileSystem, relativePath: string): Promise<VaultReadResult | null> {
+  async function readFileOrNull(
+    facade: VaultFileSystem,
+    relativePath: string,
+  ): Promise<VaultReadResult | null> {
     try {
       return await facade.readFile(relativePath);
     } catch (error) {
@@ -250,7 +277,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     }));
   }
 
-  function buildApprovalView(row: ReviewApprovalRowLike, nowMs: number): KnowledgeReviewApprovalView {
+  function buildApprovalView(
+    row: ReviewApprovalRowLike,
+    nowMs: number,
+  ): KnowledgeReviewApprovalView {
     return {
       proposalId: row.proposalId,
       revision: row.revision,
@@ -289,7 +319,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     };
   }
 
-  function buildOperationView(opRow: ReviewOperationRow, files?: ReviewOperationFileRow[]): KnowledgeReviewOperationView {
+  function buildOperationView(
+    opRow: ReviewOperationRow,
+    files?: ReviewOperationFileRow[],
+  ): KnowledgeReviewOperationView {
     const fileRows = files ?? store.listOperationFiles(opRow.operationId);
     return {
       operationId: opRow.operationId,
@@ -318,7 +351,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   // ── 提案校验与物化 ────────────────────────────────────────
 
-  function validateEvidenceInput(evidence: KnowledgeReviewEvidenceInput[] | undefined): KnowledgeReviewEvidenceView[] {
+  function validateEvidenceInput(
+    evidence: KnowledgeReviewEvidenceInput[] | undefined,
+  ): KnowledgeReviewEvidenceView[] {
     if (evidence === undefined) return [];
     if (!Array.isArray(evidence) || evidence.length > 20) {
       reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "evidence 必须是不超过 20 条的数组");
@@ -326,9 +361,15 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     return evidence.map((item) => {
       const receiptId =
         typeof item?.receiptId === "string" && item.receiptId.trim() ? item.receiptId.trim() : null;
-      const note = typeof item?.note === "string" && item.note.trim() ? item.note.trim().slice(0, MAX_EVIDENCE_NOTE_LENGTH) : null;
+      const note =
+        typeof item?.note === "string" && item.note.trim()
+          ? item.note.trim().slice(0, MAX_EVIDENCE_NOTE_LENGTH)
+          : null;
       if (!receiptId && !note) {
-        reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "evidence 条目必须携带 receiptId 或 note");
+        reject(
+          KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+          "evidence 条目必须携带 receiptId 或 note",
+        );
       }
       return { receiptId, note };
     });
@@ -339,7 +380,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
    * 必须命中当前文件（提案与现实对齐，杜绝批准一个基于幻觉旧版的提案）；
    * L3 类操作（隐藏路径/非 .md/目录/超限）在这里不可表达（§5e.4）。
    */
-  async function materializeChanges(source: ResolvedSource, changes: KnowledgeReviewChangeInput[]): Promise<StoredChange[]> {
+  async function materializeChanges(
+    source: ResolvedSource,
+    changes: KnowledgeReviewChangeInput[],
+  ): Promise<StoredChange[]> {
     if (!Array.isArray(changes) || changes.length === 0 || changes.length > MAX_PROPOSAL_CHANGES) {
       reject(
         KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
@@ -366,7 +410,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         );
       }
       if (seen.has(relativePath)) {
-        reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, `同一文件在提案中重复：${relativePath}`);
+        reject(
+          KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+          `同一文件在提案中重复：${relativePath}`,
+        );
       }
       seen.add(relativePath);
 
@@ -381,7 +428,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         }
       } else {
         if (typeof change.content !== "string") {
-          reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "write/create 变更必须携带字符串 content");
+          reject(
+            KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+            "write/create 变更必须携带字符串 content",
+          );
         }
         if (Buffer.byteLength(change.content, "utf-8") > MAX_CHANGE_CONTENT_BYTES) {
           reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "变更内容超过 2MB 门面上限");
@@ -393,7 +443,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "create 变更不得携带 baseSha256");
       }
       if (baseSha256 !== null && (typeof baseSha256 !== "string" || baseSha256.length === 0)) {
-        reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "write/delete 变更必须携带 baseSha256");
+        reject(
+          KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+          "write/delete 变更必须携带 baseSha256",
+        );
       }
 
       // 与现实对齐（缺失/超限按 invalid 处理——门面对 >2MB 文件本就拒绝 sha 校验）。
@@ -409,11 +462,17 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
       if (kind === "create") {
         if (current !== null) {
-          reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "目标已存在，create 应改为 write 并携带 baseSha256");
+          reject(
+            KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+            "目标已存在，create 应改为 write 并携带 baseSha256",
+          );
         }
       } else {
         if (current === null) {
-          reject(KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange, "目标不存在或已删除，无法按 base SHA 对齐");
+          reject(
+            KNOWLEDGE_REVIEW_REJECTION_CODES.invalidChange,
+            "目标不存在或已删除，无法按 base SHA 对齐",
+          );
         }
         if (current.sha256 !== baseSha256) {
           reject(
@@ -438,7 +497,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   // ── 公共 RPC 面 ───────────────────────────────────────────
 
-  async function createProposal(params: KnowledgeReviewCreateProposalParams): Promise<KnowledgeReviewProposalView> {
+  async function createProposal(
+    params: KnowledgeReviewCreateProposalParams,
+  ): Promise<KnowledgeReviewProposalView> {
     if (!params || typeof params !== "object") throw new Error("参数非法");
     const title = typeof params.title === "string" ? params.title.trim() : "";
     const reason = typeof params.reason === "string" ? params.reason.trim() : "";
@@ -471,7 +532,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     return buildProposalView(row, nowMs);
   }
 
-  async function reviseProposal(params: KnowledgeReviewReviseProposalParams): Promise<KnowledgeReviewProposalView> {
+  async function reviseProposal(
+    params: KnowledgeReviewReviseProposalParams,
+  ): Promise<KnowledgeReviewProposalView> {
     if (!params || typeof params.proposalId !== "string" || !params.proposalId) {
       throw new Error("proposalId 不能为空");
     }
@@ -492,10 +555,16 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     const nextRevision = row.revision + 1;
     const title = hasTitle ? String(params.title ?? "").trim() : row.title;
     const reason = hasReason ? String(params.reason ?? "").trim() : row.reason;
-    if (!title || title.length > MAX_TITLE_LENGTH) throw new Error(`title 必须是 1..${MAX_TITLE_LENGTH} 个字符`);
-    if (!reason || reason.length > MAX_REASON_LENGTH) throw new Error(`reason 必须是 1..${MAX_REASON_LENGTH} 个字符`);
-    const evidence = hasEvidence ? validateEvidenceInput(params.evidence) : parseStoredEvidence(row);
-    const stored = hasChanges ? await materializeChanges(source, params.changes ?? []) : parseStoredChanges(row);
+    if (!title || title.length > MAX_TITLE_LENGTH)
+      throw new Error(`title 必须是 1..${MAX_TITLE_LENGTH} 个字符`);
+    if (!reason || reason.length > MAX_REASON_LENGTH)
+      throw new Error(`reason 必须是 1..${MAX_REASON_LENGTH} 个字符`);
+    const evidence = hasEvidence
+      ? validateEvidenceInput(params.evidence)
+      : parseStoredEvidence(row);
+    const stored = hasChanges
+      ? await materializeChanges(source, params.changes ?? [])
+      : parseStoredChanges(row);
 
     const nowMs = Date.now();
     const changesJson = canonicalizeChangesJson(stored);
@@ -515,7 +584,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     return buildProposalView(updated, nowMs);
   }
 
-  async function getProposal(params: { proposalId: string }): Promise<KnowledgeReviewProposalView | null> {
+  async function getProposal(params: {
+    proposalId: string;
+  }): Promise<KnowledgeReviewProposalView | null> {
     if (!params || typeof params.proposalId !== "string" || !params.proposalId) return null;
     const row = store.getProposal(params.proposalId);
     if (!row) return null;
@@ -542,13 +613,18 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     const source = await resolveSource();
     requireVaultMatch(row, source);
     if (row.rejectedAtMs !== null) {
-      reject(KNOWLEDGE_REVIEW_REJECTION_CODES.proposalRejected, "提案已被拒绝；修订（revise）后可重新送审");
+      reject(
+        KNOWLEDGE_REVIEW_REJECTION_CODES.proposalRejected,
+        "提案已被拒绝；修订（revise）后可重新送审",
+      );
     }
     // Reject malformed/non-finite TTLs instead of allowing NaN/Infinity to
     // reach the durable approval ledger. Zero remains a test-only expiry hook.
     if (
       params.ttlMs !== undefined &&
-      (typeof params.ttlMs !== "number" || !Number.isFinite(params.ttlMs) || !Number.isSafeInteger(params.ttlMs))
+      (typeof params.ttlMs !== "number" ||
+        !Number.isFinite(params.ttlMs) ||
+        !Number.isSafeInteger(params.ttlMs))
     ) {
       throw new Error("ttlMs 必须是有限的安全整数毫秒数");
     }
@@ -570,7 +646,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     return buildApprovalView(approval, nowMs);
   }
 
-  async function rejectProposal(params: { proposalId: string }): Promise<KnowledgeReviewProposalView> {
+  async function rejectProposal(params: {
+    proposalId: string;
+  }): Promise<KnowledgeReviewProposalView> {
     if (!params || typeof params.proposalId !== "string" || !params.proposalId) {
       throw new Error("proposalId 不能为空");
     }
@@ -602,20 +680,28 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       reject(KNOWLEDGE_REVIEW_REJECTION_CODES.notApproved, "当前 revision 尚未获得人工批准");
     }
     if (approval.changesHash !== row.changesHash) {
-      reject(KNOWLEDGE_REVIEW_REJECTION_CODES.approvalStale, "批准与当前变更内容不一致（Diff 已改变，必须重审）");
+      reject(
+        KNOWLEDGE_REVIEW_REJECTION_CODES.approvalStale,
+        "批准与当前变更内容不一致（Diff 已改变，必须重审）",
+      );
     }
     if (approval.expiresAtMs <= nowMs) {
       reject(KNOWLEDGE_REVIEW_REJECTION_CODES.approvalExpired, "批准已过期，必须重新批准");
     }
     if (approval.sourceEpoch !== source.sourceEpoch) {
-      reject(KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale, "源身份已变化（切库/撤权重授），批准失效");
+      reject(
+        KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
+        "源身份已变化（切库/撤权重授），批准失效",
+      );
     }
   }
 
   /** 已存在的 operationId 的幂等/在途语义（A33）。返回 null = 允许继续执行。 */
-  function resolveExistingOperation(opRow: ReviewOperationRow, proposalId: string, revision: number):
-    | KnowledgeReviewApplyResult
-    | null {
+  function resolveExistingOperation(
+    opRow: ReviewOperationRow,
+    proposalId: string,
+    revision: number,
+  ): KnowledgeReviewApplyResult | null {
     if (opRow.proposalId !== proposalId || opRow.revision !== revision) {
       return {
         outcome: "blocked",
@@ -644,11 +730,17 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     return null;
   }
 
-  async function applyProposal(params: { proposalId: string; operationId?: string }): Promise<KnowledgeReviewApplyResult> {
+  async function applyProposal(params: {
+    proposalId: string;
+    operationId?: string;
+  }): Promise<KnowledgeReviewApplyResult> {
     if (!params || typeof params.proposalId !== "string" || !params.proposalId) {
       throw new Error("proposalId 不能为空");
     }
-    if (params.operationId !== undefined && (typeof params.operationId !== "string" || !params.operationId)) {
+    if (
+      params.operationId !== undefined &&
+      (typeof params.operationId !== "string" || !params.operationId)
+    ) {
       throw new Error("operationId 非法");
     }
     // The runtime safety gate and the user opt-in are both required. When either
@@ -667,8 +759,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // A Vault reconfiguration drops the preference. An in-memory true for the
     // previous root must not authorize new-root writes. Explicit test overrides
     // are isolated from production preference loading.
-    if (options.writePathEnabled === undefined &&
-        source.config.reviewWritePathEnabled !== true) {
+    if (options.writePathEnabled === undefined && source.config.reviewWritePathEnabled !== true) {
       return {
         outcome: "blocked",
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
@@ -711,7 +802,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // 同提案的在途保护：已有 applying/uncertain 的其他 operation → 先 reconcile（A33）。
     const inFlight = store
       .listOperationsByProposal(row.proposalId)
-      .find((op) => (op.status === "applying" || op.status === "uncertain") && op.operationId !== operationId);
+      .find(
+        (op) =>
+          (op.status === "applying" || op.status === "uncertain") && op.operationId !== operationId,
+      );
     if (inFlight) {
       return {
         outcome: "reconcile_required",
@@ -754,11 +848,16 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       }
     }
 
-    return withVaultLock<KnowledgeReviewApplyResult>(source.vaultId,
+    return withVaultLock<KnowledgeReviewApplyResult>(
+      source.vaultId,
       () => executeOperation(operationId, row, source),
-      () => ({ outcome: "reconcile_required", reason: null,
+      () => ({
+        outcome: "reconcile_required",
+        reason: null,
         message: "另一 Host 正在操作当前 Vault，不能抢占或重放写入",
-        operation: buildOperationView(store.getOperation(operationId)!) }));
+        operation: buildOperationView(store.getOperation(operationId)!),
+      }),
+    );
   }
 
   /** 阶段 1 快照对齐 → 阶段 2 单赢家转移 → 阶段 3 门面 CAS 写（冲突即停）。 */
@@ -771,8 +870,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // while waiting for the in-process lock. Never trust the captured source.
     try {
       const currentSource = await resolveSource();
-      if (!writePathEnabled ||
-          (options.writePathEnabled === undefined && currentSource.config.reviewWritePathEnabled !== true)) {
+      if (
+        !writePathEnabled ||
+        (options.writePathEnabled === undefined &&
+          currentSource.config.reviewWritePathEnabled !== true)
+      ) {
         return {
           outcome: "blocked",
           reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
@@ -780,8 +882,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
           operation: buildOperationView(store.getOperation(operationId)!),
         };
       }
-      if (currentSource.vaultId !== source.vaultId ||
-          currentSource.sourceEpoch !== source.sourceEpoch) {
+      if (
+        currentSource.vaultId !== source.vaultId ||
+        currentSource.sourceEpoch !== source.sourceEpoch
+      ) {
         return {
           outcome: "blocked",
           reason: KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
@@ -805,7 +909,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     const verified: Array<{ ordinal: number; change: StoredChange }> = [];
     for (const [ordinal, change] of changes.entries()) {
       let conflictMessage: string | null = null;
-      let snapshot: { content: string | null; sha256: string | null } = { content: null, sha256: null };
+      let snapshot: { content: string | null; sha256: string | null } = {
+        content: null,
+        sha256: null,
+      };
       try {
         const current = await readFileOrNull(facade, change.relativePath);
         if (change.kind === "create") {
@@ -854,7 +961,12 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         finishedAtMs: nowMs(),
       });
       const opRow = store.getOperation(operationId);
-      return { outcome: "conflict", reason: null, message: verifyConflict, operation: opRow ? buildOperationView(opRow) : null };
+      return {
+        outcome: "conflict",
+        reason: null,
+        message: verifyConflict,
+        operation: opRow ? buildOperationView(opRow) : null,
+      };
     }
 
     // ── 阶段 2：单赢家转移（跨进程 BEGIN IMMEDIATE 串行；输家按在途/已完成语义返回）。──
@@ -881,71 +993,81 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     const liveKey = liveOperationKey(source.vaultId, operationId);
     liveReviewOperations.add(liveKey);
     try {
-    // ── 阶段 3：顺序写（门面 CAS），冲突即停。 ──
-    let stopMessage: string | null = null;
-    for (const { ordinal, change } of verified) {
-      store.updateOperationFileStatus(operationId, ordinal, "applying", null, nowMs());
-      let applied = false;
-      let fileError: string | null = null;
-      try {
-        // Re-check between files: cancellation/revocation cannot authorize the
-        // rest of a multi-file proposal using a stale source snapshot.
-        await options.beforeFileMutationForTest?.();
-        const live = await resolveSource();
-        if (!writePathEnabled || live.vaultId !== source.vaultId ||
-            live.sourceEpoch !== source.sourceEpoch || live.config.allowAgentWrites !== true ||
-            (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
-          throw new Error("写入期间授权或 Vault 已变化；停止剩余变更");
-        }
-        checkApproval(proposalRow, live, Date.now());
-        if (change.kind === "delete") {
-          await facade.deleteFile({ relativePath: change.relativePath, expectedSha256: change.baseSha256 ?? undefined });
-          applied = true;
-        } else {
-          const result = await facade.writeFile({
-            relativePath: change.relativePath,
-            content: change.content ?? "",
-            ...(change.kind === "write" ? { expectedSha256: change.baseSha256 ?? undefined } : { createOnly: true }),
-          });
-          if (result.ok) {
+      // ── 阶段 3：顺序写（门面 CAS），冲突即停。 ──
+      let stopMessage: string | null = null;
+      for (const { ordinal, change } of verified) {
+        store.updateOperationFileStatus(operationId, ordinal, "applying", null, nowMs());
+        let applied = false;
+        let fileError: string | null = null;
+        try {
+          // Re-check between files: cancellation/revocation cannot authorize the
+          // rest of a multi-file proposal using a stale source snapshot.
+          await options.beforeFileMutationForTest?.();
+          const live = await resolveSource();
+          if (
+            !writePathEnabled ||
+            live.vaultId !== source.vaultId ||
+            live.sourceEpoch !== source.sourceEpoch ||
+            live.config.allowAgentWrites !== true ||
+            (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)
+          ) {
+            throw new Error("写入期间授权或 Vault 已变化；停止剩余变更");
+          }
+          checkApproval(proposalRow, live, Date.now());
+          if (change.kind === "delete") {
+            await facade.deleteFile({
+              relativePath: change.relativePath,
+              expectedSha256: change.baseSha256 ?? undefined,
+            });
             applied = true;
           } else {
-            fileError = `conflict: 门面 CAS 冲突（当前 ${result.currentSha256.slice(0, 12)}…）`;
+            const result = await facade.writeFile({
+              relativePath: change.relativePath,
+              content: change.content ?? "",
+              ...(change.kind === "write"
+                ? { expectedSha256: change.baseSha256 ?? undefined }
+                : { createOnly: true }),
+            });
+            if (result.ok) {
+              applied = true;
+            } else {
+              fileError = `conflict: 门面 CAS 冲突（当前 ${result.currentSha256.slice(0, 12)}…）`;
+            }
           }
+        } catch (error) {
+          fileError = `conflict: ${error instanceof Error ? error.message : String(error)}`;
         }
-      } catch (error) {
-        fileError = `conflict: ${error instanceof Error ? error.message : String(error)}`;
+        store.updateOperationFileStatus(
+          operationId,
+          ordinal,
+          applied ? "applied" : "conflict",
+          applied ? null : fileError,
+          nowMs(),
+        );
+        if (!applied) {
+          stopMessage = fileError ?? "conflict";
+          break;
+        }
       }
-      store.updateOperationFileStatus(
-        operationId,
-        ordinal,
-        applied ? "applied" : "conflict",
-        applied ? null : fileError,
-        nowMs(),
-      );
-      if (!applied) {
-        stopMessage = fileError ?? "conflict";
-        break;
-      }
-    }
 
-    const finalStatus: KnowledgeReviewOperationStatus = stopMessage === null ? "applied" : "conflict";
-    store.setOperationStatus(operationId, finalStatus, {
-      error: stopMessage,
-      finishedAtMs: nowMs(),
-    });
-    const opRow = store.getOperation(operationId);
-    if (stopMessage === null) {
-      logger.info("审核写入已应用", { operationId, files: verified.length });
-    } else {
-      logger.warn("审核写入部分冲突", { operationId, error: stopMessage });
-    }
-    return {
-      outcome: stopMessage === null ? "applied" : "conflict",
-      reason: null,
-      message: stopMessage,
-      operation: opRow ? buildOperationView(opRow) : null,
-    };
+      const finalStatus: KnowledgeReviewOperationStatus =
+        stopMessage === null ? "applied" : "conflict";
+      store.setOperationStatus(operationId, finalStatus, {
+        error: stopMessage,
+        finishedAtMs: nowMs(),
+      });
+      const opRow = store.getOperation(operationId);
+      if (stopMessage === null) {
+        logger.info("审核写入已应用", { operationId, files: verified.length });
+      } else {
+        logger.warn("审核写入部分冲突", { operationId, error: stopMessage });
+      }
+      return {
+        outcome: stopMessage === null ? "applied" : "conflict",
+        reason: null,
+        message: stopMessage,
+        operation: opRow ? buildOperationView(opRow) : null,
+      };
     } finally {
       liveReviewOperations.delete(liveKey);
     }
@@ -974,7 +1096,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         if (current.sha256 === file.snapshotSha256) {
           return { status: "not_landed", error: null, ioFailed: false };
         }
-        return { status: "conflict", error: "conflict: 文件内容与 base/目标均不符（外部编辑介入）", ioFailed: false };
+        return {
+          status: "conflict",
+          error: "conflict: 文件内容与 base/目标均不符（外部编辑介入）",
+          ioFailed: false,
+        };
       }
       if (current === null) return { status: "not_landed", error: null, ioFailed: false };
       if (file.nextSha256 !== null && current.sha256 === file.nextSha256) {
@@ -983,7 +1109,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       if (file.snapshotSha256 !== null && current.sha256 === file.snapshotSha256) {
         return { status: "not_landed", error: null, ioFailed: false };
       }
-      return { status: "conflict", error: "conflict: 文件内容与 base/目标均不符（外部编辑介入）", ioFailed: false };
+      return {
+        status: "conflict",
+        error: "conflict: 文件内容与 base/目标均不符（外部编辑介入）",
+        ioFailed: false,
+      };
     })();
   }
 
@@ -1006,13 +1136,17 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         error: `撤销证据不可得：${error instanceof Error ? error.message : String(error)}`,
       };
     }
-    const inverseLanded = file.kind === "create"
-      ? current === null
-      : current !== null && file.snapshotSha256 !== null && current.sha256 === file.snapshotSha256;
+    const inverseLanded =
+      file.kind === "create"
+        ? current === null
+        : current !== null &&
+          file.snapshotSha256 !== null &&
+          current.sha256 === file.snapshotSha256;
     if (inverseLanded) return { status: "undo_applied", error: null };
-    const originalStillPresent = file.kind === "delete"
-      ? current === null
-      : current !== null && file.nextSha256 !== null && current.sha256 === file.nextSha256;
+    const originalStillPresent =
+      file.kind === "delete"
+        ? current === null
+        : current !== null && file.nextSha256 !== null && current.sha256 === file.nextSha256;
     return {
       status: "undo_conflict",
       error: originalStillPresent
@@ -1021,7 +1155,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     };
   }
 
-  async function reconcileOperation(params: { operationId: string }): Promise<KnowledgeReviewReconcileResult> {
+  async function reconcileOperation(params: {
+    operationId: string;
+  }): Promise<KnowledgeReviewReconcileResult> {
     if (!params || typeof params.operationId !== "string" || !params.operationId) {
       throw new Error("operationId 不能为空");
     }
@@ -1033,7 +1169,8 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         operation: null,
       };
     }
-    let pendingUndo = store.listOperationFiles(opRow.operationId)
+    let pendingUndo = store
+      .listOperationFiles(opRow.operationId)
       .filter((file) => file.status === "undoing");
     if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
@@ -1056,69 +1193,90 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // 仅进程内 Set 无法证明另一 Host 已死亡；恢复和写入共享同一 SQLite owner。
     const ownerToken = runtimeOwnership.acquire(source.vaultId);
     if (ownerToken === null) {
-      return { outcome: "blocked", reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
-        operation: buildOperationView(opRow) };
+      return {
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
+        operation: buildOperationView(opRow),
+      };
     }
     try {
-    // 获取所有权之前原 writer 可能已经完成；不得用锁前状态覆盖新账本。
-    opRow = store.getOperation(params.operationId)!;
-    pendingUndo = store.listOperationFiles(opRow.operationId).filter((file) => file.status === "undoing");
-    if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
-      return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
-    }
-    const facade = createVaultFileSystem(source.config.rootPath);
-    if (opRow.status !== "applying" && opRow.status !== "uncertain") {
-      // Explicit recovery only. The caller must ensure the former writing host
-      // has stopped before settling durable undo claims.
-      for (const file of pendingUndo) {
-        const settled = await reconcileUndoingFile(facade, file);
-        // A live writer may finish between our read and this update.
-        // Settle only while the durable ownership claim still exists.
-        store.settleUndoClaim(opRow.operationId, file.ordinal, settled.status, settled.error, Date.now());
+      // 获取所有权之前原 writer 可能已经完成；不得用锁前状态覆盖新账本。
+      opRow = store.getOperation(params.operationId)!;
+      pendingUndo = store
+        .listOperationFiles(opRow.operationId)
+        .filter((file) => file.status === "undoing");
+      if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
+        return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
       }
-      store.setOperationStatus(opRow.operationId, opRow.status, { reconciledAtMs: Date.now() });
+      const facade = createVaultFileSystem(source.config.rootPath);
+      if (opRow.status !== "applying" && opRow.status !== "uncertain") {
+        // Explicit recovery only. The caller must ensure the former writing host
+        // has stopped before settling durable undo claims.
+        for (const file of pendingUndo) {
+          const settled = await reconcileUndoingFile(facade, file);
+          // A live writer may finish between our read and this update.
+          // Settle only while the durable ownership claim still exists.
+          store.settleUndoClaim(
+            opRow.operationId,
+            file.ordinal,
+            settled.status,
+            settled.error,
+            Date.now(),
+          );
+        }
+        store.setOperationStatus(opRow.operationId, opRow.status, { reconciledAtMs: Date.now() });
+        const updated = store.getOperation(opRow.operationId);
+        return {
+          outcome: "reconciled",
+          reason: null,
+          operation: updated ? buildOperationView(updated) : null,
+        };
+      }
+      const files = store.listOperationFiles(opRow.operationId);
+      const nowMs = Date.now();
+      let ioFailed = false;
+      for (const file of files) {
+        if (file.status !== "applying") continue;
+        const resolved = await resolveStuckFile(facade, file);
+        if (resolved.ioFailed) ioFailed = true;
+        store.updateOperationFileStatus(
+          opRow.operationId,
+          file.ordinal,
+          resolved.status,
+          resolved.error,
+          nowMs,
+        );
+        file.status = resolved.status;
+      }
+      const statuses = files.map((file) => file.status);
+      const hasConflict = statuses.includes("conflict");
+      const hasApplying = statuses.includes("applying");
+      const anyApplied = statuses.includes("applied");
+      const allApplied = statuses.length > 0 && statuses.every((status) => status === "applied");
+      // If a crashed multi-file apply wrote at least one file, we cannot safely
+      // replay the remainder from its old base SHA. Mark a partial conflict so
+      // the already-written files remain eligible for explicit inverse recovery.
+      const nextStatus: KnowledgeReviewOperationStatus = hasApplying
+        ? "uncertain"
+        : hasConflict
+          ? "conflict"
+          : allApplied
+            ? "applied"
+            : anyApplied
+              ? "conflict"
+              : "prepared";
+      store.setOperationStatus(opRow.operationId, nextStatus, {
+        reconciledAtMs: nowMs,
+        ...(nextStatus === "applied" && opRow.finishedAtMs === null ? { finishedAtMs: nowMs } : {}),
+        ...(ioFailed ? { error: "部分文件证据不可得，保持 uncertain" } : {}),
+      });
       const updated = store.getOperation(opRow.operationId);
-      return { outcome: "reconciled", reason: null, operation: updated ? buildOperationView(updated) : null };
-    }
-    const files = store.listOperationFiles(opRow.operationId);
-    const nowMs = Date.now();
-    let ioFailed = false;
-    for (const file of files) {
-      if (file.status !== "applying") continue;
-      const resolved = await resolveStuckFile(facade, file);
-      if (resolved.ioFailed) ioFailed = true;
-      store.updateOperationFileStatus(opRow.operationId, file.ordinal, resolved.status, resolved.error, nowMs);
-      file.status = resolved.status;
-    }
-    const statuses = files.map((file) => file.status);
-    const hasConflict = statuses.includes("conflict");
-    const hasApplying = statuses.includes("applying");
-    const anyApplied = statuses.includes("applied");
-    const allApplied = statuses.length > 0 && statuses.every((status) => status === "applied");
-    // If a crashed multi-file apply wrote at least one file, we cannot safely
-    // replay the remainder from its old base SHA. Mark a partial conflict so
-    // the already-written files remain eligible for explicit inverse recovery.
-    const nextStatus: KnowledgeReviewOperationStatus = hasApplying
-      ? "uncertain"
-      : hasConflict
-        ? "conflict"
-        : allApplied
-          ? "applied"
-          : anyApplied
-            ? "conflict"
-            : "prepared";
-    store.setOperationStatus(opRow.operationId, nextStatus, {
-      reconciledAtMs: nowMs,
-      ...(nextStatus === "applied" && opRow.finishedAtMs === null ? { finishedAtMs: nowMs } : {}),
-      ...(ioFailed ? { error: "部分文件证据不可得，保持 uncertain" } : {}),
-    });
-    const updated = store.getOperation(opRow.operationId);
-    logger.info("operation 已 reconcile", { operationId: opRow.operationId, status: nextStatus });
-    return {
-      outcome: "reconciled",
-      reason: null,
-      operation: updated ? buildOperationView(updated) : null,
-    };
+      logger.info("operation 已 reconcile", { operationId: opRow.operationId, status: nextStatus });
+      return {
+        outcome: "reconciled",
+        reason: null,
+        operation: updated ? buildOperationView(updated) : null,
+      };
     } finally {
       runtimeOwnership.release(source.vaultId, ownerToken);
     }
@@ -1134,8 +1292,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // Also surface interrupted undo claims. No writes are performed here:
     // inverse-not-landed is a conflict, never an automatic retry.
     const stuckById = new Map(
-      [...store.listOperationsByStatus(["applying", "uncertain"]), ...store.listOperationsWithUndoingFiles()]
-        .map((row) => [row.operationId, row]),
+      [
+        ...store.listOperationsByStatus(["applying", "uncertain"]),
+        ...store.listOperationsWithUndoingFiles(),
+      ].map((row) => [row.operationId, row]),
     );
     const results: KnowledgeReviewOperationView[] = [];
     for (const opRow of stuckById.values()) {
@@ -1149,7 +1309,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   // ── undo（带当前 SHA 验证的逆操作，§5e.7）──────────────────
 
-  async function undoOperation(params: { operationId: string }): Promise<KnowledgeReviewUndoResult> {
+  async function undoOperation(params: {
+    operationId: string;
+  }): Promise<KnowledgeReviewUndoResult> {
     if (!params || typeof params.operationId !== "string" || !params.operationId) {
       throw new Error("operationId 不能为空");
     }
@@ -1186,182 +1348,206 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // Serialize all undo attempts for this Vault, including duplicate RPCs.
     // The file rows must be read inside the lock so a second undo sees the
     // first one's undo_applied/undo_conflict status rather than racing it.
-    return withVaultLock<KnowledgeReviewUndoResult>(source.vaultId, async () => {
-    // A request may wait behind another file operation while the user revokes
-    // permission or switches Vaults. Re-read authority INSIDE the lock before
-    // claiming ledger rows or touching the filesystem.
-    const currentSource = await resolveSource();
-    if (!writePathEnabled || currentSource.vaultId !== source.vaultId) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
-        message: "等待期间写权限或 Vault 已变化；撤销已取消",
-        operation: buildOperationView(opRow),
-      };
-    }
-    // Undo writes too: a preference enabled for the old Vault must not authorize
-    // the newly selected root, even when the process gate was previously open.
-    if (options.writePathEnabled === undefined &&
-        currentSource.config.reviewWritePathEnabled !== true) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
-        message: "当前 Vault 未授权 L2 撤销写入",
-        operation: buildOperationView(opRow),
-      };
-    }
-    if (opRow.vaultId !== source.vaultId) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.vaultMismatch,
-        message: "操作属于其他 Vault",
-        operation: buildOperationView(opRow),
-      };
-    }
-    if (currentSource.config.allowAgentWrites !== true) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writesDisabled,
-        message: "allowAgentWrites=false：Agent 发起的写入（含审核提案执行/撤销）已被撤权",
-        operation: buildOperationView(opRow),
-      };
-    }
-
-    // This short SQLite transaction claims all applied rows before any file IO.
-    // Per-Vault JS locks alone cannot protect two desktop hosts sharing a DB.
-    if (opRow.sourceEpoch !== currentSource.sourceEpoch) {
-      return {
-        outcome: "blocked",
-        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
-        message: "原操作属于旧的 Vault 授权周期；不得跨撤权/重授自动撤销",
-        operation: buildOperationView(opRow),
-      };
-    }
-    const claim = store.claimUndoFiles(opRow.operationId, Date.now());
-    if (claim.outcome !== "claimed") {
-      const latest = store.getOperation(opRow.operationId) ?? opRow;
-      return {
-        outcome: "blocked",
-        reason: claim.outcome === "busy"
-          ? KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy
-          : KNOWLEDGE_REVIEW_REJECTION_CODES.undoUnavailable,
-        message: claim.outcome === "busy"
-          ? "另一 Host 正在撤销或等待撤销恢复；不能重复写盘"
-          : "该操作没有可撤销的已应用文件",
-        operation: buildOperationView(latest),
-      };
-    }
-    const undoable = claim.files;
-    const liveKey = liveOperationKey(currentSource.vaultId, opRow.operationId);
-    liveReviewOperations.add(liveKey);
-    try {
-    const facade = createVaultFileSystem(currentSource.config.rootPath);
-    const nowMs = Date.now();
-    let undone = 0;
-    let conflicts = 0;
-    // 逆序撤销：后写的先撤，尽量恢复原始时序。
-    for (const file of [...undoable].reverse()) {
-      let ok = false;
-      let error: string | null = null;
-      try {
-        // An undo may span multiple files. Check the live epoch and write gate
-        // before each inverse mutation; a mid-operation revocation stops the rest.
-        await options.beforeFileMutationForTest?.();
-        const live = await resolveSource();
-        if (!writePathEnabled || live.vaultId !== currentSource.vaultId ||
-            live.sourceEpoch !== currentSource.sourceEpoch || live.config.allowAgentWrites !== true ||
-            (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
-          throw new Error("撤销期间写权限或 Vault 已变化；停止剩余文件");
+    return withVaultLock<KnowledgeReviewUndoResult>(
+      source.vaultId,
+      async () => {
+        // A request may wait behind another file operation while the user revokes
+        // permission or switches Vaults. Re-read authority INSIDE the lock before
+        // claiming ledger rows or touching the filesystem.
+        const currentSource = await resolveSource();
+        if (!writePathEnabled || currentSource.vaultId !== source.vaultId) {
+          return {
+            outcome: "blocked",
+            reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+            message: "等待期间写权限或 Vault 已变化；撤销已取消",
+            operation: buildOperationView(opRow),
+          };
         }
-        const current = await readFileOrNull(facade, file.relativePath);
-        if (file.kind === "write") {
-          if (current === null) {
-            error = "undo conflict: 文件已被外部删除";
-          } else if (current.sha256 !== file.nextSha256) {
-            error = "undo conflict: 当前文件已不是本操作写入的版本";
-          } else if (file.snapshotContent === null) {
-            error = "undo conflict: 快照缺失";
-          } else {
-            const result = await facade.writeFile({
-              relativePath: file.relativePath,
-              content: file.snapshotContent,
-              expectedSha256: file.nextSha256 ?? undefined,
-            });
-            ok = result.ok;
-            if (!result.ok) error = "undo conflict: 门面 CAS 冲突";
-          }
-        } else if (file.kind === "create") {
-          if (current === null) {
-            error = "undo conflict: 文件已被外部删除";
-          } else if (current.sha256 !== file.nextSha256) {
-            error = "undo conflict: 当前文件已不是本操作创建的版本";
-          } else {
-            await facade.deleteFile({
-              relativePath: file.relativePath,
-              expectedSha256: file.nextSha256 ?? undefined,
-            });
-            ok = true;
-          }
-        } else {
-          // delete 的逆 = createOnly 重建快照内容。
-          if (current !== null) {
-            error = "undo conflict: 目标位置已存在文件";
-          } else if (file.snapshotContent === null) {
-            error = "undo conflict: 快照缺失";
-          } else {
-            const result = await facade.writeFile({
-              relativePath: file.relativePath,
-              content: file.snapshotContent,
-              createOnly: true,
-            });
-            ok = result.ok;
-            if (!result.ok) error = "undo conflict: 门面 CAS 冲突";
-          }
+        // Undo writes too: a preference enabled for the old Vault must not authorize
+        // the newly selected root, even when the process gate was previously open.
+        if (
+          options.writePathEnabled === undefined &&
+          currentSource.config.reviewWritePathEnabled !== true
+        ) {
+          return {
+            outcome: "blocked",
+            reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writePathDisabled,
+            message: "当前 Vault 未授权 L2 撤销写入",
+            operation: buildOperationView(opRow),
+          };
         }
-      } catch (caught) {
-        error = `undo conflict: ${caught instanceof Error ? caught.message : String(caught)}`;
-      }
-      store.updateOperationFileStatus(
-        opRow.operationId,
-        file.ordinal,
-        ok ? "undo_applied" : "undo_conflict",
-        ok ? null : error,
-        nowMs,
-      );
-      file.status = ok ? "undo_applied" : "undo_conflict";
-      if (ok) undone += 1;
-      else conflicts += 1;
-    }
+        if (opRow.vaultId !== source.vaultId) {
+          return {
+            outcome: "blocked",
+            reason: KNOWLEDGE_REVIEW_REJECTION_CODES.vaultMismatch,
+            message: "操作属于其他 Vault",
+            operation: buildOperationView(opRow),
+          };
+        }
+        if (currentSource.config.allowAgentWrites !== true) {
+          return {
+            outcome: "blocked",
+            reason: KNOWLEDGE_REVIEW_REJECTION_CODES.writesDisabled,
+            message: "allowAgentWrites=false：Agent 发起的写入（含审核提案执行/撤销）已被撤权",
+            operation: buildOperationView(opRow),
+          };
+        }
 
-    const updated = store.getOperation(opRow.operationId);
-    const outcome: KnowledgeReviewUndoResult["outcome"] =
-      conflicts === 0 ? "applied" : undone === 0 ? "conflict" : "partial";
-    logger.info("审核写入撤销完成", { operationId: opRow.operationId, undone, conflicts });
-    return {
-      outcome,
-      reason: null,
-      message: undone === 0 && conflicts > 0 ? "全部撤销被拒绝：文件已相对本操作发生变化" : null,
-      operation: updated ? buildOperationView(updated) : null,
-    };
-    } finally {
-      liveReviewOperations.delete(liveKey);
-    }
-    }, () => ({ outcome: "blocked", reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
-      message: "另一 Host 正在操作当前 Vault，不能抢占撤销",
-      operation: buildOperationView(opRow) }));
+        // This short SQLite transaction claims all applied rows before any file IO.
+        // Per-Vault JS locks alone cannot protect two desktop hosts sharing a DB.
+        if (opRow.sourceEpoch !== currentSource.sourceEpoch) {
+          return {
+            outcome: "blocked",
+            reason: KNOWLEDGE_REVIEW_REJECTION_CODES.approvalEpochStale,
+            message: "原操作属于旧的 Vault 授权周期；不得跨撤权/重授自动撤销",
+            operation: buildOperationView(opRow),
+          };
+        }
+        const claim = store.claimUndoFiles(opRow.operationId, Date.now());
+        if (claim.outcome !== "claimed") {
+          const latest = store.getOperation(opRow.operationId) ?? opRow;
+          return {
+            outcome: "blocked",
+            reason:
+              claim.outcome === "busy"
+                ? KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy
+                : KNOWLEDGE_REVIEW_REJECTION_CODES.undoUnavailable,
+            message:
+              claim.outcome === "busy"
+                ? "另一 Host 正在撤销或等待撤销恢复；不能重复写盘"
+                : "该操作没有可撤销的已应用文件",
+            operation: buildOperationView(latest),
+          };
+        }
+        const undoable = claim.files;
+        const liveKey = liveOperationKey(currentSource.vaultId, opRow.operationId);
+        liveReviewOperations.add(liveKey);
+        try {
+          const facade = createVaultFileSystem(currentSource.config.rootPath);
+          const nowMs = Date.now();
+          let undone = 0;
+          let conflicts = 0;
+          // l2-engine-5 修复（2026-10-17 增量评审）：mid-flight 撤权/切库导致的中止
+          // （区别于内容 CAS 冲突），全部被拒时按主因区分顶层提示。
+          let revokedMidUndo = false;
+          // 逆序撤销：后写的先撤，尽量恢复原始时序。
+          for (const file of [...undoable].reverse()) {
+            let ok = false;
+            let error: string | null = null;
+            try {
+              // An undo may span multiple files. Check the live epoch and write gate
+              // before each inverse mutation; a mid-operation revocation stops the rest.
+              await options.beforeFileMutationForTest?.();
+              const live = await resolveSource();
+              if (
+                !writePathEnabled ||
+                live.vaultId !== currentSource.vaultId ||
+                live.sourceEpoch !== currentSource.sourceEpoch ||
+                live.config.allowAgentWrites !== true ||
+                (options.writePathEnabled === undefined &&
+                  live.config.reviewWritePathEnabled !== true)
+              ) {
+                revokedMidUndo = true;
+                throw new Error("撤销期间写权限或 Vault 已变化；停止剩余文件");
+              }
+              const current = await readFileOrNull(facade, file.relativePath);
+              if (file.kind === "write") {
+                if (current === null) {
+                  error = "undo conflict: 文件已被外部删除";
+                } else if (current.sha256 !== file.nextSha256) {
+                  error = "undo conflict: 当前文件已不是本操作写入的版本";
+                } else if (file.snapshotContent === null) {
+                  error = "undo conflict: 快照缺失";
+                } else {
+                  const result = await facade.writeFile({
+                    relativePath: file.relativePath,
+                    content: file.snapshotContent,
+                    expectedSha256: file.nextSha256 ?? undefined,
+                  });
+                  ok = result.ok;
+                  if (!result.ok) error = "undo conflict: 门面 CAS 冲突";
+                }
+              } else if (file.kind === "create") {
+                if (current === null) {
+                  error = "undo conflict: 文件已被外部删除";
+                } else if (current.sha256 !== file.nextSha256) {
+                  error = "undo conflict: 当前文件已不是本操作创建的版本";
+                } else {
+                  await facade.deleteFile({
+                    relativePath: file.relativePath,
+                    expectedSha256: file.nextSha256 ?? undefined,
+                  });
+                  ok = true;
+                }
+              } else {
+                // delete 的逆 = createOnly 重建快照内容。
+                if (current !== null) {
+                  error = "undo conflict: 目标位置已存在文件";
+                } else if (file.snapshotContent === null) {
+                  error = "undo conflict: 快照缺失";
+                } else {
+                  const result = await facade.writeFile({
+                    relativePath: file.relativePath,
+                    content: file.snapshotContent,
+                    createOnly: true,
+                  });
+                  ok = result.ok;
+                  if (!result.ok) error = "undo conflict: 门面 CAS 冲突";
+                }
+              }
+            } catch (caught) {
+              error = `undo conflict: ${caught instanceof Error ? caught.message : String(caught)}`;
+            }
+            store.updateOperationFileStatus(
+              opRow.operationId,
+              file.ordinal,
+              ok ? "undo_applied" : "undo_conflict",
+              ok ? null : error,
+              nowMs,
+            );
+            file.status = ok ? "undo_applied" : "undo_conflict";
+            if (ok) undone += 1;
+            else conflicts += 1;
+          }
+
+          const updated = store.getOperation(opRow.operationId);
+          const outcome: KnowledgeReviewUndoResult["outcome"] =
+            conflicts === 0 ? "applied" : undone === 0 ? "conflict" : "partial";
+          logger.info("审核写入撤销完成", { operationId: opRow.operationId, undone, conflicts });
+          return {
+            outcome,
+            reason: null,
+            message:
+              undone === 0 && conflicts > 0
+                ? revokedMidUndo
+                  ? "全部撤销被拒绝：撤销期间写权限或 Vault 已变化（授权被撤销或已切换 Vault）"
+                  : "全部撤销被拒绝：文件已相对本操作发生变化"
+                : null,
+            operation: updated ? buildOperationView(updated) : null,
+          };
+        } finally {
+          liveReviewOperations.delete(liveKey);
+        }
+      },
+      () => ({
+        outcome: "blocked",
+        reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
+        message: "另一 Host 正在操作当前 Vault，不能抢占撤销",
+        operation: buildOperationView(opRow),
+      }),
+    );
   }
 
-  async function getProposalChangeContent(params: {
-    proposalId: string;
-    relativePath: string;
-  }) {
+  async function getProposalChangeContent(params: { proposalId: string; relativePath: string }) {
     if (!params || typeof params.proposalId !== "string" || !params.proposalId) return null;
     if (typeof params.relativePath !== "string" || !params.relativePath) return null;
     const row = store.getProposal(params.proposalId);
     if (!row) return null;
     const source = await resolveSource();
     if (row.vaultId !== source.vaultId) return null;
-    const change = parseStoredChanges(row).find((item) => item.relativePath === params.relativePath);
+    const change = parseStoredChanges(row).find(
+      (item) => item.relativePath === params.relativePath,
+    );
     if (!change) return null;
     return {
       proposalId: row.proposalId,
@@ -1406,7 +1592,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         }
         const result = await setVaultReviewWritePathEnabled(options.pluginDataDir, next);
         if (!result) {
-          throw new Error("Vault configuration unavailable; review write-path preference was not changed");
+          throw new Error(
+            "Vault configuration unavailable; review write-path preference was not changed",
+          );
         }
         // State changes only after the sole vault-config writer has committed.
         if (generation === preferenceGeneration) {
@@ -1414,7 +1602,10 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         }
       });
       // Serialize concurrent toggle requests, including a failed predecessor.
-      preferenceWrites = operation.then(() => undefined, () => undefined);
+      preferenceWrites = operation.then(
+        () => undefined,
+        () => undefined,
+      );
       return operation;
     },
   };

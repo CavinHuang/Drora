@@ -73,3 +73,24 @@ Keep pet projection, native window, rendering, artwork and tests in new files. E
 - `scripts/generate-desktop-pet-catgirl-art.mjs` 按角色合成单张 8 列图集（96×192 显示格）并生成 `desktopPetCatgirlArtwork.ts` 数据模块；运行链与 violet 管线同构（CSS steps 游标、data URL 内嵌、`prefers-reduced-motion` 冻结）。
 - 任务态→动作映射沿用 TASK-STATES.md：idle/working/attention/error 直连，completed 播 happy 一遍（once）后停在末帧；blink/talk/wave/think/sleep/walk 为附加动作数据，待 v4 快照级解析器接入（本轮不接业务状态面）。
 - `desktopPetCharacter` 设置键（violet|noir|snow|ginger，缺省 violet）；切换在主进程原位重建宠物窗口，窗口尺寸随角色（紫猫 112×128，猫娘 112×224）。设置页"宠物角色"选择器与 desktop 侧 id 列表对齐，UI 包不反向依赖 desktop。
+- **修复记录（2026-10-17，生成器拼贴腐烂）**：`generate-desktop-pet-catgirl-art.mjs` 曾把整张 4×2 源图集（1280×1280）一次性压扁成 768×N 长条后按 8 个偏移重复 composite，产物每格是重叠拼贴（半人/双影人）；既有测试只断言图集尺寸无法发现。已改为按 manifest 网格逐帧 extract（320×640）→ 单帧缩放（96×192）→ 落格，并重新生成 `desktopPetCatgirlArtwork.ts`；`desktopPetCatgirlArtwork.test.ts` 新增源资产逐帧重采样均值差防回归（阈值 16，webp q85 重编码噪声 ~10）。宠物窗口与设置图库同吃这份数据，一并恢复。
+
+## Virtual pet management center (third release)
+
+设置页新增独立分区 `desktopPet`（虚拟宠物管理中心），把原"常规"分区里的桌面宠物两行（总开关 + 角色下拉）迁入并升级为图库式管理界面：
+
+- **分区门控**：`desktopPet` 与 computerUse/knowledge 同一桌面平台门控（`isDesktop || isMacDesktop || isWindowsDesktop`）；Web/移动 Web 不出现该分区，深层跳转意图按既有 fallback 落回 general。
+- **角色目录单一出处**：UI 包不再持有镜像的 id/标签表（随旧组件一并删除）。Main 从 `DESKTOP_PET_CHARACTERS` 与图集模块构建运行时目录（id、双语名、图集 data URL、待机静帧列/行、显示格尺寸），经 invoke 通道 `drora:desktop-pet-catalog` 提供；Renderer 以 `desktopPetCatalogSchema` 校验后渲染。目录为纯打包资产读数，无窗口依赖、无任务事实。
+- **精灵预览零复制**：设置页用整图集 + CSS `background-position` 裁剪（`image-rendering: pixelated`）显示各角色待机静帧；不引入新解码依赖、不复制资产、不改图集。V1 只显示静帧（对 `prefers-reduced-motion` 天然友好），页内不做动画。
+- **选择语义**（状态所有者仍是 shared settings，两键不变）：
+  - 点击某宠物卡片 → `desktopPetEnabled=true` 且 `desktopPetCharacter=<id>`（一次写入，避免中间态）。
+  - 点击"无"卡片 → `desktopPetEnabled=false`；`desktopPetCharacter` 保留原值，重新启用时恢复上次的角色。
+  - 分区顶部保留总开关行，直接映射 `desktopPetEnabled`；"无"卡的选中态即 `desktopPetEnabled=false`。
+- **接缝位置**（上游同步时只需重放这些点）：shared 契约（`desktopPet.ts` 目录 schema + `channels.ts` 通道常量与 PlatformChannelMap 类型 + `platform.ts` 可选方法）、main 扩展（新文件 `desktopPetCatalog.ts` 构建目录 + `drora-extensions/desktopPet.ts` 注册 handler）、preload `getDesktopPetCatalog`、`desktopPlatform.ts` 实现、UI 新组件 `VirtualPetSettingsSection` + 导航 id `desktopPet`。
+
+### Acceptance cases
+
+13. 桌面端打开设置可见"虚拟宠物"分区：顶部当前角色大图预览 + 总开关；下方"我的虚拟宠物"网格含"无"卡与全部角色卡，精灵待机静帧清晰无错格。
+14. 点击一张宠物卡：设置写入 `enabled=true` 且 `character=<id>`，桌面宠物窗口以该角色原位重建；点击"无"卡或关闭开关：宠物窗口立即关闭，再次选择同一角色可恢复。
+15. Web 端（非桌面平台）设置页无此分区；通过深层意图跳转 `desktopPet` 时回退 general，不渲染空分区。
+16. 目录接口在任一角色缺失或 schema 不符时整体拒绝（safeParse 失败按空目录处理并告警），设置页显示空网格而不崩溃。

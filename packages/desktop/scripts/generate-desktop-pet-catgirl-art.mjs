@@ -43,17 +43,26 @@ for (const character of characters) {
   const composite = [];
   for (const action of character.actions) {
     const source = await readFile(join(assetsUrl, action.atlas));
-    const scaled = await sharp(source)
-      .resize(CELL_WIDTH * COLUMNS, CELL_HEIGHT * Math.ceil(action.frameCount / manifest.columns), {
-        fit: "fill",
-      })
-      .png()
-      .toBuffer();
+    // 修复原因：此前把整张源图集（4×2 帧，1280×1280）一次性缩放成 768×N 长条，
+    // 再把它按 8 个偏移重复 composite——产物每格是重叠压扁的拼贴（半人/双影人）。
+    // 正确做法：逐帧从源图集按 manifest 网格切出 320×640，单帧缩放到 96×192 再落格。
     for (let frame = 0; frame < action.frameCount; frame += 1) {
+      const sourceColumn = frame % manifest.columns;
+      const sourceRow = Math.floor(frame / manifest.columns);
+      const frameCell = await sharp(source)
+        .extract({
+          left: sourceColumn * manifest.frameWidth,
+          top: sourceRow * manifest.frameHeight,
+          width: manifest.frameWidth,
+          height: manifest.frameHeight,
+        })
+        .resize(CELL_WIDTH, CELL_HEIGHT, { fit: "fill" })
+        .png()
+        .toBuffer();
       const column = frame % COLUMNS;
       const row = Math.floor(frame / COLUMNS);
       composite.push({
-        input: scaled,
+        input: frameCell,
         left: column * CELL_WIDTH,
         top: action.row * CELL_HEIGHT + row * CELL_HEIGHT,
       });

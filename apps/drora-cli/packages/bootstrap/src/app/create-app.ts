@@ -27,6 +27,7 @@ import {
   writeWorkflowDraft,
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
+  type AgentRuntimeDeps,
 } from "@drora/core";
 import { createModelTelemetry } from "@drora/telemetry";
 import {
@@ -798,7 +799,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
     //(spec §6.4 契约键单一出处;此项与 /team 命令同批补登记)。
     const agentsTeamEnabled = process.env.DRORA_AGENTS_TEAM === "1";
     const agentsTeamToolRegistry = agentsTeamEnabled ? createToolRegistry() : undefined;
-    const runtimeAgentDeps = {
+    const runtimeAgentDeps: AgentRuntimeDeps = {
       ...(agentsTeamToolRegistry ? { toolRegistry: agentsTeamToolRegistry } : {}),
       ...(options.readSubagentRuntimeConfig
         ? {

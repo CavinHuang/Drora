@@ -301,7 +301,8 @@ export class PermissionService {
         destructive: capability.destructive,
         permissionCapabilityGroup: capability.permissionCapabilityGroup,
       })
-        ? toolRules.filter((rule) => Boolean(rule.ruleContent))
+        // path/command 只覆盖输入的一部分，不能授权 MCP/js 的其它任意负载。
+        ? []
         : toolRules;
     if (effectiveRules.length === 0) return false;
     return effectiveRules.some((rule) => this.matchesRule(rule, context, capability));
@@ -518,6 +519,16 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
+    // 即使插件声称无副作用，P0 仍需逐次确认；不得落入最后的 lowRisk 放行。
+    if (isP0WriteTarget({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    }) && context.toolName !== "Bash") {
+      return this.ask(context, capability,
+        capability.riskLevel === "high" ? "mode.build.highRisk" : "mode.build.sideEffect",
+        "P0 tools require explicit approval for each execution");
+    }
     if (!capability.needsApproval && isTrustedReadOnlyTool({
       toolName: context.toolName,
       permissionName: capability.permissionName,
@@ -695,7 +706,13 @@ export class PermissionService {
     ruleId: string,
     reason: string,
   ): PermissionDecisionResult {
-    return this.result("ask", context, capability, ruleId, reason);
+    const result = this.result("ask", context, capability, ruleId, reason);
+    // P0 必须由用户逐次确认，复用 user-once 以阻止 Hook 代批和持久权限应答。
+    if (isP0WriteTarget({ toolName: context.toolName, permissionName: capability.permissionName,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup })) {
+      return { ...result, approvalMode: "user-once" };
+    }
+    return result;
   }
 
   private deny(

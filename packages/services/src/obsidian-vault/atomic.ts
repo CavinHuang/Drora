@@ -3,7 +3,7 @@
 // 逐条保留：相对路径校验/软链拒绝/根内前缀判定/2MB 读写上限/目录配额/
 // wx 独占临时文件 0o600 + rename 原子写/sha256 乐观锁/图片 MIME+魔数+10MB 白名单。
 import { randomBytes } from "node:crypto";
-import { open, readFile, rename, unlink, type FileHandle } from "node:fs/promises";
+import { link, open, readFile, rename, unlink, type FileHandle } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { basename, dirname, join } from "node:path";
 
@@ -12,7 +12,7 @@ import { basename, dirname, join } from "node:path";
  * 永不使用可预测的 `<target>.tmp` —— 能进入该目录的攻击者可以把它预创建成软链；
  * `wx` 保证临时文件私有，rename 替换目标本身而不跟随软链。
  */
-export async function writeTextFileAtomic(filePath: string, content: string): Promise<void> {
+export async function writeTextFileAtomic(filePath: string, content: string, options: { createOnly?: boolean } = {}): Promise<void> {
   const parent = dirname(filePath);
   const stem = basename(filePath);
   let tmpPath: string | null = null;
@@ -33,9 +33,13 @@ export async function writeTextFileAtomic(filePath: string, content: string): Pr
     await handle.writeFile(content, "utf-8");
     await handle.close();
     handle = null;
-    await renameWithWindowsRetry(tmpPath, filePath);
-
-    tmpPath = null;
+    if (options.createOnly) {
+      // rename 会覆盖检查后才出现的目标；hard-link 原子发布完整文件且 EEXIST 时零覆盖。
+      await link(tmpPath, filePath);
+    } else {
+      await renameWithWindowsRetry(tmpPath, filePath);
+      tmpPath = null;
+    }
   } finally {
     if (handle !== null) await handle.close().catch(() => {});
     if (tmpPath !== null) {

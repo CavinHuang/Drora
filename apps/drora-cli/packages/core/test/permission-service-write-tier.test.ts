@@ -84,6 +84,7 @@ test("S03-P0-3：js 的整工具 allow 规则不生效，落到 highRisk 逐次�
   );
   assert.equal(decision.decision, "ask");
   assert.equal(decision.ruleId, "mode.build.highRisk");
+  assert.equal(decision.approvalMode, "user-once");
 });
 
 test("S03-P0-4：未自报 readOnly 的 MCP 整工具 allow 规则不生效", () => {
@@ -171,4 +172,27 @@ test("P1 不受影响：Write 的内容级 allow 规则照旧", () => {
   );
   assert.equal(decision.decision, "allow");
   assert.equal(decision.ruleId, "rule.project.allow");
+});
+
+test("S03: MCP/js 内容字段不能把一次批准扩大为任意负载持久授权", () => {
+  for (const toolName of ["js", "mcp__srv__execute"]) {
+    const service = new PermissionService();
+    const capability = toolName === "js" ? JS_CAPABILITY : mcpCapability();
+    const input = { path: "/tmp/a.md", code: "arbitrary different payload" };
+    const rules = ruleset("allow", toolName, "/tmp/a.md");
+    assert.equal(service.checkPermission({ toolName, input, riskLevel: "high", mode: "build" }, capability, rules).decision, "ask");
+    service.grantSessionPermission([{ type: "addRules", behavior: "allow", rules: rules.allow! }]);
+    assert.equal(service.checkPermission({ toolName, input, riskLevel: "high", mode: "build" },
+      { ...capability, alwaysAsk: true, permission: undefined }).decision, "ask");
+  }
+});
+
+test("S03: P0 自报无副作用不能落入 build/edit 低风险放行", () => {
+  for (const mode of ["build", "edit"] as const) {
+    const decision = new PermissionService().checkPermission(
+      { toolName: "mcp__srv__search", input: {}, riskLevel: "low", mode },
+      mcpCapability({ readOnly: true, permission: { ...mcpCapability().permission!, riskLevel: "low", sideEffectScope: "none", needsApproval: false } }),
+    );
+    assert.equal(decision.decision, "ask");
+  }
 });

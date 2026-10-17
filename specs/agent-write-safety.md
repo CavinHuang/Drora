@@ -1,6 +1,13 @@
 # Agent 写入安全：三洞修复与 P0/P1/P2 分级门控（S03）
 
-状态：**实现完成，待 S03 复评**（2026-10-11）。本 spec 是
+## 2026-10-17 收尾复评契约（优先于历史实现说明）
+
+- 普通 MCP/js 的任意 `path`/`command` 字段不能代表完整副作用；无专属 Host 规则评估器时，项目和会话的全部 allow 规则（包括带内容规则）均不能免除逐次确认，建议侧不生成持久授权，持久化侧丢弃这些 allow。deny/ask、Host 验证的 OfficialCua、操作员启动 allowedTools 和显式 YOLO 保留既有语义。
+- build/edit 的低风险快速路径也不得授权 P0 MCP/js，即使能力数据声称 `readOnly=true`、`needsApproval=false`、`sideEffectScope=none`。
+- P0 ask 使用现有 `approvalMode=user-once` 通道，PreToolUse/PermissionRequest Hook 不得替代用户确认；应答不能持久化项目或会话规则。此约束复用已有 Guarded 单次审批生命周期，不新增审批状态所有者。
+- 本轮由维护者要求助手自行 review，取消额外人工走查依赖；审查结果须以新回归和真实三平台 Electron 为依据，不能把旧绿色结果当作本轮结果。
+
+以下为 2026-10-11 的历史实现说明；当前以顶部收尾复评契约和 `S03_CLOSEOUT_2026-10-17.md` 为准。本 spec 是
 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §7「S03 有条件 GO（收窄口径）」GO 前提的
 程序化落地记录；`WRITE_SAFETY_NO_GO.md` 的撤销条件见其 §3，翻转
 `writePathEnabled` 仍以复评通过为前提，本 spec 不改变该裁定。

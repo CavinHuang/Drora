@@ -16,6 +16,11 @@ on:
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
       - "packages/services/src/obsidian-vault/**"
       - "packages/services/src/knowledge/review/**"
+      - "packages/services/src/node.ts"
+      - "packages/services/src/knowledge/**"
+      - "packages/services/src/obsidian-vault/**"
+      - "apps/drora-cli/packages/core/src/permission/**"
+      - "apps/drora-cli/packages/core/src/tool/executor/permission-*.ts"
   workflow_dispatch:
 
 concurrency:
@@ -52,6 +57,8 @@ jobs:
           node scripts/build-desktop-agent-cli.mjs
       - name: Confirm direct and queued authoritative Receipt projection
         run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
+      - name: Verify L2 safety, real process recovery, and atomic create on this OS
+        run: node --import tsx --test packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts
       - name: Run real local Vault index/Inspector/TOCTOU Electron E2E
         env:
           DRORA_E2E_SPEC: "./test/e2e/obsidian-knowledge-positive.test.ts"

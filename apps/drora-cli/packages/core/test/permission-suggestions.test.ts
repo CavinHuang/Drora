@@ -47,3 +47,9 @@ test("OfficialCua 能力组路径不变", () => {
     { toolName: OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME },
   ]);
 });
+
+test("S03: MCP/js 即使提供 path/command 也不产生持久 allow 建议", () => {
+  for (const toolName of ["js", "mcp__srv__execute"]) {
+    assert.deepEqual(buildDefaultPermissionUpdates(toolName, { path: "/tmp/a.md", code: "other side effects" }), []);
+  }
+});

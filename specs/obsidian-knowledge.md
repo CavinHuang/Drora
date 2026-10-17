@@ -816,6 +816,13 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 ## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 
+### 2026-10-17 收尾复评增量（优先于本节历史基线）
+
+- 写前以及每个文件变更前必须重新加载提案，拒绝已拒绝、revision 或 changesHash 已改变的提案，并重新检查批准 TTL；排队闭包中的旧对象不能授予写权限。
+- Apply/Undo/reconcile 共享同一 Vault 的跨进程运行所有权。SQLite 短事务声明 owner PID + 随机 token，活跃或无法判定已死亡的 PID 不能被接管；不使用时间超时夺权。进程死亡后才可只读 reconcile，绝不自动重放文件。索引库新增 v6 运行所有权表，不改现有账本数据；旧版本回退前停止所有 Host，新表可保留。
+- 文件创建使用独占创建语义；不得由“先检查不存在再 rename”覆盖等待期间新建的文件。普通外部编辑器不参与 Drora 账本锁，文件 SHA 属乐观冲突检测，不宣称操作系统级 compare-and-swap。
+- 本轮交付候选的 L2 能力仅授予 `desktop-local` Host；remote/unspecified authority 仍拒绝激活。它是维护者委托助手复评后的版本装配决定，不是从 authority 推导出安全签字。L1 与 L2 两个用户开关仍默认关闭，用户显式启用后才能执行已批准提案；本轮不合并或部署。
+
 本节是工作单 W06 的行为契约。实现位于 `packages/services/src/knowledge/review/`（自研新模块，
 不触碰任何还原/上游对齐目录）；channel 字面量 `ServiceChannels.KnowledgeReview =
 "knowledge-review"` 在 `packages/shared/src/channels.ts`（单一出处）。

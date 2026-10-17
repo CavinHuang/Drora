@@ -87,3 +87,13 @@ test("消毒：有内容 allow 与 CUA 规则名保留", () => {
   assert.equal(result.updates.length, 2);
   assert.equal(result.droppedWholeToolAllowRules, 0);
 });
+
+test("S03: 持久化拒绝 MCP/js 的内容 allow，保留 deny/ask 和 Bash 专属规则", () => {
+  const result = sanitizePermissionUpdatesForPersistence([
+    { type: "addRules", behavior: "allow", rules: [{ toolName: "js", ruleContent: "*" }, { toolName: "mcp__srv__execute", ruleContent: "/tmp/a.md" }] },
+    { type: "addRules", behavior: "ask", rules: [{ toolName: "js", ruleContent: "*" }] },
+  ]);
+  assert.equal(result.updates.length, 1);
+  assert.equal(result.updates[0]?.behavior, "ask");
+  assert.equal(result.droppedWholeToolAllowRules, 2);
+});

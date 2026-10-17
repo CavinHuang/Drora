@@ -56,6 +56,7 @@ import type {
   KnowledgeReviewUndoResult,
 } from "./reviewTypes.js";
 import { KNOWLEDGE_REVIEW_REJECTION_CODES } from "./reviewTypes.js";
+import { createReviewRuntimeOwnership } from "./reviewRuntimeOwnership.js";
 import type {
   IKnowledgeReviewService,
   KnowledgeReviewCreateProposalParams,
@@ -103,9 +104,8 @@ export interface KnowledgeReviewEngineOptions {
    */
   writePathEnabled?: boolean;
   /**
-   * Explicit S03 runtime hard-write-safety authorization. Production Host must
-   * keep this false until an independent S03 GO is recorded; desktop-local
-   * authority is not proof of approval. Persisted Vault preferences never grant it.
+   * Explicit S03 runtime capability from the reviewed release policy.
+   * Only desktop-local is in this release scope. Persisted preferences never grant it.
    */
   writeSafetyGatePassed?: boolean;
   /** Integration-test scheduling barrier; never configured by production Host. */
@@ -130,6 +130,7 @@ function liveOperationKey(vaultId: string, operationId: string): string {
 export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptions): IKnowledgeReviewService {
   const logger = createServiceLogger("knowledge-review");
   const store = new ReviewLedgerStore(options.db);
+  const runtimeOwnership = createReviewRuntimeOwnership(options.db);
   // The persisted preference is never sufficient by itself. The runtime authority
   // gate is a separate capability injected by the desktop-local Host.
   const writeSafetyGatePassed = options.writeSafetyGatePassed === true;
@@ -152,9 +153,15 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   // per-vault 进程内互斥：同一 vault 的执行/撤销串行排队，防同进程交错。
   const vaultLocks = new Map<string, Promise<unknown>>();
-  async function withVaultLock<T>(vaultId: string, fn: () => Promise<T>): Promise<T> {
+  async function withVaultLock<T>(vaultId: string, fn: () => Promise<T>, onBusy: () => T): Promise<T> {
     const previous = vaultLocks.get(vaultId) ?? Promise.resolve();
-    const run = previous.then(fn, fn);
+    const runOwned = async () => {
+      const token = runtimeOwnership.acquire(vaultId);
+      if (token === null) return onBusy();
+      try { return await fn(); }
+      finally { runtimeOwnership.release(vaultId, token); }
+    };
+    const run = previous.then(runOwned, runOwned);
     vaultLocks.set(
       vaultId,
       run.catch(() => undefined),
@@ -580,6 +587,15 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
 
   /** 写盘前的完整批准校验（§5e.5；vault 归属与拒绝态已由调用方先行校验）。 */
   function checkApproval(row: ReviewProposalRow, source: ResolvedSource, nowMs: number): void {
+    // 排队和异步 IO 后，闭包中的旧提案不能继续代表当前审批；每次从账本重读。
+    const current = store.getProposal(row.proposalId);
+    if (!current || current.revision !== row.revision || current.changesHash !== row.changesHash) {
+      reject(KNOWLEDGE_REVIEW_REJECTION_CODES.approvalStale, "提案已修订，旧批准不可继续写入");
+    }
+    if (current.rejectedAtMs !== null) {
+      reject(KNOWLEDGE_REVIEW_REJECTION_CODES.proposalRejected, "提案已被拒绝，停止写入");
+    }
+    requireVaultMatch(current, source);
     requireWritesEnabled(source);
     const approval = store.getApproval(row.proposalId, row.revision);
     if (!approval) {
@@ -738,7 +754,11 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       }
     }
 
-    return withVaultLock(source.vaultId, () => executeOperation(operationId, row, source));
+    return withVaultLock<KnowledgeReviewApplyResult>(source.vaultId,
+      () => executeOperation(operationId, row, source),
+      () => ({ outcome: "reconcile_required", reason: null,
+        message: "另一 Host 正在操作当前 Vault，不能抢占或重放写入",
+        operation: buildOperationView(store.getOperation(operationId)!) }));
   }
 
   /** 阶段 1 快照对齐 → 阶段 2 单赢家转移 → 阶段 3 门面 CAS 写（冲突即停）。 */
@@ -870,13 +890,14 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       try {
         // Re-check between files: cancellation/revocation cannot authorize the
         // rest of a multi-file proposal using a stale source snapshot.
+        await options.beforeFileMutationForTest?.();
         const live = await resolveSource();
         if (!writePathEnabled || live.vaultId !== source.vaultId ||
             live.sourceEpoch !== source.sourceEpoch || live.config.allowAgentWrites !== true ||
             (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
           throw new Error("写入期间授权或 Vault 已变化；停止剩余变更");
         }
-        await options.beforeFileMutationForTest?.();
+        checkApproval(proposalRow, live, Date.now());
         if (change.kind === "delete") {
           await facade.deleteFile({ relativePath: change.relativePath, expectedSha256: change.baseSha256 ?? undefined });
           applied = true;
@@ -1004,7 +1025,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     if (!params || typeof params.operationId !== "string" || !params.operationId) {
       throw new Error("operationId 不能为空");
     }
-    const opRow = store.getOperation(params.operationId);
+    let opRow = store.getOperation(params.operationId);
     if (!opRow) {
       return {
         outcome: "blocked",
@@ -1012,7 +1033,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         operation: null,
       };
     }
-    const pendingUndo = store.listOperationFiles(opRow.operationId)
+    let pendingUndo = store.listOperationFiles(opRow.operationId)
       .filter((file) => file.status === "undoing");
     if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
       return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
@@ -1031,6 +1052,19 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
         reason: KNOWLEDGE_REVIEW_REJECTION_CODES.vaultMismatch,
         operation: buildOperationView(opRow),
       };
+    }
+    // 仅进程内 Set 无法证明另一 Host 已死亡；恢复和写入共享同一 SQLite owner。
+    const ownerToken = runtimeOwnership.acquire(source.vaultId);
+    if (ownerToken === null) {
+      return { outcome: "blocked", reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
+        operation: buildOperationView(opRow) };
+    }
+    try {
+    // 获取所有权之前原 writer 可能已经完成；不得用锁前状态覆盖新账本。
+    opRow = store.getOperation(params.operationId)!;
+    pendingUndo = store.listOperationFiles(opRow.operationId).filter((file) => file.status === "undoing");
+    if (opRow.status !== "applying" && opRow.status !== "uncertain" && pendingUndo.length === 0) {
+      return { outcome: "not_applicable", reason: null, operation: buildOperationView(opRow) };
     }
     const facade = createVaultFileSystem(source.config.rootPath);
     if (opRow.status !== "applying" && opRow.status !== "uncertain") {
@@ -1085,6 +1119,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       reason: null,
       operation: updated ? buildOperationView(updated) : null,
     };
+    } finally {
+      runtimeOwnership.release(source.vaultId, ownerToken);
+    }
   }
 
   async function listRecentOperations(): Promise<KnowledgeReviewOperationView[]> {
@@ -1149,7 +1186,7 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     // Serialize all undo attempts for this Vault, including duplicate RPCs.
     // The file rows must be read inside the lock so a second undo sees the
     // first one's undo_applied/undo_conflict status rather than racing it.
-    return withVaultLock(source.vaultId, async () => {
+    return withVaultLock<KnowledgeReviewUndoResult>(source.vaultId, async () => {
     // A request may wait behind another file operation while the user revokes
     // permission or switches Vaults. Re-read authority INSIDE the lock before
     // claiming ledger rows or touching the filesystem.
@@ -1229,13 +1266,13 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
       try {
         // An undo may span multiple files. Check the live epoch and write gate
         // before each inverse mutation; a mid-operation revocation stops the rest.
+        await options.beforeFileMutationForTest?.();
         const live = await resolveSource();
         if (!writePathEnabled || live.vaultId !== currentSource.vaultId ||
             live.sourceEpoch !== currentSource.sourceEpoch || live.config.allowAgentWrites !== true ||
             (options.writePathEnabled === undefined && live.config.reviewWritePathEnabled !== true)) {
           throw new Error("撤销期间写权限或 Vault 已变化；停止剩余文件");
         }
-        await options.beforeFileMutationForTest?.();
         const current = await readFileOrNull(facade, file.relativePath);
         if (file.kind === "write") {
           if (current === null) {
@@ -1309,7 +1346,9 @@ export function createKnowledgeReviewService(options: KnowledgeReviewEngineOptio
     } finally {
       liveReviewOperations.delete(liveKey);
     }
-    });
+    }, () => ({ outcome: "blocked", reason: KNOWLEDGE_REVIEW_REJECTION_CODES.operationBusy,
+      message: "另一 Host 正在操作当前 Vault，不能抢占撤销",
+      operation: buildOperationView(opRow) }));
   }
 
   async function getProposalChangeContent(params: {

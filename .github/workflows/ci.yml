@@ -37,7 +37,7 @@ jobs:
       - name: Obsidian source-to-receipt integration and CLI admission gate
         # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
         # wiring suite in cli-build after its dependency closure has been built.
-        run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReview.test.ts packages/services/test/obsidianVaultConfig.test.ts packages/services/test/knowledgeReceiptIsolation.test.ts
+        run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReview.test.ts packages/services/test/obsidianVaultConfig.test.ts packages/services/test/knowledgeReceiptIsolation.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts
       - name: Gen UI asset checkout integrity (autocrlf)
         run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
       # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
@@ -98,6 +98,7 @@ jobs:
       - name: S03 write-safety permission regressions
         run: >-
           node --import tsx --test
+          apps/drora-cli/packages/core/test/permission-p0-executor.test.ts
           apps/drora-cli/packages/core/test/write-tier-policy.test.ts
           apps/drora-cli/packages/core/test/permission-service-write-tier.test.ts
           apps/drora-cli/packages/core/test/permission-suggestions.test.ts

@@ -23,6 +23,11 @@ on:
       - "packages/ui/src/lib/knowledgeCitationMarkdown.ts"
       - "packages/ui/src/components/ai-elements/message.tsx"
       - "packages/ui/src/v4/VaultView.tsx"
+      - "packages/services/src/node.ts"
+      - "packages/services/src/knowledge/**"
+      - "packages/services/src/obsidian-vault/**"
+      - "apps/drora-cli/packages/core/src/permission/**"
+      - "apps/drora-cli/packages/core/src/tool/executor/permission-*.ts"
   workflow_dispatch:
 
 concurrency:

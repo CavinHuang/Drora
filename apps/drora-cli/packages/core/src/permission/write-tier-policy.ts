@@ -86,7 +86,8 @@ export function sanitizePermissionUpdatesForPersistence(
       continue;
     }
     const rules = update.rules.filter((rule) => {
-      if (rule.ruleContent) return true;
+      // Bash 有专属内容评估器；MCP/js 没有可证明副作用范围的内容授权契约。
+      if (rule.ruleContent && rule.toolName === "Bash") return true;
       if (isP0WriteRuleToolName(rule.toolName)) {
         dropped += 1;
         return false;

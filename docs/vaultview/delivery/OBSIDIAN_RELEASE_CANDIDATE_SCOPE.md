@@ -69,3 +69,8 @@ For the current G01–G55 manual cases, the authoritative status remains `未执
 - Host + CLI recheck file SHA, source epoch and scope at the actual admission/navigation boundary.
 - Do **not** switch on `writeSafetyGatePassed`, bypass permission checks, alter the `WRITE_SAFETY_NO_GO.md` ruling, or suppress a failing CI lane to obtain green status.
 - No PR merge, production deploy, or auto-merge as part of this preparatory record.
+
+
+## 6. A1 production-gate revalidation — 2026-10-17
+
+During continued review, the current branch was found to have inferred the S03 gate from `desktop-local` authority. That contradicted the approved A1 release scope. The production Host has now been corrected to pass `reviewWriteSafetyGatePassed: false` explicitly, and the real Electron G67 acceptance has been changed to verify that proposal/preview/approval remain usable while the write toggle and Apply/Undo stay disabled. The earlier Apply/Undo Electron run remains useful implementation evidence, but it is not acceptance for the approved A1 release. Fresh checks on the corrected HEAD are required.

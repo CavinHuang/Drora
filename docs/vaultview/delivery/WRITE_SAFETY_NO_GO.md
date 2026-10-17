@@ -4,7 +4,9 @@
 **门禁：** `docs/vaultview-agent-handoff/03_WORK_ORDERS/TASK_GRAPH.json` `tasks[6].gate = "S03 Hard Write Safety GO"`
 **裁定：** **NO-GO**——按工作单规定「没有强硬阻断的真实证据，只提交 `WRITE_SAFETY_NO_GO.md`」执行本分支。
 
-## 1. 为什么 NO-GO（门禁前提未满足，完整引用 W00 条件）
+> **状态更新（2026-10-17）：** 本文第 1 节表格记录的是 2026-10-10 的原始评审基线，不应被误读为对当前分支逐行重新核验的结果。后续 `S03_WRITE_SAFETY_RUNTIME_COVERAGE.md` 记录了 runtime 三洞/P0 修复及其自动化测试，但这些代码证据不会自动撤销正式 NO-GO。当前生产 Host 已显式传入 `reviewWriteSafetyGatePassed: false`，并新增真实 Electron 验收以证明生产 Apply/Undo 继续 fail-closed。只有独立审核人基于当前 HEAD 明确复评并撤销裁定，才可改变此状态。
+
+## 1. 原始 NO-GO 原因（2026-10-10 基线；历史记录）
 
 W00 对 S03 的判定是**有条件 GO**，GO 前提见 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §7
 「S03 有条件 GO（收窄口径）」。逐项核对当前 HEAD：

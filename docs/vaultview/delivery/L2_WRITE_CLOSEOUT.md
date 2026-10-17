@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-16  
 **PR:** [#23](https://github.com/CavinHuang/Drora/pull/23)  
-**Release decision:** **S03 formal sign-off is still pending**. The L2 implementation is now wired to the desktop-local runtime safety gate; this document records implementation/verification status and does **not** itself constitute the independent S03 GO.
+**Release decision:** **S03 formal sign-off is still pending**. The L2 implementation and gate mechanism exist, but A1 requires production Apply/Undo to remain disabled. Production Host explicitly passes `reviewWriteSafetyGatePassed: false`; this document does **not** constitute the independent S03 GO.
 
 ## Implemented (test-gated, not an S03 approval)
 
@@ -13,7 +13,7 @@
 - Before `prepared → applying` and before claiming Undo rows, a shared SQLite transaction also checks for **any other Vault-local `applying` / `uncertain` operation or `undoing` file**. This serializes governed L2 writes of *different* operations, because the Vault facade's read-SHA followed by rename is not itself an atomic interprocess CAS. A fenced apply returns `reconcile_required` and can retry its still-`prepared` ledger row once the prior owner is settled.
 - An interrupted `undoing` claim remains durable; explicit reconcile reads the Vault, marking `undo_applied` only when inverse SHA evidence matches. Not-landed or externally changed files become `undo_conflict`; unreadable evidence stays `undoing`. **No automatic inverse retry**, even if the old target content remains present.
 - Recovery of a **partially applied multi-file proposal** is an auditable `conflict` rather than `prepared`; landed files remain explicitly undoable while untouched files remain untouched.
-- Review reads a bounded history (up to 100 operations) scoped to the current Vault and restores eligible Undo targets across renderer/host restarts. The desktop-local Host is now the only production authority that can inject the S03 runtime gate; the user still has to opt into the Review write path.
+- Review reads a bounded history (up to 100 operations) scoped to the current Vault and restores eligible Undo targets across renderer/host restarts. Production Host explicitly passes `reviewWriteSafetyGatePassed: false` for all authority modes; only isolated tests may override the gate. The user-facing toggle remains disabled until an independent S03 GO.
 - Apply revalidates approval, write gate and source epoch after a lock wait. Apply and Undo additionally recheck the write gate, epoch, Vault and `allowAgentWrites` between individual file mutations. Revocation stops subsequent file mutations; a multi-file operation can be partial and must be reconciled/reviewed.
 
 ## Automated regression paths
@@ -33,7 +33,7 @@ A separate fixture `test/fixtures/review-undo-crash-worker.ts` invokes the real 
 
 The synthetic crash fixtures establish recovery logic given a known on-disk state; they do **not** establish that an actual operating-system process kill is safe at every instruction boundary.
 
-Latest verification on `e830c57f70e4791f753a366b65763f5b713281d6`: full CI, Electron Provenance, and Windows/macOS Electron acceptance all passed. The Windows G67 path now passes after the atomic replacement retry fix.
+Historical verification on `e830c57f70e4791f753a366b65763f5b713281d6`: full CI, Electron Provenance, and Windows/macOS Electron acceptance passed, including Apply/Undo under the then-enabled desktop gate. That gate contradicted the approved A1 scope, so the result is implementation-only evidence and is not the release acceptance criterion. The corrected G67 now requires production Apply/Undo to remain disabled; the corrected HEAD must pass fresh CI/Electron runs.
 
 ## Remaining release gates (open)
 
@@ -44,7 +44,7 @@ Latest verification on `e830c57f70e4791f753a366b65763f5b713281d6`: full CI, Elec
 
 ## Invariants
 
-- `writeSafetyGatePassed` is injected only for `desktop-local`; remote/unspecified authorities remain fail-closed. `reviewWritePathEnabled` remains an explicit user opt-in and defaults off. This closeout does not revoke the formal S03 ruling.
+- Production `createLocalServices` explicitly passes `reviewWriteSafetyGatePassed: false` for all authority modes. `reviewWritePathEnabled` remains an explicit preference but cannot activate Apply/Undo while the runtime gate is false. Only isolated tests may override the gate; this closeout does not revoke the formal S03 ruling.
 - All tests use throwaway Vault roots, never real personal Obsidian vaults.
 - An `undoing` state is a **no-replay hold**, not an invitation to reclaim it automatically.
 - Cross-Host single-winner depends on a *shared* SQLite ledger; isolated databases are not a distributed lock. The Vault facade cannot guarantee atomic SHA CAS against **external writers not participating in the L2 ledger** (manual editor, direct Bash, remote MCP side effects). Those channels must be covered by the separate S03 permission policy and independent review.

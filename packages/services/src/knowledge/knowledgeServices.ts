@@ -105,15 +105,15 @@ export interface KnowledgeServicesOptions {
    */
   knowledgeSemanticSource?: () => Promise<KnowledgeEmbeddingPort | null>;
   /**
-   * 审核写路径总门（W06 修复轮 1）：**生产装配（node.ts）绝不传——保持缺省 false**，
-   * S03 Hard Write Safety GO 门禁未满足前 apply/undo 返回 `write_path_disabled`
-   * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅测试环境显式置 true。
+   * 审核写路径总门（W06 / A1）：生产装配显式传入 false，S03 正式 NO-GO
+   * 未由独立审核人撤销前，apply/undo 必须返回 `write_path_disabled`
+   * （见 docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md）。仅隔离测试可显式置 true。
    */
   reviewWritePathEnabled?: boolean;
   /**
-   * S03 hard safety gate proof supplied by a verified host runtime.
-   * The current production node.ts deliberately does not supply this: NO-GO.
-   * Only use true in dedicated safety-gate tests until S03 lands.
+   * S03 hard safety gate proof. Production node.ts explicitly passes false
+   * under the approved A1 release scope; do not infer GO from desktop-local
+   * authority. Only isolated safety-gate tests may override this to true.
    */
   reviewWriteSafetyGatePassed?: boolean;
   /** Test-only barrier to pause an in-flight Review file mutation. Never set in desktop Host. */

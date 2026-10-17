@@ -103,9 +103,9 @@ export interface KnowledgeReviewEngineOptions {
    */
   writePathEnabled?: boolean;
   /**
-   * Explicit S03 runtime hard-write-safety authorization. Only the desktop-local
-   * service authority may inject it after the runtime permission gate has been
-   * installed; persisted Vault preferences can never grant this capability.
+   * Explicit S03 runtime hard-write-safety authorization. Production Host must
+   * keep this false until an independent S03 GO is recorded; desktop-local
+   * authority is not proof of approval. Persisted Vault preferences never grant it.
    */
   writeSafetyGatePassed?: boolean;
   /** Integration-test scheduling barrier; never configured by production Host. */

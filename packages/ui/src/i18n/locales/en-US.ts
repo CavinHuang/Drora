@@ -7759,12 +7759,6 @@ const enUS: Record<string, string> = {
   "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
   "settings.relayServerUrlSavedHint":
     "Relay server settings saved. Restart the app to take effect.",
-  "chat.evidence.one": "Evidence receipt: {name}",
-  "chat.evidence.count": "Evidence receipts ×{count}",
-  "chat.evidence.remove": "Remove evidence attachment",
-  "chat.evidence.removeAll": "Remove all evidence attachments",
-  "chat.evidence.reverifyHint":
-    "Submitted with the message and re-verified server-side at admission and queue promotion (current/stale/cross-session rejected); attaching does not mean currently valid.",
   "vault.ask.candidate.attachEvidence": "Attach as evidence to Agent",
   "vault.ask.candidate.attachEvidenceHint":
     'Attaches this verification\'s receipt to the target session composer; submitted with the message and re-verified before execution. Distinct from the plain-quote "Add to Agent" semantics.',

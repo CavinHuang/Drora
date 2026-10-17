@@ -92,6 +92,8 @@
 
 每次验收至少保留：系统/版本、测试 Vault 夹具文件列表、执行命令的退出码、UI 截图、关键 ACK reasonCode、CI run URL。不得提交生产 Vault 内容或密钥。
 
+### 自动化验收矩阵（G61–G66，附 CI 回执；A-7 勘误 2026-10-17：原表行无小节头、易被误读为回执记录）
+
 | G61 | 在真实会话中打开 Vault ANSWER 搜索真实索引候选，显式选中并提交给 Agent | 可信 `prepareEvidence + resolveCitation` 之后，保活的真实会话 Composer 接受来源索引与摘录，再回到聊天；不可自行创造 Receipt | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（实际 CLI Session + Vault / Composer 同步 ACK） |
 | G62 | 从 G61 的 Composer 原文发送至真实 CLI/Host，模型回放仅输出普通 `[1]` | `evidenceRefs` 经真实 Session admission 复验，完成态 Agent 应答出现有 Receipt 的可信可点击编号；回放模型不携带预签发路径或证明 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（CLI 权威投影 + 非伪造可信引用） |
 | G63 | 点击 G62 的真实可信 `[1]` 来源按钮 | 经过当前 Session/Vault 校验后路由到真正的 VaultView CodeMirror 原文、无写盘；非授权模型伪造链接继续不可回跳 | Ubuntu Electron [38674667455](https://github.com/CavinHuang/Drora/actions/runs/38674667455)：通过（真实引用点击 + 原文只读回跳） |

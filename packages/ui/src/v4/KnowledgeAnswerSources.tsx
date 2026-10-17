@@ -29,7 +29,12 @@ export function KnowledgeAnswerSources({
   const [opening, setOpening] = React.useState<string | null>(null);
   if (citations.length === 0) return null;
 
-  const audit = auditKnowledgeAnswerCitationCoverage(assistantText, citations.length);
+  // D-7 修复（2026-10-17 增量评审）：审计对完整回答做分行/围栏解析与多轮正则替换，
+  // ConversationTurnGroup 高频重渲染下须按输入 memo，避免长回答反复重算。
+  const audit = React.useMemo(
+    () => auditKnowledgeAnswerCitationCoverage(assistantText, citations.length),
+    [assistantText, citations.length],
+  );
   const cited = new Set(audit.knownNumbers);
   const unknown = audit.unknownNumbers;
   const open = async (receiptId: string): Promise<void> => {
@@ -52,8 +57,10 @@ export function KnowledgeAnswerSources({
   };
 
   return (
-    <section className="w-full rounded-lg border border-card-border px-3 py-2.5"
-      data-testid="knowledge-answer-turn-sources">
+    <section
+      className="w-full rounded-lg border border-card-border px-3 py-2.5"
+      data-testid="knowledge-answer-turn-sources"
+    >
       <div className="flex items-center gap-1.5 text-ui-sm font-medium text-foreground">
         <BookOpenText className="size-4" aria-hidden="true" />
         {intl.formatMessage({ id: "chat.knowledgeTurn.sources" })}
@@ -72,9 +79,11 @@ export function KnowledgeAnswerSources({
             data-testid={`knowledge-answer-source-${source.index}`}
             onClick={() => void open(source.receiptId)}
           >
-            {opening === source.receiptId
-              ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-              : <BookOpenText className="size-3.5" aria-hidden="true" />}
+            {opening === source.receiptId ? (
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <BookOpenText className="size-3.5" aria-hidden="true" />
+            )}
             {[`[${source.index}]`, source.relativePath.split("/").at(-1)].filter(Boolean).join(" ")}
             {cited.has(source.index)
               ? ` · ${intl.formatMessage({ id: "chat.knowledgeTurn.mentioned" })}`
@@ -83,21 +92,33 @@ export function KnowledgeAnswerSources({
         ))}
       </div>
       {audit.unattributedBlocks > 0 ? (
-        <p role="status" data-testid="knowledge-answer-attribution-gaps"
-          className="mt-2 text-ui-xs text-foreground-subtle">
-          {intl.formatMessage({ id: "chat.knowledgeTurn.gaps" }, {
-            missing: audit.unattributedBlocks,
-            total: audit.proseBlocks,
-          })}
+        <p
+          role="status"
+          data-testid="knowledge-answer-attribution-gaps"
+          className="mt-2 text-ui-xs text-foreground-subtle"
+        >
+          {intl.formatMessage(
+            { id: "chat.knowledgeTurn.gaps" },
+            {
+              missing: audit.unattributedBlocks,
+              total: audit.proseBlocks,
+            },
+          )}
         </p>
       ) : null}
       {unknown.length > 0 ? (
-        <p role="status" className="mt-2 flex items-center gap-1 text-ui-xs text-warning"
-          data-testid="knowledge-answer-unknown-citations">
+        <p
+          role="status"
+          className="mt-2 flex items-center gap-1 text-ui-xs text-warning"
+          data-testid="knowledge-answer-unknown-citations"
+        >
           <AlertTriangle className="size-3.5" aria-hidden="true" />
-          {intl.formatMessage({ id: "chat.knowledgeTurn.unknown" }, {
-            numbers: unknown.map((number) => `[${number}]`).join(", "),
-          })}
+          {intl.formatMessage(
+            { id: "chat.knowledgeTurn.unknown" },
+            {
+              numbers: unknown.map((number) => `[${number}]`).join(", "),
+            },
+          )}
         </p>
       ) : null}
     </section>

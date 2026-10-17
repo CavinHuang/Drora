@@ -40,6 +40,8 @@ jobs:
         run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReview.test.ts packages/services/test/obsidianVaultConfig.test.ts packages/services/test/knowledgeReceiptIsolation.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts
       - name: Gen UI asset checkout integrity (autocrlf)
         run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
+      - name: Architecture boundaries (changed)
+        run: pnpm architecture:check -- --changed
       # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
       # 永久红灯;待仓库决定格式化基线后再启用。
       # - name: Format check

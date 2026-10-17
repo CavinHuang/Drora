@@ -153,6 +153,18 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
   `gate_unavailable`），携带证据的输入不得启动模型（PR #23 起生效；早期「additive 放行」
   表述已废弃——携带 Receipt 的输入在无法复验时放行等于伪造通道，
   `evidence-session-wiring.test.mjs` 两例锁定该行为）。
+- **edit/retry 的二次复验接线（A-12 回写 2026-10-17）**：edit/retry 重建的新输入**继承**
+  原 intent 的 evidenceRefs（canonical-intent-replay），并在重放前再次 `verifyEvidenceOrThrow`
+  ——重试与编辑是新一次模型投递，只引用原证据、不复用旧的可信状态；同一会话内重发同样
+  强制复验并携带原引用。
+- **已知残留竞态（E-2，接受并记录）**：edit/retry 的时序为「fork-edit-retry 首次复验 →
+  对话 rewind 截断 → canonical-intent-replay 二次复验」。证据若恰在两次复验之间的窄窗内
+  失效，报错发生在历史已截断之后（尾部消息已移除、替代新轮未创建）——失败为 fail-loud
+  ACK（`guard.evidence*`），用户重试即可恢复；与其它 admission 失败同形态，属残留竞态
+  而非回归，权衡后不在本 PR 收口。
+- **createRun 幂等与并发（A-12 回写）**：`clientRequestId` 幂等——重复提交返回同一 run；
+  同 key 绑定其他查询/会话即拒绝（`assertSameRequest`）；并发创建走 single-flight 合并
+  （`queryOrchestrator` pendingCreates），均由 `knowledgeIndexQuery.test.ts` 并发用例锁定。
 
 ### 5.4 不可信数据的边界
 
@@ -1029,6 +1041,7 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 - **Agent handoff**：ANSWER 可选 1–5 篇，COMPARE 至少 2 篇、最多 5 篇；任一来源准备或解析失败则整批失败，不部分进入 Composer。修改来源数量、顺序、路径、章节、行号会令 `conversationKnowledgeSources.validateKnowledgeSourceManifest` 拒绝发送。只修改自然语言提问可继续发送。
 - **回跳**：已附加可信引用在 Composer 可请求核验后打开原文；事件只传 receiptId/session/workspace，VaultView 重新 `resolveCitation` 后校验路径与 quote。普通引用和模型生成的 `[1]` 文本不获得这一权限。
 - **迁移原则**：旧 PR #15 的 `knowledgeEvidenceAttachment.ts`、`useKnowledgeEvidenceAttachments.ts` 和 `KnowledgeEvidenceChip.tsx` 属于已被统一可信引用链路替代的历史实现，不要重新加入并行状态系统。W09 的 L2 审核功能和开关则保留并迁移至本 PR。对于任何没有服务端 Receipt 的材料，严格标示为普通引用。
+- **集成点记录（F-1 残余补记 2026-10-17）**：`packages/ui/src/components/ai-elements/message.tsx`（vercel/ai-elements 派生，非还原 bundle 文件）持有可信引用渲染接线：import `lib/knowledgeCitationMarkdown`、nonce `useMemo`、scoped markdown 缓存键、`knowledgeCitationRemarkPlugin` 注入与 link renderer 的 `resolveBoundKnowledgeCitation` 分支——上游同步 ai-elements 时须重放上述接缝；自研主体在 `lib/knowledgeCitationMarkdown.ts`。
   
 ### 5e.11 审核视图消费 review 服务
 

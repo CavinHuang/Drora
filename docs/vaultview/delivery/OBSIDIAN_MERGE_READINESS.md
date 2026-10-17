@@ -59,3 +59,8 @@ Historical checkpoint `e830c57f70e4791f753a366b65763f5b713281d6`: Full CI `38915
   independently evidenced S03 GO.
 - Do not remove the one-PR rule, turn off failing jobs or mark unexecuted
   acceptance cases passed to accelerate merge.
+
+
+## 2026-10-17 · Additional S03 source-audit correction
+
+A further review found that third-party MCP `readOnlyHint=true` could still bypass P0 permission handling. The current branch now treats all non-Host-verified MCP tools as P0 regardless of that server-authored hint, blocks build/plan read-only fast paths, and keeps only the Host-verified OfficialCua exception. Unit regressions were added; the new head must pass CI/Electron checks. This is still not an independent S03 GO, and production L2 remains disabled under A1.

@@ -60,3 +60,8 @@ yolo 直通（改审计+receipt）。首版交付报告把 Bash/js 列入分歧�
 
 在此之前：**不得**在代码、UI、文档中宣称「审核写入已生效」或「L2 强制写入审核可用」；
 `W06_DELIVERY.md` §4 已同步改为 NO-GO 裁定。
+
+
+### 2026-10-17 follow-up — MCP self-reported read-only bypass
+
+A further source audit found that `readOnlyHint=true` was still being treated as sufficient to leave the P0 tier, despite the descriptor being server-authored. The implementation now keeps all non-Host-verified MCP tools in P0, removes their plan/build read-only fast paths, and preserves only the Host-verified `OfficialCua` exception. Regression tests are added for the self-reported-read-only bypass. This closes a code-level gap but does not revoke the formal NO-GO: latest-head CI and an independent S03 review are still required, and production L2 remains explicitly disabled under A1.

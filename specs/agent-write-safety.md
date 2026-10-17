@@ -25,14 +25,15 @@
 
 | 级 | 集合 | 语义 |
 | --- | --- | --- |
-| P0 | `Bash`、`js`（node_repl）、`mcp__*` 且未自报 readOnly | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow |
+| P0 | `Bash`、`js`（node_repl）、所有非 Host 验证的 `mcp__*` | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow；自报 `readOnlyHint` 不降级权限 |
 | P1 | `Write`/`Edit`/`ApplyPatch`（授权根内写） | 维持现骨架：模式与项目规则照旧，obsidian vault hook 路径不变 |
 | P2 | memory md / workflow 草稿 / artifacts / 执行日志等免确认区 | 保留免确认，但保留可审计的判定日志（ruleId 落事件） |
 
 有意分歧（W00 §7 允许的三项，spec 层面如实记录，不伪装覆盖）：
 
-1. MCP server 进程内写盘——工具调用之外的自发写入不可见；缓解 = 模型可见工具全覆盖（本门控）
-   + server 自报 readOnly 时才享有整工具 allow；
+1. MCP server 进程内写盘——工具调用之外的自发写入不可见；模型可见的第三方 MCP
+   一律按 P0 逐次确认且不能整工具持久 allow；只有 Host 验证的 OfficialCua 能力组豁免。
+   服务端自报 `readOnlyHint` 不构成信任锚；
 2. 宿主自动写盘（安装器/更新器等）不经模型工具面；
 3. yolo 模式直通——保留，需显式 receipt（既有行为，不在本 spec 收口范围）。
 
@@ -46,7 +47,8 @@
 - 缺陷：`permission/service.ts` `checkPlanMode` 的 `mode.plan.mcp` 分支放行一切未自报
   `destructive` 的 MCP 工具——自报不可信（见洞 5/mcp 自报收口），写盘型 MCP 在 plan 模式
   可直接执行。
-- 修法：删除该分支。plan 模式 MCP 工具与其它工具同规则：`readOnly && !destructive` 才放行。
+- 修法：删除该分支。普通 MCP 的 `readOnlyHint` 是服务端自报，不构成信任锚；plan 只允许
+  Host 验证的只读能力（当前 OfficialCua）或其它内建可信只读工具。普通 MCP 一律 deny。
 
 ### 洞 1b：memory md 覆盖 plan deny
 
@@ -85,9 +87,10 @@
 
 - 现状：`readOnly`/`destructive` 直接取 server annotations。外部 server 行为不可验证，
   「信任自报」无法程序化证伪。
-- 收口口径：自报只在**收紧**方向被采信（`readOnlyHint=true` 才可能享受 plan 直通与整工具
-  allow；`destructiveHint=true` 一律按破坏性处理）；漏报 destructive 按 P0 处理（本门控的
-  逐次确认即兜底）。残余风险即「有意分歧 1」，以审计日志 + 复评记录兜底。
+- 收口口径（2026-10-17 修订）：MCP server 自报的 `readOnlyHint` / `destructiveHint`
+  都不是权限信任锚。`destructiveHint=true` 可将风险提升，但 `readOnlyHint=true` 不能
+  降低 P0 等级，也不能获得 plan 直通或整工具 allow。所有第三方 MCP 按 P0 逐次确认；
+  只有 Host 注入的 OfficialCua capability group 作为可信例外。
   `concurrentSafe/idempotent` 等非权限语义的自报不在本 spec 范围。
 
 ## 3. P0 门控的判定次序（实现后）
@@ -97,8 +100,8 @@
 1. 项目/会话 allow 规则评估（`rule.project.allow`、`rule.session.allow`）：P0 无内容 allow
    不匹配（洞 2 评估侧）；Bash 走 `evaluateBashRules`（洞 3）——非 safe 命令永不匹配 allow。
    于是 P0 的放行只剩：Bash safe 命令（内容/整工具规则均要求 safe）、显式内容规则命中。
-2. 未命中放行 → 落入既有 build/edit 分支：js 自报 high-risk/system → `mode.build.highRisk`
-   逐次确认；未自报 readOnly 的 MCP → `mode.build.sideEffect` 逐次确认。
+2. 未命中放行 → 落入既有 build/edit 分支：js → `mode.build.highRisk` 逐次确认；所有普通
+   MCP（无论 `readOnlyHint`）→ `mode.build.sideEffect` 逐次确认。
 3. plan 模式：写入（非 readOnly）一律 deny（洞 1a/1b 修复后无旁路）。
 
 审计：permission-flow 的 `tool.permission.evaluated` 结构化日志携带 ruleId/mode/toolName，
@@ -112,11 +115,11 @@
 | S03-P0-1 | Bash 整工具 allow + 重定向命令 | deny→ask（不放行） | `bash-command-rule-evaluator` 测试 |
 | S03-P0-2 | Bash 整工具 allow + safe 命令 | allow（既有体验保留） | 同上 |
 | S03-P0-3 | js 无内容 allow 规则（项目/会话） | 不匹配，落到 highRisk ask | `permission service` 测试 |
-| S03-P0-4 | MCP（未自报 readOnly）无内容 allow 规则 | 不匹配 | 同上 |
+| S03-P0-4 | 第三方 MCP（无论 readOnlyHint）无内容 allow 规则 | 不匹配 | 同上 |
 | S03-P0-5 | CUA 能力组整工具规则 | 照旧匹配（宿主验证豁免） | 同上 |
 | S03-P0-6 | P0 工具「总是允许」建议 | 无内容 → 空建议；CUA 不变 | `permission-suggestions` 测试 |
 | S03-P0-7 | 持久化边界收到 P0 无内容 allow | 丢弃 + warn 审计 | `permission-rules-persistence` 测试 |
-| S03-P1-8 | plan 模式 MCP（未自报 readOnly） | deny（直通移除） | `permission service` 测试 |
+| S03-P1-8 | plan 模式普通 MCP（无论 readOnlyHint） | deny（仅 Host 验证能力可走只读快速路径） | `permission service` 测试 |
 | S03-P1-9 | plan 模式 memory md 写入 | deny 保持（覆盖器不翻转 deny） | `memory-file-permission` 测试 |
 | S03-P2-10 | 非 plan 模式 memory md 写入 | allow（P2 免确认保留） | 同上 |
 
@@ -125,3 +128,8 @@
 - 全部改动在 `apps/drora-cli/packages/core`（五个既有文件的最小接线 + 一个新模块 + 测试），
   不触碰 `specs/obsidian-knowledge.md` 的 NO-GO 状态，不翻转 `writePathEnabled`。
 - 回滚 = revert 本 spec 对应的提交（单包改动，无跨包契约变更，无持久化迁移）。
+
+
+## 6. 2026-10-17 correction: MCP annotations are not authorization
+
+The earlier wording that `readOnlyHint=true` was trusted "only in the tightening direction" was incorrect: allowing a server-authored hint to lower the permission tier made an untrusted MCP descriptor a bypass for plan mode and whole-tool persistent allow. The implementation now classifies all non-Host-verified MCP tools as P0 regardless of `readOnlyHint`, prevents that hint from taking build/plan read-only fast paths, and does not display third-party MCP tools as low risk solely because of the hint. The verified `OfficialCua` capability group remains the host-attested exception. Regression tests cover the self-reported-read-only bypass and the trusted CUA exception.

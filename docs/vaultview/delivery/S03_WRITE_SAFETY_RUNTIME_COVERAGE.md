@@ -7,13 +7,13 @@
 
 | 洞 | 修法 | 文件与符号 | 测试 |
 | --- | --- | --- | --- |
-| 1a plan MCP 直通 | 删除 `mode.plan.mcp` 分支；MCP 与其它工具同规则（自报 readOnly 且非 destructive 才放行） | `apps/drora-cli/packages/core/src/permission/service.ts` `checkPlanMode` | `permission-service-write-tier.test.ts`（plan deny ×2） |
+| 1a plan MCP 直通 | 普通 MCP 的自报 readOnly 不再获得 plan 直通；仅 Host 验证的 OfficialCua 可走可信只读快速路径 | `apps/drora-cli/packages/core/src/permission/service.ts` `checkPlanMode` | `permission-service-write-tier.test.ts`（普通 MCP deny + OfficialCua allow） |
 | 1b memory 覆盖 plan deny | `preservesExistingPermissionDecision` 保留一切 deny（删 `mode.plan.nonReadOnly` 豁免） | `apps/drora-cli/packages/core/src/tool/executor/memory-file-permission.ts` | `memory-file-permission.test.ts`（deny 保留 ×2、P2 免确认保留、alwaysAsk/项目 ask 保留、非目标透传） |
-| 2 建议侧 | P0 工具（Bash/js/未自报 readOnly MCP）提取不到内容 → 空建议 | `src/tool/executor/permission-suggestions.ts` `buildDefaultPermissionUpdates`（新参 capability） | `permission-suggestions.test.ts` ×5 |
-| 2 评估侧 | behavior=allow 且无 rulePolicy 时，P0 工具的无内容 allow 规则不匹配；OfficialCua 豁免；有 rulePolicy 的 Bash 交由评估器（洞 3 修复） | `src/permission/service.ts` `matchesProjectRules` | `permission-service-write-tier.test.ts`（js/MCP 不放行、readOnly MCP 与 CUA 照旧、P1 Write 内容规则不受影响） |
+| 2 建议侧 | P0 工具（Bash/js/所有普通 MCP）提取不到内容 → 空建议；readOnlyHint 不降级 | `src/tool/executor/permission-suggestions.ts` `buildDefaultPermissionUpdates` | `permission-suggestions.test.ts` ×5 |
+| 2 评估侧 | behavior=allow 且无 rulePolicy 时，普通 MCP 的无内容 allow 规则不匹配；OfficialCua 由 Host 验证后豁免；Bash 交由命令评估器 | `src/permission/service.ts` `matchesProjectRules` | `permission-service-write-tier.test.ts`（普通 MCP readOnly 自报仍不放行、OfficialCua 豁免、P1 Write 不受影响） |
 | 2 持久化边界 | `persistProjectPermissionUpdates` 消毒：P0 无内容 allow 规则丢弃 + `tool.permission.project_update.sanitized` warn 审计；全拒时短路 | `src/tool/executor/permission-rules-persistence.ts` + `src/permission/write-tier-policy.ts` `sanitizePermissionUpdatesForPersistence` | `write-tier-policy.test.ts` ×6 |
 | 3 Bash 整工具短路 | 整工具 allow 只对 `safe` 命令生效；非 safe 落逐次确认；精确命令 allow（用户逐条看过）保持原语义；deny/ask 不变 | `src/tool/handlers/bash-command-rule-evaluator.ts` `evaluateBashRules` | `bash-command-rule-evaluator.test.ts` ×5 |
-| 5 mcp 自报收口 | 自报只在收紧方向采信：`readOnlyHint=true` 才有 plan 直通/整工具 allow 资格；漏报 destructive 按 P0 逐次确认兜底 | `write-tier-policy.ts` `isP0WriteTarget` + 上述评估侧 | 同上 |
+| 5 MCP 自报收口 | 普通 MCP 的 `readOnlyHint` 不能降低 P0、plan 直通或整工具 allow；仅 Host 验证的 OfficialCua 是可信例外 | `write-tier-policy.ts` `isP0WriteTarget` / `isTrustedReadOnlyTool` | 普通 MCP readOnly 自报回归 + OfficialCua 例外测试 |
 
 新增策略模块：`src/permission/write-tier-policy.ts`（P0/P1/P2 单一出处 + 消毒函数）；core 包
 新增 `test/`（node:test + tsx，`pnpm test`），`package.json` 增加 `test` 脚本。
@@ -26,8 +26,7 @@
 | Bash | safe 命令 | 整工具/内容 allow 照旧（既有体验） | 同上 |
 | Bash | 精确命令 allowlist | 照旧（用户逐条看过完整命令） | 同上 |
 | js (node_repl) | 任意代码 | 整工具 allow（项目/会话）不匹配；自报 high-risk → `mode.build.highRisk` 逐次确认；plan deny | 同上 |
-| MCP 未自报 readOnly | 任意工具调用 | 整工具 allow 不匹配；`mode.build.sideEffect` 逐次确认；plan deny | 同上 |
-| MCP 自报 readOnly | —（声明只读） | plan 直通/整工具 allow 保留；漏报风险 = 有意分歧 1 | 同上 |
+| 普通 MCP（无论 readOnlyHint） | 任意工具调用 | 整工具 allow 不匹配；`mode.build.sideEffect` 逐次确认；plan deny | 同上 |
 | 持久化通道 | 客户端回传 P0 无内容 allow | 落盘前丢弃 + sanitized warn | `tool.permission.project_update.sanitized` |
 | P2 memory md | Write/Edit 落 memory 根内 .md | 非 plan 免确认保留（ruleId=`memory.file.markdown`）；plan deny 保留 | `tool.permission.evaluated`（writeTier=p2 + ruleId） |
 | P1 Write/Edit/ApplyPatch | 授权根内写 | 既有骨架不变（模式/项目规则/obsidian vault hook 路径） | 既有日志 |
@@ -48,8 +47,8 @@ node --import tsx --test test/*.test.ts（apps/drora-cli/packages/core）
 
 ## 4. 未覆盖/残余（复评时须计入）
 
-1. **MCP server 进程内自发改写**（有意分歧 1）：server 在工具调用之外写盘不可见；
-   自报 readOnly 的 server 漏报时本门控不设防。
+1. **MCP server 进程内自发改写**：server 在工具调用之外写盘不可见。工具调用入口现在不信任
+   `readOnlyHint`；但 server 自身绕开工具调用直接写盘仍不在本门控可见范围。
 2. **宿主自动写盘**（有意分歧 2）：安装器/更新器等不经模型工具面。
 3. **yolo 直通**（有意分歧 3）：本门控不拦 yolo；显式 receipt 属后续工作项。
 4. **CLI 启动 `allowedTools`**：操作员显式启动参数，视同操作员决定，不拦截（spec §1 记录）。
@@ -72,3 +71,8 @@ node --import tsx --test test/*.test.ts（apps/drora-cli/packages/core）
 ## 7. A1 production gate revalidation — 2026-10-17
 
 A code review found that an earlier change inferred S03 approval from `serviceAuthorityMode === "desktop-local"`. That inference is invalid: a local host identifies the authority boundary, not an independent security decision. The production host now explicitly supplies `reviewWriteSafetyGatePassed: false` for all authority modes. G67 has been changed to assert that proposal creation, preview and approval work, while the production toggle and Apply/Undo remain disabled and the real Markdown file remains unchanged. This correction must pass on the latest CI/Electron HEAD before merge.
+
+
+## 8. 2026-10-17 MCP self-report correction
+
+The previous coverage text incorrectly described server-authored `readOnlyHint=true` as a tightening-only signal while using it to lower P0 risk. That inconsistency is fixed in code and tests: all non-Host-verified MCP tools remain P0 regardless of their annotations; only the broker/Host-verified `OfficialCua` group is exempt. Third-party MCP `readOnlyHint` no longer grants plan/build read-only fast paths and no longer lowers the UI risk tier. This report remains review material, not an S03 GO; production L2 is still explicitly disabled under A1.

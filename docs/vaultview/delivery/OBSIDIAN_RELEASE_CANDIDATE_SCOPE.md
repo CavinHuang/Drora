@@ -74,3 +74,8 @@ For the current G01–G55 manual cases, the authoritative status remains `未执
 ## 6. A1 production-gate revalidation — 2026-10-17
 
 During continued review, the current branch was found to have inferred the S03 gate from `desktop-local` authority. That contradicted the approved A1 release scope. The production Host has now been corrected to pass `reviewWriteSafetyGatePassed: false` explicitly, and the real Electron G67 acceptance has been changed to verify that proposal/preview/approval remain usable while the write toggle and Apply/Undo stay disabled. The earlier Apply/Undo Electron run remains useful implementation evidence, but it is not acceptance for the approved A1 release. Fresh checks on the corrected HEAD are required.
+
+
+## 7. MCP permission-hint hardening — 2026-10-17
+
+The S03 source audit found a mismatch between the stated trust model and code: third-party MCP `readOnlyHint` could lower the permission tier and unlock plan/whole-tool allow behavior. The current branch now treats all non-Host-verified MCP tools as P0, blocks that fast path, and avoids displaying third-party MCP as low risk solely from its self-report. Only Host-verified OfficialCua remains an exception. This does not change A1: production L2 Apply/Undo remain disabled; new CI and independent S03 review are still required.

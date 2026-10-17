@@ -90,6 +90,8 @@ export interface TeamHubDeps {
   ) => Promise<readonly { memberName: string; agentId: string; childSessionId: string }[]>;
   membersMax?: number;
   limits?: TeamInternalLimits;
+  /** 状态变化通知(β 接缝):install 借此向 v4 投影发 TeamStateChanged 会话事件。 */
+  onChange?: () => void;
 }
 
 const DEFAULT_CLOCK: BoardClock = {
@@ -117,6 +119,7 @@ export class TeamHub {
   private readonly dispatch: TeamDispatchFn;
   private readonly deps: Pick<TeamHubDeps, "interruptAndSettle" | "persistMailboxEntry" | "spawnMembers">;
   private readonly dispatchQueues = new Map<string, Promise<unknown>>();
+  private readonly notifyChange: () => void;
 
   constructor(private readonly depsOrUndefined: TeamHubDeps = {}) {
     this.clock = depsOrUndefined.clock ?? DEFAULT_CLOCK;
@@ -125,6 +128,7 @@ export class TeamHub {
     this.dispatch =
       depsOrUndefined.dispatch ??
       (async () => false);
+    this.notifyChange = depsOrUndefined.onChange ?? (() => undefined);
     this.deps = depsOrUndefined;
   }
 
@@ -204,6 +208,7 @@ export class TeamHub {
         createdAt: now,
         updatedAt: now,
       };
+      this.notifyChange();
     }
     // staged 再次调用 = 原子更新同一草案（同 teamId，不另建）。
     this.record.name = input.name;
@@ -219,6 +224,7 @@ export class TeamHub {
       state: "spawning" as const,
       removed: false,
     }));
+    this.notifyChange();
     return { status: "ok", teamId: this.record.teamId };
   }
 
@@ -264,6 +270,7 @@ export class TeamHub {
       }
       record.status = "active";
       record.updatedAt = this.clock.now();
+      this.notifyChange();
       return { status: "ok", spawnedMembers: spawned.map((row) => row.memberName) };
     } catch {
       // 原子性：spawn 失败 → 草案原样保留（staged，零真实成员），可修订后重批。
@@ -281,6 +288,7 @@ export class TeamHub {
     }
     record.status = "halted";
     record.updatedAt = this.clock.now();
+    this.notifyChange();
     return { status: "ok" };
   }
 
@@ -296,6 +304,7 @@ export class TeamHub {
     }
     record.status = this.hasWorkingMember(record) ? "active" : "idle";
     record.updatedAt = this.clock.now();
+    this.notifyChange();
     return { status: "ok" };
   }
 
@@ -307,6 +316,7 @@ export class TeamHub {
     }
     record.status = "escalated";
     record.updatedAt = this.clock.now();
+    this.notifyChange();
     return { status: "ok" };
   }
 
@@ -391,6 +401,7 @@ export class TeamHub {
     member.state = "removed";
     this.parkedAttempts.delete(member.agentId);
     this.refreshStatus();
+    this.notifyChange();
     return { status: "ok" };
   }
 
@@ -814,6 +825,7 @@ export class TeamHub {
 
     const delivery = this.routeMail(entry);
     this.refreshStatus();
+    this.notifyChange();
     return { status: "success", messageId: entry.messageId, delivery };
   }
 
@@ -939,6 +951,7 @@ export class TeamHub {
       record.mailbox.some((entry) => !entry.deliveredAccepted && isCurrentMail(record.tasks, entry));
     record.status = busy ? "active" : "idle";
     record.updatedAt = this.clock.now();
+    this.notifyChange();
   }
 }
 

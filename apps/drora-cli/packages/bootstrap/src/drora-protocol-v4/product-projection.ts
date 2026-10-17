@@ -52,6 +52,8 @@ import type {
   WorkspaceHookReviewSettledPayload,
   WorkspaceHookReviewSupersededPayload,
 } from "@drora/contracts";
+import { getInstalledTeamHub } from "../app/drora-team/install.js";
+import { projectTeam } from "@drora/core";
 import {
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
@@ -519,6 +521,11 @@ export class ProductProjection {
 
   constructor(sessionId: string, logEpoch: string) {
     this.snapshot = createInitialConversationSnapshot(sessionId, logEpoch);
+    // 冷快照必带 team(β 接缝,workflowRuns 教训:漏带会让刷新/重连后 team 静默消失)。
+    const initialTeam = teamProjectionViewOf(sessionId);
+    if (initialTeam !== undefined) {
+      this.snapshot = { ...this.snapshot, team: initialTeam };
+    }
   }
 
   getSnapshot(): ConversationSnapshot {
@@ -1527,6 +1534,9 @@ export class ProductProjection {
         return this.onBackgroundTaskLifecycle(event);
       case SessionEventType.DynamicWorkflowRunProgress:
         return this.onDynamicWorkflowRunProgress(event);
+      // β 接缝:hub 状态变化 → 重算 team 键(键级整体替换,workflowRuns 先例)。
+      case SessionEventType.TeamStateChanged:
+        return this.onTeamStateChanged(event);
       case SessionEventType.SubagentSpawned:
         return this.onSubagentSpawned(event);
       case SessionEventType.SubagentMessage:
@@ -4651,6 +4661,17 @@ export class ProductProjection {
     return [{ op: "state.updated", patch: { backgroundWorks } }];
   }
 
+  // ── Agents Team 实时运行态：TeamStateChanged → team 状态键（β 接缝，specs/agents-team.md §11）──
+  // 与 workflowRuns 同构：hub 唯一事实源，投影经 getInstalledTeamHub 查询，发键级整体替换；
+  // 冷快照必带由构造器初始组装承接（workflowRuns 教训：漏带会让刷新后 team 静默消失）。
+  private onTeamStateChanged(event: SessionEvent): ConversationDelta[] {
+    const next = teamProjectionViewOf(String(event.sessionId));
+    const prior = this.snapshot.team;
+    if (next === undefined) return [];
+    if (JSON.stringify(prior) === JSON.stringify(next)) return [];
+    return [{ op: "state.updated", patch: { team: next } }];
+  }
+
   // ── dwf 实时运行态：DynamicWorkflowRunProgress → workflowRuns 状态键 ──
   // 一条引擎 RunEvent 一条会话事件，归约成键级整体替换的权威态。走 reducer 而不是侧通道，
   // 所以持久、可回放、冷恢复免费（先例：subagents 键）。
@@ -5883,4 +5904,44 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** β 接缝视图:lead 会话的 hub → shared team 投影输入(装配面唯一查询点)。 */
+function teamProjectionViewOf(
+  sessionId: string,
+): ReturnType<typeof projectTeam> | undefined {
+  const hub = getInstalledTeamHub(sessionId);
+  const roster = hub?.snapshot();
+  const board = hub?.board();
+  if (hub === undefined || roster === undefined) return undefined;
+  const record = {
+    teamId: roster.teamId,
+    status: roster.status,
+    ...(roster.permissionMode === undefined ? {} : { permissionMode: roster.permissionMode }),
+    members: roster.members.map((member) => ({
+      agentId: member.agentId,
+      memberName: member.memberName,
+      ...(member.profile === undefined ? {} : { profile: member.profile }),
+      ...(member.profileColor === undefined ? {} : { profileColor: member.profileColor }),
+      state: member.state,
+      ...(member.currentTaskId === undefined ? {} : { currentTaskId: member.currentTaskId }),
+      ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }),
+    })),
+    tasks: (board?.tasks ?? []).map((task) => ({
+      taskId: task.taskId,
+      title: task.title,
+      spec: task.spec,
+      status: task.status,
+      ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+      attempt: task.attempt,
+      ...(task.attemptId === undefined ? {} : { attemptId: task.attemptId }),
+      dependsOn: [...task.dependsOn],
+      artifactRefs: [...task.artifactRefs],
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      ...(task.recoveryRetried === undefined ? {} : { recoveryRetried: task.recoveryRetried }),
+    })),
+    mailbox: hub.mailboxEntries(),
+  };
+  return projectTeam(record);
 }

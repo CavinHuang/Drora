@@ -7,6 +7,7 @@ import {
   type AgentRuntimeInternal,
 } from "@drora/core";
 import type { SessionId, TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
+import { SessionEventType } from "@drora/contracts";
 
 /**
  * Agents Team 装配（specs/agents-team.md §6/§11 接缝 α 的被调方）。
@@ -52,11 +53,33 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   const toolRegistry = input.registry;
   const taskRegistry = new InMemoryRuntimeTaskRegistry();
   const memberPortByChildSession = new Map<string, TeamMemberPort>();
+  // β 接缝:hub 状态变化 → TeamStateChanged 会话事件 → v4 投影重算 team 键(workflowRuns 先例)。
+  let installedHub: TeamHub | undefined;
+  const emitTeamStateChanged = (teamId: string) => {
+    void lead
+      .appendEvent(
+        {
+          id: `team_evt_${randomId()}` as never,
+          sessionId: lead.sessionId,
+          type: SessionEventType.TeamStateChanged,
+          timestamp: new Date(),
+          traceId: `team_${randomId()}` as unknown as TraceId,
+          sequenceNumber: 0,
+          payload: { teamId },
+        },
+        { traceId: `team_${randomId()}` as unknown as TraceId, sessionId: lead.sessionId },
+      )
+      .catch(() => undefined);
+  };
   void (null as unknown as TeamLeadPort | undefined);
 
   const hub = new TeamHub({
     leadPermissionMode: input.leadPermissionMode,
     membersMax: 5,
+    onChange: () => {
+      const current = installedHub;
+      if (current !== undefined && current.teamId !== undefined) emitTeamStateChanged(current.teamId);
+    },
     // 派发通道：私有端口的 sendMessage——运行中成员 steer、终态成员复活；
     // queued 不算送达（ack 只认注入，spec §16.3），消息保留待下次投递边缘。
     dispatch: async (request) => {
@@ -114,6 +137,9 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       return spawned;
     },
   });
+
+  installedHub = hub;
+  if (hub.teamId !== undefined) emitTeamStateChanged(hub.teamId);
 
   const memberPort = createTeamMemberPort({
     lead,

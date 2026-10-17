@@ -2,6 +2,7 @@
 // 本包纪律：只放 schema 类型 + 纯函数，禁止任何运行时/IO/传输逻辑。
 import { z } from "zod";
 import { VIDEO_INPUT_MAX_BYTES } from "../drora-media-policy.js";
+import { TEAM_LIMITS } from "./team.js";
 
 /** V4 物理 wire 协议版本；projection snapshot 继续独立使用 protocolVersion=1。 */
 export const V4_WIRE_PROTOCOL_VERSION = 3 as const;
@@ -97,4 +98,7 @@ export const PROTOCOL_V4_LIMITS = {
   attachmentUploadMaxStagedBytes: 64 * 1024 * 1024,
   attachmentUploadTtlMs: 5 * 60_000,
   attachmentUnreferencedTtlMs: 24 * 60 * 60 * 1000,
+  // Agents Team 限额族（specs/agents-team.md §6.3/§6.4、design §3.3.5 的 PROTOCOL_V4_LIMITS.team
+  // additive 键）。值单一出处 team.ts 的 TEAM_LIMITS——这里只做协议面投影，不重复定义数字。
+  team: TEAM_LIMITS,
 } as const;

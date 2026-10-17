@@ -33,6 +33,20 @@ export interface AgentsTeamInstallResult {
 
 const TEAM_MEMBER_MAX_TURNS = 40;
 
+/**
+ * 已装配 hub 的模块级登记（PR-2.2：v4 团队命令 handler 的装配面查询入口）。
+ * key = lead sessionId（create-app 只在 lead runtime 构造后 install，成员 child 会话
+ * 不在册——团队命令打到非 lead 会话时按「hub 缺席」拒绝，E10 lead 专属由此结构性保证）。
+ * 生命周期与会话注册表同程：bootstrap 会话 record 存续期内 hub 必须可达；v1 无独立
+ * uninstall 钩子（install.ts 现无会话关闭回调，登记不早于 runtime 构造、不晚于其消亡）。
+ */
+const installedHubsByLeadSession = new Map<string, TeamHub>();
+
+/** 按 lead sessionId 查已装配的 TeamHub；未装配/灰度关返回 undefined（handler 据此回错误 ACK）。 */
+export function getInstalledTeamHub(leadSessionId: string): TeamHub | undefined {
+  return installedHubsByLeadSession.get(leadSessionId);
+}
+
 export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTeamInstallResult {
   const lead = input.runtime;
   const toolRegistry = input.registry;
@@ -126,6 +140,9 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   })) {
     toolRegistry.register(entry);
   }
+
+  // PR-2.2：装配完成即登记，v4 团队命令 handler 经 getInstalledTeamHub 查询。
+  installedHubsByLeadSession.set(lead.sessionId, hub);
 
   function resolveAgentId(memberName: string): string | undefined {
     return hub

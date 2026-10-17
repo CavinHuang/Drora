@@ -29,6 +29,7 @@ import {
   droraProtocolMcpServerSchema,
 } from "../drora-protocol/index.js";
 import { highspeedMessageMetaSchema } from "../highspeed.js";
+import { TEAM_COMMAND_PAYLOAD_SCHEMAS } from "./team.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
@@ -294,6 +295,11 @@ export const commandPayloadSchemas = {
   renameSession: z.object({ title: z.string() }),
   deleteSession: z.object({}),
   discardSharedContext: z.object({ contextId: z.string().trim().min(1) }).strict(),
+  // ── Agents Team 用户面命令（八条）──
+  // payload 单一出处 team.ts（spec §6.4 契约键单一出处），这里只做注册表挂载。
+  // 全部非行级：团队命令不落 conversation 行，不携 baseRevision（照 resumeWorkflowRun
+  // 同类论证，见上方同款注释），不入 COMMANDS_REQUIRING_BASE_REVISION。
+  ...TEAM_COMMAND_PAYLOAD_SCHEMAS,
 } as const;
 
 export type CommandType = keyof typeof commandPayloadSchemas;

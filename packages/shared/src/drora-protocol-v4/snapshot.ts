@@ -17,6 +17,7 @@ import { toolCallDisplaySchema } from "./toolDisplay.js";
 
 import { workspaceHookReviewRequestPayloadSchema } from "./workspace-hook-review.js";
 import { workflowRunsStateSchema } from "./workflow-runs.js";
+import { TEAM_SNAPSHOT_KEY, teamProjectionStateSchema } from "./team.js";
 import { sessionConfigStateSchema, sessionModelTransitionSchema } from "./session-config.js";
 export {
   sessionConfigStateSchema,
@@ -498,6 +499,10 @@ export const conversationSnapshotSchema = z.object({
   // 冷快照必须携带 workflowRuns：漏这一处，刷新/重连后正在跑的 run 会静默消失
   // （详情页因此空白，而 run 本身仍在飞）。optional 同样只服务旧快照 wire 兼容。
   workflowRuns: workflowRunsStateSchema.optional(),
+  // Agents Team 投影（specs/agents-team.md §6.3）。optional 只服务旧快照 wire 兼容，
+  // 新 CLI 初始态与每次投影都携带——冷快照必须携带，漏带会静默消失（workflowRuns 同一条
+  // 教训：面板空白而 team 仍在飞）。键名契约见 team.ts 的 TEAM_SNAPSHOT_KEY。
+  [TEAM_SNAPSHOT_KEY]: teamProjectionStateSchema.optional(),
   goal: goalStateSchema.nullable(),
   plan: planStateSchema.nullable(),
   // 软门禁(Soft Gate)：additive 字段,必须带 default(null)。

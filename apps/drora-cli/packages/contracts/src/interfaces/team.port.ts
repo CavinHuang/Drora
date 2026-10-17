@@ -252,9 +252,9 @@ export interface TeamLeadPort extends TeamMemberPort {
   /** staged 草案创建；staged 已存在时 = 原子更新同一草案（设计差异 D3）。 */
   stageTeam(input: TeamStageInput): TeamStageResult;
   /** Approve & Run：唯一创建成员的裁决入口（原子 spawn，全败回滚草案）。 */
-  approveStage(): TeamApproveResult;
+  approveStage(): Promise<TeamApproveResult>;
   /** 转派/接管：先失效旧 attempt，等旧成员静默后开新 attempt（spec §16.1）。 */
-  reassign(input: TeamReassignInput): TeamMutationResult;
+  reassign(input: TeamReassignInput): Promise<TeamMutationResult>;
   /** 恢复 halted/escalated；必须带非空 reason（E：用户停的队不得静默恢复）。 */
   resume(reason: string): TeamMutationResult;
 }

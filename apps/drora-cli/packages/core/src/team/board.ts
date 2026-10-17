@@ -34,7 +34,7 @@ export function isTerminalTaskStatus(status: TeamTaskStatus): boolean {
 export function transitionError(
   current: TeamTaskStatus,
   next: TeamTaskStatus,
-): ReturnType<typeof teamPortError> {
+): ReturnType<typeof teamPortError> | undefined {
   if (current === next) return undefined;
   if (TASK_TRANSITIONS[current].includes(next)) return undefined;
   return teamPortError("invalid_transition", { from: current, to: next });
@@ -170,7 +170,7 @@ export function applyTaskUpdate(
   input: TeamTaskUpdateInput,
   caller: string,
   clock: BoardClock,
-): { task: TeamTaskInternal | undefined; error: ReturnType<typeof teamPortError> } {
+): { task: TeamTaskInternal | undefined; error?: ReturnType<typeof teamPortError> } {
   const task = tasks.find((candidate) => candidate.taskId === input.taskId);
   if (task === undefined) {
     return { task: undefined, error: teamPortError("team_not_present") };

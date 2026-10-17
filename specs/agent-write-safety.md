@@ -134,7 +134,3 @@
 
 The earlier wording that `readOnlyHint=true` was trusted "only in the tightening direction" was incorrect: allowing a server-authored hint to lower the permission tier made an untrusted MCP descriptor a bypass for plan mode and whole-tool persistent allow. The implementation now classifies all non-Host-verified MCP tools as P0 regardless of `readOnlyHint`, prevents that hint from taking build/plan read-only fast paths, and does not display third-party MCP tools as low risk solely because of the hint. The verified `OfficialCua` capability group remains the host-attested exception. Regression tests cover the self-reported-read-only bypass and the trusted CUA exception.
 
-
-## 7. 2026-10-17 correction: global `allowedTools` is not a P0 exemption
-
-The runtime `PermissionService` also has a global `config.allowedTools` shortcut. A persistent tool-name entry must not bypass the P0 policy, so the shortcut now applies only when `isP0WriteTarget` is false. P0 tools fall through to per-call mode and command checks; safe Bash commands retain their existing runtime-safe behavior, and Host-verified OfficialCua remains eligible for its trusted capability group. Regression tests cover global allow entries for `js` and ordinary MCP while preserving the explicit `Read` allow.

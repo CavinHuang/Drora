@@ -77,7 +77,3 @@ A code review found that an earlier change inferred S03 approval from `serviceAu
 
 The previous coverage text incorrectly described server-authored `readOnlyHint=true` as a tightening-only signal while using it to lower P0 risk. That inconsistency is fixed in code and tests: all non-Host-verified MCP tools remain P0 regardless of their annotations; only the broker/Host-verified `OfficialCua` group is exempt. Third-party MCP `readOnlyHint` no longer grants plan/build read-only fast paths and no longer lowers the UI risk tier. This report remains review material, not an S03 GO; production L2 is still explicitly disabled under A1.
 
-
-## 9. Global allowedTools shortcut correction — 2026-10-17
-
-The audit also found that `PermissionService.config.allowedTools` returned allow before P0 mode checks. That blanket shortcut now ignores P0 targets (Bash/js/ordinary MCP) and lets them fall through to runtime per-call checks. Regression coverage asserts global entries for `js` and ordinary MCP still produce an approval request, while an explicitly allowed built-in `Read` tool retains the existing allow behavior. This is code evidence only; S03 remains NO-GO pending latest-head checks and independent review.

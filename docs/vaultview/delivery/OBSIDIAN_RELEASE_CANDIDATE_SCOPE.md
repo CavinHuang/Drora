@@ -80,5 +80,3 @@ During continued review, the current branch was found to have inferred the S03 g
 
 The S03 source audit found a mismatch between the stated trust model and code: third-party MCP `readOnlyHint` could lower the permission tier and unlock plan/whole-tool allow behavior. The current branch now treats all non-Host-verified MCP tools as P0, blocks that fast path, and avoids displaying third-party MCP as low risk solely from its self-report. Only Host-verified OfficialCua remains an exception. This does not change A1: production L2 Apply/Undo remain disabled; new CI and independent S03 review are still required.
 
-
-A final S03 source-audit follow-up also prevents global `allowedTools` entries from bypassing P0 per-call permission checks. The new regression test covers `js`, ordinary MCP and a non-P0 built-in read tool. Production L2 remains disabled under A1; latest-head CI and independent S03 review are still release gates.

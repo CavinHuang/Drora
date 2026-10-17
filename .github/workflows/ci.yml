@@ -95,6 +95,14 @@ jobs:
         shell: bash
       - name: Obsidian evidence session wiring (built CLI dependency closure)
         run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs apps/drora-cli/packages/bootstrap/test/knowledge-user-input-provenance.test.mjs
+      - name: S03 write-safety permission regressions
+        run: >-
+          node --import tsx --test
+          apps/drora-cli/packages/core/test/write-tier-policy.test.ts
+          apps/drora-cli/packages/core/test/permission-service-write-tier.test.ts
+          apps/drora-cli/packages/core/test/permission-suggestions.test.ts
+          apps/drora-cli/packages/core/test/memory-file-permission.test.ts
+          apps/drora-cli/packages/core/test/bash-command-rule-evaluator.test.ts
       - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
         run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
       - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)

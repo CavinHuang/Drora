@@ -125,7 +125,7 @@ test("S03-P0-5：宿主验证能力组（OfficialCua）整工具规则豁免门�
   assert.equal(decision.ruleId, "rule.project.allow");
 });
 
-test("P0 global allowedTools cannot bypass per-call checks for js or ordinary MCP", () => {
+test("CLI allowedTools remains explicit operator authorization for P0 and built-in tools", () => {
   const service = new PermissionService({
     ...defaultPermissionConfig,
     allowedTools: new Set(["js", "mcp__srv__search", "Read"]),
@@ -134,15 +134,15 @@ test("P0 global allowedTools cannot bypass per-call checks for js or ordinary MC
     { toolName: "js", input: { code: "process.stdout.write('x')" }, riskLevel: "high", mode: "build" },
     JS_CAPABILITY,
   );
-  assert.equal(jsDecision.decision, "ask");
-  assert.equal(jsDecision.ruleId, "mode.build.highRisk");
+  assert.equal(jsDecision.decision, "allow");
+  assert.equal(jsDecision.ruleId, "rule.allowedTools");
 
   const mcpDecision = service.checkPermission(
     { toolName: "mcp__srv__search", input: { query: "x" }, riskLevel: "medium", mode: "build" },
     mcpCapability({ readOnly: true }),
   );
-  assert.equal(mcpDecision.decision, "ask");
-  assert.equal(mcpDecision.ruleId, "mode.build.sideEffect");
+  assert.equal(mcpDecision.decision, "allow");
+  assert.equal(mcpDecision.ruleId, "rule.allowedTools");
 
   const readDecision = service.checkPermission(
     { toolName: "Read", input: { file_path: "/tmp/ws/a.md" }, riskLevel: "low", mode: "build" },

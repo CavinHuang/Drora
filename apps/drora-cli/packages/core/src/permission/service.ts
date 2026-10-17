@@ -250,19 +250,11 @@ export class PermissionService {
       );
     }
 
-    // P0 write-capable tools must not inherit a global whole-tool allow. A
-    // configured allowedTools entry is still a persistent blanket permission;
-    // leave P0 tools to their per-call mode/command checks instead.
-    if (
-      this.config.allowedTools.has(context.toolName) &&
-      !isP0WriteTarget({
-        toolName: context.toolName,
-        permissionName: capability.permissionName,
-        readOnly: capability.readOnly,
-        destructive: capability.destructive,
-        permissionCapabilityGroup: capability.permissionCapabilityGroup,
-      })
-    ) {
+    // CLI allowedTools is an explicit operator authorization (session-level
+    // startup configuration), documented as a yolo-level decision in
+    // specs/agent-write-safety.md §1. Keep that intentional exception distinct
+    // from model-suggested/project whole-tool allow rules.
+    if (this.config.allowedTools.has(context.toolName)) {
       return this.allow(
         context,
         capability,

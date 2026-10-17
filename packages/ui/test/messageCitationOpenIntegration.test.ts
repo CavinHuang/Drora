@@ -7,6 +7,7 @@ import { MessageResponse } from "@/components/ai-elements/message.js";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import {
+  KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS,
   getKnowledgeCitationOpenEventName,
   isKnowledgeCitationOpenEvent,
   requestKnowledgeCitationOpen,
@@ -202,7 +203,7 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       expect(duplicate).toBe(first);
       expect(dispatchCount).toBe(1);
 
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(KNOWLEDGE_CITATION_OPEN_TIMEOUT_MS);
       await expect(first).resolves.toEqual({ ok: false, reason: "failed" });
       finishLate?.();
       expect(isActive?.()).toBe(false);

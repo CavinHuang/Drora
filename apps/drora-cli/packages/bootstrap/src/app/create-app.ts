@@ -20,6 +20,7 @@ import { createNodeSkillAdapter } from "@drora/adapters/skills";
 import { createMcpAdapter } from "@drora/adapters/mcp";
 import {
   AgentRuntime,
+  createToolRegistry,
   normalizeAgentProfiles,
   PermissionService,
   buildPluginReferenceCatalog,
@@ -101,6 +102,9 @@ import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveDroraCustomCommandPrompt } from "../custom-command-prompt.js";
 import { resolveDroraBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
+// 接缝 α（specs/agents-team.md §11）：Agents Team 装配——deps 注入团队工具注册表，
+// 构造后接线 hub/私有端口。上游镜像文件零编辑（v2 组装根集中制）。
+import { installDroraAgentsTeam } from "./drora-team/install.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
 import {
   loadPluginAgentTemplates,
@@ -788,7 +792,14 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       registry: options.providerRegistry,
       currentSelection: () => getRuntime().getSessionModelSelection(),
     });
-    runtime = new AgentRuntime(sessionId, runtimeConfig, {
+    // 接缝 α/2：team 注册表先于 runtime 构造（deps.toolRegistry 注入，内建与团队工具同表）。
+    // v1 灰度：默认关闭（agentsTeam.enabled 设置面在 M2 接入）；开启即装配。
+    // v1 灰度:env DRORA_AGENTS_TEAM=1 显式开启;settings 键 agentsTeam.enabled 的设置面 M2 接入
+    //(spec §6.4 契约键单一出处;此项与 /team 命令同批补登记)。
+    const agentsTeamEnabled = process.env.DRORA_AGENTS_TEAM === "1";
+    const agentsTeamToolRegistry = agentsTeamEnabled ? createToolRegistry() : undefined;
+    const runtimeAgentDeps = {
+      ...(agentsTeamToolRegistry ? { toolRegistry: agentsTeamToolRegistry } : {}),
       ...(options.readSubagentRuntimeConfig
         ? {
             loadAgentDefinitions: async (input) => {
@@ -878,7 +889,18 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       topicResourcePort: options.topicResourcePort,
       appVersion,
       traceContext,
-    });
+    };
+    runtime = new AgentRuntime(sessionId, runtimeConfig, runtimeAgentDeps);
+    // 接缝 α/3：构造后装配 Agents Team（hub/私有端口/派发通道；registry 缺席即灰度关，零开销）。
+    if (agentsTeamToolRegistry !== undefined) {
+      installDroraAgentsTeam({
+        runtime: runtime as unknown as Parameters<typeof installDroraAgentsTeam>[0]["runtime"],
+        leadDeps: runtimeAgentDeps as Parameters<typeof installDroraAgentsTeam>[0]["leadDeps"],
+        registry: agentsTeamToolRegistry,
+        leadPermissionMode:
+          runtimeConfig.mode === "plan" ? "build" : (runtimeConfig.mode as "build" | "edit" | "yolo" | "guarded" | "auto"),
+      });
+    }
     markRuntimeConstructed({
       hasInjectedModelAdapter: options.modelAdapter !== undefined,
       sessionId,

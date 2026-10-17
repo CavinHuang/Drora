@@ -113,8 +113,11 @@ const TeamSendInputSchema = z.object({
   target_task_id: z.string().optional(),
 });
 
+/** 会话→端口解析：lead 会话绑定 TeamLeadPort，成员子会话绑定各自 TeamMemberPort。 */
+export type TeamToolPortResolver = (context: { sessionId: string }) => TeamMemberPort | undefined;
+
 /** 成员侧协作工具（强制保留集合；即使 profile 收窄也注册，spec §6.2）。 */
-export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | undefined): ToolEntry[] {
+export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): ToolEntry[] {
   const taskCardJson = (card: ReturnType<TeamMemberPort["taskGet"]>) => ({
     task_id: card?.taskId,
     title: card?.title,
@@ -134,8 +137,8 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
       runtimeInputSchema: z.object({}).passthrough(),
       outputSchema: TASK_LIST_OUTPUT_SCHEMA,
       readOnly: true,
-      handler: async () => {
-        const board = requirePort(getPort, "TeamTaskList").boardRead();
+      handler: async (_raw, context) => {
+        const board = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskList").boardRead();
         return {
           tasks: board.tasks.map((task) => ({
             task_id: task.taskId,
@@ -160,9 +163,9 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
       runtimeInputSchema: z.object({ task_id: z.string().min(1) }),
       outputSchema: { type: "object", properties: { task: { type: "object" } } },
       readOnly: true,
-      handler: async (raw) => {
+      handler: async (raw, context) => {
         const parsed = z.object({ task_id: z.string().min(1) }).parse(raw);
-        const card = requirePort(getPort, "TeamTaskGet").taskGet(parsed.task_id);
+        const card = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskGet").taskGet(parsed.task_id);
         return { task: card === undefined ? undefined : taskCardJson(card) };
       },
     }),
@@ -191,7 +194,7 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
       }),
       outputSchema: { type: "object", properties: { task: { type: "object" } } },
       readOnly: false,
-      handler: async (raw) => {
+      handler: async (raw, context) => {
         const parsed = z
           .object({
             title: z.string().min(1),
@@ -201,7 +204,7 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
             depends_on: z.array(z.string()).optional(),
           })
           .parse(raw);
-        const result = requirePort(getPort, "TeamTaskCreate").taskCreate({
+        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskCreate").taskCreate({
           title: parsed.title,
           spec: { goal: parsed.goal, acceptance: parsed.acceptance },
           dependsOn: parsed.depends_on ?? [],
@@ -230,9 +233,9 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
       runtimeInputSchema: z.object({ task_id: z.string().min(1) }),
       outputSchema: { type: "object" },
       readOnly: false,
-      handler: async (raw) => {
+      handler: async (raw, context) => {
         const parsed = z.object({ task_id: z.string().min(1) }).parse(raw);
-        const result = requirePort(getPort, "TeamTaskClaim").taskClaim(parsed.task_id);
+        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskClaim").taskClaim(parsed.task_id);
         if (result.status === "rejected") {
           throw createCoreError(
             CoreErrorType.ConfigurationError,
@@ -263,7 +266,7 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
       runtimeInputSchema: TeamTaskUpdateInputSchema,
       outputSchema: { type: "object", properties: { task: { type: "object" } } },
       readOnly: false,
-      handler: async (raw) => {
+      handler: async (raw, context) => {
         const parsed = TeamTaskUpdateInputSchema.parse(raw);
         const input: TeamTaskUpdateInput = {
           taskId: parsed.task_id,
@@ -289,7 +292,7 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
                 },
               }),
         };
-        const result = requirePort(getPort, "TeamTaskUpdate").taskUpdate(input);
+        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskUpdate").taskUpdate(input);
         if (result.status === "rejected") {
           throw createCoreError(
             CoreErrorType.ConfigurationError,
@@ -324,9 +327,9 @@ export function createTeamCollabToolEntries(getPort: () => TeamMemberPort | unde
         required: ["message_id", "delivery"],
       },
       readOnly: false,
-      handler: async (raw) => {
+      handler: async (raw, context) => {
         const parsed = TeamSendInputSchema.parse(raw);
-        const result = requirePort(getPort, "TeamSendMessage").send({
+        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamSendMessage").send({
           to: parsed.to,
           message: parsed.message,
           ...(parsed.summary === undefined ? {} : { summary: parsed.summary }),

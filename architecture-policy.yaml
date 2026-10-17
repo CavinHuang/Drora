@@ -101,6 +101,19 @@ modules:
     layers: { app: "." }
     owner: drora
 
+  # Agents Team 面板（ui-team）：消费 v4 team 投影的唯一 UI 面；边界见 CONTRACT.md。
+  - id: ui-team
+    roots: [packages/ui/src/team]
+    managed: true
+    requires: [ui, shared]
+    publicEntrypoints:
+      [
+        packages/ui/src/team/contract.ts,
+        packages/ui/src/team/index.ts,
+      ]
+    layers: { app: "." }
+    owner: drora
+
   - id: services-drora-extensions
     roots: [packages/services/src/drora-extensions]
     managed: true

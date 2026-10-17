@@ -23,6 +23,8 @@
     "build:no-runtime-assets": "pnpm --dir ../.. --filter @drora/mobile-web build && pnpm prepare:build-meta && node scripts/run-production-build.mjs",
     "build": "pnpm prepare:runtime-assets && pnpm prepare:cua-helper && pnpm run build:no-runtime-assets",
     "test:installer-nsh-smoke": "node scripts/test-installer-nsh-smoke.mjs",
+    "test:pet-parity": "node test/e2e/pets/manual-review/pending/codex-pet-parity.test.mjs",
+    "pets:generate": "node --import tsx scripts/generate-codex-pet-builtins.mjs",
     "test:browser-background-activity-smoke": "electron scripts/browser-background-activity-smoke.mjs",
     "test:browser-hidden-guest-screenshot-smoke": "electron scripts/browser-hidden-guest-screenshot-smoke.mjs",
     "test:browser-screenshot-surface-smoke": "electron scripts/browser-screenshot-surface-smoke.mjs",
@@ -89,7 +91,8 @@
     "yauzl": "^3.3.0",
     "yazl": "^3.3.1",
     "@drora/relay-server": "workspace:*",
-    "onnxruntime-node": "^1.30.0"
+    "onnxruntime-node": "^1.30.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",
@@ -122,8 +125,7 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.2",
     "wdio-electron-service": "^9.2.1",
-    "webdriverio": "^9.27.0",
-    "sharp": "^0.34.5"
+    "webdriverio": "^9.27.0"
   },
   "productName": "Drora"
 }

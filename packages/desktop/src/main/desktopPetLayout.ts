@@ -1,10 +1,3 @@
-export const PET_WIDTH = 112;
-export const PET_HEIGHT = 128;
-/** 气泡窗口宽度 = 气泡视觉的最大宽度；实际气泡随内容收缩（CSS fit-content 居中）。 */
-export const BUBBLE_WIDTH = 260;
-export const BUBBLE_HEIGHT = 140;
-const BUBBLE_GAP = 6;
-
 export interface Point {
   x: number;
   y: number;
@@ -19,21 +12,32 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), high);
 }
 
+function overlapArea(point: Point, size: { width: number; height: number }, area: Rectangle) {
+  return (
+    Math.max(0, Math.min(point.x + size.width, area.x + area.width) - Math.max(point.x, area.x)) *
+    Math.max(0, Math.min(point.y + size.height, area.y + area.height) - Math.max(point.y, area.y))
+  );
+}
+
 export function visiblePetPosition(
   saved: Point | undefined,
   workAreas: readonly Rectangle[],
   primary: Rectangle,
-  size: { width: number; height: number } = { width: PET_WIDTH, height: PET_HEIGHT },
+  size: { width: number; height: number },
 ): Point {
-  const area = saved
-    ? (workAreas.find(
-        (workArea) =>
-          saved.x < workArea.x + workArea.width &&
-          saved.x + size.width > workArea.x &&
-          saved.y < workArea.y + workArea.height &&
-          saved.y + size.height > workArea.y,
-      ) ?? primary)
-    : primary;
+  let area = primary;
+  let bestOverlap = saved ? overlapArea(saved, size, primary) : 0;
+  if (saved) {
+    // 跨屏时不能取枚举中的第一个相交屏，否则宠物主体已在另一屏仍会被拉回旧屏。
+    // 与 Electron getDisplayMatching 一致比较交叠面积；screen 坐标已是 DIP，不再按缩放倍率换算。
+    for (const workArea of workAreas) {
+      const overlap = overlapArea(saved, size, workArea);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        area = workArea;
+      }
+    }
+  }
   return {
     x: clamp(
       saved?.x ?? area.x + area.width - size.width - 28,
@@ -53,23 +57,4 @@ export function draggedPetPosition(origin: Point, start: Point, current: Point):
     x: origin.x + current.x - start.x,
     y: origin.y + current.y - start.y,
   };
-}
-
-/**
- * 气泡悬浮在宠物顶部、水平居中（气泡窗口 = 气泡最大边界，视觉随内容收缩）。
- * 越界时整体收进工作区：左右钳到 display 边缘，顶部钳到工作区上沿（极近任务栏
- * 或屏幕顶时允许压住宠物头部，避免把气泡推出屏幕外）。
- */
-export function bubblePositionForPet(
-  pet: Point,
-  area: Rectangle,
-  petWidth: number = PET_WIDTH,
-): Point {
-  const x = clamp(
-    pet.x + petWidth / 2 - BUBBLE_WIDTH / 2,
-    area.x,
-    area.x + area.width - BUBBLE_WIDTH,
-  );
-  const y = clamp(pet.y - BUBBLE_HEIGHT - BUBBLE_GAP, area.y, area.y + area.height - BUBBLE_HEIGHT);
-  return { x, y };
 }

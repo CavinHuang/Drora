@@ -231,6 +231,8 @@ function createMainDefines() {
 const desktopNodeRuntimeExternals = [
   // 本机语义模型二进制按运行平台加载，禁止内联平台专属 .node 资源。
   "onnxruntime-node",
+  // WebP 宠物图集完整解码复用生产依赖；libvips 平台二进制必须通过原包解析。
+  "sharp",
   "electron",
   "node-pty",
   "ssh2",

@@ -446,13 +446,11 @@ export const PlatformChannels = {
   TaskNotificationClick: "drora:task-notification-click",
   /** Renderer → Main：发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
   DesktopPetPublish: "drora:desktop-pet-publish",
-  /** Pet → Main：点击宠物打开对应任务 */
+  /** Main → Renderer：从宠物任务托盘打开已验证的原始任务目标 */
   DesktopPetOpenTask: "drora:desktop-pet-open-task",
   /** Main → Pet：向宠物窗口推送任务状态渲染帧 */
   DesktopPetRender: "drora:desktop-pet-render",
-  /** Pet → Main：宠物被点击激活 */
-  DesktopPetActivate: "drora:desktop-pet-activate",
-  /** Pet → Main：宠物拖拽事件（start/move/end） */
+  /** Pet → Main：宠物拖拽事件（start/move/end/cancel） */
   DesktopPetDrag: "drora:desktop-pet-drag",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
@@ -1187,10 +1185,6 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.DesktopPetRender]: {
     request: import("./desktopPet.js").DesktopPetPresentation;
-    response: void;
-  };
-  [PlatformChannels.DesktopPetActivate]: {
-    request: void;
     response: void;
   };
   [PlatformChannels.DesktopPetDrag]: {

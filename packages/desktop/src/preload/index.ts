@@ -1,4 +1,5 @@
 import { installPluginSandboxHostBridge } from "./pluginSandbox/hostBridge.js";
+import { DESKTOP_PET_CONTRACT } from "@drora/shared";
 import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
@@ -808,6 +809,10 @@ contextBridge.exposeInMainWorld("drora", {
   /** 发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
   publishDesktopPet: (presentation: import("@drora/shared").DesktopPetPresentation) =>
     ipcRenderer.send(PlatformChannels.DesktopPetPublish, presentation),
+  manageDesktopPets: (
+    request: import("@drora/shared").DesktopPetLibraryRequest,
+  ): Promise<import("@drora/shared").DesktopPetLibraryResult> =>
+    ipcRenderer.invoke(DESKTOP_PET_CONTRACT.channels.library, request),
   /** 导出日志：打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
   exportLogs: (): Promise<{
     success: boolean;

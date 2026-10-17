@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out/pet-types",
+    "rootDir": "src",
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "types": ["node"],
+    "emitDeclarationOnly": true
+  },
+  "include": [
+    "src/main/desktopPet*.ts",
+    "src/preload/desktopPet*.ts",
+    "src/shared/desktopPet*.ts",
+    "src/drora-extensions/desktopPet.ts"
+  ],
+  "references": [{ "path": "../shared" }, { "path": "../services" }]
+}

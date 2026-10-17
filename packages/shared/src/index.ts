@@ -5,12 +5,8 @@ export type {
   CloudContentBundle,
   CloudContentHeroType,
 } from "./cloudContent.js";
-export {
-  desktopPetDragSchema,
-  desktopPetPresentationSchema,
-  desktopPetTargetSchema,
-} from "./desktopPet.js";
-export type { DesktopPetDrag, DesktopPetPresentation, DesktopPetTarget } from "./desktopPet.js";
+export * from "./desktopPet.js";
+export * from "./contracts/desktopPet.js";
 
 export type {
   FileBinaryPreview,

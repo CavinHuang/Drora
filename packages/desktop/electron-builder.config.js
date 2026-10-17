@@ -23,7 +23,11 @@ import {
   resolveDesktopProductIdentity,
 } from "./scripts/desktop-product-identity.mjs";
 import { createWindowsPowerShellSecurityArgs } from "./scripts/powershell-command.mjs";
-import { isSharpRequiredByComputerUse, verifyStagedSharp } from "./scripts/sharp-package-assets.mjs";
+import { createDesktopPetSharpPackaging } from "./scripts/desktop-pet-sharp-packaging.mjs";
+import {
+  isSharpRequiredByComputerUse,
+  verifyStagedSharp,
+} from "./scripts/sharp-package-assets.mjs";
 import { isRealComputerUseProducerInstalled } from "./scripts/computer-use-producer.mjs";
 import { verifyStagedKoffi } from "./scripts/koffi-package-assets.mjs";
 import {
@@ -84,6 +88,10 @@ const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 // Linux CI（pnpm hoisted）往往解析不到该二进制，`asar list` 未运行即 exit 1。
 // 显式依赖 @electron/asar 并用 Node 直接执行 CLI，避免跨平台找不齐 shim。
 const requireFromConfig = createRequire(import.meta.url);
+const petSharpPackaging = createDesktopPetSharpPackaging(
+  targetPlatform.key,
+  requireFromConfig("sharp/package.json").optionalDependencies,
+);
 let nsisInstallSectionPatched = false;
 let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
@@ -94,6 +102,7 @@ const asarCliPath = resolve(
   "asar.js",
 );
 const REQUIRED_ASAR_RUNTIME_MODULES = [
+  "sharp",
   "module-details-from-path",
   "@opentelemetry/api-logs",
   // Bugfix: telemetry 的 OTLP exporter 会在启动阶段加载 sdk-metrics。pnpm 开发态可从
@@ -331,9 +340,8 @@ function resolveMissingRuntimeModules(appAsarPath) {
     .filter(Boolean);
   const asarEntrySet = new Set(asarEntries);
 
-  const runtimeModules = collectRuntimeModuleClosureEntries(
-    REQUIRED_ASAR_RUNTIME_MODULES,
-    runtimeModuleLookupRoots,
+  const runtimeModules = petSharpPackaging.filterRuntimeModules(
+    collectRuntimeModuleClosureEntries(REQUIRED_ASAR_RUNTIME_MODULES, runtimeModuleLookupRoots),
   );
   const resolvableRuntimeModules = runtimeModules.filter((entry) => {
     if (!entry.sourceModulePath) {
@@ -617,11 +625,13 @@ export default {
     // 默认也会原样进入安装包。这里统一在主包层做一次裁剪，只移除非运行时文件，LICENSE 继续保留。
     ...PACKAGING_PRUNE_PATTERNS,
     ...createDesktopNativePackagePrunePatterns(targetPlatform.key),
+    ...petSharpPackaging.prunePatterns,
     "!node_modules/@drora/**",
     "!node_modules/react/**",
     "!node_modules/react-dom/**",
   ],
   asarUnpack: [
+    ...petSharpPackaging.unpackPatterns,
     // node-pty 的 target prebuild 还包含 spawn-helper / winpty-agent.exe 等辅助可执行文件，
     // 整个目标目录必须 unpack；其他平台目录已由 files 规则裁剪。
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
@@ -718,7 +728,9 @@ export default {
   },
   afterSign: async (context) => {
     if (shouldPackageWindowsBrowserImportHelper) {
-      runTimedSync("afterSign:assertSignedWindowsBrowserImportHelper", () => assertSignedWindowsBrowserImportHelper(context));
+      runTimedSync("afterSign:assertSignedWindowsBrowserImportHelper", () =>
+        assertSignedWindowsBrowserImportHelper(context),
+      );
     }
     // 路线 A adhoc 分发签名链（第五十一轮自 afterPack 迁移，并新增 addon 字节恢复）：
     // electron-builder 的 mac 签名准备发生在 afterPack 之后——它会把包内嵌套 Mach-O

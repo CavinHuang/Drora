@@ -240,7 +240,12 @@ window.DRORA_I18N = {
         "Disconnects recover automatically and past events replay; closing the window stops the server, so nothing lingers in the background.",
       "doc.pets.h2": "Desktop pets",
       "doc.pets.p1":
-        "Noir, Snow and Ginger reflect live task status and keep you company through every commit. Pets are draggable, hideable and never block input — pick a character or turn them off in Settings.",
+        "Desktop pets follow activity across open workspaces, background tabs and other windows. Choose Violet, Noir, Snow or Ginger, or import a Codex-compatible custom pet.",
+      "doc.pets.controls.title": "Visibility and interaction",
+      "doc.pets.controls.body": "Enable and resize your pet in Settings > Desktop pet. Click the pet or badge to view task activity, then select a task to return to its original window. Drag to move; hold Alt when releasing to snap to a screen edge. Drag the badge to a corner, or right-click to select or hide a pet.",
+      "doc.pets.import.title": "Import and create",
+      "doc.pets.import.body": "Import a pets directory, a single pet folder or a PNG/WebP spritesheet. Refresh, export and delete custom pets in settings. Supports pet.json (v1/v2) and legacy avatar.json; imports copy artwork without changing the source. Every pet uses the same Codex format and player; v2 adds 16-direction pointer following, and built-ins also export as standard packs.",
+      "doc.pets.create.body": "Create pet opens a new task draft with the artwork specification and destination directory. Add your character idea and send it. Select a custom v1 pet to use Upgrade to v2, preserving its character in new artwork. Generation depends on the task's available image tools. Refresh settings and select your pet when it is ready. The floating pet does not provide Quick Chat or voice.",
       "doc.skin.h2": "Skin center",
       "doc.skin.p1":
         "Several illustrated preset wallpapers ship built in, with custom panel opacity and accent colors so the workbench matches your taste; every preset is tuned against the design spec.",

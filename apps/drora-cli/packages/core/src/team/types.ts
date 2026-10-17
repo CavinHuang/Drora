@@ -100,7 +100,16 @@ export interface TeamRecord {
 }
 
 /** 投影裁剪限额（契约键见 team.port.ts；shared PROTOCOL_V4_LIMITS.team 于 M2 落）。 */
-export const TEAM_KERNEL_LIMITS = {
+export interface TeamInternalLimits {
+  boardTasksMax: number;
+  mailboxRetentionPerMember: number;
+  mailboxTailWindow: number;
+  messageMaxChars: number;
+  dependencyDigestPerItemChars: number;
+  dependencyDigestTotalChars: number;
+}
+
+export const TEAM_KERNEL_LIMITS: TeamInternalLimits = {
   boardTasksMax: 100,
   mailboxRetentionPerMember: 20,
   mailboxTailWindow: 10,

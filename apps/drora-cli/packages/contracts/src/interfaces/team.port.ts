@@ -185,6 +185,7 @@ export type TeamPortErrorCode =
   | "name_redirect"
   | "member_removed"
   | "team_not_present"
+  | "team_halted"
   | "board_limit_reached"
   | "team_lead_only"
   | "message_target_terminal_retired"

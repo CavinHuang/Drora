@@ -56,6 +56,12 @@ export function teamPortError(
         code,
         message: "No active team in this session.",
       };
+    case "team_halted":
+      return {
+        code,
+        message: "This team is halted.",
+        hint: "The user stopped the team. Work stays frozen until an explicit resume with a reason; do not retry or work around it.",
+      };
     case "board_limit_reached":
       return {
         code,

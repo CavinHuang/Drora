@@ -204,7 +204,7 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
 
       await vi.advanceTimersByTimeAsync(15_000);
       await expect(first).resolves.toEqual({ ok: false, reason: "failed" });
-      finishLate?.({} as never);
+      finishLate?.();
       expect(isActive?.()).toBe(false);
       await expect(duplicate).resolves.toEqual({ ok: false, reason: "failed" });
     } finally {

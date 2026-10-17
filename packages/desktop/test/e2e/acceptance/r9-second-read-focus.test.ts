@@ -653,8 +653,12 @@ describe("R9 second read and focus: G47/G53/G54/G55", () => {
       "open note before creating the unsavable draft",
     );
     await waitForRevealedQuote();
-    // Windows 只读属性 → 真实 saveFile 失败 → 草稿成为「无法保存的草稿」。
+    // 制造「无法保存的草稿」（跨平台机制差异，CI 三平台实证 2026-10-17）：
+    // - Windows：文件只读属性使原子写（临时+rename）EPERM；
+    // - POSIX：rename() 覆盖只读文件只需目录可写——文件 chmod 444 拦不住原子写
+    //   （ubuntu/macos 实证横幅不出现），必须同时把 vault 目录置 0555 阻断 rename。
     await chmod(FILE, 0o444);
+    await chmod(dirname(FILE), 0o555);
     try {
       const firstLine = await $(".cm-content .cm-line");
       await firstLine.click();
@@ -732,6 +736,7 @@ describe("R9 second read and focus: G47/G53/G54/G55", () => {
       );
       // 恢复入口可用：解除只读后「丢弃并重载」回到原文。
       await chmod(FILE, 0o666);
+      await chmod(dirname(FILE), 0o777).catch(() => undefined);
       const discarded = await browser.execute(() => {
         const button = Array.from(
           document.querySelectorAll<HTMLButtonElement>('[data-testid="vault-view"] button'),
@@ -762,6 +767,7 @@ describe("R9 second read and focus: G47/G53/G54/G55", () => {
       await assertSourceIntact("G53 after recovery");
     } finally {
       await chmod(FILE, 0o666).catch(() => undefined);
+      await chmod(dirname(FILE), 0o777).catch(() => undefined);
     }
   });
 });

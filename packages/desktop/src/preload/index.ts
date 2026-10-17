@@ -808,6 +808,9 @@ contextBridge.exposeInMainWorld("drora", {
   /** 发布桌面宠物的任务状态投影（仅桌面；Web 无发布方） */
   publishDesktopPet: (presentation: import("@drora/shared").DesktopPetPresentation) =>
     ipcRenderer.send(PlatformChannels.DesktopPetPublish, presentation),
+  /** 拉取虚拟宠物角色目录（设置管理中心图库；仅桌面装配） */
+  getDesktopPetCatalog: (): Promise<import("@drora/shared").DesktopPetCatalog> =>
+    ipcRenderer.invoke(PlatformChannels.DesktopPetCatalog),
   /** 导出日志：打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
   exportLogs: (): Promise<{
     success: boolean;

@@ -1,5 +1,10 @@
 import { recordArmsCustomEventForE2E } from "@drora/ui";
-import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@drora/shared";
+import {
+  DesktopCommandIds,
+  buildLocalMediaPreviewUrl,
+  desktopPetCatalogSchema,
+  type IPlatformService,
+} from "@drora/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
@@ -98,6 +103,16 @@ export function createDesktopPlatform(options: {
       : undefined,
     showTaskNotification: (payload) => window.drora.showTaskNotification(payload),
     publishDesktopPet: (presentation) => window.drora.publishDesktopPet?.(presentation),
+    // 目录跨的是打包资产信任边界：schema 不符按空目录处理，设置页显示空网格而非崩溃
+    // （specs/desktop-pet.md 验收 16）。
+    getDesktopPetCatalog: window.drora.getDesktopPetCatalog
+      ? async () => {
+          const parsed = desktopPetCatalogSchema.safeParse(
+            await window.drora.getDesktopPetCatalog!(),
+          );
+          return parsed.success ? parsed.data : [];
+        }
+      : undefined,
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
     syncWebRemoteControlWorkspaces: (workspaces) =>
       window.drora.syncWebRemoteControlWorkspaces?.(workspaces),

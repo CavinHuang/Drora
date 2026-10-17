@@ -454,6 +454,8 @@ export const PlatformChannels = {
   DesktopPetActivate: "drora:desktop-pet-activate",
   /** Pet → Main：宠物拖拽事件（start/move/end） */
   DesktopPetDrag: "drora:desktop-pet-drag",
+  /** Renderer → Main：拉取虚拟宠物角色目录（含图集预览，设置管理中心用） */
+  DesktopPetCatalog: "drora:desktop-pet-catalog",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -1196,6 +1198,10 @@ export interface PlatformChannelMap {
   [PlatformChannels.DesktopPetDrag]: {
     request: import("./desktopPet.js").DesktopPetDrag;
     response: void;
+  };
+  [PlatformChannels.DesktopPetCatalog]: {
+    request: void;
+    response: import("./desktopPet.js").DesktopPetCatalog;
   };
   [PlatformChannels.WindowFullscreenChanged]: {
     request: boolean;

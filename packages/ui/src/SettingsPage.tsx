@@ -35,7 +35,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
-import { DesktopPetSettingsRow } from "@/settings/DesktopPetSettingsRow.js";
+import { VirtualPetSettingsSection } from "@/settings/VirtualPetSettingsSection.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -2038,11 +2038,11 @@ export function SettingsPage({
                         ) : activeSection === "knowledge" ? (
                           <KnowledgeSettingsSection />
                         ) : null}
-                        {activeSection === "general" && isDesktop ? (
-                          <DesktopPetSettingsRow
-                            checked={sharedSettings?.desktopPetEnabled ?? false}
+                        {activeSection === "desktopPet" && isDesktop ? (
+                          <VirtualPetSettingsSection
+                            enabled={sharedSettings?.desktopPetEnabled ?? false}
                             character={sharedSettings?.desktopPetCharacter}
-                            onChange={(enabled) => {
+                            onChangeEnabled={(enabled) => {
                               void runSettingsActionAsync({
                                 featureId: "settings.desktop",
                                 action: "toggle_desktop_pet",
@@ -2055,17 +2055,36 @@ export function SettingsPage({
                                 },
                               });
                             }}
-                            onCharacterChange={(character) => {
+                            onSelectPet={(petCharacter) => {
+                              if (petCharacter === null) {
+                                // "无"卡与总开关同一条写入路径：只翻 enabled，保留上次角色值。
+                                void runSettingsActionAsync({
+                                  featureId: "settings.desktop",
+                                  action: "toggle_desktop_pet",
+                                  trigger: "button",
+                                  operation: () =>
+                                    updateSharedSettings({ desktopPetEnabled: false }),
+                                  completed: {
+                                    resultSource: "shared_settings",
+                                    stateAfter: "disabled",
+                                  },
+                                });
+                                return;
+                              }
+                              // 一次写入 enabled+character，避免"选了角色但没启用"的中间态。
                               void runSettingsActionAsync({
                                 featureId: "settings.desktop",
                                 action: "change_desktop_pet_character",
-                                trigger: "select",
+                                trigger: "button",
                                 operation: () =>
                                   updateSharedSettings({
-                                    desktopPetCharacter: character as AppSettings["desktopPetCharacter"],
+                                    desktopPetEnabled: true,
+                                    desktopPetCharacter:
+                                      petCharacter as AppSettings["desktopPetCharacter"],
                                   }),
                                 completed: {
                                   resultSource: "shared_settings",
+                                  stateAfter: "enabled",
                                 },
                               });
                             }}

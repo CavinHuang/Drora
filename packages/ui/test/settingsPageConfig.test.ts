@@ -138,6 +138,7 @@ describe("settingsPageConfig", () => {
     expect(basics?.sections.map((section) => section.id)).toEqual([
       "general",
       "appearance",
+      "desktopPet",
       "modelProvider",
       "browser",
       "computerUse",
@@ -148,6 +149,46 @@ describe("settingsPageConfig", () => {
         .find((group) => group.id === "agentCapabilities")
         ?.sections.some((section) => section.id === "computerUse"),
     ).toBe(false);
+  });
+
+  it.each([
+    ["macOS", { isMacDesktop: true }, true],
+    ["Windows", { isWindowsDesktop: true }, true],
+    ["Linux 桌面", { isDesktop: true }, true],
+    ["Web", {}, false],
+  ] as const)("%s 的虚拟宠物入口符合桌面平台边界", async (_name, options, expected) => {
+    const { createSettingsPageConfig } = await loadSettingsPageConfig("test");
+    const { settingsSections } = createSettingsPageConfig(options);
+
+    expect(settingsSections.some((section) => section.id === "desktopPet")).toBe(expected);
+  });
+
+  it("不可见的虚拟宠物落点回退到 general", async () => {
+    const { createSettingsPageConfig, resolveSettingsSectionForPlatform } =
+      await loadSettingsPageConfig("test");
+    const { settingsSections } = createSettingsPageConfig({});
+
+    expect(resolveSettingsSectionForPlatform("desktopPet", settingsSections, "general")).toBe(
+      "general",
+    );
+  });
+
+  it("虚拟宠物管理中心文案双语言齐备", () => {
+    const keys = [
+      "settings.desktopPet.title",
+      "settings.desktopPetShow",
+      "settings.desktopPetGallery",
+      "settings.desktopPetGallery.none",
+      "settings.desktopPetGallery.noneDescription",
+      "settings.desktopPetGallery.violet",
+      "settings.desktopPetGallery.noir",
+      "settings.desktopPetGallery.snow",
+      "settings.desktopPetGallery.ginger",
+    ] as const;
+    for (const key of keys) {
+      expect(enUS[key]).toBeTruthy();
+      expect(zhCN[key]).toBeTruthy();
+    }
   });
 
   it("不可见的电脑控制落点回退到 general", async () => {

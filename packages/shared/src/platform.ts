@@ -960,6 +960,8 @@ export interface IPlatformService {
   onDesktopPetOpenTask?(
     handler: (target: import("./desktopPet.js").DesktopPetTarget) => void,
   ): () => void;
+  /** Desktop-only：拉取虚拟宠物角色目录（设置管理中心图库）；Web/远端宿主无此能力。 */
+  getDesktopPetCatalog?(): Promise<import("./desktopPet.js").DesktopPetCatalog>;
 
   /**
    * relay 远控（M4，spec: mobile-web-remote.md + mobile-relay-server.md §12）：连接

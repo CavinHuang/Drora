@@ -1,6 +1,9 @@
 import type { BrowserWindow } from "electron";
+import { ipcMain } from "electron";
 import type { AppSettings, Locale } from "@drora/shared";
+import { PlatformChannels } from "@drora/shared";
 import { registerDesktopPetWindow } from "../main/desktopPetWindow.js";
+import { buildDesktopPetCatalog } from "../main/desktopPetCatalog.js";
 
 /** 宠物由独立控制器持有；官方 Main 只转发设置和生命周期，不持有任务事实。 */
 export function createDroraDesktopPetExtension(dependencies: {
@@ -9,6 +12,8 @@ export function createDroraDesktopPetExtension(dependencies: {
   updateSettings(patch: Partial<AppSettings>): Promise<void>;
   logger: { warn: (...args: unknown[]) => void };
 }) {
+  // 角色目录是纯打包资产读数，随应用生命周期注册一次即可（specs/desktop-pet.md §third release）。
+  ipcMain.handle(PlatformChannels.DesktopPetCatalog, () => buildDesktopPetCatalog());
   let controller: ReturnType<typeof registerDesktopPetWindow> | null = null;
   return {
     initialize(settings: Partial<AppSettings> | null | undefined) {

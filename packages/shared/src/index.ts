@@ -6,11 +6,18 @@ export type {
   CloudContentHeroType,
 } from "./cloudContent.js";
 export {
+  desktopPetCatalogSchema,
   desktopPetDragSchema,
   desktopPetPresentationSchema,
   desktopPetTargetSchema,
 } from "./desktopPet.js";
-export type { DesktopPetDrag, DesktopPetPresentation, DesktopPetTarget } from "./desktopPet.js";
+export type {
+  DesktopPetCatalog,
+  DesktopPetCatalogEntry,
+  DesktopPetDrag,
+  DesktopPetPresentation,
+  DesktopPetTarget,
+} from "./desktopPet.js";
 
 export type {
   FileBinaryPreview,

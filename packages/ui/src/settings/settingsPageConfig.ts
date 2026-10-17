@@ -5,6 +5,7 @@ import {
   Settings2,
   Package,
   Bot,
+  Cat,
   Palette,
   Sun,
   BarChart3,
@@ -68,6 +69,13 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "appearance",
     icon: Palette,
     titleId: "settings.appearanceTitle",
+    groupId: "basics",
+  },
+  // 虚拟宠物管理中心：桌面平台门控（同 computerUse/knowledge），Web 无宠物窗口。
+  {
+    id: "desktopPet",
+    icon: Cat,
+    titleId: "settings.desktopPet.title",
     groupId: "basics",
   },
   {
@@ -175,6 +183,7 @@ export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
   (section) =>
     section.id !== "computerUse" &&
     section.id !== "knowledge" &&
+    section.id !== "desktopPet" &&
     isSettingsSectionEnabled(section.id),
 );
 
@@ -192,9 +201,12 @@ export function createSettingsPageConfig({
   const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
   // 知识问答分区与 computerUse 同一桌面门控：Jev 装配 V1 只在 desktop local host 生效。
   const showKnowledge = isDesktop || isMacDesktop || isWindowsDesktop;
+  // 虚拟宠物管理中心同门控：宠物窗口只存在于桌面 Main。
+  const showDesktopPet = isDesktop || isMacDesktop || isWindowsDesktop;
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
     if (section.id === "knowledge" && !showKnowledge) return false;
+    if (section.id === "desktopPet" && !showDesktopPet) return false;
     return isSettingsSectionEnabled(section.id);
   });
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({

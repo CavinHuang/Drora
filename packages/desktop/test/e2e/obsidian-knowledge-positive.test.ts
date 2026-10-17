@@ -256,7 +256,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
         agentChecked: agent?.getAttribute("aria-checked"),
       };
     });
-    assert.deepEqual(gate, { noGo: false, enabled: true, checked: "false", agentChecked: "false" });
+    assert.deepEqual(gate, { noGo: true, enabled: false, checked: "false", agentChecked: "false" });
     await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "explicitly authorize Vault Agent writes");
     await browser.waitUntil(() => browser.execute(() => {
       const grant = document.querySelector('[data-testid="review-agent-writes-toggle"] [role="switch"]');
@@ -265,12 +265,12 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       // The grant's visible state can update before the async host action has
       // completed. G67 must never start while the review form is still busy.
       return grant?.getAttribute("aria-checked") === "true"
-        && Boolean(editor && !editor.disabled && toggle && !toggle.disabled);
-    }), { timeout: 30_000, timeoutMsg: "G65 Vault grant did not finish and unlock the Review form" });
+        && Boolean(editor && !editor.disabled && toggle && toggle.disabled);
+    }), { timeout: 30_000, timeoutMsg: "G65 Vault grant did not unlock proposal creation while preserving the S03 write gate" });
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Changing write permissions must not touch source");
   });
 
-  it("G67 real Electron L2 complete proposal / preview / approval / apply / undo", async function () {
+  it("G67 real Electron proposal / preview / approval stays fail-closed under A1 S03 NO-GO", async function () {
     this.timeout(120_000);
     assertIsolatedVault();
     await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
@@ -278,7 +278,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       const editor = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-title"]');
       return Boolean(editor && !editor.disabled && editor.getClientRects().length > 0);
     }), { timeout: 30_000, timeoutMsg: "G67 form is still locked by a previous Review operation" });
-    const proposed = NOTE_BODY + "\nG67 approved, applied and undone Markdown change.\n";
+    const proposed = NOTE_BODY + "\nG67 approved but deliberately not applied while S03 is NO-GO.\n";
     // Interact like a user rather than mutating DOM values behind React's
     // controlled inputs. The synthetic setter previously left the form in
     // an indeterminate state on all three Electron platforms.
@@ -337,7 +337,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await clickControl('[data-testid="review-change-toggle"]', "preview exact proposal content");
     await browser.waitUntil(() => browser.execute(() =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-change-content"]'))
-        .some((pre) => pre.textContent?.includes("G67 approved, applied and undone Markdown change")),
+        .some((pre) => pre.textContent?.includes("G67 approved but deliberately not applied while S03 is NO-GO")),
     ), { timeout: 30_000, timeoutMsg: "G67 content not served by the real review RPC" });
 
     const clicked = await browser.execute(() => {
@@ -352,28 +352,27 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await browser.waitUntil(() => browser.execute(() =>
       Boolean(document.querySelector('[data-testid="review-proposal-card"][data-proposal-phase="approvedCurrent"]')),
     ), { timeout: 30_000, timeoutMsg: "G67 approval not returned from real ledger" });
-    const state = await browser.execute(() => ({
-      gateOff: document.querySelector('[data-testid="review-write-path-toggle"] [role="switch"]')
-        ?.getAttribute("aria-checked") === "false",
-      applyDisabled: Boolean(document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-apply"]')?.disabled),
-    }));
-    assert.deepEqual(state, { gateOff: true, applyDisabled: true },
-      "Human approval alone must never write a note without explicit L2 activation");
-    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Approval itself must not write");
-    await clickControl('[data-testid="review-write-path-toggle"] [role="switch"]', "enable reviewed L2 writes");
-    await browser.waitUntil(() => browser.execute(() => {
-      const gate = document.querySelector('[data-testid="review-write-path-toggle"] [role="switch"]');
+    const state = await browser.execute(() => {
+      const gate = document.querySelector<HTMLButtonElement>('[data-testid="review-write-path-toggle"] [role="switch"]');
       const apply = document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-apply"]');
-      return gate?.getAttribute("aria-checked") === "true" && Boolean(apply && !apply.disabled);
-    }), { timeout: 30_000, timeoutMsg: "G67 approved L2 operation never became executable" });
-    await clickControl('[data-testid="review-proposal-apply"]', "apply approved Markdown write");
-    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === proposed, {
-      timeout: 30_000, timeoutMsg: "G67 approved Markdown was not actually written to the Vault",
+      const undo = document.querySelector<HTMLButtonElement>('[data-testid="review-proposal-undo"]');
+      return {
+        gateOff: gate?.getAttribute("aria-checked") === "false",
+        gateDisabled: Boolean(gate?.disabled),
+        applyDisabled: Boolean(apply?.disabled),
+        undoDisabled: Boolean(undo?.disabled),
+        noGo: Boolean(document.querySelector('[data-testid="review-write-safety-gate-blocked"]')),
+      };
     });
-    await clickControl('[data-testid="review-proposal-undo"]', "undo the approved Markdown write");
-    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === NOTE_BODY, {
-      timeout: 30_000, timeoutMsg: "G67 Undo did not restore the exact original Markdown",
-    });
+    assert.deepEqual(state, {
+      gateOff: true,
+      gateDisabled: true,
+      applyDisabled: true,
+      undoDisabled: true,
+      noGo: true,
+    }, "A1 release must allow proposal/preview/approval but block production Apply/Undo while S03 is NO-GO");
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY,
+      "G67 approval must not write Markdown while the production S03 gate is closed");
   });
 
 });

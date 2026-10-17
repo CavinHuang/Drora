@@ -50,11 +50,26 @@ test("S03-P1-8：plan 模式未自报 readOnly 的 MCP → deny（直通分支�
   assert.equal(decision.ruleId, "mode.plan.nonReadOnly");
 });
 
-test("plan 模式自报 readOnly 的 MCP → 照旧放行", () => {
+test("plan 模式第三方 MCP 即使自报 readOnly 也必须 deny", () => {
   const service = new PermissionService();
   const decision = service.checkPermission(
     { toolName: "mcp__srv__search", input: {}, riskLevel: "low", mode: "plan" },
     mcpCapability({ readOnly: true, permission: { ...mcpCapability().permission!, riskLevel: "low", sideEffectScope: "none", needsApproval: false } }),
+  );
+  assert.equal(decision.decision, "deny");
+  assert.equal(decision.ruleId, "mode.plan.nonReadOnly");
+});
+
+test("plan mode: Host-verified OfficialCua read-only capability remains allowed", () => {
+  const service = new PermissionService();
+  const base = mcpCapability().permission!;
+  const decision = service.checkPermission(
+    { toolName: "mcp__computer-use__screenshot", input: {}, riskLevel: "low", mode: "plan" },
+    mcpCapability({
+      readOnly: true,
+      permissionCapabilityGroup: PermissionCapabilityGroup.OfficialCua,
+      permission: { ...base, riskLevel: "low", sideEffectScope: "none", needsApproval: false },
+    }),
   );
   assert.equal(decision.decision, "allow");
   assert.equal(decision.ruleId, "mode.plan.readOnly");
@@ -81,19 +96,19 @@ test("S03-P0-4：未自报 readOnly 的 MCP 整工具 allow 规则不生效", ()
   assert.equal(decision.decision, "ask");
 });
 
-test("自报 readOnly 的 MCP 整工具 allow 规则照旧生效", () => {
+test("第三方 MCP 的 readOnlyHint 不允许整工具 allow 绕过逐次确认", () => {
   const service = new PermissionService();
   const capability = mcpCapability({
     readOnly: true,
-    permission: { ...mcpCapability().permission!, sideEffectScope: "none", needsApproval: false },
+    permission: { ...mcpCapability().permission!, sideEffectScope: "workspace", needsApproval: false, riskLevel: "low" },
   });
   const decision = service.checkPermission(
     { toolName: "mcp__srv__search", input: {}, riskLevel: "low", mode: "build" },
     capability,
     ruleset("allow", "mcp__srv__search"),
   );
-  assert.equal(decision.decision, "allow");
-  assert.equal(decision.ruleId, "rule.project.allow");
+  assert.equal(decision.decision, "ask");
+  assert.equal(decision.ruleId, "mode.build.sideEffect");
 });
 
 test("S03-P0-5：宿主验证能力组（OfficialCua）整工具规则豁免门控", () => {

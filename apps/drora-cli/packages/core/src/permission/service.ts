@@ -20,7 +20,7 @@ import {
 import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@drora/shared";
 import { resolvePlanModeTransitionPermission } from "./plan-mode-policy.js";
 import { webFetchRuleSubjects, wildcardToRegExp } from "./rule-matching.js";
-import { isP0WriteTarget } from "./write-tier-policy.js";
+import { isP0WriteTarget, isTrustedReadOnlyTool } from "./write-tier-policy.js";
 import { isPreapprovedWorkflowDraftWrite } from "./workflow-draft-path.js";
 import { applyPermissionUpdates } from "../tool/executor/permission-rules.js";
 import { isWebFetchPreapprovedUrl } from "../tool/webfetch-preapproved.js";
@@ -294,6 +294,8 @@ export class PermissionService {
         toolName: context.toolName,
         permissionName: capability.permissionName,
         readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
       })
         ? toolRules.filter((rule) => Boolean(rule.ruleContent))
         : toolRules;
@@ -467,19 +469,23 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
-    if (capability.readOnly && !capability.destructive) {
+    if (isTrustedReadOnlyTool({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      readOnly: capability.readOnly,
+      destructive: capability.destructive,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    })) {
       return this.allow(
         context,
         capability,
         "mode.plan.readOnly",
-        "Plan mode allows read-only tool execution",
+        "Plan mode allows host-trusted read-only tool execution",
       );
     }
 
-    // S03 洞 1a（specs/agent-write-safety.md §2）：原「未自报 destructive 的 MCP 一律放行」
-    // 分支已删除——destructive/readOnly 是 server 自报，写盘型 MCP 漏报 destructive 即可在
-    // plan 模式直通。MCP 与其它工具同规则：自报 readOnly 且非 destructive 才放行
-    // （自报只在收紧方向采信，漏报由本模式的 deny 兜底）。
+    // MCP annotations are supplied by the server and cannot establish a trusted
+    // read-only capability. Only host-verified OfficialCua may use this fast path.
 
     if (
       capability.allowedInPlanMode &&
@@ -507,12 +513,18 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
-    if (capability.readOnly && !capability.destructive && !capability.needsApproval) {
+    if (!capability.needsApproval && isTrustedReadOnlyTool({
+      toolName: context.toolName,
+      permissionName: capability.permissionName,
+      readOnly: capability.readOnly,
+      destructive: capability.destructive,
+      permissionCapabilityGroup: capability.permissionCapabilityGroup,
+    })) {
       return this.allow(
         context,
         capability,
         "mode.build.readOnly",
-        "Build mode allows read-only tools",
+        "Build mode allows host-trusted read-only tool execution",
       );
     }
 

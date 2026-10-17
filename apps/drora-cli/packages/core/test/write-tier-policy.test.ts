@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PermissionUpdate } from "@drora/contracts";
+import { PermissionCapabilityGroup, type PermissionUpdate } from "@drora/contracts";
 import {
   isP0WriteRuleToolName,
   isP0WriteTarget,
@@ -12,7 +12,7 @@ import {
   sanitizePermissionUpdatesForPersistence,
 } from "../src/permission/write-tier-policy.js";
 
-test("P0 判定：Bash/js 恒 P0；MCP 未自报 readOnly 为 P0", () => {
+test("P0 判定：Bash/js 恒 P0；普通 MCP 即使自报 readOnly 仍为 P0", () => {
   assert.equal(isP0WriteTarget({ toolName: "Bash" }), true);
   assert.equal(isP0WriteTarget({ toolName: "js" }), true);
   assert.equal(
@@ -26,9 +26,18 @@ test("P0 判定：Bash/js 恒 P0；MCP 未自报 readOnly 为 P0", () => {
   );
 });
 
-test("P0 判定：自报 readOnly 的 MCP 降出 P0", () => {
+test("P0 判定：自报 readOnly 不可信；只有 Host 注入的 OfficialCua 可例外", () => {
   assert.equal(
     isP0WriteTarget({ toolName: "mcp__srv__tool", permissionName: "mcp", readOnly: true }),
+    true,
+  );
+  assert.equal(
+    isP0WriteTarget({
+      toolName: "mcp__computer-use__screenshot",
+      permissionName: "mcp",
+      readOnly: true,
+      permissionCapabilityGroup: PermissionCapabilityGroup.OfficialCua,
+    }),
     false,
   );
 });

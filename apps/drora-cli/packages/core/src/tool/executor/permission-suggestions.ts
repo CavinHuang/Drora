@@ -24,9 +24,9 @@ export function buildDefaultPermissionUpdates(
   }
 
   const ruleContent = ruleContentFromInput(input);
-  // S03 洞 2 建议侧（specs/agent-write-safety.md §2）：P0 工具（Bash/js/未自报 readOnly
-  // 的 MCP）提取不到内容时不给「总是允许」建议——整工具持久 allow 是被禁的通道，确认窗
-  // 不应该提供它。Bash 走自有 rulePolicy（内容级建议），正常到不了这里。
+  // S03 洞 2 建议侧（specs/agent-write-safety.md §2）：P0 工具（Bash/js/所有普通 MCP）
+  // 提取不到内容时不给「总是允许」建议。MCP 自报 readOnlyHint 不可信；Bash 走自有
+  // rulePolicy（内容级建议），正常到不了这里。
   if (!ruleContent && isP0WriteTarget({ toolName, ...capability })) {
     return [];
   }

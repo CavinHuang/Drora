@@ -12,6 +12,7 @@ export * from "./session-mailbox.port.js";
 export * from "./session-store.port.js";
 export * from "./tool-artifact-store.port.js";
 export * from "./subagent.port.js";
+export * from "./team.port.js";
 export * from "./workflow.port.js";
 export * from "./workflow-submit.port.js";
 export * from "./workflow-escalate.port.js";

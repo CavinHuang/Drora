@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
   TEAM_UI_MODULE_ID,
   createTeamPanelController,

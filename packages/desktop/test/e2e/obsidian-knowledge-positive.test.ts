@@ -378,13 +378,14 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === proposed,
       { timeout: 30_000, timeoutMsg: "G67 real approved write did not reach Vault" });
     await browser.waitUntil(() => browser.execute(() =>
-      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.includes("applied") === true,
+      // 状态行已 i18n 化（增量评审 ui-review-6：不再直出英文枚举），断言需双语兼容。
+      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.match(/applied|已应用/) !== null,
     ), { timeout: 30_000, timeoutMsg: "G67 applied operation did not appear in real persistent ledger" });
     await clickControl('[data-testid="review-proposal-undo"]', "undo through the real persisted operation ledger");
     await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === NOTE_BODY,
       { timeout: 30_000, timeoutMsg: "G67 real Undo did not restore the protected snapshot" });
     await browser.waitUntil(() => browser.execute(() =>
-      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.includes("undo_applied") === true,
+      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.match(/undo_applied|已撤销/) !== null,
     ), { timeout: 30_000, timeoutMsg: "G67 inverse write did not settle in real ledger" });
     await clickControl('[data-testid="review-write-path-toggle"] [role="switch"]', "revoke L2 opt-in after test");
     await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "revoke Vault Agent writes after test");

@@ -79,6 +79,24 @@ export function matchesKnowledgeCitationReadback(
   ) === expectedExcerpt;
 }
 
+/**
+ * Validate the full-file SHA as well as the excerpt before the editor mutates
+ * its selection. Matching only the quote slice is insufficient: edits elsewhere
+ * in the same Markdown file must invalidate the Receipt readback too.
+ */
+export function matchesKnowledgeCitationFileReadback(
+  content: string,
+  quote: KnowledgeEvidenceQuote,
+  expectedExcerpt: string,
+  actualFileSha256: string,
+  expectedFileSha256: string,
+): boolean {
+  if (!/^[a-f0-9]{64}$/.test(actualFileSha256) ||
+      !/^[a-f0-9]{64}$/.test(expectedFileSha256) ||
+      actualFileSha256 !== expectedFileSha256) return false;
+  return matchesKnowledgeCitationReadback(content, quote, expectedExcerpt);
+}
+
 /** Confirm that navigation still belongs to this live Vault, Session and request. */
 export function isKnowledgeCitationScopeCurrent(input: {
   requestActive: boolean;

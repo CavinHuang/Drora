@@ -110,3 +110,15 @@
 - Jev 实际 Provider 调用与重排效果评测。
 - Review L2 diff/approve/undo 写入和 S03 复审。
 - 候选卡的「就此追问」侧会话仍走普通选区引用语义，不将其声称为 Receipt 可信链路。与此不同，「上一轮 → 加入 Agent」是同 Session 的显式可信证据重新核验流程。
+
+
+## 2026-10-17 · Automated self-review coverage supplement
+
+Per the maintainer's instruction, the remaining work is reviewed and verified through automated tests rather than a manual walkthrough. The current case-to-test mapping is in [AUTOMATED_SELF_REVIEW_2026-10-17.md](./AUTOMATED_SELF_REVIEW_2026-10-17.md). In particular:
+
+- G35/G42: distinct Receipt isolation across two source notes and cross-session rejection.
+- G45: duplicate citation-open request single-flight, timeout, and ignored late success.
+- G54: second-read full-file SHA mismatch is rejected even when the quote excerpt still matches.
+- G65/G67: real Electron confirms L2 proposal/preview/approval while production write toggle, Apply, and Undo stay disabled under A1/S03 NO-GO.
+
+This supplement does not mark unrelated, untested cases as passed. Real Electron evidence is labeled separately from unit/service integration coverage. The formal S03 NO-GO remains unchanged.

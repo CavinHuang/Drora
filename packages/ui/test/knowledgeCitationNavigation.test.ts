@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { KnowledgeResolveCitationResult } from "@drora/services";
 import {
@@ -5,6 +6,7 @@ import {
   decideKnowledgeCitationNavigation,
   isKnowledgeCitationScopeCurrent,
   isVaultCitationFocusCurrent,
+  matchesKnowledgeCitationFileReadback,
   matchesKnowledgeCitationReadback,
 } from "../src/v4/vault/knowledge/knowledgeCitationNavigation.js";
 
@@ -140,7 +142,7 @@ describe("Obsidian citation navigation authorization", () => {
     expect(isVaultCitationFocusCurrent(0, returnToA)).toBe(false);
   });
 
-  it("rejects a changed second file read before any editor navigation", () => {
+  it("validates the quote excerpt against the second file read", () => {
     const original = "Intro\r\nAlpha   original\r\nTrailing";
     const startOffset = "Intro\n".length;
     const endOffset = "Intro\nAlpha   original".length;
@@ -153,6 +155,35 @@ describe("Obsidian citation navigation authorization", () => {
     expect(matchesKnowledgeCitationReadback(original, position, "")).toBe(false);
     expect(matchesKnowledgeCitationReadback(
       original, { ...position, endOffset: 10_000 }, "Alpha original",
+    )).toBe(false);
+  });
+
+  it("rejects changes outside the quote when the full-file SHA no longer matches", () => {
+    const original = "Intro\nAlpha   original\nTrailing";
+    const startOffset = "Intro\n".length;
+    const endOffset = "Intro\nAlpha   original".length;
+    const position = { startLine: 2, endLine: 2, startOffset, endOffset };
+    const expectedExcerpt = "Alpha original";
+    const expectedSha = createHash("sha256").update(original).digest("hex");
+    const changedOutsideQuote = `${original}\n${"tail changed ".repeat(40)}`;
+    const changedSha = createHash("sha256").update(changedOutsideQuote).digest("hex");
+
+    expect(matchesKnowledgeCitationFileReadback(
+      original, position, expectedExcerpt, expectedSha, expectedSha,
+    )).toBe(true);
+    // The quoted slice still matches, but any mutation elsewhere in the file
+    // must fail the independent second-read validation.
+    expect(matchesKnowledgeCitationReadback(
+      changedOutsideQuote, position, expectedExcerpt,
+    )).toBe(true);
+    expect(matchesKnowledgeCitationFileReadback(
+      changedOutsideQuote, position, expectedExcerpt, changedSha, expectedSha,
+    )).toBe(false);
+    expect(matchesKnowledgeCitationFileReadback(
+      original, position, expectedExcerpt, "b".repeat(64), expectedSha,
+    )).toBe(false);
+    expect(matchesKnowledgeCitationFileReadback(
+      original, position, "different excerpt", expectedSha, expectedSha,
     )).toBe(false);
   });
 

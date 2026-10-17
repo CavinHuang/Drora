@@ -109,7 +109,7 @@ import {
   createKnowledgeCitationScopeEpoch,
   isKnowledgeCitationScopeCurrent,
   isVaultCitationFocusCurrent,
-  matchesKnowledgeCitationReadback,
+  matchesKnowledgeCitationFileReadback,
   navigateKnowledgeCitation,
 } from "./vault/knowledge/knowledgeCitationNavigation.js";
 import { KnowledgeInsightsView } from "./vault/knowledge/KnowledgeInsightsView.js";
@@ -1385,8 +1385,9 @@ export function VaultView({
         ...(isCurrent ? {
           validateRead: (read: VaultReadResult) =>
             Boolean(reveal && expectedExcerpt && expectedFileSha256 &&
-              read.sha256 === expectedFileSha256 &&
-              matchesKnowledgeCitationReadback(read.content, reveal, expectedExcerpt)),
+              matchesKnowledgeCitationFileReadback(
+                read.content, reveal, expectedExcerpt, read.sha256, expectedFileSha256,
+              )),
         } : {}),
       });
       if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||

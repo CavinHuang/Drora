@@ -65,3 +65,12 @@ Historical checkpoint `e830c57f70e4791f753a366b65763f5b713281d6`: Full CI `38915
 
 A further review found that third-party MCP `readOnlyHint=true` could still bypass P0 permission handling. The current branch now treats all non-Host-verified MCP tools as P0 regardless of that server-authored hint, blocks build/plan read-only fast paths, and keeps only the Host-verified OfficialCua exception. Unit regressions were added; the new head must pass CI/Electron checks. This is still not an independent S03 GO, and production L2 remains disabled under A1.
 
+
+
+## 2026-10-17 · Maintainer-directed automated self-review
+
+The maintainer explicitly requested **no manual acceptance walkthrough** and asked for assistant-led code review. The current automated coverage map is recorded in [AUTOMATED_SELF_REVIEW_2026-10-17.md](./AUTOMATED_SELF_REVIEW_2026-10-17.md). For G35/G42/G45–G55, use the named automated evidence instead of waiting for a manual checkbox where that test directly covers the risk. This does not upgrade unit-level evidence to full GUI evidence.
+
+The critical code review rechecked the production Host's explicit `reviewWriteSafetyGatePassed: false`, the service-level dual gate for Apply/Undo, MCP read-only hint trust boundaries, and Receipt/session/source binding. G54 now has a dedicated assertion that a change outside the quote excerpt still fails the full-file SHA second-read check.
+
+**No safety boundary changed:** L1 remains default-off. The formal S03 NO-GO is not revoked; production L2 Apply/Undo remain disabled. This self-review is not described as an independent external S03 sign-off. No merge or deployment is performed here.

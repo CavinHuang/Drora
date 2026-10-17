@@ -19,10 +19,31 @@ import {
   vaultConfigPath,
 } from "../src/obsidian-vault/config.js";
 import { createKnowledgeServices } from "../src/knowledge/knowledgeServices.js";
+import { isReleasedReviewWriteAuthority } from "../src/knowledge/review/reviewReleasePolicy.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+test("S03 release policy grants local desktop capability only; user opt-in still defaults off", async () => {
+  const root = await mkdtemp(join(tmpdir(), "drora-release-policy-"));
+  setDataBaseDir(root);
+  try {
+    for (const authority of [undefined, "desktop-local", "desktop-attached-remote"] as const) {
+      const services = createKnowledgeServices({
+        databasePath: join(root, "knowledge.sqlite"), pluginDataDir: join(root, "plugin-data"),
+        reviewWriteSafetyGatePassed: isReleasedReviewWriteAuthority(authority),
+      });
+      try {
+        assert.equal(services.reviewService.isWritePathActivationAllowed(), authority === "desktop-local");
+        assert.equal(services.reviewService.isWritePathEnabled(), false);
+        if (authority !== "desktop-local") {
+          await assert.rejects(services.reviewService.setWritePathEnabled(true), /runtime gate/);
+        }
+      } finally { services.dispose(); }
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 async function readConfigField(pluginDataDir: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(vaultConfigPath(pluginDataDir), "utf-8")) as Record<

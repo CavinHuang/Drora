@@ -1,3 +1,7 @@
+> **已由同日收尾复评取代。** 本文是 `3a7f4fe` 基线记录；其中“未发现新增缺陷”不能用于当前交付。
+> 后续审查实际发现并修复 P0 内容授权、旧批准、跨进程恢复和竞争创建问题。
+> 当前状态见 [S03_CLOSEOUT_2026-10-17.md](./S03_CLOSEOUT_2026-10-17.md)。
+
 # Drora PR #23 — Automated self-review and coverage map
 
 **Date:** 2026-10-17  

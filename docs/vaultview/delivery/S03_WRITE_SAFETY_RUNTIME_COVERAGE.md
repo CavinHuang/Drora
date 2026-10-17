@@ -1,3 +1,9 @@
+> **当前版本更新（2026-10-17）：** 本文后续部分为历史修复素材。
+> 本轮额外修复 P0 内容 allow/Hook 代批、旧批准、跨进程 owner 与 createOnly；
+> 当前决定与证据映射见 [S03_CLOSEOUT_2026-10-17.md](./S03_CLOSEOUT_2026-10-17.md)。
+> 桌面本地 L2 作为显式 opt-in 交付候选，默认关闭；旧“生产一律写死 false / 等待独立 reviewer”
+> 不再代表本轮装配决定。最终 CI/Electron 结果必须绑定本轮提交。
+
 # S03 写入安全运行时覆盖报告（A31 素材，复评输入）
 
 **日期：** 2026-10-16　**分支：** `feat/obsidian-knowledge-e2e`　**spec：** `specs/agent-write-safety.md`

@@ -1,76 +1,47 @@
-# Obsidian / VaultView unified PR #23 — Merge Readiness Gate
+# PR #23 — 当前交付与合并标准
 
-**Updated:** 2026-10-16 (L2 implementation closeout; no merge approval). **PR:** https://github.com/CavinHuang/Drora/pull/23
-**Branch:** `feat/obsidian-knowledge-e2e` → `main`
-**Decision:** **IMPLEMENTATION READY / HOLD FOR FORMAL REVIEW**. A1 is normative: L2 production Apply/Undo remain disabled. The production Host explicitly passes `reviewWriteSafetyGatePassed: false`; only isolated tests may override the gate. No unilateral merge.
+更新时间：2026-10-17。分支 `feat/obsidian-knowledge-e2e` → `main`。
 
-This page is the release gate, not a promise that every listed test passed. An OS
-bundle build and a Linux Electron smoke are not substitutes for real GUI
-acceptance on Windows/macOS. Model SSE replay only controls generated answer
-text; the tested Vault, Knowledge RPC, CLI admission, receipts and CodeMirror
-are the production implementations.
+## 当前交付决定
 
-## Current automated checkpoint and human gates
+维护者明确要求助手自行 review，不再等待人工走查或额外独立 reviewer。
+本轮按该委托完成 S03 代码复评并修复实际缺陷，候选范围扩展到**桌面本地 L2 opt-in Apply/Undo**。
+这是助手的委托自审，不冒称外部独立安全签字；旧 A1/NO-GO 是历史基线，由本次明确交付决定更新。
+**合并和部署尚未执行。候选能否交付以最终同一提交的 CI / Linux / Windows / macOS 结果为准。**
 
-Historical checkpoint `e830c57f70e4791f753a366b65763f5b713281d6`: Full CI `38915497030`, Electron Provenance `38915496940`, and Windows/macOS Electron Acceptance `38915496910` passed. However, that version enabled the production L2 gate in the desktop Host, contradicting A1; its Apply/Undo G67 result is implementation evidence, not acceptance for the approved release scope. The current HEAD explicitly closes the production gate and updates G67 to require proposal/preview/approval while proving Apply/Undo remain disabled. New checks must pass on the corrected HEAD.
+## 用户可获得的行为
 
-**A1 approved release scope:** L0 + optional L1 were approved with L1 default-off. L2 proposal/approval/ledger mechanisms may remain present for development and review, but production Apply/Undo and the L2 activation switch must stay fail-closed. The earlier desktop-local gate injection has been removed and replaced with an explicit production false value. Formal independent S03 review remains open.
+- Vault 浏览、索引、Knowledge 检索、来源选择、Agent 交接、引用回跳和重启恢复。
+- 桌面本地 L2：创建 create/write/delete 提案 → 精确预览 → 用户批准 → 显式启用两项写权限 → Apply → 带 SHA 校验的 Undo。
+- L1 与 L2 用户开关默认关闭。remote/unspecified authority 不授予 L2 激活能力。
+- 旧批准、已修订/拒绝/过期提案、关闭开关、撤权和切库均不能继续授权后续文件写入。
+- 进程活跃时不能被另一个 Host reconcile；真实进程结束后只读恢复，不自动重放。
 
-## Historical independently traceable evidence
+## 本轮真正补齐的缺口
 
-| Gate | Evidence | Result / limit |
-| --- | --- | --- |
-| Linux: G56–G57 forged source | [run 38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954) | Passed — no trusted navigation from model-authored links |
-| Linux: G58–G60 real Vault + Inspector/TOCTOU | [run 38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954) | Passed — real isolated Markdown/host |
-| Linux: G61–G64 Composer → CLI → sourced Agent reply → Vault | [run 38696659954](https://github.com/CavinHuang/Drora/actions/runs/38696659954) | Passed 4/4 — stale citation rejected, restored original opens |
-| macOS 14 real Electron Vault and Agent | [run 38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) | Passed both end-to-end specs, not whole G01–G55 manual matrix |
-| Windows 2022 real Electron Vault and Agent | [run 38696660072](https://github.com/CavinHuang/Drora/actions/runs/38696660072) | Passed both end-to-end specs, not whole G01–G55 manual matrix |
-| Latest full CI at this checkpoint | [run 38696659960](https://github.com/CavinHuang/Drora/actions/runs/38696659960) | Must inspect *final* conclusion; do not infer from individual passing jobs |
-| G67 approved-release behavior | `obsidian-knowledge-positive.test.ts` | Prior Apply/Undo run is not valid release-scope acceptance; corrected test must prove proposal/preview/approval work while production toggle, Apply and Undo stay disabled |
+| 缺陷 | 修复与证据 |
+| --- | --- |
+| MCP/js 的 path/command 内容规则扩大持久授权 | 建议/评估/持久化三处阻断；P0 强制 user-once，Hook 不能代批或持久授权；`core/test/permission-*.test.ts` / `write-tier-policy.test.ts` |
+| 等待期间旧提案与批准仍能写入 | 写前从账本重新读取 revision/rejection/hash/TTL；`knowledgeReviewFreshApproval.test.ts`（4 个旧版失败场景） |
+| 跨进程 reconcile 抢占活跃写入 | SQLite v6 Vault owner PID/host/token，无超时抢占；`knowledgeReviewOwnership.test.ts`（4 个真实子进程场景） |
+| createOnly 检查后 rename 覆盖竞争新文件 | 原子 hard-link 发布，EEXIST 零覆盖；`obsidianVaultAtomicCreate.test.ts` |
+| 只验证 L2 永久关闭，无法证明功能可用 | G65/G67 改为真实生产 Host 默认关闭、批准仍不写、用户 opt-in 后 Apply/Undo，完成后恢复临时 Vault |
 
-## Required before marking Ready for review / merging
+## 最终完成标准与执行预期
 
-1. **Latest head CI, each OS Electron lane:** green typecheck/lint, CLI,
-   Knowledge/Obsidian regressions, Linux G56–G65, native macOS and Windows
-   Vault/Agent acceptance. Inspect logs and upload failure artifacts; do
-   not extrapolate a result from an older SHA.
-2. **Close user-visible negative paths:** actual CLI admission rejection
-   for changed/deleted/re-authorized sources before Send (G05–G07);
-   queued promotion revalidation (G08); real multi-turn independent receipts
-   after session switch/restart (G12/G35/G42); concurrency/timeouts (G45–G55).
-   See `KNOWLEDGE_E2E_PHASE1_SMOKE.md` for remaining granular cases.
-3. **S03 hard-write-safety gate:** runtime P0 controls have separate coverage in
-   `S03_WRITE_SAFETY_RUNTIME_COVERAGE.md`. The formal `WRITE_SAFETY_NO_GO.md`
-   ruling remains until an independent reviewer explicitly resolves it. The
-   production Host explicitly passes `reviewWriteSafetyGatePassed: false` for
-   every authority; persisted preferences cannot grant runtime capability.
-4. **Release scope decision:** the L2 development work is complete enough for formal review. Record whether this branch is included in the release, then use the latest-head CI/Electron evidence plus human acceptance to make the final decision. Silence is not approval.
-5. **Review and release:** no unresolved review objections; correct
-   platform-specific screenshots/logs; final PR checks green and mergeability
-   reconfirmed on the *same* head SHA.
+1. 最终提交通过根 typecheck/lint、CLI 依赖闭包构建及 S03/服务/UI 回归。
+2. 同一提交完成 Linux 真 Electron、Windows 2022 / macOS 14 真 Electron；G67 必须实际写回与 Undo，不能跳过。
+3. 核对 PR 可合并、无未解决代码缺陷；更新 PR 中唯一当前状态，旧运行记录不再充当门槛。
 
-## Non-negotiable rollback controls
+代码与回归目标在本轮收尾；最终等待仅限实际自动化运行。三平台 CI 通常需约 15–35 分钟，
+若失败只修复具体失败项，不另起无界的“下一阶段”。无失败证据时不重复扩大测试。
 
-- Never seed or mutate real user Obsidian Vaults in CI. Use `.e2e-home` only.
-- Model prose, Markdown `[1]`, or fake paths cannot mint Receipt authority.
-- Changed file SHA, Vault switch, Session switch, late RPC, queued promotion
-  and unmount must fail closed.
-- Keep `writeSafetyGatePassed=false` in production until a separate,
-  independently evidenced S03 GO.
-- Do not remove the one-PR rule, turn off failing jobs or mark unexecuted
-  acceptance cases passed to accelerate merge.
+## 具体限制
 
+- 本地进程所有权只协调共享同一 Profile/SQLite 的 Drora Host；不锁住外部编辑器或另一 Profile。
+- 文件 SHA 是乐观冲突检测，不是 OS 级原子 CAS；无法声称任意恶意外部进程被完全隔离。
+- 无法确认旧 PID 已死亡（权限错误、异机、PID 重用）时保守阻断，不以超时夺权。
+- MCP server 自发写盘、宿主更新器和用户显式 YOLO/allowedTools 不属于 L2 治理隔离保证。
+- 模型响应使用固定回放；测试证明接线和来源权限，不证明真实 Provider 的回答质量或 Jev 排序质量。
 
-## 2026-10-17 · Additional S03 source-audit correction
-
-A further review found that third-party MCP `readOnlyHint=true` could still bypass P0 permission handling. The current branch now treats all non-Host-verified MCP tools as P0 regardless of that server-authored hint, blocks build/plan read-only fast paths, and keeps only the Host-verified OfficialCua exception. Unit regressions were added; the new head must pass CI/Electron checks. This is still not an independent S03 GO, and production L2 remains disabled under A1.
-
-
-
-## 2026-10-17 · Maintainer-directed automated self-review
-
-The maintainer explicitly requested **no manual acceptance walkthrough** and asked for assistant-led code review. The current automated coverage map is recorded in [AUTOMATED_SELF_REVIEW_2026-10-17.md](./AUTOMATED_SELF_REVIEW_2026-10-17.md). For G35/G42/G45–G55, use the named automated evidence instead of waiting for a manual checkbox where that test directly covers the risk. This does not upgrade unit-level evidence to full GUI evidence.
-
-The critical code review rechecked the production Host's explicit `reviewWriteSafetyGatePassed: false`, the service-level dual gate for Apply/Undo, MCP read-only hint trust boundaries, and Receipt/session/source binding. G54 now has a dedicated assertion that a change outside the quote excerpt still fails the full-file SHA second-read check.
-
-**No safety boundary changed:** L1 remains default-off. The formal S03 NO-GO is not revoked; production L2 Apply/Undo remain disabled. This self-review is not described as an independent external S03 sign-off. No merge or deployment is performed here.
+详见 [S03 收尾复评](./S03_CLOSEOUT_2026-10-17.md)。

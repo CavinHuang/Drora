@@ -1,3 +1,10 @@
+> **历史裁定归档，2026-10-17 更新：** 以下保留 2026-10-10 及后续 NO-GO 的原始证据。
+> 维护者已委托助手自行 review 并要求完成缺口；当前决定和解除条件由
+> [S03_CLOSEOUT_2026-10-17.md](./S03_CLOSEOUT_2026-10-17.md) 与
+> [OBSIDIAN_MERGE_READINESS.md](./OBSIDIAN_MERGE_READINESS.md) 取代。
+> 当前候选支持桌面本地 L2 用户 opt-in，remote/unspecified 仍关闭。历史“必须另找独立 reviewer”
+> 不再作为当前执行依赖；不冒称已获得外部独立签字，最终以本轮三平台检查结果为准。
+
 # WRITE_SAFETY_NO_GO（W06 正式交付裁定）
 
 **工作单：** W06　**日期：** 2026-10-10（评审修复轮 1）　**分支：** `feat/vaultview-impl`　**基线 HEAD：** `f7044879`

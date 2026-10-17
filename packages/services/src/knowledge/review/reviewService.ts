@@ -94,7 +94,7 @@ export interface IKnowledgeReviewService {
 
   /** L2 写路径总门当前状态（W09：缺省 false；S03 GO 后经 UI/config 显式开启）。 */
   isWritePathEnabled(): boolean;
-  /** Whether the independently verified runtime S03 hard safety gate allows enabling L2. */
+  /** Whether this Host is granted L2 activation by the reviewed release policy. */
   isWritePathActivationAllowed(): boolean;
 
   /**

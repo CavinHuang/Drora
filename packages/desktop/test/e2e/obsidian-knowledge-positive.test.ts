@@ -256,7 +256,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
         agentChecked: agent?.getAttribute("aria-checked"),
       };
     });
-    assert.deepEqual(gate, { noGo: true, enabled: false, checked: "false", agentChecked: "false" });
+    assert.deepEqual(gate, { noGo: false, enabled: true, checked: "false", agentChecked: "false" });
     await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "explicitly authorize Vault Agent writes");
     await browser.waitUntil(() => browser.execute(() => {
       const grant = document.querySelector('[data-testid="review-agent-writes-toggle"] [role="switch"]');
@@ -265,12 +265,12 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       // The grant's visible state can update before the async host action has
       // completed. G67 must never start while the review form is still busy.
       return grant?.getAttribute("aria-checked") === "true"
-        && Boolean(editor && !editor.disabled && toggle && toggle.disabled);
-    }), { timeout: 30_000, timeoutMsg: "G65 Vault grant did not unlock proposal creation while preserving the S03 write gate" });
+        && Boolean(editor && !editor.disabled && toggle && !toggle.disabled);
+    }), { timeout: 30_000, timeoutMsg: "G65 Vault grant did not unlock proposal creation while keeping L2 opt-in off" });
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "Changing write permissions must not touch source");
   });
 
-  it("G67 real Electron proposal / preview / approval stays fail-closed under A1 S03 NO-GO", async function () {
+  it("G67 real Electron proposal / preview / approval / opt-in Apply / Undo", async function () {
     this.timeout(120_000);
     assertIsolatedVault();
     await waitForVisible('[data-testid="review-proposal-composer"]', "L2 proposal form");
@@ -278,7 +278,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       const editor = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-title"]');
       return Boolean(editor && !editor.disabled && editor.getClientRects().length > 0);
     }), { timeout: 30_000, timeoutMsg: "G67 form is still locked by a previous Review operation" });
-    const proposed = NOTE_BODY + "\nG67 approved but deliberately not applied while S03 is NO-GO.\n";
+    const proposed = NOTE_BODY + "\nG67 explicitly approved local desktop write.\n";
     // Interact like a user rather than mutating DOM values behind React's
     // controlled inputs. The synthetic setter previously left the form in
     // an indeterminate state on all three Electron platforms.
@@ -295,7 +295,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await browser.keys(NOTE_NAME);
     await dismissBlockingVaultDialog();
     await $('[data-testid="review-proposal-reason"]').click();
-    await browser.keys("G67 approval while production write gate stays closed");
+    await browser.keys("G67 approved local desktop write with explicit opt-in");
     await browser.waitUntil(() => browser.execute((path) => {
       const input = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-path"]');
       const select = document.querySelector<HTMLSelectElement>('[data-testid="review-proposal-kind"]');
@@ -337,7 +337,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await clickControl('[data-testid="review-change-toggle"]', "preview exact proposal content");
     await browser.waitUntil(() => browser.execute(() =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-testid="review-change-content"]'))
-        .some((pre) => pre.textContent?.includes("G67 approved but deliberately not applied while S03 is NO-GO")),
+        .some((pre) => pre.textContent?.includes("G67 explicitly approved local desktop write")),
     ), { timeout: 30_000, timeoutMsg: "G67 content not served by the real review RPC" });
 
     const clicked = await browser.execute(() => {
@@ -366,13 +366,29 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     });
     assert.deepEqual(state, {
       gateOff: true,
-      gateDisabled: true,
+      gateDisabled: false,
       applyDisabled: true,
       undoDisabled: true,
-      noGo: true,
-    }, "A1 release must allow proposal/preview/approval but block production Apply/Undo while S03 is NO-GO");
+      noGo: false,
+    }, "Approval alone must not enable Apply/Undo without the separate L2 user opt-in");
     assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY,
-      "G67 approval must not write Markdown while the production S03 gate is closed");
+      "G67 approval must not write Markdown before L2 opt-in");
+    await clickControl('[data-testid="review-write-path-toggle"] [role="switch"]', "explicitly enable local L2 writes");
+    await clickControl('[data-testid="review-proposal-apply"]', "apply approved proposal through real production Host");
+    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === proposed,
+      { timeout: 30_000, timeoutMsg: "G67 real approved write did not reach Vault" });
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.includes("applied") === true,
+    ), { timeout: 30_000, timeoutMsg: "G67 applied operation did not appear in real persistent ledger" });
+    await clickControl('[data-testid="review-proposal-undo"]', "undo through the real persisted operation ledger");
+    await browser.waitUntil(async () => (await readFile(NOTE_FILE, "utf8")) === NOTE_BODY,
+      { timeout: 30_000, timeoutMsg: "G67 real Undo did not restore the protected snapshot" });
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelector('[data-testid="review-operation-state"]')?.textContent?.includes("undo_applied") === true,
+    ), { timeout: 30_000, timeoutMsg: "G67 inverse write did not settle in real ledger" });
+    await clickControl('[data-testid="review-write-path-toggle"] [role="switch"]', "revoke L2 opt-in after test");
+    await clickControl('[data-testid="review-agent-writes-toggle"] [role="switch"]', "revoke Vault Agent writes after test");
+    assert.equal(await readFile(NOTE_FILE, "utf8"), NOTE_BODY, "G67 must leave the isolated Vault unchanged after Undo");
   });
 
 });

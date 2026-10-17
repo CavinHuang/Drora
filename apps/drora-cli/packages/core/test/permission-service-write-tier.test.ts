@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PermissionCapabilityGroup } from "@drora/contracts";
-import { PermissionService, type PermissionToolCapability } from "../src/permission/service.js";
+import { defaultPermissionConfig, PermissionService, type PermissionToolCapability } from "../src/permission/service.js";
 import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@drora/shared";
 
 function mcpCapability(overrides: Partial<PermissionToolCapability> = {}): PermissionToolCapability {
@@ -123,6 +123,33 @@ test("S03-P0-5：宿主验证能力组（OfficialCua）整工具规则豁免门�
   );
   assert.equal(decision.decision, "allow");
   assert.equal(decision.ruleId, "rule.project.allow");
+});
+
+test("P0 global allowedTools cannot bypass per-call checks for js or ordinary MCP", () => {
+  const service = new PermissionService({
+    ...defaultPermissionConfig,
+    allowedTools: new Set(["js", "mcp__srv__search", "Read"]),
+  });
+  const jsDecision = service.checkPermission(
+    { toolName: "js", input: { code: "process.stdout.write('x')" }, riskLevel: "high", mode: "build" },
+    JS_CAPABILITY,
+  );
+  assert.equal(jsDecision.decision, "ask");
+  assert.equal(jsDecision.ruleId, "mode.build.highRisk");
+
+  const mcpDecision = service.checkPermission(
+    { toolName: "mcp__srv__search", input: { query: "x" }, riskLevel: "medium", mode: "build" },
+    mcpCapability({ readOnly: true }),
+  );
+  assert.equal(mcpDecision.decision, "ask");
+  assert.equal(mcpDecision.ruleId, "mode.build.sideEffect");
+
+  const readDecision = service.checkPermission(
+    { toolName: "Read", input: { file_path: "/tmp/ws/a.md" }, riskLevel: "low", mode: "build" },
+    { readOnly: true, riskLevel: "low", sideEffectScope: "none", needsApproval: false },
+  );
+  assert.equal(readDecision.decision, "allow");
+  assert.equal(readDecision.ruleId, "rule.allowedTools");
 });
 
 test("P1 不受影响：Write 的内容级 allow 规则照旧", () => {

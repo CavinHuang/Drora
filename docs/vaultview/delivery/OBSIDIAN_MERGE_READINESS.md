@@ -64,3 +64,6 @@ Historical checkpoint `e830c57f70e4791f753a366b65763f5b713281d6`: Full CI `38915
 ## 2026-10-17 · Additional S03 source-audit correction
 
 A further review found that third-party MCP `readOnlyHint=true` could still bypass P0 permission handling. The current branch now treats all non-Host-verified MCP tools as P0 regardless of that server-authored hint, blocks build/plan read-only fast paths, and keeps only the Host-verified OfficialCua exception. Unit regressions were added; the new head must pass CI/Electron checks. This is still not an independent S03 GO, and production L2 remains disabled under A1.
+
+
+A follow-up audit also closed the global `allowedTools` blanket-allow path for P0 tools. The corrected policy now filters both project/session whole-tool allow paths and global tool-name allow before build-mode permission checks; latest-head CI is required before this can be treated as verified.

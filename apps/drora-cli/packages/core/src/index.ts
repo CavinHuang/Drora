@@ -202,4 +202,19 @@ export { createTeamCollabToolEntries } from "./team/team-tools.js";
 export { teamPortError } from "./team/errors.js";
 export { TEAM_KERNEL_LIMITS } from "./team/types.js";
 export type { TeamInternalLimits, TeamMailboxEntry } from "./team/types.js";
+// PR-2.3a：hub 内部态 → v4 wire 投影的纯函数（bootstrap 投影桥经此消费；β 帧装配挂 PR-2.3b）。
+export {
+  DEFAULT_TEAM_PROJECTION_LIMITS,
+  mailboxTailWindowOf,
+  projectTeam,
+  trimBoardTasks,
+} from "./team/projection.js";
+export type {
+  TeamProjectionArtifactsInput,
+  TeamProjectionLimits,
+  TeamProjectionMailboxInput,
+  TeamProjectionMemberInput,
+  TeamProjectionRecordInput,
+  TeamProjectionTaskInput,
+} from "./team/projection.js";
 export type { AgentRuntimeInternal } from "./runtime/internal.js";

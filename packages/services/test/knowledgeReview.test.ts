@@ -901,15 +901,20 @@ test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定
     });
     assert.equal(applied.outcome, "applied");
 
-    const [first, second] = await Promise.all([
+    const results = await Promise.all([
       env.review.undoOperation({ operationId: "rop-parallel-undo" }),
       env.review.undoOperation({ operationId: "rop-parallel-undo" }),
     ]);
-    assert.equal(first.outcome, "applied");
-    assert.equal(second.outcome, "blocked");
-    assert.equal(second.reason, "undo_unavailable");
-    assert.equal(first.operation?.files[0]?.status, "undo_applied");
-    assert.equal(second.operation?.files[0]?.status, "undo_applied");
+    // 竞速位序无关（CI 翻车实证 2026-10-17）：Promise.all 的数组位序只反映调用
+    // 顺序，不反映 claim 单赢家的竞争结果——恰好一个 applied、另一个 blocked
+    // （undo_unavailable），且两者看到的账本终态一致（undo_applied）。
+    const winners = results.filter((result) => result.outcome === "applied");
+    const losers = results.filter((result) => result.outcome === "blocked");
+    assert.equal(winners.length, 1, `恰好一次逆写：${JSON.stringify(results.map((r) => r.outcome))}`);
+    assert.equal(losers.length, 1);
+    assert.equal(losers[0]!.reason, "undo_unavailable");
+    assert.equal(winners[0]!.operation?.files[0]?.status, "undo_applied");
+    assert.equal(losers[0]!.operation?.files[0]?.status, "undo_applied");
     assert.equal(await readFile(join(env.vault, "a.md"), "utf-8"), "base");
   } finally {
     await destroyEnv(env);

@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           cd packages/desktop
-          for spec in acceptance/*.test.ts; do test -f "$spec" || exit 1; done
+          for spec in test/e2e/acceptance/*.test.ts; do test -f "$spec" || { echo "missing spec: $spec"; exit 1; }; done
           for fx in conversation-session/conversation-session-obsidian-inline-provenance.json \
             conversation-session/R2-agent-handoff.json \
             conversation-session/R3-time-based-reject.json \

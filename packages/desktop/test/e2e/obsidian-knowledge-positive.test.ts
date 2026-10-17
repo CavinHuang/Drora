@@ -240,8 +240,8 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
       const toggle = document.querySelector<HTMLButtonElement>(
         '[data-testid="review-write-path-toggle"] [role="switch"]',
       );
-      return Boolean(toggle && toggle.getClientRects().length > 0 && !toggle.disabled);
-    }), { timeout: 30_000, timeoutMsg: "G65 local production L2 switch never became available" });
+      return Boolean(toggle && toggle.getClientRects().length > 0);
+    }), { timeout: 30_000, timeoutMsg: "G65 local production L2 switch never became visible" });
     const gate = await browser.execute(() => {
       const toggle = document.querySelector<HTMLButtonElement>(
         '[data-testid="review-write-path-toggle"] [role="switch"]',
@@ -295,7 +295,7 @@ describe("G58 real Electron managed Obsidian Vault: read-only positive flow", ()
     await browser.keys(NOTE_NAME);
     await dismissBlockingVaultDialog();
     await $('[data-testid="review-proposal-reason"]').click();
-    await browser.keys("G67 real approval and write-back");
+    await browser.keys("G67 approval while production write gate stays closed");
     await browser.waitUntil(() => browser.execute((path) => {
       const input = document.querySelector<HTMLInputElement>('[data-testid="review-proposal-path"]');
       const select = document.querySelector<HTMLSelectElement>('[data-testid="review-proposal-kind"]');

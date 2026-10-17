@@ -485,7 +485,8 @@ export class PermissionService {
     }
 
     // MCP annotations are supplied by the server and cannot establish a trusted
-    // read-only capability. Only host-verified OfficialCua may use this fast path.
+    // read-only capability. Only built-in host-trusted read-only tools and the
+    // host-verified OfficialCua group may use this fast path.
 
     if (
       capability.allowedInPlanMode &&

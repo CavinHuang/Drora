@@ -1,4 +1,5 @@
-import { QuoteIcon, Trash2Icon } from "lucide-react";
+import { BookOpenTextIcon, Loader2Icon, QuoteIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -13,13 +14,26 @@ export function ConversationSelectionReferenceChip({
   contentAlign = "start",
   onRemove,
   onRemoveAll,
+  onOpenCitation,
 }: {
   references: readonly ConversationSelectionDisplayReference[];
   contentAlign?: AttachmentHoverCardContentProps["align"];
   onRemove?: (id: string) => void;
   onRemoveAll?: () => void;
+  /** A click requests a fresh RPC validation; only the Vault host decides the path/quote. */
+  onOpenCitation?: (receiptId: string) => Promise<void>;
 }) {
   const { intl, locale } = useDroraIntl();
+  const [openingReceiptId, setOpeningReceiptId] = useState<string | null>(null);
+  const openCitation = async (receiptId: string): Promise<void> => {
+    if (!onOpenCitation || openingReceiptId) return;
+    setOpeningReceiptId(receiptId);
+    try {
+      await onOpenCitation(receiptId);
+    } finally {
+      setOpeningReceiptId(null);
+    }
+  };
   if (references.length === 0) return null;
   const filePath = references.length === 1 ? references[0]?.path : undefined;
   // 文件引用沿用共用 pill，但不能再被「对话引用」计数隐藏来源。
@@ -94,6 +108,32 @@ export function ConversationSelectionReferenceChip({
                 ) : null}
               </div>
             ) : null}
+            {isConversationSelectionReference(reference) &&
+              reference.contentType === "markdown" &&
+              Boolean(reference.evidenceReceiptId) ? (
+                <div
+                  className="mt-1 inline-flex items-center gap-1 text-ui-xs text-foreground-subtle"
+                  data-testid="composer-evidence-pending-revalidation"
+                >
+                  <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
+                  {intl.formatMessage({ id: "chat.selections.evidenceRecheckOnSend" })}
+                  {onOpenCitation && reference.contentType === "markdown" && reference.evidenceReceiptId ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      data-testid="composer-open-trusted-citation"
+                      disabled={openingReceiptId !== null}
+                      onClick={() => void openCitation(reference.evidenceReceiptId!)}
+                    >
+                      {openingReceiptId === reference.evidenceReceiptId
+                        ? <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+                        : <BookOpenTextIcon className="size-3" aria-hidden="true" />}
+                      {intl.formatMessage({ id: "chat.selections.openVerifiedSource" })}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
           </div>
           {onRemove && isConversationSelectionReference(reference) ? (
             <Button

@@ -26,6 +26,7 @@ import { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
+import { isReleasedReviewWriteAuthority } from "./knowledge/review/reviewReleasePolicy.js";
 import {
   resolveKnowledgeJevAssembly,
   type KnowledgeJevAssembly,
@@ -2602,6 +2603,9 @@ export function createLocalServices(options: {
   // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
   // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
   const knowledgeServices: KnowledgeServices = createKnowledgeServices({
+    // 维护者委托本轮 S03 自审后的版本装配决定；不是 authority 自证安全。
+    // 仅桌面本地可 opt-in，默认不开启，仍需 Vault 授权与逐提案批准。
+    reviewWriteSafetyGatePassed: isReleasedReviewWriteAuthority(options?.serviceAuthorityMode),
     // Jev 配置动态源（§5d.10 热生效）：装配解析延迟到决策 stage，配置变更免重启。
     ...(options.knowledgeJevConfigSource
       ? { knowledgeJevConfigSource: options.knowledgeJevConfigSource }

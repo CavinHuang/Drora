@@ -11,6 +11,7 @@
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { VAULT_CONFIG_FILE_NAME } from "@drora/shared";
 
 /** 与 services obsidianVaultService.OBSIDIAN_PLUGIN_ID 同值（官方插件 id）。 */
 export const OBSIDIAN_PLUGIN_ID = "obsidian@drora-plugins-official";
@@ -49,7 +50,10 @@ export interface GateVaultConfig {
 export async function loadGateVaultConfig(pluginDataDir: string): Promise<GateVaultConfig | null> {
   let raw: string;
   try {
-    raw = await readFile(join(pluginDataDir, "vault-config.json"), "utf-8");
+    // 收口（PR #23 终审 conv-1）：文件名常量单一出处 @drora/shared，与 services
+    // discovery.configFilePath 指向同一物理文件；此前两侧各手写字面量，漂移即
+    // 宿主写一份、gate 读另一份。
+    raw = await readFile(join(pluginDataDir, VAULT_CONFIG_FILE_NAME), "utf-8");
   } catch {
     return null;
   }

@@ -138,11 +138,19 @@ export function createMcpToolEntry(
   // 宿主 node_repl 的 js 能执行本机 Node 代码，不能沿用普通未知 MCP 的 medium/network
   // 默认值；否则权限 UI 会把文件/进程级能力错误描述成普通网络调用。
   const sideEffectScope: ModelToolSideEffectScope = isHostNodeReplExecution ? "system" : "network";
+  // readOnlyHint 是服务端自报的展示提示，不能降低第三方 MCP 的风险展示档
+  // （specs/agent-write-safety.md §5 收口口径：自报 readOnlyHint 不构成信任锚）；
+  // 只有宿主 authority 验证过的官方 CUA 描述符才允许凭只读提示进入 low 展示档。
+  const trustedReadOnly =
+    officialCuaAuthorityVerified &&
+    descriptor.serverName === DRORA_CUA_OFFICIAL_MCP_SERVER_NAME &&
+    readOnly &&
+    !destructive;
   const riskLevel: RiskLevel = isHostNodeReplExecution
     ? "high"
     : destructive
       ? "high"
-      : readOnly
+      : trustedReadOnly
         ? "low"
         : "medium";
   const needsApproval = true;

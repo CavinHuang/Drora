@@ -87,7 +87,8 @@ export type KnowledgeReviewOperationStatus =
 /**
  * per-file 状态：prepared=未尝试；applying=写入中（崩溃后由 reconcile 落定）；
  * applied=已落盘；conflict=base/CAS 失配；not_landed=reconcile 证实目标不在盘上
- * （回到可显式重放状态——服务绝不自动重放）；undo_applied/undo_conflict=逆操作结果。
+ * （回到可显式重放状态——服务绝不自动重放）；undoing=跨 Host 独占撤销领用，
+ * 崩溃后只能通过只读 reconcile 判定，不能自动重放；undo_applied/undo_conflict=逆操作结果。
  */
 export type KnowledgeReviewFileStatus =
   | "prepared"
@@ -95,6 +96,7 @@ export type KnowledgeReviewFileStatus =
   | "applied"
   | "conflict"
   | "not_landed"
+  | "undoing"
   | "undo_applied"
   | "undo_conflict";
 

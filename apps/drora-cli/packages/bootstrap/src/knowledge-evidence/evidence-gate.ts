@@ -21,6 +21,7 @@ import {
   KNOWLEDGE_EVIDENCE_RECEIPT_COLUMNS,
   KNOWLEDGE_EVIDENCE_REASONS,
   KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
+  KNOWLEDGE_INDEX_DB_FILE_NAME,
   knowledgeSourceFingerprint,
   normalizeContentForQuoteSelector,
   type KnowledgeEvidenceGuard,
@@ -41,8 +42,10 @@ export interface KnowledgeEvidenceRefInput {
 
 /** gate 复验结果：ok=false 时 guard 是发给 ACK 的 reasonCode，reason 是结构化原因。 */
 export type EvidenceGateVerdict =
+  // gateUnavailable 自 PR #23 终审 shared-2 起收口进 shared 词表（spec §5.3 正式拒绝
+  // 原因），KnowledgeEvidenceReason 联合已含该值，无需再手写第二份 "gate_unavailable"。
   | { ok: true }
-  | { ok: false; guard: KnowledgeEvidenceGuard; reason: KnowledgeEvidenceReason | "gate_unavailable" };
+  | { ok: false; guard: KnowledgeEvidenceGuard; reason: KnowledgeEvidenceReason };
 
 export interface EvidenceGatePort {
   verify(input: {
@@ -74,7 +77,9 @@ export interface EvidenceGateOptions {
 
 export function resolveKnowledgeDatabasePathForGate(env: NodeJS.ProcessEnv = process.env): string {
   const dataBaseDir = env.DRORA_DATA_BASE_DIR?.trim() || env.HOME?.trim() || homedir();
-  return join(dataBaseDir, ".drora", "knowledge", "knowledge-index.sqlite");
+  // 收口（PR #23 终审 conv-1）：库文件名常量单一出处 @drora/shared，与 services
+  // resolveKnowledgeDatabasePath 指向同一物理文件；此前两侧独立构造路径。
+  return join(dataBaseDir, ".drora", "knowledge", KNOWLEDGE_INDEX_DB_FILE_NAME);
 }
 
 /**
@@ -176,7 +181,8 @@ export function createKnowledgeEvidenceGate(options: EvidenceGateOptions = {}): 
     }
     const receipt = loadReceipt(ref.receiptId);
     if (receipt === "failed") {
-      return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.unavailable, reason: "gate_unavailable" };
+      // 收口（PR #23 终审 shared-2）：字面量改引 shared 词表（spec §5.3 正式拒绝原因）。
+      return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.unavailable, reason: KNOWLEDGE_EVIDENCE_REASONS.gateUnavailable };
     }
     if (receipt === "unknown") {
       return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.unknown, reason: KNOWLEDGE_EVIDENCE_REASONS.unknownReceipt };
@@ -198,7 +204,8 @@ export function createKnowledgeEvidenceGate(options: EvidenceGateOptions = {}): 
       return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.missing, reason: KNOWLEDGE_EVIDENCE_REASONS.fileDeleted };
     }
     if (file === "failed") {
-      return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.unavailable, reason: "gate_unavailable" };
+      // 收口（PR #23 终审 shared-2）：字面量改引 shared 词表（spec §5.3 正式拒绝原因）。
+      return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.unavailable, reason: KNOWLEDGE_EVIDENCE_REASONS.gateUnavailable };
     }
     if (sha256(file) !== receipt.file_sha256) {
       return { ok: false, guard: KNOWLEDGE_EVIDENCE_GUARDS.stale, reason: KNOWLEDGE_EVIDENCE_REASONS.fileModified };

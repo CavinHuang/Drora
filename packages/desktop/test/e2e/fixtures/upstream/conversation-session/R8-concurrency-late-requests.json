@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "caseName": "R8-concurrency-late-requests",
+  "spec": "./test/e2e/acceptance/r8-concurrency-late-requests.test.ts",
+  "fixtures": [
+    {
+      "id": "r8-title",
+      "description": "Deterministic title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the citation authority"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r8-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"R8 Concurrency E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r8-session-a-start",
+      "description": "Initialize the real CLI session A without Vault refs",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R8_SESSION_A_START"],
+        "bodyIncludes": ["R8_SESSION_A_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r8-session-a-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-session-a-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R8_SESSION_A_REPLY: session A is live.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-session-a-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r8-session-b-start",
+      "description": "Initialize the real CLI session B without Vault refs",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R8_SESSION_B_START"],
+        "bodyIncludes": ["R8_SESSION_B_START"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "来源索引（顺序与附带的原文证据片段一致）："
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r8-session-b-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-session-b-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R8_SESSION_B_REPLY: session B is live.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-session-b-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r8-answer",
+      "description": "Render [1] from the real CLI-admitted source, without fabricating any receipt",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R8LateBeaconToken2026"],
+        "bodyIncludes": [
+          "来源索引（顺序与附带的原文证据片段一致）：",
+          "R8-Concurrency-Late-Requests.md",
+          "R8LateBeaconToken2026"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r8-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R8_G45_REPLY: the trusted inline source follows [1].\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r8-answer\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r8-concurrency-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

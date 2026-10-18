@@ -50,6 +50,8 @@ interface CanonicalConversationFactBase {
 export interface CanonicalUserIntentFact extends CanonicalConversationFactBase {
   inputOrigin?: "desktop" | "mobile";
   conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+  /** 可信证据随 TurnStarted 归一化，供 edit/retry 原样复验。 */
+  evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
   botGroupSource?: import("@drora/shared").BotGroupInputSource;
   semanticKind: "userIntent";
   visibility: "visible" | "modelOnly";
@@ -293,6 +295,7 @@ function normalizeTurnStarted(
     ...(payload.intent?.conversationQuotes
       ? { conversationQuotes: payload.intent.conversationQuotes }
       : {}),
+    ...(payload.intent?.evidenceRefs ? { evidenceRefs: payload.intent.evidenceRefs } : {}),
     ...(payload.intent?.botGroupSource ? { botGroupSource: payload.intent.botGroupSource } : {}),
     ...(payload.intent?.provenance ? { provenance: payload.intent.provenance } : {}),
     ...(payload.intent?.source ? { source: payload.intent.source } : {}),

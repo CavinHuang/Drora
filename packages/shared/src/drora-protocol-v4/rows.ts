@@ -7,7 +7,7 @@ import { z } from "zod";
 import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { timestampSchema } from "./core.js";
-import { conversationInputSourceSchema } from "./input-intent.js";
+import { conversationInputSourceSchema, conversationInputIntentSchema } from "./input-intent.js";
 import {
   backgroundResultOriginMetaSchema,
   workflowLaunchMetaSchema,
@@ -117,6 +117,8 @@ export const userInputRowSchema = z.object({
   inputOrigin: z.enum(["desktop", "mobile"]).optional(),
   botGroupSource: botGroupInputSourceSchema.optional(),
   conversationQuotes: conversationQuotesSchema.optional(),
+  /** Admission-verified opaque receipts bound to THIS user input and product turn. */
+  evidenceRefs: conversationInputIntentSchema.shape.evidenceRefs,
   text: z.string(),
   // text 从此下标起是引擎附加文本（dwf ask 尾注 /
   // nudge），GUI 把它折进默认收起的披露；0 = 整条都是；缺席 = 无（老转录、非工作流会话）。

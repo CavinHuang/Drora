@@ -10,6 +10,13 @@ export const conversationQuoteSchema = z.object({
   senderId: z.string().optional(),
   messageId: z.string().optional(),
   sentAt: z.string().datetime({ offset: true }).optional(),
+  /**
+   * 可选的服务端收据绑定（D-2 修复，2026-10-17）：渲染器序列化可信 Markdown 引用时
+   * 携带，普通对话选区缺省。投影/读取端据此区分「可信证据引用」与普通选区，
+   * 混合输入不再导致完成态引用整组丢失。旧投影行无此字段，读取端回落整表等长
+   * 校验。该字段只进结构化 quote 元数据（UI 投影面），不进入模型可见提示词。
+   */
+  evidenceReceiptId: z.string().optional(),
 });
 export const conversationQuotesSchema = z
   .array(conversationQuoteSchema)

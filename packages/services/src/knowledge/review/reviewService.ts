@@ -77,6 +77,9 @@ export interface IKnowledgeReviewService {
    */
   reconcileOperation(params: { operationId: string }): Promise<KnowledgeReviewReconcileResult>;
 
+  /** Read-only recent operation history (at most 100), scoped to the current Vault. */
+  listRecentOperations(): Promise<KnowledgeReviewOperationView[]>;
+
   /** 重启恢复入口：落定全部 applying/uncertain 操作（返回落定后的视图）。 */
   reconcileStuckOperations(): Promise<KnowledgeReviewOperationView[]>;
 
@@ -88,6 +91,18 @@ export interface IKnowledgeReviewService {
     proposalId: string;
     relativePath: string;
   }): Promise<KnowledgeReviewChangeContentResult | null>;
+
+  /** L2 写路径总门当前状态（W09：缺省 false；S03 GO 后经 UI/config 显式开启）。 */
+  isWritePathEnabled(): boolean;
+  /** Whether this Host is granted L2 activation by the reviewed release policy. */
+  isWritePathActivationAllowed(): boolean;
+
+  /**
+   * 显式开启/关闭 L2 写路径总门：持久化到 vault-config.json（唯一写入入口
+   * `obsidian-vault/config.setVaultReviewWritePathEnabled`）成功后才翻转进程内状态；
+   * 持久化失败时上抛、状态不变。
+   */
+  setWritePathEnabled(enabled: boolean): Promise<void>;
 }
 
 export const IKnowledgeReviewService = createServiceDescriptor<IKnowledgeReviewService>(

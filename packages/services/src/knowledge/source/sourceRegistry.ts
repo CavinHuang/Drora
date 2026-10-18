@@ -9,9 +9,13 @@
  *   （documents/chunks/chunks_fts/index_jobs/coverage；W06 起审核账本
  *   review_proposals/review_approvals/review_operations/review_operation_files 与
  *   evidence_receipts 同库共存，但**不在本清除路径上**——账本是持久事实，索引可重建）。
- * allowAgentWrites 翻转不换 epoch：它门控写入，不改变读取范围（读不受限是既有语义）。
+ * allowAgentWrites 翻转会换 epoch（2026-10-17 勘误，增量评审 vault-io-2）：
+ * setVaultAgentWritesEnabled 推进 configuredAt，指纹随之变化——撤权必须让绑定
+ * sourceEpoch 的既有批准失效（安全优先）；代价是 L1 写授权拨动触发索引缓存按
+ * epoch 失效重建，属低频显式操作。早期「翻转不换 epoch」表述已废弃。
  */
 import { join } from "node:path";
+import { KNOWLEDGE_INDEX_DB_FILE_NAME } from "@drora/shared";
 import {
   loadVaultConfig,
   vaultSummary,
@@ -42,7 +46,10 @@ function sourceFingerprint(vaultId: string, configuredAt: number): string {
 
 /** Profile 维度的知识索引库路径：<数据根>/.drora/knowledge/knowledge-index.sqlite。 */
 export function resolveKnowledgeDatabasePath(): string {
-  return join(getDroraDataRootDir(), "knowledge", "knowledge-index.sqlite");
+  // 收口（PR #23 终审 conv-1）：库文件名常量单一出处 @drora/shared，与 CLI gate 的
+  // resolveKnowledgeDatabasePathForGate 指向同一物理文件；此前两侧独立构造路径，
+  // 文件名漂移即宿主写一份账本、gate 读另一份。
+  return join(getDroraDataRootDir(), "knowledge", KNOWLEDGE_INDEX_DB_FILE_NAME);
 }
 
 /**
@@ -54,12 +61,25 @@ export async function requireKnowledgeSource(
   db: KnowledgeDatabase,
   pluginDataDir: string,
   nowMs: number,
-): Promise<{ config: NonNullable<Awaited<ReturnType<typeof resolveKnowledgeSource>>["config"]>; vaultId: string; sourceEpoch: number }> {
+): Promise<{
+  config: NonNullable<Awaited<ReturnType<typeof resolveKnowledgeSource>>["config"]>;
+  vaultId: string;
+  sourceEpoch: number;
+}> {
   const source = await resolveKnowledgeSource(db, pluginDataDir, nowMs);
-  if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
+  if (
+    !source.configured ||
+    source.config === null ||
+    source.summary === null ||
+    source.sourceEpoch === null
+  ) {
     throw new Error("尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
   }
-  return { config: source.config, vaultId: source.summary.vaultId, sourceEpoch: source.sourceEpoch };
+  return {
+    config: source.config,
+    vaultId: source.summary.vaultId,
+    sourceEpoch: source.sourceEpoch,
+  };
 }
 
 export async function resolveKnowledgeSource(
@@ -70,16 +90,22 @@ export async function resolveKnowledgeSource(
   // 与面板服务同一份 loadVaultConfig：坏 JSON/根失效回落到未配置（绝不带病索引）。
   const config = await loadVaultConfig(pluginDataDir);
   if (!config) {
-    return { configured: false, config: null, summary: null, sourceEpoch: null, epochBumped: false };
+    return {
+      configured: false,
+      config: null,
+      summary: null,
+      sourceEpoch: null,
+      epochBumped: false,
+    };
   }
   const summary = vaultSummary(config);
   const fingerprint = sourceFingerprint(summary.vaultId, config.configuredAt);
 
   let epochBumped = false;
   const epoch = db.transaction((tx) => {
-    const row = tx.raw.prepare("SELECT fingerprint, current_epoch FROM sources WHERE vault_id = ?").get(
-      summary.vaultId,
-    ) as SourceRow | undefined;
+    const row = tx.raw
+      .prepare("SELECT fingerprint, current_epoch FROM sources WHERE vault_id = ?")
+      .get(summary.vaultId) as SourceRow | undefined;
     if (row && row.fingerprint === fingerprint) {
       // 同一授权继续使用：仍清理其他 vault/epoch 的残留缓存（单 Vault 配置模型）。
       pruneStaleSourceRows(tx, summary.vaultId, row.current_epoch);

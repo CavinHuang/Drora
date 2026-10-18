@@ -930,6 +930,8 @@ function RootInner({
   }, [platform]);
 
   useRootOAuthEffects({
+    hasAuthenticatedUser: user !== null,
+    isRestoringOAuthSession: isResolvingStartupAuthState,
     accountIntentKey: JSON.stringify([
       user?.id,
       appSettings?.providerFamilyDomain,

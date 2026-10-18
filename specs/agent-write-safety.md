@@ -1,6 +1,17 @@
 # Agent 写入安全：三洞修复与 P0/P1/P2 分级门控（S03）
 
-状态：**实现完成，待 S03 复评**（2026-10-11）。本 spec 是
+## 2026-10-17 收尾复评契约（优先于历史实现说明）
+
+- 普通 MCP/js 的任意 `path`/`command` 字段不能代表完整副作用；无专属 Host 规则评估器时，项目和会话的全部 allow 规则（包括带内容规则）均不能免除逐次确认，建议侧不生成持久授权，持久化侧丢弃这些 allow。deny/ask、Host 验证的 OfficialCua 和显式 YOLO 保留既有语义。allowedTools 例外已收窄（2026-10-17 增量评审 cli-p0-1/2 修正）：`allowedTools` 实为五层合并配置（含项目层
+drora.json，无信任门），不能整体视作操作员启动授权——命中 P0 写向量时不豁免逐次确认
+（非 P0 工具照旧放行），详见 §1 末注与 `permission-service-write-tier.test.ts` 用例。
+- build/edit 的低风险快速路径也不得授权 P0 MCP/js，即使能力数据声称 `readOnly=true`、`needsApproval=false`、`sideEffectScope=none`。
+- P0 ask 使用现有 `approvalMode=user-once` 通道，PreToolUse/PermissionRequest Hook 不得替代用户确认；应答不能持久化项目或会话规则。此约束复用已有 Guarded 单次审批生命周期，不新增审批状态所有者。
+- （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-4 此前在本 spec 零记录）**建议路径 capability 透传（cli-p0-4）**：评估与建议共用同一份解析能力——`permission-flow.ts` 在进入权限判定前先 `resolveRuntimePermissionCapability`，建议侧 `buildDefaultPermissionUpdates` 同步接收该 capability（`permissionName`/`readOnly`）。依据：修复前建议路径不传 capability，P0 识别退化为仅按 `mcp__` 名前缀——`app__*` 工具（permissionName="mcp" 但名无 `mcp__` 前缀）在无内容键输入时会产出永不匹配的整工具 allow 建议，且持久化消毒（按名前缀识别）不识别该前缀，违背「建议/评估/持久化三层一致」的收尾契约；透传后三层按同一 `isP0WriteTarget` 口径判定。
+- （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-5 此前在本 spec 零记录）**ToolCallStarted 旗标信任门控（cli-p0-5）**：`resolveToolCallCapabilityFlags`（`permission-capability.ts`）对 readOnly 旗标做信任门控——不可信的 `readOnly=true` 断言（普通 MCP 自报 readOnlyHint、沙箱页面自报）经 `isTrustedReadOnlyTool` 判定非可信时**降为省键**（undefined，未知≠只读），只有 Host 验证的 OfficialCua 或内建工具的可信只读结论才外发 true；`false` 与 `undefined` 是有价值的事实/缺席，原样透传。依据：`ToolCallStarted` 载荷的消费者（dynamic-workflow driver 的导入缓存关门判定）会据 readOnly=true 把该笔调用当只读放行——谎报只读的写调用若原样外发 true 即成为绕过面，与「MCP 自报不构成信任锚」（§1/洞 5）同口径；权限判定/展示面不受此旗标影响。
+- 本轮由维护者要求助手自行 review，取消额外人工走查依赖；审查结果须以新回归和真实三平台 Electron 为依据，不能把旧绿色结果当作本轮结果。
+
+以下为 2026-10-11 的历史实现说明；当前以顶部收尾复评契约和 `S03_CLOSEOUT_2026-10-17.md` 为准。本 spec 是
 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §7「S03 有条件 GO（收窄口径）」GO 前提的
 程序化落地记录；`WRITE_SAFETY_NO_GO.md` 的撤销条件见其 §3，翻转
 `writePathEnabled` 仍以复评通过为前提，本 spec 不改变该裁定。
@@ -25,19 +36,29 @@
 
 | 级 | 集合 | 语义 |
 | --- | --- | --- |
-| P0 | `Bash`、`js`（node_repl）、`mcp__*` 且未自报 readOnly | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow |
+| P0 | `Bash`、`js`（node_repl）、所有非 Host 验证的 `mcp__*` | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow；自报 `readOnlyHint` 不降级权限 |
 | P1 | `Write`/`Edit`/`ApplyPatch`（授权根内写） | 维持现骨架：模式与项目规则照旧，obsidian vault hook 路径不变 |
 | P2 | memory md / workflow 草稿 / artifacts / 执行日志等免确认区 | 保留免确认，但保留可审计的判定日志（ruleId 落事件） |
 
 有意分歧（W00 §7 允许的三项，spec 层面如实记录，不伪装覆盖）：
 
-1. MCP server 进程内写盘——工具调用之外的自发写入不可见；缓解 = 模型可见工具全覆盖（本门控）
-   + server 自报 readOnly 时才享有整工具 allow；
+1. MCP server 进程内写盘——工具调用之外的自发写入不可见；模型可见的第三方 MCP
+   一律按 P0 逐次确认且不能整工具持久 allow；只有 Host 验证的 OfficialCua 能力组豁免。
+   服务端自报 `readOnlyHint` 不构成信任锚；
 2. 宿主自动写盘（安装器/更新器等）不经模型工具面；
 3. yolo 模式直通——保留，需显式 receipt（既有行为，不在本 spec 收口范围）。
 
-另：CLI 启动参数 `allowedTools` 是操作员显式授权（会话级启动配置），视同 yolo 级操作员
-决定，本门控不拦截，在此记录。
+另（2026-10-17 修订，增量评审 cli-p0-1/2）：`allowedTools` **不豁免 P0 门控**。此前
+「CLI 启动参数=操作员会话级授权、视同 yolo、不拦截」的定性不成立——`allowedTools` 实际
+来自五层合并配置（System<User<Project<Env<Cli，`create-app.ts` 装配），项目级
+`drora.json`/`.drora/config.json` 可携带 `permission.allowedTools` 且无信任门（对照：同层
+hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，不受信仓库提交一个配置
+文件即可为 Bash/js/任意 `mcp__*` 建立持久整工具放行——恰是不变量 2 明令禁止、且项目
+*规则*路径已在洞 2 封死的通道。因此：`allowedTools` 命中 P0 写向量时不放行，落回既有
+逐次/模式检查（见 `permission/service.ts` 守卫与 `permission-service-write-tier.test.ts`
+「P0 全局 allowedTools 不得绕过」用例）；非 P0 工具的 `allowedTools` 放行不变。残留
+跟进项：项目层 `permission.*` 是否应比照 hooks 加 pending-trust 信任门（非本门控前提，
+单列跟进）。
 
 ## 2. 三洞修复（逐洞：缺陷 → 修法 → 证据）
 
@@ -46,7 +67,8 @@
 - 缺陷：`permission/service.ts` `checkPlanMode` 的 `mode.plan.mcp` 分支放行一切未自报
   `destructive` 的 MCP 工具——自报不可信（见洞 5/mcp 自报收口），写盘型 MCP 在 plan 模式
   可直接执行。
-- 修法：删除该分支。plan 模式 MCP 工具与其它工具同规则：`readOnly && !destructive` 才放行。
+- 修法：删除该分支。普通 MCP 的 `readOnlyHint` 是服务端自报，不构成信任锚；plan 只允许
+  Host 验证的只读能力（当前 OfficialCua）或其它内建可信只读工具。普通 MCP 一律 deny。
 
 ### 洞 1b：memory md 覆盖 plan deny
 
@@ -85,9 +107,10 @@
 
 - 现状：`readOnly`/`destructive` 直接取 server annotations。外部 server 行为不可验证，
   「信任自报」无法程序化证伪。
-- 收口口径：自报只在**收紧**方向被采信（`readOnlyHint=true` 才可能享受 plan 直通与整工具
-  allow；`destructiveHint=true` 一律按破坏性处理）；漏报 destructive 按 P0 处理（本门控的
-  逐次确认即兜底）。残余风险即「有意分歧 1」，以审计日志 + 复评记录兜底。
+- 收口口径（2026-10-17 修订）：MCP server 自报的 `readOnlyHint` / `destructiveHint`
+  都不是权限信任锚。`destructiveHint=true` 可将风险提升，但 `readOnlyHint=true` 不能
+  降低 P0 等级，也不能获得 plan 直通或整工具 allow。所有第三方 MCP 按 P0 逐次确认；
+  只有 Host 注入的 OfficialCua capability group 作为可信例外。
   `concurrentSafe/idempotent` 等非权限语义的自报不在本 spec 范围。
 
 ## 3. P0 门控的判定次序（实现后）
@@ -97,8 +120,8 @@
 1. 项目/会话 allow 规则评估（`rule.project.allow`、`rule.session.allow`）：P0 无内容 allow
    不匹配（洞 2 评估侧）；Bash 走 `evaluateBashRules`（洞 3）——非 safe 命令永不匹配 allow。
    于是 P0 的放行只剩：Bash safe 命令（内容/整工具规则均要求 safe）、显式内容规则命中。
-2. 未命中放行 → 落入既有 build/edit 分支：js 自报 high-risk/system → `mode.build.highRisk`
-   逐次确认；未自报 readOnly 的 MCP → `mode.build.sideEffect` 逐次确认。
+2. 未命中放行 → 落入既有 build/edit 分支：js → `mode.build.highRisk` 逐次确认；所有普通
+   MCP（无论 `readOnlyHint`）→ `mode.build.sideEffect` 逐次确认。
 3. plan 模式：写入（非 readOnly）一律 deny（洞 1a/1b 修复后无旁路）。
 
 审计：permission-flow 的 `tool.permission.evaluated` 结构化日志携带 ruleId/mode/toolName，
@@ -112,11 +135,11 @@
 | S03-P0-1 | Bash 整工具 allow + 重定向命令 | deny→ask（不放行） | `bash-command-rule-evaluator` 测试 |
 | S03-P0-2 | Bash 整工具 allow + safe 命令 | allow（既有体验保留） | 同上 |
 | S03-P0-3 | js 无内容 allow 规则（项目/会话） | 不匹配，落到 highRisk ask | `permission service` 测试 |
-| S03-P0-4 | MCP（未自报 readOnly）无内容 allow 规则 | 不匹配 | 同上 |
+| S03-P0-4 | 第三方 MCP（无论 readOnlyHint）无内容 allow 规则 | 不匹配 | 同上 |
 | S03-P0-5 | CUA 能力组整工具规则 | 照旧匹配（宿主验证豁免） | 同上 |
 | S03-P0-6 | P0 工具「总是允许」建议 | 无内容 → 空建议；CUA 不变 | `permission-suggestions` 测试 |
 | S03-P0-7 | 持久化边界收到 P0 无内容 allow | 丢弃 + warn 审计 | `permission-rules-persistence` 测试 |
-| S03-P1-8 | plan 模式 MCP（未自报 readOnly） | deny（直通移除） | `permission service` 测试 |
+| S03-P1-8 | plan 模式普通 MCP（无论 readOnlyHint） | deny（仅 Host 验证能力可走只读快速路径） | `permission service` 测试 |
 | S03-P1-9 | plan 模式 memory md 写入 | deny 保持（覆盖器不翻转 deny） | `memory-file-permission` 测试 |
 | S03-P2-10 | 非 plan 模式 memory md 写入 | allow（P2 免确认保留） | 同上 |
 
@@ -125,3 +148,9 @@
 - 全部改动在 `apps/drora-cli/packages/core`（五个既有文件的最小接线 + 一个新模块 + 测试），
   不触碰 `specs/obsidian-knowledge.md` 的 NO-GO 状态，不翻转 `writePathEnabled`。
 - 回滚 = revert 本 spec 对应的提交（单包改动，无跨包契约变更，无持久化迁移）。
+
+
+## 6. 2026-10-17 correction: MCP annotations are not authorization
+
+The earlier wording that `readOnlyHint=true` was trusted "only in the tightening direction" was incorrect: allowing a server-authored hint to lower the permission tier made an untrusted MCP descriptor a bypass for plan mode and whole-tool persistent allow. The implementation now classifies all non-Host-verified MCP tools as P0 regardless of `readOnlyHint`, prevents that hint from taking build/plan read-only fast paths, and does not display third-party MCP tools as low risk solely because of the hint. The verified `OfficialCua` capability group remains the host-attested exception. Regression tests cover the self-reported-read-only bypass and the trusted CUA exception.
+

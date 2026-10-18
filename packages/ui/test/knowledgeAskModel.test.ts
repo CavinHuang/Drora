@@ -221,7 +221,7 @@ test("取消保留已有结果；失败保留上一轮", () => {
   // search 返回 cancelled 视图（候选已清空，previous 保留）。
   let state = submitStarted();
   state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "run-1", status: "retrieving" }) });
-  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded" });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-1" });
   assert.equal(state.current?.cancelledByUser, true);
   assert.equal(state.phase, "settled");
   state = reduceKnowledgeAsk(state, {
@@ -241,7 +241,7 @@ test("取消保留已有结果；失败保留上一轮", () => {
     type: "runSettled",
     run: makeRun({ runId: "run-2", status: "ready", candidates: [makeCandidate()] }),
   });
-  settledState = reduceKnowledgeAsk(settledState, { type: "cancelSucceeded" });
+  settledState = reduceKnowledgeAsk(settledState, { type: "cancelSucceeded", runId: "run-1" });
   assert.equal(getAskOutcome(settledState), "ready");
   assert.equal(settledState.current?.run.candidates.length, 1);
 
@@ -279,6 +279,33 @@ test("候选展开：默认 5 篇，可展开全部；选中只由用户动作�
   assert.equal(expanded.canExpand, false);
   state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "art-3" });
   assert.equal(state.selectedArticleId, "art-3");
+});
+
+test("COMPARE 候选手选多选、再次点击取消，新查询必须清空选择", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted",
+    query: "比较两个笔记",
+    clientRequestId: "compare-1",
+    intent: "compare",
+  });
+  state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "compare-run" }) });
+  expectSelectedNone();
+  function expectSelectedNone() {
+    assert.deepEqual(state.selectedArticleIds, []);
+    assert.equal(state.selectedArticleId, null);
+  }
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "a" });
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "b" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "a" });
+  assert.deepEqual(state.selectedArticleIds, ["b"]);
+  state = reduceKnowledgeAsk(state, {
+    type: "submitStarted",
+    query: "新的比较",
+    clientRequestId: "compare-2",
+    intent: "compare",
+  });
+  expectSelectedNone();
 });
 
 test("getAskOutcome：服务端结构化状态完整映射（含 partial/无源/过期）", () => {
@@ -480,4 +507,109 @@ test("deriveIndexColdStart：索引缺失可建 / 建立中互斥，未配置不
   });
   assert.ok(buildingBanners.includes("indexing"));
   assert.ok(!buildingBanners.includes("indexMissing"));
+});
+
+
+test("取消结果只能作用于当前正在检索的 run，旧请求不得取消新查询", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated",
+    run: makeRun({ runId: "run-old", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "submitStarted", query: "新问题", clientRequestId: "req-new", intent: "find" });
+  state = reduceKnowledgeAsk(state, {
+    type: "runCreated", run: makeRun({ runId: "run-new", status: "retrieving" }),
+  });
+  const unchanged = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-old" });
+  assert.equal(unchanged, state);
+  const cancelled = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-new" });
+  assert.equal(cancelled.phase, "settled");
+  assert.equal(cancelled.current?.cancelledByUser, true);
+  assert.equal(cancelled.current?.run.runId, "run-new");
+  assert.equal(reduceKnowledgeAsk(cancelled, { type: "cancelSucceeded", runId: "run-new" }), cancelled);
+});
+
+
+test("scopeReset isolates a new session from prior candidates, receipts and retry context", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "prior-session", status: "ready" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "art-1" });
+  state = reduceKnowledgeAsk(state, {
+    type: "evidenceResolved", articleId: "art-1",
+    state: { phase: "verified", receiptId: "old-receipt", excerpt: "old",
+      relativePath: "notes/old.md", title: "old", heading: null,
+      quote: { startLine: 1, endLine: 1, startOffset: 0, endOffset: 3 } },
+  });
+  const reset = reduceKnowledgeAsk(state, { type: "scopeReset" });
+  assert.deepEqual(reset, createInitialKnowledgeAskState());
+  assert.equal(reduceKnowledgeAsk(reset, {
+    type: "runSettled", run: makeRun({ runId: "prior-session", status: "ready" }),
+  }), reset);
+  assert.equal(reduceKnowledgeAsk(reset, { type: "cancelSucceeded", runId: "prior-session" }), reset);
+});
+
+test("late search completion cannot resurrect a cancelled run", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "cancelled-run", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "cancelled-run" });
+  const unchanged = reduceKnowledgeAsk(state, {
+    type: "runSettled", run: makeRun({ runId: "cancelled-run", status: "ready" }),
+  });
+  assert.equal(unchanged, state);
+  assert.equal(unchanged.current?.cancelledByUser, true);
+});
+
+test("comparison picker enforces the same five-source limit as Agent handoff", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted", query: "compare", clientRequestId: "compare-limit", intent: "compare",
+  });
+  state = reduceKnowledgeAsk(state, {
+    type: "runCreated", run: makeRun({ runId: "run-compare", status: "ready" }),
+  });
+  for (const articleId of ["a", "b", "c", "d", "e"]) {
+    state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId });
+  }
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "c", "d", "e"]);
+  const full = state;
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.equal(state, full, "sixth candidate is rejected without changing the selection");
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "c" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e", "f"]);
+});
+
+test("ANSWER supports explicit multi-note selection, deselection and the five-source limit", () => {
+  let state = reduceKnowledgeAsk(createInitialKnowledgeAskState(), {
+    type: "submitStarted", query: "总结这些笔记", clientRequestId: "answer-multi", intent: "answer",
+  });
+  state = reduceKnowledgeAsk(state, { type: "runCreated", run: makeRun({ runId: "answer-run", status: "ready" }) });
+  for (const id of ["a", "b", "c", "d", "e"]) {
+    state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: id });
+  }
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "c", "d", "e"]);
+  assert.equal(state.selectedArticleId, null);
+  assert.equal(reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" }), state);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "c" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e"]);
+  state = reduceKnowledgeAsk(state, { type: "candidateSelected", articleId: "f" });
+  assert.deepEqual(state.selectedArticleIds, ["a", "b", "d", "e", "f"]);
+  state = reduceKnowledgeAsk(state, {
+    type: "submitStarted", query: "another question", clientRequestId: "answer-new", intent: "answer",
+  });
+  assert.deepEqual(state.selectedArticleIds, []);
+});
+
+test("cancel acknowledgement immediately exits retrieving, without waiting for the service search result", () => {
+  let state = reduceKnowledgeAsk(submitStarted(), {
+    type: "runCreated", run: makeRun({ runId: "run-cancel", status: "retrieving" }),
+  });
+  state = reduceKnowledgeAsk(state, { type: "cancelSucceeded", runId: "run-cancel" });
+  assert.equal(getAskOutcome(state), "cancelled");
+  assert.equal(state.phase, "settled");
+  const late = reduceKnowledgeAsk(state, {
+    type: "runSettled", run: makeRun({ runId: "run-cancel", status: "ready" }),
+  });
+  assert.equal(getAskOutcome(late), "cancelled");
 });

@@ -38,6 +38,8 @@ export type ConversationFileChangesState = Exclude<
 export interface ConversationRowRenderContext {
   logEpoch?: string;
   workspacePath: string;
+  /** Exact SessionPane workspace scope (may differ from filesystem path for remote hosts). */
+  workspaceKey?: string;
   /** 当前 workspace Host 的用户 Home，用于解析 Assistant 输出中的 ~/ 路径。 */
   workspaceHomePath?: string;
   workspaceIdentity?: string;
@@ -51,6 +53,15 @@ export interface ConversationRowRenderContext {
   codePreviewSettings: CodePreviewSettings;
   /** 当前 pane 绑定的父 session；subagent 右侧 tab 用它做父任务分组。 */
   sessionId?: string | null;
+  /**
+   * 当前 turn 已准入的 Obsidian 来源编号（1–8，上限取 wire 契约 MAX_EVIDENCE_REFS_PER_INPUT），
+   * 不是模型自述。ui-cite-a-4（2026-10-18 终审）：旧注释「1–5」与读取端契约上限 8 不一致。
+   */
+  knowledgeCitationIndices?: readonly number[];
+  /** Remount Markdown renderer on a different turn / source Receipt map. */
+  knowledgeCitationScopeKey?: string;
+  /** Resolves the corresponding opaque Receipt again before opening the Vault note. */
+  onOpenKnowledgeCitation?: (index: number) => void;
   /** 当前下钻树的顶层 session；详情 tab 跨嵌套层级按该 id 分组。 */
   rootSessionId?: string | null;
   /** @deprecated 旧内联下钻标记；新的子会话统一打开侧栏详情。 */

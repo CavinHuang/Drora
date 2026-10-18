@@ -1,0 +1,75 @@
+> **已由同日收尾复评取代。** 本文是 `3a7f4fe` 基线记录；其中“未发现新增缺陷”不能用于当前交付。
+> 后续审查实际发现并修复 P0 内容授权、旧批准、跨进程恢复和竞争创建问题。
+> 当前状态见 [S03_CLOSEOUT_2026-10-17.md](./S03_CLOSEOUT_2026-10-17.md)。
+
+# Drora PR #23 — Automated self-review and coverage map
+
+**Date:** 2026-10-17  
+**Branch:** `feat/obsidian-knowledge-e2e` → `main`  
+**Scope:** approved A1 release boundary; automated review replaces the requested manual walkthrough for covered scenarios.
+
+## Review decision
+
+The assistant-led code review of the critical receipt, citation-navigation, permission-tier and L2-write-gate paths found no additional production defect in this pass. Two missing regression assertions were added: distinct Receipt isolation across turns and timeout/single-flight behavior; this update also makes the second-read full-file SHA requirement independently testable.
+
+This is **not** a claim of independent external security approval. The formal S03 NO-GO remains in force. L1 remains default-off, and production L2 Apply/Undo remain fail-closed. No merge or deployment is performed by this change.
+
+## Critical security boundaries reviewed
+
+- `packages/services/src/node.ts` explicitly constructs Knowledge services with `reviewWriteSafetyGatePassed: false` for production.
+- `packages/services/src/knowledge/review/reviewEngine.ts` requires both the runtime safety gate and user opt-in. A persisted preference cannot enable Apply/Undo when the runtime gate is false; the rejection happens before the file-write path.
+- `apps/drora-cli/packages/core/src/permission/write-tier-policy.ts` treats all non-Host-verified MCP tools as P0 regardless of the server-authored `readOnlyHint`. The plan/build read-only fast paths require trusted capability metadata. The documented CLI `allowedTools` startup override remains an explicit operator-authorization exception.
+- Receipt navigation uses an opaque, server-resolved Receipt bound to the exact Session and source; it does not infer authority from model-authored Markdown `[1]` text.
+- Before changing the editor selection, the second file read must match both the full-file SHA-256 and the projected quote excerpt. A change outside the excerpt is still stale.
+
+## Automated coverage map
+
+| Risk / cases | Automated evidence | What it proves |
+|---|---|---|
+| G35/G42 — same display citation number across turns/sessions | `packages/services/test/knowledgeReceiptIsolation.test.ts`; `packages/ui/test/knowledgeTurnCitations.test.ts` | Distinct notes get distinct Receipts; cross-session reuse is forbidden; changing one file invalidates only its Receipt; turn projection is not inferred from display number |
+| G45 — duplicate opens, timeout and late callback | `packages/ui/test/messageCitationOpenIntegration.test.ts` | Identical concurrent requests share one in-flight operation; timeout resolves failed; late success cannot reactivate navigation |
+| G46/G52 — scope changes and A→B→A | `packages/ui/test/knowledgeCitationTransaction.test.ts`; `packages/ui/test/knowledgeCitationNavigation.test.ts` | Delayed results from a revoked request cannot regain authority when the prior scope returns |
+| G47/G48 — failed/changed readback | `packages/ui/test/knowledgeCitationTransaction.test.ts`; `packages/ui/test/knowledgeCitationNavigation.test.ts` | Failed reads and mismatched quote slices fail closed |
+| G49/G50 — forged source and genuine navigation | `packages/desktop/test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts`; `obsidian-authenticated-handoff.test.ts` | Real Electron/CLI/Receipt path rejects forged or stale sources and opens only a currently authenticated source |
+| G51 — repeat warning/retry behavior | `packages/ui/test/knowledgeCitationOpenFeedback.test.ts` | Duplicate feedback is deduplicated while a later retry remains possible |
+| G53/G55 — quote reveal and focus | `packages/ui/test/vaultQuoteRevealCodeMirror.test.ts` | Exact two-line selection, unchanged document text, focus on valid scope, and no focus steal after scope revocation |
+| G54 — edit outside the quoted excerpt | `matchesKnowledgeCitationFileReadback` regression in `knowledgeCitationNavigation.test.ts`; production use in `VaultView.tsx` | Full-file SHA mismatch rejects the second read even when the quoted excerpt itself still matches |
+| G65/G67 — L2 stays closed under A1/S03 NO-GO | `packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts` and service write-path tests | Proposal/preview/approval remain available; production toggle/Apply/Undo remain disabled and Vault content is unchanged |
+
+The Electron suites use deterministic replay for model response text only. Vault access, indexing, Knowledge RPC, CLI admission, Receipt projection, CodeMirror navigation and the L2 gate are exercised through the production implementations in an isolated `.e2e-home`. This is not evidence of real-provider answer quality.
+
+## 2026-10-18 补记 — 未映射 G 用例的模型/服务级覆盖映射（终审发现 e2e-b-3）
+
+终审判定 G 系 25 个交互用例「无 E2E 且无自动化映射」，同时指出其中部分实际存在未收录的
+模型/服务级覆盖、不能解读为零自动化。本节补齐这些映射。**边界声明**：下表全部为
+模型/服务/组件测试（vitest / node--test），**不是真实 Electron GUI E2E**——对应 G 用例
+在 `KNOWLEDGE_E2E_PHASE1_SMOKE.md` 矩阵中保持「未执行」，本表仅证明其核心断言的
+非 GUI 层已有自动化锁定，不将任何 G 用例标记为 PASS；无映射的余量另见 SMOKE
+「未覆盖交互用例 backlog」小节。
+
+| 用例 | 核心断言（非 GUI 层） | 自动化证据 | 未覆盖面 |
+|---|---|---|---|
+| G10 — RPC/Host 断开后重试相同检索 | 重试复用同一 `clientRequestId` 不产生重复 Run；并发重试 single-flight 只建一个 Run；变更问题/跨会话复用 key 拒绝 | `packages/services/test/knowledgeIndexQuery.test.ts`（「run 语义：clientRequestId 幂等」「查询幂等：并发重试只建一个 Run」两用例，spec §5.3 A-12 回写） | 断连重试的 GUI 交互路径 |
+| G14 — 第六篇不能添加、取消重选、COMPARE 最少两篇 | 选源模型执行五篇上限（ANSWER/COMPARE 同界）、显式多选与取消重选；handoff 拒绝少于两篇的 COMPARE | `packages/ui/test/knowledgeAskModel.test.ts`（comparison picker 五源上限、ANSWER 多选/取消/上限两用例）+ `packages/ui/test/knowledgeAgentHandoff.test.ts`（rejects … fewer than two compare sources） | 点击交互的真实 GUI 呈现 |
+| G15 — 取消后晚到结果不覆盖新查询、不持续「检索中」 | 旧 run 迟到事件/结果不覆盖新 run（A22）；取消只作用于当前检索中的 run；晚到完成不能复活已取消 run；取消确认立即退出 retrieving | `packages/ui/test/knowledgeAskModel.test.ts`（A22 迟到事件、取消作用域、late search completion、cancel acknowledgement 四用例） | 真实 RPC 挂起时序的 GUI 复现 |
+| G17 — 上一轮旧笔记点击重新核验后按新 quote 打开 | previous-round 导航重新签发 receipt 并使用已验证的源位置 | `packages/ui/test/knowledgeEvidenceVerification.test.ts`（previous-round navigation issues a fresh receipt…） | 「上一轮」展开交互 |
+| G18 — 修改/删除上一轮笔记或切库后拒绝回跳 | previous-round 对已变更/删除源 fail-closed；拒绝已取消 run 与不在历史 run 内的候选（结构化 stale/missing/forbidden） | 同上文件（fails closed for changed or deleted sources；rejects cancelled runs…） | 点击交互与错误态呈现 |
+| G19 — 重新「加入 Agent」追问 | follow-up 显式重新附着上一轮笔记时重新核验签发新 Receipt | 同上文件（a follow-up explicitly reattaches a previous note with a freshly verified receipt） | Composer 交互链 |
+| G23 — 交接问题含与核验片段顺序一致的来源编号/路径/行号 | 两篇已核验来源的 manifest 按顺序编号并保留原比较问题 | `packages/ui/test/knowledgeAgentHandoff.test.ts`（prepares two current source receipts and the original comparison question） | 「生成回答使用编号」需真人/真实模型 |
+| G24 — 普通选区不得携带可信标记/evidenceRefs | 可信知识引用只在独立 command evidenceRefs 中发送 Receipt，不泄漏给 userselect | `packages/ui/test/conversationSelectionReference.test.ts`（可信知识引用只在独立 command evidenceRefs…） | 「发送时复验」可视标记无断言 |
+| G33 — 快速切换开关/切库后旧授权不复活 | 显式验证门下偏好持久化、开关串行且重启存活；已批准运行时不能把 L2 偏好带入新配置 Vault；生产绝不从持久化 true 复活写能力 | `packages/services/test/knowledgeReviewWritePath.test.ts`（S03 explicit verified gate…、approved runtime cannot carry an L2 preference…、production never restores…三用例，spec §5e.12） | 快速 GUI 切换交互 |
+| G34 — 完成态 [1]/[2] 与当前 turn 绑定、点击只传 receiptId | [1]/[2] 绑定到恰好本轮已准入输入；点击经单飞去重只传 opaque receiptId 重新 resolve 打开 | `packages/ui/test/knowledgeTurnCitations.test.ts`（binds source [1]/[2] to the admitted input of exactly this turn）+ `packages/ui/test/messageCitationOpenIntegration.test.ts`（clicks the actual Markdown source…） | 「得到完整真实 Agent 回答」的端到端渲染 |
+| G36 — 手写 [1]/旧转录无 evidenceRefs 不显示可信操作 | 无 receipt 元数据时不信任模型猜测的路径/编号 | `packages/ui/test/knowledgeTurnCitations.test.ts`（never trusts a model answer that guesses a path or number without receipt metadata） | 渲染面 |
+| G37 — 未知 [9] 提示且只有真实 Receipt 可点 | 生成式引用识别为 display-only 并浮出未知编号 | 同上文件（recognizes generated citations as display-only and surfaces unknown indices） | 渲染面 |
+| G38 — 已知来源标「回答提及」不标「已核实」、缺口计数 | 长回答段落审计只统计归属缺口，不把文本升格为可信 receipt | 同上文件（audits long answer paragraphs without promoting text to trusted receipts） | 渲染面 |
+| G39 — 代码块/链接/标题中的编号不计入有效标注 | 纯代码回答覆盖审计为空且不声称事实核验；既有链接/行内与围栏代码/引用/表格/标题不改写 | `packages/ui/test/knowledgeTurnCitations.test.ts`（returns empty coverage for code-only answers…）+ `packages/ui/test/knowledgeCitationMarkdown.test.ts`（does not rewrite existing Markdown links, inline/fenced code, quotes, tables or headings） | 渲染面 |
+| G41 — 正文 [n] 变为可点击并按 Receipt 回跳 | 点击真实 Markdown 源只打开新鲜 resolve 的笔记+quote；过期 Receipt 点击被拒不打开 | `packages/ui/test/messageCitationOpenIntegration.test.ts`（clicks the actual Markdown source…、rejects an expired Receipt…） | jsdom 集成级，非真 Electron；渲染层 [1-5] 与上限 8 差异为终审 ui-cite-b-1 另案 |
+| G43 — 伪造 [1](#drora-knowledge-source-1) 不产生可信跳转 | 点击模型伪造 hash 链接不派发导航事件 | 同上文件（does not dispatch when clicking a model-authored fake hash link）；真 Electron 同语义见 G56/G57 回执 | 与 G56/G57 场景的完全等价性 |
+| G44 — 代码/标题/表格/已有链接中的 [1] 不变可点 | 重复/嵌套 prose 标记处理且显式 Markdown 链接原样保留；未知标记不链接 | `packages/ui/test/knowledgeCitationMarkdown.test.ts`（handles repeated/nested prose markers and leaves explicit Markdown links alone；links only canonical allow-listed indices…） | 渲染面 |
+
+## Release boundary
+
+- Manual walkthrough is not being requested for cases with automated coverage, per the maintainer's explicit instruction.
+- A scenario not represented by an automated test must remain marked unverified; do not infer success from a neighboring test.
+- The S03 NO-GO has not been revoked. Do not enable production L2 or treat this self-review as an independent security sign-off.
+- The PR remains open and unmerged; latest-head CI and Electron results are the authority for code validation.

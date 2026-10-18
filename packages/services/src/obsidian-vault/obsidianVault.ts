@@ -115,6 +115,9 @@ export interface IObsidianVaultService {
     options?: ObsidianVaultConfigureOptions;
   }): Promise<ObsidianVaultSummary>;
 
+  /** Explicitly enable/disable Agent writes for the currently selected Vault; invalidates old approvals. */
+  setAgentWritesEnabled(params: { enabled: boolean }): Promise<ObsidianVaultSummary>;
+
   /** 列出 Vault 内全部 Markdown 文件与文件夹（带配额与深度上限）。 */
   listFiles(): Promise<ObsidianVaultTreeEntry[]>;
 

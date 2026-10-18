@@ -1,11 +1,13 @@
+/* eslint-disable max-lines -- 智能问库视图（Ask 流程 + 上一轮候选区 + handoff/侧聊编排）共享同一
+ * 提交序号与 scope 引用的状态编排，拆文件会割裂状态所有权（与 KnowledgeReviewView.tsx 同先例）。 */
 /**
  * 智能问库视图（W04 / specs/obsidian-knowledge.md §5c）。
  *
  * 接真实 Query/Index/Citation RPC：createRun→search、getStatus、cancelRun、
  * prepareEvidence→resolveCitation。呈现边界（诚实优先）：
  * - 候选永远是本地检索结果；Jev（W05）未接入前排序增强区只显示「未启用」。
- * - 「加入 Agent」走既有 selection 引用通道（userselect 数据语义，不是 Receipt，
- *   不获执行时复验——spec §5.4），按钮文案明示。
+ * - 「加入 Agent」复用 selection UI 承载摘录，并随 sendText 单独携带可信 Receipt；
+ *   CLI gate 在 admission / queued promotion 复验。普通 userselect 仍不自带证据特权。
  * - 「跳到原文」只在 resolveCitation 返回 current 后可用。
  * - 全部业务失败以结构化状态呈现，不编造标题/链接（A10）。
  */
@@ -13,17 +15,12 @@ import * as React from "react";
 import type {
   IKnowledgeIndexService,
   IKnowledgeQueryService,
-  KnowledgeArticleCandidate,
   KnowledgeIndexStatus,
 } from "@drora/services";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
-import {
-  createConversationSelectionReference,
-  type MarkdownSelectionTarget,
-} from "@/lib/conversationSelectionReference.js";
-import { buildSelectionSideChatKey, requestSelectionSideChatOpen } from "@/lib/selectionSideChatRuntime.js";
+import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 import {
   ASK_DEFAULT_VISIBLE_CANDIDATES,
   createInitialKnowledgeAskState,
@@ -33,14 +30,11 @@ import {
   reduceKnowledgeAsk,
   resolveAskIntent,
   sliceCandidates,
+  type KnowledgeAskIntent,
   type KnowledgeAskIntentChoice,
   type KnowledgeEvidenceQuote,
 } from "./knowledgeAskModel.js";
-import {
-  AskBannerList,
-  KnowledgeCandidateCard,
-  displayCandidateTitle,
-} from "./KnowledgeCandidateCard.js";
+import { AskBannerList, KnowledgeCandidateCard } from "./KnowledgeCandidateCard.js";
 import {
   AskDecisionTrace,
   AskEmptyState,
@@ -50,6 +44,9 @@ import {
   AskSourceStaleState,
 } from "./KnowledgeAskResults.js";
 import { KnowledgeAskInput } from "./KnowledgeAskInput.js";
+import { usePreviousKnowledgeActions } from "./usePreviousKnowledgeActions.js";
+import { useKnowledgeAgentActions } from "./useKnowledgeAgentActions.js";
+import { useKnowledgeCandidateVerification } from "./useKnowledgeCandidateVerification.js";
 
 const toast = {
   error: (message: string): void => {
@@ -63,9 +60,17 @@ export interface KnowledgeAskViewProps {
   sessionId?: string;
   workspaceKey?: string;
   /** 证据回跳：切到笔记视图并打开目标笔记（reveal = quote 行号区间）。 */
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  onOpenNote: (
+    relativePath: string,
+    reveal?: KnowledgeEvidenceQuote,
+    isCurrent?: () => boolean,
+    expectedExcerpt?: string,
+    expectedFileSha256?: string,
+  ) => void;
   /** 无 Vault 时的引导动作（切回笔记视图使用左下角连接器）。 */
   onGoToNotes: () => void;
+  /** 仅在会话 Composer 同步确认接受了真实 Receipt 后返回聊天。 */
+  onAgentHandoffPrepared?: () => void;
 }
 
 export function KnowledgeAskView({
@@ -75,6 +80,7 @@ export function KnowledgeAskView({
   workspaceKey,
   onOpenNote,
   onGoToNotes,
+  onAgentHandoffPrepared,
 }: KnowledgeAskViewProps): React.ReactElement {
   const { intl } = useDroraIntl();
   const [state, dispatch] = React.useReducer(
@@ -89,12 +95,52 @@ export function KnowledgeAskView({
   const [traceOpen, setTraceOpen] = React.useState(false);
   // Decision trace 默认折叠（工作单要求）：traceOpen 初始 false，展开状态不持久化。
   const submitSeqRef = React.useRef(0);
+  const selectionVersionRef = React.useRef(0);
   const inFlightRunIdRef = React.useRef<string | null>(null);
   // 重试必须复用同一 clientRequestId（幂等契约，spec §5b.1/§5c.2）。
-  const lastSubmitRef = React.useRef<{ query: string; clientRequestId: string } | null>(null);
-
+  const lastSubmitRef = React.useRef<{
+    query: string;
+    clientRequestId: string;
+    intent: KnowledgeAskIntent;
+  } | null>(null);
   const selectionTarget: MarkdownSelectionTarget | null =
     sessionId && workspaceKey ? { sessionId, workspaceKey } : null;
+  const {
+    openingPreviousId,
+    runPreviousCandidateAction,
+    cancelPendingPrevious,
+    openFollowUpSideChat,
+  } = usePreviousKnowledgeActions({
+    previous: state.previous,
+    queryService,
+    sessionId,
+    selectionTarget,
+    submitSeqRef,
+    onOpenNote,
+  });
+
+  // A mounted query view may be reused for another session/workspace or RPC host.
+  // Discard previous candidates, receipts, retries and pending async completions.
+  const scopeRef = React.useRef({ sessionId, workspaceKey, queryService, indexService });
+  React.useEffect(() => {
+    const prior = scopeRef.current;
+    if (
+      prior.sessionId === sessionId &&
+      prior.workspaceKey === workspaceKey &&
+      prior.queryService === queryService &&
+      prior.indexService === indexService
+    )
+      return;
+    scopeRef.current = { sessionId, workspaceKey, queryService, indexService };
+    submitSeqRef.current += 1;
+    inFlightRunIdRef.current = null;
+    lastSubmitRef.current = null;
+    cancelPendingPrevious();
+    dispatch({ type: "scopeReset" });
+    setInput("");
+    setIndexStatus(null);
+    setTraceOpen(false);
+  }, [sessionId, workspaceKey, queryService, indexService, cancelPendingPrevious]);
 
   const refreshIndexStatus = React.useCallback(async (): Promise<void> => {
     if (!indexService) return;
@@ -130,14 +176,18 @@ export function KnowledgeAskView({
   }, [queryService]);
 
   const submit = React.useCallback(
-    async (rawQuery: string): Promise<void> => {
+    async (
+      rawQuery: string,
+      retry?: { clientRequestId: string; intent: KnowledgeAskIntent },
+    ): Promise<void> => {
       const query = rawQuery.trim();
       if (!query || !queryService) return;
-      const clientRequestId = crypto.randomUUID();
-      const intent = resolveAskIntent(intentChoice, query);
-      lastSubmitRef.current = { query, clientRequestId };
+      const clientRequestId = retry?.clientRequestId ?? crypto.randomUUID();
+      const intent = retry?.intent ?? resolveAskIntent(intentChoice, query);
+      lastSubmitRef.current = { query, clientRequestId, intent };
       const seq = ++submitSeqRef.current;
       inFlightRunIdRef.current = null;
+      cancelPendingPrevious();
       dispatch({ type: "submitStarted", query, clientRequestId, intent });
       try {
         const run = await queryService.createRun({
@@ -150,9 +200,17 @@ export function KnowledgeAskView({
         dispatch({ type: "runCreated", run });
         if (run.status === "retrieving") {
           inFlightRunIdRef.current = run.runId;
-          const settled = await queryService.search({ runId: run.runId });
-          // runId 守卫在 reducer（A22）；这里无需再比对。
-          dispatch({ type: "runSettled", run: settled });
+          try {
+            const settled = await queryService.search({ runId: run.runId });
+            // Cancellation or a newer submission invalidates this async result.
+            if (seq === submitSeqRef.current && inFlightRunIdRef.current === run.runId) {
+              dispatch({ type: "runSettled", run: settled });
+            }
+          } finally {
+            if (seq === submitSeqRef.current && inFlightRunIdRef.current === run.runId) {
+              inFlightRunIdRef.current = null;
+            }
+          }
         }
         void refreshIndexStatus();
       } catch (error) {
@@ -163,27 +221,34 @@ export function KnowledgeAskView({
         });
       }
     },
-    [intentChoice, queryService, refreshIndexStatus, sessionId],
+    [cancelPendingPrevious, intentChoice, queryService, refreshIndexStatus, sessionId],
   );
 
   const retryLast = React.useCallback((): void => {
     const last = lastSubmitRef.current;
     if (!last) return;
     // 复用同一 clientRequestId：Host 重连后服务端幂等返回同一 run（spec §5c.4）。
-    void submit(last.query);
+    void submit(last.query, last);
   }, [submit]);
 
   const cancel = React.useCallback(async (): Promise<void> => {
     const runId = inFlightRunIdRef.current;
     if (!runId || !queryService) return;
+    const cancelSeq = submitSeqRef.current;
     try {
-      await queryService.cancelRun({ runId });
+      const result = await queryService.cancelRun({ runId });
+      // A completed query must not be marked cancelled just because its ACK arrives late.
+      // If cancellation lost the race, let the original search() settle normally.
+      if (
+        result.cancelled &&
+        submitSeqRef.current === cancelSeq &&
+        inFlightRunIdRef.current === runId
+      ) {
+        dispatch({ type: "cancelSucceeded", runId });
+        inFlightRunIdRef.current = null;
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      // 取消后保留已有候选展示（PRD：禁止清空上次可用结果）。
-      dispatch({ type: "cancelSucceeded" });
-      inFlightRunIdRef.current = null;
     }
   }, [queryService]);
 
@@ -203,92 +268,33 @@ export function KnowledgeAskView({
     }
   }, [indexActionBusy, indexService, refreshIndexStatus]);
 
-  const verifyEvidence = React.useCallback(
-    async (candidate: KnowledgeArticleCandidate): Promise<void> => {
-      const runId = state.current?.run.runId;
-      if (!queryService || !runId) return;
-      dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
-      try {
-        const prepared = await queryService.prepareEvidence({ runId, articleId: candidate.articleId });
-        if (prepared.status !== "current") {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: { phase: "unavailable", status: prepared.status, reason: null },
-          });
-          return;
-        }
-        const resolved = await queryService.resolveCitation({
-          receiptId: prepared.receipt.receiptId,
-          sessionId: sessionId ?? undefined,
-        });
-        // KnowledgeResolveCitationResult 的失败分支 status 词表含 "current"（类型上不可
-        // 区分），因此以 citation 是否存在为准做窄化，status/reason 经 "in" 守卫读取。
-        const resolvedReason = "reason" in resolved ? resolved.reason : null;
-        if (resolved.status === "current" && resolved.citation) {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: {
-              phase: "verified",
-              receiptId: resolved.citation.receiptId,
-              excerpt: resolved.citation.excerpt,
-              relativePath: resolved.citation.relativePath,
-              title: resolved.citation.title,
-              heading: resolved.citation.heading,
-              quote: resolved.citation.quote,
-            },
-          });
-        } else {
-          dispatch({
-            type: "evidenceResolved",
-            articleId: candidate.articleId,
-            state: {
-              phase: "unavailable",
-              status: resolved.status === "current" ? "forbidden" : resolved.status,
-              reason: resolvedReason,
-            },
-          });
-        }
-      } catch (error) {
-        dispatch({
-          type: "evidenceResolved",
-          articleId: candidate.articleId,
-          state: {
-            phase: "failed",
-            message: error instanceof Error ? error.message : String(error),
-          },
-        });
-      }
-    },
-    [queryService, sessionId, state.current?.run.runId],
-  );
+  const { verifyEvidence, openCurrentCandidate } = useKnowledgeCandidateVerification({
+    state,
+    queryService,
+    sessionId,
+    submitSeqRef,
+    scopeRef,
+    dispatch,
+    onOpenNote,
+  });
 
-  const openFollowUpSideChat = React.useCallback(
-    (candidate: KnowledgeArticleCandidate): void => {
-      // MarkdownSelectionTarget.sessionId 类型允许 null；追问需要真实会话 id。
-      if (!selectionTarget?.sessionId) {
-        toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-        return;
-      }
-      const sideChatKey = buildSelectionSideChatKey(selectionTarget.workspaceKey, selectionTarget.sessionId);
-      const reference = createConversationSelectionReference({
-        contentType: "markdown",
-        sourceKey: `vault:${candidate.relativePath}`,
-        sourceTitle: displayCandidateTitle(candidate),
-        path: candidate.relativePath,
-        text: candidate.excerpt,
-      });
-      if (!requestSelectionSideChatOpen(sideChatKey, reference)) {
-        toast.error(intl.formatMessage({ id: "vault.selection.sideChatFailed" }));
-      }
-    },
-    [intl, selectionTarget],
-  );
+  const { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent } =
+    useKnowledgeAgentActions({
+      queryService,
+      selectionTarget,
+      state,
+      submitSeqRef,
+      selectionVersionRef,
+      verifyEvidence,
+      onAgentHandoffPrepared,
+    });
 
   if (!queryService || !indexService) {
     return (
-      <section className="flex min-h-0 flex-1 items-center justify-center" data-testid="ask-unavailable">
+      <section
+        className="flex min-h-0 flex-1 items-center justify-center"
+        data-testid="ask-unavailable"
+      >
         <p className="px-6 text-center text-ui-sm text-muted-foreground">
           {intl.formatMessage({ id: "vault.ask.serviceUnavailable" })}
         </p>
@@ -306,7 +312,15 @@ export function KnowledgeAskView({
   const isEmptyQueryState = outcome === "idle" || outcome === "failed";
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-ask-view">
+    <section
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-testid="knowledge-ask-view"
+      data-index-configured={
+        indexStatus?.configured === undefined ? "loading" : String(indexStatus.configured)
+      }
+      data-indexed-files={indexStatus?.coverage.indexedFiles ?? -1}
+      data-index-job-status={indexStatus?.job?.status ?? "none"}
+    >
       <div className="mx-auto flex h-full w-full max-w-4xl min-h-0 flex-col gap-3 px-4 py-4">
         {/* 状态条：低噪音，位于输入上方（PRD V07：结果顶部固定状态说明） */}
         <AskBannerList banners={banners} />
@@ -354,54 +368,100 @@ export function KnowledgeAskView({
             />
           )}
           {currentRound &&
-            (outcome === "ready" || outcome === "partial" || outcome === "empty" || outcome === "cancelled") && (
-            <div className="flex flex-col gap-2">
-              <p className="text-ui-sm text-foreground-subtle" data-testid="ask-result-summary">
-                {intl.formatMessage(
-                  { id: "vault.ask.candidates.count" },
-                  { count: currentRun?.candidates.length ?? 0 },
+            (outcome === "ready" ||
+              outcome === "partial" ||
+              outcome === "empty" ||
+              outcome === "cancelled") && (
+              <div className="flex flex-col gap-2">
+                <p className="text-ui-sm text-foreground-subtle" data-testid="ask-result-summary">
+                  {intl.formatMessage(
+                    { id: "vault.ask.candidates.count" },
+                    { count: currentRun?.candidates.length ?? 0 },
+                  )}
+                  {currentRound.cancelledByUser && (
+                    <span className="ml-2 text-ui-xs text-foreground-subtlest">
+                      ({intl.formatMessage({ id: "vault.ask.cancelled.suffix" })})
+                    </span>
+                  )}
+                </p>
+                {currentRound.intent !== "find" && (
+                  <div
+                    className="flex flex-wrap items-center gap-2"
+                    data-testid="ask-agent-handoff"
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        handoffBusy ||
+                        !selectionTarget ||
+                        state.selectedArticleIds.length <
+                          (currentRound.intent === "compare" ? 2 : 1)
+                      }
+                      data-testid="ask-agent-handoff-submit"
+                      onClick={() => void handoffQuestionToAgent()}
+                    >
+                      {handoffBusy
+                        ? intl.formatMessage({ id: "vault.ask.handoff.checking" })
+                        : intl.formatMessage({ id: `vault.ask.handoff.${currentRound.intent}` })}
+                    </Button>
+                    <span className="text-ui-xs text-foreground-subtle">
+                      {intl.formatMessage({
+                        id:
+                          currentRound.intent === "compare"
+                            ? "vault.ask.handoff.compareHint"
+                            : "vault.ask.handoff.answerHint",
+                      })}
+                    </span>
+                  </div>
                 )}
-                {currentRound.cancelledByUser && (
-                  <span className="ml-2 text-ui-xs text-foreground-subtlest">
-                    ({intl.formatMessage({ id: "vault.ask.cancelled.suffix" })})
-                  </span>
+                {slice.visible.map((candidate) => (
+                  <KnowledgeCandidateCard
+                    key={candidate.articleId}
+                    candidate={candidate}
+                    query={currentRound.submittedQuery}
+                    selected={
+                      currentRound.intent === "find"
+                        ? state.selectedArticleId === candidate.articleId
+                        : state.selectedArticleIds.includes(candidate.articleId)
+                    }
+                    inspect={state.evidence[candidate.articleId]}
+                    sessionId={sessionId}
+                    selectionTarget={selectionTarget}
+                    adding={addingArticleId === candidate.articleId}
+                    onAddToAgent={(entry) => void addVerifiedEvidenceToAgent(entry)}
+                    onOpenNote={(candidate) => void openCurrentCandidate(candidate)}
+                    onSelect={(articleId) => {
+                      // Invalidate pending evidence batches synchronously before React render.
+                      selectionVersionRef.current += 1;
+                      dispatch({ type: "candidateSelected", articleId });
+                    }}
+                    onVerify={(entry) => void verifyEvidence(entry)}
+                    onFollowUp={openFollowUpSideChat}
+                  />
+                ))}
+                {slice.canExpand && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="self-center"
+                    onClick={() =>
+                      dispatch({
+                        type: "expandCandidates",
+                        limit: currentRun?.candidates.length ?? ASK_DEFAULT_VISIBLE_CANDIDATES,
+                      })
+                    }
+                  >
+                    {intl.formatMessage(
+                      { id: "vault.ask.expandMore" },
+                      { count: slice.hiddenCount },
+                    )}
+                  </Button>
                 )}
-              </p>
-              {slice.visible.map((candidate) => (
-                <KnowledgeCandidateCard
-                  key={candidate.articleId}
-                  candidate={candidate}
-                  query={currentRound.submittedQuery}
-                  selected={state.selectedArticleId === candidate.articleId}
-                  inspect={state.evidence[candidate.articleId]}
-                  sessionId={sessionId}
-                  selectionTarget={selectionTarget}
-                  onOpenNote={(relativePath, reveal) => {
-                    onOpenNote(relativePath, reveal);
-                  }}
-                  onSelect={(articleId) => dispatch({ type: "candidateSelected", articleId })}
-                  onVerify={(entry) => void verifyEvidence(entry)}
-                  onFollowUp={openFollowUpSideChat}
-                />
-              ))}
-              {slice.canExpand && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="self-center"
-                  onClick={() =>
-                    dispatch({
-                      type: "expandCandidates",
-                      limit: currentRun?.candidates.length ?? ASK_DEFAULT_VISIBLE_CANDIDATES,
-                    })
-                  }
-                >
-                  {intl.formatMessage({ id: "vault.ask.expandMore" }, { count: slice.hiddenCount })}
-                </Button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
           {outcome === "sourceStale" && currentRound && <AskSourceStaleState />}
 
           {/* 上一轮（追问后保留，默认折叠展示） */}
@@ -409,7 +469,10 @@ export function KnowledgeAskView({
             <AskPreviousRound
               candidates={state.previous.run.candidates}
               submittedQuery={state.previous.submittedQuery}
-              onOpenNote={(relativePath) => onOpenNote(relativePath)}
+              openingArticleId={openingPreviousId}
+              canAddToAgent={Boolean(selectionTarget?.sessionId)}
+              onOpenNote={(candidate) => void runPreviousCandidateAction(candidate, "open")}
+              onAddToAgent={(candidate) => void runPreviousCandidateAction(candidate, "attach")}
             />
           )}
 

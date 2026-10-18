@@ -94,12 +94,16 @@ export interface KnowledgeAskState {
   visibleCandidateLimit: number;
   /** 用户显式选中的候选；模型从不自动选中（A09 多候选不强选）。 */
   selectedArticleId: string | null;
+  /** Explicit multi-selection for COMPARE; never implicitly select search results. */
+  selectedArticleIds: string[];
   evidence: Readonly<Record<string, KnowledgeEvidenceInspectState>>;
   /** host 层失败（RPC reject / 断连代理），区别于 run 的结构化 status。 */
   error: string | null;
 }
 
 export const ASK_DEFAULT_VISIBLE_CANDIDATES = 5;
+/** Shared source limit: the comparison picker and Agent handoff must agree. */
+export const MAX_KNOWLEDGE_HANDOFF_SOURCES = 5;
 
 export function createInitialKnowledgeAskState(): KnowledgeAskState {
   return {
@@ -109,19 +113,21 @@ export function createInitialKnowledgeAskState(): KnowledgeAskState {
     pendingSubmit: null,
     visibleCandidateLimit: ASK_DEFAULT_VISIBLE_CANDIDATES,
     selectedArticleId: null,
+    selectedArticleIds: [],
     evidence: {},
     error: null,
   };
 }
 
 export type KnowledgeAskAction =
+  | { type: "scopeReset" }
   /** createRun 已发出（等待返回）；组件在此刻生成并持有 clientRequestId。 */
   | { type: "submitStarted"; query: string; clientRequestId: string; intent: KnowledgeAskIntent }
   | { type: "runCreated"; run: KnowledgeRunView }
   | { type: "runSettled"; run: KnowledgeRunView }
   | { type: "runEvent"; event: KnowledgeRunUpdatedEvent }
   | { type: "submitFailed"; message: string }
-  | { type: "cancelSucceeded" }
+  | { type: "cancelSucceeded"; runId: string }
   | { type: "expandCandidates"; limit: number }
   | { type: "candidateSelected"; articleId: string | null }
   | { type: "evidenceChecking"; articleId: string }
@@ -133,6 +139,8 @@ function runIsSettled(run: KnowledgeRunView): boolean {
 
 export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAskAction): KnowledgeAskState {
   switch (action.type) {
+    case "scopeReset":
+      return createInitialKnowledgeAskState();
     case "submitStarted": {
       // 新提交使旧 run 投影立即失效：current → previous（折叠保留），证据态全部作废
       // （receipt 绑定旧 run，跨 run 的 Inspector 判定不可复用）。
@@ -148,6 +156,7 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
         },
         visibleCandidateLimit: ASK_DEFAULT_VISIBLE_CANDIDATES,
         selectedArticleId: null,
+        selectedArticleIds: [],
         evidence: {},
         error: null,
       };
@@ -173,6 +182,8 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       const current = state.current;
       // runId 不匹配 = 旧 run 的迟到结果，直接丢弃（A22）。
       if (!current || action.run.runId !== current.run.runId) return state;
+      // Cancellation is terminal for this view: an already-running search may settle late.
+      if (current.cancelledByUser) return state;
       if (action.run.runGeneration < current.run.runGeneration) return state;
       return {
         ...state,
@@ -197,7 +208,7 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       return { ...state, phase: "failed", error: action.message, pendingSubmit: null };
     }
     case "cancelSucceeded": {
-      if (!state.current) return state;
+      if (!state.current || state.current.run.runId !== action.runId || state.phase !== "retrieving") return state;
       // 取消只停止 in-flight；保留本轮已有的候选展示（PRD：取消不清空上次可用结果）。
       return {
         ...state,
@@ -207,8 +218,19 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
     }
     case "expandCandidates":
       return { ...state, visibleCandidateLimit: Math.max(1, action.limit) };
-    case "candidateSelected":
-      return { ...state, selectedArticleId: action.articleId };
+    case "candidateSelected": {
+      if ((state.current?.intent === "compare" || state.current?.intent === "answer") && action.articleId) {
+        const alreadySelected = state.selectedArticleIds.includes(action.articleId);
+        if (!alreadySelected && state.selectedArticleIds.length >= MAX_KNOWLEDGE_HANDOFF_SOURCES) {
+          return state;
+        }
+        const selectedArticleIds = alreadySelected
+          ? state.selectedArticleIds.filter((id) => id !== action.articleId)
+          : [...state.selectedArticleIds, action.articleId];
+        return { ...state, selectedArticleIds, selectedArticleId: null };
+      }
+      return { ...state, selectedArticleId: action.articleId, selectedArticleIds: [] };
+    }
     case "evidenceChecking":
       return { ...state, evidence: { ...state.evidence, [action.articleId]: { phase: "checking" } } };
     case "evidenceResolved":
@@ -259,6 +281,9 @@ export function getAskOutcome(state: KnowledgeAskState): KnowledgeAskOutcome {
   if (!round) return state.phase === "submitting" ? "submitting" : "idle";
   if (state.phase === "submitting") return "submitting";
   if (state.phase === "retrieving") return "retrieving";
+  // cancelRun acknowledgement may arrive before search() returns a settled snapshot.
+  // Once the user cancelled, do not keep showing an endless retrieval spinner.
+  if (round.cancelledByUser) return "cancelled";
   switch (round.run.status) {
     case "no_source":
       return "noVault";

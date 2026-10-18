@@ -3,7 +3,7 @@
 // 从 fork-edit-retry.ts 抽出：editUserQuery 与 retryTurn 共用，forkAssistant 不经过这里
 // （fork 只做 conversation-only copy，不 rewind、不重发）。
 import type { CommandEnvelope, CommandPayloadMap } from "@drora/shared/drora-protocol-v4";
-import { isHighspeedProviderId } from "@drora/shared";
+import { isHighspeedProviderId, KNOWLEDGE_EVIDENCE_GUARDS } from "@drora/shared";
 import type { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
 import { resolveSessionFallbackModelSelection } from "../input-admission.js";
 import { inputIntentMetadataFromCanonical } from "../input-intent.js";
@@ -11,6 +11,7 @@ import { startPromptTurn } from "../prompt-turn.js";
 import { createModelExecutionContext } from "../../../app/model-execution.js";
 import type { V4CommandCoreHost, V4QueuedTurnExecution, V4SessionRecordView } from "../types.js";
 import { applyGoalCommand } from "./goal-compact.js";
+import { verifyEvidenceOrThrow } from "./evidence-admission.js";
 import type { ConversationEditTarget } from "../../product-projection.js";
 
 const EDIT_QUEUE_FALLBACK_REASON = "edit.admissionRace";
@@ -40,6 +41,7 @@ export async function startCanonicalIntent(
     envelope,
     {
       kind: editTarget.intent.kind,
+      evidenceRefs: editTarget.intent.evidenceRefs,
       conversationQuotes:
         envelope.type === "editUserQuery"
           ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ??
@@ -60,6 +62,13 @@ export async function startCanonicalIntent(
     },
     text,
   );
+  // 重试及编辑是新一次模型投递：只引用原证据，不复用旧的可信状态。
+  await verifyEvidenceOrThrow(host, record.app.sessionId, intent.evidenceRefs);
+  if (intent.evidenceRefs?.length && intent.requestedDelivery === "guide") {
+    intent.requestedDelivery = "queue";
+    intent.admittedDelivery = "queue";
+    intent.fallbackReasonCode = KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden;
+  }
   const requireQueue = options?.requireQueue === true;
   const retainQueuedTurnExecution = host.retainQueuedTurnExecution;
   // 入队路径的凭据只能驻留内存；宿主不提供暂存能力时必须整体退回会话模型，不留半程加速。

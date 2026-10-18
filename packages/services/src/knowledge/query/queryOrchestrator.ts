@@ -15,16 +15,14 @@ import { randomUUID } from "node:crypto";
 import { Emitter, type Event } from "@drora/rpc";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
-import { loadCoverage } from "../store/indexRepository.js";
 import { resolveKnowledgeSource, type KnowledgeSourceResolution } from "../source/sourceRegistry.js";
-import { searchLexicalPass } from "../search/lexicalRetriever.js";
 import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
-import { decideByPolicy, DEFAULT_DECISION_POLICY, queryHashOf } from "../decision/decisionPolicy.js";
+import { executeKnowledgeSearch } from "./querySearchPipeline.js";
+import { queryHashOf } from "../decision/decisionPolicy.js";
 import type {
   KnowledgeDecisionConsentGrantResult,
 } from "../decision/decisionTypes.js";
 import type {
-  KnowledgeCoverage,
   KnowledgeRunUpdatedEvent,
   KnowledgeRunView,
 } from "../knowledgeTypes.js";
@@ -58,6 +56,17 @@ export class QueryOrchestrator {
   private readonly logger = createServiceLogger("knowledge-query");
   private readonly runs = new Map<string, RunRecord>();
   private readonly runsByClientRequestId = new Map<string, string>();
+  /** 在源解析期间，同一请求键只允许创建一个 Run。 */
+  private readonly pendingCreates = new Map<string, {
+    query: string;
+    sessionId: string | null;
+    result: Promise<KnowledgeRunView>;
+  }>();
+  /** 同一 run 的在途检索只允许执行一次；重试复用该结果。 */
+  private readonly pendingSearches = new Map<string, {
+    consentId: string | null;
+    result: Promise<KnowledgeRunView>;
+  }>();
   private generation = 0;
   private readonly runUpdated = new Emitter<KnowledgeRunUpdatedEvent>();
 
@@ -81,6 +90,8 @@ export class QueryOrchestrator {
     }
     this.runs.clear();
     this.runsByClientRequestId.clear();
+    this.pendingCreates.clear();
+    this.pendingSearches.clear();
     this.decision?.registry.clear();
     this.runUpdated.dispose();
   }
@@ -91,13 +102,50 @@ export class QueryOrchestrator {
     if (query.length > MAX_QUERY_CHARS) throw new Error(`查询文本超过 ${MAX_QUERY_CHARS} 字符上限`);
     const clientRequestId = typeof params.clientRequestId === "string" ? params.clientRequestId.trim() : "";
     if (!clientRequestId) throw new Error("clientRequestId 不能为空");
+    const sessionId = params.sessionId ?? null;
 
+    // 相同 key 只允许同一查询和同一会话重试，避免断线或 UI 重用 key 时串问题/串会话。
     const existingRunId = this.runsByClientRequestId.get(clientRequestId);
     if (existingRunId) {
       const existing = this.runs.get(existingRunId);
-      if (existing) return existing.view;
+      if (existing) {
+        this.assertSameRequest(existing.query, existing.sessionId, query, sessionId);
+        return existing.view;
+      }
     }
 
+    // 在等待源解析前登记 pending：并发同 key 只能生成一个 Run。
+    const pending = this.pendingCreates.get(clientRequestId);
+    if (pending) {
+      this.assertSameRequest(pending.query, pending.sessionId, query, sessionId);
+      return pending.result;
+    }
+    const result = this.createRunOnce(query, clientRequestId, sessionId);
+    this.pendingCreates.set(clientRequestId, { query, sessionId, result });
+    try {
+      return await result;
+    } finally {
+      this.pendingCreates.delete(clientRequestId);
+    }
+  }
+
+  private assertSameRequest(
+    storedQuery: string,
+    storedSessionId: string | null,
+    query: string,
+    sessionId: string | null,
+  ): void {
+    if (storedQuery !== query || storedSessionId !== sessionId) {
+      // 不回显另一会话的查询文本或 Vault 数据。
+      throw new Error("clientRequestId 已绑定其他查询或会话");
+    }
+  }
+
+  private async createRunOnce(
+    query: string,
+    clientRequestId: string,
+    sessionId: string | null,
+  ): Promise<KnowledgeRunView> {
     const source = await this.resolveSource();
     const sourceRef =
       source.configured && source.summary && source.sourceEpoch !== null
@@ -110,7 +158,7 @@ export class QueryOrchestrator {
       runId,
       runGeneration,
       clientRequestId,
-      sessionId: params.sessionId ?? null,
+      sessionId: sessionId,
       query,
       sourceRef,
       seq: 0,
@@ -120,7 +168,7 @@ export class QueryOrchestrator {
         runGeneration,
         status: sourceRef ? "retrieving" : "no_source",
         query,
-        sessionId: params.sessionId ?? null,
+        sessionId: sessionId,
         source: sourceRef,
         createdAtMs: nowMs,
         finishedAtMs: sourceRef ? null : nowMs,
@@ -143,8 +191,7 @@ export class QueryOrchestrator {
     if (!record) throw new Error("run 不存在或已丢弃");
     const generationAtStart = record.runGeneration;
 
-    // 已落定 run 的再检索：携带授权 = 只补跑决策阶段（本地候选事实不变，只重排）。
-    // 这是「本地候选先显示 → 用户授权 → Jev 优化排序」交互的服务端形态（spec §5d.6）。
+    // 已落定 run 的再检索只允许补跑决策；不重新检索已落定候选。
     if (record.view.status !== "retrieving") {
       if (params.decisionConsentId) {
         return this.runDecisionRefresh(record, generationAtStart, params.decisionConsentId);
@@ -152,100 +199,48 @@ export class QueryOrchestrator {
       return record.view;
     }
 
+    const consentId = params.decisionConsentId ?? null;
+    const pending = this.pendingSearches.get(record.runId);
+    if (pending) {
+      if (pending.consentId !== consentId) {
+        // 并发检索不能替换已启动任务的出站授权语义。
+        throw new Error("run 检索已启动，不能使用不同的 decisionConsentId");
+      }
+      return pending.result;
+    }
+    const result = this.runSearchOnce(record, generationAtStart, params);
+    this.pendingSearches.set(record.runId, { consentId, result });
+    try {
+      return await result;
+    } finally {
+      if (this.pendingSearches.get(record.runId)?.result === result) {
+        this.pendingSearches.delete(record.runId);
+      }
+    }
+  }
+
+  private async runSearchOnce(
+    record: RunRecord,
+    generationAtStart: number,
+    params: KnowledgeSearchParams,
+  ): Promise<KnowledgeRunView> {
     const abort = new AbortController();
     record.abort = abort;
 
     try {
-      const source = await this.resolveSource();
-      if (!source.configured || source.sourceEpoch === null || !source.summary) {
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "vault_not_configured",
-          decision: null,
-        });
-      }
-      if (
-        !record.sourceRef ||
-        source.summary.vaultId !== record.sourceRef.vaultId ||
-        source.sourceEpoch !== record.sourceRef.sourceEpoch
-      ) {
-        // 源身份/epoch 在检索期间变化：旧 Query 失效（spec §5b.6）。
-        // vaultId 必须一并比较：epoch 是 vault 内计数，换库后新 vault 可能同为 1。
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "source_epoch_changed",
-          decision: null,
-        });
-      }
-
-      const coverage = loadCoverage(this.db, source.summary.vaultId, source.sourceEpoch);
-      const sharedOptions = { semantic: this.semantic, partial: coverage?.partial ?? false } as const;
-
-      // ① AND 轮；② policy 裁决 EXPAND_ONCE（至多一次降级扩搜，A11；资格=tokenizer
-      // 判定 canRelax——存在可拆 bigram 的 CJK run 或多部件，spec §5b.5）。
-      let pass = await searchLexicalPass(this.db, record.sourceRef, record.query, {
-        ...sharedOptions,
-        relaxed: false,
+      const patch = await executeKnowledgeSearch({
+        db: this.db,
+        semantic: this.semantic,
+        sourceRef: record.sourceRef,
+        runId: record.runId,
+        query: record.query,
+        decisionConsentId: params.decisionConsentId,
+        decision: this.decision,
+        signal: abort.signal,
+        resolveSource: () => this.resolveSource(),
+        sourceChangedSince: () => this.sourceChangedSince(record.sourceRef),
       });
-      let expanded = false;
-      let canExpand = pass.candidates.length === 0 && pass.canRelax;
-      const policyPre = decideByPolicy({
-        candidates: toDecisionCandidates(pass.candidates),
-        outcomes: [],
-        canExpand,
-        expanded,
-        config: this.decision?.config ?? DEFAULT_DECISION_POLICY,
-      });
-      if (policyPre.shouldExpand) {
-        pass = await searchLexicalPass(this.db, record.sourceRef, record.query, {
-          ...sharedOptions,
-          relaxed: true,
-        });
-        expanded = true;
-        canExpand = false;
-      }
-
-      // ③ 决策阶段（provider 未注入 → off/零出站）；授权绑定在管线门与 adapter 逐调用重查。
-      const stage = this.decision
-        ? await this.decision.pipeline.runStage({
-            runId: record.runId,
-            vaultId: record.sourceRef.vaultId,
-            sourceEpoch: record.sourceRef.sourceEpoch,
-            query: record.query,
-            queryHash: queryHashOf(record.query),
-            candidates: toDecisionCandidates(pass.candidates),
-            consentId: params.decisionConsentId ?? null,
-            canExpand,
-            expanded,
-            signal: abort.signal,
-          })
-        : null;
-
-      // ④ 阶段后重验源（换源/撤权发生在出站期间 → 整个决策与结果失效）。
-      if (await this.sourceChangedSince(record.sourceRef)) {
-        return this.applyResult(record, generationAtStart, {
-          status: "source_stale",
-          reason: "source_epoch_changed",
-          candidates: [],
-          coverage: null,
-          diagnostics: pass.diagnostics,
-          decision: stage?.diagnostics ?? null,
-        });
-      }
-
-      // ⑤ 融合只重排次序，不改候选事实（articleId/quote/sha 原样，A26）。
-      const finalCoverage: KnowledgeCoverage | null = coverage ?? EMPTY_COVERAGE;
-      const orderedCandidates = stage
-        ? reorderCandidates(pass.candidates, stage.policy.fusedRankByCandidateId)
-        : pass.candidates;
-      return this.applyResult(record, generationAtStart, {
-        status: pass.status,
-        candidates: orderedCandidates,
-        coverage: finalCoverage,
-        diagnostics: pass.diagnostics,
-        decision: stage?.diagnostics ?? null,
-        reason: null,
-      });
+      return this.applyResult(record, generationAtStart, patch);
     } catch (error) {
       this.logger.error("检索失败", { runId: record.runId });
       return this.applyResult(record, generationAtStart, {
@@ -429,16 +424,3 @@ export class QueryOrchestrator {
 }
 
 const MAX_QUERY_CHARS = 512;
-
-const EMPTY_COVERAGE: KnowledgeCoverage = {
-  indexedFiles: 0,
-  indexedChunks: 0,
-  excludedHidden: 0,
-  excludedSymlink: 0,
-  excludedNotMarkdown: 0,
-  excludedOverSize: 0,
-  excludedOverQuota: 0,
-  excludedDepth: 0,
-  truncatedFiles: 0,
-  partial: false,
-};

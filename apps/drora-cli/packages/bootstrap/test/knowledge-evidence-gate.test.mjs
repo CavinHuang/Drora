@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, rm, writeFile, unlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile, unlink } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
@@ -436,6 +436,63 @@ test("gate 拒绝越界/软链路径；配置读取口径与 services 对齐", a
     // DB 路径推导同式。
     const dbPath = resolveKnowledgeDatabasePathForGate({ DRORA_DATA_BASE_DIR: root, HOME: "elsewhere" });
     assert.equal(dbPath, join(root, ".drora", "knowledge", "knowledge-index.sqlite"));
+  } finally {
+    gate?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+/**
+ * G12 partial lifecycle coverage at the real gate boundary: one process closes
+ * the SQLite connection, a new gate opens the on-disk ledger with no fixture
+ * reseeding, then session/authorization changes still fail closed. This does
+ * NOT replace the separate actual Electron restart/manual acceptance.
+ */
+test("G12 gate restart preserves Receipt authority and rejects cross-session/re-auth reuse", async () => {
+  const root = await createTestEnvRoot();
+  let gate;
+  try {
+    const vaultRoot = join(root, "vault");
+    const pluginDataDir = join(root, "plugin-data");
+    const databasePath = join(root, "knowledge", "knowledge-index.sqlite");
+    const receiptId = "evr_restartedledger00000000000000001";
+    const sessionId = "session-persisted";
+    await writeNote(vaultRoot, "restart.md", NOTE_BODY);
+    await writeVaultConfig(pluginDataDir, vaultRoot, 901);
+    const db = await openLedgerWithSharedDdl(databasePath);
+    await insertReceipt(db, {
+      vaultRoot,
+      configuredAt: 901,
+      fileContent: NOTE_BODY,
+      quote: quoteForLines(NOTE_BODY, 3, 3),
+      relativePath: "restart.md",
+      receiptId,
+      sessionId,
+    });
+    db.close();
+    gate = createKnowledgeEvidenceGate({ pluginDataDir, databasePath });
+    const refs = [{ receiptId }];
+    assert.deepEqual(await gate.verify({ sessionId, evidenceRefs: refs }), { ok: true });
+
+    // Simulate restart by closing the old reader; do not rewrite the persisted
+    // ledger or Vault. A newly constructed gate must read the same authority.
+    gate.close();
+    gate = createKnowledgeEvidenceGate({ pluginDataDir, databasePath });
+    assert.deepEqual(await gate.verify({ sessionId, evidenceRefs: refs }), { ok: true });
+
+    const crossSession = await gate.verify({ sessionId: "session-other", evidenceRefs: refs });
+    assert.equal(crossSession.ok, false);
+    assert.equal(crossSession.guard, KNOWLEDGE_EVIDENCE_GUARDS.forbidden);
+    assert.equal(crossSession.reason, KNOWLEDGE_EVIDENCE_REASONS.crossSession);
+
+    // An explicit re-authorization changes source fingerprint. Neither a
+    // persisted Receipt nor a restarted process can carry the old grant.
+    await writeVaultConfig(pluginDataDir, vaultRoot, 902);
+    const reauthorized = await gate.verify({ sessionId, evidenceRefs: refs });
+    assert.equal(reauthorized.ok, false);
+    assert.equal(reauthorized.guard, KNOWLEDGE_EVIDENCE_GUARDS.stale);
+    assert.equal(reauthorized.reason, KNOWLEDGE_EVIDENCE_REASONS.sourceReauthorized);
+    assert.equal((await readFile(join(vaultRoot, "restart.md"), "utf8")), NOTE_BODY);
   } finally {
     gate?.close();
     await rm(root, { recursive: true, force: true });

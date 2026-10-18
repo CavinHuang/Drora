@@ -317,6 +317,7 @@ export interface ConversationEditTarget {
   intent: {
     inputOrigin?: "desktop" | "mobile";
     conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
+    evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
     botGroupSource?: CanonicalUserIntentFact["botGroupSource"];
     kind: "sendText" | "sendGoalCommand";
     text: string;
@@ -2137,6 +2138,9 @@ export class ProductProjection {
         ...(rootSourceCommandId ? { rootSourceCommandId } : {}),
         ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
         ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
+        // Preserve CLI-admitted opaque receipts in canonical user rows for
+        // completed-turn provenance. They never enter model-facing text.
+        ...(fact.evidenceRefs ? { evidenceRefs: fact.evidenceRefs } : {}),
         ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
         ...(fact.clientId ? { clientId: fact.clientId } : {}),
         ...(fact.highspeed ? { highspeed: fact.highspeed } : {}),
@@ -2163,6 +2167,7 @@ export class ProductProjection {
                 ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
                 ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
                 ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
+                ...(fact.evidenceRefs ? { evidenceRefs: fact.evidenceRefs } : {}),
                 ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
                 ...(fact.clientId ? { clientId: fact.clientId } : {}),
                 ...(fact.attachments ? { attachments: fact.attachments } : {}),
@@ -3817,6 +3822,9 @@ export class ProductProjection {
             ? { fallbackReasonCode: queueItem.delivery.fallbackReasonCode }
             : {}),
           attachmentRefs: queueItem.attachments,
+          // Legacy drain payloads omit drainedInputs; recover ONLY receipts
+          // already admitted into the canonical queue item, never model text.
+          ...(queueItem.evidenceRefs?.length ? { evidenceRefs: queueItem.evidenceRefs } : {}),
         };
         return [
           {
@@ -3864,6 +3872,9 @@ export class ProductProjection {
         ...(item.intent?.conversationQuotes
           ? { conversationQuotes: item.intent.conversationQuotes }
           : {}),
+        // Queue promotion has already passed the second evidence admission
+        // gate; retain the same opaque receipt in its real-user projection.
+        ...(item.intent?.evidenceRefs ? { evidenceRefs: item.intent.evidenceRefs } : {}),
         ...(item.intent?.botGroupSource ? { botGroupSource: item.intent.botGroupSource } : {}),
         ...(item.intent?.clientId ? { clientId: item.intent.clientId } : {}),
         ...(item.intent?.highspeed ? { highspeed: item.intent.highspeed } : {}),
@@ -3891,6 +3902,7 @@ export class ProductProjection {
                 ...(item.intent?.conversationQuotes
                   ? { conversationQuotes: item.intent.conversationQuotes }
                   : {}),
+                ...(item.intent?.evidenceRefs ? { evidenceRefs: item.intent.evidenceRefs } : {}),
                 ...(item.intent?.botGroupSource
                   ? { botGroupSource: item.intent.botGroupSource }
                   : {}),

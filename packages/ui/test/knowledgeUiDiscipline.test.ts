@@ -24,6 +24,10 @@ const knowledgeFiles: string[] = readdirSync(knowledgeDir)
   .filter((name) => name.endsWith(".tsx") || name.endsWith(".ts"))
   .map((name) => join(knowledgeDir, name));
 knowledgeFiles.push(join(here, "../src/v4/vault/vault-quote-reveal.ts"));
+// ui-know-a-5 修复（2026-10-18 终审）：回答来源面板与引用 Markdown 渲染层是 knowledge
+// UI 的渲染纪律在产源码（含 i18n 键与字号/色值约束的适用面），此前不在扫描范围。
+knowledgeFiles.push(join(here, "../src/v4/KnowledgeAnswerSources.tsx"));
+knowledgeFiles.push(join(here, "../src/lib/knowledgeCitationMarkdown.ts"));
 
 function readSource(file: string): string {
   assert.equal(statSync(file).isFile(), true, `被核查文件必须存在: ${file}`);
@@ -31,7 +35,10 @@ function readSource(file: string): string {
 }
 
 test("A21：knowledge UI 不引入任意字号、行内字号、根字号突变或裸十六进制色值", () => {
-  assert.ok(knowledgeFiles.length >= 8, `应核查全部 knowledge UI 源文件，实际 ${knowledgeFiles.length}`);
+  assert.ok(
+    knowledgeFiles.length >= 8,
+    `应核查全部 knowledge UI 源文件，实际 ${knowledgeFiles.length}`,
+  );
   for (const file of knowledgeFiles) {
     const source = readSource(file);
     assert.equal(
@@ -39,11 +46,7 @@ test("A21：knowledge UI 不引入任意字号、行内字号、根字号突变�
       false,
       `${file} 引入任意字号 text-[..px]（DESIGN.md 只允许 text-ui-* 令牌）`,
     );
-    assert.equal(
-      /fontSize\s*:/.test(source),
-      false,
-      `${file} 引入行内 fontSize（DESIGN.md 禁止）`,
-    );
+    assert.equal(/fontSize\s*:/.test(source), false, `${file} 引入行内 fontSize（DESIGN.md 禁止）`);
     assert.equal(
       /documentElement\.style\.fontSize/.test(source),
       false,
@@ -92,6 +95,14 @@ test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4 / 洞察
       "modelUnavailable",
     ].map((code) => `vault.ask.banner.${code}`),
     ...["notes", "ask", "insights", "review"].map((tab) => `vault.tabs.${tab}`),
+    // 会话引用失败/打开反馈两个动态键族（SessionPane/ConversationComposer 模板串拼接，
+    // B-8 补登记 2026-10-17；reason 词表须与生产拼接点一致）。
+    ...["stale", "missing", "forbidden", "unavailable", "unknown"].map(
+      (reason) => `chat.selections.evidenceSend.${reason}`,
+    ),
+    ...["stale", "missing", "forbidden", "unavailable", "failed"].map(
+      (reason) => `chat.selections.evidenceOpen.${reason}`,
+    ),
     // 洞察视图的三个动态键族（KnowledgeInsightsView.tsx 模板串拼接）。
     ...insightExcludeKeys.map((key) => `vault.insights.exclude.${key}`),
     ...["reconcile", "rebuild"].map((kind) => `vault.insights.jobKind.${kind}`),
@@ -104,8 +115,12 @@ test("A21：动态 i18n 键（意图×4 / 状态条×11 / 顶部 tab×4 / 洞察
 });
 
 test("A21：zh-CN 与 en-US 的 vault.* 键集合对等（新增键不允许单语言落地）", () => {
-  const zhVaultKeys = Object.keys(zhCN).filter((id) => id.startsWith("vault.")).sort();
-  const enVaultKeys = Object.keys(enUS).filter((id) => id.startsWith("vault.")).sort();
+  const zhVaultKeys = Object.keys(zhCN)
+    .filter((id) => id.startsWith("vault."))
+    .sort();
+  const enVaultKeys = Object.keys(enUS)
+    .filter((id) => id.startsWith("vault."))
+    .sort();
   assert.ok(zhVaultKeys.length > 0, "vault.* 键必须存在");
   assert.deepEqual(enVaultKeys, zhVaultKeys, "两语言 vault.* 键集合必须一致");
 });

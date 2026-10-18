@@ -30,13 +30,13 @@ import {
 } from "../drora-protocol/index.js";
 import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
-import { conversationInputSourceSchema } from "./input-intent.js";
+import { conversationInputSourceSchema, evidenceRefSchema } from "./input-intent.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 export * from "./workflow-command-rejections.js";
-import {
-  MAX_EVIDENCE_REFS_PER_INPUT,
-  KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
-} from "../knowledge-evidence.js";
+// 收口（PR #23 终审 shared-1）：sendText payload 的 evidenceRef 形状与 input-intent
+// 的 evidenceRefSchema 完全同构，改引同一份 schema——两处内联漂移会造成 admission
+// 固定进 intent 的引用与 wire 校验各认一套形状。
+import { MAX_EVIDENCE_REFS_PER_INPUT } from "../knowledge-evidence.js";
 
 // sendText / editUserQuery / sendQueuedNow 共用的执行材料不变量：modelExecution 只能依附
 // 本次 modelSelection，禁止在缺 Selection 时单独补供凭据（历史消息 rewind 后不复用旧凭据）。
@@ -112,19 +112,9 @@ export const commandPayloadSchemas = {
       highspeedMeta: highspeedMessageMetaSchema.optional(),
       // VaultView Evidence 引用（W03 / specs/obsidian-knowledge.md §5.3）：只传 opaque
       // receiptId；绑定事实在服务端账本，由 CLI Runtime gate 在 admission 与队列提升时
-      // 复验。additive：旧 CLI 的 z.object 静默丢弃该键（fail-closed）。
-      evidenceRefs: z
-        .array(
-          z
-            .object({ receiptId: z.string().min(1) })
-            .strict()
-            .refine(
-              (ref) => ref.receiptId.startsWith(KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX),
-              "receiptId shape invalid",
-            ),
-        )
-        .max(MAX_EVIDENCE_REFS_PER_INPUT)
-        .optional(),
+      // 复验。additive：旧 CLI 的 z.object 静默丢弃该键（fail-closed）。形状复用
+      // input-intent 的 evidenceRefSchema（单一出处；PR #23 终审 shared-1 收口）。
+      evidenceRefs: z.array(evidenceRefSchema).max(MAX_EVIDENCE_REFS_PER_INPUT).optional(),
       automationId: z.string().min(1).optional(),
       offPeakTaskId: z.string().min(1).optional(),
       offPeakRunType: z.enum(["init", "resume"]).optional(),

@@ -1,0 +1,258 @@
+name: Obsidian Electron Cross-platform Acceptance
+
+# Do not report Windows/macOS bundle builds as Obsidian UI acceptance.
+# Run actual Electron + ChromeDriver with the same isolated real Vault tests.
+on:
+  pull_request:
+    # EC-1（e2e-a-1/b-2/b-5，2026-10-18 终审）修复：paths 此前漏掉 R1-R9 回放
+    # fixture（7 个 R*.json）、inline-provenance 夹具、helpers/**、wdio.conf.ts、
+    # restart helper 与 evidence 链源文件（bootstrap 会话流/意图重放/投影、core
+    # conversation-quotes/input-intent-persistence、shared knowledge-evidence），
+    # 导致这些输入变化不触发三平台验收；同时去掉 obsidian-vault/** 重复登记与
+    # 被 knowledge/** 覆盖的 knowledge/review/** 条目。新增 inline-citation-provenance
+    # spec 条目对应下方 G56/G57 负向步骤（EC-8）。
+    paths:
+      - ".github/workflows/obsidian-electron-cross-platform.yml"
+      - "packages/desktop/test/e2e/acceptance/**"
+      - "packages/desktop/test/e2e/helpers/**"
+      - "packages/desktop/wdio.conf.ts"
+      - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-restart.helper.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R2-agent-handoff.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R3-time-based-reject.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R4-busy-queue.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R5-restart-isolation.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R6-source-manifest-guard.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R8-concurrency-late-requests.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R9-second-read-focus.json"
+      - "packages/ui/src/v4/VaultView.tsx"
+      - "packages/ui/src/v4/vault/knowledge/**"
+      - "packages/ui/src/components/ai-elements/message.tsx"
+      - "packages/ui/src/v4/ConversationTurnGroup.tsx"
+      - "packages/ui/src/v4/ConversationComposer.tsx"
+      - "packages/ui/src/lib/conversationSelectionReference.ts"
+      - "packages/ui/src/lib/conversationKnowledgeSources.ts"
+      - "packages/ui/src/v4/knowledgeTurnCitations.ts"
+      - "packages/shared/src/knowledge-evidence.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/evidence-admission.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/session-flow.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/canonical-intent-replay.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/input-intent.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/event-normalizer.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/projection-rows.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts"
+      - "apps/drora-cli/packages/core/src/permission/**"
+      - "apps/drora-cli/packages/core/src/tool/executor/permission-*.ts"
+      - "apps/drora-cli/packages/core/src/runtime/helpers/conversation-quotes.ts"
+      - "apps/drora-cli/packages/core/src/runtime/methods/input-intent-persistence.ts"
+      - "packages/services/src/node.ts"
+      - "packages/services/src/knowledge/**"
+      - "packages/services/src/obsidian-vault/**"
+  workflow_dispatch:
+
+concurrency:
+  group: obsidian-cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-acceptance:
+    name: Real Vault + Agent evidence E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-14]
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reporting and actual desktop Agent CLI
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Confirm direct and queued authoritative Receipt projection
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs
+      - name: Verify L2 safety, real process recovery, and atomic create on this OS
+        run: node --import tsx --test packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts
+      - name: Run real local Vault index/Inspector/TOCTOU Electron E2E
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/obsidian-knowledge-positive.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+        run: pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/obsidian-knowledge-positive.test.ts
+      - name: Run real Agent Session/CLI/Receipt/navigation Electron E2E
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json
+        run: pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts
+      # EC-8（e2e-b-4，2026-10-18 终审）修复：G56/G57 负向 provenance spec 此前
+      # 仅 ubuntu 通道（obsidian-electron-provenance.yml），而该 spec 头部自述
+      # 「opt-in until it has passed on Windows/macOS」——转正条件与执行通道不
+      # 衔接。本 job 已是 windows-2022/macos-14 矩阵，env 照 provenance.yml
+      # ubuntu 侧原样复制（replay 夹具 + DRORA_E2E_SPEC），仅去掉 xvfb-run
+      # 前缀（Windows/macOS runner 自带显示服务器）。
+      - name: Run negative forged-source provenance Electron E2E (G56/G57)
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+        run: pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts
+      - name: Upload cross-platform Electron diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-${{ matrix.os }}-acceptance
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+
+  # R1–R9 验收包（2026-10-17 subagent 真实 Electron 执行，回执见
+  # docs/vaultview/delivery/ACCEPTANCE_SUBAGENT_2026-10-17.md）。逐 spec 运行
+  # acceptance/ 目录全部 spec；每个 spec 使用独立 E2E HOME，避免状态串扰。
+  # EC-7（e2e-a-7，2026-10-18 终审）修复：下方「已知预期红」为陈旧表述——
+  # D1/D2 与 G53 构造问题均已修复，head 51ab9a84 起 CI 三平台 R1-R9 全绿终态
+  #（回执补记见 docs/vaultview/delivery/ACCEPTANCE_SUBAGENT_2026-10-17.md）。
+  desktop-acceptance-r1-r9:
+    name: R1-R9 acceptance suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-14]
+    env:
+      CI: "1"
+      E2E_PROVIDER_HTTP_MODE: replay
+      VITE_DRORA_E2E_STORE_BRIDGE: "1"
+      DRORA_E2E_MANUAL_REVIEW: "1"
+      DRORA_SKIP_REMOTE_ASSETS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.0"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build reporting and actual desktop Agent CLI
+        run: |
+          pnpm --filter @drora/e2e-report build:node
+          node scripts/build-desktop-agent-cli.mjs
+      - name: Verify acceptance specs and replay fixtures exist
+        shell: bash
+        run: |
+          cd packages/desktop
+          for spec in test/e2e/acceptance/*.test.ts; do test -f "$spec" || { echo "missing spec: $spec"; exit 1; }; done
+          for fx in conversation-session/conversation-session-obsidian-inline-provenance.json \
+            conversation-session/R2-agent-handoff.json \
+            conversation-session/R3-time-based-reject.json \
+            conversation-session/R4-busy-queue.json \
+            conversation-session/R5-restart-isolation.json \
+            conversation-session/R6-source-manifest-guard.json \
+            conversation-session/R8-concurrency-late-requests.json \
+            conversation-session/R9-second-read-focus.json; do
+            test -f "test/e2e/fixtures/upstream/$fx" || { echo "missing fixture: $fx"; exit 1; }
+          done
+      - name: "R1 first use (G01/G02)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r1-first-use.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r1
+          # Linux 无显示服务器：Electron 需要 xvfb 包装（step 级 env 才允许 runner 上下文）。
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r1-first-use.test.ts
+      - name: "R2 agent handoff (G03/G04/G13)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r2-agent-handoff.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R2-agent-handoff.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r2
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r2-agent-handoff.test.ts
+      - name: "R3 time-based reject (G05/G06/G07)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r3-time-based-reject.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R3-time-based-reject.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r3
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r3-time-based-reject.test.ts
+      - name: "R4 busy queue (G08/G09)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r4-busy-queue.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R4-busy-queue.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r4
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r4-busy-queue.test.ts
+      - name: "R5 restart isolation (G12/G35/G42)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r5-restart-isolation.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R5-restart-isolation.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r5
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r5-restart-isolation.test.ts
+      - name: "R6 source manifest guard (G16/G26/G27)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r6-source-manifest-guard.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R6-source-manifest-guard.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r6
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r6-source-manifest-guard.test.ts
+      - name: "R7 write boundary (G31/G32/G40 + L1 hook)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r7-write-boundary.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r7
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r7-write-boundary.test.ts
+      - name: "R8 concurrency late requests (G45/G46/G52)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r8-concurrency-late-requests.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R8-concurrency-late-requests.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r8
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r8-concurrency-late-requests.test.ts
+      - name: "R9 second read focus (doc G47/G53/G54/G55)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/r9-second-read-focus.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/R9-second-read-focus.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r9
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r9-second-read-focus.test.ts
+      - name: Upload R1-R9 Electron diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-electron-${{ matrix.os }}-r1-r9-acceptance
+          path: |
+            packages/desktop/.e2e-artifacts/
+            packages/desktop/.e2e-network-capture/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7

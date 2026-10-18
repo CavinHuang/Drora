@@ -119,13 +119,23 @@ async function sendText(
     // 加速凭据只驻留 CLI 内存：提升时按 (sessionId, sourceCommandId) 取回，绝不进队列事件。
     host.retainQueuedTurnExecution?.(record.app.sessionId, envelope.commandId, highspeedExecution);
     try {
-      const requestedDelivery = routingMode === "guide" ? "guide" : "queue";
+      // Highspeed 的强制入队必须保留可信证据和执行前复验身份。
+      // 否则这一独立分支会丢失 evidenceRefs，让提升阶段误判为普通输入。
+      const hasEvidence = Boolean(payload.evidenceRefs?.length);
+      const requestedDelivery = hasEvidence ? "queue" : routingMode === "guide" ? "guide" : "queue";
+      const fallbackReasonCode = hasEvidence
+        ? evidenceDelivery.fallbackReasonCode
+        : routingMode === "guide"
+          ? HIGHSPEED_QUEUE_FALLBACK_REASON
+          : undefined;
       // 加速轮的 Selection 必须进 canonical intent：提升时只从队列项读模型，不再回看会话。
       const intent = submissionIntent({
         text: payload.text,
         requestedDelivery,
         admittedDelivery: "queue",
-        ...(routingMode === "guide" ? { fallbackReasonCode: HIGHSPEED_QUEUE_FALLBACK_REASON } : {}),
+        ...(fallbackReasonCode ? { fallbackReasonCode } : {}),
+        ...(payload.evidenceRefs?.length ? { evidenceRefs: payload.evidenceRefs } : {}),
+        ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
         attachmentRefs: payload.attachments,
       });
       const queued = await startPromptTurn(host, record, {

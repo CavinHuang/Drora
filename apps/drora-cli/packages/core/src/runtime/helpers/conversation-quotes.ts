@@ -1,5 +1,32 @@
 import type { TurnInputIntentMetadata } from "@drora/contracts";
 
+/**
+ * 模型可见的 quote 字段白名单（D1 修复，2026-10-17 R2 验收实证）：
+ * wire 侧 conversationQuotes 现携带 evidenceReceiptId（D-2 修复引入，投影/读取端
+ * 据此配对可信引用），但 Receipt ID 是 opaque 服务端凭据，绝不能进入模型 prompt
+ * （安全不变量「来源原文不作为模型可见 Receipt ID」）。此处按白名单挑选字段，
+ * 非白名单键（含 evidenceReceiptId）一律不出模型边界。
+ */
+const MODEL_VISIBLE_QUOTE_KEYS = [
+  "text",
+  "path",
+  "senderName",
+  "senderId",
+  "messageId",
+  "sentAt",
+] as const;
+
+function toModelVisibleQuote(
+  quote: NonNullable<TurnInputIntentMetadata["conversationQuotes"]>[number],
+): Record<string, unknown> {
+  const visible: Record<string, unknown> = {};
+  for (const key of MODEL_VISIBLE_QUOTE_KEYS) {
+    const value = quote[key];
+    if (value !== undefined) visible[key] = value;
+  }
+  return visible;
+}
+
 /** 引用只在模型边界转为材料，不能混入 canonical 用户正文或解析成控制命令。 */
 export function withConversationQuotes(
   text: string,
@@ -8,7 +35,9 @@ export function withConversationQuotes(
 ): string {
   const parts = [text];
   if (quotes?.length)
-    parts.push(`<conversation_quote>\n${JSON.stringify(quotes)}\n</conversation_quote>`);
+    parts.push(
+      `<conversation_quote>\n${JSON.stringify(quotes.map(toModelVisibleQuote))}\n</conversation_quote>`,
+    );
   // 机器人来源过去仅存在于投影，模型误把正常回答当成需要调用飞书发送的任务。
   if (botSource)
     parts.push(

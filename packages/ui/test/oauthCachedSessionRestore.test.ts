@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyCachedOAuthSessionRestoreResult } from "@/root/oauthCachedSessionRestore.js";
+import {
+  applyCachedOAuthSessionRestoreResult,
+  shouldShowJwtInvalidSessionDialog,
+} from "@/root/oauthCachedSessionRestore.js";
 
 describe("applyCachedOAuthSessionRestoreResult", () => {
   it("clears the displayed user, shows one expiry alert, then opens reauthentication", async () => {
@@ -33,5 +36,15 @@ describe("applyCachedOAuthSessionRestoreResult", () => {
     expect(requestAlert.mock.invocationCallOrder[0]).toBeLessThan(
       onReauthenticationRequired.mock.invocationCallOrder[0],
     );
+  });
+});
+
+describe("global expired-session UI vs offline Vault", () => {
+  it("does not block a signed-out Vault with a stale background JWT notification", () => {
+    expect(shouldShowJwtInvalidSessionDialog(false)).toBe(false);
+  });
+
+  it("still requires reauthentication for a currently signed-in user", () => {
+    expect(shouldShowJwtInvalidSessionDialog(true)).toBe(true);
   });
 });

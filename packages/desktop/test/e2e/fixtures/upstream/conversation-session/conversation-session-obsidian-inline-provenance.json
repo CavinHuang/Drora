@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-obsidian-inline-provenance",
+  "spec": "./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts",
+  "fixtures": [
+    {
+      "id": "obsidian-provenance-title",
+      "description": "Deterministic non-citation title response",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the citation trust contract"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "Generate a concise title"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"chatcmpl-obsidian-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"Obsidian Provenance E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":64,\"completion_tokens\":70,\"total_tokens\":134}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "obsidian-provenance-fake-inline",
+      "description": "Agent model can write hashes and [1], but it has no authenticated Receipt",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Negative GUI provenance test requires a deterministic forged Markdown payload"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": [
+          "E2E_OBSIDIAN_UNTRUSTED_INLINE_SOURCE"
+        ],
+        "bodyIncludes": [
+          "E2E_OBSIDIAN_UNTRUSTED_INLINE_SOURCE"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"chatcmpl-obsidian-untrusted\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-untrusted\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"E2E_OBSIDIAN_UNTRUSTED_INLINE_SOURCE This model answer has untrusted [1], a fabricated [1](#drora-knowledge-source-1), and an untrusted [2].\\n\\n```markdown\\n[1]\\n```\\n\\n# Fake heading [1]\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-untrusted\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":64,\"completion_tokens\":70,\"total_tokens\":134}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "obsidian-provenance-second-turn",
+      "description": "Second assistant turn cannot inherit authenticated citation scope from prior Markdown",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Multi-turn negative provenance regression requires a deterministic second forged response"
+      },
+      "maxMatches": 2,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": [
+          "E2E_OBSIDIAN_SECOND_TURN_FORGERY"
+        ],
+        "bodyIncludes": [
+          "E2E_OBSIDIAN_SECOND_TURN_FORGERY"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"chatcmpl-obsidian-second-forgery\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-second-forgery\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"E2E_OBSIDIAN_SECOND_TURN_FORGERY A later model turn has no trusted Receipt: untrusted [1], [2], another [1](#drora-knowledge-source-1), and a source-like note.\\n\\n- List claim [1]\\n\\n> Quoted claim [1]\\n\\n`[1]` remains code.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-obsidian-second-forgery\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-obsidian-provenance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

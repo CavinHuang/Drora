@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -56,6 +57,12 @@ import {
   type OffPeakCreateTaskSummary,
 } from "@/ToolCallBlocks/renderers/offpeak-create.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { toast as droraToast } from "@/components/ui/toast.js";
+import { requestKnowledgeCitationOpen } from "@/lib/conversationSelectionReference.js";
+// ui-cite-a-2 修复（2026-10-18 终审）：下方 E2E 诊断投影的 hasManifest 原先手写
+// manifest 表头字面量，违反契约键单一出处——表头漂移时诊断判定会静默失效。
+import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/lib/conversationKnowledgeSources.js";
+import { createKnowledgeCitationOpenFeedbackController } from "@/v4/knowledgeCitationOpenFeedback.js";
 import { HighspeedShareDialog } from "@/highspeed/HighspeedShareNoticeCard.js";
 import { isHighspeedShareEligible } from "@/highspeed/highspeedShare.js";
 import {
@@ -108,6 +115,8 @@ import type {
 } from "@/v4/conversationTurnRenderUnits.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
+import { KnowledgeAnswerSources } from "@/v4/KnowledgeAnswerSources.js";
+import { readKnowledgeTurnCitations } from "@/v4/knowledgeTurnCitations.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 
@@ -1337,16 +1346,99 @@ function ConversationTurnGroupImpl({
     () => unit.assistantWorkRows.find((row) => row.kind === "reasoning")?.rowId,
     [unit.assistantWorkRows],
   );
+  const latestAssistantTextRow = unit.latestAssistantTextRow;
+  const turnCitations = useMemo(
+    () =>
+      !unit.timelineOnly &&
+      !unit.isRunning &&
+      latestAssistantTextRow?.state === "complete" &&
+      context.sessionId &&
+      context.workspaceKey
+        ? readKnowledgeTurnCitations(
+            unit.turnId,
+            unit.visibleUserInputs,
+            unit.header?.sourceCommandId,
+          )
+        : [],
+    [
+      context.sessionId,
+      context.workspaceKey,
+      latestAssistantTextRow?.state,
+      unit.header?.sourceCommandId,
+      unit.isRunning,
+      unit.timelineOnly,
+      unit.turnId,
+      unit.visibleUserInputs,
+    ],
+  );
+  const inlineCitationIndices = useMemo(
+    () => turnCitations.map((source) => source.index),
+    [turnCitations],
+  );
+  const inlineCitationScopeKey = useMemo(
+    () =>
+      JSON.stringify([
+        context.sessionId,
+        context.workspaceKey,
+        unit.turnId,
+        ...turnCitations.map((source) => source.receiptId),
+      ]),
+    [context.sessionId, context.workspaceKey, unit.turnId, turnCitations],
+  );
+  // The transport deduplicates requests, but each additional click previously
+  // attached another error toast. Suppress duplicate feedback and notifications
+  // from a turn that has since been unmounted or replaced.
+  const citationFeedbackRef = useRef(
+    createKnowledgeCitationOpenFeedbackController(requestKnowledgeCitationOpen),
+  );
+  useEffect(() => {
+    const controller = citationFeedbackRef.current;
+    controller.setScope(inlineCitationScopeKey);
+    return () => controller.setScope(null);
+  }, [inlineCitationScopeKey]);
+  const onOpenKnowledgeCitation = useCallback(
+    (index: number): void => {
+      const source = turnCitations.find((citation) => citation.index === index);
+      if (!source || !context.sessionId || !context.workspaceKey) return;
+      citationFeedbackRef.current.open(
+        {
+          targetSessionId: context.sessionId,
+          workspaceKey: context.workspaceKey,
+          receiptId: source.receiptId,
+        },
+        inlineCitationScopeKey,
+        (reason) => {
+          droraToast(intl.formatMessage({ id: `chat.selections.evidenceOpen.${reason}` }), {
+            variant: "warning",
+          });
+        },
+      );
+    },
+    [context.sessionId, context.workspaceKey, inlineCitationScopeKey, intl, turnCitations],
+  );
   const assistantRowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       ...context,
       ...(firstReasoningRowId !== undefined
         ? { messageStreamFirstReasoningRowId: firstReasoningRowId }
         : {}),
+      ...(turnCitations.length > 0
+        ? {
+            knowledgeCitationIndices: inlineCitationIndices,
+            knowledgeCitationScopeKey: inlineCitationScopeKey,
+            onOpenKnowledgeCitation,
+          }
+        : {}),
     }),
-    [context, firstReasoningRowId],
+    [
+      context,
+      firstReasoningRowId,
+      inlineCitationIndices,
+      inlineCitationScopeKey,
+      onOpenKnowledgeCitation,
+      turnCitations.length,
+    ],
   );
-  const latestAssistantTextRow = unit.latestAssistantTextRow;
   const assistantPreviewPptxAutoOpenTarget = context.assistantPreviewPptxAutoOpenTarget;
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const assistantCodeCommentProjectionEnabled =
@@ -1553,6 +1645,28 @@ function ConversationTurnGroupImpl({
     <section
       data-turn-id={unit.turnId}
       data-turn-key={unit.key}
+      data-e2e-knowledge-diagnostics={
+        import.meta.env.VITE_DRORA_E2E_STORE_BRIDGE === "1"
+          ? JSON.stringify({
+              running: unit.isRunning,
+              timelineOnly: unit.timelineOnly,
+              assistantState: latestAssistantTextRow?.state ?? "none",
+              turnCitationCount: turnCitations.length,
+              headerSourceCommand: Boolean(unit.header?.sourceCommandId),
+              users: unit.visibleUserInputs.map((row) => ({
+                turnMatches: row.turnId === unit.turnId,
+                origin: row.origin,
+                hasSourceCommand: Boolean(row.sourceCommandId),
+                headerMatches:
+                  !unit.header?.sourceCommandId ||
+                  row.sourceCommandId === unit.header.sourceCommandId,
+                receiptCount: row.evidenceRefs?.length ?? 0,
+                quoteCount: row.conversationQuotes?.length ?? 0,
+                hasManifest: row.text.includes(KNOWLEDGE_SOURCE_MANIFEST_HEADER),
+              })),
+            })
+          : undefined
+      }
       data-highspeed-gradient={showHighspeedAnimatedGradient ? "true" : undefined}
       className={cn(
         "relative mx-auto flex w-full flex-col gap-5 px-4 @md/conversation:px-6 pb-5",
@@ -1667,6 +1781,14 @@ function ConversationTurnGroupImpl({
               rows={unit.browserTurnEndRows}
               context={assistantRowContext}
               assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
+            />
+          ) : null}
+          {canRenderAssistantActions && context.sessionId && context.workspaceKey ? (
+            <KnowledgeAnswerSources
+              citations={turnCitations}
+              assistantText={assistantCopyText ?? ""}
+              sessionId={context.sessionId}
+              workspaceKey={context.workspaceKey}
             />
           ) : null}
           {canRenderAssistantActions && latestAssistantTextRow ? (

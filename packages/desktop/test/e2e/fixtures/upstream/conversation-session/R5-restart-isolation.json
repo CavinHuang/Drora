@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "caseName": "R5-restart-isolation",
+  "spec": "./test/e2e/acceptance/r5-restart-isolation.test.ts",
+  "fixtures": [
+    {
+      "id": "r5-restart-isolation-title",
+      "description": "Deterministic session title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title generation is outside the evidence authority chain"
+      },
+      "maxMatches": 12,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"R5 Restart Isolation E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r5-restart-isolation-session-start",
+      "description": "Initialize the first real CLI session before any Vault handoff",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply only establishes the session; receipts stay host-issued"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R5_SESSION_START_MARKER"],
+        "bodyIncludes": ["R5_SESSION_START_MARKER"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R5TurnAlphaQuote2026",
+          "R5TurnBetaQuote2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R5_SESSION_START_MARKER: acknowledged, the first real session is idle and ready for two isolated evidence turns.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r5-restart-isolation-round-a",
+      "description": "G35 round 1: only the alpha note excerpt reaches the model; reply carries a plain [1]",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply lets the real CLI admission project the turn citations; the beta note must stay excluded"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "请仅依据附带的 Obsidian 可信证据回答",
+          "R5TurnAlphaQuote2026",
+          "R5-Restart-Alpha-Note.md"
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R5TurnBetaQuote2026",
+          "R5-Restart-Beta-Note.md"
+        ],
+        "lastUserMessageIncludes": ["请仅依据附带的 Obsidian 可信证据回答"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-round-a\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-round-a\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R5_ROUND_A_REPLY: the alpha note is the only verified source of this turn [1].\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-round-a\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r5-restart-isolation-round-b",
+      "description": "G35 round 2: only the beta note excerpt reaches the model; same display number [1] must not borrow round-1 receipts",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply keeps display [1] identical while the beta excerpt stays the only authority"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": [
+          "请仅依据附带的 Obsidian 可信证据回答",
+          "R5TurnBetaQuote2026",
+          "R5-Restart-Beta-Note.md"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"],
+        "lastUserMessageIncludes": ["请仅依据附带的 Obsidian 可信证据回答"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-round-b\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-round-b\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R5_ROUND_B_REPLY: the beta note is the only verified source of this turn [1].\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-round-b\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r5-restart-isolation-session-second",
+      "description": "G42 second session: a plain evidence-free turn in an independent real session",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply proves the second session renders no citation buttons without receipts"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R5_S2_QUESTION"],
+        "bodyIncludes": ["R5_S2_QUESTION"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "请仅依据附带的 Obsidian 可信证据回答",
+          "R5TurnAlphaQuote2026",
+          "R5TurnBetaQuote2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-session-second\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-session-second\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R5_S2_REPLY: plain answer in the independent second session without any trusted source.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-session-second\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r5-restart-isolation-restart-resume",
+      "description": "G12 after a full Electron restart the original session still accepts a new plain send",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply proves the recovered real session can still send; no receipt is attached"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R5_RESUME_QUESTION"],
+        "bodyIncludes": ["R5_RESUME_QUESTION"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r5-restart-isolation-restart-resume\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-restart-resume\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R5_RESUME_REPLY: the restarted original session accepted the new plain send.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r5-restart-isolation-restart-resume\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r5-restart-isolation-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

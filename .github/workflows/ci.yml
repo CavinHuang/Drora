@@ -32,8 +32,26 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
+      - name: Obsidian knowledge UI and evidence transport regression
+        # EC-2（e2e-a-2，2026-10-18 终审）修复：rootJwtInvalidBroadcastGate
+        # （ui-auth JWT 广播门控回归）此前不在任何 CI 通道，追加进本清单；
+        # knowledgeReviewView.test.tsx 是 .tsx——根 vitest 配置的 unit 工程
+        # include 只收 packages/*/test/**/*.test.ts，直接把文件名追加到下方
+        # 清单会被静默跳过（假接线，本地实证 17 文件不含它），必须走
+        # packages/ui 自带 vitest 配置（@ 别名 + 默认 .tsx 收集）单独执行。
+        run: |
+          pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeCitationTransaction.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts packages/ui/test/knowledgeCitationOpenFeedback.test.ts packages/ui/test/knowledgeEvidenceSendFailure.test.ts packages/ui/test/vaultQuoteRevealCodeMirror.test.ts packages/ui/test/knowledgeReviewProposalInput.test.ts packages/ui/test/oauthCachedSessionRestore.test.ts packages/ui/test/rootJwtInvalidBroadcastGate.test.ts
+          pnpm --dir packages/ui exec vitest run test/knowledgeReviewView.test.tsx
+      - name: Obsidian source-to-receipt integration and CLI admission gate
+        # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
+        # wiring suite in cli-build after its dependency closure has been built.
+        # EC-2（e2e-a-2，2026-10-18 终审）修复：knowledgeChunkerTokenizer
+        # （分词器虚词表回归）此前不在任何 CI 通道，追加进本清单。
+        run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReview.test.ts packages/services/test/obsidianVaultConfig.test.ts packages/services/test/knowledgeReceiptIsolation.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts packages/services/test/knowledgeChunkerTokenizer.test.ts
       - name: Gen UI asset checkout integrity (autocrlf)
         run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
+      - name: Architecture boundaries (changed)
+        run: pnpm architecture:check -- --changed
       # fmt 基线未定(上游从未统一格式化,2900+ 文件差异),进入 CI 只会产生
       # 永久红灯;待仓库决定格式化基线后再启用。
       # - name: Format check
@@ -87,6 +105,26 @@ jobs:
           pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
+      - name: Obsidian evidence session wiring (built CLI dependency closure)
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs apps/drora-cli/packages/bootstrap/test/knowledge-user-input-provenance.test.mjs
+      - name: S03 write-safety permission regressions
+        run: >-
+          node --import tsx --test
+          apps/drora-cli/packages/core/test/permission-p0-executor.test.ts
+          apps/drora-cli/packages/core/test/write-tier-policy.test.ts
+          apps/drora-cli/packages/core/test/permission-service-write-tier.test.ts
+          apps/drora-cli/packages/core/test/permission-suggestions.test.ts
+          apps/drora-cli/packages/core/test/memory-file-permission.test.ts
+          apps/drora-cli/packages/core/test/bash-command-rule-evaluator.test.ts
+          apps/drora-cli/packages/core/test/conversation-quotes.test.ts
+      # EC-2（e2e-a-2 / 阻塞项①，2026-10-18 终审）修复：core/tests vitest 目录此前
+      # 不在任何工作流执行集内（ci.yml 只跑 core/test 的 7 个 node--test 文件），
+      # cli-p0-5 改动 ToolCallStarted readOnly 省键契约时既有测试变红却被静默合入。
+      # 本步骤补上该 CI 通道：tool-call-started-capability 锁定省键契约回归，
+      # mcp-tool-bridge 锁定第三方 MCP readOnlyHint 不降 low 展示（cli-core-a-2）。
+      # 依赖上方 build-desktop-agent-cli.mjs 已产出 core/contracts dist 闭包。
+      - name: CLI core vitest regressions (ToolCallStarted capability + MCP tool bridge)
+        run: pnpm --dir apps/drora-cli/packages/core exec vitest run tests/tool-call-started-capability.test.ts tests/mcp-tool-bridge.test.ts
       - name: Obsidian plugin behavior tests (hook authorization semantics + stdin/stdout E2E)
         run: pnpm --dir apps/drora-cli/packages/obsidian-plugin run test
       - name: Official plugin hook runtime tests (manifest rewrite + hook host runner)

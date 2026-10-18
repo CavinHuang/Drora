@@ -19,26 +19,14 @@ import { KnowledgeHighlightedText } from "@/v4/vault/knowledge/KnowledgeHighligh
 import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
-import { toast as droraToast } from "@/components/ui/toast.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
-import {
-  createConversationSelectionReference,
-  dispatchConversationSelectionAdd,
-  type MarkdownSelectionTarget,
-} from "@/lib/conversationSelectionReference.js";
+import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 import {
   deriveAskBanners,
   type KnowledgeEvidenceInspectState,
-  type KnowledgeEvidenceQuote,
 } from "./knowledgeAskModel.js";
 import { cn } from "@/components/lib/utils.js";
-
-const toast = {
-  error: (message: string): void => {
-    droraToast(message, { variant: "warning" });
-  },
-};
 
 /** prepareEvidence/resolveCitation 的结构化失败 → 文案 key（不做二次猜测）。 */
 export function evidenceUnavailableMessageKey(status: string): string {
@@ -122,6 +110,8 @@ export function KnowledgeCandidateCard({
   inspect,
   sessionId,
   selectionTarget,
+  adding,
+  onAddToAgent,
   onOpenNote,
   onSelect,
   onVerify,
@@ -134,7 +124,10 @@ export function KnowledgeCandidateCard({
   inspect: KnowledgeEvidenceInspectState | undefined;
   sessionId?: string;
   selectionTarget: MarkdownSelectionTarget | null;
-  onOpenNote: (relativePath: string, reveal?: KnowledgeEvidenceQuote) => void;
+  adding: boolean;
+  /** Verify a fresh receipt, then attach it to the existing Agent composer. */
+  onAddToAgent: (candidate: KnowledgeArticleCandidate) => void;
+  onOpenNote: (candidate: KnowledgeArticleCandidate) => void;
   onSelect: (articleId: string) => void;
   onVerify: (candidate: KnowledgeArticleCandidate) => void;
   onFollowUp: (candidate: KnowledgeArticleCandidate) => void;
@@ -185,6 +178,7 @@ export function KnowledgeCandidateCard({
           size="xs"
           variant="outline"
           disabled={inspect?.phase === "checking"}
+          data-testid="ask-candidate-verify"
           onClick={() => onVerify(candidate)}
         >
           {inspect?.phase === "checking" ? (
@@ -201,7 +195,8 @@ export function KnowledgeCandidateCard({
             type="button"
             size="xs"
             variant="outline"
-            onClick={() => onOpenNote(verified.relativePath, verified.quote)}
+            data-testid="ask-candidate-open-note"
+            onClick={() => onOpenNote(candidate)}
           >
             <BookOpenText className="size-3.5" />
             {intl.formatMessage({ id: "vault.ask.candidate.openNote" })}
@@ -213,36 +208,10 @@ export function KnowledgeCandidateCard({
               type="button"
               size="xs"
               variant="ghost"
-              disabled={!selectionTarget}
-              onClick={() => {
-                if (!selectionTarget) {
-                  toast.error(intl.formatMessage({ id: "vault.ask.candidate.needSession" }));
-                  return;
-                }
-                // userselect 引用语义（spec §5.4）：普通引用，不是 Receipt、不获执行时复验；
-                // 该边界已通过按钮文案与 Tooltip 明示。
-                const reference = createConversationSelectionReference({
-                  contentType: "markdown",
-                  sourceKey: `vault:${candidate.relativePath}`,
-                  sourceTitle: displayCandidateTitle(candidate),
-                  path: candidate.relativePath,
-                  text: candidate.excerpt,
-                });
-                const result = dispatchConversationSelectionAdd({
-                  targetSessionId: selectionTarget.sessionId,
-                  workspaceKey: selectionTarget.workspaceKey,
-                  reference,
-                });
-                if (!result.ok) {
-                  toast.error(
-                    intl.formatMessage({
-                      id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
-                    }),
-                  );
-                }
-              }}
+              disabled={!selectionTarget || adding}
+              onClick={() => onAddToAgent(candidate)}
             >
-              <SendHorizonal className="size-3.5" />
+              {adding ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizonal className="size-3.5" />}
               {intl.formatMessage({ id: "vault.ask.candidate.addToAgent" })}
             </Button>
           </TooltipTrigger>

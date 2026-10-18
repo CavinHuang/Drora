@@ -24,6 +24,7 @@
     "build": "pnpm prepare:runtime-assets && pnpm prepare:cua-helper && pnpm run build:no-runtime-assets",
     "test:installer-nsh-smoke": "node scripts/test-installer-nsh-smoke.mjs",
     "test:pet-parity": "node test/e2e/pets/manual-review/pending/codex-pet-parity.test.mjs",
+    "test:pet-production": "node test/e2e/pets/manual-review/pending/production-pet.test.mjs",
     "pets:generate": "node --import tsx scripts/generate-codex-pet-builtins.mjs",
     "test:browser-background-activity-smoke": "electron scripts/browser-background-activity-smoke.mjs",
     "test:browser-hidden-guest-screenshot-smoke": "electron scripts/browser-hidden-guest-screenshot-smoke.mjs",

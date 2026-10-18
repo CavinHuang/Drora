@@ -1,6 +1,6 @@
 /* oxlint-disable max-lines -- Ordered native scenarios share one isolated Electron lifecycle; keeping the driver together preserves cleanup and evidence sequencing. */
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile, cp, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, cp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,7 +54,9 @@ await Promise.all([
 const cells = [];
 for (let row = 0; row < 11; row++)
   for (let column = 0; column < 8; column++) {
-    const svg = `<svg width="192" height="208" xmlns="http://www.w3.org/2000/svg"><ellipse cx="96" cy="112" rx="65" ry="70" fill="hsl(${row * 32},60%,60%)"/><circle cx="${64 + column * 8}" cy="92" r="10" fill="white"/></svg>`;
+    // 跳跃帧刻意改变轮廓，验证静止鼠标不会因逐帧 alpha 命中变化而反复退出 hover。
+    const radius = row === 4 && column % 2 === 1 ? 28 : 65;
+    const svg = `<svg width="192" height="208" xmlns="http://www.w3.org/2000/svg"><ellipse cx="96" cy="112" rx="${radius}" ry="70" fill="hsl(${row * 32},60%,60%)"/><circle cx="${64 + column * 8}" cy="92" r="10" fill="white"/></svg>`;
     cells.push({ input: Buffer.from(svg), left: column * 192, top: row * 208 });
   }
 const image = await sharp({
@@ -146,7 +148,9 @@ const application = await _electron.launch({
   timeout: 30000,
 });
 let childOutput = "";
-application.process().stderr?.on("data", (chunk) => { childOutput = (childOutput + String(chunk)).slice(-12000); });
+application.process().stderr?.on("data", (chunk) => {
+  childOutput = (childOutput + String(chunk)).slice(-12000);
+});
 const reports = [];
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const main = (fn, argument) => application.evaluate(fn, argument);
@@ -255,6 +259,115 @@ try {
       );
     },
   );
+  const art = pet.locator("#pet-art");
+  const expectPose = async (animation, row) => {
+    await until(
+      async () =>
+        (await art.getAttribute("data-state")) === animation &&
+        (row == null || (await art.getAttribute("data-row")) === String(row)),
+      `Expected ${animation}${row == null ? "" : ` on row ${row}`}`,
+    );
+  };
+  const pointerAt = async (x, y) => {
+    const b = await bounds();
+    await setCursor({ x: b.x + x, y: b.y + y });
+  };
+  const modeProjection = (mode) => ({
+    mode,
+    activeCount: mode === "working" ? 1 : 0,
+    attentionCount: mode === "attention" ? 1 : 0,
+  });
+  for (const version of [1, 2]) {
+    await update({ desktopPetCharacter: `custom:test-v${version}` });
+    await until(
+      async () => (await art.getAttribute("data-pet-id")) === `custom:test-v${version}`,
+      "Hover fixture version did not load",
+    );
+    await check(`v${version} hover enters and leaves every task animation`, async () => {
+      for (const [mode, animation, row] of [
+        ["idle", "idle", 0],
+        ["working", "running", 7],
+        ["attention", "waiting", 6],
+        ["completed", "review", 8],
+        ["error", "failed", 5],
+      ]) {
+        await pointerAt(-40, -40);
+        await publish(modeProjection(mode));
+        const lookAllowed = version === 2 && ["idle", "working"].includes(mode);
+        await expectPose(animation, lookAllowed ? null : row);
+        await pointerAt(64, 70);
+        await expectPose("jumping", 4);
+        await until(
+          async () => Number(await art.getAttribute("data-column")) > 0,
+          "Hover jump did not animate",
+        );
+        await pointerAt(-40, -40);
+        await expectPose(animation, lookAllowed ? null : row);
+        if (lookAllowed)
+          await until(
+            async () => Number(await art.getAttribute("data-row")) >= 9,
+            "Leaving hover did not resume v2 pointer look",
+          );
+      }
+    });
+    await check(
+      `v${version} hover survives silhouette/task changes and excludes badge`,
+      async () => {
+        await publish(modeProjection("attention"));
+        await expectPose("waiting", 6);
+        await pointerAt(33, 70);
+        await expectPose("jumping", 4);
+        await until(
+          async () => (await art.getAttribute("data-column")) === "1",
+          "Narrow silhouette frame did not render",
+        );
+        assert.equal(await art.getAttribute("data-state"), "jumping");
+        await publish(modeProjection("error"));
+        await until(
+          async () => (await pet.locator("#pet").getAttribute("data-mode")) === "error",
+          "Task update did not arrive during hover",
+        );
+        await expectPose("jumping", 4);
+        await pointerAt(-40, -40);
+        await expectPose("failed", 5);
+        await pointerAt(64, 70);
+        await expectPose("jumping", 4);
+        await publish(modeProjection("attention"));
+        const badge = await pet.locator("#badge").boundingBox();
+        assert.ok(badge, "Attention badge must be visible");
+        await pointerAt(badge.x + badge.width / 2, badge.y + badge.height / 2);
+        await expectPose("waiting", 6);
+      },
+    );
+    await check(
+      `v${version} drag overrides hover; release and reduced motion restore jump`,
+      async () => {
+        for (const [dx, animation, row] of [
+          [16, "running-right", 1],
+          [-16, "running-left", 2],
+        ]) {
+          await pointerAt(64, 70);
+          await expectPose("jumping", 4);
+          await pet.mouse.move(64, 70);
+          await pet.mouse.down();
+          await pointerAt(64 + dx, 70);
+          await pet.mouse.move(64 + dx, 70);
+          await expectPose(animation, row);
+          await pet.mouse.up();
+          await expectPose("jumping", 4);
+        }
+        await pet.emulateMedia({ reducedMotion: "reduce" });
+        await expectPose("jumping", 4);
+        assert.equal(await art.getAttribute("data-column"), "0");
+        await pointerAt(-40, -40);
+        await expectPose("waiting", 6);
+        await pointerAt(64, 70);
+        await expectPose("jumping", 4);
+        assert.equal(await art.getAttribute("data-column"), "0");
+        await pet.emulateMedia({ reducedMotion: "no-preference" });
+      },
+    );
+  }
   await publish(snapshot());
   await check("3px diagonal jitter remains a click and opens an escaped task tray", async () => {
     const before = await bounds();
@@ -546,7 +659,7 @@ try {
   );
   if (referenceNames.length)
     await check(
-      "actual installed Codex WebP atlases decode and render through the production loader",
+      "actual installed Codex WebP atlases render, hover-jump and restore through the production loader",
       async () => {
         await pet.emulateMedia({ reducedMotion: "reduce" });
         for (const name of referenceNames) {
@@ -562,6 +675,34 @@ try {
             `Original Codex pack ${name} did not render its waiting row`,
           );
           await pet.screenshot({ path: join(artifacts, `codex-reference-${name}.png`) });
+          const pack = join(root, "pets", name);
+          const manifest = JSON.parse(await readFile(join(pack, "pet.json"), "utf8"));
+          const pixels = await sharp(join(pack, manifest.spritesheetPath ?? "spritesheet.webp"))
+            .extract({ left: 0, top: 6 * 208, width: 192, height: 208 })
+            .ensureAlpha()
+            .raw()
+            .toBuffer();
+          // 原版宠物轮廓不同；从正在显示的 waiting 帧选择真实不透明点，避免硬编码命中空气。
+          let hit = null;
+          for (let y = 0; y < 208; y++)
+            for (let x = 0; x < 192; x++) {
+              if (pixels[(y * 192 + x) * 4 + 3] < 128) continue;
+              const distance = (x - 96) ** 2 + (y - 104) ** 2;
+              if (!hit || distance < hit.distance) hit = { x, y, distance };
+            }
+          assert.ok(hit, `Original Codex pack ${name} has no visible waiting sprite`);
+          const size = await pet.locator("#pet").evaluate((element) => ({
+            width: element.offsetWidth,
+            height: element.offsetHeight,
+          }));
+          await pointerAt(
+            8 + ((hit.x + 0.5) * size.width) / 192,
+            8 + ((hit.y + 0.5) * size.height) / 208,
+          );
+          await expectPose("jumping", 4);
+          await pet.screenshot({ path: join(artifacts, `codex-hover-${name}.png`) });
+          await pointerAt(-40, -40);
+          await expectPose("waiting", 6);
         }
         await update({ desktopPetCharacter: "custom:test-v2" });
         await pet.emulateMedia({ reducedMotion: "no-preference" });
@@ -648,7 +789,18 @@ try {
     );
   });
 } catch (error) {
-  await writeFile(join(artifacts, "failure-process.json"), JSON.stringify({ exitCode: application.process().exitCode, signalCode: application.process().signalCode, stderr: childOutput }, null, 2));
+  await writeFile(
+    join(artifacts, "failure-process.json"),
+    JSON.stringify(
+      {
+        exitCode: application.process().exitCode,
+        signalCode: application.process().signalCode,
+        stderr: childOutput,
+      },
+      null,
+      2,
+    ),
+  );
   await writeFile(
     join(artifacts, "failure-state.json"),
     JSON.stringify(await state().catch(() => null), null, 2),

@@ -121,6 +121,36 @@ Codex rows and holds (milliseconds) are exact reference values:
   event was delivered. Pointer cancel/lost capture finishes dragging, never clicks.
   Ignore non-primary and Ctrl-primary presses. Suppress the synthetic click after
   a drag; keyboard activation still works.
+- Hover acceptance applies to both v1 and v2: entering the visible sprite starts
+  row 4, including while a task is running/waiting/failed/ready. A task update
+  during hover changes the underlying presentation without interrupting jumping;
+  leaving restores the latest task animation. Re-entering starts jumping again.
+  Hovering the task badge does not count as hovering the sprite. A stationary
+  pointer must not toggle hover as animation frames change the sprite silhouette.
+  Reduced motion keeps the representative jump cell (row 4, column 0) static.
+  Dragging left/right selects rows 2/1, suppresses v2 look poses, and release over
+  the sprite resumes hover. These are renderer/native-port E2E acceptance cases;
+  injected-cursor evidence must remain separate from physical OS-pointer evidence.
+
+```mermaid
+sequenceDiagram
+  participant N as Native pointer owner
+  participant P as Pet preload hit test
+  participant A as Animation player
+  participant T as Task presentation
+  N->>P: Pointer position in window DIP
+  P->>A: Sprite hover entered
+  A->>A: Jumping (row 4)
+  T->>A: Latest task mode (presentation only)
+  A->>A: Keep jumping while hovered
+  P->>A: Admitted drag direction
+  A->>A: Drag row 1 or 2 takes priority
+  P->>A: Drag ended; recompute hover
+  N->>P: Pointer leaves sprite
+  P->>A: Hover false
+  A->>A: Resume latest task mode / eligible v2 look
+```
+
 - Badge activation follows the same admitted primary-pointer rule. Ctrl/non-primary
   clicks and cancelled/lost-capture badge gestures never open the tray; Enter,
   Space and accessibility activation remain available.

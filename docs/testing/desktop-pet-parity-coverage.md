@@ -10,6 +10,27 @@ source invalidation, configuration races, visibility and disposal, zh/en and the
 Quick Chat, voice and orb-only throw physics are explicitly excluded by the user.
 Session ownership and Web replay semantics stay unchanged.
 
+Hover acceptance (2026-10-18): for both custom v1 and v2, explicitly assert
+enter/animated row 4, exit to each of the five task modes, task updates while
+hovered, re-entry, badge exclusion, reduced-motion jump, and left/right drag
+priority followed by hover restoration. The native candidate drives the actual
+preload through its injected global-cursor port; this does not substitute for
+physical OS-pointer acceptance. The current `@oai/sky` initialization still fails
+with `Module not found`, so physical mouse and multi-monitor checks remain open.
+When installed Codex reference packs are supplied, each original atlas must also
+enter the actual jump row on an opaque sprite point and return to waiting on
+exit; retain a hover screenshot per original pack.
+
+Executed 2026-10-18: standard run `pet-parity-1792314657885` passed 25 scenarios;
+ASAR run `pet-parity-1792314749044` passed 26, including hover entry/exit for all
+nine original Codex v2 atlases. Each original has a `codex-hover-<name>.png` in
+that run's artifact directory. The six added v1/v2 cases cover all five task
+modes, animated jumps, changing silhouettes, task updates while hovered, badge
+exclusion, both drag directions, re-entry/release restoration and reduced motion.
+No production behavior change was needed; these tests exercise the existing
+player and native pointer port. Final `pnpm typecheck`, desktop `typecheck:e2e`
+and architecture checks passed; `pnpm lint` reported 394 warnings and 0 errors.
+
 Full-format migration acceptance: all four saved built-in IDs resolve standard
 Codex v1 manifests and 1536×1872 atlases, use the exact shared nine animation
 tracks and 192/208 aspect ratio; custom v1/v2 switching uses the same resolver.
@@ -56,7 +77,7 @@ candidate cursor scenarios are explicitly the injected-cursor checks above.
 | Scoped `oxfmt --check`, `git diff --check`, website locale script syntax | Passed                                                                                   |
 
 The final native run is retained under
-`packages/desktop/.e2e-artifacts/pet-parity-1792235803673/`, including its JSON
+`packages/desktop/.e2e-artifacts/pet-parity-1792245810548/`, including its JSON
 report and distinct light/dark tray screenshots. The settings run report and
 screenshots are in the temporary `drora-pet-settings-1792235814456` directory.
 Screenshots were inspected for responsive layout and both tray themes.
@@ -83,6 +104,11 @@ Python/Pillow are still required. See [skill verification](desktop-pet-creation-
 
 ## Full-format migration evidence
 
+The final workspace reran all 32 Node tests, typecheck and lint successfully.
+The four built-in manifests and atlases reproduce byte-for-byte (8/8 files).
+ASAR rerun `pet-parity-1792245810548` passed all 20 scenarios again with the nine
+original Codex v2 atlases, using the restored dependency environment.
+
 - The nine original v2 WebP atlases were read from the installed Codex ASAR into a
   temporary reference directory, then imported into an isolated library. All nine
   decoded and resolved with their original version. These assets are not shipped.
@@ -106,3 +132,35 @@ pnpm --filter @drora/desktop test:pet-parity --packaged --codex-reference-root <
 `--packaged` uses the installed target Sharp closure and @electron/asar. Reference
 inputs are copied only into isolated test directories. Standard replay needs no
 Codex installation and retains its synthetic v1/v2 fixtures.
+
+## Production application assembly
+
+`pnpm --filter @drora/desktop build:no-runtime-assets` passed for the complete
+desktop Main, host, scheduler, preloads and renderer, including the mobile-web
+build prerequisite. Existing chunk-size warnings do not fail the build.
+
+The pending candidate `production-pet.test.mjs` launches that actual production
+Main with isolated settings, Electron data and a copied pet pack. Its bootstrap
+blocks protocol registration and Windows registry installation; the pet
+extension, windows, preload and IPC remain the production implementations. It verifies:
+
+- A persisted custom selection loads through the production extension/preload.
+- The actual main-window IPC lists the custom pack and previews all four built-ins.
+- Settings IPC switches to a standard built-in and resizes the native window.
+- Disabling destroys the pet; re-enabling recreates the selected custom pet.
+
+The original Codex v2 `bsod` atlas passed all five checks in
+`%TEMP%/drora-pet-production-JX0fn1`, including a rendered screenshot and JSON
+result. The standard replay copies the built-in Violet v1 pack into the custom
+library, so it requires no Codex installation; it passed the same five checks in
+`%TEMP%/drora-pet-production-53OZYB`. Run after the desktop build:
+
+```sh
+pnpm --filter @drora/desktop test:pet-production
+pnpm --filter @drora/desktop test:pet-production --codex-reference-root <reference-root>
+```
+
+This checks the production pet assembly. The clean worktree has no prepared
+Agent runtime, and the main chat's storage preparation reports
+`unsupported_runtime`; chat readiness and a full installer are not claimed by
+this check. It complements the standalone pet ASAR replay above.

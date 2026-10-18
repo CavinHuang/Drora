@@ -770,3 +770,30 @@ onSendMessage → commands.sendTeamMessage,唯一通道 = lead 邮箱投递);ui-
 3. **加号菜单入口**:ChatPromptActionMenu QUICK_COMMANDS 增「组建团队」(chat.composer.
    addTeam),照 /workflow 双入口先例——选中即插入 /team 命令标签,可用性以 CLI
    catalog 为权威(灰度关 / child 上下文无候选时入口自然消失)。
+
+### 实现登记(2026-10-18,M3 内核落地)
+
+journal 持久化/resume 恢复/退休拒绝表/awaitingFeedback 回填已实现(提交 0fa21ddc;
+并行卡 2c776c09 同期落地 agent↔task 关联展示修复与草案源头校验 E13/E14,合并态
+core 79 + ui 52 测试绿)。补充登记:
+
+1. **journal 事件清单(十五事件基础上实作 +3)**:escalated/archived(hub 已有动作点,
+   不记则恢复后丢失「升级待决/归档禁止自动重建」语义,§2.6)与 message_delivered
+   (送达 ack 是邮箱数据事实,§16.3 ack 只认注入;不记则恢复后重复投递)。
+2. **恢复时机约束**:install 为新会话与 resume 共用装配点,restore 随装配调用一次、
+   fire-and-forget——装配完成→恢复完成窗口内团队工具/命令看到「无 team」,冷快照可能
+   缺 team 键,恢复完成后经 TeamStateChanged delta 收敛;窗口内已创建新 team 时恢复让位
+   (adoptRestored 不覆盖现役记录)。PR-3.2 冷恢复 E2E 须覆盖此窗口。
+3. **journal 刷盘为异步串行**(persistMailboxEntry 同款契约):入队后刷盘前崩溃丢最后几条
+   事实,只退化崩溃恢复;E12 全同步持久化仍待接线(install persistMailboxEntry 自 v1 缺席)。
+4. **成员运行态不入 journal 的推论**:恢复后成员一律推导 terminal(诚实态);活跃 team 冷
+   恢复为 idle 而非 active;复活/重跑走既有 resume 链路由边缘事件重驱;冷恢复单次重试
+   依赖重放保留的 attemptId/recoveryRetried(已持久化),自动触发接线属 PR-1.6 面。
+5. **note 边界**:bootstrap reviseTeamPlan handler v1 不消费 wire note;面板将 note 拼进
+   composer 预填(「要调整什么?
+{note}」)避免用户输入丢失,note 仍照常上 wire;hub 未来
+   消费 note 时改为仅预填追问文案。
+6. **预填回调契约**:仅传文本(string),替换 vs 追加语义由宿主实现决定(先例:knowledge
+   handoff 非空拒绝/suggested prompt insert-replace);宿主接线点=AnimatedSidePanePanel
+   →会话 composer 链路(候选:store requestComposerTextInsert 扩展,或 knowledge-handoff
+   式目标会话 window 事件)——未接线期间 revise 行为=只发命令,与接线前一致。

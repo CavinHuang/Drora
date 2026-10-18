@@ -1,4 +1,5 @@
 import { BUILTIN_DRORA_SLASH_COMMAND_HELP_ENTRIES, type DroraSlashCommand } from "@drora/shared";
+import { BUILTIN_TEAM_COMMAND_NAME } from "../builtin-team-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import {
   listDroraCustomCommands,
@@ -17,6 +18,12 @@ export interface ListProtocolSlashCommandsOptions extends ListDroraCustomCommand
    * 必须保持原样。协议服务端一律从 appRuntimePreferences 传入显式布尔。
    */
   dynamicWorkflowEnabled?: boolean;
+  /**
+   * Agents Team 灰度门（specs/agents-team.md §6.4）。**只有显式 false 才剔除** 内置
+   * `team`：缺席该字段（TUI / 未参与灰度的调用方）必须保持原样。协议服务端一律从
+   * appRuntimePreferences 传入显式布尔。
+   */
+  agentsTeamEnabled?: boolean;
 }
 
 export async function listProtocolSlashCommands(
@@ -27,7 +34,8 @@ export async function listProtocolSlashCommands(
   // 不会在门关着时借自定义命令的身份漏回目录。
   const builtins = listAppProtocolBuiltinSlashCommands().filter(
     (command) =>
-      options.dynamicWorkflowEnabled !== false || command.name !== BUILTIN_WORKFLOW_COMMAND_NAME,
+      (options.dynamicWorkflowEnabled !== false || command.name !== BUILTIN_WORKFLOW_COMMAND_NAME) &&
+      (options.agentsTeamEnabled !== false || command.name !== BUILTIN_TEAM_COMMAND_NAME),
   );
   let customCommands: Awaited<ReturnType<typeof listDroraCustomCommands>>["commands"] = [];
   try {

@@ -1,8 +1,13 @@
 import { join } from "node:path";
 import {
+  BUILTIN_TEAM_COMMAND_NAME,
+  expandBuiltinTeamCommandPrompt,
+} from "./builtin-team-command.js";
+import {
   BUILTIN_WORKFLOW_COMMAND_NAME,
   expandBuiltinWorkflowCommandPrompt,
 } from "./builtin-workflow-command.js";
+import { resolveAgentsTeamEnabled } from "./app/drora-team/install.js";
 
 const BUILTIN_PROMPT_COMMAND_PATTERN = /^\/([^\s]+)(?:\s+([\s\S]*))?$/;
 const INIT_COMMAND_NAME = "init";
@@ -15,6 +20,8 @@ export interface ResolveDroraBuiltinPromptCommandOptions {
    * 普通 prompt 交给模型，与目录侧剔除它的结论一致（DWG-03）。
    */
   dynamicWorkflowEnabled?: boolean;
+  /** Agents Team 灰度(create-app 从 settings agentsTeam.enabled 传入;缺省回落 env)。 */
+  agentsTeamEnabled?: boolean;
   workingDirectory?: string;
 }
 
@@ -59,6 +66,19 @@ export function resolveDroraBuiltinPromptCommandInvocation(
     return {
       name: BUILTIN_WORKFLOW_COMMAND_NAME,
       prompt: expandBuiltinWorkflowCommandPrompt(invocation.args),
+    };
+  }
+
+  if (invocation.name === BUILTIN_TEAM_COMMAND_NAME) {
+    // 灰度与装配接缝同门(resolveAgentsTeamEnabled:显式值优先于 env DRORA_AGENTS_TEAM=1,
+    // specs/agents-team.md §11 v1 过渡;帮助表条目与命令注册同门,01-design §1.1);
+    // settings 键 agentsTeam.enabled 的设置面 M2 接入后改走同一来源(只改调用点传值)。
+    if (!resolveAgentsTeamEnabled()) {
+      return undefined;
+    }
+    return {
+      name: BUILTIN_TEAM_COMMAND_NAME,
+      prompt: expandBuiltinTeamCommandPrompt(invocation.args),
     };
   }
 

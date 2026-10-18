@@ -119,3 +119,4 @@ export interface SkillConfig {
   metadataBudget: number;
   roots: string[];
 }
+export * from "./agents-team-skill.js";

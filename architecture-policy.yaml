@@ -101,6 +101,19 @@ modules:
     layers: { app: "." }
     owner: drora
 
+  # Agents Team 面板（ui-team）：消费 v4 team 投影的唯一 UI 面；边界见 CONTRACT.md。
+  - id: ui-team
+    roots: [packages/ui/src/team]
+    managed: true
+    requires: [ui, shared]
+    publicEntrypoints:
+      [
+        packages/ui/src/team/contract.ts,
+        packages/ui/src/team/index.ts,
+      ]
+    layers: { app: "." }
+    owner: drora
+
   - id: services-drora-extensions
     roots: [packages/services/src/drora-extensions]
     managed: true
@@ -258,3 +271,11 @@ exceptions:
     rule: disable-count
     paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]
     reason: Allow the control-character validation regex and the single-file parameter-control runtime.
+  - id: team-panel-size
+    rule: max-file-lines
+    paths: [packages/ui/src/team/TeamPanel.tsx]
+    reason: TeamPanel 是 team 的唯一显示面（状态头/动作区/任务板/成员卡/消息尾窗共享同一投影模型与命令上抛链）；2026-10-18 审查修复兑现设计 §3.3.2 全部承诺（attention 卡/头像点/依赖缩进/artifactRefs/尾窗）后超线，拆文件会割裂单一派生通道。
+  - id: team-panel-lint
+    rule: disable-count
+    paths: [packages/ui/src/team/TeamPanel.tsx]
+    reason: 上一条豁免的对应 lint disable（与 genUiTweakRuntime 同款成对登记）。

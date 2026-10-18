@@ -71,6 +71,8 @@ import {
   type OpenScopedWorkflowActorSessionSideTabRequest,
   type OpenScopedWorkflowArtifactSideTabRequest,
   type OpenScopedWorkflowWorkspaceSideTabRequest,
+  openTeamSidePane,
+  type OpenScopedTeamSideTabRequest,
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
@@ -1012,6 +1014,44 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState],
   );
 
+  /**
+   * 打开（或聚焦）一条对话的 team 面板 tab（specs/agents-team.md §10）。
+   *
+   * PR-2.4c 起对话侧触发已接线：staged 草案边沿的监听在 App 挂载的
+   * TeamStagedAutoOpenBridge（ui-team 模块）里，经本 handler 打开面板；本 hook 另回出
+   * `isTeamSidePaneOpenForActiveTask` 供桥判「仅当面板未开」。
+   */
+  const handleOpenTeamSidePane = useCallback(
+    (request: OpenScopedTeamSideTabRequest) => {
+      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
+      setIsSidePaneCollapsed(false);
+      commitOpenedSidePaneState((current) =>
+        openTeamSidePane(current, {
+          ...request,
+          workspaceKey,
+        }),
+      );
+      logger.debug("[App] 打开团队右侧 tab", {
+        parentSessionId: request.parentSessionId,
+        workspaceKey,
+      });
+    },
+    [commitOpenedSidePaneState],
+  );
+
+  /**
+   * 活动会话的 team tab 是否已开（PR-2.4c）：TeamStagedAutoOpenBridge 的「仅当面板未开」
+   * 门。team tab 身份是 (workspaceKey, parentSessionId)——本 hook 本就 per-workspace，
+   * 按 parentSessionId 匹配即可。
+   */
+  const isTeamSidePaneOpenForActiveTask = useMemo(
+    () =>
+      sidePaneState?.tabs.some(
+        (tab) => tab.type === "team" && tab.parentSessionId === activeTaskId,
+      ) ?? false,
+    [activeTaskId, sidePaneState],
+  );
+
   const handleOpenWorkflowActorSession = useCallback(
     (request: OpenScopedWorkflowActorSessionSideTabRequest) => {
       const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
@@ -1637,6 +1677,8 @@ export function useAppPanels(options: {
     handleOpenWorkflowActorSession,
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
+    handleOpenTeamSidePane,
+    isTeamSidePaneOpenForActiveTask,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

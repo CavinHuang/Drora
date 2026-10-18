@@ -175,6 +175,9 @@ export const SessionEventType = {
   CheckpointCreated: "checkpoint_created",
   TargetChanged: "target_changed",
   TargetCompletionVerification: "target_completion_verification",
+  // Agents Team(δ 类接缝,specs/agents-team.md §11 v2):hub 状态变化通知,
+  // v4 投影据此重算 team 键(workflowRuns 事件先例);additive 枚举加值。
+  TeamStateChanged: "team_state_changed",
   SubagentSpawned: "subagent_spawned",
   SubagentMessage: "subagent_message",
   SubagentStopped: "subagent_stopped",

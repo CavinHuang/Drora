@@ -20,12 +20,14 @@ import { createNodeSkillAdapter } from "@drora/adapters/skills";
 import { createMcpAdapter } from "@drora/adapters/mcp";
 import {
   AgentRuntime,
+  createToolRegistry,
   normalizeAgentProfiles,
   PermissionService,
   buildPluginReferenceCatalog,
   writeWorkflowDraft,
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
+  type AgentRuntimeDeps,
 } from "@drora/core";
 import { createModelTelemetry } from "@drora/telemetry";
 import {
@@ -101,6 +103,9 @@ import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveDroraCustomCommandPrompt } from "../custom-command-prompt.js";
 import { resolveDroraBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
+// 接缝 α（specs/agents-team.md §11）：Agents Team 装配——deps 注入团队工具注册表，
+// 构造后接线 hub/私有端口。上游镜像文件零编辑（v2 组装根集中制）。
+import { installDroraAgentsTeam, resolveAgentsTeamEnabled } from "./drora-team/install.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
 import {
   loadPluginAgentTemplates,
@@ -167,18 +172,19 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
   const sessionId = options.sessionId ?? createSessionId();
   const traceContext = options.traceContext ?? createRootTraceContext({ sessionId });
   const workingDirectory = resolve(options.runtimeConfig?.workingDirectory ?? process.cwd());
-  const configResult = resolveEffectiveConfigResult(
-    createConfig({
-      env: options.env,
-      projectConfigPath: options.projectConfigPath,
-      workingDirectory,
-      workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
-      skipUserConfig: options.skipUserConfig,
-      userConfigPath: options.userConfigPath,
-      cliOverrides: createConfigCliOverrides(options),
-    }),
-    options,
-  );
+  const fileConfigResult = createConfig({
+    env: options.env,
+    projectConfigPath: options.projectConfigPath,
+    workingDirectory,
+    workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
+    skipUserConfig: options.skipUserConfig,
+    userConfigPath: options.userConfigPath,
+    cliOverrides: createConfigCliOverrides(options),
+  });
+  // Agents Team 灰度 settings 值(adapters schema agentsTeam.enabled;窄化前读取,
+  // spec §6.4 契约键单一出处——装配门与 /team 分发门同源)。
+  const agentsTeamSetting = fileConfigResult.config.agentsTeam?.enabled;
+  const configResult = resolveEffectiveConfigResult(fileConfigResult, options);
   const loggerFactory = options.loggerFactory ?? createNodeLoggerFactory({ env: options.env });
   const logger = loggerFactory.createLogger("drora").child({
     ...traceContextToLogContext(traceContext),
@@ -788,7 +794,14 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       registry: options.providerRegistry,
       currentSelection: () => getRuntime().getSessionModelSelection(),
     });
-    runtime = new AgentRuntime(sessionId, runtimeConfig, {
+    // 接缝 α/2：team 注册表先于 runtime 构造（deps.toolRegistry 注入，内建与团队工具同表）。
+    // v1 灰度：默认关闭（agentsTeam.enabled 设置面在 M2 接入）；开启即装配。
+    // 灰度设置面 M2.5 接入(spec §6.4):settings agentsTeam.enabled 显式值优先,
+    // 缺省回落 env DRORA_AGENTS_TEAM=1(裁决单一出处 resolveAgentsTeamEnabled)。
+    const agentsTeamEnabled = resolveAgentsTeamEnabled(agentsTeamSetting);
+    const agentsTeamToolRegistry = agentsTeamEnabled ? createToolRegistry() : undefined;
+    const runtimeAgentDeps: AgentRuntimeDeps = {
+      ...(agentsTeamToolRegistry ? { toolRegistry: agentsTeamToolRegistry } : {}),
       ...(options.readSubagentRuntimeConfig
         ? {
             loadAgentDefinitions: async (input) => {
@@ -878,7 +891,19 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       topicResourcePort: options.topicResourcePort,
       appVersion,
       traceContext,
-    });
+    };
+    runtime = new AgentRuntime(sessionId, runtimeConfig, runtimeAgentDeps);
+    // 接缝 α/3：构造后装配 Agents Team（hub/私有端口/派发通道；registry 缺席即灰度关，零开销）。
+    if (agentsTeamToolRegistry !== undefined) {
+      installDroraAgentsTeam({
+        runtime: runtime as unknown as Parameters<typeof installDroraAgentsTeam>[0]["runtime"],
+        leadDeps: runtimeAgentDeps as Parameters<typeof installDroraAgentsTeam>[0]["leadDeps"],
+        registry: agentsTeamToolRegistry,
+        leadPermissionMode:
+          runtimeConfig.mode === "plan" ? "build" : (runtimeConfig.mode as "build" | "edit" | "yolo" | "guarded" | "auto"),
+        membersMax: fileConfigResult.config.agentsTeam?.membersMax,
+      });
+    }
     markRuntimeConstructed({
       hasInjectedModelAdapter: options.modelAdapter !== undefined,
       sessionId,
@@ -898,6 +923,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
           // 剔除，但用户仍可手打命令名，两条路径必须给出同一个结论。独立 CLI 的 TUI 与 headless
           // 按 --workflow-mode 显式取值；缺席（进程内嵌入方）不设门禁，见 runtimeConfig 字段注释。
           dynamicWorkflowEnabled: runtimeConfig.dynamicWorkflowEnabled,
+          agentsTeamEnabled: agentsTeamSetting,
           workingDirectory,
         });
         if (builtin !== undefined) {

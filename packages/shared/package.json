@@ -28,6 +28,8 @@
     "./request-security": "./src/request-security-edition/index.ts"
   },
   "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

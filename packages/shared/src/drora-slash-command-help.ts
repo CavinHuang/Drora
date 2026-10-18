@@ -196,4 +196,14 @@ export const BUILTIN_DRORA_SLASH_COMMAND_HELP_ENTRIES: readonly BuiltinDroraSlas
     summary: "Design and launch a dynamic workflow for a task.",
     usage: "/workflow [what the workflow should accomplish]",
   },
+  {
+    details: [
+      "Stages an Agents Team plan (member roster + task DAG) for review, then spawns durable members on approval.",
+      "Without arguments it surfaces the team panel guidance without a model request.",
+    ],
+    name: "team",
+    summary: "Assemble an agent team for a goal.",
+    usage: "/team [goal]",
+  },
 ] as const;
+

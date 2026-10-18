@@ -194,3 +194,47 @@ export type {
   SessionEventSink,
 } from "@drora/contracts";
 export { LogLevel, SessionEventType } from "@drora/contracts";
+
+// Agents Team（specs/agents-team.md；v2 组装根集中制——bootstrap 经这些入口装配，上游镜像文件零编辑）
+export { TeamHub } from "./team/hub.js";
+export { createTeamMemberPort } from "./team/member-port.js";
+export { createTeamCollabToolEntries } from "./team/team-tools.js";
+export { teamPortError } from "./team/errors.js";
+export { TEAM_KERNEL_LIMITS } from "./team/types.js";
+export type { TeamInternalLimits, TeamMailboxEntry } from "./team/types.js";
+// PR-2.3a：hub 内部态 → v4 wire 投影的纯函数（bootstrap 投影桥经此消费；β 帧装配挂 PR-2.3b）。
+export {
+  DEFAULT_TEAM_PROJECTION_LIMITS,
+  mailboxTailWindowOf,
+  projectTeam,
+  trimBoardTasks,
+} from "./team/projection.js";
+export type {
+  TeamProjectionArtifactsInput,
+  TeamProjectionLimits,
+  TeamProjectionMailboxInput,
+  TeamProjectionMemberInput,
+  TeamProjectionRecordInput,
+  TeamProjectionTaskInput,
+} from "./team/projection.js";
+// M3 PR-3.1：journal 持久化与 lead resume 恢复（install.ts 经这些入口接线 journal 通道）。
+export {
+  createTeamJournalSessionStoreSink,
+  parseTeamJournalEntries,
+  readTeamJournalEvents,
+  replayTeamJournal,
+  restoreAgentsTeamFromJournal,
+  taskJournalFactOf,
+  TEAM_JOURNAL_ENTRY_TYPE,
+} from "./team/journal.js";
+export type {
+  TeamJournalEvent,
+  TeamJournalEventDraft,
+  TeamJournalPayload,
+  TeamJournalReplayResult,
+  TeamJournalRestoreOutcome,
+  TeamJournalSessionStoreSink,
+  TeamJournalTaskFact,
+  TeamJournalWriter,
+} from "./team/journal.js";
+export type { AgentRuntimeInternal } from "./runtime/internal.js";

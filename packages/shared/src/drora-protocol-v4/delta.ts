@@ -35,6 +35,7 @@ import {
   workflowRunSchema,
   workflowRunsStateSchema,
 } from "./workflow-runs.js";
+import { TEAM_SNAPSHOT_KEY, teamProjectionStateSchema } from "./team.js";
 
 // StatePatch：键级整体替换（Object.assign），键集合封闭。键内绝不深合并。
 export const statePatchSchema = z.object({
@@ -55,6 +56,12 @@ export const statePatchSchema = z.object({
   // workflow run 的实时运行态。容器本身不 strict，所以旧桌面收到这个新键只是**剥离一个键**、
   // 保住 patch 其余全部键——这正是它不需要任何版本偏斜防御的原因。
   workflowRuns: workflowRunsStateSchema.optional(),
+  // Agents Team 投影：与 workflowRuns 键同一条注释的语义——**键级整体替换**，容器非 strict，
+  // 旧端收到 team 键只是剥离它、保住 patch 其余全部键。不为 team 开 workflowRun.* 式两级
+  // 增量例外（delta.ts 头部注明该例外仅此一例）：team 键的字节量已被限额族有界
+  // （boardTasksMax / mailboxTail 尾窗 / messageMaxChars，见 team.ts TEAM_LIMITS）。
+  // 键名契约见 team.ts 的 TEAM_SNAPSHOT_KEY。
+  [TEAM_SNAPSHOT_KEY]: teamProjectionStateSchema.optional(),
   goal: goalStateSchema.nullable().optional(),
   plan: planStateSchema.nullable().optional(),
   // 软门禁：null = pending 清零(提示条消失);对象 = 待审核状态更新。

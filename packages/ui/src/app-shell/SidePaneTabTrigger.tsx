@@ -18,6 +18,7 @@ import {
   ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
+  UsersIcon,
   WaypointsIcon,
   Workflow as WorkflowIcon,
   XIcon,
@@ -36,6 +37,8 @@ import { Button } from "@/components/ui/button.js";
 import { BrowserUseTabIcon } from "@/app-shell/BrowserUseTabIcon.js";
 import { BrowserTabFavicon } from "@/app-shell/BrowserTabFavicon.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
+// 走 ui-team 公开入口（架构纪律：不深导入托管模块内部文件）。
+import { TeamTabStatusDot } from "@/team/index.js";
 
 // tab 默认按 156px 等宽排列；空间不足时以相同 grow/shrink 参数平均收缩到 60px，
 // 之后由外层滚动容器承接溢出，避免标题长度改变每个 tab 的宽度。
@@ -249,6 +252,9 @@ function SidePaneTabItemContent({
       <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
         {title}
       </span>
+      {/* PR-2.4c 面板开态徽标：team tab 标题带团队状态点（色 + sr-only 文字并行，
+          数据走父投影 team 键；非 team tab 零开销——不建 provider 不订阅）。 */}
+      {tab.type === "team" ? <TeamTabStatusDot tab={tab} /> : null}
       {isDiffPreviewTab(tab) ? (
         <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
           {diffBadgeLabel}
@@ -297,6 +303,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   // 元数据还没读回来）。所以用一枚固定的「交付物」图标，kind 的区分留给 tab 内部的头部与卡片。
   if (tab.type === "workflow-artifact") {
     return <PackageIcon className="size-3.5" />;
+  }
+  // team 面板是「一个团队的协作视图」（状态头 + 任务板 + 成员名单），与单个 run（Workflow）、
+  // 单个 actor（BotMessageSquare）都不同形；Users 点出「多名成员」的本体。
+  if (tab.type === "team") {
+    return <UsersIcon className="size-3.5" />;
   }
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
@@ -508,6 +519,10 @@ export function getSidePaneTabTitle(
     return (
       tab.title?.trim() || tab.artifactId || formatMessage({ id: "sidePane.workflowArtifact" })
     );
+  }
+  // team tab 不带任何数据（身份只是对话），标题恒为本地化名——团队名在面板状态头里跟投影走。
+  if (tab.type === "team") {
+    return formatMessage({ id: "sidePane.team" });
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;

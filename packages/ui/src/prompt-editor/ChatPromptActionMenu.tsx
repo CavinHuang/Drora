@@ -9,7 +9,7 @@ import { getSessionMentionWorkspaceScope } from "@/mentions/mentionPanelRouting.
 import { useChatViewActiveTaskProvider } from "@/v4/activeTaskProvider.js";
 import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "lexical";
-import { GoalIcon, Info, PaperclipIcon, PlusIcon, Workflow } from "lucide-react";
+import { GoalIcon, Info, PaperclipIcon, PlusIcon, UsersIcon, Workflow } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
@@ -29,6 +29,9 @@ import { usePluginsMentionProvider } from "@/mentions/providers/pluginsMentionPr
 const QUICK_COMMANDS = {
   goal: { id: "add-goal", labelId: "chat.goalBanner.label", Icon: GoalIcon },
   workflow: { id: "add-workflow", labelId: "chat.composer.addWorkflow", Icon: Workflow },
+  // PR-2.4c：/team 双入口之「加号菜单」（设计 01 §2 入口 2，「workflow 同款双入口」）。
+  // 可用性与 workflow 同门：CLI catalog 是权威（灰度关 / child 上下文无候选时不出现）。
+  team: { id: "add-team", labelId: "chat.composer.addTeam", Icon: UsersIcon },
 } as const;
 type QuickCommand = keyof typeof QUICK_COMMANDS;
 
@@ -235,6 +238,12 @@ export function ChatPromptActionMenu({
               slashCommands.some((entry) => normalizeSlashCommandValue(entry.name) === "workflow"),
             )
               ? (["workflow"] as const)
+              : []),
+            ...(offered(
+              "team",
+              slashCommands.some((entry) => normalizeSlashCommandValue(entry.name) === "team"),
+            )
+              ? (["team"] as const)
               : []),
           ]);
           selectionStateRef.current = inputApiRef.current?.getEditorState();

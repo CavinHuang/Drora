@@ -480,6 +480,39 @@ export interface OpenScopedWorkflowRunDirectorySideTabRequest extends OpenWorkfl
   remoteSessionId?: string;
 }
 
+/**
+ * 一条对话的 team 面板 tab（specs/agents-team.md §10：TeamPanel 是 team 的专属显示面）。
+ *
+ * 身份是**对话**（`parentSessionId`）：一条对话只有一个 team 视图，所以重复打开幂等地
+ * 聚焦同一个 tab——与 `workflow-directory` 同构。tab **不携带任何 team 数据**：面板自己读
+ * 父会话投影的 team 键（conversation snapshot.team，唯一数据通道，spec §10「不走第二条
+ * 真相通道」），因此冷恢复 / 断线 resync 后自动跟随最新投影，不存在冻结的过期名单可显示。
+ *
+ * GC：同 `workflow-run`，**没有**——team 投影缺席（旧 CLI / 灰度关 / 归档出投影）时面板
+ * 显示诚实空态而不是自动消失；可见性已按 `parentSessionId` 收窄，不会泄漏到别的对话里。
+ */
+export interface TeamSidePaneTab {
+  id: string;
+  type: "team";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+}
+
+export interface OpenTeamSideTabRequest {
+  parentSessionId: string;
+}
+
+export interface OpenScopedTeamSideTabRequest extends OpenTeamSideTabRequest {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
 export interface OpenScopedPlanDetailSideTabRequest extends OpenPlanDetailSideTabRequest {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -548,7 +581,8 @@ export type WorkspaceSidePaneTab =
   | WorkflowRunDirectorySidePaneTab
   | WorkflowActorSessionSidePaneTab
   | WorkflowWorkspaceSidePaneTab
-  | WorkflowArtifactSidePaneTab;
+  | WorkflowArtifactSidePaneTab
+  | TeamSidePaneTab;
 
 /**
  * Browser/browser-use 的页面与 CDP 生命周期依赖 `<webview>` 持续连接 DOM。
@@ -871,6 +905,26 @@ function createWorkflowRunDirectorySidePaneTab(
   };
 }
 
+function createTeamSidePaneTab(
+  options: OpenScopedTeamSideTabRequest & { workspaceKey: string },
+): TeamSidePaneTab {
+  return {
+    // 结构化 id：一条对话只有一个 team 视图，重复打开幂等聚焦同一 tab（同 workflow-directory）。
+    id: [
+      "team",
+      encodeSidePaneTabIdPart(options.workspaceKey),
+      encodeSidePaneTabIdPart(options.parentSessionId),
+    ].join(":"),
+    type: "team",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    parentSessionId: options.parentSessionId,
+  };
+}
+
 function createWorkflowActorSessionSidePaneTab(
   options: OpenScopedWorkflowActorSessionSideTabRequest & { workspaceKey: string },
 ): WorkflowActorSessionSidePaneTab {
@@ -1152,7 +1206,8 @@ function getVisibleSidePaneTabsByScope(
       tab.type === "workflow-run" ||
       tab.type === "workflow-actor-session" ||
       tab.type === "workflow-workspace" ||
-      tab.type === "workflow-artifact"
+      tab.type === "workflow-artifact" ||
+      tab.type === "team"
     ) {
       return tab.parentSessionId === scope.ownerTaskId;
     }
@@ -1984,6 +2039,23 @@ export function openWorkflowRunDirectorySidePane(
 }
 
 /**
+ * 打开或复用一条对话的 team 面板 tab。身份是对话，重复点击幂等聚焦（同 workflow-directory）。
+ *
+ * GC 同样**没有**：tab 不带 team 数据，面板每次挂载读实时投影的 team 键，投影缺席时显示
+ * 诚实空态——没有该回收的东西（见 TeamSidePaneTab 类型上的注释）。
+ */
+export function openTeamSidePane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenScopedTeamSideTabRequest & { workspaceKey: string },
+): WorkspaceSidePaneState {
+  const nextTab = createTeamSidePaneTab(options);
+  const existing = current?.tabs.find(
+    (tab): tab is TeamSidePaneTab => tab.type === "team" && tab.id === nextTab.id,
+  );
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+/**
  * 打开或复用一个 actor transcript tab。
  *
  * 复用规则与 workflow-run 同构（结构化 id 幂等），GC 同样**没有**：actor 会话在 run 结束
@@ -2067,7 +2139,8 @@ export function isSidePaneTabVisibleForParent(
     tab.type === "workflow-directory" ||
     tab.type === "workflow-actor-session" ||
     tab.type === "workflow-workspace" ||
-    tab.type === "workflow-artifact"
+    tab.type === "workflow-artifact" ||
+    tab.type === "team"
   ) {
     return tab.parentSessionId === parentSessionId;
   }
@@ -2126,7 +2199,8 @@ export function selectSidePaneTabsForParent(
         tab.type === "workflow-run" ||
         tab.type === "workflow-actor-session" ||
         tab.type === "workflow-workspace" ||
-        tab.type === "workflow-artifact",
+        tab.type === "workflow-artifact" ||
+        tab.type === "team",
     ) ??
     visibleTabs.at(-1);
   return nextActive && nextActive.id !== current.activeTabId

@@ -53,6 +53,7 @@ import {
   listProtocolSlashCommands,
   type ListProtocolSlashCommandsOptions,
 } from "./slash-commands.js";
+import { getInstalledTeamHub } from "../app/drora-team/install.js";
 
 const SNAPSHOT_INLINE_IMAGE_DATA_URL_MAX_BYTES = 20 * 1024 * 1024;
 

@@ -30,6 +30,7 @@ import {
   type DroraWorkspaceRef,
   type KnowledgeEvidenceGuard,
   type KnowledgeEvidenceReason,
+  type KnowledgeEvidenceRef,
 } from "@drora/shared";
 import type { DroraApp, DroraAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../drora-protocol-v4/interaction-registry.js";
@@ -69,7 +70,10 @@ export interface DroraProtocolAgentDependencies {
   refreshProviderRegistry?: (reason: string) => Promise<void>;
   /**
    * W03 VaultView Evidence 执行时复验（specs/obsidian-knowledge.md §5.3）。
-   * 生产入口注入 createKnowledgeEvidenceGate；未注入 → 不复验（additive）。
+   * 生产入口注入 createKnowledgeEvidenceGate；未注入 → 携带证据的输入在 CLI
+   * 复验层被拒绝（fail-closed，见 drora-protocol-v4 evidence-admission
+   * verifyEvidenceOrThrow）。「未注入 → 不复验（additive）」为 spec §5.3
+   * 已废弃的旧口径，注释特此改记现行语义。
    */
   knowledgeEvidenceVerifier?: DroraProtocolAgentServerContext["knowledgeEvidenceVerifier"];
 }
@@ -163,14 +167,15 @@ export interface DroraProtocolAgentServerContext {
   v4Interactions: V4InteractionRegistry;
   /**
    * VaultView Evidence 执行时复验（W03 / specs/obsidian-knowledge.md §5.3）。
-   * entrypoint 按本进程 storage 推导注入生产 gate；宿主/测试未注入 → 输入复验按
-   * additive 语义放行（payload 契约不存在时不影响旧链路）。形状与
+   * entrypoint 按本进程 storage 推导注入生产 gate；宿主/测试未注入 → 携带证据的输入
+   * 在复验层被拒绝（fail-closed；无证据输入不受影响）。「additive 语义放行」是
+   * spec §5.3 已废弃的旧口径，注释特此改记现行语义。形状与
    * V4CommandCoreHost.verifyInputEvidence 完全一致，binder 直接透传。
    */
   knowledgeEvidenceVerifier?: {
     verify(input: {
       sessionId: string;
-      evidenceRefs: ReadonlyArray<{ receiptId: string }>;
+      evidenceRefs: ReadonlyArray<KnowledgeEvidenceRef>;
     }): Promise<
       | { ok: true }
       | {

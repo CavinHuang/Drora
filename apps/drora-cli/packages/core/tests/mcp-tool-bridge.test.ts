@@ -715,6 +715,45 @@ describe("MCP tool bridge", () => {
     });
   });
 
+  it("does not display third-party readOnlyHint as low risk; only authority-verified OfficialCua may", () => {
+    // specs/agent-write-safety.md §6：readOnlyHint 是服务端自报，不能仅凭它把第三方
+    // MCP 展示成 low 风险；只有宿主 authority 验证的 OfficialCua 能力组例外。
+    const registry = createToolRegistry();
+    registerMcpTools(registry, createMockMcpPort(), [
+      {
+        serverName: "device",
+        toolName: "query",
+        description: "Query a device",
+        inputSchema: { type: "object" },
+        annotations: { readOnlyHint: true },
+      },
+    ]);
+
+    const thirdParty = registry.get("mcp__device__query");
+    expect(thirdParty?.metadata).toMatchObject({ readOnly: true });
+    expect(thirdParty?.metadata.riskLevel).not.toBe("low");
+    expect(thirdParty?.metadata).toMatchObject({ riskLevel: "medium" });
+    expect(thirdParty?.permission).toMatchObject({ riskLevel: "medium" });
+
+    registerMcpTools(
+      registry,
+      createMockMcpPort(),
+      [
+        {
+          serverName: DRORA_CUA_OFFICIAL_MCP_SERVER_NAME,
+          toolName: "get_app_state",
+          inputSchema: { type: "object", properties: {} },
+          annotations: { readOnlyHint: true },
+        },
+      ],
+      { officialCuaServerNames: new Set([DRORA_CUA_OFFICIAL_MCP_SERVER_NAME]) },
+    );
+
+    const officialCua = registry.get("mcp__computer-use__get_app_state");
+    expect(officialCua?.metadata).toMatchObject({ readOnly: true, riskLevel: "low" });
+    expect(officialCua?.permission).toMatchObject({ riskLevel: "low" });
+  });
+
   it("honors the structured message-only MCP error presentation", () => {
     const registry = createToolRegistry();
     registerMcpTools(registry, createMockMcpPort(), [

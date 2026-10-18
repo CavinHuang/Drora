@@ -124,6 +124,30 @@ Per the maintainer's instruction, the remaining work is reviewed and verified th
 
 This supplement does not mark unrelated, untested cases as passed. Real Electron evidence is labeled separately from unit/service integration coverage. The formal S03 NO-GO remains unchanged.
 
+## 2026-10-18 补记 · 未覆盖交互用例 backlog（终审发现 e2e-b-3）
+
+终审核对：本矩阵 G01–G55 中 25 个交互用例（G10/G11/G14/G15/G17–G25/G28–G30/G33/G34/
+G36–G39/G41/G43/G44）无真实 Electron E2E。其中 17 个（G10/G14/G15/G17/G18/G19/G23/
+G24/G33/G34/G36/G37/G38/G39/G41/G43/G44）已有模型/服务/组件级自动化覆盖，映射见
+[AUTOMATED_SELF_REVIEW_2026-10-17.md](./AUTOMATED_SELF_REVIEW_2026-10-17.md) 的
+2026-10-18 补记表——**该映射不改变这些用例在本矩阵中「未执行」的状态**（非 GUI 层
+锁定 ≠ GUI 用例 PASS）。以下 8 个用例当前**无任何自动化映射**，是真实的验收余量，
+须真人执行或先补自动化再转正：
+
+| ID | 余量断言（当前零自动化） |
+| --- | --- |
+| G11 | 证据核验未完成时提交新检索：核验中结果既不污染新 Run，也不能被加入 Composer（核验挂起与新提交的交错时序） |
+| G20 | 旧笔记复验 RPC 挂起时切换会话/发起新检索：迟到引用不打开笔记、不进新 Session Composer |
+| G21 | ANSWER 交接核验期间改选第二篇：旧两篇引用不得进入 Composer，需对新选择重走交接 |
+| G22 | 核验 RPC 未返回时快速双击「交给 Agent」后切换 Session/Workspace：仅一次有效核验批次，旧会话结果不写入新会话 Composer |
+| G25 | 已签发凭据后修改原文再发送：待复验提示不得误导为永久有效，发送门禁仍拒绝失效来源（提示语义面；门禁拒绝本体已由 G05/G66 覆盖） |
+| G28 | Composer 可信引用 chip 的「核验后打开原文」：对当前 Session resolveCitation=current 并按服务端相对路径定位 quote 行号（导航分发层已有模型级覆盖，chip 点击到打开的端到端交互无映射） |
+| G29 | 修改/删除原文、切换 Vault/Session 或关闭 VaultView 后点击引用：禁止缓存路径跳转，结构化显示 stale/missing/forbidden/unavailable，不打开其他 Vault 同名文件（fail-closed 本体已覆盖，错误态 GUI 呈现与「不打开别的文件」交互无映射） |
+| G30 | Composer 附加普通 Markdown 选区：不出现「核验后打开原文」动作、不因本地 path 文本获得可信来源权限（evidenceRefs 隔离已由模型级覆盖锁定，chip 动作缺席的 GUI 断言无映射） |
+
+GO 条件不受本补记影响：上述用例与 17 个已映射用例的 GUI 验收在补齐前一律保持
+「未执行」，不得引用映射表或邻接用例推断通过。
+
 ## 2026-10-17 · R1–R9 subagent 真 Electron 回执
 
 G01–G09、G12、G13、G16、G26、G27、G31、G32、G35、G40、G42、G45–G47、G52–G55 的执行记录列已由 subagent 在 Windows 真实 Electron（WDIO + Electron + ChromeDriver，隔离 `.e2e-home`，模型侧 SSE 回放）执行并回填，逐项结果与证据见 [ACCEPTANCE_SUBAGENT_2026-10-17.md](./ACCEPTANCE_SUBAGENT_2026-10-17.md)。其中 G03/G13 记 FAIL（产品缺陷 D1 evidenceReceiptId 泄漏进模型 prompt、疑似 D2 发送后再次 handoff 被拒），G02/G45/G47/G52/G54 记 PARTIAL（相关性真人判断或无产品注入口的挂起/微窗口面，仍需真人补验或单测覆盖）。三平台（ubuntu/windows/macos）Electron CI 回执：待推送后补链。

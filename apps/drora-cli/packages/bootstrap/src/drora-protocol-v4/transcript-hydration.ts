@@ -19,7 +19,7 @@ import type {
   TurnFileChangeSummary,
   TurnInputIntentMetadata,
 } from "@drora/contracts";
-import { isHighspeedProviderId } from "@drora/shared";
+import { isHighspeedProviderId, type KnowledgeEvidenceRef } from "@drora/shared";
 import type { EventId, SessionEvent, SessionId, TraceId, TurnId } from "@drora/contracts";
 import {
   CompactTimelineStatus,
@@ -463,8 +463,23 @@ function inputIntentOfMessage(message: MessageWithParts): TurnInputIntentMetadat
   ) {
     return undefined;
   }
+  // 修复（2026-10-18 终审 cli-proto-4）：legacy seed 只校验过少数字段，evidenceRefs 若随
+  // 下方整体 cast 透传等于 unchecked cast——畸形条目（非 evr_ 前缀 / 多余字段 / 非对象）
+  // 会以合法身份混进冷恢复 intent。改为逐条经 conversationInputIntentSchema.shape.
+  // evidenceRefs safeParse（单条包一层数组，字段形状、strict、前缀校验全走同一 schema，
+  // 契约单一出处），无效条目剔除；全部无效则视为未携带证据。
+  const { evidenceRefs: legacyEvidenceRefs, ...legacyRest } = intent;
+  const evidenceRefsField = conversationInputIntentSchema.shape.evidenceRefs;
+  const sanitizedEvidenceRefs: KnowledgeEvidenceRef[] = [];
+  if (Array.isArray(legacyEvidenceRefs)) {
+    for (const entry of legacyEvidenceRefs) {
+      const parsed = evidenceRefsField.safeParse([entry]);
+      if (parsed.success && parsed.data) sanitizedEvidenceRefs.push(...parsed.data);
+    }
+  }
   return {
-    ...(value as unknown as TurnInputIntentMetadata),
+    ...(legacyRest as unknown as TurnInputIntentMetadata),
+    ...(sanitizedEvidenceRefs.length > 0 ? { evidenceRefs: sanitizedEvidenceRefs } : {}),
     ...(persistedHighspeed.success ? { highspeed: persistedHighspeed.data } : {}),
   };
 }

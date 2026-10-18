@@ -376,10 +376,21 @@ async function assertNoNavigationSettled(label: string): Promise<void> {
   const first = await readNavigation();
   await browser.pause(1_000);
   const second = await readNavigation();
-  assert.deepEqual(
-    { ...first, ...second },
-    { vaultActive: false, codeMirrorVisible: false },
-    `R5 ${label} must not navigate to Vault or open CodeMirror (stable across samples)`,
+  // EC-4（e2e-a-3，2026-10-18 终审）修复：原实现把两次采样 spread 合并成
+  // `{ ...first, ...second }` 再断言——第二次采样会覆盖第一次的瞬时导航（首采样
+  // vaultActive=true 可被 second 的 false 遮蔽，拒绝期闪现导航被判绿）。两次采样
+  // 必须分别断言全 false，任一次出现导航即失败。
+  assert.equal(first.vaultActive, false, `R5 ${label} must not navigate to Vault (first sample)`);
+  assert.equal(
+    first.codeMirrorVisible,
+    false,
+    `R5 ${label} must not open CodeMirror (first sample)`,
+  );
+  assert.equal(second.vaultActive, false, `R5 ${label} must not navigate to Vault (second sample)`);
+  assert.equal(
+    second.codeMirrorVisible,
+    false,
+    `R5 ${label} must not open CodeMirror (second sample)`,
   );
 }
 interface TurnDiagnostics {
@@ -539,9 +550,10 @@ describe("R5 restart & cross-turn isolation acceptance: G35/G42/G12 in one real 
     assert.equal(diagnostics!.quoteCount, 1, "G35 round 1 must quote the alpha excerpt");
     assert.equal(diagnostics!.hasManifest, true, "G35 round 1 user row must keep the manifest");
     assert.equal(diagnostics!.turnCitationCount, 1, "G35 round 1 completed turn must render [1]");
-    // 模型请求体只含 Alpha 原文（Beta 的任何痕迹不得出现）。说明：conversation_quote
-    // 的结构化元数据含 evidenceReceiptId（evr_ 前缀），是产品现状且不属 G35 判据，
-    // 不做排除断言（R2 artifact r2-agent-handoff-g04-single 同样含该字段）。
+    // 模型请求体只含 Alpha 原文（Beta 的任何痕迹不得出现）。说明（EC-6/e2e-a-6，
+    // 2026-10-18 终审修正陈旧表述）：D1 修复（2026-10-17）后 conversation_quote
+    // 按模型可见字段白名单序列化，evidenceReceiptId（evr_ 前缀）不再进入模型
+    // prompt；该维度归 G03/R2 验收，本包 G35 判据不含此项，不做排除断言。
     const record = await waitForReplayRecord("r5-restart-isolation-round-a");
     assertModelRequest(
       record,

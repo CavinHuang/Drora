@@ -1054,6 +1054,7 @@ const enUS: Record<string, string> = {
   "browser.permission.allowOnce": "Allow once",
   "browser.permission.allowAlways": "Allow on this site",
   "browser.permission.blockAlways": "Block",
+  "browser.permission.denyThisTime": "Deny this time",
   "browser.permission.cancel": "Cancel",
   "browser.permission.share": "Share",
   "browser.permission.media": "camera and microphone",
@@ -7421,6 +7422,11 @@ const enUS: Record<string, string> = {
   "globalNotice.highspeed.imageSummary": "{tokens} tokens · {duration}s saved",
   "globalNotice.highspeed.close": "Close Highspeed share card",
   ...requestSecurityMessagesEnUS,
+  // ui-lib-b-2（2026-10-18 终审）：补齐文件级键差集——modelSuspiciousEmpty 此前仅靠上方
+  // 展开兜底（文件本身无显式键）。显式重申并引用同一消息对象，值不变、单一出处；
+  // 置于展开之后避免 TS2783「被展开覆盖」。
+  "drora.error.modelSuspiciousEmpty":
+    requestSecurityMessagesEnUS["drora.error.modelSuspiciousEmpty"],
 
   "workspace.openVault": "Obsidian Vault",
   "vault.unavailable": "The Vault service is not available in this environment.",
@@ -7803,6 +7809,13 @@ const enUS: Record<string, string> = {
   "vault.review.emptyTitle": "No proposals",
   "vault.review.emptyHint":
     "Create Markdown proposals, review each change, approve, then apply or undo the result.",
+  "vault.review.vaultNotConfiguredTitle": "No Obsidian Vault configured yet",
+  "vault.review.vaultNotConfiguredHint":
+    "Review proposals write into Vault notes. Select and configure a Vault from the Notes page first, then come back to create proposals.",
+  "vault.review.vaultNotConfiguredGoNotes": "Go to Notes to configure a Vault",
+  "vault.review.changeKind.create": "Create",
+  "vault.review.changeKind.write": "Replace",
+  "vault.review.changeKind.delete": "Delete",
   "vault.review.revisionLabel": "rev {revision}",
   "vault.review.phase.pending": "Pending approval",
   "vault.review.phase.approvedCurrent": "Approved (ready to apply)",

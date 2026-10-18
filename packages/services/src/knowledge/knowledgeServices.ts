@@ -207,11 +207,13 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
   const orchestrator = new QueryOrchestrator(db, semantic, pluginDataDir, decision);
 
   // 审核写入服务（W06）：与索引/检索共享同一 DB 连接；账本随 dispose 统一关闭。
-  // 写路径总门缺省关闭（fail-closed）。A-10 勘误（2026-10-17 增量评审）：此前注释称
-  // 「undefined（生产形态）透传 undefined——引擎从 vault-config.json 异步加载初值」
-  // 与引擎实现不符——reviewEngine 的异步加载分支以 writeSafetyGatePassed===true 为
-  // 前提，而生产 node.ts 显式传 false，该分支永不执行，生产 writePathEnabled 恒 false。
-  // 显式 true/false 仅为测试形态提供确定性覆盖。
+  // 写路径总门缺省关闭（fail-closed）。A-10 勘误（2026-10-17 增量评审；2026-10-18
+  // 终审再勘误）：旧注称「生产 node.ts 显式传 false，引擎异步加载分支永不执行」与
+  // 现行装配相反——node.ts:2608 按 isReleasedReviewWriteAuthority(serviceAuthorityMode)
+  // 注入 gate（仅 desktop-local 为 true）；desktop-local 生产形态 writePathEnabled
+  // 不显式传（undefined），引擎从 vault-config.json 异步加载用户 opt-in 初值；
+  // 其余 authority gate 为 false，writePathEnabled 恒 false。显式 true/false 仅为
+  // 测试形态提供确定性覆盖。
   const reviewService = createKnowledgeReviewService({
     db,
     pluginDataDir,

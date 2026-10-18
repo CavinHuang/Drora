@@ -215,6 +215,11 @@ const zhCN: Record<string, string> = {
   "manualClaimPlan.banner.unit.tokens": "Tokens",
   "manualClaimPlan.banner.subtitle.daily": "{model} 每日额度",
   "manualClaimPlan.banner.subtitle.oneTime": "{model} 一次性额度",
+  // ui-lib-b-2（2026-10-18 终审）：存量键差集对齐——en-US 已有而 zh-CN 缺失的
+  // period/bonus 词元补齐（口径与上方 subtitle.daily/oneTime 的「每日/一次性」一致）。
+  "manualClaimPlan.banner.period.daily": "每日",
+  "manualClaimPlan.banner.period.oneTime": "一次性",
+  "manualClaimPlan.banner.bonus": "奖励",
   "manualClaimPlan.claim.ticket.benefit": "{model} {amount} {unit}",
   "manualClaimPlan.claim.ticket.benefit.daily": "{model} 每日 {amount} {unit}",
   "manualClaimPlan.banner.close": "关闭活动",
@@ -2356,6 +2361,8 @@ const zhCN: Record<string, string> = {
     "在工作区中保存并复用长期上下文，新会话生效。开启后可能增加模型调用和 Token 成本。",
   "settings.memory.viewer.localOnly":
     "记忆详情仅支持在本地桌面端查看，请前往本地桌面端的“记忆”设置。",
+  // ui-lib-b-2（2026-10-18 终审）：存量键差集对齐——en-US 已有而 zh-CN 缺失。
+  "settings.memory.viewer.disabled": "启用工作区记忆后才能查看已保存的记忆。",
   "settings.memory.viewer.title": "已保存的工作区记忆",
   "settings.memory.viewer.description": "查看此设备上按工作区保存的记忆。",
   "settings.memory.viewer.projectsDescription": "选择一个项目，查看该项目保存的全部记忆。",
@@ -7401,6 +7408,13 @@ const zhCN: Record<string, string> = {
   "vault.review.proposalCreated": "提案已保存，请确认内容后再审批。",
   "vault.review.emptyTitle": "暂无提案",
   "vault.review.emptyHint": "创建 Markdown 变更提案，查看每项预览并人工批准后，可以应用或撤销。",
+  "vault.review.vaultNotConfiguredTitle": "尚未配置 Obsidian Vault",
+  "vault.review.vaultNotConfiguredHint":
+    "审核提案会写入 Vault 中的笔记。请先在笔记页选择并配置一个 Vault，再回到这里创建提案。",
+  "vault.review.vaultNotConfiguredGoNotes": "去笔记页配置 Vault",
+  "vault.review.changeKind.create": "新建",
+  "vault.review.changeKind.write": "修改",
+  "vault.review.changeKind.delete": "删除",
   "vault.review.revisionLabel": "rev {revision}",
   "vault.review.phase.pending": "待批准",
   "vault.review.phase.approvedCurrent": "已批准（可应用）",

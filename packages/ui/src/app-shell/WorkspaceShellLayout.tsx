@@ -1608,9 +1608,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     const handleColdCitationOpen = (event: Event): void => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       const detail = event.detail;
-      if (detail.accepted || vaultHasOpenedRef.current || !detail.isActive() ||
-          detail.targetSessionId !== activeTaskId || detail.workspaceKey !== workspaceKey ||
-          !detail.deferUntilMounted()) return;
+      if (
+        detail.accepted ||
+        vaultHasOpenedRef.current ||
+        !detail.isActive() ||
+        detail.targetSessionId !== activeTaskId ||
+        detail.workspaceKey !== workspaceKey ||
+        !detail.deferUntilMounted()
+      )
+        return;
       // 修复原因：完整进程重启后 VaultView 尚未挂载，可信引用事件会在任何
       // resolveCitation RPC 前同步失败。Shell 只负责惰性挂载隐藏视图；目的地与
       // 文件读取仍由 VaultView 在 Receipt 复验后决定。
@@ -2538,98 +2544,104 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           </main>
                         ) : (
                           <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                          <main className={cn(
-                            "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden",
-                            isDroraWorkspaceMainView(workspaceMainView) && "hidden",
-                          )}>
-                            {renderChatFindDialog()}
-                            <ScopedErrorBoundary
-                              scope="workspace-chat"
-                              resetKeys={workspaceDraftResetKeys}
-                              variant="panel"
-                              className="h-full"
+                            <main
+                              className={cn(
+                                "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden",
+                                isDroraWorkspaceMainView(workspaceMainView) && "hidden",
+                              )}
                             >
-                              {/* Bugfix(2026-07-05, M3 验收)：pane 绑定必须用原始选择态 activeTaskId，
+                              {renderChatFindDialog()}
+                              <ScopedErrorBoundary
+                                scope="workspace-chat"
+                                resetKeys={workspaceDraftResetKeys}
+                                variant="panel"
+                                className="h-full"
+                              >
+                                {/* Bugfix(2026-07-05, M3 验收)：pane 绑定必须用原始选择态 activeTaskId，
                                   不能用 meta 派生的 activeSessionId——v4 createSession 刚建的会话
                                   不在 taskListCache/optimistic 缓存里，meta 解析为 null 会让 pane
                                   永远停在 draft。v4 语义下 sessionId ≡ taskId，meta 只服务 Header 显示。
                                   M5⑤：桌面主区升级为分屏宿主（Layout/Focus 两层）；primary pane
                                   绑定语义与 testid 契约（paneId=workspace-main）不变。 */}
-                              <V4WorkspaceChatArea
-                                readOnly={Boolean(workspaceReadOnlyReason)}
-                                foregroundEnabled={isWorkspaceVisible}
-                                workspacePath={workspaceAbsPath}
-                                workspaceIdentity={workspaceIdentity}
-                                isDesktop={isDesktop === true}
-                                remoteSessionId={workspaceRemoteSessionId}
-                                compactForRemoteControl={isWebRemoteControlShell}
-                                sessionId={activeTaskId}
-                                activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
-                                provider={activeTaskProvider ?? undefined}
-                                onSessionCreated={handleV4SessionCreated}
-                                onSessionDeleted={handleV4SessionDeleted}
-                                draftComposerHeader={draftComposerHeader}
-                                onPrimaryDraftDropTargetControllerChange={
-                                  setDraftHeaderDropTargetController
-                                }
-                                gitSummary={gitState.summary}
-                                gitDirtyFileCount={gitDirtyFileCount}
-                                activeTaskChangeSummary={activeTaskChangeSummary}
-                                gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
-                                gitWorktreeChangeSummary={gitWorktreeChangeSummary}
-                                summaryPanelVariantOverride={summaryPanelVariantOverride}
-                                onSummaryPanelVariantOverrideChange={
-                                  onSummaryPanelVariantOverrideChange
-                                }
-                                onRefreshGit={handleRefreshGit}
-                                onOpenGitReview={handleOpenGitReview}
-                                onPaneActiveSessionChange={handlePaneActiveSessionChange}
-                                onOpenBrowserUrl={handleOpenBrowserUrl}
-                                onOpenAutomationsMain={handleOpenAutomations}
-                                onOpenCodeViewer={handleOpenCodeViewer}
-                                onAutoOpenAssistantPptx={
-                                  isDesktop && !isWebRemoteControlShell
-                                    ? handleAutoOpenAssistantPptx
-                                    : undefined
-                                }
-                                onOpenBackgroundBash={handleOpenBackgroundBash}
-                                onOpenSubagentSession={handleOpenSubagentSession}
-                                onOpenSubagentDirectory={handleOpenSubagentDirectory}
-                                onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
-                                onOpenSelectionSideChat={handleOpenSelectionSideChat}
-                                onOpenPlanDetail={handleOpenPlanDetail}
-                                onOpenWorkflowRun={handleOpenWorkflowRun}
-                                onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
-                                onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
-                                onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
-                                onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
-                                onOpenFileLink={handleOpenMarkdownFileLink}
-                                conversationFindQuery={conversationFindQuery}
-                                conversationFindActiveIndex={conversationFindActiveIndex}
-                                conversationFindNavigationRequestId={
-                                  conversationFindNavigationRequestId
-                                }
-                                onConversationFindMatchStateChange={
-                                  onConversationFindMatchStateChange
-                                }
-                                searchResultHighlightRequest={activeSearchResultHighlightRequest}
-                                onSearchResultHighlightDone={onSearchResultHighlightDone}
-                              />
-                            </ScopedErrorBoundary>
-                          </main>
-                          {(vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView)) && (
-                            <div className={cn(
-                              "flex h-full min-h-0 flex-1 flex-col",
-                              !isDroraWorkspaceMainView(workspaceMainView) && "hidden",
-                            )}>
-                              <DroraWorkspaceMainView
-                                sessionId={activeTaskId ?? undefined}
-                                workspaceKey={workspaceKey}
-                                onCitationOpen={() => onWorkspaceMainViewChange("vault")}
-                                onAgentHandoffPrepared={() => onWorkspaceMainViewChange("chat")}
-                              />
-                            </div>
-                          )}
+                                <V4WorkspaceChatArea
+                                  readOnly={Boolean(workspaceReadOnlyReason)}
+                                  foregroundEnabled={isWorkspaceVisible}
+                                  workspacePath={workspaceAbsPath}
+                                  workspaceIdentity={workspaceIdentity}
+                                  isDesktop={isDesktop === true}
+                                  remoteSessionId={workspaceRemoteSessionId}
+                                  compactForRemoteControl={isWebRemoteControlShell}
+                                  sessionId={activeTaskId}
+                                  activeSelectionSideChatSessionId={
+                                    activeSelectionSideChatSessionId
+                                  }
+                                  provider={activeTaskProvider ?? undefined}
+                                  onSessionCreated={handleV4SessionCreated}
+                                  onSessionDeleted={handleV4SessionDeleted}
+                                  draftComposerHeader={draftComposerHeader}
+                                  onPrimaryDraftDropTargetControllerChange={
+                                    setDraftHeaderDropTargetController
+                                  }
+                                  gitSummary={gitState.summary}
+                                  gitDirtyFileCount={gitDirtyFileCount}
+                                  activeTaskChangeSummary={activeTaskChangeSummary}
+                                  gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
+                                  gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+                                  summaryPanelVariantOverride={summaryPanelVariantOverride}
+                                  onSummaryPanelVariantOverrideChange={
+                                    onSummaryPanelVariantOverrideChange
+                                  }
+                                  onRefreshGit={handleRefreshGit}
+                                  onOpenGitReview={handleOpenGitReview}
+                                  onPaneActiveSessionChange={handlePaneActiveSessionChange}
+                                  onOpenBrowserUrl={handleOpenBrowserUrl}
+                                  onOpenAutomationsMain={handleOpenAutomations}
+                                  onOpenCodeViewer={handleOpenCodeViewer}
+                                  onAutoOpenAssistantPptx={
+                                    isDesktop && !isWebRemoteControlShell
+                                      ? handleAutoOpenAssistantPptx
+                                      : undefined
+                                  }
+                                  onOpenBackgroundBash={handleOpenBackgroundBash}
+                                  onOpenSubagentSession={handleOpenSubagentSession}
+                                  onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                                  onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
+                                  onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                                  onOpenPlanDetail={handleOpenPlanDetail}
+                                  onOpenWorkflowRun={handleOpenWorkflowRun}
+                                  onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
+                                  onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
+                                  onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+                                  onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
+                                  onOpenFileLink={handleOpenMarkdownFileLink}
+                                  conversationFindQuery={conversationFindQuery}
+                                  conversationFindActiveIndex={conversationFindActiveIndex}
+                                  conversationFindNavigationRequestId={
+                                    conversationFindNavigationRequestId
+                                  }
+                                  onConversationFindMatchStateChange={
+                                    onConversationFindMatchStateChange
+                                  }
+                                  searchResultHighlightRequest={activeSearchResultHighlightRequest}
+                                  onSearchResultHighlightDone={onSearchResultHighlightDone}
+                                />
+                              </ScopedErrorBoundary>
+                            </main>
+                            {(vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView)) && (
+                              <div
+                                className={cn(
+                                  "flex h-full min-h-0 flex-1 flex-col",
+                                  !isDroraWorkspaceMainView(workspaceMainView) && "hidden",
+                                )}
+                              >
+                                <DroraWorkspaceMainView
+                                  sessionId={activeTaskId ?? undefined}
+                                  workspaceKey={workspaceKey}
+                                  onCitationOpen={() => onWorkspaceMainViewChange("vault")}
+                                  onAgentHandoffPrepared={() => onWorkspaceMainViewChange("chat")}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

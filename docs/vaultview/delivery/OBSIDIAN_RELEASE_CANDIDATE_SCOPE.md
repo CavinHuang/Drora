@@ -15,7 +15,7 @@ The normative definition is `specs/obsidian-knowledge.md` §2–§3.
 | L0 / authenticated Vault reads | Read/Glob/Grep, index, FIND, source inspection, answer/compare handoff, authenticated Receipt, current-source navigation | Candidate for first release, subject to platform / lifecycle acceptance |
 | Manual CodeMirror note editing | User-initiated Markdown changes behind Vault path protection / optimistic SHA checks | Explicit user-write feature; **not** evidence of an agent read-only guarantee |
 | L1 / opt-in agent writing | `allowAgentWrites=true` enables narrow Write/Edit hook auto-allow for ordinary Markdown when runtime decision was `ask`; default is `false` | **Not read-only.** Needs explicit scope/risk acceptance and permission negative-path validation; do not count as part of a read-only approval |
-| L2 / proposal-driven apply & undo | Proposal, approval, ledger and read-only reconciliation exist, but applying/undoing would write files | **EXCLUDED / S03 NO-GO.** Production `writeSafetyGatePassed` remains false and `applyProposal`/`undoOperation` reject with `write_path_disabled` |
+| L2 / proposal-driven apply & undo | Proposal, approval, ledger and read-only reconciliation exist, but applying/undoing would write files | **A1 内 desktop-local 定向放行、用户双开关默认关（2026-10-18 补记，终审阻塞③/spec-1）。** 原「EXCLUDED / S03 NO-GO，生产 `writeSafetyGatePassed` 保持 false」的表述已被 2026-10-17 收尾复评取代：按 `S03_CLOSEOUT_2026-10-17.md` 与 spec `obsidian-knowledge.md` §5e.12/收尾复评增量，装配门仅对 `desktop-local` 生产 Host 放行（`node.ts` 经 `isReleasedReviewWriteAuthority`；remote/unspecified 仍拒绝），L1/L2 两个用户开关默认关闭，用户显式启用后才可执行已批准提案（apply/undo 双重条件不变）。 |
 | L3 / broad side-effect channels | Bash, js, MCP and other P0 tool paths | No claim of universal write prevention from an Obsidian hook; follow runtime policy and independent S03 assessment |
 
 **Safe presentation:** "Vault-backed knowledge retrieval and evidence-grounded Agent navigation are ready for release evaluation; L1 authorized editing is a distinct opt-in capability; L2 governed writes are not enabled."
@@ -62,18 +62,20 @@ For the current G01–G55 manual cases, the authoritative status remains `未执
 - [ ] Independent S03 safety owner **explicitly approves excluding L2** from this A1 release while keeping S03 NO-GO / production write gate fail-closed. **No L2 GO is requested in PR #23.**
 - [ ] Formal GitHub code review completed, with objections resolved; no automatic mark Ready or merge while the gates above are pending.
 
-## 4. Immutable safety requirements
+## 4. Safety requirements（2026-10-18 补记：原「Immutable」绝对化表述由收尾复评契约接管，改为可演进口径）
 
 - Use isolated `.e2e-home` synthetic test Vaults; never run CI against user Vaults.
 - A rendered model citation, filename, Markdown fragment or preview cannot mint Receipt authority.
 - Host + CLI recheck file SHA, source epoch and scope at the actual admission/navigation boundary.
-- Do **not** switch on `writeSafetyGatePassed`, bypass permission checks, alter the `WRITE_SAFETY_NO_GO.md` ruling, or suppress a failing CI lane to obtain green status.
+- `writeSafetyGatePassed` 的唯一放行路径是 2026-10-17 收尾复评契约（`S03_CLOSEOUT_2026-10-17.md`、spec `obsidian-knowledge.md` §5e.12/收尾复评增量）记录的装配决定：仅对 `desktop-local` 生产 Host、经 `node.ts` 的 `isReleasedReviewWriteAuthority` 授予；后续撤销或扩大同样必须落在该契约与本文件，不允许经用户可编辑配置推导、绕过权限检查或压制失败 CI 通道获得写能力（2026-10-18 补记，终审阻塞③/spec-1：原「Do not switch on `writeSafetyGatePassed`」绝对禁止表述与最终装配相反；`WRITE_SAFETY_NO_GO.md` 裁定同样按收尾复评增量读取）。
 - No PR merge, production deploy, or auto-merge as part of this preparatory record.
 
 
 ## 6. A1 production-gate revalidation — 2026-10-17
 
 During continued review, the current branch was found to have inferred the S03 gate from `desktop-local` authority. That contradicted the approved A1 release scope. The production Host has now been corrected to pass `reviewWriteSafetyGatePassed: false` explicitly, and the real Electron G67 acceptance has been changed to verify that proposal/preview/approval remain usable while the write toggle and Apply/Undo stay disabled. The earlier Apply/Undo Electron run remains useful implementation evidence, but it is not acceptance for the approved A1 release. Fresh checks on the corrected HEAD are required.
+
+> **2026-10-18 补记（终审阻塞③/spec-1）**：本节所述「corrected to pass `reviewWriteSafetyGatePassed: false`」已被同日更晚的维护者委托收尾复评取代——`S03_CLOSEOUT_2026-10-17.md` 决定候选版本对 `desktop-local` 生产 Host 定向放行装配门（`node.ts` 经 `isReleasedReviewWriteAuthority`；spec `obsidian-knowledge.md` §5e.12），G65/G67 真 Electron 改为直接验证生产装配的 opt-in Apply/Undo（失败不能通过跳过或关闭功能规避）。现行口径以 `S03_CLOSEOUT_2026-10-17.md` 与 spec §5e.12/收尾复评增量为准：装配门 desktop-local=true、其余 authority=false；L1/L2 用户双开关默认关。本段保留仅作历史记录，不得再据此文档宣称生产写门恒为 false。
 
 
 ## 7. MCP permission-hint hardening — 2026-10-17

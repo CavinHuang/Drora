@@ -7,6 +7,8 @@ drora.json，无信任门），不能整体视作操作员启动授权——命�
 （非 P0 工具照旧放行），详见 §1 末注与 `permission-service-write-tier.test.ts` 用例。
 - build/edit 的低风险快速路径也不得授权 P0 MCP/js，即使能力数据声称 `readOnly=true`、`needsApproval=false`、`sideEffectScope=none`。
 - P0 ask 使用现有 `approvalMode=user-once` 通道，PreToolUse/PermissionRequest Hook 不得替代用户确认；应答不能持久化项目或会话规则。此约束复用已有 Guarded 单次审批生命周期，不新增审批状态所有者。
+- （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-4 此前在本 spec 零记录）**建议路径 capability 透传（cli-p0-4）**：评估与建议共用同一份解析能力——`permission-flow.ts` 在进入权限判定前先 `resolveRuntimePermissionCapability`，建议侧 `buildDefaultPermissionUpdates` 同步接收该 capability（`permissionName`/`readOnly`）。依据：修复前建议路径不传 capability，P0 识别退化为仅按 `mcp__` 名前缀——`app__*` 工具（permissionName="mcp" 但名无 `mcp__` 前缀）在无内容键输入时会产出永不匹配的整工具 allow 建议，且持久化消毒（按名前缀识别）不识别该前缀，违背「建议/评估/持久化三层一致」的收尾契约；透传后三层按同一 `isP0WriteTarget` 口径判定。
+- （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-5 此前在本 spec 零记录）**ToolCallStarted 旗标信任门控（cli-p0-5）**：`resolveToolCallCapabilityFlags`（`permission-capability.ts`）对 readOnly 旗标做信任门控——不可信的 `readOnly=true` 断言（普通 MCP 自报 readOnlyHint、沙箱页面自报）经 `isTrustedReadOnlyTool` 判定非可信时**降为省键**（undefined，未知≠只读），只有 Host 验证的 OfficialCua 或内建工具的可信只读结论才外发 true；`false` 与 `undefined` 是有价值的事实/缺席，原样透传。依据：`ToolCallStarted` 载荷的消费者（dynamic-workflow driver 的导入缓存关门判定）会据 readOnly=true 把该笔调用当只读放行——谎报只读的写调用若原样外发 true 即成为绕过面，与「MCP 自报不构成信任锚」（§1/洞 5）同口径；权限判定/展示面不受此旗标影响。
 - 本轮由维护者要求助手自行 review，取消额外人工走查依赖；审查结果须以新回归和真实三平台 Electron 为依据，不能把旧绿色结果当作本轮结果。
 
 以下为 2026-10-11 的历史实现说明；当前以顶部收尾复评契约和 `S03_CLOSEOUT_2026-10-17.md` 为准。本 spec 是

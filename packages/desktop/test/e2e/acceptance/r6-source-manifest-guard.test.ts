@@ -634,24 +634,38 @@ describe("R6 multi-source and draft protection: G16/G26/G27 in one real Electron
       document.querySelector<HTMLElement>('[data-testid^="v4-composer-input"]')?.click();
     });
     await browser.keys("Enter");
-    await browser.pause(1_000);
-    const settled = await browser.execute(
-      (token) => ({
-        rowCount: document.querySelectorAll("[data-row-id]").length,
-        draftKept: Array.from(
-          document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'),
-        ).some((el) => (el.textContent ?? "").includes(token)),
-        mismatchStillVisible: Boolean(
-          document
-            .querySelector('[data-testid="knowledge-source-manifest-mismatch"]')
-            ?.getClientRects().length,
-        ),
-      }),
-      NOTE_A_NAME,
+    // EC-5（e2e-a-5，2026-10-18 终审）修复：原实现是固定 pause(1_000) 后单次读取
+    // ——B-5/G53 已废除的同款反模式：慢环境下 Enter 后草稿防抖重解析/横幅重渲染
+    // 可能尚未稳定，单次采样要么假红（横幅瞬时消失）要么漏检迟到出站。改为
+    // waitUntil 轮询「未出站」稳定态：行数不变+草稿保留+mismatch 横幅仍在，
+    // 三条件同时成立才算 settle（若真出站，行数永久增加、草稿离场，轮询必然超时）。
+    const settledNegative = await browser.waitUntil(
+      async () => {
+        const settled = await browser.execute(
+          (token) => ({
+            rowCount: document.querySelectorAll("[data-row-id]").length,
+            draftKept: Array.from(
+              document.querySelectorAll<HTMLElement>('[data-testid^="v4-composer-input"]'),
+            ).some((el) => (el.textContent ?? "").includes(token)),
+            mismatchStillVisible: Boolean(
+              document
+                .querySelector('[data-testid="knowledge-source-manifest-mismatch"]')
+                ?.getClientRects().length,
+            ),
+          }),
+          NOTE_A_NAME,
+        );
+        return (
+          settled.rowCount === rowCountBefore && settled.draftKept && settled.mismatchStillVisible
+        );
+      },
+      {
+        timeout: 15_000,
+        timeoutMsg:
+          "G26 Enter must not send the mismatched draft and must keep it with the alert visible",
+      },
     );
-    assert.equal(settled.rowCount, rowCountBefore, "G26 Enter must not send the mismatched draft");
-    assert.equal(settled.draftKept, true, "G26 rejected draft must stay in the composer");
-    assert.equal(settled.mismatchStillVisible, true, "G26 mismatch alert must persist after Enter");
+    assert.equal(settledNegative, true, "G26 Enter must not send the mismatched draft");
     await waitForV4ConversationState(
       (s) => s.state === "idle" && s.queueCount === 0,
       "G26 mismatched Enter must never start an Agent turn",
@@ -785,9 +799,10 @@ describe("R6 multi-source and draft protection: G16/G26/G27 in one real Electron
     assert.equal(diagnostics!.hasManifest, true, "G27 user row must retain the source manifest");
 
     // 模型请求体：两篇核验原文均入模；失效版本的 BETA 文本不入 prompt。
-    // 注：当前产品行为下 <conversation_quote> 内嵌 evidenceReceiptId（evr_），
-    // 与 G03「Receipt ID 不拼入模型 prompt」判据存在张力，属 R2/G03 验收范围，
-    // 本包（G16/G26/G27）判据不含该项，故不在此断言。
+    // 注（EC-6/e2e-a-6，2026-10-18 终审修正陈旧表述）：D1 修复（2026-10-17）后
+    // <conversation_quote> 按模型可见字段白名单序列化，evidenceReceiptId（evr_）
+    // 不再进入 prompt，与 G03「Receipt ID 不拼入模型 prompt」判据已一致；该维度
+    // 属 R2/G03 验收范围，本包（G16/G26/G27）判据不含该项，故不在此断言。
     const record = await waitForReplayRecord("r6-manifest-g27-admit");
     assertModelRequest(
       record,

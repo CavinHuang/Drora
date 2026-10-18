@@ -14,6 +14,7 @@
  * headings and reference definitions cannot be silently rewritten.
  */
 import type { Plugin } from "unified";
+import { MAX_EVIDENCE_REFS_PER_INPUT } from "@drora/shared";
 
 export const KNOWLEDGE_CITATION_HASH_PREFIX = "#drora-knowledge-source-";
 
@@ -28,17 +29,38 @@ interface MarkdownNode {
   children?: MarkdownNode[];
 }
 
-const CITATION_TEXT = /\[([1-5])\]/g;
+// ui-cite-b-1 修复（2026-10-18 终审）：渲染层 inline [n] 绑定上限原先硬编码 [1-5]，
+// 与 wire/读取端契约上限 MAX_EVIDENCE_REFS_PER_INPUT=8 层间不一致——6–8 条合法
+// evidenceRefs 在渲染层被静默丢弃。三处 [1-5] 边界（正文标记、href 解析、scope 定义
+// 标识）与两处数值过滤统一改为由契约常量构造/比较，契约调整时渲染层自动跟随。
+const MAX_CITATION_INDEX = MAX_EVIDENCE_REFS_PER_INPUT;
+const CITATION_TEXT = new RegExp(`\\[([1-${MAX_CITATION_INDEX}])\\]`, "g");
+const CITATION_HREF = new RegExp(
+  `^#drora-knowledge-source-([1-${MAX_CITATION_INDEX}])--([a-zA-Z0-9_-]+)$`,
+);
+const CITATION_SCOPE_IDENTIFIER = new RegExp(
+  `^drora-knowledge-scope-([a-zA-Z0-9_-]+)--([1-${MAX_CITATION_INDEX}](?:-[1-${MAX_CITATION_INDEX}])*)$`,
+);
 const NON_PROSE_NODES = new Set([
-  "link", "linkReference", "image", "imageReference",
-  "code", "inlineCode", "html", "heading", "definition", "blockquote",
-  "table", "tableRow", "tableCell",
+  "link",
+  "linkReference",
+  "image",
+  "imageReference",
+  "code",
+  "inlineCode",
+  "html",
+  "heading",
+  "definition",
+  "blockquote",
+  "table",
+  "tableRow",
+  "tableCell",
 ]);
 
 /** A model-authored bare #drora-knowledge-source-1 link is never authoritative. */
 export function parseKnowledgeCitationHref(href: string, nonce: string): number | null {
   if (!nonce) return null;
-  const match = /^#drora-knowledge-source-([1-5])--([a-zA-Z0-9_-]+)$/.exec(href);
+  const match = CITATION_HREF.exec(href);
   return match?.[2] === nonce ? Number(match[1]) : null;
 }
 
@@ -58,7 +80,9 @@ export function linkKnownKnowledgeCitations(
   nonce: string,
 ): void {
   if (!nonce || !/^[a-zA-Z0-9_-]+$/.test(nonce)) return;
-  const allowed = new Set(allowedIndices.filter((n) => Number.isInteger(n) && n >= 1 && n <= 5));
+  const allowed = new Set(
+    allowedIndices.filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_CITATION_INDEX),
+  );
   if (allowed.size === 0) return;
 
   const visit = (node: MarkdownNode): void => {
@@ -87,7 +111,8 @@ export function linkKnownKnowledgeCitations(
         });
         offset = at + match[0].length;
       }
-      if (offset < child.value.length) children.push({ type: "text", value: child.value.slice(offset) });
+      if (offset < child.value.length)
+        children.push({ type: "text", value: child.value.slice(offset) });
     }
     node.children = children;
   };
@@ -100,9 +125,12 @@ export function linkKnownKnowledgeCitations(
  * turn, even when Streamdown reuses a cached remark processor.
  */
 export function knowledgeCitationScopeDefinition(
-  nonce: string, indices: readonly number[],
+  nonce: string,
+  indices: readonly number[],
 ): string {
-  const allowed = [...new Set(indices.filter((n) => Number.isInteger(n) && n >= 1 && n <= 5))];
+  const allowed = [
+    ...new Set(indices.filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_CITATION_INDEX)),
+  ];
   if (!/^[a-zA-Z0-9_-]+$/.test(nonce) || allowed.length === 0) return "";
   return `[drora-knowledge-scope-${nonce}--${allowed.join("-")}]: #drora-knowledge-scope-${nonce}`;
 }
@@ -115,9 +143,7 @@ export function linkKnowledgeCitationsFromScopeDefinition(tree: MarkdownNode): v
   for (let i = tree.children.length - 1; i >= 0; i -= 1) {
     const node = tree.children[i]!;
     if (node.type !== "definition" || !node.identifier || !node.url) continue;
-    const match = /^drora-knowledge-scope-([a-zA-Z0-9_-]+)--([1-5](?:-[1-5])*)$/.exec(
-      node.identifier,
-    );
+    const match = CITATION_SCOPE_IDENTIFIER.exec(node.identifier);
     if (!match || node.url !== `#drora-knowledge-scope-${match[1]}`) continue;
     const nonce = match[1]!;
     const indices = match[2]!.split("-").map(Number);
@@ -131,15 +157,16 @@ export function linkKnowledgeCitationsFromScopeDefinition(tree: MarkdownNode): v
  * because each invocation reads its own AST-bound marker.
  */
 export const knowledgeCitationRemarkPlugin: Plugin = function knowledgeCitationRemarkPlugin() {
-  return (tree: unknown): void =>
-    linkKnowledgeCitationsFromScopeDefinition(tree as MarkdownNode);
+  return (tree: unknown): void => linkKnowledgeCitationsFromScopeDefinition(tree as MarkdownNode);
 };
 
 /** Legacy pure-AST test helper. Not used as a cached Streamdown plugin. */
 export function createKnowledgeCitationRemarkPlugin(
-  indices: readonly number[], nonce: string,
+  indices: readonly number[],
+  nonce: string,
 ): Plugin {
   return function knowledgeCitationRemarkPluginForTest() {
-    return (tree: unknown): void => linkKnownKnowledgeCitations(tree as MarkdownNode, indices, nonce);
+    return (tree: unknown): void =>
+      linkKnownKnowledgeCitations(tree as MarkdownNode, indices, nonce);
   };
 }

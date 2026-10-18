@@ -495,12 +495,11 @@ describe("R4 busy queue acceptance: G09 + G08 in one real Electron session", () 
     );
 
     // 模型请求体：Agent 收到 <conversation_quote> 原文与来源清单。
-    // 注：Receipt ID 是否入模型 prompt 属 G03 判据维度，不在 G09 判据内——
-    // 本轮真实运行发现当前 HEAD 上 conversation_quote 序列化携带
-    // evidenceReceiptId（apps/drora-cli/packages/core/src/runtime/helpers/
-    // conversation-quotes.ts:11 全量 JSON.stringify，与 ConversationComposer
-    // D-2 注释「不进模型可见提示词」矛盾），作为独立产品缺陷上报（G03 维度），
-    // 此处仅记录泄漏探针证据，不作 G09 的通过条件。
+    // 注：EC-6（e2e-a-6，2026-10-18 终审）修复陈旧表述——下述「当前 HEAD 泄漏」
+    // 现象已被 D1 修复（2026-10-17）：conversation-quotes.ts 现按
+    // MODEL_VISIBLE_QUOTE_KEYS 白名单序列化，evidenceReceiptId 不再进入模型
+    // prompt（下方探针实测 false）。Receipt ID 是否入 prompt 属 G03 判据维度，
+    // 不在 G09 判据内，此处保留泄漏探针证据输出，不作 G09 的通过条件。
     const record = await waitForReplayRecord("r4-busy-queue-g09-evidence-reply");
     assertModelRequest(
       record,

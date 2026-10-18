@@ -8,11 +8,19 @@
  * vault-config.json（唯一写入入口），进程内立即生效。
  */
 import * as React from "react";
-import { ChevronDown, ChevronRight, ClipboardCheck, Loader2, RefreshCw } from "lucide-react";
+import {
+  BookOpenText,
+  ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import type {
   IKnowledgeReviewService,
   IObsidianVaultService,
   KnowledgeReviewApplyResult,
+  KnowledgeReviewChangeKind,
   KnowledgeReviewFileStatus,
   KnowledgeReviewOperationStatus,
   KnowledgeReviewOperationView,
@@ -88,6 +96,16 @@ const FILE_STATUS_KEYS: Record<KnowledgeReviewFileStatus, string> = {
   undo_applied: "vault.review.fileStatus.undoApplied",
   undo_conflict: "vault.review.fileStatus.undoConflict",
 };
+/**
+ * 变更类型枚举 → i18n 键静态映射（ui-know-a-4，2026-10-18 终审）：提案文件行原先把
+ * create/write/delete 英文枚举原样插进界面；与 OPERATION_STATUS_KEYS 同模式收口，
+ * 键集合双语对齐由 knowledgeUiDiscipline 测试兜底。
+ */
+const CHANGE_KIND_KEYS: Record<KnowledgeReviewChangeKind, string> = {
+  create: "vault.review.changeKind.create",
+  write: "vault.review.changeKind.write",
+  delete: "vault.review.changeKind.delete",
+};
 
 /** 操作是否处于需要人工 reconcile 落定的卡点态（applying/uncertain/undoing）。 */
 function isOperationStuck(operation: KnowledgeReviewOperationView): boolean {
@@ -102,12 +120,19 @@ function isOperationStuck(operation: KnowledgeReviewOperationView): boolean {
 export function KnowledgeReviewView({
   vaultService,
   reviewService,
+  onGoToNotes,
 }: {
   vaultService: IObsidianVaultService | null;
   reviewService: IKnowledgeReviewService | null;
+  /** 未配置 Vault 引导空态的「去笔记页」回跳（spec §5e.11：未配置 → 引导）。 */
+  onGoToNotes?: () => void;
 }): React.ReactElement {
   const { intl } = useDroraIntl();
   const [summary, setSummary] = React.useState<ObsidianVaultSummary | null>(null);
+  // ui-know-a-1 修复（2026-10-18 终审，阻塞④）：区分「加载中」与「已加载且 getSummary
+  // resolve null（未配置 Vault）」——此前 null 永久渲染 loading，spec §5e.11 明文要求
+  // 未配置时给出引导空态而非无限等待。
+  const [summaryLoaded, setSummaryLoaded] = React.useState(false);
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [proposals, setProposals] = React.useState<readonly KnowledgeReviewProposalView[] | null>(
     null,
@@ -150,6 +175,8 @@ export function KnowledgeReviewView({
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
+    } finally {
+      setSummaryLoaded(true);
     }
   }, [vaultService]);
 
@@ -416,11 +443,38 @@ export function KnowledgeReviewView({
               {intl.formatMessage({ id: "vault.review.statusFailed" })}
             </p>
           )}
-          {!loadFailed && !summary && (
+          {!loadFailed && !summaryLoaded && (
             <p className="mt-2 flex items-center gap-1.5 text-ui-sm text-foreground-subtle">
               <Loader2 className="size-3.5 animate-spin" />
               {intl.formatMessage({ id: "vault.review.statusLoading" })}
             </p>
+          )}
+          {/* 阻塞④（ui-know-a-1）：getSummary 成功返回 null = 服务可用但未配置 Vault，
+              引导去笔记页完成配置（spec §5e.11「未配置 Vault → 引导」），不再伪装成加载中。 */}
+          {!loadFailed && summaryLoaded && !summary && vaultService && (
+            <div
+              className="mt-3 flex flex-col items-start gap-2 rounded-lg border border-dashed border-border px-4 py-5"
+              data-testid="review-vault-not-configured"
+            >
+              <div className="flex items-center gap-2 text-ui-base font-medium text-foreground">
+                <BookOpenText className="size-4 text-foreground-subtle" aria-hidden="true" />
+                {intl.formatMessage({ id: "vault.review.vaultNotConfiguredTitle" })}
+              </div>
+              <p className="text-ui-sm text-foreground-subtle">
+                {intl.formatMessage({ id: "vault.review.vaultNotConfiguredHint" })}
+              </p>
+              {onGoToNotes && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  data-testid="review-vault-not-configured-go-notes"
+                  onClick={onGoToNotes}
+                >
+                  {intl.formatMessage({ id: "vault.review.vaultNotConfiguredGoNotes" })}
+                </Button>
+              )}
+            </div>
           )}
           {summary && (
             <>
@@ -697,7 +751,7 @@ export function KnowledgeReviewView({
                     <li key={change.relativePath}>
                       <button
                         type="button"
-                        className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-ui-sm text-foreground hover:bg-menu-hover"
+                        className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-ui-sm text-foreground hover:bg-menu-hover"
                         data-testid="review-change-toggle"
                         onClick={() =>
                           toggleExpanded(
@@ -714,7 +768,9 @@ export function KnowledgeReviewView({
                         )}
                         <span className="truncate">{change.relativePath}</span>
                         <span className="shrink-0 text-foreground-subtlest">
-                          {change.kind} · {change.sizeBytes === null ? "—" : `${change.sizeBytes}B`}
+                          {/* ui-know-a-4：kind 枚举走 i18n，不再把 create/write/delete 英文原样入界面。 */}
+                          {intl.formatMessage({ id: CHANGE_KIND_KEYS[change.kind] })} ·{" "}
+                          {change.sizeBytes === null ? "—" : `${change.sizeBytes}B`}
                         </span>
                       </button>
                       {isOpen && (

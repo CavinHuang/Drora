@@ -295,10 +295,29 @@ describe("G61-G63: real Agent handoff and citation navigation", () => {
           (el) => Boolean(el.getClientRects().length),
         ),
       }));
-      assert.deepEqual(
-        { ...navigation, ...navigationSettled },
-        { vaultActive: false, codeMirrorVisible: false },
-        "Stale answer source must not navigate to Vault or open CodeMirror (stable across samples)",
+      // EC-4（e2e-a-4，2026-10-18 终审）修复：原实现把两次采样 spread 合并成
+      // `{ ...navigation, ...navigationSettled }` 再断言——第二次采样会覆盖第一次
+      // 的瞬时导航（首采样 vaultActive=true 可被 navigationSettled 的 false 遮蔽，
+      // 拒绝期闪现导航被判绿）。两次采样必须分别断言全 false。
+      assert.equal(
+        navigation.vaultActive,
+        false,
+        "Stale answer source must not navigate to Vault (first sample)",
+      );
+      assert.equal(
+        navigation.codeMirrorVisible,
+        false,
+        "Stale answer source must not open CodeMirror (first sample)",
+      );
+      assert.equal(
+        navigationSettled.vaultActive,
+        false,
+        "Stale answer source must not navigate to Vault (settled sample)",
+      );
+      assert.equal(
+        navigationSettled.codeMirrorVisible,
+        false,
+        "Stale answer source must not open CodeMirror (settled sample)",
       );
       assert.equal(
         await readFile(FILE, "utf8"),

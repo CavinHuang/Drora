@@ -115,7 +115,10 @@ export function createObsidianVaultService(options?: {
     return config;
   }
 
-  async function requireConfiguredVault(): Promise<{ config: VaultConfig; vault: VaultFileSystem }> {
+  async function requireConfiguredVault(): Promise<{
+    config: VaultConfig;
+    vault: VaultFileSystem;
+  }> {
     const config = await requireVaultConfig();
     return { config, vault: createVaultFileSystem(config.rootPath) };
   }
@@ -133,7 +136,9 @@ export function createObsidianVaultService(options?: {
     try {
       let sessions: Record<string, ObsidianVaultUserContextSnapshot> = {};
       try {
-        const raw = JSON.parse(await readFile(join(pluginDataDir, "vault-focus.json"), "utf-8")) as {
+        const raw = JSON.parse(
+          await readFile(join(pluginDataDir, "vault-focus.json"), "utf-8"),
+        ) as {
           sessions?: Record<string, ObsidianVaultUserContextSnapshot>;
         } | null;
         if (raw && typeof raw.sessions === "object" && raw.sessions !== null) {
@@ -164,7 +169,9 @@ export function createObsidianVaultService(options?: {
         `${JSON.stringify({ version: 1, sessions: Object.fromEntries(kept) }, null, 2)}\n`,
       );
     } catch (error) {
-      logger.warn(`persist vault-focus projection failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(
+        `persist vault-focus projection failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -219,11 +226,13 @@ export function createObsidianVaultService(options?: {
     },
 
     async setAgentWritesEnabled(params: { enabled: boolean }) {
+      // SV-5（2026-10-18 终审）：错误文案面向用户，改为中文并与本文件
+      // requireVaultConfig 的「尚未配置 Vault」提示保持同一口径。
       if (!params || typeof params.enabled !== "boolean") {
-        throw new Error("enabled must be a boolean");
+        throw new Error("enabled 必须是布尔值");
       }
       const summary = await setVaultAgentWritesEnabled(pluginDataDir, params.enabled);
-      if (!summary) throw new Error("Current Vault is no longer configured");
+      if (!summary) throw new Error("尚未配置 Vault：先在 Vault 面板选择或授权一个根目录");
       logger.info("updated Vault Agent write authorization", { enabled: params.enabled });
       return summary;
     },

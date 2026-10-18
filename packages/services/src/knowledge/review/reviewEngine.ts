@@ -70,7 +70,7 @@ const MAX_CHANGE_CONTENT_BYTES = 2 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 200;
 const MAX_REASON_LENGTH = 2000;
 const MAX_EVIDENCE_NOTE_LENGTH = 1000;
-/** 批准 TTL 默认 10 分钟；生产最低 30s（0/negative 仅测试钩子，表示立即过期）。 */
+/** 批准 TTL 默认 10 分钟；显式传入按 [0, 24h] 钳制（0/负值=立即过期，仅测试钩子；实现无 30s 下限，旧注「生产最低 30s」系残留，2026-10-18 终审勘误）。 */
 const DEFAULT_APPROVAL_TTL_MS = 10 * 60 * 1000;
 const MAX_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 

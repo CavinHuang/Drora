@@ -38,19 +38,23 @@ export function resolveToolCallCapabilityFlags(
     resolveRuntimePermissionContext(deps),
   );
   return {
-    // readOnly 旗标只在 host 可信判定成立时外发为 true（2026-10-17 增量评审
-    // cli-p0-5 修复）：普通 MCP 的 readOnlyHint 是服务端自报、按 write-tier-policy
-    // 同口径不构成信任锚——原样外发会让 dynamic-workflow driver 的导入缓存关门
-    // 判定把谎报只读的写调用当只读放行。Bash 等内建工具的运行时只读命令分析
-    // 仍照常生效（非 MCP 面不受影响）；不可信时外发 undefined（未知≠只读）。
+    // readOnly 旗标只抑制「不可信的 readOnly=true 断言」（2026-10-17 增量评审 cli-p0-5
+    // 修复；2026-10-18 终审阻塞①澄清语义）：普通 MCP 的 readOnlyHint 是服务端自报、
+    // 按 write-tier-policy 同口径不构成信任锚——外发 true 会让 dynamic-workflow driver
+    // 的导入缓存关门判定把谎报只读的写调用当只读放行，因此不可信的 true 降为
+    // undefined（未知≠只读）。false 与 undefined 是有价值的事实/缺席，原样透传；
+    // 非 MCP 内建元数据本就可信，Bash 等的运行时只读命令分析照常生效。
     readOnly:
-      isTrustedReadOnlyTool({
+      capability.readOnly === true &&
+      !isTrustedReadOnlyTool({
         toolName,
         permissionName: capability.permission?.permission,
         readOnly: capability.readOnly,
         destructive: capability.destructive,
         permissionCapabilityGroup: capability.permissionCapabilityGroup,
-      }) || undefined,
+      })
+        ? undefined
+        : capability.readOnly,
     sideEffectScope: capability.sideEffectScope,
   };
 }

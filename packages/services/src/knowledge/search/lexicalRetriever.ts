@@ -10,6 +10,7 @@
  *   （编排器先跑 AND 轮，policy 判 EXPAND_ONCE 后再跑 OR 轮；`searchKnowledgeLexical`
  *   保留为等价复合入口，供既有调用方与评测基线使用）。
  */
+import { KNOWLEDGE_EXCERPT_MAX_CHARS } from "@drora/shared";
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { articleIdOf } from "../store/indexRepository.js";
 import { loadVectorChunks } from "../store/vectorRepository.js";
@@ -18,8 +19,10 @@ import { cosineSimilarity, type KnowledgeSemanticContext } from "./embeddingPort
 import { composeEmbeddingText } from "./embeddingInput.js";
 import type { KnowledgeArticleCandidate, KnowledgeSearchDiagnostics } from "../knowledgeTypes.js";
 
-const EXCERPT_MAX_CHARS = 240;
-/** 命中位置前的引导上下文（可读性；窗口仍受 EXCERPT_MAX_CHARS 总长约束）。 */
+// 收口（PR #23 终审 shared-3）：候选 excerpt 窗口与回执摘录（shared
+// knowledgeEvidenceExcerpt）同界——候选展示即回执预览，共用 KNOWLEDGE_EXCERPT_MAX_CHARS，
+// 漂移会造成「候选看到的与复验回执不一致」。此前此处独立写死 240。
+/** 命中位置前的引导上下文（可读性；窗口仍受 KNOWLEDGE_EXCERPT_MAX_CHARS 总长约束）。 */
 const EXCERPT_CONTEXT_LEAD = 48;
 /** 每词元最多统计的正文出现次数（防超长单段落退化；窗口选择只需局部密度）。 */
 const MAX_OCCURRENCES_PER_TERM = 8;
@@ -156,7 +159,9 @@ async function recallByVector(
 
 function excerptOf(body: string): string {
   const compact = body.replace(/\s+/gu, " ").trim();
-  return compact.length > EXCERPT_MAX_CHARS ? `${compact.slice(0, EXCERPT_MAX_CHARS)}…` : compact;
+  return compact.length > KNOWLEDGE_EXCERPT_MAX_CHARS
+    ? `${compact.slice(0, KNOWLEDGE_EXCERPT_MAX_CHARS)}…`
+    : compact;
 }
 
 /**
@@ -186,13 +191,16 @@ export function matchAwareExcerpt(body: string, terms: readonly string[]): strin
   let bestStart = -1;
   let bestCovered = -1;
   const starts = [
-    ...new Set(occurrences.map((occurrence) => Math.max(0, occurrence.position - EXCERPT_CONTEXT_LEAD))),
+    ...new Set(
+      occurrences.map((occurrence) => Math.max(0, occurrence.position - EXCERPT_CONTEXT_LEAD)),
+    ),
   ].sort((left, right) => left - right);
   for (const start of starts) {
-    const end = start + EXCERPT_MAX_CHARS;
+    const end = start + KNOWLEDGE_EXCERPT_MAX_CHARS;
     const covered = new Set<number>();
     for (const occurrence of occurrences) {
-      if (occurrence.position >= start && occurrence.position < end) covered.add(occurrence.termIndex);
+      if (occurrence.position >= start && occurrence.position < end)
+        covered.add(occurrence.termIndex);
     }
     if (covered.size > bestCovered) {
       bestCovered = covered.size;
@@ -201,7 +209,7 @@ export function matchAwareExcerpt(body: string, terms: readonly string[]): strin
   }
   if (bestStart < 0) return excerptOf(body);
 
-  const sliceEnd = Math.min(body.length, bestStart + EXCERPT_MAX_CHARS);
+  const sliceEnd = Math.min(body.length, bestStart + KNOWLEDGE_EXCERPT_MAX_CHARS);
   const compact = body.slice(bestStart, sliceEnd).replace(/\s+/gu, " ").trim();
   const prefix = bestStart > 0 ? "…" : "";
   const suffix = sliceEnd < body.length ? "…" : "";
@@ -262,7 +270,10 @@ export async function searchLexicalPass(
     relaxed: boolean;
   },
 ): Promise<LexicalPassResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_CANDIDATE_LIMIT, 1), MAX_CANDIDATE_LIMIT);
+  const limit = Math.min(
+    Math.max(options.limit ?? DEFAULT_CANDIDATE_LIMIT, 1),
+    MAX_CANDIDATE_LIMIT,
+  );
   const expression = buildMatchExpression(query, options.relaxed);
   let diagnostics: KnowledgeSearchDiagnostics = {
     semantic: "skipped",
@@ -290,7 +301,11 @@ export async function searchLexicalPass(
   }
   let pool = hits;
   if (embeddingPort === null) {
-    diagnostics = { ...diagnostics, semantic: "unavailable", semanticReason: "port_not_configured" };
+    diagnostics = {
+      ...diagnostics,
+      semantic: "unavailable",
+      semanticReason: "port_not_configured",
+    };
   } else if (recall.queryVector === null) {
     diagnostics = {
       ...diagnostics,
@@ -304,7 +319,11 @@ export async function searchLexicalPass(
       try {
         const vectors = await embeddingPort.embed(
           missing.map((hit) =>
-            composeEmbeddingText({ title: hit.title, headingPath: hit.headingPath, body: hit.body }),
+            composeEmbeddingText({
+              title: hit.title,
+              headingPath: hit.headingPath,
+              body: hit.body,
+            }),
           ),
         );
         if (vectors && vectors.length === missing.length) {

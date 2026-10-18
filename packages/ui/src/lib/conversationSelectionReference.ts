@@ -251,12 +251,20 @@ function readPersistedReferenceScope(
     if (!Array.isArray(persisted)) return null;
     // 形状守卫：只收 contentType/text 齐全的条目；坏存储整批丢弃（回落无引用态，
     // 与旧行为一致，不抛错）。
+    // ui-lib-b-1 补强（2026-10-18 终审）：evidenceReceiptId / evidenceSource 是渲染器
+    // 私有可信元数据的入口，形状不符（number 化 receipt、字符串化 source 等）时不能
+    // 流入 manifest 校验与发送链——按条丢弃，与坏存储同处置。
     const references = persisted.filter(
       (item): item is ConversationSelectionReference =>
         typeof item === "object" &&
         item !== null &&
         typeof (item as { contentType?: unknown }).contentType === "string" &&
-        typeof (item as { text?: unknown }).text === "string",
+        typeof (item as { text?: unknown }).text === "string" &&
+        ((item as { evidenceReceiptId?: unknown }).evidenceReceiptId === undefined ||
+          typeof (item as { evidenceReceiptId?: unknown }).evidenceReceiptId === "string") &&
+        ((item as { evidenceSource?: unknown }).evidenceSource === undefined ||
+          (typeof (item as { evidenceSource?: unknown }).evidenceSource === "object" &&
+            (item as { evidenceSource?: unknown }).evidenceSource !== null)),
     );
     return references.length > 0 ? references : [];
   } catch (error) {
@@ -293,6 +301,9 @@ function writePersistedReferenceScope(
     else base.scopes[scopeId] = references;
     if (Object.keys(base.scopes).length === 0) window.localStorage.removeItem(storageKey);
     else window.localStorage.setItem(storageKey, JSON.stringify(base));
+    // ui-lib-a-3 对齐（2026-10-18 终审）：写入成功即清去重标记（与 composerDraftStore
+    // 同模式），避免一次瞬时故障把该 workspace 的存储告警永久静默、故障恢复后也不再上报。
+    warnedReferenceStorageKeys.delete(storageKey);
   } catch (error) {
     warnReferenceStorageFailure(storageKey, error);
   }

@@ -135,6 +135,16 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
 - **契约载体**：`sendText` payload 携带可选 `evidenceRefs: [{ receiptId }]`（≤8 条，仅
   opaque id，正文/路径/sha 一律不随线传输）；`ConversationInputIntent`（queue item 与
   durable `session_input` 账本）同形透传，busy 排队后 refs 随队首提升进入复验。
+- **conversation_quote 模型边界白名单（D1 修复条款，2026-10-18 补记；终审发现
+  cli-core-b-1/conv-4）**：wire 侧 conversationQuotes 条目为供投影/读取端配对可信引用而
+  携带 `evidenceReceiptId`（§5c.3），但 Receipt ID 是 opaque 服务端凭据，**绝不进入模型
+  prompt**——模型可见的 quote 字段按白名单序列化（`text/path/senderName/senderId/
+  messageId/sentAt`，单一出处 `apps/drora-cli/packages/core/src/runtime/helpers/
+  conversation-quotes.ts` 的 `MODEL_VISIBLE_QUOTE_KEYS`），非白名单键（含
+  `evidenceReceiptId`）一律不出模型边界。依据：安全不变量「来源原文不作为模型可见
+  Receipt ID」——R2 验收 G03 实证过 Receipt ID 泄漏进模型 prompt 的缺陷 D1，修复后以
+  模型边界回归锁定；该白名单只约束模型出站面，wire/投影/持久化侧的
+  `evidenceReceiptId` 携带语义不变。
 - **执行时复验**：CLI Runtime 内置只读 Evidence gate（`bootstrap/src/knowledge-evidence/`），
   读同一份 vault-config.json + knowledge-index.sqlite（只读连接）+ 当前文件内容，语义与
   §5.2 相同。接线点（W00 S02 结论）：
@@ -493,6 +503,23 @@ K-VEC-5 各层降级独立且诊断如实。
   路径解析、Receipt 复验、二次读文件与最终切换到笔记视图仍由挂载后的 VaultView 单一路径
   完成。挂载失败、15 秒超时、Session/Workspace/Vault 作用域变化或复验非 `current` 均
   fail-closed，且不得因预挂载而显示 Vault 或打开缓存路径。
+- **完成态来源面板呈现契约（KnowledgeAnswerSources，2026-10-18 补记；终审发现
+  ui-know-a-6）**：完成态 Agent 回答下方的来源面板遵循 **display-only** 原则——模型的
+  `[n]` 标记只是展示编号，不授予任何权限、不构成「该命题语义为真」的核实声明
+  （面板固定呈现免责文案）。具体契约：
+  1. 每个来源条目显示 `[n] 文件名`；`n` 只与同一产品轮内 CLI 已准入 UserInputRow 的
+     引用清单绑定（`knowledgeTurnCitations` 投影），不与模型文字自洽；
+  2. 「回答提及」标注：仅当本轮回答正文经 `auditKnowledgeAnswerCitationCoverage`
+     审计确实引用了该编号（knownNumbers），条目追加「回答提及」标记；未被引用的
+     来源照常列出但不标注——标注是「正文用了」的客观事实，不是「已核实」；
+  3. 审计提示（如实呈现缺口）：正文存在无来源归属的 prose 段落时按计数提示
+     「N/M 段落无来源标注」；正文出现清单外的未知编号（如 `[9]`）时以警示样式
+     列出，只有实际携带 Receipt 的来源可点击；
+  4. **按 receiptId 回跳**：点击条目只传 opaque receiptId 经
+     `requestKnowledgeCitationOpen`（当前 session/workspace 作用域、单飞去重、
+     失败 toast 结构化原因），由 VaultView 重新 `resolveCitation` 后按实际原文
+     路径与行号打开——与 §5e.10「回跳」同一可信链路，普通引用与模型生成的
+     `[1]` 文本不获得该权限。
 - **追问**：沿用同一 Vault 源发起新 run（上一轮候选折叠保留在「上一轮」区）；
   「把引用加入当前 Agent」是**可信证据语义**（PR #23 起，取代早期「userselect 普通引用」
   表述）：点击时经 `verifyPreviousKnowledgeCandidateEvidence` 重新核验并签发新 Receipt，
@@ -1036,9 +1063,30 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 （原独立 §5f「Evidence 生产者、审核消费与 L2 开关」整体并入 §5e 作 5e.10–5e.14，2026-10-17 消除与 §5f agent VaultSearch 的编号冲突；既有「§5f.1–§5f.5」引用一律按本节序号对应。）
 
 - **唯一状态所有者**：`packages/ui/src/lib/conversationSelectionReference.ts` 的会话／工作区作用域引用列表；不另建 `knowledgeEvidenceAttachment` scope 或平行的附件组件。
+- **引用快照持久化与懒水合（D-4 修复条款，2026-10-18 补记；终审发现 ui-lib-a-2）**：
+  引用快照与草稿文本同为用户未提交输入，必须同生命周期——引用随每次 scope 写入
+  **write-through** 到 localStorage（per-workspace 键空间 `drora-v4-selection-references:v1:`
+  前缀、session 与 `__draft__` 作用域分桶，与 composerDraftStore 同模式），renderer 重载后
+  首次读取 **miss 时懒水合**恢复；此前引用只存模块级内存 Map 而草稿文本跨刷新持久化，
+  重载后文本恢复、引用清零，manifest 校验判 mismatch、发送被永久禁用且无恢复入口。
+  坏存储/形状不符整批丢弃回落无引用态（warn 审计一次，不抛错）。**安全性依据
+  （服务端复验兜底）**：水合的引用与内存引用同信任级——receipt 在点击
+  （resolveCitation）与发送（CLI admission/queue promotion）时都会被服务端按
+  session/workspace/turn 重新复验（§5.3），过期收据得到结构化 SEND_FAILED（可重新
+  准备），伪造 localStorage 无任何收益。
 - **原文与凭据**：`KnowledgeAskView → prepareEvidence → resolveCitation → knowledgeAgentHandoff` 逐来源验证；`MarkdownSelectionReference` 同时持有模型可见的 excerpt/path 和 renderer-only 的 opaque `evidenceReceiptId`。`evidenceSource` 记录已验证的 index/path/heading/lines，供发送前一致性校验，绝不序列化进 `userselect`。
 - **发送链**：Composer 冻结引用快照、`collectConversationEvidenceRefs` 只从带 Receipt 的 Markdown 引用提取 `[{receiptId}]`，经 `ConversationComposer → SessionPane → CLI` 协议提交；CLI admission 和 queue promotion 再次独立复验。普通选区不获得可信语义。
 - **Agent handoff**：ANSWER 可选 1–5 篇，COMPARE 至少 2 篇、最多 5 篇；任一来源准备或解析失败则整批失败，不部分进入 Composer。修改来源数量、顺序、路径、章节、行号会令 `conversationKnowledgeSources.validateKnowledgeSourceManifest` 拒绝发送。只修改自然语言提问可继续发送。
+- **交接 prompt 的 locale 固定契约（模型面豁免记录，2026-10-18 补记；终审发现
+  ui-lib-a-4）**：来源清单表头（`KNOWLEDGE_SOURCE_MANIFEST_HEADER` =
+  `来源索引（顺序与附带的原文证据片段一致）：`，单一出处
+  `packages/ui/src/lib/conversationKnowledgeSources.ts`）与交接指令行为
+  （`knowledgeAgentHandoff.ts` 的「请仅依据附带的 Obsidian 可信证据回答…」「每个有
+  事实依据的结论请引用来源编号 [1]、[2] 等…」等固定中文措辞）属 **locale 固定契约**：
+  表头被 `validateKnowledgeSourceManifest` 在发送前逐行回解析（清单一致性预检），
+  指令措辞与来源编号语义互为配套，本地化任何一侧都会破坏模型面往返解析或令同一
+  会话内中英清单混杂。因此模型面文案**不做本地化**，豁免于 i18n 双语纪律——该纪律
+  仅约束人类可见 UI 面（§5c.5/A21）；用户可见的提问正文与 UI 文案照常双语。
 - **回跳**：已附加可信引用在 Composer 可请求核验后打开原文；事件只传 receiptId/session/workspace，VaultView 重新 `resolveCitation` 后校验路径与 quote。普通引用和模型生成的 `[1]` 文本不获得这一权限。
 - **迁移原则**：旧 PR #15 的 `knowledgeEvidenceAttachment.ts`、`useKnowledgeEvidenceAttachments.ts` 和 `KnowledgeEvidenceChip.tsx` 属于已被统一可信引用链路替代的历史实现，不要重新加入并行状态系统。W09 的 L2 审核功能和开关则保留并迁移至本 PR。对于任何没有服务端 Receipt 的材料，严格标示为普通引用。
 - **集成点记录（F-1 残余补记 2026-10-17）**：`packages/ui/src/components/ai-elements/message.tsx`（vercel/ai-elements 派生，非还原 bundle 文件）持有可信引用渲染接线：import `lib/knowledgeCitationMarkdown`、nonce `useMemo`、scoped markdown 缓存键、`knowledgeCitationRemarkPlugin` 注入与 link renderer 的 `resolveBoundKnowledgeCitation` 分支——上游同步 ai-elements 时须重放上述接缝；自研主体在 `lib/knowledgeCitationMarkdown.ts`。

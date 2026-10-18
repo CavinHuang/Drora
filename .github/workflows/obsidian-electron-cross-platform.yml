@@ -29,6 +29,9 @@ on:
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R6-source-manifest-guard.json"
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R8-concurrency-late-requests.json"
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R9-second-read-focus.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/G-interleaving.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/G28-citation-open-errors.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/G-hint-and-plain-selection.json"
       - "packages/ui/src/v4/VaultView.tsx"
       - "packages/ui/src/v4/vault/knowledge/**"
       - "packages/ui/src/components/ai-elements/message.tsx"
@@ -169,7 +172,10 @@ jobs:
             conversation-session/R5-restart-isolation.json \
             conversation-session/R6-source-manifest-guard.json \
             conversation-session/R8-concurrency-late-requests.json \
-            conversation-session/R9-second-read-focus.json; do
+            conversation-session/R9-second-read-focus.json \
+            conversation-session/G-interleaving.json \
+            conversation-session/G28-citation-open-errors.json \
+            conversation-session/G-hint-and-plain-selection.json; do
             test -f "test/e2e/fixtures/upstream/$fx" || { echo "missing fixture: $fx"; exit 1; }
           done
       - name: "R1 first use (G01/G02)"
@@ -245,6 +251,35 @@ jobs:
           DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-r9
           E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
         run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/r9-second-read-focus.test.ts
+      # G-backlog 补齐（2026-10-18 subagent 真 Electron 执行，回执见
+      # docs/vaultview/delivery/G_BACKLOG_AUTOMATION_2026-10-18.md）：G11/G20/G21/
+      # G22/G25/G28/G29/G30 八用例三 spec。G20 的正向对照探针（产品缺陷 D-G20-1）
+      # 默认 this.skip()，产品修复后以 DRORA_E2E_PROBE_D_G20_1=1 重跑转正；G20
+      # 用例级判定在 SMOKE 矩阵如实记 FAIL，不因探针跳过折算 PASS。
+      - name: "G interleaving (G11/G20/G21/G22)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/g-interleaving.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/G-interleaving.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-g-interleaving
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/g-interleaving.test.ts
+      - name: "G citation open errors (G28/G29)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/g-citation-open-errors.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/G28-citation-open-errors.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-g-citation-open-errors
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/g-citation-open-errors.test.ts
+      - name: "G hint and plain selection (G25/G30)"
+        shell: bash
+        env:
+          DRORA_E2E_SPEC: "./test/e2e/acceptance/g-hint-and-plain-selection.test.ts"
+          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/G-hint-and-plain-selection.json
+          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-g-hint-and-plain-selection
+          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/g-hint-and-plain-selection.test.ts
       - name: Upload R1-R9 Electron diagnostics
         if: always()
         uses: actions/upload-artifact@v4

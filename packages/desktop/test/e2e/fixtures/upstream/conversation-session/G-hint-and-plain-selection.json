@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "caseName": "G-hint-and-plain-selection",
+  "spec": "./test/e2e/acceptance/g-hint-and-plain-selection.test.ts",
+  "fixtures": [
+    {
+      "id": "g-hint-title",
+      "description": "Deterministic title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the citation authority"
+      },
+      "maxMatches": 5,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"g-hint-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"G Hint And Plain Selection E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "g-hint-session-start",
+      "description": "Initialize an actual CLI Session without Vault refs",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["G_HINT_SESSION_START"],
+        "bodyIncludes": ["G_HINT_SESSION_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"g-hint-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"G_HINT_SESSION_START: the plain initial conversation is ready.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "g-hint-g30-plain-send",
+      "description": "G30 plain markdown selection turn; the replay never supplies a Receipt",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic reply lets the completed turn render so the absence of trusted citations is asserted on a real finished turn"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["G_HINT_G30_PLAIN_QUESTION"],
+        "bodyIncludes": ["G_HINT_G30_PLAIN_QUESTION"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "GHintStaleBeacon2026"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"g-hint-g30-plain-send\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-g30-plain-send\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"G_HINT_G30_PLAIN_REPLY: the plain local-path selection was delivered, and no trusted citation was granted.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"g-hint-g30-plain-send\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-g-hint-plain-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

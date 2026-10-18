@@ -1,5 +1,6 @@
 /** Drora-owned pet compatibility contract; keep filesystem/wire keys in one place. */
 export const DESKTOP_PET_CONTRACT = {
+  creationSkill: "create-pet",
   customPrefix: "custom:",
   directory: "pets",
   legacyDirectory: "avatars",

@@ -41,6 +41,9 @@ const server = await createServer({
   server: { host: "127.0.0.1", port: 0 },
 });
 await server.listen();
+// 首次优化依赖可能超过页面导航时限；等待真实模块准备完成，不以固定延时掩盖启动时序。
+await server.warmupRequest(entry);
+await server.waitForRequestsIdle();
 const executablePath = [
   process.env.CHROME_EXECUTABLE_PATH,
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -137,6 +140,7 @@ try {
       assert.equal(state.size, 224);
       await page.getByTestId("desktop-pet-refresh").click();
       await page.getByTestId("desktop-pet-create").click();
+      assert.match(await page.getByTestId("pet-created-prompt").textContent(), /\$create-pet/);
       assert.match(await page.getByTestId("pet-created-prompt").textContent(), /1536×2288/);
       assert.match(
         await page.getByTestId("pet-created-prompt").textContent(),
@@ -152,6 +156,7 @@ try {
           ?.textContent.includes("avatars/legacy"),
       );
       const upgradePrompt = await page.getByTestId("pet-created-prompt").textContent();
+      assert.match(upgradePrompt, /\$create-pet/);
       assert.match(upgradePrompt, /1536×2288/);
       assert.match(upgradePrompt, /Never overwrite existing pets/);
       assert.ok(

@@ -76,9 +76,10 @@ layout and display removal; these are simulated layout inputs, not physical
 multi-monitor evidence. Production library decoding and filesystem tests now use the same full async Sharp decoder. The native candidate rejects corrupt packs and renders actual Codex WebP atlases. Electron nativeImage was replaced after it rejected valid WebP buffers.
 
 All four built-in packs now use the same Codex v1 manifests, geometry and tracks; the old runtime artwork/character adapters and generators have been removed. Their existing authored poses were repacked, so they accurately remain v1; 16-direction looks require a compatible v2 sheet. Create pet opens an
-unsent task draft with the atlas contract and target folder; it does not install
-OpenAI's hatch-pet plugin or guarantee an image tool is configured. These
-differences are also recorded in the parity spec.
+unsent task draft with the atlas contract and target folder. Creation and upgrade
+now explicitly invoke Drora's bundled `create-pet`, which includes the licensed
+hatch-pet processing helpers and a guarded publisher. An enabled image tool and
+Python/Pillow are still required. See [skill verification](desktop-pet-creation-skill-coverage.md).
 
 ## Full-format migration evidence
 

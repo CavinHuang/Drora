@@ -63,9 +63,10 @@ about what a pet ought to do.
   Create opens an unsent task draft using the existing onCreateTask path, with the
   owned directory and v2 artwork contract prefilled. The user supplies a character
   idea and sends it. Generation uses that task's available artwork tools; unlike
-  Codex, Drora does not install OpenAI's bundled hatch-pet skill. This is an explicit
-  product integration difference, replaceable when a supported bundled generator
-  is available. Creation guide also exposes local manifest instructions.
+  Codex, Drora uses its own bundled `create-pet` integration, with the licensed
+  hatch-pet processing pipeline and Drora publishing rules. See
+  `desktop-pet-creation-skill.md`. Available image-generation tools are still
+  required. Creation guide also exposes local manifest instructions.
 - As in the local Codex collection, a selected custom v1 pet exposes an upgrade
   action. Main revalidates the selected owned pack and returns its actual source
   directory (including legacy `avatars`), rather than letting UI construct a path.

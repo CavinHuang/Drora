@@ -1741,6 +1741,12 @@ export function createConversationV4Gateway(
     isDraftSession: (sessionId) => context.sessions.get(sessionId)?.persistence === "deferred",
     // ── workspace-config hook（配置目录订阅种子；live session 快路径，避免临时 app）──
     getWorkspaceConfig: (workspaceId) => buildLiveWorkspaceConfigStateV4(context, workspaceId),
+    findWorkspaceIdBySessionId: (sessionId) => {
+      const match = Array.from(context.sessions.values()).find(
+        (record) => String(record.app.sessionId) === sessionId,
+      );
+      return match?.workspace.workspaceKey;
+    },
     getStoredSessionSummaries: loadStoredSessionSummaries,
     refreshLegacySessionSummaries: (workspaceId, legacyTaskIds) =>
       parseRemoteWorkspaceIdentity(workspaceId)

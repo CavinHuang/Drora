@@ -294,6 +294,12 @@ export interface V4GatewayHost {
   getWorkspaceConfig?(
     workspaceId: string,
   ): Promise<WorkspaceConfigState | null> | WorkspaceConfigState | null;
+  /**
+   * 会话 → 所属 workspaceId（Agents Team 灰度失效用，specs/agents-team.md PR-2.5b）：
+   * TeamStateChanged 到达时网关重拉该 workspace 配置目录（此刻 hub 已装配，
+   * slashCommands 含 team），经 conflation 推给订阅者。未实现 = 不刷新（旧宿主）。
+   */
+  findWorkspaceIdBySessionId?(sessionId: string): string | undefined;
   readBackgroundBashOutput?(sessionId: string, workId: string): Promise<BackgroundBashOutputResult>;
   /** 执行 accepted 命令的副作用；返回值进 ACK.result（fork/createSession 带 sessionId）。 */
   executeCommand(
@@ -779,6 +785,14 @@ export class ConversationV4Gateway {
       hydrationBuffer.rawEvents.push(event);
     }
     this.emitLiveTelemetryFact(sessionId, event);
+    // Agents Team（specs/agents-team.md PR-2.5b）：装配完成后的首次 TeamStateChanged
+    // 触发 workspace 配置重拉——启动窗口期首拉的目录不含 team（hub 未装），失效后
+    // slashCommands 才能补上 /team。
+    if (event.type === "team_state_changed") {
+      void this.refreshWorkspaceConfigForSession(sessionId).catch((error: unknown) => {
+        this.host.onError?.("v4.workspaceConfig.teamRefresh", error);
+      });
+    }
     for (const normalizedEvent of this.normalizeRuntimeEventSequence(sessionId, event)) {
       try {
         this.localTtft.event(sessionId, normalizedEvent);
@@ -1351,6 +1365,16 @@ export class ConversationV4Gateway {
     } catch (error) {
       this.host.onError?.("v4.workspaceConfig.publish", error);
     }
+  }
+
+  /** TeamStateChanged → 重拉该会话所属 workspace 的配置目录并发布（conflation 去重）。 */
+  private async refreshWorkspaceConfigForSession(sessionId: string): Promise<void> {
+    const workspaceId = this.host.findWorkspaceIdBySessionId?.(sessionId);
+    if (workspaceId === undefined) return;
+    const state = await this.pullWorkspaceConfig(workspaceId);
+    if (state === null) return;
+    this.publishWorkspaceConfig(workspaceId, state);
+    this.flushConfig(workspaceId);
   }
 
   private async pullWorkspaceConfig(workspaceId: string): Promise<WorkspaceConfigState | null> {

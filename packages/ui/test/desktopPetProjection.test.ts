@@ -113,3 +113,81 @@ test("a later approval request outranks concurrent work", () => {
   assert.equal(result.attentionCount, 1);
   assert.equal(result.target?.sessionId, "task-needs-user");
 });
+
+test("tray orders input, blocked, ready and running, and retains identity on every row", () => {
+  const running = session({ sessionId: "working", lastActivityAt: 100 });
+  const completed = session({
+    sessionId: "completed",
+    phase: "completedSuccess",
+    lastActivityAt: 2,
+  });
+  const failed = session({ sessionId: "error", phase: "error", lastActivityAt: 3 });
+  const attention = session({
+    sessionId: "attention",
+    lastActivityAt: 1,
+    pendingInteraction: { interactionId: "approval", kind: "permission" },
+  });
+  const result = projectDesktopPet({
+    scope,
+    sessions: [running, completed, failed, attention],
+    previous: new Map([
+      ["completed", session({ sessionId: "completed" })],
+      ["error", session({ sessionId: "error" })],
+    ]),
+  });
+  assert.deepEqual(
+    result.activities?.map((row) => row.mode),
+    ["attention", "error", "completed", "working"],
+  );
+  for (const row of result.activities!)
+    assert.equal(row.target.remoteSessionId, scope.remoteSessionId);
+});
+
+test("terminal activity survives later preview updates but not a restarted run", () => {
+  const completed = session({ phase: "completedSuccess", lastActivityAt: 2 });
+  const first = projectDesktopPet({
+    scope,
+    sessions: [completed],
+    previous: new Map([["task-1", session()]]),
+  });
+  const updated = { ...completed, lastActivityAt: 3, lastAssistantPreview: "Final summary" };
+  const next = projectDesktopPet({
+    scope,
+    sessions: [updated],
+    previous: new Map([["task-1", completed]]),
+    recentActivities: first.activities,
+  });
+  assert.equal(next.activities?.[0]?.revision, 3);
+  assert.equal(next.preview, "Final summary");
+  assert.equal(
+    projectDesktopPet({
+      scope,
+      sessions: [session()],
+      previous: new Map([["task-1", updated]]),
+      recentActivities: next.activities,
+    }).mode,
+    "working",
+  );
+});
+
+test("tray projection is bounded and initial historical failures do not create fresh activity", () => {
+  assert.equal(
+    projectDesktopPet({ scope, sessions: [session({ phase: "error" })], previous: null }).mode,
+    "idle",
+  );
+  const result = projectDesktopPet({
+    scope,
+    sessions: Array.from({ length: 50 }, (_, i) =>
+      session({
+        sessionId: `s-${i}`,
+        title: "x".repeat(200),
+        lastAssistantPreview: "x".repeat(200),
+      }),
+    ),
+    previous: null,
+  });
+  assert.equal(result.activities?.length, 30);
+  assert.equal(result.activeCount, 50);
+  assert.equal(result.activities?.[0]?.title.length, 160);
+  assert.equal(result.activities?.[0]?.preview?.length, 120);
+});

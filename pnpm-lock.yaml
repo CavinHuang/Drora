@@ -942,6 +942,9 @@ importers:
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
     devDependencies:
       '@electron/asar':
         specifier: ^3.4.1
@@ -1018,9 +1021,6 @@ importers:
       istanbul-reports:
         specifier: ^3.2.0
         version: 3.2.0
-      sharp:
-        specifier: ^0.34.5
-        version: 0.34.5
       tailwindcss:
         specifier: ^4.2.2
         version: 4.2.2

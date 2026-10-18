@@ -1,374 +1,302 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, screen } from "electron";
-import type { DesktopPetPresentation, DesktopPetTarget, Locale } from "@drora/shared";
+import { BrowserWindow, ipcMain, screen } from "electron";
 import {
-  desktopPetDragSchema,
-  desktopPetPresentationSchema,
+  DESKTOP_PET_CONTRACT as C,
   PlatformChannels,
+  desktopPetCommandSchema,
+  type AppSettings,
+  type DesktopPetConfiguration,
+  type Locale,
 } from "@drora/shared";
-import { desktopPetBubbleContent } from "./desktopPetBubbleContent.js";
-import { desktopPetContent } from "./desktopPetContent.js";
-import {
-  resolveDesktopPetCharacter,
-  type DesktopPetCharacterId,
-  type DesktopPetCharacterSpec,
-} from "./desktopPetCharacter.js";
-import {
-  BUBBLE_HEIGHT,
-  BUBBLE_WIDTH,
-  draggedPetPosition,
-  bubblePositionForPet,
-  visiblePetPosition,
-  type Point,
-} from "./desktopPetLayout.js";
+import { resolvePetConfiguration } from "./desktopPetConfiguration.js";
+import { registerDesktopPetSource } from "./desktopPetSource.js";
+import { showDesktopPetMenu } from "./desktopPetMenu.js";
+import { desktopPetOverlayContent } from "./desktopPetOverlayContent.js";
+import { attachDesktopPetInteraction } from "./desktopPetNativeInteraction.js";
+import { visiblePetPosition } from "./desktopPetLayout.js";
+import { trayBoundsForPet } from "./desktopPetInteractionLayout.js";
+import type { createDesktopPetLibrary } from "./desktopPetLibrary.js";
 
-const IDLE: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };
-
-function visiblePosition(saved?: Point, size?: { width: number; height: number }): Point {
-  return visiblePetPosition(
-    saved,
-    screen.getAllDisplays().map((display) => display.workArea),
-    screen.getPrimaryDisplay().workArea,
-    size,
-  );
-}
-
-/** Native presentation adapter. Task facts are owned by the Host/renderer, never this controller. */
+/** Native presentation owner; accepted session/task state stays in the runtime. */
 export function registerDesktopPetWindow(options: {
-  enabled: boolean;
-  character?: DesktopPetCharacterId;
-  position?: { x: number; y: number };
-  locale: () => Locale;
-  isMainWindow: (window: BrowserWindow) => boolean;
-  savePosition: (position: { x: number; y: number }) => Promise<void>;
+  settings: Partial<AppSettings>;
+  library: ReturnType<typeof createDesktopPetLibrary>;
+  locale(): Locale;
+  isMainWindow(window: BrowserWindow): boolean;
+  saveSettings(patch: Partial<AppSettings>): Promise<void>;
   logger: { warn: (...args: unknown[]) => void };
+  getCursorPoint?(): { x: number; y: number };
 }) {
-  const byWindow = new Map<number, DesktopPetPresentation>();
-  const observedWindowIds = new Set<number>();
-  let enabled = options.enabled;
-  let character: DesktopPetCharacterSpec = resolveDesktopPetCharacter(options.character);
-  let window: BrowserWindow | null = null;
-  let petReady = false;
-  let bubble: BrowserWindow | null = null;
-  let bubbleReady = false;
-  let sourceWindowId: number | null = null;
-  let position = options.position;
+  let settings = { ...options.settings };
+  let pet: BrowserWindow | null = null;
+  let tray: BrowserWindow | null = null;
+  let configuration: DesktopPetConfiguration | null = null;
+  let interaction: ReturnType<typeof attachDesktopPetInteraction> | null = null;
+  let disposed = false;
+  let generation = 0;
+  let ready = false;
+  let trayReady = false;
+  let wantsTray = false;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
-  let drag: { start: Point; origin: Point } | null = null;
 
-  const sourceWindow = () => {
-    const source = sourceWindowId == null ? null : BrowserWindow.fromId(sourceWindowId);
-    return source && !source.isDestroyed() && options.isMainWindow(source) ? source : null;
-  };
-  const pickFallbackSource = () => {
-    const focused = BrowserWindow.getFocusedWindow();
-    if (focused && options.isMainWindow(focused) && byWindow.has(focused.id)) return focused.id;
-    for (const id of [...byWindow.keys()].reverse()) {
-      const candidate = BrowserWindow.fromId(id);
-      if (candidate && !candidate.isDestroyed() && options.isMainWindow(candidate)) return id;
-    }
-    return null;
-  };
-  const bubblePosition = () => {
-    if (!window || window.isDestroyed() || !bubble || bubble.isDestroyed()) return;
-    const bounds = window.getBounds();
-    const point = bubblePositionForPet(
-      bounds,
-      screen.getDisplayMatching(bounds).workArea,
-      character.window.width,
+  const positionTray = () => {
+    if (!pet || pet.isDestroyed() || !tray || tray.isDestroyed()) return;
+    tray.setBounds(
+      trayBoundsForPet(pet.getBounds(), screen.getDisplayMatching(pet.getBounds()).workArea),
     );
-    bubble.setPosition(point.x, point.y);
   };
-  const createBubble = () => {
-    if (!window || window.isDestroyed() || (bubble && !bubble.isDestroyed())) return;
-    const bounds = window.getBounds();
-    const point = bubblePositionForPet(
-      bounds,
-      screen.getDisplayMatching(bounds).workArea,
-      character.window.width,
-    );
-    let created: BrowserWindow;
-    try {
-      created = new BrowserWindow({
-        ...point,
-        width: BUBBLE_WIDTH,
-        height: BUBBLE_HEIGHT,
-        show: false,
-        frame: false,
-        transparent: true,
-        backgroundColor: "#00000000",
-        hasShadow: false,
-        skipTaskbar: true,
-        resizable: false,
-        focusable: false,
-        alwaysOnTop: true,
-        webPreferences: {
-          preload: join(import.meta.dirname, "../preload/desktopPet.cjs"),
-          contextIsolation: true,
-          sandbox: true,
-          nodeIntegration: false,
-          devTools: false,
-        },
-      });
-    } catch (error) {
-      options.logger.warn("[desktop-pet] bubble creation failed", error);
-      return;
+  const render = () => {
+    const next = source.current();
+    if (pet && !pet.isDestroyed() && ready)
+      pet.webContents.send(PlatformChannels.DesktopPetRender, next);
+    if (tray && !tray.isDestroyed() && trayReady) {
+      tray.webContents.send(PlatformChannels.DesktopPetRender, next);
+      if (wantsTray) {
+        positionTray();
+        tray.showInactive();
+      } else tray.hide();
     }
-    bubble = created;
-    bubbleReady = false;
+  };
+  const savePosition = () => {
+    if (!pet || pet.isDestroyed()) return;
+    const { x, y } = pet.getBounds();
+    settings.desktopPetPosition = { x, y };
+    positionTray();
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void options
+        .saveSettings({ desktopPetPosition: settings.desktopPetPosition })
+        .catch((error) => options.logger.warn("[desktop-pet] position save failed", error));
+    }, 250);
+  };
+  const createNative = (bounds: Electron.Rectangle, isTray: boolean) => {
+    const created = new BrowserWindow({
+      ...bounds,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      // Windows 默认 thickFrame 会给透明无边框窗口保留不可见边框，125% 缩放时放大最小高度差异。
+      thickFrame: false,
+      hasShadow: false,
+      skipTaskbar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      alwaysOnTop: true,
+      focusable: true,
+      title: isTray ? "Drora — Pet activity" : "Drora — Pet",
+      webPreferences: {
+        preload: join(import.meta.dirname, "../preload/desktopPet.cjs"),
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+      },
+    });
     created.setAlwaysOnTop(true, "floating");
-    created.setIgnoreMouseEvents(true);
     created.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     created.webContents.on("will-navigate", (event) => event.preventDefault());
+    return created;
+  };
+  const createTray = () => {
+    if (!pet || pet.isDestroyed() || (tray && !tray.isDestroyed())) return;
+    const created = createNative(
+      trayBoundsForPet(pet.getBounds(), screen.getDisplayMatching(pet.getBounds()).workArea),
+      true,
+    );
+    tray = created;
+    trayReady = false;
     created.on("closed", () => {
-      if (bubble === created) {
-        bubble = null;
-        bubbleReady = false;
+      if (tray === created) {
+        tray = null;
+        trayReady = false;
       }
     });
     void created
       .loadURL(
-        `data:text/html;charset=utf-8,${encodeURIComponent(desktopPetBubbleContent(options.locale()))}`,
+        `data:text/html;charset=utf-8,${encodeURIComponent(desktopPetOverlayContent(options.locale(), true))}`,
       )
       .then(() => {
-        if (bubble !== created || created.isDestroyed()) return;
-        bubbleReady = true;
+        if (tray !== created || created.isDestroyed() || disposed) return;
+        trayReady = true;
         render();
       })
       .catch((error) => {
-        options.logger.warn("[desktop-pet] bubble load failed", error);
+        options.logger.warn("[desktop-pet] tray load failed", error);
         if (!created.isDestroyed()) created.destroy();
       });
   };
-  const render = () => {
-    if (!window || window.isDestroyed() || !petReady) return;
-    const presentation = sourceWindowId == null ? IDLE : (byWindow.get(sourceWindowId) ?? IDLE);
-    window.webContents.send(PlatformChannels.DesktopPetRender, presentation);
-    if (presentation.mode === "idle") {
-      if (bubble && !bubble.isDestroyed()) bubble.hide();
-      return;
-    }
-    createBubble();
-    if (bubble && !bubble.isDestroyed() && bubbleReady) {
-      bubblePosition();
-      bubble.webContents.send(PlatformChannels.DesktopPetRender, presentation);
-      bubble.showInactive();
-    }
-  };
-  const afterPositionChange = (created: BrowserWindow) => {
-    if (created.isDestroyed()) return;
-    bubblePosition();
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      if (created.isDestroyed()) return;
-      const bounds = created.getBounds();
-      position = { x: bounds.x, y: bounds.y };
-      void options
-        .savePosition(position)
-        .catch((error) => options.logger.warn("[desktop-pet] position persistence failed", error));
-    }, 250);
-  };
-  const create = () => {
-    if (!enabled || (window && !window.isDestroyed())) return;
-    let created: BrowserWindow;
-    try {
-      const bounds = visiblePosition(position, character.window);
-      created = new BrowserWindow({
-        ...bounds,
-        width: character.window.width,
-        height: character.window.height,
-        show: false,
-        frame: false,
-        transparent: true,
-        backgroundColor: "#00000000",
-        hasShadow: false,
-        skipTaskbar: true,
-        resizable: false,
-        minimizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        alwaysOnTop: true,
-        focusable: false,
-        webPreferences: {
-          preload: join(import.meta.dirname, "../preload/desktopPet.cjs"),
-          contextIsolation: true,
-          sandbox: true,
-          nodeIntegration: false,
-          devTools: false,
-        },
-      });
-    } catch (error) {
-      options.logger.warn("[desktop-pet] window creation failed", error);
-      return;
-    }
-    window = created;
-    petReady = false;
-    created.setAlwaysOnTop(true, "floating");
-    created.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    created.webContents.on("will-navigate", (event) => event.preventDefault());
-    created.on("move", () => afterPositionChange(created));
-    created.on("closed", () => {
-      if (window === created) {
-        window = null;
-        petReady = false;
-      }
-      drag = null;
-      if (bubble && !bubble.isDestroyed()) bubble.destroy();
-    });
-    const html = desktopPetContent(options.locale(), character.id);
-    void created
-      .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-      .then(() => {
-        if (window !== created || created.isDestroyed() || !enabled) return;
-        petReady = true;
-        created.showInactive();
-        render();
-      })
-      .catch((error) => {
-        options.logger.warn("[desktop-pet] document load failed", error);
-        if (!created.isDestroyed()) created.destroy();
-      });
-  };
-  const chooseSource = (candidate: BrowserWindow) => {
-    if (!options.isMainWindow(candidate)) return;
-    sourceWindowId = candidate.id;
+  const toggleTray = () => {
+    wantsTray = !wantsTray;
+    if (wantsTray) createTray();
     render();
   };
-  const onFocus = (_event: Electron.Event, focused: BrowserWindow) => chooseSource(focused);
-  const onDisplayChange = () => {
-    if (!window || window.isDestroyed()) return;
+  const closeWindows = () => {
+    ready = false;
+    interaction?.dispose();
+    interaction = null;
+    if (pet && !pet.isDestroyed()) {
+      const { x, y } = pet.getBounds();
+      settings.desktopPetPosition = { x, y };
+      pet.destroy();
+    }
+    if (tray && !tray.isDestroyed()) tray.destroy();
+    pet = null;
+    tray = null;
+    trayReady = false;
+  };
+  const refreshConfiguration = async () => {
+    const version = ++generation;
+    if (!settings.desktopPetEnabled || disposed) {
+      wantsTray = false;
+      closeWindows();
+      return;
+    }
+    const next = await resolvePetConfiguration(settings, options.library);
+    if (version !== generation || disposed || !settings.desktopPetEnabled) return;
+    configuration = next;
+    const size = { width: next.width + 16, height: next.height + 16 };
+    const point = visiblePetPosition(
+      settings.desktopPetPosition,
+      screen.getAllDisplays().map((display) => display.workArea),
+      screen.getPrimaryDisplay().workArea,
+      size,
+    );
+    if (pet && !pet.isDestroyed()) {
+      pet.setBounds({ ...point, ...size });
+      if (ready) pet.webContents.send(C.channels.configure, next);
+      render();
+      return;
+    }
+    const created = createNative({ ...point, ...size }, false);
+    pet = created;
+    interaction = attachDesktopPetInteraction({
+      window: created,
+      onMove: savePosition,
+      getCursorPoint: options.getCursorPoint,
+    });
+    created.on("move", savePosition);
+    created.on("closed", () => {
+      if (pet === created) {
+        interaction?.dispose();
+        interaction = null;
+        pet = null;
+        ready = false;
+      }
+    });
     try {
-      const next = visiblePosition(window.getBounds(), character.window);
-      window.setPosition(next.x, next.y);
-      afterPositionChange(window);
+      await created.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(desktopPetOverlayContent(options.locale()))}`,
+      );
+      if (pet !== created || created.isDestroyed() || disposed || !settings.desktopPetEnabled)
+        return;
+      ready = true;
+      created.webContents.send(C.channels.configure, configuration);
+      created.showInactive();
+      if (wantsTray) createTray();
+      render();
     } catch (error) {
-      options.logger.warn("[desktop-pet] display reposition failed", error);
+      options.logger.warn("[desktop-pet] document load failed", error);
+      if (!created.isDestroyed()) created.destroy();
     }
   };
-  const onPublish = (event: Electron.IpcMainEvent, raw: unknown) => {
-    const sender = BrowserWindow.fromWebContents(event.sender);
-    if (!sender || sender.isDestroyed() || !options.isMainWindow(sender)) return;
-    const parsed = desktopPetPresentationSchema.safeParse(raw);
-    if (!parsed.success) return;
-    byWindow.set(sender.id, parsed.data);
-    if (sourceWindowId == null || sender.isFocused() || sourceWindowId === sender.id) {
-      sourceWindowId = sender.id;
-      render();
-    }
-    if (!observedWindowIds.has(sender.id)) {
-      observedWindowIds.add(sender.id);
-      const contents = sender.webContents;
-      const invalidatePresentation = () => {
-        byWindow.delete(sender.id);
-        if (sourceWindowId === sender.id) render();
-      };
-      contents.on("did-start-loading", invalidatePresentation);
-      contents.on("render-process-gone", invalidatePresentation);
-      sender.once("closed", () => {
-        observedWindowIds.delete(sender.id);
-        contents.removeListener("did-start-loading", invalidatePresentation);
-        contents.removeListener("render-process-gone", invalidatePresentation);
-        byWindow.delete(sender.id);
-        if (sourceWindowId === sender.id) {
-          sourceWindowId = pickFallbackSource();
+  const persist = async (patch: Partial<AppSettings>) => {
+    await options.saveSettings(patch);
+    settings = { ...settings, ...patch };
+    await refreshConfiguration();
+  };
+  const onCommand = (event: Electron.IpcMainEvent, raw: unknown) => {
+    const fromPet = pet && !pet.isDestroyed() && event.sender === pet.webContents;
+    const fromTray = tray && !tray.isDestroyed() && event.sender === tray.webContents;
+    if (!fromPet && !fromTray) return;
+    const command = desktopPetCommandSchema.safeParse(raw);
+    if (!command.success) return;
+    const value = command.data;
+    switch (value.action) {
+      case "hit-test":
+        if (fromPet) interaction?.setInteractive(value.interactive, value.captured);
+        break;
+      case "menu": {
+        if (!fromPet || !pet) break;
+        const current = pet;
+        const version = generation;
+        void showDesktopPetMenu({
+          window: current,
+          isCurrent: () => !disposed && pet === current && version === generation,
+          settings,
+          locale: options.locale(),
+          library: options.library,
+          toggleTray,
+          persist,
+          refresh: refreshConfiguration,
+          warn: (error) => options.logger.warn("[desktop-pet] menu action failed", error),
+        }).catch((error) => options.logger.warn("[desktop-pet] menu failed", error));
+        break;
+      }
+      case "toggle-tray":
+        toggleTray();
+        break;
+      case "open":
+        if (source.open(value.target)) {
+          wantsTray = false;
           render();
         }
-      });
+        break;
+      case "dismiss":
+        source.dismiss(value.target, value.revision);
+        break;
+      case "badge-corner":
+        if (fromPet)
+          void persist({ desktopPetBadgeCorner: value.corner }).catch((error) =>
+            options.logger.warn("[desktop-pet] badge save failed", error),
+          );
+        break;
     }
   };
-  const onActivate = (event: Electron.IpcMainEvent) => {
-    if (!window || event.sender !== window.webContents) return;
-    const source = sourceWindow();
-    if (!source) return;
-    if (source.isMinimized()) source.restore();
-    source.show();
-    if (process.platform === "darwin") app.focus({ steal: true });
-    source.focus();
-    const target: DesktopPetTarget | undefined = byWindow.get(source.id)?.target;
-    if (target) source.webContents.send(PlatformChannels.DesktopPetOpenTask, target);
-  };
-
-  const onDrag = (event: Electron.IpcMainEvent, raw: unknown) => {
-    if (!window || window.isDestroyed() || event.sender !== window.webContents) return;
-    const phase = desktopPetDragSchema.safeParse(raw);
-    if (!phase.success) return;
-    if (phase.data === "start") {
-      const [x, y] = window.getPosition();
-      drag = { start: screen.getCursorScreenPoint(), origin: { x, y } };
-      return;
-    }
-    if (!drag) return;
-    if (phase.data === "move") {
-      const next = draggedPetPosition(drag.origin, drag.start, screen.getCursorScreenPoint());
-      window.setPosition(Math.round(next.x), Math.round(next.y));
-      // Windows 的程序化 setPosition 不保证触发 moved；直接同步气泡和持久化，避免只移动猫。
-      afterPositionChange(window);
-      return;
-    }
-    const { origin } = drag;
-    drag = null;
-    const bounds = window.getBounds();
-    if (bounds.x === origin.x && bounds.y === origin.y) return;
-    const next = visiblePosition(bounds, character.window);
-    window.setPosition(next.x, next.y);
-    afterPositionChange(window);
-  };
-
-  ipcMain.on(PlatformChannels.DesktopPetPublish, onPublish);
-  ipcMain.on(PlatformChannels.DesktopPetActivate, onActivate);
-  ipcMain.on(PlatformChannels.DesktopPetDrag, onDrag);
-  app.on("browser-window-focus", onFocus);
-  screen.on("display-removed", onDisplayChange);
-  screen.on("display-metrics-changed", onDisplayChange);
-  create();
+  const source = registerDesktopPetSource({ isMainWindow: options.isMainWindow, onChange: render });
+  ipcMain.on(C.channels.command, onCommand);
+  void refreshConfiguration().catch((error) =>
+    options.logger.warn("[desktop-pet] initialization failed", error),
+  );
   return {
-    ownsWindow(candidate: BrowserWindow) {
-      return window === candidate || bubble === candidate;
+    refreshConfiguration,
+    ownsWindow: (window: BrowserWindow) => window === pet || window === tray,
+    updateSettings(patch: Partial<AppSettings>) {
+      settings = { ...settings, ...patch };
+      if (
+        [
+          "desktopPetEnabled",
+          "desktopPetCharacter",
+          "desktopPetSize",
+          "desktopPetBadgeCorner",
+        ].some((key) => key in patch)
+      )
+        void refreshConfiguration().catch((error) =>
+          options.logger.warn("[desktop-pet] configuration failed", error),
+        );
     },
     refreshLocale() {
-      const current = window;
-      if (!current || current.isDestroyed()) return;
-      petReady = false;
-      const html = desktopPetContent(options.locale(), character.id);
-      void current
-        .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-        .then(() => {
-          if (window !== current || current.isDestroyed()) return;
-          petReady = true;
-          render();
-        })
-        .catch((error) => options.logger.warn("[desktop-pet] locale refresh failed", error));
-      const currentBubble = bubble;
-      if (currentBubble && !currentBubble.isDestroyed()) {
-        bubbleReady = false;
-        void currentBubble
-          .loadURL(
-            `data:text/html;charset=utf-8,${encodeURIComponent(desktopPetBubbleContent(options.locale()))}`,
-          )
-          .then(() => {
-            if (bubble !== currentBubble || currentBubble.isDestroyed()) return;
-            bubbleReady = true;
-            render();
-          })
-          .catch((error) =>
-            options.logger.warn("[desktop-pet] bubble locale refresh failed", error),
-          );
+      generation++;
+      closeWindows();
+      void refreshConfiguration().catch((error) =>
+        options.logger.warn("[desktop-pet] locale failed", error),
+      );
+    },
+    dispose() {
+      disposed = true;
+      generation++;
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        void options
+          .saveSettings({ desktopPetPosition: settings.desktopPetPosition })
+          .catch((error) => options.logger.warn("[desktop-pet] final position save failed", error));
       }
-    },
-    setEnabled(next: boolean) {
-      enabled = next;
-      if (enabled) create();
-      else if (window && !window.isDestroyed()) window.destroy();
-      else if (bubble && !bubble.isDestroyed()) bubble.destroy();
-    },
-    setCharacter(next: DesktopPetCharacterId) {
-      const resolved = resolveDesktopPetCharacter(next);
-      if (resolved.id === character.id) return;
-      character = resolved;
-      // 角色切换=窗口尺寸与图集都变；整体重建，位置沿用（create 内再走一次可见性钳制）。
-      if (window && !window.isDestroyed()) window.destroy();
-      if (enabled) create();
+      closeWindows();
+      ipcMain.removeListener(C.channels.command, onCommand);
+      source.dispose();
     },
   };
 }

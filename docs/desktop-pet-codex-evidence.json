@@ -1,0 +1,184 @@
+{
+  "version": "26.1013.31256",
+  "archive": "D:/software/codex/resources/app.asar",
+  "extractedAt": "2026-10-17",
+  "exclusion": "Quick Chat and voice/orb UI. Inertial throw is guarded by usesOrbPhysics and is not an ordinary pet behavior.",
+  "files": [
+    {
+      "file": ".vite/build/src-DsLVGakC.js",
+      "sha256": "28a0918f01c50b0eb17676e894998ad7182f119d978adf0467ccaac3583f259c",
+      "evidence": [
+        {
+          "term": "eq=1536",
+          "byteOffset": 1424907,
+          "excerpt": "eq=1536,tq=1872,nq=2288,rq=80,iq=t.O({id:t.N().trim().min(1).optional(),displayName:t.N().trim().min(1).optional(),description:t.N().nullish().transform(e=>e?.trim()||null),spriteVersionNumber:t.I([t.w(1),t.w(2)]).default(1),spritesheetPath:t.N().trim().min(1).default(`spritesheet.webp`)});async function aq({appServerClient:e,preferWsl:t=!1}){let n=o.lt({preferWsl:t}),r=await e.platformPath(),i=r.join(n,`pets`),a=r.join(n,`avatars`);try{await W.mkdir(i,{recursive:!0},e)}catch{return{avatarDirect"
+        },
+        {
+          "term": "async function aq(",
+          "byteOffset": 1425198,
+          "excerpt": "async function aq({appServerClient:e,preferWsl:t=!1}){let n=o.lt({preferWsl:t}),r=await e.platformPath(),i=r.join(n,`pets`),a=r.join(n,`avatars`);try{await W.mkdir(i,{recursive:!0},e)}catch{return{avatarDirectory:i,avatars:[]}}let[s,c]=await Promise.all([lq(r,e,a,`avatar.json`).catch(()=>[]),lq(r,e,i,`pet.json`)]),l=new Map(s.map(e=>[e.id,e]));for(let e of c)l.set(e.id,e);return{avatarDirectory:i,avatars:[...l.values()].sort((e,t)=>(t.updatedAt??0)-(e.updatedAt??0))}}async function oq({appServer"
+        },
+        {
+          "term": "async function uq(",
+          "byteOffset": 1426921,
+          "excerpt": "async function uq(e,t,n,r,i){let a=dq(e,n,r);if(a==null)return null;let o=e.join(a,i);try{let n=iq.safeParse(JSON.parse(await W.readFile(o,t)));if(!n.success)return null;let i=dq(e,a,n.data.spritesheetPath);if(i==null)return null;let[s,c,l]=await Promise.all([W.readFileBase64(i,t),W.stat(o,t,{bypassCache:!0}),W.stat(i,t,{bypassCache:!0})]),u=typeof s==`string`?s:s.toString(`base64`),d=sq(Buffer.from(u,`base64`),n.data.spriteVersionNumber);return d==null?null:{directoryPath:a,id:`custom:${r}`,dis"
+        },
+        {
+          "term": "function dq(",
+          "byteOffset": 1427641,
+          "excerpt": "function dq(e,t,n){let r=e.resolve(t,n),i=e.relative(t,r);return i===``||i===`..`||i.startsWith(`..`+e.sep)||e.isAbsolute(i)?null:r}function fq(e,t){let n=(0,$K.default)(e).slice(0,rq).replace(/-+$/,``)||`pet`,r=1,i=n;for(;t.has(i);)r+=1,i=`${n}-${r}`;return i}function pq(e){return mq(e)??hq(e)}function mq(e){return e.length<24||e[0]!==137||e.subarray(1,4).toString(`ascii`)!==`PNG`||e[4]!==13||e[5]!==10||e[6]!==26||e[7]!==10||e.subarray(12,16).toString(`ascii`)!==`IHDR`?null:{height:e.readUInt32"
+        }
+      ]
+    },
+    {
+      "file": "webview/assets/app-initial-df84a35d942d.js",
+      "sha256": "d7659a96f7d0cfe2249e089ef19675d09d04d6dd9569b550ddaa64722d4f13f3",
+      "evidence": [
+        {
+          "term": "c6s={version:1",
+          "byteOffset": 9149293,
+          "excerpt": "c6s={version:1,width:1536,height:1872,cellWidth:192,cellHeight:208,columns:8,rows:9,requiredFramesByRow:[6,8,8,4,5,8,6,6,6]},q$={version:2,width:1536,height:2288,cellWidth:192,cellHeight:208,columns:8,rows:11,requiredFramesByRow:[6,8,8,4,5,8,6,6,6,8,8]},l6s=[c6s,q$]})))()}function d6s(e,t,n=!1){let r=v6s[e];if(t)return{frames:[f6s(r,0)],loopStartIndex:null};if(e===`idle`)return{frames:_6s,loopStartIndex:0};if(n)return{frames:r,loopStartIndex:0};let i=[...r,...r,...r];return{frames:[...i,..._6s],"
+        },
+        {
+          "term": "g6s=[",
+          "byteOffset": 9150278,
+          "excerpt": "g6s=[{rowIndex:0,columnIndex:0,frameDurationMs:280},{rowIndex:0,columnIndex:1,frameDurationMs:110},{rowIndex:0,columnIndex:2,frameDurationMs:110},{rowIndex:0,columnIndex:3,frameDurationMs:140},{rowIndex:0,columnIndex:4,frameDurationMs:140},{rowIndex:0,columnIndex:5,frameDurationMs:320}],_6s=g6s.map(e=>({...e,frameDurationMs:e.frameDurationMs*h6s})),v6s={failed:J$(5,8,140,240),idle:g6s,jumping:J$(4,5,140,280),review:J$(8,6,150,280),running:J$(7,6,120,220),\"running-left\":J$(2,8,120,220),\"running-r"
+        },
+        {
+          "term": "function d6s(",
+          "byteOffset": 9149566,
+          "excerpt": "function d6s(e,t,n=!1){let r=v6s[e];if(t)return{frames:[f6s(r,0)],loopStartIndex:null};if(e===`idle`)return{frames:_6s,loopStartIndex:0};if(n)return{frames:r,loopStartIndex:0};let i=[...r,...r,...r];return{frames:[...i,..._6s],loopStartIndex:i.length}}function f6s(e,t){let n=e[t];if(n==null)throw RangeError(`Codex pet animation frame is out of range`);return n}function J$(e,t,n,r){return Array.from({length:t},(i,a)=>({columnIndex:a,frameDurationMs:a===t-1?r:n,rowIndex:e}))}function p6s(e,t){retu"
+        },
+        {
+          "term": "function O6s(",
+          "byteOffset": 9152276,
+          "excerpt": "function O6s(e,t,n=c6s.version){if(n!==q$.version)return null;let r=t.x-(e.left+e.width/2),i=t.y-(e.top+e.height/2);if(Math.hypot(r,i)<=N6s)return null;let a=(Math.atan2(r,-i)*(180/Math.PI)+360)%360,o=Math.round(a/k6s)%A6s;return{columnIndex:o%M6s,frameDurationMs:0,rowIndex:j6s+Math.floor(o/M6s)}}var k6s,A6s,j6s,M6s,N6s;function P6s(){return(P6s=t((()=>{u6s(),k6s=22.5,A6s=16,j6s=9,M6s=8,N6s=1})))()}function F6s(){return(F6s=t((()=>{D6s(),y6s(),P6s(),u6s()})))()}var I6s;function L6s(){return(L6s="
+        }
+      ]
+    },
+    {
+      "file": "webview/assets/avatar-overlay-native-page-c35ebc8e522e.js",
+      "sha256": "5c80ea3def8c435dc1d39e0a2ce4c8f4b2f8a5deda9812612d3140435432020f",
+      "evidence": [
+        {
+          "term": "function Sp(",
+          "byteOffset": 106693,
+          "excerpt": "function Sp(e,t){if(e.hasMoved)return!0;let n=e.samples[0];return n!=null&&(Math.abs(t.screenX-n.screenX)>=4||Math.abs(t.screenY-n.screenY)>=4)}function Cp(e){let t=e.at(-1);return t==null?e:e.filter(e=>t.timeMs-e.timeMs<=Dp)}function wp(e){let t=Tp(e);if(t==null)return null;let n=e.find(e=>t.timeMs-e.timeMs>0);if(n==null)return null;let r=Math.max(t.timeMs-n.timeMs,Op)/1e3,i={x:(t.screenX-n.screenX)/r,y:(t.screenY-n.screenY)/r},a=Math.hypot(i.x,i.y);if(a<kp)return null;if(a<=Ep)return i;let o=E"
+        },
+        {
+          "term": "function wp(",
+          "byteOffset": 106919,
+          "excerpt": "function wp(e){let t=Tp(e);if(t==null)return null;let n=e.find(e=>t.timeMs-e.timeMs>0);if(n==null)return null;let r=Math.max(t.timeMs-n.timeMs,Op)/1e3,i={x:(t.screenX-n.screenX)/r,y:(t.screenY-n.screenY)/r},a=Math.hypot(i.x,i.y);if(a<kp)return null;if(a<=Ep)return i;let o=Ep/a;return{x:i.x*o,y:i.y*o}}function Tp(e){let t=e.at(-1);if(t==null)return;let n=e.length-1;for(;n>0;){let r=e[n-1];if(r==null||Math.abs(t.screenX-r.screenX)>=4||Math.abs(t.screenY-r.screenY)>=4)break;--n}return e[n]}var Ep,D"
+        },
+        {
+          "term": "Ep=1600",
+          "byteOffset": 107459,
+          "excerpt": "Ep=1600,Dp=160,Op=8,kp=320})))()}function jp({activityStackPresentation:e,isExpanded:t,notificationCount:n}){let r=e.items[0]?.presentationRect.height??0,i=kt(n,t&&n>1?Math.min(r,e.items[1]?.presentationRect.height??r):r);return{backingLayoutHeight:n>1?e.viewportRect.height:r,visibleLayoutHeight:Math.ceil(i+(n>1?20:0))}}function Mp(e,t){return e.map(e=>[e.id,e.title,e.body??``,e.level,e.isLoading?`loading`:`done`,e.action?.path??``,e.waitingRequest==null?``:Mf(e.waitingRequest,t)].join(`\u0001`)).joi"
+        },
+        {
+          "term": "avatar-overlay-drag-start",
+          "byteOffset": 313992,
+          "excerpt": "avatar-overlay-drag-start`,{pointerScreenX:e.screenX,pointerScreenY:e.screenY,pointerWindowX:e.clientX,pointerWindowY:e.clientY,usesOrbPhysics:t})},t[88]=De,t[89]=Xe,t[90]=Y,t[91]=ca):ca=t[91];let la=ca,ua;t[92]===Symbol.for(`react.memo_cache_sentinel`)?(ua=e=>{let t=ki.current;if(t==null||t.pointerId!==e.pointerId)return;let n=yp(e);t.samples=Cp([...t.samples,n]);let r=n.screenX-t.screenX,i=n.screenY-t.screenY;(Math.abs(r)>=4||Math.abs(i)>=4)&&(t.hasMoved=!0,t.screenX=n.screenX,t.screenY=n.scre"
+        },
+        {
+          "term": "avatar-overlay-drag-release",
+          "byteOffset": 313175,
+          "excerpt": "avatar-overlay-drag-release`,{shouldBounce:!0,velocityX:o.x*3,velocityY:o.y*3})},ca;t[88]!==De||t[89]!==Xe||t[90]!==Y?(ca=e=>{if(e.button!==0||e.ctrlKey||!(e.target instanceof Element)||e.target.closest(`.no-drag, [data-orb-message]`)!=null)return;e.preventDefault(),e.currentTarget.setPointerCapture?.(e.pointerId);let t=Xe&&!De;ki.current={beganOnQuickChatBar:Y&&e.target.closest(`[data-quick-chat-glass-group], [data-avatar-overlay-hit-region=\"selected-orb\"], [data-avatar-overlay-orbit-transcript"
+        },
+        {
+          "term": "function Ef(",
+          "byteOffset": 76940,
+          "excerpt": "function Ef(e){if(e==null)return Of;if(e.kind===`first-awake`)return kf;if(e.isLoading)return{badgeBackgroundColor:`var(--color-background-info-soft)`,badgeForegroundColor:`var(--color-text)`,fallbackBodyMessage:Df.runningFallbackBody,iconClassName:`icon-xs shrink-0 text-secondary`,iconType:`spinner`,labelMessage:Df.running,mascotState:`running`};switch(e.level){case`warning`:return{badgeBackgroundColor:`var(--color-text-warning)`,badgeForegroundColor:`var(--color-surface-secondary)`,fallbackBodyMessage:Df.waiting,iconClassName:`icon-xs shrink-0 text-warning`,iconType:`warning`,labelMessage:Df.waiting,mascotState:`waiting`};case`danger`:return{badgeBackgroundColor:`var(--color-text-danger)`,badgeForegroundColor:`var(--color-surface-secondary)`,fallbackBodyMessage:Df.failed,iconClassName:`icon-xs shrink-0 text-danger`,iconType:`warning`,labelMessage:Df.failed,mascotState:`failed`};case`success`:return{badgeBackgroundColor:`var(--color-chart-green)`,badgeForegroundColor:`var(--color-surface-secondary)`,fallbackBodyMessage:Df.review,iconClassName:`icon-xs shrink-0 text-chart-green`,iconType:`check-circle`,labelMessage:Df.review,mascotState:`review`};case`info`:return Of}}var Df,Of,kf;function Af(){return(Af=e((()=>{at(),Df=s({running:{id:`avatarOverlay.statusRunning`,defaultMessage:`Running`,description:`Status label shown for a loading notification`},runningFallbackBody:{id:`avatarOverlay.statusRunningSubtitle`,defaultMessage:`Thinking`,description:`Fallback body shown for a loading notification when no richer activity text is available`},waiting:{id:`avatarOverlay.statusWaiting`,defaultMessage:`Needs input`,description:`Status label shown for a notification waiting on user input`},review:{id:`avatarOverlay.statusReview`,defaultMessage:`Ready`,description:`Status label shown for a notification with unread completed output`},failed:{id:`avatarOverlay.statusFailed`,defaul"
+        }
+      ]
+    },
+    {
+      "file": "webview/assets/avatar-mascot-button-6ef938553ca7.js",
+      "sha256": "daadb1f527b640a0ebde43df8e47e64716363e62ea2caf18d0d4376eaae34061",
+      "evidence": [
+        {
+          "term": "f=re??(l?",
+          "byteOffset": 1026,
+          "excerpt": "f=re??(l?`jumping`:c),ie=f===`idle`||f===`running`||f===`waving`,p=i!=null,h;n!=null&&(h=p?`group`:`img`);let g;t[0]===r?g=t[1]:(g=te(`codex-avatar-button relative flex cursor-interaction items-center justify-center active:cursor-grabbing`,r),t[0]=r,t[1]=g);let _=n==null&&!p||void 0,v,y;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(v=()=>{u(!0)},y=()=>{u(!1)},t[2]=v,t[3]=y):(v=t[2],y=t[3]);let b=ie?ee:null,x;t[4]!==f||t[5]!==o||t[6]!==b?(x=(0,A.jsx)(m,{assetMap:d,className:`codex-avatar-root r"
+        },
+        {
+          "term": "function oe(",
+          "byteOffset": 8482,
+          "excerpt": "function oe({avatarBounds:e,clientX:t,clientY:n}){return`${n<e.top+e.height/2?`top`:`bottom`}-${t<e.left+e.width/2?`start`:`end`}`}var se,k,A,ce,le,ue,de;function j(){return(j=e((()=>{se=re(),_(),i(),o(),s(),r(),k=u(),w(),c(),g(),p(),E(),f(),A=l(),ce=4,le={damping:20,mass:.7,stiffness:420,type:`spring`},ue={\"top-start\":`top-0 left-0`,\"top-end\":`top-0 right-0`,\"bottom-start\":`bottom-0 left-0`,\"bottom-end\":`right-7 bottom-0`},de=h(`avatar-mascot-notification-badge-corner`,`top-end`)})))()}export{E"
+        },
+        {
+          "term": "ce=4",
+          "byteOffset": 8730,
+          "excerpt": "ce=4,le={damping:20,mass:.7,stiffness:420,type:`spring`},ue={\"top-start\":`top-0 left-0`,\"top-end\":`top-0 right-0`,\"bottom-start\":`bottom-0 left-0`,\"bottom-end\":`right-7 bottom-0`},de=h(`avatar-mascot-notification-badge-corner`,`top-end`)})))()}export{E as a,C as c,v as d,w as f,ae as i,S as l,O as n,x as o,j as r,b as s,D as t,y as u};\n//# sourceMappingURL=avatar-mascot-button-6ef938553ca7.js.map"
+        }
+      ]
+    },
+    {
+      "file": ".vite/build/main-C4DYk222.js",
+      "sha256": "c8a2af504b21314fa6a64ad1b4ec83dbad80033ede902caf9978fd9c74a2c175",
+      "evidence": [
+        {
+          "term": "wp={width:112",
+          "byteOffset": 374497,
+          "excerpt": "wp={width:112,height:121},Tp=80,Yce=224,Xce=192/208,Ep=Mp(Tp);function Zce(e,t,n){let r=t??{...e,x:Math.round(e.x)+n.x,y:Math.round(e.y)+n.y};return{...r,...Ep,x:r.x+Math.round(r.width/2)-Math.round(Ep.width/2)}}function Dp(e,t){return{x:e.x+e.width-t.width-24,y:e.y+e.height-t.height-24,width:t.width,height:t.height}}function Op(e){return D.screen.getAllDisplays().find(t=>t.id===e)??null}function Qce(e){let t=D.screen.getDisplayMatching(e);return Lp(t.bounds,e)?t:null}function kp(e,t){return e=="
+        },
+        {
+          "term": "startDrag(e,t",
+          "byteOffset": 405574,
+          "excerpt": "startDrag(e,t,n=!1){let r=this.window;if(r==null||r.isDestroyed()||r.webContents.id!==e)return;this.nativeWindowDragActive&&this.endDrag(e,void 0,!1,`button-released`),this.cancelMomentum(),this.clearMovedWindowPersist(),this.clearNativeWindowDragCompletionTimer(),this.dockRestoreAnchor=null,this.nativeWindowDragActive=!1,this.suppressNextRendererThrow=!1,this.clearDetachedDisplayRestore();let i=this.getLayout(r),a=t.pointerScreenX!=null&&t.pointerScreenY!=null?{x:t.pointerScreenX,y:t.pointerScr"
+        },
+        {
+          "term": "endDrag(e,t",
+          "byteOffset": 407988,
+          "excerpt": "endDrag(e,t,n=!1,r=`released`){let i=this.window;if(i==null||i.isDestroyed()||i.webContents.id!==e||this.dragState==null)return;let a=this.dragState,o=this.nativeWindowDragActive,s=o?yu(i):null,c=s?.bounds,l=o?s?.altKey===!0:n;if(o)this.handleNativeWindowDragMove(i,c),this.logger().info(`Native pet window drag finished`,{safe:{reason:r}});else if(a.hasMovementIntent){let e=D.screen.getCursorScreenPoint(),n=a.getCursorPointForSource({native:null,renderer:{x:t?.pointerScreenX??e.x,y:t?.pointerScre"
+        },
+        {
+          "term": "function nm(",
+          "byteOffset": 384130,
+          "excerpt": "function nm(e,t){let n=(e.x-t.x)/t.width,r=`center`;return n<1/3?r=`left`:n>=2/3&&(r=`right`),`${e.y<t.y+t.height/2?`top`:`bottom`}-${r}`}function rm(e,{bounds:t,workArea:n},r,i){let a=Math.min(i.width,n.width-32),o=t.x+t.width/2;e.endsWith(`left`)?o=n.x+16+a/2:e.endsWith(`right`)&&(o=n.x+n.width-16-a/2);let s=e.startsWith(`top`)?n.y+16+i.height/2:n.y+n.height-16-i.height/2;return{...r,x:o-r.width/2,y:s-r.height/2}}var vle={width:330,height:131},yle={width:330,height:141},ble=`/avatar-overlay`,i"
+        },
+        {
+          "term": "function rm(",
+          "byteOffset": 384268,
+          "excerpt": "function rm(e,{bounds:t,workArea:n},r,i){let a=Math.min(i.width,n.width-32),o=t.x+t.width/2;e.endsWith(`left`)?o=n.x+16+a/2:e.endsWith(`right`)&&(o=n.x+n.width-16-a/2);let s=e.startsWith(`top`)?n.y+16+i.height/2:n.y+n.height-16-i.height/2;return{...r,x:o-r.width/2,y:s-r.height/2}}var vle={width:330,height:131},yle={width:330,height:141},ble=`/avatar-overlay`,im=`avatar-overlay`,am=8,xle=300,Sle=120,Cle=32,om=.01,sm=16,wle=16,cm=32,Tle=.88,lm=.7,Ele=65,Dle=900,Ole=360,um=26,dm=220,kle=3,Ale=80,jl"
+        },
+        {
+          "term": "applyInputShape(e)",
+          "byteOffset": 451553,
+          "excerpt": "applyInputShape(e);if(!e.isVisible()){if(process.platform===`win32`&&this.mousePassthroughMode===`disabled`)return;this.mousePassthroughMode!==`without-forwarding`&&(e.setIgnoreMouseEvents(!0,{forward:!1}),this.mousePassthroughMode=`without-forwarding`);return}if(t)return;let n=this.pointerInteractive?`disabled`:`forwarding`;if(this.mousePassthroughMode!==n){if(this.mousePassthroughMode=n,n===`forwarding`){e.setIgnoreMouseEvents(!0,{forward:!0});return}e.setIgnoreMouseEvents(!1),this.refreshCurs"
+        }
+      ]
+    },
+    {
+      "file": "webview/assets/pets-settings-route-3534c977496e.js",
+      "sha256": "f27d85f9e746514c5bc1ac9723d8085a9e83e8c278c7b622c89e27c5e33319b4",
+      "evidence": [
+        {
+          "term": "O=(T-80)/144",
+          "byteOffset": 5417,
+          "excerpt": "O=(T-80)/144*100,k,A,N,P,F,I,L;if(n[0]!==o||n[1]!==S||n[2]!==x||n[3]!==s||n[4]!==C||n[5]!==c||n[6]!==d||n[7]!==f||n[8]!==m||n[9]!==h||n[10]!==w||n[11]!==E||n[12]!==D){let e=o.filter(An),r=o.filter(kn),a;n[20]===x?a=n[21]:(a=x.formatMessage({id:`settings.pets.custom.create.label`,defaultMessage:`Create your own pet`,description:`Accessible label for creating a custom Codex pet from settings`}),n[20]=x,n[21]=a);let l=a,p;n[22]===x?p=n[23]:(p=x.formatMessage({id:`settings.pets.refresh`,defaultMessa"
+        },
+        {
+          "term": "settings.pets.refresh",
+          "byteOffset": 5882,
+          "excerpt": "settings.pets.refresh`,defaultMessage:`Refresh`,description:`Button label to refresh custom pets from local manifests`}),n[22]=x,n[23]=p);let _=p,v;n[24]===w?v=n[25]:(v=(e,t)=>{w.logProductEvent(i,gt({action:e,selectedAvatar:t,source:b.CODEX_AVATAR_OVERLAY_SOURCE_SETTINGS}))},n[24]=w,n[25]=v);let T=v,O;n[26]!==D||n[27]!==T?(O=e=>{D(e.id),T(te.CODEX_AVATAR_OVERLAY_ACTION_PET_SELECTED,e)},n[26]=D,n[27]=T,n[28]=O):O=n[28];let j=O;N=Y;let M;n[29]!==m||n[30]!==_?(M=m?(0,X.jsx)(ve,{tooltipContent:_,ch"
+        },
+        {
+          "term": "settings.pets.custom.openFolder",
+          "byteOffset": 2963,
+          "excerpt": "settings.pets.custom.openFolderError`,defaultMessage:`Unable to open pet folder`,description:`Toast shown when opening the custom pet folder fails`}),{errorAnalytics:{toastId:`settings.pets.custom.openFolderError`}})},n[0]=a,n[1]=i,n[2]=o):o=n[2];let s=o,c;n[3]===Symbol.for(`react.memo_cache_sentinel`)?(c=(0,Tn.jsx)(g,{id:`settings.pets.custom.title`,defaultMessage:`Custom pets`,description:`Heading for custom pet settings`}),n[3]=c):c=n[3];let u;n[4]===r?u=n[5]:(u=(0,Tn.jsx)(`span`,{className:`"
+        },
+        {
+          "term": "async function Fn(",
+          "byteOffset": 14227,
+          "excerpt": "async function Fn({scope:e,forceReloadSkills:t,petDirectoryPath:n,petName:r,skillStatsigOverride:i}){return`${await In({scope:e,forceReloadSkills:t,skillStatsigOverride:i})} upgrade the existing pet at ${k(r.replaceAll(/[\\r\\n]+/g,` `),n)} to the latest pet version with looking directions`}async function In({scope:e,forceReloadSkills:t,skillStatsigOverride:n}){let r=await he(`install-recommended-skill`,{params:{forceReinstall:!0,hostId:G,installRoot:null,repoPath:Rn,skillId:Ln,skillStatsigOverride:n,source:`bundled`}});if(!r.success||r.destination==null)throw Error(r.error??`Unable to install Hatch Pet`);let i=Xt(r.destination,`SKILL.md`),{effectiveEnabled:a}=await st(e,G).sendRequest(`skills/config/write`,{enabled:!0,path:i});if(!a)throw Error(`Hatch Pet is disabled`);return await t(),re({name:Ln,path:i})}var Ln,Rn;function zn(){return(zn=e((()=>{at(),o(),_t(),zt(),fe(),_e(),Ln=`hatch-pe"
+        },
+        {
+          "term": "async function Pn(",
+          "byteOffset": 13958,
+          "excerpt": "async function Pn(e){return`pluginId`in e?Lt({defaultPrompt:`Use your create-pet skill to create and select a pet based on what you know about me`,pluginDisplayName:e.pluginDisplayName,pluginId:e.pluginId}):`${await In(e)} create a pet based on what you know about me`}async function Fn({scope:e,forceReloadSkills:t,petDirectoryPath:n,petName:r,skillStatsigOverride:i}){return`${await In({scope:e,forceReloadSkills:t,skillStatsigOverride:i})} upgrade the existing pet at ${k(r.replaceAll(/[\\r\\n]+/g,` `),n)} to the latest pet version with looking directions`}async function In({scope:e,forceReloadSkills:t,skillStatsigOverride:n}){let r=await he(`install-recommended-skill`,{params:{forceReinstall:!0,hostId:G,installRoot:null,repoPath:Rn,skillId:Ln,skillStatsigOverride:n,source:`bundled`}});if(!r.success||r.destination==null)throw Error(r.error??`Unable to install Hatch Pet`);let i=Xt(r.destinati"
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,19 @@
 [
   {
+    "id": "OpenAI hatch-pet processing pipeline",
+    "referenceRevision": "Codex desktop 26.1013.31256",
+    "source": "OpenAI Codex desktop 26.1013.31256 resources/skills/skills/.curated/hatch-pet/LICENSE.txt",
+    "file": "apps/drora-cli/packages/bundled-skills/skills/create-pet/LICENSE.txt",
+    "sha256": "44e03f7e263eb3ad256440c1eeab5e49168baff5a78ecef9a5447261cf3a91bc",
+    "importRevision": "Codex desktop 26.1013.31256; per-file upstream SHA-256 in create-pet/provenance.json",
+    "roots": ["apps/drora-cli/packages/bundled-skills/skills/create-pet"],
+    "scope": "Licensed processing scripts, references and three upstream regression tests; Drora skill instructions and publisher are new. Original hashes and adaptations are recorded in provenance.json.",
+    "license": "Apache-2.0",
+    "modifiedFiles": [
+      "apps/drora-cli/packages/bundled-skills/skills/create-pet/scripts/prepare_pet_run.py"
+    ]
+  },
+  {
     "id": "shadcn",
     "referenceRevision": "a87a63b2ca25143d26c8bd0903e4e9bc77b3f824",
     "source": "https://raw.githubusercontent.com/shadcn-ui/ui/a87a63b2ca25143d26c8bd0903e4e9bc77b3f824/LICENSE.md",

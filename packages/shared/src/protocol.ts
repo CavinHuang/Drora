@@ -298,8 +298,10 @@ export interface AppSettings {
   desktopPetEnabled?: boolean;
   /** Last native pet-window position in display-independent coordinates. */
   desktopPetPosition?: { x: number; y: number };
-  /** 桌面宠物角色（violet=默认小猫；noir/snow/ginger=猫娘三角色），缺省 violet。 */
-  desktopPetCharacter?: "violet" | "noir" | "snow" | "ginger";
+  /** 内置角色 ID 或 custom:<folder>；缺省 violet。通过 desktopPetCharacterIdSchema 校验。 */
+  desktopPetCharacter?: string;
+  desktopPetSize?: number;
+  desktopPetBadgeCorner?: "top-start" | "top-end" | "bottom-start" | "bottom-end";
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */

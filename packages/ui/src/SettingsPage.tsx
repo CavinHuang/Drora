@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { DesktopPetSettingsRow } from "@/settings/DesktopPetSettingsRow.js";
+import { desktopPetCreationPrompt } from "@/settings/desktopPetCreationPrompt.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -305,7 +306,7 @@ export function SettingsPage({
   onLogout?: () => void;
   user?: UserInfo | null;
 }) {
-  const { intl, localePreference, setLocalePreference } = useDroraIntl();
+  const { intl, locale, localePreference, setLocalePreference } = useDroraIntl();
   const { settingsSectionGroups, settingsSections } = useMemo(
     () =>
       createSettingsPageConfig({
@@ -2042,6 +2043,20 @@ export function SettingsPage({
                           <DesktopPetSettingsRow
                             checked={sharedSettings?.desktopPetEnabled ?? false}
                             character={sharedSettings?.desktopPetCharacter}
+                            size={sharedSettings?.desktopPetSize}
+                            onCreatePet={onCreateTask ? (directory) => {
+                              onCreateTask({ initialPrompt: desktopPetCreationPrompt(directory, locale) });
+                              onBack?.();
+                            } : undefined}
+                            onUpgradePet={onCreateTask ? (directory, source) => {
+                              onCreateTask({ initialPrompt: desktopPetCreationPrompt(directory, locale, source) });
+                              onBack?.();
+                            } : undefined}
+                            onSizeChange={(size) => { void runSettingsActionAsync({
+                              featureId: "settings.desktop", action: "resize_desktop_pet", trigger: "select",
+                              operation: () => updateSharedSettings({ desktopPetSize: size }),
+                              completed: { resultSource: "shared_settings" },
+                            }); }}
                             onChange={(enabled) => {
                               void runSettingsActionAsync({
                                 featureId: "settings.desktop",

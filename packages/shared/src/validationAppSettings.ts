@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { desktopPetCharacterIdSchema, desktopPetSizeSchema, desktopPetCornerSchema } from "./desktopPet.js";
 import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -484,7 +485,9 @@ const appSettingsObjectSchema = z.object({
   closeToTrayOnWindows: z.boolean().default(true),
   desktopPetEnabled: z.boolean().default(false),
   desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
-  desktopPetCharacter: z.enum(["violet", "noir", "snow", "ginger"]).optional(),
+  desktopPetCharacter: desktopPetCharacterIdSchema.optional(),
+  desktopPetSize: desktopPetSizeSchema.optional(),
+  desktopPetBadgeCorner: desktopPetCornerSchema.optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
   // default(false)：新装与存量用户首次启动都视为未归位，由 main 进程按平台决定是否迁移。
   closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
@@ -581,7 +584,9 @@ export const appSettingsPatchSchema = z.object({
   closeToTrayOnWindows: z.boolean().optional(),
   desktopPetEnabled: z.boolean().optional(),
   desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
-  desktopPetCharacter: z.enum(["violet", "noir", "snow", "ginger"]).optional(),
+  desktopPetCharacter: desktopPetCharacterIdSchema.optional(),
+  desktopPetSize: desktopPetSizeSchema.optional(),
+  desktopPetBadgeCorner: desktopPetCornerSchema.optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   closeToTrayLinuxMigrationInitialized: z.boolean().optional(),

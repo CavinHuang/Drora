@@ -12,6 +12,7 @@ or the composer's `$` skill picker. The runtime discovers its `skills/` director
 | Skill               | Feature                                           | Contract                             |
 | ------------------- | ------------------------------------------------- | ------------------------------------ |
 | `dynamic-workflows` | dynamic workflows (`/workflow`, `CreateWorkflow`) | `docs/dynamic-workflow/authoring.md` |
+| `create-pet` | Desktop pet creation, repair and v2 upgrades | `specs/desktop-pet-creation-skill.md` |
 
 ## How it reaches users
 
@@ -24,6 +25,9 @@ or the composer's `$` skill picker. The runtime discovers its `skills/` director
 - **Remote hosts**: `scripts/prepare-prebuilds.mjs` stages the directory next to the remote
   `drora.cjs`, like the official plugin packages.
 
-The resolver is `apps/drora-cli/packages/bootstrap/src/app/bundled-skills.ts`. Every file
-under `skills/dynamic-workflows/` is a required asset: a stage or seed that loses one refuses
-the whole pack and logs a warning instead of shipping a skill with a missing reference file.
+The resolver is `apps/drora-cli/packages/bootstrap/src/app/bundled-skills.ts`. Files
+under `skills/dynamic-workflows/` are required pack assets: losing one refuses the
+whole pack. Additional skills use the existing recursive discovery and staging
+path. `create-pet` checks its own helper closure before publishing, and its tests
+verify the complete skill survives SEA collection. Its licensed processing
+helpers, source hashes and adaptation notes live beside the skill.

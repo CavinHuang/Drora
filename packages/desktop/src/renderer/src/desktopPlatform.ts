@@ -98,6 +98,9 @@ export function createDesktopPlatform(options: {
       : undefined,
     showTaskNotification: (payload) => window.drora.showTaskNotification(payload),
     publishDesktopPet: (presentation) => window.drora.publishDesktopPet?.(presentation),
+    manageDesktopPets: window.drora.manageDesktopPets
+      ? (request) => window.drora.manageDesktopPets(request)
+      : undefined,
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
     syncWebRemoteControlWorkspaces: (workspaces) =>
       window.drora.syncWebRemoteControlWorkspaces?.(workspaces),

@@ -68,6 +68,7 @@ import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionSto
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
+import { DesktopPetTaskSync } from "@/root/DesktopPetTaskSync.js";
 import {
   buildWebRemoteControlTaskRuntimeByWorkspaceKey,
   buildWebRemoteControlTaskTargets,
@@ -812,6 +813,11 @@ function RootInner({
     );
   }, [hasCompletedFullRestore, isDesktop, windowWorkspaceTabs]);
 
+  const desktopPetTaskSyncNode = <DesktopPetTaskSync
+    enabled={Boolean(hasCompletedFullRestore && isDesktop && appSettings?.desktopPetEnabled)}
+    workspaceTabs={windowWorkspaceTabs}
+    platform={platform}
+  />;
   const webRemoteControlTaskSyncNode =
     hasCompletedFullRestore &&
     webRemoteControlTaskSyncEnabled &&
@@ -1202,6 +1208,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {webRemoteControlTaskSyncNode}
+        {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -1218,6 +1225,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {webRemoteControlTaskSyncNode}
+        {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -1238,6 +1246,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {webRemoteControlTaskSyncNode}
+        {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {initialWorkspaceLoadingFallback}
         {directoryBrowserDialog}
@@ -1249,6 +1258,7 @@ function RootInner({
     <RootShell>
       {rootModelSelectionErrorNode}
       {webRemoteControlTaskSyncNode}
+      {desktopPetTaskSyncNode}
       {requestSecurityBridgeNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}

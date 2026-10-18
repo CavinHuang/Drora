@@ -11,5 +11,5 @@
     }
   },
   "include": ["wdio.conf.ts", "test/e2e"],
-  "references": [{ "path": "../shared" }, { "path": "../ui" }, { "path": "../e2e-report" }]
+  "references": [{ "path": "../shared" }, { "path": "../ui" }, { "path": "../e2e-report" }, { "path": "./tsconfig.pet.json" }]
 }

@@ -66,7 +66,6 @@ import { resolveAppWorkspaceRpcTarget } from "@/app-shell/workspaceRpcTarget.js"
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { useMarketingTaskCompletionRefresh } from "@/components/marketing-touch/useMarketingTaskCompletionRefresh.js";
-import { useDesktopPet } from "@/hooks/useDesktopPet.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
 import { WebRemoteControlSidePaneSync } from "@/root/WebRemoteControlSidePaneSync.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
@@ -299,14 +298,6 @@ export function App({
     rpcReady: workspaceRpcReady,
     platform,
     formatMessage: intl.formatMessage,
-  });
-  useDesktopPet({
-    workspacePath: workspaceAbsPath,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    ...(workspaceRemoteSessionId ? { endpointKey: workspaceRemoteSessionId } : {}),
-    rpcReady: workspaceRpcReady,
-    enabled: Boolean(isDesktop),
-    platform,
   });
   // 闲时任务终态/等确认通知：仅桌面本地链路，main 进程按 status:taskId 去重多窗口重复。
   useOffPeakTaskNotifications({

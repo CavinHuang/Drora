@@ -34,7 +34,15 @@ describe("shouldAutoOpenTeamPanel", () => {
 
   it("fires again for a new draft after the previous team ended (non-staged → staged)", () => {
     // 归档/取消/停止后再来新草案：需要新审批，边沿重新成立。
-    for (const prev of ["active", "idle", "completed", "halted", "escalated", "cancelled", "archived"] as const) {
+    for (const prev of [
+      "active",
+      "idle",
+      "completed",
+      "halted",
+      "escalated",
+      "cancelled",
+      "archived",
+    ] as const) {
       expect(shouldAutoOpenTeamPanel(prev, "staged", false)).toBe(true);
     }
   });

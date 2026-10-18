@@ -114,7 +114,10 @@ describe("team v4 command helpers construct wire payloads per shared schema", ()
       reason: "预算收紧",
     });
     expect(withReason.envelopes[0]?.type).toBe("stopTeamMember");
-    expect(withReason.envelopes[0]?.payload).toStrictEqual({ memberName: "bob", reason: "预算收紧" });
+    expect(withReason.envelopes[0]?.payload).toStrictEqual({
+      memberName: "bob",
+      reason: "预算收紧",
+    });
 
     const minimal = captureSend();
     await stopTeamMember({

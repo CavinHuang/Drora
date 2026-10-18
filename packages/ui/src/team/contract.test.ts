@@ -21,9 +21,7 @@ describe("ui-team module contract", () => {
       memberCount: 2,
       boardProgress: { total: 5, completed: 1 },
     };
-    expect(viewModel.boardProgress.completed).toBeLessThanOrEqual(
-      viewModel.boardProgress.total,
-    );
+    expect(viewModel.boardProgress.completed).toBeLessThanOrEqual(viewModel.boardProgress.total);
     const statuses: TeamPanelViewModel["status"][] = [
       "staged",
       "active",

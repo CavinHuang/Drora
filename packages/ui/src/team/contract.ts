@@ -35,7 +35,5 @@ export interface TeamPanelController {
 }
 
 export function createTeamPanelController(): TeamPanelController {
-  throw new Error(
-    "ui-team skeleton: TeamPanel lands in PR-2.4 (specs/agents-team.md §12 M2).",
-  );
+  throw new Error("ui-team skeleton: TeamPanel lands in PR-2.4 (specs/agents-team.md §12 M2).");
 }

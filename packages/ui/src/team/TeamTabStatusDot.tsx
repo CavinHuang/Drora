@@ -3,7 +3,11 @@ import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import type { TeamSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamUiStatus } from "./contract.js";
-import { TEAM_STATUS_DOT_TONE, TEAM_STATUS_I18N_KEYS, TONE_DOT_CLASS } from "./team-status-presentation.js";
+import {
+  TEAM_STATUS_DOT_TONE,
+  TEAM_STATUS_I18N_KEYS,
+  TONE_DOT_CLASS,
+} from "./team-status-presentation.js";
 import { V4PaneConversationProvider, useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 /**
@@ -48,9 +52,18 @@ const TeamTabStatusDotInner = memo(function TeamTabStatusDotInner({
   }
   const statusLabel = intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[status] });
   return (
-    <span className="flex shrink-0 items-center" data-testid="team-tab-status-dot" data-team-status={status}>
-      <span aria-hidden className={`inline-block size-1.5 rounded-full ${TONE_DOT_CLASS[TEAM_STATUS_DOT_TONE[status]]}`} />
-      <span className="sr-only">{intl.formatMessage({ id: "team.tab.statusDot" }, { status: statusLabel })}</span>
+    <span
+      className="flex shrink-0 items-center"
+      data-testid="team-tab-status-dot"
+      data-team-status={status}
+    >
+      <span
+        aria-hidden
+        className={`inline-block size-1.5 rounded-full ${TONE_DOT_CLASS[TEAM_STATUS_DOT_TONE[status]]}`}
+      />
+      <span className="sr-only">
+        {intl.formatMessage({ id: "team.tab.statusDot" }, { status: statusLabel })}
+      </span>
     </span>
   );
 });

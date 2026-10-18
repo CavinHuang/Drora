@@ -11,12 +11,12 @@ import {
   mapTeamProjectionToViewModel,
   resumeTeam,
   reviseTeamPlan,
+  sendTeamMessage,
+  TeamMemberSidePane,
   TeamPanel,
   type TeamPanelCommand,
+  type TeamPanelMemberView,
 } from "@/team/index.js";
-// TeamMemberSidePane 尚未进 ui-team 公开入口（index.ts 由并行卡维护，本卡不改既有 team 文件）；
-// 深路径是登记过的临时接缝，收口动作见提交说明：index.ts 补一行 re-export 后这里改走入口。
-import { TeamMemberSidePane } from "@/team/TeamMemberSidePane.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
@@ -36,10 +36,10 @@ import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4Conversati
  *   信封构造/ACK 判定单一出处），sendCommand 来自本 pane 的 v4 会话上下文；
  * - 无投影 → 诚实空态（灰度关 / 旧 CLI / 归档出投影），不自动关 tab（同 workflow-run 的 GC 纪律）；
  * - 成员下钻 → `TeamMemberSidePane`（父投影门 + 只读 SessionPane）。选中哪个成员是本容器的
- *   **本地视图状态**（不入 store、不入 tab 身份）；成员卡点击入口（TeamPanel 的
- *   onMemberClick）落地时接到下方 `setActiveMember`——那是本文件剩余的待接线点。
- *   成员发消息（sendTeamMessage）按任务卡留待 PR-2.4b：TeamMemberSidePane 只收
- *   `onSendMessage` 回调，本容器暂不注入。
+ *   **本地视图状态**（不入 store、不入 tab 身份）。PR-2.4c 起全通：TeamPanel 的
+ *   onMemberClick / onMessageMember（成员卡点击与「发消息」入口，同一下钻语义）接
+ *   `setActiveMember`；下钻 composer 的 onSendMessage 接 `commands.sendTeamMessage`
+ *   （成员消息必须经 lead 邮箱投递，spec §1 硬边界）。
  */
 
 /** 下钻目标：memberName 是花名册联接键，childSessionId 是打开时刻已知值（可缺席，门会自愈）。 */
@@ -127,6 +127,17 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     setActiveMember(null);
   }, [model?.teamId]);
 
+  // 成员卡点击与「发消息」入口同一下钻语义（design 01 §3.2）：发消息的输入面在下钻
+  // composer，不在面板内另造第二条输入路径。
+  const handleMemberDrill = useCallback((member: TeamPanelMemberView) => {
+    setActiveMember({
+      memberName: member.memberName,
+      ...(member.childSessionId === undefined
+        ? {}
+        : { childSessionId: member.childSessionId }),
+    });
+  }, []);
+
   if (model === undefined) {
     return <TeamEmptyState />;
   }
@@ -161,6 +172,17 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
               : { workspaceIdentity: tab.workspaceIdentity })}
             {...(tab.remoteSessionId === undefined ? {} : { remoteSessionId: tab.remoteSessionId })}
             focused={focused}
+            onSendMessage={(message) => {
+              // PR-2.4c：成员消息唯一通道 = lead 侧 sendTeamMessage（邮箱投递，不入
+              // conversation 行）。fire-and-forget 与面板动作区同一先例；拒绝/失败由
+              // commands helper 内部 logger 出账。
+              void sendTeamMessage({
+                sessionId: tab.parentSessionId,
+                sendCommand,
+                to: activeMember.memberName,
+                message,
+              });
+            }}
             onOpenBrowserUrl={onOpenBrowserUrl}
             onOpenCodeViewer={onOpenCodeViewer}
             onOpenFileLink={onOpenFileLink}
@@ -171,10 +193,14 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   }
 
   return (
-    // PR-2.4b 剩余接线点：TeamPanel 增加 onMemberClick 后在这里传
-    // `(member) => setActiveMember({ memberName: member.memberName, ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }) })`，
-    // 并把 `onSendMessage` 接到 commands.sendTeamMessage（成员消息必须经 lead 邮箱投递）。
-    <TeamPanel model={model} onCommand={handlePanelCommand} />
+    // PR-2.4c 收口：成员卡点击 / 发消息入口 → setActiveMember（下钻），composer 消息 →
+    // sendTeamMessage（上文 onSendMessage）。下钻 + 发消息全通。
+    <TeamPanel
+      model={model}
+      onCommand={handlePanelCommand}
+      onMemberClick={handleMemberDrill}
+      onMessageMember={handleMemberDrill}
+    />
   );
 });
 

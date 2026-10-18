@@ -159,6 +159,7 @@ const enUS: Record<string, string> = {
   "chat.composer.skillShortcut": "Choose skills",
   "chat.composer.addSection": "Add",
   "chat.composer.addWorkflow": "Workflow",
+  "chat.composer.addTeam": "Build team",
   "chat.composer.attachment": "Attachments",
   "chat.permission.feedback.ariaLabel": "Optional feedback for the model when denying",
   "chat.permission.feedback.placeholder": "Tell the model what to do instead...",
@@ -1161,10 +1162,83 @@ const enUS: Record<string, string> = {
   "team.memberPane.teamAbsent.title": "Team projection unavailable",
   "team.memberPane.teamAbsent.body":
     "This conversation has no team projection, so the member session cannot be located.",
-  "team.memberPane.inputPlaceholder": "Message {name} (coming soon)",
+  "team.memberPane.inputPlaceholder": "Message {name} (delivered via the lead's team mailbox)",
   "team.memberPane.send": "Send",
   "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
   "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
+  // PR-2.4c: member card entries (drill-down + message), tab status dot, and status badge
+  // copy (color paired with text, never color alone).
+  "team.panel.memberOpen": "Open {name}'s session",
+  "team.panel.memberMessage": "Message {name}",
+  "team.tab.statusDot": "Team status: {status}",
+  "team.status.staged": "Pending approval",
+  "team.status.active": "Active",
+  "team.status.idle": "Idle",
+  "team.status.completed": "Completed",
+  "team.status.halted": "Halted",
+  "team.status.escalated": "Needs attention",
+  "team.status.cancelled": "Cancelled",
+  "team.status.archived": "Archived",
+  // M2.5: TeamPanel header/action area/board/member-card copy and the TeamStagedEditor
+  // copy moved into the dictionary (previously inline zh constants TEAM_PANEL_COPY /
+  // TEAM_STAGED_EDITOR_COPY; design 01 §4: all copy lives in the locales dictionaries,
+  // zh-CN/en-US complete, including status labels, dynamic summaries, and a11y copy).
+  "team.panel.title": "Team · {teamId}",
+  "team.panel.aria": "Agents Team {teamId}",
+  "team.panel.permission": "Permission {mode}",
+  "team.panel.memberProgress": "{members} members · {done}/{total} tasks",
+  "team.panel.stagedReadonlySummary":
+    "Team plan draft: {members} members / {tasks} tasks, awaiting approval",
+  "team.panel.stagedReadonlyFeedback": "(revision requested)",
+  "team.panel.membersAria": "Team members",
+  "team.panel.taskAttempt": "attempt {attempt}",
+  "team.panel.halt": "Halt team",
+  "team.panel.haltHint":
+    "Interrupts all members and freezes scheduling; the team is kept and can be resumed with a reason",
+  "team.panel.haltConfirmTitle": "Halt this team?",
+  "team.panel.haltConfirmBody":
+    "This cancels the lead's current turn, interrupts every member and freezes task scheduling; the team is not deleted and can be resumed explicitly afterwards.",
+  "team.panel.haltConfirmLabel": "Confirm halt",
+  "team.panel.resume": "Resume team",
+  "team.panel.resumeReasonLabel": "Resume reason (required)",
+  "team.panel.resumeReasonPlaceholder":
+    "Why resume now? The reason is recorded in the team journal",
+  "team.panel.resumeHint":
+    "The team is halted; scheduling continues only after an explicit resume with a reason.",
+  "team.panel.escalationTitle": "The team escalated and needs you",
+  "team.panel.escalationBody":
+    "The team hit a situation that needs a human decision and is paused: resume it with a reason, or halt the team.",
+  "team.board.pending": "Pending",
+  "team.board.inProgress": "In progress",
+  "team.board.completed": "Completed",
+  "team.member.state.spawning": "Starting",
+  "team.member.state.working": "Working",
+  "team.member.state.terminal": "Idle",
+  "team.member.state.removed": "Removed",
+  "team.stagedEditor.title": "Team plan draft",
+  "team.stagedEditor.stagedSummary":
+    "{members} members · {tasks} tasks; members are created only after you confirm",
+  "team.stagedEditor.awaitingFeedback":
+    "Revision requested: describe the adjustments in the conversation and the model will update this draft",
+  "team.stagedEditor.membersHeading": "Members",
+  "team.stagedEditor.tasksHeading": "Tasks",
+  "team.stagedEditor.roleNone": "No role",
+  "team.stagedEditor.routingLabel": "Routing",
+  "team.stagedEditor.routingNone": "No routing",
+  "team.stagedEditor.assigneeNone": "Unassigned",
+  "team.stagedEditor.dependsOnLabel": "Depends on",
+  "team.stagedEditor.dependsOnNone": "No dependencies",
+  "team.stagedEditor.dependsOnSeparator": ", ",
+  "team.stagedEditor.noteLabel": "Revision notes (optional)",
+  "team.stagedEditor.notePlaceholder":
+    "What should change? Leave empty and explain it in the conversation",
+  "team.stagedEditor.approve": "Approve & run",
+  "team.stagedEditor.revise": "Revise in conversation",
+  "team.stagedEditor.abandon": "Abandon",
+  "team.stagedEditor.abandonConfirmTitle": "Abandon this team draft?",
+  "team.stagedEditor.abandonConfirmBody":
+    "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
+  "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
   "subagentDirectory.title": "Subagents",
   "subagentDirectory.running": "Running",
   "subagentDirectory.runningEmpty": "No running subagents",

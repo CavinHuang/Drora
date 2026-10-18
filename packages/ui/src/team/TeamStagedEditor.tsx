@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamPanelStagedDraftView } from "./view-model.js";
 
 /**
@@ -18,31 +19,11 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  *
  * presentational：命令发送一律由宿主接 team/commands.ts，本组件只上抛意图。
  * DESIGN.md：text-ui-* 刻度、技术值（路由/任务 id）等宽、成员/任务行无大面积色块。
+ *
+ * M2.5 i18n：全部文案走 locales `team.stagedEditor.*` 词典（原 zh 内联常量
+ * TEAM_STAGED_EDITOR_COPY 已整体迁出，zh 值逐字搬运；design 01 §4）；
+ * 依赖 id 列表的连接符也随语言（dependsOnSeparator），路由/依赖 id 本体保持等宽拼接。
  */
-
-/** 面板文案（zh 内联常量；M2.5 i18n 键抽取时整体迁移到 locales 词典）。 */
-export const TEAM_STAGED_EDITOR_COPY = {
-  title: "团队计划草案",
-  stagedSummary: (members: number, tasks: number): string =>
-    `${String(members)} 名成员 · ${String(tasks)} 项任务，确认后才会创建成员`,
-  awaitingFeedback: "已请求修改：请在对话里说明调整方向，模型会更新这份草案",
-  membersHeading: "成员",
-  tasksHeading: "任务",
-  roleNone: "角色未指定",
-  routingLabel: "路由",
-  routingNone: "路由未指定",
-  assigneeNone: "待指派",
-  dependsOnLabel: "依赖",
-  dependsOnNone: "无依赖",
-  noteLabel: "修改方向（可选）",
-  notePlaceholder: "要调整什么？可留空，回到对话里说明",
-  approve: "确认并启动",
-  revise: "回对话修改",
-  abandon: "放弃",
-  abandonConfirmTitle: "放弃这份团队草案？",
-  abandonConfirmBody: "草案将归档且不可恢复，模型也不会自动重建；再次成队需要重新 /team。",
-  abandonConfirmLabel: "确认放弃",
-} as const;
 
 export interface TeamStagedEditorProps {
   draft: TeamPanelStagedDraftView;
@@ -60,6 +41,7 @@ export function TeamStagedEditor({
   onRevise,
   onAbandon,
 }: TeamStagedEditorProps): JSX.Element {
+  const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
   const [note, setNote] = useState("");
 
@@ -70,9 +52,9 @@ export function TeamStagedEditor({
 
   const handleAbandon = async () => {
     const confirmed = await requestConfirmation({
-      title: TEAM_STAGED_EDITOR_COPY.abandonConfirmTitle,
-      description: TEAM_STAGED_EDITOR_COPY.abandonConfirmBody,
-      confirmLabel: TEAM_STAGED_EDITOR_COPY.abandonConfirmLabel,
+      title: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmTitle" }),
+      description: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmBody" }),
+      confirmLabel: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmLabel" }),
       confirmVariant: "destructive",
     });
     if (confirmed) onAbandon();
@@ -80,20 +62,25 @@ export function TeamStagedEditor({
 
   return (
     <section
-      aria-label={TEAM_STAGED_EDITOR_COPY.title}
+      aria-label={intl.formatMessage({ id: "team.stagedEditor.title" })}
       className="flex flex-col gap-2 rounded-lg border border-border-subtle p-2"
       data-testid="team-staged-editor"
     >
       <div className="flex items-baseline gap-2">
-        <h2 className="text-ui-base font-medium">{TEAM_STAGED_EDITOR_COPY.title}</h2>
+        <h2 className="text-ui-base font-medium">
+          {intl.formatMessage({ id: "team.stagedEditor.title" })}
+        </h2>
         <span className="text-ui-caption text-foreground-subtle">
-          {TEAM_STAGED_EDITOR_COPY.stagedSummary(draft.members.length, draft.tasks.length)}
+          {intl.formatMessage(
+            { id: "team.stagedEditor.stagedSummary" },
+            { members: draft.members.length, tasks: draft.tasks.length },
+          )}
         </span>
       </div>
 
       {draft.awaitingFeedback ? (
         <p role="status" className="text-ui-sm text-foreground-subtle">
-          {TEAM_STAGED_EDITOR_COPY.awaitingFeedback}
+          {intl.formatMessage({ id: "team.stagedEditor.awaitingFeedback" })}
         </p>
       ) : null}
 
@@ -102,13 +89,13 @@ export function TeamStagedEditor({
 
       <div className="flex flex-col gap-1">
         <label htmlFor="team-staged-revise-note" className="text-ui-caption text-foreground-subtle">
-          {TEAM_STAGED_EDITOR_COPY.noteLabel}
+          {intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
         </label>
         <Input
           id="team-staged-revise-note"
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          placeholder={TEAM_STAGED_EDITOR_COPY.notePlaceholder}
+          placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
           className="text-ui-sm"
           data-testid="team-staged-revise-note"
         />
@@ -116,7 +103,7 @@ export function TeamStagedEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={onApprove} data-testid="team-staged-approve">
-          {TEAM_STAGED_EDITOR_COPY.approve}
+          {intl.formatMessage({ id: "team.stagedEditor.approve" })}
         </Button>
         <Button
           type="button"
@@ -124,7 +111,7 @@ export function TeamStagedEditor({
           onClick={handleRevise}
           data-testid="team-staged-revise"
         >
-          {TEAM_STAGED_EDITOR_COPY.revise}
+          {intl.formatMessage({ id: "team.stagedEditor.revise" })}
         </Button>
         <Button
           type="button"
@@ -135,7 +122,7 @@ export function TeamStagedEditor({
           }}
           data-testid="team-staged-abandon"
         >
-          {TEAM_STAGED_EDITOR_COPY.abandon}
+          {intl.formatMessage({ id: "team.stagedEditor.abandon" })}
         </Button>
       </div>
     </section>
@@ -147,10 +134,11 @@ function DraftMemberRows({
 }: {
   members: TeamPanelStagedDraftView["members"];
 }): JSX.Element {
+  const { intl } = useDroraIntl();
   return (
     <div className="flex flex-col gap-1">
       <h3 className="text-ui-caption text-foreground-subtle">
-        {`${TEAM_STAGED_EDITOR_COPY.membersHeading} (${String(members.length)})`}
+        {`${intl.formatMessage({ id: "team.stagedEditor.membersHeading" })} (${String(members.length)})`}
       </h3>
       <ul className="flex flex-col gap-1">
         {members.map((member) => (
@@ -160,12 +148,12 @@ function DraftMemberRows({
           >
             <span className="text-ui-sm font-medium">{member.memberName}</span>
             <span className="text-ui-caption text-foreground-subtle">
-              {member.profile ?? TEAM_STAGED_EDITOR_COPY.roleNone}
+              {member.profile ?? intl.formatMessage({ id: "team.stagedEditor.roleNone" })}
             </span>
             <span className="text-ui-caption font-mono text-foreground-subtle">
               {member.modelSelection === undefined
-                ? TEAM_STAGED_EDITOR_COPY.routingNone
-                : `${TEAM_STAGED_EDITOR_COPY.routingLabel} ${member.modelSelection.provider}/${member.modelSelection.model}${member.modelSelection.thought === undefined ? "" : ` · ${member.modelSelection.thought}`}`}
+                ? intl.formatMessage({ id: "team.stagedEditor.routingNone" })
+                : `${intl.formatMessage({ id: "team.stagedEditor.routingLabel" })} ${member.modelSelection.provider}/${member.modelSelection.model}${member.modelSelection.thought === undefined ? "" : ` · ${member.modelSelection.thought}`}`}
             </span>
           </li>
         ))}
@@ -175,10 +163,11 @@ function DraftMemberRows({
 }
 
 function DraftTaskRows({ tasks }: { tasks: TeamPanelStagedDraftView["tasks"] }): JSX.Element {
+  const { intl } = useDroraIntl();
   return (
     <div className="flex flex-col gap-1">
       <h3 className="text-ui-caption text-foreground-subtle">
-        {`${TEAM_STAGED_EDITOR_COPY.tasksHeading} (${String(tasks.length)})`}
+        {`${intl.formatMessage({ id: "team.stagedEditor.tasksHeading" })} (${String(tasks.length)})`}
       </h3>
       <ul className="flex flex-col gap-1">
         {tasks.map((task) => (
@@ -189,12 +178,14 @@ function DraftTaskRows({ tasks }: { tasks: TeamPanelStagedDraftView["tasks"] }):
             <span className="text-ui-sm font-medium">{task.title}</span>
             <span className="text-ui-caption font-mono text-foreground-subtle">{task.taskId}</span>
             <span className="text-ui-caption text-foreground-subtle">
-              {task.assignee ?? TEAM_STAGED_EDITOR_COPY.assigneeNone}
+              {task.assignee ?? intl.formatMessage({ id: "team.stagedEditor.assigneeNone" })}
             </span>
             <span className="text-ui-caption font-mono text-foreground-subtle">
               {task.dependsOn.length === 0
-                ? TEAM_STAGED_EDITOR_COPY.dependsOnNone
-                : `${TEAM_STAGED_EDITOR_COPY.dependsOnLabel} ${task.dependsOn.join("、")}`}
+                ? intl.formatMessage({ id: "team.stagedEditor.dependsOnNone" })
+                : `${intl.formatMessage({ id: "team.stagedEditor.dependsOnLabel" })} ${task.dependsOn.join(
+                    intl.formatMessage({ id: "team.stagedEditor.dependsOnSeparator" }),
+                  )}`}
             </span>
           </li>
         ))}

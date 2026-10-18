@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { MessageSquareTextIcon } from "lucide-react";
 import type { CommandPayloadMap } from "@drora/shared/drora-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamUiStatus } from "./contract.js";
 import { TeamStagedEditor } from "./TeamStagedEditor.js";
-import type { TeamPanelModel } from "./view-model.js";
+import { TEAM_STATUS_I18N_KEYS } from "./team-status-presentation.js";
+import type { TeamPanelMemberView, TeamPanelModel } from "./view-model.js";
 
 /**
  * TeamPanel（PR-2.4a 只读视图 + PR-2.4b 动作区；specs/agents-team.md §10、
@@ -16,23 +19,13 @@ import type { TeamPanelModel } from "./view-model.js";
  * 发送（approveTeamPlan / reviseTeamPlan / abandonTeamPlan / haltTeam / resumeTeam）。
  * DESIGN.md 纪律：text-ui-* 刻度、语义色 + 文字并行（不以色独行）、成员颜色仅头像点、
  * 无大面积品牌填充、按钮键盘可达。
+ *
+ * M2.5 i18n：全部文案走 locales `team.panel.*` / `team.board.*` / `team.member.state.*`
+ * 词典（原 zh 内联常量 TEAM_PANEL_COPY 已整体迁出；design 01 §4「全部文案走 locales
+ * zh-CN/en-US 双语全量（含状态标签/动态摘要/无障碍文案）」）；状态徽标复用
+ * TEAM_STATUS_I18N_KEYS（team.status.*，单一出处）。技术值拼接（任务 id/负责人名）保留
+ * 组件内模板——DESIGN.md「技术值等宽」，不是可翻译文案。
  */
-
-/** 面板文案（zh 内联常量；M2.5 i18n 键抽取时整体迁移到 locales 词典）。 */
-export const TEAM_PANEL_COPY = {
-  halt: "停止团队",
-  haltHint: "中断全员并冻结调度；团队保留，可带理由恢复",
-  haltConfirmTitle: "停止这个团队？",
-  haltConfirmBody:
-    "将取消 lead 当前回合、中断全部成员并冻结任务调度；团队不会被删除，之后可显式恢复。",
-  haltConfirmLabel: "确认停止",
-  resume: "恢复团队",
-  resumeReasonLabel: "恢复理由（必填）",
-  resumeReasonPlaceholder: "为什么现在恢复？理由会记录进团队日志",
-  resumeHint: "团队已停止；显式带理由恢复后才会继续调度。",
-  escalationTitle: "团队已升级，需要你介入",
-  escalationBody: "团队遇到需要人工决策的情况，已暂停等待处理：可带理由恢复，或停止团队。",
-} as const;
 
 /**
  * 动作区覆盖的五条用户面命令（八命令中其余三条——sendTeamMessage / stopTeamMember /
@@ -106,27 +99,52 @@ export interface TeamPanelProps {
    * staged 草案退化为摘要行）。
    */
   onCommand?: (command: TeamPanelCommand) => void;
+  /**
+   * 成员卡点击（下钻入口，PR-2.4c 接线）：宿主接 TeamMemberSidePane 的 setActiveMember。
+   * 缺席 = 成员行只读（不可点）。发消息本体在下钻的 composer——成员卡的发消息按钮
+   * （onMessageMember）也走同一次下钻，不在面板内另造输入面（design 01 §3.2「成员下钻」）。
+   */
+  onMemberClick?: (member: TeamPanelMemberView) => void;
+  /**
+   * 成员卡「发消息」入口（PR-2.4c）：与 onMemberClick 同一下钻语义，仅多一枚可点目标，
+   * 让「给成员发消息」在设计上有明确落点（specs/agents-team.md §10「点击下钻 …可发消息」）。
+   */
+  onMessageMember?: (member: TeamPanelMemberView) => void;
 }
 
-export function TeamPanel({ model, onCommand }: TeamPanelProps): JSX.Element {
+export function TeamPanel({
+  model,
+  onCommand,
+  onMemberClick,
+  onMessageMember,
+}: TeamPanelProps): JSX.Element {
+  const { intl } = useDroraIntl();
   const { status, members, board } = model;
   const visibility = teamPanelActionVisibility(status);
   const doneCount = board.completed.length;
   const total = board.pending.length + board.inProgress.length + doneCount;
   return (
-    <section aria-label={`Agents Team ${model.teamId}`} className="flex h-full flex-col gap-2 p-2">
+    <section
+      aria-label={intl.formatMessage({ id: "team.panel.aria" }, { teamId: model.teamId })}
+      className="flex h-full flex-col gap-2 p-2"
+    >
       <header className="flex items-center gap-2">
-        <span className="text-ui-sm font-medium">{`团队 · ${model.teamId}`}</span>
+        <span className="text-ui-sm font-medium">
+          {intl.formatMessage({ id: "team.panel.title" }, { teamId: model.teamId })}
+        </span>
         <span className="text-ui-caption rounded bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
-          {STATUS_LABEL[status]}
+          {intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[status] })}
         </span>
         {model.permissionMode === undefined ? null : (
           <span className="text-ui-caption rounded bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
-            {`权限 ${model.permissionMode}`}
+            {intl.formatMessage({ id: "team.panel.permission" }, { mode: model.permissionMode })}
           </span>
         )}
         <span className="text-ui-caption text-foreground-subtle">
-          {`${members.length} 成员 · ${doneCount}/${total} 任务`}
+          {intl.formatMessage(
+            { id: "team.panel.memberProgress" },
+            { members: members.length, done: doneCount, total },
+          )}
         </span>
       </header>
 
@@ -149,8 +167,16 @@ export function TeamPanel({ model, onCommand }: TeamPanelProps): JSX.Element {
         />
       ) : (
         <div className="text-ui-caption rounded border border-border-subtle p-2">
-          {`团队计划草案：${model.stagedDraft.members.length} 成员 / ${model.stagedDraft.tasks.length} 任务，等待审批`}
-          {model.stagedDraft.awaitingFeedback ? "（已请求修改）" : ""}
+          {intl.formatMessage(
+            { id: "team.panel.stagedReadonlySummary" },
+            {
+              members: model.stagedDraft.members.length,
+              tasks: model.stagedDraft.tasks.length,
+            },
+          )}
+          {model.stagedDraft.awaitingFeedback
+            ? intl.formatMessage({ id: "team.panel.stagedReadonlyFeedback" })
+            : ""}
         </div>
       )}
 
@@ -161,7 +187,9 @@ export function TeamPanel({ model, onCommand }: TeamPanelProps): JSX.Element {
       {onCommand !== undefined && visibility.halt && !visibility.escalationCard ? (
         <div className="flex flex-wrap items-center gap-2">
           <HaltTeamButton onHalt={() => onCommand({ type: "haltTeam", payload: {} })} />
-          <span className="text-ui-caption text-foreground-subtle">{TEAM_PANEL_COPY.haltHint}</span>
+          <span className="text-ui-caption text-foreground-subtle">
+            {intl.formatMessage({ id: "team.panel.haltHint" })}
+          </span>
         </div>
       ) : null}
 
@@ -173,15 +201,17 @@ export function TeamPanel({ model, onCommand }: TeamPanelProps): JSX.Element {
 
       {onCommand !== undefined && visibility.escalationCard ? (
         <section
-          aria-label={TEAM_PANEL_COPY.escalationTitle}
+          aria-label={intl.formatMessage({ id: "team.panel.escalationTitle" })}
           className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2"
           data-testid="team-escalation-card"
         >
           <div className="flex flex-col gap-0.5">
             <h2 className="text-ui-base font-medium text-warning">
-              {TEAM_PANEL_COPY.escalationTitle}
+              {intl.formatMessage({ id: "team.panel.escalationTitle" })}
             </h2>
-            <p className="text-ui-sm text-foreground-subtle">{TEAM_PANEL_COPY.escalationBody}</p>
+            <p className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "team.panel.escalationBody" })}
+            </p>
           </div>
           <ResumeTeamSection
             onResume={(reason) => onCommand({ type: "resumeTeam", payload: { reason } })}
@@ -193,38 +223,105 @@ export function TeamPanel({ model, onCommand }: TeamPanelProps): JSX.Element {
       ) : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-3 gap-2">
-        <BoardColumn title="待办" tasks={board.pending} />
-        <BoardColumn title="进行中" tasks={board.inProgress} />
-        <BoardColumn title="已完成" tasks={board.completed} />
+        <BoardColumn
+          title={intl.formatMessage({ id: "team.board.pending" })}
+          tasks={board.pending}
+        />
+        <BoardColumn
+          title={intl.formatMessage({ id: "team.board.inProgress" })}
+          tasks={board.inProgress}
+        />
+        <BoardColumn
+          title={intl.formatMessage({ id: "team.board.completed" })}
+          tasks={board.completed}
+        />
       </div>
 
-      <ul className="flex flex-col gap-1" aria-label="团队成员">
-        {members.map((member) => (
-          <li key={member.agentId} className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className={`size-2 rounded-full ${member.profileColor ?? "bg-neutral-foreground/40"}`}
-            />
-            <span className="text-ui-sm">{member.memberName}</span>
-            <span className="text-ui-caption text-foreground-subtle">
-              {MEMBER_STATE_LABEL[member.state]}
-              {member.currentTaskId === undefined ? "" : ` · ${member.currentTaskId}`}
-            </span>
-          </li>
-        ))}
+      {/*
+       * 成员卡列表（design 01 §3.2）：PR-2.4c 起可下钻——卡片本体点击与「发消息」按钮
+       * 都上抛成员，宿主接同一个 setActiveMember（发消息的输入面在下钻 composer，
+       * 走 lead 邮箱投递；面板内不另造第二条输入路径）。回调缺席 = 只读行（PR-2.4a 行为）。
+       */}
+      <ul
+        className="flex flex-col gap-1"
+        aria-label={intl.formatMessage({ id: "team.panel.membersAria" })}
+      >
+        {members.map((member) => {
+          const stateLabel = intl.formatMessage({ id: MEMBER_STATE_I18N_KEYS[member.state] });
+          return (
+            <li key={member.agentId} className="flex items-center gap-1">
+              {onMemberClick === undefined ? (
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <MemberCardBody member={member} stateLabel={stateLabel} />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onMemberClick(member)}
+                  aria-label={intl.formatMessage(
+                    { id: "team.panel.memberOpen" },
+                    { name: member.memberName },
+                  )}
+                  data-testid="team-member-card"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <MemberCardBody member={member} stateLabel={stateLabel} />
+                </button>
+              )}
+              {onMessageMember === undefined ? null : (
+                <button
+                  type="button"
+                  onClick={() => onMessageMember(member)}
+                  aria-label={intl.formatMessage(
+                    { id: "team.panel.memberMessage" },
+                    { name: member.memberName },
+                  )}
+                  data-testid="team-member-message"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <MessageSquareTextIcon className="size-3.5" />
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
 }
 
+/** 成员卡的静态内容（头像点 + 名称 + 状态）；可点与只读两种行共用，避免两份标记分叉。 */
+function MemberCardBody({
+  member,
+  stateLabel,
+}: {
+  member: TeamPanelMemberView;
+  stateLabel: string;
+}): JSX.Element {
+  return (
+    <>
+      <span
+        aria-hidden
+        className={`size-2 shrink-0 rounded-full ${member.profileColor ?? "bg-neutral-foreground/40"}`}
+      />
+      <span className="truncate text-ui-sm">{member.memberName}</span>
+      <span className="truncate text-ui-caption text-foreground-subtle">
+        {stateLabel}
+        {member.currentTaskId === undefined ? "" : ` · ${member.currentTaskId}`}
+      </span>
+    </>
+  );
+}
+
 /** 停止团队入口（active 独立区 / escalated 升级卡共用）；二次确认列明影响面（design §3.3）。 */
 function HaltTeamButton({ onHalt }: { onHalt: () => void }): JSX.Element {
+  const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
   const handleHalt = async () => {
     const confirmed = await requestConfirmation({
-      title: TEAM_PANEL_COPY.haltConfirmTitle,
-      description: TEAM_PANEL_COPY.haltConfirmBody,
-      confirmLabel: TEAM_PANEL_COPY.haltConfirmLabel,
+      title: intl.formatMessage({ id: "team.panel.haltConfirmTitle" }),
+      description: intl.formatMessage({ id: "team.panel.haltConfirmBody" }),
+      confirmLabel: intl.formatMessage({ id: "team.panel.haltConfirmLabel" }),
       confirmVariant: "destructive",
     });
     if (confirmed) onHalt();
@@ -238,26 +335,27 @@ function HaltTeamButton({ onHalt }: { onHalt: () => void }): JSX.Element {
       }}
       data-testid="team-halt"
     >
-      {TEAM_PANEL_COPY.halt}
+      {intl.formatMessage({ id: "team.panel.halt" })}
     </Button>
   );
 }
 
 /** 显式恢复（halted / escalated；hub 语义：理由必填，空理由被拒——core/src/team/hub.ts resume）。 */
 function ResumeTeamSection({ onResume }: { onResume: (reason: string) => void }): JSX.Element {
+  const { intl } = useDroraIntl();
   const [reason, setReason] = useState("");
   const ready = reason.trim() !== "";
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor="team-resume-reason" className="text-ui-caption text-foreground-subtle">
-        {TEAM_PANEL_COPY.resumeReasonLabel}
+        {intl.formatMessage({ id: "team.panel.resumeReasonLabel" })}
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <Input
           id="team-resume-reason"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          placeholder={TEAM_PANEL_COPY.resumeReasonPlaceholder}
+          placeholder={intl.formatMessage({ id: "team.panel.resumeReasonPlaceholder" })}
           className="text-ui-sm"
           data-testid="team-resume-reason"
         />
@@ -268,30 +366,25 @@ function ResumeTeamSection({ onResume }: { onResume: (reason: string) => void })
           onClick={() => onResume(reason.trim())}
           data-testid="team-resume"
         >
-          {TEAM_PANEL_COPY.resume}
+          {intl.formatMessage({ id: "team.panel.resume" })}
         </Button>
       </div>
-      <p className="text-ui-caption text-foreground-subtle">{TEAM_PANEL_COPY.resumeHint}</p>
+      <p className="text-ui-caption text-foreground-subtle">
+        {intl.formatMessage({ id: "team.panel.resumeHint" })}
+      </p>
     </div>
   );
 }
 
-const STATUS_LABEL: Record<TeamPanelModel["status"], string> = {
-  staged: "待审批",
-  active: "进行中",
-  idle: "空闲",
-  completed: "已完成",
-  halted: "已停止",
-  escalated: "需介入",
-  cancelled: "已取消",
-  archived: "已归档",
-};
-
-const MEMBER_STATE_LABEL: Record<TeamPanelModel["members"][number]["state"], string> = {
-  spawning: "启动中",
-  working: "工作中",
-  terminal: "空闲",
-  removed: "已移除",
+/**
+ * 成员状态文字的 i18n 键（locales `team.member.state.*`；与 TEAM_STATUS_I18N_KEYS 同款
+ * 单一出处形态，M2.5 起 STATUS_LABEL/MEMBER_STATE_LABEL 的 zh 内联表整体迁词典）。
+ */
+const MEMBER_STATE_I18N_KEYS: Record<TeamPanelModel["members"][number]["state"], string> = {
+  spawning: "team.member.state.spawning",
+  working: "team.member.state.working",
+  terminal: "team.member.state.terminal",
+  removed: "team.member.state.removed",
 };
 
 function BoardColumn({
@@ -301,6 +394,7 @@ function BoardColumn({
   title: string;
   tasks: TeamPanelModel["board"]["pending"];
 }) {
+  const { intl } = useDroraIntl();
   return (
     <div className="flex min-h-0 flex-col gap-1 rounded border border-border-subtle p-1.5">
       <h3 className="text-ui-caption text-foreground-subtle">{`${title} (${String(tasks.length)})`}</h3>
@@ -312,7 +406,9 @@ function BoardColumn({
               <span className="text-ui-caption text-foreground-subtle">{` · ${task.assignee}`}</span>
             )}
             {task.attempt > 1 ? (
-              <span className="text-ui-caption text-foreground-subtle">{` · 第 ${String(task.attempt)} 次`}</span>
+              <span className="text-ui-caption text-foreground-subtle">
+                {` · ${intl.formatMessage({ id: "team.panel.taskAttempt" }, { attempt: task.attempt })}`}
+              </span>
             ) : null}
           </li>
         ))}

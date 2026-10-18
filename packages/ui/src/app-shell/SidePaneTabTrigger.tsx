@@ -37,6 +37,8 @@ import { Button } from "@/components/ui/button.js";
 import { BrowserUseTabIcon } from "@/app-shell/BrowserUseTabIcon.js";
 import { BrowserTabFavicon } from "@/app-shell/BrowserTabFavicon.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
+// 走 ui-team 公开入口（架构纪律：不深导入托管模块内部文件）。
+import { TeamTabStatusDot } from "@/team/index.js";
 
 // tab 默认按 156px 等宽排列；空间不足时以相同 grow/shrink 参数平均收缩到 60px，
 // 之后由外层滚动容器承接溢出，避免标题长度改变每个 tab 的宽度。
@@ -250,6 +252,9 @@ function SidePaneTabItemContent({
       <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
         {title}
       </span>
+      {/* PR-2.4c 面板开态徽标：team tab 标题带团队状态点（色 + sr-only 文字并行，
+          数据走父投影 team 键；非 team tab 零开销——不建 provider 不订阅）。 */}
+      {tab.type === "team" ? <TeamTabStatusDot tab={tab} /> : null}
       {isDiffPreviewTab(tab) ? (
         <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
           {diffBadgeLabel}

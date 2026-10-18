@@ -1017,8 +1017,9 @@ export function useAppPanels(options: {
   /**
    * 打开（或聚焦）一条对话的 team 面板 tab（specs/agents-team.md §10）。
    *
-   * 本卡只落「注册 + 容器」：对话侧触发（staged 草案自动打开 / 摘要行入口，设计 01 §2/§3.1）
-   * 是 PR-2.4b 的接线——届时从这里取 handler 下发即可，与本目录其他 open handler 同构。
+   * PR-2.4c 起对话侧触发已接线：staged 草案边沿的监听在 App 挂载的
+   * TeamStagedAutoOpenBridge（ui-team 模块）里，经本 handler 打开面板；本 hook 另回出
+   * `isTeamSidePaneOpenForActiveTask` 供桥判「仅当面板未开」。
    */
   const handleOpenTeamSidePane = useCallback(
     (request: OpenScopedTeamSideTabRequest) => {
@@ -1036,6 +1037,19 @@ export function useAppPanels(options: {
       });
     },
     [commitOpenedSidePaneState],
+  );
+
+  /**
+   * 活动会话的 team tab 是否已开（PR-2.4c）：TeamStagedAutoOpenBridge 的「仅当面板未开」
+   * 门。team tab 身份是 (workspaceKey, parentSessionId)——本 hook 本就 per-workspace，
+   * 按 parentSessionId 匹配即可。
+   */
+  const isTeamSidePaneOpenForActiveTask = useMemo(
+    () =>
+      sidePaneState?.tabs.some(
+        (tab) => tab.type === "team" && tab.parentSessionId === activeTaskId,
+      ) ?? false,
+    [activeTaskId, sidePaneState],
   );
 
   const handleOpenWorkflowActorSession = useCallback(
@@ -1664,6 +1678,7 @@ export function useAppPanels(options: {
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
+    isTeamSidePaneOpenForActiveTask,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

@@ -20,7 +20,6 @@ export {
   type TeamCommandSender,
 } from "./commands.js";
 export {
-  TEAM_PANEL_COPY,
   TeamPanel,
   teamPanelActionVisibility,
   type TeamPanelActionVisibility,
@@ -28,11 +27,21 @@ export {
   type TeamPanelCommandType,
   type TeamPanelProps,
 } from "./TeamPanel.js";
+export { TeamStagedEditor, type TeamStagedEditorProps } from "./TeamStagedEditor.js";
 export {
-  TEAM_STAGED_EDITOR_COPY,
-  TeamStagedEditor,
-  type TeamStagedEditorProps,
-} from "./TeamStagedEditor.js";
+  resolveTeamMemberDrillSession,
+  TeamMemberSidePane,
+  type TeamMemberDrillState,
+  type TeamMemberSidePaneProps,
+} from "./TeamMemberSidePane.js";
+export { shouldAutoOpenTeamPanel } from "./auto-open.js";
+export {
+  TEAM_STATUS_DOT_TONE,
+  TEAM_STATUS_I18N_KEYS,
+  type TeamStatusDotTone,
+} from "./team-status-presentation.js";
+export { TeamStagedAutoOpenBridge } from "./TeamStagedAutoOpenBridge.js";
+export { TeamTabStatusDot } from "./TeamTabStatusDot.js";
 export {
   mapTeamProjectionToViewModel,
   type TeamPanelMemberView,

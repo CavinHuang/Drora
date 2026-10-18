@@ -8,6 +8,7 @@ import {
 } from "@drora/shared";
 import type { DroraApp, DroraAppOptions } from "../app/types.js";
 import { listProtocolSlashCommands } from "./slash-commands.js";
+import { getInstalledTeamHub } from "../app/drora-team/install.js";
 import {
   parseParams,
   type DroraProtocolAgentServerContext,
@@ -27,6 +28,14 @@ export async function readWorkspacePresentation(
     slashCommands: await listProtocolSlashCommands({
       // 灰度门是 Host 判定的 workspace 级事实，目录装配读进程缓存。
       dynamicWorkflowEnabled: context.appRuntimePreferences.dynamicWorkflowEnabled,
+      // Agents Team 灰度=装配事实（该 workspace 的 lead 会话 hub 已装配即开）。
+      agentsTeamEnabled: getInstalledTeamHub(
+        String(
+          Array.from(context.sessions.values()).find(
+            (candidate) => candidate.workspace.workspaceKey === params.workspace.workspaceKey,
+          )?.app.sessionId ?? "",
+        ),
+      ) !== undefined,
       env: context.deps.env,
       logger: context.logger,
       workingDirectory: params.workspace.workspacePath,

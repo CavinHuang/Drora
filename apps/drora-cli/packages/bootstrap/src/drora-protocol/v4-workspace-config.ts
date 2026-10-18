@@ -1,3 +1,4 @@
+import { getInstalledTeamHub } from "../app/drora-team/install.js";
 // v4 workspace-config 只承载 workspace presentation；模型候选与首选项由目标 Host
 // ModelSelectionView 提供，不能再从 live Session settings 反向建立第二份模型目录。
 import { getDroraAgentModeSelectOptions, normalizeAvailableDroraMode } from "@drora/shared";
@@ -51,6 +52,9 @@ export async function buildLiveWorkspaceConfigStateV4(
   const slashCommands = await listProtocolSlashCommands({
     // 灰度门是 Host 判定的 workspace 级事实，目录装配读进程缓存。
     dynamicWorkflowEnabled: context.appRuntimePreferences.dynamicWorkflowEnabled,
+    // Agents Team 灰度=装配事实（specs/agents-team.md §11）：该 lead 会话的 hub 已
+    // 装配即开（settings/env 裁决在 create-app 装配门，单一出处）。
+    agentsTeamEnabled: getInstalledTeamHub(String(record.app.sessionId)) !== undefined,
     env: context.deps.env,
     logger: context.logger,
     workingDirectory: record.workspace.workspacePath,

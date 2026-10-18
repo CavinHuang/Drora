@@ -172,18 +172,19 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
   const sessionId = options.sessionId ?? createSessionId();
   const traceContext = options.traceContext ?? createRootTraceContext({ sessionId });
   const workingDirectory = resolve(options.runtimeConfig?.workingDirectory ?? process.cwd());
-  const configResult = resolveEffectiveConfigResult(
-    createConfig({
-      env: options.env,
-      projectConfigPath: options.projectConfigPath,
-      workingDirectory,
-      workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
-      skipUserConfig: options.skipUserConfig,
-      userConfigPath: options.userConfigPath,
-      cliOverrides: createConfigCliOverrides(options),
-    }),
-    options,
-  );
+  const fileConfigResult = createConfig({
+    env: options.env,
+    projectConfigPath: options.projectConfigPath,
+    workingDirectory,
+    workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
+    skipUserConfig: options.skipUserConfig,
+    userConfigPath: options.userConfigPath,
+    cliOverrides: createConfigCliOverrides(options),
+  });
+  // Agents Team 灰度 settings 值(adapters schema agentsTeam.enabled;窄化前读取,
+  // spec §6.4 契约键单一出处——装配门与 /team 分发门同源)。
+  const agentsTeamSetting = fileConfigResult.config.agentsTeam?.enabled;
+  const configResult = resolveEffectiveConfigResult(fileConfigResult, options);
   const loggerFactory = options.loggerFactory ?? createNodeLoggerFactory({ env: options.env });
   const logger = loggerFactory.createLogger("drora").child({
     ...traceContextToLogContext(traceContext),
@@ -795,10 +796,9 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
     });
     // 接缝 α/2：team 注册表先于 runtime 构造（deps.toolRegistry 注入，内建与团队工具同表）。
     // v1 灰度：默认关闭（agentsTeam.enabled 设置面在 M2 接入）；开启即装配。
-    // v1 灰度:env DRORA_AGENTS_TEAM=1 显式开启;settings 键 agentsTeam.enabled 的设置面 M2 接入
-    //(spec §6.4 契约键单一出处;此项与 /team 命令同批补登记)。
-    // 门裁决收口 resolveAgentsTeamEnabled(M2.5 设置面只改这里传 enabledOverride)。
-    const agentsTeamEnabled = resolveAgentsTeamEnabled();
+    // 灰度设置面 M2.5 接入(spec §6.4):settings agentsTeam.enabled 显式值优先,
+    // 缺省回落 env DRORA_AGENTS_TEAM=1(裁决单一出处 resolveAgentsTeamEnabled)。
+    const agentsTeamEnabled = resolveAgentsTeamEnabled(agentsTeamSetting);
     const agentsTeamToolRegistry = agentsTeamEnabled ? createToolRegistry() : undefined;
     const runtimeAgentDeps: AgentRuntimeDeps = {
       ...(agentsTeamToolRegistry ? { toolRegistry: agentsTeamToolRegistry } : {}),
@@ -922,6 +922,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
           // 剔除，但用户仍可手打命令名，两条路径必须给出同一个结论。独立 CLI 的 TUI 与 headless
           // 按 --workflow-mode 显式取值；缺席（进程内嵌入方）不设门禁，见 runtimeConfig 字段注释。
           dynamicWorkflowEnabled: runtimeConfig.dynamicWorkflowEnabled,
+          agentsTeamEnabled: agentsTeamSetting,
           workingDirectory,
         });
         if (builtin !== undefined) {

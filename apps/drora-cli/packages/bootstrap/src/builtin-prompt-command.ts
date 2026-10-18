@@ -20,6 +20,8 @@ export interface ResolveDroraBuiltinPromptCommandOptions {
    * 普通 prompt 交给模型，与目录侧剔除它的结论一致（DWG-03）。
    */
   dynamicWorkflowEnabled?: boolean;
+  /** Agents Team 灰度(create-app 从 settings agentsTeam.enabled 传入;缺省回落 env)。 */
+  agentsTeamEnabled?: boolean;
   workingDirectory?: string;
 }
 

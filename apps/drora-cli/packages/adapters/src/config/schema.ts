@@ -301,6 +301,13 @@ export const DroraConfigFileSchema = z
     skill: skillCommandOverridesSchema.optional(),
     command: skillCommandOverridesSchema.optional(),
     logging: loggingSchema.optional(),
+    // Agents Team 灰度(specs/agents-team.md §6.4:契约键单一出处,settings 键
+    // agentsTeam.enabled;env DRORA_AGENTS_TEAM 为 v1 过渡回落)。
+    agentsTeam: z
+      .object({
+        enabled: z.boolean().optional(),
+      })
+      .optional(),
     ui: uiSchema.optional(),
     toolConcurrency: toolConcurrencySchema.optional(),
     modelAnomalyGuard: modelAnomalyGuardSchema.optional(),

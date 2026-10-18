@@ -833,3 +833,16 @@ dev:desktop 启动即崩)。**发现真实缺陷(PR-2.5b 头号项)**:
 - **dev 基建陷阱(两次踩实)**:dev:desktop 构建脚本对 cli/dist/drora.cjs 存在即复用旧
   bundle(脚本注释自认"陈旧 3 天,改动静默不生效")——CLI 侧改动后必须删
   `apps/drora-cli/packages/cli/dist/drora.cjs` 再启动,否则「改动没进去」伪装成「代码没作用」。
+
+### 实现登记(2026-10-18 续,真实实例验收第二轮——/team 菜单缺显排查)
+
+重建 bundle 后 /team 仍未出现。已排除:白名单(bundle 含 team ✓)、目录装配调用
+(埋点实证 listProtocolSlashCommands 有被调用且 agentsTeamEnabled=显式 false)、
+键错配(hub 注册键与会话键一致,LOOKUP 命中实证)。**剩余唯一可疑环**:
+`getInstalledTeamHub(候选 app.sessionId)` 在目录装配时刻返回 undefined——即装配门
+(install)与目录装配(listProtocolSlashCommands 调用方)不在同一判定上下文,或
+create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落地的 workspace 级门
+(任一 in-memory 会话装配即开)为此环的正确形态;下一轮排查方向:
+1. 在 v4-workspace-config 装配处文件埋点输出候选 app.sessionId 清单与逐个 LOOKUP 结果;
+2. 核对 DRORA_AGENTS_TEAM 是否到达目录装配所在进程(host child spawn env);
+3. 若确认为 host child spawn env 过滤,修=把 agentsTeam 设置值经 spawn args/env 显式传入。

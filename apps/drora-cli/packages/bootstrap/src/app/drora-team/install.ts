@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import {
   createTeamCollabToolEntries,
   createTeamJournalSessionStoreSink,
@@ -232,6 +233,9 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
 
   // PR-2.2：装配完成即登记，v4 团队命令 handler 经 getInstalledTeamHub 查询。
   installedHubsByLeadSession.set(lead.sessionId, hub);
+  // 装配完成即广播初始 TeamStateChanged(PR-2.5b):启动窗口期渲染进程可能已用
+  // 「无 team」目录装配了首份快照;此事件让网关重拉配置,slashCommands 补上 /team。
+  emitTeamStateChanged(hub.teamId ?? "");
 
   // lead resume 恢复（M3 PR-3.1）：install 随装配调用一次——本装配点同时服务新会话与
   // resume 会话（create-app 的 runtime 构造共用此路径），journal 无事实时是 no-op。

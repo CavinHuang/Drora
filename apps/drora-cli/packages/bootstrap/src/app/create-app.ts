@@ -901,6 +901,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
         registry: agentsTeamToolRegistry,
         leadPermissionMode:
           runtimeConfig.mode === "plan" ? "build" : (runtimeConfig.mode as "build" | "edit" | "yolo" | "guarded" | "auto"),
+        membersMax: fileConfigResult.config.agentsTeam?.membersMax,
       });
     }
     markRuntimeConstructed({

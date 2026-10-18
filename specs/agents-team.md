@@ -797,3 +797,21 @@ core 79 + ui 52 测试绿)。补充登记:
    handoff 非空拒绝/suggested prompt insert-replace);宿主接线点=AnimatedSidePanePanel
    →会话 composer 链路(候选:store requestComposerTextInsert 扩展,或 knowledge-handoff
    式目标会话 window 事件)——未接线期间 revise 行为=只发命令,与接线前一致。
+
+### 实现登记(2026-10-18,M4 治理)
+
+1. **静默通道接线完成**:install interruptAndSettle = 成员在飞后台任务 stopTask +
+   taskRegistry.waitForTerminal(30s 上限,超时抛错 → 转派保持 in-flight,
+   spec §16.1 协议不变);此前 v1 缺席=静默立即成功语义,自此转派/接管真正等待结算。
+2. **冷恢复自动重试接线完成**:restore 采纳团队后逐成员 recoverOpenAttempt 恰一次
+   (recoveryRetried 已持久化天然防重复;失败仅 warn 不阻断装配)。
+3. **membersMax 可配置**:settings `agentsTeam.membersMax`(1-16,缺省 5,spec §1),
+   全链 contracts RuntimeConfig / adapters schema / create-app 透传 / install 消费;
+   超限拒绝文案=team_members_max 既有语义(spec §1 预算验收的成员数半部落地)。
+4. **空闲回收=结构性免费(评估结论,无代码)**:成员终态即后台结算(finishBackground
+   链路),架构上不存在驻留 idle 运行时;消息复活链路即回收后的再激活通道——
+   无需独立回收器,官方 dsh 的 parked 驻留问题在本架构不出现。
+5. **hooks 评估(结论=暂不接线)**:TeammateIdle/TaskCompleted 可挂现有 workspace hooks
+   机制(评估过承载面),但 v1 无真实消费场景实证;建议随真实使用反馈再接,避免空转面。
+6. **token 预算 defer(残留)**:usage 聚合进 A 区 usage 投影是独立特性(spec §12 M4
+   原文),不在本批;成员数/板容量两维预算已生效,token 维度登记为 M4 残留待续。

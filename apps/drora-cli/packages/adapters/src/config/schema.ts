@@ -306,6 +306,7 @@ export const DroraConfigFileSchema = z
     agentsTeam: z
       .object({
         enabled: z.boolean().optional(),
+        membersMax: z.number().int().min(1).max(16).optional(),
       })
       .optional(),
     ui: uiSchema.optional(),

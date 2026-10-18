@@ -25,6 +25,8 @@ export interface AgentsTeamInstallInput {
   leadDeps: Parameters<typeof createTeamMemberPort>[0]["leadDeps"];
   /** 成队捕获的权限模式：调用方已把 plan 换算为 build（team 总在执行，spec §8.1）。 */
   leadPermissionMode?: "build" | "edit" | "yolo" | "guarded" | "auto";
+  /** 成员数上限（settings agentsTeam.membersMax；缺省 5，spec §1）。 */
+  membersMax?: number;
   /** 接缝 α/2 创建的团队工具注册表（已注入 lead deps.toolRegistry）。 */
   registry: ReturnType<typeof createToolRegistry>;
   /**
@@ -118,7 +120,7 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
 
   const hub = new TeamHub({
     leadPermissionMode: input.leadPermissionMode,
-    membersMax: 5,
+    membersMax: input.membersMax ?? 5,
     onChange: () => {
       const current = installedHub;
       if (current !== undefined && current.teamId !== undefined) emitTeamStateChanged(current.teamId);
@@ -147,8 +149,24 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       });
       return delivery.delivery !== "queued";
     },
-    // v1：静默通道挂 PR-1.6（stopTask + waitForTerminal）；裁决协议已按静默失败设计
-    //（reassign 保持 in-flight），此处缺席 = 静默立即成功语义。
+    // M4 静默通道：停掉成员在飞的后台任务并等待其终态（转派三步的第 2 步，
+    // spec §16.1）；超时/失败抛错 → hub 保持交接 in-flight（reassigning=true）。
+    interruptAndSettle: async (memberName) => {
+      const agentId = resolveAgentId(memberName);
+      if (agentId === undefined) return;
+      const task = Object.values(taskRegistry.all()).find(
+        (candidate) => candidate.agentId === agentId && candidate.isBackgrounded === true,
+      );
+      if (task === undefined) return; // 无在飞任务即已静默
+      const stop = memberPort.stopTask;
+      if (stop !== undefined) await stop.call(memberPort, task.taskId);
+      await Promise.race([
+        taskRegistry.waitForTerminal(task.taskId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`team member ${memberName} did not settle in time`)), 30_000),
+        ),
+      ]);
+    },
     spawnMembers: async (members, permissionMode) => {
       const spawned: { memberName: string; agentId: string; childSessionId: string }[] = [];
       for (const member of members) {
@@ -236,7 +254,23 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     .then((outcome) => {
       if (outcome === undefined) return; // 新会话/无 journal 事实：seq 从 1 起即无碰撞
       journalSink.setNextSeq(outcome.lastSeq + 1);
-      if (outcome.adopted && hub.teamId !== undefined) emitTeamStateChanged(hub.teamId);
+      if (outcome.adopted && hub.teamId !== undefined) {
+        emitTeamStateChanged(hub.teamId);
+        // M4 冷恢复自动重试（spec §2.3：恰一次，失败不退 pending）：恢复后对每个
+        // 持开放 attempt 的成员各试一次；recoveryRetried 已持久化，天然防重复。
+        for (const member of hub.snapshot()?.members ?? []) {
+          if (member.state === "removed") continue;
+          void hub
+            .recoverOpenAttempt(member.memberName)
+            .catch((error: unknown) => {
+              lead.logger?.warn(`agents team: cold recovery failed for ${member.memberName}`, {
+                event: "agents_team.cold_recovery",
+                module: "bootstrap.agentsTeam",
+                error: String(error),
+              });
+            });
+        }
+      }
     })
     .catch(() => undefined); // restoreAgentsTeamFromJournal 内部已兜错；此处防御性收口
 

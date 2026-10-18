@@ -258,6 +258,8 @@ export interface RuntimeConfig {
   /** Agents Team 灰度(specs/agents-team.md §6.4;env DRORA_AGENTS_TEAM 为过渡回落)。 */
   agentsTeam?: {
     enabled?: boolean;
+    /** 成员数上限（缺省 5，spec §1）。 */
+    membersMax?: number;
   };
 }
 

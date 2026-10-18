@@ -750,3 +750,23 @@ C 档 `/team` 命令(C1-C5)已落地:shared 帮助表条目 / builtin-team-comma
 builtin-prompt-command 分支(env 同门灰度)/ 子上下文守卫为结构性满足
 (member-runtime 不装配 app 命令面,成员会话无斜杠命令入口)/ contracts
 `AGENTS_TEAM_SKILL_NAME` + bundled skill `skills/agents-team/SKILL.md`。
+
+### 实现登记(2026-10-18,PR-2.4c UI 接线收口与 PR-2.5b 摘要行改期)
+
+桌面 UI 接线收口(分支 feat/agents-team):成员下钻 + 发消息全通(TeamPanel
+onMemberClick/onMessageMember → TeamMemberSidePane setActiveMember;下钻 composer
+onSendMessage → commands.sendTeamMessage,唯一通道 = lead 邮箱投递);ui-team 公开
+入口补 TeamMemberSidePane re-export,app-shell 深路径导入同步收回。对话侧触发按
+01-design §2 三入口落地:
+
+1. **staged 自动打开**:TeamStagedAutoOpenBridge(App 每 workspace 常驻挂载)监听
+   conversation snapshot.team.status 的 staged 边沿(shouldAutoOpenTeamPanel 纯函数,
+   「仅当面板未开」),经 useAppPanels.handleOpenTeamSidePane 打开面板。订阅晚到诚实
+   边界:切进已有 staged 草案的会话同样触发一次(staged 是会话中最需用户裁决的事)。
+2. **会话正文团队摘要行 → 改期 PR-2.5b(有意分歧,如实登记)**:01-design §3.5 的
+   「conversation 行流中 team 生命周期摘要」v1 **未实现**;面板开态徽标(tab 标题
+   TeamTabStatusDot,色 + sr-only 文字并行)作为 v1 简化先行。正文行流改造涉及
+   v4 行流组装面,不与本卡混排,PR-2.5b(staged 审批视图 + 桌面 E2E)承接。
+3. **加号菜单入口**:ChatPromptActionMenu QUICK_COMMANDS 增「组建团队」(chat.composer.
+   addTeam),照 /workflow 双入口先例——选中即插入 /team 命令标签,可用性以 CLI
+   catalog 为权威(灰度关 / child 上下文无候选时入口自然消失)。

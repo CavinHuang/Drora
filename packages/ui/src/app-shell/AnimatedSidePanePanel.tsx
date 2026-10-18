@@ -52,6 +52,7 @@ import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySi
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
 import { WorkflowWorkspaceSidePane } from "@/app-shell/WorkflowWorkspaceSidePane.js";
 import { WorkflowArtifactSidePane } from "@/app-shell/WorkflowArtifactSidePane.js";
+import { TeamSidePane } from "@/app-shell/TeamSidePane.js";
 import {
   getSidePaneTabTitle,
   SidePaneTabDragOverlay,
@@ -940,6 +941,7 @@ export function AnimatedSidePanePanel({
         workflowActorTitle: intl.formatMessage({ id: "sidePane.workflowActor" }),
         workflowScriptTitle: intl.formatMessage({ id: "sidePane.workflowScript" }),
         workflowArtifactTitle: intl.formatMessage({ id: "sidePane.workflowArtifact" }),
+        teamTitle: intl.formatMessage({ id: "sidePane.team" }),
       }}
       onActivateTab={onActivateTab}
       onCloseTab={onCloseTab}
@@ -1238,6 +1240,14 @@ export function AnimatedSidePanePanel({
                             {...(onRevealGitFileInTree === undefined
                               ? {}
                               : { onRevealFileInTree: onRevealGitFileInTree })}
+                          />
+                        ) : tab.type === "team" ? (
+                          <TeamSidePane
+                            tab={tab}
+                            focused={isVisible && tab.id === visibleActiveTabId}
+                            onOpenBrowserUrl={onOpenBrowserUrl}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                            onOpenFileLink={onOpenFileLink}
                           />
                         ) : tab.type === "code-viewer" ? (
                           <PreviewPane

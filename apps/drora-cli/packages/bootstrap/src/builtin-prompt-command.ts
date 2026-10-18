@@ -7,6 +7,7 @@ import {
   BUILTIN_WORKFLOW_COMMAND_NAME,
   expandBuiltinWorkflowCommandPrompt,
 } from "./builtin-workflow-command.js";
+import { resolveAgentsTeamEnabled } from "./app/drora-team/install.js";
 
 const BUILTIN_PROMPT_COMMAND_PATTERN = /^\/([^\s]+)(?:\s+([\s\S]*))?$/;
 const INIT_COMMAND_NAME = "init";
@@ -67,9 +68,10 @@ export function resolveDroraBuiltinPromptCommandInvocation(
   }
 
   if (invocation.name === BUILTIN_TEAM_COMMAND_NAME) {
-    // 灰度与装配接缝同门(DRORA_AGENTS_TEAM=1,specs/agents-team.md §11 v1 过渡);
-    // settings 键 agentsTeam.enabled 的设置面在 M2 接入后改走同一来源。
-    if (process.env.DRORA_AGENTS_TEAM !== "1") {
+    // 灰度与装配接缝同门(resolveAgentsTeamEnabled:显式值优先于 env DRORA_AGENTS_TEAM=1,
+    // specs/agents-team.md §11 v1 过渡;帮助表条目与命令注册同门,01-design §1.1);
+    // settings 键 agentsTeam.enabled 的设置面 M2 接入后改走同一来源(只改调用点传值)。
+    if (!resolveAgentsTeamEnabled()) {
       return undefined;
     }
     return {

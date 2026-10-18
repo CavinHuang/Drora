@@ -25,6 +25,23 @@ export interface AgentsTeamInstallInput {
   leadPermissionMode?: "build" | "edit" | "yolo" | "guarded" | "auto";
   /** 接缝 α/2 创建的团队工具注册表（已注入 lead deps.toolRegistry）。 */
   registry: ReturnType<typeof createToolRegistry>;
+  /**
+   * 灰度显式开关（M2.5 设置面接缝）：显式值优先于 env DRORA_AGENTS_TEAM=1
+   * （spec §11 v1 过渡），裁决统一走 {@link resolveAgentsTeamEnabled}。install 的
+   * 装配前提是调用点先用该函数把门裁成开（再创建 registry）；显式 false 到达这里
+   * 即装配顺序矛盾，就地暴露（照 commandFactory CAS 缺参 throw 同精神）。
+   * create-app 接缝 v1 暂不传（行为不变），设置面 M2.5 接入时只改调用点。
+   */
+  enabledOverride?: boolean;
+}
+
+/**
+ * 灰度门唯一裁决：显式入参优先，缺省回落 env DRORA_AGENTS_TEAM=1（spec §11 v1 过渡）。
+ * 装配门（create-app 的 registry 创建）与 /team 命令分发门（builtin-prompt-command）
+ * 都引用本函数——env 字面量收口为单一出处（AGENTS.md 契约键单一出处）。
+ */
+export function resolveAgentsTeamEnabled(enabledOverride?: boolean): boolean {
+  return enabledOverride ?? process.env.DRORA_AGENTS_TEAM === "1";
 }
 
 export interface AgentsTeamInstallResult {
@@ -49,6 +66,14 @@ export function getInstalledTeamHub(leadSessionId: string): TeamHub | undefined 
 }
 
 export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTeamInstallResult {
+  // 灰度收口：显式 false 与装配前提矛盾（门在调用点的 resolveAgentsTeamEnabled），
+  // 不静默吞——静默装一半比立即失败更难查。
+  if (input.enabledOverride === false) {
+    throw new Error(
+      "installDroraAgentsTeam: enabledOverride=false 与装配前提矛盾——" +
+        "调用点应先用 resolveAgentsTeamEnabled 裁门（关则不创建 registry、不到达 install）",
+    );
+  }
   const lead = input.runtime;
   const toolRegistry = input.registry;
   const taskRegistry = new InMemoryRuntimeTaskRegistry();

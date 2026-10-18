@@ -71,6 +71,8 @@ import {
   type OpenScopedWorkflowActorSessionSideTabRequest,
   type OpenScopedWorkflowArtifactSideTabRequest,
   type OpenScopedWorkflowWorkspaceSideTabRequest,
+  openTeamSidePane,
+  type OpenScopedTeamSideTabRequest,
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
@@ -1012,6 +1014,30 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState],
   );
 
+  /**
+   * 打开（或聚焦）一条对话的 team 面板 tab（specs/agents-team.md §10）。
+   *
+   * 本卡只落「注册 + 容器」：对话侧触发（staged 草案自动打开 / 摘要行入口，设计 01 §2/§3.1）
+   * 是 PR-2.4b 的接线——届时从这里取 handler 下发即可，与本目录其他 open handler 同构。
+   */
+  const handleOpenTeamSidePane = useCallback(
+    (request: OpenScopedTeamSideTabRequest) => {
+      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
+      setIsSidePaneCollapsed(false);
+      commitOpenedSidePaneState((current) =>
+        openTeamSidePane(current, {
+          ...request,
+          workspaceKey,
+        }),
+      );
+      logger.debug("[App] 打开团队右侧 tab", {
+        parentSessionId: request.parentSessionId,
+        workspaceKey,
+      });
+    },
+    [commitOpenedSidePaneState],
+  );
+
   const handleOpenWorkflowActorSession = useCallback(
     (request: OpenScopedWorkflowActorSessionSideTabRequest) => {
       const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
@@ -1637,6 +1663,7 @@ export function useAppPanels(options: {
     handleOpenWorkflowActorSession,
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
+    handleOpenTeamSidePane,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

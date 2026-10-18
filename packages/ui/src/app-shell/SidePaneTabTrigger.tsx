@@ -18,6 +18,7 @@ import {
   ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
+  UsersIcon,
   WaypointsIcon,
   Workflow as WorkflowIcon,
   XIcon,
@@ -298,6 +299,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "workflow-artifact") {
     return <PackageIcon className="size-3.5" />;
   }
+  // team 面板是「一个团队的协作视图」（状态头 + 任务板 + 成员名单），与单个 run（Workflow）、
+  // 单个 actor（BotMessageSquare）都不同形；Users 点出「多名成员」的本体。
+  if (tab.type === "team") {
+    return <UsersIcon className="size-3.5" />;
+  }
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
@@ -508,6 +514,10 @@ export function getSidePaneTabTitle(
     return (
       tab.title?.trim() || tab.artifactId || formatMessage({ id: "sidePane.workflowArtifact" })
     );
+  }
+  // team tab 不带任何数据（身份只是对话），标题恒为本地化名——团队名在面板状态头里跟投影走。
+  if (tab.type === "team") {
+    return formatMessage({ id: "sidePane.team" });
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;

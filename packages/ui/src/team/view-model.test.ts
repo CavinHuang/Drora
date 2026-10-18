@@ -66,15 +66,39 @@ describe("mapTeamProjectionToViewModel", () => {
     expect(model.members[0]).toMatchObject({ memberName: "alice", state: "working" });
   });
 
-  it("derives staged draft counts when present", () => {
+  it("derives staged draft rows when present", () => {
     const staged = projection();
     (staged as { stagedDraft?: unknown }).stagedDraft = {
-      draftMembers: [{ memberName: "a", profile: "p" }],
-      draftTasks: [{ taskId: "t1", title: "x", dependsOn: [] }],
+      draftMembers: [
+        {
+          memberName: "a",
+          profile: "researcher",
+          modelSelection: { provider: "zai", model: "glm-5", thought: "high" },
+        },
+        { memberName: "b" },
+      ],
+      draftTasks: [
+        { taskId: "t1", title: "x", assignee: "a", dependsOn: [] },
+        { taskId: "t2", title: "y", dependsOn: ["t1"] },
+      ],
       awaitingFeedback: true,
     };
     (staged as { status?: string }).status = "staged";
     const model = mapTeamProjectionToViewModel(staged);
-    expect(model.stagedDraft).toEqual({ memberCount: 1, taskCount: 1, awaitingFeedback: true });
+    expect(model.stagedDraft).toEqual({
+      members: [
+        {
+          memberName: "a",
+          profile: "researcher",
+          modelSelection: { provider: "zai", model: "glm-5", thought: "high" },
+        },
+        { memberName: "b" },
+      ],
+      tasks: [
+        { taskId: "t1", title: "x", assignee: "a", dependsOn: [] },
+        { taskId: "t2", title: "y", dependsOn: ["t1"] },
+      ],
+      awaitingFeedback: true,
+    });
   });
 });

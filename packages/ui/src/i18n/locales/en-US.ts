@@ -1145,6 +1145,26 @@ const enUS: Record<string, string> = {
   "sidePane.workflowActor": "Workflow subagent",
   "sidePane.workflowScript": "Script steps",
   "sidePane.workflowArtifact": "Artifact",
+  "sidePane.team": "Team",
+  // Team panel (specs/agents-team.md §10): empty state and member drill-down placeholders.
+  // Copy states what is true and what happens next, never color alone (DESIGN.md).
+  "team.panel.empty.title": "No team yet",
+  "team.panel.empty.body":
+    "This conversation has no team projection. Assemble one with /team and its status will show up here.",
+  "team.memberPane.back": "Back to team",
+  "team.memberPane.notStarted.title": "Member has not started",
+  "team.memberPane.notStarted.body":
+    "{name}'s session has not appeared yet; the transcript will attach automatically once it does.",
+  "team.memberPane.memberAbsent.title": "Member session not found",
+  "team.memberPane.memberAbsent.body":
+    "{name} is no longer on the team roster and has no transcript to review.",
+  "team.memberPane.teamAbsent.title": "Team projection unavailable",
+  "team.memberPane.teamAbsent.body":
+    "This conversation has no team projection, so the member session cannot be located.",
+  "team.memberPane.inputPlaceholder": "Message {name} (coming soon)",
+  "team.memberPane.send": "Send",
+  "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
+  "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
   "subagentDirectory.title": "Subagents",
   "subagentDirectory.running": "Running",
   "subagentDirectory.runningEmpty": "No running subagents",

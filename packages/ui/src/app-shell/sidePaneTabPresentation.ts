@@ -20,6 +20,7 @@ export interface SidePaneTabPresentationLabels {
   workflowActorTitle: string;
   workflowScriptTitle: string;
   workflowArtifactTitle: string;
+  teamTitle: string;
 }
 
 export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
@@ -45,6 +46,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "workflow-artifact") {
     // 产物 id 是脚本里写死的字面量，用户与排查者手里往往就是它。
     return `${tab.title ?? ""} ${tab.artifactId} ${tab.runId} ${tab.parentSessionId} workflow artifact deliverable`;
+  }
+  if (tab.type === "team") {
+    return `${tab.parentSessionId} agents team members board mailbox`;
   }
   if (tab.type === "selection-side-chat") {
     return `${tab.parentSessionId} ${tab.childSessionId} ${tab.ordinal} selection side chat`;
@@ -97,6 +101,7 @@ export function getLocalizedSidePaneTabTitle(
       "sidePane.workflowActor": labels.workflowActorTitle,
       "sidePane.workflowScript": labels.workflowScriptTitle,
       "sidePane.workflowArtifact": labels.workflowArtifactTitle,
+      "sidePane.team": labels.teamTitle,
     };
     return titleByMessageId[descriptor.id] ?? descriptor.id;
   });
@@ -113,6 +118,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "workflow-actor-session") return labels.workflowActorTitle;
   if (tab.type === "workflow-workspace") return labels.workflowScriptTitle;
   if (tab.type === "workflow-artifact") return labels.workflowArtifactTitle;
+  if (tab.type === "team") return labels.teamTitle;
   if (tab.type === "selection-side-chat") return labels.selectionChatTitle;
   if (tab.type === "subagent-session") {
     return tab.subagentType.trim() || labels.subagentTypeLabel;

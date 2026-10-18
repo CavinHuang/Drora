@@ -105,7 +105,7 @@ import { resolveDroraBuiltinPromptCommandInvocation } from "../builtin-prompt-co
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 // 接缝 α（specs/agents-team.md §11）：Agents Team 装配——deps 注入团队工具注册表，
 // 构造后接线 hub/私有端口。上游镜像文件零编辑（v2 组装根集中制）。
-import { installDroraAgentsTeam } from "./drora-team/install.js";
+import { installDroraAgentsTeam, resolveAgentsTeamEnabled } from "./drora-team/install.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
 import {
   loadPluginAgentTemplates,
@@ -797,7 +797,8 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
     // v1 灰度：默认关闭（agentsTeam.enabled 设置面在 M2 接入）；开启即装配。
     // v1 灰度:env DRORA_AGENTS_TEAM=1 显式开启;settings 键 agentsTeam.enabled 的设置面 M2 接入
     //(spec §6.4 契约键单一出处;此项与 /team 命令同批补登记)。
-    const agentsTeamEnabled = process.env.DRORA_AGENTS_TEAM === "1";
+    // 门裁决收口 resolveAgentsTeamEnabled(M2.5 设置面只改这里传 enabledOverride)。
+    const agentsTeamEnabled = resolveAgentsTeamEnabled();
     const agentsTeamToolRegistry = agentsTeamEnabled ? createToolRegistry() : undefined;
     const runtimeAgentDeps: AgentRuntimeDeps = {
       ...(agentsTeamToolRegistry ? { toolRegistry: agentsTeamToolRegistry } : {}),

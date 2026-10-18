@@ -25,6 +25,33 @@ export interface TeamPanelTaskView {
   dependsOn: readonly string[];
 }
 
+/**
+ * staged 草案成员行（shared teamStagedDraftMemberSchema 同形派生；PR-2.4b 起编辑器
+ * 消费整行数据，取代 PR-2.4a 的只读计数——单一派生通道不变：投影 → 本模型 → 视图）。
+ * v1 只读展示（名称/角色/路由），行内编辑属后续卡。
+ */
+export interface TeamPanelStagedMemberView {
+  memberName: string;
+  profile?: string;
+  /** 建队时刻的路由快照（spec §8.7）；缺席 = 未指定路由。 */
+  modelSelection?: { provider: string; model: string; thought?: string };
+}
+
+/** staged 草案任务行（shared teamStagedDraftTaskSchema 同形派生；v1 只读展示）。 */
+export interface TeamPanelStagedTaskView {
+  taskId: string;
+  title: string;
+  assignee?: string;
+  dependsOn: readonly string[];
+}
+
+/** staged 草案整体（仅 staged 态携带；TeamStagedEditor 的数据输入）。 */
+export interface TeamPanelStagedDraftView {
+  members: readonly TeamPanelStagedMemberView[];
+  tasks: readonly TeamPanelStagedTaskView[];
+  awaitingFeedback: boolean;
+}
+
 export interface TeamPanelModel {
   teamId: string;
   status: TeamUiStatus;
@@ -37,11 +64,7 @@ export interface TeamPanelModel {
     limit: number;
   };
   mailboxTail: readonly { messageId: string; from: string; summary?: string }[];
-  stagedDraft?: {
-    memberCount: number;
-    taskCount: number;
-    awaitingFeedback: boolean;
-  };
+  stagedDraft?: TeamPanelStagedDraftView;
 }
 
 /** 投影 → 面板模型（纯派生；任务板三列分组，内部交接态不在投影中）。 */
@@ -86,8 +109,19 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       ? {}
       : {
           stagedDraft: {
-            memberCount: team.stagedDraft.draftMembers.length,
-            taskCount: team.stagedDraft.draftTasks.length,
+            members: team.stagedDraft.draftMembers.map((member) => ({
+              memberName: member.memberName,
+              ...(member.profile === undefined ? {} : { profile: member.profile }),
+              ...(member.modelSelection === undefined
+                ? {}
+                : { modelSelection: member.modelSelection }),
+            })),
+            tasks: team.stagedDraft.draftTasks.map((task) => ({
+              taskId: task.taskId,
+              title: task.title,
+              ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+              dependsOn: task.dependsOn,
+            })),
             awaitingFeedback: team.stagedDraft.awaitingFeedback,
           },
         }),

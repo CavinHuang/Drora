@@ -20,6 +20,9 @@
 ## 公开入口
 
 - `contract.ts`：TeamPanelViewModel / TeamPanelController / TeamUiStatus；
+- `revise-prefill.ts`：「回对话修改」会话输入框预填文案构造（`buildTeamReviseComposerPrefill`
+  纯函数 + `TEAM_REVISE_PREFILL_PROMPT_KEY`；注入通道 = TeamSidePane 的
+  `onPrefillComposer` 回调，实现由挂载点提供）；
 - `index.ts`：re-export。
 
 ## 契约演进

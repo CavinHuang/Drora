@@ -7,6 +7,7 @@ import type { TeamSidePaneTab } from "@/lib/workspaceSidePane.js";
 import {
   abandonTeamPlan,
   approveTeamPlan,
+  buildTeamReviseComposerPrefill,
   haltTeam,
   mapTeamProjectionToViewModel,
   resumeTeam,
@@ -16,6 +17,7 @@ import {
   TeamPanel,
   type TeamPanelCommand,
   type TeamPanelMemberView,
+  TEAM_REVISE_PREFILL_PROMPT_KEY,
 } from "@/team/index.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
@@ -40,6 +42,9 @@ import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4Conversati
  *   onMemberClick / onMessageMember（成员卡点击与「发消息」入口，同一下钻语义）接
  *   `setActiveMember`；下钻 composer 的 onSendMessage 接 `commands.sendTeamMessage`
  *   （成员消息必须经 lead 邮箱投递，spec §1 硬边界）。
+ * - 「回对话修改」预填（design 01 §3.1）：revise 命令发出后把追问文案（note 在场时
+ *   随行）经 `onPrefillComposer` 回调交给挂载点注入会话 composer；文案构造纯函数在
+ *   team/revise-prefill.ts，注入通道调研结论与 v1 边界见该文件头注。
  */
 
 /** 下钻目标：memberName 是花名册联接键，childSessionId 是打开时刻已知值（可缺席，门会自愈）。 */
@@ -69,12 +74,15 @@ const TeamEmptyState = memo(function TeamEmptyState() {
 const TeamSidePaneContent = memo(function TeamSidePaneContent({
   tab,
   focused,
+  onPrefillComposer,
   onOpenBrowserUrl,
   onOpenCodeViewer,
   onOpenFileLink,
 }: {
   tab: TeamSidePaneTab;
   focused: boolean;
+  /** 「回对话修改」的会话输入框预填回调（实现由挂载点提供；缺席 = 只发命令不预填）。 */
+  onPrefillComposer?: (prefill: string) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
@@ -93,6 +101,10 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     [team],
   );
 
+  // 预填追问文案在渲染期解析（语言切换随渲染更新）；拼接与 note 携带规则见
+  // team/revise-prefill.ts（纯函数单一出处）。
+  const revisePrefillQuestion = intl.formatMessage({ id: TEAM_REVISE_PREFILL_PROMPT_KEY });
+
   // 面板动作意图 → team/commands.ts（信封构造与 ACK 语义单一出处；拒绝/失败由 helper
   // 内部 logger 出账）。团队命令非行级、不入 pendingCommand 对账账本（commands.ts 头注），
   // 这里的 fire-and-forget 与 WorkflowRunSidePane 的 cancel/resume 同一先例。
@@ -105,6 +117,17 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           break;
         case "reviseTeamPlan":
           void reviseTeamPlan({ ...input, ...command.payload });
+          // design 01 §3.1「会话输入框预填『要调整什么？』」：发命令的同时把追问文案
+          // 预填进会话 composer（v1 边界：hub 不消费 wire note，note 随预填进对话，
+          // 见 revise-prefill.ts 头注）。回调缺席（挂载点未接线）= 只发命令，行为同前。
+          if (onPrefillComposer !== undefined) {
+            onPrefillComposer(
+              buildTeamReviseComposerPrefill({
+                question: revisePrefillQuestion,
+                ...(command.payload.note === undefined ? {} : { note: command.payload.note }),
+              }),
+            );
+          }
           break;
         case "abandonTeamPlan":
           void abandonTeamPlan(input);
@@ -117,7 +140,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           break;
       }
     },
-    [sendCommand, tab.parentSessionId],
+    [onPrefillComposer, revisePrefillQuestion, sendCommand, tab.parentSessionId],
   );
 
   // 成员下钻是本地视图状态。teamId 变化（同一对话换队）时回落到团队视图，
@@ -132,9 +155,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   const handleMemberDrill = useCallback((member: TeamPanelMemberView) => {
     setActiveMember({
       memberName: member.memberName,
-      ...(member.childSessionId === undefined
-        ? {}
-        : { childSessionId: member.childSessionId }),
+      ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }),
     });
   }, []);
 
@@ -211,12 +232,15 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
 export const TeamSidePane = memo(function TeamSidePane({
   tab,
   focused,
+  onPrefillComposer,
   onOpenBrowserUrl,
   onOpenCodeViewer,
   onOpenFileLink,
 }: {
   tab: TeamSidePaneTab;
   focused: boolean;
+  /** 「回对话修改」的会话输入框预填回调（实现由挂载点提供；缺席 = 只发命令不预填）。 */
+  onPrefillComposer?: (prefill: string) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
@@ -235,6 +259,7 @@ export const TeamSidePane = memo(function TeamSidePane({
       <TeamSidePaneContent
         tab={tab}
         focused={focused}
+        {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}
         onOpenBrowserUrl={onOpenBrowserUrl}
         onOpenCodeViewer={onOpenCodeViewer}
         onOpenFileLink={onOpenFileLink}

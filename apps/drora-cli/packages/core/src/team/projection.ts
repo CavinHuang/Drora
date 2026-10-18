@@ -84,8 +84,8 @@ export interface TeamProjectionArtifactsInput {
 /**
  * 投影入参聚合记录：结构性兼容 core/src/team/types.ts 的 `TeamRecord`。
  * members/tasks/mailbox 容缺（缺席视为空集）；`awaitingFeedback` 是 staged 草案的
- * 「回对话修改」标记（design §3.3.1），TeamRecord v1 尚无载体，投影侧可选容缺、
- * 缺席按 false。
+ * 「回对话修改」标记（design §3.3.1）——M3 PR-3.1 起 TeamRecord 有真实载体，
+ * β 投影桥从 hub 标记读入；本侧保留可选容缺兼容测试侧宽松入参，缺席按 false。
  */
 export interface TeamProjectionRecordInput {
   teamId: string;

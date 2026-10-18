@@ -1,8 +1,10 @@
 import {
   createTeamCollabToolEntries,
+  createTeamJournalSessionStoreSink,
   createTeamMemberPort,
   createToolRegistry,
   InMemoryRuntimeTaskRegistry,
+  restoreAgentsTeamFromJournal,
   TeamHub,
   type AgentRuntimeInternal,
 } from "@drora/core";
@@ -98,6 +100,22 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   };
   void (null as unknown as TeamLeadPort | undefined);
 
+  // journal 持久化通道（M3 PR-3.1）：sessionStore 既有 session entry 通道
+  //（type = team.journal，键前缀单一出处 contracts TEAM_JOURNAL_KEY_PREFIX）；
+  // 同步入队 + 串行异步刷盘，刷盘失败只 warn（journal 丢失只退化崩溃恢复，不劫持裁决）。
+  const journalSink = createTeamJournalSessionStoreSink({
+    sessionStore: input.leadDeps.sessionStore,
+    sessionId: lead.sessionId,
+    warn: (message, error) => {
+      lead.logger?.warn(message, {
+        error: error instanceof Error ? error.message : String(error ?? ""),
+        event: "agents_team.journal_write_failed",
+        module: "bootstrap.agentsTeam",
+        sessionId: lead.sessionId,
+      });
+    },
+  });
+
   const hub = new TeamHub({
     leadPermissionMode: input.leadPermissionMode,
     membersMax: 5,
@@ -105,6 +123,8 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       const current = installedHub;
       if (current !== undefined && current.teamId !== undefined) emitTeamStateChanged(current.teamId);
     },
+    // journal 写入：hub 动作点的用户/协议动作与板/邮箱数据事实（spec 差异裁决#5）。
+    journalWriter: (event) => journalSink.append(event),
     // 派发通道：私有端口的 sendMessage——运行中成员 steer、终态成员复活；
     // queued 不算送达（ack 只认注入，spec §16.3），消息保留待下次投递边缘。
     dispatch: async (request) => {
@@ -194,6 +214,31 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
 
   // PR-2.2：装配完成即登记，v4 团队命令 handler 经 getInstalledTeamHub 查询。
   installedHubsByLeadSession.set(lead.sessionId, hub);
+
+  // lead resume 恢复（M3 PR-3.1）：install 随装配调用一次——本装配点同时服务新会话与
+  // resume 会话（create-app 的 runtime 构造共用此路径），journal 无事实时是 no-op。
+  // 调用时机约束：恢复是 fire-and-forget 的异步重放；装配完成到恢复完成之间存在竞态
+  // 窗口（团队工具/命令此刻看到「无 team」，冷快照可能缺 team 键——恢复完成后经
+  // TeamStateChanged 补发 delta 收敛）；窗口内若已创建新 team，恢复结果让位（hub 内
+  // 不覆盖现役记录）。恢复失败只 warn，绝不阻断装配与 lead 运行主循环。
+  void restoreAgentsTeamFromJournal({
+    hub,
+    sessionStore: input.leadDeps.sessionStore,
+    sessionId: lead.sessionId,
+    warn: (message) => {
+      lead.logger?.warn(message, {
+        event: "agents_team.journal_restore",
+        module: "bootstrap.agentsTeam",
+        sessionId: lead.sessionId,
+      });
+    },
+  })
+    .then((outcome) => {
+      if (outcome === undefined) return; // 新会话/无 journal 事实：seq 从 1 起即无碰撞
+      journalSink.setNextSeq(outcome.lastSeq + 1);
+      if (outcome.adopted && hub.teamId !== undefined) emitTeamStateChanged(hub.teamId);
+    })
+    .catch(() => undefined); // restoreAgentsTeamFromJournal 内部已兜错；此处防御性收口
 
   function resolveAgentId(memberName: string): string | undefined {
     return hub

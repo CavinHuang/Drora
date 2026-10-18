@@ -29,6 +29,11 @@ export {
 } from "./TeamPanel.js";
 export { TeamStagedEditor, type TeamStagedEditorProps } from "./TeamStagedEditor.js";
 export {
+  buildTeamReviseComposerPrefill,
+  TEAM_REVISE_PREFILL_PROMPT_KEY,
+  type TeamReviseComposerPrefillInput,
+} from "./revise-prefill.js";
+export {
   resolveTeamMemberDrillSession,
   TeamMemberSidePane,
   type TeamMemberDrillState,

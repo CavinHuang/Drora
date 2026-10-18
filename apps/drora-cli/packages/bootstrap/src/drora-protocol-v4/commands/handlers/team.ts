@@ -140,6 +140,9 @@ async function reviseTeamPlan(
       })),
     }),
   );
+  // M3 PR-3.1（awaitingFeedback 回填）：「回对话修改」把草案标记为等待反馈；
+  // approveTeamPlan 审批时由 hub 清除（TeamRecord 内部标记，投影 stagedDraft 读）。
+  assertMutationOk("reviseTeamPlan", hub.markStageAwaitingFeedback(sessionId));
   return undefined;
 }
 

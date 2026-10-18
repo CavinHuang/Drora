@@ -5942,6 +5942,9 @@ function teamProjectionViewOf(
       ...(task.recoveryRetried === undefined ? {} : { recoveryRetried: task.recoveryRetried }),
     })),
     mailbox: hub.mailboxEntries(),
+    // M3 PR-3.1（awaitingFeedback 回填）：从 hub 的 TeamRecord 内部标记读,
+    // 替换 v1 投影侧容缺（此前无生产载体,恒为 false）。
+    ...(hub.awaitingFeedback === true ? { awaitingFeedback: true } : {}),
   };
   return projectTeam(record);
 }

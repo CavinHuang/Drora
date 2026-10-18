@@ -97,6 +97,12 @@ export interface TeamRecord {
   mailbox: TeamMailboxEntry[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * staged 草案的「回对话修改」等待反馈标记（M3 PR-3.1 回填；design §3.3.1）。
+   * 仅 staged 态有语义：reviseTeamPlan 命令置 true，approveStage 清除；
+   * 投影 stagedDraft.awaitingFeedback 从本标记读（替换 v1 投影侧容缺）。
+   */
+  awaitingFeedback?: boolean;
 }
 
 /** 投影裁剪限额（契约键见 team.port.ts；shared PROTOCOL_V4_LIMITS.team 于 M2 落）。 */

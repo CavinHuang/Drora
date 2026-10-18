@@ -13,7 +13,8 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  * （标题/负责人/依赖）v1 **只读展示**（行内编辑属后续卡）；三个动作：
  * - 「确认并启动」→ onApprove（宿主发 approveTeamPlan，**唯一创建成员入口**，批准前零成员零会话）；
  * - 「回对话修改」→ onRevise(note?)（宿主发 reviseTeamPlan；note 为面板内可选输入，
- *   修改方向也可留空后在对话里说明——宿主负责预填会话输入框）；
+ *   修改方向也可留空后在对话里说明——宿主负责预填会话输入框：TeamSidePane 的
+ *   onPrefillComposer 回调，文案构造见 team/revise-prefill.ts）；
  * - 「放弃」→ onAbandon（宿主发 abandonTeamPlan；二次确认在本组件内完成，
  *   归档后禁止模型自动重建）。
  *

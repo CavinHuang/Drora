@@ -40,6 +40,11 @@ import {
 } from "./mailbox.js";
 import { buildRevivalBody, buildSteerPayload } from "./message-format.js";
 import {
+  taskJournalFactOf,
+  type TeamJournalPayload,
+  type TeamJournalWriter,
+} from "./journal.js";
+import {
   LEAD_ASSIGNEE_KEY,
   TEAM_KERNEL_LIMITS,
   type TeamInternalLimits,
@@ -92,6 +97,12 @@ export interface TeamHubDeps {
   limits?: TeamInternalLimits;
   /** 状态变化通知(β 接缝):install 借此向 v4 投影发 TeamStateChanged 会话事件。 */
   onChange?: () => void;
+  /**
+   * journal 写入（M3 PR-3.1，spec 差异裁决#5）：动作点的「用户/协议动作与板/邮箱
+   * 数据事实」追加。同步入队契约（同 persistMailboxEntry）——hub 不等待刷盘、
+   * 不因 journal 失败中断裁决；实现（journal.ts sink）内部串行异步刷盘并兜错。
+   */
+  journalWriter?: TeamJournalWriter;
 }
 
 const DEFAULT_CLOCK: BoardClock = {
@@ -120,6 +131,8 @@ export class TeamHub {
   private readonly deps: Pick<TeamHubDeps, "interruptAndSettle" | "persistMailboxEntry" | "spawnMembers">;
   private readonly dispatchQueues = new Map<string, Promise<unknown>>();
   private readonly notifyChange: () => void;
+  /** journal 追加（缺席 = no-op；异常吞并——journal 是旁路事实流，不得中断裁决）。 */
+  private readonly journalWriter: TeamJournalWriter;
 
   constructor(private readonly depsOrUndefined: TeamHubDeps = {}) {
     this.clock = depsOrUndefined.clock ?? DEFAULT_CLOCK;
@@ -129,6 +142,7 @@ export class TeamHub {
       depsOrUndefined.dispatch ??
       (async () => false);
     this.notifyChange = depsOrUndefined.onChange ?? (() => undefined);
+    this.journalWriter = depsOrUndefined.journalWriter ?? (() => undefined);
     this.deps = depsOrUndefined;
   }
 
@@ -176,6 +190,14 @@ export class TeamHub {
   /** 邮箱全量（M2 投影取尾窗前的数据源；测试断言用）。 */
   mailboxEntries(): readonly TeamMailboxEntry[] {
     return this.record?.mailbox ?? [];
+  }
+
+  /**
+   * staged 草案的「回对话修改」等待反馈标记（M3 PR-3.1 回填：TeamRecord 内部标记，
+   * 仅 staged 态有语义）。β 投影桥经此读，替换 v1 投影侧容缺（缺席按 false）。
+   */
+  get awaitingFeedback(): boolean {
+    return this.record?.status === "staged" && this.record.awaitingFeedback === true;
   }
 
   // ---------- 两阶段成队（spec §1 / §2.6；设计差异 D3） ----------
@@ -234,6 +256,17 @@ export class TeamHub {
         updatedAt: now,
       };
       this.notifyChange();
+      // journal（差异裁决#5）：成队是用户动作，权限模式记录值随 team_created 事实持久化。
+      this.journal({
+        kind: "team_created",
+        teamId: this.record.teamId,
+        leadSessionId,
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(this.depsOrUndefined.leadPermissionMode === undefined
+          ? {}
+          : { permissionMode: this.depsOrUndefined.leadPermissionMode }),
+        createdAt: now,
+      });
     }
     // staged 再次调用 = 原子更新同一草案（同 teamId，不另建）。
     this.record.name = input.name;
@@ -250,7 +283,46 @@ export class TeamHub {
       removed: false,
     }));
     this.notifyChange();
+    this.journalStagedFact();
     return { status: "ok", teamId: this.record.teamId };
+  }
+
+  /**
+   * 「回对话修改」等待反馈标记（M3 PR-3.1）：仅 staged 态有语义；reviseTeamPlan
+   * 命令置 true，approveStage 清除。staged 事实（含标记）随 journal 更新，恢复后
+   * 草案的等待反馈态不丢。
+   */
+  markStageAwaitingFeedback(leadSessionId: string): TeamMutationResult {
+    const record = this.record;
+    if (record === undefined || record.status !== "staged") {
+      return { status: "rejected", error: teamPortError("team_not_present") };
+    }
+    if (record.leadSessionId !== leadSessionId) {
+      return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    record.awaitingFeedback = true;
+    record.updatedAt = this.clock.now();
+    this.notifyChange();
+    this.journalStagedFact();
+    return { status: "ok" };
+  }
+
+  /** staged 草案事实（成员/任务/等待反馈标记整体快照；重放 = 原子替换草案）。 */
+  private journalStagedFact(): void {
+    const record = this.record;
+    if (record === undefined || record.status !== "staged") return;
+    this.journal({
+      kind: "staged",
+      teamId: record.teamId,
+      ...(record.name === undefined ? {} : { name: record.name }),
+      awaitingFeedback: record.awaitingFeedback === true,
+      members: record.members.map((member) => ({
+        memberName: member.memberName,
+        ...(member.profile === undefined ? {} : { profile: member.profile }),
+        ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
+      })),
+      tasks: record.tasks.map(taskJournalFactOf),
+    });
   }
 
   abandonStage(leadSessionId: string): TeamMutationResult {
@@ -261,6 +333,8 @@ export class TeamHub {
     }
     record.status = "archived";
     record.updatedAt = this.clock.now();
+    // 归档事实入 journal：恢复后草案不得「复活」为 staged（spec §2.6 禁止自动重建）。
+    this.journal({ kind: "archived", teamId: record.teamId });
     return { status: "ok" };
   }
 
@@ -295,7 +369,11 @@ export class TeamHub {
       }
       record.status = "active";
       record.updatedAt = this.clock.now();
+      // 审批清除「等待反馈」标记（标记仅 staged 态有语义；退出 staged 即清）。
+      delete record.awaitingFeedback;
       this.notifyChange();
+      // journal：审批是用户动作；成员 agentId 事实由 spawn 回调里的 member_added 逐条记。
+      this.journal({ kind: "approved", teamId: record.teamId });
       return { status: "ok", spawnedMembers: spawned.map((row) => row.memberName) };
     } catch {
       // 原子性：spawn 失败 → 草案原样保留（staged，零真实成员），可修订后重批。
@@ -313,6 +391,8 @@ export class TeamHub {
     }
     record.status = "halted";
     record.updatedAt = this.clock.now();
+    // 冻结态事实入 journal（差异裁决#5：状态迁移本身不记，用户裁决结果保留）。
+    this.journal({ kind: "halted", teamId: record.teamId });
     this.notifyChange();
     return { status: "ok" };
   }
@@ -329,6 +409,8 @@ export class TeamHub {
     }
     record.status = this.hasWorkingMember(record) ? "active" : "idle";
     record.updatedAt = this.clock.now();
+    // resumed 事实解除恢复侧的冻结推导（halted→resumed 序列保留，spec §2.6）。
+    this.journal({ kind: "resumed", teamId: record.teamId, reason });
     this.notifyChange();
     return { status: "ok" };
   }
@@ -341,6 +423,7 @@ export class TeamHub {
     }
     record.status = "escalated";
     record.updatedAt = this.clock.now();
+    this.journal({ kind: "escalated", teamId: record.teamId });
     this.notifyChange();
     return { status: "ok" };
   }
@@ -350,12 +433,15 @@ export class TeamHub {
   /** 注册真实成员（approveStage 的 spawn 回调成功后由 install 侧确认，或测试直接用）。 */
   confirmMemberSpawned(memberName: string, agentId: string, childSessionId: string): void {
     const record = this.record;
-    const member = record?.members.find(
+    if (record === undefined) return;
+    const member = record.members.find(
       (candidate) => candidate.memberName === memberName && !candidate.removed,
     );
     if (member === undefined) return;
     member.agentId = agentId;
     member.childSessionId = childSessionId;
+    // journal：成员出生事实（恢复侧据此把草案成员锚定到真实 child 会话）。
+    this.journal({ kind: "member_added", teamId: record.teamId, memberName, agentId, childSessionId });
   }
 
   markMemberWorking(memberName: string): void {
@@ -421,11 +507,14 @@ export class TeamHub {
     const owned = ownedOpenTask(record.tasks, memberName);
     if (owned !== undefined) {
       invalidateTaskAttempt(owned, undefined, this.clock, false);
+      this.journalTaskFact(owned);
     }
     member.removed = true;
     member.state = "removed";
     this.parkedAttempts.delete(member.agentId);
     this.refreshStatus();
+    // journal：移除事实 = 退休拒绝表持久化（被移除成员永不复活，E6/E11，spec §16.2）。
+    this.journal({ kind: "member_removed", teamId: record.teamId, memberName });
     this.notifyChange();
     return { status: "ok" };
   }
@@ -485,6 +574,14 @@ export class TeamHub {
       if (accepted) {
         record.mailbox = markDelivered(record.mailbox, ids, "steered", this.clock.now());
         record.updatedAt = this.clock.now();
+        // journal：送达 ack 是邮箱数据事实（ack 只认注入；恢复后不重复投递）。
+        this.journal({
+          kind: "message_delivered",
+          teamId: record.teamId,
+          messageIds: ids,
+          via: "steered",
+          at: this.clock.now(),
+        });
       }
       // 未接受 → 保留未投递（下次终态边缘/复活再投），不 ack 不丢弃。
       return;
@@ -528,6 +625,9 @@ export class TeamHub {
     const previousAttemptId = recoveredOwned ? task.attemptId : undefined;
     const previousAssignee = task.assignee;
     const attemptId = beginTaskAttempt(task, member.memberName, this.clock);
+    // journal：先于派发结果持久化新世代——若进程在「已派发、未结算」间崩溃，
+    // 恢复侧看到 claimed+attemptId 才不会把成员手里的凭证当 stale（spec §16.1）。
+    this.journalTaskFact(task);
     return {
       taskId: task.taskId,
       memberName: member.memberName,
@@ -594,6 +694,7 @@ export class TeamHub {
       task.assignee = ticket.previousAssignee;
     }
     task.updatedAt = this.clock.now();
+    this.journalTaskFact(task);
     if (member !== undefined && !member.removed) member.state = "terminal";
     this.refreshStatus();
   }
@@ -633,6 +734,8 @@ export class TeamHub {
     // 第 1 步（裁决内）：失效旧凭证 + 铸交接世代。
     const previousAssignee = task.assignee;
     const handoffId = invalidateTaskAttempt(task, input.to === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : input.to, this.clock, true);
+    // journal：失效事实先落（后续静默失败时「凭证已清、交接在途」也是持久真相）。
+    this.journalTaskFact(task);
 
     // 第 2 步（裁决外）：中断旧成员并等待静默（不持裁决等待）。
     if (previousAssignee !== undefined && previousAssignee !== LEAD_ASSIGNEE_KEY) {
@@ -657,9 +760,11 @@ export class TeamHub {
       // lead 已在发起接管的回合内，无 claim 握手 → 直接 in_progress。
       fresh.status = "in_progress";
       fresh.updatedAt = this.clock.now();
+      this.journalTaskFact(fresh);
     }
     fresh.reassigning = false;
     fresh.updatedAt = this.clock.now();
+    this.journalTaskFact(fresh);
     // 新目标唤醒（邮箱派发其认领提示/任务卡）。
     if (input.to !== LEAD_ASSIGNEE_KEY) await this.kickMember(input.to);
     return { status: "ok" };
@@ -676,11 +781,31 @@ export class TeamHub {
         !isTerminalTaskStatus(task.status)
       ) {
         invalidateTaskAttempt(task, undefined, this.clock, false);
+        this.journalTaskFact(task);
         returned += 1;
       }
     }
     if (returned > 0) this.refreshStatus();
     return returned;
+  }
+
+  // ---------- 恢复（M3 PR-3.1：lead resume 路径，journal.ts restoreAgentsTeamFromJournal 调用） ----------
+
+  /**
+   * 装入 journal 重放重建的 TeamRecord（仅当 hub 尚无在库记录——装配竞态窗口内
+   * 已创建的新 team 让位于现役记录，不覆盖）。并按重放事实重建驻留 attempt 的
+   * sticky park 表（成员终态离场 + 开放 attempt = 冷恢复单次重试的触发前提，spec §2.3）。
+   */
+  adoptRestored(record: TeamRecord): boolean {
+    if (this.record !== undefined) return false;
+    this.record = record;
+    for (const member of record.members) {
+      if (member.removed || member.agentId === "") continue;
+      const owned = ownedOpenTask(record.tasks, member.memberName);
+      if (owned?.attemptId !== undefined) this.parkedAttempts.set(member.agentId, owned.attemptId);
+    }
+    this.notifyChange();
+    return true;
   }
 
   // ---------- 端口工厂（两级接口；身份由装配结构性决定） ----------
@@ -738,6 +863,7 @@ export class TeamHub {
     if (input.assignee !== undefined && input.assignee !== LEAD_ASSIGNEE_KEY) {
       void this.kickMember(input.assignee);
     }
+    this.journal({ kind: "task_created", teamId: record.teamId, task: taskJournalFactOf(task) });
     return { status: "ok", task: taskCardOf(task) };
   }
 
@@ -754,6 +880,8 @@ export class TeamHub {
     const { task, error } = applyTaskUpdate(record.tasks, input, caller, this.clock);
     if (error !== undefined) return { status: "rejected", error };
     this.refreshStatus();
+    // journal：board 数据事实（含终态与署名追补；状态机迁移本身由事实推导，不另记）。
+    if (task !== undefined) this.journalTaskFact(task);
     return { status: "ok", ...(task === undefined ? {} : { task: taskCardOf(task) }) };
   }
 
@@ -768,7 +896,9 @@ export class TeamHub {
     if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
     if (record.status === "halted") return { status: "rejected", error: teamPortError("team_halted") };
     const claimant = binding.memberName === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : binding.memberName;
-    const { result } = claimTask(record.tasks, taskId, claimant, this.clock);
+    const { task, result } = claimTask(record.tasks, taskId, claimant, this.clock);
+    // journal：认领成功 = 板事实变化（attempt 世代是冷恢复单次重试的依据）。
+    if (result.status === "claimed" && task !== undefined) this.journalTaskFact(task);
     return result;
   }
 
@@ -847,6 +977,8 @@ export class TeamHub {
     }
     record.mailbox = appendToMailbox(record.mailbox, entry, this.limits.mailboxRetentionPerMember);
     record.updatedAt = this.clock.now();
+    // journal：邮箱数据事实（design §3.3.3——journal 就是邮箱的持久化通道）。
+    this.journal({ kind: "message_appended", teamId: record.teamId, entry });
 
     const delivery = this.routeMail(entry);
     this.refreshStatus();
@@ -863,6 +995,8 @@ export class TeamHub {
       // 运行中成员：steer 注入（presentation=subagent_reply_steer 渲染禁令）。
       const payload = buildSteerPayload(entry);
       const recordNow = record;
+      const journalNow = this.journal.bind(this);
+      const clockNow = this.clock;
       void this.dispatch({
         memberName: target.memberName,
         prompt: payload.body,
@@ -873,8 +1007,15 @@ export class TeamHub {
             recordNow.mailbox,
             [entry.messageId],
             "steered",
-            this.clock.now(),
+            clockNow.now(),
           );
+          journalNow({
+            kind: "message_delivered",
+            teamId: recordNow.teamId,
+            messageIds: [entry.messageId],
+            via: "steered",
+            at: clockNow.now(),
+          });
         }
       });
       return "steered";
@@ -885,6 +1026,9 @@ export class TeamHub {
         teamId: record.teamId,
         ...(record.name === undefined ? {} : { teamName: record.name }),
       });
+      const recordNow = record;
+      const journalNow = this.journal.bind(this);
+      const clockNow = this.clock;
       void this.dispatch({
         memberName: target.memberName,
         prompt: body,
@@ -897,6 +1041,13 @@ export class TeamHub {
             "resumed",
             this.clock.now(),
           );
+          journalNow({
+            kind: "message_delivered",
+            teamId: recordNow.teamId,
+            messageIds: [entry.messageId],
+            via: "resumed",
+            at: clockNow.now(),
+          });
         }
       });
       return "resumed";
@@ -905,6 +1056,26 @@ export class TeamHub {
   }
 
   // ---------- 内部 ----------
+
+  /**
+   * journal 追加入口：动作点只给「数据事实载荷」，这里统一补事实时间戳并包成事件
+   * （事实时间与裁决同源 clock，测试可确定性重放）。吞并实现异常——旁路事实流
+   * 不得中断裁决（实现内部已兜错，此处防御契约违背）。
+   */
+  private journal(payload: TeamJournalPayload): void {
+    try {
+      this.journalWriter({ at: this.clock.now(), payload });
+    } catch {
+      // journal 写入失败不回滚裁决——运行态保持正确，最坏退化为本进程崩溃后无法恢复。
+    }
+  }
+
+  /** 任务板事实统一出口（避免逐动作点手拼载荷漏字段）。 */
+  private journalTaskFact(task: TeamTaskInternal): void {
+    const record = this.record;
+    if (record === undefined) return;
+    this.journal({ kind: "task_updated", teamId: record.teamId, task: taskJournalFactOf(task) });
+  }
 
   private materializeTask(input: TeamTaskCreateInput, now: string): TeamTaskInternal {
     return {

@@ -217,4 +217,24 @@ export type {
   TeamProjectionRecordInput,
   TeamProjectionTaskInput,
 } from "./team/projection.js";
+// M3 PR-3.1：journal 持久化与 lead resume 恢复（install.ts 经这些入口接线 journal 通道）。
+export {
+  createTeamJournalSessionStoreSink,
+  parseTeamJournalEntries,
+  readTeamJournalEvents,
+  replayTeamJournal,
+  restoreAgentsTeamFromJournal,
+  taskJournalFactOf,
+  TEAM_JOURNAL_ENTRY_TYPE,
+} from "./team/journal.js";
+export type {
+  TeamJournalEvent,
+  TeamJournalEventDraft,
+  TeamJournalPayload,
+  TeamJournalReplayResult,
+  TeamJournalRestoreOutcome,
+  TeamJournalSessionStoreSink,
+  TeamJournalTaskFact,
+  TeamJournalWriter,
+} from "./team/journal.js";
 export type { AgentRuntimeInternal } from "./runtime/internal.js";

@@ -19,6 +19,13 @@ export const TEAM_SNAPSHOT_KEY = "team";
  * core.ts 的 PROTOCOL_V4_LIMITS.team 引用本常量）。整键替换的投影字节量由
  * boardTasksMax / teamMailboxTailWindow / teamMessageMaxChars 三条界压回有界。
  */
+/**
+ * 「lead」寻址键（assignee/from/to 的 lead 取值；spec §16.2）。单一出处：
+ * UI 侧 lead 任务标签/发件人判定与 core 的 LEAD_ASSIGNEE_KEY 均引用本常量，
+ * 任何一侧不得再手写 "lead" 字面量（2026-10-18 team UI 审查修复）。
+ */
+export const TEAM_LEAD_ASSIGNEE = "lead";
+
 export const TEAM_LIMITS = {
   /** 任务板条目上限（spec §6.3：任务板受 boardTasksMax 约束，建议 100）。 */
   boardTasksMax: 100,
@@ -139,15 +146,13 @@ export const teamTaskCardSchema = z.object({
   title: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
   spec: teamTaskSpecSchema,
   status: teamTaskStatusSchema,
-  /** memberName 或 "lead"（lead 接管，spec §16.2）。缺席 = 共享池待认领。 */
+  /** memberName 或 TEAM_LEAD_ASSIGNEE（lead 接管，spec §16.2）。缺席 = 共享池待认领。 */
   assignee: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
   /** 单调 attempt 计数（spec §16.1 双令牌之一）；每次转派/重试 +1。 */
   attempt: z.number().int().nonnegative(),
   /** 本次执行的唯一凭证（UUID）；迟到写入按旧 attemptId 拒绝（spec §2.3）。pending 无。 */
   attemptId: z.string().min(1).max(TEAM_LIMITS.maxIdChars).optional(),
-  dependsOn: z
-    .array(z.string().min(1).max(TEAM_LIMITS.maxIdChars))
-    .max(TEAM_LIMITS.dependsOnMax),
+  dependsOn: z.array(z.string().min(1).max(TEAM_LIMITS.maxIdChars)).max(TEAM_LIMITS.dependsOnMax),
   artifactRefs: z
     .array(z.string().min(1).max(TEAM_LIMITS.maxArtifactRefChars))
     .max(TEAM_LIMITS.artifactRefsMax),
@@ -229,9 +234,7 @@ export const teamStagedDraftTaskSchema = z.object({
   taskId: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
   title: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
   assignee: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
-  dependsOn: z
-    .array(z.string().min(1).max(TEAM_LIMITS.maxIdChars))
-    .max(TEAM_LIMITS.dependsOnMax),
+  dependsOn: z.array(z.string().min(1).max(TEAM_LIMITS.maxIdChars)).max(TEAM_LIMITS.dependsOnMax),
 });
 export type TeamStagedDraftTask = z.infer<typeof teamStagedDraftTaskSchema>;
 

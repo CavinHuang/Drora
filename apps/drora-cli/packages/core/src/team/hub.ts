@@ -190,6 +190,31 @@ export class TeamHub {
         error: teamPortError("board_limit_reached", { limit: String(this.membersMax) }),
       };
     }
+    // 2026-10-18 team UI 审查修复（E13/E14）：wire 面的 agent↔task 关系全部按
+    // memberName 联接（assignee/下钻门/邮箱 from-to），重名会让联接错位、悬空
+    // assignee 会显示不存在的负责人——在草案落库前源头拦截，而不是让投影带病展示。
+    const draftNames = new Set<string>();
+    for (const member of input.draftMembers) {
+      if (draftNames.has(member.memberName)) {
+        return {
+          status: "rejected",
+          error: teamPortError("draft_duplicate_member", { name: member.memberName }),
+        };
+      }
+      draftNames.add(member.memberName);
+    }
+    for (const task of input.draftTasks) {
+      if (
+        task.assignee !== undefined &&
+        task.assignee !== LEAD_ASSIGNEE_KEY &&
+        !draftNames.has(task.assignee)
+      ) {
+        return {
+          status: "rejected",
+          error: teamPortError("draft_unknown_assignee", { name: task.assignee }),
+        };
+      }
+    }
     const now = this.clock.now();
     if (this.record === undefined) {
       // 权限模式成队定死（spec §8.1）：plan 由 install 换算为 build 后传入；

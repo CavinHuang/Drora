@@ -1192,6 +1192,11 @@ const enUS: Record<string, string> = {
   "team.panel.stagedReadonlyFeedback": "(revision requested)",
   "team.panel.membersAria": "Team members",
   "team.panel.taskAttempt": "attempt {attempt}",
+  "team.task.status.failed": "failed",
+  "team.task.status.cancelled": "cancelled",
+  "team.panel.leadAssignee": "lead",
+  "team.panel.mailboxTitle": "Recent team messages",
+  "team.panel.mailboxNoSummary": "(no summary)",
   "team.panel.halt": "Halt team",
   "team.panel.haltHint":
     "Interrupts all members and freezes scheduling; the team is kept and can be resumed with a reason",
@@ -1239,6 +1244,8 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.abandonConfirmBody":
     "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
   "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
+  // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
+  "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",
   "subagentDirectory.running": "Running",
   "subagentDirectory.runningEmpty": "No running subagents",

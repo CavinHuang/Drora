@@ -1091,6 +1091,11 @@ const zhCN: Record<string, string> = {
   "team.panel.stagedReadonlyFeedback": "（已请求修改）",
   "team.panel.membersAria": "团队成员",
   "team.panel.taskAttempt": "第 {attempt} 次",
+  "team.task.status.failed": "失败",
+  "team.task.status.cancelled": "已取消",
+  "team.panel.leadAssignee": "主会话",
+  "team.panel.mailboxTitle": "消息尾窗",
+  "team.panel.mailboxNoSummary": "（无摘要）",
   "team.panel.halt": "停止团队",
   "team.panel.haltHint": "中断全员并冻结调度；团队保留，可带理由恢复",
   "team.panel.haltConfirmTitle": "停止这个团队？",
@@ -1132,6 +1137,8 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.abandonConfirmBody":
     "草案将归档且不可恢复，模型也不会自动重建；再次成队需要重新 /team。",
   "team.stagedEditor.abandonConfirmLabel": "确认放弃",
+  // 「回对话修改」会话输入框预填追问（design 01 §3.1）；拼接与携带规则见 team/revise-prefill.ts
+  "team.revise.prefillPrompt": "要调整什么？",
   "subagentDirectory.title": "子智能体目录",
   "subagentDirectory.running": "正在运行",
   "subagentDirectory.runningEmpty": "没有正在运行的子智能体",

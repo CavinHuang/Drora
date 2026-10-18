@@ -138,5 +138,9 @@ export function taskCardOf(task: TeamTaskInternal): TeamTaskCard {
   };
 }
 
-/** 「lead」寻址键（assignee 的 lead 取值；与成员名命名空间隔离由 hub 校验保证）。 */
-export const LEAD_ASSIGNEE_KEY = "lead";
+/**
+ * 「lead」寻址键（assignee 的 lead 取值；与成员名命名空间隔离由 hub 校验保证）。
+ * 2026-10-18 单一出处化：字面量定义在 @drora/shared TEAM_LEAD_ASSIGNEE，
+ * 这里仅按内核内部名再导出——UI 侧 lead 判定直接引 shared 常量，两侧不再各写一份。
+ */
+export { TEAM_LEAD_ASSIGNEE as LEAD_ASSIGNEE_KEY } from "@drora/shared/drora-protocol-v4";

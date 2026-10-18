@@ -47,10 +47,15 @@ describe("two-phase staging (approve before any member exists)", () => {
     expect(first.status).toBe("ok");
     const teamId = first.teamId;
 
-    // staged 再调用 = 原子更新同一草案（同 teamId）
+    // staged 再调用 = 原子更新同一草案（同 teamId）。2026-10-18 草案校验（E14）后
+    // 夹具须自洽：换成 carol 单成员时任务的 assignee 也要跟着换，否则悬空 assignee
+    // 会被 stageTeam 源头拒绝——本用例考察原子性，不考察非法草案的容忍。
     const second = hub.stageTeam("lead_s1", {
       ...STAGE_INPUT,
       draftMembers: [{ memberName: "carol", profile: "solo" }],
+      draftTasks: STAGE_INPUT.draftTasks.map((task) =>
+        task.assignee === "alice" ? { ...task, assignee: "carol" } : task,
+      ),
     });
     expect(second.teamId).toBe(teamId);
     expect(hub.snapshot()?.members).toHaveLength(1);
@@ -89,6 +94,47 @@ describe("two-phase staging (approve before any member exists)", () => {
     const hub2 = new TeamHub({ clock: makeClock() });
     hub2.stageTeam("lead_s1", STAGE_INPUT);
     expect(hub2.snapshot()?.permissionMode).toBeUndefined();
+  });
+});
+
+describe("draft validation at stageTeam (2026-10-18 team UI 审查修复 E13/E14)", () => {
+  it("rejects duplicate member names before any state is written", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const result = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      draftMembers: [
+        { memberName: "alice", profile: "researcher" },
+        { memberName: "alice", profile: "implementer" },
+      ],
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.error?.code).toBe("draft_duplicate_member");
+    expect(result.error?.message).toContain("alice");
+  });
+
+  it("rejects a draft task assigned to a non-member (dangling assignee)", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const result = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      draftTasks: [
+        { title: "t1", spec: { goal: "g1", acceptance: ["a"] }, dependsOn: [], assignee: "carol" },
+      ],
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.error?.code).toBe("draft_unknown_assignee");
+    expect(result.error?.message).toContain("carol");
+  });
+
+  it("still accepts lead as assignee and unassigned shared-pool tasks", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const result = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      draftTasks: [
+        { title: "t1", spec: { goal: "g1", acceptance: ["a"] }, dependsOn: [], assignee: "lead" },
+        { title: "t2", spec: { goal: "g2", acceptance: ["a"] }, dependsOn: [] },
+      ],
+    });
+    expect(result.status).toBe("ok");
   });
 });
 

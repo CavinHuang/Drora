@@ -508,6 +508,8 @@ export interface TeamPortError { code: TeamPortErrorCode; message: string; hint?
 | E10 `team_lead_only` | 非 lead port 调用裁决面 | `"This action is reserved for the team lead."` | 不重试 |
 | E11 `message_target_terminal_retired` | 对退休成员复活投递 | `"Member '{name}' is retired and cannot be revived."` | 找 lead 转派 |
 | E12 `mailbox_persist_failed` | 邮箱持久化失败 | `"Mailbox write failed; message NOT sent."` | （发送成功才算成功——不变量）可重试 send |
+| E13 `draft_duplicate_member` | staged 草案成员重名（2026-10-18 team UI 审查：wire 面关系按 memberName 联接，重名致联接错位） | `"Draft contains duplicate member name '{name}'."` | 改名后重新 stage |
+| E14 `draft_unknown_assignee` | 草案任务 assigned 给非草案成员 | `"Draft task assigns '{name}' who is not a draft member."` | 改 assignee 或留空走共享池 |
 
 **错误文案即协议**：E1/E2 的区分是 dsh「缺 attempt_id ≠ attempt 已撤销」教学式分类的落地（spec §16.1）；文案常量定义在 `core/src/team/errors.ts`（建议命名），与 `TeamPortError.code` 同文件单一出处。
 
@@ -651,7 +653,7 @@ memberDefaultMaxTurns: 40               // memberMaxTurns 建议默认（bootstr
 | 灰度 settings 键 `agentsTeam.enabled` | contracts `team.port.ts` | bootstrap 装配、设置 UI |
 | 产物目录名 `.drora/team-artifacts` | contracts `team.port.ts` | core 产物落盘、清理策略（开放问题） |
 | 工具名 `TeamSpawn / TeamStageApprove / TeamReassign / TeamResume / TeamList / TeamTaskCreate / TeamTaskGet / TeamTaskList / TeamTaskUpdate / TeamSendMessage` | core `team-tools.ts` 常量 | 工具注册、toolDisplay、E2E 选择器 |
-| 错误码 E1-E12 | core `errors.ts` | handlers、单测断言 |
+| 错误码 E1-E14 | core `errors.ts` | handlers、单测断言 |
 | attemptId/handoffId 字段名（journal 与内部） | core `types.ts` | board/hub/journal/单测 |
 | journal 事件类型字面量（§3.4 表） | core `journal.ts` 事件 schema | 写者 hub、读者 replay |
 

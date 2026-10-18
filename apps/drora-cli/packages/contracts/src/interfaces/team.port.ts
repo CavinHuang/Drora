@@ -176,7 +176,7 @@ export interface TeamStageInput {
 
 // ---------- 结果与错误 ----------
 
-/** 错误码 E1-E12（文案常量唯一出处 core/src/team/errors.ts；表见设计 §3.1.2）。 */
+/** 错误码 E1-E14（文案常量唯一出处 core/src/team/errors.ts；表见设计 §3.1.2）。 */
 export type TeamPortErrorCode =
   | "missing_attempt_id"
   | "attempt_revoked"
@@ -190,7 +190,9 @@ export type TeamPortErrorCode =
   | "team_lead_only"
   | "message_target_terminal_retired"
   | "mailbox_persist_failed"
-  | "message_too_large";
+  | "message_too_large"
+  | "draft_duplicate_member"
+  | "draft_unknown_assignee";
 
 export interface TeamPortError {
   code: TeamPortErrorCode;

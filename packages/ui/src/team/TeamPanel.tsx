@@ -1,6 +1,8 @@
+/* eslint-disable max-lines -- TeamPanel 是 team 的唯一显示面（状态头/动作区/任务板/成员卡/消息尾窗
+ * 共享同一投影模型与命令上抛链，拆文件会割裂单一派生通道；与 KnowledgeReviewView 同先例）。 */
 import { useState } from "react";
 import { MessageSquareTextIcon } from "lucide-react";
-import type { CommandPayloadMap } from "@drora/shared/drora-protocol-v4";
+import { TEAM_LEAD_ASSIGNEE, type CommandPayloadMap } from "@drora/shared/drora-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
@@ -8,7 +10,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamUiStatus } from "./contract.js";
 import { TeamStagedEditor } from "./TeamStagedEditor.js";
 import { TEAM_STATUS_I18N_KEYS } from "./team-status-presentation.js";
-import type { TeamPanelMemberView, TeamPanelModel } from "./view-model.js";
+import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./view-model.js";
 
 /**
  * TeamPanel（PR-2.4a 只读视图 + PR-2.4b 动作区；specs/agents-team.md §10、
@@ -122,7 +124,8 @@ export function TeamPanel({
   const { status, members, board } = model;
   const visibility = teamPanelActionVisibility(status);
   const doneCount = board.completed.length;
-  const total = board.pending.length + board.inProgress.length + doneCount;
+  // 2026-10-18 审查修复：failed/cancelled 计入分母——不是已完成，也不从进度里凭空消失。
+  const total = board.attention.length + board.pending.length + board.inProgress.length + doneCount;
   return (
     <section
       aria-label={intl.formatMessage({ id: "team.panel.aria" }, { teamId: model.teamId })}
@@ -226,6 +229,7 @@ export function TeamPanel({
         <BoardColumn
           title={intl.formatMessage({ id: "team.board.pending" })}
           tasks={board.pending}
+          attention={board.attention}
         />
         <BoardColumn
           title={intl.formatMessage({ id: "team.board.inProgress" })}
@@ -286,8 +290,48 @@ export function TeamPanel({
           );
         })}
       </ul>
+
+      {/*
+       * 消息尾窗（design 01 §3.3.1：成员间消息摘要，最近 N 条，发件人色点 + 一行摘要；
+       * 完整消息在成员下钻）。2026-10-18 审查修复：view-model 此前已映射尾窗但面板
+       * 未渲染——agents 之间的协作关系缺了一个展示面。空尾窗不出区块。
+       */}
+      {model.mailboxTail.length === 0 ? null : (
+        <section
+          aria-label={intl.formatMessage({ id: "team.panel.mailboxTitle" })}
+          className="flex shrink-0 flex-col gap-1"
+          data-testid="team-mailbox-tail"
+        >
+          <h3 className="text-ui-caption text-foreground-subtle">
+            {intl.formatMessage({ id: "team.panel.mailboxTitle" })}
+          </h3>
+          <ul className="flex flex-col gap-0.5">
+            {model.mailboxTail.map((entry) => (
+              <li key={entry.messageId} className="flex min-w-0 items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? "bg-neutral-foreground/40"}`}
+                />
+                <span className="shrink-0 text-ui-caption text-foreground-subtle">
+                  {`${displayActorName(intl, entry.from)} → ${displayActorName(intl, entry.to)}`}
+                </span>
+                <span className="truncate text-ui-caption text-foreground-subtlest">
+                  {entry.summary === undefined
+                    ? intl.formatMessage({ id: "team.panel.mailboxNoSummary" })
+                    : entry.summary}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </section>
   );
+}
+
+/** 尾窗/任务卡的成员名显示：lead 键渲染为本地化标签（其余名字按原样，技术值不翻译）。 */
+function displayActorName(intl: ReturnType<typeof useDroraIntl>["intl"], name: string): string {
+  return name === TEAM_LEAD_ASSIGNEE ? intl.formatMessage({ id: "team.panel.leadAssignee" }) : name;
 }
 
 /** 成员卡的静态内容（头像点 + 名称 + 状态）；可点与只读两种行共用，避免两份标记分叉。 */
@@ -387,32 +431,95 @@ const MEMBER_STATE_I18N_KEYS: Record<TeamPanelModel["members"][number]["state"],
   removed: "team.member.state.removed",
 };
 
+/**
+ * 任务列（design 01 §3.3.2 的完整兑现，2026-10-18 审查修复）：
+ * - failed/cancelled 以 attention 卡渲染在本列头部（failed = error 态：语义色 + 状态文字
+ *   并行；cancelled = 中性弱化 + 状态文字），不混入普通待办，更不落入已完成；
+ * - 任务卡显示负责人头像点（assigneeColor，与成员卡同色即同人；lead 用本地化标签）；
+ * - 依赖以缩进表达（dependsDepth → pl-3/pl-6/pl-9，上限 3 级）；
+ * - artifactRefs 以等宽小签摘录（DESIGN「技术值等宽」；打开通道属后续卡，不假装可点）。
+ */
 function BoardColumn({
   title,
   tasks,
+  attention,
 }: {
   title: string;
   tasks: TeamPanelModel["board"]["pending"];
+  attention?: readonly TeamPanelTaskView[];
 }) {
   const { intl } = useDroraIntl();
+  const attentionTasks = attention ?? [];
+  const totalCount = tasks.length + attentionTasks.length;
   return (
     <div className="flex min-h-0 flex-col gap-1 rounded border border-border-subtle p-1.5">
-      <h3 className="text-ui-caption text-foreground-subtle">{`${title} (${String(tasks.length)})`}</h3>
+      <h3 className="text-ui-caption text-foreground-subtle">{`${title} (${String(totalCount)})`}</h3>
       <ul className="flex min-h-0 flex-col gap-1 overflow-y-auto">
+        {attentionTasks.map((task) => (
+          <TaskCard key={task.taskId} task={task} attention />
+        ))}
         {tasks.map((task) => (
-          <li key={task.taskId} className="text-ui-sm rounded bg-neutral-2 p-1.5">
-            <span>{task.title}</span>
-            {task.assignee === undefined ? null : (
-              <span className="text-ui-caption text-foreground-subtle">{` · ${task.assignee}`}</span>
-            )}
-            {task.attempt > 1 ? (
-              <span className="text-ui-caption text-foreground-subtle">
-                {` · ${intl.formatMessage({ id: "team.panel.taskAttempt" }, { attempt: task.attempt })}`}
-              </span>
-            ) : null}
-          </li>
+          <TaskCard key={task.taskId} task={task} />
         ))}
       </ul>
     </div>
+  );
+}
+
+/** 单张任务卡；attention 态按 failed（error）/cancelled（弱化）区分。 */
+function TaskCard({ task, attention = false }: { task: TeamPanelTaskView; attention?: boolean }) {
+  const { intl } = useDroraIntl();
+  const attentionTone =
+    task.status === "failed"
+      ? "border-destructive/40 bg-destructive/10"
+      : "border-border-subtle bg-neutral-2 opacity-70";
+  const indent = ["", "pl-3", "pl-6", "pl-9"][Math.min(task.dependsDepth, 3)] ?? "";
+  return (
+    <li
+      className={`text-ui-sm rounded border p-1.5 ${attention ? attentionTone : "border-transparent bg-neutral-2"} ${indent}`}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        {task.assignee === undefined ? null : (
+          <span
+            aria-hidden
+            className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? "bg-neutral-foreground/40"}`}
+          />
+        )}
+        <span className="truncate">{task.title}</span>
+        {task.assignee === undefined ? null : (
+          <span className="shrink-0 text-ui-caption text-foreground-subtle">
+            {` · ${displayActorName(intl, task.assignee)}`}
+          </span>
+        )}
+        {attention && task.status === "failed" ? (
+          <span className="shrink-0 text-ui-caption text-destructive">
+            {intl.formatMessage({ id: "team.task.status.failed" })}
+          </span>
+        ) : null}
+        {attention && task.status === "cancelled" ? (
+          <span className="shrink-0 text-ui-caption text-foreground-subtle">
+            {intl.formatMessage({ id: "team.task.status.cancelled" })}
+          </span>
+        ) : null}
+        {task.attempt > 1 ? (
+          <span className="shrink-0 text-ui-caption text-foreground-subtle">
+            {` · ${intl.formatMessage({ id: "team.panel.taskAttempt" }, { attempt: task.attempt })}`}
+          </span>
+        ) : null}
+      </div>
+      {task.artifactRefs.length === 0 ? null : (
+        <div className="mt-0.5 flex flex-wrap gap-1" data-testid="team-task-artifacts">
+          {task.artifactRefs.map((ref) => (
+            <span
+              key={ref}
+              title={ref}
+              className="truncate rounded bg-neutral-3 px-1 py-px font-mono text-ui-caption text-foreground-subtle"
+            >
+              {ref}
+            </span>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }

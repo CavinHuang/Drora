@@ -91,5 +91,20 @@ export function teamPortError(
         message: `Message exceeds the ${params.limit ?? "?"} character limit.`,
         hint: "Shorten the message; put large content on disk and send a file reference.",
       };
+    // E13/E14（2026-10-18 team UI 审查修复）：草案校验在 stageTeam 源头拦截——
+    // 重名成员会让 wire 面所有按 memberName 的关系联接（assignee/下钻/邮箱）失位，
+    // 悬空 assignee 会让任务卡显示不存在的负责人；两者都必须改草案而不是静默落库。
+    case "draft_duplicate_member":
+      return {
+        code,
+        message: `Draft contains duplicate member name '${params.name ?? "?"}'.`,
+        hint: "Member names must be unique; rename one of the duplicates in the draft before staging.",
+      };
+    case "draft_unknown_assignee":
+      return {
+        code,
+        message: `Draft task assigns '${params.name ?? "?"}' who is not a draft member.`,
+        hint: "Assign tasks only to draft member names, or leave the assignee empty for the shared pool.",
+      };
   }
 }

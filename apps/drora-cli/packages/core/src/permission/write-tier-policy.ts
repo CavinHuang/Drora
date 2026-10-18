@@ -71,13 +71,16 @@ export function isP0WriteRuleToolName(ruleToolName: string): boolean {
 }
 
 /**
- * 持久化边界消毒（洞 2 纵深）：丢弃 P0 工具的无内容 allow 规则（整工具「总是允许」），
- * 返回净化后的数组与被丢弃数。deny/ask 不受限（安全方向）；有内容 allow 不受限；
+ * 持久化边界消毒（洞 2 纵深，specs/agent-write-safety.md 2026-10-17 收尾复评契约）：
+ * MCP/js 的 allow 规则无论有无内容一律丢弃（单个 path/command 不代表完整副作用负载）；
+ * Bash 仅保留有内容（ruleContent）的 allow——无内容的整工具「总是允许」丢弃。
+ * 返回净化后的数组与被丢弃数。deny/ask 不受限（安全方向）；
  * 规则被清空的 update 整条移除（空 addRules 无意义）。
  */
-export function sanitizePermissionUpdatesForPersistence(
-  updates: PermissionUpdate[],
-): { updates: PermissionUpdate[]; droppedWholeToolAllowRules: number } {
+export function sanitizePermissionUpdatesForPersistence(updates: PermissionUpdate[]): {
+  updates: PermissionUpdate[];
+  droppedWholeToolAllowRules: number;
+} {
   let dropped = 0;
   const sanitized: PermissionUpdate[] = [];
   for (const update of updates) {

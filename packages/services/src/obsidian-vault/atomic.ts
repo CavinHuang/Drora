@@ -12,7 +12,11 @@ import { basename, dirname, join } from "node:path";
  * 永不使用可预测的 `<target>.tmp` —— 能进入该目录的攻击者可以把它预创建成软链；
  * `wx` 保证临时文件私有，rename 替换目标本身而不跟随软链。
  */
-export async function writeTextFileAtomic(filePath: string, content: string, options: { createOnly?: boolean } = {}): Promise<void> {
+export async function writeTextFileAtomic(
+  filePath: string,
+  content: string,
+  options: { createOnly?: boolean } = {},
+): Promise<void> {
   const parent = dirname(filePath);
   const stem = basename(filePath);
   let tmpPath: string | null = null;
@@ -25,17 +29,34 @@ export async function writeTextFileAtomic(filePath: string, content: string, opt
         tmpPath = candidate;
         break;
       } catch (error) {
-        if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") continue;
+        if (error && typeof error === "object" && "code" in error && error.code === "EEXIST")
+          continue;
         throw error;
       }
     }
-    if (handle === null || tmpPath === null) throw new Error(`无法为原子写入创建临时文件: ${filePath}`);
+    if (handle === null || tmpPath === null)
+      throw new Error(`无法为原子写入创建临时文件: ${filePath}`);
     await handle.writeFile(content, "utf-8");
     await handle.close();
     handle = null;
     if (options.createOnly) {
       // rename 会覆盖检查后才出现的目标；hard-link 原子发布完整文件且 EEXIST 时零覆盖。
-      await link(tmpPath, filePath);
+      try {
+        await link(tmpPath, filePath);
+      } catch (error) {
+        if (!isHardLinkUnavailableError(error)) throw error;
+        // SV-3 兜底（2026-10-18 终审）：硬链接不可用的文件系统（Windows exFAT/FAT
+        // 卷不支持硬链接，Linux NFS/exFAT 挂载同理）上，先以 wx 独占创建占位文件再
+        // rename 覆盖占位——占位创建成功即锁定目标名的独占性（他人目标已存在时 wx
+        // 得 EEXIST），rename 只覆盖自己的占位，「零覆盖发布」语义不变；任何失败
+        // （含 wx EEXIST）仍上抛，由调用方落 conflict（fail-closed 不变）。
+        // rename 失败时占位可能残留（空文件），后续 createOnly 重试将得 EEXIST 而
+        // fail-closed；不自动清理占位——清理存在误删他人并发写入内容的竞态窗口。
+        const placeholder = await open(filePath, "wx", 0o600);
+        await placeholder.close();
+        await renameWithWindowsRetry(tmpPath, filePath);
+        tmpPath = null;
+      }
     } else {
       await renameWithWindowsRetry(tmpPath, filePath);
       tmpPath = null;
@@ -74,10 +95,25 @@ async function renameWithWindowsRetry(sourcePath: string, targetPath: string): P
   }
 }
 
-function isRetryableWindowsRenameError(error: unknown): boolean {
+/**
+ * 硬链接不可用的文件系统错误判定（SV-3，2026-10-18 终审）：Windows FAT/exFAT 卷
+ * 不支持硬链接（CreateHardLinkW 失败映射 EPERM/ENOSYS/ENOTSUP），Linux 的 NFS、
+ * exFAT 等挂载返回 EOPNOTSUPP/ENOSYS。EEXIST（目标已存在）不属于此类——它是
+ * 零覆盖语义的正确拒绝，必须原样上抛由调用方落 conflict。
+ */
+function isHardLinkUnavailableError(error: unknown): boolean {
   if (!error || typeof error !== "object" || !("code" in error)) return false;
   const code = error.code;
-  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
+  return code === "EPERM" || code === "ENOSYS" || code === "EOPNOTSUPP" || code === "ENOTSUP";
+}
+
+function isRetryableWindowsRenameError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  // SV-4（2026-10-18 终审）：EACCES 是持久拒绝（目录 ACL 禁止替换），重试只会拖长
+  // 失败路径——立即失败；EPERM/EBUSY 才是 Windows AV/编辑器瞬时持有目标句柄的
+  // 场景，保留重试等待句柄释放。
+  const code = error.code;
+  return code === "EPERM" || code === "EBUSY";
 }
 
 export interface JsonFileIO {

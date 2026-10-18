@@ -514,14 +514,19 @@ function VaultFileList({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={intl.formatMessage({ id: "vault.deleteNoteAria" }, { name: displayDocumentTitle(file.name) })}
+                    aria-label={intl.formatMessage(
+                      { id: "vault.deleteNoteAria" },
+                      { name: displayDocumentTitle(file.name) },
+                    )}
                     onClick={() => onDelete(file)}
                     className="mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[opacity,color,background-color] hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                   >
                     <Trash2 size={13} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{intl.formatMessage({ id: "vault.deleteNote" })}</TooltipContent>
+                <TooltipContent side="right">
+                  {intl.formatMessage({ id: "vault.deleteNote" })}
+                </TooltipContent>
               </Tooltip>
             </div>
           );
@@ -651,9 +656,15 @@ function VaultMarkdownEditor({
     takeOverScrollRestore();
     // 引用回跳（W04）：按 quote 行号区间锚定选中；普通编辑意图仍聚焦正文开头。
     if (bodyFocusRequest.reveal) {
-      if (!revealVaultQuoteIfCurrent(
-        view, bodyFocusRequest.reveal, bodyFocusRequest.citationEpoch, citationEpoch,
-      )) return;
+      if (
+        !revealVaultQuoteIfCurrent(
+          view,
+          bodyFocusRequest.reveal,
+          bodyFocusRequest.citationEpoch,
+          citationEpoch,
+        )
+      )
+        return;
     } else focusVaultBody(view);
     onBodyFocused(bodyFocusRequest);
   }, [
@@ -860,7 +871,10 @@ function VaultMarkdownEditor({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={intl.formatMessage({ id: "vault.tutorial.helpAria" }, { name: VAULT_NAME })}
+                aria-label={intl.formatMessage(
+                  { id: "vault.tutorial.helpAria" },
+                  { name: VAULT_NAME },
+                )}
                 onClick={onOpenTutorial}
                 className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
@@ -868,10 +882,7 @@ function VaultMarkdownEditor({
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              {intl.formatMessage(
-                { id: "vault.tutorial.helpTitle" },
-                { name: VAULT_NAME },
-              )}
+              {intl.formatMessage({ id: "vault.tutorial.helpTitle" }, { name: VAULT_NAME })}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -1028,7 +1039,9 @@ export function VaultView({
   // when a user changes scope A→B→A before CodeMirror finishes mounting.
   const citationEpochRef = React.useRef(createKnowledgeCitationScopeEpoch());
   const activeCitationEpoch = citationEpochRef.current.observe({
-    sessionId, workspaceKey, vaultId: config?.vaultId,
+    sessionId,
+    workspaceKey,
+    vaultId: config?.vaultId,
     queryService: knowledgeQueryService,
   });
   const [bodyFocusRequest, setBodyFocusRequest] = React.useState<VaultBodyFocusRequest | null>(
@@ -1039,10 +1052,13 @@ export function VaultView({
   }, []);
   React.useEffect(() => {
     if (!bodyFocusRequest) return;
-    if (bodyFocusRequest.vaultId !== config?.vaultId ||
-        !isVaultCitationFocusCurrent(
-          bodyFocusRequest.citationEpoch, citationEpochRef.current.currentVersion(),
-        )) {
+    if (
+      bodyFocusRequest.vaultId !== config?.vaultId ||
+      !isVaultCitationFocusCurrent(
+        bodyFocusRequest.citationEpoch,
+        citationEpochRef.current.currentVersion(),
+      )
+    ) {
       consumeBodyFocus(bodyFocusRequest);
       return;
     }
@@ -1224,7 +1240,11 @@ export function VaultView({
             if (requestId === readRequestRef.current) setReadResult(result);
           } catch (error) {
             if (requestId === readRequestRef.current) {
-              toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.refreshFailed" }));
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : intl.formatMessage({ id: "vault.toast.refreshFailed" }),
+              );
             }
           } finally {
             // 刷新可能接管尚未完成的导航读取，也负责结束该请求的加载态。
@@ -1232,7 +1252,11 @@ export function VaultView({
           }
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.readFailed" }, { name: VAULT_NAME }));
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : intl.formatMessage({ id: "vault.toast.readFailed" }, { name: VAULT_NAME }),
+        );
       } finally {
         if (showLoading) setLoading(false);
       }
@@ -1336,7 +1360,11 @@ export function VaultView({
       } catch (error) {
         if (requestId === readRequestRef.current && (!isCurrent || isCurrent())) {
           if (isVaultFileNotFoundError(error)) void refresh();
-          toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.openFailed" }));
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : intl.formatMessage({ id: "vault.toast.openFailed" }),
+          );
           if (!isCurrent) setReadResult(null);
         }
         return false;
@@ -1382,16 +1410,31 @@ export function VaultView({
       const citationEpoch = isCurrent ? citationEpochRef.current.currentVersion() : undefined;
       const opened = await openFile(relativePath, {
         isCurrent,
-        ...(isCurrent ? {
-          validateRead: (read: VaultReadResult) =>
-            Boolean(reveal && expectedExcerpt && expectedFileSha256 &&
-              matchesKnowledgeCitationFileReadback(
-                read.content, reveal, expectedExcerpt, read.sha256, expectedFileSha256,
-              )),
-        } : {}),
+        ...(isCurrent
+          ? {
+              validateRead: (read: VaultReadResult) =>
+                Boolean(
+                  reveal &&
+                  expectedExcerpt &&
+                  expectedFileSha256 &&
+                  matchesKnowledgeCitationFileReadback(
+                    read.content,
+                    reveal,
+                    expectedExcerpt,
+                    read.sha256,
+                    expectedFileSha256,
+                  ),
+                ),
+            }
+          : {}),
       });
-      if (!opened || !mountedRef.current || vaultIdRef.current !== vaultId ||
-          (isCurrent && !isCurrent())) return false;
+      if (
+        !opened ||
+        !mountedRef.current ||
+        vaultIdRef.current !== vaultId ||
+        (isCurrent && !isCurrent())
+      )
+        return false;
       setBodyFocusRequest({ vaultId, relativePath, reveal, citationEpoch });
       setViewTab("notes");
       if (isCurrent) onCitationOpen?.();
@@ -1403,7 +1446,11 @@ export function VaultView({
   // Composer only provides an opaque receipt; this mounted, session-scoped Vault
   // resolves the current path + quote before opening any note. Never navigate from
   // a model-produced path, a stale receipt, or a response for another Vault scope.
-  const citationScopeRef = React.useRef({ sessionId, workspaceKey, queryService: knowledgeQueryService });
+  const citationScopeRef = React.useRef({
+    sessionId,
+    workspaceKey,
+    queryService: knowledgeQueryService,
+  });
   citationScopeRef.current = { sessionId, workspaceKey, queryService: knowledgeQueryService };
   // Changing away and back to the same Vault/Session must *not* revive an old
   // in-flight request. Version every transition, including service replacement.
@@ -1422,9 +1469,12 @@ export function VaultView({
     const handleCitationOpen = (event: Event): void => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       const detail = event.detail;
-      if (detail.accepted ||
-          detail.targetSessionId !== sessionId ||
-          detail.workspaceKey !== workspaceKey) return;
+      if (
+        detail.accepted ||
+        detail.targetSessionId !== sessionId ||
+        detail.workspaceKey !== workspaceKey
+      )
+        return;
       detail.accepted = true;
       const vaultId = vaultIdRef.current;
       const capturedEpoch = citationEpochRef.current.currentVersion();
@@ -1450,15 +1500,17 @@ export function VaultView({
         sessionId,
         receiptId: detail.receiptId,
         isCurrent: stillAuthorized,
-        resolveCitation: () => knowledgeQueryService.resolveCitation({
-          receiptId: detail.receiptId,
-          sessionId,
-        }),
+        resolveCitation: () =>
+          knowledgeQueryService.resolveCitation({
+            receiptId: detail.receiptId,
+            sessionId,
+          }),
         openNote: openNoteFromKnowledge,
       }).then(detail.finish);
     };
     window.addEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
-    return () => window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+    return () =>
+      window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
   }, [knowledgeQueryService, openNoteFromKnowledge, sessionId, workspaceKey]);
 
   const goToNotesView = React.useCallback((): void => {
@@ -1481,7 +1533,9 @@ export function VaultView({
     setReadResult(null);
     setVaultSwitcherOpen(false);
     setRefreshToken((value) => value + 1);
-    toast.success(intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }));
+    toast.success(
+      intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }),
+    );
   };
 
   const createDroraVault = async (): Promise<void> => {
@@ -1494,12 +1548,17 @@ export function VaultView({
       setReadResult(null);
       setVaultSwitcherOpen(false);
       setRefreshToken((value) => value + 1);
-      toast.success(intl.formatMessage({ id: "vault.toast.created" }, { name: selected.displayName }));
+      toast.success(
+        intl.formatMessage({ id: "vault.toast.created" }, { name: selected.displayName }),
+      );
     } catch (error) {
       toast.error(
         error instanceof Error
-            ? error.message
-            : intl.formatMessage({ id: "vault.toast.createFailed" }, { name: DRORA_MANAGED_VAULT_DISPLAY_NAME }),
+          ? error.message
+          : intl.formatMessage(
+              { id: "vault.toast.createFailed" },
+              { name: DRORA_MANAGED_VAULT_DISPLAY_NAME },
+            ),
       );
     }
   };
@@ -1519,9 +1578,15 @@ export function VaultView({
       setReadResult(null);
       setVaultSwitcherOpen(false);
       setRefreshToken((value) => value + 1);
-      toast.success(intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }));
+      toast.success(
+        intl.formatMessage({ id: "vault.toast.connected" }, { name: selected.displayName }),
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.connectFailed" }, { name: VAULT_NAME }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: "vault.toast.connectFailed" }, { name: VAULT_NAME }),
+      );
     }
   };
 
@@ -1533,7 +1598,11 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       await openFile(result.relativePath);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createNoteFailed" }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: "vault.toast.createNoteFailed" }),
+      );
     }
   };
 
@@ -1545,7 +1614,11 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       await openFile(result.relativePath);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createNoteFailed" }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: "vault.toast.createNoteFailed" }),
+      );
     }
   };
 
@@ -1571,7 +1644,11 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       toast.success(intl.formatMessage({ id: "vault.toast.folderCreated" }, { name }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.createFolderFailed" }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: "vault.toast.createFolderFailed" }),
+      );
     } finally {
       setCreatingFolder(false);
     }
@@ -1582,7 +1659,12 @@ export function VaultView({
       request: VaultSaveRequest,
       { silent = false }: { silent?: boolean } = {},
     ): Promise<VaultSaveResult> => {
-      if (!vaultService) return { ok: false, reason: "error", message: intl.formatMessage({ id: "vault.toast.serviceUnavailable" }) };
+      if (!vaultService)
+        return {
+          ok: false,
+          reason: "error",
+          message: intl.formatMessage({ id: "vault.toast.serviceUnavailable" }),
+        };
       try {
         const result = await vaultService.writeFile(request);
         if (!result.ok) return { ok: false, reason: "conflict" };
@@ -1603,13 +1685,17 @@ export function VaultView({
         setEntries((current) =>
           hasSameVaultTreeEntries(current, nextEntries) ? current : nextEntries,
         );
-        if (!silent) toast.success(intl.formatMessage({ id: "vault.toast.saved" }, { name: VAULT_NAME }));
+        if (!silent)
+          toast.success(intl.formatMessage({ id: "vault.toast.saved" }, { name: VAULT_NAME }));
         return result;
       } catch (error) {
         return {
           ok: false,
           reason: "error",
-          message: error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.saveFailed" }),
+          message:
+            error instanceof Error
+              ? error.message
+              : intl.formatMessage({ id: "vault.toast.saveFailed" }),
         };
       }
     },
@@ -1650,7 +1736,12 @@ export function VaultView({
       }
       return true;
     } catch (error) {
-      if (isVaultCurrent()) toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.renameFailed" }));
+      if (isVaultCurrent())
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : intl.formatMessage({ id: "vault.toast.renameFailed" }),
+        );
       return false;
     }
   };
@@ -1685,7 +1776,11 @@ export function VaultView({
       setRefreshToken((value) => value + 1);
       toast.success(intl.formatMessage({ id: "vault.toast.deleted" }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : intl.formatMessage({ id: "vault.toast.deleteFailed" }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : intl.formatMessage({ id: "vault.toast.deleteFailed" }),
+      );
     } finally {
       setDeleting(false);
     }
@@ -1752,228 +1847,233 @@ export function VaultView({
         {viewTab === "notes" ? (
           <div className="relative flex min-h-0 flex-1">
             <aside
-            className={cn(
-              "relative flex shrink-0 flex-col overflow-hidden bg-muted/25",
-              !vaultSidebarCollapsed && "border-r border-border/50",
-            )}
-            style={{ width: getVaultSidebarDisplayWidth(vaultSidebarWidth, vaultSidebarCollapsed) }}
-          >
-            {vaultSidebarCollapsed && (
-              <header
-                className={cn(
-                  "flex h-14 shrink-0 items-center justify-center",
-                  embedded ? "titlebar-no-drag" : "titlebar-drag-region",
-                )}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      ref={vaultSidebarExpandButtonRef}
-                      type="button"
-                      aria-controls={vaultSidebarContentId}
-                      aria-expanded="false"
-                      aria-label={getVaultSidebarToggleLabel(true)}
-                      onClick={() => setVaultSidebarCollapsedWithFocus(false)}
-                      className="titlebar-no-drag flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronRight size={15} />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{getVaultSidebarToggleLabel(true)}</TooltipContent>
-                </Tooltip>
-              </header>
-            )}
-            <div
-              id={vaultSidebarContentId}
-              aria-hidden={vaultSidebarCollapsed}
-              className={cn("min-h-0 flex-1 flex-col", vaultSidebarCollapsed ? "hidden" : "flex")}
+              className={cn(
+                "relative flex shrink-0 flex-col overflow-hidden bg-muted/25",
+                !vaultSidebarCollapsed && "border-r border-border/50",
+              )}
+              style={{
+                width: getVaultSidebarDisplayWidth(vaultSidebarWidth, vaultSidebarCollapsed),
+              }}
             >
-              <header
-                className={cn(
-                  "flex h-14 items-center gap-2 px-3",
-                  embedded ? "titlebar-no-drag" : "titlebar-drag-region",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-foreground">
-                    {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-0.5 titlebar-no-drag">
+              {vaultSidebarCollapsed && (
+                <header
+                  className={cn(
+                    "flex h-14 shrink-0 items-center justify-center",
+                    embedded ? "titlebar-no-drag" : "titlebar-drag-region",
+                  )}
+                >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        ref={vaultSidebarCollapseButtonRef}
+                        ref={vaultSidebarExpandButtonRef}
                         type="button"
                         aria-controls={vaultSidebarContentId}
-                        aria-expanded="true"
-                        aria-label={getVaultSidebarToggleLabel(false)}
-                        onClick={() => setVaultSidebarCollapsedWithFocus(true)}
-                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-expanded="false"
+                        aria-label={getVaultSidebarToggleLabel(true)}
+                        onClick={() => setVaultSidebarCollapsedWithFocus(false)}
+                        className="titlebar-no-drag flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
-                        <ChevronLeft size={15} />
+                        <ChevronRight size={15} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{getVaultSidebarToggleLabel(false)}</TooltipContent>
+                    <TooltipContent>{getVaultSidebarToggleLabel(true)}</TooltipContent>
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={intl.formatMessage(
-                          {
-                            id:
-                              vaultTreeAction.type === "expand"
-                                ? "vault.tree.collapseAllAria"
-                                : "vault.tree.expandAllAria",
-                          },
-                        )}
-                        onClick={() =>
-                          setVaultTreeAction((current) => ({
-                            type: current.type === "expand" ? "collapse" : "expand",
-                            version: current.version + 1,
-                          }))
-                        }
-                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <ChevronsUpDown size={15} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {intl.formatMessage({
-                        id: vaultTreeAction.type === "expand" ? "vault.tree.collapseAll" : "vault.tree.expandAll",
-                      })}
-                    </TooltipContent>
-                  </Tooltip>
-                  {config && (
+                </header>
+              )}
+              <div
+                id={vaultSidebarContentId}
+                aria-hidden={vaultSidebarCollapsed}
+                className={cn("min-h-0 flex-1 flex-col", vaultSidebarCollapsed ? "hidden" : "flex")}
+              >
+                <header
+                  className={cn(
+                    "flex h-14 items-center gap-2 px-3",
+                    embedded ? "titlebar-no-drag" : "titlebar-drag-region",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-foreground">
+                      {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 titlebar-no-drag">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          ref={vaultSidebarCollapseButtonRef}
+                          type="button"
+                          aria-controls={vaultSidebarContentId}
+                          aria-expanded="true"
+                          aria-label={getVaultSidebarToggleLabel(false)}
+                          onClick={() => setVaultSidebarCollapsedWithFocus(true)}
+                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{getVaultSidebarToggleLabel(false)}</TooltipContent>
+                    </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          aria-label={intl.formatMessage({ id: "vault.newNote" })}
-                          onClick={() => {
-                            void createNote();
-                          }}
+                          aria-label={intl.formatMessage({
+                            id:
+                              vaultTreeAction.type === "expand"
+                                ? "vault.tree.collapseAllAria"
+                                : "vault.tree.expandAllAria",
+                          })}
+                          onClick={() =>
+                            setVaultTreeAction((current) => ({
+                              type: current.type === "expand" ? "collapse" : "expand",
+                              version: current.version + 1,
+                            }))
+                          }
                           className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                          <Plus size={16} />
+                          <ChevronsUpDown size={15} />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>{intl.formatMessage({ id: "vault.newNote" })}</TooltipContent>
+                      <TooltipContent>
+                        {intl.formatMessage({
+                          id:
+                            vaultTreeAction.type === "expand"
+                              ? "vault.tree.collapseAll"
+                              : "vault.tree.expandAll",
+                        })}
+                      </TooltipContent>
                     </Tooltip>
-                  )}
-                </div>
-              </header>
-              <VaultFileList
-                entries={entries}
-                selectedPath={selectedFile}
-                focusedFolder={focusedFolder}
-                onSelect={(path) => {
-                  setFocusedFolder(null);
-                  void openFile(path);
-                }}
-                onFocusFolder={(relativePath) => {
-                  setFocusedFolder(relativePath);
-                  updateAgentFocus({ kind: "folder", relativePath });
-                }}
-                onDelete={setDeleteTarget}
-                onCreateNote={(folderPath) => {
-                  void createNoteInFolder(folderPath);
-                }}
-                onCreateFolder={openCreateFolderDialog}
-                canCreate={config !== null}
-                treeAction={vaultTreeAction}
-              />
-              <div className="titlebar-no-drag flex shrink-0 items-center border-t border-border/50 p-2">
-                <Popover
-                  open={vaultSwitcherOpen}
-                  onOpenChange={(open) => {
-                    setVaultSwitcherOpen(open);
-                    if (open) void refreshVaultCandidates();
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={intl.formatMessage({ id: "vault.switchVault" })}
-                      data-testid="vault-switcher-trigger"
-                      className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">
-                        {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
-                      </span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" align="start" className="w-72 p-1.5">
-                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Vault</p>
-                    <div className="max-h-64 overflow-y-auto scrollbar-thin">
-                      {candidatesLoading ? (
-                        <div className="flex items-center justify-center py-5 text-muted-foreground">
-                          <Loader2 className="size-4 animate-spin" />
-                        </div>
-                      ) : candidates.length > 0 ? (
-                        candidates.map((candidate) => (
+                    {config && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <button
-                            key={candidate.path}
                             type="button"
+                            aria-label={intl.formatMessage({ id: "vault.newNote" })}
                             onClick={() => {
-                              void connectDiscoveredVault(candidate);
+                              void createNote();
                             }}
-                            className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                           >
-                            <BookOpen size={15} className="shrink-0 text-primary" />
-                            <span className="min-w-0 flex-1 truncate">
-                              {getVaultCandidateDisplayName(candidate)}
-                            </span>
-                            {candidate.isDroraManaged && (
-                              <span className="shrink-0 text-[10px] text-muted-foreground">
-                                {intl.formatMessage({ id: "vault.managedLabel" })}
-                              </span>
-                            )}
+                            <Plus size={16} />
                           </button>
-                        ))
-                      ) : (
-                        <p className="px-2 py-4 text-center text-xs leading-relaxed text-muted-foreground">
-                          未发现本机 Obsidian Vault
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-1 border-t border-border/60 pt-1">
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {intl.formatMessage({ id: "vault.newNote" })}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </header>
+                <VaultFileList
+                  entries={entries}
+                  selectedPath={selectedFile}
+                  focusedFolder={focusedFolder}
+                  onSelect={(path) => {
+                    setFocusedFolder(null);
+                    void openFile(path);
+                  }}
+                  onFocusFolder={(relativePath) => {
+                    setFocusedFolder(relativePath);
+                    updateAgentFocus({ kind: "folder", relativePath });
+                  }}
+                  onDelete={setDeleteTarget}
+                  onCreateNote={(folderPath) => {
+                    void createNoteInFolder(folderPath);
+                  }}
+                  onCreateFolder={openCreateFolderDialog}
+                  canCreate={config !== null}
+                  treeAction={vaultTreeAction}
+                />
+                <div className="titlebar-no-drag flex shrink-0 items-center border-t border-border/50 p-2">
+                  <Popover
+                    open={vaultSwitcherOpen}
+                    onOpenChange={(open) => {
+                      setVaultSwitcherOpen(open);
+                      if (open) void refreshVaultCandidates();
+                    }}
+                  >
+                    <PopoverTrigger asChild>
                       <button
                         type="button"
-                        onClick={() => {
-                          void createDroraVault();
-                        }}
-                        data-testid="vault-create-managed"
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                        aria-label={intl.formatMessage({ id: "vault.switchVault" })}
+                        data-testid="vault-switcher-trigger"
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
-                        <Plus size={15} className="shrink-0 text-muted-foreground" />
-                        创建 {DRORA_MANAGED_VAULT_DISPLAY_NAME}
+                        <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {config?.displayName ?? intl.formatMessage({ id: "vault.selectVault" })}
+                        </span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void selectVaultManually();
-                        }}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                      >
-                        <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
-                        打开本地仓库
-                      </button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-72 p-1.5">
+                      <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Vault</p>
+                      <div className="max-h-64 overflow-y-auto scrollbar-thin">
+                        {candidatesLoading ? (
+                          <div className="flex items-center justify-center py-5 text-muted-foreground">
+                            <Loader2 className="size-4 animate-spin" />
+                          </div>
+                        ) : candidates.length > 0 ? (
+                          candidates.map((candidate) => (
+                            <button
+                              key={candidate.path}
+                              type="button"
+                              onClick={() => {
+                                void connectDiscoveredVault(candidate);
+                              }}
+                              className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                            >
+                              <BookOpen size={15} className="shrink-0 text-primary" />
+                              <span className="min-w-0 flex-1 truncate">
+                                {getVaultCandidateDisplayName(candidate)}
+                              </span>
+                              {candidate.isDroraManaged && (
+                                <span className="shrink-0 text-[10px] text-muted-foreground">
+                                  {intl.formatMessage({ id: "vault.managedLabel" })}
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-2 py-4 text-center text-xs leading-relaxed text-muted-foreground">
+                            未发现本机 Obsidian Vault
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-1 border-t border-border/60 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void createDroraVault();
+                          }}
+                          data-testid="vault-create-managed"
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                        >
+                          <Plus size={15} className="shrink-0 text-muted-foreground" />
+                          创建 {DRORA_MANAGED_VAULT_DISPLAY_NAME}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void selectVaultManually();
+                          }}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                        >
+                          <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
+                          打开本地仓库
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-            </div>
-            {!vaultSidebarCollapsed && (
-              <div
-                aria-hidden="true"
-                className="titlebar-no-drag absolute right-0 top-0 bottom-0 z-10 w-3 translate-x-1/2 cursor-col-resize"
-                onMouseDown={handleVaultSidebarResizeStart}
-              />
-            )}
-          </aside>
+              {!vaultSidebarCollapsed && (
+                <div
+                  aria-hidden="true"
+                  className="titlebar-no-drag absolute right-0 top-0 bottom-0 z-10 w-3 translate-x-1/2 cursor-col-resize"
+                  onMouseDown={handleVaultSidebarResizeStart}
+                />
+              )}
+            </aside>
             <VaultMarkdownPane
               readResult={readResult}
               vaultId={config?.vaultId}
@@ -2016,6 +2116,7 @@ export function VaultView({
           <KnowledgeReviewView
             vaultService={vaultService ?? null}
             reviewService={knowledgeReviewService}
+            onGoToNotes={goToNotesView}
           />
         )}
       </main>
@@ -2027,7 +2128,10 @@ export function VaultView({
         title={intl.formatMessage({ id: "vault.deleteNoteConfirm.title" })}
         description={
           deleteTarget
-            ? intl.formatMessage({ id: "vault.deleteNoteConfirm.description" }, { name: deleteTarget.relativePath })
+            ? intl.formatMessage(
+                { id: "vault.deleteNoteConfirm.description" },
+                { name: deleteTarget.relativePath },
+              )
             : undefined
         }
         confirmLabel={intl.formatMessage({ id: "vault.delete" })}
@@ -2049,7 +2153,10 @@ export function VaultView({
             <DialogDescription>
               {intl.formatMessage(
                 { id: "vault.newFolder.description" },
-                { path: newFolderParentPath ?? intl.formatMessage({ id: "vault.newFolder.rootPath" }) },
+                {
+                  path:
+                    newFolderParentPath ?? intl.formatMessage({ id: "vault.newFolder.rootPath" }),
+                },
               )}
             </DialogDescription>
           </DialogHeader>
@@ -2086,27 +2193,37 @@ export function VaultView({
       <Dialog open={vaultHelpOpen} onOpenChange={setVaultHelpOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{intl.formatMessage({ id: "vault.tutorial.title" }, { name: VAULT_NAME })}</DialogTitle>
+            <DialogTitle>
+              {intl.formatMessage({ id: "vault.tutorial.title" }, { name: VAULT_NAME })}
+            </DialogTitle>
             <DialogDescription>
               {intl.formatMessage({ id: "vault.tutorial.intro" }, { name: VAULT_NAME })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm leading-6 text-muted-foreground">
             <section>
-              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.manage" })}</p>
+              <p className="font-medium text-foreground">
+                {intl.formatMessage({ id: "vault.tutorial.manage" })}
+              </p>
               <p>{intl.formatMessage({ id: "vault.tutorial.manage.body" })}</p>
             </section>
             <section>
-              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.browse" })}</p>
+              <p className="font-medium text-foreground">
+                {intl.formatMessage({ id: "vault.tutorial.browse" })}
+              </p>
               <p>{intl.formatMessage({ id: "vault.tutorial.browse.body" })}</p>
             </section>
             <section>
-              <p className="font-medium text-foreground">{intl.formatMessage({ id: "vault.tutorial.edit" })}</p>
+              <p className="font-medium text-foreground">
+                {intl.formatMessage({ id: "vault.tutorial.edit" })}
+              </p>
               <p>{intl.formatMessage({ id: "vault.tutorial.edit.body" })}</p>
             </section>
           </div>
           <DialogFooter>
-            <Button onClick={() => setVaultHelpOpen(false)}>{intl.formatMessage({ id: "vault.tutorial.gotIt" })}</Button>
+            <Button onClick={() => setVaultHelpOpen(false)}>
+              {intl.formatMessage({ id: "vault.tutorial.gotIt" })}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

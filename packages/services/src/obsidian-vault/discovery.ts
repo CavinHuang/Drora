@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { VAULT_CONFIG_FILE_NAME } from "@drora/shared";
 
 export interface VaultCandidate {
   path: string;
@@ -34,13 +35,27 @@ export function vaultId(rootPath: string): string {
  * Obsidian 注册表发现。obsidian.json 只是建议：坏 JSON、失效路径逐条跳过，
  * 永不让一个坏条目阻塞候选发现。
  */
-export async function discoverObsidianVaultCandidates(managedRootPath?: string): Promise<VaultCandidate[]> {
+export async function discoverObsidianVaultCandidates(
+  managedRootPath?: string,
+): Promise<VaultCandidate[]> {
   const configPaths =
     platform() === "darwin"
       ? [join(homedir(), "Library", "Application Support", "obsidian", "obsidian.json")]
       : platform() === "win32"
-        ? [join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "obsidian", "obsidian.json")]
-        : [join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "obsidian", "obsidian.json")];
+        ? [
+            join(
+              process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
+              "obsidian",
+              "obsidian.json",
+            ),
+          ]
+        : [
+            join(
+              process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"),
+              "obsidian",
+              "obsidian.json",
+            ),
+          ];
 
   let managedRoot: string | null = null;
   if (managedRootPath) {
@@ -81,7 +96,9 @@ export async function discoverObsidianVaultCandidates(managedRootPath?: string):
       }
     }
   }
-  return [...candidates.values()].sort((left, right) => left.displayName.localeCompare(right.displayName));
+  return [...candidates.values()].sort((left, right) =>
+    left.displayName.localeCompare(right.displayName),
+  );
 }
 
 /** 托管 Vault 目录（插件数据目录内），供未安装 Obsidian 的用户使用。 */
@@ -97,7 +114,9 @@ export async function discoverVaultCandidates(pluginDataDir: string): Promise<Va
   const managedRootPath = managedVaultDirPath(pluginDataDir);
   const candidates: VaultCandidate[] = [];
   try {
-    const managedRootPathReal = existsSync(managedRootPath) ? await assertVaultRoot(managedRootPath) : null;
+    const managedRootPathReal = existsSync(managedRootPath)
+      ? await assertVaultRoot(managedRootPath)
+      : null;
     if (managedRootPathReal) {
       candidates.push({
         path: managedRootPathReal,
@@ -113,7 +132,10 @@ export async function discoverVaultCandidates(pluginDataDir: string): Promise<Va
 }
 
 export function configFilePath(pluginDataDir: string): string {
-  return join(resolve(pluginDataDir), "vault-config.json");
+  // 收口（PR #23 终审 conv-1）：文件名常量单一出处 @drora/shared，与 CLI gate 的
+  // vault-config-reader 指向同一物理文件；此前两侧各手写一份 "vault-config.json"
+  // 字面量，漂移即门面写一份、gate 读另一份。
+  return join(resolve(pluginDataDir), VAULT_CONFIG_FILE_NAME);
 }
 
 export function configDirOf(filePath: string): string {

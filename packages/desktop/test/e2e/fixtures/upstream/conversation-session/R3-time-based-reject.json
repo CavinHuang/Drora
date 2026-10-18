@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "caseName": "R3-time-based-reject",
+  "spec": "./test/e2e/acceptance/r3-time-based-reject.test.ts",
+  "fixtures": [
+    {
+      "id": "r3-time-based-reject-title",
+      "description": "Deterministic title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the citation authority"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r3-time-based-reject-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r3-time-based-reject-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"R3 Time Based Reject E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r3-time-based-reject-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r3-time-based-reject-session",
+      "description": "Initialize an actual CLI Session without Vault refs",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic model response verifies real host-generated receipts, never supplies them"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["E2E_R3_G05_START"],
+        "bodyIncludes": ["E2E_R3_G05_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r3-time-based-reject-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r3-time-based-reject-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"E2E_R3_G05_START: the plain initial conversation is ready.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r3-time-based-reject-session\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r3-time-based-reject-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

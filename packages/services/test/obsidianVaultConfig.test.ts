@@ -42,7 +42,7 @@ test("configureManagedVault：pluginDataDir 含软链段时 displayName 仍判�
   }
 });
 
-test("L2 real Vault authorization: explicit grant, monotonic epoch, and revocation resets review-write", async () => {
+test("L2 真实 Vault 授权：显式授权、epoch 单调递增、撤权重置 review-write", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-l2-vault-auth-"));
   try {
     const configured = await configureManagedVault(root);

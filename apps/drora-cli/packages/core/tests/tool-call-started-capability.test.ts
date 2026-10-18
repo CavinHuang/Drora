@@ -137,4 +137,34 @@ describe("ToolCallStarted carries the resolved side-effect capability", () => {
     expect(payload).toMatchObject({ readOnly: true, sideEffectScope: "none" });
     expect(isWorkspaceMutatingToolCall(payload!)).toBe(false);
   });
+
+  it("suppresses an untrusted MCP readOnlyHint:true to undefined (unknown is not read-only)", async () => {
+    // 2026-10-18 终审阻塞①：普通 MCP 的 readOnlyHint 是服务端自报，不可信的
+    // readOnly=true 不得外发为 true——降为 undefined，driver 按会写保守处理。
+    const entry = probeEntry({
+      metadata: {
+        ...probeEntry({}).metadata,
+        name: "mcp__demo-server__query",
+        readOnly: true,
+        sideEffectScope: "workspace",
+      },
+      permission: { ...probeEntry({}).permission, permission: "mcp" },
+    });
+    const { payload } = await run(entry, {}, "cap-mcp-hint-true");
+    // 先钉住元数据确实自报了 readOnly=true，证明 undefined 是门控抑制的结果。
+    expect(entry.metadata.readOnly).toBe(true);
+    expect(payload?.readOnly).toBeUndefined();
+    expect(isWorkspaceMutatingToolCall(payload!)).toBe(true);
+  });
+
+  it("passes a trusted built-in readOnly:true through as true, even with a workspace scope", async () => {
+    // 非 MCP 内建元数据是 host 可信的：readOnly=true 原样外发，且优先于
+    // sideEffectScope 的写范围声明（readOnly 工具不算写）。
+    const entry = probeEntry({
+      metadata: { ...probeEntry({}).metadata, readOnly: true, sideEffectScope: "workspace" },
+    });
+    const { payload } = await run(entry, {}, "cap-builtin-readonly-true");
+    expect(payload?.readOnly).toBe(true);
+    expect(isWorkspaceMutatingToolCall(payload!)).toBe(false);
+  });
 });

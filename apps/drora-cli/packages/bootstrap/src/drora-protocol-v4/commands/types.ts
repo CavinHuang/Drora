@@ -12,8 +12,13 @@ import type {
   StableForkGoalBoundaryMetadata,
   TraceContext,
 } from "@drora/contracts";
-import type { DynamicWorkflowMode, DroraAutomationBotDeliveryTarget } from "@drora/shared";
-import type { KnowledgeEvidenceGuard, KnowledgeEvidenceReason } from "@drora/shared";
+import type {
+  DynamicWorkflowMode,
+  DroraAutomationBotDeliveryTarget,
+  KnowledgeEvidenceGuard,
+  KnowledgeEvidenceReason,
+  KnowledgeEvidenceRef,
+} from "@drora/shared";
 import type {
   CommandAck,
   CommandEnvelope,
@@ -235,14 +240,20 @@ export interface V4CommandCoreHost {
   /**
    * VaultView Evidence 执行时复验（W03 / specs/obsidian-knowledge.md §5.3，非过渡钩子）。
    * sendText 在 admission 前、sendQueuedNow 在 reserve 前调用；宿主未注入（旧宿主/测试桩）
-   * → 不复验（additive）。实现必须 fail-closed：复验不可用也返回拒绝，绝不放行。
+   * → 携带 evidenceRefs 的输入被拒绝（fail-closed，普通输入不受影响）。「未注入 → 不复验
+   * （additive）」是 spec §5.3 已废弃的旧口径，现行语义由 evidence-admission 的
+   * verifyEvidenceOrThrow 落地：复验不可用同样返回拒绝，绝不放行。
    */
   verifyInputEvidence?(input: {
     sessionId: string;
-    evidenceRefs: ReadonlyArray<{ receiptId: string }>;
+    evidenceRefs: ReadonlyArray<KnowledgeEvidenceRef>;
   }): Promise<
     | { ok: true }
-    | { ok: false; guard: KnowledgeEvidenceGuard; reason: KnowledgeEvidenceReason | "gate_unavailable" }
+    | {
+        ok: false;
+        guard: KnowledgeEvidenceGuard;
+        reason: KnowledgeEvidenceReason | "gate_unavailable";
+      }
   >;
 
   // ── 过渡期钩子（legacy 兼容窗口）─────────────────────────

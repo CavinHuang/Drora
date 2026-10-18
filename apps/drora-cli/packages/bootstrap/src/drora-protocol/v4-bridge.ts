@@ -786,8 +786,10 @@ export function createConversationV4Gateway(
     // 同一登记表实例：broker（旧目录）注册反向请求 deferred，
     // v4 resolveInteraction handler 经此投递应答（v4 原生基础设施，非过渡钩子）。
     interactions: context.v4Interactions,
-    // W03 VaultView Evidence 执行时复验：entrypoint 注入生产 gate；未注入 = 不复验
-    // （additive）。形状一致，直接透传（非过渡钩子，v4 自持后随 host 原生持有）。
+    // W03 VaultView Evidence 执行时复验：entrypoint 注入生产 gate；未注入时保持
+    // undefined，复验层（evidence-admission verifyEvidenceOrThrow）对携带证据的输入
+    // 直接拒绝（fail-closed）。「未注入 = 不复验（additive）」是 spec §5.3 已废弃的
+    // 旧口径。形状一致，直接透传（非过渡钩子，v4 自持后随 host 原生持有）。
     verifyInputEvidence: context.knowledgeEvidenceVerifier
       ? (input) => context.knowledgeEvidenceVerifier!.verify(input)
       : undefined,

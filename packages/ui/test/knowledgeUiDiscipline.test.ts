@@ -24,6 +24,10 @@ const knowledgeFiles: string[] = readdirSync(knowledgeDir)
   .filter((name) => name.endsWith(".tsx") || name.endsWith(".ts"))
   .map((name) => join(knowledgeDir, name));
 knowledgeFiles.push(join(here, "../src/v4/vault/vault-quote-reveal.ts"));
+// ui-know-a-5 修复（2026-10-18 终审）：回答来源面板与引用 Markdown 渲染层是 knowledge
+// UI 的渲染纪律在产源码（含 i18n 键与字号/色值约束的适用面），此前不在扫描范围。
+knowledgeFiles.push(join(here, "../src/v4/KnowledgeAnswerSources.tsx"));
+knowledgeFiles.push(join(here, "../src/lib/knowledgeCitationMarkdown.ts"));
 
 function readSource(file: string): string {
   assert.equal(statSync(file).isFile(), true, `被核查文件必须存在: ${file}`);

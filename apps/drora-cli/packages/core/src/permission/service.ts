@@ -300,9 +300,10 @@ export class PermissionService {
       // （洞 3 修复后：整工具 allow 只对 safe 命令生效），这里不过滤。
       return rulePolicy.evaluateRules(behavior, toolRules);
     }
-    // S03 洞 2 评估侧（specs/agent-write-safety.md §2）：无 rulePolicy 的 P0 工具
-    // （js / 未自报 readOnly 的 MCP），无内容 allow 规则（整工具「总是允许」）不匹配——
-    // 一次确认、永久放行的通道必须不存在。宿主验证能力组（OfficialCua）豁免。
+    // S03 洞 2 评估侧（specs/agent-write-safety.md §2 与 2026-10-17 收尾复评契约）：无
+    // rulePolicy 的 P0 工具（js / 所有普通 MCP——不区分是否自报 readOnlyHint，自报不构成
+    // 信任锚），全部 allow 规则（含带内容规则）均不匹配——一次确认、永久放行的通道必须
+    // 不存在。宿主验证能力组（OfficialCua）豁免。
     const effectiveRules =
       behavior === "allow" &&
       capability.permissionCapabilityGroup !== PermissionCapabilityGroup.OfficialCua &&
@@ -313,8 +314,8 @@ export class PermissionService {
         destructive: capability.destructive,
         permissionCapabilityGroup: capability.permissionCapabilityGroup,
       })
-        // path/command 只覆盖输入的一部分，不能授权 MCP/js 的其它任意负载。
-        ? []
+        ? // path/command 只覆盖输入的一部分，不能授权 MCP/js 的其它任意负载。
+          []
         : toolRules;
     if (effectiveRules.length === 0) return false;
     return effectiveRules.some((rule) => this.matchesRule(rule, context, capability));
@@ -486,13 +487,15 @@ export class PermissionService {
     context: PermissionContext,
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
-    if (isTrustedReadOnlyTool({
-      toolName: context.toolName,
-      permissionName: capability.permissionName,
-      readOnly: capability.readOnly,
-      destructive: capability.destructive,
-      permissionCapabilityGroup: capability.permissionCapabilityGroup,
-    })) {
+    if (
+      isTrustedReadOnlyTool({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      })
+    ) {
       return this.allow(
         context,
         capability,
@@ -501,9 +504,9 @@ export class PermissionService {
       );
     }
 
-    // MCP annotations are supplied by the server and cannot establish a trusted
-    // read-only capability. Only built-in host-trusted read-only tools and the
-    // host-verified OfficialCua group may use this fast path.
+    // MCP annotations 由服务端自报，不能建立可信只读能力（specs/agent-write-safety.md
+    // 洞 1a/洞 5：自报 readOnlyHint 不是信任锚）。上面的只读快速路径只有内建可信
+    // 只读工具与宿主验证的 OfficialCua 能力组可用；普通 MCP 落入下方逐条判定。
 
     if (
       capability.allowedInPlanMode &&
@@ -532,22 +535,31 @@ export class PermissionService {
     capability: ResolvedPermissionCapability,
   ): PermissionDecisionResult {
     // 即使插件声称无副作用，P0 仍需逐次确认；不得落入最后的 lowRisk 放行。
-    if (isP0WriteTarget({
-      toolName: context.toolName,
-      permissionName: capability.permissionName,
-      permissionCapabilityGroup: capability.permissionCapabilityGroup,
-    }) && context.toolName !== "Bash") {
-      return this.ask(context, capability,
+    if (
+      isP0WriteTarget({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      }) &&
+      context.toolName !== "Bash"
+    ) {
+      return this.ask(
+        context,
+        capability,
         capability.riskLevel === "high" ? "mode.build.highRisk" : "mode.build.sideEffect",
-        "P0 tools require explicit approval for each execution");
+        "P0 tools require explicit approval for each execution",
+      );
     }
-    if (!capability.needsApproval && isTrustedReadOnlyTool({
-      toolName: context.toolName,
-      permissionName: capability.permissionName,
-      readOnly: capability.readOnly,
-      destructive: capability.destructive,
-      permissionCapabilityGroup: capability.permissionCapabilityGroup,
-    })) {
+    if (
+      !capability.needsApproval &&
+      isTrustedReadOnlyTool({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        readOnly: capability.readOnly,
+        destructive: capability.destructive,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      })
+    ) {
       return this.allow(
         context,
         capability,
@@ -720,8 +732,13 @@ export class PermissionService {
   ): PermissionDecisionResult {
     const result = this.result("ask", context, capability, ruleId, reason);
     // P0 必须由用户逐次确认，复用 user-once 以阻止 Hook 代批和持久权限应答。
-    if (isP0WriteTarget({ toolName: context.toolName, permissionName: capability.permissionName,
-      permissionCapabilityGroup: capability.permissionCapabilityGroup })) {
+    if (
+      isP0WriteTarget({
+        toolName: context.toolName,
+        permissionName: capability.permissionName,
+        permissionCapabilityGroup: capability.permissionCapabilityGroup,
+      })
+    ) {
       return { ...result, approvalMode: "user-once" };
     }
     return result;

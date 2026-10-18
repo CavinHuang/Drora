@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+// ui-lib-a-3 用例需要观测告警去重集合的重置行为，mock 掉 logger 出口。
+vi.mock("@/logger.js", () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 import {
   appendConversationSelectionReference,
   requestKnowledgeAgentHandoff,
@@ -98,6 +102,108 @@ describe("conversation selection references", () => {
     // 坏存储（非 JSON）不抛错，回落空引用态。
     store.set(persistedKey!, "{broken");
     expect(getConversationSelectionReferenceScope("session-4", "ws-1")).toEqual([]);
+  });
+
+  it("ui-lib-b-1：水合守卫剔除形状不符的 evidenceReceiptId/evidenceSource（按条丢弃不抛错）", () => {
+    // 2026-10-18 终审：evidenceReceiptId 须 string、evidenceSource 须对象；数字化的
+    // receipt 或字符串化的 source 不能流入 manifest 校验与发送链。
+    const store = new Map<string, string>();
+    const fakeWindow = {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("window", fakeWindow);
+    const persistedKey = "drora-v4-selection-references:v1:ws-guard";
+    store.set(
+      persistedKey,
+      JSON.stringify({
+        version: 1,
+        scopes: {
+          "session-guard": [
+            {
+              contentType: "markdown",
+              id: "ok",
+              sourceKey: "vault:a.md",
+              sourceTitle: "a",
+              path: "a.md",
+              text: "ok excerpt",
+              evidenceReceiptId: "evr_ok",
+              evidenceSource: {
+                index: 1,
+                relativePath: "a.md",
+                heading: null,
+                startLine: 1,
+                endLine: 2,
+              },
+            },
+            {
+              contentType: "markdown",
+              id: "bad-receipt",
+              sourceKey: "vault:b.md",
+              sourceTitle: "b",
+              path: "b.md",
+              text: "bad receipt",
+              evidenceReceiptId: 42,
+            },
+            {
+              contentType: "markdown",
+              id: "bad-source",
+              sourceKey: "vault:c.md",
+              sourceTitle: "c",
+              path: "c.md",
+              text: "bad source",
+              evidenceReceiptId: "evr_c",
+              evidenceSource: "1|c.md|1-2",
+            },
+          ],
+        },
+      }),
+    );
+    const hydrated = getConversationSelectionReferenceScope("session-guard", "ws-guard");
+    expect(hydrated).toHaveLength(1);
+    expect(hydrated[0]?.id).toBe("ok");
+    expect(collectConversationEvidenceRefs(hydrated)).toEqual([{ receiptId: "evr_ok" }]);
+  });
+
+  it("ui-lib-a-3：存储告警按去重上报一次，写入成功后重置、再次失败可再上报", async () => {
+    const store = new Map<string, string>();
+    let failWrites = true;
+    const fakeWindow = {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          if (failWrites) throw new Error("quota");
+          store.set(key, value);
+        },
+        removeItem: (key: string) => void store.delete(key),
+      },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("window", fakeWindow);
+    const { logger } = await import("@/logger.js");
+    const warn = vi.mocked(logger.warn);
+    warn.mockClear();
+    const ref: ConversationSelectionReference = {
+      contentType: "assistant",
+      id: "w1",
+      sourceRowId: 1,
+      sourceSessionId: "s",
+      text: "t",
+    };
+    setConversationSelectionReferenceScope("session-warn", "ws-warn", [ref]);
+    setConversationSelectionReferenceScope("session-warn2", "ws-warn", [ref]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    // 恢复写入并成功落盘：去重标记应被清除（对齐 composerDraftStore）。
+    failWrites = false;
+    setConversationSelectionReferenceScope("session-warn3", "ws-warn", [ref]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect([...store.keys()].some((key) => key.includes("ws-warn"))).toBe(true);
+    // 再次失败时告警重新可见，不被首次故障永久静默。
+    failWrites = true;
+    setConversationSelectionReferenceScope("session-warn4", "ws-warn", [ref]);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it("在 composer 挂载前先写入 session scope，首次打开不会丢引用", () => {

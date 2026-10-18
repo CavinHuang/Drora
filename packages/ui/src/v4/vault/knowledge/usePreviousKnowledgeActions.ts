@@ -10,9 +10,11 @@ import { toast as droraToast } from "@/components/ui/toast.js";
 import {
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  getConversationSelectionReferenceScope,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import { displayCandidateTitle, evidenceUnavailableMessageKey } from "./KnowledgeCandidateCard.js";
+import { createKnowledgeAttachReference } from "./knowledgeAgentHandoff.js";
 import {
   buildSelectionSideChatKey,
   requestSelectionSideChatOpen,
@@ -93,13 +95,15 @@ export function usePreviousKnowledgeActions({
               candidate.fileSha256,
             );
           } else if (selectionTarget?.sessionId) {
-            const reference = createConversationSelectionReference({
-              contentType: "markdown",
-              sourceKey: `vault:${proof.relativePath}`,
-              sourceTitle: proof.title,
-              path: proof.relativePath,
-              text: proof.excerpt,
-              evidenceReceiptId: proof.receiptId,
+            // ui-know-b-1（2026-10-18 终审）：attach 与单篇「加入 Agent」同构造——与
+            // handoff 草稿混用（同来源去重替换）时镜像 evidenceSource.index，消除整批
+            // manifest mismatch；独立 attach 语义不变。
+            const reference = createKnowledgeAttachReference({
+              scope: getConversationSelectionReferenceScope(
+                selectionTarget.sessionId,
+                selectionTarget.workspaceKey,
+              ),
+              proof,
             });
             const result = dispatchConversationSelectionAdd({
               targetSessionId: selectionTarget.sessionId,

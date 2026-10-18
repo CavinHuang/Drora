@@ -16,8 +16,7 @@ export interface KnowledgeDraftSource {
   index: number;
 }
 
-export const KNOWLEDGE_SOURCE_MANIFEST_HEADER =
-  "来源索引（顺序与附带的原文证据片段一致）：";
+export const KNOWLEDGE_SOURCE_MANIFEST_HEADER = "来源索引（顺序与附带的原文证据片段一致）：";
 
 export function formatKnowledgeDraftSource(source: KnowledgeDraftSource): string {
   return `[${source.index}] path=${JSON.stringify(source.relativePath)} heading=${JSON.stringify(source.heading)} lines=${source.startLine}-${source.endLine}`;
@@ -43,7 +42,8 @@ export function validateKnowledgeSourceManifest(
   const header = KNOWLEDGE_SOURCE_MANIFEST_HEADER;
   const markerCount = prompt.split(header).length - 1;
   if (markerCount === 0 && indexed.length === 0) return "not-applicable";
-  if (markerCount !== 1 || indexed.length === 0 || trusted.length !== indexed.length) return "mismatch";
+  if (markerCount !== 1 || indexed.length === 0 || trusted.length !== indexed.length)
+    return "mismatch";
 
   const lines = prompt.split("\n");
   const headerIndex = lines.findIndex((line) => line === header);
@@ -69,7 +69,8 @@ export function validateKnowledgeSourceManifest(
       source.endLine < source.startLine ||
       seen.has(item.evidenceReceiptId) ||
       sourceLines[i] !== formatKnowledgeDraftSource(source)
-    ) return "mismatch";
+    )
+      return "mismatch";
     seen.add(item.evidenceReceiptId);
   }
   return "valid";

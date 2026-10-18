@@ -310,7 +310,9 @@ export class DroraProtocolAgentServer {
       v4Interactions: new V4InteractionRegistry(
         resolveV4InteractionRegistryOptionsFromEnv(deps.env ?? process.env),
       ),
-      // W03 Evidence 执行时复验：入口注入生产 gate；未注入 = additive 不复验。
+      // W03 Evidence 执行时复验：入口注入生产 gate；未注入 = 携带证据的输入被拒
+      // （fail-closed）。「未注入 = additive 不复验」是 spec §5.3 已废弃旧口径，
+      // 现行语义见 drora-protocol-v4 evidence-admission verifyEvidenceOrThrow。
       ...(deps.knowledgeEvidenceVerifier
         ? { knowledgeEvidenceVerifier: deps.knowledgeEvidenceVerifier }
         : {}),

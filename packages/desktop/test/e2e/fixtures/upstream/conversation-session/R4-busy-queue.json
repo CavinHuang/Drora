@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "caseName": "R4-busy-queue",
+  "spec": "./test/e2e/acceptance/r4-busy-queue.test.ts",
+  "fixtures": [
+    {
+      "id": "r4-busy-queue-title",
+      "description": "Deterministic title sidecar replies for every R4 turn.",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title is not part of the busy-queue authority; only keeps the default sidecar off the legacy fallback."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r4-busy-queue-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"title\\\":\\\"R4 Busy Queue E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r4-busy-queue-session-start",
+      "description": "Initialize a real CLI Session before any Vault busy-queue interaction.",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "A deterministic plain reply proves the session is genuine; receipts only ever come from the real host."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R4_SESSION_START"],
+        "bodyIncludes": ["R4_SESSION_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r4-busy-queue-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R4_SESSION_START: the genuine active conversation is ready.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r4-busy-queue-g09-evidence-reply",
+      "description": "G09: reply for the turn sent after the second add-to-agent receipt.",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "The reply text itself carries no authority; the test asserts CLI-admitted evidenceRefs via the SQLite canonical row."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R4_G09_QUESTION"],
+        "bodyIncludes": ["R4_G09_QUESTION", "R4BusyQueueToken2026"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r4-busy-queue-g09-evidence-reply\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-g09-evidence-reply\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R4_G09_ANSWER_OK: the turn was admitted with the re-issued trusted evidence.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-g09-evidence-reply\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":90,\"completion_tokens\":70,\"total_tokens\":160}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r4-busy-queue-g08-slow-stream",
+      "description": "G08: controlled slow SSE turn that keeps the session busy while the evidence input is queued and the source file is mutated.",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "controlled-stream",
+        "source": "synthetic",
+        "syntheticReason": "sendQueuedNow re-verification needs a running window; the long stream keeps the turn alive without any model authority."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R4_G08_SLOW"],
+        "bodyIncludes": ["R4_G08_SLOW"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "chunks": [
+          {
+            "offsetMs": 0,
+            "text": "data: {\"id\":\"r4-busy-queue-g08-slow\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"
+          },
+          {
+            "offsetMs": 600,
+            "text": "data: {\"id\":\"r4-busy-queue-g08-slow\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R4_G08_STREAMING: busy turn is deliberately kept running.\"},\"finish_reason\":null}]}\n\n"
+          },
+          {
+            "offsetMs": 80000,
+            "text": "data: {\"id\":\"r4-busy-queue-g08-slow\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":80,\"completion_tokens\":12,\"total_tokens\":92}}\n\n"
+          },
+          {
+            "offsetMs": 80100,
+            "text": "data: [DONE]\n\n"
+          }
+        ],
+        "text": {
+          "id": "r4-busy-queue-g08-slow",
+          "inputTokens": 80,
+          "outputTokens": 12,
+          "text": "R4_G08_STREAMING: busy turn is deliberately kept running."
+        }
+      }
+    },
+    {
+      "id": "r4-busy-queue-g08-queued-sentinel",
+      "description": "G08 sentinel: reply that must NEVER be matched, because a silent degradation would have to consume the queue item as a plain turn first.",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Kept intentionally available so a degraded promotion produces an observable assistant marker instead of a replay 404."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R4_G08_QUEUED"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r4-busy-queue-g08-queued-sentinel\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-g08-queued-sentinel\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"R4_G08_QUEUED_REPLY_MUST_NOT_APPEAR\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r4-busy-queue-g08-queued-sentinel\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r4-busy-queue-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":80,\"completion_tokens\":8,\"total_tokens\":88}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

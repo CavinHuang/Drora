@@ -27,14 +27,17 @@ export function KnowledgeAnswerSources({
 }): React.ReactElement | null {
   const { intl } = useDroraIntl();
   const [opening, setOpening] = React.useState<string | null>(null);
-  if (citations.length === 0) return null;
 
   // D-7 修复（2026-10-17 增量评审）：审计对完整回答做分行/围栏解析与多轮正则替换，
   // ConversationTurnGroup 高频重渲染下须按输入 memo，避免长回答反复重算。
+  // ui-cite-a-1 修复（2026-10-18 终审）：early return 原先位于本 useMemo 之前，
+  // citations 空↔非空翻转时 hook 数量变化违反 Rules of Hooks；现移到 memo 之后，
+  // citations 为空时 memo 照算（audit 对 sourceCount=0 已容忍，仅多一次空转）。
   const audit = React.useMemo(
     () => auditKnowledgeAnswerCitationCoverage(assistantText, citations.length),
     [assistantText, citations.length],
   );
+  if (citations.length === 0) return null;
   const cited = new Set(audit.knownNumbers);
   const unknown = audit.unknownNumbers;
   const open = async (receiptId: string): Promise<void> => {

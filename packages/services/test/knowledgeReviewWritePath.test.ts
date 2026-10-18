@@ -1,5 +1,5 @@
 /**
- * W09 L2 写路径开关回归（specs/obsidian-knowledge.md §5f.3，WSG-UI-3/4）。
+ * W09 L2 写路径开关回归（specs/obsidian-knowledge.md §5e.12，WSG-UI-3/4）。
  *
  * 覆盖：vault-config.json 持久化（唯一写入入口 setVaultReviewWritePathEnabled）、
  * 缺省/坏值视为关闭、引擎未显式传参时从配置异步加载初值、setWritePathEnabled
@@ -15,6 +15,7 @@ import test from "node:test";
 import { setDataBaseDir } from "../src/paths.js";
 import {
   configureVaultAt,
+  loadVaultConfig,
   setVaultReviewWritePathEnabled,
   vaultConfigPath,
 } from "../src/obsidian-vault/config.js";
@@ -31,18 +32,26 @@ test("S03 release policy grants local desktop capability only; user opt-in still
   try {
     for (const authority of [undefined, "desktop-local", "desktop-attached-remote"] as const) {
       const services = createKnowledgeServices({
-        databasePath: join(root, "knowledge.sqlite"), pluginDataDir: join(root, "plugin-data"),
+        databasePath: join(root, "knowledge.sqlite"),
+        pluginDataDir: join(root, "plugin-data"),
         reviewWriteSafetyGatePassed: isReleasedReviewWriteAuthority(authority),
       });
       try {
-        assert.equal(services.reviewService.isWritePathActivationAllowed(), authority === "desktop-local");
+        assert.equal(
+          services.reviewService.isWritePathActivationAllowed(),
+          authority === "desktop-local",
+        );
         assert.equal(services.reviewService.isWritePathEnabled(), false);
         if (authority !== "desktop-local") {
           await assert.rejects(services.reviewService.setWritePathEnabled(true), /runtime gate/);
         }
-      } finally { services.dispose(); }
+      } finally {
+        services.dispose();
+      }
     }
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 async function readConfigField(pluginDataDir: string): Promise<Record<string, unknown>> {
@@ -75,14 +84,21 @@ test("WSG-UI-3：setVaultReviewWritePathEnabled 持久化读-改-写；坏值视
     const afterOff = await readConfigField(pluginDataDir);
     assert.equal(afterOff.reviewWritePathEnabled, false);
 
-    // 坏值（非 boolean）视为关闭：解析器不接收，引擎加载判定不为 true。
+    // 坏值（非 boolean）被解析器剥离为缺省（=关闭）：SV-6（2026-10-18 终审）——
+    // 原断言读回原始 JSON 判 "yes" !== true 对序列化恒真；改为真驱动 loadVaultConfig，
+    // 断言 parseVaultConfigShape 剔除坏值字段（undefined），且坏值不连坐判坏整个配置。
     await writeFile(
       vaultConfigPath(pluginDataDir),
       JSON.stringify({ ...afterOff, reviewWritePathEnabled: "yes" }),
       "utf-8",
     );
-    const reloaded = await readConfigField(pluginDataDir);
-    assert.notEqual(reloaded.reviewWritePathEnabled, true);
+    const reloaded = await loadVaultConfig(pluginDataDir);
+    assert.ok(reloaded, "坏值不得导致整个配置被判损坏");
+    assert.equal(
+      reloaded.reviewWritePathEnabled,
+      undefined,
+      "非 boolean 坏值必须被剥离为缺省（关闭）",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -220,7 +236,10 @@ test("L2 toggle fails closed when no valid Vault configuration is available", as
       reviewWriteSafetyGatePassed: true,
     });
     try {
-      await assert.rejects(services.reviewService.setWritePathEnabled(true), /configuration unavailable/);
+      await assert.rejects(
+        services.reviewService.setWritePathEnabled(true),
+        /configuration unavailable/,
+      );
       assert.equal(services.reviewService.isWritePathEnabled(), false);
     } finally {
       services.dispose();

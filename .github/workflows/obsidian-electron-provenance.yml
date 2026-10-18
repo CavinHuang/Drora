@@ -4,34 +4,56 @@ name: Obsidian Electron Provenance
 # Path-scoped to avoid imposing an expensive runner on unrelated PRs.
 on:
   pull_request:
+    # EC-1（e2e-a-1/b-2/b-5，2026-10-18 终审）修复：与 cross-platform 清单同步
+    # 补齐 R1-R9 回放 fixture（7 个 R*.json）、helpers/**、wdio.conf.ts、restart
+    # helper 与 evidence 链源文件（bootstrap 会话流/意图重放/投影、core
+    # conversation-quotes/input-intent-persistence、shared knowledge-evidence）；
+    # 去掉 knowledge/** 重复登记与被 obsidian-vault/** 覆盖的 config.ts 条目。
+    # inline-provenance 夹具本清单已有，无需重复添加。
     paths:
       - ".github/workflows/obsidian-electron-provenance.yml"
       - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts"
+      - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-restart.helper.ts"
       - "packages/desktop/test/e2e/obsidian-knowledge-positive.test.ts"
       - "packages/desktop/test/e2e/conversation-session/manual-review/obsidian-authenticated-handoff.test.ts"
+      - "packages/desktop/test/e2e/helpers/**"
+      - "packages/desktop/wdio.conf.ts"
       - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-authenticated-handoff.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R2-agent-handoff.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R3-time-based-reject.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R4-busy-queue.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R5-restart-isolation.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R6-source-manifest-guard.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R8-concurrency-late-requests.json"
+      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/R9-second-read-focus.json"
       - "packages/ui/src/drora-extensions/WorkspaceMainView.tsx"
       - "packages/ui/src/app-shell/WorkspaceShellLayout.tsx"
       - "packages/ui/src/v4/vault/knowledge/useKnowledgeAgentActions.ts"
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts"
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/evidence-admission.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/session-flow.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/canonical-intent-replay.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/input-intent.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/event-normalizer.ts"
+      - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/projection-rows.ts"
       - "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts"
       - "apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs"
+      - "apps/drora-cli/packages/core/src/runtime/helpers/conversation-quotes.ts"
+      - "apps/drora-cli/packages/core/src/runtime/methods/input-intent-persistence.ts"
+      - "packages/shared/src/knowledge-evidence.ts"
       - "packages/services/src/knowledge/**"
-      - "packages/services/src/obsidian-vault/config.ts"
+      - "packages/services/src/obsidian-vault/**"
       - "packages/ui/src/v4/ConversationComposer.tsx"
       - "packages/ui/src/lib/conversationSelectionReference.ts"
       - "packages/ui/src/v4/ConversationTurnGroup.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskInput.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeAskResults.tsx"
       - "packages/ui/src/v4/vault/knowledge/KnowledgeCandidateCard.tsx"
-      - "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-obsidian-inline-provenance.json"
       - "packages/ui/src/lib/knowledgeCitationMarkdown.ts"
       - "packages/ui/src/components/ai-elements/message.tsx"
       - "packages/ui/src/v4/VaultView.tsx"
       - "packages/services/src/node.ts"
-      - "packages/services/src/knowledge/**"
-      - "packages/services/src/obsidian-vault/**"
       - "apps/drora-cli/packages/core/src/permission/**"
       - "apps/drora-cli/packages/core/src/tool/executor/permission-*.ts"
   workflow_dispatch:

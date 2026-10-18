@@ -173,6 +173,7 @@ import {
   getKnowledgeAgentHandoffEventName,
   isKnowledgeAgentHandoffEvent,
   requestKnowledgeCitationOpen,
+  setConversationSelectionReferenceScope,
 } from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
@@ -1201,10 +1202,13 @@ function ConversationComposerImpl({
         detail.result = { ok: false, reason: "draft-not-empty" };
         return;
       }
-      const appended = appendConversationSelectionReferences(
-        getConversationSelectionReferenceScope(sessionId, workspaceKey),
-        detail.references,
-      );
+      // ui-cite-a-3 修复（2026-10-18 终审）：handoff 是「文本 + 引用 scope」两半一次事务。
+      // 此前 append 成功后若 setText/updateText/commit 任一抛错（如 commit 在
+      // setConversationSelectionReferenceScope 之后、事件分发之前失败），已写入的 receipt
+      // 引用会残留成孤儿——与后续草稿混用触发 manifest mismatch，并因 scope 非空把之后的
+      // handoff 全部拒成 draft-not-empty。失败路径统一恢复 append 前快照，保证一致回退。
+      const scopeBeforeAppend = getConversationSelectionReferenceScope(sessionId, workspaceKey);
+      const appended = appendConversationSelectionReferences(scopeBeforeAppend, detail.references);
       if (!appended.ok) {
         detail.result = appended;
         return;
@@ -1218,6 +1222,7 @@ function ConversationComposerImpl({
         detail.result = appended;
         requestComposerFocus();
       } catch {
+        setConversationSelectionReferenceScope(sessionId, workspaceKey, scopeBeforeAppend);
         detail.result = { ok: false, reason: "unavailable" };
       }
     };

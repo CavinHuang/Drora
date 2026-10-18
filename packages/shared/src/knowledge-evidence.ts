@@ -4,7 +4,9 @@
  * 单一出处：本文件是 evidence 契约字面量的唯一定义处，两侧同时引用——
  * - 宿主（packages/services）：`evidence_receipts` 表 DDL / 列名 / 状态机；
  * - CLI Runtime gate（apps/drora-cli/packages/bootstrap）：只读 SELECT 列清单 / guard
- *   reasonCode / 引用上限。
+ *   reasonCode / 引用上限；
+ * - 两侧共用的数据文件名（vault-config.json / knowledge-index.sqlite）与摘录界值
+ *   亦在此收口（PR #23 终审 conv-1 / shared-3）。
  * 任何一侧不得手写第二份字面量（AGENTS.md「契约键单一出处」）。
  *
  * 安全不变量：跨进程/跨线只传 opaque receiptId；relativePath/fileSha/quote 等
@@ -21,6 +23,21 @@ export const MAX_EVIDENCE_REFS_PER_INPUT = 8;
 
 /** opaque receipt id 前缀；解析时校验形状，杜绝把任意字符串当账本键扫表。 */
 export const KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX = "evr_";
+
+/**
+ * Vault 配置唯一事实源文件名（PR #23 终审 conv-1 收口）：services obsidian-vault
+ * 门面写入、CLI gate（vault-config-reader）只读镜像的是同一物理文件，此前两侧
+ * 各手写一份字面量——漂移即两侧读到不同配置。obsidian-plugin 包因不依赖
+ * @drora/shared，其本地副本豁免（终审判定已记录）。
+ */
+export const VAULT_CONFIG_FILE_NAME = "vault-config.json";
+
+/**
+ * 知识索引/账本库文件名（PR #23 终审 conv-1 收口）：<数据根>/knowledge/ 下与
+ * services sourceRegistry（getDroraDataRootDir 推导）和 CLI gate（DRORA_DATA_BASE_DIR
+ * 推导）两侧独立构造的路径必须落在同一物理文件上，文件名在此单一出处。
+ */
+export const KNOWLEDGE_INDEX_DB_FILE_NAME = "knowledge-index.sqlite";
 
 /**
  * 引用解析状态机（服务端 resolveCitation 与 CLI gate 共用语义）：
@@ -41,6 +58,9 @@ export const KNOWLEDGE_EVIDENCE_REASONS = {
   fileDeleted: "file_deleted",
   fileModified: "file_modified",
   quoteMoved: "quote_moved",
+  // gate 自身不可用（配置/DB 读取失败）：spec §5.3 已记为正式拒绝原因——fail-closed
+  // 拒绝、不 fail-open；此前 CLI 侧 4 处手写该字面量未收口（PR #23 终审 shared-2）。
+  gateUnavailable: "gate_unavailable",
 } as const;
 export type KnowledgeEvidenceReason =
   (typeof KNOWLEDGE_EVIDENCE_REASONS)[keyof typeof KNOWLEDGE_EVIDENCE_REASONS];
@@ -151,11 +171,18 @@ export function normalizeContentForQuoteSelector(content: string): string {
 }
 
 /**
+ * 摘录字符上限（PR #23 终审 shared-3 收口）：回执摘录（knowledgeEvidenceExcerpt）
+ * 与检索候选 excerpt 窗口（services lexicalRetriever）**同界**——候选展示即回执
+ * 预览，两侧此前各写一份 240，漂移会造成「候选看到的与复验回执不一致」。
+ */
+export const KNOWLEDGE_EXCERPT_MAX_CHARS = 240;
+
+/**
  * Quote excerpt projection shared by the Receipt issuer and renderer readback.
  * Keep truncation and whitespace normalization in one place.
  */
 export function knowledgeEvidenceExcerpt(content: string): string {
   const compact = content.replace(/\s+/gu, " ").trim();
-  const maxChars = 240;
+  const maxChars = KNOWLEDGE_EXCERPT_MAX_CHARS;
   return compact.length > maxChars ? `${compact.slice(0, maxChars)}…` : compact;
 }

@@ -53,7 +53,10 @@ export interface ConversationRowRenderContext {
   codePreviewSettings: CodePreviewSettings;
   /** 当前 pane 绑定的父 session；subagent 右侧 tab 用它做父任务分组。 */
   sessionId?: string | null;
-  /** The enclosing turn's admitted Obsidian source indices (1–5), not model claims. */
+  /**
+   * 当前 turn 已准入的 Obsidian 来源编号（1–8，上限取 wire 契约 MAX_EVIDENCE_REFS_PER_INPUT），
+   * 不是模型自述。ui-cite-a-4（2026-10-18 终审）：旧注释「1–5」与读取端契约上限 8 不一致。
+   */
   knowledgeCitationIndices?: readonly number[];
   /** Remount Markdown renderer on a different turn / source Receipt map. */
   knowledgeCitationScopeKey?: string;

@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "caseName": "R6-source-manifest-guard",
+  "spec": "./test/e2e/acceptance/r6-source-manifest-guard.test.ts",
+  "fixtures": [
+    {
+      "id": "r6-manifest-title",
+      "description": "Deterministic session title",
+      "metadata": {
+        "kind": "common",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Title generation is outside the evidence authority chain"
+      },
+      "maxMatches": 12,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r6-manifest-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{\"content\":\"{\\\"title\\\":\\\"R6 Source Manifest Guard E2E\\\"}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-title\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r6-manifest-session-start",
+      "description": "Initialize a real CLI session before any Vault handoff",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply only establishes the session; receipts stay host-issued"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R6_SESSION_START"],
+        "bodyIncludes": ["R6_SESSION_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r6-manifest-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{\"content\":\"R6_SESSION_START: the existing session is idle and ready for the multi-source handoff checks.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-session-start\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    },
+    {
+      "id": "r6-manifest-g27-admit",
+      "description": "G27 positive control: question-only edit keeps both verified excerpts in the model input",
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "Deterministic reply verifies real CLI admission re-checked both receipts; the model never receives receipt ids"
+      },
+      "maxMatches": 3,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/chat/completions",
+        "lastUserMessageIncludes": ["R6_G27_QUESTION_EDITED"],
+        "bodyIncludes": [
+          "R6_G27_QUESTION_EDITED",
+          "R6SourceAlpha2026",
+          "R6SourceBeta2026",
+          "来源索引（顺序与附带的原文证据片段一致）："
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "R6INVALIDATED"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "data: {\"id\":\"r6-manifest-g27-admit\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-g27-admit\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{\"content\":\"R6_G27_ANSWER: the CLI gate re-checked both receipts after the question-only edit; sources [1] and [2] stayed admitted.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"r6-manifest-g27-admit\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"e2e-r6-manifest-guard-model\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":70,\"total_tokens\":155}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

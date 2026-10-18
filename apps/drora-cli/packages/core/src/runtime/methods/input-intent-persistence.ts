@@ -24,9 +24,9 @@ export function buildPersistedConversationInputIntent(
   return {
     ...(intent.inputOrigin ? { inputOrigin: intent.inputOrigin } : {}),
     ...(intent.conversationQuotes ? { conversationQuotes: intent.conversationQuotes } : {}),
-    // Persist only the already CLI-admitted opaque receipts. Cold hydration
-    // reconstructs provenance from this schema-validated durable intent,
-    // never from model text, source labels, or an unverified path.
+    // 只持久化已经过 CLI admission 校验的 opaque 回执（evidenceRefs）。冷恢复的溯源
+    // 只能从这份经 schema 校验的持久 intent 重建，绝不能从模型文本、来源标签或未验证
+    // 路径重建——否则 live 与 cold 会出现两套输入事实（见本文件头部不变量）。
     ...(intent.evidenceRefs?.length ? { evidenceRefs: [...intent.evidenceRefs] } : {}),
     ...(intent.botGroupSource ? { botGroupSource: intent.botGroupSource } : {}),
     sourceCommandId: intent.sourceCommandId,

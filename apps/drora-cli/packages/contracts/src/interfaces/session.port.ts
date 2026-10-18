@@ -24,6 +24,10 @@ import type { GoalCompletionVerificationOutput } from "../tools/target.js";
 import type { PermissionOptionsPolicy, PermissionUpdate } from "./permission.port.js";
 import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
 import type { ModelSelection } from "../model/model.js";
+// 修复（2026-10-18 终审 cli-proto-2）：evidenceRefs 形状改为引用 @drora/shared
+// KnowledgeEvidenceRef，契约形状单一出处（AGENTS.md「契约键单一出处」先例见
+// execution.port.ts 的 @drora/shared type import）。
+import type { KnowledgeEvidenceRef } from "@drora/shared";
 
 // -----------------------------------------------
 // Collaboration Mode and Risk Level
@@ -398,7 +402,7 @@ export interface TurnInputIntentMetadata {
    * 同一组 refs 执行时复验（排队期间改文件/撤权/切库 → 旧 evidence 不当 current）。
    * 形状单一出处 = @drora/shared KnowledgeEvidenceRef。
    */
-  evidenceRefs?: Array<{ receiptId: string }>;
+  evidenceRefs?: Array<KnowledgeEvidenceRef>;
   /** edit/retry 重建的新 command 对原始 canonical input cause 的稳定追溯。 */
   provenance?: {
     sourceCommandId: string;

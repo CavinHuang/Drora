@@ -131,8 +131,12 @@ export function KnowledgeReviewProposalComposer({
   }
 
   const blocked = working || disabled || !reviewService || !vaultService;
+  // ui-know-a-3 修复（2026-10-18 终审）：原生 input/select/textarea 此前误用卡片容器令牌
+  // （bg-background/border-card-border），不符合 DESIGN.md Inputs 规范（默认 bg-input/
+  // border-input-border，hover border-input-border-hover，focus border-input-border-focused +
+  // bg-input-focused）；与 ui/input.tsx 的共享 Input 组件同令牌族，不新造样式维度。
   const fieldStyle =
-    "w-full min-w-0 rounded-lg border border-card-border bg-background px-3 py-2 text-ui-sm text-foreground";
+    "w-full min-w-0 rounded-lg border border-input-border bg-input px-3 py-2 text-ui-sm text-foreground transition-colors outline-none placeholder:text-foreground-subtlest hover:border-input-border-hover focus-visible:border-input-border-focused focus-visible:bg-input-focused disabled:cursor-not-allowed disabled:opacity-50";
   return (
     <form
       className="rounded-xl border border-card-border bg-card p-4"

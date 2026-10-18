@@ -15,6 +15,7 @@
  * epoch 失效重建，属低频显式操作。早期「翻转不换 epoch」表述已废弃。
  */
 import { join } from "node:path";
+import { KNOWLEDGE_INDEX_DB_FILE_NAME } from "@drora/shared";
 import {
   loadVaultConfig,
   vaultSummary,
@@ -45,7 +46,10 @@ function sourceFingerprint(vaultId: string, configuredAt: number): string {
 
 /** Profile 维度的知识索引库路径：<数据根>/.drora/knowledge/knowledge-index.sqlite。 */
 export function resolveKnowledgeDatabasePath(): string {
-  return join(getDroraDataRootDir(), "knowledge", "knowledge-index.sqlite");
+  // 收口（PR #23 终审 conv-1）：库文件名常量单一出处 @drora/shared，与 CLI gate 的
+  // resolveKnowledgeDatabasePathForGate 指向同一物理文件；此前两侧独立构造路径，
+  // 文件名漂移即宿主写一份账本、gate 读另一份。
+  return join(getDroraDataRootDir(), "knowledge", KNOWLEDGE_INDEX_DB_FILE_NAME);
 }
 
 /**

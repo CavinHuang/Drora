@@ -8,12 +8,13 @@ import type { IKnowledgeQueryService, KnowledgeArticleCandidate } from "@drora/s
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { toast as droraToast } from "@/components/ui/toast.js";
 import {
-  createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  getConversationSelectionReferenceScope,
   requestKnowledgeAgentHandoff,
   type MarkdownSelectionTarget,
 } from "@/lib/conversationSelectionReference.js";
 import {
+  createKnowledgeAttachReference,
   prepareKnowledgeAgentHandoff,
   sameKnowledgeHandoffScope,
   type KnowledgeHandoffScope,
@@ -26,7 +27,9 @@ export function useKnowledgeAgentActions(params: {
   state: KnowledgeAskState;
   submitSeqRef: React.RefObject<number>;
   selectionVersionRef: React.RefObject<number>;
-  verifyEvidence: (candidate: KnowledgeArticleCandidate) => Promise<KnowledgeEvidenceInspectState | null>;
+  verifyEvidence: (
+    candidate: KnowledgeArticleCandidate,
+  ) => Promise<KnowledgeEvidenceInspectState | null>;
   onAgentHandoffPrepared?: () => void;
 }): {
   addingArticleId: string | null;
@@ -35,7 +38,15 @@ export function useKnowledgeAgentActions(params: {
   handoffQuestionToAgent: () => Promise<void>;
 } {
   const { intl } = useDroraIntl();
-  const { queryService, selectionTarget, state, submitSeqRef, selectionVersionRef, verifyEvidence, onAgentHandoffPrepared } = params;
+  const {
+    queryService,
+    selectionTarget,
+    state,
+    submitSeqRef,
+    selectionVersionRef,
+    verifyEvidence,
+    onAgentHandoffPrepared,
+  } = params;
   const [addingArticleId, setAddingArticleId] = React.useState<string | null>(null);
   const [handoffBusy, setHandoffBusy] = React.useState(false);
   // Ref locks are synchronous: double-clicks must not start two receipt batches.
@@ -44,7 +55,16 @@ export function useKnowledgeAgentActions(params: {
   const latestRef = React.useRef<{
     queryService: IKnowledgeQueryService | null;
     scope: KnowledgeHandoffScope;
-  }>({ queryService: null, scope: { runId: null, sessionId: null, workspaceKey: null, articleIds: [], selectionVersion: 0 } });
+  }>({
+    queryService: null,
+    scope: {
+      runId: null,
+      sessionId: null,
+      workspaceKey: null,
+      articleIds: [],
+      selectionVersion: 0,
+    },
+  });
   latestRef.current = {
     queryService,
     scope: {
@@ -59,7 +79,9 @@ export function useKnowledgeAgentActions(params: {
   const addVerifiedEvidenceToAgent = React.useCallback(
     async (candidate: KnowledgeArticleCandidate): Promise<void> => {
       if (!selectionTarget?.sessionId) {
-        droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), { variant: "warning" });
+        droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), {
+          variant: "warning",
+        });
         return;
       }
       if (addingRef.current) return;
@@ -79,14 +101,14 @@ export function useKnowledgeAgentActions(params: {
           latest.scope.runId !== runId ||
           latest.scope.sessionId !== targetSession ||
           latest.scope.workspaceKey !== targetWorkspace
-        ) return;
-        const reference = createConversationSelectionReference({
-          contentType: "markdown",
-          sourceKey: `vault:${proof.relativePath}`,
-          sourceTitle: proof.title,
-          path: proof.relativePath,
-          text: proof.excerpt,
-          evidenceReceiptId: proof.receiptId,
+        )
+          return;
+        // ui-know-b-1（2026-10-18 终审）：经 createKnowledgeAttachReference 构造——与
+        // handoff 草稿混用（同来源去重替换）时镜像 evidenceSource.index，消除整批
+        // manifest mismatch；独立单加语义不变。
+        const reference = createKnowledgeAttachReference({
+          scope: getConversationSelectionReferenceScope(targetSession, targetWorkspace),
+          proof,
         });
         const result = dispatchConversationSelectionAdd({
           targetSessionId: targetSession,
@@ -97,7 +119,10 @@ export function useKnowledgeAgentActions(params: {
         if (!result.ok) {
           droraToast(
             intl.formatMessage({
-              id: result.reason === "count" ? "vault.selection.limitReached" : "vault.selection.tooLong",
+              id:
+                result.reason === "count"
+                  ? "vault.selection.limitReached"
+                  : "vault.selection.tooLong",
             }),
             { variant: "warning" },
           );
@@ -107,13 +132,23 @@ export function useKnowledgeAgentActions(params: {
         setAddingArticleId(null);
       }
     },
-    [intl, onAgentHandoffPrepared, queryService, selectionTarget, state.current?.run.runId, submitSeqRef, verifyEvidence],
+    [
+      intl,
+      onAgentHandoffPrepared,
+      queryService,
+      selectionTarget,
+      state.current?.run.runId,
+      submitSeqRef,
+      verifyEvidence,
+    ],
   );
 
   const handoffQuestionToAgent = React.useCallback(async (): Promise<void> => {
     const round = state.current;
     if (!queryService || !selectionTarget?.sessionId || !round) {
-      droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), { variant: "warning" });
+      droraToast(intl.formatMessage({ id: "vault.ask.candidate.needSession" }), {
+        variant: "warning",
+      });
       return;
     }
     const intent = round.intent;
@@ -143,9 +178,12 @@ export function useKnowledgeAgentActions(params: {
         scope.selectionVersion !== selectionVersionRef.current ||
         latestRef.current.queryService !== queryService ||
         !sameKnowledgeHandoffScope(scope, latestRef.current.scope)
-      ) return;
+      )
+        return;
       if (!preparation.ok) {
-        droraToast(intl.formatMessage({ id: `vault.ask.handoff.error.${preparation.reason}` }), { variant: "warning" });
+        droraToast(intl.formatMessage({ id: `vault.ask.handoff.error.${preparation.reason}` }), {
+          variant: "warning",
+        });
         return;
       }
       const result = requestKnowledgeAgentHandoff({
@@ -155,7 +193,9 @@ export function useKnowledgeAgentActions(params: {
         references: preparation.references,
       });
       if (!result.ok) {
-        droraToast(intl.formatMessage({ id: `vault.ask.handoff.error.${result.reason}` }), { variant: "warning" });
+        droraToast(intl.formatMessage({ id: `vault.ask.handoff.error.${result.reason}` }), {
+          variant: "warning",
+        });
         return;
       }
       droraToast(intl.formatMessage({ id: "vault.ask.handoff.prepared" }));
@@ -164,7 +204,16 @@ export function useKnowledgeAgentActions(params: {
       handoffRef.current = false;
       setHandoffBusy(false);
     }
-  }, [intl, onAgentHandoffPrepared, queryService, selectionTarget, state.current, state.selectedArticleIds, submitSeqRef, selectionVersionRef]);
+  }, [
+    intl,
+    onAgentHandoffPrepared,
+    queryService,
+    selectionTarget,
+    state.current,
+    state.selectedArticleIds,
+    submitSeqRef,
+    selectionVersionRef,
+  ]);
 
   return { addingArticleId, handoffBusy, addVerifiedEvidenceToAgent, handoffQuestionToAgent };
 }

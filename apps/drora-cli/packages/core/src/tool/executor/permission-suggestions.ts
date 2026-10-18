@@ -25,8 +25,8 @@ export function buildDefaultPermissionUpdates(
 
   const ruleContent = ruleContentFromInput(input);
   // S03 洞 2 建议侧（specs/agent-write-safety.md §2）：P0 工具（Bash/js/所有普通 MCP）
-  // 提取不到内容时不给「总是允许」建议。MCP 自报 readOnlyHint 不可信；Bash 走自有
-  // rulePolicy（内容级建议），正常到不了这里。
+  // 一律不给「总是允许」建议——能否提取到内容都不给。MCP 自报 readOnlyHint 不可信；
+  // Bash 走自有 rulePolicy（内容级建议），正常到不了这里。
   // 普通 MCP/js 的单个 path/command 不代表完整负载，不能据此持久放行任意代码。
   if (isP0WriteTarget({ toolName, ...capability })) {
     return [];

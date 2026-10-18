@@ -815,3 +815,21 @@ core 79 + ui 52 测试绿)。补充登记:
    机制(评估过承载面),但 v1 无真实消费场景实证;建议随真实使用反馈再接,避免空转面。
 6. **token 预算 defer(残留)**:usage 聚合进 A 区 usage 投影是独立特性(spec §12 M4
    原文),不在本批;成员数/板容量两维预算已生效,token 维度登记为 M4 残留待续。
+
+### 实现登记(2026-10-18,真实实例验收——发现 slashCommands 失效缺口)
+
+dev:desktop 真实实例 + CDP 验收。**已实证通过**:settings `agentsTeam.enabled=true` 写入
+~/.drora/cli/config.json 后灰度面生效链、CDP 驱动(9229)、composer 注入、草稿跨重启持久、
+可用性门拦截无模型发送、cherry-pick 0bd6aa18(droraCuaPlaceholder 占位修复,基线缺失会
+dev:desktop 启动即崩)。**发现真实缺陷(PR-2.5b 头号项)**:
+
+- **slashCommands 目录不随 install 失效**:App 启动窗口期(装配完成前)渲染进程首拉
+  workspace-config/session 快照,slashCommands 被定为不含 team 的目录并缓存;install 完成
+  (hub 注册)后**无失效机制**,刷新页面/重开菜单仍读旧目录——/team 不出现在斜杠面板。
+- **实证**:文件埋点显示时序 `SLASH agents=false`(目录含 team,白名单修复已在 bundle)
+  → `INSTALL sess_…`;重载页面后无新 SLASH 装配调用(目录来自会话快照缓存)。
+- **修复方向(PR-2.5b)**:TeamStateChanged 时失效/重推该会话 slashCommands(键级 delta 或
+  会话快照 revision 抬升);或 install 同步先于渲染进程首次订阅(装配顺序前移)。
+- **dev 基建陷阱(两次踩实)**:dev:desktop 构建脚本对 cli/dist/drora.cjs 存在即复用旧
+  bundle(脚本注释自认"陈旧 3 天,改动静默不生效")——CLI 侧改动后必须删
+  `apps/drora-cli/packages/cli/dist/drora.cjs` 再启动,否则「改动没进去」伪装成「代码没作用」。

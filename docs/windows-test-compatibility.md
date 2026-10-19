@@ -15,6 +15,11 @@ Windows 的 `globSync` 返回反斜杠，发现结果必须先归一为相对仓
 还原后的同一路径；不能将 `file:///tmp/...` 当作 Windows 有效盘符路径。转换失败场景
 使用非法百分号编码，不能以 Windows 合法的 UNC URL 作为跨平台非法输入。
 
+Provider Bundled 固定资源的并发验收通过真实 Source 与 materializer 的既有同路径锁进行，
+Windows 也必须执行；真实读取句柄关闭后才允许提交替换。持续裸读目标并同时反复切换
+安装包内容是额外的 POSIX 压力场景，不能当成 Windows 升级契约，也不能以此增加重试
+或改成非原子覆盖写。完整场景与事件顺序见 `specs/provider-bundled-persistence.md`。
+
 ## 背景
 
 Windows 开发机上 `pnpm test` 曾大面积失败（56 文件 / 161 用例）并间歇性以

@@ -1235,12 +1235,9 @@ describe("G interleaving and late-arrival acceptance: G11/G20/G21/G22 in one rea
     // （上方证据链），默认跳过以保持本 spec 其余 4 个用例（G11/G20 主 it/G21/G22）
     // 的真实 CI 门禁力；G20 判定仍按 FAIL 记录（见
     // docs/vaultview/delivery/G_BACKLOG_AUTOMATION_2026-10-18.md），不折算 PASS。
-    // 重新启用条件：usePreviousKnowledgeActions.ts 的 finally/onOpenNote 竞态
-    // （上方 D-G20-1 证据链）修复落地后，在标准单 spec 运行命令前追加
-    // DRORA_E2E_PROBE_D_G20_1=1 重跑，探针转绿即撤销本 skip。
-    if (!process.env.DRORA_E2E_PROBE_D_G20_1) {
-      this.skip();
-    }
+    // D-G20-1 已于 2026-10-19 修复（usePreviousKnowledgeActions 导航闭包与 busy
+    // token 解耦，见该文件 D-G20-1 注释）：本用例撤销 skip 转为默认回归守卫。
+
     await returnToChatView(sessionAId!);
     await openVaultAsk();
     await submitAskQuery("find", G20_TOKEN);

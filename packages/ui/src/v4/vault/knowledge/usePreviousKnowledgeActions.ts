@@ -53,12 +53,31 @@ export function usePreviousKnowledgeActions({
   openFollowUpSideChat: (candidate: KnowledgeArticleCandidate) => void;
 } {
   const { intl } = useDroraIntl();
-  const [openingPreviousId, setOpeningPreviousId] = React.useState<string | null>(null);
+  const [openingPreviousId, setOpeningIdState] = React.useState<string | null>(null);
   const openingPreviousRef = React.useRef<{ articleId: string; seq: number } | null>(null);
+  // D-G20-1 修复（2026-10-18 G 覆盖轮实证）：isCurrent 闭包此前读
+  // openingPreviousRef（busy token），而 finally 在 onOpenNote 的 fire-and-forget
+  // 导航仍在途时同 tick 清空它——VaultView openFile 首过 isCurrent 后在
+  // await flushCurrentEditor 让出微任务，恢复时二次 isCurrent 恒 false，
+  // 「上一轮候选打开原文」整族（G17/G20/G28 历史路径）确定性静默失败。
+  // 修法对齐当前轮 openCurrentCandidate 的自包含闭包先例：导航有效性判
+  // mountedRef + openEpoch + submitSeq，与 busy token 解耦——busy 态照常即时复位。
+  const mountedRef = React.useRef(true);
+  const openEpochRef = React.useRef(0);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      openEpochRef.current += 1;
+    };
+  }, []);
+
+  const setOpeningPreviousId = setOpeningIdState;
 
   const cancelPendingPrevious = React.useCallback((): void => {
+    openEpochRef.current += 1;
     openingPreviousRef.current = null;
-    setOpeningPreviousId(null);
+    setOpeningIdState(null);
   }, []);
 
   const runPreviousCandidateAction = React.useCallback(
@@ -72,6 +91,9 @@ export function usePreviousKnowledgeActions({
       }
       const seq = submitSeqRef.current;
       const token = { articleId: candidate.articleId, seq };
+      // 新动作使旧的在途导航失效（快速连点时只认最新一次）。
+      openEpochRef.current += 1;
+      const epoch = openEpochRef.current;
       openingPreviousRef.current = token;
       setOpeningPreviousId(candidate.articleId);
       try {
@@ -87,10 +109,16 @@ export function usePreviousKnowledgeActions({
             // D-5 修复（2026-10-17 增量评审）：与当前轮 openCurrentCandidate 同防护强度——
             // 携带 isCurrent/expectedExcerpt/expectedFileSha256，VaultView 侧据此装配
             // validateRead 二次读回校验；resolveCitation 之后文件被改时不按旧行号锚定。
+            // isCurrent 为自包含闭包（D-G20-1）：不读会被 finally 即时清空的 busy
+            // token，导航全程有效；取消/新动作/新检索/卸载各自经 epoch/seq/mounted 使
+            // 其失效。证实时（old refs 仍用于 busy 守卫，命名沿用）导航闭包不用它。
             onOpenNote(
               proof.relativePath,
               proof.quote,
-              () => openingPreviousRef.current === token,
+              () =>
+                mountedRef.current &&
+                epoch === openEpochRef.current &&
+                seq === submitSeqRef.current,
               proof.excerpt,
               candidate.fileSha256,
             );

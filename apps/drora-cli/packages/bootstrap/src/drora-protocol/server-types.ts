@@ -181,7 +181,7 @@ export interface DroraProtocolAgentServerContext {
       | {
           ok: false;
           guard: KnowledgeEvidenceGuard;
-          reason: KnowledgeEvidenceReason | "gate_unavailable";
+          reason: KnowledgeEvidenceReason;
         }
     >;
   };

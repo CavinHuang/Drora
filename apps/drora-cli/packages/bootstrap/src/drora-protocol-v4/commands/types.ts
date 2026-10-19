@@ -252,7 +252,7 @@ export interface V4CommandCoreHost {
     | {
         ok: false;
         guard: KnowledgeEvidenceGuard;
-        reason: KnowledgeEvidenceReason | "gate_unavailable";
+        reason: KnowledgeEvidenceReason;
       }
   >;
 

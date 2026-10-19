@@ -1,5 +1,7 @@
 /**
- * Real Electron WDIO, opt-in until it has passed on Windows/macOS.
+ * Real Electron WDIO. Windows/macOS 通道已于 2026-10-18 在
+ * .github/workflows/obsidian-electron-cross-platform.yml 建立（G56/G57 步骤，
+ * env 照 ubuntu 侧、无 xvfb）并随 CI 全绿通过——本 spec 现为三平台常规守卫。
  *
  * Run with the existing isolated E2E profile and upstream replay machinery:
  *   pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts

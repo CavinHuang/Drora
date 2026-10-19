@@ -63,7 +63,7 @@ The Electron suites use deterministic replay for model response text only. Vault
 | G37 — 未知 [9] 提示且只有真实 Receipt 可点 | 生成式引用识别为 display-only 并浮出未知编号 | 同上文件（recognizes generated citations as display-only and surfaces unknown indices） | 渲染面 |
 | G38 — 已知来源标「回答提及」不标「已核实」、缺口计数 | 长回答段落审计只统计归属缺口，不把文本升格为可信 receipt | 同上文件（audits long answer paragraphs without promoting text to trusted receipts） | 渲染面 |
 | G39 — 代码块/链接/标题中的编号不计入有效标注 | 纯代码回答覆盖审计为空且不声称事实核验；既有链接/行内与围栏代码/引用/表格/标题不改写 | `packages/ui/test/knowledgeTurnCitations.test.ts`（returns empty coverage for code-only answers…）+ `packages/ui/test/knowledgeCitationMarkdown.test.ts`（does not rewrite existing Markdown links, inline/fenced code, quotes, tables or headings） | 渲染面 |
-| G41 — 正文 [n] 变为可点击并按 Receipt 回跳 | 点击真实 Markdown 源只打开新鲜 resolve 的笔记+quote；过期 Receipt 点击被拒不打开 | `packages/ui/test/messageCitationOpenIntegration.test.ts`（clicks the actual Markdown source…、rejects an expired Receipt…） | jsdom 集成级，非真 Electron；渲染层 [1-5] 与上限 8 差异为终审 ui-cite-b-1 另案 |
+| G41 — 正文 [n] 变为可点击并按 Receipt 回跳 | 点击真实 Markdown 源只打开新鲜 resolve 的笔记+quote；过期 Receipt 点击被拒不打开 | `packages/ui/test/messageCitationOpenIntegration.test.ts`（clicks the actual Markdown source…、rejects an expired Receipt…） | jsdom 集成级，非真 Electron；渲染层上限已随 ui-cite-b-1 修复对齐契约常量 8（2026-10-18 落地，含两位数前瞻守卫） |
 | G43 — 伪造 [1](#drora-knowledge-source-1) 不产生可信跳转 | 点击模型伪造 hash 链接不派发导航事件 | 同上文件（does not dispatch when clicking a model-authored fake hash link）；真 Electron 同语义见 G56/G57 回执 | 与 G56/G57 场景的完全等价性 |
 | G44 — 代码/标题/表格/已有链接中的 [1] 不变可点 | 重复/嵌套 prose 标记处理且显式 Markdown 链接原样保留；未知标记不链接 | `packages/ui/test/knowledgeCitationMarkdown.test.ts`（handles repeated/nested prose markers and leaves explicit Markdown links alone；links only canonical allow-listed indices…） | 渲染面 |
 

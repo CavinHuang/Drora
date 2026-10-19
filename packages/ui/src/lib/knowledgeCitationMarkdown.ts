@@ -34,6 +34,15 @@ interface MarkdownNode {
 // evidenceRefs 在渲染层被静默丢弃。三处 [1-5] 边界（正文标记、href 解析、scope 定义
 // 标识）与两处数值过滤统一改为由契约常量构造/比较，契约调整时渲染层自动跟随。
 const MAX_CITATION_INDEX = MAX_EVIDENCE_REFS_PER_INPUT;
+// 两位数前瞻守卫（2026-10-18 终审清理项）：`[1-${N}]` 字符类只在 N ≤ 9 时语义正确，
+// 契约上限调到 ≥10 时字符类会静默变成 `[1-1` 或 `1-0` 的歧义形态——这里在模块加载期
+// 硬失败，强制调整者改用 buildIndexClass 的显式分组写法，杜绝静默错配。
+if (MAX_CITATION_INDEX > 9) {
+  throw new Error(
+    `MAX_EVIDENCE_REFS_PER_INPUT=${String(MAX_CITATION_INDEX)} 超出 [1-N] 字符类的安全范围（>9），` +
+      "请把 CITATION_TEXT/CITATION_HREF/CITATION_SCOPE_IDENTIFIER 改用显式分组（如 (?:[1-9]|1[0-5])）后更新本守卫。",
+  );
+}
 const CITATION_TEXT = new RegExp(`\\[([1-${MAX_CITATION_INDEX}])\\]`, "g");
 const CITATION_HREF = new RegExp(
   `^#drora-knowledge-source-([1-${MAX_CITATION_INDEX}])--([a-zA-Z0-9_-]+)$`,

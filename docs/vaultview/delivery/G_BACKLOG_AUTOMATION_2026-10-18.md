@@ -121,3 +121,7 @@ g-hint 批三轮观察到桌面 app 在 G30 turn 完成后数秒内被外部整�
 - `pnpm architecture:check -- --changed`：exit=0。
 - `pnpm exec oxfmt`（三个触碰的 spec .ts）：exit=0，无 diff。
 - 三个 spec 真实 Electron 运行：g-interleaving exit=0（本次收尾复跑，4 passing + 1 skipped）；g-citation-open-errors exit=0、g-hint-and-plain-selection exit=0（三批运行 artifact 见上，spec 未被收尾改动）。
+
+## 2026-10-19 补记 · D-G20-1 修复与 G20 转正
+
+产品缺陷 D-G20-1（usePreviousKnowledgeActions.ts finally 与未 await 的 onOpenNote 竞态，见上文根因链）已于 2026-10-19 修复：导航 isCurrent 闭包改为自包含（mountedRef + openEpoch + submitSeq，对齐当前轮 openCurrentCandidate 先例），与 finally 即时清空的 busy token 解耦；取消/新动作/新检索/卸载各失效路径保持不变。g-interleaving.test.ts 的正向对照探针撤销 DRORA_E2E_PROBE_D_G20_1 门控、转为默认回归守卫。G20 在 SMOKE 矩阵改记 PASS（2026-10-19）。

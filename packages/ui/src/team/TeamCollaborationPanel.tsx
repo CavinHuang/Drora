@@ -5,14 +5,16 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { TEAM_LEAD_ASSIGNEE } from "@drora/shared/drora-protocol-v4";
 import { buildTeamRelations, teamTasks, type TeamRelationLayer } from "./relations.js";
 import { TeamRelationGraph } from "./TeamRelationGraph.js";
-import type { TeamPanelMemberView, TeamPanelModel } from "./view-model.js";
+import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./view-model.js";
 
 export function TeamCollaborationPanel({
   model,
   onMemberClick,
+  onTaskClick,
 }: {
   model: TeamPanelModel;
   onMemberClick?: (member: TeamPanelMemberView) => void;
+  onTaskClick?: (task: TeamPanelTaskView) => void;
 }) {
   const { intl } = useDroraIntl();
   const t = (id: string, values?: Record<string, string | number>) =>
@@ -158,6 +160,17 @@ export function TeamCollaborationPanel({
                 onClick={() => onMemberClick(owner)}
               >
                 {t("team.ui.memberOpen")}
+                <ArrowUpRightIcon className="size-3.5" />
+              </Button>
+            ) : null}
+            {(node?.task ?? selectedTask) && onTaskClick ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 ml-1 pointer-coarse:min-h-11"
+                onClick={() => onTaskClick((node?.task ?? selectedTask)!)}
+              >
+                {t("team.ui.currentTask")}
                 <ArrowUpRightIcon className="size-3.5" />
               </Button>
             ) : null}

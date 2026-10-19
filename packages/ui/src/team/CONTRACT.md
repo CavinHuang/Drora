@@ -1,5 +1,9 @@
 # ui-team（Agents Team 面板）
 
+2026-10-19 对话优先：导航增加 TeamUiFocus 与 useTeamFocus，按 workspace 身份、父会话和 teamId
+隔离本地定位请求；TeamPanel 接受可选历史 connection 与任务引用回调。默认总览，另有过程/
+协作。只读 getTeamHistory 走 hooks 与既有 v4 transport；历史只保留一页，不写回业务状态。
+
 2026-10-19：公开入口新增 TeamNavigationProvider / TeamOpenTarget、TeamConversationSummary、
 TeamSessionLine、TeamCollaborationPanel。导航只携带父会话与 workspace 三键，主体只消费投影。
 依赖/消息/交接是局部图层；交接没有证据时为空。文案置于 ui/i18n/teamMessages.ts，避免

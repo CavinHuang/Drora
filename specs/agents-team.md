@@ -1,5 +1,14 @@
 # Agents Team（多代理团队）设计 spec
 
+## 对话优先 UI 与历史查询增量（2026-10-19）
+
+用户确认交互设计后实施，细则与验收见
+`docs/agent-team-implementation-2026-10-16/03-conversation-first-ui.md`。
+该增量取代下节“右侧默认协作页”规则：默认总览，另设过程与协作；
+保留草案审批、停止/恢复、成员只读转录及经 lead 邮箱投递的既有行为。
+历史仅来自已保存 journal 的只读分页查询，不以 mailboxTail 冒充历史，
+不承诺重建 journal 未记录的成员 working/terminal 边缘。
+
 ## 三处 UI 实施增量（2026-10-19）
 
 按已确认的 `docs/agent-team-implementation-2026-10-16/02-three-surface-ui-design.md`

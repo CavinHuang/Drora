@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import { createTeamFixture } from "./fixtures/agents-team.fixture.js";
 import { mapTeamProjectionToViewModel } from "../src/team/view-model.js";
 import { buildTeamRelations } from "../src/team/relations.js";
+import { teamFacts, waitingDependencies } from "../src/team/presentation.js";
 
 describe("team relationship evidence", () => {
+  it("keeps failed work in progress totals and does not unlock waiting reviewers", () => {
+    const team = createTeamFixture();
+    team.board.tasks[2]!.status = "failed";
+    const model = mapTeamProjectionToViewModel(team);
+    expect(teamFacts(model)).toMatchObject({ total: 5, completed: 2, blocked: 1 });
+    expect(waitingDependencies(model, model.board.pending[0]!)).toEqual(["T3", "T4"]);
+  });
   it("preserves delivery and attempt provenance and resolves agent ids inside this team", () => {
     const model = mapTeamProjectionToViewModel(createTeamFixture());
     expect(model.name).toBe("界面协作团队");

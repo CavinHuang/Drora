@@ -22,7 +22,11 @@ import type {
 } from "@drora/shared/drora-protocol-v4";
 import type { TeamMutationResult, TeamSendResult } from "@drora/contracts";
 import type { TeamHub } from "@drora/core";
-import { getInstalledTeamHub } from "../../../app/drora-team/install.js";
+import {
+  getInstalledTeamHub,
+  getInstalledTeamHistoryReader,
+} from "../../../app/drora-team/install.js";
+import { TEAM_HISTORY_QUERY, TEAM_HISTORY_UNAVAILABLE } from "@drora/shared/drora-protocol-v4";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost } from "../types.js";
 
@@ -131,9 +135,7 @@ async function reviseTeamPlan(
         spec: {
           goal: task.spec.goal,
           acceptance: [...task.spec.acceptance],
-          ...(task.spec.outputFormat === undefined
-            ? {}
-            : { outputFormat: task.spec.outputFormat }),
+          ...(task.spec.outputFormat === undefined ? {} : { outputFormat: task.spec.outputFormat }),
         },
         ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
         dependsOn: [...task.dependsOn],
@@ -222,6 +224,24 @@ async function setTeamMemberName(
 }
 
 export const teamHandlers = {
+  [TEAM_HISTORY_QUERY]: async (
+    host: V4CommandCoreHost,
+    envelope: CommandEnvelope,
+  ): Promise<CommandResult> => {
+    const { hub, sessionId } = requireTeamHub(host, envelope);
+    const query = envelope.payload as CommandPayloadMap[typeof TEAM_HISTORY_QUERY];
+    if (hub.teamId !== query.teamId)
+      throw new V4TeamRejectedError(
+        "historyTeamMismatch",
+        "Team history belongs to a different team",
+      );
+    const read = getInstalledTeamHistoryReader(sessionId);
+    if (!read)
+      throw Object.assign(new Error("Team history is unavailable"), {
+        reasonCode: TEAM_HISTORY_UNAVAILABLE,
+      });
+    return read(query);
+  },
   approveTeamPlan,
   reviseTeamPlan,
   abandonTeamPlan,

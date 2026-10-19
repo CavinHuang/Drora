@@ -30,6 +30,7 @@ import {
 } from "../drora-protocol/index.js";
 import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { TEAM_COMMAND_PAYLOAD_SCHEMAS } from "./team.js";
+import { TEAM_HISTORY_QUERY_SCHEMAS, teamHistoryResultSchema } from "./team-history.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { conversationInputSourceSchema, evidenceRefSchema } from "./input-intent.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
@@ -290,6 +291,7 @@ export const commandPayloadSchemas = {
   // 全部非行级：团队命令不落 conversation 行，不携 baseRevision（照 resumeWorkflowRun
   // 同类论证，见上方同款注释），不入 COMMANDS_REQUIRING_BASE_REVISION。
   ...TEAM_COMMAND_PAYLOAD_SCHEMAS,
+  ...TEAM_HISTORY_QUERY_SCHEMAS,
 } as const;
 
 export type CommandType = keyof typeof commandPayloadSchemas;
@@ -388,6 +390,7 @@ export function parseCommandEnvelope(
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
+  teamHistoryResultSchema,
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),

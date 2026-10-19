@@ -1,4 +1,4 @@
-// ATUI01–03：真实 React 组件与仓库 CSS；renderer-only，不代表 Host/恢复 E2E。
+// ATUI01–10：真实 React 组件与仓库 CSS；历史 ACK 为 synthetic，journal 数据另有 core 集成测试。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -14,7 +14,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "ATUI01–03 collaboration evidence, navigation scope, responsive themes and states",
+  "ATUI01–10 conversation-first navigation, saved history, stale ACKs and responsive states",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "agents-team-ui-"));
@@ -49,7 +49,9 @@ test(
         errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       const address = server.httpServer.address();
-      await page.goto(`http://127.0.0.1:${address.port}/team-ui-test`);
+      await page.goto(`http://127.0.0.1:${address.port}/team-ui-test`, {
+        waitUntil: "domcontentloaded",
+      });
       await page.getByTestId("team-session-line").waitFor();
       await page.getByTestId("team-session-line").click();
       const navigation = JSON.parse(await page.getByTestId("fixture-navigation").textContent());
@@ -60,6 +62,76 @@ test(
         parentSessionId: "lead-session",
       });
       assert.match(await page.getByTestId("team-conversation-summary").textContent(), /2\/5/);
+      assert.equal(
+        await page.getByTestId("team-view-overview").getAttribute("aria-pressed"),
+        "true",
+      );
+      await page.getByTestId("team-session-members-toggle").click();
+      await page.getByTestId("team-session-member").filter({ hasText: "Frontend" }).click();
+      assert.match(await page.getByTestId("team-selection-details").textContent(), /Frontend/);
+      assert.deepEqual(JSON.parse(await page.getByTestId("fixture-navigation").textContent()), {
+        ...navigation,
+        focus: { teamId: "team-ui", kind: "member", id: "a" },
+      });
+      await page
+        .getByTestId("team-selection-details")
+        .getByRole("button", { name: "T3 · 团队任务板" })
+        .click();
+      await page.getByTestId("team-task-dependency").click();
+      assert.match(await page.getByTestId("team-selection-details").textContent(), /方案审查/);
+      await page.getByTestId("team-details-back").click();
+      await page.getByTestId("team-open-message").last().click();
+      assert.match(await page.getByTestId("team-selection-details").textContent(), /attempt-a2/);
+      await page.getByTestId("team-message-task").click();
+      assert.match(await page.getByTestId("team-selection-details").textContent(), /团队任务板/);
+      await page.getByTestId("team-details-back").click();
+      await page.getByTestId("team-view-process").click();
+      await page.getByTestId("team-history-entry").first().waitFor();
+      assert.equal(await page.getByTestId("team-history-entry").count(), 20);
+      assert.match(await page.getByTestId("team-history-entry").first().textContent(), /#26/);
+      await page
+        .getByTestId("team-history-entry")
+        .filter({ hasText: "#44" })
+        .locator("summary")
+        .click();
+      assert.match(
+        await page.getByTestId("team-history-entry").filter({ hasText: "#44" }).textContent(),
+        /saved-message-team-ui/,
+      );
+      await page.getByTestId("team-history-older").click();
+      await page.getByTestId("team-history-entry").filter({ hasText: "#6" }).first().waitFor();
+      assert.match(await page.getByTestId("team-history-entry").first().textContent(), /#6/);
+      await page.getByTestId("team-history-older").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="team-history-entry"]').length === 5,
+      );
+      assert.equal(await page.getByTestId("team-history-older").count(), 0);
+      await page.getByTestId("fixture-history-error").click();
+      await page.getByTestId("team-history-error").waitFor();
+      await page.getByTestId("fixture-history-ok").click();
+      await page.getByTestId("team-history-entry").first().waitFor();
+      const beforeReopen = Number(await page.getByTestId("fixture-history-queries").textContent());
+      await page.getByTestId("fixture-reopen").click();
+      assert.equal(await page.getByTestId("team-workspace-views").count(), 0);
+      await page.getByTestId("fixture-reopen").click();
+      await page.getByTestId("team-view-process").click();
+      await page.getByTestId("team-history-entry").first().waitFor();
+      assert.ok(
+        Number(await page.getByTestId("fixture-history-queries").textContent()) > beforeReopen,
+      );
+      await page.getByTestId("fixture-history-deferred").click();
+      await page.getByRole("status").filter({ hasText: "正在加载" }).waitFor();
+      await page.getByTestId("fixture-next-team").click();
+      await page.getByTestId("team-view-process").click();
+      await page.getByTestId("team-history-entry").first().waitFor();
+      await page.getByTestId("fixture-history-release").click();
+      await page.getByTestId("team-history-entry").first().locator("summary").click();
+      assert.match(
+        await page.getByTestId("team-history-entry").first().textContent(),
+        /saved-team-ui-next/,
+      );
+      await page.getByTestId("fixture-active").click();
+      await page.getByTestId("team-view-collaboration").click();
       const evidence = page.getByTestId("team-relation-evidence");
       assert.match(await evidence.textContent(), /待投递/);
       assert.match(await evidence.textContent(), /attempt-a2/);
@@ -72,9 +144,11 @@ test(
       await page.getByTestId("fixture-failed").click();
       assert.match(await evidence.textContent(), /等待前置/);
       await page.getByTestId("team-layer-messages").click();
-      await evidence.getByRole("button").click();
+      await evidence.getByRole("button", { name: "查看成员", exact: true }).click();
+      await page.getByTestId("team-transcript-open").click();
       assert.match(await page.getByTestId("fixture-member").textContent(), /Frontend/);
       await page.getByTestId("fixture-member-back").click();
+      await page.getByTestId("team-details-back").click();
       assert.equal(
         await page.getByTestId("team-layer-messages").getAttribute("aria-pressed"),
         "true",
@@ -83,7 +157,7 @@ test(
       assert.match(await page.getByTestId("team-relations-empty").textContent(), /尚未提供/);
       await page.getByTestId("fixture-active").click();
       await page.getByTestId("team-layer-messages").click();
-      for (const width of [1060, 352])
+      for (const width of [1024, 736, 390])
         for (const dark of [false, true]) {
           await page.setViewportSize({ width, height: 1000 });
           await page.evaluate((d) => {
@@ -99,11 +173,17 @@ test(
             path: join(output, `${width}-${dark ? "dark" : "light"}.png`),
             fullPage: true,
           });
+          await page.getByTestId("team-view-overview").click();
+          await page.screenshot({
+            path: join(output, `overview-${width}-${dark ? "dark" : "light"}.png`),
+            fullPage: true,
+          });
+          await page.getByTestId("team-view-collaboration").click();
         }
       await page.getByTestId("fixture-readonly").click();
       const summary = page.getByTestId("team-conversation-summary");
       await summary.getByRole("button", { name: "查看协作详情", exact: true }).click();
-      assert.equal(await summary.getByTestId("team-collaboration").isVisible(), true);
+      assert.equal(await summary.getByTestId("team-overview").isVisible(), true);
       await summary.getByRole("button", { name: "查看协作详情", exact: true }).click();
       const touch = await browser.newPage({
         viewport: { width: 352, height: 1000 },
@@ -111,6 +191,7 @@ test(
         hasTouch: true,
       });
       await touch.goto(page.url());
+      await touch.getByTestId("team-view-collaboration").click();
       await touch.getByTestId("team-layer-messages").waitFor();
       assert.ok((await touch.getByTestId("team-layer-messages").boundingBox()).height >= 44);
       await touch.close();

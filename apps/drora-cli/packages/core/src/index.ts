@@ -197,6 +197,7 @@ export { LogLevel, SessionEventType } from "@drora/contracts";
 
 // Agents Team（specs/agents-team.md；v2 组装根集中制——bootstrap 经这些入口装配，上游镜像文件零编辑）
 export { TeamHub } from "./team/hub.js";
+export { readTeamHistoryPage } from "./team/history.js";
 export { createTeamMemberPort } from "./team/member-port.js";
 export { createTeamCollabToolEntries } from "./team/team-tools.js";
 export { teamPortError } from "./team/errors.js";

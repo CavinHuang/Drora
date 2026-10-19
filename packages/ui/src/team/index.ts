@@ -4,9 +4,10 @@ export {
   type TeamPanelController,
   type TeamPanelViewModel,
   type TeamUiStatus,
+  type TeamUiFocus,
 } from "./contract.js";
 export { teamUiModule } from "./module.js";
-export { TeamNavigationProvider, type TeamOpenTarget } from "./TeamNavigation.js";
+export { TeamNavigationProvider, useTeamFocus, type TeamOpenTarget } from "./TeamNavigation.js";
 export { TeamConversationSummary } from "./TeamConversationSummary.js";
 export { TeamSessionLine } from "./TeamSessionLine.js";
 export { TeamCollaborationPanel } from "./TeamCollaborationPanel.js";

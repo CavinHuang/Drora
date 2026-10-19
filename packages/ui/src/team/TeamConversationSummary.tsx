@@ -2,36 +2,51 @@ import { useMemo, useState } from "react";
 import { ArrowUpRightIcon, UsersIcon } from "lucide-react";
 import {
   deriveSessionTeamActivity,
-  TEAM_LEAD_ASSIGNEE,
   type TeamProjectionState,
 } from "@drora/shared/drora-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import type { TeamHistoryConnection } from "@/hooks/useTeamHistory.js";
+import type { TeamUiFocus } from "./contract.js";
 import type { TeamOpenTarget } from "./TeamNavigation.js";
 import { useTeamNavigation } from "./TeamNavigation.js";
 import { TeamStatusBadge } from "./TeamStatusBadge.js";
 import { TeamAvatar } from "./TeamAvatar.js";
-import { TeamCollaborationPanel } from "./TeamCollaborationPanel.js";
+import { TeamWorkspaceViews } from "./TeamWorkspaceViews.js";
+import { TeamStageRail } from "./TeamStageRail.js";
+import { TeamRecentMessages } from "./TeamRecentMessages.js";
 import { mapTeamProjectionToViewModel } from "./view-model.js";
 
-export function TeamConversationSummary({
+export function TeamConversationSummary(props: {
+  team: TeamProjectionState;
+  target: TeamOpenTarget;
+  connection?: TeamHistoryConnection;
+}) {
+  return <TeamConversationSummaryContent key={props.team.teamId} {...props} />;
+}
+
+function TeamConversationSummaryContent({
   team,
   target,
+  connection,
 }: {
   team: TeamProjectionState;
   target: TeamOpenTarget;
+  connection?: TeamHistoryConnection;
 }) {
   const { intl } = useDroraIntl(),
     open = useTeamNavigation();
   const [expanded, setExpanded] = useState(false);
+  const [focus, setFocus] = useState<TeamUiFocus>();
   const model = useMemo(() => mapTeamProjectionToViewModel(team), [team]);
   const summary = deriveSessionTeamActivity(team)!;
-  const latest = team.status === "staged" ? undefined : model.mailboxTail.at(-1);
-  const actor = (value: string) =>
-    value === TEAM_LEAD_ASSIGNEE
-      ? intl.formatMessage({ id: "team.ui.lead" })
-      : (model.members.find((member) => member.memberName === value || member.agentId === value)
-          ?.memberName ?? value);
+  const select = (next: TeamUiFocus) => {
+    if (open) open({ ...target, focus: next });
+    else {
+      setFocus(next);
+      setExpanded(true);
+    }
+  };
   const onOpen = () => (open ? open(target) : setExpanded((value) => !value));
   return (
     <section
@@ -65,13 +80,27 @@ export function TeamConversationSummary({
           <>
             <span className="flex gap-1">
               {team.members.slice(0, 3).map((member) => (
-                <TeamAvatar
+                <button
+                  type="button"
                   key={member.agentId}
-                  name={member.memberName}
-                  color={member.profileColor}
-                />
+                  className="rounded-md pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                  aria-label={intl.formatMessage(
+                    { id: "team.panel.memberOpen" },
+                    { name: member.memberName },
+                  )}
+                  onClick={() =>
+                    select({ teamId: team.teamId, kind: "member", id: member.agentId })
+                  }
+                >
+                  <TeamAvatar name={member.memberName} color={member.profileColor} />
+                </button>
               ))}
             </span>
+            {summary.blocked ? (
+              <span>
+                {intl.formatMessage({ id: "team.ui.blockedCount" }, { count: summary.blocked })}
+              </span>
+            ) : null}
             <span>
               {intl.formatMessage({ id: "team.ui.members" }, { count: summary.memberCount })}
             </span>
@@ -84,29 +113,8 @@ export function TeamConversationSummary({
           </>
         )}
       </div>
-      {latest ? (
-        <button
-          type="button"
-          className="mt-3 flex w-full items-start gap-2 border-t border-border pt-2 text-left text-ui-sm hover:text-icon-blue"
-          onClick={onOpen}
-        >
-          <span className="min-w-0 flex-1 break-words">
-            {actor(latest.from)} → {actor(latest.to)}
-            <span className="mt-1 block text-foreground-subtle">
-              {latest.summary ?? intl.formatMessage({ id: "team.panel.mailboxNoSummary" })} ·{" "}
-              {intl.formatMessage({
-                id:
-                  latest.delivered === true
-                    ? "team.ui.delivered"
-                    : latest.delivered === false
-                      ? "team.ui.queued"
-                      : "team.ui.deliveryUnknown",
-              })}
-            </span>
-          </span>
-          <ArrowUpRightIcon className="size-3.5 shrink-0" />
-        </button>
-      ) : null}
+      <TeamStageRail model={model} onSelect={select} />
+      <TeamRecentMessages model={model} onSelect={select} />
       {open === null ? (
         <Button
           variant="ghost"
@@ -119,7 +127,12 @@ export function TeamConversationSummary({
       ) : null}
       {open === null && expanded ? (
         <div className="mt-3 border-t border-border pt-3">
-          <TeamCollaborationPanel key={team.teamId} model={model} />
+          <TeamWorkspaceViews
+            key={team.teamId}
+            model={model}
+            focus={focus}
+            connection={connection}
+          />
         </div>
       ) : null}
     </section>

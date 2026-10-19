@@ -15,6 +15,7 @@ import {
   sendTeamMessage,
   TeamMemberSidePane,
   TeamPanel,
+  useTeamFocus,
   type TeamPanelCommand,
   type TeamPanelMemberView,
   TEAM_REVISE_PREFILL_PROMPT_KEY,
@@ -89,6 +90,11 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
 }) {
   const { intl } = useDroraIntl();
   const { layer, sendCommand } = useV4Conversation();
+  const focus = useTeamFocus({ ...tab, parentSessionId: tab.parentSessionId });
+  const historyConnection = useMemo(
+    () => ({ sessionId: tab.parentSessionId, sendCommand }),
+    [tab.parentSessionId, sendCommand],
+  );
 
   // 渲染期同步建连（`useMemo`）+ 卸载释放——先例 WorkflowActorSessionSidePane.tsx:71-72。
   const lease = useMemo(() => layer.acquire(tab.parentSessionId), [layer, tab.parentSessionId]);
@@ -148,7 +154,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   const [activeMember, setActiveMember] = useState<TeamMemberDrillTarget | null>(null);
   useEffect(() => {
     setActiveMember(null);
-  }, [model?.teamId]);
+  }, [model?.teamId, focus]);
 
   // 成员卡点击与「发消息」入口同一下钻语义（design 01 §3.2）：发消息的输入面在下钻
   // composer，不在面板内另造第二条输入路径。
@@ -223,6 +229,19 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           onCommand={handlePanelCommand}
           onMemberClick={handleMemberDrill}
           onMessageMember={handleMemberDrill}
+          focus={focus}
+          connection={historyConnection}
+          onQuoteTask={
+            onPrefillComposer
+              ? (task) =>
+                  onPrefillComposer(
+                    intl.formatMessage(
+                      { id: "team.ui.quoteTaskPrompt" },
+                      { id: task.taskId, title: task.title },
+                    ),
+                  )
+              : undefined
+          }
         />
       </div>
       {memberPane}

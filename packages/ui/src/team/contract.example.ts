@@ -6,6 +6,7 @@ export const teamNavigationExample: TeamUiNavigationTarget = {
   workspaceIdentity: "remote-identity",
   remoteSessionId: "attachment-1",
   parentSessionId: "lead-session",
+  focus: { teamId: "team_demo_01", kind: "task", id: "task_demo_01" },
 };
 
 /**

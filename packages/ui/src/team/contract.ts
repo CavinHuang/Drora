@@ -15,7 +15,14 @@ export interface TeamUiNavigationTarget {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   parentSessionId: string;
+  focus?: TeamUiFocus;
 }
+
+/** 只属于 UI 的定位请求；不进入 wire、tab 身份或团队业务状态。 */
+export type TeamUiFocus = { teamId: string } & (
+  | { kind: "overview" | "process" | "collaboration" }
+  | { kind: "member" | "task" | "message"; id: string }
+);
 
 /** team 状态机 wire 枚举（与 shared team.ts 八值一致；M2 落 schema 后改为引用）。 */
 export type TeamUiStatus = import("@drora/shared/drora-protocol-v4").TeamStatusWire;

@@ -5620,7 +5620,7 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
-                  footerSlot={!readOnly && !importedShare && snapshot?.team && snapshot.sessionId===sessionId ? <TeamConversationSummary key={`${sessionId}:${snapshot.team.teamId}`} team={snapshot.team} target={{workspacePath,workspaceIdentity:workspaceIdentity??undefined,remoteSessionId:remoteSessionId??undefined,parentSessionId:snapshot.sessionId}}/> : null}
+                  footerSlot={!readOnly && !importedShare && snapshot?.team && snapshot.sessionId===sessionId ? <TeamConversationSummary key={`${sessionId}:${snapshot.team.teamId}`} team={snapshot.team} connection={{sessionId:snapshot.sessionId,sendCommand}} target={{workspacePath,workspaceIdentity:workspaceIdentity??undefined,remoteSessionId:remoteSessionId??undefined,parentSessionId:snapshot.sessionId}}/> : null}
                   compactForRemoteControl={compactForRemoteControl}
                   scrollToBottomActionRef={timelineScrollToBottomRef}
                   scrollToQueryActionRef={timelineScrollToQueryRef}

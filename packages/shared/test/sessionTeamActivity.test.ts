@@ -8,6 +8,21 @@ import {
 } from "../src/drora-protocol-v4/index.js";
 
 describe("session team activity", () => {
+  it("bounds member previews without acquiring sessions or losing the total", () => {
+    const team = teamProjectionStateSchema.parse({
+      teamId: "large",
+      status: "active",
+      mailboxTail: [],
+      board: { limit: 100, tasks: [] },
+      members: Array.from({ length: 12 }, (_, index) => ({
+        agentId: String(index),
+        memberName: `member-${index}`,
+        state: "working",
+      })),
+    });
+    expect(deriveSessionTeamActivity(team)).toMatchObject({ memberCount: 12, working: 12 });
+    expect(deriveSessionTeamActivity(team)?.members).toHaveLength(6);
+  });
   it("keeps old directory frames valid and preserves team facts through controller frames", () => {
     const legacy = {
       sessionId: "s",
@@ -60,6 +75,9 @@ describe("session team activity", () => {
       completed: 1,
       total: 3,
       memberCount: 0,
+      working: 0,
+      blocked: 0,
+      members: [],
     });
     expect(deriveSessionTeamActivity(undefined)).toBeUndefined();
   });

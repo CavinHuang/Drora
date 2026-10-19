@@ -2,6 +2,13 @@
 
 ## Agents Team UI 增量（2026-10-19）
 
+ATUI04–10：同一 renderer-only pending 用例扩展，历史传输使用标注的 synthetic ACK。
+历史页的数据正确性另由 `apps/drora-cli/packages/core/tests/team/team-history.test.ts` 验证。
+本轮 ATUI01–10 实际通过：三处定位、任务与成员详情、历史页/错误/重开/旧 ACK、
+1024/736/390px、双主题/双语/触屏。core/team 与 bootstrap summary 83 项、shared/UI/contract
+15 项、独立手机时间线 SSR 回归通过。未新增正式 fixture promotion 或 Docker admission；
+完整 Electron Host 重启与真实网络重连仍未覆盖。
+
 ATUI01–03：`packages/desktop/test/e2e/conversation-session/manual-review/pending/agents-team-ui.test.mjs`。
 层级：真实 React renderer 浏览器候选；不含 provider/Host 命令执行，不做正式 fixture promotion/CI admission。
 2026-10-19 实际运行通过：真实组件与仓库 CSS 的桌面/窄屏、两主题、导航 scope、关系来源、

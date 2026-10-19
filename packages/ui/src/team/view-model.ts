@@ -35,6 +35,8 @@ export interface TeamPanelTaskView {
   /** 依赖链深度（0 = 无依赖；按全任务图计算，上限 3 防深链溢出布局）——缩进量数据源。 */
   dependsDepth: number;
   artifactRefs: readonly string[];
+  spec?: TeamTaskCardProjection["spec"];
+  updatedAt?: string;
 }
 
 /**
@@ -157,6 +159,8 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       dependsOn: task.dependsOn,
       dependsDepth: dependsDepthOf(task.taskId, depsByTask, depthCache, new Set<string>()),
       artifactRefs: task.artifactRefs,
+      spec: task.spec,
+      updatedAt: task.updatedAt,
     };
     if (task.status === "failed" || task.status === "cancelled") attention.push(view);
     else if (task.status === "pending") pending.push(view);

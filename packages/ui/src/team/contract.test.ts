@@ -12,6 +12,11 @@ describe("ui-team module contract", () => {
     expect(teamNavigationExample.workspaceIdentity).not.toBe(teamNavigationExample.workspacePath);
     expect(teamNavigationExample.remoteSessionId).toBe("attachment-1");
     expect(teamNavigationExample.parentSessionId).toBe("lead-session");
+    expect(teamNavigationExample.focus).toEqual({
+      teamId: "team_demo_01",
+      kind: "task",
+      id: "task_demo_01",
+    });
   });
   it("declares the managed module identity", () => {
     expect(teamUiModule.id).toBe("ui-team");

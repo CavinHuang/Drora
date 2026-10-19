@@ -54,6 +54,16 @@ export function useWorkspaceConfigCatalogSync(input: {
     droraAgentService: ConfigCatalogAgentService;
   };
   useEffect(() => {
+    // 服务面渐进容错：旧宿主/单测的 services 可不含 droraAgentService 的
+    // workspace-config 转发面——缺席即不订阅（目录退回一次性首拉语义，行为同前）。
+    if (
+      typeof droraAgentService?.subscribeWorkspaceConfigV4 !== "function" ||
+      typeof droraAgentService?.unsubscribeWorkspaceConfigV4 !== "function" ||
+      typeof droraAgentService?.onDynamicWorkspaceConfigFrame !== "function" ||
+      typeof droraAgentService?.onAgentRuntimeRestarted !== "function"
+    ) {
+      return;
+    }
     let disposed = false;
     let generation = 0;
     let frameUpstream: { dispose(): void } | null = null;

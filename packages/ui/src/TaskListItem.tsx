@@ -50,6 +50,7 @@ import { createTaskWorkbenchDragPreview } from "@/lib/taskWorkbenchDragPreview.j
 import { runUserAction } from "@/lib/userActionTelemetry.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { TeamSessionLine } from "@/team/index.js";
 
 type TaskListItemIntl = {
   formatMessage: (
@@ -418,10 +419,10 @@ export const MemoTaskItem = memo(function TaskListItem({
   const taskItemKey = `${buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity)}:${task.taskId}`;
   // 工作流运行行：标题下的第二条通道，
   // 与前置 16px 槽（error > unread > spinner）互不占位。只在会话带 run 摘要时挂组件。
-  const hasWorkflowRunLines = taskActivity?.workflowActivity !== undefined;
+  const hasWorkflowRunLines = taskActivity?.workflowActivity !== undefined || taskActivity?.teamActivity !== undefined;
   const workflowRunLinesNode = hasWorkflowRunLines ? (
-    <TaskWorkflowRunLines
-      activity={taskActivity.workflowActivity}
+    <><TaskWorkflowRunLines
+      activity={taskActivity?.workflowActivity}
       isActive={isActive}
       intl={intl}
       session={{
@@ -429,7 +430,7 @@ export const MemoTaskItem = memo(function TaskListItem({
         ...(task.workspaceIdentity ? { workspaceIdentity: task.workspaceIdentity } : {}),
         sessionId: task.taskId,
       }}
-    />
+    /><TeamSessionLine activity={taskActivity?.teamActivity} target={{workspacePath:task.workspacePath,workspaceIdentity:task.workspaceIdentity,remoteSessionId,parentSessionId:task.taskId}}/></>
   ) : null;
   const changeSummaryNode =
     !hasPendingInteraction && taskChangeSummary ? (

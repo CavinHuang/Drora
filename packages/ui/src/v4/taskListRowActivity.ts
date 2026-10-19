@@ -3,6 +3,7 @@ import type {
   PendingInteractionSummary,
   SessionSummary,
   SessionWorkflowActivity,
+  SessionTeamActivity,
 } from "@drora/shared/drora-protocol-v4";
 
 // UI-only sidecar：不进入 shared task meta/schema，也不写回 tasks-index。
@@ -16,6 +17,7 @@ export interface TaskListRowActivity {
   pendingInteractions?: PendingInteractionSummary;
   /** 侧栏工作流运行行的数据；无 run 时缺席。 */
   workflowActivity?: SessionWorkflowActivity;
+  teamActivity?: SessionTeamActivity;
 }
 
 export type TaskListMetaWithActivity = DroraTaskMeta & {

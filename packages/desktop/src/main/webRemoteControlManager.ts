@@ -837,6 +837,7 @@ export function createWebRemoteControlManager(dependencies: WebRemoteControlMana
           Boolean(task.hasBackgroundWork),
           // 工作流运行行的数据：phase 灯翻转、run 结束、子代理数变化都要让手机重画那一行。
           task.workflowActivity ?? null,
+          task.teamActivity ?? null,
           // Bugfix：unreadAt 是手机蓝点的事实字段；打开任务清除未读时 task membership 不变，
           // 必须让时间戳到缺失值的迁移触发新快照。
           typeof task.unreadAt === "number" ? task.unreadAt : "",

@@ -1,6 +1,45 @@
 # Agents Team（多代理团队）设计 spec
 
-状态：设计定稿（v3 方案落地稿），未实现。调研与可行性论证见
+## 三处 UI 实施增量（2026-10-19）
+
+按已确认的 `docs/agent-team-implementation-2026-10-16/02-three-surface-ui-design.md`
+实施主消息当前团队摘要、右侧协作关系页、左侧团队运行行。TeamHub / journal 仍唯一拥有业务事实。
+
+- 新增有界 `SessionSummary.teamActivity`：teamId、name?、status、memberCount、completed、total。
+  契约在 shared 新文件定义一次；CLI 从同一 ConversationSnapshot.team 纯派生，参与 sessions-index
+  conflation，Host controller 和手机任务快照仅透传。旧帧字段缺席合法；列表不得 acquire 对话。
+- 主消息只有一份当前团队摘要，使用实时快照，放在消息列表尾部的通用 footerSlot 内；当前 wire
+  没有可靠的建队 turn 联接，故不猜测历史 turn，也不反复向持久消息流插入系统行。
+- shell 提供有作用域的团队导航端口：先选择父会话，再调用现有 handleOpenTeamSidePane。
+  workspaceIdentity 优先于路径，remoteSessionId 贯穿。无 shell 导航端口的手机/独立预览可展开
+  只读协作详情，不额外建立 runtime。
+- 右侧默认协作页，保留任务与成员页；依赖图仅用 dependsOn，消息图仅用 mailboxTail，保留
+  delivered、at、sourceTaskId/sourceAttemptId。不能把未投递显示为已送达，不能推断交接历史。
+  交接页诚实显示当前版本未提供历史。无历史的普通快照不生成任何假记录。
+- 图是有界派生；大任务板使用选中任务的直接邻域，并显示范围。缺失引用保留未知节点；失败、
+  取消不解锁依赖，循环/未知引用不崩溃。选择、图层、成员下钻仅属于当前 teamId 的局部状态。
+- 新主体放 ui-team 新文件；现有接缝：sessions-index schema/controller schema 与 CLI summary
+  producer 加 helper 调用，UI/Host/手机摘要映射各加字段，TaskListItem/SessionPane/WorkspaceShellLayout
+  只组合新组件或端口；ConversationTimeline 只新增通用 footerSlot。上游同步逐处重放这些接缝。
+  手机独立 RemoteConversationTimeline 也在同一 footerSlot 组合摘要，沿用既有 statusSnapshot.team。
+
+```mermaid
+sequenceDiagram
+  participant H as TeamHub
+  participant P as conversation projection
+  participant S as sessions-index / controller
+  participant U as UI 三处
+  H->>P: journal 已提交的 team 状态
+  P->>S: 纯派生有界 teamActivity
+  P-->>U: 对话摘要与右侧关系
+  S-->>U: 左侧运行行
+  Note over P,U: desktop continuous / mobile replayable 使用同一事实；无 UI 轮询和第二份业务状态
+```
+
+验收：新增 shared summary/schema/conflation、UI 关系纯函数、真实 React 浏览器场景；
+运行 Node 声明版本下的 typecheck/lint/architecture 与 CLI 检查，报告实际结果与 E2E 范围。
+
+状态：设计定稿（v3 方案落地稿）；实现进度见实施增量与文末逐里程碑登记。调研与可行性论证见
 `docs/agent-team-feasibility-2026-10-16/99-final-report.md`（下称"调研报告"）。
 本文是实现的唯一权威依据；与调研报告冲突时以本文为准。
 

@@ -322,6 +322,8 @@ export interface ConversationTimelineProps {
    * 所以它落在 emptyState 分支之外。
    */
   headerSlot?: ReactNode;
+  /** 可选当前态摘要；不写入 transcript、不猜测历史 turn。 */
+  footerSlot?: ReactNode;
   /** §32.51 手机远控：消息操作行常显（rowContext 消费）。 */
 
   /** 草稿态让 emptyState 与同一个 bottomDock 作为整体居中，不重挂 composer。 */
@@ -390,6 +392,7 @@ function ConversationTimelineImpl({
   backgroundScrollLocked = false,
   emptyState,
   headerSlot,
+  footerSlot,
   centerEmptyStateWithDock = false,
   compactEmptyStateWithDock = false,
   summaryPanelLayout = "none",
@@ -1932,7 +1935,7 @@ function ConversationTimelineImpl({
           // V4 已自管 prepend、吸底和记忆锚点；和其它虚拟列表一致，应从内容子树禁用锚点候选。
           style={{ overflowAnchor: "none" }}
         >
-          {renderUnits.length === 0 && !headerSlot ? (
+          {renderUnits.length === 0 && !headerSlot && !footerSlot ? (
             <div
               className={cn(
                 centeredEmptyLayout
@@ -2041,6 +2044,7 @@ function ConversationTimelineImpl({
                   />
                 </div>
               ) : null}
+              {footerSlot ? <div data-v4-timeline-content-column="true" className={cn("relative mx-auto w-full shrink-0",contentWidthClassName,summaryPanelInlineOffsetClassName)}>{footerSlot}</div> : null}
               {pendingGuides.length > 0 ? (
                 <div
                   data-v4-timeline-content-column="true"

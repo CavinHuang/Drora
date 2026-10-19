@@ -1,5 +1,10 @@
 # ui-team（Agents Team 面板）
 
+2026-10-19：公开入口新增 TeamNavigationProvider / TeamOpenTarget、TeamConversationSummary、
+TeamSessionLine、TeamCollaborationPanel。导航只携带父会话与 workspace 三键，主体只消费投影。
+依赖/消息/交接是局部图层；交接没有证据时为空。文案置于 ui/i18n/teamMessages.ts，避免
+locale → ui-team index → IntlProvider 形成循环。下钻时保持 TeamPanel 挂载，返回保留本地选择。
+
 托管模块五件套之一（architecture-governance SKILL.md:45）。骨架期（PR-0.2），
 实现在 M2（PR-2.4/2.5）与 M3（PR-3.2 手机端）。
 

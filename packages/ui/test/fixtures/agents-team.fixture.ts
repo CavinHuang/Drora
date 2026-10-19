@@ -1,0 +1,113 @@
+import type { TeamProjectionState } from "@drora/shared/drora-protocol-v4";
+
+export function createTeamFixture(): TeamProjectionState {
+  return {
+    teamId: "team-ui",
+    name: "界面协作团队",
+    status: "active",
+    permissionMode: "build",
+    members: [
+      {
+        agentId: "a",
+        memberName: "Frontend",
+        profile: "界面实现",
+        state: "working",
+        currentTaskId: "T3",
+        childSessionId: "child-a",
+      },
+      {
+        agentId: "b",
+        memberName: "Backend",
+        profile: "协议与数据",
+        state: "working",
+        currentTaskId: "T4",
+        childSessionId: "child-b",
+      },
+      {
+        agentId: "c",
+        memberName: "Reviewer",
+        profile: "审查与联调",
+        state: "terminal",
+        childSessionId: "child-c",
+      },
+    ],
+    board: {
+      limit: 100,
+      tasks: [
+        {
+          taskId: "T1",
+          title: "状态契约",
+          status: "completed",
+          assignee: "Backend",
+          attempt: 1,
+          dependsOn: [],
+          artifactRefs: [],
+        },
+        {
+          taskId: "T2",
+          title: "方案审查",
+          status: "completed",
+          assignee: "Reviewer",
+          attempt: 1,
+          dependsOn: ["T1"],
+          artifactRefs: [],
+        },
+        {
+          taskId: "T3",
+          title: "团队任务板",
+          status: "in_progress",
+          assignee: "Frontend",
+          attempt: 2,
+          dependsOn: ["T2"],
+          artifactRefs: [],
+        },
+        {
+          taskId: "T4",
+          title: "消息投影",
+          status: "in_progress",
+          assignee: "Backend",
+          attempt: 1,
+          dependsOn: ["T2"],
+          artifactRefs: [],
+        },
+        {
+          taskId: "T5",
+          title: "联调验收",
+          status: "pending",
+          assignee: "Reviewer",
+          attempt: 0,
+          dependsOn: ["T3", "T4"],
+          artifactRefs: [],
+        },
+      ].map((task) => ({
+        ...task,
+        status: task.status as TeamProjectionState["board"]["tasks"][number]["status"],
+        spec: { goal: task.title, acceptance: [] },
+        createdAt: "2026-10-19T00:00:00Z",
+        updatedAt: "2026-10-19T00:00:00Z",
+      })),
+    },
+    mailboxTail: [
+      {
+        messageId: "m1",
+        from: "b",
+        to: "Frontend",
+        summary: "字段已就绪",
+        at: "2026-10-19T08:20:00Z",
+        sourceTaskId: "T4",
+        sourceAttemptId: "attempt-b",
+        delivered: true,
+      },
+      {
+        messageId: "m2",
+        from: "Frontend",
+        to: "Reviewer",
+        summary: "请审查任务板",
+        at: "2026-10-19T08:22:00Z",
+        sourceTaskId: "T3",
+        sourceAttemptId: "attempt-a2",
+        delivered: false,
+      },
+    ],
+  };
+}

@@ -163,8 +163,8 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     return <TeamEmptyState />;
   }
 
-  if (activeMember !== null) {
-    return (
+  const memberPane =
+    activeMember !== null ? (
       <div className="flex h-full min-h-0 flex-col bg-background">
         <div className="flex shrink-0 items-center gap-1 border-b border-border/50 p-1.5">
           <button
@@ -210,18 +210,23 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           />
         </div>
       </div>
-    );
-  }
+    ) : null;
 
   return (
     // PR-2.4c 收口：成员卡点击 / 发消息入口 → setActiveMember（下钻），composer 消息 →
     // sendTeamMessage（上文 onSendMessage）。下钻 + 发消息全通。
-    <TeamPanel
-      model={model}
-      onCommand={handlePanelCommand}
-      onMemberClick={handleMemberDrill}
-      onMessageMember={handleMemberDrill}
-    />
+    <div className="h-full min-h-0">
+      {/* 中文依据：下钻不能卸载关系视图，否则返回会丢失图层与选中关系；只隐藏本地视图。 */}
+      <div hidden={activeMember !== null} className="h-full min-h-0">
+        <TeamPanel
+          model={model}
+          onCommand={handlePanelCommand}
+          onMemberClick={handleMemberDrill}
+          onMessageMember={handleMemberDrill}
+        />
+      </div>
+      {memberPane}
+    </div>
   );
 });
 

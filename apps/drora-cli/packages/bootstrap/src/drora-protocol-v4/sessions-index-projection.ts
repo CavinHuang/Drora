@@ -4,6 +4,7 @@
 // 事件订阅与 flush 调度归 gateway（v4-gateway）。
 import {
   deriveSessionWorkflowActivity,
+  deriveSessionTeamActivity,
   type ConversationSnapshot,
   type SessionSummary,
   type SessionsIndexDelta,
@@ -84,6 +85,7 @@ export function deriveSessionSummary(
     sessionEnded: snapshot.control.sessionEnded,
     hasBackgroundWork,
     ...(workflowActivity === undefined ? {} : { workflowActivity }),
+    ...(snapshot.team === undefined ? {} : { teamActivity: deriveSessionTeamActivity(snapshot.team) }),
     ...(pendingInteraction ? { pendingInteraction } : {}),
     ...(permissionCount > 0 || userInputCount > 0
       ? {
@@ -114,6 +116,7 @@ function summariesEqual(a: SessionSummary, b: SessionSummary): boolean {
     // phase 翻转 / 结算 / 在跑子代理数变化永不被 conflation 吃掉；反之只改 node 的事件在这里判等
     // （真实系统里它仍会因 lastActivityAt 推进而产帧——那是活动事实，语义不变）。
     JSON.stringify(a.workflowActivity ?? null) === JSON.stringify(b.workflowActivity ?? null) &&
+    JSON.stringify(a.teamActivity ?? null) === JSON.stringify(b.teamActivity ?? null) &&
     JSON.stringify(a.pendingInteraction ?? null) === JSON.stringify(b.pendingInteraction ?? null) &&
     a.pendingInteractionSummary?.permissionCount === b.pendingInteractionSummary?.permissionCount &&
     a.pendingInteractionSummary?.userInputCount === b.pendingInteractionSummary?.userInputCount &&

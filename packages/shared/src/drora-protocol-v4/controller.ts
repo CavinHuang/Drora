@@ -2,6 +2,7 @@ import { z } from "zod";
 import { droraTaskMetaSchema } from "../validation.js";
 import { pendingInteractionSummarySchema } from "./sessions-index.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
+import { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema } from "./sessions-index-team-activity.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
 
@@ -81,6 +82,7 @@ export const windowHostControllerTaskActivitySchema = z
     pendingInteractions: pendingInteractionSummarySchema.optional(),
     // 侧栏工作流运行行；无 run 时缺席。
     workflowActivity: sessionWorkflowActivitySchema.optional(),
+    [SESSION_TEAM_ACTIVITY_KEY]: sessionTeamActivitySchema.optional(),
   })
   .strict();
 export type WindowHostControllerTaskActivity = z.infer<

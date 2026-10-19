@@ -15,6 +15,7 @@ import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
+import { TeamConversationSummary } from "@/team/index.js";
 import { buildConversationStatusPanelModel } from "@/v4/conversationStatusPanelModel.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type { ChatViewSummaryPanelVariant } from "@/v4/legacyChatViewTypes.js";
@@ -23,7 +24,7 @@ import type { AssistantFeedbackHandler } from "@/v4/ConversationRowView.js";
 
 export type RemoteStatusSnapshot = Pick<
   ConversationSnapshot,
-  "goal" | "plan" | "backgroundWorks" | "subagents" | "availability"
+  "goal" | "plan" | "backgroundWorks" | "subagents" | "availability" | "team"
 >;
 
 export interface RemoteConversationTimelineProps {
@@ -177,6 +178,7 @@ export function RemoteConversationTimeline({
               onCancelBackgroundWork={onCancelBackgroundWork}
             />
             <ConversationTimeline
+              footerSlot={statusSnapshot?.team ? <TeamConversationSummary key={`${sessionKey}:${statusSnapshot.team.teamId}`} team={statusSnapshot.team} target={{workspacePath,workspaceIdentity,parentSessionId:sessionKey}}/> : null}
               rows={rows}
               totalCount={totalCount}
               sessionKey={sessionKey}

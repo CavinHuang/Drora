@@ -24,6 +24,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { buildWebRemoteControlTaskRowKey } from "@/hooks/useWebRemoteControlTaskOpen.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { TeamSessionLine } from "@/team/index.js";
 import type { WebRemoteControlTaskIndexSortBy } from "@/lib/webRemoteControlTaskIndex.js";
 
 interface WebRemoteControlTaskIndexRowIntl {
@@ -161,6 +162,7 @@ export function WebRemoteControlTaskIndexRow({
           </span>
           {/* 工作流运行行（docs/dynamic-workflow/presentation.md「The sidebar run line」）：行整体已是按钮，
               这里只绘制；已结束的行由远控端自己的确认集合折叠。 */}
+          <TeamSessionLine activity={task.teamActivity}/>
           {task.workflowActivity ? (
             <TaskWorkflowRunLines
               activity={task.workflowActivity}

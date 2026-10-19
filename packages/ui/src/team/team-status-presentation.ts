@@ -10,12 +10,12 @@ import type { TeamUiStatus } from "./contract.js";
  */
 
 /** 语义色点 tone（Tailwind 语义 token；与 styles.css 的 --color-* 对应）。 */
-export type TeamStatusDotTone = "accent" | "neutral" | "success" | "warning" | "destructive";
+export type TeamStatusDotTone = "accent" | "neutral" | "success" | "warning" | "destructive" | "confirmation";
 
 export const TEAM_STATUS_DOT_TONE: Record<TeamUiStatus, TeamStatusDotTone> = {
-  // staged 需要用户审批——按「需要行动」给 accent，而非普通进行中。
-  staged: "accent",
-  active: "accent",
+  // 统一设计 02：审批使用 confirmation，运行状态使用 workflow 同款 warning 灯。
+  staged: "confirmation",
+  active: "warning",
   idle: "neutral",
   completed: "success",
   halted: "warning",
@@ -38,6 +38,7 @@ export const TEAM_STATUS_I18N_KEYS: Record<TeamUiStatus, string> = {
 
 /** tone → 色点类名（消费方直接拼；集中在此避免散落各处映射不一致）。 */
 export const TONE_DOT_CLASS: Record<TeamStatusDotTone, string> = {
+  confirmation: "bg-[var(--color-interaction-confirmation-foreground)]",
   accent: "bg-accent",
   neutral: "bg-neutral-foreground/40",
   success: "bg-success",

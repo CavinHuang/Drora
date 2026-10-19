@@ -51,7 +51,7 @@ import type {
 import { logger } from "@/logger.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 // Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
-import { useWorkspaceConfigCatalogSync } from "@/team/index.js";
+import { useWorkspaceConfigCatalogSync, TeamConversationSummary } from "@/team/index.js";
 import {
   getConversationShareErrorDetails,
   resolveConversationShareFallbackIssueCode,
@@ -5620,6 +5620,7 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
+                  footerSlot={!readOnly && !importedShare && snapshot?.team && snapshot.sessionId===sessionId ? <TeamConversationSummary key={`${sessionId}:${snapshot.team.teamId}`} team={snapshot.team} target={{workspacePath,workspaceIdentity:workspaceIdentity??undefined,remoteSessionId:remoteSessionId??undefined,parentSessionId:snapshot.sessionId}}/> : null}
                   compactForRemoteControl={compactForRemoteControl}
                   scrollToBottomActionRef={timelineScrollToBottomRef}
                   scrollToQueryActionRef={timelineScrollToQueryRef}

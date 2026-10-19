@@ -47,6 +47,11 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
         React.createElement(RemoteConversationTimeline, { ...base, statusSnapshot, ...actions }),
       );
     assert.doesNotMatch(render(), /data-testid="chat-summary-panel"/);
+    assert.doesNotMatch(render(), /data-testid="team-conversation-summary"/);
+    const teamHtml=render({goal:null,plan:null,backgroundWorks:[],subagents:{revision:0,childSessionIds:[],running:[],endedTotal:0},team:{teamId:"team-mobile",name:"Mobile team",status:"idle",members:[],board:{limit:100,tasks:[]},mailboxTail:[]}});
+    assert.match(teamHtml,/data-testid="team-conversation-summary"/);
+    assert.match(teamHtml,/Mobile team/);
+    assert.match(teamHtml,/查看协作详情/);
     const taskHtml = render({
       goal: null,
       plan: {

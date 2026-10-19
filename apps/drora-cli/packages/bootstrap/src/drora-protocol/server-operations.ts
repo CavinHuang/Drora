@@ -5,6 +5,8 @@ import {
   isTaskListSessionType,
 } from "../drora-protocol-v4/task-list-session-membership.js";
 import { resolveEffectiveBashShellSelection } from "@drora/adapters/exec";
+// Agents Team 装配接缝消费端（specs/agents-team.md §11）：hub 装配广播早于本层订阅。
+import { notifyAgentsTeamConfigInvalidated } from "../app/drora-team/config-invalidation.js";
 import { inputIntentMetadata } from "../drora-protocol-v4/commands/input-intent.js";
 import { createModelExecutionContext } from "./model-execution.js";
 import type { SendInputOptions } from "../app/types.js";
@@ -1302,6 +1304,10 @@ async function createSessionWithProjection<T>(
   const recordCreateDurationMs = Date.now() - recordStartedAt;
   context.assertServing?.();
   context.sessions.set(sessionId, record);
+  // Agents Team 初始目录失效接缝（specs/agents-team.md §11，消费端补拉，实现见
+  // drora-team/config-invalidation.ts）：装配广播早于本层订阅，且重拉目录要求
+  // record 已在册（live session 快路径），必须在 sessions.set 之后。
+  notifyAgentsTeamConfigInvalidated(context, workspace.workspaceKey, String(record.app.sessionId));
   let setInitialModelDurationMs: number | undefined;
   let setInitialThoughtLevelDurationMs: number | undefined;
   let snapshotDurationMs = 0;
@@ -1512,6 +1518,13 @@ export async function activateSessionForResume(
   if (session.time?.updated) record.updatedAt = session.time.updated;
   context.assertServing?.();
   context.sessions.set(params.sessionId, record);
+  // Agents Team 初始目录失效接缝（resume 侧，specs/agents-team.md §11）：同新建路径，
+  // 必须在 sessions.set 之后（重拉目录走 live session 快路径）。
+  notifyAgentsTeamConfigInvalidated(
+    context,
+    workspace.workspaceKey,
+    String(record.app.sessionId),
+  );
   const resumeResult = await runSessionModelConfigMutation(record.app, async () => {
     const result = options.reusePersistedMessages
       ? await record.app.resume({ persistedMessages })

@@ -1371,6 +1371,16 @@ export class ConversationV4Gateway {
   private async refreshWorkspaceConfigForSession(sessionId: string): Promise<void> {
     const workspaceId = this.host.findWorkspaceIdBySessionId?.(sessionId);
     if (workspaceId === undefined) return;
+    await this.refreshWorkspaceConfig(workspaceId);
+  }
+
+  /**
+   * 对外目录失效入口（Agents Team 装配接缝的消费端，specs/agents-team.md PR-2.5b）：
+   * install 的初始 TeamStateChanged 广播发生在 createDroraApp 内部，而协议层
+   * runtime.subscribeEvents 在其返回后才挂——live 拦截必然错过。装配点之后由
+   * record 创建路径直呼本方法补拉（此刻 hub 已装配，重拉目录含 /team）。
+   */
+  async refreshWorkspaceConfig(workspaceId: string): Promise<void> {
     const state = await this.pullWorkspaceConfig(workspaceId);
     if (state === null) return;
     this.publishWorkspaceConfig(workspaceId, state);

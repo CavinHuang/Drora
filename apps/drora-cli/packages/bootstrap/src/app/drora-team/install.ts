@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import {
   createTeamCollabToolEntries,
   createTeamJournalSessionStoreSink,

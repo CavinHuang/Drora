@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeftIcon, UsersIcon } from "lucide-react";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -21,8 +21,6 @@ import {
 } from "@/team/index.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
-import { useServices } from "@/hooks/useServices.js";
-import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 
 /**
@@ -102,34 +100,6 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     () => (team === undefined ? undefined : mapTeamProjectionToViewModel(team)),
     [team],
   );
-
-  // slashCommands 目录失效收敛（specs/agents-team.md 实现登记 2026-10-18「真实实例验收」）：
-  // 启动窗口期装配完成前，渲染进程首拉的 workspace presentation 目录不含 /team 且被
-  // droraSessionStore 缓存；team 投影出现即服务端 install 已完成——重拉 presentation 并
-  // 回写目录，斜杠菜单从此含 /team（undefined→defined 边沿触发一次）。
-  const services = useServices();
-  const teamSeenRef = useRef(false);
-  useEffect(() => {
-    if (team === undefined) {
-      teamSeenRef.current = false;
-      return;
-    }
-    if (teamSeenRef.current) return;
-    teamSeenRef.current = true;
-    void (async () => {
-      try {
-        const presentation = await services.droraSessionService.readWorkspacePresentation({
-          workspacePath: tab.workspacePath,
-          workspaceIdentity: tab.workspaceIdentity,
-        });
-        useDroraSessionStore
-          .getState()
-          .setSlashCommands(tab.workspacePath, presentation.slashCommands, tab.workspaceIdentity);
-      } catch {
-        // 目录刷新失败不阻断面板；下一次 team 边沿（成员终态/复活）会再触发。
-      }
-    })();
-  }, [team, services, tab.workspacePath, tab.workspaceIdentity]);
 
   // 预填追问文案在渲染期解析（语言切换随渲染更新）；拼接与 note 携带规则见
   // team/revise-prefill.ts（纯函数单一出处）。

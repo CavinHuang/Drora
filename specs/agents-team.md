@@ -846,3 +846,43 @@ create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落
 1. 在 v4-workspace-config 装配处文件埋点输出候选 app.sessionId 清单与逐个 LOOKUP 结果;
 2. 核对 DRORA_AGENTS_TEAM 是否到达目录装配所在进程(host child spawn env);
 3. 若确认为 host child spawn env 过滤,修=把 agentsTeam 设置值经 spawn args/env 显式传入。
+
+### 实现登记(2026-10-19,/team 菜单缺显根因定谳与双环修复——冷启动实证入菜单)
+
+六轮文件埋点逐环取证(多轮实例重启),推翻上节全部三条可疑方向,**真因是两个
+时序环,灰度 env/settings 链路本身健康**(env 到达 ✓、装配门开 ✓、hub 登记 ✓、
+目录门 lookup 命中 ✓):
+
+- **环 1(服务端,补拉时机)**:install 的初始 TeamStateChanged 广播发生在
+  createDroraApp **内部**,而协议层 `runtime.subscribeEvents`(→onSessionEvent→
+  网关 team_state_changed 重拉拦截)在 createDroraApp 返回、record 创建之后才挂
+  ——live 链路必然错过该广播;且 v4 目录重拉走 live session 快路径,要求 record
+  已在 `context.sessions`(接缝放 materializeSessionRecord 内部即因早于
+  sessions.set 而拉空)。**修复**:网关公开 `refreshWorkspaceConfig(workspaceId)`
+  (pull+publish+flush 与 live 拦截共用一线),drora-team 新文件
+  `config-invalidation.ts` 的 `notifyAgentsTeamConfigInvalidated`(hub 装配事实
+  单点裁决)由 server-operations 的**新建与 resume 两个 `sessions.set` 之后**补拉
+  (单行接缝 ×2 + 单 import,符合最小接缝纪律)。事件本体仍由 install 广播入档,
+  本 helper 只补协议层一跳,零第二份状态。
+- **环 2(渲染层,消费通道缺位)**:启动窗口期首拉目录(hub 未装)被
+  droraSessionStore 缓存且水合守卫「非空即跳」永不自愈;服务端环 1 的补拉只进
+  v4 workspace-config publisher——**无人订阅就没人收到**(渲染层此前只有一次性
+  readWorkspacePresentation RPC,无该主题订阅者)。中间方案的两次证伪如实登记:
+  (a) team 投影 undefined→defined 边沿(da50ce18 原案)双重死锁——面板仅在有
+  team tab 时挂载,且 hub 在 lead 创建团队前 `snapshot()` 返回 undefined(record
+  未立),投影键根本不存在;(b) 「会话首份快照到达」一次性重拉仍竞态——网关
+  cold activation 的快照先于 CLI resume 装配完成到达,拉到的仍是装配前目录
+  (窗口探针实证 fired+got 五项)。**最终修复**:渲染层订阅
+  `workspace-config/<workspaceKey>` 主题(handshake 先行,ACK 前帧缓冲,帧回放
+  回写 setSlashCommands/setConfigOptions;组装故障退订重订,CLI 换代按代际重建),
+  hook 单一出处 `packages/ui/src/team/workspace-config-catalog-sync.ts`
+  (`useWorkspaceConfigCatalogSync`),挂载点为工作区常驻的 SessionPane(draft 态
+  也在)。此后任何服务端目录失效(装配完成、灰度变更)都经推帧自然收敛。
+- **实证**(dev 实例 + CDP 驱动,2026-10-19):冷启动→打开任务会话→斜杠面板
+  六项含 `/team Assemble an agent team for a goal.`(截图
+  D:/tmp/agt-menu-open-task.png);订阅链零错误日志。ui team 测试 52/52 绿;
+  v4-gateway-workspace-config/sessions-index 测试 29/29 绿;改动文件 oxlint 干净
+  (既有 max-lines/unused 发现经 clean HEAD 对照确认为分支既有)。v4-gateway.test.ts
+  单例失败为分支既有漂移(clean HEAD 复现,与本修复无关)。
+- **草稿态边界就此消除**:订阅挂在工作区常驻面板,draft 态(尚无会话)同样收
+  到装配完成的推帧——此前登记的「草稿态菜单缺 /team」边界由本方案覆盖。

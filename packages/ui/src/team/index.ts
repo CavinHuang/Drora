@@ -40,6 +40,7 @@ export {
   type TeamMemberSidePaneProps,
 } from "./TeamMemberSidePane.js";
 export { shouldAutoOpenTeamPanel } from "./auto-open.js";
+export { useWorkspaceConfigCatalogSync } from "./workspace-config-catalog-sync.js";
 export {
   TEAM_STATUS_DOT_TONE,
   TEAM_STATUS_I18N_KEYS,

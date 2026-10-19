@@ -34,3 +34,8 @@ locale → ui-team index → IntlProvider 形成循环。下钻时保持 TeamPan
 
 TeamUiStatus 八值与 shared `teamProjectionStateSchema.status` 保持同源
 （M2 PR-2.1 落 schema 后改为从 `@drora/shared` 引用，删除本地副本）。
+
+## 会话行入口
+
+`session-line.ts` 是仅导出 TeamSessionLine 的轻量公开入口；会话列表通过它组合团队摘要，
+不加载成员会话与工具渲染器。无 teamActivity 时无需团队或国际化 Provider，保持旧行契约。

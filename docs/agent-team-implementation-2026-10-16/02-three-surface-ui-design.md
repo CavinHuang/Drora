@@ -338,3 +338,9 @@ staged / 未启动草案归档不显示历史消息或交接；依赖图只表�
 
 浏览器场景保留在 manual-review/pending，属于 renderer-only 候选，未宣称真实 Host 命令、
 Electron 整窗或手机重连 E2E 已通过；未进行正式 fixture promotion 或 Docker admission。
+
+提交门禁复核补充：会话行改为独立公开入口 `team/session-line.ts`，避免总入口加载成员
+会话及工具渲染器；无 teamActivity 时直接返回空，不要求额外 Provider。原有桌面/远控
+行交互 9 tests 通过，重新执行类型、Lint、架构、浏览器及手机 SSR 检查均通过。
+Windows 原生 Node 用例发现路径同步修复，回归先失败后通过；规则与验收见
+`docs/windows-test-compatibility.md` 的原生 Node 用例发现段落。

@@ -22,6 +22,8 @@
   producer 加 helper 调用，UI/Host/手机摘要映射各加字段，TaskListItem/SessionPane/WorkspaceShellLayout
   只组合新组件或端口；ConversationTimeline 只新增通用 footerSlot。上游同步逐处重放这些接缝。
   手机独立 RemoteConversationTimeline 也在同一 footerSlot 组合摘要，沿用既有 statusSnapshot.team。
+- 会话行使用独立公开入口 `team/session-line.ts`，不能因轻量摘要加载成员会话与工具渲染器。
+  无 teamActivity 的旧会话直接返回空，不新增 IntlProvider 要求；保留既有行交互回归。
 
 ```mermaid
 sequenceDiagram

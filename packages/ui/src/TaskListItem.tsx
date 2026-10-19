@@ -50,7 +50,7 @@ import { createTaskWorkbenchDragPreview } from "@/lib/taskWorkbenchDragPreview.j
 import { runUserAction } from "@/lib/userActionTelemetry.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
-import { TeamSessionLine } from "@/team/index.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 
 type TaskListItemIntl = {
   formatMessage: (

@@ -11,9 +11,19 @@ export function TeamSessionLine({
   activity: SessionTeamActivity | undefined;
   target?: TeamOpenTarget;
 }) {
+  // 旧会话没有团队摘要，不能因新增入口引入 Provider 要求或额外订阅。
+  return activity ? <TeamSessionLineContent activity={activity} target={target} /> : null;
+}
+
+function TeamSessionLineContent({
+  activity,
+  target,
+}: {
+  activity: SessionTeamActivity;
+  target?: TeamOpenTarget;
+}) {
   const { intl } = useDroraIntl(),
     open = useTeamNavigation();
-  if (!activity) return null;
   const content = (
     <>
       <UsersIcon className="size-3 shrink-0" />

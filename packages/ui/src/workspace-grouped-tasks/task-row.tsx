@@ -48,7 +48,7 @@ import {
   type TaskGroupMenuItem,
 } from "@/workspace-grouped-tasks/types.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
-import { TeamSessionLine } from "@/team/index.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteractionAutoResolutionSnooze.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";

@@ -24,7 +24,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { buildWebRemoteControlTaskRowKey } from "@/hooks/useWebRemoteControlTaskOpen.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
-import { TeamSessionLine } from "@/team/index.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 import type { WebRemoteControlTaskIndexSortBy } from "@/lib/webRemoteControlTaskIndex.js";
 
 interface WebRemoteControlTaskIndexRowIntl {

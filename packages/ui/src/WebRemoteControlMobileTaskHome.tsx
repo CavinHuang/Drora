@@ -44,7 +44,7 @@ import { getErrorMessage } from "@/hooks/chatActionHelpers.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
-import { TeamSessionLine } from "@/team/index.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 import {
   getTaskTimelineGroupMessage,
   groupTaskTimelineItems,

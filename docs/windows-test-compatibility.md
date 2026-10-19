@@ -1,5 +1,16 @@
 # Windows 单元测试兼容规范（spec）
 
+## 原生 Node 用例发现（2026-10-19）
+
+`scripts/node-unit-test-files.mjs` 是 Node runner 与 Vitest 排除列表的共同来源。
+Windows 的 `globSync` 返回反斜杠，发现结果必须先归一为相对仓库的正斜杠路径，
+再排除 `e2e`、识别 `node:test` 并排序。否则 Vitest exclude 无法匹配，原生用例会报
+“No test suite found”。用例仍由原生 Node runner 执行，不能以此跳过测试。
+
+验收：临时仓库包含 Node 用例、Vitest 用例和 e2e Node 用例时，只返回普通 Node
+用例的排序正斜杠路径；Windows 与 POSIX 使用同一契约。真实手机 SSR 用例需分别验证
+原生入口通过，以及 Vitest 与 shared 用例同时筛选时正确排除该原生用例。
+
 ## 背景
 
 Windows 开发机上 `pnpm test` 曾大面积失败（56 文件 / 161 用例）并间歇性以

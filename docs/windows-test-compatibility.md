@@ -11,6 +11,10 @@ Windows 的 `globSync` 返回反斜杠，发现结果必须先归一为相对仓
 用例的排序正斜杠路径；Windows 与 POSIX 使用同一契约。真实手机 SSR 用例需分别验证
 原生入口通过，以及 Vitest 与 shared 用例同时筛选时正确排除该原生用例。
 
+文件 URL 用例必须用 `resolve` + `pathToFileURL` 构造当前平台的有效本地路径，并断言
+还原后的同一路径；不能将 `file:///tmp/...` 当作 Windows 有效盘符路径。转换失败场景
+使用非法百分号编码，不能以 Windows 合法的 UNC URL 作为跨平台非法输入。
+
 ## 背景
 
 Windows 开发机上 `pnpm test` 曾大面积失败（56 文件 / 161 用例）并间歇性以

@@ -106,10 +106,12 @@ test("内嵌宿主生命周期：随机端口监听/幂等/stop 后重启换端�
   const entry = await fetch(`http://127.0.0.1:${first.port}/remote/v4`);
   assert.equal(entry.status, 200);
   const entryHtml = await entry.text();
-  assert.match(entryHtml, /3\.15\.1\/assets\/index-/u);
-  assert.match(entryHtml, /<title>Drora<\/title>/u);
+  // mobile-web 构建页跟随官方 packages/web 版本（v3.16.1 合并后资产前缀随之演进），
+  // 版本号不做钉死断言，只锚定带版本目录的 index bundle 形态。
+  assert.match(entryHtml, /\d+\.\d+\.\d+\/assets\/index-/u);
+  assert.match(entryHtml, /<title>Drora( Remote)?<\/title>/u); // 3.16.1 官方远控页 title 带 Remote 后缀
   const bundlePath = entryHtml.match(
-    /src="(\/remote\/v4\/3\.15\.1\/assets\/index-[^"]+\.js)"/u,
+    /src="(\/remote\/v4\/\d+\.\d+\.\d+\/assets\/index-[^"]+\.js)"/u,
   )?.[1];
   assert.ok(bundlePath);
   assert.equal((await fetch(`http://127.0.0.1:${first.port}${bundlePath}`)).status, 200);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -114,9 +114,11 @@ test("upgrade preparation resolves the real legacy path and never changes source
       .toBuffer();
     await writeFile(join(directory, "spritesheet.webp"), image);
     const library = createDesktopPetLibrary(root, decodeDesktopPetImage);
+    // macOS 的 os.tmpdir() 返回 /var/... 而 realpath 为 /private/var/...；
+    // 生产侧返回 realpath 归一路径（符号链接安全），期望值同样 realpath 归一。
     assert.deepEqual(await library.prepareUpgrade("custom:legacy"), {
       id: "custom:legacy",
-      directoryPath: directory,
+      directoryPath: await realpath(directory),
     });
     assert.equal(await readFile(join(directory, "avatar.json"), "utf8"), manifest);
     assert.deepEqual(await readFile(join(directory, "spritesheet.webp")), image);

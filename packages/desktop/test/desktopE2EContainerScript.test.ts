@@ -78,9 +78,10 @@ describe("desktop E2E container presets", () => {
       "utf-8",
     ).replaceAll("\r\n", "\n");
 
-    expect(dockerPlan).toContain(
-      "| Spec | 迁移状态 |\n| --- | --- |\n<!-- conversation-session-verified-table-end -->",
-    );
+    // 断言分隔线无关（oxfmt 会按列宽正规化表格分隔线）；生产插入逻辑
+    // （insertVerifiedDockerSpecRow）只依赖结束标记，与分隔线形态解耦。
+    expect(dockerPlan).toContain("| Spec | 迁移状态 |");
+    expect(dockerPlan).toContain("<!-- conversation-session-verified-table-end -->");
 
     const spec = "./test/e2e/conversation-session/example.test.ts";
     const updated = insertVerifiedDockerSpecRow(dockerPlan, spec);

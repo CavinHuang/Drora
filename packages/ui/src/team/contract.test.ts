@@ -20,7 +20,7 @@ describe("ui-team module contract", () => {
   });
   it("declares the managed module identity", () => {
     expect(teamUiModule.id).toBe("ui-team");
-    expect(teamUiModule.requires).toEqual(["ui", "shared"]);
+    expect(teamUiModule.requires).toEqual(["ui", "shared", "services"]); // services：workspace-config-catalog-sync 订阅 Host 装配事实（v3.16.1 S6 登记）
     expect(teamUiModule.publicEntrypoints).toEqual(["index.ts", "contract.ts"]);
     expect(TEAM_UI_MODULE_ID).toBe("ui-team");
   });

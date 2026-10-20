@@ -8,7 +8,7 @@ import {
   CONVERSATION_SELECTION_MAX_TOTAL_LENGTH,
   type ConversationSelectionText,
 } from "@drora/shared";
-import { logger } from "@/logger.js";
+import { logger } from "../logger.js";
 
 export {
   buildPromptWithConversationSelections,

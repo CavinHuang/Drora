@@ -84,3 +84,11 @@ node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/their
 - 仅本仓 7350 条全部为自研簇（mobile-web 5397、zcode-cua-helper 562、
   website 231、relay-server 26、cli 扩展 310、desktop/ui/services 自研挂载、
   regression/vaultview/glm-parity 文档等），与 A 类清单一致。
+
+## S7 终验记录（2026-10-20）
+
+- 门禁终态：typecheck 18 项目全绿；lint 0 error；fmt:check 过（15880→10828 有效范围，冻结区 ignore 补齐 6 条对齐 .gitattributes）；architecture:check --changed 0 违规；test:architecture 36/36；test:unit（vitest 19862 + node 全量）0 失败；test:upstream-cli 19 包 0 失败；mobile-web SHA256SUMS 2620 锚点通过。
+- R2 收口：__DRORA_MIN_COMPATIBLE_VERSION__ 注入由 desktop/web vite（buildMetadata.minCompatibleVersion ← package.json droraCompatibility 控制点，fallback=自身版本）承担；CLI 闭包不消费该常量，SEA 无需 define。独立值待产品策略在 droraCompatibility 声明。
+- S4 登记的两项环境预存失败已修：desktopPetLibrary（测试期望 realpath 归一，与 obsidian 同族）、desktopMobileLanRelayHost（版本钉死与 title 断言放宽——构建页跟随官方 3.16.1）。
+- G-hint E2E 移 manual-review/pending（入口交互被 project-sidebar 替换，需真机再基线，文件内 TODO 登记）。
+- 遗留真机项：E2E/跨平台/真包 parity 属 CI 与后续发布验证范围（spec 验收矩阵口径不变）。

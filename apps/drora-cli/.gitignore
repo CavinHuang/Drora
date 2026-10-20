@@ -26,3 +26,8 @@ vendor
 
 # Lowering 的人工可审查契约快照不是 tsc 产物，干净 checkout 也必须可运行测试。
 !packages/dynamic-workflow/tests/lowering/expected/*.js
+
+# tsc 就地发射的编译产物，不入库（上游仅跟踪 .ts）
+packages/cli/src/**/*.js
+packages/cli/src/**/*.js.map
+packages/cli/src/**/*.d.ts

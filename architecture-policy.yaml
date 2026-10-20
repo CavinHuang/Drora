@@ -142,6 +142,7 @@ modules:
     requires:
       - services
       - shared
+      - ui-team # grouped/task-row 移植 TeamSessionLine（v3.16.1 S5 删除族，2026-10-20）
       - ui
       - conversation-workspace-target
       - web-remote-control-ui
@@ -275,7 +276,7 @@ modules:
   - id: ui-drora-extensions
     roots: [packages/ui/src/drora-extensions]
     managed: true
-    requires: [ui, shared, services]
+    requires: [ui, shared, services, web-remote-control-ui] # RemoteControlDialog 包装 v3.16.1 新远控模块
     publicEntrypoints:
       [
         packages/ui/src/drora-extensions/contract.ts,
@@ -289,7 +290,7 @@ modules:
   - id: ui-team
     roots: [packages/ui/src/team]
     managed: true
-    requires: [ui, shared]
+    requires: [ui, shared, services] # services：workspace-config-catalog-sync 订阅 Host 装配事实（既有边，登记）
     publicEntrypoints:
       [
         packages/ui/src/team/contract.ts,

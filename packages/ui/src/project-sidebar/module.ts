@@ -11,6 +11,7 @@ export const projectSidebarModule = {
     "conversation-workspace-target",
     "web-remote-control-ui",
     "remote-connection-flow",
+    "ui-team", // grouped/task-row 移植 TeamSessionLine（v3.16.1 S5 删除族）
   ],
   provides: ["project-sidebar"],
   publicEntrypoints: [

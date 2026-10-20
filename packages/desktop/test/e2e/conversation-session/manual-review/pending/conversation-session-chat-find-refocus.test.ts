@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { TID_CHAT_MESSAGES, TID_GIT_PANE } from "@drora/shared";
+import { TID_CHAT_MESSAGES, TID_GIT_PANE } from "@drora/shared/test-ids";
 import { Key } from "webdriverio";
 import {
   DEFAULT_WORKSPACE,

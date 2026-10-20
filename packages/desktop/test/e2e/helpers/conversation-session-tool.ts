@@ -2,7 +2,7 @@ import {
   TID_CHAT_ASSISTANT_HISTORY_CONTENT,
   TID_CHAT_ASSISTANT_HISTORY_TRIGGER,
   TID_CHAT_ASSISTANT_MESSAGE,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   getLatestUpstreamToolResultByToolCallId,
   type UpstreamToolResultSnapshot,

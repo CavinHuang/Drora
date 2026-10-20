@@ -5,7 +5,7 @@ import {
   TID_CHAT_MESSAGE_EDIT_SUBMIT,
   TID_CHAT_USER_MESSAGE,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { clickTestIdByDom } from "./desktop-app.js";
 
 export interface EditButtonSnapshot {

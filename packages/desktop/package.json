@@ -5,6 +5,10 @@
   "author": "Drora",
   "type": "module",
   "main": "out/main/index.js",
+  "imports": {
+    "#e2e/*": "./test/e2e/*.ts",
+    "#src/*": "./src/*"
+  },
   "scripts": {
     "pre-dev": "pnpm --dir ../.. --filter @drora/mobile-web build && node scripts/ensure-local-runtime-assets.mjs && node -e \"require('node:fs').rmSync('./out',{recursive:true,force:true})\"",
     "dev": "node ../../scripts/dev-desktop-env.mjs production",
@@ -26,6 +30,7 @@
     "test:pet-parity": "node test/e2e/pets/manual-review/pending/codex-pet-parity.test.mjs",
     "test:pet-production": "node test/e2e/pets/manual-review/pending/production-pet.test.mjs",
     "pets:generate": "node --import tsx scripts/generate-codex-pet-builtins.mjs",
+    "test:auto-update-install-reentry-smoke": "node scripts/auto-update-install-reentry-smoke.mjs",
     "test:browser-background-activity-smoke": "electron scripts/browser-background-activity-smoke.mjs",
     "test:browser-hidden-guest-screenshot-smoke": "electron scripts/browser-hidden-guest-screenshot-smoke.mjs",
     "test:browser-screenshot-surface-smoke": "electron scripts/browser-screenshot-surface-smoke.mjs",

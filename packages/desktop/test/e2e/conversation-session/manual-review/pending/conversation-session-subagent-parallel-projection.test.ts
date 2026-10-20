@@ -1,7 +1,4 @@
-import {
-  TID_CHAT_SUMMARY_PANEL,
-  TID_V4_SUBAGENT_OPEN_SIDE_PANE,
-} from "@drora/shared";
+import { TID_CHAT_SUMMARY_PANEL, TID_V4_SUBAGENT_OPEN_SIDE_PANE } from "@drora/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import { waitForUpstreamRequest } from "../../../helpers/conversation-session-network.js";
 import {

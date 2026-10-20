@@ -1,4 +1,4 @@
-import { TID_CHAT_QUEUE_SEND_NOW_BUTTON, TID_V4_QUEUE_ITEM_SEND_NOW } from "@drora/shared";
+import { TID_CHAT_QUEUE_SEND_NOW_BUTTON, TID_V4_QUEUE_ITEM_SEND_NOW } from "@drora/shared/test-ids";
 import { clearAppData } from "../helpers/desktop-app.js";
 import {
   INCOMING_MESSAGE_MODES,

@@ -1,9 +1,6 @@
 import { readFile } from "node:fs/promises";
-import {
-  TID_OAUTH_LOGIN_BUTTON,
-  testId,
-  ZAI_PROVIDER_ID,
-} from "@drora/shared";
+import { ZAI_PROVIDER_ID } from "@drora/shared";
+import { TID_OAUTH_LOGIN_BUTTON, testId } from "@drora/shared/test-ids";
 import {
   clearAppData,
   getE2EAppDataPaths,

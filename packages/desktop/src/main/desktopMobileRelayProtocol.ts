@@ -66,7 +66,7 @@ type Logger = {
   warn: (...args: unknown[]) => void;
 };
 
-type RelayTransportState =
+export type RelayTransportState =
   | "idle"
   | "connecting"
   | "registering"

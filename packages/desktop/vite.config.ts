@@ -202,6 +202,7 @@ export default defineConfig(({ mode }) => {
     server: { port: 5174, strictPort: true },
     define: {
       __DRORA_VERSION__: JSON.stringify(buildMetadata.appVersion),
+      __DRORA_MIN_COMPATIBLE_VERSION__: JSON.stringify(buildMetadata.minCompatibleVersion),
       __DRORA_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),
       __DRORA_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
       __DRORA_ENV__: JSON.stringify(droraEnv),

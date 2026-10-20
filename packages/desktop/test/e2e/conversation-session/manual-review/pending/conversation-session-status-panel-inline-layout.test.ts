@@ -1,7 +1,4 @@
-import {
-  TID_CHAT_MESSAGES,
-  TID_CHAT_SUMMARY_PANEL,
-} from "@drora/shared";
+import { TID_CHAT_MESSAGES, TID_CHAT_SUMMARY_PANEL } from "@drora/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import {
   E2E_REPLY_TOKEN,

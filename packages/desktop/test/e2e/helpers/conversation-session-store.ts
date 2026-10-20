@@ -74,7 +74,20 @@ export function getV4ComposerDraftScopeSnapshot(
     (workspacePathArg, taskIdArg, workspaceIdentityArg) => {
       const scopeId = taskIdArg ?? "__draft__";
       const workspaceKey = workspaceIdentityArg?.trim() || workspacePathArg;
-      const storageKey = `drora-v4-composer-drafts:v1:${encodeURIComponent(workspaceKey)}`;
+      const intentRaw = window.localStorage.getItem(
+        `drora-composer-workspace-scope:v1:${JSON.stringify(["desktop", workspaceKey])}`,
+      );
+      const intent = intentRaw
+        ? (JSON.parse(intentRaw) as {
+            clientNamespace: string;
+            hostId: string;
+            projectId: string | null;
+          })
+        : null;
+      const storageKey =
+        taskIdArg === null && intent
+          ? `drora-v4-composer-project-drafts:v1:${JSON.stringify([intent.clientNamespace, intent.hostId, intent.projectId])}`
+          : `drora-v4-composer-drafts:v1:${encodeURIComponent(workspaceKey)}`;
       let draft: Record<string, unknown> | null = null;
       try {
         const raw = window.localStorage.getItem(storageKey);

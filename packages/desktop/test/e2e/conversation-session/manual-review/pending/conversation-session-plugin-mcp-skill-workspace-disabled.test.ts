@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared";
+import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared/test-ids";
 import { clearAppData, clickTestIdByDom, getE2EAppDataPaths } from "../../../helpers/desktop-app.js";
 import {
   getPluginList,

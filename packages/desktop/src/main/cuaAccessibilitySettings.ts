@@ -204,17 +204,25 @@ async function verifyHelperPermissionIdentityUnchanged(
   return fingerprint;
 }
 
-type CuaHelperInstallerLogger = NonNullable<CuaHelperInstallerOptions["logger"]>;
+// 冻结还原包（R3）的 CuaHelperInstallerOptions.logger 是 unknown（0.6.3 原始形态），
+// 不能从其派生安装器 logger 形状；按上游安装器契约（traceId 首参）显式定义，
+// 返回值赋给 unknown logger 字段结构兼容。
+type CuaHelperInstallerLogger = {
+  debug: (traceId: string | undefined, ...args: unknown[]) => void;
+  info: (traceId: string | undefined, ...args: unknown[]) => void;
+  warn: (traceId: string | undefined, ...args: unknown[]) => void;
+  error: (traceId: string | undefined, ...args: unknown[]) => void;
+};
 
 function toInstallerLogger(
   logger: OpenCuaAccessibilitySettingsOptions["logger"],
 ): CuaHelperInstallerLogger | undefined {
   if (!logger) return undefined;
   return {
-    debug: (_traceId, ...args) => logger.debug?.(...args),
-    info: (_traceId, ...args) => (logger.info ?? logger.warn)(...args),
-    warn: (_traceId, ...args) => logger.warn(...args),
-    error: (_traceId, ...args) => (logger.error ?? logger.warn)(...args),
+    debug: (_traceId: string | undefined, ...args: unknown[]) => logger.debug?.(...args),
+    info: (_traceId: string | undefined, ...args: unknown[]) => (logger.info ?? logger.warn)(...args),
+    warn: (_traceId: string | undefined, ...args: unknown[]) => logger.warn(...args),
+    error: (_traceId: string | undefined, ...args: unknown[]) => (logger.error ?? logger.warn)(...args),
   };
 }
 

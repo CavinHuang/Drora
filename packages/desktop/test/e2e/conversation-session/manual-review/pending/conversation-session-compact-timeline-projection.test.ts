@@ -6,7 +6,7 @@ import {
   TID_CHAT_MESSAGES,
   TID_CHAT_USER_MESSAGE,
   TID_CHAT_VIEW,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import {
   assertVisibleUserMessagesNotContaining,

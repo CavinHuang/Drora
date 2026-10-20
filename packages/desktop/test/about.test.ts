@@ -6,6 +6,8 @@ import {
   formatAboutDetail,
   formatAboutOptimizationLine,
 } from "../src/main/about.js";
+// Drora 品牌自定义 About 窗口的断言保真（specs/drora-rename.md 豁免区）：
+// 上游删走了系统面板外的自定义 About 测试，这里保留 Drora 自有 aboutWindow 断言。
 import { createCustomAboutDialogHtml } from "../src/main/aboutWindow.js";
 
 describe("about", () => {

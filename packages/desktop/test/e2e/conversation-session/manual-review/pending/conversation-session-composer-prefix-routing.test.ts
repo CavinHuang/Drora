@@ -1,9 +1,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  TID_V4_COMPOSER_INPUT,
-  DRORA_AGENT_PROVIDER,
-} from "@drora/shared";
+import { DRORA_AGENT_PROVIDER } from "@drora/shared";
+import { TID_V4_COMPOSER_INPUT } from "@drora/shared/test-ids";
 import { DEFAULT_WORKSPACE } from "../../../helpers/desktop-app.js";
 import {
   prepareConversationE2E,

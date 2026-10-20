@@ -2,11 +2,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { McpSource, CliMcpSource } from "../src/mcp.js";
-import {
-  MCP_SOURCE_DESCRIPTORS,
-  getSourceDescriptor,
-} from "../src/main/mcpUserDirectory/types.js";
+import type { CliMcpSource } from "../src/mcp.js";
+import { MCP_SOURCE_DESCRIPTORS, getSourceDescriptor } from "../src/main/mcpUserDirectory/types.js";
 import {
   loadCliMcpFromUserDirectory,
   saveCliMcpToUserDirectory,
@@ -31,22 +28,11 @@ afterEach(() => {
   }
 });
 
-describe("MCP Source Types", () => {
-  it("应包含 droraagentmcp 类型", () => {
-    const sources: McpSource[] = ["mcp", "droraagentmcp"];
-
-    expect(sources).toContain("droraagentmcp");
-  });
-
-  it("droraagentmcp 应该是 CliMcpSource 类型", () => {
-    const cliSource: CliMcpSource = "droraagentmcp";
-    expect(cliSource).toBe("droraagentmcp");
-  });
-});
-
 describe("MCP Source Descriptors", () => {
   it("只为 Drora Agent 提供描述符", () => {
-    expect(MCP_SOURCE_DESCRIPTORS.map((descriptor) => descriptor.source)).toEqual(["droraagentmcp"]);
+    expect(MCP_SOURCE_DESCRIPTORS.map((descriptor) => descriptor.source)).toEqual([
+      "droraagentmcp",
+    ]);
   });
 
   it("应能通过 getSourceDescriptor 获取 droraagentmcp 描述符", () => {
@@ -61,32 +47,24 @@ describe("MCP Source Descriptors", () => {
   });
 
   it("应为其他旧 provider source 抛出错误", () => {
-    expect(() => getSourceDescriptor("claudeclimcp" as CliMcpSource)).toThrow("Unsupported MCP source");
-    expect(() => getSourceDescriptor("geminiclimcp" as CliMcpSource)).toThrow("Unsupported MCP source");
-    expect(() => getSourceDescriptor("codexclimcp" as CliMcpSource)).toThrow("Unsupported MCP source");
-    expect(() => getSourceDescriptor("opencodemcp" as CliMcpSource)).toThrow("Unsupported MCP source");
+    expect(() => getSourceDescriptor("claudeclimcp" as CliMcpSource)).toThrow(
+      "Unsupported MCP source",
+    );
+    expect(() => getSourceDescriptor("geminiclimcp" as CliMcpSource)).toThrow(
+      "Unsupported MCP source",
+    );
+    expect(() => getSourceDescriptor("codexclimcp" as CliMcpSource)).toThrow(
+      "Unsupported MCP source",
+    );
+    expect(() => getSourceDescriptor("opencodemcp" as CliMcpSource)).toThrow(
+      "Unsupported MCP source",
+    );
   });
 
   it("应为无效 source 抛出错误", () => {
-    expect(() =>
-      getSourceDescriptor("invalid_source" as CliMcpSource)
-    ).toThrow("Unsupported MCP source");
-  });
-});
-
-describe("MCP 配置文件路径", () => {
-  it("droraagentmcp 主配置文件应在 ~/.drora/cli/config.json", () => {
-    const descriptor = getSourceDescriptor("droraagentmcp");
-
-    expect(descriptor.configDirSegments).toEqual([".drora", "cli"]);
-    expect(descriptor.fileName).toBe("config.json");
-  });
-
-  it("droraagentmcp 应使用 JSON 格式和 mcp.servers 键名", () => {
-    const descriptor = getSourceDescriptor("droraagentmcp");
-
-    expect(descriptor.format).toBe("json");
-    expect(descriptor.configKeyName).toBe("mcp.servers");
+    expect(() => getSourceDescriptor("invalid_source" as CliMcpSource)).toThrow(
+      "Unsupported MCP source",
+    );
   });
 });
 

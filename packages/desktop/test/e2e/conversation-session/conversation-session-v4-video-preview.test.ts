@@ -16,7 +16,7 @@ import {
   TID_V4_EDIT_SUBMIT,
   TID_V4_ROW_ATTACHMENTS,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { PROTOCOL_V4_LIMITS } from "@drora/shared/drora-protocol-v4";
 import { DEFAULT_WORKSPACE, clearAppData, clickTestIdByDom } from "../helpers/desktop-app.js";
 import { restartIntoWorkspacePreservingProfile } from "../helpers/model-provider-restart.js";

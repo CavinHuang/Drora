@@ -6,7 +6,7 @@ import {
   TID_SETTINGS_SECTION_NAV,
   TID_SETTINGS_BACK_BUTTON,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clickTestIdByDom,

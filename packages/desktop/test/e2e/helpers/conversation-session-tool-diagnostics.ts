@@ -8,7 +8,7 @@ import {
   TID_CHAT_VIEW,
   TID_TOOL_SUMMARY_TRIGGER,
   TID_V4_SESSION_PANE,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 
 export interface ToolCallBlockSnapshot {
   exists: boolean;

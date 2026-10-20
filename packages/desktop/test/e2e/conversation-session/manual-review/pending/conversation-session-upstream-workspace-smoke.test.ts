@@ -3,7 +3,7 @@ import {
   TID_CHAT_MODEL_SELECT_ITEM,
   TID_CHAT_MODEL_SELECT_TRIGGER,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

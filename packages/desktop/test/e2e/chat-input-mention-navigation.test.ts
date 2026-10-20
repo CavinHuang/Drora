@@ -3,7 +3,7 @@ import {
   TID_PROMPT_SUGGESTION_PANEL,
   TID_V4_COMPOSER_INPUT,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   setInputValueByTestIdDom,

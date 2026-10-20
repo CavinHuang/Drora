@@ -3,7 +3,14 @@
 // 基础图标 → dest-in 裁回原 alpha → nativeImage；任一步失败回退默认图标（只告警）。
 import { nativeImage } from "electron";
 import { readFile } from "node:fs/promises";
-import type { Logger } from "@drora/shared";
+// @drora/shared 从未导出 Logger（上游也没有）；本文件只需 console 形结构类型，
+// 运行时传入的 serviceLogger（traceId 首参签名）结构兼容。
+type Logger = {
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
 
 const RIBBON_WIDTH_RATIO = 0.24;
 const RIBBON_HEIGHT_RATIO = 0.199;

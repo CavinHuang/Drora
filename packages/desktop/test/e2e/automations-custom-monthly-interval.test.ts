@@ -19,7 +19,7 @@ import {
   TID_AUTOMATION_SCHEDULE_ADD,
   TID_AUTOMATIONS_LIST,
   TID_AUTOMATIONS_OPEN,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   clickTestIdByDom,

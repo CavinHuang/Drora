@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { TID_CHAT_ATTACHMENT_BUTTON, TID_V4_COMPOSER_INPUT } from "@drora/shared";
+import { TID_CHAT_ATTACHMENT_BUTTON, TID_V4_COMPOSER_INPUT } from "@drora/shared/test-ids";
 import { clearAppData, setInputValueByTestIdDom } from "../../../helpers/desktop-app.js";
 import {
   getV4ComposerText,

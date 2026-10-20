@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM, testId } from "@drora/shared";
+import { TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { clearAppData, readSettings, waitForTestIdByDom } from "../../../helpers/desktop-app.js";
 import { prepareV4ConversationE2E, startNewV4Draft } from "../../../helpers/v4-conversation.js";
 import {

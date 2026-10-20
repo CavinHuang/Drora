@@ -1,4 +1,5 @@
-import { BUILTIN_MODEL_PROVIDER_IDS, TID_MODEL_PROVIDER_ADD_MODEL_BUTTON } from "@drora/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@drora/shared";
+import { TID_MODEL_PROVIDER_ADD_MODEL_BUTTON } from "@drora/shared/test-ids";
 import { ModelConfig } from "@drora/provider";
 import { NodePersonalProviderConfigRepository } from "@drora/provider-node";
 import { clickTestIdByDom, getE2EAppDataPaths } from "./desktop-app.js";

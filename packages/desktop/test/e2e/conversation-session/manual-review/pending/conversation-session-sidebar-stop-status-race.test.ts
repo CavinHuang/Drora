@@ -1,4 +1,4 @@
-import { TID_TASK_ITEM, testId } from "@drora/shared";
+import { TID_TASK_ITEM, testId } from "@drora/shared/test-ids";
 import {
   clearAppData,
   getActiveWorkspacePath,

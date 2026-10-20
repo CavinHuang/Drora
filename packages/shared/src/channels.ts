@@ -283,6 +283,8 @@ export const PlatformChannels = {
   BindRemoteWorkspaceSessionContext: "drora:bind-remote-workspace-session-context",
   /** 为当前 workspace 开启 Web 远程控制 */
   StartWebRemoteControl: "drora:start-web-remote-control",
+  /** 轮换当前 workspace 的 Web 远控配对（二维码泄露时刷新）；Drora 保留面，字面量还原自 3.15.1 bundle */
+  ResetWebRemoteControlPairing: "drora:reset-web-remote-control-pairing",
   /** 关闭当前窗口的 Web 远程控制 */
   StopWebRemoteControl: "drora:stop-web-remote-control",
   /** 查询当前窗口的 Web 远程控制状态 */
@@ -913,6 +915,10 @@ export interface PlatformChannelMap {
     response: import("./platform.js").BindRemoteWorkspaceSessionContextIpcResult;
   };
   [PlatformChannels.StartWebRemoteControl]: {
+    request: WebRemoteControlContext;
+    response: WebRemoteControlStartOperationResult;
+  };
+  [PlatformChannels.ResetWebRemoteControlPairing]: {
     request: WebRemoteControlContext;
     response: WebRemoteControlStartOperationResult;
   };

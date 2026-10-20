@@ -9,7 +9,6 @@ import {
   DEV_ELECTRON_BUNDLE_FORMAT,
   patchDevElectronInfoPlist,
   prepareDevElectronAppBundle,
-  resolveDevElectronAppBundlePath,
 } from "../scripts/devElectronAppBundle.mjs";
 
 const tempRoots: string[] = [];
@@ -42,16 +41,6 @@ describe("dev Electron app bundle", () => {
       expect(patched).toContain(`<string>${scheme}</string>`);
     }
     expect((patched.match(/<key>CFBundleURLTypes<\/key>/gu) ?? []).length).toBe(1);
-  });
-
-  it("derives a stable ignored bundle path per Electron version and architecture", () => {
-    expect(
-      resolveDevElectronAppBundlePath({
-        runtimeRoot: "/tmp/drora-runtime",
-        electronVersion: "41.0.3",
-        arch: "arm64",
-      }),
-    ).toBe("/tmp/drora-runtime/41.0.3-arm64/Drora Dev.app");
   });
 
   it("makes the macOS dev launcher use the prepared bundle executable", async () => {

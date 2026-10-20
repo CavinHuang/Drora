@@ -33,6 +33,15 @@ import {
   resolveWorkspaceTelemetryDetail,
 } from "@drora/shared";
 import { ServiceChannels } from "@drora/shared";
+
+// 已退役取证控制器（specs/upstream-v3.15.1-migration.md 旧控制器退出正常启动链）：
+// @drora/shared 无 Logger 导出，本地 console 形结构类型保持可编译。
+type Logger = {
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
 import type { ITerminalService } from "@drora/services";
 import {
   RpcFrameAssembler,
@@ -2017,7 +2026,9 @@ export function createDesktopMobileRelayControl(deps: {
       !credential ||
       (transportState !== "waiting_terminal" && transportState !== "paired")
     ) {
-      const failure = runtimeFailure;
+      // runtimeFailure 由事件回调赋值，不经 TS 流分析（此处被收窄为 null）；
+      // 显式还原声明类型读取真实终态失败。
+      const failure = runtimeFailure as MobilePairingFailure | null;
       await stop();
       // 未达 QR 就绪的终态失败同样上报 start_result（官方 StartWebRemoteControl
       // handler 对 operation rejection 统一走 catch 失败面）。
@@ -2114,7 +2125,9 @@ export function createDesktopMobileRelayControl(deps: {
     if (restoredThisRun || manuallyClosed === false) return false;
     if (!deps.startupRestoreStorage) return false;
     const context = await deps.startupRestoreStorage.load();
-    if (restoredThisRun || manuallyClosed === false) return false;
+    // await 期间闭包变量可能被手动关闭事件改写，经读取函数保持与首检相同的实时语义。
+    const manuallyClosedNow: () => boolean | undefined = () => manuallyClosed;
+    if (restoredThisRun || manuallyClosedNow() === false) return false;
     if (!context) return false;
     const contextKey = context.workspaceIdentity?.trim() || context.workspacePath;
     const target = workspaces.find(

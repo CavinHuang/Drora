@@ -4,7 +4,7 @@ import {
   TID_CHAT_MODEL_SELECT_TRIGGER,
   TID_SETTINGS_BACK_BUTTON,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

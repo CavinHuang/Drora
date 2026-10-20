@@ -9,7 +9,7 @@ import {
   TID_V4_COMPOSER_INPUT,
   TID_V4_SESSION_PANE,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

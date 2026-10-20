@@ -113,8 +113,8 @@ export async function serveMobilePageAction(params: {
       if (!content) return { type: "accepted", taskId: frame.taskId };
       await task.sendPrompt({
         taskId: frame.taskId,
-        workspacePath,
-        workspaceIdentity,
+        // 上游 3.16.1 sendPrompt 参数面移除 workspacePath/workspaceIdentity
+        // （会话身份由 taskId/remoteSessionId 归属解析）。
         traceId: randomUUID(),
         content,
         clientMode: "web-remote-replayable",

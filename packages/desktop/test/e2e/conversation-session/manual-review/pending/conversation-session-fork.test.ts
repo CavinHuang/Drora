@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { TID_CHAT_MESSAGE_FORK_BUTTON } from "@drora/shared";
+import { TID_CHAT_MESSAGE_FORK_BUTTON } from "@drora/shared/test-ids";
 import {
   clearAppData,
   clickTestIdByDom,

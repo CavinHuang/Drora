@@ -1,4 +1,8 @@
 import { createConfig, type ConfigResult } from "@drora/adapters/config";
+import {
+  createSharedDroraCredentialStore,
+  SHARED_DRORA_CREDENTIAL_KEYS,
+} from "@drora/adapters/auth";
 import { createNodeHttpClientAdapter } from "@drora/adapters/http";
 import { createProviderEndpointRoutingPort } from "@drora/adapters/model";
 import { createNodeLoggerFactory } from "@drora/adapters/logging";
@@ -41,6 +45,8 @@ export function resolveProcessProviderEndpointRoutingPort(
     return existing;
   }
 
+  const credentialStore = createSharedDroraCredentialStore({ env });
+
   const port = createProviderEndpointRoutingPort({
     appVersion: options.appVersion,
     endpointOrigin,
@@ -53,6 +59,7 @@ export function resolveProcessProviderEndpointRoutingPort(
     logger: options.logger.child({
       module: "adapters.model.provider_endpoint_routing",
     }),
+    readDroraJwt: () => credentialStore.load(SHARED_DRORA_CREDENTIAL_KEYS.droraJwtToken),
     sourceHeaders: () =>
       createProviderEndpointRoutingSourceHeaders({
         appVersion: options.appVersion,

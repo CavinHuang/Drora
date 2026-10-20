@@ -10,10 +10,12 @@ import type {
   TraceId,
   TurnId,
 } from "@drora/contracts";
-import type { ModelToolCall as ToolCall } from "@drora/contracts";
+import type { ModelToolCall, ModelCallWrapper } from "@drora/contracts";
 
 // Re-export ToolCall for consumers of this module
-export type { ModelToolCall as ToolCall } from "@drora/contracts";
+export interface ToolCall extends ModelToolCall {
+  modelCallWrapper?: ModelCallWrapper;
+}
 
 // Note: ModelMessage is defined locally to avoid conflicts with contracts' ModelMessage
 // which uses ToolCallPayload[] instead of ModelToolCall[]

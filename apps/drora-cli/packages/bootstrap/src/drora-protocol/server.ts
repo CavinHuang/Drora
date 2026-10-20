@@ -1,4 +1,5 @@
 import { querySessionDebug } from "./session-debug.js";
+import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@drora/shared";
 import { createNodeNetworkCapture } from "@drora/shared/node";
 import { networkCaptureControlSchema, droraProtocolNotifications } from "@drora/shared";
 import {
@@ -110,7 +111,7 @@ import {
 } from "./mcp-ui/index.js";
 import { listPluginUiSurfaces } from "./plugin-ui-surfaces.js";
 import { updateInteractionPreferences } from "./interaction-preferences.js";
-import { updateAccountProviderConfig } from "./account-provider-config.js";
+import { refreshProviderRegistry, updateAccountProviderConfig } from "./account-provider-config.js";
 import { updateModelIoPreferences } from "./model-io-preferences.js";
 import { updateOffPeakToolPolicy } from "./off-peak-tool-policy.js";
 import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
@@ -407,6 +408,31 @@ export class DroraProtocolAgentServer {
       this.cleanupClientRequest(pending);
       pending.reject(error);
     }
+    // Bug 原因：Server Core 被 SIGKILL 后，Agent 的 stdin 虽然收到 EOF，但连接关闭
+    // 只拒绝了反向请求，没有打断已经进入 Bash/工具循环的前台执行。transport 会继续
+    // 等待该请求自然结束，旧 Agent 因而成为 PPID 1 的孤儿并在新 Core generation 之外
+    // 继续写文件。协议 owner 消失就是本进程全部前台执行的终止边界，必须同步取消。
+    for (const record of this.context.sessions.values()) {
+      try {
+        record.app.runtime.stopActiveForegroundExecution?.({
+          reason: "Drora Protocol owner disconnected",
+        });
+      } catch (cause) {
+        this.logger?.warn("Failed to stop foreground execution after protocol disconnect", {
+          errorType: cause instanceof Error ? cause.name : typeof cause,
+          sessionId: record.app.sessionId,
+        });
+      }
+      record.activeAbortController?.abort(error);
+    }
+    for (const controller of this.workspaceGenerateTextControllers.values()) {
+      controller.abort(error);
+    }
+    this.workspaceGenerateTextControllers.clear();
+    for (const controller of this.pluginOperationControllers.values()) {
+      controller.abort(error);
+    }
+    this.pluginOperationControllers.clear();
   }
 
   /** 进程资源关闭，不使用会删除产品会话/发布 session.removed 的 session/close。 */
@@ -574,6 +600,14 @@ export class DroraProtocolAgentServer {
         return await this.requireV4Gateway().plans(request.params);
       case V4_METHODS.backgroundBashOutput:
         return await this.requireV4Gateway().backgroundBashOutput(request.params);
+      case V4_METHODS.offPeakControl: {
+        const params = offPeakControlParamsSchema.parse(request.params);
+        const record = this.context.sessions.get(params.sessionId);
+        // 生命周期只存在于驻留 runtime；换票不能恢复冷会话或重放原始输入。
+        return offPeakControlResultSchema.parse(
+          record ? await record.app.runtime.controlOffPeakExecution(params) : { accepted: false },
+        );
+      }
       case V4_METHODS.conversationFileChanges:
         return await this.requireV4Gateway().fileChanges(request.params);
       case V4_METHODS.conversationFileRewindPreview:
@@ -626,6 +660,8 @@ export class DroraProtocolAgentServer {
         return this.requireV4Gateway().handleCommand(request.params);
       case V4_METHODS.commandsQuery:
         return this.requireV4Gateway().queryCommands(request.params);
+      case V4_METHODS.sessionsIndexReconcile:
+        return this.requireV4Gateway().reconcileSessions(request.params);
       case droraProtocolMethods.sessionCreate:
         return await createSession(this.context, request.params, request.trace);
       case droraProtocolMethods.sessionResume:
@@ -685,6 +721,8 @@ export class DroraProtocolAgentServer {
       }
       case droraProtocolMethods.providerUpdateAccountConfig:
         return await updateAccountProviderConfig(this.context, request.params);
+      case droraProtocolMethods.providerRefreshRegistry:
+        return await refreshProviderRegistry(this.context, request.params);
       case droraProtocolMethods.workspaceUpdateInteractionPreferences:
         return await updateInteractionPreferences(this.context, request.params);
       case droraProtocolMethods.workspaceUpdateModelIoPreferences:
@@ -776,7 +814,7 @@ export class DroraProtocolAgentServer {
       case droraProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
       case droraProtocolMethods.runtimeCapabilities:
-        return { independentPlanState: true };
+        return { independentPlanState: true, historyFirst: true };
       case droraProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),
@@ -953,7 +991,7 @@ export class DroraProtocolAgentServer {
               PROTOCOL_CLIENT_REQUEST_ERROR_CODES.timedOut,
               `Client request timed out: ${method}`,
               {
-                timeoutMs: options.timeoutMs,
+              timeoutMs: options.timeoutMs,
               },
             ),
           );

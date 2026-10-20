@@ -15,6 +15,7 @@ import type { WorkspaceHookPolicyProvider } from "@drora/core";
 import type { AccountProviderConfigSnapshot } from "@drora/provider";
 import {
   droraProtocolErrorCodes,
+  type AppToolSearchMode,
   type DroraAutomationBotDeliveryTarget,
   type DroraDeliveryKind,
   type ModelSelection,
@@ -97,6 +98,7 @@ export interface DroraProtocolSessionRecord {
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
   nativeSearchEnhancementsEnabled: boolean;
+  toolSearchMode: AppToolSearchMode;
   modelContextBudgetStrategy: DroraModelContextBudgetStrategy;
   createdAt: number;
   deliveryKind?: DroraDeliveryKind;
@@ -115,6 +117,7 @@ export interface DroraProtocolSessionRecord {
   traceContext: TraceContext;
   unsubscribe?: () => void;
   updatedAt: number;
+  lastOutcome?: "completed" | "interrupted" | "error";
   workspace: DroraWorkspaceRef;
   activeAbortController?: AbortController;
   /** background runner 释放 ready lock 后，持久化/snapshot/broadcast 尚未完成的引用计数。 */
@@ -189,6 +192,8 @@ export interface DroraProtocolAgentServerContext {
   // 协议请求则持有 operation lease，禁止异步 handler 与容量回收交错。
   sessionResidentPool?: SessionResidentPool;
   sessions: Map<string, DroraProtocolSessionRecord>;
+  /** 仅覆盖异步创建窗口，结束即释放；输入命令仍由 CommandInbox 排队。 */
+  sessionCreationIds?: Set<string>;
   notify(notification: DroraProtocolNotification): void;
   requestClient<T>(
     method: DroraProtocolMethod,

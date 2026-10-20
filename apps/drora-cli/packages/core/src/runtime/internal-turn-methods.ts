@@ -1,5 +1,5 @@
 import type { BackgroundBashOutputResult } from "@drora/shared";
-import type { RuntimeInputPresentation } from "@drora/contracts";
+import type { ModelToolContract, RuntimeInputPresentation } from "@drora/contracts";
 import type {
   CompactPhase,
   CompactReason,
@@ -216,6 +216,7 @@ export interface AgentRuntimeTurnMethods {
       model?: Model;
       agentListingTools?: readonly { name: string }[];
       activeEntries?: readonly RuntimeMessageEntry[];
+      getContinuationTools?: () => readonly ModelToolContract[];
     },
   ): Promise<{
     displayText: string;

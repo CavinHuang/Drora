@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAgentStateId, type SubagentRuntimeConfig } from "@drora/shared";
 import type { ModelRequest } from "@drora/contracts";
 import { createNodeLoggerFactory } from "@drora/adapters/logging";
-import { parseRuntimeSubagentConfig } from "../src/subagent-runtime-config.js";
+import { parseRuntimeSubagentConfig } from "../src/runtime-subagents/index.js";
 import * as subagents from "../src/subagents.js";
 import { createRegistryBackedTestApp } from "./helpers/registry-backed-test-app.js";
 

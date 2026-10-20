@@ -40,6 +40,12 @@
 - 待办登记：R2 `build-drora.mjs` 注入 `__DRORA_MIN_COMPATIBLE_VERSION__`（当前 fallback=DRORA_VERSION，S7 前实现）；`workflowBlocked` _meta 键是否归敛 shared/contracts 常量（S2/S3 评估）；全仓 fmt 基线 729 文件未过，S7 统一 `pnpm fmt`。
 - 已知跨段破坏（S1 契约先行）：全仓 typecheck 426 error（ui 401/web 16/services 8/client 1），清单 /tmp/dryrun/s1-cross-breakage.txt，S3/S5 收口。
 
+## S2 执行补记
+
+- zone 决策 4 条全部**保 ours**：`zcode-cua-plugin/{.zcode-plugin/plugin.json,package.json}`（上游 0.6.4→0.6.5+MIT→Apache-2.0；本仓冻结 0.6.3 字节不随动，license 变化登记不应用——还原保真优先）；`scripts/sync-cache.mjs`（上游注释改 monorepo 路径，Drora producer 链仍走仓库 clone 形态）；`scripts/resolve-pnpm-invocation.mjs`（上游删除系其 monorepo 迁移；本仓 bump-zcode-cua-producer.mjs 活跃引用，保留）。
+- 31 冲突逐案解决（代理执行+typecheck 七包过）：要点=protocol-v4 handlers import 统一 session-execution 聚合入口、session-flow highspeed 分支保留 W03 证据守卫（有意分歧）、server-operations 并集（team 目录失效+resume 失败回收）、contracts tools 并集（vault-search+tool-search）、official-plugin-definitions computer-use 钉 0.6.3（与冻结资产对齐）、package.json 版本保 0.0.1。
+- 依赖包 dist 重建教训：合并后先 `pnpm --filter <pkg>... exec tsc` 重建再 noEmit，跨包报错多为陈旧 dist。
+
 ## 段表补记（回写 spec 的枚举）
 
 S3 = packages/{services,server,provider,provider-node,client,drora-server-cli,model-option-map,android,formal-proof,share-ui,web-share,stream-animate,e2e-report} + harness/ + config/；S5 = packages/{ui,web,mobile-web} + public/。

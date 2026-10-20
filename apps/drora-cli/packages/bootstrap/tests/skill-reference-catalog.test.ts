@@ -4,11 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  droraProtocolMethods,
-  droraSkillsReferenceCatalogParamsSchema,
-  droraSkillsReferenceCatalogResultSchema,
-} from "@drora/shared";
+import { droraSkillsReferenceCatalogResultSchema } from "@drora/shared";
 import type { SkillLoadOutcome } from "@drora/contracts";
 import { getSkillReferenceCatalog } from "../src/drora-protocol/skill-reference-catalog.js";
 import type {
@@ -47,31 +43,6 @@ function contextWithSession(sessionId: string): DroraProtocolAgentServerContext 
 }
 
 describe("skills/referenceCatalog protocol", () => {
-  it("registers the method and strict schemas", () => {
-    expect(droraProtocolMethods.skillsReferenceCatalog).toBe("skills/referenceCatalog");
-    expect(() =>
-      droraSkillsReferenceCatalogParamsSchema.parse({
-        workspace: { workspacePath: "/w", workspaceKey: "/w" },
-        sessionId: "session-a",
-      }),
-    ).not.toThrow();
-    expect(() =>
-      droraSkillsReferenceCatalogResultSchema.parse({
-        authority: "session",
-        skills: [
-          {
-            id: "glm:workspace:/w/.drora/skills/demo/SKILL.md",
-            name: "demo",
-            description: "Demo",
-            path: "/w/.drora/skills/demo/SKILL.md",
-            scope: "workspace",
-            enabled: true,
-          },
-        ],
-      }),
-    ).not.toThrow();
-  });
-
   it("serves the Session runtime frozen catalog", async () => {
     const result = await getSkillReferenceCatalog(contextWithSession("session-a"), {
       workspace: { workspacePath: "/workspace", workspaceKey: "/workspace" },

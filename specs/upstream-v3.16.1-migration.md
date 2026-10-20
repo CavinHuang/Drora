@@ -69,6 +69,15 @@
 
 段间已知中间态：S1 契约先行会造成消费方（S2/S4/S5）短暂类型破坏——记录在案、由后续段收口；各段自身测试必须绿。
 
+## 段执行补记
+
+### S6（commit `3de1880a`，481 文件 = 385 机械落地 + 13 文档/配置冲突并集 + R5/清理连带）
+
+- **快照机制（R5 落地）**：upstream-admission 白名单——按本仓转换树重生成 `scripts/architecture/upstream-snapshot.json`（18031 files + 1503 introduced，已复核），unmanaged-new-file 171→0。三条 S5 合并移植产生的模块边双面登记：`packages/ui/src/project-sidebar/module.ts`（+ui-team，TeamSessionLine 移植）、`team/module.ts`（+services，workspace-config-catalog-sync）、`drora-extensions/module.ts`（+web-remote-control-ui，RemoteControlDialog 包装 v3.16.1 新远控模块）；scripts/architecture 12 文件随机制一并落地（属 R5 登记连带，非越段）。
+- **许可补齐**：buffers/chainsaw/noto-sans-sc 三快照落地（依赖已在 lockfile）；`third-party/README.md`/`SPEC.md`/`inventory.json` take-theirs；`THIRD-PARTY-NOTICES.md` 并入 radix 条目。
+- **污染清理**：删除 `apps/drora-cli/packages/cli/src` 下 86 个 tsc 就地发射 `.js`（已复核 86D/0 残留跟踪），`apps/drora-cli/.gitignore` 补 `src/**/*.js`、`src/**/*.d.ts`、`packages/cli/src/**` 编译产物规则（上游仅跟踪 `.ts`）。
+- **门禁终态**：lint 0 error；`architecture:check --changed` 0 违规；`test:architecture` 36/36（commit 信息记录）；三方核查 V1 覆盖性/V2 保真性/V3 一致性通过（V3：文件名层 zcode 残留 1 条均属豁免，工作区干净）。fmt 未在 S6 门禁内（段表沿用 lint/fmt 定义为后续统一处理，S7 全量收口）。
+
 ## 三方核查协议（每段必做，三个独立 subagent，不共享上下文）
 
 - **V1 覆盖性核查**：输入=段路径集 + aac4755..upstream/main diff + 决策清单。逐条验证：每条上游变更要么已落地（经反替换归一化比对内容），要么在决策清单中有登记与依据。产出零静默丢失证明；任何遗漏回主流程修复后复验。

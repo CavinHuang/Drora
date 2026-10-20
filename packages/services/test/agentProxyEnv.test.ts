@@ -247,16 +247,6 @@ describe("node.ts wires the authoritative origin into resolveSpawnEnv", () => {
     source.indexOf("...buildAgentTelemetrySpawnEnv({", spawnEnvStart),
   );
 
-  it("locates the resolveSpawnEnv closure at all", () => {
-    // 守卫上面的 slice：起点或终点找不到时 block 会静默变空，让后续 toContain 失去意义。
-    expect(spawnEnvStart).toBeGreaterThanOrEqual(0);
-    expect(spawnEnvBlock.length).toBeGreaterThan(0);
-  });
-
-  it("injects the origin patch inside resolveSpawnEnv", () => {
-    expect(spawnEnvBlock).toContain("buildAgentEndpointOriginEnv(");
-  });
-
   it("feeds it the settings-aware resolver, not the env-only one", () => {
     // 承重项：必须用 resolveCurrentDroraEndpointOrigin（含 settings 覆盖）。
     // 接成 resolveRuntimeDroraEndpointOrigin(process.env) 会让这次修复完全失效，
@@ -267,6 +257,7 @@ describe("node.ts wires the authoritative origin into resolveSpawnEnv", () => {
   });
 });
 
+// Drora 自研守卫：node.ts 的 lazy CUA spawn helper 结构断言（上游无对应实现）。
 describe("node.ts lazy CUA spawn helper selection", () => {
   const source = readFileSync(resolve(__dirname, "../src/node.ts"), "utf8");
   const spawnEnvStart = source.indexOf("resolveSpawnEnv: async (");

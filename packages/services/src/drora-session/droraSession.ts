@@ -58,7 +58,6 @@ export interface DroraSessionResumeParams extends DroraTaskTarget {
 }
 
 export interface DroraSessionListParams extends DroraSessionWorkspaceTarget {
-  includeArchived?: boolean;
   limit?: number;
 }
 

@@ -35,12 +35,18 @@ describe("ClientConfigService", () => {
     const request = vi.fn<ApiClient["request"]>(async () => response());
     const { service } = setup(request);
     expect(await Promise.all([service.getSnapshot(), service.getSnapshot()])).toEqual([
-      { pluginStoreOrder: order, captcha: null, zsrcUrl: null },
-      { pluginStoreOrder: order, captcha: null, zsrcUrl: null },
+      // 并集契约：captcha 是 Drora Start Plan 人机验证字段，uiPluginRecommendations 是上游 3.16.1 新增。
+      { pluginStoreOrder: order, captcha: null, zsrcUrl: null, uiPluginRecommendations: [] },
+      { pluginStoreOrder: order, captcha: null, zsrcUrl: null, uiPluginRecommendations: [] },
     ]);
     const snapshot = await service.getSnapshot();
     snapshot.pluginStoreOrder!.code!.categoryOrder!.push("other");
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
     expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls[0]?.[1]).toMatchObject({
       credentials: "omit",
@@ -61,14 +67,26 @@ describe("ClientConfigService", () => {
     await service.getSnapshot();
     const refresh = service.getSnapshot({ forceRefresh: true });
     await Promise.resolve();
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
     const failed = expect(refresh).rejects.toThrow();
     pending.reject(new Error("offline"));
     await failed;
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
     expect(await service.getSnapshot({ forceRefresh: true })).toEqual({
       pluginStoreOrder: null,
-      captcha: null, zsrcUrl: null,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
     });
   });
 
@@ -86,10 +104,20 @@ describe("ClientConfigService", () => {
       setContext({
         [field]: field === "endpointOrigin" ? "https://other.example.test" : "changed",
       });
-      expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: null, captcha: null, zsrcUrl: null });
+      expect(await service.getSnapshot()).toEqual({
+        pluginStoreOrder: null,
+        captcha: null,
+        zsrcUrl: null,
+        uiPluginRecommendations: [],
+      });
       old.resolve(response());
       await first;
-      expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: null, captcha: null, zsrcUrl: null });
+      expect(await service.getSnapshot()).toEqual({
+        pluginStoreOrder: null,
+        captcha: null,
+        zsrcUrl: null,
+        uiPluginRecommendations: [],
+      });
       expect(request).toHaveBeenCalledTimes(2);
     },
   );
@@ -112,7 +140,12 @@ describe("ClientConfigService", () => {
     const request = vi.fn().mockResolvedValueOnce(bad).mockResolvedValueOnce(response());
     const { service } = setup(request);
     await expect(service.getSnapshot()).rejects.toThrow();
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
   });
 
   it("正文挂起也受总请求预算约束，超时后可重试", async () => {
@@ -128,7 +161,12 @@ describe("ClientConfigService", () => {
     await result;
     expect(signal?.aborted).toBe(true);
     request.mockResolvedValueOnce(response());
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
   });
 
   it("传输中 endpoint 被改写的响应不得缓存到旧上下文", async () => {
@@ -139,6 +177,11 @@ describe("ClientConfigService", () => {
     const request = vi.fn().mockResolvedValueOnce(changed).mockResolvedValueOnce(response());
     const { service } = setup(request);
     await expect(service.getSnapshot()).rejects.toThrow();
-    expect(await service.getSnapshot()).toEqual({ pluginStoreOrder: order, captcha: null, zsrcUrl: null });
+    expect(await service.getSnapshot()).toEqual({
+      pluginStoreOrder: order,
+      captcha: null,
+      zsrcUrl: null,
+      uiPluginRecommendations: [],
+    });
   });
 });

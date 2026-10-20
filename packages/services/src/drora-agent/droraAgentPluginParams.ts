@@ -13,6 +13,21 @@ export interface DroraAgentWorkspaceTarget {
   remoteSessionId?: string;
 }
 
+export interface DroraAgentPluginMutationTarget extends DroraAgentWorkspaceTarget {
+  /** 仅 Host 观测使用；不会传给 CLI。 */
+  telemetry?: {
+    entry?:
+      | "store_list"
+      | "store_detail"
+      | "side_pane_market"
+      | "recommended_prompt"
+      | "recommended_ui"
+      | "component_settings";
+    client_kind?: "desktop" | "mobile";
+    trigger?: "user" | "automatic" | "dependency" | "restore" | "sync";
+  };
+}
+
 export interface DroraAgentPluginViewParams extends DroraAgentWorkspaceTarget {
   configScope?: "user" | "workspace";
 }
@@ -22,22 +37,22 @@ export interface DroraAgentListMcpServerStatusesParams extends DroraAgentWorkspa
   mode?: DroraMcpListMode;
 }
 
-export interface DroraAgentAddPluginMarketplaceParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentAddPluginMarketplaceParams extends DroraAgentPluginMutationTarget {
   dryRun?: boolean;
   operationId?: string;
   source: string;
 }
 
-export interface DroraAgentRemovePluginMarketplaceParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentRemovePluginMarketplaceParams extends DroraAgentPluginMutationTarget {
   marketplace: string;
 }
 
-export interface DroraAgentUpdatePluginMarketplaceParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentUpdatePluginMarketplaceParams extends DroraAgentPluginMutationTarget {
   marketplace?: string;
   operationId?: string;
 }
 
-export interface DroraAgentInstallPluginParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentInstallPluginParams extends DroraAgentPluginMutationTarget {
   dryRun?: boolean;
   marketplace: string;
   operationId?: string;
@@ -49,23 +64,23 @@ export interface DroraAgentCancelPluginOperationParams {
   operationId: string;
 }
 
-export interface DroraAgentUninstallPluginParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentUninstallPluginParams extends DroraAgentPluginMutationTarget {
   marketplace?: string;
   pluginId?: string;
   pluginName?: string;
   removeCache?: boolean;
 }
 
-export interface DroraAgentUpdatePluginParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentUpdatePluginParams extends DroraAgentPluginMutationTarget {
   pluginId?: string;
   marketplace?: string;
 }
 
-export interface DroraAgentRestoreBuiltinPluginParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentRestoreBuiltinPluginParams extends DroraAgentPluginMutationTarget {
   pluginId: string;
 }
 
-export interface DroraAgentConfigurePluginParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentConfigurePluginParams extends DroraAgentPluginMutationTarget {
   clearOptionKeys?: string[];
   dryRun?: boolean;
   options: Record<string, unknown>;
@@ -73,7 +88,7 @@ export interface DroraAgentConfigurePluginParams extends DroraAgentWorkspaceTarg
   scope?: "user" | "workspace";
 }
 
-export interface DroraAgentResetPluginConfigParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentResetPluginConfigParams extends DroraAgentPluginMutationTarget {
   pluginId: string;
   scope?: "user" | "workspace";
 }
@@ -89,7 +104,7 @@ export interface DroraAgentDescribePluginParams extends DroraAgentWorkspaceTarge
   pluginName: string;
 }
 
-export interface DroraAgentSetPluginEnabledParams extends DroraAgentWorkspaceTarget {
+export interface DroraAgentSetPluginEnabledParams extends DroraAgentPluginMutationTarget {
   enabled: boolean;
   operationId?: string;
   pluginId: string;
@@ -185,6 +200,7 @@ export interface DroraAgentResolveSuggestedPluginReferenceParams extends DroraAg
 // ---- 定时任务(automation)管理参数 ----
 
 export interface DroraAgentCreateAutomationParams extends DroraAgentWorkspaceTarget {
+  projectId?: string | null;
   title: string;
   cronExpr: string;
   relativeDelayMinutes?: number;

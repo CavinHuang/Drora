@@ -1,3 +1,4 @@
+import { migrateApplicationStorage, createSettingService } from "@drora/services/node";
 import { disposeServiceResourcesAndWait, getAppConfigDir } from "@drora/services/node";
 import type { IChannel } from "@drora/rpc";
 import {
@@ -64,6 +65,7 @@ async function main() {
     environmentConfigRoot: getAppConfigDir(),
     content: readBundledDroraBuiltinProviderConfig(),
   });
+  await migrateApplicationStorage(await createSettingService().get());
   const { authorityModeParseResult, services } = createStdioServices({
     env: process.env,
     droraBuiltinProviderConfigFilePath,

@@ -1,5 +1,29 @@
 # Conversation Session Case Catalog
 
+## Agents Team 协作显示（2026-10-19）
+
+对话优先设计新增 accepted 用例（范围见 `docs/agent-team-implementation-2026-10-16/03-conversation-first-ui.md`）：
+
+| ID     | Setup                                 | Action                            | Assertion                                      | Decision |
+| ------ | ------------------------------------- | --------------------------------- | ---------------------------------------------- | -------- |
+| ATUI04 | 同一父会话、remote identity、成员预览 | 左侧成员/主区交接定位右侧         | scope 完整；仅导航，无 mutation                | accepted |
+| ATUI05 | 默认总览、带依赖任务                  | 任务/成员/消息详情及返回          | 内容同源，返回保留原标签与选择，成员转录仍只读 | accepted |
+| ATUI06 | journal 超过 10 条                    | 分页、并发新事件、固定 throughSeq | 无重复遗漏，跨 team 隔离；core 集成证据        | accepted |
+| ATUI07 | 无 store、读失败、损坏或旧端          | 打开过程及重试                    | 明确不可用，损坏计数，不伪造空历史             | accepted |
+| ATUI08 | 同一持久化来源、新 reader/面板        | 重新打开并查询                    | 保存事件仍可见；不等同整个 Host 重启           | accepted |
+| ATUI09 | 延迟历史 ACK                          | 换队后释放旧请求                  | 旧结果不覆盖新队页面                           | accepted |
+| ATUI10 | 390/736/1024、浅深主题、zh/en、触摸   | 导航并查看详情/过程               | 无横向溢出，核心控件可触摸，状态不混淆         | accepted |
+| ATUI11 | 手机时间线及当前 ServiceProvider、远控整行按钮 | 查询错误后重试、切换 scope、打开任务 | 历史同一服务通道且身份完整；旧 ACK 隔离；摘要无嵌套按钮、无无效看板 | accepted |
+
+| ID | Setup | Action | Assertion | Decision |
+| --- | --- | --- | --- | --- |
+| ATUI01 | 同一真实 React fixture，跨成员依赖、1 条未送达消息 | 切依赖/消息/交接，选择关系并进入成员 | 来源/方向/世代正确；失败不解锁；交接无历史为空；下钻返回保留选择 | accepted |
+| ATUI02 | 同一团队 completed=2/total=5，scope 含远程 identity | 点击左侧/主消息入口，更新同一投影 | 目标父会话与 scope 完整；摘要/任务/成员一致；旧帧无 teamActivity 合法 | accepted |
+| ATUI03 | staged / idle / completed，窄屏与两主题 | 切状态、缩放宽度 | 草案不显示已发生消息，idle 不推断完成；图/列表键盘可用、无横向溢出 | accepted |
+
+ATUI01–03 使用 renderer-only 浏览器候选，不声称覆盖 Electron Host 或手机重连。
+远程 runtime / replay / 成员权限不变，沿用既有协议测试，不与本次纯显示全排列。
+
 SHR22 补充验收：用户／项目自定义 profile 只支持 agents 根目录直接文件。服务与独立 CLI 测试覆盖初始化、热更新、重扫和插件递归发现不变；现有双 Host Desktop 用例加入深层用户文件，核对初始化及后续父轮实际 provider 请求不包含该定义，不新增 fixture 或 CI 准入。
 
 2026-09-18：实施 SHR22 目录监听修复；直接监听已有配置路径，缺失时切换已有父目录。补目录生命周期、稳定补扫及取消/I/O 测试，复用跨 Host Desktop 验证首次创建和重建。Windows 空目录移动使用随 scope 释放的原生父目录结构订阅；父目录检查不推迟已排队文件批次。六组 pending Desktop 最终 11/11 通过；macOS / Windows / 大小写敏感卷相关单测通过。既有红灯证据及平台跳过项保留，详见 `docs/subagent-runtime-refresh.md`。

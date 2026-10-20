@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { PlatformChannels } from "@drora/shared";
 
 type IpcHandler = (...args: unknown[]) => unknown;
@@ -139,9 +141,14 @@ describe("OpenExternal 对 file URL 的分流", () => {
     const { listener } = await registerOpenExternalListener();
     const sender = { getURL: vi.fn(() => "about:blank") };
 
-    listener({ sender }, "file:///tmp/report.html#section");
+    // Windows 的 file URL 需要盘符；用平台路径构造，避免把 URL 转换失败误报为分流回归。
+    const localPath = resolve("test-fixtures", "report.html");
+    const fileUrl = pathToFileURL(localPath);
+    fileUrl.hash = "section";
+    listener({ sender }, fileUrl.href);
 
     await vi.waitFor(() => expect(h.shellOpenPath).toHaveBeenCalledTimes(1));
+    expect(h.shellOpenPath).toHaveBeenCalledWith(localPath);
     expect(h.shellOpenPath).not.toHaveBeenCalledWith(expect.stringContaining("#"));
     expect(h.shellOpenExternal).not.toHaveBeenCalled();
   });
@@ -161,7 +168,8 @@ describe("OpenExternal 对 file URL 的分流", () => {
     const { listener, options } = await registerOpenExternalListener();
     const sender = { getURL: vi.fn(() => "about:blank") };
 
-    listener({ sender }, "file://server/share/page.html");
+    // UNC URL 在 Windows 合法；非法百分号编码才是两平台都会拒绝的转换输入。
+    listener({ sender }, "file:///%ZZ/page.html");
 
     await vi.waitFor(() => expect(options.logger.warn).toHaveBeenCalledTimes(1));
     expect(h.shellOpenPath).not.toHaveBeenCalled();

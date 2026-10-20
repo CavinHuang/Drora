@@ -9,16 +9,23 @@
  */
 export const TEAM_UI_MODULE_ID = "ui-team";
 
+/** 只传父会话地址，不携带业务状态；远程身份不能退化为路径。 */
+export interface TeamUiNavigationTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+  focus?: TeamUiFocus;
+}
+
+/** 只属于 UI 的定位请求；不进入 wire、tab 身份或团队业务状态。 */
+export type TeamUiFocus = { teamId: string } & (
+  | { kind: "overview" | "process" | "collaboration" }
+  | { kind: "member" | "task" | "message"; id: string }
+);
+
 /** team 状态机 wire 枚举（与 shared team.ts 八值一致；M2 落 schema 后改为引用）。 */
-export type TeamUiStatus =
-  | "staged"
-  | "active"
-  | "idle"
-  | "completed"
-  | "halted"
-  | "escalated"
-  | "cancelled"
-  | "archived";
+export type TeamUiStatus = import("@drora/shared/drora-protocol-v4").TeamStatusWire;
 
 /** TeamPanel 的输入视图模型（M2 由 team 投影派生；此处先行冻结形状供消费方对齐）。 */
 export interface TeamPanelViewModel {

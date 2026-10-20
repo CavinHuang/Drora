@@ -4,8 +4,13 @@ export {
   type TeamPanelController,
   type TeamPanelViewModel,
   type TeamUiStatus,
+  type TeamUiFocus,
 } from "./contract.js";
 export { teamUiModule } from "./module.js";
+export { TeamNavigationProvider, useTeamFocus, type TeamOpenTarget } from "./TeamNavigation.js";
+export { TeamConversationSummary } from "./TeamConversationSummary.js";
+export { TeamSessionLine } from "./TeamSessionLine.js";
+export { TeamCollaborationPanel } from "./TeamCollaborationPanel.js";
 export {
   abandonTeamPlan,
   approveTeamPlan,
@@ -40,6 +45,7 @@ export {
   type TeamMemberSidePaneProps,
 } from "./TeamMemberSidePane.js";
 export { shouldAutoOpenTeamPanel } from "./auto-open.js";
+export { useWorkspaceConfigCatalogSync } from "./workspace-config-catalog-sync.js";
 export {
   TEAM_STATUS_DOT_TONE,
   TEAM_STATUS_I18N_KEYS,

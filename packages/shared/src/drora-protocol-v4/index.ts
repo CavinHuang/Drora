@@ -54,6 +54,8 @@ export * from "./workspace-hook-review.js";
 export * from "./cuaPermission.js";
 // Agents Team：wire 投影 schema + 八条 v4 团队命令 payload + 限额族（spec §6.3/§6.4）。
 export * from "./team.js";
+export * from "./team-history.js";
+export * from "./sessions-index-team-activity.js";
 
 export {
   executionOutputPreviewSchema,

@@ -14,6 +14,7 @@ import type {
 } from "./mcp.js";
 import type { DroraProvider } from "./drora-task-types-core.js";
 import type { SessionWorkflowActivity } from "./drora-protocol-v4/sessions-index-workflow-activity.js";
+import type { SessionTeamActivity } from "./drora-protocol-v4/sessions-index-team-activity.js";
 import type { WebRemoteControlRpcTransportPayload } from "./web-remote-control-rpc-transport.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 
@@ -765,6 +766,7 @@ export interface WebRemoteControlTaskTarget {
   // 工作流运行摘要（docs/dynamic-workflow/presentation.md「The sidebar run line」）：手机行在标题下
   // 画与桌面一致的运行行。只绘制，不参与排序或状态 pill；无 run 时缺席，旧 desktop 快照照常解析。
   workflowActivity?: SessionWorkflowActivity;
+  teamActivity?: SessionTeamActivity;
   pinned?: boolean;
   archived?: boolean;
 }

@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
-import type { TeamUiStatus } from "./contract.js";
+import type { TeamUiStatus, TeamUiFocus } from "./contract.js";
+import type { TeamHistoryConnection } from "@/hooks/useTeamHistory.js";
 import { TeamStagedEditor } from "./TeamStagedEditor.js";
-import { TEAM_STATUS_I18N_KEYS } from "./team-status-presentation.js";
 import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./view-model.js";
+import { TeamWorkspaceViews } from "./TeamWorkspaceViews.js";
+import { TeamStatusBadge } from "./TeamStatusBadge.js";
+import { TeamAvatar } from "./TeamAvatar.js";
 
 /**
  * TeamPanel（PR-2.4a 只读视图 + PR-2.4b 动作区；specs/agents-team.md §10、
@@ -96,6 +99,9 @@ export function teamPanelActionVisibility(status: TeamUiStatus): TeamPanelAction
 
 export interface TeamPanelProps {
   model: TeamPanelModel;
+  focus?: TeamUiFocus;
+  connection?: TeamHistoryConnection;
+  onQuoteTask?: (task: TeamPanelTaskView) => void;
   /**
    * 动作区命令意图上抛；宿主接 team/commands.ts 发送。缺席 = 只读渲染（无动作区，
    * staged 草案退化为摘要行）。
@@ -114,11 +120,18 @@ export interface TeamPanelProps {
   onMessageMember?: (member: TeamPanelMemberView) => void;
 }
 
-export function TeamPanel({
+export function TeamPanel(props: TeamPanelProps): JSX.Element {
+  return <TeamPanelContent key={props.model.teamId} {...props} />;
+}
+
+function TeamPanelContent({
   model,
   onCommand,
   onMemberClick,
   onMessageMember,
+  focus,
+  connection,
+  onQuoteTask,
 }: TeamPanelProps): JSX.Element {
   const { intl } = useDroraIntl();
   const { status, members, board } = model;
@@ -129,17 +142,15 @@ export function TeamPanel({
   return (
     <section
       aria-label={intl.formatMessage({ id: "team.panel.aria" }, { teamId: model.teamId })}
-      className="flex h-full flex-col gap-2 p-2"
+      className="@container/team flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-4"
     >
-      <header className="flex items-center gap-2">
-        <span className="text-ui-sm font-medium">
-          {intl.formatMessage({ id: "team.panel.title" }, { teamId: model.teamId })}
+      <header className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="min-w-0 break-words text-ui-base font-medium">
+          {model.name ?? intl.formatMessage({ id: "team.ui.title" })}
         </span>
-        <span className="text-ui-caption rounded bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
-          {intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[status] })}
-        </span>
+        <TeamStatusBadge status={status} />
         {model.permissionMode === undefined ? null : (
-          <span className="text-ui-caption rounded bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
+          <span className="text-ui-xs rounded-sm bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
             {intl.formatMessage({ id: "team.panel.permission" }, { mode: model.permissionMode })}
           </span>
         )}
@@ -225,105 +236,131 @@ export function TeamPanel({
         </section>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-3 gap-2">
-        <BoardColumn
-          title={intl.formatMessage({ id: "team.board.pending" })}
-          tasks={board.pending}
-          attention={board.attention}
-        />
-        <BoardColumn
-          title={intl.formatMessage({ id: "team.board.inProgress" })}
-          tasks={board.inProgress}
-        />
-        <BoardColumn
-          title={intl.formatMessage({ id: "team.board.completed" })}
-          tasks={board.completed}
-        />
-      </div>
+      {status === "staged" ? null : (
+        <>
+          <TeamWorkspaceViews
+            model={model}
+            focus={focus}
+            connection={connection}
+            onMemberClick={onMemberClick}
+            onQuoteTask={onQuoteTask}
+            board={(select) => (
+              <div>
+                <div className="grid min-h-0 grid-cols-1 gap-2 @lg/team:grid-cols-3">
+                  <BoardColumn
+                    title={intl.formatMessage({ id: "team.board.pending" })}
+                    tasks={board.pending}
+                    attention={board.attention}
+                    onSelect={(task) =>
+                      select({ teamId: model.teamId, kind: "task", id: task.taskId })
+                    }
+                  />
+                  <BoardColumn
+                    title={intl.formatMessage({ id: "team.board.inProgress" })}
+                    tasks={board.inProgress}
+                    onSelect={(task) =>
+                      select({ teamId: model.teamId, kind: "task", id: task.taskId })
+                    }
+                  />
+                  <BoardColumn
+                    title={intl.formatMessage({ id: "team.board.completed" })}
+                    tasks={board.completed}
+                    onSelect={(task) =>
+                      select({ teamId: model.teamId, kind: "task", id: task.taskId })
+                    }
+                  />
+                </div>
 
-      {/*
-       * 成员卡列表（design 01 §3.2）：PR-2.4c 起可下钻——卡片本体点击与「发消息」按钮
-       * 都上抛成员，宿主接同一个 setActiveMember（发消息的输入面在下钻 composer，
-       * 走 lead 邮箱投递；面板内不另造第二条输入路径）。回调缺席 = 只读行（PR-2.4a 行为）。
-       */}
-      <ul
-        className="flex flex-col gap-1"
-        aria-label={intl.formatMessage({ id: "team.panel.membersAria" })}
-      >
-        {members.map((member) => {
-          const stateLabel = intl.formatMessage({ id: MEMBER_STATE_I18N_KEYS[member.state] });
-          return (
-            <li key={member.agentId} className="flex items-center gap-1">
-              {onMemberClick === undefined ? (
-                <span className="flex min-w-0 flex-1 items-center gap-2">
-                  <MemberCardBody member={member} stateLabel={stateLabel} />
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onMemberClick(member)}
-                  aria-label={intl.formatMessage(
-                    { id: "team.panel.memberOpen" },
-                    { name: member.memberName },
-                  )}
-                  data-testid="team-member-card"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                {/*
+                 * 成员卡列表（design 01 §3.2）：PR-2.4c 起可下钻——卡片本体点击与「发消息」按钮
+                 * 都上抛成员，宿主接同一个 setActiveMember（发消息的输入面在下钻 composer，
+                 * 走 lead 邮箱投递；面板内不另造第二条输入路径）。回调缺席 = 只读行（PR-2.4a 行为）。
+                 */}
+                <ul
+                  className="flex flex-col gap-1"
+                  aria-label={intl.formatMessage({ id: "team.panel.membersAria" })}
                 >
-                  <MemberCardBody member={member} stateLabel={stateLabel} />
-                </button>
-              )}
-              {onMessageMember === undefined ? null : (
-                <button
-                  type="button"
-                  onClick={() => onMessageMember(member)}
-                  aria-label={intl.formatMessage(
-                    { id: "team.panel.memberMessage" },
-                    { name: member.memberName },
-                  )}
-                  data-testid="team-member-message"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <MessageSquareTextIcon className="size-3.5" />
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                  {members.map((member) => {
+                    const stateLabel = intl.formatMessage({
+                      id: MEMBER_STATE_I18N_KEYS[member.state],
+                    });
+                    return (
+                      <li key={member.agentId} className="flex items-center gap-1">
+                        {onMemberClick === undefined ? (
+                          <span className="flex min-w-0 flex-1 items-center gap-2">
+                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onMemberClick(member)}
+                            aria-label={intl.formatMessage(
+                              { id: "team.panel.memberOpen" },
+                              { name: member.memberName },
+                            )}
+                            data-testid="team-member-card"
+                            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                          </button>
+                        )}
+                        {onMessageMember === undefined ? null : (
+                          <button
+                            type="button"
+                            onClick={() => onMessageMember(member)}
+                            aria-label={intl.formatMessage(
+                              { id: "team.panel.memberMessage" },
+                              { name: member.memberName },
+                            )}
+                            data-testid="team-member-message"
+                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <MessageSquareTextIcon className="size-3.5" />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
 
-      {/*
-       * 消息尾窗（design 01 §3.3.1：成员间消息摘要，最近 N 条，发件人色点 + 一行摘要；
-       * 完整消息在成员下钻）。2026-10-18 审查修复：view-model 此前已映射尾窗但面板
-       * 未渲染——agents 之间的协作关系缺了一个展示面。空尾窗不出区块。
-       */}
-      {model.mailboxTail.length === 0 ? null : (
-        <section
-          aria-label={intl.formatMessage({ id: "team.panel.mailboxTitle" })}
-          className="flex shrink-0 flex-col gap-1"
-          data-testid="team-mailbox-tail"
-        >
-          <h3 className="text-ui-caption text-foreground-subtle">
-            {intl.formatMessage({ id: "team.panel.mailboxTitle" })}
-          </h3>
-          <ul className="flex flex-col gap-0.5">
-            {model.mailboxTail.map((entry) => (
-              <li key={entry.messageId} className="flex min-w-0 items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? "bg-neutral-foreground/40"}`}
-                />
-                <span className="shrink-0 text-ui-caption text-foreground-subtle">
-                  {`${displayActorName(intl, entry.from)} → ${displayActorName(intl, entry.to)}`}
-                </span>
-                <span className="truncate text-ui-caption text-foreground-subtlest">
-                  {entry.summary === undefined
-                    ? intl.formatMessage({ id: "team.panel.mailboxNoSummary" })
-                    : entry.summary}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+                {/*
+                 * 消息尾窗（design 01 §3.3.1：成员间消息摘要，最近 N 条，发件人色点 + 一行摘要；
+                 * 完整消息在成员下钻）。2026-10-18 审查修复：view-model 此前已映射尾窗但面板
+                 * 未渲染——agents 之间的协作关系缺了一个展示面。空尾窗不出区块。
+                 */}
+                {model.mailboxTail.length === 0 ? null : (
+                  <section
+                    aria-label={intl.formatMessage({ id: "team.panel.mailboxTitle" })}
+                    className="flex shrink-0 flex-col gap-1"
+                    data-testid="team-mailbox-tail"
+                  >
+                    <h3 className="text-ui-caption text-foreground-subtle">
+                      {intl.formatMessage({ id: "team.panel.mailboxTitle" })}
+                    </h3>
+                    <ul className="flex flex-col gap-0.5">
+                      {model.mailboxTail.map((entry) => (
+                        <li key={entry.messageId} className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            aria-hidden
+                            className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? "bg-neutral-foreground/40"}`}
+                          />
+                          <span className="shrink-0 text-ui-caption text-foreground-subtle">
+                            {`${displayActorName(intl, entry.from)} → ${displayActorName(intl, entry.to)}`}
+                          </span>
+                          <span className="truncate text-ui-caption text-foreground-subtlest">
+                            {entry.summary === undefined
+                              ? intl.formatMessage({ id: "team.panel.mailboxNoSummary" })
+                              : entry.summary}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            )}
+          />
+        </>
       )}
     </section>
   );
@@ -344,11 +381,13 @@ function MemberCardBody({
 }): JSX.Element {
   return (
     <>
-      <span
-        aria-hidden
-        className={`size-2 shrink-0 rounded-full ${member.profileColor ?? "bg-neutral-foreground/40"}`}
-      />
-      <span className="truncate text-ui-sm">{member.memberName}</span>
+      <TeamAvatar name={member.memberName} color={member.profileColor} />
+      <span className="min-w-0 break-words text-ui-sm">
+        {member.memberName}
+        {member.profile ? (
+          <span className="ml-1 text-foreground-subtle">{member.profile}</span>
+        ) : null}
+      </span>
       <span className="truncate text-ui-caption text-foreground-subtle">
         {stateLabel}
         {member.currentTaskId === undefined ? "" : ` · ${member.currentTaskId}`}
@@ -443,23 +482,25 @@ function BoardColumn({
   title,
   tasks,
   attention,
+  onSelect,
 }: {
   title: string;
   tasks: TeamPanelModel["board"]["pending"];
   attention?: readonly TeamPanelTaskView[];
+  onSelect?: (task: TeamPanelTaskView) => void;
 }) {
   const { intl } = useDroraIntl();
   const attentionTasks = attention ?? [];
   const totalCount = tasks.length + attentionTasks.length;
   return (
-    <div className="flex min-h-0 flex-col gap-1 rounded border border-border-subtle p-1.5">
+    <div className="flex min-h-0 flex-col gap-1 rounded-xl border border-border-subtle p-1.5">
       <h3 className="text-ui-caption text-foreground-subtle">{`${title} (${String(totalCount)})`}</h3>
       <ul className="flex min-h-0 flex-col gap-1 overflow-y-auto">
         {attentionTasks.map((task) => (
-          <TaskCard key={task.taskId} task={task} attention />
+          <TaskCard key={task.taskId} task={task} attention onSelect={onSelect} />
         ))}
         {tasks.map((task) => (
-          <TaskCard key={task.taskId} task={task} />
+          <TaskCard key={task.taskId} task={task} onSelect={onSelect} />
         ))}
       </ul>
     </div>
@@ -467,7 +508,15 @@ function BoardColumn({
 }
 
 /** 单张任务卡；attention 态按 failed（error）/cancelled（弱化）区分。 */
-function TaskCard({ task, attention = false }: { task: TeamPanelTaskView; attention?: boolean }) {
+function TaskCard({
+  task,
+  attention = false,
+  onSelect,
+}: {
+  task: TeamPanelTaskView;
+  attention?: boolean;
+  onSelect?: (task: TeamPanelTaskView) => void;
+}) {
   const { intl } = useDroraIntl();
   const attentionTone =
     task.status === "failed"
@@ -476,18 +525,24 @@ function TaskCard({ task, attention = false }: { task: TeamPanelTaskView; attent
   const indent = ["", "pl-3", "pl-6", "pl-9"][Math.min(task.dependsDepth, 3)] ?? "";
   return (
     <li
-      className={`text-ui-sm rounded border p-1.5 ${attention ? attentionTone : "border-transparent bg-neutral-2"} ${indent}`}
+      className={`text-ui-base rounded-lg border p-1.5 ${attention ? attentionTone : "border-transparent bg-neutral-2"} ${indent}`}
     >
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-start gap-1.5">
         {task.assignee === undefined ? null : (
           <span
             aria-hidden
             className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? "bg-neutral-foreground/40"}`}
           />
         )}
-        <span className="truncate">{task.title}</span>
+        <button
+          type="button"
+          className="min-w-0 flex-1 rounded-md text-left break-words hover:bg-hover pointer-coarse:min-h-11"
+          onClick={() => onSelect?.(task)}
+        >
+          {task.title}
+        </button>
         {task.assignee === undefined ? null : (
-          <span className="shrink-0 text-ui-caption text-foreground-subtle">
+          <span className="min-w-0 break-all text-ui-sm text-foreground-subtle">
             {` · ${displayActorName(intl, task.assignee)}`}
           </span>
         )}
@@ -513,7 +568,7 @@ function TaskCard({ task, attention = false }: { task: TeamPanelTaskView; attent
             <span
               key={ref}
               title={ref}
-              className="truncate rounded bg-neutral-3 px-1 py-px font-mono text-ui-caption text-foreground-subtle"
+              className="truncate rounded-md bg-neutral-3 px-1 py-px font-mono text-ui-sm text-foreground-subtle"
             >
               {ref}
             </span>

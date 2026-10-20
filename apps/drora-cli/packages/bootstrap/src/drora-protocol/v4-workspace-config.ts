@@ -54,7 +54,9 @@ export async function buildLiveWorkspaceConfigStateV4(
     dynamicWorkflowEnabled: context.appRuntimePreferences.dynamicWorkflowEnabled,
     // Agents Team 灰度=装配事实（specs/agents-team.md §11）：该 lead 会话的 hub 已
     // 装配即开（settings/env 裁决在 create-app 装配门，单一出处）。
-    agentsTeamEnabled: getInstalledTeamHub(String(record.app.sessionId)) !== undefined,
+    agentsTeamEnabled: Array.from(context.sessions.values()).some(
+      (candidate) => getInstalledTeamHub(String(candidate.app.sessionId)) !== undefined,
+    ),
     env: context.deps.env,
     logger: context.logger,
     workingDirectory: record.workspace.workspacePath,

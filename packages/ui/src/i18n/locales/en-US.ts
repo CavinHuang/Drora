@@ -1,6 +1,8 @@
 import { requestSecurityMessagesEnUS } from "@/request-security-edition/messages.js";
+import { teamMessagesEn } from "@/i18n/teamMessages.js";
 /** English translations */
 const enUS: Record<string, string> = {
+  ...teamMessagesEn,
   "startPlan.recommendation.subagentDescription":
     "Your Start Plan has quota available for {model}. Switch this subagent’s model to the Start Plan?",
   "startPlan.recommendation.preferenceSaveFailed":

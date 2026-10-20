@@ -15,6 +15,7 @@ import {
   sendTeamMessage,
   TeamMemberSidePane,
   TeamPanel,
+  useTeamFocus,
   type TeamPanelCommand,
   type TeamPanelMemberView,
   TEAM_REVISE_PREFILL_PROMPT_KEY,
@@ -89,6 +90,11 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
 }) {
   const { intl } = useDroraIntl();
   const { layer, sendCommand } = useV4Conversation();
+  const focus = useTeamFocus({ ...tab, parentSessionId: tab.parentSessionId });
+  const historyConnection = useMemo(
+    () => ({ sessionId: tab.parentSessionId, sendCommand }),
+    [tab.parentSessionId, sendCommand],
+  );
 
   // 渲染期同步建连（`useMemo`）+ 卸载释放——先例 WorkflowActorSessionSidePane.tsx:71-72。
   const lease = useMemo(() => layer.acquire(tab.parentSessionId), [layer, tab.parentSessionId]);
@@ -148,7 +154,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   const [activeMember, setActiveMember] = useState<TeamMemberDrillTarget | null>(null);
   useEffect(() => {
     setActiveMember(null);
-  }, [model?.teamId]);
+  }, [model?.teamId, focus]);
 
   // 成员卡点击与「发消息」入口同一下钻语义（design 01 §3.2）：发消息的输入面在下钻
   // composer，不在面板内另造第二条输入路径。
@@ -163,8 +169,8 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     return <TeamEmptyState />;
   }
 
-  if (activeMember !== null) {
-    return (
+  const memberPane =
+    activeMember !== null ? (
       <div className="flex h-full min-h-0 flex-col bg-background">
         <div className="flex shrink-0 items-center gap-1 border-b border-border/50 p-1.5">
           <button
@@ -210,18 +216,36 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           />
         </div>
       </div>
-    );
-  }
+    ) : null;
 
   return (
     // PR-2.4c 收口：成员卡点击 / 发消息入口 → setActiveMember（下钻），composer 消息 →
     // sendTeamMessage（上文 onSendMessage）。下钻 + 发消息全通。
-    <TeamPanel
-      model={model}
-      onCommand={handlePanelCommand}
-      onMemberClick={handleMemberDrill}
-      onMessageMember={handleMemberDrill}
-    />
+    <div className="h-full min-h-0">
+      {/* 中文依据：下钻不能卸载关系视图，否则返回会丢失图层与选中关系；只隐藏本地视图。 */}
+      <div hidden={activeMember !== null} className="h-full min-h-0">
+        <TeamPanel
+          model={model}
+          onCommand={handlePanelCommand}
+          onMemberClick={handleMemberDrill}
+          onMessageMember={handleMemberDrill}
+          focus={focus}
+          connection={historyConnection}
+          onQuoteTask={
+            onPrefillComposer
+              ? (task) =>
+                  onPrefillComposer(
+                    intl.formatMessage(
+                      { id: "team.ui.quoteTaskPrompt" },
+                      { id: task.taskId, title: task.title },
+                    ),
+                  )
+              : undefined
+          }
+        />
+      </div>
+      {memberPane}
+    </div>
   );
 });
 

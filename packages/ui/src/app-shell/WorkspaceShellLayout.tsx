@@ -113,6 +113,7 @@ import {
   isWorkspaceFilePathInside,
 } from "@/workspace-file-tree/model.js";
 import type { WorkspaceShellLayoutProps } from "@/app-shell/types.js";
+import { TeamNavigationProvider, type TeamOpenTarget } from "@/team/index.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import type { ComposerMentionPrefill } from "@/store/droraSessionStoreTypes.js";
@@ -403,6 +404,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleOpenSelectionSideChat,
   handleOpenPlanDetail,
   handleOpenWorkflowRun,
+  handleOpenTeamSidePane,
   handleOpenWorkflowRunDirectory,
   handleOpenWorkflowActorSession,
   handleOpenWorkflowWorkspace,
@@ -1310,6 +1312,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   );
   // 侧栏运行行（docs/dynamic-workflow/presentation.md「The sidebar run line」）：与 composer 徽标
   // 同一跳转——先选中会话，再开 run pane。没有 toolCallId 的 run（不该有）只选中会话。
+  const handleOpenTeamNavigation = useCallback((target:TeamOpenTarget)=>{
+    const key=target.workspaceIdentity?.trim()||target.workspacePath;
+    const remote=workspaceTabs.find(tab=>(tab.workspaceIdentity?.trim()||tab.workspacePath)===key)?.remoteSessionId??target.remoteSessionId;
+    handleSelectTaskInChat(target.workspacePath,target.parentSessionId,target.workspaceIdentity,remote);
+    handleOpenTeamSidePane?.({...target,...(remote?{remoteSessionId:remote}:{})});
+  },[handleOpenTeamSidePane,handleSelectTaskInChat,workspaceTabs]);
   const handleOpenSidebarWorkflowRun = useCallback(
     (target: WorkflowRunOpenTarget) => {
       if (target.run.toolCallId === undefined) {
@@ -2153,6 +2161,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       openWorkflow={handleOpenSavedWorkflowInHub}
       navigateToRun={handleNavigateToLaunchedRun}
     >
+      <TeamNavigationProvider onOpen={handleOpenTeamSidePane ? handleOpenTeamNavigation : undefined}>
       <DesktopWindowFrame
         title={`Drora / ${getPathLeaf(workspaceAbsPath)}`}
         showHeader
@@ -2737,6 +2746,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           ) : null}
         </div>
       </DesktopWindowFrame>
+      </TeamNavigationProvider>
     </SavedWorkflowHubProvider>
   );
 });

@@ -1,5 +1,26 @@
 # Conversation Session E2E Coverage Matrix
 
+## Agents Team UI 增量（2026-10-19）
+
+ATUI04–11：同一 renderer-only pending 用例扩展，历史传输使用标注的 synthetic ACK。
+ATUI11 复用真实 RemoteConversationTimeline 和 ServiceProvider，服务代理为 synthetic；
+验收查询错误/重试、workspace 身份与父会话、切换 scope 的旧 ACK、整行按钮纯摘要和看板能力门控。
+这不代表手机网络重连或完整 Host 重启已验证。
+2026-10-20：ATUI01–11 浏览器候选通过，真实手机时间线 + synthetic 服务代理验证上述边界；
+Desktop 看板切换保留，手机 SSR、相关 11 项单测和要求的类型/Lint/架构检查通过。
+历史页的数据正确性另由 `apps/drora-cli/packages/core/tests/team/team-history.test.ts` 验证。
+本轮 ATUI01–10 实际通过：三处定位、任务与成员详情、历史页/错误/重开/旧 ACK、
+1024/736/390px、双主题/双语/触屏。core/team 与 bootstrap summary 83 项、shared/UI/contract
+15 项、独立手机时间线 SSR 回归通过。未新增正式 fixture promotion 或 Docker admission；
+完整 Electron Host 重启与真实网络重连仍未覆盖。
+
+ATUI01–03：`packages/desktop/test/e2e/conversation-session/manual-review/pending/agents-team-ui.test.mjs`。
+层级：真实 React renderer 浏览器候选；不含 provider/Host 命令执行，不做正式 fixture promotion/CI admission。
+2026-10-19 实际运行通过：真实组件与仓库 CSS 的桌面/窄屏、两主题、导航 scope、关系来源、
+失败依赖、下钻返回、staged/idle 与双语切换。仍是 renderer-only 候选，未覆盖 Host 命令或手机重连。
+同轮补充通过：手机无导航端口的只读详情展开、coarse-pointer 44px 图层按钮，以及
+`packages/mobile-web/test/remoteFrame.test.ts` 的独立远控时间线团队摘要 SSR 回归。
+
 SHR22 范围补充：`subagentRuntimeConfig.test.ts` 验证用户／项目扫描不进入子目录及重载隔离；`subagentRuntimeConfigWatcher.test.ts` 验证真实热更新和目录重建范围；`subagentsService.test.ts` 与 Bootstrap `subagents.test.ts` 验证 Settings／独立 CLI 第一层加载，保留插件递归发现。复用 cross-host pending 的 SHR22，断言两个 Host 的初始化及后续父轮 provider 请求不包含预置深层用户定义。
 
 2026-09-18：实施 SHR22 目录监听修复；直接监听已有配置路径，缺失时切换已有父目录。补目录生命周期、稳定补扫及取消/I/O 测试，复用跨 Host Desktop 验证首次创建和重建。Windows 空目录移动使用随 scope 释放的原生父目录结构订阅；父目录检查不推迟已排队文件批次。六组 pending Desktop 最终 11/11 通过；macOS / Windows / 大小写敏感卷相关单测通过。既有红灯证据及平台跳过项保留，详见 `docs/subagent-runtime-refresh.md`。

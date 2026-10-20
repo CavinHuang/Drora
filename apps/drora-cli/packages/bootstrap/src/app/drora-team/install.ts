@@ -1,6 +1,7 @@
 import {
   createTeamCollabToolEntries,
   createTeamJournalSessionStoreSink,
+  readTeamHistoryPage,
   createTeamMemberPort,
   createToolRegistry,
   InMemoryRuntimeTaskRegistry,
@@ -10,6 +11,7 @@ import {
 } from "@drora/core";
 import type { SessionId, TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
 import { SessionEventType } from "@drora/contracts";
+import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-protocol-v4";
 
 /**
  * Agents Team 装配（specs/agents-team.md §6/§11 接缝 α 的被调方）。
@@ -63,6 +65,14 @@ const TEAM_MEMBER_MAX_TURNS = 40;
  * uninstall 钩子（install.ts 现无会话关闭回调，登记不早于 runtime 构造、不晚于其消亡）。
  */
 const installedHubsByLeadSession = new Map<string, TeamHub>();
+const installedHistoryReaders = new Map<
+  string,
+  (query: TeamHistoryQuery) => Promise<TeamHistoryResult>
+>();
+
+export function getInstalledTeamHistoryReader(sessionId: string) {
+  return installedHistoryReaders.get(sessionId);
+}
 
 /** 按 lead sessionId 查已装配的 TeamHub；未装配/灰度关返回 undefined（handler 据此回错误 ACK）。 */
 export function getInstalledTeamHub(leadSessionId: string): TeamHub | undefined {
@@ -123,7 +133,8 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     membersMax: input.membersMax ?? 5,
     onChange: () => {
       const current = installedHub;
-      if (current !== undefined && current.teamId !== undefined) emitTeamStateChanged(current.teamId);
+      if (current !== undefined && current.teamId !== undefined)
+        emitTeamStateChanged(current.teamId);
     },
     // journal 写入：hub 动作点的用户/协议动作与板/邮箱数据事实（spec 差异裁决#5）。
     journalWriter: (event) => journalSink.append(event),
@@ -163,7 +174,10 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       await Promise.race([
         taskRegistry.waitForTerminal(task.taskId),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`team member ${memberName} did not settle in time`)), 30_000),
+          setTimeout(
+            () => reject(new Error(`team member ${memberName} did not settle in time`)),
+            30_000,
+          ),
         ),
       ]);
     },
@@ -232,6 +246,17 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
 
   // PR-2.2：装配完成即登记，v4 团队命令 handler 经 getInstalledTeamHub 查询。
   installedHubsByLeadSession.set(lead.sessionId, hub);
+  installedHistoryReaders.set(lead.sessionId, async (query) => {
+    await journalSink.flush();
+    return readTeamHistoryPage({
+      ...query,
+      sessionStore: input.leadDeps.sessionStore,
+      sessionId: lead.sessionId,
+    });
+  });
+  // 装配完成即广播初始 TeamStateChanged(PR-2.5b):启动窗口期渲染进程可能已用
+  // 「无 team」目录装配了首份快照;此事件让网关重拉配置,slashCommands 补上 /team。
+  emitTeamStateChanged(hub.teamId ?? "");
 
   // lead resume 恢复（M3 PR-3.1）：install 随装配调用一次——本装配点同时服务新会话与
   // resume 会话（create-app 的 runtime 构造共用此路径），journal 无事实时是 no-op。
@@ -260,15 +285,13 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
         // 持开放 attempt 的成员各试一次；recoveryRetried 已持久化，天然防重复。
         for (const member of hub.snapshot()?.members ?? []) {
           if (member.state === "removed") continue;
-          void hub
-            .recoverOpenAttempt(member.memberName)
-            .catch((error: unknown) => {
-              lead.logger?.warn(`agents team: cold recovery failed for ${member.memberName}`, {
-                event: "agents_team.cold_recovery",
-                module: "bootstrap.agentsTeam",
-                error: String(error),
-              });
+          void hub.recoverOpenAttempt(member.memberName).catch((error: unknown) => {
+            lead.logger?.warn(`agents team: cold recovery failed for ${member.memberName}`, {
+              event: "agents_team.cold_recovery",
+              module: "bootstrap.agentsTeam",
+              error: String(error),
             });
+          });
         }
       }
     })
@@ -277,8 +300,9 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   function resolveAgentId(memberName: string): string | undefined {
     return hub
       .snapshot()
-      ?.members.find((candidate) => candidate.memberName === memberName && candidate.state !== "removed")
-      ?.agentId;
+      ?.members.find(
+        (candidate) => candidate.memberName === memberName && candidate.state !== "removed",
+      )?.agentId;
   }
 
   return { hub, toolRegistry };

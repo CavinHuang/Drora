@@ -27,10 +27,9 @@ describe("team status presentation maps", () => {
   });
 
   it("matches the semantic tone rules from design 01 §4", () => {
-    // 「pending=neutral、working=accent、completed=success、halted/escalated=warning」
-    // 在 team 状态机上的映射；staged 是待用户审批的行动项，归 accent。
-    expect(TEAM_STATUS_DOT_TONE.staged).toBe("accent");
-    expect(TEAM_STATUS_DOT_TONE.active).toBe("accent");
+    // 已确认的三处设计：staged 统一待审批色，active 统一 workflow 运行灯。
+    expect(TEAM_STATUS_DOT_TONE.staged).toBe("confirmation");
+    expect(TEAM_STATUS_DOT_TONE.active).toBe("warning");
     expect(TEAM_STATUS_DOT_TONE.completed).toBe("success");
     expect(TEAM_STATUS_DOT_TONE.halted).toBe("warning");
     expect(TEAM_STATUS_DOT_TONE.escalated).toBe("warning");

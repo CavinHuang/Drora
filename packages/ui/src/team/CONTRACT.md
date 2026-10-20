@@ -1,5 +1,16 @@
 # ui-team（Agents Team 面板）
 
+2026-10-19 对话优先：导航增加 TeamUiFocus 与 useTeamFocus，按 workspace 身份、父会话和 teamId
+隔离本地定位请求；TeamPanel 接受可选历史 connection 与任务引用回调。默认总览，另有过程/
+协作。只读 getTeamHistory 走 hooks 与既有 v4 transport；历史只保留一页，不写回业务状态。
+2026-10-20：手机时间线经 hook 复用当前 ServiceProvider 的服务代理形成历史 connection。
+无导航目标的会话行只显示摘要，不挂成员按钮；无 board renderer 的总览不显示看板切换。
+
+2026-10-19：公开入口新增 TeamNavigationProvider / TeamOpenTarget、TeamConversationSummary、
+TeamSessionLine、TeamCollaborationPanel。导航只携带父会话与 workspace 三键，主体只消费投影。
+依赖/消息/交接是局部图层；交接没有证据时为空。文案置于 ui/i18n/teamMessages.ts，避免
+locale → ui-team index → IntlProvider 形成循环。下钻时保持 TeamPanel 挂载，返回保留本地选择。
+
 托管模块五件套之一（architecture-governance SKILL.md:45）。骨架期（PR-0.2），
 实现在 M2（PR-2.4/2.5）与 M3（PR-3.2 手机端）。
 
@@ -29,3 +40,8 @@
 
 TeamUiStatus 八值与 shared `teamProjectionStateSchema.status` 保持同源
 （M2 PR-2.1 落 schema 后改为从 `@drora/shared` 引用，删除本地副本）。
+
+## 会话行入口
+
+`session-line.ts` 是仅导出 TeamSessionLine 的轻量公开入口；会话列表通过它组合团队摘要，
+不加载成员会话与工具渲染器。无 teamActivity 时无需团队或国际化 Provider，保持旧行契约。

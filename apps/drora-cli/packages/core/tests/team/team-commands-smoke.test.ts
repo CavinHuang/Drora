@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { createSessionId } from "@drora/contracts";
+import { createSessionId, type SessionEntryInfo } from "@drora/contracts";
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
   TEAM_V4_COMMAND_TYPES,
+  TEAM_HISTORY_QUERY,
+  type CommandType,
   type CommandEnvelope,
 } from "@drora/shared/drora-protocol-v4";
-import { getInstalledTeamHub, installDroraAgentsTeam } from "../../../bootstrap/src/app/drora-team/install.js";
+import {
+  getInstalledTeamHub,
+  installDroraAgentsTeam,
+} from "../../../bootstrap/src/app/drora-team/install.js";
 import { NATIVE_HANDLERS } from "../../../bootstrap/src/drora-protocol-v4/commands/handlers/index.js";
 import { teamHandlers } from "../../../bootstrap/src/drora-protocol-v4/commands/handlers/team.js";
 import type {
@@ -47,7 +52,7 @@ const smokeHost: V4CommandCoreHost = {
 
 let commandSeq = 0;
 function teamEnvelope(
-  type: (typeof TEAM_V4_COMMAND_TYPES)[number],
+  type: CommandType,
   sessionId: string,
   payload: Record<string, unknown> = {},
 ): CommandEnvelope {
@@ -84,9 +89,16 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
 
   it("② with a hub installed: approve/revise/halt/resume positive path reachable, send/stop land the hub", async () => {
     const sessionId = createSessionId();
+    const journalEntries: SessionEntryInfo[] = [];
     const leadDeps: AgentRuntimeDeps = {
       eventStore: createTestSessionEventStore(),
-      sessionStore: createRecordingMessageStore() as never,
+      sessionStore: {
+        ...createRecordingMessageStore(),
+        saveSessionEntry: async (entry: SessionEntryInfo) => {
+          journalEntries.push(structuredClone(entry));
+        },
+        sessionEntries: async () => structuredClone(journalEntries),
+      } as never,
       modelFactory: createTestModelFactory({
         properties: { supportsMidConversationSystem: true },
         generateText: async () => ({
@@ -119,12 +131,25 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     const staged = leadPort.stageTeam({
       name: "smoke-team",
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
-      draftTasks: [
-        { title: "t1", spec: { goal: "g", acceptance: ["a1"] }, dependsOn: [] },
-      ],
+      draftTasks: [{ title: "t1", spec: { goal: "g", acceptance: ["a1"] }, dependsOn: [] }],
     });
     expect(staged.status).toBe("ok");
     const teamId = staged.teamId as string;
+    const history = await teamHandlers[TEAM_HISTORY_QUERY](
+      smokeHost,
+      teamEnvelope(TEAM_HISTORY_QUERY, sessionId, { teamId }),
+    );
+    expect(history.type).toBe(TEAM_HISTORY_QUERY);
+    if (history.type === TEAM_HISTORY_QUERY) {
+      expect(history.events.map((event) => event.kind)).toEqual(["team_created", "staged"]);
+    }
+    await expect(
+      teamHandlers[TEAM_HISTORY_QUERY](
+        smokeHost,
+        teamEnvelope(TEAM_HISTORY_QUERY, sessionId, { teamId: "other" }),
+      ),
+    ).rejects.toMatchObject({ reasonCode: "fault.command.teamRejected.historyTeamMismatch" });
+    expect(COMMANDS_REQUIRING_BASE_REVISION.has(TEAM_HISTORY_QUERY)).toBe(false);
 
     // revise 正路径：原子更新同一草案（同 teamId、仍 staged，不另建 team）。
     await teamHandlers.reviseTeamPlan(
@@ -140,9 +165,15 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     expect(hub.snapshot()?.members.some((member) => member.memberName === "alice")).toBe(true);
 
     // halt → resume 正路径（用户停队/显式带理由恢复，spec §2.6）。
-    await teamHandlers.haltTeam(smokeHost, teamEnvelope("haltTeam", sessionId, { reason: "pause" }));
+    await teamHandlers.haltTeam(
+      smokeHost,
+      teamEnvelope("haltTeam", sessionId, { reason: "pause" }),
+    );
     expect(hub.status).toBe("halted");
-    await teamHandlers.resumeTeam(smokeHost, teamEnvelope("resumeTeam", sessionId, { reason: "go on" }));
+    await teamHandlers.resumeTeam(
+      smokeHost,
+      teamEnvelope("resumeTeam", sessionId, { reason: "go on" }),
+    );
     expect(["active", "idle"]).toContain(hub.status);
 
     // send 正路径：spawning 成员投递为 queued（ack 只认注入），但发送即入账邮箱。
@@ -160,9 +191,7 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
       smokeHost,
       teamEnvelope("stopTeamMember", sessionId, { memberName: "alice" }),
     );
-    expect(
-      hub.snapshot()?.members.some((member) => member.memberName === "alice"),
-    ).toBe(false);
+    expect(hub.snapshot()?.members.some((member) => member.memberName === "alice")).toBe(false);
 
     // 拒绝路径收口：非 staged 调 abandon → hub 拒绝语义透传为结构化 failed ACK reasonCode。
     await expect(

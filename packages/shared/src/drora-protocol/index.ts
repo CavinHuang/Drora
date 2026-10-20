@@ -1,5 +1,7 @@
 import { requestVerificationReasons } from "../request-security-edition/verification-policy.js";
 import { droraProtocolTraceSchema } from "./trace.js";
+// 团队目录摘要复用 V4 的同一严格契约；兼容入口不复制 schema 或字段定义。
+export { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema, type SessionTeamActivity } from "../drora-protocol-v4/sessions-index-team-activity.js";
 // Bot 反向回复的名字解析/待澄清结果与 App、CLI 使用同一严格 schema。
 export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-mention.js";
 export { droraProtocolTraceSchema, type DroraProtocolTrace } from "./trace.js";

@@ -1,6 +1,56 @@
 # Agents Team（多代理团队）设计 spec
 
-状态：设计定稿（v3 方案落地稿），未实现。调研与可行性论证见
+## 对话优先 UI 与历史查询增量（2026-10-19）
+
+用户确认交互设计后实施，细则与验收见
+`docs/agent-team-implementation-2026-10-16/03-conversation-first-ui.md`。
+该增量取代下节“右侧默认协作页”规则：默认总览，另设过程与协作；
+保留草案审批、停止/恢复、成员只读转录及经 lead 邮箱投递的既有行为。
+历史仅来自已保存 journal 的只读分页查询，不以 mailboxTail 冒充历史，
+不承诺重建 journal 未记录的成员 working/terminal 边缘。
+
+## 三处 UI 实施增量（2026-10-19）
+
+按已确认的 `docs/agent-team-implementation-2026-10-16/02-three-surface-ui-design.md`
+实施主消息当前团队摘要、右侧协作关系页、左侧团队运行行。TeamHub / journal 仍唯一拥有业务事实。
+
+- 新增有界 `SessionSummary.teamActivity`：teamId、name?、status、memberCount、completed、total。
+  契约在 shared 新文件定义一次；CLI 从同一 ConversationSnapshot.team 纯派生，参与 sessions-index
+  conflation，Host controller 和手机任务快照仅透传。旧帧字段缺席合法；列表不得 acquire 对话。
+- 主消息只有一份当前团队摘要，使用实时快照，放在消息列表尾部的通用 footerSlot 内；当前 wire
+  没有可靠的建队 turn 联接，故不猜测历史 turn，也不反复向持久消息流插入系统行。
+- shell 提供有作用域的团队导航端口：先选择父会话，再调用现有 handleOpenTeamSidePane。
+  workspaceIdentity 优先于路径，remoteSessionId 贯穿。无 shell 导航端口的手机/独立预览可展开
+  只读协作详情，不额外建立 runtime。
+- 右侧默认协作页，保留任务与成员页；依赖图仅用 dependsOn，消息图仅用 mailboxTail，保留
+  delivered、at、sourceTaskId/sourceAttemptId。不能把未投递显示为已送达，不能推断交接历史。
+  交接页诚实显示当前版本未提供历史。无历史的普通快照不生成任何假记录。
+- 图是有界派生；大任务板使用选中任务的直接邻域，并显示范围。缺失引用保留未知节点；失败、
+  取消不解锁依赖，循环/未知引用不崩溃。选择、图层、成员下钻仅属于当前 teamId 的局部状态。
+- 新主体放 ui-team 新文件；现有接缝：sessions-index schema/controller schema 与 CLI summary
+  producer 加 helper 调用，UI/Host/手机摘要映射各加字段，TaskListItem/SessionPane/WorkspaceShellLayout
+  只组合新组件或端口；ConversationTimeline 只新增通用 footerSlot。上游同步逐处重放这些接缝。
+  手机独立 RemoteConversationTimeline 也在同一 footerSlot 组合摘要，沿用既有 statusSnapshot.team。
+- 会话行使用独立公开入口 `team/session-line.ts`，不能因轻量摘要加载成员会话与工具渲染器。
+  无 teamActivity 的旧会话直接返回空，不新增 IntlProvider 要求；保留既有行交互回归。
+
+```mermaid
+sequenceDiagram
+  participant H as TeamHub
+  participant P as conversation projection
+  participant S as sessions-index / controller
+  participant U as UI 三处
+  H->>P: journal 已提交的 team 状态
+  P->>S: 纯派生有界 teamActivity
+  P-->>U: 对话摘要与右侧关系
+  S-->>U: 左侧运行行
+  Note over P,U: desktop continuous / mobile replayable 使用同一事实；无 UI 轮询和第二份业务状态
+```
+
+验收：新增 shared summary/schema/conflation、UI 关系纯函数、真实 React 浏览器场景；
+运行 Node 声明版本下的 typecheck/lint/architecture 与 CLI 检查，报告实际结果与 E2E 范围。
+
+状态：设计定稿（v3 方案落地稿）；实现进度见实施增量与文末逐里程碑登记。调研与可行性论证见
 `docs/agent-team-feasibility-2026-10-16/99-final-report.md`（下称"调研报告"）。
 本文是实现的唯一权威依据；与调研报告冲突时以本文为准。
 
@@ -815,3 +865,74 @@ core 79 + ui 52 测试绿)。补充登记:
    机制(评估过承载面),但 v1 无真实消费场景实证;建议随真实使用反馈再接,避免空转面。
 6. **token 预算 defer(残留)**:usage 聚合进 A 区 usage 投影是独立特性(spec §12 M4
    原文),不在本批;成员数/板容量两维预算已生效,token 维度登记为 M4 残留待续。
+
+### 实现登记(2026-10-18,真实实例验收——发现 slashCommands 失效缺口)
+
+dev:desktop 真实实例 + CDP 验收。**已实证通过**:settings `agentsTeam.enabled=true` 写入
+~/.drora/cli/config.json 后灰度面生效链、CDP 驱动(9229)、composer 注入、草稿跨重启持久、
+可用性门拦截无模型发送、cherry-pick 0bd6aa18(droraCuaPlaceholder 占位修复,基线缺失会
+dev:desktop 启动即崩)。**发现真实缺陷(PR-2.5b 头号项)**:
+
+- **slashCommands 目录不随 install 失效**:App 启动窗口期(装配完成前)渲染进程首拉
+  workspace-config/session 快照,slashCommands 被定为不含 team 的目录并缓存;install 完成
+  (hub 注册)后**无失效机制**,刷新页面/重开菜单仍读旧目录——/team 不出现在斜杠面板。
+- **实证**:文件埋点显示时序 `SLASH agents=false`(目录含 team,白名单修复已在 bundle)
+  → `INSTALL sess_…`;重载页面后无新 SLASH 装配调用(目录来自会话快照缓存)。
+- **修复方向(PR-2.5b)**:TeamStateChanged 时失效/重推该会话 slashCommands(键级 delta 或
+  会话快照 revision 抬升);或 install 同步先于渲染进程首次订阅(装配顺序前移)。
+- **dev 基建陷阱(两次踩实)**:dev:desktop 构建脚本对 cli/dist/drora.cjs 存在即复用旧
+  bundle(脚本注释自认"陈旧 3 天,改动静默不生效")——CLI 侧改动后必须删
+  `apps/drora-cli/packages/cli/dist/drora.cjs` 再启动,否则「改动没进去」伪装成「代码没作用」。
+
+### 实现登记(2026-10-18 续,真实实例验收第二轮——/team 菜单缺显排查)
+
+重建 bundle 后 /team 仍未出现。已排除:白名单(bundle 含 team ✓)、目录装配调用
+(埋点实证 listProtocolSlashCommands 有被调用且 agentsTeamEnabled=显式 false)、
+键错配(hub 注册键与会话键一致,LOOKUP 命中实证)。**剩余唯一可疑环**:
+`getInstalledTeamHub(候选 app.sessionId)` 在目录装配时刻返回 undefined——即装配门
+(install)与目录装配(listProtocolSlashCommands 调用方)不在同一判定上下文,或
+create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落地的 workspace 级门
+(任一 in-memory 会话装配即开)为此环的正确形态;下一轮排查方向:
+1. 在 v4-workspace-config 装配处文件埋点输出候选 app.sessionId 清单与逐个 LOOKUP 结果;
+2. 核对 DRORA_AGENTS_TEAM 是否到达目录装配所在进程(host child spawn env);
+3. 若确认为 host child spawn env 过滤,修=把 agentsTeam 设置值经 spawn args/env 显式传入。
+
+### 实现登记(2026-10-19,/team 菜单缺显根因定谳与双环修复——冷启动实证入菜单)
+
+六轮文件埋点逐环取证(多轮实例重启),推翻上节全部三条可疑方向,**真因是两个
+时序环,灰度 env/settings 链路本身健康**(env 到达 ✓、装配门开 ✓、hub 登记 ✓、
+目录门 lookup 命中 ✓):
+
+- **环 1(服务端,补拉时机)**:install 的初始 TeamStateChanged 广播发生在
+  createDroraApp **内部**,而协议层 `runtime.subscribeEvents`(→onSessionEvent→
+  网关 team_state_changed 重拉拦截)在 createDroraApp 返回、record 创建之后才挂
+  ——live 链路必然错过该广播;且 v4 目录重拉走 live session 快路径,要求 record
+  已在 `context.sessions`(接缝放 materializeSessionRecord 内部即因早于
+  sessions.set 而拉空)。**修复**:网关公开 `refreshWorkspaceConfig(workspaceId)`
+  (pull+publish+flush 与 live 拦截共用一线),drora-team 新文件
+  `config-invalidation.ts` 的 `notifyAgentsTeamConfigInvalidated`(hub 装配事实
+  单点裁决)由 server-operations 的**新建与 resume 两个 `sessions.set` 之后**补拉
+  (单行接缝 ×2 + 单 import,符合最小接缝纪律)。事件本体仍由 install 广播入档,
+  本 helper 只补协议层一跳,零第二份状态。
+- **环 2(渲染层,消费通道缺位)**:启动窗口期首拉目录(hub 未装)被
+  droraSessionStore 缓存且水合守卫「非空即跳」永不自愈;服务端环 1 的补拉只进
+  v4 workspace-config publisher——**无人订阅就没人收到**(渲染层此前只有一次性
+  readWorkspacePresentation RPC,无该主题订阅者)。中间方案的两次证伪如实登记:
+  (a) team 投影 undefined→defined 边沿(da50ce18 原案)双重死锁——面板仅在有
+  team tab 时挂载,且 hub 在 lead 创建团队前 `snapshot()` 返回 undefined(record
+  未立),投影键根本不存在;(b) 「会话首份快照到达」一次性重拉仍竞态——网关
+  cold activation 的快照先于 CLI resume 装配完成到达,拉到的仍是装配前目录
+  (窗口探针实证 fired+got 五项)。**最终修复**:渲染层订阅
+  `workspace-config/<workspaceKey>` 主题(handshake 先行,ACK 前帧缓冲,帧回放
+  回写 setSlashCommands/setConfigOptions;组装故障退订重订,CLI 换代按代际重建),
+  hook 单一出处 `packages/ui/src/team/workspace-config-catalog-sync.ts`
+  (`useWorkspaceConfigCatalogSync`),挂载点为工作区常驻的 SessionPane(draft 态
+  也在)。此后任何服务端目录失效(装配完成、灰度变更)都经推帧自然收敛。
+- **实证**(dev 实例 + CDP 驱动,2026-10-19):冷启动→打开任务会话→斜杠面板
+  六项含 `/team Assemble an agent team for a goal.`(截图
+  D:/tmp/agt-menu-open-task.png);订阅链零错误日志。ui team 测试 52/52 绿;
+  v4-gateway-workspace-config/sessions-index 测试 29/29 绿;改动文件 oxlint 干净
+  (既有 max-lines/unused 发现经 clean HEAD 对照确认为分支既有)。v4-gateway.test.ts
+  单例失败为分支既有漂移(clean HEAD 复现,与本修复无关)。
+- **草稿态边界就此消除**:订阅挂在工作区常驻面板,draft 态(尚无会话)同样收
+  到装配完成的推帧——此前登记的「草稿态菜单缺 /team」边界由本方案覆盖。

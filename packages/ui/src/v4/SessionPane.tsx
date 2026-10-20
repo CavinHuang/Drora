@@ -50,6 +50,8 @@ import type {
 } from "@drora/shared/drora-protocol-v4";
 import { logger } from "@/logger.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
+// Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
+import { useWorkspaceConfigCatalogSync, TeamConversationSummary } from "@/team/index.js";
 import {
   getConversationShareErrorDetails,
   resolveConversationShareFallbackIssueCode,
@@ -668,6 +670,11 @@ export function SessionPane({
   const [lease, setLease] = useState<SessionLease | null>(null);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
+  // workspace-config v4 订阅（specs/agents-team.md 实现登记 2026-10-19）：本组件工作区
+  // 常驻（draft 态也在），是渲染层目录推送的挂载点——Agents Team 装配等任何服务端目录
+  // 失效经推帧回写 store，替代启动窗口期竞态的一次性拉取（死锁教训见
+  // workspace-config-catalog-sync.ts 头注）。
+  useWorkspaceConfigCatalogSync({ workspacePath, workspaceIdentity });
   const newlyCreatedSessionIdRef = useRef<string | null>(null);
   const shareDraft = useConversationShareSelectionStore((storeState) =>
     sessionId ? storeState.drafts[sessionId] : undefined,
@@ -5613,6 +5620,7 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
+                  footerSlot={!readOnly && !importedShare && snapshot?.team && snapshot.sessionId===sessionId ? <TeamConversationSummary key={`${sessionId}:${snapshot.team.teamId}`} team={snapshot.team} connection={{sessionId:snapshot.sessionId,sendCommand}} target={{workspacePath,workspaceIdentity:workspaceIdentity??undefined,remoteSessionId:remoteSessionId??undefined,parentSessionId:snapshot.sessionId}}/> : null}
                   compactForRemoteControl={compactForRemoteControl}
                   scrollToBottomActionRef={timelineScrollToBottomRef}
                   scrollToQueryActionRef={timelineScrollToQueryRef}

@@ -35,6 +35,8 @@ export interface TeamPanelTaskView {
   /** 依赖链深度（0 = 无依赖；按全任务图计算，上限 3 防深链溢出布局）——缩进量数据源。 */
   dependsDepth: number;
   artifactRefs: readonly string[];
+  spec?: TeamTaskCardProjection["spec"];
+  updatedAt?: string;
 }
 
 /**
@@ -73,10 +75,15 @@ export interface TeamPanelMailboxEntryView {
   summary?: string;
   /** 发件人成员的 profileColor（尾窗色点；lead/未匹配为 undefined → 中性色兜底）。 */
   fromColor?: string;
+  at?: string;
+  delivered?: boolean;
+  sourceTaskId?: string;
+  sourceAttemptId?: string;
 }
 
 export interface TeamPanelModel {
   teamId: string;
+  name?: string;
   status: TeamUiStatus;
   permissionMode?: "build" | "edit" | "yolo" | "guarded" | "auto";
   members: readonly TeamPanelMemberView[];
@@ -152,6 +159,8 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       dependsOn: task.dependsOn,
       dependsDepth: dependsDepthOf(task.taskId, depsByTask, depthCache, new Set<string>()),
       artifactRefs: task.artifactRefs,
+      spec: task.spec,
+      updatedAt: task.updatedAt,
     };
     if (task.status === "failed" || task.status === "cancelled") attention.push(view);
     else if (task.status === "pending") pending.push(view);
@@ -160,6 +169,7 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
   }
   return {
     teamId: team.teamId,
+    ...(team.name === undefined ? {} : { name: team.name }),
     status: team.status,
     ...(team.permissionMode === undefined ? {} : { permissionMode: team.permissionMode }),
     members: team.members.map((member) => ({
@@ -176,6 +186,10 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       messageId: entry.messageId,
       from: entry.from,
       to: entry.to,
+      at: entry.at,
+      delivered: entry.delivered,
+      sourceTaskId: entry.sourceTaskId,
+      sourceAttemptId: entry.sourceAttemptId,
       ...(entry.summary === undefined ? {} : { summary: entry.summary }),
       ...(entry.from === TEAM_LEAD_ASSIGNEE ? {} : { fromColor: colorByName.get(entry.from) }),
     })),

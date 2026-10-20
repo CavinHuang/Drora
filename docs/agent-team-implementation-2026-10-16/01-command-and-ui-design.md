@@ -7,6 +7,10 @@
 设计约束遵循 `DESIGN.md`（text-ui-* 刻度强制、语义 token、冷静致密操作型、
 键盘一级、i18n zh/en 全量、Side Pane 帧、移动端 R3 shell 规则）。
 
+2026-10-18 三处显示面的视觉细化提案见
+[`02-three-surface-ui-design.md`](02-three-surface-ui-design.md)：左侧会话列表、主消息摘要与
+右侧任务/成员面板。本提案尚待评审，不代表新增显示面或后续编辑能力已经实现。
+
 ## 1. `/team` 命令契约（对齐 `/workflow` 先例）
 
 先例解剖（`bootstrap/src/builtin-workflow-command.ts` 全文实读）：`/workflow` 是

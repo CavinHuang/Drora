@@ -218,6 +218,7 @@ export function buildWebRemoteControlTaskTargets({
         displayStatus,
         ...(hasBackgroundWork ? { hasBackgroundWork: true } : {}),
         ...(workflowActivity ? { workflowActivity } : {}),
+        ...(activity?.teamActivity ? { teamActivity: activity.teamActivity } : {}),
         ...(pinned ? { pinned: true } : {}),
         ...(archived ? { archived: true } : {}),
       };

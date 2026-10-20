@@ -1,4 +1,13 @@
 import type { TeamPanelController, TeamPanelViewModel } from "./contract.js";
+import type { TeamUiNavigationTarget } from "./contract.js";
+
+export const teamNavigationExample: TeamUiNavigationTarget = {
+  workspacePath: "/workspace/project",
+  workspaceIdentity: "remote-identity",
+  remoteSessionId: "attachment-1",
+  parentSessionId: "lead-session",
+  focus: { teamId: "team_demo_01", kind: "task", id: "task_demo_01" },
+};
 
 /**
  * 用法示例：消费方（app-shell 侧栏）从 v4 投影派生视图模型后交给面板控制器；

@@ -44,6 +44,7 @@ import { getErrorMessage } from "@/hooks/chatActionHelpers.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 import {
   getTaskTimelineGroupMessage,
   groupTaskTimelineItems,
@@ -612,6 +613,7 @@ export function WebRemoteControlMobileTaskHome({
                             )}
                           </span>
                         </span>
+                        <TeamSessionLine activity={task.teamActivity}/>
                         {task.workflowActivity ? (
                           <TaskWorkflowRunLines
                             activity={task.workflowActivity}
@@ -721,6 +723,7 @@ export function WebRemoteControlMobileTaskHome({
                                   )}
                                 </span>
                               </span>
+                              <TeamSessionLine activity={task.teamActivity}/>
                               {task.workflowActivity ? (
                                 <TaskWorkflowRunLines
                                   activity={task.workflowActivity}
@@ -949,6 +952,7 @@ export function WebRemoteControlMobileTaskHome({
                                   {formatTaskRelativeTime(task.updatedAt, intl)}
                                 </span>
                               </span>
+                              <TeamSessionLine activity={task.teamActivity}/>
                               {task.workflowActivity ? (
                                 <TaskWorkflowRunLines
                                   activity={task.workflowActivity}

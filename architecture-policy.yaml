@@ -110,6 +110,7 @@ modules:
       [
         packages/ui/src/team/contract.ts,
         packages/ui/src/team/index.ts,
+        packages/ui/src/team/session-line.ts,
       ]
     layers: { app: "." }
     owner: drora

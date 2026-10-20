@@ -48,6 +48,7 @@ import {
   type TaskGroupMenuItem,
 } from "@/workspace-grouped-tasks/types.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { TeamSessionLine } from "@/team/session-line.js";
 import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteractionAutoResolutionSnooze.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
@@ -177,8 +178,8 @@ function GroupedTaskRowComponent({
   // 工作流运行行：分组行同样长在标题下；
   // drag overlay 只是纯展示，不挂确认副作用与点击入口。
   const workflowRunLinesNode =
-    taskActivity?.workflowActivity && !dragOverlay ? (
-      <TaskWorkflowRunLines
+    (taskActivity?.workflowActivity || taskActivity?.teamActivity) && !dragOverlay ? (
+      <><TaskWorkflowRunLines
         activity={taskActivity.workflowActivity}
         isActive={isActive}
         intl={intl}
@@ -187,7 +188,7 @@ function GroupedTaskRowComponent({
           ...(task.workspaceIdentity ? { workspaceIdentity: task.workspaceIdentity } : {}),
           sessionId: task.taskId,
         }}
-      />
+      /><TeamSessionLine activity={taskActivity?.teamActivity} target={{workspacePath:task.workspacePath,workspaceIdentity:task.workspaceIdentity,parentSessionId:task.taskId}}/></>
     ) : null;
 
   const taskRow = (

@@ -5,8 +5,19 @@ import {
   type TeamPanelViewModel,
 } from "./contract.js";
 import { teamUiModule } from "./module.js";
+import { teamNavigationExample } from "./contract.example.js";
 
 describe("ui-team module contract", () => {
+  it("carries remote identity and attachment independently of filesystem path", () => {
+    expect(teamNavigationExample.workspaceIdentity).not.toBe(teamNavigationExample.workspacePath);
+    expect(teamNavigationExample.remoteSessionId).toBe("attachment-1");
+    expect(teamNavigationExample.parentSessionId).toBe("lead-session");
+    expect(teamNavigationExample.focus).toEqual({
+      teamId: "team_demo_01",
+      kind: "task",
+      id: "task_demo_01",
+    });
+  });
   it("declares the managed module identity", () => {
     expect(teamUiModule.id).toBe("ui-team");
     expect(teamUiModule.requires).toEqual(["ui", "shared"]);

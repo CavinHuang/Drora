@@ -120,6 +120,7 @@ function sessionOverlay(
         ? { pendingInteractions: summary.pendingInteractionSummary }
         : {}),
       ...(summary.workflowActivity ? { workflowActivity: summary.workflowActivity } : {}),
+      ...(summary.teamActivity ? { teamActivity: summary.teamActivity } : {}),
     },
   };
 }

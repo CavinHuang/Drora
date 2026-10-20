@@ -1398,6 +1398,7 @@ export function App({
           handleOpenSelectionSideChat={handleOpenSelectionSideChat}
           handleOpenPlanDetail={handleOpenPlanDetail}
           handleOpenWorkflowRun={handleOpenWorkflowRun}
+          handleOpenTeamSidePane={handleOpenTeamSidePane}
           handleOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
           handleOpenWorkflowActorSession={handleOpenWorkflowActorSession}
           handleOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}

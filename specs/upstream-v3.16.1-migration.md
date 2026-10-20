@@ -1,6 +1,6 @@
 # ZCode v3.16.1 同步与分段合并策略
 
-状态：已裁定（2026-10-20），实施中。S0 完成（a5fcd64/cc1b9a2/58cd765：转换脚本+黄金校验 445+预演 4546 条+三核查）；S1 完成（4f814061+810d3d5b：根配置+shared/rpc 166 条，shared+rpc typecheck/1949 测试/lint 全绿）；S2 完成（7d7ee097+c62b2c32+69bda53a：CLI 829 条，19 包 0 失败）；S3 完成（ac72baf5+81a32c5d：services/server/relay 族 430 条，services 308 文件/3593 测试全绿、S1 遗留 services 跨段错误收口；核查×3 过——自研 knowledge/vault/relay/drora-agent 零破坏）。进度与决策明细见 docs/upstream/zcode-v3.16.1-segment-plan.md。
+状态：**实施完成（2026-10-20）**。S0-S7 全段落地说完毕：a5fcd647/cc1b9a26/58cd765（S0 转换+黄金+预演）→ 4f814061/810d3d5b（S1 契约）→ 7d7ee097/c62b2c32/69bda53a（S2 CLI）→ ac72baf5/81a32c5d（S3 services）→ 9a5a6c1a/c58bd34c（S4 desktop+Relay V2）→ 5bf741d3/b9a6e63d（S5 UI/web）→ 3de1880a（S6 资产+R5 快照）→ 69daa438/576c3dbc/b830139b（S7 终验）→ 25837882（祖先记录 merge，merge-base=0a1fc56d）。终验门禁全绿（typecheck 18 项目/lint/fmt/架构 0 违规/单测 vitest+node 全量 0 失败/CLI 19 包 0 失败/SHA256 锚点）。结构对齐审计：上游 3.16.1 现行树缺口 18 条全部有据。明细见 docs/upstream/zcode-v3.16.1-segment-plan.md。遗留：relay-server 的 V2 wire 适配（R1 后续独立任务）、G-hint E2E 真机再基线、E2E/跨平台/真包 parity 属 CI 与发布验证。
 
 总目标：合并后目录结构与原版 ZCode 保持对齐（在 zcode→drora 改名空间下），结构差异仅允许两类——自研新增模块、spec 已记录的有意分歧；S7 做结构对齐审计并固化差异清单。本文是执行的唯一依据；实施结果与证据链后补于 `docs/upstream/zcode-v3.16.1-*.md`。
 

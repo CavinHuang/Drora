@@ -30,7 +30,12 @@ async function resolvePushBase(root, head, remote) {
 
 async function firstPushBase(root, head) {
   // 首次推送没有 remote SHA；只使用已确认的集成分支，缺失时严格报错，不猜测其他分支。
-  const staging = await commit(root, "origin/staging");
+  // Drora 适配（v3.16.1 S7）：本仓无 staging 集成分支，约定等价物是 origin/main；
+  // 上游硬性要求 origin/staging 会让首次推送无法解析基线，按同语义回退。
+  const stagingRef = (await isAncestor(root, "origin/staging", head).catch(() => false))
+    ? "origin/staging"
+    : "origin/main";
+  const staging = await commit(root, stagingRef);
   return (await git(root, ["merge-base", staging, head])).toString().trim();
 }
 

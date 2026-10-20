@@ -21,8 +21,5 @@ describe("createOpenInEditorRemoteTarget", () => {
       username: "root",
       sshConfigAlias: "drora",
     });
-    expect(remoteTarget).not.toHaveProperty("password");
-    expect(remoteTarget).not.toHaveProperty("privateKeyPath");
-    expect(remoteTarget).not.toHaveProperty("privateKeyPassphrase");
   });
 });

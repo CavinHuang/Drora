@@ -1,6 +1,7 @@
-export const WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS = 10_000;
-export const WEB_REMOTE_CONTROL_HEARTBEAT_JITTER_MS = 2_000;
-export const WEB_REMOTE_CONTROL_HEARTBEAT_ACK_TIMEOUT_MS = 30_000;
+export const WEB_REMOTE_CONTROL_V2_HEARTBEAT_INTERVAL_MS = 5_000;
+export const WEB_REMOTE_CONTROL_V2_HEARTBEAT_JITTER_MS = 1_000;
+export const WEB_REMOTE_CONTROL_V2_HEARTBEAT_ACK_TIMEOUT_MS = 15_000;
+
 export const WEB_REMOTE_CONTROL_RECONNECT_JITTER_MS = 2_000;
 
 function safeRandom(random: () => number): number {
@@ -12,15 +13,15 @@ function safeRandom(random: () => number): number {
 }
 
 export function getWebRemoteControlHeartbeatJitterMs(
-  baseIntervalMs = WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS,
+  baseIntervalMs = WEB_REMOTE_CONTROL_V2_HEARTBEAT_INTERVAL_MS,
   configuredJitterMs?: number,
 ): number {
   const normalizedBase =
     Number.isFinite(baseIntervalMs) && baseIntervalMs > 0
       ? Math.floor(baseIntervalMs)
-      : WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS;
+      : WEB_REMOTE_CONTROL_V2_HEARTBEAT_INTERVAL_MS;
   const defaultJitterMs = Math.min(
-    WEB_REMOTE_CONTROL_HEARTBEAT_JITTER_MS,
+    WEB_REMOTE_CONTROL_V2_HEARTBEAT_JITTER_MS,
     Math.floor(normalizedBase * 0.2),
   );
   const requestedJitterMs = configuredJitterMs ?? defaultJitterMs;
@@ -32,14 +33,14 @@ export function getWebRemoteControlHeartbeatJitterMs(
 }
 
 export function getWebRemoteControlHeartbeatDelayMs(
-  baseIntervalMs = WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS,
+  baseIntervalMs = WEB_REMOTE_CONTROL_V2_HEARTBEAT_INTERVAL_MS,
   configuredJitterMs?: number,
   random: () => number = Math.random,
 ): number {
   const normalizedBase =
     Number.isFinite(baseIntervalMs) && baseIntervalMs > 0
       ? Math.floor(baseIntervalMs)
-      : WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS;
+      : WEB_REMOTE_CONTROL_V2_HEARTBEAT_INTERVAL_MS;
   const jitterMs = getWebRemoteControlHeartbeatJitterMs(normalizedBase, configuredJitterMs);
   const minDelayMs = Math.max(1, normalizedBase - jitterMs);
   const maxDelayMs = normalizedBase + jitterMs;

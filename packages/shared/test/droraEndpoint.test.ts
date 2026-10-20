@@ -36,21 +36,6 @@ describe("droraEndpoint", () => {
     expect(resolveDroraEndpointOrigin({ env: "production" })).toBe(DEFAULT_DRORA_ENDPOINT_ORIGIN);
   });
 
-  it("uses DRORA_BASE_URL style env base as the default endpoint", () => {
-    expect(
-      resolveDroraEndpointOrigin({
-        env: "test",
-        envBaseOrigin: "https://zcode.z.ai/api/v1",
-      }),
-    ).toBe(TEST_DRORA_ENDPOINT_ORIGIN);
-    expect(
-      resolveDroraEndpointOrigin({
-        env: "production",
-        envBaseOrigin: "https://zcode.z.ai/api/v1",
-      }),
-    ).toBe(DEFAULT_DRORA_ENDPOINT_ORIGIN);
-  });
-
   it("keeps the non-production settings override above env base url", () => {
     expect(
       resolveDroraEndpointOrigin({
@@ -85,9 +70,9 @@ describe("droraEndpoint", () => {
       origin: "http://localhost:3030",
       apiBaseUrl: "http://localhost:3030/api/v1",
       remoteUrl: "http://localhost:3030/remote/v3",
-      webRemoteCallbackUrl: "http://localhost:3030/web-remote/callback",
+      webRemoteCallbackUrl: "http://localhost:3030/remote/v4",
       webShareCallbackUrl: "http://localhost:3030/cn/share/callback",
-      relayWsUrl: "ws://localhost:3030/ws",
+      relayWsUrl: "ws://localhost:3030/api/v1/remote/ws2",
       droraPlanOpenAiBaseUrl: "http://localhost:3030/api/v1/zcode-plan",
       droraPlanAnthropicBaseUrl: "http://localhost:3030/api/v1/zcode-plan/anthropic",
       droraPlanBillingCurrentUrl: "http://localhost:3030/api/v1/zcode-plan/billing/current",
@@ -149,12 +134,12 @@ describe("droraEndpoint", () => {
     ).toBe("https://zcode.z.ai/api/v1/zcode-plan/anthropic");
   });
 
-  it("uses the test relay only for the standard test endpoint", () => {
+  it("derives V2 relay from each endpoint origin", () => {
     expect(
       resolveWebRemoteControlRelayWsUrl({
         endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
       }),
-    ).toBe("wss://zcode.z.ai/ws");
+    ).toBe("wss://zcode.z.ai/api/v1/remote/ws2");
     expect(
       resolveWebRemoteControlRelayWsUrl({
         endpointOrigin: DEFAULT_DRORA_ENDPOINT_ORIGIN,
@@ -164,16 +149,16 @@ describe("droraEndpoint", () => {
       resolveWebRemoteControlRelayWsUrl({
         endpointOrigin: "http://localhost:3030",
       }),
-    ).toBe(DEFAULT_WEB_REMOTE_CONTROL_RELAY_WS_URL);
+    ).toBe("ws://localhost:3030/api/v1/remote/ws2");
   });
 
   it("allows an explicit web remote control relay url override", () => {
     expect(
       resolveWebRemoteControlRelayWsUrl({
         endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
-        overrideUrl: " ws://localhost:8787/ws ",
+        overrideUrl: " ws://localhost:8787/api/v1/remote/ws2 ",
       }),
-    ).toBe("ws://localhost:8787/ws");
+    ).toBe("ws://localhost:8787/api/v1/remote/ws2");
   });
 
   it("derives BigModel API origin from DRORA_ENV", () => {

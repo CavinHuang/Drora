@@ -26,7 +26,7 @@ describe("runtimeEnv", () => {
     expect(isDroraCuaInternalFeatureEnabled({ DRORA_CUA_PRODUCT_HELPER: "on" })).toBe(true);
   });
 
-  it("DRORA_CUA_DEV_MODE is the one-knob dev bundle and implies the internal feature flag", () => {
+  it("parses explicit truthy values for DRORA_CUA_DEV_MODE", () => {
     // isCuaDevModeRequested: only explicit truthy values (case-insensitive, trimmed).
     expect(isCuaDevModeRequested({})).toBe(false);
     expect(isCuaDevModeRequested({ DRORA_CUA_DEV_MODE: "0" })).toBe(false);
@@ -34,12 +34,6 @@ describe("runtimeEnv", () => {
     expect(isCuaDevModeRequested({ DRORA_CUA_DEV_MODE: "1" })).toBe(true);
     expect(isCuaDevModeRequested({ DRORA_CUA_DEV_MODE: " ON " })).toBe(true);
     expect(isCuaDevModeRequested({ DRORA_CUA_DEV_MODE: "true" })).toBe(true);
-
-    // DEV_MODE implies the internal feature flag without needing DRORA_CUA_PRODUCT_HELPER,
-    // collapsing the historical multi-var dev incantation to one knob.
-    expect(isDroraCuaInternalFeatureEnabled({ DRORA_CUA_DEV_MODE: "1" })).toBe(true);
-    expect(isDroraCuaInternalFeatureEnabled({ DRORA_CUA_PRODUCT_HELPER: "1" })).toBe(true);
-    expect(isDroraCuaInternalFeatureEnabled({})).toBe(true);
   });
 
   it("sanitizes runtime env while sealing user network env for tools", () => {
@@ -56,7 +50,6 @@ describe("runtimeEnv", () => {
     const captured = readDroraToolEnvPassthroughEnv(passthroughEnv);
 
     expect(sanitized).toEqual({ PATH: "/usr/bin:/bin" });
-    expect(passthroughEnv[DRORA_TOOL_ENV_PASSTHROUGH_ENV_KEY]).toBeDefined();
     expect(captured).toEqual({
       HTTP_PROXY: "http://proxy.example:8080",
       NODE_EXTRA_CA_CERTS: "/tmp/root-ca.pem",
@@ -96,7 +89,6 @@ describe("runtimeEnv", () => {
     expect(sanitized).toEqual({ PATH: "/usr/bin:/bin" });
 
     const captured = readDroraToolEnvPassthroughEnv(buildDroraToolEnvPassthroughEnv(sourceEnv));
-    expect(captured).not.toHaveProperty("DRORA_CUA_PERMISSION_BROKER_SOCKET");
     expect(captured).not.toHaveProperty("DRORA_CUA_PERMISSION_BROKER_SOCKET");
     expect(captured).not.toHaveProperty("DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER");
   });

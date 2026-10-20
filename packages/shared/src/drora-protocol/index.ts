@@ -40,6 +40,8 @@ import { droraAutomationBotDeliveryTargetSchema } from "../bots.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { completeModelPropertiesDataSchema } from "../model-config.js";
 import { modelExecutionSchema } from "../model-execution.js";
+export type { ModelExecutionSelectionFallback } from "../model-execution.js";
+export * from "../off-peak-execution.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
 import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
@@ -82,8 +84,10 @@ import {
 } from "../browser-use/backend.js";
 import { browserClientModeSchema, browserCommandSchema } from "../browser-use/commands.js";
 import { browserCommandResultSchema } from "../browser-use/result.js";
-import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";
+import { appToolSearchModeSchema } from "../app-runtime-preferences.js";
 import { integratedTerminalShellSelectionSchema } from "../validationAppSettings.js";
+import { droraTaskModeSchema } from "../drora-task-mode-schema.js";
+import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";
 import {
   droraSyntheticUserMessageSourceSchema as legacyDroraSyntheticUserMessageSourceSchema,
   droraDeliveryKindSchema,
@@ -107,7 +111,6 @@ import {
   droraToolStateSchema,
   droraWorkspaceRefSchema,
 } from "../drora-protocol-legacy-types.js";
-import { droraTaskModeSchema } from "../drora-task-mode-schema.js";
 
 export * from "../localTtft.js";
 export {
@@ -117,11 +120,19 @@ export {
   type HookInvocationRow,
 } from "../drora-protocol-v4/rows.js";
 
+export {
+  sessionsIndexReconcileParamsSchema,
+  sessionsIndexReconcileResultSchema,
+  type SessionsIndexReconcileParams,
+  type SessionsIndexReconcileResult,
+} from "../drora-protocol-v4/sessions-index.js";
+
 export const DRORA_PROTOCOL_NAME = "Drora Protocol" as const;
 export const DRORA_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
 export const DRORA_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const droraRuntimeCapabilitiesSchema = z.object({
+  historyFirst: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
 });
 export const droraProtocolErrorCodes = {
@@ -749,6 +760,7 @@ export const droraProtocolMcpServerSchema = z.union([
       env: z.array(droraProtocolMcpEntrySchema),
       isolation: z.enum(["session", "workspace"]).optional(),
       protocolVersion: z.enum(["legacy", "auto", "2026-07-28"]).optional(),
+      alwaysLoad: z.boolean().optional(),
       timeoutMs: z.number().int().positive().optional(),
     })
     .strict(),
@@ -761,6 +773,7 @@ export const droraProtocolMcpServerSchema = z.union([
       oauth: droraProtocolMcpOAuthSchema.optional(),
       isolation: z.enum(["session", "workspace"]).optional(),
       protocolVersion: z.enum(["legacy", "auto", "2026-07-28"]).optional(),
+      alwaysLoad: z.boolean().optional(),
       timeoutMs: z.number().int().positive().optional(),
     })
     .strict(),
@@ -1911,6 +1924,7 @@ export const droraDynamicWorkflowModeSchema = z.enum(DYNAMIC_WORKFLOW_MODES);
 
 export const droraSessionCreateParamsSchema = z
   .object({
+    additionalDirectories: z.array(nonEmptyString).max(256).optional(),
     sessionId: nonEmptyString.optional(),
     workspace: droraWorkspaceRefSchema,
     parentSessionId: nonEmptyString.optional(),
@@ -1938,6 +1952,7 @@ export type DroraSessionCreateParams = z.infer<typeof droraSessionCreateParamsSc
 
 export const droraSessionResumeParamsSchema = z
   .object({
+    additionalDirectories: z.array(nonEmptyString).max(256).optional(),
     sessionId: nonEmptyString,
     workspace: droraWorkspaceRefSchema.optional(),
     // 旧 session 尚无 runtime/model_selection entry 时，由同 task 的索引元数据提供迁移 hint。
@@ -1958,9 +1973,7 @@ export type DroraSessionResumeParams = z.infer<typeof droraSessionResumeParamsSc
 export const droraSessionListParamsSchema = z
   .object({
     workspace: droraWorkspaceRefSchema.optional(),
-    // 显式身份查询包含隐藏会话；普通列表仍只返回主任务，避免索引修复激活 runtime。
     sessionIds: z.array(nonEmptyString).min(1).max(64).optional(),
-    includeArchived: z.boolean().default(false),
     limit: z.number().int().positive().optional(),
   })
   .strict();
@@ -2071,7 +2084,9 @@ export type DroraModelContextBudgetStrategy = z.infer<typeof droraModelContextBu
 
 export const droraSessionRuntimePreferencesResultSchema = z
   .object({
+    additionalDirectories: z.array(nonEmptyString).max(256).optional(),
     nativeSearchEnhancementsEnabled: z.boolean(),
+    toolSearchMode: appToolSearchModeSchema.default("off"),
     subagentRuntimeConfigEnabled: z.boolean().optional(),
     memoryEnabled: z.boolean().default(false),
     askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
@@ -2548,6 +2563,23 @@ export const droraProviderUpdateAccountConfigResultSchema = z
 export type DroraProviderUpdateAccountConfigResult = z.infer<
   typeof droraProviderUpdateAccountConfigResultSchema
 >;
+/** Worker 从所属 Environment 的正式 Config Store 重建进程内 Provider Registry。 */
+export const droraProviderRefreshRegistryParamsSchema = z
+  .object({
+    reason: nonEmptyString,
+  })
+  .strict();
+export const droraProviderRefreshRegistryResultSchema = z
+  .object({
+    refreshed: z.literal(true),
+  })
+  .strict();
+export type DroraProviderRefreshRegistryParams = z.infer<
+  typeof droraProviderRefreshRegistryParamsSchema
+>;
+export type DroraProviderRefreshRegistryResult = z.infer<
+  typeof droraProviderRefreshRegistryResultSchema
+>;
 export const droraInteractionPreferencesSchema = z
   .object({
     askUserQuestionAutoResolutionEnabled: z.boolean(),
@@ -2917,6 +2949,21 @@ export const droraPluginComponentGroupSchema = z
   .strict();
 export type DroraPluginComponentGroup = z.infer<typeof droraPluginComponentGroupSchema>;
 
+export const droraPluginUiSurfaceSchema = z
+  .object({
+    pluginId: nonEmptyString,
+    pluginName: nonEmptyString,
+    id: nonEmptyString.max(128),
+    title: z.union([nonEmptyString, z.record(z.string(), z.string())]),
+    icon: z.string().optional(),
+    // 运行时 namespaced server 名（plugin:<name>:<server>），可直接用于 mcp/uiReadResource。
+    server: nonEmptyString,
+    resourceUri: nonEmptyString.max(2048),
+    availability: z.literal("session"),
+  })
+  .strict();
+export type DroraPluginUiSurface = z.infer<typeof droraPluginUiSurfaceSchema>;
+
 export const droraPluginInfoSchema = z
   .object({
     id: nonEmptyString,
@@ -2936,6 +2983,7 @@ export const droraPluginInfoSchema = z
     // 权威组件清单（名称 + 可选描述），由 CLI 对插件根目录枚举得出，与启用态无关。
     // 详情 UI 直接展示，取代旧的「数量取协议、名称靠 UI 侧 join」脆弱方案。optional 兼容旧 payload。
     components: z.array(droraPluginComponentGroupSchema).optional(),
+    uiSurfaces: z.array(droraPluginUiSurfaceSchema).optional(),
     declaredMcpServerNames: z.array(z.string()).optional(),
     hostMcpServerNames: z.array(z.string()).optional(),
     mcpServerNames: z.array(z.string()),
@@ -2978,20 +3026,6 @@ export type DroraPluginsListResult = z.infer<typeof droraPluginsListResultSchema
 
 // ── 插件 UI 面板入口──
 // 工作区级只读投影：已启用插件清单 `ui.surfaces[]` 的合法条目；插件启停后 host 重新拉取。
-export const droraPluginUiSurfaceSchema = z
-  .object({
-    pluginId: nonEmptyString,
-    pluginName: nonEmptyString,
-    id: nonEmptyString.max(128),
-    title: z.union([nonEmptyString, z.record(z.string(), z.string())]),
-    icon: z.string().optional(),
-    // 运行时 namespaced server 名（plugin:<name>:<server>），可直接用于 mcp/uiReadResource。
-    server: nonEmptyString,
-    resourceUri: nonEmptyString.max(2048),
-    availability: z.literal("session"),
-  })
-  .strict();
-export type DroraPluginUiSurface = z.infer<typeof droraPluginUiSurfaceSchema>;
 export const droraPluginsListUiSurfacesParamsSchema = z
   .object({ workspace: droraWorkspaceRefSchema })
   .strict();
@@ -3357,7 +3391,7 @@ export type DroraWorkflowsMoveResult = z.infer<typeof droraWorkflowsMoveResultSc
 // 完成卡的「直接保存」走这条：**不收脚本，只收 runId**——要写的那份正文是这次 run 实际执行的
 // 脚本，agent 从 journal 记录（`scriptText`）里读。脚本不经 GUI 走一圈有两个后果值得写下来：
 // 修订过的 run 存下的是**结算它的**那一份，而工具行入参被快照裁成预览的老对话也照样存得出
-// 同样的字节。名字合法性、覆盖、遮蔽与类型检查全部复用 SaveWorkflow 的同一套实现（不变式 3）。
+// 同样的字节。名字合法性、覆盖、遮��与类型检查全部复用 SaveWorkflow 的同一套实现（不变式 3）。
 /** 另一档已有同名定义（遮蔽事实）；与 contracts 的 SavedWorkflowShadowing 逐字对齐。 */
 export const droraSavedWorkflowShadowingSchema = z.enum(["hides_global", "hidden_by_project"]);
 export type DroraSavedWorkflowShadowing = z.infer<typeof droraSavedWorkflowShadowingSchema>;
@@ -3515,6 +3549,7 @@ export const droraPluginStoreListingSchema = z
     descriptionI18n: z.record(z.string(), z.string()).optional(),
     icon: z.string().optional(),
     category: z.string().optional(),
+    publisherType: z.enum(["official", "community"]).optional(),
     author: z.string().optional(),
     authorUrl: z.string().optional(),
     homepage: z.string().optional(),
@@ -4187,6 +4222,7 @@ export const droraProtocolMethods = {
   workspaceHookTrustGrant: "workspace/hooks/trustGrant",
   // 进程级 Account Provider Config 与 workspace 运行目录分离。
   providerUpdateAccountConfig: "provider/updateAccountConfig",
+  providerRefreshRegistry: "provider/refreshRegistry",
   workspaceUpdateInteractionPreferences: "workspace/updateInteractionPreferences",
   workspaceUpdateModelIoPreferences: "workspace/updateModelIoPreferences",
   // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
@@ -4379,6 +4415,12 @@ export const droraProtocolSessionMethodContracts = {
 
 export type DroraProtocolSessionMethodContract =
   (typeof droraProtocolSessionMethodContracts)[keyof typeof droraProtocolSessionMethodContracts];
+
+// 启动入口的独立存储命令与严格结果 schema，和 CLI 共用一份契约。
+export {
+  STORAGE_MIGRATION_COMMAND,
+  storageMigrationReportSchema,
+} from "../sqlite-migrations/contract.js";
 
 /** 仅存储准备子进程的私有控制帧，原始路径不进入业务事件或遥测。 */
 export const droraStoragePreparationFrameSchema = z.discriminatedUnion("method", [

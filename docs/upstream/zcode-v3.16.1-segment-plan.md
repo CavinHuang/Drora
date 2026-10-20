@@ -70,3 +70,17 @@ node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/their
 
 - desktopPetLibrary「upgrade preparation」：macOS `/var` vs `/private/var` realpath 环境差（测试与实现 S4 零 diff）——S7 复核是否需与 obsidian realpathLongestExistingPrefix 同法修复。
 - desktopMobileLanRelayHost「内嵌宿主生命周期」：断言 dist 含 3.15.1 资源路径，本地 dist 为 dev 构建（零 diff）——S7 构建后复跑。
+
+
+## S7 结构对齐审计（2026-10-20）
+
+- 本仓 25573 / 上游 3.16.1 现行 18238：交集 18220，上游侧缺口 18 条全部有据——
+  forceUpdate 家族 6（spec 删除）、嵌套 workspace 2+tsconfig 1（集成决策）、
+  zcode-cua-permission-broker.md（改名）、Z.svg（品牌删除）、
+  task-row-action-button.tsx（S5 迁入 project-sidebar/grouped/）、
+  zcode-cua {availability.test,vitest.config} 2（R3 zone）、
+  gen-ui service.test 1（3.15.1 已记录删除）、schedulerProtocol.js/.js.map 2
+  （上游有意跟踪的产物，本轮按 R4 从 theirs 恢复补齐）。
+- 仅本仓 7350 条全部为自研簇（mobile-web 5397、zcode-cua-helper 562、
+  website 231、relay-server 26、cli 扩展 310、desktop/ui/services 自研挂载、
+  regression/vaultview/glm-parity 文档等），与 A 类清单一致。

@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import {
   deriveSessionTeamActivity,
   TEAM_HISTORY_QUERY,
@@ -19,6 +19,11 @@ import {
 import { mapTeamProjectionToViewModel } from "../../src/team/view-model.js";
 import { createTeamFixture } from "./agents-team.fixture.js";
 import "../../src/styles.css";
+const RemoteTeamFixture = lazy(() =>
+  import("./agents-team-remote-browser.fixture.js").then((module) => ({
+    default: module.RemoteTeamFixture,
+  })),
+);
 
 const target: TeamOpenTarget = {
   workspacePath: "/same-path",
@@ -263,4 +268,12 @@ function FixturePanel(props: Parameters<typeof TeamPanel>[0]) {
   const focus = useTeamFocus(target);
   return <TeamPanel {...props} focus={focus} />;
 }
-createRoot(document.getElementById("root")!).render(<Fixture />);
+createRoot(document.getElementById("root")!).render(
+  new URLSearchParams(location.search).has("remote") ? (
+    <Suspense>
+      <RemoteTeamFixture />
+    </Suspense>
+  ) : (
+    <Fixture />
+  ),
+);

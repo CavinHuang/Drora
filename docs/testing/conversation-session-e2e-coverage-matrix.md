@@ -2,7 +2,12 @@
 
 ## Agents Team UI 增量（2026-10-19）
 
-ATUI04–10：同一 renderer-only pending 用例扩展，历史传输使用标注的 synthetic ACK。
+ATUI04–11：同一 renderer-only pending 用例扩展，历史传输使用标注的 synthetic ACK。
+ATUI11 复用真实 RemoteConversationTimeline 和 ServiceProvider，服务代理为 synthetic；
+验收查询错误/重试、workspace 身份与父会话、切换 scope 的旧 ACK、整行按钮纯摘要和看板能力门控。
+这不代表手机网络重连或完整 Host 重启已验证。
+2026-10-20：ATUI01–11 浏览器候选通过，真实手机时间线 + synthetic 服务代理验证上述边界；
+Desktop 看板切换保留，手机 SSR、相关 11 项单测和要求的类型/Lint/架构检查通过。
 历史页的数据正确性另由 `apps/drora-cli/packages/core/tests/team/team-history.test.ts` 验证。
 本轮 ATUI01–10 实际通过：三处定位、任务与成员详情、历史页/错误/重开/旧 ACK、
 1024/736/390px、双主题/双语/触屏。core/team 与 bootstrap summary 83 项、shared/UI/contract

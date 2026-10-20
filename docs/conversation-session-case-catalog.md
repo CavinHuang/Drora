@@ -13,6 +13,7 @@
 | ATUI08 | 同一持久化来源、新 reader/面板        | 重新打开并查询                    | 保存事件仍可见；不等同整个 Host 重启           | accepted |
 | ATUI09 | 延迟历史 ACK                          | 换队后释放旧请求                  | 旧结果不覆盖新队页面                           | accepted |
 | ATUI10 | 390/736/1024、浅深主题、zh/en、触摸   | 导航并查看详情/过程               | 无横向溢出，核心控件可触摸，状态不混淆         | accepted |
+| ATUI11 | 手机时间线及当前 ServiceProvider、远控整行按钮 | 查询错误后重试、切换 scope、打开任务 | 历史同一服务通道且身份完整；旧 ACK 隔离；摘要无嵌套按钮、无无效看板 | accepted |
 
 | ID | Setup | Action | Assertion | Decision |
 | --- | --- | --- | --- | --- |

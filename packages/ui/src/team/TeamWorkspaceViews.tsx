@@ -79,7 +79,11 @@ export function TeamWorkspaceViews({
               {board(select)}
             </>
           ) : (
-            <TeamOverview model={model} onSelect={select} onBoard={() => setShowBoard(true)} />
+            <TeamOverview
+              model={model}
+              onSelect={select}
+              onBoard={board ? () => setShowBoard(true) : undefined}
+            />
           )}
         </div>
         {visitedProcess ? (

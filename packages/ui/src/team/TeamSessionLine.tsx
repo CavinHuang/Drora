@@ -91,7 +91,8 @@ function TeamSessionLineContent({
           }}
         />
       </div>
-      {activity.members?.length ? (
+      {/* 中文依据：远控宿主把整行作为按钮；无导航端口时只显示摘要，不能在行内再嵌套按钮。 */}
+      {activity.members?.length && open && target ? (
         <>
           <button
             type="button"

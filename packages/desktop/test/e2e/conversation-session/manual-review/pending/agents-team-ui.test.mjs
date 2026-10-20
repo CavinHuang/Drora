@@ -1,4 +1,4 @@
-// ATUI01–10：真实 React 组件与仓库 CSS；历史 ACK 为 synthetic，journal 数据另有 core 集成测试。
+// ATUI01–11：真实 React 组件与仓库 CSS；历史 ACK 为 synthetic，journal 数据另有 core 集成测试。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -14,20 +14,24 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "ATUI01–10 conversation-first navigation, saved history, stale ACKs and responsive states",
+  "ATUI01–11 conversation-first navigation, saved history, stale ACKs and responsive states",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "agents-team-ui-"));
     const server = await createServer({
       configFile: false,
       root: process.cwd(),
+      // 独立缓存避免并行 worktree 共用 node_modules 时复用其他版本的图标预构建。
+      cacheDir: join(output, "vite-cache"),
+      // 只扫描本用例入口，避免 legacy 手机壳 HTML 抢先选择它自己的旧版 lucide-react。
+      optimizeDeps: { entries: ["packages/ui/test/fixtures/agents-team-browser.fixture.tsx"] },
       plugins: [
         tailwindcss(),
         {
           name: "team-ui-fixture",
           configureServer(vite) {
             vite.middlewares.use((req, res, next) => {
-              if (req.url !== "/team-ui-test") return next();
+              if (req.url?.split("?")[0] !== "/team-ui-test") return next();
               res.setHeader("Content-Type", "text/html; charset=utf-8");
               res.end(
                 '<!doctype html><html class="theme-zai-light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}.fixture-layout{display:grid;grid-template-columns:190px minmax(0,1fr) 340px;min-height:700px}@media(max-width:700px){.fixture-layout{grid-template-columns:minmax(0,1fr)}}</style></head><body><div id="root"></div><script type="module" src="/packages/ui/test/fixtures/agents-team-browser.fixture.tsx"></script></body></html>',
@@ -48,6 +52,10 @@ test(
       const page = await browser.newPage({ viewport: { width: 1060, height: 1000 } }),
         errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => {
+        if (message.type() === "error" && /cannot.*(?:descendant|nested)/.test(message.text()))
+          errors.push(message.text());
+      });
       const address = server.httpServer.address();
       await page.goto(`http://127.0.0.1:${address.port}/team-ui-test`, {
         waitUntil: "domcontentloaded",
@@ -180,10 +188,15 @@ test(
           });
           await page.getByTestId("team-view-collaboration").click();
         }
+      await page.getByTestId("team-view-overview").click();
+      await page.getByTestId("team-board-toggle").click();
+      assert.ok((await page.getByTestId("team-member-card").count()) > 0);
+      await page.getByRole("button", { name: "任务", exact: true }).click();
       await page.getByTestId("fixture-readonly").click();
       const summary = page.getByTestId("team-conversation-summary");
       await summary.getByRole("button", { name: "查看协作详情", exact: true }).click();
       assert.equal(await summary.getByTestId("team-overview").isVisible(), true);
+      assert.equal(await summary.getByTestId("team-board-toggle").count(), 0);
       await summary.getByRole("button", { name: "查看协作详情", exact: true }).click();
       const touch = await browser.newPage({
         viewport: { width: 352, height: 1000 },
@@ -206,6 +219,56 @@ test(
         await page.getByTestId("team-conversation-summary").textContent(),
         /planned members/,
       );
+      // ATUI11：真实远控入口 + 当前服务代理；不是直接给 Summary 注入假的 connection。
+      await page.goto(`http://127.0.0.1:${address.port}/team-ui-test?remote`, {
+        waitUntil: "domcontentloaded",
+      });
+      const remoteSummary = page.getByTestId("team-conversation-summary");
+      await page.getByTestId("remote-task-row").waitFor();
+      assert.equal(await page.getByTestId("remote-task-row").locator("button").count(), 0);
+      await page.getByTestId("remote-task-row").click();
+      assert.equal(await page.getByTestId("remote-opened").textContent(), "1");
+      await remoteSummary.getByRole("button", { name: "查看协作详情", exact: true }).click();
+      assert.equal(await remoteSummary.getByTestId("team-board-toggle").count(), 0);
+      await remoteSummary.getByTestId("team-view-process").click();
+      await remoteSummary.getByTestId("team-history-error").waitFor();
+      await page.getByTestId("remote-recover").click();
+      await remoteSummary.getByRole("button", { name: "重试", exact: true }).click();
+      await remoteSummary.getByTestId("team-history-entry").waitFor();
+      await remoteSummary.locator("summary").click();
+      assert.match(
+        await remoteSummary.getByTestId("team-history-entry").textContent(),
+        /Saved scope a/,
+      );
+      const requests = JSON.parse(await page.getByTestId("remote-requests").textContent());
+      assert.equal(requests.length, 2);
+      assert.ok(
+        requests.every(
+          (request) =>
+            request.workspacePath === "/same-path" &&
+            request.workspaceIdentity === "host-a/team-workspace" &&
+            request.envelope.sessionId === "lead-a" &&
+            request.envelope.type === "getTeamHistory",
+        ),
+      );
+      await page.getByTestId("remote-delay").click();
+      await remoteSummary.getByRole("button", { name: "最近记录", exact: true }).click();
+      await remoteSummary.getByRole("status").waitFor();
+      await page.getByTestId("remote-switch").click();
+      await remoteSummary.getByRole("button", { name: "查看协作详情", exact: true }).click();
+      await remoteSummary.getByTestId("team-view-process").click();
+      await remoteSummary.getByTestId("team-history-entry").waitFor();
+      await remoteSummary.locator("summary").click();
+      await page.getByTestId("remote-release").click();
+      assert.match(
+        await remoteSummary.getByTestId("team-history-entry").textContent(),
+        /Saved scope b/,
+      );
+      const lastRequest = JSON.parse(await page.getByTestId("remote-requests").textContent()).at(
+        -1,
+      );
+      assert.equal(lastRequest.workspaceIdentity, "host-b/team-workspace");
+      assert.equal(lastRequest.envelope.sessionId, "lead-b");
       assert.deepEqual(errors, []);
       console.log(`Team UI evidence: ${output}`);
     } finally {

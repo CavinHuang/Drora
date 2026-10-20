@@ -13,7 +13,7 @@ export function TeamOverview({
 }: {
   model: TeamPanelModel;
   onSelect: (focus: TeamUiFocus) => void;
-  onBoard: () => void;
+  onBoard?: () => void;
 }) {
   const { intl } = useDroraIntl(),
     facts = teamFacts(model);
@@ -69,15 +69,18 @@ export function TeamOverview({
         <h3>
           {intl.formatMessage({ id: "team.ui.taskList" })} · {facts.completed}/{facts.total}
         </h3>
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-md px-1 py-1 hover:bg-hover pointer-coarse:min-h-11"
-          data-testid="team-board-toggle"
-          onClick={onBoard}
-        >
-          <PanelsTopLeftIcon className="size-3" />
-          {intl.formatMessage({ id: "team.ui.board" })}
-        </button>
+        {/* 中文依据：手机宿主未提供看板 renderer；缺少能力时不能显示点击无效果的入口。 */}
+        {onBoard ? (
+          <button
+            type="button"
+            className="flex items-center gap-1 rounded-md px-1 py-1 hover:bg-hover pointer-coarse:min-h-11"
+            data-testid="team-board-toggle"
+            onClick={onBoard}
+          >
+            <PanelsTopLeftIcon className="size-3" />
+            {intl.formatMessage({ id: "team.ui.board" })}
+          </button>
+        ) : null}
       </div>
       {!tasks.length ? (
         <p className="py-4 text-ui-sm text-foreground-subtle">

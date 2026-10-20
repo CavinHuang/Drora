@@ -21,6 +21,16 @@
 
 ## 所有者与接口
 
+2026-10-20 审查修复：手机时间线从宿主现有 ServiceProvider 取得当前 attachment 的
+droraAgentService，经独立 hook 形成历史 connection；查询贯穿 workspacePath、workspaceIdentity
+与父 sessionId，不另开桥或 runtime。服务/身份/会话变化生成新 connection，由既有查询 hook
+隔离旧 ACK；无 ServiceProvider 时保留明确不可用。调用顺序为：
+`当前 attachment ServiceProvider → remote history hook → getTeamHistory → 同一 Host journal → ACK`。
+Desktop 仍用 continuous conversation transport；手机仍复用 replayable attachment 的服务代理。
+
+会话行仅在具备团队导航及目标时显示成员展开控件；远控整行按钮内只渲染摘要，避免嵌套按钮。
+总览仅在宿主提供 board renderer 时显示看板切换，手机仍提供同源任务列表与详情。
+
 - 业务事实唯一 owner：TeamHub。历史事实唯一 owner：sessionStore 中 team journal。
 - UI 仅持有展开、tab、focus、历史页 cursor/loading/error；不得创建历史事件或第二份团队状态。
 - shared 新文件定义 `getTeamHistory` 查询 payload 和 ACK result：
@@ -75,12 +85,20 @@ TeamSidePane 组合 hook 与视图。sessions-index 继续透传已有 teamActiv
 | ATUI08 | 重新打开与历史 | 同一 sessionStore 新 reader 可读取此前事件；UI 卸载重开再查询；集成+浏览器         |
 | ATUI09 | 异步竞争       | 换队或切会话后旧 ACK 不覆盖新选择，翻页不修改业务状态；hook/浏览器                 |
 | ATUI10 | 平台与状态     | 390/736/1024、浅深色、zh/en、触摸目标；staged/active/idle/failed/cancelled；浏览器 |
+| ATUI11 | 手机真实装配   | RemoteConversationTimeline + 当前服务代理：历史错误/重试成功、scope 与父会话正确；无嵌套按钮、无无效看板入口；renderer-only 浏览器 |
 
 裁剪：不新增 runtime 状态机、自动接管、权限类型、数据库迁移或真实所有权 handoff；
 不把 renderer-only 测试写成完整 Desktop/Host 重启证据。现有成员消息入口继续保留，
 设计稿省略入口不等于删除已实现功能。
 
 ## 验证记录
+
+2026-10-20 审查修复：ATUI01–11 renderer-only 浏览器候选通过。新增断言经过真实手机时间线
+与 ServiceProvider，覆盖查询失败/重试、父会话与 workspaceIdentity、换 scope 后旧 ACK 隔离；
+远控整行按钮无嵌套按钮，手机无无效看板入口，Desktop 看板仍可切换。
+根 typecheck、lint（396 条既有警告 / 0 错误）、架构检查与 Desktop E2E 类型检查通过；
+相关 3 文件 / 11 项单测及独立手机 SSR 回归通过。浏览器启动器限定本用例依赖扫描并使用独立
+缓存，避免 legacy 手机入口的旧版图标预构建污染；未修改依赖版本或还原手机壳。
 
 - 根 `pnpm typecheck`、`pnpm lint` 与架构检查通过；lint 保留 396 条既有警告、0 错误。
 - core/team 与 bootstrap summary 共 11 文件 / 83 项通过；shared/UI/contract 共 4 文件 / 15 项通过。

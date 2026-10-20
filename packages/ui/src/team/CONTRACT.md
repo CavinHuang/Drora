@@ -3,6 +3,8 @@
 2026-10-19 对话优先：导航增加 TeamUiFocus 与 useTeamFocus，按 workspace 身份、父会话和 teamId
 隔离本地定位请求；TeamPanel 接受可选历史 connection 与任务引用回调。默认总览，另有过程/
 协作。只读 getTeamHistory 走 hooks 与既有 v4 transport；历史只保留一页，不写回业务状态。
+2026-10-20：手机时间线经 hook 复用当前 ServiceProvider 的服务代理形成历史 connection。
+无导航目标的会话行只显示摘要，不挂成员按钮；无 board renderer 的总览不显示看板切换。
 
 2026-10-19：公开入口新增 TeamNavigationProvider / TeamOpenTarget、TeamConversationSummary、
 TeamSessionLine、TeamCollaborationPanel。导航只携带父会话与 workspace 三键，主体只消费投影。

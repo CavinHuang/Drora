@@ -25,11 +25,20 @@
 
 ## 跨段耦合对（落地顺序约束）
 
+0. **已发生的 S6→S1 提前落地**（S1 核查三补记）：`patches/@radix-ui__react-collapsible@1.1.12.patch`（package.json patchedDependencies 引用，缺文件 pnpm install 必败）；`.oxlintrc.json`（max-lines 800 上限提前，还原区精细豁免保留、上游整目录 packages/zcode-cua 豁免不采纳）。S6 执行时此二项标记已落地。
 1. S1 shared/web-remote-control.ts（V2 契约）↔ S4 webRemoteControlManager/windowRemoteConnectionRegistry ↔ S5 WebRemoteControl* 删除族——R1 链，S5 七条必须与新模块同批。
 2. S1 channels/clientConfig/validation ↔ S2 protocol-v4 handlers ↔ S5 SettingsPage 家族。
 3. S3 services/index/node/droraTaskIndexSyncer ↔ S4 host/index.ts ↔ S5 webRemoteControlTaskIndex 删除族（task-index 契约链）。
 4. S6 prepare-prebuilds（keep-ours）↔ S4 desktop/package.json（prepare 引用）。
 5. S1 vitest.config.ts（R4 取上游）↔ 各段新增测试目录。
+
+## S1 执行补记（核查后修复，4f814061 + fixup）
+
+- 决策：`build:web-remote-control`/:v3/:v4 三脚本随上游删除（部署已走 server-cli `prepare:remote-assets`，docker 独立脚本不存在，仅 docs/web-remote-control/*.md 文档引用——S6 文档段更新）。
+- 恢复：`packages/rpc/test/network-telemetry-middleware.test.ts`（自研模块测试，上游删其测试但 Drora 保留模块源码与 services 消费方）。
+- 清理：desktop/src/scheduler/schedulerProtocol.{js,js.map}（typecheck 构建污染；.d.ts/.d.ts.map 系 780721e7 既有跟踪产物，非污染）。
+- 待办登记：R2 `build-drora.mjs` 注入 `__DRORA_MIN_COMPATIBLE_VERSION__`（当前 fallback=DRORA_VERSION，S7 前实现）；`workflowBlocked` _meta 键是否归敛 shared/contracts 常量（S2/S3 评估）；全仓 fmt 基线 729 文件未过，S7 统一 `pnpm fmt`。
+- 已知跨段破坏（S1 契约先行）：全仓 typecheck 426 error（ui 401/web 16/services 8/client 1），清单 /tmp/dryrun/s1-cross-breakage.txt，S3/S5 收口。
 
 ## 段表补记（回写 spec 的枚举）
 

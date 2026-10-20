@@ -47,6 +47,12 @@
 - 依赖包 dist 重建教训：合并后先 `pnpm --filter <pkg>... exec tsc` 重建再 noEmit，跨包报错多为陈旧 dist。
 - 失败收口（c62b2c32）：12 失败根因分类——S03 有意分歧适配 7 / mcp-runtime 洞 1a 分歧 1 / S2 冲突遗留 turn-errors 1 / 上游新机制集成 2（vault-search shouldDefer、census 22→23）/ obsidian realpath 真 bug 1 / 产物与依赖 3（office dist、tui bundle、office-runtime lockfile、v4-gateway 超时）/ team 白名单测试 1。终态 `pnpm test:upstream-cli` 19 包 0 失败。本轮核查收尾：evidence-session-wiring 守卫位置同步（verifyEvidenceOrThrow 前移至 fork-edit-retry rewind 前、guide 降级归 session-flow 原始发送裁决，用例改走新守卫入口）、backup 测试产物清理（git rm adapters/backup 下 4 个误提交文件 + apps/drora-cli/.gitignore 忽略 `backup/`）。
 
+## S4 执行补记
+
+- **R1 决策修订（登记）**：Relay V2 **主干落地**于 S4（9a5a6c1a：webRemoteControlManager/transport/protocol V2、JWT 注册+一次性连接 token、V1 认证/传输删除，覆盖客户端/桌面/契约三侧）；**自建 `packages/relay-server`（A 类保护区，S4 零触碰）的 V2 wire 契约适配转为后续任务**（合并外独立任务，登记在案），适配完成前 V2 端点以官方云 relay 为准、与官方端互为可替换的验收顺延。此条修订 R1 原文「relay-server 适配作为合并内任务」的口径，不影响 R1 采纳 V2 本体。
+- **S5 阻塞项**：`packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts`（+ 同名 test）消费 `@drora/ui` 的 `registerSourceSettingsServices` 导出与 `InternalChannels.SourceSettingsServicePort` 契约。S5 合并 ui SettingsPage/删除族时必须保持该导出与通道契约兼容，落地时以 desktop typecheck（tsconfig.main/renderer）+ `sourceSettingsServicePortBridge.test` 验证，否则 desktop renderer 源设置桥断裂。
+- 已知跨段破坏（S4 后）：全仓 typecheck 134 error（ui 116 / web 18，较 S3 508 降 374），清单 /tmp/dryrun/s4-cross-breakage.txt，S5 收口。
+
 ## 段表补记（回写 spec 的枚举）
 
 S3 = packages/{services,server,provider,provider-node,client,drora-server-cli,model-option-map,android,formal-proof,share-ui,web-share,stream-animate,e2e-report} + harness/ + config/；S5 = packages/{ui,web,mobile-web} + public/。
@@ -59,3 +65,8 @@ node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/their
 ```
 
 黄金校验终态：445 differ / 194 Drora 独有 / 11 上游独有（较首版 473 修复：/zcode-cua/ 占位收紧为 assets/zcode-cua/、zcode/electron/releases 恢复保护——依据 HEAD 11d92f9be 与核查二）。
+
+### S4 环境预存失败登记（核查二）
+
+- desktopPetLibrary「upgrade preparation」：macOS `/var` vs `/private/var` realpath 环境差（测试与实现 S4 零 diff）——S7 复核是否需与 obsidian realpathLongestExistingPrefix 同法修复。
+- desktopMobileLanRelayHost「内嵌宿主生命周期」：断言 dist 含 3.15.1 资源路径，本地 dist 为 dev 构建（零 diff）——S7 构建后复跑。

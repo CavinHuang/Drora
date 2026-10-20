@@ -31,6 +31,7 @@ import {
 import { createTestAgentRuntime } from "./test-agent-runtime.js";
 import { toMcpToolName } from "../src/mcp/index.js";
 import { PermissionService } from "../src/permission/index.js";
+import { createManualPermissionBroker } from "../src/permission/broker.js";
 import { createExploreSubagentPort } from "../src/subagent/runner.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
 import {
@@ -1501,6 +1502,18 @@ describe("Explore subagent", () => {
       allowMediumRiskInAutoMode: false,
     });
     const checkPermission = vi.spyOn(parentPermissionService, "checkPermission");
+    // S03（specs/agent-write-safety.md 不变量 2）：普通 MCP 属 P0 写向量，allowedTools 不再
+    // 整工具放行——子代理的 MCP 调用必经父权限面逐次 ask（user-once）。测试里用手动 broker
+    // 放行这一次请求，验证「自定义 Explore 经父 PermissionService 与 broker 完成真实 MCP 调用」
+    // 的链路本身不变（修复依据：d70baea5 S03 落地后本测试无 broker，ask 落到
+    // DenyPermissionBroker，callTool 恒为 0）。
+    const permissionRequests: Array<{ approvalMode?: string; requestId: string; toolName: string }> =
+      [];
+    const broker = createManualPermissionBroker({
+      onRequest: (request) => {
+        permissionRequests.push(request);
+      },
+    });
 
     const runtime = createTestAgentRuntime(
       sessionId,
@@ -1533,6 +1546,9 @@ describe("Explore subagent", () => {
         eventStore,
         mcpPort,
         permissionService: parentPermissionService,
+        permissionBroker: {
+          requestPermission: (request, options) => broker.requestPermission(request, options),
+        },
         modelFactory: createTestModelFactory({
           async generateText(request: any) {
             const toolNames = (request.tools ?? []).map((tool: any) => tool.name);
@@ -1593,7 +1609,19 @@ describe("Explore subagent", () => {
       },
     );
 
-    const result = await runtime.executeTurn("让自定义 agent 检查边界");
+    // 子代理的 MCP P0 ask 会在 turn 内挂起等待 broker 放行：先等到请求，再放行，收尾 turn。
+    const turn = runtime.executeTurn("让自定义 agent 检查边界");
+    await vi.waitFor(() => {
+      expect(broker.listPendingRequests()).toHaveLength(1);
+    });
+    expect(permissionRequests[0]).toMatchObject({
+      toolName: mcpToolName,
+      approvalMode: "user-once",
+    });
+    expect(
+      broker.resolvePermission(permissionRequests[0]!.requestId, { decision: "allow" }),
+    ).toBe(true);
+    const result = await turn;
     const parentFirstRequestText = parentRequests[0].messages
       .map((message: any) => modelMessageContentToText(message.content))
       .join("\n");

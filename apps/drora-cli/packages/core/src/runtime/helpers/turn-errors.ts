@@ -101,10 +101,13 @@ export function createTurnFailureError(
     return createTurnCancelledError(error);
   }
 
+  // 对齐上游 v3.16.1：ConfigurationError 不再直通，统一按 fallbackMessage 包装
+  // （「Model creation failed」等），真实根因保留在 cause 链与 Wrapper 角色 payload 里。
+  // v3.15.1 合并时遗留的 ConfigurationError 直通会让上游 runtime-unbound-resume
+  // 断言的包装形态（外层 Model creation failed + cause Select a model）失效。
   if (
     isCoreError(error) &&
-    (error.type === CoreErrorType.ConfigurationError ||
-      error.type === CoreErrorType.ModelContextExceeded ||
+    (error.type === CoreErrorType.ModelContextExceeded ||
       (fallbackMessage === "Turn execution failed" && error.type === CoreErrorType.ModelError))
   ) {
     return error;

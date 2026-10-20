@@ -3205,7 +3205,10 @@ describe("projection 16MiB fault 与恢复", () => {
     expect(coldHost.errors.some((entry) => entry.scope === "v4.hydrate.payloadTooLarge")).toBe(
       true,
     );
-  });
+    // 16MiB 级负载测试：单文件运行约 2.8s，全量并行套件下受内存/GC 压力多次超 5s 默认超时
+    // （S2 后 test:upstream-cli 两次全量运行均在本用例超时，单独运行恒绿）。按「资源型长测
+    // 显式给超时」处理，不涉任何被测同步逻辑。
+  }, 30_000);
 
   it("oversize tool input 不进入 projection，并以同一 protocol fault 终止 turn", async () => {
     const host = makeHost();

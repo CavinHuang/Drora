@@ -1,5 +1,5 @@
-import { lstat } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { lstat, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const HIDDEN_DIRECTORY_PREFIX = ".";
 
@@ -105,6 +105,38 @@ export async function getSafeVaultPath(rootPath: string, relativePath: string): 
 
 export function toRelativePath(rootPath: string, absolutePath: string): string {
   return relative(rootPath, absolutePath).split(/[/\\]/).join("/");
+}
+
+/**
+ * 把绝对路径的"最长已存在祖先链"realpath 化，未存在的尾段保持词法原样。
+ *
+ * 修复依据（macOS 本地实证）：授权根经 loadVaultConfig 已是 realpath 结果，但 hook 侧
+ * 收到的 cwd/候选路径来自运行时原始输入——macOS 上 `/var/folders/**`（tmpdir）与
+ * Windows junction/subst 都携带软链前缀（W00 §3.9 同一类坐标系错位）。若直接
+ * `relative(realRoot, resolve(cwd, candidate))` 做词法包含判定，根内路径会被误判为
+ * `../` 逃逸而 fail-closed 拒绝（合法授权失效，CI ubuntu 的 /tmp 无软链未暴露）。
+ *
+ * 安全语义不削弱：只在"已存在祖先链"上做 realpath，未存在尾段保持词法、仍交给
+ * getSafeVaultPath 逐段 lstat 拒绝根内软链；指向授权根之外的软链在 canonicalize 后
+ * 必然落为 `../` 逃逸被包含判定拒绝；根不存在/不可达仍由调用方 fail-closed。
+ */
+export async function realpathLongestExistingPrefix(absolutePath: string): Promise<string> {
+  const tail: string[] = [];
+  let current = absolutePath;
+  for (;;) {
+    try {
+      return join(await realpath(current), ...tail);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") throw error;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      // 一路走到 `/` 都不存在：按原样交回，由调用方的包含判定拒绝（fail-closed）。
+      return absolutePath;
+    }
+    tail.unshift(basename(current));
+    current = parent;
+  }
 }
 
 export function parentRelativePath(relativePath: string): string {

@@ -333,10 +333,19 @@ describe("Guarded executor authorization boundary", () => {
     },
   );
   it("ordinary project reapproval also closes the previous request before creating a new id", async () => {
+    // S03（specs/agent-write-safety.md 2026-10-17 收尾契约）：Bash 是 P0，service 产生的
+    // ask 一律 user-once，PermissionRequest Hook 不得代答——所以「普通 ask + Hook 改写」
+    // 不再由 rule.project.ask 首问触发。reapproval 生命周期改由用户配置的 PreToolUse
+    // hook 把 safe 命令的 allow 翻成 ask（applyPreToolPermissionDecision 不走 P0 盖章），
+    // 再由 PermissionRequest hook 改写进项目 ask 规则（git reset:*）覆盖的命令来演练：
+    // 重判仍会 close 旧请求、另起新 id，且第二个（P0）请求是 user-once。
     const h = harness({
       mode: "build",
       permissionHookInput: { command: "git reset --hard" },
-      projectRules: { ask: [{ toolName: "Bash" }] },
+      projectRules: {
+        allow: [{ toolName: "Bash" }],
+        ask: [{ toolName: "Bash", ruleContent: "git reset:*" }],
+      },
     });
     const controller = new AbortController();
     const pending = h.execute("echo original", controller.signal);
@@ -357,12 +366,17 @@ describe("Guarded executor authorization boundary", () => {
     }
   });
   // 2026-09-17 review：重判不能退回只含 runtimeScope/cwd 的缩减上下文，否则 guarded matcher 在该路径静默失效。
+  // 与上例同路线（S03 后 service 对 Bash 的 ask 恒 user-once，Hook 不代答）：PreToolUse
+  // hook 翻 ask 后由 PermissionRequest hook 改写，recheck 上下文必须与首次判定同一份。
   it("hook rewrite recheck receives the same prepared context as the first decision", async () => {
     const contexts: unknown[] = [];
     const h = harness({
       mode: "build",
       permissionHookInput: { command: "git reset --hard" },
-      projectRules: { ask: [{ toolName: "Bash" }] },
+      projectRules: {
+        allow: [{ toolName: "Bash" }],
+        ask: [{ toolName: "Bash", ruleContent: "git reset:*" }],
+      },
       resolvePermissionCapability: (input, context) => {
         contexts.push(context);
         return bashToolEntry.resolvePermissionCapability?.(input, context);

@@ -872,7 +872,7 @@ describe("script workflow child runtime — 子代理经父 broker 请求权限�
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("build run：子代理的普通 Bash 也经父会话请求（非 user-once），并镜像到父会话", async () => {
+  it("build run：子代理的危险 Bash 也经父会话请求（S03 P0 → user-once），并镜像到父会话", async () => {
     const parentEvents: SessionEvent[] = [];
     parentRuntime.subscribeEvents({
       onSessionEvent: (event) => {
@@ -884,7 +884,12 @@ describe("script workflow child runtime — 子代理经父 broker 请求权限�
     await actorRuntime.executeTurn("go");
 
     expect(requests).toHaveLength(1);
-    expect(requests[0]!.approvalMode).not.toBe("user-once");
+    // S03（specs/agent-write-safety.md「P0 ask 使用现有 approvalMode=user-once 通道」）：
+    // Bash 恒为 P0 写向量，user-once 逐次确认不随模式放宽——build 与 guarded 的差异在
+    // 放行面（build 允许 safe 命令/低风险直行），不在 P0 审批生命周期。修复依据：
+    // d70baea5 S03 落地后 ask() 对 P0 一律盖 user-once，本断言原期望「非 user-once」
+    // 与 spec 冲突（fixture 命令是 rm -rf，非 safe 命令，无内容规则可放行）。
+    expect(requests[0]!.approvalMode).toBe("user-once");
     expect(requests[0]).toMatchObject({
       sessionId: parentSessionId,
       toolName: "Bash",

@@ -13,7 +13,7 @@ import { createToolRegistry } from "../src/tool/registry.js";
 import { bashToolEntry } from "../src/tool/handlers/bash.js";
 import { PermissionService } from "../src/permission/service.js";
 
-function harness(mode: CollaborationMode, hookFailure = false) {
+function harness(mode: CollaborationMode, hookFailure = false, toolName = "Bash") {
   const sessionId = createSessionId("permission-log-session");
   const turnId = createTurnId("permission-log-turn");
   const traceContext = createRootTraceContext({ sessionId, turnId });
@@ -33,6 +33,21 @@ function harness(mode: CollaborationMode, hookFailure = false) {
     interrupted: false,
   }));
   registry.register({ ...bashToolEntry, handler });
+  // 非 P0 的高风险工具：build 下的 ask 不是 user-once，PermissionRequest hook 链
+  // 照常参与竞速（Bash 是 P0，S03 后 hook 不代答，走不到 hook 失败等待路径）。
+  registry.register({
+    inputSchema: {},
+    metadata: {
+      name: "DeployApp",
+      readOnly: false,
+      destructive: false,
+      concurrentSafe: false,
+      needsApproval: true,
+      sideEffectScope: "workspace",
+      riskLevel: "high",
+    },
+    handler,
+  });
   const response = Promise.withResolvers<PermissionBrokerResult>();
   const requestPermission = vi.fn(() => response.promise);
   const executor = createToolExecutor({
@@ -64,14 +79,17 @@ function harness(mode: CollaborationMode, hookFailure = false) {
       sessionId,
       turnId,
       toolCallId,
-      toolName: "Bash",
+      toolName,
       module: "core.tool.executor",
     },
     execute: () =>
       executor.execute({
         id: toolCallId,
-        name: "Bash",
-        input: { command: "rm -rf private-input" },
+        name: toolName,
+        input:
+          toolName === "Bash"
+            ? { command: "rm -rf private-input" }
+            : { target: "private-input" },
       }),
   };
 }
@@ -158,7 +176,10 @@ describe("permission lifecycle log compatibility", () => {
   );
 
   it("retains hook failure correlation while waiting for the actual broker", async () => {
-    const h = harness("build", true);
+    // Bash（P0）在 S03 后所有 ask 均 user-once，PermissionRequest hook 不参与应答，
+    // hook 链失败等待日志只能由非 P0 工具触发；日志合同（trace/requestId 关联、
+    // errorMessage 透传）不变。
+    const h = harness("build", true, "DeployApp");
     const pending = h.execute();
     try {
       await vi.waitFor(() =>

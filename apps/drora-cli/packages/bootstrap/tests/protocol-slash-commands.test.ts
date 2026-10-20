@@ -44,6 +44,11 @@ describe("protocol slash command surface", () => {
         // 按本目录顺序展示，产品要求工作流紧随目标之后（docs/ui/chat-composer-action-menu.md
         // 「工作流入口」），顺序由 APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES 决定。
         { name: "workflow", source: "builtin" },
+        // `/team` 是 Drora agents-team 的内置命令（ab68a239 加条目、f7c0e4c3 进白名单）：
+        // 只有显式 agentsTeamEnabled=false 才剔除，本调用不传该门，目录里必须在场。
+        // S2 合并移除了 `plan` 的协议内置段（Composer 本地操作承担，保留名仍挡自定义接管），
+        // 期望目录随契约同步更新。
+        { name: "team", source: "builtin" },
         { name: "compact", source: "builtin" },
         { name: "init", source: "builtin" },
         { name: "review", source: "custom" },

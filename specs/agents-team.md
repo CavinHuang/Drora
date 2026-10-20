@@ -68,7 +68,7 @@ sequenceDiagram
   AGENTS.md「官方实现优先」迁移官方契约并删除重复面；每次上游同步跑
   `scripts/check-bundle-key-parity.mjs` 时核对 team 键族。
 - **核心裁决**：teammate 在 wire sessionKind 与内部 taskType 上**一律复用
-  `subagent_child`**，团队性由请求级 additive 字段承载（§5）。由此全仓 22 处
+  `subagent_child`**，团队性由请求级 additive 字段承载（§5）。由此全仓 23 处
   `subagent_child` 行为门零改动自动继承（§9）。
 - **形态借鉴（dynamic-workflow 三个成熟先例）**：①权限模式在成队那一刻定死并记
   journal，此后 lead 换模式不影响在飞的 team（`workflow-actor-permission.ts` 模式）；
@@ -301,7 +301,7 @@ created（显式成队：权限模式与成员路由定死并记 journal）
   旧桌面/手机把 teammate 当普通子代理显示，天然优雅降级；任务索引排除
   （droraTaskIndexSyncer.ts:1680）自动沿用。
 - **内部 taskType 亦保持 `subagent_child`**。新增 `team_member` 的方向 A **已评估并否决**：
-  全仓行为门均为 `=== "subagent_child"` 严格相等（实测 22 处，§9），新值不命中即落入
+  全仓行为门均为 `=== "subagent_child"` 严格相等（实测 22 处、S2 后 23 处，§9），新值不命中即落入
   非子代理分支——runtimeScope="main"、automation/offPeak 照注册、后台 bash 上限失效、
   下钻/查询链路（subagent-session-query.ts:395、server-operations.ts:1738）跳过导致
   teammate 漏出、tool-allowlist.ts:114 不补回 RespondToCoordinator——逐点改判定 ≈10+ 处
@@ -454,16 +454,21 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（22 处，零改动验证）
+## 9. subagent_child 行为门验证清单（23 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
-共 **22 处**（core/bootstrap 19 + services sessionKind 3）。分布：
+共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
+**2026-10-20 增补（S2 v3.16.1 上游合并，7d7ee097）**：上游在 server-operations.ts
+新增 1 处会话归属守卫（resolve 循环内 `current.taskType !== "subagent_child"`——仅精确
+ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不回写身份、不激活 runtime），
+按 §9 继承原则 teammate 自动继承（同一父链语义），census 22 → **23 处**
+（core/bootstrap 20）。分布：
 
 | 文件 | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得） |
 |---|---|---|
 | core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269） | 6 | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
 | core/src/runtime/methods/background-notifications.ts | 2 | 通知封印按子会话现状 |
-| bootstrap/src/drora-protocol/server-operations.ts（:1738/:1957） | 2 | 子会话下钻/查询包含 teammate |
+| bootstrap/src/drora-protocol/server-operations.ts（:1734 S2 新增/:1817/:2036） | 3 | 子会话下钻/查询包含 teammate；S2 新增会话归属守卫（精确 ID 凭父链证明归属，teammate 同样适用） |
 | bootstrap/src/app/subagent-observation.ts（:51/:95） | 2 | 子代理观察面适用 |
 | bootstrap/src/drora-protocol/subagent-session-query.ts:395 | 1 | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate |
 | bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771 | 1 | 只读守卫覆盖 teammate |
@@ -534,7 +539,7 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
 而非接缝语义静默漂移）；受限 profile 的协作工具强制保留降级为 profile 约定
 （team 角色显式列协作工具或 `tools:["*"]`；如需机器强制再评估 tool-allowlist.ts
 加 1 行，届时登记为第 4 接缝）；CLI 内部事件走 team journal 自有事件流，
-不动 session.events.ts。22 处行为门继承不变（§9 照旧）。
+不动 session.events.ts。23 处行为门继承不变（§9 照旧）。
 
 **B 档·自研协议与界面的全新文件（δ）**：shared team.ts + snapshot/delta/command
 additive（v4 为自研协议面无上游负担）；ui store/team 模块/mobile +
@@ -677,7 +682,7 @@ README + docs/usage.md + docs/quality-gates.md + docs/progressive-loading.md。
 |---|---|
 | 状态存工作区文件 `.agent-teams/` + 面板 1s 轮询 | Drora 有 v4 投影（快照+delta）、双链路交付与 session store journal、workspaceIdentity 隔离——文件态会污染用户仓库、无法覆盖 web-remote-replayable 语义 |
 | fork 子代理后端（memberProvider: spawn/fork） | Drora 子代理无 fork 后端（会话 fork 是另一概念）；现有 spawn 构造路径 + 终态复活已覆盖 durable member 语义 |
-| 插件 capability seam（ctx.tools / ctx.subagents.startContinuable） | Drora 原生实现：私有端口 + 组装根 3 接缝（§11 v2），权限继承与 22 处行为门全链自动继承 |
+| 插件 capability seam（ctx.tools / ctx.subagents.startContinuable） | Drora 原生实现：私有端口 + 组装根 3 接缝（§11 v2），权限继承与 23 处行为门全链自动继承 |
 | 任务创建 captain-only | 保持黑板开放（成员可建任务，Anthropic 板自治实证）；吸收的是转派/接管/恢复 lead 专属 |
 | 中途增删工具/替换 system 的渐进加载 | dsh 自己已撤回（缓存命中显著下降）；Drora 以固定协议纪律直接规避（§13） |
 

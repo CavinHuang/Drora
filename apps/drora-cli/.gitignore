@@ -6,6 +6,8 @@ coverage/
 .env.turbo/
 .turbo
 .tmp/
+# adapters 测试运行残留的备份产物（cli-*/backup.json、tables.sqlite）不入库（c62b2c32 误提交收口）。
+backup/
 
 # Compiled TypeScript output in src directories
 src/**/*.js

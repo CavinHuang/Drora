@@ -45,6 +45,7 @@
 - zone 决策 4 条全部**保 ours**：`zcode-cua-plugin/{.zcode-plugin/plugin.json,package.json}`（上游 0.6.4→0.6.5+MIT→Apache-2.0；本仓冻结 0.6.3 字节不随动，license 变化登记不应用——还原保真优先）；`scripts/sync-cache.mjs`（上游注释改 monorepo 路径，Drora producer 链仍走仓库 clone 形态）；`scripts/resolve-pnpm-invocation.mjs`（上游删除系其 monorepo 迁移；本仓 bump-zcode-cua-producer.mjs 活跃引用，保留）。
 - 31 冲突逐案解决（代理执行+typecheck 七包过）：要点=protocol-v4 handlers import 统一 session-execution 聚合入口、session-flow highspeed 分支保留 W03 证据守卫（有意分歧）、server-operations 并集（team 目录失效+resume 失败回收）、contracts tools 并集（vault-search+tool-search）、official-plugin-definitions computer-use 钉 0.6.3（与冻结资产对齐）、package.json 版本保 0.0.1。
 - 依赖包 dist 重建教训：合并后先 `pnpm --filter <pkg>... exec tsc` 重建再 noEmit，跨包报错多为陈旧 dist。
+- 失败收口（c62b2c32）：12 失败根因分类——S03 有意分歧适配 7 / mcp-runtime 洞 1a 分歧 1 / S2 冲突遗留 turn-errors 1 / 上游新机制集成 2（vault-search shouldDefer、census 22→23）/ obsidian realpath 真 bug 1 / 产物与依赖 3（office dist、tui bundle、office-runtime lockfile、v4-gateway 超时）/ team 白名单测试 1。终态 `pnpm test:upstream-cli` 19 包 0 失败。本轮核查收尾：evidence-session-wiring 守卫位置同步（verifyEvidenceOrThrow 前移至 fork-edit-retry rewind 前、guide 降级归 session-flow 原始发送裁决，用例改走新守卫入口）、backup 测试产物清理（git rm adapters/backup 下 4 个误提交文件 + apps/drora-cli/.gitignore 忽略 `backup/`）。
 
 ## 段表补记（回写 spec 的枚举）
 

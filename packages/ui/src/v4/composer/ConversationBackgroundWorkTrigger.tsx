@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { ActivityIcon, BotIcon, SquareTerminalIcon, Workflow } from "lucide-react";
-import { TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER } from "@drora/shared";
+import { TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER } from "@drora/shared/test-ids";
 import type { BackgroundWorkSummary } from "@drora/shared/drora-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

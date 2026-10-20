@@ -1,10 +1,10 @@
 import { HardDrive } from "lucide-react";
+import { type StorageVolumeGroup } from "@drora/shared";
 import {
-  type StorageVolumeGroup,
   TID_RESOURCE_MANAGER_STORAGE_DISK_CARD,
   TID_RESOURCE_MANAGER_STORAGE_ROOT,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatBytes } from "@/resource-manager/resourceUsageView.js";

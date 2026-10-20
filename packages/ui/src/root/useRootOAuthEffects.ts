@@ -7,7 +7,6 @@ import type {
   UserInfo,
 } from "@drora/shared";
 import {
-  DesktopCommandIds,
   resolveProviderFamilyDomainFromOAuthProvider,
   DRORA_JWT_INVALID_BROADCAST_CHANNEL,
 } from "@drora/shared";
@@ -25,8 +24,8 @@ import {
 import {
   applyCachedOAuthSessionRestoreResult,
   shouldShowJwtInvalidSessionDialog,
+  requestOAuthReauthentication,
 } from "@/root/oauthCachedSessionRestore.js";
-import { markDroraJwtInvalidRestart } from "@/root/droraJwtInvalidRestartMarker.js";
 import { shouldApplyOAuthPollingFailure } from "@/root/oauthLoginAttemptGuard.js";
 import { useAccountConnectionLossNotification } from "@/root/useAccountConnectionLossNotification.js";
 
@@ -47,11 +46,24 @@ export async function handleOAuthCallbackSuccess(params: {
   const loginProvider = resolveProviderTelemetryLabel(params.result.provider);
   params.setUser(params.result.userInfo);
   params.setOAuthError(null);
-  await params.setProviderFamilyDomain(params.result.provider);
-  if (params.refreshLatestModelProviderFamilySelection) {
+  let connectionInitialized = true;
+  try {
+    await params.setProviderFamilyDomain(params.result.provider);
+  } catch (error) {
+    connectionInitialized = false;
+    // 原因：认证已成功，连接初始化的 CAS 冲突不能否定 session 或中断登录成功收尾。
+    // 保留并发新设置，不重试覆盖；独立报告辅助步骤失败。
+    logger.warn("[Root] OAuth 登录后连接域初始化未应用", {
+      provider: params.result.provider,
+      error,
+    });
+  }
+  if (params.refreshLatestModelProviderFamilySelection || !connectionInitialized) {
     let selection: ModelProviderFamilyConnectionSelection | null = null;
     try {
-      selection = await params.refreshLatestModelProviderFamilySelection(params.result.provider);
+      // 原因：初始化冲突已撤销本次自动写入资格，不能重读新版本再次覆盖用户选择。
+      if (connectionInitialized && params.refreshLatestModelProviderFamilySelection)
+        selection = await params.refreshLatestModelProviderFamilySelection(params.result.provider);
     } catch (error) {
       // selectedKey 后台校正失败只影响默认连接方式展示，不能回滚已经成功的 OAuth 登录态。
       logger.warn("[Root] OAuth 登录后刷新 provider family selectedKey 失败", {
@@ -60,7 +72,7 @@ export async function handleOAuthCallbackSuccess(params: {
       });
     }
     const selectedConnection = selection ? JSON.stringify(selection) : "";
-    if (selection && params.refreshAppSettings) {
+    if ((selection || !connectionInitialized) && params.refreshAppSettings) {
       try {
         // selectedKey 由 settingService 直接落盘，输入框和 context hover
         // 读取的是 renderer settings 快照。登录后必须先刷新快照，再按最终套餐刷新
@@ -143,6 +155,9 @@ export function useRootOAuthEffects({
   // 因 activeProvider 被清而收敛成 signed-out，用户被无提示登出）。
   const pendingJwtInvalidDuringRestoreRef = useRef(false);
   const showJwtInvalidDialogRef = useRef((): void => {});
+  // 重建提示进行中标记：广播 effect 与弹窗实现 effect 分离后仍需共享同一去重闸，
+  // 避免提示等待期间重复触发（对齐上游单 effect 内局部 promptPending 的语义）。
+  const jwtInvalidPromptPendingRef = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -150,9 +165,8 @@ export function useRootOAuthEffects({
       logger.info("[Root] 后台启动 OAuth 本地会话恢复");
       let hasRestoredUser = false;
       try {
-        // zai / bigmodel 的 OAuth token 生命周期较短，启动时如果仍走远端校验，
-        // 用户会在 token 过期后被立刻打回“未登录”，和“已完成登录但未主动退出”的产品语义冲突。
-        // 这里改为只读取登录成功时缓存的 user_info，展示态由“是否主动退出”决定，而不是由短 token 决定。
+        // 启动只读缓存及本地有效期；业务 token 已明确过期时直接重新登录，
+        // 不把无 exp 的历史凭据或暂时断网误判成退出。
         const result = await services.oauthService.restoreCachedSessionState();
 
         if (disposed) {
@@ -164,6 +178,8 @@ export function useRootOAuthEffects({
           setUser,
           requestAlert,
           onReauthenticationRequired,
+          shouldReauthenticate: async () =>
+            !disposed && (await services.oauthService.getActiveProvider()) === null,
           copy: {
             title: intl.formatMessage({ id: "login.expired.title" }),
             description: intl.formatMessage({ id: "login.expired.description" }),
@@ -222,7 +238,7 @@ export function useRootOAuthEffects({
   useEffect(() => {
     let disposed = false;
     const disposable = services.broadcastService.onMessage((message) => {
-      if (message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
+      if (message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL || disposed || jwtInvalidPromptPendingRef.current) {
         return;
       }
       // Unrelated background provider requests can emit a JWT-invalid
@@ -262,33 +278,33 @@ export function useRootOAuthEffects({
 
   useEffect(() => {
     let disposed = false;
+    // 上游 v3.16.1 演进：运行时 JWT 失效改为 setUser(null) + 过期弹窗 + Welcome 重登，
+    // 不再走重启进程流程；Drora 的已登出免疫与恢复期挂起重判仍由上面的广播 effect 保留。
     showJwtInvalidDialogRef.current = () => {
-      void (async () => {
-        const confirmed = await requestAlert({
+      jwtInvalidPromptPendingRef.current = true;
+      void requestOAuthReauthentication({
+        setUser,
+        requestAlert,
+        onReauthenticationRequired: () => {
+          if (!disposed) onReauthenticationRequired();
+        },
+        shouldReauthenticate: async () =>
+          !disposed && (await services.oauthService.getActiveProvider()) === null,
+        copy: {
           title: intl.formatMessage({ id: "login.expired.title" }),
           description: intl.formatMessage({ id: "login.expired.description" }),
-          actionLabel: intl.formatMessage({ id: "login.expired.restart" }),
+          actionLabel: intl.formatMessage({ id: "login.expired.action" }),
+        },
+      })
+        .catch((error) => logger.error("[Root] 登录失效恢复提示失败", { error }))
+        .finally(() => {
+          jwtInvalidPromptPendingRef.current = false;
         });
-        if (disposed) {
-          return;
-        }
-        if (!confirmed) {
-          onReauthenticationRequired();
-          return;
-        }
-        markDroraJwtInvalidRestart();
-        if (typeof window !== "undefined" && !("drora" in window)) {
-          // Web 没有 Electron RelaunchApp；marker 写入后立即刷新，避免停留在僵尸登录态。
-          window.location.reload();
-          return;
-        }
-        await platform.executeDesktopCommand(DesktopCommandIds.RelaunchApp);
-      })();
     };
     return () => {
       disposed = true;
     };
-  }, [intl, onReauthenticationRequired, platform, requestAlert]);
+  }, [intl, onReauthenticationRequired, requestAlert, services.oauthService, setUser]);
 
   useEffect(() => {
     if (!oauthPollingActive) {

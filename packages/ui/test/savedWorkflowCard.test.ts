@@ -8,10 +8,10 @@ import {
   TID_WORKFLOW_CARD_MENU,
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_ACTION_MOVE,
-  testId,
   type DroraSavedWorkflowEntry,
   type DroraSavedWorkflowRun,
 } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import {
   SavedWorkflowCard,

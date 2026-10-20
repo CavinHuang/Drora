@@ -4,7 +4,7 @@ import {
   TID_V4_BACKGROUND_WORK_CANCEL,
   TID_V4_BACKGROUND_WORK_ITEM,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import type { BackgroundWorkSummary } from "@drora/shared/drora-protocol-v4";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
 

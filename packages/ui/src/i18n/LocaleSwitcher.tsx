@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Locale } from "@drora/shared";
-import { TID_LOCALE_TOGGLE } from "@drora/shared";
+import { TID_LOCALE_TOGGLE } from "@drora/shared/test-ids";
 import { useDroraIntl } from "./IntlProvider.js";
 
 const LOCALE_CYCLE: Locale[] = ["zh-CN", "en-US"];

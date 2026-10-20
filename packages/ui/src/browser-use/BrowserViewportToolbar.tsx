@@ -1,13 +1,12 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
+import { BROWSER_VIEWPORT_LIMITS, type BrowserViewportSize } from "@drora/shared";
 import {
-  BROWSER_VIEWPORT_LIMITS,
   TID_BROWSER_RESPONSIVE_HEIGHT_INPUT,
   TID_BROWSER_RESPONSIVE_TOOLBAR,
   TID_BROWSER_RESPONSIVE_WIDTH_INPUT,
   TID_BROWSER_RESPONSIVE_ZOOM_OPTION,
   TID_BROWSER_RESPONSIVE_ZOOM_SELECT,
-  type BrowserViewportSize,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   BROWSER_VIEWPORT_ZOOM_OPTIONS,
   type BrowserViewportZoom,

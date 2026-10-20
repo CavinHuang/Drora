@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Ban, ChevronRight, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
-import { TID_WORKFLOW_RUN_ROW, testId, type DroraSavedWorkflowRun } from "@drora/shared";
+import { TID_WORKFLOW_RUN_ROW, type DroraSavedWorkflowRun } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

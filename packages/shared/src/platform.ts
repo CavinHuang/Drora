@@ -849,6 +849,9 @@ export interface IPlatformService {
   /** 订阅 Source transport 自动重连后的 logical session 换代事件。 */
   onRemoteSessionReconnected?(handler: (event: RemoteSessionReconnectedEvent) => void): () => void;
 
+  /** 订阅 bot 远端工作区重连事件（bot-project-runtime；Web 端空实现）。 */
+  onBotRemoteWorkspaceReconnected?(handler: () => void): () => void;
+
   /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
   activateOrSetWorkspace(path: string): Promise<{ activated: boolean }>;
 
@@ -889,6 +892,12 @@ export interface IPlatformService {
 
   /** 为当前 workspace 开启 Web 远程控制能力 */
   startWebRemoteControl(
+    context: WebRemoteControlContext,
+  ): Promise<WebRemoteControlStartOperationResult>;
+
+  /** Drora 扩展：轮换 Web 远控配对二维码凭据（泄露二维码用；R1 分歧——V2 无轮换
+   * 原语，desktop 侧降级为 cancelled 契约，见 drora-extensions/remoteControl.ts） */
+  refreshWebRemoteControlPairing?(
     context: WebRemoteControlContext,
   ): Promise<WebRemoteControlStartOperationResult>;
 

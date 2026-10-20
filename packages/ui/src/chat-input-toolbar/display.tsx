@@ -7,16 +7,18 @@ import {
   type RefObject,
 } from "react";
 import {
-  TID_CHAT_MODE_SELECT_ITEM,
-  TID_CHAT_MODE_SELECT_TRIGGER,
-  TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM,
-  TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
-  testId,
   type DroraApiRetryStatus,
   type DroraConfigOption,
   type DroraConfigSelectValue,
   type DroraProvider,
 } from "@drora/shared";
+import {
+  TID_CHAT_MODE_SELECT_ITEM,
+  TID_CHAT_MODE_SELECT_TRIGGER,
+  TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM,
+  TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
+  testId,
+} from "@drora/shared/test-ids";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   Select,

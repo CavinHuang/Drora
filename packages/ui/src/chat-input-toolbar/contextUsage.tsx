@@ -9,11 +9,11 @@ import {
   type CSSProperties,
 } from "react";
 import {
-  TID_CHAT_CONTEXT_USAGE_TRIGGER,
   type CodingPlanResetType,
   type DroraContextUsageBreakdownItem,
   type DroraProvider,
 } from "@drora/shared";
+import { TID_CHAT_CONTEXT_USAGE_TRIGGER } from "@drora/shared/test-ids";
 import {
   Context,
   ContextContentBody,

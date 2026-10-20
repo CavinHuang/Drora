@@ -1,5 +1,5 @@
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { TID_MODEL_PROVIDER_API_KEY_INPUT } from "@drora/shared";
+import { TID_MODEL_PROVIDER_API_KEY_INPUT } from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

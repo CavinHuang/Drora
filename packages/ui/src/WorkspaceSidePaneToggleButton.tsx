@@ -1,4 +1,4 @@
-import { TID_SIDE_PANE_TOGGLE } from "@drora/shared";
+import { TID_SIDE_PANE_TOGGLE } from "@drora/shared/test-ids";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";

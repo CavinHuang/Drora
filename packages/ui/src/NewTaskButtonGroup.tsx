@@ -1,5 +1,5 @@
 import { MessageCirclePlus } from "lucide-react";
-import { TID_TASK_NEW_BUTTON } from "@drora/shared";
+import { TID_TASK_NEW_BUTTON } from "@drora/shared/test-ids";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";

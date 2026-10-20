@@ -1,10 +1,9 @@
+import { type McpServerStatus, type DroraMcpServer } from "@drora/shared";
 import {
   TID_MCP_OPEN_AUTHORIZATION_BUTTON,
   TID_MCP_SERVER_ROW,
   testId,
-  type McpServerStatus,
-  type DroraMcpServer,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

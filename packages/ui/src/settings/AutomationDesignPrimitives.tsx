@@ -1,7 +1,4 @@
-import {
-  TID_AUTOMATION_CREATE_MANUALLY,
-  TID_AUTOMATION_CREATE_MENU,
-} from "@drora/shared";
+import { TID_AUTOMATION_CREATE_MANUALLY, TID_AUTOMATION_CREATE_MENU } from "@drora/shared/test-ids";
 import type { ReactNode } from "react";
 import {
   DropdownMenu,

@@ -8,11 +8,11 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { type BrowserViewportSize } from "@drora/shared";
 import {
   TID_BROWSER_RESPONSIVE_SCALED_FRAME,
   TID_BROWSER_RESPONSIVE_VIEWPORT,
-  type BrowserViewportSize,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   resolveBrowserViewportRendererScale,
   resolveBrowserViewportScale,

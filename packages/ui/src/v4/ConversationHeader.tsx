@@ -3,7 +3,7 @@ import {
   TID_V4_PANE_WORKSPACE_BADGE,
   TID_V4_SESSION_TITLE,
   TID_V4_SPLIT_CLOSE,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

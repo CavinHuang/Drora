@@ -206,6 +206,23 @@ describe("conversation selection references", () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
+  it("PD03 同目录项目的新建草稿引用不串用", () => {
+    vi.stubGlobal("window", new EventTarget());
+    const item = reference("project-p");
+    dispatchConversationSelectionAdd({
+      targetSessionId: null,
+      workspaceKey: "/same-project-root",
+      draftScopeKey: "project-p",
+      reference: item,
+    });
+    expect(getConversationSelectionReferenceScope(null, "/same-project-root", "project-p")).toEqual(
+      [item],
+    );
+    expect(getConversationSelectionReferenceScope(null, "/same-project-root", "project-q")).toEqual(
+      [],
+    );
+  });
+
   it("在 composer 挂载前先写入 session scope，首次打开不会丢引用", () => {
     vi.stubGlobal("window", new EventTarget());
     const nextReference = reference("ref-before-mount");
@@ -425,10 +442,6 @@ describe("conversation selection references", () => {
         "```",
       ].join("\n"),
     );
-    expect(prompt).not.toContain("sourceSessionId");
-    expect(prompt).not.toContain("sourceRowId");
-    expect(prompt).not.toContain("contentType");
-    expect(prompt).not.toContain('"id"');
     expect(parsePromptConversationSelections(prompt)).toEqual({
       visibleContent: "Explain this",
       references: [{ text: "selected text" }, { text: "second" }],

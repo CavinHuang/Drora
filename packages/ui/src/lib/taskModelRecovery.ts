@@ -1,9 +1,6 @@
 import type { DroraConfigOption, DroraTaskMeta } from "@drora/shared";
 import { getDroraAgentModeSelectOptions } from "@drora/shared";
-import {
-  decodeCustomModelValue,
-  encodeCustomModelValue,
-} from "@/lib/droraCustomModelValue.js";
+import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/droraCustomModelValue.js";
 
 function parseProviderQualifiedModel(
   model: string,
@@ -27,9 +24,7 @@ function isSyntheticModelPlaceholder(model: string): boolean {
   return model.trim().toLocaleLowerCase() === "<synthetic>";
 }
 
-export function resolveGlmRecoveredTaskModelValue(
-  taskModel: string | undefined,
-): string | null {
+export function resolveGlmRecoveredTaskModelValue(taskModel: string | undefined): string | null {
   const normalizedTaskModel = taskModel?.trim();
   if (!normalizedTaskModel || isSyntheticModelPlaceholder(normalizedTaskModel)) {
     return null;
@@ -72,10 +67,7 @@ function resolveModelOptionName(modelValue: string): string {
   return customModel?.modelName?.trim() || providerQualifiedModel?.modelName || modelValue;
 }
 
-function ensureModelOptionValue(
-  option: DroraConfigOption,
-  modelValue: string,
-): DroraConfigOption {
+function ensureModelOptionValue(option: DroraConfigOption, modelValue: string): DroraConfigOption {
   const options = option.options ?? [];
   const hasOption = options.some((candidate) => candidate.value === modelValue);
   if (hasOption && option.currentValue === modelValue) {

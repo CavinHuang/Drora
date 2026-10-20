@@ -4,7 +4,7 @@ import {
   prepareIncomingMessageCapability,
   switchIncomingMessageCapability,
 } from "../helpers/incoming-message-capability.js";
-import { TID_CHAT_ASSISTANT_HISTORY_TRIGGER, TID_V4_TIMELINE } from "@drora/shared";
+import { TID_CHAT_ASSISTANT_HISTORY_TRIGGER, TID_V4_TIMELINE } from "@drora/shared/test-ids";
 import {
   clearAppData,
   readSettings,

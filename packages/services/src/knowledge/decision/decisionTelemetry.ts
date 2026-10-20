@@ -33,7 +33,10 @@ export class DecisionTelemetry {
   recordStage(entry: {
     outboundCount: number;
     cacheHitCount: number;
-    outcomes: Array<{ status: "scored" | "fallback"; fallbackReason?: KnowledgeDecisionFallbackReason }>;
+    outcomes: Array<{
+      status: "scored" | "fallback";
+      fallbackReason?: KnowledgeDecisionFallbackReason;
+    }>;
     inputTokens: number;
     outputTokens: number;
     latencyMs: number;

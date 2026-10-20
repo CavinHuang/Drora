@@ -9,17 +9,17 @@
 
 ### 1.1 文件清单（全部改动，`git status --porcelain` 实测共 9 个文件）
 
-| 文件 | 改动 | 作用 |
-| --- | --- | --- |
-| `specs/obsidian-knowledge.md` | 新增 | VaultView 2.0 目标 spec：状态所有者表（§1）、方案 C L0–L3（§2）、W01 权限策略（§3）、查询语义（§4，W02）、Evidence 语义（§5，W03）、验收矩阵 K-POL/K-HOOK/K-IDX…（§6）。未实现条款全部标注"未实现，属 Wxx" |
-| `specs/obsidian-plugin.md` | 修订 | ① 原「Proma 式原生访问重构」PermissionRequest 条目追加 2026-10-10 收窄指针；② 新增「W01 自动 allow 收窄（2026-10-10 修订）」章节：收窄策略、matcher `Write|Edit` 真实边界（不得宣称拦 Bash/MCP）、L1 与未来 Proposal（L2）对照表、验收场景 17–21 |
-| `apps/drora-cli/packages/obsidian-plugin/src/lib/paths.ts` | 新增函数 | `isPlainVaultMarkdownPath`（`paths.ts:63`）：独立可测的纯形状策略——每段非空、非 `.`/`..`、不以 `.` 开头（拒 `.obsidian/**`、`.hidden/**`、点文件），末段 `.md` 结尾（大小写不敏感）；尾点/尾空格/ADS 形状保守拒绝 |
-| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts` | 新增函数 + 文案 | `AuthorizedVaultWritePath`（`:71`）与 `resolveAuthorizedVaultWritePath`（`:83`）：realpath 根包含判定 + 逐段 lstat 拒软链 + 纯形状策略 + 已存在目标必须普通文件；返回相对 **realpath 根** 的路径（修复 W00 §3.9 候选补丁 realRoot 拼写缺陷的根源）；SessionStart 注入文案同步收窄（`:135-137`） |
-| `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | 收窄 | `resolveWriteAuthorization` 改用 `resolveAuthorizedVaultWritePath`（`permission-request.ts:40`）；文件头 docstring 写明真实边界：只在基础判定为 ask 且工具为 Write/Edit 时触发，Bash/node_repl/MCP 写盘不经本 hook，不能也不宣称能阻断（`permission-request.ts:5-17`） |
-| `apps/drora-cli/packages/obsidian-plugin/test/permission-path-policy.test.mjs` | 新增 | 18 个 node:test 用例：纯形状策略、防逃逸解析、UNC/`\\?\`/相对 cwd/Unicode/大小写/软链+junction/穿越/缺失坏配置（详见 §2） |
-| `apps/drora-cli/packages/obsidian-plugin/test/hooks-e2e.mjs` | 扩充 | 新增 2 组 stdin/stdout E2E：根内 `.obsidian/**`、`.hidden/**`、点文件、非 Markdown → 静默；相对路径缺 cwd / 根外 cwd → 静默；SessionStart 断言收窄后诚实文案 |
-| `apps/drora-cli/packages/obsidian-plugin/test/agent-access.test.mjs` | 扩充 | SessionStart 上下文断言补充收窄口径（`普通 .md 笔记` + `不能约束 Bash、MCP 等其他写入通道`） |
-| `apps/drora-cli/packages/obsidian-plugin/package.json` | 修订 | `test` 脚本接入新测试文件：`agent-access && permission-path-policy && hooks-e2e`（CI `pnpm --dir … run test` 同款链路） |
+| 文件                                                                           | 改动            | 作用                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `specs/obsidian-knowledge.md`                                                  | 新增            | VaultView 2.0 目标 spec：状态所有者表（§1）、方案 C L0–L3（§2）、W01 权限策略（§3）、查询语义（§4，W02）、Evidence 语义（§5，W03）、验收矩阵 K-POL/K-HOOK/K-IDX…（§6）。未实现条款全部标注"未实现，属 Wxx"                                                                                      |
+| `specs/obsidian-plugin.md`                                                     | 修订            | ① 原「Proma 式原生访问重构」PermissionRequest 条目追加 2026-10-10 收窄指针；② 新增「W01 自动 allow 收窄（2026-10-10 修订）」章节：收窄策略、matcher `Write                                                                                                                                      | Edit` 真实边界（不得宣称拦 Bash/MCP）、L1 与未来 Proposal（L2）对照表、验收场景 17–21 |
+| `apps/drora-cli/packages/obsidian-plugin/src/lib/paths.ts`                     | 新增函数        | `isPlainVaultMarkdownPath`（`paths.ts:63`）：独立可测的纯形状策略——每段非空、非 `.`/`..`、不以 `.` 开头（拒 `.obsidian/**`、`.hidden/**`、点文件），末段 `.md` 结尾（大小写不敏感）；尾点/尾空格/ADS 形状保守拒绝                                                                               |
+| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts`              | 新增函数 + 文案 | `AuthorizedVaultWritePath`（`:71`）与 `resolveAuthorizedVaultWritePath`（`:83`）：realpath 根包含判定 + 逐段 lstat 拒软链 + 纯形状策略 + 已存在目标必须普通文件；返回相对 **realpath 根** 的路径（修复 W00 §3.9 候选补丁 realRoot 拼写缺陷的根源）；SessionStart 注入文案同步收窄（`:135-137`） |
+| `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts`      | 收窄            | `resolveWriteAuthorization` 改用 `resolveAuthorizedVaultWritePath`（`permission-request.ts:40`）；文件头 docstring 写明真实边界：只在基础判定为 ask 且工具为 Write/Edit 时触发，Bash/node_repl/MCP 写盘不经本 hook，不能也不宣称能阻断（`permission-request.ts:5-17`）                          |
+| `apps/drora-cli/packages/obsidian-plugin/test/permission-path-policy.test.mjs` | 新增            | 18 个 node:test 用例：纯形状策略、防逃逸解析、UNC/`\\?\`/相对 cwd/Unicode/大小写/软链+junction/穿越/缺失坏配置（详见 §2）                                                                                                                                                                       |
+| `apps/drora-cli/packages/obsidian-plugin/test/hooks-e2e.mjs`                   | 扩充            | 新增 2 组 stdin/stdout E2E：根内 `.obsidian/**`、`.hidden/**`、点文件、非 Markdown → 静默；相对路径缺 cwd / 根外 cwd → 静默；SessionStart 断言收窄后诚实文案                                                                                                                                    |
+| `apps/drora-cli/packages/obsidian-plugin/test/agent-access.test.mjs`           | 扩充            | SessionStart 上下文断言补充收窄口径（`普通 .md 笔记` + `不能约束 Bash、MCP 等其他写入通道`）                                                                                                                                                                                                    |
+| `apps/drora-cli/packages/obsidian-plugin/package.json`                         | 修订            | `test` 脚本接入新测试文件：`agent-access && permission-path-policy && hooks-e2e`（CI `pnpm --dir … run test` 同款链路）                                                                                                                                                                         |
 
 ### 1.2 逐项完成状态（对照工作单 4 项）
 
@@ -38,30 +38,30 @@
 
 ## 2. 测试
 
-| 命令/场景 | 环境 | exit code | 证据 |
-| --- | --- | ---: | --- |
-| `node scripts/check-workspace-freshness.mjs` | worktree 根，node v24.1.0 / win32 | **0** | `基线新鲜：feat/vaultview-impl…ahead 331 / behind 0` |
-| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run build` | 同上 | **0** | `tsc && node scripts/build-hooks.mjs`（构建即包含 tsc 全量类型检查） |
-| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run typecheck` | 同上 | **0** | `tsc --noEmit` |
-| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run test`（CI 同款，工作单指定） | 同上 | **0** | 三段全绿：`agent-access` 17 ok；`permission-path-policy` 18 pass / 0 fail / 0 skipped（node:test 汇总 `tests 18, pass 18, fail 0`）；`hooks-e2e` 11 ok（含新增 3 用例） |
-| `node --import tsx --test apps/drora-cli/packages/obsidian-plugin/test/permission-path-policy.test.mjs`（交接纪律指定形式） | 同上 | **0** | 18 pass / 0 fail / 0 skipped |
-| 软链/junction 权限探针（`node -e` symlinkSync file/dir/junction） | 同上 | **0** | `{"junction":"created","symlink":"created"}` —— 逃逸用例的断言真实执行，未被"无权限跳过"架空 |
-| `git diff --check` | worktree 根 | **0** | 无空白错误 |
-| `pnpm typecheck`（仓库根） | — | **未执行** | 按 W01 验证分工由统一脚本执行；本会话未重跑，不做预判 |
-| `pnpm lint` / `pnpm architecture:check --changed` / 全量 `node --test` | — | **未执行** | 同上；注意 obsidian-plugin 本身在 pnpm workspace 与根 lint 之外（`pnpm-workspace.yaml` 排除、`.oxlintrc.json` 忽略 `apps/drora-cli`），根门禁不覆盖本包，包内质量由上三行命令保证 |
+| 命令/场景                                                                                                                   | 环境                              |  exit code | 证据                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/check-workspace-freshness.mjs`                                                                                | worktree 根，node v24.1.0 / win32 |      **0** | `基线新鲜：feat/vaultview-impl…ahead 331 / behind 0`                                                                                                                              |
+| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run build`                                                              | 同上                              |      **0** | `tsc && node scripts/build-hooks.mjs`（构建即包含 tsc 全量类型检查）                                                                                                              |
+| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run typecheck`                                                          | 同上                              |      **0** | `tsc --noEmit`                                                                                                                                                                    |
+| `pnpm --dir apps/drora-cli/packages/obsidian-plugin run test`（CI 同款，工作单指定）                                        | 同上                              |      **0** | 三段全绿：`agent-access` 17 ok；`permission-path-policy` 18 pass / 0 fail / 0 skipped（node:test 汇总 `tests 18, pass 18, fail 0`）；`hooks-e2e` 11 ok（含新增 3 用例）           |
+| `node --import tsx --test apps/drora-cli/packages/obsidian-plugin/test/permission-path-policy.test.mjs`（交接纪律指定形式） | 同上                              |      **0** | 18 pass / 0 fail / 0 skipped                                                                                                                                                      |
+| 软链/junction 权限探针（`node -e` symlinkSync file/dir/junction）                                                           | 同上                              |      **0** | `{"junction":"created","symlink":"created"}` —— 逃逸用例的断言真实执行，未被"无权限跳过"架空                                                                                      |
+| `git diff --check`                                                                                                          | worktree 根                       |      **0** | 无空白错误                                                                                                                                                                        |
+| `pnpm typecheck`（仓库根）                                                                                                  | —                                 | **未执行** | 按 W01 验证分工由统一脚本执行；本会话未重跑，不做预判                                                                                                                             |
+| `pnpm lint` / `pnpm architecture:check --changed` / 全量 `node --test`                                                      | —                                 | **未执行** | 同上；注意 obsidian-plugin 本身在 pnpm workspace 与根 lint 之外（`pnpm-workspace.yaml` 排除、`.oxlintrc.json` 忽略 `apps/drora-cli`），根门禁不覆盖本包，包内质量由上三行命令保证 |
 
 ### 2.1 路径策略覆盖矩阵 → 用例映射（`test/permission-path-policy.test.mjs`）
 
-| 要求场景（工作单 3） | 用例 |
-| --- | --- |
-| Windows UNC | `解析（win32）：UNC 形式目标 → 静默`；`\\?\UNC\...` 同拒；`\\?\C:\...` 扩展路径即使指向根内也保守静默 |
-| 相对 cwd | 根内 cwd 放行（正反斜杠等价）/ 缺失空白非字符串 cwd 静默 / 根外 cwd 静默 |
-| Unicode | `中文目录/会议笔记.md`、`ünïcodé-Ω.md` 原样放行，不做 NFC 折叠 |
-| 大小写 | `.MD`/`.Md` 后缀放行；（win32）`NOTES/A.MD` 命中已存在 `notes/a.md` |
-| 符号链接 | 根内软链文件 → 静默；软链/junction 目录逃逸 → 静默（本机两种链均真实创建，探针为证） |
-| 路径穿越 | `notes/../..`、`..\..\`、根本身、根外绝对路径、NUL、空串 |
-| 缺失/坏配置 | env 未设/空白、目录缺失、JSON 损坏、根被删、根是文件、`allowAgentWrites=false`（e2e 层） |
-| 附加别名防御 | 尾点 `a.md.`、尾空格、ADS `a.md:hidden`、目录冒充 `x.md`、空段 `notes//a.md`、点文件 `.draft.md` 全部不自动 allow |
+| 要求场景（工作单 3） | 用例                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Windows UNC          | `解析（win32）：UNC 形式目标 → 静默`；`\\?\UNC\...` 同拒；`\\?\C:\...` 扩展路径即使指向根内也保守静默             |
+| 相对 cwd             | 根内 cwd 放行（正反斜杠等价）/ 缺失空白非字符串 cwd 静默 / 根外 cwd 静默                                          |
+| Unicode              | `中文目录/会议笔记.md`、`ünïcodé-Ω.md` 原样放行，不做 NFC 折叠                                                    |
+| 大小写               | `.MD`/`.Md` 后缀放行；（win32）`NOTES/A.MD` 命中已存在 `notes/a.md`                                               |
+| 符号链接             | 根内软链文件 → 静默；软链/junction 目录逃逸 → 静默（本机两种链均真实创建，探针为证）                              |
+| 路径穿越             | `notes/../..`、`..\..\`、根本身、根外绝对路径、NUL、空串                                                          |
+| 缺失/坏配置          | env 未设/空白、目录缺失、JSON 损坏、根被删、根是文件、`allowAgentWrites=false`（e2e 层）                          |
+| 附加别名防御         | 尾点 `a.md.`、尾空格、ADS `a.md:hidden`、目录冒充 `x.md`、空段 `notes//a.md`、点文件 `.draft.md` 全部不自动 allow |
 
 A30（合法 Markdown 编辑不回归）：e2e `PermissionRequest：根内写入 + allowAgentWrites=true → allow 决策` 与 `agent-access` 既有放行用例全部保持通过；`resolveAuthorizedVaultPath`（焦点链路用）未改动，UserPromptSubmit 11 项 e2e 无回归。
 

@@ -4,7 +4,11 @@ import { validateRemoteServerBundle } from "./buildRemoteValidation.js";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
 
-const { version } = JSON.parse(readFileSync("../../package.json", "utf-8"));
+const { version, droraCompatibility } = JSON.parse(readFileSync("../../package.json", "utf-8")) as {
+  version: string;
+  droraCompatibility?: { minCompatibleVersion?: string };
+};
+const minCompatibleVersion = droraCompatibility?.minCompatibleVersion ?? version;
 const { content: droraBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
 
 /**
@@ -46,6 +50,7 @@ const buildResult = await build({
     "import.meta.url": "__import_meta_url",
     "import.meta.dirname": "__import_meta_dirname",
     __DRORA_VERSION__: JSON.stringify(version),
+    __DRORA_MIN_COMPATIBLE_VERSION__: JSON.stringify(minCompatibleVersion),
     __DRORA_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(droraBuiltinProviderConfigJson),
   },
   metafile: true,

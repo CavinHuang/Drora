@@ -5,7 +5,6 @@ import {
   ApiKeyAccessConfig,
   ModelConfigRules,
   ProviderConfig,
-  ProviderApiConfig,
   ProviderConfigMap,
   ProviderConfigResolver,
   ProviderRegistry,
@@ -42,12 +41,16 @@ describe("真实 Drora Built-in Config 到 Active Model", () => {
       personalProviders: new ProviderConfigMap([
         [
           providerId,
-          new ProviderConfig({
-            api: droraBuiltin.providerTemplates.get("zai-api")?.config.api,
-            personalModelIds: [modelId],
-            group: "standard-personal",
-            access: new ApiKeyAccessConfig({ apiKey: "test-zai-api-key" }),
-          }),
+          // 实例在创建时复制模板；Resolver 不会从已退场的 templateId 字段隐式继承。
+          droraBuiltin.providerTemplates
+            .get("zai-api")!
+            .config.withPersonalModelIds([modelId])
+            .overlay(
+              new ProviderConfig({
+                group: "standard-personal",
+                access: new ApiKeyAccessConfig({ apiKey: "test-zai-api-key" }),
+              }),
+            ),
         ],
       ]),
     });
@@ -89,7 +92,7 @@ describe("真实 Drora Built-in Config 到 Active Model", () => {
         ],
       ]),
       personalProviders: new ProviderConfigMap([
-        [providerId, new ProviderConfig({ api: new ProviderApiConfig({ headers: { "x-personal-marker": "final" } }) })],
+        [providerId, new ProviderConfig({ visibility: "hidden" })],
       ]),
     });
     const capture = captureRuntime(registry);
@@ -102,7 +105,7 @@ describe("真实 Drora Built-in Config 到 Active Model", () => {
       modelId,
     ]);
     expect(capture.created[0]?.providerConfig).toMatchObject({
-      api: { headers: { "x-personal-marker": "final" } },
+      visibility: "hidden",
       access: {
         type: "zhipu-account",
         accountType: "zai",
@@ -114,7 +117,7 @@ describe("真实 Drora Built-in Config 到 Active Model", () => {
 
   it("隐藏 Request Auth Provider 仍由普通 Registry 精确创建 Model", () => {
     const providerId = "account:zai-offpeak-idle-plan";
-    const modelId = "GLM-5.3-Flash";
+    const modelId = "GLM-5.3";
     const registry = resolveOneBuiltinProvider(providerId, {
       accountProviders: new ProviderConfigMap([
         [

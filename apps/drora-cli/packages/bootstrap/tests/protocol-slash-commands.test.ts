@@ -44,28 +44,23 @@ describe("protocol slash command surface", () => {
         // 按本目录顺序展示，产品要求工作流紧随目标之后（docs/ui/chat-composer-action-menu.md
         // 「工作流入口」），顺序由 APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES 决定。
         { name: "workflow", source: "builtin" },
+        // `/team` 是 Drora agents-team 的内置命令（ab68a239 加条目、f7c0e4c3 进白名单）：
+        // 只有显式 agentsTeamEnabled=false 才剔除，本调用不传该门，目录里必须在场。
+        // S2 合并移除了 `plan` 的协议内置段（Composer 本地操作承担，保留名仍挡自定义接管），
+        // 期望目录随契约同步更新。
+        { name: "team", source: "builtin" },
         { name: "compact", source: "builtin" },
         { name: "init", source: "builtin" },
-        { name: "plan", source: "builtin" },
         { name: "review", source: "custom" },
         { name: "ship", source: "custom" },
       ]);
       expect(commands.find((command) => command.name === "review")?.description).toBe(
         "User review",
       );
-      expect(commands.find((command) => command.name === "ship")?.inputHint).toBe(
-        "/ship [target]",
-      );
-      expect(commands.some((command) => command.name === "model")).toBe(false);
-      expect(commands.filter((command) => command.name === "workflow")).toHaveLength(1);
+      expect(commands.find((command) => command.name === "ship")?.inputHint).toBe("/ship [target]");
       expect(commands.find((command) => command.name === "workflow")?.inputHint).toBe(
         "/workflow [what the workflow should accomplish]",
       );
-      expect(commands.filter((command) => command.name === "plan")).toHaveLength(1);
-      expect(commands.find((command) => command.name === "plan")?.description).toBe(
-        "Switch to Plan mode and optionally send a task.",
-      );
-      expect(commands.some((command) => command.name === "offline")).toBe(false);
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
@@ -83,6 +78,7 @@ describe("protocol slash command surface", () => {
       await writeCommand(userCommands, "review", "Review changes", "Review $ARGUMENTS.");
       await writeCommand(userCommands, "init", "Custom init", "Should not expand.");
       await writeCommand(userCommands, "model", "Reserved model", "Should not expand.");
+      await writeCommand(userCommands, "plan", "Reserved Plan action", "Should not expand.");
 
       const options = {
         env: { DRORA_ENV: "test" },
@@ -96,6 +92,10 @@ describe("protocol slash command surface", () => {
       expect(prompt).toContain("Command source: user/drora.");
       expect(prompt).toContain("Review src packages.");
       await expect(resolveDroraCustomCommandPrompt("/model glm-5", options)).resolves.toBe(
+        undefined,
+      );
+      await expect(resolveDroraCustomCommandPrompt("/plan task", options)).resolves.toBe(undefined);
+      expect(resolveDroraBuiltinPromptCommand("/plan task", { workingDirectory: workspace })).toBe(
         undefined,
       );
       await expect(resolveDroraCustomCommandPrompt("/init", options)).resolves.toBe(undefined);
@@ -172,9 +172,9 @@ describe("protocol slash command surface", () => {
       expect(resolveDroraBuiltinPromptCommand("/review", { workingDirectory: workspace })).toBe(
         undefined,
       );
-      expect(resolveDroraBuiltinPromptCommand("please /init", { workingDirectory: workspace })).toBe(
-        undefined,
-      );
+      expect(
+        resolveDroraBuiltinPromptCommand("please /init", { workingDirectory: workspace }),
+      ).toBe(undefined);
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
@@ -277,13 +277,13 @@ describe("protocol slash command surface", () => {
         userCommands,
         "skill-context",
         "Needs skill context",
-        ['```!', 'echo "${CLAUDE_SKILL_DIR}"', "```"].join("\n"),
+        ["```!", 'echo "${CLAUDE_SKILL_DIR}"', "```"].join("\n"),
       );
       await writeCommand(
         userCommands,
         "session-context",
         "Needs session context",
-        ['```!', 'echo "${CLAUDE_SESSION_ID}"', "```"].join("\n"),
+        ["```!", 'echo "${CLAUDE_SESSION_ID}"', "```"].join("\n"),
       );
 
       const options = {

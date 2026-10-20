@@ -28,11 +28,13 @@ export function createKnowledgeCitationScopeEpoch() {
       vaultId: string | null | undefined;
       queryService: unknown;
     }): number {
-      if (!current ||
-          current.sessionId !== next.sessionId ||
-          current.workspaceKey !== next.workspaceKey ||
-          current.vaultId !== next.vaultId ||
-          current.queryService !== next.queryService) {
+      if (
+        !current ||
+        current.sessionId !== next.sessionId ||
+        current.workspaceKey !== next.workspaceKey ||
+        current.vaultId !== next.vaultId ||
+        current.queryService !== next.queryService
+      ) {
         version++;
         current = { ...next };
       }
@@ -69,14 +71,20 @@ export function matchesKnowledgeCitationReadback(
   quote: KnowledgeEvidenceQuote,
   expectedExcerpt: string,
 ): boolean {
-  if (!expectedExcerpt || !Number.isSafeInteger(quote.startOffset) ||
-      !Number.isSafeInteger(quote.endOffset) ||
-      quote.startOffset < 0 || quote.endOffset <= quote.startOffset) return false;
+  if (
+    !expectedExcerpt ||
+    !Number.isSafeInteger(quote.startOffset) ||
+    !Number.isSafeInteger(quote.endOffset) ||
+    quote.startOffset < 0 ||
+    quote.endOffset <= quote.startOffset
+  )
+    return false;
   const normalized = normalizeContentForQuoteSelector(content);
   if (quote.endOffset > normalized.length) return false;
-  return knowledgeEvidenceExcerpt(
-    normalized.slice(quote.startOffset, quote.endOffset),
-  ) === expectedExcerpt;
+  return (
+    knowledgeEvidenceExcerpt(normalized.slice(quote.startOffset, quote.endOffset)) ===
+    expectedExcerpt
+  );
 }
 
 /**
@@ -91,9 +99,12 @@ export function matchesKnowledgeCitationFileReadback(
   actualFileSha256: string,
   expectedFileSha256: string,
 ): boolean {
-  if (!/^[a-f0-9]{64}$/.test(actualFileSha256) ||
-      !/^[a-f0-9]{64}$/.test(expectedFileSha256) ||
-      actualFileSha256 !== expectedFileSha256) return false;
+  if (
+    !/^[a-f0-9]{64}$/.test(actualFileSha256) ||
+    !/^[a-f0-9]{64}$/.test(expectedFileSha256) ||
+    actualFileSha256 !== expectedFileSha256
+  )
+    return false;
   return matchesKnowledgeCitationReadback(content, quote, expectedExcerpt);
 }
 
@@ -109,11 +120,14 @@ export function isKnowledgeCitationScopeCurrent(input: {
   activeWorkspaceKey: string | null | undefined;
   sameQueryService: boolean;
 }): boolean {
-  return input.requestActive && input.mounted &&
+  return (
+    input.requestActive &&
+    input.mounted &&
     input.originalVaultId === input.currentVaultId &&
     input.sessionId === input.activeSessionId &&
     input.workspaceKey === input.activeWorkspaceKey &&
-    input.sameQueryService;
+    input.sameQueryService
+  );
 }
 
 export type KnowledgeCitationNavigationDecision =
@@ -128,15 +142,21 @@ export type KnowledgeCitationNavigationDecision =
 
 function isSafeVaultRelativePath(path: string): boolean {
   if (!path || path.startsWith("/") || /^[a-zA-Z]:/.test(path) || path.includes("\\")) return false;
-  return path.split("/").every((part) => part !== "" && part !== "." && part !== ".." && !part.includes("\0"));
+  return path
+    .split("/")
+    .every((part) => part !== "" && part !== "." && part !== ".." && !part.includes("\0"));
 }
 
 function isValidQuote(quote: KnowledgeEvidenceQuote): boolean {
   return (
-    Number.isInteger(quote.startLine) && quote.startLine > 0 &&
-    Number.isInteger(quote.endLine) && quote.endLine >= quote.startLine &&
-    Number.isInteger(quote.startOffset) && quote.startOffset >= 0 &&
-    Number.isInteger(quote.endOffset) && quote.endOffset >= quote.startOffset
+    Number.isInteger(quote.startLine) &&
+    quote.startLine > 0 &&
+    Number.isInteger(quote.endLine) &&
+    quote.endLine >= quote.startLine &&
+    Number.isInteger(quote.startOffset) &&
+    quote.startOffset >= 0 &&
+    Number.isInteger(quote.endOffset) &&
+    quote.endOffset >= quote.startOffset
   );
 }
 
@@ -154,9 +174,10 @@ export function decideKnowledgeCitationNavigation(input: {
     const status = resolved.status;
     return {
       ok: false,
-      reason: status === "stale" || status === "missing" || status === "forbidden"
-        ? status
-        : "unavailable",
+      reason:
+        status === "stale" || status === "missing" || status === "forbidden"
+          ? status
+          : "unavailable",
     };
   }
   const citation = resolved.citation;
@@ -167,14 +188,17 @@ export function decideKnowledgeCitationNavigation(input: {
     citation.sessionId !== sessionId ||
     !isSafeVaultRelativePath(citation.relativePath) ||
     !isValidQuote(citation.quote) ||
-    typeof citation.excerpt !== "string" || !citation.excerpt ||
+    typeof citation.excerpt !== "string" ||
+    !citation.excerpt ||
     !/^[a-f0-9]{64}$/.test(citation.fileSha256)
   ) {
     return { ok: false, reason: "forbidden" };
   }
   return {
-    ok: true, relativePath: citation.relativePath,
-    quote: citation.quote, excerpt: citation.excerpt,
+    ok: true,
+    relativePath: citation.relativePath,
+    quote: citation.quote,
+    excerpt: citation.excerpt,
     fileSha256: citation.fileSha256,
   };
 }
@@ -203,13 +227,18 @@ export async function navigateKnowledgeCitation(input: {
     const resolved = await input.resolveCitation();
     if (!input.isCurrent()) return forbidden;
     const decision = decideKnowledgeCitationNavigation({
-      resolved, sessionId: input.sessionId, receiptId: input.receiptId,
+      resolved,
+      sessionId: input.sessionId,
+      receiptId: input.receiptId,
     });
     if (!decision.ok) return decision;
     if (!input.isCurrent()) return forbidden;
     const opened = await input.openNote(
-      decision.relativePath, decision.quote, input.isCurrent,
-      decision.excerpt, decision.fileSha256,
+      decision.relativePath,
+      decision.quote,
+      input.isCurrent,
+      decision.excerpt,
+      decision.fileSha256,
     );
     if (!input.isCurrent()) return forbidden;
     return opened ? { ok: true } : { ok: false, reason: "failed" };

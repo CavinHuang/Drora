@@ -62,7 +62,11 @@ async function writeNote(vaultRoot: string, relativePath: string, content: strin
   await writeFile(absolute, content, "utf-8");
 }
 
-async function waitForJobTerminal(services: KnowledgeServices, jobId: string, timeoutMs = 15000): Promise<string> {
+async function waitForJobTerminal(
+  services: KnowledgeServices,
+  jobId: string,
+  timeoutMs = 15000,
+): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const status = await services.indexService.getStatus();
@@ -132,7 +136,11 @@ test("UI 编排：状态条 → 建索引 → 提交 → 候选聚合 → 幂等
       await uiSubmit(env.services, "压缩策略", randomUUID(), "sess-ui-1");
       assert.ok(events.length >= 1);
       const seqs = events.map((event) => event.seq);
-      assert.deepEqual([...seqs].sort((a, b) => a - b), seqs, "seq 必须按发出顺序单调递增");
+      assert.deepEqual(
+        [...seqs].sort((a, b) => a - b),
+        seqs,
+        "seq 必须按发出顺序单调递增",
+      );
     } finally {
       subscription.dispose();
     }

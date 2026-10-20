@@ -24,8 +24,11 @@ if (!result.acquired) {
 }
 console.log(`ACQUIRED ${result.fence}`);
 // 心跳维持租约；进程被 SIGKILL/TerminateProcess 时租约原地保留（死亡检测只能靠 TTL）。
-const heartbeat = setInterval(() => {
-  heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, owner, result.fence, ttlMs, Date.now());
-}, Math.max(50, Math.floor(ttlMs / 6)));
+const heartbeat = setInterval(
+  () => {
+    heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, owner, result.fence, ttlMs, Date.now());
+  },
+  Math.max(50, Math.floor(ttlMs / 6)),
+);
 heartbeat.unref?.();
 setInterval(() => {}, 1000); // keep-alive：等待父进程硬杀。

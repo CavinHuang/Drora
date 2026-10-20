@@ -83,16 +83,16 @@ project-memory-agent 用 DenyBroker + 独立 PermissionService（project-memory-
 
 ## 5. 内置自动写盘清单（PermissionRequest 天然覆盖不到，8 类）
 
-| # | 通道 | 位置证据 |
-| --- | --- | --- |
-| 1 | memory markdown 免确认写（且覆盖 plan deny） | `core/src/tool/executor/memory-file-permission.ts:38-46,:74-86`（plan deny `mode.plan.nonReadOnly` 被特意排除在保留名单外；P7 实测 plan deny 被覆盖为 allow `memory.file.markdown`） |
-| 2 | workflow 草稿免确认（plan 仍拦） | `permission/workflow-draft-path.ts:60-90`（纯字符串判定不碰 fs）+ `permission/service.ts:202-215` |
-| 3 | 工具结果工件 `<DRORA_STORAGE_DIR\|~/.drora>/cli/artifacts/<sessionId>/` | `adapters/src/storage/index.ts:41-76` + `bootstrap/src/app/create-app.ts:351-354` |
-| 4 | Bash 输出持久化 `<storage>/cli/exec/<sessionId>/<toolCallId>-stdout.log` | `adapters/src/exec/execution-utils.ts:18-21` + `node-execution-adapter-base.ts:91-97` |
-| 5 | 权限规则持久化 | `tool/executor/permission-rules-persistence.ts:54-57`（sessionStore.saveProjectPermission） |
-| 6 | hook trust store `workspace-hook-trust-v1.json` | `packages/shared/src/workspace-hook-trust-store-file.ts:4` |
-| 7 | 保存工作流 `<cwd>/.drora/workflows` + home | `tool/handlers/saved-workflows/store.ts:56-61`（契约 `contracts/src/tools/saved-workflow.ts:19,25`） |
-| 8 | Todo / session store | `tool/handlers/todo.ts:65`（sessionStore.updateTodos） |
+| #   | 通道                                                                     | 位置证据                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | memory markdown 免确认写（且覆盖 plan deny）                             | `core/src/tool/executor/memory-file-permission.ts:38-46,:74-86`（plan deny `mode.plan.nonReadOnly` 被特意排除在保留名单外；P7 实测 plan deny 被覆盖为 allow `memory.file.markdown`） |
+| 2   | workflow 草稿免确认（plan 仍拦）                                         | `permission/workflow-draft-path.ts:60-90`（纯字符串判定不碰 fs）+ `permission/service.ts:202-215`                                                                                    |
+| 3   | 工具结果工件 `<DRORA_STORAGE_DIR\|~/.drora>/cli/artifacts/<sessionId>/`  | `adapters/src/storage/index.ts:41-76` + `bootstrap/src/app/create-app.ts:351-354`                                                                                                    |
+| 4   | Bash 输出持久化 `<storage>/cli/exec/<sessionId>/<toolCallId>-stdout.log` | `adapters/src/exec/execution-utils.ts:18-21` + `node-execution-adapter-base.ts:91-97`                                                                                                |
+| 5   | 权限规则持久化                                                           | `tool/executor/permission-rules-persistence.ts:54-57`（sessionStore.saveProjectPermission）                                                                                          |
+| 6   | hook trust store `workspace-hook-trust-v1.json`                          | `packages/shared/src/workspace-hook-trust-store-file.ts:4`                                                                                                                           |
+| 7   | 保存工作流 `<cwd>/.drora/workflows` + home                               | `tool/handlers/saved-workflows/store.ts:56-61`（契约 `contracts/src/tools/saved-workflow.ts:19,25`）                                                                                 |
+| 8   | Todo / session store                                                     | `tool/handlers/todo.ts:65`（sessionStore.updateTodos）                                                                                                                               |
 
 （WebFetch 缓存为纯内存 `tool/handlers/webfetch-cache.ts:8`，不落盘，不计入。）
 

@@ -98,7 +98,6 @@ describe("refreshWorkspacePluginCapabilitiesAfterRemoteSync", () => {
       workspaceIdentity,
       reason: "sidebar-remote-plugin-sync",
       droraAgentService: {} as never,
-      droraSessionService: { closeSession: vi.fn(async () => {}) } as never,
       skillsService: { list: vi.fn() } as never,
       commandsService: commandsService as never,
       mcpSyncService: {
@@ -111,9 +110,7 @@ describe("refreshWorkspacePluginCapabilitiesAfterRemoteSync", () => {
       workspaceIdentity,
     });
     expect(
-      useDroraSessionStore
-        .getState()
-        .getWorkspaceState(workspacePath, workspaceIdentity)
+      useDroraSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
         .slashCommands,
     ).toEqual([
       {

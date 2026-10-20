@@ -14,7 +14,7 @@ import {
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   TID_SETTINGS_MEMORY_WORKSPACE,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";

@@ -6,37 +6,37 @@
 
 ## 已实施
 
-| 事项 | 实现与结果 |
-| --- | --- |
-| Android/iOS | 加入根 workspace/锁文件，开发 Agent 和 desktop staging 自动构建官方 MCP 源码，缺产物即失败；无旧 dist 的独立源码构建、真实 MCP initialize/tools-list 两项通过，不需要 SDK/Xcode |
-| CDN | 官方国内/海外默认对象目录恢复 `/zcode/electron/releases`；自建 CDN 必须明确 `OSS_PATH_PREFIX`，保留显式多源配置 |
-| 手机 HTTP | 唯一共享契约 `X-ZCode-Mobile-Connection-Id`；真实 HTTP + WS 窗口就绪测试验证两个请求、workspace/view-state 路由和失效连接拒绝 |
-| Guide 图标 | 保留官方 `zcode-guide` 对象 key，本地插件 ID 仍按 Drora 规则 |
-| CLI 默认选择 | 恢复 `/model`、`/effort` 对现有默认偏好端口的保存调用；失败以 warning 呈现，不阻塞当前选择 |
-| REPL 边界 | Core/桥接从已有 `@drora/contracts/mcp` 公共入口读取元数据常量，避免总入口求值；冻结 CUA 的物理路径和 bridge symbol 保留原契约 |
-| Webhook | 新 Bot 使用官方 header；旧 Drora 入站 alias 经 services/drora-extensions 的纯 adapter 收敛，冲突拒绝，用户自定义出站 header 保留；真实 Bot 服务与 HTTP 六项鉴权测试通过 |
-| 宠物与下载 | 去掉 App 的重复宠物 hook 装配；补回 `pipeline`，无 curl 的真实流下载及中途断流两项通过 |
-| 文件权限 | 两个 restore-legacy-sessions 脚本恢复官方 0755，冻结 CUA semver 文件保留原 0644，无残余 mode 差异 |
+| 事项         | 实现与结果                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android/iOS  | 加入根 workspace/锁文件，开发 Agent 和 desktop staging 自动构建官方 MCP 源码，缺产物即失败；无旧 dist 的独立源码构建、真实 MCP initialize/tools-list 两项通过，不需要 SDK/Xcode |
+| CDN          | 官方国内/海外默认对象目录恢复 `/zcode/electron/releases`；自建 CDN 必须明确 `OSS_PATH_PREFIX`，保留显式多源配置                                                                 |
+| 手机 HTTP    | 唯一共享契约 `X-ZCode-Mobile-Connection-Id`；真实 HTTP + WS 窗口就绪测试验证两个请求、workspace/view-state 路由和失效连接拒绝                                                   |
+| Guide 图标   | 保留官方 `zcode-guide` 对象 key，本地插件 ID 仍按 Drora 规则                                                                                                                    |
+| CLI 默认选择 | 恢复 `/model`、`/effort` 对现有默认偏好端口的保存调用；失败以 warning 呈现，不阻塞当前选择                                                                                      |
+| REPL 边界    | Core/桥接从已有 `@drora/contracts/mcp` 公共入口读取元数据常量，避免总入口求值；冻结 CUA 的物理路径和 bridge symbol 保留原契约                                                   |
+| Webhook      | 新 Bot 使用官方 header；旧 Drora 入站 alias 经 services/drora-extensions 的纯 adapter 收敛，冲突拒绝，用户自定义出站 header 保留；真实 Bot 服务与 HTTP 六项鉴权测试通过         |
+| 宠物与下载   | 去掉 App 的重复宠物 hook 装配；补回 `pipeline`，无 curl 的真实流下载及中途断流两项通过                                                                                          |
+| 文件权限     | 两个 restore-legacy-sessions 脚本恢复官方 0755，冻结 CUA semver 文件保留原 0644，无残余 mode 差异                                                                               |
 
 远控继续由官方 UI/manager/transport/Host attachment 持有控制状态；Drora LAN/Relay 仅在现有扩展装配，不增加 Agent、Host 或 CommandInbox。Webhook 兼容也在扩展边界，不把别名状态复制进多个业务模块。强制升级启动门控仍按既有决定移除。
 
 ## 验证
 
-| 范围 | 结果 |
-| --- | --- |
-| 根类型 / lint / 全量架构 | 通过；395 warnings、0 errors；0 violation、0 baseline、0 new |
-| CLI/TUI/Contracts/REPL/Debug 类型检查 | 全部通过 |
-| 根 Vitest | 18,091 通过、21 跳过、0 失败；1,936 文件，含两项跳过文件 |
-| 根 Node | 572 通过、1 跳过、0 失败 |
-| 完整 CLI | 511 通过、0 失败、0 跳过 |
-| TUI / Contracts / REPL / Debug | 分别 230 / 340 / 51 / 18 通过 |
-| Core 初次全套 | 3,898 通过、38 跳过、2 todo、0 失败；之后的 Core 窄入口修改经构建、REPL 与 CLI 集成检查覆盖 |
-| Adapter 最终完整运行 | 2,020 通过、34 失败、4 跳过；失败全部逐项匹配原始官方源码/锁文件基线 |
-| Bootstrap 最终完整运行 | 2,939 通过、17 失败、12 跳过；15 项与独立上游源码基线匹配，另两项为公网归档访问失败 |
-| 工作流服务 / 跨进程 OAuth / 插件 | 完整文件分别 243 / 4 / 81 全部通过 |
-| Agent / Server / Web / mobile-web / desktop | 构建通过，Main/Host/preload/sandbox/renderer 均产出；真实 prepare:agent-bundle 通过 |
-| CLI 制品 smoke | 7 组全部通过，包括 startup 通知、plugins/skills/commands/doctor、工作流和核心工具 |
-| Relay / 知识库 | 真实回归通过；其它未改动包的原生 runner 结果保留在证据目录 |
+| 范围                                        | 结果                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 根类型 / lint / 全量架构                    | 通过；395 warnings、0 errors；0 violation、0 baseline、0 new                                |
+| CLI/TUI/Contracts/REPL/Debug 类型检查       | 全部通过                                                                                    |
+| 根 Vitest                                   | 18,091 通过、21 跳过、0 失败；1,936 文件，含两项跳过文件                                    |
+| 根 Node                                     | 572 通过、1 跳过、0 失败                                                                    |
+| 完整 CLI                                    | 511 通过、0 失败、0 跳过                                                                    |
+| TUI / Contracts / REPL / Debug              | 分别 230 / 340 / 51 / 18 通过                                                               |
+| Core 初次全套                               | 3,898 通过、38 跳过、2 todo、0 失败；之后的 Core 窄入口修改经构建、REPL 与 CLI 集成检查覆盖 |
+| Adapter 最终完整运行                        | 2,020 通过、34 失败、4 跳过；失败全部逐项匹配原始官方源码/锁文件基线                        |
+| Bootstrap 最终完整运行                      | 2,939 通过、17 失败、12 跳过；15 项与独立上游源码基线匹配，另两项为公网归档访问失败         |
+| 工作流服务 / 跨进程 OAuth / 插件            | 完整文件分别 243 / 4 / 81 全部通过                                                          |
+| Agent / Server / Web / mobile-web / desktop | 构建通过，Main/Host/preload/sandbox/renderer 均产出；真实 prepare:agent-bundle 通过         |
+| CLI 制品 smoke                              | 7 组全部通过，包括 startup 通知、plugins/skills/commands/doctor、工作流和核心工具           |
+| Relay / 知识库                              | 真实回归通过；其它未改动包的原生 runner 结果保留在证据目录                                  |
 
 各运行有交集，计数不相加。完整检查发现的时序和夹具问题保留了失败报告，修复后分别复核：授权 URL 在事件发布后断言；并发授权与兄弟取消用明确屏障建立现场；TUI 超时必释放 renderer；CLI 文件并行度为 2，原超时/断言不变；非 Git 夹具隔离边界外的沙箱占位；Linux Z 状态确认已终止，不把运行/阻塞进程放行；本地插件夹具只模拟可选图标，真实 HTTP/Git 与图标专项断言不变。
 

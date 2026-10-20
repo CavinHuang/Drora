@@ -55,15 +55,16 @@ export function deleteDocumentRows(
     )
     .run(vaultId, sourceEpoch, relativePath);
   tx.raw
-    .prepare(
-      `DELETE FROM documents WHERE vault_id = ? AND source_epoch = ? AND relative_path = ?`,
-    )
+    .prepare(`DELETE FROM documents WHERE vault_id = ? AND source_epoch = ? AND relative_path = ?`)
     .run(vaultId, sourceEpoch, relativePath);
 }
 
 /** 单文档替换（调用方必须已在短事务内并完成 fence 校验）：删旧 chunk+FTS → 插新。 */
 /** 替换文档（短事务内调用）：返回本次写入的 chunk id 列表（同序于 input.chunks；调用方据以同事务写向量）。 */
-export function replaceDocumentInTransaction(tx: KnowledgeDatabase, input: ReplaceDocumentInput): number[] {
+export function replaceDocumentInTransaction(
+  tx: KnowledgeDatabase,
+  input: ReplaceDocumentInput,
+): number[] {
   deleteDocumentRows(tx, input.vaultId, input.sourceEpoch, input.relativePath);
 
   const docResult = tx.raw
@@ -148,7 +149,11 @@ export function listDocuments(
     .all(vaultId, sourceEpoch) as unknown as DocumentIndexRow[];
 }
 
-export function countDocuments(db: KnowledgeDatabase, vaultId: string, sourceEpoch: number): number {
+export function countDocuments(
+  db: KnowledgeDatabase,
+  vaultId: string,
+  sourceEpoch: number,
+): number {
   const row = db.raw
     .prepare(`SELECT COUNT(*) AS n FROM documents WHERE vault_id = ? AND source_epoch = ?`)
     .get(vaultId, sourceEpoch) as { n: number };
@@ -290,7 +295,16 @@ export function insertJobInTransaction(
       `INSERT INTO index_jobs(id, vault_id, source_epoch, kind, status, generation, fence, requested_at_ms, started_at_ms)
        VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
     )
-    .run(job.id, job.vaultId, job.sourceEpoch, job.kind, job.generation, job.fence, job.nowMs, job.nowMs);
+    .run(
+      job.id,
+      job.vaultId,
+      job.sourceEpoch,
+      job.kind,
+      job.generation,
+      job.fence,
+      job.nowMs,
+      job.nowMs,
+    );
 }
 
 export function updateJobInTransaction(

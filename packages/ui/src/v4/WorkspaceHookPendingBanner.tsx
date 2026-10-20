@@ -3,7 +3,7 @@ import {
   TID_V4_WORKSPACE_HOOK_PENDING_BANNER,
   TID_V4_WORKSPACE_HOOK_PENDING_DISMISS,
   TID_V4_WORKSPACE_HOOK_PENDING_REVIEW,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { logger } from "@/logger.js";
@@ -110,14 +110,7 @@ export const WorkspaceHookPendingBanner = memo(function WorkspaceHookPendingBann
         });
       });
     }
-  }, [
-    admission,
-    commandBindings,
-    openSettingsTab,
-    sessionId,
-    workspaceIdentity,
-    workspacePath,
-  ]);
+  }, [admission, commandBindings, openSettingsTab, sessionId, workspaceIdentity, workspacePath]);
 
   const handleDismiss = useCallback(() => {
     if (admission) {

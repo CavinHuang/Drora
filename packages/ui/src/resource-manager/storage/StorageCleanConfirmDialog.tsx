@@ -1,10 +1,10 @@
 import { Loader2 } from "lucide-react";
+import { type StorageCategoryId } from "@drora/shared";
 import {
-  type StorageCategoryId,
   TID_RESOURCE_MANAGER_STORAGE_CONFIRM_ACCEPT,
   TID_RESOURCE_MANAGER_STORAGE_CONFIRM_CANCEL,
   TID_RESOURCE_MANAGER_STORAGE_CONFIRM_DIALOG,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   AlertDialog,
   AlertDialogAction,

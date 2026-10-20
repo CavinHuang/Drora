@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ISkillsService } from "@drora/services";
-import {
-  DRORA_AGENT_PROVIDER,
-  type SkillSummary,
-  type SkillsListResult,
-} from "@drora/shared";
+import { DRORA_AGENT_PROVIDER, type SkillSummary, type SkillsListResult } from "@drora/shared";
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
 import { useSkillStore } from "@/store/skillStore.js";
 

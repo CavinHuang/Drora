@@ -28,7 +28,15 @@ test("isStartPlanAccountAccess 仅对 start-plan 模式成立", () => {
     false,
   );
   assert.equal(isStartPlanAccountAccess(undefined), false);
-  assert.equal(isStartPlanAccountAccess({ type: "api-key", accountType: "bigmodel", mode: "start-plan", entitled: true }), false);
+  assert.equal(
+    isStartPlanAccountAccess({
+      type: "api-key",
+      accountType: "bigmodel",
+      mode: "start-plan",
+      entitled: true,
+    }),
+    false,
+  );
 });
 
 test("buildStartPlanCaptchaHeaders 带 region 时输出两个头，缺 region 只输出 param 头", () => {

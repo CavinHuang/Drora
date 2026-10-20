@@ -20,7 +20,11 @@ const services = createKnowledgeServices({
 });
 try {
   const result = await services.reviewService.undoOperation({ operationId });
-  await writeFile(outputPath, JSON.stringify({ outcome: result.outcome, reason: result.reason }), "utf-8");
+  await writeFile(
+    outputPath,
+    JSON.stringify({ outcome: result.outcome, reason: result.reason }),
+    "utf-8",
+  );
 } finally {
   services.dispose();
 }

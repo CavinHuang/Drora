@@ -60,7 +60,10 @@ export interface IKnowledgeReviewService {
    * 人工批准：绑定 (proposalId, 当前 revision, changesHash, 当前 sourceEpoch, expiresAt)。
    * ttlMs 缺省 10 分钟；显式 0/negative 表示立即过期（测试钩子，生产 UI 不传）。
    */
-  approveProposal(params: { proposalId: string; ttlMs?: number }): Promise<KnowledgeReviewApprovalView>;
+  approveProposal(params: {
+    proposalId: string;
+    ttlMs?: number;
+  }): Promise<KnowledgeReviewApprovalView>;
 
   /** 拒绝提案（终态标记；reviseProposal 可复活并重走审批）。 */
   rejectProposal(params: { proposalId: string }): Promise<KnowledgeReviewProposalView>;
@@ -69,7 +72,10 @@ export interface IKnowledgeReviewService {
    * 执行已批准提案（唯一写盘路径，经 Vault 安全门面 CAS）。
    * operationId 是调用方幂等键：重复提交返回账本既有记录，绝不二次执行。
    */
-  applyProposal(params: { proposalId: string; operationId?: string }): Promise<KnowledgeReviewApplyResult>;
+  applyProposal(params: {
+    proposalId: string;
+    operationId?: string;
+  }): Promise<KnowledgeReviewApplyResult>;
 
   /**
    * 对 applying/uncertain 的 operation 做只读文件证据核验 + 账本落定；

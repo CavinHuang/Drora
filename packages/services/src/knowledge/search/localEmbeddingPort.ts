@@ -267,7 +267,9 @@ function meanPool(vectors: Float32Array[]): Float32Array {
   return mean;
 }
 
-export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): KnowledgeEmbeddingPort {
+export function createLocalEmbeddingPort(
+  options: LocalEmbeddingPortOptions,
+): KnowledgeEmbeddingPort {
   const logger = options.logger;
   const fetchImpl = options.fetchImpl ?? fetch;
   const modelDir = join(options.modelRoot, MODEL_DIR_NAME);
@@ -331,8 +333,16 @@ export function createLocalEmbeddingPort(options: LocalEmbeddingPortOptions): Kn
           for (const ids of windows) {
             const length = ids.length;
             const feeds: Record<string, unknown> = {
-              input_ids: new runtime.ort.Tensor("int64", BigInt64Array.from(ids.map((id) => BigInt(id))), [1, length]),
-              attention_mask: new runtime.ort.Tensor("int64", BigInt64Array.from({ length }, () => BigInt(1)), [1, length]),
+              input_ids: new runtime.ort.Tensor(
+                "int64",
+                BigInt64Array.from(ids.map((id) => BigInt(id))),
+                [1, length],
+              ),
+              attention_mask: new runtime.ort.Tensor(
+                "int64",
+                BigInt64Array.from({ length }, () => BigInt(1)),
+                [1, length],
+              ),
             };
             if (runtime.session.inputNames.includes("token_type_ids")) {
               feeds.token_type_ids = new runtime.ort.Tensor(

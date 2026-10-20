@@ -23,7 +23,9 @@ function census(text) {
     // env 契约键
     envKeys: [...text.matchAll(/"(?:ZCODE|DRORA)_[A-Z0-9_]+"/g)].map((m) => m[0]),
     // 权限 capability 持久化键
-    permissionKeys: [...text.matchAll(/"(?:zcode|drora):permission[a-z-]*:[a-z_]+"/g)].map((m) => m[0]),
+    permissionKeys: [...text.matchAll(/"(?:zcode|drora):permission[a-z-]*:[a-z_]+"/g)].map(
+      (m) => m[0],
+    ),
     // 帧完整性/栅格相关诊断码
     diagCodes: [...text.matchAll(/"[a-z]+_[a-z_]*frame[a-z_]*"/g)].map((m) => m[0]),
   };
@@ -66,7 +68,9 @@ for (const fam of Object.keys(o)) {
     for (const k of onlyOrig) console.log(`  ${k}  x${o[fam].get(k)}`);
   }
   if (onlyOurs.length) {
-    console.log(`only in OURS (${onlyOurs.length}) —— 逐一归类：品牌改名（归一化未覆盖）/ 残留漂移 / 自研新增：`);
+    console.log(
+      `only in OURS (${onlyOurs.length}) —— 逐一归类：品牌改名（归一化未覆盖）/ 残留漂移 / 自研新增：`,
+    );
     for (const k of onlyOurs) console.log(`  ${k}  x${m[fam].get(k)}`);
   }
   if (!onlyOrig.length && !onlyOurs.length) console.log("sets identical");

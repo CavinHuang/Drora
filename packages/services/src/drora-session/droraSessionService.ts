@@ -52,23 +52,15 @@ export function createDroraSessionService({
   const { withApiRetryRuntime } = createDroraSessionApiRetryRuntimeTracker();
   const deferredDraftSessions = createDroraDeferredDraftRegistry();
 
-  function notifySyncer(
-    target: DroraTaskTarget,
-    options?: {
-      includeSnapshot?: boolean;
-    },
-  ): void {
+  function notifySyncer(target: DroraTaskTarget): void {
     if (!taskIndexSyncer) {
       return;
     }
-    taskIndexSyncer.ensureSessionSubscription(
-      {
-        workspacePath: target.workspacePath,
-        workspaceIdentity: target.workspaceIdentity,
-        sessionId: target.sessionId,
-      },
-      options,
-    );
+    taskIndexSyncer.ensureSessionSubscription({
+      workspacePath: target.workspacePath,
+      workspaceIdentity: target.workspaceIdentity,
+      sessionId: target.sessionId,
+    });
   }
 
   function getSessionSnapshotDiagnostics(snapshot: DroraSessionStateSnapshot) {
@@ -336,7 +328,7 @@ export function createDroraSessionService({
         );
       }
       const agentDurationMs = Date.now() - startedAt;
-      notifySyncer(agentParams, { includeSnapshot: shouldBroadcastSnapshot });
+      notifySyncer(agentParams);
       const broadcastStartedAt = Date.now();
       const modelOverride = agentParams.model
         ? formatModelPickerValue(agentParams.model)

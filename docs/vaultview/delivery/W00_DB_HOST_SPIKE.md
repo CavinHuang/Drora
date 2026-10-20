@@ -15,13 +15,13 @@
 
 ## 1. 运行时事实
 
-| 项 | 值 | 证据 |
-| --- | --- | --- |
-| 本地 CLI node | v24.1.0（`C:\Users\A\AppData\Local\Volta\tools\image\node\24.1.0\node.exe`） | `node --version` → `v24.1.0`；**撰写员已复核**（本会话重跑输出一致） |
-| mise 钉的 node | 24.14.0（本会话未激活） | `mise.toml:2` `node = "24.14.0"` |
-| Electron | 41.0.3，二进制在 worktree `node_modules/electron/dist/electron.exe` | `packages/desktop/package.json:79` `"electron": "41.0.3"` |
-| Electron 内嵌 Node | 24.14.0，SQLite 3.51.2，Chrome 146 | Electron probe 输出 `process.versions` |
-| 仓库现有 sqlite 依赖 | 无（零依赖，node:sqlite 属全新依赖面） | `grep -rn --include=package.json -iE "sqlite" packages apps` → 退出码 1（无匹配） |
+| 项                   | 值                                                                           | 证据                                                                              |
+| -------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 本地 CLI node        | v24.1.0（`C:\Users\A\AppData\Local\Volta\tools\image\node\24.1.0\node.exe`） | `node --version` → `v24.1.0`；**撰写员已复核**（本会话重跑输出一致）              |
+| mise 钉的 node       | 24.14.0（本会话未激活）                                                      | `mise.toml:2` `node = "24.14.0"`                                                  |
+| Electron             | 41.0.3，二进制在 worktree `node_modules/electron/dist/electron.exe`          | `packages/desktop/package.json:79` `"electron": "41.0.3"`                         |
+| Electron 内嵌 Node   | 24.14.0，SQLite 3.51.2，Chrome 146                                           | Electron probe 输出 `process.versions`                                            |
+| 仓库现有 sqlite 依赖 | 无（零依赖，node:sqlite 属全新依赖面）                                       | `grep -rn --include=package.json -iE "sqlite" packages apps` → 退出码 1（无匹配） |
 
 ### 1.1 node:sqlite 可用性（已确认，非假设）
 

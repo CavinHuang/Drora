@@ -1,8 +1,6 @@
 {
   "plans": {
-    "cli-1": [
-      { "text": "CLI 单轮确定性回复。" }
-    ]
+    "cli-1": [{ "text": "CLI 单轮确定性回复。" }]
   },
   "scenarios": [
     {
@@ -28,7 +26,14 @@
     {
       "id": "c05",
       "title": "CLI 单轮 stream-json 输出",
-      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "stream-json", "--mode", "build"]
+      "args": [
+        "--prompt",
+        "回复一句话 [[cli-1]]",
+        "--output-format",
+        "stream-json",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "c06",
@@ -53,7 +58,16 @@
     {
       "id": "c10",
       "title": "CLI --model 覆盖",
-      "args": ["--prompt", "回复一句话 [[cli-1]]", "--output-format", "json", "--model", "mock", "--mode", "build"]
+      "args": [
+        "--prompt",
+        "回复一句话 [[cli-1]]",
+        "--output-format",
+        "json",
+        "--model",
+        "mock",
+        "--mode",
+        "build"
+      ]
     }
   ]
 }

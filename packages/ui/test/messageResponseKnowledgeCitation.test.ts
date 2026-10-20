@@ -41,10 +41,9 @@ function renderCitationAnswer(
 describe("Obsidian receipt-backed inline Markdown source navigation (rendered)", () => {
   it("creates a clickable source only for admitted prose indices", async () => {
     const open = vi.fn();
-    const view = render(renderCitationAnswer(
-      "来自笔记的分析内容 [1]；另一个未知来源 [4]。",
-      [1, 2], open,
-    ));
+    const view = render(
+      renderCitationAnswer("来自笔记的分析内容 [1]；另一个未知来源 [4]。", [1, 2], open),
+    );
     const citation = await waitFor(() => view.getByTestId("knowledge-inline-citation-1"));
     expect(view.queryByTestId("knowledge-inline-citation-4")).toBeNull();
     expect(view.container.textContent).toContain("[4]");
@@ -54,10 +53,13 @@ describe("Obsidian receipt-backed inline Markdown source navigation (rendered)",
 
   it("never turns a model-crafted fragment link into a receipt navigation", async () => {
     const open = vi.fn();
-    const view = render(renderCitationAnswer(
-      "[1](#drora-knowledge-source-1) and a legitimate prose citation [2].",
-      [1, 2], open,
-    ));
+    const view = render(
+      renderCitationAnswer(
+        "[1](#drora-knowledge-source-1) and a legitimate prose citation [2].",
+        [1, 2],
+        open,
+      ),
+    );
     await waitFor(() => expect(view.getByTestId("knowledge-inline-citation-2")).toBeTruthy());
     expect(view.queryByTestId("knowledge-inline-citation-1")).toBeNull();
     fireEvent.click(view.getByTestId("knowledge-inline-citation-2"));
@@ -66,10 +68,13 @@ describe("Obsidian receipt-backed inline Markdown source navigation (rendered)",
 
   it("does not activate code or headings as sources", async () => {
     const open = vi.fn();
-    const view = render(renderCitationAnswer(
-      "# Heading [1]\n\n`[1]` and `[2]`\n\n```javascript\n// [1]\n```\n\nNormal paragraph ends [2].",
-      [1, 2], open,
-    ));
+    const view = render(
+      renderCitationAnswer(
+        "# Heading [1]\n\n`[1]` and `[2]`\n\n```javascript\n// [1]\n```\n\nNormal paragraph ends [2].",
+        [1, 2],
+        open,
+      ),
+    );
     const citation = await waitFor(() => view.getByTestId("knowledge-inline-citation-2"));
     expect(view.queryByTestId("knowledge-inline-citation-1")).toBeNull();
     fireEvent.click(citation);

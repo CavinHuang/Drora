@@ -3,8 +3,8 @@ import {
   TID_WORKFLOWS_CREATE_VIA_CHAT,
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_GLOBAL_GROUP,
-  testId,
 } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

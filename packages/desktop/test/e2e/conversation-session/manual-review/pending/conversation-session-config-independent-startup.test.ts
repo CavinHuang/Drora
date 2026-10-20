@@ -5,7 +5,7 @@ import {
   TID_V4_SESSION_PANE,
   TID_V4_COMPOSER_INPUT,
   TID_V4_COMPOSER_SEND,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   DEFAULT_WORKSPACE,

@@ -71,17 +71,13 @@ export interface IKnowledgeQueryService {
    * quote 切片，任一不满足返回结构化 status 且不签发；receipt 持久化在共享账本，
    * CLI Runtime gate 据此执行时复验。
    */
-  prepareEvidence(
-    params: KnowledgePrepareEvidenceParams,
-  ): Promise<KnowledgePrepareEvidenceResult>;
+  prepareEvidence(params: KnowledgePrepareEvidenceParams): Promise<KnowledgePrepareEvidenceResult>;
 
   /**
    * 引用可信的唯一解析入口（spec §5.2）：账本 → 会话绑定 → 源身份 → 文件版本 →
    * quote 切片；伪造 id → forbidden/unknown_receipt，跨会话 → forbidden/cross_session。
    */
-  resolveCitation(
-    params: KnowledgeResolveCitationParams,
-  ): Promise<KnowledgeResolveCitationResult>;
+  resolveCitation(params: KnowledgeResolveCitationParams): Promise<KnowledgeResolveCitationResult>;
 
   /** run 状态事件（runGeneration+seq）：迟到事件不得覆盖新 run（W04 UI 契约）。 */
   onRunUpdated: Event<KnowledgeRunUpdatedEvent>;

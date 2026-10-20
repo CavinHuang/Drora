@@ -9,13 +9,21 @@
 // Exit code: 0 all ALIGNED, 1 diffs, 2 infra error.
 import { spawn, execSync } from "node:child_process";
 import net from "node:net";
-import { appendFileSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DRORA_CJS = path.join(REPO_ROOT, "apps/drora-cli/packages/cli/dist/drora.cjs");
-const ZCODE_CJS = process.env.ZCODE_CJS_PATH?.trim() || "D:\\software\\zcode\\resources\\glm\\zcode.cjs";
+const ZCODE_CJS =
+  process.env.ZCODE_CJS_PATH?.trim() || "D:\\software\\zcode\\resources\\glm\\zcode.cjs";
 const REG_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SCENARIO_DIR = path.join(REG_DIR, "scenarios-cli");
 
@@ -26,7 +34,10 @@ function arg(name, fallback) {
   return v && !v.startsWith("--") ? v : true;
 }
 
-const ONLY = String(arg("only", "")).split(",").map((s) => s.trim()).filter(Boolean);
+const ONLY = String(arg("only", ""))
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const RUN_TIMEOUT_MS = Number(arg("run-timeout-ms", 60000));
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const OUT = path.resolve(String(arg("out", "")) || path.join(REG_DIR, "reports", `cli-${RUN_ID}`));
@@ -40,7 +51,10 @@ function loadScenarios() {
   const scPath = path.resolve(String(arg("scenarios", SCENARIO_DIR)));
   let files;
   try {
-    files = readdirSync(scPath).filter((f) => f.endsWith(".json")).sort().map((f) => path.join(scPath, f));
+    files = readdirSync(scPath)
+      .filter((f) => f.endsWith(".json"))
+      .sort()
+      .map((f) => path.join(scPath, f));
   } catch {
     files = existsSync(scPath) ? [scPath] : fail(`scenarios not found: ${scPath}`);
   }
@@ -51,7 +65,10 @@ function loadScenarios() {
     Object.assign(plans, doc.plans ?? {});
     for (const sc of doc.scenarios ?? []) scenarios.push({ ...sc, _file: path.basename(file) });
   }
-  return { plans, scenarios: ONLY.length ? scenarios.filter((s) => ONLY.includes(s.id)) : scenarios };
+  return {
+    plans,
+    scenarios: ONLY.length ? scenarios.filter((s) => ONLY.includes(s.id)) : scenarios,
+  };
 }
 
 function freePort() {
@@ -65,24 +82,56 @@ function freePort() {
 }
 
 const children = new Set();
-process.on("exit", () => { for (const c of children) { try { if (c.exitCode === null) c.kill(); } catch { /* best effort */ } } });
+process.on("exit", () => {
+  for (const c of children) {
+    try {
+      if (c.exitCode === null) c.kill();
+    } catch {
+      /* best effort */
+    }
+  }
+});
 process.on("SIGINT", () => process.exit(2));
 
 // ---- normalization ----------------------------------------------------------
 
 const VOLATILE_LEAF = new Set([
-  "eventId", "traceId", "timestamp", "createdAt", "updatedAt", "generatedAt",
-  "since", "until", "tzOffsetMs", "duration", "elapsedMs", "durationMs",
-  "uptimeMs", "startedAt", "endedAt", "occurredAt", "session_id", "sessionId",
-  "message_id", "id",
+  "eventId",
+  "traceId",
+  "timestamp",
+  "createdAt",
+  "updatedAt",
+  "generatedAt",
+  "since",
+  "until",
+  "tzOffsetMs",
+  "duration",
+  "elapsedMs",
+  "durationMs",
+  "uptimeMs",
+  "startedAt",
+  "endedAt",
+  "occurredAt",
+  "session_id",
+  "sessionId",
+  "message_id",
+  "id",
   // CLI 面仲裁（主控 2026-09-09）：RPC 侧别名族的 CLI 对应键此前漏豁免——
   // c05 stream-json 帧 messageId/assistantMessageId/turnId 是 per-run 随机。
-  "messageId", "assistantMessageId", "turnId", "targetMessageId", "checkpointId",
+  "messageId",
+  "assistantMessageId",
+  "turnId",
+  "targetMessageId",
+  "checkpointId",
   // 2026-09-19 c05：span 族 16 字符截短 id（8-4-2 hex 形，UUID_SHAPE 不匹配）
   // 双侧 per-run 随机 + 完成帧时延三键（provider 时延本质随机，live 轮同判）
   // + 响应 date 头（秒精度墙钟，双进程跨秒漂移）。
-  "spanId", "parentSpanId", "operationId",
-  "timeToFirstProviderEventMs", "timeToFirstContentMs", "timeToFirstTextMs",
+  "spanId",
+  "parentSpanId",
+  "operationId",
+  "timeToFirstProviderEventMs",
+  "timeToFirstContentMs",
+  "timeToFirstTextMs",
   "date",
 ]);
 const VOLATILE_TEXT = /\d+ms|\d+\.\d+s|generated_at|usage_limit|reset_at/g;
@@ -99,7 +148,11 @@ function makeLineNormalizer(home, ws, mockPort) {
     if (typeof key === "string" && VOLATILE_LEAF.has(key)) return `<${key}>`;
     if (typeof value !== "string") return value;
     let v = value.replaceAll("\\", "/");
-    v = v.split(ws.replaceAll("\\", "/")).join("<WS>").split(home.replaceAll("\\", "/")).join("<HOME>");
+    v = v
+      .split(ws.replaceAll("\\", "/"))
+      .join("<WS>")
+      .split(home.replaceAll("\\", "/"))
+      .join("<HOME>");
     if (mockPort !== undefined) v = v.split(`:${mockPort}`).join(":<PORT>");
     v = v.replace(UUID_SHAPE, "<UUID>");
     v = v.replace(/^mock-(drora|zcode)/, "mock");
@@ -149,12 +202,26 @@ function diffLines(a, b) {
   let i = 0;
   let j = 0;
   while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { ops.push({ t: "eq", i, j }); i += 1; j += 1; }
-    else if (m[i + 1][j] >= m[i][j + 1]) { ops.push({ t: "del", i }); i += 1; }
-    else { ops.push({ t: "add", j }); j += 1; }
+    if (a[i] === b[j]) {
+      ops.push({ t: "eq", i, j });
+      i += 1;
+      j += 1;
+    } else if (m[i + 1][j] >= m[i][j + 1]) {
+      ops.push({ t: "del", i });
+      i += 1;
+    } else {
+      ops.push({ t: "add", j });
+      j += 1;
+    }
   }
-  while (i < a.length) { ops.push({ t: "del", i }); i += 1; }
-  while (j < b.length) { ops.push({ t: "add", j }); j += 1; }
+  while (i < a.length) {
+    ops.push({ t: "del", i });
+    i += 1;
+  }
+  while (j < b.length) {
+    ops.push({ t: "add", j });
+    j += 1;
+  }
   return ops;
 }
 
@@ -171,11 +238,20 @@ function runOnce(bin, args, cwd, env) {
     child.stdout.on("data", (c) => {
       buffer += c;
       let idx;
-      while ((idx = buffer.indexOf("\n")) >= 0) { stdout.push(buffer.slice(0, idx)); buffer = buffer.slice(idx + 1); }
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        stdout.push(buffer.slice(0, idx));
+        buffer = buffer.slice(idx + 1);
+      }
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (c) => stderr.push(c));
-    const timer = setTimeout(() => { try { child.kill(); } catch { /* best effort */ } }, RUN_TIMEOUT_MS);
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        /* best effort */
+      }
+    }, RUN_TIMEOUT_MS);
     child.on("close", (code) => {
       clearTimeout(timer);
       if (buffer) stdout.push(buffer);
@@ -195,12 +271,24 @@ async function main() {
   writeFileSync(plansFile, JSON.stringify(plans, null, 2));
   const portDrora = await freePort();
   const portZcode = await freePort();
-  for (const [port, side] of [[portDrora, "drora"], [portZcode, "zcode"]]) {
-    spawn(process.execPath, [path.join(REG_DIR, "mock-model.mjs"), "--port", String(port), "--out", path.join(OUT, `mock-${side}`), "--plans", plansFile]);
+  for (const [port, side] of [
+    [portDrora, "drora"],
+    [portZcode, "zcode"],
+  ]) {
+    spawn(process.execPath, [
+      path.join(REG_DIR, "mock-model.mjs"),
+      "--port",
+      String(port),
+      "--out",
+      path.join(OUT, `mock-${side}`),
+      "--plans",
+      plansFile,
+    ]);
   }
   await new Promise((r) => setTimeout(r, 400));
   const resetMocks = async () => {
-    for (const port of [portDrora, portZcode]) await fetch(`http://127.0.0.1:${port}/reset`, { method: "POST" }).catch(() => {});
+    for (const port of [portDrora, portZcode])
+      await fetch(`http://127.0.0.1:${port}/reset`, { method: "POST" }).catch(() => {});
   };
 
   const results = [];
@@ -212,7 +300,11 @@ async function main() {
     // d7/d8/d34/d35 污染治理：ws 必须在仓库外——仓根的 .drora/commands/bench.md
     // fixture 会经祖先链上扫进 drora 的 project 域命令发现（zcode 侧无对应）。
     // 仓根同盘短路径（D:\drora-cli-ab-w\<id>）同时满足三条。
-    const scWs = path.join(path.parse(REPO_ROOT).root, "drora-cli-ab-w", `${Date.now().toString(36).slice(-7)}-${sc.id}`);
+    const scWs = path.join(
+      path.parse(REPO_ROOT).root,
+      "drora-cli-ab-w",
+      `${Date.now().toString(36).slice(-7)}-${sc.id}`,
+    );
     mkdirSync(scWs, { recursive: true });
     const homeDrora = path.join(OUT, "home-drora", sc.id);
     const homeZcode = path.join(OUT, "home-zcode", sc.id);
@@ -226,8 +318,14 @@ async function main() {
       writeFileSync(full, f.content ?? "");
     }
     for (const f of sc.homeFiles ?? []) {
-      for (const [side, home] of [["drora", homeDrora], ["zcode", homeZcode]]) {
-        const full = path.join(home, f.path.replaceAll("<BRAND>", side === "drora" ? ".drora" : ".zcode"));
+      for (const [side, home] of [
+        ["drora", homeDrora],
+        ["zcode", homeZcode],
+      ]) {
+        const full = path.join(
+          home,
+          f.path.replaceAll("<BRAND>", side === "drora" ? ".drora" : ".zcode"),
+        );
         mkdirSync(path.dirname(full), { recursive: true });
         writeFileSync(full, typeof f.content === "string" ? f.content : JSON.stringify(f.content));
       }
@@ -252,8 +350,17 @@ async function main() {
         USERPROFILE: home,
         HOME: home,
         ...(side === "drora"
-          ? { DRORA_BASE_URL: `http://127.0.0.1:${port}/v1`, DRORA_API_KEY: "mock-key", DRORA_MODEL: "mock-drora", DRORA_PROVIDER_ID: "anthropic" }
-          : { ZCODE_BASE_URL: `http://127.0.0.1:${port}/v1`, ZCODE_API_KEY: "mock-key", ZCODE_MODEL: "mock-zcode" }),
+          ? {
+              DRORA_BASE_URL: `http://127.0.0.1:${port}/v1`,
+              DRORA_API_KEY: "mock-key",
+              DRORA_MODEL: "mock-drora",
+              DRORA_PROVIDER_ID: "anthropic",
+            }
+          : {
+              ZCODE_BASE_URL: `http://127.0.0.1:${port}/v1`,
+              ZCODE_API_KEY: "mock-key",
+              ZCODE_MODEL: "mock-zcode",
+            }),
       };
       // phase4 additive: per-scenario env injection（双侧同值；`<BRAND>` 按侧替换为
       // DRORA/ZCODE 大写品牌词）。合并在侧环境之后，故场景 env 覆盖 harness 注入的
@@ -270,7 +377,11 @@ async function main() {
         outs.push(r);
         codes.push(r.code);
       }
-      return { stdout: outs.flatMap((o) => o.stdout), stderr: outs.map((o) => o.stderr).join(""), codes };
+      return {
+        stdout: outs.flatMap((o) => o.stdout),
+        stderr: outs.map((o) => o.stderr).join(""),
+        codes,
+      };
     };
     const [rd, rz] = await Promise.all([run("drora", portDrora), run("zcode", portZcode)]);
     const exitSame = JSON.stringify(rd.codes) === JSON.stringify(rz.codes);
@@ -283,11 +394,11 @@ async function main() {
     norm.drora.homeToken = homeDrora.replaceAll("\\", "/");
     norm.zcode.wsToken = scWs.replaceAll("\\", "/");
     norm.zcode.homeToken = homeZcode.replaceAll("\\", "/");
-    if (sc.id === 'c05') {
+    if (sc.id === "c05") {
       // c05 逐行证据落盘改随 OUT 目录（10-09）：原硬编码 cwd 相对路径
       // `scripts/regression/reports/...` 在非仓库根 cwd 调用时拼出双前缀 ENOENT。
-      writeFileSync(path.join(OUT, 'c05-lines-drora.txt'), rd.stdout.join('\n'));
-      writeFileSync(path.join(OUT, 'c05-lines-zcode.txt'), rz.stdout.join('\n'));
+      writeFileSync(path.join(OUT, "c05-lines-drora.txt"), rd.stdout.join("\n"));
+      writeFileSync(path.join(OUT, "c05-lines-zcode.txt"), rz.stdout.join("\n"));
     }
     const a = rd.stdout.map((l) => normalizeLine(l, norm.drora)).filter(Boolean);
     const b = rz.stdout.map((l) => normalizeLine(l, norm.zcode)).filter(Boolean);
@@ -295,23 +406,47 @@ async function main() {
     const diffCount = ops.filter((o) => o.t !== "eq").length;
     const status = diffCount === 0 && exitSame ? "ALIGNED" : "DIFF";
     const detail = {
-      id: sc.id, title: sc.title ?? "", args: runSets, status,
-      droraExit: rd.codes, zcodeExit: rz.codes,
-      droraLines: a.length, zcodeLines: b.length, diffCount, exitSame,
-      stderrDrora: rd.stderr.slice(0, 2000), stderrZcode: rz.stderr.slice(0, 2000),
-      firstDiffs: ops.filter((o) => o.t !== "eq").slice(0, 12).map((o) => ({
-        t: o.t,
-        drora: o.t === "add" ? undefined : (a[o.i] ?? "").slice(0, 300),
-        zcode: o.t === "del" ? undefined : (b[o.j] ?? "").slice(0, 300),
-      })),
+      id: sc.id,
+      title: sc.title ?? "",
+      args: runSets,
+      status,
+      droraExit: rd.codes,
+      zcodeExit: rz.codes,
+      droraLines: a.length,
+      zcodeLines: b.length,
+      diffCount,
+      exitSame,
+      stderrDrora: rd.stderr.slice(0, 2000),
+      stderrZcode: rz.stderr.slice(0, 2000),
+      firstDiffs: ops
+        .filter((o) => o.t !== "eq")
+        .slice(0, 12)
+        .map((o) => ({
+          t: o.t,
+          drora: o.t === "add" ? undefined : (a[o.i] ?? "").slice(0, 300),
+          zcode: o.t === "del" ? undefined : (b[o.j] ?? "").slice(0, 300),
+        })),
     };
     results.push(detail);
-    appendFileSync(path.join(OUT, "cli-frames.jsonl"), `${JSON.stringify({ scenario: sc.id, droraRaw: rd.stdout, zcodeRaw: rz.stdout })}\n`);
+    appendFileSync(
+      path.join(OUT, "cli-frames.jsonl"),
+      `${JSON.stringify({ scenario: sc.id, droraRaw: rd.stdout, zcodeRaw: rz.stdout })}\n`,
+    );
     console.log(`  → ${status} (diffs ${diffCount}, exit ${rd.codes}/${rz.codes})`);
   }
 
-  const byStatus = results.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
-  writeFileSync(path.join(OUT, "cli-report.json"), JSON.stringify({ runId: RUN_ID, summary: { total: results.length, byStatus }, scenarios: results }, null, 2));
+  const byStatus = results.reduce(
+    (acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }),
+    {},
+  );
+  writeFileSync(
+    path.join(OUT, "cli-report.json"),
+    JSON.stringify(
+      { runId: RUN_ID, summary: { total: results.length, byStatus }, scenarios: results },
+      null,
+      2,
+    ),
+  );
   const md = [
     `# CLI headless 面 A/B 报告 ${RUN_ID}`,
     "",
@@ -319,7 +454,10 @@ async function main() {
     "",
     "| 场景 | 状态 | 行差 | exit |",
     "| --- | --- | --- | --- |",
-    ...results.map((r) => `| ${r.id} ${r.title} | ${r.status} | ${r.diffCount} | ${r.droraExit}/${r.zcodeExit} |`),
+    ...results.map(
+      (r) =>
+        `| ${r.id} ${r.title} | ${r.status} | ${r.diffCount} | ${r.droraExit}/${r.zcodeExit} |`,
+    ),
     "",
   ];
   writeFileSync(path.join(OUT, "cli-report.md"), md.join("\n"));
@@ -327,4 +465,7 @@ async function main() {
   process.exit(byStatus.ALIGNED === results.length ? 0 : 1);
 }
 
-main().catch((err) => { console.error(err); process.exit(2); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(2);
+});

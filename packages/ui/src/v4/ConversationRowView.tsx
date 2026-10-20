@@ -29,6 +29,7 @@ import {
   TrendingUpDownIcon,
   XIcon,
 } from "lucide-react";
+import { parseAutomationRunId } from "@drora/shared";
 import {
   TID_V4_EDIT,
   TID_V4_EDIT_ATTACHMENT_REMOVE,
@@ -41,9 +42,8 @@ import {
   TID_V4_FORK,
   TID_V4_ROW,
   TID_V4_ROW_ATTACHMENTS,
-  parseAutomationRunId,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import type {
   AttachmentRef,
   ArtifactRow,
@@ -1701,9 +1701,15 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           completed={row.state === "complete"}
           messageKey={`${row.rowId}:${row.entityId ?? ""}`}
           renderDroraFileCitations
-          knowledgeCitationIndices={row.state === "complete" ? context.knowledgeCitationIndices : undefined}
-          knowledgeCitationScopeKey={row.state === "complete" ? context.knowledgeCitationScopeKey : undefined}
-          onOpenKnowledgeCitation={row.state === "complete" ? context.onOpenKnowledgeCitation : undefined}
+          knowledgeCitationIndices={
+            row.state === "complete" ? context.knowledgeCitationIndices : undefined
+          }
+          knowledgeCitationScopeKey={
+            row.state === "complete" ? context.knowledgeCitationScopeKey : undefined
+          }
+          onOpenKnowledgeCitation={
+            row.state === "complete" ? context.onOpenKnowledgeCitation : undefined
+          }
           streaming={streaming}
           workspacePath={context.workspacePath}
           workspaceIdentity={context.workspaceIdentity}

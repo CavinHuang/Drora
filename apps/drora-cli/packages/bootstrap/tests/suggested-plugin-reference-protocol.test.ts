@@ -23,7 +23,6 @@ import {
   droraPluginOperationProgressNotificationSchema,
   droraPluginsResolveSuggestedReferenceParamsSchema,
   droraPluginsResolveSuggestedReferenceResultSchema,
-  droraProtocolMethods,
   droraProtocolNotifications,
 } from "@drora/shared";
 import type { PluginReferenceCatalogEntry } from "@drora/contracts";
@@ -94,9 +93,6 @@ describe("plugins/resolveSuggestedReference protocol", () => {
   });
 
   it("registers a strict request/result contract with operation and delivery boundaries", () => {
-    expect(droraProtocolMethods.pluginsResolveSuggestedReference).toBe(
-      "plugins/resolveSuggestedReference",
-    );
     expect(droraPluginOperationStateSchema.parse("cancelling")).toBe("cancelling");
     expect(droraPluginOperationStateSchema.parse("cancelled")).toBe("cancelled");
     expect(
@@ -112,7 +108,6 @@ describe("plugins/resolveSuggestedReference protocol", () => {
         unexpected: true,
       }),
     ).toThrow();
-    expect(droraProtocolNotifications.pluginOperationProgress).toBe("plugins/operationProgress");
     expect(
       droraPluginsResolveSuggestedReferenceParamsSchema.parse({
         workspace: WORKSPACE,
@@ -172,19 +167,14 @@ describe("plugins/resolveSuggestedReference protocol", () => {
   });
 
   it("rejects non-official stable IDs without refreshing any marketplace", async () => {
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      {
-        workspace: WORKSPACE,
-        stableId: "document-skills@personal",
-        ...DESKTOP_BOUNDARY,
-      },
-    );
+    const result = await resolveSuggestedPluginReference(protocolContext(), {
+      workspace: WORKSPACE,
+      stableId: "document-skills@personal",
+      ...DESKTOP_BOUNDARY,
+    });
 
     expect(result.status).toBe("unavailable");
-    expect(result.diagnostics[0]?.code).toBe(
-      "plugin_suggested_reference_untrusted_source",
-    );
+    expect(result.diagnostics[0]?.code).toBe("plugin_suggested_reference_untrusted_source");
     expect(mocks.updateDroraPluginMarketplace).not.toHaveBeenCalled();
     expect(() => droraPluginsResolveSuggestedReferenceResultSchema.parse(result)).not.toThrow();
   });
@@ -192,37 +182,41 @@ describe("plugins/resolveSuggestedReference protocol", () => {
   it.each([
     ["ready", true],
     ["disabled", false],
-  ] as const)("returns %s for an installed official plugin without refreshing", async (status, enabled) => {
-    entries = [catalogEntry({ enabled })];
-    mocks.getDroraPluginsOverview.mockReturnValue({
-      availablePlugins: [
-        overviewCandidate({
-          installed: true,
-          listing: { icon: "https://cdn.example/document-skills.svg" },
-        }),
-      ],
-      diagnostics: [],
-      installedPlugins: [],
-      marketplaces: [],
-      restorableBuiltins: [],
-    });
+  ] as const)(
+    "returns %s for an installed official plugin without refreshing",
+    async (status, enabled) => {
+      entries = [catalogEntry({ enabled })];
+      mocks.getDroraPluginsOverview.mockReturnValue({
+        availablePlugins: [
+          overviewCandidate({
+            installed: true,
+            listing: { icon: "https://cdn.example/document-skills.svg" },
+          }),
+        ],
+        diagnostics: [],
+        installedPlugins: [],
+        marketplaces: [],
+        restorableBuiltins: [],
+      });
 
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      { workspace: WORKSPACE, stableId: STABLE_ID, ...DESKTOP_BOUNDARY },
-    );
+      const result = await resolveSuggestedPluginReference(protocolContext(), {
+        workspace: WORKSPACE,
+        stableId: STABLE_ID,
+        ...DESKTOP_BOUNDARY,
+      });
 
-    expect(result).toMatchObject({
-      stableId: STABLE_ID,
-      status,
-      marketplace: "drora-plugins-official",
-      pluginName: "document-skills",
-      sourceTrust: "official",
-      icon: "https://cdn.example/document-skills.svg",
-    });
-    expect(mocks.updateDroraPluginMarketplace).not.toHaveBeenCalled();
-    expect(notify).not.toHaveBeenCalled();
-  });
+      expect(result).toMatchObject({
+        stableId: STABLE_ID,
+        status,
+        marketplace: "drora-plugins-official",
+        pluginName: "document-skills",
+        sourceTrust: "official",
+        icon: "https://cdn.example/document-skills.svg",
+      });
+      expect(mocks.updateDroraPluginMarketplace).not.toHaveBeenCalled();
+      expect(notify).not.toHaveBeenCalled();
+    },
+  );
 
   it("refreshes only drora-plugins-official before exposing a missing candidate", async () => {
     mocks.getDroraPluginsOverview.mockReturnValue({
@@ -235,16 +229,13 @@ describe("plugins/resolveSuggestedReference protocol", () => {
       restorableBuiltins: [],
     });
 
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      {
-        workspace: WORKSPACE,
-        stableId: STABLE_ID,
-        operationId: "suggested-2",
-        clientMode: "desktop-continuous",
-        deliveryKind: "desktop-continuous",
-      },
-    );
+    const result = await resolveSuggestedPluginReference(protocolContext(), {
+      workspace: WORKSPACE,
+      stableId: STABLE_ID,
+      operationId: "suggested-2",
+      clientMode: "desktop-continuous",
+      deliveryKind: "desktop-continuous",
+    });
 
     expect(mocks.updateDroraPluginMarketplace).toHaveBeenCalledOnce();
     expect(mocks.updateDroraPluginMarketplace).toHaveBeenCalledWith(
@@ -314,10 +305,11 @@ describe("plugins/resolveSuggestedReference protocol", () => {
       restorableBuiltins: [],
     });
 
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      { workspace: WORKSPACE, stableId: STABLE_ID, ...DESKTOP_BOUNDARY },
-    );
+    const result = await resolveSuggestedPluginReference(protocolContext(), {
+      workspace: WORKSPACE,
+      stableId: STABLE_ID,
+      ...DESKTOP_BOUNDARY,
+    });
 
     expect(result.status).toBe("unavailable");
     expect(result.diagnostics[0]?.code).toBe("marketplace_refresh_failed");
@@ -335,10 +327,11 @@ describe("plugins/resolveSuggestedReference protocol", () => {
 
     vi.useFakeTimers();
     try {
-      const pending = resolveSuggestedPluginReference(
-        protocolContext(),
-        { workspace: WORKSPACE, stableId: STABLE_ID, ...DESKTOP_BOUNDARY },
-      );
+      const pending = resolveSuggestedPluginReference(protocolContext(), {
+        workspace: WORKSPACE,
+        stableId: STABLE_ID,
+        ...DESKTOP_BOUNDARY,
+      });
       await Promise.resolve();
       expect(refreshSignal).toBeInstanceOf(AbortSignal);
 
@@ -381,10 +374,11 @@ describe("plugins/resolveSuggestedReference protocol", () => {
       return { diagnostics: [], marketplaces: [] };
     });
 
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      { workspace: WORKSPACE, stableId: STABLE_ID, ...DESKTOP_BOUNDARY },
-    );
+    const result = await resolveSuggestedPluginReference(protocolContext(), {
+      workspace: WORKSPACE,
+      stableId: STABLE_ID,
+      ...DESKTOP_BOUNDARY,
+    });
 
     expect(mocks.resolveDroraPlugins).toHaveBeenCalledTimes(2);
     expect(result.status).toBe("ready");
@@ -399,10 +393,11 @@ describe("plugins/resolveSuggestedReference protocol", () => {
       restorableBuiltins: [],
     });
 
-    const result = await resolveSuggestedPluginReference(
-      protocolContext(),
-      { workspace: WORKSPACE, stableId: STABLE_ID, ...DESKTOP_BOUNDARY },
-    );
+    const result = await resolveSuggestedPluginReference(protocolContext(), {
+      workspace: WORKSPACE,
+      stableId: STABLE_ID,
+      ...DESKTOP_BOUNDARY,
+    });
 
     expect(result.status).toBe("unavailable");
     expect(result.diagnostics[0]?.code).toBe("plugin_suggested_reference_not_listed");

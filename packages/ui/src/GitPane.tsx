@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GitChangeSourceId, GitDiffResult } from "@drora/shared";
-import { TID_GIT_PANE } from "@drora/shared";
+import { TID_GIT_PANE } from "@drora/shared/test-ids";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { FileTextIcon, RefreshCw } from "lucide-react";

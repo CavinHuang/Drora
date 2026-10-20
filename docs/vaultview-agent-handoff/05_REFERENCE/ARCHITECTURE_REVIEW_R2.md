@@ -16,37 +16,37 @@
 
 ### R2 决策清单
 
-| ID | 项目 | 处理结果 | 是否阻断 |
-|---|---|---|---|
-| D01 | 风险策略 | 方案 C **Accepted**，详见 `ADR-001-knowledge-risk-tiered-write.md` | 是，必须落地可测边界 |
-| D02 | Knowledge 与 Vault | 新增独立服务，Vault Service 继续管理文件与授权 | 是 |
-| D03 | Knowledge 与 Memory | 独立领域和持久化；P0 不自动写 Memory | 否，P1 再扩展 |
-| D04 | 多窗口 | 共享 Profile 数据库 + lease/fencing + 事务；不由 Main 承载业务 | 是，须 Spike |
-| D05 | 存储 | 推荐 `node:sqlite` + FTS5，复用工程现有 Node 24/SQLite 经验 | 是，须 Spike |
-| D06 | 证据 | receipt 驱动可信引用，源文件点击前再次校验 | 是 |
-| D07 | Agent 接入 | P0 受限预检索；P1 多轮 `KnowledgeSearch` 只读工具 | 是，须端到端 Spike |
-| D08 | 审核事务 | 操作 idempotency + per-file 串行 + snapshots + unknown reconciliation | 是 |
-| D09 | Vault 身份 | 复用现有 path-hash `vaultId`，再增加持久 `sourceEpoch` | 是 |
-| D10 | UI | 在 Drora 原壳 / VaultView / SessionPane 中模块化新增 | 否 |
+| ID  | 项目                | 处理结果                                                              | 是否阻断             |
+| --- | ------------------- | --------------------------------------------------------------------- | -------------------- |
+| D01 | 风险策略            | 方案 C **Accepted**，详见 `ADR-001-knowledge-risk-tiered-write.md`    | 是，必须落地可测边界 |
+| D02 | Knowledge 与 Vault  | 新增独立服务，Vault Service 继续管理文件与授权                        | 是                   |
+| D03 | Knowledge 与 Memory | 独立领域和持久化；P0 不自动写 Memory                                  | 否，P1 再扩展        |
+| D04 | 多窗口              | 共享 Profile 数据库 + lease/fencing + 事务；不由 Main 承载业务        | 是，须 Spike         |
+| D05 | 存储                | 推荐 `node:sqlite` + FTS5，复用工程现有 Node 24/SQLite 经验           | 是，须 Spike         |
+| D06 | 证据                | receipt 驱动可信引用，源文件点击前再次校验                            | 是                   |
+| D07 | Agent 接入          | P0 受限预检索；P1 多轮 `KnowledgeSearch` 只读工具                     | 是，须端到端 Spike   |
+| D08 | 审核事务            | 操作 idempotency + per-file 串行 + snapshots + unknown reconciliation | 是                   |
+| D09 | Vault 身份          | 复用现有 path-hash `vaultId`，再增加持久 `sourceEpoch`                | 是                   |
+| D10 | UI                  | 在 Drora 原壳 / VaultView / SessionPane 中模块化新增                  | 否                   |
 
 ## 1. 仓库实证（本轮读取的真实代码）
 
-| 位置 | 当前事实 | 对新方案的影响 |
-|---|---|---|
-| `packages/services/src/node.ts` | `createLocalServices()` 注册 `IMemoryService`、`IObsidianVaultService`；Local Host 使用 `ServiceCollection` | 新描述符注册点应在同一装配链；必须处理 remote collection |
-| `packages/services/src/collection.ts` | 服务描述符按 `channelName` 注册、由 `ProxyChannel.fromService` 暴露 | 新 RPC 采用现有 descriptor + channel 体系 |
-| `packages/shared/src/channels.ts` | `ServiceChannels.ObsidianVault = "obsidian-vault"` | 新增 Knowledge channel 键仅在 shared 定义一次 |
-| `packages/desktop/src/host/index.ts` | 为窗口 Local Host 装配 `createLocalServices`，附着端暴露服务 | 多窗口不能让进程内 Map 作为全局事实源 |
-| `packages/services/src/obsidian-vault/discovery.ts` | `vaultId(rootPath) = SHA256(rootPath)`；根使用 realpath | 移动根路径导致身份改变；不能把旧来源默默映射到新路径 |
-| `packages/services/src/obsidian-vault/obsidianVault.ts` | 具备 getSummary、listFiles、readFile（SHA）、writeFile 等 | 复用原有 API，无需另写 Vault FS |
-| `packages/services/src/obsidian-vault/vault-fs.ts` | 2MB 文件配额、5k 文件/1k 文件夹/深度 16；读 hash，原子 rename | 文件扫描应对齐现有限制；外部写竞争仍有 TOCTOU |
-| `packages/ui/src/v4/vault/vault-document-controller.ts` | UI 每文件草稿序列化，最终依赖服务 SHA 检查 | Proposal 的写操作不借用 renderer 暂存状态 |
-| `apps/drora-cli/packages/obsidian-plugin/src/hooks/*.ts` | 三个事件：SessionStart、UserPromptSubmit、PermissionRequest，写 Hook 只匹配 `Write|Edit` | 权限不能只根据 AI Prompt 宣称全覆盖；Bash 等须审计 |
-| `packages/ui/src/lib/conversationSelectionReference.ts` | 选区块 `# userselect:`，只保留文本和路径，单段 8k/合计 16k 限制 | 不可把选区引用当可信的 citation receipt；问库证据需单独协议 |
-| `packages/services/src/memory/memory.ts` | UI RPC 主要为 list/read Project Memory | 不直接把 Knowledge 候选塞进既有 Memory API |
-| `packages/services/src/session/tasksDatabase/startup.ts` | 使用 `node:sqlite`、WAL、`BEGIN IMMEDIATE` 启动/迁移 | SQLite 是已有工程实践，但 Knowledge 的多 Host 锁仍需额外验证 |
-| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx` | 已有 VaultView 面板、会话及 SidePane | 不能另建完整应用壳；在现有面板插入卡片 |
-| `specs/mobile-web-remote.md`、`AGENTS.md` | 手机远控通过同一 Host attachment 与会话运行时 | MVP 不创建手机独立 Knowledge DB 或 Agent |
+| 位置                                                     | 当前事实                                                                                                    | 对新方案的影响                                               |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| `packages/services/src/node.ts`                          | `createLocalServices()` 注册 `IMemoryService`、`IObsidianVaultService`；Local Host 使用 `ServiceCollection` | 新描述符注册点应在同一装配链；必须处理 remote collection     |
+| `packages/services/src/collection.ts`                    | 服务描述符按 `channelName` 注册、由 `ProxyChannel.fromService` 暴露                                         | 新 RPC 采用现有 descriptor + channel 体系                    |
+| `packages/shared/src/channels.ts`                        | `ServiceChannels.ObsidianVault = "obsidian-vault"`                                                          | 新增 Knowledge channel 键仅在 shared 定义一次                |
+| `packages/desktop/src/host/index.ts`                     | 为窗口 Local Host 装配 `createLocalServices`，附着端暴露服务                                                | 多窗口不能让进程内 Map 作为全局事实源                        |
+| `packages/services/src/obsidian-vault/discovery.ts`      | `vaultId(rootPath) = SHA256(rootPath)`；根使用 realpath                                                     | 移动根路径导致身份改变；不能把旧来源默默映射到新路径         |
+| `packages/services/src/obsidian-vault/obsidianVault.ts`  | 具备 getSummary、listFiles、readFile（SHA）、writeFile 等                                                   | 复用原有 API，无需另写 Vault FS                              |
+| `packages/services/src/obsidian-vault/vault-fs.ts`       | 2MB 文件配额、5k 文件/1k 文件夹/深度 16；读 hash，原子 rename                                               | 文件扫描应对齐现有限制；外部写竞争仍有 TOCTOU                |
+| `packages/ui/src/v4/vault/vault-document-controller.ts`  | UI 每文件草稿序列化，最终依赖服务 SHA 检查                                                                  | Proposal 的写操作不借用 renderer 暂存状态                    |
+| `apps/drora-cli/packages/obsidian-plugin/src/hooks/*.ts` | 三个事件：SessionStart、UserPromptSubmit、PermissionRequest，写 Hook 只匹配 `Write                          | Edit`                                                        | 权限不能只根据 AI Prompt 宣称全覆盖；Bash 等须审计 |
+| `packages/ui/src/lib/conversationSelectionReference.ts`  | 选区块 `# userselect:`，只保留文本和路径，单段 8k/合计 16k 限制                                             | 不可把选区引用当可信的 citation receipt；问库证据需单独协议  |
+| `packages/services/src/memory/memory.ts`                 | UI RPC 主要为 list/read Project Memory                                                                      | 不直接把 Knowledge 候选塞进既有 Memory API                   |
+| `packages/services/src/session/tasksDatabase/startup.ts` | 使用 `node:sqlite`、WAL、`BEGIN IMMEDIATE` 启动/迁移                                                        | SQLite 是已有工程实践，但 Knowledge 的多 Host 锁仍需额外验证 |
+| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`     | 已有 VaultView 面板、会话及 SidePane                                                                        | 不能另建完整应用壳；在现有面板插入卡片                       |
+| `specs/mobile-web-remote.md`、`AGENTS.md`                | 手机远控通过同一 Host attachment 与会话运行时                                                               | MVP 不创建手机独立 Knowledge DB 或 Agent                     |
 
 本轮仅凭代码和文档确认**接口存在与逻辑写法**，未在真实多窗口运行环境中执行集成测试。版本、路径和功能会随主分支变化；落地前需运行 repo freshness 和架构检查。
 
@@ -79,18 +79,18 @@ flowchart TB
 
 ### 2.1 模块职责与边界
 
-| 模块 | 输入 / 输出 | 唯一职责 | 禁止职责 |
-|---|---|---|---|
-| `sourceRegistry` | `vault-config.json`, `getSummary()` → sourceId/epoch | 维护单活动来源的知识视图与授权快照 | 成为第二份 Vault 配置事实源 |
-| `indexCoordinator` | 文件事件、reconcile 请求 → IndexJob | lease、fence、任务状态、增量调度 | 保存知识候选审批 |
-| `markdownChunker` | md bytes → chunk/heading/line/hash | 稳定切块和原文位置元数据 | 修改文档 / 自动解释为指令 |
-| `lexicalIndex` | chunk → SQLite+FTS；query → hits | 本地词法索引；中文 bigram | 调外部大模型 |
-| `queryService` | 检索条件 → 排序/去重结果 | 范围控制、查询配额、质量标记 | 伪造引用 |
-| `evidenceService` | hits + session → evidence receipt | 预算、路径脱敏、来源绑定、证据签发 | 自动给 Memory 新增事实 |
-| `citationResolver` | citationId → current/stale/missing | 回跳时校验源身份、存在性、SHA | 用旧行号冒充新原文 |
-| `proposalCoordinator` | proposed diff → human review → apply | 审核状态/并发/幂等/日志/Undo | 绕过 Vault Service 的安全门面 |
-| `insightEngine`（P1） | evidence graph → 候选洞察 | 相关笔记/旧决策/潜在冲突及反馈 | 将推断当作已确认事实 |
-| `memoryBridge`（P1） | 已批准的记忆候选 → Memory 专用接口 | 向现有 Memory Agent 交接 | 直接写 CLI Memory 目录 |
+| 模块                  | 输入 / 输出                                          | 唯一职责                           | 禁止职责                      |
+| --------------------- | ---------------------------------------------------- | ---------------------------------- | ----------------------------- |
+| `sourceRegistry`      | `vault-config.json`, `getSummary()` → sourceId/epoch | 维护单活动来源的知识视图与授权快照 | 成为第二份 Vault 配置事实源   |
+| `indexCoordinator`    | 文件事件、reconcile 请求 → IndexJob                  | lease、fence、任务状态、增量调度   | 保存知识候选审批              |
+| `markdownChunker`     | md bytes → chunk/heading/line/hash                   | 稳定切块和原文位置元数据           | 修改文档 / 自动解释为指令     |
+| `lexicalIndex`        | chunk → SQLite+FTS；query → hits                     | 本地词法索引；中文 bigram          | 调外部大模型                  |
+| `queryService`        | 检索条件 → 排序/去重结果                             | 范围控制、查询配额、质量标记       | 伪造引用                      |
+| `evidenceService`     | hits + session → evidence receipt                    | 预算、路径脱敏、来源绑定、证据签发 | 自动给 Memory 新增事实        |
+| `citationResolver`    | citationId → current/stale/missing                   | 回跳时校验源身份、存在性、SHA      | 用旧行号冒充新原文            |
+| `proposalCoordinator` | proposed diff → human review → apply                 | 审核状态/并发/幂等/日志/Undo       | 绕过 Vault Service 的安全门面 |
+| `insightEngine`（P1） | evidence graph → 候选洞察                            | 相关笔记/旧决策/潜在冲突及反馈     | 将推断当作已确认事实          |
+| `memoryBridge`（P1）  | 已批准的记忆候选 → Memory 专用接口                   | 向现有 Memory Agent 交接           | 直接写 CLI Memory 目录        |
 
 ## 3. 来源身份与 Scope —— 四个 ID 不得混用
 
@@ -144,17 +144,17 @@ sequenceDiagram
 
 数据库路径建议由 `getDroraDataRootDir()` 派生：`<profile-data-root>/knowledge/knowledge-v1.sqlite`；Vault 本身不出现 Drora 专属数据库文件。既有用户可能迁移数据目录，路径创建、权限、只读/空间不足必须使用 Drora 既有 startup/diagnostic 约定。
 
-| 表 | 用途 | 是否可重建 |
-|---|---|---|
-| `knowledge_sources` | sourceId、root 私有路径、active、sourceEpoch、版本 | 可以由配置重建身份，但 epoch 需持久可靠 |
-| `knowledge_jobs` | generation、owner lease、fence、progress | 可以恢复/重建任务 |
-| `knowledge_documents` | path → file SHA/mtime/size/indexRevision/status | 是 |
-| `knowledge_chunks` | chunkKey、段落、标题层级、行号、原文片段 | 是 |
-| `knowledge_fts` | 词法 tokens 的 FTS5 倒排表 | 是 |
-| `knowledge_citation_receipts` | citationId 到准确来源的服务端映射 | 不能在仍被会话使用时随意清除 |
-| `knowledge_proposals` | 提案、目标、修改前后、审批版本 | **否** |
-| `knowledge_operations` | `operationId` 幂等、状态、hash、快照引用 | **否** |
-| `knowledge_audit` | 审批/应用/撤销事件流水 | **否** |
+| 表                            | 用途                                               | 是否可重建                              |
+| ----------------------------- | -------------------------------------------------- | --------------------------------------- |
+| `knowledge_sources`           | sourceId、root 私有路径、active、sourceEpoch、版本 | 可以由配置重建身份，但 epoch 需持久可靠 |
+| `knowledge_jobs`              | generation、owner lease、fence、progress           | 可以恢复/重建任务                       |
+| `knowledge_documents`         | path → file SHA/mtime/size/indexRevision/status    | 是                                      |
+| `knowledge_chunks`            | chunkKey、段落、标题层级、行号、原文片段           | 是                                      |
+| `knowledge_fts`               | 词法 tokens 的 FTS5 倒排表                         | 是                                      |
+| `knowledge_citation_receipts` | citationId 到准确来源的服务端映射                  | 不能在仍被会话使用时随意清除            |
+| `knowledge_proposals`         | 提案、目标、修改前后、审批版本                     | **否**                                  |
+| `knowledge_operations`        | `operationId` 幂等、状态、hash、快照引用           | **否**                                  |
+| `knowledge_audit`             | 审批/应用/撤销事件流水                             | **否**                                  |
 
 随包附有可运行 SQLite DDL 草案 `knowledge-schema-proposal.sql`；实际迁移要在正式启动事务中执行，不能通过直接运行 SQL 脚本改变用户数据库。建议数据库划分两个独立迁移域（derived-index 和 review-ledger），防止“清除索引”删除审核记录。
 
@@ -178,28 +178,28 @@ sequenceDiagram
 
 真实 Drora 的接口契约是 `ServiceChannels` + `createServiceDescriptor`，Host `createLocalServices` 装配，`ServiceCollection` 暴露 RPC。为遵守 `architecture-policy.yaml` 的单契约方法数限制，按领域拆为四个可组合的 descriptor，**不新造一个包含 20 个方法的巨型 IKnowledgeService**。
 
-| 服务 | 方法（P0） | 边界 |
-|---|---|---|
-| `IKnowledgeIndexService` | `getStatus`, `start`, `reconcile`, `cancel` | 授权的本地 sources；Job state |
-| `IKnowledgeQueryService` | `search`, `prepareEvidence`, `resolveCitation`, `relatedNotes`（P1） | read-only；不暴露根绝对路径 |
-| `IKnowledgeReviewService` | `createProposal`, `listProposals`, `getProposal`, `review`, `apply`, `undo`, `reconcileUnknown` | Agent 仅可 propose；review/apply 必须来自用户受信交互入口 |
-| `IKnowledgeInsightService`（P1） | `list`, `setFeedback` | 不直接写回 Vault/Memory |
+| 服务                             | 方法（P0）                                                                                      | 边界                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `IKnowledgeIndexService`         | `getStatus`, `start`, `reconcile`, `cancel`                                                     | 授权的本地 sources；Job state                             |
+| `IKnowledgeQueryService`         | `search`, `prepareEvidence`, `resolveCitation`, `relatedNotes`（P1）                            | read-only；不暴露根绝对路径                               |
+| `IKnowledgeReviewService`        | `createProposal`, `listProposals`, `getProposal`, `review`, `apply`, `undo`, `reconcileUnknown` | Agent 仅可 propose；review/apply 必须来自用户受信交互入口 |
+| `IKnowledgeInsightService`（P1） | `list`, `setFeedback`                                                                           | 不直接写回 Vault/Memory                                   |
 
 详细 DTO 在 `knowledge-contract-proposal.ts`。**不可仅通过 TypeScript interface 证明权限控制**：RPC 入参必须做运行时结构/数量校验，Host 端从授权上下文解析实际 source，不能信任 Renderer 传来的 `rootPath`；review/apply 对 session/用户交互上下文进行校验，不对 Agent/MCP 暴露审批能力。所有错误统一使用 typed error code 并明确 `retryable`。
 
 ### 6.1 核心错误与用户状态
 
-| Code | UI | 后端处置 |
-|---|---|---|
-| `SOURCE_NOT_CONFIGURED` | 连接 Obsidian Vault | 不扫描任何目录 |
-| `SOURCE_CHANGED` | 来源已切换，重新搜索/审核 | sourceEpoch fence，拒旧任务 |
-| `INDEX_PARTIAL` | 部分内容未收录 | 搜索附覆盖率告知，不得声称全库 |
-| `CITATION_STALE` | 原文已更新，重新定位 | 不使用旧行号自动跳转 |
-| `CITATION_NOT_AUTHORIZED` | 当前无法访问此来源 | 不泄漏路径、内容 |
-| `PROPOSAL_CONFLICT` | 文件有变化，请重新核对 Diff | 不覆写；重新生成 revision 并重审 |
-| `PROPOSAL_UNCERTAIN` | 写入结果待核对 | 阻断再次 apply，先 reconcile |
-| `TARGET_NOT_AUTHORIZED` | 需要授权修改范围 | 绝不根据 UI 自报布尔值放行 |
-| `OUTBOUND_DATA_BLOCKED` | 当前隐私规则禁止将片段送到所选模型 | 保留本地检索结果 |
+| Code                      | UI                                 | 后端处置                         |
+| ------------------------- | ---------------------------------- | -------------------------------- |
+| `SOURCE_NOT_CONFIGURED`   | 连接 Obsidian Vault                | 不扫描任何目录                   |
+| `SOURCE_CHANGED`          | 来源已切换，重新搜索/审核          | sourceEpoch fence，拒旧任务      |
+| `INDEX_PARTIAL`           | 部分内容未收录                     | 搜索附覆盖率告知，不得声称全库   |
+| `CITATION_STALE`          | 原文已更新，重新定位               | 不使用旧行号自动跳转             |
+| `CITATION_NOT_AUTHORIZED` | 当前无法访问此来源                 | 不泄漏路径、内容                 |
+| `PROPOSAL_CONFLICT`       | 文件有变化，请重新核对 Diff        | 不覆写；重新生成 revision 并重审 |
+| `PROPOSAL_UNCERTAIN`      | 写入结果待核对                     | 阻断再次 apply，先 reconcile     |
+| `TARGET_NOT_AUTHORIZED`   | 需要授权修改范围                   | 绝不根据 UI 自报布尔值放行       |
+| `OUTBOUND_DATA_BLOCKED`   | 当前隐私规则禁止将片段送到所选模型 | 保留本地检索结果                 |
 
 ## 7. 搜索到 Agent 的时序（D07）
 
@@ -243,12 +243,12 @@ sequenceDiagram
 
 ### 8.1 策略分类与入口
 
-| 风险 | 用户任务例子 | 行为 |
-|---|---|---|
-| L0 | “查我写过哪些 Agent 记忆方案” | 只读，可直接检索 |
-| L1 | “把这篇当前笔记第二段换成更准确的表述” | 明确目标的普通单文件 `.md`，走现有 Runtime 权限或用户选择“建议修改”进入 Proposal |
-| L2 | “从聊天中提炼一个长期有效的决策，并写进笔记” | 强制生成 Proposal、人工审核、apply |
-| L3 | “帮我批量重构所有笔记目录，删除旧版本” | MVP 不自动执行；必须独立的高风险审批能力后才能开放 |
+| 风险 | 用户任务例子                                 | 行为                                                                             |
+| ---- | -------------------------------------------- | -------------------------------------------------------------------------------- |
+| L0   | “查我写过哪些 Agent 记忆方案”                | 只读，可直接检索                                                                 |
+| L1   | “把这篇当前笔记第二段换成更准确的表述”       | 明确目标的普通单文件 `.md`，走现有 Runtime 权限或用户选择“建议修改”进入 Proposal |
+| L2   | “从聊天中提炼一个长期有效的决策，并写进笔记” | 强制生成 Proposal、人工审核、apply                                               |
+| L3   | “帮我批量重构所有笔记目录，删除旧版本”       | MVP 不自动执行；必须独立的高风险审批能力后才能开放                               |
 
 现有 `PermissionRequest` 只匹配 Write/Edit，且没有保护隐藏目录扩展名；第一项安全修复是**收紧自动 allow**，而不是把所有写失败都提示“被 Knowledge 拦截”。`allowAgentWrites=false` 仍回退到原 Runtime 询问。**对于 Bash/脚本/MCP 等可能写盘的执行面，不能把 PermissionRequest 的返回静默当作阻断**，必须在 T0 通过实码审计和沙箱/工具政策闭环。
 
@@ -293,72 +293,72 @@ stateDiagram-v2
 
 ### Phase T0：权限 / Identity / 注册 / Spike
 
-| 文件 | 类型 | 具体职责 / 预期改动 | 验收 |
-|---|---|---|---|
-| `specs/obsidian-knowledge.md` | NEW | 引入本 R2 Spec，锁定 D01~D10、Source/Index/Proposal 状态机 | 架构评审确认后再编码 |
-| `specs/obsidian-plugin.md` | MODIFY | 记录自动授权收紧、与既有 hooks 的兼容边界 | 无旧语义歧义 |
-| `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | MODIFY | 仅针对可自动允许的安全 Markdown 编辑路径；高风险不自动 allow | `.obsidian`, `.hidden`, 非md 不自动 allow |
-| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts` | MODIFY | 增加可测 `isAutoGrantableMarkdownPath` / 目标校验；保留源根安全校验 | 目录穿越、符号链接测试 |
-| `apps/drora-cli/packages/obsidian-plugin/test/agent-access.test.mjs` | MODIFY | 补边界分类、Windows 路径、非法输入 | 独立测试通过 |
-| `apps/drora-cli/packages/obsidian-plugin/test/hooks-e2e.mjs` | MODIFY | stdin/stdout Hook `allow/silent` 端到端 | `allowAgentWrites=false` 走原始询问 |
-| `scripts/architecture/…` | NONE | 不为本功能更改架构检查器 | 遵守原有门禁 |
-| `packages/shared/src/channels.ts` | MODIFY | 统一增加 3 个 Knowledge RPC channel 常量（P1 insight 另加） | 通道唯一命名 |
-| `packages/shared/src/knowledge-contract.ts` | NEW | DTO、错误码、源版本、evidence/proposal shape；输入严格校验 schema | runtime validation |
-| `packages/services/src/knowledge/…` | NEW | 详见 T1-T3 | 不依赖 UI |
-| `packages/services/src/index.ts` | MODIFY | 导出 descriptors 和 DTO 类型 | 公开入口可导入 |
-| `packages/services/src/node.ts` | MODIFY | `createLocalServices` 注册新 descriptors，在 Host lifecycle dispose 索引资源 | Desktop 本地生效 |
-| `architecture-policy.yaml` | MODIFY（仅当批准） | 把新 Knowledge 模块设 `managed:true`，声明依赖/公开入口 | `architecture:check --changed` |
+| 文件                                                                      | 类型               | 具体职责 / 预期改动                                                          | 验收                                      |
+| ------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------- | ----------------------------------------- |
+| `specs/obsidian-knowledge.md`                                             | NEW                | 引入本 R2 Spec，锁定 D01~D10、Source/Index/Proposal 状态机                   | 架构评审确认后再编码                      |
+| `specs/obsidian-plugin.md`                                                | MODIFY             | 记录自动授权收紧、与既有 hooks 的兼容边界                                    | 无旧语义歧义                              |
+| `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | MODIFY             | 仅针对可自动允许的安全 Markdown 编辑路径；高风险不自动 allow                 | `.obsidian`, `.hidden`, 非md 不自动 allow |
+| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts`         | MODIFY             | 增加可测 `isAutoGrantableMarkdownPath` / 目标校验；保留源根安全校验          | 目录穿越、符号链接测试                    |
+| `apps/drora-cli/packages/obsidian-plugin/test/agent-access.test.mjs`      | MODIFY             | 补边界分类、Windows 路径、非法输入                                           | 独立测试通过                              |
+| `apps/drora-cli/packages/obsidian-plugin/test/hooks-e2e.mjs`              | MODIFY             | stdin/stdout Hook `allow/silent` 端到端                                      | `allowAgentWrites=false` 走原始询问       |
+| `scripts/architecture/…`                                                  | NONE               | 不为本功能更改架构检查器                                                     | 遵守原有门禁                              |
+| `packages/shared/src/channels.ts`                                         | MODIFY             | 统一增加 3 个 Knowledge RPC channel 常量（P1 insight 另加）                  | 通道唯一命名                              |
+| `packages/shared/src/knowledge-contract.ts`                               | NEW                | DTO、错误码、源版本、evidence/proposal shape；输入严格校验 schema            | runtime validation                        |
+| `packages/services/src/knowledge/…`                                       | NEW                | 详见 T1-T3                                                                   | 不依赖 UI                                 |
+| `packages/services/src/index.ts`                                          | MODIFY             | 导出 descriptors 和 DTO 类型                                                 | 公开入口可导入                            |
+| `packages/services/src/node.ts`                                           | MODIFY             | `createLocalServices` 注册新 descriptors，在 Host lifecycle dispose 索引资源 | Desktop 本地生效                          |
+| `architecture-policy.yaml`                                                | MODIFY（仅当批准） | 把新 Knowledge 模块设 `managed:true`，声明依赖/公开入口                      | `architecture:check --changed`            |
 
 注意：**高风险工具的真实强制阻断位置尚未实证**。T0 应扫描 Native Bash、插件工具、MCP 等写盘路径，输出“覆盖/未覆盖表”；如不能用非侵入扩展点完成，就不能在 UI 宣称 L3 已经被系统层拦截，必须先收缩功能开放范围。
 
 ### Phase T1：索引与检索
 
-| 文件 | 类型 | 责任 | 验收 |
-|---|---|---|---|
-| `packages/services/src/knowledge/contracts.ts` | NEW | 业务内部类型与 ports，调用 shared DTO | 无循环依赖 |
-| `packages/services/src/knowledge/sourceRegistry.ts` | NEW | 只读现有 Vault 配置；sourceEpoch/active mapping | 切 Vault 后旧 Job 失效 |
-| `packages/services/src/knowledge/store/knowledgeDb.ts` | NEW | `node:sqlite` 连接工厂、WAL、busy timeout、close | 多 Host 实测 |
-| `packages/services/src/knowledge/store/migrations.ts` | NEW | schema / 数据迁移，review ledger 不随 index 清理 | 版本升级和回滚失败隔离 |
-| `packages/services/src/knowledge/store/indexRepo.ts` | NEW | 文档/chunk/FTS 的短事务增删改查 | FTS rowid 一致 |
-| `packages/services/src/knowledge/index/indexCoordinator.ts` | NEW | Job 租约、心跳、fence、恢复 | 只能合法 generation 提交 |
-| `packages/services/src/knowledge/index/sourceScanner.ts` | NEW | Vault 安全枚举、文件 SHA、文件事件+reconcile | 软链/隐藏/超限处理 |
-| `packages/services/src/knowledge/index/markdownChunker.ts` | NEW | 行号、标题层级、chunkKey | 标题/列表/代码块准确 |
-| `packages/services/src/knowledge/search/cjkTokens.ts` | NEW | 中文 bigram 与拉丁 token 标准化 | 中文/中英混搜 |
-| `packages/services/src/knowledge/search/lexicalSearch.ts` | NEW | 有界 MATCH、BM25 评分、去重 | 查询可控、不注入 |
-| `packages/services/src/knowledge/knowledgeIndexService.ts` | NEW | `IKnowledgeIndexService` 业务外观 | 状态、取消、进度 |
-| `packages/services/src/knowledge/knowledgeQueryService.ts` | NEW | `IKnowledgeQueryService` 业务外观 | 查询只读，范围有效 |
-| `packages/services/test/knowledge/index-*.test.*` | NEW | 编译后单测、迁移/文件系统反例 | 新增编辑删除/恢复可测 |
+| 文件                                                        | 类型 | 责任                                             | 验收                     |
+| ----------------------------------------------------------- | ---- | ------------------------------------------------ | ------------------------ |
+| `packages/services/src/knowledge/contracts.ts`              | NEW  | 业务内部类型与 ports，调用 shared DTO            | 无循环依赖               |
+| `packages/services/src/knowledge/sourceRegistry.ts`         | NEW  | 只读现有 Vault 配置；sourceEpoch/active mapping  | 切 Vault 后旧 Job 失效   |
+| `packages/services/src/knowledge/store/knowledgeDb.ts`      | NEW  | `node:sqlite` 连接工厂、WAL、busy timeout、close | 多 Host 实测             |
+| `packages/services/src/knowledge/store/migrations.ts`       | NEW  | schema / 数据迁移，review ledger 不随 index 清理 | 版本升级和回滚失败隔离   |
+| `packages/services/src/knowledge/store/indexRepo.ts`        | NEW  | 文档/chunk/FTS 的短事务增删改查                  | FTS rowid 一致           |
+| `packages/services/src/knowledge/index/indexCoordinator.ts` | NEW  | Job 租约、心跳、fence、恢复                      | 只能合法 generation 提交 |
+| `packages/services/src/knowledge/index/sourceScanner.ts`    | NEW  | Vault 安全枚举、文件 SHA、文件事件+reconcile     | 软链/隐藏/超限处理       |
+| `packages/services/src/knowledge/index/markdownChunker.ts`  | NEW  | 行号、标题层级、chunkKey                         | 标题/列表/代码块准确     |
+| `packages/services/src/knowledge/search/cjkTokens.ts`       | NEW  | 中文 bigram 与拉丁 token 标准化                  | 中文/中英混搜            |
+| `packages/services/src/knowledge/search/lexicalSearch.ts`   | NEW  | 有界 MATCH、BM25 评分、去重                      | 查询可控、不注入         |
+| `packages/services/src/knowledge/knowledgeIndexService.ts`  | NEW  | `IKnowledgeIndexService` 业务外观                | 状态、取消、进度         |
+| `packages/services/src/knowledge/knowledgeQueryService.ts`  | NEW  | `IKnowledgeQueryService` 业务外观                | 查询只读，范围有效       |
+| `packages/services/test/knowledge/index-*.test.*`           | NEW  | 编译后单测、迁移/文件系统反例                    | 新增编辑删除/恢复可测    |
 
 ### Phase T2：证据问库 / UI
 
-| 文件 | 类型 | 责任 | 验收 |
-|---|---|---|---|
-| `packages/services/src/knowledge/query/evidenceService.ts` | NEW | 检索证据预算、session 关联、receipt 持久 | fake citation 不可信 |
-| `packages/services/src/knowledge/query/citationResolver.ts` | NEW | 版本/授权再验证、失效标识 | 删除、重命名和文件变化反馈正确 |
-| `packages/ui/src/knowledge/KnowledgeSearchPanel.tsx` | NEW | 搜索/显式选择 @Vault、覆盖率与进度 | 无 Vault 引导 |
-| `packages/ui/src/knowledge/KnowledgeCitationCard.tsx` | NEW | 来源章节、原文和过期状态 | 打开前校验 |
-| `packages/ui/src/knowledge/EvidenceScopePreview.tsx` | NEW | 本次携带证据与外发提示 | 用户可取消 |
-| `packages/ui/src/hooks/useKnowledgeServices.tsx` | NEW | 通过 `useServices` 取得现有 Host RPC descriptor | 不直接用 window.drora |
-| `packages/ui/src/v4/VaultView.tsx` | MODIFY / wrapper 优先 | 添加顶部索引状态与搜索入口，避免复写编辑器 | 原编辑/选区不回归 |
-| `packages/ui/src/v4/SessionPane.tsx` | MODIFY / extension 优先 | 显式 @Vault search preflight 和证据卡；尽可能由独立 wrapper 注入 | 发送/续聊/队列一致 |
-| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx` | MODIFY / extension 优先 | 路由到 VaultView 并定位来源 | 原布局不回归 |
-| `packages/ui/test/knowledge/*.test.*` | NEW | 来源可达、丢失/过期、键盘/焦点 | E2E 覆盖 |
+| 文件                                                        | 类型                    | 责任                                                             | 验收                           |
+| ----------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------- | ------------------------------ |
+| `packages/services/src/knowledge/query/evidenceService.ts`  | NEW                     | 检索证据预算、session 关联、receipt 持久                         | fake citation 不可信           |
+| `packages/services/src/knowledge/query/citationResolver.ts` | NEW                     | 版本/授权再验证、失效标识                                        | 删除、重命名和文件变化反馈正确 |
+| `packages/ui/src/knowledge/KnowledgeSearchPanel.tsx`        | NEW                     | 搜索/显式选择 @Vault、覆盖率与进度                               | 无 Vault 引导                  |
+| `packages/ui/src/knowledge/KnowledgeCitationCard.tsx`       | NEW                     | 来源章节、原文和过期状态                                         | 打开前校验                     |
+| `packages/ui/src/knowledge/EvidenceScopePreview.tsx`        | NEW                     | 本次携带证据与外发提示                                           | 用户可取消                     |
+| `packages/ui/src/hooks/useKnowledgeServices.tsx`            | NEW                     | 通过 `useServices` 取得现有 Host RPC descriptor                  | 不直接用 window.drora          |
+| `packages/ui/src/v4/VaultView.tsx`                          | MODIFY / wrapper 优先   | 添加顶部索引状态与搜索入口，避免复写编辑器                       | 原编辑/选区不回归              |
+| `packages/ui/src/v4/SessionPane.tsx`                        | MODIFY / extension 优先 | 显式 @Vault search preflight 和证据卡；尽可能由独立 wrapper 注入 | 发送/续聊/队列一致             |
+| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`        | MODIFY / extension 优先 | 路由到 VaultView 并定位来源                                      | 原布局不回归                   |
+| `packages/ui/test/knowledge/*.test.*`                       | NEW                     | 来源可达、丢失/过期、键盘/焦点                                   | E2E 覆盖                       |
 
 **风险**：VaultView/SessionPane/WorkspaceShellLayout 有部分上游复原痕迹。应优先通过 props/component extension/独立 sidepane 集成；必须直接改复原文件时遵照 Drora 的上游对齐规则并保留证据。`@Vault` preflight 的真正 submit integration 和 queued busy turn 的时序必须先跑 T0/S02 Spike。
 
 ### Phase T3：Proposal / 审核 / Undo
 
-| 文件 | 类型 | 责任 | 验收 |
-|---|---|---|---|
-| `packages/services/src/knowledge/review/proposalRepo.ts` | NEW | Proposal + revision + query + audit | 读写持久化 |
-| `packages/services/src/knowledge/review/operationRepo.ts` | NEW | `operationId` UNIQUE + 状态机 + 恢复查询 | 断线重试不重复 |
-| `packages/services/src/knowledge/review/snapshotStore.ts` | NEW | 敏感快照落 Profile 本地目录，内容 hash 校验 | 备份可恢复 |
-| `packages/services/src/knowledge/review/riskPolicy.ts` | NEW | L0-L3 规则、作用域校验与批准 revision | 未授权不写 |
-| `packages/services/src/knowledge/review/proposalCoordinator.ts` | NEW | pending/approved/applying/uncertain/reconcile/undo | 同一文件单写者 |
-| `packages/services/src/knowledge/knowledgeReviewService.ts` | NEW | 限定 UI 审核入口的 RPC 业务外观 | Agent 不能审批自己提案 |
-| `packages/ui/src/knowledge/ProposalReviewPanel.tsx` | NEW | Diff、来源、目标、确认/拒绝/延后 | 修改稿后需重新批准 |
-| `packages/ui/src/knowledge/KnowledgeInbox.tsx` | NEW | 按状态分页展示待审核与异常 | 刷新后状态真实 |
-| `packages/services/test/knowledge/review-*.test.*` | NEW | 幂等、竞争、未知状态/Undo 冲突 | 故障注入覆盖 |
+| 文件                                                            | 类型 | 责任                                               | 验收                   |
+| --------------------------------------------------------------- | ---- | -------------------------------------------------- | ---------------------- |
+| `packages/services/src/knowledge/review/proposalRepo.ts`        | NEW  | Proposal + revision + query + audit                | 读写持久化             |
+| `packages/services/src/knowledge/review/operationRepo.ts`       | NEW  | `operationId` UNIQUE + 状态机 + 恢复查询           | 断线重试不重复         |
+| `packages/services/src/knowledge/review/snapshotStore.ts`       | NEW  | 敏感快照落 Profile 本地目录，内容 hash 校验        | 备份可恢复             |
+| `packages/services/src/knowledge/review/riskPolicy.ts`          | NEW  | L0-L3 规则、作用域校验与批准 revision              | 未授权不写             |
+| `packages/services/src/knowledge/review/proposalCoordinator.ts` | NEW  | pending/approved/applying/uncertain/reconcile/undo | 同一文件单写者         |
+| `packages/services/src/knowledge/knowledgeReviewService.ts`     | NEW  | 限定 UI 审核入口的 RPC 业务外观                    | Agent 不能审批自己提案 |
+| `packages/ui/src/knowledge/ProposalReviewPanel.tsx`             | NEW  | Diff、来源、目标、确认/拒绝/延后                   | 修改稿后需重新批准     |
+| `packages/ui/src/knowledge/KnowledgeInbox.tsx`                  | NEW  | 按状态分页展示待审核与异常                         | 刷新后状态真实         |
+| `packages/services/test/knowledge/review-*.test.*`              | NEW  | 幂等、竞争、未知状态/Undo 冲突                     | 故障注入覆盖           |
 
 ### Phase T4 / T5（后续，非 MVP 阻断）
 
@@ -367,41 +367,41 @@ stateDiagram-v2
 
 ## 10. 容错矩阵与可观测性
 
-| 故障 | 状态/用户消息 | 恢复策略 | 禁止行为 |
-|---|---|---|---|
-| 未配置 Vault | `not-configured` / “连接知识库” | 明确配置 | 不从磁盘猜测并扫描 |
-| 索引部分覆盖 | `partial` / “部分笔记未收录” | 列出排除/配额原因，重建 | 假装已检索全库 |
-| 扫描期间切 Vault | `stale-generation` / “知识库已切换” | 取消旧 generation，重启新任务 | 旧 Job 提交 |
-| Host A 崩溃 | `lease-expired` | B 获新 fence 重新扫描 | 接受 A 迟到提交 |
-| 搜索时文件变更 | `stale-citation` | 重读、重新定位 | 静默使用旧行号 |
-| Cloud 外发未授权 | `OUTBOUND_DATA_BLOCKED` | 切本地模型/只显示搜索 | 向云端发送证据 |
-| 提案执行前文件变化 | `PROPOSAL_CONFLICT` | 重算 Diff，要求重审 | 以旧 hash 强行覆写 |
-| 写成功响应丢失 | `PROPOSAL_UNCERTAIN` → reconcile | 比对最终 hash | 直接重放 operation |
-| 磁盘空间不足 | `failed` / “磁盘空间不足” | 保留快照与审计，清理后人工重试 | 显示 applied |
-| 远控断线 | `disconnected` / “连接中断” | 复用已有 Host 重连、读最终状态 | 手机自行写 Vault |
+| 故障               | 状态/用户消息                       | 恢复策略                       | 禁止行为           |
+| ------------------ | ----------------------------------- | ------------------------------ | ------------------ |
+| 未配置 Vault       | `not-configured` / “连接知识库”     | 明确配置                       | 不从磁盘猜测并扫描 |
+| 索引部分覆盖       | `partial` / “部分笔记未收录”        | 列出排除/配额原因，重建        | 假装已检索全库     |
+| 扫描期间切 Vault   | `stale-generation` / “知识库已切换” | 取消旧 generation，重启新任务  | 旧 Job 提交        |
+| Host A 崩溃        | `lease-expired`                     | B 获新 fence 重新扫描          | 接受 A 迟到提交    |
+| 搜索时文件变更     | `stale-citation`                    | 重读、重新定位                 | 静默使用旧行号     |
+| Cloud 外发未授权   | `OUTBOUND_DATA_BLOCKED`             | 切本地模型/只显示搜索          | 向云端发送证据     |
+| 提案执行前文件变化 | `PROPOSAL_CONFLICT`                 | 重算 Diff，要求重审            | 以旧 hash 强行覆写 |
+| 写成功响应丢失     | `PROPOSAL_UNCERTAIN` → reconcile    | 比对最终 hash                  | 直接重放 operation |
+| 磁盘空间不足       | `failed` / “磁盘空间不足”           | 保留快照与审计，清理后人工重试 | 显示 applied       |
+| 远控断线           | `disconnected` / “连接中断”         | 复用已有 Host 重连、读最终状态 | 手机自行写 Vault   |
 
 监控指标（**不采集用户正文**）：索引覆盖文件数/耗时、失败原因、Query latency p50/p95、citation stale ratio、Proposal conflict ratio、操作 uncertain 次数、AutoGrant 按类别计数、用户审核等待时间。诊断日志不能输出绝对 Vault 路径、API key、Markdown 正文或 snapshot。
 
 ## 11. 验收矩阵与关键技术 Spike
 
-| ID | 测试 | 阻断 |
-|---|---|---|
-| AC-R2-01 | `allowAgentWrites=true` 时 `.obsidian/**`/隐藏/非 md/软链/越界不被自动批准 | 是 |
-| AC-R2-02 | `allowAgentWrites=false` 保留现有逐次请求的 Runtime 语义 | 是 |
-| AC-R2-03 | 普通明确授权 `.md` 编辑仍可用，不被 Proposal 功能吞没 | 是 |
-| AC-R2-04 | 受审知识写入审批前无文件修改；同 operationId 重试仅有一次变更 | 是 |
-| AC-R2-05 | 改变 Proposal Diff 后旧 approvedRevision 作废 | 是 |
-| AC-R2-06 | 外部 Obsidian 修改造成冲突，不静默覆写且提供恢复 | 是 |
-| AC-R2-07 | A/B 两 Host 并发扫描，只产生一个可提交的 generation，旧 fencingToken 不能提交 | 是 |
-| AC-R2-08 | Host 崩溃/重启后恢复 index lease 和 operation unknown 状态 | 是 |
-| AC-R2-09 | 切换 Vault 后旧 sourceEpoch 不能搜、引用到新源或写入 | 是 |
-| AC-R2-10 | 中文/英文混合搜索，行号/章节与原 Markdown 对齐 | 是 |
-| AC-R2-11 | 伪造 citationId 不能显示受信引用；文件变化提示过期 | 是 |
-| AC-R2-12 | 模型外发被关闭时绝不送出 Vault 正文或摘要 | 是 |
-| AC-R2-13 | Busy queue/续聊中的 Evidence 绑定正确，无旧 Session 泄漏 | 是 |
-| AC-R2-14 | 远控断连/重试仍读同一 Host 的已提交审批状态 | T5 阻断 |
-| AC-R2-15 | 清除索引不删除 Proposal/Audit/Snapshot | 是 |
-| AC-R2-16 | 已配置 Vault 之外其他 Drora 编辑/Agent 会话行为不回归 | 是 |
+| ID       | 测试                                                                          | 阻断    |
+| -------- | ----------------------------------------------------------------------------- | ------- |
+| AC-R2-01 | `allowAgentWrites=true` 时 `.obsidian/**`/隐藏/非 md/软链/越界不被自动批准    | 是      |
+| AC-R2-02 | `allowAgentWrites=false` 保留现有逐次请求的 Runtime 语义                      | 是      |
+| AC-R2-03 | 普通明确授权 `.md` 编辑仍可用，不被 Proposal 功能吞没                         | 是      |
+| AC-R2-04 | 受审知识写入审批前无文件修改；同 operationId 重试仅有一次变更                 | 是      |
+| AC-R2-05 | 改变 Proposal Diff 后旧 approvedRevision 作废                                 | 是      |
+| AC-R2-06 | 外部 Obsidian 修改造成冲突，不静默覆写且提供恢复                              | 是      |
+| AC-R2-07 | A/B 两 Host 并发扫描，只产生一个可提交的 generation，旧 fencingToken 不能提交 | 是      |
+| AC-R2-08 | Host 崩溃/重启后恢复 index lease 和 operation unknown 状态                    | 是      |
+| AC-R2-09 | 切换 Vault 后旧 sourceEpoch 不能搜、引用到新源或写入                          | 是      |
+| AC-R2-10 | 中文/英文混合搜索，行号/章节与原 Markdown 对齐                                | 是      |
+| AC-R2-11 | 伪造 citationId 不能显示受信引用；文件变化提示过期                            | 是      |
+| AC-R2-12 | 模型外发被关闭时绝不送出 Vault 正文或摘要                                     | 是      |
+| AC-R2-13 | Busy queue/续聊中的 Evidence 绑定正确，无旧 Session 泄漏                      | 是      |
+| AC-R2-14 | 远控断连/重试仍读同一 Host 的已提交审批状态                                   | T5 阻断 |
+| AC-R2-15 | 清除索引不删除 Proposal/Audit/Snapshot                                        | 是      |
+| AC-R2-16 | 已配置 Vault 之外其他 Drora 编辑/Agent 会话行为不回归                         | 是      |
 
 **必须先执行的 Spike**：
 
@@ -413,14 +413,14 @@ stateDiagram-v2
 
 ## 12. 研发迭代与交付门槛
 
-| 阶段 | 产物 | 可验收的演示 | 必须达成 |
-|---|---|---|---|
-| T0 · ADR/Spikes | 新 Spec、R2 契约、风险覆盖报告、SQLite Spike | 两窗口/Hook 安全用例 | S01~S04 通过或明确降级 |
-| T1 · 索引 | SourceRegistry、Chunker、IndexCoordinator、Query RPC | 1000 篇测试 Vault 检索原文 | 迁移/索引/中文/过期引用 |
-| T2 · Agent 问库 | Evidence、Citation、@Vault / UI | 问题→证据→答案→来源回跳 | S02 入会话真实链路 |
-| T3 · 审核 | Proposal/Audit/Undo | 改写建议→人工通过→写入/冲突/撤销 | 幂等与恢复通过 |
-| T4 · 洞察 | 关联/冲突/旧决策 + 反馈 | 洞察证据可核对且不刷屏 | 明确弱证据处理 |
-| T5 · 延伸 | Memory Bridge、手机展示与批准策略 | 同一个桌面 Session 多端状态一致 | 不能第二套 Runtime |
+| 阶段            | 产物                                                 | 可验收的演示                     | 必须达成                |
+| --------------- | ---------------------------------------------------- | -------------------------------- | ----------------------- |
+| T0 · ADR/Spikes | 新 Spec、R2 契约、风险覆盖报告、SQLite Spike         | 两窗口/Hook 安全用例             | S01~S04 通过或明确降级  |
+| T1 · 索引       | SourceRegistry、Chunker、IndexCoordinator、Query RPC | 1000 篇测试 Vault 检索原文       | 迁移/索引/中文/过期引用 |
+| T2 · Agent 问库 | Evidence、Citation、@Vault / UI                      | 问题→证据→答案→来源回跳          | S02 入会话真实链路      |
+| T3 · 审核       | Proposal/Audit/Undo                                  | 改写建议→人工通过→写入/冲突/撤销 | 幂等与恢复通过          |
+| T4 · 洞察       | 关联/冲突/旧决策 + 反馈                              | 洞察证据可核对且不刷屏           | 明确弱证据处理          |
+| T5 · 延伸       | Memory Bridge、手机展示与批准策略                    | 同一个桌面 Session 多端状态一致  | 不能第二套 Runtime      |
 
 每个 T 阶段应按 Drora 规则：先改 Spec → architecture context → 实现 → 单测/集成 → `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`。此处未执行任何源码相关测试，不能报告“已通过”。
 

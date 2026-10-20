@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@drora/services";
-import { TID_SETTINGS_MEMORY_SWITCH } from "@drora/shared";
+import { TID_SETTINGS_MEMORY_SWITCH } from "@drora/shared/test-ids";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";

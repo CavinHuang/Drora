@@ -3,7 +3,8 @@
 // 消费方：apps/website 首页 hero（静态导出烘焙，SSR 语义见 specs/website.md）。
 // 激活任务高亮走 TaskList 的 activeTaskId prop（zustand store 在 SSR 语义下读初始快照，
 // 模块级播种无法进入 renderToStaticMarkup，故不用 store 注入）。
-export { WorkspaceSidebarItem } from "@/WorkspaceSidebarItem.js";
+// S5：WorkspaceSidebarItem 随上游 v3.16.1 project-sidebar 重构删除；官网 mock 早已改用
+// TaskList 组装侧栏（见 HeroSidebar.mock 头注），此处同步清理死导出。
 export { TaskList } from "@/TaskList.js";
 export { MemoTaskItem } from "@/TaskListItem.js";
 export { ConversationTimeline } from "@/v4/ConversationTimeline.js";

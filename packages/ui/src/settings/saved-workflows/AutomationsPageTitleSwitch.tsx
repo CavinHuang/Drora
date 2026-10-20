@@ -1,5 +1,6 @@
 import { useCallback, type KeyboardEvent } from "react";
-import { TID_AUTOMATIONS_PAGE_TAB, testId } from "@drora/shared";
+import { TID_AUTOMATIONS_PAGE_TAB } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 

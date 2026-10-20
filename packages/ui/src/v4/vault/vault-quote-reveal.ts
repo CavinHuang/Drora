@@ -8,7 +8,10 @@ import { isVaultCitationFocusCurrent } from "./knowledge/knowledgeCitationNaviga
  * （markdownChunker 按 \r?\n 切行），字符偏移则会随换行符漂移——因此按行号锚定，
  * 不用偏移。锚定后选中原引用行区间并滚动到视口居中，用户能直接看到被引用的原文。
  */
-export function revealVaultQuote(view: EditorView, quote: { startLine: number; endLine: number }): void {
+export function revealVaultQuote(
+  view: EditorView,
+  quote: { startLine: number; endLine: number },
+): void {
   const doc = view.state.doc;
   const startLine = Math.max(1, Math.min(quote.startLine, doc.lines));
   const endLine = Math.max(startLine, Math.min(quote.endLine, doc.lines));

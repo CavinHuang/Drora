@@ -6,7 +6,15 @@ export interface ClientConfigSnapshot {
   pluginStoreOrder: PluginStoreOrder | null;
   zsrcUrl: string | null;
   captcha: CaptchaClientConfig | null;
+  uiPluginRecommendations: { pluginId: string; surfaceId: string }[];
 }
+
+const uiPluginRecommendationsSchema = z.array(
+  z.object({
+    pluginId: z.string().trim().min(1),
+    surfaceId: z.string().trim().min(1),
+  }),
+);
 
 const zsrcSchema = z.object({
   url: z
@@ -42,6 +50,7 @@ const envelopeSchema = z.object({
           pluginStoreOrder: z.unknown().optional(),
           zsrc: z.unknown().optional(),
           captcha: z.unknown().optional(),
+          uiPluginRecommendations: z.unknown().optional(),
         })
         .nullish(),
     })
@@ -69,6 +78,8 @@ export function parseClientConfigSnapshot(payload: unknown): ClientConfigSnapsho
   return {
     pluginStoreOrder: parsePluginStoreOrder(configs?.pluginStoreOrder),
     captcha,
+    uiPluginRecommendations:
+      uiPluginRecommendationsSchema.safeParse(configs?.uiPluginRecommendations).data ?? [],
     zsrcUrl: zsrcSchema.safeParse(configs?.zsrc).data?.url ?? null,
   };
 }

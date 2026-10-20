@@ -16,6 +16,8 @@ import {
 } from "./server-types.js";
 import { runSessionModelConfigMutation } from "../drora-protocol-v4/model-config-mutation.js";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
+import { offPeakLifecycleNotificationSchema } from "@drora/shared";
+import { V4_NOTIFICATIONS } from "@drora/shared/drora-protocol-v4";
 
 export async function readWorkspacePresentation(
   context: DroraProtocolAgentServerContext,
@@ -82,6 +84,11 @@ export async function createWorkspaceDroraApp(
     options.providerRuntimeHeadersPort ?? createProviderRuntimeHeadersPort(context, workspace);
   return context.deps.createDroraApp({
     ...options,
+    onOffPeakLifecycleEvent: (event) =>
+      context.notify({
+        method: V4_NOTIFICATIONS.offPeakLifecycle,
+        params: offPeakLifecycleNotificationSchema.parse(event),
+      }),
     includeVisualize: true,
     platform: context.deps.platform,
     providerRuntimeHeadersPort,

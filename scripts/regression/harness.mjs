@@ -19,13 +19,22 @@
 // Exit code: 0 all ALIGNED, 1 diffs found, 2 infra error. Zero dependencies.
 import { spawn, execSync } from "node:child_process";
 import net from "node:net";
-import { appendFileSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DRORA_CJS = path.join(REPO_ROOT, "apps/drora-cli/packages/cli/dist/drora.cjs");
-const ZCODE_CJS = process.env.ZCODE_CJS_PATH?.trim() || "D:\\software\\zcode\\resources\\glm\\zcode.cjs";
+const ZCODE_CJS =
+  process.env.ZCODE_CJS_PATH?.trim() || "D:\\software\\zcode\\resources\\glm\\zcode.cjs";
 const REG_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REG_REPORTS = path.join(REG_DIR, "reports");
 const SCENARIO_DIR = path.join(REG_DIR, "scenarios");
@@ -37,7 +46,10 @@ function arg(name, fallback) {
   return v && !v.startsWith("--") ? v : true;
 }
 
-const ONLY = String(arg("only", "")).split(",").map((s) => s.trim()).filter(Boolean);
+const ONLY = String(arg("only", ""))
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const REQ_TIMEOUT_MS = Number(arg("request-timeout-ms", 15000));
 const EVENT_TIMEOUT_MS = Number(arg("event-timeout-ms", 30000));
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -60,7 +72,10 @@ function loadScenarios() {
   const scPath = path.resolve(scArg);
   let files;
   try {
-    files = readdirSync(scPath).filter((f) => f.endsWith(".json")).sort().map((f) => path.join(scPath, f));
+    files = readdirSync(scPath)
+      .filter((f) => f.endsWith(".json"))
+      .sort()
+      .map((f) => path.join(scPath, f));
   } catch {
     files = existsSync(scPath) ? [scPath] : fail(`scenarios not found: ${scPath}`);
   }
@@ -71,7 +86,10 @@ function loadScenarios() {
     Object.assign(plans, doc.plans ?? {});
     for (const sc of doc.scenarios ?? []) scenarios.push({ ...sc, _file: path.basename(file) });
   }
-  return { plans, scenarios: ONLY.length ? scenarios.filter((s) => ONLY.includes(s.id)) : scenarios };
+  return {
+    plans,
+    scenarios: ONLY.length ? scenarios.filter((s) => ONLY.includes(s.id)) : scenarios,
+  };
 }
 
 // ---------------------------------------------------------------- procs
@@ -104,7 +122,9 @@ function killTree(child) {
     } else {
       child.kill();
     }
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 function killAll() {
   for (const c of children) {
@@ -113,7 +133,10 @@ function killAll() {
   children.clear();
 }
 process.on("exit", killAll);
-process.on("SIGINT", () => { killAll(); process.exit(2); });
+process.on("SIGINT", () => {
+  killAll();
+  process.exit(2);
+});
 
 function pipeLines(stream, onLine) {
   let buffer = "";
@@ -154,22 +177,42 @@ async function settle(sides, quietMs = 700, maxMs = 10000) {
 
 // Timing/environment noise → constant leaves.
 const VOLATILE_LEAF = new Set([
-  "eventId", "traceId", "timestamp", "createdAt", "updatedAt", "generatedAt",
-  "since", "until", "tzOffsetMs", "duration", "elapsedMs", "durationMs",
-  "uptimeMs", "startedAt", "endedAt", "occurredAt", "intervalMs",
-  "avgTimeToFirstTokenMs", "avgTurnDurationMs", "avgTimeToFirstContentMs",
+  "eventId",
+  "traceId",
+  "timestamp",
+  "createdAt",
+  "updatedAt",
+  "generatedAt",
+  "since",
+  "until",
+  "tzOffsetMs",
+  "duration",
+  "elapsedMs",
+  "durationMs",
+  "uptimeMs",
+  "startedAt",
+  "endedAt",
+  "occurredAt",
+  "intervalMs",
+  "avgTimeToFirstTokenMs",
+  "avgTurnDurationMs",
+  "avgTimeToFirstContentMs",
   // t02 真值（09-19）：tool.lifecycle performance 的 fs 实测时延（zcode 实测
   // 写耗时 4ms 级、drora 同为实测位）——墙钟时延本质随机，数值归一。
-  "fsReadMs", "fsWriteMs",
+  "fsReadMs",
+  "fsWriteMs",
   // t08 真值（09-20）：subagent result output 的 serialization 计数——usage
   // 块 duration_ms 位数抖动 ±1-2 字节（墙钟），归零保断言面在内容本身。
-  "originalBytes", "returnedBytes",
+  "originalBytes",
+  "returnedBytes",
   // t09 真值（09-19）：autoResolution 墙钟三元组（startedAt 已在表；visibleAt/
   // deadlineAt=startedAt+常量偏移——绝对墙钟归一，结构/状态仍断言）。
-  "visibleAt", "deadlineAt",
+  "visibleAt",
+  "deadlineAt",
   // h01/h02 真值（09-19）：bash perf 的 commandRunMs 实测墙钟（pj1 commandRunMs
   // 同族）——进程调度级随机，数值归一（键在位仍断言）。
-  "commandRunMs", "noOutputMs",
+  "commandRunMs",
+  "noOutputMs",
   // 2026-10-08：executionStartedAt 双侧均为墙钟浮点毫秒（事件投递时点），
   // 仅数值随机——归一同族（结构/顺序仍由事件序列断言）。
   "executionStartedAt",
@@ -177,30 +220,50 @@ const VOLATILE_LEAF = new Set([
   "pid",
   // t08 真值（09-20）：subagent stopped 帧 totalDurationMs（子代理墙钟随机）。
   "totalDurationMs",
-  "lastUpdated", "longestSessionMs",
+  "lastUpdated",
+  "longestSessionMs",
   // fixM：消息记录时间叶子（zcode time.created/completed、part time.start/end）
   // 与 envInfo 噪声数组（gitStatusLines 两侧 pass 间可漂移）。
-  "created", "completed", "start", "end", "gitStatusLines",
+  "created",
+  "completed",
+  "start",
+  "end",
+  "gitStatusLines",
   // wave2a 仲裁④（用户授权）：模型遥测首字毫秒是时序噪声——avg* 兄弟键已在
   // 上方，per-request 三键此前漏归一。
-  "timeToFirstContentMs", "timeToFirstProviderEventMs", "timeToFirstTextMs",
+  "timeToFirstContentMs",
+  "timeToFirstProviderEventMs",
+  "timeToFirstTextMs",
   // wave3 仲裁（R2 申报落地）：goal 运行时时间叶——activeRun* 是 per-run
   // 起止毫秒，`updated` 是泛化变更时间戳（定义即噪声）。
-  "updated", "activeRunStartedAtMs", "activeRunLastSeenAtMs",
+  "updated",
+  "activeRunStartedAtMs",
+  "activeRunLastSeenAtMs",
   // wave4 仲裁②：插件安装时间戳（install/uninstall 落账真钟值）。
   "installedAt",
   // 2026-09-18 t02 勘误：readState readFileState 的文件 mtime 叶（工具读写
   // 刚落盘文件，双侧墙钟必异——环境噪声非行为面）。
-  "mtimeMs", "readAtMs",
+  "mtimeMs",
+  "readAtMs",
   // phase7 R3：streamRecovery committedAt 是真钟 ISO 值（恢复投影锚的结算时点）。
   "committedAt",
   // phase7 v4 面：订阅 ack openTiming 计时噪声族（zcode Iti——per-run 毫秒）。
-  "hostPrepareMs", "providerRegistrySyncMs", "taskMetaReadMs", "cliBootstrapMs", "initialFrameEncodeMs", "cliSessionRestoreMs",
+  "hostPrepareMs",
+  "providerRegistrySyncMs",
+  "taskMetaReadMs",
+  "cliBootstrapMs",
+  "initialFrameEncodeMs",
+  "cliSessionRestoreMs",
   // p7 R3.6：工具 result perf 计时叶（真值自身即时变——磁盘竞速毫秒）。
-  "totalMs", "permissionWaitMs", "readMs", "writeMs",
+  "totalMs",
+  "permissionWaitMs",
+  "readMs",
+  "writeMs",
   // p7 R3.6 扩展（xZo command 族）：runMs/noOutputMs/firstOutputMs 是 bash
   // 执行墙钟（真值自身即时变）——detail.command 结构逐键断言不含计时值。
-  "runMs", "noOutputMs", "firstOutputMs",
+  "runMs",
+  "noOutputMs",
+  "firstOutputMs",
   // v3 真值（09-20）：retry_scheduled fact 的 delayMs 是重试退避墙钟（双侧
   // 同为指数退避实测毫秒，轮间必漂）——键在位仍断言，数值归一。
   "delayMs",
@@ -210,10 +273,18 @@ const VOLATILE_LEAF = new Set([
 // Correlation ids → per-side canonical aliases; identity relationships survive,
 // literal values are hidden. Client-chosen values map identically on both sides.
 const ALIAS_KIND = {
-  sessionId: "s", forkedSessionId: "s", childSessionId: "s", parentSessionId: "s",
+  sessionId: "s",
+  forkedSessionId: "s",
+  childSessionId: "s",
+  parentSessionId: "s",
   sessionID: "s",
-  turnId: "t", childTurnId: "t", currentTurnId: "t", activeTurnId: "t",
-  messageId: "m", targetMessageId: "m", parentMessageId: "m",
+  turnId: "t",
+  childTurnId: "t",
+  currentTurnId: "t",
+  activeTurnId: "t",
+  messageId: "m",
+  targetMessageId: "m",
+  parentMessageId: "m",
   // fk1 真值（09-20）：timeline part 的 anchorMessageId=child-local 锚行 id
   // （双侧各自 per-run 随机）——同 m 通道（与 anchorId/attemptId 串内嵌折
   // 叠同族，键通道化保 identity）。
@@ -223,47 +294,68 @@ const ALIAS_KIND = {
   toolMessageId: "a",
   // fixM：消息记录 transcript 方言 id 族（zcode `id`/messageID/parentID/
   // boundaryMessageId/orderedMessageIds 元素——键即别名通道）。
-  id: "m", messageID: "m", parentID: "m", boundaryMessageId: "m", orderedMessageIds: "m",
+  id: "m",
+  messageID: "m",
+  parentID: "m",
+  boundaryMessageId: "m",
+  orderedMessageIds: "m",
   partId: "p",
-  toolCallId: "c", parentToolCallId: "c", childToolCallId: "c", callId: "c",
+  toolCallId: "c",
+  parentToolCallId: "c",
+  childToolCallId: "c",
+  callId: "c",
   // p7 R3.5：zcode transcript part 方言的 callID 拼写（大写 ID）同通道——
   // 两侧 mock 协议槽位派生值（openai call_N vs anthropic toolu_N）。
   callID: "c",
-  requestId: "r", serverRequestId: "q",
+  requestId: "r",
+  serverRequestId: "q",
   // t09 真值（09-19）：autoResolution 广播的 interactionId=perm_uuid（门铸造
   // 的请求 id 同族）——r 通道吸收。
   interactionId: "r",
-  checkpointId: "k", targetCheckpointId: "k",
+  checkpointId: "k",
+  targetCheckpointId: "k",
   // 2026-09-18：checkpoint URI 内嵌 per-side 随机 uuid——a 通道吸收值、
   // 保留 URI 在流中的身份/位次关系。
-  snapshotRef: "a", diffRef: "a",
-  operationId: "o", inputId: "i", queryId: "i",
+  snapshotRef: "a",
+  diffRef: "a",
+  operationId: "o",
+  inputId: "i",
+  queryId: "i",
   // wave1 仲裁①②：assistantMessageId 是双侧独立计数（msg_mtti… 随机段），
   // 与 messageId 同通道；流式 delta 事件的 id 面此前漏归一。
   assistantMessageId: "m",
   // wave2a 仲裁④（用户授权）：模型遥测信封 span 族（Fve @6792914——spanId/
   // parentSpanId 为 per-run 随机 uuid 前缀，modelCall.logicalCallId 为
   // ZPt @748090 per-request 随机）——关联 id 通道延伸，identity 关系保留。
-  spanId: "n", parentSpanId: "n", logicalCallId: "n",
+  spanId: "n",
+  parentSpanId: "n",
+  logicalCallId: "n",
   // wave3 仲裁（R2 申报落地）：goal target id = target_<runslug>_<uuid>
   // per-run 随机（s08 op[2] 双侧实证）——独立 g 通道。
-  targetId: "g", targetID: "g",
+  targetId: "g",
+  targetID: "g",
   // F14 t08：ended 台账的 agentId（agent_<uuid>）与 childSessionIds 数组
   // 元素（sess_subagent_agent_<uuid>）均 per-run 随机——独立 ag 通道+s 通道。
-  agentId: "ag", childSessionIds: "s", childSessionId: "s",
+  agentId: "ag",
+  childSessionIds: "s",
+  childSessionId: "s",
   // w67 预基线仲裁（批准落地）：runtime_command 进程级单调计数器——一侧
   // 多打一个运行时命令（如 s09 压缩遥测帧）即全程 ±1 级联（h01/h02 实证
   // 各仅此 1 叶）。按首见序别名保序关系。
   foregroundExecutionId: "f",
   // w6 仲裁（批准落地）：s09 压缩边界身份族——摘要消息 id 走 m 通道延伸，
   // boundaryId=K1e compact_<uuid> per-run 随机，独立 b 通道。
-  summaryMessageId: "m", summaryMessageIds: "m", lastSummarizedMessageId: "m", tailStartMessageId: "m",
+  summaryMessageId: "m",
+  summaryMessageIds: "m",
+  lastSummarizedMessageId: "m",
+  tailStartMessageId: "m",
   boundaryId: "b",
   // phase7 v4 面：logEpoch/atLogEpoch 是 per-run 随机 CAS 纪元（zcode
   // defaultLogEpoch Date36-rand36），e 通道保 CAS 关系隐藏字面值；
   // subscriptionId 独立 u 通道；entityId（行实体=message/turn id 族）走 m
   // 通道；attachment ref 独立 a 通道。
-  logEpoch: "e", atLogEpoch: "e",
+  logEpoch: "e",
+  atLogEpoch: "e",
   subscriptionId: "u",
   entityId: "m",
   ref: "a",
@@ -328,7 +420,10 @@ function makeNormalizer(echoSelf, echoOther, homeSelf, homeOther) {
     }
     if ((key === "eventSeq" || key === "sequenceNumber") && typeof value === "number") {
       let idx = esRanks.indexOf(value);
-      if (idx === -1) { esRanks.push(value); idx = esRanks.length - 1; }
+      if (idx === -1) {
+        esRanks.push(value);
+        idx = esRanks.length - 1;
+      }
       return `#es${idx + 1}`;
     }
     // wire 发射台账 seq（session/event 帧）：zcode 台账计入被投递过滤的帧
@@ -337,7 +432,10 @@ function makeNormalizer(echoSelf, echoOther, homeSelf, homeOther) {
     // 相等仍由事件序列对比把守）。
     if (key === "seq" && typeof value === "number") {
       let idx = seqRanks.indexOf(value);
-      if (idx === -1) { seqRanks.push(value); idx = seqRanks.length - 1; }
+      if (idx === -1) {
+        seqRanks.push(value);
+        idx = seqRanks.length - 1;
+      }
       return `#ws${idx + 1}`;
     }
     if (VOLATILE_LEAF.has(key)) return typeof value === "number" ? 0 : "<volatile>";
@@ -363,7 +461,15 @@ function makeNormalizer(echoSelf, echoOther, homeSelf, homeOther) {
     // 噪声（离线 harness 下双侧都不应被外网波动定罪）——数组级整条剔除。
     if (key === "diagnostics" && Array.isArray(value)) {
       return value
-        .filter((item) => !(item && typeof item === "object" && typeof item.code === "string" && item.code.startsWith("plugin_archive_fetch")))
+        .filter(
+          (item) =>
+            !(
+              item &&
+              typeof item === "object" &&
+              typeof item.code === "string" &&
+              item.code.startsWith("plugin_archive_fetch")
+            ),
+        )
         .map((item) => walk(item, key));
     }
     if (typeof value === "string") {
@@ -389,13 +495,22 @@ function makeNormalizer(echoSelf, echoOther, homeSelf, homeOther) {
       // "Session not found: sess_<uuid>"，双侧行为全等仅 id 各异）——别名
       // 键通道够不到字符串内嵌位，按 uuid 形状正则折叠；客户端字面量
       // （sess_none 等）不匹配 uuid 形状不受影响。
-      n = n.replace(/sess_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<SESSID>");
+      n = n.replace(
+        /sess_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+        "<SESSID>",
+      );
       // v2 真值（09-20）：error.detail 内嵌 request=<uuid>（Fve requestId
       // 双侧各自随机——键通道在串内嵌位够不到）按 uuid 形状折叠。
-      n = n.replace(/request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "request=<UUID>");
+      n = n.replace(
+        /request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+        "request=<UUID>",
+      );
       // x09 真值（09-20）：后台通知文本/backgroundJobs 行的 exec_<uuid>
       // 任务 id（串内嵌+taskId 键的 per-run 随机）按形状折叠。
-      n = n.replace(/exec_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "exec_<UUID>");
+      n = n.replace(
+        /exec_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+        "exec_<UUID>",
+      );
       // 族D 勘误（t04 ev9 复审）：executionOrder/parallelGroups 数组元素内嵌
       // 的工具调用 id 是 mock 双线槽位派生值（openai 线 call_N / anthropic 线
       // toolu_N——两侧都是透传各自 provider 的 id，非行为差）。键通道（callId
@@ -452,24 +567,30 @@ class Side {
     this.name = name;
     this.frameLog = frameLog;
     this.aliases = new Map(); // $name -> raw value (captured from results)
-    this.echo = new Set();    // string literals sent in params (per side)
+    this.echo = new Set(); // string literals sent in params (per side)
     this.pending = new Map();
-    this.events = [];        // session/event envelopes (raw params)
+    this.events = []; // session/event envelopes (raw params)
     this.notifications = []; // other notify frames (raw)
-    this.reverse = [];       // reverse requests (raw)
+    this.reverse = []; // reverse requests (raw)
     this.stderrLines = [];
     this.exitCode = null;
     this.child = spawnDetached(process.execPath, [bin, ...args], { cwd, env });
     pipeLines(this.child.stdout, (line) => this.onLine(line));
     pipeLines(this.child.stderr, (line) => this.stderrLines.push(line));
-    this.child.on("close", (code) => { this.exitCode = code; });
+    this.child.on("close", (code) => {
+      this.exitCode = code;
+    });
   }
 
-  get alive() { return this.exitCode === null; }
+  get alive() {
+    return this.exitCode === null;
+  }
 
   onLine(line) {
     let frame;
-    try { frame = JSON.parse(line); } catch {
+    try {
+      frame = JSON.parse(line);
+    } catch {
       this.stderrLines.push(`[stdout-nonjson] ${line}`);
       return;
     }
@@ -492,14 +613,20 @@ class Side {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(payload.id);
-        resolve({ id: payload.id, error: { code: -32099, message: `[harness] no response within ${timeoutMs}ms` } });
+        resolve({
+          id: payload.id,
+          error: { code: -32099, message: `[harness] no response within ${timeoutMs}ms` },
+        });
       }, timeoutMs);
       this.pending.set(payload.id, { resolve, timer });
       this.child.stdin.write(`${JSON.stringify(payload)}\n`, (err) => {
         if (err) {
           clearTimeout(timer);
           this.pending.delete(payload.id);
-          resolve({ id: payload.id, error: { code: -32098, message: `[harness] stdin write failed: ${err.message}` } });
+          resolve({
+            id: payload.id,
+            error: { code: -32098, message: `[harness] stdin write failed: ${err.message}` },
+          });
         }
       });
     });
@@ -534,13 +661,23 @@ function reverseAnswer(frame) {
       const questions = Array.isArray(p.questions) ? p.questions : [];
       const options = Array.isArray(questions[0]?.options) ? questions[0].options : [];
       const picked = options[0] ?? {};
-      const value = typeof picked.value === "string" && picked.value
-        ? picked.value
-        : typeof picked.label === "string" ? picked.label : "mock-answer";
+      const value =
+        typeof picked.value === "string" && picked.value
+          ? picked.value
+          : typeof picked.label === "string"
+            ? picked.label
+            : "mock-answer";
       return { result: { requestId: p.requestId, value } };
     }
     case "session/requestRuntimePreferences":
-      return { result: { nativeSearchEnhancementsEnabled: false, memoryEnabled: false, askUserQuestionAutoResolutionEnabled: true, modelContextBudgetStrategy: "preflight-v1" } };
+      return {
+        result: {
+          nativeSearchEnhancementsEnabled: false,
+          memoryEnabled: false,
+          askUserQuestionAutoResolutionEnabled: true,
+          modelContextBudgetStrategy: "preflight-v1",
+        },
+      };
     case "automation/list":
       return { result: { automations: [] } };
     case "automation/delete":
@@ -569,7 +706,9 @@ function reverseAnswer(frame) {
       // 合法形仅 {tasks:[...]}。空表对称应答，双侧同刺激。
       return { result: { tasks: [] } };
     default:
-      return { error: { code: -32601, message: `[harness] no policy for reverse method ${frame.method}` } };
+      return {
+        error: { code: -32601, message: `[harness] no policy for reverse method ${frame.method}` },
+      };
   }
 }
 
@@ -600,11 +739,16 @@ function capturePath(obj, dotPath) {
 function collectStrings(value, into) {
   if (typeof value === "string") into.add(value.replaceAll("\\", "/"));
   else if (Array.isArray(value)) value.forEach((v) => collectStrings(v, into));
-  else if (value !== null && typeof value === "object") Object.values(value).forEach((v) => collectStrings(v, into));
+  else if (value !== null && typeof value === "object")
+    Object.values(value).forEach((v) => collectStrings(v, into));
 }
 
 function safeParse(json) {
-  try { return JSON.parse(json); } catch { return json; }
+  try {
+    return JSON.parse(json);
+  } catch {
+    return json;
+  }
 }
 
 // ---------------------------------------------------------------- scenario run
@@ -612,35 +756,57 @@ function safeParse(json) {
 async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
   const state = {
     nextId: 1,
-    timeline: [],      // per-opIndex merged records
-    baseline: {},      // per-side event baselines (set at each pass start)
+    timeline: [], // per-opIndex merged records
+    baseline: {}, // per-side event baselines (set at each pass start)
     baselineNotif: {}, // per-side notification baselines（v4 frame 出站窗）
     filesWritten: new Set(),
   };
-  const result = { id: sc.id, title: sc.title ?? "", file: sc._file, status: "ALIGNED", firstDiff: null };
+  const result = {
+    id: sc.id,
+    title: sc.title ?? "",
+    file: sc._file,
+    status: "ALIGNED",
+    firstDiff: null,
+  };
   const serial = sc.serial === true;
 
   const runPass = async (sideNames) => {
     for (const name of sideNames) {
       state.baseline[name] = sides[name].events.length;
       state.baselineNotif[name] = sides[name].notifications.length;
-      sides[name].marker({ scenario: sc.id, pass: sideNames.join("+"), opIndex: -1, op: "pass-start" });
+      sides[name].marker({
+        scenario: sc.id,
+        pass: sideNames.join("+"),
+        opIndex: -1,
+        op: "pass-start",
+      });
     }
     const ops = sc.ops ?? [];
     for (let opIndex = 0; opIndex < ops.length; opIndex++) {
       const op = ops[opIndex];
       for (const name of sideNames) {
-        sides[name].marker({ scenario: sc.id, opIndex, op: op.op, method: op.method ?? op.type ?? "" });
+        sides[name].marker({
+          scenario: sc.id,
+          opIndex,
+          op: op.op,
+          method: op.method ?? op.type ?? "",
+        });
       }
 
       if (op.op === "request") {
-        const entries = await Promise.all(sideNames.map(async (name) => {
-          const side = sides[name];
-          const payload = { id: state.nextId, method: op.method, params: substitute(op.params ?? {}, side.aliases) };
-          collectStrings(payload.params, side.echo);
-          const resp = await side.request(payload, op.timeoutMs ?? REQ_TIMEOUT_MS);
-          return { side, resp };
-        }));
+        const entries = await Promise.all(
+          sideNames.map(async (name) => {
+            const side = sides[name];
+            const payload = {
+              id: state.nextId,
+              method: op.method,
+              params: substitute(op.params ?? {}, side.aliases),
+            };
+            collectStrings(payload.params, side.echo);
+            const resp = await side.request(payload, op.timeoutMs ?? REQ_TIMEOUT_MS);
+            return { side, resp };
+          }),
+        );
         state.nextId += 1;
         for (const { side, resp } of entries) {
           for (const [aliasName, dotPath] of Object.entries(op.capture ?? {})) {
@@ -648,7 +814,16 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
             if (typeof raw === "string" && raw) side.aliases.set(aliasName, raw);
           }
         }
-        const record = state.timeline[opIndex] ?? (state.timeline[opIndex] = { kind: "request", method: op.method, reqId: state.nextId - 1, equal: null, drora: null, zcode: null });
+        const record =
+          state.timeline[opIndex] ??
+          (state.timeline[opIndex] = {
+            kind: "request",
+            method: op.method,
+            reqId: state.nextId - 1,
+            equal: null,
+            drora: null,
+            zcode: null,
+          });
         for (const { side, resp } of entries) {
           record[side.name] = safeParse(normalizers[side.name].normalize(resp));
         }
@@ -656,8 +831,17 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
           const eq = JSON.stringify(record.drora) === JSON.stringify(record.zcode);
           record.equal = eq;
           if (!eq && process.env.ALIAS_DEBUG === "1") {
-            console.error(`[pairdebug response op[${opIndex}] ${op.method}] -> resp-diff-op${opIndex}.json`);
-            writeFileSync(path.join(OUT, `resp-diff-op${opIndex}.json`), JSON.stringify({ method: op.method, drora: record.drora, zcode: record.zcode }, null, 1));
+            console.error(
+              `[pairdebug response op[${opIndex}] ${op.method}] -> resp-diff-op${opIndex}.json`,
+            );
+            writeFileSync(
+              path.join(OUT, `resp-diff-op${opIndex}.json`),
+              JSON.stringify(
+                { method: op.method, drora: record.drora, zcode: record.zcode },
+                null,
+                1,
+              ),
+            );
           }
           if (!eq && !result.firstDiff) {
             result.firstDiff = { at: `op[${opIndex}] ${op.method}`, kind: "response" };
@@ -670,19 +854,24 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
       if (op.op === "waitEvent") {
         const need = op.count ?? 1;
         const deadline = Date.now() + (op.timeoutMs ?? EVENT_TIMEOUT_MS);
-        const gotSince = (name) => sides[name].events.slice(state.baseline[name]).filter((e) => e.type === op.type).length;
+        const gotSince = (name) =>
+          sides[name].events.slice(state.baseline[name]).filter((e) => e.type === op.type).length;
         const ok = {};
         while (Date.now() < deadline && sideNames.some((name) => !ok[name])) {
           await new Promise((r) => setTimeout(r, 100));
           for (const name of sideNames) ok[name] = gotSince(name) >= need;
         }
-        const record = state.timeline[opIndex] ?? (state.timeline[opIndex] = { kind: "waitEvent", type: op.type, need, ok: {} });
-        for (const name of sideNames) record.ok[name] = { got: gotSince(name), ok: ok[name] ?? false };
+        const record =
+          state.timeline[opIndex] ??
+          (state.timeline[opIndex] = { kind: "waitEvent", type: op.type, need, ok: {} });
+        for (const name of sideNames)
+          record.ok[name] = { got: gotSince(name), ok: ok[name] ?? false };
         if (sideNames.some((name) => !ok[name]) && !result.firstDiff) {
           result.firstDiff = { at: `op[${opIndex}] waitEvent ${op.type}`, kind: "timeout" };
           result.status = "TIMEOUT";
         }
-        if (process.env.WAIT_SETTLE_MS) await new Promise((r) => setTimeout(r, Number(process.env.WAIT_SETTLE_MS)));
+        if (process.env.WAIT_SETTLE_MS)
+          await new Promise((r) => setTimeout(r, Number(process.env.WAIT_SETTLE_MS)));
         // pt1/r34 两轮实验在案（均撤销）：baseline 消费式推进（无论盲推
         // events.length、按匹配类型推进、per-type 计数消费）都会改变多回合
         // 场景的 waitEvent 语义（s04 等依赖陈旧匹配立即通过）——电池级重标
@@ -726,7 +915,7 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
     let passIdx = 0;
     for (const name of ["drora", "zcode"]) {
       await resetMocks(); // replay plan cursors from step 0 for each side
-      state.nextId = 1;   // request ids must match across passes
+      state.nextId = 1; // request ids must match across passes
       // p7 t02 仲裁：serial 两轮 pass 共享场景 ws——side 1 的写产物泄漏进
       // side 2 的刺激面（zcode "has not been read" 拒写而 drora 成功）。
       // 每 pass 前清空 ws、重置种子账，保证双侧同构初态（writeFile op 重播）。
@@ -773,19 +962,26 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
   // 同一 mock 时序下 zcode 自身 round1 背靠背（受理即发）、round2 延迟 4 帧
   // （排在回合遥测之后）——发点随时序漂移、逐 run 可复现但不可由任何确定性
   // 发点复刻。浮动化处理（不计位序），但计数守恒断言保留（发射次数语义）。
-  const isNotifNoise = (n) => n.method === "process/resourceSample" || n.method === "process/mcpTelemetry";
-  const isRacyNotify = (n) => n.method === "state.updated" && n.params?.reason === "prompt_completed";
+  const isNotifNoise = (n) =>
+    n.method === "process/resourceSample" || n.method === "process/mcpTelemetry";
+  const isRacyNotify = (n) =>
+    n.method === "state.updated" && n.params?.reason === "prompt_completed";
   // 09-19 notify 族竞速定谳（tf5 帧 es16/17 早 vs t01 帧 es21/22 迟——同构点
   // 两序，zcode 内部 ModelComplete fact 发射 vs 工具调度=异步竞速）：每模型轮
   // 的完成态 fact（model.request.status completed + usage.delta）相对工具事件
   // 位次浮动化（同 prompt_completed 口径）——计数守恒断言保留（每轮恒一对）。
-  const isRacyFact = (n) => n.method === "v4/telemetry/event"
-    && (n.params?.kind === "usage.delta"
-      || (n.params?.kind === "model.request.status" && n.params?.durationMs !== undefined));
+  const isRacyFact = (n) =>
+    n.method === "v4/telemetry/event" &&
+    (n.params?.kind === "usage.delta" ||
+      (n.params?.kind === "model.request.status" && n.params?.durationMs !== undefined));
   const countRacy = (arr) => arr.filter(isRacyNotify).length;
   const countFacts = (arr) => arr.filter(isRacyFact).length;
-  const ntDroraAll = sides.drora.notifications.slice(state.baselineNotif.drora ?? 0).filter((n) => !isNotifNoise(n));
-  const ntZcodeAll = sides.zcode.notifications.slice(state.baselineNotif.zcode ?? 0).filter((n) => !isNotifNoise(n));
+  const ntDroraAll = sides.drora.notifications
+    .slice(state.baselineNotif.drora ?? 0)
+    .filter((n) => !isNotifNoise(n));
+  const ntZcodeAll = sides.zcode.notifications
+    .slice(state.baselineNotif.zcode ?? 0)
+    .filter((n) => !isNotifNoise(n));
   const pcDrora = countRacy(ntDroraAll);
   const pcZcode = countRacy(ntZcodeAll);
   const factDrora = countFacts(ntDroraAll);
@@ -803,7 +999,13 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
     const b = normalizers.zcode.normalize(ntZcode[i]);
     if (a !== b) {
       notifMismatch += 1;
-      if (notifPairs.length < 12) notifPairs.push({ index: i, method: ntDrora[i].method, drora: safeParse(a), zcode: safeParse(b) });
+      if (notifPairs.length < 12)
+        notifPairs.push({
+          index: i,
+          method: ntDrora[i].method,
+          drora: safeParse(a),
+          zcode: safeParse(b),
+        });
     }
   }
 
@@ -816,16 +1018,25 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
     if (a !== b) {
       payloadMismatch += 1;
       if (payloadPairs.length < 12) {
-        payloadPairs.push({ index: i, type: evDrora[i].type, drora: safeParse(a), zcode: safeParse(b) });
+        payloadPairs.push({
+          index: i,
+          type: evDrora[i].type,
+          drora: safeParse(a),
+          zcode: safeParse(b),
+        });
       }
     }
   }
   if (process.env.ALIAS_DEBUG === "1") {
     for (const pair of payloadPairs.slice(0, 12)) {
-      console.error(`[pairdebug event[${pair.index}] ${pair.type}]\n  drora: ${JSON.stringify(pair.drora)}\n  zcode: ${JSON.stringify(pair.zcode)}`);
+      console.error(
+        `[pairdebug event[${pair.index}] ${pair.type}]\n  drora: ${JSON.stringify(pair.drora)}\n  zcode: ${JSON.stringify(pair.zcode)}`,
+      );
     }
     for (const pair of notifPairs.slice(0, 12)) {
-      console.error(`[pairdebug notify[${pair.index}] ${pair.method}]\n  drora: ${JSON.stringify(pair.drora)}\n  zcode: ${JSON.stringify(pair.zcode)}`);
+      console.error(
+        `[pairdebug notify[${pair.index}] ${pair.method}]\n  drora: ${JSON.stringify(pair.drora)}\n  zcode: ${JSON.stringify(pair.zcode)}`,
+      );
     }
     console.error(`[aliasdebug post] dmap:`, JSON.stringify(normalizers.drora.debugMap()));
     console.error(`[aliasdebug post] zmap:`, JSON.stringify(normalizers.zcode.debugMap()));
@@ -834,23 +1045,35 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
   if (result.status === "ALIGNED") {
     if (pcDrora !== pcZcode) {
       result.status = "STRUCT_DIFF";
-      result.firstDiff = { at: `notify-sequence (prompt_completed ${pcDrora}vs${pcZcode})`, kind: "notify-structure" };
+      result.firstDiff = {
+        at: `notify-sequence (prompt_completed ${pcDrora}vs${pcZcode})`,
+        kind: "notify-structure",
+      };
     } else if (factDrora !== factZcode) {
       // 浮动 fact 的计数守恒断言（每模型轮恒一对 completed+usage.delta）。
       result.status = "STRUCT_DIFF";
-      result.firstDiff = { at: `notify-sequence (completion facts ${factDrora}vs${factZcode})`, kind: "notify-structure" };
+      result.firstDiff = {
+        at: `notify-sequence (completion facts ${factDrora}vs${factZcode})`,
+        kind: "notify-structure",
+      };
     } else if (!sameSeq) {
       result.status = "STRUCT_DIFF";
       result.firstDiff = { at: "event-sequence", kind: "structure" };
     } else if (payloadMismatch > 0) {
       result.status = "CONTENT_DIFF";
-      result.firstDiff = { at: `event[${payloadPairs[0]?.index}] ${payloadPairs[0]?.type}`, kind: "event-payload" };
+      result.firstDiff = {
+        at: `event[${payloadPairs[0]?.index}] ${payloadPairs[0]?.type}`,
+        kind: "event-payload",
+      };
     } else if (!sameNseq) {
       result.status = "STRUCT_DIFF";
       result.firstDiff = { at: "notify-sequence", kind: "notify-structure" };
     } else if (notifMismatch > 0) {
       result.status = "CONTENT_DIFF";
-      result.firstDiff = { at: `notify[${notifPairs[0]?.index}] ${notifPairs[0]?.method}`, kind: "notify-payload" };
+      result.firstDiff = {
+        at: `notify[${notifPairs[0]?.index}] ${notifPairs[0]?.method}`,
+        kind: "notify-payload",
+      };
     }
   }
 
@@ -859,14 +1082,22 @@ async function runScenario(sc, sides, wsDir, outDir, normalizers, resetMocks) {
     serial,
     ops: state.timeline,
     events: {
-      droraTypes: seqDrora, zcodeTypes: seqZcode, sameSequence: sameSeq,
-      droraCount: evDrora.length, zcodeCount: evZcode.length,
-      payloadMismatchCount: payloadMismatch, payloadDiffs: payloadPairs,
+      droraTypes: seqDrora,
+      zcodeTypes: seqZcode,
+      sameSequence: sameSeq,
+      droraCount: evDrora.length,
+      zcodeCount: evZcode.length,
+      payloadMismatchCount: payloadMismatch,
+      payloadDiffs: payloadPairs,
     },
     notifications: {
-      droraMethods: nseqDrora, zcodeMethods: nseqZcode, sameSequence: sameNseq,
-      droraCount: ntDrora.length, zcodeCount: ntZcode.length,
-      payloadMismatchCount: notifMismatch, payloadDiffs: notifPairs,
+      droraMethods: nseqDrora,
+      zcodeMethods: nseqZcode,
+      sameSequence: sameNseq,
+      droraCount: ntDrora.length,
+      zcodeCount: ntZcode.length,
+      payloadMismatchCount: notifMismatch,
+      payloadDiffs: notifPairs,
     },
   };
   writeFileSync(path.join(outDir, `scenario-${sc.id}.json`), JSON.stringify(full, null, 2));
@@ -897,8 +1128,24 @@ async function main() {
   writeFileSync(plansFile, JSON.stringify(plans, null, 2));
   const portDrora = await freePort();
   const portZcode = await freePort();
-  spawnDetached(process.execPath, [path.join(REG_DIR, "mock-model.mjs"), "--port", String(portDrora), "--out", path.join(OUT, "mock-drora"), "--plans", plansFile]);
-  spawnDetached(process.execPath, [path.join(REG_DIR, "mock-model.mjs"), "--port", String(portZcode), "--out", path.join(OUT, "mock-zcode"), "--plans", plansFile]);
+  spawnDetached(process.execPath, [
+    path.join(REG_DIR, "mock-model.mjs"),
+    "--port",
+    String(portDrora),
+    "--out",
+    path.join(OUT, "mock-drora"),
+    "--plans",
+    plansFile,
+  ]);
+  spawnDetached(process.execPath, [
+    path.join(REG_DIR, "mock-model.mjs"),
+    "--port",
+    String(portZcode),
+    "--out",
+    path.join(OUT, "mock-zcode"),
+    "--plans",
+    plansFile,
+  ]);
   await new Promise((r) => setTimeout(r, 400));
   // 0.16.9 种模门（2026-10-08 实测定谳，探针 scripts/regression/tmp-gate/ 双侧 PASS）：
   // 旧 *_BASE_URL/_API_KEY/_MODEL env 别名已从双 CLI 契约移除（两侧对称失效，非差距）；
@@ -909,58 +1156,84 @@ async function main() {
     config: {
       providerOrder: ["custom:mock"],
       providerConfigRules: {
-        providerRules: [{
-          providerId: "custom:mock",
-          providerName: "Mock Provider",
-          enabled: true,
-          config: {
-            group: "standard-personal",
-            access: { type: "api-key", apiKey: "mock-key" },
-            api: { type: "openai-chat-completions", baseUrl: `http://127.0.0.1:${port}/v1` },
-            personalModelIds: [modelId],
-            modelOrder: [modelId],
-            visibility: "visible",
+        providerRules: [
+          {
+            providerId: "custom:mock",
+            providerName: "Mock Provider",
+            enabled: true,
+            config: {
+              group: "standard-personal",
+              access: { type: "api-key", apiKey: "mock-key" },
+              api: { type: "openai-chat-completions", baseUrl: `http://127.0.0.1:${port}/v1` },
+              personalModelIds: [modelId],
+              modelOrder: [modelId],
+              visibility: "visible",
+            },
           },
-        }],
+        ],
       },
       modelConfigRules: {
-        providerModelRules: [{
-          providerId: "custom:mock",
-          modelId,
-          config: {
-            enabled: true,
-            properties: {
-              requiresMfjsToolSchema: false,
-              contextWindow: 128000,
-              inputFormat: { supportsText: true, supportsImage: false, supportsVideo: false, supportsAudio: false, supportsPdf: false },
-              outputFormat: { supportsText: true },
-              supportsToolCall: true,
-              supportsJsonSchemaOutput: false,
-              supportsNativeWebSearch: false,
-              supportsMidConversationSystem: true,
-            },
-            optionSpecs: {
-              reasoningLevel: { values: ["low", "high"], map: "{}" },
-              maxOutputTokens: { max: 16384, map: "{}" },
+        providerModelRules: [
+          {
+            providerId: "custom:mock",
+            modelId,
+            config: {
+              enabled: true,
+              properties: {
+                requiresMfjsToolSchema: false,
+                contextWindow: 128000,
+                inputFormat: {
+                  supportsText: true,
+                  supportsImage: false,
+                  supportsVideo: false,
+                  supportsAudio: false,
+                  supportsPdf: false,
+                },
+                outputFormat: { supportsText: true },
+                supportsToolCall: true,
+                supportsJsonSchemaOutput: false,
+                supportsNativeWebSearch: false,
+                supportsMidConversationSystem: true,
+              },
+              optionSpecs: {
+                reasoningLevel: { values: ["low", "high"], map: "{}" },
+                maxOutputTokens: { max: 16384, map: "{}" },
+              },
             },
           },
-        }],
+        ],
         manualProviderModelRules: [],
       },
-      defaultModelSelection: { providerId: "custom:mock", modelId, options: { reasoningLevel: "low" } },
+      defaultModelSelection: {
+        providerId: "custom:mock",
+        modelId,
+        options: { reasoningLevel: "low" },
+      },
     },
   });
   const providerCfgDrora = path.join(OUT, "personal-provider-drora.json");
   const providerCfgZcode = path.join(OUT, "personal-provider-zcode.json");
-  writeFileSync(providerCfgDrora, JSON.stringify(personalProviderConfig(portDrora, "mock-drora"), null, 2));
-  writeFileSync(providerCfgZcode, JSON.stringify(personalProviderConfig(portZcode, "mock-zcode"), null, 2));
+  writeFileSync(
+    providerCfgDrora,
+    JSON.stringify(personalProviderConfig(portDrora, "mock-drora"), null, 2),
+  );
+  writeFileSync(
+    providerCfgZcode,
+    JSON.stringify(personalProviderConfig(portZcode, "mock-zcode"), null, 2),
+  );
   const resetMocks = async () => {
     for (const port of [portDrora, portZcode]) {
       await fetch(`http://127.0.0.1:${port}/reset`, { method: "POST" }).catch(() => {});
     }
   };
 
-  const git = (cmd) => { try { return execSync(cmd, { cwd: REPO_ROOT }).toString().trim(); } catch { return "?"; } };
+  const git = (cmd) => {
+    try {
+      return execSync(cmd, { cwd: REPO_ROOT }).toString().trim();
+    } catch {
+      return "?";
+    }
+  };
   const baselineRev = git("git rev-parse --short HEAD");
   const baselineDirty = git("git status --porcelain").split("\n").filter(Boolean).length;
 
@@ -987,10 +1260,19 @@ async function main() {
     for (const [name, bin, args, env, frames] of [
       // 2026-10-08 适配：当前 drora（feat/migrate-remote-and-pet 线）已移除
       // --protocol v1 旗标（Unknown option 实证），app-server 缺省即对齐面。
-      ["drora", DRORA_CJS, ["app-server", "--stdio"],
+      [
+        "drora",
+        DRORA_CJS,
+        ["app-server", "--stdio"],
         {
-          ...envBase, USERPROFILE: homeDrora, HOME: homeDrora,
-          DRORA_BASE_URL: `http://127.0.0.1:${portDrora}/v1`, DRORA_API_KEY: "mock-key", DRORA_MODEL: "mock-drora", DRORA_DEBUG_V2: "1", DRORA_DEBUG_PERM: "1",
+          ...envBase,
+          USERPROFILE: homeDrora,
+          HOME: homeDrora,
+          DRORA_BASE_URL: `http://127.0.0.1:${portDrora}/v1`,
+          DRORA_API_KEY: "mock-key",
+          DRORA_MODEL: "mock-drora",
+          DRORA_DEBUG_V2: "1",
+          DRORA_DEBUG_PERM: "1",
           // fixM：真值 providerID 面——zcode 侧 mock 挂 anthropic 槽（wire
           // model.providerID "anthropic"），drora 的 env 别名经 DRORA_PROVIDER_ID
           // 对齐同值（wire-shape 残差清零面；不涉请求行为）。
@@ -998,14 +1280,23 @@ async function main() {
           DRORA_PERSONAL_PROVIDER_CONFIG_FILE: providerCfgDrora,
           DRORA_OFFICIAL_PLUGIN_ROOT,
         },
-        path.join(OUT, "frames-drora.jsonl")],
-      ["zcode", ZCODE_CJS, ["app-server", "--stdio"],
+        path.join(OUT, "frames-drora.jsonl"),
+      ],
+      [
+        "zcode",
+        ZCODE_CJS,
+        ["app-server", "--stdio"],
         {
-          ...envBase, USERPROFILE: homeZcode, HOME: homeZcode,
-          ZCODE_BASE_URL: `http://127.0.0.1:${portZcode}/v1`, ZCODE_API_KEY: "mock-key", ZCODE_MODEL: "mock-zcode",
+          ...envBase,
+          USERPROFILE: homeZcode,
+          HOME: homeZcode,
+          ZCODE_BASE_URL: `http://127.0.0.1:${portZcode}/v1`,
+          ZCODE_API_KEY: "mock-key",
+          ZCODE_MODEL: "mock-zcode",
           ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: providerCfgZcode,
         },
-        path.join(OUT, "frames-zcode.jsonl")],
+        path.join(OUT, "frames-zcode.jsonl"),
+      ],
     ]) {
       const home = name === "drora" ? homeDrora : homeZcode;
       sides[name] = new Side(name, bin, args, wsDir, env, frames);
@@ -1036,17 +1327,21 @@ async function main() {
         if (policy === "none") continue; // 消费但不作答——请求侧悬置
         // phase10：策略值可为对象——按该方法的 result 直通应答（场景级自定义
         // 反向面，如 session/requestRuntimePreferences memoryEnabled:true）。
-        const answer = policy !== null && typeof policy === "object"
-          ? { result: policy }
-          : policy === "deny" && frame.method === "interaction/requestPermission"
-            ? { result: { decision: "deny" } }
-            : policy === "deny" && frame.method === "interaction/requestUserInput"
-              ? { result: { requestId: frame.params?.requestId, cancelled: true } }
-              : reverseAnswer(frame);
+        const answer =
+          policy !== null && typeof policy === "object"
+            ? { result: policy }
+            : policy === "deny" && frame.method === "interaction/requestPermission"
+              ? { result: { decision: "deny" } }
+              : policy === "deny" && frame.method === "interaction/requestUserInput"
+                ? { result: { requestId: frame.params?.requestId, cancelled: true } }
+                : reverseAnswer(frame);
         side.child.stdin.write(`${JSON.stringify({ id: frame.id, ...answer })}\n`);
       }
       if (side.stderrLines.length > 0) {
-        appendFileSync(path.join(OUT, `stderr-${side.name}.log`), `${side.stderrLines.splice(0).join("\n")}\n`);
+        appendFileSync(
+          path.join(OUT, `stderr-${side.name}.log`),
+          `${side.stderrLines.splice(0).join("\n")}\n`,
+        );
       }
     }
   }, 50);
@@ -1071,12 +1366,28 @@ async function main() {
     let res;
     try {
       if (!sides.drora.alive || !sides.zcode.alive) {
-        res = { id: sc.id, title: sc.title ?? "", status: "PROCESS_DIED", droraExit: sides.drora.exitCode, zcodeExit: sides.zcode.exitCode };
+        res = {
+          id: sc.id,
+          title: sc.title ?? "",
+          status: "PROCESS_DIED",
+          droraExit: sides.drora.exitCode,
+          zcodeExit: sides.zcode.exitCode,
+        };
       } else {
         const runOnce = async (ws) => {
           const nn = {
-            drora: makeNormalizer(sides.drora.echo, sides.zcode.echo, sides.drora.homeDir, sides.zcode.homeDir),
-            zcode: makeNormalizer(sides.zcode.echo, sides.drora.echo, sides.zcode.homeDir, sides.drora.homeDir),
+            drora: makeNormalizer(
+              sides.drora.echo,
+              sides.zcode.echo,
+              sides.drora.homeDir,
+              sides.zcode.homeDir,
+            ),
+            zcode: makeNormalizer(
+              sides.zcode.echo,
+              sides.drora.echo,
+              sides.zcode.homeDir,
+              sides.drora.homeDir,
+            ),
           };
           return runScenario(sc, sides, ws, OUT, nn, resetMocks);
         };
@@ -1095,7 +1406,12 @@ async function main() {
         }
       }
     } catch (err) {
-      res = { id: sc.id, title: sc.title ?? "", status: "HARNESS_ERROR", error: String(err?.stack ?? err) };
+      res = {
+        id: sc.id,
+        title: sc.title ?? "",
+        status: "HARNESS_ERROR",
+        error: String(err?.stack ?? err),
+      };
     }
     results.push(res);
     console.log(`  → ${res.status}`);
@@ -1106,18 +1422,44 @@ async function main() {
   killAll();
   for (const side of Object.values(sides)) {
     if (side.stderrLines.length > 0) {
-      appendFileSync(path.join(OUT, `stderr-${side.name}.log`), `${side.stderrLines.splice(0).join("\n")}\n`);
+      appendFileSync(
+        path.join(OUT, `stderr-${side.name}.log`),
+        `${side.stderrLines.splice(0).join("\n")}\n`,
+      );
     }
   }
 
-  const byStatus = results.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
+  const byStatus = results.reduce(
+    (acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }),
+    {},
+  );
   const report = {
-    runId: RUN_ID, baselineRev, baselineDirty,
-    summary: { total: results.length, aligned: results.filter((r) => r.status === "ALIGNED").length, byStatus },
+    runId: RUN_ID,
+    baselineRev,
+    baselineDirty,
+    summary: {
+      total: results.length,
+      aligned: results.filter((r) => r.status === "ALIGNED").length,
+      byStatus,
+    },
     scenarios: results.map(({ ops, events, notifications, ...rest }) => ({
       ...rest,
-      eventCounts: events ? { drora: events.droraCount, zcode: events.zcodeCount, sameSequence: events.sameSequence, payloadMismatch: events.payloadMismatchCount } : undefined,
-      notifCounts: notifications ? { drora: notifications.droraCount, zcode: notifications.zcodeCount, sameSequence: notifications.sameSequence, payloadMismatch: notifications.payloadMismatchCount } : undefined,
+      eventCounts: events
+        ? {
+            drora: events.droraCount,
+            zcode: events.zcodeCount,
+            sameSequence: events.sameSequence,
+            payloadMismatch: events.payloadMismatchCount,
+          }
+        : undefined,
+      notifCounts: notifications
+        ? {
+            drora: notifications.droraCount,
+            zcode: notifications.zcodeCount,
+            sameSequence: notifications.sameSequence,
+            payloadMismatch: notifications.payloadMismatchCount,
+          }
+        : undefined,
     })),
   };
   writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));
@@ -1134,7 +1476,9 @@ async function main() {
       const ev = r.eventCounts;
       const nt = r.notifCounts;
       const evCell = ev ? `${ev.drora}/${ev.zcode}${ev.sameSequence ? "" : " ✎序"}` : "—";
-      const ntCell = nt ? `n${nt.drora}/${nt.zcode}${nt.sameSequence ? "" : " ✎序"}（n载 ${nt.payloadMismatch}）` : "—";
+      const ntCell = nt
+        ? `n${nt.drora}/${nt.zcode}${nt.sameSequence ? "" : " ✎序"}（n载 ${nt.payloadMismatch}）`
+        : "—";
       return `| ${r.id} ${r.title} | ${r.status} | ${r.firstDiff ? `${r.firstDiff.at} (${r.firstDiff.kind})` : "—"} | ${evCell} | ${ev ? ev.payloadMismatch : "—"} | ${ntCell} |`;
     }),
     "",

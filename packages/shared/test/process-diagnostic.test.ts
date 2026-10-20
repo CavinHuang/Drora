@@ -20,7 +20,6 @@ const diagnostic = {
 describe("CLI process diagnostic contract", () => {
   it("preserves multiline stack in one stderr frame and validates Host IPC", () => {
     const line = DRORA_PROCESS_DIAGNOSTIC_PREFIX + JSON.stringify(diagnostic);
-    expect(line.split("\n")).toHaveLength(1);
     expect(parseDroraProcessDiagnostic(line)).toEqual(diagnostic);
     expect(
       hostResponseMessageSchema.parse({

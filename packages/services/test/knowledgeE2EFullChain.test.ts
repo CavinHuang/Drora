@@ -163,7 +163,10 @@ test("W07 全链路：连接 → 索引 → 中文检索 → 候选 → 原文�
       candidate.quote.startOffset,
       candidate.quote.endOffset,
     );
-    assert.ok(normalizedSlice.includes("压缩策略会丢失推理细节"), "规范化偏移切片必须定位到同一段原文");
+    assert.ok(
+      normalizedSlice.includes("压缩策略会丢失推理细节"),
+      "规范化偏移切片必须定位到同一段原文",
+    );
 
     // ⑥ 当前 Session 问答绑定：prepareEvidence 签发绑定该 session 的 receipt。
     const prepared = await env.services.queryService.prepareEvidence({
@@ -204,11 +207,21 @@ test("W07 全链路：连接 → 索引 → 中文检索 → 候选 → 原文�
     assert.equal(crossSession.reason, "cross_session");
 
     // ⑧ 生命周期收尾：改原文 → stale；删除 → missing。
-    await writeNote(env.vaultA, candidate.relativePath, "# 上下文窗口的优化实践\n\n内容已被改写。\n");
-    const stale = await env.services.queryService.resolveCitation({ receiptId: receipt.receiptId, sessionId });
+    await writeNote(
+      env.vaultA,
+      candidate.relativePath,
+      "# 上下文窗口的优化实践\n\n内容已被改写。\n",
+    );
+    const stale = await env.services.queryService.resolveCitation({
+      receiptId: receipt.receiptId,
+      sessionId,
+    });
     assert.equal(stale.status, "stale");
     await unlink(join(env.vaultA, candidate.relativePath));
-    const missing = await env.services.queryService.resolveCitation({ receiptId: receipt.receiptId, sessionId });
+    const missing = await env.services.queryService.resolveCitation({
+      receiptId: receipt.receiptId,
+      sessionId,
+    });
     assert.equal(missing.status, "missing");
 
     // ⑨ 负例：查询库中不存在的观点 → 不编造候选（A10）。

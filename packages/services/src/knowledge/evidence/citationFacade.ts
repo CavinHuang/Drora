@@ -6,10 +6,7 @@
  */
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { createVaultFileReader } from "./evidenceRegistry.js";
-import {
-  prepareEvidenceFromRun,
-  resolveCitationReceipt,
-} from "./evidenceRegistry.js";
+import { prepareEvidenceFromRun, resolveCitationReceipt } from "./evidenceRegistry.js";
 import { resolveKnowledgeSource } from "../source/sourceRegistry.js";
 import type {
   KnowledgePrepareEvidenceParams,

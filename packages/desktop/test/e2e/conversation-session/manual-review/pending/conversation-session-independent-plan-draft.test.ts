@@ -3,7 +3,7 @@ import {
   TID_CHAT_MODE_SELECT_ITEM,
   TID_V4_COMPOSER_INPUT,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import {
   prepareV4ConversationE2E,

@@ -2,6 +2,12 @@
   "name": "@drora/web",
   "private": true,
   "type": "module",
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "exports": {
+    "./web-platform": "./src/webPlatform.ts"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -24,8 +30,5 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.2",
     "ws": "^8.20.0"
-  },
-  "exports": {
-    "./web-platform": "./src/webPlatform.ts"
   }
 }

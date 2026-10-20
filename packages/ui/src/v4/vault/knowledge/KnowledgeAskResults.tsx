@@ -5,10 +5,21 @@
  * （追问保留，默认折叠）、结构化空态/引导/过期态。
  */
 import * as React from "react";
-import { ChevronDown, ChevronRight, FileSearch, Loader2, Search, SendHorizonal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileSearch,
+  Loader2,
+  Search,
+  SendHorizonal,
+} from "lucide-react";
 import type { KnowledgeArticleCandidate, KnowledgeRunView } from "@drora/services";
 import { Button } from "@/components/ui/button.js";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible.js";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { displayCandidateTitle } from "./KnowledgeCandidateCard.js";
 
@@ -25,7 +36,12 @@ export function AskDecisionTrace({
   const diagnostics = run?.diagnostics ?? null;
   if (!diagnostics) return null;
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange} className="mt-3" data-testid="ask-decision-trace">
+    <Collapsible
+      open={open}
+      onOpenChange={onOpenChange}
+      className="mt-3"
+      data-testid="ask-decision-trace"
+    >
       <CollapsibleTrigger className="group flex w-full items-center gap-1 rounded-lg px-1 py-1 text-ui-sm text-foreground-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         {intl.formatMessage({ id: "vault.ask.trace.title" })}
@@ -95,7 +111,9 @@ export function AskPreviousRound({
                 data-testid="ask-previous-candidate"
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-card-border bg-surface px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
               >
-                {openingArticleId === candidate.articleId && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
+                {openingArticleId === candidate.articleId && (
+                  <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                )}
                 <span className="min-w-0 truncate text-ui-sm text-foreground">
                   {displayCandidateTitle(candidate)}
                 </span>
@@ -128,12 +146,17 @@ export function AskPreviousRound({
 export function AskEmptyState(): React.ReactElement {
   const { intl } = useDroraIntl();
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center" data-testid="ask-empty">
+    <div
+      className="flex flex-col items-center gap-2 px-6 py-10 text-center"
+      data-testid="ask-empty"
+    >
       <FileSearch className="size-6 text-foreground-subtlest" />
       <p className="text-ui-base font-medium text-foreground">
         {intl.formatMessage({ id: "vault.ask.empty.title" })}
       </p>
-      <p className="text-ui-sm text-foreground-subtle">{intl.formatMessage({ id: "vault.ask.empty.hint" })}</p>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "vault.ask.empty.hint" })}
+      </p>
     </div>
   );
 }
@@ -141,11 +164,16 @@ export function AskEmptyState(): React.ReactElement {
 export function AskNoVaultState({ onConnect }: { onConnect: () => void }): React.ReactElement {
   const { intl } = useDroraIntl();
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center" data-testid="ask-novault">
+    <div
+      className="flex flex-col items-center gap-2 px-6 py-10 text-center"
+      data-testid="ask-novault"
+    >
       <p className="text-ui-base font-medium text-foreground">
         {intl.formatMessage({ id: "vault.ask.noVault.title" })}
       </p>
-      <p className="text-ui-sm text-foreground-subtle">{intl.formatMessage({ id: "vault.ask.noVault.hint" })}</p>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "vault.ask.noVault.hint" })}
+      </p>
       <Button type="button" size="sm" variant="outline" onClick={onConnect}>
         {intl.formatMessage({ id: "vault.ask.connectVault" })}
       </Button>
@@ -185,7 +213,10 @@ export function AskIndexColdStart({
           {intl.formatMessage({ id: "vault.ask.index.building" })}
           {jobIndexedFiles !== null && (
             <span className="text-ui-xs text-foreground-subtlest">
-              {intl.formatMessage({ id: "vault.ask.index.buildingProgress" }, { count: jobIndexedFiles })}
+              {intl.formatMessage(
+                { id: "vault.ask.index.buildingProgress" },
+                { count: jobIndexedFiles },
+              )}
             </span>
           )}
         </p>
@@ -194,7 +225,14 @@ export function AskIndexColdStart({
           <p className="text-ui-sm text-foreground-subtle">
             {intl.formatMessage({ id: "vault.ask.index.hint" })}
           </p>
-          <Button type="button" size="sm" variant="outline" data-testid="ask-index-start" disabled={busy} onClick={onStart}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="ask-index-start"
+            disabled={busy}
+            onClick={onStart}
+          >
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
             {intl.formatMessage({ id: "vault.ask.index.build" })}
           </Button>
@@ -211,7 +249,9 @@ export function AskSourceStaleState(): React.ReactElement {
       <p className="text-ui-base font-medium text-foreground">
         {intl.formatMessage({ id: "vault.ask.sourceStale.title" })}
       </p>
-      <p className="text-ui-sm text-foreground-subtle">{intl.formatMessage({ id: "vault.ask.sourceStale.hint" })}</p>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "vault.ask.sourceStale.hint" })}
+      </p>
     </div>
   );
 }

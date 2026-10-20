@@ -5,7 +5,11 @@
 /** 图片魔数校验：字节流必须与声明的 MIME 一致，防止把任意数据当图片落盘。 */
 
 function isPng(bytes: Buffer): boolean {
-  if (bytes.length < 45 || !bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return false;
+  if (
+    bytes.length < 45 ||
+    !bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  )
+    return false;
   let offset = 8;
   let hasIhdr = false;
   while (offset + 12 <= bytes.length) {
@@ -34,7 +38,8 @@ const IMAGE_SIGNATURES: Record<string, (bytes: Buffer) => boolean> = {
     bytes[bytes.length - 1] === 0xd9,
   "image/gif": (bytes) =>
     bytes.length >= 14 &&
-    (bytes.subarray(0, 6).toString("ascii") === "GIF87a" || bytes.subarray(0, 6).toString("ascii") === "GIF89a") &&
+    (bytes.subarray(0, 6).toString("ascii") === "GIF87a" ||
+      bytes.subarray(0, 6).toString("ascii") === "GIF89a") &&
     bytes[bytes.length - 1] === 0x3b,
   "image/webp": (bytes) =>
     bytes.length >= 16 &&

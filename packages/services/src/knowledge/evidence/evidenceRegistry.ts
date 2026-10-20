@@ -58,7 +58,10 @@ function sha256(content: string): string {
 }
 
 /** quote 切片复验：规范化文本偏移切片的 sha256 必须等于绑定的 chunk sha。 */
-export function quoteSliceSha256(fileContent: string, quote: KnowledgeEvidenceReceiptRow["quote"]): string {
+export function quoteSliceSha256(
+  fileContent: string,
+  quote: KnowledgeEvidenceReceiptRow["quote"],
+): string {
   const normalized = normalizeContentForQuoteSelector(fileContent);
   const slice = normalized.slice(quote.startOffset, quote.endOffset);
   return sha256(slice);
@@ -95,9 +98,9 @@ export function loadReceiptById(
   db: KnowledgeDatabase,
   receiptId: string,
 ): KnowledgeEvidenceReceipt | null {
-  const row = db.raw
-    .prepare(`${RECEIPT_SELECT} WHERE receipt_id = ?`)
-    .get(receiptId) as Record<string, unknown> | undefined;
+  const row = db.raw.prepare(`${RECEIPT_SELECT} WHERE receipt_id = ?`).get(receiptId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? rowToReceipt(row) : null;
 }
 
@@ -210,7 +213,11 @@ export async function resolveCitationReceipt(params: {
   const { db, receiptId, sessionId, source, readVaultFile } = params;
   const receipt = loadReceiptById(db, receiptId);
   if (!receipt) {
-    return { status: "forbidden", reason: KNOWLEDGE_EVIDENCE_REASONS.unknownReceipt, citation: null };
+    return {
+      status: "forbidden",
+      reason: KNOWLEDGE_EVIDENCE_REASONS.unknownReceipt,
+      citation: null,
+    };
   }
   // 绑定了会话的 receipt 必须由同一会话解析（未携会话 = 不放行，A19 的保守面）；
   // run 未携带会话（receipt.sessionId=""）→ 不绑会话，跨会话可解析（仍受源/文件校验）。
@@ -231,10 +238,10 @@ export async function resolveCitationReceipt(params: {
       citation: null,
     };
   }
-  if (receipt.sourceFingerprint !== knowledgeSourceFingerprint(
-    source.summary.vaultId,
-    source.summary.configuredAt,
-  )) {
+  if (
+    receipt.sourceFingerprint !==
+    knowledgeSourceFingerprint(source.summary.vaultId, source.summary.configuredAt)
+  ) {
     return {
       status: "stale",
       reason: KNOWLEDGE_EVIDENCE_REASONS.sourceReauthorized,

@@ -6,6 +6,8 @@ import {
   formatAboutDetail,
   formatAboutOptimizationLine,
 } from "../src/main/about.js";
+// Drora 品牌自定义 About 窗口的断言保真（specs/drora-rename.md 豁免区）：
+// 上游删走了系统面板外的自定义 About 测试，这里保留 Drora 自有 aboutWindow 断言。
 import { createCustomAboutDialogHtml } from "../src/main/aboutWindow.js";
 
 describe("about", () => {
@@ -86,12 +88,12 @@ describe("about", () => {
     expect(html).toContain("version 0.1.7");
     expect(html).toContain("Optimized for Apple Silicon.");
     expect(html).toContain("Copyright © 2026 Drora.");
-    expect(html).toContain("class=\"ok-button\"");
+    expect(html).toContain('class="ok-button"');
     expect(html).toContain(">OK</button>");
-    expect(html).toContain("class=\"app-logo\"");
-    expect(html).toContain("viewBox=\"0 0 143 152\"");
+    expect(html).toContain('class="app-logo"');
+    expect(html).toContain('viewBox="0 0 143 152"');
     expect(html).toContain("linear-gradient(180deg, #000000 0%, #151718 100%)");
-    expect(html).toContain("class=\"about-window\"");
+    expect(html).toContain('class="about-window"');
     expect(html).toContain("border-radius: 0");
     expect(html).toContain("background: var(--about-primary)");
     expect(html).toContain("color: var(--about-primary-foreground)");

@@ -49,6 +49,7 @@
     "test": {
       "dependsOn": ["build"],
       "inputs": ["**"],
+      "env": ["DRORA_CUA_REPO", "VITEST_MAX_WORKERS"],
       "outputs": []
     },
     "coverage": {

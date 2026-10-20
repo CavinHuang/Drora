@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  TID_RESOURCE_MANAGER_TAB,
-  testId,
   type ResourceUsageCategory,
   type ResourceUsageSnapshot,
   type StorageManagementBridge,
   type NetworkCaptureBridge,
 } from "@drora/shared";
+import { TID_RESOURCE_MANAGER_TAB, testId } from "@drora/shared/test-ids";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useDroraIntl } from "@/i18n/index.js";
 import { StorageSection } from "./storage/StorageSection.js";

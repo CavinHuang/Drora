@@ -8,14 +8,52 @@
 共享类型（需要按实际 RPC/Zod 实现）：
 
 ```ts
-type QueryIntent = 'FIND_ARTICLE' | 'ANSWER_FROM_VAULT' | 'COMPARE_SOURCES' | 'EDIT_NOTE' | 'UNCERTAIN';
-type QueryPhase = 'idle' | 'retrieving' | 'local_ready' | 'deciding' | 'verifying' | 'ready' | 'ambiguous' | 'insufficient' | 'partial' | 'failed' | 'cancelled';
-type EvidenceStatus = 'current' | 'stale' | 'missing' | 'forbidden' | 'unverified';
-type RerankMode = 'local' | 'jev' | 'jev_partial' | 'fallback';
-interface SourceRef { sourceId: string; sourceEpoch: number; vaultId: string; }
-interface CreateQueryRunRequest { query: string; source: SourceRef; sessionId?: string; clientRequestId: string; intentOverride?: QueryIntent; }
-interface ArticleCandidate { articleId: string; title: string; relativePath: string; matchedHeading?: string; excerpt: string; receiptId?: string; evidenceStatus: EvidenceStatus; rank: number; }
-interface ResolveCitationRequest { receiptId: string; sessionId?: string; }
+type QueryIntent =
+  | "FIND_ARTICLE"
+  | "ANSWER_FROM_VAULT"
+  | "COMPARE_SOURCES"
+  | "EDIT_NOTE"
+  | "UNCERTAIN";
+type QueryPhase =
+  | "idle"
+  | "retrieving"
+  | "local_ready"
+  | "deciding"
+  | "verifying"
+  | "ready"
+  | "ambiguous"
+  | "insufficient"
+  | "partial"
+  | "failed"
+  | "cancelled";
+type EvidenceStatus = "current" | "stale" | "missing" | "forbidden" | "unverified";
+type RerankMode = "local" | "jev" | "jev_partial" | "fallback";
+interface SourceRef {
+  sourceId: string;
+  sourceEpoch: number;
+  vaultId: string;
+}
+interface CreateQueryRunRequest {
+  query: string;
+  source: SourceRef;
+  sessionId?: string;
+  clientRequestId: string;
+  intentOverride?: QueryIntent;
+}
+interface ArticleCandidate {
+  articleId: string;
+  title: string;
+  relativePath: string;
+  matchedHeading?: string;
+  excerpt: string;
+  receiptId?: string;
+  evidenceStatus: EvidenceStatus;
+  rank: number;
+}
+interface ResolveCitationRequest {
+  receiptId: string;
+  sessionId?: string;
+}
 ```
 
 无源授权、换源、源失效、索引部分覆盖、入队后证据过期、Jev 超时都需有机器可测的错误码和可见降级；状态事件用 `runGeneration+seq` 保证迟到消息不能覆盖新 Query。

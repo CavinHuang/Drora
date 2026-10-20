@@ -8,7 +8,11 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({
-  useSettings: () => ({ settings: { mobileRelayTransport: "lan" }, loading: false, update: vi.fn() }),
+  useSettings: () => ({
+    settings: { mobileRelayTransport: "lan" },
+    loading: false,
+    update: vi.fn(),
+  }),
 }));
 
 vi.mock("@/ControlHintTooltip.js", () => ({
@@ -50,7 +54,7 @@ vi.mock("@/hooks/useWebRemoteControlStatus.js", () => ({
   useWebRemoteControlStatus: () => ({ status: "idle" }),
 }));
 
-vi.mock("@/WebRemoteControlDialog.js", () => ({
+vi.mock("@/web-remote-control/index.js", () => ({
   WebRemoteControlDialog: () => null,
 }));
 

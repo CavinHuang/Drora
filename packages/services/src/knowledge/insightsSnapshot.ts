@@ -17,9 +17,7 @@ import {
   toInsightJobEntries,
   type InsightDocumentChunkRow,
 } from "./index/insightsAggregator.js";
-import type {
-  KnowledgeInsightsSnapshot,
-} from "./knowledgeTypes.js";
+import type { KnowledgeInsightsSnapshot } from "./knowledgeTypes.js";
 
 const INSIGHTS_RECENT_JOB_LIMIT = 5;
 
@@ -60,8 +58,9 @@ export async function loadInsightsSnapshot(deps: {
     };
   }
 
-  const coverage =
-    loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? { ...EMPTY_COVERAGE };
+  const coverage = loadCoverage(db, source.summary.vaultId, source.sourceEpoch) ?? {
+    ...EMPTY_COVERAGE,
+  };
   // 向量覆盖（spec §5b.9 准确性可观测）：语义端口在场才统计（modelId 口径）。
   const vectorCoverage =
     semanticPortId === null
@@ -125,4 +124,3 @@ export async function loadInsightsSnapshot(deps: {
     decision: decisionInsights,
   };
 }
-

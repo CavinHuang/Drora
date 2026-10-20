@@ -69,6 +69,10 @@ export const vaultSearchToolEntry: ToolEntry = {
     ],
     readOnly: true,
     destructive: false,
+    // 上游 v3.16.1 tool-search 机制（exposure.ts isDeferredTool）要求非驻留内建工具
+    // 声明 shouldDefer=true 才能进入「先公告、按需加载 schema」集合；VaultSearch 不是
+    // 驻留工具，缺该标记会以全量 schema 常驻每个请求，破坏「初始只暴露驻留集」不变量。
+    shouldDefer: true,
     concurrentSafe: true,
     timeoutMs: VAULT_SEARCH_TOOL_TIMEOUT_MS,
     maxOutputBytes: VAULT_SEARCH_MODEL_BYTES,

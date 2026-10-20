@@ -11,10 +11,10 @@
 差异仅为系统性重命名（zcode→drora / ZCode→Drora / com.zcode→com.drora）。
 未发现行为级 REAL-GAP。
 
-§1 配置面
----------
+## §1 配置面
 
 协议层形状（真值 @741184 Ype ↔ 我方 packages/shared/src/mcp.ts:166 DroraAgentMcpServer）：
+
 - stdio：{name, command, args[], env[{name,value}], isolation?(session|workspace),
   protocolVersion?(legacy|auto|2026-07-28), timeoutMs? >0}（.strict()）——逐字段一致。
 - http/sse：{name, type:(http|sse), url, headers[], oauth?, isolation?, protocolVersion?, timeoutMs?}——一致。
@@ -25,6 +25,7 @@
   （真值 @742121 Qir ↔ 我方 drora-protocol/index.ts:687 droraMcpServerStatusSnapshotSchema，逐字段一致）。
 
 作用域：
+
 - session：createSession.mcpServers 数组（真值 @1140184 ↔ 我方 bootstrap session 链路）。
 - plugin：manifest.mcpServers + 插件根 .mcp.json 合并、`plugin:<id>:<key>` 命名空间、
   "path escapes plugin root" 诊断（真值 gre/Pat @4140111 ↔ 我方 adapters/src/plugins/mcp.ts:84）。
@@ -39,8 +40,7 @@
 热重载：双方均无 MCP 配置文件 watch；以 mcp/list 的 revalidate:true 重探测代替
 （真值 revalidate 7 hits ↔ 我方 pool.ts:111 revalidateEntry）。parity（均无）。
 
-§2 池化与生命周期
------------------
+## §2 池化与生命周期
 
 - createMcpConnectionPool 1:1（真值 emn @4720215 ↔ 我方 adapters/src/mcp/pool.ts）：
   closeEntry/scheduleClose/revalidateEntry/lease refs、事件名
@@ -55,18 +55,17 @@
   运行期 OAuth Phase2→Phase1 恢复（recoverToolCallAuthorization）——真值 3/6/2 hits ↔ 我方 index.ts:455-524/768。一致。
 - deactivate 清理：session closeMcp→port.close()（真值 closeMcp 1 hit ↔ 我方 session-facade.ts:301,591）。
 - 传输：ProcessTreeStdioClientTransport（requestMetaProvider/mergeRequestMeta/windowsJobObjectFactory/
-  lastProcessExit/processAlive/_dispose）逐字同构（真值 @4753858 ↔ 我方 stdio-transport.ts）；
+  lastProcessExit/processAlive/\_dispose）逐字同构（真值 @4753858 ↔ 我方 stdio-transport.ts）；
   http=StreamableHTTPClientTransport、sse=SSEClientTransport + createMcpTransportFetch、
-  buildMcpStdioEnv 链序 filterStringEnv→sanitize*RuntimeEnv→applyNetworkEgressEnv→prependRunningNodeDirectory
+  buildMcpStdioEnv 链序 filterStringEnv→sanitize\*RuntimeEnv→applyNetworkEgressEnv→prependRunningNodeDirectory
   （真值 jeo @4718765 ↔ 我方 network.ts:9-15）。
 
-§3 工具桥
----------
+## §3 工具桥
 
-- 命名：`mcp__{server}__{tool}` + [^a-zA-Z0-9_-]→_ 归并 + "unknown" 兜底；
+- 命名：`mcp__{server}__{tool}` + [^a-zA-Z0-9_-]→\_ 归并 + "unknown" 兜底；
   matchesModelVisibleMcpServerName 含 includes 宽匹配（真值 g4/zB/PSo @12566674 ↔ 我方 core/mcp/name.ts）。
 - registerMcpTools：MCP_TOOL_TIMEOUT_MS=3e4、capability group "official_cua"、
-  规范名 "mcp__computer-use__" / provider 别名 "mcp__computer_use__"、CUA title schema
+  规范名 "mcp**computer-use**" / provider 别名 "mcp**computer_use**"、CUA title schema
   （minLength1/maxLength120/同文案）逐字一致（真值 ava/cva/Iwn/uva/lva @12572786 ↔ 我方 core/mcp/index.ts:37-47）。
 - 注册入口：allowedTools/disallowedTools/officialCuaServerNames 三参 +
   computeOfficialCuaServerNames(servers, config.trustedOfficialCuaServerNames)（真值 @12909566 ↔
@@ -83,8 +82,7 @@
 - resources/prompts 面：双方 McpPort 均不投影 resources/prompts（真值与我方仅 SDK 内部
   "prompts/list","resources/list" 字面量，宿主无 listResources/listPrompts 调用）。parity（均缺）。
 
-§4 错误映射
------------
+## §4 错误映射
 
 - -32002/-32042 属内联 SDK 层，宿主双方均不二次映射：
   - buildSchemas2026.encodeErrorCode e===-32002→-32602（真值 @4416802 ↔ 我方
@@ -96,38 +94,36 @@
 - failConnection 分类链：official_origin_untrusted→connectionDiagnosticByServer→
   (McpTimeout&&非tool_list_failed→connection_timeout)→connection_failed；错误文案拼
   `${message} - ${serverRequestId}`（真值 @4783286 ↔ 我方 index.ts:1360-1382）。一致。
-- 工具调用错误形状：{content[], structuredContent?, isError?, _meta?}；
-  in-band 失败（HTTP200+isError）按 span 回填 x-request-id 到 _meta（§5）；
+- 工具调用错误形状：{content[], structuredContent?, isError?, \_meta?}；
+  in-band 失败（HTTP200+isError）按 span 回填 x-request-id 到 \_meta（§5）；
   官方工具错误码 OFFICIAL_MCP_TOOL_ERROR_CODES=[quota_exceeded, coding_plan_required]
   （真值 @1006330 ↔ 我方 packages/shared/src/official-mcp-tool-error.ts:20）。一致。
 - meta 键重命名（有意）：zcode/errorPresentation↔drora/errorPresentation、
   zcode/officialMcpServerRequestId↔drora/officialMcpServerRequestId、
   com.zcode/request-context↔com.drora/request-context、com.zcode/official-mcp-auth↔com.drora/official-mcp-auth。
-  本仓库 bundled agent（packages/desktop/bundled-agents/.../node-repl-host）已全部用 drora/*，无跨进程错配。
+  本仓库 bundled agent（packages/desktop/bundled-agents/.../node-repl-host）已全部用 drora/\*，无跨进程错配。
 
-§5 serverRequestId 透传链（live 残叶复核）
-------------------------------------------
+## §5 serverRequestId 透传链（live 残叶复核）
 
 结论：非残叶，真值同构存在，链路完整：
+
 1. auth fetch wrapper 读响应头 x-request-id → rememberServerResponse（span 键、容量 64、
    后写覆盖、即取即删不兜底）——真值 serverRequestIdBySpan/yGs=64 @4770065 ↔ 我方 index.ts:102,217-562。
-2. in-band isError → takeServerRequestId(spanId) → _meta["drora/officialMcpServerRequestId"]
+2. in-band isError → takeServerRequestId(spanId) → \_meta["drora/officialMcpServerRequestId"]
    仅失败附加（真值 @4770815 ↔ 我方 index.ts:711-740）。
 3. 连接期诊断 → status.serverRequestId（真值 Qir @742421 ↔ 我方 mcp.port.ts:119 + index.ts:1730-1744）。
 
-§6 差集三分类表
----------------
+## §6 差集三分类表
 
-| # | 分类 | 级别 | 项 | 真值证据 | 我方证据 |
-|---|------|------|----|----------|----------|
-| 1 | SHAPE-DIFF | P3 | 系统重命名 zcode→drora：meta 键、clientName 默认值（"zcode"→"drora"，OAuth clientName `${clientName}-${serverName}` 随之变化）、resolveZCodeApiOrigin→resolveDroraApiOrigin、SharedZCodeCredentialStore→SharedDroraCredentialStore | @4764700 clientName??"zcode"；grep com.zcode/* | index.ts:226 "drora"；contracts:135-159 |
-| 2 | EXTRA | P3 | shared/mcp.ts McpServerConfig 含 Linear/Figma/Sentry 专属字段注释（personalAccessToken/apiEndpoint/issueType/organizationName 等），真值 CLI 无 | grep personalAccessToken=0 | packages/shared/src/mcp.ts:33-46；仅 desktop 共享层，不进 CLI runtime contracts 类型，无行为影响 |
-| 3 | REAL-GAP | — | 探查面（配置形状/作用域/池/传输/工具桥/schema/错误码/requestId）未发现 | — | — |
+| #   | 分类       | 级别 | 项                                                                                                                                                                                                                                 | 真值证据                                        | 我方证据                                                                                         |
+| --- | ---------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1   | SHAPE-DIFF | P3   | 系统重命名 zcode→drora：meta 键、clientName 默认值（"zcode"→"drora"，OAuth clientName `${clientName}-${serverName}` 随之变化）、resolveZCodeApiOrigin→resolveDroraApiOrigin、SharedZCodeCredentialStore→SharedDroraCredentialStore | @4764700 clientName??"zcode"；grep com.zcode/\* | index.ts:226 "drora"；contracts:135-159                                                          |
+| 2   | EXTRA      | P3   | shared/mcp.ts McpServerConfig 含 Linear/Figma/Sentry 专属字段注释（personalAccessToken/apiEndpoint/issueType/organizationName 等），真值 CLI 无                                                                                    | grep personalAccessToken=0                      | packages/shared/src/mcp.ts:33-46；仅 desktop 共享层，不进 CLI runtime contracts 类型，无行为影响 |
+| 3   | REAL-GAP   | —    | 探查面（配置形状/作用域/池/传输/工具桥/schema/错误码/requestId）未发现                                                                                                                                                             | —                                               | —                                                                                                |
 
 计数：REAL-GAP 0 / EXTRA 1 / SHAPE-DIFF 1。P1=0，P2=0。
 
-§7 OPEN-QUESTION
-----------------
+## §7 OPEN-QUESTION
 
 1. SDK 构建差异：我方 npm @modelcontextprotocol/client 2.0.0 中 -32002×9 / UrlElicitationRequired×8，
    真值内联 SDK 为 -32002×3 / UrlElicitationRequired×6——疑似同代不同构建（枚举重复度不同），

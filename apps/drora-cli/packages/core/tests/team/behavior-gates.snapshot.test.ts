@@ -8,8 +8,9 @@ const execFileAsync = promisify(execFile);
 /**
  * PR-0.3：subagent_child 行为门零改动回归的冻结清单（specs/agents-team.md §9）。
  *
- * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 22 处
- * （2026-10-16 实测：core/bootstrap 19 + services sessionKind 3）。
+ * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 23 处
+ * （2026-10-16 实测 22 处：core/bootstrap 19 + services sessionKind 3；
+ * 2026-10-20 S2 v3.16.1 上游合并 +1：server-operations.ts 会话归属守卫，依据见 §9 注）。
  *
  * 继承原则（spec §9）：teammate 复用 taskType="subagent_child"，本清单全部门按现状
  * 命中——上游新增任何 subagent_child 门时本测试会失败，强制人工复核该门对 teammate
@@ -34,7 +35,7 @@ const FROZEN_GATES: Readonly<Record<string, number>> = {
   "apps/drora-cli/packages/core/src/runtime/methods/background.ts": 1,
   "apps/drora-cli/packages/core/src/runtime/helpers/tool-allowlist.ts": 1,
   "apps/drora-cli/packages/core/src/telemetry/runtime-telemetry.ts": 1,
-  "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts": 2,
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts": 3,
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/subagent-session-query.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/app/subagent-observation.ts": 2,
@@ -59,7 +60,7 @@ export const GATE_INHERITANCE_NOTES: Readonly<Record<string, string>> = {
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/subagent-session-query.ts":
     "子会话下钻/查询包含 teammate",
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts":
-    "子会话下钻/查询包含 teammate",
+    "子会话下钻/查询包含 teammate；S2 v3.16.1 新增会话归属守卫（仅精确 ID 查询凭持久化父链证明归属，teammate 同样适用）",
   "packages/services/src/drora-agent/droraTaskIndexSyncer.ts":
     "任务索引排除 teammate（不出现在任务列表）",
 };
@@ -102,7 +103,7 @@ function groupByPath(gates: readonly GateLine[]): Map<string, number> {
 }
 
 describe("subagent_child behavior gates frozen census", () => {
-  it("keeps the 22-gate census exactly as frozen in specs/agents-team.md §9", async () => {
+  it("keeps the 23-gate census exactly as frozen in specs/agents-team.md §9", async () => {
     const current = groupByPath(await collectCurrentGates());
 
     const missing = Object.keys(FROZEN_GATES).filter((path) => !current.has(path));
@@ -117,7 +118,7 @@ describe("subagent_child behavior gates frozen census", () => {
 缺失文件（门被移除？）: ${JSON.stringify(missing)}
 新增文件（新门——按 spec §9 继承原则确认 teammate 自动继承后，把文件与计数加入 FROZEN_GATES）: ${JSON.stringify(added)}
 计数漂移: ${JSON.stringify(drifted)}`,
-    ).toEqual({ missing: [], added: [], drifted: [], total: 22 });
+    ).toEqual({ missing: [], added: [], drifted: [], total: 23 });
   });
 
   it("notes cover the load-bearing gates referenced by the design", () => {

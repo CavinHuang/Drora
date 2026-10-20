@@ -13,7 +13,10 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { setDataBaseDir } from "../src/paths.js";
 import { configureVaultAt } from "../src/obsidian-vault/config.js";
-import { createKnowledgeServices, type KnowledgeServices } from "../src/knowledge/knowledgeServices.js";
+import {
+  createKnowledgeServices,
+  type KnowledgeServices,
+} from "../src/knowledge/knowledgeServices.js";
 
 interface TestEnv {
   root: string;
@@ -56,11 +59,7 @@ async function waitForIndex(services: KnowledgeServices, jobId: string): Promise
   throw new Error(`Knowledge index did not finish: ${jobId}`);
 }
 
-async function queryAndPrepare(
-  services: KnowledgeServices,
-  query: string,
-  sessionId: string,
-) {
+async function queryAndPrepare(services: KnowledgeServices, query: string, sessionId: string) {
   const created = await services.queryService.createRun({
     query,
     sessionId,

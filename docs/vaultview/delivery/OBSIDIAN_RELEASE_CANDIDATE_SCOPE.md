@@ -10,13 +10,13 @@
 
 The normative definition is `specs/obsidian-knowledge.md` §2–§3.
 
-| Capability | Behavior | Candidate disposition |
-| --- | --- | --- |
-| L0 / authenticated Vault reads | Read/Glob/Grep, index, FIND, source inspection, answer/compare handoff, authenticated Receipt, current-source navigation | Candidate for first release, subject to platform / lifecycle acceptance |
-| Manual CodeMirror note editing | User-initiated Markdown changes behind Vault path protection / optimistic SHA checks | Explicit user-write feature; **not** evidence of an agent read-only guarantee |
-| L1 / opt-in agent writing | `allowAgentWrites=true` enables narrow Write/Edit hook auto-allow for ordinary Markdown when runtime decision was `ask`; default is `false` | **Not read-only.** Needs explicit scope/risk acceptance and permission negative-path validation; do not count as part of a read-only approval |
-| L2 / proposal-driven apply & undo | Proposal, approval, ledger and read-only reconciliation exist, but applying/undoing would write files | **A1 内 desktop-local 定向放行、用户双开关默认关（2026-10-18 补记，终审阻塞③/spec-1）。** 原「EXCLUDED / S03 NO-GO，生产 `writeSafetyGatePassed` 保持 false」的表述已被 2026-10-17 收尾复评取代：按 `S03_CLOSEOUT_2026-10-17.md` 与 spec `obsidian-knowledge.md` §5e.12/收尾复评增量，装配门仅对 `desktop-local` 生产 Host 放行（`node.ts` 经 `isReleasedReviewWriteAuthority`；remote/unspecified 仍拒绝），L1/L2 两个用户开关默认关闭，用户显式启用后才可执行已批准提案（apply/undo 双重条件不变）。 |
-| L3 / broad side-effect channels | Bash, js, MCP and other P0 tool paths | No claim of universal write prevention from an Obsidian hook; follow runtime policy and independent S03 assessment |
+| Capability                        | Behavior                                                                                                                                    | Candidate disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| L0 / authenticated Vault reads    | Read/Glob/Grep, index, FIND, source inspection, answer/compare handoff, authenticated Receipt, current-source navigation                    | Candidate for first release, subject to platform / lifecycle acceptance                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Manual CodeMirror note editing    | User-initiated Markdown changes behind Vault path protection / optimistic SHA checks                                                        | Explicit user-write feature; **not** evidence of an agent read-only guarantee                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| L1 / opt-in agent writing         | `allowAgentWrites=true` enables narrow Write/Edit hook auto-allow for ordinary Markdown when runtime decision was `ask`; default is `false` | **Not read-only.** Needs explicit scope/risk acceptance and permission negative-path validation; do not count as part of a read-only approval                                                                                                                                                                                                                                                                                                                                                          |
+| L2 / proposal-driven apply & undo | Proposal, approval, ledger and read-only reconciliation exist, but applying/undoing would write files                                       | **A1 内 desktop-local 定向放行、用户双开关默认关（2026-10-18 补记，终审阻塞③/spec-1）。** 原「EXCLUDED / S03 NO-GO，生产 `writeSafetyGatePassed` 保持 false」的表述已被 2026-10-17 收尾复评取代：按 `S03_CLOSEOUT_2026-10-17.md` 与 spec `obsidian-knowledge.md` §5e.12/收尾复评增量，装配门仅对 `desktop-local` 生产 Host 放行（`node.ts` 经 `isReleasedReviewWriteAuthority`；remote/unspecified 仍拒绝），L1/L2 两个用户开关默认关闭，用户显式启用后才可执行已批准提案（apply/undo 双重条件不变）。 |
+| L3 / broad side-effect channels   | Bash, js, MCP and other P0 tool paths                                                                                                       | No claim of universal write prevention from an Obsidian hook; follow runtime policy and independent S03 assessment                                                                                                                                                                                                                                                                                                                                                                                     |
 
 **Safe presentation:** "Vault-backed knowledge retrieval and evidence-grounded Agent navigation are ready for release evaluation; L1 authorized editing is a distinct opt-in capability; L2 governed writes are not enabled."
 
@@ -32,6 +32,7 @@ The normative definition is `specs/obsidian-knowledge.md` §2–§3.
 ## 3. Latest verified automated evidence, distinct from human acceptance
 
 Final CI results verified at `1f1a457da384b2a5a9033715291b4ab163bddeff`:
+
 - [Full CI](https://github.com/CavinHuang/Drora/actions/runs/38853003358) **8/8 success** (including Typecheck/Lint and the CLI).
 - [Linux real Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003236) **3/3 success**.
 - [Windows/macOS real Electron](https://github.com/CavinHuang/Drora/actions/runs/38853003348) **2/2 success**.
@@ -44,11 +45,11 @@ Final CI results verified at `1f1a457da384b2a5a9033715291b4ab163bddeff`:
 
 Existing automated verification before the sync:
 
-| Gate | Completed run at pre-sync `d88d5e1` |
-| --- | --- |
-| Full CI (8 jobs) | [38712890210](https://github.com/CavinHuang/Drora/actions/runs/38712890210) — success |
-| Linux actual Electron (3 jobs) | [38712890330](https://github.com/CavinHuang/Drora/actions/runs/38712890330) — success, includes G06 deleted-source-at-Send |
-| Windows 2022 + macOS 14 actual Electron (2 jobs) | [38712890190](https://github.com/CavinHuang/Drora/actions/runs/38712890190) — success |
+| Gate                                             | Completed run at pre-sync `d88d5e1`                                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Full CI (8 jobs)                                 | [38712890210](https://github.com/CavinHuang/Drora/actions/runs/38712890210) — success                                      |
+| Linux actual Electron (3 jobs)                   | [38712890330](https://github.com/CavinHuang/Drora/actions/runs/38712890330) — success, includes G06 deleted-source-at-Send |
+| Windows 2022 + macOS 14 actual Electron (2 jobs) | [38712890190](https://github.com/CavinHuang/Drora/actions/runs/38712890190) — success                                      |
 
 These cover automated cases, **not** the entire human G01–G55 acceptance matrix.
 For the current G01–G55 manual cases, the authoritative status remains `未执行` until desktop evidence is recorded; relevant automated G56–G66 successes must not be silently re-labeled as manual pass.
@@ -70,15 +71,12 @@ For the current G01–G55 manual cases, the authoritative status remains `未执
 - `writeSafetyGatePassed` 的唯一放行路径是 2026-10-17 收尾复评契约（`S03_CLOSEOUT_2026-10-17.md`、spec `obsidian-knowledge.md` §5e.12/收尾复评增量）记录的装配决定：仅对 `desktop-local` 生产 Host、经 `node.ts` 的 `isReleasedReviewWriteAuthority` 授予；后续撤销或扩大同样必须落在该契约与本文件，不允许经用户可编辑配置推导、绕过权限检查或压制失败 CI 通道获得写能力（2026-10-18 补记，终审阻塞③/spec-1：原「Do not switch on `writeSafetyGatePassed`」绝对禁止表述与最终装配相反；`WRITE_SAFETY_NO_GO.md` 裁定同样按收尾复评增量读取）。
 - No PR merge, production deploy, or auto-merge as part of this preparatory record.
 
-
 ## 6. A1 production-gate revalidation — 2026-10-17
 
 During continued review, the current branch was found to have inferred the S03 gate from `desktop-local` authority. That contradicted the approved A1 release scope. The production Host has now been corrected to pass `reviewWriteSafetyGatePassed: false` explicitly, and the real Electron G67 acceptance has been changed to verify that proposal/preview/approval remain usable while the write toggle and Apply/Undo stay disabled. The earlier Apply/Undo Electron run remains useful implementation evidence, but it is not acceptance for the approved A1 release. Fresh checks on the corrected HEAD are required.
 
 > **2026-10-18 补记（终审阻塞③/spec-1）**：本节所述「corrected to pass `reviewWriteSafetyGatePassed: false`」已被同日更晚的维护者委托收尾复评取代——`S03_CLOSEOUT_2026-10-17.md` 决定候选版本对 `desktop-local` 生产 Host 定向放行装配门（`node.ts` 经 `isReleasedReviewWriteAuthority`；spec `obsidian-knowledge.md` §5e.12），G65/G67 真 Electron 改为直接验证生产装配的 opt-in Apply/Undo（失败不能通过跳过或关闭功能规避）。现行口径以 `S03_CLOSEOUT_2026-10-17.md` 与 spec §5e.12/收尾复评增量为准：装配门 desktop-local=true、其余 authority=false；L1/L2 用户双开关默认关。本段保留仅作历史记录，不得再据此文档宣称生产写门恒为 false。
 
-
 ## 7. MCP permission-hint hardening — 2026-10-17
 
 The S03 source audit found a mismatch between the stated trust model and code: third-party MCP `readOnlyHint` could lower the permission tier and unlock plan/whole-tool allow behavior. The current branch now treats all non-Host-verified MCP tools as P0, blocks that fast path, and avoids displaying third-party MCP as low risk solely from its self-report. Only Host-verified OfficialCua remains an exception. This does not change A1: production L2 Apply/Undo remain disabled; new CI and independent S03 review are still required.
-

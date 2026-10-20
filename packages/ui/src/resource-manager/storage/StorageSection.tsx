@@ -11,11 +11,13 @@ import {
   type StorageCleanResult,
   type StorageManagementBridge,
   type StorageRootId,
+} from "@drora/shared";
+import {
   TID_RESOURCE_MANAGER_STORAGE_RESCAN,
   TID_RESOURCE_MANAGER_STORAGE_SECTION,
   TID_RESOURCE_MANAGER_STORAGE_STATUS,
   TID_RESOURCE_MANAGER_STORAGE_TOTAL,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useStorageUsage } from "./useStorageUsage.js";

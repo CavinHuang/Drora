@@ -22,10 +22,17 @@ const workspace = "/workspace";
 const resolved: KnowledgeResolveCitationResult = {
   status: "current",
   citation: {
-    receiptId: receipt, sessionId: session, runId: "run-1",
-    articleId: "article-1", relativePath: "notes/evidence.md",
-    title: "Evidence", heading: null, quote, excerpt: "Verified original content",
-    fileSha256: "a".repeat(64), createdAtMs: 1,
+    receiptId: receipt,
+    sessionId: session,
+    runId: "run-1",
+    articleId: "article-1",
+    relativePath: "notes/evidence.md",
+    title: "Evidence",
+    heading: null,
+    quote,
+    excerpt: "Verified original content",
+    fileSha256: "a".repeat(64),
+    createdAtMs: 1,
   },
 };
 
@@ -39,31 +46,40 @@ function renderAnswer(
   onOpen: (index: number) => void,
   indices: readonly number[] = [1],
 ) {
-  return render(createElement(
-    TooltipProvider, null,
+  return render(
     createElement(
-      DroraIntlProvider, { initialLocale: "zh-CN" },
+      TooltipProvider,
+      null,
       createElement(
-        MessageResponse,
-        {
-          theme: "light",
-          sessionId: session,
-          knowledgeCitationScopeKey: "session-1:turn-1:receipt-1",
-          knowledgeCitationIndices: indices,
-          onOpenKnowledgeCitation: onOpen,
-        }, text,
+        DroraIntlProvider,
+        { initialLocale: "zh-CN" },
+        createElement(
+          MessageResponse,
+          {
+            theme: "light",
+            sessionId: session,
+            knowledgeCitationScopeKey: "session-1:turn-1:receipt-1",
+            knowledgeCitationIndices: indices,
+            onOpenKnowledgeCitation: onOpen,
+          },
+          text,
+        ),
       ),
     ),
-  ));
+  );
 }
 
 function createOpenAdapter() {
   const requests: Array<Promise<KnowledgeCitationOpenResult>> = [];
   const onOpen = vi.fn((index: number) => {
     if (index !== 1) return;
-    requests.push(requestKnowledgeCitationOpen({
-      receiptId: receipt, targetSessionId: session, workspaceKey: workspace,
-    }));
+    requests.push(
+      requestKnowledgeCitationOpen({
+        receiptId: receipt,
+        targetSessionId: session,
+        workspaceKey: workspace,
+      }),
+    );
   });
   return { onOpen, requests };
 }
@@ -76,8 +92,12 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
     const onEvent = (event: Event) => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       const detail = event.detail;
-      if (detail.accepted || detail.targetSessionId !== session ||
-          detail.workspaceKey !== workspace) return;
+      if (
+        detail.accepted ||
+        detail.targetSessionId !== session ||
+        detail.workspaceKey !== workspace
+      )
+        return;
       detail.accepted = true;
       void navigateKnowledgeCitation({
         sessionId: session,
@@ -97,8 +117,11 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       expect(await requests[0]).toEqual({ ok: true });
       expect(resolveCitation).toHaveBeenCalledOnce();
       expect(openNote).toHaveBeenCalledExactlyOnceWith(
-        "notes/evidence.md", quote, expect.any(Function),
-        "Verified original content", "a".repeat(64),
+        "notes/evidence.md",
+        quote,
+        expect.any(Function),
+        "Verified original content",
+        "a".repeat(64),
       );
     } finally {
       window.removeEventListener(getKnowledgeCitationOpenEventName(), onEvent);
@@ -112,10 +135,13 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       if (!isKnowledgeCitationOpenEvent(event)) return;
       event.detail.accepted = true;
       void navigateKnowledgeCitation({
-        sessionId: session, receiptId: event.detail.receiptId,
+        sessionId: session,
+        receiptId: event.detail.receiptId,
         isCurrent: event.detail.isActive,
         resolveCitation: async () => ({
-          status: "stale", reason: null, citation: null,
+          status: "stale",
+          reason: null,
+          citation: null,
         }),
         openNote,
       }).then(event.detail.finish);
@@ -136,8 +162,11 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
     const onEvent = vi.fn();
     window.addEventListener(getKnowledgeCitationOpenEventName(), onEvent);
     try {
-      const view = renderAnswer("[1](#drora-knowledge-source-1) and a real citation [2].",
-        onOpen, [1, 2]);
+      const view = renderAnswer(
+        "[1](#drora-knowledge-source-1) and a real citation [2].",
+        onOpen,
+        [1, 2],
+      );
       await waitFor(() => view.getByTestId("knowledge-inline-citation-2"));
       const fake = view.container.querySelector('[title="#drora-knowledge-source-1"]');
       expect(fake).not.toBeNull();
@@ -158,9 +187,13 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       if (!isKnowledgeCitationOpenEvent(event)) return;
       event.detail.accepted = true;
       void navigateKnowledgeCitation({
-        sessionId: session, receiptId: event.detail.receiptId,
+        sessionId: session,
+        receiptId: event.detail.receiptId,
         isCurrent: () => active && event.detail.isActive(),
-        resolveCitation: () => new Promise((resolve) => { finishResolve = resolve; }),
+        resolveCitation: () =>
+          new Promise((resolve) => {
+            finishResolve = resolve;
+          }),
         openNote,
       }).then(event.detail.finish);
     };
@@ -195,10 +228,14 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
     window.addEventListener(getKnowledgeCitationOpenEventName(), onEvent);
     try {
       const first = requestKnowledgeCitationOpen({
-        receiptId: receipt, targetSessionId: session, workspaceKey: workspace,
+        receiptId: receipt,
+        targetSessionId: session,
+        workspaceKey: workspace,
       });
       const duplicate = requestKnowledgeCitationOpen({
-        receiptId: receipt, targetSessionId: session, workspaceKey: workspace,
+        receiptId: receipt,
+        targetSessionId: session,
+        workspaceKey: workspace,
       });
       expect(duplicate).toBe(first);
       expect(dispatchCount).toBe(1);
@@ -213,5 +250,4 @@ describe("Obsidian rendered Agent citation → event bus → Vault resolver → 
       vi.useRealTimers();
     }
   });
-
 });

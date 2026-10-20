@@ -1239,9 +1239,7 @@ test("§33.18.22 终端数据面桥接：terminal 通道 demux 到 main 层服�
     await new Promise((r) => setTimeout(r, 20));
   };
   const identity = { bridgeSessionId: "b-flow" };
-  const { encodeRpcTransportMessage } = await import(
-    "../src/main/desktopMobileRelayProtocol.js"
-  );
+  const { encodeRpcTransportMessage } = await import("../src/main/desktopMobileRelayProtocol.js");
 
   // terminal 帧（create 调用形状）→ demux 承接：main 层 fake 服务被调用，
   // ChannelServer 响应经 shim 回手机（rpc-frame），不落宿主端口。
@@ -2384,6 +2382,6 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
   const deadline = Date.now() + 5000;
   while (!condition()) {
     assert.ok(Date.now() < deadline, "等待可观察状态超时");
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }

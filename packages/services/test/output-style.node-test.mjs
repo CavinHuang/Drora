@@ -144,11 +144,7 @@ test("listStyles: 自定义档按 name localeCompare 排序、enabled 标记、�
       "name: Alpha\ndescription: first\n\nAlpha body",
       "utf8",
     );
-    await writeFile(
-      home.settingsPath,
-      JSON.stringify({ outputStyle: "custom-zeta" }),
-      "utf8",
-    );
+    await writeFile(home.settingsPath, JSON.stringify({ outputStyle: "custom-zeta" }), "utf8");
     // 坏文件容错：同名目录触发读取失败（EISDIR），官方语义是记录后跳过。
     await mkdir(join(home.stylesDir, "bad.md"));
 

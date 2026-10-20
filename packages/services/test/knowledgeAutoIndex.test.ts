@@ -46,7 +46,11 @@ async function createEnv(): Promise<Env> {
   return { root, pluginDataDir, vault };
 }
 
-function createServices(env: Env, auto: boolean, extra: { staleTtlMs?: number } = {}): KnowledgeServices {
+function createServices(
+  env: Env,
+  auto: boolean,
+  extra: { staleTtlMs?: number } = {},
+): KnowledgeServices {
   return createKnowledgeServices({
     databasePath: join(env.root, "knowledge", "knowledge-index.sqlite"),
     pluginDataDir: env.pluginDataDir,
@@ -105,11 +109,16 @@ test("AI-3：TTL 过期后 search 触发后台刷新，本次检索照常落定�
     // 同时 TTL=0 触发后台 reconcile；下一次查询应能看到新文件。
     await waitFor(async () => {
       const status = await services.indexService.getStatus();
-      return status.job !== null && status.job.status !== "running" && status.coverage.indexedFiles >= 1;
+      return (
+        status.job !== null && status.job.status !== "running" && status.coverage.indexedFiles >= 1
+      );
     });
     await writeFile(join(env.vault, "b.md"), "# B\n\n量子纠缠实验记录\n", "utf-8");
 
-    const run = await services.queryService.createRun({ query: "上下文窗口", clientRequestId: "ai3-1" });
+    const run = await services.queryService.createRun({
+      query: "上下文窗口",
+      clientRequestId: "ai3-1",
+    });
     const finished = await services.queryService.search({ runId: run.runId });
     // 陈旧一度语义只保证「结构化落定」——并发 reconcile 按文档替换表内容，本次命中数
     // 可能是 ready/empty/partial 任意一种（快照一致性由 per-document 事务保证）。
@@ -120,7 +129,9 @@ test("AI-3：TTL 过期后 search 触发后台刷新，本次检索照常落定�
 
     await waitFor(async () => {
       const status = await services.indexService.getStatus();
-      return status.job !== null && status.job.status !== "running" && status.coverage.indexedFiles >= 2;
+      return (
+        status.job !== null && status.job.status !== "running" && status.coverage.indexedFiles >= 2
+      );
     });
     // TTL=0 时每次 search 都会并发触发刷新；per-document 替换窗口内的检索可能看不到
     // 单个文档（W02 既有并发语义）——用重试窗口断言「刷新后的索引对新查询可见」。

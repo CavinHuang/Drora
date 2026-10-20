@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DroraTaskMeta } from "@drora/shared";
-import {
-  mergeTaskMetaCandidates,
-  mergeTaskWithOptimisticMeta,
-} from "@/lib/droraTaskMetaMerge.js";
+import { mergeTaskMetaCandidates, mergeTaskWithOptimisticMeta } from "@/lib/droraTaskMetaMerge.js";
 
 function createTaskMeta(overrides: Partial<DroraTaskMeta> = {}): DroraTaskMeta {
   return {
@@ -93,9 +90,7 @@ describe("mergeTaskWithOptimisticMeta", () => {
       updatedAt: 30,
     });
 
-    expect(
-      mergeTaskMetaCandidates(rawSnapshotTask, indexedRenamedTask),
-    ).toMatchObject({
+    expect(mergeTaskMetaCandidates(rawSnapshotTask, indexedRenamedTask)).toMatchObject({
       title: "airline-1",
       titleOverridden: true,
       updatedAt: 30,

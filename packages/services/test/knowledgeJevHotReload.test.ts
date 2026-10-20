@@ -34,7 +34,9 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 15000): Pr
 }
 
 /** 假 Jev 端点：记录命中并返回合法 noul 评分。 */
-function startJevStub(label: string): Promise<{ server: Server; port: number; hits: () => number }> {
+function startJevStub(
+  label: string,
+): Promise<{ server: Server; port: number; hits: () => number }> {
   let hits = 0;
   const server = createServer((req, res) => {
     let raw = "";
@@ -50,7 +52,10 @@ function startJevStub(label: string): Promise<{ server: Server; port: number; hi
         JSON.stringify({
           model: "jev-latest",
           answers: Object.fromEntries(
-            Object.keys(questions).map((name) => [name, { type: "noul", noul: label === "A" ? 0.9 : 0.2 }]),
+            Object.keys(questions).map((name) => [
+              name,
+              { type: "noul", noul: label === "A" ? 0.9 : 0.2 },
+            ]),
           ),
           usage: { input_tokens: 1, output_tokens: 1 },
         }),
@@ -97,12 +102,22 @@ test("配置热生效：换端点 + refresh RPC 后下一次检索打到新端�
     });
 
     // 首次检索 + 授权 → 出站打到端点 A。
-    const run1 = await services.queryService.createRun({ query: "上下文窗口", clientRequestId: "hot-1" });
+    const run1 = await services.queryService.createRun({
+      query: "上下文窗口",
+      clientRequestId: "hot-1",
+    });
     const finished1 = await services.queryService.search({ runId: run1.runId });
     assert.ok(finished1.candidates.length > 0, "应有本地候选供授权");
     const grant1 = await services.queryService.grantDecisionConsent({ runId: run1.runId });
-    assert.equal(grant1.granted, true, `授权应成功：${grant1.granted === false ? grant1.reason : ""}`);
-    const searched1 = await services.queryService.search({ runId: run1.runId, decisionConsentId: grant1.consentId });
+    assert.equal(
+      grant1.granted,
+      true,
+      `授权应成功：${grant1.granted === false ? grant1.reason : ""}`,
+    );
+    const searched1 = await services.queryService.search({
+      runId: run1.runId,
+      decisionConsentId: grant1.consentId,
+    });
     assert.equal(searched1.decision?.status, "applied");
     assert.equal(stubA.hits() > 0, true, "端点 A 应收到出站");
     const hitsAAfterFirst = stubA.hits();
@@ -116,11 +131,17 @@ test("配置热生效：换端点 + refresh RPC 后下一次检索打到新端�
     const refreshed = await services.indexService.refreshDecisionConfig();
     assert.equal(refreshed.refreshed, true);
 
-    const run2 = await services.queryService.createRun({ query: "上下文窗口", clientRequestId: "hot-2" });
+    const run2 = await services.queryService.createRun({
+      query: "上下文窗口",
+      clientRequestId: "hot-2",
+    });
     const finished2 = await services.queryService.search({ runId: run2.runId });
     const grant2 = await services.queryService.grantDecisionConsent({ runId: run2.runId });
     assert.equal(grant2.granted, true);
-    const searched2 = await services.queryService.search({ runId: run2.runId, decisionConsentId: grant2.consentId });
+    const searched2 = await services.queryService.search({
+      runId: run2.runId,
+      decisionConsentId: grant2.consentId,
+    });
     assert.equal(searched2.decision?.status, "applied");
     assert.equal(stubB.hits() > 0, true, "换端点后应打到端点 B");
     assert.equal(stubA.hits(), hitsAAfterFirst, "端点 A 不应再收到出站");

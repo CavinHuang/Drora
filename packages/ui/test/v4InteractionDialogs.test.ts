@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { TID_V4_USER_INPUT_DIALOG } from "@drora/shared";
+import { TID_V4_USER_INPUT_DIALOG } from "@drora/shared/test-ids";
 import type { ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
 import { DroraIntlProvider } from "../src/i18n/IntlProvider.js";
 import {

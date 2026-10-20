@@ -1,40 +1,18 @@
 import type { DroraTimelineMeta } from "@drora/shared";
 
-function addTimelineIdentityKey(
-  keys: string[],
-  prefix: string,
-  value: string | undefined,
-): void {
+function addTimelineIdentityKey(keys: string[], prefix: string, value: string | undefined): void {
   if (value) {
     keys.push(`${prefix}:${value}`);
   }
 }
 
-export function getDroraTimelineIdentityKeys(
-  timeline: DroraTimelineMeta,
-): string[] {
+export function getDroraTimelineIdentityKeys(timeline: DroraTimelineMeta): string[] {
   const keys: string[] = [];
   if (timeline.type === "context_compaction") {
-    addTimelineIdentityKey(
-      keys,
-      "synthetic:context_compaction:operation",
-      timeline.operationId,
-    );
-    addTimelineIdentityKey(
-      keys,
-      "synthetic:context_compaction:input",
-      timeline.inputId,
-    );
-    addTimelineIdentityKey(
-      keys,
-      "synthetic:context_compaction:boundary",
-      timeline.boundaryId,
-    );
-    addTimelineIdentityKey(
-      keys,
-      "synthetic:context_compaction:summary",
-      timeline.summaryMessageId,
-    );
+    addTimelineIdentityKey(keys, "synthetic:context_compaction:operation", timeline.operationId);
+    addTimelineIdentityKey(keys, "synthetic:context_compaction:input", timeline.inputId);
+    addTimelineIdentityKey(keys, "synthetic:context_compaction:boundary", timeline.boundaryId);
+    addTimelineIdentityKey(keys, "synthetic:context_compaction:summary", timeline.summaryMessageId);
     return keys;
   }
   if (timeline.type === "goal_verification") {
@@ -50,11 +28,7 @@ export function getDroraTimelineIdentityKeys(
     );
     return keys;
   }
-  addTimelineIdentityKey(
-    keys,
-    "synthetic:session_fork:parent",
-    timeline.parentSessionId,
-  );
+  addTimelineIdentityKey(keys, "synthetic:session_fork:parent", timeline.parentSessionId);
   if (timeline.targetMessageId) {
     keys.push(
       [
@@ -94,17 +68,13 @@ export function mergeDroraTimelineMeta(
         : {}),
     };
   }
-  if (
-    previousTimeline?.type === "goal_verification" &&
-    nextTimeline.type === "goal_verification"
-  ) {
+  if (previousTimeline?.type === "goal_verification" && nextTimeline.type === "goal_verification") {
     return {
       ...previousTimeline,
       ...nextTimeline,
       ...((nextTimeline.verification ?? previousTimeline.verification)
         ? {
-            verification:
-              nextTimeline.verification ?? previousTimeline.verification,
+            verification: nextTimeline.verification ?? previousTimeline.verification,
           }
         : {}),
       ...((nextTimeline.startedAt ?? previousTimeline.startedAt)

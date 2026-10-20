@@ -14,11 +14,11 @@ import {
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_DETAIL,
   TID_WORKFLOW_GLOBAL_GROUP,
-  testId,
   type DroraSavedWorkflowEntry,
   type DroraSavedWorkflowRun,
   type DroraWorkflowsListResult,
 } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { resetSavedWorkflowStoreForTests } from "@/store/savedWorkflowStore.js";

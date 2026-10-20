@@ -1,4 +1,4 @@
-import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared";
+import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

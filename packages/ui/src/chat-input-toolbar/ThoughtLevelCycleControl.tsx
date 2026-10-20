@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { type DroraConfigOption, type DroraProvider } from "@drora/shared";
 import {
   TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM,
   TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
   testId,
-  type DroraConfigOption,
-  type DroraProvider,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";

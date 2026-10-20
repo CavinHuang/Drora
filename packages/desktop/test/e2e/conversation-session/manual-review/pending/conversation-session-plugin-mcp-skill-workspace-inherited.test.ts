@@ -1,4 +1,4 @@
-import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared";
+import { TID_SETTINGS_BACK_BUTTON } from "@drora/shared/test-ids";
 import { clearAppData, clickTestIdByDom } from "../../../helpers/desktop-app.js";
 import {
   getPluginList,

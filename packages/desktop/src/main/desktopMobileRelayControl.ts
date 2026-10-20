@@ -33,6 +33,15 @@ import {
   resolveWorkspaceTelemetryDetail,
 } from "@drora/shared";
 import { ServiceChannels } from "@drora/shared";
+
+// 已退役取证控制器（specs/upstream-v3.15.1-migration.md 旧控制器退出正常启动链）：
+// @drora/shared 无 Logger 导出，本地 console 形结构类型保持可编译。
+type Logger = {
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
 import type { ITerminalService } from "@drora/services";
 import {
   RpcFrameAssembler,
@@ -142,7 +151,10 @@ function tryParseRpcChannelName(message: Uint8Array): string | null {
     }
     console.log("[demux-debug] parse 未命中通道:", JSON.stringify(header)?.slice(0, 120));
   } catch (error) {
-    console.log("[demux-debug] parse 异常:", error instanceof Error ? error.message : String(error));
+    console.log(
+      "[demux-debug] parse 异常:",
+      error instanceof Error ? error.message : String(error),
+    );
     // 解析失败 → 非标准帧，交由调用方转发。
   }
   return null;
@@ -762,7 +774,6 @@ export function createDesktopMobileRelayControl(deps: {
   }
 
   async function fetchTaskSummaries(): Promise<RelayTaskSummary[]> {
-
     // startParams 为可变闭包变量，await 之后 TS 丢失收窄——先固化到局部。
     const params = startParams;
     if (!params) return [];
@@ -1278,7 +1289,12 @@ export function createDesktopMobileRelayControl(deps: {
     if (!frame) return;
     const assembled = bridge.assembler.accept(frame);
     if (!assembled) return;
-    console.log("[demux-debug] rpc-frame 组帧完成 seq=", assembled.messageSeq, "channel=", tryParseRpcChannelName(assembled.message));
+    console.log(
+      "[demux-debug] rpc-frame 组帧完成 seq=",
+      assembled.messageSeq,
+      "channel=",
+      tryParseRpcChannelName(assembled.message),
+    );
     sendAppFrame(
       buildRpcFrameAck({ identity: bridge.identity, ackMessageSeq: assembled.messageSeq }),
     );
@@ -1310,10 +1326,7 @@ export function createDesktopMobileRelayControl(deps: {
     const ackMessageSeq = frame.ackMessageSeq;
     if (typeof ackMessageSeq !== "number" || !Number.isSafeInteger(ackMessageSeq)) return;
     const ackSessionId = frame.bridgeSessionId;
-    if (
-      typeof ackSessionId === "string" &&
-      ackSessionId !== bridge.identity.bridgeSessionId
-    ) {
+    if (typeof ackSessionId === "string" && ackSessionId !== bridge.identity.bridgeSessionId) {
       logger.info("[mobile-relay] 丢弃跨桥 rpc-frame-ack", {
         ackBridgeSessionId: ackSessionId,
         currentBridgeSessionId: bridge.identity.bridgeSessionId,
@@ -1322,10 +1335,7 @@ export function createDesktopMobileRelayControl(deps: {
       return;
     }
     const ackGeneration = frame.bridgeGeneration;
-    if (
-      ackGeneration !== undefined &&
-      ackGeneration !== bridge.identity.bridgeGeneration
-    ) {
+    if (ackGeneration !== undefined && ackGeneration !== bridge.identity.bridgeGeneration) {
       logger.info("[mobile-relay] 丢弃跨代 rpc-frame-ack", {
         ackBridgeGeneration: ackGeneration,
         currentBridgeGeneration: bridge.identity.bridgeGeneration,
@@ -2017,7 +2027,9 @@ export function createDesktopMobileRelayControl(deps: {
       !credential ||
       (transportState !== "waiting_terminal" && transportState !== "paired")
     ) {
-      const failure = runtimeFailure;
+      // runtimeFailure 由事件回调赋值，不经 TS 流分析（此处被收窄为 null）；
+      // 显式还原声明类型读取真实终态失败。
+      const failure = runtimeFailure as MobilePairingFailure | null;
       await stop();
       // 未达 QR 就绪的终态失败同样上报 start_result（官方 StartWebRemoteControl
       // handler 对 operation rejection 统一走 catch 失败面）。
@@ -2114,7 +2126,9 @@ export function createDesktopMobileRelayControl(deps: {
     if (restoredThisRun || manuallyClosed === false) return false;
     if (!deps.startupRestoreStorage) return false;
     const context = await deps.startupRestoreStorage.load();
-    if (restoredThisRun || manuallyClosed === false) return false;
+    // await 期间闭包变量可能被手动关闭事件改写，经读取函数保持与首检相同的实时语义。
+    const manuallyClosedNow: () => boolean | undefined = () => manuallyClosed;
+    if (restoredThisRun || manuallyClosedNow() === false) return false;
     if (!context) return false;
     const contextKey = context.workspaceIdentity?.trim() || context.workspacePath;
     const target = workspaces.find(

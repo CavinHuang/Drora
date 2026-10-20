@@ -8,10 +8,7 @@ import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { timestampSchema } from "./core.js";
 import { conversationInputSourceSchema, conversationInputIntentSchema } from "./input-intent.js";
-import {
-  backgroundResultOriginMetaSchema,
-  workflowLaunchMetaSchema,
-} from "./workflow-row-meta.js";
+import { backgroundResultOriginMetaSchema, workflowLaunchMetaSchema } from "./workflow-row-meta.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
 
 // RowBase。rowId：session 内单调、永不复用、事件日志的确定性纯函数。
@@ -43,10 +40,12 @@ export type RowActions = NonNullable<z.infer<typeof rowActionsSchema>>;
 // workflow 轮的行级元数据拆到了 workflow-row-meta.ts（max-lines）；名字在此原样再导出。
 export {
   backgroundResultOriginMetaSchema,
+  workflowBlockedMetaSchema,
   workflowLaunchMetaSchema,
   workflowNotificationMetaSchema,
   workflowSettingsAmendMetaSchema,
   type BackgroundResultOriginMeta,
+  type WorkflowBlockedMeta,
   type WorkflowLaunchMeta,
   type WorkflowNotificationMeta,
   type WorkflowSettingsAmendMeta,

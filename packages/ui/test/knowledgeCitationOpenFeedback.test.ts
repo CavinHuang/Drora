@@ -17,9 +17,12 @@ async function flushResults(): Promise<void> {
 describe("Obsidian inline citation failure-feedback lifecycle", () => {
   it("shows one stale warning for rapid duplicate clicks, without suppressing later retries", async () => {
     let finish: ((result: KnowledgeCitationOpenResult) => void) | undefined;
-    const dispatch = vi.fn(() => new Promise<KnowledgeCitationOpenResult>((resolve) => {
-      finish = resolve;
-    }));
+    const dispatch = vi.fn(
+      () =>
+        new Promise<KnowledgeCitationOpenResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
     const warn = vi.fn();
     const controller = createKnowledgeCitationOpenFeedbackController(dispatch);
     controller.setScope("turn-1");
@@ -45,9 +48,12 @@ describe("Obsidian inline citation failure-feedback lifecycle", () => {
   it("drops stale warnings when switching scope, including leave-and-return to the same turn", async () => {
     let finish: ((result: KnowledgeCitationOpenResult) => void) | undefined;
     const warn = vi.fn();
-    const dispatch = vi.fn(() => new Promise<KnowledgeCitationOpenResult>((resolve) => {
-      finish = resolve;
-    }));
+    const dispatch = vi.fn(
+      () =>
+        new Promise<KnowledgeCitationOpenResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
     const controller = createKnowledgeCitationOpenFeedbackController(dispatch);
     controller.setScope("turn-1");
     controller.open(input, "turn-1", warn);

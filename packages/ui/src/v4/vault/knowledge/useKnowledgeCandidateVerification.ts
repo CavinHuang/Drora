@@ -5,10 +5,14 @@
  */
 import * as React from "react";
 import type {
-  IKnowledgeIndexService, IKnowledgeQueryService, KnowledgeArticleCandidate,
+  IKnowledgeIndexService,
+  IKnowledgeQueryService,
+  KnowledgeArticleCandidate,
 } from "@drora/services";
 import type {
-  KnowledgeAskAction, KnowledgeAskState, KnowledgeEvidenceInspectState,
+  KnowledgeAskAction,
+  KnowledgeAskState,
+  KnowledgeEvidenceInspectState,
   KnowledgeEvidenceQuote,
 } from "./knowledgeAskModel.js";
 import { verifyKnowledgeCandidateEvidence } from "./knowledgeEvidenceVerification.js";
@@ -39,7 +43,9 @@ export function useKnowledgeCandidateVerification(input: {
   const mountedRef = React.useRef(true);
   React.useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const verifyEvidence = React.useCallback(
@@ -49,7 +55,10 @@ export function useKnowledgeCandidateVerification(input: {
       if (!queryService || !run) return null;
       dispatch({ type: "evidenceChecking", articleId: candidate.articleId });
       const proof = await verifyKnowledgeCandidateEvidence({
-        queryService, run, candidate, sessionId,
+        queryService,
+        run,
+        candidate,
+        sessionId,
       });
       if (!mountedRef.current || seq !== submitSeqRef.current) return null;
       dispatch({ type: "evidenceResolved", articleId: candidate.articleId, state: proof });
@@ -63,7 +72,8 @@ export function useKnowledgeCandidateVerification(input: {
       const seq = submitSeqRef.current;
       const scope = scopeRef.current;
       const isCurrent = (): boolean =>
-        mountedRef.current && seq === submitSeqRef.current &&
+        mountedRef.current &&
+        seq === submitSeqRef.current &&
         scopeRef.current.sessionId === scope.sessionId &&
         scopeRef.current.workspaceKey === scope.workspaceKey &&
         scopeRef.current.queryService === scope.queryService &&
@@ -72,8 +82,11 @@ export function useKnowledgeCandidateVerification(input: {
       const verified = await verifyEvidence(candidate);
       if (!isCurrent() || verified?.phase !== "verified") return;
       onOpenNote(
-        verified.relativePath, verified.quote, isCurrent,
-        verified.excerpt, candidate.fileSha256,
+        verified.relativePath,
+        verified.quote,
+        isCurrent,
+        verified.excerpt,
+        candidate.fileSha256,
       );
     },
     [onOpenNote, scopeRef, submitSeqRef, verifyEvidence],

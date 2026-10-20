@@ -6,6 +6,8 @@ coverage/
 .env.turbo/
 .turbo
 .tmp/
+# adapters 测试运行残留的备份产物（cli-*/backup.json、tables.sqlite）不入库（c62b2c32 误提交收口）。
+backup/
 
 # Compiled TypeScript output in src directories
 src/**/*.js
@@ -21,3 +23,11 @@ packages/**/tests/**/*.d.ts.map
 .VSCodeCounter
 vendor
 !packages/visualize-plugin/skills/visualize/assets/vendor/
+
+# Lowering 的人工可审查契约快照不是 tsc 产物，干净 checkout 也必须可运行测试。
+!packages/dynamic-workflow/tests/lowering/expected/*.js
+
+# tsc 就地发射的编译产物，不入库（上游仅跟踪 .ts）
+packages/cli/src/**/*.js
+packages/cli/src/**/*.js.map
+packages/cli/src/**/*.d.ts

@@ -6,10 +6,10 @@ import {
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_ACTION_DELETE,
   TID_WORKFLOW_ACTION_MOVE,
-  testId,
   type DroraSavedWorkflowEntry,
   type DroraSavedWorkflowRun,
 } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,

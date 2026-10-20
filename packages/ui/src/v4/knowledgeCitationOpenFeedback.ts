@@ -31,21 +31,30 @@ export function createKnowledgeCitationOpenFeedbackController(
       scope: string,
       showFailure: (reason: string) => void,
     ): boolean {
-      if (!scope || scope !== activeScope || !input.receiptId.trim() ||
-        !input.targetSessionId.trim() || !input.workspaceKey.trim()) return false;
+      if (
+        !scope ||
+        scope !== activeScope ||
+        !input.receiptId.trim() ||
+        !input.targetSessionId.trim() ||
+        !input.workspaceKey.trim()
+      )
+        return false;
       const epoch = generation;
       const key = [epoch, scope, input.receiptId].join("\0");
       if (pending.has(key)) return false;
       pending.add(key);
       const isCurrent = (): boolean => activeScope === scope && generation === epoch;
       try {
-        void dispatch(input).then((result) => {
-          if (!result.ok && isCurrent()) showFailure(result.reason);
-        }).catch(() => {
-          if (isCurrent()) showFailure("failed");
-        }).finally(() => {
-          pending.delete(key);
-        });
+        void dispatch(input)
+          .then((result) => {
+            if (!result.ok && isCurrent()) showFailure(result.reason);
+          })
+          .catch(() => {
+            if (isCurrent()) showFailure("failed");
+          })
+          .finally(() => {
+            pending.delete(key);
+          });
       } catch {
         pending.delete(key);
         if (isCurrent()) showFailure("failed");

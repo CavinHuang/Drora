@@ -29,21 +29,21 @@
 
 ## 3. 目录导航
 
-| 文件 | 作用 |
-|---|---|
-| `00_START_HERE/MASTER_AGENT_PROMPT.md` | 可直接复制粘贴的总执行指令，含不可越过的停止条件 |
-| `00_START_HERE/QUICK_START.md` | 人类负责人最短启动流程 |
-| `01_RULES_AND_DECISIONS/REPO_FACTS_AND_GAPS.md` | 当前源码已确认 / T0 已试验 / 尚未验证的事实表 |
-| `01_RULES_AND_DECISIONS/ADR_AND_NONNEGOTIABLES.md` | 不容自作主张改变的产品/权限/数据边界 |
-| `02_IMPLEMENTATION/ARCHITECTURE_AND_DATA_FLOW.md` | 模块所有者、查询和写回时序、跨 Host 故障策略 |
-| `02_IMPLEMENTATION/RPC_AND_STATE_CONTRACTS.md` | 推荐的 DTO、状态机、版本与引用协议；**建议契约，非既有 API** |
-| `02_IMPLEMENTATION/DECISION_ENGINE_AND_JEV.md` | Jev 多阶段决策、调用策略、成本、隐私、回退与评估 |
-| `02_IMPLEMENTATION/FILE_LEVEL_MAP.md` | 真实文件路径和建议新增路径；避免覆盖上游还原代码 |
-| `03_WORK_ORDERS/W00..W07` | 分阶段可执行任务，包含输入、修改范围、退出标准 |
-| `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | E2E/安全/时序/性能/回归验证矩阵 |
-| `04_ACCEPTANCE/EVAL_DATASET_SPEC.md` | 中文收藏文章检索评测与 Jet/本地 A/B 方法 |
-| `06_AGENT_OUTPUT/PR_DELIVERY_REPORT_TEMPLATE.md` | 每阶段提交必填报告 |
-| `05_REFERENCE/*` | 上轮 PRD/架构/ADR/HTML 高保真及 T0 源码、补丁、测试证据 |
+| 文件                                               | 作用                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| `00_START_HERE/MASTER_AGENT_PROMPT.md`             | 可直接复制粘贴的总执行指令，含不可越过的停止条件             |
+| `00_START_HERE/QUICK_START.md`                     | 人类负责人最短启动流程                                       |
+| `01_RULES_AND_DECISIONS/REPO_FACTS_AND_GAPS.md`    | 当前源码已确认 / T0 已试验 / 尚未验证的事实表                |
+| `01_RULES_AND_DECISIONS/ADR_AND_NONNEGOTIABLES.md` | 不容自作主张改变的产品/权限/数据边界                         |
+| `02_IMPLEMENTATION/ARCHITECTURE_AND_DATA_FLOW.md`  | 模块所有者、查询和写回时序、跨 Host 故障策略                 |
+| `02_IMPLEMENTATION/RPC_AND_STATE_CONTRACTS.md`     | 推荐的 DTO、状态机、版本与引用协议；**建议契约，非既有 API** |
+| `02_IMPLEMENTATION/DECISION_ENGINE_AND_JEV.md`     | Jev 多阶段决策、调用策略、成本、隐私、回退与评估             |
+| `02_IMPLEMENTATION/FILE_LEVEL_MAP.md`              | 真实文件路径和建议新增路径；避免覆盖上游还原代码             |
+| `03_WORK_ORDERS/W00..W07`                          | 分阶段可执行任务，包含输入、修改范围、退出标准               |
+| `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md`               | E2E/安全/时序/性能/回归验证矩阵                              |
+| `04_ACCEPTANCE/EVAL_DATASET_SPEC.md`               | 中文收藏文章检索评测与 Jet/本地 A/B 方法                     |
+| `06_AGENT_OUTPUT/PR_DELIVERY_REPORT_TEMPLATE.md`   | 每阶段提交必填报告                                           |
+| `05_REFERENCE/*`                                   | 上轮 PRD/架构/ADR/HTML 高保真及 T0 源码、补丁、测试证据      |
 
 ## 4. 交付范围分层
 

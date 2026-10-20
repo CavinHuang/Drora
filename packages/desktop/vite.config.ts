@@ -202,6 +202,7 @@ export default defineConfig(({ mode }) => {
     server: { port: 5174, strictPort: true },
     define: {
       __DRORA_VERSION__: JSON.stringify(buildMetadata.appVersion),
+      __DRORA_MIN_COMPATIBLE_VERSION__: JSON.stringify(buildMetadata.minCompatibleVersion),
       __DRORA_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),
       __DRORA_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
       __DRORA_ENV__: JSON.stringify(droraEnv),
@@ -212,7 +213,9 @@ export default defineConfig(({ mode }) => {
       // 兼容旧 renderer 读取名；新代码统一读 VITE_DRORA_BASE_URL。
       "import.meta.env.VITE_DRORA_ENDPOINT_ORIGIN": JSON.stringify(droraEndpointOrigin),
       "import.meta.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN": JSON.stringify(codingPlanWebviewOrigin),
-      "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? ""),
+      "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(
+        env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? "",
+      ),
       // Bugfix: E2E store bridge 只能由 WDIO 专用变量打开，避免把 DRORA_ENV=test 产品环境误当成测试运行态。
       "import.meta.env.VITE_DRORA_E2E_STORE_BRIDGE": JSON.stringify(
         e2eStoreBridgeEnabled ? "1" : "",

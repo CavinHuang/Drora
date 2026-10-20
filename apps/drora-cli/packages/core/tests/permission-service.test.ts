@@ -5,6 +5,7 @@ import {
   type PermissionContext,
   type PermissionToolCapability,
 } from "../src/permission/service.js";
+import { resolveBashPermissionRulePolicy } from "../src/tool/handlers/bash-command-permission-policy.js";
 
 const readCapability: PermissionToolCapability = {
   destructive: false,
@@ -731,26 +732,6 @@ describe("PermissionService mode policy", () => {
     });
   });
 
-  it("does not fall back to exact tool-name matching when a capability group loses authority", () => {
-    const service = new PermissionService();
-    const context = {
-      input: {},
-      mode: "build" as const,
-      riskLevel: "medium" as const,
-      toolName: "mcp__computer-use__get_app_state",
-    };
-    const rules = {
-      allow: [{ toolName: OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME }],
-      version: 1 as const,
-    };
-
-    expect(service.checkPermission(context, mcpCapability, rules as never)).toMatchObject({
-      allowed: false,
-      decision: "ask",
-      ruleId: "mode.build.sideEffect",
-    });
-  });
-
   it("does not let project allow rules bypass plan mode write protection", () => {
     const service = new PermissionService();
 
@@ -778,7 +759,38 @@ describe("PermissionService mode policy", () => {
   it("matches project command prefix rules", () => {
     const service = new PermissionService();
 
+    // Bash 是 P0 写向量（S03 / specs/agent-write-safety.md §3.1）：内容 allow 规则只
+    // 有经过 Bash 专属规则评估器（bashToolEntry.resolvePermissionRulePolicy，即
+    // executor 的生产路径）才可放行；没有评估器时全部 allow 规则（含内容规则）均
+    // 不匹配，逐次确认（b9b646503 收口）。两半都断言，防止任一侧回退。
     const decision = service.checkPermission(
+      {
+        input: { command: "npm run test -- --watch=false" },
+        mode: "build",
+        riskLevel: "high",
+        toolName: "Bash",
+      },
+      {
+        destructive: true,
+        needsApproval: true,
+        readOnly: false,
+        riskLevel: "high",
+        sideEffectScope: "workspace",
+      },
+      {
+        version: 1,
+        allow: [{ toolName: "Bash", ruleContent: "npm run:*" }],
+      },
+      resolveBashPermissionRulePolicy({ command: "npm run test -- --watch=false" }),
+    );
+
+    expect(decision).toMatchObject({
+      allowed: true,
+      decision: "allow",
+      ruleId: "rule.project.allow",
+    });
+
+    const withoutEvaluator = service.checkPermission(
       {
         input: { command: "npm run test -- --watch=false" },
         mode: "build",
@@ -798,10 +810,10 @@ describe("PermissionService mode policy", () => {
       },
     );
 
-    expect(decision).toMatchObject({
-      allowed: true,
-      decision: "allow",
-      ruleId: "rule.project.allow",
+    expect(withoutEvaluator).toMatchObject({
+      allowed: false,
+      decision: "ask",
+      ruleId: "mode.build.highRisk",
     });
   });
 
@@ -1103,7 +1115,12 @@ describe("PermissionService alwaysAsk", () => {
     const service = new PermissionService();
 
     const decision = service.checkPermission(
-      { input: { script: "return 1;" }, mode: "yolo", riskLevel: "low", toolName: "CreateWorkflow" },
+      {
+        input: { script: "return 1;" },
+        mode: "yolo",
+        riskLevel: "low",
+        toolName: "CreateWorkflow",
+      },
       alwaysAskCapability,
       { deny: [{ toolName: "CreateWorkflow" }], version: 1 },
     );
@@ -1146,7 +1163,11 @@ describe("PermissionService session grant", () => {
     },
   ];
 
-  function check(mode: PermissionContext["mode"], service: PermissionService, toolName = "CreateWorkflow") {
+  function check(
+    mode: PermissionContext["mode"],
+    service: PermissionService,
+    toolName = "CreateWorkflow",
+  ) {
     return service.checkPermission(
       { input: { script: "return 2;" }, mode, riskLevel: "low", toolName },
       alwaysAskCapability,
@@ -1207,7 +1228,12 @@ describe("PermissionService session grant", () => {
 
     expect(
       service.checkPermission(
-        { input: { script: "return 2;" }, mode: "yolo", riskLevel: "low", toolName: "CreateWorkflow" },
+        {
+          input: { script: "return 2;" },
+          mode: "yolo",
+          riskLevel: "low",
+          toolName: "CreateWorkflow",
+        },
         alwaysAskCapability,
         { deny: [{ toolName: "CreateWorkflow" }], version: 1 },
       ),

@@ -146,7 +146,13 @@ export function ApiKeyRow({
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => void handleSave()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={saving}
+            onClick={() => void handleSave()}
+          >
             {saving ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : null}
             {intl.formatMessage({ id: "settings.knowledge.apiKey.save" })}
           </Button>
@@ -264,7 +270,9 @@ export function RemoteProviderModelRows({
             <Input
               type="text"
               className="w-56"
-              placeholder={intl.formatMessage({ id: "settings.knowledge.remoteBaseUrl.placeholder" })}
+              placeholder={intl.formatMessage({
+                id: "settings.knowledge.remoteBaseUrl.placeholder",
+              })}
               value={baseUrlDraft}
               onChange={(event) => setBaseUrlDraft(event.target.value)}
             />
@@ -294,7 +302,11 @@ export function ConnectionTestDetail({
         {intl.formatMessage({ id: "settings.knowledge.testConnection.action" })}
       </Button>
       {result !== null ? (
-        <span className={result.ok ? "text-ui-xs text-foreground-subtle" : "text-ui-xs text-destructive"}>
+        <span
+          className={
+            result.ok ? "text-ui-xs text-foreground-subtle" : "text-ui-xs text-destructive"
+          }
+        >
           {result.ok
             ? `${intl.formatMessage({ id: "settings.knowledge.testConnection.ok" })} · ${result.latencyMs}ms`
             : `${intl.formatMessage({ id: "settings.knowledge.testConnection.failed" })}：${result.error ?? ""}`}

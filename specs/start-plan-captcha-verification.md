@@ -117,6 +117,7 @@ CLI 全套头 + dummy 认证 + 108KB body + SSE —— 三层全通（401 令牌
 二进制全部排除。
 
 **实验组 B（真实凭据路径分流）**：
+
 - **API-key 路径通**：`~/.drora/config.json` 的
   `builtin:bigmodel-coding-plan`（open.bigmodel.cn/api/anthropic + apiKey）最小
   认证请求 → **HTTP 200，GLM-5.3 真实回复**（thinking 内容）。模型推理连通性

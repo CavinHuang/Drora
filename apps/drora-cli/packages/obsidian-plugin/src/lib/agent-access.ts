@@ -1,7 +1,7 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { loadVaultConfig } from "./config.js";
-import { getSafeVaultPath, isPlainVaultMarkdownPath, isWindowsAbsolutePath } from "./paths.js";
+import { getSafeVaultPath, isPlainVaultMarkdownPath, isWindowsAbsolutePath, realpathLongestExistingPrefix } from "./paths.js";
 
 export interface AgentVaultAccess {
   rootPath: string;
@@ -50,7 +50,12 @@ export async function resolveAuthorizedVaultPath(
   try {
     const realRoot = await realpath(rootPath);
     const baseDir = typeof cwd === "string" && cwd.trim() !== "" ? cwd : realRoot;
-    const target = resolve(baseDir, candidatePath.replace(/\\/g, "/"));
+    // 修复依据：cwd/绝对候选可能携带软链前缀（macOS /var → /private/var、Windows
+    // junction/subst），与 realpath 根不同坐标系时词法包含会把根内路径误判为逃逸。
+    // 对已存在祖先链 canonicalize（末段保持词法，仍由 getSafeVaultPath 逐段 lstat
+    // 拒绝根内软链），只纠正坐标系，不放松任何拒绝条件。
+    const resolved = resolve(baseDir, candidatePath.replace(/\\/g, "/"));
+    const target = join(await realpathLongestExistingPrefix(dirname(resolved)), basename(resolved));
     const rel = relative(realRoot, target);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       return null;
@@ -101,7 +106,11 @@ export async function resolveAuthorizedVaultWritePath(
     // 解析会产生"hook 放行字面名、面板解释为子路径"的不对称，且 `notes\.obsidian\x.md`
     // 会被当作单段字面名绕过隐藏段检查（CI ubuntu/macos 实证，K-POL-7）。
     // 绝对路径判定必须先于归一（对原始串做），保住 UNC/盘符两种写法的识别。
-    const target = resolve(baseDir ?? realRoot, candidatePath.replace(/\\/g, "/"));
+    // 坐标系修复与 resolveAuthorizedVaultPath 同理：cwd/绝对候选携带软链前缀时先对
+    // 已存在祖先链 canonicalize，再做包含判定；末段保持词法，最终 lstat 仍拒绝
+    // 软链与目录冒充，W01 收窄条件逐项不变。
+    const resolved = resolve(baseDir ?? realRoot, candidatePath.replace(/\\/g, "/"));
+    const target = join(await realpathLongestExistingPrefix(dirname(resolved)), basename(resolved));
     const rel = relative(realRoot, target);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       return null;

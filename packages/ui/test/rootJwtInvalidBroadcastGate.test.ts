@@ -63,10 +63,13 @@ function mountGate(initial: { hasAuthenticatedUser: boolean; restoring: boolean 
     markOAuthSuccess: vi.fn(),
     onReauthenticationRequired: vi.fn(),
   };
-  const mounted = renderHook((next: typeof props | undefined) => {
-    Object.assign(props, next ?? {});
-    return useRootOAuthEffects(props);
-  }, { initialProps: props });
+  const mounted = renderHook(
+    (next: typeof props | undefined) => {
+      Object.assign(props, next ?? {});
+      return useRootOAuthEffects(props);
+    },
+    { initialProps: props },
+  );
   return {
     props,
     mounted,
@@ -84,7 +87,11 @@ describe("JWT-invalid 广播门：恢复窗口挂起与落定重判", () => {
     gate.broadcast(DRORA_JWT_INVALID_BROADCAST_CHANNEL);
     expect(requestAlertMock).not.toHaveBeenCalled();
     expect(gate.props.onReauthenticationRequired).not.toHaveBeenCalled();
-    await gate.mounted.rerender({ ...gate.props, hasAuthenticatedUser: true, isRestoringOAuthSession: false });
+    await gate.mounted.rerender({
+      ...gate.props,
+      hasAuthenticatedUser: true,
+      isRestoringOAuthSession: false,
+    });
     // 恢复落定且登录态恢复成功 → 挂起的广播被重判：弹窗真实弹出，用户选择
     // 「暂不重启」→ 走重新认证分支（ui-auth-2：接线层不再零覆盖）。
     await waitFor(() => {
@@ -96,7 +103,11 @@ describe("JWT-invalid 广播门：恢复窗口挂起与落定重判", () => {
   it("恢复落定后确为已登出：挂起的广播被丢弃，离线 Vault 不被过期弹窗劫持", async () => {
     const gate = mountGate({ hasAuthenticatedUser: false, restoring: true });
     gate.broadcast(DRORA_JWT_INVALID_BROADCAST_CHANNEL);
-    await gate.mounted.rerender({ ...gate.props, hasAuthenticatedUser: false, isRestoringOAuthSession: false });
+    await gate.mounted.rerender({
+      ...gate.props,
+      hasAuthenticatedUser: false,
+      isRestoringOAuthSession: false,
+    });
     // 已落定且无登录用户：挂起广播被丢弃；随后新广播按原逻辑直接忽略。
     gate.broadcast(DRORA_JWT_INVALID_BROADCAST_CHANNEL);
     expect(gate.props.onReauthenticationRequired).not.toHaveBeenCalled();

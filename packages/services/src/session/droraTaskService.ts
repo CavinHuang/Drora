@@ -48,12 +48,6 @@ import type {
   DroraTaskListSortBy,
   DroraTaskListWorkspaceScope,
   DroraWorkspaceEventSubscriptionParams,
-  DroraGroupedTaskView,
-  DroraGroupedTaskViewOrderInput,
-  DroraGroupedTaskViewQuery,
-  DroraGroupedTaskViewStructure,
-  DroraTaskGroup,
-  DroraTaskGroupColor,
 } from "#src/session/droraTaskListTypes.js";
 
 export interface DroraTaskSnapshotWithEtagResult {
@@ -164,17 +158,6 @@ export type {
   DroraTaskListSortBy,
   DroraTaskListWorkspaceScope,
   DroraWorkspaceEventSubscriptionParams,
-  DroraGroupedTaskRef,
-  DroraGroupedTaskView,
-  DroraGroupedTaskViewNode,
-  DroraGroupedTaskViewOrderInput,
-  DroraGroupedTaskViewQuery,
-  DroraGroupedTaskViewStructure,
-  DroraGroupedTaskViewStructureMember,
-  DroraGroupedTaskViewStructureTopOrder,
-  DroraGroupedTaskViewTopLevelNodeRef,
-  DroraTaskGroup,
-  DroraTaskGroupColor,
 } from "#src/session/droraTaskListTypes.js";
 
 /** 一个 task 输入轮次的终态结果，供后台派发（定时任务）回写运行结果。 */
@@ -219,6 +202,8 @@ export interface IDroraTaskService {
 
   /** 创建 Drora session 并同步 task 索引。 */
   createTask(params: {
+    projectId?: string | null;
+    additionalDirectories?: string[];
     workspacePath: string;
     workspaceIdentity?: string;
     provider?: DroraProvider;
@@ -229,7 +214,6 @@ export interface IDroraTaskService {
     model?: string;
     /** @deprecated 仅供尚未迁移的旧调用边界读取。 */
     thoughtLevel?: string;
-    draftSessionId?: string;
     forkedFromTaskId?: string;
     mcpServers?: DroraAgentMcpServer[];
     /** 定时任务派发时标记所属 automation，落 tasks-index 的 cron_automation_id 并归入 cron 分组。 */
@@ -424,14 +408,12 @@ export interface IDroraTaskService {
     clientMode?: DroraTaskClientMode;
   }): Promise<boolean>;
 
-  /** 关闭 task（优先 session/close；当 workspace 下最后一个 task 结束时再回收共享进程） */
-  closeTask(params: { taskId: string }): Promise<void>;
-
   /** 恢复已有 task（复用 workspace 级 agent 进程，如无则创建，再执行 session/load） */
   resumeTask(params: {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
+    additionalDirectories?: string[];
     mode?: DroraTaskMode;
     model?: string;
     thoughtLevel?: string;
@@ -457,75 +439,30 @@ export interface IDroraTaskService {
     workspaceIdentity?: string;
   }): Promise<DroraTaskMeta[]>;
 
-  /** 读取 workspace 下已删除 task id；用于 sessions-index 列表的持久负向 membership join */
+  /** 读取 workspace 下已删除 task id；供闲时绑定会话与 Bots tombstone 判断 session 是否已删除 */
   listDeletedTaskIds(params: {
     workspacePath: string;
     workspaceIdentity?: string;
   }): Promise<string[]>;
 
   /**
-   * 按当前打开的 workspace scopes 聚合查询任务列表，真相源为 tasks-index.sqlite。
-   * 消费面：全文搜索（searchable_text/snippets）与 remoteTimelineTaskStore 补充链路；
-   * 无搜索列表行走 listTasks/listPinnedTasks/listArchivedTasks，workspace 行由
-   * 客户端用各 endpoint 的 task 行 + session detail 构建（多端收敛）。
+   * 读取 workspace 下仍在运行（sessions-index phase 非终态）的 task id。
+   * tasks-index 只镜像 CLI 的 last_outcome，行上的 status 永远不会是 running，
+   * 运行中判断必须来自 syncer 的实时活动集合。
+   */
+  listActiveTaskIds(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<string[]>;
+
+  /**
+   * 按显式 workspace scopes 查询 tasks-index，供全局搜索与 Controller 查询使用。
+   * 项目侧栏的行集合来自 ProjectService；旧远端列表缓存及 Group/bootstrap 已退役。
    */
   listTaskList(params: DroraTaskListQuery): Promise<DroraTaskListResult>;
 
-  /** 创建最小 task group；完整 delete 后续由 group 管理功能补齐 */
-  createTaskGroup(params?: {
-    title?: string;
-    color?: DroraTaskGroupColor;
-  }): Promise<DroraTaskGroup>;
-
-  /** 重命名 task group；workspaceScopes 只用于通知当前可见 grouped 视图刷新 */
-  renameTaskGroup(params: {
-    groupId: string;
-    title: string;
-    workspaceScopes?: DroraTaskListWorkspaceScope[];
-  }): Promise<DroraTaskGroup>;
-
-  /** 更新 task group 颜色；workspaceScopes 只用于通知当前可见 grouped 视图刷新 */
-  updateTaskGroupColor(params: {
-    groupId: string;
-    color: DroraTaskGroupColor;
-    workspaceScopes?: DroraTaskListWorkspaceScope[];
-  }): Promise<DroraTaskGroup>;
-
-  /** 删除 task group；调用方应先把组内 task 移回顶层 root */
-  deleteTaskGroup(params: {
-    groupId: string;
-    workspaceScopes?: DroraTaskListWorkspaceScope[];
-  }): Promise<void>;
-
-  // 服务端 grouped 查询只回原始结构（不 join tasks 表），
-  // renderer 用 task 行分区 + session detail 统一投影。
-
-  /**
-   * 查询 Grouped 视图原始结构（group/member/顶层排序，不 join tasks 表）。
-   * 客户端以 task 行分区为左表 join 本结构，sessions-index 只补充实时 detail。
-   */
-  listGroupedTaskViewStructure(params: {
-    workspaceScopes: DroraTaskListWorkspaceScope[];
-  }): Promise<DroraGroupedTaskViewStructure>;
-
-  /** 一次性提交 grouped 视图最终排序和 membership，服务层用 sqlite transaction 落库 */
-  applyGroupedTaskViewOrder(params: DroraGroupedTaskViewOrderInput): Promise<DroraGroupedTaskView>;
-
   /** 列出 workspace 下所有已归档 task */
   listArchivedTasks(params: {
-    workspacePath: string;
-    workspaceIdentity?: string;
-  }): Promise<DroraTaskMeta[]>;
-
-  /** 批量归档超期旧任务；仅归档已完成、无未读、非 pinned 且当前未打开的 task */
-  archiveStaleTasks(params: {
-    workspacePath: string;
-    workspaceIdentity?: string;
-    olderThanDays: number;
-  }): Promise<DroraTaskMeta[]>;
-
-  /** 移除 workspace 时批量归档该 workspace 下所有未归档 task，包含 pinned task */
-  archiveWorkspaceTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
   }): Promise<DroraTaskMeta[]>;

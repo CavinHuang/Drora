@@ -52,6 +52,7 @@ vi.mock("@/hooks/useServices.js", () => ({ useServices: () => h.services }));
 vi.mock("@/hooks/usePlatform.js", () => ({ usePlatform: () => h.platform }));
 vi.mock("@/store/StoreProvider.js", () => ({
   useDroraStore: (selector: (state: typeof h.store) => unknown) => selector(h.store),
+  useDroraStoreWithDefault: (selector: (state: typeof h.store) => unknown) => selector(h.store),
 }));
 vi.mock("@/store/TabStoreProvider.js", () => ({
   useTabStore: (selector: (state: typeof h.tabs) => unknown) => selector(h.tabs),

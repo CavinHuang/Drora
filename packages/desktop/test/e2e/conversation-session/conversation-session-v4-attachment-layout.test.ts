@@ -1,4 +1,4 @@
-import { TID_V4_EDIT_SUBMIT, TID_V4_ROW_ATTACHMENTS, testId } from "@drora/shared";
+import { TID_V4_EDIT_SUBMIT, TID_V4_ROW_ATTACHMENTS, testId } from "@drora/shared/test-ids";
 import { clearAppData, clickTestIdByDom } from "../helpers/desktop-app.js";
 import {
   beginFirstV4UserQueryEdit,

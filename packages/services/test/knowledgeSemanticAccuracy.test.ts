@@ -115,14 +115,18 @@ test("准确性棘轮：真实本地嵌入 × 标注集阈值门禁", async (t) 
     const recallAt30 = answered > 0 ? recallSum / answered : 0;
     const hitAt1 = answered > 0 ? hit1Sum / answered : 0;
     const mrr = answered > 0 ? rrSum / answered : 0;
-    const falsePositiveRate = SEMANTIC_ACCURACY_CASES.filter((c) => !c.hasAnswer).length > 0
-      ? falsePositives / SEMANTIC_ACCURACY_CASES.filter((c) => !c.hasAnswer).length
-      : 0;
+    const falsePositiveRate =
+      SEMANTIC_ACCURACY_CASES.filter((c) => !c.hasAnswer).length > 0
+        ? falsePositives / SEMANTIC_ACCURACY_CASES.filter((c) => !c.hasAnswer).length
+        : 0;
     console.log(
       `[accuracy] recall@30=${recallAt30.toFixed(3)} hit@1=${hitAt1.toFixed(3)} mrr=${mrr.toFixed(3)} noAnswerFP=${falsePositiveRate.toFixed(3)} (answered=${answered})`,
     );
 
-    assert.ok(recallAt30 >= RATCHET.recallAt30, `Recall@30 ${recallAt30.toFixed(3)} < ${RATCHET.recallAt30}`);
+    assert.ok(
+      recallAt30 >= RATCHET.recallAt30,
+      `Recall@30 ${recallAt30.toFixed(3)} < ${RATCHET.recallAt30}`,
+    );
     assert.ok(hitAt1 >= RATCHET.hitAt1, `Hit@1 ${hitAt1.toFixed(3)} < ${RATCHET.hitAt1}`);
     assert.ok(mrr >= RATCHET.mrr, `MRR ${mrr.toFixed(3)} < ${RATCHET.mrr}`);
   } finally {

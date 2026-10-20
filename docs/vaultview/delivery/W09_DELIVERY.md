@@ -7,6 +7,7 @@
 ## 1. 真实修改文件清单
 
 **新增（5）**
+
 - `packages/ui/src/lib/knowledgeEvidenceAttachment.ts`：附件区 scope 存储/事件/上限/去重/payload（镜像 selection 模式；append 纯函数导出供 node:test）
 - `packages/ui/src/v4/composer/useKnowledgeEvidenceAttachments.ts`：composer 侧订阅 hook
 - `packages/ui/src/v4/composer/KnowledgeEvidenceChip.tsx`：附件 chip（receiptId/路径/quote 摘要 + 「发送时复验」提示）
@@ -14,6 +15,7 @@
 - `packages/services/test/knowledgeReviewWritePath.test.ts`：WSG-UI-3/4（3 用例）
 
 **修改（13）**
+
 - 发送链：`ConversationComposer.tsx`（附件区快照/提交/受理后清理/SendOptions.evidenceRefs）、`SessionPane.tsx`（两处 sendText payload 注入 evidenceRefs）
 - 生产者入口：`KnowledgeCandidateCard.tsx`（「作为证据附给 Agent」，仅 verified 态可点，与 userselect「加入 Agent」并存且文案区分两种语义）
 - 审核消费：`KnowledgeReviewView.tsx`（重写：真实 IKnowledgeReviewService 消费——提案列表/内容预览/批准/拒绝/应用（operationId=randomUUID 幂等键）/undo（apply 返回的账本 operationId）/L2 开关）、`VaultView.tsx`（传入 reviewService）
@@ -23,14 +25,14 @@
 
 ## 2. 测试命令与真实退出码（win32 / node v24.1.0 / tsx）
 
-| 命令 | 结果 |
-| --- | --- |
-| `node --import tsx --test packages/ui/test/knowledgeEvidenceAttachment.test.ts packages/services/test/knowledgeReviewWritePath.test.ts packages/ui/test/knowledgeUiDiscipline.test.ts` | tests 11 / pass 11 / fail 0，EXIT=0 |
-| `node --import tsx --test packages/services/test/knowledgeReview.test.ts packages/services/test/knowledgeE2EFullChain.test.ts`（W06/W07 回归） | 随 33 用例合并跑全绿（tests 33 / pass 33 / fail 0） |
-| `pnpm typecheck`（全仓） | EXIT=0 |
-| `pnpm lint` | EXIT=0；**388 warnings / 0 errors = 基线同值，零新增**（开发中发现并修掉 1 个自引 error（max-lines，按 reviewEngine.ts 同先例文件顶 disable+理由）与 1 个自引 warning） |
-| `pnpm architecture:check --changed` | `new: 0`，EXIT=0 |
-| 全量 node:test（11 目录） | tests 541 / pass 534 / fail 7，失败文件集 ⊆ 基线（`00135862` 干净检出采得的 6 文件；本轮 7 败 = catgirl×3 + 红名单×4，relayControl 未触发），**零新增失败** |
+| 命令                                                                                                                                                                                   | 结果                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node --import tsx --test packages/ui/test/knowledgeEvidenceAttachment.test.ts packages/services/test/knowledgeReviewWritePath.test.ts packages/ui/test/knowledgeUiDiscipline.test.ts` | tests 11 / pass 11 / fail 0，EXIT=0                                                                                                                                     |
+| `node --import tsx --test packages/services/test/knowledgeReview.test.ts packages/services/test/knowledgeE2EFullChain.test.ts`（W06/W07 回归）                                         | 随 33 用例合并跑全绿（tests 33 / pass 33 / fail 0）                                                                                                                     |
+| `pnpm typecheck`（全仓）                                                                                                                                                               | EXIT=0                                                                                                                                                                  |
+| `pnpm lint`                                                                                                                                                                            | EXIT=0；**388 warnings / 0 errors = 基线同值，零新增**（开发中发现并修掉 1 个自引 error（max-lines，按 reviewEngine.ts 同先例文件顶 disable+理由）与 1 个自引 warning） |
+| `pnpm architecture:check --changed`                                                                                                                                                    | `new: 0`，EXIT=0                                                                                                                                                        |
+| 全量 node:test（11 目录）                                                                                                                                                              | tests 541 / pass 534 / fail 7，失败文件集 ⊆ 基线（`00135862` 干净检出采得的 6 文件；本轮 7 败 = catgirl×3 + 红名单×4，relayControl 未触发），**零新增失败**             |
 
 **未执行（如实）：** Electron 进程内点击级 GUI E2E（同 W04/W07 边界：原生对话框 + 真实 Vault 扫描面风险）；真实模型下的 evidenceRefs 端到端（发送链 UI→payload 已由编排锁定，CLI gate 复验由 W03 的 15 用例锁定）。
 

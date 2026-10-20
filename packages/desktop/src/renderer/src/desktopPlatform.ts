@@ -9,10 +9,12 @@ export function createDesktopPlatform(options: {
 }): IPlatformService {
   return {
     canSelectFilePath: true,
+    canOpenLocalFiles: true,
     pluginSandbox: createDesktopPluginSandboxPlatform(),
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.drora.selectDirectory(),
+    selectDirectories: () => window.drora.selectDirectories(),
     // 移动远控方法面必须整体转发（spec: mobile-web-remote.md「Renderer 集成面」）：
     // relay 五项缺失曾让云中继 tab 永久停在“正在准备二维码”，且 renderer 子项目
     // 不在根 typecheck 覆盖内，缺口只能由 desktopRendererPlatformMobileFace 测试守护。
@@ -29,17 +31,23 @@ export function createDesktopPlatform(options: {
       window.drora.materializeWorkflowArtifactFile(payload),
     onRemoteConnectionLog: (handler) => window.drora.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.drora.onRemoteSessionClosed(handler),
-    onBotRemoteWorkspaceReconnected: (handler) =>
-      window.drora.onBotRemoteWorkspaceReconnected(handler),
+    // Source 自动重连会替换 logical session；统一由 preload bridge 转发换代事件。
+    onRemoteSessionReconnected: (handler) =>
+      window.drora.onRemoteSessionReconnected?.(handler) ?? (() => {}),
     activateOrSetWorkspace: (path) =>
       window.drora.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),
     connectRemote: (remoteOptions, requestId, context) =>
       window.drora.connectRemote(remoteOptions, requestId, context),
+    requestSourceSettingsAttachment: (sourceServerId) =>
+      window.drora.requestSourceSettingsAttachment?.(sourceServerId) ??
+      Promise.reject(new Error("Source settings attachment bridge unavailable")),
     cancelPendingRemoteConnection: (requestId) =>
       window.drora.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve(),
     bindRemoteWorkspaceSessionContext: (context) =>
-      window.drora.bindRemoteWorkspaceSessionContext?.(context) ?? Promise.resolve(),
+      window.drora.bindRemoteWorkspaceSessionContext?.(context) ??
+      Promise.reject(new Error("Desktop bindRemoteWorkspaceSessionContext bridge unavailable")),
     startWebRemoteControl: (context) => window.drora.startWebRemoteControl(context),
+    // B 类保护：二维码泄露时的配对轮换转发面（ours 保真；desktopRendererPlatformMobileFace 测试守护）。
     refreshWebRemoteControlPairing: (context) =>
       window.drora.refreshWebRemoteControlPairing(context),
     stopWebRemoteControl: () => window.drora.stopWebRemoteControl(),
@@ -73,6 +81,8 @@ export function createDesktopPlatform(options: {
     startCuaHelperPermissionDrag: window.drora.startCuaHelperPermissionDrag
       ? () => window.drora.startCuaHelperPermissionDrag?.()
       : undefined,
+    notifyWebRemoteControlAuthStateChanged: (change) =>
+      window.drora.notifyWebRemoteControlAuthStateChanged(change),
     registerOAuthState: (payload) => window.drora.registerOAuthState(payload),
     onOAuthCallback: (callback) => window.drora.onOAuthCallback(callback),
     onPaymentCallback: (callback) => window.drora.onPaymentCallback(callback),
@@ -104,7 +114,6 @@ export function createDesktopPlatform(options: {
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
     syncWebRemoteControlWorkspaces: (workspaces) =>
       window.drora.syncWebRemoteControlWorkspaces?.(workspaces),
-    syncWebRemoteControlTasks: (tasks) => window.drora.syncWebRemoteControlTasks?.(tasks),
     onWebRemoteControlReconnectWorkspace: (handler) =>
       window.drora.onWebRemoteControlReconnectWorkspace?.(handler) ?? (() => {}),
     syncWindowUnreadCount: (count) => window.drora.syncWindowUnreadCount(count),
@@ -195,7 +204,7 @@ export function createDesktopPlatform(options: {
       window.drora.acknowledgePostUpdateReleaseNotes(version),
     skipUpdateVersion: (version) => window.drora.skipUpdateVersion?.(version) ?? Promise.resolve(),
     quitAndInstallUpdate: () => window.drora.quitAndInstallUpdate(),
-    getInstalledEditors: () => window.drora.getInstalledEditors(),
+    getInstalledEditors: (filePath) => window.drora.getInstalledEditors(filePath),
     getApplicationIcon: (bundleId) =>
       window.drora.getApplicationIcon?.(bundleId) ?? Promise.resolve(null),
     openInEditor: (editorId, path, editorOptions) =>

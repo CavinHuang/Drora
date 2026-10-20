@@ -5,7 +5,7 @@
 ## 来源
 
 - `droraAgent`: 用户命令目录为 `~/.drora/commands`，项目命令目录为 `<workspace>/.drora/commands`。
-迁移期服务层仍保留 `claudeCli`、`opencodeCli`、`geminiCli` 描述符，用于显式读取旧目录和测试旧文件格式，但 UI 不再暴露这些来源。未传 `agentSource` 时，所有读写都默认走 `droraAgent`。
+  迁移期服务层仍保留 `claudeCli`、`opencodeCli`、`geminiCli` 描述符，用于显式读取旧目录和测试旧文件格式，但 UI 不再暴露这些来源。未传 `agentSource` 时，所有读写都默认走 `droraAgent`。
 
 ## 文件格式
 

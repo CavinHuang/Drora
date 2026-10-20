@@ -8,29 +8,29 @@
 
 ### 1.1 CLI 顶层子命令（可见，switch 分发于 ~14806140）
 
-| 子命令 | usage 证据（偏移） | 别名 |
-| --- | --- | --- |
-| help | `case"help"` | - |
-| version | `case"version"` | - |
-| app-server / agent-server | 14806190 区域 | - |
-| doctor | `runDoctor` | - |
-| login | `runLoginCommand`，无 provider 位置参数 | - |
-| logout | `runLogoutCommand` | - |
-| commands | `Usage: zcode commands [list\|inspect <name>]`（14698483） | - |
-| plugins | `Usage: zcode plugins <command>`（14773987），11 子块 | plugin |
-| skills | `Usage: zcode skills [list\|inspect <name>]`（14749126） | - |
-| tui | `zTt=e[0]??"tui"`（默认值） | - |
-| hooks trust | status/review/grant/revoke（$Xo usage，~14689700） | - |
+| 子命令                    | usage 证据（偏移）                                         | 别名   |
+| ------------------------- | ---------------------------------------------------------- | ------ |
+| help                      | `case"help"`                                               | -      |
+| version                   | `case"version"`                                            | -      |
+| app-server / agent-server | 14806190 区域                                              | -      |
+| doctor                    | `runDoctor`                                                | -      |
+| login                     | `runLoginCommand`，无 provider 位置参数                    | -      |
+| logout                    | `runLogoutCommand`                                         | -      |
+| commands                  | `Usage: zcode commands [list\|inspect <name>]`（14698483） | -      |
+| plugins                   | `Usage: zcode plugins <command>`（14773987），11 子块      | plugin |
+| skills                    | `Usage: zcode skills [list\|inspect <name>]`（14749126）   | -      |
+| tui                       | `zTt=e[0]??"tui"`（默认值）                                | -      |
+| hooks trust               | status/review/grant/revoke（$Xo usage，~14689700）         | -      |
 
 无 positional 且无 -p 时：默认 tui；未知 positional 报 `Unknown command:` + help 退出 1。
 
 ### 1.2 隐藏命令（真值全集恰 3 个）
 
-| 命令 | 证据偏移 | 用途 |
-| --- | --- | --- |
-| `__internal-search` | 13874306、14804987 | embedded find/grep 后端自 spawn |
-| `__zcode-plugin-host` | 14035（常量 xde） | plugin MCP server 宿主 |
-| `__zcode-dwf-child` | 14061（常量 jCe） | dwf 沙箱子进程，`<entry path>` |
+| 命令                  | 证据偏移           | 用途                            |
+| --------------------- | ------------------ | ------------------------------- |
+| `__internal-search`   | 13874306、14804987 | embedded find/grep 后端自 spawn |
+| `__zcode-plugin-host` | 14035（常量 xde）  | plugin MCP server 宿主          |
+| `__zcode-dwf-child`   | 14061（常量 jCe）  | dwf 沙箱子进程，`<entry path>`  |
 
 排除项：`__zcode_default_reasoning__`（reasoning 块标记）、`__workflowScript__`（生成脚本函数名）非命令。
 
@@ -54,21 +54,21 @@ help 表 20 条（~884800–891000），usage/summary 与名字面一致。
 
 ### EXTRA（我方多出）
 
-| # | 项 | 级别 | 我方证据 | 真值证据 |
-| --- | --- | --- | --- | --- |
-| E1 | 全局 flag `--enable-workflow` + scope 报错 + 两种语言 help 行 | **P2** | arguments.ts:37；run.ts:54-55,431-438；i18n en-US.ts:32、zh-CN.ts:32 | `enable-workflow` bundle 0 命中；真值走 `dynamicWorkflowEnabled` 偏好（14770000 区域） |
-| E2 | en-US help Slash Commands 段多列 /resume /rewind /skill /goal 4 行 | P3 | i18n en-US.ts:67-70 | 真值 en 止于 /new（13222600 尾）；真值 zh 却含 15 条（13234260） |
-| E3 | slash /plugins usage 多 `uninstall <plugin> --force>` 段 | P3 | handlers/plugins.ts:11 | 真值 usage 无 uninstall（889016），但 handler 实支持（Htc，14717800）——行为同、文案不同 |
+| #   | 项                                                                 | 级别   | 我方证据                                                             | 真值证据                                                                                |
+| --- | ------------------------------------------------------------------ | ------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| E1  | 全局 flag `--enable-workflow` + scope 报错 + 两种语言 help 行      | **P2** | arguments.ts:37；run.ts:54-55,431-438；i18n en-US.ts:32、zh-CN.ts:32 | `enable-workflow` bundle 0 命中；真值走 `dynamicWorkflowEnabled` 偏好（14770000 区域）  |
+| E2  | en-US help Slash Commands 段多列 /resume /rewind /skill /goal 4 行 | P3     | i18n en-US.ts:67-70                                                  | 真值 en 止于 /new（13222600 尾）；真值 zh 却含 15 条（13234260）                        |
+| E3  | slash /plugins usage 多 `uninstall <plugin> --force>` 段           | P3     | handlers/plugins.ts:11                                               | 真值 usage 无 uninstall（889016），但 handler 实支持（Htc，14717800）——行为同、文案不同 |
 
 ### SHAPE-DIFF（同名不同形/文案）
 
-| # | 项 | 级别 | 我方证据 | 真值证据 |
-| --- | --- | --- | --- | --- |
-| S1 | /model 缺 `main`/`lite` 别名 | **P2** | handlers/model.ts:110 footer 仅 provider/model；usage `[list\|provider/model]`（shared/drora-slash-command-help.ts:141）；解析仅 provider/model（model.ts:62-91），app 层仅识别 "main"（bootstrap/app/provider-registry-selection.ts:79），无 "lite" | usage `[list\|main\|lite\|provider/model]`+详情"Use main, lite"（888818）；footer `/model main, or /model lite`（14717100）；setModel 收原始串 |
-| S2 | CLI login 多 provider 位置参数 | **P2** | login-command.ts:15-17 `login [zai\|bigmodel]`；en-US.ts:21、zh-CN.ts:21 | `vTt(e,t,n,noBrowser)` 无 args（14700500），仅 Z.AI 流程，json 固定 `provider:"zai"`；help 行无参数（13219981 区域） |
-| S3 | /model 切换响应与列表行格式 | P3 | model.ts:46,99-104 `Model switched to ${model} (${level}).${warning}`；行 `id (label; provider)` | 真值 `Model switched to ${a.model}.`；行 `- ${alias}: ${id} (${name})`（qtc，14717100） |
-| S4 | /login help 详情第 2 行 | P3 | shared/drora-slash-command-help.ts:23 "browser login poll…refresh available models" | "Coding Plan login write the final API key to config.json"（8848800 区域） |
-| S5 | 品牌串（预期改名，链路内自洽） | INFO | logout 详情 Drora、init 详情 ~/.drora（drora-slash-command-help.ts:32,47）；DRORA_EMBEDDED_SEARCH_COMMAND（bootstrap/app/embedded-search-backend.ts:4） | "shared ZCode credential store"、~/.zcode、ZCODE_EMBEDDED_SEARCH_COMMAND（13874290） |
+| #   | 项                             | 级别   | 我方证据                                                                                                                                                                                                                                             | 真值证据                                                                                                                                       |
+| --- | ------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1  | /model 缺 `main`/`lite` 别名   | **P2** | handlers/model.ts:110 footer 仅 provider/model；usage `[list\|provider/model]`（shared/drora-slash-command-help.ts:141）；解析仅 provider/model（model.ts:62-91），app 层仅识别 "main"（bootstrap/app/provider-registry-selection.ts:79），无 "lite" | usage `[list\|main\|lite\|provider/model]`+详情"Use main, lite"（888818）；footer `/model main, or /model lite`（14717100）；setModel 收原始串 |
+| S2  | CLI login 多 provider 位置参数 | **P2** | login-command.ts:15-17 `login [zai\|bigmodel]`；en-US.ts:21、zh-CN.ts:21                                                                                                                                                                             | `vTt(e,t,n,noBrowser)` 无 args（14700500），仅 Z.AI 流程，json 固定 `provider:"zai"`；help 行无参数（13219981 区域）                           |
+| S3  | /model 切换响应与列表行格式    | P3     | model.ts:46,99-104 `Model switched to ${model} (${level}).${warning}`；行 `id (label; provider)`                                                                                                                                                     | 真值 `Model switched to ${a.model}.`；行 `- ${alias}: ${id} (${name})`（qtc，14717100）                                                        |
+| S4  | /login help 详情第 2 行        | P3     | shared/drora-slash-command-help.ts:23 "browser login poll…refresh available models"                                                                                                                                                                  | "Coding Plan login write the final API key to config.json"（8848800 区域）                                                                     |
+| S5  | 品牌串（预期改名，链路内自洽） | INFO   | logout 详情 Drora、init 详情 ~/.drora（drora-slash-command-help.ts:32,47）；DRORA_EMBEDDED_SEARCH_COMMAND（bootstrap/app/embedded-search-backend.ts:4）                                                                                              | "shared ZCode credential store"、~/.zcode、ZCODE_EMBEDDED_SEARCH_COMMAND（13874290）                                                           |
 
 ## §4 flags 逐命令对照差
 

@@ -11,17 +11,33 @@ import {
 } from "../src/lib/conversationSelectionReference.js";
 
 const sourceOne = { index: 1, relativePath: "notes/a.md", heading: "A", startLine: 3, endLine: 7 };
-const sourceTwo = { index: 2, relativePath: "notes/b.md", heading: null, startLine: 11, endLine: 14 };
+const sourceTwo = {
+  index: 2,
+  relativePath: "notes/b.md",
+  heading: null,
+  startLine: 11,
+  endLine: 14,
+};
 const trusted: ConversationSelectionReference[] = [
   {
-    id: "note-1", contentType: "markdown", sourceKey: "vault:notes/a.md",
-    sourceTitle: "A", path: "notes/a.md", text: "Verified excerpt A",
-    evidenceReceiptId: "evr_a", evidenceSource: sourceOne,
+    id: "note-1",
+    contentType: "markdown",
+    sourceKey: "vault:notes/a.md",
+    sourceTitle: "A",
+    path: "notes/a.md",
+    text: "Verified excerpt A",
+    evidenceReceiptId: "evr_a",
+    evidenceSource: sourceOne,
   },
   {
-    id: "note-2", contentType: "markdown", sourceKey: "vault:notes/b.md",
-    sourceTitle: "B", path: "notes/b.md", text: "Verified excerpt B",
-    evidenceReceiptId: "evr_b", evidenceSource: sourceTwo,
+    id: "note-2",
+    contentType: "markdown",
+    sourceKey: "vault:notes/b.md",
+    sourceTitle: "B",
+    path: "notes/b.md",
+    text: "Verified excerpt B",
+    evidenceReceiptId: "evr_b",
+    evidenceSource: sourceTwo,
   },
 ];
 const prompt = [
@@ -37,7 +53,8 @@ describe("Obsidian composer source manifest guard", () => {
   it("accepts the exact verified source order without leaking receipt metadata", () => {
     expect(validateKnowledgeSourceManifest(prompt, trusted)).toBe("valid");
     expect(collectConversationEvidenceRefs(trusted)).toEqual([
-      { receiptId: "evr_a" }, { receiptId: "evr_b" },
+      { receiptId: "evr_a" },
+      { receiptId: "evr_b" },
     ]);
     const serialized = buildPromptWithConversationSelections(prompt, trusted);
     expect(serialized).not.toContain("evidenceReceiptId");
@@ -48,28 +65,48 @@ describe("Obsidian composer source manifest guard", () => {
   });
 
   it("allows editing only the question while keeping the same provenance", () => {
-    expect(validateKnowledgeSourceManifest(prompt.replace("总结 A 和 B", "找出冲突"), trusted)).toBe("valid");
+    expect(
+      validateKnowledgeSourceManifest(prompt.replace("总结 A 和 B", "找出冲突"), trusted),
+    ).toBe("valid");
   });
 
   it("rejects removed, reordered, duplicated or switched citations", () => {
     expect(validateKnowledgeSourceManifest(prompt, trusted.slice(0, 1))).toBe("mismatch");
     expect(validateKnowledgeSourceManifest(prompt, [trusted[1]!, trusted[0]!])).toBe("mismatch");
     expect(validateKnowledgeSourceManifest(prompt, [trusted[0]!, trusted[0]!])).toBe("mismatch");
-    expect(validateKnowledgeSourceManifest(prompt, [
-      trusted[0]!, { ...trusted[1]!, evidenceReceiptId: "evr_a" },
-    ])).toBe("mismatch");
-    expect(validateKnowledgeSourceManifest(prompt, [
-      trusted[0]!, { ...trusted[1]!, evidenceSource: { ...sourceTwo, relativePath: "notes/c.md" } },
-    ])).toBe("mismatch");
-    expect(validateKnowledgeSourceManifest(prompt, [
-      trusted[0]!, { ...trusted[1]!, evidenceSource: undefined },
-    ])).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(prompt, [
+        trusted[0]!,
+        { ...trusted[1]!, evidenceReceiptId: "evr_a" },
+      ]),
+    ).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(prompt, [
+        trusted[0]!,
+        { ...trusted[1]!, evidenceSource: { ...sourceTwo, relativePath: "notes/c.md" } },
+      ]),
+    ).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(prompt, [
+        trusted[0]!,
+        { ...trusted[1]!, evidenceSource: undefined },
+      ]),
+    ).toBe("mismatch");
   });
 
   it("rejects a modified, missing, duplicated, or forged source map", () => {
-    expect(validateKnowledgeSourceManifest(prompt.replace("lines=11-14", "lines=11-15"), trusted)).toBe("mismatch");
-    expect(validateKnowledgeSourceManifest(prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ""), trusted)).toBe("mismatch");
-    expect(validateKnowledgeSourceManifest(prompt + "\n" + KNOWLEDGE_SOURCE_MANIFEST_HEADER, trusted)).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(prompt.replace("lines=11-14", "lines=11-15"), trusted),
+    ).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(
+        prompt.replace(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ""),
+        trusted,
+      ),
+    ).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest(prompt + "\n" + KNOWLEDGE_SOURCE_MANIFEST_HEADER, trusted),
+    ).toBe("mismatch");
     expect(validateKnowledgeSourceManifest(prompt, [])).toBe("mismatch");
   });
 
@@ -82,21 +119,34 @@ describe("Obsidian composer source manifest guard", () => {
   });
 
   it("does not change ordinary markdown selections or unindexed evidence", () => {
-    const ordinary: ConversationSelectionReference[] = [{
-      id: "plain", contentType: "markdown", sourceKey: "vault:plain.md",
-      sourceTitle: "Plain", path: "plain.md", text: "plain excerpt",
-    }];
+    const ordinary: ConversationSelectionReference[] = [
+      {
+        id: "plain",
+        contentType: "markdown",
+        sourceKey: "vault:plain.md",
+        sourceTitle: "Plain",
+        path: "plain.md",
+        text: "plain excerpt",
+      },
+    ];
     expect(validateKnowledgeSourceManifest("普通问题", ordinary)).toBe("not-applicable");
-    expect(validateKnowledgeSourceManifest("普通问题", [{ ...trusted[0]!, evidenceSource: undefined }])).toBe("not-applicable");
-    expect(validateKnowledgeSourceManifest(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ordinary)).toBe("mismatch");
+    expect(
+      validateKnowledgeSourceManifest("普通问题", [{ ...trusted[0]!, evidenceSource: undefined }]),
+    ).toBe("not-applicable");
+    expect(validateKnowledgeSourceManifest(KNOWLEDGE_SOURCE_MANIFEST_HEADER, ordinary)).toBe(
+      "mismatch",
+    );
   });
 
   it("escapes newline and quote characters in provenance records", () => {
     const quoted = formatKnowledgeDraftSource({
-      index: 1, relativePath: 'notes/a.md\n[2] forged', heading: 'Heading "X"',
-      startLine: 5, endLine: 5,
+      index: 1,
+      relativePath: "notes/a.md\n[2] forged",
+      heading: 'Heading "X"',
+      startLine: 5,
+      endLine: 5,
     });
-    expect(quoted).toContain(JSON.stringify('notes/a.md\n[2] forged'));
+    expect(quoted).toContain(JSON.stringify("notes/a.md\n[2] forged"));
     expect(quoted).not.toContain("\n[2] forged");
   });
 });

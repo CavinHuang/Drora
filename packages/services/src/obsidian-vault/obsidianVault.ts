@@ -146,9 +146,7 @@ export interface IObsidianVaultService {
   resolveMedia(params: { noteRelativePath: string; src: string }): Promise<string | null>;
 
   /** 保存粘贴图片（MIME 白名单 + 魔数 + ≤10MB），返回笔记相对 Markdown 引用。 */
-  savePastedImage(
-    input: ObsidianVaultSavePastedImageInput,
-  ): Promise<{ src: string } | null>;
+  savePastedImage(input: ObsidianVaultSavePastedImageInput): Promise<{ src: string } | null>;
 
   /** 记录某个会话的面板焦点；focus 为 null 时清除。 */
   setUserContext(params: { sessionId: string; focus: ObsidianVaultFocus | null }): Promise<void>;

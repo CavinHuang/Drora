@@ -13,8 +13,13 @@ import { ReviewLedgerStore } from "../../src/knowledge/review/reviewStore.js";
 import { createVaultFileSystem } from "../../src/obsidian-vault/vault-fs.js";
 
 const [databasePath, vaultPath, operationId, crashMode, markerPath] = process.argv.slice(2);
-if (!databasePath || !vaultPath || !operationId || !markerPath ||
-    (crashMode !== "claimed" && crashMode !== "inverse-written")) {
+if (
+  !databasePath ||
+  !vaultPath ||
+  !operationId ||
+  !markerPath ||
+  (crashMode !== "claimed" && crashMode !== "inverse-written")
+) {
   throw new Error("Expected databasePath vaultPath operationId claimed|inverse-written markerPath");
 }
 setDataBaseDir(dirname(dirname(databasePath)));

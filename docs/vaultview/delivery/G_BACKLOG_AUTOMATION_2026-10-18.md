@@ -19,16 +19,16 @@ pnpm exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/<spec>.ts
 
 ## 逐用例结果
 
-| ID | spec | it | 结果 | 运行证据 |
-| --- | --- | --- | --- | --- |
-| G11 | g-interleaving.test.ts | G11 new submission while evidence verification is pending… | PASS | 见下节 |
-| G20 | g-interleaving.test.ts | G20 previous-round re-verification racing…（主 it）+ G20 positive control（正向对照探针） | **FAIL（产品缺陷 D-G20-1）** | 见下节与「产品缺陷」 |
-| G21 | g-interleaving.test.ts | G21 changing the second selection during an ANSWER handoff… | PASS | 见下节 |
-| G22 | g-interleaving.test.ts | G22 double-clicking the handoff while verification is in flight… | PASS | 见下节 |
-| G28 | g-citation-open-errors.test.ts | G28 verified chip open… | PASS | 见下节（含两轮修复记录） |
-| G29 | g-citation-open-errors.test.ts | G29 stale / G29 missing / G29 forbidden / G29 session switch…（4 个 it） | PASS | 见下节 |
-| G25 | g-hint-and-plain-selection.test.ts | G25 stale receipt still shows the recheck-on-send hint… | PASS | 见下节 |
-| G30 | g-hint-and-plain-selection.test.ts | G30 plain markdown selection chip… | PASS | 见下节 |
+| ID  | spec                               | it                                                                                        | 结果                         | 运行证据                 |
+| --- | ---------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------- | ------------------------ |
+| G11 | g-interleaving.test.ts             | G11 new submission while evidence verification is pending…                                | PASS                         | 见下节                   |
+| G20 | g-interleaving.test.ts             | G20 previous-round re-verification racing…（主 it）+ G20 positive control（正向对照探针） | **FAIL（产品缺陷 D-G20-1）** | 见下节与「产品缺陷」     |
+| G21 | g-interleaving.test.ts             | G21 changing the second selection during an ANSWER handoff…                               | PASS                         | 见下节                   |
+| G22 | g-interleaving.test.ts             | G22 double-clicking the handoff while verification is in flight…                          | PASS                         | 见下节                   |
+| G28 | g-citation-open-errors.test.ts     | G28 verified chip open…                                                                   | PASS                         | 见下节（含两轮修复记录） |
+| G29 | g-citation-open-errors.test.ts     | G29 stale / G29 missing / G29 forbidden / G29 session switch…（4 个 it）                  | PASS                         | 见下节                   |
+| G25 | g-hint-and-plain-selection.test.ts | G25 stale receipt still shows the recheck-on-send hint…                                   | PASS                         | 见下节                   |
+| G30 | g-hint-and-plain-selection.test.ts | G30 plain markdown selection chip…                                                        | PASS                         | 见下节                   |
 
 spec 级退出码（真实运行，artifact 目录 `packages/desktop/.e2e-artifacts/desktop-e2e-*`）：
 

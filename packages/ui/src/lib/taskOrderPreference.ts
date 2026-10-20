@@ -62,15 +62,24 @@ export function persistTaskOrder(
   taskIds: readonly string[],
   storage: StorageLike | null = getBrowserStorage(),
 ) {
-  storage?.setItem(getTaskOrderStorageKey(workspacePath), JSON.stringify(normalizeTaskOrder(taskIds)));
+  storage?.setItem(
+    getTaskOrderStorageKey(workspacePath),
+    JSON.stringify(normalizeTaskOrder(taskIds)),
+  );
 }
 
-export function pruneTaskOrder(taskOrder: readonly string[], tasks: readonly DroraTaskMeta[]): string[] {
+export function pruneTaskOrder(
+  taskOrder: readonly string[],
+  tasks: readonly DroraTaskMeta[],
+): string[] {
   const taskIds = new Set(tasks.map((task) => task.taskId));
   return normalizeTaskOrder(taskOrder).filter((taskId) => taskIds.has(taskId));
 }
 
-export function sortTasksByOrder(tasks: readonly DroraTaskMeta[], taskOrder: readonly string[]): DroraTaskMeta[] {
+export function sortTasksByOrder(
+  tasks: readonly DroraTaskMeta[],
+  taskOrder: readonly string[],
+): DroraTaskMeta[] {
   const normalizedTaskOrder = normalizeTaskOrder(taskOrder);
   const orderedIndexByTaskId = new Map(
     normalizedTaskOrder.map((taskId, index) => [taskId, index] as const),

@@ -821,6 +821,9 @@ describe("createDroraAgentService provider registry", () => {
           providerCount: 1,
         };
       }
+      if (method === droraProtocolMethods.providerRefreshRegistry) {
+        return { refreshed: true as const };
+      }
       if (method === droraProtocolMethods.sessionCreate) {
         return createSessionSnapshot({
           model: { providerId: "e2e-primary", modelId: "deepseek-v4-flash" },
@@ -884,6 +887,7 @@ describe("createDroraAgentService provider registry", () => {
 
     expect(calls).toEqual([
       droraProtocolMethods.providerUpdateAccountConfig,
+      droraProtocolMethods.providerRefreshRegistry,
       droraProtocolMethods.sessionCreate,
     ]);
     expect(request).toHaveBeenNthCalledWith(
@@ -905,11 +909,6 @@ describe("createDroraAgentService provider registry", () => {
       },
       expect.any(Object),
     );
-    expect(request).not.toHaveBeenCalledWith(
-      "workspace/updateProviderRegistry",
-      expect.anything(),
-      expect.anything(),
-    );
     service.disposeAll();
   });
 
@@ -930,6 +929,9 @@ describe("createDroraAgentService provider registry", () => {
       if (method === droraProtocolMethods.providerUpdateAccountConfig) {
         const revision = (params as { revision: string }).revision;
         return { receivedRevision: revision, providerCount: 1, status: "received" as const };
+      }
+      if (method === droraProtocolMethods.providerRefreshRegistry) {
+        return { refreshed: true as const };
       }
       if (method === droraProtocolMethods.sessionCreate) {
         return createSessionSnapshot({
@@ -1096,6 +1098,121 @@ describe("createDroraAgentService provider registry", () => {
     );
     service.disposeAll();
   });
+
+  it.each(["refreshed", "failed"] as const)(
+    "waits for the worker registry before switching a model with unchanged account config: %s",
+    async (refreshResult) => {
+      const accountSource = createAccountProviderConfigChangeSource({
+        revision: "account-1",
+        basedOnDroraBuiltinRevision: "drora-builtin:1",
+        providers: new ProviderConfigMap([]),
+      });
+      let finishRefresh!: () => void;
+      const refreshGate = new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+      });
+      let waitingForRefresh = false;
+      const request = vi.fn(async (method: string, params?: unknown) => {
+        if (method === droraProtocolMethods.providerUpdateAccountConfig) {
+          return { receivedRevision: "account-1", status: "received", providerCount: 0 };
+        }
+        if (method === droraProtocolMethods.providerRefreshRegistry) {
+          if (waitingForRefresh) {
+            await refreshGate;
+            if (refreshResult === "failed") throw new Error("registry refresh failed");
+          }
+          return { refreshed: true };
+        }
+        if (method === V4_METHODS.command) {
+          return {
+            commandId: (params as { commandId: string }).commandId,
+            status: "accepted" as const,
+            revisionAtDecision: 1,
+          };
+        }
+        throw new Error(`Unexpected method ${method}`);
+      });
+      const client = {
+        request,
+        transportKind: "stdio",
+        onNotification: () => ({ dispose() {} }),
+        onRequest: () => ({ dispose() {} }),
+        onClose: () => ({ dispose() {} }),
+      };
+      vi.resetModules();
+      vi.doMock("#src/drora-agent/droraAgentProcessManager.js", () => ({
+        DroraAgentProcessManager: class extends MockProcessManagerBase {
+          async getClient() {
+            return client;
+          }
+          disposeAll() {}
+        },
+      }));
+      const { createDroraAgentService } = await import("#src/drora-agent/droraAgentService.js");
+      const service = createDroraAgentService({
+        modelSelectionReadinessSource: createReadyModelSelectionSource(),
+        accountProviderConfigSource: accountSource.source,
+      });
+      const workspace = { workspacePath: "/workspace/app" };
+      try {
+        await service.sendConversationCommandV4({
+          ...workspace,
+          envelope: {
+            commandId: "warmup",
+            clientId: "host-client",
+            sessionId: "sess_1",
+            type: "compact",
+            payload: {},
+            issuedAt: 1,
+          },
+        });
+        request.mockClear();
+        waitingForRefresh = true;
+        const switching = service.sendConversationCommandV4({
+          ...workspace,
+          envelope: {
+            commandId: "switch-model",
+            clientId: "host-client",
+            sessionId: "sess_1",
+            type: "switchModelConfig",
+            payload: { provider: "provisioned-provider", model: "model-a", thought: "" },
+            issuedAt: 2,
+          },
+        });
+        const outcome = switching.then(
+          (ack) => ({ ack }),
+          (error: unknown) => ({ error }),
+        );
+        await vi.waitFor(() => expect(request).toHaveBeenCalled());
+        expect(request.mock.calls.map(([method]) => method)).toEqual([
+          droraProtocolMethods.providerRefreshRegistry,
+        ]);
+        finishRefresh();
+        await expect(outcome).resolves.toMatchObject(
+          refreshResult === "failed"
+            ? { error: new Error("registry refresh failed") }
+            : { ack: { status: "accepted" } },
+        );
+        expect(
+          request.mock.calls.map(([method, params]) =>
+            method === V4_METHODS.command
+              ? `${method}:${(params as { type: string }).type}`
+              : method,
+          ),
+        ).toEqual(
+          refreshResult === "failed"
+            ? [droraProtocolMethods.providerRefreshRegistry]
+            : [
+                droraProtocolMethods.providerRefreshRegistry,
+                `${V4_METHODS.command}:switchModelConfig`,
+              ],
+        );
+      } finally {
+        finishRefresh();
+        service.disposeAll();
+      }
+    },
+  );
 
   it("workspace presentation does not attach Host-derived model facts", async () => {
     const request = vi.fn(async () => ({

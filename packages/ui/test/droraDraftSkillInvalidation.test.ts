@@ -1,90 +1,45 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IDroraSessionService } from "@drora/services";
-import { invalidateDeferredDraftSessionForSkillChange } from "../src/lib/droraDraftSkillInvalidation.js";
-import { useDroraSessionStore } from "../src/store/droraSessionStore.js";
-
-function createSessionService(
-  closeSession: IDroraSessionService["closeSession"] = vi.fn(async () => {}),
-): Pick<IDroraSessionService, "closeSession"> {
-  return { closeSession };
-}
-
+import { beforeEach, describe, expect, it } from "vitest";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/droraDraftSkillInvalidation.js";
+import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 beforeEach(() => {
-  useDroraSessionStore.setState((state) => ({
-    ...state,
-    workspaces: {},
-  }));
+  useDroraSessionStore.setState({ workspaces: {} });
 });
-
-describe("invalidateDeferredDraftSessionForSkillChange", () => {
-  it("closes and clears the current workspace draft session", async () => {
-    const closeSession = vi.fn(async () => {});
+describe("draft capability invalidation", () => {
+  it("invalidates only the requested identity without changing its active task", async () => {
     const workspacePath = "/workspace/app";
-    const workspaceIdentity = "ssh:dev";
-    useDroraSessionStore.getState().setDraftSessionId(workspacePath, "draft-1", workspaceIdentity);
-
+    const workspaceIdentity = "remote:server:dev:/workspace/app";
+    const store = useDroraSessionStore.getState();
+    store.setActiveTaskId(workspacePath, "active", workspaceIdentity);
     await invalidateDeferredDraftSessionForSkillChange({
       reason: "test",
       workspacePath,
-      workspaceIdentity,
-      droraSessionService: createSessionService(closeSession),
-    });
-
-    expect(closeSession).toHaveBeenCalledWith({
-      workspacePath,
-      workspaceIdentity,
-      sessionId: "draft-1",
+      workspaceIdentity: ` ${workspaceIdentity} `,
     });
     expect(
-      useDroraSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
-        .draftSessionId,
-    ).toBeNull();
-    expect(
-      useDroraSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
-        .draftRuntimeInvalidationVersion,
-    ).toBe(1);
-  });
-
-  it("invalidates a protocol-v4 prewarm even when there is no legacy draft session", async () => {
-    const closeSession = vi.fn(async () => {});
-    const workspacePath = "/workspace/app";
-
-    await invalidateDeferredDraftSessionForSkillChange({
-      reason: "test",
-      workspacePath,
-      droraSessionService: createSessionService(closeSession),
+      useDroraSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity),
+    ).toMatchObject({
+      activeTaskId: "active",
+      draftRuntimeInvalidationVersion: 1,
     });
-
-    expect(closeSession).not.toHaveBeenCalled();
     expect(
       useDroraSessionStore.getState().getWorkspaceState(workspacePath)
         .draftRuntimeInvalidationVersion,
-    ).toBe(1);
+    ).toBe(0);
   });
-
-  it("still clears the draft when closing the stale session fails", async () => {
-    const closeSession = vi.fn(async () => {
-      throw new Error("stale draft");
-    });
-    const workspacePath = "/workspace/app";
-    useDroraSessionStore.getState().setDraftSessionId(workspacePath, "draft-1");
-
-    await invalidateDeferredDraftSessionForSkillChange({
-      reason: "test",
-      workspacePath,
-      droraSessionService: createSessionService(closeSession),
-    });
-
-    expect(closeSession).toHaveBeenCalledWith({
-      workspacePath,
-      sessionId: "draft-1",
-    });
+  it("invalidates a prewarm on each capability change without a copied session id", async () => {
+    for (const reason of ["skill-enabled", "plugin-updated"]) {
+      await invalidateDeferredDraftSessionForSkillChange({
+        reason,
+        workspacePath: "/workspace/app",
+      });
+    }
     expect(
-      useDroraSessionStore.getState().getWorkspaceState(workspacePath).draftSessionId,
-    ).toBeNull();
-    expect(
-      useDroraSessionStore.getState().getWorkspaceState(workspacePath)
+      useDroraSessionStore.getState().getWorkspaceState("/workspace/app")
         .draftRuntimeInvalidationVersion,
-    ).toBe(1);
+    ).toBe(2);
+  });
+  it("does not create a workspace for a settings view without an execution target", async () => {
+    await invalidateDeferredDraftSessionForSkillChange({ reason: "test" });
+    expect(useDroraSessionStore.getState().workspaces).toEqual({});
   });
 });

@@ -18,7 +18,10 @@ import type { JevTransport } from "../src/knowledge/decision/jevTransport.js";
 
 function fakeFetch(payload: { status: number; json?: unknown }) {
   const calls: Array<{ url: string; auth: string; body: Record<string, unknown> }> = [];
-  const fetchImpl = (async (url: unknown, init?: { headers?: Record<string, string>; body?: string }) => {
+  const fetchImpl = (async (
+    url: unknown,
+    init?: { headers?: Record<string, string>; body?: string },
+  ) => {
     calls.push({
       url: String(url),
       auth: init?.headers?.Authorization ?? "",

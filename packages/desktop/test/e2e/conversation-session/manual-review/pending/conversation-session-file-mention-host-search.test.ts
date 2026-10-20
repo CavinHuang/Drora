@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TID_V4_COMPOSER_INPUT } from "@drora/shared";
+import { TID_V4_COMPOSER_INPUT } from "@drora/shared/test-ids";
 import {
   getE2EAppDataPaths,
   setInputValueByTestIdDom,

@@ -22,16 +22,62 @@ const baseDir = getArg("base-dir") ?? "/tmp/golden/base-transformed";
 const theirsDir = getArg("theirs-dir") ?? "/tmp/dryrun/theirs";
 const outDir = getArg("out") ?? "/tmp/dryrun";
 
-const sh = (cmd) => execFileSync("sh", ["-c", cmd], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+const sh = (cmd) =>
+  execFileSync("sh", ["-c", cmd], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
 // 段划分（ specs/upstream-v3.16.1-migration.md 段表；drora 命名空间路径）
 const SEGMENTS = [
   ["S2", ["apps/drora-cli/"]],
   ["S4", ["packages/desktop/"]],
-  ["S3", ["packages/services/", "packages/server/", "packages/provider/", "packages/provider-node/", "packages/client/", "packages/drora-server-cli/", "packages/model-option-map/", "packages/android/", "packages/formal-proof/", "packages/share-ui/", "packages/web-share/", "packages/stream-animate/", "packages/e2e-report/", "harness/", "config/"]],
+  [
+    "S3",
+    [
+      "packages/services/",
+      "packages/server/",
+      "packages/provider/",
+      "packages/provider-node/",
+      "packages/client/",
+      "packages/drora-server-cli/",
+      "packages/model-option-map/",
+      "packages/android/",
+      "packages/formal-proof/",
+      "packages/share-ui/",
+      "packages/web-share/",
+      "packages/stream-animate/",
+      "packages/e2e-report/",
+      "harness/",
+      "config/",
+    ],
+  ],
   ["S5", ["packages/ui/", "packages/web/", "packages/mobile-web/", "public/"]],
   ["S1", ["packages/shared/", "packages/rpc/"]],
-  ["S6", ["packages/zcode-cua/", "packages/zcode-cua-helper/", "docs/", "scripts/", "patches/", "third-party/", ".agents/", ".github/", "apps/dev-docs/", "THIRD-PARTY-NOTICES.md", "AGENTS.md", "DESIGN.md", "CONTEXT.md", "README.md", "README.en.md", "UI_PLUGIN.md", "UI_PLUGIN.en.md", "NOTICE.md", ".gitattributes", ".gitignore", ".oxlintrc.json", ".oxfmtrc.json"]],
+  [
+    "S6",
+    [
+      "packages/zcode-cua/",
+      "packages/zcode-cua-helper/",
+      "docs/",
+      "scripts/",
+      "patches/",
+      "third-party/",
+      ".agents/",
+      ".github/",
+      "apps/dev-docs/",
+      "THIRD-PARTY-NOTICES.md",
+      "AGENTS.md",
+      "DESIGN.md",
+      "CONTEXT.md",
+      "README.md",
+      "README.en.md",
+      "UI_PLUGIN.md",
+      "UI_PLUGIN.en.md",
+      "NOTICE.md",
+      ".gitattributes",
+      ".gitignore",
+      ".oxlintrc.json",
+      ".oxfmtrc.json",
+    ],
+  ],
   ["S1", []], // 兜底：根级杂项归 S1
 ];
 const segmentOf = (p) => {
@@ -51,7 +97,8 @@ if (!fs.existsSync(path.join(theirsDir, "package.json"))) {
 
 // 上游变更清单（zcode 命名空间）
 const raw = sh(`git diff --name-status --no-renames ${BASE_REF} ${THEIRS_REF}`)
-  .split("\n").filter(Boolean)
+  .split("\n")
+  .filter(Boolean)
   .map((l) => {
     const m = l.match(/^(\w+)\t(.+)$/);
     return { status: m[1], upstreamPath: m[2] };
@@ -59,13 +106,20 @@ const raw = sh(`git diff --name-status --no-renames ${BASE_REF} ${THEIRS_REF}`)
 
 const readGit = (ref, p) => {
   try {
-    return execFileSync("git", ["cat-file", "-p", `${ref}:${p}`], { maxBuffer: 64 * 1024 * 1024, encoding: "buffer" });
+    return execFileSync("git", ["cat-file", "-p", `${ref}:${p}`], {
+      maxBuffer: 64 * 1024 * 1024,
+      encoding: "buffer",
+    });
   } catch {
     return null;
   }
 };
 const readFile = (dir, rel) => {
-  try { return fs.readFileSync(path.join(dir, rel)); } catch { return null; }
+  try {
+    return fs.readFileSync(path.join(dir, rel));
+  } catch {
+    return null;
+  }
 };
 const sameBuf = (a, b) => !Buffer.compare(a, b);
 
@@ -101,18 +155,27 @@ for (const { status, upstreamPath } of raw) {
     else if (base && sameBuf(ours, base)) entry.outcome = "delete";
     else entry.outcome = "delete-decision";
   } else {
-    if (!theirs) { entry.outcome = "missing-in-theirs"; }
-    else if (!ours) entry.outcome = "theirs-modify-ours-deleted";
+    if (!theirs) {
+      entry.outcome = "missing-in-theirs";
+    } else if (!ours) entry.outcome = "theirs-modify-ours-deleted";
     else if (base && sameBuf(ours, base)) entry.outcome = "take-theirs";
     else if (base && sameBuf(theirs, base)) entry.outcome = "keep-ours";
     else {
       // 三方试合并
       const tmp = fs.mkdtempSync("/tmp/3way-");
-      const fO = path.join(tmp, "ours"), fB = path.join(tmp, "base"), fT = path.join(tmp, "theirs");
-      fs.writeFileSync(fO, ours); fs.writeFileSync(fB, base); fs.writeFileSync(fT, theirs);
+      const fO = path.join(tmp, "ours"),
+        fB = path.join(tmp, "base"),
+        fT = path.join(tmp, "theirs");
+      fs.writeFileSync(fO, ours);
+      fs.writeFileSync(fB, base);
+      fs.writeFileSync(fT, theirs);
       let mergeOut = "";
       try {
-        execFileSync("git", ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+        execFileSync(
+          "git",
+          ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT],
+          { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
+        );
         entry.outcome = "clean-merge";
       } catch (e) {
         mergeOut = e.stdout ?? "";
@@ -137,8 +200,19 @@ for (const r of results) {
 console.log("=== 预演汇总（按段×结局）===");
 for (const seg of Object.keys(bySeg).sort()) {
   const total = Object.values(bySeg[seg]).reduce((a, b) => a + b, 0);
-  console.log(`${seg}: total=${total} ` + Object.entries(bySeg[seg]).map(([k, v]) => `${k}=${v}`).join(" "));
+  console.log(
+    `${seg}: total=${total} ` +
+      Object.entries(bySeg[seg])
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" "),
+  );
 }
-const conflicts = results.filter((r) => r.outcome === "conflict" || r.outcome === "new-collision" || r.outcome === "theirs-modify-ours-deleted" || r.outcome === "delete-decision");
+const conflicts = results.filter(
+  (r) =>
+    r.outcome === "conflict" ||
+    r.outcome === "new-collision" ||
+    r.outcome === "theirs-modify-ours-deleted" ||
+    r.outcome === "delete-decision",
+);
 fs.writeFileSync(path.join(outDir, "conflicts.json"), JSON.stringify(conflicts, null, 1));
 console.log(`\n需人工/决策条目: ${conflicts.length}（详见 ${outDir}/conflicts.json）`);

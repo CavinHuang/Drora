@@ -151,7 +151,9 @@ describe("BigModelCodingPlanSubscriptionProvider", () => {
     });
     const [url, requestOptions] = vi.mocked(apiClient.request).mock.calls[0]!;
     expect(url).toBeInstanceOf(URL);
-    expect(url.toString()).toContain("https://preview.example.com/api/v1/zcode-plan/billing/preview");
+    expect(url.toString()).toContain(
+      "https://preview.example.com/api/v1/zcode-plan/billing/preview",
+    );
     expect(requestOptions).toMatchObject({
       headers: { Authorization: "Bearer drora-jwt" },
       method: "GET",
@@ -845,7 +847,6 @@ describe("BigModelCodingPlanSubscriptionProvider", () => {
       }).toString(),
     ).toBe("https://runtime.example.com/api/v1/client/configs");
   });
-
 
   it("getStartPlanPreview 从 Drora client config 读取未登录 Start Plan 预览", async () => {
     const apiClient: ApiClient = {

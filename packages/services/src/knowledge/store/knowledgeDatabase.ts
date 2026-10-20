@@ -57,7 +57,10 @@ export interface KnowledgeDatabaseOptions {
  * 服务集合；首次真正使用时再暴露磁盘/权限故障。同步 IO：调用方是 host 常驻服务，
  * 依赖 §5b.3 的短事务纪律控制阻塞预算，不在事务内做任何文件/网络 IO。
  */
-export function openKnowledgeDatabase(dbPath: string, options: KnowledgeDatabaseOptions = {}): KnowledgeDatabase {
+export function openKnowledgeDatabase(
+  dbPath: string,
+  options: KnowledgeDatabaseOptions = {},
+): KnowledgeDatabase {
   return new KnowledgeDatabase(dbPath, options);
 }
 

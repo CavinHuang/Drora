@@ -2253,57 +2253,78 @@ export function SettingsPage({
                               remoteTarget={activeWorkspaceTab?.remoteTarget}
                               localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                             />
-                        ) : activeSection === "knowledge" ? (
-                          <KnowledgeSettingsSection />
-                        ) : null}
-                        {activeSection === "general" && isDesktop ? (
-                          <DesktopPetSettingsRow
-                            checked={sharedSettings?.desktopPetEnabled ?? false}
-                            character={sharedSettings?.desktopPetCharacter}
-                            size={sharedSettings?.desktopPetSize}
-                            onCreatePet={onCreateTask ? (directory) => {
-                              onCreateTask({ initialPrompt: desktopPetCreationPrompt(directory, locale) });
-                              onBack?.();
-                            } : undefined}
-                            onUpgradePet={onCreateTask ? (directory, source) => {
-                              onCreateTask({ initialPrompt: desktopPetCreationPrompt(directory, locale, source) });
-                              onBack?.();
-                            } : undefined}
-                            onSizeChange={(size) => { void runSettingsActionAsync({
-                              featureId: "settings.desktop", action: "resize_desktop_pet", trigger: "select",
-                              operation: () => updateSharedSettings({ desktopPetSize: size }),
-                              completed: { resultSource: "shared_settings" },
-                            }); }}
-                            onChange={(enabled) => {
-                              void runSettingsActionAsync({
-                                featureId: "settings.desktop",
-                                action: "toggle_desktop_pet",
-                                trigger: "switch",
-                                operation: () =>
-                                  updateSharedSettings({ desktopPetEnabled: enabled }),
-                                completed: {
-                                  resultSource: "shared_settings",
-                                  stateAfter: enabled ? "enabled" : "disabled",
-                                },
-                              });
-                            }}
-                            onCharacterChange={(character) => {
-                              void runSettingsActionAsync({
-                                featureId: "settings.desktop",
-                                action: "change_desktop_pet_character",
-                                trigger: "select",
-                                operation: () =>
-                                  updateSharedSettings({
-                                    desktopPetCharacter: character as AppSettings["desktopPetCharacter"],
-                                  }),
-                                completed: {
-                                  resultSource: "shared_settings",
-                                },
-                              });
-                            }}
-                          />
-                        ) : null}
-                      </div>
+                          ) : activeSection === "knowledge" ? (
+                            <KnowledgeSettingsSection />
+                          ) : null}
+                          {activeSection === "general" && isDesktop ? (
+                            <DesktopPetSettingsRow
+                              checked={sharedSettings?.desktopPetEnabled ?? false}
+                              character={sharedSettings?.desktopPetCharacter}
+                              size={sharedSettings?.desktopPetSize}
+                              onCreatePet={
+                                onCreateTask
+                                  ? (directory) => {
+                                      onCreateTask({
+                                        initialPrompt: desktopPetCreationPrompt(directory, locale),
+                                      });
+                                      onBack?.();
+                                    }
+                                  : undefined
+                              }
+                              onUpgradePet={
+                                onCreateTask
+                                  ? (directory, source) => {
+                                      onCreateTask({
+                                        initialPrompt: desktopPetCreationPrompt(
+                                          directory,
+                                          locale,
+                                          source,
+                                        ),
+                                      });
+                                      onBack?.();
+                                    }
+                                  : undefined
+                              }
+                              onSizeChange={(size) => {
+                                void runSettingsActionAsync({
+                                  featureId: "settings.desktop",
+                                  action: "resize_desktop_pet",
+                                  trigger: "select",
+                                  operation: () => updateSharedSettings({ desktopPetSize: size }),
+                                  completed: { resultSource: "shared_settings" },
+                                });
+                              }}
+                              onChange={(enabled) => {
+                                void runSettingsActionAsync({
+                                  featureId: "settings.desktop",
+                                  action: "toggle_desktop_pet",
+                                  trigger: "switch",
+                                  operation: () =>
+                                    updateSharedSettings({ desktopPetEnabled: enabled }),
+                                  completed: {
+                                    resultSource: "shared_settings",
+                                    stateAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                });
+                              }}
+                              onCharacterChange={(character) => {
+                                void runSettingsActionAsync({
+                                  featureId: "settings.desktop",
+                                  action: "change_desktop_pet_character",
+                                  trigger: "select",
+                                  operation: () =>
+                                    updateSharedSettings({
+                                      desktopPetCharacter:
+                                        character as AppSettings["desktopPetCharacter"],
+                                    }),
+                                  completed: {
+                                    resultSource: "shared_settings",
+                                  },
+                                });
+                              }}
+                            />
+                          ) : null}
+                        </div>
                       </div>
                     </main>
                   </SettingsMachinesProvider>

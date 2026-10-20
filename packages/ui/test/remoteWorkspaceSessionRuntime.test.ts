@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DroraTaskMeta } from "@drora/shared";
-import {
-  DEFAULT_TASK_RUNTIME_STATE,
-  getDefaultWorkspaceState,
-} from "@/store/droraSessionStore.js";
+import { DEFAULT_TASK_RUNTIME_STATE, getDefaultWorkspaceState } from "@/store/droraSessionStore.js";
 import { markRemoteWorkspaceRunningTasksFailed } from "@/lib/remoteWorkspaceSessionRuntime.js";
 
 function createTask(taskId: string, status: DroraTaskMeta["status"]): DroraTaskMeta {

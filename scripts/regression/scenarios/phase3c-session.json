@@ -1,7 +1,17 @@
 {
   "plans": {
     "x9-bg": [
-      { "toolCalls": [{ "name": "Bash", "arguments": { "command": "node -e \"setTimeout(()=>{},3000)\"", "run_in_background": true } }] },
+      {
+        "toolCalls": [
+          {
+            "name": "Bash",
+            "arguments": {
+              "command": "node -e \"setTimeout(()=>{},3000)\"",
+              "run_in_background": true
+            }
+          }
+        ]
+      },
       { "text": "后台任务已派。" }
     ],
     "x10-deny": [
@@ -14,13 +24,37 @@
       "id": "x09",
       "title": "会话·后台 bash 真任务：run_in_background→cancelBackgroundTask",
       "ops": [
-        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
-          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } } },
-        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
-        { "op": "request", "method": "session/send",
-          "params": { "sessionId": "$sessionId", "inputId": "in_x09", "content": "后台跑起来 [[x9-bg]]" } },
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": { "$sessionId": "session.sessionId" },
+          "timeoutMs": 30000,
+          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" } }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_x09",
+            "content": "后台跑起来 [[x9-bg]]"
+          }
+        },
         { "op": "waitEvent", "type": "turn.completed" },
-        { "op": "request", "method": "session/cancelBackgroundTask", "params": { "sessionId": "$sessionId", "taskId": "task_1" } },
+        {
+          "op": "request",
+          "method": "session/cancelBackgroundTask",
+          "params": { "sessionId": "$sessionId", "taskId": "task_1" }
+        },
         { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } }
       ]
     },
@@ -28,13 +62,41 @@
       "id": "x10",
       "title": "会话·toolDenylist 建/发双面",
       "ops": [
-        { "op": "request", "method": "session/create", "capture": { "$sessionId": "session.sessionId" }, "timeoutMs": 30000,
-          "params": { "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" }, "toolDenylist": ["Bash"] } },
-        { "op": "request", "method": "session/subscribe", "params": { "sessionId": "$sessionId", "deliveryKind": "desktop-continuous", "includeSnapshot": false } },
-        { "op": "request", "method": "session/send",
-          "params": { "sessionId": "$sessionId", "inputId": "in_x10", "content": "试图用被禁的 bash [[x10-deny]]", "toolDenylist": ["Bash"] } },
+        {
+          "op": "request",
+          "method": "session/create",
+          "capture": { "$sessionId": "session.sessionId" },
+          "timeoutMs": 30000,
+          "params": {
+            "workspace": { "workspacePath": "$WS", "workspaceKey": "$WS" },
+            "toolDenylist": ["Bash"]
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/subscribe",
+          "params": {
+            "sessionId": "$sessionId",
+            "deliveryKind": "desktop-continuous",
+            "includeSnapshot": false
+          }
+        },
+        {
+          "op": "request",
+          "method": "session/send",
+          "params": {
+            "sessionId": "$sessionId",
+            "inputId": "in_x10",
+            "content": "试图用被禁的 bash [[x10-deny]]",
+            "toolDenylist": ["Bash"]
+          }
+        },
         { "op": "waitEvent", "type": "turn.completed" },
-        { "op": "request", "method": "session/messages", "params": { "sessionId": "$sessionId", "limit": 20 } },
+        {
+          "op": "request",
+          "method": "session/messages",
+          "params": { "sessionId": "$sessionId", "limit": 20 }
+        },
         { "op": "request", "method": "session/read", "params": { "sessionId": "$sessionId" } }
       ]
     }

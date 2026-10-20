@@ -15,7 +15,8 @@ export const DRORA_OFFICIAL_PLUGIN_MARKETPLACE_ID = "drora-plugins-official";
  */
 export const CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "claude-plugins-official";
 export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID;
-export const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
+export const OFFICIAL_PLUGIN_ASSETS_BASE_URL =
+  "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([

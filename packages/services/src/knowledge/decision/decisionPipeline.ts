@@ -20,7 +20,11 @@ import type {
 import type { DecisionConsentRegistry } from "./decisionConsent.js";
 import { decisionCacheKeyOf, type DecisionCache } from "./decisionCache.js";
 import type { DecisionTelemetry } from "./decisionTelemetry.js";
-import { DECISION_POLICY_VERSION, decideByPolicy, type DecisionPolicyDecision } from "./decisionPolicy.js";
+import {
+  DECISION_POLICY_VERSION,
+  decideByPolicy,
+  type DecisionPolicyDecision,
+} from "./decisionPolicy.js";
 
 export interface DecisionPipelineOptions {
   /** null = 功能关闭（默认）；注入即代表 Host 侧已完成 flag + 凭证配置。 */
@@ -67,10 +71,11 @@ export class DecisionPipeline {
   revokeConsentAndInvalidate(consentId: string): boolean {
     const consent = this.options.consentRegistry.get(consentId);
     if (!consent) return false;
-    this.options.cache.invalidate((_, entry) =>
-      entry.vaultId === consent.vaultId &&
-      entry.sourceEpoch === consent.sourceEpoch &&
-      entry.queryHash === consent.queryHash,
+    this.options.cache.invalidate(
+      (_, entry) =>
+        entry.vaultId === consent.vaultId &&
+        entry.sourceEpoch === consent.sourceEpoch &&
+        entry.queryHash === consent.queryHash,
     );
     return this.options.consentRegistry.revoke(consentId);
   }
@@ -212,7 +217,11 @@ export class DecisionPipeline {
       : (firstFallbackReason(freshOutcomes) ?? stageReason ?? "provider_error");
     for (const candidate of pool) {
       if (!coveredIds.has(candidate.candidateId)) {
-        outcomes.push({ candidateId: candidate.candidateId, status: "fallback", fallbackReason: residualReason });
+        outcomes.push({
+          candidateId: candidate.candidateId,
+          status: "fallback",
+          fallbackReason: residualReason,
+        });
       }
     }
 
@@ -248,7 +257,9 @@ export class DecisionPipeline {
   }
 }
 
-function firstFallbackReason(outcomes: KnowledgeDecisionOutcome[]): KnowledgeDecisionFallbackReason | null {
+function firstFallbackReason(
+  outcomes: KnowledgeDecisionOutcome[],
+): KnowledgeDecisionFallbackReason | null {
   for (const outcome of outcomes) {
     if (outcome.status === "fallback") return outcome.fallbackReason ?? "provider_error";
   }

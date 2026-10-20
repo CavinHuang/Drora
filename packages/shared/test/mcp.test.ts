@@ -14,7 +14,12 @@ describe("drora-cua MCP matcher (single source of truth for services + CLI boots
   });
 
   it("matches uvx/pip package spec forms", () => {
-    for (const arg of ["drora-cua", "drora-cua[macos]", "drora-cua@v0.1.3", "drora-cua[macos]@v0.1.3"]) {
+    for (const arg of [
+      "drora-cua",
+      "drora-cua[macos]",
+      "drora-cua@v0.1.3",
+      "drora-cua[macos]@v0.1.3",
+    ]) {
       expect(isDroraCuaMcpPackageArg(arg)).toBe(true);
     }
   });
@@ -34,7 +39,12 @@ describe("drora-cua MCP matcher (single source of truth for services + CLI boots
 
   it("recognizes a package spec placed in COMMAND position (command/arg matchers stay consistent)", () => {
     // 之前 command matcher 只认精确叶子 drora-cua，会漏判把包规格直接当 command 的配置 → 漏注入 broker。
-    for (const command of ["drora-cua@1.2.3", "drora-cua[macos]", "drora-cua.git", "/opt/tools/drora-cua@1.2.3"]) {
+    for (const command of [
+      "drora-cua@1.2.3",
+      "drora-cua[macos]",
+      "drora-cua.git",
+      "/opt/tools/drora-cua@1.2.3",
+    ]) {
       expect(isDroraCuaMcpCommand(command), command).toBe(true);
     }
   });
@@ -55,7 +65,12 @@ describe("drora-cua MCP matcher (single source of truth for services + CLI boots
 
   it("recognizes `python -m drora_cua.server` submodule form (M1 fail-open fix)", () => {
     // `python -m drora_cua.server` → arg 是 `drora_cua.server`；旧 matcher 漏判 → 不注入 broker → fail-open。
-    for (const arg of ["drora_cua.server", "drora-cua.server", "drora_cua.main", "drora-cua.__main__"]) {
+    for (const arg of [
+      "drora_cua.server",
+      "drora-cua.server",
+      "drora_cua.main",
+      "drora-cua.__main__",
+    ]) {
       expect(isDroraCuaMcpPackageArg(arg), arg).toBe(true);
     }
   });

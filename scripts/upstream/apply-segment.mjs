@@ -17,7 +17,9 @@ const getArg = (n) => {
 };
 const segment = getArg("segment");
 const dry = args.includes("--dry");
-const decisions = getArg("decisions") ? JSON.parse(fs.readFileSync(getArg("decisions"), "utf8")) : {};
+const decisions = getArg("decisions")
+  ? JSON.parse(fs.readFileSync(getArg("decisions"), "utf8"))
+  : {};
 const baseDir = "/tmp/golden/base-transformed";
 const theirsDir = "/tmp/dryrun/theirs";
 const repoRoot = process.cwd();
@@ -29,13 +31,33 @@ if (!segment) {
 const inventory = JSON.parse(fs.readFileSync("/tmp/dryrun/inventory.json", "utf8"));
 const items = inventory.filter((i) => i.segment === segment);
 const readFile = (dir, rel) => {
-  try { return fs.readFileSync(path.join(dir, rel)); } catch { return null; }
+  try {
+    return fs.readFileSync(path.join(dir, rel));
+  } catch {
+    return null;
+  }
 };
 const readGit = (p) => {
-  try { return execFileSync("git", ["cat-file", "-p", `HEAD:${p}`], { maxBuffer: 64 * 1024 * 1024, encoding: "buffer" }); } catch { return null; }
+  try {
+    return execFileSync("git", ["cat-file", "-p", `HEAD:${p}`], {
+      maxBuffer: 64 * 1024 * 1024,
+      encoding: "buffer",
+    });
+  } catch {
+    return null;
+  }
 };
 
-const applied = { "take-theirs": 0, new: 0, "clean-merge": 0, delete: 0, "noop-delete": 0, decision: 0, conflict: 0, error: 0 };
+const applied = {
+  "take-theirs": 0,
+  new: 0,
+  "clean-merge": 0,
+  delete: 0,
+  "noop-delete": 0,
+  decision: 0,
+  conflict: 0,
+  error: 0,
+};
 const report = { conflicts: [], decisions: [], errors: [] };
 
 for (const it of items) {
@@ -44,9 +66,19 @@ for (const it of items) {
   const dec = decisions[droraPath];
   try {
     if (dec) {
-      if (dec === "take-theirs") { const t = readFile(theirsDir, droraPath); if (t) { fs.mkdirSync(path.dirname(abs), { recursive: true }); fs.writeFileSync(abs, t); applied["take-theirs"]++; } else applied.error++; }
-      else if (dec === "delete") { fs.rmSync(abs, { force: true }); applied.delete++; }
-      else { applied.decision++; }
+      if (dec === "take-theirs") {
+        const t = readFile(theirsDir, droraPath);
+        if (t) {
+          fs.mkdirSync(path.dirname(abs), { recursive: true });
+          fs.writeFileSync(abs, t);
+          applied["take-theirs"]++;
+        } else applied.error++;
+      } else if (dec === "delete") {
+        fs.rmSync(abs, { force: true });
+        applied.delete++;
+      } else {
+        applied.decision++;
+      }
       report.decisions.push(`${droraPath} -> ${dec}`);
       continue;
     }
@@ -54,25 +86,49 @@ for (const it of items) {
       case "take-theirs":
       case "new": {
         const t = readFile(theirsDir, droraPath);
-        if (!t) { applied.error++; report.errors.push(`theirs 缺失: ${droraPath}`); break; }
-        if (!dry) { fs.mkdirSync(path.dirname(abs), { recursive: true }); fs.writeFileSync(abs, t); }
+        if (!t) {
+          applied.error++;
+          report.errors.push(`theirs 缺失: ${droraPath}`);
+          break;
+        }
+        if (!dry) {
+          fs.mkdirSync(path.dirname(abs), { recursive: true });
+          fs.writeFileSync(abs, t);
+        }
         applied[outcome]++;
         break;
       }
       case "clean-merge": {
-        const o = readGit(droraPath), b = readFile(baseDir, droraPath), t = readFile(theirsDir, droraPath);
-        if (!o || !b || !t) { applied.error++; report.errors.push(`三方缺失: ${droraPath}`); break; }
+        const o = readGit(droraPath),
+          b = readFile(baseDir, droraPath),
+          t = readFile(theirsDir, droraPath);
+        if (!o || !b || !t) {
+          applied.error++;
+          report.errors.push(`三方缺失: ${droraPath}`);
+          break;
+        }
         const tmp = fs.mkdtempSync("/tmp/apply3-");
-        const fO = path.join(tmp, "o"), fB = path.join(tmp, "b"), fT = path.join(tmp, "t");
-        fs.writeFileSync(fO, o); fs.writeFileSync(fB, b); fs.writeFileSync(fT, t);
+        const fO = path.join(tmp, "o"),
+          fB = path.join(tmp, "b"),
+          fT = path.join(tmp, "t");
+        fs.writeFileSync(fO, o);
+        fs.writeFileSync(fB, b);
+        fs.writeFileSync(fT, t);
         let merged;
         try {
-          merged = execFileSync("git", ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+          merged = execFileSync(
+            "git",
+            ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT],
+            { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+          );
         } catch (e) {
           merged = e.stdout; // 环境差异导致的意外冲突按标记文件落地
         }
         fs.rmSync(tmp, { recursive: true, force: true });
-        if (!dry) { fs.mkdirSync(path.dirname(abs), { recursive: true }); fs.writeFileSync(abs, merged); }
+        if (!dry) {
+          fs.mkdirSync(path.dirname(abs), { recursive: true });
+          fs.writeFileSync(abs, merged);
+        }
         applied["clean-merge"]++;
         break;
       }
@@ -86,14 +142,24 @@ for (const it of items) {
         break;
       case "conflict": {
         // 写带冲突标记的合并结果，供人工/代理逐案解决
-        const o = readGit(droraPath), b = readFile(baseDir, droraPath), t = readFile(theirsDir, droraPath);
+        const o = readGit(droraPath),
+          b = readFile(baseDir, droraPath),
+          t = readFile(theirsDir, droraPath);
         if (o && b && t) {
           const tmp = fs.mkdtempSync("/tmp/apply3-");
-          const fO = path.join(tmp, "o"), fB = path.join(tmp, "b"), fT = path.join(tmp, "t");
-          fs.writeFileSync(fO, o); fs.writeFileSync(fB, b); fs.writeFileSync(fT, t);
+          const fO = path.join(tmp, "o"),
+            fB = path.join(tmp, "b"),
+            fT = path.join(tmp, "t");
+          fs.writeFileSync(fO, o);
+          fs.writeFileSync(fB, b);
+          fs.writeFileSync(fT, t);
           let merged;
           try {
-            merged = execFileSync("git", ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+            merged = execFileSync(
+              "git",
+              ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", "-p", fO, fB, fT],
+              { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+            );
             applied["clean-merge"]++; // 重放意外干净（工作树或 theirs 与预演时不同）
             if (!dry) fs.writeFileSync(abs, merged);
           } catch (e) {
@@ -103,7 +169,10 @@ for (const it of items) {
             report.conflicts.push(`${droraPath} (${it.detail} hunks)`);
           }
           fs.rmSync(tmp, { recursive: true, force: true });
-        } else { applied.error++; report.errors.push(`conflict 三方缺失: ${droraPath}`); }
+        } else {
+          applied.error++;
+          report.errors.push(`conflict 三方缺失: ${droraPath}`);
+        }
         break;
       }
       case "zone-decision":
@@ -124,8 +193,14 @@ for (const it of items) {
   }
 }
 
-console.log(`[${segment}] ${dry ? "(dry) " : ""}` + Object.entries(applied).map(([k, v]) => `${k}=${v}`).join(" "));
-if (report.conflicts.length) console.log("冲突文件（已写标记，待解决）:\n  " + report.conflicts.join("\n  "));
+console.log(
+  `[${segment}] ${dry ? "(dry) " : ""}` +
+    Object.entries(applied)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" "),
+);
+if (report.conflicts.length)
+  console.log("冲突文件（已写标记，待解决）:\n  " + report.conflicts.join("\n  "));
 if (report.decisions.length) console.log("决策跳过:\n  " + report.decisions.join("\n  "));
 if (report.errors.length) console.log("错误:\n  " + report.errors.join("\n  "));
 fs.writeFileSync(`/tmp/dryrun/apply-${segment}.json`, JSON.stringify(report, null, 1));

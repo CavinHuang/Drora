@@ -17,6 +17,12 @@
     "packages/zcode-cua/vendor/**",
     "packages/zcode-cua/mcp/**",
     "packages/zcode-cua/broker/**",
-    "packages/zcode-cua/frame-contract/**"
+    "packages/zcode-cua/frame-contract/**",
+    "packages/mobile-web/upstream/**",
+    "packages/mobile-web/src/recovered/**",
+    "packages/mobile-web/public/**",
+    "packages/mobile-web/legacy-v3.14.3/**",
+    "packages/zcode-cua-helper/runtime/**",
+    "packages/zcode-cua/upstream/**"
   ]
 }

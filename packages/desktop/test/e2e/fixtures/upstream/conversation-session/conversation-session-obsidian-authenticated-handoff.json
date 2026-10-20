@@ -16,9 +16,7 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "bodyIncludes": [
-          "Generate a concise title"
-        ]
+        "bodyIncludes": ["Generate a concise title"]
       },
       "response": {
         "statusCode": 200,
@@ -42,16 +40,9 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "lastUserMessageIncludes": [
-          "E2E_OBSIDIAN_G61_START"
-        ],
-        "bodyIncludes": [
-          "E2E_OBSIDIAN_G61_START"
-        ],
-        "bodyExcludes": [
-          "Generate a concise title",
-          "CRITICAL: Respond with TEXT ONLY"
-        ]
+        "lastUserMessageIncludes": ["E2E_OBSIDIAN_G61_START"],
+        "bodyIncludes": ["E2E_OBSIDIAN_G61_START"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
       },
       "response": {
         "statusCode": 200,
@@ -75,18 +66,13 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/chat/completions",
-        "lastUserMessageIncludes": [
-          "OrchidLedgerBeacon2026"
-        ],
+        "lastUserMessageIncludes": ["OrchidLedgerBeacon2026"],
         "bodyIncludes": [
           "来源索引（顺序与附带的原文证据片段一致）：",
           "G61-Authenticated-Agent-Evidence.md",
           "OrchidLedgerBeacon2026"
         ],
-        "bodyExcludes": [
-          "Generate a concise title",
-          "CRITICAL: Respond with TEXT ONLY"
-        ]
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
       },
       "response": {
         "statusCode": 200,

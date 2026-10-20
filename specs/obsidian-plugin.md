@@ -157,10 +157,10 @@ Vault 体验（左侧面板入口 + Vault 树 + 笔记查看/编辑）。架构�
   校验脚本存在且导出 `main()` 后调用；stdin/stdout 天然继承。
 - `bootstrap/official-plugin-runtime`：重写范围扩展到 hooks——`command === "node"` 的
   hook 条目重写为 `process.execPath` + `[...officialPluginHookPrefixArgs(), script]`
-  + env `{ELECTRON_RUN_AS_NODE:"1", DRORA_PLUGIN_ID}`（SEA 前缀 `["__drora-plugin-hook"]`，
-  node 态 `[...execArgv, entrypoint, "__drora-plugin-hook"]`）；开发态未重写时
-  `node` 直跑（脚本带 argv[1] 自启守卫 + `export { main }` 双模式，与 android/ios 同款）。
-  字节一致跳过语义保留。
+  - env `{ELECTRON_RUN_AS_NODE:"1", DRORA_PLUGIN_ID}`（SEA 前缀 `["__drora-plugin-hook"]`，
+    node 态 `[...execArgv, entrypoint, "__drora-plugin-hook"]`）；开发态未重写时
+    `node` 直跑（脚本带 argv[1] 自启守卫 + `export { main }` 双模式，与 android/ios 同款）。
+    字节一致跳过语义保留。
 - `hooks/hooks.json` 采用约定路径（`STANDARD_HOOKS_PATH`）；hook 脚本构建产物
   `dist/hooks/*.mjs`，seed 路径与桌面打包清单同步更新。
 
@@ -220,12 +220,12 @@ W01 按"仅普通 Markdown 明确授权"收窄，策略全文见 `specs/obsidian
 
 ### L1（现行 allowAgentWrites hook）与未来 Proposal（L2）的区别
 
-| | L1：allowAgentWrites 自动放行（现行） | L2：知识治理 Proposal（未实现，属 W06） |
-| --- | --- | --- |
-| 覆盖 | 根内非隐藏目录普通 `.md` 的 Write/Edit ask 询问 | 结构性/批量治理写（重组、批量改名、索引物化等） |
-| 判定 | hook 逐次实时校验，无持久化规则 | 显式 Proposal → 人工批准 → 版本校验和持久账本，未批准/过期绝不写 |
-| 语义 | 用户一次性授权 `allowAgentWrites` 后减少逐次弹窗 | 单操作级人工审核 + 幂等（operationId） |
-| 关系 | L1 的存在不构成 L2 的豁免；两者不共享放行路径 | 账本与 conflict/Undo 语义见 `specs/obsidian-knowledge.md` §2 |
+|      | L1：allowAgentWrites 自动放行（现行）            | L2：知识治理 Proposal（未实现，属 W06）                          |
+| ---- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| 覆盖 | 根内非隐藏目录普通 `.md` 的 Write/Edit ask 询问  | 结构性/批量治理写（重组、批量改名、索引物化等）                  |
+| 判定 | hook 逐次实时校验，无持久化规则                  | 显式 Proposal → 人工批准 → 版本校验和持久账本，未批准/过期绝不写 |
+| 语义 | 用户一次性授权 `allowAgentWrites` 后减少逐次弹窗 | 单操作级人工审核 + 幂等（operationId）                           |
+| 关系 | L1 的存在不构成 L2 的豁免；两者不共享放行路径    | 账本与 conflict/Undo 语义见 `specs/obsidian-knowledge.md` §2     |
 
 ### 验收场景（W01 收窄新增/修订）
 

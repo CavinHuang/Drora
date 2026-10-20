@@ -279,7 +279,9 @@ describe("node.ts lazy CUA spawn helper selection", () => {
   it("preserves the stable Windows pipe and lazy recipe under the shared Helper owner", () => {
     expect(spawnEnvStart).toBeGreaterThanOrEqual(0);
     const cuaBlock = source.slice(spawnEnvStart, spawnEnvStart + 6000);
-    expect(cuaBlock).toContain('process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath()');
+    expect(cuaBlock).toContain(
+      'process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath()',
+    );
     expect(cuaBlock).toContain("DRORA_CUA_WIN_HELPER_RECIPE");
     const factoryStart = source.indexOf("const getOrCreateDefaultCuaProductHelper = async");
     expect(factoryStart).toBeGreaterThanOrEqual(0);

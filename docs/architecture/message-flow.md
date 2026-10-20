@@ -73,12 +73,12 @@ desktop attachment；`DetachServicePort` 只释放一个逻辑 workspace 的 RPC
 
 ## 关键入口
 
-| 层                  | 当前入口                                                                   |
-| ------------------- | -------------------------------------------------------------------------- |
-| UI pane             | `packages/ui/src/v4/SessionPane.tsx`                                       |
-| UI transport        | `packages/ui/src/v4/agentConversationTransport.ts`                         |
+| 层                  | 当前入口                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| UI pane             | `packages/ui/src/v4/SessionPane.tsx`                                                          |
+| UI transport        | `packages/ui/src/v4/agentConversationTransport.ts`                                            |
 | UI projection       | `packages/ui/src/v4/sessionDataLayer.ts`、`packages/ui/src/v4/conversationProjectionStore.ts` |
-| Host service        | `packages/services/src/drora-agent/droraAgentService.ts`                   |
-| V4 schema           | `packages/shared/src/drora-protocol-v4/`                                   |
-| CLI gateway/reducer | `apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/`                 |
-| Desktop host        | `packages/desktop/src/host/index.ts`                                       |
+| Host service        | `packages/services/src/drora-agent/droraAgentService.ts`                                      |
+| V4 schema           | `packages/shared/src/drora-protocol-v4/`                                                      |
+| CLI gateway/reducer | `apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/`                                    |
+| Desktop host        | `packages/desktop/src/host/index.ts`                                                          |

@@ -1,9 +1,6 @@
 import { PassThrough } from "node:stream";
 import type { IDisposable, Event } from "@drora/rpc";
-import type {
-  IRemoteBackend,
-  StdioStream,
-} from "@drora/server/remote/backend.js";
+import type { IRemoteBackend, StdioStream } from "@drora/server/remote/backend.js";
 import { checkRemoteAssetComponentIdentity } from "@drora/server/remote/remoteAssetLiveIdentity.js";
 import { describe, expect, it } from "vitest";
 

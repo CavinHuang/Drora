@@ -2,7 +2,10 @@ import { z } from "zod";
 import { droraTaskMetaSchema } from "../validation.js";
 import { pendingInteractionSummarySchema } from "./sessions-index.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
-import { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema } from "./sessions-index-team-activity.js";
+import {
+  SESSION_TEAM_ACTIVITY_KEY,
+  sessionTeamActivitySchema,
+} from "./sessions-index-team-activity.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
 

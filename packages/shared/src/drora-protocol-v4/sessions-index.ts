@@ -2,7 +2,10 @@
 import { z } from "zod";
 import { timestampSchema } from "./core.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
-import { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema } from "./sessions-index-team-activity.js";
+import {
+  SESSION_TEAM_ACTIVITY_KEY,
+  sessionTeamActivitySchema,
+} from "./sessions-index-team-activity.js";
 import {
   goalStateSchema,
   interactionAutoResolutionSchema,

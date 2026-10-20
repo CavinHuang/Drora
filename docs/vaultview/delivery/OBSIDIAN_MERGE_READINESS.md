@@ -19,13 +19,13 @@
 
 ## 本轮真正补齐的缺口
 
-| 缺陷 | 修复与证据 |
-| --- | --- |
+| 缺陷                                        | 修复与证据                                                                                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | MCP/js 的 path/command 内容规则扩大持久授权 | 建议/评估/持久化三处阻断；P0 强制 user-once，Hook 不能代批或持久授权；`core/test/permission-*.test.ts` / `write-tier-policy.test.ts` |
-| 等待期间旧提案与批准仍能写入 | 写前从账本重新读取 revision/rejection/hash/TTL；`knowledgeReviewFreshApproval.test.ts`（4 个旧版失败场景） |
-| 跨进程 reconcile 抢占活跃写入 | SQLite v6 Vault owner PID/host/token，无超时抢占；`knowledgeReviewOwnership.test.ts`（4 个真实子进程场景） |
-| createOnly 检查后 rename 覆盖竞争新文件 | 原子 hard-link 发布，EEXIST 零覆盖；`obsidianVaultAtomicCreate.test.ts` |
-| 只验证 L2 永久关闭，无法证明功能可用 | G65/G67 改为真实生产 Host 默认关闭、批准仍不写、用户 opt-in 后 Apply/Undo，完成后恢复临时 Vault |
+| 等待期间旧提案与批准仍能写入                | 写前从账本重新读取 revision/rejection/hash/TTL；`knowledgeReviewFreshApproval.test.ts`（4 个旧版失败场景）                           |
+| 跨进程 reconcile 抢占活跃写入               | SQLite v6 Vault owner PID/host/token，无超时抢占；`knowledgeReviewOwnership.test.ts`（4 个真实子进程场景）                           |
+| createOnly 检查后 rename 覆盖竞争新文件     | 原子 hard-link 发布，EEXIST 零覆盖；`obsidianVaultAtomicCreate.test.ts`                                                              |
+| 只验证 L2 永久关闭，无法证明功能可用        | G65/G67 改为真实生产 Host 默认关闭、批准仍不写、用户 opt-in 后 Apply/Undo，完成后恢复临时 Vault                                      |
 
 ## 最终完成标准与执行预期
 

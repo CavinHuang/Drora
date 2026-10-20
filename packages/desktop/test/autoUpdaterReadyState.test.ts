@@ -341,7 +341,7 @@ describe("autoUpdater ready state sync", () => {
       resolveEndpointOrigin: () => "https://endpoint.example.test",
     });
 
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled();
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);
   });
@@ -743,8 +743,7 @@ describe("autoUpdater ready state sync", () => {
     expect(autoUpdaterMock.setFeedURL).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "generic",
-        url:
-          "https://zcode.z.ai/api/v1/releases/electron/manifest?platform=old&channel=1",
+        url: "https://zcode.z.ai/api/v1/releases/electron/manifest?platform=old&channel=1",
       }),
     );
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);

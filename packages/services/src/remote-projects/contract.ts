@@ -52,7 +52,11 @@ export interface IRemoteProjectService {
   /** 幂等移除本机 host 与所属入口，不调用远端删除。 */
   removeHost(id: string): Promise<void>;
   /** 仅显式添加使用；已有入口保持 ID，移除后重加创建新 ID。 */
-  addEntry(input: { hostId: string; expectedMembershipId?: string; project: RemoteProjectCache }): Promise<RemoteProjectEntry>;
+  addEntry(input: {
+    hostId: string;
+    expectedMembershipId?: string;
+    project: RemoteProjectCache;
+  }): Promise<RemoteProjectEntry>;
   /** 请求携带读取前版本；迟到/已删除返回 false，绝不 INSERT。 */
   refreshEntry(input: {
     entryId: string;

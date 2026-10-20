@@ -18,13 +18,13 @@
 W00 对 S03 的判定是**有条件 GO**，GO 前提见 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §7
 「S03 有条件 GO（收窄口径）」。逐项核对当前 HEAD：
 
-| W00 GO 前提 | 当前状态 | 证据 |
-| --- | --- | --- |
-| 三洞 (1)：plan 模式两处打洞——无 `destructiveHint` 的 MCP 直通（`apps/drora-cli/packages/core/src/permission/service.ts:415-422`）+ memory md 覆盖 plan deny（`apps/drora-cli/packages/core/src/tool/executor/memory-file-permission.ts:38-46`） | **未修** | `git log c39ce371..HEAD -- <两文件>` 零提交；本仓 diff 亦未触及 |
-| 三洞 (2)：node_repl/MCP 无内容规则粒度，一次「总是允许」= 持久化整工具 allow（`core/src/tool/executor/permission-suggestions.ts:24-36` + `permission/service.ts:292`） | **未修** | 同上，两文件零改动 |
-| 三洞 (3)：Bash 整工具 allow 规则短路含重定向在内的一切命令（`core/src/tool/handlers/bash-command-rule-evaluator.ts:14`） | **未修** | 同上，文件零改动 |
-| P0 分级门控：任意路径写（Bash/js/未声明 destructive 的 MCP）强制逐次确认 + 禁整工具持久 allow；统一挂点 `resolveToolCallCapabilityFlags`（`permission-capability.ts:28-39`）随 `ToolCallStarted` 广播 | **未实现** | 「P0 门控/三洞」在 W00 两份文档之外的 `specs/` 与 `docs/vaultview/` 零命中；runtime permission 层无对应改动 |
-| 门控实现必须在 permission service/runtime 层程序化完成，不依赖插件 hook | **未实现** | 同上 |
+| W00 GO 前提                                                                                                                                                                                                                                     | 当前状态   | 证据                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| 三洞 (1)：plan 模式两处打洞——无 `destructiveHint` 的 MCP 直通（`apps/drora-cli/packages/core/src/permission/service.ts:415-422`）+ memory md 覆盖 plan deny（`apps/drora-cli/packages/core/src/tool/executor/memory-file-permission.ts:38-46`） | **未修**   | `git log c39ce371..HEAD -- <两文件>` 零提交；本仓 diff 亦未触及                                             |
+| 三洞 (2)：node_repl/MCP 无内容规则粒度，一次「总是允许」= 持久化整工具 allow（`core/src/tool/executor/permission-suggestions.ts:24-36` + `permission/service.ts:292`）                                                                          | **未修**   | 同上，两文件零改动                                                                                          |
+| 三洞 (3)：Bash 整工具 allow 规则短路含重定向在内的一切命令（`core/src/tool/handlers/bash-command-rule-evaluator.ts:14`）                                                                                                                        | **未修**   | 同上，文件零改动                                                                                            |
+| P0 分级门控：任意路径写（Bash/js/未声明 destructive 的 MCP）强制逐次确认 + 禁整工具持久 allow；统一挂点 `resolveToolCallCapabilityFlags`（`permission-capability.ts:28-39`）随 `ToolCallStarted` 广播                                           | **未实现** | 「P0 门控/三洞」在 W00 两份文档之外的 `specs/` 与 `docs/vaultview/` 零命中；runtime permission 层无对应改动 |
+| 门控实现必须在 permission service/runtime 层程序化完成，不依赖插件 hook                                                                                                                                                                         | **未实现** | 同上                                                                                                        |
 
 复述可复核命令：`git log --oneline c39ce371..HEAD -- apps/drora-cli/packages/core/src/permission/service.ts apps/drora-cli/packages/core/src/tool/executor/memory-file-permission.ts apps/drora-cli/packages/core/src/tool/executor/permission-suggestions.ts apps/drora-cli/packages/core/src/tool/handlers/bash-command-rule-evaluator.ts apps/drora-cli/packages/core/src/mcp/index.ts`（输出为空 = 零改动）。
 
@@ -67,7 +67,6 @@ yolo 直通（改审计+receipt）。首版交付报告把 Bash/js 列入分歧�
 
 在此之前：**不得**在代码、UI、文档中宣称「审核写入已生效」或「L2 强制写入审核可用」；
 `W06_DELIVERY.md` §4 已同步改为 NO-GO 裁定。
-
 
 ### 2026-10-17 follow-up — MCP self-reported read-only bypass
 

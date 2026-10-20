@@ -1,4 +1,11 @@
 /**
+ * v3.16.1 合并移入 pending（2026-10-20）：上游 project-sidebar 重构替换了本用例的
+ * 入口交互（hover 工作区项→TID_WORKSPACE_FILE_TREE_BUTTON 已不存在；文件树改为
+ * 右侧 FileManager 标签页，经 handleOpenFileManager 打开）。需对照新 FileManager
+ * tab 流程重写 openWorkspaceFileTreePanel 后真机复跑再基线（e2e-case-lifecycle）。
+ * 类型修复：移除已删除的 TID_WORKSPACE_ITEM/TID_WORKSPACE_FILE_TREE_BUTTON import。
+ */
+/**
  * G25/G30 验收包（权限隔离与提示），出自
  * docs/vaultview/delivery/KNOWLEDGE_E2E_PHASE1_SMOKE.md 矩阵行 G25/G30 与
  * 2026-10-18 补记表（本批差量：提示语义面 + 普通选区 chip 动作缺席的 GUI 断言）。
@@ -49,30 +56,28 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import {
-  TID_WORKSPACE_FILE_TREE_BUTTON,
   TID_WORKSPACE_FILE_TREE_ROW,
-  TID_WORKSPACE_ITEM,
   testId,
 } from "@drora/shared";
 import {
   clickTestIdByDom,
   DEFAULT_WORKSPACE,
   waitForWorkspaceApp,
-} from "../helpers/desktop-app.js";
-import { restartWithSeededOpenAIProviders } from "../helpers/custom-openai-provider.js";
-import { startConversationModelProviderReplayServer } from "../helpers/model-provider-replay.js";
-import { resolveE2ERuntimePath } from "../helpers/e2e-runtime-paths.js";
+} from "../../../helpers/desktop-app.js";
+import { restartWithSeededOpenAIProviders } from "../../../helpers/custom-openai-provider.js";
+import { startConversationModelProviderReplayServer } from "../../../helpers/model-provider-replay.js";
+import { resolveE2ERuntimePath } from "../../../helpers/e2e-runtime-paths.js";
 import {
   selectUpstreamProviderModelById,
   waitForUpstreamModelSelected,
-} from "../helpers/upstream-provider.js";
+} from "../../../helpers/upstream-provider.js";
 import {
   prepareV4ConversationE2E,
   sendV4Prompt,
   setV4ComposerText,
   waitForV4AssistantMessageContaining,
   waitForV4ConversationState,
-} from "../helpers/v4-conversation.js";
+} from "../../../helpers/v4-conversation.js";
 
 const CASE_NAME = "G-hint-and-plain-selection";
 const MODEL_ID = "e2e-g-hint-plain-model";
@@ -406,8 +411,10 @@ function assertHintSemantics(hintText: string | null, label: string): void {
  * selector）；hover 用真实指针（侧栏 action 按真实 hover 挂载）。
  */
 async function openWorkspaceFileTreePanel(): Promise<void> {
-  const workspaceItemTestId = testId(TID_WORKSPACE_ITEM, DEFAULT_WORKSPACE);
-  const fileTreeButtonTestId = testId(TID_WORKSPACE_FILE_TREE_BUTTON, DEFAULT_WORKSPACE);
+  // TODO(v3.16.1 再基线)：旧 id 已随 project-sidebar 重构移除；暂以历史字面量保持
+  // 用例形态可编译，重写时应改走 FileManager 标签页入口。
+  const workspaceItemTestId = testId("workspace-item", DEFAULT_WORKSPACE);
+  const fileTreeButtonTestId = testId("workspace-file-tree-button", DEFAULT_WORKSPACE);
   await browser.waitUntil(
     async () => {
       const rect = await browser.execute((expected) => {

@@ -21,20 +21,20 @@ node scripts/evaluate.mjs
 
 ## 2. 分项结论
 
-| 编号 | 项目 | 本次证据 | 当前判断 |
-|---|---|---|---|
-| S01 | SQLite FTS5 建表、增量维护 | 可索引、更新、删除 Markdown，删除 FTS 行，中文 bigram 搜索 | **Spike 通过** |
-| S01 | 多个独立进程的 lease + fencing | `lease-worker.mjs` 各自打开同一数据库；B 接管，A 旧 token 写入被拒 | **Spike 通过** |
-| S01 | Electron UtilityProcess、不同 OS、崩溃/长尾迁移 | 没有真实 Electron，未跑 Windows/macOS | **未验证** |
-| S02 | `@Vault` 注入 Drora Agent Runtime | 已核对当前 composer `userselect` 仅 `{path,text}`；未有真实工作区环境 | **阻断、未验证** |
-| S03 | 原生 Write/Edit 自动授权收窄 | 实验策略在隐藏目录、越界、非 md、软链、L2/L3 时拒绝自动放行 | **策略验证通过，仓库未接入** |
-| S03 | Bash/MCP/脚本等所有写盘路径强制审核 | `PermissionRequest` 只匹配 `Write|Edit` | **阻断、未验证** |
-| S04 | source epoch / 引用收敛 | epoch 改变拒旧查询、旧 receipt；会话绑定 opaque receipt；打开重读文件 SHA | **Spike 通过** |
-| S04 | Vault 移动、重命名、权限/远端差异 | 仅在本地模拟 root fingerprint，未连接 Drora Profile 配置 | **未验证** |
-| S05 | 中文索引可运行 | Han bigram token + `FTS5 unicode61` 检索（没有成熟中文分词） | **技术机制通过** |
-| S05 | 真实中文笔记准确率 | 8 条合成语料，Hit@1=7/8、Hit@5=7/8 | **仅说明合成词法基线，非产品指标** |
-| JEV | 出站授权/错误降级/重排契约 | 模拟 provider + consent scope + timeout/NaN/未知 ID 回退 | **模拟通过，真实 TypeSafe API 未验证** |
-| EVIDENCE | Citation 来源核验 | opaque receipt ID + session + epoch + chunk ID + file SHA + 当前授权 root，改动/删除/伪造/TTL 测试 | **Spike 通过** |
+| 编号     | 项目                                            | 本次证据                                                                                           | 当前判断                               |
+| -------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- |
+| S01      | SQLite FTS5 建表、增量维护                      | 可索引、更新、删除 Markdown，删除 FTS 行，中文 bigram 搜索                                         | **Spike 通过**                         |
+| S01      | 多个独立进程的 lease + fencing                  | `lease-worker.mjs` 各自打开同一数据库；B 接管，A 旧 token 写入被拒                                 | **Spike 通过**                         |
+| S01      | Electron UtilityProcess、不同 OS、崩溃/长尾迁移 | 没有真实 Electron，未跑 Windows/macOS                                                              | **未验证**                             |
+| S02      | `@Vault` 注入 Drora Agent Runtime               | 已核对当前 composer `userselect` 仅 `{path,text}`；未有真实工作区环境                              | **阻断、未验证**                       |
+| S03      | 原生 Write/Edit 自动授权收窄                    | 实验策略在隐藏目录、越界、非 md、软链、L2/L3 时拒绝自动放行                                        | **策略验证通过，仓库未接入**           |
+| S03      | Bash/MCP/脚本等所有写盘路径强制审核             | `PermissionRequest` 只匹配 `Write                                                                  | Edit`                                  | **阻断、未验证** |
+| S04      | source epoch / 引用收敛                         | epoch 改变拒旧查询、旧 receipt；会话绑定 opaque receipt；打开重读文件 SHA                          | **Spike 通过**                         |
+| S04      | Vault 移动、重命名、权限/远端差异               | 仅在本地模拟 root fingerprint，未连接 Drora Profile 配置                                           | **未验证**                             |
+| S05      | 中文索引可运行                                  | Han bigram token + `FTS5 unicode61` 检索（没有成熟中文分词）                                       | **技术机制通过**                       |
+| S05      | 真实中文笔记准确率                              | 8 条合成语料，Hit@1=7/8、Hit@5=7/8                                                                 | **仅说明合成词法基线，非产品指标**     |
+| JEV      | 出站授权/错误降级/重排契约                      | 模拟 provider + consent scope + timeout/NaN/未知 ID 回退                                           | **模拟通过，真实 TypeSafe API 未验证** |
+| EVIDENCE | Citation 来源核验                               | opaque receipt ID + session + epoch + chunk ID + file SHA + 当前授权 root，改动/删除/伪造/TTL 测试 | **Spike 通过**                         |
 
 ## 3. 发现的重要问题
 

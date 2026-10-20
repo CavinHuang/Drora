@@ -1,10 +1,7 @@
 import type { DroraProvider } from "@drora/shared";
 
 type DraftWorkspacePrepareReason = "mount" | "select-provider";
-type WorkspacePrepareReason =
-  | DraftWorkspacePrepareReason
-  | "retry"
-  | "first-send";
+type WorkspacePrepareReason = DraftWorkspacePrepareReason | "retry" | "first-send";
 
 interface ResolveDraftWorkspacePrepareReasonOptions {
   previousDraftProvider: DroraProvider | null;

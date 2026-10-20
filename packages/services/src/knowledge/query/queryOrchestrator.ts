@@ -15,21 +15,16 @@ import { randomUUID } from "node:crypto";
 import { Emitter, type Event } from "@drora/rpc";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
 import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
-import { resolveKnowledgeSource, type KnowledgeSourceResolution } from "../source/sourceRegistry.js";
+import {
+  resolveKnowledgeSource,
+  type KnowledgeSourceResolution,
+} from "../source/sourceRegistry.js";
 import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
 import { executeKnowledgeSearch } from "./querySearchPipeline.js";
 import { queryHashOf } from "../decision/decisionPolicy.js";
-import type {
-  KnowledgeDecisionConsentGrantResult,
-} from "../decision/decisionTypes.js";
-import type {
-  KnowledgeRunUpdatedEvent,
-  KnowledgeRunView,
-} from "../knowledgeTypes.js";
-import type {
-  KnowledgeCreateRunParams,
-  KnowledgeSearchParams,
-} from "../knowledgeQuery.js";
+import type { KnowledgeDecisionConsentGrantResult } from "../decision/decisionTypes.js";
+import type { KnowledgeRunUpdatedEvent, KnowledgeRunView } from "../knowledgeTypes.js";
+import type { KnowledgeCreateRunParams, KnowledgeSearchParams } from "../knowledgeQuery.js";
 import {
   grantDecisionConsentForRun,
   reorderCandidates,
@@ -57,16 +52,22 @@ export class QueryOrchestrator {
   private readonly runs = new Map<string, RunRecord>();
   private readonly runsByClientRequestId = new Map<string, string>();
   /** 在源解析期间，同一请求键只允许创建一个 Run。 */
-  private readonly pendingCreates = new Map<string, {
-    query: string;
-    sessionId: string | null;
-    result: Promise<KnowledgeRunView>;
-  }>();
+  private readonly pendingCreates = new Map<
+    string,
+    {
+      query: string;
+      sessionId: string | null;
+      result: Promise<KnowledgeRunView>;
+    }
+  >();
   /** 同一 run 的在途检索只允许执行一次；重试复用该结果。 */
-  private readonly pendingSearches = new Map<string, {
-    consentId: string | null;
-    result: Promise<KnowledgeRunView>;
-  }>();
+  private readonly pendingSearches = new Map<
+    string,
+    {
+      consentId: string | null;
+      result: Promise<KnowledgeRunView>;
+    }
+  >();
   private generation = 0;
   private readonly runUpdated = new Emitter<KnowledgeRunUpdatedEvent>();
 
@@ -100,7 +101,8 @@ export class QueryOrchestrator {
     const query = typeof params.query === "string" ? params.query : "";
     if (!query.trim()) throw new Error("查询文本不能为空");
     if (query.length > MAX_QUERY_CHARS) throw new Error(`查询文本超过 ${MAX_QUERY_CHARS} 字符上限`);
-    const clientRequestId = typeof params.clientRequestId === "string" ? params.clientRequestId.trim() : "";
+    const clientRequestId =
+      typeof params.clientRequestId === "string" ? params.clientRequestId.trim() : "";
     if (!clientRequestId) throw new Error("clientRequestId 不能为空");
     const sessionId = params.sessionId ?? null;
 

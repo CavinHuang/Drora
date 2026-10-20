@@ -7,13 +7,24 @@ import type { KnowledgeDatabase } from "../store/knowledgeDatabase.js";
 import { loadCoverage } from "../store/indexRepository.js";
 import { searchLexicalPass } from "../search/lexicalRetriever.js";
 import type { KnowledgeSemanticContext } from "../search/embeddingPort.js";
-import { decideByPolicy, DEFAULT_DECISION_POLICY, queryHashOf } from "../decision/decisionPolicy.js";
+import {
+  decideByPolicy,
+  DEFAULT_DECISION_POLICY,
+  queryHashOf,
+} from "../decision/decisionPolicy.js";
 import type { KnowledgeCoverage, KnowledgeRunView } from "../knowledgeTypes.js";
 import type { KnowledgeSourceResolution } from "../source/sourceRegistry.js";
-import { reorderCandidates, toDecisionCandidates, type KnowledgeDecisionContext } from "./queryDecisionBridge.js";
+import {
+  reorderCandidates,
+  toDecisionCandidates,
+  type KnowledgeDecisionContext,
+} from "./queryDecisionBridge.js";
 
 type SearchPatch = Partial<
-  Pick<KnowledgeRunView, "status" | "reason" | "candidates" | "coverage" | "diagnostics" | "decision">
+  Pick<
+    KnowledgeRunView,
+    "status" | "reason" | "candidates" | "coverage" | "diagnostics" | "decision"
+  >
 >;
 
 export async function executeKnowledgeSearch(params: {

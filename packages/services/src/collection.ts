@@ -66,7 +66,10 @@ export class ServiceCollection {
         if (this._services.has(channelName)) continue;
         const alias = toOfficialRpcChannelAlias(channelName);
         if (alias) {
-          server.registerChannel(alias, ProxyChannel.fromService(instance as Record<string, unknown>));
+          server.registerChannel(
+            alias,
+            ProxyChannel.fromService(instance as Record<string, unknown>),
+          );
         }
       }
     }

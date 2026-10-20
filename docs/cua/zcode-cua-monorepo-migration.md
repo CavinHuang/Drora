@@ -30,11 +30,11 @@ docs/cua/producer/ 对外有效的 CUA producer 文档
 | 内容                                                                                             | 原因                                                  |
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `dist/`                                                                                          | 改为构建产物                                          |
-| 独立仓库 CI（`.gitlab-ci*`、lore trailer、merge gate、AI review、dist freshness、package smoke） | 由 drora CI 与 MR 规范替代                           |
+| 独立仓库 CI（`.gitlab-ci*`、lore trailer、merge gate、AI review、dist freshness、package smoke） | 由 drora CI 与 MR 规范替代                            |
 | remote smoke（Linux/Windows 远端 act-verify、frame-pixel 远端门）                                | 依赖私有远端机器，非仓库内可复现验证                  |
 | 大体积 parity fixture（≥1MB 的 11 组样本及其派生物）                                             | 仓库体积；oracle 同步裁剪，余下样本仍覆盖全部编码路径 |
 | 内部过程文档（测试证据、计划、已知问题、CI 流程）                                                | 仅对原仓库维护过程有效                                |
-| 原 MIT LICENSE、独立 lockfile                                                                    | 许可与依赖锁跟随 drora                               |
+| 原 MIT LICENSE、独立 lockfile                                                                    | 许可与依赖锁跟随 drora                                |
 
 ## 版本与 pin
 

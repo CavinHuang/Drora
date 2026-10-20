@@ -213,26 +213,29 @@ for (const mode of modes) {
     delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(
       electron,
-      [...(mode === "background" ||
+      [
+        ...(mode === "background" ||
         mode === "chain" ||
         mode === "interaction" ||
         mode === "managed" ||
         mode === "rows" ||
         mode === "sampling" ||
         mode === "showcase"
-        ? [
-            join(output, `${mode}-main.cjs`),
-            output,
-            join(output, `${mode}-profile`),
-            process.execPath,
-            join(root, "apps/drora-cli/packages/cli/dist/drora.cjs"),
-            showcaseServer ?? "",
-          ]
-        : mode === "managed-empty"
-          ? [join(output, "managed-empty-main.cjs"), output, join(output, "managed-profile")]
-          : mode === "retention"
-            ? [join(output, "retention-main.cjs"), output, join(output, "retention-profile")]
-            : [join(output, "main.cjs"), output, join(output, "profile"), mode]), ...(process.env.DRORA_E2E_NO_SANDBOX === "1" ? ["--no-sandbox"] : [])],
+          ? [
+              join(output, `${mode}-main.cjs`),
+              output,
+              join(output, `${mode}-profile`),
+              process.execPath,
+              join(root, "apps/drora-cli/packages/cli/dist/drora.cjs"),
+              showcaseServer ?? "",
+            ]
+          : mode === "managed-empty"
+            ? [join(output, "managed-empty-main.cjs"), output, join(output, "managed-profile")]
+            : mode === "retention"
+              ? [join(output, "retention-main.cjs"), output, join(output, "retention-profile")]
+              : [join(output, "main.cjs"), output, join(output, "profile"), mode]),
+        ...(process.env.DRORA_E2E_NO_SANDBOX === "1" ? ["--no-sandbox"] : []),
+      ],
       { env, stdio: "inherit" },
     );
     const watchdog = setTimeout(

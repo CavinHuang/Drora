@@ -29,14 +29,8 @@ export type {
   ReviewOperationRow,
   ReviewProposalRow,
 } from "./reviewLedgerRows.js";
-export {
-  canonicalizeChangesJson,
-  sha256Hex,
-} from "./reviewLedgerRows.js";
-import type {
-  KnowledgeReviewFileStatus,
-  KnowledgeReviewOperationStatus,
-} from "./reviewTypes.js";
+export { canonicalizeChangesJson, sha256Hex } from "./reviewLedgerRows.js";
+import type { KnowledgeReviewFileStatus, KnowledgeReviewOperationStatus } from "./reviewTypes.js";
 
 export class ReviewLedgerStore {
   constructor(private readonly db: KnowledgeDatabase) {}
@@ -141,9 +135,7 @@ export class ReviewLedgerStore {
 
   getApproval(proposalId: string, revision: number): ReviewApprovalRow | null {
     const row = this.db.raw
-      .prepare(
-        "SELECT * FROM review_approvals WHERE proposal_id = ? AND revision = ?",
-      )
+      .prepare("SELECT * FROM review_approvals WHERE proposal_id = ? AND revision = ?")
       .get(proposalId, revision) as ApprovalDbRow | undefined;
     return row ? mapApproval(row) : null;
   }
@@ -152,7 +144,9 @@ export class ReviewLedgerStore {
   setProposalRejected(proposalId: string, rejectedAtMs: number): void {
     this.db.transaction((tx) => {
       tx.raw
-        .prepare("UPDATE review_proposals SET rejected_at_ms = ?, updated_at_ms = ? WHERE proposal_id = ?")
+        .prepare(
+          "UPDATE review_proposals SET rejected_at_ms = ?, updated_at_ms = ? WHERE proposal_id = ?",
+        )
         .run(rejectedAtMs, rejectedAtMs, proposalId);
     });
   }
@@ -207,10 +201,12 @@ export class ReviewLedgerStore {
   /** Bounded read-only operation history, scoped to the currently authorized Vault. */
   listRecentOperationsByVault(vaultId: string, limit = 100): ReviewOperationRow[] {
     const count = Math.max(1, Math.min(100, Math.trunc(limit)));
-    const rows = this.db.raw.prepare(
-      `SELECT * FROM review_operations WHERE vault_id = ?
+    const rows = this.db.raw
+      .prepare(
+        `SELECT * FROM review_operations WHERE vault_id = ?
        ORDER BY created_at_ms DESC, operation_id DESC LIMIT ?`,
-    ).all(vaultId, count) as unknown as OperationDbRow[];
+      )
+      .all(vaultId, count) as unknown as OperationDbRow[];
     return rows.map(mapOperation);
   }
 
@@ -230,26 +226,32 @@ export class ReviewLedgerStore {
   transitionOperationToApplying(operationId: string): boolean {
     let won = false;
     this.db.transaction((tx) => {
-      const operation = tx.raw.prepare(
-        "SELECT * FROM review_operations WHERE operation_id = ?",
-      ).get(operationId) as OperationDbRow | undefined;
+      const operation = tx.raw
+        .prepare("SELECT * FROM review_operations WHERE operation_id = ?")
+        .get(operationId) as OperationDbRow | undefined;
       if (!operation || operation.status !== "prepared") return;
       // The vault facade's read-SHA + rename is not an atomic cross-process CAS.
       // Serialize *different* governed L2 operations at the durable ledger
       // boundary, not only multiple attempts with one operationId.
-      const activeApply = tx.raw.prepare(
-        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+      const activeApply = tx.raw
+        .prepare(
+          `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
          AND status IN ('applying', 'uncertain') LIMIT 1`,
-      ).get(operation.vault_id, operationId);
-      const activeUndo = tx.raw.prepare(
-        `SELECT 1 FROM review_operation_files f
+        )
+        .get(operation.vault_id, operationId);
+      const activeUndo = tx.raw
+        .prepare(
+          `SELECT 1 FROM review_operation_files f
          JOIN review_operations o ON o.operation_id = f.operation_id
          WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
-      ).get(operation.vault_id);
+        )
+        .get(operation.vault_id);
       if (activeApply || activeUndo) return;
-      const result = tx.raw.prepare(
-        "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
-      ).run(operationId);
+      const result = tx.raw
+        .prepare(
+          "UPDATE review_operations SET status = 'applying' WHERE operation_id = ? AND status = 'prepared'",
+        )
+        .run(operationId);
       won = Number(result.changes) === 1;
     });
     return won;
@@ -271,21 +273,30 @@ export class ReviewLedgerStore {
       const op = tx.raw
         .prepare("SELECT * FROM review_operations WHERE operation_id = ?")
         .get(operationId) as OperationDbRow | undefined;
-      if (!op || op.status === "applying" || op.status === "uncertain" || op.status === "prepared") {
+      if (
+        !op ||
+        op.status === "applying" ||
+        op.status === "uncertain" ||
+        op.status === "prepared"
+      ) {
         outcome = "busy";
         return;
       }
       // A concurrent apply/undo of a different L2 operation in the same Vault
       // must finish before this inverse write can begin.
-      const activeApply = tx.raw.prepare(
-        `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
+      const activeApply = tx.raw
+        .prepare(
+          `SELECT 1 FROM review_operations WHERE vault_id = ? AND operation_id <> ?
          AND status IN ('applying', 'uncertain') LIMIT 1`,
-      ).get(op.vault_id, operationId);
-      const activeUndo = tx.raw.prepare(
-        `SELECT 1 FROM review_operation_files f
+        )
+        .get(op.vault_id, operationId);
+      const activeUndo = tx.raw
+        .prepare(
+          `SELECT 1 FROM review_operation_files f
          JOIN review_operations o ON o.operation_id = f.operation_id
          WHERE o.vault_id = ? AND f.status = 'undoing' LIMIT 1`,
-      ).get(op.vault_id);
+        )
+        .get(op.vault_id);
       if (activeApply || activeUndo) {
         outcome = "busy";
         return;
@@ -315,18 +326,24 @@ export class ReviewLedgerStore {
 
   /** Restart/manual recovery needs to locate orphan undo claims as well as apply claims. */
   listOperationsWithUndoingFiles(): ReviewOperationRow[] {
-    const rows = this.db.raw.prepare(
-      `SELECT DISTINCT o.* FROM review_operations o
+    const rows = this.db.raw
+      .prepare(
+        `SELECT DISTINCT o.* FROM review_operations o
        INNER JOIN review_operation_files f ON f.operation_id = o.operation_id
        WHERE f.status = 'undoing' ORDER BY o.created_at_ms ASC`,
-    ).all() as unknown as OperationDbRow[];
+      )
+      .all() as unknown as OperationDbRow[];
     return rows.map(mapOperation);
   }
 
   setOperationStatus(
     operationId: string,
     status: KnowledgeReviewOperationStatus,
-    options: { error?: string | null; finishedAtMs?: number | null; reconciledAtMs?: number | null } = {},
+    options: {
+      error?: string | null;
+      finishedAtMs?: number | null;
+      reconciledAtMs?: number | null;
+    } = {},
   ): void {
     this.db.transaction((tx) => {
       tx.raw
@@ -424,10 +441,12 @@ export class ReviewLedgerStore {
   ): boolean {
     let settled = false;
     this.db.transaction((tx) => {
-      const result = tx.raw.prepare(
-        `UPDATE review_operation_files SET status = ?, error = ?, updated_at_ms = ?
+      const result = tx.raw
+        .prepare(
+          `UPDATE review_operation_files SET status = ?, error = ?, updated_at_ms = ?
          WHERE operation_id = ? AND ordinal = ? AND status = 'undoing'`,
-      ).run(status, error, nowMs, operationId, ordinal);
+        )
+        .run(status, error, nowMs, operationId, ordinal);
       settled = Number(result.changes) === 1;
     });
     return settled;
@@ -435,18 +454,14 @@ export class ReviewLedgerStore {
 
   listOperationFiles(operationId: string): ReviewOperationFileRow[] {
     const rows = this.db.raw
-      .prepare(
-        "SELECT * FROM review_operation_files WHERE operation_id = ? ORDER BY ordinal ASC",
-      )
+      .prepare("SELECT * FROM review_operation_files WHERE operation_id = ? ORDER BY ordinal ASC")
       .all(operationId) as unknown as OperationFileDbRow[];
     return rows.map(mapOperationFile);
   }
 
   getOperationFile(operationId: string, relativePath: string): ReviewOperationFileRow | null {
     const row = this.db.raw
-      .prepare(
-        "SELECT * FROM review_operation_files WHERE operation_id = ? AND relative_path = ?",
-      )
+      .prepare("SELECT * FROM review_operation_files WHERE operation_id = ? AND relative_path = ?")
       .get(operationId, relativePath) as OperationFileDbRow | undefined;
     return row ? mapOperationFile(row) : null;
   }

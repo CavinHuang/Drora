@@ -2876,9 +2876,15 @@ describe("Drora legacy task compat task index", () => {
     const task = await service.createTask({ workspacePath: "/repo", provider: "glm" });
     await service.setMode({ taskId: task.taskId, mode: "auto" });
     expect(agent.setMode).not.toHaveBeenCalled();
-    expect(vi.mocked(agent.sendConversationCommandV4).mock.calls.some(([params]) =>
-      params.envelope.type === "switchCollaborationMode" && params.envelope.payload.mode === "build",
-    )).toBe(true);
+    expect(
+      vi
+        .mocked(agent.sendConversationCommandV4)
+        .mock.calls.some(
+          ([params]) =>
+            params.envelope.type === "switchCollaborationMode" &&
+            params.envelope.payload.mode === "build",
+        ),
+    ).toBe(true);
   });
 
   // M5 ③-3：思考深度收敛 v4 switchModelConfig（thought 字段承载，provider/model 取当前选型）。

@@ -285,5 +285,5 @@ test("当前构建页候选：开发 dist 与安装 mobile-web，不再使用历
   assert.equal(installed.length, 2);
   assert.equal(toSlash(installed[0]!), "C:/app/resources/mobile-web");
   assert.equal(installed[1], dev[0]);
-  assert.ok(installed.every(root => !/upstream|recovered|mobile-web-official/u.test(root)));
+  assert.ok(installed.every((root) => !/upstream|recovered|mobile-web-official/u.test(root)));
 });

@@ -1,4 +1,7 @@
-import { createAutoUpdateInstallRecovery, type AutoUpdateInstallRecovery } from "./autoUpdateInstallRecovery.js";
+import {
+  createAutoUpdateInstallRecovery,
+  type AutoUpdateInstallRecovery,
+} from "./autoUpdateInstallRecovery.js";
 /* eslint-disable max-lines -- autoUpdater 需要集中维护 Electron 事件、菜单状态与 IPC 交互，过度拆分会让更新状态流更难追踪 */
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import type { ISettingService } from "@drora/services";
@@ -1606,7 +1609,8 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
 
   onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
   installFailureRecovery = options.onQuitAndInstallFailed
-    ? createAutoUpdateInstallRecovery({ onInstallFailure: options.onQuitAndInstallFailed }) : null;
+    ? createAutoUpdateInstallRecovery({ onInstallFailure: options.onQuitAndInstallFailed })
+    : null;
   if (options.locale) {
     menuLocale = options.locale;
   }

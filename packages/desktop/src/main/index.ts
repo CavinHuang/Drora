@@ -725,7 +725,9 @@ app.on("before-quit", () => captchaSolver.dispose());
 const droraDesktopPet = createDroraDesktopPetExtension({
   getLocale: () => currentApplicationLocale,
   isMainWindow: (win) => windowHostProcessMap.has(win.webContents.id),
-  updateSettings: async (patch) => { await mainSettingService.update(patch); },
+  updateSettings: async (patch) => {
+    await mainSettingService.update(patch);
+  },
   logger,
 });
 app.on("before-quit", () => droraDesktopPet.dispose());
@@ -937,17 +939,25 @@ let startupOpenWorkspaceRequest: ExplicitStartupWorkspaceRequest | null =
 
 const droraRemoteControlDeployment = createDroraRemoteControlDeployment({
   loadSettings: () => mainSettingService.get(),
-  officialEndpoints: async () => buildDroraEndpointUrls(await resolveCurrentDroraEndpointOrigin(), { appVersion: webRemoteControlAppVersion }),
+  officialEndpoints: async () =>
+    buildDroraEndpointUrls(await resolveCurrentDroraEndpointOrigin(), {
+      appVersion: webRemoteControlAppVersion,
+    }),
   appVersion: webRemoteControlAppVersion,
   relayWsOverride: webRemoteControlRelayWsEnvOverride,
   remoteUrlOverride: webRemoteControlUrlEnvOverride,
-  resolveEncryption: () => safeStorage.isEncryptionAvailable() ? {
-    encrypt: plain => safeStorage.encryptString(plain).toString("base64"),
-    decrypt: stored => safeStorage.decryptString(Buffer.from(stored, "base64")),
-  } : undefined,
+  resolveEncryption: () =>
+    safeStorage.isEncryptionAvailable()
+      ? {
+          encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
+          decrypt: (stored) => safeStorage.decryptString(Buffer.from(stored, "base64")),
+        }
+      : undefined,
   logger,
 });
-app.on("before-quit", () => { void droraRemoteControlDeployment.dispose(); });
+app.on("before-quit", () => {
+  void droraRemoteControlDeployment.dispose();
+});
 // B 类保护：Web 远控配对轮换入口（ours 面，UI WebRemoteControlDialog 仍调用）；
 // main 侧按 R1 分歧决策由 Drora 扩展接管（见 drora-extensions/remoteControl.ts）。
 registerWebRemoteControlPairingRefreshIpc({ logger });
@@ -1050,7 +1060,6 @@ const webRemoteControlManager = createWebRemoteControlManager({
     webRemoteControlSharedHostAttachments.disposeRemoteSession(remoteSessionId),
 });
 webRemoteControlManagerRef.current = webRemoteControlManager;
-
 
 function resolveExternalWorkspaceConfirmationCopy() {
   const effectiveLocale =
@@ -1637,7 +1646,10 @@ function resolveFocusedDesktopZoomLevel(): number {
 
 function getApplicationWindowsExcludingCuaIndicator(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter(
-    (win) => !win.isDestroyed() && !windowsCuaOperationIndicator.ownsWindow(win) && !droraDesktopPet.ownsWindow(win),
+    (win) =>
+      !win.isDestroyed() &&
+      !windowsCuaOperationIndicator.ownsWindow(win) &&
+      !droraDesktopPet.ownsWindow(win),
   );
 }
 
@@ -1936,7 +1948,8 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           // browser-use：main 用 WebContentsView+CDP 执行命令（替换 T4 占位）。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
-          handleCaptchaSolveRequest: ({ captcha, language }) => captchaSolver.solve({ captcha, language }),
+          handleCaptchaSolveRequest: ({ captcha, language }) =>
+            captchaSolver.solve({ captcha, language }),
         },
         {
           taskRealtime: {
@@ -2240,7 +2253,6 @@ app.whenReady().then(async () => {
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,
-
   });
 
   if (process.platform === "darwin" || process.platform === "win32") {

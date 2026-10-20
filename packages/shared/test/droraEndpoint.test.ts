@@ -216,9 +216,7 @@ describe("droraEndpoint", () => {
     expect(buildRuntimeZaiBusinessUrl({ DRORA_ENV: "test" }, "/api/auth/z/login")).toBe(
       "https://api.z.ai/api/auth/z/login",
     );
-    expect(buildBigModelApiUrl({ DRORA_ENV: "test" }, "/login")).toBe(
-      "https://bigmodel.cn/login",
-    );
+    expect(buildBigModelApiUrl({ DRORA_ENV: "test" }, "/login")).toBe("https://bigmodel.cn/login");
   });
 
   it("keeps environment-scoped endpoint overrides centralized", () => {

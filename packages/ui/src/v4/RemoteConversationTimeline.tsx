@@ -101,7 +101,11 @@ export function RemoteConversationTimeline({
   previewFileRewind,
   applyFileRewind,
 }: RemoteConversationTimelineProps) {
-  const teamHistoryConnection = useRemoteTeamHistoryConnection({ workspacePath, workspaceIdentity, sessionId: sessionKey });
+  const teamHistoryConnection = useRemoteTeamHistoryConnection({
+    workspacePath,
+    workspaceIdentity,
+    sessionId: sessionKey,
+  });
   const [statusPanelVariant, setStatusPanelVariant] = useState<ChatViewSummaryPanelVariant | null>(
     null,
   );
@@ -180,7 +184,16 @@ export function RemoteConversationTimeline({
               onCancelBackgroundWork={onCancelBackgroundWork}
             />
             <ConversationTimeline
-              footerSlot={statusSnapshot?.team ? <TeamConversationSummary key={`${sessionKey}:${statusSnapshot.team.teamId}`} team={statusSnapshot.team} connection={teamHistoryConnection} target={{workspacePath,workspaceIdentity,parentSessionId:sessionKey}}/> : null}
+              footerSlot={
+                statusSnapshot?.team ? (
+                  <TeamConversationSummary
+                    key={`${sessionKey}:${statusSnapshot.team.teamId}`}
+                    team={statusSnapshot.team}
+                    connection={teamHistoryConnection}
+                    target={{ workspacePath, workspaceIdentity, parentSessionId: sessionKey }}
+                  />
+                ) : null
+              }
               rows={rows}
               totalCount={totalCount}
               sessionKey={sessionKey}

@@ -8104,7 +8104,8 @@ const zhCN: Record<string, string> = {
   "settings.desktopPetCharacter": "宠物角色",
   "settings.desktopPetCharacterDescription": "选择内置角色或兼容 Codex 的自定义宠物。",
   "settings.desktopPet": "桌面宠物",
-  "settings.desktopPetDescription": "在桌面显示任务活动；点击宠物查看任务，拖动可移动位置，右键打开菜单。",
+  "settings.desktopPetDescription":
+    "在桌面显示任务活动；点击宠物查看任务，拖动可移动位置，右键打开菜单。",
   "settings.relayServerUrl": "云中继服务器",
   "settings.relayServerUrlDescription":
     "自建 relay 服务端地址（移动端远控）。留空使用官方 zcode.z.ai；修改后需停止并重新开启远程控制。",
@@ -8208,7 +8209,8 @@ const zhCN: Record<string, string> = {
   "settings.desktopPet.export": "导出",
   "settings.desktopPet.delete": "删除",
   "settings.desktopPet.unavailable": "宠物不可用",
-  "settings.desktopPet.compatibility": "所有宠物统一使用 Codex 格式。可直接导入 pet.json（v1/v2）、旧 avatar.json 或精灵图；v2 支持 16 方向鼠标跟随。内置宠物也可导出为标准宠物包。",
+  "settings.desktopPet.compatibility":
+    "所有宠物统一使用 Codex 格式。可直接导入 pet.json（v1/v2）、旧 avatar.json 或精灵图；v2 支持 16 方向鼠标跟随。内置宠物也可导出为标准宠物包。",
   "settings.desktopPet.error": "宠物操作失败，请检查素材格式、尺寸和文件权限后重试。",
   "settings.desktopPet.invalid": "有 {count} 个宠物文件夹无法加载，请检查配置和精灵图。",
 };

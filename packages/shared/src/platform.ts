@@ -1013,7 +1013,9 @@ export interface IPlatformService {
 
   /** Desktop-only derived pet presentation; Web has no publisher. */
   publishDesktopPet?(presentation: import("./desktopPet.js").DesktopPetPresentation): void;
-  manageDesktopPets?(request: import("./desktopPet.js").DesktopPetLibraryRequest): Promise<import("./desktopPet.js").DesktopPetLibraryResult>;
+  manageDesktopPets?(
+    request: import("./desktopPet.js").DesktopPetLibraryRequest,
+  ): Promise<import("./desktopPet.js").DesktopPetLibraryResult>;
   onDesktopPetOpenTask?(
     handler: (target: import("./desktopPet.js").DesktopPetTarget) => void,
   ): () => void;

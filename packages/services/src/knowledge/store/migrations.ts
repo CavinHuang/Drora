@@ -27,9 +27,7 @@
  *   旧数据未经结构抽取，meta 重填为空串（tokens/title 如实重填可检索）；新抽取产物
  *   随文件变更/重建自然补齐（与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读）。
  */
-import {
-  KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS,
-} from "@drora/shared";
+import { KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS } from "@drora/shared";
 import type { DatabaseSync } from "node:sqlite";
 import { tokenizeForIndex } from "../search/tokenizer.js";
 
@@ -242,7 +240,12 @@ function rebuildChunksFtsColumns(raw: KnowledgeDatabaseRaw): void {
       `SELECT c.id AS id, c.body AS body, c.heading_path AS headingPath, d.title AS title
        FROM chunks c JOIN documents d ON d.id = c.document_id`,
     )
-    .iterate() as IterableIterator<{ id: number; body: string; headingPath: string | null; title: string }>;
+    .iterate() as IterableIterator<{
+    id: number;
+    body: string;
+    headingPath: string | null;
+    title: string;
+  }>;
   const insert = raw.prepare(
     `INSERT INTO chunks_fts_v4(rowid, tokens, title, meta) VALUES (?, ?, ?, ?)`,
   );
@@ -256,9 +259,11 @@ function rebuildChunksFtsColumns(raw: KnowledgeDatabaseRaw): void {
 
 export function runKnowledgeMigrations(raw: KnowledgeDatabaseRaw): void {
   raw.exec("CREATE TABLE IF NOT EXISTS schema_version(version INTEGER NOT NULL)");
-  const row = raw.prepare("SELECT MAX(version) AS version FROM schema_version").get() as {
-    version?: number;
-  } | undefined;
+  const row = raw.prepare("SELECT MAX(version) AS version FROM schema_version").get() as
+    | {
+        version?: number;
+      }
+    | undefined;
   const current = row?.version ?? 0;
   for (const migration of KNOWLEDGE_MIGRATIONS) {
     if (migration.version <= current) continue;

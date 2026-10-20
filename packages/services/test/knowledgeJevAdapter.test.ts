@@ -9,10 +9,18 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createJevAdapter, mergedNoulQuestion, JEV_PROVIDER_ID } from "../src/knowledge/decision/jevAdapter.js";
+import {
+  createJevAdapter,
+  mergedNoulQuestion,
+  JEV_PROVIDER_ID,
+} from "../src/knowledge/decision/jevAdapter.js";
 import { DecisionConsentRegistry } from "../src/knowledge/decision/decisionConsent.js";
 import { DEFAULT_DECISION_POLICY } from "../src/knowledge/decision/decisionPolicy.js";
-import type { JevTransport, JevTransportRequest, JevTransportResponse } from "../src/knowledge/decision/jevTransport.js";
+import type {
+  JevTransport,
+  JevTransportRequest,
+  JevTransportResponse,
+} from "../src/knowledge/decision/jevTransport.js";
 import type {
   KnowledgeDecisionCandidate,
   KnowledgeDecisionRequest,
@@ -50,7 +58,12 @@ function requestOf(
   };
 }
 
-function okBody(noul: number, model = "jev-1.13.0", inputTokens = 296, outputTokens = 20): JevTransportResponse {
+function okBody(
+  noul: number,
+  model = "jev-1.13.0",
+  inputTokens = 296,
+  outputTokens = 20,
+): JevTransportResponse {
   return {
     status: 200,
     body: {
@@ -111,7 +124,10 @@ test("请求形状：每候选一次出站、model/state/questions 与官方契�
     assert.equal(request.model, "jev-latest");
     assert.ok(request.state.query.includes("大上下文"));
     assert.ok("note_excerpt" in request.state, "最小状态：查询 + 单候选片段");
-    assert.ok(!("apiKey" in request) && !JSON.stringify(request).includes("Bearer"), "凭证不进请求对象");
+    assert.ok(
+      !("apiKey" in request) && !JSON.stringify(request).includes("Bearer"),
+      "凭证不进请求对象",
+    );
     assert.equal(request.questions.relevance.type, "noul");
   }
   assert.deepEqual(
@@ -146,7 +162,11 @@ test("429 短退避重试一次后成功；恒 429 → 该候选 http_429 回退
   assert.equal(first.outcomes[0]?.noul, 0.5);
   assert.equal(first.outboundCount, 2);
 
-  const alwaysLimited: JevTransport = { async post() { return { status: 429, body: null }; } };
+  const alwaysLimited: JevTransport = {
+    async post() {
+      return { status: 429, body: null };
+    },
+  };
   const second = await createJevAdapter(adapterOptions(alwaysLimited, registry)).decide(
     requestOf(candidatesOf(["a"]), { consent: registry.get(consentId) }),
   );
@@ -206,12 +226,24 @@ test("非法评分（NaN/出界/缺类型/非数值）→ invalid_score 回退",
   const ids = ["a", "b", "c", "d"];
   const consentId = grantFor(registry, ids);
   const scripted: Array<() => JevTransportResponse> = [
-    () => ({ status: 200, body: { model: "jev-1", answers: { relevance: { type: "noul", noul: Number.NaN } } } }),
-    () => ({ status: 200, body: { model: "jev-1", answers: { relevance: { type: "noul", noul: 1.2 } } } }),
-    () => ({ status: 200, body: { model: "jev-1", answers: { relevance: { type: "choice", choice: "x" } } } }),
     () => ({
       status: 200,
-      body: { model: "jev-1", answers: { relevance: { type: "noul", noul: "0.5" as unknown as number } } },
+      body: { model: "jev-1", answers: { relevance: { type: "noul", noul: Number.NaN } } },
+    }),
+    () => ({
+      status: 200,
+      body: { model: "jev-1", answers: { relevance: { type: "noul", noul: 1.2 } } },
+    }),
+    () => ({
+      status: 200,
+      body: { model: "jev-1", answers: { relevance: { type: "choice", choice: "x" } } },
+    }),
+    () => ({
+      status: 200,
+      body: {
+        model: "jev-1",
+        answers: { relevance: { type: "noul", noul: "0.5" as unknown as number } },
+      },
     }),
   ];
   let index = 0;
@@ -247,7 +279,9 @@ test("授权逐调用重查：撤销后未开始的候选不出站（fail-closed
   );
   assert.equal(outbound, 1);
   assert.equal(result.outcomes[0]?.status, "scored");
-  assert.ok(result.outcomes.slice(1).every((outcome) => outcome.fallbackReason === "consent_revoked"));
+  assert.ok(
+    result.outcomes.slice(1).every((outcome) => outcome.fallbackReason === "consent_revoked"),
+  );
 });
 
 test("授权范围不匹配（chunkSha 不在授权集合）→ 不出站", async () => {
@@ -286,7 +320,11 @@ test("授权过期 → consent_expired，不出站", async () => {
       return okBody(0.8);
     },
   };
-  const adapter = createJevAdapter({ ...adapterOptions(transport, registry), perCallTimeoutMs: 50, stageBudgetMs: 500 });
+  const adapter = createJevAdapter({
+    ...adapterOptions(transport, registry),
+    perCallTimeoutMs: 50,
+    stageBudgetMs: 500,
+  });
   // expiresAtMs=1000 < Date.now()（真实时钟）→ 门禁与调用前重查均拒绝。
   const result = await adapter.decide(requestOf(candidatesOf(["a"]), { consent }));
   assert.equal(outbound, 0);
@@ -318,10 +356,14 @@ test("阶段取消：未发起候选补齐 cancelled 回退；在途调用立即
       outbound += 1;
       await new Promise((resolve) => {
         const timer = setTimeout(resolve, 1000);
-        request.signal.addEventListener("abort", () => {
-          clearTimeout(timer);
-          resolve(null);
-        }, { once: true });
+        request.signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            resolve(null);
+          },
+          { once: true },
+        );
       });
       if (request.signal.aborted) throw new Error("stage-cancelled");
       return okBody(0.5);
@@ -350,15 +392,22 @@ test("慢响应超时 → 单候选 timeout 回退，不拖垮阶段", async () 
     async post(request) {
       await new Promise((resolve) => {
         const timer = setTimeout(resolve, 2000);
-        request.signal.addEventListener("abort", () => {
-          clearTimeout(timer);
-          resolve(null);
-        }, { once: true });
+        request.signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            resolve(null);
+          },
+          { once: true },
+        );
       });
       throw new Error("per-call-timeout");
     },
   };
-  const adapter = createJevAdapter({ ...adapterOptions(transport, registry), perCallTimeoutMs: 50 });
+  const adapter = createJevAdapter({
+    ...adapterOptions(transport, registry),
+    perCallTimeoutMs: 50,
+  });
   const startedAt = Date.now();
   const result = await adapter.decide(
     requestOf(candidatesOf(["a", "b"]), { consent: registry.get(consentId) }),
@@ -393,7 +442,8 @@ test("出站候选截断：maxCandidates 之外的候选不进请求池（skippe
 });
 
 test("默认 HTTP transport：对本地假服务器逐字段断言已验证的官方线格式", async () => {
-  const { createSystemOneHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
+  const { createSystemOneHttpTransport } =
+    await import("../src/knowledge/decision/jevTransport.js");
   const { createServer } = await import("node:http");
   const seen: Array<{ url: string | undefined; auth: string | undefined; body: unknown }> = [];
   const server = createServer((req, res) => {
@@ -440,7 +490,8 @@ test("默认 HTTP transport：对本地假服务器逐字段断言已验证的�
 });
 
 test("默认 HTTP transport：缺 API Key 构造即抛错（绝不静默出站）", async () => {
-  const { createSystemOneHttpTransport } = await import("../src/knowledge/decision/jevTransport.js");
+  const { createSystemOneHttpTransport } =
+    await import("../src/knowledge/decision/jevTransport.js");
   assert.throws(
     () => createSystemOneHttpTransport({ apiKey: "  ", baseUrl: "https://api.typesafe.ai" }),
     /API Key/u,

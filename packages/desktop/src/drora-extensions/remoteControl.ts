@@ -115,7 +115,10 @@ export function registerWebRemoteControlPairingRefreshIpc(deps: {
 }): void {
   ipcMain.handle(
     PlatformChannels.ResetWebRemoteControlPairing,
-    async (_event, _context: WebRemoteControlContext): Promise<WebRemoteControlStartOperationResult> => {
+    async (
+      _event,
+      _context: WebRemoteControlContext,
+    ): Promise<WebRemoteControlStartOperationResult> => {
       deps.logger.info(
         "[web-remote-control] pairing refresh requested; V2 has no rotation primitive, answering cancelled (R1)",
       );

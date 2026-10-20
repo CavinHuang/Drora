@@ -1,4 +1,10 @@
-import { BookOpenTextIcon, Loader2Icon, QuoteIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
+import {
+  BookOpenTextIcon,
+  Loader2Icon,
+  QuoteIcon,
+  ShieldCheckIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useState } from "react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
@@ -109,31 +115,35 @@ export function ConversationSelectionReferenceChip({
               </div>
             ) : null}
             {isConversationSelectionReference(reference) &&
-              reference.contentType === "markdown" &&
-              Boolean(reference.evidenceReceiptId) ? (
-                <div
-                  className="mt-1 inline-flex items-center gap-1 text-ui-xs text-foreground-subtle"
-                  data-testid="composer-evidence-pending-revalidation"
-                >
-                  <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
-                  {intl.formatMessage({ id: "chat.selections.evidenceRecheckOnSend" })}
-                  {onOpenCitation && reference.contentType === "markdown" && reference.evidenceReceiptId ? (
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="ghost"
-                      data-testid="composer-open-trusted-citation"
-                      disabled={openingReceiptId !== null}
-                      onClick={() => void openCitation(reference.evidenceReceiptId!)}
-                    >
-                      {openingReceiptId === reference.evidenceReceiptId
-                        ? <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
-                        : <BookOpenTextIcon className="size-3" aria-hidden="true" />}
-                      {intl.formatMessage({ id: "chat.selections.openVerifiedSource" })}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+            reference.contentType === "markdown" &&
+            Boolean(reference.evidenceReceiptId) ? (
+              <div
+                className="mt-1 inline-flex items-center gap-1 text-ui-xs text-foreground-subtle"
+                data-testid="composer-evidence-pending-revalidation"
+              >
+                <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
+                {intl.formatMessage({ id: "chat.selections.evidenceRecheckOnSend" })}
+                {onOpenCitation &&
+                reference.contentType === "markdown" &&
+                reference.evidenceReceiptId ? (
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    data-testid="composer-open-trusted-citation"
+                    disabled={openingReceiptId !== null}
+                    onClick={() => void openCitation(reference.evidenceReceiptId!)}
+                  >
+                    {openingReceiptId === reference.evidenceReceiptId ? (
+                      <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <BookOpenTextIcon className="size-3" aria-hidden="true" />
+                    )}
+                    {intl.formatMessage({ id: "chat.selections.openVerifiedSource" })}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {onRemove && isConversationSelectionReference(reference) ? (
             <Button

@@ -25,7 +25,11 @@ export function normalizeRelativeMarkdownPath(value: string): string {
 
   const normalized = value.replace(/\\/g, "/").replace(/^\.\//, "");
   const parts = normalized.split("/");
-  if (parts.some((part) => !part || part === "." || part === ".." || part.startsWith(HIDDEN_DIRECTORY_PREFIX))) {
+  if (
+    parts.some(
+      (part) => !part || part === "." || part === ".." || part.startsWith(HIDDEN_DIRECTORY_PREFIX),
+    )
+  ) {
     throw new Error("Vault 路径不能包含隐藏目录、空段或上级目录");
   }
   if (!normalized.toLowerCase().endsWith(".md")) {
@@ -45,7 +49,11 @@ export function normalizeRelativeVaultFolderPath(value: string): string {
     throw new Error("Vault 不接受绝对路径");
   }
   const parts = normalized.split("/");
-  if (parts.some((part) => !part || part === "." || part === ".." || part.startsWith(HIDDEN_DIRECTORY_PREFIX))) {
+  if (
+    parts.some(
+      (part) => !part || part === "." || part === ".." || part.startsWith(HIDDEN_DIRECTORY_PREFIX),
+    )
+  ) {
     throw new Error("Vault 文件夹路径不能包含隐藏目录、空段或上级目录");
   }
   return parts.join("/");
@@ -53,7 +61,10 @@ export function normalizeRelativeVaultFolderPath(value: string): string {
 
 export function isWithinRoot(rootPath: string, targetPath: string): boolean {
   const fromRoot = relative(rootPath, targetPath);
-  return fromRoot === "" || (!fromRoot.startsWith(`..${sep}`) && fromRoot !== ".." && !isAbsolute(fromRoot));
+  return (
+    fromRoot === "" ||
+    (!fromRoot.startsWith(`..${sep}`) && fromRoot !== ".." && !isAbsolute(fromRoot))
+  );
 }
 
 export interface SafeVaultPath {
@@ -65,7 +76,10 @@ export interface SafeVaultPath {
  * 解析根内相对路径并拒绝符号链接：对已存在的每一段做 lstat，
  * 防止通过根内软链把 IO 引到授权根之外。
  */
-export async function getSafeVaultPath(rootPath: string, relativePath: string): Promise<SafeVaultPath> {
+export async function getSafeVaultPath(
+  rootPath: string,
+  relativePath: string,
+): Promise<SafeVaultPath> {
   const absolutePath = resolve(rootPath, relativePath);
   if (!isWithinRoot(rootPath, absolutePath)) {
     throw new Error("Vault 路径超出授权根目录");

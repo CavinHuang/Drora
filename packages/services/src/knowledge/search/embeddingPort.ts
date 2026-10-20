@@ -52,7 +52,9 @@ export interface KnowledgeSemanticContext {
   setPort(port: KnowledgeEmbeddingPort | null): void;
 }
 
-export function createSemanticContext(port: KnowledgeEmbeddingPort | null = null): KnowledgeSemanticContext {
+export function createSemanticContext(
+  port: KnowledgeEmbeddingPort | null = null,
+): KnowledgeSemanticContext {
   let current: KnowledgeEmbeddingPort | null = port;
   return {
     get port() {

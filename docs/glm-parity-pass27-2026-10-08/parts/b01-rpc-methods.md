@@ -55,6 +55,7 @@ C. 其他 v4 字面量（非方法）：`v4/shared_context_import`、`v4/command
 - 传输：`apps/drora-cli/packages/bootstrap/src/drora-protocol/transport.ts`（NDJSON 连接）。
 
 集合运算（`grep` 导出后 `sort -u` + `diff`，已去除 CRLF 干扰）：
+
 - v1 方法全集（含 startup、session/event）：真值 85 = 我方 85，**差集为空**。
 - `case` 分发表：59 = 59，**IDENTICAL**。
 - v4 方法全集：35 = 35，**SETS-IDENTICAL**。
@@ -62,36 +63,36 @@ C. 其他 v4 字面量（非方法）：`v4/shared_context_import`、`v4/command
 
 ## §3 差集三分类
 
-| 分类 | 条目 | 级别 | 证据 |
-| --- | --- | --- | --- |
-| REAL-GAP | （无） | — | §2 三组 diff 均为空 |
-| EXTRA | （无） | — | 同上 |
-| SHAPE-DIFF-1 | 快照内协议名/品牌：真值 `name:"ZCode Protocol",version:1` vs 我方 `"Drora Protocol",version:1`（`index.ts:73-74,1020-1021`）。字段/版本号同形，仅字面量改名，疑为整库 rebrand 的有意行为 | P3 | 真值偏移 741361 `protocol:{name:m.literal(gYe)`；`gYe="ZCode Protocol"` |
-| SHAPE-DIFF-2 | 错误码注册形态：真值有命名枚举（含 `ResourceNotFound=-32002`、`MissingRequiredClientCapability=-32021`、`UnsupportedProtocolVersion=-32022`、`UrlElicitationRequired=-32042`）；我方仅命名 `sessionUnavailable=-32004`（`index.ts:80-82`），其余为散落字面量（值面一致，见 §4） | P3 | 真值枚举 `-32002]="ResourceNotFound"` 等 |
-| SHAPE-DIFF-3 | MCP 客户端层错误码 `-32002/-32042` 我方源码零出现；真值用于 MCP 错误映射（`mcpBrand`、`UrlElicitationRequiredError`）。属 MCP 适配层而非应用 RPC 面，但映射语义是否存在等价物未验证 | P3 | 真值 `if(t===Du.ResourceNotFound)` 上下文 |
+| 分类         | 条目                                                                                                                                                                                                                                                                            | 级别 | 证据                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------- |
+| REAL-GAP     | （无）                                                                                                                                                                                                                                                                          | —    | §2 三组 diff 均为空                                                     |
+| EXTRA        | （无）                                                                                                                                                                                                                                                                          | —    | 同上                                                                    |
+| SHAPE-DIFF-1 | 快照内协议名/品牌：真值 `name:"ZCode Protocol",version:1` vs 我方 `"Drora Protocol",version:1`（`index.ts:73-74,1020-1021`）。字段/版本号同形，仅字面量改名，疑为整库 rebrand 的有意行为                                                                                        | P3   | 真值偏移 741361 `protocol:{name:m.literal(gYe)`；`gYe="ZCode Protocol"` |
+| SHAPE-DIFF-2 | 错误码注册形态：真值有命名枚举（含 `ResourceNotFound=-32002`、`MissingRequiredClientCapability=-32021`、`UnsupportedProtocolVersion=-32022`、`UrlElicitationRequired=-32042`）；我方仅命名 `sessionUnavailable=-32004`（`index.ts:80-82`），其余为散落字面量（值面一致，见 §4） | P3   | 真值枚举 `-32002]="ResourceNotFound"` 等                                |
+| SHAPE-DIFF-3 | MCP 客户端层错误码 `-32002/-32042` 我方源码零出现；真值用于 MCP 错误映射（`mcpBrand`、`UrlElicitationRequiredError`）。属 MCP 适配层而非应用 RPC 面，但映射语义是否存在等价物未验证                                                                                             | P3   | 真值 `if(t===Du.ResourceNotFound)` 上下文                               |
 
 ## §4 错误码 / 事件 / 反向请求面对照
 
 ### §4.1 错误码（16 个，双侧一致，除注明外）
 
-| 码 | 语义 | 真值证据 | 我方证据 |
-| --- | --- | --- | --- |
-| -32700 | Parse error（id 用字符串 `"parse-error"`） | `sendError("parse-error",-32700,...)` | transport.ts:209 |
-| -32600 | Invalid message / operation 冲突（data 带 issues） | `sendError("invalid-message",-32600,...)`；generate 重复 operation 抛同码 | transport.ts:215 |
-| -32601 | Method not found（分发兜底） | `sf(-32601,"Method not found: ...)`（14667243） | server.ts 分发 default |
-| -32602 | Invalid params（thoughtLevel 必填等） | `sf(-32602,"thoughtLevel is required")` | server-operations.ts:1252,2697 |
-| -32603 | internal / v4 gateway 未初始化 | `sf(-32603,"v4 gateway is not initialized")` | server-types.ts:253,266 |
-| -32002 | ResourceNotFound（MCP 层） | 枚举映射 | 无（见 SHAPE-DIFF-3） |
-| -32003 | 共享上下文导入需 session store / 原子性 | `sf(-32003,"Cannot import session history...` | server-operations.ts:1007,1031 |
-| -32004 | sessionUnavailable（命名常量 `$ee`） | `$ee={sessionUnavailable:-32004}` | index.ts:81；server-types.ts:324 |
-| -32009 | 会话状态版本冲突（data 带 actual/expected） | `sf(-32009,"Session state revision mismatch"` | server-types.ts:235 |
-| -32010 | 冲突：prompt 已在跑 / subagent 只读 / admission 拒绝 | 14492354 等多处 | server-operations.ts:1923,1937,2439,2800 |
-| -32018 | Account Provider Config runtime 未配置 | `sf(-32018,...)` | account-provider-config.ts:24 |
-| -32020 | 无客户端挂接（反向请求不可达）；文档另标注 HeaderMismatch | `sf(-32020,"No ZCode Protocol client is attached...` | server.ts:815 |
-| -32021 | MissingRequiredClientCapability | 枚举映射 | server.ts:834 |
-| -32022 | UnsupportedProtocolVersion（运行时偏好降级路径） | `-32022]="UnsupportedProtocolVersion"` | server-operations.ts:3208 |
-| -32031 | restoreWarning / 后台任务取消不支持 | `sf(-32031,...)` | server-operations.ts:1940,2036,2664 |
-| -32042 | UrlElicitationRequired（MCP 层） | 枚举映射 | 无（见 SHAPE-DIFF-3） |
+| 码     | 语义                                                      | 真值证据                                                                  | 我方证据                                 |
+| ------ | --------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------- |
+| -32700 | Parse error（id 用字符串 `"parse-error"`）                | `sendError("parse-error",-32700,...)`                                     | transport.ts:209                         |
+| -32600 | Invalid message / operation 冲突（data 带 issues）        | `sendError("invalid-message",-32600,...)`；generate 重复 operation 抛同码 | transport.ts:215                         |
+| -32601 | Method not found（分发兜底）                              | `sf(-32601,"Method not found: ...)`（14667243）                           | server.ts 分发 default                   |
+| -32602 | Invalid params（thoughtLevel 必填等）                     | `sf(-32602,"thoughtLevel is required")`                                   | server-operations.ts:1252,2697           |
+| -32603 | internal / v4 gateway 未初始化                            | `sf(-32603,"v4 gateway is not initialized")`                              | server-types.ts:253,266                  |
+| -32002 | ResourceNotFound（MCP 层）                                | 枚举映射                                                                  | 无（见 SHAPE-DIFF-3）                    |
+| -32003 | 共享上下文导入需 session store / 原子性                   | `sf(-32003,"Cannot import session history...`                             | server-operations.ts:1007,1031           |
+| -32004 | sessionUnavailable（命名常量 `$ee`）                      | `$ee={sessionUnavailable:-32004}`                                         | index.ts:81；server-types.ts:324         |
+| -32009 | 会话状态版本冲突（data 带 actual/expected）               | `sf(-32009,"Session state revision mismatch"`                             | server-types.ts:235                      |
+| -32010 | 冲突：prompt 已在跑 / subagent 只读 / admission 拒绝      | 14492354 等多处                                                           | server-operations.ts:1923,1937,2439,2800 |
+| -32018 | Account Provider Config runtime 未配置                    | `sf(-32018,...)`                                                          | account-provider-config.ts:24            |
+| -32020 | 无客户端挂接（反向请求不可达）；文档另标注 HeaderMismatch | `sf(-32020,"No ZCode Protocol client is attached...`                      | server.ts:815                            |
+| -32021 | MissingRequiredClientCapability                           | 枚举映射                                                                  | server.ts:834                            |
+| -32022 | UnsupportedProtocolVersion（运行时偏好降级路径）          | `-32022]="UnsupportedProtocolVersion"`                                    | server-operations.ts:3208                |
+| -32031 | restoreWarning / 后台任务取消不支持                       | `sf(-32031,...)`                                                          | server-operations.ts:1940,2036,2664      |
+| -32042 | UrlElicitationRequired（MCP 层）                          | 枚举映射                                                                  | 无（见 SHAPE-DIFF-3）                    |
 
 补充：真值 `-32001` 仅出现在 MCP 探测分类集合 `new Set([-32001,-32020,-32021])`，非应用 RPC 抛出码；`-32768/-32769` 为无关位运算。取消类旁路（见 §4.4）依赖 `-32601` 能力探测回退（automation 绑定检查先试 checkTaskBinding、遇 -32601 回退 list），我方同构（server-operations.ts:3212-3220）。
 
@@ -124,17 +125,17 @@ C. 其他 v4 字面量（非方法）：`v4/shared_context_import`、`v4/command
 
 ### 附：关键证据偏移索引（真值）
 
-| 偏移 | 内容（≤20 字摘） |
-| --- | --- |
-| 735526 | 信封 4 变体 qir 定义 |
-| 735907 | BR 通知常量表 |
-| 741361 | protocol name/version 字面量 |
-| 748140/748643 | legacy 事件 union / 25 事件枚举 |
-| 755972 | state.updated 事件 |
-| 782000–787600 | va 常量表与 startup 族 |
-| 1123127–1124881 | h0 v4 表与 jV 推送表 |
-| 14451000 区段 | automation/offPeak 反向调用 |
-| 14492354 | sf(-32010 冲突码现场 |
-| 14659585 | case h0 v4 分发 |
-| 14667243 | case va 兜底 sf(-32601 |
-| 14670688 | NDJSON 连接类 |
+| 偏移            | 内容（≤20 字摘）                |
+| --------------- | ------------------------------- |
+| 735526          | 信封 4 变体 qir 定义            |
+| 735907          | BR 通知常量表                   |
+| 741361          | protocol name/version 字面量    |
+| 748140/748643   | legacy 事件 union / 25 事件枚举 |
+| 755972          | state.updated 事件              |
+| 782000–787600   | va 常量表与 startup 族          |
+| 1123127–1124881 | h0 v4 表与 jV 推送表            |
+| 14451000 区段   | automation/offPeak 反向调用     |
+| 14492354        | sf(-32010 冲突码现场            |
+| 14659585        | case h0 v4 分发                 |
+| 14667243        | case va 兜底 sf(-32601          |
+| 14670688        | NDJSON 连接类                   |

@@ -28,7 +28,9 @@ function isAgentProvider(value: unknown): value is DroraProvider {
   return typeof value === "string" && DRORA_AGENT_PROVIDERS.includes(value as DroraProvider);
 }
 
-export function readLastSelectedAgentProvider(storage: StorageLike | null = getBrowserStorage()): DroraProvider | null {
+export function readLastSelectedAgentProvider(
+  storage: StorageLike | null = getBrowserStorage(),
+): DroraProvider | null {
   const rawValue = storage?.getItem(LAST_SELECTED_AGENT_PROVIDER_STORAGE_KEY);
   if (!isAgentProvider(rawValue)) {
     return DRORA_AGENT_PROVIDER;

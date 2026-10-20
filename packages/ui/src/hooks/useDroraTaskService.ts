@@ -183,11 +183,7 @@ function readPersistedSnapshotEntry(key: string) {
   return { etag: entry.etag, snapshot: entry.snapshot };
 }
 
-function writePersistedSnapshotEntry(
-  key: string,
-  etag: string,
-  snapshot: DroraTaskSnapshot,
-): void {
+function writePersistedSnapshotEntry(key: string, etag: string, snapshot: DroraTaskSnapshot): void {
   ensurePersistedSnapshotCacheLoaded();
   const serializedSnapshot = JSON.stringify(snapshot);
   const sizeBytes = new TextEncoder().encode(serializedSnapshot).byteLength;
@@ -263,11 +259,7 @@ function createDroraTaskServiceProxy(service: IDroraTaskService): IDroraTaskServ
                 snapshot: fallbackResult.snapshot,
               };
               snapshotCache.set(requestKey, nextEntry);
-              writePersistedSnapshotEntry(
-                requestKey,
-                fallbackResult.etag,
-                fallbackResult.snapshot,
-              );
+              writePersistedSnapshotEntry(requestKey, fallbackResult.etag, fallbackResult.snapshot);
             }
             return fallbackResult.snapshot;
           }
@@ -277,11 +269,7 @@ function createDroraTaskServiceProxy(service: IDroraTaskService): IDroraTaskServ
               snapshot: firstResult.snapshot,
             };
             snapshotCache.set(requestKey, nextEntry);
-            writePersistedSnapshotEntry(
-              requestKey,
-              firstResult.etag,
-              firstResult.snapshot,
-            );
+            writePersistedSnapshotEntry(requestKey, firstResult.etag, firstResult.snapshot);
           } else if (!firstResult.snapshot) {
             snapshotCache.delete(requestKey);
             deletePersistedSnapshotEntry(requestKey);

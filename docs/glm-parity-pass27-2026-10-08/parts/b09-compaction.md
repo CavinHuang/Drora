@@ -73,9 +73,9 @@ packages/contracts/src/compact/index.ts。结论先行：压缩链是逐函数�
 - summary 消息："This session is being continued from a previous conversation…" + 可选
   transcriptPath/recentMessagesPreserved/replStateCleared/suppressFollowup 后缀，逐字一致（4893735）。
 - 落账键名：compaction part（auto/trigger/phase/compactReason/tail_start_id/compactBoundary/operationId…）
-  + timelineType:"context_compaction" timeline part（13179325），⇔ 我方 compact-persistence.ts:85-154；
-  summary message semantics kind:"compact_summary"、post-compact reminder 独立 message、失败回滚
-  removeMessage 兜底，均一致（13184873 cleanup_failed）。
+  - timelineType:"context_compaction" timeline part（13179325），⇔ 我方 compact-persistence.ts:85-154；
+    summary message semantics kind:"compact_summary"、post-compact reminder 独立 message、失败回滚
+    removeMessage 兜底，均一致（13184873 cleanup_failed）。
 - resume 重放：recoverInterruptedCompactTimelines 把 started/retrying 收敛为 completed（有 boundary）/
   interrupted，按 operationId 配对 boundary；isCompactPreservableSessionMessage（providerVisibility
   hidden/含 compaction part/assistant error 排除）与 compactActiveSessionMessages 保留段回插锚点
@@ -85,11 +85,11 @@ packages/contracts/src/compact/index.ts。结论先行：压缩链是逐函数�
 
 ## §6 差集三分类表
 
-| # | 分类 | 级别 | 点位 | 真值证据 | 我方证据 | 说明 |
-|---|------|------|------|----------|----------|------|
-| 1 | REAL-GAP | P3 | compact 成功尾部缺 memory-recall 重置 | compactActiveConversation 尾 `readFileState.clear(),hyt(this)`（~13091800）；hyt=abort memoryRecallPrefetch+重置 memoryRecallState（12966948） | compact-active.ts:625-631 仅 clear() 后返回；全仓无 memoryRecallState | 本质是 memory-recall 特性整链缺失（他域），压缩链内表现为少一次状态复位；compact 语义本身不受影响 |
-| 2 | SHAPE-DIFF | P3 | 遥测指标命名空间 | `zcode.context.compaction.duration` 等 zcode.*（13275828） | telemetry/agent-metrics.ts:62 `drora.context.compaction.duration` | 全局品牌重命名 zcode.*→drora.*，非 compact 行为差异；跨系统聚合时指标名不同 |
-| 3 | EXTRA | — | — | — | — | 未发现我方独有行为 |
+| #   | 分类       | 级别 | 点位                                  | 真值证据                                                                                                                                       | 我方证据                                                              | 说明                                                                                              |
+| --- | ---------- | ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | REAL-GAP   | P3   | compact 成功尾部缺 memory-recall 重置 | compactActiveConversation 尾 `readFileState.clear(),hyt(this)`（~13091800）；hyt=abort memoryRecallPrefetch+重置 memoryRecallState（12966948） | compact-active.ts:625-631 仅 clear() 后返回；全仓无 memoryRecallState | 本质是 memory-recall 特性整链缺失（他域），压缩链内表现为少一次状态复位；compact 语义本身不受影响 |
+| 2   | SHAPE-DIFF | P3   | 遥测指标命名空间                      | `zcode.context.compaction.duration` 等 zcode.\*（13275828）                                                                                    | telemetry/agent-metrics.ts:62 `drora.context.compaction.duration`     | 全局品牌重命名 zcode._→drora._，非 compact 行为差异；跨系统聚合时指标名不同                       |
+| 3   | EXTRA      | —    | —                                     | —                                                                                                                                              | —                                                                     | 未发现我方独有行为                                                                                |
 
 计数：REAL-GAP 1（P3×1）/ EXTRA 0 / SHAPE-DIFF 1（P3×1）。无 P1/P2。
 

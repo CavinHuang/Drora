@@ -194,15 +194,14 @@ describe("MemorySettingsSection", () => {
   it("Workspace Scope 按 settings.json 提供的 recentProjects 顺序排列", async () => {
     renderSection(createService(), true, ["Second", "drora"]);
 
-    expect(
-      (await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER)).textContent,
-    ).toContain("Second");
-    expect(
-      screen.getAllByRole("menuitemradio").map((item) => item.textContent),
-    ).toEqual(["Second", "drora"]);
-    expect(
-      screen.getByTestId(testId(TID_SETTINGS_MEMORY_FILE, "fact-b.md")),
-    ).toBeTruthy();
+    expect((await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER)).textContent).toContain(
+      "Second",
+    );
+    expect(screen.getAllByRole("menuitemradio").map((item) => item.textContent)).toEqual([
+      "Second",
+      "drora",
+    ]);
+    expect(screen.getByTestId(testId(TID_SETTINGS_MEMORY_FILE, "fact-b.md"))).toBeTruthy();
   });
 
   it("Scope 菜单只列出 Workspace，切换后替换文件列表", async () => {

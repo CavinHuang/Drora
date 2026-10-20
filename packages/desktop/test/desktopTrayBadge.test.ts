@@ -42,7 +42,11 @@ vi.mock("electron", () => ({
     images: unknown[] = [];
     tooltips: string[] = [];
     constructor(imagePath: string) {
-      state.trayInstances.push({ imageAtCreate: imagePath, images: this.images, tooltips: this.tooltips });
+      state.trayInstances.push({
+        imageAtCreate: imagePath,
+        images: this.images,
+        tooltips: this.tooltips,
+      });
     }
     setImage(image: unknown) {
       this.images.push(image);

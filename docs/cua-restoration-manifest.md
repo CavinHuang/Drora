@@ -1092,7 +1092,7 @@ forceUpdate——后者有 removal spec）明确搁置：
   1024×1024 通过（alpha 裁切正确）。
 - **base-url per-env fallback 层**（官方 p1 语义，droraEndpoint.ts）：解析链补齐
   `DRORA_BASE_URL → DRORA_ENDPOINT_ORIGIN → (production: DRORA_PRODUCTION_BASE_URL
-  ?? 生产站 / test: DRORA_TEST_BASE_URL ?? 测试站)`；测试站常量取官方
+?? 生产站 / test: DRORA_TEST_BASE_URL ?? 测试站)`；测试站常量取官方
   zcode.chatglm.site；pickProductEndpointEnv 白名单同步两键。六场景实测通过
   （默认/双向覆盖/两显式键优先）。
 - **server 型远程工作区客户端链**（官方 IRe/RRe/ARe/ERe/JJ 五函数语义重放）：
@@ -1113,7 +1113,7 @@ forceUpdate——后者有 removal spec）明确搁置：
 
 ### 第四十七轮：server 远程剩余接线面补齐——Host 分派 + services 组装 + UI 表单（2026-09-26）
 
-第46轮遗留的 server 远程"剩余接线面"按官方原版实现补齐（官方 yAe/MJ/_Re/$O/YD
+第46轮遗留的 server 远程"剩余接线面"按官方原版实现补齐（官方 yAe/MJ/\_Re/$O/YD
 逆向重放）：
 
 - **Host 连接分派**（官方 yAe= createWindowRemoteConnectionHandle 的 server 分支）：
@@ -1122,7 +1122,7 @@ forceUpdate——后者有 removal spec）明确搁置：
   serverInfo.serverId（官方 l0）、telemetrySupported 按 server-info 能力门控；
   capabilities 无 backend 返回 {}。
 - **services 组装**（官方 MJ=createServerRemoteWorkspaceServiceCollection）：新建
-  serverRemoteConnection.ts——ws wrap（官方 _Re 语义）→ SocketProtocol+ChannelClient
+  serverRemoteConnection.ts——ws wrap（官方 \_Re 语义）→ SocketProtocol+ChannelClient
   RPC（官方 $O+YD 对应）→ 远端代理按官方 MJ 清单逐项 register（30+ 服务），
   clientConfig 本地实例、无 backend/promptAttachment 桥。5 项单测（RPC 组装/close
   上报去重/disposeAndWait 超时/注册清单逐项断言/legacy channel fail-fast）全过。
@@ -1217,7 +1217,7 @@ fork 基线已有、只缺服务层与注册）：
 - **② 陈旧官方副本死锁（症状：设置页「未知」+ 点击无反应）**：`~/.drora/`
   computer-use 曾手拷官方 Helper——其编译期 `allowUnsignedLauncherLocalDev=false`，
   对 ad-hoc Drora launcher 恒拒启（broker exit log 实锤：`--launcher-pid did
-  not verify as a code-signed ZCode process`）。每次 getStatus 走 5s health
+not verify as a code-signed ZCode process`）。每次 getStatus 走 5s health
   超时→徽章「未知」；点击授权按钮先跑最多 3×5s+2×2s 预检查、期间守卫静默吞
   后续点击→用户感知「点了没反应」。收口：包内自建 Helper（buildId 不同）经
   安装器 payload/身份比对自动重装替换陈旧副本；helper-host 两处分发标记判定
@@ -1271,7 +1271,7 @@ fork 基线已有、只缺服务层与注册）：
   的前置条件是签名身份落地（spec §七.3 新增）。
 - **双轨 parity 基线**：形态锚=3.14.3（字节/身份/溯源/启动门，新增 form-anchor
   断言段）；行为锚=3.11.2 参照副本（`resources/cua-helper-3.11.2-reference/`，
-  源自 ZCode_副本.app，gitignored）承载场景二～六（产品配方/13 方法探针/24 参数
+  源自 ZCode\_副本.app，gitignored）承载场景二～六（产品配方/13 方法探针/24 参数
   矩阵/controller 七步/50 方法空参穷举）——100 MATCH 全绿（version 字段随构建
   身份脱敏，同 pid）。插件面 0.6.3 已是最新（本机缓存 0.5.13/0.5.14/0.6.3）。
 - **harness 三处工程修复**（对账过程的副产物）：① kill 后确认退出
@@ -1343,7 +1343,7 @@ fork 基线已有、只缺服务层与注册）：
   window-bounds.mjs + native/macos-window-bounds/main.swift），字节永不可比，
   命名差异属 specs/drora-rename.md 豁免。按既定设计定性为对齐（与 Helper SEA
   同类：还原源码 + 自建产物），无需动作。
-- **渲染层 CUA UI 抽查**：官方 3.14.3 renderer 全部 cuaPermission.* i18n 键
+- **渲染层 CUA UI 抽查**：官方 3.14.3 renderer 全部 cuaPermission.\* i18n 键
   与我方 zh-CN 键集 32=32 双向零差（权限浮窗 + 设置页文案面无漂移）。
 - 质量门：typecheck 0 错、lint 0 errors、架构 0 违规；正式包已重装。
 
@@ -1358,7 +1358,7 @@ fork 基线已有、只缺服务层与注册）：
   renderer bundle（styles-DEELZGp2.js）提取 ComputerUseSection 与状态 hook
   全套逻辑对照——`disabled:!settled`、settled 三态文案（granted/stale/missing/
   unknown + verifying 占位）、tone 映射（green/amber/red/muted）、`openCuaPermissionOnboarding
-  typeof function` 门、hook 的 `!workspacePath || !service → 不查询` 守卫 +
+typeof function` 门、hook 的 `!workspacePath || !service → 不查询` 守卫 +
   mount ensure + focus refresh，全部与我方 useCuaPermissionStatus/
   ComputerUseSection 逐字等价（仅压缩命名不同）。空态死路为官方原生行为
   （官方用户不感知只因其 Helper 恒可用、settled 快速为真）。
@@ -1377,9 +1377,9 @@ fork 基线已有、只缺服务层与注册）：
 
 1. **host 托管安装器缺 embeddedBuildId 注入**（services/node.ts）：plan 期望
    回落 WC 常量（官方 pipeline id），与随包自建 Helper（drora-<版本>）必然
-   失配，agent 首次驱动 CUA 的 ensureInstalled 即 verification_failed。
-   修复：main 经 host env 下发随包 Info.plist 身份（DRORA_CUA_HELPER_EMBEDDED_
-   BUILD_ID/_VERSION，spec §六"main 唯一读取点"语义的 env 化延伸），host 侧
+   失配，agent 首次驱动 CUA 的 ensureInstalled 即 verification*failed。
+   修复：main 经 host env 下发随包 Info.plist 身份（DRORA_CUA_HELPER_EMBEDDED*
+   BUILD_ID/\_VERSION，spec §六"main 唯一读取点"语义的 env 化延伸），host 侧
    readEmbeddedCuaHelperBuildIdentityFromEnv 消费。
 2. **host 托管安装器缺路线 A 放行**：TeamID 稳定签名门对 adhoc 随包 Helper
    必拒（desktop main 包装层有、host 侧没有）。修复：判定统一为 services 的
@@ -1406,7 +1406,7 @@ local_dev_unsigned/bundled 源）+ 幂等重装 + 身份四元组 + verifyInstal
 
 - **桩面审计（第 55 轮教训的推广）**：zcode-cua barrel 其余 fail-closed 桩
   （loadRealNativeAddon/resolvePackagedNativeAddonPath/resolveInTreeAddonPath/
-  createAxReadOnlyMethods/requestHelper*PermissionViaLaunchServices）逐一查消费
+  createAxReadOnlyMethods/requestHelper\*PermissionViaLaunchServices）逐一查消费
   方——除两处死导入外零生产调用面，无同类死点残留。
 - **第 5 处断裂（live ±flag 对照实证）**：services 的 standalone 状态发射
   （launchStandaloneCuaHelperForStatus——设置页getStatus 的按需拉起路径）只在
@@ -1451,6 +1451,7 @@ local_dev_unsigned/bundled 源）+ 幂等重装 + 身份四元组 + verifyInstal
    （实测 14/47 分钟存活直至手杀，占全局租约可堵死其它 broker）。修复：失败
    分支无条件走 onStartupClaimTimeout（最后手段 process.exit(0)，与官方
    "孤儿授权主体不允许滞留"语义一致）。
+
 - **双生命周期实测**（自建产物直启）：未认领实例 ~90s 自灭
   （trigger=startup-claim-timeout）；已认领实例（authenticate+broker_info）
   280s 存活、320s 内自眠——两路退出均验证。
@@ -1464,7 +1465,7 @@ local_dev_unsigned/bundled 源）+ 幂等重装 + 身份四元组 + verifyInstal
 「改共享 CUA 模块勿破 win32」的既定要求做结构审查 + 实证：
 
 - **结构审查**：win32 helper 走完全独立入口 `windows-helper.ts →
-  runWindowsDevHelper`（`--parent-pid` 协议，父进程守望生命周期），不经过
+runWindowsDevHelper`（`--parent-pid` 协议，父进程守望生命周期），不经过
   `helperMain`——mac 侧生命周期改动对 win32 零路径交叠。
 - **实证**：`build.mjs`（win32 helper bundle）exit 0 零源码漂移；
   `windowsCuaRuntime.node-test` 5/5；services 全量 node-test 批 **32/32**；
@@ -1501,9 +1502,9 @@ glm/drora.cjs——此前只对齐了插件字节，bundle 本体的注入段没
 - **MCP env 注入形态完全同构**：官方与 我方均为同一五键结构——broker socket +
   refreshMarker（可选）+ pluginAuthority（可选）+ node-repl-host 标志="1" +
   官方插件 ID，条件分支一致。
-- **env 名改名为内部契约**：ZCODE_CUA_PERMISSION_BROKER_SOCKET →
-  DRORA_…（specs/drora-rename.md 豁免）；消费方 node-repl-host 的
-  dist/mcp/server.js 为双读（DRORA_ 主 + ZCODE_ 兜底），注入-消费链自洽。
+- **env 名改名为内部契约**：ZCODE*CUA_PERMISSION_BROKER_SOCKET →
+  DRORA*…（specs/drora-rename.md 豁免）；消费方 node-repl-host 的
+  dist/mcp/server.js 为双读（DRORA* 主 + ZCODE* 兜底），注入-消费链自洽。
 - **唯一实质差 = 已知 v2 delta 的 agent 侧投影**：我方额外注入
   DRORA_CUA_PERMISSION_BROKER_TOKEN（3.11.2 token 模型，agent 内嵌消费端在
   run-plugin 包装里 set/restore）；官方 3.14.3 无 token 注入（其 bundle 中

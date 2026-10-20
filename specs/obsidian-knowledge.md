@@ -10,10 +10,10 @@
 ## 0. 范围与产品边界
 
 - 一个活动 Vault 的精确文章找回（FIND_ARTICLE）、问库/比较（ANSWER/COMPARE）、来源验证与
-原文回跳；Jev 可选决策与离线评测框架【已实现，W05】（§5d；真实联调/真实标注集对比未实测，
-默认关闭）；审核写入【机制已实现，W06；写路径默认关闭】（§5e：S03 Hard Write Safety GO
-门禁未满足——三洞与 P0 分级门控未在 runtime 层落地，正式裁定
-`docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`；提案/账本面可用，apply/undo fail-closed）。
+  原文回跳；Jev 可选决策与离线评测框架【已实现，W05】（§5d；真实联调/真实标注集对比未实测，
+  默认关闭）；审核写入【机制已实现，W06；写路径默认关闭】（§5e：S03 Hard Write Safety GO
+  门禁未满足——三洞与 P0 分级门控未在 runtime 层落地，正式裁定
+  `docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`；提案/账本面可用，apply/undo fail-closed）。
 - UI 唯一入口 VaultView；四视图：笔记、智能问库、洞察、审核。不新增 Knowledge 顶级导航，
   不重建编辑器（ADR #2）。【已实现，W04】（§5c；洞察/审核的完整功能属后续阶段，当前只呈现真实状态）
 - 原 Markdown 是唯一事实源；Knowledge 索引可重建，不得改写笔记冒充事实（ADR #4）。
@@ -21,14 +21,14 @@
 
 ## 1. 状态所有者
 
-| 状态 | 所有者 | 其他方 | 证据 |
-| --- | --- | --- | --- |
-| Vault 配置（rootPath/displayName/inboxPath/allowAgentWrites） | `vault-config.json` 单文件（插件数据目录），由 `packages/services/src/obsidian-vault/` 门面写入 | hooks 与 SessionStart 上下文只读、每次询问重读 | `specs/obsidian-plugin.md`「形态与状态所有者」 |
-| 会话焦点投影 | `vault-focus.json`（services 面板单写，7 天/50 会话修剪） | UserPromptSubmit hook 只读 | 同上「焦点上下文联动」 |
-| Knowledge 索引（chunk/FTS/rowid） | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存 | 跨 Host lease/fencing 防迟到提交 | 【已实现，W02】（§5b） |
-| EvidenceReceipt / 引用账本 | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector；持久化在共享 knowledge-index.sqlite（v2 `evidence_receipts`），宿主（services）写、CLI Runtime gate 只读 | 模型文字不得自行构造可信 citation | 【已实现，W03】（§5） |
-| L2 治理 Proposal 与批准账本 | Proposal + 人工批准 + 版本校验和持久账本 | 未批准/过期批准绝不写文件 | 【机制已实现，W06】（§5e）；执行/撤销写路径默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md） |
-| Session / CommandInbox / Memory / 手机远控 | 复用现有 Drora 运行时 | 禁止复制第二套（ADR #7、交接纪律） | 不变 |
+| 状态                                                          | 所有者                                                                                                                                                                               | 其他方                                         | 证据                                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Vault 配置（rootPath/displayName/inboxPath/allowAgentWrites） | `vault-config.json` 单文件（插件数据目录），由 `packages/services/src/obsidian-vault/` 门面写入                                                                                      | hooks 与 SessionStart 上下文只读、每次询问重读 | `specs/obsidian-plugin.md`「形态与状态所有者」                                               |
+| 会话焦点投影                                                  | `vault-focus.json`（services 面板单写，7 天/50 会话修剪）                                                                                                                            | UserPromptSubmit hook 只读                     | 同上「焦点上下文联动」                                                                       |
+| Knowledge 索引（chunk/FTS/rowid）                             | 共享 SQLite（按 Profile + Source + Epoch 隔离），可重建缓存                                                                                                                          | 跨 Host lease/fencing 防迟到提交               | 【已实现，W02】（§5b）                                                                       |
+| EvidenceReceipt / 引用账本                                    | 服务端 opaque receipt，绑定 session/run/sourceEpoch/fileSha/quote selector；持久化在共享 knowledge-index.sqlite（v2 `evidence_receipts`），宿主（services）写、CLI Runtime gate 只读 | 模型文字不得自行构造可信 citation              | 【已实现，W03】（§5）                                                                        |
+| L2 治理 Proposal 与批准账本                                   | Proposal + 人工批准 + 版本校验和持久账本                                                                                                                                             | 未批准/过期批准绝不写文件                      | 【机制已实现，W06】（§5e）；执行/撤销写路径默认关闭（S03 门禁未满足，WRITE_SAFETY_NO_GO.md） |
+| Session / CommandInbox / Memory / 手机远控                    | 复用现有 Drora 运行时                                                                                                                                                                | 禁止复制第二套（ADR #7、交接纪律）             | 不变                                                                                         |
 
 配置事实源唯一：Knowledge 链路的 SourceRegistry 只由当前活动 Vault + Profile 推导，
 sourceEpoch 变化使旧 Query、Index Job、Receipt 失效；不得复制独立 Vault 配置
@@ -39,12 +39,12 @@ sourceEpoch 变化使旧 Query、Index Job、Receipt 失效；不得复制独立
 ADR #8。风险分级与运行时落盘通道的映射以 `docs/vaultview/delivery/W00_TOOL_WRITE_MATRIX.md`
 的 P0/P1/P2 分级为准绳：
 
-| 层级 | 语义 | 当前状态 |
-| --- | --- | --- |
-| L0 只读 | 原生 Read/Glob/Grep 直接读 Vault（授权根内），不触及写路径 | 【已实现】（SessionStart 注入，`specs/obsidian-plugin.md`） |
-| L1 经授权编辑 | `allowAgentWrites=true` 时，PermissionRequest hook 对根内**普通 Markdown 笔记**的 Write/Edit 权限询问自动放行（收窄策略见 §3） | 【已实现，W01 收窄】 |
-| L2 知识治理 | 结构性/批量治理写（重组、批量改名、索引物化等）必须走 Proposal → 人工批准 → 版本校验和持久账本；重复 operationId 幂等 | 【机制已实现，W06】（§5e）；写路径默认关闭（S03 门禁未满足），Bash/js 属未满足的 P0 门控前提而非有意分歧（§5e.8） |
-| L3 高风险 | 默认不自动执行（Bash/MCP/js 等可旁路通道的强制写承诺） | 【永久默认关闭，除非真实 Runtime 审计通过（ADR #10）】 |
+| 层级          | 语义                                                                                                                           | 当前状态                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| L0 只读       | 原生 Read/Glob/Grep 直接读 Vault（授权根内），不触及写路径                                                                     | 【已实现】（SessionStart 注入，`specs/obsidian-plugin.md`）                                                       |
+| L1 经授权编辑 | `allowAgentWrites=true` 时，PermissionRequest hook 对根内**普通 Markdown 笔记**的 Write/Edit 权限询问自动放行（收窄策略见 §3） | 【已实现，W01 收窄】                                                                                              |
+| L2 知识治理   | 结构性/批量治理写（重组、批量改名、索引物化等）必须走 Proposal → 人工批准 → 版本校验和持久账本；重复 operationId 幂等          | 【机制已实现，W06】（§5e）；写路径默认关闭（S03 门禁未满足），Bash/js 属未满足的 P0 门控前提而非有意分歧（§5e.8） |
+| L3 高风险     | 默认不自动执行（Bash/MCP/js 等可旁路通道的强制写承诺）                                                                         | 【永久默认关闭，除非真实 Runtime 审计通过（ADR #10）】                                                            |
 
 **明确的不变量**：hook 只匹配 Write/Edit，且只在运行时基础判定为 ask 时被触发。yolo/整工具
 allow 规则/会话 allow 在 hook 之前短路；Bash、node_repl(js)、MCP server 进程内写盘完全不经过
@@ -105,8 +105,8 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
 - `IKnowledgeQueryService.prepareEvidence({ runId, articleId, sessionId? })`：从已完成的
   run 候选创建 opaque EvidenceReceipt。receipt 由服务端生成随机 id（`evr_` + 32 hex），
   绑定 `sessionId / runId / articleId / vaultId / sourceEpoch / sourceFingerprint /
-  relativePath / fileSha256 / chunkSha256 / heading / quote selector / title / 有界 excerpt
-  / createdAt`，持久化在 knowledge-index.sqlite v2 `evidence_receipts` 表。
+relativePath / fileSha256 / chunkSha256 / heading / quote selector / title / 有界 excerpt
+/ createdAt`，持久化在 knowledge-index.sqlite v2 `evidence_receipts` 表。
 - 创建时即复验：run 必须存在且携带该候选；源指纹仍与 run 绑定一致；文件当前 sha256 仍等于
   候选 fileSha256；quote selector 反解出的文本 sha256 仍等于候选 chunkSha256。任一不满足
   → 返回结构化 `stale/missing/source_stale/no_source`，**不签发 receipt**（receipt 只为
@@ -139,8 +139,8 @@ Proposal + 人工批准 + 账本（W06），两者不共享放行路径，L1 的
   cli-core-b-1/conv-4）**：wire 侧 conversationQuotes 条目为供投影/读取端配对可信引用而
   携带 `evidenceReceiptId`（§5c.3），但 Receipt ID 是 opaque 服务端凭据，**绝不进入模型
   prompt**——模型可见的 quote 字段按白名单序列化（`text/path/senderName/senderId/
-  messageId/sentAt`，单一出处 `apps/drora-cli/packages/core/src/runtime/helpers/
-  conversation-quotes.ts` 的 `MODEL_VISIBLE_QUOTE_KEYS`），非白名单键（含
+messageId/sentAt`，单一出处 `apps/drora-cli/packages/core/src/runtime/helpers/
+conversation-quotes.ts` 的 `MODEL_VISIBLE_QUOTE_KEYS`），非白名单键（含
   `evidenceReceiptId`）一律不出模型边界。依据：安全不变量「来源原文不作为模型可见
   Receipt ID」——R2 验收 G03 实证过 Receipt ID 泄漏进模型 prompt 的缺陷 D1，修复后以
   模型边界回归锁定；该白名单只约束模型出站面，wire/投影/持久化侧的
@@ -201,7 +201,7 @@ A12/A13/A14/A15（服务端 Receipt 语义）、A16/A17（真实会话发送链�
 ### 5b.1 RPC 面与单一出处
 
 - `ServiceChannels.KnowledgeIndex = "knowledge-index"`、`ServiceChannels.KnowledgeQuery =
-  "knowledge-query"` 定义于 `packages/shared/src/channels.ts`（契约字面量唯一出处）；
+"knowledge-query"` 定义于 `packages/shared/src/channels.ts`（契约字面量唯一出处）；
   `IKnowledgeIndexService`/`IKnowledgeQueryService` 接口与同名 descriptor 常量定义于
   `packages/services/src/knowledge/{knowledgeIndex,knowledgeQuery}.ts`，经
   `packages/services/src/{index,node}.ts` 导出并注册（与 `IObsidianVaultService` 同形）。
@@ -215,11 +215,11 @@ A12/A13/A14/A15（服务端 Receipt 语义）、A16/A17（真实会话发送链�
 
 ### 5b.2 状态所有者（补 §1 表）
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| 索引 DB（documents/chunks/chunks_fts/index_jobs/index_lease/coverage） | `node:sqlite`（node 24 内置，SQLite ≥3.49）单文件：`<Profile 数据根>/knowledge/knowledge-index.sqlite`，WAL 模式 | 可重建缓存；删除/重建绝不触及审核账本（W06 才存在）与 vault-config.json |
-| Source 身份与 epoch | 同一 DB 的 `sources` 表，由 SourceRegistry 每次 RPC 前从 `vault-config.json`（唯一配置事实源）+ Profile 数据根推导 | 不复制第二份 Vault 配置；`loadVaultConfig` 失败（未配置/根失效）→ 无源 |
-| Query run（runGeneration/seq） | Query 服务进程内存 | 不持久化；进程重启即丢（检索无状态可重来） |
+| 状态                                                                   | 所有者                                                                                                             | 说明                                                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| 索引 DB（documents/chunks/chunks_fts/index_jobs/index_lease/coverage） | `node:sqlite`（node 24 内置，SQLite ≥3.49）单文件：`<Profile 数据根>/knowledge/knowledge-index.sqlite`，WAL 模式   | 可重建缓存；删除/重建绝不触及审核账本（W06 才存在）与 vault-config.json |
+| Source 身份与 epoch                                                    | 同一 DB 的 `sources` 表，由 SourceRegistry 每次 RPC 前从 `vault-config.json`（唯一配置事实源）+ Profile 数据根推导 | 不复制第二份 Vault 配置；`loadVaultConfig` 失败（未配置/根失效）→ 无源  |
+| Query run（runGeneration/seq）                                         | Query 服务进程内存                                                                                                 | 不持久化；进程重启即丢（检索无状态可重来）                              |
 
 **sourceEpoch 语义**：源指纹 = `vaultId(realpath 根 sha256) + configuredAt`。SourceRegistry
 每次解析时对比 DB 内指纹，不一致即 `epoch+1` 并清除旧 epoch 的 documents/chunks/jobs 缓存行。
@@ -310,15 +310,15 @@ epoch 失效重建，属低频显式操作）。
   - `title` = 文档标题 + 该 chunk heading 路径的 token 产物（`A > B` 中 `>` 非词元，
     tokenizer 自然丢弃）；
   - `meta` = 该 chunk 的 tags+links（§5b.4 结构抽取产物）的 token 产物。
-  **MATCH 不限列**：三列都参与匹配——标题词/标签词/链接词可命中，属自然语义；主次由
-  列权重表达：`bm25(chunks_fts, 1.0, 3.0, 2.0)`（tokens/title/meta；实验初值，代码注释
-  注明，待 W05 评测数据集校准）。§5b.1「无过滤参数」不变：tags **不做查询语法**、不提供
-  任何 `tag:` 过滤参数，只参与命中与加权。
-  升级语义：schema_version <4 的旧库打开即自动升级；重填在迁移事务内复用同一 tokenizer
-  （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；重填**逐行流式**（读游标
-  `iterate()` 与写入不同表，不把全库 chunks 物化进内存，内存峰值 O(1) 行）；旧数据未经结构抽取，
-  `meta` 重填为空串（tokens/title 如实重填可检索），新抽取产物随文件变更/重建自然补齐
-  ——与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读。
+    **MATCH 不限列**：三列都参与匹配——标题词/标签词/链接词可命中，属自然语义；主次由
+    列权重表达：`bm25(chunks_fts, 1.0, 3.0, 2.0)`（tokens/title/meta；实验初值，代码注释
+    注明，待 W05 评测数据集校准）。§5b.1「无过滤参数」不变：tags **不做查询语法**、不提供
+    任何 `tag:` 过滤参数，只参与命中与加权。
+    升级语义：schema_version <4 的旧库打开即自动升级；重填在迁移事务内复用同一 tokenizer
+    （node:sqlite 同步执行，prepared 语句复用，循环只做纯计算）；重填**逐行流式**（读游标
+    `iterate()` 与写入不同表，不把全库 chunks 物化进内存，内存峰值 O(1) 行）；旧数据未经结构抽取，
+    `meta` 重填为空串（tokens/title 如实重填可检索），新抽取产物随文件变更/重建自然补齐
+    ——与 §5b.4 尺寸切分同一迁移语义，不做迁移期全库重读。
 - Embedding 端口 `KnowledgeEmbeddingPort { id, embed(texts) }` 经工厂注入：未注入、调用失败
   或当前索引无嵌入数据时，检索诊断显式 `semantic_unavailable`，词法候选照常返回；端口可用
   时对词法候选池做余弦重排融合。**未经授权不把笔记内容送任何出站模型（ADR #11）**——端口
@@ -331,7 +331,7 @@ epoch 失效重建，属低频显式操作）。
   一律携带 `runGeneration+seq`，迟到消息不得覆盖新 run）。
 - 无源（未配置/根失效）→ `no_source`；有源但索引未建 → 空候选 + coverage 如实呈现；
   检索失败 → `failed`（带原因，不含绝对路径）。候选按 `scope(vaultId)+sourceEpoch+
-  runGeneration` 隔离，文章级去重聚合（同文档多 chunk 合并为单候选，附命中 chunk 数）。
+runGeneration` 隔离，文章级去重聚合（同文档多 chunk 合并为单候选，附命中 chunk 数）。
 
 ### 5b.7 验收映射
 
@@ -369,6 +369,7 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 兜底 + （可选）Jev 打分。本节定义向量存储、生命周期、混合召回与降级语义。
 
 **模型与运行时**：
+
 - 模型：`BAAI/bge-small-zh-v1.5` 的 Xenova ONNX int8 量化版（~24MB，512 维，中文优化），
   CLS 池化 + L2 归一。指令前缀（bge-zh 短查询增强）v1 **不启用**——召回与重排两处
   必须同口径，统一无前缀；前缀收益归 A28 评测校准项。
@@ -383,12 +384,14 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   onnxruntime 的 .node 原生产物。
 
 **向量存储（schema v5）**：
+
 ```sql
 CREATE TABLE chunk_vectors(
   chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
   model_id TEXT NOT NULL, dim INTEGER NOT NULL, vector BLOB NOT NULL
 )
 ```
+
 - 向量 = Float32 小端 BLOB；model_id 记录产生模型（换模型 = 全量重建向量，模型 id 不匹配
   的行不参与检索）。
 - **生命周期与 chunks 同生共死**：文档替换时按 chunks 级联清掉旧向量，新向量在
@@ -399,6 +402,7 @@ CREATE TABLE chunk_vectors(
   回填全库（325 文档/6255 chunk 量级为分钟级 CPU 时间，job 异步不阻塞 UI）。
 
 **混合召回（查询语义扩展）**：
+
 - 候选池 = 词法 FTS 命中 ∪ **向量 top-K**（K=池上限 64）：向量检索对当前 epoch 全量
   chunk_vectors（model_id 匹配）算余弦取最近——JS 侧计算（6255×512 量级为毫秒级，
   sqlite 向量扩展不做）。词面零重叠但语义相近的文档由此进入候选池。
@@ -466,14 +470,14 @@ K-VEC-5 各层降级独立且诊断如实。
 
 ### 5c.2 状态所有者（补 §1 表）
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| 四视图激活 tab | VaultView 组件内 React state | 会话内易失；不持久化、不进全局 store（无跨面板订阅需求） |
-| 智能问库 run 事实（候选/status/diagnostics） | 服务端 Query 服务（§5b.6） | UI 只保留「当前 runId + runGeneration + seq」投影，`onRunUpdated` 迟到事件按 runId+代数丢弃（A22） |
-| 候选列表展示序 | 本地 rank（服务端 bm25+融合） | Jev（W05）未来只覆盖排序提示，不改候选事实、不抢已选文章焦点（PRD 检索原则 2/3） |
-| Evidence Inspector 态 | UI 组件内状态（按 articleId 键） | 数据源只有 `prepareEvidence`/`resolveCitation` 结构化结果；UI 不本地复验 sha、不缓存跨 run 的可信判定 |
-| 索引状态条 | `IKnowledgeIndexService.getStatus` 快照 | UI 只显示不缓存权威事实；每次 run 落定与手动刷新时重取 |
-| 提交幂等键 | UI 生成 `clientRequestId`（randomUUID） | 重试同一次提交复用同键（§5b.1 幂等契约） |
+| 状态                                         | 所有者                                  | 说明                                                                                                  |
+| -------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 四视图激活 tab                               | VaultView 组件内 React state            | 会话内易失；不持久化、不进全局 store（无跨面板订阅需求）                                              |
+| 智能问库 run 事实（候选/status/diagnostics） | 服务端 Query 服务（§5b.6）              | UI 只保留「当前 runId + runGeneration + seq」投影，`onRunUpdated` 迟到事件按 runId+代数丢弃（A22）    |
+| 候选列表展示序                               | 本地 rank（服务端 bm25+融合）           | Jev（W05）未来只覆盖排序提示，不改候选事实、不抢已选文章焦点（PRD 检索原则 2/3）                      |
+| Evidence Inspector 态                        | UI 组件内状态（按 articleId 键）        | 数据源只有 `prepareEvidence`/`resolveCitation` 结构化结果；UI 不本地复验 sha、不缓存跨 run 的可信判定 |
+| 索引状态条                                   | `IKnowledgeIndexService.getStatus` 快照 | UI 只显示不缓存权威事实；每次 run 落定与手动刷新时重取                                                |
+| 提交幂等键                                   | UI 生成 `clientRequestId`（randomUUID） | 重试同一次提交复用同键（§5b.1 幂等契约）                                                              |
 
 ### 5c.3 智能问库交互契约
 
@@ -536,23 +540,24 @@ K-VEC-5 各层降级独立且诊断如实。
 
 ### 5c.4 UI 状态映射（工作单 9 态 → 真实数据源）
 
-| UI 态 | 数据源 | 呈现 |
-| --- | --- | --- |
-| 无 Vault | `getStatus.configured=false` 或 run `no_source` | 连接引导卡（指向笔记视图左下角 Vault 切换器），不自动扫描（A01） |
-| 索引 partial | `coverage.partial` + 各排除计数 | 状态条显示已索引数与排除原因计数（A04 的 UI 面） |
-| 索引未建 | configured 且 `coverage.indexedFiles=0` 且无进行中 job | 提供「建立索引」按钮 → `startReconcile`；进行中显示 job 状态 |
-| semantic unavailable | `getStatus.semantic` / `diagnostics.semantic` | 显式「语义检索不可用（本地词法检索正常）」+ 原因，不冒充语义结果 |
-| Jev 拒绝/超时 | W05 前 Jev 默认关闭（ADR #5） | 排序增强区显示「未启用，当前为本地排序」；拒绝/超时分支的交互归 W05，本阶段不存在 Jev 请求 |
-| 无答案 | run `empty` | 「未找到可核验来源」+ 改写建议；不编造标题/链接（A10） |
-| 多候选 | 候选 >1 | 并列展示不强选；用户点击才有选中态（A09） |
-| 过期/撤权 | run `source_stale`、`prepareEvidence` 同名结果、resolve `forbidden/*` | 显式提示源已失效；旧候选禁止签发新 receipt（服务端已拒绝，UI 如实透传） |
-| 模型不可用 | 无 sessionId / selection 注入失败 | 检索可用，答案入口禁用并说明（A18） |
-| Host 重连/RPC 失败 | service 调用 reject（含断连代理错误码） | 错误态 + 重试按钮；重试复用同一 clientRequestId 幂等语义 |
+| UI 态                | 数据源                                                                | 呈现                                                                                       |
+| -------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 无 Vault             | `getStatus.configured=false` 或 run `no_source`                       | 连接引导卡（指向笔记视图左下角 Vault 切换器），不自动扫描（A01）                           |
+| 索引 partial         | `coverage.partial` + 各排除计数                                       | 状态条显示已索引数与排除原因计数（A04 的 UI 面）                                           |
+| 索引未建             | configured 且 `coverage.indexedFiles=0` 且无进行中 job                | 提供「建立索引」按钮 → `startReconcile`；进行中显示 job 状态                               |
+| semantic unavailable | `getStatus.semantic` / `diagnostics.semantic`                         | 显式「语义检索不可用（本地词法检索正常）」+ 原因，不冒充语义结果                           |
+| Jev 拒绝/超时        | W05 前 Jev 默认关闭（ADR #5）                                         | 排序增强区显示「未启用，当前为本地排序」；拒绝/超时分支的交互归 W05，本阶段不存在 Jev 请求 |
+| 无答案               | run `empty`                                                           | 「未找到可核验来源」+ 改写建议；不编造标题/链接（A10）                                     |
+| 多候选               | 候选 >1                                                               | 并列展示不强选；用户点击才有选中态（A09）                                                  |
+| 过期/撤权            | run `source_stale`、`prepareEvidence` 同名结果、resolve `forbidden/*` | 显式提示源已失效；旧候选禁止签发新 receipt（服务端已拒绝，UI 如实透传）                    |
+| 模型不可用           | 无 sessionId / selection 注入失败                                     | 检索可用，答案入口禁用并说明（A18）                                                        |
+| Host 重连/RPC 失败   | service 调用 reject（含断连代理错误码）                               | 错误态 + 重试按钮；重试复用同一 clientRequestId 幂等语义                                   |
 
 **冷启动索引引导（2026-10-12 补）**：vault 已配置但 `coverage.indexedFiles=0`（或索引
 job 进行中）时，智能问库给常驻引导，不再限于空查询态——冷启动时一次检索必然拿到空
 结果，引导若只在 idle/failed 出现，用户检索后反而失去入口。实现为结果区引导块，与
 状态条（`indexMissing`/`indexing` 两码语义不变，派生自同一模型纯函数）互补：
+
 - 无进行中 job：说明文案 + 「建立索引」按钮 → `startReconcile`；服务端
   `alreadyRunning=true` 幂等返回既有任务（§5b.8），UI 以 busy 态 + 建立中态替换按钮
   双层防重复触发；
@@ -579,24 +584,24 @@ A21（主题/平台/窄屏）：静态令牌纪律已由 W07 回归锁定——
 
 证据规则：每项记录真实 command / environment / exit code；`NOT_RUN` 必须写原因。
 
-| ID | 场景 | 期望 | 状态 |
-| --- | --- | --- | --- |
-| K-POL-1 | 纯形状策略：`.obsidian/**`、`.hidden/**`、点文件、非 .md、空段、`..`、空串 | 全部拒绝自动放行 | 已实现（`test/permission-path-policy.test.mjs`） |
-| K-POL-2 | Unicode/中文文件名、`.MD` 大小写 | 原样保留并放行（平台大小写语义内） | 已实现（同上） |
-| K-POL-3 | 防逃逸：根外绝对路径、UNC 路径、`\\?\` 扩展路径、`..` 穿越、根内软链文件/目录逃逸、已存在目录冒充 `.md` | 一律静默（交回问询） | 已实现（同上） |
-| K-POL-4 | 相对路径带根内 cwd / 无 cwd / 根外 cwd | 放行 / 静默 / 静默 | 已实现（同上） |
-| K-POL-5 | 缺失/坏配置：env 未设、目录缺失、JSON 损坏、根被删、根是文件、`allowAgentWrites=false` | 全部静默，不产生 allow 决策 | 已实现（既有 + 新增用例） |
-| K-POL-7 | 分隔符等价：`notes\sub\b.md` 在任何平台按 `/` 分隔解析（先归一再解析，与面板 `normalizeRelativeMarkdownPath` 一致） | 解析为 `notes/sub/b.md`，绝不作为字面文件名放行；POSIX 上不绕过隐藏段检查 | 已实现（CI ubuntu/macos 实证修复，`test/permission-path-policy.test.mjs`） |
-| K-HOOK-1 | hook stdin/stdout E2E：根内 `.md` Write/Edit + allow → allow 决策，无持久化规则 | 结构化 allow，其余静默 exit 0 | 已实现（`test/hooks-e2e.mjs`） |
-| K-HOOK-2 | E2E：`.obsidian/**`、`.hidden/**`、非 Markdown、软链、root 外、`allowAgentWrites=false` | 均不得自动 allow（静默） | 已实现（A29） |
-| K-HOOK-3 | 合法 Markdown 编辑与既有默认问询不回归 | 根内 .md 仍 allow；其余行为不变 | 已实现（A30） |
-| K-DOC-1 | matcher `Write|Edit` 真实边界写入 spec；代码/UI 不宣称能拦 Bash/MCP L2/L3 写入 | 文档与代码一致 | 已实现（本 spec §2 + `specs/obsidian-plugin.md`） |
-| K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07） | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md` | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05 |
-| K-EV-1..n | Receipt/stale/伪造 citation/admission 复验（A12–A19） | 同上 | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`） |
-| K-UI-1..n | VaultView 四视图（A01、A20–A22） | 同上 | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`） |
-| K-JEV-1..n | Jev 默认关闭/降级（A23–A28） | 同上 | W05 已实现决策层与评测框架（§5d）；A24 真实联调与 A28 真实标注集对比保持未实测（缺凭据/标注集） |
-| K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34） | 同上 | 机制已实现（§5e，证据 `docs/vaultview/delivery/W06_DELIVERY.md`）；A31 的 P0 通道硬阻断未实现 → 门禁未满足，正式裁定 `WRITE_SAFETY_NO_GO.md`，写路径默认关闭（§5e 引言/§5e.8） |
-| K-W07-1..n | 发布前集成与回归（A16 服务面全链、A21 静态面、A23/A35 零出站、A36 仓库门禁、A37 协议面、双 Host 索引竞争/切源迟到丢弃/撤权/索引 partial/伪造 receipt/提示词注入） | 每项真实 command/exit code | W07 已执行（证据 `docs/vaultview/delivery/W07_DELIVERY.md`：`knowledgeE2EFullChain.test.ts` 全链 3 用例、`knowledgeUiDiscipline.test.ts` 4 用例、knowledge 全量 110 用例、手机远控 51、远端 20、CLI wiring 15、obsidian-plugin 套件；A24/A28 真实联调与真实标注集、真实 Electron/真机 GUI E2E 未执行并写明原因） |
+| ID         | 场景                                                                                                                                                              | 期望                                                                      | 状态                                                                                                                                                                                                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| K-POL-1    | 纯形状策略：`.obsidian/**`、`.hidden/**`、点文件、非 .md、空段、`..`、空串                                                                                        | 全部拒绝自动放行                                                          | 已实现（`test/permission-path-policy.test.mjs`）                                                                                                                                                                                                                                                                 |
+| K-POL-2    | Unicode/中文文件名、`.MD` 大小写                                                                                                                                  | 原样保留并放行（平台大小写语义内）                                        | 已实现（同上）                                                                                                                                                                                                                                                                                                   |
+| K-POL-3    | 防逃逸：根外绝对路径、UNC 路径、`\\?\` 扩展路径、`..` 穿越、根内软链文件/目录逃逸、已存在目录冒充 `.md`                                                           | 一律静默（交回问询）                                                      | 已实现（同上）                                                                                                                                                                                                                                                                                                   |
+| K-POL-4    | 相对路径带根内 cwd / 无 cwd / 根外 cwd                                                                                                                            | 放行 / 静默 / 静默                                                        | 已实现（同上）                                                                                                                                                                                                                                                                                                   |
+| K-POL-5    | 缺失/坏配置：env 未设、目录缺失、JSON 损坏、根被删、根是文件、`allowAgentWrites=false`                                                                            | 全部静默，不产生 allow 决策                                               | 已实现（既有 + 新增用例）                                                                                                                                                                                                                                                                                        |
+| K-POL-7    | 分隔符等价：`notes\sub\b.md` 在任何平台按 `/` 分隔解析（先归一再解析，与面板 `normalizeRelativeMarkdownPath` 一致）                                               | 解析为 `notes/sub/b.md`，绝不作为字面文件名放行；POSIX 上不绕过隐藏段检查 | 已实现（CI ubuntu/macos 实证修复，`test/permission-path-policy.test.mjs`）                                                                                                                                                                                                                                       |
+| K-HOOK-1   | hook stdin/stdout E2E：根内 `.md` Write/Edit + allow → allow 决策，无持久化规则                                                                                   | 结构化 allow，其余静默 exit 0                                             | 已实现（`test/hooks-e2e.mjs`）                                                                                                                                                                                                                                                                                   |
+| K-HOOK-2   | E2E：`.obsidian/**`、`.hidden/**`、非 Markdown、软链、root 外、`allowAgentWrites=false`                                                                           | 均不得自动 allow（静默）                                                  | 已实现（A29）                                                                                                                                                                                                                                                                                                    |
+| K-HOOK-3   | 合法 Markdown 编辑与既有默认问询不回归                                                                                                                            | 根内 .md 仍 allow；其余行为不变                                           | 已实现（A30）                                                                                                                                                                                                                                                                                                    |
+| K-DOC-1    | matcher `Write                                                                                                                                                    | Edit` 真实边界写入 spec；代码/UI 不宣称能拦 Bash/MCP L2/L3 写入           | 文档与代码一致                                                                                                                                                                                                                                                                                                   | 已实现（本 spec §2 + `specs/obsidian-plugin.md`） |
+| K-IDX-1..n | 索引/召回/中文检索/多 Host lease（A02–A05、A07）                                                                                                                  | 见 `04_ACCEPTANCE/ACCEPTANCE_MATRIX.md`                                   | W02 已实现（§5b.7，证据 `docs/vaultview/delivery/W02_DELIVERY.md`）；A07 质量门槛归 W05                                                                                                                                                                                                                          |
+| K-EV-1..n  | Receipt/stale/伪造 citation/admission 复验（A12–A19）                                                                                                             | 同上                                                                      | W03 已实现（§5.5，证据 `docs/vaultview/delivery/W03_DELIVERY.md`）                                                                                                                                                                                                                                               |
+| K-UI-1..n  | VaultView 四视图（A01、A20–A22）                                                                                                                                  | 同上                                                                      | W04 已实现（§5c，证据 `docs/vaultview/delivery/W04_DELIVERY.md`）                                                                                                                                                                                                                                                |
+| K-JEV-1..n | Jev 默认关闭/降级（A23–A28）                                                                                                                                      | 同上                                                                      | W05 已实现决策层与评测框架（§5d）；A24 真实联调与 A28 真实标注集对比保持未实测（缺凭据/标注集）                                                                                                                                                                                                                  |
+| K-W06-1..n | Proposal 账本/幂等/conflict（A31–A34）                                                                                                                            | 同上                                                                      | 机制已实现（§5e，证据 `docs/vaultview/delivery/W06_DELIVERY.md`）；A31 的 P0 通道硬阻断未实现 → 门禁未满足，正式裁定 `WRITE_SAFETY_NO_GO.md`，写路径默认关闭（§5e 引言/§5e.8）                                                                                                                                   |
+| K-W07-1..n | 发布前集成与回归（A16 服务面全链、A21 静态面、A23/A35 零出站、A36 仓库门禁、A37 协议面、双 Host 索引竞争/切源迟到丢弃/撤权/索引 partial/伪造 receipt/提示词注入） | 每项真实 command/exit code                                                | W07 已执行（证据 `docs/vaultview/delivery/W07_DELIVERY.md`：`knowledgeE2EFullChain.test.ts` 全链 3 用例、`knowledgeUiDiscipline.test.ts` 4 用例、knowledge 全量 110 用例、手机远控 51、远端 20、CLI wiring 15、obsidian-plugin 套件；A24/A28 真实联调与真实标注集、真实 Electron/真机 GUI E2E 未执行并写明原因） |
 
 ## 5d. Jev 多阶段决策与离线评测（W05，2026-10-10 落地）
 
@@ -606,18 +611,18 @@ ADR #5/#11 继续有效：**Jev 默认关闭；未经授权不把笔记内容送
 
 ### 5d.1 模块构成与默认关闭
 
-| 单元 | 文件 | 职责 |
-| --- | --- | --- |
-| DecisionProvider 端口 | `decision/decisionProvider.ts` | `KnowledgeDecisionProvider.decide(request)`：对**已召回的候选片段**做命题级相关性判断；实现自带出站授权责任（与 Embedding 端口同形） |
-| LocalFallback | `decision/localFallback.ts` | 确定性本地产出：全部候选 `status:"fallback"`、保持本地名次；任何远端失败/关闭都落到这里，本地候选永远可用 |
-| JevAdapter | `decision/jevAdapter.ts` | DecisionProvider 的 Jev 实现：逐候选一次 TypeSafe `systemOne` Noul 调用（经注入 transport），校验分数/ID，失败单候选回退 |
-| HTTP transport | `decision/jevTransport.ts` | `JevTransport.post(request)` 端口 + 默认 `fetch` 实现（POST `{baseURL}/v1/systemone`，`Authorization: Bearer`）；API Key 只从 Host 侧安全配置注入，不进 renderer/日志 |
-| DecisionPolicy | `decision/decisionPolicy.ts` | 本地确定性策略：五动作裁决、扩搜一次、单调融合（纯函数，可脱离 IO 单测） |
-| Consent 账本 | `decision/decisionConsent.ts` | Host 内存授权账本：授予/撤销/逐调用重查 |
-| 决策缓存 | `decision/decisionCache.ts` | 进程内有界缓存（键含 provider/model/policy/vault/epoch/queryHash/chunkSha），换源/撤权/版本变化即失效 |
-| Telemetry | `decision/decisionTelemetry.ts` | 出站计数/延迟样本/token 用量计数器；不落任何查询与片段文本 |
-| 决策管线 | `decision/decisionPipeline.ts` | 编排：授权门 → 缓存 → provider → 校验 → 融合 → 迟到丢弃；产出 run 的 `decision` 诊断 |
-| 离线评测 | `eval/evaluationMetrics.ts`、`eval/evaluationHarness.ts` | 纯指标函数 + 走真实检索代码路径的 A/B harness |
+| 单元                  | 文件                                                     | 职责                                                                                                                                                                  |
+| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DecisionProvider 端口 | `decision/decisionProvider.ts`                           | `KnowledgeDecisionProvider.decide(request)`：对**已召回的候选片段**做命题级相关性判断；实现自带出站授权责任（与 Embedding 端口同形）                                  |
+| LocalFallback         | `decision/localFallback.ts`                              | 确定性本地产出：全部候选 `status:"fallback"`、保持本地名次；任何远端失败/关闭都落到这里，本地候选永远可用                                                             |
+| JevAdapter            | `decision/jevAdapter.ts`                                 | DecisionProvider 的 Jev 实现：逐候选一次 TypeSafe `systemOne` Noul 调用（经注入 transport），校验分数/ID，失败单候选回退                                              |
+| HTTP transport        | `decision/jevTransport.ts`                               | `JevTransport.post(request)` 端口 + 默认 `fetch` 实现（POST `{baseURL}/v1/systemone`，`Authorization: Bearer`）；API Key 只从 Host 侧安全配置注入，不进 renderer/日志 |
+| DecisionPolicy        | `decision/decisionPolicy.ts`                             | 本地确定性策略：五动作裁决、扩搜一次、单调融合（纯函数，可脱离 IO 单测）                                                                                              |
+| Consent 账本          | `decision/decisionConsent.ts`                            | Host 内存授权账本：授予/撤销/逐调用重查                                                                                                                               |
+| 决策缓存              | `decision/decisionCache.ts`                              | 进程内有界缓存（键含 provider/model/policy/vault/epoch/queryHash/chunkSha），换源/撤权/版本变化即失效                                                                 |
+| Telemetry             | `decision/decisionTelemetry.ts`                          | 出站计数/延迟样本/token 用量计数器；不落任何查询与片段文本                                                                                                            |
+| 决策管线              | `decision/decisionPipeline.ts`                           | 编排：授权门 → 缓存 → provider → 校验 → 融合 → 迟到丢弃；产出 run 的 `decision` 诊断                                                                                  |
+| 离线评测              | `eval/evaluationMetrics.ts`、`eval/evaluationHarness.ts` | 纯指标函数 + 走真实检索代码路径的 A/B harness                                                                                                                         |
 
 **默认关闭的实现含义**：`createKnowledgeServices` 不注入 `decisionProvider`（与
 `embeddingPort` 同形可选）→ 管线恒走 `off` 分支，`outboundCount=0`，`grantDecisionConsent`
@@ -627,12 +632,12 @@ ADR #5/#11 继续有效：**Jev 默认关闭；未经授权不把笔记内容送
 
 ### 5d.2 状态所有者（补 §1 表）
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| 授权账本（consent receipt） | Query 服务进程内存（`decisionConsent.ts`） | 按 consentId 索引；绑定 provider/vaultId/sourceEpoch/queryHash/candidateHashes/TTL；不持久化，进程重启即丢（重新询问用户） |
-| 决策缓存 | Query 服务进程内存（`decisionCache.ts`） | 键 = sha256(providerId\|model\|policyVersion\|vaultId\|sourceEpoch\|queryHash\|chunkSha)；仅本机、不持久化请求全文；epoch 变化/撤权/policy 或 model 版本变化即失效；LRU 有界 |
-| 出站计数与延迟样本 | `decisionTelemetry.ts`（服务生命周期内累计） | `outboundCount` 是 A23 的断言面；日志不写查询/片段/凭据 |
-| run 的 decision 诊断 | run 视图字段（§5b.6 run 所有权的延伸） | `KnowledgeRunView.decision`，见 §5d.6 |
+| 状态                        | 所有者                                       | 说明                                                                                                                                                                         |
+| --------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 授权账本（consent receipt） | Query 服务进程内存（`decisionConsent.ts`）   | 按 consentId 索引；绑定 provider/vaultId/sourceEpoch/queryHash/candidateHashes/TTL；不持久化，进程重启即丢（重新询问用户）                                                   |
+| 决策缓存                    | Query 服务进程内存（`decisionCache.ts`）     | 键 = sha256(providerId\|model\|policyVersion\|vaultId\|sourceEpoch\|queryHash\|chunkSha)；仅本机、不持久化请求全文；epoch 变化/撤权/policy 或 model 版本变化即失效；LRU 有界 |
+| 出站计数与延迟样本          | `decisionTelemetry.ts`（服务生命周期内累计） | `outboundCount` 是 A23 的断言面；日志不写查询/片段/凭据                                                                                                                      |
+| run 的 decision 诊断        | run 视图字段（§5b.6 run 所有权的延伸）       | `KnowledgeRunView.decision`，见 §5d.6                                                                                                                                        |
 
 ### 5d.3 TypeSafe 契约（2026-10-10 真实文档验证，非 Python 示例猜测）
 
@@ -701,10 +706,10 @@ policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`�
   阶段结束后管线重验 sourceEpoch，已变 → 整个决策丢弃（按 source_stale 语义，§5b.6）。
 - `KnowledgeRunView.decision`（nullable，RPC additive）：
   `{ status: "off"|"denied"|"applied"|"fallback"|"cancelled", reason, action, providerId,
-  modelVersion, policyVersion, outboundCount, scoredCount, fallbackCount, cacheHitCount,
-  latencyMs }`。`reason` 机器可读（`disabled_no_provider / consent_missing / consent_expired /
-  consent_revoked / timeout / http_429 / http_5xx / invalid_score / unknown_candidate /
-  provider_error / cancelled`），不含查询文本、路径与凭据。
+modelVersion, policyVersion, outboundCount, scoredCount, fallbackCount, cacheHitCount,
+latencyMs }`。`reason` 机器可读（`disabled_no_provider / consent_missing / consent_expired /
+consent_revoked / timeout / http_429 / http_5xx / invalid_score / unknown_candidate /
+provider_error / cancelled`），不含查询文本、路径与凭据。
 
 ### 5d.7 降级与竞态
 
@@ -737,16 +742,16 @@ policyVersion 钉住）；`normalizedLocal` = 名次归一 `(n - rank + 1) / n`�
 `packages/services/test/knowledgeDecisionPolicy.test.ts`、`knowledgeJevAdapter.test.ts`、
 `knowledgeDecisionPipeline.test.ts`、`knowledgeEvaluationHarness.test.ts`。
 
-| ID | 场景 | 状态 |
-| --- | --- | --- |
-| A23 / K-JEV-1 | 默认关闭/拒绝 → `outboundCount=0`、grant 返回 disabled | 已实现（pipeline 测试） |
-| A24 / K-JEV-2 | 真实非私密 Noul 请求 + SDK/model/耗时记录 | **未实测（缺凭据）**：transport 线格式经本地假服务器逐字段断言；真实出站待用户提供 API Key |
-| A25 / K-JEV-3 | 429/5xx/timeout/NaN/未知候选 ID → 本地候选保留 + 降级标记 | 已实现（adapter/pipeline 测试） |
-| A26 / K-JEV-4 | 迟到/取消决策不覆盖新 Query；重排不改候选事实（articleId 稳定） | 已实现（pipeline 测试；UI 选中锚点由 W04 reducer 按 articleId 保持） |
-| A27 / K-JEV-5 | 无答案负样本不被强选（NO_RELIABLE_MATCH / ASK_CLARIFICATION 硬条件） | 已实现（policy 测试） |
-| A28 / K-JEV-6 | 真实人工标注中文集 A/B | **未实测（缺标注集）**：框架 + 合成脱敏试点集已交付 |
-| A11 | 扩搜上限一次由 policy 执行 | 已实现（policy 测试 + 既有 OR 降级回归） |
-| A35 | 决策出站独立授权、日志无全文/凭据 | 已实现（consent/telemetry 测试） |
+| ID            | 场景                                                                 | 状态                                                                                       |
+| ------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| A23 / K-JEV-1 | 默认关闭/拒绝 → `outboundCount=0`、grant 返回 disabled               | 已实现（pipeline 测试）                                                                    |
+| A24 / K-JEV-2 | 真实非私密 Noul 请求 + SDK/model/耗时记录                            | **未实测（缺凭据）**：transport 线格式经本地假服务器逐字段断言；真实出站待用户提供 API Key |
+| A25 / K-JEV-3 | 429/5xx/timeout/NaN/未知候选 ID → 本地候选保留 + 降级标记            | 已实现（adapter/pipeline 测试）                                                            |
+| A26 / K-JEV-4 | 迟到/取消决策不覆盖新 Query；重排不改候选事实（articleId 稳定）      | 已实现（pipeline 测试；UI 选中锚点由 W04 reducer 按 articleId 保持）                       |
+| A27 / K-JEV-5 | 无答案负样本不被强选（NO_RELIABLE_MATCH / ASK_CLARIFICATION 硬条件） | 已实现（policy 测试）                                                                      |
+| A28 / K-JEV-6 | 真实人工标注中文集 A/B                                               | **未实测（缺标注集）**：框架 + 合成脱敏试点集已交付                                        |
+| A11           | 扩搜上限一次由 policy 执行                                           | 已实现（policy 测试 + 既有 OR 降级回归）                                                   |
+| A35           | 决策出站独立授权、日志无全文/凭据                                    | 已实现（consent/telemetry 测试）                                                           |
 
 ### 5d.10 配置来源与 Host 装配（2026-10-11 补：打通「模型设置」最后一公里）
 
@@ -756,18 +761,18 @@ W05 交付了完整的决策层实现，但 `createLocalServices` 调 `createKno
 
 **配置项与所有者（单一出处）：**
 
-| 配置 | 所有者 | 键/字段 | 默认值 |
-| --- | --- | --- | --- |
-| Jev 开关 | `AppSettings`（app 级，非 workspace 级） | `knowledgeJevEnabled` | `false`（ADR #5：缺省关闭） |
-| 决策模型提供商 | `AppSettings` | `knowledgeJevProvider`（`typesafe`/`openrouter`/`ai-gateway`） | `typesafe` |
-| TypeSafe 端点覆盖 | `AppSettings` | `knowledgeJevBaseUrl` | 缺省 = 官方托管端点 `https://api.typesafe.ai` |
-| TypeSafe API Key | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量） | 无 |
-| OpenRouter Jev 模型标识 | `AppSettings` | `knowledgeJevOpenrouterModel`（该提供商必填） | 无（空 = 该提供商禁用） |
-| OpenRouter Jev 端点 baseURL | `AppSettings` | `knowledgeJevOpenrouterBaseUrl`（该提供商必填，由 OpenRouter 文档提供） | 无（空 = 该提供商禁用） |
-| OpenRouter API Key | `credentialService` | `KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY` | 无 |
-| AI Gateway Jev 模型标识 | `AppSettings` | `knowledgeJevAiGatewayModel`（该提供商必填） | 无（空 = 该提供商禁用） |
-| AI Gateway 部署 baseURL | `AppSettings` | `knowledgeJevAiGatewayBaseUrl`（该提供商必填，形如 `{网关部署}/v1/systemone`，由部署方提供） | 无（空 = 该提供商禁用） |
-| AI Gateway API Key | `credentialService` | `KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY` | 无 |
+| 配置                        | 所有者                                         | 键/字段                                                                                      | 默认值                                        |
+| --------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Jev 开关                    | `AppSettings`（app 级，非 workspace 级）       | `knowledgeJevEnabled`                                                                        | `false`（ADR #5：缺省关闭）                   |
+| 决策模型提供商              | `AppSettings`                                  | `knowledgeJevProvider`（`typesafe`/`openrouter`/`ai-gateway`）                               | `typesafe`                                    |
+| TypeSafe 端点覆盖           | `AppSettings`                                  | `knowledgeJevBaseUrl`                                                                        | 缺省 = 官方托管端点 `https://api.typesafe.ai` |
+| TypeSafe API Key            | `credentialService`（加密 `credentials.json`） | `KNOWLEDGE_JEV_CREDENTIAL_KEY`（shared 契约常量，生产方与消费方引用同一常量）                | 无                                            |
+| OpenRouter Jev 模型标识     | `AppSettings`                                  | `knowledgeJevOpenrouterModel`（该提供商必填）                                                | 无（空 = 该提供商禁用）                       |
+| OpenRouter Jev 端点 baseURL | `AppSettings`                                  | `knowledgeJevOpenrouterBaseUrl`（该提供商必填，由 OpenRouter 文档提供）                      | 无（空 = 该提供商禁用）                       |
+| OpenRouter API Key          | `credentialService`                            | `KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY`                                                    | 无                                            |
+| AI Gateway Jev 模型标识     | `AppSettings`                                  | `knowledgeJevAiGatewayModel`（该提供商必填）                                                 | 无（空 = 该提供商禁用）                       |
+| AI Gateway 部署 baseURL     | `AppSettings`                                  | `knowledgeJevAiGatewayBaseUrl`（该提供商必填，形如 `{网关部署}/v1/systemone`，由部署方提供） | 无（空 = 该提供商禁用）                       |
+| AI Gateway API Key          | `credentialService`                            | `KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY`                                                    | 无                                            |
 
 **决策模型提供商（2026-10-11 补，同日二修）**：评分模型与 agent 聊天模型相互独立，不进
 provider registry。**systemOne 是 Jev 全生态唯一的线协议**（Jev 没有 OpenAI 兼容端点）——
@@ -814,11 +819,11 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
   host 已有的异步初始化段，经新 option 传入；禁止在装配函数内部引入半异步状态。
 - **内置端点（2026-10-13；同日二修 openrouter）**：typesafe → `https://api.typesafe.ai`
   （官方文档实证）+ 路径 `/v1/systemone`；openrouter → `https://openrouter.ai/api/alpha`
-  + 路径 `/decisions`（OpenRouter「alpha/decisions」决策端点，出现在 Jev/TypeSafe 模型
-  页——openrouter **不代理** /v1/systemone 形状，首版误用标准 /api/v1 已修正）；
-  ai-gateway → `https://ai-gateway.vercel.sh/v1` + 路径 `/v1/systemone`（初值依据：
-  最知名 AI Gateway 产品；自有网关部署——Kong/TrueFoundry 等按部署路由 Jev——经设置
-  覆盖）。`baseURL` 留空 = 内置缺省；用户覆盖 baseURL 时路径仍按提供商固定。
+  - 路径 `/decisions`（OpenRouter「alpha/decisions」决策端点，出现在 Jev/TypeSafe 模型
+    页——openrouter **不代理** /v1/systemone 形状，首版误用标准 /api/v1 已修正）；
+    ai-gateway → `https://ai-gateway.vercel.sh/v1` + 路径 `/v1/systemone`（初值依据：
+    最知名 AI Gateway 产品；自有网关部署——Kong/TrueFoundry 等按部署路由 Jev——经设置
+    覆盖）。`baseURL` 留空 = 内置缺省；用户覆盖 baseURL 时路径仍按提供商固定。
 - **配置热生效（2026-10-13）**：Jev 配置（开关/提供商/Key/端点/模型）变更**即时生效，
   免重启**。机制与时序：
   ```
@@ -852,13 +857,13 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 **验收场景（本轮新增）：**
 
-| ID | 场景 | 断言 |
-| --- | --- | --- |
-| K-JEV-7 | 开关关（或缺省）→ 装配 | `resolveKnowledgeJevAssembly` 返回 null；knowledge 服务 decision.provider 为 null；grant 返回 disabled（A23 语义不变） |
-| K-JEV-8 | 开关开、Key 缺失 → 装配 | 同上 fail-closed：返回 null，不出站、grant disabled |
-| K-JEV-9 | 开关开、Key 存在 → 装配 | 返回 `{ baseUrl, apiKey }` 快照；decisionProviderFactory 注入后 grant 正常签发；baseURL 覆盖生效（空串/空白回落官方默认） |
-| K-JEV-10 | 设置面写入 | 开关/baseURL 走 `settingService.update`，Key 走 `credentialService.save/delete`；AppSettings 校验 schema 接受新字段 |
-| K-JEV-11 | 提供商分发 | openrouter/ai-gateway 缺 model/Key 任一 → null（禁用）；齐备 → 对应快照且只读各自独立凭据键；三提供商线格式（规范端点/署名头/覆盖）与解析宽松度经假 fetch 逐字段断言 |
+| ID       | 场景                    | 断言                                                                                                                                                                 |
+| -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K-JEV-7  | 开关关（或缺省）→ 装配  | `resolveKnowledgeJevAssembly` 返回 null；knowledge 服务 decision.provider 为 null；grant 返回 disabled（A23 语义不变）                                               |
+| K-JEV-8  | 开关开、Key 缺失 → 装配 | 同上 fail-closed：返回 null，不出站、grant disabled                                                                                                                  |
+| K-JEV-9  | 开关开、Key 存在 → 装配 | 返回 `{ baseUrl, apiKey }` 快照；decisionProviderFactory 注入后 grant 正常签发；baseURL 覆盖生效（空串/空白回落官方默认）                                            |
+| K-JEV-10 | 设置面写入              | 开关/baseURL 走 `settingService.update`，Key 走 `credentialService.save/delete`；AppSettings 校验 schema 接受新字段                                                  |
+| K-JEV-11 | 提供商分发              | openrouter/ai-gateway 缺 model/Key 任一 → null（禁用）；齐备 → 对应快照且只读各自独立凭据键；三提供商线格式（规范端点/署名头/覆盖）与解析宽松度经假 fetch 逐字段断言 |
 
 ## 5e. 审核写入与安全写回（W06，2026-10-10 落地；评审修复轮 1 收敛为 NO-GO 交付）
 
@@ -879,11 +884,11 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 1. **先修三洞**（全部位于 runtime 层，须程序化门控、不依赖插件 hook）：
    (1) plan 模式两处打洞——无 `destructiveHint` 的 MCP 直通（`core/src/permission/service.ts:415-422`）
-   + memory md 覆盖 plan deny（`core/src/tool/executor/memory-file-permission.ts:38-46`）；
-   (2) node_repl/MCP 无内容规则粒度，一次「总是允许」即持久化整工具 allow
-   （`core/src/tool/executor/permission-suggestions.ts:24-36` + `permission/service.ts:292`）；
-   (3) Bash 整工具 allow 规则短路含重定向在内的一切命令
-   （`core/src/tool/handlers/bash-command-rule-evaluator.ts:14`）；
+   - memory md 覆盖 plan deny（`core/src/tool/executor/memory-file-permission.ts:38-46`）；
+     (2) node_repl/MCP 无内容规则粒度，一次「总是允许」即持久化整工具 allow
+     （`core/src/tool/executor/permission-suggestions.ts:24-36` + `permission/service.ts:292`）；
+     (3) Bash 整工具 allow 规则短路含重定向在内的一切命令
+     （`core/src/tool/handlers/bash-command-rule-evaluator.ts:14`）；
 2. **P0 分级门控**：任意路径写（Bash/js/未声明 destructive 的 MCP）强制逐次确认 + 禁整工具
    持久 allow；统一挂点 `resolveToolCallCapabilityFlags`（`permission-capability.ts:28-39`）；
 3. **有意分歧集合仅限**：MCP server 进程内写盘、宿主自动写盘、yolo 直通（改审计+receipt）。
@@ -901,23 +906,23 @@ createKnowledgeServices(...)（注入即代表 flag+凭据已校验，延续 §5
 
 ### 5e.1 模块构成
 
-| 单元 | 文件 | 职责 |
-| --- | --- | --- |
-| DTO 与状态机词表 | `review/reviewTypes.ts` | Proposal/批准/Operation 视图、变更类型、结构化拒绝原因（RPC 面唯一定义处） |
-| 账本存取 | `review/reviewStore.ts` | `review_proposals / review_approvals / review_operations / review_operation_files` 行映射、operationId 唯一约束、prepared→applying 单赢家转移（BEGIN IMMEDIATE） |
-| 审核服务 | `review/reviewService.ts` | `IKnowledgeReviewService` 接口 + descriptor + 实现：Proposal 生命周期、批准绑定、经 Vault 门面的 CAS 写执行、Undo、reconcile；每 vault 进程内异步互斥 |
+| 单元             | 文件                      | 职责                                                                                                                                                             |
+| ---------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DTO 与状态机词表 | `review/reviewTypes.ts`   | Proposal/批准/Operation 视图、变更类型、结构化拒绝原因（RPC 面唯一定义处）                                                                                       |
+| 账本存取         | `review/reviewStore.ts`   | `review_proposals / review_approvals / review_operations / review_operation_files` 行映射、operationId 唯一约束、prepared→applying 单赢家转移（BEGIN IMMEDIATE） |
+| 审核服务         | `review/reviewService.ts` | `IKnowledgeReviewService` 接口 + descriptor + 实现：Proposal 生命周期、批准绑定、经 Vault 门面的 CAS 写执行、Undo、reconcile；每 vault 进程内异步互斥            |
 
 ### 5e.2 状态所有者（补 §1 表）
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| Proposal（目标源/来源证据/base SHA/revision/精确内容） | knowledge-index.sqlite v3 `review_proposals`（vaultId + revision + changesHash + changes JSON） | 与索引同库但**不在任何清除路径上**：`requestRebuild`/reconcile/`pruneStaleSourceRows` 只清 documents/chunks/chunks_fts/index_jobs/coverage，绝不触及 review 四表与 evidence_receipts |
-| 批准账本 | 同库 `review_approvals`，主键 (proposal_id, revision)；绑定 changesHash + sourceEpoch + expiresAtMs | 过期/换 revision/换 epoch 的批准自然失效，不删行（审计历史） |
-| Operation ledger | 同库 `review_operations`（operationId PRIMARY KEY，唯一约束）+ `review_operation_files`（每文件 base/next/snapshot/状态） | 快照（写前内容）在落盘前先入账本；崩溃后凭账本 reconcile |
-| 进程内写互斥 | 服务实例内存 per-vault 异步互斥 | 只防同进程交错；跨 Host 串行靠账本转移 + 门面 CAS（§5e.6） |
-| `undoing` 跨 Host 撤销领用（2026-10-17 增量回写） | 同库 `review_operation_files.status=undoing`（durable 单赢家 claim：CAS 领用 + settle） | 同一 operation 的 undo 只有一个领用者；领用后崩溃由只读 reconcile 依盘面证据落定（绝不自动重放） |
-| vault 级并发写栅栏（2026-10-17 增量回写） | `reviewStore` 转移检查：同 vault 存在 applying/undoing 行时新的 apply/undo 被 `reconcile_required`/`operation_busy` 拒绝 | 防同 vault 双写交错；非参与写者（绕过账本的进程外写）不可见——文档如实记录的 limitation |
-| 审核视图选中态等 UI 局部状态 | 归后续 UI 工作单（W04「审核」视图当前只呈现真实状态） | UI 不缓存权威事实 |
+| 状态                                                   | 所有者                                                                                                                    | 说明                                                                                                                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Proposal（目标源/来源证据/base SHA/revision/精确内容） | knowledge-index.sqlite v3 `review_proposals`（vaultId + revision + changesHash + changes JSON）                           | 与索引同库但**不在任何清除路径上**：`requestRebuild`/reconcile/`pruneStaleSourceRows` 只清 documents/chunks/chunks_fts/index_jobs/coverage，绝不触及 review 四表与 evidence_receipts |
+| 批准账本                                               | 同库 `review_approvals`，主键 (proposal_id, revision)；绑定 changesHash + sourceEpoch + expiresAtMs                       | 过期/换 revision/换 epoch 的批准自然失效，不删行（审计历史）                                                                                                                         |
+| Operation ledger                                       | 同库 `review_operations`（operationId PRIMARY KEY，唯一约束）+ `review_operation_files`（每文件 base/next/snapshot/状态） | 快照（写前内容）在落盘前先入账本；崩溃后凭账本 reconcile                                                                                                                             |
+| 进程内写互斥                                           | 服务实例内存 per-vault 异步互斥                                                                                           | 只防同进程交错；跨 Host 串行靠账本转移 + 门面 CAS（§5e.6）                                                                                                                           |
+| `undoing` 跨 Host 撤销领用（2026-10-17 增量回写）      | 同库 `review_operation_files.status=undoing`（durable 单赢家 claim：CAS 领用 + settle）                                   | 同一 operation 的 undo 只有一个领用者；领用后崩溃由只读 reconcile 依盘面证据落定（绝不自动重放）                                                                                     |
+| vault 级并发写栅栏（2026-10-17 增量回写）              | `reviewStore` 转移检查：同 vault 存在 applying/undoing 行时新的 apply/undo 被 `reconcile_required`/`operation_busy` 拒绝  | 防同 vault 双写交错；非参与写者（绕过账本的进程外写）不可见——文档如实记录的 limitation                                                                                               |
+| 审核视图选中态等 UI 局部状态                           | 归后续 UI 工作单（W04「审核」视图当前只呈现真实状态）                                                                     | UI 不缓存权威事实                                                                                                                                                                    |
 
 ### 5e.3 RPC 面（`IKnowledgeReviewService`）
 
@@ -930,8 +935,8 @@ undoOperation / getProposalChangeContent / listRecentOperations`。
 `setAgentWritesEnabled`（含 epoch 失效）在 `IObsidianVaultService` 面而非本面。）
 
 - `createProposal({ title, reason, evidence, changes })`：每条 change = `{ kind:
-  "write"|"create"|"delete", relativePath, baseSha256?(write 必填/create 必为 null/
-  delete 必填), content?(write/create) }`。创建即绑定当前 vaultId 并逐条校验：
+"write"|"create"|"delete", relativePath, baseSha256?(write 必填/create 必为 null/
+delete 必填), content?(write/create) }`。创建即绑定当前 vaultId 并逐条校验：
   路径经 `normalizeRelativeMarkdownPath`（仅非隐藏 `.md`）+ `getSafeVaultTarget`
   （逐段 lstat 拒软链）；write 的 baseSha256 必须等于当前文件实际 sha256（创建时即对
   齐现实，杜绝「批准一个基于幻觉旧版」的提案）；content ≤2MB（与门面上限一致）。
@@ -939,7 +944,7 @@ undoOperation / getProposalChangeContent / listRecentOperations`。
   旧 revision 的批准仍在账本但**只对旧 revision 有效**——apply 只认当前 revision 的批准
   （A32「Diff 改后旧 revision 无效」）。
 - `approveProposal({ proposalId, ttlMs? })`：记录 `(proposalId, revision, changesHash,
-  sourceEpoch, approvedAtMs, expiresAtMs)`（TTL 默认 10 分钟，钳位 [0, 24h]——显式 0/negative 为测试钩子（立即过期），生产 UI
+sourceEpoch, approvedAtMs, expiresAtMs)`（TTL 默认 10 分钟，钳位 [0, 24h]——显式 0/negative 为测试钩子（立即过期），生产 UI
   不传；非法 TTL 在账本持久化前整批拒绝且不改动既有批准。2026-10-17 勘误：原
   「[30s, 24h]」与实现不符，实现无 30s 下限）。
 - `applyProposal({ proposalId, operationId? })`：全量前置校验（§5e.5）通过才执行；
@@ -979,14 +984,14 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 3. operationId 幂等检查：账本已存在 → 返回既有记录（不执行）；`applying` 状态的既存
    operation → 拒绝并指向 reconcile；
 4. 单赢家转移：`INSERT operation(prepared)` → `UPDATE ... SET status='applying'
-   WHERE operation_id=? AND status='prepared'`（BEGIN IMMEDIATE；影响行数=0 即另一
+WHERE operation_id=? AND status='prepared'`（BEGIN IMMEDIATE；影响行数=0 即另一
    Host 在执行 → `busy` 拒绝，绝不并发进文件写）。
 
 ### 5e.6 Operation ledger 与双 Host 串行
 
 - operationId 唯一约束（PRIMARY KEY）；状态机 `prepared → applying → applied /
-  conflict / uncertain`；per-file 状态 `prepared / applying / applied / conflict /
-  not_landed / undoing / undo_applied / undo_conflict`（`undoing` 为 2026-10-17 增量
+conflict / uncertain`；per-file 状态 `prepared / applying / applied / conflict /
+not_landed / undoing / undo_applied / undo_conflict`（`undoing` 为 2026-10-17 增量
   回写：跨 Host durable 单赢家撤销领用，领用后崩溃经只读 reconcile 落定）。
 - **先保护快照**：每个文件写前，把当前内容（≤2MB）+ sha256 写入
   `review_operation_files`（snapshot 列），再执行门面写入；快照落账本失败即中止该
@@ -1046,12 +1051,12 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 证据见 `docs/vaultview/delivery/W06_DELIVERY.md`、`docs/vaultview/delivery/WRITE_SAFETY_NO_GO.md`
 与 `packages/services/test/knowledgeReview.test.ts`。
 
-| ID | 场景 | 状态 |
-| --- | --- | --- |
-| A31 | Write/Edit（W01 hook 收窄）/Bash/MCP/js/宿主自动写的真实覆盖报告 | **有条件**：报告=本节 §5e.8 + `W00_TOOL_WRITE_MATRIX.md`；P0 通道（Bash/js/MCP）硬阻断未实现 → 门禁未满足，正式裁定 WRITE_SAFETY_NO_GO.md |
-| A32 | 未批准/过期批准/审批后改稿（revision+1）绝不写文件 | 已实现（review 服务测试；机制层面，写路径当前默认关闭） |
-| A33 | 重复 operationId 只执行一次；断线未知结果 reconcile 后才继续；重启 reconcile 不自动重放 | 已实现（review 服务测试） |
-| A34 | 外部并发修改 conflict 不静默覆盖；Undo 验证当前 SHA；双 Host 同文件串行；旁路写盘可检测 | 已实现（review 服务测试） |
+| ID  | 场景                                                                                    | 状态                                                                                                                                      |
+| --- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| A31 | Write/Edit（W01 hook 收窄）/Bash/MCP/js/宿主自动写的真实覆盖报告                        | **有条件**：报告=本节 §5e.8 + `W00_TOOL_WRITE_MATRIX.md`；P0 通道（Bash/js/MCP）硬阻断未实现 → 门禁未满足，正式裁定 WRITE_SAFETY_NO_GO.md |
+| A32 | 未批准/过期批准/审批后改稿（revision+1）绝不写文件                                      | 已实现（review 服务测试；机制层面，写路径当前默认关闭）                                                                                   |
+| A33 | 重复 operationId 只执行一次；断线未知结果 reconcile 后才继续；重启 reconcile 不自动重放 | 已实现（review 服务测试）                                                                                                                 |
+| A34 | 外部并发修改 conflict 不静默覆盖；Undo 验证当前 SHA；双 Host 同文件串行；旁路写盘可检测 | 已实现（review 服务测试）                                                                                                                 |
 
 - 测试只用合成临时 Vault（`mkdtemp`），绝不修改用户真实 Vault；软链不可用平台（Windows 非
   开发者模式）跳过对应用例并以 junction 补目录逃逸覆盖。
@@ -1090,7 +1095,7 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 - **回跳**：已附加可信引用在 Composer 可请求核验后打开原文；事件只传 receiptId/session/workspace，VaultView 重新 `resolveCitation` 后校验路径与 quote。普通引用和模型生成的 `[1]` 文本不获得这一权限。
 - **迁移原则**：旧 PR #15 的 `knowledgeEvidenceAttachment.ts`、`useKnowledgeEvidenceAttachments.ts` 和 `KnowledgeEvidenceChip.tsx` 属于已被统一可信引用链路替代的历史实现，不要重新加入并行状态系统。W09 的 L2 审核功能和开关则保留并迁移至本 PR。对于任何没有服务端 Receipt 的材料，严格标示为普通引用。
 - **集成点记录（F-1 残余补记 2026-10-17）**：`packages/ui/src/components/ai-elements/message.tsx`（vercel/ai-elements 派生，非还原 bundle 文件）持有可信引用渲染接线：import `lib/knowledgeCitationMarkdown`、nonce `useMemo`、scoped markdown 缓存键、`knowledgeCitationRemarkPlugin` 注入与 link renderer 的 `resolveBoundKnowledgeCitation` 分支——上游同步 ai-elements 时须重放上述接缝；自研主体在 `lib/knowledgeCitationMarkdown.ts`。
-  
+
 ### 5e.11 审核视图消费 review 服务
 
 - `KnowledgeReviewView` 改为消费真实 `IKnowledgeReviewService`（accessor `knowledgeReviewService`，
@@ -1136,12 +1141,12 @@ apply 在**任何文件 IO 之前**按序校验，任一失败返回结构化拒
 `packages/ui/test/knowledgeCitationNavigation.test.ts`、
 `packages/services/test/knowledgeReviewWritePath.test.ts`。
 
-| ID | 场景 | 验证来源 |
-| --- | --- | --- |
+| ID         | 场景                                                                  | 验证来源                                   |
+| ---------- | --------------------------------------------------------------------- | ------------------------------------------ |
 | WSG-UI-1/2 | 可信引用的有界批量交接、Receipt 去重、发送前清单一致性与 CLI 二次复验 | 现行 Composer/Knowledge UI 测试 + CLI gate |
-| WSG-UI-3 | L2 总门缺省关闭；配置持久化与重启后状态 | `knowledgeReviewWritePath.test.ts` |
-| WSG-UI-4 | L2 关闭时 apply/undo 拒绝；开启仅走人工审核 CAS 路径 | 服务端 review 测试 + GUI 验收 |
-| WSG-UI-5 | 中英文审核文案和结构化状态、错误反馈 | UI i18n 和审核视图测试 |
+| WSG-UI-3   | L2 总门缺省关闭；配置持久化与重启后状态                               | `knowledgeReviewWritePath.test.ts`         |
+| WSG-UI-4   | L2 关闭时 apply/undo 拒绝；开启仅走人工审核 CAS 路径                  | 服务端 review 测试 + GUI 验收              |
+| WSG-UI-5   | 中英文审核文案和结构化状态、错误反馈                                  | UI i18n 和审核视图测试                     |
 
 ## 5f. agent VaultSearch 工具（2026-10-12 落地：agent 的只读 vault 检索入口）
 
@@ -1175,8 +1180,8 @@ IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
 - **零出站**：工具路径不携带 `decisionConsentId`，决策管线按 off/denied 处理
   （§5d.6）——Jev 全局开关与逐 run 授权面完全不被该工具触达，A23 语义原样继承。
 - 结果字段白名单：`articleId/relativePath/title/matchedHeading/excerpt/quote/rank/
-  matchedChunkCount` + `status/reason` + `diagnostics{coveragePartial,
-  matchRelaxedToOr,semantic}`。**不含 score**（bm25 值不是正确率，§5d 同口径）、
+matchedChunkCount` + `status/reason` + `diagnostics{coveragePartial,
+matchRelaxedToOr,semantic}`。**不含 score**（bm25 值不是正确率，§5d 同口径）、
   **不含 sha 字段**（可验证性归 W03 Receipt，工具摘录是「未验证引用」）与绝对路径
   （§5b.6）。`status` 直通 `KnowledgeQueryStatus`（retrieving 不会出现在落定后）。
 - 摘录即证据边界：vault ≠ workspace 时 excerpt 就是 agent 可见的全部内容，读全文受
@@ -1187,13 +1192,13 @@ IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
 
 ### 5f.3 验收映射
 
-| ID | 场景 | 状态 |
-| --- | --- | --- |
-| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实 | 已实现（services 映射纯函数测试 + core handler 测试） |
-| VS-2 | 无源/空结果/失败 → 结构化 status，不编造 | 已实现（同上） |
-| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面） |
-| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误 | 已实现（分发 case 单测） |
-| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面） | 已实现（includeVaultSearch 门，同 includeAutomation） |
+| ID   | 场景                                                              | 状态                                                  |
+| ---- | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实        | 已实现（services 映射纯函数测试 + core handler 测试） |
+| VS-2 | 无源/空结果/失败 → 结构化 status，不编造                          | 已实现（同上）                                        |
+| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面）     |
+| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误             | 已实现（分发 case 单测）                              |
+| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面）             | 已实现（includeVaultSearch 门，同 includeAutomation） |
 
 ## 5g. 洞察视图（2026-10-12 落地：VaultView 四视图之三的真实数据面）
 
@@ -1262,11 +1267,11 @@ fallbackCountTotal/scoredCountTotal/inputTokensTotal/outputTokensTotal（latency
   轮询（与 ask 视图 job 轮询同模式），离场即停；手动刷新按钮保留；加载/失败三态保留。
 - 服务不可用（host 未注册该频道/断连）：沿用既有 serviceUnavailable 错误态。
 
-验收映射（本节新增 K-INS-*）：
+验收映射（本节新增 K-INS-\*）：
 
-| ID | 场景 | 期望 | 状态 |
-| --- | --- | --- | --- |
-| K-INS-1 | 服务级 getInsights：写入含 frontmatter tags 与 `[[wikilink]]` 的真实笔记并完成索引 | configured=true；taggedDocuments/wikilinkCount 与写入内容精确一致；recentJobs 含本次 job 且时长=终态差值；未配置 vault 时 configured=false 且 inventory 全零 | 已实现（`packages/services/test/knowledgeInsights.test.ts`） |
-| K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言 | 已实现（同上） |
-| K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化 | 纯模型断言 | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`） |
-| K-INS-4 | i18n：insights 全部键 zh/en 成对（含动态键族 exclude×7/jobKind×2/jobStatus×5，独立复核发现4 后纳入门禁） | A21 纪律测试断言（键集合对等 + 静态引用齐全 + 动态键族成员清单两语言齐全） | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`） |
+| ID      | 场景                                                                                                                                           | 期望                                                                                                                                                         | 状态                                                         |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| K-INS-1 | 服务级 getInsights：写入含 frontmatter tags 与 `[[wikilink]]` 的真实笔记并完成索引                                                             | configured=true；taggedDocuments/wikilinkCount 与写入内容精确一致；recentJobs 含本次 job 且时长=终态差值；未配置 vault 时 configured=false 且 inventory 全零 | 已实现（`packages/services/test/knowledgeInsights.test.ts`） |
+| K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言                                                                                                                                       | 已实现（同上）                                               |
+| K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化                                                           | 纯模型断言                                                                                                                                                   | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`）  |
+| K-INS-4 | i18n：insights 全部键 zh/en 成对（含动态键族 exclude×7/jobKind×2/jobStatus×5，独立复核发现4 后纳入门禁）                                       | A21 纪律测试断言（键集合对等 + 静态引用齐全 + 动态键族成员清单两语言齐全）                                                                                   | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`）   |

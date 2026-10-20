@@ -2035,7 +2035,18 @@ function ConversationTimelineImpl({
                   />
                 </div>
               ) : null}
-              {footerSlot ? <div data-v4-timeline-content-column="true" className={cn("relative mx-auto w-full shrink-0",contentWidthClassName,summaryPanelInlineOffsetClassName)}>{footerSlot}</div> : null}
+              {footerSlot ? (
+                <div
+                  data-v4-timeline-content-column="true"
+                  className={cn(
+                    "relative mx-auto w-full shrink-0",
+                    contentWidthClassName,
+                    summaryPanelInlineOffsetClassName,
+                  )}
+                >
+                  {footerSlot}
+                </div>
+              ) : null}
               {pendingGuides.length > 0 ? (
                 <div
                   data-v4-timeline-content-column="true"

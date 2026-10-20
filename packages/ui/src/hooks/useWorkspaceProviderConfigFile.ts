@@ -108,8 +108,7 @@ export function useWorkspaceProviderConfigFile(
       : remoteSessionId && workspaceDroraService !== baseDroraService
         ? "remote"
         : "base";
-  const [state, setState] =
-    useState<WorkspaceProviderConfigFileState>(INITIAL_STATE);
+  const [state, setState] = useState<WorkspaceProviderConfigFileState>(INITIAL_STATE);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const requestVersionRef = useRef(0);
 

@@ -3,8 +3,8 @@
 ## 2026-10-17 收尾复评契约（优先于历史实现说明）
 
 - 普通 MCP/js 的任意 `path`/`command` 字段不能代表完整副作用；无专属 Host 规则评估器时，项目和会话的全部 allow 规则（包括带内容规则）均不能免除逐次确认，建议侧不生成持久授权，持久化侧丢弃这些 allow。deny/ask、Host 验证的 OfficialCua 和显式 YOLO 保留既有语义。allowedTools 例外已收窄（2026-10-17 增量评审 cli-p0-1/2 修正）：`allowedTools` 实为五层合并配置（含项目层
-drora.json，无信任门），不能整体视作操作员启动授权——命中 P0 写向量时不豁免逐次确认
-（非 P0 工具照旧放行），详见 §1 末注与 `permission-service-write-tier.test.ts` 用例。
+  drora.json，无信任门），不能整体视作操作员启动授权——命中 P0 写向量时不豁免逐次确认
+  （非 P0 工具照旧放行），详见 §1 末注与 `permission-service-write-tier.test.ts` 用例。
 - build/edit 的低风险快速路径也不得授权 P0 MCP/js，即使能力数据声称 `readOnly=true`、`needsApproval=false`、`sideEffectScope=none`。
 - P0 ask 使用现有 `approvalMode=user-once` 通道，PreToolUse/PermissionRequest Hook 不得替代用户确认；应答不能持久化项目或会话规则。此约束复用已有 Guarded 单次审批生命周期，不新增审批状态所有者。
 - （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-4 此前在本 spec 零记录）**建议路径 capability 透传（cli-p0-4）**：评估与建议共用同一份解析能力——`permission-flow.ts` 在进入权限判定前先 `resolveRuntimePermissionCapability`，建议侧 `buildDefaultPermissionUpdates` 同步接收该 capability（`permissionName`/`readOnly`）。依据：修复前建议路径不传 capability，P0 识别退化为仅按 `mcp__` 名前缀——`app__*` 工具（permissionName="mcp" 但名无 `mcp__` 前缀）在无内容键输入时会产出永不匹配的整工具 allow 建议，且持久化消毒（按名前缀识别）不识别该前缀，违背「建议/评估/持久化三层一致」的收尾契约；透传后三层按同一 `isP0WriteTarget` 口径判定。
@@ -34,11 +34,11 @@ drora.json，无信任门），不能整体视作操作员启动授权——命�
 判定输入：`toolName` + 解析后能力（`permissionName`/`readOnly`）。实现在
 `write-tier-policy.ts`，单一出处。
 
-| 级 | 集合 | 语义 |
-| --- | --- | --- |
-| P0 | `Bash`、`js`（node_repl）、所有非 Host 验证的 `mcp__*` | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow；自报 `readOnlyHint` 不降级权限 |
-| P1 | `Write`/`Edit`/`ApplyPatch`（授权根内写） | 维持现骨架：模式与项目规则照旧，obsidian vault hook 路径不变 |
-| P2 | memory md / workflow 草稿 / artifacts / 执行日志等免确认区 | 保留免确认，但保留可审计的判定日志（ruleId 落事件） |
+| 级  | 集合                                                       | 语义                                                                                                      |
+| --- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| P0  | `Bash`、`js`（node_repl）、所有非 Host 验证的 `mcp__*`     | 任意路径写向量：逐次确认（整工具 allow 规则不生效），禁止整工具持久 allow；自报 `readOnlyHint` 不降级权限 |
+| P1  | `Write`/`Edit`/`ApplyPatch`（授权根内写）                  | 维持现骨架：模式与项目规则照旧，obsidian vault hook 路径不变                                              |
+| P2  | memory md / workflow 草稿 / artifacts / 执行日志等免确认区 | 保留免确认，但保留可审计的判定日志（ruleId 落事件）                                                       |
 
 有意分歧（W00 §7 允许的三项，spec 层面如实记录，不伪装覆盖）：
 
@@ -130,18 +130,18 @@ hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，
 
 ## 4. 验收映射（A31 素材）
 
-| ID | 场景 | 断言 | 测试 |
-| --- | --- | --- | --- |
-| S03-P0-1 | Bash 整工具 allow + 重定向命令 | deny→ask（不放行） | `bash-command-rule-evaluator` 测试 |
-| S03-P0-2 | Bash 整工具 allow + safe 命令 | allow（既有体验保留） | 同上 |
-| S03-P0-3 | js 无内容 allow 规则（项目/会话） | 不匹配，落到 highRisk ask | `permission service` 测试 |
-| S03-P0-4 | 第三方 MCP（无论 readOnlyHint）无内容 allow 规则 | 不匹配 | 同上 |
-| S03-P0-5 | CUA 能力组整工具规则 | 照旧匹配（宿主验证豁免） | 同上 |
-| S03-P0-6 | P0 工具「总是允许」建议 | 无内容 → 空建议；CUA 不变 | `permission-suggestions` 测试 |
-| S03-P0-7 | 持久化边界收到 P0 无内容 allow | 丢弃 + warn 审计 | `permission-rules-persistence` 测试 |
-| S03-P1-8 | plan 模式普通 MCP（无论 readOnlyHint） | deny（仅 Host 验证能力可走只读快速路径） | `permission service` 测试 |
-| S03-P1-9 | plan 模式 memory md 写入 | deny 保持（覆盖器不翻转 deny） | `memory-file-permission` 测试 |
-| S03-P2-10 | 非 plan 模式 memory md 写入 | allow（P2 免确认保留） | 同上 |
+| ID        | 场景                                             | 断言                                     | 测试                                |
+| --------- | ------------------------------------------------ | ---------------------------------------- | ----------------------------------- |
+| S03-P0-1  | Bash 整工具 allow + 重定向命令                   | deny→ask（不放行）                       | `bash-command-rule-evaluator` 测试  |
+| S03-P0-2  | Bash 整工具 allow + safe 命令                    | allow（既有体验保留）                    | 同上                                |
+| S03-P0-3  | js 无内容 allow 规则（项目/会话）                | 不匹配，落到 highRisk ask                | `permission service` 测试           |
+| S03-P0-4  | 第三方 MCP（无论 readOnlyHint）无内容 allow 规则 | 不匹配                                   | 同上                                |
+| S03-P0-5  | CUA 能力组整工具规则                             | 照旧匹配（宿主验证豁免）                 | 同上                                |
+| S03-P0-6  | P0 工具「总是允许」建议                          | 无内容 → 空建议；CUA 不变                | `permission-suggestions` 测试       |
+| S03-P0-7  | 持久化边界收到 P0 无内容 allow                   | 丢弃 + warn 审计                         | `permission-rules-persistence` 测试 |
+| S03-P1-8  | plan 模式普通 MCP（无论 readOnlyHint）           | deny（仅 Host 验证能力可走只读快速路径） | `permission service` 测试           |
+| S03-P1-9  | plan 模式 memory md 写入                         | deny 保持（覆盖器不翻转 deny）           | `memory-file-permission` 测试       |
+| S03-P2-10 | 非 plan 模式 memory md 写入                      | allow（P2 免确认保留）                   | 同上                                |
 
 ## 5. 生效与回滚
 
@@ -149,8 +149,6 @@ hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，
   不触碰 `specs/obsidian-knowledge.md` 的 NO-GO 状态，不翻转 `writePathEnabled`。
 - 回滚 = revert 本 spec 对应的提交（单包改动，无跨包契约变更，无持久化迁移）。
 
-
 ## 6. 2026-10-17 correction: MCP annotations are not authorization
 
 The earlier wording that `readOnlyHint=true` was trusted "only in the tightening direction" was incorrect: allowing a server-authored hint to lower the permission tier made an untrusted MCP descriptor a bypass for plan mode and whole-tool persistent allow. The implementation now classifies all non-Host-verified MCP tools as P0 regardless of `readOnlyHint`, prevents that hint from taking build/plan read-only fast paths, and does not display third-party MCP tools as low risk solely because of the hint. The verified `OfficialCua` capability group remains the host-attested exception. Regression tests cover the self-reported-read-only bypass and the trusted CUA exception.
-

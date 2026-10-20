@@ -15,7 +15,13 @@ import {
 } from "../src/knowledge/queryTerms.js";
 
 test("extractQueryTerms：CJK bigram/单字 + 英文小写词，去重保序", () => {
-  assert.deepEqual(extractQueryTerms("上下文窗口 tuning"), ["上下", "下文", "文窗", "窗口", "tuning"]);
+  assert.deepEqual(extractQueryTerms("上下文窗口 tuning"), [
+    "上下",
+    "下文",
+    "文窗",
+    "窗口",
+    "tuning",
+  ]);
   assert.deepEqual(extractQueryTerms("Token Tokenizer"), ["token", "tokenizer"]);
   assert.deepEqual(extractQueryTerms("窗口 窗口"), ["窗口"]);
   assert.deepEqual(extractQueryTerms("窗"), ["窗"]);
@@ -42,7 +48,10 @@ test("planTextHitIntervals：大小写不敏感子串匹配，区间有序且互
   // 切片逐字对齐原文（证据文本不可错位）。
   const text = "Context Window tuning";
   for (const range of intervals) {
-    assert.equal(text.slice(range.start, range.end).toLowerCase(), text.slice(range.start, range.end).toLocaleLowerCase());
+    assert.equal(
+      text.slice(range.start, range.end).toLowerCase(),
+      text.slice(range.start, range.end).toLocaleLowerCase(),
+    );
   }
 });
 

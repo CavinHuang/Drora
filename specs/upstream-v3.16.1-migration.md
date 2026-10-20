@@ -56,16 +56,16 @@
 
 每段流程：应用 → 机械门禁 → 三方核查（V1/V2/V3）→ 修复循环 → commit（信息注明段号与决策引用）→ 更新本 spec 进度。段内不许混入下一段路径的改动。
 
-| 段 | 范围 | 上游要点 | 机械门禁 |
-| --- | --- | --- | --- |
-| S0 准备与预演（不改产品树） | 新增转换脚本+预演清单；建集成分支 | 转换脚本、黄金校验、全量试合并冲突清单（按段聚类）、修改/删除决策清单、段路径集 | 脚本自测；黄金校验通过 |
-| S1 根配置 + 共享契约 | 根 package.json/pnpm-workspace/vitest/lint/architecture-policy、`packages/shared`、`packages/rpc` | source-server/、web-remote-relay/、sqlite-migrations/、conversation-share*、off-peak-execution、telemetry/validation 扩容、drora-protocol v3/v4 增量 | shared/rpc typecheck + 测试；契约键两侧 grep 清单 |
-| S2 CLI 核心 | `apps/drora-cli` 全部 | tool-search/deferred、off-peak runtime、workflow 入口工具化+阻塞提醒、channel-reply、session-execution（residency-lease）、argument-parsing、office-runtime 新子包、usage 手册、权限面 | CLI typecheck；test:upstream-cli；S03 既有 28 测试全过 |
-| S3 services + server + relay/server-cli | `packages/services`、`packages/server`、`packages/provider*`、`packages/client`、`packages/drora-server-cli` | project-storage/task-groups v6/task-facts、source-server-workspace、bot-project-runtime、conversation-share、offPeakTaskService、server source-server | 各包 typecheck + 测试；knowledge/vault 225 检测不回退 |
-| S4 desktop | `packages/desktop` | sourceServer host 全家、web-remote-relay V2、database-startup、desktopCommandIpc、conversationShareAttachmentService、embedded-browser-permission-contract、E2E 迁移 | desktop typecheck；真 Electron 冒烟与 mock 分开报告 |
-| S5 UI + web + mobile-web | `packages/ui`、`packages/web`、`packages/mobile-web`（仅转发面） | project-sidebar 重写、CONTRACT.md 模式新模块、conversation-share-interaction、chat-input-toolbar、web 的 web-remote-control 模块化+share 落地页 | ui/web typecheck + 新增测试；i18n zh/en 键对齐 |
-| S6 CUA + 文档 + 脚本 + 资产 | `packages/zcode-cua*`、`docs/`、`scripts/`、`patches/`、`third-party/`、`.agents/`、AGENTS/DESIGN/CONTEXT/README | cua 0.6.5 占位（R3）、docs 160 篇、adopt/upstream-admission/sqlite-schema-contract、radix-collapsible patch、许可补齐 | lint/fmt；architecture:check --changed；许可完整性 |
-| S7 终验与收口 | 全仓 | lockfile 重生、全量验证、祖先记录 merge commit、证据文档、PR | `pnpm typecheck`/`lint`/`architecture:check`/全部测试入口真实结果；freshness |
+| 段                                      | 范围                                                                                                             | 上游要点                                                                                                                                                                               | 机械门禁                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| S0 准备与预演（不改产品树）             | 新增转换脚本+预演清单；建集成分支                                                                                | 转换脚本、黄金校验、全量试合并冲突清单（按段聚类）、修改/删除决策清单、段路径集                                                                                                        | 脚本自测；黄金校验通过                                                       |
+| S1 根配置 + 共享契约                    | 根 package.json/pnpm-workspace/vitest/lint/architecture-policy、`packages/shared`、`packages/rpc`                | source-server/、web-remote-relay/、sqlite-migrations/、conversation-share\*、off-peak-execution、telemetry/validation 扩容、drora-protocol v3/v4 增量                                  | shared/rpc typecheck + 测试；契约键两侧 grep 清单                            |
+| S2 CLI 核心                             | `apps/drora-cli` 全部                                                                                            | tool-search/deferred、off-peak runtime、workflow 入口工具化+阻塞提醒、channel-reply、session-execution（residency-lease）、argument-parsing、office-runtime 新子包、usage 手册、权限面 | CLI typecheck；test:upstream-cli；S03 既有 28 测试全过                       |
+| S3 services + server + relay/server-cli | `packages/services`、`packages/server`、`packages/provider*`、`packages/client`、`packages/drora-server-cli`     | project-storage/task-groups v6/task-facts、source-server-workspace、bot-project-runtime、conversation-share、offPeakTaskService、server source-server                                  | 各包 typecheck + 测试；knowledge/vault 225 检测不回退                        |
+| S4 desktop                              | `packages/desktop`                                                                                               | sourceServer host 全家、web-remote-relay V2、database-startup、desktopCommandIpc、conversationShareAttachmentService、embedded-browser-permission-contract、E2E 迁移                   | desktop typecheck；真 Electron 冒烟与 mock 分开报告                          |
+| S5 UI + web + mobile-web                | `packages/ui`、`packages/web`、`packages/mobile-web`（仅转发面）                                                 | project-sidebar 重写、CONTRACT.md 模式新模块、conversation-share-interaction、chat-input-toolbar、web 的 web-remote-control 模块化+share 落地页                                        | ui/web typecheck + 新增测试；i18n zh/en 键对齐                               |
+| S6 CUA + 文档 + 脚本 + 资产             | `packages/zcode-cua*`、`docs/`、`scripts/`、`patches/`、`third-party/`、`.agents/`、AGENTS/DESIGN/CONTEXT/README | cua 0.6.5 占位（R3）、docs 160 篇、adopt/upstream-admission/sqlite-schema-contract、radix-collapsible patch、许可补齐                                                                  | lint/fmt；architecture:check --changed；许可完整性                           |
+| S7 终验与收口                           | 全仓                                                                                                             | lockfile 重生、全量验证、祖先记录 merge commit、证据文档、PR                                                                                                                           | `pnpm typecheck`/`lint`/`architecture:check`/全部测试入口真实结果；freshness |
 
 段间已知中间态：S1 契约先行会造成消费方（S2/S4/S5）短暂类型破坏——记录在案、由后续段收口；各段自身测试必须绿。
 
@@ -88,7 +88,7 @@
 
 ## 自研保护区（合并期间冻结清单）
 
-A 类（上游无对应物，整目录保护）：`packages/ui/src/team/`、`apps/drora-cli/packages/bootstrap/src/app/drora-team/`、`packages/services/src/{knowledge,obsidian-vault}/`、Jev/ONNX（jevDynamicProvider、localEmbeddingPort、knowledge-evidence、knowledge-jev）、`packages/{relay-server,relay-client,drora-server-cli}/`、手机远控 UI（WebRemoteControl*、mobile/）、桌宠资产与 `drora-extensions/desktopPet`、发行更新 `drora-extensions/updateFeed`、四层 `drora-extensions/`、`packages/mobile-web`（upstream/ 快照整目录排除合并）。
+A 类（上游无对应物，整目录保护）：`packages/ui/src/team/`、`apps/drora-cli/packages/bootstrap/src/app/drora-team/`、`packages/services/src/{knowledge,obsidian-vault}/`、Jev/ONNX（jevDynamicProvider、localEmbeddingPort、knowledge-evidence、knowledge-jev）、`packages/{relay-server,relay-client,drora-server-cli}/`、手机远控 UI（WebRemoteControl\*、mobile/）、桌宠资产与 `drora-extensions/desktopPet`、发行更新 `drora-extensions/updateFeed`、四层 `drora-extensions/`、`packages/mobile-web`（upstream/ 快照整目录排除合并）。
 
 B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/App.tsx`、`i18n/locales/{zh-CN,en-US}.ts`、`app-shell/`（TeamSidePane、WorkspaceShellLayout）、`SettingsPage.tsx`+`settings/`、`create-app.ts`（team 装配 L106/184/797/886-905/926、vaultSearchPort）、permission 面（write-tier-policy 单一出处）、`packages/desktop/src/main/index.ts`（remoteControl/desktopPet/webRemoteControlManager 装配）、`packages/shared/src/`（drora-protocol* 63 文件、desktopPet.ts、knowledge*）、根 `architecture-policy.yaml` 与 `package.json` scripts。
 
@@ -96,12 +96,12 @@ B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/A
 
 ## 契约字面量差分（S1 处置清单）
 
-| 族 | 上游新增 | 上游删除 | 处置 |
-| --- | --- | --- | --- |
-| env 键 | ZCODE_COMPATIBILITY_MANIFEST、ZCODE_ERROR_CODES、ZCODE_MIN_COMPATIBLE_VERSION__(编译期)、ZCODE_MIGRATION_BACKUP_SKIPPED、ZCODE_WORKSPACE_ROOT、ZCODE_CUA_REPO | ZCODE_SKIP_REMOTE_ASSETS、ZCODE_GUIDE_PLUGIN_CACHE_PATH、ZCODE_GUIDE_PLUGIN_ID、ZCODE_CUA_HELPER_EXECUTABLE_NAME | 转 DRORA_ 落地；删除项全链 grep 消费方，确认 Drora 无残留依赖（尤其 CUA_HELPER_EXECUTABLE_NAME 与冻结链的关系） |
-| 权限键 | `WebFetch: "web-fetch"` | 该条目 `"search"` | 契约键单一出处更新 + S03 复核最终输入不受影响 |
-| `_meta`/originMeta | `workflowBlocked`（questions/holes/sinceMs） | 无 | additive，直接落地 |
-| 协议字段 | v3 additionalDirectories/historyFirst/toolSearchMode/providerRefreshRegistry/alwaysLoad；v4 sessionId/lastOutcome/sessionsIndexReconcile/runtimeInitialization/retryInitialization/sourceServerId | `sessionListParams.includeArchived` | 新增直接落地；删除项 grep 消费方同段收口 |
+| 族                 | 上游新增                                                                                                                                                                                          | 上游删除                                                                                                         | 处置                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| env 键             | ZCODE_COMPATIBILITY_MANIFEST、ZCODE_ERROR_CODES、ZCODE_MIN_COMPATIBLE_VERSION\_\_(编译期)、ZCODE_MIGRATION_BACKUP_SKIPPED、ZCODE_WORKSPACE_ROOT、ZCODE_CUA_REPO                                   | ZCODE_SKIP_REMOTE_ASSETS、ZCODE_GUIDE_PLUGIN_CACHE_PATH、ZCODE_GUIDE_PLUGIN_ID、ZCODE_CUA_HELPER_EXECUTABLE_NAME | 转 DRORA\_ 落地；删除项全链 grep 消费方，确认 Drora 无残留依赖（尤其 CUA_HELPER_EXECUTABLE_NAME 与冻结链的关系） |
+| 权限键             | `WebFetch: "web-fetch"`                                                                                                                                                                           | 该条目 `"search"`                                                                                                | 契约键单一出处更新 + S03 复核最终输入不受影响                                                                    |
+| `_meta`/originMeta | `workflowBlocked`（questions/holes/sinceMs）                                                                                                                                                      | 无                                                                                                               | additive，直接落地                                                                                               |
+| 协议字段           | v3 additionalDirectories/historyFirst/toolSearchMode/providerRefreshRegistry/alwaysLoad；v4 sessionId/lastOutcome/sessionsIndexReconcile/runtimeInitialization/retryInitialization/sourceServerId | `sessionListParams.includeArchived`                                                                              | 新增直接落地；删除项 grep 消费方同段收口                                                                         |
 
 ## 裁定面
 
@@ -118,14 +118,14 @@ B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/A
 
 ## 验收矩阵
 
-| 场景 | 验收 |
-| --- | --- |
-| 覆盖性 | 每段 V1 零静默丢失证明；S7 全量复跑一次全仓覆盖核对 |
-| 自研保真 | B 类挂载点逐点核对；team/vault/pet/knowledge/S03/relay 既有测试全绿；225 knowledge 检测不回退 |
-| 一致性 | 豁免区外零 zcode 残留；typecheck/lint/架构门禁真实通过 |
-| 协议 | desktop-continuous 与 web-remote-replayable 两链路语义分别验证 |
-| 发行 | Drora 品牌/更新源/Helper 身份不回退；许可 provenance 完整；bundle parity 无官方 v3.16.1 bundle 时如实记录限制，不伪造 |
-| 祖先 | 收口 merge commit 使 `git merge-base main upstream/main` = `0a1fc56d` |
+| 场景     | 验收                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| 覆盖性   | 每段 V1 零静默丢失证明；S7 全量复跑一次全仓覆盖核对                                                                   |
+| 自研保真 | B 类挂载点逐点核对；team/vault/pet/knowledge/S03/relay 既有测试全绿；225 knowledge 检测不回退                         |
+| 一致性   | 豁免区外零 zcode 残留；typecheck/lint/架构门禁真实通过                                                                |
+| 协议     | desktop-continuous 与 web-remote-replayable 两链路语义分别验证                                                        |
+| 发行     | Drora 品牌/更新源/Helper 身份不回退；许可 provenance 完整；bundle parity 无官方 v3.16.1 bundle 时如实记录限制，不伪造 |
+| 祖先     | 收口 merge commit 使 `git merge-base main upstream/main` = `0a1fc56d`                                                 |
 
 ## 与既有 spec 的关系
 

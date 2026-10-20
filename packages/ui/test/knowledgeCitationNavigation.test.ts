@@ -34,23 +34,40 @@ function current(changes: Partial<typeof citation> = {}): KnowledgeResolveCitati
 describe("Obsidian citation navigation authorization", () => {
   it("uses only the current server-resolved destination and exact quote", () => {
     expect(validate(current())).toEqual({
-      ok: true, relativePath: "notes/a.md", quote, excerpt: "Verified text",
+      ok: true,
+      relativePath: "notes/a.md",
+      quote,
+      excerpt: "Verified text",
       fileSha256: "a".repeat(64),
     });
   });
 
   it("rejects receipts issued for a different session or identifier", () => {
     expect(validate(current(), "another-session")).toEqual({ ok: false, reason: "forbidden" });
-    expect(validate(current({ receiptId: "evr_elsewhere" }))).toEqual({ ok: false, reason: "forbidden" });
-    expect(validate(current({ sessionId: "another-session" }))).toEqual({ ok: false, reason: "forbidden" });
+    expect(validate(current({ receiptId: "evr_elsewhere" }))).toEqual({
+      ok: false,
+      reason: "forbidden",
+    });
+    expect(validate(current({ sessionId: "another-session" }))).toEqual({
+      ok: false,
+      reason: "forbidden",
+    });
   });
 
   it("cannot use an absolute path, parent traversal or a malformed quote", () => {
-    for (const relativePath of ["../../outside.md", "/etc/passwd", "C:/secrets.md", "notes/../else.md", "notes\\a.md", "notes//a.md"]) {
+    for (const relativePath of [
+      "../../outside.md",
+      "/etc/passwd",
+      "C:/secrets.md",
+      "notes/../else.md",
+      "notes\\a.md",
+      "notes//a.md",
+    ]) {
       expect(validate(current({ relativePath }))).toEqual({ ok: false, reason: "forbidden" });
     }
     expect(validate(current({ fileSha256: "bad" }))).toEqual({
-      ok: false, reason: "forbidden",
+      ok: false,
+      reason: "forbidden",
     });
     for (const invalid of [
       { ...quote, startLine: 0 },
@@ -64,7 +81,10 @@ describe("Obsidian citation navigation authorization", () => {
 
   it("fails closed for stale/missing/forbidden or unavailable source", () => {
     for (const status of ["stale", "missing", "forbidden", "source_stale"] as const) {
-      const result = validate({ status, reason: null } as unknown as KnowledgeResolveCitationResult);
+      const result = validate({
+        status,
+        reason: null,
+      } as unknown as KnowledgeResolveCitationResult);
       expect(result).toEqual({
         ok: false,
         reason: status === "source_stale" ? "unavailable" : status,
@@ -73,17 +93,24 @@ describe("Obsidian citation navigation authorization", () => {
   });
   it("revokes a pending navigation when request, mount, Vault, session, workspace or service changes", () => {
     const baseline = {
-      requestActive: true, mounted: true,
-      originalVaultId: "vault-1", currentVaultId: "vault-1",
-      sessionId: "session-1", activeSessionId: "session-1",
-      workspaceKey: "/workspace-1", activeWorkspaceKey: "/workspace-1",
+      requestActive: true,
+      mounted: true,
+      originalVaultId: "vault-1",
+      currentVaultId: "vault-1",
+      sessionId: "session-1",
+      activeSessionId: "session-1",
+      workspaceKey: "/workspace-1",
+      activeWorkspaceKey: "/workspace-1",
       sameQueryService: true,
     };
     expect(isKnowledgeCitationScopeCurrent(baseline)).toBe(true);
     for (const changes of [
-      { requestActive: false }, { mounted: false },
-      { currentVaultId: "vault-2" }, { currentVaultId: null },
-      { activeSessionId: "session-2" }, { activeWorkspaceKey: "/workspace-2" },
+      { requestActive: false },
+      { mounted: false },
+      { currentVaultId: "vault-2" },
+      { currentVaultId: null },
+      { activeSessionId: "session-2" },
+      { activeWorkspaceKey: "/workspace-2" },
       { sameQueryService: false },
     ]) {
       expect(isKnowledgeCitationScopeCurrent({ ...baseline, ...changes })).toBe(false);
@@ -93,8 +120,10 @@ describe("Obsidian citation navigation authorization", () => {
     const tracker = createKnowledgeCitationScopeEpoch();
     const service = {};
     const vaultA = {
-      sessionId: "session-1", workspaceKey: "/workspace",
-      vaultId: "vault-a", queryService: service,
+      sessionId: "session-1",
+      workspaceKey: "/workspace",
+      vaultId: "vault-a",
+      queryService: service,
     };
     const original = tracker.observe(vaultA);
     expect(tracker.observe(vaultA)).toBe(original);
@@ -119,7 +148,9 @@ describe("Obsidian citation navigation authorization", () => {
   it("invalidates pending opens when replacing the query service without changing the Vault", () => {
     const tracker = createKnowledgeCitationScopeEpoch();
     const scope = {
-      sessionId: "session-1", workspaceKey: "/workspace", vaultId: "vault-a",
+      sessionId: "session-1",
+      workspaceKey: "/workspace",
+      vaultId: "vault-a",
       queryService: {},
     };
     const captured = tracker.observe(scope);
@@ -148,14 +179,24 @@ describe("Obsidian citation navigation authorization", () => {
     const endOffset = "Intro\nAlpha   original".length;
     const position = { startLine: 2, endLine: 2, startOffset, endOffset };
     expect(matchesKnowledgeCitationReadback(original, position, "Alpha original")).toBe(true);
-    expect(matchesKnowledgeCitationReadback(
-      "Intro\r\nAlpha   replaced\r\nTrailing", position, "Alpha original",
-    )).toBe(false);
-    expect(matchesKnowledgeCitationReadback("Intro\nAlpha", position, "Alpha original")).toBe(false);
+    expect(
+      matchesKnowledgeCitationReadback(
+        "Intro\r\nAlpha   replaced\r\nTrailing",
+        position,
+        "Alpha original",
+      ),
+    ).toBe(false);
+    expect(matchesKnowledgeCitationReadback("Intro\nAlpha", position, "Alpha original")).toBe(
+      false,
+    );
     expect(matchesKnowledgeCitationReadback(original, position, "")).toBe(false);
-    expect(matchesKnowledgeCitationReadback(
-      original, { ...position, endOffset: 10_000 }, "Alpha original",
-    )).toBe(false);
+    expect(
+      matchesKnowledgeCitationReadback(
+        original,
+        { ...position, endOffset: 10_000 },
+        "Alpha original",
+      ),
+    ).toBe(false);
   });
 
   it("rejects changes outside the quote when the full-file SHA no longer matches", () => {
@@ -168,23 +209,47 @@ describe("Obsidian citation navigation authorization", () => {
     const changedOutsideQuote = `${original}\n${"tail changed ".repeat(40)}`;
     const changedSha = createHash("sha256").update(changedOutsideQuote).digest("hex");
 
-    expect(matchesKnowledgeCitationFileReadback(
-      original, position, expectedExcerpt, expectedSha, expectedSha,
-    )).toBe(true);
+    expect(
+      matchesKnowledgeCitationFileReadback(
+        original,
+        position,
+        expectedExcerpt,
+        expectedSha,
+        expectedSha,
+      ),
+    ).toBe(true);
     // The quoted slice still matches, but any mutation elsewhere in the file
     // must fail the independent second-read validation.
-    expect(matchesKnowledgeCitationReadback(
-      changedOutsideQuote, position, expectedExcerpt,
-    )).toBe(true);
-    expect(matchesKnowledgeCitationFileReadback(
-      changedOutsideQuote, position, expectedExcerpt, changedSha, expectedSha,
-    )).toBe(false);
-    expect(matchesKnowledgeCitationFileReadback(
-      original, position, expectedExcerpt, "b".repeat(64), expectedSha,
-    )).toBe(false);
-    expect(matchesKnowledgeCitationFileReadback(
-      original, position, "different excerpt", expectedSha, expectedSha,
-    )).toBe(false);
+    expect(matchesKnowledgeCitationReadback(changedOutsideQuote, position, expectedExcerpt)).toBe(
+      true,
+    );
+    expect(
+      matchesKnowledgeCitationFileReadback(
+        changedOutsideQuote,
+        position,
+        expectedExcerpt,
+        changedSha,
+        expectedSha,
+      ),
+    ).toBe(false);
+    expect(
+      matchesKnowledgeCitationFileReadback(
+        original,
+        position,
+        expectedExcerpt,
+        "b".repeat(64),
+        expectedSha,
+      ),
+    ).toBe(false);
+    expect(
+      matchesKnowledgeCitationFileReadback(
+        original,
+        position,
+        "different excerpt",
+        expectedSha,
+        expectedSha,
+      ),
+    ).toBe(false);
   });
 
   it("matches long/truncated excerpts using exactly the Receipt producer projection", () => {
@@ -193,9 +258,12 @@ describe("Obsidian citation navigation authorization", () => {
     const position = { startLine: 2, endLine: 2, startOffset: 7, endOffset: 7 + quoteText.length };
     const expected = quoteText.trim().slice(0, 240) + "…";
     expect(matchesKnowledgeCitationReadback(full, position, expected)).toBe(true);
-    expect(matchesKnowledgeCitationReadback(
-      "header\n" + "damage " + quoteText.slice(7) + "\nfooter", position, expected,
-    )).toBe(false);
+    expect(
+      matchesKnowledgeCitationReadback(
+        "header\n" + "damage " + quoteText.slice(7) + "\nfooter",
+        position,
+        expected,
+      ),
+    ).toBe(false);
   });
-
 });

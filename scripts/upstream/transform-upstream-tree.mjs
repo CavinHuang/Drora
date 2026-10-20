@@ -128,7 +128,9 @@ export const transformContent = (s) => unprotect(applyRules(protect(s)));
 export const mapRelPath = (rel) =>
   rel
     .split("/")
-    .map((seg) => (SEGMENT_PREFIX_KEEP.some((p) => seg.startsWith(p)) ? seg : transformContent(seg)))
+    .map((seg) =>
+      SEGMENT_PREFIX_KEEP.some((p) => seg.startsWith(p)) ? seg : transformContent(seg),
+    )
     .join("/");
 
 export const zoneOf = (rel) =>
@@ -139,12 +141,50 @@ export const zoneOf = (rel) =>
       : "normal";
 
 const BINARY_EXT = new Set([
-  ".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", ".webp", ".avif", ".bmp",
-  ".woff", ".woff2", ".ttf", ".otf", ".eot",
-  ".node", ".dll", ".dylib", ".so", ".exe", ".bin", ".wasm",
-  ".zip", ".gz", ".tgz", ".7z", ".tar", ".br", ".xz",
-  ".mp4", ".webm", ".mov", ".mp3", ".wav", ".ogg", ".flac", ".aac",
-  ".pdf", ".docx", ".xlsx", ".pptx", ".jar", ".class", ".pkl", ".onnx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".ico",
+  ".icns",
+  ".webp",
+  ".avif",
+  ".bmp",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+  ".node",
+  ".dll",
+  ".dylib",
+  ".so",
+  ".exe",
+  ".bin",
+  ".wasm",
+  ".zip",
+  ".gz",
+  ".tgz",
+  ".7z",
+  ".tar",
+  ".br",
+  ".xz",
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".flac",
+  ".aac",
+  ".pdf",
+  ".docx",
+  ".xlsx",
+  ".pptx",
+  ".jar",
+  ".class",
+  ".pkl",
+  ".onnx",
 ]);
 
 const isTransformableText = (buf, filename) => {
@@ -163,7 +203,9 @@ const isTransformableText = (buf, filename) => {
 export function transformTree(ref, outDir) {
   const tmpExtract = fs.mkdtempSync("/tmp/upstream-extract-");
   const tarPath = path.join(tmpExtract, "tree.tar");
-  execFileSync("sh", ["-c", `git archive '${ref}' > '${tarPath}'`], { maxBuffer: 64 * 1024 * 1024 });
+  execFileSync("sh", ["-c", `git archive '${ref}' > '${tarPath}'`], {
+    maxBuffer: 64 * 1024 * 1024,
+  });
   execFileSync("tar", ["-x", "-f", tarPath, "-C", tmpExtract]);
   fs.rmSync(tarPath);
 

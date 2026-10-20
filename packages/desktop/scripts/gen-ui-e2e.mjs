@@ -120,10 +120,18 @@ await promisify(execFile)("python3", [
   join(output, "standalone-fragment.html"),
   join(output, "standalone.html"),
 ]);
-const child = spawn(require("electron"), [join(output, "main.cjs"), output, ...(process.env.DRORA_E2E_NO_SANDBOX === "1" ? ["--no-sandbox"] : [])], {
-  stdio: "inherit",
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
-});
+const child = spawn(
+  require("electron"),
+  [
+    join(output, "main.cjs"),
+    output,
+    ...(process.env.DRORA_E2E_NO_SANDBOX === "1" ? ["--no-sandbox"] : []),
+  ],
+  {
+    stdio: "inherit",
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
+  },
+);
 const exitCode = await new Promise((resolveExit, reject) => {
   child.on("error", reject);
   child.on("exit", (code) => resolveExit(code ?? 1));

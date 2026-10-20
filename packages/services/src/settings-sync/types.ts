@@ -1,7 +1,4 @@
-import type {
-  SettingsSyncAgent,
-  SettingsSyncCategory,
-} from "@drora/shared";
+import type { SettingsSyncAgent, SettingsSyncCategory } from "@drora/shared";
 
 export interface SettingsSyncSourceItem {
   id: string;

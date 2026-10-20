@@ -19,10 +19,12 @@ import type {
 export type KnowledgeAskIntent = "find" | "answer" | "compare";
 export type KnowledgeAskIntentChoice = "auto" | KnowledgeAskIntent;
 
-const COMPARE_PATTERN = /(比较|对比|区别|差异|不同点|差别|对比一下|\bcompare\b|\bversus\b|\bvs\.?\b)/i;
+const COMPARE_PATTERN =
+  /(比较|对比|区别|差异|不同点|差别|对比一下|\bcompare\b|\bversus\b|\bvs\.?\b)/i;
 const ANSWER_PATTERN =
   /(为什么|如何|怎么|怎样|是什么|指的是|总结|解释|说明一下|请问|问一下|意味着|\bwhat\b|\bhow\b|\bwhy\b|\bexplain\b|\bsummar)/i;
-const FIND_PATTERN = /(找到|找出|哪篇|哪个文件|哪一条|那篇|文章|笔记|标题|记得|写过|收藏|摘录|\bfind\b|\bwhich\b|\bremember\b)/i;
+const FIND_PATTERN =
+  /(找到|找出|哪篇|哪个文件|哪一条|那篇|文章|笔记|标题|记得|写过|收藏|摘录|\bfind\b|\bwhich\b|\bremember\b)/i;
 
 /**
  * auto 意图的启发式分类。顺序即优先级：比较 > 问内容 > 找文章；
@@ -36,7 +38,10 @@ export function detectAskIntentHint(query: string): KnowledgeAskIntent {
 }
 
 /** 用户手选优先（PRD J1：IntentPolicy + 用户手选优先）；auto 才走启发式。 */
-export function resolveAskIntent(choice: KnowledgeAskIntentChoice, query: string): KnowledgeAskIntent {
+export function resolveAskIntent(
+  choice: KnowledgeAskIntentChoice,
+  query: string,
+): KnowledgeAskIntent {
   return choice === "auto" ? detectAskIntentHint(query) : choice;
 }
 
@@ -137,7 +142,10 @@ function runIsSettled(run: KnowledgeRunView): boolean {
   return run.status !== "retrieving";
 }
 
-export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAskAction): KnowledgeAskState {
+export function reduceKnowledgeAsk(
+  state: KnowledgeAskState,
+  action: KnowledgeAskAction,
+): KnowledgeAskState {
   switch (action.type) {
     case "scopeReset":
       return createInitialKnowledgeAskState();
@@ -208,7 +216,12 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       return { ...state, phase: "failed", error: action.message, pendingSubmit: null };
     }
     case "cancelSucceeded": {
-      if (!state.current || state.current.run.runId !== action.runId || state.phase !== "retrieving") return state;
+      if (
+        !state.current ||
+        state.current.run.runId !== action.runId ||
+        state.phase !== "retrieving"
+      )
+        return state;
       // 取消只停止 in-flight；保留本轮已有的候选展示（PRD：取消不清空上次可用结果）。
       return {
         ...state,
@@ -219,7 +232,10 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
     case "expandCandidates":
       return { ...state, visibleCandidateLimit: Math.max(1, action.limit) };
     case "candidateSelected": {
-      if ((state.current?.intent === "compare" || state.current?.intent === "answer") && action.articleId) {
+      if (
+        (state.current?.intent === "compare" || state.current?.intent === "answer") &&
+        action.articleId
+      ) {
         const alreadySelected = state.selectedArticleIds.includes(action.articleId);
         if (!alreadySelected && state.selectedArticleIds.length >= MAX_KNOWLEDGE_HANDOFF_SOURCES) {
           return state;
@@ -232,7 +248,10 @@ export function reduceKnowledgeAsk(state: KnowledgeAskState, action: KnowledgeAs
       return { ...state, selectedArticleId: action.articleId, selectedArticleIds: [] };
     }
     case "evidenceChecking":
-      return { ...state, evidence: { ...state.evidence, [action.articleId]: { phase: "checking" } } };
+      return {
+        ...state,
+        evidence: { ...state.evidence, [action.articleId]: { phase: "checking" } },
+      };
     case "evidenceResolved":
       return { ...state, evidence: { ...state.evidence, [action.articleId]: action.state } };
     default:
@@ -276,7 +295,8 @@ export type KnowledgeAskOutcome =
   | "cancelled";
 
 export function getAskOutcome(state: KnowledgeAskState): KnowledgeAskOutcome {
-  if (state.phase === "idle" || state.phase === "failed") return state.phase === "failed" ? "failed" : "idle";
+  if (state.phase === "idle" || state.phase === "failed")
+    return state.phase === "failed" ? "failed" : "idle";
   const round = state.current;
   if (!round) return state.phase === "submitting" ? "submitting" : "idle";
   if (state.phase === "submitting") return "submitting";
@@ -332,11 +352,14 @@ export interface KnowledgeIndexColdStart {
  * 冷启动引导判定（结果区引导块与状态条 indexMissing/indexing 共用同一来源，
  * 避免两处条件漂移）。未配置 vault 两态皆 false——noVault 既有语义不变（A01）。
  */
-export function deriveIndexColdStart(indexStatus: KnowledgeIndexStatus | null): KnowledgeIndexColdStart {
+export function deriveIndexColdStart(
+  indexStatus: KnowledgeIndexStatus | null,
+): KnowledgeIndexColdStart {
   const building = indexStatus?.job?.status === "running";
   return {
     building,
-    needsBuild: Boolean(indexStatus?.configured) && indexStatus?.coverage.indexedFiles === 0 && !building,
+    needsBuild:
+      Boolean(indexStatus?.configured) && indexStatus?.coverage.indexedFiles === 0 && !building,
   };
 }
 
@@ -365,7 +388,10 @@ export function deriveAskBanners(params: {
   const diagnostics = state.current?.run.diagnostics ?? null;
   if (diagnostics?.matchRelaxedToOr) banners.push("expandedSearch");
   // Jev 默认关闭（W05 前不存在请求）：有候选展示时提示一次本地排序语义，低噪音。
-  if ((outcome === "ready" || outcome === "partial") && (state.current?.run.candidates.length ?? 0) > 0) {
+  if (
+    (outcome === "ready" || outcome === "partial") &&
+    (state.current?.run.candidates.length ?? 0) > 0
+  ) {
     banners.push("jevOff");
   }
   // 无会话时问内容/比较的答案入口不可用（A18：检索仍可用）。

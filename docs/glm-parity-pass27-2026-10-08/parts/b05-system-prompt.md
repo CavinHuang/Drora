@@ -16,26 +16,27 @@
 
 主链路段（按 build() 压入顺序；偏移为 builder 函数/特征串首字节）：
 
-| # | 段名 / source | 偏移 | 注入 | cache | 条件 | 特征词 |
-|---|---|---|---|---|---|---|
-| 1 | CLI Prefix / cli_prefix | 4827570 | system | stable | 非 workflowActor | "You are ZCode, an interactive coding agent" |
-| 2a | Agent Identity / identity | 4828484 | system | stable | 默认路径 | "interactive ZCode agent"、安全 IMPORTANT 行、"# Harness"（5 条） |
-| 2b | Custom System Prompt / custom_system_prompt | 4831947 附近 | system | stable | 有自定义 prompt 时替换 2a | 内容前缀 `\n` |
-| 2c | Workflow Actor Identity / workflow_actor_identity | 4830407/4831735 | system | stable | workflowActor 路径 | "# Working inside a workflow"、submit_result/escalate、"no tool that asks a person anything" |
-| 3 | ZCode Desktop Context / desktop_context | 4881573 | system | stable | !workflowActor 且 surface=zcode_desktop | "### Files & URLs"、::code-comment{ |
-| 4 | Dynamic Behavior / dynamic_behavior | 4884960 附近 | system | dynamic | !workflowActor | "# Communicating with the user"、"You are operating autonomously"、"hard to reverse or outward-facing" |
-| 5 | Session-specific guidance / session_guidance | 4884887 附近 | system | dynamic | 空则不建 | "/<skill-name>"、user-invocable skills section |
-| 6 | Memory / memory | 4879139 | system | dynamic | 有 memoryRoot | "# Memory"、persistent file-based memory、MEMORY.md pointer 段 |
-| 7 | Environment Info / env_info | 4832281 | system | dynamic | 恒有 | "# Environment"、Primary working directory/Is a git repository/Platform/Shell/OS Version、可选 "You are powered by the model named provider/model." |
-| 8 | Output Style / output_style | 4885050 附近 | system | dynamic | 有 outputStyle | "# Output Style: <name>" |
-| 9 | Context Management / context_management | 4885083 附近 | system | dynamic | 恒有 | "# Context management"、re-litigate、wrap up early |
-| 10 | System Context / system_context | 4832667 附近 | system | dynamic | isGitRepository | "gitStatus: This is the git status..."、Current branch/Main branch/Git user/Status/Recent commits |
-| 11 | Skills / skills | 4833560 附近 | meta_user | dynamic | 有 skills 且 Skill 工具可用 | "The following skills are available for use with the Skill tool:"、预算 2e4、描述截 250 |
-| 12 | Request User Context / request_user_context | 4875xxx | meta_user | dynamic | 有指令或 memory index | "# agentsMd"、"OVERRIDE any default behavior"、MEMORY.md 索引（200 行/25000 字符 + WARNING） |
-| 13 | Current Date / current_date | 4878916 | meta_user | dynamic | 有日期 | "# currentDate\nToday's date is ..." |
-| 14 | customSections（addSection） | 4890538 | 可选 | 可选 | 调用方 | — |
+| #   | 段名 / source                                     | 偏移            | 注入      | cache   | 条件                                    | 特征词                                                                                                                                              |
+| --- | ------------------------------------------------- | --------------- | --------- | ------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | CLI Prefix / cli_prefix                           | 4827570         | system    | stable  | 非 workflowActor                        | "You are ZCode, an interactive coding agent"                                                                                                        |
+| 2a  | Agent Identity / identity                         | 4828484         | system    | stable  | 默认路径                                | "interactive ZCode agent"、安全 IMPORTANT 行、"# Harness"（5 条）                                                                                   |
+| 2b  | Custom System Prompt / custom_system_prompt       | 4831947 附近    | system    | stable  | 有自定义 prompt 时替换 2a               | 内容前缀 `\n`                                                                                                                                       |
+| 2c  | Workflow Actor Identity / workflow_actor_identity | 4830407/4831735 | system    | stable  | workflowActor 路径                      | "# Working inside a workflow"、submit_result/escalate、"no tool that asks a person anything"                                                        |
+| 3   | ZCode Desktop Context / desktop_context           | 4881573         | system    | stable  | !workflowActor 且 surface=zcode_desktop | "### Files & URLs"、::code-comment{                                                                                                                 |
+| 4   | Dynamic Behavior / dynamic_behavior               | 4884960 附近    | system    | dynamic | !workflowActor                          | "# Communicating with the user"、"You are operating autonomously"、"hard to reverse or outward-facing"                                              |
+| 5   | Session-specific guidance / session_guidance      | 4884887 附近    | system    | dynamic | 空则不建                                | "/<skill-name>"、user-invocable skills section                                                                                                      |
+| 6   | Memory / memory                                   | 4879139         | system    | dynamic | 有 memoryRoot                           | "# Memory"、persistent file-based memory、MEMORY.md pointer 段                                                                                      |
+| 7   | Environment Info / env_info                       | 4832281         | system    | dynamic | 恒有                                    | "# Environment"、Primary working directory/Is a git repository/Platform/Shell/OS Version、可选 "You are powered by the model named provider/model." |
+| 8   | Output Style / output_style                       | 4885050 附近    | system    | dynamic | 有 outputStyle                          | "# Output Style: <name>"                                                                                                                            |
+| 9   | Context Management / context_management           | 4885083 附近    | system    | dynamic | 恒有                                    | "# Context management"、re-litigate、wrap up early                                                                                                  |
+| 10  | System Context / system_context                   | 4832667 附近    | system    | dynamic | isGitRepository                         | "gitStatus: This is the git status..."、Current branch/Main branch/Git user/Status/Recent commits                                                   |
+| 11  | Skills / skills                                   | 4833560 附近    | meta_user | dynamic | 有 skills 且 Skill 工具可用             | "The following skills are available for use with the Skill tool:"、预算 2e4、描述截 250                                                             |
+| 12  | Request User Context / request_user_context       | 4875xxx         | meta_user | dynamic | 有指令或 memory index                   | "# agentsMd"、"OVERRIDE any default behavior"、MEMORY.md 索引（200 行/25000 字符 + WARNING）                                                        |
+| 13  | Current Date / current_date                       | 4878916         | meta_user | dynamic | 有日期                                  | "# currentDate\nToday's date is ..."                                                                                                                |
+| 14  | customSections（addSection）                      | 4890538         | 可选      | 可选    | 调用方                                  | —                                                                                                                                                   |
 
 组装逻辑（与段落同权重对照）：
+
 - `orderSectionsForInjection`(QKs)：system-stable → system-dynamic → meta_user-stable → meta_user-dynamic。
 - `assembleSystemMessages`：3 条 system message——cli_prefix 单独一条、其余 stable 一条、dynamic 一条且内容前缀 `\n\n`；全部带 `{type:"ephemeral"}` cacheControl。
 - `assembleMetaUserAttachments`：skills_listing（裸内容）+ context_prefix（"As you answer the user's questions, you can use the following context:" + 6 空格缩进 "IMPORTANT: this context may or may not be relevant..." 包裹）。
@@ -59,15 +60,15 @@
 
 双向特征串验证：真值 21+14+14+20 条特征串全部命中；反向仅下述差异。
 
-| 编号 | 分类 | 级别 | 段 | 差异 | 证据 |
-|---|---|---|---|---|---|
-| D1 | REAL-GAP | P3 | Memory | 我方缺尾部一句：召回记忆在 system-reminder 中属背景、命名文件/函数/flag 需先验证存在（"verify it still exists before recommending it"）。真值 "Before saving" 段比我方长一句 | grep 命中真值 1 次；我方 memory.ts 无此句 |
-| D2 | SHAPE-DIFF | P3 | Memory | 真值 builder 带 retrieval-branch 参数（default-index/semantic-recall），硬编码 default-index；我方无参数、恒输出 default-index 内容。当前行为等价 | 真值 `ZKs(!1)`；我方 buildMemorySection 单参 |
-| D3 | SHAPE-DIFF | P3 | Memory | 有意改名：真值 "CLAUDE.md" → 我方 "AGENTS.md"（"Don't save what the repo already records (...)" 句内） | 双方各 1 处 |
-| D4 | SHAPE-DIFF | P3 | 全部 | 有意改名：ZCode→Drora（CLI prefix、identity 开场句、desktop 段标题、general-purpose/Explore prompt、presentationSurface 值 zcode_desktop→drora_desktop） | 逐段比对 |
-| D5 | EXTRA | P3 | env-info | 我方死常量 GIT_LABEL="Git"、NOT_A_GIT_REPOSITORY="not a git repository"，真值无；两常量定义后未被引用 | grep 仅命中定义行 |
-| D6 | EXTRA | P3(注) | session_guidance | 我方 buildSessionGuidanceSection 内有注释掉的 Agent/AskUserQuestion 指导块（真值 Fno 亦无此二者）；纯注释，无行为差 | dynamic-sections.ts 注释块 |
-| D7 | SHAPE-DIFF | P3 | subagent env | 我方 buildSubagentEnvironmentContext 多收 agentPrompt 参数但不使用；真值 fSo 同样收而不解构。等价 | 双方签名对照 |
+| 编号 | 分类       | 级别   | 段               | 差异                                                                                                                                                                         | 证据                                         |
+| ---- | ---------- | ------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| D1   | REAL-GAP   | P3     | Memory           | 我方缺尾部一句：召回记忆在 system-reminder 中属背景、命名文件/函数/flag 需先验证存在（"verify it still exists before recommending it"）。真值 "Before saving" 段比我方长一句 | grep 命中真值 1 次；我方 memory.ts 无此句    |
+| D2   | SHAPE-DIFF | P3     | Memory           | 真值 builder 带 retrieval-branch 参数（default-index/semantic-recall），硬编码 default-index；我方无参数、恒输出 default-index 内容。当前行为等价                            | 真值 `ZKs(!1)`；我方 buildMemorySection 单参 |
+| D3   | SHAPE-DIFF | P3     | Memory           | 有意改名：真值 "CLAUDE.md" → 我方 "AGENTS.md"（"Don't save what the repo already records (...)" 句内）                                                                       | 双方各 1 处                                  |
+| D4   | SHAPE-DIFF | P3     | 全部             | 有意改名：ZCode→Drora（CLI prefix、identity 开场句、desktop 段标题、general-purpose/Explore prompt、presentationSurface 值 zcode_desktop→drora_desktop）                     | 逐段比对                                     |
+| D5   | EXTRA      | P3     | env-info         | 我方死常量 GIT_LABEL="Git"、NOT_A_GIT_REPOSITORY="not a git repository"，真值无；两常量定义后未被引用                                                                        | grep 仅命中定义行                            |
+| D6   | EXTRA      | P3(注) | session_guidance | 我方 buildSessionGuidanceSection 内有注释掉的 Agent/AskUserQuestion 指导块（真值 Fno 亦无此二者）；纯注释，无行为差                                                          | dynamic-sections.ts 注释块                   |
+| D7   | SHAPE-DIFF | P3     | subagent env     | 我方 buildSubagentEnvironmentContext 多收 agentPrompt 参数但不使用；真值 fSo 同样收而不解构。等价                                                                            | 双方签名对照                                 |
 
 文案微差清单（≤20 字摘，除上述外逐段无）：无。Dynamic Behavior/Context Management/Identity/Harness/Desktop/Skills/Request User Context/Current Date/System Context/Subagent Notes 及 meta_user 包裹文案均逐字一致（转义形态 \u2014 vs 字面 — 不影响运行时字符串）。
 

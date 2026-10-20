@@ -4,14 +4,14 @@
 
 ## 结局总表（段×结局）
 
-| 段 | total | take-theirs | new | clean-merge | delete | conflict | 决策类 | zone-decision |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| S1 根配置+shared/rpc | 166 | 84 | 45 | 16 | 6 | 13 | 0 | 2 |
-| S2 drora-cli | 829 | 498 | 232 | 56 | 8 | 31 | 0 | 4 |
-| S3 services/server/… | 430 | 222 | 161 | 20 | 18 | 9 | 0 | 0 |
-| S4 desktop | 1129 | 487 | 583 | 14 | 24 | 18 | 3 | 0 |
-| S5 ui/web | 1594 | 784 | 477 | 28 | 274 | 24 | 7 | 0 |
-| S6 cua/docs/scripts/资产 | 398 | 155 | 198 | 14 | 5 | 13 | 1 | 12 |
+| 段                       | total | take-theirs | new | clean-merge | delete | conflict | 决策类 | zone-decision |
+| ------------------------ | ----- | ----------- | --- | ----------- | ------ | -------- | ------ | ------------- |
+| S1 根配置+shared/rpc     | 166   | 84          | 45  | 16          | 6      | 13       | 0      | 2             |
+| S2 drora-cli             | 829   | 498         | 232 | 56          | 8      | 31       | 0      | 4             |
+| S3 services/server/…     | 430   | 222         | 161 | 20          | 18     | 9        | 0      | 0             |
+| S4 desktop               | 1129  | 487         | 583 | 14          | 24     | 18       | 3      | 0             |
+| S5 ui/web                | 1594  | 784         | 477 | 28          | 274    | 24       | 7      | 0             |
+| S6 cua/docs/scripts/资产 | 398   | 155         | 198 | 14          | 5      | 13       | 1      | 12            |
 
 决策面 = conflict 108 + theirs-modify-ours-deleted 3 + delete-decision 8 + zone-decision 18 = **137 条**；其余 4409 条机械落地（take-theirs 2230 / new 1696 / clean-merge 148 / delete 335）。
 
@@ -26,7 +26,7 @@
 ## 跨段耦合对（落地顺序约束）
 
 0. **已发生的 S6→S1 提前落地**（S1 核查三补记）：`patches/@radix-ui__react-collapsible@1.1.12.patch`（package.json patchedDependencies 引用，缺文件 pnpm install 必败）；`.oxlintrc.json`（max-lines 800 上限提前，还原区精细豁免保留、上游整目录 packages/zcode-cua 豁免不采纳）。S6 执行时此二项标记已落地。
-1. S1 shared/web-remote-control.ts（V2 契约）↔ S4 webRemoteControlManager/windowRemoteConnectionRegistry ↔ S5 WebRemoteControl* 删除族——R1 链，S5 七条必须与新模块同批。
+1. S1 shared/web-remote-control.ts（V2 契约）↔ S4 webRemoteControlManager/windowRemoteConnectionRegistry ↔ S5 WebRemoteControl\* 删除族——R1 链，S5 七条必须与新模块同批。
 2. S1 channels/clientConfig/validation ↔ S2 protocol-v4 handlers ↔ S5 SettingsPage 家族。
 3. S3 services/index/node/droraTaskIndexSyncer ↔ S4 host/index.ts ↔ S5 webRemoteControlTaskIndex 删除族（task-index 契约链）。
 4. S6 prepare-prebuilds（keep-ours）↔ S4 desktop/package.json（prepare 引用）。
@@ -34,10 +34,10 @@
 
 ## S1 执行补记（核查后修复，4f814061 + fixup）
 
-- 决策：`build:web-remote-control`/:v3/:v4 三脚本随上游删除（部署已走 server-cli `prepare:remote-assets`，docker 独立脚本不存在，仅 docs/web-remote-control/*.md 文档引用——S6 文档段更新）。
+- 决策：`build:web-remote-control`/:v3/:v4 三脚本随上游删除（部署已走 server-cli `prepare:remote-assets`，docker 独立脚本不存在，仅 docs/web-remote-control/\*.md 文档引用——S6 文档段更新）。
 - 恢复：`packages/rpc/test/network-telemetry-middleware.test.ts`（自研模块测试，上游删其测试但 Drora 保留模块源码与 services 消费方）。
 - 清理：desktop/src/scheduler/schedulerProtocol.{js,js.map}（typecheck 构建污染；.d.ts/.d.ts.map 系 780721e7 既有跟踪产物，非污染）。
-- 待办登记：R2 `build-drora.mjs` 注入 `__DRORA_MIN_COMPATIBLE_VERSION__`（当前 fallback=DRORA_VERSION，S7 前实现）；`workflowBlocked` _meta 键是否归敛 shared/contracts 常量（S2/S3 评估）；全仓 fmt 基线 729 文件未过，S7 统一 `pnpm fmt`。
+- 待办登记：R2 `build-drora.mjs` 注入 `__DRORA_MIN_COMPATIBLE_VERSION__`（当前 fallback=DRORA_VERSION，S7 前实现）；`workflowBlocked` \_meta 键是否归敛 shared/contracts 常量（S2/S3 评估）；全仓 fmt 基线 729 文件未过，S7 统一 `pnpm fmt`。
 - 已知跨段破坏（S1 契约先行）：全仓 typecheck 426 error（ui 401/web 16/services 8/client 1），清单 /tmp/dryrun/s1-cross-breakage.txt，S3/S5 收口。
 
 ## S2 执行补记

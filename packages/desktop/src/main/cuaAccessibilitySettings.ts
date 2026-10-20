@@ -220,9 +220,11 @@ function toInstallerLogger(
   if (!logger) return undefined;
   return {
     debug: (_traceId: string | undefined, ...args: unknown[]) => logger.debug?.(...args),
-    info: (_traceId: string | undefined, ...args: unknown[]) => (logger.info ?? logger.warn)(...args),
+    info: (_traceId: string | undefined, ...args: unknown[]) =>
+      (logger.info ?? logger.warn)(...args),
     warn: (_traceId: string | undefined, ...args: unknown[]) => logger.warn(...args),
-    error: (_traceId: string | undefined, ...args: unknown[]) => (logger.error ?? logger.warn)(...args),
+    error: (_traceId: string | undefined, ...args: unknown[]) =>
+      (logger.error ?? logger.warn)(...args),
   };
 }
 

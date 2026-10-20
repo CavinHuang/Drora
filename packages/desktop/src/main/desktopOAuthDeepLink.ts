@@ -411,7 +411,11 @@ export function registerDeepLinkProtocol(
   if (process.defaultApp && process.argv.length >= 2) {
     const entry = resolve(process.argv[1]!);
     for (const scheme of schemes) {
-      const ok = app.setAsDefaultProtocolClient(scheme, process.execPath, process.platform === "win32" ? [entry, "--"] : [entry]);
+      const ok = app.setAsDefaultProtocolClient(
+        scheme,
+        process.execPath,
+        process.platform === "win32" ? [entry, "--"] : [entry],
+      );
       if (!ok) {
         logger.warn("[deep-link] 注册协议失败（defaultApp）", {
           scheme,
@@ -430,9 +434,10 @@ export function registerDeepLinkProtocol(
   }
 
   for (const scheme of schemes) {
-    const ok = process.platform === "win32"
-      ? app.setAsDefaultProtocolClient(scheme, process.execPath, ["--"])
-      : app.setAsDefaultProtocolClient(scheme);
+    const ok =
+      process.platform === "win32"
+        ? app.setAsDefaultProtocolClient(scheme, process.execPath, ["--"])
+        : app.setAsDefaultProtocolClient(scheme);
     if (!ok) {
       logger.warn("[deep-link] 注册协议失败", { scheme });
     } else {

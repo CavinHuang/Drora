@@ -8558,7 +8558,8 @@ const enUS: Record<string, string> = {
   "settings.knowledge.testConnection.ok": "Connected",
   "settings.knowledge.testConnection.failed": "Connection failed",
   "settings.desktopPetCharacter": "Pet character",
-  "settings.desktopPetCharacterDescription": "Choose a built-in character or a Codex-compatible custom pet.",
+  "settings.desktopPetCharacterDescription":
+    "Choose a built-in character or a Codex-compatible custom pet.",
   "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Follow task activity on the desktop. Click to view tasks, drag to move, or right-click for options.",
@@ -8682,9 +8683,12 @@ const enUS: Record<string, string> = {
   "settings.desktopPet.export": "Export",
   "settings.desktopPet.delete": "Delete",
   "settings.desktopPet.unavailable": "Pet unavailable",
-  "settings.desktopPet.compatibility": "Every pet uses the Codex format. Import pet.json (v1/v2), legacy avatar.json or a spritesheet directly; v2 adds 16-direction pointer following. Built-ins also export as standard pet packs.",
-  "settings.desktopPet.error": "Pet operation failed. Check the artwork format, dimensions and file permissions, then retry.",
-  "settings.desktopPet.invalid": "{count} pet folders could not be loaded. Check their manifests and spritesheets.",
+  "settings.desktopPet.compatibility":
+    "Every pet uses the Codex format. Import pet.json (v1/v2), legacy avatar.json or a spritesheet directly; v2 adds 16-direction pointer following. Built-ins also export as standard pet packs.",
+  "settings.desktopPet.error":
+    "Pet operation failed. Check the artwork format, dimensions and file permissions, then retry.",
+  "settings.desktopPet.invalid":
+    "{count} pet folders could not be loaded. Check their manifests and spritesheets.",
 };
 
 export default enUS;

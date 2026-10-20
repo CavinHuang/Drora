@@ -116,7 +116,8 @@ export function exposeWindowHostAttachmentServices(params: {
     // 别名开关与白名单同时生效：collection.ts 会先按 allowedChannels 过滤再挂 zcode-* 别名。
     params.officialChannelAliases
       ? {
-          allowedChannels: resolveWindowHostServiceExposurePolicy(params.clientMode)?.allowedChannels,
+          allowedChannels: resolveWindowHostServiceExposurePolicy(params.clientMode)
+            ?.allowedChannels,
           officialChannelAliases: true,
         }
       : resolveWindowHostServiceExposurePolicy(params.clientMode),

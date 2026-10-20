@@ -22,8 +22,10 @@ export function cleanMarkdownForEmbedding(body: string): string {
   text = text.replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1");
   text = text.replace(/!\[\[([^\]|]+)(\|[^\]]*)?\]\]/gu, "$1");
   // wikilink [[target|alias]] → alias 优先（别名是作者写给读者的措辞）。
-  text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/gu, (_match, target: string, alias?: string) =>
-    alias !== undefined && alias.trim().length > 0 ? alias : target,
+  text = text.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/gu,
+    (_match, target: string, alias?: string) =>
+      alias !== undefined && alias.trim().length > 0 ? alias : target,
   );
   // markdown 链接 [text](url) → text（URL 是嵌入噪声）。
   text = text.replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1");

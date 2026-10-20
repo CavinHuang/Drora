@@ -2,10 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { DroraTaskMeta } from "@drora/shared";
-import {
-  MemoTaskItem,
-  shouldShowRemoteConnectionOverlay,
-} from "@/TaskListItem.js";
+import { MemoTaskItem, shouldShowRemoteConnectionOverlay } from "@/TaskListItem.js";
 
 vi.mock("@/useTaskListItemContextActions.js", () => ({
   useTaskListItemContextActions: () => ({
@@ -26,8 +23,7 @@ function renderRemoteTask(variant: "default" | "timeline") {
     traceId: "remote-trace",
     title: "Remote task",
     workspacePath: "/home/dev/.drora/workspace/default",
-    workspaceIdentity:
-      "remote:server:source-1:/home/dev/.drora/workspace/default",
+    workspaceIdentity: "remote:server:source-1:/home/dev/.drora/workspace/default",
     createdAt: 1,
     updatedAt: 1,
     mode: "default",

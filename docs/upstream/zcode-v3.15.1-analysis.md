@@ -14,15 +14,15 @@
 
 ## 1. 可复现基线与版本事实
 
-| 对象 | 基线 |
-|---|---|
-| Drora 当前 HEAD | `82b02c1411a995a4c33080d5ea497b1477ae6ded`，短 SHA 为 `82b02c14` |
-| 上游旧基线 | `29628c9acdb81b703bbd4080c207a0e7ce5e276e`，标签 `v3.14.3` |
-| 上游新基线 | `aac4755666d09fdcd70272fcf063c077a639015f`，标签 `v3.15.1`，上游 `main` 同指该提交 |
-| 上游更新时间 | 2026-10-10 18:57:01 +08:00，提交 `feat: update to v3.15.1` |
-| 提交形态 | v3.14.3 → v3.15.1 只有一个公开的批量更新提交，无法从公开 Git 历史逐个还原内部功能提交 |
-| Drora 分叉历史 | v3.14.3 提交是 Drora 的祖先；之后已有 413 个提交 |
-| 工具版本 | 两侧均以 Node 24.14.0、pnpm 10.33.2 为固定版本 |
+| 对象            | 基线                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------- |
+| Drora 当前 HEAD | `82b02c1411a995a4c33080d5ea497b1477ae6ded`，短 SHA 为 `82b02c14`                      |
+| 上游旧基线      | `29628c9acdb81b703bbd4080c207a0e7ce5e276e`，标签 `v3.14.3`                            |
+| 上游新基线      | `aac4755666d09fdcd70272fcf063c077a639015f`，标签 `v3.15.1`，上游 `main` 同指该提交    |
+| 上游更新时间    | 2026-10-10 18:57:01 +08:00，提交 `feat: update to v3.15.1`                            |
+| 提交形态        | v3.14.3 → v3.15.1 只有一个公开的批量更新提交，无法从公开 Git 历史逐个还原内部功能提交 |
+| Drora 分叉历史  | v3.14.3 提交是 Drora 的祖先；之后已有 413 个提交                                      |
+| 工具版本        | 两侧均以 Node 24.14.0、pnpm 10.33.2 为固定版本                                        |
 
 已通过 Git 读取上游源码。GitHub API 的 `releases/latest` 请求返回 403；GitHub HTML `/releases/latest` 本次返回 v3.14.3，而显式 v3.15.1 页面存在。显式 v3.15.1 的 expanded_assets 本次仅列出源码 zip/tar.gz，没有列出安装包或官方 `zcode.cjs`。因此下文功能结论来自源码及同提交文档，不冒充新版发行说明或安装包验证。
 
@@ -43,16 +43,16 @@ Git 默认重命名检测统计：11,736 个文件变化，1,942,850 行新增�
 
 三方比较输入：旧上游、最新上游、当前 Drora 的 Git 对象。对上游路径/内容应用主要品牌映射和已知外部地址、OAuth、header、CUA 豁免，再执行 `git merge-file` 文本预演。它是冲突筛查工具，尚未覆盖所有新增契约的改名决定；文本可合并不证明依赖闭包、状态机或权限语义兼容。
 
-| 预演分类 | 文件数 | 实施含义 |
-|---|---:|---|
-| Drora 内容与归一化旧基线一致 | 1,469 | 可优先移植上游差分；仍需要依赖与行为验证 |
-| 上游新增且 Drora 无对应路径 | 769 | 按模块导入，确认不是已有自研模块的第二份实现 |
-| 两侧有变化，三方文本合并无冲突 | 76 | 必须复核接口、时序和政策，不能自动判通过 |
-| 上游新增但 Drora 已有不同内容 | 26 | 主要包括已有还原的 Android/iOS 插件与远程连接文件 |
-| 三方文本内容冲突 | 85 | 人工合并、补验收场景 |
-| 上游修改而 Drora 路径缺失 | 3 | forceUpdateGuard/forceUpdatePrompt/manifestUpdateProvider；前两项已明确有意删除，第三项需按 Drora 更新渠道核对 |
-| 已完全对齐 | 2 | 不重复移植 |
-| 上游删除可直接处理或本地已无此文件 | 10 | 仍确认删除后调用链和构建入口 |
+| 预演分类                           | 文件数 | 实施含义                                                                                                       |
+| ---------------------------------- | -----: | -------------------------------------------------------------------------------------------------------------- |
+| Drora 内容与归一化旧基线一致       |  1,469 | 可优先移植上游差分；仍需要依赖与行为验证                                                                       |
+| 上游新增且 Drora 无对应路径        |    769 | 按模块导入，确认不是已有自研模块的第二份实现                                                                   |
+| 两侧有变化，三方文本合并无冲突     |     76 | 必须复核接口、时序和政策，不能自动判通过                                                                       |
+| 上游新增但 Drora 已有不同内容      |     26 | 主要包括已有还原的 Android/iOS 插件与远程连接文件                                                              |
+| 三方文本内容冲突                   |     85 | 人工合并、补验收场景                                                                                           |
+| 上游修改而 Drora 路径缺失          |      3 | forceUpdateGuard/forceUpdatePrompt/manifestUpdateProvider；前两项已明确有意删除，第三项需按 Drora 更新渠道核对 |
+| 已完全对齐                         |      2 | 不重复移植                                                                                                     |
+| 上游删除可直接处理或本地已无此文件 |     10 | 仍确认删除后调用链和构建入口                                                                                   |
 
 完整逐文件记录见 `mapped-comparison.json`；114 个优先人工复核项见 `manual-review.csv`。
 
@@ -62,7 +62,7 @@ Git 默认重命名检测统计：11,736 个文件变化，1,942,850 行新增�
 
 新增 `packages/shared/src/mcp-apps/`、`gen-ui/` 契约及 Agent、服务桥、Electron 沙箱和 UI 接线；新增 Visualize 0.1.0 官方插件种子。协议包括页面实例创建/关闭/校验、sampling、tool call、resources/read/list/subscribe 和页面工具注册/调用处理。
 
-这是从模型输出进入交互页面的完整链路，不能只迁移渲染组件。实例归属、过期实例、CSP、可用权限、原生手势、文件大小和 MIME 检查都属于能力边界。上游 MIME 契约保留 8 MiB 资源总量限制，新增常见类型的精确白名单，不是放开所有 application/*。
+这是从模型输出进入交互页面的完整链路，不能只迁移渲染组件。实例归属、过期实例、CSP、可用权限、原生手势、文件大小和 MIME 检查都属于能力边界。上游 MIME 契约保留 8 MiB 资源总量限制，新增常见类型的精确白名单，不是放开所有 application/\*。
 
 Gen UI 新增状态、follow-up、tweak 和布局消息；同源生产方/消费方的 `zcode/*` 契约必须一起制定 Drora 映射。上游文档明确：未提供沙箱的 Web/手机保持 HTML 降级，本版本不能因此宣称手机获得桌面沙箱能力。
 
@@ -124,30 +124,30 @@ Drora 已有部分新增插件的还原源码，所以本次上游的“新增�
 
 旧上游方法表 74 项，新上游 99 项；当前 Drora 75 项。上游新增 25 项，当前 Drora 尚无这 25 个表项；旧方法的 wire 字符串本次未观察到改名。Drora 独有 `knowledge/search` 必须保留。
 
-| 分组 | 新方法 |
-|---|---|
-| 子代理 | `subagents/readRuntimeConfig` |
-| MCP | `mcp/readResource`；16 项 `mcp/ui*` 实例、sampling、tools、resources 方法 |
-| 插件 | `plugins/listUiSurfaces` |
-| 工作流 | `workflows/save`、`workflows/forRun` |
-| Bot | `topic/resource/read`、`topic/resource/cancel`、`bot/channel/reply` |
-| 诊断 | `process/networkCapture` |
+| 分组   | 新方法                                                                    |
+| ------ | ------------------------------------------------------------------------- |
+| 子代理 | `subagents/readRuntimeConfig`                                             |
+| MCP    | `mcp/readResource`；16 项 `mcp/ui*` 实例、sampling、tools、resources 方法 |
+| 插件   | `plugins/listUiSurfaces`                                                  |
+| 工作流 | `workflows/save`、`workflows/forRun`                                      |
+| Bot    | `topic/resource/read`、`topic/resource/cancel`、`bot/channel/reply`       |
+| 诊断   | `process/networkCapture`                                                  |
 
 详表见 `protocol-summary.json`。若完整保留上述新增方法和 Drora 自有方法，目标至少是 100 项，但这是清单验收数，不代替 handler/schema/client/Host 端到端验证。
 
 ## 5. 需要人工处理的关键交叉点
 
-| 文件/区域 | 三方文本预演 | 合并要求 |
-|---|---|---|
-| `packages/services/src/node.ts` | 7 处冲突块 | 新 MCP/Bot 装配与 Vault/knowledge/Jev 依赖同时保留，避免重复 Service owner |
-| `packages/desktop/src/host/index.ts` | 5 处冲突块 | 保留知识能力和窗口 scoped Host，按 workspaceIdentity 路由 |
-| `packages/desktop/src/main/index.ts` | 3 处冲突块 | 保留宠物、自建/LAN Relay、Drora Helper 和更新渠道 |
-| `WorkspaceShellLayout.tsx` | 4 处冲突块 | 辅助对话/远控布局与 VaultView/自研入口同时接入 |
-| `packages/web/src/main.tsx` | 2 处冲突块 | 本地 Web、手机页和新远控入口分工，不创建第二份 runtime |
-| core permission-flow / input-recheck / executor types | 内容冲突 | 按新的分步流程重新接入 S03；最终输入、hook 改写、inputAdjustments、持久授权均复核 |
-| `remoteServiceAccess.ts` / shared accessor 与 exports | 内容冲突 | `obsidianVaultService` / `knowledge/search` 保留；上游没有这些入口不等于可删除 |
-| plugin market / node-repl browser bridge | 内容冲突 | 保留市场别名桥、scope 与 metadata 契约归一化，生产消费方同步 |
-| forceUpdate / autoUpdater | 删除和内容冲突 | 依现有 spec 保持强制升级门控删除；不能使 Drora 被上游升级覆盖 |
+| 文件/区域                                             | 三方文本预演   | 合并要求                                                                          |
+| ----------------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
+| `packages/services/src/node.ts`                       | 7 处冲突块     | 新 MCP/Bot 装配与 Vault/knowledge/Jev 依赖同时保留，避免重复 Service owner        |
+| `packages/desktop/src/host/index.ts`                  | 5 处冲突块     | 保留知识能力和窗口 scoped Host，按 workspaceIdentity 路由                         |
+| `packages/desktop/src/main/index.ts`                  | 3 处冲突块     | 保留宠物、自建/LAN Relay、Drora Helper 和更新渠道                                 |
+| `WorkspaceShellLayout.tsx`                            | 4 处冲突块     | 辅助对话/远控布局与 VaultView/自研入口同时接入                                    |
+| `packages/web/src/main.tsx`                           | 2 处冲突块     | 本地 Web、手机页和新远控入口分工，不创建第二份 runtime                            |
+| core permission-flow / input-recheck / executor types | 内容冲突       | 按新的分步流程重新接入 S03；最终输入、hook 改写、inputAdjustments、持久授权均复核 |
+| `remoteServiceAccess.ts` / shared accessor 与 exports | 内容冲突       | `obsidianVaultService` / `knowledge/search` 保留；上游没有这些入口不等于可删除    |
+| plugin market / node-repl browser bridge              | 内容冲突       | 保留市场别名桥、scope 与 metadata 契约归一化，生产消费方同步                      |
+| forceUpdate / autoUpdater                             | 删除和内容冲突 | 依现有 spec 保持强制升级门控删除；不能使 Drora 被上游升级覆盖                     |
 
 另外：`permission/service.ts`、`create-app.ts`、共享 protocol 主表在文本预演中可无冲突合并，但它们接入权限上下文、知识搜索端口和新增 handler 的语义仍须人工审核。这类“无冲突但容易回归”的文件不能从清单中省略。
 
@@ -155,15 +155,15 @@ Drora 已有部分新增插件的还原源码，所以本次上游的“新增�
 
 本次未建立实现分支或变更工作区。实际实施时从当前 Drora 基线建立普通集成分支；保留原始上游提交对象与 SHA，在临时区域产生按 spec 转译的差分，再按模块移植。每批提交写明 Upstream-commit 与保留的 Drora 分歧，不重写已有历史、不整树覆盖。
 
-| 批次 | 内容 | 进入下一批的门禁 |
-|---|---|---|
-| 0：证据与范围 | 固定两个 SHA、整理改名/豁免、保存源码与发行物 provenance、对齐新增 runner 和必要依赖 | 上游新模块与自研模块不重名复刻；许可/补丁/种子范围明确 |
-| 1：共享契约 | MCP/Gen UI、引用、Bot、workflow、runtime headers schema 与 interface | 严格 schema 正反例通过；旧协议及 knowledge/search 保留；Host/client/Agent 表项一致 |
-| 2：Agent/runtime | workflow hole/fill、权限流程拆分、输入调整、子代理配置、官方插件注册/种子 | CLI 构建与握手通过；S03/P0/P1/P2、plan/memory、hook 修改输入与持久授权回归通过 |
-| 3：服务与 Host | Bot/topic/channel、会话投影、资源实例服务、服务桥与依赖注入 | 多 workspace/owner/cancel/重连测试通过；VaultView、Jev、ONNX 和现有数据库迁移回归通过 |
-| 4：桌面 UI/沙箱 | MCP Apps、Visualize、引用和辅助对话、页面生命周期 | 真实 Electron 验证实例归属、CSP/手势/下载/采样；保留宠物和知识入口；Web fallback 明确 |
-| 5：远控兼容 | 先统一共享传输与 attachment，再迁新版 task timeline/home/reconnect | 自建 Relay、LAN、官方外部 Relay分别测；continuous/replayable、gap、断线恢复和旧页面版本兼容通过 |
-| 6：发行与收尾 | Guide/CUA 种子升级、Windows helper、native/SEA 打包、报告/文档、版本策略 | 各平台构建和真机权限验证；Drora 品牌/OAuth/更新源检查；禁止将上游 stub 覆盖还原实现 |
+| 批次             | 内容                                                                                 | 进入下一批的门禁                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| 0：证据与范围    | 固定两个 SHA、整理改名/豁免、保存源码与发行物 provenance、对齐新增 runner 和必要依赖 | 上游新模块与自研模块不重名复刻；许可/补丁/种子范围明确                                          |
+| 1：共享契约      | MCP/Gen UI、引用、Bot、workflow、runtime headers schema 与 interface                 | 严格 schema 正反例通过；旧协议及 knowledge/search 保留；Host/client/Agent 表项一致              |
+| 2：Agent/runtime | workflow hole/fill、权限流程拆分、输入调整、子代理配置、官方插件注册/种子            | CLI 构建与握手通过；S03/P0/P1/P2、plan/memory、hook 修改输入与持久授权回归通过                  |
+| 3：服务与 Host   | Bot/topic/channel、会话投影、资源实例服务、服务桥与依赖注入                          | 多 workspace/owner/cancel/重连测试通过；VaultView、Jev、ONNX 和现有数据库迁移回归通过           |
+| 4：桌面 UI/沙箱  | MCP Apps、Visualize、引用和辅助对话、页面生命周期                                    | 真实 Electron 验证实例归属、CSP/手势/下载/采样；保留宠物和知识入口；Web fallback 明确           |
+| 5：远控兼容      | 先统一共享传输与 attachment，再迁新版 task timeline/home/reconnect                   | 自建 Relay、LAN、官方外部 Relay分别测；continuous/replayable、gap、断线恢复和旧页面版本兼容通过 |
+| 6：发行与收尾    | Guide/CUA 种子升级、Windows helper、native/SEA 打包、报告/文档、版本策略             | 各平台构建和真机权限验证；Drora 品牌/OAuth/更新源检查；禁止将上游 stub 覆盖还原实现             |
 
 不能把批次当成“前面每批都能独立发布”：共享契约到生产消费方的中间状态要位于同一个集成过程；需要上线时，将未完成能力维持关闭或按完整端到端批次发布。避免出现新 schema 已生效而旧 host/Agent handler 未实现的组合。
 

@@ -8,7 +8,10 @@ import {
 import { serverRemoteInfoSchema } from "./server-remote.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
-import { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema } from "./drora-protocol-v4/sessions-index-team-activity.js";
+import {
+  SESSION_TEAM_ACTIVITY_KEY,
+  sessionTeamActivitySchema,
+} from "./drora-protocol-v4/sessions-index-team-activity.js";
 import { networkCaptureControlSchema, networkCaptureBatchSchema } from "./networkCapture.js";
 import { browserCommandSchema } from "./browser-use/commands.js";
 import { browserCommandResultSchema } from "./browser-use/result.js";

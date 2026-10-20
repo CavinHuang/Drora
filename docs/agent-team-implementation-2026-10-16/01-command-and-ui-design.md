@@ -4,7 +4,7 @@
 上位文档：`specs/agents-team.md`（产品规则/状态所有者/协议）、
 `00-master-design.md`（v2 集成架构）。本文聚焦**入口命令**与**全部用户可见交互**，
 是 UI 实现的权威依据；与上位文档冲突时先改上位文档再改本文。
-设计约束遵循 `DESIGN.md`（text-ui-* 刻度强制、语义 token、冷静致密操作型、
+设计约束遵循 `DESIGN.md`（text-ui-\* 刻度强制、语义 token、冷静致密操作型、
 键盘一级、i18n zh/en 全量、Side Pane 帧、移动端 R3 shell 规则）。
 
 2026-10-18 三处显示面的视觉细化提案见
@@ -22,16 +22,16 @@
 
 ### 1.1 命令定义
 
-| 项 | 值 |
-|---|---|
-| 名称 | `team`（保留字，进 shared 帮助表 additive 条目） |
-| usage | `/team [goal]` |
-| 无参数行为 | 不发模型请求：打开 TeamPanel；无团队时显示空态引导（如何描述目标） |
-| 带参数行为 | 展开为 prompt：要求模型按 `agents-team` skill 的 staged 流程起草团队（先花名册+任务 DAG，**不 spawn**），调用 TeamSpawn 进入 staged 态 |
-| summary（zh/en） | 「组建代理团队协同完成目标」/ "Assemble an agent team for a goal" |
-| 正文骨架 | 复用 `expandCustomCommandPrompt`；`skills: [agents-team]`；`$ARGUMENTS` 必须在场（否则参数成尾块，先例注释） |
-| 子上下文守卫 | child runtime（subagent_child 等）禁用 `/team`（照 `create-app.ts:904` 对 workflow 名的同款守卫） |
-| 灰度 | team 功能关闭时命令不注册（帮助表条目与命令注册同门：灰度关→斜杠菜单无候选，面板不出现） |
+| 项               | 值                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 名称             | `team`（保留字，进 shared 帮助表 additive 条目）                                                                                       |
+| usage            | `/team [goal]`                                                                                                                         |
+| 无参数行为       | 不发模型请求：打开 TeamPanel；无团队时显示空态引导（如何描述目标）                                                                     |
+| 带参数行为       | 展开为 prompt：要求模型按 `agents-team` skill 的 staged 流程起草团队（先花名册+任务 DAG，**不 spawn**），调用 TeamSpawn 进入 staged 态 |
+| summary（zh/en） | 「组建代理团队协同完成目标」/ "Assemble an agent team for a goal"                                                                      |
+| 正文骨架         | 复用 `expandCustomCommandPrompt`；`skills: [agents-team]`；`$ARGUMENTS` 必须在场（否则参数成尾块，先例注释）                           |
+| 子上下文守卫     | child runtime（subagent_child 等）禁用 `/team`（照 `create-app.ts:904` 对 workflow 名的同款守卫）                                      |
+| 灰度             | team 功能关闭时命令不注册（帮助表条目与命令注册同门：灰度关→斜杠菜单无候选，面板不出现）                                               |
 
 ### 1.2 与状态命令的关系（刻意不做子命令）
 
@@ -42,12 +42,12 @@
 
 ### 1.3 实现落点（全部 additive/新文件，计入接缝账 C 档）
 
-| 落点 | 形态 |
-|---|---|
-| `bootstrap/src/builtin-team-command.ts` | 新文件（照 builtin-workflow-command.ts 体例） |
-| `packages/shared/src/drora-slash-command-help.ts` | additive 条目（Drora 自有文件） |
-| `bootstrap/src/builtin-prompt-command.ts` | 分发表加一个分支 |
-| `create-app.ts` 子上下文守卫 | :904 同款条件加一判（可并入 α hunk） |
+| 落点                                                                                  | 形态                                                                                 |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `bootstrap/src/builtin-team-command.ts`                                               | 新文件（照 builtin-workflow-command.ts 体例）                                        |
+| `packages/shared/src/drora-slash-command-help.ts`                                     | additive 条目（Drora 自有文件）                                                      |
+| `bootstrap/src/builtin-prompt-command.ts`                                             | 分发表加一个分支                                                                     |
+| `create-app.ts` 子上下文守卫                                                          | :904 同款条件加一判（可并入 α hunk）                                                 |
 | contracts `AGENTS_TEAM_SKILL_NAME` 常量 + bundled skill `skills/agents-team/SKILL.md` | additive + 新文件（skill 正文 = lead 的团队编排指引：staged 流程/扩缩规则/交接纪律） |
 
 ## 2. 入口面（三个）
@@ -70,6 +70,7 @@
 ```
 
 staged 审批态的面板 = **草案编辑器**：
+
 - 成员行：名称/角色提示词/路由（provider/model/思考档，取自 host 模型目录，
   与主输入区同源元数据）/profile 颜色；行内编辑（点选即改，无弹窗链）。
 - 任务行：标题/负责人/依赖（下拉选已有任务；依赖以缩进+连线示意 DAG）。
@@ -85,7 +86,7 @@ staged 审批态的面板 = **草案编辑器**：
 
 - **状态头**：team 状态机徽标（staged/active/idle/halted/escalated/completed/
   archived，语义色+文字，不以色独行）+ 权限模式徽标（成队定死值，build/edit/…）
-  + 成员数与板进度摘要（如 3/5 完成）。
+  - 成员数与板进度摘要（如 3/5 完成）。
 - **任务板三列**：pending / in progress / completed（failed 入 pending 列头部
   error 态卡片）；依赖以缩进表达；任务卡显示负责人头像点、attempt 计数（>1 时
   角标）、artifactRefs 链接。
@@ -100,13 +101,13 @@ staged 审批态的面板 = **草案编辑器**：
 
 ### 3.3 干预动作（面板主操作区，按状态机出显）
 
-| 状态 | 可用动作 |
-|---|---|
-| active | 停止团队（halt，二次确认，文案列明影响面：取消 lead 当前回合+中断全员+冻结调度，team 不删除）；给成员发消息；转派/接管（经 lead 工具，面板提供入口预制参数） |
-| halted | 恢复（TeamResume，必须填理由）；查看归档预览 |
-| escalated | 升级卡片：展示循环上限原因 + 「继续加轮 / 停止」二选 |
-| idle | 收队（completed + 归档）；追加任务（转对话让 lead 拆） |
-| completed/archived | 归档视图：完整花名册/板/邮箱只读；「复制团队配置」（下次 /team 可粘贴复用） |
+| 状态               | 可用动作                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| active             | 停止团队（halt，二次确认，文案列明影响面：取消 lead 当前回合+中断全员+冻结调度，team 不删除）；给成员发消息；转派/接管（经 lead 工具，面板提供入口预制参数） |
+| halted             | 恢复（TeamResume，必须填理由）；查看归档预览                                                                                                                 |
+| escalated          | 升级卡片：展示循环上限原因 + 「继续加轮 / 停止」二选                                                                                                         |
+| idle               | 收队（completed + 归档）；追加任务（转对话让 lead 拆）                                                                                                       |
+| completed/archived | 归档视图：完整花名册/板/邮箱只读；「复制团队配置」（下次 /team 可粘贴复用）                                                                                  |
 
 ### 3.4 权限交互
 
@@ -158,14 +159,14 @@ staged 审批态的面板 = **草案编辑器**：
 
 ## 6. 异常与边界交互
 
-| 场景 | 交互 |
-|---|---|
+| 场景                       | 交互                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | 成员失败（模型侧重试耗尽） | 成员卡 error 态 + 失败原因（路由命名错误，可行动文案）；板任务 failed 态；面板提供「转派给其他成员 / lead 接管」入口 |
-| 预算/成员数超限 | 状态头下方警示横幅；spawn 拒绝文案明确（哪个上限、当前值） |
-| 名字冲突/重定向 | staged 编辑器与 TeamSpawn 即时校验；移除过的名字重用需显式确认（绑定新 agentId） |
-| 投递失败/成员离线 | 消息尾窗显示「待投递」态；不阻塞其他交互 |
-| 团队命令在 child 上下文 | `/team` 不可寻址（斜杠菜单无候选）；面板不存在 |
-| 面板 vs journal 不一致 | 面板如实反映 hub/journal 状态（诚实边界）；头部提供「刷新」重放投影 |
+| 预算/成员数超限            | 状态头下方警示横幅；spawn 拒绝文案明确（哪个上限、当前值）                                                           |
+| 名字冲突/重定向            | staged 编辑器与 TeamSpawn 即时校验；移除过的名字重用需显式确认（绑定新 agentId）                                     |
+| 投递失败/成员离线          | 消息尾窗显示「待投递」态；不阻塞其他交互                                                                             |
+| 团队命令在 child 上下文    | `/team` 不可寻址（斜杠菜单无候选）；面板不存在                                                                       |
+| 面板 vs journal 不一致     | 面板如实反映 hub/journal 状态（诚实边界）；头部提供「刷新」重放投影                                                  |
 
 ## 7. 交互级验收
 

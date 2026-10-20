@@ -17,6 +17,8 @@ describe("Obsidian CLI evidence Send rejection feedback", () => {
     expect(resolveKnowledgeEvidenceSendFailure("")).toBeNull();
     expect(resolveKnowledgeEvidenceSendFailure("SEND_FAILED")).toBeNull();
     expect(resolveKnowledgeEvidenceSendFailure("guard.evidenceMissing - model says so")).toBeNull();
-    expect(resolveKnowledgeEvidenceSendFailure(KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden)).toBeNull();
+    expect(
+      resolveKnowledgeEvidenceSendFailure(KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden),
+    ).toBeNull();
   });
 });

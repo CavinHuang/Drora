@@ -8,7 +8,11 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({
-  useSettings: () => ({ settings: { mobileRelayTransport: "lan" }, loading: false, update: vi.fn() }),
+  useSettings: () => ({
+    settings: { mobileRelayTransport: "lan" },
+    loading: false,
+    update: vi.fn(),
+  }),
 }));
 
 vi.mock("@/ControlHintTooltip.js", () => ({

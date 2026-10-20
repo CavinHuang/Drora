@@ -910,7 +910,11 @@ test("L2 同 Host 并发 Undo：仅一次逆写，第二次不得覆盖已落定
     // （undo_unavailable），且两者看到的账本终态一致（undo_applied）。
     const winners = results.filter((result) => result.outcome === "applied");
     const losers = results.filter((result) => result.outcome === "blocked");
-    assert.equal(winners.length, 1, `恰好一次逆写：${JSON.stringify(results.map((r) => r.outcome))}`);
+    assert.equal(
+      winners.length,
+      1,
+      `恰好一次逆写：${JSON.stringify(results.map((r) => r.outcome))}`,
+    );
     assert.equal(losers.length, 1);
     assert.equal(losers[0]!.reason, "undo_unavailable");
     assert.equal(winners[0]!.operation?.files[0]?.status, "undo_applied");

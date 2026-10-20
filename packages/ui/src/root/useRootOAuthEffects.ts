@@ -238,7 +238,11 @@ export function useRootOAuthEffects({
   useEffect(() => {
     let disposed = false;
     const disposable = services.broadcastService.onMessage((message) => {
-      if (message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL || disposed || jwtInvalidPromptPendingRef.current) {
+      if (
+        message.channel !== DRORA_JWT_INVALID_BROADCAST_CHANNEL ||
+        disposed ||
+        jwtInvalidPromptPendingRef.current
+      ) {
         return;
       }
       // Unrelated background provider requests can emit a JWT-invalid

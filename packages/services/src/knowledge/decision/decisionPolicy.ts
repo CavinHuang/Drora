@@ -118,9 +118,7 @@ export function decideByPolicy(input: DecisionPolicyInput): DecisionPolicyDecisi
     const noulDescending = [...scored.values()].sort((left, right) => right - left);
     const top = noulDescending[0] as number;
     const second = noulDescending[1];
-    const midBand = noulDescending.some(
-      (value) => value >= 0.2 && value < config.abstainThreshold,
-    );
+    const midBand = noulDescending.some((value) => value >= 0.2 && value < config.abstainThreshold);
     if (top >= config.directThreshold) {
       // 硬条件由调用方保证：候选与片段已存在，receipt 签发永远走 §5.1 复验。
       action = "PREPARE_EVIDENCE_FOR_AGENT";
@@ -155,13 +153,19 @@ function fuseScores(
   for (const candidate of candidates) {
     const noul = noulByCandidateId.get(candidate.candidateId);
     const localTerm = config.weightLocal * candidate.localScore;
-    fused.set(candidate.candidateId, noul === undefined ? localTerm : localTerm + config.weightJev * noul);
+    fused.set(
+      candidate.candidateId,
+      noul === undefined ? localTerm : localTerm + config.weightJev * noul,
+    );
   }
   return fused;
 }
 
 /** 融合分降序名次（并列保持本地名次稳定）。 */
-function rankOf(candidates: KnowledgeDecisionCandidate[], scores: Map<string, number>): Map<string, number> {
+function rankOf(
+  candidates: KnowledgeDecisionCandidate[],
+  scores: Map<string, number>,
+): Map<string, number> {
   const ordered = [...candidates].sort((left, right) => {
     const diff = (scores.get(right.candidateId) ?? 0) - (scores.get(left.candidateId) ?? 0);
     if (diff !== 0) return diff;

@@ -78,5 +78,4 @@ describe("remoteAppConfig", () => {
       ),
     ).toBe("https://local.example.com/discord");
   });
-
 });

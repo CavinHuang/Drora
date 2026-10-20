@@ -607,9 +607,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
         ...(identity.embeddedBuildId
           ? { [DRORA_CUA_HELPER_EMBEDDED_BUILD_ID_ENV]: identity.embeddedBuildId }
           : {}),
-        ...(identity.version
-          ? { [DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]: identity.version }
-          : {}),
+        ...(identity.version ? { [DRORA_CUA_HELPER_EMBEDDED_VERSION_ENV]: identity.version } : {}),
       };
     })(),
     ...(resolvedGlmBinaryPath ? { GLM_BINARY_PATH: resolvedGlmBinaryPath } : {}),

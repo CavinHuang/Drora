@@ -68,30 +68,30 @@ flowchart TD
 
 ### 0C.4 运行策略与缓存
 
-| 项 | v3.2 初始设计值（均待 Spike 调优） | 失败语义 |
-|---|---|---|
-| 候选池 | FTS + 向量融合后 Top 30 片段 | 召回不足时直接用已有候选，不补造数据 |
-| Jev 输入上限 | Top 20，候选过多可分批扩至 30 | 超额返回本地排序，展示覆盖范围 |
-| 并发 | 4–8 | 限流/429 用短退避，不阻塞候选首屏 |
-| 单次调用超时 | 3 秒（实验值） | 单候选回退 local |
-| 全阶段预算 | 6 秒（实验值） | 超时停止等待，沿用本地顺序 |
-| 缓存键 | Profile + sourceEpoch + hash(query normalized) + chunk SHA + rubric/model 版本 | 修改任一项自动失效 |
-| 缓存策略 | 仅本机，默认不持久化全文出站请求 | 撤权、Vault 切换、索引重建清理 |
-| 提供商 | TypeSafe/经确认兼容的 Jev 决策 API，凭证存 Drora 安全配置 | 未配置显示不可用，不假造响应 |
-| 默认选择 | **仅本地混合排序** | 不出站、不依赖 Jev |
+| 项           | v3.2 初始设计值（均待 Spike 调优）                                             | 失败语义                             |
+| ------------ | ------------------------------------------------------------------------------ | ------------------------------------ |
+| 候选池       | FTS + 向量融合后 Top 30 片段                                                   | 召回不足时直接用已有候选，不补造数据 |
+| Jev 输入上限 | Top 20，候选过多可分批扩至 30                                                  | 超额返回本地排序，展示覆盖范围       |
+| 并发         | 4–8                                                                            | 限流/429 用短退避，不阻塞候选首屏    |
+| 单次调用超时 | 3 秒（实验值）                                                                 | 单候选回退 local                     |
+| 全阶段预算   | 6 秒（实验值）                                                                 | 超时停止等待，沿用本地顺序           |
+| 缓存键       | Profile + sourceEpoch + hash(query normalized) + chunk SHA + rubric/model 版本 | 修改任一项自动失效                   |
+| 缓存策略     | 仅本机，默认不持久化全文出站请求                                               | 撤权、Vault 切换、索引重建清理       |
+| 提供商       | TypeSafe/经确认兼容的 Jev 决策 API，凭证存 Drora 安全配置                      | 未配置显示不可用，不假造响应         |
+| 默认选择     | **仅本地混合排序**                                                             | 不出站、不依赖 Jev                   |
 
 **性能目标**：本地候选先显示，Jev 作为可取消的异步“优化排序”完成后原位更新。用户已点选并正在阅读的文章不能因为后台排序变动而被自动替换；需保留选择锚点和可感知的排序更新提示。页面关闭、Query 改变或 sourceEpoch 更新时取消旧请求；旧响应不得覆盖新结果。
 
 ### 0C.5 交互与文案（K02 智能问库）
 
-| UI 部位 | 默认 | 开启 Jev | 故障/降级 |
-|---|---|---|---|
-| 输入框下方 | `检索：词法 + 语义（如可用） · 排序：本地` | `排序：Jev 辅助` | `排序：本地（Jev 未完成）` |
-| 右侧「查找方式」 | 显示召回是否完整、索引是否更新 | 显示 Jev 是可选的候选重排服务 | 显示失败原因和“重试重排” |
-| 候选列表 | 第一屏先渲染本地排序，不显示 AI 百分比 | 可选“查看排序变化”展示 local rank → 新 rank | 保留本地排序，不清空候选 |
-| 文章条目 | 原文命中、文件路径、元数据 | 增加“观点直接匹配/主题相近”的**解释性标签（来自可验证原文和规则）** | 不使用“Jev 认为可信/已证实”等夸大标签 |
-| 授权弹窗 | 无远端请求 | 明示“本次问题及候选片段将发送到 Jev 提供商”，显式选择授权 | 拒绝后继续使用本地排序，不能阻塞问库 |
-| 对话追问 | 保留授权范围 | 追问属于新 Query，重新检查许可和缓存 | 不能静默复用仅适用于前次请求的许可 |
+| UI 部位          | 默认                                       | 开启 Jev                                                            | 故障/降级                             |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
+| 输入框下方       | `检索：词法 + 语义（如可用） · 排序：本地` | `排序：Jev 辅助`                                                    | `排序：本地（Jev 未完成）`            |
+| 右侧「查找方式」 | 显示召回是否完整、索引是否更新             | 显示 Jev 是可选的候选重排服务                                       | 显示失败原因和“重试重排”              |
+| 候选列表         | 第一屏先渲染本地排序，不显示 AI 百分比     | 可选“查看排序变化”展示 local rank → 新 rank                         | 保留本地排序，不清空候选              |
+| 文章条目         | 原文命中、文件路径、元数据                 | 增加“观点直接匹配/主题相近”的**解释性标签（来自可验证原文和规则）** | 不使用“Jev 认为可信/已证实”等夸大标签 |
+| 授权弹窗         | 无远端请求                                 | 明示“本次问题及候选片段将发送到 Jev 提供商”，显式选择授权           | 拒绝后继续使用本地排序，不能阻塞问库  |
+| 对话追问         | 保留授权范围                               | 追问属于新 Query，重新检查许可和缓存                                | 不能静默复用仅适用于前次请求的许可    |
 
 **设置状态**：`仅本地（默认）` / `本次允许 Jev` / `长期允许 Jev（用户显式持久选择）`。取消授权后停止新的请求、清除可清理的本地相关缓存，但不能宣称可删除第三方已收到的数据；出站的保存/保留期限必须以实际供应商政策为准，不假设零留存。
 
@@ -107,28 +107,58 @@ flowchart TD
 ### 0C.7 建议新接口（设计合同，尚未进入真实代码）
 
 ```ts
-export type RerankMode = 'local' | 'jev';
-export type RerankStatus = 'disabled' | 'running' | 'ready' | 'partial' | 'timeout' | 'error' | 'denied';
+export type RerankMode = "local" | "jev";
+export type RerankStatus =
+  | "disabled"
+  | "running"
+  | "ready"
+  | "partial"
+  | "timeout"
+  | "error"
+  | "denied";
 export interface RerankCandidate {
-  candidateId: string; sourceId: string; chunkId: string; chunkSha256: string;
-  title: string; headingPath: string[]; excerpt: string; localRank: number;
+  candidateId: string;
+  sourceId: string;
+  chunkId: string;
+  chunkSha256: string;
+  title: string;
+  headingPath: string[];
+  excerpt: string;
+  localRank: number;
   localScore: number; // 本地归一化分数，不是概率
 }
 export interface RerankRequest {
-  queryId: string; workspaceIdentity: string; sourceEpoch: number;
-  query: string; candidates: RerankCandidate[]; mode: RerankMode;
+  queryId: string;
+  workspaceIdentity: string;
+  sourceEpoch: number;
+  query: string;
+  candidates: RerankCandidate[];
+  mode: RerankMode;
   consentReceiptId?: string; // 由 Host 验证，不能由 renderer 自报为授权
 }
 export interface RerankCandidateResult {
-  candidateId: string; localRank: number; finalRank: number;
-  jevNoul?: number; finalScore: number;
-  status: 'scored' | 'local-fallback';
+  candidateId: string;
+  localRank: number;
+  finalRank: number;
+  jevNoul?: number;
+  finalScore: number;
+  status: "scored" | "local-fallback";
 }
 export interface RerankResponse {
-  queryId: string; status: RerankStatus; sourceEpoch: number;
-  modelId?: string; rubricVersion: string;
+  queryId: string;
+  status: RerankStatus;
+  sourceEpoch: number;
+  modelId?: string;
+  rubricVersion: string;
   candidates: RerankCandidateResult[];
-  fallbackReason?: 'disabled'|'consent'|'provider'|'timeout'|'quota'|'invalid_response'|'cancelled';
+  fallbackReason?:
+    | "disabled"
+    | "consent"
+    | "provider"
+    | "timeout"
+    | "quota"
+    | "invalid_response"
+    | "cancelled";
 }
 ```
 
@@ -161,19 +191,19 @@ packages/shared/src/channels.ts  # 如复用现有 Query RPC 则不新增频道�
 
 采用至少 **150 条脱敏、人工标注的中文 Vault 找回任务**，覆盖已知标题、同义改写、观点记忆、跨语言缩写、相似主题迷惑项、正确文章缺失、来源过期与剪藏噪音。
 
-| 编号 | 验收点 | 通过条件 |
-|---|---|---|
-| J01 | 召回充分性 | 首先测 `Recall@30`；相关文章没进候选池时不可归咎于 Jev |
-| J02 | 排名增益 | 同一候选池对比 local vs local+Jev 的 Hit@1/Hit@5/MRR；至少 Hit@1 显著改善且不损害无答案判断，是否设阈值由试点基线确认 |
-| J03 | 中文噪声与专名 | 中英混排、同义改写、文章标题无关键词、三篇近似命题时仍可解释排名 |
-| J04 | 无答案拒识 | 空答案样本不可强制选一篇，并记录 abstention 错误率 |
-| J05 | 外发隐私 | 默认/明确拒绝 Jev 时，无 Jev 网络请求，凭证和绝对路径均不出站 |
-| J06 | 超时降级 | 429/5xx/超时/不合法响应不阻断本地结果，UI 标记降级 |
-| J07 | 会话竞态 | 查询 A 与 B 交错，A 的迟到重排不能覆盖 B 的候选 |
-| J08 | 来源真实性 | Jev 高分不能为失效文件生成有效 Receipt；引用跳转需重新核验 |
-| J09 | 缓存隔离 | sourceEpoch、chunkHash、模型/规则版本变化、撤权均正确失效 |
-| J10 | 成本延迟 | 报告 P50/P95 本地首屏、Jev 优化完成时间、单次请求数和总输入 token；未完成评测前不承诺体验指标 |
-| J11 | 人工核验 | 对同意/拒绝开关、排序变化、候选列表选择锚点进行逐屏可用性验证 |
+| 编号 | 验收点         | 通过条件                                                                                                              |
+| ---- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| J01  | 召回充分性     | 首先测 `Recall@30`；相关文章没进候选池时不可归咎于 Jev                                                                |
+| J02  | 排名增益       | 同一候选池对比 local vs local+Jev 的 Hit@1/Hit@5/MRR；至少 Hit@1 显著改善且不损害无答案判断，是否设阈值由试点基线确认 |
+| J03  | 中文噪声与专名 | 中英混排、同义改写、文章标题无关键词、三篇近似命题时仍可解释排名                                                      |
+| J04  | 无答案拒识     | 空答案样本不可强制选一篇，并记录 abstention 错误率                                                                    |
+| J05  | 外发隐私       | 默认/明确拒绝 Jev 时，无 Jev 网络请求，凭证和绝对路径均不出站                                                         |
+| J06  | 超时降级       | 429/5xx/超时/不合法响应不阻断本地结果，UI 标记降级                                                                    |
+| J07  | 会话竞态       | 查询 A 与 B 交错，A 的迟到重排不能覆盖 B 的候选                                                                       |
+| J08  | 来源真实性     | Jev 高分不能为失效文件生成有效 Receipt；引用跳转需重新核验                                                            |
+| J09  | 缓存隔离       | sourceEpoch、chunkHash、模型/规则版本变化、撤权均正确失效                                                             |
+| J10  | 成本延迟       | 报告 P50/P95 本地首屏、Jev 优化完成时间、单次请求数和总输入 token；未完成评测前不承诺体验指标                         |
+| J11  | 人工核验       | 对同意/拒绝开关、排序变化、候选列表选择锚点进行逐屏可用性验证                                                         |
 
 **分期**：T0 只做可重复的离线排序对比与 Jev 适配 Spike；T1 完成本地混合检索及证据核验；T2 在明确授权下灰度接入 Jev；通过回归基线后才允许默认提示用户打开 Jev，**不自动开启**。
 

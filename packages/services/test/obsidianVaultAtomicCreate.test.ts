@@ -11,10 +11,19 @@ test("createOnly 原子发布：已存在或竞争创建的文件绝不被覆盖
   try {
     const file = join(root, "existing.md");
     await writeFile(file, "external edit");
-    await assert.rejects(writeTextFileAtomic(file, "proposal", { createOnly: true }), { code: "EEXIST" });
+    await assert.rejects(writeTextFileAtomic(file, "proposal", { createOnly: true }), {
+      code: "EEXIST",
+    });
     assert.equal(await readFile(file, "utf8"), "external edit");
-    const results = await Promise.allSettled(["first", "second"].map((content) =>
-      createVaultFileSystem(root).writeFile({ relativePath: "new.md", content, createOnly: true })));
+    const results = await Promise.allSettled(
+      ["first", "second"].map((content) =>
+        createVaultFileSystem(root).writeFile({
+          relativePath: "new.md",
+          content,
+          createOnly: true,
+        }),
+      ),
+    );
     assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
     assert.equal(results.filter((result) => result.status === "rejected").length, 1);
     assert.ok(["first", "second"].includes(await readFile(join(root, "new.md"), "utf8")));

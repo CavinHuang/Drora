@@ -3,7 +3,7 @@
 > DEPRECATED. The Python MCP server that lived in this repo is **removed**. The
 > canonical CUA MCP tool is now the TypeScript package **@drora/drora-cua**
 > (npm). This document described the old `uvx --from drora-cua[linux]@<wheel>
-> drora-cua` install path plus the `scripts/drora-cua-linux` distro-`pyatspi`
+drora-cua` install path plus the `scripts/drora-cua-linux` distro-`pyatspi`
 > launcher — all of which targeted the removed Python server and no longer apply.
 
 Install the canonical tool from npm:

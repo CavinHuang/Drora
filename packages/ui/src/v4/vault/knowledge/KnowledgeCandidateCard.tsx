@@ -22,10 +22,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
-import {
-  deriveAskBanners,
-  type KnowledgeEvidenceInspectState,
-} from "./knowledgeAskModel.js";
+import { deriveAskBanners, type KnowledgeEvidenceInspectState } from "./knowledgeAskModel.js";
 import { cn } from "@/components/lib/utils.js";
 
 /** prepareEvidence/resolveCitation 的结构化失败 → 文案 key（不做二次猜测）。 */
@@ -143,7 +140,9 @@ export function KnowledgeCandidateCard({
       aria-selected={selected}
       className={cn(
         "rounded-xl border bg-card p-3 transition-colors",
-        selected ? "border-card-border bg-card-selected" : "border-card-border hover:bg-surface-hover",
+        selected
+          ? "border-card-border bg-card-selected"
+          : "border-card-border hover:bg-surface-hover",
       )}
     >
       <button
@@ -157,10 +156,15 @@ export function KnowledgeCandidateCard({
             {displayCandidateTitle(candidate)}
           </span>
           <span className="ml-auto shrink-0 text-ui-xs text-foreground-subtlest">
-            {intl.formatMessage({ id: "vault.ask.candidate.chunks" }, { count: candidate.matchedChunkCount })}
+            {intl.formatMessage(
+              { id: "vault.ask.candidate.chunks" },
+              { count: candidate.matchedChunkCount },
+            )}
           </span>
         </span>
-        <span className="truncate font-mono text-ui-xs text-foreground-subtlest">{candidate.relativePath}</span>
+        <span className="truncate font-mono text-ui-xs text-foreground-subtlest">
+          {candidate.relativePath}
+        </span>
         {candidate.matchedHeading && (
           <span className="truncate text-ui-sm text-foreground-subtle">
             {intl.formatMessage({ id: "vault.ask.candidate.why" })}: {candidate.matchedHeading}
@@ -211,7 +215,11 @@ export function KnowledgeCandidateCard({
               disabled={!selectionTarget || adding}
               onClick={() => onAddToAgent(candidate)}
             >
-              {adding ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizonal className="size-3.5" />}
+              {adding ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <SendHorizonal className="size-3.5" />
+              )}
               {intl.formatMessage({ id: "vault.ask.candidate.addToAgent" })}
             </Button>
           </TooltipTrigger>
@@ -248,9 +256,14 @@ export function KnowledgeCandidateCard({
                   { start: inspect.quote.startLine, end: inspect.quote.endLine },
                 )}
               </p>
-              <p className="whitespace-pre-wrap text-ui-sm leading-5 text-foreground-subtle">{inspect.excerpt}</p>
+              <p className="whitespace-pre-wrap text-ui-sm leading-5 text-foreground-subtle">
+                {inspect.excerpt}
+              </p>
               <p className="truncate font-mono text-ui-xs text-foreground-subtlest">
-                {intl.formatMessage({ id: "vault.ask.evidence.receipt" }, { id: inspect.receiptId })}
+                {intl.formatMessage(
+                  { id: "vault.ask.evidence.receipt" },
+                  { id: inspect.receiptId },
+                )}
               </p>
             </div>
           )}
@@ -259,13 +272,18 @@ export function KnowledgeCandidateCard({
               <CircleSlash className="size-3.5 shrink-0" />
               {intl.formatMessage({ id: evidenceUnavailableMessageKey(inspect.status) })}
               {inspect.reason && (
-                <span className="font-mono text-ui-xs text-foreground-subtlest">({inspect.reason})</span>
+                <span className="font-mono text-ui-xs text-foreground-subtlest">
+                  ({inspect.reason})
+                </span>
               )}
             </p>
           )}
           {inspect.phase === "failed" && (
             <p className="text-ui-sm text-destructive">
-              {intl.formatMessage({ id: "vault.ask.evidence.failed" }, { message: inspect.message })}
+              {intl.formatMessage(
+                { id: "vault.ask.evidence.failed" },
+                { message: inspect.message },
+              )}
             </p>
           )}
         </div>

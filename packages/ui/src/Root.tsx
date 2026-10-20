@@ -542,9 +542,9 @@ function RootInner({
   // 与展示状态解耦（详见下方 WebRemoteControlTaskSync 挂载点）。
   const webRemoteControlTaskSyncEnabled = Boolean(
     webRemoteControlFeatureEnabled &&
-      webRemoteControlSessionActive &&
-      isDesktop &&
-      platform.syncWebRemoteControlTasks,
+    webRemoteControlSessionActive &&
+    isDesktop &&
+    platform.syncWebRemoteControlTasks,
   );
   const refreshProviderState = useRootProviderStateRefresh(services);
   useRootProviderSettingsSnapshot(services);
@@ -959,11 +959,13 @@ function RootInner({
     );
   }, [hasCompletedFullRestore, isDesktop, windowWorkspaceTabs]);
 
-  const desktopPetTaskSyncNode = <DesktopPetTaskSync
-    enabled={Boolean(hasCompletedFullRestore && isDesktop && appSettings?.desktopPetEnabled)}
-    workspaceTabs={windowWorkspaceTabs}
-    platform={platform}
-  />;
+  const desktopPetTaskSyncNode = (
+    <DesktopPetTaskSync
+      enabled={Boolean(hasCompletedFullRestore && isDesktop && appSettings?.desktopPetEnabled)}
+      workspaceTabs={windowWorkspaceTabs}
+      platform={platform}
+    />
+  );
   const webRemoteControlTaskSyncNode =
     hasCompletedFullRestore && webRemoteControlTaskSyncEnabled ? (
       // 平台能力与 relay 存活判定已内聚在模块化组件里（getMobileRelayControlState 轮询）。

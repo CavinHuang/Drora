@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { WorkspaceFileTree, type WorkspaceFileTreeEntry } from "../legacy-v3.14.3/ui/WorkspaceFileTree.js";
+import {
+  WorkspaceFileTree,
+  type WorkspaceFileTreeEntry,
+} from "../legacy-v3.14.3/ui/WorkspaceFileTree.js";
 import { IntlProvider } from "../legacy-v3.14.3/ui/intl.js";
 
 // Node 的 tsx loader 使用 classic JSX transform；Vite 运行时使用 automatic transform。
@@ -33,7 +36,10 @@ function renderTree(props: Partial<Parameters<typeof WorkspaceFileTree>[0]> = {}
 
 test("文件树行渲染：名称 + gitIgnored 徽标（官方 zh 值「已忽略」）", () => {
   const html = renderTree({
-    entries: [entry({}), entry({ path: "dist/", name: "dist", kind: "directory", depth: 0, gitIgnored: true })],
+    entries: [
+      entry({}),
+      entry({ path: "dist/", name: "dist", kind: "directory", depth: 0, gitIgnored: true }),
+    ],
   });
   assert.ok(html.includes("a.ts"));
   assert.ok(html.includes("已忽略"), "gitIgnored 徽标应渲染官方 zh 值");

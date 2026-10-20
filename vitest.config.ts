@@ -123,7 +123,12 @@ export default defineConfig({
             "scripts/assert-safe-cua-helper-zip.test.mjs",
             "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
           ],
-          exclude: ["packages/desktop/test/e2e/**", "packages/zcode-cua/**", ...forkIsolatedTests, ...nodeUnitTests],
+          exclude: [
+            "packages/desktop/test/e2e/**",
+            "packages/zcode-cua/**",
+            ...forkIsolatedTests,
+            ...nodeUnitTests,
+          ],
           // Node 24/macOS 的 threads 全量运行可触发 V8 SIGSEGV；诊断时切换进程隔离，测试范围不变。
           pool: process.env.DRORA_TEST_POOL === "forks" ? "forks" : "threads",
           maxWorkers: process.env.DRORA_TEST_POOL === "forks" ? 2 : 4,

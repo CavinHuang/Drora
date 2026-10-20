@@ -4,18 +4,18 @@
 
 ## 已存在的代码事实
 
-| 文件 | 当前责任 | 建议变更 |
-|---|---|---|
+| 文件                                                                      | 当前责任                                                             | 建议变更                                                        |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | 在 `allowAgentWrites` true 时对授权根内 `Write/Edit` 输出 auto-allow | 按补丁先收紧自动授权 `.md` 且非隐藏；不能据此声称所有工具被阻断 |
-| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts` | 载入 Vault 授权、相对根路径及软链接校验、Session 焦点 | 先保证根身份与路径语义复用；更严格策略应迁移到独立 policy 模块 |
-| `packages/services/src/obsidian-vault/vault-fs.ts` | 安全 Vault IO、SHA 预检查 + 原子替换 | 只读索引调用既有安全能力；写入事务不要假定跨进程严格 CAS |
-| `packages/services/src/obsidian-vault/obsidianVault.ts` | `IObsidianVaultService` 接口 | 作为 Vault IO 服务，不复写新知识索引逻辑 |
-| `packages/services/src/node.ts` | `createLocalServices` 注册 Host 服务 | 按原有服务描述符装配新增 Knowledge；资源 dispose / Host 可达性 |
-| `packages/services/src/index.ts` + `packages/shared/src/channels.ts` | 公开 RPC 描述符与 channel | 扩展单一 DTO 和注册入口 |
-| `packages/ui/src/v4/VaultView.tsx` | Vault 当前笔记/编辑与选区动作 | wrapper 接入智能问库；不把新域逻辑塞入现有巨型组件 |
-| `packages/ui/src/v4/SessionPane.tsx` | Agent 会话呈现和输入 | `@Vault` 与真实 `CommandInbox` admission 的接入点必须先 Spike |
-| `packages/ui/src/lib/conversationSelectionReference.ts` | 把 `{path,text}` 序列化到 `# userselect:` | 不可把这段普通文本误当可信 citation receipt |
-| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx` | Workspace UI 挂载点，含 VaultView | 引用回跳通过现有 workspace/split pane 机制 |
+| `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts`         | 载入 Vault 授权、相对根路径及软链接校验、Session 焦点                | 先保证根身份与路径语义复用；更严格策略应迁移到独立 policy 模块  |
+| `packages/services/src/obsidian-vault/vault-fs.ts`                        | 安全 Vault IO、SHA 预检查 + 原子替换                                 | 只读索引调用既有安全能力；写入事务不要假定跨进程严格 CAS        |
+| `packages/services/src/obsidian-vault/obsidianVault.ts`                   | `IObsidianVaultService` 接口                                         | 作为 Vault IO 服务，不复写新知识索引逻辑                        |
+| `packages/services/src/node.ts`                                           | `createLocalServices` 注册 Host 服务                                 | 按原有服务描述符装配新增 Knowledge；资源 dispose / Host 可达性  |
+| `packages/services/src/index.ts` + `packages/shared/src/channels.ts`      | 公开 RPC 描述符与 channel                                            | 扩展单一 DTO 和注册入口                                         |
+| `packages/ui/src/v4/VaultView.tsx`                                        | Vault 当前笔记/编辑与选区动作                                        | wrapper 接入智能问库；不把新域逻辑塞入现有巨型组件              |
+| `packages/ui/src/v4/SessionPane.tsx`                                      | Agent 会话呈现和输入                                                 | `@Vault` 与真实 `CommandInbox` admission 的接入点必须先 Spike   |
+| `packages/ui/src/lib/conversationSelectionReference.ts`                   | 把 `{path,text}` 序列化到 `# userselect:`                            | 不可把这段普通文本误当可信 citation receipt                     |
+| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`                      | Workspace UI 挂载点，含 VaultView                                    | 引用回跳通过现有 workspace/split pane 机制                      |
 
 ## 集成顺序（按合入 PR 的最小颗粒拆分）
 

@@ -87,7 +87,9 @@ export function createJevAdapter(options: JevAdapterOptions): KnowledgeDecisionP
       await Promise.all(workers);
 
       // 取消/预算耗尽未覆盖的候选补齐本地回退：结果集合完整，融合规则唯一。
-      const fallbackReason: KnowledgeDecisionFallbackReason = request.signal.aborted ? "cancelled" : "timeout";
+      const fallbackReason: KnowledgeDecisionFallbackReason = request.signal.aborted
+        ? "cancelled"
+        : "timeout";
       for (const candidate of pool) {
         if (!outcomes.some((existing) => existing.candidateId === candidate.candidateId)) {
           outcomes.push({ candidateId: candidate.candidateId, status: "fallback", fallbackReason });
@@ -132,7 +134,10 @@ async function callSingleCandidate(
   request: KnowledgeDecisionRequest,
   options: JevAdapterOptions,
 ): Promise<SingleCallResult> {
-  const fallback = (reason: KnowledgeDecisionFallbackReason, outboundCount: number): SingleCallResult => ({
+  const fallback = (
+    reason: KnowledgeDecisionFallbackReason,
+    outboundCount: number,
+  ): SingleCallResult => ({
     outcome: { candidateId: candidate.candidateId, status: "fallback", fallbackReason: reason },
     outboundCount,
     inputTokens: 0,
@@ -160,7 +165,10 @@ async function callSingleCandidate(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (request.signal.aborted) return fallback("cancelled", outboundCount);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error("per-call-timeout")), options.perCallTimeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error("per-call-timeout")),
+      options.perCallTimeoutMs,
+    );
     const onOuterAbort = () => controller.abort(new Error("stage-cancelled"));
     request.signal.addEventListener("abort", onOuterAbort, { once: true });
     try {
@@ -180,25 +188,39 @@ async function callSingleCandidate(
         return fallback(lastReason, outboundCount);
       }
       if (response.status >= 500) return fallback("http_5xx", outboundCount);
-      if (response.status >= 400 || !response.body) return fallback("provider_error", outboundCount);
+      if (response.status >= 400 || !response.body)
+        return fallback("provider_error", outboundCount);
       // 响应校验（spec §5d.7）：只接受问题名 relevance 下的合法 noul；
       // 缺失/非数/NaN/出 [0,1] → invalid_score（该候选回退，不阻塞其余候选）。
       const answer = response.body.answers?.relevance;
       const noul = answer?.noul;
-      if (answer?.type !== "noul" || typeof noul !== "number" || !Number.isFinite(noul) || noul < 0 || noul > 1) {
+      if (
+        answer?.type !== "noul" ||
+        typeof noul !== "number" ||
+        !Number.isFinite(noul) ||
+        noul < 0 ||
+        noul > 1
+      ) {
         return fallback("invalid_score", outboundCount);
       }
       return {
         outcome: { candidateId: candidate.candidateId, status: "scored", noul },
         outboundCount,
-        inputTokens: typeof response.body.usage?.input_tokens === "number" ? (response.body.usage.input_tokens as number) : 0,
-        outputTokens: typeof response.body.usage?.output_tokens === "number" ? (response.body.usage.output_tokens as number) : 0,
+        inputTokens:
+          typeof response.body.usage?.input_tokens === "number"
+            ? (response.body.usage.input_tokens as number)
+            : 0,
+        outputTokens:
+          typeof response.body.usage?.output_tokens === "number"
+            ? (response.body.usage.output_tokens as number)
+            : 0,
         model: typeof response.body.model === "string" ? response.body.model : null,
       };
     } catch (error) {
       // AbortController 超时与网络异常同类：该候选回退，不阻塞其余候选。
       if (request.signal.aborted) return fallback("cancelled", outboundCount);
-      lastReason = error instanceof Error && error.message === "stage-cancelled" ? "cancelled" : "timeout";
+      lastReason =
+        error instanceof Error && error.message === "stage-cancelled" ? "cancelled" : "timeout";
       return fallback(lastReason, outboundCount);
     } finally {
       clearTimeout(timer);

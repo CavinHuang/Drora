@@ -9,10 +9,17 @@ const quote = { startLine: 3, endLine: 4, startOffset: 10, endOffset: 35 };
 const current: KnowledgeResolveCitationResult = {
   status: "current",
   citation: {
-    receiptId: "evr_ok", sessionId: "session-1",
-    runId: "run-1", articleId: "note-1", relativePath: "notes/a.md",
-    title: "A", heading: "Section", quote, excerpt: "Verified content",
-    fileSha256: "a".repeat(64), createdAtMs: 1,
+    receiptId: "evr_ok",
+    sessionId: "session-1",
+    runId: "run-1",
+    articleId: "note-1",
+    relativePath: "notes/a.md",
+    title: "A",
+    heading: "Section",
+    quote,
+    excerpt: "Verified content",
+    fileSha256: "a".repeat(64),
+    createdAtMs: 1,
   },
 };
 const run = (overrides: Partial<Parameters<typeof navigateKnowledgeCitation>[0]> = {}) =>
@@ -28,21 +35,28 @@ const run = (overrides: Partial<Parameters<typeof navigateKnowledgeCitation>[0]>
 describe("Obsidian citation resolver-to-reader transaction", () => {
   it("uses the server-resolved path and quote, never model-authored links", async () => {
     const opened: unknown[] = [];
-    expect(await run({
-      openNote: async (path, resolvedQuote, isCurrent, excerpt, sha256) => {
-        opened.push([path, resolvedQuote, isCurrent(), excerpt, sha256]);
-        return true;
-      },
-    })).toEqual({ ok: true });
+    expect(
+      await run({
+        openNote: async (path, resolvedQuote, isCurrent, excerpt, sha256) => {
+          opened.push([path, resolvedQuote, isCurrent(), excerpt, sha256]);
+          return true;
+        },
+      }),
+    ).toEqual({ ok: true });
     expect(opened).toEqual([["notes/a.md", quote, true, "Verified content", "a".repeat(64)]]);
   });
 
   it("will not call the resolver when no longer mounted or authorized", async () => {
     let calls = 0;
-    expect(await run({
-      isCurrent: () => false,
-      resolveCitation: async () => { calls++; return current; },
-    })).toEqual({ ok: false, reason: "forbidden" });
+    expect(
+      await run({
+        isCurrent: () => false,
+        resolveCitation: async () => {
+          calls++;
+          return current;
+        },
+      }),
+    ).toEqual({ ok: false, reason: "forbidden" });
     expect(calls).toBe(0);
   });
 
@@ -56,7 +70,10 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
       let opens = 0;
       const result = await run({
         resolveCitation: async () => resolved,
-        openNote: async () => { opens++; return true; },
+        openNote: async () => {
+          opens++;
+          return true;
+        },
       });
       expect(result.ok).toBe(false);
       expect(opens).toBe(0);
@@ -69,8 +86,14 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
     let opened = 0;
     const pending = run({
       isCurrent: () => active,
-      resolveCitation: () => new Promise((resolve) => { finish = resolve; }),
-      openNote: async () => { opened++; return true; },
+      resolveCitation: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      openNote: async () => {
+        opened++;
+        return true;
+      },
     });
     active = false;
     finish?.(current);
@@ -80,28 +103,42 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
 
   it("rejects a failed file read or scope change while opening", async () => {
     expect(await run({ openNote: async () => false })).toEqual({
-      ok: false, reason: "failed",
+      ok: false,
+      reason: "failed",
     });
     let active = true;
     const result = await run({
       isCurrent: () => active,
-      openNote: async () => { active = false; return true; },
+      openNote: async () => {
+        active = false;
+        return true;
+      },
     });
     expect(result).toEqual({ ok: false, reason: "forbidden" });
   });
 
   it("maps resolver and reader errors to explicit fail-closed outcomes", async () => {
-    expect(await run({
-      resolveCitation: async () => { throw new Error("offline"); },
-    })).toEqual({ ok: false, reason: "failed" });
-    expect(await run({
-      openNote: async () => { throw new Error("file unavailable"); },
-    })).toEqual({ ok: false, reason: "failed" });
+    expect(
+      await run({
+        resolveCitation: async () => {
+          throw new Error("offline");
+        },
+      }),
+    ).toEqual({ ok: false, reason: "failed" });
+    expect(
+      await run({
+        openNote: async () => {
+          throw new Error("file unavailable");
+        },
+      }),
+    ).toEqual({ ok: false, reason: "failed" });
   });
   it("never revives a delayed resolver across A→B→A even when all identities match again", async () => {
     const tracker = createKnowledgeCitationScopeEpoch();
     const scope = {
-      sessionId: "session-1", workspaceKey: "/workspace", vaultId: "vault-a",
+      sessionId: "session-1",
+      workspaceKey: "/workspace",
+      vaultId: "vault-a",
       queryService: {},
     };
     const oldVersion = tracker.observe(scope);
@@ -109,8 +146,14 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
     const opened: string[] = [];
     const pending = run({
       isCurrent: () => tracker.isCurrent(oldVersion),
-      resolveCitation: () => new Promise((resolve) => { finish = resolve; }),
-      openNote: async (path) => { opened.push(path); return true; },
+      resolveCitation: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      openNote: async (path) => {
+        opened.push(path);
+        return true;
+      },
     });
     tracker.observe({ ...scope, sessionId: "session-2" });
     const newVersion = tracker.observe(scope);
@@ -118,11 +161,15 @@ describe("Obsidian citation resolver-to-reader transaction", () => {
     finish?.(current);
     expect(await pending).toEqual({ ok: false, reason: "forbidden" });
     expect(opened).toEqual([]);
-    expect(await run({
-      isCurrent: () => tracker.isCurrent(newVersion),
-      openNote: async (path) => { opened.push(path); return true; },
-    })).toEqual({ ok: true });
+    expect(
+      await run({
+        isCurrent: () => tracker.isCurrent(newVersion),
+        openNote: async (path) => {
+          opened.push(path);
+          return true;
+        },
+      }),
+    ).toEqual({ ok: true });
     expect(opened).toEqual(["notes/a.md"]);
   });
-
 });

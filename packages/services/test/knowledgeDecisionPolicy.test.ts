@@ -18,7 +18,10 @@ import {
 import { DecisionCache, decisionCacheKeyOf } from "../src/knowledge/decision/decisionCache.js";
 import { DecisionTelemetry } from "../src/knowledge/decision/decisionTelemetry.js";
 import { localFallbackOutcomes } from "../src/knowledge/decision/localFallback.js";
-import type { KnowledgeDecisionCandidate, KnowledgeDecisionOutcome } from "../src/knowledge/decision/decisionTypes.js";
+import type {
+  KnowledgeDecisionCandidate,
+  KnowledgeDecisionOutcome,
+} from "../src/knowledge/decision/decisionTypes.js";
 
 function candidatesOf(ids: string[]): KnowledgeDecisionCandidate[] {
   return ids.map((id, index) => ({
@@ -205,7 +208,9 @@ test("阈值/权重可配置且 resolvePolicyConfig 保留默认基底", () => {
     config,
   });
   assert.equal(decision.action, "PREPARE_EVIDENCE_FOR_AGENT");
-  assert.ok(Math.abs((decision.fusedScoreByCandidateId.get("a") ?? 0) - (0.5 * 1 + 0.5 * 0.6)) < 1e-12);
+  assert.ok(
+    Math.abs((decision.fusedScoreByCandidateId.get("a") ?? 0) - (0.5 * 1 + 0.5 * 0.6)) < 1e-12,
+  );
 });
 
 test("queryHash：规范化空白后哈希，不同空白同一哈希", () => {
@@ -251,7 +256,9 @@ test("缓存：LRU 有界 + 按谓词失效（撤权/换源清理）", () => {
 
   cache.set("k1", entry("a"));
   cache.set("k2", entry("b"));
-  const removed = cache.invalidate((_, value) => value.queryHash === "qh" && value.sourceEpoch === 1);
+  const removed = cache.invalidate(
+    (_, value) => value.queryHash === "qh" && value.sourceEpoch === 1,
+  );
   assert.equal(removed, 2);
   assert.equal(cache.size, 0);
 

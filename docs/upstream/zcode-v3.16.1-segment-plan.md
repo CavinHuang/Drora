@@ -1,0 +1,45 @@
+# ZCode v3.16.1 分段合并执行计划（S0 产出）
+
+状态：S0 完成（2026-10-20）。执行器：`scripts/upstream/merge-dryrun.mjs`（base=/tmp/golden/base-transformed、theirs=/tmp/dryrun/theirs，重生成命令见文末）。逐路径机器可读清单：`/tmp/dryrun/inventory.json`（4546 条）与 `/tmp/dryrun/conflicts.json`。
+
+## 结局总表（段×结局）
+
+| 段 | total | take-theirs | new | clean-merge | delete | conflict | 决策类 | zone-decision |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| S1 根配置+shared/rpc | 166 | 84 | 45 | 16 | 6 | 13 | 0 | 2 |
+| S2 drora-cli | 829 | 498 | 232 | 56 | 8 | 31 | 0 | 4 |
+| S3 services/server/… | 430 | 222 | 161 | 20 | 18 | 9 | 0 | 0 |
+| S4 desktop | 1129 | 487 | 583 | 14 | 24 | 18 | 3 | 0 |
+| S5 ui/web | 1594 | 784 | 477 | 28 | 274 | 24 | 7 | 0 |
+| S6 cua/docs/scripts/资产 | 398 | 155 | 198 | 14 | 5 | 13 | 1 | 12 |
+
+决策面 = conflict 108 + theirs-modify-ours-deleted 3 + delete-decision 8 + zone-decision 18 = **137 条**；其余 4409 条机械落地（take-theirs 2230 / new 1696 / clean-merge 148 / delete 335）。
+
+## 裁定决策表（S0 核查三审定）
+
+1. **forceUpdate 家族 3 条（S4 theirs-modify-ours-deleted）**：维持删除。上游改动已核实无移植价值（manifestUpdateProvider 仅断言收窄+注释前缀；forceUpdateGuard.test 纯换行；manifestUpdateProvider.test 删 2 断言）。
+2. **S5 delete-decision 7 条**（WebRemoteControl{Dialog,MobileTaskHome,TaskIndexRow}.tsx、WorkspaceSidebarCollapsedRail、webRemoteControlTaskIndex.ts、workspace-grouped-tasks/task-row.tsx、v4ConversationDraftEmptyStateLogo.test）：随上游删除旧路径 + 把 Drora 增量移植到新模块（上游整删 -4526 行；Drora 增量证据 ead2fd306 自动开启闸门、7ced6f898 D 形水印→继任测试、team-ui 两提交）。新落点 project-sidebar/ 与 web-remote-control/ 模块（new 条目）。**必须与新模块 new 条目同批落地**。
+3. **scripts/prepare-prebuilds.mjs（S6）**：保留 ours（Drora 深度自研：npmmirror node dist、browser-use-plugin、CUA 三方清单；desktop package.json `prepare:remote-assets` 仍引用）。上游删除系改用 prepare-runtime-assets 脚本族；**S4 合并 desktop/package.json 时不得整体 take-theirs**，须显式保留 prepare 脚本引用（跨段耦合对，见下）。
+4. **zone-decision 18 条**：packages/zcode-cua 5 条按 R3 冻结 0.6.3（上游 0.6.5 仅登记）；third-party 7 条 Drora 拥有，其中 noto-sans-sc LICENSE 等 3 个上游新增做许可补齐甄别；zcode-cua-plugin 4 条 Drora 拥有+上游增量人工甄别；双 lockfile 2 条按段 `pnpm install` 重装不手并。
+5. **conflict 108 条**：按段人工/代理三方合并；重灾区 WorkspaceShellLayout.tsx(40 hunks)、webRemoteControlManager.ts(7)、clientConfig.test.ts(4)、prepare-agent-node-bundle.mjs(4)、Root.tsx(6)、host/index.ts(4)。
+
+## 跨段耦合对（落地顺序约束）
+
+1. S1 shared/web-remote-control.ts（V2 契约）↔ S4 webRemoteControlManager/windowRemoteConnectionRegistry ↔ S5 WebRemoteControl* 删除族——R1 链，S5 七条必须与新模块同批。
+2. S1 channels/clientConfig/validation ↔ S2 protocol-v4 handlers ↔ S5 SettingsPage 家族。
+3. S3 services/index/node/droraTaskIndexSyncer ↔ S4 host/index.ts ↔ S5 webRemoteControlTaskIndex 删除族（task-index 契约链）。
+4. S6 prepare-prebuilds（keep-ours）↔ S4 desktop/package.json（prepare 引用）。
+5. S1 vitest.config.ts（R4 取上游）↔ 各段新增测试目录。
+
+## 段表补记（回写 spec 的枚举）
+
+S3 = packages/{services,server,provider,provider-node,client,drora-server-cli,model-option-map,android,formal-proof,share-ui,web-share,stream-animate,e2e-report} + harness/ + config/；S5 = packages/{ui,web,mobile-web} + public/。
+
+## 重生成命令
+
+```sh
+node scripts/upstream/transform-upstream-tree.mjs --ref aac4755666d09fdcd70272fcf063c077a639015f --out /tmp/golden/base-transformed
+node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/theirs
+```
+
+黄金校验终态：445 differ / 194 Drora 独有 / 11 上游独有（较首版 473 修复：/zcode-cua/ 占位收紧为 assets/zcode-cua/、zcode/electron/releases 恢复保护——依据 HEAD 11d92f9be 与核查二）。

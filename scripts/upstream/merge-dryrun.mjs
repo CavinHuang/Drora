@@ -29,7 +29,7 @@ const SEGMENTS = [
   ["S2", ["apps/drora-cli/"]],
   ["S4", ["packages/desktop/"]],
   ["S3", ["packages/services/", "packages/server/", "packages/provider/", "packages/provider-node/", "packages/client/", "packages/drora-server-cli/", "packages/model-option-map/", "packages/android/", "packages/formal-proof/", "packages/share-ui/", "packages/web-share/", "packages/stream-animate/", "packages/e2e-report/", "harness/", "config/"]],
-  ["S5", ["packages/ui/", "packages/web/", "public/"]],
+  ["S5", ["packages/ui/", "packages/web/", "packages/mobile-web/", "public/"]],
   ["S1", ["packages/shared/", "packages/rpc/"]],
   ["S6", ["packages/zcode-cua/", "packages/zcode-cua-helper/", "docs/", "scripts/", "patches/", "third-party/", ".agents/", ".github/", "apps/dev-docs/", "THIRD-PARTY-NOTICES.md", "AGENTS.md", "DESIGN.md", "CONTEXT.md", "README.md", "README.en.md", "UI_PLUGIN.md", "UI_PLUGIN.en.md", "NOTICE.md", ".gitattributes", ".gitignore", ".oxlintrc.json", ".oxfmtrc.json"]],
   ["S1", []], // 兜底：根级杂项归 S1

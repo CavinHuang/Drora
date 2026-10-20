@@ -18,6 +18,7 @@ export const PLACEHOLDERS = [
   "cdn-zcode.z.ai",
   "zcode.z.ai",
   "zcode\\.z\\.ai", // 正则转义形态（config/provider 模板）
+  "zcode/electron/releases", // 官方桶对象目录（HEAD 11d92f9be 专门保留 zcode/ 形态）
   "/zcode/official-plugin/",
   "zcode://",
   "zcode:/",
@@ -71,7 +72,9 @@ export const PLACEHOLDERS = [
   "zcode-cua-helper",
   "zcode-cua.git",
   "aminer.cn/codegeex/zcode-cua",
-  "/zcode-cua/", // 官方 CDN 资产子路径（official-plugin/assets/zcode-cua/…）
+  "assets/zcode-cua/", // 官方 CDN 资产子路径（official-plugin/assets/zcode-cua/…）；
+  // 注意不能写成 /zcode-cua/——会拦截 import specifier（@zcode/zcode-cua/xxx）里的 8b 规则，
+  // 产出 @drora/zcode-cua 半形态（核查一发现的缺陷）
   "bump-zcode-cua-producer",
   "sync-skill-from-zcode-cua",
   "zcode-cua-windows-dev",

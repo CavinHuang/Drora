@@ -98,11 +98,13 @@ export function pendingMail(
 /**
  * 注入被接受后才标记送达（ack 只认注入，spec §16.3）；
  * 失败释放投递权留待重试由调用方不写 deliveredAt 表达。
+ * lead_injected（2026-10-21 缺口12）：lead 邮箱经 enqueueSubagentMessage 通道注入
+ * （spec §14）——enqueue 即接受，与成员 steer/resumed 的同步注入同表登记。
  */
 export function markDelivered(
   mailbox: TeamMailboxEntry[],
   messageIds: readonly string[],
-  via: "steered" | "resumed",
+  via: "steered" | "resumed" | "lead_injected",
   at: string,
 ): TeamMailboxEntry[] {
   const ids = new Set(messageIds);

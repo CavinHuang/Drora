@@ -5,6 +5,7 @@ import type {
   TeamV4CommandType,
 } from "@drora/shared/drora-protocol-v4";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
+import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { logger } from "@/logger.js";
 
 /**
@@ -55,6 +56,16 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
   try {
     const ack = await input.sendCommand(envelope);
     const ok = ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop";
+    // 2026-10-21（spec §14 缺口11 施工发现）：ack 环形缓冲（commandAckObservability
+    // 头注「每条命令」）此前只在 SessionPane 的派发路径记录——团队命令走本通道，
+    // e2e/现场排查 probe 不到 ACK（AT-01 首跑实证：产品链路全通、RPC OK，观测面
+    // 空白）。此处补记，与 SessionPane 同口径（type/status/reasonCode）。
+    recordV4CommandAck({
+      type,
+      status: ack.status,
+      ...(ack.reasonCode ? { reasonCode: ack.reasonCode } : {}),
+      at: Date.now(),
+    });
     if (!ok) {
       logger.warn("[team-commands] 团队命令被拒绝", {
         type,

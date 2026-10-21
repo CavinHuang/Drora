@@ -532,3 +532,187 @@ describe("member port presence and send semantics", () => {
     });
   });
 });
+
+// ---------- 2026-10-21 收口施工批次 2（spec §14）----------
+
+describe("draft task identity + dependency validation (2026-10-21 缺口5, spec §14)", () => {
+  it("preserves explicit taskIds on re-stage so dependsOn references survive revision", () => {
+    const journal: { payload: { kind: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      journalWriter: (event) => journal.push(event as never),
+    });
+    const draft = {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [
+        { taskId: "t_first", title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["t_second"] },
+        { taskId: "t_second", title: "t2", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
+      ],
+    };
+    expect(hub.stageTeam("lead_s1", draft).status).toBe("ok");
+    // 修订前缺陷：materializeTask 一律换新 ID，第二次入库后 dependsOn 全部悬空。
+    expect(hub.stageTeam("lead_s1", draft).status).toBe("ok");
+    const taskIds = hub.board()?.tasks.map((task) => task.taskId);
+    expect(taskIds).toEqual(["t_first", "t_second"]);
+    // staged 事实（journal）同样携带保持后的 ID——恢复侧 DAG 不失真。
+    const stagedFact = journal.filter((event) => event.payload.kind === "staged").at(-1) as {
+      payload: { tasks: { taskId: string }[] };
+    };
+    expect(stagedFact.payload.tasks.map((task) => task.taskId)).toEqual(["t_first", "t_second"]);
+  });
+
+  it("rejects duplicate or empty explicit taskIds (draft_duplicate_task)", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const duplicate = hub.stageTeam("lead_s1", {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [
+        { taskId: "t_x", title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
+        { taskId: "t_x", title: "t2", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
+      ],
+    });
+    expect(duplicate.status).toBe("rejected");
+    expect(duplicate.error?.code).toBe("draft_duplicate_task");
+    const empty = hub.stageTeam("lead_s1", {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [{ taskId: "", title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] }],
+    });
+    expect(empty.error?.code).toBe("draft_duplicate_task");
+  });
+
+  it("rejects dependsOn referencing tasks outside the draft (unknown_dependency)", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const result = hub.stageTeam("lead_s1", {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [
+        { title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["task_missing"] },
+      ],
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.error?.code).toBe("unknown_dependency");
+    expect(result.error?.message).toContain("task_missing");
+    // 被拒草案在全新 hub 上不得留下 team_created 事实（校验先于建队）。
+    expect(hub.teamId).toBeUndefined();
+  });
+
+  it("rejects dependency cycles including self-dependency (dependency_cycle)", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const cycle = hub.stageTeam("lead_s1", {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [
+        { taskId: "t_a", title: "a", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["t_b"] },
+        { taskId: "t_b", title: "b", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["t_a"] },
+      ],
+    });
+    expect(cycle.status).toBe("rejected");
+    expect(cycle.error?.code).toBe("dependency_cycle");
+    expect(cycle.error?.message).toContain("t_a -> t_b -> t_a");
+    const selfDep = hub.stageTeam("lead_s1", {
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [{ taskId: "t_solo", title: "s", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["t_solo"] }],
+    });
+    expect(selfDep.error?.code).toBe("dependency_cycle");
+  });
+
+  it("portTaskCreate rejects dangling dependsOn at runtime (permanent-pending prevention)", async () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const leadPort = hub.leadPort("lead_s1");
+    const dangling = leadPort.taskCreate({
+      title: "t2",
+      spec: { goal: "g", acceptance: ["a"] },
+      dependsOn: ["task_no_such"],
+    });
+    expect(dangling.status).toBe("rejected");
+    expect(dangling.error?.code).toBe("unknown_dependency");
+    const first = leadPort.taskCreate({ title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] });
+    expect(first.status).toBe("ok");
+    const chained = leadPort.taskCreate({
+      title: "t2",
+      spec: { goal: "g", acceptance: ["a"] },
+      dependsOn: [first.status === "ok" && first.task ? first.task.taskId : ""],
+    });
+    expect(chained.status).toBe("ok");
+  });
+});
+
+describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
+  it("routes lead mail through deliverLeadMail and records lead_injected on acceptance", async () => {
+    const deliver = vi.fn(async () => true);
+    const journal: { payload: { kind: string; via?: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      deliverLeadMail: deliver,
+      journalWriter: (event) => journal.push(event as never),
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const sent = alice.send({ to: "lead", message: "report to lead" });
+    // wire 返回值保持 queued（送达事实只认邮箱 deliveredAccepted，spec §14）。
+    expect(sent.status).toBe("success");
+    expect(sent.status === "success" && sent.delivery).toBe("queued");
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
+    const request = deliver.mock.calls[0]?.[0] as { entries: TeamMailboxEntry[] };
+    expect(request.entries.map((entry) => entry.message)).toEqual(["report to lead"]);
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries().at(-1) as TeamMailboxEntry;
+      expect(entry.deliveredAccepted).toBe(true);
+      expect(entry.deliveredVia).toBe("lead_injected");
+    });
+    // journal message_delivered(lead_injected) 在 markDelivered 之后同序贯写入，
+    // 但仍以 waitFor 收口（mailbox 断言通过时 journal 可能尚未可见的竞态窗口）。
+    await vi.waitFor(() => {
+      const deliveredFact = journal.find(
+        (event) => event.payload.kind === "message_delivered",
+      ) as { payload: { via?: string } } | undefined;
+      expect(deliveredFact?.payload.via).toBe("lead_injected");
+    });
+  });
+
+  it("keeps failed lead mail queued and retries on kickTeam; halted freezes delivery until resume", async () => {
+    const deliver = vi.fn(async () => false);
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk(), deliverLeadMail: deliver });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    alice.send({ to: "lead", message: "first report" });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(false);
+
+    // halted 冻结门：kickTeam 不投递。
+    hub.halt("lead_s1");
+    deliver.mockImplementation(async () => true);
+    await hub.kickTeam();
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(false);
+
+    hub.resume("lead_s1", "continue");
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries().at(-1) as TeamMailboxEntry;
+      expect(entry.deliveredAccepted).toBe(true);
+      expect(entry.deliveredVia).toBe("lead_injected");
+    });
+  });
+});
+
+describe("halt interrupts the lead's own turn (2026-10-21 边缘1, spec §14)", () => {
+  it("halt calls interruptLead fire-and-forget; a failing interrupt does not roll back the freeze", async () => {
+    const interruptLead = vi.fn(async () => {
+      throw new Error("no active execution");
+    });
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      interruptLead,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const result = hub.halt("lead_s1");
+    expect(result.status).toBe("ok"); // 静默失败不回滚冻结
+    expect(hub.status).toBe("halted");
+    await vi.waitFor(() => expect(interruptLead).toHaveBeenCalledTimes(1));
+  });
+});

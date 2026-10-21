@@ -24,6 +24,19 @@
 ATUI01–03 使用 renderer-only 浏览器候选，不声称覆盖 Electron Host 或手机重连。
 远程 runtime / replay / 成员权限不变，沿用既有协议测试，不与本次纯显示全排列。
 
+### Agents Team staged 全流程（AT-01，2026-10-21）
+
+TeamSpawn（spec §14 缺口0，staged 唯一生产入口）落地后的桌面 E2E accepted 用例
+（replay provider，零真实模型；灰度门经 wdio worker 按 spec 注入 `DRORA_AGENTS_TEAM=1`）：
+
+| ID    | Setup                                 | Action                                     | Assertion                                                                                                                             | Decision |
+| ----- | ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| AT-01 | yolo 会话 + team 灰度开门（worker env） | 发起 TeamSpawn → staged → 点 Approve & Run | staged 编辑器自动打开；Approve 前成员欢迎请求计数为 0（M2 零成员零会话）；approveTeamPlan ACK accepted；成员欢迎请求与自动派发复活请求（"Agents Team automatic task assignment"）相继到达（缺口2 调度链 E2E 化）；审批后 staged 编辑器退场 | accepted |
+
+范围外（后续用例承接）：revise/改名/abandon 分支（缺口9/10 UI 单测已覆盖）、
+halt/resume、spawn 原子性故障流、断线重同步。候选 spec：
+`packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-agents-team-staged-approval.test.ts`。
+
 ## 项目与任务草稿生命周期（2026-10-16）
 
 PD01–PD12 的前置、动作、断言与证据要求见 [统一生命周期规格](ui/project-task-draft-lifecycle.md)。产品语义 accepted；自动化保持 manual-review/pending，运行证据见 coverage matrix 与规格的验证记录，不代表已转正或发布。覆盖项目/任务新建、同目录项目隔离、接纳后默认配置、目录复用、迟到回执、手机独立恢复及旧数据认领。

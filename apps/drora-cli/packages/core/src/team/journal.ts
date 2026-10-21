@@ -1,6 +1,6 @@
 import type { SessionEntryInfo, SessionStorePort, TeamPermissionMode } from "@drora/contracts";
 import { TEAM_JOURNAL_KEY_PREFIX } from "@drora/contracts";
-import { isCurrentMail, markDelivered } from "./mailbox.js";
+import { appendToMailbox, isCurrentMail, markDelivered } from "./mailbox.js";
 import type { TeamHub } from "./hub.js";
 import type { TeamMailboxEntry, TeamRecord, TeamTaskInternal } from "./types.js";
 
@@ -65,7 +65,9 @@ export type TeamJournalPayload =
       kind: "message_delivered";
       teamId: string;
       messageIds: readonly string[];
-      via: "steered" | "resumed";
+      // lead_injected（2026-10-21 缺口12）：lead 邮箱注入事实（spec §14），与成员
+      // steered/resumed 同族 additive 扩展；deliveredVia 不入 wire 投影。
+      via: "steered" | "resumed" | "lead_injected";
       at: string;
     }
   | { kind: "member_removed"; teamId: string; memberName: string }
@@ -351,7 +353,10 @@ export function replayTeamJournal(
         restoreTask(payload.task);
         break;
       case "message_appended":
-        record.mailbox.push(payload.entry);
+        // 2026-10-21 缺口12（保留期一致性，spec §14）：重放走 appendToMailbox 的
+        // 每收件人保留期裁剪（默认限额与 hub 运行态同源）——裸 push 会让重放邮箱
+        // 无界增长且与运行态形状不一致（运行态每次入队都裁）。
+        record.mailbox = appendToMailbox(record.mailbox, payload.entry);
         break;
       case "message_delivered":
         record.mailbox = markDelivered(record.mailbox, payload.messageIds, payload.via, payload.at);
@@ -446,7 +451,7 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
       return (
         Array.isArray(payload.messageIds) &&
         payload.messageIds.every((id) => typeof id === "string") &&
-        (payload.via === "steered" || payload.via === "resumed") &&
+        (payload.via === "steered" || payload.via === "resumed" || payload.via === "lead_injected") &&
         nonEmpty(payload.at)
       );
     case "member_removed":

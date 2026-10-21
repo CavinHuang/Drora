@@ -21,6 +21,23 @@ ATUI01–03：`packages/desktop/test/e2e/conversation-session/manual-review/pend
 同轮补充通过：手机无导航端口的只读详情展开、coarse-pointer 44px 图层按钮，以及
 `packages/mobile-web/test/remoteFrame.test.ts` 的独立远控时间线团队摘要 SSR 回归。
 
+AT-01（2026-10-21，spec §14 缺口11）：`conversation-session-agents-team-staged-approval`。
+首个覆盖真实 Host 链路的 team 桌面用例（replay provider 夹具全 synthetic）：
+TeamSpawn 建 staged（缺口0 生产入口）→ Approve 前零成员请求（M2）→ approveTeamPlan
+ACK → 真实 in-process 成员 spawn → 欢迎回合自然终态触发的自动派发复活请求（缺口2）。
+灰度门由 wdio.conf.ts `applyAgentsTeamEnvForWorker` 按 spec 注入（照 AskUserQuestion
+时钟缩放先例，不泄漏到普通 worker）。automation 保持 manual-review/pending；
+夹具契约已就位（fixtures/upstream + fixtures/cases，逐条 maxMatches=1——TeamSpawn
+工具名会出现在续跑请求历史里，不封顶会让父会话被 tool_use 夹具反复命中成环，
+首跑实证）。2026-10-21 实际通过：`desktop-e2e-20261021-081600-613`（1/1，7s，
+DRORA_E2E_MANUAL_REVIEW=1 replay 模式）。转正待人工复核（e2e:promote --reviewed）。
+
+AT-01 施工过程修出的两处既有缺口（spec §14 登记）：
+- ack 可观测面——commandAckObservability 环形缓冲只在 SessionPane 派发路径记录，
+  team 命令（ui/team/commands.ts）从未入账；已补（与 SessionPane 同口径）。
+- 捕获记录的消息文本是解码态——测试查询不能搜 JSON 转义形态（`\"`），夹具匹配面
+  用的是原始 body，两侧表示不同；用例内以注释登记。
+
 ## 项目与任务草稿生命周期（PD，2026-10-16）
 
 PD01–PD12 定义及分层验证见 [统一生命周期规格](../ui/project-task-draft-lifecycle.md#本轮验证记录2026-10-16)。产品语义 accepted；自动化保持 manual-review/pending，未自动转正或加入 CI。

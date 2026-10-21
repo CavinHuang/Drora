@@ -178,7 +178,13 @@ export interface TeamStageMemberDraft {
 export interface TeamStageInput {
   name?: string;
   draftMembers: readonly TeamStageMemberDraft[];
-  draftTasks: readonly TeamTaskCreateInput[];
+  /**
+   * 草案任务可携带既有 taskId（2026-10-21 缺口5 身份保持）：staged 再次入库
+   * （reviseTeamPlan/setTeamMemberName 以 board 重建草案）时保留原 ID，dependsOn
+   * 引用才不悬空。仅 staging 路径消费；portTaskCreate 忽略（成员侧工具 schema
+   * 亦无此键，成员不能注入任意 ID）。新任务缺省由 hub 生成 task_<uuid>。
+   */
+  draftTasks: readonly (TeamTaskCreateInput & { taskId?: string })[];
   /** 仅用户明确要求跳过审批时直通（spec §1 两阶段成队）。 */
   skipApproval?: boolean;
 }
@@ -202,7 +208,12 @@ export type TeamPortErrorCode =
   | "message_too_large"
   | "draft_duplicate_member"
   | "draft_unknown_assignee"
-  | "member_spawn_failed";
+  | "member_spawn_failed"
+  // 2026-10-21 缺口5：草案 taskId 身份保持 + 依赖校验（spec §14）。unknown_dependency
+  // 同时用于 portTaskCreate 的运行态存在性校验（悬空依赖任务会永久 pending）。
+  | "draft_duplicate_task"
+  | "unknown_dependency"
+  | "dependency_cycle";
 
 export interface TeamPortError {
   code: TeamPortErrorCode;

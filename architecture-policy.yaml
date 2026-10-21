@@ -929,6 +929,15 @@ exceptions:
       - apps/drora-cli/packages/contracts/src/tools/amend-workflow.ts
       - apps/drora-cli/packages/core/src/tool/handlers/amend-workflow-resolve.ts
     reason: Admitted upstream files edited only to make an own-run AmendWorkflow that brings in a new provider ask the user; adopting the drora-cli contracts and core handlers needs a separate module boundary refactor.
+  # agents-team 内核收口批次 2（spec §14 缺口8）：member-sink 是 spec §7/修订10 定稿的
+  # 成员消息 presentation 承载（subagent_reply_steer 禁令渲染），与其余 team 内核文件
+  # 同目录同边界——深依赖 core 运行时内部面（runtime/deps、runtime-task registry、
+  # subagent 消息链），整目录 adopt 需单独的模块边界梳理（照 onboarding 同款理由）。
+  - id: team-member-sink-unmanaged-new-file
+    rule: unmanaged-new-file
+    paths:
+      - apps/drora-cli/packages/core/src/team/member-sink.ts
+    reason: Agents-team kernel message sink mandated by specs/agents-team.md §7 (subagent_reply_steer injection); the core/src/team kernel shares one boundary and deeply imports core runtime internals, so adopting the directory as a managed module needs a separate boundary pass, not this gap-fix batch.
   - id: workflow-share-unmanaged-new-files
     rule: unmanaged-new-file
     paths:

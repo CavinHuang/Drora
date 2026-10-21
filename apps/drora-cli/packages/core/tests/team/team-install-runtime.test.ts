@@ -8,7 +8,9 @@ import { installDroraAgentsTeam } from "../../../bootstrap/src/app/drora-team/in
 import { createToolRegistry } from "../../src/tool/registry.js";
 import type { ToolEntry } from "../../src/tool/types.js";
 import type { AgentRuntimeDeps } from "../../src/runtime/types.js";
-import { buildSteerPayload } from "../../src/team/message-format.js";
+import { buildSteerBody } from "../../src/team/message-format.js";
+import { createTeamMemberMessageSink } from "../../src/team/member-sink.js";
+import { TEAM_JOURNAL_ENTRY_TYPE } from "../../src/team/journal.js";
 import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
 
 /**
@@ -18,7 +20,8 @@ import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
  * ① 首次 spawn 成员的工具面板含团队协作工具（私有端口 → 构造注入注册表）；
  * ② 终态成员复活投递的消息体含零授权禁令文本（formatIncomingMessage 单一出处）；
  * ③ 灰度关 = 注册表无任何 Team* 工具（默认路径零变化的结构面）；
- * ④ steer 载荷不预嵌 presentation 包装（无双包装——渲染责任在 runtime 单侧）。
+ * ④ steer 载荷不预嵌 presentation 包装（无双包装——渲染责任在 runtime 单侧）；
+ *    2026-10-21 缺口8 起 presentation 由 team 自有 sink 承载（subagent_reply_steer）。
  *
  * 2026-10-21 审查缺口回归（事件与调度批次）：
  * ⑤ 缺口1——派发通道把 sendMessage 失败当已接受：失败不得 markDelivered 假回执；
@@ -26,6 +29,12 @@ import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
  *    handleMemberTerminal 调用），经真实 sendMessage 复活认领任务并回到 working；
  * ⑦ 缺口6——Approve & Run 逐成员 spawn 非原子：部分失败反向回收已启动成员、
  *    草案零确认零 journal 污染、专用错误码。
+ *
+ * 2026-10-21 收口施工批次 2（spec §14）：
+ * ⑧ 缺口12——lead 邮箱消费闭环：成员邮件经 enqueueSubagentMessage 通道真实进入
+ *    lead 会话（model-only 独立轮），邮箱落 lead_injected 送达事实；
+ * ⑨ 边缘2——冷恢复（journal 重放 adoption）后 memberPortByChildSession 重建：
+ *    恢复成员的团队工具解析（按 childSessionId 联接）不再 miss。
  */
 
 const TEST_MODEL_RESULT = {
@@ -34,15 +43,19 @@ const TEST_MODEL_RESULT = {
   usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
 };
 
-async function createLeadWithTeam(options: { enabled: boolean } = { enabled: true }) {
-  const sessionId = createSessionId();
+async function createLeadWithTeam(
+  options: { enabled?: boolean; sessionId?: ReturnType<typeof createSessionId>; sessionStore?: unknown } = {
+    enabled: true,
+  },
+) {
+  const sessionId = options.sessionId ?? createSessionId();
   const requests: unknown[] = [];
   const respond = vi.fn(async () => TEST_MODEL_RESULT);
-  const store = createRecordingMessageStore();
+  const store = (options.sessionStore ?? createRecordingMessageStore()) as never;
   const eventStore = createTestSessionEventStore();
   const leadDeps: AgentRuntimeDeps = {
     eventStore,
-    sessionStore: store as never,
+    sessionStore: store,
     modelFactory: createTestModelFactory({
       properties: { supportsMidConversationSystem: true },
       generateText: async (request) => {
@@ -51,7 +64,7 @@ async function createLeadWithTeam(options: { enabled: boolean } = { enabled: tru
       },
     }),
   } as unknown as AgentRuntimeDeps;
-  const registry = options.enabled ? createToolRegistry() : undefined;
+  const registry = options.enabled === false ? undefined : createToolRegistry();
   const lead = createTestAgentRuntime(
     sessionId,
     { mode: "build", compact: { enabled: false }, titleGeneration: { enabled: false } },
@@ -139,7 +152,7 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     expect(names).toEqual([]);
   });
 
-  it("④ steer payload is presentation-neutral (no double wrap; rendering belongs to the runtime)", () => {
+  it("④ steer body is presentation-neutral; the team sink carries subagent_reply_steer (no double wrap)", async () => {
     const entry: TeamMailboxEntry = {
       messageId: "m1",
       from: "alice",
@@ -148,12 +161,27 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
       at: "2026-10-17T00:00:00.000Z",
       deliveredAccepted: false,
     };
-    const payload = buildSteerPayload(entry);
-    // 载荷只带原文 + presentation 声明；wrap 短语由 runtime 的
-    // formatIncomingMessage("subagent_reply_steer") 单侧渲染——双包装即缺陷。
-    expect(payload.inputPresentation).toBe("subagent_reply_steer");
-    expect(payload.body).not.toContain("Another Drora session sent a message");
-    expect(payload.body).toContain("sync please");
+    const body = buildSteerBody(entry);
+    // 载荷只带原文；wrap 短语由 runtime 的 formatIncomingMessage 单侧渲染——双包装即缺陷。
+    expect(body).not.toContain("Another Drora session sent a message");
+    expect(body).toContain("sync please");
+    // 2026-10-21 缺口8（spec §7/§14）：presentation 的唯一承载 = team 自有 sink。
+    // 修复前成员注册的是通用 sink（message-steering.ts 硬编码 coordinator_steer，
+    // 无 PEER_PERMISSION_GUIDANCE 禁令渲染）——断言注入请求携带 subagent_reply_steer。
+    const steered: (string | { inputPresentation?: string })[] = [];
+    const sink = createTeamMemberMessageSink(
+      {
+        steerTurn: async (input) => {
+          steered.push(input);
+          return { kind: "queued" } as never;
+        },
+      },
+      { traceContext: { sessionId: "s" } as never },
+    );
+    await sink.send({ id: "m1", message: "sync please" });
+    expect(steered).toHaveLength(1);
+    const steerInput = steered[0] as { inputPresentation?: string };
+    expect(steerInput.inputPresentation).toBe("subagent_reply_steer");
   });
 
   it("⑤ dispatch channel does not treat sendMessage failure as accepted (no fake receipt)", async () => {
@@ -295,5 +323,94 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     // 挂起的首回合被 abort 收口，不再占用模型；释放 gate 让挂起的 promise 结算。
     releaseFirstTurn(TEST_MODEL_RESULT);
     expect(leadDeps.eventStore).toBeDefined();
+  });
+});
+
+describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批次 2, spec §14)", () => {
+  it("⑧ member mail to the lead reaches the lead session via the subagent-message channel", async () => {
+    const { lead, installed, requests } = await createLeadWithTeam();
+    const hub = installed!.hub;
+    const leadPort = hub.leadPort(lead.sessionId);
+    leadPort.stageTeam({
+      draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
+      draftTasks: [],
+    });
+    await leadPort.approveStage();
+    await hub.handleMemberTerminal("alice");
+
+    const rosterMember = hub.snapshot()?.members[0];
+    expect(rosterMember?.childSessionId).toBeTruthy();
+    const alicePort = hub.memberPort({
+      agentId: rosterMember!.agentId,
+      memberName: "alice",
+    });
+    const sent = alicePort.send({ to: "lead", message: "E2E_LEAD_MAIL_REPORT" });
+    expect(sent.status).toBe("success");
+
+    // 缺口12 消费闭环：deliverLeadMail → lead.enqueueSubagentMessage → 命令队列 →
+    // model-only 独立轮。送达事实先落账（lead_injected）……
+    await vi.waitFor(
+      () => {
+        const entry = hub.mailboxEntries().at(-1) as TeamMailboxEntry;
+        expect(entry.deliveredAccepted).toBe(true);
+        expect(entry.deliveredVia).toBe("lead_injected");
+      },
+      { timeout: 10_000 },
+    );
+    // ……lead 会话真实消费：模型请求包含 <subagent-message> 包裹的成员消息。
+    await vi.waitFor(
+      () => {
+        expect(requests.some((request) => JSON.stringify(request).includes("E2E_LEAD_MAIL_REPORT"))).toBe(true);
+      },
+      { timeout: 10_000 },
+    );
+  });
+
+  it("⑨ journal restore rebuilds member tool routing (memberPortByChildSession) after cold recovery", async () => {
+    const sessionId = createSessionId();
+    const seedEntries: Record<string, unknown>[] = [];
+    const seed = (seq: number, payload: Record<string, unknown>): void => {
+      seedEntries.push({
+        id: `seed:${String(seq)}`,
+        sessionID: sessionId,
+        type: TEAM_JOURNAL_ENTRY_TYPE,
+        touchSession: false,
+        time: { created: 0, updated: 0 },
+        data: { seq, at: "2026-10-21T00:00:00.000Z", payload },
+      });
+    };
+    seed(1, { kind: "team_created", teamId: "team_seed", leadSessionId: sessionId, createdAt: "2026-10-21T00:00:00.000Z" });
+    seed(2, {
+      kind: "staged",
+      teamId: "team_seed",
+      awaitingFeedback: false,
+      members: [{ memberName: "alice", profile: "general-purpose" }],
+      tasks: [],
+    });
+    seed(3, { kind: "approved", teamId: "team_seed" });
+    seed(4, { kind: "member_added", teamId: "team_seed", memberName: "alice", agentId: "agent_restored", childSessionId: "sess_child_alice" });
+    const store = {
+      ...createRecordingMessageStore(),
+      async sessionEntries() {
+        return seedEntries;
+      },
+      async saveSessionEntry(entry: Record<string, unknown>) {
+        seedEntries.push(entry);
+      },
+    };
+
+    const { registry, installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    // install 的恢复是 fire-and-forget——等 journal adoption 收敛。
+    await vi.waitFor(() => expect(installed!.hub.teamId).toBe("team_seed"), { timeout: 10_000 });
+    expect(installed!.hub.snapshot()?.members[0]?.childSessionId).toBe("sess_child_alice");
+
+    // 修复前：memberPortByChildSession 只在 spawn 路径填充——恢复成员会话的团队
+    // 工具解析（按 childSessionId 联接）永远 miss，工具抛 "Team port is not configured"。
+    const listTool = (registry as unknown as { get: (name: string) => ToolEntry | undefined }).get("TeamTaskList");
+    expect(listTool).toBeDefined();
+    const result = (await listTool!.handler({}, { sessionId: "sess_child_alice" } as never)) as {
+      tasks: unknown[];
+    };
+    expect(result).toBeDefined(); // roster/boardRead 成功 = 端口按 childSessionId 命中
   });
 });

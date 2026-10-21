@@ -1139,3 +1139,115 @@ spec 先行面随批更新：§2.6 补 halted 中断/resume 唤醒语义（缺�
 - 验证口径（批次报告转录，本节登记未复跑）：apps/drora-cli 的 `pnpm lint` 包装
   脚本在干净基线（stash 对照）同样失败，判定环境性问题；改以逐文件
   `oxlint --no-ignore` 替代（0 警告 0 错误）。
+
+## 14. 收口施工（批次 2，2026-10-21）
+
+对照审查缺口 5/8/11/12 与两处登记边缘 + 一项调查新发现的致命缺口，逐项裁定与
+实现登记。编号沿用 §12/§13 的缺口族。
+
+### 缺口0（调查新发现）｜TeamSpawn 工具缺失——staged 草案无生产入口
+
+- 触发场景：`/team` 命令展开后提示模型走「TeamStage → review → approve」，但
+  `createTeamCollabToolEntries` 只注册任务板协作 5 工具；`team-tools.ts:9` 注释
+  自认「lead 侧另有 TeamSpawn…PR-1.6 随 install 落地」且该 PR 从未落地——灰度
+  开门后模型无从建草案，八条 v4 命令（approve/revise 等全部要求 staged 在场）
+  全部空转，功能在生产路径上整体死路。
+- 裁定：按 §6.1 工具面定名 **TeamSpawn**（§14 对照表同款命名），实现为 lead 专属
+  工具（`createTeamLeadToolEntries`，team-tools.ts 新出口）；输入 = 花名册
+  （name/profile/model_selection）+ 任务 DAG（task_id?/title/goal/acceptance/
+  output_format?/assignee?/depends_on[]），wire 键 snake_case 照协作工具族；
+  输出回显落库后的真实 task_id 全表 + 「等待用户审批」指引（审批是用户动作，
+  模型不得自批——与「不批自己的实现」同源）。skipApproval 不经工具暴露
+  （两阶段成队的例外只属于用户明确指令，§1）。
+- 通道：同注册表实例（install 注册两族工具），身份经端口解析器结构性裁决
+  （leadPort 有 stageTeam；成员端口无此方法，E10 同族）。`/team` 命令正文与
+  agents-team skill 的措辞同步点名 TeamSpawn（原文「TeamStage」无对应工具）。
+
+### 缺口5｜草案 taskId 身份不保持 + dependsOn 零校验
+
+- 根因：`stageTeam` 整体替换任务时 `materializeTask` 一律生成全新 taskId——
+  reviseTeamPlan/setTeamMemberName 以 board 重建草案再入库后，所有 dependsOn
+  引用旧 ID 全部悬空（DAG 静默摧毁）；且 stageTeam 对 dependsOn 无存在性校验
+  （新草案可引用不存在的任务/成环），portTaskCreate 同样不校验（成员可造出
+  永久 pending 的悬空依赖任务）。
+- 修复机制：`TeamStageInput.draftTasks` 单元开放 `taskId?`（内联交集类型，不进
+  `TeamTaskCreateInput`——成员侧 TeamTaskCreate 工具 schema 不含该键，端口路径
+  materialize 忽略，成员不能注入任意 ID）；stageTeam 保留 taskId（非空 + 草案内
+  去重）→ dependsOn ⊆ 最终 taskId 集 → DFS 环检测，三道校验对应新错误码
+  `draft_duplicate_task` / `unknown_dependency` / `dependency_cycle`（contracts
+  错误目录 + errors.ts 文案单一出处；unknown_dependency 同时用于 portTaskCreate
+  的存在性校验）；reviseTeamPlan/setTeamMemberName 重建草案时回传原 taskId
+  （身份保持后 dependsOn 天然不悬空）。
+
+### 缺口8｜成员消息 sink 硬编码 coordinator_steer（spec 修订10 落地）
+
+- 根因：成员注册的 message sink 是通用 `createSubagentMessageSink`
+  （member-runtime.ts），presentation 硬编码 `coordinator_steer`——渲染文案无
+  PEER_PERMISSION_GUIDANCE（消息零授权禁令，§1）与回信指引；`buildSteerPayload`
+  声明的 `subagent_reply_steer` 是死字段（dispatch 通道不承载 presentation）。
+- 修复机制：新文件 `core/src/team/member-sink.ts`——`createTeamMemberMessageSink`
+  复刻 no_active_turn 20×10ms 重试与 delivery:"guide"，presentation 引
+  `MEMBER_STEER_PRESENTATION`（message-format.ts 单一出处）；member-runtime 换注册
+  team sink；`buildSteerPayload` 收窄为只返回 body（presentation 职责归 sink，
+  消除「hub 声明、无人消费」的死字段）。
+
+### 缺口12｜lead 邮箱消费面缺失 + journal 重放保留期不一致
+
+- 根因（两层）：(a) `routeMail` 对 `to=lead` 恒 return "queued"——成员发给 lead
+  的消息不进 lead 会话事件流/模型上下文，唯一可见面是面板尾窗摘要；
+  `returnLeadTakeovers()`（§16.2 lead 接管 idle 归还）生产零调用；(b) journal
+  重放 `message_appended` 直接 push 不走 `appendToMailbox` 保留期裁剪——重放
+  邮箱与运行态邮箱形状不一致。
+- 修复机制：
+  - lead 邮箱投递通道 = `lead.enqueueSubagentMessage`（RespondToCoordinator 同
+    通道：mid-turn 经 active-loop 以 steer 注入、idle 即刻 drain 为 model-only
+    独立轮——唤醒语义与后台任务通知同族）。hub 新增可选依赖
+    `deliverLeadMail(entries)`；`routeMail` lead 分支 fire-and-forget 调
+    `deliverPendingLeadMail()`（staged/归档/halted 冻结门同成员）；wire 返回值
+    仍为 "queued"（送达事实只认邮箱 deliveredAccepted），送达事实经
+    markDelivered(via="lead_injected") + journal message_delivered 落库（via
+    联合类型 additive 扩展；deliveredVia 不入 wire 投影，投影面零改动）。
+    ack 语义登记：enqueue 即接受（stale-branch 丢弃窗口与 RespondToCoordinator
+    同源同责，不另造回执通道）；投递失败留 queued，由 kickTeam 末尾与 lead
+    turn-complete 边缘重试。
+  - `returnLeadTakeovers` 接线：install 给 lead 挂 SessionEventSink，lead 会话
+    TurnComplete 边缘 → 归还接管任务 + 补投 lead 待决邮件（fire-and-forget）。
+  - journal 重放改走 `appendToMailbox`（默认保留期与运行态同源；同批次
+    message_delivered/lead_injected 重放后投递态一致）。
+
+### 边缘1｜halt 不取消 lead 自身回合
+
+- 修复机制：hub 新增可选依赖 `interruptLead`；halt 在中断成员后同批 fire-and-forget
+  调用。install 实现 = `lead.stopActiveForegroundExecution({reason})`
+  （internal-methods.ts:163；AbortController 域覆盖整条前台执行，goal verifier/
+  continuation 交界同样命中）。静默失败不回滚冻结（同成员中断先例，hub.ts:410）。
+
+### 边缘2｜冷恢复 memberPortByChildSession 不重建
+
+- 根因：map 只在 spawn 路径填充（install.ts），journal 恢复的成员虽在花名册
+  （member_added 事实带 childSessionId），成员会话的团队工具解析（按
+  childSessionId 联接）永远 miss——恢复后成员用不了任务板。
+- 修复机制：restore adoption 后按快照重建（跳过 pending_ 占位与 removed）；
+  同批补投 lead 待决邮件（恢复窗口内送达失败的无别的重试边缘）。
+
+### 缺口11｜正式桌面 E2E
+
+- 裁定：TeamSpawn 落地后 staged 全流程（/team → TeamSpawn → staged 编辑/改名 →
+  Approve & Run → 成员真实 spawn + 自动派发）可走真实用户路径 + replay provider
+  夹具（零真实模型）；用例按 e2e-case-lifecycle 登记（catalog/matrix + pending
+  spec + case-local fixtures），灰度门经 WDIO 进程 env `DRORA_AGENTS_TEAM=1`
+  （未打包 Electron 走 dev shell 透传分支，desktopRuntimeEnv.ts）。
+- 施工发现（AT-01 首跑实证）：产品链路全通（sendConversationCommandV4 OK、
+  成员真实 spawn + 欢迎回合完成），但 **ack 可观测面有缺口**——
+  commandAckObservability 的环形缓冲（头注「每条命令」）只在 SessionPane 派发
+  路径记录，team 命令走 `ui/team/commands.ts` 自有通道从未入账，e2e/现场排查
+  probe 不到 ACK。修复：sendTeamCommand 统一补记（与 SessionPane 同口径
+  type/status/reasonCode/at），登记于本节。
+- 运行证据：2026-10-21 `desktop-e2e-20261021-081600-613`（1/1 通过，replay 模式，
+  DRORA_E2E_MANUAL_REVIEW=1）——staged 自动开侧板、Approve 前零成员请求（M2）、
+  approveTeamPlan ACK accepted、成员欢迎请求 + 自动派发复活请求相继到达（缺口2
+  E2E 化）、审批后 staged 编辑器退场。automation 保持 manual-review/pending，
+  转正待人工复核（e2e:promote --reviewed）。夹具纪律：逐条 maxMatches=1
+  （TeamSpawn 工具名出现在续跑请求历史里，不封顶父会话会被 tool_use 夹具反复
+  命中成环）；测试查询捕获记录用解码态文本（不能搜 JSON 转义 `\"` 形态，
+  夹具匹配面才是原始 body）。

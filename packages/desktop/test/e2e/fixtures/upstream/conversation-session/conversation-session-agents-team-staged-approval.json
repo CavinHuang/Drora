@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "agents-team-staged-approval-parent-spawn",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
+          "TeamSpawn"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_agents_team_staged_spawn",
+          "name": "TeamSpawn",
+          "input": {
+            "name": "e2e-staged-team",
+            "members": [
+              {
+                "name": "alice",
+                "profile": "general-purpose"
+              }
+            ],
+            "tasks": [
+              {
+                "title": "E2E_AGENTS_TEAM_TASK",
+                "goal": "E2E goal for the staged approval case",
+                "acceptance": [
+                  "E2E acceptance met"
+                ],
+                "assignee": "alice"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-tool-use",
+        "source": "synthetic",
+        "syntheticReason": "lead 首回合只需稳定触发 TeamSpawn tool_use（staged 草案入口，spec §14 缺口0）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-staged-approval-parent-final",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
+          "The draft is staged for user approval"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_STAGED_SUMMARY: team staged, waiting for user approval."
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "TeamSpawn 工具结果回读后 lead 收束回合（工具结果含 next 指引文本，用它区分首回合请求）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-staged-approval-member-welcome",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "You are \\\"alice\\\", a member of an Agents Team"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_IDLE"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "成员欢迎回合自然终态——触发 install 运行态接线的 terminal 边缘（缺口2 E2E 化）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-staged-approval-member-assignment",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "Agents Team automatic task assignment",
+          "E2E_AGENTS_TEAM_TASK"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_ACK"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "终态边缘 → kick → 自动派发的复活回合请求到达即证明缺口2 调度链（派发提示由 hub dispatchTicket 生成）。"
+      },
+      "maxMatches": 1
+    }
+  ]
+}

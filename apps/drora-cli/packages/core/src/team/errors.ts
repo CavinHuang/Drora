@@ -115,5 +115,25 @@ export function teamPortError(
         message: "Spawning team members failed; the staged draft is intact with zero members.",
         hint: "No member was created. Fix the cause (e.g. member profile or provider availability) and approve the draft again.",
       };
+    // 2026-10-21 缺口5（spec §14）：草案 taskId 身份保持 + 依赖三道校验——悬空/成环的
+    // DAG 会让任务永久 pending 且静默无提示，必须在入库源头拦截并给出可行动文案。
+    case "draft_duplicate_task":
+      return {
+        code,
+        message: `Draft contains duplicate task id '${params.id ?? "?"}'.`,
+        hint: "Task ids must be unique inside a draft; keep one or assign a fresh id (omit task_id) for the new task.",
+      };
+    case "unknown_dependency":
+      return {
+        code,
+        message: `Dependency '${params.id ?? "?"}' does not match any task on the board.`,
+        hint: "depends_on must reference existing task ids. Remove the dangling reference or stage the missing task first.",
+      };
+    case "dependency_cycle":
+      return {
+        code,
+        message: `Draft task dependencies form a cycle: ${params.path ?? "?"}.`,
+        hint: "Cyclic tasks can never become ready. Break the cycle by removing one depends_on edge.",
+      };
   }
 }

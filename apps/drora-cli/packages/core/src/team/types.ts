@@ -80,7 +80,9 @@ export interface TeamMailboxEntry {
   targetTaskId?: string;
   targetAttemptId?: string;
   deliveredAt?: string;
-  deliveredVia?: Exclude<TeamSendDelivery, "queued">;
+  // lead_injected（2026-10-21 缺口12，spec §14）：lead 邮箱经 enqueueSubagentMessage
+  // 通道注入的送达事实；wire 投影不携带 deliveredVia（projection.ts），扩值无 wire 面。
+  deliveredVia?: "steered" | "resumed" | "lead_injected";
   /** ack 只认注入（spec §16.3）：queued 不算送达。 */
   deliveredAccepted: boolean;
 }

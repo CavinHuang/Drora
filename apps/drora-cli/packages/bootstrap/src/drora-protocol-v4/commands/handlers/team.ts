@@ -123,6 +123,9 @@ async function reviseTeamPlan(
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({
+        // 2026-10-21 缺口5（spec §14）：回传原 taskId——stageTeam 身份保持后
+        // dependsOn 引用不悬空（不传则全部换新 ID，DAG 被静默摧毁）。
+        taskId: task.taskId,
         title: task.title,
         spec: {
           goal: task.spec.goal,
@@ -259,6 +262,9 @@ async function setTeamMemberName(
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({
+        // 2026-10-21 缺口5（spec §14）：回传原 taskId（同 reviseTeamPlan——身份保持，
+        // dependsOn 引用不悬空）。
+        taskId: task.taskId,
         title: task.title,
         spec: {
           goal: task.spec.goal,

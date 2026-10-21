@@ -108,6 +108,7 @@ import { ensureSshRemoteReleaseAssets } from "./test/e2e/helpers/e2e-ssh-remote-
 import {
   ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV,
   BIGMODEL_PROVIDER_ID,
+  DRORA_AGENTS_TEAM_ENV,
   ZAI_PROVIDER_ID,
 } from "@drora/shared";
 import {
@@ -911,6 +912,22 @@ function applyAskUserQuestionClockScaleForWorker(specs: string[]) {
     process.env[ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV] = scale;
   } else {
     delete process.env[ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV];
+  }
+}
+
+/**
+ * agents-team 灰度门按 spec 注入（2026-10-21 缺口11，spec §14）：team 是默认关的
+ * 实验功能，E2E Electron 未打包——WDIO worker 的 env 经 electron main 进程透传到
+ * Host/Agent（desktopRuntimeEnv 的 dev shell 透传分支）。只对含 agents-team spec
+ * 的 worker 开门并在下一 worker 清理（照 applyAskUserQuestionClockScaleForWorker
+ * 先例），避免 TeamSpawn 等额外工具注册泄漏进普通 case 的请求体。
+ */
+function applyAgentsTeamEnvForWorker(specs: string[]) {
+  const isAgentsTeamWorker = specs.some((spec) => spec.includes("agents-team"));
+  if (isAgentsTeamWorker) {
+    process.env[DRORA_AGENTS_TEAM_ENV] = "1";
+  } else {
+    delete process.env[DRORA_AGENTS_TEAM_ENV];
   }
 }
 
@@ -4889,6 +4906,7 @@ export const config: WebdriverIO.Config = {
     currentE2EWorkerSessionSpecs = specs;
     applyUpstreamE2EHttpModeForWorker(specs);
     applyAskUserQuestionClockScaleForWorker(specs);
+    applyAgentsTeamEnvForWorker(specs);
     applyE2EProviderEnv(specs);
     configureHighspeedE2EMock(specs);
     currentE2EBeforeSessionError = null;

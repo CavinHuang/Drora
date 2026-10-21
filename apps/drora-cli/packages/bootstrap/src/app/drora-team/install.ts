@@ -2,6 +2,7 @@ import {
   createTeamCollabToolEntries,
   createTeamJournalSessionStoreSink,
   readTeamHistoryPage,
+  createTeamLeadToolEntries,
   createTeamMemberPort,
   createToolRegistry,
   InMemoryRuntimeTaskRegistry,
@@ -237,6 +238,38 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       if (agentId === undefined) return;
       await settleMemberTask(memberName, agentId);
     },
+    // 2026-10-21 边缘1（spec §14）：停队同时中断 lead 自身回合——AbortController 域
+    // 覆盖整条前台执行（goal verifier/continuation 交界同样命中）。
+    interruptLead: async () => {
+      lead.stopActiveForegroundExecution({ reason: "agents team halted by the user" });
+    },
+    // 2026-10-21 缺口12（spec §14）：lead 邮箱投递通道 = enqueueSubagentMessage
+    //（RespondToCoordinator 同通道：mid-turn 经 active-loop 以 steer 注入、idle 即刻
+    // drain 为 model-only 独立轮——唤醒语义与后台任务通知同族）。enqueue 即接受；
+    // 发件成员已离册时返回 false 留 queued（世代过滤/清理路径收敛）。
+    deliverLeadMail: async ({ entries }) => {
+      const roster = hub.snapshot();
+      for (const entry of entries) {
+        // snapshot 已滤 removed 成员；照 memberName 联接（E5 名字重定向防护同源）。
+        const sender = roster?.members.find((candidate) => candidate.memberName === entry.from);
+        if (sender === undefined || sender.childSessionId === undefined) return false;
+        lead.enqueueSubagentMessage({
+          responseId: `team_mail_${entry.messageId}`,
+          agentId: sender.agentId,
+          agentType:
+            sender.profile === undefined || sender.profile === "" ? "general-purpose" : sender.profile,
+          childSessionId: sender.childSessionId as never,
+          childToolCallId: `team:${sender.agentId}`,
+          summary: entry.summary ?? `Team message from ${entry.from}`,
+          message: entry.message,
+          traceContext: {
+            traceId: `team_${randomId()}` as unknown as TraceId,
+            sessionId: lead.sessionId,
+          },
+        });
+      }
+      return true;
+    },
     spawnMembers: async (members, _permissionMode) => {
       // permissionMode 不经 launch 请求传播（上游注释见下）——成员装配从花名册
       // 记录值读取（spec §8.1，hub 传入仅为签名完整）。
@@ -374,6 +407,27 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   })) {
     toolRegistry.register(entry);
   }
+  // lead 专属工具族（2026-10-21 缺口0，spec §14）：TeamSpawn 是 staged 草案的唯一
+  // 生产入口——/team 命令展开后模型建花名册 + DAG，审批是用户侧 v4 命令。成员会话
+  // 解析为 undefined（E10 lead 专属结构性保证）。
+  for (const entry of createTeamLeadToolEntries((context) =>
+    context.sessionId === lead.sessionId ? hub.leadPort(lead.sessionId) : undefined,
+  )) {
+    toolRegistry.register(entry);
+  }
+
+  // 2026-10-21 缺口12（spec §14）：lead 会话 TurnComplete 边缘——归还接管任务
+  //（returnLeadTakeovers 生产接线，此前唯一 lead 边缘钩子零调用）+ 补投 lead 待决
+  // 邮件（routeMail 即时投递失败的重试边缘）。fire-and-forget，不阻塞事件链。
+  lead.eventSinks.add({
+    onSessionEvent: (event) => {
+      if (event.sessionId !== lead.sessionId) return;
+      if (event.type !== SessionEventType.TurnComplete) return;
+      hub.returnLeadTakeovers();
+      void hub.deliverPendingLeadMail().catch(() => undefined);
+      return undefined;
+    },
+  });
 
   // PR-2.2：装配完成即登记，v4 团队命令 handler 经 getInstalledTeamHub 查询。
   installedHubsByLeadSession.set(lead.sessionId, hub);
@@ -412,6 +466,20 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
       journalSink.setNextSeq(outcome.lastSeq + 1);
       if (outcome.adopted && hub.teamId !== undefined) {
         emitTeamStateChanged(hub.teamId);
+        // 2026-10-21 边缘2（spec §14）：冷恢复后按花名册重建 memberPortByChildSession
+        //——此前只在 spawn 路径填充，恢复成员虽在册（member_added 事实带
+        // childSessionId），成员会话的团队工具解析（按 childSessionId 联接）永远
+        // miss，恢复后成员用不了任务板。
+        for (const member of hub.snapshot()?.members ?? []) {
+          if (member.state === "removed" || member.childSessionId === undefined) continue;
+          if (member.agentId.startsWith("pending_")) continue;
+          memberPortByChildSession.set(
+            member.childSessionId,
+            hub.memberPort({ agentId: member.agentId, memberName: member.memberName }),
+          );
+        }
+        // 恢复窗口内积压的 lead 待决邮件补投（缺口12）。
+        void hub.deliverPendingLeadMail().catch(() => undefined);
         // M4 冷恢复自动重试（spec §2.3：恰一次，失败不退 pending）：恢复后对每个
         // 持开放 attempt 的成员各试一次；recoveryRetried 已持久化，天然防重复。
         for (const member of hub.snapshot()?.members ?? []) {

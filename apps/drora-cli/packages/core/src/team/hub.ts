@@ -38,7 +38,7 @@ import {
   pendingMail,
   validateMessageSize,
 } from "./mailbox.js";
-import { buildRevivalBody, buildSteerPayload } from "./message-format.js";
+import { buildRevivalBody, buildSteerBody } from "./message-format.js";
 import {
   taskJournalFactOf,
   type TeamJournalPayload,
@@ -98,6 +98,18 @@ export interface TeamHubDeps {
   /** 状态变化通知(β 接缝):install 借此向 v4 投影发 TeamStateChanged 会话事件。 */
   onChange?: () => void;
   /**
+   * lead 邮箱投递通道（2026-10-21 缺口12，spec §14）：install 经 lead
+   * enqueueSubagentMessage 注入（mid-turn steer / idle 独立轮同通道）。返回 true =
+   * 已接受（enqueue 即接受），hub 记 lead_injected 送达事实；false/抛错 = 留 queued
+   * 待重试边缘。缺席 = lead 邮件恒 queued（与修复前行为一致）。
+   */
+  deliverLeadMail?: (request: { entries: readonly TeamMailboxEntry[] }) => Promise<boolean>;
+  /**
+   * halt 时中断 lead 自身回合（2026-10-21 边缘1，spec §14）：install 实现 =
+   * lead.stopActiveForegroundExecution。静默失败不回滚冻结（同成员中断先例）。
+   */
+  interruptLead?: () => void | Promise<void>;
+  /**
    * journal 写入（M3 PR-3.1，spec 差异裁决#5）：动作点的「用户/协议动作与板/邮箱
    * 数据事实」追加。同步入队契约（同 persistMailboxEntry）——hub 不等待刷盘、
    * 不因 journal 失败中断裁决；实现（journal.ts sink）内部串行异步刷盘并兜错。
@@ -128,7 +140,10 @@ export class TeamHub {
   private record: TeamRecord | undefined;
   private readonly parkedAttempts = new Map<string, string>();
   private readonly dispatch: TeamDispatchFn;
-  private readonly deps: Pick<TeamHubDeps, "interruptAndSettle" | "persistMailboxEntry" | "spawnMembers">;
+  private readonly deps: Pick<
+    TeamHubDeps,
+    "interruptAndSettle" | "persistMailboxEntry" | "spawnMembers" | "deliverLeadMail" | "interruptLead"
+  >;
   private readonly dispatchQueues = new Map<string, Promise<unknown>>();
   private readonly notifyChange: () => void;
   /** journal 追加（缺席 = no-op；异常吞并——journal 是旁路事实流，不得中断裁决）。 */
@@ -245,6 +260,38 @@ export class TeamHub {
       }
     }
     const now = this.clock.now();
+    // 2026-10-21 缺口5（spec §14）：草案任务可携带既有 taskId（revise/rename 以
+    // board 重建草案时身份保持，dependsOn 引用才不悬空）；新任务缺省生成。三道
+    // 校验（taskId 非空去重 / dependsOn 存在性 / DFS 环检测）在入库前源头拦截——
+    // 悬空或成环的 DAG 会让任务 unsatisfiedDependencies 永不满足、永久 pending
+    // 且静默无提示。校验先于 record 创建（新 team 的 team_created 事实不得在
+    // 被拒草案上落库）。
+    const draftTaskIds = new Set<string>();
+    for (const draft of input.draftTasks) {
+      if (draft.taskId === undefined) continue;
+      if (draft.taskId === "" || draftTaskIds.has(draft.taskId)) {
+        return {
+          status: "rejected",
+          error: teamPortError("draft_duplicate_task", { id: draft.taskId }),
+        };
+      }
+      draftTaskIds.add(draft.taskId);
+    }
+    const materialized = input.draftTasks.map((draft) => this.materializeTask(draft, now, true));
+    const finalTaskIds = new Set(materialized.map((task) => task.taskId));
+    for (const task of materialized) {
+      const dangling = task.dependsOn.find((id) => !finalTaskIds.has(id));
+      if (dangling !== undefined) {
+        return { status: "rejected", error: teamPortError("unknown_dependency", { id: dangling }) };
+      }
+    }
+    const cycle = findDependencyCycle(materialized);
+    if (cycle !== undefined) {
+      return {
+        status: "rejected",
+        error: teamPortError("dependency_cycle", { path: cycle.join(" -> ") }),
+      };
+    }
     if (this.record === undefined) {
       // 权限模式成队定死（spec §8.1）：plan 由 install 换算为 build 后传入；
       // 未记录（undefined）= 旧宿主/未知值，读回时回退继承 lead 当前模式。
@@ -278,9 +325,8 @@ export class TeamHub {
     // staged 再次调用 = 原子更新同一草案（同 teamId，不另建）。
     this.record.name = input.name;
     this.record.updatedAt = now;
-    this.record.tasks = input.draftTasks.map((draft) =>
-      this.materializeTask(draft, now),
-    );
+    // 身份保持的物化结果整体替换（缺口5）：taskId 带入者保 ID，dependsOn 引用不悬空。
+    this.record.tasks = materialized;
     this.record.members = input.draftMembers.map((draft) => ({
       agentId: `pending_${draft.memberName}`,
       memberName: draft.memberName,
@@ -413,6 +459,13 @@ export class TeamHub {
         if (member.removed || (member.state !== "working" && member.state !== "spawning")) continue;
         void Promise.resolve(settle(member.memberName)).catch(() => undefined);
       }
+    }
+    // 2026-10-21 边缘1（spec §14）：停队同时中断 lead 自身回合——冻结语义覆盖整个
+    // 团队，spec §2.6「中断全员」此前漏了发起者自己（用户 halt 时 lead 常在跑
+    // 规划/追问回合）。静默失败不回滚冻结（同成员中断先例）。
+    const interruptLead = this.deps.interruptLead;
+    if (interruptLead !== undefined) {
+      void Promise.resolve(interruptLead()).catch(() => undefined);
     }
     return { status: "ok" };
   }
@@ -590,6 +643,10 @@ export class TeamHub {
     for (const member of record.members.filter((candidate) => !candidate.removed)) {
       await this.kickMember(member.memberName);
     }
+    // 2026-10-21 缺口12：lead 待决邮件的重试边缘（routeMail 即时投递失败/冷恢复
+    // 积压）——团队唤醒时顺带补投（staged/halted/归档门在 deliverPendingLeadMail 内，
+    // 与成员 kick 的冻结门同族）。
+    await this.deliverPendingLeadMail();
   }
 
   private async doKickMember(memberName: string): Promise<void> {
@@ -896,6 +953,15 @@ export class TeamHub {
     if (record.tasks.length >= this.limits.boardTasksMax) {
       return { status: "rejected", error: teamPortError("board_limit_reached", { limit: String(this.limits.boardTasksMax) }) };
     }
+    // 2026-10-21 缺口5（spec §14）：运行态建任务同样校验依赖存在性——悬空依赖的
+    // 任务 unsatisfiedDependencies 永不满足，会永久 pending 且无任何提示（staged
+    // 草案侧同款校验见 stageTeam）。成员侧 TeamTaskCreate 工具 schema 无 task_id
+    // 键，新任务 ID 由 hub 生成，此处只需对照既有板。
+    const existingTaskIds = new Set(record.tasks.map((task) => task.taskId));
+    const danglingDependency = input.dependsOn.find((id) => !existingTaskIds.has(id));
+    if (danglingDependency !== undefined) {
+      return { status: "rejected", error: teamPortError("unknown_dependency", { id: danglingDependency }) };
+    }
     const now = this.clock.now();
     const task = this.materializeTask(input, now);
     record.tasks.push(task);
@@ -1032,18 +1098,27 @@ export class TeamHub {
 
   private routeMail(entry: TeamMailboxEntry): TeamSendDelivery {
     const record = this.record;
-    if (record === undefined || entry.to === LEAD_ASSIGNEE_KEY) return "queued";
+    if (record === undefined) return "queued";
+    // 2026-10-21 缺口12（spec §14）：lead 收件走专属投递通道（install 经
+    // enqueueSubagentMessage 注入——mid-turn steer / idle 独立轮同通道）。wire
+    // 返回值保持 "queued"（送达事实只认邮箱 deliveredAccepted + journal
+    // lead_injected）；fire-and-forget，投递失败留 queued 由 kickTeam 与 lead
+    // turn-complete 边缘重试（deliverPendingLeadMail 内置 staged/halted/归档门）。
+    if (entry.to === LEAD_ASSIGNEE_KEY) {
+      void this.deliverPendingLeadMail().catch(() => undefined);
+      return "queued";
+    }
     const target = this.findMember(entry.to);
     if (target === undefined || target.removed) return "queued";
     if (target.state === "working") {
       // 运行中成员：steer 注入（presentation=subagent_reply_steer 渲染禁令）。
-      const payload = buildSteerPayload(entry);
+      const body = buildSteerBody(entry);
       const recordNow = record;
       const journalNow = this.journal.bind(this);
       const clockNow = this.clock;
       void this.dispatch({
         memberName: target.memberName,
-        prompt: payload.body,
+        prompt: body,
         mode: "steer",
       }).then((accepted) => {
         if (accepted) {
@@ -1099,6 +1174,45 @@ export class TeamHub {
     return "queued";
   }
 
+  /**
+   * lead 待决邮件批量投递（2026-10-21 缺口12，spec §14）：pendingMail(lead) 经装配
+   * 通道注入 lead 会话。送达 ack = 通道返回 true——enqueue 即接受（spec §14 登记的
+   * lead 例外：mid-turn 注入由 active-loop 异步完成，无同步回执面，stale-branch
+   * 丢弃窗口与 RespondToCoordinator 同源同责）；失败/抛错整体留 queued，重试边缘
+   * = routeMail 即时投递、kickTeam 末尾、lead turn-complete、冷恢复 adoption。
+   * 幂等：deliveredAccepted 只在成功后置位，重复调用零副作用。
+   */
+  async deliverPendingLeadMail(): Promise<void> {
+    const record = this.record;
+    const deliver = this.deps.deliverLeadMail;
+    if (record === undefined || deliver === undefined) return;
+    if (record.status === "staged" || record.status === "halted" || isArchival(record.status)) {
+      return;
+    }
+    const ready = pendingMail(record.mailbox, record.tasks, LEAD_ASSIGNEE_KEY);
+    if (ready.length === 0) return;
+    let accepted = false;
+    try {
+      accepted = await deliver({ entries: ready });
+    } catch {
+      accepted = false;
+    }
+    if (!accepted) return;
+    const messageIds = ready.map((item) => item.messageId);
+    const at = this.clock.now();
+    record.mailbox = markDelivered(record.mailbox, messageIds, "lead_injected", at);
+    record.updatedAt = at;
+    this.journal({
+      kind: "message_delivered",
+      teamId: record.teamId,
+      messageIds,
+      via: "lead_injected",
+      at,
+    });
+    this.refreshStatus();
+    this.notifyChange();
+  }
+
   // ---------- 内部 ----------
 
   /**
@@ -1121,9 +1235,15 @@ export class TeamHub {
     this.journal({ kind: "task_updated", teamId: record.teamId, task: taskJournalFactOf(task) });
   }
 
-  private materializeTask(input: TeamTaskCreateInput, now: string): TeamTaskInternal {
+  private materializeTask(
+    input: TeamTaskCreateInput & { taskId?: string },
+    now: string,
+    /** 仅 staging 路径为 true：保留草案携带的既有 taskId（缺口5 身份保持）；portTaskCreate 恒生成新 ID。 */
+    preserveTaskId = false,
+  ): TeamTaskInternal {
     return {
-      taskId: `task_${this.clock.newId()}`,
+      // 缺口5：draft.taskId 已在上游去重校验（非空 + 草案内唯一），此处只保持。
+      taskId: preserveTaskId && input.taskId !== undefined ? input.taskId : `task_${this.clock.newId()}`,
       title: input.title,
       spec: input.spec,
       status: "pending",
@@ -1201,4 +1321,40 @@ function isStageEditable(status: TeamStatus): boolean {
 
 function isArchival(status: TeamStatus): boolean {
   return status === "completed" || status === "cancelled" || status === "archived";
+}
+
+/**
+ * 草案依赖环检测（缺口5，spec §14）：DFS 三色标记，板任务 ≤ boardTasksMax（100）
+ * 规模无性能顾虑。找到环时返回按依赖方向排列的任务 ID 路径（供错误文案定位），
+ * 无环返回 undefined。自依赖（task 依赖自己）是长度 1 的环，同样命中。
+ */
+function findDependencyCycle(tasks: readonly TeamTaskInternal[]): string[] | undefined {
+  const dependsOnByTaskId = new Map(tasks.map((task) => [task.taskId, task.dependsOn] as const));
+  const visiting = new Set<string>();
+  const done = new Set<string>();
+  const stack: string[] = [];
+  const visit = (taskId: string): string[] | undefined => {
+    if (done.has(taskId)) return undefined;
+    if (visiting.has(taskId)) {
+      // 从栈中首次出现该节点处截取即环路径（含回到自身的闭边）。
+      const start = stack.indexOf(taskId);
+      return [...stack.slice(start), taskId];
+    }
+    visiting.add(taskId);
+    stack.push(taskId);
+    for (const dependency of dependsOnByTaskId.get(taskId) ?? []) {
+      if (!dependsOnByTaskId.has(dependency)) continue; // 悬空引用由存在性校验先行拒绝
+      const cycle = visit(dependency);
+      if (cycle !== undefined) return cycle;
+    }
+    stack.pop();
+    visiting.delete(taskId);
+    done.add(taskId);
+    return undefined;
+  };
+  for (const task of tasks) {
+    const cycle = visit(task.taskId);
+    if (cycle !== undefined) return cycle;
+  }
+  return undefined;
 }

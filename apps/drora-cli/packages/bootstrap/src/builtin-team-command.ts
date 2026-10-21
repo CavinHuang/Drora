@@ -30,10 +30,11 @@ const BUILTIN_TEAM_COMMAND_BODY = [
   "",
   "$ARGUMENTS",
   "",
-  "Follow the staged protocol: draft the member roster and the task DAG first — no member is",
-  "spawned before the user approves the plan (TeamStage → review → approve). After approval,",
-  "delegate through the shared task board and communicate via TeamSendMessage; members report",
-  "with source_task_id/source_attempt_id. Results land on disk with artifact references.",
+  "Follow the staged protocol: call TeamSpawn once with the full member roster and the task",
+  "DAG — no member is spawned before the user approves the plan (TeamSpawn → review →",
+  "approve). After approval, delegate through the shared task board and communicate via",
+  "TeamSendMessage; members report with source_task_id/source_attempt_id. Results land on",
+  "disk with artifact references.",
   "",
 ].join("\n");
 

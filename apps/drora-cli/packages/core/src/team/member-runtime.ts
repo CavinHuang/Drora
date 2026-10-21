@@ -16,7 +16,10 @@ import {
 import { getSessionShellEnvironment } from "../runtime/methods/session-shell-environment.js";
 import { deriveChildClientPorts } from "../runtime/helpers/child-client-ports.js";
 import { createCoordinatorResponsePort } from "../subagent/coordinator-response.js";
-import { createSubagentMessageSink } from "../subagent/message-steering.js";
+// 2026-10-21 缺口8（spec §7/§14）：成员消息 sink 换 team 自有实现——通用 sink 硬编码
+// coordinator_steer（无 PEER_PERMISSION_GUIDANCE 禁令渲染）；team sink 经
+// MEMBER_STEER_PRESENTATION（subagent_reply_steer）注入，禁令 + 回信指引随渲染携带。
+import { createTeamMemberMessageSink } from "./member-sink.js";
 import { mirrorSubagentToolEvent } from "../subagent/tool-event-mirror.js";
 import { isBuiltInExploreAgentProfile } from "../subagent/profile.js";
 
@@ -241,7 +244,7 @@ export function createTeamMemberRunExploreAgent(
       });
     }
     await notifySessionReady();
-    request.registerMessageSink?.(createSubagentMessageSink(childRuntime, request));
+    request.registerMessageSink?.(createTeamMemberMessageSink(childRuntime, request));
     return await childRuntime.executeTurn(request.prompt, undefined, {
       inputSource: "subagent",
       inputPresentation: "coordinator_input",

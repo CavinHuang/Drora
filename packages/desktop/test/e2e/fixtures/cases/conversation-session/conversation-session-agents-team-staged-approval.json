@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-agents-team-staged-approval",
+  "spec": "./test/e2e/conversation-session/manual-review/pending/conversation-session-agents-team-staged-approval.test.ts",
+  "providerFixtures": [
+    "./test/e2e/fixtures/upstream/common.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-agents-team-staged-approval.json"
+  ],
+  "fileFixtures": [],
+  "requests": [
+    {
+      "id": "agents-team-staged-approval-parent-spawn",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-tool-use",
+      "syntheticReason": "lead 首回合稳定触发 TeamSpawn tool_use（staged 草案唯一生产入口，spec §14 缺口0）。"
+    },
+    {
+      "id": "agents-team-staged-approval-parent-final",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "TeamSpawn 结果回读后 lead 回合收束；以工具结果中的审批指引文本区分首回合。"
+    },
+    {
+      "id": "agents-team-staged-approval-member-welcome",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "成员欢迎回合自然终态，触发运行态接线的 terminal 边缘（缺口2）。"
+    },
+    {
+      "id": "agents-team-staged-approval-member-assignment",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "自动派发复活回合的请求到达即证明 kick→dispatch 调度链（缺口2 E2E 化）。"
+    }
+  ]
+}

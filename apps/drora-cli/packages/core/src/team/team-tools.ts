@@ -1,4 +1,4 @@
-import type { TeamMemberPort, TeamTaskUpdateInput } from "@drora/contracts";
+import type { TeamLeadPort, TeamMemberPort, TeamTaskUpdateInput } from "@drora/contracts";
 import { z } from "zod";
 import { createCoreError, CoreErrorType } from "../runtime/deps.js";
 import type { ToolEntry, ToolHandler } from "../tool/types.js";
@@ -6,8 +6,9 @@ import type { ToolEntry, ToolHandler } from "../tool/types.js";
 /**
  * 团队协作工具面（spec §6.2）：闭包捕获 TeamMemberPort 的自包含 ToolEntry——
  * v2 注入方式（无 deps 字段接缝），由 install 注册进 hub 自建注册表实例。
- * lead 侧另有 TeamSpawn/TeamStageApprove/TeamReassign/TeamResume（走 LeadPort，
- * PR-1.6 随 install 落地）；本文件是成员侧协作面（强制保留集合）。
+ * lead 专属动作（TeamSpawn 舞台工具在本文件；审批/停队/恢复走 v4 用户面命令，
+ * 不做模型工具——审批是用户动作，模型不得自批）。本文件其余为成员侧协作面
+ * （强制保留集合）。
  */
 
 const TASK_LIST_OUTPUT_SCHEMA = {
@@ -115,6 +116,9 @@ const TeamSendInputSchema = z.object({
 
 /** 会话→端口解析：lead 会话绑定 TeamLeadPort，成员子会话绑定各自 TeamMemberPort。 */
 export type TeamToolPortResolver = (context: { sessionId: string }) => TeamMemberPort | undefined;
+
+/** lead 专属端口解析：只解析 lead 会话（E10 lead 专属由装配结构性保证）。 */
+export type TeamLeadPortResolver = (context: { sessionId: string }) => TeamLeadPort | undefined;
 
 /** 成员侧协作工具（强制保留集合；即使 profile 收窄也注册，spec §6.2）。 */
 export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): ToolEntry[] {
@@ -345,6 +349,157 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
           );
         }
         return { message_id: result.messageId, delivery: result.delivery };
+      },
+    }),
+  ];
+}
+
+// ---------- lead 专属：staged 草案入口（2026-10-21 缺口0，spec §14） ----------
+
+const TeamSpawnInputSchema = z.object({
+  name: z.string().min(1).optional(),
+  members: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        profile: z.string().optional(),
+        model_selection: z
+          .object({ provider: z.string().min(1), model: z.string().min(1), thought: z.string().optional() })
+          .optional(),
+      }),
+    )
+    .min(1),
+  tasks: z.array(
+    z.object({
+      task_id: z.string().optional(),
+      title: z.string().min(1),
+      goal: z.string().min(1),
+      acceptance: z.array(z.string()),
+      output_format: z.string().optional(),
+      assignee: z.string().optional(),
+      depends_on: z.array(z.string()).optional(),
+    }),
+  ),
+});
+
+/**
+ * lead 专属工具族（spec §6.2/§14 缺口0）：TeamSpawn 是 staged 草案的唯一生产入口
+ * ——/team 命令展开后模型用它建花名册 + 任务 DAG，Approve & Run 是用户侧动作
+ * （v4 命令 approveTeamPlan），模型不得自批（「不批自己的实现」同源）。staged 态
+ * 再次调用 = 原子更新同一草案（spec §10）；task_id 可选携带用于修订时身份保持
+ * （缺口5——dependsOn 引用旧 ID 不悬空）。
+ */
+export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver): ToolEntry[] {
+  return [
+    teamToolEntry({
+      name: "TeamSpawn",
+      description:
+        "Stage an agent team draft (member roster + task DAG) for the user to review. No member is spawned until the user approves the plan. Call once with the full roster and DAG; re-call to atomically revise the same draft (pass task_id to keep task identity).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          members: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                profile: { type: "string" },
+                model_selection: {
+                  type: "object",
+                  properties: {
+                    provider: { type: "string" },
+                    model: { type: "string" },
+                    thought: { type: "string" },
+                  },
+                  required: ["provider", "model"],
+                },
+              },
+              required: ["name"],
+            },
+          },
+          tasks: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                task_id: { type: "string" },
+                title: { type: "string" },
+                goal: { type: "string" },
+                acceptance: { type: "array", items: { type: "string" } },
+                output_format: { type: "string" },
+                assignee: { type: "string" },
+                depends_on: { type: "array", items: { type: "string" } },
+              },
+              required: ["title", "goal", "acceptance"],
+            },
+          },
+        },
+        required: ["members", "tasks"],
+        additionalProperties: false,
+      },
+      runtimeInputSchema: TeamSpawnInputSchema,
+      outputSchema: { type: "object", properties: { team: { type: "object" } } },
+      readOnly: false,
+      handler: async (raw, context) => {
+        const port = resolveLeadPort({ sessionId: context.sessionId });
+        if (port === undefined) {
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            "Team port is not configured for TeamSpawn (lead session only)",
+            { recoverable: false },
+          );
+        }
+        const parsed = TeamSpawnInputSchema.parse(raw);
+        const result = port.stageTeam({
+          ...(parsed.name === undefined ? {} : { name: parsed.name }),
+          draftMembers: parsed.members.map((member) => ({
+            memberName: member.name,
+            profile: member.profile ?? "",
+            ...(member.model_selection === undefined ? {} : { modelSelection: member.model_selection }),
+          })),
+          draftTasks: parsed.tasks.map((task) => ({
+            ...(task.task_id === undefined ? {} : { taskId: task.task_id }),
+            title: task.title,
+            spec: {
+              goal: task.goal,
+              acceptance: task.acceptance,
+              ...(task.output_format === undefined ? {} : { outputFormat: task.output_format }),
+            },
+            ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+            dependsOn: task.depends_on ?? [],
+          })),
+        });
+        if (result.status === "rejected") {
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            `${result.error?.message ?? "team stage rejected"}${result.error?.hint === undefined ? "" : ` ${result.error.hint}`}`,
+            { context: { code: result.error?.code }, recoverable: false },
+          );
+        }
+        // 回显落库后的真实 task_id 全表（depends_on 引用它修订草案）+ 等待审批指引。
+        const roster = port.roster();
+        const board = port.boardRead();
+        return {
+          team: {
+            team_id: result.teamId,
+            status: roster.status,
+            members: roster.members.map((member) => ({
+              name: member.memberName,
+              profile: member.profile ?? "",
+            })),
+            tasks: board.tasks.map((task) => ({
+              task_id: task.taskId,
+              title: task.title,
+              assignee: task.assignee,
+              depends_on: task.dependsOn,
+            })),
+            next:
+              "The draft is staged for user approval. Tell the user to review it in the team panel and press Approve & Run. Do not spawn anything yourself; wait for their decision.",
+          },
+        };
       },
     }),
   ];

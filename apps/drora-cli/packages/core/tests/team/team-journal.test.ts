@@ -549,3 +549,65 @@ describe("journal 防御与续写（design §9：未知事件跳过 + warn，不
     expect(hub.teamId).toBeUndefined();
   });
 });
+
+// ---------- 2026-10-21 收口施工批次 2（spec §14）----------
+
+describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14)", () => {
+  it("replays the mailbox through per-recipient retention (shape parity with the live hub)", async () => {
+    const store = createMemorySessionStore();
+    const sink = createTeamJournalSessionStoreSink({ sessionStore: store, sessionId: "lead_s1" });
+    const spawn = makeConfirmingSpawn();
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawn.forward,
+      journalWriter: (event) => sink.append(event),
+    });
+    spawn.bind(hub);
+    hub.stageTeam("lead_s1", STAGE_INPUT);
+    await hub.approveStage("lead_s1");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // 25 封 lead 邮件（保留期 20）：运行态入队即裁——修复前重放裸 push 会重建 25 封。
+    for (let index = 0; index < 25; index += 1) {
+      const sent = alice.send({ to: "lead", message: `m${String(index).padStart(2, "0")}` });
+      expect(sent.status).toBe("success");
+    }
+    await sink.flush();
+    const live = hub.mailboxEntries();
+    expect(live.length).toBeLessThanOrEqual(20);
+
+    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const { record } = replayTeamJournal(parseTeamJournalEntries(entries));
+    expect(record!.mailbox.map((entry) => entry.message)).toEqual(live.map((entry) => entry.message));
+    expect(record!.mailbox.at(-1)?.message).toBe("m24"); // 最旧被裁、最新保留
+  });
+
+  it("replays lead_injected delivery facts (well-formed + deliveredAccepted)", async () => {
+    const store = createMemorySessionStore();
+    const sink = createTeamJournalSessionStoreSink({ sessionStore: store, sessionId: "lead_s1" });
+    const spawn = makeConfirmingSpawn();
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawn.forward,
+      deliverLeadMail: async () => true,
+      journalWriter: (event) => sink.append(event),
+    });
+    spawn.bind(hub);
+    hub.stageTeam("lead_s1", { ...STAGE_INPUT, draftTasks: [] });
+    await hub.approveStage("lead_s1");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    expect(alice.send({ to: "lead", message: "report" }).status).toBe("success");
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries().at(-1);
+      expect(entry?.deliveredAccepted).toBe(true);
+    });
+    await sink.flush();
+
+    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const parsed = parseTeamJournalEntries(entries);
+    // 修复前：via 只认 steered/resumed，lead_injected 事实会被重放守卫整条跳过。
+    expect(parsed.some((event) => event.payload.kind === "message_delivered")).toBe(true);
+    const { record } = replayTeamJournal(parsed);
+    expect(record!.mailbox.at(-1)?.deliveredAccepted).toBe(true);
+    expect(record!.mailbox.at(-1)?.deliveredVia).toBe("lead_injected");
+  });
+});

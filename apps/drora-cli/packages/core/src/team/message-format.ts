@@ -36,17 +36,16 @@ export function buildRevivalBody(
   return formatIncomingMessage(raw, "subagent_reply");
 }
 
-/** 运行中成员注入载荷：原文 + presentation 声明（渲染由 runtime 统一做）。 */
-export function buildSteerPayload(entry: TeamMailboxEntry): {
-  body: string;
-  inputPresentation: typeof MEMBER_STEER_PRESENTATION;
-} {
+/**
+ * 运行中成员注入载荷（spec §7 / §14 缺口8）：presentation 的唯一消费方是
+ * team 自有 message sink（member-sink.ts 经 MEMBER_STEER_PRESENTATION 注入，
+ * 2026-10-21 起不再复用硬编码 coordinator_steer 的通用 sink）；本模块只组正文，
+ * 渲染（禁令 + 回信指引）由 runtime 的 formatIncomingMessage 统一做。
+ */
+export function buildSteerBody(entry: TeamMailboxEntry): string {
   const from = entry.from === "lead" ? "the team lead" : `member ${entry.from}`;
   const provenance = entry.targetTaskId === undefined
     ? ""
     : `\n\n(Context: task ${entry.targetTaskId}, attempt_id ${entry.targetAttemptId ?? "n/a"})`;
-  return {
-    body: `Message from ${from}:${provenance}\n\n${entry.message}`,
-    inputPresentation: MEMBER_STEER_PRESENTATION,
-  };
+  return `Message from ${from}:${provenance}\n\n${entry.message}`;
 }

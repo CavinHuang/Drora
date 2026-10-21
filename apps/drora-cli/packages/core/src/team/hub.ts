@@ -164,6 +164,12 @@ export class TeamHub {
       leadSessionId: record.leadSessionId,
       ...(record.permissionMode === undefined ? {} : { permissionMode: record.permissionMode }),
       status: record.status,
+      // 2026-10-21 缺口10：查询面补齐草案 name 与逐成员路由快照回读——
+      // reviseTeamPlan/setTeamMemberName 以 snapshot/board 重建草案入参，缺这两项
+      // 会让 stageTeam 整体替换 + journalStagedFact 把 team 名与 modelSelection
+      // （spec §8.7 建队时刻定死）静默清空并持久化。additive optional，投影侧
+      // （product-projection teamProjectionViewOf）逐字段映射不受影响。
+      ...(record.name === undefined ? {} : { name: record.name }),
       members: record.members
         .filter((member) => !member.removed)
         .map((member) => ({
@@ -173,6 +179,7 @@ export class TeamHub {
           ...(member.profileColor === undefined ? {} : { profileColor: member.profileColor }),
           state: member.state,
           ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }),
+          ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
         })),
     };
   }
@@ -377,7 +384,9 @@ export class TeamHub {
       return { status: "ok", spawnedMembers: spawned.map((row) => row.memberName) };
     } catch {
       // 原子性：spawn 失败 → 草案原样保留（staged，零真实成员），可修订后重批。
-      return { status: "rejected", error: teamPortError("mailbox_persist_failed") };
+      // 2026-10-21 缺口6：错误码与邮箱持久化失败（E12）分开——spawn 失败是成员进程
+      // 创建问题（该重批草案），不是消息未发出（该重发消息），混用会误导调用方。
+      return { status: "rejected", error: teamPortError("member_spawn_failed") };
     }
   }
 
@@ -394,6 +403,17 @@ export class TeamHub {
     // 冻结态事实入 journal（差异裁决#5：状态迁移本身不记，用户裁决结果保留）。
     this.journal({ kind: "halted", teamId: record.teamId });
     this.notifyChange();
+    // 2026-10-21 缺口7：停队必须中断在飞成员（spec §2.6「中断全员 + 冻结调度」的
+    // 中断半边；此前只翻状态，在飞成员回合继续跑到自然终态）。裁决外静默（同
+    // reassign 第 2 步，不持裁决等待）；静默失败不回滚冻结——冻结面已生效，被中断
+    // 成员的终态边缘由 install 的运行态接线收敛到 terminal。
+    const settle = this.deps.interruptAndSettle;
+    if (settle !== undefined) {
+      for (const member of record.members) {
+        if (member.removed || (member.state !== "working" && member.state !== "spawning")) continue;
+        void Promise.resolve(settle(member.memberName)).catch(() => undefined);
+      }
+    }
     return { status: "ok" };
   }
 
@@ -412,6 +432,15 @@ export class TeamHub {
     // resumed 事实解除恢复侧的冻结推导（halted→resumed 序列保留，spec §2.6）。
     this.journal({ kind: "resumed", teamId: record.teamId, reason });
     this.notifyChange();
+    // 2026-10-21 缺口7（resume 半边）：halt 中断的成员其终态边缘在冻结期内被消费
+    // （handleMemberTerminal 冻结跳过 kick，hub.ts:483），resume 后不再有任何可等的
+    // 派发边缘——共享池 pending 任务与待投递邮箱将无派发源（事件驱动无轮询，spec
+    // §2.3），投影显示 idle 看似健康实则调度死寂。resume 即唤醒边缘：kickTeam 重新
+    // 武装调度（终态成员复活派发共享池/邮箱任务）；被中断成员的开放 attempt 仍
+    // sticky park（只由 lead 转派轮换，spec §16.1）。escalated→resume 同理受益
+    // （成员循环到上限的终态边缘在 escalated 冻结期同样不 kick）。fire-and-forget
+    // （同 removeMember 先例，hub.ts:536-543），不阻塞同步裁决返回。
+    void this.kickTeam().catch(() => undefined);
     return { status: "ok" };
   }
 
@@ -516,6 +545,18 @@ export class TeamHub {
     // journal：移除事实 = 退休拒绝表持久化（被移除成员永不复活，E6/E11，spec §16.2）。
     this.journal({ kind: "member_removed", teamId: record.teamId, memberName });
     this.notifyChange();
+    // 2026-10-21 缺口7：补齐移除安全序的「排空/中断 → 等待结算 → 重新调度」后两步
+    //（spec §16.2；此前任务回收回池后无人唤醒，滞留 pending）。先裁决外静默被移除
+    // 成员（其驻留回合的迟到写入已被 attempt 失效 + 在场性校验双重拒绝），结算完成后
+    // kickTeam 唤醒其余成员认领回收任务；两步均 fire-and-forget，不阻塞同步裁决返回。
+    const settle = this.deps.interruptAndSettle;
+    if (settle !== undefined) {
+      void Promise.resolve(settle(memberName))
+        .catch(() => undefined)
+        .then(() => this.kickTeam().catch(() => undefined));
+    } else {
+      void this.kickTeam().catch(() => undefined);
+    }
     return { status: "ok" };
   }
 
@@ -876,6 +917,9 @@ export class TeamHub {
     }
     const record = this.record;
     if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
+    // 2026-10-21 缺口7：冻结面补漏——halted 后任务更新同样被拒（此前只有 create/claim
+    // 有 halted 门，在飞成员回合仍可推进板状态，违背 spec §2.6「冻结调度」）。
+    if (record.status === "halted") return { status: "rejected", error: teamPortError("team_halted") };
     const caller = binding.memberName;
     const { task, error } = applyTaskUpdate(record.tasks, input, caller, this.clock);
     if (error !== undefined) return { status: "rejected", error };

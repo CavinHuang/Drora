@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeftIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon, UserXIcon, UsersIcon } from "lucide-react";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -13,6 +13,8 @@ import {
   resumeTeam,
   reviseTeamPlan,
   sendTeamMessage,
+  setTeamMemberName,
+  stopTeamMember,
   TeamMemberSidePane,
   TeamPanel,
   useTeamFocus,
@@ -23,6 +25,7 @@ import {
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 
 /**
  * team 面板的 tab 容器（挂载点；任务卡 C）。
@@ -45,7 +48,14 @@ import { useV4Conversation, V4PaneConversationProvider } from "@/v4/V4Conversati
  *   （成员消息必须经 lead 邮箱投递，spec §1 硬边界）。
  * - 「回对话修改」预填（design 01 §3.1）：revise 命令发出后把追问文案（note 在场时
  *   随行）经 `onPrefillComposer` 回调交给挂载点注入会话 composer；文案构造纯函数在
- *   team/revise-prefill.ts，注入通道调研结论与 v1 边界见该文件头注。
+ *   team/revise-prefill.ts。挂载点接线（缺口9）：WorkspaceShellLayout 经
+ *   AnimatedSidePanePanel 传入，实现走 workspace store 的 requestComposerTextInsert
+ *   既有插入通道，且随行 lead 会话（tab.parentSessionId）作 targetSessionId 定向——
+ *   消费端 SessionPane 按会话匹配（缺口9 消费门），lead 聚焦时其 composer 消费；
+ *   onQuoteTask（「在主会话中引用任务」）同一回调同一目标。
+ * - 成员命令（缺口10 接线）：成员详情/下钻的「移除成员」与 staged 编辑器的成员改名
+ *   经 team/commands.ts 的 stopTeamMember / setTeamMemberName 发送（同一 sendCommand
+ *   通道，命令意图单一出处；改名的内核边界见 handlers/team.ts setTeamMemberName）。
  */
 
 /** 下钻目标：memberName 是花名册联接键，childSessionId 是打开时刻已知值（可缺席，门会自愈）。 */
@@ -82,8 +92,13 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
 }: {
   tab: TeamSidePaneTab;
   focused: boolean;
-  /** 「回对话修改」的会话输入框预填回调（实现由挂载点提供；缺席 = 只发命令不预填）。 */
-  onPrefillComposer?: (prefill: string) => void;
+  /**
+   * 「回对话修改」的会话输入框预填回调（实现由挂载点提供；缺席 = 只发命令不预填）。
+   * 第二参携带预填目标会话（tab.parentSessionId = lead 会话）：挂载点据此走
+   * requestComposerTextInsert 的 targetSessionId 定向插入（缺口9 消费门），
+   * lead 会话聚焦（主场景）时其 composer 才是消费端，不再被草稿门丢弃。
+   */
+  onPrefillComposer?: (prefill: string, targetSessionId?: string | null) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
@@ -126,12 +141,15 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           // design 01 §3.1「会话输入框预填『要调整什么？』」：发命令的同时把追问文案
           // 预填进会话 composer（v1 边界：hub 不消费 wire note，note 随预填进对话，
           // 见 revise-prefill.ts 头注）。回调缺席（挂载点未接线）= 只发命令，行为同前。
+          // 目标会话随行（缺口9）：预填进 lead 会话（tab.parentSessionId），不由
+          // 消费端猜「当前聚焦的是不是 lead」。
           if (onPrefillComposer !== undefined) {
             onPrefillComposer(
               buildTeamReviseComposerPrefill({
                 question: revisePrefillQuestion,
                 ...(command.payload.note === undefined ? {} : { note: command.payload.note }),
               }),
+              tab.parentSessionId,
             );
           }
           break;
@@ -165,6 +183,38 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     });
   }, []);
 
+  // 成员命令（缺口10 接线）：意图来自成员详情/下钻的「移除成员」入口与 staged 编辑器的
+  // 成员改名入口，发送一律走 team/commands.ts helper（信封构造与 ACK 语义单一出处；
+  // fire-and-forget 与面板动作区同一先例，拒绝/失败由 helper 内部 logger 出账）。
+  const handleStopMember = useCallback(
+    (memberName: string) => {
+      void stopTeamMember({ sessionId: tab.parentSessionId, sendCommand, memberName });
+    },
+    [sendCommand, tab.parentSessionId],
+  );
+  const handleRenameMember = useCallback(
+    (memberName: string, newName: string) => {
+      void setTeamMemberName({ sessionId: tab.parentSessionId, sendCommand, memberName, newName });
+    },
+    [sendCommand, tab.parentSessionId],
+  );
+
+  // 下钻头部的「移除成员」入口：与成员详情（TeamSelectionDetails）同一命令，二次确认
+  // 列明影响面（hub 移除安全序：回收任务 + 退休拒绝表，spec §16.2）。
+  const requestConfirmation = useConfirmDialog();
+  const confirmStopMember = useCallback(
+    async (memberName: string) => {
+      const confirmed = await requestConfirmation({
+        title: intl.formatMessage({ id: "team.ui.stopMemberConfirmTitle" }, { name: memberName }),
+        description: intl.formatMessage({ id: "team.ui.stopMemberConfirmBody" }),
+        confirmLabel: intl.formatMessage({ id: "team.ui.stopMemberConfirmLabel" }),
+        confirmVariant: "destructive",
+      });
+      if (confirmed) handleStopMember(memberName);
+    },
+    [handleStopMember, intl, requestConfirmation],
+  );
+
   if (model === undefined) {
     return <TeamEmptyState />;
   }
@@ -185,6 +235,22 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           <span className="min-w-0 truncate text-ui-base font-medium text-foreground">
             {activeMember.memberName}
           </span>
+          {/* 缺口10：下钻头部的「移除成员」入口——stopTeamMember（成员移除 v1 只走用户
+              命令，spec 实现设计裁决第 7 条）；二次确认与成员详情同一文案。 */}
+          <button
+            type="button"
+            onClick={() => {
+              void confirmStopMember(activeMember.memberName);
+            }}
+            aria-label={intl.formatMessage(
+              { id: "team.ui.stopMemberAria" },
+              { name: activeMember.memberName },
+            )}
+            data-testid="team-member-stop"
+            className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <UserXIcon className="size-4" />
+          </button>
         </div>
         <div className="min-h-0 flex-1">
           <TeamMemberSidePane
@@ -229,6 +295,10 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           onCommand={handlePanelCommand}
           onMemberClick={handleMemberDrill}
           onMessageMember={handleMemberDrill}
+          onStopMember={(member) => {
+            void confirmStopMember(member.memberName);
+          }}
+          onRenameMember={handleRenameMember}
           focus={focus}
           connection={historyConnection}
           onQuoteTask={
@@ -239,6 +309,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
                       { id: "team.ui.quoteTaskPrompt" },
                       { id: task.taskId, title: task.title },
                     ),
+                    tab.parentSessionId,
                   )
               : undefined
           }
@@ -264,7 +335,7 @@ export const TeamSidePane = memo(function TeamSidePane({
   tab: TeamSidePaneTab;
   focused: boolean;
   /** 「回对话修改」的会话输入框预填回调（实现由挂载点提供；缺席 = 只发命令不预填）。 */
-  onPrefillComposer?: (prefill: string) => void;
+  onPrefillComposer?: (prefill: string, targetSessionId?: string | null) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;

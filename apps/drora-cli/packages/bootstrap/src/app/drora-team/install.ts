@@ -5,12 +5,13 @@ import {
   createTeamMemberPort,
   createToolRegistry,
   InMemoryRuntimeTaskRegistry,
+  isTerminalRuntimeTask,
   restoreAgentsTeamFromJournal,
   TeamHub,
   type AgentRuntimeInternal,
 } from "@drora/core";
 import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
-import type { SessionId, TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
+import type { TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
 import { SessionEventType } from "@drora/contracts";
 import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-protocol-v4";
 
@@ -129,6 +130,69 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     },
   });
 
+  // M4 静默通道（缺口6 复用）：停掉成员在飞的后台任务并等待其终态。转派三步的第 2 步
+  //（spec §16.1）与 spawn 反向回收共用；超时/失败抛错 → 调用方按各自语义兜底
+  //（reassign 保持交接 in-flight；spawn 回收只 warn 不阻塞草案回滚）。
+  const settleMemberTask = async (memberName: string, agentId: string): Promise<void> => {
+    const task = Object.values(taskRegistry.all()).find(
+      (candidate) => candidate.agentId === agentId && candidate.isBackgrounded === true,
+    );
+    if (task === undefined) return; // 无在飞任务即已静默
+    const stop = memberPort.stopTask;
+    if (stop === undefined) return;
+    await stop.call(memberPort, task.taskId);
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        taskRegistry.waitForTerminal(task.taskId),
+        new Promise<never>((_, reject) => {
+          settleTimer = setTimeout(
+            () => reject(new Error(`team member ${memberName} did not settle in time`)),
+            30_000,
+          );
+        }),
+      ]);
+    } finally {
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+    }
+  };
+
+  // ── 缺口2：成员进程运行态 → hub 运行态投影接线（spec §2.3 事件驱动自动派发）──
+  // hub.markMemberWorking/handleMemberTerminal 此前只有测试调用，成员永远停在
+  // spawning：routeMail 只认 working/terminal → 消息永远 queued、终态边缘不触发
+  // kick（自动派发死寂）、team 永挂 active。接线走既有 RuntimeTaskRegistry.subscribe
+  //（spec §2.4：感知成员转 idle 用既有 registry 通道，不新增端口方法）：running 边缘
+  // → working；终态边缘 → handleMemberTerminal（内部刷新状态并 kick：邮箱优先/自动
+  // 认领下一任务）。lastSeen 去重同态边缘，防 terminal→terminal 重复触发循环。
+  const lastSeenRuntimeStatusByAgentId = new Map<string, string>();
+  const syncMemberRuntimeState = (agentId: string, memberName: string): void => {
+    const status = taskRegistry.get(agentId)?.status;
+    if (status === undefined || lastSeenRuntimeStatusByAgentId.get(agentId) === status) return;
+    lastSeenRuntimeStatusByAgentId.set(agentId, status);
+    if (status === "running") {
+      hub.markMemberWorking(memberName);
+      return;
+    }
+    if (isTerminalRuntimeTask({ status })) {
+      // fire-and-forget：handleMemberTerminal 的 kick 派发不在 runner 的 finalize
+      // 事件链上等待；失败不影响成员终态事实本身（registry 已终态，下次边缘再触发）。
+      void hub.handleMemberTerminal(memberName).catch((error: unknown) => {
+        lead.logger?.warn(`agents team: member terminal edge failed for ${memberName}`, {
+          event: "agents_team.member_terminal_edge",
+          module: "bootstrap.agentsTeam",
+          sessionId: lead.sessionId,
+          error: String(error),
+        });
+      });
+    }
+  };
+  taskRegistry.subscribe(() => {
+    for (const member of hub.snapshot()?.members ?? []) {
+      if (member.state === "removed" || member.agentId.startsWith("pending_")) continue;
+      syncMemberRuntimeState(member.agentId, member.memberName);
+    }
+  });
+
   const hub = new TeamHub({
     leadPermissionMode: input.leadPermissionMode,
     membersMax: input.membersMax ?? 5,
@@ -159,58 +223,102 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
           sessionId: lead.sessionId,
         },
       });
-      return delivery.delivery !== "queued";
+      // 2026-10-21 缺口1：runner 的失败返回体（createSendMessageFailure）没有 delivery
+      // 字段且 status="failed"——此前只判 delivery !== "queued"，undefined 被误判为
+      // 已接受，hub 侧 markDelivered + journal message_delivered 记假回执（邮件实际
+      // 丢失）、派发票据不回滚、recoveryRetried 白耗。失败必须显式按 status 裁决；
+      // queued 仍不算送达（spec §16.3）。
+      return delivery.status === "success" && delivery.delivery !== "queued";
     },
     // M4 静默通道：停掉成员在飞的后台任务并等待其终态（转派三步的第 2 步，
     // spec §16.1）；超时/失败抛错 → hub 保持交接 in-flight（reassigning=true）。
     interruptAndSettle: async (memberName) => {
       const agentId = resolveAgentId(memberName);
       if (agentId === undefined) return;
-      const task = Object.values(taskRegistry.all()).find(
-        (candidate) => candidate.agentId === agentId && candidate.isBackgrounded === true,
-      );
-      if (task === undefined) return; // 无在飞任务即已静默
-      const stop = memberPort.stopTask;
-      if (stop !== undefined) await stop.call(memberPort, task.taskId);
-      await Promise.race([
-        taskRegistry.waitForTerminal(task.taskId),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`team member ${memberName} did not settle in time`)),
-            30_000,
-          ),
-        ),
-      ]);
+      await settleMemberTask(memberName, agentId);
     },
-    spawnMembers: async (members, permissionMode) => {
+    spawnMembers: async (members, _permissionMode) => {
+      // permissionMode 不经 launch 请求传播（上游注释见下）——成员装配从花名册
+      // 记录值读取（spec §8.1，hub 传入仅为签名完整）。
       const spawned: { memberName: string; agentId: string; childSessionId: string }[] = [];
-      for (const member of members) {
-        const agentId = `agent_${randomId()}`;
-        const childSessionId = randomId() as unknown as SessionId;
-        await memberPort.launch({
-          sessionId: childSessionId,
-          turnId: `team_spawn_${randomId()}` as unknown as TurnId,
-          parentToolCallId: "",
-          agentType: member.profile === "" ? "general-purpose" : member.profile,
-          description: `team member ${member.memberName}`,
-          prompt: memberWelcomeText(member.memberName),
-          callerCanReadOutputFile: true,
-          workingDirectory: lead.config.workingDirectory ?? "",
-          workspaceRoot: lead.config.workingDirectory ?? "",
-          trace: {
-            traceId: `team_${randomId()}` as unknown as TraceId,
+      try {
+        for (const member of members) {
+          // 预分配 agentId + 预登记装配期绑定（见 memberPort 的 createAgentId/resolveMemberBinding）。
+          const preAssignedAgentId = `agent_${randomId()}`;
+          nextSpawnAgentId = preAssignedAgentId;
+          pendingSpawnBindings.set(preAssignedAgentId, member.memberName);
+          const output = await memberPort.launch({
+            // 父会话 = lead（与 dispatch 一致；此前误传臆造 childSessionId，成员事件与
+            // 产物目录全部挂到不存在的会话上）。
             sessionId: lead.sessionId,
-            turnId: `team_${randomId()}` as unknown as TurnId,
-          },
-          // permissionMode 不经 launch 请求——成员装配从花名册记录值读取（spec §8.1）。
-          runInBackground: true,
-        });
-        hub.confirmMemberSpawned(member.memberName, agentId, childSessionId);
+            turnId: `team_spawn_${randomId()}` as unknown as TurnId,
+            parentToolCallId: "",
+            agentType: member.profile === "" ? "general-purpose" : member.profile,
+            description: `team member ${member.memberName}`,
+            prompt: memberWelcomeText(member.memberName),
+            callerCanReadOutputFile: true,
+            workingDirectory: lead.config.workingDirectory ?? "",
+            workspaceRoot: lead.config.workingDirectory ?? "",
+            trace: {
+              traceId: `team_${randomId()}` as unknown as TraceId,
+              sessionId: lead.sessionId,
+              turnId: `team_${randomId()}` as unknown as TurnId,
+            },
+            // permissionMode 不经 launch 请求——成员装配从花名册记录值读取（spec §8.1）。
+            runInBackground: true,
+          });
+          // 2026-10-21 缺口2/6 身份回链：roster 的 agentId/childSessionId 必须是 runner
+          // 分配的真实值——此前 install 臆造 agent_ 前缀 id，registry、sendMessage 派发
+          // 与成员工具路由（按 childSessionId 联接）全部找不到成员。
+          if (output.status !== "async_launched") {
+            throw new Error(
+              `team member ${member.memberName} spawn returned unexpected status ${output.status}`,
+            );
+          }
+          spawned.push({
+            memberName: member.memberName,
+            agentId: output.agentId,
+            childSessionId: output.childSessionId,
+          });
+        }
+      } catch (error) {
+        // 2026-10-21 缺口6 原子性回收：第 k 个成员 launch 失败时前 k-1 个已成真——
+        // 反向中断已启动成员并等其终态，孤儿子代理在本进程内消亡。回收失败不吞原始
+        // 错误（草案回滚照常，hub 侧零确认零 journal 污染）；孤儿最坏由进程退出兜底。
+        for (const row of spawned) {
+          pendingSpawnBindings.delete(row.agentId);
+          try {
+            await settleMemberTask(row.memberName, row.agentId);
+          } catch (settleError) {
+            lead.logger?.warn(
+              `agents team: spawned member rollback failed for ${row.memberName}`,
+              {
+                event: "agents_team.spawn_rollback_failed",
+                module: "bootstrap.agentsTeam",
+                sessionId: lead.sessionId,
+                error: settleError instanceof Error ? settleError.message : String(settleError),
+              },
+            );
+          }
+        }
+        nextSpawnAgentId = undefined;
+        // 失败批次的装配期绑定整体作废（含 launch 早期抛错、工厂未消费的预分配 id）：
+        // 回滚路径无 roster 确认，残留绑定只会让不存在的 agentId 命中成员装配。
+        pendingSpawnBindings.clear();
+        throw error;
+      }
+      // 全部成功后才一次性确认（缺口6）：member_added journal 事实与真实身份同批落库，
+      // 部分失败时零污染、草案原样保留（staged，零成员）可修订后重批。
+      for (const row of spawned) {
+        pendingSpawnBindings.delete(row.agentId);
+        hub.confirmMemberSpawned(row.memberName, row.agentId, row.childSessionId);
         memberPortByChildSession.set(
-          childSessionId,
-          hub.memberPort({ agentId, memberName: member.memberName }),
+          row.childSessionId,
+          hub.memberPort({ agentId: row.agentId, memberName: row.memberName }),
         );
-        spawned.push({ memberName: member.memberName, agentId, childSessionId });
+        // launch 期间 registry 已 register(running) 且 subscribe 边缘早于 roster 确认——
+        // 确认后补一次同步，成员立即从 spawning 翻到 working（不待下一次 registry 变更）。
+        syncMemberRuntimeState(row.agentId, row.memberName);
       }
       return spawned;
     },
@@ -219,6 +327,13 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   installedHub = hub;
   if (hub.teamId !== undefined) emitTeamStateChanged(hub.teamId);
 
+  // agentId 预分配（缺口2/6）：launch 前预分配 id 让 install 与 runner/registry 同源，
+  // 并预登记装配期绑定——成员首回合构造发生在 confirmMemberSpawned 之前，roster 还是
+  // pending_ 占位，没有这份预登记成员会回退 lead 当前模式而非成队定死的记录值（spec §8.1）。
+  // spawnMembers 串行 launch， holder 无并发交叠；复活路径复用旧 agentId 不走工厂。
+  let nextSpawnAgentId: string | undefined;
+  const pendingSpawnBindings = new Map<string, string>();
+
   const memberPort = createTeamMemberPort({
     lead,
     leadDeps: input.leadDeps,
@@ -226,14 +341,29 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     resolveMemberBinding: (agentId) => {
       const roster = hub.snapshot();
       const member = roster?.members.find((candidate) => candidate.agentId === agentId);
-      if (member === undefined) return undefined;
-      return {
-        memberName: member.memberName,
-        permissionMode: roster?.permissionMode,
-        memberMaxTurns: TEAM_MEMBER_MAX_TURNS,
-      };
+      if (member !== undefined) {
+        return {
+          memberName: member.memberName,
+          permissionMode: roster?.permissionMode,
+          memberMaxTurns: TEAM_MEMBER_MAX_TURNS,
+        };
+      }
+      const pendingMemberName = pendingSpawnBindings.get(agentId);
+      if (pendingMemberName !== undefined) {
+        return {
+          memberName: pendingMemberName,
+          permissionMode: roster?.permissionMode,
+          memberMaxTurns: TEAM_MEMBER_MAX_TURNS,
+        };
+      }
+      return undefined;
     },
     runtimeTaskRegistry: taskRegistry,
+    createAgentId: () => {
+      const id = nextSpawnAgentId ?? `agent_${randomId()}`;
+      nextSpawnAgentId = undefined;
+      return id;
+    },
   });
 
   // 团队工具注册：同一注册表实例服务 lead 与全体成员；身份经 hub 在场性校验

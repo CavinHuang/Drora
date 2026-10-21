@@ -258,6 +258,8 @@ export interface ExternalTextInsertRequest {
   text: string;
   mention?: ComposerMentionPrefill;
   mode?: "replace" | "prepend-if-missing";
+  /** 路由元数据（缺口9）：消费门在 SessionPane（按会话定向），composer 本体不读。 */
+  targetSessionId?: string | null;
 }
 
 export function restorePersistedComposerDraftIntoInput({

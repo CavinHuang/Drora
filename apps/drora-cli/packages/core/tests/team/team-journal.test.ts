@@ -498,7 +498,16 @@ describe("journal 防御与续写（design §9：未知事件跳过 + warn，不
     const seqs = events.map((event) => event.seq);
     expect([...seqs].sort((a, b) => a - b)).toEqual(seqs); // 全流单调
     expect(new Set(seqs).size).toBe(seqs.length); // 无碰撞
-    expect(events.slice(-2).map((event) => event.payload.kind)).toEqual(["halted", "resumed"]);
+    // resume 的 kickTeam（缺口7，2026-10-21）会在 resumed 事实后追发派发尝试的任务
+    // 事实：本夹具无派发通道（dispatch 缺席 = 永不接受），世代先落 + 回滚各记一条
+    // task_updated——两者都是持久真相（spec §16.1「先于派发结果持久化新世代」）。
+    // 序列断言改为：halted→resumed 按序在场，resumed 之后只允许任务事实族。
+    const kinds = events.map((event) => event.payload.kind);
+    const haltedAt = kinds.lastIndexOf("halted");
+    const resumedAt = kinds.lastIndexOf("resumed");
+    expect(haltedAt).toBeGreaterThan(0);
+    expect(resumedAt).toBeGreaterThan(haltedAt);
+    expect(kinds.slice(resumedAt + 1).every((kind) => kind === "task_updated")).toBe(true);
     const { record } = replayTeamJournal(events);
     expect(record!.status).toBe("idle"); // resumed 解除冻结 → busy 推导
   });

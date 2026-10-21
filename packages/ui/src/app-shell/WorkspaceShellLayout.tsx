@@ -1558,6 +1558,28 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [workspaceAbsPath, workspaceIdentity],
   );
+  // 团队面板「回对话修改 / 在主会话中引用任务」的 composer 预填（缺口9 挂载点接线）：
+  // 复用 workspace store 的 requestComposerTextInsert 既有插入通道（与上方插件 mention
+  // 同一通道，不新造第二条 composer 写路径）。缺口9 消费门（2026-10-21 修复）：随行的
+  // targetSessionId（TeamSidePane 的 lead 会话）定向插入——此前通道消费端只对聚焦草稿
+  // composer 下发，lead 会话聚焦（主场景）时请求被丢弃、按钮等效无效；现 SessionPane
+  // 按 `(targetSessionId ?? null) === (sessionId ?? null)` 匹配消费（缺席仍 = 草稿，
+  // 既有生产方语义不变）。目标会话未聚焦时请求保留在 store，待其 composer 聚焦后应用。
+  const handlePrefillComposer = useCallback(
+    (prefill: string, targetSessionId?: string | null) => {
+      useDroraSessionStore
+        .getState()
+        .requestComposerTextInsert(
+          workspaceAbsPath,
+          prefill,
+          workspaceIdentity,
+          undefined,
+          undefined,
+          targetSessionId,
+        );
+    },
+    [workspaceAbsPath, workspaceIdentity],
+  );
   // v4 pane 生命周期回调（稳定引用，供 memo 友好的 pane 宿主消费）：
   // createSession/fork 后接入既有选择路径；删除会话后回 draft。
   const handleV4SessionCreated = useCallback(
@@ -1934,6 +1956,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onOpenBrowserUrl={handleOpenBrowserUrl}
       onOpenCodeViewer={handleOpenCodeViewer}
       onOpenFileLink={handleOpenMarkdownFileLink}
+      onPrefillComposer={handlePrefillComposer}
       onOpenBackgroundBash={handleOpenBackgroundBash}
       onOpenSubagentSession={handleOpenSubagentSession}
       onOpenWorkflowActorSession={handleOpenWorkflowActorSession}

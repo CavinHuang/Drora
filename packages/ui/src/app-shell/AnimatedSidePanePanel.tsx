@@ -342,6 +342,7 @@ export function AnimatedSidePanePanel({
   onOpenBrowserUrl,
   onOpenCodeViewer,
   onOpenFileLink,
+  onPrefillComposer,
   onOpenSubagentSession,
   onOpenWorkflowActorSession,
   onOpenWorkflowWorkspace,
@@ -417,6 +418,15 @@ export function AnimatedSidePanePanel({
   onOpenBrowserUrl: (url: string) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
+  /**
+   * 「回对话修改 / 在主会话中引用任务」的会话输入框预填回调（缺口9 接线：
+   * TeamSidePane 的 reviseTeamPlan 预填与 onQuoteTask 两条链路的挂载点实现，
+   * 文案构造在 team/revise-prefill.ts）。实现由 WorkspaceShellLayout 提供
+   * （走 workspace store 的 requestComposerTextInsert 既有插入通道）。
+   * 第二参 = 预填目标会话（TeamSidePane 随行的 lead 会话 id）；挂载点据此走
+   * targetSessionId 定向插入（缺口9 消费门，见 SessionPane externalTextInsertRequest）。
+   */
+  onPrefillComposer?: (prefill: string, targetSessionId?: string | null) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession: (request: OpenScopedSubagentSideTabRequest) => void;
   /** run 详情页里点 ask 节点 → 打开那个 actor 实例的 transcript tab。 */
@@ -1230,6 +1240,7 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
                             onOpenFileLink={onOpenFileLink}
+                            {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}
                           />
                         ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
                           <FileManagerPane

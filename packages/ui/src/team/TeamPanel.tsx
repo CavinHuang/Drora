@@ -33,10 +33,14 @@ import { TeamAvatar } from "./TeamAvatar.js";
  */
 
 /**
- * 动作区覆盖的五条用户面命令（八命令中其余三条——sendTeamMessage / stopTeamMember /
- * setTeamMemberName——属成员下钻与成员卡，不在面板动作区）。payload 形状取
- * CommandPayloadMap（shared TEAM_COMMAND_PAYLOAD_SCHEMAS 单一出处，spec §6.4），
- * 本文件不复制任何载荷；宿主按 cmd.type 分发到 team/commands.ts 同名函数。
+ * 动作区覆盖的五条用户面命令（八命令中其余三条各有归属面，不在面板动作区）：
+ * - sendTeamMessage：成员下钻 composer（TeamSidePane 的 onSendMessage）；
+ * - stopTeamMember：成员详情（TeamSelectionDetails）与下钻头部（TeamSidePane）的
+ *   「移除成员」入口（缺口10 接线）；
+ * - setTeamMemberName：staged 编辑器成员行的「改名」入口（缺口10 接线；spawn 后改名
+ *   待内核改名端口，非 staged 态由 handler 拒绝——见 bootstrap handlers/team.ts）。
+ * payload 形状取 CommandPayloadMap（shared TEAM_COMMAND_PAYLOAD_SCHEMAS 单一出处，
+ * spec §6.4），本文件不复制任何载荷；宿主按 cmd.type 分发到 team/commands.ts 同名函数。
  */
 export type TeamPanelCommandType = Extract<
   keyof CommandPayloadMap,
@@ -118,6 +122,16 @@ export interface TeamPanelProps {
    * 让「给成员发消息」在设计上有明确落点（specs/agents-team.md §10「点击下钻 …可发消息」）。
    */
   onMessageMember?: (member: TeamPanelMemberView) => void;
+  /**
+   * 成员详情「移除成员」入口（缺口10）：宿主接 commands.stopTeamMember（成员移除 v1
+   * 只走用户命令，spec 实现设计裁决第 7 条）。缺席 = 不渲染入口（只读面板行为不变）。
+   */
+  onStopMember?: (member: TeamPanelMemberView) => void;
+  /**
+   * staged 草案成员「改名」入口（缺口10）：宿主接 commands.setTeamMemberName（staged
+   * 草案原子更新同一 teamId，任务 assignee 随名字重定向）。缺席 = 成员行只读展示。
+   */
+  onRenameMember?: (memberName: string, newName: string) => void;
 }
 
 export function TeamPanel(props: TeamPanelProps): JSX.Element {
@@ -129,6 +143,8 @@ function TeamPanelContent({
   onCommand,
   onMemberClick,
   onMessageMember,
+  onStopMember,
+  onRenameMember,
   focus,
   connection,
   onQuoteTask,
@@ -178,6 +194,7 @@ function TeamPanelContent({
             })
           }
           onAbandon={() => onCommand({ type: "abandonTeamPlan", payload: {} })}
+          {...(onRenameMember === undefined ? {} : { onRenameMember })}
         />
       ) : (
         <div className="text-ui-caption rounded border border-border-subtle p-2">
@@ -244,6 +261,7 @@ function TeamPanelContent({
             connection={connection}
             onMemberClick={onMemberClick}
             onQuoteTask={onQuoteTask}
+            onStopMember={onStopMember}
             board={(select) => (
               <div>
                 <div className="grid min-h-0 grid-cols-1 gap-2 @lg/team:grid-cols-3">

@@ -9,15 +9,14 @@
  * 命令上 wire 会丢。因此 note 非空时随追问文案一起进入预填——用户可直接发送或
  * 续写后发送，方向经对话到达 lead 模型（spec §10「原子更新同一草案」的触发面）。
  *
- * 注入通道（v1 宿主接线点）：既有 composer 注入面调研结论——
- * - store 插入请求（requestComposerTextInsert）消费端只有 focused 的 draft 态
- *   composer（SessionPane externalTextInsertRequest 仅 sessionId === null 时下发），
- *   团队场景的 lead 会话 composer 不可达；
- * - 既有会话 composer 只有两个领域专用 window 事件（workspace 文件加入对话 /
- *   knowledge handoff），非通用公开面。
- * 因此预填经 TeamSidePane 的 onPrefillComposer 回调 prop 由挂载点提供实现，
- * 本模块只负责文案构造（Composition root 在 app-shell 之外，接线缺口登记在
- * 实现报告 concerns）。
+ * 注入通道（缺口9 已接线，含消费门）：既有 composer 注入面调研结论——
+ * - store 插入请求（requestComposerTextInsert）是唯一的通用插入通道；挂载点
+ *   WorkspaceShellLayout 经 AnimatedSidePanePanel → TeamSidePane 注入 onPrefillComposer，
+ *   实现走该通道（与插件 mention 同一通道，不新造第二条 composer 写路径）；
+ * - 消费门（2026-10-21 修复）：TeamSidePane 随行 lead 会话（tab.parentSessionId）作
+ *   targetSessionId 定向，SessionPane 按 `(targetSessionId ?? null) === (sessionId ?? null)`
+ *   匹配下发——此前只对聚焦草稿 composer 下发，lead 会话聚焦（主场景）时请求被丢弃；
+ *   缺席 targetSessionId 仍 = 草稿（建议 prompt / 插件 mention 等既有生产方语义不变）。
  */
 
 /** 预填追问文案的 locales 键（zh-CN/en-US 双语；i18n 键单一出处）。 */

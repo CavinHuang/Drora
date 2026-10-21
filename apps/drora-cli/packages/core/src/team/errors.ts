@@ -106,5 +106,14 @@ export function teamPortError(
         message: `Draft task assigns '${params.name ?? "?"}' who is not a draft member.`,
         hint: "Assign tasks only to draft member names, or leave the assignee empty for the shared pool.",
       };
+    // 2026-10-21 缺口6（Approve & Run 原子 spawn）：spawn 失败与邮箱持久化失败（E12）
+    // 分开——前者是成员进程创建失败（hub 已回滚草案、零成员，该修订后重批），后者是
+    // 消息未发出（该重发消息）。混用会让调用方按错误文案走错恢复路径。
+    case "member_spawn_failed":
+      return {
+        code,
+        message: "Spawning team members failed; the staged draft is intact with zero members.",
+        hint: "No member was created. Fix the cause (e.g. member profile or provider availability) and approve the draft again.",
+      };
   }
 }

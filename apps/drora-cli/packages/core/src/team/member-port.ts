@@ -19,6 +19,13 @@ export interface TeamMemberPortFactoryInput {
   registry: ToolRegistry;
   resolveMemberBinding: (agentId: string) => TeamMemberBinding | undefined;
   runtimeTaskRegistry?: RuntimeTaskRegistry;
+  /**
+   * agentId 预分配工厂（透传 runner 的 createAgentId）。install 在 launch 前预分配
+   * agentId 并预登记装配期绑定：成员首回合构造（roster 尚未 confirmMemberSpawned）
+   * 才能按 spec §8.1 读到成队定死的权限模式，而不是回退 lead 当前模式。缺省由
+   * runner 自行生成（测试注入路径行为不变）。
+   */
+  createAgentId?: () => string;
 }
 
 export function createTeamMemberPort(input: TeamMemberPortFactoryInput): SubagentPort {
@@ -33,6 +40,7 @@ export function createTeamMemberPort(input: TeamMemberPortFactoryInput): Subagen
       ? {}
       : { builtInModelSelectionOverrides: lead.config.subagents.builtInModelSelectionOverrides }),
     runtimeTaskRegistry: input.runtimeTaskRegistry,
+    ...(input.createAgentId === undefined ? {} : { createAgentId: input.createAgentId }),
     emitParentEvent: async (event, traceContext) => {
       const { isStaleBranchRuntimeTaskEvent } = await import("../runtime/methods/runtime-command-generation.js");
       if (isStaleBranchRuntimeTaskEvent(lead, event)) return;

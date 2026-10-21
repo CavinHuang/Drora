@@ -5388,7 +5388,17 @@ export function SessionPane({
       centered={isDraft}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
-      externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
+      // 缺口9 消费门（2026-10-21 修复）：此前 `focused && sessionId === null` 只对草稿
+      // composer 下发——团队面板「回对话修改/在主会话中引用」的目标是 lead 会话
+      // （tab.parentSessionId），主场景（lead 会话聚焦）下请求被丢弃、按钮等效无效。
+      // 现按请求的 targetSessionId 定向匹配：缺席 = 草稿（既有生产方语义不变）；
+      // 指定 sessionId = 该会话 composer。主/辅 pane 可同时 focused（上方 Esc 注释），
+      // 按会话定向保证单一消费者、不会把同一段预填插进两个 composer。
+      externalTextInsertRequest={
+        focused && (composerTextInsertRequest?.targetSessionId ?? null) === (sessionId ?? null)
+          ? composerTextInsertRequest
+          : null
+      }
       onExternalTextInsertApplied={handleExternalTextInsertApplied}
       autoFocusEnabled={focused}
       disabled={

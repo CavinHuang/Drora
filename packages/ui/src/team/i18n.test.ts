@@ -38,6 +38,12 @@ const TEAM_PANEL_KEYS = [
   "team.panel.resumeHint",
   "team.panel.escalationTitle",
   "team.panel.escalationBody",
+  // 缺口10：成员详情/下钻「移除成员」二次确认文案（TeamSelectionDetails/TeamSidePane）。
+  "team.ui.stopMember",
+  "team.ui.stopMemberAria",
+  "team.ui.stopMemberConfirmTitle",
+  "team.ui.stopMemberConfirmBody",
+  "team.ui.stopMemberConfirmLabel",
   "team.board.pending",
   "team.board.inProgress",
   "team.board.completed",
@@ -68,6 +74,10 @@ const TEAM_STAGED_EDITOR_KEYS = [
   "team.stagedEditor.abandonConfirmTitle",
   "team.stagedEditor.abandonConfirmBody",
   "team.stagedEditor.abandonConfirmLabel",
+  // 缺口10：成员行「改名」入口文案（DraftMemberRename）。
+  "team.stagedEditor.renameLabel",
+  "team.stagedEditor.renameApply",
+  "team.stagedEditor.renameCancel",
 ] as const;
 
 const CONSUMED_KEYS: readonly string[] = [...TEAM_PANEL_KEYS, ...TEAM_STAGED_EDITOR_KEYS];

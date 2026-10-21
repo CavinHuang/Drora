@@ -129,6 +129,13 @@ export interface ComposerTextInsertRequest {
   text: string;
   mention?: ComposerMentionPrefill;
   mode?: "replace" | "prepend-if-missing";
+  /**
+   * 插入目标会话（缺口9 消费门，2026-10-21）：缺席/null = 草稿 composer（既有语义，
+   * 建议 prompt / 插件 mention 等既有生产方不变）；指定 sessionId = 该会话的 composer
+   * 消费（SessionPane 按 `(targetSessionId ?? null) === (sessionId ?? null)` 匹配）。
+   * 主/辅 pane 可同时 focused，按会话定向保证单一消费者（不双插）。
+   */
+  targetSessionId?: string | null;
 }
 
 export interface TimelineBottomRequest {
@@ -237,6 +244,8 @@ export interface DroraSessionStoreState {
     workspaceIdentity?: string,
     mention?: ComposerMentionPrefill,
     mode?: "replace" | "prepend-if-missing",
+    /** 插入目标会话（缺席 = 草稿；语义见 ComposerTextInsertRequest.targetSessionId）。 */
+    targetSessionId?: string | null,
   ) => number;
   clearComposerTextInsertRequest: (
     workspacePath: string,

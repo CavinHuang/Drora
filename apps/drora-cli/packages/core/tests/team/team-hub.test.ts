@@ -81,6 +81,9 @@ describe("two-phase staging (approve before any member exists)", () => {
     hub.stageTeam("lead_s1", STAGE_INPUT);
     const result = await hub.approveStage("lead_s1");
     expect(result.status).toBe("rejected");
+    // 2026-10-21 缺口6：spawn 失败用专用码——与邮箱持久化失败（E12）混用会误导
+    // 调用方去「重发消息」而不是修订草案后重批。
+    expect(result.error?.code).toBe("member_spawn_failed");
     expect(hub.status).toBe("staged"); // 草案保留，可修订后重批
     const retry = await hub.approveStage("lead_s1");
     expect(retry.status).toBe("ok");
@@ -162,6 +165,130 @@ describe("halt/resume and frozen scheduling", () => {
     });
     await hub.kickTeam();
     expect(kicked.length).toBeGreaterThan(0);
+  });
+
+  it("halt interrupts in-flight members (spec §2.6) and freezes task updates too", async () => {
+    const settleCalls: string[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      interruptAndSettle: async (memberName) => {
+        settleCalls.push(memberName);
+      },
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+    lead.taskCreate({ title: "w", spec: { goal: "g", acceptance: [] }, dependsOn: [] });
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const taskId = hub.board()!.tasks[0]!.taskId;
+    const claimed = alice.taskClaim(taskId);
+    expect(claimed.status).toBe("claimed");
+    hub.markMemberWorking("alice"); // 在飞成员（生产由 install 的运行态接线驱动）
+
+    expect(hub.halt("lead_s1").status).toBe("ok");
+    // 2026-10-21 缺口7：停队必须中断在飞成员——此前只翻状态，成员回合继续跑到自然终态。
+    // spawning 成员同样在列（launch 在飞时即有 registry 任务；无任务时静默通道 no-op）。
+    await vi.waitFor(() => expect(settleCalls).toContain("alice"));
+    // 冻结面补漏：halted 后任务更新被拒（此前只有 create/claim 有 halted 门）
+    const late = alice.taskUpdate({
+      taskId,
+      attemptId: claimed.status === "claimed" ? claimed.attemptId : "",
+      patch: { status: "in_progress" },
+    });
+    expect(late.status).toBe("rejected");
+    expect(late.error?.code).toBe("team_halted");
+  });
+
+  it("resume re-arms dispatch after halt consumed the terminal edges (缺口7 resume 半边)", async () => {
+    const prompts: { memberName: string; mode: string }[] = [];
+    const settleCalls: string[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async (request) => {
+        prompts.push({ memberName: request.memberName, mode: request.mode });
+        return true;
+      },
+      interruptAndSettle: async (memberName) => {
+        settleCalls.push(memberName);
+      },
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+
+    // halt 前的板上事实：alice 在飞（指派并 kick 认领 → working），共享池留一个未指派任务。
+    lead.taskCreate({
+      title: "inflight",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "alice",
+    });
+    await hub.kickMember("alice");
+    const inFlight = hub.board()!.tasks.find((task) => task.title === "inflight")!;
+    expect(inFlight.status).toBe("claimed");
+    lead.taskCreate({ title: "pooled", spec: { goal: "g", acceptance: [] }, dependsOn: [] });
+    hub.markMemberWorking("alice");
+
+    expect(hub.halt("lead_s1").status).toBe("ok");
+    // 中断全员（alice=working；bob=spawning 同样在列），成员终态边缘在冻结期内消费。
+    await vi.waitFor(() => expect(settleCalls.length).toBe(2));
+    prompts.length = 0; // 清掉 halt 前的认领派发，只观察 resume 后的派发
+    await hub.handleMemberTerminal("alice");
+    await hub.handleMemberTerminal("bob");
+    expect(hub.status).toBe("halted"); // 冻结不因终态边缘解除
+    expect(prompts).toEqual([]); // 冻结期终态边缘不 kick（handleMemberTerminal 冻结跳过）
+
+    // resume 前探针（评审实证的回归形态）：若 resume 只翻状态，pooled 将永远 pending。
+    expect(hub.resume("lead_s1", "user asked to continue").status).toBe("ok");
+    await vi.waitFor(() => {
+      expect(hub.board()?.tasks.find((task) => task.title === "pooled")?.status).toBe("claimed");
+    });
+    // 派发源是 resume 的 kickTeam：bob（终态成员）复活认领共享池任务。
+    expect(prompts.some((row) => row.memberName === "bob" && row.mode === "queue")).toBe(true);
+    expect(hub.board()?.tasks.find((task) => task.title === "pooled")?.assignee).toBe("bob");
+    // 被中断成员的在飞任务保持 claimed+parked（sticky，只由 lead 转派轮换，spec §16.1）。
+    const afterResume = hub.board()!.tasks.find((task) => task.title === "inflight")!;
+    expect(afterResume.status).toBe("claimed");
+    expect(afterResume.assignee).toBe("alice");
+    expect(afterResume.attemptId).toBe(inFlight.attemptId);
+  });
+
+  it("removeMember interrupts the member and wakes teammates to reclaim recycled work (spec §16.2)", async () => {
+    const settleCalls: string[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      interruptAndSettle: async (memberName) => {
+        settleCalls.push(memberName);
+      },
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+    lead.taskCreate({
+      title: "r",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "alice",
+    });
+    await vi.waitFor(() => {
+      expect(hub.board()?.tasks.find((task) => task.title === "r")?.status).toBe("claimed");
+    });
+
+    expect(hub.removeMember("alice").status).toBe("ok");
+    // 移除安全序：排空/中断被移除成员（裁决外静默，迟到写入已被 attempt 失效拒绝）
+    await vi.waitFor(() => expect(settleCalls).toEqual(["alice"]));
+    // 重新调度（缺口7）：回收任务回池后 kickTeam 唤醒其他成员认领——此前 kickTeam
+    // 生产零调用，任务滞留 pending 无人接手。
+    await vi.waitFor(() => {
+      const recycled = hub.board()?.tasks.find((task) => task.title === "r");
+      expect(recycled?.status).toBe("claimed");
+      expect(recycled?.assignee).toBe("bob");
+    });
   });
 });
 

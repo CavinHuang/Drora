@@ -16,6 +16,7 @@ export function TeamWorkspaceViews({
   connection,
   onMemberClick,
   onQuoteTask,
+  onStopMember,
   board,
 }: {
   model: TeamPanelModel;
@@ -23,6 +24,8 @@ export function TeamWorkspaceViews({
   connection?: TeamHistoryConnection;
   onMemberClick?: (member: TeamPanelMemberView) => void;
   onQuoteTask?: (task: TeamPanelTaskView) => void;
+  /** 成员详情「移除成员」入口（缺口10）；缺席 = 详情面不渲染入口。 */
+  onStopMember?: (member: TeamPanelMemberView) => void;
   board?: (select: (focus: TeamUiFocus) => void) => ReactNode;
 }) {
   const { intl } = useDroraIntl();
@@ -109,6 +112,7 @@ export function TeamWorkspaceViews({
           onBack={() => setSelection(undefined)}
           onMemberClick={onMemberClick}
           onQuoteTask={onQuoteTask}
+          onStopMember={onStopMember}
         />
       ) : null}
     </div>

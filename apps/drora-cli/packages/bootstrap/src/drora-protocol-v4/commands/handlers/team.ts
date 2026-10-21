@@ -32,8 +32,6 @@ import type { V4CommandCoreHost } from "../types.js";
 
 /** hub 缺席（未装配/灰度关/非 lead 会话）的 failed ACK reasonCode。 */
 const TEAM_HUB_UNAVAILABLE = "fault.command.teamHubUnavailable";
-/** v1 未支持命令（setTeamMemberName，登记 M3 成员改名面）的 failed ACK reasonCode。 */
-const TEAM_COMMAND_UNSUPPORTED = "fault.command.teamCommandUnsupported";
 
 /** 团队命令打到无 hub 的会话（灰度关 = install 从未发生；成员 child 会话不在册同理）。 */
 export class V4TeamHubUnavailableError extends Error {
@@ -53,16 +51,6 @@ export class V4TeamRejectedError extends Error {
     super(message);
     this.reasonCode = `fault.command.teamRejected.${code}`;
     this.name = "V4TeamRejectedError";
-  }
-}
-
-/** v1 未支持：能力声明独立于装配状态（hub 在场与否都是未支持）。 */
-export class V4TeamUnsupportedError extends Error {
-  readonly reasonCode = TEAM_COMMAND_UNSUPPORTED;
-
-  constructor(command: string) {
-    super(`${command} is not supported in v1 (planned for M3)`);
-    this.name = "V4TeamUnsupportedError";
   }
 }
 
@@ -106,9 +94,11 @@ async function approveTeamPlan(
  * 「回对话修改」：草案标记等待反馈并取消规划回合（追问面在对话侧），hub 侧映射为
  * stageTeam(同一草案)——staged 再次 stageTeam = 原子更新同一 teamId，不另建 team（spec §10）。
  *
- * 已知边界（登记）：hub 查询面（snapshot/board）不暴露草案 name 与逐成员 modelSelection，
- * 本 handler 以查询面重建入参时这两项不回写（v1 无生产 stage 调用方携带它们，无实际回归；
- * 草案只读读取面随 M3 投影桥一并在 core 补齐后收口）。
+ * 2026-10-21 缺口10 修复：重建草案入参时原样回写 roster.name 与逐成员
+ * modelSelection（hub 查询面已补齐这两项回读）——stageTeam 整体替换 members 且经
+ * journalStagedFact 持久化，此前不回写会把 team 名与建队时刻定死的路由快照
+ * （spec §8.7）静默清空；v1 无生产 stager 携带 modelSelection 时为潜在回归，
+ * UI staged 编辑器展示路由标签后即成真回归。决策记录见 specs/agents-team.md §8.7。
  */
 async function reviseTeamPlan(
   host: V4CommandCoreHost,
@@ -126,9 +116,11 @@ async function reviseTeamPlan(
   assertMutationOk(
     "reviseTeamPlan",
     hub.stageTeam(sessionId, {
+      ...(roster.name === undefined ? {} : { name: roster.name }),
       draftMembers: roster.members.map((member) => ({
         memberName: member.memberName,
         profile: member.profile ?? "",
+        ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({
         title: task.title,
@@ -214,13 +206,73 @@ async function stopTeamMember(
   return undefined;
 }
 
-/** 成员改名 v1 未支持（名字重定向防护的完整面随 M3 落，spec §2.4）——明确未支持 ACK，不静默。 */
+/**
+ * 成员改名（缺口10 实现，spec §2.4 名字重定向防护的草案期基线）。
+ *
+ * 修复依据：本 handler 此前是 v1 stub（固定抛 V4TeamUnsupportedError），但 spec §6.3
+ * 已把 setTeamMemberName 列入用户面命令、shared wire schema（TEAM_COMMAND_PAYLOAD_
+ * SCHEMAS）与 UI（team/commands.ts setTeamMemberName + staged 编辑器改名入口）两侧
+ * 齐备，命令链只差内核消费。实读 hub 能力：TeamHub 无 rename 端口、TeamMemberInternal
+ * 无 displayName 字段（memberName 即联接键），spawn 后改名属内核改名端口（M3+，归
+ * core/src/team 面）；既有 hub 查询面支持的改名窗口只有 staged 草案——与 reviseTeamPlan
+ * 同一机制：以 snapshot/board 重建草案并 stageTeam 原子更新同一 teamId（staged 再次
+ * stageTeam = 原子更新，不另建 team，spec §10），改名成员的任务 assignee 同批重定向
+ * （否则草案校验 draft_unknown_assignee 拒绝，hub.ts E13/E14）。journal 的 staged
+ * 事实随 stageTeam 落盘（改名事实即草案更新事实，恢复语义与 revise 一致）。
+ *
+ * 已知边界（仍登记）：非 staged 态（已 spawn）明确拒绝——team_not_present 文案即
+ * 「无 staged 草案可改名」，不静默降级；spawn 后改名待内核改名端口（M3+）。
+ * 2026-10-21 缺口10 修复：重建草案时原样回写 roster.name 与逐成员 modelSelection
+ * （与 reviseTeamPlan 同款；hub 查询面已补齐回读，stageTeam 整体替换 + journal
+ * 持久化不再静默清空路由快照与 team 名）。决策记录见 specs/agents-team.md §8.7。
+ */
 async function setTeamMemberName(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
-  requireRecord(host, envelope.sessionId);
-  throw new V4TeamUnsupportedError("setTeamMemberName");
+  const { hub, sessionId } = requireTeamHub(host, envelope);
+  const payload = envelope.payload as CommandPayloadMap["setTeamMemberName"];
+  const roster = hub.snapshot();
+  const board = hub.board();
+  if (roster === undefined || board === undefined || roster.status !== "staged") {
+    throw new V4TeamRejectedError(
+      "team_not_present",
+      "setTeamMemberName requires a staged draft in this session (renaming spawned members arrives with the hub rename port).",
+    );
+  }
+  if (!roster.members.some((member) => member.memberName === payload.memberName)) {
+    // 与 hub.removeMember 的「不在册」语义同码（member_removed），不另造错误码。
+    throw new V4TeamRejectedError(
+      "member_removed",
+      `setTeamMemberName: member '${payload.memberName}' is not in the staged draft.`,
+    );
+  }
+  assertMutationOk(
+    "setTeamMemberName",
+    hub.stageTeam(sessionId, {
+      ...(roster.name === undefined ? {} : { name: roster.name }),
+      draftMembers: roster.members.map((member) => ({
+        memberName: member.memberName === payload.memberName
+          ? payload.newName
+          : member.memberName,
+        profile: member.profile ?? "",
+        ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
+      })),
+      draftTasks: board.tasks.map((task) => ({
+        title: task.title,
+        spec: {
+          goal: task.spec.goal,
+          acceptance: [...task.spec.acceptance],
+          ...(task.spec.outputFormat === undefined ? {} : { outputFormat: task.spec.outputFormat }),
+        },
+        ...(task.assignee === undefined
+          ? {}
+          : { assignee: task.assignee === payload.memberName ? payload.newName : task.assignee }),
+        dependsOn: [...task.dependsOn],
+      })),
+    }),
+  );
+  return undefined;
 }
 
 export const teamHandlers = {

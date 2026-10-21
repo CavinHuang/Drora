@@ -64,6 +64,13 @@ export interface TeamMemberView {
   state: TeamMemberState;
   currentTaskId?: string;
   childSessionId?: string;
+  /**
+   * 成员路由快照回读（spec §8.7）：staged 草案修订（reviseTeamPlan /
+   * setTeamMemberName 以查询面重建草案入参）必须原样回写，否则 stageTeam 整体
+   * 替换 members + journalStagedFact 会把建队时刻定死的路由静默清空
+   * （2026-10-21 缺口10 修复前仅代码注释登记，无 spec 决策记录）。
+   */
+  modelSelection?: { provider: string; model: string; thought?: string };
 }
 
 export interface TeamRosterSnapshot {
@@ -71,6 +78,8 @@ export interface TeamRosterSnapshot {
   leadSessionId: string;
   permissionMode?: TeamPermissionMode;
   status: TeamStatus;
+  /** team 名（stageTeam.name 回读；草案重建不丢名，同 modelSelection 语义）。 */
+  name?: string;
   members: readonly TeamMemberView[];
 }
 
@@ -192,7 +201,8 @@ export type TeamPortErrorCode =
   | "mailbox_persist_failed"
   | "message_too_large"
   | "draft_duplicate_member"
-  | "draft_unknown_assignee";
+  | "draft_unknown_assignee"
+  | "member_spawn_failed";
 
 export interface TeamPortError {
   code: TeamPortErrorCode;

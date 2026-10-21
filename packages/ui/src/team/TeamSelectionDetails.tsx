@@ -1,5 +1,6 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { teamActor, teamMemberFor, waitingDependencies } from "./presentation.js";
 import { teamTasks } from "./relations.js";
@@ -13,6 +14,7 @@ export function TeamSelectionDetails({
   onBack,
   onMemberClick,
   onQuoteTask,
+  onStopMember,
 }: {
   model: TeamPanelModel;
   focus: TeamUiFocus;
@@ -20,9 +22,12 @@ export function TeamSelectionDetails({
   onBack: () => void;
   onMemberClick?: (member: TeamPanelMemberView) => void;
   onQuoteTask?: (task: TeamPanelTaskView) => void;
+  /** 「移除成员」入口（缺口10）：宿主接 commands.stopTeamMember；缺席 = 不渲染。 */
+  onStopMember?: (member: TeamPanelMemberView) => void;
 }) {
   const { intl } = useDroraIntl(),
     lead = intl.formatMessage({ id: "team.ui.lead" });
+  const requestConfirmation = useConfirmDialog();
   const tasks = teamTasks(model);
   const task = focus.kind === "task" ? tasks.find((task) => task.taskId === focus.id) : undefined;
   const member = focus.kind === "member" ? teamMemberFor(model, focus.id) : undefined;
@@ -188,6 +193,34 @@ export function TeamSelectionDetails({
             >
               {intl.formatMessage({ id: "team.ui.memberOpen" })}
               <ArrowUpRightIcon className="size-3" />
+            </Button>
+          ) : null}
+          {/* 缺口10：成员详情的「移除成员」入口——stopTeamMember（成员移除 v1 只走用户
+              命令，spec 实现设计裁决第 7 条）。二次确认与下钻头部同一文案（TeamSidePane），
+              影响面说明列 hub 移除安全序（回收任务 + 退休拒绝表，spec §16.2）。 */}
+          {onStopMember ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-2 text-destructive hover:text-destructive pointer-coarse:min-h-11"
+              data-testid="team-member-stop-details"
+              onClick={() => {
+                void (async () => {
+                  const confirmed = await requestConfirmation({
+                    title: intl.formatMessage(
+                      { id: "team.ui.stopMemberConfirmTitle" },
+                      { name: member.memberName },
+                    ),
+                    description: intl.formatMessage({ id: "team.ui.stopMemberConfirmBody" }),
+                    confirmLabel: intl.formatMessage({ id: "team.ui.stopMemberConfirmLabel" }),
+                    confirmVariant: "destructive",
+                  });
+                  if (confirmed) onStopMember(member);
+                })();
+              }}
+            >
+              {intl.formatMessage({ id: "team.ui.stopMember" })}
             </Button>
           ) : null}
         </>

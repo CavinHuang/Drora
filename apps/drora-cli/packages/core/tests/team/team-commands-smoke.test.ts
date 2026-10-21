@@ -31,7 +31,8 @@ import type { AgentRuntimeDeps } from "../../src/runtime/types.js";
  *
  * ① 未装配（灰度关形态：会话 record 在、hub 不在册）八条逐条 → 结构化错误 ACK 语义
  *   （带 reasonCode 的领域错误，gateway 据此回 failed；不抛穿网关）；
- * ② install 一个 hub 后 approve/revise/halt/resume 正路径可达（send/stop 顺带最小正路径）；
+ * ② install 一个 hub 后 approve/revise/rename/halt/resume 正路径可达（send/stop 顺带
+ *   最小正路径；rename 含非 staged 拒绝边界——缺口10 的草案期改名窗口）；
  * ③ CAS 归类对照断言：八条全部不在 COMMANDS_REQUIRING_BASE_REVISION，且注册表 wiring 生效。
  */
 
@@ -76,12 +77,9 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
       await expect(
         teamHandlers[type](smokeHost, teamEnvelope(type, sessionId, payload)),
       ).rejects.toMatchObject({
-        reasonCode:
-          type === "setTeamMemberName"
-            ? // v1 未支持是能力声明，独立于装配状态（登记 M3）。
-              "fault.command.teamCommandUnsupported"
-            : // hub 缺席（未装配/灰度关/非 lead 会话）→ 统一 teamHubUnavailable。
-              "fault.command.teamHubUnavailable",
+        // hub 缺席（未装配/灰度关/非 lead 会话）→ 统一 teamHubUnavailable
+        //（缺口10 起 setTeamMemberName 不再是能力级 stub，与其他七条同一装配门）。
+        reasonCode: "fault.command.teamHubUnavailable",
       });
     }
     hostedSessions.delete(sessionId);
@@ -127,11 +125,21 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     const hub = installed.hub;
 
     // staging 不在八条 v4 命令面（由 TeamSpawn 工具面/lead 端口承载）：先造 staged 草案。
+    // 成员带路由快照（spec §8.7 建队时刻定死）：缺口10 修复的回归探针——revise/rename
+    // 以查询面重建草案，不回写会把它与 team 名静默清空并随 journal 持久化。
     const leadPort = hub.leadPort(sessionId);
     const staged = leadPort.stageTeam({
       name: "smoke-team",
-      draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
-      draftTasks: [{ title: "t1", spec: { goal: "g", acceptance: ["a1"] }, dependsOn: [] }],
+      draftMembers: [
+        {
+          memberName: "alice",
+          profile: "general-purpose",
+          modelSelection: { provider: "provider-a", model: "model-x" },
+        },
+      ],
+      draftTasks: [
+        { title: "t1", spec: { goal: "g", acceptance: ["a1"] }, dependsOn: [], assignee: "alice" },
+      ],
     });
     expect(staged.status).toBe("ok");
     const teamId = staged.teamId as string;
@@ -151,18 +159,52 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     ).rejects.toMatchObject({ reasonCode: "fault.command.teamRejected.historyTeamMismatch" });
     expect(COMMANDS_REQUIRING_BASE_REVISION.has(TEAM_HISTORY_QUERY)).toBe(false);
 
-    // revise 正路径：原子更新同一草案（同 teamId、仍 staged，不另建 team）。
+    // rename 正路径（缺口10）：staged 草案改名——同 teamId 原子更新，任务 assignee
+    // 随名字重定向；journal 追加 staged 事实（改名 = 草案更新事实）。
+    await teamHandlers.setTeamMemberName(
+      smokeHost,
+      teamEnvelope("setTeamMemberName", sessionId, { memberName: "alice", newName: "alicia" }),
+    );
+    expect(hub.teamId).toBe(teamId);
+    expect(hub.status).toBe("staged");
+    const renamedRoster = hub.snapshot();
+    expect(renamedRoster?.members.map((member) => member.memberName)).toEqual(["alicia"]);
+    expect(hub.board()?.tasks.map((task) => task.assignee)).toEqual(["alicia"]);
+    // 缺口10 回归断言：查询面重建草案原样回写 team 名与路由快照（hub 查询面已补齐
+    // 回读；不回写 = stageTeam 整体替换 + journalStagedFact 把它们静默清空）。
+    expect(renamedRoster?.name).toBe("smoke-team");
+    expect(renamedRoster?.members[0]?.modelSelection).toEqual({
+      provider: "provider-a",
+      model: "model-x",
+    });
+
+    // revise 正路径：原子更新同一草案（同 teamId、仍 staged，不另建 team）；
+    // 重建回写同一断言（revise 与 rename 同一重建机制，同款回归面）。
     await teamHandlers.reviseTeamPlan(
       smokeHost,
       teamEnvelope("reviseTeamPlan", sessionId, { note: "keep the draft" }),
     );
     expect(hub.teamId).toBe(teamId);
     expect(hub.status).toBe("staged");
+    const revisedRoster = hub.snapshot();
+    expect(revisedRoster?.name).toBe("smoke-team");
+    expect(revisedRoster?.members[0]?.modelSelection).toEqual({
+      provider: "provider-a",
+      model: "model-x",
+    });
 
     // approve 正路径：唯一创建成员入口。
     await teamHandlers.approveTeamPlan(smokeHost, teamEnvelope("approveTeamPlan", sessionId));
     expect(hub.status).toBe("active");
-    expect(hub.snapshot()?.members.some((member) => member.memberName === "alice")).toBe(true);
+    expect(hub.snapshot()?.members.some((member) => member.memberName === "alicia")).toBe(true);
+
+    // rename 拒绝路径（缺口10 边界）：已 spawn（非 staged）无改名端口——明确拒绝不静默。
+    await expect(
+      teamHandlers.setTeamMemberName(
+        smokeHost,
+        teamEnvelope("setTeamMemberName", sessionId, { memberName: "alicia", newName: "alice" }),
+      ),
+    ).rejects.toMatchObject({ reasonCode: "fault.command.teamRejected.team_not_present" });
 
     // halt → resume 正路径（用户停队/显式带理由恢复，spec §2.6）。
     await teamHandlers.haltTeam(
@@ -180,18 +222,18 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     const mailboxBefore = hub.mailboxEntries().length;
     await teamHandlers.sendTeamMessage(
       smokeHost,
-      teamEnvelope("sendTeamMessage", sessionId, { to: "alice", message: "hello alice" }),
+      teamEnvelope("sendTeamMessage", sessionId, { to: "alicia", message: "hello alicia" }),
     );
     expect(hub.mailboxEntries().length).toBe(mailboxBefore + 1);
-    expect(hub.mailboxEntries().at(-1)?.message).toBe("hello alice");
+    expect(hub.mailboxEntries().at(-1)?.message).toBe("hello alicia");
 
     // stop 正路径：hub 移除安全序标记 removed；花名册投影不再含该成员
     //（snapshot() 过滤 removed——移除成功 = 从投影消失，hub.ts snapshot 的口径）。
     await teamHandlers.stopTeamMember(
       smokeHost,
-      teamEnvelope("stopTeamMember", sessionId, { memberName: "alice" }),
+      teamEnvelope("stopTeamMember", sessionId, { memberName: "alicia" }),
     );
-    expect(hub.snapshot()?.members.some((member) => member.memberName === "alice")).toBe(false);
+    expect(hub.snapshot()?.members.some((member) => member.memberName === "alicia")).toBe(false);
 
     // 拒绝路径收口：非 staged 调 abandon → hub 拒绝语义透传为结构化 failed ACK reasonCode。
     await expect(

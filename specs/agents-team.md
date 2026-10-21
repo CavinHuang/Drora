@@ -255,7 +255,12 @@ created（显式成队：权限模式与成员路由定死并记 journal）
   → active …（自动派发 / 消息复活 / 新委派再激活）
   → completed（用户收队 / lead 会话正常结束，归档保留完整花名册/板/邮箱）
   / halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度；显式 TeamResume
-           带理由才恢复，普通建任务不得静默解除）
+           带理由才恢复，普通建任务不得静默解除。中断成员的终态边缘在冻结期内被
+           消费且不 kick（冻结面）；TeamResume 即唤醒边缘——resume 翻状态后 kickTeam
+           重新武装调度：共享池 pending 任务与待投递邮箱由 kick 复活派发，被中断
+           成员的 claimed+parked 任务仍 sticky（只由 lead 转派轮换，§16.1）。
+           2026-10-21 缺口7 登记前 resume 只翻状态：全员终态后无任何派发边缘可等，
+           调度死寂（无轮询），此为中断半边的配套语义）
   / escalated（自动循环到上限：升级给用户裁决，与 halted 语义分离）
   / cancelled（lead 会话被删 / 显式取消）
 ```
@@ -448,6 +453,14 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    目标模型默认档；显式指定思考档先校验目标模型兼容、不兼容则创建失败（不静默降档）。
    与 §8.1 权限模式快照同一家族——**建队/建成员那一刻的世界被固定，此后 lead 换
    路由不影响在飞成员**。
+   **草案修订回写决策（2026-10-21，缺口10 修复）**：hub 查询面（TeamRosterSnapshot）
+   补齐 team `name` 与逐成员 `modelSelection` 回读（additive optional）；reviseTeamPlan
+   与 setTeamMemberName 以查询面重建草案入参时**原样回写**这两项。修复前边界：两命令
+   重建草案不回写，stageTeam 整体替换 members 并经 journalStagedFact 持久化——草案
+   成员的路由快照与本条「建队时刻定死」的语义（team 名同款）会在用户点「回对话修改/
+   改名」时被静默清空；v1 无生产 stager 携带 modelSelection 时为潜在回归，UI staged
+   编辑器展示路由标签后即成真回归。此前该边界仅在代码注释登记，未留 spec 决策记录
+   （违反 AGENTS.md「分歧与边界须在 specs/ 登记」），本次修复时一并补记。
 8. **具名工具策略（可选增强，借鉴 dsh toolPolicies，M4 评估）**：部署方在 settings
    声明具名 per-角色工具策略（allow/deny 集）；lead 模型只能**按 id 选择**已声明的
    策略，不能提交原始 allow/deny 列表、不能运行时新建；协作工具强制保留、lead 专属
@@ -468,19 +481,19 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
 随重构迁至 services/src/task-facts/（门随文件走），droraAgentService.ts 新增 1 处
 会话归属守卫（按继承原则 teammate 自动继承），census 23 → **24 处（15 文件）**。分布：
 
-| 文件                                                                                            | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
-| ----------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269）                         | 6    | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
-| core/src/runtime/methods/background-notifications.ts                                            | 2    | 通知封印按子会话现状                                                                                                                           |
-| bootstrap/src/drora-protocol/server-operations.ts（:1734 S2 新增/:1817/:2036）                  | 3    | 子会话下钻/查询包含 teammate；S2 新增会话归属守卫（精确 ID 凭父链证明归属，teammate 同样适用）                                                 |
-| bootstrap/src/app/subagent-observation.ts（:51/:95）                                            | 2    | 子代理观察面适用                                                                                                                               |
-| bootstrap/src/drora-protocol/subagent-session-query.ts:395                                      | 1    | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate                                                                                                       |
-| bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771                                             | 1    | 只读守卫覆盖 teammate                                                                                                                          |
-| core/src/runtime/helpers/tool-allowlist.ts:114                                                  | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
-| core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
-| core/src/telemetry/runtime-telemetry.ts                                                         | 1    | telemetry 归类                                                                                                                                 |
+| 文件                                                                                                                         | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269）                                                      | 6    | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
+| core/src/runtime/methods/background-notifications.ts                                                                         | 2    | 通知封印按子会话现状                                                                                                                           |
+| bootstrap/src/drora-protocol/server-operations.ts（:1734 S2 新增/:1817/:2036）                                               | 3    | 子会话下钻/查询包含 teammate；S2 新增会话归属守卫（精确 ID 凭父链证明归属，teammate 同样适用）                                                 |
+| bootstrap/src/app/subagent-observation.ts（:51/:95）                                                                         | 2    | 子代理观察面适用                                                                                                                               |
+| bootstrap/src/drora-protocol/subagent-session-query.ts:395                                                                   | 1    | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate                                                                                                       |
+| bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771                                                                          | 1    | 只读守卫覆盖 teammate                                                                                                                          |
+| core/src/runtime/helpers/tool-allowlist.ts:114                                                                               | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
+| core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts                              | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
+| core/src/telemetry/runtime-telemetry.ts                                                                                      | 1    | telemetry 归类                                                                                                                                 |
 | services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、task-facts/repairSubagentTaskIndex.ts（2026-10-21 迁移） | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
-| services：drora-agent/droraAgentService.ts（2026-10-21 新增）                                  | 1    | 会话事件归属守卫：teammate 会话事件同样按父链归属，不串主会话                                                                                  |
+| services：drora-agent/droraAgentService.ts（2026-10-21 新增）                                                                | 1    | 会话事件归属守卫：teammate 会话事件同样按父链归属，不串主会话                                                                                  |
 
 **继承原则（入 spec 的机制约定）**：上游后续新增任何 subagent_child 门，teammate 自动
 继承其行为——默认正确，因为 teammate 本质就是子代理；若某新门语义确需区分，按 spec
@@ -972,3 +985,157 @@ create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落
 4. **回归测试**：protocol-slash-commands（/team 门三态：显式 true 展开/false 拦 env/缺省回落
    env/全关拦截）、desktopRuntimeEnv（env 桥三态）、userActionTraceCatalog（settings 叶子 17）、
    behavior-gates.snapshot（24 门）全绿。
+
+## 13. 对照 workflow 的事件与交互优化（2026-10-21 施工）
+
+对照 workflow 审查（缺口编号族接 §12 已登记的 ③④）续登两批施工：事件批（缺口1/2/6/7，
+core hub + bootstrap install 面）与交互批（缺口9/10，v4 handler + UI 面）。逐条按
+「触发场景 → 根因 → 修复机制 → 回归测试」登记，登记时逐文件核对工作树 `git diff HEAD`。
+spec 先行面随批更新：§2.6 补 halted 中断/resume 唤醒语义（缺口7）、§8.7 补草案修订
+回写决策（缺口10）；§9 census 表仅随格式化对齐（内容未变）。
+
+### 事件批（缺口1/2/6/7）
+
+1. **缺口1｜派发回调把 sendMessage 失败当已接受（假回执）**
+   - 触发场景：派发通道向成员 sendMessage 走 runner 失败路径（典型：冷恢复形态
+     roster 有终态成员、本进程 registry 无其任务），邮件实际未送达。
+   - 根因：install 派发回调原只判 `delivery !== "queued"`；runner 失败返回体
+     （createSendMessageFailure）无 delivery 字段且 status="failed"，
+     `undefined !== "queued"` 把失败误判为已接受 → hub markDelivered + journal
+     message_delivered 记假回执、派发票据不回滚、recoveryRetried 白耗。
+   - 修复机制：显式按 status 裁决——`delivery.status === "success" &&
+     delivery.delivery !== "queued"`（install.ts:231）；queued 仍不算送达（§16.3）。
+   - 回归测试：team-install-runtime.test.ts ⑤「dispatch channel does not treat
+     sendMessage failure as accepted (no fake receipt)」——ghost 成员投递失败后
+     mailbox 条目 deliveredAccepted=false、deliveredAt 缺席（不 ack 不记回执）。
+2. **缺口2｜成员运行态边缘零生产接线 + spawn 臆造身份（自动派发死寂）**
+   - 触发场景：Approve & Run 后成员首回合结束/进行中，花名册永远停在 spawning——
+     routeMail 只认 working/terminal → 消息永远 queued、终态边缘不触发 kick、
+     team 永挂 active。
+   - 根因（两层）：(a) hub.markMemberWorking/handleMemberTerminal 此前只有测试调用，
+     生产面无人把成员运行态变化通知 hub；(b) spawnMembers 臆造 `agent_` 前缀 id 与
+     childSessionId 回填 roster（launch 的 sessionId 也误传臆造 childSessionId）——
+     registry、sendMessage 派发与成员工具路由（按 childSessionId 联接）全部找不到成员。
+   - 修复机制：接线走既有 RuntimeTaskRegistry.subscribe（§2.4：不新增端口方法）：
+     running 边缘 → markMemberWorking、终态边缘 → handleMemberTerminal（内部刷新
+     状态并 kick，邮箱优先/自动认领；fire-and-forget 失败仅 warn），lastSeen 去重防
+     terminal→terminal 重复触发（install.ts:150-193）；spawnMembers 改用 launch 返回
+     的真实 agentId/childSessionId（async_launched 校验，install.ts:273-284），父会话
+     回归 lead.sessionId；launch 前预分配 agentId 并预登记装配期绑定
+     （pendingSpawnBindings + member-port 透传 createAgentId 工厂，member-port.ts:22-29、
+     install.ts:331-335/351-358）——成员首回合构造发生在 confirmMemberSpawned 之前
+     （roster 仍 pending_ 占位），预登记保 §8.1 读到成队定死的权限模式而非回退
+     lead 当前模式。
+   - 回归测试：team-install-runtime.test.ts ⑥「member terminal edge drives
+     auto-dispatch through the real send channel」——不直接调 handleMemberTerminal，
+     断言首回合自然终态 → 任务自动认领（claimed/assignee）→ 复活回合翻回 working →
+     再终态收敛。
+3. **缺口6｜Approve & Run 逐成员 spawn 非原子（部分失败留孤儿与脏事实）**
+   - 触发场景：批量 spawn 第 k 个成员 launch 失败（如未知 profile），前 k-1 个已成真。
+   - 根因：原实现逐个 confirmMemberSpawned（member_added journal 与真实身份分批
+     落库），失败路径不回收已启动成员（孤儿子代理在飞）；错误码混用
+     mailbox_persist_failed——spawn 失败（该重批草案）≠ 消息未发出（该重发消息），
+     混用误导调用方恢复路径。
+   - 修复机制：全部 launch 成功后才一次性 confirmMemberSpawned + 注册
+     memberPortByChildSession + 补一次运行态同步（事实与真实身份同批落库，
+     install.ts:313-322）；失败反向 settleMemberTask（M4 静默通道抽出的共用 helper，
+     install.ts:136-165）回收已启动成员并清空装配期绑定，原始错误照常上抛（hub
+     回滚草案、零确认零 journal 污染；回收失败仅 warn，孤儿最坏由进程退出兜底）；
+     错误码独立 member_spawn_failed（core errors.ts:112、cli contracts
+     team.port.ts:205；shared/drora-protocol-v4/team.ts 无错误目录，未改）。
+   - 回归测试：team-install-runtime.test.ts ⑦「Approve & Run spawn is atomic:
+     partial failure recycles launched members and keeps the draft clean」——
+     member_spawn_failed 专用码、roster 全员 pending_ 占位零确认、已启动成员被
+     stopped 终态回收（事件落 lead 会话）。
+4. **缺口7｜halt/removeMember/resume 的中断与重调度半边缺失**
+   - 触发场景：停队后在飞成员回合继续跑到自然终态；移除成员后回收回池的任务无人
+     唤醒（滞留 pending）；halt 消费掉终态边缘后 resume 只翻状态——共享池与邮箱
+     无派发源（事件驱动无轮询，§2.3），调度死寂。
+   - 根因：haltTeam 只翻状态记 journal；removeMember 缺 §16.2 移除安全序后两步
+     （排空/中断 → 等待结算 → 重新调度）；resume 无唤醒边缘；portTaskUpdate 无
+     halted 门（在飞成员回合仍可推进板状态，违背 §2.6 冻结调度）。
+   - 修复机制：halt 对 working/spawning 成员裁决外 interruptAndSettle（静默失败不
+     回滚冻结，被中断成员终态边缘由缺口2 接线收敛，hub.ts:410-416）；
+     removeMember 完成静默后 kickTeam 重调度（hub.ts:552-558）；resume 即唤醒边缘
+     ——kickTeam 重新武装调度，被中断成员的开放 attempt 仍 sticky park 只由 lead
+     转派轮换（§16.1，hub.ts:432-443，escalated→resume 同理）；portTaskUpdate 补
+     halted 拒绝（hub.ts:922）。
+   - 回归测试：team-hub.test.ts「halt interrupts in-flight members (spec §2.6)
+     and freezes task updates too」「resume re-arms dispatch after halt consumed
+     the terminal edges (缺口7 resume 半边)」「removeMember interrupts the member
+     and wakes teammates to reclaim recycled work (spec §16.2)」；
+     team-journal.test.ts 序列断言随 resume kickTeam 追发的 task_updated 事实调整
+     （resumed 之后仅允许任务事实族）。
+   - 未做（如实登记）：halt 不取消 lead 自身回合（无现成 hub 依赖通道，审查修法
+     清单未要求）；冷恢复成员的 memberPortByChildSession 重建为存量缺口
+     （install.ts:315 仅 spawn 路径填充，消费端 install.ts:373）。
+
+### 交互批（缺口9/10）
+
+5. **缺口9｜团队面板「回对话修改 / 在主会话中引用任务」composer 预填断链**
+   - 触发场景：staged 编辑器点「回对话修改」或任务详情点「在主会话中引用」——
+     命令发出但会话输入框无预填（onPrefillComposer 回调无挂载点实现）。
+   - 根因（两层，第二层为 HEAD 时 revise-prefill.ts 头注所记边界）：(a) 预填回调的
+     Composition root 在 app-shell 之外，挂载点从未接线；(b) 唯一通用插入通道
+     requestComposerTextInsert 的消费门（SessionPane externalTextInsertRequest）
+     原为 `focused && sessionId === null`——只覆盖聚焦草稿 composer，团队场景的
+     目标 lead 会话聚焦（主场景）时请求被丢弃。
+   - 修复机制：WorkspaceShellLayout 提供 handlePrefillComposer（走 workspace store
+     的 requestComposerTextInsert 既有通道，与插件 mention 同通道，不新造第二条
+     composer 写路径），经 AnimatedSidePanePanel → TeamSidePane 注入
+     onPrefillComposer；TeamSidePane 两条链（revise 预填 + onQuoteTask）随行
+     tab.parentSessionId 作 targetSessionId 定向（不由消费端猜「当前聚焦的是不是
+     lead」）；消费门扩展为 `(targetSessionId ?? null) === (sessionId ?? null)`
+     （SessionPane.tsx:5398——缺席仍 = 草稿，建议 prompt/插件 mention 等既有生产方
+     语义不变；主/辅 pane 同聚焦时按会话定向保证单一消费者不双插；目标未聚焦时
+     请求留 store 待聚焦后应用）；store 契约（droraSessionStoreTypes.ts:132-138、
+     workspace slice）与 ConversationComposer 的 ExternalTextInsertRequest 增设
+     targetSessionId 路由元数据（composer 本体不读）；revise-prefill.ts 头注由
+     「接线缺口登记」改记已接线与消费门语义。
+   - 回归测试：teamSidePanePrefillMount.test.ts「TeamSidePane onPrefillComposer
+     mount chains (缺口9)」4 例（revise 预填/note 随行/onQuoteTask 格式化/回调缺席
+     诚实降级）；animatedSidePanePanelTeamPrefill.test.ts「AnimatedSidePanePanel
+     team branch forwards onPrefillComposer (缺口9)」2 例（team tab 原样转发/缺席
+     不下发）；v4SessionPaneComposerInsertTarget.test.ts「SessionPane composer
+     插入请求消费门（缺口9）」8 例（lead 聚焦主场景闭环/草稿语义不回归/跨会话不
+     劫持/非聚焦不消费/源码形态防回归）。
+6. **缺口10｜setTeamMemberName 为 v1 stub + 草案重建丢 name/modelSelection**
+   - 触发场景：staged 草案期改名无入口、命令链抛 teamCommandUnsupported；且
+     reviseTeamPlan 以查询面重建草案不回写 team 名与逐成员 modelSelection——
+     stageTeam 整体替换 members + journalStagedFact 会把 §8.7「建队时刻定死」的
+     路由快照与 team 名静默清空并持久化（UI staged 编辑器展示路由标签后即成真
+     回归）。
+   - 根因：handler 为 M3 占位 stub（V4TeamUnsupportedError）；hub 查询面
+     （TeamRosterSnapshot）缺 name 与 modelSelection 回读，此前该边界仅代码注释
+     登记、无 spec 决策记录。
+   - 修复机制：查询面 additive optional 补齐（TeamMemberView.modelSelection
+     （team.port.ts:67-73）+ TeamRosterSnapshot.name（:81-82）；hub.snapshot 逐字段回读
+     hub.ts:172/182）；setTeamMemberName 以 reviseTeamPlan 同款机制实现——
+     snapshot/board 重建草案 → stageTeam 原子更新同一 teamId（staged 再次
+     stageTeam 不另建 team，§10）→ 改名成员的任务 assignee 同批重定向（否则
+     draft_unknown_assignee 拒绝）；非 staged（已 spawn）明确拒绝 team_not_present
+     （spawn 后改名待内核改名端口，M3+），不在册成员复用 member_removed 语义码
+     （handlers/team.ts:238-248）；reviseTeamPlan 与 rename 重建时均原样回写
+     name/modelSelection；V4TeamUnsupportedError stub 移除（八条命令统一装配门
+     teamHubUnavailable）。UI：改名入口放 staged 编辑器成员行（TeamStagedEditor
+     DraftMemberRename，本地门只做非空与「有变化」，重名/长度由 wire schema 与
+     hub 草案校验单一出处拒绝；TeamSelectionDetails/成员下钻仅在非 staged 渲染、
+     内核拒绝该态改名）；「移除成员」入口接成员详情（TeamSelectionDetails）与
+     下钻头部（TeamSidePane），均二次确认走 confirmDialogStore（useConfirmDialog），
+     文案列移除影响面（回收任务 + 退休拒绝表，§16.2）；TeamPanel 动作区注释漂移
+     按实际归属修正（send/stop/rename 三条命令的真实入口面）。
+   - 回归测试：team-commands-smoke.test.ts ②——rename 正路径（同 teamId 原子
+     更新、assignee 重定向、name/modelSelection 回写断言）+ 非 staged 拒绝
+     （team_not_present）+ revise 同款回写断言；teamSidePanePrefillMount.test.ts
+     「TeamSidePane staged rename entry (缺口10)」2 例、「TeamSidePane stop
+     member entries (缺口10)」3 例（含取消确认不上抛）；i18n.test.ts 补
+     stop/rename 文案键（teamMessages.ts 双语单一出处）。
+
+### 批次外必要文件与验证口径（如实登记）
+
+- team-commands-smoke.test.ts（core/tests）：① 未装配断言原对 setTeamMemberName
+  单方面期待 teamCommandUnsupported，handler 去 stub 后必红；且它是 handler 行为
+  改动的直接测试——必要改动而非顺手改。
+- 验证口径（批次报告转录，本节登记未复跑）：apps/drora-cli 的 `pnpm lint` 包装
+  脚本在干净基线（stash 对照）同样失败，判定环境性问题；改以逐文件
+  `oxlint --no-ignore` 替代（0 警告 0 错误）。

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PencilIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
@@ -10,7 +11,9 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  * docs/agent-team-implementation-2026-10-16/01-command-and-ui-design.md §3.1）。
  *
  * 两阶段成队：staged 态的 TeamPanel 即本编辑器——成员行（名称/角色/路由）与任务行
- * （标题/负责人/依赖）v1 **只读展示**（行内编辑属后续卡）；三个动作：
+ * （标题/负责人/依赖）v1 **只读展示**（行内编辑属后续卡；缺口10 起成员名称的「改名」
+ * 经 setTeamMemberName 命令接线——staged 草案原子更新同一 teamId，任务 assignee 随
+ * 名字重定向）；三个动作：
  * - 「确认并启动」→ onApprove（宿主发 approveTeamPlan，**唯一创建成员入口**，批准前零成员零会话）；
  * - 「回对话修改」→ onRevise(note?)（宿主发 reviseTeamPlan；note 为面板内可选输入，
  *   修改方向也可留空后在对话里说明——宿主负责预填会话输入框：TeamSidePane 的
@@ -34,6 +37,11 @@ export interface TeamStagedEditorProps {
   onRevise: (note?: string) => void;
   /** 「放弃」上抛（本组件已完成二次确认）；宿主发 abandonTeamPlan。 */
   onAbandon: () => void;
+  /**
+   * 成员「改名」上抛（缺口10）：宿主发 setTeamMemberName（staged 草案原子更新，
+   * assignee 重定向在 handler 侧完成）。缺席 = 成员行只读（无改名入口）。
+   */
+  onRenameMember?: (memberName: string, newName: string) => void;
 }
 
 export function TeamStagedEditor({
@@ -41,6 +49,7 @@ export function TeamStagedEditor({
   onApprove,
   onRevise,
   onAbandon,
+  onRenameMember,
 }: TeamStagedEditorProps): JSX.Element {
   const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
@@ -85,7 +94,10 @@ export function TeamStagedEditor({
         </p>
       ) : null}
 
-      <DraftMemberRows members={draft.members} />
+      <DraftMemberRows
+        members={draft.members}
+        {...(onRenameMember === undefined ? {} : { onRenameMember })}
+      />
       <DraftTaskRows tasks={draft.tasks} />
 
       <div className="flex flex-col gap-1">
@@ -132,8 +144,10 @@ export function TeamStagedEditor({
 
 function DraftMemberRows({
   members,
+  onRenameMember,
 }: {
   members: TeamPanelStagedDraftView["members"];
+  onRenameMember?: (memberName: string, newName: string) => void;
 }): JSX.Element {
   const { intl } = useDroraIntl();
   return (
@@ -156,10 +170,98 @@ function DraftMemberRows({
                 ? intl.formatMessage({ id: "team.stagedEditor.routingNone" })
                 : `${intl.formatMessage({ id: "team.stagedEditor.routingLabel" })} ${member.modelSelection.provider}/${member.modelSelection.model}${member.modelSelection.thought === undefined ? "" : ` · ${member.modelSelection.thought}`}`}
             </span>
+            {onRenameMember === undefined ? null : (
+              <DraftMemberRename memberName={member.memberName} onRename={onRenameMember} />
+            )}
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * 成员行「改名」入口（缺口10）：staged 草案期的成员改名经 setTeamMemberName 命令
+ * （宿主接 team/commands.ts；重名/空白由 wire schema 与 hub 草案校验单一出处拒绝，
+ * 本组件只做非空与「有变化」的本地门）。改名只改草案名——批准前零成员零会话，
+ * 任务 assignee 的重定向在 handler 重建草案时完成。
+ */
+function DraftMemberRename({
+  memberName,
+  onRename,
+}: {
+  memberName: string;
+  onRename: (memberName: string, newName: string) => void;
+}): JSX.Element {
+  const { intl } = useDroraIntl();
+  const [editing, setEditing] = useState(false);
+  const [nextName, setNextName] = useState(memberName);
+  const trimmed = nextName.trim();
+  const ready = trimmed !== "" && trimmed !== memberName;
+  const apply = () => {
+    if (!ready) return;
+    onRename(memberName, trimmed);
+    setEditing(false);
+  };
+  return editing ? (
+    <span className="ml-auto flex items-center gap-1">
+      <Input
+        value={nextName}
+        onChange={(event) => setNextName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            apply();
+          }
+          if (event.key === "Escape") {
+            setNextName(memberName);
+            setEditing(false);
+          }
+        }}
+        aria-label={intl.formatMessage(
+          { id: "team.stagedEditor.renameLabel" },
+          { name: memberName },
+        )}
+        data-testid="team-staged-rename-input"
+        className="h-7 w-32 text-ui-sm"
+      />
+      <Button
+        type="button"
+        size="sm"
+        disabled={!ready}
+        onClick={apply}
+        data-testid="team-staged-rename-apply"
+        className="h-7"
+      >
+        {intl.formatMessage({ id: "team.stagedEditor.renameApply" })}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          setNextName(memberName);
+          setEditing(false);
+        }}
+        data-testid="team-staged-rename-cancel"
+        className="h-7"
+      >
+        {intl.formatMessage({ id: "team.stagedEditor.renameCancel" })}
+      </Button>
+    </span>
+  ) : (
+    <button
+      type="button"
+      onClick={() => {
+        setNextName(memberName);
+        setEditing(true);
+      }}
+      aria-label={intl.formatMessage({ id: "team.stagedEditor.renameLabel" }, { name: memberName })}
+      data-testid="team-staged-rename"
+      className="ml-auto flex size-6 shrink-0 items-center justify-center self-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <PencilIcon className="size-3" />
+    </button>
   );
 }
 

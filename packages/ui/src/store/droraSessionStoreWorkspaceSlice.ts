@@ -312,6 +312,8 @@ export function createWorkspaceSlice(set: SetFn) {
       workspaceIdentity?: string,
       mention?: ComposerMentionPrefill,
       mode?: "replace" | "prepend-if-missing",
+      // 缺口9 消费门：缺席 = 草稿（既有语义）；指定 sessionId = 目标会话 composer 消费。
+      targetSessionId?: string | null,
     ) => {
       let nextRequestId = 0;
       set((state) =>
@@ -329,6 +331,7 @@ export function createWorkspaceSlice(set: SetFn) {
                 text,
                 ...(mention ? { mention } : {}),
                 ...(mode ? { mode } : {}),
+                ...(targetSessionId === undefined ? {} : { targetSessionId }),
               },
             };
           },

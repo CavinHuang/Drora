@@ -47,6 +47,7 @@ vi.mock("@drora/shared", () => ({
     return productFlavorMock.value;
   },
   DRORA_DYNAMIC_WORKFLOW_MODE_ENV: "DRORA_DYNAMIC_WORKFLOW_MODE",
+  DRORA_AGENTS_TEAM_ENV: "DRORA_AGENTS_TEAM",
   normalizeDynamicWorkflowMode: (value: unknown) => {
     if (typeof value !== "string") return undefined;
     const trimmed = value.trim();
@@ -800,6 +801,27 @@ describe("desktopRuntimeEnv buildHostProcessEnv", () => {
 
   // DWG-05（docs/dynamic-workflow/launch.md「Gray release」）：Main 对
   // DRORA_DYNAMIC_WORKFLOW_MODE 只有「写」和「删」两种动作，先在纯函数上钉住三档语义。
+  describe("resolveAgentsTeamHostEnv", () => {
+    it("设置显式开启恒下发，覆盖继承值", async () => {
+      const { resolveAgentsTeamHostEnv } = await import("../src/main/desktopRuntimeEnv.js");
+      expect(resolveAgentsTeamHostEnv(true, undefined)).toEqual({ DRORA_AGENTS_TEAM: "1" });
+      expect(resolveAgentsTeamHostEnv(true, "0")).toEqual({ DRORA_AGENTS_TEAM: "1" });
+    });
+
+    it("未开启时保留 dev shell 的 v1 env 透传（specs/agents-team.md §11 过渡回落）", async () => {
+      const { resolveAgentsTeamHostEnv } = await import("../src/main/desktopRuntimeEnv.js");
+      expect(resolveAgentsTeamHostEnv(undefined, "1")).toEqual({ DRORA_AGENTS_TEAM: "1" });
+      expect(resolveAgentsTeamHostEnv(false, "1")).toEqual({ DRORA_AGENTS_TEAM: "1" });
+    });
+
+    it("关闭且无继承时不写入", async () => {
+      const { resolveAgentsTeamHostEnv } = await import("../src/main/desktopRuntimeEnv.js");
+      expect(resolveAgentsTeamHostEnv(false, undefined)).toEqual({});
+      expect(resolveAgentsTeamHostEnv(undefined, undefined)).toEqual({});
+      expect(resolveAgentsTeamHostEnv(undefined, "garbage")).toEqual({});
+    });
+  });
+
   describe("resolveDynamicWorkflowModeHostEnv", () => {
     it("未打包 dev 透传 shell 里的合法取值", async () => {
       const { resolveDynamicWorkflowModeHostEnv } =

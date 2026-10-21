@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ExecutionPort, ExecutionResult, SessionId } from "@drora/contracts";
 import { resolveDroraBuiltinPromptCommand } from "../src/builtin-prompt-command.js";
 import { resolveDroraCustomCommandPrompt } from "../src/custom-command-prompt.js";
@@ -44,6 +44,8 @@ describe("protocol slash command surface", () => {
         // 按本目录顺序展示，产品要求工作流紧随目标之后（docs/ui/chat-composer-action-menu.md
         // 「工作流入口」），顺序由 APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES 决定。
         { name: "workflow", source: "builtin" },
+        // 【审查缺口③回归（2026-10-21）】builtin-prompt-command 必须消费调用点的
+        // agentsTeamEnabled（settings 灰度值），不再只认 env——目录在场 + 展开门同源。
         // `/team` 是 Drora agents-team 的内置命令（ab68a239 加条目、f7c0e4c3 进白名单）：
         // 只有显式 agentsTeamEnabled=false 才剔除，本调用不传该门，目录里必须在场。
         // S2 合并移除了 `plan` 的协议内置段（Composer 本地操作承担，保留名仍挡自定义接管），
@@ -110,6 +112,43 @@ describe("protocol slash command surface", () => {
   // DWG-03：灰度关闭时 `/workflow` 不得展开。目录侧已经剃掉了它，但用户仍可手打命令名，
   // 两条路径必须给出同一个结论；同时 `workflow` 是保留名，自定义命令解析对它一律不展开，
   // 用户或插件的同名命令既顶替不了内置语义，也绕不过灰度门。
+  // 审查缺口③回归（2026-10-21）：/team 展开门必须消费调用点的 agentsTeamEnabled
+  // （create-app 从 settings 灰度传入），与装配门同源；缺省回落 env DRORA_AGENTS_TEAM=1。
+  it("expands builtin /team gated by the agentsTeamEnabled option, falling back to env", async () => {
+    const { resolveDroraBuiltinPromptCommand } = await import("../src/builtin-prompt-command.js");
+    const workspace = "/tmp/team-gate-workspace";
+
+    // settings 显式 true：无 env 也展开
+    expect(
+      resolveDroraBuiltinPromptCommand("/team build the thing", {
+        agentsTeamEnabled: true,
+        workingDirectory: workspace,
+      }),
+    ).toContain("team");
+
+    // settings 显式 false：即使 env=1 也拦截（显式值优先）
+    vi.stubEnv("DRORA_AGENTS_TEAM", "1");
+    try {
+      expect(
+        resolveDroraBuiltinPromptCommand("/team build the thing", {
+          agentsTeamEnabled: false,
+          workingDirectory: workspace,
+        }),
+      ).toBe(undefined);
+      // 缺省：回落 env（dev v1 过渡）
+      expect(
+        resolveDroraBuiltinPromptCommand("/team build the thing", { workingDirectory: workspace }),
+      ).toContain("team");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    // 全关：不展开
+    expect(
+      resolveDroraBuiltinPromptCommand("/team build the thing", { workingDirectory: workspace }),
+    ).toBe(undefined);
+  });
+
   it("expands builtin /workflow through the builtin resolver only, gated by the feature flag", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-builtin-workflow-"));
     const workspace = join(tempRoot, "workspace");

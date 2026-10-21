@@ -15,6 +15,7 @@ import {
   DRORA_BUILD_COMMIT_ID_ENV,
   DRORA_AGENT_RUNTIME,
   DRORA_COMMIT,
+  DRORA_AGENTS_TEAM_ENV,
   DRORA_DYNAMIC_WORKFLOW_MODE_ENV,
   DRORA_ENV,
   DRORA_PRODUCT_FLAVOR,
@@ -490,6 +491,19 @@ export function resolveWindowsAppInstallDirForDataBaseDirGuard(
  * Main 是唯一决策者：对这个键只有「写」和「删」两种动作，绝不原样透传，
  * Host 端的 resolveDynamicWorkflowClientConfig 才能无条件相信读到的值。
  */
+/** Agents Team 灰度 env 桥（设置面→Host/Agent）：设置显式开启即下发 "1"；
+ * 未开启时保留 dev shell 的 v1 env 透传（resolveAgentsTeamEnabled 的过渡回落）。
+ * CLI config agentsTeam.enabled 显式值在 CLI 侧仍优先于本 env。 */
+export function resolveAgentsTeamHostEnv(
+  setting: boolean | undefined,
+  inheritedValue: string | undefined,
+): Record<string, string> {
+  if (setting === true) {
+    return { [DRORA_AGENTS_TEAM_ENV]: "1" };
+  }
+  return inheritedValue === "1" ? { [DRORA_AGENTS_TEAM_ENV]: "1" } : {};
+}
+
 export function resolveDynamicWorkflowModeHostEnv(options: {
   inheritedValue: string | undefined;
   isPackaged: boolean;

@@ -336,6 +336,8 @@ export interface AppSettings {
   messageStreamShowTodos?: boolean;
   /** 是否把连续的只读工具调用聚合成 Explore。 */
   toolGroupingExploreEnabled?: boolean;
+  /** Agents Team 灰度开关（specs/agents-team.md §6.4）：默认关；Host env 桥下发，CLI config 显式值优先。 */
+  agentsTeamEnabled?: boolean;
   /** 是否把连续的非只读 Shell 工具调用聚合成 Terminal。 */
   toolGroupingTerminalEnabled?: boolean;
   /** 是否把连续的 Write/Edit/ApplyPatch 工具调用聚合成 Changes。 */

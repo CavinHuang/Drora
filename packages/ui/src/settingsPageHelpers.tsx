@@ -160,6 +160,8 @@ export function GeneralSectionContent({
   messageStreamShowReasoning,
   messageStreamShowTodos,
   toolGroupingExploreEnabled,
+  agentsTeamEnabled,
+  onAgentsTeamEnabledChange,
   toolGroupingTerminalEnabled,
   toolGroupingChangesEnabled,
   droraInteractionBehavior,
@@ -234,6 +236,7 @@ export function GeneralSectionContent({
   messageStreamShowReasoning: boolean;
   messageStreamShowTodos: boolean;
   toolGroupingExploreEnabled: boolean;
+  agentsTeamEnabled: boolean;
   toolGroupingTerminalEnabled: boolean;
   toolGroupingChangesEnabled: boolean;
   droraInteractionBehavior: DroraInteractionBehavior;
@@ -257,6 +260,7 @@ export function GeneralSectionContent({
   onMessageStreamShowReasoningChange: (enabled: boolean) => Promise<void>;
   onMessageStreamShowTodosChange: (enabled: boolean) => Promise<void>;
   onToolGroupingExploreEnabledChange: (enabled: boolean) => Promise<void>;
+  onAgentsTeamEnabledChange: (enabled: boolean) => Promise<void>;
   onToolGroupingTerminalEnabledChange: (enabled: boolean) => Promise<void>;
   onToolGroupingChangesEnabledChange: (enabled: boolean) => Promise<void>;
   onDroraInteractionBehaviorChange: (behavior: DroraInteractionBehavior) => Promise<void>;
@@ -962,6 +966,19 @@ export function GeneralSectionContent({
               checked={toolGroupingExploreEnabled}
               onCheckedChange={(checked) => {
                 void onToolGroupingExploreEnabledChange(checked);
+              }}
+            />
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "settings.agentsTeamEnabled" })}
+          description={intl.formatMessage({ id: "settings.agentsTeamEnabledDescription" })}
+          control={
+            <Switch
+              aria-label={intl.formatMessage({ id: "settings.agentsTeamEnabled" })}
+              checked={agentsTeamEnabled}
+              onCheckedChange={(checked) => {
+                void onAgentsTeamEnabledChange(checked);
               }}
             />
           }

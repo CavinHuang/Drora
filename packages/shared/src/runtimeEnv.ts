@@ -220,6 +220,9 @@ export function resetCapturedDroraAgentTelemetryEnvForTest(): void {
   }
 }
 
+/** Agents Team 灰度 env（v1 过渡回落；桌面设置面经 Host env 桥下发，specs/agents-team.md §11）。 */
+export const DRORA_AGENTS_TEAM_ENV = "DRORA_AGENTS_TEAM";
+
 export function sanitizeDroraRuntimeEnv<T extends Record<string, string | undefined>>(
   env: T,
 ): Record<string, string> {

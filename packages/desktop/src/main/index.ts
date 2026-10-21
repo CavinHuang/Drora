@@ -171,7 +171,8 @@ import {
   handleDesktopWindowCloseRequest,
 } from "./desktopWindowLifecycle.js";
 import { resolveDroraBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
-import {
+import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
+import { resolveAgentsTeamHostEnv,
   getCredentialsDir,
   isDockerDaemonAvailable,
   listSSHConfigAliases,
@@ -719,6 +720,7 @@ const UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT = 224;
 const UPDATE_STATUS_WINDOW_READY_HEIGHT = UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT - 54;
 const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
+void refreshAgentsTeamSettingSnapshot();
 const webRemoteControlCredentialService = createCredentialService();
 const captchaSolver = createCaptchaSolver();
 app.on("before-quit", () => captchaSolver.dispose());
@@ -1122,6 +1124,17 @@ function syncCloseToTrayOnWindows(value: unknown) {
   logger.info(`[settings] closeToTrayOnWindows=${value}`);
 }
 
+// Agents Team 灰度旗标（specs/agents-team.md §6.4/§11）：Host env 桥的设置侧快照。
+// 启动时与设置页每次 sync 后刷新；Host spawn 时同步读取（fork 是同步的，不能现场 await）。
+let agentsTeamSettingSnapshot: boolean | undefined;
+async function refreshAgentsTeamSettingSnapshot(): Promise<void> {
+  try {
+    agentsTeamSettingSnapshot = (await mainSettingService.get()).agentsTeamEnabled;
+  } catch (error) {
+    logger.warn("[agents-team] settings snapshot refresh failed:", error);
+  }
+}
+
 function syncImmediateAppSettings(patch: ReturnType<typeof appSettingsPatchSchema.parse>) {
   // B 类保护：desktopPet 的即时设置通道是 Drora 扩展挂载点，上游仅改了 patch 类型。
   // 修复合并缺口：交叉类型（Partial<AppSettings> & patch）会让参数逆变不满足
@@ -1135,6 +1148,11 @@ function syncImmediateAppSettings(patch: ReturnType<typeof appSettingsPatchSchem
   } = patch;
   droraDesktopPet.updateSettings(petSettingsPatch);
   syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
+
+  if (typeof patch.agentsTeamEnabled === "boolean") {
+    // Host env 在 spawn 时烘焙；此处只更新快照，后续新 Host 生效（存量 Host 重启会话/窗口后跟进）。
+    agentsTeamSettingSnapshot = patch.agentsTeamEnabled;
+  }
 
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
     keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
@@ -1910,7 +1928,14 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           droraBuiltinProviderConfigFilePath: resolveDroraBuiltinProviderConfigFilePath(),
         },
         {
-          hostProcessLocalEnv,
+          // Agents Team 设置面→Host env 桥（v1 过渡：dev shell 的 DRORA_AGENTS_TEAM=1 透传保留）。
+          hostProcessLocalEnv: {
+            ...hostProcessLocalEnv,
+            ...resolveAgentsTeamHostEnv(
+              agentsTeamSettingSnapshot,
+              hostProcessLocalEnv[DRORA_AGENTS_TEAM_ENV] ?? process.env[DRORA_AGENTS_TEAM_ENV],
+            ),
+          },
           desktopContextPromptEnabled: resolveDesktopContextPromptEnabledForHost,
           logger,
           broadcastHub,

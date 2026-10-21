@@ -3149,6 +3149,8 @@ const zhCN: Record<string, string> = {
   "settings.messageStreamShowTodos": "显示待办",
   "settings.messageStreamShowTodosDescription": "在消息流中展示 Todo 工具卡片。",
   "settings.toolGroupingExplore": "分组探索工具",
+  "settings.agentsTeamEnabled": "智能体团队（实验）",
+  "settings.agentsTeamEnabledDescription": "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
   "settings.toolGroupingExploreDescription": "将连续的读取和搜索工具聚合为 Explore 分组。",
   "settings.toolGroupingTerminal": "分组终端命令",
   "settings.toolGroupingTerminalDescription": "将连续的非只读 Shell 命令聚合为 Terminal 分组。",

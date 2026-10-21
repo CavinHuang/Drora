@@ -812,6 +812,7 @@ export function SettingsPage({
   const [messageStreamShowReasoning, setMessageStreamShowReasoning] = useState(true);
   const [messageStreamShowTodos, setMessageStreamShowTodos] = useState(false);
   const [toolGroupingExploreEnabled, setToolGroupingExploreEnabled] = useState(true);
+  const [agentsTeamEnabled, setAgentsTeamEnabled] = useState(false);
   const [toolGroupingTerminalEnabled, setToolGroupingTerminalEnabled] = useState(true);
   const [toolGroupingChangesEnabled, setToolGroupingChangesEnabled] = useState(false);
   const [droraInteractionBehavior, setDroraInteractionBehavior] =
@@ -948,6 +949,7 @@ export function SettingsPage({
     setMessageStreamShowReasoning(sharedSettings.messageStreamShowReasoning ?? true);
     setMessageStreamShowTodos(sharedSettings.messageStreamShowTodos ?? false);
     setToolGroupingExploreEnabled(sharedSettings.toolGroupingExploreEnabled ?? true);
+    setAgentsTeamEnabled(sharedSettings.agentsTeamEnabled ?? false);
     setToolGroupingTerminalEnabled(sharedSettings.toolGroupingTerminalEnabled ?? true);
     setToolGroupingChangesEnabled(sharedSettings.toolGroupingChangesEnabled ?? false);
     setDroraInteractionBehavior(sharedSettings.droraInteractionBehavior ?? "queue");
@@ -1381,6 +1383,22 @@ export function SettingsPage({
         },
       });
       setToolGroupingExploreEnabled(enabled);
+    },
+    [updateSharedSettings],
+  );
+  const handleAgentsTeamEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.agents_team",
+        action: "toggle_agents_team",
+        trigger: "switch",
+        operation: () => updateSharedSettings({ agentsTeamEnabled: enabled }),
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+      setAgentsTeamEnabled(enabled);
     },
     [updateSharedSettings],
   );
@@ -1902,6 +1920,7 @@ export function SettingsPage({
                               messageStreamShowReasoning={messageStreamShowReasoning}
                               messageStreamShowTodos={messageStreamShowTodos}
                               toolGroupingExploreEnabled={toolGroupingExploreEnabled}
+                              agentsTeamEnabled={agentsTeamEnabled}
                               toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
                               toolGroupingChangesEnabled={toolGroupingChangesEnabled}
                               droraInteractionBehavior={droraInteractionBehavior}
@@ -1943,6 +1962,7 @@ export function SettingsPage({
                               onToolGroupingExploreEnabledChange={
                                 handleToolGroupingExploreEnabledChange
                               }
+                              onAgentsTeamEnabledChange={handleAgentsTeamEnabledChange}
                               onToolGroupingTerminalEnabledChange={
                                 handleToolGroupingTerminalEnabledChange
                               }

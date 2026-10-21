@@ -82,6 +82,7 @@ export const SETTINGS_USER_ACTION_FEATURES = {
     "toggle_terminal_grouping",
     "toggle_changes_grouping",
   ],
+  "settings.agents_team": ["toggle_agents_team"],
   "settings.task": ["toggle_auto_archive", "change_auto_archive_days"],
   "settings.storage": ["change_data_directory"],
   "settings.memory": ["toggle_memory", "refresh_memory", "change_memory_scope"],

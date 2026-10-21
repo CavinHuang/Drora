@@ -9,6 +9,7 @@ import {
   TeamHub,
   type AgentRuntimeInternal,
 } from "@drora/core";
+import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
 import type { SessionId, TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
 import { SessionEventType } from "@drora/contracts";
 import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-protocol-v4";
@@ -47,7 +48,7 @@ export interface AgentsTeamInstallInput {
  * 都引用本函数——env 字面量收口为单一出处（AGENTS.md 契约键单一出处）。
  */
 export function resolveAgentsTeamEnabled(enabledOverride?: boolean): boolean {
-  return enabledOverride ?? process.env.DRORA_AGENTS_TEAM === "1";
+  return enabledOverride ?? process.env[DRORA_AGENTS_TEAM_ENV] === "1";
 }
 
 export interface AgentsTeamInstallResult {

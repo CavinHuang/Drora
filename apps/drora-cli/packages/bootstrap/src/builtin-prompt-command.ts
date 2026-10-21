@@ -73,7 +73,9 @@ export function resolveDroraBuiltinPromptCommandInvocation(
     // 灰度与装配接缝同门(resolveAgentsTeamEnabled:显式值优先于 env DRORA_AGENTS_TEAM=1,
     // specs/agents-team.md §11 v1 过渡;帮助表条目与命令注册同门,01-design §1.1);
     // settings 键 agentsTeam.enabled 的设置面 M2 接入后改走同一来源(只改调用点传值)。
-    if (!resolveAgentsTeamEnabled()) {
+    // 调用点（create-app）已传入 settings 灰度值；与装配门同源同门（审查缺口③修复，
+    // 2026-10-21）：显式值优先，缺省回落 env DRORA_AGENTS_TEAM=1。
+    if (!resolveAgentsTeamEnabled(options.agentsTeamEnabled)) {
       return undefined;
     }
     return {

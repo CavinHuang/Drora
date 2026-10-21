@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 /**
  * PR-0.3：subagent_child 行为门零改动回归的冻结清单（specs/agents-team.md §9）。
  *
- * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 23 处
+ * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 24 处（2026-10-21 再清点）
  * （2026-10-16 实测 22 处：core/bootstrap 19 + services sessionKind 3；
  * 2026-10-20 S2 v3.16.1 上游合并 +1：server-operations.ts 会话归属守卫，依据见 §9 注）。
  *
@@ -41,7 +41,11 @@ const FROZEN_GATES: Readonly<Record<string, number>> = {
   "apps/drora-cli/packages/bootstrap/src/app/subagent-observation.ts": 2,
   "packages/services/src/drora-agent/droraTaskIndexSyncer.ts": 1,
   "packages/services/src/drora-agent/droraTaskServiceAdapter.ts": 1,
-  "packages/services/src/drora-agent/repairSubagentTaskIndex.ts": 1,
+  // v3.16.1 合并后分布（2026-10-21 再清点）：repairSubagentTaskIndex 随 task-facts
+  // 重构迁移（S3 rename 落地），droraAgentService 新增 1 处会话归属守卫——按 §9
+  // 继承原则 teammate 自动继承，文件集 14→15、总数 23→24。
+  "packages/services/src/drora-agent/droraAgentService.ts": 1,
+  "packages/services/src/task-facts/repairSubagentTaskIndex.ts": 1,
 };
 
 const TOTAL_FROZEN_GATES = Object.values(FROZEN_GATES).reduce(
@@ -103,7 +107,7 @@ function groupByPath(gates: readonly GateLine[]): Map<string, number> {
 }
 
 describe("subagent_child behavior gates frozen census", () => {
-  it("keeps the 23-gate census exactly as frozen in specs/agents-team.md §9", async () => {
+  it("keeps the 24-gate census exactly as frozen in specs/agents-team.md §9", async () => {
     const current = groupByPath(await collectCurrentGates());
 
     const missing = Object.keys(FROZEN_GATES).filter((path) => !current.has(path));
@@ -118,7 +122,7 @@ describe("subagent_child behavior gates frozen census", () => {
 缺失文件（门被移除？）: ${JSON.stringify(missing)}
 新增文件（新门——按 spec §9 继承原则确认 teammate 自动继承后，把文件与计数加入 FROZEN_GATES）: ${JSON.stringify(added)}
 计数漂移: ${JSON.stringify(drifted)}`,
-    ).toEqual({ missing: [], added: [], drifted: [], total: 23 });
+    ).toEqual({ missing: [], added: [], drifted: [], total: 24 });
   });
 
   it("notes cover the load-bearing gates referenced by the design", () => {

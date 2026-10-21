@@ -545,6 +545,10 @@ const appSettingsObjectSchema = z.object({
   messageStreamShowReasoningMigrationInitialized: z.boolean().default(true),
   messageStreamShowTodos: z.boolean().default(false),
   toolGroupingExploreEnabled: z.boolean().default(true),
+  // Agents Team 灰度（specs/agents-team.md §6.4/§11）：设置面开关，默认关。
+  // 桌面经 DRORA_AGENTS_TEAM env 桥下发 Host/Agent；CLI config agentsTeam.enabled
+  // 显式值仍优先（resolveAgentsTeamEnabled 裁决链）。开关后新会话生效。
+  agentsTeamEnabled: z.boolean().default(false),
   toolGroupingTerminalEnabled: z.boolean().default(true),
   toolGroupingChangesEnabled: z.boolean().default(false),
   droraInteractionBehavior: droraInteractionBehaviorSchema.default("queue"),
@@ -662,6 +666,7 @@ export const appSettingsPatchSchema = z.object({
   messageStreamShowReasoningMigrationInitialized: z.boolean().optional(),
   messageStreamShowTodos: z.boolean().optional(),
   toolGroupingExploreEnabled: z.boolean().optional(),
+  agentsTeamEnabled: z.boolean().optional(),
   toolGroupingTerminalEnabled: z.boolean().optional(),
   toolGroupingChangesEnabled: z.boolean().optional(),
   droraInteractionBehavior: droraInteractionBehaviorSchema.optional(),

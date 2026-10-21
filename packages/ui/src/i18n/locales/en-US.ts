@@ -3364,6 +3364,8 @@ const enUS: Record<string, string> = {
   "settings.messageStreamShowTodos": "Show todos",
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
   "settings.toolGroupingExplore": "Group exploration tools",
+  "settings.agentsTeamEnabled": "Agents Team (experimental)",
+  "settings.agentsTeamEnabledDescription": "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",
   "settings.toolGroupingTerminal": "Group terminal commands",

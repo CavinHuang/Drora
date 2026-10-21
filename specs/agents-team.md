@@ -455,7 +455,7 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（23 处，零改动验证）
+## 9. subagent_child 行为门验证清单（24 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
 共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
@@ -463,7 +463,10 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
 新增 1 处会话归属守卫（resolve 循环内 `current.taskType !== "subagent_child"`——仅精确
 ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不回写身份、不激活 runtime），
 按 §9 继承原则 teammate 自动继承（同一父链语义），census 22 → **23 处**
-（core/bootstrap 20）。分布：
+（core/bootstrap 20）。
+**2026-10-21 再清点（v3.16.1 合并 S3 task-facts 重构后）**：repairSubagentTaskIndex.ts
+随重构迁至 services/src/task-facts/（门随文件走），droraAgentService.ts 新增 1 处
+会话归属守卫（按继承原则 teammate 自动继承），census 23 → **24 处（15 文件）**。分布：
 
 | 文件                                                                                            | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
 | ----------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -476,7 +479,8 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
 | core/src/runtime/helpers/tool-allowlist.ts:114                                                  | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
 | core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
 | core/src/telemetry/runtime-telemetry.ts                                                         | 1    | telemetry 归类                                                                                                                                 |
-| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、repairSubagentTaskIndex.ts  | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
+| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、task-facts/repairSubagentTaskIndex.ts（2026-10-21 迁移） | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
+| services：drora-agent/droraAgentService.ts（2026-10-21 新增）                                  | 1    | 会话事件归属守卫：teammate 会话事件同样按父链归属，不串主会话                                                                                  |
 
 **继承原则（入 spec 的机制约定）**：上游后续新增任何 subagent_child 门，teammate 自动
 继承其行为——默认正确，因为 teammate 本质就是子代理；若某新门语义确需区分，按 spec
@@ -943,3 +947,28 @@ create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落
   单例失败为分支既有漂移(clean HEAD 复现,与本修复无关)。
 - **草稿态边界就此消除**:订阅挂在工作区常驻面板,draft 态(尚无会话)同样收
   到装配完成的推帧——此前登记的「草稿态菜单缺 /team」边界由本方案覆盖。
+
+## 12. 设置面接入与两处运行时断链修复（2026-10-21）
+
+用户实测报告两项断链（输入框无 /team 目录项；用 /team 后消息流与侧边栏均无 team UI），与工作流审查缺口③④同根，本节登记修复：
+
+1. **根因（两项同源）**：team 默认关闭且设置页无开关，v1 仅 env `DRORA_AGENTS_TEAM=1` 可开——
+   hub 未装配 → 斜杠目录门（workspace-model-runtime 按装配事实）不放行 `/team`（问题①）；
+   v4 会话快照永远没有 `team` 键 → SessionPane 的 TeamConversationSummary（消息区，已在
+   SessionPane.tsx 挂载）与 App.tsx 的 TeamStagedAutoOpenBridge（staged 自动开侧板）均零触发
+   （问题②）。桌面消息区渲染与侧板桥**本来就接线完整**，无需新增渲染面。
+2. **修复面**：
+   - `builtin-prompt-command.ts` 展开门消费调用点的 `agentsTeamEnabled`（此前声明了参数却调
+     无参 resolveAgentsTeamEnabled——只认 env，settings 开启时 `/team` 提交不展开）；
+   - AppSettings 新增 `agentsTeamEnabled`（默认 false；schema/patch/protocol 三处 + 遥测目录
+     `settings.agents_team`），设置页新增开关行（i18n 双语，说明"新会话生效"）；
+   - 桌面 Host env 桥：`resolveAgentsTeamHostEnv(setting, inherited)`（desktopRuntimeEnv）——
+     设置开启即注入 `DRORA_AGENTS_TEAM=1` 到 Host/Agent 进程；未开启时保留 dev shell 透传
+     （v1 过渡回落）。spawn 旗标快照在启动与设置 sync 时刷新（存量 Host 重开会话跟进）；
+   - 优先级不变：CLI config `agentsTeam.enabled` 显式值 > 桌面设置(env) > 默认关
+     （resolveAgentsTeamEnabled 裁决链单一出处，env 字面量收口 shared `DRORA_AGENTS_TEAM_ENV`）。
+3. **§9 census 再清点**：repairSubagentTaskIndex 随 v3.16.1 合并 S3 迁至 task-facts/、
+   droraAgentService 新增 1 处归属守卫——23→24 处（15 文件），FROZEN_GATES 与本表已同步。
+4. **回归测试**：protocol-slash-commands（/team 门三态：显式 true 展开/false 拦 env/缺省回落
+   env/全关拦截）、desktopRuntimeEnv（env 桥三态）、userActionTraceCatalog（settings 叶子 17）、
+   behavior-gates.snapshot（24 门）全绿。

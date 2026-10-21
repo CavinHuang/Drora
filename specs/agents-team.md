@@ -455,7 +455,7 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（23 处，零改动验证）
+## 9. subagent_child 行为门验证清单（24 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
 共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
@@ -463,7 +463,11 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
 新增 1 处会话归属守卫（resolve 循环内 `current.taskType !== "subagent_child"`——仅精确
 ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不回写身份、不激活 runtime），
 按 §9 继承原则 teammate 自动继承（同一父链语义），census 22 → **23 处**
-（core/bootstrap 20）。分布：
+（core/bootstrap 20）。
+**2026-10-21 增补（v3.16.1 全量整并入分支，merge 00cfc7b9）**：上游 S3（ac72baf5）在
+`droraAgentService.ts:6153` 新增 sessionKind 消费门（净 +1）；S7 把 `repairSubagentTaskIndex.ts`
+迁至 `packages/services/src/task-facts/`（同一判定随迁，旧路径删除，净 0）。census 23 → **24
+处**。drift 由冻结清单回归测试捕获，均按继承原则 teammate 自动继承（零改动）。分布：
 
 | 文件                                                                                            | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
 | ----------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -476,7 +480,7 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
 | core/src/runtime/helpers/tool-allowlist.ts:114                                                  | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
 | core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
 | core/src/telemetry/runtime-telemetry.ts                                                         | 1    | telemetry 归类                                                                                                                                 |
-| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、repairSubagentTaskIndex.ts  | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
+| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、droraAgentService.ts:6153（S3 新增）、task-facts/repairSubagentTaskIndex.ts（S7 迁移）  | 4    | 任务索引排除 teammate（不出现在任务列表）；droraAgentService 消费门同语义                                                                                                      |
 
 **继承原则（入 spec 的机制约定）**：上游后续新增任何 subagent_child 门，teammate 自动
 继承其行为——默认正确，因为 teammate 本质就是子代理；若某新门语义确需区分，按 spec

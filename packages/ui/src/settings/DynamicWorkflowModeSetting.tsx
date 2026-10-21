@@ -5,10 +5,10 @@ import {
   normalizeDynamicWorkflowMode,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_TRIGGER,
-  testId,
   type AppSettings,
   type DynamicWorkflowMode,
 } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import {
   DynamicWorkflowAlwaysOnIcon,
   DynamicWorkflowOffIcon,

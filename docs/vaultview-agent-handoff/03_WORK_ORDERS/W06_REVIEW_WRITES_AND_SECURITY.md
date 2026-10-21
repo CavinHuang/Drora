@@ -2,12 +2,12 @@
 
 **依赖：W00/S03、W01、W02、W03。S03 未证明硬门控则本阶段为 NO-GO：只能完成只读提案预览。**
 
-| 等级 | 示例 | 执行方式 |
-|---|---|---|
-| L0 | 查询、读文档 | 只读 |
-| L1 | 用户明确授权的局部 Markdown 编辑 | 既有 Runtime 权限 |
-| L2 | 知识提炼/跨笔记修改 | Proposal + Diff + 人工批准 |
-| L3 | 批量重构、删除、修改 `.obsidian` | 默认不自动执行 |
+| 等级 | 示例                             | 执行方式                   |
+| ---- | -------------------------------- | -------------------------- |
+| L0   | 查询、读文档                     | 只读                       |
+| L1   | 用户明确授权的局部 Markdown 编辑 | 既有 Runtime 权限          |
+| L2   | 知识提炼/跨笔记修改              | Proposal + Diff + 人工批准 |
+| L3   | 批量重构、删除、修改 `.obsidian` | 默认不自动执行             |
 
 - Proposal 保存目标源、来源证据、目标 base SHA、proposalRevision、精确 Diff；批准绑定 sourceEpoch + revision + hash。Diff 改变必须重审。
 - Operation ledger 对 operationId 唯一约束：prepared→applying→applied/conflict/uncertain；先保护快照，结果未知要 reconcile，不能自动重放。

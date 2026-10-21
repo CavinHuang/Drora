@@ -23,7 +23,7 @@ import {
   TID_V4_QUEUE_PAUSED_BANNER,
   TID_V4_QUEUE_RESUME,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import type { QueueState } from "@drora/shared/drora-protocol-v4";
 import { ArrowUpFromLine, GripVertical, PencilIcon, Trash2Icon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

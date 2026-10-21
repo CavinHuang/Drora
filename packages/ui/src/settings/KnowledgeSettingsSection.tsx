@@ -12,7 +12,13 @@ import { LoaderCircle } from "lucide-react";
 import { KNOWLEDGE_JEV_CREDENTIAL_KEY, type KnowledgeJevProvider } from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { useCredentials } from "@/hooks/useCredentials.js";
@@ -58,7 +64,10 @@ export function KnowledgeSettingsSection() {
         await update({ knowledgeJevEnabled: enabled });
         await indexService?.refreshDecisionConfig(); // 配置热生效（§5d.10）
         toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
-        trace.complete({ resultSource: "setting_service", stateAfter: enabled ? "enabled" : "disabled" });
+        trace.complete({
+          resultSource: "setting_service",
+          stateAfter: enabled ? "enabled" : "disabled",
+        });
       } catch (error) {
         trace.fail({ failureStage: "setting_update" });
         throw error;
@@ -68,9 +77,11 @@ export function KnowledgeSettingsSection() {
   );
 
   const [connectionTesting, setConnectionTesting] = useState(false);
-  const [connectionResult, setConnectionResult] = useState<
-    { ok: boolean; latencyMs: number; error: string | null } | null
-  >(null);
+  const [connectionResult, setConnectionResult] = useState<{
+    ok: boolean;
+    latencyMs: number;
+    error: string | null;
+  } | null>(null);
 
   const handleTestConnection = useCallback(async () => {
     if (!indexService) return;
@@ -91,7 +102,11 @@ export function KnowledgeSettingsSection() {
       }
     } catch (error) {
       trace.fail({ failureStage: "connection_test" });
-      setConnectionResult({ ok: false, latencyMs: 0, error: error instanceof Error ? error.message : String(error) });
+      setConnectionResult({
+        ok: false,
+        latencyMs: 0,
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setConnectionTesting(false);
     }
@@ -165,7 +180,10 @@ export function KnowledgeSettingsSection() {
         await update({ knowledgeSemanticEnabled: enabled });
         await indexService?.refreshDecisionConfig(); // 语义端口热切换（§5b.9 配置热生效）
         toast(intl.formatMessage({ id: "settings.knowledge.toggle.saved" }));
-        trace.complete({ resultSource: "setting_service", stateAfter: enabled ? "enabled" : "disabled" });
+        trace.complete({
+          resultSource: "setting_service",
+          stateAfter: enabled ? "enabled" : "disabled",
+        });
       } catch (error) {
         trace.fail({ failureStage: "setting_update" });
         throw error;
@@ -269,7 +287,11 @@ export function KnowledgeSettingsSection() {
                           : "settings.knowledge.semantic.status.modelMissing";
                     return (
                       <>
-                        <span className={failed ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
+                        <span
+                          className={
+                            failed ? "text-destructive text-xs" : "text-muted-foreground text-xs"
+                          }
+                        >
                           {intl.formatMessage({ id: stateId })}
                         </span>
                         {(state === "model_missing" || failed) && !modelDownloading ? (
@@ -349,7 +371,9 @@ export function KnowledgeSettingsSection() {
                     <Input
                       type="text"
                       className="w-56"
-                      placeholder={intl.formatMessage({ id: "settings.knowledge.baseUrl.placeholder" })}
+                      placeholder={intl.formatMessage({
+                        id: "settings.knowledge.baseUrl.placeholder",
+                      })}
                       value={baseUrlDraft}
                       onChange={(event) => setBaseUrlDraft(event.target.value)}
                     />

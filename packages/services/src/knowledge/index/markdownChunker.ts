@@ -91,7 +91,11 @@ export function extractWikilinkTargets(text: string): string[] {
 export function parseFrontmatterTags(frontmatterText: string): string[] {
   const tags: string[] = [];
   const pushTag = (value: string): void => {
-    const tag = value.trim().replace(/^#/, "").replace(/^["']|["']$/g, "").trim();
+    const tag = value
+      .trim()
+      .replace(/^#/, "")
+      .replace(/^["']|["']$/g, "")
+      .trim();
     if (tag && !tags.includes(tag)) tags.push(tag);
   };
   const lines = frontmatterText.split(/\r?\n/);
@@ -157,9 +161,10 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
       }
     }
   }
-  const documentTags = frontmatterClosing > 0
-    ? parseFrontmatterChunkTags(lines.slice(0, frontmatterClosing + 1).join("\n"))
-    : [];
+  const documentTags =
+    frontmatterClosing > 0
+      ? parseFrontmatterChunkTags(lines.slice(0, frontmatterClosing + 1).join("\n"))
+      : [];
 
   const chunks: MarkdownChunk[] = [];
   let truncated = false;
@@ -212,7 +217,8 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
     headingPath: string | null,
     level: number,
   ): void => {
-    const sectionLength = (prefixOffsets[endLine + 1] ?? totalChars) - (prefixOffsets[startLine] ?? totalChars);
+    const sectionLength =
+      (prefixOffsets[endLine + 1] ?? totalChars) - (prefixOffsets[startLine] ?? totalChars);
     if (sectionLength <= MAX_CHUNK_CHARS) {
       pushChunk(startLine, endLine, headingPath, level);
       return;
@@ -222,7 +228,8 @@ export function chunkMarkdown(content: string, fallbackName: string): ChunkDocum
       let subEnd = subStart;
       while (
         subEnd + 1 <= endLine &&
-        (prefixOffsets[subEnd + 2] ?? totalChars) - (prefixOffsets[subStart] ?? totalChars) <= MAX_CHUNK_CHARS
+        (prefixOffsets[subEnd + 2] ?? totalChars) - (prefixOffsets[subStart] ?? totalChars) <=
+          MAX_CHUNK_CHARS
       ) {
         subEnd += 1;
       }

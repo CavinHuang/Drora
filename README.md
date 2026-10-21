@@ -13,7 +13,7 @@
 
 Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
-当前同步官方 ZCode v3.15.1。远控复用官方公开页面与控制链路，自研能力通过扩展模块接入；详见 [迁移策略](specs/upstream-v3.15.1-migration.md) 和 [合并记录](docs/upstream/zcode-v3.15.1-merge.md)。
+当前同步官方 ZCode v3.16.1。远控复用官方公开页面与控制链路，自研能力通过扩展模块接入；详见 [迁移策略](specs/upstream-v3.16.1-migration.md) 和 [分段计划](docs/upstream/zcode-v3.16.1-segment-plan.md)。
 
 | 入口                 | 用途                                                           | 开发命令                       |
 | -------------------- | -------------------------------------------------------------- | ------------------------------ |
@@ -32,6 +32,12 @@ Drora 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Age
 | `drora-windows-x64.exe` / `drora-darwin-arm64` / `drora-linux-x64` | Agent CLI 单文件，**须在终端中运行**（双击会闪退） |
 
 所有产物均由 GitHub Actions 从源码构建，`SHA256SUMS.txt` 提供校验和；`latest*.yml` 供应用内自动更新使用。安装包未做签名：Windows 首次运行请选择"仍要运行"，macOS 首次打开请在"系统设置 → 隐私与安全性"中放行。
+
+## 更新
+
+- **2026-10-16**：更新至 Drora v3.16.1 版本。
+- 2026-10-10：更新至 Drora v3.15.1 版本。
+- 2026-9-23：更新至 Drora v3.14.3 版本。
 
 ## 初始化
 
@@ -121,6 +127,8 @@ Web 模式默认工作目录为当前目录，监听 `127.0.0.1`，默认不启�
 构建方式见下方打包章节。`pnpm build:drora` 只生成发行包，不会替换 `PATH` 中已有的 `drora`。如果命令仍指向旧安装或其他源码目录，macOS / Linux 可用 `command -v drora` 检查，Windows 可用 `where.exe drora` 检查。
 
 ### CLI 源码开发
+
+CLI 的模型配置、非交互调用、工具与扩展、批量评测和轨迹记录见 [CLI 使用指南](apps/drora-cli/docs/usage/README.md)。
 
 直接开发 TUI 或 Agent 时，运行源码入口：
 

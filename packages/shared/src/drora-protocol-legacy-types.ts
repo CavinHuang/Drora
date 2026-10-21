@@ -149,7 +149,6 @@ export const droraSessionInfoSchema = z
     target: droraSessionGoalSchema.nullable().optional(),
     createdAt: timestampMsSchema,
     updatedAt: timestampMsSchema,
-    archivedAt: timestampMsSchema.optional(),
   })
   .strict();
 export type DroraSessionInfo = z.infer<typeof droraSessionInfoSchema>;

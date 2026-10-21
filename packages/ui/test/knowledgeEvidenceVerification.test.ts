@@ -69,11 +69,17 @@ function mockService(
   prepare: (input: unknown) => Promise<unknown>,
   resolve: (input: unknown) => Promise<unknown>,
 ): IKnowledgeQueryService {
-  return { prepareEvidence: prepare, resolveCitation: resolve } as unknown as IKnowledgeQueryService;
+  return {
+    prepareEvidence: prepare,
+    resolveCitation: resolve,
+  } as unknown as IKnowledgeQueryService;
 }
 function verify(queryService: IKnowledgeQueryService) {
   return verifyKnowledgeCandidateEvidence({
-    queryService, run, candidate, sessionId: "session-1",
+    queryService,
+    run,
+    candidate,
+    sessionId: "session-1",
   });
 }
 
@@ -109,7 +115,10 @@ test("citation verification: failed preparation must not try resolve", async () 
   let resolves = 0;
   const service = mockService(
     async () => ({ status: "source_stale", receipt: null }),
-    async () => { resolves++; throw new Error("should not be called"); },
+    async () => {
+      resolves++;
+      throw new Error("should not be called");
+    },
   );
   const result = await verify(service);
   assert.deepEqual(result, { phase: "unavailable", status: "source_stale", reason: null });
@@ -122,14 +131,18 @@ test("citation verification: a receipt can become stale between prepare and reso
     async () => ({ status: "stale", reason: "file_modified", citation: null }),
   );
   assert.deepEqual(await verify(service), {
-    phase: "unavailable", status: "stale", reason: "file_modified",
+    phase: "unavailable",
+    status: "stale",
+    reason: "file_modified",
   });
 });
 
 test("citation verification: RPC exception is never displayed as verified", async () => {
   const service = mockService(
     async () => ({ status: "current", receipt }),
-    async () => { throw new Error("host disconnected"); },
+    async () => {
+      throw new Error("host disconnected");
+    },
   );
   assert.deepEqual(await verify(service), { phase: "failed", message: "host disconnected" });
 });
@@ -153,7 +166,9 @@ test("citation verification: identity or quote mismatch fails closed despite cur
       async () => ({ status: "current", citation: { ...citation, ...mutatedCitation } }),
     );
     assert.deepEqual(await verify(service), {
-      phase: "unavailable", status: "forbidden", reason: "citation_mismatch",
+      phase: "unavailable",
+      status: "forbidden",
+      reason: "citation_mismatch",
     });
   }
 });
@@ -170,7 +185,9 @@ test("citation verification: an unbound lookup may inspect current text without 
   });
   assert.equal(result.phase, "verified");
   assert.deepEqual(await verify(service), {
-    phase: "unavailable", status: "forbidden", reason: "citation_mismatch",
+    phase: "unavailable",
+    status: "forbidden",
+    reason: "citation_mismatch",
   });
 });
 
@@ -188,7 +205,10 @@ test("previous-round navigation issues a fresh receipt and uses verified source 
   );
   const previousRun = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
   const result = await verifyPreviousKnowledgeCandidateEvidence({
-    queryService: service, run: previousRun, candidate, sessionId: "session-1",
+    queryService: service,
+    run: previousRun,
+    candidate,
+    sessionId: "session-1",
   });
   assert.equal(result.phase, "verified");
   if (result.phase === "verified") {
@@ -204,8 +224,14 @@ test("previous-round navigation issues a fresh receipt and uses verified source 
 test("previous-round navigation rejects cancelled runs and candidates not in the historical run", async () => {
   let callCount = 0;
   const service = mockService(
-    async () => { callCount++; return { status: "current", receipt }; },
-    async () => { callCount++; return { status: "current", citation }; },
+    async () => {
+      callCount++;
+      return { status: "current", receipt };
+    },
+    async () => {
+      callCount++;
+      return { status: "current", citation };
+    },
   );
   const historical = { ...run, status: "ready", candidates: [candidate] } as KnowledgeRunView;
   for (const invalid of [
@@ -213,9 +239,14 @@ test("previous-round navigation rejects cancelled runs and candidates not in the
     { run: historical, candidate: { ...candidate, articleId: "different" } },
     { run: historical, candidate: { ...candidate, quote: { ...quote, startLine: 7 } } },
   ]) {
-    assert.deepEqual(await verifyPreviousKnowledgeCandidateEvidence({
-      queryService: service, ...invalid, sessionId: "session-1",
-    }), { phase: "unavailable", status: "forbidden", reason: "previous_candidate_unavailable" });
+    assert.deepEqual(
+      await verifyPreviousKnowledgeCandidateEvidence({
+        queryService: service,
+        ...invalid,
+        sessionId: "session-1",
+      }),
+      { phase: "unavailable", status: "forbidden", reason: "previous_candidate_unavailable" },
+    );
   }
   assert.equal(callCount, 0);
 });
@@ -225,10 +256,17 @@ test("previous-round navigation fails closed for changed or deleted sources", as
   for (const status of ["stale", "missing"] as const) {
     const service = mockService(
       async () => ({ status: "current", receipt }),
-      async () => ({ status, reason: status === "stale" ? "file_modified" : "file_deleted", citation: null }),
+      async () => ({
+        status,
+        reason: status === "stale" ? "file_modified" : "file_deleted",
+        citation: null,
+      }),
     );
     const result = await verifyPreviousKnowledgeCandidateEvidence({
-      queryService: service, run: historical, candidate, sessionId: "session-1",
+      queryService: service,
+      run: historical,
+      candidate,
+      sessionId: "session-1",
     });
     assert.equal(result.phase, "unavailable");
     if (result.phase === "unavailable") assert.equal(result.status, status);
@@ -242,7 +280,10 @@ test("a follow-up explicitly reattaches a previous note with a freshly verified 
     async () => ({ status: "current", citation: { ...citation, receiptId: "evr_new_followup" } }),
   );
   const proof = await verifyPreviousKnowledgeCandidateEvidence({
-    queryService: service, run: historical, candidate, sessionId: "session-1",
+    queryService: service,
+    run: historical,
+    candidate,
+    sessionId: "session-1",
   });
   assert.equal(proof.phase, "verified");
   if (proof.phase !== "verified") return;
@@ -268,7 +309,13 @@ test("a prior session's note cannot be silently promoted into a new Agent sessio
     async () => ({ status: "current", receipt }),
     async () => ({ status: "current", citation }),
   );
-  assert.deepEqual(await verifyPreviousKnowledgeCandidateEvidence({
-    queryService: service, run: historical, candidate, sessionId: "session-other",
-  }), { phase: "unavailable", status: "forbidden", reason: "citation_mismatch" });
+  assert.deepEqual(
+    await verifyPreviousKnowledgeCandidateEvidence({
+      queryService: service,
+      run: historical,
+      candidate,
+      sessionId: "session-other",
+    }),
+    { phase: "unavailable", status: "forbidden", reason: "citation_mismatch" },
+  );
 });

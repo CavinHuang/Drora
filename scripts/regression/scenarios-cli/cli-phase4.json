@@ -40,7 +40,12 @@
     {
       "id": "d6",
       "title": "子命令 help 面扫描：skills/plugins/commands/login --help（help 文本差异=发现）",
-      "commands": [["skills", "--help"], ["plugins", "--help"], ["commands", "--help"], ["login", "--help"]]
+      "commands": [
+        ["skills", "--help"],
+        ["plugins", "--help"],
+        ["commands", "--help"],
+        ["login", "--help"]
+      ]
     },
     {
       "id": "d7",
@@ -76,7 +81,10 @@
       "id": "d13",
       "title": "hooks trust status --json（workspace hooks 声明种子→pending_trust/digest 结构面）",
       "files": [
-        { "path": ".zcode/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+        {
+          "path": ".zcode/config.json",
+          "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}"
+        }
       ],
       "args": ["hooks", "trust", "status", "--json"]
     },
@@ -84,11 +92,22 @@
       "id": "d14",
       "title": "hooks trust grant→status 迁移面（真实 digest，内容确定性）",
       "files": [
-        { "path": ".zcode/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+        {
+          "path": ".zcode/config.json",
+          "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}"
+        }
       ],
       "commands": [
         ["hooks", "trust", "status"],
-        ["hooks", "trust", "grant", "--workspace", "$WS", "--hook-digest", "ffe539a4cbb1eedb4adfc969cb2dbd2e610098d1dee8e8a75ff01ee546bf2c7b"],
+        [
+          "hooks",
+          "trust",
+          "grant",
+          "--workspace",
+          "$WS",
+          "--hook-digest",
+          "ffe539a4cbb1eedb4adfc969cb2dbd2e610098d1dee8e8a75ff01ee546bf2c7b"
+        ],
         ["hooks", "trust", "status", "--json"]
       ]
     },
@@ -145,7 +164,16 @@
     {
       "id": "d25",
       "title": "实旗标面：--cwd 指向存在的空目录（$WS 本身）",
-      "args": ["--cwd", "$WS", "--prompt", "回复 [[d25]]", "--output-format", "text", "--mode", "build"]
+      "args": [
+        "--cwd",
+        "$WS",
+        "--prompt",
+        "回复 [[d25]]",
+        "--output-format",
+        "text",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "d26",
@@ -155,17 +183,42 @@
     {
       "id": "d27",
       "title": "实旗标面：--force-mcs（help 已列）",
-      "args": ["--force-mcs", "--prompt", "回复 [[d27]]", "--output-format", "text", "--mode", "build"]
+      "args": [
+        "--force-mcs",
+        "--prompt",
+        "回复 [[d27]]",
+        "--output-format",
+        "text",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "d28",
       "title": "实旗标面：--surface desktop（headless prompt 上下文）",
-      "args": ["--surface", "desktop", "--prompt", "回复 [[d28]]", "--output-format", "text", "--mode", "build"]
+      "args": [
+        "--surface",
+        "desktop",
+        "--prompt",
+        "回复 [[d28]]",
+        "--output-format",
+        "text",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "d29",
       "title": "实旗标面：--no-browser（headless prompt 上下文）",
-      "args": ["--no-browser", "--prompt", "回复 [[d29]]", "--output-format", "text", "--mode", "build"]
+      "args": [
+        "--no-browser",
+        "--prompt",
+        "回复 [[d29]]",
+        "--output-format",
+        "text",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "d30",
@@ -175,7 +228,16 @@
     {
       "id": "d31",
       "title": "实旗标面：--browser-use headless（无浏览器环境受控失败面）",
-      "args": ["--browser-use", "headless", "--prompt", "回复 [[d31]]", "--output-format", "text", "--mode", "build"]
+      "args": [
+        "--browser-use",
+        "headless",
+        "--prompt",
+        "回复 [[d31]]",
+        "--output-format",
+        "text",
+        "--mode",
+        "build"
+      ]
     },
     {
       "id": "d32",
@@ -193,7 +255,10 @@
       "id": "d34",
       "title": "custom command 用户域（homeFiles <BRAND>/commands）：commands 列表 + /mycmd 展开喂模（证据=requests.jsonl）",
       "homeFiles": [
-        { "path": "<BRAND>/commands/mycmd.md", "content": "---\ndescription: mycmd desc\n---\nMYCMD-TEMPLATE-BODY args=[$ARGUMENTS]" }
+        {
+          "path": "<BRAND>/commands/mycmd.md",
+          "content": "---\ndescription: mycmd desc\n---\nMYCMD-TEMPLATE-BODY args=[$ARGUMENTS]"
+        }
       ],
       "commands": [
         ["commands"],
@@ -204,7 +269,10 @@
       "id": "d35",
       "title": "custom command 项目域（workspace .zcode/commands，zcode 锚目录）：commands 列表 + /mycmd2 展开喂模",
       "files": [
-        { "path": ".zcode/commands/mycmd2.md", "content": "---\ndescription: mycmd2 desc\n---\nMYCMD2-TEMPLATE-BODY args=[$ARGUMENTS]" }
+        {
+          "path": ".zcode/commands/mycmd2.md",
+          "content": "---\ndescription: mycmd2 desc\n---\nMYCMD2-TEMPLATE-BODY args=[$ARGUMENTS]"
+        }
       ],
       "commands": [
         ["commands"],
@@ -215,7 +283,10 @@
       "id": "d36",
       "title": "hooks trust status --json（drora 锚 .drora/config.json 种子→drora 发现、zcode not_applicable，品牌锚镜像面）",
       "files": [
-        { "path": ".drora/config.json", "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}" }
+        {
+          "path": ".drora/config.json",
+          "content": "{\"hooks\":{\"enabled\":true,\"events\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo hook-fired\"}]}]}}}"
+        }
       ],
       "args": ["hooks", "trust", "status", "--json"]
     }

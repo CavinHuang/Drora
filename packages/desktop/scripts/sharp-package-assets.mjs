@@ -153,7 +153,13 @@ export function stageSharpIntoBundledAgents({ desktopPackageRoot, glmDir, target
         staged: resolve(targetRoot, "@img", darwinKey, "lib", `${darwinKey}.node`),
       },
       {
-        seed: resolve(seedRoot, "@img", "sharp-libvips-darwin-arm64", "lib", "libvips-cpp.8.17.3.dylib"),
+        seed: resolve(
+          seedRoot,
+          "@img",
+          "sharp-libvips-darwin-arm64",
+          "lib",
+          "libvips-cpp.8.17.3.dylib",
+        ),
         staged: resolve(
           targetRoot,
           "@img",

@@ -475,7 +475,6 @@ export class BigModelCodingPlanSubscriptionProvider {
     return readRequestVerificationConfig((await this.getClientConfigs()).data?.configs);
   }
 
-
   async preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse> {
     return this.post<CodingPlanPreviewResponse>(
       request.providerId,

@@ -23,26 +23,26 @@ flowchart TB
   MEM[Drora Memory Agent] -. 审核后适配 .-> REV
 ```
 
-| 状态 | 唯一事实源 | 生命周期 | 读写规则 |
-|---|---|---|---|
-| 当前 Vault 的授权/根 | 当前 `vault-config.json` + VaultService | profile | 现有服务写入，hooks 只读 |
-| 笔记内容 | Markdown 文件 | 永久 | 原生访问/安全门面，知识缓存不可覆盖 |
-| 文件与片段索引 | Knowledge SQLite tables | 可重建 | 由租约持有人批量提交，引用前复核原文 |
-| Jev 判定 | 绑定 query+chunk 的缓存 / QueryRun 记录 | 短期/有界 | 不能成为原文事实依据 |
-| 来源引用 | EvidenceReceipt + 文件当前版本 | 与 query/session 关联 | 引用打开/生成前校验 |
-| 用户会话 | Drora Session | Drora 既有 | 不新增第二套 Agent 历史 |
-| Proposal/Apply 账本 | Review DB + 原文快照 | 持久 | 不因索引清理而删除 |
-| UI 展开/选中候选 | Renderer scoped state | 会话展示 | 不是业务事实源 |
+| 状态                 | 唯一事实源                              | 生命周期              | 读写规则                             |
+| -------------------- | --------------------------------------- | --------------------- | ------------------------------------ |
+| 当前 Vault 的授权/根 | 当前 `vault-config.json` + VaultService | profile               | 现有服务写入，hooks 只读             |
+| 笔记内容             | Markdown 文件                           | 永久                  | 原生访问/安全门面，知识缓存不可覆盖  |
+| 文件与片段索引       | Knowledge SQLite tables                 | 可重建                | 由租约持有人批量提交，引用前复核原文 |
+| Jev 判定             | 绑定 query+chunk 的缓存 / QueryRun 记录 | 短期/有界             | 不能成为原文事实依据                 |
+| 来源引用             | EvidenceReceipt + 文件当前版本          | 与 query/session 关联 | 引用打开/生成前校验                  |
+| 用户会话             | Drora Session                           | Drora 既有            | 不新增第二套 Agent 历史              |
+| Proposal/Apply 账本  | Review DB + 原文快照                    | 持久                  | 不因索引清理而删除                   |
+| UI 展开/选中候选     | Renderer scoped state                   | 会话展示              | 不是业务事实源                       |
 
 ## 2. 服务拆分
 
-| RPC 描述符 | 方法建议 | 领域唯一职责 |
-|---|---|---|
-| `IKnowledgeIndexService` | `getStatus(source)`, `requestRebuild`, `cancelJob`, `reconcile` | 管理 sourceEpoch、覆盖率、索引任务租约与恢复 |
-| `IKnowledgeQueryService` | `createRun`, `search`, `getRun`, `prepareEvidence`, `resolveCitation`, `cancelRun` | 查找、证据准备、绑定 Session 和引用回跳 |
-| `IKnowledgeDecisionService`（可与 QueryFacade 同进程不一定独立 RPC） | `getDecisionTrace`, `rerank`, `resolveSupport` | 将 Jev 作为可选 Provider，实现决策与降级 |
-| `IKnowledgeReviewService` | `listProposals`, `createProposal`, `approve`, `reject`, `apply`, `reconcile`, `undo` | L2 审核、幂等写入、恢复与审计 |
-| `IKnowledgeInsightService`（P1） | `list`, `openEvidence`, `feedback` | 关联/冲突候选和反馈 |
+| RPC 描述符                                                           | 方法建议                                                                             | 领域唯一职责                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `IKnowledgeIndexService`                                             | `getStatus(source)`, `requestRebuild`, `cancelJob`, `reconcile`                      | 管理 sourceEpoch、覆盖率、索引任务租约与恢复 |
+| `IKnowledgeQueryService`                                             | `createRun`, `search`, `getRun`, `prepareEvidence`, `resolveCitation`, `cancelRun`   | 查找、证据准备、绑定 Session 和引用回跳      |
+| `IKnowledgeDecisionService`（可与 QueryFacade 同进程不一定独立 RPC） | `getDecisionTrace`, `rerank`, `resolveSupport`                                       | 将 Jev 作为可选 Provider，实现决策与降级     |
+| `IKnowledgeReviewService`                                            | `listProposals`, `createProposal`, `approve`, `reject`, `apply`, `reconcile`, `undo` | L2 审核、幂等写入、恢复与审计                |
+| `IKnowledgeInsightService`（P1）                                     | `list`, `openEvidence`, `feedback`                                                   | 关联/冲突候选和反馈                          |
 
 **默认实施建议**：仅注册 Index、Query、Review 三个公开 RPC，DecisionEngine 内部私有以减少暴露面；Inspector 的 Trace 可通过 Query.getRun 返回脱敏阶段记录。若单公开 RPC 的方法数超出 `architecture-policy.yaml` 公共方法限制，再独立追加 Decision descriptor。所有 DTO 与 channel 字面量必须唯一出处于 `packages/shared/`。
 
@@ -50,43 +50,83 @@ flowchart TB
 
 ```ts
 // 设计契约，不是现有仓库代码
-export type KnowledgeIntent = 'find'|'answer'|'compare'|'edit'|'unknown';
-export type QueryPhase = 'idle'|'local_recall'|'local_ready'|'jev_deciding'|
- 'evidence_check'|'expand_once'|'ready'|'ambiguous'|'insufficient'|'degraded';
-export type DecisionStage = 'intent'|'ambiguity'|'candidate'|'sufficiency'|'citation'|'followup';
-export type SourceIdentity = { sourceId:string; sourceEpoch:number; vaultId:string };
+export type KnowledgeIntent = "find" | "answer" | "compare" | "edit" | "unknown";
+export type QueryPhase =
+  | "idle"
+  | "local_recall"
+  | "local_ready"
+  | "jev_deciding"
+  | "evidence_check"
+  | "expand_once"
+  | "ready"
+  | "ambiguous"
+  | "insufficient"
+  | "degraded";
+export type DecisionStage =
+  | "intent"
+  | "ambiguity"
+  | "candidate"
+  | "sufficiency"
+  | "citation"
+  | "followup";
+export type SourceIdentity = { sourceId: string; sourceEpoch: number; vaultId: string };
 export type QueryScope = {
-  source:SourceIdentity;
-  folderPrefixes:string[]; // validated under active authorized root
-  sinceClippedAt?:string;   // only if genuinely recorded in clipped metadata
-  untilClippedAt?:string;
-  excludedTags?:string[];
+  source: SourceIdentity;
+  folderPrefixes: string[]; // validated under active authorized root
+  sinceClippedAt?: string; // only if genuinely recorded in clipped metadata
+  untilClippedAt?: string;
+  excludedTags?: string[];
 };
 export type KnowledgeQueryRun = {
-  queryRunId:string; sessionId?:string; scope:QueryScope;
-  query:string; intentOverride?:KnowledgeIntent;
-  phase:QueryPhase; attempt:0|1; generation:number;
-  indexCoverage:'full'|'partial'|'unknown';
-  rerank:'local'|'jev'|'fallback';
-  selectedArticleId?:string;
+  queryRunId: string;
+  sessionId?: string;
+  scope: QueryScope;
+  query: string;
+  intentOverride?: KnowledgeIntent;
+  phase: QueryPhase;
+  attempt: 0 | 1;
+  generation: number;
+  indexCoverage: "full" | "partial" | "unknown";
+  rerank: "local" | "jev" | "fallback";
+  selectedArticleId?: string;
 };
 export type Candidate = {
-  candidateId:string; docId:string; relativePath:string;
-  headingPath:string[]; excerpt:string; chunkSha256:string;
-  localRank:number; evidenceKind?:'direct'|'contradictory'|'context'|'uncertain';
-  decisionId?:string; receiptId?:string;
+  candidateId: string;
+  docId: string;
+  relativePath: string;
+  headingPath: string[];
+  excerpt: string;
+  chunkSha256: string;
+  localRank: number;
+  evidenceKind?: "direct" | "contradictory" | "context" | "uncertain";
+  decisionId?: string;
+  receiptId?: string;
 };
 export type EvidenceReceipt = {
-  receiptId:string; queryRunId:string; sessionId?:string;
-  source:SourceIdentity; relativePath:string; fileSha256:string;
-  quoteExact:string; quotePrefix?:string; quoteSuffix?:string; headingPath:string[];
-  createdAt:number;
+  receiptId: string;
+  queryRunId: string;
+  sessionId?: string;
+  source: SourceIdentity;
+  relativePath: string;
+  fileSha256: string;
+  quoteExact: string;
+  quotePrefix?: string;
+  quoteSuffix?: string;
+  headingPath: string[];
+  createdAt: number;
 };
 export type DecisionRecord = {
-  id:string; runId:string; stage:DecisionStage;
-  rubricVersion:string; modelVersion?:string; inputHash:string;
-  resultLabel:string; score?:number; status:'ok'|'fallback'|'timeout'|'rejected';
-  usedOutbound:boolean; durationMs:number;
+  id: string;
+  runId: string;
+  stage: DecisionStage;
+  rubricVersion: string;
+  modelVersion?: string;
+  inputHash: string;
+  resultLabel: string;
+  score?: number;
+  status: "ok" | "fallback" | "timeout" | "rejected";
+  usedOutbound: boolean;
+  durationMs: number;
 };
 ```
 
@@ -128,20 +168,25 @@ flowchart TD
 
 ```ts
 export interface DecisionProvider {
-  decide(input:{
-    stage:DecisionStage;
-    state:Record<string,unknown>;
-    questions:ReadonlyArray<{id:string;kind:'noul'|'choice'|'score';rubric:string}>;
-    abortSignal:AbortSignal;
-  }):Promise<{answers:ReadonlyArray<{id:string;label:string;value?:number}>;version:string}>;
+  decide(input: {
+    stage: DecisionStage;
+    state: Record<string, unknown>;
+    questions: ReadonlyArray<{ id: string; kind: "noul" | "choice" | "score"; rubric: string }>;
+    abortSignal: AbortSignal;
+  }): Promise<{
+    answers: ReadonlyArray<{ id: string; label: string; value?: number }>;
+    version: string;
+  }>;
 }
 
 export interface DecisionPolicy {
-  routeIntent(modelOpinion:unknown, explicit:KnowledgeIntent|undefined):KnowledgeIntent;
-  classifyEvidence(candidates:Candidate[], opinions:DecisionRecord[]):Candidate[];
-  chooseNext(run:KnowledgeQueryRun, candidates:Candidate[]):
-    'show_candidates'|'generate_answer'|'expand_once'|'clarify'|'insufficient';
-  validateRunGeneration(run:KnowledgeQueryRun, generation:number):void;
+  routeIntent(modelOpinion: unknown, explicit: KnowledgeIntent | undefined): KnowledgeIntent;
+  classifyEvidence(candidates: Candidate[], opinions: DecisionRecord[]): Candidate[];
+  chooseNext(
+    run: KnowledgeQueryRun,
+    candidates: Candidate[],
+  ): "show_candidates" | "generate_answer" | "expand_once" | "clarify" | "insufficient";
+  validateRunGeneration(run: KnowledgeQueryRun, generation: number): void;
 }
 ```
 
@@ -239,19 +284,19 @@ CREATE TABLE operations(operation_id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL
 
 ## 9. 错误、降级、可观测性
 
-| 技术事件 | 预期反馈 | fallback | 关键检测 |
-|---|---|---|---|
-| candidate recall 空 | 无可靠命中 | 可提示换词、检查索引 | coverage=full/partial 分开 |
-| lexical 有结果但 semantic 离线 | 只用了部分召回策略 | 词法 | 明示语义不可用 |
-| Jev 未授权 | 使用本地排序 | local | 出站计数 0 |
-| Jev 429 / 超时 | 智能排序未完成 | local 保留已显示结果 | abort + generation gate |
-| Jev 非法 candidateId / NaN | 忽略响应 | local | schema+membership check |
-| J5 建议无限扩搜 | 最多一次 | BranchPolicy 上限 | attempt <=1 |
-| 已选文章在后台重排换位 | selection 不变 | selectedArticleId 锚定 | 不自动切右栏 |
-| 切 Vault/文件变更 | 当前来源待核验 | receipt stale | sourceEpoch + SHA |
-| LLM 回答含虚假引用 | 引用不可信 | 无 clickable badge | receipt membership |
-| write conflict | 重新审核 | 不写盘 | revision + expectedSHA |
-| 未授权源 | 需要配置 | 不猜测路径 | permission hard check |
+| 技术事件                       | 预期反馈           | fallback               | 关键检测                   |
+| ------------------------------ | ------------------ | ---------------------- | -------------------------- |
+| candidate recall 空            | 无可靠命中         | 可提示换词、检查索引   | coverage=full/partial 分开 |
+| lexical 有结果但 semantic 离线 | 只用了部分召回策略 | 词法                   | 明示语义不可用             |
+| Jev 未授权                     | 使用本地排序       | local                  | 出站计数 0                 |
+| Jev 429 / 超时                 | 智能排序未完成     | local 保留已显示结果   | abort + generation gate    |
+| Jev 非法 candidateId / NaN     | 忽略响应           | local                  | schema+membership check    |
+| J5 建议无限扩搜                | 最多一次           | BranchPolicy 上限      | attempt <=1                |
+| 已选文章在后台重排换位         | selection 不变     | selectedArticleId 锚定 | 不自动切右栏               |
+| 切 Vault/文件变更              | 当前来源待核验     | receipt stale          | sourceEpoch + SHA          |
+| LLM 回答含虚假引用             | 引用不可信         | 无 clickable badge     | receipt membership         |
+| write conflict                 | 重新审核           | 不写盘                 | revision + expectedSHA     |
+| 未授权源                       | 需要配置           | 不猜测路径             | permission hard check      |
 
 Trace 只记录：阶段 id、policy/model version、durationMs、fallback、去敏 Hash、使用的候选数、扩搜次数、branch、来源核验状态。默认用户不可见原始概率明细；仅在诊断面板打开。禁止向日志写整篇笔记、绝对路径、凭证或完整 Query。
 
@@ -259,61 +304,61 @@ Trace 只记录：阶段 id、policy/model version、durationMs、fallback、去
 
 ### S0｜先做 Spike、维护 specs
 
-| 操作 | 文件 | 目标 |
-|---|---|---|
-| NEW | `specs/obsidian-knowledge.md` | PRD/决策/Source/Index/Query/Decision/Proposal 完整状态、异常和验收 |
-| MODIFY | `specs/obsidian-plugin.md` | 记录方案 C 与 hooks 改动，删除历史错误描述前先确认当前实现 |
-| NEW | `specs/obsidian-decision-engine.md` | 阶段/路由策略/出站字段白名单/降级矩阵 |
-| MODIFY | `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | 限制 `.obsidian` 和高风险 Markdown 自动授权，但工具层仍需实测 |
-| MODIFY | `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts` | 路径与扩展名/风险判定公共函数，尽量不修改还原代码 |
-| NEW | `packages/services/test/knowledge/spikes/*.test.*` | 两 Host 并发、真正 Agent submit、写路径覆盖和中文召回 Spike |
+| 操作   | 文件                                                                      | 目标                                                               |
+| ------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| NEW    | `specs/obsidian-knowledge.md`                                             | PRD/决策/Source/Index/Query/Decision/Proposal 完整状态、异常和验收 |
+| MODIFY | `specs/obsidian-plugin.md`                                                | 记录方案 C 与 hooks 改动，删除历史错误描述前先确认当前实现         |
+| NEW    | `specs/obsidian-decision-engine.md`                                       | 阶段/路由策略/出站字段白名单/降级矩阵                              |
+| MODIFY | `apps/drora-cli/packages/obsidian-plugin/src/hooks/permission-request.ts` | 限制 `.obsidian` 和高风险 Markdown 自动授权，但工具层仍需实测      |
+| MODIFY | `apps/drora-cli/packages/obsidian-plugin/src/lib/agent-access.ts`         | 路径与扩展名/风险判定公共函数，尽量不修改还原代码                  |
+| NEW    | `packages/services/test/knowledge/spikes/*.test.*`                        | 两 Host 并发、真正 Agent submit、写路径覆盖和中文召回 Spike        |
 
 ### M1｜索引与查询服务
 
-| 操作 | 文件 | 目标 |
-|---|---|---|
-| MODIFY | `packages/shared/src/channels.ts` | 通道名单一出处（3 个建议 RPC） |
-| NEW | `packages/shared/src/knowledge.ts` | DTO/Zod、error codes、外发授权和引用契约 |
+| 操作   | 文件                                                               | 目标                                               |
+| ------ | ------------------------------------------------------------------ | -------------------------------------------------- |
+| MODIFY | `packages/shared/src/channels.ts`                                  | 通道名单一出处（3 个建议 RPC）                     |
+| NEW    | `packages/shared/src/knowledge.ts`                                 | DTO/Zod、error codes、外发授权和引用契约           |
 | MODIFY | `packages/services/src/index.ts` + `packages/services/src/node.ts` | service descriptor 暴露/注册到 createLocalServices |
-| NEW | `packages/services/src/knowledge/source/registry.ts` | 只读 Vault 配置并计算 sourceEpoch |
-| NEW | `packages/services/src/knowledge/index/coordinator.ts` | job lease/fencing/reconcile |
-| NEW | `packages/services/src/knowledge/index/markdown-chunker.ts` | 章节、frontmatter、元数据、行号/quoteSelector |
-| NEW | `packages/services/src/knowledge/index/store.ts` | SQLite migration、事务、FTS 插入/删除一致性 |
-| NEW | `packages/services/src/knowledge/query/lexical.ts` | 中文词法检索/有界 MATCH |
-| NEW | `packages/services/src/knowledge/query/semantic.ts` | provider adapter，可离线/独立授权 |
-| NEW | `packages/services/src/knowledge/query/fusion.ts` | RRF、文章级聚合、limit/diversity |
-| NEW | `packages/services/src/knowledge/query/orchestrator.ts` | QueryRun、generation、取消/扩搜上限 |
-| NEW | `packages/services/src/knowledge/query/source-verifier.ts` | 权限/源版本/引用锚点复核 |
+| NEW    | `packages/services/src/knowledge/source/registry.ts`               | 只读 Vault 配置并计算 sourceEpoch                  |
+| NEW    | `packages/services/src/knowledge/index/coordinator.ts`             | job lease/fencing/reconcile                        |
+| NEW    | `packages/services/src/knowledge/index/markdown-chunker.ts`        | 章节、frontmatter、元数据、行号/quoteSelector      |
+| NEW    | `packages/services/src/knowledge/index/store.ts`                   | SQLite migration、事务、FTS 插入/删除一致性        |
+| NEW    | `packages/services/src/knowledge/query/lexical.ts`                 | 中文词法检索/有界 MATCH                            |
+| NEW    | `packages/services/src/knowledge/query/semantic.ts`                | provider adapter，可离线/独立授权                  |
+| NEW    | `packages/services/src/knowledge/query/fusion.ts`                  | RRF、文章级聚合、limit/diversity                   |
+| NEW    | `packages/services/src/knowledge/query/orchestrator.ts`            | QueryRun、generation、取消/扩搜上限                |
+| NEW    | `packages/services/src/knowledge/query/source-verifier.ts`         | 权限/源版本/引用锚点复核                           |
 
 ### M2｜Jev 决策与控制
 
-| 操作 | 文件 | 目标 |
-|---|---|---|
-| NEW | `packages/services/src/knowledge/decision/decision-provider.ts` | Jev/Local Port 类型，不把 SDK 泄漏给查询领域 |
-| NEW | `packages/services/src/knowledge/decision/jev-provider.ts` | SDK 适配、超时、并发、响应校验（先查官方 API） |
-| NEW | `packages/services/src/knowledge/decision/local-decision.ts` | 缺授权/异常可用保守路径 |
-| NEW | `packages/services/src/knowledge/decision/intent-policy.ts` | 用户显式意图优先、unknown 可澄清 |
-| NEW | `packages/services/src/knowledge/decision/evidence-policy.ts` | J3/J4 同次 candidate state 规则 |
-| NEW | `packages/services/src/knowledge/decision/branch-policy.ts` | J5 分支与 expand-once 硬上限 |
-| NEW | `packages/services/src/knowledge/decision/claim-policy.ts` | J6 引用语义支持分类 |
-| NEW | `packages/services/src/knowledge/decision/consent.ts` | 仅本次出站授权与 TTL/source scope |
-| NEW | `packages/services/src/knowledge/decision/audit.ts` | 脱敏记录/效果对照 |
+| 操作 | 文件                                                            | 目标                                           |
+| ---- | --------------------------------------------------------------- | ---------------------------------------------- |
+| NEW  | `packages/services/src/knowledge/decision/decision-provider.ts` | Jev/Local Port 类型，不把 SDK 泄漏给查询领域   |
+| NEW  | `packages/services/src/knowledge/decision/jev-provider.ts`      | SDK 适配、超时、并发、响应校验（先查官方 API） |
+| NEW  | `packages/services/src/knowledge/decision/local-decision.ts`    | 缺授权/异常可用保守路径                        |
+| NEW  | `packages/services/src/knowledge/decision/intent-policy.ts`     | 用户显式意图优先、unknown 可澄清               |
+| NEW  | `packages/services/src/knowledge/decision/evidence-policy.ts`   | J3/J4 同次 candidate state 规则                |
+| NEW  | `packages/services/src/knowledge/decision/branch-policy.ts`     | J5 分支与 expand-once 硬上限                   |
+| NEW  | `packages/services/src/knowledge/decision/claim-policy.ts`      | J6 引用语义支持分类                            |
+| NEW  | `packages/services/src/knowledge/decision/consent.ts`           | 仅本次出站授权与 TTL/source scope              |
+| NEW  | `packages/services/src/knowledge/decision/audit.ts`             | 脱敏记录/效果对照                              |
 
 ### M3｜VaultView 交互 / 现有 Agent
 
-| 操作 | 文件 | 目标 |
-|---|---|---|
-| NEW | `packages/ui/src/v4/vault/VaultShell.tsx` | Vault 四视图 tab 及活动源/索引摘要 |
-| NEW | `packages/ui/src/v4/vault/VaultSmartQueryView.tsx` | 问库输入、状态机、结果与追问 |
-| NEW | `packages/ui/src/v4/vault/VaultArticleCandidates.tsx` | 文章级候选列表和“找不到”提示 |
-| NEW | `packages/ui/src/v4/vault/VaultEvidenceInspector.tsx` | 片段原文 + 核验状态 |
-| NEW | `packages/ui/src/v4/vault/VaultDecisionTrace.tsx` | 折叠的多阶段执行与降级说明 |
-| NEW | `packages/ui/src/v4/vault/VaultRerankConsentDialog.tsx` | Jev 出站 scope + 本次同意/拒绝 |
-| NEW | `packages/ui/src/hooks/useVaultQuery.ts` | host RPC + queryGeneration + selectedArticleId |
-| MODIFY (wrapper first) | `packages/ui/src/v4/VaultView.tsx` | 复用已有笔记编辑实现，集中四页签组装 |
-| MODIFY (extension first) | `packages/ui/src/v4/SessionPane.tsx` | @Vault 附证据、busy queue/恢复落点；须 S02 Spike |
-| MODIFY (extension first) | `packages/ui/src/app-shell/WorkspaceShellLayout.tsx` | 引用回跳 Vault 原文/侧栏定位 |
-| NEW | `packages/ui/src/v4/vault/VaultInsightsView.tsx`、`VaultReviewView.tsx` | P1 入口 |
+| 操作                     | 文件                                                                    | 目标                                             |
+| ------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------ |
+| NEW                      | `packages/ui/src/v4/vault/VaultShell.tsx`                               | Vault 四视图 tab 及活动源/索引摘要               |
+| NEW                      | `packages/ui/src/v4/vault/VaultSmartQueryView.tsx`                      | 问库输入、状态机、结果与追问                     |
+| NEW                      | `packages/ui/src/v4/vault/VaultArticleCandidates.tsx`                   | 文章级候选列表和“找不到”提示                     |
+| NEW                      | `packages/ui/src/v4/vault/VaultEvidenceInspector.tsx`                   | 片段原文 + 核验状态                              |
+| NEW                      | `packages/ui/src/v4/vault/VaultDecisionTrace.tsx`                       | 折叠的多阶段执行与降级说明                       |
+| NEW                      | `packages/ui/src/v4/vault/VaultRerankConsentDialog.tsx`                 | Jev 出站 scope + 本次同意/拒绝                   |
+| NEW                      | `packages/ui/src/hooks/useVaultQuery.ts`                                | host RPC + queryGeneration + selectedArticleId   |
+| MODIFY (wrapper first)   | `packages/ui/src/v4/VaultView.tsx`                                      | 复用已有笔记编辑实现，集中四页签组装             |
+| MODIFY (extension first) | `packages/ui/src/v4/SessionPane.tsx`                                    | @Vault 附证据、busy queue/恢复落点；须 S02 Spike |
+| MODIFY (extension first) | `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`                    | 引用回跳 Vault 原文/侧栏定位                     |
+| NEW                      | `packages/ui/src/v4/vault/VaultInsightsView.tsx`、`VaultReviewView.tsx` | P1 入口                                          |
 
 ### M4｜审核、跨端、质量
 

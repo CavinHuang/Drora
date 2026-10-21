@@ -1,6 +1,12 @@
 import { join } from "node:path";
-import type { AppSettings, DroraEndpointUrls } from "@drora/shared";
-import { buildDroraEndpointUrls } from "@drora/shared";
+import { ipcMain } from "electron";
+import type {
+  AppSettings,
+  DroraEndpointUrls,
+  WebRemoteControlContext,
+  WebRemoteControlStartOperationResult,
+} from "@drora/shared";
+import { PlatformChannels, buildDroraEndpointUrls } from "@drora/shared";
 import { getDataBaseDir } from "@drora/services/node";
 import { MobileRelayCredentialStore } from "../main/desktopMobileRelayProtocol.js";
 import {
@@ -10,7 +16,9 @@ import {
   LAN_EMBEDDED_RELAY_ORIGIN,
   resolveCloudRelayOrigin,
 } from "../main/desktopMobileLanRelayHost.js";
-import type { WebRemoteControlRelayAuthStorageProvider } from "../main/webRemoteControlRelayAuthStorageProvider.js";
+// V1 凭据类型宿主（main/webRemoteControlRelayAuthStorageProvider.ts）已随上游 Relay V2 删除；
+// 形状改由本仓 contract.ts 就地定义。自建 relay V2 适配待接线。
+import type { DroraRelayAuthStorageProvider } from "./contract.js";
 
 /** 部署与凭据适配；任务、attachment 与传输状态仍只属于官方 manager。 */
 export function createDroraRemoteControlDeployment(deps: {
@@ -26,7 +34,7 @@ export function createDroraRemoteControlDeployment(deps: {
 }) {
   // 资源/数据根在 bootstrap 设置之后读取，避免固定到启动前的旧目录。
   let lanHost: ReturnType<typeof createDesktopMobileLanRelayHost> | undefined;
-  const stores = new Map<string, WebRemoteControlRelayAuthStorageProvider>();
+  const stores = new Map<string, DroraRelayAuthStorageProvider>();
   return {
     async getEndpointUrls(): Promise<DroraEndpointUrls> {
       const settings = await deps.loadSettings();
@@ -61,7 +69,7 @@ export function createDroraRemoteControlDeployment(deps: {
         remoteUrl: deps.remoteUrlOverride || derived.remoteUrl,
       };
     },
-    resolveAuthStorageProvider(relayWsUrl: string): WebRemoteControlRelayAuthStorageProvider {
+    resolveAuthStorageProvider(relayWsUrl: string): DroraRelayAuthStorageProvider {
       const lanPort = lanHost?.currentPort();
       const origin =
         lanPort && relayWsUrl === `ws://127.0.0.1:${lanPort}/ws`
@@ -92,4 +100,29 @@ export function createDroraRemoteControlDeployment(deps: {
       await lanHost?.stop();
     },
   };
+}
+
+/**
+ * Web 远控「刷新二维码」入口（ours 保真面，v3.16.1 上游 V2 重写删除了 V1 resetPairing）。
+ * 按 webRemoteControlManager 的 R1 决策：V2 下配对材料由 deviceStorage 注册流管理，
+ * manager 没有配对轮换原语，二维码泄露轮换语义保留在 Drora mobile relay
+ * （desktopMobileRelayControl.refreshMobileRelayControl）。本 handler 按 UI 已兼容的
+ * 「可取消平台实现」契约（WebRemoteControlStartCancelledResult）优雅降级，
+ * 不在还原的官方 manager 内新增半成品轮换逻辑。
+ */
+export function registerWebRemoteControlPairingRefreshIpc(deps: {
+  logger: { info(...args: unknown[]): void };
+}): void {
+  ipcMain.handle(
+    PlatformChannels.ResetWebRemoteControlPairing,
+    async (
+      _event,
+      _context: WebRemoteControlContext,
+    ): Promise<WebRemoteControlStartOperationResult> => {
+      deps.logger.info(
+        "[web-remote-control] pairing refresh requested; V2 has no rotation primitive, answering cancelled (R1)",
+      );
+      return { status: "cancelled" };
+    },
+  );
 }

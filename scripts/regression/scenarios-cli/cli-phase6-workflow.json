@@ -6,23 +6,17 @@
     {
       "id": "d37",
       "title": "workflow 域 CLI 面：/workflows 无参（文本回退状态）",
-      "commands": [
-        ["--prompt", "/workflows", "--output-format", "text", "--mode", "build"]
-      ]
+      "commands": [["--prompt", "/workflows", "--output-format", "text", "--mode", "build"]]
     },
     {
       "id": "d38",
       "title": "workflow 域 CLI 面：/workflow status",
-      "commands": [
-        ["--prompt", "/workflow status", "--output-format", "text", "--mode", "build"]
-      ]
+      "commands": [["--prompt", "/workflow status", "--output-format", "text", "--mode", "build"]]
     },
     {
       "id": "d39",
       "title": "workflow 域 CLI 面：/expert status",
-      "commands": [
-        ["--prompt", "/expert status", "--output-format", "text", "--mode", "build"]
-      ]
+      "commands": [["--prompt", "/expert status", "--output-format", "text", "--mode", "build"]]
     },
     {
       "id": "d40",

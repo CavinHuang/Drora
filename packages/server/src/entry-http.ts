@@ -1,9 +1,13 @@
-import { createLocalServices, createTopicResourcePeers, getAppConfigDir } from "@drora/services/node";
+import {
+  createServerHostServices,
+  createTopicResourcePeers,
+  getAppConfigDir,
+} from "@drora/services/node";
 import {
   materializeBundledDroraBuiltinProviderConfig,
   readBundledDroraBuiltinProviderConfig,
 } from "./bundledDroraBuiltinProviderConfig.js";
-import { createHttpServer } from "./http.js";
+import { createHttpServer, resolveHttpServerId } from "./http.js";
 
 async function main(): Promise<void> {
   const droraBuiltinProviderConfigFilePath = await materializeBundledDroraBuiltinProviderConfig({
@@ -15,13 +19,20 @@ async function main(): Promise<void> {
   const staticRoot = process.env["DRORA_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["DRORA_SERVER_AUTH_TOKEN"]?.trim() || undefined;
   const topicResourcePeers = createTopicResourcePeers();
-  const services = createLocalServices({
-    topicResourceRelayChannel: (request) => topicResourcePeers.getChannel(request),
-    droraBuiltinProviderConfigFilePath,
-    providerProvisioningTargetEnabled: Boolean(authToken),
-  });
+  const serverId = resolveHttpServerId();
+  const { services, workspaceIdentityMapper, migrationFailedPathCount } =
+    await createServerHostServices({
+      topicResourceRelayChannel: (request) => topicResourcePeers.getChannel(request),
+      sourceServerId: serverId,
+      droraBuiltinProviderConfigFilePath,
+      providerProvisioningTargetEnabled: Boolean(authToken),
+    });
 
   createHttpServer(services, port, {
+    serverId,
+    workspaceIdentityMapper,
+    migrationFailedPathCount,
+    virtualProjects: true,
     topicResourcePeers,
     ...(host ? { host } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),

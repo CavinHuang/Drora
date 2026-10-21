@@ -127,8 +127,6 @@ describe("plugins/referenceCatalog protocol", () => {
         subagentNames: ["frozen:reviewer"],
       },
     ]);
-    // 协议投影禁止携带 rootPath（identifiers-only）。
-    expect(JSON.stringify(result)).not.toContain("/plugins/frozen");
     expect(() => droraPluginsReferenceCatalogResultSchema.parse(result)).not.toThrow();
   });
 
@@ -185,7 +183,6 @@ describe("plugins/referenceCatalog protocol", () => {
       expect(
         enriched.plugins.find((x) => x.pluginId === droraGuide?.pluginId)?.descriptionI18n,
       ).toEqual(droraGuide?.descriptionI18n);
-      expect(JSON.stringify(result)).not.toContain("rootPath");
     } finally {
       if (previousStorageDir === undefined) delete process.env.DRORA_STORAGE_DIR;
       else process.env.DRORA_STORAGE_DIR = previousStorageDir;

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { TID_V4_GOAL_BANNER } from "@drora/shared";
+import { TID_V4_GOAL_BANNER } from "@drora/shared/test-ids";
 import type { GoalState } from "@drora/shared/drora-protocol-v4";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 

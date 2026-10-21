@@ -26,16 +26,17 @@ type ExclusionField =
   | "truncatedFiles";
 
 /** 导出供 A21 纪律测试锁动态 i18n 键族（exclude.<key> 的非循环事实源）。 */
-export const COVERAGE_EXCLUSION_FIELDS: ReadonlyArray<[InsightCoverageExclusion["key"], ExclusionField]> =
-  [
-    ["hidden", "excludedHidden"],
-    ["symlink", "excludedSymlink"],
-    ["notMarkdown", "excludedNotMarkdown"],
-    ["overSize", "excludedOverSize"],
-    ["overQuota", "excludedOverQuota"],
-    ["depth", "excludedDepth"],
-    ["truncated", "truncatedFiles"],
-  ];
+export const COVERAGE_EXCLUSION_FIELDS: ReadonlyArray<
+  [InsightCoverageExclusion["key"], ExclusionField]
+> = [
+  ["hidden", "excludedHidden"],
+  ["symlink", "excludedSymlink"],
+  ["notMarkdown", "excludedNotMarkdown"],
+  ["overSize", "excludedOverSize"],
+  ["overQuota", "excludedOverQuota"],
+  ["depth", "excludedDepth"],
+  ["truncated", "truncatedFiles"],
+];
 
 /** 只列非零排除项；全零返回空数组（组件呈现「完整」，不渲染零计数噪声）。 */
 export function nonZeroCoverageExclusions(coverage: KnowledgeCoverage): InsightCoverageExclusion[] {

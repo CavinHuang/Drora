@@ -43,7 +43,9 @@ export async function resolveLocalMobileWebRoot(): Promise<string | undefined> {
     try {
       await access(join(root, "remote", "v4", "index.html"));
       return root;
-    } catch { /* 尝试下一个当前构建。 */ }
+    } catch {
+      /* 尝试下一个当前构建。 */
+    }
   }
   return undefined;
 }
@@ -110,7 +112,8 @@ export function createDesktopMobileLanRelayHost(deps: {
       if (server && port !== null) return Promise.resolve({ port });
       starting ??= (async () => {
         const mobileRoot = await resolveLocalMobileWebRoot();
-        if (!mobileRoot) throw new Error("Remote UI assets are missing; build @drora/mobile-web first.");
+        if (!mobileRoot)
+          throw new Error("Remote UI assets are missing; build @drora/mobile-web first.");
         const registry = createDeviceRegistry({
           storage: createFileDeviceRegistryStorage(registryFilePath),
         });

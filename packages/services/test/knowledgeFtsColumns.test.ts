@@ -16,8 +16,14 @@ import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { KNOWLEDGE_MIGRATIONS } from "../src/knowledge/store/migrations.js";
-import { openKnowledgeDatabase, type KnowledgeDatabase } from "../src/knowledge/store/knowledgeDatabase.js";
-import { replaceDocumentInTransaction, type ReplaceDocumentInput } from "../src/knowledge/store/indexRepository.js";
+import {
+  openKnowledgeDatabase,
+  type KnowledgeDatabase,
+} from "../src/knowledge/store/knowledgeDatabase.js";
+import {
+  replaceDocumentInTransaction,
+  type ReplaceDocumentInput,
+} from "../src/knowledge/store/indexRepository.js";
 import { searchLexicalPass } from "../src/knowledge/search/lexicalRetriever.js";
 import { createSemanticContext } from "../src/knowledge/search/embeddingPort.js";
 import { buildMatchExpression, tokenizeForIndex } from "../src/knowledge/search/tokenizer.js";
@@ -62,7 +68,9 @@ function seedLegacyDocument(
   });
 }
 
-function makeChunk(partial: Partial<MarkdownChunk> & Pick<MarkdownChunk, "ordinal" | "text">): MarkdownChunk {
+function makeChunk(
+  partial: Partial<MarkdownChunk> & Pick<MarkdownChunk, "ordinal" | "text">,
+): MarkdownChunk {
   return {
     headingPath: null,
     level: 0,
@@ -75,7 +83,10 @@ function makeChunk(partial: Partial<MarkdownChunk> & Pick<MarkdownChunk, "ordina
   };
 }
 
-function replaceDocument(db: KnowledgeDatabase, input: Omit<ReplaceDocumentInput, "indexedAtMs">): void {
+function replaceDocument(
+  db: KnowledgeDatabase,
+  input: Omit<ReplaceDocumentInput, "indexedAtMs">,
+): void {
   db.transaction((tx) => replaceDocumentInTransaction(tx, { ...input, indexedAtMs: 1 }));
 }
 
@@ -107,24 +118,39 @@ test("迁移 v4：旧单列 FTS 库打开自动升级，旧数据 tokens/title �
       assert.ok(db.raw.prepare("SELECT tokens, title, meta FROM chunks_fts LIMIT 1").get());
 
       // tokens 重填：正文词在两份旧文档均可检索（AND 零命中不降级——两文档都命中）。
-      const bodyPass = await searchLexicalPass(db, { vaultId: "vault-a", sourceEpoch: 1 }, "量子纠缠", {
-        semantic: createSemanticContext(null),
-        partial: false,
-      });
-      assert.ok(bodyPass.candidates.length >= 2, `正文 token 重填后两文档应命中，实得 ${bodyPass.candidates.length}`);
+      const bodyPass = await searchLexicalPass(
+        db,
+        { vaultId: "vault-a", sourceEpoch: 1 },
+        "量子纠缠",
+        {
+          semantic: createSemanticContext(null),
+          partial: false,
+        },
+      );
+      assert.ok(
+        bodyPass.candidates.length >= 2,
+        `正文 token 重填后两文档应命中，实得 ${bodyPass.candidates.length}`,
+      );
 
       // title 重填：仅存在于旧文档标题的词也可检索。
-      const titlePass = await searchLexicalPass(db, { vaultId: "vault-a", sourceEpoch: 1 }, "汇编", {
-        semantic: createSemanticContext(null),
-        partial: false,
-      });
+      const titlePass = await searchLexicalPass(
+        db,
+        { vaultId: "vault-a", sourceEpoch: 1 },
+        "汇编",
+        {
+          semantic: createSemanticContext(null),
+          partial: false,
+        },
+      );
       assert.ok(
         titlePass.candidates.some((candidate) => candidate.relativePath === "notes/quantum.md"),
         "仅标题含有的词应经 title 列命中",
       );
 
       // 旧数据未经结构抽取：meta 如实为空串，不编造产物。
-      const metaRows = db.raw.prepare("SELECT meta FROM chunks_fts").all() as Array<{ meta: string }>;
+      const metaRows = db.raw.prepare("SELECT meta FROM chunks_fts").all() as Array<{
+        meta: string;
+      }>;
       assert.ok(metaRows.length >= 2);
       for (const row of metaRows) assert.equal(row.meta, "");
     } finally {
@@ -145,7 +171,10 @@ test("runKnowledgeMigrations：全新空库按阶梯推进到 v4 且重填循环
         .get() as { version: number };
       assert.ok(versionRow.version >= 4, "空库阶梯推进到 v4+");
       // 无 chunks 数据时重填循环零次，drop/rename 仍完整执行。
-      assert.equal((db.raw.prepare("SELECT COUNT(*) AS n FROM chunks_fts").get() as { n: number }).n, 0);
+      assert.equal(
+        (db.raw.prepare("SELECT COUNT(*) AS n FROM chunks_fts").get() as { n: number }).n,
+        0,
+      );
     } finally {
       db.close();
     }

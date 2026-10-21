@@ -142,11 +142,14 @@ async function evaluateVariant(
 
     const relevantPaths = new Set(testCase.relevantArticlePaths);
     const rankedPaths = run.candidates.slice(0, limit).map((candidate) => candidate.relativePath);
-    const firstRelevantIndex = run.candidates.findIndex((candidate) => relevantPaths.has(candidate.relativePath));
+    const firstRelevantIndex = run.candidates.findIndex((candidate) =>
+      relevantPaths.has(candidate.relativePath),
+    );
     const action = run.decision?.action ?? null;
     perQuery.push({
       caseId: testCase.id,
-      declared: run.candidates.length > 0 && !(action !== null && NO_DECLARATION_ACTIONS.has(action)),
+      declared:
+        run.candidates.length > 0 && !(action !== null && NO_DECLARATION_ACTIONS.has(action)),
       rankedPaths,
       top1ChunkSha256: run.candidates[0]?.chunkSha256 ?? null,
       firstRelevantRank: firstRelevantIndex === -1 ? null : firstRelevantIndex + 1,
@@ -162,14 +165,24 @@ async function evaluateVariant(
         articleId: top1.articleId,
       });
       if (prepared.receipt) {
-        const resolved = await services.queryService.resolveCitation({ receiptId: prepared.receipt.receiptId });
+        const resolved = await services.queryService.resolveCitation({
+          receiptId: prepared.receipt.receiptId,
+        });
         citationChecked += 1;
         if (resolved.status === "current") citationCurrent += 1;
       }
     }
   }
 
-  return aggregateReport(variantId, dataset, perQuery, latencies, services, citationChecked, citationCurrent);
+  return aggregateReport(
+    variantId,
+    dataset,
+    perQuery,
+    latencies,
+    services,
+    citationChecked,
+    citationCurrent,
+  );
 }
 
 function aggregateReport(
@@ -198,13 +211,30 @@ function aggregateReport(
     cases: dataset.length,
     answeredCases: answered.length,
     noAnswerCases: noAnswer.length,
-    recallAt30: averageNonNull(answered.map((testCase) => metricFor(testCase, (paths, relevant) => recallAtK(paths, relevant, 30)))),
-    hitAt1: averageNonNull(answered.map((testCase) => metricFor(testCase, (paths, relevant) => hitAtK(paths, relevant, 1)))),
-    hitAt5: averageNonNull(answered.map((testCase) => metricFor(testCase, (paths, relevant) => hitAtK(paths, relevant, 5)))),
-    mrr: averageNonNull(answered.map((testCase) => metricFor(testCase, (paths, relevant) => reciprocalRank(paths, relevant)))),
+    recallAt30: averageNonNull(
+      answered.map((testCase) =>
+        metricFor(testCase, (paths, relevant) => recallAtK(paths, relevant, 30)),
+      ),
+    ),
+    hitAt1: averageNonNull(
+      answered.map((testCase) =>
+        metricFor(testCase, (paths, relevant) => hitAtK(paths, relevant, 1)),
+      ),
+    ),
+    hitAt5: averageNonNull(
+      answered.map((testCase) =>
+        metricFor(testCase, (paths, relevant) => hitAtK(paths, relevant, 5)),
+      ),
+    ),
+    mrr: averageNonNull(
+      answered.map((testCase) =>
+        metricFor(testCase, (paths, relevant) => reciprocalRank(paths, relevant)),
+      ),
+    ),
     noAnswerFalsePositiveRate: noAnswer.length
-      ? noAnswer.filter((testCase) => perQuery.find((entry) => entry.caseId === testCase.id)?.declared ?? false).length /
-        noAnswer.length
+      ? noAnswer.filter(
+          (testCase) => perQuery.find((entry) => entry.caseId === testCase.id)?.declared ?? false,
+        ).length / noAnswer.length
       : null,
     evidencePrecisionTop1: evidencePrecisionAverage(perQuery, dataset),
     citationSupportRate: citationChecked > 0 ? citationCurrent / citationChecked : null,
@@ -226,7 +256,10 @@ function evidencePrecisionAverage(
   if (annotated.length === 0) return null;
   const values = annotated.map((testCase) => {
     const result = perQuery.find((entry) => entry.caseId === testCase.id);
-    const hit = evidencePrecisionTop1(result?.top1ChunkSha256 ?? null, new Set(testCase.relevantChunkSha256s));
+    const hit = evidencePrecisionTop1(
+      result?.top1ChunkSha256 ?? null,
+      new Set(testCase.relevantChunkSha256s),
+    );
     return hit === null ? null : hit ? 1 : 0;
   });
   return averageNonNull(values);

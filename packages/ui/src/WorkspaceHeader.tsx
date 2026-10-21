@@ -8,7 +8,7 @@ import type {
   UserInfo,
 } from "@drora/shared";
 import { useState } from "react";
-import { TID_WORKSPACE_HEADER } from "@drora/shared";
+import { TID_WORKSPACE_HEADER } from "@drora/shared/test-ids";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -167,7 +167,7 @@ export function WorkspaceHeader({
           headerWindowControlsPaddingClass,
         )}
       >
-        {variant === "task" ? (
+        {variant === "task" || remoteTarget || workspaceIdentity || remoteSessionId ? (
           <WorkspaceHeaderTitleSection
             variant={variant}
             readOnlyReason={readOnlyReason}
@@ -232,7 +232,6 @@ export function WorkspaceHeader({
           onSelectedEditorChange={setSelectedEditor}
         />
       </div>
-
     </header>
   );
 }

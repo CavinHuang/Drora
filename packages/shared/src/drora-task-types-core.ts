@@ -321,6 +321,10 @@ export interface DroraTaskMeta {
    * 导致任务列表、快照和日志互相串读。这里补充 workspaceIdentity 参与隔离。
    */
   workspaceIdentity?: string;
+  /** Controller/renderer 任务列表投影使用；不参与 workspace identity 或持久化 key。 */
+  sourceServerId?: string;
+  /** Source directory 的用户可读名称；缺失时 UI 回退 sourceServerId。 */
+  serverDisplayName?: string;
   /** app-owned workspace 分类；缺省为 project，不参与 workspaceKey。 */
   workspacePurpose?: import("./workspacePurpose.js").WorkspacePurpose;
   createdAt: number;
@@ -607,8 +611,10 @@ export interface DroraToolCall {
   title: string;
   /** agent ToolCall 原始 payload，调试协议字段时以此为准 */
   raw: unknown;
+  pluginMetadata?: { pluginId: string; component: "mcp" };
   /** Skill resolved metadata；只用于 telemetry attribution。 */
   skillMetadata?: {
+    name?: string;
     qualifiedName?: string;
     pluginId?: string;
     source?: "agents" | "drora" | "bundled" | "plugin" | "remote";
@@ -636,8 +642,10 @@ export interface DroraToolCallUpdate {
   error?: string;
   /** agent ToolCallUpdate 原始 payload，调试协议字段时以此为准 */
   raw: unknown;
+  pluginMetadata?: { pluginId: string; component: "mcp" };
   /** Skill resolved metadata；只用于 telemetry attribution。 */
   skillMetadata?: {
+    name?: string;
     qualifiedName?: string;
     pluginId?: string;
     source?: "agents" | "drora" | "bundled" | "plugin" | "remote";

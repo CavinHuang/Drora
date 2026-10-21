@@ -11,24 +11,24 @@
 
 装配结构逐项一致（真值 13.778M–13.799M 区段 ↔ 我方 `apps/drora-cli/packages/telemetry/src/otlp-exporter.ts`）：
 
-| 项 | 真值 | 我方 | 证据 |
-|---|---|---|---|
-| scope 名/版本 | `getTracer/Meter("@zcode/cli-agent-telemetry", String(6))` | `@drora/cli-agent-telemetry`, `TELEMETRY_SCHEMA_VERSION=6` | GT 13780017；contracts/src/telemetry/agent-execution.ts:4 |
-| 采样 | `ParentBasedSampler(TraceIdRatioBasedSampler(Czo=.1))` | 同构，`AGENT_TRACE_SAMPLE_RATIO=0.1` | GT 13779484 附近 |
-| metric 导出 | OTLP GZIP + `DELTA` temporality，`metricHeaders??headers`，间隔 `Izo=3e5` | 逐项同 | GT 13779300；otlp-exporter.ts:77-90 |
-| BSP | `scheduledDelayMillis:5e3`、timeout `??3e3` | 同 | GT 13788 区段；otlp-exporter.ts:63-68 |
-| ContextManager | ALS，注册失败即 disable | 同 | otlp-exporter.ts:96-102 |
+| 项             | 真值                                                                      | 我方                                                       | 证据                                                      |
+| -------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
+| scope 名/版本  | `getTracer/Meter("@zcode/cli-agent-telemetry", String(6))`                | `@drora/cli-agent-telemetry`, `TELEMETRY_SCHEMA_VERSION=6` | GT 13780017；contracts/src/telemetry/agent-execution.ts:4 |
+| 采样           | `ParentBasedSampler(TraceIdRatioBasedSampler(Czo=.1))`                    | 同构，`AGENT_TRACE_SAMPLE_RATIO=0.1`                       | GT 13779484 附近                                          |
+| metric 导出    | OTLP GZIP + `DELTA` temporality，`metricHeaders??headers`，间隔 `Izo=3e5` | 逐项同                                                     | GT 13779300；otlp-exporter.ts:77-90                       |
+| BSP            | `scheduledDelayMillis:5e3`、timeout `??3e3`                               | 同                                                         | GT 13788 区段；otlp-exporter.ts:63-68                     |
+| ContextManager | ALS，注册失败即 disable                                                   | 同                                                         | otlp-exporter.ts:96-102                                   |
 
 resource/span 属性改名 `zcode.*` → `drora.*` 逐一确认：真值 165 个 `zcode.*` 键与我方 `drora.*` 键集合精确差集 = 仅缺
 `drora.model_attempt.client_signing` / `client_signing_error_kind` / `client_signing_unsigned_reason`（→§5）。
 `zcode.chatglm.site`/`zcode.cjs`/`zcode.json` 为 URL/文件名，非遥测，正确排除。
 
 metric 仪器 16 个全对应（8 duration histogram + call.attempts histogram + tokens/stream_stall/creation_drop/abandoned counters + time_to_first 系列 + stream_max_idle + command.first_output）；histogram 边界逐组一致：
-`[1,5,10,30,60,300,600]`（turn）、`[.25,1,2,5,10,30,60,120]`（model.*.duration）、`[.01,.05,.1,.5,1,5,30,120,300,600]`×4（compaction/detached/step/command）、`[.25,.5,1,2,5,10,30,60]`（time_to_first）、`[1,2,3,5,8]`（call.attempts）。
+`[1,5,10,30,60,300,600]`（turn）、`[.25,1,2,5,10,30,60,120]`（model.\*.duration）、`[.01,.05,.1,.5,1,5,30,120,300,600]`×4（compaction/detached/step/command）、`[.25,.5,1,2,5,10,30,60]`（time_to_first）、`[1,2,3,5,8]`（call.attempts）。
 
 exporter 配置解析：真值函数名表 `resolveOtlpTraceEndpoint/resolveOtlpMetricEndpoint/parseOtlpHeaders/prepareModelTelemetryEnv/createPreparedOwner/resolveTelemetryIdentity/normalizeTelemetryDeviceMid` 与我方 `bootstrap.ts` 导出同名同构；常量 `p7a=5*6e4`（锁 stale 5min）、`f7a`/`m7a` 正则逐字符一致。**历史 OTEL headers split 截断案已修复形态对齐**：我方 `parseOtlpHeaders` 用 `indexOf("=")+slice`（值含 `=` 不截断）+ `safeDecode`（bootstrap.ts:103-114），GT 走 SDK `parseKeyPairsIntoRecord`。
 
-TTFT 跨进程观测链路已移植：`LOCAL_TTFT_BUCKETS_MS=[1,5,10,20,50,100,200,500,1e3,2e3,5e3,1e4,3e4,6e4,3e5]`、stage 枚举（renderer_prepare/command_admission/execution_wait/request_prepare/model_request/output_return）、clock 校准、channel `zcode:report-local-ttft-batch` → 我方 `drora:report-local-ttft-batch`（packages/shared/src/localTtft.ts；bootstrap/src/drora-protocol-v4/local-ttft*.ts）。
+TTFT 跨进程观测链路已移植：`LOCAL_TTFT_BUCKETS_MS=[1,5,10,20,50,100,200,500,1e3,2e3,5e3,1e4,3e4,6e4,3e5]`、stage 枚举（renderer_prepare/command_admission/execution_wait/request_prepare/model_request/output_return）、clock 校准、channel `zcode:report-local-ttft-batch` → 我方 `drora:report-local-ttft-batch`（packages/shared/src/localTtft.ts；bootstrap/src/drora-protocol-v4/local-ttft\*.ts）。
 
 ## §2 usage 统计
 
@@ -59,7 +59,7 @@ TTFT 跨进程观测链路已移植：`LOCAL_TTFT_BUCKETS_MS=[1,5,10,20,50,100,2
 
 ## §4 事件遥测计数
 
-- span events 12 个：我方 9 个全对齐（permission_requested/permission_decided/first_output/termination_requested/fallback_selected/first_provider_event/first_content/first_text/stream_stalled），缺 3 个 client_signing_*（→§5）。
+- span events 12 个：我方 9 个全对齐（permission*requested/permission_decided/first_output/termination_requested/fallback_selected/first_provider_event/first_content/first_text/stream_stalled），缺 3 个 client_signing*\*（→§5）。
 - event store 日志：`event_store.appended` 双方都有（GT 13169136/13170346）；**events append summary（100 条阈值聚合 + payloadKinds 分布）在真值同点存在**（GT 13169787-13170648 payloadKinds/"append summary"），我方 events.ts:149-232 为其移植。历史"live 残叶"未复现：16 个 metric 仪器、10 个 fact kind、9 个 span event 均无我方独有多余项。
 - 我方无 telemetry CLI 子命令，真值亦无（bundle 内 `telemetry disable/enable/reset` 命中均为 atlas CLI 补全数据与 tsserver，非 zcode 自身）。
 
@@ -91,16 +91,16 @@ TTFT 跨进程观测链路已移植：`LOCAL_TTFT_BUCKETS_MS=[1,5,10,20,50,100,2
 
 ## §6 差集三分类表
 
-| # | 分类 | 级别 | 项 | 真值证据 | 我方 |
-|---|---|---|---|---|---|
-| 1 | REAL-GAP | P1 | client signing 遥测面：3 span 属性 + 3 span events + sink `model_client_signing` + `model.client_signing.*` 日志族（feature_gate/unsigned_sent/sink_failed/signed_sent/handshake_failed/verify_rejected/bypass_entered/request_failed_closed） | GT 3722012 / 3942720 / 13301983 | 全仓 0 命中（功能域未迁移） |
-| 2 | REAL-GAP | P2 | ProviderEndpointRoutingService：`.matched/.snapshot_updated/.snapshot_refreshed/.refresh_failed` 4 标记 + 路由快照刷新机制 | GT 4065900–4067525 | 仅 provider-endpoint.ts 脱敏器，无路由 |
-| 3 | EXTRA | — | 无 | 16 仪器/10 kind/9 event 逐一核对 | 无多余项 |
-| 4 | SHAPE-DIFF | — | 无实锤 | 常量/SQL/JSONL 格式逐项一致 | — |
+| #   | 分类       | 级别 | 项                                                                                                                                                                                                                                             | 真值证据                         | 我方                                   |
+| --- | ---------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------- |
+| 1   | REAL-GAP   | P1   | client signing 遥测面：3 span 属性 + 3 span events + sink `model_client_signing` + `model.client_signing.*` 日志族（feature_gate/unsigned_sent/sink_failed/signed_sent/handshake_failed/verify_rejected/bypass_entered/request_failed_closed） | GT 3722012 / 3942720 / 13301983  | 全仓 0 命中（功能域未迁移）            |
+| 2   | REAL-GAP   | P2   | ProviderEndpointRoutingService：`.matched/.snapshot_updated/.snapshot_refreshed/.refresh_failed` 4 标记 + 路由快照刷新机制                                                                                                                     | GT 4065900–4067525               | 仅 provider-endpoint.ts 脱敏器，无路由 |
+| 3   | EXTRA      | —    | 无                                                                                                                                                                                                                                             | 16 仪器/10 kind/9 event 逐一核对 | 无多余项                               |
+| 4   | SHAPE-DIFF | —    | 无实锤                                                                                                                                                                                                                                         | 常量/SQL/JSONL 格式逐项一致      | —                                      |
 
 历史基线复核：usage-stats fold 对齐=维持；turn_usage 恒 0=已修复；OTEL headers split 截断=已修复；rollout=model-io=对齐；usage.delta 零发布=已修复（无 usage.completed fact，两侧一致）；events live 残叶=未复现。
 
 ## §7 OPEN-QUESTION
 
 1. metricViews 基数限制：我方 4 个 cardinalityView（limit 250）+ 13 个 histogramView；GT `Azo()` view 集合未逐项反编译（bucket 值全部对上，view 条目数与 cardinalityLimit 数值未逐一取证）。低风险。
-2. `zcode.execution.query_id` 等 12 个 execution.* 属性我方均有键名，但运行时赋值覆盖率（如 launch_surface 各取值）未做动态验证——静态只读范围外。
+2. `zcode.execution.query_id` 等 12 个 execution.\* 属性我方均有键名，但运行时赋值覆盖率（如 launch_surface 各取值）未做动态验证——静态只读范围外。

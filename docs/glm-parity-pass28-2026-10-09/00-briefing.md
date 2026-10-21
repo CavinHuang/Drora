@@ -25,7 +25,7 @@
 - `翻案`：既往台账记录与当前代码不符（附当前证据推翻）。
 - `销案`：确认双侧同形/同一缺省行为，不算差距。
 - `复证-已修` / `复证-仍开`：对派单 prompt 中列出的"既往未清项"给出当前状态。
-- **品牌改名不算 gap**：zcode→drora、ZCODE_*→DRORA_* 字面替换本身豁免；**但改名后丢失对旧名的兼容接受（真值接受旧名而我方只认新名、或生态约定名被改断）算 REAL-GAP**（例：pass27 P2 "ZCODE_* hook env 改名断生态"）。
+- **品牌改名不算 gap**：zcode→drora、ZCODE*\*→DRORA*_ 字面替换本身豁免；**但改名后丢失对旧名的兼容接受（真值接受旧名而我方只认新名、或生态约定名被改断）算 REAL-GAP**（例：pass27 P2 "ZCODE\__ hook env 改名断生态"）。
 - 版本号差异单列一条（我方 package.json 现为 0.0.1，真值 0.16.9，此案已知，勿重复立账）。
 
 ## 取证纪律（违反即报告无效）
@@ -44,7 +44,7 @@
 - **P2 mobile-bridge wire 族**：真值 zcode_type 判别 19 值 vs 我方 2 值；failure 枚举 11 值缺。
 - **P3**：rpcFrame 遥测 28→7 键、provider_endpoint_routing / client_signing / sr.memory 共 14 键缺、bundled-skills 不再内联进 bundle、插件级改名桥缺。
 - **pass27 P1×5 状态待复证**：①workflow 工具条目注释；②官方插件 12 包源码缺（10-09 动态轮称引导 15/15 修复，静态源码面待复证）；③zcode-cua stub；④ClientRequestSigningV4 签名链缺（ed25519+HKDF+PoW+七头）；⑤drora-builtin.json siteRules 半截改名永不命中。
-- **pass27 P2 遗留**：子代理 permissionMode 收窄、automation 模式拒收、ZCODE_*/DRORA_* hook env 兼容、env 双环境分流、ANTHROPIC_* 不进 SDK、validate path wire、EndpointRoutingService、--enable-workflow EXTRA、login 位置参数 EXTRA、Memory 段尾句。
+- **pass27 P2 遗留**：子代理 permissionMode 收窄、automation 模式拒收、ZCODE*\*/DRORA*_ hook env 兼容、env 双环境分流、ANTHROPIC\__ 不进 SDK、validate path wire、EndpointRoutingService、--enable-workflow EXTRA、login 位置参数 EXTRA、Memory 段尾句。
 
 ## 输出约定
 

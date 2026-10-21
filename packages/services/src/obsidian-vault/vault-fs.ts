@@ -3,7 +3,17 @@
 // 逐条保留：相对路径校验/软链拒绝/根内前缀判定/2MB 读写上限/目录配额/
 // wx 独占临时文件 0o600 + rename 原子写/sha256 乐观锁/图片 MIME+魔数+10MB 白名单。
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readdir, readFile, rename, stat, unlink, type FileHandle } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  type FileHandle,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeTextFileAtomic } from "./atomic.js";
 import { isValidImageBytes } from "./image.js";
@@ -114,18 +124,25 @@ async function createFileExclusively(filePath: string, content: string): Promise
     await handle.writeFile(content, "utf-8");
     return true;
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") return false;
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST")
+      return false;
     throw error;
   } finally {
     if (handle !== undefined) await handle.close();
   }
 }
 
-function getSafeVaultTarget(rootPath: string, relativePath: string): Promise<{ absolutePath: string; relativePath: string }> {
+function getSafeVaultTarget(
+  rootPath: string,
+  relativePath: string,
+): Promise<{ absolutePath: string; relativePath: string }> {
   return getSafeVaultPath(rootPath, normalizeRelativeMarkdownPath(relativePath));
 }
 
-function getSafeVaultFolderTarget(rootPath: string, relativePath: string): Promise<{ absolutePath: string; relativePath: string }> {
+function getSafeVaultFolderTarget(
+  rootPath: string,
+  relativePath: string,
+): Promise<{ absolutePath: string; relativePath: string }> {
   return getSafeVaultPath(rootPath, normalizeRelativeVaultFolderPath(relativePath));
 }
 
@@ -163,7 +180,12 @@ export function createVaultFileSystem(rootPath: string) {
           await walk(absolutePath, depth + 1);
           continue;
         }
-        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md") || fileCount >= MAX_VAULT_FILES) continue;
+        if (
+          !entry.isFile() ||
+          !entry.name.toLowerCase().endsWith(".md") ||
+          fileCount >= MAX_VAULT_FILES
+        )
+          continue;
         try {
           const stats = await stat(absolutePath);
           entries.push({
@@ -186,7 +208,8 @@ export function createVaultFileSystem(rootPath: string) {
 
   const readFileEntry = async (relativePath: string): Promise<VaultReadResult> => {
     const target = await getSafeVaultTarget(root, relativePath);
-    if (!(await pathExists(target.absolutePath))) throw new Error(`Vault 文件不存在: ${target.relativePath}`);
+    if (!(await pathExists(target.absolutePath)))
+      throw new Error(`Vault 文件不存在: ${target.relativePath}`);
     const stats = await lstat(target.absolutePath);
     if (!stats.isFile()) throw new Error("Vault 目标不是普通文件");
     if (stats.size > MAX_VAULT_FILE_BYTES) throw new Error("Vault 文件超过 2 MB 读取上限");
@@ -226,7 +249,9 @@ export function createVaultFileSystem(rootPath: string) {
     }
   };
 
-  const savePastedImage = async (input: VaultSavePastedImageInput): Promise<{ src: string } | null> => {
+  const savePastedImage = async (
+    input: VaultSavePastedImageInput,
+  ): Promise<{ src: string } | null> => {
     const extension = PASTED_IMAGE_EXTENSIONS[input.mimeType];
     if (
       !extension ||
@@ -252,7 +277,11 @@ export function createVaultFileSystem(rootPath: string) {
     } catch {
       return null;
     }
-    if (data.length === 0 || data.length > MAX_VAULT_PASTED_IMAGE_BYTES || !isValidImageBytes(input.mimeType, data)) {
+    if (
+      data.length === 0 ||
+      data.length > MAX_VAULT_PASTED_IMAGE_BYTES ||
+      !isValidImageBytes(input.mimeType, data)
+    ) {
       return null;
     }
 
@@ -260,7 +289,8 @@ export function createVaultFileSystem(rootPath: string) {
     const directory = dirname(note.relativePath);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `pasted-image-${timestamp}-${randomUUID()}.${extension}`;
-    const mediaRelativePath = directory === "." ? `assets/${filename}` : `${directory}/assets/${filename}`;
+    const mediaRelativePath =
+      directory === "." ? `assets/${filename}` : `${directory}/assets/${filename}`;
     const target = await getSafeVaultPath(root, mediaRelativePath);
     await mkdir(dirname(target.absolutePath), { recursive: true });
     // 目录创建引入了新祖先，落盘前按同一规则重新校验。
@@ -284,7 +314,12 @@ export function createVaultFileSystem(rootPath: string) {
       const current = await readFileEntry(target.relativePath);
       if (input.createOnly) throw new Error(`Vault 文件已存在: ${target.relativePath}`);
       if (input.expectedSha256 && input.expectedSha256 !== current.sha256) {
-        return { ok: false, reason: "conflict", currentSha256: current.sha256, currentModifiedAt: current.modifiedAt };
+        return {
+          ok: false,
+          reason: "conflict",
+          currentSha256: current.sha256,
+          currentModifiedAt: current.modifiedAt,
+        };
       }
     } else if (input.expectedSha256) {
       throw new Error("Vault 文件已不存在，无法按预期版本写入");
@@ -293,28 +328,46 @@ export function createVaultFileSystem(rootPath: string) {
     await mkdir(dirname(target.absolutePath), { recursive: true });
     // 目录创建引入了新祖先，原子写入前按同一规则重新校验。
     const revalidated = await getSafeVaultTarget(root, target.relativePath);
-    await writeTextFileAtomic(revalidated.absolutePath, input.content, { createOnly: input.createOnly });
+    await writeTextFileAtomic(revalidated.absolutePath, input.content, {
+      createOnly: input.createOnly,
+    });
     const result = await readFileEntry(revalidated.relativePath);
-    return { ok: true, relativePath: result.relativePath, sha256: result.sha256, modifiedAt: result.modifiedAt };
+    return {
+      ok: true,
+      relativePath: result.relativePath,
+      sha256: result.sha256,
+      modifiedAt: result.modifiedAt,
+    };
   };
 
-  const createUntitledNote = async (inboxPath: string, content = "", now = new Date()): Promise<VaultWriteResult> => {
+  const createUntitledNote = async (
+    inboxPath: string,
+    content = "",
+    now = new Date(),
+  ): Promise<VaultWriteResult> => {
     if (Buffer.byteLength(content, "utf-8") > MAX_VAULT_FILE_BYTES) {
       throw new Error("Vault 写入内容超过 2 MB 限制");
     }
-    const normalizedInboxPath = normalizeRelativeMarkdownPath(join(inboxPath, "placeholder.md")).replace(
-      /\/placeholder\.md$/,
-      "",
-    );
+    const normalizedInboxPath = normalizeRelativeMarkdownPath(
+      join(inboxPath, "placeholder.md"),
+    ).replace(/\/placeholder\.md$/, "");
 
     for (let sequence = 1; sequence < Number.MAX_SAFE_INTEGER; sequence++) {
-      const target = await getSafeVaultTarget(root, `${normalizedInboxPath}/${untitledNoteFilename(now, sequence)}`);
+      const target = await getSafeVaultTarget(
+        root,
+        `${normalizedInboxPath}/${untitledNoteFilename(now, sequence)}`,
+      );
       await mkdir(dirname(target.absolutePath), { recursive: true });
       // 目录创建引入了新祖先，独占创建前按同一规则重新校验。
       const revalidated = await getSafeVaultTarget(root, target.relativePath);
       if (!(await createFileExclusively(revalidated.absolutePath, content))) continue;
       const result = await readFileEntry(revalidated.relativePath);
-      return { ok: true, relativePath: result.relativePath, sha256: result.sha256, modifiedAt: result.modifiedAt };
+      return {
+        ok: true,
+        relativePath: result.relativePath,
+        sha256: result.sha256,
+        modifiedAt: result.modifiedAt,
+      };
     }
 
     throw new Error("Vault 无法分配未命名笔记文件名");
@@ -329,7 +382,10 @@ export function createVaultFileSystem(rootPath: string) {
       throw new Error("Vault 写入内容超过 2 MB 限制");
     }
     const folder = await getSafeVaultFolderTarget(root, folderPath);
-    if (!(await pathExists(folder.absolutePath)) || !(await lstat(folder.absolutePath)).isDirectory()) {
+    if (
+      !(await pathExists(folder.absolutePath)) ||
+      !(await lstat(folder.absolutePath)).isDirectory()
+    ) {
       throw new Error("目标 Vault 文件夹不存在");
     }
 
@@ -340,7 +396,12 @@ export function createVaultFileSystem(rootPath: string) {
       const target = await getSafeVaultTarget(root, relativePath);
       if (!(await createFileExclusively(target.absolutePath, content))) continue;
       const result = await readFileEntry(target.relativePath);
-      return { ok: true, relativePath: result.relativePath, sha256: result.sha256, modifiedAt: result.modifiedAt };
+      return {
+        ok: true,
+        relativePath: result.relativePath,
+        sha256: result.sha256,
+        modifiedAt: result.modifiedAt,
+      };
     }
 
     throw new Error("Vault 无法分配未命名笔记文件名");
@@ -374,12 +435,22 @@ export function createVaultFileSystem(rootPath: string) {
     }
 
     const requestedName = input.name.trim();
-    if (!requestedName || requestedName.includes("/") || requestedName.includes("\\") || requestedName.includes("\0")) {
+    if (
+      !requestedName ||
+      requestedName.includes("/") ||
+      requestedName.includes("\\") ||
+      requestedName.includes("\0")
+    ) {
       throw new Error("文件名不能为空且不能包含路径分隔符");
     }
-    const filename = requestedName.toLowerCase().endsWith(".md") ? requestedName : `${requestedName}.md`;
+    const filename = requestedName.toLowerCase().endsWith(".md")
+      ? requestedName
+      : `${requestedName}.md`;
     const parentPath = parentRelativePath(source.relativePath);
-    const target = await getSafeVaultTarget(root, parentPath ? `${parentPath}/${filename}` : filename);
+    const target = await getSafeVaultTarget(
+      root,
+      parentPath ? `${parentPath}/${filename}` : filename,
+    );
     if (target.relativePath === source.relativePath) return current;
     if (await pathExists(target.absolutePath)) throw new Error("同名 Markdown 文件已存在");
 
@@ -391,7 +462,8 @@ export function createVaultFileSystem(rootPath: string) {
 
   const deleteFile = async (input: VaultDeleteInput): Promise<void> => {
     const target = await getSafeVaultTarget(root, input.relativePath);
-    if (!(await pathExists(target.absolutePath))) throw new Error(`Vault 文件不存在: ${target.relativePath}`);
+    if (!(await pathExists(target.absolutePath)))
+      throw new Error(`Vault 文件不存在: ${target.relativePath}`);
     const stats = await lstat(target.absolutePath);
     if (!stats.isFile()) throw new Error("Vault 目标不是普通文件");
     if (input.expectedSha256) {

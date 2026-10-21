@@ -6,11 +6,11 @@
 
 ## §1 钩子事件全集
 
-| 真值证据（偏移） | 真值内容 | 我方 | 结论 |
-| --- | --- | --- | --- |
-| 1309731（drs 枚举）/ 1311900（Tl 对象）/ 4099660（iHr 数组） | `SessionStart,UserPromptSubmit,PreToolUse,PermissionRequest,PostToolUse,PostToolUseFailure,Stop` 共 7 值 | `contracts/src/hooks/index.ts:7-15`、`shared/workspace-hook-config.ts:9-17`、`shared/workspace-hook-trust-store-file.ts:23-31` 同 7 值 | 一致 |
-| `grep -c`：PreCompact=0 | 无 PreCompact 事件 | 我方亦无 | 一致 |
-| SubagentStop 17 处（1237027 等）、SessionEnd 4 处 | 存在于 subagent/session 生命周期域，**不在任何 hooks 事件枚举中** | 我方无 | 非 hooks REAL-GAP（见 §6 OQ-3） |
+| 真值证据（偏移）                                             | 真值内容                                                                                                 | 我方                                                                                                                                   | 结论                            |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 1309731（drs 枚举）/ 1311900（Tl 对象）/ 4099660（iHr 数组） | `SessionStart,UserPromptSubmit,PreToolUse,PermissionRequest,PostToolUse,PostToolUseFailure,Stop` 共 7 值 | `contracts/src/hooks/index.ts:7-15`、`shared/workspace-hook-config.ts:9-17`、`shared/workspace-hook-trust-store-file.ts:23-31` 同 7 值 | 一致                            |
+| `grep -c`：PreCompact=0                                      | 无 PreCompact 事件                                                                                       | 我方亦无                                                                                                                               | 一致                            |
+| SubagentStop 17 处（1237027 等）、SessionEnd 4 处            | 存在于 subagent/session 生命周期域，**不在任何 hooks 事件枚举中**                                        | 我方无                                                                                                                                 | 非 hooks REAL-GAP（见 §6 OQ-3） |
 
 事件 stdin 映射（`createClaudeCompatibleHookStdin`，真值 5050100-5050900）：`hook_event_name/agent_type/permission_mode/session_id/transcript_path(+transcriptPath)/tool_name/tool_input/tool_use_id/permission_suggestions/tool_response/error_details/error/is_interrupt/last_assistant_message/stop_hook_active`，campos 展开保留 camelCase；transcript 写 tmp 后随事件清理。与我方 `core/src/hooks/configured-runner-input.ts:14-68` 逐字段一致。
 
@@ -31,7 +31,7 @@
 ## §3 执行器
 
 - **Runner**：真值 `InMemoryHookRunner`（5057300 `g_e`）= 我方 `runner.ts`：admission 预扫描剔除 skipLifecycle→hookCount 修正、循环内 admission 重解析、async command→background（独立生命周期，输出不回流）、AbortController+`Symbol("hook-timeout")`、HookRunStarted/Completed/Failed/Blocked 生命周期事件、diagnostics 截断 4000、blockReason 进终态事件。逐行一致。
-- **spawn**：command→shell 模式（shell:true|string 可选），process→argv 模式；经 executionPort（真值 `Wio` 5056800 = 我方 `configured-runner-callback.ts`）。env overlay：真值 5 基础键（CLAUDE_CODE_SESSION_ID/CLAUDE_PROJECT_DIR/CLAUDE_SESSION_ID/ZCODE_PROJECT_DIR/ZCODE_SESSION_ID）+plugin 6 键（CLAUDE_PLUGIN_DATA/ROOT + ZCODE_PLUGIN_DATA/ID/NAME/ROOT，真值 5050450 `I0n`）；我方同构但 ZCODE_*→DRORA_*（`configured-runner-input.ts:74-98`）→ SHAPE-DIFF-1。
+- **spawn**：command→shell 模式（shell:true|string 可选），process→argv 模式；经 executionPort（真值 `Wio` 5056800 = 我方 `configured-runner-callback.ts`）。env overlay：真值 5 基础键（CLAUDE*CODE_SESSION_ID/CLAUDE_PROJECT_DIR/CLAUDE_SESSION_ID/ZCODE_PROJECT_DIR/ZCODE_SESSION_ID）+plugin 6 键（CLAUDE_PLUGIN_DATA/ROOT + ZCODE_PLUGIN_DATA/ID/NAME/ROOT，真值 5050450 `I0n`）；我方同构但 ZCODE*_→DRORA\__（`configured-runner-input.ts:74-98`）→ SHAPE-DIFF-1。
 - **变量展开 `${…}`**：两侧各 11 键，品牌不同（真值含 ZCODE_SKILL_DIR；我方含 DRORA_SKILL_DIR）；skill 上下文缺失时两侧均抛 ConfigurationError(recoverable)。
 - **超时**：`resolveHookTimeoutMs`（真值 `Mio→wOe`，4099500）：`timeoutMs ?? (command.timeout*1000) ?? default`，`max(1,round)`；默认 60000ms、maxOutputBytes 32768（真值常量 `Mjs/Njs`）= 我方 `shared/workspace-hook-config.ts:7-8,113-127`、`contracts:425-430` 一致。
 - **stdout 解析**：`parseHookStdout`（真值 `wQs`）：非 `{` 开头/非 JSON→视为诊断文本忽略；schema 校验失败抛 ToolExecutionFailed。exit code 2→`createExitCodeBlockOutput`（真值 `kQs`）：PreToolUse→deny、PermissionRequest→decision.deny、Stop→decision:"block"、其余 continue:false；stderr 优先作 reason；exit 0 才解析 stdout；非 0 非 2→ToolExecutionFailed(recoverable)。与我方 `configured-runner-callback.ts:118-238` 逐行一致。`HookJSONOutputSchema`（真值 1311500 `uyr`：decision approve|block、hookSpecificOutput 7 分支、additional_context、continue、suppressOutput、systemMessage、stopReason、reason）= 我方 `contracts/src/hooks/index.ts:196-292` 逐字一致。
@@ -49,15 +49,15 @@
 
 ## §5 差集三分类
 
-| # | 分类 | 级别 | 内容 | 真值证据 | 我方证据 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | SHAPE-DIFF | P2 | hook 进程 env 与 `${…}` 变量品牌键：真值 `ZCODE_PROJECT_DIR/ZCODE_SESSION_ID/ZCODE_PLUGIN_DATA/ID/NAME/ROOT/ZCODE_SKILL_DIR`，我方以 `DRORA_*` 等价替换（CLAUDE_* 兼容层两侧均保留、键数 5+6/11 对等）。第三方为 zcode 编写的 hook 显式引用 ZCODE_* 时在我方静默取空 | 5050275-5050500 `I0n/h_e` | `configured-runner-input.ts:79-97,106-121` |
-| 2 | SHAPE-DIFF | P3 | configFileKind 枚举值 `zcode.json/.zcode/config.json` vs `drora.json/.drora/config.json`；该字符串进入 bundle digest 输入，两侧 trust 记录/bundle 互不认领（品牌隔离的预期后果：迁移场景需重新授权） | 1306937 | `workspace-hook-config.ts:20,237-241` |
-| 3 | SHAPE-DIFF | P3 | trust store 路径解析：真值 `~/.zcode/cli/config.json` storage.dir→默认根 `.zcode`；我方 `~/.drora/cli/config.json`→默认根 `.drora`；文件名/锁/corrupt 恢复行为一致 | 1550700 `yas/kas` | `workspace-hook-trust-store.ts:130-142` |
-| 4 | SHAPE-DIFF | P3 | stdin transcript 临时目录前缀 `zcode-claude-hook-` vs `drora-hook-`（无行为影响，清理语义一致） | 5050150 | `configured-runner-input.ts:25` |
-| 5 | EXTRA | P3 | `ToolCallHookMeta."drora/isSkill"/"drora/skillName"`（hook 元数据展示扩展）：真值 `isSkill` 仅出现于 plugin 能力域（4086208/12596342），hook meta 域未见该键。UI 域所有权属批 6/F1 | 4086208 | `packages/shared/src/hooks.ts:84-85` |
+| #   | 分类       | 级别 | 内容                                                                                                                                                                                                                                                                   | 真值证据                  | 我方证据                                   |
+| --- | ---------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------ |
+| 1   | SHAPE-DIFF | P2   | hook 进程 env 与 `${…}` 变量品牌键：真值 `ZCODE_PROJECT_DIR/ZCODE_SESSION_ID/ZCODE_PLUGIN_DATA/ID/NAME/ROOT/ZCODE_SKILL_DIR`，我方以 `DRORA_*` 等价替换（CLAUDE*\* 兼容层两侧均保留、键数 5+6/11 对等）。第三方为 zcode 编写的 hook 显式引用 ZCODE*\* 时在我方静默取空 | 5050275-5050500 `I0n/h_e` | `configured-runner-input.ts:79-97,106-121` |
+| 2   | SHAPE-DIFF | P3   | configFileKind 枚举值 `zcode.json/.zcode/config.json` vs `drora.json/.drora/config.json`；该字符串进入 bundle digest 输入，两侧 trust 记录/bundle 互不认领（品牌隔离的预期后果：迁移场景需重新授权）                                                                   | 1306937                   | `workspace-hook-config.ts:20,237-241`      |
+| 3   | SHAPE-DIFF | P3   | trust store 路径解析：真值 `~/.zcode/cli/config.json` storage.dir→默认根 `.zcode`；我方 `~/.drora/cli/config.json`→默认根 `.drora`；文件名/锁/corrupt 恢复行为一致                                                                                                     | 1550700 `yas/kas`         | `workspace-hook-trust-store.ts:130-142`    |
+| 4   | SHAPE-DIFF | P3   | stdin transcript 临时目录前缀 `zcode-claude-hook-` vs `drora-hook-`（无行为影响，清理语义一致）                                                                                                                                                                        | 5050150                   | `configured-runner-input.ts:25`            |
+| 5   | EXTRA      | P3   | `ToolCallHookMeta."drora/isSkill"/"drora/skillName"`（hook 元数据展示扩展）：真值 `isSkill` 仅出现于 plugin 能力域（4086208/12596342），hook meta 域未见该键。UI 域所有权属批 6/F1                                                                                     | 4086208                   | `packages/shared/src/hooks.ts:84-85`       |
 
-REAL-GAP：0 项。历史基线复核：hooks-trust「settings.json 永无法授权」断裂在当前真值已不可复现（store load/grant/review/policy 门全链路完整，5c58bf1 修复已在真值 0.16.9 中）；我方同链路完整。批 2 的 DRORA_* 结论复测属实；批 6 hookDetail 13 字段（KVt，686600）与 `HookExecutionDescriptor`（Lgc）schema 两侧一致。
+REAL-GAP：0 项。历史基线复核：hooks-trust「settings.json 永无法授权」断裂在当前真值已不可复现（store load/grant/review/policy 门全链路完整，5c58bf1 修复已在真值 0.16.9 中）；我方同链路完整。批 2 的 DRORA\_\* 结论复测属实；批 6 hookDetail 13 字段（KVt，686600）与 `HookExecutionDescriptor`（Lgc）schema 两侧一致。
 
 ## §6 OPEN-QUESTION
 

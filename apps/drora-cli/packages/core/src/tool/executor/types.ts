@@ -1,4 +1,42 @@
-import type { AgentExecutionTelemetryPort, AgentTelemetryActorKind, AutomationPort, BackgroundResultOriginMeta, BrowserControlPort, CollaborationMode, CoordinatorResponsePort, DynamicWorkflowRunPort, DynamicWorkflowSnippetPort, EmbeddedSearchBackend, ExecutionPort, ExecutionShellSelection, VaultSearchPort, OffPeakPort, FileSystemPort, HttpClientPort, ImageProcessorPort, Logger, Model, ModelCatalogPort, TopicResourcePort, PdfDocumentPort, PermissionBrokerPort, SessionEvent, SessionId, SessionModePort, SessionStorePort, SkillPort, SubagentPort, SubagentRunOptions, ToolArtifactStorePort, TraceContext, TurnId, WorkflowEscalatePort, WorkflowPort, WorkflowSubmitPort } from "@drora/contracts";
+import type {
+  AgentExecutionTelemetryPort,
+  AgentTelemetryActorKind,
+  AutomationPort,
+  BackgroundResultOriginMeta,
+  BrowserControlPort,
+  CollaborationMode,
+  CoordinatorResponsePort,
+  DynamicWorkflowRunPort,
+  DynamicWorkflowSnippetPort,
+  EmbeddedSearchBackend,
+  ExecutionPort,
+  ExecutionShellSelection,
+  VaultSearchPort,
+  FileSystemPort,
+  HttpClientPort,
+  ImageProcessorPort,
+  Logger,
+  Model,
+  ModelCatalogPort,
+  OffPeakPort,
+  TopicResourcePort,
+  PdfDocumentPort,
+  PermissionBrokerPort,
+  SessionEvent,
+  SessionId,
+  SessionModePort,
+  SessionStorePort,
+  SkillPort,
+  SubagentPort,
+  SubagentRunOptions,
+  ToolArtifactStorePort,
+  ToolSearchExecutionContext,
+  TraceContext,
+  TurnId,
+  WorkflowEscalatePort,
+  WorkflowPort,
+  WorkflowSubmitPort,
+} from "@drora/contracts";
 import type { HookRunner } from "../../hooks/index.js";
 import type { PermissionService } from "../../permission/service.js";
 import type { RuntimeTaskRegistry } from "../../runtime-task/registry.js";
@@ -141,6 +179,7 @@ export interface ToolExecutor {
 }
 
 export interface ToolExecuteOptions {
+  toolSearch?: ToolSearchExecutionContext;
   automationTurn?: boolean;
   offPeakTurn?: boolean;
   signal?: AbortSignal;

@@ -49,6 +49,7 @@ import type { resolveWorkspaceGitBranch } from "./tui-workspace-git.js";
 export type BootstrapModule = typeof import("@drora/bootstrap");
 
 export interface RunDependencies extends PluginsCommandOverrides {
+  migrateStorage?: () => Promise<import("@drora/shared/sqlite-migrations").MigrationResult>;
   protocolLifecycle?: RunDroraProtocolAgentOptions["lifecycle"];
   protocolInput?: NodeJS.ReadableStream;
   createManagedCdpBrowserRuntime?: (

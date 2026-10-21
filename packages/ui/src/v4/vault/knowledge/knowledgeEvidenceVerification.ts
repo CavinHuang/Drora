@@ -83,9 +83,15 @@ export async function verifyKnowledgeCandidateEvidence(params: {
         reason: "reason" in resolved ? resolved.reason : null,
       };
     }
-    if (!citationMatchesSelectedCandidate({
-      run, candidate, sessionId, receipt: prepared.receipt, citation: resolved.citation,
-    })) {
+    if (
+      !citationMatchesSelectedCandidate({
+        run,
+        candidate,
+        sessionId,
+        receipt: prepared.receipt,
+        citation: resolved.citation,
+      })
+    ) {
       return { phase: "unavailable", status: "forbidden", reason: "citation_mismatch" };
     }
 
@@ -116,12 +122,13 @@ export async function verifyPreviousKnowledgeCandidateEvidence(params: {
   sessionId?: string;
 }): Promise<KnowledgeEvidenceInspectState> {
   const { run, candidate } = params;
-  const belongsToRun = run.candidates.some((entry) =>
-    entry.articleId === candidate.articleId &&
-    entry.relativePath === candidate.relativePath &&
-    entry.fileSha256 === candidate.fileSha256 &&
-    entry.chunkSha256 === candidate.chunkSha256 &&
-    sameQuote(entry.quote, candidate.quote)
+  const belongsToRun = run.candidates.some(
+    (entry) =>
+      entry.articleId === candidate.articleId &&
+      entry.relativePath === candidate.relativePath &&
+      entry.fileSha256 === candidate.fileSha256 &&
+      entry.chunkSha256 === candidate.chunkSha256 &&
+      sameQuote(entry.quote, candidate.quote),
   );
   if (!["ready", "partial"].includes(run.status) || !belongsToRun) {
     return { phase: "unavailable", status: "forbidden", reason: "previous_candidate_unavailable" };

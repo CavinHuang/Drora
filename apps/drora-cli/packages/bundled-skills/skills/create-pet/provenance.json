@@ -1,0 +1,108 @@
+{
+  "source": "OpenAI Codex desktop 26.1013.31256, resources/skills/skills/.curated/hatch-pet",
+  "license": "Apache-2.0",
+  "referenceSkillSha256": "ac22ec3cbabc95ba03ee3d7cf43a1209fcd139d56c69d35b10c57b9b5f794da0",
+  "adaptations": [
+    "Drora-specific SKILL.md, pipeline.md, publish_pet.py and publishing tests are new.",
+    "prepare_pet_run.py changes product wording, default run-directory name and generation-tool routing metadata.",
+    "Original copied helpers, references and regression tests are otherwise unchanged; hashes below identify upstream bytes."
+  ],
+  "upstreamFiles": [
+    {
+      "path": "LICENSE.txt",
+      "sha256": "44e03f7e263eb3ad256440c1eeab5e49168baff5a78ecef9a5447261cf3a91bc"
+    },
+    {
+      "path": "references/animation-rows.md",
+      "sha256": "62643046b18de139c9147bebe79a0912c9cb1b629c535ed4189a07c41b10a3e3"
+    },
+    {
+      "path": "references/codex-pet-contract.md",
+      "sha256": "8c6d1557900c44f267003b9097ad1cfb4e4d29e574ae325c0dd0943b71510d72"
+    },
+    {
+      "path": "references/qa-rubric.md",
+      "sha256": "cb39ff8b55583977c33feef09a2a4cfe887fd17e398c8f439d40f59b6964c0af"
+    },
+    {
+      "path": "scripts/assemble_extended_atlas.py",
+      "sha256": "c05db88c26ad2c2b502008e7fd74ef119f17ed67249b21c8d31e178416e6af29"
+    },
+    {
+      "path": "scripts/combine_direction_blind_verdicts.py",
+      "sha256": "345356373cd31d753dfce10ae768c5e72fff3c053f00938a5d876569900e7e3f"
+    },
+    {
+      "path": "scripts/compose_atlas.py",
+      "sha256": "464c198c63e3bc267144056573c8cab3de1f99a4fc5bd47f9e52dffe3f1c88ad"
+    },
+    {
+      "path": "scripts/compose_cardinal_anchor_strip.py",
+      "sha256": "da08687a15a6d4c7a4b35dba215c79c9041c83817260bb407306be427ed28931"
+    },
+    {
+      "path": "scripts/derive_running_left_from_running_right.py",
+      "sha256": "6bcfdee72cade0f9f585440ce6c5904e88fbbb3133f0171d91fef95d2b743ae7"
+    },
+    {
+      "path": "scripts/despill_chroma_edges.py",
+      "sha256": "dffe62a25a793273df1f548e58e53d4d85d574f5f49e47d0c1e3f9856f4e5bb7"
+    },
+    {
+      "path": "scripts/extract_cardinal_anchors.py",
+      "sha256": "a0f10a4b6091d1f6487fae10bddd3c9e3e908da8325a8c1126c95116f26c00d3"
+    },
+    {
+      "path": "scripts/extract_strip_frames.py",
+      "sha256": "2b9d2ccc997c3b7a084476fdd589fe180b9f1fe663b9147e42159fd1dc8ea818"
+    },
+    {
+      "path": "scripts/inspect_frames.py",
+      "sha256": "a7521cf9509627313d662eb0cd56cd6655c27a3c9cedf54ed78faf52305bfe4b"
+    },
+    {
+      "path": "scripts/make_contact_sheet.py",
+      "sha256": "76c277a77f9cacb4d11c12d6d81bacaba5603ae90775bfa36f214d5dbf84ba5e"
+    },
+    {
+      "path": "scripts/make_direction_blind_qa_sheet.py",
+      "sha256": "7e7ae9a21940c76d50ef51b9b631eeb9210077cd7c9224fc2a9e3d5cee2ab2fe"
+    },
+    {
+      "path": "scripts/make_direction_qa_sheet.py",
+      "sha256": "a1c2b56c57bff6f42fcea407a0586f7121fbb099fbe72409d0226e208987d8b3"
+    },
+    {
+      "path": "scripts/measure_direction_continuity.py",
+      "sha256": "2c03ac46e1972b42f9eeb7fa7c491e2054ff58fd783c38dca93d022e5ff6ebd3"
+    },
+    {
+      "path": "scripts/prepare_pet_run.py",
+      "sha256": "e715302f7c23c1c768a78bbd1803b601fabcd21292702396fd0100b09b282f45"
+    },
+    {
+      "path": "scripts/render_animation_previews.py",
+      "sha256": "d085a2b63b50876337600815a7ed9e9e7091b71114ce281e113d6971080b5dd0"
+    },
+    {
+      "path": "scripts/validate_atlas.py",
+      "sha256": "523528e77f58cbc4b71500249988092ba750d54657f37fe21c0a0a00a248f50a"
+    },
+    {
+      "path": "scripts/validate_direction_blind_verdicts.py",
+      "sha256": "945de893cdc62120fabb81541add210a4a94a4d822715392a7451a533e3456c0"
+    },
+    {
+      "path": "tests/test_assemble_extended_atlas.py",
+      "sha256": "726d79bba90d102a9b0dc20386f7ea4dbb926c3eac658cd4c3d9bb29c212426a"
+    },
+    {
+      "path": "tests/test_chroma_matte_decontamination.py",
+      "sha256": "1d17b3f56a64c6bb1c9b7b81b1bd048eaefc6f078ab83cd117e5186fc5925123"
+    },
+    {
+      "path": "tests/test_direction_blind_consensus.py",
+      "sha256": "cc70633a859f76c4e9d30f34d4f06c54523727287776597e0f960442213db2b4"
+    }
+  ]
+}

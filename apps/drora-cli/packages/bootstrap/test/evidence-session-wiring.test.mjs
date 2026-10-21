@@ -23,7 +23,6 @@ import { createKnowledgeEvidenceGate } from "../src/knowledge-evidence/evidence-
 import { SessionEventType } from "@drora/contracts";
 import { NATIVE_HANDLERS } from "../src/drora-protocol-v4/commands/handlers/index.js";
 import { ProductProjection } from "../src/drora-protocol-v4/product-projection.js";
-import { startCanonicalIntent } from "../src/drora-protocol-v4/commands/handlers/canonical-intent-replay.js";
 import { normalizeConversationEvent } from "../src/drora-protocol-v4/event-normalizer.js";
 
 const SESSION_ID = "session-e2e";
@@ -616,25 +615,88 @@ test("历史证据：编辑或重试前拒绝失效引用，不进行 rewind", a
   }
 });
 
-test("历史证据：重新发送强制复验并携带原引用，不允许 guide", async () => {
-  const { app, calls } = createRecordApp();
-  const host = createHost({ app, calls, verifier: () => ({ ok: true }) });
-  const record = host.getRecord(SESSION_ID);
-  await startCanonicalIntent(
-    host,
-    record,
-    { ...sendTextEnvelope(), type: "retryTurn" },
-    historicalEvidenceTarget(),
-    "用原笔记回答问题",
-    [],
-    undefined,
+// S2 前移后的守卫位置（修复依据：canonical-intent-replay.ts 已声明守卫迁移）：
+// - guide 降级在原始发送时由 session-flow 的 resolveEvidenceSafeDelivery 裁决；
+// - edit/retry 的 verifyEvidenceOrThrow 前移到 fork-edit-retry 的 rewind/branch cut 之前。
+// 本用例改走两条新守卫入口，保留原断言语义强度：guide 请求必须降级 queue；
+// 重发必须先复验再 rewind；原引用与降级裁决原样随行，不得还原成 guide。
+test("历史证据：重发在 rewind 前强制复验并携带原引用，guide 降级不得还原", async () => {
+  const refs = [{ receiptId: "evr_historical" }];
+
+  // 第 1 层（新降级所有者，session-flow sendText）：原始发送请求 guide + 证据
+  // → 必须回退 queue 并记录 guard reason，refs 固定进 canonical intent。
+  const sendPhase = createRecordApp();
+  const sendHost = createHost({
+    app: sendPhase.app,
+    calls: sendPhase.calls,
+    verifier: () => ({ ok: true }),
+  });
+  await NATIVE_HANDLERS.sendText(
+    sendHost,
+    sendTextEnvelope({ payload: { requestedDelivery: "guide", evidenceRefs: refs } }),
   );
-  assert.equal(calls.verifierInputs.length, 1);
-  assert.deepEqual(calls.verifierInputs[0].evidenceRefs, [{ receiptId: "evr_historical" }]);
-  assert.equal(calls.sendInput.length, 1);
-  assert.deepEqual(calls.sendInput[0].options.intent.evidenceRefs, [{ receiptId: "evr_historical" }]);
-  assert.equal(calls.sendInput[0].options.intent.requestedDelivery, "queue");
-  assert.equal(calls.sendInput[0].options.intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+  assert.equal(sendPhase.calls.sendInput.length, 1);
+  const admittedIntent = sendPhase.calls.sendInput[0].options.intent;
+  assert.equal(admittedIntent.requestedDelivery, "queue");
+  assert.equal(admittedIntent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+  assert.deepEqual(admittedIntent.evidenceRefs, refs);
+
+  // 第 2 层（新复验所有者，fork-edit-retry rewind 前）：历史 edit/retry 走真 handler，
+  // 投影目标使用第 1 层实际准入的 canonical intent——重发只能重放已降级形态。
+  for (const type of ["editUserQuery", "retryTurn"]) {
+    const { app, calls } = createRecordApp();
+    const sequence = [];
+    const rewindAnchors = [];
+    const host = createHost({
+      app,
+      calls,
+      verifier: (input) => {
+        sequence.push("verify");
+        return { ok: true };
+      },
+    });
+    app.runtime.rewindConversationToMessage = async (request) => {
+      sequence.push("rewind");
+      rewindAnchors.push(request.targetMessageId);
+      return { strategy: "active_chain" };
+    };
+    const recordedSendInput = app.sendInput;
+    app.sendInput = async (input, options) => {
+      sequence.push("sendInput");
+      return recordedSendInput(input, options);
+    };
+    host.resolveRowActionTarget = () => ({
+      ok: true,
+      row: { rowId: 1, turnId: "turn-1" },
+      messageId: "message-1",
+      editTarget: {
+        entityId: "user-row-1",
+        productTurnId: "turn-1",
+        transcriptMessageId: "message-1",
+        coveredByStableCompact: false,
+        intent: admittedIntent,
+      },
+    });
+    const envelope = {
+      ...sendTextEnvelope(),
+      type,
+      payload: {
+        target: { rowId: 1, entityId: "user-row-1" },
+        ...(type === "editUserQuery" ? { newText: admittedIntent.text } : {}),
+      },
+    };
+    await NATIVE_HANDLERS[type](host, envelope);
+    // 复验先于 rewind，rewind 先于重发（守卫前移后的位置语义）。
+    assert.deepEqual(sequence, ["verify", "rewind", "sendInput"], `${type}: guard order`);
+    assert.equal(calls.verifierInputs.length, 1);
+    assert.deepEqual(calls.verifierInputs[0].evidenceRefs, refs);
+    assert.deepEqual(rewindAnchors, ["message-1"]);
+    assert.equal(calls.sendInput.length, 1);
+    const intent = calls.sendInput[0].options.intent;
+    assert.deepEqual(intent.evidenceRefs, refs);
+    assert.equal(intent.requestedDelivery, "queue", `${type}: 证据重发不得还原 guide`);
+    assert.equal(intent.fallbackReasonCode, KNOWLEDGE_EVIDENCE_GUARDS.guideForbidden);
+  }
 });
 
 /**

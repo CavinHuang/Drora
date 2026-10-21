@@ -76,15 +76,19 @@ export function reorderCandidates(
  */
 export async function grantDecisionConsentForRun(params: {
   decision: KnowledgeDecisionContext;
-  run: { view: KnowledgeRunView; sourceRef: { vaultId: string; sourceEpoch: number } | null } | null;
+  run: {
+    view: KnowledgeRunView;
+    sourceRef: { vaultId: string; sourceEpoch: number } | null;
+  } | null;
   candidateIds?: string[];
   nowMs: number;
 }): Promise<KnowledgeDecisionConsentGrantResult> {
   const { decision, run, nowMs } = params;
   // 配置热生效（spec §5d.10）：动态源在场时解析当前 provider 绑定授权（与管线同源）。
-  const provider = decision.provider ?? ((await decision.providerSource?.()) ?? null);
+  const provider = decision.provider ?? (await decision.providerSource?.()) ?? null;
   if (!provider) return { granted: false, reason: "disabled" };
-  if (!run || run.view.status === "retrieving") return { granted: false, reason: "run_not_settled" };
+  if (!run || run.view.status === "retrieving")
+    return { granted: false, reason: "run_not_settled" };
   if (!["ready", "partial", "empty"].includes(run.view.status)) {
     return { granted: false, reason: "run_not_settled" };
   }

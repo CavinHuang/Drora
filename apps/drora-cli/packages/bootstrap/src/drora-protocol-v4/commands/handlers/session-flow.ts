@@ -7,11 +7,12 @@ import type {
   CommandResult,
 } from "@drora/shared/drora-protocol-v4";
 import { isHighspeedProviderId } from "@drora/shared";
-import { createModelExecutionContext } from "../../../app/model-execution.js";
+import { createModelExecutionContext } from "../../../session-execution/index.js";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
 import {
   applyHeldQueueDisposition,
   hasPromptInput,
+  resolveOrdinaryQueueModelSelection,
   resolveSubmittedExecutionState,
   V4InputAdmissionRejectedError,
 } from "../input-admission.js";
@@ -23,7 +24,7 @@ import {
   V4PromptRejectedError,
 } from "../prompt-turn.js";
 import { requireRecord } from "../record-access.js";
-import type { V4CommandCoreHost, V4QueuedTurnExecution, V4SessionRecordView } from "../types.js";
+import type { V4CommandCoreHost, V4SessionRecordView, V4TurnExecution } from "../types.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
 import { resolveEvidenceSafeDelivery, verifyEvidenceOrThrow } from "./evidence-admission.js";
 
@@ -51,7 +52,10 @@ async function sendText(
   const rawPayload = envelope.payload as CommandPayloadMap["sendText"];
   const record = requireRecord(host, envelope.sessionId);
   // Bug 根因：旧校验只看正文，UI 已允许的 attachment-only query 会在 CLI 被误判为空。
-  if (!hasPromptInput(rawPayload.text, rawPayload.attachments) && !rawPayload.conversationQuotes?.length) {
+  if (
+    !hasPromptInput(rawPayload.text, rawPayload.attachments) &&
+    !rawPayload.conversationQuotes?.length
+  ) {
     throw new V4InputAdmissionRejectedError("proto.invalidPayload", "input must not be empty");
   }
   const activeAutomationId = resolveTurnAutomationId({
@@ -93,7 +97,7 @@ async function sendText(
   const forceStartNow = payload.requestedDelivery === "startNow";
   // 加速本轮由「标准 Selection 指向加速 Provider + 单次执行材料」表达；判定必须用 Family
   // 谓词，不能和单个 provider id 常量比较，否则 BigModel 账号的卡会被当成普通轮静默丢弃。
-  const highspeedExecution: V4QueuedTurnExecution | undefined = isHighspeedProviderId(
+  const highspeedExecution: V4TurnExecution | undefined = isHighspeedProviderId(
     payload.modelSelection?.providerId,
   )
     ? payload.modelExecution
@@ -110,14 +114,27 @@ async function sendText(
       routingMode === "guide");
 
   const queueHighspeedTurn = async (): Promise<CommandResult | undefined> => {
-    if (!highspeedExecution) {
+    const highspeedSelection = payload.modelSelection;
+    if (!highspeedExecution || !highspeedSelection) {
       throw new V4InputAdmissionRejectedError(
         "fault.command.inputRejected",
         "Highspeed queue requires turn execution material",
       );
     }
-    // 加速凭据只驻留 CLI 内存：提升时按 (sessionId, sourceCommandId) 取回，绝不进队列事件。
-    host.retainQueuedTurnExecution?.(record.app.sessionId, envelope.commandId, highspeedExecution);
+    const ordinarySelection = resolveOrdinaryQueueModelSelection(
+      record,
+      highspeedExecution.selectionFallback?.target,
+    );
+    const retainQueuedTurnExecution = host.retainQueuedTurnExecution;
+    // Bug 根因：队列曾把单轮 Highspeed Selection 持久化进 QueueItem，撤回编辑会把它
+    // 恢复到 Composer，并污染下一次 fallback。队列只保存普通提交模型；加速 Selection
+    // 与凭据必须作为同一 execution bundle 驻留 CLI 内存。
+    if (retainQueuedTurnExecution) {
+      retainQueuedTurnExecution(record.app.sessionId, envelope.commandId, {
+        modelSelection: highspeedSelection,
+        modelExecution: highspeedExecution,
+      });
+    }
     try {
       // Highspeed 的强制入队必须保留可信证据和执行前复验身份。
       // 否则这一独立分支会丢失 evidenceRefs，让提升阶段误判为普通输入。
@@ -138,6 +155,10 @@ async function sendText(
         ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
         attachmentRefs: payload.attachments,
       });
+      intent.modelSelection = ordinarySelection;
+      if (!retainQueuedTurnExecution) delete intent.highspeed;
+      // 入队与 canonical 编辑入队一致，只提交普通 Selection：Core 用它写会话常驻模型，
+      // execution 不进入准入，只在提升边界由暂存 bundle 应用。
       const queued = await startPromptTurn(host, record, {
         content: payload.text,
         ...(payload.browserAmbientContext
@@ -161,7 +182,9 @@ async function sendText(
         inputId: envelope.commandId,
       };
     } catch (error) {
-      host.deleteQueuedTurnExecution?.(record.app.sessionId, envelope.commandId);
+      if (retainQueuedTurnExecution) {
+        host.deleteQueuedTurnExecution?.(record.app.sessionId, envelope.commandId);
+      }
       throw error;
     }
   };

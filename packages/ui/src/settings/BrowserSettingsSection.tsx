@@ -17,7 +17,6 @@ import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useDroraSessionService } from "@/hooks/useDroraSessionService.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/droraDraftSkillInvalidation.js";
 import { logger } from "@/logger.js";
@@ -82,11 +81,6 @@ export function BrowserSettingsSection({
   const { intl } = useDroraIntl();
   const platform = usePlatform();
   const { pluginManagementService, skillsService } = useServices();
-  const droraSessionService = useDroraSessionService(
-    workspacePath ?? undefined,
-    undefined,
-    workspaceIdentity,
-  );
   const browserUsePlugin = usePluginManagementStore((state) =>
     state.plugins.find((plugin) => plugin.id === OFFICIAL_BROWSER_USE_PLUGIN_ID),
   );
@@ -120,7 +114,6 @@ export function BrowserSettingsSection({
 
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      droraSessionService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-browser-use-plugin-enabled",
@@ -139,7 +132,6 @@ export function BrowserSettingsSection({
     skillStoreWorkspacePath,
     skillsService,
     workspacePath,
-    droraSessionService,
   ]);
 
   const handleBrowserEnabledChange = useCallback(

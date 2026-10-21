@@ -36,7 +36,12 @@ export function createAutoReconcileController(deps: {
     void (async () => {
       try {
         const source = await resolveKnowledgeSource(db, pluginDataDir, Date.now());
-        if (!source.configured || source.config === null || source.summary === null || source.sourceEpoch === null) {
+        if (
+          !source.configured ||
+          source.config === null ||
+          source.summary === null ||
+          source.sourceEpoch === null
+        ) {
           return;
         }
         const started = coordinator.startJob({

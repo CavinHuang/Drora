@@ -1,9 +1,5 @@
 import type { BrowserWindow, NativeImage } from "electron";
-import {
-  DEFAULT_DRORA_ENDPOINT_ORIGIN,
-  buildDroraEndpointUrls,
-  type Locale,
-} from "@drora/shared";
+import { DEFAULT_DRORA_ENDPOINT_ORIGIN, buildDroraEndpointUrls, type Locale } from "@drora/shared";
 
 export interface ArchitectureMismatch {
   /** 当前运行的二进制架构，例如 x64。 */

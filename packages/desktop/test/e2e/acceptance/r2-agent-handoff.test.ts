@@ -411,7 +411,8 @@ async function waitForHandoffComposer(expectedText: string[], chipCount: number)
           // 选择器歧义修正（D2 调查定谳 2026-10-17）：页面可同时存在非 composer 的
           // 同名计数元素（如回合区/侧聊），首匹配会误中——以命中期望文本的那个
           // composer 输入框为锚，取其 composer 容器（form 或共同父级）内的计数 chip。
-          const composerRoot = composer?.closest("form") ?? composer?.parentElement?.parentElement ?? null;
+          const composerRoot =
+            composer?.closest("form") ?? composer?.parentElement?.parentElement ?? null;
           const chip =
             composerRoot
               ?.querySelector("[data-conversation-selection-reference-count]")
@@ -427,7 +428,6 @@ async function waitForHandoffComposer(expectedText: string[], chipCount: number)
     },
   );
 }
-
 
 describe("R2 agent handoff acceptance: G03/G04/G13 in one real Electron session", () => {
   before(async function () {

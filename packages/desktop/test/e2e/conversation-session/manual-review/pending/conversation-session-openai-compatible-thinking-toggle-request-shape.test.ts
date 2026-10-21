@@ -2,7 +2,7 @@ import {
   TID_CHAT_MODEL_SELECT_TRIGGER,
   TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
   TID_SETTINGS_BACK_BUTTON,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

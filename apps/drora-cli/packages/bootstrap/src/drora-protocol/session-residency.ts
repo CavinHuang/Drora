@@ -7,7 +7,11 @@ import type {
 } from "./session-resident-pool.js";
 import type { DroraProtocolAgentServerContext } from "./server-types.js";
 
-export { acquireSessionResidencyFinalization, runWithSessionResidencyFinalization } from "../app/session-finalization.js";
+export {
+  acquireSessionResidencyFinalization,
+  runWithSessionResidencyFinalization,
+  type SessionResidencyFinalizationOwner,
+} from "../session-execution/index.js";
 
 /**
  * 只释放 resident runtime，不删除任何持久 session/task 事实。

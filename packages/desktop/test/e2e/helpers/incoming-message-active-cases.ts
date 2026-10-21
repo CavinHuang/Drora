@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TID_V4_SESSION_PANE, testId } from "@drora/shared";
+import { TID_V4_SESSION_PANE, testId } from "@drora/shared/test-ids";
 import { waitForDefaultWorkspaceReady } from "./desktop-app.js";
 import {
   INCOMING_MESSAGE_MODES,

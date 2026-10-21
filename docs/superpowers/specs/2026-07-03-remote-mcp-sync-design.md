@@ -94,7 +94,12 @@ filesystem MCP 识别规则：
       "filesystem": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/alice/workspace/drora", "/Users/alice/Documents"],
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/Users/alice/workspace/drora",
+          "/Users/alice/Documents"
+        ],
         "enable": true
       },
       "context7": {
@@ -123,7 +128,12 @@ filesystem MCP 识别规则：
       "filesystem": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/dev/drora", "/home/dev/Documents"],
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/home/dev/drora",
+          "/home/dev/Documents"
+        ],
         "enable": true
       },
       "context7": {

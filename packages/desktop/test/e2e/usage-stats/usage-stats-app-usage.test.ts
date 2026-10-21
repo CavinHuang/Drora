@@ -3,7 +3,7 @@ import {
   TID_SETTINGS_USAGE_TAB,
   TID_TASK_SETTINGS_BUTTON,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   clickTestIdByDom,

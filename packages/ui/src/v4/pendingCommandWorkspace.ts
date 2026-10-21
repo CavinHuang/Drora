@@ -1,12 +1,13 @@
 import type { SessionCreateSource } from "@drora/shared";
-import type { GroupedDraftTaskState } from "@/store/droraSessionStoreTypes.js";
-
+import type { ComposerRecentReceipt } from "@/lib/composerRecent.js";
 export interface PendingCommandClientContext {
+  composer?: ComposerRecentReceipt & { draftId?: string; submittedText?: string };
   workspace?: {
     workspacePath: string;
     workspaceIdentity?: string;
   };
-  groupedDraftTask?: GroupedDraftTaskState;
+  projectId?: string | null;
+  taskGroupId?: string | null;
   sessionCreateSource?: SessionCreateSource;
 }
 

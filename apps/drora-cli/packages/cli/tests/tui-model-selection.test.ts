@@ -270,6 +270,7 @@ test("TUI persists defaults through the shared repository across new sessions an
     skipUserConfig: true,
     loadDotenv: () => ({ keys: [], loaded: false, path: "" }),
     createDroraApp: async (options: DroraAppOptions) => {
+      assert.equal(options.modelSelectionMode, "cli-default");
       const f = fixture(
         options.resume ? restoredSelection : options.configuredDefaultModelSelection,
       );

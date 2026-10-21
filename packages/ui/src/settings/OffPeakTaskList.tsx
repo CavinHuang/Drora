@@ -12,6 +12,7 @@ import {
   type SVGProps,
 } from "react";
 import { CircleCheck, Loader2, TriangleAlert } from "lucide-react";
+import { type DroraOffPeakTask } from "@drora/shared";
 import {
   TID_OFFPEAK_ACTION_CONTINUE,
   TID_OFFPEAK_ACTION_DELETE,
@@ -19,8 +20,7 @@ import {
   TID_OFFPEAK_CARD,
   TID_OFFPEAK_CARD_SESSION,
   TID_OFFPEAK_CARD_MENU,
-  type DroraOffPeakTask,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   DropdownMenu,
   DropdownMenuContent,

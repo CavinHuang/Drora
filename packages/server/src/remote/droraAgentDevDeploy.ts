@@ -261,9 +261,7 @@ async function shouldSkipDevelopmentDroraAgentDeploy(params: {
     return false;
   }
 
-  params.loggers.log(
-    `[drora-agent-deploy] ${DRORA_AGENT_PROVIDER}: 开发态 drora.cjs 未变化，跳过`,
-  );
+  params.loggers.log(`[drora-agent-deploy] ${DRORA_AGENT_PROVIDER}: 开发态 drora.cjs 未变化，跳过`);
   return true;
 }
 

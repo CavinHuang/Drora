@@ -10,8 +10,9 @@
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @drora/tui，所以这里天然不打包 TUI。
 //
-// 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
+// 远端（SSH/WSL/Docker）没有 Electron，由 Source Server archive 自带目标 Node，互不影响。
 
+// 修复原因：bootstrap 清理旧插件 dist 时使用 rmSync，漏导入会在构建前抛出 ReferenceError。
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
@@ -96,6 +97,9 @@ const browserUseRequiredRuntimePaths = [
   "skills/control-browser/SKILL.md",
   "skills/web-gui-tester/SKILL.md",
 ];
+// 文档插件（documents / pdf / presentations / spreadsheets）的查看面板由共享包
+// @drora/office-runtime 构建进各插件 dist/；插件包自身没有 TypeScript 源码。
+const officeViewerRuntimePaths = ["dist/server.mjs", "dist/ui/assets.json", "dist/ui/panel.html"];
 const officialPluginPackages = [
   {
     // browser-use 只携带自己的 client script 与 skill/docs；node_repl MCP runtime 归
@@ -134,9 +138,61 @@ const officialPluginPackages = [
   {
     packageName: "@drora/documents-plugin",
     relativePath: "apps/drora-cli/packages/documents-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["agents/visual-judge.md", "skills/docx/SKILL.md"],
+    requiresRuntime: true,
+    requiredRuntimePaths: officeViewerRuntimePaths,
+    requiredSeedPaths: [
+      "agents/visual-judge.md",
+      "skills/docx/SKILL.md",
+      "skills/docx-viewer/SKILL.md",
+    ],
+    runtimeBuildScript: "../office-runtime/scripts/build.mjs",
     stagedPath: "packages/documents-plugin",
+  },
+  {
+    packageName: "@drora/image-search-plugin",
+    relativePath: "apps/drora-cli/packages/image-search-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [".mcp.json"],
+    stagedPath: "packages/image-search-plugin",
+  },
+  {
+    packageName: "@drora/pdf-plugin",
+    relativePath: "apps/drora-cli/packages/pdf-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: officeViewerRuntimePaths,
+    requiredSeedPaths: [
+      "agents/visual-judge.md",
+      "skills/pdf/SKILL.md",
+      "skills/pdf-viewer/SKILL.md",
+    ],
+    runtimeBuildScript: "../office-runtime/scripts/build.mjs",
+    stagedPath: "packages/pdf-plugin",
+  },
+  {
+    packageName: "@drora/presentations-plugin",
+    relativePath: "apps/drora-cli/packages/presentations-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: officeViewerRuntimePaths,
+    requiredSeedPaths: [
+      "agents/visual-judge.md",
+      "skills/pptx/SKILL.md",
+      "skills/pptx-viewer/SKILL.md",
+    ],
+    runtimeBuildScript: "../office-runtime/scripts/build.mjs",
+    stagedPath: "packages/presentations-plugin",
+  },
+  {
+    packageName: "@drora/spreadsheets-plugin",
+    relativePath: "apps/drora-cli/packages/spreadsheets-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: officeViewerRuntimePaths,
+    requiredSeedPaths: [
+      "agents/visual-judge.md",
+      "skills/xlsx/SKILL.md",
+      "skills/xlsx-viewer/SKILL.md",
+    ],
+    runtimeBuildScript: "../office-runtime/scripts/build.mjs",
+    stagedPath: "packages/spreadsheets-plugin",
   },
   {
     packageName: "@drora/visualize-plugin",
@@ -170,34 +226,6 @@ const officialPluginPackages = [
     ],
     requiredRuntimePaths: [],
     stagedPath: "packages/visualize-plugin",
-  },
-  {
-    packageName: "@drora/pdf-plugin",
-    relativePath: "apps/drora-cli/packages/pdf-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
-    stagedPath: "packages/pdf-plugin",
-  },
-  {
-    packageName: "@drora/presentations-plugin",
-    relativePath: "apps/drora-cli/packages/presentations-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
-    stagedPath: "packages/presentations-plugin",
-  },
-  {
-    packageName: "@drora/spreadsheets-plugin",
-    relativePath: "apps/drora-cli/packages/spreadsheets-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
-    stagedPath: "packages/spreadsheets-plugin",
-  },
-  {
-    packageName: "@drora/image-search-plugin",
-    relativePath: "apps/drora-cli/packages/image-search-plugin",
-    requiresRuntime: false,
-    requiredSeedPaths: [".mcp.json"],
-    stagedPath: "packages/image-search-plugin",
   },
   {
     packageName: "@drora/android-emulator-plugin",
@@ -385,25 +413,20 @@ function buildOfficialPluginRuntimes() {
 
 function buildOfficialPluginRuntimeForBootstrap(plugin) {
   const pluginRoot = resolve(repoRoot, plugin.relativePath);
-  const hasCompleteRuntime = plugin.requiredRuntimePaths.every((relativePath) =>
-    existsSync(resolve(pluginRoot, ...relativePath.split("/"))),
-  );
-  if (plugin.packageName !== BROWSER_USE_PLUGIN_PACKAGE_NAME && hasCompleteRuntime) {
-    console.log(
-      `[prepare:agent-bundle] reuse existing official plugin runtime: ${plugin.packageName}`,
-    );
-    return;
-  }
-
-  // bootstrap:with-remote 会连续构建 remote assets 和桌面 agent bundle。
+  // Bugfix: bootstrap:with-remote 会连续构建 remote assets 和桌面 agent bundle。
   // 通过 pnpm/filter 进入插件 build 时，tsc shim 在本地低内存环境中容易被 SIGKILL；
   // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
-  // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
-  // 否则会把旧 server 与当前 client（或缺失 client）一起 stage 到桌面安装包。
-  runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
+  // Bug 原因：过去除 browser-use 外只要 dist 文件齐全就复用，源码变化后 bootstrap 仍会
+  // 打包上一代插件 runtime；所有代码型官方插件都必须在本轮重建。
+  rmSync(resolve(pluginRoot, "dist"), { recursive: true, force: true });
+  // 文档插件没有自己的 tsconfig（源码在 office-runtime），直接跑 tsc 会因找不到工程配置失败；
+  // 只有带 tsconfig 的插件才需要这一步。
+  if (existsSync(resolve(pluginRoot, "tsconfig.json"))) {
+    runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
+      cwd: pluginRoot,
+      env: process.env,
+    });
+  }
   runCommand(process.execPath, [plugin.runtimeBuildScript], {
     cwd: pluginRoot,
     env: process.env,
@@ -528,6 +551,12 @@ async function stageCuaHelperRuntime() {
   // 官方 mac 发行物的 glm 无 tools/ 目录（对照实测），该运行时是 Windows 专属。
   // 现迁到 bundled-tools/<platformKey>/cua-helper（与 ripgrep 同一 staging 模式），
   // 由 electron-builder 的 win32 专属 extraResources 条目映射到 resources/tools/cua-helper。
+  //
+  // 上游 v3.16.1 用独立 stageSharpForNodeReplPlugin + isSharpRequiredByComputerUse 门控
+  // sharp staging；Drora 侧同等职责由 officialPluginPackages 的 stagedNativeRuntimes
+  // 声明统一承担（stageOfficialPlugins 内按目标平台重产，见上方注释），且本仓
+  // @drora/drora-cua 不声明 sharp、cua 插件 seed 钉死 0.6.3 形态（node_modules/sharp），
+  // 套用上游门控会直接打挂 requiredSeedPaths 校验，故不采纳该独立函数与门控。
   if (platform !== "win32") {
     console.log(
       `[prepare:agent-bundle] skip cua helper runtime on ${platformKey} (win32-only; 官方 mac glm 无 tools/)`,

@@ -12,8 +12,6 @@ if (!process.argv.includes("--yes")) {
   process.exit(2);
 }
 
-
-
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 const packagesDir = join(repoRoot, "packages");
@@ -47,7 +45,6 @@ function removeTarget(targetPath, ownerDir) {
   return true;
 }
 
-
 // apps/drora-cli 是独立 workspace（有自己的 node_modules 与包内 dist）。
 const droraCliDir = join(repoRoot, "apps", "drora-cli");
 const droraCliPackagesDir = join(droraCliDir, "packages");
@@ -72,8 +69,6 @@ for (const ownerDir of ownerDirs) {
     }
   }
 }
-
-
 
 function collectDroraCliPackageDirs() {
   const dir = droraCliPackagesDir;

@@ -92,7 +92,13 @@ export function KnowledgeAskInput({
         className="min-h-20"
       />
       <div className="flex items-center gap-2 pt-2">
-        <Button type="button" size="sm" data-testid="ask-submit" disabled={!input.trim() || retrieving} onClick={onSubmit}>
+        <Button
+          type="button"
+          size="sm"
+          data-testid="ask-submit"
+          disabled={!input.trim() || retrieving}
+          onClick={onSubmit}
+        >
           <Search className="size-4" />
           {intl.formatMessage({ id: "vault.ask.submit" })}
         </Button>
@@ -115,7 +121,13 @@ export function KnowledgeAskInput({
           </span>
         )}
         {!indexStatus?.configured && (
-          <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={onConnectVault}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={onConnectVault}
+          >
             {intl.formatMessage({ id: "vault.ask.connectVault" })}
           </Button>
         )}

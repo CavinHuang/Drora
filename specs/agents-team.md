@@ -68,7 +68,7 @@ sequenceDiagram
   AGENTS.md「官方实现优先」迁移官方契约并删除重复面；每次上游同步跑
   `scripts/check-bundle-key-parity.mjs` 时核对 team 键族。
 - **核心裁决**：teammate 在 wire sessionKind 与内部 taskType 上**一律复用
-  `subagent_child`**，团队性由请求级 additive 字段承载（§5）。由此全仓 22 处
+  `subagent_child`**，团队性由请求级 additive 字段承载（§5）。由此全仓 23 处
   `subagent_child` 行为门零改动自动继承（§9）。
 - **形态借鉴（dynamic-workflow 三个成熟先例）**：①权限模式在成队那一刻定死并记
   journal，此后 lead 换模式不影响在飞的 team（`workflow-actor-permission.ts` 模式）；
@@ -123,43 +123,43 @@ sequenceDiagram
 
 ## 1. 产品规则
 
-| 规则 | 内容 |
-|---|---|
-| 显式成队 | 主入口是内置斜杠命令 **`/team [goal]`**（照 `/workflow` 先例：代码定义 prompt 型内置命令、名字进 shared 帮助表保留字、正文指向 bundled skill `agents-team` 与 staged 流程；斜杠菜单+加号菜单双入口；child 上下文禁用）+ TeamPanel 显式操作；不采用官方 Claude Code「Agent 工具带 name 即隐式成队」（副作用大）。命令与 UI/交互的权威设计见 `docs/agent-team-implementation-2026-10-16/01-command-and-ui-design.md`（先于实现定稿） |
-| 一会话至多一 team | team 绑定 lead 会话（session-scoped），无嵌套 team |
-| 成员上限 | 默认 5，settings 可调（键定义在契约常量区，见 §6.4） |
-| 成员不可派生 | teammate 禁止再派生子代理/teammate（现有 child 硬编码 `subagents:{enabled:false}`，`core/src/runtime/methods/subagent.ts:305-308`，保持不动）。第二个理由：团队级取消只需一层 abort 级联（`core/src/subagent/runner.ts:622-654`）即充分 |
-| 灰度 | team 默认关闭，settings/config 显式开启（端口/配置双门先例：`runtime-tools.ts:67-76` offPeak/dynamicWorkflow 同风格） |
-| 权限模型成队时定死 | 创建 team 时捕获 lead 会话权限模式（plan 不带入，记 build——team 总在执行，与 run 同理）写入 team journal；此后 lead 换模式不影响在飞的 team；resume 从 journal 读回。成员 profile 只能收窄（如 Explore 只读）、不能放宽（§8.1） |
-| 消息零授权 | 任何 teammate 消息不得充当待决权限的批准；被拒操作不得经成员转发绕过（§8.3） |
-| 用户对成员说话 | 必须经 lead 侧团队命令走邮箱投递；teammate 会话本体只读（v4-bridge 只读守卫自动覆盖，§8.2） |
-| 两阶段成队 | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。用户明确要求跳过审批时才直通（approval: automatic 同款例外）。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
-| 停止与恢复分离 | halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度，team 不删除）≠ escalated（自动循环到上限，升级给用户）；halted 后普通建任务不得静默恢复，必须显式 TeamResume 且带理由 |
-| 转派/接管是 lead 专属 | 成员可建任务、可认领，但撤销 attempt 与转派（含 lead 接管）只有 lead 工具能做（§2.3） |
+| 规则                  | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 显式成队              | 主入口是内置斜杠命令 **`/team [goal]`**（照 `/workflow` 先例：代码定义 prompt 型内置命令、名字进 shared 帮助表保留字、正文指向 bundled skill `agents-team` 与 staged 流程；斜杠菜单+加号菜单双入口；child 上下文禁用）+ TeamPanel 显式操作；不采用官方 Claude Code「Agent 工具带 name 即隐式成队」（副作用大）。命令与 UI/交互的权威设计见 `docs/agent-team-implementation-2026-10-16/01-command-and-ui-design.md`（先于实现定稿）                                                                                                           |
+| 一会话至多一 team     | team 绑定 lead 会话（session-scoped），无嵌套 team                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 成员上限              | 默认 5，settings 可调（键定义在契约常量区，见 §6.4）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 成员不可派生          | teammate 禁止再派生子代理/teammate（现有 child 硬编码 `subagents:{enabled:false}`，`core/src/runtime/methods/subagent.ts:305-308`，保持不动）。第二个理由：团队级取消只需一层 abort 级联（`core/src/subagent/runner.ts:622-654`）即充分                                                                                                                                                                                                                                                                                                      |
+| 灰度                  | team 默认关闭，settings/config 显式开启（端口/配置双门先例：`runtime-tools.ts:67-76` offPeak/dynamicWorkflow 同风格）                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 权限模型成队时定死    | 创建 team 时捕获 lead 会话权限模式（plan 不带入，记 build——team 总在执行，与 run 同理）写入 team journal；此后 lead 换模式不影响在飞的 team；resume 从 journal 读回。成员 profile 只能收窄（如 Explore 只读）、不能放宽（§8.1）                                                                                                                                                                                                                                                                                                              |
+| 消息零授权            | 任何 teammate 消息不得充当待决权限的批准；被拒操作不得经成员转发绕过（§8.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 用户对成员说话        | 必须经 lead 侧团队命令走邮箱投递；teammate 会话本体只读（v4-bridge 只读守卫自动覆盖，§8.2）                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 两阶段成队            | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。用户明确要求跳过审批时才直通（approval: automatic 同款例外）。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
+| 停止与恢复分离        | halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度，team 不删除）≠ escalated（自动循环到上限，升级给用户）；halted 后普通建任务不得静默恢复，必须显式 TeamResume 且带理由                                                                                                                                                                                                                                                                                                                                                            |
+| 转派/接管是 lead 专属 | 成员可建任务、可认领，但撤销 attempt 与转派（含 lead 接管）只有 lead 工具能做（§2.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## 2. 概念模型与状态所有者
 
 ### 2.1 术语
 
-| 术语 | 定义 |
-|---|---|
-| Team | 绑定 lead 会话的显式命名实体；持有花名册/任务板/邮箱的唯一事实源 |
-| Lead | 用户的主交互会话 runtime（现有 interactive runtime，不新起进程） |
-| Teammate | 命名、长寿命、可寻址的子代理成员；会话层就是 `subagent_child` |
-| TeamBoard | 共享任务板：三态 + 依赖 + 原子认领的结构化任务列表 |
-| TeamMailbox | 成员消息投递队列；写成功（持久化后）才算发送成功 |
+| 术语        | 定义                                                             |
+| ----------- | ---------------------------------------------------------------- |
+| Team        | 绑定 lead 会话的显式命名实体；持有花名册/任务板/邮箱的唯一事实源 |
+| Lead        | 用户的主交互会话 runtime（现有 interactive runtime，不新起进程） |
+| Teammate    | 命名、长寿命、可寻址的子代理成员；会话层就是 `subagent_child`    |
+| TeamBoard   | 共享任务板：三态 + 依赖 + 原子认领的结构化任务列表               |
+| TeamMailbox | 成员消息投递队列；写成功（持久化后）才算发送成功                 |
 
 ### 2.2 状态所有者表（谁写、谁读）
 
-| 状态 | 唯一所有者（写） | 读取方 | 持久化 |
-|---|---|---|---|
-| 花名册（name→agentId/childSessionId/profile/状态机） | lead runtime 内 **TeamHub**（新模块，`core/src/team/`） | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
-| 共享任务板 | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，in-process 原子，无文件锁） | 同上 | 同上 |
-| 成员邮箱 | TeamHub 写入并投递（运行中 steer / 终态复活续跑） | 目标成员 | 写入持久化后才 ack |
-| team 权限模式记录 | TeamHub（成队时一次写入，此后只读） | 全体成员构造与复活（hub 花名册记录，经私有端口构造通路）、UI 权限徽标 | team journal `team-created` 事件 |
-| teammate transcript | 各 child runtime（现状不变） | 下钻 UI 只读订阅 child topic | 现有 session store |
-| UI teamStore（`packages/ui/src/store/teamStore.ts`） | renderer 派生缓存，**不得冒充服务端事实** | — | 内存 |
-| Main / 外部 relay / Host facade | **零团队业务状态**（AGENTS.md 边界不变） | — | — |
+| 状态                                                 | 唯一所有者（写）                                                                           | 读取方                                                                 | 持久化                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------- |
+| 花名册（name→agentId/childSessionId/profile/状态机） | lead runtime 内 **TeamHub**（新模块，`core/src/team/`）                                    | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
+| 共享任务板                                           | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，in-process 原子，无文件锁） | 同上                                                                   | 同上                             |
+| 成员邮箱                                             | TeamHub 写入并投递（运行中 steer / 终态复活续跑）                                          | 目标成员                                                               | 写入持久化后才 ack               |
+| team 权限模式记录                                    | TeamHub（成队时一次写入，此后只读）                                                        | 全体成员构造与复活（hub 花名册记录，经私有端口构造通路）、UI 权限徽标  | team journal `team-created` 事件 |
+| teammate transcript                                  | 各 child runtime（现状不变）                                                               | 下钻 UI 只读订阅 child topic                                           | 现有 session store               |
+| UI teamStore（`packages/ui/src/store/teamStore.ts`） | renderer 派生缓存，**不得冒充服务端事实**                                                  | —                                                                      | 内存                             |
+| Main / 外部 relay / Host facade                      | **零团队业务状态**（AGENTS.md 边界不变）                                                   | —                                                                      | —                                |
 
 所有者判据：与 conversation 投影同源、与 RuntimeTaskRegistry 单 runtime 所有权模型
 （`core/src/runtime-task/registry.ts:70-94`）同构，只是从「per-runtime 内存态」升格为
@@ -169,8 +169,8 @@ sequenceDiagram
 
 - 任务卡 schema（落 `packages/shared/src/drora-protocol-v4/team.ts`，纯 schema+纯函数）：
   `{ taskId, title, spec:{目标,验收标准,产出格式}, status: pending|claimed|in_progress|completed|failed|cancelled,
-  assignee?, attempt, attemptId, dependsOn: taskId[], artifactRefs[], createdAt/updatedAt,
-  contract?: { objective, acceptance[], inScope?, outOfScope?, verify? } }`。
+assignee?, attempt, attemptId, dependsOn: taskId[], artifactRefs[], createdAt/updatedAt,
+contract?: { objective, acceptance[], inScope?, outOfScope?, verify? } }`。
   状态机 pending→claimed→in_progress→终态（claimed 不得直接 completed）；依赖只认上游
   **completed**——failed/cancelled 永不解锁下游。刻意不引入 INPUT_REQUIRED 等中间态
   （权限待决由 pendingInteraction 链路自然表达）。`contract` 为 M5 质量门禁的 additive
@@ -271,6 +271,7 @@ created（显式成队：权限模式与成员路由定死并记 journal）
 **显式 lead 编排（agents-as-tools）+ 单所有者黑板任务板 + 受限成员消息。**
 
 理由（对照调研报告 §5.2 候选表）：
+
 1. 与 turn 所有权模型相容——teammate 各自是独立 runtime/session，各有自己的 TurnMachine
    与命令队列（`core/src/runtime/command-queue.ts:11-17` 串行 admission 不变）；「谁该干活」
    由任务板（确定性代码外壳）表达，LLM 只决定「拆什么、派给谁」。
@@ -280,16 +281,16 @@ created（显式成队：权限模式与成员路由定死并记 journal）
 
 ## 4. teammate 会话构造（复用清单，不改）
 
-| 能力 | 位置 | 复用方式 |
-|---|---|---|
-| 构造三件套（child runtime + deriveChildClientPorts + 事件镜像） | `core/src/runtime/methods/subagent.ts:254-461` | TeamHub 经私有端口构造回调（member-runtime.ts，v2）复刻同款装配并注入团队工具与 memberMaxTurns——subagent.ts 本体零编辑 |
-| 后台生命周期/终态结算/abort 级联/复活 | `core/src/subagent/runner.ts:184-218、622-654、903-1036、1497-1574` | teammate = 走现有终态结算的后台式 child；TeamHub 保留花名册与 registry 条目 |
-| lead 接收成员回复 | `core/src/runtime/methods/subagent-messages.ts:77-99`（persistSubagentMessageCommand 产生 subagent_reply(_steer)） | 成员→lead 方向本来正确，现状复用 |
-| 工具注册表 | `core/src/tool/registry.ts:12-13`（ToolEntry 自包含）+ `agent-runtime.ts:332`（deps.toolRegistry 注入） | 团队工具 = 闭包捕获 hub 的 ToolEntry，注册进 hub 自建注册表实例——runtime-tools.ts 零编辑（v2） |
-| 权限链路 | permission-flow.ts:56-96、resolveSubagentPermissionMode（subagent.ts:527-549）、subagent origin（interaction-origin.ts:17-37）、v4 pendingInteraction/resolveInteraction | 全部原样（§8） |
-| 成员角色定义 | `.drora/agents/*.md` profile（profile.ts:46-70；color 字段 :30,80 作成员视觉标识）+ ISubagentsService（subagents.ts:15-41） | teammate 角色即 agent profile |
-| UI 多会话下钻 | WorkflowActorSessionSidePane.tsx:56-108（父投影门 + 只读 SessionPane 租约复用） | 复制为 TeamMemberSidePane |
-| 手机远控 | webRemoteControlSharedHostAttachments.ts:41-189（clientMode=web-remote-replayable 已注入） | team 帧沿既有 relay 桥透传，零新语义 |
+| 能力                                                            | 位置                                                                                                                                                                     | 复用方式                                                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| 构造三件套（child runtime + deriveChildClientPorts + 事件镜像） | `core/src/runtime/methods/subagent.ts:254-461`                                                                                                                           | TeamHub 经私有端口构造回调（member-runtime.ts，v2）复刻同款装配并注入团队工具与 memberMaxTurns——subagent.ts 本体零编辑 |
+| 后台生命周期/终态结算/abort 级联/复活                           | `core/src/subagent/runner.ts:184-218、622-654、903-1036、1497-1574`                                                                                                      | teammate = 走现有终态结算的后台式 child；TeamHub 保留花名册与 registry 条目                                            |
+| lead 接收成员回复                                               | `core/src/runtime/methods/subagent-messages.ts:77-99`（persistSubagentMessageCommand 产生 subagent_reply(\_steer)）                                                      | 成员→lead 方向本来正确，现状复用                                                                                       |
+| 工具注册表                                                      | `core/src/tool/registry.ts:12-13`（ToolEntry 自包含）+ `agent-runtime.ts:332`（deps.toolRegistry 注入）                                                                  | 团队工具 = 闭包捕获 hub 的 ToolEntry，注册进 hub 自建注册表实例——runtime-tools.ts 零编辑（v2）                         |
+| 权限链路                                                        | permission-flow.ts:56-96、resolveSubagentPermissionMode（subagent.ts:527-549）、subagent origin（interaction-origin.ts:17-37）、v4 pendingInteraction/resolveInteraction | 全部原样（§8）                                                                                                         |
+| 成员角色定义                                                    | `.drora/agents/*.md` profile（profile.ts:46-70；color 字段 :30,80 作成员视觉标识）+ ISubagentsService（subagents.ts:15-41）                                              | teammate 角色即 agent profile                                                                                          |
+| UI 多会话下钻                                                   | WorkflowActorSessionSidePane.tsx:56-108（父投影门 + 只读 SessionPane 租约复用）                                                                                          | 复制为 TeamMemberSidePane                                                                                              |
+| 手机远控                                                        | webRemoteControlSharedHostAttachments.ts:41-189（clientMode=web-remote-replayable 已注入）                                                                               | team 帧沿既有 relay 桥透传，零新语义                                                                                   |
 
 **刻意不动**：Agent 工具 schema（`contracts/src/tools/agent.ts`，现状无 name 参数）与
 `Task` 兼容别名（`core/src/tool/compat.ts:2`）——上游对齐文件零改动。
@@ -301,7 +302,7 @@ created（显式成队：权限模式与成员路由定死并记 journal）
   旧桌面/手机把 teammate 当普通子代理显示，天然优雅降级；任务索引排除
   （droraTaskIndexSyncer.ts:1680）自动沿用。
 - **内部 taskType 亦保持 `subagent_child`**。新增 `team_member` 的方向 A **已评估并否决**：
-  全仓行为门均为 `=== "subagent_child"` 严格相等（实测 22 处，§9），新值不命中即落入
+  全仓行为门均为 `=== "subagent_child"` 严格相等（实测 22 处、S2 后 23 处，§9），新值不命中即落入
   非子代理分支——runtimeScope="main"、automation/offPeak 照注册、后台 bash 上限失效、
   下钻/查询链路（subagent-session-query.ts:395、server-operations.ts:1738）跳过导致
   teammate 漏出、tool-allowlist.ts:114 不补回 RespondToCoordinator——逐点改判定 ≈10+ 处
@@ -317,17 +318,17 @@ created（显式成队：权限模式与成员路由定死并记 journal）
 
 ### 6.1 新增文件总表
 
-| 层 | 新增 | 放置 |
-|---|---|---|
-| CLI 契约 | TeamPort 接口 + 请求/结果类型 | `apps/drora-cli/packages/contracts/src/interfaces/team.port.ts` |
-| CLI 契约 | 团队事件枚举值（TeamMemberSpawned/TeamBoardUpdated/TeamMessageDelivered，additive） | `contracts/src/events/session.events.ts`（SubagentSpawned 族在 :178-180） |
-| CLI 核心 | TeamHub / TeamBoard / TeamMailbox / 生命周期 / 工具 / 消息格式化 / 成员投递 / v4 投影产出 | `apps/drora-cli/packages/core/src/team/`（新目录，照 subagent/ 体例；含 member-delivery.ts、message-format.ts） |
-| CLI 核心 | 工具 handler：TeamSpawn、TeamTaskCreate/Get/List/Update、TeamSendMessage、TeamList | `core/src/team/team-tools.ts` + `core/src/tool/handlers/team-*.ts` |
-| CLI 引导 | v4 命令 handler（stopTeamMember/sendTeamMessage 等用户面命令） | `bootstrap/src/drora-protocol-v4/commands/handlers/`（注册表 index.ts:16-28 一行 spread） |
-| shared | team 投影 schema、限额常量、持久化键前缀 | `packages/shared/src/drora-protocol-v4/team.ts`（照 workflow-runs*.ts：纯 schema+纯函数） |
-| UI | teamStore.ts | `packages/ui/src/store/teamStore.ts`（归属裁决：AGENTS.md 明文 Zustand 状态在 store/ 目录，全局单例状态不适用托管模块自治——本行即裁决记录） |
-| UI | TeamPanel / TeamBoardView / TeamMemberSidePane + hooks | `packages/ui/src/team/`（新托管模块 ui-team，照 gen-ui 三模块样板，architecture-policy.yaml 登记 + 五件套） |
-| UI 手机 | MobileTeamPanel | `packages/ui/src/mobile`（MobileTaskShell 旁） |
+| 层       | 新增                                                                                      | 放置                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI 契约 | TeamPort 接口 + 请求/结果类型                                                             | `apps/drora-cli/packages/contracts/src/interfaces/team.port.ts`                                                                             |
+| CLI 契约 | 团队事件枚举值（TeamMemberSpawned/TeamBoardUpdated/TeamMessageDelivered，additive）       | `contracts/src/events/session.events.ts`（SubagentSpawned 族在 :178-180）                                                                   |
+| CLI 核心 | TeamHub / TeamBoard / TeamMailbox / 生命周期 / 工具 / 消息格式化 / 成员投递 / v4 投影产出 | `apps/drora-cli/packages/core/src/team/`（新目录，照 subagent/ 体例；含 member-delivery.ts、message-format.ts）                             |
+| CLI 核心 | 工具 handler：TeamSpawn、TeamTaskCreate/Get/List/Update、TeamSendMessage、TeamList        | `core/src/team/team-tools.ts` + `core/src/tool/handlers/team-*.ts`                                                                          |
+| CLI 引导 | v4 命令 handler（stopTeamMember/sendTeamMessage 等用户面命令）                            | `bootstrap/src/drora-protocol-v4/commands/handlers/`（注册表 index.ts:16-28 一行 spread）                                                   |
+| shared   | team 投影 schema、限额常量、持久化键前缀                                                  | `packages/shared/src/drora-protocol-v4/team.ts`（照 workflow-runs\*.ts：纯 schema+纯函数）                                                  |
+| UI       | teamStore.ts                                                                              | `packages/ui/src/store/teamStore.ts`（归属裁决：AGENTS.md 明文 Zustand 状态在 store/ 目录，全局单例状态不适用托管模块自治——本行即裁决记录） |
+| UI       | TeamPanel / TeamBoardView / TeamMemberSidePane + hooks                                    | `packages/ui/src/team/`（新托管模块 ui-team，照 gen-ui 三模块样板，architecture-policy.yaml 登记 + 五件套）                                 |
+| UI 手机  | MobileTeamPanel                                                                           | `packages/ui/src/mobile`（MobileTaskShell 旁）                                                                                              |
 
 ### 6.2 TeamPort 接口（语义签名，非实现）
 
@@ -360,7 +361,7 @@ TeamPort 调用方身份由 in-process 注入确定（port 知道自己注入进
   **optional 只服务旧快照 wire 兼容，新 CLI 初始态与每次投影都携带**（workflowRuns
   冷快照教训：漏带会静默消失）。`teamProjectionStateSchema` 字段：
   `{ teamId, name?, status: staged|active|idle|completed|halted|escalated|cancelled,
-  permissionMode, members[], board{tasks[],limit}, mailboxTail[], artifacts? }`——status 与
+permissionMode, members[], board{tasks[],limit}, mailboxTail[], artifacts? }`——status 与
   permissionMode 是 team 级状态机（§2.6）与权限徽标（§8.1）的显示依据。
 - **delta**：`statePatchSchema`（delta.ts:40-62）新增 optional 键 `team`
   （`team: teamProjectionStateSchema.optional()`）。**模型是键级整体替换**——容器非
@@ -396,11 +397,11 @@ settings 键、产物目录名，只在 `packages/shared/src/drora-protocol-v4/t
 定稿设计——投递由 team 模块自有代码（`core/src/team/member-delivery.ts`，新文件）完成，
 **不复用 message-steering.ts**：
 
-| 目标成员状态 | 投递方式 | 禁令承载 |
-|---|---|---|
-| 运行中 | steerTurn，inputPresentation 选用**现有枚举值** `subagent_reply_steer` | 自动：incoming-message.ts:23-24 渲染 = "Another Drora session sent a message…" + PEER_PERMISSION_GUIDANCE + 回复指引；RuntimeInputPresentation 枚举**零加值** |
-| 已终态 | 复活投递（hub 私有端口 sendMessage → 现有 revive 链，裸 body 为 prompt），消息体由 `core/src/team/message-format.ts` 组装：团队头（发件成员/任务引用）+ 正文，经**导出的** `formatIncomingMessage(body, "subagent_reply")`（incoming-message.ts:12）渲染 | 禁令由 formatIncomingMessage 内部渲染（单一出处，零接缝，v2 取代 S5） |
-| 未注册/名字重定向 | 拒绝并返回错误 | — |
+| 目标成员状态      | 投递方式                                                                                                                                                                                                                                                 | 禁令承载                                                                                                                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行中            | steerTurn，inputPresentation 选用**现有枚举值** `subagent_reply_steer`                                                                                                                                                                                   | 自动：incoming-message.ts:23-24 渲染 = "Another Drora session sent a message…" + PEER_PERMISSION_GUIDANCE + 回复指引；RuntimeInputPresentation 枚举**零加值** |
+| 已终态            | 复活投递（hub 私有端口 sendMessage → 现有 revive 链，裸 body 为 prompt），消息体由 `core/src/team/message-format.ts` 组装：团队头（发件成员/任务引用）+ 正文，经**导出的** `formatIncomingMessage(body, "subagent_reply")`（incoming-message.ts:12）渲染 | 禁令由 formatIncomingMessage 内部渲染（单一出处，零接缝，v2 取代 S5）                                                                                         |
+| 未注册/名字重定向 | 拒绝并返回错误                                                                                                                                                                                                                                           | —                                                                                                                                                             |
 
 投递顺序与送达语义（§16.3）：**邮箱优先于新任务派发**；投递权在裁决内领取、
 **仅注入被接受后才标记已送达**；任务相关消息带 attempt 世代，attempt 轮换后旧
@@ -454,23 +455,28 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（22 处，零改动验证）
+## 9. subagent_child 行为门验证清单（23 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
-共 **22 处**（core/bootstrap 19 + services sessionKind 3）。分布：
+共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
+**2026-10-20 增补（S2 v3.16.1 上游合并，7d7ee097）**：上游在 server-operations.ts
+新增 1 处会话归属守卫（resolve 循环内 `current.taskType !== "subagent_child"`——仅精确
+ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不回写身份、不激活 runtime），
+按 §9 继承原则 teammate 自动继承（同一父链语义），census 22 → **23 处**
+（core/bootstrap 20）。分布：
 
-| 文件 | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得） |
-|---|---|---|
-| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269） | 6 | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
-| core/src/runtime/methods/background-notifications.ts | 2 | 通知封印按子会话现状 |
-| bootstrap/src/drora-protocol/server-operations.ts（:1738/:1957） | 2 | 子会话下钻/查询包含 teammate |
-| bootstrap/src/app/subagent-observation.ts（:51/:95） | 2 | 子代理观察面适用 |
-| bootstrap/src/drora-protocol/subagent-session-query.ts:395 | 1 | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate |
-| bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771 | 1 | 只读守卫覆盖 teammate |
-| core/src/runtime/helpers/tool-allowlist.ts:114 | 1 | RespondToCoordinator 经 allowlist 补回 |
-| core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts | 3 | 模型请求归类/用量/后台语义按子会话 |
-| core/src/telemetry/runtime-telemetry.ts | 1 | telemetry 归类 |
-| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、repairSubagentTaskIndex.ts | 3 | 任务索引排除 teammate（不出现在任务列表） |
+| 文件                                                                                            | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269）                         | 6    | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
+| core/src/runtime/methods/background-notifications.ts                                            | 2    | 通知封印按子会话现状                                                                                                                           |
+| bootstrap/src/drora-protocol/server-operations.ts（:1734 S2 新增/:1817/:2036）                  | 3    | 子会话下钻/查询包含 teammate；S2 新增会话归属守卫（精确 ID 凭父链证明归属，teammate 同样适用）                                                 |
+| bootstrap/src/app/subagent-observation.ts（:51/:95）                                            | 2    | 子代理观察面适用                                                                                                                               |
+| bootstrap/src/drora-protocol/subagent-session-query.ts:395                                      | 1    | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate                                                                                                       |
+| bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771                                             | 1    | 只读守卫覆盖 teammate                                                                                                                          |
+| core/src/runtime/helpers/tool-allowlist.ts:114                                                  | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
+| core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
+| core/src/telemetry/runtime-telemetry.ts                                                         | 1    | telemetry 归类                                                                                                                                 |
+| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、repairSubagentTaskIndex.ts  | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
 
 **继承原则（入 spec 的机制约定）**：上游后续新增任何 subagent_child 门，teammate 自动
 继承其行为——默认正确，因为 teammate 本质就是子代理；若某新门语义确需区分，按 spec
@@ -523,18 +529,18 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
 
 **A 档·上游镜像文件接缝 3 处（α/β/γ；原 S1-S6 撤销）**：
 
-| # | 位置 | 改动 | 重放 |
-|---|---|---|---|
-| α | `bootstrap/src/app/create-app.ts:791` 组装根 | 单 hunk（约 3-5 行）：deps 传 hub 自建 `toolRegistry` 实例 + 构造后调用 `installDroraAgentsTeam(...)`（新文件 bootstrap/src/app/drora-team/install.ts，供给 emitParentEvent/enqueue 通知等管道件并建 TeamHub） | 加回一个 hunk |
-| β | v4 snapshot/delta 组装处（bootstrap v4 projection，实现时以 workflowRuns 键组装点定位） | additive 块（约 2-4 行）：`...(teamState ? { team: teamState } : {})` + delta 键 | 加回一个 additive 块 |
-| γ | v4 命令 handler 注册表 commands/handlers/index.ts:16-28 | 一行 spread（注册表设计内扩展模式） | 加回一行 |
+| #   | 位置                                                                                    | 改动                                                                                                                                                                                                           | 重放                 |
+| --- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| α   | `bootstrap/src/app/create-app.ts:791` 组装根                                            | 单 hunk（约 3-5 行）：deps 传 hub 自建 `toolRegistry` 实例 + 构造后调用 `installDroraAgentsTeam(...)`（新文件 bootstrap/src/app/drora-team/install.ts，供给 emitParentEvent/enqueue 通知等管道件并建 TeamHub） | 加回一个 hunk        |
+| β   | v4 snapshot/delta 组装处（bootstrap v4 projection，实现时以 workflowRuns 键组装点定位） | additive 块（约 2-4 行）：`...(teamState ? { team: teamState } : {})` + delta 键                                                                                                                               | 加回一个 additive 块 |
+| γ   | v4 命令 handler 注册表 commands/handlers/index.ts:16-28                                 | 一行 spread（注册表设计内扩展模式）                                                                                                                                                                            | 加回一行             |
 
 **代价（有意取舍）**：member-runtime.ts 对 subagent.ts 构造区做 ~100 行有意复制
 （用可见复制换不可见穿透——上游改构造签名时我们的文件在 typecheck 显式报错，
 而非接缝语义静默漂移）；受限 profile 的协作工具强制保留降级为 profile 约定
 （team 角色显式列协作工具或 `tools:["*"]`；如需机器强制再评估 tool-allowlist.ts
 加 1 行，届时登记为第 4 接缝）；CLI 内部事件走 team journal 自有事件流，
-不动 session.events.ts。22 处行为门继承不变（§9 照旧）。
+不动 session.events.ts。23 处行为门继承不变（§9 照旧）。
 
 **B 档·自研协议与界面的全新文件（δ）**：shared team.ts + snapshot/delta/command
 additive（v4 为自研协议面无上游负担）；ui store/team 模块/mobile +
@@ -543,13 +549,13 @@ architecture-policy.yaml ui-team 登记（全新文件无上游冲突）。
 **C 档·`/team` 命令面（2026-10-17 新增，全部 additive/新文件，照 `/workflow`
 先例 `builtin-workflow-command.ts` 体例）**：
 
-| # | 位置 | 改动 |
-|---|---|---|
-| C1 | `packages/shared/src/drora-slash-command-help.ts` | additive 帮助条目（Drora 自有文件；保留字/TUI 候选/App 目录唯一出处） |
-| C2 | `bootstrap/src/builtin-team-command.ts` | 新文件（命令正文：指向 `agents-team` skill 与 staged 流程） |
-| C3 | `bootstrap/src/builtin-prompt-command.ts` | 分发表加一个分支 |
-| C4 | `create-app.ts` 子上下文守卫（:904 同款） | 一判（可并入 α hunk） |
-| C5 | contracts `AGENTS_TEAM_SKILL_NAME` + bundled `skills/agents-team/SKILL.md` | additive 常量 + 新文件 |
+| #   | 位置                                                                       | 改动                                                                  |
+| --- | -------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| C1  | `packages/shared/src/drora-slash-command-help.ts`                          | additive 帮助条目（Drora 自有文件；保留字/TUI 候选/App 目录唯一出处） |
+| C2  | `bootstrap/src/builtin-team-command.ts`                                    | 新文件（命令正文：指向 `agents-team` skill 与 staged 流程）           |
+| C3  | `bootstrap/src/builtin-prompt-command.ts`                                  | 分发表加一个分支                                                      |
+| C4  | `create-app.ts` 子上下文守卫（:904 同款）                                  | 一判（可并入 α hunk）                                                 |
+| C5  | contracts `AGENTS_TEAM_SKILL_NAME` + bundled `skills/agents-team/SKILL.md` | additive 常量 + 新文件                                                |
 
 ## 12. 里程碑与验收
 
@@ -642,12 +648,12 @@ compact 策略（lead 压缩时任务板引用防失真）；⑥ 团队命令的
 
 ## 14. 与官方 Claude Code Agent Teams 的有意分歧（对照记录）
 
-| 分歧点 | 官方 | Drora | 理由 |
-|---|---|---|---|
-| 成队方式 | Agent 工具带 name 即隐式成队 | 显式 TeamSpawn | 副作用可控 |
-| 任务板一致性 | 文件锁 | 单所有者内存板（TeamHub 串行裁决） | 全 in-process 天然原子 |
-| 进程模型 | tmux/split-pane（Windows 缺口） | 全 in-process child runtime | 天然覆盖 Windows |
-| 恢复 | resume 丢队友（官方自认实验性缺口） | team journal 整体恢复 + 终态成员复活 | 状态作为可恢复事实 |
+| 分歧点       | 官方                                | Drora                                | 理由                   |
+| ------------ | ----------------------------------- | ------------------------------------ | ---------------------- |
+| 成队方式     | Agent 工具带 name 即隐式成队        | 显式 TeamSpawn                       | 副作用可控             |
+| 任务板一致性 | 文件锁                              | 单所有者内存板（TeamHub 串行裁决）   | 全 in-process 天然原子 |
+| 进程模型     | tmux/split-pane（Windows 缺口）     | 全 in-process child runtime          | 天然覆盖 Windows       |
+| 恢复         | resume 丢队友（官方自认实验性缺口） | team journal 整体恢复 + 终态成员复活 | 状态作为可恢复事实     |
 
 ## 15. 与 dsh-agent-teams 的对照与取舍（v0.1.23，2026-10-16 调研）
 
@@ -656,30 +662,30 @@ README + docs/usage.md + docs/quality-gates.md + docs/progressive-loading.md。
 
 **借鉴（已吸收进本 spec）**：
 
-| 机制 | dsh 实现 | Drora 落点 |
-|---|---|---|
-| attempt 陈旧尝试防护 | 单调 attempt + 唯一 attemptId；转派先失效旧 attempt、中断并等旧 worker 静默；迟到写入拒绝 | §2.3 |
-| 事件驱动自动调度 | 成员 idle 事件 → 自动认领下一个 ready 任务并唤醒；无轮询 | §2.3 自动派发 |
-| 两阶段成队 | staged 花名册 + DAG，Approve & Run 才 spawn；修改走同一草案原子更新 | §1 / §2.6 / §10 |
-| 质量门禁 | 任务合同 + verdict/findings 机器判定 + 自动 repair 链 + 轮次上限升级 | §2.3 contract 预留 + M5（可选） |
-| 成员模型路由快照 | 最终生效 provider/model/effort 记入 team 记录，续聊/冷恢复恢复快照 | §8.7 |
-| 具名工具策略 | owner 声明策略 id，模型只能选不能造原始列表；解析结果入记录可审计 | §8.8（M4 评估） |
-| halted ≠ escalated | 用户停止与自动循环上限分离；显式 resume 带理由 | §2.6 |
-| 冷恢复有界重试 | 开放 attempt 冷启动自动重试一次，失败不退化为无限重派 | §2.3 |
-| 冒名防护 | 拒绝冒名 from；身份凭持久登记不凭 label | §6.2（结构性免疫，无需校验） |
-| 故障矩阵测试 | 8 成员 31 节点 DAG、50 迟到写入、7 路认领竞争、40 终态覆盖、42 消息突发 | §12 M1/M3 验收 |
-| 固定协议 | 团队生命周期操作不重写 system/tools（渐进加载撤回的实测教训） | §13 已知边界 |
-| 诚实边界声明 | 面板如实反映磁盘真相，模型不守仪式不掩盖 | §13 已知边界 |
+| 机制                 | dsh 实现                                                                                  | Drora 落点                      |
+| -------------------- | ----------------------------------------------------------------------------------------- | ------------------------------- |
+| attempt 陈旧尝试防护 | 单调 attempt + 唯一 attemptId；转派先失效旧 attempt、中断并等旧 worker 静默；迟到写入拒绝 | §2.3                            |
+| 事件驱动自动调度     | 成员 idle 事件 → 自动认领下一个 ready 任务并唤醒；无轮询                                  | §2.3 自动派发                   |
+| 两阶段成队           | staged 花名册 + DAG，Approve & Run 才 spawn；修改走同一草案原子更新                       | §1 / §2.6 / §10                 |
+| 质量门禁             | 任务合同 + verdict/findings 机器判定 + 自动 repair 链 + 轮次上限升级                      | §2.3 contract 预留 + M5（可选） |
+| 成员模型路由快照     | 最终生效 provider/model/effort 记入 team 记录，续聊/冷恢复恢复快照                        | §8.7                            |
+| 具名工具策略         | owner 声明策略 id，模型只能选不能造原始列表；解析结果入记录可审计                         | §8.8（M4 评估）                 |
+| halted ≠ escalated   | 用户停止与自动循环上限分离；显式 resume 带理由                                            | §2.6                            |
+| 冷恢复有界重试       | 开放 attempt 冷启动自动重试一次，失败不退化为无限重派                                     | §2.3                            |
+| 冒名防护             | 拒绝冒名 from；身份凭持久登记不凭 label                                                   | §6.2（结构性免疫，无需校验）    |
+| 故障矩阵测试         | 8 成员 31 节点 DAG、50 迟到写入、7 路认领竞争、40 终态覆盖、42 消息突发                   | §12 M1/M3 验收                  |
+| 固定协议             | 团队生命周期操作不重写 system/tools（渐进加载撤回的实测教训）                             | §13 已知边界                    |
+| 诚实边界声明         | 面板如实反映磁盘真相，模型不守仪式不掩盖                                                  | §13 已知边界                    |
 
 **不借鉴（与理由）**：
 
-| dsh 设计 | 不取理由 |
-|---|---|
-| 状态存工作区文件 `.agent-teams/` + 面板 1s 轮询 | Drora 有 v4 投影（快照+delta）、双链路交付与 session store journal、workspaceIdentity 隔离——文件态会污染用户仓库、无法覆盖 web-remote-replayable 语义 |
-| fork 子代理后端（memberProvider: spawn/fork） | Drora 子代理无 fork 后端（会话 fork 是另一概念）；现有 spawn 构造路径 + 终态复活已覆盖 durable member 语义 |
-| 插件 capability seam（ctx.tools / ctx.subagents.startContinuable） | Drora 原生实现：私有端口 + 组装根 3 接缝（§11 v2），权限继承与 22 处行为门全链自动继承 |
-| 任务创建 captain-only | 保持黑板开放（成员可建任务，Anthropic 板自治实证）；吸收的是转派/接管/恢复 lead 专属 |
-| 中途增删工具/替换 system 的渐进加载 | dsh 自己已撤回（缓存命中显著下降）；Drora 以固定协议纪律直接规避（§13） |
+| dsh 设计                                                           | 不取理由                                                                                                                                              |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态存工作区文件 `.agent-teams/` + 面板 1s 轮询                    | Drora 有 v4 投影（快照+delta）、双链路交付与 session store journal、workspaceIdentity 隔离——文件态会污染用户仓库、无法覆盖 web-remote-replayable 语义 |
+| fork 子代理后端（memberProvider: spawn/fork）                      | Drora 子代理无 fork 后端（会话 fork 是另一概念）；现有 spawn 构造路径 + 终态复活已覆盖 durable member 语义                                            |
+| 插件 capability seam（ctx.tools / ctx.subagents.startContinuable） | Drora 原生实现：私有端口 + 组装根 3 接缝（§11 v2），权限继承与 23 处行为门全链自动继承                                                                |
+| 任务创建 captain-only                                              | 保持黑板开放（成员可建任务，Anthropic 板自治实证）；吸收的是转派/接管/恢复 lead 专属                                                                  |
+| 中途增删工具/替换 system 的渐进加载                                | dsh 自己已撤回（缓存命中显著下降）；Drora 以固定协议纪律直接规避（§13）                                                                               |
 
 ## 16. 实现级协议细则（源码级借鉴 dsh-agent-teams，2026-10-16 二次调研）
 
@@ -793,7 +799,7 @@ team 相关 typecheck 零错误、架构检查 0 违规)。以下五项为实现
 5. **PR-1.1′d 断言结果**(运行时可达,tests/team/team-install-runtime.test.ts):
    ① 私有端口 spawn → 共享注册表同时含团队工具与内建工具(白名单断链问题类结构性不存在);
    ② 终态复活投递消息体含零授权禁令(formatIncomingMessage 单一出处);
-   ③ 灰度关注册表无任何 Team* 工具;
+   ③ 灰度关注册表无任何 Team\* 工具;
    ④ steer 载荷 presentation 中性无双包装。
 
 C 档 `/team` 命令(C1-C5)已落地:shared 帮助表条目 / builtin-team-command.ts /
@@ -841,7 +847,7 @@ core 79 + ui 52 测试绿)。补充登记:
    依赖重放保留的 attemptId/recoveryRetried(已持久化),自动触发接线属 PR-1.6 面。
 5. **note 边界**:bootstrap reviseTeamPlan handler v1 不消费 wire note;面板将 note 拼进
    composer 预填(「要调整什么?
-{note}」)避免用户输入丢失,note 仍照常上 wire;hub 未来
+   {note}」)避免用户输入丢失,note 仍照常上 wire;hub 未来
    消费 note 时改为仅预填追问文案。
 6. **预填回调契约**:仅传文本(string),替换 vs 追加语义由宿主实现决定(先例:knowledge
    handoff 非空拒绝/suggested prompt insert-replace);宿主接线点=AnimatedSidePanePanel
@@ -893,6 +899,7 @@ dev:desktop 启动即崩)。**发现真实缺陷(PR-2.5b 头号项)**:
 (install)与目录装配(listProtocolSlashCommands 调用方)不在同一判定上下文,或
 create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落地的 workspace 级门
 (任一 in-memory 会话装配即开)为此环的正确形态;下一轮排查方向:
+
 1. 在 v4-workspace-config 装配处文件埋点输出候选 app.sessionId 清单与逐个 LOOKUP 结果;
 2. 核对 DRORA_AGENTS_TEAM 是否到达目录装配所在进程(host child spawn env);
 3. 若确认为 host child spawn env 过滤,修=把 agentsTeam 设置值经 spawn args/env 显式传入。

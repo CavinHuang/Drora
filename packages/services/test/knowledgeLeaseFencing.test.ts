@@ -33,10 +33,14 @@ interface ChildHandle {
 }
 
 function spawnLeaseHolder(dbPath: string, owner: string, ttlMs: number): ChildHandle {
-  const child = spawn(process.execPath, ["--import", "tsx", join(here, "knowledgeLeaseChild.mjs"), dbPath, owner, String(ttlMs)], {
-    cwd: repoRoot,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", join(here, "knowledgeLeaseChild.mjs"), dbPath, owner, String(ttlMs)],
+    {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   let stdout = "";
   const fence = new Promise<number>((resolveFence, rejectFence) => {
     child.stdout.on("data", (chunk: Buffer) => {
@@ -49,7 +53,8 @@ function spawnLeaseHolder(dbPath: string, owner: string, ttlMs: number): ChildHa
       process.stderr.write(`[lease-child] ${chunk.toString("utf-8")}`);
     });
     child.on("exit", (code) => {
-      if (!/ACQUIRED/.test(stdout)) rejectFence(new Error(`child 提前退出 code=${code}: ${stdout.trim()}`));
+      if (!/ACQUIRED/.test(stdout))
+        rejectFence(new Error(`child 提前退出 code=${code}: ${stdout.trim()}`));
     });
   });
   return { child, fence };
@@ -82,10 +87,7 @@ test("A05：子进程 Host 持有租约时父进程被拒；硬杀后 TTL 到期
     assert.ok(childFence >= 1);
 
     // 2. 父进程（Host A）startJob → 租约被持有 → 明确报错（不排队不覆盖）。
-    await assert.rejects(
-      () => services.indexService.startReconcile(),
-      /租约被其他 Host 持有/,
-    );
+    await assert.rejects(() => services.indexService.startReconcile(), /租约被其他 Host 持有/);
 
     // 3. 旧 fence 写入拒绝（父进程模拟持有旧 fence 的迟到 writer）。
     const db = openKnowledgeDatabase(dbPath);
@@ -93,7 +95,13 @@ test("A05：子进程 Host 持有租约时父进程被拒；硬杀后 TTL 到期
       await assert.throws(
         () =>
           db.transaction((tx) => {
-            verifyLeaseInsideTransaction(tx, KNOWLEDGE_INDEX_LEASE_NAME, "host-A-stale", childFence, Date.now());
+            verifyLeaseInsideTransaction(
+              tx,
+              KNOWLEDGE_INDEX_LEASE_NAME,
+              "host-A-stale",
+              childFence,
+              Date.now(),
+            );
           }),
         (error: unknown) => error instanceof KnowledgeLeaseLostError,
       );
@@ -111,7 +119,13 @@ test("A05：子进程 Host 持有租约时父进程被拒；硬杀后 TTL 到期
     // 杀后立即抢租约：TTL 未过期 → 仍被"死者"租约拒绝。
     const dbProbe = openKnowledgeDatabase(dbPath);
     try {
-      const immediate = acquireIndexLease(dbProbe, KNOWLEDGE_INDEX_LEASE_NAME, "host-A-early", 1000, Date.now());
+      const immediate = acquireIndexLease(
+        dbProbe,
+        KNOWLEDGE_INDEX_LEASE_NAME,
+        "host-A-early",
+        1000,
+        Date.now(),
+      );
       assert.equal(immediate.acquired, false);
     } finally {
       dbProbe.close();
@@ -173,7 +187,10 @@ test("store 级 fencing：接管提升 epoch，旧持有者写事务被拒，新
     });
 
     // Host A 续期成功（未过期）。
-    assert.equal(heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, "host-A", 1, 60, Date.now()), true);
+    assert.equal(
+      heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, "host-A", 1, 60, Date.now()),
+      true,
+    );
 
     // TTL 过期后 Host B 接管 → fence=2。
     await sleep(90);
@@ -182,7 +199,10 @@ test("store 级 fencing：接管提升 epoch，旧持有者写事务被拒，新
     assert.equal(second.fence, 2);
 
     // Host A 心跳被拒（不是持有者）；A 的写事务在事务内被 fence 拒绝（spike3 反例不复现）。
-    assert.equal(heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, "host-A", 1, 60, Date.now()), false);
+    assert.equal(
+      heartbeatIndexLease(db, KNOWLEDGE_INDEX_LEASE_NAME, "host-A", 1, 60, Date.now()),
+      false,
+    );
     assert.throws(
       () =>
         db.transaction((tx) => {

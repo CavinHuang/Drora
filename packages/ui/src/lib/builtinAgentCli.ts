@@ -6,11 +6,7 @@ import {
 } from "@drora/shared";
 const INSTALLABLE_AGENT_CLI_PROVIDERS: DroraProvider[] = [];
 
-export type BuiltinAgentCliStatus =
-  | "enabled"
-  | "enabling"
-  | "disabling"
-  | "disabled";
+export type BuiltinAgentCliStatus = "enabled" | "enabling" | "disabling" | "disabled";
 
 function normalizeEnabledBuiltinAgentCliProviders(
   providers?: ReadonlyArray<DroraProvider>,
@@ -21,9 +17,7 @@ function normalizeEnabledBuiltinAgentCliProviders(
 export function getEnabledBuiltinAgentCliProviders(
   settings: Pick<AppSettings, "enabledBuiltinAgentCliProviders"> | null | undefined,
 ): DroraProvider[] {
-  return normalizeEnabledBuiltinAgentCliProviders(
-    settings?.enabledBuiltinAgentCliProviders,
-  );
+  return normalizeEnabledBuiltinAgentCliProviders(settings?.enabledBuiltinAgentCliProviders);
 }
 
 export function requiresBuiltinAgentCliInstall(provider: DroraProvider): boolean {

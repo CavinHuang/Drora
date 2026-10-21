@@ -31,8 +31,7 @@ export function createJevDynamicProvider(deps: {
     async providerSource(): Promise<KnowledgeDecisionProvider | null> {
       const assembly = (await deps.source()) ?? null;
       // 签名脱敏：Key 不进签名/日志（安全不变式）。
-      const signature =
-        assembly === null ? null : JSON.stringify({ ...assembly, apiKey: "***" });
+      const signature = assembly === null ? null : JSON.stringify({ ...assembly, apiKey: "***" });
       if (signature !== lastSignature) {
         deps.cache.clear();
         lastSignature = signature;

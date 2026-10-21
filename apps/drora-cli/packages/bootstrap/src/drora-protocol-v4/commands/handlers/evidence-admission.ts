@@ -22,7 +22,7 @@ export class EvidenceGuardRejectionError extends Error {
 
   constructor(
     guard: KnowledgeEvidenceGuard,
-    readonly evidenceReason: KnowledgeEvidenceReason | "gate_unavailable",
+    readonly evidenceReason: KnowledgeEvidenceReason,
     receiptId: string,
   ) {
     // message 只携带 id 前缀与原因，不携带路径/笔记内容（日志边界）。

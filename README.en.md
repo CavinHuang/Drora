@@ -32,6 +32,12 @@ No build required - grab the latest build from the [Releases](https://github.com
 
 All artifacts are built from source by GitHub Actions; `SHA256SUMS.txt` provides checksums and `latest*.yml` feeds the in-app auto-update. Installers are unsigned: on Windows choose "Run anyway", on macOS allow the app under "Privacy & Security" on first launch.
 
+## Updates
+
+- **2026-10-16**: Updated to Drora v3.16.1.
+- 2026-10-10: Updated to Drora v3.15.1.
+- 2026-9-23: Updated to Drora v3.14.3.
+
 ## Setup
 
 Install Git, Node.js **24.14.0**, and pnpm **10.33.2**. [mise.toml](mise.toml) is the source of truth for tool versions. Run all development and packaging commands below from the repository root.
@@ -116,6 +122,8 @@ When starting the general Web service's HTTP entry directly, configure API/WebSo
 See Packaging below for build instructions. `pnpm build:drora` only creates the distribution; it does not replace an existing `drora` on `PATH`. If the command still points to an older installation or another checkout, check it with `command -v drora` on macOS / Linux or `where.exe drora` on Windows.
 
 ### CLI Source Development
+
+See the [CLI usage guide (Chinese)](apps/drora-cli/docs/usage/README.md) for model configuration, non-interactive runs, tools and extensions, batch evaluation, and trajectory capture.
 
 Use the source entry when developing the TUI or Agent:
 

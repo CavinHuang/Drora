@@ -27,9 +27,9 @@ export class KnowledgeLeaseLostError extends Error {
 }
 
 function readLease(db: KnowledgeDatabase, name: string): LeaseState {
-  const row = db.raw.prepare("SELECT owner, epoch, expires_at_ms FROM index_lease WHERE name = ?").get(name) as
-    | { owner: string | null; epoch: number; expires_at_ms: number }
-    | undefined;
+  const row = db.raw
+    .prepare("SELECT owner, epoch, expires_at_ms FROM index_lease WHERE name = ?")
+    .get(name) as { owner: string | null; epoch: number; expires_at_ms: number } | undefined;
   if (!row) return { owner: null, epoch: 0, expiresAtMs: 0 };
   return { owner: row.owner, epoch: row.epoch, expiresAtMs: row.expires_at_ms };
 }
@@ -90,12 +90,19 @@ export function heartbeatIndexLease(
   });
 }
 
-export function releaseIndexLease(db: KnowledgeDatabase, name: string, owner: string, fence: number): void {
+export function releaseIndexLease(
+  db: KnowledgeDatabase,
+  name: string,
+  owner: string,
+  fence: number,
+): void {
   db.transaction((tx) => {
     const lease = readLease(tx, name);
     if (lease.owner !== owner || lease.epoch !== fence) return;
     tx.raw
-      .prepare("UPDATE index_lease SET owner = NULL, expires_at_ms = 0, heartbeat_at_ms = 0 WHERE name = ?")
+      .prepare(
+        "UPDATE index_lease SET owner = NULL, expires_at_ms = 0, heartbeat_at_ms = 0 WHERE name = ?",
+      )
       .run(name);
   });
 }

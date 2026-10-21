@@ -14,7 +14,10 @@ describe("分享上下文导入与当前选择合同", () => {
       >(async () => {});
       const resume = vi.fn(async () => undefined);
       const server = new DroraProtocolAgentServer({
-        sessionStore: { commitSharedContextImportBundle } as unknown as SessionStorePort,
+        sessionStore: {
+          commitSharedContextImportBundle,
+          getSession: async () => null,
+        } as unknown as SessionStorePort,
         createDroraApp: (options) => createFakeApp(options, { getModel: () => model, resume }),
       });
       const context = (server as unknown as { context: DroraProtocolAgentServerContext }).context;

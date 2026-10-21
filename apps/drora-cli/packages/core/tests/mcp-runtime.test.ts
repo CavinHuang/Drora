@@ -272,7 +272,12 @@ describe("AgentRuntime MCP integration", () => {
     expect(toolNames).toContain("mcp__local__ping");
   });
 
-  it("executes non-destructive MCP tools in plan mode with readOnlyHint", async () => {
+  // Drora 安全分歧（specs/agent-write-safety.md 洞 1a/§5 收口口径）：上游 v3.16.1 的
+  // mode.plan.mcp 分支会放行「未自报 destructive」的 MCP 工具；Drora 认为服务端自报的
+  // readOnlyHint/destructiveHint 都不是信任锚，已删除该分支。本用例按分歧后的语义断言：
+  // plan 模式下自报 readOnlyHint 的普通 MCP 调用被静默拒绝（不触达 server、不弹权限窗），
+  // 拒绝原因以 tool 错误消息回流给模型，Turn 正常收口。
+  it("denies MCP tools self-reporting readOnlyHint in plan mode without calling the server", async () => {
     const sessionId = createSessionId("runtime-mcp-plan-mode");
     const eventStore = createTestSessionEventStore();
     let modelCallCount = 0;
@@ -284,7 +289,7 @@ describe("AgentRuntime MCP integration", () => {
         permissionRequestCount++;
         return {
           decision: "deny",
-          reason: "permission broker should not be called for plan-mode MCP allow",
+          reason: "permission broker should not be called for plan-mode MCP deny",
         };
       },
     };
@@ -366,10 +371,15 @@ describe("AgentRuntime MCP integration", () => {
               };
             }
 
+            // 分歧语义：plan 模式对自报 readOnlyHint 的 MCP 给出结构化拒绝文案，
+            // 模型在第二次请求里能看到拒绝原因（tool 角色错误消息），而不是工具结果。
             expect(
               request.messages.some((message: any) => {
                 return (
-                  message.role === "tool" && String(message.content).includes("lookup:plan context")
+                  message.role === "tool" &&
+                  String(message.content).includes(
+                    "Plan mode only allows read-only, non-destructive tools",
+                  )
                 );
               }),
             ).toBe(true);
@@ -392,7 +402,8 @@ describe("AgentRuntime MCP integration", () => {
     const result = await runtime.executeTurn("use mcp while planning");
 
     expect(result.response).toBe("done");
-    expect(mcpCallCount).toBe(1);
+    // 服务端与权限窗都不能被触达：拒绝发生在 plan 模式判定层。
+    expect(mcpCallCount).toBe(0);
     expect(permissionRequestCount).toBe(0);
   });
 

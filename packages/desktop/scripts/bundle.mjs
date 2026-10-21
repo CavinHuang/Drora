@@ -12,6 +12,7 @@ import process from "node:process";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
+import { createDesktopPetSharpPackaging } from "./desktop-pet-sharp-packaging.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
   findDesktopNativePackageViolations,
@@ -86,6 +87,7 @@ const artifactArchHintsByArch = {
 };
 const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 const requiredRuntimeModules = [
+  "sharp",
   "module-details-from-path",
   "pngjs",
   // Bugfix: telemetry 的 OTLP exporter 在启动阶段依赖 sdk-metrics；开发态 hoist 会掩盖
@@ -672,9 +674,12 @@ function verifyPackagedRuntimeDependencies(os, arch) {
     throw new Error(`打包产物包含越界 native 资源:\n- ${nativePackageViolations.join("\n- ")}`);
   }
 
-  const runtimeModules = collectRuntimeModuleClosureEntries(
-    requiredRuntimeModules,
-    runtimeModuleLookupRoots,
+  const petSharpPackaging = createDesktopPetSharpPackaging(
+    targetPlatformKey,
+    requireFromBundle("sharp/package.json").optionalDependencies,
+  );
+  const runtimeModules = petSharpPackaging.filterRuntimeModules(
+    collectRuntimeModuleClosureEntries(requiredRuntimeModules, runtimeModuleLookupRoots),
   );
   const resolvableRuntimeModules = runtimeModules.filter((entry) => {
     if (!entry.sourceModulePath) {

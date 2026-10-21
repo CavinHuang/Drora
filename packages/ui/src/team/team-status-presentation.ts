@@ -10,7 +10,13 @@ import type { TeamUiStatus } from "./contract.js";
  */
 
 /** 语义色点 tone（Tailwind 语义 token；与 styles.css 的 --color-* 对应）。 */
-export type TeamStatusDotTone = "accent" | "neutral" | "success" | "warning" | "destructive" | "confirmation";
+export type TeamStatusDotTone =
+  | "accent"
+  | "neutral"
+  | "success"
+  | "warning"
+  | "destructive"
+  | "confirmation";
 
 export const TEAM_STATUS_DOT_TONE: Record<TeamUiStatus, TeamStatusDotTone> = {
   // 统一设计 02：审批使用 confirmation，运行状态使用 workflow 同款 warning 灯。

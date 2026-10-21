@@ -20,7 +20,7 @@ import {
 import { flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDownIcon } from "lucide-react";
-import { TID_V4_TIMELINE, TID_V4_TIMELINE_BOTTOM } from "@drora/shared";
+import { TID_V4_TIMELINE, TID_V4_TIMELINE_BOTTOM } from "@drora/shared/test-ids";
 import type {
   ApiRetryState,
   AttachmentRef,
@@ -351,13 +351,7 @@ export interface ConversationTimelineProps {
     onAddToCurrentTask: (reference: ConversationSelectionReference) => void;
     onAskInSideChat: (reference: ConversationSelectionReference) => void;
   };
-  /** 分享选择阶段的本轮勾选状态；仅桌面分享时间线传入。 */
-  shareSelection?: {
-    eligibleRowIds: ReadonlySet<number>;
-    selectedRowIds: ReadonlySet<number>;
-    onToggle: (rowId: number) => void;
-  };
-  /** 分享选择流程存在时，左侧 rail 由分享面板或 reopen 按钮独占。 */
+  /** 范围编辑时，左侧 rail 由分享选择面板独占。 */
   hideTurnNavigator?: boolean;
 }
 
@@ -406,7 +400,6 @@ function ConversationTimelineImpl({
   scrollToBottomActionRef,
   scrollToQueryActionRef,
   selectionActions,
-  shareSelection,
   hideTurnNavigator = false,
 }: ConversationTimelineProps) {
   const { intl } = useDroraIntl();
@@ -2009,7 +2002,6 @@ function ConversationTimelineImpl({
                         onRetry={onRetry}
                         onFeedbackChange={onFeedbackChange}
                         onEdit={onEdit}
-                        shareSelection={shareSelection}
                       />
                     </div>
                   );
@@ -2040,11 +2032,21 @@ function ConversationTimelineImpl({
                     onRetry={onRetry}
                     onFeedbackChange={onFeedbackChange}
                     onEdit={onEdit}
-                    shareSelection={shareSelection}
                   />
                 </div>
               ) : null}
-              {footerSlot ? <div data-v4-timeline-content-column="true" className={cn("relative mx-auto w-full shrink-0",contentWidthClassName,summaryPanelInlineOffsetClassName)}>{footerSlot}</div> : null}
+              {footerSlot ? (
+                <div
+                  data-v4-timeline-content-column="true"
+                  className={cn(
+                    "relative mx-auto w-full shrink-0",
+                    contentWidthClassName,
+                    summaryPanelInlineOffsetClassName,
+                  )}
+                >
+                  {footerSlot}
+                </div>
+              ) : null}
               {pendingGuides.length > 0 ? (
                 <div
                   data-v4-timeline-content-column="true"

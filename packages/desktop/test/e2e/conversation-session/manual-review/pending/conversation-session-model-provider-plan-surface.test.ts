@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
+import { encodeCustomModelValue } from "@drora/shared";
 import {
   TID_AUTOMATION_CREATE_MANUALLY,
   TID_AUTOMATION_CREATE_MENU,
@@ -14,9 +15,8 @@ import {
   TID_CHAT_MODEL_SELECT_ITEM,
   TID_CHAT_MODEL_SELECT_TRIGGER,
   TID_AUTOMATION_FREQUENCY_OPTION,
-  encodeCustomModelValue,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   clickTestIdByDom,

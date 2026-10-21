@@ -123,7 +123,11 @@ test("A12 前置：prepare 签发绑定完整的 opaque receipt，resolveCitatio
   const env = await createEnv();
   try {
     await configureVaultAt(env.pluginDataDir, env.vaultA);
-    await writeNote(env.vaultA, "notes/evidence.md", "# 证据标题\n\n独特的证据句子 evidence marker one");
+    await writeNote(
+      env.vaultA,
+      "notes/evidence.md",
+      "# 证据标题\n\n独特的证据句子 evidence marker one",
+    );
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
 
@@ -166,10 +170,12 @@ test("A12：文件修改 → stale；文件删除 → missing", async () => {
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
     const { run } = await prepareCurrent(env, "stale-check-marker");
-    const receiptId = (await env.services.queryService.prepareEvidence({
-      runId: run.runId,
-      articleId: run.candidates[0]!.articleId,
-    })).receipt!.receiptId;
+    const receiptId = (
+      await env.services.queryService.prepareEvidence({
+        runId: run.runId,
+        articleId: run.candidates[0]!.articleId,
+      })
+    ).receipt!.receiptId;
 
     await writeNote(env.vaultA, "a.md", "# A\n\n内容已被修改 stale-changed");
     const stale = await env.services.queryService.resolveCitation({
@@ -198,10 +204,12 @@ test("A13：切库 → forbidden/vault_switched；撤权 → forbidden；重授�
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
     const { run } = await prepareCurrent(env, "switch-check-marker");
-    const receiptId = (await env.services.queryService.prepareEvidence({
-      runId: run.runId,
-      articleId: run.candidates[0]!.articleId,
-    })).receipt!.receiptId;
+    const receiptId = (
+      await env.services.queryService.prepareEvidence({
+        runId: run.runId,
+        articleId: run.candidates[0]!.articleId,
+      })
+    ).receipt!.receiptId;
 
     // 切库到 B：旧 receipt 指向的 vaultId 不再是当前源。
     await configureVaultAt(env.pluginDataDir, env.vaultB);
@@ -260,10 +268,12 @@ test("A15：quote 切片校验——账本行被篡改（chunk sha 不符）→ 
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
     const { run } = await prepareCurrent(env, "quote-move-marker");
-    const receiptId = (await env.services.queryService.prepareEvidence({
-      runId: run.runId,
-      articleId: run.candidates[0]!.articleId,
-    })).receipt!.receiptId;
+    const receiptId = (
+      await env.services.queryService.prepareEvidence({
+        runId: run.runId,
+        articleId: run.candidates[0]!.articleId,
+      })
+    ).receipt!.receiptId;
 
     // 直接改账本行（模拟账本损坏/写入 bug）：文件与 file sha 都没变，只有 quote 绑定坏了。
     const raw = new DatabaseSync(env.databasePath);
@@ -292,10 +302,12 @@ test("A19：会话绑定——他 session 与未携 session 都不得解析绑�
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
     const { run } = await prepareCurrent(env, "cross-session-marker", "session-alpha");
-    const receiptId = (await env.services.queryService.prepareEvidence({
-      runId: run.runId,
-      articleId: run.candidates[0]!.articleId,
-    })).receipt!.receiptId;
+    const receiptId = (
+      await env.services.queryService.prepareEvidence({
+        runId: run.runId,
+        articleId: run.candidates[0]!.articleId,
+      })
+    ).receipt!.receiptId;
 
     const other = await env.services.queryService.resolveCitation({
       receiptId,
@@ -313,10 +325,12 @@ test("A19：会话绑定——他 session 与未携 session 都不得解析绑�
 
     // 无会话 run 的 receipt 不绑会话：跨会话可解析（仍受源/文件校验）。
     const anonRun = await searchOne(env, "cross-session-marker");
-    const anonReceipt = (await env.services.queryService.prepareEvidence({
-      runId: anonRun.runId,
-      articleId: anonRun.candidates[0]!.articleId,
-    })).receipt!;
+    const anonReceipt = (
+      await env.services.queryService.prepareEvidence({
+        runId: anonRun.runId,
+        articleId: anonRun.candidates[0]!.articleId,
+      })
+    ).receipt!;
     assert.equal(anonReceipt.sessionId, "");
     const fromOther = await env.services.queryService.resolveCitation({
       receiptId: anonReceipt.receiptId,
@@ -338,12 +352,14 @@ test("prepare 的复验门：源失效/文件已改/未知候选 → 结构化�
 
     // 未知 run / 未知候选 → forbidden。
     assert.equal(
-      (await env.services.queryService.prepareEvidence({ runId: "run-nope", articleId: "x" })).status,
+      (await env.services.queryService.prepareEvidence({ runId: "run-nope", articleId: "x" }))
+        .status,
       "forbidden",
     );
     const run = await searchOne(env, "prepare-gate-marker", "session-1");
     assert.equal(
-      (await env.services.queryService.prepareEvidence({ runId: run.runId, articleId: "nope" })).status,
+      (await env.services.queryService.prepareEvidence({ runId: run.runId, articleId: "nope" }))
+        .status,
       "forbidden",
     );
 
@@ -445,16 +461,25 @@ test("migration v2 建表与共享 DDL 常量同源（CLI 只读侧契约）", a
     await waitForJobTerminal(env.services, job.jobId);
     const raw = new DatabaseSync(env.databasePath);
     try {
-      const version = raw.prepare("SELECT MAX(version) AS v FROM schema_version").get() as { v: number };
+      const version = raw.prepare("SELECT MAX(version) AS v FROM schema_version").get() as {
+        v: number;
+      };
       assert.ok(version.v >= 2);
-      const columns = raw.prepare("PRAGMA table_info(evidence_receipts)").all() as Array<{ name: string }>;
+      const columns = raw.prepare("PRAGMA table_info(evidence_receipts)").all() as Array<{
+        name: string;
+      }>;
       // 共享 DDL 的列名都在实际表中（列清单单一出处）。
-      const ddlColumns = [...KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS[0]!.matchAll(/^\s+(\w+)\s+(?:TEXT|INTEGER)/gmu)].map(
-        (match) => match[1]!,
-      );
+      const ddlColumns = [
+        ...KNOWLEDGE_EVIDENCE_RECEIPTS_TABLE_STATEMENTS[0]!.matchAll(
+          /^\s+(\w+)\s+(?:TEXT|INTEGER)/gmu,
+        ),
+      ].map((match) => match[1]!);
       assert.ok(ddlColumns.length >= 18);
       for (const column of ddlColumns) {
-        assert.ok(columns.some((actual) => actual.name === column), `列缺失: ${column}`);
+        assert.ok(
+          columns.some((actual) => actual.name === column),
+          `列缺失: ${column}`,
+        );
       }
     } finally {
       raw.close();

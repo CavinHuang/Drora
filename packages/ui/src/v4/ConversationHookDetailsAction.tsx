@@ -7,7 +7,11 @@ import {
   LoaderCircleIcon,
   ShieldAlertIcon,
 } from "lucide-react";
-import { TID_V4_HOOK_DETAILS_CONTENT, TID_V4_HOOK_DETAILS_TRIGGER, testId } from "@drora/shared";
+import {
+  TID_V4_HOOK_DETAILS_CONTENT,
+  TID_V4_HOOK_DETAILS_TRIGGER,
+  testId,
+} from "@drora/shared/test-ids";
 import type { HookExecutionProjection, HookInvocationRow } from "@drora/shared/drora-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";

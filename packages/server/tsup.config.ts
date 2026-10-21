@@ -12,13 +12,18 @@ const { stageThirdPartyNotices } = await import(
 
 // tsup config 可能从不同 cwd 加载，基于配置文件自身目录解析仓库根 package.json。
 const rootPackageJsonPath = resolve(import.meta.dirname, "../../package.json");
-const { version } = JSON.parse(readFileSync(rootPackageJsonPath, "utf-8"));
+const { version, droraCompatibility } = JSON.parse(readFileSync(rootPackageJsonPath, "utf-8")) as {
+  version: string;
+  droraCompatibility?: { minCompatibleVersion?: string };
+};
+const minCompatibleVersion = droraCompatibility?.minCompatibleVersion ?? version;
 
 const { environment: droraEnv, content: droraBuiltinProviderConfigJson } =
   await loadBuiltinProviderConfig();
 
 export const SERVER_HTTP_DEFINES = {
   __DRORA_VERSION__: JSON.stringify(version),
+  __DRORA_MIN_COMPATIBLE_VERSION__: JSON.stringify(minCompatibleVersion),
   __DRORA_ENV__: JSON.stringify(droraEnv),
   __DRORA_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(droraBuiltinProviderConfigJson),
 };
@@ -63,6 +68,8 @@ export default defineConfig({
   outDir: "dist",
   format: "esm",
   platform: "node",
+  // node:sqlite 只有带前缀的内置入口；tsup 去掉 node: 会错误加载第三方 sqlite 包。
+  removeNodeProtocol: false,
   target: "node22",
   // workspace 包的 exports 指向 .ts 源码，node 运行时无法直接加载，需要 bundle 进来
   noExternal: [

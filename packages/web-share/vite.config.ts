@@ -33,22 +33,40 @@ export default defineConfig(({ mode }) => {
     publicDir: resolve(REPO_ROOT, "packages/web/public"),
     plugins: [react(), tailwindcss()],
     resolve: {
-      alias: {
-        "@": resolve(REPO_ROOT, "packages/ui/src"),
-        "@drora/shared": resolve(REPO_ROOT, "packages/shared/src/index.ts"),
+      alias: [
+        { find: "@", replacement: resolve(REPO_ROOT, "packages/ui/src") },
+        // Docker 只给 web-share 安装依赖，复用的 Web/UI 源文件找不到同级依赖链接。
+        // 根入口必须精确匹配，避免把 shared/mcp-apps 等子路径改写成 index.ts/mcp-apps。
+        {
+          find: /^@drora\/shared$/,
+          replacement: resolve(REPO_ROOT, "packages/shared/src/index.ts"),
+        },
         // Share 镜像不安装 @drora/ui（它会带入 services/rpc 闭包），子路径导入必须显式指向源码。
-        "@drora/ui/useTheme": resolve(REPO_ROOT, "packages/ui/src/useTheme.ts"),
-        "@drora/ui/conversation-share-readonly": resolve(
-          REPO_ROOT,
-          "packages/share-ui/src/index.ts",
-        ),
-        // 登录卡片要用 provider 图标（svg 走 @ -> packages/ui/src 别名解析）。
-        // 该模块只依赖 shared/lucide/cn，不会把 services/rpc 闭包带进 share 镜像。
-        "@drora/ui/oauth-provider-icon": resolve(
-          REPO_ROOT,
-          "packages/ui/src/lib/oauthProviderIcon.tsx",
-        ),
-      },
+        {
+          find: "@drora/ui/useTheme",
+          replacement: resolve(REPO_ROOT, "packages/ui/src/useTheme.ts"),
+        },
+        // 只读时间线的协议子路径同时是 shareBuildBoundary 守卫的准入声明。
+        {
+          find: "@drora/shared/drora-protocol-v4",
+          replacement: resolve(REPO_ROOT, "packages/shared/src/drora-protocol-v4/index.ts"),
+        },
+        // Bugfix：test-ids 改为只从子路径导入后，reasoning.tsx、ToolSummaryRow.tsx 等 share 闭包
+        // 文件引用了它；镜像没有 packages/ui 的依赖链接，未登记别名时 Docker 构建解析失败。
+        {
+          find: "@drora/shared/test-ids",
+          replacement: resolve(REPO_ROOT, "packages/shared/src/test-ids.ts"),
+        },
+        {
+          find: "@drora/ui/conversation-share-readonly",
+          replacement: resolve(REPO_ROOT, "packages/share-ui/src/index.ts"),
+        },
+        // 登录卡片要用 provider 图标；只依赖 shared/lucide/cn，不引入 services/rpc。
+        {
+          find: "@drora/ui/oauth-provider-icon",
+          replacement: resolve(REPO_ROOT, "packages/ui/src/lib/oauthProviderIcon.tsx"),
+        },
+      ],
     },
     define: {
       __DRORA_VERSION__: JSON.stringify(version),

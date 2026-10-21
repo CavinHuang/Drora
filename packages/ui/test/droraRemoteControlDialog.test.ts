@@ -20,7 +20,7 @@ vi.mock("../src/hooks/useSettingService.js", () => ({
 }));
 vi.mock("../src/i18n/IntlProvider.js", () => ({ useDroraIntl: () => ({ locale: "en-US" }) }));
 vi.mock("../src/components/ui/toast.js", () => ({ toast: ports.toast }));
-vi.mock("../src/WebRemoteControlDialog.js", async () => {
+vi.mock("../src/web-remote-control/WebRemoteControlDialog.js", async () => {
   const { createElement } = await import("react");
   return {
     WebRemoteControlDialog: ({ deploymentControls }: { deploymentControls: unknown }) =>

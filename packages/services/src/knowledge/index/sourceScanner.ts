@@ -46,7 +46,14 @@ function isHiddenName(name: string): boolean {
 
 export async function scanVaultSource(rootPath: string): Promise<ScanResult> {
   const files: ScanFileCandidate[] = [];
-  const exclusions: ScanExclusions = { hidden: 0, symlink: 0, notMarkdown: 0, overSize: 0, overQuota: 0, depth: 0 };
+  const exclusions: ScanExclusions = {
+    hidden: 0,
+    symlink: 0,
+    notMarkdown: 0,
+    overSize: 0,
+    overQuota: 0,
+    depth: 0,
+  };
   let foldersSkippedByQuota = 0;
   let folderCount = 0;
 
@@ -123,7 +130,8 @@ export async function scanVaultSource(rootPath: string): Promise<ScanResult> {
 export function isSafeFacadeMarkdownPath(relativePath: string): boolean {
   if (typeof relativePath !== "string" || relativePath.length === 0) return false;
   const parts = relativePath.split("/");
-  if (parts.some((part) => !part || part === "." || part === ".." || part.startsWith("."))) return false;
+  if (parts.some((part) => !part || part === "." || part === ".." || part.startsWith(".")))
+    return false;
   return relativePath.toLowerCase().endsWith(".md");
 }
 

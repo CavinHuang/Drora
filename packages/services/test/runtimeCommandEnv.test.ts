@@ -2,10 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  DRORA_TOOL_ENV_PASSTHROUGH_ENV_KEY,
-  readDroraToolEnvPassthroughEnv,
-} from "@drora/shared";
+import { DRORA_TOOL_ENV_PASSTHROUGH_ENV_KEY, readDroraToolEnvPassthroughEnv } from "@drora/shared";
 import {
   buildLoginShellEnvPatch,
   buildRuntimeProcessEnvPatch,

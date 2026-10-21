@@ -101,10 +101,13 @@ export function createTurnFailureError(
     return createTurnCancelledError(error);
   }
 
+  // 对齐上游 v3.16.1：ConfigurationError 不再直通，统一按 fallbackMessage 包装
+  // （「Model creation failed」等），真实根因保留在 cause 链与 Wrapper 角色 payload 里。
+  // v3.15.1 合并时遗留的 ConfigurationError 直通会让上游 runtime-unbound-resume
+  // 断言的包装形态（外层 Model creation failed + cause Select a model）失效。
   if (
     isCoreError(error) &&
-    (error.type === CoreErrorType.ConfigurationError ||
-      error.type === CoreErrorType.ModelContextExceeded ||
+    (error.type === CoreErrorType.ModelContextExceeded ||
       (fallbackMessage === "Turn execution failed" && error.type === CoreErrorType.ModelError))
   ) {
     return error;
@@ -149,6 +152,8 @@ export async function appendTurnOutcomeEvent(
     durationMs: number;
     turnPhase: string;
     inputId?: string;
+    highspeedCardId?: string;
+    highspeedFallbackUnavailable?: boolean;
     traceContext: TraceContext;
     fallbackMessage: string;
     logEvent: string;
@@ -162,6 +167,7 @@ export async function appendTurnOutcomeEvent(
   const { coreError, events, traceContext, turnPhase, inputId } = params;
   const cancelled = coreError.type === CoreErrorType.TurnCancelled;
   const externalFault = findExternalTurnFault(coreError);
+  const projectedError = projectExecutionErrorPayload(coreError, params.fallbackMessage);
 
   const outcomeEvent = cancelled
     ? runtime.createEvent(
@@ -192,7 +198,18 @@ export async function appendTurnOutcomeEvent(
             type: externalFault?.code ?? coreError.type,
             // coreError.message 常是泛化文案，真实 provider/network 原因藏在 cause 链里；
             // 写入可读 payload fields 让桌面端和恢复链路都能展示根因。
-            ...projectExecutionErrorPayload(coreError, params.fallbackMessage),
+            ...projectedError,
+            attribution: {
+              ...projectedError.attribution,
+              // Bug 根因：创建期尚无 userInput 行。每个新错误都发布 string/null，
+              // 让 Renderer 区分“普通轮”与“旧 Agent 没有该字段”。
+              highspeedCardId: params.highspeedCardId ?? null,
+              // 无处可退时没有 fallback 事件，且请求期失败的 code 是 provider 错误码（如 3402），
+              // Renderer 不能按错误码推断退卡；由 Core 把“已归因且无处可退”作为结构化事实发布。
+              ...(params.highspeedFallbackUnavailable
+                ? { highspeedFallbackUnavailable: true }
+                : {}),
+            },
             stack: coreError.stack,
           },
           turnPhase,

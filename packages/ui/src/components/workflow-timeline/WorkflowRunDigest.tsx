@@ -5,7 +5,8 @@ import {
   SlidersHorizontalIcon,
   SquareIcon,
 } from "lucide-react";
-import { TID_CHAT_WORKFLOW_RUN_DIGEST, testId } from "@drora/shared";
+import { TID_CHAT_WORKFLOW_RUN_DIGEST } from "@drora/shared";
+import { testId } from "@drora/shared/test-ids";
 import type { WorkflowRunState } from "@drora/shared/drora-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";

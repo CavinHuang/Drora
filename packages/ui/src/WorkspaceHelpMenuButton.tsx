@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { DesktopCommandIds } from "@drora/shared";
 import {
-  DesktopCommandIds,
   TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER,
   TID_WORKSPACE_HELP_MENU_TRIGGER,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   ActivityIcon,
   BookOpenIcon,

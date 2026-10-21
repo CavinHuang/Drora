@@ -73,7 +73,8 @@ export async function resolveKnowledgeJevAssembly(
       apiKey,
       model,
       // 端点缺省回落内置（openrouter.ai 官方）；自有网关经设置覆盖。
-      baseUrl: normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl) ?? OPENROUTER_OFFICIAL_BASE_URL,
+      baseUrl:
+        normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl) ?? OPENROUTER_OFFICIAL_BASE_URL,
     };
   }
   if (settings.knowledgeJevProvider === "ai-gateway") {
@@ -86,7 +87,8 @@ export async function resolveKnowledgeJevAssembly(
       model,
       // 端点缺省回落内置（Vercel AI Gateway，初值依据见 spec §5d.10 决策记录）；
       // 自有网关部署（Kong/TrueFoundry 等）经设置覆盖。
-      baseUrl: normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl) ?? AI_GATEWAY_OFFICIAL_BASE_URL,
+      baseUrl:
+        normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl) ?? AI_GATEWAY_OFFICIAL_BASE_URL,
     };
   }
   const apiKey = (await credentialService.load(KNOWLEDGE_JEV_CREDENTIAL_KEY))?.trim();

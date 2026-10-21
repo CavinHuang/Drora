@@ -14,7 +14,7 @@ import {
   TID_SETTINGS_SECTION_NAV,
   TID_TASK_SETTINGS_BUTTON,
   testId,
-} from "@drora/shared";
+} from "@drora/shared/test-ids";
 import {
   clearAppData,
   clickTestIdByDom,

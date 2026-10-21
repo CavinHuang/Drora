@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentProps } from "react";
-import { WebRemoteControlDialog } from "../WebRemoteControlDialog.js";
+import { WebRemoteControlDialog } from "@/web-remote-control/index.js";
 import { useSettings } from "../hooks/useSettingService.js";
 import { usePlatform } from "../hooks/usePlatform.js";
 import { useDroraIntl } from "../i18n/IntlProvider.js";

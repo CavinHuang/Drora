@@ -12,27 +12,27 @@
 
 ## 1. 基线与环境事实
 
-| 项 | 值 | 证据来源 |
-| --- | --- | --- |
-| HEAD | `c39ce3712275bbc570865b37fe9f0f4cb42b8ecb` | 基线审计员 `git rev-parse HEAD`；**撰写员已复核**（本会话重跑，输出一致） |
-| 分支 / 工作树 | `feat/vaultview-impl`，`git status --porcelain` 为空（干净） | 基线审计员；**撰写员已复核** |
-| node / pnpm | node v24.1.0、pnpm 10.33.2（`mise.toml:2-3` 钉 node 24.14.0 / pnpm 10.33.2，本地 mise 未激活） | 基线审计员 `node --version` / `pnpm --version`；node 版本**撰写员已复核** |
-| freshness | **exit 0**：`feat/vaultview-impl 没有远端跟踪分支，跳过 behind-remote 检查`、`基线新鲜：feat/vaultview-impl，相对 origin/main：ahead 330 / behind 0（阈值 50）` | **撰写员已复核**（本会话在 worktree 根实际运行 `node scripts/check-workspace-freshness.mjs`，EXIT=0） |
-| 与交接基线的代码差异 | `c39ce371` = 交接基线 `c1870c9c` + 唯一 docs 提交；`git diff --name-only c1870c9c..HEAD` 非 `docs/vaultview-agent-handoff/` 文件计数 = **0**（38 files changed 全部为交接包文档） | 基线审计员 `git diff --name-only … \| grep -cv '^docs/vaultview-agent-handoff/'` → 0 |
-| 仓库 SQLite 依赖 | 零（`grep -rn --include=package.json -iE "sqlite" packages apps` 退出码 1，无匹配）；Electron 41.0.3（`packages/desktop/package.json:79`） | DB spike 审计员 |
+| 项                   | 值                                                                                                                                                                                | 证据来源                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| HEAD                 | `c39ce3712275bbc570865b37fe9f0f4cb42b8ecb`                                                                                                                                        | 基线审计员 `git rev-parse HEAD`；**撰写员已复核**（本会话重跑，输出一致）                             |
+| 分支 / 工作树        | `feat/vaultview-impl`，`git status --porcelain` 为空（干净）                                                                                                                      | 基线审计员；**撰写员已复核**                                                                          |
+| node / pnpm          | node v24.1.0、pnpm 10.33.2（`mise.toml:2-3` 钉 node 24.14.0 / pnpm 10.33.2，本地 mise 未激活）                                                                                    | 基线审计员 `node --version` / `pnpm --version`；node 版本**撰写员已复核**                             |
+| freshness            | **exit 0**：`feat/vaultview-impl 没有远端跟踪分支，跳过 behind-remote 检查`、`基线新鲜：feat/vaultview-impl，相对 origin/main：ahead 330 / behind 0（阈值 50）`                   | **撰写员已复核**（本会话在 worktree 根实际运行 `node scripts/check-workspace-freshness.mjs`，EXIT=0） |
+| 与交接基线的代码差异 | `c39ce371` = 交接基线 `c1870c9c` + 唯一 docs 提交；`git diff --name-only c1870c9c..HEAD` 非 `docs/vaultview-agent-handoff/` 文件计数 = **0**（38 files changed 全部为交接包文档） | 基线审计员 `git diff --name-only … \| grep -cv '^docs/vaultview-agent-handoff/'` → 0                  |
+| 仓库 SQLite 依赖     | 零（`grep -rn --include=package.json -iE "sqlite" packages apps` 退出码 1，无匹配）；Electron 41.0.3（`packages/desktop/package.json:79`）                                        | DB spike 审计员                                                                                       |
 
 ## 2. 提交前检查（gates）
 
-| 命令/场景 | 环境 | exit code | 证据与说明 |
-| --- | --- | ---: | --- |
-| `pnpm typecheck` | Windows / node v24.1.0 / worktree 根 | **0** | 交付素材提供，撰写员本会话**未重跑** |
-| `pnpm lint`（oxlint） | 同上 | **0** | 交付素材提供；输出摘要尾部 `Found 387 warnings and 0 errors. Finished in 160ms on 2970 files using 12 threads.`（摘要中含 `packages/ui/src/v4/SessionPane.tsx:80-81` `setProjectOpen` 未使用 setter 一类的 warning 样例）。撰写员本会话**未重跑** |
-| `pnpm architecture:check --changed` | 同上 | **0** | 交付素材提供，撰写员本会话**未重跑** |
-| `node scripts/check-workspace-freshness.mjs` | worktree 根 | **0** | **撰写员已复核**（输出见 §1） |
-| 全量 `node --test` | worktree 根 | 未出结果 | 由脚本统一执行；撰写时结果尚未产生，最终以脚本运行记录为准，本报告不预先声明其结论 |
-| 专项 Spike（admission / 写入矩阵 / DB） | 临时目录 | 全部 **0** | 见 `W00_ADMISSION_SEQUENCE.md` §8、`W00_TOOL_WRITE_MATRIX.md` §7、`W00_DB_HOST_SPIKE.md` §2 |
-| `git apply --check`（候选 Hook Patch 原样） | worktree 根 | **128**（corrupt patch at line 23） | 基线审计员实测，见 §5 |
-| `git apply --check`（LF 修复版补丁，干跑） | worktree 根 | **0** | 基线审计员实测（`patch-lf.patch`，仅证明内容匹配，**补丁未应用**） |
+| 命令/场景                                    | 环境                                 |                           exit code | 证据与说明                                                                                                                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------ | ----------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                             | Windows / node v24.1.0 / worktree 根 |                               **0** | 交付素材提供，撰写员本会话**未重跑**                                                                                                                                                                                                              |
+| `pnpm lint`（oxlint）                        | 同上                                 |                               **0** | 交付素材提供；输出摘要尾部 `Found 387 warnings and 0 errors. Finished in 160ms on 2970 files using 12 threads.`（摘要中含 `packages/ui/src/v4/SessionPane.tsx:80-81` `setProjectOpen` 未使用 setter 一类的 warning 样例）。撰写员本会话**未重跑** |
+| `pnpm architecture:check --changed`          | 同上                                 |                               **0** | 交付素材提供，撰写员本会话**未重跑**                                                                                                                                                                                                              |
+| `node scripts/check-workspace-freshness.mjs` | worktree 根                          |                               **0** | **撰写员已复核**（输出见 §1）                                                                                                                                                                                                                     |
+| 全量 `node --test`                           | worktree 根                          |                            未出结果 | 由脚本统一执行；撰写时结果尚未产生，最终以脚本运行记录为准，本报告不预先声明其结论                                                                                                                                                                |
+| 专项 Spike（admission / 写入矩阵 / DB）      | 临时目录                             |                          全部 **0** | 见 `W00_ADMISSION_SEQUENCE.md` §8、`W00_TOOL_WRITE_MATRIX.md` §7、`W00_DB_HOST_SPIKE.md` §2                                                                                                                                                       |
+| `git apply --check`（候选 Hook Patch 原样）  | worktree 根                          | **128**（corrupt patch at line 23） | 基线审计员实测，见 §5                                                                                                                                                                                                                             |
+| `git apply --check`（LF 修复版补丁，干跑）   | worktree 根                          |                               **0** | 基线审计员实测（`patch-lf.patch`，仅证明内容匹配，**补丁未应用**）                                                                                                                                                                                |
 
 按分工，脚本将统一运行 `pnpm typecheck` / `pnpm lint` / `pnpm architecture:check --changed` 与全量 `node --test`；测试基线既有失败文件为 `desktopRendererPlatformMobileFace.test.ts`、`computerUseSettingsNavigation.test.ts`、`nonCliAcpRetirement.test.ts`（不必修复、不得新增）。模板要求的 `git diff --check` 与 PR 附件不适用：本工作单只新增交付文档，提交由脚本统一执行。
 
@@ -77,13 +77,13 @@
 
 ## 7. S02 / S03 GO/NO-GO 汇总结论（基于审计员预判汇总；最终判定归工作单 owner）
 
-| 专项审计 | S02（admission 前重验 Source/Receipt） | S03（全写盘通道强制分级门控） |
-| --- | --- | --- |
-| ④ 基线与身份映射 | hypothesis、暂不足以 GO（当时 admission 时点未深查） | 倾向 NO-GO（「hook 即完整防线」不成立） |
-| ① admission 时序 | **有条件 GO** | 未覆盖，不给判定；确认 guard/admitCommandInput/UserPromptSubmit 可作门控接入候选 |
-| ② 工具写入矩阵 | 不适用（adjacent：`permission-flow.ts:179-236` hook 与 broker 竞速时序曾有问题并修复） | **GO（有条件，需收窄口径）** |
-| ③ DB 双 Host spike | DB 层有条件 GO（不构成阻断） | DB 层 GO（前提按纪律实现） |
-| **汇总** | **有条件 GO** | **有条件 GO（收窄口径）；hook-only 路线 = NO-GO** |
+| 专项审计           | S02（admission 前重验 Source/Receipt）                                                 | S03（全写盘通道强制分级门控）                                                    |
+| ------------------ | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ④ 基线与身份映射   | hypothesis、暂不足以 GO（当时 admission 时点未深查）                                   | 倾向 NO-GO（「hook 即完整防线」不成立）                                          |
+| ① admission 时序   | **有条件 GO**                                                                          | 未覆盖，不给判定；确认 guard/admitCommandInput/UserPromptSubmit 可作门控接入候选 |
+| ② 工具写入矩阵     | 不适用（adjacent：`permission-flow.ts:179-236` hook 与 broker 竞速时序曾有问题并修复） | **GO（有条件，需收窄口径）**                                                     |
+| ③ DB 双 Host spike | DB 层有条件 GO（不构成阻断）                                                           | DB 层 GO（前提按纪律实现）                                                       |
+| **汇总**           | **有条件 GO**                                                                          | **有条件 GO（收窄口径）；hook-only 路线 = NO-GO**                                |
 
 **S02 有条件 GO**——④号审计员的保留（admission 时点未验证）已被①号专项审计解决：可靠扩展边界存在，无需修改 Runtime 队列语义（符合 W03:13「禁止修改 Runtime 队列语义来掩盖问题」）。GO 前提是完成最小接线：
 

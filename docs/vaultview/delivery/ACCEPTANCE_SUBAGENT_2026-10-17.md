@@ -15,17 +15,17 @@
 
 ## 结果总览
 
-| 包                | spec（packages/desktop/test/e2e/acceptance/） | 覆盖项与结果                                                                                              |
-| ----------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| R1 首次使用       | r1-first-use.test.ts                          | G01 **PASS**；G02 **PARTIAL**（机械断言全过，相关性待人工）；「中文检索相关性真人判断」**BLOCKED**        |
+| 包                | spec（packages/desktop/test/e2e/acceptance/） | 覆盖项与结果                                                                                                  |
+| ----------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| R1 首次使用       | r1-first-use.test.ts                          | G01 **PASS**；G02 **PARTIAL**（机械断言全过，相关性待人工）；「中文检索相关性真人判断」**BLOCKED**            |
 | R2 Agent 交接     | r2-agent-handoff.test.ts                      | G03/G04/G13 **PASS**（缺陷 D1 已修复后复跑 4/4；原报 D2 经插桩定谳为测试选择器/fixture 匹配置读，产品无缺陷） |
-| R3 时间差拒绝     | r3-time-based-reject.test.ts                  | G05/G06/G07 全 **PASS**（3/3）                                                                            |
-| R4 Busy 队列      | r4-busy-queue.test.ts                         | G08/G09 全 **PASS**（2/2）                                                                                |
-| R5 重启与跨轮隔离 | r5-restart-isolation.test.ts                  | G35/G42/G12 全 **PASS**（4/4 用例）                                                                       |
-| R6 多源与草稿保护 | r6-source-manifest-guard.test.ts              | G16/G26/G27 全 **PASS**（3/3）                                                                            |
-| R7 安全写边界     | r7-write-boundary.test.ts                     | G31/G32/G40/L1 hook 边界全 **PASS**（4/4）                                                                |
-| R8 并发与迟到请求 | r8-concurrency-late-requests.test.ts          | G46 **PASS**；G45/G52 **PARTIAL**（挂起注入面无产品注入口，由单测覆盖）                                   |
-| R9 二次读取与焦点 | r9-second-read-focus.test.ts                  | ask-G54（doc-G53）/ask-G55（doc-G55 前半）**PASS**；ask-G47（doc-G54）/ask-G53（doc-G47 前半）**PARTIAL** |
+| R3 时间差拒绝     | r3-time-based-reject.test.ts                  | G05/G06/G07 全 **PASS**（3/3）                                                                                |
+| R4 Busy 队列      | r4-busy-queue.test.ts                         | G08/G09 全 **PASS**（2/2）                                                                                    |
+| R5 重启与跨轮隔离 | r5-restart-isolation.test.ts                  | G35/G42/G12 全 **PASS**（4/4 用例）                                                                           |
+| R6 多源与草稿保护 | r6-source-manifest-guard.test.ts              | G16/G26/G27 全 **PASS**（3/3）                                                                                |
+| R7 安全写边界     | r7-write-boundary.test.ts                     | G31/G32/G40/L1 hook 边界全 **PASS**（4/4）                                                                    |
+| R8 并发与迟到请求 | r8-concurrency-late-requests.test.ts          | G46 **PASS**；G45/G52 **PARTIAL**（挂起注入面无产品注入口，由单测覆盖）                                       |
+| R9 二次读取与焦点 | r9-second-read-focus.test.ts                  | ask-G54（doc-G53）/ask-G55（doc-G55 前半）**PASS**；ask-G47（doc-G54）/ask-G53（doc-G47 前半）**PARTIAL**     |
 
 计数：PASS 20、FAIL 2、PARTIAL 5、BLOCKED 1（共 28 项；含 R7 的 L1 hook 边界与 R1 的人工项）。
 

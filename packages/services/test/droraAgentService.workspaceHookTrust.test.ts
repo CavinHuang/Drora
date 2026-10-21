@@ -29,9 +29,7 @@ describe("DroraAgentService workspace Hook Trust", () => {
         disposeAll() {}
       },
     }));
-    const { createDroraAgentService } = await import(
-      "../src/drora-agent/droraAgentService.js"
-    );
+    const { createDroraAgentService } = await import("../src/drora-agent/droraAgentService.js");
     const service = createDroraAgentService();
 
     await expect(

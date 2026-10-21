@@ -171,10 +171,7 @@ test("K-VEC-4：词面零重叠文档经向量召回进入候选（诊断 semant
     assert.ok(apple, "词面零重叠的苹果笔记应经向量召回进入候选");
     // 小库上向量 top-64 会把余弦非零的其他 chunk 一并捞进池（如面试文），候选池
     // 本就是「宽进、排序精筛」的设计——断言苹果确实被向量独有召回即可。
-    assert.ok(
-      (finished.diagnostics?.semanticRecalled ?? 0) >= 1,
-      "向量独有召回数应 ≥1",
-    );
+    assert.ok((finished.diagnostics?.semanticRecalled ?? 0) >= 1, "向量独有召回数应 ≥1");
     // quote/事实字段照常携带（候选事实不变量）。
     assert.ok(apple.quote.startLine >= 1);
     assert.equal(apple.fileSha256.length, 64);

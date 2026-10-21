@@ -34,7 +34,9 @@ const endsWithManifestPath = (runtimePath, manifestRelative) => {
   const expected = manifestRelative.split("/");
   return (
     segments.length >= expected.length &&
-    expected.every((segment, index) => segments[segments.length - expected.length + index] === segment)
+    expected.every(
+      (segment, index) => segments[segments.length - expected.length + index] === segment,
+    )
   );
 };
 

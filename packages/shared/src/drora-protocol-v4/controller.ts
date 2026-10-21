@@ -2,7 +2,10 @@ import { z } from "zod";
 import { droraTaskMetaSchema } from "../validation.js";
 import { pendingInteractionSummarySchema } from "./sessions-index.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
-import { SESSION_TEAM_ACTIVITY_KEY, sessionTeamActivitySchema } from "./sessions-index-team-activity.js";
+import {
+  SESSION_TEAM_ACTIVITY_KEY,
+  sessionTeamActivitySchema,
+} from "./sessions-index-team-activity.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
 
@@ -17,6 +20,7 @@ export type WindowHostControllerTopic = z.infer<typeof windowHostControllerTopic
 
 export const windowHostTaskAddressSchema = z
   .object({
+    sourceServerId: z.string().trim().min(1).optional(),
     remoteSessionId: z.string().trim().min(1).optional(),
     workspacePath: z.string().trim().min(1),
     workspaceIdentity: z.string().trim().min(1).optional(),
@@ -36,6 +40,8 @@ export type WindowHostTaskAddress = z.infer<typeof windowHostTaskAddressSchema>;
 
 export const windowHostControllerWorkspaceFactSchema = z
   .object({
+    sourceServerId: z.string().trim().min(1).optional(),
+    serverDisplayName: z.string().trim().min(1).optional(),
     remoteSessionId: z.string().trim().min(1).optional(),
     workspacePath: z.string().trim().min(1),
     workspaceIdentity: z.string().trim().min(1).optional(),
@@ -172,6 +178,7 @@ export const windowHostControllerWorkspaceDeltaSchema = z.discriminatedUnion("op
   z
     .object({
       op: z.literal("workspace.removed"),
+      sourceServerId: z.string().trim().min(1).optional(),
       remoteSessionId: z.string().trim().min(1).optional(),
       workspacePath: z.string().trim().min(1),
       workspaceIdentity: z.string().trim().min(1).optional(),

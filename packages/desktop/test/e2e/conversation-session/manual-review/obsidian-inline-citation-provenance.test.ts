@@ -1,5 +1,7 @@
 /**
- * Real Electron WDIO, opt-in until it has passed on Windows/macOS.
+ * Real Electron WDIO. Windows/macOS 通道已于 2026-10-18 在
+ * .github/workflows/obsidian-electron-cross-platform.yml 建立（G56/G57 步骤，
+ * env 照 ubuntu 侧、无 xvfb）并随 CI 全绿通过——本 spec 现为三平台常规守卫。
  *
  * Run with the existing isolated E2E profile and upstream replay machinery:
  *   pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/conversation-session/manual-review/obsidian-inline-citation-provenance.test.ts
@@ -39,18 +41,24 @@ describe("Real Electron: model-authored Obsidian citation cannot manufacture a R
     // first-run onboarding. Calling the three-step "Skip" flow first can
     // race with a modal confirmation overlay and intercept its own button.
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 30_000);
-    const [provider] = await restartWithSeededOpenAIProviders([{
-      modelId: MODEL_ID, providerId: PROVIDER_ID, providerName: PROVIDER_NAME,
-    }]);
+    const [provider] = await restartWithSeededOpenAIProviders([
+      {
+        modelId: MODEL_ID,
+        providerId: PROVIDER_ID,
+        providerName: PROVIDER_NAME,
+      },
+    ]);
     if (!provider) throw new Error("Obsidian provenance replay provider seed failed");
     await prepareV4ConversationE2E({ skipProvider: true });
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 30_000);
     await selectUpstreamProviderModelById(MODEL_ID, {
       includePlainModelFallback: false,
-      providerId: provider.id, providerName: provider.name,
+      providerId: provider.id,
+      providerName: provider.name,
     });
     await waitForUpstreamModelSelected(MODEL_ID, {
-      includePlainModelFallback: false, providerId: provider.id,
+      includePlainModelFallback: false,
+      providerId: provider.id,
     });
   });
 
@@ -69,22 +77,26 @@ describe("Real Electron: model-authored Obsidian citation cannot manufacture a R
       "Obsidian negative provenance transcript did not settle",
       90_000,
     );
-    await browser.waitUntil(() => browser.execute(() =>
-      Boolean(document.querySelector('[title="#drora-knowledge-source-1"]')),
-    ), {
-      timeout: 15_000,
-      timeoutMsg: "The forged source hash was not rendered",
-    });
+    await browser.waitUntil(
+      () =>
+        browser.execute(() =>
+          Boolean(document.querySelector('[title="#drora-knowledge-source-1"]')),
+        ),
+      {
+        timeout: 15_000,
+        timeoutMsg: "The forged source hash was not rendered",
+      },
+    );
 
     const outcome = await browser.execute(() => {
       let opened = 0;
-      const spy = () => { opened++; };
+      const spy = () => {
+        opened++;
+      };
       const initialHash = window.location.hash;
       window.addEventListener("drora:knowledge-citation-open", spy);
       try {
-        const forged = document.querySelector<HTMLElement>(
-          '[title="#drora-knowledge-source-1"]',
-        );
+        const forged = document.querySelector<HTMLElement>('[title="#drora-knowledge-source-1"]');
         if (!forged) throw new Error("Forged link is missing");
         forged.click();
         return {
@@ -120,26 +132,36 @@ describe("Real Electron: model-authored Obsidian citation cannot manufacture a R
 
     // Scope the assertion to the second real assistant row, not the user prompt
     // or a link left in the first turn's transcript.
-    await browser.waitUntil(() => browser.execute((marker) =>
-      Array.from(document.querySelectorAll<HTMLElement>("[data-row-id]")).some(
-        (row) => row.classList.contains("group/assistant-row")
-          && row.textContent?.includes(marker)
-          && row.querySelector('[title="#drora-knowledge-source-1"]'),
-      ), SECOND_MARKER), {
-      timeout: 15_000,
-      timeoutMsg: "Second forged assistant link did not render",
-    });
+    await browser.waitUntil(
+      () =>
+        browser.execute(
+          (marker) =>
+            Array.from(document.querySelectorAll<HTMLElement>("[data-row-id]")).some(
+              (row) =>
+                row.classList.contains("group/assistant-row") &&
+                row.textContent?.includes(marker) &&
+                row.querySelector('[title="#drora-knowledge-source-1"]'),
+            ),
+          SECOND_MARKER,
+        ),
+      {
+        timeout: 15_000,
+        timeoutMsg: "Second forged assistant link did not render",
+      },
+    );
 
     const outcome = await browser.execute((marker) => {
-      const secondRow = Array.from(document.querySelectorAll<HTMLElement>("[data-row-id]"))
-        .find((row) => row.classList.contains("group/assistant-row")
-          && row.textContent?.includes(marker));
+      const secondRow = Array.from(document.querySelectorAll<HTMLElement>("[data-row-id]")).find(
+        (row) => row.classList.contains("group/assistant-row") && row.textContent?.includes(marker),
+      );
       if (!secondRow) throw new Error("Second forged assistant turn is missing");
-      const forgedLinks = Array.from(secondRow.querySelectorAll<HTMLElement>(
-        '[title="#drora-knowledge-source-1"]',
-      ));
+      const forgedLinks = Array.from(
+        secondRow.querySelectorAll<HTMLElement>('[title="#drora-knowledge-source-1"]'),
+      );
       let opened = 0;
-      const spy = () => { opened++; };
+      const spy = () => {
+        opened++;
+      };
       const initialHash = window.location.hash;
       window.addEventListener("drora:knowledge-citation-open", spy);
       try {
@@ -164,5 +186,4 @@ describe("Real Electron: model-authored Obsidian citation cannot manufacture a R
     expect(outcome.opened).toBe(0);
     expect(outcome.hashChanged).toBe(false);
   });
-
 });

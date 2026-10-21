@@ -59,13 +59,38 @@ export const SEMANTIC_ACCURACY_NOTES: SemanticAccuracyNote[] = [
 
 export const SEMANTIC_ACCURACY_CASES: SemanticAccuracyCase[] = [
   // 语义意图问句：与目标笔记词面零/低重叠。
-  { id: "sa1", query: "能自己干活会调用工具的程序是什么", relevantPaths: ["tech/agents.md"], hasAnswer: true },
+  {
+    id: "sa1",
+    query: "能自己干活会调用工具的程序是什么",
+    relevantPaths: ["tech/agents.md"],
+    hasAnswer: true,
+  },
   { id: "sa2", query: "五花肉怎么炖才不柴", relevantPaths: ["life/cooking.md"], hasAnswer: true },
-  { id: "sa3", query: "第一次去东京玩五天行程怎么排", relevantPaths: ["travel/japan.md"], hasAnswer: true },
-  { id: "sa4", query: "练肌肉的饮食和动作安排", relevantPaths: ["health/fitness.md"], hasAnswer: true },
-  { id: "sa5", query: "每月固定买基金靠谱吗", relevantPaths: ["finance/index-fund.md"], hasAnswer: true },
+  {
+    id: "sa3",
+    query: "第一次去东京玩五天行程怎么排",
+    relevantPaths: ["travel/japan.md"],
+    hasAnswer: true,
+  },
+  {
+    id: "sa4",
+    query: "练肌肉的饮食和动作安排",
+    relevantPaths: ["health/fitness.md"],
+    hasAnswer: true,
+  },
+  {
+    id: "sa5",
+    query: "每月固定买基金靠谱吗",
+    relevantPaths: ["finance/index-fund.md"],
+    hasAnswer: true,
+  },
   // 同主题第二问（考察多表述稳定性）。
-  { id: "sa6", query: "让 AI 替我操作软件的原理", relevantPaths: ["tech/agents.md"], hasAnswer: true },
+  {
+    id: "sa6",
+    query: "让 AI 替我操作软件的原理",
+    relevantPaths: ["tech/agents.md"],
+    hasAnswer: true,
+  },
   // 无答案负例：主题在库内完全缺席。
   { id: "sa7", query: "汽车发动机异响怎么排查", relevantPaths: [], hasAnswer: false },
   { id: "sa8", query: "烤蛋糕的温度和时间", relevantPaths: [], hasAnswer: false },

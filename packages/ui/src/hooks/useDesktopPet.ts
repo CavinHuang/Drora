@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import type { DesktopPetPresentation, IPlatformService } from "@drora/shared";
+import type { DesktopPetActivity, DesktopPetPresentation, IPlatformService } from "@drora/shared";
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { useServices } from "@/hooks/useServices.js";
-import { useSettings } from "@/hooks/useSettingService.js";
+import { leaseDesktopPetPublication } from "@/lib/desktopPetPublication.js";
 import { projectDesktopPet } from "@/lib/desktopPetProjection.js";
 import {
   acquireSessionsIndex,
@@ -11,7 +11,6 @@ import {
 } from "@/v4/sessionsIndexRegistry.js";
 
 const IDLE: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };
-const TERMINAL_CUE_MS = 4000;
 
 /** Reuses the existing sessions-index subscription registry; no task state is stored here. */
 export function useDesktopPet(params: {
@@ -23,15 +22,14 @@ export function useDesktopPet(params: {
   platform: IPlatformService | null | undefined;
 }): void {
   const { droraAgentService } = useServices();
-  const { settings } = useSettings();
   const { workspacePath, workspaceIdentity, endpointKey, rpcReady, enabled, platform } = params;
-  const petEnabled = enabled && settings?.desktopPetEnabled === true;
   useEffect(() => {
-    const publish = platform?.publishDesktopPet;
-    if (!petEnabled) return;
-    if (!rpcReady || !publish || !workspacePath || !droraAgentService) {
-      publish?.(IDLE);
-      return;
+    if (!enabled || !platform?.publishDesktopPet) return;
+    const lease = leaseDesktopPetPublication(platform);
+    const publish = lease.update;
+    if (!rpcReady || !workspacePath || !droraAgentService) {
+      publish(IDLE);
+      return lease.release;
     }
     const scope: SessionsIndexScope = {
       workspacePath,
@@ -41,15 +39,11 @@ export function useDesktopPet(params: {
     };
     const store = acquireSessionsIndex(scope, droraAgentService);
     let previous: Map<string, SessionSummary> | null = null;
-    let cueTimer: ReturnType<typeof setTimeout> | null = null;
-    const clearCue = () => {
-      if (cueTimer) clearTimeout(cueTimer);
-      cueTimer = null;
-    };
+    let recentActivities: DesktopPetActivity[] = [];
     const sync = () => {
-      clearCue();
       if (store.getStatus() !== "live") {
         previous = null;
+        recentActivities = [];
         publish(IDLE);
         return;
       }
@@ -58,33 +52,24 @@ export function useDesktopPet(params: {
         scope: { ...scope, remoteSessionId: endpointKey },
         sessions,
         previous,
+        recentActivities,
       });
       previous = new Map(sessions.map((session) => [session.sessionId, session]));
+      recentActivities = (presentation.activities ?? []).filter(
+        (row) => row.mode === "completed" || row.mode === "error",
+      );
       publish(presentation);
-      if (presentation.mode === "completed" || presentation.mode === "error") {
-        cueTimer = setTimeout(() => {
-          cueTimer = null;
-          publish(
-            projectDesktopPet({
-              scope: { ...scope, remoteSessionId: endpointKey },
-              sessions: store.getSessions(),
-              previous,
-            }),
-          );
-        }, TERMINAL_CUE_MS);
-      }
     };
     const unsubscribe = store.subscribe(sync);
     sync();
     return () => {
       unsubscribe();
-      clearCue();
       releaseSessionsIndex(scope, store);
-      publish(IDLE);
+      lease.release();
     };
   }, [
     droraAgentService,
-    petEnabled,
+    enabled,
     endpointKey,
     platform,
     rpcReady,

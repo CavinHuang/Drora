@@ -131,7 +131,10 @@ function substMockUrl(step) {
     }
     return v;
   };
-  return { ...step, toolCalls: step.toolCalls.map((c) => ({ ...c, arguments: walk(c.arguments ?? {}) })) };
+  return {
+    ...step,
+    toolCalls: step.toolCalls.map((c) => ({ ...c, arguments: walk(c.arguments ?? {}) })),
+  };
 }
 
 function sseWrite(res, obj) {
@@ -147,34 +150,74 @@ function sleep(ms) {
 function openaiChunks(step, model) {
   const chunks = [];
   const base = { id: MOCK_ID, object: "chat.completion.chunk", created: CREATED, model };
-  chunks.push({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }] });
+  chunks.push({
+    ...base,
+    choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
+  });
   if (step.reasoning) {
     // GLM/OpenAI-compat 思考链：reasoning_content delta 在 content 之前，
     // 拆两段让两侧都见到多 delta 流（A/B 同形刺激）。
     const mid = Math.ceil(step.reasoning.length / 2);
-    chunks.push({ ...base, choices: [{ index: 0, delta: { reasoning_content: step.reasoning.slice(0, mid) }, finish_reason: null }] });
-    chunks.push({ ...base, choices: [{ index: 0, delta: { reasoning_content: step.reasoning.slice(mid) }, finish_reason: null }] });
+    chunks.push({
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: { reasoning_content: step.reasoning.slice(0, mid) },
+          finish_reason: null,
+        },
+      ],
+    });
+    chunks.push({
+      ...base,
+      choices: [
+        { index: 0, delta: { reasoning_content: step.reasoning.slice(mid) }, finish_reason: null },
+      ],
+    });
   }
   if (step.text) {
     // split once so both sides see a multi-delta stream
     const mid = Math.ceil(step.text.length / 2);
-    chunks.push({ ...base, choices: [{ index: 0, delta: { content: step.text.slice(0, mid) }, finish_reason: null }] });
-    chunks.push({ ...base, choices: [{ index: 0, delta: { content: step.text.slice(mid) }, finish_reason: null }] });
+    chunks.push({
+      ...base,
+      choices: [{ index: 0, delta: { content: step.text.slice(0, mid) }, finish_reason: null }],
+    });
+    chunks.push({
+      ...base,
+      choices: [{ index: 0, delta: { content: step.text.slice(mid) }, finish_reason: null }],
+    });
   }
   const calls = step.toolCalls ?? [];
   calls.forEach((call, i) => {
     chunks.push({
       ...base,
-      choices: [{
-        index: 0,
-        delta: { tool_calls: [{ index: i, id: `call_${i + 1}`, type: "function", function: { name: call.name, arguments: "" } }] },
-        finish_reason: null,
-      }],
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index: i,
+                id: `call_${i + 1}`,
+                type: "function",
+                function: { name: call.name, arguments: "" },
+              },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
     });
     const args = JSON.stringify(call.arguments ?? {});
     chunks.push({
       ...base,
-      choices: [{ index: 0, delta: { tool_calls: [{ index: i, function: { arguments: args } }] }, finish_reason: null }],
+      choices: [
+        {
+          index: 0,
+          delta: { tool_calls: [{ index: i, function: { arguments: args } }] },
+          finish_reason: null,
+        },
+      ],
     });
   });
   chunks.push({
@@ -191,16 +234,26 @@ function openaiFull(step, model) {
     object: "chat.completion",
     created: CREATED,
     model,
-    choices: [{
-      index: 0,
-      message: {
-        role: "assistant",
-        ...(step.reasoning ? { reasoning_content: step.reasoning } : {}),
-        ...(step.text ? { content: step.text } : {}),
-        ...(calls.length > 0 ? { tool_calls: calls.map((c, i) => ({ id: `call_${i + 1}`, type: "function", function: { name: c.name, arguments: JSON.stringify(c.arguments ?? {}) } })) } : {}),
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          ...(step.reasoning ? { reasoning_content: step.reasoning } : {}),
+          ...(step.text ? { content: step.text } : {}),
+          ...(calls.length > 0
+            ? {
+                tool_calls: calls.map((c, i) => ({
+                  id: `call_${i + 1}`,
+                  type: "function",
+                  function: { name: c.name, arguments: JSON.stringify(c.arguments ?? {}) },
+                })),
+              }
+            : {}),
+        },
+        finish_reason: calls.length > 0 ? "tool_calls" : "stop",
       },
-      finish_reason: calls.length > 0 ? "tool_calls" : "stop",
-    }],
+    ],
     usage: USAGE,
   };
 }
@@ -210,46 +263,131 @@ function openaiFull(step, model) {
 function anthropicEvents(step, model) {
   const events = [];
   let block = 0;
-  events.push(["message_start", {
-    type: "message_start",
-    message: { id: "msg_mock000000000000", type: "message", role: "assistant", model, content: [], stop_reason: null, usage: { input_tokens: USAGE.prompt_tokens, output_tokens: 0 } },
-  }]);
+  events.push([
+    "message_start",
+    {
+      type: "message_start",
+      message: {
+        id: "msg_mock000000000000",
+        type: "message",
+        role: "assistant",
+        model,
+        content: [],
+        stop_reason: null,
+        usage: { input_tokens: USAGE.prompt_tokens, output_tokens: 0 },
+      },
+    },
+  ]);
   if (step.reasoning) {
     // anthropic thinking 块：thinking_delta 拆两段 + signature_delta 收口
     // （AI SDK anthropic provider 依赖签名块合成 reasoning part）。
     const mid = Math.ceil(step.reasoning.length / 2);
-    events.push(["content_block_start", { type: "content_block_start", index: block, content_block: { type: "thinking", thinking: "" } }]);
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "thinking_delta", thinking: step.reasoning.slice(0, mid) } }]);
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "thinking_delta", thinking: step.reasoning.slice(mid) } }]);
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "signature_delta", signature: "sig_mock" } }]);
+    events.push([
+      "content_block_start",
+      {
+        type: "content_block_start",
+        index: block,
+        content_block: { type: "thinking", thinking: "" },
+      },
+    ]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "thinking_delta", thinking: step.reasoning.slice(0, mid) },
+      },
+    ]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "thinking_delta", thinking: step.reasoning.slice(mid) },
+      },
+    ]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "signature_delta", signature: "sig_mock" },
+      },
+    ]);
     events.push(["content_block_stop", { type: "content_block_stop", index: block }]);
     block += 1;
   }
   if (step.text) {
     const mid = Math.ceil(step.text.length / 2);
-    events.push(["content_block_start", { type: "content_block_start", index: block, content_block: { type: "text", text: "" } }]);
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "text_delta", text: step.text.slice(0, mid) } }]);
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "text_delta", text: step.text.slice(mid) } }]);
+    events.push([
+      "content_block_start",
+      { type: "content_block_start", index: block, content_block: { type: "text", text: "" } },
+    ]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "text_delta", text: step.text.slice(0, mid) },
+      },
+    ]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "text_delta", text: step.text.slice(mid) },
+      },
+    ]);
     events.push(["content_block_stop", { type: "content_block_stop", index: block }]);
     block += 1;
   }
   (step.toolCalls ?? []).forEach((call, i) => {
-    events.push(["content_block_start", { type: "content_block_start", index: block, content_block: { type: "tool_use", id: `toolu_${i + 1}`, name: call.name, input: {} } }]);
+    events.push([
+      "content_block_start",
+      {
+        type: "content_block_start",
+        index: block,
+        content_block: { type: "tool_use", id: `toolu_${i + 1}`, name: call.name, input: {} },
+      },
+    ]);
     const args = JSON.stringify(call.arguments ?? {});
-    events.push(["content_block_delta", { type: "content_block_delta", index: block, delta: { type: "input_json_delta", partial_json: args } }]);
+    events.push([
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: block,
+        delta: { type: "input_json_delta", partial_json: args },
+      },
+    ]);
     events.push(["content_block_stop", { type: "content_block_stop", index: block }]);
     block += 1;
   });
-  events.push(["message_delta", { type: "message_delta", delta: { stop_reason: (step.toolCalls ?? []).length > 0 ? "tool_use" : "end_turn" }, usage: { output_tokens: USAGE.completion_tokens } }]);
+  events.push([
+    "message_delta",
+    {
+      type: "message_delta",
+      delta: { stop_reason: (step.toolCalls ?? []).length > 0 ? "tool_use" : "end_turn" },
+      usage: { output_tokens: USAGE.completion_tokens },
+    },
+  ]);
   events.push(["message_stop", { type: "message_stop" }]);
   return events;
 }
 
 function anthropicFull(step, model) {
   const content = [];
-  if (step.reasoning) content.push({ type: "thinking", thinking: step.reasoning, signature: "sig_mock" });
+  if (step.reasoning)
+    content.push({ type: "thinking", thinking: step.reasoning, signature: "sig_mock" });
   if (step.text) content.push({ type: "text", text: step.text });
-  (step.toolCalls ?? []).forEach((c, i) => content.push({ type: "tool_use", id: `toolu_${i + 1}`, name: c.name, input: c.arguments ?? {} }));
+  (step.toolCalls ?? []).forEach((c, i) =>
+    content.push({
+      type: "tool_use",
+      id: `toolu_${i + 1}`,
+      name: c.name,
+      input: c.arguments ?? {},
+    }),
+  );
   return {
     id: "msg_mock000000000000",
     type: "message",
@@ -268,7 +406,11 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => chunks.push(c));
   req.on("end", async () => {
     let body = {};
-    try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); } catch { /* treated as {} */ }
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+    } catch {
+      /* treated as {} */
+    }
     const record = { at: Date.now(), path: req.url, body };
     logRequest(record);
 
@@ -282,7 +424,12 @@ const server = http.createServer((req, res) => {
 
     if (req.method === "GET" && req.url?.startsWith("/v1/models")) {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ object: "list", data: [{ id: body.model ?? "mock-model", object: "model" }] }));
+      res.end(
+        JSON.stringify({
+          object: "list",
+          data: [{ id: body.model ?? "mock-model", object: "model" }],
+        }),
+      );
       return;
     }
 
@@ -291,13 +438,27 @@ const server = http.createServer((req, res) => {
     // ——只判 body.system 时 drora 形状漏判，标题请求按 [[tag]] 偷走场景
     // 计划步（可能偷到 toolCalls 步→无 text→cleanGeneratedTitle 抛错被
     // fire-and-forget 吞掉→generated 标题事件永不发布）。
-    const systemText = typeof body.system === "string"
-      ? body.system
-      : Array.isArray(body.system) ? body.system.map((b) => b?.text ?? "").join("\n") : "";
+    const systemText =
+      typeof body.system === "string"
+        ? body.system
+        : Array.isArray(body.system)
+          ? body.system.map((b) => b?.text ?? "").join("\n")
+          : "";
     const messageSystemText = Array.isArray(body.messages)
-      ? body.messages.filter((m) => m?.role === "system").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.map((b) => b?.text ?? "").join("\n") : "")).join("\n")
+      ? body.messages
+          .filter((m) => m?.role === "system")
+          .map((m) =>
+            typeof m.content === "string"
+              ? m.content
+              : Array.isArray(m.content)
+                ? m.content.map((b) => b?.text ?? "").join("\n")
+                : "",
+          )
+          .join("\n")
       : "";
-    const isTitleRequest = (systemText + "\n" + messageSystemText).includes("title-generation task");
+    const isTitleRequest = (systemText + "\n" + messageSystemText).includes(
+      "title-generation task",
+    );
     const step = substMockUrl(nextStep(isTitleRequest ? "title" : pickTagReverse(body)));
     const model = typeof body.model === "string" && body.model ? body.model : "mock-model";
 
@@ -329,7 +490,14 @@ const server = http.createServer((req, res) => {
     if (stream) {
       for (const chunk of openaiChunks(step, model)) sseWrite(res, chunk);
       if (body.stream_options?.include_usage) {
-        sseWrite(res, { id: MOCK_ID, object: "chat.completion.chunk", created: CREATED, model, choices: [], usage: USAGE });
+        sseWrite(res, {
+          id: MOCK_ID,
+          object: "chat.completion.chunk",
+          created: CREATED,
+          model,
+          choices: [],
+          usage: USAGE,
+        });
       }
       res.write("data: [DONE]\n\n");
       res.end();

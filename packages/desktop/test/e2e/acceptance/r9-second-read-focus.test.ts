@@ -684,9 +684,16 @@ describe("R9 second read and focus: G47/G53/G54/G55", () => {
               /草稿未保存|Draft unsaved/.test(document.body.innerText) ||
               /保存失败|Save failed/.test(document.body.innerText),
           ),
-        { timeout: 20_000, timeoutMsg: "R9 G53 the read-only file must produce a visible unsavable-draft state" },
+        {
+          timeout: 20_000,
+          timeoutMsg: "R9 G53 the read-only file must produce a visible unsavable-draft state",
+        },
       );
-      assert.equal(draftVisible, true, "R9 G53 the read-only file must produce a visible unsavable-draft state");
+      assert.equal(
+        draftVisible,
+        true,
+        "R9 G53 the read-only file must produce a visible unsavable-draft state",
+      );
       assert.equal(
         await readFile(FILE, "utf8"),
         SOURCE,

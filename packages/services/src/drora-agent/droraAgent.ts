@@ -1,3 +1,4 @@
+import type { PluginUiToolResultNotification } from "@drora/shared/mcp-apps";
 import type {
   BackgroundBashOutputResult,
   SessionDebugSnapshot,
@@ -96,6 +97,7 @@ import type {
   ConversationRowTarget,
   HelloMessage,
   SessionsIndexTopicWireCandidate,
+  SessionsIndexReconcileResult,
   V4AttachmentBeginResult,
   V4AttachmentChunkResult,
   V4AttachmentCommitResult,
@@ -177,6 +179,7 @@ export interface DroraAgentSessionTarget extends DroraAgentWorkspaceTarget {
 }
 
 export interface DroraAgentResumeSessionParams extends DroraAgentSessionTarget {
+  additionalDirectories?: string[];
   model?: ModelSelection;
   thoughtLevel?: string;
   mcpServers?: DroraAgentMcpServer[];
@@ -221,6 +224,8 @@ export type DroraAgentCuaPermissionObservation = CuaPermissionObservation &
   DroraAgentWorkspaceTarget;
 
 export interface DroraAgentCreateSessionParams extends DroraAgentWorkspaceTarget {
+  projectId?: string | null;
+  additionalDirectories?: string[];
   sessionId?: string;
   sessionTraceId?: TraceId;
   parentSessionId?: string;
@@ -239,7 +244,6 @@ export interface DroraAgentCreateSessionParams extends DroraAgentWorkspaceTarget
 export interface DroraAgentListSessionsParams extends DroraAgentWorkspaceTarget {
   sessionIds?: string[];
   runtimePolicy?: DroraAgentRuntimePolicy;
-  includeArchived?: boolean;
   limit?: number;
 }
 
@@ -394,6 +398,7 @@ export interface DroraAgentSessionSubscribeParams extends DroraAgentSessionTarge
 // v4/conversation/frame 通知按 workspace fan-out 给 renderer。
 
 export interface DroraAgentConversationSubscribeParams extends DroraAgentSessionTarget {
+  retryInitialization?: string;
   /** 水位不变量：仅当客户端真持有该时刻一致状态才允许带。 */
   base?: { logEpoch: string; seq: number };
   visibility?: "foreground" | "background";
@@ -491,6 +496,8 @@ export interface DroraAgentConversationFileRewindPreviewParams extends DroraAgen
 }
 
 export interface DroraAgentConversationCommandParams extends DroraAgentWorkspaceTarget {
+  /** 仅 Host 消费；显式 NULL 表示全局任务，不向 CLI 发送项目概念。 */
+  projectId?: string | null;
   envelope: CommandEnvelope;
   /** 仅 host 内部用于 Browser Use runtime 边界，不进入 v4 wire envelope。 */
   clientMode?: DroraTaskClientMode;
@@ -958,9 +965,25 @@ export interface IDroraAgentService {
   onDynamicConversationTelemetryFact(
     params: DroraAgentWorkspaceTarget,
   ): Event<ConversationTelemetryFact>;
+  /** Host 消费驻留 CLI 的闲时生命周期；不参与聊天快照恢复。 */
+  onDynamicOffPeakLifecycle(
+    params: DroraAgentWorkspaceTarget,
+  ): Event<import("@drora/shared").OffPeakLifecycleNotification>;
+  controlOffPeakExecutionV4(
+    params: DroraAgentWorkspaceTarget & { control: import("@drora/shared").OffPeakControlParams },
+  ): Promise<import("@drora/shared").OffPeakControlResult>;
   /** 当前窗口全部本地 live task 的 CUA 权限观察；历史、远程与 replayable 不在此事件面。 */
   onDynamicCuaPermissionObservation(): Event<DroraAgentCuaPermissionObservation>;
-  // ── sessions-index 通道（列表活性）──
+  /** 本地桌面窗口创建插件页面，不依赖 conversation 订阅。 */
+  onDynamicPluginUiToolResult(): Event<
+    PluginUiToolResultNotification & { workspacePath: string; workspaceIdentity?: string }
+  >;
+
+  /** 只读 CLI 持久事实；不恢复会话运行实例。旧远端可以不提供此能力。 */
+  reconcileSessionsIndexV4?(
+    params: DroraAgentWorkspaceTarget & { sessionIds: string[] },
+  ): Promise<SessionsIndexReconcileResult>;
+  // ── M5 sessions-index 通道（列表活性）──
   subscribeSessionsIndexV4(
     params: DroraAgentSessionsIndexSubscribeParams,
   ): Promise<V4SessionsIndexSubscribeResult>;

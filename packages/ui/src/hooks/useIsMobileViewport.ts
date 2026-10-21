@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-const MOBILE_VIEWPORT_QUERY =
-  "(max-width: 767px) and (hover: none) and (pointer: coarse)";
+const MOBILE_VIEWPORT_QUERY = "(max-width: 767px) and (hover: none) and (pointer: coarse)";
 
 /**
  * 移动触屏视口判定（手机/平板窄屏；对齐原版 PR() 的 matchMedia 条件）。

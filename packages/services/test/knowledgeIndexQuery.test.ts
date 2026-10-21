@@ -26,7 +26,9 @@ interface TestEnv {
   services: KnowledgeServices;
 }
 
-async function createEnv(options: { embeddingPort?: KnowledgeEmbeddingPort } = {}): Promise<TestEnv> {
+async function createEnv(
+  options: { embeddingPort?: KnowledgeEmbeddingPort } = {},
+): Promise<TestEnv> {
   const root = await mkdtemp(join(tmpdir(), "drora-knowledge-"));
   setDataBaseDir(root);
   const pluginDataDir = join(root, "plugin-data");
@@ -49,7 +51,11 @@ async function destroyEnv(env: TestEnv): Promise<void> {
   await rm(env.root, { recursive: true, force: true });
 }
 
-async function waitForJobTerminal(services: KnowledgeServices, jobId: string, timeoutMs = 15000): Promise<string> {
+async function waitForJobTerminal(
+  services: KnowledgeServices,
+  jobId: string,
+  timeoutMs = 15000,
+): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const status = await services.indexService.getStatus();
@@ -76,7 +82,11 @@ test("A02：新增 10 个笔记 → 索引完成且 coverage 准确（非 partia
   try {
     await configureVaultAt(env.pluginDataDir, env.vaultA);
     for (let index = 1; index <= 9; index++) {
-      await writeNote(env.vaultA, `notes/笔记${index}.md`, `# 笔记${index}\n\n上下文窗口优化 第 ${index} 篇 context window note`);
+      await writeNote(
+        env.vaultA,
+        `notes/笔记${index}.md`,
+        `# 笔记${index}\n\n上下文窗口优化 第 ${index} 篇 context window note`,
+      );
     }
     await writeNote(env.vaultA, "readme.md", "# 说明\n\n全库说明 overview");
 
@@ -153,7 +163,25 @@ test("A04：隐藏/软链(junction)/超限/深度/非 md → 排除计数 + part
     // 超过 2MB 门面读取上限。
     await writeNote(env.vaultA, "oversize.md", `# 超大\n\n${"x".repeat(2 * 1024 * 1024)}`);
     // 深度越界：第 17 层目录内的文件不枚举。
-    const deep = ["l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17"];
+    const deep = [
+      "l1",
+      "l2",
+      "l3",
+      "l4",
+      "l5",
+      "l6",
+      "l7",
+      "l8",
+      "l9",
+      "l10",
+      "l11",
+      "l12",
+      "l13",
+      "l14",
+      "l15",
+      "l16",
+      "l17",
+    ];
     let deepPath = env.vaultA;
     for (const segment of deep) deepPath = join(deepPath, segment);
     await mkdir(deepPath, { recursive: true });
@@ -199,7 +227,10 @@ test("切库：sourceEpoch 递增使旧 Query 失效、旧缓存清除（A13-W02
     const job1 = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job1.jobId);
 
-    const staleRun = await env.services.queryService.createRun({ query: "qqonlyamarker", clientRequestId: "pre-switch" });
+    const staleRun = await env.services.queryService.createRun({
+      query: "qqonlyamarker",
+      clientRequestId: "pre-switch",
+    });
     assert.equal(staleRun.status, "retrieving");
 
     // 切库到 B（configureVaultAt 每次写入新 configuredAt → 指纹变化）。
@@ -233,14 +264,20 @@ test("撤权：配置移除 → no_source；重新授权 → 新 epoch 使旧 ru
     await writeNote(env.vaultA, "a.md", "# A\n\nrevoke-test-content");
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
-    const run = await env.services.queryService.createRun({ query: "revoke-test-content", clientRequestId: "r1" });
+    const run = await env.services.queryService.createRun({
+      query: "revoke-test-content",
+      clientRequestId: "r1",
+    });
     assert.equal(run.status, "retrieving");
 
     // 撤权 = 移除源授权（vault-config.json 删除，与面板"未配置"同语义）。
     await unlink(join(env.pluginDataDir, "vault-config.json"));
     const revoked = await env.services.queryService.search({ runId: run.runId });
     assert.equal(revoked.status, "source_stale");
-    const noSource = await env.services.queryService.createRun({ query: "revoke-test-content", clientRequestId: "r2" });
+    const noSource = await env.services.queryService.createRun({
+      query: "revoke-test-content",
+      clientRequestId: "r2",
+    });
     assert.equal(noSource.status, "no_source");
     await assert.rejects(() => env.services.indexService.startReconcile(), /尚未配置 Vault/);
     const status = await env.services.indexService.getStatus();
@@ -261,7 +298,11 @@ test("中英混搜 + 负例不编造（A06/A10）", async () => {
   const env = await createEnv();
   try {
     await configureVaultAt(env.pluginDataDir, env.vaultA);
-    await writeNote(env.vaultA, "m1.md", "# 上下文工程\n\n上下文窗口优化 是第一优先级 context window tuning");
+    await writeNote(
+      env.vaultA,
+      "m1.md",
+      "# 上下文工程\n\n上下文窗口优化 是第一优先级 context window tuning",
+    );
     await writeNote(env.vaultA, "m2.md", "# Memory\n\n长期记忆系统 memory system design");
     // 长前奏 + 命中词在正文后段：验证命中感知摘要窗口（§5b.5）。
     await writeNote(
@@ -327,9 +368,14 @@ test("MATCH 注入输入安全降级；无词元查询显式 failed", async () =
     await waitForJobTerminal(env.services, job.jobId);
 
     const hostile = await runSearch(env, 'injection" OR 1=1 -- safe');
-    assert.ok(hostile.status === "empty" || hostile.status === "ready" || hostile.status === "partial");
+    assert.ok(
+      hostile.status === "empty" || hostile.status === "ready" || hostile.status === "partial",
+    );
 
-    const run = await env.services.queryService.createRun({ query: "*** ||", clientRequestId: "h1" });
+    const run = await env.services.queryService.createRun({
+      query: "*** ||",
+      clientRequestId: "h1",
+    });
     const failed = await env.services.queryService.search({ runId: run.runId });
     assert.equal(failed.status, "failed");
     assert.ok(failed.reason);
@@ -391,8 +437,14 @@ test("run 语义：clientRequestId 幂等；cancelRun 后 in-flight 结果按代
     const job = await env.services.indexService.startReconcile();
     await waitForJobTerminal(env.services, job.jobId);
 
-    const run1 = await env.services.queryService.createRun({ query: "cancel-test-content", clientRequestId: "same-key" });
-    const run2 = await env.services.queryService.createRun({ query: "cancel-test-content", clientRequestId: "same-key" });
+    const run1 = await env.services.queryService.createRun({
+      query: "cancel-test-content",
+      clientRequestId: "same-key",
+    });
+    const run2 = await env.services.queryService.createRun({
+      query: "cancel-test-content",
+      clientRequestId: "same-key",
+    });
     assert.equal(run1.runId, run2.runId);
 
     const events: Array<{ seq: number; status: string; runGeneration: number }> = [];
@@ -443,28 +495,31 @@ test("查询幂等：并发重试只建一个 Run，变更问题/跨会话复用
 
     // 错复用客户端键，绝不能返回另一问题或另一会话的旧结果。
     await assert.rejects(
-      () => env.services.queryService.createRun({
-        query: "另一个问题 beta",
-        clientRequestId: "singleflight-key",
-        sessionId: "session-a",
-      }),
+      () =>
+        env.services.queryService.createRun({
+          query: "另一个问题 beta",
+          clientRequestId: "singleflight-key",
+          sessionId: "session-a",
+        }),
       /clientRequestId 已绑定其他查询或会话/,
     );
     await assert.rejects(
-      () => env.services.queryService.createRun({
-        query: "唯一查询 alpha",
-        clientRequestId: "singleflight-key",
-        sessionId: "session-b",
-      }),
+      () =>
+        env.services.queryService.createRun({
+          query: "唯一查询 alpha",
+          clientRequestId: "singleflight-key",
+          sessionId: "session-b",
+        }),
       /clientRequestId 已绑定其他查询或会话/,
     );
 
     // 不携带 sessionId 的纯检索请求不能借用已绑定 session 的 key。
     await assert.rejects(
-      () => env.services.queryService.createRun({
-        query: "唯一查询 alpha",
-        clientRequestId: "singleflight-key",
-      }),
+      () =>
+        env.services.queryService.createRun({
+          query: "唯一查询 alpha",
+          clientRequestId: "singleflight-key",
+        }),
       /clientRequestId 已绑定其他查询或会话/,
     );
   } finally {
@@ -494,20 +549,22 @@ test("检索执行：并发 search 同 Run 只落定一次，不允许改变在�
       const firstSearch = env.services.queryService.search({ runId: run.runId });
       // 在同一 microtask 内发出不同授权的检索：不能搭便车到另一授权的请求上。
       await assert.rejects(
-        () => env.services.queryService.search({
-          runId: run.runId,
-          decisionConsentId: "different-consent",
-        }),
+        () =>
+          env.services.queryService.search({
+            runId: run.runId,
+            decisionConsentId: "different-consent",
+          }),
         /不能使用不同的 decisionConsentId/,
       );
       const settled = await Promise.all([
         firstSearch,
-        ...Array.from({ length: 10 }, () =>
-          env.services.queryService.search({ runId: run.runId }),
-        ),
+        ...Array.from({ length: 10 }, () => env.services.queryService.search({ runId: run.runId })),
       ]);
       assert.equal(new Set(settled.map((item) => item.runId)).size, 1);
-      assert.ok(settled.every((item) => item === settled[0]), "并发请求必须共享同一落定快照");
+      assert.ok(
+        settled.every((item) => item === settled[0]),
+        "并发请求必须共享同一落定快照",
+      );
       assert.equal(settled[0]?.status, "ready");
       assert.equal(settled[0]?.candidates[0]?.relativePath, "singleflight.md");
       assert.equal(

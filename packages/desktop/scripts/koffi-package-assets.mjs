@@ -86,10 +86,14 @@ export function stageKoffiIntoBundledAgents({ koffiPackageRoot, glmDir, targetPl
   const stagedNative = resolve(targetRoot, "build", "koffi", platformKey, "koffi.node");
   cpSync(resolve(sourceNativeDir, "koffi.node"), stagedNative);
   if (platformKey.startsWith("darwin") && existsSync(officialSeed)) {
-    const stagedVersion = JSON.parse(readFileSync(resolve(targetRoot, "package.json"), "utf8")).version;
+    const stagedVersion = JSON.parse(
+      readFileSync(resolve(targetRoot, "package.json"), "utf8"),
+    ).version;
     if (stagedVersion === "2.15.6") {
       cpSync(officialSeed, stagedNative);
-      console.log("[koffi-package-assets] darwin native 以官方 3.14.3 种子字节替换（koffi 2.15.6）");
+      console.log(
+        "[koffi-package-assets] darwin native 以官方 3.14.3 种子字节替换（koffi 2.15.6）",
+      );
     } else {
       console.warn(
         `[koffi-package-assets] koffi 版本 ${stagedVersion} != 种子基线 2.15.6，保留 npm 字节（种子需随官方升级重取）`,

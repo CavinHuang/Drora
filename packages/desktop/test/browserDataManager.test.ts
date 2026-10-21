@@ -772,7 +772,9 @@ describe("browserDataManager", () => {
 
   it("先复制 LocalStorage 快照，再从快照发现 origin", async () => {
     const discovery = await import("../src/main/chromeExecutableDiscovery.js");
-    const executableDiscovery = vi.spyOn(discovery, "resolveChromeExecutablePath").mockResolvedValueOnce(null);
+    const executableDiscovery = vi
+      .spyOn(discovery, "resolveChromeExecutablePath")
+      .mockResolvedValueOnce(null);
     const profilePath = join(tempRoot, "Default");
     const levelDbPath = join(profilePath, "Local Storage", "leveldb");
     await mkdir(levelDbPath, { recursive: true });

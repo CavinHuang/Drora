@@ -18,7 +18,10 @@ import {
 } from "../src/knowledge/knowledgeServices.js";
 import type { KnowledgeJevAssembly } from "../src/knowledge/decision/jevAssembly.js";
 
-function startStub(status: number, body: unknown): Promise<{ server: Server; port: number; bodies: unknown[] }> {
+function startStub(
+  status: number,
+  body: unknown,
+): Promise<{ server: Server; port: number; bodies: unknown[] }> {
   const bodies: unknown[] = [];
   const server = createServer((req, res) => {
     let raw = "";
@@ -71,7 +74,10 @@ test("testJevConnection：2xx+合法答案 → ok（最小 systemOne 探测形�
     assert.equal(result.ok, true);
     assert.equal(result.error, null);
     assert.ok(result.latencyMs >= 0);
-    const probe = stub.bodies[0] as { state: Record<string, string>; questions: Record<string, unknown> };
+    const probe = stub.bodies[0] as {
+      state: Record<string, string>;
+      questions: Record<string, unknown>;
+    };
     assert.equal(probe.state.query, "连接测试");
     assert.ok(probe.questions.relevance, "探测应携带最小 relevance 问题");
   } finally {

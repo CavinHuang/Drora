@@ -525,6 +525,18 @@ const appSettingsObjectSchema = z.object({
   // 输入框电脑操作入口改为默认不展示，设置项保留、默认关闭。
   // default 只对缺省字段生效，显式存过 false 的用户仍保持展示。
   computerUseComposerEntryHidden: z.boolean().default(true),
+  // 语音八键（specs/voice-agent-integration.md §6.1，EG-3；键名与 contracts/voice.ts
+  // VOICE_SETTINGS_KEYS 一一对应，由 contracts/contract.test.ts parity 单测钉住）。
+  // 入口默认隐藏（!== false 判定照 CUA 哲学：新用户不闪按钮、不后台白跑权限查询）；
+  // 播报默认关；隐私披露未确认前两个语音开启入口都被 FD-5 确认门拦住。
+  voiceComposerEntryHidden: z.boolean().default(true),
+  voiceAnnouncementEnabled: z.boolean().default(false),
+  voiceAnnouncementVoice: z.string().default(""),
+  voiceAnnouncementRate: z.number().min(0.5).max(2).default(1),
+  voiceDictationLang: z.string().default(""),
+  voiceAsrEngine: z.enum(["webSpeech", "remote"]).default("webSpeech"),
+  voiceToolBriefEnabled: z.boolean().default(false),
+  voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
   taskAutoArchiveEnabled: z.boolean().default(false),
   taskAutoArchiveResetVersion: z.literal(1).default(1),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(7),
@@ -645,6 +657,15 @@ export const appSettingsPatchSchema = z.object({
   embeddedBrowserAllowInsecureCertificates: z.boolean().optional(),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.optional(),
   computerUseComposerEntryHidden: z.boolean().optional(),
+  // 语音八键 update 面（全部 optional：patch 语义）；§6.1 / contracts/voice.ts parity。
+  voiceComposerEntryHidden: z.boolean().optional(),
+  voiceAnnouncementEnabled: z.boolean().optional(),
+  voiceAnnouncementVoice: z.string().optional(),
+  voiceAnnouncementRate: z.number().min(0.5).max(2).optional(),
+  voiceDictationLang: z.string().optional(),
+  voiceAsrEngine: z.enum(["webSpeech", "remote"]).optional(),
+  voiceToolBriefEnabled: z.boolean().optional(),
+  voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),

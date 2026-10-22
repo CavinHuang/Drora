@@ -43,6 +43,7 @@ describe("settingsPageConfig", () => {
           "modelProvider",
           "browser",
           "remoteDevices",
+          "voice",
           "shortcuts",
         ],
       },
@@ -65,6 +66,7 @@ describe("settingsPageConfig", () => {
       "hooks",
       "browser",
       "remoteDevices",
+      "voice",
       "shortcuts",
       "usage",
       "archives",
@@ -101,6 +103,7 @@ describe("settingsPageConfig", () => {
       "browser",
       "remoteDevices",
       "computerUse",
+      "voice",
       "shortcuts",
     ]);
     expect(

@@ -311,7 +311,8 @@ export function createWorkspaceSlice(set: SetFn) {
       text: string,
       workspaceIdentity?: string,
       mention?: ComposerMentionPrefill,
-      mode?: "replace" | "prepend-if-missing",
+      // mode="append"：语音听写逐句追加（specs/voice-agent-integration.md §2.4）。
+      mode?: "replace" | "prepend-if-missing" | "append",
       // 缺口9 消费门：缺席 = 草稿（既有语义）；指定 sessionId = 目标会话 composer 消费。
       targetSessionId?: string | null,
     ) => {

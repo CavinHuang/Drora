@@ -66,7 +66,9 @@
   → lead 模型（按 agents-team skill）产出 staged 草案：
      会话正文出现【团队计划卡片】（紧凑摘要行：N 成员 / M 任务 / 预估路由，
      照 workflowRun 行的呈现形态——细节不进会话流）
-  → TeamPanel 自动打开，进入 staged 审批态
+  → staged 审批面（TeamStagedEditor）内联进会话流团队计划卡的 staged 分支，侧栏
+    TeamPanel 同样可达——入口始终用户驱动（spec §10 实现登记 2026-10-22 裁定：
+    本节原「TeamPanel 自动打开」语义作废），不抢焦点
 ```
 
 staged 审批态的面板 = **草案编辑器**：
@@ -81,6 +83,33 @@ staged 审批态的面板 = **草案编辑器**：
     预填「要调整什么？」；用户回复后模型必须原子更新同一草案（不另起团队）。
   - **放弃**——二次确认后归档草案（archived 态），并禁止模型自动重建
     （再次创建需用户重新 `/team`）。
+
+呈现规则（2026-10-22 对齐 workflow 确认面板 WorkflowPermissionBlock 的问句表头/
+信息层级语汇；权威登记在 specs/agents-team.md §10「staged 审批视图」，本处同步；
+会话流卡 staged 分支与侧栏面板两个挂载点一体适用）：
+
+- **问句表头**：编辑器顶部问句行（「启动这支团队？」语义，i18n）+「N 名成员 ·
+  N 项任务」计数（原 stagedSummary 文案移作表头计数）；会话流卡头已有团队名与
+  状态徽标，表头不重复。表头为 team 自有实现，不 import WorkflowCardChrome /
+  WorkflowPermissionBlock——workflow 图标硬编码于
+  WorkflowCardChrome.tsx:24/:176，team 决策卡不借 workflow 徽记（对齐问句/层级
+  语汇，不是徽记资产）。
+- **审批面全量呈现**：编辑器所见即草案全量（wire 刻意只投影
+  taskId/title/assignee/dependsOn 等呈现字段），不设「显示完整草案」折叠；
+  结构校验（重名/悬空 assignee 拒绝）不得冒充知情批准。
+- **信息层级**：成员组/任务组分组呈现；技术值（路由/任务 id/依赖 id）等宽；
+  字级只用 text-ui-* 刻度（§4 token 纪律）。
+- **三动作失败出显**：approveTeamPlan/reviseTeamPlan/abandonTeamPlan 的
+  TeamCommandOutcome 必须有 UI 消费面——编辑器内联失败提示（role=alert，按
+  ack.reasonCode 出 i18n 文案，未知 reasonCode 有兜底文案），废除「失败只进
+  logger」现状；hub/wire 零结构改动（借形不借管线，命令单一通道不变）。
+- **触达**：编辑器内全部可交互控件（三动作按钮、改名铅笔/输入/确认/取消）
+  pointer-coarse ≥44px（DESIGN.md:661-662；参照 TeamConversationSummary.tsx:73
+  的现有写法）。
+- **明确不做面**（归后续卡，登记见 spec §15）：权限作用域四选项（内容审批没有
+  「始终允许」）、并发上界控件、lineage/saved 徽标、成员路由可调（与 workflow
+  WorkflowRunSettingsModel 刻意不共用 schema，须先解决词汇适配）、任务 DAG
+  时间线（draftTasks≤100 对 phases≤32 上界冲突，须先定超界降级）。
 
 ### 3.2 active 态
 

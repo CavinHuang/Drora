@@ -56,6 +56,8 @@ const TEAM_PANEL_KEYS = [
 const TEAM_STAGED_EDITOR_KEYS = [
   "team.stagedEditor.title",
   "team.stagedEditor.stagedSummary",
+  // 2026-10-22 问句表头（spec §10 呈现规则1）：问句行键；stagedSummary 移作表头计数。
+  "team.stagedEditor.question",
   "team.stagedEditor.awaitingFeedback",
   "team.stagedEditor.membersHeading",
   "team.stagedEditor.tasksHeading",
@@ -71,6 +73,17 @@ const TEAM_STAGED_EDITOR_KEYS = [
   "team.stagedEditor.approve",
   "team.stagedEditor.revise",
   "team.stagedEditor.abandon",
+  // 2026-10-22 三动作失败出显（spec §10 呈现规则4）：line 为动作+原因壳，原因键由
+  // TeamStagedEditor 的 TEAM_STAGED_FAILURE_REASON_I18N_KEYS 动态消费（静态清单之外，
+  // 映射表守卫见 TeamStagedEditor.test.tsx）。
+  "team.stagedEditor.failure.line",
+  "team.stagedEditor.failure.transport",
+  "team.stagedEditor.failure.fallback",
+  "team.stagedEditor.failure.teamNotPresent",
+  "team.stagedEditor.failure.teamLeadOnly",
+  "team.stagedEditor.failure.memberSpawnFailed",
+  "team.stagedEditor.failure.draftInvalid",
+  "team.stagedEditor.failure.hubUnavailable",
   "team.stagedEditor.abandonConfirmTitle",
   "team.stagedEditor.abandonConfirmBody",
   "team.stagedEditor.abandonConfirmLabel",

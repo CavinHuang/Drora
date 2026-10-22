@@ -33,10 +33,28 @@ ACK → 真实 in-process 成员 spawn → 欢迎回合自然终态触发的自�
 DRORA_E2E_MANUAL_REVIEW=1 replay 模式）。转正待人工复核（e2e:promote --reviewed）。
 
 AT-01 施工过程修出的两处既有缺口（spec §14 登记）：
+
 - ack 可观测面——commandAckObservability 环形缓冲只在 SessionPane 派发路径记录，
   team 命令（ui/team/commands.ts）从未入账；已补（与 SessionPane 同口径）。
 - 捕获记录的消息文本是解码态——测试查询不能搜 JSON 转义形态（`\"`），夹具匹配面
   用的是原始 body，两侧表示不同；用例内以注释登记。
+
+AT-01 呈现对齐扩展（2026-10-22，spec §10 呈现规则1/4、§15；同一 pending 用例新增断言，
+不新增 fixture/manifest 条目）：① 问句表头——`team-staged-editor` 内首个 h2 由
+「团队计划草案」改为问句「启动这支团队？」，表头计数行为「N 名成员 · N 项任务」
+（原 stagedSummary 尾巴「确认后才会创建成员」移除），aria-label「团队计划草案」既有
+约定不变（E2E 默认语言 zh-CN，store/index.ts:267）；② 既有 testid 约定守门——本挂载点
+（会话流摘要卡，SessionPane footerSlot）可渲染控件 approve/revise/abandon/revise-note
+在位；改名五件套（team-staged-rename 系）仅在侧栏挂载点（TeamSidePane 传
+onRenameMember）渲染，不在本用例断言；③ 新增 testid `team-staged-command-error`
+（role=alert）无失败时不得出现——假阳性守门。转正前人工项（无自动化夹具机制）：
+三动作失败出显的**正向**断言——approveTeamPlan/reviseTeamPlan/abandonTeamPlan 走
+v4 命令通道（sendCommand → hub），不经 provider HTTP，replay 夹具无拦截面，仓库亦无
+v4 命令故障注入 env（既有 DRORA_E2E 故障族仅 SSH/FS/auth）；人工验证须断言编辑器内
+出现 role=alert 且文案按 ack.reasonCode 出词典（未知码走
+`team.stagedEditor.failure.fallback` 兜底；传输异常走 transport 文案），两挂载点
+（TeamConversationSummary / TeamSidePane→TeamPanel）各验一次。2026-10-22 扩展断言
+尚未重跑（只补场景与登记，未启 electron）；随下次 manual-review 运行一并取证。
 
 ## 项目与任务草稿生命周期（PD，2026-10-16）
 

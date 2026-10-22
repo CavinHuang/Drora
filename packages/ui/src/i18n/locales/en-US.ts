@@ -1585,8 +1585,10 @@ const enUS: Record<string, string> = {
   "team.member.state.terminal": "Idle",
   "team.member.state.removed": "Removed",
   "team.stagedEditor.title": "Team plan draft",
-  "team.stagedEditor.stagedSummary":
-    "{members} members · {tasks} tasks; members are created only after you confirm",
+  // 2026-10-22 question header (spec §10 presentation rule 1): stagedSummary moved to the
+  // header counter ("N members · N tasks"); the confirmation semantics live in the question line.
+  "team.stagedEditor.stagedSummary": "{members} members · {tasks} tasks",
+  "team.stagedEditor.question": "Launch this team?",
   "team.stagedEditor.awaitingFeedback":
     "Revision requested: describe the adjustments in the conversation and the model will update this draft",
   "team.stagedEditor.membersHeading": "Members",
@@ -1604,6 +1606,25 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.approve": "Approve & run",
   "team.stagedEditor.revise": "Revise in conversation",
   "team.stagedEditor.abandon": "Abandon",
+  // Inline failure for the three staged actions (spec §10 presentation rule 4): "line" is the
+  // shell (action label + reason); the reason maps from ack.reasonCode via
+  // TEAM_STAGED_FAILURE_REASON_I18N_KEYS in TeamStagedEditor; unknown codes fall back,
+  // transport errors (ack absent) use "transport".
+  "team.stagedEditor.failure.line": "{action} failed: {reason}",
+  "team.stagedEditor.failure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.stagedEditor.failure.fallback":
+    "The action did not complete (unknown reason). Try again, or check the team status in the conversation",
+  "team.stagedEditor.failure.teamNotPresent":
+    "The draft is gone: it may already be approved or abandoned. Refresh and try again",
+  "team.stagedEditor.failure.teamLeadOnly":
+    "This action can only be run in the session that planned the team",
+  "team.stagedEditor.failure.memberSpawnFailed":
+    "Spawning members failed: the draft is intact with zero members. Fix the cause and approve again",
+  "team.stagedEditor.failure.draftInvalid":
+    "Draft validation failed: fix member names, task ids, or dependencies and retry",
+  "team.stagedEditor.failure.hubUnavailable":
+    "The team runtime is not ready: it may be disabled or restarting. Try again shortly",
   "team.stagedEditor.abandonConfirmTitle": "Abandon this team draft?",
   "team.stagedEditor.abandonConfirmBody":
     "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
@@ -3365,7 +3386,8 @@ const enUS: Record<string, string> = {
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
   "settings.toolGroupingExplore": "Group exploration tools",
   "settings.agentsTeamEnabled": "Agents Team (experimental)",
-  "settings.agentsTeamEnabledDescription": "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
+  "settings.agentsTeamEnabledDescription":
+    "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",
   "settings.toolGroupingTerminal": "Group terminal commands",

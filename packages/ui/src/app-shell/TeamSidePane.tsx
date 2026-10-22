@@ -15,11 +15,13 @@ import {
   sendTeamMessage,
   setTeamMemberName,
   stopTeamMember,
+  teamCommandOutcomeToStagedFailure,
   TeamMemberSidePane,
   TeamPanel,
   useTeamFocus,
   type TeamPanelCommand,
   type TeamPanelMemberView,
+  type TeamStagedCommandFailure,
   TEAM_REVISE_PREFILL_PROMPT_KEY,
 } from "@/team/index.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
@@ -126,18 +128,33 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   // team/revise-prefill.ts（纯函数单一出处）。
   const revisePrefillQuestion = intl.formatMessage({ id: TEAM_REVISE_PREFILL_PROMPT_KEY });
 
-  // 面板动作意图 → team/commands.ts（信封构造与 ACK 语义单一出处；拒绝/失败由 helper
-  // 内部 logger 出账）。团队命令非行级、不入 pendingCommand 对账账本（commands.ts 头注），
-  // 这里的 fire-and-forget 与 WorkflowRunSidePane 的 cancel/resume 同一先例。
+  // 三动作失败出显（spec §10 呈现规则4，2026-10-22 审批面呈现对齐）：staged 三动作
+  // （approve/revise/abandon）的 TeamCommandOutcome 不再「失败只进 logger」——本容器
+  // 消费 outcome，经 teamCommandOutcomeToStagedFailure（单一映射出处）交回 TeamPanel →
+  // TeamStagedEditor 内联 role=alert。任一动作再次发起时置空清除（借形不借管线：
+  // 命令单一通道不变，hub/wire 零结构改动）。
+  const [stagedFailure, setStagedFailure] = useState<TeamStagedCommandFailure | null>(null);
+
+  // 面板动作意图 → team/commands.ts（信封构造与 ACK 语义单一出处）。三动作失败经
+  // stagedFailure 出显（上文）；其余命令（halt/resume）维持 fire-and-forget 先例
+  // （与 WorkflowRunSidePane 的 cancel/resume 同款），拒绝/失败由 helper 内部 logger 出账。
   const handlePanelCommand = useCallback(
     (command: TeamPanelCommand) => {
       const input = { sessionId: tab.parentSessionId, sendCommand };
       switch (command.type) {
         case "approveTeamPlan":
-          void approveTeamPlan(input);
+          setStagedFailure(null);
+          void approveTeamPlan(input).then((outcome) => {
+            const failure = teamCommandOutcomeToStagedFailure("approve", outcome);
+            if (failure !== null) setStagedFailure(failure);
+          });
           break;
-        case "reviseTeamPlan":
-          void reviseTeamPlan({ ...input, ...command.payload });
+        case "reviseTeamPlan": {
+          setStagedFailure(null);
+          void reviseTeamPlan({ ...input, ...command.payload }).then((outcome) => {
+            const failure = teamCommandOutcomeToStagedFailure("revise", outcome);
+            if (failure !== null) setStagedFailure(failure);
+          });
           // design 01 §3.1「会话输入框预填『要调整什么？』」：发命令的同时把追问文案
           // 预填进会话 composer（v1 边界：hub 不消费 wire note，note 随预填进对话，
           // 见 revise-prefill.ts 头注）。回调缺席（挂载点未接线）= 只发命令，行为同前。
@@ -153,8 +170,13 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
             );
           }
           break;
+        }
         case "abandonTeamPlan":
-          void abandonTeamPlan(input);
+          setStagedFailure(null);
+          void abandonTeamPlan(input).then((outcome) => {
+            const failure = teamCommandOutcomeToStagedFailure("abandon", outcome);
+            if (failure !== null) setStagedFailure(failure);
+          });
           break;
         case "haltTeam":
           void haltTeam({ ...input, ...command.payload });
@@ -293,6 +315,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
         <TeamPanel
           model={model}
           onCommand={handlePanelCommand}
+          stagedFailure={stagedFailure}
           onMemberClick={handleMemberDrill}
           onMessageMember={handleMemberDrill}
           onStopMember={(member) => {

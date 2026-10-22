@@ -7,7 +7,6 @@ import { useDroraStore } from "@/store/StoreProvider.js";
 import { getVisibleTaskMetas, useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
 import { useAppPanels } from "@/hooks/useAppPanels.js";
-import { TeamStagedAutoOpenBridge } from "@/team/index.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
@@ -252,7 +251,6 @@ export function App({
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
-    isTeamSidePaneOpenForActiveTask,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,
@@ -282,28 +280,6 @@ export function App({
     }),
   });
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
-  // PR-2.4c：staged 草案 → 自动打开 team 面板（设计 01 §2 入口 3 / §3.1）。桥是每
-  // workspace 常驻的隐形组件——tab 内容（TeamSidePane）没开时不存在，听不到「草案出现」。
-  // scope/onOpen 与 WorkspaceShellLayout 其他 open handler 同构：身份三键原样下发。
-  const teamPaneScope = useMemo(
-    () => ({
-      workspacePath: workspaceAbsPath,
-      ...(workspaceIdentity ? { workspaceIdentity } : {}),
-      ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
-    }),
-    [workspaceAbsPath, workspaceIdentity, workspaceRemoteSessionId],
-  );
-  const handleOpenTeamPaneFromBridge = useCallback(
-    (parentSessionId: string) => {
-      handleOpenTeamSidePane({
-        parentSessionId,
-        workspacePath: workspaceAbsPath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
-      });
-    },
-    [handleOpenTeamSidePane, workspaceAbsPath, workspaceIdentity, workspaceRemoteSessionId],
-  );
   const notificationEnabled = useDroraStore((s) => s.notificationEnabled);
   useMarketingTaskCompletionRefresh({
     workspacePath: workspaceAbsPath,
@@ -1185,13 +1161,6 @@ export function App({
       {/* §33.18.16 侧板初态投影：窗口侧板当前 tab 活推 relay（手机页侧板初值/跟随）。
           activeSidePaneTab 在本作用域计算（getActiveSidePaneTab）。 */}
       <WebRemoteControlSidePaneSync activeTab={activeSidePaneTab} />
-      {/* PR-2.4c staged 草案自动开面板（specs/agents-team.md §10；无投影时零渲染零订阅外的开销）。 */}
-      <TeamStagedAutoOpenBridge
-        scope={teamPaneScope}
-        parentSessionId={activeTaskId}
-        panelOpen={isTeamSidePaneOpenForActiveTask}
-        onOpen={handleOpenTeamPaneFromBridge}
-      />
       <CommandCenterDialog
         open={isQuickPickOpen}
         commands={quickPickCommands}

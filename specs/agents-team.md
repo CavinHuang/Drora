@@ -520,7 +520,35 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
   （路由/角色/思考档可改，照 host 模型目录取数）、任务 DAG（负责人/依赖可改）；
   「确认并启动」（v4 命令 approveTeamPlan）是唯一创建成员的入口；「回对话修改」把
   草案标记为等待反馈、取消规划回合并只追问一次修改方向，之后必须原子更新同一草案
-  （不得另建 team）；「放弃」归档草案并禁止自动重建。
+  （不得另建 team）；「放弃」归档草案并禁止自动重建。审批面挂载于会话流卡
+  （TeamConversationSummary staged 分支）与侧栏（TeamSidePane → TeamPanel）两处，
+  呈现规则一体适用。**审批面呈现规则（2026-10-22 登记，对齐 workflow 确认面板
+  WorkflowPermissionBlock 的问句表头/信息层级语汇）**：
+  - **问句表头**：编辑器顶部新增问句行（「启动这支团队？」语义，文案走 i18n）+
+    「N 名成员 · N 项任务」计数（原 stagedSummary 文案移作表头计数）；会话流卡头
+    已有团队名与状态徽标，表头不重复。表头为 team 自有实现，**不 import
+    WorkflowCardChrome / WorkflowPermissionBlock**——后者的 workflow 图标硬编码于
+    `packages/ui/src/components/workflow-timeline/WorkflowCardChrome.tsx:24`
+    （WORKFLOW_CARD_ICON）与 :176（表头消费），team 决策卡借用即把 workflow 徽记
+    带进 team 语境：对齐的是问句/层级的**语汇**，不是 workflow 的徽记资产。
+  - **审批面定义即全量呈现，不设「显示完整草案」折叠**：批准的知情面 = 编辑器
+    所见——wire 草案刻意只投影呈现字段（teamStagedDraftTask 仅
+    taskId/title/assignee/dependsOn，`drora-protocol-v4/team.ts:232-239`；
+    goal/acceptance/output_format 是批准后经 task_created 落板的执行字段），编辑器
+    呈现即草案全量，无「折叠内容」可言；E13/E14 结构校验（§1 草案校验）只证明
+    结构合法，不得拿来冒充「用户已知情批准」——折叠会制造「看到的与批的不是
+    同一份」。
+  - **信息层级**：成员组/任务组分组呈现，技术值（路由/任务 id/依赖 id）等宽，
+    字级只用 DESIGN.md text-ui-* 刻度。
+  - **三动作失败出显**：approveTeamPlan/reviseTeamPlan/abandonTeamPlan 的
+    TeamCommandOutcome（`packages/ui/src/team/commands.ts:44-48`）必须有 UI 消费面
+    ——编辑器内联失败提示（role=alert，按 ack.reasonCode 出 i18n 文案，未知
+    reasonCode 有兜底文案），废除「失败只进 logger」（commands.ts:70-77 warn 现状）
+    的无消费现状；hub 状态机与 shared wire 零结构改动（借形不借管线：对齐的是
+    workflow 确认面板的呈现语汇，不接权限请求管线，命令单一通道不变）。
+  - **触达**：编辑器内全部可交互控件（三动作按钮、改名铅笔/输入/确认/取消）
+    pointer-coarse ≥44px（DESIGN.md:661-662；写法参照
+    `TeamConversationSummary.tsx:73` 的 pointer-coarse:min-h-11/min-w-11）。
 - **Web/手机（web-remote-replayable）**：冷快照必须携带 team 字段（§6.3）；
   MobileTeamPanel = 任务板只读 + 成员状态 + 发消息/停止走既有命令链路（replayable
   自动 inputOrigin=mobile 语义不变）；不为手机另起 Agent/Host；replayable 不产生
@@ -832,10 +860,19 @@ onSendMessage → commands.sendTeamMessage,唯一通道 = lead 邮箱投递);ui-
 入口补 TeamMemberSidePane re-export,app-shell 深路径导入同步收回。对话侧触发按
 01-design §2 三入口落地:
 
-1. **staged 自动打开**:TeamStagedAutoOpenBridge(App 每 workspace 常驻挂载)监听
-   conversation snapshot.team.status 的 staged 边沿(shouldAutoOpenTeamPanel 纯函数,
-   「仅当面板未开」),经 useAppPanels.handleOpenTeamSidePane 打开面板。订阅晚到诚实
-   边界:切进已有 staged 草案的会话同样触发一次(staged 是会话中最需用户裁决的事)。
+1. **staged 自动打开（2026-10-22 已废除，用户裁定）**:原 PR-2.4c 以 TeamStagedAutoOpenBridge
+   (App 每 workspace 常驻)监听 staged 边沿自动打开 TeamPanel。该桥把上游
+   RemoteConversationAvailability 的 `h-full` 包装裸挂在 App 顶层 fragment(无布局上下文),
+   `h-full` 解析为整窗高度——启动恢复活动会话即把 DesktopWindowFrame 顶出一屏
+   (dev 实证壳层 flow 1354→2708、#root 被滚动 582.5px,即「上灰区下界面」回归)。
+   裁定:审批对齐 workflow 模式——**会话流内、用户驱动**。staged 审批面(TeamStagedEditor
+   同款:确认并启动/回对话修改/放弃)内联进会话流已有的 TeamConversationSummary 卡
+   (staged 分支;connection.sendCommand 走 team/commands.ts 单一通道,与面板内审批同
+   路径;无连接的历史视图退化为只读摘要)。自动打开桥与 shouldAutoOpenTeamPanel 边沿
+   函数整体删除,布局回归随之消亡。回归测试
+   packages/ui/test/teamConversationSummaryStagedApproval.test.tsx。01-design §2
+   入口3/§3.1 的「自动打开」语义就此作废——入口始终用户驱动(会话流卡片/面板入口),
+   不抢焦点。
 2. **会话正文团队摘要行 → 改期 PR-2.5b(有意分歧,如实登记)**:01-design §3.5 的
    「conversation 行流中 team 生命周期摘要」v1 **未实现**;面板开态徽标(tab 标题
    TeamTabStatusDot,色 + sr-only 文字并行)作为 v1 简化先行。正文行流改造涉及
@@ -968,8 +1005,9 @@ create-app 的灰度 env/settings 未达目录装配所在进程/时机。已落
 1. **根因（两项同源）**：team 默认关闭且设置页无开关，v1 仅 env `DRORA_AGENTS_TEAM=1` 可开——
    hub 未装配 → 斜杠目录门（workspace-model-runtime 按装配事实）不放行 `/team`（问题①）；
    v4 会话快照永远没有 `team` 键 → SessionPane 的 TeamConversationSummary（消息区，已在
-   SessionPane.tsx 挂载）与 App.tsx 的 TeamStagedAutoOpenBridge（staged 自动开侧板）均零触发
-   （问题②）。桌面消息区渲染与侧板桥**本来就接线完整**，无需新增渲染面。
+   SessionPane.tsx 挂载）零触发（问题②；当时同批挂载的 App.tsx 自动开侧板桥已于 2026-10-22
+   废除，见 §10 实现登记——staged 审批改会话流内联）。桌面消息区渲染**本来就接线完整**，
+   无需新增渲染面。
 2. **修复面**：
    - `builtin-prompt-command.ts` 展开门消费调用点的 `agentsTeamEnabled`（此前声明了参数却调
      无参 resolveAgentsTeamEnabled——只认 env，settings 开启时 `/team` 提交不展开）；
@@ -1251,3 +1289,51 @@ spec 先行面随批更新：§2.6 补 halted 中断/resume 唤醒语义（缺�
   （TeamSpawn 工具名出现在续跑请求历史里，不封顶父会话会被 tool_use 夹具反复
   命中成环）；测试查询捕获记录用解码态文本（不能搜 JSON 转义 `\"` 形态，
   夹具匹配面才是原始 body）。
+
+## 15. staged 审批面呈现对齐 workflow 确认面板（2026-10-22 登记）
+
+本卡把 staged 审批面（TeamStagedEditor；挂载于会话流卡 TeamConversationSummary
+staged 分支与侧栏 TeamSidePane → TeamPanel 两个挂载点）的呈现对齐官方 workflow
+确认面板（WorkflowPermissionBlock）的问句表头/信息层级语汇。规则正文已先行改写进
+§10「staged 审批视图」（2026-10-22 修订，同日 01-design §3.1 同步）；本节登记本卡
+的裁决依据与明确不做面，实现照 §10 五条呈现规则施工。
+
+1. **图标决策**：问句表头为 team 自有实现，**不 import WorkflowCardChrome /
+   WorkflowPermissionBlock**——workflow 图标硬编码于
+   `packages/ui/src/components/workflow-timeline/WorkflowCardChrome.tsx:24`
+   （`WORKFLOW_CARD_ICON = <Workflow …/>`）与 :176（表头消费点），team 决策卡一旦
+   借用即把 workflow 徽记带进 team 语境。对齐对象是问句表头/信息层级的**语汇**
+   （WorkflowPermissionBlock.tsx:111「表头（问句 + …）」、:240「问句在最上」），
+   不是 workflow 的徽记资产。
+2. **三动作失败出显（本卡新增行为）**：approveTeamPlan/reviseTeamPlan/
+   abandonTeamPlan 返回的 TeamCommandOutcome（`packages/ui/src/team/commands.ts:44-48`）
+   此前失败只进 `logger.warn`（commands.ts:70-77；传输异常 :80-86 logger.error），
+   无任何 UI 消费面——本卡废除该现状：TeamStagedEditor 内联失败提示（role=alert；
+   按 ack.reasonCode 出 i18n 文案，未知 reasonCode 有兜底文案），两个挂载点都要
+   生效。**零结构改动约束**：team/commands.ts 形态、hub 状态机、shared wire 一律
+   不动——借形不借管线（对齐 workflow 确认面板的呈现语汇，**不接权限请求管线**，
+   命令单一通道不变）。
+3. **触达**：编辑器内全部可交互控件（三动作按钮、改名铅笔/输入/确认/取消）
+   pointer-coarse ≥44px（DESIGN.md:661-662「keep touch targets at 44px
+   (`size-11`/`min-h-11`)」；写法参照 `TeamConversationSummary.tsx:73` 的
+   `pointer-coarse:min-h-11 pointer-coarse:min-w-11` 现有写法）。
+4. **note 闭环保持不动**：「回对话修改」的备注经 reviseTeamPlan 后由宿主预填会话
+   输入框（`packages/ui/src/team/revise-prefill.ts` 现状；缺口9 的
+   requestComposerTextInsert 通道与 targetSessionId 消费门均不变）。
+5. **不做「显示完整草案」折叠**：依据写在 §10 审批面定义本身——wire 草案刻意只
+   投影呈现字段（teamStagedDraftTask 仅 taskId/title/assignee/dependsOn，
+   `packages/shared/src/drora-protocol-v4/team.ts:232-239`；goal/acceptance/
+   output_format 是批准后经 task_created 落板的执行字段），编辑器呈现即草案全量；
+   E13/E14 结构校验（§1 草案校验）不得拿来冒充知情批准——批准的知情面是用户所见，
+   不是校验通过。
+6. **明确不做（归后续卡，本卡不得出现）**：
+   - 权限作用域四选项——内容审批没有「始终允许」；
+   - 并发上界控件；
+   - lineage/saved 徽标；
+   - **成员路由可调**：team 的 modelSelection 与 workflow 的 WorkflowRunSettingsModel
+     **刻意不共用 schema**（`drora-protocol-v4/team.ts:213-218` 注释：「与 command
+     面的 ModelSelection……**不是**同一词汇，刻意不共用 schema」）——后续卡动工前
+     必须先解决两套词汇的适配，不得直接搬 workflow 的路由编辑控件；
+   - **任务 DAG 时间线**：draftTasks 上界 boardTasksMax=100（team.ts:31、:244）对
+     workflow phases ≤32（`create-workflow-display.ts:133`）存在上界冲突——后续卡
+     必须先定超界降级策略再动工。

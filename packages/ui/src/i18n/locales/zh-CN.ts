@@ -1452,7 +1452,10 @@ const zhCN: Record<string, string> = {
   "team.member.state.terminal": "空闲",
   "team.member.state.removed": "已移除",
   "team.stagedEditor.title": "团队计划草案",
-  "team.stagedEditor.stagedSummary": "{members} 名成员 · {tasks} 项任务，确认后才会创建成员",
+  // 2026-10-22 问句表头（spec §10 呈现规则1）：stagedSummary 移作表头计数（「N 名成员 ·
+  // N 项任务」），确认语义由问句行承载；问句行 + 失败文案键见 TeamStagedEditor 头注。
+  "team.stagedEditor.stagedSummary": "{members} 名成员 · {tasks} 项任务",
+  "team.stagedEditor.question": "启动这支团队？",
   "team.stagedEditor.awaitingFeedback": "已请求修改：请在对话里说明调整方向，模型会更新这份草案",
   "team.stagedEditor.membersHeading": "成员",
   "team.stagedEditor.tasksHeading": "任务",
@@ -1468,6 +1471,18 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.approve": "确认并启动",
   "team.stagedEditor.revise": "回对话修改",
   "team.stagedEditor.abandon": "放弃",
+  // 三动作失败出显（spec §10 呈现规则4）：line 为壳（动作标签 + 原因），原因按
+  // ack.reasonCode 在 TeamStagedEditor 的 TEAM_STAGED_FAILURE_REASON_I18N_KEYS 映射；
+  // 未知 reasonCode 落 fallback，传输异常（ack 缺席）落 transport。
+  "team.stagedEditor.failure.line": "{action}失败：{reason}",
+  "team.stagedEditor.failure.transport": "命令未能发送：连接不可用，请恢复连接后重试",
+  "team.stagedEditor.failure.fallback": "操作未能完成（未知原因），请重试或回到对话查看团队状态",
+  "team.stagedEditor.failure.teamNotPresent": "草案已不在：可能已被启动或放弃，请刷新后重试",
+  "team.stagedEditor.failure.teamLeadOnly": "该操作只能在发起团队规划的会话中执行",
+  "team.stagedEditor.failure.memberSpawnFailed":
+    "成员创建失败：草案完好、未创建任何成员，可修正后重新确认启动",
+  "team.stagedEditor.failure.draftInvalid": "草案校验未通过：请修正成员名、任务 id 或依赖后重试",
+  "team.stagedEditor.failure.hubUnavailable": "团队运行时未就绪：可能未开启或正在重启，请稍后重试",
   "team.stagedEditor.abandonConfirmTitle": "放弃这份团队草案？",
   "team.stagedEditor.abandonConfirmBody":
     "草案将归档且不可恢复，模型也不会自动重建；再次成队需要重新 /team。",
@@ -3150,7 +3165,8 @@ const zhCN: Record<string, string> = {
   "settings.messageStreamShowTodosDescription": "在消息流中展示 Todo 工具卡片。",
   "settings.toolGroupingExplore": "分组探索工具",
   "settings.agentsTeamEnabled": "智能体团队（实验）",
-  "settings.agentsTeamEnabledDescription": "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
+  "settings.agentsTeamEnabledDescription":
+    "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
   "settings.toolGroupingExploreDescription": "将连续的读取和搜索工具聚合为 Explore 分组。",
   "settings.toolGroupingTerminal": "分组终端命令",
   "settings.toolGroupingTerminalDescription": "将连续的非只读 Shell 命令聚合为 Terminal 分组。",

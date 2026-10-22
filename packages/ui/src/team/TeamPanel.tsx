@@ -9,7 +9,7 @@ import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamUiStatus, TeamUiFocus } from "./contract.js";
 import type { TeamHistoryConnection } from "@/hooks/useTeamHistory.js";
-import { TeamStagedEditor } from "./TeamStagedEditor.js";
+import { TeamStagedEditor, type TeamStagedCommandFailure } from "./TeamStagedEditor.js";
 import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./view-model.js";
 import { TeamWorkspaceViews } from "./TeamWorkspaceViews.js";
 import { TeamStatusBadge } from "./TeamStatusBadge.js";
@@ -132,6 +132,13 @@ export interface TeamPanelProps {
    * 草案原子更新同一 teamId，任务 assignee 随名字重定向）。缺席 = 成员行只读展示。
    */
   onRenameMember?: (memberName: string, newName: string) => void;
+  /**
+   * 最近一次三动作失败（spec §10 呈现规则4；2026-10-22 审批面呈现对齐）：宿主消费
+   * approveTeamPlan/reviseTeamPlan/abandonTeamPlan 的 TeamCommandOutcome 后交回
+   * （映射单一出处 teamCommandOutcomeToStagedFailure），编辑器内联 role=alert 出显；
+   * 任一动作再次发起时宿主置空清除。null/缺席 = 无失败提示。
+   */
+  stagedFailure?: TeamStagedCommandFailure | null;
 }
 
 export function TeamPanel(props: TeamPanelProps): JSX.Element {
@@ -145,6 +152,7 @@ function TeamPanelContent({
   onMessageMember,
   onStopMember,
   onRenameMember,
+  stagedFailure,
   focus,
   connection,
   onQuoteTask,
@@ -186,6 +194,7 @@ function TeamPanelContent({
         visibility.stagedEditor ? (
         <TeamStagedEditor
           draft={model.stagedDraft}
+          failure={stagedFailure}
           onApprove={() => onCommand({ type: "approveTeamPlan", payload: {} })}
           onRevise={(note) =>
             onCommand({

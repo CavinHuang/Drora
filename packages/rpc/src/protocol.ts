@@ -69,7 +69,7 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
 /**
  * connection-flow-v1 sideband 构造（契约字面量单一出处）。
  *
- * 走向（官方 3.14.3 取证，specs/mobile-web-remote.md「flow-state sideband」小节）：
+ * 走向（官方 3.14.3 取证，docs/web-remote-control/web-remote-control-architecture.md「flow-state sideband」小节）：
  * 桥发送侧水位越限（saturated）/ 回落（drained）时，由桌面 main 经 Host 附着端口
  * postMessage 本对象（不进 relay 数据面）；Host 侧 MessagePortProtocol 分流到
  * onFlowState → connectionScope.setTransportFlowState 暂停/恢复 CLI 发送。

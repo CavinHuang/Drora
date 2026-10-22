@@ -163,10 +163,6 @@ interface WebRemoteControlManagerDependencies {
   appVersion: string;
   getLogin(): Promise<WebRemoteControlLogin | undefined>;
   deviceStorage: WebRemoteControlDeviceStorage;
-  // R1：Relay V2 采纳上游 JWT 注册 + 一次性连接 token 契约；Drora 自建 relay 的
-  // V1 authStorageProvider / resolveAuthStorageProvider（按 origin 隔离的凭据装配，
-  // 见 src/drora-extensions/remoteControl.ts）不再挂到官方 manager。
-  // 自建 relay V2 适配待接线：relay-server 侧实现 V2 wire 契约后再恢复装配点。
   startupRestoreStorageProvider: {
     load(): Promise<WebRemoteControlStartupRestoreContext | undefined>;
     save(context: WebRemoteControlStartupRestoreContext): Promise<void>;
@@ -1888,9 +1884,6 @@ export function createWebRemoteControlManager(dependencies: WebRemoteControlMana
       }
     },
 
-    // R1：V1 resetPairing（二维码泄露时清本地配对材料）随上游 V2 重写移除；
-    // V2 下配对材料由 deviceStorage 注册流管理，二维码泄露轮换语义保留在
-    // Drora mobile relay control（desktopMobileRelayControl.ts refreshMobileRelayControl）。
     getStatus(windowId: number): WebRemoteControlStatus {
       if (!dependencies.featureGate.isEnabled()) {
         return {

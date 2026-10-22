@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@drora/client": "workspace:*",
-    "@drora/relay-client": "workspace:*",
     "@drora/rpc": "workspace:*",
     "@drora/services": "workspace:*",
     "@drora/shared": "workspace:*",

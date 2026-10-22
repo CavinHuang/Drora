@@ -1,7 +1,3 @@
-import {
-  createDroraRemoteControlDeployment,
-  registerWebRemoteControlPairingRefreshIpc,
-} from "../drora-extensions/remoteControl.js";
 import { createDroraDesktopPetExtension } from "../drora-extensions/desktopPet.js";
 import { createCaptchaSolver } from "./captchaSolverWindow.js";
 import { installRequestSecurityDiagnostics } from "./request-security-edition/index.js";
@@ -49,7 +45,6 @@ import {
   net,
   protocol,
   session,
-  safeStorage,
   webContents,
 } from "electron";
 import { randomUUID } from "node:crypto";
@@ -172,7 +167,8 @@ import {
 } from "./desktopWindowLifecycle.js";
 import { resolveDroraBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
-import { resolveAgentsTeamHostEnv,
+import {
+  resolveAgentsTeamHostEnv,
   getCredentialsDir,
   isDockerDaemonAvailable,
   listSSHConfigAliases,
@@ -939,35 +935,18 @@ let startupOpenWorkspaceRequest: ExplicitStartupWorkspaceRequest | null =
       ? { path: startupDeepLinkWorkspacePath, source: "deep-link" }
       : null;
 
-const droraRemoteControlDeployment = createDroraRemoteControlDeployment({
-  loadSettings: () => mainSettingService.get(),
-  officialEndpoints: async () =>
-    buildDroraEndpointUrls(await resolveCurrentDroraEndpointOrigin(), {
-      appVersion: webRemoteControlAppVersion,
-    }),
-  appVersion: webRemoteControlAppVersion,
-  relayWsOverride: webRemoteControlRelayWsEnvOverride,
-  remoteUrlOverride: webRemoteControlUrlEnvOverride,
-  resolveEncryption: () =>
-    safeStorage.isEncryptionAvailable()
-      ? {
-          encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
-          decrypt: (stored) => safeStorage.decryptString(Buffer.from(stored, "base64")),
-        }
-      : undefined,
-  logger,
-});
-app.on("before-quit", () => {
-  void droraRemoteControlDeployment.dispose();
-});
-// B 类保护：Web 远控配对轮换入口（ours 面，UI WebRemoteControlDialog 仍调用）；
-// main 侧按 R1 分歧决策由 Drora 扩展接管（见 drora-extensions/remoteControl.ts）。
-registerWebRemoteControlPairingRefreshIpc({ logger });
 const webRemoteControlManager = createWebRemoteControlManager({
-  getEndpointUrls: () => droraRemoteControlDeployment.getEndpointUrls(),
-  // 自建 relay V2 适配待接线：V1 resolveAuthStorageProvider（按 origin 隔离凭据）不再挂到
-  // V2 manager；droraRemoteControlDeployment 的凭据装配保留在 drora-extensions，
-  // 待 relay-server 实现 V2 wire 契约后按 deviceStorage 语义重新接入。
+  getEndpointUrls: async () => {
+    const endpointOrigin = await resolveCurrentDroraEndpointOrigin();
+    return {
+      ...buildDroraEndpointUrls(endpointOrigin, { appVersion: webRemoteControlAppVersion }),
+      relayWsUrl: resolveWebRemoteControlRelayWsUrl({
+        endpointOrigin,
+        overrideUrl: webRemoteControlRelayWsEnvOverride,
+      }),
+      ...(webRemoteControlUrlEnvOverride ? { remoteUrl: webRemoteControlUrlEnvOverride } : {}),
+    };
+  },
   relayWsUrl: resolveWebRemoteControlRelayWsUrl({
     endpointOrigin: DEFAULT_DRORA_ENDPOINT_ORIGIN,
     overrideUrl: webRemoteControlRelayWsEnvOverride,

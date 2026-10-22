@@ -49,7 +49,7 @@
 
 ## S4 执行补记
 
-- **R1 决策修订（登记）**：Relay V2 **主干落地**于 S4（9a5a6c1a：webRemoteControlManager/transport/protocol V2、JWT 注册+一次性连接 token、V1 认证/传输删除，覆盖客户端/桌面/契约三侧）；**自建 `packages/relay-server`（A 类保护区，S4 零触碰）的 V2 wire 契约适配转为后续任务**（合并外独立任务，登记在案），适配完成前 V2 端点以官方云 relay 为准、与官方端互为可替换的验收顺延。此条修订 R1 原文「relay-server 适配作为合并内任务」的口径，不影响 R1 采纳 V2 本体。
+- **R1 当前决定（2026-10-22）**：官方 Relay V2 主干继续保留；自建服务端和旧客户端复刻已删除，不再计划替代端点适配。
 - **S5 阻塞项**：`packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts`（+ 同名 test）消费 `@drora/ui` 的 `registerSourceSettingsServices` 导出与 `InternalChannels.SourceSettingsServicePort` 契约。S5 合并 ui SettingsPage/删除族时必须保持该导出与通道契约兼容，落地时以 desktop typecheck（tsconfig.main/renderer）+ `sourceSettingsServicePortBridge.test` 验证，否则 desktop renderer 源设置桥断裂。
 - 已知跨段破坏（S4 后）：全仓 typecheck 134 error（ui 116 / web 18，较 S3 508 降 374），清单 /tmp/dryrun/s4-cross-breakage.txt，S5 收口。
 
@@ -69,8 +69,6 @@ node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/their
 ### S4 环境预存失败登记（核查二）
 
 - desktopPetLibrary「upgrade preparation」：macOS `/var` vs `/private/var` realpath 环境差（测试与实现 S4 零 diff）——S7 复核是否需与 obsidian realpathLongestExistingPrefix 同法修复。
-- desktopMobileLanRelayHost「内嵌宿主生命周期」：断言 dist 含 3.15.1 资源路径，本地 dist 为 dev 构建（零 diff）——S7 构建后复跑。
-
 
 ## S7 结构对齐审计（2026-10-20）
 
@@ -82,13 +80,13 @@ node scripts/upstream/merge-dryrun.mjs   # theirs 树缓存在 /tmp/dryrun/their
   gen-ui service.test 1（3.15.1 已记录删除）、schedulerProtocol.js/.js.map 2
   （上游有意跟踪的产物，本轮按 R4 从 theirs 恢复补齐）。
 - 仅本仓 7350 条全部为自研簇（mobile-web 5397、zcode-cua-helper 562、
-  website 231、relay-server 26、cli 扩展 310、desktop/ui/services 自研挂载、
+  website 231、当时的服务端复刻 26（现已删除）、cli 扩展 310、desktop/ui/services 自研挂载、
   regression/vaultview/glm-parity 文档等），与 A 类清单一致。
 
 ## S7 终验记录（2026-10-20）
 
 - 门禁终态：typecheck 18 项目全绿；lint 0 error；fmt:check 过（15880→10828 有效范围，冻结区 ignore 补齐 6 条对齐 .gitattributes）；architecture:check --changed 0 违规；test:architecture 36/36；test:unit（vitest 19862 + node 全量）0 失败；test:upstream-cli 19 包 0 失败；mobile-web SHA256SUMS 2620 锚点通过。
-- R2 收口：__DRORA_MIN_COMPATIBLE_VERSION__ 注入由 desktop/web vite（buildMetadata.minCompatibleVersion ← package.json droraCompatibility 控制点，fallback=自身版本）承担；CLI 闭包不消费该常量，SEA 无需 define。独立值待产品策略在 droraCompatibility 声明。
-- S4 登记的两项环境预存失败已修：desktopPetLibrary（测试期望 realpath 归一，与 obsidian 同族）、desktopMobileLanRelayHost（版本钉死与 title 断言放宽——构建页跟随官方 3.16.1）。
+- R2 收口：**DRORA_MIN_COMPATIBLE_VERSION** 注入由 desktop/web vite（buildMetadata.minCompatibleVersion ← package.json droraCompatibility 控制点，fallback=自身版本）承担；CLI 闭包不消费该常量，SEA 无需 define。独立值待产品策略在 droraCompatibility 声明。
+- S4 登记的两项环境预存失败已修：desktopPetLibrary（测试期望 realpath 归一，与 obsidian 同族）；当时的 LAN 宿主回归已随复刻实现删除。
 - G-hint E2E 移 manual-review/pending（入口交互被 project-sidebar 替换，需真机再基线，文件内 TODO 登记）。
 - 遗留真机项：E2E/跨平台/真包 parity 属 CI 与后续发布验证范围（spec 验收矩阵口径不变）。

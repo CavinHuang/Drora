@@ -37,7 +37,7 @@ export type { TestActions } from "./test-actions.js";
 export { StoreProvider, useDroraStore } from "./store/StoreProvider.js";
 export type { DroraState } from "./store/index.js";
 
-// R3 移动壳（specs/mobile-relay-r3-frontend.md D1）：纯展示组件，数据 props 注入。
+// R3 移动壳（docs/web-remote-control/web-remote-control-architecture.md。
 export {
   MobileLoadingCard,
   MobileConnectionStatusCard,

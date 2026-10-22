@@ -21,7 +21,6 @@
     "packages/mobile-web/upstream/**",
     "packages/mobile-web/src/recovered/**",
     "packages/mobile-web/public/**",
-    "packages/mobile-web/legacy-v3.14.3/**",
     "packages/zcode-cua-helper/runtime/**",
     "packages/zcode-cua/upstream/**"
   ]

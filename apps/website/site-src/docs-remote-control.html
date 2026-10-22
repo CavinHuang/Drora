@@ -39,7 +39,7 @@
           <p data-i18n="doc.remote.connect.p1">在 Drora 左下角侧栏点击手机图标，打开「移动端远程控制」。</p><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/rc-dialog-annotated.webp" alt="弹窗左侧是二维码与连接地址，右侧是 Bot Channel 入口" loading="lazy" /></figure><figure class="docs-shot docs-shot-embed"><img src="/Drora/assets/docs/rc-entry-annotated.webp" alt="左下角侧栏的手机图标是移动端远程控制的入口" loading="lazy" /></figure>
           <p data-i18n="doc.remote.connect.p2">弹窗左侧生成二维码和连接地址，用手机扫码，或者复制链接在手机浏览器里打开。</p>
           <p data-i18n="doc.remote.connect.p3">连接成功后，手机端接入的是整个桌面窗口，而不只是扫码时停留的那个工作区。</p>
-          <p data-i18n="doc.remote.trans.lead">手机与电脑之间的连接方式有两种：</p>
+          <p data-i18n="doc.remote.trans.lead">手机与电脑通过外部 Relay V2 连接，需登录同一账号：</p>
           <table class="docs-table">
             <thead>
               <tr>
@@ -49,12 +49,8 @@
             </thead>
             <tbody>
               <tr>
-                <td data-i18n="doc.remote.td.lan">局域网</td>
-                <td data-i18n="doc.remote.td.land">手机与电脑在同一局域网时直连，无需任何外部服务；二维码即配对入口，可在弹层一键刷新。</td>
-              </tr>
-              <tr>
                 <td data-i18n="doc.remote.td.relay">云中继</td>
-                <td data-i18n="doc.remote.td.relayd">跨网络时经云中继转发，手机无需与电脑同网。中继只做鉴权、配对、心跳与转发，不保存任务队列等业务状态；可在设置中改用自建 relay 服务端地址。</td>
+                <td data-i18n="doc.remote.td.relayd">跨网络时经云中继转发，手机无需与电脑同网。中继只做鉴权、配对、心跳与转发，不保存任务队列等业务状态。</td>
               </tr>
             </tbody>
           </table>
@@ -121,7 +117,7 @@
           <h2 id="stop-safe" data-i18n="doc.remote.safe.h">停止与安全</h2>
           <p data-i18n="doc.remote.safe.lead">连接地址本身就带远控授权，拿到它就能操作你的窗口，所以有几点需要留意。</p>
           <p data-i18n="doc.remote.safe.p2">关闭弹窗不会停止远控。用完之后要点「停止」才真正结束这次连接。</p>
-          <p data-i18n="doc.remote.safe.p3">怀疑地址外泄就刷新二维码。刷新会让之前复制或扫过的地址立即失效，已连上的手机需要重新扫码。</p>
+          <p data-i18n="doc.remote.safe.p3">二维码只包含设备和版本信息，不包含登录凭据。停止远程控制可断开当前连接。</p>
           <p data-i18n="doc.remote.safe.p4">不要公开发布或转发连接地址。它等同于一把临时钥匙。</p>
           <div class="docs-note">
             <span data-i18n="doc.remote.safe.note">远控期间桌面端需要保持运行和联网，桌面端一旦断开或窗口关闭，手机端就无法继续。桌面应用退出即停止远控服务，不会在后台滞留；下次启动时可自动恢复上一次的开启状态（手动停止过则不恢复）。</span>

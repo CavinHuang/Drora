@@ -227,22 +227,6 @@ export const PlatformChannels = {
   PluginSandboxOwnerWebContentsId: "drora:plugin-sandbox-owner-web-contents-id",
   /** 打开系统目录选择框 */
   SelectDirectory: "drora:select-directory",
-  /** Renderer → Main：启动官方 relay 云中继远控（注册/鉴权设备并生成 v4 托管页二维码） */
-  MobileRelayStart: "drora:mobile-relay-start",
-  /** Renderer → Main：停止官方 relay 云中继远控（断开并保留设备凭据） */
-  MobileRelayStop: "drora:mobile-relay-stop",
-  /** Renderer → Main：重置 relay 设备凭据（轮换 deviceSid/passHash，泄露二维码用） */
-  MobileRelayReset: "drora:mobile-relay-reset",
-  /** Renderer → Main：查询 relay 远控运行状态 */
-  MobileRelayState: "drora:mobile-relay-state",
-  /** Main → Renderer：relay 远控运行状态推送 */
-  MobileRelayStateChanged: "drora:mobile-relay-state-changed",
-  /** Renderer → Main：同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
-  MobileRelaySyncWorkspaces: "drora:mobile-relay-sync-workspaces",
-  /** Renderer → Main：同步跨工作区任务列表到 relay 远控（官方 syncWebRemoteControlTasks 同款） */
-  MobileRelaySyncTasks: "drora:mobile-relay-sync-tasks",
-  /** Renderer → Main：同步窗口侧板当前 tab 到 relay 远控（§33.18.16 侧板初态投影，drora 扩展面） */
-  MobileRelaySyncSidePane: "drora:mobile-relay-sync-side-pane",
   /**
    * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
    * drora:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
@@ -284,7 +268,6 @@ export const PlatformChannels = {
   /** 为当前 workspace 开启 Web 远程控制 */
   StartWebRemoteControl: "drora:start-web-remote-control",
   /** 轮换当前 workspace 的 Web 远控配对（二维码泄露时刷新）；Drora 保留面，字面量还原自 3.15.1 bundle */
-  ResetWebRemoteControlPairing: "drora:reset-web-remote-control-pairing",
   /** 关闭当前窗口的 Web 远程控制 */
   StopWebRemoteControl: "drora:stop-web-remote-control",
   /** 查询当前窗口的 Web 远程控制状态 */
@@ -915,10 +898,6 @@ export interface PlatformChannelMap {
     response: import("./platform.js").BindRemoteWorkspaceSessionContextIpcResult;
   };
   [PlatformChannels.StartWebRemoteControl]: {
-    request: WebRemoteControlContext;
-    response: WebRemoteControlStartOperationResult;
-  };
-  [PlatformChannels.ResetWebRemoteControlPairing]: {
     request: WebRemoteControlContext;
     response: WebRemoteControlStartOperationResult;
   };

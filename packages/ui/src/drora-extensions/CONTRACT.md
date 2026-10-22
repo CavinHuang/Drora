@@ -1,6 +1,4 @@
 # ui-drora-extensions
 
-自研接入模块，迁移策略见 `specs/upstream-v3.15.1-migration.md`。
-官方业务状态仍由 Agent、scoped Host 和官方远控 manager 持有。这里只做装配、部署选择或展示。
-凭据按 origin 捕获，不使用可被其他窗口改变的 active-origin；LAN 以持久化 registry 为身份域。
-关闭由宿主生命周期调用，所有业务命令复用官方路径。禁止加入第二份任务队列/会话状态。
+Drora 的 Vault 主视图装配入口；业务状态归 Vault/Knowledge 服务。
+官方远控弹窗直接由 web-remote-control 模块提供，不包装 LAN 或自建 Relay 选项。

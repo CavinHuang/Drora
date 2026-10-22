@@ -1,28 +1,13 @@
 import assert from "node:assert/strict";
 import { it as test, vi } from "vitest";
 
-// 守护 renderer 平台适配层的移动远控方法面（spec: mobile-web-remote.md
-// 「Renderer 集成面」）：IPlatformService 的 relay 5 项 + 重连委托必须在
-// createDesktopPlatform 逐一转发到 window.drora。
-//
-// 背景：renderer 子项目不在根 pnpm typecheck 覆盖内，且 window.drora 的全局
-// 类型声明不在 renderer 工程里——缺失转发不会被类型检查拦截；relay 5 项缺失曾让
-// “云中继”tab 永久停在“正在准备二维码”（状态兜底 idle、自动开启条件永不成立、
-// 无推送、无手动开启入口）。旧 LAN 直连 5 项（startMobilePairing 等）已随配对栈
-// 删除（specs/mobile-relay-server.md §12.4），不再属于方法面。
-//
-// 运行：cd packages/desktop &&
-//   pnpm exec vitest run packages/desktop/test/desktopRendererPlatformMobileFace.test.ts
-// （@drora/ui 源入口含 vite 路径别名，node 下无法加载，这里 mock 掉
-// desktopPlatform 顶层唯一的 ui 依赖；desktopBrowserPlatformBridge 在模块求值期
-// 只读 window.drora 的可选能力，空 stub 下可安全加载。）
+// 官方 Relay V2 平台入口与重连委托；自研配对轮换随旧 Relay 栈移除。
 
 vi.mock("@drora/ui", () => ({ recordArmsCustomEventForE2E: () => {} }));
 
 const MOBILE_FACE_METHODS = [
   "startWebRemoteControl",
   "stopWebRemoteControl",
-  "refreshWebRemoteControlPairing",
   "getWebRemoteControlStatus",
   "onWebRemoteControlStatusChanged",
   "onWebRemoteControlReconnectWorkspace",
@@ -45,7 +30,7 @@ function installWindowDroraStub() {
       if (method === "getWebRemoteControlStatus") {
         return { running: false, status: "idle" };
       }
-      if (method === "startWebRemoteControl" || method === "refreshWebRemoteControlPairing") {
+      if (method === "startWebRemoteControl") {
         return { url: `stub://${method}`, sessionId: "stub-session" };
       }
       return undefined;
@@ -80,8 +65,11 @@ test("createDesktopPlatform 转发移动远控全方法面（官方 5 项 + 重�
   await platform.getWebRemoteControlStatus?.();
   assert.equal(invocations.at(-1)?.method, "getWebRemoteControlStatus");
 
-  await platform.refreshWebRemoteControlPairing?.();
-  assert.equal(invocations.at(-1)?.method, "refreshWebRemoteControlPairing");
+  assert.equal(
+    "refreshWebRemoteControlPairing" in platform,
+    false,
+    "旧配对轮换入口不能继续暴露，避免调用已经删除的自建 Relay IPC",
+  );
 
   await platform.stopWebRemoteControl?.();
   assert.equal(invocations.at(-1)?.method, "stopWebRemoteControl");

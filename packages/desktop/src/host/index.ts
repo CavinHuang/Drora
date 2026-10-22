@@ -2710,7 +2710,7 @@ function exposeServicesOnMessagePort(
     attachmentScope,
     windowServices: activeServices ?? undefined,
     // B 类保护：web-remote-replayable 附着同时注册 zcode-* 官方别名，
-    // 托管手机页按官方名调用服务（M4b 兼容桥，spec: mobile-web-remote.md）。
+    // 托管手机页按官方名调用服务（M4b 兼容桥，spec: docs/web-remote-control/web-remote-control-architecture.md）。
     officialChannelAliases: clientMode === "web-remote-replayable",
   });
   let disposed = false;

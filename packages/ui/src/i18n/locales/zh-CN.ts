@@ -3150,7 +3150,8 @@ const zhCN: Record<string, string> = {
   "settings.messageStreamShowTodosDescription": "在消息流中展示 Todo 工具卡片。",
   "settings.toolGroupingExplore": "分组探索工具",
   "settings.agentsTeamEnabled": "智能体团队（实验）",
-  "settings.agentsTeamEnabledDescription": "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
+  "settings.agentsTeamEnabledDescription":
+    "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
   "settings.toolGroupingExploreDescription": "将连续的读取和搜索工具聚合为 Explore 分组。",
   "settings.toolGroupingTerminal": "分组终端命令",
   "settings.toolGroupingTerminalDescription": "将连续的非只读 Shell 命令聚合为 Terminal 分组。",
@@ -8108,11 +8109,6 @@ const zhCN: Record<string, string> = {
   "settings.desktopPet": "桌面宠物",
   "settings.desktopPetDescription":
     "在桌面显示任务活动；点击宠物查看任务，拖动可移动位置，右键打开菜单。",
-  "settings.relayServerUrl": "云中继服务器",
-  "settings.relayServerUrlDescription":
-    "自建 relay 服务端地址（移动端远控）。留空使用官方 zcode.z.ai；修改后需停止并重新开启远程控制。",
-  "settings.relayServerUrlPlaceholder": "留空使用官方，例如 http://relay.lan:4430",
-  "settings.relayServerUrlSavedHint": "云中继服务器设置已保存，重启应用后生效",
   "vault.ask.candidate.attachEvidence": "作为证据附给 Agent",
   "vault.ask.candidate.attachEvidenceHint":
     "把本次核验的 Receipt 附给目标会话输入框，发送时随消息提交并在执行前复验；与「加入 Agent」的普通引用语义不同。",

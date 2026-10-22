@@ -39,11 +39,6 @@ import type {
   WebRemoteControlStartOperationResult,
   WebRemoteControlStatus,
   WebRemoteControlWorkspaceTarget,
-  MobilePairingRuntimeState,
-  MobileRelaySidePaneSyncEntry,
-  MobileRelayTaskSyncEntry,
-  MobileRelayTransport,
-  MobileRelayWorkspaceSyncEntry,
   OAuthStateRegistration,
   WebRemoteControlAuthStateChange,
   PostUpdateReleaseNotesPayload,
@@ -259,23 +254,6 @@ declare global {
       onTaskNotificationClick(handler: (taskId: string) => void): () => void;
       /** 注册宠物点击打开任务的回调（仅桌面宠物链路），返回 disposer */
       onDesktopPetOpenTask?(handler: (target: DesktopPetTarget) => void): () => void;
-      /** relay 远控：transport=cloud（缺省）连云中继；transport=lan 启动进程内嵌自建 relay */
-      startMobileRelayControl(params: {
-        workspacePath: string;
-        workspaceIdentity?: string;
-        transport?: MobileRelayTransport;
-      }): Promise<{ url: string; sessionId: string }>;
-      stopMobileRelayControl(): Promise<void>;
-      /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
-      refreshMobileRelayControl(): Promise<{ url: string; sessionId: string }>;
-      getMobileRelayControlState(): Promise<MobilePairingRuntimeState>;
-      onMobileRelayStateChanged(callback: (state: MobilePairingRuntimeState) => void): () => void;
-      /** 同步窗口全部工作区到 relay 远控（多工作区聚合） */
-      syncWebRemoteControlWorkspaces(workspaces: MobileRelayWorkspaceSyncEntry[]): Promise<void>;
-      /** 同步跨工作区任务摘要到 relay 远控 */
-      syncWebRemoteControlTasks(tasks: MobileRelayTaskSyncEntry[]): Promise<void>;
-      /** §33.18.16 侧板初态投影：同步窗口侧板当前 tab（手机映射词表） */
-      syncWebRemoteControlSidePane?(entry: MobileRelaySidePaneSyncEntry): Promise<void>;
       /** 注册手机 workspace-reconnect-request 的窗口重连委托，返回 disposer */
       onWebRemoteControlReconnectWorkspace(
         callback: (request: { requestId: string; workspaceKey: string }) => Promise<{

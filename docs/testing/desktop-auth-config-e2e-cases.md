@@ -535,6 +535,8 @@ Todo103 本轮运行证据记录在 staging-integration ledger。
 - 凭据完成事件回归：`manual-review/pending/web-remote-control-session-events.test.ts` 使用单窗口、真实 Host OAuth 与 loopback V2 relay。已配对后持有隔离 HOME 的 setting.json 写锁，保留有效设置读取与独立凭据写入，再从真实用户菜单登出；断言凭据清空、Main 为 `auth-required`、旧 terminal WS 关闭且未靠重启关闭。额外断言凭据清除之后出现 `setting.update FAIL`，清理阶段释放写锁。该候选不覆盖多窗口，也不代表真实 OAuth 或线上 relay 验收。
 
 - Spec：`packages/desktop/test/e2e/manual-review/pending/web-remote-control-auth-gate.test.ts`。
+- 2026-10-22 删除复刻 Relay：此候选同时检查弹窗没有 LAN/自建传输选择，真实 preload 不再暴露旧启动/停止/轮换/状态方法。保持既有零 HTTP/WS 登录门禁与双语主题矩阵，不代表生产 Relay 联调。
+- 本次执行：当前 Web/mobile 和 Desktop main/host/renderer 构建完成；Electron 用例在 onPrepare 的 Agent 构建中被缺失的 `documents-plugin/dist/server.mjs` 阻断，尚未执行上述场景。直接构建该插件时进一步确认缺少 `@fontsource/noto-sans-sc` 依赖。run id：`desktop-e2e-20261022023830559-p41977-10dae8f02d141fd6`；不将旧回归记录计作本次 UI 验收。
 - 前置：隔离 HOME 的 OAuth/JWT 凭据为空；保留上次启用目标；case-local HTTP/WS 计数服务在 Electron 启动前接入 main 的 endpoint 和 relay URL。
 - 操作：打开移动端远控弹窗，依次检查 Zai Light/Dark × zh-CN/en-US，点击登录入口。
 - 断言：main 保持 `auth-required`；标题、说明、登录按钮可见；没有二维码、复制链接或生成中占位；真实登录渠道可达；远控 HTTP 和 WS Upgrade 次数均为零。

@@ -248,13 +248,6 @@ export type {
   EmbeddedBrowserSitePermissionUpdateRequest,
   EmbeddedBrowserSitePermissionsSnapshot,
   IPlatformService,
-  MobilePairingFailure,
-  MobilePairingRuntimeState,
-  MobilePairingStatus,
-  MobileRelayTransport,
-  MobileRelaySidePaneSyncEntry,
-  MobileRelayTaskSyncEntry,
-  MobileRelayWorkspaceSyncEntry,
   OpenInEditorRemoteTarget,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
@@ -389,7 +382,5 @@ export {
   isRequestSecurityFailure,
 } from "./request-security-edition/policy.js";
 export * from "./request-security-edition/verification-policy.js";
-// relay 线协议纯逻辑（spec D2：desktop/relay-server/relay-client 三方同源）。
-export * from "./relay-wire/index.js";
 
 export * from "./conversation-share-tool-presentation.js";

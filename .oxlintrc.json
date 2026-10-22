@@ -57,13 +57,6 @@
       "rules": {
         "max-lines": "off"
       }
-    },
-    {
-      // 手机远控手机页的 locale 文件与桌面 i18n 同性质（键值对词表，天然超 400 行）。
-      "files": ["packages/mobile-web/legacy-v3.14.3/intl/*.ts"],
-      "rules": {
-        "max-lines": "off"
-      }
     }
   ],
   "settings": {
@@ -112,7 +105,6 @@
     "packages/mobile-web/src/recovered",
     "packages/mobile-web/dist",
     "packages/mobile-web/remote-dist",
-    "packages/mobile-web/scripts/dev-host-stub.mjs",
     "scripts/regression",
     "packages/zcode-cua/broker",
     "packages/zcode-cua/frame-contract",

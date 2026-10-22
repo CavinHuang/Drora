@@ -31,22 +31,22 @@
 
 ## 1. 仓库实证（本轮读取的真实代码）
 
-| 位置                                                     | 当前事实                                                                                                    | 对新方案的影响                                               |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
-| `packages/services/src/node.ts`                          | `createLocalServices()` 注册 `IMemoryService`、`IObsidianVaultService`；Local Host 使用 `ServiceCollection` | 新描述符注册点应在同一装配链；必须处理 remote collection     |
-| `packages/services/src/collection.ts`                    | 服务描述符按 `channelName` 注册、由 `ProxyChannel.fromService` 暴露                                         | 新 RPC 采用现有 descriptor + channel 体系                    |
-| `packages/shared/src/channels.ts`                        | `ServiceChannels.ObsidianVault = "obsidian-vault"`                                                          | 新增 Knowledge channel 键仅在 shared 定义一次                |
-| `packages/desktop/src/host/index.ts`                     | 为窗口 Local Host 装配 `createLocalServices`，附着端暴露服务                                                | 多窗口不能让进程内 Map 作为全局事实源                        |
-| `packages/services/src/obsidian-vault/discovery.ts`      | `vaultId(rootPath) = SHA256(rootPath)`；根使用 realpath                                                     | 移动根路径导致身份改变；不能把旧来源默默映射到新路径         |
-| `packages/services/src/obsidian-vault/obsidianVault.ts`  | 具备 getSummary、listFiles、readFile（SHA）、writeFile 等                                                   | 复用原有 API，无需另写 Vault FS                              |
-| `packages/services/src/obsidian-vault/vault-fs.ts`       | 2MB 文件配额、5k 文件/1k 文件夹/深度 16；读 hash，原子 rename                                               | 文件扫描应对齐现有限制；外部写竞争仍有 TOCTOU                |
-| `packages/ui/src/v4/vault/vault-document-controller.ts`  | UI 每文件草稿序列化，最终依赖服务 SHA 检查                                                                  | Proposal 的写操作不借用 renderer 暂存状态                    |
-| `apps/drora-cli/packages/obsidian-plugin/src/hooks/*.ts` | 三个事件：SessionStart、UserPromptSubmit、PermissionRequest，写 Hook 只匹配 `Write                          | Edit`                                                        | 权限不能只根据 AI Prompt 宣称全覆盖；Bash 等须审计 |
-| `packages/ui/src/lib/conversationSelectionReference.ts`  | 选区块 `# userselect:`，只保留文本和路径，单段 8k/合计 16k 限制                                             | 不可把选区引用当可信的 citation receipt；问库证据需单独协议  |
-| `packages/services/src/memory/memory.ts`                 | UI RPC 主要为 list/read Project Memory                                                                      | 不直接把 Knowledge 候选塞进既有 Memory API                   |
-| `packages/services/src/session/tasksDatabase/startup.ts` | 使用 `node:sqlite`、WAL、`BEGIN IMMEDIATE` 启动/迁移                                                        | SQLite 是已有工程实践，但 Knowledge 的多 Host 锁仍需额外验证 |
-| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`     | 已有 VaultView 面板、会话及 SidePane                                                                        | 不能另建完整应用壳；在现有面板插入卡片                       |
-| `specs/mobile-web-remote.md`、`AGENTS.md`                | 手机远控通过同一 Host attachment 与会话运行时                                                               | MVP 不创建手机独立 Knowledge DB 或 Agent                     |
+| 位置                                                                      | 当前事实                                                                                                    | 对新方案的影响                                               |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| `packages/services/src/node.ts`                                           | `createLocalServices()` 注册 `IMemoryService`、`IObsidianVaultService`；Local Host 使用 `ServiceCollection` | 新描述符注册点应在同一装配链；必须处理 remote collection     |
+| `packages/services/src/collection.ts`                                     | 服务描述符按 `channelName` 注册、由 `ProxyChannel.fromService` 暴露                                         | 新 RPC 采用现有 descriptor + channel 体系                    |
+| `packages/shared/src/channels.ts`                                         | `ServiceChannels.ObsidianVault = "obsidian-vault"`                                                          | 新增 Knowledge channel 键仅在 shared 定义一次                |
+| `packages/desktop/src/host/index.ts`                                      | 为窗口 Local Host 装配 `createLocalServices`，附着端暴露服务                                                | 多窗口不能让进程内 Map 作为全局事实源                        |
+| `packages/services/src/obsidian-vault/discovery.ts`                       | `vaultId(rootPath) = SHA256(rootPath)`；根使用 realpath                                                     | 移动根路径导致身份改变；不能把旧来源默默映射到新路径         |
+| `packages/services/src/obsidian-vault/obsidianVault.ts`                   | 具备 getSummary、listFiles、readFile（SHA）、writeFile 等                                                   | 复用原有 API，无需另写 Vault FS                              |
+| `packages/services/src/obsidian-vault/vault-fs.ts`                        | 2MB 文件配额、5k 文件/1k 文件夹/深度 16；读 hash，原子 rename                                               | 文件扫描应对齐现有限制；外部写竞争仍有 TOCTOU                |
+| `packages/ui/src/v4/vault/vault-document-controller.ts`                   | UI 每文件草稿序列化，最终依赖服务 SHA 检查                                                                  | Proposal 的写操作不借用 renderer 暂存状态                    |
+| `apps/drora-cli/packages/obsidian-plugin/src/hooks/*.ts`                  | 三个事件：SessionStart、UserPromptSubmit、PermissionRequest，写 Hook 只匹配 `Write                          | Edit`                                                        | 权限不能只根据 AI Prompt 宣称全覆盖；Bash 等须审计 |
+| `packages/ui/src/lib/conversationSelectionReference.ts`                   | 选区块 `# userselect:`，只保留文本和路径，单段 8k/合计 16k 限制                                             | 不可把选区引用当可信的 citation receipt；问库证据需单独协议  |
+| `packages/services/src/memory/memory.ts`                                  | UI RPC 主要为 list/read Project Memory                                                                      | 不直接把 Knowledge 候选塞进既有 Memory API                   |
+| `packages/services/src/session/tasksDatabase/startup.ts`                  | 使用 `node:sqlite`、WAL、`BEGIN IMMEDIATE` 启动/迁移                                                        | SQLite 是已有工程实践，但 Knowledge 的多 Host 锁仍需额外验证 |
+| `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`                      | 已有 VaultView 面板、会话及 SidePane                                                                        | 不能另建完整应用壳；在现有面板插入卡片                       |
+| `docs/web-remote-control/web-remote-control-architecture.md`、`AGENTS.md` | 手机远控通过同一 Host attachment 与会话运行时                                                               | MVP 不创建手机独立 Knowledge DB 或 Agent                     |
 
 本轮仅凭代码和文档确认**接口存在与逻辑写法**，未在真实多窗口运行环境中执行集成测试。版本、路径和功能会随主分支变化；落地前需运行 repo freshness 和架构检查。
 

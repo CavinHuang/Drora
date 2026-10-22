@@ -90,11 +90,6 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   MaterializeWorkflowArtifactFileRequest,
-  MobilePairingRuntimeState,
-  MobileRelaySidePaneSyncEntry,
-  MobileRelayTaskSyncEntry,
-  MobileRelayTransport,
-  MobileRelayWorkspaceSyncEntry,
   OpenCuaPermissionOnboardingOptions,
   ConfigureFinalArmsCustomEventE2ERequest,
   FinalArmsCustomEventE2EEntry,
@@ -304,9 +299,6 @@ contextBridge.exposeInMainWorld("drora", {
       ),
   startWebRemoteControl: (context: WebRemoteControlContext) =>
     ipcRenderer.invoke(PlatformChannels.StartWebRemoteControl, context),
-  // B 类保护：二维码泄露时的配对轮换入口（ours 保真，main 侧由 drora-extensions 按分歧决策接管）。
-  refreshWebRemoteControlPairing: (context: WebRemoteControlContext) =>
-    ipcRenderer.invoke(PlatformChannels.ResetWebRemoteControlPairing, context),
   stopWebRemoteControl: (): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.StopWebRemoteControl),
   getWebRemoteControlStatus: () => ipcRenderer.invoke(PlatformChannels.GetWebRemoteControlStatus),
@@ -340,29 +332,6 @@ contextBridge.exposeInMainWorld("drora", {
   /** 打开系统多目录选择框；取消时返回空数组 */
   selectDirectories: (): Promise<string[]> =>
     ipcRenderer.invoke(PlatformChannels.SelectDirectories),
-  /**
-   * relay 远控：transport=cloud（缺省）连云中继；transport=lan 启动进程内嵌自建
-   * relay（specs/mobile-relay-server.md §12，局域网可用，手机侧同 relay 协议）。
-   */
-  startMobileRelayControl: (params: {
-    workspacePath: string;
-    workspaceIdentity?: string;
-    transport?: MobileRelayTransport;
-  }) => ipcRenderer.invoke(PlatformChannels.MobileRelayStart, params),
-  stopMobileRelayControl: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.MobileRelayStop),
-  /** 轮换 relay 设备凭据并重启（二维码泄露时用） */
-  refreshMobileRelayControl: (): Promise<{ url: string; sessionId: string }> =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelayReset),
-  getMobileRelayControlState: (): Promise<MobilePairingRuntimeState> =>
-    ipcRenderer.invoke(PlatformChannels.MobileRelayState),
-  onMobileRelayStateChanged: (callback: (state: MobilePairingRuntimeState) => void) => {
-    const listener = (_event: unknown, state: MobilePairingRuntimeState) => callback(state);
-    ipcRenderer.on(PlatformChannels.MobileRelayStateChanged, listener);
-    return () => {
-      ipcRenderer.removeListener(PlatformChannels.MobileRelayStateChanged, listener);
-    };
-  },
-  /** 同步窗口全部工作区到 relay 远控（多工作区聚合，官方 syncWebRemoteControlWorkspaces 同款） */
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */

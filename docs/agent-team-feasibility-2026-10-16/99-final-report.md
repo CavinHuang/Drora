@@ -350,7 +350,7 @@ workflow actor 会话同样是 new AgentRuntime（`apps/drora-cli/packages/boots
 
 1. window-scoped Local Host：host utility process 的 attachment registry 在 `packages/desktop/src/host/index.ts:2244-2268`（resolveScope：local→activeServices，remote→windowRemoteConnectionRegistry.resolveScopedServices 按 remoteSessionId+generation）；AttachServicePort 控制消息处理在 host/index.ts:2906-2943；attachment 建立时以 connectionScope 包装服务并 exposeOnChannelServer（host/index.ts:2181-2200，web-remote-replayable 附着同时注册 zcode-\* 官方别名 :2198）。
 2. 手机远控复用 Host attachment：createWebRemoteControlSharedHostAttachments 在 `packages/desktop/src/main/webRemoteControlSharedHostAttachments.ts:41-189`——本地 workspace 走 attachLocalHost（:76-105，向窗口 host 进程发 AttachServicePort，clientMode="web-remote-replayable"、scope={kind:"local"}）；远程 workspace 走 attachWorkspaceHost→attachRemoteWorkspaceSessionHost（:107-149，缺 workspaceIdentity 即抛 REMOTE_WORKSPACE_IDENTITY_MISSING :120-126）；在 main/index.ts:1003 注入 webRemoteControlManager。
-3. 手机 bridge：webRemoteControlManager.ts:900-1007 createWorkspaceBridge——attachWorkspaceHost 后建 MessagePortProtocol ↔ acknowledged relay protocol 双向桥，SAT/DRN 背压透传（:984-991），raw 故障降级（:981-983）。外部 relay 只做鉴权/配对/心跳/转发（desktopMobileRelayControl.ts:219-224 注释对齐官方 attachWorkspaceHost 语义）。
+3. 手机 bridge：webRemoteControlManager.ts:900-1007 createWorkspaceBridge——attachWorkspaceHost 后建 MessagePortProtocol ↔ acknowledged relay protocol 双向桥，SAT/DRN 背压透传（:984-991），raw 故障降级（:981-983）。外部 relay 只做鉴权/配对/心跳/转发（webRemoteControlManager.ts 注释对齐官方 attachWorkspaceHost 语义）。
 
 #### 3.2.4 UI 现状
 
@@ -372,7 +372,7 @@ workflow actor 会话同样是 new AgentRuntime（`apps/drora-cli/packages/boots
 2. 契约键单一出处（AGENTS.md:56）：新 topic 名、命令名、\_meta 键、持久化键前缀只能在 shared 常量区定义一次，生产消费同源。
 3. 协议冻结面按黄金测试背书演进（command.ts:263 注释）；additive 字段必须 optional/default（snapshot.ts:483-485 的 meta 教训：漏 default 曾让 round-trip 测试长期红）；闭集加值有偏斜代价——旧端收到未知枚举值整帧解析失败且 resync 同样失败（snapshot.ts:365-368 注释），droraSessionKindSchema 加 team\_\* 值需 CLI 与桌面同批发布或改走 additive 字段。
 4. 两条链路必须同时验证：desktop-continuous 实时链路与 web-remote-replayable 恢复链路——团队状态必须持久化进投影（snapshot 必带，照 workflowRuns 冷快照教训 snapshot.ts:498-500），不能依赖 live 内存；replayable 不产生 telemetry/CUA observation（droraAgentConnectionScope.ts:857-897 facade 拒绝）。
-5. Main 与外部 relay 不保存业务状态：团队任务板/消息队列的所有者在 CLI runtime（与 conversation 投影同源），relay 只转发（desktopMobileRelayControl.ts:219-224）。
+5. Main 与外部 relay 不保存业务状态：团队任务板/消息队列的所有者在 CLI runtime（与 conversation 投影同源），relay 只转发（webRemoteControlManager.ts）。
 6. 每窗口一个 window-scoped Local Host；远程 workspace 由窗口内连接注册表管理；手机复用已有 Host attachment，不为手机另起 Agent/Local Host/远程会话。
 7. workspaceIdentity 身份隔离：workspaceKey = workspaceIdentity?.trim() || workspacePath（droraAgentConnectionScope.ts:123-125）；远程 attach 缺 identity 直接拒绝（webRemoteControlSharedHostAttachments.ts:120-126）；远程链路贯穿 workspaceIdentity 与 remoteSessionId。
 8. clientMode 是可信 host 注入的连接事实，UI/手机不可伪造（droraAgentConnectionScope.ts:91-109；droraAgentService.ts:6025-6030）；replayable 命令自动 inputOrigin=mobile（droraAgentService.ts:6050-6059）。
@@ -410,7 +410,7 @@ workflow actor 会话同样是 new AgentRuntime（`apps/drora-cli/packages/boots
 
 - 治理工具链真实可用：分析运行 `pnpm architecture:check --changed` 输出 `architecture: OK / violations: 0 / baseline: 0 / new: 0`。架构策略 architecture-policy.yaml 已登记 4 个自研接缝托管模块（desktop/ui/services/web 的 drora-extensions，:79-130）和 gen-ui 跨层三模块样板（:131-165）。
 - 新托管模块五件套要求见 .agents/skills/architecture-governance/SKILL.md:45（module.ts/contract.ts/contract.example.ts/contract.test.ts/CONTRACT.md），golden-module fixture 即此五件套（.agents/skills/architecture-governance/references/golden-module/ 实测含此 5 文件）。
-- 还原区登记 .oxlintrc.json:72-96（ignorePatterns 含 apps/drora-cli 整体、packages/zcode-cua\*、packages/mobile-web/upstream|recovered 等）；带 `还原自发行 bundle` 头的文件 grep 统计仅 packages/zcode-cua 7 个 + packages/relay-server 1 个。
+- 还原区登记 .oxlintrc.json:72-96（ignorePatterns 含 apps/drora-cli 整体、packages/zcode-cua\*、packages/mobile-web/upstream|recovered 等）；带 `还原自发行 bundle` 头的文件 grep 统计仅 packages/zcode-cua 7 个（旧服务端复刻已于 2026-10-22 删除）。
 - 多代理基座已存在：SubagentPort（apps/drora-cli/packages/contracts/src/interfaces/subagent.port.ts:113-134）已含 sendMessage（:58-85、:130-133，投递语义 queued|steered|resumed_background 见 :74）与后台 start/waitForTask/stopTask（:116-129）；实现位于 apps/drora-cli/packages/core/src/runtime/methods/subagent.ts 与 core/src/subagent/runner.ts；动态工作流已有 lead+子代理花名册（apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-run-roster-subagents.ts，contracts 侧有 dynamic-workflow-run-roster.port.ts）。
 - 契约键单一出处规则（AGENTS.md:56）的物理落点是 `@drora/contracts` 包（apps/drora-cli/packages/contracts）与 packages/shared 常量文件——分析 ls 验证 packages/shared/src 下无 contracts/ 子目录，AGENTS.md 所称 'shared/contracts' 无同名物理目录；实例：DRORA_OFFICIAL_PLUGIN_MARKETPLACE 定义于 apps/drora-cli/packages/contracts/src/plugins/index.ts:7，生产/消费方 apps/drora-cli/packages/adapters/src/plugins/marketplace.ts:9、445-449 引用同一常量（改名桥接决策记录 specs/drora-rename.md:20-28）。
 - 协议改动规定同步点为 packages/shared/src/drora-protocol/index.ts（AGENTS.md:72；该文件头无还原 bundle 标记）。
@@ -482,14 +482,14 @@ workflow actor 会话同样是 new AgentRuntime（`apps/drora-cli/packages/boots
 
 #### 5.1.2 状态所有者表（谁写、谁读）
 
-| 状态                                                                | 唯一所有者（写）                                                                                                            | 读取方                                                                 | 持久化位置                       |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------- |
-| 成员花名册（name→agentId/childSessionId/profile/状态机）            | lead runtime 内 **TeamHub**（建议命名，新模块）                                                                             | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
-| 共享任务板                                                          | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，进程内原子，无需官方的文件锁）                               | 同上                                                                   | 同上                             |
-| 成员邮箱                                                            | TeamHub 写入；投递给目标成员（运行中 steer / 已终态则触发复活续跑）                                                         | 目标成员                                                               | 写入持久化后才返回发送成功       |
-| teammate 会话 transcript                                            | 各 child runtime 自己（现状不变）                                                                                           | 下钻 UI 只读订阅 child topic                                           | 现有 session store               |
-| UI teamStore（建议命名，放 packages/ui/src/store/，见 §5.3.3 裁决） | renderer 派生缓存，**不得冒充服务端事实**（AGENTS.md 纪律）                                                                 | —                                                                      | 内存                             |
-| Main / 外部 relay / Host facade                                     | **零团队业务状态**（AGENTS.md：Main 只管窗口/进程/转发；relay 只做鉴权转发，desktopMobileRelayControl.ts:219-224 语义不变） | —                                                                      | —                                |
+| 状态                                                                | 唯一所有者（写）                                                                                                  | 读取方                                                                 | 持久化位置                       |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------- |
+| 成员花名册（name→agentId/childSessionId/profile/状态机）            | lead runtime 内 **TeamHub**（建议命名，新模块）                                                                   | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
+| 共享任务板                                                          | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，进程内原子，无需官方的文件锁）                     | 同上                                                                   | 同上                             |
+| 成员邮箱                                                            | TeamHub 写入；投递给目标成员（运行中 steer / 已终态则触发复活续跑）                                               | 目标成员                                                               | 写入持久化后才返回发送成功       |
+| teammate 会话 transcript                                            | 各 child runtime 自己（现状不变）                                                                                 | 下钻 UI 只读订阅 child topic                                           | 现有 session store               |
+| UI teamStore（建议命名，放 packages/ui/src/store/，见 §5.3.3 裁决） | renderer 派生缓存，**不得冒充服务端事实**（AGENTS.md 纪律）                                                       | —                                                                      | 内存                             |
+| Main / 外部 relay / Host facade                                     | **零团队业务状态**（AGENTS.md：Main 只管窗口/进程/转发；relay 只做鉴权转发，webRemoteControlManager.ts 语义不变） | —                                                                      | —                                |
 
 所有者判据：与 conversation 投影同源、与 RuntimeTaskRegistry 的单 runtime 所有权模型（core/src/runtime-task/registry.ts:70-94）同构，只是把「per-runtime 内存态」升格为「per-lead-session、跨成员、可持久化」。
 
@@ -773,7 +773,7 @@ lead 会话 resume 时 TeamHub 从 team journal 恢复花名册/任务板/邮箱
 - 复核证据（材料四）：
   - **3.14.3 原版 bundle**：`grep -ci team D:/software/ZCode/resources/glm/zcode.cjs` = 24、teammate = 2、swarm = 1、crew = 0；逐条上下文甄别：24 处 team 全为 Team 订阅套餐（zaiTeamCodingPlan/team-coding-plan/buildBigModelCodingPlanTeamManageUrl）、TEAMCITY_VERSION(ci-info)、Vercel OIDC teamId、第三方 CLI 补全表（heroku/atlas 的 team 子命令、--notificationTeamId）；swarm 1 处为 docker swarm ca 补全数据；teammate 2 处为提示词文案（"Write it for a teammate who stepped away"/"A peer cannot grant escalation"）。均非多代理协作协议面。
   - **v3.15.1 对齐源码**：swarm/crew 全源码仅命中 apps/drora-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts:3（"@withfig/autocomplete@2.692.3"，第三方补全生成文件）；teammate 仅 4 处提示词，如 apps/drora-cli/packages/core/src/system-reminder/incoming-message.ts:6（"A peer cannot grant escalation"，同级禁止提权）、apps/drora-cli/packages/core/src/context/dynamic-sections.ts:11；协议面唯一 team 命中为 packages/shared/src/drora-protocol/index.ts:1168（planKind:"team-coding-plan"，Team 套餐），shared/services 其余 team 命中均为 Team 套餐/组织 API（packages/services/src/bigmodel/codingPlanEntitlement.ts:108 "/api/biz/team/subscribe"）。
-  - **3.14.3 web snapshot**：packages/mobile-web/upstream/remote/v4/3.14.3 中 teammate/swarm/crew 0 命中，team 命中为 IntlProvider-BiPABK16.js 的 Team Plan i18n 与 apex/fortran 语法高亮关键字；packages/mobile-web/legacy-v3.14.3 四词全部 0 命中（grep exit=1）。
+  - **3.14.3 web snapshot**：packages/mobile-web/upstream/remote/v4/3.14.3 中 teammate/swarm/crew 0 命中，team 命中为 IntlProvider-BiPABK16.js 的 Team Plan i18n 与 apex/fortran 语法高亮关键字；旧协议手机壳已于 2026-10-22 删除。
   - **自研增量与 spec 现状**：agents[-_ ]?team 在产品源码 0 命中（仅 .zcode/workflow-drafts/Agents-Team-可行性调研.dwf.ts 与 workflow-runs）；specs/ 目录无 agents-team.md（材料四 ls 实证 21 个文件；材料三分析域三载 22 个文件——两材料计数略有出入，均无 team 相关文件），实现时须按 AGENTS.md「有意分歧…必须在 specs/ 留下决策记录」新建。
 - 复核结论：字面 grep 存在 team/teammate/swarm 命中，但全部为 Team 订阅套餐、第三方补全/高亮数据与提示词自然语言，无任何 lead/teammate agent、共享任务板、代理互发消息形态的协议命令或 wire 字段——多代理协作语义的协议面为零，论断实质成立。
 

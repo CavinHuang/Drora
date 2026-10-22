@@ -241,7 +241,7 @@ drora-server-cli）与 main 侧残留的 kind:"server" 分支仍在——**半�
   /appHeader.goToProviderConfig_/taskList.newTask.{claude,opencode,gemini,codex}/
   server.\_ 等——对应被裁剪的商业特性（商城、营销、多 provider 接入向导）与被
   bot-channel 替代的 WebRemoteControl 桌面键族；feedback.background.\* 为措辞修正。
-  webRemoteControl.description 文案随 bot-channel 方向（specs/mobile-web-remote.md）。
+  webRemoteControl.description 文案随 bot-channel 方向（docs/web-remote-control/web-remote-control-architecture.md）。
   feedback.background.defaultDetail 为精确化修正而非语义反转：实际行为是上传为
   in-process fetch、退出即止，en/zh 双语已一致表述（"stops if you quit the app"）。
 - **browser meta 键改名映射**：原版 responseMeta 前缀词是 codex/browserUse 与
@@ -267,7 +267,7 @@ drora-server-cli）与 main 侧残留的 kind:"server" 分支仍在——**半�
 - **登记为继承（不修）**：`ChannelServer.collectPendingRequest` 超时不清理 pending、
   `ChannelClient.requestEvent` 早取消泄漏、ws 传输非 OPEN 态丢帧且无背压观测、
   反序列化异常无隔离、`sendFlowState` 无生产端（LAN 直连架构取舍，
-  specs/mobile-web-remote.md）。修复任一项都会造成与上游的持续 diff 成本；
+  docs/web-remote-control/web-remote-control-architecture.md）。修复任一项都会造成与上游的持续 diff 成本；
   待上游修复后跟随。
 - flow-state 生产端若未来接入（server ws bufferedAmount 水位 → `scope.setTransportFlowState`），
   消费端链路（host → connectionScope → CLI pausedConnections）已全量在位。
@@ -283,7 +283,7 @@ drora-server-cli）与 main 侧残留的 kind:"server" 分支仍在——**半�
   （原版双前缀 codex/zcode 的统一，见 drora-rename.md 浏览器键映射节）
 - drora-server-cli 打包路径族（runtime/licenses/agent 等，非协议）
 - MobilePairing 三方法 + webRemoteControl.qr.\* i18n 键（LAN 直连远控，
-  specs/mobile-web-remote.md）
+  docs/web-remote-control/web-remote-control-architecture.md）
 - session.events 的 malformed_tool_call 与 blockedReason 细化值（闭源 bundle 为
   自由 string，本仓收紧为枚举——消费端 UI 已适配）
 

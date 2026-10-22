@@ -42,7 +42,7 @@ export class ServiceCollection {
       /**
        * 同时注册官方通道名别名（zcode-* → 同一 channel 实例）。
        * 仅用于 web-remote-replayable 附着：官方托管手机页按官方名调用服务
-       * （M4b 兼容桥，spec: mobile-web-remote.md）。
+       * （M4b 兼容桥，spec: docs/web-remote-control/web-remote-control-architecture.md）。
        */
       officialChannelAliases?: boolean;
       /** 只暴露白名单内的通道（上游 source-server 的暴露策略）。 */

@@ -451,10 +451,6 @@ export interface AppSettings {
   };
   /** 设置页里的临时 endpoint override；正式/测试默认 base url 由 DRORA_BASE_URL env 管理。 */
   droraEndpointOrigin?: string;
-  /** 自建 relay 服务端地址（specs/mobile-relay-server.md §8）；空=官方 zcode.z.ai。 */
-  relayServerUrl?: string;
-  /** Drora 远控部署选择；缺省使用内嵌 LAN Relay。 */
-  mobileRelayTransport?: "lan" | "relay";
   /**
    * VaultView 智能问库 Jev 出站决策开关（specs/obsidian-knowledge.md §5d.10）。
    * 默认关闭（ADR #5：零出站）；开启仅表示允许装配，实际出站仍需逐 run 用户授权。

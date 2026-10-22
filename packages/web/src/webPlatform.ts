@@ -1,5 +1,5 @@
 // 官方 Web 平台适配器（还原自 packages/web/src/main.tsx createWebPlatform，2026-09-30
-// GitPane 二期（specs/mobile-relay-r3-frontend.md §25.5/§28）跨包复用移出：原内联于
+// GitPane 二期（docs/web-remote-control/web-remote-control-architecture.md §25.5/§28）跨包复用移出：原内联于
 // web 入口，逻辑零改动，仅文件重组——还原域新文件合规（AGENTS 上游对齐纪律）。
 // 语义：Web 环境的 IPlatformService 完整 fallback（native 能力一律显式不可用 + 浏览器
 // 可用能力（openExternal/通知/getDeviceId）真实现）。GitPane/GitActionMenu 链的
@@ -12,8 +12,6 @@ export function createWebPlatform(): IPlatformService {
   return {
     startWebRemoteControl: () =>
       Promise.reject(new Error("Web remote control can only be started from desktop")),
-    refreshWebRemoteControlPairing: () =>
-      Promise.reject(new Error("Web remote control pairing can only be refreshed from desktop")),
     stopWebRemoteControl: () => Promise.resolve(),
     getWebRemoteControlStatus: () => Promise.resolve({ status: "idle" as const }),
     canSelectFilePath: false,

@@ -235,7 +235,7 @@ window.DRORA_I18N = {
       "doc.desktop.li3": "Remote workspaces (SSH/WSL): develop against remote projects.",
       "doc.remote.h2": "Phone remote",
       "doc.remote.p1":
-        "Once remote access is on, connect from your phone's browser by scanning a code or entering the address: the phone attaches to the existing desktop host and reuses the same session runtime — no extra agent. LAN connections go direct; across networks traffic is forwarded by the relay, which only authenticates, pairs and forwards — never storing task queues or business state.",
+        "Once remote access is on, connect from your phone's browser by scanning a code or entering the address: the phone attaches to the existing desktop host and reuses the same session runtime — no extra agent. Traffic is forwarded by the external Relay V2, which only authenticates, pairs and forwards — never storing task queues or business state.",
       "doc.remote.p2":
         "Disconnects recover automatically and past events replay; closing the window stops the server, so nothing lingers in the background.",
       "doc.pets.h2": "Desktop pets",
@@ -916,12 +916,9 @@ window.DRORA_I18N = {
       "doc.remote.connect.p2": "The dialog shows a QR code and a connection address on the left — scan the code with your phone, or copy the link and open it in the phone's browser.",
       "doc.remote.th.transport": "Transport",
       "doc.remote.th.tdesc": "Details",
-      "doc.remote.td.lan": "LAN",
-      "doc.remote.td.land":
-        "Direct connection when the phone and computer share a LAN — no external service involved. The QR code is the pairing entry and can be refreshed with one click.",
       "doc.remote.td.relay": "Cloud relay",
       "doc.remote.td.relayd":
-        "Across networks, traffic is forwarded through a relay so the phone doesn't need to share the computer's network. The relay only authenticates, pairs, keeps heartbeat and forwards — it stores no business state such as task queues. A self-hosted relay address can be configured in settings.",
+        "Across networks, traffic is forwarded through a relay so the phone doesn't need to share the computer's network. The relay only authenticates, pairs, keeps heartbeat and forwards — it stores no business state such as task queues.",
       "doc.remote.phone.h": "What the phone can do",
       "doc.remote.phone.home": "Task home",
       "doc.remote.phone.home.p": "You first see the workspaces and tasks of this window. You can:",
@@ -2220,7 +2217,7 @@ window.DRORA_I18N = {
       "doc.remote.intro1": "Remote Control temporarily opens the current Drora desktop window to your phone. After scanning the QR code, you can view and switch the workspaces, tasks and sessions already open in this window, and keep sending instructions to the agent.",
       "doc.remote.intro2": "The phone is just a control surface: it never syncs code and never creates runtime environments. Every instruction you send from it is executed by the machine that the desktop workspace was originally connected to.",
       "doc.remote.connect.p3": "Once connected, the phone attaches to the entire desktop window — not just the workspace you were in when you scanned.",
-      "doc.remote.trans.lead": "There are two ways for the phone and the computer to connect:",
+      "doc.remote.trans.lead": "Phone and computer connect through external Relay V2 and must sign in to the same account:",
       "doc.remote.phone.home.li1": "Organize tasks by “Workspace” or “Timeline”.",
       "doc.remote.phone.home.li2": "Sort by “Created” or “Updated” time.",
       "doc.remote.phone.home.li3": "Refresh the list to get the desktop's latest state.",
@@ -2231,7 +2228,7 @@ window.DRORA_I18N = {
       "doc.remote.where.p2": "In other words, the phone never builds another remote connection — it just hands instructions to the channel the desktop has already established.",
       "doc.remote.safe.lead": "The connection address itself carries remote-control authorization — anyone who has it can operate your window, so keep a few things in mind.",
       "doc.remote.safe.p2": "Closing the dialog does not stop remote control. Press “Stop” when you're done to truly end the connection.",
-      "doc.remote.safe.p3": "If you suspect the address has leaked, refresh the QR code. Refreshing immediately invalidates every previously copied or scanned address; connected phones must scan again.",
+      "doc.remote.safe.p3": "The QR code contains device and version information, not sign-in credentials. Stop remote control to disconnect the current session.",
       "doc.remote.safe.p4": "Never publish or forward the connection address. It is a temporary key.",
       "doc.remoteDev.intro1": "Drora remote development runs your workspace on a remote host, a WSL distro, a local container, or a running Drora server. Once connected, file reads, terminal commands, Git operations and the Drora agent all execute inside the target environment; the desktop still handles the account, model configuration, task entry and UI.",
       "doc.remoteDev.intro2": "This suits projects that need to work on servers, intranet machines, GPU dev boxes or inside containers. You keep the desktop experience locally while the agent directly accesses the code, dependencies and command line of the target environment.",

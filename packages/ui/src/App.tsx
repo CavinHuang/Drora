@@ -68,7 +68,6 @@ import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js"
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { useMarketingTaskCompletionRefresh } from "@/components/marketing-touch/useMarketingTaskCompletionRefresh.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
-import { WebRemoteControlSidePaneSync } from "@/root/WebRemoteControlSidePaneSync.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -1184,7 +1183,6 @@ export function App({
     <>
       {/* §33.18.16 侧板初态投影：窗口侧板当前 tab 活推 relay（手机页侧板初值/跟随）。
           activeSidePaneTab 在本作用域计算（getActiveSidePaneTab）。 */}
-      <WebRemoteControlSidePaneSync activeTab={activeSidePaneTab} />
       {/* PR-2.4c staged 草案自动开面板（specs/agents-team.md §10；无投影时零渲染零订阅外的开销）。 */}
       <TeamStagedAutoOpenBridge
         scope={teamPaneScope}

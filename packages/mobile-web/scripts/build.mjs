@@ -1,5 +1,5 @@
 // 快照构建（D7 语义，R3 P2a 修订）：把 src/recovered 官方 3.14.3 快照逐字节拷贝为
-// 独立页面包，供独立部署 `relay-server --mobile-dir <out>` 使用。
+// 冻结资产的历史取证构建，不参与当前 Web 页面启动。
 // P2a 起 dist = 源码应用产物（scripts/build-app.mjs，spec §13.4），快照不再写 dist——
 // 输出目录经 --out 显式注入（仅允许包外或临时目录，防止覆盖源码应用产物）。
 import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";

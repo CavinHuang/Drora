@@ -17,7 +17,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 
 /**
- * R3 移动首页壳（spec specs/mobile-relay-r3-frontend.md §2「移动首页」、D1）。
+ * R3 移动首页壳（spec docs/web-remote-control/web-remote-control-architecture.md。
  *
  * 纯展示组件：工作区/任务数据与全部动作经 props 注入，不接数据面、不路由。
  * 视觉对齐官方 3.14.3 实机 DOM（.tmp-work/official-live-mobile-home.html）：

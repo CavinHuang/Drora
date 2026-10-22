@@ -14,7 +14,7 @@ import { useWebRemoteControlStatus } from "@/hooks/useWebRemoteControlStatus.js"
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
-import { DroraRemoteControlDialog as WebRemoteControlDialog } from "@/drora-extensions/RemoteControlDialog.js";
+import { WebRemoteControlDialog } from "@/web-remote-control/index.js";
 import { useWebRemoteControlFeatureEnabled } from "@/WebRemoteControlFeatureProvider.js";
 
 type FormatMessage = ReturnType<typeof useDroraIntl>["intl"]["formatMessage"];

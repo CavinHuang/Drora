@@ -3365,7 +3365,8 @@ const enUS: Record<string, string> = {
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
   "settings.toolGroupingExplore": "Group exploration tools",
   "settings.agentsTeamEnabled": "Agents Team (experimental)",
-  "settings.agentsTeamEnabledDescription": "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
+  "settings.agentsTeamEnabledDescription":
+    "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",
   "settings.toolGroupingTerminal": "Group terminal commands",
@@ -8565,12 +8566,6 @@ const enUS: Record<string, string> = {
   "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Follow task activity on the desktop. Click to view tasks, drag to move, or right-click for options.",
-  "settings.relayServerUrl": "Relay server",
-  "settings.relayServerUrlDescription":
-    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
-  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
-  "settings.relayServerUrlSavedHint":
-    "Relay server settings saved. Restart the app to take effect.",
   "vault.ask.candidate.attachEvidence": "Attach as evidence to Agent",
   "vault.ask.candidate.attachEvidenceHint":
     'Attaches this verification\'s receipt to the target session composer; submitted with the message and re-verified before execution. Distinct from the plain-quote "Add to Agent" semantics.',

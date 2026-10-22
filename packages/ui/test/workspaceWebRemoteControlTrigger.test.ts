@@ -13,7 +13,7 @@ vi.mock("@/hooks/usePlatform.js", () => ({
 
 vi.mock("@/hooks/useSettingService.js", () => ({
   useSettings: () => ({
-    settings: { mobileRelayTransport: "lan" },
+    settings: {},
     loading: false,
     update: vi.fn(),
   }),

@@ -11,7 +11,7 @@
 - 官方目标固定为 `aac4755666d09fdcd70272fcf063c077a639015f`（v3.15.1），旧基线为 `29628c9acdb81b703bbd4080c207a0e7ce5e276e`。
 - 补齐起点为 Drora `4831598b`，沿用 `integrate/upstream-v3.15.1`。现有提交已经记录官方祖先；本轮采用可逐批审查、逐批回退的补齐提交，不重复整树覆盖、不重写历史。
 - 依据：[完整性复核](zcode-v3.15.1-completeness-review.md)、[原迁移策略](../../specs/upstream-v3.15.1-migration.md)、[改名规则](../../specs/drora-rename.md)。
-- 不变更远控状态所有者：Agent/runtime 与 CommandInbox 管业务，窗口 Host 管 scope/attachment，官方 manager 管连接，自建 Relay/LAN 管透明转发与部署。
+- 不变更远控状态所有者：Agent/runtime 与 CommandInbox 管业务，窗口 Host 管 scope/attachment，官方 manager 管连接，外部 Relay 只做透明转发。
 - 强制升级启动门控保持移除；CUA 保留现有 0.6.3 复原 SDK/Helper，官方 0.6.4 占位包不覆盖它；GitHub 更新 feed、知识库、S03、宠物继续独立装配。
 
 ## 分批提交与完成条件
@@ -54,28 +54,10 @@ Drora 自有远端制品使用现有 prebuild/manifest/component 流程，从当
 
 验收覆盖：生产默认值、中文/UTC+8 顺序、显式 override、多域注入、不同路径前缀数量、版本不匹配、缺失组件、摘要不符和缓存隔离；本地 HTTP fixture 用真实生成的 Drora manifest/components 验证下载、部署和握手。公网 CDN 可用性单独记录；代理 CONNECT 拒绝不能写成 CDN 404，也不能写成下载成功。
 
-### B2：手机 HTTP 控制面
+### B2：旧手机 HTTP 控制面已撤销
 
-将两个 HTTP 请求恢复为官方 `X-ZCode-Mobile-Connection-Id`。契约名在 shared 现有远控契约区域定义一次，Web 请求构造和适配器引用同一常量。官方 wire `zcode_type`、MCP `zcode/csp`、OAuth callback 等既有例外保持。
-
-只修复命名及接口边界，不借机让 Relay 保存任务状态或复制 manager。HTTP fixture 应实际消费连接 ID，检查 workspace-bridge 与 mobile-view-state 正确关联，并覆盖失效连接、旧请求迟到和跨 workspace 路由。加浏览器请求验收，不能只检查常量字面量。
-
-```mermaid
-sequenceDiagram
-    participant Web as 官方 Web 页面
-    participant HTTP as HTTP 控制面 adapter
-    participant Manager as 官方 manager
-    participant Host as 既有 Host
-    Web->>HTTP: workspace-bridge + 官方连接 ID header
-    HTTP->>Manager: 经校验的连接与 workspace 请求
-    Manager->>Host: 创建或使用所属 attachment
-    Host-->>Web: 既有 RPC/replayable 链路
-    Web->>HTTP: mobile-view-state + 同一连接 ID
-    HTTP->>Manager: 转发该连接视图状态
-    Note over HTTP,Host: 旧连接不绑定新 attachment；业务事实仍由 Agent/Host 持有
-```
-
-这是待实现的本地 HTTP 契约验收模型，不表示取得了官方 Relay 服务端实现或已通过官方云联调。raw Relay/LAN 与 HTTP 代理两条路径分别计结果。
+2026-10-22：随自建 Relay 复刻删除此适配与验收计划。当前手机页面通过官方
+Relay V2 的 app payload 和已有 Host attachment 工作，不恢复旧 HTTP bootstrap。
 
 ## C：CLI 失败逐项闭环
 
@@ -129,7 +111,7 @@ Webhook alias adapter 归服务/HTTP 边界，官方 handler 只调用端口；�
 ## E：完成门槛与交付
 
 1. 重算固定上游全量路径差分，对文本差异、缺失/迁址路径和 mode 差异逐项给出“官方对齐/改名例外/自研扩展/有意移除”的依据。原始资产不经品牌归一化。对外 URL/header/string 单独核验，不能用品牌相等充当契约相等。
-2. 知识库、S03、宠物、Relay/LAN、发行 feed、Helper 身份差异各有模块/接口和 spec 记录；原实现内仅保留必要装配调用。新增边读取 architecture context 后登记，禁止增加第二个 Agent/Host/CommandInbox。
+2. 知识库、S03、宠物、发行 feed、Helper 身份差异各有模块/接口和 spec 记录；原实现内仅保留必要装配调用。新增边读取 architecture context 后登记，禁止增加第二个 Agent/Host/CommandInbox。
    冻结还原资产仍遵守原始 bundle 证据规则，不能用新版公开占位源码推断冻结二进制行为或就地加入自研逻辑；没有原版真值时保持未验证状态。
 3. 最终受影响产品树执行 `pnpm typecheck`、`pnpm lint`、全量架构检查、根 Vitest/Node 和完整 CLI 包级检查，分别保留 pass/fail/skip/unrun。把 CLI 检查接入明确的迁移/CI 入口，保留各 runner，不强行混入根 Vitest discovery。
 4. 构建 CLI、server、Web/mobile、desktop renderer/Main/Host，以及实际 `prepare:agent-bundle`；执行 CLI 7 组 smoke、官方 transport/manager、HTTP 控制面、知识库和 S03 回归。必要的 Electron 交互复跑覆盖改动入口；已有未受影响 E2E 不为刷计数重复运行。

@@ -90,6 +90,7 @@ import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSectio
 import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
+import { VoiceSection } from "@/settings/VoiceSection.js";
 import { KnowledgeSettingsSection } from "@/settings/KnowledgeSettingsSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
@@ -2273,6 +2274,8 @@ export function SettingsPage({
                               remoteTarget={activeWorkspaceTab?.remoteTarget}
                               localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                             />
+                          ) : activeSection === "voice" ? (
+                            <VoiceSection />
                           ) : activeSection === "knowledge" ? (
                             <KnowledgeSettingsSection />
                           ) : null}

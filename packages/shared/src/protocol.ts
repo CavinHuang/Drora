@@ -291,6 +291,19 @@ export interface AppSettings {
    * 关闭后按钮不再渲染，且不因重启或版本更新自愈，仅能在设置页重新开启。
    */
   computerUseComposerEntryHidden?: boolean;
+  /**
+   * 语音八键 wire 面（specs/voice-agent-integration.md §6.1，全部 optional：
+   * undefined 走 validationAppSettings default——入口默认隐藏、播报默认关、
+   * 隐私披露未确认）。键名与 contracts/voice.ts VOICE_SETTINGS_KEYS 一一对应。
+   */
+  voiceComposerEntryHidden?: boolean;
+  voiceAnnouncementEnabled?: boolean;
+  voiceAnnouncementVoice?: string;
+  voiceAnnouncementRate?: number;
+  voiceDictationLang?: string;
+  voiceAsrEngine?: "webSpeech" | "remote";
+  voiceToolBriefEnabled?: boolean;
+  voicePrivacyDisclosureAcknowledged?: boolean;
   /** 自动归档旧会话的总开关 */
   taskAutoArchiveEnabled?: boolean;
   /** 自动归档修复后的一次性关闭标记；只用于设置迁移，不参与归档判断。 */

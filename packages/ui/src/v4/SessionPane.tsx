@@ -189,6 +189,9 @@ import {
 } from "@/v4/ConversationComposer.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
+import { consumeVoiceRecordingEscape } from "@/store/voiceSessionStore.js";
+import { useVoiceAnnouncement } from "@/voice/useVoiceAnnouncement.js";
+import { AnnouncementIndicator } from "@/voice/AnnouncementIndicator.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
 import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
@@ -836,6 +839,23 @@ export function SessionPane({
     () => shareItems.filter((item) => !item.isRunning),
     [shareItems],
   );
+  // 语音播报腿接线（specs/voice-agent-integration.md §9.3）：每 pane 一个 planner 实例，
+  // 仅 focused pane 消费轮尾/权限段（非 focused 不播不排队 §4.1），双 pane 同时 focused
+  // 由播报 claim 仲裁（§3.5）。handleStop 在下方定义，经懒引用解 hook/handler 循环。
+  const voiceStopDispatchRef = useRef<((source: "button" | "escape" | "voice") => void) | null>(
+    null,
+  );
+  const voiceAnnouncement = useVoiceAnnouncement({
+    focused,
+    sessionId,
+    workspacePath,
+    workspaceIdentity,
+    units: shareRenderUnits,
+    pendingInteractions: snapshot?.pendingInteractions,
+    requestTaskStop: () => voiceStopDispatchRef.current?.("voice"),
+  });
+  const voiceNotifyExternalStopRef = useRef(voiceAnnouncement.notifyExternalTaskStop);
+  voiceNotifyExternalStopRef.current = voiceAnnouncement.notifyExternalTaskStop;
   useEffect(() => {
     if (!sessionId || !shareActive) return;
     const rowsById = new Map((snapshot?.rows.window ?? []).map((row) => [row.rowId, row]));
@@ -4515,7 +4535,7 @@ export function SessionPane({
 
   // 误停排障需要区分按钮与 Esc；普通 info 在生产禁用，必须走生命周期日志。
   const handleStop = useCallback(
-    (source: "button" | "escape") => {
+    (source: "button" | "escape" | "voice") => {
       const current = snapshotRef.current;
       if (!sessionId || !current?.control.canStop) {
         logger.lifecycle.info("[v4-pane] stop 命令被跳过（无可停执行）", {
@@ -4539,9 +4559,13 @@ export function SessionPane({
       ).catch((error) => {
         logger.lifecycle.warn(`[v4-pane] stop 失败: ${String(error)}`);
       });
+      // §3.3 FD-1：任务被任何停止面取消（TID_V4_STOP / Esc 停止生成 / 语音层③）——播报
+      // 同步静音经 Cancelling 回 AnnIdle；TID_V4_STOP 的渲染条件与点击链零改动。
+      voiceNotifyExternalStopRef.current();
     },
     [dispatchCommand, sessionId],
   );
+  voiceStopDispatchRef.current = handleStop;
 
   const handlePauseGoal = useCallback(() => {
     const current = snapshotRef.current;
@@ -4574,6 +4598,13 @@ export function SessionPane({
       if (!paneRef.current) return;
       if (!allowEscapeStopOutsidePane && !event.composedPath().includes(paneRef.current)) return;
       if (shouldIgnoreEscapeForStopGeneration(event)) return;
+      // 语音录音态优先（specs/voice-agent-integration.md §4.4 优先级 3）：录音中 Esc
+      // 停录音且任务不中断（零 v4 stop 调用）；焦点在对话区（composer 外）时由本监听消费。
+      // mention/dialog 优先消费者已由上方 defaultPrevented 检查排除。
+      if (consumeVoiceRecordingEscape()) {
+        event.preventDefault();
+        return;
+      }
       event.preventDefault();
       handleStop("escape");
     };
@@ -5683,6 +5714,14 @@ export function SessionPane({
               </span>
             </div>
           </div>
+        ) : null}
+        {/* 语音播报中指示（§9.3 / TV-6 行外 overlay）：仅 focused pane 渲染；内含
+            TID_VOICE_ANN_STOP 层①停止按钮（FD-1 唯一静音载体，零协议）。 */}
+        {focused ? (
+          <AnnouncementIndicator
+            phase={voiceAnnouncement.indicatorPhase}
+            onStopPressed={() => voiceAnnouncement.planner.notifyStopPressed()}
+          />
         ) : null}
         <ConversationHeader
           title={snapshot?.meta.title ?? ""}

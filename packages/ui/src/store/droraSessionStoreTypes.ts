@@ -128,7 +128,12 @@ export interface ComposerTextInsertRequest {
   requestId: number;
   text: string;
   mention?: ComposerMentionPrefill;
-  mode?: "replace" | "prepend-if-missing";
+  /**
+   * mode="append"（语音听写，specs/voice-agent-integration.md §2.4）：正文为空直接写入；
+   * 正文非空且尾字符非空白先补一个空格再追加——确定性规则避免中英混排粘连，
+   * 不覆盖用户已编辑内容。生产方 Phase 1 仅语音。
+   */
+  mode?: "replace" | "prepend-if-missing" | "append";
   /**
    * 插入目标会话（缺口9 消费门，2026-10-21）：缺席/null = 草稿 composer（既有语义，
    * 建议 prompt / 插件 mention 等既有生产方不变）；指定 sessionId = 该会话的 composer
@@ -243,7 +248,7 @@ export interface DroraSessionStoreState {
     text: string,
     workspaceIdentity?: string,
     mention?: ComposerMentionPrefill,
-    mode?: "replace" | "prepend-if-missing",
+    mode?: "replace" | "prepend-if-missing" | "append",
     /** 插入目标会话（缺席 = 草稿；语义见 ComposerTextInsertRequest.targetSessionId）。 */
     targetSessionId?: string | null,
   ) => number;

@@ -100,8 +100,11 @@ import {
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
+import { consumeVoiceRecordingEscape } from "@/store/voiceSessionStore.js";
+import { V4ComposerVoiceEntry } from "@/voice/V4ComposerVoiceEntry.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
+import { appendComposerText } from "@/v4/composer/composerTextAppend.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
@@ -257,7 +260,8 @@ export interface ExternalTextInsertRequest {
   requestId: number;
   text: string;
   mention?: ComposerMentionPrefill;
-  mode?: "replace" | "prepend-if-missing";
+  /** mode="append"：语音听写逐句追加（§2.4），应用侧不覆盖既有正文。 */
+  mode?: "replace" | "prepend-if-missing" | "append";
   /** 路由元数据（缺口9）：消费门在 SessionPane（按会话定向），composer 本体不读。 */
   targetSessionId?: string | null;
 }
@@ -329,6 +333,19 @@ export function applyExternalTextInsertRequestToComposer({
     updateText(inputApi.getMarkdown());
     scheduleDraftPersist();
     requestFocus();
+    return request.requestId;
+  }
+  if (request.mode === "append") {
+    // 语音听写追加（specs/voice-agent-integration.md §2.4）：读当前正文拼接后整体回写，
+    // 用户已编辑内容保留、新句在尾部；不抢焦点（录音中用户可能正在别处编辑）。
+    const merged = appendComposerText(inputApi.getMarkdown(), request.text);
+    if (merged.includes("](plugin://")) {
+      inputApi.setTextWithPluginMentions(merged);
+    } else {
+      inputApi.setText(merged);
+    }
+    updateText(merged);
+    scheduleDraftPersist();
     return request.requestId;
   }
   if (request.mention && request.text.startsWith(request.mention.markdown)) {
@@ -2600,6 +2617,14 @@ function ConversationComposerImpl({
           isWebRemoteControl={isWebRemoteControl}
           currentSessionBusy={canStop}
         />
+        {/* 语音听写入口（specs/voice-agent-integration.md §9.2）：可见性/能力/隐私门
+            全部在入口内部判定，composer 只传绑定目标（本 composer 的会话）。 */}
+        <V4ComposerVoiceEntry
+          sessionId={sessionId}
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          isWebRemoteControl={isWebRemoteControl}
+        />
         <ConversationBackgroundWorkTrigger
           backgroundWorks={snapshot?.backgroundWorks ?? []}
           runningSubagentCount={runningSubagentCount}
@@ -2622,6 +2647,7 @@ function ConversationComposerImpl({
       provider,
       remoteSessionId,
       runningSubagentCount,
+      sessionId,
       snapshot?.backgroundWorks,
       workspaceIdentity,
       workspacePath,
@@ -2806,6 +2832,7 @@ function ConversationComposerImpl({
           enableMentionPanel
           leadingActions={leadingActionsNode}
           submitControl={submitControlNode}
+          onVoiceRecordingEscape={consumeVoiceRecordingEscape}
           className="p-0"
           shellClassName={
             highspeedCard

@@ -7,6 +7,7 @@ export type {
 } from "./cloudContent.js";
 export * from "./desktopPet.js";
 export * from "./contracts/desktopPet.js";
+export * from "./contracts/voice.js";
 
 export type {
   FileBinaryPreview,

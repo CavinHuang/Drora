@@ -828,6 +828,35 @@ modules:
       app: .
     owner: desktop
 
+  # voice：由 architecture:adopt 登记
+  - id: voice
+    roots:
+      - packages/ui/src/voice
+    managed: true
+    requires:
+      - services
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/voice/contract.ts
+      - packages/ui/src/voice/voiceTuning.ts
+    layers:
+      adapters: .
+    owner: drora
+  # shared-contracts：由 architecture:adopt 登记
+  - id: shared-contracts
+    roots:
+      - packages/shared/src/contracts
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/shared/src/contracts/contract.ts
+      - packages/shared/src/contracts/desktopPet.ts
+      - packages/shared/src/contracts/voice.ts
+    layers:
+      contract: .
+    owner: drora
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。
@@ -987,3 +1016,33 @@ exceptions:
       - apps/drora-cli/packages/adapters/src/model/endpoint-routing-edition/index.ts
       - apps/drora-cli/packages/adapters/src/model/provider-endpoint-routing-options.ts
     reason: Existing upstream routing assembly files gain the endpoint origin and injected JWT reader; adopting the full CLI model adapter directory needs a separate module boundary refactor.
+  - id: voice-session-store-spec-frozen-location
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/store/voiceSessionStore.ts
+    reason: 语音两条腿状态机（specs/voice-agent-integration.md §3.1/§3.2）；spec 冻结落位 store/ 目录（照 composerAttachmentUploadStore 先例，不做 feature-colocation 豁免），整目录接管 store/ 存量不在本批范围；播报腿唯一写路径经 ui/voice 的 AnnouncementLegControl 受控面进入，状态所有者不变。
+  - id: voice-section-settings-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/settings/VoiceSection.tsx
+    reason: 语音设置分节（specs/voice-agent-integration.md §6.1/§6.2/§9.2）；只经 useSettings 读写 appSettings 语音八键与复用 SettingsGroupCard/SettingsRow，不建立新模块边界；settings/ 目录整目录接管不在本批范围（照 shortcut-settings-existing-ui-edit 先例）。
+  - id: composer-text-append-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/composer/composerTextAppend.ts
+    reason: composerTextInsertRequest mode="append" 的确定性拼接纯函数（§2.4），唯一消费方是同 unmanaged 聚合的 ConversationComposer 应用分支，无跨模块边界；v4/ 整目录接管不在本批范围。
+  - id: voice-announcement-preferences-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/lib/voiceAnnouncementPreferences.ts
+    reason: 播报偏好 reader 收口（specs/voice-agent-integration.md §9.3，照 taskNotificationPreferences.ts:33 先例落在 lib/）；纯函数委托 ui/voice 的 reader，无新模块边界；lib/ 目录整目录接管不在本批范围。
+  - id: voice-mic-permission-policy-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/desktop/src/main/voicePermissionPolicy.ts
+    reason: 语音听写 mic 权限双 handler 显式登记（specs/voice-agent-integration.md §9.2 / TV-5 方案：audio 允许、含 video 拒绝、其余保持缺省现状）；照 embeddedBrowserPermissionPolicy 模式的独立单文件策略，不改变既有 desktop main 模块边界；main/ 整目录接管不在本批范围。
+  - id: composer-escape-plan-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/prompt-editor/composerEscapePlan.ts
+    reason: composer Esc 仲裁顺序纯函数（§4.4 键位仲裁表；mention/录音/取消优先级单测钉住）；唯一消费方是同 unmanaged 聚合的 ChatPromptEditor，无新模块边界；prompt-editor/ 整目录接管不在本批范围。

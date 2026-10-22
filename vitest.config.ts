@@ -120,6 +120,13 @@ export default defineConfig({
             // Gen UI 目录回归位于源码旁，默认入口也必须执行，避免只在手动定向运行时生效。
             "packages/shared/src/node/genUiPaths.test.ts",
             "packages/services/src/gen-ui/**/*.test.ts",
+            // 语音模块（specs/voice-agent-integration.md）：源码旁测试同理必须进默认
+            // 单测通道，否则 pnpm test / pre-push affected 永远不会执行它们（评审 #5）。
+            "packages/ui/src/voice/**/*.test.ts",
+            "packages/ui/src/store/voiceSessionStore.test.ts",
+            "packages/ui/src/v4/composer/composerTextAppend.test.ts",
+            // §4.4 Esc 仲裁顺序的纯函数层（mention/录音/取消优先级单测）。
+            "packages/ui/src/prompt-editor/composerEscapePlan.test.ts",
             "scripts/assert-safe-cua-helper-zip.test.mjs",
             "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
           ],

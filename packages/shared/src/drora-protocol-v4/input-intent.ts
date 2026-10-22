@@ -2,6 +2,7 @@ import { conversationQuotesSchema } from "../conversationSelection.js";
 import { botGroupInputSourceSchema } from "../bots.js";
 // CLI admission 后的自包含输入事实。
 // queue / guide / runtime / transcript 只能携带同一个 intent，不允许各层重建字段。
+import { VOICE_INPUT_SOURCE_KIND } from "../contracts/voice.js";
 import { z } from "zod";
 import { timestampSchema } from "./core.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
@@ -35,6 +36,22 @@ const pluginUiInputSourceSchema = z
     toolCallId: z.string().min(1),
   })
   .strict();
+/**
+ * 语音输入来源（specs/voice-agent-integration.md §2.2，additive）。kind 字面量引用
+ * contracts/voice.ts 单一出处。`.strict()` 偏斜方向冻结为 CLI→renderer：旧 CLI 收到
+ * `kind:"voice"` 会整条拒收 sendText，落地顺序必须 CLI 先行；灰度期内听写照常以纯文本
+ * 发送（`conversationInputIntentSchema.source` 本就 optional），功能不受影响。
+ * 不引入运行时探测/降级重发分支——桌面同仓同发 CLI，顺序门禁（PR 依赖声明）足够。
+ */
+export const voiceInputSourceSchema = z
+  .object({
+    kind: z.literal(VOICE_INPUT_SOURCE_KIND),
+    /** BCP-47；听写发生时的 locale 快照（诊断面，不参与路由）。 */
+    lang: z.string().min(1).max(35).optional(),
+    /** 引擎标识；新增引擎 = additive 追加枚举成员，同样遵守 CLI 先行。 */
+    engine: z.enum(["webSpeech", "remote"]).optional(),
+  })
+  .strict();
 export const conversationInputSourceSchema = z.discriminatedUnion("kind", [
   pluginUiInputSourceSchema,
   z
@@ -44,6 +61,7 @@ export const conversationInputSourceSchema = z.discriminatedUnion("kind", [
       title: z.string().max(250).optional(),
     })
     .strict(),
+  voiceInputSourceSchema,
 ]);
 export type ConversationInputSource = z.infer<typeof conversationInputSourceSchema>;
 

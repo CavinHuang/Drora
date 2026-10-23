@@ -1,7 +1,9 @@
-// 同源链路 L1-lite 验证与常驻门禁（specs/relay-v2-server.md §8.1/§8.2/§10；登记见 §10「自动化门禁」）。
+// 同源链路 L1-lite 验证与交付门禁（specs/relay-v2-server.md §8.1/§8.2/§10；登记见 §10「交付门禁」——
+// 每次交付确定性执行，CI 挂载为后续项）。
 // 单脚本起三件并打真实 HTTP，全部流量打前置同源入口（生产里的自建域，Caddy 的角色）：
 //   1) relay：dist 产物子进程（临时 DB + JWT_MODE=stub + JWT_STUB_USERS 进程级配置，
-//      同 tools/smoke-process.mjs 形状），监听端口 A；
+//      经单一装配引导 deploy/run-relay.mjs——与生产容器、tools/smoke-process.mjs 共用同一份），
+//      监听端口 A；
 //   2) 静态服务：in-process http 服务挂 packages/web/dist（缺失时先经钉版工具链跑
 //      build:web-remote-control:v4，并按 spec §8.2 同时注入 VITE_ 与无 VITE_ 前缀双 env），
 //      监听端口 B——对应生产 Caddy handle_path 剥前缀后的 file_server；
@@ -29,12 +31,12 @@
 //   输出仅失败时回显尾部。退出码：0 通过；1 任一步失败。
 
 import { spawn } from "node:child_process";
-import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const out = (line) => process.stdout.write(`${line}\n`);
 const err = (line) => process.stderr.write(`${line}\n`);
@@ -255,7 +257,7 @@ function startFrontServer(relayPort, staticPort) {
   return server;
 }
 
-/** relay dist 产物子进程（smoke-process.mjs 同款装配：loadConfigFromEnv + createJwtAuth） */
+/** relay dist 产物子进程（单一装配引导 deploy/run-relay.mjs，与生产容器同一份启动接缝） */
 async function startRelayChild(packageRoot, workDir) {
   const distEntry = join(packageRoot, "dist", "relay-v2-server.js");
   if (!(await isFile(distEntry))) {
@@ -264,25 +266,10 @@ async function startRelayChild(packageRoot, workDir) {
         "本机无 mise 时先 source 钉版工具链环境 .zcode/toolchain-env.sh）",
     );
   }
-  const bootstrapPath = join(workDir, "same-origin-bootstrap.mjs");
-  await writeFile(
-    bootstrapPath,
-    [
-      `import * as relay from ${JSON.stringify(pathToFileURL(distEntry).href)};`,
-      `const config = relay.loadConfigFromEnv(process.env);`,
-      `const handle = await relay.createRelayServer({ config, auth: relay.createJwtAuth({ config }) });`,
-      `process.stdout.write("SAME_ORIGIN_RELAY_PORT=" + handle.port + "\\n");`,
-      `for (const signal of ["SIGTERM", "SIGINT"]) {`,
-      `  process.on(signal, () => {`,
-      `    void handle.stop().then(() => process.exit(0), () => process.exit(1));`,
-      `  });`,
-      `}`,
-      "",
-    ].join("\n"),
-    "utf8",
-  );
+  const bootstrapPath = join(packageRoot, "deploy", "run-relay.mjs");
   const listenPort = await probeFreePort();
-  // 进程级配置注入（spec §9）：临时 DB + stub 鉴权（仅测试/冒烟可用，spec §9/§12 M1）
+  // 进程级配置注入（spec §9）：临时 DB + stub 鉴权（仅测试/冒烟可用，spec §9/§12 M1）；
+  // RELAY_READY_PORT_PREFIX 让引导就绪后上报实际端口（同 tools/smoke-process.mjs 机制）
   const child = spawn(process.execPath, [bootstrapPath], {
     env: {
       ...process.env,
@@ -292,6 +279,7 @@ async function startRelayChild(packageRoot, workDir) {
       JWT_MODE: "stub",
       JWT_STUB_USERS: JSON.stringify({ "same-origin-jwt": "same-origin-user" }),
       LOG_LEVEL: "warn",
+      RELAY_READY_PORT_PREFIX: "SAME_ORIGIN_RELAY_PORT",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

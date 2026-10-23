@@ -190,6 +190,7 @@ describe("WS 组：配对全流程（spec §5.2/§6.6）", () => {
     // device 认证：auth_ack 回显 device_sid，terminal_sid 恒空，未配对 waiting
     const device = await authAndAck(relay, sid, "device");
     const deviceAck = messages(device)[0];
+    if (deviceAck === undefined) throw new Error("device 未收到 auth_ack");
     expect(deviceAck).toEqual({
       type: "auth_ack",
       device_sid: sid,
@@ -203,6 +204,7 @@ describe("WS 组：配对全流程（spec §5.2/§6.6）", () => {
     // terminal 认证：分配 t_ SID、matched；device_sid 同样回显
     const terminal = await authAndAck(relay, sid, "terminal");
     const terminalAck = messages(terminal)[0];
+    if (terminalAck === undefined) throw new Error("terminal 未收到 auth_ack");
     expect(terminalAck).toEqual({
       type: "auth_ack",
       device_sid: sid,

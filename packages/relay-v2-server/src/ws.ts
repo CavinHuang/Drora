@@ -66,8 +66,9 @@ export interface RelaySendContext {
 /**
  * 服务端出站发送的唯一路径：每条消息统一追加 server_ts（Unix 秒，spec §5.2），
  * 仅 OPEN 连接可发；trace 只含摘要字段（spec §9 允许集）。
+ * 模块私有（评审 unused-exports：发送只经本文件的 registry 回调与网关路径，无包外消费）。
  */
-export function sendRelayMessage(
+function sendRelayMessage(
   connection: Connection,
   message: WebRemoteControlRelayV2IncomingMessage,
   context: RelaySendContext,

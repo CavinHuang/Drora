@@ -10,6 +10,7 @@ import {
   api,
   authAndAck,
   closeStartedRelays,
+  expectUnixSeconds,
   issueToken,
   JWT_ALICE,
   JWT_BOB,
@@ -42,8 +43,9 @@ async function expectRegistered(relay: StartedRelay, deviceMid: string): Promise
     },
   });
   const data = (result.body as { data: { device_sid: string; created_at: number } }).data;
-  // created_at 是 Unix 秒：不得超过当前秒（毫秒值必然超过）
-  expect(data.created_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+  // created_at 是 Unix 秒（评审 createdat-bounds：双界断言——毫秒值必然远超 ±5s 容差，
+  // 过旧的时间戳同样拒绝；单侧上界曾放过「未来但小于当前毫秒」形状的漂移）
+  expectUnixSeconds(data.created_at);
   return data.device_sid;
 }
 

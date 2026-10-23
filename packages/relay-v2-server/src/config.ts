@@ -1,6 +1,9 @@
 // Relay V2 服务端配置（specs/relay-v2-server.md §9 全部配置项与默认值）。
 // 解析一律容错：非法值回退默认值而非抛错——单个环境变量误配不应让反代后的整个
-// 服务起不来；错误取值经结构化日志与 /healthz 观察（spec §9）。
+// 服务起不来（spec §9）。本模块只解析、不落日志：发生回退的键记录在返回值的
+// fallbacks 字段（仅键名与回退默认值，绝不携带原始值——原始值可能是凭据类配置），
+// 由装配层 src/index.ts 的 createRelayServer 统一转为 warn 结构化日志，spec §9
+// 「错误取值经结构化日志观察」由该链路兑现，回退不是静默的。
 // 唯一例外：JWT_MODE 非法值（含大小写不符）启动即报错——静默回退 decode 等于把
 // 多用户生产模式悄悄降级为不验签模式（例外已登记进 spec §9）。
 
@@ -10,6 +13,12 @@ import type { RelayLogLevel } from "./logger.js";
 export type RelayJwtMode = "decode" | "introspect" | "jwks" | "stub";
 // realm 命名空间来源（spec §6.3）：iss 从 JWT payload 推导；explicit 使用显式 JWT_REALM。
 export type RelayJwtRealmMode = "iss" | "explicit";
+
+/** 配置回退通知：仅键名与回退默认值（字符串化），不携带原始值（防凭据类值进日志） */
+export interface ConfigFallbackNotice {
+  key: string;
+  fallback: string;
+}
 
 export interface RelayConfig {
   /** BIND_HOST：明文监听地址；唯一预期客户端是本机反代（默认 127.0.0.1，spec §2） */
@@ -51,21 +60,37 @@ export interface RelayConfig {
   logLevel: RelayLogLevel;
   /** MSG_TRACE：消息级 trace 总开关，生产默认关（spec §9 红线） */
   msgTrace: boolean;
+  /**
+   * 非法值回退记录（spec §9「错误取值经结构化日志观察」）：loadConfigFromEnv 在某个
+   * 非空 env 值未通过校验而回退默认值时记录该键，装配层（src/index.ts）据此发 warn。
+   * 仅 loadConfigFromEnv 产出；无回退时字段整体缺省，程序化构造的 config（测试注入）
+   * 不受影响，纯默认 config 仍可整体相等比较。
+   */
+  fallbacks?: readonly ConfigFallbackNotice[];
 }
 
 const JWT_MODES: readonly RelayJwtMode[] = ["decode", "introspect", "jwks", "stub"];
 const REALM_MODES: readonly RelayJwtRealmMode[] = ["iss", "explicit"];
 const LOG_LEVELS: readonly RelayLogLevel[] = ["debug", "info", "warn", "error"];
 
+/**
+ * 回退通知回调（spec §9 可观测）：仅「非空值存在但未通过校验」时调用——空白值按未提供
+ * 处理不算回退，合法值恰好等于默认值也不算。
+ */
+type NotifyFallback = (fallback: string) => void;
+
 function readEnum<T extends string>(
   value: string | undefined,
   allowed: readonly T[],
   fallback: T,
+  notify?: NotifyFallback,
 ): T {
   const trimmed = value?.trim();
-  return trimmed !== undefined && trimmed.length > 0 && allowed.includes(trimmed as T)
-    ? (trimmed as T)
-    : fallback;
+  if (trimmed !== undefined && trimmed.length > 0 && allowed.includes(trimmed as T)) {
+    return trimmed as T;
+  }
+  if (trimmed !== undefined && trimmed.length > 0) notify?.(fallback);
+  return fallback;
 }
 
 /**
@@ -83,18 +108,28 @@ function readJwtMode(value: string | undefined): RelayJwtMode {
   );
 }
 
-function readInt(value: string | undefined, fallback: number, min: number, max: number): number {
+function readInt(
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+  notify?: NotifyFallback,
+): number {
   const trimmed = value?.trim();
   if (trimmed === undefined || trimmed.length === 0) return fallback;
   const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) return fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    notify?.(String(fallback));
+    return fallback;
+  }
   return parsed;
 }
 
-function readBool(value: string | undefined, fallback: boolean): boolean {
+function readBool(value: string | undefined, fallback: boolean, notify?: NotifyFallback): boolean {
   const trimmed = value?.trim().toLowerCase();
   if (trimmed === "1" || trimmed === "true") return true;
   if (trimmed === "0" || trimmed === "false") return false;
+  if (trimmed !== undefined && trimmed.length > 0) notify?.(String(fallback));
   return fallback;
 }
 
@@ -117,16 +152,26 @@ function readList(value: string | undefined): string[] {
 }
 
 /** JWT_STUB_USERS：JSON 对象且值全为字符串才接受；其余（含非法 JSON/数组/数字值）按未提供 */
-function readJsonObject(value: string | undefined): Record<string, string> | undefined {
+function readJsonObject(
+  value: string | undefined,
+  notify?: NotifyFallback,
+): Record<string, string> | undefined {
   const trimmed = value?.trim();
   if (trimmed === undefined || trimmed.length === 0) return undefined;
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      notify?.("(omitted)");
+      return undefined;
+    }
     const entries = Object.entries(parsed as Record<string, unknown>);
-    if (entries.some(([, item]) => typeof item !== "string")) return undefined;
+    if (entries.some(([, item]) => typeof item !== "string")) {
+      notify?.("(omitted)");
+      return undefined;
+    }
     return Object.fromEntries(entries) as Record<string, string>;
   } catch {
+    notify?.("(omitted)");
     return undefined;
   }
 }
@@ -134,27 +179,46 @@ function readJsonObject(value: string | undefined): Record<string, string> | und
 export function loadConfigFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): RelayConfig {
+  const fallbacks: ConfigFallbackNotice[] = [];
+  // 仅记录键名与回退默认值；原始值一律不进记录（JWT_STUB_USERS 等键的原始值形同凭据）
+  const notice = (key: string) => (fallback: string) => {
+    fallbacks.push({ key, fallback });
+  };
   const jwtIdClaims = readList(env.JWT_ID_CLAIMS);
   const jwtIssuers = readList(env.JWT_ISSUERS);
   const jwtRealm = readOptionalString(env.JWT_REALM);
-  return {
+  const config: RelayConfig = {
     bindHost: readString(env.BIND_HOST, "127.0.0.1"),
-    listenPort: readInt(env.LISTEN_PORT, 8080, 1, 65_535),
+    listenPort: readInt(env.LISTEN_PORT, 8080, 1, 65_535, notice("LISTEN_PORT")),
     dbPath: readString(env.DB_PATH, "./relay-v2.db"),
     jwtMode: readJwtMode(env.JWT_MODE),
     jwtIdClaims: jwtIdClaims.length > 0 ? jwtIdClaims : ["sub", "id"],
-    jwtStubUsers: readJsonObject(env.JWT_STUB_USERS),
-    jwtRealmMode: readEnum(env.JWT_REALM_MODE, REALM_MODES, "iss"),
+    jwtStubUsers: readJsonObject(env.JWT_STUB_USERS, notice("JWT_STUB_USERS")),
+    jwtRealmMode: readEnum(env.JWT_REALM_MODE, REALM_MODES, "iss", notice("JWT_REALM_MODE")),
     ...(jwtRealm === undefined ? {} : { jwtRealm }),
     introspectUrl: readOptionalString(env.INTROSPECT_URL),
     jwtJwksUrl: readOptionalString(env.JWT_JWKS_URL),
     jwtIssuers: jwtIssuers.length > 0 ? jwtIssuers : undefined,
     jwtAudience: readOptionalString(env.JWT_AUDIENCE),
-    authTimeoutMs: readInt(env.AUTH_TIMEOUT_MS, 15_000, 1, Number.MAX_SAFE_INTEGER),
-    idleTimeoutMs: readInt(env.IDLE_TIMEOUT_MS, 120_000, 1, Number.MAX_SAFE_INTEGER),
-    deviceTtlDays: readInt(env.DEVICE_TTL_DAYS, 180, 1, 365_000),
-    corsEnabled: readBool(env.CORS_ENABLED, false),
-    logLevel: readEnum(env.LOG_LEVEL, LOG_LEVELS, "info"),
-    msgTrace: readBool(env.MSG_TRACE, false),
+    authTimeoutMs: readInt(
+      env.AUTH_TIMEOUT_MS,
+      15_000,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      notice("AUTH_TIMEOUT_MS"),
+    ),
+    idleTimeoutMs: readInt(
+      env.IDLE_TIMEOUT_MS,
+      120_000,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      notice("IDLE_TIMEOUT_MS"),
+    ),
+    deviceTtlDays: readInt(env.DEVICE_TTL_DAYS, 180, 1, 365_000, notice("DEVICE_TTL_DAYS")),
+    corsEnabled: readBool(env.CORS_ENABLED, false, notice("CORS_ENABLED")),
+    logLevel: readEnum(env.LOG_LEVEL, LOG_LEVELS, "info", notice("LOG_LEVEL")),
+    msgTrace: readBool(env.MSG_TRACE, false, notice("MSG_TRACE")),
   };
+  // 无回退时字段整体缺省：纯默认 config 保持可整体相等比较（config.test.ts toEqual 契约）
+  return fallbacks.length > 0 ? { ...config, fallbacks } : config;
 }

@@ -10,7 +10,9 @@ import type { RelayV2ServerContract } from "./contract.js";
 
 const waiting: PairingStatusView = { pairStatus: "waiting", terminalSid: "" };
 
-export const exampleRelayServerOptions: CreateRelayServerOptions = {
+// 模块私有（评审 unused-exports）：示例数据只经下方 exampleRelayV2Server 消费，
+// 对外可见面仅 exampleRelayV2Server 本身。
+const exampleRelayServerOptions: CreateRelayServerOptions = {
   config: loadConfigFromEnv({}),
   // 真实约束（src/index.ts 装配期校验）：auth 或 users 之一必填，都缺省启动即抛错。
   // users 是 stub auth 的 JWT→userId 映射，仅测试/冒烟可用（spec §12 M1）；

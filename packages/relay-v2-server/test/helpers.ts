@@ -72,6 +72,8 @@ export interface StartRelayOptions {
   gcIntervalMs?: number;
   /** 注入结构化日志（GC 日志断言用）；缺省 error 级静默正常路径输出 */
   logger?: RelayLogger;
+  /** config.msgTrace 开关（消息 trace 红线用例）：与注入 logger 的 trace 总开关配套置真 */
+  msgTrace?: boolean;
 }
 
 const started: StartedRelay[] = [];
@@ -104,7 +106,7 @@ export async function startRelay(options: StartRelayOptions = {}): Promise<Start
     corsEnabled: options.corsEnabled ?? false,
     // L0 断言行为不依赖日志；error 级静默正常路径输出（红线：凭据本就不允许落日志）
     logLevel: "error",
-    msgTrace: false,
+    msgTrace: options.msgTrace ?? false,
   };
   const handle = await createRelayServer({
     config,
@@ -127,13 +129,25 @@ export async function startRelay(options: StartRelayOptions = {}): Promise<Start
   return relay;
 }
 
-/** afterEach 统一收尾：停掉本用例起的全部 relay（stop 幂等），清理临时 DB 目录 */
+/** afterEach 统一收尾：停掉本用例起的全部 relay（stop 幂等），清理临时 DB 目录。
+ * 停机失败致败（评审 helpers-stop-visibility）：allSettled 只为把全部 relay 停完再退出，
+ * 不吞错——rejected 结果在此转为异常，普通用例的停机失败不再静默丢失。临时目录清理先行，
+ * 保证失败路径也不留垃圾。 */
 export async function closeStartedRelays(): Promise<void> {
   const pending = started.splice(0);
-  await Promise.allSettled(pending.map((relay) => relay.handle.stop()));
+  const stops = await Promise.allSettled(pending.map((relay) => relay.handle.stop()));
   const dirs = [...tempDirs];
   tempDirs.clear();
   await Promise.allSettled(dirs.map((dir) => rm(dir, { recursive: true, force: true })));
+  const rejected = stops.filter(
+    (stop): stop is PromiseRejectedResult => stop.status === "rejected",
+  );
+  if (rejected.length > 0) {
+    throw new Error(
+      `closeStartedRelays：${rejected.length} 台 relay 停机失败 → ` +
+        rejected.map((stop) => String(stop.reason)).join("; "),
+    );
+  }
 }
 
 export interface HttpResult {
@@ -222,16 +236,24 @@ function createClient(ws: WebSocket): RelayClient {
     sendRaw: (text) => ws.send(text),
     sendBinary: (data) => ws.send(data),
     closed,
+    // 有序屏障：发协议 ping 并等 pong，证明此前收到的消息已全部到齐（fake relay 测试同款）。
+    // 约 2 秒超时（评审 pingbarrier-timeout）：连接半开/服务端停机时 pong 永不到来会让用例
+    // 挂到 vitest 全局超时且丢失上下文——超时后 resolve 交还给调用点的 readyState 断言裁决。
     pingBarrier: () =>
       new Promise<void>((resolve) => {
         if (ws.readyState !== WebSocket.OPEN) {
           resolve();
           return;
         }
-        ws.once("pong", () => resolve());
+        const timeout = setTimeout(resolve, 2_000);
+        ws.once("pong", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
         try {
           ws.ping();
         } catch {
+          clearTimeout(timeout);
           resolve();
         }
       }),

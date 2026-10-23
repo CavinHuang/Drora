@@ -9,9 +9,14 @@
  * - 契约键单一出处：wire 类型一律 re-export 自 @drora/shared/web-remote-relay，本包不复制定义。
  */
 import type { RelayConfig, RelayJwtMode, RelayJwtRealmMode } from "./src/config.js";
+// RelayHealthView 是 /healthz 运维接缝的响应视图（spec §9），与收发计数视图同属调用方
+// 需要知道的公开面（评审 export-surface：连同 ConnectionTrafficCounters/RelayTrafficView
+// 一并升入契约面，src/index.ts 的导出口径与 contract.ts 保持一致）。
+import type { RelayHealthView } from "./src/http.js";
 import type { RelayLogLevel, RelayLogger, RelayMessageTraceFields } from "./src/logger.js";
 import type {
   Connection,
+  ConnectionTrafficCounters,
   DeviceRecord,
   DeviceStore,
   JwtAuth,
@@ -19,11 +24,13 @@ import type {
   PairingRegistryEvents,
   PairingStatusView,
   RelayTokenIdentity,
+  RelayTrafficView,
   TokenStore,
 } from "./src/types.js";
 
 export type {
   Connection,
+  ConnectionTrafficCounters,
   DeviceRecord,
   DeviceStore,
   JwtAuth,
@@ -33,10 +40,12 @@ export type {
   RelayConfig,
   RelayJwtMode,
   RelayJwtRealmMode,
+  RelayHealthView,
   RelayLogLevel,
   RelayLogger,
   RelayMessageTraceFields,
   RelayTokenIdentity,
+  RelayTrafficView,
   TokenStore,
 };
 export type {

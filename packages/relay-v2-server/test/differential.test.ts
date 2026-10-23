@@ -306,6 +306,9 @@ async function runAgainst(flavor: Flavor, run: (harness: DiffHarness) => Promise
             ws.once("error", resolve);
             ws.once("open", () => reject(new Error("升级不应成功")));
           });
+          // 强断言（评审 diff-401-strong）：升级拒绝必须来自 401 原始应答，而不是任何 error；
+          // transcript 布尔仅作冗余对照，不承担判别职责
+          expect(error.message).toContain("401");
           transcript.push({
             upgradeRejected: { name, unauthorized: error.message.includes("401") },
           });
@@ -490,6 +493,15 @@ const scenarios: Scenario[] = [
         const otherRole: "device" | "terminal" = role === "device" ? "terminal" : "device";
         const peer = owners[otherRole];
         const peerAcksBefore = messagesOfType(peer, "pair_status_ack").length;
+        // KICKED 窗口显式钉点（评审 kicked-window-injection）：replacement 认证开始前，
+        // 对端预发一条 data——此刻 (SID, role) 的现任 owner 仍是旧连接，data 的可观测
+        // 归宿是旧连接收到（路由到旧连接，或最迟 INTERNAL 且连接存活；两端 transcript
+        // 必须一致），窗口内不许出现 data 静默丢失。
+        peer.send({ type: "data", payload: "pre-kick-window", client_ts: 3 });
+        await h.waitFor(
+          () => hasPayload(old, "pre-kick-window"),
+          `KICKED 窗口 data 路由到现任 owner（${role}）`,
+        );
         const replacement = await h.auth(`replacement-${role}`, sid, role);
         await h.waitFor(() => old.closeCode !== null, `旧 ${role} 连接被关闭`);
         // 对端推送（bind 的第 ③ 步）也要等齐再快照，消除两端到达时序差
@@ -694,7 +706,9 @@ const scenarios: Scenario[] = [
           // 非 data 消息（ack/error）没有 payload 字段，跳过
           const payload = (message as { payload?: unknown }).payload;
           if (payload === null || typeof payload !== "object") return;
-          adapter.acceptPayload(payload);
+          // 参数类型取自 acceptPayload 自身签名（WebRemoteControlAppPayload 在 @drora/shared
+          // 根出口，从包根 import 会违反架构 requires 声明，故不经包根类型导入）
+          adapter.acceptPayload(payload as Parameters<typeof adapter.acceptPayload>[0]);
         };
         return { adapter, received };
       };

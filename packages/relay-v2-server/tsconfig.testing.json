@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-testing",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "contract.ts",
+    "contract.example.ts",
+    "contract.test.ts",
+    "module.ts",
+    "test/**/*.ts"
+  ],
+  // 契约面与测试的类型检查（对照 packages/shared/tsconfig.testing.json 同款工程引用先例）：
+  // 包根 contract.ts / contract.example.ts / contract.test.ts / module.ts 与 test/ 不在主
+  // tsconfig（rootDir: src）的 include 内，曾脱离根 typecheck——contract.test.ts 句柄桩缺
+  // backupDevices 的漂移因此漏检。references "." 让 tsc -b 先构建主项目，src 导入落到其
+  // dist 声明输出上。
+  "references": [{ "path": "." }]
+}

@@ -50,7 +50,8 @@ function fetchStub(respond: (url: string, authorization: string | undefined) => 
   calls: Array<{ url: string; authorization: string | undefined }>;
 } {
   const calls: Array<{ url: string; authorization: string | undefined }> = [];
-  const stub = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  // @types/node 无 DOM 的 RequestInfo 全局类型；与 typeof fetch 的首参形状一致
+  const stub = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const authorization =
       init?.headers === undefined
@@ -245,6 +246,42 @@ describe("introspect 模式（spec §6.2：端点是身份与有效性的权威�
     });
     await expect(authEmpty.authenticate(`Bearer ${jwt}`)).resolves.toBeUndefined();
   });
+
+  it("HTTP 200 但业务 code/success 表失败 → 拒绝（spec §6.1.1 探测 #12 的 BigModel 同款失败体）", async () => {
+    const authenticateWith = async (body: unknown): Promise<string | undefined> => {
+      const { fetch } = fetchStub(() => Response.json(body, { status: 200 }));
+      const auth = createJwtAuth({
+        config: baseConfig({
+          jwtMode: "introspect",
+          introspectUrl: "https://api.example/userinfo",
+        }),
+        fetch,
+      });
+      return auth.authenticate(`Bearer ${jwt}`);
+    };
+    // 探测 #12 实录失败体：HTTP 200 + {code:1001, msg, success:false}
+    await expect(
+      authenticateWith({
+        code: 1001,
+        msg: "Header中未收到Authorization参数，无法进行身份验证。",
+        success: false,
+      }),
+    ).resolves.toBeUndefined();
+    // 反例：失败体若恰好携带字符串 id，无业务校验时会被 identityFromClaims 放行——
+    // 显式业务 code/成功标志校验必须先于身份提取（评审缺口：不得以「无身份 claim」为唯一失败路径）
+    await expect(
+      authenticateWith({ code: 1001, success: false, id: "u9" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      authenticateWith({ code: 1001, success: false, data: { id: "u9" } }),
+    ).resolves.toBeUndefined();
+    // success 缺省而 code 非 0：按客户端先例（code !== 0 即失败）同样拒绝
+    await expect(authenticateWith({ code: 500, id: "u9" })).resolves.toBeUndefined();
+    // 边界：code:0 + success:true 的成功信封照常放行（失败判据不误伤合法信封）
+    await expect(authenticateWith({ code: 0, success: true, data: { id: "u10" } })).resolves.toBe(
+      "https://zai:u10",
+    );
+  });
 });
 
 describe("jwks 模式（spec §6.2：JWKS 验签 RS/ES + iss/aud 白名单，待 M0 实测）", () => {
@@ -259,7 +296,10 @@ describe("jwks 模式（spec §6.2：JWKS 验签 RS/ES + iss/aud 白名单，待
       kid: "rsa-1",
       alg: "RS256",
     };
-    const sign = (payload, header = { alg: "RS256", kid: "rsa-1", typ: "JWT" }) => {
+    const sign = (
+      payload: Record<string, unknown>,
+      header: Record<string, unknown> = { alg: "RS256", kid: "rsa-1", typ: "JWT" },
+    ) => {
       const signingInput = `${b64url(header)}.${b64url(payload)}`;
       return `${signingInput}.${createSign("RSA-SHA256").update(signingInput).sign(privateKey).toString("base64url")}`;
     };
@@ -336,9 +376,11 @@ describe("jwks 模式（spec §6.2：JWKS 验签 RS/ES + iss/aud 白名单，待
 
     const broken = createJwtAuth({
       config: jwksConfig(),
+      // 修复（评审 contract-typecheck 暴露）：此处漏写 `.fetch` 曾把 {fetch, calls} 包装对象
+      // 整体当 fetchImpl 注入——调用即 TypeError 被 try/catch 吞掉，用例因错误原因通过
       fetch: fetchStub(() => {
         throw new Error("jwks unreachable");
-      }),
+      }).fetch,
     });
     await expect(broken.authenticate(`Bearer ${sign(basePayload)}`)).resolves.toBeUndefined();
   });

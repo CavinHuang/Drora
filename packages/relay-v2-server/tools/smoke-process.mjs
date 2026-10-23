@@ -11,19 +11,19 @@
 //   node tools/smoke-process.mjs
 //
 // 实现约束：
-// - 子进程经临时引导脚本装配 dist（与 deploy/docker-compose.yml 的 run-relay.mjs 同款形状：
-//   loadConfigFromEnv → createJwtAuth → createRelayServer），smoke 自身不 import src/（dist 是
-//   被测对象；同 tools/probe-token.ts 先例）。
+// - 子进程直接跑包内单一装配引导 deploy/run-relay.mjs（与 deploy/docker-compose.yml、
+//   tools/verify-same-origin.mjs 三处共用同一份：loadConfigFromEnv → createJwtAuth →
+//   createRelayServer；就绪端口经 RELAY_READY_PORT_PREFIX=SMOKE_RELAY_PORT 上报），
+//   smoke 自身不 import src/（dist 是被测对象；同 tools/probe-token.ts 先例）。
 // - 输出统一走 process.stdout/stderr.write（禁 console.log，仓库日志纪律）；子进程日志仅失败时
 //   回显尾部，避免双份噪声。
 // - 退出码：0 全流程通过；1 任一步失败。
 
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 
 const out = (line) => process.stdout.write(`${line}\n`);
@@ -75,11 +75,11 @@ function assert(condition, label) {
 async function main() {
   const packageRoot = join(new URL("..", import.meta.url).pathname);
   const distEntry = join(packageRoot, "dist", "relay-v2-server.js");
-  const distUrl = pathToFileURL(distEntry).href;
+  // 单一装配引导（deploy/run-relay.mjs）：与生产容器同一份启动接缝
+  const bootstrapPath = join(packageRoot, "deploy", "run-relay.mjs");
 
   const workDir = await mkdtemp(join(tmpdir(), "relay-v2-smoke-"));
   const dbPath = join(workDir, "devices.sqlite");
-  const bootstrapPath = join(workDir, "smoke-bootstrap.mjs");
   // catch 块也要能回显子进程输出：缓冲区声明在 try 之外（负例路径在 spawn 前就可能失败）
   let child;
   let childStdout = [];
@@ -92,22 +92,6 @@ async function main() {
         `构建产物不存在：${distEntry}（先运行 pnpm --filter @drora/relay-v2-server run build）`,
       );
     });
-    await writeFile(
-      bootstrapPath,
-      [
-        `import * as relay from ${JSON.stringify(distUrl)};`,
-        `const config = relay.loadConfigFromEnv(process.env);`,
-        `const handle = await relay.createRelayServer({ config, auth: relay.createJwtAuth({ config }) });`,
-        `process.stdout.write("SMOKE_RELAY_PORT=" + handle.port + "\\n");`,
-        `for (const signal of ["SIGTERM", "SIGINT"]) {`,
-        `  process.on(signal, () => {`,
-        `    void handle.stop().then(() => process.exit(0), () => process.exit(1));`,
-        `  });`,
-        `}`,
-        "",
-      ].join("\n"),
-      "utf8",
-    );
 
     const listenPort = await probeFreePort();
     // 进程级配置注入（spec §9）：DB_PATH 临时库；JWT_MODE=stub + JWT_STUB_USERS 让 dist 产物
@@ -120,6 +104,7 @@ async function main() {
       JWT_MODE: "stub",
       JWT_STUB_USERS: JSON.stringify({ [STUB_JWT]: STUB_USER }),
       LOG_LEVEL: "warn",
+      RELAY_READY_PORT_PREFIX: "SMOKE_RELAY_PORT",
     };
     child = spawn(process.execPath, [bootstrapPath], {
       env: childEnv,

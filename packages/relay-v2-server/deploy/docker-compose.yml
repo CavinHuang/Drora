@@ -34,8 +34,8 @@
 #
 # - 设备注册表持久化在具名卷 relay-data(DB_PATH=/home/node/data/relay-v2.db),重启后
 #   桌面 SID 与二维码保持有效(spec §7);备份为手动运维接缝:RelayV2ServerHandle
-#   .backupDevices(toPath)(spec §7)——本文件内嵌的 run-relay 引导未接 cron/信号,
-#   需要定时备份时在该引导自行接线或手工调用;禁止直接 cp 运行中的 WAL 库。
+#   .backupDevices(toPath)(spec §7)——容器入口 deploy/run-relay.mjs 只接 SIGTERM/SIGINT
+#   优雅停机,需要定时备份时在该引导自行接线或手工调用;禁止直接 cp 运行中的 WAL 库。
 # - 环境变量全量清单与语义见 spec §9;此处透传的是其中全部键。
 
 name: relay-v2-server
@@ -53,23 +53,11 @@ services:
         WORKDIR /app
         # dist 由宿主先构建(见文件头注释第 1 步);context=包目录,只消费产物。
         COPY dist/ ./dist/
-        # 启动引导:dist 只导出装配函数、无内置 main(src/index.ts 仅 export),
-        # 这里把 env→JWT 鉴权→监听接起来,并挂 SIGTERM/SIGINT 走优雅停机(spec §5.3:
-        # 停收新连接→error INTERNAL→flush→退出;docker stop 的默认 SIGTERM 即触发)。
-        COPY <<'EOF' /app/run-relay.mjs
-        import { createJwtAuth, createRelayServer, loadConfigFromEnv } from "./dist/relay-v2-server.js";
-
-        const config = loadConfigFromEnv(process.env);
-        const handle = await createRelayServer({ config, auth: createJwtAuth({ config }) });
-        for (const signal of ["SIGTERM", "SIGINT"]) {
-          process.on(signal, () => {
-            void handle.stop().then(
-              () => process.exit(0),
-              () => process.exit(1),
-            );
-          });
-        }
-        EOF
+        # 启动引导复用包内单一装配引导 deploy/run-relay.mjs(spec §13):dist 只导出装配
+        # 函数、无内置 main(src/index.ts 仅 export),env→JWT 鉴权→监听 + SIGTERM/SIGINT
+        # 优雅停机的接缝只有这一份,与进程冒烟/同源冒烟共用(tools/smoke-process.mjs 头注)。
+        # 按包内相对布局复制到 /app/deploy/,其 ../dist import 与仓库内解析一致。
+        COPY deploy/run-relay.mjs /app/deploy/run-relay.mjs
         # dist 是 ESM:Node 按最近 package.json 的 type 判定模块系统,必须补 {"type":"module"};
         # ws 在 tsup 产物中 external,镜像内 npm 安装补齐(包声明 ws@^8.20.0,与之一致)。
         # 以 node 用户运行;数据目录预建并归属 node,具名卷首挂时继承该属主。
@@ -80,7 +68,7 @@ services:
          && chown -R node:node /app /home/node/data
         USER node
         VOLUME /home/node/data
-        CMD ["node", "run-relay.mjs"]
+        CMD ["node", "deploy/run-relay.mjs"]
     image: drora/relay-v2-server:local
     restart: unless-stopped
     environment:

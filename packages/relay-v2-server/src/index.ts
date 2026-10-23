@@ -71,6 +71,13 @@ export async function createRelayServer(
   const logger =
     options.logger ??
     createRelayLogger({ level: config.logLevel, trace: config.msgTrace, scope: "relay-v2" });
+  // §9 配置回退可观测：loadConfigFromEnv 把发生回退的键记录在 config.fallbacks，装配层在此
+  // 统一转为 warn 结构化日志（logger warn 级别恰为此设——可恢复异常）——容错回退不能无信号，
+  // 否则误配值被悄悄换成默认值而运维无从得知。仅记键名与回退默认值，不携带原始值
+  // （config 侧已保证：原始值可能是凭据类配置，红线：凭据不进日志）。
+  for (const fallback of config.fallbacks ?? []) {
+    logger.warn("config-fallback", { key: fallback.key, fallback: fallback.fallback });
+  }
   const now = options.now ?? ((): number => Date.now());
   const tokens = options.tokens ?? createTokenStore({ now });
   const ownsDevices = options.devices === undefined;
@@ -171,6 +178,8 @@ export async function createRelayServer(
 
 export { loadConfigFromEnv } from "./config.js";
 export type { RelayConfig, RelayJwtMode, RelayJwtRealmMode } from "./config.js";
+// /healthz 视图与收发计数视图（spec §9 运维接缝）：与包根 contract.ts 契约面同口径 re-export
+export type { RelayHealthView } from "./http.js";
 export { createRelayLogger } from "./logger.js";
 export type { RelayLogLevel, RelayLogger, RelayMessageTraceFields } from "./logger.js";
 export type {

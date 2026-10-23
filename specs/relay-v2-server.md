@@ -1,6 +1,6 @@
 # 自建 Relay V2 服务端设计方案（官方 relay 平替）
 
-> 状态：**设计稿 v2，未实施**。本文定义一个可部署的自建 relay 服务，平替官方 zcode.z.ai 的 Relay V2。
+> 状态：**实施中——M1–M3 已实施并交付（PR #29：`packages/relay-v2-server` 协议内核/鉴权/持久化 + 差异测试 + `deploy/` 部署产物）；M0 真实凭据实测与 M4 真机验收待办（见 §12）**。本文定义一个可部署的自建 relay 服务，平替官方 zcode.z.ai 的 Relay V2。
 > 协议契约以 [Relay V2 spec](../docs/web-remote-control/relay-v2-pairing.md) 为唯一权威；行为以
 > `packages/shared/test/fixtures/fake-relay-v2.ts`（子路径 `@drora/shared/testing/fake-relay-v2`）为可执行参照。
 > 目标读者：要自建部署、不修改 Drora 客户端的维护者。
@@ -83,7 +83,7 @@ flowchart LR
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 语言/运行时 | TypeScript + Node.js ≥24（单进程）                                                                                                             | 直接复用 shared 契约解析器；与 fake relay 同构                                                                                                        |
 | WS 库       | `ws`（`noServer: true` + 手动 upgrade）                                                                                                        | 与 fake relay 一致；`maxPayload: 1_048_576` 天然实现 1 MiB 硬闸                                                                                       |
-| 持久化      | `node:sqlite`（`DatabaseSync`）                                                                                                                | Node 24 内置，无原生依赖；同步接口足够单写者                                                                                                          |
+| 持久化      | `node:sqlite`（`DatabaseSync`）                                                                                                                | Node 24 内置，无原生依赖；同步接口足够单写者。**实验特性**（运行期带 ExperimentalWarning）：风险登记与复核条件见 §11 第 9 条                                           |
 | 契约模块    | **直接复用**：monorepo 包内 `"@drora/shared": "workspace:*"`，import `@drora/shared/web-remote-relay` 与 `@drora/shared/testing/fake-relay-v2` | 契约键单一出处（AGENTS.md）：生产方与消费方引用同一份代码，漂移在编译期即暴露，不存在第二份真相；旧 `packages/relay-server` 即此先例（`workspace:*`） |
 
 复用清单（来自 `@drora/shared/web-remote-relay` → `packages/shared/src/web-remote-relay/index.ts`，fake relay 已验证）：
@@ -245,7 +245,7 @@ M0 动作：取两平台真实 drora JWT，离线解码 payload 记录 claim 形
 | `introspect` | 携 Bearer 调官方用户信息端点（M0 探测确认可用性后定案端点），取 `sub ?? id` 为 userId——与两端客户端同一条提取路径，身份一致性天然成立                                                          | 多用户候选；依赖官方端点存在且稳定      |
 | `jwks`       | JWKS 验签（RS/ES），校验 `iss`/`aud` 白名单，再按 decode 同规则取身份                                                                                                                          | 多用户生产（M0 证实公开 JWKS 存在后）   |
 
-安全边界如实记录：`decode` 不是密码学认证——能构造合法形状 JWT 的人可映射任意 userId，但配对仍需知道目标 `device_sid`。多用户部署必须 `introspect` 或 `jwks`。桌面侧身份绑定（`{userId, endpointOrigin}` 变更 → 重注册）使用桌面自己的 `login.userId`；只要映射稳定（同一账号恒同 userId），桌面不会反复重注册——这正是 M0 要验证"映射一致性"的原因。
+安全边界如实记录：`decode` 不是密码学认证——能构造合法形状 JWT 的人可映射任意 userId，但配对仍需知道目标 `device_sid`。多用户部署必须 `introspect` 或 `jwks`。introspect 的 HTTP 200 不代表成功——BigModel userinfo 端点以 HTTP 200 + 业务 `code`/`success` 表达鉴权失败（§6.1.1 探测 #12），服务端实现必须显式校验业务成功标志（`success:false` 或 `code≠0` 即拒绝，不得以「无身份 claim」为唯一失败路径；`code` 成功值语义待 M0 定案）。桌面侧身份绑定（`{userId, endpointOrigin}` 变更 → 重注册）使用桌面自己的 `login.userId`；只要映射稳定（同一账号恒同 userId），桌面不会反复重注册——这正是 M0 要验证"映射一致性"的原因。
 
 ### 6.3 平台命名空间隔离
 
@@ -330,7 +330,7 @@ CREATE INDEX IF NOT EXISTS idx_devices_mid  ON devices(device_mid);
 - 写路径：注册 INSERT、删除 DELETE、GC DELETE，均在请求线程同步完成；无后台合并、无多写者。
 - `online` / `meta` 不入库，由 PairingRegistry 实时 join（fake relay 的 `view()` 语义）。
 - 重启语义：设备与 SID 保留 → 桌面已存 `{deviceSid, userId, endpointOrigin}` 继续有效，二维码不失效；未消费 token 丢失（客户端重申请，契约允许）；连接全断 → 双端按既有退避自动重连（桌面 1s→30s，手机 500ms→10s），无需广播。
-- **备份（M2 已交付）**：DeviceStore 打开即设 `PRAGMA journal_mode = WAL`（本条论述的前提；`VACUUM INTO` 在任意 journal 下都产出一致快照，WAL 防的是「运行中直接 cp 拷出撕裂副本」）。备份走 `SqliteDeviceStore.backup(toPath)`（`VACUUM INTO`，与源库一致的自包含快照；目标文件必须不存在，SQLite 语义，错误原样上抛），经装配层暴露为 `RelayV2ServerHandle.backupDevices(toPath)` 运维接缝。**备份是手动运维接缝，部署侧未内置定时备份**：compose 内嵌 run-relay 引导当前只接 SIGTERM/SIGINT→优雅停机，需要定时备份时部署侧在该引导自行接 cron/信号或手工调用（与 GC 的装配层内置 24h 定时器不同，备份无内建调度）；注入的 DeviceStore 未提供 backup 能力时抛错不伪造。运行中直接 `cp` 仍然禁止。
+- **备份（M2 已交付）**：DeviceStore 打开即设 `PRAGMA journal_mode = WAL`（本条论述的前提；`VACUUM INTO` 在任意 journal 下都产出一致快照，WAL 防的是「运行中直接 cp 拷出撕裂副本」）。备份走 `SqliteDeviceStore.backup(toPath)`（`VACUUM INTO`，与源库一致的自包含快照；目标文件必须不存在，SQLite 语义，错误原样上抛），经装配层暴露为 `RelayV2ServerHandle.backupDevices(toPath)` 运维接缝。**备份是手动运维接缝，部署侧未内置定时备份**：容器入口 deploy/run-relay.mjs（§13 单一装配引导，compose 与两个冒烟工具共用）当前只接 SIGTERM/SIGINT→优雅停机，需要定时备份时部署侧在该引导自行接 cron/信号或手工调用（与 GC 的装配层内置 24h 定时器不同，备份无内建调度）；注入的 DeviceStore 未提供 backup 能力时抛错不伪造。运行中直接 `cp` 仍然禁止。
 - **GC（防无界增长）**：同 MID 每次重注册产生新行、旧行只靠用户手删会无限累积。每日一次：删除 `created_at` 早于 `DEVICE_TTL_DAYS`（默认 180 天）**且当前离线**的设备行；不删在线行。GC 触发时若设备恰好在线（join 判定）则跳过该行，下轮再试。调度归装配层（src/index.ts）：监听成功后按 24h `setInterval` 周期执行，结果（删除行数与 cutoff）记结构化日志；间隔与时钟经 `CreateRelayServerOptions` 可注入供 L0 对时（生产缺省即每日一次）。丢库等价于"所有设备重新注册"，桌面在 `auth_init AUTH_FAILED` 后有每启动一次的重注册恢复，但不应依赖它。
 
 ## 8. 反向代理与客户端指向
@@ -403,6 +403,8 @@ relay.example.com {
 
 ## 9. 配置项与可观测性
 
+解析容错策略主句（下表「唯一例外」等措辞的指代对象）：除 `JWT_MODE` 外，其余配置键出现非法值时解析层**静默回退该行默认值**、不阻断启动（空白值按未提供处理，不算回退）；「静默」指解析层不因误配抛错，并非无信号——发生回退的键由 `loadConfigFromEnv` 记入 `config.fallbacks`，经装配层以 `config-fallback` warn 结构化日志输出（本节「日志与红线」首条），这是误配的可观察手段。`JWT_MODE` 非法值启动即报错，是本策略的唯一例外。
+
 | 变量                                                               | 默认                          | 说明                                                                                                                                                                                                                                  |
 | ------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BIND_HOST`                                                        | `127.0.0.1`                   | 明文监听地址；唯一预期客户端是本机反代                                                                                                                                                                                                |
@@ -422,6 +424,7 @@ relay.example.com {
 
 日志与红线：
 
+- 配置容错回退有真实信号：`loadConfigFromEnv` 把发生回退的键记录在 `config.fallbacks`（仅键名与回退默认值，不携带原始值——原始值可能是凭据类配置），装配层（`src/index.ts` 的 `createRelayServer`）据此以 `config-fallback` warn 结构化日志输出——回退不是静默的；`JWT_MODE` 非法值仍是启动即报错的唯一例外。
 - 生命周期日志记录 realm 前缀 userId、`device_sid` 前缀、role、事件类型与错误码；**不记录 JWT、一次性 token、`data.payload` 内容与完整设备名**。
 - 消息级 trace（`MSG_TRACE=true`）仅用于诊断，字段红线沿用 [`web-remote-control-relay-message-logging.md`](../docs/web-remote-control-relay-message-logging.md) 的仓库既有裁决：只允许 `type / pair_status / role / code / drora_type / requestId / bridgeSessionId / bytes` 摘要级字段，**永不输出 payload 全量正文**，生产默认关闭。
 - 每连接收发计数（frames/bytes in-out，spec §4 归 WsGateway 连接期状态）经 `/healthz` 暴露——官方 relay 时代"pending 超时难定位是 desktop 没处理、单向断还是手机收不到"（稳定性分析 §5）在自建侧用一对计数器即可诊断。健康面按角色聚合存活连接：`counters: {device, terminal} × {framesIn, bytesIn, framesOut, bytesOut}`，连接关闭即出清；入站计数含认证前帧，出站计数含错误与 ack——「单向断」表现为一方向持续增长而另一方向停滞。
@@ -440,7 +443,16 @@ relay.example.com {
 
 L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID 不变、手机 15 秒宽限内重连或按退避恢复、replayable snapshot/gap 链路完整。
 
-**自动化门禁（L1-lite，常驻）**：`tools/verify-same-origin.mjs` 单脚本起三件——relay（dist 产物子进程，临时 DB + stub 鉴权进程级配置，同 `smoke-process.mjs` 形状）监听一个端口、静态服务挂 `packages/web/dist` 监听另一端口、前置同源入口把 `/api` 与 `/healthz` 转发 relay、`/remote/v4*` 剥前缀转发静态（§8.1 Caddy 同款路由）；断言页面与所引资产逐个 200、同源 `GET /api/v1/remote/device` 无凭据 401（证明 API 路径打到本服务而非静态服务）、`/healthz` 为本服务五字段视图、页面产物烘焙非官方域（含自建域正向 + 无官方 redirect 字面量/内联 env 反例，与 `verify-v4-build.mjs` 同款判别）。`packages/web/dist` 缺失时经钉版工具链跑 `build:web-remote-control:v4`（§8.2 双 env 注入）。它只覆盖 HTTP 面，不替代 L1 真机联调；WS 配对链路由 `smoke-process.mjs` 覆盖。
+**差异测试变异验证清单（harness 分辨力，可复现）**：7 场景差异测试的分辨力经变异验证，交付 commit 所称「harness 分辨力经变异验证」以本清单为准。复现步骤：对 `src/` 临时注入下表单点缺陷 → `pnpm --filter @drora/relay-v2-server exec vitest run test/differential.test.ts` → 记录红场景 → 回滚。注入点选在差异断言最能发挥 discriminating 作用的两条接缝上（查询语义填充规则、data 透传）。两次注入于 2026-10-23 在钉版工具链实测（基线 7/7 绿；注入后回滚再次 7/7 绿）：
+
+| 注入点                          | diff 要点                                                                                        | 预期杀死用例                                                                                                        | 实际结果               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| M1 `src/pairing.ts` `query()`   | 查询语义 `terminal_sid: peer?.terminalSid ?? ""` 改为回显本连接自身 `connection.terminalSid`（`auth_ack` 的 bind 回显不受影响，专杀查询填充规则） | 场景 2「配对、心跳 pair_status_query 与 data 双向透传一致」（配对后 device 查询应得对端 t_*、terminal 查询应得 `""`，自回显两头都反）+ 场景 6「data 无对端返回 INTERNAL…」（solo terminal 查询反例） | **2/7 红**（场景 2、6；其余 5 场景不受影响） |
+| M2 `src/ws.ts` data 转发路径    | 有对端不再转发，恒回 `error INTERNAL`（透传断路，`peerOf` 结果被弃用）                            | 全部消费 data 透传的场景：2（双向透传）、3（KICKED 窗口钉点与替换后新 owner 路由）、4（恢复后 data 通路）、7（rpc-frame 双向往返）              | **4/7 红**（场景 2、3、4、7）                |
+
+两个注入都被预期用例杀死、且不误伤无关场景（M1 未波及纯 HTTP 场景 1 与鉴权矩阵场景 5；M2 未波及场景 1/5/6——场景 6 的无对端 INTERNAL 恰是注入后的行为，对 fake relay 本就一致），证明 transcript 深度相等断言对这两类回归具备分辨力。
+
+**交付门禁（L1-lite；每次交付确定性执行，CI 挂载为后续项）**：进程冒烟 `tools/smoke-process.mjs` 与同源冒烟 `tools/verify-same-origin.mjs` 是每次交付确定性执行的检查（当前由交付流程在钉版工具链下运行；「常驻 CI 门禁」为目标态，挂载尚排期，不作为本设计已交付能力声称）。同源冒烟单脚本起三件——relay（dist 产物子进程，临时 DB + stub 鉴权进程级配置，与进程冒烟同用单一装配引导 `deploy/run-relay.mjs`）监听一个端口、静态服务挂 `packages/web/dist` 监听另一端口、前置同源入口把 `/api` 与 `/healthz` 转发 relay、`/remote/v4*` 剥前缀转发静态（§8.1 Caddy 同款路由）；断言页面与所引资产逐个 200、同源 `GET /api/v1/remote/device` 无凭据 401（证明 API 路径打到本服务而非静态服务）、`/healthz` 为本服务五字段视图、页面产物烘焙非官方域（含自建域正向 + 无官方 redirect 字面量/内联 env 反例，与 `verify-v4-build.mjs` 同款判别）。`packages/web/dist` 缺失时经钉版工具链跑 `build:web-remote-control:v4`（§8.2 双 env 注入）。它只覆盖 HTTP 面，不替代 L1 真机联调；WS 配对链路由 `smoke-process.mjs` 覆盖。
 
 ## 11. 已知限制与风险
 
@@ -452,6 +464,7 @@ L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID
 6. 设备 `meta` 不持久化，离线设备在列表中无名称/平台——与官方一致，手机端本地缓存已兜底。
 7. **整域回源官方的可用性未实测**：官方域可能校验 Host 之外的指纹（WAF/风控/验证码面，旧取证提过）；若回源被拒，退路是只反代远控路径、桌面其余流量仍走官方域（端点拆开配置）。
 8. 托管页版本与桌面版本的失配行为（§8.3）依赖 L1 实测登记。
+9. **`node:sqlite` 是 Node 实验特性**：`DatabaseSync` 在仓库钉版工具链（`mise.toml`，Node 24.14.0）下运行仍输出 `ExperimentalWarning: SQLite is an experimental feature`（单测/冒烟实测），API 面与行为可能在 Node 非语义化版本内变更，且不经 flag、默认内建（误升级 Node 即换实现）。约束：本包只在钉版工具链（Node 24.14.0）下开发、测试与交付，不对其他 Node 版本做兼容承诺；**复核条件：待 `node:sqlite` 在 Node 上游转正（不再标记 experimental、进入 LTS 语义化承诺）后复核一次 API 面与行为（建表/prepare/VACUUM INTO/WAL pragma），有破坏性变更再评估适配或迁移**。
 
 ## 12. 里程碑
 
@@ -477,6 +490,8 @@ packages/relay-v2-server/
 │   ├── devices.ts        # DeviceStore（node:sqlite）+ GC
 │   ├── tokens.ts         # TokenStore（一次性，内存）
 │   ├── auth.ts           # JWT decode / introspect / jwks + realm 命名空间
+│   ├── logger.ts         # 结构化日志（JSON Lines）+ 消息 trace 摘要字段红线（spec §9）
+│   ├── types.ts          # 内部组件接缝（§4 状态所有者接口；wire 类型 re-export 自 shared）
 │   └── config.ts
 ├── tools/
 │   ├── probe-token.ts       # M0：离线解 JWT 打印 claim 形状（脱敏）
@@ -485,7 +500,7 @@ packages/relay-v2-server/
 │   ├── verify-v4-build.mjs  # /remote/v4 构建校验：base 前缀 + 自建域 OAuth redirect 烘焙（§8.2）
 │   └── verify-same-origin.mjs # 同源链路 L1-lite 门禁：relay + 静态 + 前置同源入口三件，页面/资产 200、无凭据 401、烘焙非官方域（§8.1/§8.2/§10）
 ├── test/                 # L0 契约一致性套件（含历史故障模式 + 对照 fake relay 的差异断言）
-└── deploy/               # Caddyfile、docker-compose.yml（构建产物挂载）
+└── deploy/               # Caddyfile、docker-compose.yml（构建产物挂载）、run-relay.mjs（单一装配引导：容器入口与两个冒烟工具共用，§10）
 ```
 
 依赖仅 `ws`、`node:sqlite`（内置）与 `@drora/shared`（workspace:_，实际仅消费 `web-remote-relay` 子路径；该模块外部依赖只有 zod）。devDependencies 追加 `@drora/client` 与 `@drora/rpc`（workspace:_，仅 `test/differential.test.ts` 消费，`architecture-policy.yaml` 的 relay-v2-server `requires` 同步登记 `client`/`rpc`）：§10 L0 差异测试复用被测 transport 的公开协议入口（`createWebRemoteControlRelayProtocol` rpc-frame 组帧 + `VSBuffer`）对 fake relay 与本服务做同场景双打断言；src 构建闭包不变，tsup 产物仍零依赖（noExternal 不含 client/rpc）。新包接线清单：`pnpm-workspace.yaml` 的 `packages/_`glob 自动纳入；root`typecheck`项目清单与`architecture-policy.yaml`模块条目需登记（旧 relay-server 曾有`id: relay-server, managed: false` 先例）；不影响桌面产物——无任何包依赖它，不会进桌面 bundle。

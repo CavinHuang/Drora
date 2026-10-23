@@ -22,8 +22,9 @@ type JwkObject = webcrypto.JsonWebKey;
 /** realm 前缀分隔符：格式 `realm:identity` 已登记 spec §6.3（M0 定案前的临时格式）；单一出处 */
 const REALM_SEPARATOR = ":";
 
-/** Bearer 解析与 fake relay 同款：/^Bearer (.+)$/i；缺失或不匹配返回 undefined */
-export function parseBearerToken(authorizationHeader: string | undefined): string | undefined {
+/** Bearer 解析与 fake relay 同款：/^Bearer (.+)$/i；缺失或不匹配返回 undefined。
+ * 模块私有（评审 unused-exports：仅本模块四种模式消费，不属公开鉴权面） */
+function parseBearerToken(authorizationHeader: string | undefined): string | undefined {
   return authorizationHeader?.match(/^Bearer (.+)$/i)?.[1];
 }
 
@@ -85,6 +86,23 @@ function unwrapDataObject(body: unknown): Record<string, unknown> {
     return data as Record<string, unknown>;
   }
   return record;
+}
+
+/**
+ * introspect 业务失败信封（HTTP 200 但业务层表失败，spec §6.1.1 探测 #12）：BigModel
+ * userinfo 端点以 HTTP 200 + {code:1001, msg, success:false} 表达鉴权失败（与 §5.1 信封
+ * 规则同构），因此除 HTTP 状态外必须显式校验业务成功标志——否则「无身份 claim」会成为
+ * 唯一失败路径，失败体若恰好携带字符串 id/sub 会被 identityFromClaims 放行。
+ * 判据：success 严格 false、或 code 存在且非 0 即失败。code 具体成功值语义待 M0 定案：
+ * 当前取 0 为成功（客户端先例 bigmodelProviderAdapter token 交换的
+ * `code !== undefined && code !== 0` 即失败），定案后同步本注释与 spec §6.2。
+ */
+function isBusinessFailure(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return false;
+  const record = body as Record<string, unknown>;
+  if (record.success === false) return true;
+  const code = record.code;
+  return code !== undefined && code !== 0;
 }
 
 /** stub 模式（spec §12 M1）：JWT→userId 测试映射表，fake relay 同款 users 选项；映射值原样返回 */
@@ -187,8 +205,9 @@ export function createJwtAuth(options: CreateJwtAuthOptions): JwtAuth {
 
   /**
    * introspect：携 Bearer 调 INTROSPECT_URL 取身份。待 M0 验证：端点可用性与响应形状未实测；
-   * 端点是 token 有效性的权威（本地不重复检查 exp），网络失败/非 2xx/无身份 claim 一律视为
-   * 无法映射（401）。注意与客户端不同：客户端兜底 "unknown"，服务端必须拒绝而非归并到同一用户。
+   * 端点是 token 有效性的权威（本地不重复检查 exp），网络失败/非 2xx/业务 code 或 success
+   * 表失败（HTTP 200 也可能失败，§6.1.1 探测 #12）/无身份 claim 一律视为无法映射（401）。
+   * 注意与客户端不同：客户端兜底 "unknown"，服务端必须拒绝而非归并到同一用户。
    */
   const authenticateIntrospect = async (
     authorizationHeader: string | undefined,
@@ -210,6 +229,8 @@ export function createJwtAuth(options: CreateJwtAuthOptions): JwtAuth {
     } catch {
       return undefined;
     }
+    // 业务 code/成功标志校验（§6.1.1 探测 #12）：HTTP 200 不代表鉴权成功，先于身份提取
+    if (isBusinessFailure(body)) return undefined;
     const profile = unwrapDataObject(body);
     const identity = identityFromClaims(profile, idClaims);
     if (identity === undefined) return undefined;
@@ -328,8 +349,7 @@ export function createJwtAuth(options: CreateJwtAuthOptions): JwtAuth {
     }
     const aud = payload.aud;
     const audienceOk =
-      aud === jwksAudience ||
-      (Array.isArray(aud) && (aud as unknown[]).includes(jwksAudience));
+      aud === jwksAudience || (Array.isArray(aud) && (aud as unknown[]).includes(jwksAudience));
     if (!audienceOk) return undefined;
     const selected = await selectJwk(header);
     if (

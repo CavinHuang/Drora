@@ -5,6 +5,9 @@
 //
 // 选型说明（spec §3 有意裁决，覆盖仓库通用异步 IO 纪律）：node:sqlite DatabaseSync 同步接口
 // 单写者足够，全部写路径在请求线程同步完成，无后台合并、无多写者（spec §7）。
+// 风险登记（spec §11 第 9 条）：node:sqlite 是 Node 实验特性（运行期输出 ExperimentalWarning，
+// API 可能在 Node 非语义化版本内变更），本包只在仓库钉版工具链（mise.toml，Node 24.14.0）
+// 下开发/测试/交付，不对其他 Node 版本做兼容承诺；node:sqlite 上游转正后按 §11 复核条件复查。
 
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";

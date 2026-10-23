@@ -8,8 +8,9 @@ import { randomBytes } from "node:crypto";
 import type { WebRemoteControlRelayV2Role } from "@drora/shared/web-remote-relay";
 import type { RelayTokenIdentity, TokenStore } from "./types.js";
 
-/** 有效期 60 秒（spec §5.1 `expires_in: 60`；契约 docs/web-remote-control/relay-v2-pairing.md） */
-export const TOKEN_TTL_MS = 60_000;
+/** 有效期 60 秒（spec §5.1 `expires_in: 60`；契约 docs/web-remote-control/relay-v2-pairing.md）。
+ * 模块私有（评审 unused-exports：无包外消费，`expires_in: 60` 字面量即对秒的公开口径） */
+const TOKEN_TTL_MS = 60_000;
 /** 16 随机字节 → base64url 22 字符无填充（spec §5.1，fake relay 同款） */
 const TOKEN_BYTES = 16;
 

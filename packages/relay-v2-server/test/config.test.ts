@@ -1,7 +1,11 @@
 // loadConfigFromEnv 的容错解析与 spec §9 默认值回归（AGENTS：行为改动先补测试）。
+// 配置回退可观测（评审 config-observe-honesty）：回退键记录在 config.fallbacks，
+// 装配层 createRelayServer 统一转 warn 结构化日志——回退不能是静默的。
 
 import { describe, expect, it } from "vitest";
 import { loadConfigFromEnv } from "../src/config.js";
+import { createRelayServer } from "../src/index.js";
+import { createRelayLogger } from "../src/logger.js";
 
 describe("loadConfigFromEnv", () => {
   it("空环境返回 spec §9 全部默认值", () => {
@@ -131,5 +135,101 @@ describe("loadConfigFromEnv", () => {
     expect(config.bindHost).toBe("127.0.0.1");
     expect(config.dbPath).toBe("./relay-v2.db");
     expect(config.jwtRealm).toBeUndefined();
+  });
+});
+
+describe("配置回退可观测（spec §9「错误取值经结构化日志观察」的兑现链路）", () => {
+  it("非空非法值逐键记录进 fallbacks（仅键名与回退默认值，不携带原始值）", () => {
+    const config = loadConfigFromEnv({
+      LISTEN_PORT: "not-a-port",
+      JWT_STUB_USERS: "not-json",
+      AUTH_TIMEOUT_MS: "soon",
+      CORS_ENABLED: "yes",
+      LOG_LEVEL: "verbose",
+    });
+    expect(config.fallbacks).toEqual([
+      { key: "LISTEN_PORT", fallback: "8080" },
+      { key: "JWT_STUB_USERS", fallback: "(omitted)" },
+      { key: "AUTH_TIMEOUT_MS", fallback: "15000" },
+      { key: "CORS_ENABLED", fallback: "false" },
+      { key: "LOG_LEVEL", fallback: "info" },
+    ]);
+  });
+
+  it("合法值与空白值不产生回退记录（合法值恰等默认不算回退；无回退时字段缺省）", () => {
+    const config = loadConfigFromEnv({ LISTEN_PORT: "8080", BIND_HOST: "  " });
+    expect(config.listenPort).toBe(8080);
+    expect(config.fallbacks).toBeUndefined();
+  });
+
+  it("装配层（createRelayServer）对发生回退的键发 warn 结构化日志（评审 config-observe-honesty）", async () => {
+    const config = {
+      ...loadConfigFromEnv({ AUTH_TIMEOUT_MS: "soon", LOG_LEVEL: "verbose" }),
+      listenPort: 0,
+      dbPath: ":memory:",
+    };
+    const lines: string[] = [];
+    const logger = createRelayLogger({
+      level: "info",
+      trace: false,
+      scope: "relay-v2",
+      write: (line) => lines.push(line),
+    });
+    const handle = await createRelayServer({ config, users: { "jwt-x": "x" }, logger });
+    try {
+      const warns = lines.flatMap((line) => {
+        const parsed = JSON.parse(line) as {
+          ts?: number;
+          level?: string;
+          msg?: string;
+          scope?: string;
+          key?: string;
+          fallback?: string;
+        };
+        return parsed.level === "warn" && parsed.msg === "config-fallback" ? [parsed] : [];
+      });
+      expect(warns).toEqual([
+        {
+          ts: expect.any(Number),
+          level: "warn",
+          msg: "config-fallback",
+          scope: "relay-v2",
+          key: "AUTH_TIMEOUT_MS",
+          fallback: "15000",
+        },
+        {
+          ts: expect.any(Number),
+          level: "warn",
+          msg: "config-fallback",
+          scope: "relay-v2",
+          key: "LOG_LEVEL",
+          fallback: "info",
+        },
+      ]);
+    } finally {
+      await handle.stop();
+    }
+  });
+
+  it("无回退的 config 装配不产生 config-fallback 日志", async () => {
+    const config = {
+      ...loadConfigFromEnv({ LISTEN_PORT: "8080" }),
+      listenPort: 0,
+      dbPath: ":memory:",
+    };
+    expect(config.fallbacks).toBeUndefined();
+    const lines: string[] = [];
+    const logger = createRelayLogger({
+      level: "info",
+      trace: false,
+      scope: "relay-v2",
+      write: (line) => lines.push(line),
+    });
+    const handle = await createRelayServer({ config, users: { "jwt-x": "x" }, logger });
+    try {
+      expect(lines.some((line) => line.includes("config-fallback"))).toBe(false);
+    } finally {
+      await handle.stop();
+    }
   });
 });

@@ -16,6 +16,12 @@ export interface TopicWireAssemblyFault {
   logicalFrameOrdinal: number;
   topic: string;
   subscriptionId: string;
+  /**
+   * `proto.frameAssemblyInvalidPayload` 时附带的 zod issue 摘要（截前 10 条）。诊断增强：
+   * 2026-09-21 工具卡载荷事故与 2026-10-23 team 首帧事故里，只有 reasonCode 意味着
+   * 「知道烧了、不知道哪根键烧的」——payload 校验失败必须能把违规键带到日志里。
+   */
+  schemaIssues?: { path: string; message: string; code: string }[];
 }
 
 export type TopicWireAssemblyEvent<F> =
@@ -139,6 +145,17 @@ function hardBound(value: number | undefined, maximum: number, name: string): nu
     throw new RangeError(`${name} must be a positive finite number`);
   }
   return Math.min(Math.floor(resolved), maximum);
+}
+
+/** zod issue → 日志摘要：path 拍平成点路径，截前 10 条防日志洪水（见 TopicWireAssemblyFault.schemaIssues）。 */
+function schemaIssueSummary(
+  issues: readonly { path: readonly PropertyKey[]; message: string; code: string }[],
+): TopicWireAssemblyFault["schemaIssues"] {
+  return issues.slice(0, 10).map((issue) => ({
+    path: issue.path.map(String).join("."),
+    message: issue.message,
+    code: issue.code,
+  }));
 }
 
 export class TopicWireFrameAssembler<F> {
@@ -290,7 +307,9 @@ export class TopicWireFrameAssembler<F> {
       const parsed = this.frameSchema.safeParse(wire.frame);
       if (!parsed.success) {
         this.settle(key, wire);
-        events.push(this.fault(wire, WIRE_FAULT_INVALID_PAYLOAD));
+        events.push(
+          this.fault(wire, WIRE_FAULT_INVALID_PAYLOAD, schemaIssueSummary(parsed.error.issues)),
+        );
         return events;
       }
       this.settle(key, wire);
@@ -461,7 +480,9 @@ export class TopicWireFrameAssembler<F> {
     const parsed = this.frameSchema.safeParse(value);
     if (!parsed.success) {
       this.settle(key, assembly);
-      events.push(this.fault(assembly, WIRE_FAULT_INVALID_PAYLOAD));
+      events.push(
+        this.fault(assembly, WIRE_FAULT_INVALID_PAYLOAD, schemaIssueSummary(parsed.error.issues)),
+      );
       return events;
     }
     this.settle(key, assembly);
@@ -557,6 +578,7 @@ export class TopicWireFrameAssembler<F> {
       subscriptionId: string;
     },
     reasonCode: string,
+    schemaIssues?: TopicWireAssemblyFault["schemaIssues"],
   ): TopicWireAssemblyEvent<F> {
     const deliveryKind = parseDeliveryKind(source.deliveryKind);
     return {
@@ -568,6 +590,7 @@ export class TopicWireFrameAssembler<F> {
         logicalFrameOrdinal: source.logicalFrameOrdinal,
         topic: source.topic,
         subscriptionId: source.subscriptionId,
+        ...(schemaIssues === undefined ? {} : { schemaIssues }),
       },
     };
   }

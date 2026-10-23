@@ -62,7 +62,8 @@ function spawnConfirming(hub: TeamHub) {
       agentId: `agent_${member.memberName}`,
       childSessionId: `child_${member.memberName}`,
     }));
-    for (const row of rows) hub.confirmMemberSpawned(row.memberName, row.agentId, row.childSessionId);
+    for (const row of rows)
+      hub.confirmMemberSpawned(row.memberName, row.agentId, row.childSessionId);
     return rows;
   });
 }
@@ -177,7 +178,10 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
     expect(kinds[0]).toBe("team_created");
     expect(kinds).toContain("staged");
     expect(kinds).toContain("approved");
-    expect(kinds.filter((kind) => kind === "member_added")).toEqual(["member_added", "member_added"]);
+    expect(kinds.filter((kind) => kind === "member_added")).toEqual([
+      "member_added",
+      "member_added",
+    ]);
     // 草案任务随 staged 事实整体持久化，不走 task_created（那是运行期建任务的出口）
     expect(kinds).not.toContain("task_created");
     expect(kinds.filter((kind) => kind === "task_updated").length).toBeGreaterThanOrEqual(3);
@@ -575,9 +579,14 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     const live = hub.mailboxEntries();
     expect(live.length).toBeLessThanOrEqual(20);
 
-    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const entries = await store.sessionEntries({
+      sessionID: "lead_s1",
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+    });
     const { record } = replayTeamJournal(parseTeamJournalEntries(entries));
-    expect(record!.mailbox.map((entry) => entry.message)).toEqual(live.map((entry) => entry.message));
+    expect(record!.mailbox.map((entry) => entry.message)).toEqual(
+      live.map((entry) => entry.message),
+    );
     expect(record!.mailbox.at(-1)?.message).toBe("m24"); // 最旧被裁、最新保留
   });
 
@@ -602,12 +611,65 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     });
     await sink.flush();
 
-    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const entries = await store.sessionEntries({
+      sessionID: "lead_s1",
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+    });
     const parsed = parseTeamJournalEntries(entries);
     // 修复前：via 只认 steered/resumed，lead_injected 事实会被重放守卫整条跳过。
     expect(parsed.some((event) => event.payload.kind === "message_delivered")).toBe(true);
     const { record } = replayTeamJournal(parsed);
     expect(record!.mailbox.at(-1)?.deliveredAccepted).toBe(true);
     expect(record!.mailbox.at(-1)?.deliveredVia).toBe("lead_injected");
+  });
+});
+
+// ---------- 2026-10-23 legacy staged 事实空白归一（specs/agents-team.md §19 契约 2④）----------
+
+describe("legacy staged 事实空白 profile/thought 重放归一（§19 契约 2④）", () => {
+  it("legacy 空串 profile / 空白 thought 事实重放后归一为键缺席，烧帧草案不复燃", () => {
+    // legacy 形态直接手写事实：旧版本 journalStagedFact 曾把 optional 缺省写成
+    // profile: "" 落库。重放侧归一 = 与 stageTeam 物化处同一规范形（§19 契约 2②/④）——
+    // 不修则烧帧草案在 CLI 重启后复燃，且 fail-closed 下用户连 abandon 都不可达。
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: "2026-10-23T00:00:00.000Z",
+        payload: {
+          kind: "team_created",
+          teamId: "team_legacy",
+          leadSessionId: "lead_s1",
+          name: "legacy",
+          createdAt: "2026-10-23T00:00:00.000Z",
+        },
+      },
+      {
+        seq: 2,
+        at: "2026-10-23T00:00:01.000Z",
+        payload: {
+          kind: "staged",
+          teamId: "team_legacy",
+          awaitingFeedback: false,
+          members: [
+            { memberName: "alice", profile: "" },
+            { memberName: "bob", profile: "researcher" },
+            {
+              memberName: "carol",
+              modelSelection: { provider: "provider-a", model: "model-a", thought: "  " },
+            },
+          ],
+          tasks: [],
+        },
+      },
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record).toBeDefined();
+    const alice = record!.members.find((member) => member.memberName === "alice");
+    const bob = record!.members.find((member) => member.memberName === "bob");
+    const carol = record!.members.find((member) => member.memberName === "carol");
+    expect("profile" in (alice ?? {})).toBe(false);
+    expect(bob?.profile).toBe("researcher");
+    expect("thought" in (carol?.modelSelection ?? {})).toBe(false);
+    expect(carol?.modelSelection).toEqual({ provider: "provider-a", model: "model-a" });
   });
 });

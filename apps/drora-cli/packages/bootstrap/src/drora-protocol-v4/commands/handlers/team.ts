@@ -119,7 +119,9 @@ async function reviseTeamPlan(
       ...(roster.name === undefined ? {} : { name: roster.name }),
       draftMembers: roster.members.map((member) => ({
         memberName: member.memberName,
-        profile: member.profile ?? "",
+        // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——空白与
+        // 缺席由 hub.stageTeam 落库归一兜住，空串落库会破 wire min(1) 烧帧。
+        profile: member.profile,
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({
@@ -255,10 +257,10 @@ async function setTeamMemberName(
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
       draftMembers: roster.members.map((member) => ({
-        memberName: member.memberName === payload.memberName
-          ? payload.newName
-          : member.memberName,
-        profile: member.profile ?? "",
+        memberName: member.memberName === payload.memberName ? payload.newName : member.memberName,
+        // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——
+        // 同 reviseTeamPlan，空串落库会破 wire min(1) 烧帧。
+        profile: member.profile,
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({

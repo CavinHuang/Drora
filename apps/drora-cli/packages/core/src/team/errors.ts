@@ -6,10 +6,7 @@ import type { TeamPortError, TeamPortErrorCode } from "@drora/contracts";
  * 信息行动而不是猜。文案英文面向模型；code 单一出处见本文件。）
  */
 
-export type {
-  TeamPortError,
-  TeamPortErrorCode,
-} from "@drora/contracts";
+export type { TeamPortError, TeamPortErrorCode } from "@drora/contracts";
 
 /** 中央工厂：保证每个错误码的文案单一出处（单测断言入口）。 */
 export function teamPortError(
@@ -34,6 +31,16 @@ export function teamPortError(
         code,
         message: "This task has moved to a newer attempt.",
         hint: "Your attempt is stale. Stop working on it; do not re-claim or continue.",
+      };
+    // 2026-10-22 spec §16 契约 2（终态不可变补齐；dsh terminal-immutability-append-
+    // evidence）：终态结果不可改写，署名追补（acceptance_supplement）是唯一合法通道
+    // （spec §16.1）。不复用 attempt_revoked——其文案「已被转派」对已完工任务是错误
+    // 陈述，会把模型导向「任务被抢走」的错误行动模型；教学文案必须导向追补通道。
+    case "terminal_read_only":
+      return {
+        code,
+        message: `Task '${params.id ?? "?"}' is already finished; its output and artifact refs are immutable.`,
+        hint: "Do not rewrite a finished task. Submit additional evidence via acceptance_supplement instead of patching output or artifact_refs.",
       };
     case "invalid_transition":
       return {
@@ -134,6 +141,14 @@ export function teamPortError(
         code,
         message: `Draft task dependencies form a cycle: ${params.path ?? "?"}.`,
         hint: "Cyclic tasks can never become ready. Break the cycle by removing one depends_on edge.",
+      };
+    // §17 契约 4（2026-10-23）：草案字段与 wire 限额同门。超限草案一旦落库，投影
+    // 一 emit 就烧帧（fail-closed 白屏），所以必须在源头拒绝并给出可行动文案。
+    case "draft_field_too_long":
+      return {
+        code,
+        message: `Draft field '${params.field ?? "?"}' exceeds the wire limit of ${params.limit ?? "?"} characters.`,
+        hint: "Shorten the field (member names and profiles ≤128 chars; task title/goal/acceptance items ≤8000) and stage the draft again. Nothing was stored.",
       };
   }
 }

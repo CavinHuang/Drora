@@ -5955,9 +5955,7 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 /** β 接缝视图:lead 会话的 hub → shared team 投影输入(装配面唯一查询点)。 */
-function teamProjectionViewOf(
-  sessionId: string,
-): ReturnType<typeof projectTeam> | undefined {
+function teamProjectionViewOf(sessionId: string): ReturnType<typeof projectTeam> | undefined {
   const hub = getInstalledTeamHub(sessionId);
   const roster = hub?.snapshot();
   const board = hub?.board();
@@ -5965,6 +5963,10 @@ function teamProjectionViewOf(
   const record = {
     teamId: roster.teamId,
     status: roster.status,
+    // specs/agents-team.md §19 契约 3（2026-10-23）：桥此前漏映射 roster.name，TeamSpawn
+    // 命名的队名到不了 wire——会话卡/面板/摘要卡恒显 fallback 通用标题。name 经
+    // projectTeam（core projection.ts）直达 teamProjectionStateSchema.name。
+    ...(roster.name === undefined ? {} : { name: roster.name }),
     ...(roster.permissionMode === undefined ? {} : { permissionMode: roster.permissionMode }),
     members: roster.members.map((member) => ({
       agentId: member.agentId,
@@ -5974,6 +5976,13 @@ function teamProjectionViewOf(
       state: member.state,
       ...(member.currentTaskId === undefined ? {} : { currentTaskId: member.currentTaskId }),
       ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }),
+      // §19 契约 3：路由快照（spec §8.7 建队时刻定死）只经 stagedDraft.draftMembers 行
+      // 上 wire（core projection.ts stagedDraftOf 映射）——花名册行
+      // teamMemberProjectionSchema 无此键，memberProjectionOf 不消费，此处不落
+      // members 行是正确现状（staged 审批面成员行据此显示建队路由，§10「审批面定义
+      // 即全量呈现」）。前置依赖：thought 空白已在 hub 落库归一为键缺席（§19 契约 2），
+      // 补映射不会让空 thought 破 wire min(1) 烧帧（§17 契约 4）。
+      ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
     })),
     tasks: (board?.tasks ?? []).map((task) => ({
       taskId: task.taskId,

@@ -57,7 +57,13 @@ export type TeamJournalPayload =
       tasks: readonly TeamJournalTaskFact[];
     }
   | { kind: "approved"; teamId: string }
-  | { kind: "member_added"; teamId: string; memberName: string; agentId: string; childSessionId: string }
+  | {
+      kind: "member_added";
+      teamId: string;
+      memberName: string;
+      agentId: string;
+      childSessionId: string;
+    }
   | { kind: "task_created"; teamId: string; task: TeamJournalTaskFact }
   | { kind: "task_updated"; teamId: string; task: TeamJournalTaskFact }
   | { kind: "message_appended"; teamId: string; entry: TeamMailboxEntry }
@@ -275,7 +281,9 @@ export function replayTeamJournal(
     updatedAt = event.at;
     const payload = event.payload;
     if (!isPayloadWellFormed(payload)) {
-      warn?.(`team journal event skipped (malformed payload): seq=${event.seq} kind=${payload.kind}`);
+      warn?.(
+        `team journal event skipped (malformed payload): seq=${event.seq} kind=${payload.kind}`,
+      );
       continue;
     }
     if (payload.kind === "team_created") {
@@ -309,20 +317,34 @@ export function replayTeamJournal(
     }
     if (record === undefined) {
       // 无 team_created 的流首（损坏头）：后续事实无处附着，整流按无 team 处理。
-      warn?.(`team journal event before team_created skipped: seq=${event.seq} kind=${payload.kind}`);
+      warn?.(
+        `team journal event before team_created skipped: seq=${event.seq} kind=${payload.kind}`,
+      );
       continue;
     }
     switch (payload.kind) {
       case "staged": {
         record.name = payload.name;
-        record.members = payload.members.map((member) => ({
-          agentId: `pending_${member.memberName}`,
-          memberName: member.memberName,
-          ...(member.profile === undefined ? {} : { profile: member.profile }),
-          ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
-          state: "spawning" as const,
-          removed: false,
-        }));
+        // 2026-10-23 空白归一（specs/agents-team.md §19 契约 2④）：legacy 空串
+        // profile/空白 thought 事实原样恢复会让烧帧草案在 CLI 重启后复燃——
+        // fail-closed 下用户连 abandon 都不可达。重放即归一为键缺席，与
+        // hub.stageTeam 物化处同一规范形（§19 契约 2②）。
+        record.members = payload.members.map((member) => {
+          const profile = member.profile?.trim() === "" ? undefined : member.profile;
+          let modelSelection = member.modelSelection;
+          if (modelSelection !== undefined && modelSelection.thought?.trim() === "") {
+            const { thought: _blankThought, ...rest } = modelSelection;
+            modelSelection = rest;
+          }
+          return {
+            agentId: `pending_${member.memberName}`,
+            memberName: member.memberName,
+            ...(profile === undefined ? {} : { profile }),
+            ...(modelSelection === undefined ? {} : { modelSelection }),
+            state: "spawning" as const,
+            removed: false,
+          };
+        });
         record.tasks = payload.tasks.map((fact) => ({
           ...fact,
           handoffId: undefined,
@@ -339,7 +361,9 @@ export function replayTeamJournal(
         break;
       }
       case "member_added": {
-        const member = record.members.find((candidate) => candidate.memberName === payload.memberName);
+        const member = record.members.find(
+          (candidate) => candidate.memberName === payload.memberName,
+        );
         if (member === undefined) {
           warn?.(`team journal member_added without draft member: ${payload.memberName}`);
           break;
@@ -362,7 +386,9 @@ export function replayTeamJournal(
         record.mailbox = markDelivered(record.mailbox, payload.messageIds, payload.via, payload.at);
         break;
       case "member_removed": {
-        const member = record.members.find((candidate) => candidate.memberName === payload.memberName);
+        const member = record.members.find(
+          (candidate) => candidate.memberName === payload.memberName,
+        );
         if (member === undefined) break;
         // 退休拒绝表：removed 标记持久化，被移除成员永不接受复活/续聊（E6/E11）。
         member.removed = true;
@@ -413,7 +439,8 @@ function derivedActiveIdle(record: TeamRecord): TeamRecord["status"] {
   const busy =
     record.members.some(
       (member) => !member.removed && (member.state === "working" || member.state === "spawning"),
-    ) || record.mailbox.some((entry) => !entry.deliveredAccepted && isCurrentMail(record.tasks, entry));
+    ) ||
+    record.mailbox.some((entry) => !entry.deliveredAccepted && isCurrentMail(record.tasks, entry));
   return busy ? "active" : "idle";
 }
 
@@ -441,7 +468,11 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
         payload.tasks.every(isTaskFactWellFormed)
       );
     case "member_added":
-      return nonEmpty(payload.memberName) && nonEmpty(payload.agentId) && nonEmpty(payload.childSessionId);
+      return (
+        nonEmpty(payload.memberName) &&
+        nonEmpty(payload.agentId) &&
+        nonEmpty(payload.childSessionId)
+      );
     case "task_created":
     case "task_updated":
       return isTaskFactWellFormed(payload.task);
@@ -451,7 +482,9 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
       return (
         Array.isArray(payload.messageIds) &&
         payload.messageIds.every((id) => typeof id === "string") &&
-        (payload.via === "steered" || payload.via === "resumed" || payload.via === "lead_injected") &&
+        (payload.via === "steered" ||
+          payload.via === "resumed" ||
+          payload.via === "lead_injected") &&
         nonEmpty(payload.at)
       );
     case "member_removed":

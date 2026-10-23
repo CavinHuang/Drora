@@ -517,7 +517,9 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
   subagent 与 teammate 混排同面板。数据全部来自 conversationProjectionStore 的 team
   投影，**不走第二条真相通道**；派生视图状态入 teamStore。
 - **staged 审批视图（两阶段成队）**：staged 态的 TeamPanel 即草案编辑器——成员行
-  （路由/角色/思考档可改，照 host 模型目录取数）、任务 DAG（负责人/依赖可改）；
+  （名称/角色/路由只读展示；「路由/角色/思考档可改」与任务 DAG「负责人/依赖可改」
+  归后续卡，前置条件见 §15「明确不做」登记——本行 2026-10-23 收窄，消除与 §15 的
+  自相矛盾，实现与 wire 现状均为只读）；
   「确认并启动」（v4 命令 approveTeamPlan）是唯一创建成员的入口；「回对话修改」把
   草案标记为等待反馈、取消规划回合并只追问一次修改方向，之后必须原子更新同一草案
   （不得另建 team）；「放弃」归档草案并禁止自动重建。审批面挂载于会话流卡
@@ -1320,6 +1322,15 @@ staged 分支与侧栏 TeamSidePane → TeamPanel 两个挂载点）的呈现对
 4. **note 闭环保持不动**：「回对话修改」的备注经 reviseTeamPlan 后由宿主预填会话
    输入框（`packages/ui/src/team/revise-prefill.ts` 现状；缺口9 的
    requestComposerTextInsert 通道与 targetSessionId 消费门均不变）。
+   **三发起面 revise note 一律经预填通道落对话（2026-10-23 扩圈登记）**：预填接线自
+   侧栏（TeamSidePane）扩至 dock（SessionPane 守卫块 → TeamApprovalDock）与摘要卡
+   （TeamConversationSummary 内联形态），两面经 TeamStagedEditorConnected 统一注入
+   （buildTeamReviseComposerPrefill，question+note，目标 = lead 会话，照缺口9 既有
+   requestComposerTextInsert 通道与消费门，零新 composer 写路径）；无法触达 composer
+   的挂载面（判定 = 未注入 onPrefillComposer，现含远端 timeline 摘要卡
+   RemoteConversationTimeline）隐藏 note 输入并出「请在对话说明」提示（i18n
+   `team.stagedEditor.noteSuppressedHint` 双语）——禁止 note 静默丢弃。hub 不消费
+   wire note 的 v1 边界不变（实现登记 2026-10-18 M3 第 5 条）。
 5. **不做「显示完整草案」折叠**：依据写在 §10 审批面定义本身——wire 草案刻意只
    投影呈现字段（teamStagedDraftTask 仅 taskId/title/assignee/dependsOn，
    `packages/shared/src/drora-protocol-v4/team.ts:232-239`；goal/acceptance/
@@ -1337,3 +1348,1162 @@ staged 分支与侧栏 TeamSidePane → TeamPanel 两个挂载点）的呈现对
    - **任务 DAG 时间线**：draftTasks 上界 boardTasksMax=100（team.ts:31、:244）对
      workflow phases ≤32（`create-workflow-display.ts:133`）存在上界冲突——后续卡
      必须先定超界降级策略再动工。
+
+## 16. dsh-agent-teams 好设计借鉴 P0 批次——失败分类/终态不可变/邮箱投递租约/send 幂等与溯源配对（2026-10-22 登记，先于实现）
+
+本节是 2026-10-22 dsh-agent-teams 三轮调研产物（报告：`out/dsh-study/dsh-agent-teams-good-designs.md`；
+对照基线见 §15/§16）差距分析得出的四项 P0 缺口的**行为契约登记**。按 AGENTS.md「新增或修改
+行为前，先更新对应 spec」纪律，契约先于实现落本文件；本节各项状态为**未实现**，实现落地后
+在本节逐项补验证结果。四项全部是「spec 已定、实现缺位」的补齐（§16.1/§16.2/§16.3 既有裁决
+的实现载体），不新开产品能力。与 §0「不做什么」及受限成员消息（§1「用户对成员说话」）逐项
+对照：契约 2/3/4 无冲突；契约 1 的原提案甄别式与 §2.6 sticky park 裁决冲突，已按既有裁决
+收窄（见契约 1 适配修正），核心项保留 P0。
+
+**登记基线（实跑）**：`cd apps/drora-cli/packages/core && npx vitest run tests/team/` →
+10 文件 / 100 测试全绿（9.07s）。typecheck/lint 本节未运行（纯 spec 修订，零代码改动）。
+
+### 契约 1｜成员终态失败处置分类器（事件现场世代核对）
+
+来源：dsh「成员终态失败处置」族（members.ts 语义，confirmed；报告 §调度与恢复主题）。
+落点：§16.2「LLM 失败处理」（已定未实现，本契约补实现载体）+ §2.3 任务板语义。
+
+现状缺口（实读证实）：install.ts:168-189 `syncMemberRuntimeState` 把 RuntimeTaskRegistry
+全部六值终态（registry.ts:105-112：completed/failed/cancelled/killed/stopped/lost）一律汇入
+hub.handleMemberTerminal（hub.ts:540-555）——只置 terminal+park+kick，不区分成败：成员回合
+死于模型侧失败（429/鉴权/异常重试耗尽）时任务永久停在 claimed/in_progress（doKickMember
+hub.ts:688-693 对 owned 任务 sticky park 直接 return），lead 零通知（DSH issue #205
+「面板全绿但最后一轮死了」同形事故）。既有测试（team-hub.test.ts:295-349）只锁派发/回滚，
+无失败分类用例。
+
+**行为契约**：
+
+- `classifyMemberFailure(observed, current)`（board.ts 新增纯函数，三分）：
+  - `ignored`：成员已移除或换代（花名册无此成员 / agentId 已换），或 observed 的
+    taskId/attemptId/assignee 任一与该成员当前开放任务不符——迟到失败不误伤新代；
+  - `noted`：无开放任务——板零改动，仅通知；
+  - `failed_attempt`：精确匹配（taskId、attemptId、assignee 三者一致，任务
+    claimed/in_progress）→ 任务置 failed（claimed→failed 与 in_progress→failed 均为
+    TASK_TRANSITIONS 合法边，board.ts:21-22），仅该代标 failed。
+- `hub.handleMemberFailed(memberName, info: { status, stopInitiator? })`：
+  `failed_attempt` → 走 applyTaskUpdate 同路径置 failed + journalTaskFact + 经既有邮箱
+  路径通知 lead（from=成员、to=lead、携 source_task_id/source_attempt_id——迟到投递由
+  isCurrentMail 自动失活），附可行动文案（§16.2：含路由命名错误与 fallback 提示）；
+  `ignored` → 全静默；`noted` → 仅通知不动板。
+- install.ts 终态边缘分诊：completed → 既有 handleMemberTerminal；**failed/lost →
+  handleMemberFailed**；killed/stopped/cancelled 一律不标 failed（见适配修正）；
+  `record.status === "halted"` 期间的失败边缘不分类（§2.6 冻结面：消费边缘，不 kick
+  亦不标 failed）。
+
+**适配修正（偏离差距分析原案，登记裁决）**：原案以 `stopInitiator !== "user"` 甄别
+stopped/killed 是否用户中断。实读证伪：成员停机路径（runner.ts:1674-1695
+createBackgroundStoppedTask）写 registry 终态 **"killed"**（runner.ts:1670
+BACKGROUND_AGENT_STOPPED_STATE.registryStatus）且**不写 stopInitiator**——stopInitiator
+目前仅 dwf 停止分支写入（background-stop-dynamic-workflow.ts:51），成员路径恒为 undefined。
+成员路径的全部 stopped/killed 终态都来自 hub 自身中断动作（halt 的 interruptAndSettle、
+removeMember 静默、spawn 回收、abort 级联），照 §2.6「被中断成员的 claimed+parked 任务
+仍 sticky（只由 lead 转派轮换）」一律不标 failed；若按原案判定（`undefined !== "user"`
+恒真），halt 中断成员的 sticky 任务会在 settle 超时窗口（install.ts:150，30s 上限）跨过
+resume 后被误标 failed。故标 failed 的终态收窄为 failed/lost（模型侧失败）；
+stopInitiator 仅随 info 透传作诊断，不作甄别键。
+
+**不变量**：
+
+- 迟到失败（attemptId/assignee 已换代）必须被 ignored 且不影响任务状态。
+- failed_attempt 只置 failed、不自动重试、不强制置 idle（§16.2 原文）。
+- halted 冻结期到达的失败边缘被消费后不补分类（lastSeen 去重），任务保持 sticky park
+  由 lead 转派兜底——已知边界，与 §2.6 一致。
+- abort 级联若产生 failed 终态，team 此刻已在归档/取消态，分类无调度后果
+  （isArchival 冻结门）。
+- 任务进 failed 后无复活路径（TASK_TRANSITIONS 终态无出边 + reassign 拒终态）；
+  显式重开边界属 P1（见本节末「后续候选」；2026-10-23 起由 §16 契约 5 收窄为
+  「无自动复活路径，lead 显式重开 reopenTask 是唯一受控通道」，失败通知文案随之更新）。
+
+**测试要求**（tests/team）：
+
+- team-hub.test.ts 新增五案：①失败且世代当前 → 任务 failed + lead 邮箱恰一条（携
+  source_task_id/source_attempt_id）+ journal task_updated；②失败前任务已转派
+  （attemptId 失配）→ 板零改动（新代不被误伤）；③失败时任务已 completed → 板零改动
+  但 lead 仍收一次通知（noted）；④halted 冻结期的 failed 边缘 → 不标 failed；
+  ⑤killed/stopped/cancelled 终态 → 不标 failed（保持 sticky park）。
+- team-install-runtime.test.ts 新增：真实 registry failed 终态边缘 → handleMemberFailed
+  被调（经 subscribe 链路断言，不直接调 hub 方法）。
+
+**不做**：不引入 dsh 的失败重试预算与备用路由自动切换（§16.2「备用路由按配置选择」
+属后续）；不给 lead 新增失败处置工具（通知走邮箱）。failed 终态不可经 reassign 处置
+（reassign 拒终态，见上不变量）——失败通知文案按此裁决不再建议转派/接管，补救为
+lead 新建替代任务再指派（见下方实现验证段裁决④）。
+
+**实现验证（2026-10-22，本项已落地）**：board.ts `classifyMemberFailure`（三分纯函数）、
+hub.ts `handleMemberFailed`、install.ts 终态边缘分诊（failed/lost → handleMemberFailed，
+killed/stopped/cancelled → 既有 handleMemberTerminal，halted 冻结门在 hub 侧）按本契约实现。
+两处登记为最小必要的实现细节：① info 在契约登记的 `{ status, stopInitiator }` 之上
+additive 扩展 `agentId?/attemptId?/detail?`——事件现场世代核对（registry 快照
+parentToolCallId/error 可得族）与 §16.2「路由命名错误」文案的载体，缺项不参与失配判定；
+② failed_attempt 的通知先于置 failed 入箱——任务进 failed 即凭证关闭（attemptId 清空），
+isCurrentMail 第一谓词会把事后入箱的通知判为过期死件，lead 将永远收不到；先入箱经
+routeMail → deliverPendingLeadMail 同步评估世代当次投递，迟到重投仍由 isCurrentMail 自动
+失活（本契约登记语义）。终局复核补登两裁决（2026-10-22）：③ 失败通知整段写入
+task.output（`patch:{status:"failed", output:note}`）作为终态结果记录——成员死前
+in_progress 阶段已写的部分 output 会被通知覆盖、且终态后受契约 2 terminal_read_only
+封锁不可恢复，该覆盖面为有意取舍（output 承载「该代如何结束」的单一事实，同文通知
+进 lead 邮箱），team-hub.test.ts ① 锁定；④ 通知文案终态一致性——早期文案建议
+「reassign (TeamReassign) the work or take it over yourself」，与 reassign 拒终态
+（invalid_transition）矛盾且 noted 路径无任务可转派；改为有绑定时「the failed task
+is terminal and cannot be reopened or reassigned; create a replacement task and
+assign it instead」、无绑定时不含转派建议，路由命名与 fallback 提示保留
+（team-hub.test.ts ①/③ 断言同步）。实跑：`cd apps/drora-cli/packages/core &&
+npx -y pnpm@10.33.2 exec vitest run tests/team` → 10 文件 / 107 测试全绿（8.73s；基线 100 + 本契约新增 7 =
+五案 + classify 边界表 + install-runtime ⑩ 经真实 subscribe 链路断言）。core `tsc` 构建、
+bootstrap `tsc --noEmit` 均过；core oxlint 0 警告 0 错误；改动文件经 apps/drora-cli 工作区
+oxfmt 0.47 格式化并通过 `--check`。
+
+### 契约 2｜终态不可变补齐：封住已完成任务 output/artifactRefs 的无凭证改写
+
+来源：dsh「terminal-immutability + append-only evidence」（§3.11 族，confirmed；其锁定
+测试同族）。落点：§16.1「终态不可变 + 署名追补」（已定，现状违反，本契约补齐）。
+
+现状缺口（实读证实）：board.ts:179-193 applyTaskUpdate 的凭证校验（E1 缺 attempt_id /
+E2 错 attempt_id / assignee 核对）整体包在 `if (!terminal)` 内，已终态任务跳过一切校验；
+board.ts:242-245 的 patch.output 写与 artifactRefs 追加对终态任务无条件生效——任何在场
+成员（checkPresence hub.ts:1266-1274 仅要求在册）可用
+`TeamTaskUpdate{task_id, attempt_id:"x", patch:{output:"改写"}}` 静默改写 completed 任务
+产出。已核对无既有测试依赖终态改写（team-board.test.ts:255、:265-273 的 completed 任务
+均为直接构造，非 patch 路径）。
+
+**行为契约**：
+
+- applyTaskUpdate 入口先捕获 `wasTerminal = isTerminalTaskStatus(task.status)`
+  （**迁移前旧态**）。
+- `wasTerminal === true` 时：patch.output 与 patch.artifactRefs 的写被拒绝（拒绝 +
+  教学文案；错误码入 errors.ts 单一出处——新增终态只读文案或复用 attempt_revoked
+  语义族，实现时二选一并全链 grep 生产与消费）；acceptanceSupplement 追加保持唯一
+  合法终态通道（board.ts:203-231 append-only 现状保留）。
+- `wasTerminal === false` 时行为不变：同一次更新内 `status:"completed" + output` 的
+  合法派发/提交流不受影响（凭证按迁移前状态核对）。
+
+**不变量**：
+
+- 已终态任务的 output/artifactRefs 不可被任何端口调用改写，无论 attempt_id 携带何值
+  （空 / 错 / 恰好同值）——「过期 attemptId 的 update 必须被拒绝且不影响任务状态」
+  在终态面同样成立。
+- 「同一次更新置 completed + output」合法且行为不变。
+- acceptanceSupplement 对终态任务永远可追加且 append-only（不改状态、不重认领，
+  §16.1）。
+
+**测试要求**（tests/team）：
+
+- team-board.test.ts 新增：completed 任务带 patch.output 更新 → 拒绝且 output 不变；
+  attempt_id 空值/错值同样拒绝；同一次更新 `status:"completed"+output` → 成功（迁移前
+  非终态）；acceptanceSupplement 对 completed 仍可追加（既有锁定保留）。
+- team-hub.test.ts 补一条经端口全链路断言：成员端口对 completed 任务提交 patch.output
+  → rejected 且板上 output 不变。
+
+**不做**：不做 dsh 的「同作者同代重复追补去重」加强——v1 只封改写口，append-only
+已满足 §16.1。
+
+**实现验证（2026-10-22，本项已落地）**：board.ts `applyTaskUpdate` 入口捕获
+`wasTerminal = isTerminalTaskStatus(task.status)`（迁移前旧态），终态下携带
+patch.output/artifactRefs 的更新整次拒绝（含混带追补的输入，不做部分应用——与函数
+其余拒绝路径一致，登记为实现细节）；非终态路径（凭证 E1/E2/assignee 核对）与
+「同一次更新 completed+output」行为不变；acceptanceSupplement append-only 通道保留。
+「二选一」裁决：**新增错误码 `terminal_read_only`**（contracts team.port.ts union 追加
++ errors.ts 教学文案单一出处），不复用 attempt_revoked——其文案「已被转派」对已完工
+任务是错误陈述，违背「错误分类即协议」；全链 grep 核实错误码字面量落点：contracts
+union 追加成员（team.port.ts:220）、errors.ts 文案单一出处（errors.ts:39）、board.ts
+唯一生产点（board.ts:238），测试为消费面（team-board.test.ts:335/346/356/375 与
+team-hub.test.ts:1085）；hub 不含该字面量，仅经 `applyTaskUpdate` 返回值透传错误对象，
+wire 侧 reasonCode 为自由字符串模板
+（drora-protocol-v4/commands/handlers/team.ts `fault.command.teamRejected.${code}`），
+无闭合枚举校验，union 追加 additive 安全。实跑：
+`cd apps/drora-cli/packages/core && npx -y pnpm@10.33.2 exec vitest run tests/team` →
+10 文件 / 112 测试全绿（6.37s；契约 1 落地后基线 107 + 本契约新增 5 = board 四案
+[一次性 completed+output 合法 / 空·旧凭证改写全拒且零副作用 / 混带追补整次拒绝 /
+追补通道保留] + hub 成员端口全链路一案）；contracts/core `tsc --noEmit` 均过（contracts
+dist 重建后）；改动源文件 oxlint 0 警告 0 错误；改动文件经 apps/drora-cli 工作区
+oxfmt 格式化并通过 `--check`。
+
+### 契约 3｜邮箱投递租约（claim/release）：消除 routeMail×kick 双投窗口
+
+来源：dsh「投递 claim 互斥 + 60s 崩溃租约」（confirmed：42 并发混合投递零丢失零重复；
+报告 §通信/并发主题）。落点：§16.3「投递链：裁决内领取投递权 → 注入 → 仅在被接受后
+标记已送达，失败释放投递权留待重试」——『领取投递权』已写入 spec 但实现无载体，
+本契约补实现。
+
+现状缺口（实读证实）：TeamMailboxEntry（types.ts:68-88）仅有
+deliveredAt/deliveredVia/deliveredAccepted，无投递租约；pendingMail（mailbox.ts:85-96）
+按 `deliveredAccepted === false` 选取。双投窗口实存：routeMail 对 working 成员的即时
+投递 fire-and-forget（hub.ts:1119-1139 steer、1151-1172 复活，markDelivered 在 dispatch
+resolve 后才写）；窗口内 doKickMember（hub.ts:661-686）可被 portTaskCreate 的 assignee
+kick（hub.ts:970-972）或 kickTeam（hub.ts:649）/removeMember（hub.ts:605-612）再次捡起
+同一批未标记邮件重复 dispatch。lead 批量路径 deliverPendingLeadMail（hub.ts:1185-1214）
+三个并发触发点（routeMail hub.ts:1108、kickTeam hub.ts:649、TurnComplete sink
+install.ts:422-430）同理可对同一 pending 集各投一次。
+
+**行为契约**：
+
+- TeamMailboxEntry 增内部态 `deliveryClaimedAt?: string`——**wire 不动**
+  （teamMailboxTailEntrySchema 仅 delivered 布尔，drora-protocol-v4/team.ts:190-204）；
+  journal message_appended 携带新字段对 replay 结构守卫透明（isMailboxEntryWellFormed
+  journal.ts:495-506 只验必填、不拒多余字段）。
+- routeMail / doKickMember / deliverPendingLeadMail 三条投递路径在发起 dispatch 前
+  同步盖 claim（`clock.now()`）；dispatch 拒绝或抛错 → 释放 claim；dispatch 被接受 →
+  markDelivered 覆盖（deliveredAccepted=true 后 claim 无语义）。
+- pendingMail 与 lead 选取谓词跳过「claim 未过期」条目；租约时长常量入
+  TEAM_KERNEL_LIMITS（types.ts:120-127），拍 **60s**（照 dsh 崩溃租约），时钟经
+  BoardClock 注入可测（fake clock 推进超租约 → 可重投）。挂起中的 dispatch 不主动续租，
+  租约到期自然失效。
+
+**架构差异登记（不借鉴半部）**：dsh 的 read 三态（宿主接受 ≠ 模型消费）不借鉴——
+Drora 无 pre-step 准入钩子、投递即注入，「宿主接受 ≠ 模型消费」的分野无消费面；
+§16.3「ack 只认注入」的 Drora 语义（lead enqueue 即接受、成员 steer/resumed 即接受）
+不变。
+
+**不变量**：
+
+- 同一条邮件在租约有效期内至多被一条投递路径拾取；两条路径并发到达时恰一条 dispatch
+  收到该邮件体。
+- dispatch 拒绝 → claim 释放，下一投递边缘重投恰一次（不因失败丢件）。
+- 正常投递耗时超租约会提前重投——幂等兜底靠 ack 只认注入（dsh 同款已知边界），
+  常量 60s 与取舍在此登记。
+- markDelivered 成功后条目退出 pending 集，重复投递调用零副作用（现状保留）。
+
+**测试要求**（tests/team）：
+
+- team-hub.test.ts 新增三案：①dispatch 返回挂起 promise 期间并发 kickTeam → 第二条
+  路径跳过已 claim 邮件（dispatch 恰一次收到该邮件体）；②dispatch 拒绝 → claim 释放、
+  下一边缘重投恰一次；③fake clock 推进超租约 → 可重投。
+- team-mailbox.test.ts 新增：pendingMail 的 claim 过滤谓词（未过期跳过 / 过期放行 /
+  无 claim 放行）与 markDelivered 覆盖语义。
+
+**不做**：不引入 NanmiCoder 的 withTeamLock 进程内锁——本仓状态权威在 team journal，
+hub 单所有者同步裁决已覆盖同步面（§16.4 既有裁决）；租约只封「裁决外异步投递窗口」
+（dispatch 发起到 markDelivered 之间），不是锁，不改变「hub 是唯一写者」模型。
+
+**实现验证（2026-10-22，本项已落地）**：types.ts `TEAM_KERNEL_LIMITS.deliveryLeaseMs =
+60_000`（租约时长唯一出处）+ `TeamMailboxEntry.deliveryClaimedAt` 内部态（不透 wire）；
+mailbox.ts `isDeliveryLeaseActive`（无 claim 放行 / 未过期跳过 / 过期放行）、
+`claimDeliveryLease`（按 messageId 集合盖 claim）、`releaseDeliveryLease`（带
+ownerClaimedAt owner 核对——只释放自己的 claim，防并发路径误清他人租约开出第三重投
+窗口）、pendingMail 谓词租约过滤与 `markDelivered` 覆盖 claim（正常路径清租约并退出
+pending 集）按本契约实现。hub.ts 全部投递路径盖 claim，拒绝与 dispatch 抛错同责 catch
+释放（lead 派发、portSend 两分支、成员报告 kick 三面）——「抛错与拒绝同责」登记为
+实现细节（throw 不经返回值，catch 面统一释放）。实跑：实现项 3 deferred 登记
+`cd apps/drora-cli/packages/core && npx -y pnpm@10.33.2 exec vitest run tests/team`
+→ 10 文件 / 120 测试全绿（契约 1/2 落地后基线 112 + 本契约新增 8：hub 三案 [并发
+kick 跳过已 claim / 拒绝释放后下一边缘重投恰一次 / fake clock 超租约重投] + mailbox
+租约谓词与 markDelivered 覆盖分支；终局全套含契约 4 为 129，见契约 4 验证段）。
+
+### 契约 4｜TeamSend 世代纪律：内容级幂等去重 + source 配对校验
+
+来源：dsh「identical report retries reuse one durable message」（补1/补6，confirmed
+directly borrowable）+「source_task_id / source_attempt_id 成对且与调用者当前代一致」
+（tools.ts 语义）。落点：§16.3「结构化溯源」附近补两条：send 幂等去重、source 成对校验。
+
+现状缺口（实读证实）：①enqueueMail（hub.ts:1077-1097）来者皆入箱——模型超时/重试重发
+同一条 TeamSendMessage 会重复入箱并重复唤醒收件方；②portSend（hub.ts:1015-1074）对
+sourceAttemptId 来者照收且可选——报告只在携带 sourceAttemptId 时受 isCurrentMail 世代
+过滤（mailbox.ts:49-74），省略即全量穿透；成员工具 schema 两键皆可选（team-tools.ts
+TeamSendInputSchema：source_task_id / source_attempt_id 均 optional）。
+
+**行为契约**：
+
+- 幂等去重（mailbox.ts 新增纯谓词）：候选与既有条目满足 from、to、message 逐字相同
+  且 source 三元组（sourceTaskId/sourceAttemptId/sourceTaskStatus）与 target 双键
+  （targetTaskId/targetAttemptId——2026-10-23 补审计增补，登记与测试要求见 §20 契约 2）
+  相同、且旧条目仍 isCurrentMail → 命中去重：
+  - 任务绑定报告（sourceAttemptId 有值）：无论旧条目是否已投递都去重（同报告重试
+    复用同一条持久消息）；
+  - 未绑定任务的普通引导：仅旧条目未投递时去重，已投递后重发允许新条目（有意重复
+    提醒通道保留）——不对称语义照 dsh 补1；
+  - 命中 → 不追加不投递，portSend 返回既有 messageId 及其当前 delivery
+    （TeamSendDelivery 是闭合枚举，team.port.ts:38，不加 "duplicate" 值避免 wire
+    偏斜——同 messageId 返回即去重信号）。
+- source 配对校验（portSend）：sourceTaskId 有值时 sourceAttemptId 必填，缺填 →
+  拒绝（missing_attempt_id 族教学文案）；源任务非终态时必须精确匹配「任务当前
+  attemptId === 提交的 sourceAttemptId 且 assignee === 发送者」，不符 → 拒绝
+  （attempt_revoked 族教学文案）；源任务已终态时凭证已随终态关闭（board.ts:235-240
+  清 attemptId），入箱侧不再做 attemptId 精确核对（无法核对即放行入箱），世代准确性
+  仍由投递侧 isCurrentMail 既有谓词把守；纯引导（无 source）不受限。（2026-10-23 补
+  审计证实该把守对终态源为恒吞件——attemptId 已随终态清空、「终态宽容」子句在 &&
+  链中后置不可达；终态源入箱语义已由 §20 契约 1 修订为剥离 sourceAttemptId 的
+  无绑定投递。）
+
+**不变量**：
+
+- 同一报告重发 N 次 → 邮箱恰 1 条、portSend 每次返回同一 messageId。
+- 已投递普通引导重发 → 允许新条目（提醒通道不被去重误伤）。
+- 世代轮换后同文重发 → 正常入箱（旧条目已不 isCurrentMail，去重谓词不命中）。
+- 携带 sourceTaskId 必须成对携带 sourceAttemptId；非终态下过期/错配的
+  sourceAttemptId 必须被拒绝且不入箱。
+- 去重 O(mailbox) 全文比较在 retention=20/成员（TEAM_KERNEL_LIMITS，
+  types.ts:120-127）下有界；逐字比较对措辞变化不敏感是设计取向（照 dsh）。
+
+**测试要求**（tests/team）：
+
+- team-hub.test.ts 新增六案：①同报告重发两次 → 邮箱恰 1 条且 messageId 相同；
+  ②已投递普通引导重发 → 允许新条目；③世代轮换后同文重发 → 正常入箱；④带
+  sourceTaskId 缺 sourceAttemptId → 拒绝；⑤带过期 sourceAttemptId → 拒绝；⑥带当前
+  sourceAttemptId → 成功。
+- team-mailbox.test.ts 新增：去重谓词逐分支（三元组相同/不同、isCurrentMail 过期、
+  绑定与未绑定的不对称语义）。
+
+**不做**：不引入消息级 dedup key / content-hash 字段（逐字比较即可，避免 wire 与
+内部态双词汇）；不改 isCurrentMail 语义本身（终态后补发报告能否送达由谓词现状裁决，
+属已知边界，本批不动——**该边界裁决已于 2026-10-23 由 §20 契约 1 撤销收口**：终态源
+报告改由 portSend 入箱侧剥离 sourceAttemptId 恢复投递；「isCurrentMail 本体不改」的
+字面约束保留）。
+
+**实现验证（2026-10-22，本项已落地）**：mailbox.ts `findDuplicateMail`（from/to/message
+逐字相同 + source 三元组相同 + 旧条目仍 isCurrentMail；任务绑定报告无论已投递与否都
+去重、普通引导仅未投递时去重——绑定/未绑定不对称）；hub.ts `enqueueMail` 去重先行于
+persist（hub.ts:1344，对该方法全部调用方生效，含契约 1 失败通知路径）；`portSend`
+source 配对校验两拒绝族（带 sourceTaskId 缺 sourceAttemptId → missing_attempt_id；
+非终态源任务 attemptId/assignee 精确核对失败 → attempt_revoked；终态源放行、由投递侧
+isCurrentMail 把守）；`currentDeliveryOf` 对 lead_injected 归报 queued 的映射裁决
+（枚举不加 "duplicate" 值避免 wire 偏斜）。实跑：tests/team 10 文件 / 129 测试全绿
+（2026-10-22 终局复核者与本修复轮各自实跑一致；契约 3 落地后基线 120 + 本契约新增
+9 = hub 六案 + mailbox 去重谓词分支）。
+
+### 契约 5｜任务终态恢复预算：failed 任务的 lead 专用显式重开（受控出边）
+
+来源：差距分析 P1 清单第 4 条的配套契约（本节末「后续候选」首条，2026-10-23 立契并实现）。
+落点：§2.3「冷恢复有界重试」的姊妹语义（自动预算的显式对应物）+ 契约 1 不变量第 5 条
+（failed 无复活路径）的受控收窄。
+
+现状缺口（实读证实）：TASK_TRANSITIONS 终态无出边（board.ts:13-20，
+failed:[]/completed:[]/cancelled:[]）；reassign 对终态任务必拒 invalid_transition
+（hub.ts:1019-1024）；失败通知教学文案已把「新建替代任务」定为唯一补救路径
+（hub.ts:188-195「cannot be reopened or reassigned」）；attempt 世代机制齐备
+（beginTaskAttempt board.ts:58-73、invalidateTaskAttempt board.ts:79-93）；冷恢复自动
+重试恰一次（recoverOpenAttempt 的 recoveryRetried 标志 hub.ts:738-758）；终态只读唯一
+通道为 acceptanceSupplement 署名追补（board.ts:236-240 之外的追补保留面）。failed 任务
+由此成为死账：lead 唯一手段是新建替代任务（新 taskId），旧任务的失败史与 dependsOn
+拓扑位置无法原地延续。
+
+**形态取舍（登记）**：本契约选择**形态 (b) 显式重开**——TASK_TRANSITIONS 增加**受控出边**
+failed→pending，消费唯一通道为 lead 专用端口方法 `TeamLeadPort.reopenTask`（不复用
+reassign，其终态拒绝语义原样保留）。形态 (a)「新建替代任务」零内核改动路径保留为并行
+补救（失败通知文案两路并存）；completed/cancelled **不获得出边**（交付结果与用户裁决
+终局不可重开，恢复走新建任务）。
+
+**行为契约**：
+
+- `TeamLeadPort.reopenTask(input: { taskId })`（hub 新方法）：板级处置照 reassign 先例
+  requireLeadRecord lead-only（hub.ts:1011-1013）；成员终态离场后无板级权限，成员端口
+  结构性无此通道。仅 failed 可重开——pending/claimed/in_progress/completed/cancelled
+  一律 invalid_transition（`{from, to:"pending"}`，与 reassign 终态拒绝同族）；
+  staged/halted/归档态拒绝 team_halted（照 reassign hub.ts:1014-1016 冻结门）。
+- 板级执行 `reopenFailedTask`（board.ts 新纯函数）：failed → **pending 回共享池**
+  （assignee 清空；定向指派经既有 reassign，reopen 与 reassign 正交）；证据清空
+  （output/acceptanceSupplement，「重试必须自证」clearAttemptResult 同语义；
+  artifactRefs 是历史产出引用不属当代证据，保留）；reassigning/handoffId 复位（重开
+  无异步静默半边——失败成员已终态，无需交接序列化，不铸 handoffId）；**recoveryRetried
+  重置**（见下）。
+- attempt 延续：重开本身**不改 attempt 计数、不铸 attemptId**（pending 无凭证）；
+  attempt 的 +1 与新 attemptId 由再认领时的既有 beginTaskAttempt 重铸——即「重开 =
+  开新世代槽位」，attempt 计数跨重开边界延续（旧代 N → 再认领后 N+1），世代纪律
+  （证据清空、旧代更新即失效 attempt_revoked）全部复用既有认领路径，零新词汇。
+- 「受控」的机制：failed→pending 出边入 TASK_TRANSITIONS 后，applyTaskUpdate 对
+  wasTerminal 任务的 patch.status 写在迁移合法时一律拒绝 **team_lead_only**（复用既有
+  码——其文案「reserved for the team lead」对本场景是正确陈述，不新增错误码；非出边的
+  终态迁移仍走 invalid_transition）。通用更新面（含 lead 的 taskUpdate）即便迁移合法也
+  不消费该边——否则在场成员可无凭证把 failed 任务拉回 pending，绕过重开的 lead 权与
+  预算语义。acceptanceSupplement 追补通道不受影响。
+- 与 recoveryRetried 的关系（**两预算独立**）：recoveryRetried 是「自动」冷恢复预算
+  （恰一次、仅开放任务、成功与失败都置位 hub.ts:748/754）；显式重开是「人工」预算，
+  次数不受限（lead 可反复重开同一任务）。recoveryRetried 随重开重置（undefined），新
+  世代仍享恰一次冷恢复；parkedAttempts 残留按 failed_attempt 先例（hub.ts:726-729）
+  清理——前 assignee 的 parked 值不再对应其当前开放 attempt 时清除，防悬挂凭证。
+- 邮箱/世代联动（逐条裁决）：
+  - isCurrentMail：重开后任务 attemptId 为 undefined，旧世代条目（失败通知、迟到报告）
+    的 source.attemptId 失配 → 不再当前，pendingMail 不投、discardStaleMail 可清——旧
+    世代邮件不复活进新世代；已送达的历史事实（deliveredAccepted 条目）不受影响。
+  - TeamSend 去重三元组：旧世代条目 isCurrentMail=false → findDuplicateMail 不命中，
+    新世代同文报告正常入箱为新条目（去重谓词的世代前提即隔离墙）。
+  - 投递租约（契约 3）：无联动——租约只封投递窗口，世代失配由 isCurrentMail 独立把守。
+  - 终局记录归属：重开清空任务 output（含契约 1 裁决③写入的失败通知），失败史的持久
+    事实源是 lead 邮箱与 journal（message_appended/task_updated），任务卡不再承载旧代
+    证据——与「重试必须自证」既有语义一致。
+- 失败通知文案联动（收窄契约 1 裁决④）：成员面仍不可重开/转派（成员端口无此通道、
+  reassign 拒终态不变），通知文案从「cannot be reopened or reassigned」更新为如实陈述
+  两路补救——lead 可显式重开（lead 专用通道）或新建替代任务再指派。
+- 派发联动：重开任务回共享池后 kickTeam 重臂调度（事件驱动无轮询，spec §2.3——无
+  唤醒边缘则重开任务永久 pending；fire-and-forget 照 resume 先例 hub.ts:578）。
+
+**不变量**：
+
+- failed→pending 出边只有一个消费通道（reopenTask）；通用更新面对终态任务的 status 写
+  全拒绝（team_lead_only），无论 attempt_id 携带何值——「过期 attemptId 的 update 必须
+  被拒绝且不影响任务状态」在重开边界同样成立。
+- 重开不改 attempt 计数（延续值由再认领 +1 重铸）、不清 dependsOn/artifactRefs。
+- completed/cancelled 无出边：reopenTask 与 applyTaskUpdate 双面拒绝，恢复走新建任务。
+- 重开后新世代冷恢复预算恰一次（recoveryRetried 重置）；人工重开次数与自动冷恢复预算
+  互不约束。
+- 邮件世代隔离：重开不复活任何旧世代邮件；新世代邮件不受旧世代条目去重误伤。
+
+**测试要求**（tests/team）：
+
+- team-board.test.ts 新增：迁移表锁定（failed:["pending"]，completed/cancelled 仍空）；
+  通用更新面关闭（failed 任务携带空/旧凭证的 patch.status:"pending" → team_lead_only
+  且板零副作用，混带追补整次拒绝）；reopenFailedTask 纯函数（failed → pending + 清
+  证据 + recoveryRetried 重置 + attempt 保留；completed/cancelled/claimed → false
+  no-op）；attempt 延续（重开后 claimTask → attempt=旧+1 + 新凭证，旧代 attemptId
+  更新 → attempt_revoked）。
+- team-hub.test.ts 新增：非 lead 重开拒绝（错误 session → team_lead_only；成员端口经
+  taskUpdate 拉回 pending 全链被拒）；lead 重开快乐路径（板态 + journal task_updated +
+  kickTeam 重臂再认领）；重开规则边界（completed/cancelled/开放中 → invalid_transition，
+  未知任务 → team_not_present，halted → team_halted，reassign 对 failed/completed 仍拒
+  invalid_transition）；冷恢复预算独立（recoveryRetried 置位后重开 → 新世代仍享恰一次 +
+  parkedAttempts 残留清理）；邮箱世代联动（旧世代排队邮件不被重投，新世代同文正常入箱）。
+
+**不做**：不重开 completed/cancelled；不引入任何自动重开触发面（重开只由 lead 显式
+发起）；不动 reassign 的终态拒绝语义；不做 v4 wire 命令与 lead 工具 schema 暴露（端口
+契约先行，协议面接入留待后续批次）；不新增错误码与 journal kind（重开事实 = task_updated
+板事实，wire/journal 词表零扩展）。
+
+**实现验证（2026-10-23，本项已落地）**：contracts `TeamReopenInput` + `TeamLeadPort.
+reopenTask`（union/interface additive，唯一实现方 hub.leadPort）；board.ts
+`TASK_TRANSITIONS.failed = ["pending"]`（completed/cancelled 保持无出边）+ 纯函数
+`reopenFailedTask`（failed→pending 回共享池 + clearAttemptResult 同语义清证据 +
+recoveryRetried 重置；artifactRefs/attempt 计数保留）+ applyTaskUpdate 的 wasTerminal
+守卫——非出边终态迁移仍走 invalid_transition（既有 ×40 锁定不变），出边在通用更新面
+（含 lead 的 taskUpdate）一律 team_lead_only；hub.ts `reopenTask`（requireLeadRecord
+lead-only + staged/halted/归档 team_halted 门 + 仅 failed 可重开 invalid_transition +
+parkedAttempts 残留按前 assignee 当前开放 attempt 核对清理 + journalTaskFact +
+fire-and-forget kickTeam 重臂）。三处实现细节登记（照契约 1/3 先例）：①
+`TeamReopenInput` 仅 `{ taskId }`——重开回共享池不携带指派与 reason（定向指派经既有
+reassign，reopen 与 reassign 正交；不新增 journal kind 故无 reason 持久化面）；②
+守卫放迁移检查内分支而非前置——保证非出边拒绝码不变，混带追补的输入整次拒绝（与其余
+拒绝路径一致）；③ hub.ts:188-195 失败通知文案收窄契约 1 裁决④——「cannot be
+reopened」改为「closed to member updates; the lead can explicitly reopen it via the
+lead-only reopen port, or create a replacement task」（既有断言 replacement task /
+无 TeamReassign / 无 take it over 全部保留通过）。实跑：
+`cd apps/drora-cli/packages/core && npx -y pnpm@10.33.2 exec vitest run tests/team` →
+10 文件 / 139 测试全绿（8.61s；契约 4 落地后基线 129 + 本契约新增 10 = board 五案
+[迁移表锁定 / 通用面关闭+追补保留 / reopenFailedTask 语义 / 非 failed no-op /
+attempt 延续+旧代失效] + hub 五案 [①非 lead 拒绝含成员全链 / ②重开快乐路径+journal+
+再认领 / ③规则边界+reassign 仍拒终态+lead 自身 taskUpdate 被拒+halted 门 / ④冷恢复
+预算重置+parkedAttempts 清理+恰一次 / ⑤旧世代邮件失活+新世代去重照常]）。contracts
+build（tsc）与 core/bootstrap `tsc --noEmit` 均过；core `oxlint` 0 错误（13 警告均为
+他文件 HEAD/存量，改动文件 0 警告）；改动文件经 apps/drora-cli 工作区 oxfmt 格式化并
+通过 `--check`；`pnpm architecture:check --changed` → violations 0。
+
+### 后续候选（P1，不展开）
+
+- **任务终态恢复预算**（2026-10-23 已立契并落地为上方契约 5，原候选描述存档）：任务进
+  failed 后无复活路径（TASK_TRANSITIONS 终态无出边 +
+  reassign 拒终态）——failed 任务的显式重开/重派边界（谁有权、attempt 计数是否延续、
+  与冷恢复单次重试 recoveryRetried 的关系）为差距分析 P1 清单第 4 条的配套契约。
+- 其余 P1 候选（read 三态消费面、失败重试预算/备用路由、契约 1「ignored 全静默」的
+  noted/failed 覆盖完备性复核）随差距分析全量清单另行登记，本节不展开。
+
+## 17. 灰度关三缝修复：技能同门 + /team 未开启提示 + 开关生效语义（2026-10-22 登记，先于实现）
+
+背景（session_76d145bb250bd0afa5e09e0617cb00ef 实证）：灰度关时 `/team` 原文透传进模型；
+模型自行加载 bundled agents-team 技能（技能注册不受灰度门），按正文指示尝试调用
+TeamSpawn——工具因同一灰度门未装配而缺席——随即用 AskUserQuestion 即兴模拟「方案审批」
+并以普通任务完成请求：伪团队（零实体、零投影、零 UI）且指令-能力不匹配。本节三契约
+把「说明书在、工具不在」与「菜单可见、执行无效」两条缝一并关死。
+
+### 契约 1｜agents-team 技能与装配同门
+
+- bundled agents-team 技能的发现与加载受与 hub 装配同源的灰度裁决：
+  `resolveAgentsTeamEnabled(fileConfig agentsTeam.enabled ?? env DRORA_AGENTS_TEAM=1)`；
+  与 create-app.ts 同一裁决函数。skillPort 有**两个装配面，都包同一道门
+  （gateAgentsTeamSkillPort）**：
+  - bootstrap skills.ts 的 createSkillDiscovery——CLI/目录清单面（`skills list/inspect`、
+    引用目录、草稿态 $ 目录）；
+  - create-app.ts 的 runtimeAgentDeps.skillPort——模型会话内真正使用的运行时端口
+    （discoverSkillsForContext/loadSkill）。终局复核（2026-10-23）实证 skills.ts 单包
+    时门只在目录面关闭、模型面仍可加载 agents-team 而团队工具缺席，即本节背景
+    「说明书在、工具不在」的缝；两面共用同一契约与裁决值。options.skillPort 显式注入
+    为主机自装配的覆盖缝，不在此门内。
+- 关：discoverSkills 结果剔除 bundled source 的 agents-team；loadSkill(agents-team)
+  以「Skill not found」稳定失败。开：行为逐字节不变。
+- 只按 `source === "bundled"` 且名字匹配剔除——用户/项目/插件同名技能不误伤
+  （照 visualize-skill-gate 纪律）。
+- 原则依据：bundled-skills.ts 头注「教模型使用这些工具的技能必须同样不可移除」的
+  灰度化——工具缺席时说明书也缺席（同生共死）。
+
+### 契约 2｜/team 灰度关展开为确定性未开启提示
+
+- 灰度关时 `/team` 不再 `return undefined`（原文透传）；改为展开确定性提示：
+  告知用户未开启与开启路径、禁止模拟团队（AskUserQuestion 假审批/谎称建队/尝试加载
+  agents-team 技能），随后按普通任务处理 `$ARGUMENTS`。
+- **对 DWG-03 形态的有意分歧，仅 team**：workflow 灰度关仍原文透传不变（其工具门是
+  「显式 false 才挡」且 TUI/headless 恒开，指令-能力脱节面不同）。分歧理由即本节背景。
+
+### 契约 3｜设置文案与事实对齐
+
+- settings.agentsTeamEnabledDescription 由「开启后需新开会话生效」修正为真实语义：
+  灰度值在 Agent 进程创建时快照（Host env 桥 index.ts resolveAgentsTeamHostEnv），
+  已运行窗口内新开会话不生效，需重启应用或新开窗口；CLI 配置显式值仍优先。
+
+### 后续卡登记｜运行态呈现对齐 workflow（不在本批）
+
+- team 运行态在消息流内无 workflow 式 run 卡/执行时间线，右侧无成员执行详情面板
+  （现有=会话流摘要卡+TeamStageRail+TeamSidePane）；立项前先补 §10 呈现规则，
+  方案参照 §15 同源的 workflow 确认面板设计研究。
+
+### 测试要求
+
+- bootstrap：技能门单测（发现剔除/加载拒绝/同名用户技能不误伤/开启时透传）；
+  protocol-slash-commands 的 /team 灰度关用例改为断言确定性提示而非 undefined。
+- ui：i18n 词典键不变仅改值，一致性测试自然覆盖。
+
+### 不做
+
+- 不做设置热生效（运行中 Host 的 env 重注）——跨进程设置通道属架构变更，v1 以契约 3
+  文案登记语义。
+- 不改 workflow 的 DWG-03 透传。
+
+### 契约 4｜TeamSpawn 输入与 wire 限额同门（2026-10-23 追补）
+
+- 背景（session_7117760500b839fd57cf6fb705e4aedd 实证）：契约 1-3 落地、灰度开、真链路
+  打通后，模型给出的 200+ 字符成员 profile 使 team 投影 emit 的每一帧被渲染器按
+  proto.frameAssemblyInvalidPayload 拒掉 → 会话流 fail-closed 白屏（CLI 侧回合仍
+  completed；hub 草案、任务列表徽标均正常——协议两侧对「合法载荷」的认知不同门）。
+- TeamSpawn 工具入参 schema 与 hub stageTeam 源头校验都按 shared TEAM_LIMITS（单一
+  出处）拒绝超限草案（新错误码 E15 draft_field_too_long：name/profile/memberName
+  ≤maxNameChars、title/goal/acceptance 项 ≤maxTextChars、acceptance ≤acceptanceMax、
+  dependsOn ≤dependsOnMax 且项 ≤maxIdChars、成员 ≤membersMax、任务 ≤boardTasksMax、
+  model_selection 各元 ≤maxIdChars）。模型在工具边界当场拿到校验错误自纠，坏载荷
+  不再落库；hub 校验是状态所有者对 port 其它调用方的不变量兜底。
+- 诊断增强（协议层）：wire-assembler 的 invalidPayload 故障附带 zod issue 摘要
+  （≤10 条，TopicWireAssemblyFault.schemaIssues）——「知道烧了帧」升级为「知道哪根
+  键烧的」。2026-09-21 工具卡载荷事故若有此增强可省去三轮重连取证。
+
+### 契约 6｜成员装配的 agentType 恒为 general-purpose（2026-10-23 追补；同日复核由「契约 5」改号）
+
+- 编号消歧：本契约原登记为「§17 契约 5」，与 §16 契约 5（任务终态恢复预算）撞号——
+  相邻两节同名编号各指一物，裸引「契约 5」（如 §16 节内回指）极易错位，改号为契约 6；
+  代码注释引用（install.ts deliverLeadMail 注）已同步。
+- 背景（session_418f27096140f9a6828b1c7f413a64d6 实证）：灰度开真链路的首次真实批准中，
+  spawnMembers 把成员 `profile`（花名册的展示描述，spec §6.2：模型自然语言写的角色画像）
+  当 agentType 传给 memberPort.launch，描述性文本以 UNKNOWN_AGENT_TYPE 秒败（27ms）→
+  E12 member_spawn_failed。deliverLeadMail 的寻址 agentType 同病。
+- 成员一律按 `general-purpose` 装配与寻址：profile 只进 UI 成员行与审批面，不进 launch。
+  spec §6.2 的 profile 语义本来就是展示画像；成员能力差异由 prompt（memberWelcomeText）
+  与路由（modelSelection，spec §8.7）承载，不经 agentType。
+- 既往未暴露的原因：单测/E2E 夹具的 profile 为空串或合法类型名，真实模型自由生成的
+  描述性画像才触发。
+- **测试影响登记（2026-10-23 复核补登）**：core `tests/team/team-install-runtime.test.ts`
+  测试⑦（缺口6 原子性）原以 bob `profile="no-such-profile"`（非法类型名）经
+  `resolveAgentProfileForRequest` 抛 UNKNOWN_AGENT_TYPE 触发第 2 个成员 launch 失败；
+  本契约硬编码 agentType 后该失败前提失效（profile 不再进 launch，bob 会正常 spawn，
+  approveStage 误返 ok）。处置：夹具改注入 `leadDeps.getAgentDefinitions`——第 1 个成员
+  的一次后台 launch 固定消费 2 次解析（runner.ts 的 launch+start）放行，此后花名册撤空，
+  第 2 个成员的 launch 解析落空走同一 UNKNOWN_AGENT_TYPE 路径；「部分失败反向回收 +
+  草案零污染 + member_spawn_failed 专用码」断言不变。前述「既往未暴露的原因」据此补正：
+  除空串/合法类型名外，测试⑦此前是**故意用非法 profile** 制造失败场景，本契约落地时
+  未同步该夹具，属登记遗漏。
+
+## 18. staged 审批面迁移 timeline bottom dock（2026-10-23 登记，用户裁定）
+
+staged 审批面从「会话流摘要卡内联」（§10 原规则、2026-10-22 内联裁定）迁移为
+**timeline bottom dock**：与 workflow 确认窗（PermissionDialog）同位同 chrome——
+钉在 timeline 底部、composer 之上，`rounded-2xl border bg-popover` 容器 +
+「团队计划待确认」眉题 + 问句表头 + 草案全文 + 三动作（TeamApprovalDock）。
+内联位置在长会话里需要滚动寻找审批面；workflow 确认窗的「钉底待决」才是同一交互
+的正确位置（样式与位置都对齐 workflow 确认窗，用户裁定）。
+
+- 桌面（SessionPane）：dock 挂载于 V4InteractionDialogs 之后的同一 bottom dock 区，
+  守卫与 footerSlot 同源（staged + 当前会话 + 非 readOnly/importedShare）；摘要卡传
+  `stagedEditorSuppressed` 退化为只读摘要。
+- 移动/远端（RemoteConversationTimeline）：无 dock 机制，摘要卡内联编辑器保留
+  （stagedEditorSuppressed 缺省 true 不生效），行为不变。
+- 命令单一通道不变（team/commands.ts）；失败出显接线收拢
+  TeamStagedEditorConnected（dock 与摘要卡共用，单一实现）；借形不借管线裁定不变
+  （dock 不接权限管线）。
+- 团队自测回归（CDP，2026-10-23 补可复现清单——原「见本节末尾」指向落空，末尾只有
+  设计审查登记；步骤与断言如下）：
+  1. 冷恢复：重启 dev → 打开含 staged 草案的会话 → dock 钉底渲染（眉题/问句表头/成员/
+     任务/三动作）、摘要卡退化只读、零 `proto.frameAssemblyInvalidPayload` 烧帧；
+  2. 批准：点「确认并启动」→ 按钮进入在途禁用（契约 6）→ spawn 完成 → dock 随
+     status=active 卸载、任务列表徽标翻「执行中」、状态面板出现 Team 分区（契约 6）；
+  3. 执行态：成员徽标滚动、权限升级上浮 lead 会话、摘要卡显示进度 N/M；
+  4. 权限上浮：成员触发权限请求 → lead 会话出现权限卡 → 批准后成员继续执行。
+  回归结论：全部通过，零烧帧零 teamRejected（截图 06/07）。
+
+### 设计审查登记（2026-10-23，DESIGN.md 对齐）
+
+- 幽灵 token 清除：TeamPanel/TeamStagedEditor 曾用 `bg-neutral-2`/`bg-neutral-3`/
+  `text-neutral-foreground`——非主题 token（全 ui 仅 team 在用，类静默不生效），一律改
+  语义 token（`bg-surface`/`text-foreground-subtle`）；规则依据 DESIGN.md「Never replace
+  semantic tokens with ad hoc values」。
+- 裸 `rounded` 清除：TeamPanel 只读摘要框、TeamStagedEditor 成员/任务行按容器层级改为
+  `rounded-lg`/`rounded-md`；TeamMemberSidePane 输入与发送钮按「无圆角父容器 → 控件
+  rounded-lg」升级。
+- TeamApprovalDock 的 `rounded-2xl` 为 PermissionDialog 对齐镜像（workflow 确认窗同类
+  阻塞面），随对齐裁定保留。
+- 其余全过：text-ui-* 刻度零违规、无任意字号、无 console/window 直连、i18n 全词典
+  （TSX 文本零硬编码中文）、成员/任务行 id 呈现有 font-mono 或不展示 id。
+
+## 19. team 完成批次——UI 数据流转缺口修复（2026-10-23 登记，先于实现）
+
+本节是 2026-10-23 team 全链缺口裁决的五项入选登记（四 high 一 medium；取舍标准：断链
+> 增强、severity、单轮可测，其余 confirmed 项按 severity/批次留档不落本节）。五项全部是
+「已有契约未实现」或「呈现规则扩圈」的补齐，不新开产品能力。逐项与 §0 十条修订及既有
+裁决对照无冲突：契约 1-4 引用既有契约编号（不重复登记产品规则）；契约 5 是 §10 呈现
+规则4 的**扩圈修订**（原规则明文只圈三动作，其余五命令属规格留白——本节登记即修订，
+先于实现）。全部契约**零 wire 词表扩展**（shared team schema 与
+TEAM_COMMAND_PAYLOAD_SCHEMAS 均不动）、零新错误码、灰度语义不变（无新开关面）。
+
+**施工次序（依赖登记）**：契约 1（一行通知，零依赖）→ 契约 2（空白归一）→ 契约 3
+（补桥，**必须后于契约 2**——桥补 modelSelection 映射前 thought 空白下界必须先生效，
+否则复现 §17 契约 4 烧帧白屏）→ 契约 4（工具接线，独立）→ 契约 5（UI 呈现，独立）。
+
+**登记基线**：本节为纯 spec 修订（零代码改动），未运行任何测试套件；行号与字段以
+2026-10-23 检出实读（Read/grep）为准。裁决轮的运行时复现（tsx 直载 hub 验证
+abandonStage 零通知、shared dist teamProjectionStateSchema 对 profile:"" safeParse 失败）
+为裁决轮事实，本节未重跑。
+
+### 契约 1｜abandonStage 补通知半边：归档必发 TeamStateChanged
+
+来源：2026-10-23 数据流转闭环裁决（confirmed/high）。落点：§10 呈现规则的 dock 收敛
+语义（既有）的**通知半边**——spec 已定（§0 修订 4 的 archived wire 态、§2.6 禁止自动
+重建），实现缺通知。
+
+现状缺口（实读证实）：hub.ts:480-492 abandonStage 成功路径置
+record.status="archived" + journal({kind:"archived"}）（:489）后直接 return ok，
+**无 notifyChange**；同文件 notifyChange 调用点全枚举（411/437/457/526/550/586/608/
+797/1182/1441/1595/1752）不含 abandonStage——姊妹路径 markStageAwaitingFeedback（:457）、
+approveStage（:526）、halt（:550，journal→notify 次序先例）、resume（:586）、
+markEscalated（:608）、removeMember（:797）均有。通知是投影的唯一驱动：
+deps.onChange（install.ts:239-243）→ emitTeamStateChanged（install.ts:100-114，全
+bootstrap 唯一 TeamStateChanged 发射点）→ onTeamStateChanged 投影重算
+（product-projection.ts:4716）→ JSON diff（:4719）→ delta。abandon 后不可自愈：
+refreshStatus 对 staged/halted/escalated/archival 早退（hub.ts:1734-1744），无任何状态机
+边缘可补发。后果：UI 审批 dock（packages/ui/src/v4/SessionPane.tsx:5603-5617 以
+snapshot.team.status==="staged" 把门）、侧栏 TeamPanel、手机摘要卡全部停留在 staged 草案
++ 三动作；此后 approve/revise/abandon 均被 hub 拒绝（team_lead_only/team_not_present），
+出显误导性失败文案。测试盲区：grep abandonStage/abandonTeamPlan 于
+core/tests/team/team-hub.test.ts 零命中（实跑确认现零覆盖）。
+
+**行为契约**：
+
+- abandonStage 成功路径在 journal({kind:"archived"}）之后、return ok 之前补
+  this.notifyChange()——次序照 halt 先例（journal 先、notify 后，hub.ts:549→550）。
+- 收敛路径（登记为零投影层/UI 改动的自洽链）：notify → deps.onChange → TeamStateChanged
+  → onTeamStateChanged → teamProjectionViewOf 返回 archived 投影（stagedDraft 仅 staged
+  携带，core projection.ts:296-297 → stagedDraft 键缺席）→ 与上一投影 JSON 不等
+  （product-projection.ts:4719）→ delta 发出 → SessionPane dock 守卫失败 dock 消失，
+  TeamPanel/手机摘要卡同源快照随 delta 收敛。
+- 拒绝语义不变：非 staged → team_lead_only；无队/会话不符照 requireLeadRecord 现状。
+  通知补齐后这些拒绝在正常 UI 流不再可达（dock 已消失）。
+
+**不变量**：
+
+- 归档投影：status="archived" 且 stagedDraft 键缺席；abandon 后任何半边不得把草案重新
+  呈现为 staged（journal archived 重放冻结，§2.6 禁止自动重建）。
+- 通知次序登记：状态迁移路径的登记次序为「journal 先、notify 后」（halt/resume/
+  markEscalated/abandon 同序）；stageTeam 现状 notify（:437）→journalStagedFact（:438）
+  反序为已知非对称——journal 是旁路事实流（§0 差异裁决#5），不改无行为危害，本批不
+  统一（备查，非必修）。
+
+**测试要求**：
+
+- core team-hub 新增 abandon 用例（现零覆盖）：abandonStage 成功后 onChange 计数 +1 且
+  snapshot().status==="archived"。
+- bootstrap 投影测试：TeamStateChanged 后 delta 的 team.status==="archived" 且
+  stagedDraft 键缺席。
+- UI 测试：abandon ACK 后 dock 消失（TeamStagedFailureWiring.test.tsx 现只锁失败出显，
+  补成功收敛断言）。
+
+**不做**：不动投影层与 UI；不改拒绝码；不统一 stageTeam 的 notify/journal 次序。
+
+### 契约 2｜草案空白 profile/thought 落库归一为键缺席（封 wire min(1) 侧烧帧）
+
+来源：2026-10-23 wire 层裁决（confirmed/high）。落点：§17 契约 4（TeamSpawn 输入与 wire
+限额同门）的姊妹半边——该契约封了超上界（E15 draft_field_too_long），未封空串破
+min(1)。
+
+现状缺口（实读证实）：工具边界 profile/thought 均为 `.max(...).optional()` 无 min
+（team-tools.ts:371/:376）——空白串是合法入参；三处 `?? ""` 把 optional 缺省写成空串
+（team-tools.ts:473 TeamSpawn、handlers/team.ts:122 reviseTeamPlan、:261
+setTeamMemberName）；契约类型必填放大了这一点（team.port.ts:183
+TeamStageMemberDraft.profile: string）；hub 物化原样（hub.ts:432）、snapshot 透传
+（hub.ts:281）、桥透传（product-projection.ts:5972）、projectTeam 对非 undefined 一律上
+wire（projection.ts:222/:301）——模型只要合法省略任一成员的 profile，投影即带
+profile:"" 出帧。wire 对 members[].profile、stagedDraft.draftMembers[].profile、
+modelSelection.thought 均要求 min(1).optional（shared drora-protocol-v4/team.ts:175/:221/
+:226），烧帧语义见 §17 契约 4 背景（session_7117760500 实证：每帧
+proto.frameAssemblyInvalidPayload、会话流 fail-closed 白屏）；staged→approved→archived
+全程烧（members 无条件投影，abandon 只翻状态不清成员）。持久化复燃面：journal staged
+重放 `...(member.profile === undefined ? {} : { profile: member.profile })`
+（journal.ts:316-333）原样恢复 legacy 空串——不修则烧帧草案 CLI 重启复燃，且 fail-closed
+下用户连 abandon 都不可达。
+
+**行为契约**：
+
+- ① 契约类型对齐 wire：team.port.ts:183 `profile: string` → `profile?: string`；
+  draftOverLimitField 的 profile 长度检查补 `member.profile !== undefined &&` 前置
+  （hub.ts:1821——类型放宽后的编译锁）。
+- ② hub.stageTeam 源头归一（唯一所有者；hub.ts:429-436 物化处）：成员 profile 与
+  modelSelection.thought 空白（trim 后 === ""）→ 键缺席（undefined）。归一先于
+  journalStagedFact，落库即规范形。provider/model 空白不归一：工具边界已 min(1) 拒绝
+  （team-tools.ts:373-374），生产不可达；port 直调方传空 provider/model 属非法输入，
+  不属归一职责（登记边界）。
+- ③ 三个生产点改透传：team-tools.ts:473、handlers/team.ts:122/:261 的 `?? ""` 改为
+  直接透传 member.profile（optional，undefined 即键缺席）。
+- ④ journal 重放归一：journal.ts:316-333 staged case 同款空白→undefined 归一——legacy
+  空串事实重放后归一为键缺席，烧帧草案不再复燃。
+- approveStage 的 `member.profile ?? ""`（hub.ts:509）保留：spawn 面非 wire（§17 契约 6
+  已裁决 profile 不进 launch/agentType，此处仅 spawn 载荷）。
+- 词表声明：零 wire 词表扩展——min(1).optional 是 shared team.ts:175/:221/:226 既有
+  契约，本契约是对齐实现；灰度语义不变。
+
+**不变量**：
+
+- 任何经 stageTeam 落库的草案成员：profile/thought 在 snapshot 与 journalStagedFact 中
+  要么键缺席、要么非空白；含空白 profile/thought 的工具入参合法（optional 无 min，非
+  校验错误），落库后投影 wire safeParse 必过。
+- legacy 已落库空串经 journal 重放归一，不再出帧；归档态花名册保留现状（烧帧面由归一
+  闭合，不需要 abandon 清成员）。
+- 无 profile 成员的批准路径行为不变。
+
+**测试要求**：
+
+- core team-hub 单测：stageTeam(profile:"") 后 snapshot 无 profile 键且
+  journalStagedFact 不含 profile；thought 空白同款断言。
+- team-schema-roundtrip 增样例：含无 profile 成员的草案经 stageTeam→projectTeam 后
+  teamProjectionStateSchema.parse 通过。
+- team-journal 重放单测：legacy 空串事实重放后归一为键缺席。
+- 重跑 team-schema-roundtrip + team-commands-smoke 全绿；桌面 E2E 补一条无 profile 草案
+  的 staged 审批流。
+
+**不做**：不给工具 schema 补 min(1)（模型省略 profile 是合法缺省，拒绝式校验误伤合法
+输入）；不动 wire schema；不改 E15 语义（超上界仍拒绝，空白下界归一不入 E15）。
+
+### 契约 3｜投影桥 teamProjectionViewOf 补 name 与 modelSelection：审批面所见即全量
+
+来源：2026-10-23 core hub 层裁决（confirmed/high）。落点：§8.7 草案修订回写决策（hub
+查询面补齐 name/modelSelection 回读——已实现）的**投影半边** + §10 呈现规则「审批面
+定义即全量呈现」的知情面意图（既有契约，本契约补实现）。
+
+现状缺口（实读证实）：唯一生产桥 teamProjectionViewOf（product-projection.ts:5958-5998；
+两调用点 :527 冷快照组装与 :4716 onTeamStateChanged delta——两显示链同源）record 字面量
+缺 roster.name 与 member.modelSelection（:5965-5996 显式字段清单无两字段）。链条其余
+环节全部就绪：hub.snapshot() 携带（hub.ts:275/:285，缺口10）；projectTeam 入参/出参支持
+（projection.ts:62/:92；:173 name；:302-312 stagedDraft.draftMembers modelSelection）；
+wire schema 支持（shared team.ts:265 name、:219-229 stagedDraft modelSelection）；
+view-model 派生支持（view-model.ts:172/:203-205）；UI 渲染就绪（TeamStagedEditor.tsx:
+281-283 路由标签、TeamPanel.tsx:173 与 TeamConversationSummary.tsx:73 队名）。后果：
+TeamSpawn 命名的队名在会话卡/面板/摘要卡恒显 fallback 通用标题；staged 审批面成员行
+路由恒显「未设置路由」——用户在看不到 §8.7 建队定死路由的情况下批准建队，违背 §10
+「审批面定义即全量呈现」。hub.ts:269-274 注释「投影侧（teamProjectionViewOf）逐字段
+映射不受影响」与事实不符，随修复订正。
+
+**行为契约**：
+
+- ① 桥补两处条件映射（键缺席表达，照该文件 `...(x === undefined ? {} : { x })` 同规）：
+  team 层补 `...(roster.name === undefined ? {} : { name: roster.name })`；member 映射补
+  `...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection })`。
+  name 经 projectTeam 直达 wire（projection.ts:173）；modelSelection 经 stagedDraftOf 进
+  stagedDraft.draftMembers（projection.ts:302-312）。
+- ② 有意不映射（登记免误补）：花名册行（teamMemberProjectionSchema，shared
+  team.ts:171-183）无 modelSelection 键——桥的 member 行不加该键是正确现状；
+  modelSelection 只经 stagedDraft 行上 wire。
+- ③ 前置依赖（同门次序）：契约 2 的 thought 空白归一必须先于本契约生效——wire
+  stagedDraft thought min(1)（shared team.ts:226）而工具/内核现状无下界
+  （team-tools.ts:376、draftOverLimitField 仅查 max），桥补映射后 thought="" 草案即
+  复现 §17 契约 4 烧帧白屏。施工次序：契约 2 → 契约 3。
+- 词表声明：零 wire 词表扩展（name/modelSelection 均已入 shared schema）；灰度语义
+  不变。
+
+**不变量**：
+
+- 草案带 name/modelSelection 时：冷快照与 delta 两链（同源桥）的 wire 全帧 safeParse
+  必过且两字段在场；缺席照旧键缺席（无名草案/旧数据兼容）。
+- 呈现闭环：队名在会话卡/面板/摘要卡显示真实名；staged 成员行显示建队路由（§8.7
+  快照）。
+- 花名册行不携带 modelSelection（wire 词表现状，active 态无此消费面）。
+
+**测试要求**：
+
+- bootstrap 投影测试：TeamSpawn 草案带 name+modelSelection → snapshot 与 delta 的
+  team 键 wire safeParse 断言两字段在场；无 name 草案 name 键缺席回归。
+- thought="" 草案经契约 2 归一后投影不含空 thought（与契约 2 测试共用面）。
+- UI 既有 view-model 单测自然覆盖（路由标签/队名派生）。
+
+**不做**：不改 §8.7 查询面与 hub.snapshot；不做花名册行 modelSelection 上 wire（无
+消费面）；不扩 stagedDraft 词表。
+
+### 契约 4｜TeamReassign lead 工具接线：sticky-parked 任务轮换通道闭合
+
+来源：2026-10-23 core hub 层裁决（confirmed/high）。落点：§1:138「转派/接管只有 lead
+工具能做」+ §6.2:354 lead 注册全部团队工具（含 TeamReassign）——**已有契约未实现**
+（端口与内核全备，生产零调用方）。注：§6.2 同句的 TeamStageApprove/TeamResume 已由
+后续批次裁决改道用户面 v4 命令（approveTeamPlan 是唯一创建成员入口，§10；resumeTeam，
+§2.6），不随本契约补工具。
+
+现状缺口（实读证实）：实现全备——hub.reassign（hub.ts:1028-1096，六拒绝语义：
+staged/halted/归档 → team_halted :1031-1032；未知任务 → team_not_present :1035；终态
+任务 → invalid_transition :1036-1040；交接在途 → attempt_revoked :1042-1043；to 非在册
+→ name_redirect :1045-1046；lead 接管唯一性冲突（已有另一 claimed/in_progress 任务
+assignee="lead"）→ team_lead_only :1048-1058。三步交接 = 失效旧凭证+journalTaskFact →
+interruptAndSettle 静默（失败 → attempt_revoked、交接保持 in-flight）→ handoffId 再入
+校验新者胜 + lead 接管直接 in_progress + kickMember 唤醒）；TeamLeadPort.reassign
+（team.port.ts:297）与 TeamReassignInput{taskId,to,reason}（team.port.ts:165-170，to
+注释 memberName 或 "lead"）。生产零调用方：handlers/team.ts teamHandlers 恰八命令无
+reassign（:308-316）；createTeamLeadToolEntries 仅 TeamSpawn（team-tools.ts:408 起）；
+packages/ui 无 reassign 动作。后果：sticky-parked 任务的轮换唯一通道不可达
+（hub.ts:911 注释「只有 lead 转派可轮换」；resume 只 kickTeam 不解 park :592；board
+通用更新面凭证门使无 parked attemptId 的 lead 更新被 attempt_revoked 拒——经
+TeamTaskUpdate 取消再新建的替代路径丢失任务身份与 DAG 位置）；install.ts
+TurnComplete→returnLeadTakeovers（:470 已接线）因接管无从发起近乎死边（staged 预指派
+assignee="lead" 的归还边除外）。语义补充（现状事实，免误读）：TeamReassignInput.reason
+为端口必填载荷，hub.reassign 现状不消费不持久化（reassign 事实 = task_updated 板事实，
+照 §16 契约 5 reopen「无 reason 持久化面」同规）。
+
+**行为契约**：
+
+- ① team-tools.ts createTeamLeadToolEntries 增加 TeamReassign 条目（照 TeamSpawn 体例）：
+  - runtime zod schema：`task_id: z.string().min(1).max(TEAM_LIMITS.maxIdChars)`、
+    `to: z.string().min(1).max(TEAM_LIMITS.maxNameChars)`、
+    `reason: z.string().min(1).max(TEAM_LIMITS.maxTextChars)`——限额单一出处
+    TEAM_LIMITS（§17 契约 4 同门：超限在工具边界报错，模型当场自纠）；min(1) 拒空串，
+    工具入参面拒绝（契约 2 的「空白归一」是 hub 落库面语义，两门不混用）。
+  - handler：resolveLeadPort({sessionId}) 返回 undefined → 抛 CoreError（照 TeamSpawn
+    的结构性 lead-only 拒绝——成员会话零通路，E10 team_lead_only 的结构化保证）；调
+    port.reassign({taskId, to, reason})，rejected → 抛 CoreError 携 error.code，六拒绝
+    语义全数透传（见现状缺口枚举）。
+  - description 写明：to 接受 memberName 或 "lead"（lead 接管直接 in_progress，无
+    claim 握手）；lead 同时至多持有一项开放任务（claimed/in_progress，team_lead_only）；
+    仅非终态任务可转派。
+- ② 词表声明：零 wire 词表扩展——TEAM_COMMAND_PAYLOAD_SCHEMAS 八命令不动（shared
+  team.ts:288-321 无 reassign）；灰度语义不变（工具随既有装配门）。
+- ③ UI 面板入口为**第二步**（权威设计
+  docs/agent-team-implementation-2026-10-16/01-command-and-ui-design.md:135/:193 的
+  预制参数）：失败成员卡/active 态动作区「转派」钮，预制参数经对话流引导 lead 调工具
+  （最小）或新增第九条 v4 命令（照 resumeTeam 体例），二选一登记后续批次；本批不做。
+
+**不变量**：
+
+- lead 专属结构性：工具仅 lead 会话可调；reassign 内核语义零改动（三步交接/静默链/
+  新者胜全部现状）。
+- parked 任务轮换通道恢复：reassign 是 sticky-parked 任务唯一轮换面；board 通用更新面
+  凭证门 attempt_revoked 现状不变。
+- 模型可见文案一致性：工具 description 与失败通知不得指引成员自转派（§16 契约 1
+  裁决④同规——成员面无此通道）。
+
+**测试要求**：
+
+- core team-hub reassign 既有用例回归（team-hub.test.ts 冻结门/终态拒/并发交接新者胜/
+  lead 接管唯一性）。
+- 新增工具边界用例：lead 会话可调；成员会话 resolver undefined 拒；to="lead" 二次接管
+  team_lead_only 透传；超限 task_id/reason 工具边界拒。
+- bootstrap 工具注册冒烟一条（TeamReassign 在 lead 工具清单）。
+- 桌面 E2E（失败成员卡 → 转派入口 → 板面 assignee 轮换、旧 assignee 更新被
+  attempt_revoked 拒）随 UI 入口批次（第二步）登记，本批不锁。
+
+**不做**：不做 v4 wire 命令（reassign 不入 TEAM_COMMAND_PAYLOAD_SCHEMAS）；不做 UI
+入口（第二步）；不给 reason 新增持久化/journal 面；不动 hub.reassign 与 board。
+
+### 契约 5｜八命令失败出显与 composer 草稿保留（§10 呈现规则4 扩圈）
+
+来源：2026-10-23 wire 层裁决（confirmed/medium）。**specImpact：需要修订既有契约**——
+§10 呈现规则4（三动作失败出显，2026-10-22 登记）明文只圈 approve/revise/abandon，其余
+五命令属规格留白；本契约即扩圈修订，登记先于实现。
+
+现状缺口（实读证实）：三动作失败出显之外，haltTeam/resumeTeam（TeamSidePane.tsx:182/
+:185）、stopTeamMember/setTeamMemberName（:213/:219）、sendTeamMessage（:294）全部
+`void` fire-and-forget；commands.ts:70-77 拒绝仅 logger.warn、:80-86 异常仅
+logger.error。composer：TeamMemberSidePane.tsx:110-115 send() 在 onSendMessage 返回前
+setDraft("")，而 onSendMessage 通路为 void 型（TeamSidePane.tsx:292-302）——outcome 无
+返回通路。hub 对用户发送有真实拒绝路径（portSend 全部 status:"failed"）：team_halted
+（hub.ts:1322-1323）、message_target_terminal_retired（:1363-1367/:1376-1381）、
+name_redirect（:1382）、mailbox_persist_failed（enqueueMail persist 抛错）。最痛场景：
+用户 halt 团队后在下钻框发消息 → 静默拒绝 + 草稿已清，消息文本丢失且无任何提示。
+
+**行为契约**（本契约即 §10 呈现规则4 的扩圈登记）：
+
+- 扩圈后的呈现规则：八条用户面团队命令（approve/revise/abandon/halt/resume/stop/
+  rename/send）的 TeamCommandOutcome 一律有 UI 消费面；拒绝（ack 非
+  accepted|duplicate|noop）与传输异常（ack 缺席、error 在场）都出内联提示（role=alert）。
+  reasonCode→文案键沿用 TEAM_STAGED_FAILURE_REASON_I18N_KEYS 映射（9 键 + transport +
+  fallback，TeamStagedEditor.tsx:70-90），未知码走 fallback（既有兜底语义扩圈适用）；
+  该表「呈现归并、不构成契约的生产/消费对」头注定位不变，新码不要求同步映射表。
+- composer 草稿纪律：TeamMemberSidePane send() 改 async——await outcome，ok 才
+  setDraft("")；!ok 回填原文（草稿保留）+ composer 上方 role=alert；传输异常同按 !ok
+  处理（transport 文案 + 草稿保留）。onSendMessage 通路改返回
+  Promise<TeamCommandOutcome>（TeamSidePane onSendMessage 去 void 丢弃）。
+- 面板四命令（halt/resume/stop/rename）补 outcome 消费：失败在动作区 inline 出显；
+  stop 已有二次确认，确认后被拒必须出显（确认 + 静默失败是最差组合）。
+- i18n：补 message/命令域拒绝键 team_halted、message_target_terminal_retired、
+  name_redirect、mailbox_persist_failed（transport/fallback 复用既有键），zh-CN/en-US
+  双语，入既有 i18n 键守卫。
+- hub/wire/命令类型零改动：无新错误码、无新命令、无 schema 变化（纯呈现层扩圈，命令
+  单一通道 team/commands.ts 不变）；零 wire 词表扩展，灰度语义不变。
+
+**不变量**：
+
+- 用户发送被拒时草稿永不丢（回填原文）；成功路径行为不变（清空）。
+- 三动作既有失败出显行为不变（只扩圈不重构）；命令单一通道不变。
+- 团队 halt 后 composer 仍可输入可提交（门不额外收紧），提交结果必须可见（拒绝出显）。
+- fire-and-forget 先例的废除范围仅限八条团队命令（workflow cancel/resume 同款先例不
+  随动）。
+
+**测试要求**：
+
+- ui vitest：composer stub 失败 outcome → role=alert 出现且草稿回填原文；成功 → 清空；
+  传输异常（error 在场）→ transport 文案 + 草稿保留。
+- 面板四命令各一条失败出显断言（stub 拒绝 ACK，照 TeamStagedFailureWiring.test.tsx
+  模式）。
+- E2E：halt 团队后下钻成员发消息 → 内联错误文案出现且输入框内容未丢。
+
+**不做**：不做在途命令对账/自动重试（留档项维持现状——hub 投影是服务端事实，重点击
+无重复副作用，拒绝出显已兜住可见性）；不给 composer 加预检禁用（halt 门在 hub 裁决
+侧，UI 不预判团队状态）；不动 workflow 的 fire-and-forget 先例。
+
+### 契约 6｜三动作在途纪律 + 运行态最小闭环 + 命令收口与守护升级（2026-10-23 登记，同日施工）
+
+来源：2026-10-23「Team UI 深度评审（对照 workflow）」三维审查（可用性/及时性/系统性，
+报告 docs/team-ui-deep-review-2026-10-22.md；19 条 verified + 1 条推翻）+ 本日施工。本契约
+登记该轮评审的修复面与**有意取舍**；§19 契约 1-3 已于同日先期施工（abandon 通知半边/
+空白归一/投影补桥），契约 5 于本批施工，故本节只登记增量。零 wire 词表扩展、零新错误码、
+灰度语义不变。
+
+**A. 三动作在途纪律（评审 high-1/medium-4 修复半边；timeliness）**
+
+- 现状缺口：TeamStagedEditor 三动作无 pending 态——按钮不禁用、无等待文案，approve 长事务
+  （串行 launch 全程）零中间投影帧；workflow 确认窗有 responding 全禁用 + 飞行锁
+  （PermissionDialog.tsx:633/:878/:1088-1094），team 未对齐。评审推翻项（保留供查）：
+  「双击二次重入 spawnMembers」不成立——生产路径唯一调用方（handlers/team.ts:89）经
+  command-inbox per-session FIFO（gate 持有到 settle）串行化，第二条 approve 被 staged
+  检查以 team_lead_only 拒绝；install.ts:410「无并发交叠」实为网关维持。
+- 行为契约：TeamStagedEditor 增 `pendingAction` prop——任一动作发起即置位，三动作按钮
+  全禁用 + 在途按钮出等待文案（「正在启动成员…」等三键）+ 备注输入禁用；outcome 结算即
+  清空。状态机单一出处 useTeamStagedActions（TeamStagedEditorConnected，dock/摘要卡/侧栏
+  三发起面共用，§19 契约 5 施工时两处状态机重复就此收拢）。hub 侧 approveStage 在
+  await spawn 后复查 `status === "staged"`（纵深防御：并发写者绕过命令通道直调 port 的
+  非法输入下拒绝 team_lead_only、不腐蚀 record；生产面不可达，spawn 孤儿进程不做对账——
+  「不做」沿用契约 5）。
+- 可达性半边（评审 medium-6）：TeamApprovalDock 容器 `role="status" aria-live="polite"`
+  播报眉题——dock 静默插入并把 composer 下推，读屏/键盘用户需感知；失败播报由编辑器内联
+  role=alert 承担。workflow 对照修正：PermissionDialog 本体非 dialog 语义、无开启落焦，
+  对齐的是「失败播报 + 键盘回焦路由」语汇而非 dialog 角色。
+- 测试：TeamStagedEditor.test.tsx（pending 三禁用+等待文案/无 pending 可点）、
+  teamApprovalDock.test.tsx（在途禁用→结算恢复/role=status/改名入口信封）、
+  team-hub.test.ts 竞态复查用例。
+
+**B. 运行态最小闭环（评审 high-3/medium-9 修复半边；systematicness/timeliness）**
+
+- 现状缺口：团队运行态在会话流/状态面板/composer 三层缺席——workflow 有轮尾摘要卡/完成卡/
+  状态面板 WorkflowRunRow/composer 徽标四处，team 仅 footerSlot 摘要卡 + tab 状态点；
+  ConversationStatusPanel 的模型输入无 team 键（grep 零命中实证）。
+- 行为契约（状态面板 team 分区）：buildConversationStatusPanelModel 增 `team` 输入 →
+  `ConversationStatusPanelTeam` 单对象（一个会话至多一个团队，§0 team 键单例）；**只收
+  在途状态**（active/halted/escalated/idle）——staged 由 timeline bottom dock 钉底承载、
+  终态由会话流摘要卡与任务列表徽标承载，面板不重复。行呈现：队名（fallback 通用标题）+
+  状态词（复用 team.status.*）+「成员 working/members · 任务 completed/total」+ blocked
+  计数（>0 才出）+ working 灯；行点击经 onOpenTeamPanel 打开 team 侧栏（SessionPane 接
+  useTeamNavigation，与摘要卡同一 TeamNavigation 路径，不造第二条导航）；宿主缺席
+  （手机远控未接线）时行退化为不可点事实行。hasContent 计入 team。
+- 有意取舍（登记，不做）：
+  - **composer 徽标 team 直达不做**：胶囊计数吃 backgroundWorks/subagentCount 词表，
+    team 非后台工作类；扩词表把「实时活动」语义搅混。状态面板分区已交付感知面，徽标
+    直达待分区实测反馈再定。
+  - **成员/任务卡 running 时长不做**：wire 花名册行无时间戳（契约 3 有意不映射的同族）、
+    任务只有 createdAt/updatedAt（前者含等待、后者随每次迁移跳动），起算点不真——
+    不臆造数据。需要成员级 startedAt 词表扩展，归后续卡（与成员路由可调同批）。
+  - **轮尾终态完成行不做**：需按轮锚定完成事件（照 ConversationWorkflowCompletion 的
+    行流接线），归「运行态呈现对齐 workflow」后续卡（§17 后续卡登记的承接）。
+
+**C. 命令收口与过程面活性缝（评审 low-17/medium-8 修复）**
+
+- TEAM_HISTORY_QUERY（team 域第九条 wire 命令）收进 team/commands.ts：信封构造/发送/
+  recordV4CommandAck 单一口径——此前 ACK 不进观测环，与八命令补环同一理由（AT-01 实证
+  probe 不到 ACK）。TeamHistoryConnection 类型随迁，useTeamHistory 保留再导出（消费面
+  不动）。
+- useTeamHistory 增 `refreshKey` 参数（照 useWorkflowRunJournalSummaries 同名先例——那边
+  注释记载「跑完的 run 不挪位」是实测修过的 bug）：TeamProcessPanel 传「看板各列计数 +
+  working 成员数 + 最大任务 updatedAt + 尾窗末条消息 id」拼的投影侧单调信号，团队跑动中
+  任一活动边缘抬升即重查当前页；手动「回最新」保留为兜底。
+
+**D. i18n 守护升级与死键清理（评审 low-18 修复）**
+
+- 手写迁移清单只覆盖两家族且键集一致断言以 zh 为基准（两侧同删无报警）。升级为源码扫描
+  双守（i18n.test.ts）：正向——team 目录 + app-shell/TeamSidePane 源码里的 team.* 字面量
+  （含 label: 形态与三元 id 形态）在双语词典非空；反向——词典 team.* 键必须被静态字面量、
+  动态映射表或登记的动态键族消费。反向守首轮揪出并删除 4 个死键（双侧同删）：
+  team.ui.tasks / team.ui.task / team.ui.approval / team.panel.title（消费方均已改名或
+  移除，全仓 grep 仅剩词典）。施工教训登记：**批量清理脚本必须先验消费再删**——首轮循环
+  误删 8 个动态形态活键（三元 id/模板拼键静态扫描不可见），已从 git 字节级恢复。
+
+**E. 触达与既有面收尾（评审 low-13/low-15）**
+
+- pointer-coarse ≥44px 补齐 staged 之外四处：TeamPanel HaltTeamButton/ResumeTeamSection
+  （输入+按钮）、TeamMemberSidePane 下钻 composer（输入+发送）、TeamSessionLine 主行——
+  此前触达纪律只覆盖 staged 编辑器，全局一致性破口。
+- relations 截断提示（评审 low-15 补充边界）**不施工**：TeamCollaborationPanel 已有
+  「已显示 shown/total 节点」scope 行 + 超 12 节点的聚焦选择器（:83/:115-116）——评审
+  只读了 relations.ts 没看到消费面，缺口不存在。
+
+**F. 测试与门禁**
+
+- ui vitest：TeamStagedEditor/TeamStagedFailureWiring/teamApprovalDock/i18n 全绿；core
+  vitest：team-hub（含契约 6 竞态复查用例）全绿；契约 5 的 composer 草稿保留/面板命令
+  失败出显用例随 §19 契约 5 本批落地。
+- E2E（2026-10-23 当日闭环）：staged-approval 桌面 E2E 更新到 dock 挂载点并实跑
+  **3/3 全绿**（1m08s，desktop-e2e-20261023-140157）——①主流程（dock 内编辑器 +
+  role=status 守门 + 摘要卡只读退化 + 恰一实例 + rename 入队 + Approve 真实 spawn +
+  终态边缘自动派发）；②契约 2 无 profile 流；③契约 5 halt 后下钻发消息被拒
+  （team_halted 内联出显 + 草稿保留真断言）。夹具新增 sendrej 四条（TeamSpawn carol
+  带 profile/parent-final/welcome/assignment，upstream + cases 双侧）；施工两修：M2
+  计数改基线差分（上游捕获工件跨用例累计，绝对 0 吃到前用例请求）、halt 二次确认
+  弹窗补点确认钮（单测 mock 的自动确认在真 UI 不存在）。
+
+**不做**：不改 wire 词表与错误码（花名册行 modelSelection 的可见性缺口归 wire 扩展
+后续卡，与成员路由可调同批）；不动投影 team 键整键重发（评审 low-16/20：≤5 成员 +
+尾窗 ≤10 有界，登记为已知取舍，手机远控实测带宽敏感再改节点级差）；不重建
+TeamStagedAutoOpenBridge 类面板外常驻监听（§10 修订的裁定不变）。
+
+## 20. team 邮箱内核补审计——终态源报告投递语义 + 去重 target 双键（2026-10-23 登记，先于实现）
+
+本节是 2026-10-23 team 内核补审计的两项入选登记（一 medium 一 low；来源：§16 契约 4
+落地后的组合复核，清单位于裁决轮记录）。两项都是**对 §16 契约 4 已落地实现的修订**，
+不新开产品能力：契约 1 修订其 source 配对校验的终态分支（终态源报告当前「放行即死件」，
+改回可投递），契约 2 修订其去重谓词维度（补 target 双键，与契约 1 同批一次改完该段
+spec——§16 契约 4 行为契约与「不做」句的指针批注已随本节登记落笔）。逐项与 §0 十条
+修订对照无冲突；与 §16 契约 4「不做」中「终态后补发报告能否送达由谓词现状裁决，属已知
+边界」的既有边界登记相抵——本节按裁决**撤销取代**该边界（见 §16 契约 4 不做句批注），
+「isCurrentMail 函数本体零改动」的字面约束保留。零 wire 词表扩展（TeamMailboxEntry 的
+sourceAttemptId 本就 optional，types.ts:79 同族）、零新错误码、灰度语义不变。
+
+**登记基线（实跑）**：`node scripts/check-workspace-freshness.mjs` 基线新鲜
+（feat/team-staged-approval-panel，相对 origin/main ahead 1 / behind 1）；
+`cd apps/drora-cli/packages/core && npx vitest run tests/team` → 13 文件 / 157 测试
+全绿（8.51s）。typecheck/lint 本节未运行（纯 spec 修订，零代码改动）；行号与字段以
+2026-10-23 检出实读（Read/grep）为准。
+
+### 契约 1｜终态源报告剥离 sourceAttemptId 入箱：恢复终态场景的省略投递语义（修订 §16 契约 4 配对校验终态分支）
+
+来源：2026-10-23 补审计（medium——本批唯一静默数据丢失级）。落点：hub.ts portSend
+配对校验段与入箱 entry 构造（§16 契约 4「source 配对校验」的终态分支）+ mailbox.ts
+isCurrentMail 头注订正。
+
+现状缺口（实读证实）：portSend 对源任务已终态的报告跳过精确核对直接放行
+（hub.ts:1365-1383，注释自言「无法核对即放行入箱，世代准确性仍由投递侧 isCurrentMail
+既有谓词把守」），entry 保留成员提交的 sourceAttemptId（hub.ts:1423-1435，:1431）。
+但任务终态时 applyTaskUpdate 已同步清 attemptId（board.ts:337-345 终态分支 :339-344，
+attemptId/handoffId/reassigning 同块清空），isCurrentMail 第一谓词的 attemptId 相等
+检查（mailbox.ts:53-57）位于「终态宽容」子句（:59-65）**之前**——终态后板上 attemptId
+已清、等值必假、整链 false，宽容子句在终态场景不可达；mailbox.ts:41-48 头注宣称
+「终态宽容……仍算当前」与实现求值顺序矛盾。组合效果：成员「先
+TeamTaskUpdate{status:"completed"} 再 TeamSend{report, source_task_id, source_attempt_id}」
+的自然顺序——完成报告入箱即死件（pendingMail 投递评估 isCurrentMail 失败永不投递、
+discardStaleMail 直接清除）；重试每次追加新死条目（findDuplicateMail 要求旧条目仍
+isCurrentMail，mailbox.ts:104，死条目不命中去重）。契约 4 之前成员可省略
+source_attempt_id（无绑定邮件不受世代过滤、恒可投递）；契约 4 的配对强制（缺
+sourceAttemptId → missing_attempt_id 拒绝，hub.ts:1371-1374）封死了该旁路。派发
+prompt（hub.ts:1010-1023）与 memberWelcomeText（install.ts:554-561）均未规定报告与
+完成更新的先后，两种顺序在模型行为中都自然发生。
+
+**行为契约**：
+
+- portSend 组合裁决：sourceTaskId 有值、源任务在板且已终态（isTerminalTaskStatus）时，
+  入箱 entry **剥离 sourceAttemptId**（保留 sourceTaskId 作展示引用——
+  sourceProvenanceHeader 对缺 attemptId 渲染 `attempt_id n/a`
+  （message-format.ts:20-22），是剥离后的如实呈现），降级为无绑定邮件：投递侧
+  isCurrentMail 第一谓词整段跳过（sourceAttemptId undefined，mailbox.ts:53），死件变
+  可投递。语义即**恢复契约 4 之前终态场景「省略 attemptId 恒可投递」的投递语义**，
+  世代纪律对非终态源一字不变。
+- 非终态源两拒绝族不动：missing_attempt_id（hub.ts:1372-1374）、attempt_revoked
+  （:1376-1382）的触发条件与文案不变；纯引导（无 source）不受限不变。
+- 有意收敛（登记，用例锁定）：剥离后该类报告在去重谓词中按无绑定邮件半边处理——
+  同文同收件人、sourceTaskId 相同（sourceAttemptId/sourceTaskStatus 双方均 undefined）
+  且旧条目未投递（deliveredAccepted === false）时归并复用既有 messageId；旧条目已投递
+  后重发允许新条目（绑定/未绑定不对称语义照 dsh 补1 的未绑定半边）。
+- mailbox.ts:41-48 头注订正（必做）：改为如实描述求值顺序——attemptId 相等先行；
+  终态时 attemptId 已随终态清空、等值必假，后置的终态宽容子句在终态场景不可达；
+  终态源报告由 portSend 入箱侧剥离 sourceAttemptId（本契约）按无绑定邮件投递。
+- 不可达子句处置裁决：isCurrentMail 终态宽容子句（mailbox.ts:59-65）**保留并注明**，
+  本批不删除（最小 diff）。注明内容：该子句首分支
+  `entry.sourceTaskStatus === undefined` 对模型报告条目是 load-bearing——
+  TeamSendInputSchema 无 source_task_status 键（team-tools.ts:118-125），模型报告该键
+  恒 undefined、整组对模型报告恒真；携带 sourceTaskStatus 的内部条目现仅契约 1 失败
+  通知路径（hub.ts:1684-1686 三键齐写）。
+
+**不变量**：
+
+- 契约 1 失败通知路径严禁触碰：其入箱（hub.ts:748 enqueueLeadFailureNotice）先于置
+  failed（置 failed 在其后经 applyTaskUpdate），凭证在场当次同步投递
+  （enqueueMail → routeMail → deliverPendingLeadMail），且不经 portSend 配对校验——
+  剥离逻辑位于 portSend，对该路径结构上不可达；「先入箱后置 failed」次序
+  （hub.ts:739-745 注释登记语义）不得因本契约改动。
+- isCurrentMail 函数本体语义零改动（§16 契约 4「不做」的字面保留；本契约只改 portSend
+  入箱构造与头注，不改谓词次序）。
+- 非终态源报告仍携 sourceAttemptId 入箱、仍受世代过滤（§16 契约 4 既有六案回归）。
+- 无绑定化后的已知边界（登记）：剥离条目不再参与任何世代过滤——源任务此后重开换代
+  （§16 契约 5）时的迟到送达也照投（恢复的就是契约 4 之前的省略投递语义）；不做按
+  sourceTaskId 的软世代核对。
+- 存量死条目不回填：journal 已持久化的终态前死条目重放后保持原样（不迁移、不修复）；
+  成员按新语义重发生成新条目（sourceAttemptId 三元组不同、旧死条目不命中去重）可投递
+  ——已知边界，不做事后修复面。已投递历史条目（deliveredAccepted）不受影响。
+
+**测试要求**（tests/team）：
+
+- team-hub.test.ts 新增顺序用例：TeamTaskUpdate{status:"completed"} 后
+  TeamSend{report + source_task_id + source_attempt_id} → success 入箱且 entry 无
+  sourceAttemptId、保留 sourceTaskId；lead 侧 pendingMail 可投递（deliverPendingLeadMail
+  或 kick 后投递恰一次）。
+- 同文重试去重两半边锁定：旧条目未投递 → 归并复用（同一 messageId）；已投递 → 允许
+  新条目。
+- 非终态回归：§16 契约 4 既有六案（missing_attempt_id / attempt_revoked / 当前凭证
+  成功 / 去重）不变红。
+- 实跑 `npx vitest run tests/team`（基线 13 文件 / 157 用例 + 本契约新增）全绿。
+
+**不做**：不改 isCurrentMail 谓词本体与求值次序（宽容子句保留并注明）；不动
+discardStaleMail 与 pendingMail 选取；不动契约 1 失败通知路径的入箱次序与文案；不做
+存量死条目的 journal 回填或持久化迁移；不改 sourceProvenanceHeader 展示格式；
+wire 词表零扩展。
+
+### 契约 2｜findDuplicateMail 去重谓词补 target 双键（修订 §16 契约 4 去重维度）
+
+来源：同批补审计（low——静默错投，与契约 1 同批一次改完 §16 契约 4 该段 spec）。
+落点：mailbox.ts findDuplicateMail 谓词 + §16 契约 4 去重维度句（已随本节登记订正，
+见该节批注）。
+
+现状缺口（实读证实）：findDuplicateMail（mailbox.ts:91-107）逐字比较 from/to/message
++ source 三元组（:98-103），不比较 targetTaskId/targetAttemptId。无 source 的普通引导
+仅在旧条目未投递时去重：模型携 target_task_id=T1 给 idle 成员发引导（queued 未投）后
+再发同文本携 target_task_id=T2 → 命中去重，返回旧 messageId（hub.ts:1450-1457 命中即
+返既有条目、不追加），T2 的任务定向静默丢失，工具返回 success 掩盖定向失效。
+targetAttemptId 是每次发送对板上任务 attempt 的独立快照（hub.ts:1416-1421），两条候选
+该值天然可不同。测试盲区：team-mailbox.test.ts:279「never dedups on any difference」
+的差异枚举（text/source 三元组/from-to/stale）不含 target 维度。
+
+**行为契约**：
+
+- 谓词补双键：`existing.targetTaskId === candidate.targetTaskId &&
+  existing.targetAttemptId === candidate.targetAttemptId`，与既有逐字比较同规
+  （undefined === undefined 视为相同——双方均无 target 定向的邮件行为零变化）。
+- 幂等意图不变：targetAttemptId 为投递时快照，同任务同 attempt 的两次同文发送快照
+  同值 → 仍归并（幂等重试语义保留）；旧条目未投递期间任务换代（快照值不同）或换目标
+  任务 → 不归并，返回新 messageId。
+- §16 契约 4 去重维度句已同步订正：「source 三元组相同」扩为「source 三元组与 target
+  双键相同」（本节一次改完该段）。
+
+**不变量**：
+
+- 命中条件合取不变：全部比较键逐字相同 + 旧条目仍 isCurrentMail + 绑定/未绑定不对称
+  半边——target 定向不再被归并吞掉。
+- isCurrentMail 第二谓词（targetAttemptId 世代过滤，mailbox.ts:68-76）零改动；本契约
+  只改去重谓词，不动投递语义。
+- 命中返回值语义不变：仍返回既有 messageId 及其当前 delivery（不加 "duplicate" 枚举
+  值，§16 契约 4 的 wire 偏斜裁决保留）。
+
+**测试要求**（tests/team）：
+
+- team-mailbox.test.ts「never dedups on any difference」差异枚举补 target 维度：同
+  收件人同文本、T1 旧条目未投递 → 再发携 T2 不归并、返回新 messageId；targetAttemptId
+  同值（同任务同 attempt 两次发送）仍归并（幂等意图不变）。
+- 回归 `npx vitest run tests/team` 全绿（与契约 1 同批实跑）。
+
+**不做**：不引入 target 内容级派生键或 dedup key（双键直比即可，照 §16 契约 4
+「避免 wire 与内部态双词汇」同规）；不改 isCurrentMail 第二谓词与 pendingMail 选取；
+不改 TeamSendDelivery 返回语义；wire 词表零扩展。
+
+**施工次序（依赖登记）**：契约 1 与契约 2 相互独立、可同批施工收口（两处实现分别
+落 hub.ts portSend 一段与 mailbox.ts 谓词一行）；测试同批一次实跑 tests/team。

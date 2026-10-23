@@ -10,10 +10,17 @@ import {
   restoreAgentsTeamFromJournal,
   TeamHub,
   type AgentRuntimeInternal,
+  type TeamMailboxEntry,
 } from "@drora/core";
 import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
-import type { TeamMemberPort, TeamLeadPort, TraceId, TurnId } from "@drora/contracts";
-import { SessionEventType } from "@drora/contracts";
+import type {
+  SessionEntryInfo,
+  TeamMemberPort,
+  TeamLeadPort,
+  TraceId,
+  TurnId,
+} from "@drora/contracts";
+import { SessionEventType, TEAM_JOURNAL_KEY_PREFIX } from "@drora/contracts";
 import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-protocol-v4";
 
 /**
@@ -22,6 +29,14 @@ import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-pr
  * runtime 构造后调用 installDroraAgentsTeam 完成接线。零团队状态落在本文件——
  * 全部事实在 TeamHub（§2.2 状态所有者表）；本文件只做通道适配。
  */
+
+/**
+ * team 邮箱条目持久化的 session entry 通道 type 键（E12 全同步邮箱持久化）。
+ * 前缀单一出处 contracts TEAM_JOURNAL_KEY_PREFIX，此处只拼接后缀（journal.ts 的
+ * TEAM_JOURNAL_ENTRY_TYPE 同款拼接先例）；消费方（测试与未来恢复读取面）必须引用本常量，
+ * 不得手写字面量（AGENTS.md 契约键单一出处）。
+ */
+export const TEAM_MAILBOX_ENTRY_TYPE = `${TEAM_JOURNAL_KEY_PREFIX}mailbox`;
 
 export interface AgentsTeamInstallInput {
   /** lead runtime（构造完成后的实例；install 只读其装配面）。 */
@@ -131,6 +146,48 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     },
   });
 
+  // E12 全同步邮箱持久化接线（specs/agents-team.md §2.2 状态所有者表 TeamMailbox 行
+  // 「写成功（持久化后）才算发送成功」+ M3 实现 登记#3 收口，v1 起的装配缺口）：复用
+  // journal 同一持久化存储通道（sessionStore.saveSessionEntry），为邮箱条目提供同步
+  // 写入口。与 journal message_appended 的职责边界（M3 登记#3 既有关系，防双写歧义）：
+  // journal 是「数据事实流水」——异步串行刷盘、失败只 warn、供恢复重放，丢尾只退化
+  // 崩溃恢复；persistMailboxEntry 是「消息持久入口」——同步入队、同步抛错直接传播、
+  // 入箱前置门（写失败 = 发送失败，hub enqueueMail 转拒绝 mailbox_persist_failed）。
+  // 两者落同一 sessionStore 但 entry type 不同（journal 流按 seq 重放、邮箱条目按
+  // messageId 寻址），不构成重复状态或多条裁决写入路径。hub 入队前的内容级去重
+  // （duplicate 早退在 persist 之前，spec §16 契约 4）保证重发不落重复写，批量报告
+  // 场景无写放大。
+  const persistMailboxEntry = (entry: TeamMailboxEntry): void => {
+    const store = input.leadDeps.sessionStore;
+    if (store === undefined) return; // 无 store（极端装配）= 邮箱降级内存态（同 journal 先例，不阻断裁决）
+    const timestamp = Date.now();
+    const durable: SessionEntryInfo = {
+      id: `${lead.sessionId}:${TEAM_MAILBOX_ENTRY_TYPE}/${entry.messageId}`,
+      sessionID: lead.sessionId as never,
+      type: TEAM_MAILBOX_ENTRY_TYPE,
+      touchSession: false, // 同 journal：旁路事实流，不把会话伪装成「刚刚活跃」
+      time: { created: timestamp, updated: timestamp },
+      data: entry,
+    };
+    // 同步入队：saveSessionEntry 同步抛错自然向上传播（hub 转 mailbox_persist_failed、
+    // 消息不进邮箱——journal.ts:16 头注同款契约：抛错不中断 hub 裁决、由 hub 转拒绝）。
+    // 异步拒绝无法在 void 同步端口上转抛，只 warn（降级同 journal 刷盘失败，恢复语义
+    // 由 journal message_appended 事实流兜底）。
+    const pending = store.saveSessionEntry?.(durable);
+    pending?.catch((error: unknown) => {
+      lead.logger?.warn(
+        `agents team: mailbox entry flush failed (messageId=${entry.messageId}); ` +
+          "continuing: send already acked, the journal message_appended fact stays the restore source",
+        {
+          error: error instanceof Error ? error.message : String(error ?? ""),
+          event: "agents_team.mailbox_write_failed",
+          module: "bootstrap.agentsTeam",
+          sessionId: lead.sessionId,
+        },
+      );
+    });
+  };
+
   // M4 静默通道（缺口6 复用）：停掉成员在飞的后台任务并等待其终态。转派三步的第 2 步
   //（spec §16.1）与 spawn 反向回收共用；超时/失败抛错 → 调用方按各自语义兜底
   //（reassign 保持交接 in-flight；spawn 回收只 warn 不阻塞草案回滚）。
@@ -167,25 +224,64 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   // 认领下一任务）。lastSeen 去重同态边缘，防 terminal→terminal 重复触发循环。
   const lastSeenRuntimeStatusByAgentId = new Map<string, string>();
   const syncMemberRuntimeState = (agentId: string, memberName: string): void => {
-    const status = taskRegistry.get(agentId)?.status;
-    if (status === undefined || lastSeenRuntimeStatusByAgentId.get(agentId) === status) return;
+    const snapshot = taskRegistry.get(agentId);
+    if (snapshot === undefined || lastSeenRuntimeStatusByAgentId.get(agentId) === snapshot.status)
+      return;
+    const status = snapshot.status;
     lastSeenRuntimeStatusByAgentId.set(agentId, status);
     if (status === "running") {
       hub.markMemberWorking(memberName);
       return;
     }
-    if (isTerminalRuntimeTask({ status })) {
-      // fire-and-forget：handleMemberTerminal 的 kick 派发不在 runner 的 finalize
-      // 事件链上等待；失败不影响成员终态事实本身（registry 已终态，下次边缘再触发）。
-      void hub.handleMemberTerminal(memberName).catch((error: unknown) => {
-        lead.logger?.warn(`agents team: member terminal edge failed for ${memberName}`, {
-          event: "agents_team.member_terminal_edge",
-          module: "bootstrap.agentsTeam",
-          sessionId: lead.sessionId,
-          error: String(error),
+    if (!isTerminalRuntimeTask({ status })) return;
+    // spec §16 契约 1（2026-10-22 登记）：终态边缘分诊。failed/lost = 模型侧失败
+    //（重试耗尽）→ handleMemberFailed 做事件现场世代分类——此前一律汇入
+    // handleMemberTerminal（只置 terminal+park+kick），成员回合死于 429/鉴权/异常时
+    // 任务永久停在 claimed/in_progress 且 lead 零通知（DSH issue #205 同形事故）。
+    // killed/stopped/cancelled 一律不标 failed（适配修正，见 spec：成员停机路径写
+    // killed 且不写 stopInitiator，无法甄别用户中断；它们全部来自 hub 自身中断动作，
+    // 照 §2.6 sticky park 走既有 handleMemberTerminal）；halted 冻结门在 hub 侧
+    //（handleMemberFailed 消费边缘不分类）。attemptId 事件现场世代取 registry 快照
+    // parentToolCallId——install 的派发通道把它写为任务派发的 attemptId。
+    if (status === "failed" || status === "lost") {
+      const attemptId =
+        typeof snapshot.parentToolCallId === "string" && snapshot.parentToolCallId !== ""
+          ? snapshot.parentToolCallId
+          : undefined;
+      const detail =
+        typeof snapshot.error === "string" && snapshot.error.trim() !== ""
+          ? snapshot.error
+          : undefined;
+      void hub
+        .handleMemberFailed(memberName, {
+          status,
+          agentId,
+          ...(snapshot.stopInitiator === undefined
+            ? {}
+            : { stopInitiator: snapshot.stopInitiator }),
+          ...(attemptId === undefined ? {} : { attemptId }),
+          ...(detail === undefined ? {} : { detail }),
+        })
+        .catch((error: unknown) => {
+          lead.logger?.warn(`agents team: member failure edge failed for ${memberName}`, {
+            event: "agents_team.member_failure_edge",
+            module: "bootstrap.agentsTeam",
+            sessionId: lead.sessionId,
+            error: String(error),
+          });
         });
-      });
+      return;
     }
+    // fire-and-forget：handleMemberTerminal 的 kick 派发不在 runner 的 finalize
+    // 事件链上等待；失败不影响成员终态事实本身（registry 已终态，下次边缘再触发）。
+    void hub.handleMemberTerminal(memberName).catch((error: unknown) => {
+      lead.logger?.warn(`agents team: member terminal edge failed for ${memberName}`, {
+        event: "agents_team.member_terminal_edge",
+        module: "bootstrap.agentsTeam",
+        sessionId: lead.sessionId,
+        error: String(error),
+      });
+    });
   };
   taskRegistry.subscribe(() => {
     for (const member of hub.snapshot()?.members ?? []) {
@@ -204,6 +300,10 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     },
     // journal 写入：hub 动作点的用户/协议动作与板/邮箱数据事实（spec 差异裁决#5）。
     journalWriter: (event) => journalSink.append(event),
+    // E12 全同步邮箱持久化装配收口（v1 起的装配缺口）：写成功才算发送成功，
+    // 同步入队失败由 hub enqueueMail 转拒绝 mailbox_persist_failed——职责边界与
+    // journal message_appended 的关系见上方 persistMailboxEntry 注释。
+    persistMailboxEntry,
     // 派发通道：私有端口的 sendMessage——运行中成员 steer、终态成员复活；
     // queued 不算送达（ack 只认注入，spec §16.3），消息保留待下次投递边缘。
     dispatch: async (request) => {
@@ -256,8 +356,11 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
         lead.enqueueSubagentMessage({
           responseId: `team_mail_${entry.messageId}`,
           agentId: sender.agentId,
-          agentType:
-            sender.profile === undefined || sender.profile === "" ? "general-purpose" : sender.profile,
+          // 与 launch 同门（§17 契约 6，2026-10-23 由「契约 5」改号消歧）：profile 是
+          // 展示描述不是 agent 类型，成员
+          // 统一按 general-purpose 寻址——否则邮箱投递会对描述性画像重复
+          // UNKNOWN_AGENT_TYPE。
+          agentType: "general-purpose",
           childSessionId: sender.childSessionId as never,
           childToolCallId: `team:${sender.agentId}`,
           summary: entry.summary ?? `Team message from ${entry.from}`,
@@ -286,7 +389,12 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
             sessionId: lead.sessionId,
             turnId: `team_spawn_${randomId()}` as unknown as TurnId,
             parentToolCallId: "",
-            agentType: member.profile === "" ? "general-purpose" : member.profile,
+            // profile 是花名册的展示描述（spec §6.2：角色画像进 UI 成员行），不是 agent
+            // 类型。此前把 profile 当 agentType 传 launch，模型自然语言写的画像（如
+            // 「CI 工作流分析员：专注…」）会以 UNKNOWN_AGENT_TYPE 秒败
+            // （session_418f2709 实证：member_spawn_failed，27ms 内拒）。成员一律按
+            // general-purpose 装配（spec §8.7 路由由 modelSelection 治理，与此无关）。
+            agentType: "general-purpose",
             description: `team member ${member.memberName}`,
             prompt: memberWelcomeText(member.memberName),
             callerCanReadOutputFile: true,
@@ -323,15 +431,12 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
           try {
             await settleMemberTask(row.memberName, row.agentId);
           } catch (settleError) {
-            lead.logger?.warn(
-              `agents team: spawned member rollback failed for ${row.memberName}`,
-              {
-                event: "agents_team.spawn_rollback_failed",
-                module: "bootstrap.agentsTeam",
-                sessionId: lead.sessionId,
-                error: settleError instanceof Error ? settleError.message : String(settleError),
-              },
-            );
+            lead.logger?.warn(`agents team: spawned member rollback failed for ${row.memberName}`, {
+              event: "agents_team.spawn_rollback_failed",
+              module: "bootstrap.agentsTeam",
+              sessionId: lead.sessionId,
+              error: settleError instanceof Error ? settleError.message : String(settleError),
+            });
           }
         }
         nextSpawnAgentId = undefined;

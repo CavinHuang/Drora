@@ -77,6 +77,7 @@ import { createSessionFacade } from "./session-facade.js";
 import { resolveAppRuntimeConfig, runtimeConfigLogContext } from "./runtime-config.js";
 import { resolveBundledSkillRoots } from "./bundled-skills.js";
 import { collectDynamicWorkflowDisabledSkillPaths } from "./dynamic-workflow-gate.js";
+import { gateAgentsTeamSkillPort } from "./agents-team-skill-gate/index.js";
 import { createWorkspaceHookRuntimeSecurity } from "./workspace-hook-trust.js";
 import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
 import {
@@ -869,19 +870,26 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       skillPort:
         configResult.config.features.skill && configResult.config.skills.enabled
           ? (options.skillPort ??
-            createNodeSkillAdapter({
-              additionalDirectories: options.additionalDirectories,
-              extraRoots: configResult.config.skills.roots,
-              extraResolvedRoots: [...pluginOutcome.skillRoots, ...bundledSkillRoots],
-              disabledPaths: [
-                ...collectDisabledPaths(configResult.config.skillOverrides),
-                // 动态工作流关闭时不提供 dynamic-workflows 技能：
-                // 十个工具都不在场，再让模型读到「怎么写工作流脚本」只会诱导它去调不存在的工具。
-                ...(runtimeConfig.dynamicWorkflowEnabled === false
-                  ? collectDynamicWorkflowDisabledSkillPaths(bundledSkillRoots)
-                  : []),
-              ],
-            }))
+            gateAgentsTeamSkillPort(
+              createNodeSkillAdapter({
+                additionalDirectories: options.additionalDirectories,
+                extraRoots: configResult.config.skills.roots,
+                extraResolvedRoots: [...pluginOutcome.skillRoots, ...bundledSkillRoots],
+                disabledPaths: [
+                  ...collectDisabledPaths(configResult.config.skillOverrides),
+                  // 动态工作流关闭时不提供 dynamic-workflows 技能：
+                  // 十个工具都不在场，再让模型读到「怎么写工作流脚本」只会诱导它去调不存在的工具。
+                  ...(runtimeConfig.dynamicWorkflowEnabled === false
+                    ? collectDynamicWorkflowDisabledSkillPaths(bundledSkillRoots)
+                    : []),
+                ],
+              }),
+              // agents-team 技能门（specs/agents-team.md §17 契约 1）：与 skills.ts 目录清单面
+              // 同门同裁决值（:812 agentsTeamEnabled）——门关时团队工具缺席，会话内模型的
+              // 说明书（bundled agents-team 技能）也必须缺席，否则「说明书在、工具不在」
+              // （session_76d145bb 实证）。只剔 bundled 来源，同名用户/项目/插件技能不误伤。
+              agentsTeamEnabled,
+            ))
           : undefined,
       mcpPort,
       eventSink: options.eventSink,

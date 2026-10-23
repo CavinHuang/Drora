@@ -1,4 +1,5 @@
 import type { TeamLeadPort, TeamMemberPort, TeamTaskUpdateInput } from "@drora/contracts";
+import { TEAM_LIMITS } from "@drora/shared/drora-protocol-v4";
 import { z } from "zod";
 import { createCoreError, CoreErrorType } from "../runtime/deps.js";
 import type { ToolEntry, ToolHandler } from "../tool/types.js";
@@ -6,9 +7,10 @@ import type { ToolEntry, ToolHandler } from "../tool/types.js";
 /**
  * 团队协作工具面（spec §6.2）：闭包捕获 TeamMemberPort 的自包含 ToolEntry——
  * v2 注入方式（无 deps 字段接缝），由 install 注册进 hub 自建注册表实例。
- * lead 专属动作（TeamSpawn 舞台工具在本文件；审批/停队/恢复走 v4 用户面命令，
- * 不做模型工具——审批是用户动作，模型不得自批）。本文件其余为成员侧协作面
- * （强制保留集合）。
+ * lead 专属动作：TeamSpawn 舞台工具与 TeamReassign 转派/接管（specs/agents-team.md
+ * §19 契约 4——sticky-parked 任务唯一轮换面，spec §1「转派/接管只有 lead 工具能做」）
+ * 在本文件；审批/停队/恢复走 v4 用户面命令，不做模型工具——审批是用户动作，模型
+ * 不得自批。本文件其余为成员侧协作面（强制保留集合）。
  */
 
 const TASK_LIST_OUTPUT_SCHEMA = {
@@ -80,12 +82,19 @@ function teamToolEntry(input: {
       cleanup: "none",
       userVisibleMessage: `${input.name} was cancelled before the team port returned`,
     },
-    trace: { required: true, propagateToAdapters: true, recordInput: "summary", recordOutput: "summary" },
+    trace: {
+      required: true,
+      propagateToAdapters: true,
+      recordInput: "summary",
+      recordOutput: "summary",
+    },
   };
 }
 
 const TeamTaskUpdatePatchSchema = z.object({
-  status: z.enum(["pending", "claimed", "in_progress", "completed", "failed", "cancelled"]).optional(),
+  status: z
+    .enum(["pending", "claimed", "in_progress", "completed", "failed", "cancelled"])
+    .optional(),
   output: z.string().optional(),
   artifactRefs: z.array(z.string()).optional(),
 });
@@ -93,7 +102,9 @@ const TeamTaskUpdatePatchSchema = z.object({
 const TeamTaskUpdateInputSchema = z.object({
   task_id: z.string().min(1),
   attempt_id: z.string().min(1),
-  status: z.enum(["pending", "claimed", "in_progress", "completed", "failed", "cancelled"]).optional(),
+  status: z
+    .enum(["pending", "claimed", "in_progress", "completed", "failed", "cancelled"])
+    .optional(),
   output: z.string().optional(),
   artifact_refs: z.array(z.string()).optional(),
   acceptance_supplement: z
@@ -120,19 +131,20 @@ export type TeamToolPortResolver = (context: { sessionId: string }) => TeamMembe
 /** lead 专属端口解析：只解析 lead 会话（E10 lead 专属由装配结构性保证）。 */
 export type TeamLeadPortResolver = (context: { sessionId: string }) => TeamLeadPort | undefined;
 
+/** 任务卡 → 工具出参（snake_case wire 形；collab 面与 lead 的 TeamReassign 共用）。 */
+const taskCardJson = (card: ReturnType<TeamMemberPort["taskGet"]>) => ({
+  task_id: card?.taskId,
+  title: card?.title,
+  status: card?.status,
+  assignee: card?.assignee,
+  attempt: card?.attempt,
+  attempt_id: card?.attemptId,
+  depends_on: card?.dependsOn,
+  output: card?.output,
+});
+
 /** 成员侧协作工具（强制保留集合；即使 profile 收窄也注册，spec §6.2）。 */
 export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): ToolEntry[] {
-  const taskCardJson = (card: ReturnType<TeamMemberPort["taskGet"]>) => ({
-    task_id: card?.taskId,
-    title: card?.title,
-    status: card?.status,
-    assignee: card?.assignee,
-    attempt: card?.attempt,
-    attempt_id: card?.attemptId,
-    depends_on: card?.dependsOn,
-    output: card?.output,
-  });
-
   return [
     teamToolEntry({
       name: "TeamTaskList",
@@ -142,7 +154,10 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
       outputSchema: TASK_LIST_OUTPUT_SCHEMA,
       readOnly: true,
       handler: async (_raw, context) => {
-        const board = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskList").boardRead();
+        const board = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamTaskList",
+        ).boardRead();
         return {
           tasks: board.tasks.map((task) => ({
             task_id: task.taskId,
@@ -169,7 +184,10 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
       readOnly: true,
       handler: async (raw, context) => {
         const parsed = z.object({ task_id: z.string().min(1) }).parse(raw);
-        const card = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskGet").taskGet(parsed.task_id);
+        const card = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamTaskGet",
+        ).taskGet(parsed.task_id);
         return { task: card === undefined ? undefined : taskCardJson(card) };
       },
     }),
@@ -208,7 +226,10 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
             depends_on: z.array(z.string()).optional(),
           })
           .parse(raw);
-        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskCreate").taskCreate({
+        const result = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamTaskCreate",
+        ).taskCreate({
           title: parsed.title,
           spec: { goal: parsed.goal, acceptance: parsed.acceptance },
           dependsOn: parsed.depends_on ?? [],
@@ -239,7 +260,10 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
       readOnly: false,
       handler: async (raw, context) => {
         const parsed = z.object({ task_id: z.string().min(1) }).parse(raw);
-        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskClaim").taskClaim(parsed.task_id);
+        const result = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamTaskClaim",
+        ).taskClaim(parsed.task_id);
         if (result.status === "rejected") {
           throw createCoreError(
             CoreErrorType.ConfigurationError,
@@ -296,7 +320,10 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
                 },
               }),
         };
-        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamTaskUpdate").taskUpdate(input);
+        const result = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamTaskUpdate",
+        ).taskUpdate(input);
         if (result.status === "rejected") {
           throw createCoreError(
             CoreErrorType.ConfigurationError,
@@ -333,12 +360,17 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
       readOnly: false,
       handler: async (raw, context) => {
         const parsed = TeamSendInputSchema.parse(raw);
-        const result = requirePort(() => resolvePort({ sessionId: context.sessionId }), "TeamSendMessage").send({
+        const result = requirePort(
+          () => resolvePort({ sessionId: context.sessionId }),
+          "TeamSendMessage",
+        ).send({
           to: parsed.to,
           message: parsed.message,
           ...(parsed.summary === undefined ? {} : { summary: parsed.summary }),
           ...(parsed.source_task_id === undefined ? {} : { sourceTaskId: parsed.source_task_id }),
-          ...(parsed.source_attempt_id === undefined ? {} : { sourceAttemptId: parsed.source_attempt_id }),
+          ...(parsed.source_attempt_id === undefined
+            ? {}
+            : { sourceAttemptId: parsed.source_attempt_id }),
           ...(parsed.target_task_id === undefined ? {} : { targetTaskId: parsed.target_task_id }),
         });
         if (result.status === "failed") {
@@ -356,30 +388,56 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
 
 // ---------- lead 专属：staged 草案入口（2026-10-21 缺口0，spec §14） ----------
 
+// 输入限额与 wire 同门（specs/agents-team.md §17 契约 4，单一出处 TEAM_LIMITS）：
+// 草案成员/任务会原样进 team 投影，wire 对 profile/memberName 有 ≤maxNameChars、
+// title/goal 等有 ≤maxTextChars 的硬上界——模型给出的超长 profile 曾让投影一 emit
+// 就烧掉每一帧（session_7117760500 实证：对话区 fail-closed 白屏）。在工具入参边界
+// 拒绝，模型当场自纠，而不是让坏载荷落库后烧订阅。
 const TeamSpawnInputSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
   members: z
     .array(
       z.object({
-        name: z.string().min(1),
-        profile: z.string().optional(),
+        name: z.string().min(1).max(TEAM_LIMITS.maxNameChars),
+        profile: z.string().max(TEAM_LIMITS.maxNameChars).optional(),
         model_selection: z
-          .object({ provider: z.string().min(1), model: z.string().min(1), thought: z.string().optional() })
+          .object({
+            provider: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+            model: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+            thought: z.string().max(TEAM_LIMITS.maxIdChars).optional(),
+          })
           .optional(),
       }),
     )
-    .min(1),
-  tasks: z.array(
-    z.object({
-      task_id: z.string().optional(),
-      title: z.string().min(1),
-      goal: z.string().min(1),
-      acceptance: z.array(z.string()),
-      output_format: z.string().optional(),
-      assignee: z.string().optional(),
-      depends_on: z.array(z.string()).optional(),
-    }),
-  ),
+    .min(1)
+    .max(TEAM_LIMITS.membersMax),
+  tasks: z
+    .array(
+      z.object({
+        task_id: z.string().max(TEAM_LIMITS.maxIdChars).optional(),
+        title: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
+        goal: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
+        acceptance: z
+          .array(z.string().min(1).max(TEAM_LIMITS.maxTextChars))
+          .max(TEAM_LIMITS.acceptanceMax),
+        output_format: z.string().max(TEAM_LIMITS.maxTextChars).optional(),
+        assignee: z.string().max(TEAM_LIMITS.maxNameChars).optional(),
+        depends_on: z
+          .array(z.string().min(1).max(TEAM_LIMITS.maxIdChars))
+          .max(TEAM_LIMITS.dependsOnMax)
+          .optional(),
+      }),
+    )
+    .max(TEAM_LIMITS.boardTasksMax),
+});
+
+// §19 契约 4（2026-10-23）：TeamReassign 转派/接管入参限额与 TeamSpawn 同门
+//（§17 契约 4：限额单一出处 TEAM_LIMITS，超限在工具入参边界报错，模型当场自纠）；
+// min(1) 拒空串——这是工具入参面校验，与 §19 契约 2 的 hub 落库空白归一是两门，不混用。
+const TeamReassignInputSchema = z.object({
+  task_id: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+  to: z.string().min(1).max(TEAM_LIMITS.maxNameChars),
+  reason: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
 });
 
 /**
@@ -388,6 +446,10 @@ const TeamSpawnInputSchema = z.object({
  * （v4 命令 approveTeamPlan），模型不得自批（「不批自己的实现」同源）。staged 态
  * 再次调用 = 原子更新同一草案（spec §10）；task_id 可选携带用于修订时身份保持
  * （缺口5——dependsOn 引用旧 ID 不悬空）。
+ *
+ * TeamReassign（specs/agents-team.md §19 契约 4）是转派/接管的唯一生产入口
+ * （spec §1「转派/接管只有 lead 工具能做」）：sticky-parked 任务的轮换面；
+ * 成员会话经 resolver 解析 undefined，E10 team_lead_only 由装配结构性保证。
  */
 export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver): ToolEntry[] {
   return [
@@ -457,8 +519,12 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
           ...(parsed.name === undefined ? {} : { name: parsed.name }),
           draftMembers: parsed.members.map((member) => ({
             memberName: member.name,
-            profile: member.profile ?? "",
-            ...(member.model_selection === undefined ? {} : { modelSelection: member.model_selection }),
+            // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——
+            // 空串落库会破 wire min(1)，烧投影每一帧；空白归一在 hub.stageTeam 物化处。
+            profile: member.profile,
+            ...(member.model_selection === undefined
+              ? {}
+              : { modelSelection: member.model_selection }),
           })),
           draftTasks: parsed.tasks.map((task) => ({
             ...(task.task_id === undefined ? {} : { taskId: task.task_id }),
@@ -496,10 +562,61 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
               assignee: task.assignee,
               depends_on: task.dependsOn,
             })),
-            next:
-              "The draft is staged for user approval. Tell the user to review it in the team panel and press Approve & Run. Do not spawn anything yourself; wait for their decision.",
+            next: "The draft is staged for user approval. Tell the user to review it in the team panel and press Approve & Run. Do not spawn anything yourself; wait for their decision.",
           },
         };
+      },
+    }),
+    // §19 契约 4：转派/接管工具条目——hub.reassign 三步交接（失效旧凭证 →
+    // interruptAndSettle 静默 → handoffId 再入新者胜）之上的模型入口；内核语义零改动。
+    teamToolEntry({
+      name: "TeamReassign",
+      description:
+        "Reassign one of the team's open tasks to another member, or take it over yourself with to=\"lead\" (lead takeover moves the task to in_progress directly, no claim handshake). Only non-terminal tasks can be reassigned: the current assignee's attempt is revoked and they are told the task moved on. As lead you can hold at most one open task (claimed/in_progress) at a time; a second takeover is rejected.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string" },
+          to: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["task_id", "to", "reason"],
+        additionalProperties: false,
+      },
+      runtimeInputSchema: TeamReassignInputSchema,
+      outputSchema: { type: "object", properties: { task: { type: "object" } } },
+      readOnly: false,
+      handler: async (raw, context) => {
+        // §19 契约 4：成员会话 resolver 返回 undefined → 结构性拒（E10 lead 专属的
+        // 装配保证，成员零通路；照 TeamSpawn 同门）。端口检查先于 schema 解析。
+        const port = resolveLeadPort({ sessionId: context.sessionId });
+        if (port === undefined) {
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            "Team port is not configured for TeamReassign (lead session only)",
+            { recoverable: false },
+          );
+        }
+        const parsed = TeamReassignInputSchema.parse(raw);
+        // reason 是端口必填载荷（TeamReassignInput）；hub.reassign 现状不消费不持久化
+        //（照 §16 契约 5 reopen「无 reason 持久化面」同规）——原样透传，不在此加工。
+        const result = await port.reassign({
+          taskId: parsed.task_id,
+          to: parsed.to,
+          reason: parsed.reason,
+        });
+        if (result.status === "rejected") {
+          // §19 契约 4：六拒绝语义全数透传（team_halted / team_not_present /
+          // invalid_transition / attempt_revoked / name_redirect / team_lead_only）——
+          // error.code 挂 CoreError.context，拒绝文案与 hint 原样出显。
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            `${result.error?.message ?? "reassign rejected"}${result.error?.hint === undefined ? "" : ` ${result.error.hint}`}`,
+            { context: { code: result.error?.code }, recoverable: false },
+          );
+        }
+        // ok：回显轮换后的任务卡（新 assignee 与新 attempt 世代），lead 依此核对轮换。
+        return { task: taskCardJson(port.taskGet(parsed.task_id)) };
       },
     }),
   ];

@@ -169,9 +169,24 @@ export interface TeamReassignInput {
   reason: string;
 }
 
+/**
+ * lead 显式重开入参（spec §16 契约 5，2026-10-23 登记）：仅 failed 任务可重开，
+ * 回共享池开新世代槽位。无 reason/to 字段——重开回共享池（定向指派经 reassign），
+ * 不携带指派与措辞载荷，保持与 reassign 正交。
+ */
+export interface TeamReopenInput {
+  taskId: string;
+}
+
 export interface TeamStageMemberDraft {
   memberName: string;
-  profile: string;
+  /**
+   * 2026-10-23 空白归一（specs/agents-team.md §19 契约 2）：对齐 wire 的
+   * min(1).optional（drora-protocol-v4/team.ts 成员/stagedDraft 行）——缺省与空白
+   * 均为合法入参，hub 落库前归一为键缺席；必填会逼生产点写 `?? ""`，让空串破
+   * wire min(1) 烧每一帧（§17 契约 4 只封了超上界半边）。
+   */
+  profile?: string;
   modelSelection?: { provider: string; model: string; thought?: string };
 }
 
@@ -213,7 +228,15 @@ export type TeamPortErrorCode =
   // 同时用于 portTaskCreate 的运行态存在性校验（悬空依赖任务会永久 pending）。
   | "draft_duplicate_task"
   | "unknown_dependency"
-  | "dependency_cycle";
+  | "dependency_cycle"
+  // 2026-10-22 spec §16 契约 2（终态不可变补齐）：终态任务的 output/artifactRefs
+  // 不可改写，唯一合法通道是 acceptance_supplement 署名追补（spec §16.1）。不复用
+  // attempt_revoked——其教学文案「已被转派」对已完工任务是错误陈述（错误分类即协议）。
+  | "terminal_read_only"
+  // 2026-10-23 spec §17 契约 4（草案字段与 wire 限额同门）：草案原样进 team 投影，
+  // 超限字段会让投影一 emit 就烧掉会话流的每一帧（proto.frameAssemblyInvalidPayload
+  // → fail-closed 白屏）。在 stageTeam 源头拒绝，调用方改短字段而不是让坏载荷落库。
+  | "draft_field_too_long";
 
 export interface TeamPortError {
   code: TeamPortErrorCode;
@@ -278,6 +301,13 @@ export interface TeamLeadPort extends TeamMemberPort {
   approveStage(): Promise<TeamApproveResult>;
   /** 转派/接管：先失效旧 attempt，等旧成员静默后开新 attempt（spec §16.1）。 */
   reassign(input: TeamReassignInput): Promise<TeamMutationResult>;
+  /**
+   * 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记）：TASK_TRANSITIONS
+   * failed→pending 受控出边的唯一消费通道——failed 回共享池开新世代槽位（证据清空、
+   * recoveryRetried 重置、attempt 计数延续由再认领 +1 重铸）。仅 lead 可调
+   * （team_lead_only）；completed/cancelled/开放中任务一律 invalid_transition。
+   */
+  reopenTask(input: TeamReopenInput): TeamTaskMutationResult;
   /** 恢复 halted/escalated；必须带非空 reason（E：用户停的队不得静默恢复）。 */
   resume(reason: string): TeamMutationResult;
 }

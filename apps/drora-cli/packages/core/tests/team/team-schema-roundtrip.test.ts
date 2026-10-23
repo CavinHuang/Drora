@@ -11,12 +11,15 @@ import {
   teamProjectionStateSchema,
   type TeamProjectionState,
 } from "@drora/shared/drora-protocol-v4";
+import { TeamHub } from "../../src/team/hub.js";
+import { projectTeam } from "../../src/team/projection.js";
 
 /**
  * PR-2.1 黄金测试（design §7 M2 验收 / §8.3）：team 投影 schema round-trip、
  * 旧快照（无 team 字段）解析不破坏、非 strict 容器剥 team 键保其余键、
- * 八条团队命令 payload 合法样例。被测面全部在 @drora/shared（纯 schema），本测试
- * 不依赖任何运行时。
+ * 八条团队命令 payload 合法样例。被测面主体在 @drora/shared（纯 schema）；
+ * 用例 a′ 是唯一例外（specs/agents-team.md §19 契约 2 测试要求）：经真实
+ * stageTeam 落库 + projectTeam 走完投影链再过 wire schema。
  */
 
 /** active 态全量样本：members 全可选字段、board 覆盖 attempt 字段族与 contract 预留、邮箱尾窗两态。 */
@@ -192,6 +195,50 @@ describe("team 投影 schema round-trip（PR-2.1 黄金测试）", () => {
     expect(card.recoveryRetried).toBe(true);
     expect("handoffId" in card).toBe(false);
     expect("reassigning" in card).toBe(false);
+  });
+
+  it("a′) §19 契约 2：含无 profile/空白 thought 成员的草案经 stageTeam→projectTeam 后 wire parse 通过", () => {
+    // 唯一运行时参与用例：stageTeam 是空白归一唯一所有者（specs/agents-team.md
+    // §19 契约 2②）——模型合法省略/空白 profile 与 thought 落库后必须键缺席，
+    // 否则 wire 对 members[].profile / stagedDraft thought 的 min(1) 被空串击穿，
+    // 投影每一帧被渲染器按 proto.frameAssemblyInvalidPayload 拒帧（§17 契约 4 烧帧）。
+    const hub = new TeamHub({
+      clock: { now: () => "2026-10-23T00:00:00.000Z", newId: () => "id_1" },
+    });
+    expect(
+      hub.stageTeam("lead_s1", {
+        name: "burn-guard",
+        draftMembers: [
+          { memberName: "alice", profile: "" },
+          {
+            memberName: "bob",
+            modelSelection: { provider: "provider-a", model: "model-a", thought: "   " },
+          },
+        ],
+        draftTasks: [{ title: "t1", spec: { goal: "g1", acceptance: ["a"] }, dependsOn: [] }],
+      }).status,
+    ).toBe("ok");
+    const roster = hub.snapshot();
+    const board = hub.board();
+    if (roster === undefined || board === undefined) throw new Error("hub snapshot/board missing");
+    const projection = projectTeam({
+      teamId: roster.teamId,
+      ...(roster.name === undefined ? {} : { name: roster.name }),
+      status: roster.status,
+      members: roster.members,
+      tasks: board.tasks,
+      mailbox: [],
+    });
+    // 修复前：profile:"" 在场时此行即抛（= 渲染器 fail-closed 烧帧白屏的测试面表达）。
+    const parsed = teamProjectionStateSchema.parse(projection);
+    for (const member of parsed.members) {
+      expect(member.profile === undefined || member.profile.trim().length > 0).toBe(true);
+    }
+    // 归一保留非空白事实：alice 无 profile 键；bob 的 modelSelection 剥空白 thought。
+    const alice = parsed.members.find((member) => member.memberName === "alice");
+    expect("profile" in (alice ?? {})).toBe(false);
+    const bob = parsed.stagedDraft?.draftMembers.find((member) => member.memberName === "bob");
+    expect(bob?.modelSelection).toEqual({ provider: "provider-a", model: "model-a" });
   });
 
   it("b) 旧快照兼容：不含 team 字段的快照 / delta patch 解析不破坏", () => {

@@ -85,6 +85,16 @@ export interface TeamMailboxEntry {
   deliveredVia?: "steered" | "resumed" | "lead_injected";
   /** ack 只认注入（spec §16.3）：queued 不算送达。 */
   deliveredAccepted: boolean;
+  /**
+   * 投递租约盖戳（spec §16 契约 3，dsh「投递 claim 互斥 + 60s 崩溃租约」）：条目被某条
+   * 投递路径领取后进入「投递中」窗口，租约内其他路径按 pendingMail 的租约过滤跳过；
+   * dispatch 拒绝/抛错释放，被接受由 markDelivered 覆盖（deliveredAccepted=true 后
+   * claim 无语义）。内部态——wire 投影不携带；journal message_appended 携带本字段对
+   * replay 结构守卫透明（isMailboxEntryWellFormed 只验必填），崩溃恢复后旧盖戳因租约
+   * 过期自然失效可重投（dsh 同款崩溃租约语义），恢复侧无需特殊处理。挂起中的 dispatch
+   * 不主动续租，到期自然失效。
+   */
+  deliveryClaimedAt?: string;
 }
 
 /** team 记录（hub 持有的聚合根；journal 事件流是它的持久化事实源，M3 PR-3.1）。 */
@@ -115,6 +125,11 @@ export interface TeamInternalLimits {
   messageMaxChars: number;
   dependencyDigestPerItemChars: number;
   dependencyDigestTotalChars: number;
+  /**
+   * 投递租约时长（spec §16 契约 3）：拍 60s 照 dsh 崩溃租约。已知边界——正常投递
+   * 耗时超租约会提前重投，幂等兜底靠 ack 只认注入（spec §16.3），取舍登记于契约 3。
+   */
+  deliveryLeaseMs: number;
 }
 
 export const TEAM_KERNEL_LIMITS: TeamInternalLimits = {
@@ -124,6 +139,7 @@ export const TEAM_KERNEL_LIMITS: TeamInternalLimits = {
   messageMaxChars: 8_000,
   dependencyDigestPerItemChars: 2_000,
   dependencyDigestTotalChars: 12_000,
+  deliveryLeaseMs: 60_000,
 } as const;
 
 /** TaskCard 投影（内部记录 → wire 卡；剥除内部交接态）。 */

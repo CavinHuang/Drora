@@ -1,0 +1,74 @@
+import { describe, expect, it } from "vitest";
+import { createSessionId, type SessionEntryInfo } from "@drora/contracts";
+import { installDroraAgentsTeam } from "../../../bootstrap/src/app/drora-team/install.js";
+import { createTestAgentRuntime } from "../test-agent-runtime.js";
+import { createTestSessionEventStore } from "../test-event-store.js";
+import { createTestModelFactory } from "../test-runtime-model.js";
+import { createRecordingMessageStore } from "../runtime-output-token-continuation-test-helpers.js";
+import { createToolRegistry } from "../../src/tool/registry.js";
+import type { AgentRuntimeDeps } from "../../src/runtime/types.js";
+
+// specs/agents-team.md §19 契约 4（2026-10-23）bootstrap 注册冒烟：installDroraAgentsTeam
+// 的 lead 工具族装配循环把 TeamReassign 注册进共享注册表（specImpact「已有契约未实现」
+// 的收口面——此前生产零调用方）。锁三跳：
+// ① TeamReassign 在 lead 工具清单（生产装配路径真注册，非构造函数直测）；
+// ② 非 lead 会话经 install 的 resolver 解析 undefined → 结构性拒（E10 lead 专属）；
+// ③ lead 会话解析到真实 hub 端口：无队 → hub 六拒绝语义 team_not_present 透传
+//   （resolver 命中 + 拒绝转译两跳都在生产链上）。
+// 工具边界单测见 team-tools-reassign.test.ts；hub 语义见 team-hub.test.ts。
+
+describe("TeamReassign lead tool registration smoke (§19 契约 4)", () => {
+  it("install registers TeamReassign; non-lead sessions are structurally excluded; lead sessions reach the real hub port", async () => {
+    const sessionId = createSessionId();
+    const journalEntries: SessionEntryInfo[] = [];
+    const leadDeps = {
+      eventStore: createTestSessionEventStore(),
+      sessionStore: {
+        ...createRecordingMessageStore(),
+        saveSessionEntry: async (entry: SessionEntryInfo) => {
+          journalEntries.push(structuredClone(entry));
+        },
+        sessionEntries: async () => structuredClone(journalEntries),
+      } as never,
+      modelFactory: createTestModelFactory({
+        properties: { supportsMidConversationSystem: true },
+        generateText: async () => ({
+          finishReason: "stop" as const,
+          text: "ok",
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        }),
+      }),
+    } as unknown as AgentRuntimeDeps;
+    const registry = createToolRegistry();
+    const lead = createTestAgentRuntime(
+      sessionId,
+      { mode: "build", compact: { enabled: false }, titleGeneration: { enabled: false } },
+      { ...leadDeps, toolRegistry: registry },
+    ) as unknown as Parameters<typeof installDroraAgentsTeam>[0]["runtime"];
+    const installed = installDroraAgentsTeam({
+      runtime: lead,
+      leadDeps,
+      registry,
+      leadPermissionMode: "build",
+    });
+
+    const entry = installed.toolRegistry.get("TeamReassign");
+    expect(entry).toBeDefined();
+
+    await expect(
+      entry!.handler({ task_id: "task_1", to: "lead", reason: "smoke" }, {
+        sessionId: "sess_child_not_lead",
+      } as never),
+    ).rejects.toThrow("lead session only");
+
+    const error: { context?: { code?: string } } = await entry!
+      .handler({ task_id: "task_1", to: "lead", reason: "smoke" }, { sessionId } as never)
+      .then(
+        () => {
+          throw new Error("expected rejection");
+        },
+        (caught: unknown) => caught as { context?: { code?: string } },
+      );
+    expect(error.context).toEqual({ code: "team_not_present" });
+  });
+});

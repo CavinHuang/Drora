@@ -4,7 +4,11 @@ import { createTestAgentRuntime } from "../test-agent-runtime.js";
 import { createTestSessionEventStore } from "../test-event-store.js";
 import { createTestModelFactory } from "../test-runtime-model.js";
 import { createRecordingMessageStore } from "../runtime-output-token-continuation-test-helpers.js";
-import { installDroraAgentsTeam } from "../../../bootstrap/src/app/drora-team/install.js";
+import {
+  installDroraAgentsTeam,
+  TEAM_MAILBOX_ENTRY_TYPE,
+} from "../../../bootstrap/src/app/drora-team/install.js";
+import { createAgentDefinitionsReader } from "../../src/subagent/definitions.js";
 import { createToolRegistry } from "../../src/tool/registry.js";
 import type { ToolEntry } from "../../src/tool/types.js";
 import type { AgentRuntimeDeps } from "../../src/runtime/types.js";
@@ -35,6 +39,15 @@ import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
  *    lead 会话（model-only 独立轮），邮箱落 lead_injected 送达事实；
  * ⑨ 边缘2——冷恢复（journal 重放 adoption）后 memberPortByChildSession 重建：
  *    恢复成员的团队工具解析（按 childSessionId 联接）不再 miss。
+ *
+ * 2026-10-22 spec §16 契约 1（dsh-agent-teams 好设计 P0 批次）：
+ * ⑩ 成员终态失败分诊——真实 registry failed 终态边缘经 subscribe 链路分诊到
+ *    handleMemberFailed（不直接调 hub 方法），lead 收到失败通知。
+ *
+ * 2026-10-23 E12 全同步邮箱持久化装配收口（spec §2.2 状态所有者表 TeamMailbox 行
+ * 「写成功（持久化后）才算发送成功」+ M3 实现 登记#3）：
+ * ⑪ portSend 成功 = 邮箱条目已同步落 sessionStore 通道（TEAM_MAILBOX_ENTRY_TYPE 可读）；
+ * ⑫ 同步入队抛错 → mailbox_persist_failed 拒绝，不入箱、不 journal。
  */
 
 const TEST_MODEL_RESULT = {
@@ -44,7 +57,13 @@ const TEST_MODEL_RESULT = {
 };
 
 async function createLeadWithTeam(
-  options: { enabled?: boolean; sessionId?: ReturnType<typeof createSessionId>; sessionStore?: unknown } = {
+  options: {
+    enabled?: boolean;
+    sessionId?: ReturnType<typeof createSessionId>;
+    sessionStore?: unknown;
+    /** 注入 leadDeps 覆盖项（须在 runtime 构造前生效——getAgentDefinitions 在构造期被捕获）。 */
+    leadDepsOverrides?: Partial<AgentRuntimeDeps>;
+  } = {
     enabled: true,
   },
 ) {
@@ -63,6 +82,7 @@ async function createLeadWithTeam(
         return respond(request);
       },
     }),
+    ...options.leadDepsOverrides,
   } as unknown as AgentRuntimeDeps;
   const registry = options.enabled === false ? undefined : createToolRegistry();
   const lead = createTestAgentRuntime(
@@ -87,8 +107,18 @@ async function createLeadWithTeam(
 
 function teamToolNames(registry: ReturnType<typeof createToolRegistry>): string[] {
   const names: string[] = [];
-  for (const name of ["TeamTaskList", "TeamTaskGet", "TeamTaskCreate", "TeamTaskClaim", "TeamTaskUpdate", "TeamSendMessage"]) {
-    if ((registry as unknown as { get?: (n: string) => ToolEntry | undefined }).get?.(name) !== undefined) {
+  for (const name of [
+    "TeamTaskList",
+    "TeamTaskGet",
+    "TeamTaskCreate",
+    "TeamTaskClaim",
+    "TeamTaskUpdate",
+    "TeamSendMessage",
+  ]) {
+    if (
+      (registry as unknown as { get?: (n: string) => ToolEntry | undefined }).get?.(name) !==
+      undefined
+    ) {
       names.push(name);
     }
   }
@@ -195,9 +225,7 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
       teamId: "team_ghost",
       leadSessionId: lead.sessionId,
       status: "idle",
-      members: [
-        { agentId: "agent_ghost", memberName: "ghost", state: "terminal", removed: false },
-      ],
+      members: [{ agentId: "agent_ghost", memberName: "ghost", state: "terminal", removed: false }],
       tasks: [],
       mailbox: [],
       createdAt: "2026-10-21T00:00:00.000Z",
@@ -223,11 +251,9 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     const hub = installed!.hub;
     // 复活回合（第 2 次模型调用）用 gate 挂起：working 态可被确定性断言。
     let releaseRevivedTurn!: (value: typeof TEST_MODEL_RESULT) => void;
-    const revivedTurnGate = new Promise<typeof TEST_MODEL_RESULT>(
-      (resolve) => {
-        releaseRevivedTurn = resolve;
-      },
-    );
+    const revivedTurnGate = new Promise<typeof TEST_MODEL_RESULT>((resolve) => {
+      releaseRevivedTurn = resolve;
+    });
     let modelCalls = 0;
     respond.mockImplementation(async () => {
       modelCalls += 1;
@@ -266,15 +292,30 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
 
     releaseRevivedTurn(TEST_MODEL_RESULT);
     // 复活回合结束的终态边缘同样收敛（park 驻留 attempt，成员回 terminal）
-    await vi.waitFor(
-      () => expect(hub.snapshot()?.members[0]?.state).toBe("terminal"),
-      { timeout: 10_000 },
-    );
+    await vi.waitFor(() => expect(hub.snapshot()?.members[0]?.state).toBe("terminal"), {
+      timeout: 10_000,
+    });
     expect(lead.sessionId).toBeTruthy();
   });
 
   it("⑦ Approve & Run spawn is atomic: partial failure recycles launched members and keeps the draft clean", async () => {
-    const { lead, leadDeps, eventStore, installed, respond } = await createLeadWithTeam();
+    // §17 契约 6 起成员装配硬编码 agentType="general-purpose"（profile 只是花名册展示
+    // 描述，不进 launch）——旧机制（bob profile="no-such-profile" → resolveAgentProfile-
+    // ForRequest 抛 UNKNOWN_AGENT_TYPE）随之失效（契约 6 登记的测试前提失效，2026-10-23
+    // 夹具更新）。新失败注入：getAgentDefinitions 前 2 次读取放行（spawnMembers 串行，
+    // 第 1 个成员的一次后台 launch 固定消费 2 次解析：runner.ts 的 launch+start），
+    // 此后花名册撤空——第 2 个成员的 launch 解析 general-purpose 落空，同一错误码路径
+    // （UNKNOWN_AGENT_TYPE）抛错。
+    let definitionReads = 0;
+    const fullRoster = createAgentDefinitionsReader([]);
+    const { lead, leadDeps, eventStore, installed, respond } = await createLeadWithTeam({
+      leadDepsOverrides: {
+        getAgentDefinitions: () => {
+          definitionReads += 1;
+          return definitionReads <= 2 ? fullRoster() : { activeAgents: [] };
+        },
+      },
+    });
     const hub = installed!.hub;
     // 成员 1（alice）首回合挂起：保证反向回收发生在它在飞时（可观察为 stopped 终态）。
     let releaseFirstTurn!: (value: typeof TEST_MODEL_RESULT) => void;
@@ -291,9 +332,9 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     leadPort.stageTeam({
       draftMembers: [
         { memberName: "alice", profile: "general-purpose" },
-        // 未知 profile：runner 的 resolveAgentProfileForRequest 直接抛错——第 2 个
-        // 成员 launch 失败（缺口6 的第 k 个失败场景）。
-        { memberName: "bob", profile: "no-such-profile" },
+        // profile 是描述性画像（契约 6：不进 launch）——第 2 个成员 launch 失败由上面的
+        // getAgentDefinitions 注入触发（缺口6 的第 k 个失败场景）。
+        { memberName: "bob", profile: "描述性画像：CI 工作流分析员" },
       ],
       draftTasks: [],
     });
@@ -360,7 +401,9 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     // ……lead 会话真实消费：模型请求包含 <subagent-message> 包裹的成员消息。
     await vi.waitFor(
       () => {
-        expect(requests.some((request) => JSON.stringify(request).includes("E2E_LEAD_MAIL_REPORT"))).toBe(true);
+        expect(
+          requests.some((request) => JSON.stringify(request).includes("E2E_LEAD_MAIL_REPORT")),
+        ).toBe(true);
       },
       { timeout: 10_000 },
     );
@@ -379,7 +422,12 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
         data: { seq, at: "2026-10-21T00:00:00.000Z", payload },
       });
     };
-    seed(1, { kind: "team_created", teamId: "team_seed", leadSessionId: sessionId, createdAt: "2026-10-21T00:00:00.000Z" });
+    seed(1, {
+      kind: "team_created",
+      teamId: "team_seed",
+      leadSessionId: sessionId,
+      createdAt: "2026-10-21T00:00:00.000Z",
+    });
     seed(2, {
       kind: "staged",
       teamId: "team_seed",
@@ -388,7 +436,13 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
       tasks: [],
     });
     seed(3, { kind: "approved", teamId: "team_seed" });
-    seed(4, { kind: "member_added", teamId: "team_seed", memberName: "alice", agentId: "agent_restored", childSessionId: "sess_child_alice" });
+    seed(4, {
+      kind: "member_added",
+      teamId: "team_seed",
+      memberName: "alice",
+      agentId: "agent_restored",
+      childSessionId: "sess_child_alice",
+    });
     const store = {
       ...createRecordingMessageStore(),
       async sessionEntries() {
@@ -406,11 +460,140 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
 
     // 修复前：memberPortByChildSession 只在 spawn 路径填充——恢复成员会话的团队
     // 工具解析（按 childSessionId 联接）永远 miss，工具抛 "Team port is not configured"。
-    const listTool = (registry as unknown as { get: (name: string) => ToolEntry | undefined }).get("TeamTaskList");
+    const listTool = (registry as unknown as { get: (name: string) => ToolEntry | undefined }).get(
+      "TeamTaskList",
+    );
     expect(listTool).toBeDefined();
     const result = (await listTool!.handler({}, { sessionId: "sess_child_alice" } as never)) as {
       tasks: unknown[];
     };
     expect(result).toBeDefined(); // roster/boardRead 成功 = 端口按 childSessionId 命中
+  });
+
+  it("⑩ a real registry failed terminal edge routes to handleMemberFailed and the lead gets the failure notice (spec §16 契约 1)", async () => {
+    const { lead, installed, respond } = await createLeadWithTeam();
+    const hub = installed!.hub;
+    // 成员首回合模型侧失败（429 重试耗尽形态）→ runner 失败收口写 registry 终态
+    // "failed"。通知未分诊前保持失败（成员回合的重试同样命中），分诊后放行后续
+    // 模型调用（lead 消费通知的独立轮）。
+    const failureEdge = vi.spyOn(hub, "handleMemberFailed");
+    respond.mockImplementation(async () => {
+      if (failureEdge.mock.calls.length === 0) {
+        throw new Error("429 from provider; retries exhausted");
+      }
+      return TEST_MODEL_RESULT;
+    });
+    const leadPort = hub.leadPort(lead.sessionId);
+    leadPort.stageTeam({
+      draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
+      draftTasks: [],
+    });
+    const approved = await leadPort.approveStage();
+    expect(approved.status).toBe("ok");
+
+    // 经真实 subscribe 链路断言（不直接调 hub 方法）：registry failed 终态 →
+    // install 分诊 → handleMemberFailed(alice, { status: "failed", ... })。
+    await vi.waitFor(() => expect(failureEdge).toHaveBeenCalled(), { timeout: 10_000 });
+    const [memberName, info] = failureEdge.mock.calls[0] as [
+      string,
+      { status?: string; agentId?: string },
+    ];
+    expect(memberName).toBe("alice");
+    expect(info?.status).toBe("failed");
+    expect(info?.agentId).toBe(hub.snapshot()?.members[0]?.agentId);
+    // noted（无开放任务）：板零改动，lead 邮箱恰一条失败通知（缺口12 通道投递后
+    // 落 lead_injected 送达事实）。
+    expect(hub.board()?.tasks).toHaveLength(0);
+    await vi.waitFor(
+      () => {
+        const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "lead");
+        expect(leadMail).toHaveLength(1);
+        expect(leadMail[0]?.from).toBe("alice");
+        expect(leadMail[0]?.message).toContain("429 from provider");
+      },
+      { timeout: 10_000 },
+    );
+    expect(lead.sessionId).toBeTruthy();
+  });
+});
+
+describe("agents team mailbox persistence (E12 全同步持久化接线, 2026-10-23)", () => {
+  /** 冷恢复形态基座（同 ⑤）：免 spawn/模型轮，portSend 直达 enqueueMail 的持久化门。 */
+  const restoredTeam = (leadSessionId: string): TeamRecord => ({
+    teamId: "team_e12",
+    leadSessionId,
+    status: "idle",
+    members: [{ agentId: "agent_e12_bob", memberName: "bob", state: "terminal", removed: false }],
+    tasks: [],
+    mailbox: [],
+    createdAt: "2026-10-23T00:00:00.000Z",
+    updatedAt: "2026-10-23T00:00:00.000Z",
+  });
+
+  it("⑪ portSend success persists the mailbox entry to the shared session-store channel", async () => {
+    const sessionId = createSessionId();
+    const persistedEntries: { type: string; data: Record<string, unknown> }[] = [];
+    const store = {
+      ...createRecordingMessageStore(),
+      async sessionEntries() {
+        return [];
+      },
+      async saveSessionEntry(entry: { type: string; data: Record<string, unknown> }) {
+        persistedEntries.push(entry);
+      },
+    };
+    const { lead, installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    const hub = installed!.hub;
+    expect(hub.adoptRestored(restoredTeam(lead.sessionId))).toBe(true);
+
+    const leadPort = hub.leadPort(lead.sessionId);
+    const sent = leadPort.send({ to: "bob", message: "E12_DURABLE_MAIL" });
+    expect(sent.status).toBe("success");
+    const messageId = sent.status === "success" ? sent.messageId : "";
+
+    // 写成功才算发送成功（spec §2.2 TeamMailbox 行）：portSend 成功路径上 sessionStore
+    // 同一通道能读到逐条 durable 写（TEAM_MAILBOX_ENTRY_TYPE，按 messageId 寻址）。
+    // 注入前缺口（E12）：邮箱条目只经 journal 异步刷盘，崩溃窗口丢尾。
+    await vi.waitFor(() => {
+      const written = persistedEntries.find(
+        (row) =>
+          row.type === TEAM_MAILBOX_ENTRY_TYPE && (row.data.messageId as string) === messageId,
+      );
+      expect(written).toBeDefined();
+      expect(written?.data.message).toBe("E12_DURABLE_MAIL");
+      expect(written?.data.to).toBe("bob");
+    });
+  });
+
+  it("⑫ synchronous persist failure fails the send with mailbox_persist_failed (no mailbox append, no journal fact)", async () => {
+    const sessionId = createSessionId();
+    const attemptedWrites: { type: string; data: Record<string, unknown> }[] = [];
+    const store = {
+      ...createRecordingMessageStore(),
+      async sessionEntries() {
+        return [];
+      },
+      // 非异步函数 + 同步 throw = 同步入队失败注入点（E12 失败语义：抛错即发送失败）。
+      saveSessionEntry(entry: { type: string; data: Record<string, unknown> }) {
+        attemptedWrites.push(entry);
+        throw new Error("disk full (E12 persist failure injection)");
+      },
+    };
+    const { lead, installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    const hub = installed!.hub;
+    expect(hub.adoptRestored(restoredTeam(lead.sessionId))).toBe(true);
+
+    const leadPort = hub.leadPort(lead.sessionId);
+    const sent = leadPort.send({ to: "bob", message: "E12_PERSIST_FAIL" });
+    expect(sent.status).toBe("failed");
+    expect(sent.status === "failed" && sent.error?.code).toBe("mailbox_persist_failed");
+
+    // 不入箱：persist 抛错先于 appendToMailbox（hub enqueueMail 提前返回拒绝）。
+    expect(hub.mailboxEntries()).toHaveLength(0);
+    // 不 journal：sessionStore 通道上只有被同步拒绝的邮箱条目写入尝试，journal 事实
+    // （message_appended）零落库——hub 在 persist 抛错处不触达 journalWriter。
+    expect(attemptedWrites).toHaveLength(1);
+    expect(attemptedWrites[0]?.type).toBe(TEAM_MAILBOX_ENTRY_TYPE);
+    expect(attemptedWrites.some((row) => row.type === TEAM_JOURNAL_ENTRY_TYPE)).toBe(false);
   });
 });

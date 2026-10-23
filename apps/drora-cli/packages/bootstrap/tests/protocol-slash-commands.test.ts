@@ -114,6 +114,8 @@ describe("protocol slash command surface", () => {
   // 用户或插件的同名命令既顶替不了内置语义，也绕不过灰度门。
   // 审查缺口③回归（2026-10-21）：/team 展开门必须消费调用点的 agentsTeamEnabled
   // （create-app 从 settings 灰度传入），与装配门同源；缺省回落 env DRORA_AGENTS_TEAM=1。
+  // §17 契约 2（2026-10-22）：灰度关时不再「undefined=不存在同形」透传——改为确定性未开启
+  // 提示（禁止模拟团队），workflow 的 DWG-03 透传保持不变（有意分歧，仅 team）。
   it("expands builtin /team gated by the agentsTeamEnabled option, falling back to env", async () => {
     const { resolveDroraBuiltinPromptCommand } = await import("../src/builtin-prompt-command.js");
     const workspace = "/tmp/team-gate-workspace";
@@ -126,15 +128,17 @@ describe("protocol slash command surface", () => {
       }),
     ).toContain("team");
 
-    // settings 显式 false：即使 env=1 也拦截（显式值优先）
+    // settings 显式 false：即使 env=1 也拦截（显式值优先），展开为未开启提示而非透传
     vi.stubEnv("DRORA_AGENTS_TEAM", "1");
     try {
-      expect(
-        resolveDroraBuiltinPromptCommand("/team build the thing", {
-          agentsTeamEnabled: false,
-          workingDirectory: workspace,
-        }),
-      ).toBe(undefined);
+      const disabledNotice = resolveDroraBuiltinPromptCommand("/team build the thing", {
+        agentsTeamEnabled: false,
+        workingDirectory: workspace,
+      });
+      expect(disabledNotice).toContain("Agents Team feature is not enabled");
+      // 提示不得携带装配语汇，杜绝模型照说明书即兴
+      expect(disabledNotice).not.toContain("TeamSpawn");
+      expect(disabledNotice).toContain("build the thing");
       // 缺省：回落 env（dev v1 过渡）
       expect(
         resolveDroraBuiltinPromptCommand("/team build the thing", { workingDirectory: workspace }),
@@ -143,10 +147,12 @@ describe("protocol slash command surface", () => {
       vi.unstubAllEnvs();
     }
 
-    // 全关：不展开
-    expect(
-      resolveDroraBuiltinPromptCommand("/team build the thing", { workingDirectory: workspace }),
-    ).toBe(undefined);
+    // 全关：同样展开未开启提示（不透传、不 undefined）
+    const fullyDisabled = resolveDroraBuiltinPromptCommand("/team build the thing", {
+      workingDirectory: workspace,
+    });
+    expect(fullyDisabled).toContain("Agents Team feature is not enabled");
+    expect(fullyDisabled).toContain("build the thing");
   });
 
   it("expands builtin /workflow through the builtin resolver only, gated by the feature flag", async () => {

@@ -250,6 +250,49 @@ describe("失败提示的清除时机（spec §10 呈现规则4：下次任一�
   });
 });
 
+describe("在途态（specs/agents-team.md §19 契约 6：发起即在途，对齐 workflow responding）", () => {
+  it("pendingAction 在场：三动作全禁用 + 在途按钮出等待文案 + 备注输入禁用", () => {
+    render(
+      <DroraIntlProvider initialLocale="zh-CN">
+        <TeamStagedEditor
+          draft={DRAFT}
+          onApprove={vi.fn()}
+          onRevise={vi.fn()}
+          onAbandon={vi.fn()}
+          pendingAction="approve"
+        />
+      </DroraIntlProvider>,
+    );
+    const approve = screen.getByTestId("team-staged-approve") as HTMLButtonElement;
+    const revise = screen.getByTestId("team-staged-revise") as HTMLButtonElement;
+    const abandon = screen.getByTestId("team-staged-abandon") as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    expect(revise.disabled).toBe(true);
+    expect(abandon.disabled).toBe(true);
+    expect(approve.textContent).toContain(zhCN["team.stagedEditor.pendingApprove"] ?? "");
+    const note = screen.getByTestId("team-staged-revise-note") as HTMLInputElement;
+    expect(note.disabled).toBe(true);
+  });
+
+  it("无在途（null）：三动作可点，按钮出常规文案", () => {
+    render(
+      <DroraIntlProvider initialLocale="zh-CN">
+        <TeamStagedEditor
+          draft={DRAFT}
+          onApprove={vi.fn()}
+          onRevise={vi.fn()}
+          onAbandon={vi.fn()}
+        />
+      </DroraIntlProvider>,
+    );
+    const approve = screen.getByTestId("team-staged-approve") as HTMLButtonElement;
+    expect(approve.disabled).toBe(false);
+    expect(approve.textContent).toContain(zhCN["team.stagedEditor.approve"] ?? "");
+    const note = screen.getByTestId("team-staged-revise-note") as HTMLInputElement;
+    expect(note.disabled).toBe(false);
+  });
+});
+
 describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
   it("三动作按钮与备注输入带 pointer-coarse 44px 类", () => {
     renderEditor();
@@ -283,10 +326,32 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
 });
 
 describe("reasonCode 映射表守卫", () => {
-  it("已知键全部指向 team.stagedEditor.failure.* 文案且在 zh 词典非空", () => {
+  it("已知键全部指向 staged 编辑器域或命令域文案且在 zh 词典非空", () => {
     for (const key of Object.values(TEAM_STAGED_FAILURE_REASON_I18N_KEYS)) {
-      expect(key.startsWith("team.stagedEditor.failure."), key).toBe(true);
+      // §19 契约 5 扩圈（2026-10-23）：五命令的 hub 拒绝码落命令域 team.commandFailure.*
+      // （composer/面板共用），staged 三动作的码仍落 team.stagedEditor.failure.*。
+      expect(
+        key.startsWith("team.stagedEditor.failure.") || key.startsWith("team.commandFailure."),
+        key,
+      ).toBe(true);
       expect(zhCN[key], key).toBeTruthy();
     }
+  });
+
+  it("五命令扩圈的四个拒绝码映射到命令域文案（§19 契约 5）", () => {
+    expect(TEAM_STAGED_FAILURE_REASON_I18N_KEYS["fault.command.teamRejected.team_halted"]).toBe(
+      "team.commandFailure.teamHalted",
+    );
+    expect(
+      TEAM_STAGED_FAILURE_REASON_I18N_KEYS[
+        "fault.command.teamRejected.message_target_terminal_retired"
+      ],
+    ).toBe("team.commandFailure.targetRetired");
+    expect(TEAM_STAGED_FAILURE_REASON_I18N_KEYS["fault.command.teamRejected.name_redirect"]).toBe(
+      "team.commandFailure.nameRedirect",
+    );
+    expect(
+      TEAM_STAGED_FAILURE_REASON_I18N_KEYS["fault.command.teamRejected.mailbox_persist_failed"],
+    ).toBe("team.commandFailure.persistFailed");
   });
 });

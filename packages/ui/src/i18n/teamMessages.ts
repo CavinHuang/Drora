@@ -57,7 +57,6 @@ export const teamMessagesEn = {
   "team.task.status.in_progress": "In progress",
   "team.task.status.completed": "Completed",
   "team.ui.collaboration": "Collaboration",
-  "team.ui.tasks": "Tasks & members",
   "team.ui.dependencies": "Dependencies",
   "team.ui.messages": "Messages",
   "team.ui.handoffs": "Handoffs",
@@ -79,7 +78,6 @@ export const teamMessagesEn = {
   "team.ui.nodeScope": "Showing {shown} of {total} nodes",
   "team.ui.focus": "Focus task",
   "team.ui.memberOpen": "View member",
-  "team.ui.task": "Task {id}",
   "team.ui.depReady": "Predecessor completed",
   "team.ui.depWaiting": "Waiting for predecessor completion",
   "team.ui.attempt": "Attempt {id}",
@@ -89,7 +87,6 @@ export const teamMessagesEn = {
   "team.ui.lead": "Lead",
   "team.ui.unassigned": "Unassigned",
   "team.ui.graphSelect": "Select {name}",
-  "team.ui.approval": "Plan approval required",
   "team.ui.details": "View collaboration details",
 };
 export const teamMessagesZh: typeof teamMessagesEn = {
@@ -150,7 +147,6 @@ export const teamMessagesZh: typeof teamMessagesEn = {
   "team.task.status.in_progress": "进行中",
   "team.task.status.completed": "已完成",
   "team.ui.collaboration": "协作",
-  "team.ui.tasks": "任务与成员",
   "team.ui.dependencies": "依赖",
   "team.ui.messages": "消息",
   "team.ui.handoffs": "交接",
@@ -171,7 +167,6 @@ export const teamMessagesZh: typeof teamMessagesEn = {
   "team.ui.nodeScope": "显示 {shown}/{total} 个节点",
   "team.ui.focus": "聚焦任务",
   "team.ui.memberOpen": "查看成员",
-  "team.ui.task": "任务 {id}",
   "team.ui.depReady": "前置任务已完成",
   "team.ui.depWaiting": "等待前置任务完成",
   "team.ui.attempt": "尝试 {id}",
@@ -181,6 +176,5 @@ export const teamMessagesZh: typeof teamMessagesEn = {
   "team.ui.lead": "Lead",
   "team.ui.unassigned": "未指派",
   "team.ui.graphSelect": "选择 {name}",
-  "team.ui.approval": "等待确认计划",
   "team.ui.details": "查看协作详情",
 };

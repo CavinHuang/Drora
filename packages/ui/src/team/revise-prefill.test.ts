@@ -65,6 +65,17 @@ describe("buildTeamReviseComposerPrefill", () => {
       }),
     ).toBe("要调整什么？\n砍掉 bob");
   });
+
+  it("dock/摘要卡接线（TeamStagedEditorConnected，spec §15 第4条三发起面）：多行 note 原样换行拼接不截断", () => {
+    // 编辑器侧已 trim（TeamStagedEditor.handleRevise），本函数不再剥内部换行——
+    // 用户在 note 里写的多行方向必须逐行进 composer，拼接只加追问行。
+    expect(
+      buildTeamReviseComposerPrefill({
+        question: QUESTION_ZH ?? "",
+        note: "第一行：砍掉 bob\n第二行：任务拆细一点",
+      }),
+    ).toBe("要调整什么？\n第一行：砍掉 bob\n第二行：任务拆细一点");
+  });
 });
 
 describe("team.revise.prefillPrompt i18n key", () => {

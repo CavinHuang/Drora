@@ -19,7 +19,7 @@ import { TEAM_STATUS_I18N_KEYS } from "./team-status-presentation.js";
 
 /** TeamPanel/TeamStagedEditor 组件内 formatMessage 消费的全部键（M2.5 迁移清单）。 */
 const TEAM_PANEL_KEYS = [
-  "team.panel.title",
+  // 「team.panel.title」已随反向守卫删除（唯一消费面是 aria，title 无消费方）。
   "team.panel.aria",
   "team.panel.permission",
   "team.panel.memberProgress",
@@ -132,6 +132,128 @@ describe("team i18n keys", () => {
     for (const key of Object.values(TEAM_STATUS_I18N_KEYS)) {
       expect(zhCN[key], `zh-CN ${key}`).toBeTruthy();
       expect(enUS[key], `en-US ${key}`).toBeTruthy();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §19 契约 6 守护升级（2026-10-23，评审 Low-18）：手写迁移清单只覆盖
+// TeamPanel/TeamStagedEditor 两家族——stagedDock/memberPane 等后来家族不在
+// CONSUMED_KEYS，且键集一致断言以 zh 为基准、两侧同删无报警（组件渲染裸键）。
+// 升级为源码扫描：从 team 目录（+app-shell/TeamSidePane 挂载点）的 formatMessage
+// 字面量提取消费键，正向（键必有词典值）+ 反向（词典键必被静态或动态消费）双守。
+// ---------------------------------------------------------------------------
+
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { TEAM_STAGED_FAILURE_REASON_I18N_KEYS } from "./TeamStagedEditor.js";
+import { TEAM_REVISE_PREFILL_PROMPT_KEY } from "./revise-prefill.js";
+
+function teamSourceFiles(): string[] {
+  const teamDir = fileURLToPath(new URL("./", import.meta.url));
+  const files = readdirSync(teamDir)
+    .filter((name) => /\.(tsx|ts)$/.test(name) && !name.includes(".test."))
+    .map((name) => join(teamDir, name));
+  // 挂载点在 team 目录之外也消费 team.* 键（下钻返回/移除确认/引用任务等）。
+  files.push(fileURLToPath(new URL("../app-shell/TeamSidePane.tsx", import.meta.url)));
+  return files;
+}
+
+/**
+ * 源码里 formatMessage 消费的 team.* 字面量键（模板键由动态家族单独枚举）。直接扫
+ * 源码里的 `"team.*"` 字符串字面量——不止 `id:` 直写：①TeamStageRail 的相位表把键存进
+ * label 字段再交给 formatMessage；②三元形态 `id: cond ? "a" : "b"`（投递态三键）。
+ * 两种形态都只是「源码里出现的 team 点分字面量」，正扫宽进（反向守再兜底）。
+ */
+function staticallyConsumedTeamKeys(): Set<string> {
+  const consumed = new Set<string>();
+  for (const file of teamSourceFiles()) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(/"(team\.[a-zA-Z0-9.]+)"/g)) {
+      consumed.add(match[1]!);
+    }
+  }
+  return consumed;
+}
+
+/** 动态消费的键与键族（模板拼接/映射表；静态扫描扫不到，逐一登记出处）。 */
+function dynamicallyConsumedTeamKeys(): Set<string> {
+  const consumed = new Set<string>();
+  // 状态徽标（TEAM_STATUS_I18N_KEYS）与五命令拒绝码（§19 契约 5 扩圈查表）。
+  for (const key of Object.values(TEAM_STATUS_I18N_KEYS)) consumed.add(key);
+  for (const key of Object.values(TEAM_STAGED_FAILURE_REASON_I18N_KEYS)) consumed.add(key);
+  // 成员状态词（TeamPanel 的 MEMBER_STATE_I18N_KEYS）。
+  for (const state of ["spawning", "working", "terminal", "removed"]) {
+    consumed.add(`team.member.state.${state}`);
+  }
+  // 失败行动作标签（team.stagedEditor.failure.line 的 {action}）与面板动作标签
+  // （team.panel.commandFailure.line 的 {action}）——模板拼接。
+  for (const action of ["approve", "revise", "abandon", "rename"]) {
+    consumed.add(`team.stagedEditor.${action}`);
+  }
+  for (const action of ["halt", "resume", "stop"]) {
+    consumed.add(`team.panel.action.${action}`);
+  }
+  // 工作区视图 tab（TeamWorkspaceViews 的 `team.ui.${view}`）与协作关系层切换钮
+  // （TeamCollaborationPanel 的 `team.ui.${value}`，values = dependencies/messages/handoffs）。
+  for (const view of ["overview", "process", "collaboration"]) {
+    consumed.add(`team.ui.${view}`);
+  }
+  for (const layer of ["dependencies", "messages", "handoffs"]) {
+    consumed.add(`team.ui.${layer}`);
+  }
+  // 门占位文案（TeamMemberSidePane 的 `${view.id}.title/.body`，基名是源码字面量）。
+  for (const base of TITLE_BODY_KEY_BASES) {
+    consumed.add(`${base}.title`);
+    consumed.add(`${base}.body`);
+  }
+  // 「回对话修改」预填追问（常量键，revise-prefill.ts 单一出处）。
+  consumed.add(TEAM_REVISE_PREFILL_PROMPT_KEY);
+  return consumed;
+}
+
+/** 键族前缀（journal 事件种类与任务状态词由服务端事实枚举，UI 不穷举）。 */
+const DYNAMIC_KEY_PREFIXES = ["team.history.kind.", "team.task.status."] as const;
+
+/**
+ * 门占位文案的键基（TeamMemberSidePane 的 not-started/member-absent/team-absent）：
+ * 源码字面量是基名，真实消费键是 `${base}.title`/`${base}.body`。
+ */
+const TITLE_BODY_KEY_BASES = [
+  "team.memberPane.notStarted",
+  "team.memberPane.memberAbsent",
+  "team.memberPane.teamAbsent",
+] as const;
+
+describe("team i18n 源码扫描双守（§19 契约 6，评审 Low-18）", () => {
+  it("源码 formatMessage 的每个 team.* 字面量键在双语词典非空（漏一侧即裸键）", () => {
+    const consumed = staticallyConsumedTeamKeys();
+    // 至少覆盖 stagedDock/memberPane 家族——本测试存在的理由（原清单不含它们）。
+    expect([...consumed].some((key) => key.startsWith("team.stagedDock."))).toBe(true);
+    expect([...consumed].some((key) => key.startsWith("team.memberPane."))).toBe(true);
+    for (const key of consumed) {
+      const titleBody = (TITLE_BODY_KEY_BASES as readonly string[]).indexOf(key);
+      if (titleBody !== -1) {
+        // 门占位文案的键基（源码字面量是基名，真实键是 .title/.body）。
+        for (const suffix of [".title", ".body"]) {
+          expect(zhCN[key + suffix], `zh-CN ${key + suffix}`).toBeTruthy();
+          expect(enUS[key + suffix], `en-US ${key + suffix}`).toBeTruthy();
+        }
+        continue;
+      }
+      expect(zhCN[key], `zh-CN ${key}`).toBeTruthy();
+      expect(enUS[key], `en-US ${key}`).toBeTruthy();
+    }
+  });
+
+  it("词典 team.* 键全部被消费（静态字面量、动态映射或动态键族）——双侧同删可被发现", () => {
+    const consumed = staticallyConsumedTeamKeys();
+    for (const key of dynamicallyConsumedTeamKeys()) consumed.add(key);
+    for (const key of teamKeys(zhCN)) {
+      const covered =
+        consumed.has(key) || DYNAMIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
+      expect(covered, `未被消费的词典键：${key}`).toBe(true);
     }
   });
 });

@@ -59,7 +59,13 @@ import type {
 import { logger } from "@/logger.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 // Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
-import { useWorkspaceConfigCatalogSync, TeamConversationSummary } from "@/team/index.js";
+import {
+  useWorkspaceConfigCatalogSync,
+  TeamApprovalDock,
+  TeamConversationSummary,
+} from "@/team/index.js";
+// 状态面板 team 分区的打开路径（§19 契约 6）：与摘要卡「打开面板」同一 TeamNavigation。
+import { useTeamNavigation } from "@/team/TeamNavigation.js";
 import {
   getConversationShareErrorDetails,
   resolveConversationShareFallbackIssueCode,
@@ -1671,6 +1677,26 @@ export function SessionPane({
       useDroraSessionStore
         .getState()
         .clearComposerTextInsertRequest(workspacePath, requestId, workspaceIdentity);
+    },
+    [workspaceIdentity, workspacePath],
+  );
+  // staged dock「回对话修改」预填（spec §15 第4条 2026-10-23 三发起面扩圈）：与侧栏
+  // WorkspaceShellLayout.handlePrefillComposer 同一 store 通道（requestComposerTextInsert，
+  // 缺口9 消费门按 targetSessionId 匹配，不新造 composer 写路径）。dock 守卫保证
+  // snapshot.sessionId === sessionId（lead 会话即本 pane），TeamApprovalDock 以本回调
+  // 定向插入；v1 边界：hub 不消费 wire note，修改方向随预填文案进对话（revise-prefill.ts）。
+  const handleTeamRevisePrefill = useCallback(
+    (prefill: string, targetSessionId?: string | null) => {
+      useDroraSessionStore
+        .getState()
+        .requestComposerTextInsert(
+          workspacePath,
+          prefill,
+          workspaceIdentity,
+          undefined,
+          undefined,
+          targetSessionId,
+        );
     },
     [workspaceIdentity, workspacePath],
   );
@@ -4823,6 +4849,7 @@ export function SessionPane({
         backgroundWorks: snapshot?.backgroundWorks ?? [],
         runningSubagents: subagents.running,
         workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        team: snapshot?.team ?? null,
       }),
     [
       isOfficeMode,
@@ -4832,6 +4859,7 @@ export function SessionPane({
       snapshot?.backgroundWorks,
       snapshot?.goal,
       snapshot?.plan,
+      snapshot?.team,
       snapshot?.workflowRuns,
       state.sessionPlans,
       selectionSideChat,
@@ -4876,6 +4904,14 @@ export function SessionPane({
     () => (onOpenWorkflowRun ? resolveSoleRunningWorkflowRunTarget(statusPanelModel) : null),
     [onOpenWorkflowRun, statusPanelModel],
   );
+  // 状态面板 team 分区（specs/agents-team.md §19 契约 6）：行点击打开 team 侧栏面板。
+  // open 函数在 TeamNavigationProvider 之外为 null（纯历史视图），届时 onOpenTeamPanel
+  // 缺席、面板行退化为不可点的事实行——与摘要卡同一打开路径，不造第二条导航。
+  const openTeamPanelTarget = useTeamNavigation();
+  const handleOpenTeamPanelFromStatusPanel = useCallback(() => {
+    if (!sessionId) return;
+    openTeamPanelTarget?.({ workspacePath, parentSessionId: sessionId });
+  }, [openTeamPanelTarget, sessionId, workspacePath]);
   const handleOpenRunningBackgroundWorks = useCallback(() => {
     if (runningBackgroundWorkCount === 0) return;
     if (soleRunningWorkflowRunTarget) {
@@ -5595,6 +5631,23 @@ export function SessionPane({
           }
         />
       ) : null}
+      {/* staged 审批的 timeline bottom dock（specs/agents-team.md §10 呈现规则修订，
+          2026-10-23）：与 workflow 确认窗同位同 chrome——钉底、composer 之上；摘要卡在
+          同一守卫下传 stagedEditorSuppressed 退化为只读。守卫与 footerSlot 同源。 */}
+      {sessionId &&
+      snapshot?.team &&
+      snapshot.team.status === "staged" &&
+      snapshot.sessionId === sessionId &&
+      !readOnly &&
+      !importedShare ? (
+        <TeamApprovalDock
+          key={`team-approval-dock:${snapshot.team.teamId}`}
+          team={snapshot.team}
+          sessionId={snapshot.sessionId}
+          sendCommand={sendCommand}
+          onPrefillComposer={handleTeamRevisePrefill}
+        />
+      ) : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
@@ -5796,6 +5849,10 @@ export function SessionPane({
                   ? handleOpenWorkflowRunDirectoryFromPanel
                   : undefined
               }
+              team={snapshot?.team ?? null}
+              onOpenTeamPanel={
+                compactForRemoteControl ? undefined : handleOpenTeamPanelFromStatusPanel
+              }
             />
           ) : null}
 
@@ -5839,6 +5896,7 @@ export function SessionPane({
                         key={`${sessionId}:${snapshot.team.teamId}`}
                         team={snapshot.team}
                         connection={{ sessionId: snapshot.sessionId, sendCommand }}
+                        stagedEditorSuppressed
                         target={{
                           workspacePath,
                           workspaceIdentity: workspaceIdentity ?? undefined,

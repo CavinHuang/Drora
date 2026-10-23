@@ -17,8 +17,10 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  * 名字重定向）；三个动作：
  * - 「确认并启动」→ onApprove（宿主发 approveTeamPlan，**唯一创建成员入口**，批准前零成员零会话）；
  * - 「回对话修改」→ onRevise(note?)（宿主发 reviseTeamPlan；note 为面板内可选输入，
- *   修改方向也可留空后在对话里说明——宿主负责预填会话输入框：TeamSidePane 的
- *   onPrefillComposer 回调，文案构造见 team/revise-prefill.ts）；
+ *   修改方向也可留空后在对话里说明——宿主负责预填会话输入框：侧栏 TeamSidePane 与
+ *   dock/摘要卡（TeamStagedEditorConnected，spec §15 第4条 2026-10-23 三发起面扩圈）
+ *   的 onPrefillComposer 回调，文案构造见 team/revise-prefill.ts；无法触达 composer
+ *   的面传 noteInputSuppressed 隐藏输入，禁止 note 静默丢弃）；
  * - 「放弃」→ onAbandon（宿主发 abandonTeamPlan；二次确认在本组件内完成，
  *   归档后禁止模型自动重建）。
  *
@@ -44,8 +46,20 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  *   (`size-11`/`min-h-11`)」；写法照 TeamConversationSummary.tsx:73 现有先例）。
  */
 
-/** 三动作种类（失败提示的来源动作标识；spec §10 呈现规则4）。 */
-export type TeamStagedActionKind = "approve" | "revise" | "abandon";
+/**
+ * 三动作 + 成员改动的失败来源动作标识（spec §10 呈现规则4 及其 §19 契约 5 扩圈）。
+ * rename 走同一失败出显面：改名入口（TeamStagedEditorConnected 内部发送 / 面板
+ * onRenameMember 宿主接线）被拒时与三动作共用内联 role=alert。
+ */
+export type TeamStagedActionKind = "approve" | "revise" | "abandon" | "rename";
+
+/**
+ * 在途动作标识（spec §19 契约 6，2026-10-23）：任一三动作发起后到 outcome 结算前，
+ * 全部动作按钮禁用 + 在途按钮出等待文案——对齐 workflow 确认窗的 responding 全禁用
+ * 语义（PermissionDialog.tsx responding 挡选项/设置/确认），消除「双击发第二条独立
+ * 命令」与「长事务期间零反馈」。null = 无在途。
+ */
+export type TeamStagedPendingAction = Exclude<TeamStagedActionKind, "rename">;
 
 /**
  * 最近一次三动作失败（宿主消费 TeamCommandOutcome 后交回；null/缺席 = 无失败提示）。
@@ -76,6 +90,13 @@ export const TEAM_STAGED_FAILURE_REASON_I18N_KEYS: Readonly<Record<string, strin
   "fault.command.teamRejected.unknown_dependency": "team.stagedEditor.failure.draftInvalid",
   "fault.command.teamRejected.dependency_cycle": "team.stagedEditor.failure.draftInvalid",
   "fault.command.teamHubUnavailable": "team.stagedEditor.failure.hubUnavailable",
+  // §19 契约 5（2026-10-23 扩圈）：用户面五命令的 hub 拒绝码（hub.ts portSend /
+  // halt/resume/stop/rename 路径）——文案键落命令域 team.commandFailure.*，供
+  // 成员下钻 composer 与面板动作区共用（staged 三动作的正常流触不到这些码）。
+  "fault.command.teamRejected.team_halted": "team.commandFailure.teamHalted",
+  "fault.command.teamRejected.message_target_terminal_retired": "team.commandFailure.targetRetired",
+  "fault.command.teamRejected.name_redirect": "team.commandFailure.nameRedirect",
+  "fault.command.teamRejected.mailbox_persist_failed": "team.commandFailure.persistFailed",
 };
 
 /** 失败原因文案键：无 reasonCode（传输异常）→ transport；已知 → 映射；未知 → 兜底。 */
@@ -84,6 +105,14 @@ export function stagedFailureReasonI18nKey(failure: TeamStagedCommandFailure): s
   return (
     TEAM_STAGED_FAILURE_REASON_I18N_KEYS[failure.reasonCode] ?? "team.stagedEditor.failure.fallback"
   );
+}
+
+/**
+ * 拒绝码 → 命令域文案键（§19 契约 5 扩圈的共用查表出处）；未知码返回 undefined，
+ * 由调用面出自己的 fallback 文案（composer/面板与 staged 编辑器的兜底措辞不同）。
+ */
+export function teamRejectionReasonI18nKeyOrUndefined(reasonCode: string): string | undefined {
+  return TEAM_STAGED_FAILURE_REASON_I18N_KEYS[reasonCode];
 }
 
 /**
@@ -118,6 +147,20 @@ export interface TeamStagedEditorProps {
    * 再次发起时由宿主置空清除（两挂载点在动作回调开头 set null）。
    */
   failure?: TeamStagedCommandFailure | null;
+  /**
+   * 在途动作（spec §19 契约 6）：宿主在动作发起时置位、outcome 结算时清空。
+   * 在途期间三动作按钮全部禁用（对齐 workflow responding），在途按钮出等待文案；
+   * 备注输入同步禁用（revise 在途后备注已无意义）。null/缺席 = 无在途。
+   */
+  pendingAction?: TeamStagedPendingAction | null;
+  /**
+   * note 输入抑制（spec §15 第4条「三发起面 revise note 一律经预填通道落对话」
+   * 2026-10-23 扩圈）：挂载面无法触达 composer（TeamStagedEditorConnected 未注入
+   * onPrefillComposer，如远端 timeline 摘要卡）时为 true——隐藏 note 输入并出
+   * 「请在对话说明」提示，禁止 note 静默丢弃（输入了也只会随命令上 wire 而 hub v1
+   * 不消费）。缺省 false：侧栏 TeamPanel 形态（宿主自接预填）不变。
+   */
+  noteInputSuppressed?: boolean;
 }
 
 export function TeamStagedEditor({
@@ -127,6 +170,8 @@ export function TeamStagedEditor({
   onAbandon,
   onRenameMember,
   failure,
+  pendingAction = null,
+  noteInputSuppressed = false,
 }: TeamStagedEditorProps): JSX.Element {
   const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
@@ -183,20 +228,37 @@ export function TeamStagedEditor({
       />
       <DraftTaskRows tasks={draft.tasks} />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="team-staged-revise-note" className="text-ui-caption text-foreground-subtle">
-          {intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
-        </label>
-        {/* pointer-coarse ≥44px：备注输入也是编辑器内可交互控件（spec §10 呈现规则5）。 */}
-        <Input
-          id="team-staged-revise-note"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
-          className="text-ui-sm pointer-coarse:min-h-11"
-          data-testid="team-staged-revise-note"
-        />
-      </div>
+      {noteInputSuppressed ? (
+        // note 静默丢弃禁止（spec §15 第4条 2026-10-23 扩圈）：无法预填的面不出输入
+        // （输入即丢），出提示引导修改方向走对话；revise 仍可发起（无 note = 草案重
+        // stage + lead 对话追问，v1 语义不变）。
+        <p
+          className="text-ui-caption text-foreground-subtle"
+          data-testid="team-staged-note-suppressed"
+        >
+          {intl.formatMessage({ id: "team.stagedEditor.noteSuppressedHint" })}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="team-staged-revise-note"
+            className="text-ui-caption text-foreground-subtle"
+          >
+            {intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
+          </label>
+          {/* pointer-coarse ≥44px：备注输入也是编辑器内可交互控件（spec §10 呈现规则5）；
+              在途禁用（spec §19 契约 6——revise 在途后备注已无意义）。 */}
+          <Input
+            id="team-staged-revise-note"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            disabled={pendingAction !== null}
+            placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
+            className="text-ui-sm pointer-coarse:min-h-11"
+            data-testid="team-staged-revise-note"
+          />
+        </div>
+      )}
 
       {/*
        * 三动作失败出显（spec §10 呈现规则4）：role=alert 内联提示，文案 = 动作标签
@@ -219,24 +281,37 @@ export function TeamStagedEditor({
         </p>
       )}
 
-      {/* pointer-coarse ≥44px：三动作按钮（DESIGN.md:661-662；写法照 TeamConversationSummary.tsx:73）。 */}
+      {/* pointer-coarse ≥44px：三动作按钮（DESIGN.md:661-662；写法照 TeamConversationSummary.tsx:73）。
+          在途全禁用 + 在途按钮出等待文案（spec §19 契约 6，对齐 workflow responding）。 */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           onClick={onApprove}
+          disabled={pendingAction !== null}
           className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           data-testid="team-staged-approve"
         >
-          {intl.formatMessage({ id: "team.stagedEditor.approve" })}
+          {intl.formatMessage({
+            id:
+              pendingAction === "approve"
+                ? "team.stagedEditor.pendingApprove"
+                : "team.stagedEditor.approve",
+          })}
         </Button>
         <Button
           type="button"
           variant="outline"
           onClick={handleRevise}
+          disabled={pendingAction !== null}
           className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           data-testid="team-staged-revise"
         >
-          {intl.formatMessage({ id: "team.stagedEditor.revise" })}
+          {intl.formatMessage({
+            id:
+              pendingAction === "revise"
+                ? "team.stagedEditor.pendingRevise"
+                : "team.stagedEditor.revise",
+          })}
         </Button>
         <Button
           type="button"
@@ -245,9 +320,15 @@ export function TeamStagedEditor({
           onClick={() => {
             void handleAbandon();
           }}
+          disabled={pendingAction !== null}
           data-testid="team-staged-abandon"
         >
-          {intl.formatMessage({ id: "team.stagedEditor.abandon" })}
+          {intl.formatMessage({
+            id:
+              pendingAction === "abandon"
+                ? "team.stagedEditor.pendingAbandon"
+                : "team.stagedEditor.abandon",
+          })}
         </Button>
       </div>
     </section>
@@ -271,7 +352,7 @@ function DraftMemberRows({
         {members.map((member) => (
           <li
             key={member.memberName}
-            className="flex flex-wrap items-baseline gap-x-2 rounded bg-neutral-2 px-1.5 py-1"
+            className="flex flex-wrap items-baseline gap-x-2 rounded-md bg-surface px-1.5 py-1"
           >
             <span className="text-ui-sm font-medium">{member.memberName}</span>
             <span className="text-ui-caption text-foreground-subtle">
@@ -390,7 +471,7 @@ function DraftTaskRows({ tasks }: { tasks: TeamPanelStagedDraftView["tasks"] }):
         {tasks.map((task) => (
           <li
             key={task.taskId}
-            className="flex flex-wrap items-baseline gap-x-2 rounded bg-neutral-2 px-1.5 py-1"
+            className="flex flex-wrap items-baseline gap-x-2 rounded-md bg-surface px-1.5 py-1"
           >
             <span className="text-ui-sm font-medium">{task.title}</span>
             <span className="text-ui-caption font-mono text-foreground-subtle">{task.taskId}</span>

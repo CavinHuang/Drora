@@ -35,6 +35,62 @@
       "source": "synthetic",
       "timingPolicy": "fast-text",
       "syntheticReason": "自动派发复活回合的请求到达即证明 kick→dispatch 调度链（缺口2 E2E 化）。"
+    },
+    {
+      "id": "agents-team-noprofile-parent-spawn",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-tool-use",
+      "syntheticReason": "无 profile 成员的 TeamSpawn tool_use（specs/agents-team.md §19 契约 2：profile optional 合法缺省，落库归一为键缺席）。"
+    },
+    {
+      "id": "agents-team-noprofile-parent-final",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "无 profile 草案的 TeamSpawn 结果回读后 lead 回合收束（next 指引文本区分首回合）。"
+    },
+    {
+      "id": "agents-team-noprofile-member-welcome",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "无 profile 成员 bob 的欢迎回合自然终态——批准路径行为不变（§19 契约 2 不变量）。"
+    },
+    {
+      "id": "agents-team-noprofile-member-assignment",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "无 profile 草案审批后的终态边缘 → kick → 自动派发请求到达即证明全链无烧帧。"
+    },
+    {
+      "id": "agents-team-sendrej-parent-spawn",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-tool-use",
+      "syntheticReason": "带 profile 成员的 TeamSpawn tool_use（specs/agents-team.md §19 契约 5 E2E：halt 后下钻发消息被拒 + 草稿保留）。"
+    },
+    {
+      "id": "agents-team-sendrej-parent-final",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "TeamSpawn 结果回读后 lead 收束回合。"
+    },
+    {
+      "id": "agents-team-sendrej-member-welcome",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "成员 carol 欢迎回合自然终态。"
+    },
+    {
+      "id": "agents-team-sendrej-member-assignment",
+      "kind": "subagent",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "批准后终态边缘 → kick → 自动派发（halt 前置：团队 active）。"
     }
   ]
 }

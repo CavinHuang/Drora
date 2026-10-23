@@ -37,7 +37,9 @@ function TeamSessionLineContent({
     </>
   );
   const className =
-    "mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-left text-ui-sm text-foreground-subtle";
+    // pointer-coarse ≥44px（DESIGN.md:661-662）：主行是会话流里的可点目标，与成员展开钮/
+    // 成员行（下方两处已有）同一纪律——此前只有子控件抬起，主行整行在触屏上不足 44px。
+    "mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-left text-ui-sm text-foreground-subtle pointer-coarse:min-h-11";
   return (
     <div className="min-w-0" data-testid="team-session-summary">
       {open && target ? (

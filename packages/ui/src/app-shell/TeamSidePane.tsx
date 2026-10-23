@@ -5,23 +5,20 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { TeamSidePaneTab } from "@/lib/workspaceSidePane.js";
 import {
-  abandonTeamPlan,
-  approveTeamPlan,
   buildTeamReviseComposerPrefill,
   haltTeam,
   mapTeamProjectionToViewModel,
   resumeTeam,
-  reviseTeamPlan,
   sendTeamMessage,
-  setTeamMemberName,
   stopTeamMember,
-  teamCommandOutcomeToStagedFailure,
+  useTeamFocus,
+  useTeamStagedActions,
   TeamMemberSidePane,
   TeamPanel,
-  useTeamFocus,
+  type TeamCommandOutcome,
   type TeamPanelCommand,
+  type TeamPanelCommandFailure,
   type TeamPanelMemberView,
-  type TeamStagedCommandFailure,
   TEAM_REVISE_PREFILL_PROMPT_KEY,
 } from "@/team/index.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
@@ -128,33 +125,51 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
   // team/revise-prefill.ts（纯函数单一出处）。
   const revisePrefillQuestion = intl.formatMessage({ id: TEAM_REVISE_PREFILL_PROMPT_KEY });
 
-  // 三动作失败出显（spec §10 呈现规则4，2026-10-22 审批面呈现对齐）：staged 三动作
-  // （approve/revise/abandon）的 TeamCommandOutcome 不再「失败只进 logger」——本容器
-  // 消费 outcome，经 teamCommandOutcomeToStagedFailure（单一映射出处）交回 TeamPanel →
-  // TeamStagedEditor 内联 role=alert。任一动作再次发起时置空清除（借形不借管线：
-  // 命令单一通道不变，hub/wire 零结构改动）。
-  const [stagedFailure, setStagedFailure] = useState<TeamStagedCommandFailure | null>(null);
+  // staged 三动作 + 成员改名（specs/agents-team.md §10 呈现规则4、§19 契约 5/6 扩圈，
+  // 2026-10-23）：发送、失败映射与在途纪律收拢在 useTeamStagedActions（dock/摘要卡/侧栏
+  // 三发起面单一实现）——动作发起即在途（编辑器按钮全禁用），outcome 结算后失败经
+  // teamCommandOutcomeToStagedFailure 回填，团队状态迁移时随 rendering 清除（下方 effect）。
+  const staged = useTeamStagedActions(tab.parentSessionId, sendCommand);
 
-  // 面板动作意图 → team/commands.ts（信封构造与 ACK 语义单一出处）。三动作失败经
-  // stagedFailure 出显（上文）；其余命令（halt/resume）维持 fire-and-forget 先例
-  // （与 WorkflowRunSidePane 的 cancel/resume 同款），拒绝/失败由 helper 内部 logger 出账。
+  // 面板动作区命令失败（§19 契约 5 扩圈）：halt/resume/stop 的 TeamCommandOutcome 被拒/
+  // 传输异常时出显于 TeamPanel 动作区顶部 role=alert——废除「fire-and-forget 只进 logger」
+  // 先例（本注释即该先例的废止记录）；再次发起或团队状态迁移时置空清除（照 workflow
+  // WorkflowRunSidePane 的 rejection 随 runStatus 清除语义）。
+  const [panelFailure, setPanelFailure] = useState<TeamPanelCommandFailure | null>(null);
+  useEffect(() => {
+    setPanelFailure(null);
+  }, [model?.status]);
+
+  // outcome → 面板动作区失败（§19 契约 5；TeamPanelCommandFailure 结构出自 TeamPanel）。
+  const toPanelFailure = useCallback(
+    (
+      action: TeamPanelCommandFailure["action"],
+      outcome: TeamCommandOutcome,
+    ): TeamPanelCommandFailure | null =>
+      outcome.ok
+        ? null
+        : {
+            action,
+            ...(outcome.ack?.reasonCode === undefined
+              ? {}
+              : { reasonCode: outcome.ack.reasonCode }),
+          },
+    [],
+  );
+
+  // 面板动作意图 → team/commands.ts（信封构造与 ACK 语义单一出处）。staged 三动作走
+  // useTeamStagedActions（上文）；halt/resume/stop 失败经 panelFailure 出显。
   const handlePanelCommand = useCallback(
     (command: TeamPanelCommand) => {
       const input = { sessionId: tab.parentSessionId, sendCommand };
       switch (command.type) {
         case "approveTeamPlan":
-          setStagedFailure(null);
-          void approveTeamPlan(input).then((outcome) => {
-            const failure = teamCommandOutcomeToStagedFailure("approve", outcome);
-            if (failure !== null) setStagedFailure(failure);
-          });
+          setPanelFailure(null);
+          staged.onApprove();
           break;
         case "reviseTeamPlan": {
-          setStagedFailure(null);
-          void reviseTeamPlan({ ...input, ...command.payload }).then((outcome) => {
-            const failure = teamCommandOutcomeToStagedFailure("revise", outcome);
-            if (failure !== null) setStagedFailure(failure);
-          });
+          setPanelFailure(null);
+          staged.onRevise(command.payload.note);
           // design 01 §3.1「会话输入框预填『要调整什么？』」：发命令的同时把追问文案
           // 预填进会话 composer（v1 边界：hub 不消费 wire note，note 随预填进对话，
           // 见 revise-prefill.ts 头注）。回调缺席（挂载点未接线）= 只发命令，行为同前。
@@ -172,21 +187,33 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
           break;
         }
         case "abandonTeamPlan":
-          setStagedFailure(null);
-          void abandonTeamPlan(input).then((outcome) => {
-            const failure = teamCommandOutcomeToStagedFailure("abandon", outcome);
-            if (failure !== null) setStagedFailure(failure);
-          });
+          setPanelFailure(null);
+          staged.onAbandon();
           break;
         case "haltTeam":
-          void haltTeam({ ...input, ...command.payload });
+          setPanelFailure(null);
+          void haltTeam({ ...input, ...command.payload }).then((outcome) => {
+            const failure = toPanelFailure("halt", outcome);
+            if (failure !== null) setPanelFailure(failure);
+          });
           break;
         case "resumeTeam":
-          void resumeTeam({ ...input, ...command.payload });
+          setPanelFailure(null);
+          void resumeTeam({ ...input, ...command.payload }).then((outcome) => {
+            const failure = toPanelFailure("resume", outcome);
+            if (failure !== null) setPanelFailure(failure);
+          });
           break;
       }
     },
-    [onPrefillComposer, revisePrefillQuestion, sendCommand, tab.parentSessionId],
+    [
+      onPrefillComposer,
+      revisePrefillQuestion,
+      sendCommand,
+      staged,
+      tab.parentSessionId,
+      toPanelFailure,
+    ],
   );
 
   // 成员下钻是本地视图状态。teamId 变化（同一对话换队）时回落到团队视图，
@@ -205,20 +232,27 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
     });
   }, []);
 
-  // 成员命令（缺口10 接线）：意图来自成员详情/下钻的「移除成员」入口与 staged 编辑器的
-  // 成员改名入口，发送一律走 team/commands.ts helper（信封构造与 ACK 语义单一出处；
-  // fire-and-forget 与面板动作区同一先例，拒绝/失败由 helper 内部 logger 出账）。
+  // 成员命令（缺口10 接线 + §19 契约 5 扩圈）：意图来自成员详情/下钻的「移除成员」入口
+  // 与 staged 编辑器的成员改名入口，发送一律走 team/commands.ts helper（信封构造与 ACK
+  // 语义单一出处）。stop 失败出显于面板动作区（panelFailure）；改名失败并入 staged
+  // 编辑器失败行（action=rename，useTeamStagedActions 单一实现）。
   const handleStopMember = useCallback(
     (memberName: string) => {
-      void stopTeamMember({ sessionId: tab.parentSessionId, sendCommand, memberName });
+      setPanelFailure(null);
+      void stopTeamMember({ sessionId: tab.parentSessionId, sendCommand, memberName }).then(
+        (outcome) => {
+          const failure = toPanelFailure("stop", outcome);
+          if (failure !== null) setPanelFailure(failure);
+        },
+      );
     },
-    [sendCommand, tab.parentSessionId],
+    [sendCommand, tab.parentSessionId, toPanelFailure],
   );
   const handleRenameMember = useCallback(
     (memberName: string, newName: string) => {
-      void setTeamMemberName({ sessionId: tab.parentSessionId, sendCommand, memberName, newName });
+      staged.onRenameMember(memberName, newName);
     },
-    [sendCommand, tab.parentSessionId],
+    [staged],
   );
 
   // 下钻头部的「移除成员」入口：与成员详情（TeamSelectionDetails）同一命令，二次确认
@@ -289,9 +323,10 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
             focused={focused}
             onSendMessage={(message) => {
               // PR-2.4c：成员消息唯一通道 = lead 侧 sendTeamMessage（邮箱投递，不入
-              // conversation 行）。fire-and-forget 与面板动作区同一先例；拒绝/失败由
-              // commands helper 内部 logger 出账。
-              void sendTeamMessage({
+              // conversation 行）。§19 契约 5（2026-10-23）：返回 outcome 给 composer——
+              // ok 才清草稿，被拒/传输异常草稿保留 + composer 上方 role=alert（草稿
+              // 永不丢不变量，specs/agents-team.md §19 契约 5）。
+              return sendTeamMessage({
                 sessionId: tab.parentSessionId,
                 sendCommand,
                 to: activeMember.memberName,
@@ -315,7 +350,9 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
         <TeamPanel
           model={model}
           onCommand={handlePanelCommand}
-          stagedFailure={stagedFailure}
+          stagedFailure={staged.failure}
+          stagedPending={staged.pending}
+          panelFailure={panelFailure}
           onMemberClick={handleMemberDrill}
           onMessageMember={handleMemberDrill}
           onStopMember={(member) => {

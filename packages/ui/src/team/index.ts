@@ -29,6 +29,7 @@ export {
   teamPanelActionVisibility,
   type TeamPanelActionVisibility,
   type TeamPanelCommand,
+  type TeamPanelCommandFailure,
   type TeamPanelCommandType,
   type TeamPanelProps,
 } from "./TeamPanel.js";
@@ -36,10 +37,12 @@ export {
   TeamStagedEditor,
   stagedFailureReasonI18nKey,
   teamCommandOutcomeToStagedFailure,
+  teamRejectionReasonI18nKeyOrUndefined,
   TEAM_STAGED_FAILURE_REASON_I18N_KEYS,
   type TeamStagedActionKind,
   type TeamStagedCommandFailure,
   type TeamStagedEditorProps,
+  type TeamStagedPendingAction,
 } from "./TeamStagedEditor.js";
 export {
   buildTeamReviseComposerPrefill,
@@ -68,3 +71,9 @@ export {
   type TeamPanelStagedTaskView,
   type TeamPanelTaskView,
 } from "./view-model.js";
+export { TeamApprovalDock } from "./TeamApprovalDock.js";
+export {
+  TeamStagedEditorConnected,
+  useTeamStagedActions,
+  type TeamStagedActions,
+} from "./TeamStagedEditorConnected.js";

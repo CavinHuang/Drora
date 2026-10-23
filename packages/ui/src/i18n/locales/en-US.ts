@@ -1530,6 +1530,13 @@ const enUS: Record<string, string> = {
   "team.memberPane.send": "Send",
   "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
   "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
+  // §19 contract 5 (2026-10-23): in-flight send + failure surfacing — the draft is never
+  // lost (kept verbatim on rejection or transport error).
+  "team.memberPane.sendFailed.line": "Message not delivered: {reason}",
+  "team.memberPane.sendFailed.transport":
+    "The connection is unavailable and the message was not sent. Your input is kept — resend once reconnected",
+  "team.memberPane.sendFailed.fallback":
+    "The request was rejected (unknown reason). Your input is kept — try again later",
   // PR-2.4c: member card entries (drill-down + message), tab status dot, and status badge
   // copy (color paired with text, never color alone).
   "team.panel.memberOpen": "Open {name}'s session",
@@ -1547,7 +1554,6 @@ const enUS: Record<string, string> = {
   // copy moved into the dictionary (previously inline zh constants TEAM_PANEL_COPY /
   // TEAM_STAGED_EDITOR_COPY; design 01 §4: all copy lives in the locales dictionaries,
   // zh-CN/en-US complete, including status labels, dynamic summaries, and a11y copy).
-  "team.panel.title": "Team · {teamId}",
   "team.panel.aria": "Agents Team {teamId}",
   "team.panel.permission": "Permission {mode}",
   "team.panel.memberProgress": "{members} members · {done}/{total} tasks",
@@ -1603,8 +1609,21 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.noteLabel": "Revision notes (optional)",
   "team.stagedEditor.notePlaceholder":
     "What should change? Leave empty and explain it in the conversation",
+  // 2026-10-23 three-surface prefill channel (spec §15 item 4): mounts that cannot reach
+  // the composer hide the note input and show this hint — silent note drops are forbidden
+  // (a typed note would only go on the wire, which the hub v1 does not consume).
+  "team.stagedEditor.noteSuppressedHint":
+    "Revision notes can't be attached here: state the direction in the conversation",
   "team.stagedEditor.approve": "Approve & run",
   "team.stagedEditor.revise": "Revise in conversation",
+  // §19 contract 6 (2026-10-23): in-flight waiting copy (buttons disabled until the outcome settles).
+  "team.stagedEditor.pendingApprove": "Starting members…",
+  "team.stagedEditor.pendingRevise": "Sending…",
+  "team.stagedEditor.pendingAbandon": "Archiving…",
+  // Action label for rename failures (line template "{action} failed: {reason}").
+  "team.stagedEditor.rename": "Rename",
+  "team.stagedDock.title": "Team plan pending approval",
+  "team.stagedDock.hint": "The approval panel is docked above the composer",
   "team.stagedEditor.abandon": "Abandon",
   // Inline failure for the three staged actions (spec §10 presentation rule 4): "line" is the
   // shell (action label + reason); the reason maps from ack.reasonCode via
@@ -1629,6 +1648,22 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.abandonConfirmBody":
     "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
   "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
+  // §19 contract 5 expansion (2026-10-23): hub rejection copy for the five user commands
+  // (shared by the composer and the panel action area via TEAM_STAGED_FAILURE_REASON_I18N_KEYS;
+  // the three staged actions never reach these codes in the normal flow).
+  "team.commandFailure.teamHalted": "The team is halted; resume it before delivering messages",
+  "team.commandFailure.targetRetired":
+    "The target member was removed; the message cannot be delivered",
+  "team.commandFailure.nameRedirect": "The member was renamed; retry with the new name",
+  "team.commandFailure.persistFailed": "Mailbox persistence failed; the message was not delivered",
+  // Panel action-area command failures (halt/resume/stop; role=alert at the top of TeamPanel's action area).
+  "team.panel.commandFailure.line": '"{action}" did not complete: {reason}',
+  "team.panel.commandFailure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.panel.commandFailure.fallback": "The action did not complete (unknown reason). Try again",
+  "team.panel.action.halt": "Stop team",
+  "team.panel.action.resume": "Resume team",
+  "team.panel.action.stop": "Remove member",
   // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
   "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",
@@ -3387,7 +3422,7 @@ const enUS: Record<string, string> = {
   "settings.toolGroupingExplore": "Group exploration tools",
   "settings.agentsTeamEnabled": "Agents Team (experimental)",
   "settings.agentsTeamEnabledDescription":
-    "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
+    "Enable /team multi-agent collaboration and the team panel (off by default). The gate is snapshotted when an agent process is created: new sessions inside already-open windows stay disabled — restart the app or open a new window; an explicit CLI agentsTeam.enabled value still takes precedence.",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",
   "settings.toolGroupingTerminal": "Group terminal commands",
@@ -6013,6 +6048,11 @@ const enUS: Record<string, string> = {
   "chat.statusPanel.terminals": "Terminals",
   "chat.statusPanel.agents": "Agents",
   "chat.statusPanel.workflows": "Workflows",
+  // Team section (specs/agents-team.md §19 contract 6): single live-team row; status words reuse team.status.*.
+  "chat.statusPanel.team": "Team",
+  "chat.statusPanel.teamWorking": "{count} working",
+  "chat.statusPanel.teamRowWords": "members {working}/{members} · tasks {completed}/{total}",
+  "chat.statusPanel.teamBlocked": "{count} blocked",
   "chat.statusPanel.runningStatusValue": "{count} in background",
   "chat.statusPanel.runningStatusValuePlural": "{count} in background",
   "chat.statusPanel.runningAgentsValue": "{count} running",

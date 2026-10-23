@@ -2,8 +2,10 @@ import type {
   CommandAck,
   CommandEnvelope,
   CommandPayloadMap,
+  TeamHistoryResult,
   TeamV4CommandType,
 } from "@drora/shared/drora-protocol-v4";
+import { TEAM_HISTORY_QUERY, teamHistoryResultSchema } from "@drora/shared/drora-protocol-v4";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { logger } from "@/logger.js";
@@ -153,4 +155,57 @@ export function resumeTeam(
 ): Promise<TeamCommandOutcome> {
   const { reason } = input;
   return sendTeamCommand(input, "resumeTeam", { reason });
+}
+
+/** 历史查询的连接（原 useTeamHistory 本地形态，随命令收口迁入单一出处）。 */
+export interface TeamHistoryConnection {
+  sessionId: string;
+  sendCommand: (envelope: CommandEnvelope) => Promise<CommandAck>;
+}
+
+/**
+ * team 域第九条命令：历史查询（TEAM_HISTORY_QUERY；specs/agents-team.md §19 契约 6
+ * 低危项收口，2026-10-23）。此前信封在 useTeamHistory 内直构、ACK 不进
+ * commandAckObservability 环形缓冲——八命令补观测环的同一理由（AT-01 实证 probe 不到
+ * ACK）对历史查询同样成立；信封构造/发送/ACK 记录自此单一出处。payload 形状
+ * { teamId, beforeSeq?, throughSeq? }（shared command.ts 注册表的第九条：schema 在
+ * drora-protocol-v4/team-history.ts，经 TEAM_HISTORY_QUERY_SCHEMAS 挂载）。
+ *
+ * @returns ok=false = 被拒/载荷不合法/传输异常（ack 缺席或解析失败），调用面出错误态。
+ */
+export async function queryTeamHistory(
+  connection: TeamHistoryConnection,
+  teamId: string,
+  cursor: { beforeSeq?: number; throughSeq?: number } = {},
+): Promise<{ ok: boolean; data?: TeamHistoryResult }> {
+  const envelope = createCommandEnvelope({
+    type: TEAM_HISTORY_QUERY,
+    sessionId: connection.sessionId,
+    payload: { teamId, ...cursor },
+  });
+  try {
+    const ack = await connection.sendCommand(envelope);
+    recordV4CommandAck({
+      type: TEAM_HISTORY_QUERY,
+      status: ack.status,
+      ...(ack.reasonCode ? { reasonCode: ack.reasonCode } : {}),
+      at: Date.now(),
+    });
+    const parsed = teamHistoryResultSchema.safeParse(ack.result);
+    if (
+      (ack.status !== "accepted" && ack.status !== "duplicate") ||
+      !parsed.success ||
+      parsed.data.teamId !== teamId
+    ) {
+      return { ok: false };
+    }
+    return { ok: true, data: parsed.data };
+  } catch (error) {
+    logger.warn("[team-commands] 团队历史查询失败", {
+      sessionId: connection.sessionId,
+      teamId,
+      error,
+    });
+    return { ok: false };
+  }
 }

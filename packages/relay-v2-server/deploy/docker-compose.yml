@@ -1,0 +1,161 @@
+# Relay V2 自建部署编排(specs/relay-v2-server.md §2/§8/§9/§12 M3)。
+#
+# ## 构建与运行方式
+#
+# 1. 宿主先构建 relay dist(工具链见仓库根 AGENTS.md;本机先 source .zcode/toolchain-env.sh):
+#      pnpm --filter @drora/relay-v2-server run build        # tsup 产出 ../dist/
+#    dist 内联了 @drora/shared+zod,但 ws 保持 external(tsup.config.ts「ws 保持默认 external」),
+#    由镜像内 npm 安装补齐——这是下面选「内嵌 Dockerfile」而非「mount 仓库跑 dist」的原因:
+#    mount 方案要求容器内解析 ws,而 pnpm 的 node_modules 是指向全局 store 的符号链接,
+#    挂进容器不可移植;内嵌构建只在镜像层 npm install 单个 ws,闭包完整自洽(spec §13
+#    「Docker 只消费产物」)。构建镜像需要网络拉取 node/caddy 基础镜像与 ws。
+# 2. 构建并填充手机页面静态资源(spec §8.2/§8.3)。注意 spec §8.2 实测注记:vite define 链
+#    消费无 VITE_ 前缀的 DRORA_ENDPOINT_ORIGIN,两个键必须同时设置,否则 OAuth redirect
+#    会静默烘焙官方域;产物校验:pnpm --filter @drora/relay-v2-server run verify:v4-build
+#      VITE_DRORA_ENDPOINT_ORIGIN=https://自建域 DRORA_ENDPOINT_ORIGIN=https://自建域 \
+#        pnpm build:web-remote-control:v4
+#      cp -R packages/web/dist/. deploy/web-remote-control/  # 挂载点 ./web-remote-control
+# 3. 在 deploy/ 下准备 .env(全部可省略,默认值=spec §9),至少复核:
+#      SITE_ADDRESS=你的真实域名          # Caddy ACME 签发依赖它
+#      JWT_MODE=decode                   # M0 定案前默认 decode;多用户必须 introspect/jwks(spec §6.2)
+#      # 对应模式必填项:INTROSPECT_URL / JWT_JWKS_URL(+JWT_ISSUERS/JWT_AUDIENCE)
+# 4. 启动:docker compose up -d --build;验证:docker compose ps(两服务 healthy)
+#      与 curl https://$SITE_ADDRESS/healthz。
+#
+# ## 安全边界(ask 红线:relay 不得裸暴露公网)
+#
+# - relay 服务不声明任何 ports,只在 compose 默认内网可达;容器内 BIND_HOST=0.0.0.0 仅为
+#   让 caddy 服务经内网 DNS 访问(绑 127.0.0.1 会跨容器不可达),「容器网络内」即 spec §9
+#   红线的满足方式;公网唯一入口是 caddy 的 80/443,TLS 由 Caddy 终止(Caddyfile 头注释)。
+# - 若脱离 compose 在宿主机裸跑:按 spec §9 默认 BIND_HOST=127.0.0.1 + Caddyfile 默认上游
+#   127.0.0.1:8080,不得把 8080 明文端口直接发布公网。
+#
+# ## 运维提醒
+#
+# - 设备注册表持久化在具名卷 relay-data(DB_PATH=/home/node/data/relay-v2.db),重启后
+#   桌面 SID 与二维码保持有效(spec §7);备份为手动运维接缝:RelayV2ServerHandle
+#   .backupDevices(toPath)(spec §7)——本文件内嵌的 run-relay 引导未接 cron/信号,
+#   需要定时备份时在该引导自行接线或手工调用;禁止直接 cp 运行中的 WAL 库。
+# - 环境变量全量清单与语义见 spec §9;此处透传的是其中全部键。
+
+name: relay-v2-server
+
+services:
+  relay:
+    # node:24 级镜像:与 tsup target=node24 及仓库工具链(node 24.14.0)对齐(spec §3)。
+    build:
+      context: ..
+      # 内嵌 Dockerfile(Compose ≥2.17 的 dockerfile_inline):单文件交付,无需独立
+      # Dockerfile 工件;理由见文件头注释第 1 步。
+      dockerfile_inline: |
+        # syntax=docker/dockerfile:1
+        FROM node:24-slim
+        WORKDIR /app
+        # dist 由宿主先构建(见文件头注释第 1 步);context=包目录,只消费产物。
+        COPY dist/ ./dist/
+        # 启动引导:dist 只导出装配函数、无内置 main(src/index.ts 仅 export),
+        # 这里把 env→JWT 鉴权→监听接起来,并挂 SIGTERM/SIGINT 走优雅停机(spec §5.3:
+        # 停收新连接→error INTERNAL→flush→退出;docker stop 的默认 SIGTERM 即触发)。
+        COPY <<'EOF' /app/run-relay.mjs
+        import { createJwtAuth, createRelayServer, loadConfigFromEnv } from "./dist/relay-v2-server.js";
+
+        const config = loadConfigFromEnv(process.env);
+        const handle = await createRelayServer({ config, auth: createJwtAuth({ config }) });
+        for (const signal of ["SIGTERM", "SIGINT"]) {
+          process.on(signal, () => {
+            void handle.stop().then(
+              () => process.exit(0),
+              () => process.exit(1),
+            );
+          });
+        }
+        EOF
+        # dist 是 ESM:Node 按最近 package.json 的 type 判定模块系统,必须补 {"type":"module"};
+        # ws 在 tsup 产物中 external,镜像内 npm 安装补齐(包声明 ws@^8.20.0,与之一致)。
+        # 以 node 用户运行;数据目录预建并归属 node,具名卷首挂时继承该属主。
+        RUN npm init -y >/dev/null \
+         && npm pkg set type=module \
+         && npm install --omit=dev --no-audit --no-fund "ws@^8.20.0" \
+         && mkdir -p /home/node/data \
+         && chown -R node:node /app /home/node/data
+        USER node
+        VOLUME /home/node/data
+        CMD ["node", "run-relay.mjs"]
+    image: drora/relay-v2-server:local
+    restart: unless-stopped
+    environment:
+      # 容器网络内绑定;服务无 ports,不暴露宿主与公网(见文件头「安全边界」)。
+      BIND_HOST: 0.0.0.0
+      LISTEN_PORT: "${LISTEN_PORT:-8080}"
+      # 设备注册表落具名卷,重启后 SID 保留(spec §7)。
+      DB_PATH: /home/node/data/relay-v2.db
+      # —— spec §9 全量配置键,默认值与 spec §9 一致 ——
+      JWT_MODE: "${JWT_MODE:-decode}"
+      JWT_ID_CLAIMS: "${JWT_ID_CLAIMS:-sub,id}"
+      # JWT_STUB_USERS 仅测试/冒烟可用(spec §9);生产部署不应设置。
+      JWT_STUB_USERS: "${JWT_STUB_USERS:-}"
+      JWT_REALM_MODE: "${JWT_REALM_MODE:-iss}"
+      JWT_REALM: "${JWT_REALM:-}"
+      JWT_JWKS_URL: "${JWT_JWKS_URL:-}"
+      JWT_ISSUERS: "${JWT_ISSUERS:-}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-}"
+      INTROSPECT_URL: "${INTROSPECT_URL:-}"
+      AUTH_TIMEOUT_MS: "${AUTH_TIMEOUT_MS:-15000}"
+      IDLE_TIMEOUT_MS: "${IDLE_TIMEOUT_MS:-120000}"
+      DEVICE_TTL_DAYS: "${DEVICE_TTL_DAYS:-180}"
+      CORS_ENABLED: "${CORS_ENABLED:-false}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      MSG_TRACE: "${MSG_TRACE:-false}"
+    volumes:
+      - relay-data:/home/node/data
+    # spec §9:/healthz 返回 uptime/连接数/owner 数/DB 行数。用 node 自带 fetch 打探针
+    # (slim 镜像无 curl/wget);端口取容器内 LISTEN_PORT,改端口无需改本文件。
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        # 块标量:脚本含 " : " 等序列,YAML 纯标量会解析坏(compose config 实测)。
+        - >-
+          fetch('http://127.0.0.1:' + (Number(process.env.LISTEN_PORT) || 8080)
+          + '/healthz').then((r) => process.exit(r.ok ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      relay:
+        condition: service_healthy
+    # 宿主唯一入口:80(HTTP-01/跳转)与 443(TCP+UDP/HTTP-3);admin 端口 2019 不发布。
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # 站点域名(ACME 依赖真实域名);上游经 compose 内网 DNS 指向 relay 服务。
+      SITE_ADDRESS: "${SITE_ADDRESS:-relay.example.com}"
+      RELAY_UPSTREAM: "relay:${LISTEN_PORT:-8080}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 手机页面静态资源(spec §8.1 root=/srv/web-remote-control);填充方式见文件头第 2 步。
+      - ./web-remote-control:/srv/web-remote-control:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    # caddy 镜像(alpine)自带 busybox wget;探 admin API(容器内默认 127.0.0.1:2019)——
+    # 探 80/443 会撞 308 跳转与自签 TLS,探 admin /config/ 才是「配置已加载并服务中」的可靠信号。
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:

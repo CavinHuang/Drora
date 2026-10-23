@@ -1,0 +1,42 @@
+# Relay V2 反向代理(specs/relay-v2-server.md §8.1 逐条对齐)。
+#
+# TLS 由 Caddy 终止(Caddy 自动 HTTPS/ACME 签发与续期);relay 进程只听明文 HTTP/WS,
+# 唯一预期客户端是本反代(spec §2)。
+#
+# 两个部署形态,由环境变量切换(Caddyfile 的 {$VAR:-默认} 占位语法):
+#   - 宿主机裸跑(spec §8.1 原样):relay 绑 127.0.0.1:8080,RELAY_UPSTREAM 不设即用默认;
+#   - docker-compose(同目录 docker-compose.yml):caddy 容器设 RELAY_UPSTREAM=relay:8080,
+#     经 compose 内网 DNS 到达 relay 服务(relay 容器不发布任何宿主端口)。
+# 站点域名 SITE_ADDRESS 必须改成真实域名才能通过 ACME 签发公网证书;
+# 默认值 relay.example.com 仅为 spec §8.1 示例占位。
+
+{$SITE_ADDRESS:-relay.example.com} {
+	# 远控 HTTP + WS → 自建 relay(Caddy 自动处理 WebSocket upgrade,无需额外配置)
+	handle /api/v1/remote/* {
+		reverse_proxy {$RELAY_UPSTREAM:-127.0.0.1:8080}
+	}
+
+	# relay 健康检查直暴(spec §9:uptime/连接数/owner 数/DB 行数,供探活与诊断)
+	handle /healthz {
+		reverse_proxy {$RELAY_UPSTREAM:-127.0.0.1:8080}
+	}
+
+	# 手机页面(spec §8.3 单版本钉死;/remote/v4 与 /remote/v4/ 均需可达)。
+	# handle_path 剥掉 /remote/v4 前缀后按静态目录查找;file_server 承接 try_files 的
+	# 匹配结果——spec §8.1 示例省略了 file_server,而没有它静态文件不会被真正服务,
+	# 这里按 Caddy 语义补齐(SPA 回退与资产引用 base=/remote/v4/ 的构建产物配套,
+	# 构建命令见 docker-compose.yml 头注释)。
+	handle_path /remote/v4* {
+		root * /srv/web-remote-control
+		try_files {path} /index.html
+		file_server
+	}
+
+	# 其余全部回源官方(Coding Plan / OAuth token 交换 / 帮助配置等)。
+	# 必须改写 Host:默认透传本站域名会被官方源站按 Host 路由拒绝(spec §8.1)。
+	handle {
+		reverse_proxy https://zcode.z.ai {
+			header_up Host {upstream_hostport}
+		}
+	}
+}

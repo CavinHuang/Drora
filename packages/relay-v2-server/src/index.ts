@@ -188,6 +188,7 @@ export type {
   DeviceRecord,
   DeviceStore,
   JwtAuth,
+  JwtAuthResult,
   PairingRegistry,
   PairingRegistryEvents,
   PairingStatusView,

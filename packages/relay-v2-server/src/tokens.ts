@@ -17,15 +17,33 @@ const TOKEN_BYTES = 16;
 export interface CreateTokenStoreOptions {
   /** 可注入时钟（测试/对时）；默认 Date.now */
   now?: () => number;
+  /**
+   * 测试注入口：外部提供 Map 以便直接断言内部规模（评审 token-sweep 的惰性清扫用例）；
+   * 缺省内部构造。生产方不传，状态所有者仍是本模块（spec §4）。
+   */
+  tokens?: Map<string, RelayTokenIdentity>;
 }
 
 export function createTokenStore(options: CreateTokenStoreOptions = {}): TokenStore {
   const now = options.now ?? Date.now;
-  const tokens = new Map<string, RelayTokenIdentity>();
+  const tokens = options.tokens ?? new Map<string, RelayTokenIdentity>();
+  /**
+   * 惰性清扫（评审 token-sweep）：未消费 token 只在 consume 时删除，长期不被消费的
+   * 过期项会让 Map 无界累积。借每次签发扫一遍 Map 淘汰已过期项——扫描量级=当前未消费
+   * token 数（天然自界：签发速率决定），无需额外定时器。
+   */
+  const sweepExpired = (currentTime: number): void => {
+    for (const [token, identity] of tokens) {
+      // 过期判定与 consume 的 `expiresAt <= now()` 一致
+      if (identity.expiresAt <= currentTime) tokens.delete(token);
+    }
+  };
   return {
     issue(userId, role: WebRemoteControlRelayV2Role) {
+      const currentTime = now();
+      sweepExpired(currentTime);
       const token = randomBytes(TOKEN_BYTES).toString("base64url");
-      tokens.set(token, { userId, role, expiresAt: now() + TOKEN_TTL_MS });
+      tokens.set(token, { userId, role, expiresAt: currentTime + TOKEN_TTL_MS });
       return { token, expiresIn: 60 };
     },
     consume(token) {

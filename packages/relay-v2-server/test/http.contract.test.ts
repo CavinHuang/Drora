@@ -2,7 +2,9 @@
 // packages/shared/test/fixtures/fake-relay-v2.ts:92-180 的 HTTP 分支）。
 // 场景：注册/列表/删除全语义（不存在幂等、异账号 1006、在线 3005、参数 3001）、
 // 跨用户隔离、Bearer 鉴权 401 面（含一次性 relay token 不能当 JWT 用）、token 签发
-// 形态与 Cache-Control: no-store、CORS 开关。成功响应先过 shared 契约解析器再断言。
+// 形态与 Cache-Control: no-store、CORS 开关、鉴权前置与请求体硬上限（401 前置不消费
+// 请求体 / 超限 413 / 上游不可用 503——评审 http-body-limit、auth-three-state）。
+// 成功响应先过 shared 契约解析器再断言。
 
 import { afterEach, describe, expect, it } from "vitest";
 import { parseWebRemoteControlRelayV2HttpResponse } from "@drora/shared/web-remote-relay";
@@ -248,5 +250,86 @@ describe("HTTP 组：设备注册/列表/删除/token（spec §5.1）", () => {
     expect(preflight.headers.get("access-control-allow-origin")).toBe("*");
     expect(preflight.headers.get("access-control-allow-headers")).toContain("Authorization");
     expect(preflight.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+});
+
+describe("HTTP 组：鉴权前置与请求体硬上限（评审 http-body-limit / auth-three-state）", () => {
+  it("无效凭据 + 超大 body：不消费请求体、快速 401（不 hang），服务保持可用", async () => {
+    const relay = await startRelay();
+    const startedAt = Date.now();
+    // 8MB body：旧实现（先读体后鉴权）会把整块缓冲进堆；新实现鉴权前置，读取前拒绝。
+    // vitest 默认 5s 用例超时本身就是「不 hang」闸，此处再显式断言快速返回。
+    const denied = await api(relay, PATHS.register.path, {
+      rawBody: "x".repeat(8 * 1024 * 1024),
+      jwt: "jwt-nobody",
+    });
+    expect(denied.status).toBe(401);
+    expect(denied.body).toEqual({ code: 401, msg: "" });
+    expect(Date.now() - startedAt).toBeLessThan(3_000);
+    // 服务端未被超大上传拖垮：healthz 正常（评审 healthz-test-coverage 的 401 前置断言）
+    expect((await api(relay, "/healthz")).status).toBe(200);
+    // 同一服务继续可服务合法请求
+    await registerDevice(relay, "after-401");
+  });
+
+  it("合法凭据 + 超 Content-Length 上限 body：413 并断开，服务不受影响", async () => {
+    const relay = await startRelay();
+    // 65537 > 64KiB 上限：Content-Length 预检路径，读取前拒绝
+    const tooLarge = await api(relay, PATHS.register.path, {
+      rawBody: "x".repeat(65_537),
+      jwt: JWT_ALICE,
+    });
+    expect(tooLarge.status).toBe(413);
+    expect(tooLarge.body).toEqual({ code: 413, msg: "" });
+    // 上限内（64KiB 恰好）不被误拒：业务参数错误仍是 400 而非 413
+    const withinLimit = await api(relay, PATHS.register.path, {
+      rawBody: `{"device_mid":${"m".repeat(64_000)}}`,
+      jwt: JWT_ALICE,
+    });
+    expect(withinLimit.status).toBe(400);
+    expect(withinLimit.body).toEqual({ code: 3001, msg: "parameter error" });
+    // 服务端不受超限请求影响：healthz 正常（评审 healthz-test-coverage 的 413 断言）
+    expect((await api(relay, "/healthz")).status).toBe(200);
+    await registerDevice(relay, "after-413");
+  });
+
+  it("无 Content-Length（chunked）流式超限：流式累积计数生效 → 413", async () => {
+    const relay = await startRelay();
+    // 3×32KB 分块传输：无 Content-Length，走流式累积计数路径（第二块累计 64KB+ 触发）
+    const chunk = "y".repeat(32 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 3; i += 1) controller.enqueue(new TextEncoder().encode(chunk));
+        controller.close();
+      },
+    });
+    const response = await fetch(`${relay.httpUrl}${PATHS.register.path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${JWT_ALICE}` },
+      body,
+      // @types/node 的 RequestInit 未含 duplex（undici 流式请求体必填）
+      duplex: "half",
+    } as RequestInit);
+    expect(response.status).toBe(413);
+    await response.text();
+    expect((await api(relay, "/healthz")).status).toBe(200);
+  });
+
+  it("鉴权三态：上游不可用 → 503（可重试语义）；凭据缺失仍 401（评审 auth-three-state）", async () => {
+    const relay = await startRelay({
+      auth: {
+        authenticate: async (authorizationHeader) =>
+          authorizationHeader === undefined
+            ? { status: "credentials-invalid" }
+            : { status: "upstream-unavailable" },
+      },
+    });
+    const unavailable = await api(relay, PATHS.list.path, { jwt: JWT_ALICE });
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.body).toEqual({ code: 503, msg: "" });
+    // healthz 不经鉴权，上游不可用时运维面仍可用（评审 healthz-test-coverage 的 503 断言）
+    expect((await api(relay, "/healthz")).status).toBe(200);
+    const invalid = await api(relay, PATHS.list.path);
+    expect(invalid.status).toBe(401);
   });
 });

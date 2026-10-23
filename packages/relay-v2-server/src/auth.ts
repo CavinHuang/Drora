@@ -14,7 +14,7 @@
 
 import { createPublicKey, createVerify, webcrypto, type KeyObject } from "node:crypto";
 import type { RelayConfig } from "./config.js";
-import type { JwtAuth } from "./types.js";
+import { authInvalid, authOk, authUnavailable, type JwtAuth, type JwtAuthResult } from "./types.js";
 
 /** @types/node 25 无 node:crypto 顶层 JsonWebKey 导出，类型挂在 webcrypto 命名空间下 */
 type JwkObject = webcrypto.JsonWebKey;
@@ -110,9 +110,10 @@ export function createStubJwtAuth(users: Readonly<Record<string, string>>): JwtA
   return {
     async authenticate(authorizationHeader) {
       const jwt = parseBearerToken(authorizationHeader);
-      if (jwt === undefined) return undefined;
+      if (jwt === undefined) return authInvalid;
       // Object.hasOwn 防原型链键（"constructor" 等），与 fake relay 一致
-      return Object.hasOwn(users, jwt) ? users[jwt] : undefined;
+      const mapped = Object.hasOwn(users, jwt) ? users[jwt] : undefined;
+      return mapped === undefined ? authInvalid : authOk(mapped);
     },
   };
 }
@@ -175,67 +176,88 @@ export function createJwtAuth(options: CreateJwtAuthOptions): JwtAuth {
     throw new Error("JWT_REALM_MODE=explicit 需要 JWT_REALM（spec §6.3）");
   }
 
-  /** realm 推导（§6.3）：iss 模式从 payload iss 取（缺失即无法命名空间→拒绝），explicit 用配置值 */
+  /**
+   * realm 推导（§6.3）：iss 模式从 payload iss 取（缺失即无法命名空间→拒绝），explicit 用配置值
+   */
   const realmOf = (payload: Record<string, unknown>): string | undefined => {
     if (config.jwtRealmMode === "explicit") return config.jwtRealm;
     const iss = payload.iss;
     return typeof iss === "string" && iss.length > 0 ? iss : undefined;
   };
 
-  /** userId 一律 realm 前缀（§6.3 硬约束）；realm 推导失败视为无法映射 */
+  /**
+   * userId 一律 realm 前缀（§6.3 硬约束）；realm 推导失败视为无法映射。
+   * fail-closed（评审 realm-colon-failclosed）：identity 含分隔符即拒绝映射——`realm:identity`
+   * 是二元拼接，若 identity 可含 ":"，不同 (realm, identity) 组合会塌缩到同一 userId
+   * （iss="x:y",sub="c" 与 iss="x",sub="y:c" 都映射 "x:y:c"，两个身份域被并成同一 owner）。
+   * 拒绝含 ":" 的 identity 后，按「最后一个分隔符」切分唯一可逆，映射注入性成立：
+   * 不同 (realm, identity) 恒映射到不同 userId，评审反例组不再塌缩。
+   * 与评审原文的差异（如实登记）：评审要求 realm 分量含 ":" 一并拒绝；但 §6.3 登记的 realm
+   * 来源是 iss 模式从 payload iss 推导，iss 惯为 URL（必含 ":"），拒绝 realm 含分隔符会让
+   * iss 模式整体无法映射，与 spec §6.3 及既有 realm 隔离契约矛盾——identity 侧拒绝即可
+   * 达成评审目的（两组合不再映射到同一 userId）且不破坏 URL realm。
+   */
   const withRealm = (payload: Record<string, unknown>, identity: string): string | undefined => {
     const realm = realmOf(payload);
-    return realm === undefined ? undefined : `${realm}${REALM_SEPARATOR}${identity}`;
+    if (realm === undefined) return undefined;
+    if (identity.includes(REALM_SEPARATOR)) return undefined;
+    return `${realm}${REALM_SEPARATOR}${identity}`;
   };
 
-  /** decode：本地 base64url 解 payload，不验签；exp 存在且已过期拒绝（§6.2） */
+  /** decode：本地 base64url 解 payload，不验签；exp 存在且已过期拒绝（§6.2）。恒不产生 upstream-unavailable */
   const authenticateDecode = async (
     authorizationHeader: string | undefined,
-  ): Promise<string | undefined> => {
+  ): Promise<JwtAuthResult> => {
     const jwt = parseBearerToken(authorizationHeader);
-    if (jwt === undefined) return undefined;
+    if (jwt === undefined) return authInvalid;
     const parts = splitJwt(jwt);
-    if (parts === undefined) return undefined;
+    if (parts === undefined) return authInvalid;
     const payload = decodeJwtObject(parts[1]);
-    if (payload === undefined || isExpired(payload, Math.floor(now() / 1000))) return undefined;
+    if (payload === undefined || isExpired(payload, Math.floor(now() / 1000))) return authInvalid;
     const identity = identityFromClaims(payload, idClaims);
-    if (identity === undefined) return undefined;
-    return withRealm(payload, identity);
+    if (identity === undefined) return authInvalid;
+    const userId = withRealm(payload, identity);
+    return userId === undefined ? authInvalid : authOk(userId);
   };
 
   /**
    * introspect：携 Bearer 调 INTROSPECT_URL 取身份。待 M0 验证：端点可用性与响应形状未实测；
-   * 端点是 token 有效性的权威（本地不重复检查 exp），网络失败/非 2xx/业务 code 或 success
-   * 表失败（HTTP 200 也可能失败，§6.1.1 探测 #12）/无身份 claim 一律视为无法映射（401）。
+   * 端点是 token 有效性的权威（本地不重复检查 exp）。三态（评审 auth-three-state）：
+   * 网络失败 / 非 2xx / 2xx 但响应体不可解析 → upstream-unavailable（上游暂时故障，503 可重试）；
+   * 业务 code/success 表失败（HTTP 200 也可能失败，§6.1.1 探测 #12）/无身份 claim →
+   * credentials-invalid（凭据问题或身份不可得，重试无意义，401）。
    * 注意与客户端不同：客户端兜底 "unknown"，服务端必须拒绝而非归并到同一用户。
    */
   const authenticateIntrospect = async (
     authorizationHeader: string | undefined,
-  ): Promise<string | undefined> => {
+  ): Promise<JwtAuthResult> => {
     const jwt = parseBearerToken(authorizationHeader);
-    if (jwt === undefined) return undefined;
+    if (jwt === undefined) return authInvalid;
     const parts = splitJwt(jwt);
-    if (parts === undefined) return undefined;
+    if (parts === undefined) return authInvalid;
     const payload = decodeJwtObject(parts[1]);
-    if (payload === undefined) return undefined;
+    if (payload === undefined) return authInvalid;
     let body: unknown;
     try {
       const response = await fetchImpl(config.introspectUrl as string, {
         method: "GET",
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!response.ok) return undefined;
+      // 非 2xx 归 upstream-unavailable：上游可达但拒绝服务（限流/宕机响应），不是凭据判定
+      if (!response.ok) return authUnavailable;
       body = await response.json();
     } catch {
-      return undefined;
+      // 网络失败与 2xx 响应体不可解析同归 upstream-unavailable：无法完成判定 ≠ 判定失败
+      return authUnavailable;
     }
     // 业务 code/成功标志校验（§6.1.1 探测 #12）：HTTP 200 不代表鉴权成功，先于身份提取
-    if (isBusinessFailure(body)) return undefined;
+    if (isBusinessFailure(body)) return authInvalid;
     const profile = unwrapDataObject(body);
     const identity = identityFromClaims(profile, idClaims);
-    if (identity === undefined) return undefined;
+    if (identity === undefined) return authInvalid;
     // realm 仍取自 JWT payload iss（未验签读取，仅用于命名空间，身份本体已由端点确认）；待 M0 验证
-    return withRealm(payload, identity);
+    const userId = withRealm(payload, identity);
+    return userId === undefined ? authInvalid : authOk(userId);
   };
 
   /** JWS RS/ES 算法白名单（§6.2「JWKS 验签（RS/ES）」）；none 与未知算法直接拒绝 */
@@ -327,44 +349,48 @@ export function createJwtAuth(options: CreateJwtAuthOptions): JwtAuth {
    * jwks：JWKS 验签 + iss/aud 白名单，再按 decode 同规则取身份与 realm（§6.2 表）。
    * 待 M0 验证：JWKS 端点存在性、kid/alg 覆盖、ES 曲线均未实测。JWT_ISSUERS / JWT_AUDIENCE
    * 已由装配期强制必填（spec §9），白名单在此恒生效——本函数不再做「未配置即跳过」的降级。
+   * 三态（评审 auth-three-state 的登记范围）：JWKS 拉取失败/验签失败恒 credentials-invalid——
+   * upstream-unavailable 仅登记给 introspect 模式（jwks 的端点缓存与重试策略待 M0 定案，
+   * 改动前不扩大 503 面）。
    */
   const authenticateJwks = async (
     authorizationHeader: string | undefined,
-  ): Promise<string | undefined> => {
+  ): Promise<JwtAuthResult> => {
     const jwt = parseBearerToken(authorizationHeader);
-    if (jwt === undefined) return undefined;
+    if (jwt === undefined) return authInvalid;
     const parts = splitJwt(jwt);
-    if (parts === undefined) return undefined;
+    if (parts === undefined) return authInvalid;
     const [headerB64, payloadB64, signatureB64] = parts;
     const header = decodeJwtObject(headerB64);
     const payload = decodeJwtObject(payloadB64);
-    if (header === undefined || payload === undefined) return undefined;
+    if (header === undefined || payload === undefined) return authInvalid;
     const alg = header.alg;
-    if (typeof alg !== "string" || (!(alg in RSA_HASH) && !(alg in EC_PARAMS))) return undefined;
-    if (isExpired(payload, Math.floor(now() / 1000))) return undefined;
+    if (typeof alg !== "string" || (!(alg in RSA_HASH) && !(alg in EC_PARAMS))) return authInvalid;
+    if (isExpired(payload, Math.floor(now() / 1000))) return authInvalid;
     // iss/aud 白名单恒生效：装配期 fail-fast 已保证必填（上方 jwks 分支赋值），
     // 不存在「未配置即跳过」的放行路径（§6.2 安全边界）
     if (!jwksIssuers.includes(payload.iss as string)) {
-      return undefined;
+      return authInvalid;
     }
     const aud = payload.aud;
     const audienceOk =
       aud === jwksAudience || (Array.isArray(aud) && (aud as unknown[]).includes(jwksAudience));
-    if (!audienceOk) return undefined;
+    if (!audienceOk) return authInvalid;
     const selected = await selectJwk(header);
     if (
       selected === undefined ||
       !verifySignature(alg, `${headerB64}.${payloadB64}`, signatureB64, selected)
     ) {
-      return undefined;
+      return authInvalid;
     }
     const identity = identityFromClaims(payload, idClaims);
-    if (identity === undefined) return undefined;
-    return withRealm(payload, identity);
+    if (identity === undefined) return authInvalid;
+    const userId = withRealm(payload, identity);
+    return userId === undefined ? authInvalid : authOk(userId);
   };
 
   return {
-    async authenticate(authorizationHeader) {
+    async authenticate(authorizationHeader): Promise<JwtAuthResult> {
       if (config.jwtMode === "introspect") return authenticateIntrospect(authorizationHeader);
       if (config.jwtMode === "jwks") return authenticateJwks(authorizationHeader);
       return authenticateDecode(authorizationHeader);

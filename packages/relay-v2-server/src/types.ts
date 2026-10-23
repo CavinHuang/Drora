@@ -93,12 +93,33 @@ export interface RelayTrafficView {
   terminal: ConnectionTrafficCounters;
 }
 
+/**
+ * 鉴权三态结果（评审 auth-three-state）：调用方（HTTP 层）按状态区分响应——
+ * - ok：Bearer 已映射到带 realm 前缀的 userId；
+ * - credentials-invalid：凭据缺失/形状非法/验签失败/上游明确拒绝业务失败——HTTP 401，
+ *   客户端按 auth-required 停机（只用于真正的鉴权失败）；
+ * - upstream-unavailable：上游身份端点暂不可达（仅 introspect 模式的网络失败与非 2xx，
+ *   含 2xx 但响应体不可解析——上游故障而非凭据错误）——HTTP 503，5xx 走客户端可重试
+ *   退避，不会误清手机会话。decode/jwks/stub 恒不产生该态：本地判定/验签失败一律
+ *   credentials-invalid。
+ */
+export type JwtAuthResult =
+  | { status: "ok"; userId: string }
+  | { status: "credentials-invalid" }
+  | { status: "upstream-unavailable" };
+
+/** 凭据合法且映射成功的三态便捷构造 */
+export const authOk = (userId: string): JwtAuthResult => ({ status: "ok", userId });
+/** 凭据无效/无法映射的三态便捷构造 */
+export const authInvalid: JwtAuthResult = { status: "credentials-invalid" };
+/** 上游身份端点不可用的三态便捷构造（仅 introspect 模式产生） */
+export const authUnavailable: JwtAuthResult = { status: "upstream-unavailable" };
+
 export interface JwtAuth {
   /**
-   * Bearer JWT → 带 realm 前缀的 userId（spec §6.2/§6.3）；缺失或无法映射返回 undefined，
-   * 由调用方回 HTTP 401（客户端按 auth-required 停机）。async 以容纳 introspect/jwks 模式。
+   * Bearer JWT → 三态鉴权结果（spec §6.2/§6.3）；async 以容纳 introspect/jwks 模式。
    */
-  authenticate(authorizationHeader: string | undefined): Promise<string | undefined>;
+  authenticate(authorizationHeader: string | undefined): Promise<JwtAuthResult>;
 }
 
 /** auth_ack / pair_status_ack 的配对状态视图 */

@@ -180,6 +180,37 @@ describe("WS 组：auth 矩阵（spec §5.2 消息规则）", () => {
     await awaitClosed(client);
     expect(messages(client).at(-1)).toMatchObject({ type: "error", code: "AUTH_FAILED" });
   });
+
+  it("auth_init meta 单字段超 256 字节 → WRONG_PARAM + 关闭；恰 256 字节照常接受（评审 meta-length-guard）", async () => {
+    const relay = await startRelay();
+    const { sid } = await registerDevice(relay, "machine");
+
+    // 超限（257 字节）在设备归属校验前拒绝
+    const rejected = await openClient(relay, await issueToken(relay, "device"));
+    rejected.send({
+      type: "auth_init",
+      device_sid: sid,
+      meta: { name: "x".repeat(257) },
+    });
+    await awaitClosed(rejected);
+    expect(messages(rejected)).toEqual([
+      { type: "error", code: "WRONG_PARAM", server_ts: expect.any(Number) },
+    ]);
+
+    // 边界内（恰 256 字节）正常认证，meta 生效并回显到列表
+    const accepted = await openClient(relay, await issueToken(relay, "device"));
+    accepted.send({
+      type: "auth_init",
+      device_sid: sid,
+      meta: { name: "y".repeat(256) },
+    });
+    await expect
+      .poll(() => messages(accepted).at(-1)?.type, { timeout: 2_000, interval: 20 })
+      .toBe("auth_ack");
+    const list = await api(relay, PATHS.list.path, { jwt: JWT_ALICE });
+    expect((list.body as { data: Array<{ meta: { name?: string } }> }).data[0]?.meta.name)
+      .toHaveLength(256);
+  });
 });
 
 describe("WS 组：配对全流程（spec §5.2/§6.6）", () => {

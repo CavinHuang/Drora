@@ -24,6 +24,11 @@
 > 完结（均不存在，jwks 模式前提证伪出局）、introspect 双端点存在性证实（ZAI 走 HTTP 401 前置、
 > BigModel 走 HTTP 200+业务 code）、token 端点 GET 404 如实记录（方法约束未证实）；§12 M0
 > 清单据此收窄至仍需真实凭据的项。
+> ⑨ 2026-10-23 红队评审修复批次登记（以源码最终实现为准，逐条见 §5.1/§5.2/§5.3/§6.2/§6.3/§7/§11）：
+> HTTP 请求体 64KiB 上限与鉴权前置、鉴权三态（401/503 分流）、WS 出站 1 MiB 帧预算、
+> 背压高水位 4 MiB 断连（含不丢帧的契约判定）、token 惰性清扫、GC 单事务 + created_at 索引、
+> realm identity 含冒号 fail-closed、auth_init meta 256 字节限长（自建加固）、停机 flush 死线
+> 改真实墙钟、upgrade 停机竞态复查、deploy 面崩溃兜底与 /healthz 公网直暴默认关闭。
 
 ## 1. 背景与目标
 
@@ -150,13 +155,15 @@ flowchart TB
 
 实现规则（与 fake relay 逐条对齐）：
 
-1. 所有接口要求 `Authorization: Bearer <jwt>`；缺失或无法映射用户 → HTTP 401（客户端停机报 `auth-required`，仅用于真正的鉴权失败）。
+1. 所有接口要求 `Authorization: Bearer <jwt>`，且鉴权在**读取请求体之前**前置执行（评审 http-body-limit ①：无效凭据 + 超大 body 在读取前拒绝，请求体永不进本进程堆内存）。映射结果按三态分流（评审 auth-three-state，实现 `src/http.ts:189-199`、`src/types.ts:106-109`）：`credentials-invalid` → HTTP 401（客户端停机报 `auth-required`，仅用于真正的鉴权失败）；`upstream-unavailable` → HTTP 503（5xx 走客户端可重试退避，上游身份端点抖动不会误清手机会话）。提前拒绝（401/503/413）不缓冲请求体，响应前 `resume()` 排空剩余上传流——不排空则请求体滞留（评审实测：无效凭据 + 200MB body → 进程 RSS 704MB），flush 后立即 destroy 则客户端被 RST、把「凭据错误」误判为网络故障而重试（`src/http.ts:135-152`）。
 2. token 签发：`randomBytes(16).toString("base64url")`（22 字符无填充），`expires_in: 60`，响应头 `Cache-Control: no-store`；绑定 user + role，不绑定 SID。
 3. 注册：每次同 MID 注册产生新 SID（格式 `d_<uuid>`），不接收 `meta`；`created_at` 为 Unix 秒；响应记录含 `online: false, meta: {}`。
 4. 列表：按 JWT 映射的 userId 过滤；`online` 取 PairingRegistry 实时状态；离线设备 `meta` 为空对象。
 5. 删除：只能删自己的离线设备（在线判定经 PairingRegistry join）；DeviceStore 物理删除，删除后的 SID 无法再通过 `auth_init` 认证。删除仅限离线设备，单线程顺序处理下与 WS 认证无竞态。
 6. 设备 `meta` 仅在线时由 `auth_init` 提供；不持久化历史 meta（与官方一致，手机端以本地缓存补全离线设备名，见配对契约 06）。
 7. CORS：同源生产部署（页面与 relay 同域）不需要；为 L1 联调与浏览器测试保留与 fake relay 同款的 `Access-Control-Allow-Origin` 开关（`CORS_ENABLED`，默认关，开启时 `*` + OPTIONS 预检 204）。
+8. **请求体硬上限 64 KiB**（评审 http-body-limit ②，`src/http.ts:36`）：契约最大请求（register 的 `device_mid` ≤128 字符）仅数百字节，64 KiB 已留足余量。Content-Length 预检 + 流式累积计数双路径，超限即刻 HTTP 413 并排空连接，不再把后续 chunk 缓进堆内存（`src/http.ts:90-110`）。
+9. `/healthz` 不经鉴权（运维探活面），上游身份端点不可用时健康面仍可用；其余未匹配路径 404。
 
 ### 5.2 WebSocket
 
@@ -166,7 +173,11 @@ flowchart TB
 
 1. token 缺失、未知、过期或已消费 → 升级前以原始 socket 应答 `HTTP/1.1 401 Unauthorized` 并关闭（与 fake relay 一致）。
 2. 消费即删除（Node 单线程下同步 Map delete 天然原子）；失败不恢复，重连必须重新申请。
-3. `maxPayload: 1 MiB`；只接受 JSON 文本帧，二进制帧按 `WRONG_PARAM` 处理后关闭。
+3. 入站 `maxPayload: 1 MiB`；只接受 JSON 文本帧，二进制帧按 `WRONG_PARAM` 处理后关闭。
+4. **出站帧字节预算对称 1 MiB**（评审 outbound-frame-budget，`src/ws.ts:52`）：服务端发出的帧同样不得超限——契约客户端在接收侧按同款 1 MiB 硬闸硬断，出站超限帧必然把对端也带崩。入站贴线帧可因服务端追加 `server_ts` 信封超出预算，此时丢弃该帧并让**发送方**收 `error INTERNAL`（§5.2 既有可恢复语义：不关闭、发送方按可重试处理，`src/ws.ts:121-129` 与 data 路径回执 `src/ws.ts:371-379`）；ack/control 类信封远小于预算，不受影响。
+5. **背压高水位 4 MiB 断连**（评审 ws-backpressure，`src/ws.ts:45`）：对端 socket 停滞（半开/接收暂停/慢读）时 `bufferedAmount` 无界增长会把整段转发流量缓进本进程堆内存（评审实测：pause 对端后 3000×64KB → RSS +472MB）。每次发送先于入队检查，超水位判定对端为慢连接：`terminate()` 断开并记 `ws-slow-connection-terminated` warn——等价一次普通断连，客户端按既有退避自愈。
+   **为何断连而不是丢帧（契约判定）**：转发流量处于 rpc-frame 分片序列之中，对端等的是完整序列；静默丢掉中间一帧会让分片序列永久撕裂（对端无限等续片），且两侧连接仍显示存活——比断连更难恢复。因此本实现**不在转发路径丢帧**：帧送不出去（超水位/超预算/连接已不 OPEN）要么断开慢连接、要么给发送方显式 `error INTERNAL`，对齐只能走客户端既有「重连 + 快照补拉」链路重新收敛，无中间态。
+6. **`auth_init` meta 单字段 256 字节限长**（评审 meta-length-guard，`src/ws.ts:58`）：meta 经设备列表与 `/healthz` 面回显，无界字符串可被用来撑大响应与连接期内存；接受前校验，超限按 `WRONG_PARAM` 关闭、不入连接期状态（`src/ws.ts:311-314`）。**与官方差异声明（自建加固）**：配对契约对 meta 无长度约束，本限值是自建部署加固、可能严于官方——取契约 `device_sid` 128 字符先例的 2 倍为量级依据；官方对超长 meta 的实际行为未观测，M0/L1 实测发现官方更宽松时**不**回退本闸（回显面在本服务，收紧无兼容代价）。
 
 消息规则（`C→S` 消息先经 `parseWebRemoteControlRelayV2OutgoingMessage` 严格校验）：
 
@@ -195,8 +206,9 @@ flowchart TB
 | 认证超时              | 连接建立后 `AUTH_TIMEOUT_MS`（默认 15 秒）内未完成 `auth_init` → 直接关闭，不发错误消息                                                                                                                                                 |
 | **idle 检测（必备）** | 客户端心跳为 5s±1s 的 `pair_status_query`，活跃连接必然持续来帧。任一入站帧（含 pong）刷新活跃时间；`IDLE_TIMEOUT_MS`（默认 120 秒）无入站 → 关闭并按断连通知流程清 owner。防半开连接把 `pair_status` 钉死在 matched、设备删除永远 3005 |
 | 服务端 Ping           | 每 30 秒 WS protocol ping（保 NAT 活性）；pong 计入活跃时间，不参与业务状态                                                                                                                                                             |
+| **token 惰性清扫**    | 未消费 token 只在 `consume` 时删除，长期不被消费的过期项会让内存 Map 无界累积（评审 token-sweep）。每次 `issue` 先扫一遍 Map 淘汰 `expiresAt <= now` 的项（`src/tokens.ts:35-48`）——扫描量级 = 当前未消费 token 数，天然自界（签发速率决定），无额外定时器；过期判定与 consume 的既有一致 |
 | 消息频率保护          | 可选：单连接 `data` 超过阈值（如 200 条/秒）按 `INTERNAL` 丢弃该条并告警，不断连                                                                                                                                                        |
-| 优雅停机              | SIGTERM → 停止接受新连接 → 对每条连接发 `error INTERNAL` 后关闭 → 等待 flush → 退出；客户端按既有退避自动重连（`INTERNAL` 属可恢复错误）                                                                                                |
+| 优雅停机              | SIGTERM → 停止接受新连接 → 对每条连接发 `error INTERNAL` 后关闭 → 等待 flush → 退出；客户端按既有退避自动重连（`INTERNAL` 属可恢复错误）。flush 宽限 5 秒（停机专属边缘常量 `src/ws.ts:38`），**死线用真实墙钟**（评审 shutdown-wallclock：与可注入测试时钟解耦，虚拟时钟下 flush 循环不得挂起，`src/ws.ts:536`）；升级竞态复查（评审 upgrade-stop-race）：upgrade 回调入集合前复查停机标志，真停机窗口内到达的连接按 `error INTERNAL` + close 收尾、不入集合（`src/ws.ts:441-447`） |
 
 ## 6. 鉴权设计
 
@@ -235,6 +247,8 @@ M0 动作：取两平台真实 drora JWT，离线解码 payload 记录 claim 形
 - `introspect`：两端点存在性已证实（#11 ZAI 401 前置、#12 BigModel 200+code 1001），且两端**错误语义不同**（ZAI 走 HTTP 状态、BigModel 走业务 code）。剩余待凭据实测的仅一步：携带真实 drora Bearer 调用能否返回可用的 `sub ?? id`。
 - `decode`：不依赖任何官方端点，仍是唯一零外部依赖模式；身份 claim 名（`sub`/`id`）仍需真实 JWT 离线解码定案。
 
+**红队审查观察——身份 claim 类型（2026-10-23 登记，进 §12 M0 清单）**：当前实现的身份提取（`src/auth.ts:63-72` 的 `identityFromClaims`）**只接受非空字符串** claim——数值型 `id`（如 BigModel 风格的 `"id": 12345`）不满足 `typeof value === "string"`，decode 与 introspect 两条路径都会落到「无身份 claim」→ 401。客户端先例无此约束（`zaiProviderAdapter.ts:419` 的 `user.sub ?? user.id ?? "unknown"` 不看类型，数值 id 照常放行），因此**手机能登录而 relay 拒绝**的失配是现实风险。M0 离线解码时必须把「身份 claim 的实际类型」作为显式记录项：若任一平台实测出现数值 id，需调整 `identityFromClaims` 映射（如 `String(value)` 归一化，同时保住「空串不取」防线与 realm 单射），并同步本节、§6.2 表与 §6.3 fail-closed 规则——在 M0 证实之前，仅字符串是保守正确方向（拒绝比误映射安全）。
+
 **边缘观察（弱信号，不外推）**：本轮记录中仅 `zcode.z.ai` 显出边缘层特征（#6 `Server: ESA`、#8 `via: ens-cache…`）；`bigmodel.cn` 记录到 `server: nginx/1.21.6`（#12），`chat.z.ai` 各行未记录 server 头，`acw_tc`/`cdn_sec_tc`/`visitor_id` 反爬 cookie 均不在本轮表内证据中——三域是否同在阿里 ESA 边缘之后，**无法由本轮证据判定**。本轮无凭据 GET 未触发 403 挑战——对 §11.7「整域回源可用性」是一个**仅限 GET 路径**的弱正面信号；POST/WS/OAuth 交互面、带凭据行为及 `zcode.z.ai` 的 `/api/v1/remote/*` relay 面均未探测，外推无效。
 
 ### 6.2 JWT → userId 映射（三模式）
@@ -247,9 +261,21 @@ M0 动作：取两平台真实 drora JWT，离线解码 payload 记录 claim 形
 
 安全边界如实记录：`decode` 不是密码学认证——能构造合法形状 JWT 的人可映射任意 userId，但配对仍需知道目标 `device_sid`。多用户部署必须 `introspect` 或 `jwks`。introspect 的 HTTP 200 不代表成功——BigModel userinfo 端点以 HTTP 200 + 业务 `code`/`success` 表达鉴权失败（§6.1.1 探测 #12），服务端实现必须显式校验业务成功标志（`success:false` 或 `code≠0` 即拒绝，不得以「无身份 claim」为唯一失败路径；`code` 成功值语义待 M0 定案）。桌面侧身份绑定（`{userId, endpointOrigin}` 变更 → 重注册）使用桌面自己的 `login.userId`；只要映射稳定（同一账号恒同 userId），桌面不会反复重注册——这正是 M0 要验证"映射一致性"的原因。
 
+**鉴权三态（评审 auth-three-state，实现 `src/types.ts:106-109`、`src/auth.ts`）**：`authenticate` 返回三态之一，HTTP 层按态分流——
+
+| 态                     | 判定来源                                                                                                                                       | HTTP 映射 | 客户端语义                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------ |
+| `ok`                   | Bearer 已映射到带 realm 前缀的 userId                                                                                                          | 通过      | 正常服务                       |
+| `credentials-invalid`  | Bearer 缺失/形状非法、JWT 形状非法、`exp` 已过期、无身份 claim、realm 推导失败、jwks 验签/iss/aud 白名单失败、introspect **业务层明确失败**（§6.1.1 探测 #12） | 401       | 停机报 `auth-required`，仅真正的鉴权失败 |
+| `upstream-unavailable` | **仅 introspect 模式**：上游网络失败、非 2xx、2xx 但响应体不可解析——「无法完成判定 ≠ 判定失败」（`src/auth.ts:231-252`）                        | 503       | 5xx 可重试退避，不误清手机会话 |
+
+`decode`/`jwks`/`stub` 恒不产生 `upstream-unavailable`（本地判定与验签失败一律凭据问题；jwks 的上游拉取失败也归 `credentials-invalid`——其端点缓存与重试策略待 M0 定案，改动前不扩大 503 面，`src/auth.ts:352-355`）。三态与 HTTP 503 的闭环已进 L0 契约套件（`test/auth.test.ts` 三态组、`test/http.contract.test.ts:318-331`）。
+
 ### 6.3 平台命名空间隔离
 
 ZAI 与 BigModel 是两个身份域，配对契约要求手机与桌面同平台登录。为防两域 id 数值撞车把不同用户并到同一 owner 域，**userId 一律带 realm 前缀**存储与比较，格式 `realm:identity`（半角冒号分隔；单一出处 `src/auth.ts` 的 `REALM_SEPARATOR`。M0 定案前为临时格式：改动分隔符须同步本节，并注意 DeviceStore 旧记录不回填、realm 前缀变更即身份变更）。realm 来源：`JWT_REALM_MODE=iss`（从 payload `iss` 推导，M0 证实后默认）或显式 `JWT_REALM`（单平台自用时可写死，如 `zai`）。DeviceStore 中旧记录不回填——realm 变更视为身份变更，桌面按既有重注册语义自愈。
+
+**identity 含分隔符 fail-closed（评审 realm-colon-failclosed，M0 定案前的临时规则，`src/auth.ts:200-205`）**：`realm:identity` 是二元拼接，若 identity 自身可含 `:`，不同 (realm, identity) 组合会塌缩到同一 userId（`iss="x:y", sub="c"` 与 `iss="x", sub="y:c"` 都映射 `x:y:c`，两个身份域被并成同一 owner）。因此 identity 含 `:` 一律拒绝映射（401），拒绝后按「最后一个分隔符」切分唯一可逆，映射满足单射：不同 (realm, identity) 恒映射不同 userId。**与评审原文的差异（如实登记）**：评审要求 realm 分量含 `:` 一并拒绝，但 §6.3 登记的 realm 来源是 iss 模式从 payload `iss` 推导、iss 惯为 URL（必含 `:`），连 realm 一并拒绝会让 iss 模式整体无法映射，与 realm 隔离契约矛盾——identity 侧拒绝即可达成评审目的（塌缩反例组不再成立）且不破坏 URL realm；该取舍随 M0 realm 格式定案一并复核。
 
 ### 6.4 同角色替换（KICKED）事件顺序
 
@@ -330,8 +356,8 @@ CREATE INDEX IF NOT EXISTS idx_devices_mid  ON devices(device_mid);
 - 写路径：注册 INSERT、删除 DELETE、GC DELETE，均在请求线程同步完成；无后台合并、无多写者。
 - `online` / `meta` 不入库，由 PairingRegistry 实时 join（fake relay 的 `view()` 语义）。
 - 重启语义：设备与 SID 保留 → 桌面已存 `{deviceSid, userId, endpointOrigin}` 继续有效，二维码不失效；未消费 token 丢失（客户端重申请，契约允许）；连接全断 → 双端按既有退避自动重连（桌面 1s→30s，手机 500ms→10s），无需广播。
-- **备份（M2 已交付）**：DeviceStore 打开即设 `PRAGMA journal_mode = WAL`（本条论述的前提；`VACUUM INTO` 在任意 journal 下都产出一致快照，WAL 防的是「运行中直接 cp 拷出撕裂副本」）。备份走 `SqliteDeviceStore.backup(toPath)`（`VACUUM INTO`，与源库一致的自包含快照；目标文件必须不存在，SQLite 语义，错误原样上抛），经装配层暴露为 `RelayV2ServerHandle.backupDevices(toPath)` 运维接缝。**备份是手动运维接缝，部署侧未内置定时备份**：容器入口 deploy/run-relay.mjs（§13 单一装配引导，compose 与两个冒烟工具共用）当前只接 SIGTERM/SIGINT→优雅停机，需要定时备份时部署侧在该引导自行接 cron/信号或手工调用（与 GC 的装配层内置 24h 定时器不同，备份无内建调度）；注入的 DeviceStore 未提供 backup 能力时抛错不伪造。运行中直接 `cp` 仍然禁止。
-- **GC（防无界增长）**：同 MID 每次重注册产生新行、旧行只靠用户手删会无限累积。每日一次：删除 `created_at` 早于 `DEVICE_TTL_DAYS`（默认 180 天）**且当前离线**的设备行；不删在线行。GC 触发时若设备恰好在线（join 判定）则跳过该行，下轮再试。调度归装配层（src/index.ts）：监听成功后按 24h `setInterval` 周期执行，结果（删除行数与 cutoff）记结构化日志；间隔与时钟经 `CreateRelayServerOptions` 可注入供 L0 对时（生产缺省即每日一次）。丢库等价于"所有设备重新注册"，桌面在 `auth_init AUTH_FAILED` 后有每启动一次的重注册恢复，但不应依赖它。
+- **备份（M2 已交付）**：DeviceStore 打开即设 `PRAGMA journal_mode = WAL`（本条论述的前提；`VACUUM INTO` 在任意 journal 下都产出一致快照，WAL 防的是「运行中直接 cp 拷出撕裂副本」）。备份走 `SqliteDeviceStore.backup(toPath)`（`VACUUM INTO`，与源库一致的自包含快照；目标文件必须不存在，SQLite 语义，错误原样上抛），经装配层暴露为 `RelayV2ServerHandle.backupDevices(toPath)` 运维接缝。**备份是手动运维接缝，部署侧未内置定时备份**：容器入口 deploy/run-relay.mjs（§13 单一装配引导，compose 与两个冒烟工具共用）只接 SIGTERM/SIGINT→优雅停机与 process 级 `uncaughtException`/`unhandledRejection` 崩溃兜底（结构化 error 日志后 `process.exit(1)`，只把崩溃原因导入日志通道、不改崩溃即退出语义；compose `restart: unless-stopped` 兜底重启不变），需要定时备份时部署侧在该引导自行接 cron/信号或手工调用（与 GC 的装配层内置 24h 定时器不同，备份无内建调度）；注入的 DeviceStore 未提供 backup 能力时抛错不伪造。运行中直接 `cp` 仍然禁止。
+- **GC（防无界增长）**：同 MID 每次重注册产生新行、旧行只靠用户手删会无限累积。每日一次：删除 `created_at` 早于 `DEVICE_TTL_DAYS`（默认 180 天）**且当前离线**的设备行；不删在线行。GC 触发时若设备恰好在线（join 判定）则跳过该行，下轮再试。批量删除包进**单事务**（评审 gc-tx-index：逐条 autocommit 的 DELETE 各自落盘，同量删除实测可达单事务的 6 倍耗时并拉长事件循环停顿；单事务一次提交摊平开销，中途失败整体回滚，不产生删一半的中间态，`src/devices.ts:111-139`），cutoff 扫描列 `created_at` 建索引（`idx_devices_created_at`，`src/devices.ts:27`）。调度归装配层（src/index.ts）：监听成功后按 24h `setInterval` 周期执行，结果（删除行数与 cutoff）记结构化日志；间隔与时钟经 `CreateRelayServerOptions` 可注入供 L0 对时（生产缺省即每日一次）。丢库等价于"所有设备重新注册"，桌面在 `auth_init AUTH_FAILED` 后有每启动一次的重注册恢复，但不应依赖它。
 
 ## 8. 反向代理与客户端指向
 
@@ -343,10 +369,14 @@ relay.example.com {
     handle /api/v1/remote/* {
         reverse_proxy 127.0.0.1:8080
     }
-    # relay 健康检查（可选直暴）
-    handle /healthz {
-        reverse_proxy 127.0.0.1:8080
-    }
+    # relay 健康面默认不公网直暴（v2.3；deploy/Caddyfile 同款）：compose healthcheck 走
+    # relay 容器内 127.0.0.1，公网直暴属非必要暴露面（§11 第 10 条）。确需远程探活时
+    # 取消注释并按来源收紧（remote_ip 白名单），不要放开全网段：
+    # handle /healthz {
+    #     @healthz_src not remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+    #     respond @healthz_src 404
+    #     reverse_proxy 127.0.0.1:8080
+    # }
     # 手机页面（单版本钉死，见 8.3；/remote/v4 与 /remote/v4/ 均需可达）
     handle_path /remote/v4* {
         root * /srv/web-remote-control
@@ -428,7 +458,7 @@ relay.example.com {
 - 生命周期日志记录 realm 前缀 userId、`device_sid` 前缀、role、事件类型与错误码；**不记录 JWT、一次性 token、`data.payload` 内容与完整设备名**。
 - 消息级 trace（`MSG_TRACE=true`）仅用于诊断，字段红线沿用 [`web-remote-control-relay-message-logging.md`](../docs/web-remote-control-relay-message-logging.md) 的仓库既有裁决：只允许 `type / pair_status / role / code / drora_type / requestId / bridgeSessionId / bytes` 摘要级字段，**永不输出 payload 全量正文**，生产默认关闭。
 - 每连接收发计数（frames/bytes in-out，spec §4 归 WsGateway 连接期状态）经 `/healthz` 暴露——官方 relay 时代"pending 超时难定位是 desktop 没处理、单向断还是手机收不到"（稳定性分析 §5）在自建侧用一对计数器即可诊断。健康面按角色聚合存活连接：`counters: {device, terminal} × {framesIn, bytesIn, framesOut, bytesOut}`，连接关闭即出清；入站计数含认证前帧，出站计数含错误与 ack——「单向断」表现为一方向持续增长而另一方向停滞。
-- `/healthz` 返回进程 uptime、连接数、owner 数、DB 行数与上述 `counters`；供 docker-compose healthcheck 与反代探活。
+- `/healthz` 返回进程 uptime、连接数、owner 数、DB 行数与上述 `counters`。**消费面（v2.3 收口）**：docker-compose healthcheck 走 relay 容器内 `127.0.0.1:LISTEN_PORT`（`deploy/docker-compose.yml`，不依赖反代）；**反代不默认公网直暴该面**——`deploy/Caddyfile` 与 §8.1 示例均把 `/healthz` 段置为注释（暴露连接数/owner 数/设备行数等运维画像，属非必要公网暴露面，§11 第 10 条），确需远程探活时取消注释并按 `remote_ip` 来源白名单放开。
 
 ## 10. 测试与验收
 
@@ -465,12 +495,14 @@ L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID
 7. **整域回源官方的可用性未实测**：官方域可能校验 Host 之外的指纹（WAF/风控/验证码面，旧取证提过）；若回源被拒，退路是只反代远控路径、桌面其余流量仍走官方域（端点拆开配置）。
 8. 托管页版本与桌面版本的失配行为（§8.3）依赖 L1 实测登记。
 9. **`node:sqlite` 是 Node 实验特性**：`DatabaseSync` 在仓库钉版工具链（`mise.toml`，Node 24.14.0）下运行仍输出 `ExperimentalWarning: SQLite is an experimental feature`（单测/冒烟实测），API 面与行为可能在 Node 非语义化版本内变更，且不经 flag、默认内建（误升级 Node 即换实现）。约束：本包只在钉版工具链（Node 24.14.0）下开发、测试与交付，不对其他 Node 版本做兼容承诺；**复核条件：待 `node:sqlite` 在 Node 上游转正（不再标记 experimental、进入 LTS 语义化承诺）后复核一次 API 面与行为（建表/prepare/VACUUM INTO/WAL pragma），有破坏性变更再评估适配或迁移**。
+10. **`/healthz` 公网暴露面默认关闭（v2.3 暴露面收口）**：`deploy/Caddyfile` 将 `/healthz` 反代段置为默认注释，公网请求落入 catch-all 回源官方、不触及本服务；探活由 compose healthcheck 在 relay 容器内 `127.0.0.1` 直探（§9），公网直暴非必需。确需公网/远程探活时按 §8.1 注释示例以 `remote_ip` 来源白名单放开——无来源限制的直暴不构成受支持的部署形态。
+11. **资源上限类自建加固与官方行为存在未对齐面（有意差异声明）**：请求体 64 KiB 上限（§5.1 规则 8）、出站帧 1 MiB 预算（§5.2 规则 4）、背压高水位 4 MiB 断连（§5.2 规则 5）、`auth_init` meta 单字段 256 字节限长（§5.2 规则 6）均为本实现自建加固——官方对相应面的实际限值与行为未观测或契约无约束，取值方向一律保守拒绝（防无界缓冲进堆内存），可能严于官方。L1 真机联调若发现官方更宽松且客户端流量撞闸，按「逐项登记 → 评估放宽」处理，不做静默调整；meta 限长即便官方更宽松也不回退（meta 回显面在本服务，收紧无客户端兼容代价）。
 
 ## 12. 里程碑
 
 | 阶段                                                                                                                                                                   | 交付                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 完成判据                                                                                           |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **M0 token 实测与构建链验证**（新增；2026-10-23 收窄——无凭据端点探测已完结，见 §6.1.1：jwks 前提证伪出局、introspect 双端点存在性证实、token 端点 GET 方法约束未证实） | **仍需真实凭据的全部剩余项**：① 两平台真实 drora JWT 离线解码 claim 形状（身份 claim 名/`iss`/`exp`，脱敏附录）；② 带真实 Bearer 实测 introspect 双端点——ZAI `chat.z.ai/api/oauth/userinfo`（HTTP 401 语义）与 BigModel `bigmodel.cn/api/biz/customer/getCustomerInfo`（HTTP 200+业务 code 语义，须校验 code）；③ 桌面/手机同账号 JWT 映射一致实证；④ `VITE_DRORA_ENDPOINT_ORIGIN` 页面构建走通 OAuth 回跳（私网 return_to 先行）。原「introspect/jwks 端点探测结论」项已由 §6.1.1 无凭据完结 | 本 spec §6.2/§6.3 模式定案（**定案范围收窄为 decode vs introspect**）；桌面/手机同账号映射一致实证 |
+| **M0 token 实测与构建链验证**（新增；2026-10-23 收窄——无凭据端点探测已完结，见 §6.1.1：jwks 前提证伪出局、introspect 双端点存在性证实、token 端点 GET 方法约束未证实） | **仍需真实凭据的全部剩余项**：① 两平台真实 drora JWT 离线解码 claim 形状（身份 claim 名/**类型**/`iss`/`exp`，脱敏附录；数值 id → 401 的失配判定见 §6.1.1 红队观察）；② 带真实 Bearer 实测 introspect 双端点——ZAI `chat.z.ai/api/oauth/userinfo`（HTTP 401 语义）与 BigModel `bigmodel.cn/api/biz/customer/getCustomerInfo`（HTTP 200+业务 code 语义，须校验 code；响应中身份字段类型同样记录）；③ 桌面/手机同账号 JWT 映射一致实证；④ `VITE_DRORA_ENDPOINT_ORIGIN` 页面构建走通 OAuth 回跳（私网 return_to 先行）。原「introspect/jwks 端点探测结论」项已由 §6.1.1 无凭据完结 | 本 spec §6.2/§6.3 模式定案（**定案范围收窄为 decode vs introspect**）；桌面/手机同账号映射一致实证；身份 claim 若实测为数值类型 → `identityFromClaims` 映射调整与 spec 同步完成 |
 | M1 协议内核                                                                                                                                                            | HttpApi + WsGateway + PairingRegistry + TokenStore + **stub auth**（测试 JWT→userId 表，fake relay 同款 `users` 选项） + 认证超时/idle 检测                                                                                                                                                                                                                                                                                                                                                   | L0 契约套件全绿（含跨用户隔离——依赖 stub auth，v1 排期矛盾已修）                                   |
 | M2 鉴权与持久化                                                                                                                                                        | M0 定案的 JwtAuth + DeviceStore + GC + 优雅停机 + 备份                                                                                                                                                                                                                                                                                                                                                                                                                                        | L0 含重启场景全绿                                                                                  |
 | M3 部署链路                                                                                                                                                            | Caddyfile + `/remote/v4` 生产构建 script + 静态托管 + docker-compose + healthcheck                                                                                                                                                                                                                                                                                                                                                                                                            | L1 通过                                                                                            |
@@ -500,7 +532,9 @@ packages/relay-v2-server/
 │   ├── verify-v4-build.mjs  # /remote/v4 构建校验：base 前缀 + 自建域 OAuth redirect 烘焙（§8.2）
 │   └── verify-same-origin.mjs # 同源链路 L1-lite 门禁：relay + 静态 + 前置同源入口三件，页面/资产 200、无凭据 401、烘焙非官方域（§8.1/§8.2/§10）
 ├── test/                 # L0 契约一致性套件（含历史故障模式 + 对照 fake relay 的差异断言）
-└── deploy/               # Caddyfile、docker-compose.yml（构建产物挂载）、run-relay.mjs（单一装配引导：容器入口与两个冒烟工具共用，§10）
+└── deploy/               # Caddyfile（/healthz 默认不公网直暴，§8.1/§11）、docker-compose.yml（构建产物挂载）、
+                           # run-relay.mjs（单一装配引导：容器入口与两个冒烟工具共用，§10；含 process 级崩溃兜底——
+                           # uncaughtException/unhandledRejection 结构化 error 日志后 exit(1)，§7）
 ```
 
 依赖仅 `ws`、`node:sqlite`（内置）与 `@drora/shared`（workspace:_，实际仅消费 `web-remote-relay` 子路径；该模块外部依赖只有 zod）。devDependencies 追加 `@drora/client` 与 `@drora/rpc`（workspace:_，仅 `test/differential.test.ts` 消费，`architecture-policy.yaml` 的 relay-v2-server `requires` 同步登记 `client`/`rpc`）：§10 L0 差异测试复用被测 transport 的公开协议入口（`createWebRemoteControlRelayProtocol` rpc-frame 组帧 + `VSBuffer`）对 fake relay 与本服务做同场景双打断言；src 构建闭包不变，tsup 产物仍零依赖（noExternal 不含 client/rpc）。新包接线清单：`pnpm-workspace.yaml` 的 `packages/_`glob 自动纳入；root`typecheck`项目清单与`architecture-policy.yaml`模块条目需登记（旧 relay-server 曾有`id: relay-server, managed: false` 先例）；不影响桌面产物——无任何包依赖它，不会进桌面 bundle。

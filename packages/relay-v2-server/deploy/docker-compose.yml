@@ -19,8 +19,10 @@
 #      SITE_ADDRESS=你的真实域名          # Caddy ACME 签发依赖它
 #      JWT_MODE=decode                   # M0 定案前默认 decode;多用户必须 introspect/jwks(spec §6.2)
 #      # 对应模式必填项:INTROSPECT_URL / JWT_JWKS_URL(+JWT_ISSUERS/JWT_AUDIENCE)
-# 4. 启动:docker compose up -d --build;验证:docker compose ps(两服务 healthy)
-#      与 curl https://$SITE_ADDRESS/healthz。
+# 4. 启动:docker compose up -d --build;验证:docker compose ps(两服务 healthy;
+#    healthcheck 已探 relay 容器内 127.0.0.1 的 /healthz)。健康面默认不公网直暴
+#    (Caddyfile /healthz 段,取消注释才开放),需看视图时在 relay 容器内(端口同 healthcheck):
+#    docker compose exec relay node -e "fetch('http://127.0.0.1:'+(Number(process.env.LISTEN_PORT)||8080)+'/healthz').then(r=>r.text()).then(console.log)"
 #
 # ## 安全边界(ask 红线:relay 不得裸暴露公网)
 #

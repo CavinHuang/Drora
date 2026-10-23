@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS devices (
 );
 CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_mid  ON devices(device_mid);
+-- §7 GC cutoff 扫描（评审 gc-tx-index）：collectExpired 按 created_at < cutoff 选行，无索引时全表扫
+CREATE INDEX IF NOT EXISTS idx_devices_created_at ON devices(created_at);
 `;
 
 interface DeviceRow {
@@ -112,11 +114,26 @@ export function createSqliteDeviceStore(
       const stale = selectStaleByCutoff.all(cutoffSeconds) as unknown as Array<
         Pick<DeviceRow, "device_sid">
       >;
+      if (stale.length === 0) return 0;
       let removed = 0;
-      for (const row of stale) {
-        if (isOnline(row.device_sid)) continue;
-        deleteBySid.run(row.device_sid);
-        removed += 1;
+      // 批量删除包进单事务（评审 gc-tx-index）：逐条 autocommit 的 DELETE 各自落盘提交，
+      // 同量删除实测可达单事务的 6 倍耗时，且同步执行会拉长事件循环停顿（可能超客户端
+      // 15s ACK watchdog）；单事务一次提交摊平开销，中途失败整体回滚，不产生删一半的中间态。
+      db.exec("BEGIN");
+      try {
+        for (const row of stale) {
+          if (isOnline(row.device_sid)) continue;
+          deleteBySid.run(row.device_sid);
+          removed += 1;
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          // COMMIT 失败时 SQLite 可能已自动回滚，ROLLBACK 报「无活动事务」——保留原错误上抛
+        }
+        throw error;
       }
       return removed;
     },

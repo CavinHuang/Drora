@@ -36,11 +36,39 @@ const PING_INTERVAL_MS = 30_000;
  * 保证进程可退出（spec §5.3 未定值，停机专属边缘常量）。
  */
 const SHUTDOWN_FLUSH_GRACE_MS = 5_000;
+/**
+ * 出站发送缓冲高水位（评审 ws-backpressure）：对端 socket 停滞（半开/接收暂停/慢读）时
+ * bufferedAmount 无界增长会把整段转发流量缓进本进程堆内存（评审实测：pause 对端后
+ * 3000×64KB → RSS +472MB）。超水位判定对端为慢连接：terminate 断开——等价一次普通断连，
+ * 客户端按既有退避自愈；不得静默丢帧（会撕裂 rpc-frame 分片序列），丢帧必须以断连呈现。
+ */
+const SEND_BUFFER_HIGH_WATER_BYTES = 4 * 1024 * 1024;
+/**
+ * 出站帧字节预算（评审 outbound-frame-budget）：与入站 maxPayload 对称（spec §3/§5.2 规则 3，
+ * 同为 1 MiB）——服务端发出的帧同样不得超限，否则契约客户端在接收侧硬断。入站贴线帧可因
+ * 出站信封追加 server_ts 超限，此时丢弃该帧并让发送方收 error INTERNAL（spec §5.2 可恢复
+ * 语义，不关闭）。
+ */
+const OUTBOUND_FRAME_LIMIT_BYTES = 1_048_576;
+/**
+ * auth_init meta 单字段字节上限（评审 meta-length-guard；自建部署加固、可能严于官方，
+ * spec 登记由 spec 组完成）：meta 经设备列表与 /healthz 面回显，无界字符串可被用来撑大
+ * 响应与连接期内存；契约对 device_sid 有 128 字节先例（shared contract deviceSid），meta 取 256。
+ */
+const META_FIELD_MAX_BYTES = 256;
 /** 生命周期日志中的 device_sid 前缀长度（spec §9 红线：只记 SID 前缀） */
 const SID_LOG_PREFIX_LENGTH = 8;
 
 const sidLogPrefix = (deviceSid: string | undefined): string | undefined =>
   deviceSid === undefined ? undefined : deviceSid.slice(0, SID_LOG_PREFIX_LENGTH);
+
+/** meta 单字段字节上限检查（评审 meta-length-guard，META_FIELD_MAX_BYTES 依据见常量注释） */
+const metaExceedsLimit = (meta: WebRemoteControlRelayV2Meta | undefined): boolean => {
+  if (meta === undefined) return false;
+  return Object.values(meta).some(
+    (value) => value !== undefined && Buffer.byteLength(value) > META_FIELD_MAX_BYTES,
+  );
+};
 
 /**
  * 每连接收发计数（spec §4 状态表 / §9：WsGateway 连接期状态，诊断「单向断」）。
@@ -66,27 +94,52 @@ export interface RelaySendContext {
 /**
  * 服务端出站发送的唯一路径：每条消息统一追加 server_ts（Unix 秒，spec §5.2），
  * 仅 OPEN 连接可发；trace 只含摘要字段（spec §9 允许集）。
+ * 返回 false = 帧未送出（慢连接被断 / 超出站预算 / 连接已不 OPEN），由调用方决定
+ * 是否按「未送达」向发送方回 error INTERNAL。
  * 模块私有（评审 unused-exports：发送只经本文件的 registry 回调与网关路径，无包外消费）。
  */
 function sendRelayMessage(
   connection: Connection,
   message: WebRemoteControlRelayV2IncomingMessage,
   context: RelaySendContext,
-): void {
-  if (connection.socket.readyState !== WebSocket.OPEN) return;
+): boolean {
+  if (connection.socket.readyState !== WebSocket.OPEN) return false;
+  // 慢连接高水位检查（评审 ws-backpressure）：先于入队——超水位的连接不再推进新帧，
+  // 直接断开让客户端按普通断连退避自愈，堆内存不随转发流量无界增长
+  const buffered = connection.socket.bufferedAmount;
+  if (buffered > SEND_BUFFER_HIGH_WATER_BYTES) {
+    context.logger.warn("ws-slow-connection-terminated", {
+      role: connection.role,
+      sid_prefix: sidLogPrefix(connection.deviceSid),
+      buffered_bytes: buffered,
+    });
+    connection.socket.terminate();
+    return false;
+  }
   const line = JSON.stringify({ ...message, server_ts: Math.floor(context.now() / 1000) });
+  const bytes = Buffer.byteLength(line);
+  // 出站预算（评审 outbound-frame-budget）：超限丢弃该帧，调用方向发送方回 INTERNAL
+  if (bytes > OUTBOUND_FRAME_LIMIT_BYTES) {
+    context.logger.warn("ws-outbound-frame-dropped", {
+      type: message.type,
+      role: connection.role,
+      bytes,
+    });
+    return false;
+  }
   connection.socket.send(line);
   // 出站计数（spec §9）：含错误与 ack——单向断表现为出站停滞
   const counters = countersOf(connection);
   counters.framesOut += 1;
-  counters.bytesOut += Buffer.byteLength(line);
+  counters.bytesOut += bytes;
   context.logger.traceMessage({
     type: message.type,
     role: connection.role,
     ...("code" in message ? { code: message.code } : {}),
     ...("pair_status" in message ? { pair_status: message.pair_status } : {}),
-    bytes: Buffer.byteLength(line),
+    bytes,
   });
+  return true;
 }
 
 /**
@@ -254,6 +307,11 @@ export function createWsGateway(options: WsGatewayOptions): WsGateway {
         closeWithWrongParam(connection);
         return;
       }
+      // meta 单字段限长（评审 meta-length-guard）：接受前拒绝，不入连接期状态
+      if (metaExceedsLimit(parsed.meta)) {
+        closeWithWrongParam(connection);
+        return;
+      }
       // 设备不存在或跨用户归属（spec §5.2：error AUTH_FAILED + 关闭）
       const device = devices.get(parsed.device_sid);
       if (device === undefined || device.userId !== connection.userId) {
@@ -310,7 +368,16 @@ export function createWsGateway(options: WsGatewayOptions): WsGateway {
     // data：只透传外层 payload，不解析内容（spec §4 不可变量 3）
     const peer = registry.peerOf(connection);
     if (peer !== undefined) {
-      sendRelayMessage(peer, { type: "data", payload: parsed.payload }, sendContext);
+      // 帧未送达（对端慢连接被断/超出站预算/对端已不 OPEN）也要给发送方明确信号：
+      // error INTERNAL（spec §5.2 可恢复语义，不关闭）——静默不回会让发送方误判已送达
+      const delivered = sendRelayMessage(
+        peer,
+        { type: "data", payload: parsed.payload },
+        sendContext,
+      );
+      if (!delivered) {
+        sendRelayMessage(connection, { type: "error", code: "INTERNAL" }, sendContext);
+      }
     } else {
       // 无对端：INTERNAL 且不关闭（terminal 快速重连场景按可恢复处理，spec §5.2）
       sendRelayMessage(connection, { type: "error", code: "INTERNAL" }, sendContext);
@@ -368,6 +435,16 @@ export function createWsGateway(options: WsGatewayOptions): WsGateway {
         terminalSid: identity.role === "terminal" ? `t_${randomUUID()}` : "",
         meta: {},
       };
+      // 复查停机（评审 upgrade-stop-race）：外层检查通过后、回调把连接加入集合前，
+      // stop() 可能已完成对连接集合的扫描——此时照常入集合会漏收停机通知。复查为真
+      // 按停机语义收尾：error INTERNAL（客户端按可恢复退避重连）+ close，不入集合。
+      if (shuttingDown) {
+        // 与正常路径同款错误防线，防停机收尾窗口的 socket error 击穿进程
+        ws.on("error", () => ws.terminate());
+        sendRelayMessage(connection, { type: "error", code: "INTERNAL" }, sendContext);
+        ws.close();
+        return;
+      }
       const state: SessionState = {
         authTimer: undefined,
         idleTimer: undefined,
@@ -453,9 +530,11 @@ export function createWsGateway(options: WsGatewayOptions): WsGateway {
       sendRelayMessage(connection, { type: "error", code: "INTERNAL" }, sendContext);
     }
     for (const connection of connections) connection.socket.close();
-    // 等待 flush：宽限内等客户端自行断开，超时强制 terminate 保证进程可退出
-    const deadline = now() + SHUTDOWN_FLUSH_GRACE_MS;
-    while (connections.size > 0 && now() < deadline) {
+    // 等待 flush：宽限内等客户端自行断开，超时强制 terminate 保证进程可退出。
+    // 死线用真实墙钟（评审 shutdown-wallclock）：与可注入 now 解耦——虚拟时钟（测试注入
+    // 恒定值）下 now() < deadline 恒真，flush 循环永不退出会让 stop 挂起。
+    const deadline = Date.now() + SHUTDOWN_FLUSH_GRACE_MS;
+    while (connections.size > 0 && Date.now() < deadline) {
       await delay(25);
     }
     for (const connection of connections) connection.socket.terminate();

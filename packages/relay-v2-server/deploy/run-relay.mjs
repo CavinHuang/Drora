@@ -16,7 +16,43 @@
 // 包根）；容器内镜像层按同布局复制为 /app/deploy/run-relay.mjs + /app/dist/（见 compose
 // dockerfile_inline），相对路径在两侧解析一致。dist 缺失时 import 即失败——冒烟工具在
 // spawn 前另有产物存在性前置检查给出可执行提示。
-import { createJwtAuth, createRelayServer, loadConfigFromEnv } from "../dist/relay-v2-server.js";
+import { writeSync } from "node:fs";
+import {
+  createJwtAuth,
+  createRelayLogger,
+  createRelayServer,
+  loadConfigFromEnv,
+} from "../dist/relay-v2-server.js";
+
+// process 级崩溃兜底（评审 run-relay-crash-handler）：uncaughtException/unhandledRejection
+// 的默认表现是裸 stack 到 stderr，容器日志虽可见但与本服务结构化日志（spec §9 JSON Lines）
+// 割裂、无法被现有日志管道消费。这里在装配之前注册 handler：结构化 error 日志后
+// process.exit(1)——只把崩溃原因导入日志通道，「崩溃即退出」语义不变（退出码仍是 1，
+// compose 的 restart: unless-stopped 兜底重启不变）。注册先于装配，loadConfigFromEnv /
+// createRelayServer 的启动期失败（误配、端口占用）同样经此落日志。
+// 字段红线（spec §9）：只记 kind 与 message，不落 env/JWT/凭据。
+// write 用 fs.writeSync(1)：容器场景 stdout 是管道，Node 对管道的写是异步的——
+// process.exit(1) 会丢弃未 flush 的异步写，崩溃日志必须同步落盘才真实可达 docker logs。
+const crashLogger = createRelayLogger({
+  level: "error",
+  trace: false,
+  scope: "relay-v2",
+  write: (line) => writeSync(1, `${line}\n`),
+});
+const logCrash = (kind, reason) => {
+  crashLogger.error("process-crash", {
+    kind,
+    message: reason instanceof Error ? reason.message : String(reason),
+  });
+};
+process.on("uncaughtException", (error) => {
+  logCrash("uncaughtException", error);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  logCrash("unhandledRejection", reason);
+  process.exit(1);
+});
 
 const config = loadConfigFromEnv(process.env);
 const handle = await createRelayServer({ config, auth: createJwtAuth({ config }) });

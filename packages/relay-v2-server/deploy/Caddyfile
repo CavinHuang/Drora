@@ -16,10 +16,16 @@
 		reverse_proxy {$RELAY_UPSTREAM:-127.0.0.1:8080}
 	}
 
-	# relay 健康检查直暴(spec §9:uptime/连接数/owner 数/DB 行数,供探活与诊断)
-	handle /healthz {
-		reverse_proxy {$RELAY_UPSTREAM:-127.0.0.1:8080}
-	}
+	# relay 健康面（spec §9：uptime/连接数/owner 数/DB 行数/收发计数）默认不公网直暴：
+	# compose healthcheck 走 relay 容器内 127.0.0.1:LISTEN_PORT（docker-compose.yml healthcheck 段），
+	# 同源手机页不经 /healthz——公网直暴属非必要暴露面（该面暴露连接数/owner 数/设备行数
+	# 等运维画像）。注释掉后 /healthz 落入 catch-all 回源官方，由官方源站应答，不泄露本服务信息。
+	# 确需远程探活时取消注释，并把 remote_ip 网段收紧为运维出口 IP/内网网段（不要放开全网段）：
+	# handle /healthz {
+	# 	@healthz_src not remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+	# 	respond @healthz_src 404
+	# 	reverse_proxy {$RELAY_UPSTREAM:-127.0.0.1:8080}
+	# }
 
 	# 手机页面(spec §8.3 单版本钉死;/remote/v4 与 /remote/v4/ 均需可达)。
 	# handle_path 剥掉 /remote/v4 前缀后按静态目录查找;file_server 承接 try_files 的

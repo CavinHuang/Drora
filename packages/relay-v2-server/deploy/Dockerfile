@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-#
 # Relay V2 standalone 单容器镜像（specs/relay-v2-server.md §8.6）：
 # 一个镜像同时承载远控 API+WS（relay dist）、/remote/v4 手机页静态（web 包 vite 构建）
 # 与官方 catch-all 回源（进程内代理，OFFICIAL_UPSTREAM_ORIGIN）。
@@ -12,12 +10,18 @@
 # DRORA_PUBLIC_ORIGIN 必填：手机页 OAuth 的 redirect_uri 在**构建期**烘焙（spec §8.2），
 # 不设或设错则手机登录链路指向错误域，运行期无法纠正。
 #
-# ## 首次构建验证状态（如实登记）
+# ## 构建验证状态（2026-10-23 实测，docker 28.0.4 / Docker Desktop，daemon 内存 8GB）
 #
-# 本 Dockerfile 交付时本机 docker daemon 未运行，**尚未实际 build 过**；已验证的是：
-# dist 产物自包含（隔离目录无 node_modules 可独立运行，tools/smoke-process.mjs 通过）、
-# compose 语法（docker compose config -q）、静态/回源行为测试（test/static-and-proxy.test.ts）。
-# 首次真实 build 如遇 workspace 图谱/网络问题，优先排查 pnpm install 过滤闭包（见下）。
+# 首次真实 build + 容器级验证已完成：镜像构建成功；容器内逐项通过——healthz 五字段、
+# /remote/v4 页面与资产 200、无凭据 401、穿越 403、stub 鉴权全流程（注册→device waiting
+# →terminal matched→matched 推送 terminal_sid=""→data 透传）。
+# 构建期间修复并已固化的三件事（后续维护者遇到同类问题先查这里）：
+# ① buildkit 对「阶段前重声明 ARG 再 FROM」误判 ARG 未声明——两个基础镜像 ARG 已提升
+#    到首个 FROM 前的全局作用域（全局 ARG 对所有 FROM 生效）；
+# ② 过滤安装的 filter 尾缀 `...` 必须保留——否则传递工作区包（ui）不建 node_modules
+#    链接，vite 解析 @drora/shared 子路径失败；
+# ③ 国内网络 Docker Hub/npmjs 不可达时用 NODE_*_IMAGE/NPM_REGISTRY 切镜像源（compose
+#    已透传；本机验证即经 docker.m.daocloud.io 完成）。
 #
 # ## 运行时形态
 #
@@ -28,9 +32,23 @@
 # - dist 全自包含（tsup noExternal 内联 @drora/shared+zod+ws，spec §13）：runtime 阶段
 #   无任何 npm install，只需 dist + 引导脚本 + 静态产物三件。
 
-FROM node:24.14.0-bookworm AS build
+# 基础镜像可替换（spec §8.6）：国内网络对 docker.io 的直连/元数据解析不稳时，
+# compose 传镜像源形态（如 docker.m.daocloud.io/library/node:24.14.0-bookworm）。
+# 缺省保持官方路径。两个 ARG 必须都在首个 FROM 之前的全局作用域声明：本环境 buildkit
+# （dockerd 内置 v0.20.2 与 buildx 容器 v0.33.1 实测一致）对「阶段前重声明 ARG 后再
+# FROM」会误判 ARG 未声明（UndefinedArgInFrom/blank base），全局 ARG 对所有 FROM
+# 生效是文档化行为，规避之（v4 复现→全局化 PASS）。
+ARG NODE_BUILD_IMAGE=docker.io/library/node:24.14.0-bookworm
+ARG NODE_RUNTIME_IMAGE=docker.io/library/node:24.14.0-slim
+FROM ${NODE_BUILD_IMAGE} AS build
 # node 24.14.0 与仓库工具链（mise.toml）及 tsup target=node24 对齐（spec §3）。
 WORKDIR /repo
+
+# npm 源可替换（spec §8.6）：国内拉包慢/超时时传 https://registry.npmmirror.com。
+# COREPACK_NPM_REGISTRY 供 corepack prepare 拉 pnpm；npm config 供后续 pnpm install。
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY
+RUN npm config set registry "$NPM_REGISTRY"
 
 # pnpm 版本与仓库 packageManager 字段钉版一致（pnpm@10.33.2）。
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -47,9 +65,12 @@ COPY . .
 
 # 过滤安装，只装 relay 服务端与 web 包的依赖闭包——避开 desktop/electron 的庞大依赖树
 # 与原生构建（electron 下载、node-pty 编译等，构建容器里既慢又不需要）。
+# filter 尾缀 `...` 必不可少：它选中依赖闭包内的全部工作区包并为每个创建 node_modules
+# 链接（首版无尾缀时 ui 只作为传递依赖被装入虚拟库、自身 node_modules 不建链接，
+# vite 从 ui 源码解析 @drora/shared 子路径失败——评审 standalone build 实证）。
 # 禁止 --frozen-lockfile：main 分支既有 @drora/ui react-popper 的 manifest/lock 失配
 # （pnpm install 在 frozen 模式直接报 lock 不一致），修齐前容器内必须允许 lockfile 就地解析。
-RUN pnpm install --filter @drora/relay-v2-server --filter @drora/web
+RUN pnpm install --filter @drora/relay-v2-server... --filter @drora/web...
 
 # 1) relay 服务端 dist（tsup，自包含产物）
 RUN pnpm --filter @drora/relay-v2-server run build
@@ -65,7 +86,7 @@ ENV VITE_DRORA_ENDPOINT_ORIGIN=${DRORA_PUBLIC_ORIGIN} \
 RUN pnpm --filter @drora/web exec vite build --base=/remote/v4/
 
 # ————— runtime：仅三件运行闭包 —————
-FROM node:24.14.0-slim
+FROM ${NODE_RUNTIME_IMAGE}
 WORKDIR /app
 
 # dist 全自包含（头注释），直接可用；run-relay.mjs 保持与仓库内相同的 /app/deploy +

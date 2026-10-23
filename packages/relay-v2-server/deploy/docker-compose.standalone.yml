@@ -27,9 +27,9 @@
 #
 # - DRORA_PUBLIC_ORIGIN 必填（缺失时 compose 配置解析即报错）：手机页 OAuth 的
 #   redirect_uri 在镜像构建期烘焙，运行期无法纠正（spec §8.2/§8.6；Dockerfile 头注释）。
-# - 首次真实 build 的验证状态如实登记：交付时本机 docker daemon 未运行，Dockerfile 未
-#   实际 build 过；可先 `docker compose -f docker-compose.standalone.yml config -q`
-#   做语法校验（不需要 daemon）。构建闭包与 dist 自包含的依据见 Dockerfile 头注释。
+# - 构建验证状态（2026-10-23 实测）：首次真实 build 与容器级验证已完成（见 Dockerfile
+#   头注释）；构建慢/失败的排查入口也在那里（过滤闭包尾缀、基础镜像 ARG 全局化、
+#   镜像源与 npm 源切换）。语法校验可先 `docker compose config -q`（不需要 daemon）。
 # - 语法校验与构建均不需要 deploy/.env 的其余键：§9 其余配置全部有与 spec 一致的默认值。
 #
 # ## 运维
@@ -53,6 +53,12 @@ services:
       args:
         # :? 语法=未设置时 compose 配置解析即失败——必填约束在编排层显式生效
         DRORA_PUBLIC_ORIGIN: ${DRORA_PUBLIC_ORIGIN:?DRORA_PUBLIC_ORIGIN 必填（自建域，如 https://relay.example.com；手机页 OAuth redirect_uri 构建期烘焙，spec §8.2）}
+        # 基础镜像/npm 源可替换（spec §8.6）：国内网络对 docker.io 直连不稳时切镜像源，
+        # 例如 NODE_BUILD_IMAGE=docker.m.daocloud.io/library/node:24.14.0-bookworm、
+        # NPM_REGISTRY=https://registry.npmmirror.com（.env 即可，缺省走官方）。
+        NODE_BUILD_IMAGE: "${NODE_BUILD_IMAGE:-docker.io/library/node:24.14.0-bookworm}"
+        NODE_RUNTIME_IMAGE: "${NODE_RUNTIME_IMAGE:-docker.io/library/node:24.14.0-slim}"
+        NPM_REGISTRY: "${NPM_REGISTRY:-https://registry.npmjs.org}"
     image: drora/relay-v2-server-standalone:local
     restart: unless-stopped
     ports:

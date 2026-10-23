@@ -8,16 +8,27 @@
 // 构造，DB 路径取 config.dbPath，stub users 映射见 users 选项）。
 
 import { createServer } from "node:http";
+import path from "node:path";
 import { createStubJwtAuth } from "./auth.js";
 import { createSqliteDeviceStore, type SqliteDeviceStore } from "./devices.js";
 import { createRelayLogger } from "./logger.js";
 import { createPairingRegistry } from "./pairing.js";
 import { createTokenStore } from "./tokens.js";
-import { createHttpApi } from "./http.js";
+import { PATH_HEALTHZ, createHttpApi } from "./http.js";
+import { WEB_REMOTE_CONTROL_RELAY_V2_HTTP } from "@drora/shared/web-remote-relay";
+import { createStaticFileHandler, isWebRemoteControlStaticPath } from "./staticFiles.js";
+import { createOfficialProxyHandler } from "./officialProxy.js";
 import { createPairingRegistryEvents, createWsGateway } from "./ws.js";
 import type { RelayConfig } from "./config.js";
 import type { RelayLogger } from "./logger.js";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DeviceStore, JwtAuth, PairingRegistry, TokenStore } from "./types.js";
+
+/**
+ * relay 自有 API 面前缀（spec §8.6 装配优先级首层）：从 shared 契约路径常量推导，
+ * 不在本包复刻 `/api/v1/remote/` 字面量（契约键单一出处）。
+ */
+const RELAY_API_PREFIX = `${path.posix.dirname(WEB_REMOTE_CONTROL_RELAY_V2_HTTP.register.path)}/`;
 
 export interface CreateRelayServerOptions {
   /** 运行配置（spec §9 全量键：bindHost/listenPort/dbPath/超时/CORS/日志等） */
@@ -100,7 +111,58 @@ export async function createRelayServer(
     trafficCounters: () => gateway.trafficCounters(),
   });
 
-  const server = createServer(handleRequest);
+  // standalone 形态装配（spec §8.6）：两个开关都可选，未设置（默认）对应分支整体不装配、
+  // 行为完全不变。装配优先级：relay 自有 API 面（/api/v1/remote/* 与 /healthz）→ httpApi；
+  // /remote/v4*（启用 STATIC_ROOT 时）→ 静态托管；其余（启用 OFFICIAL_UPSTREAM_ORIGIN 时）
+  // → 官方回源；都未启用 → 落回 httpApi 的既有 404 行为。
+  const staticRoot = config.staticRoot;
+  const officialUpstreamOrigin = config.officialUpstreamOrigin;
+  const staticHandler =
+    staticRoot === undefined ? undefined : createStaticFileHandler({ root: staticRoot });
+  const officialProxyHandler =
+    officialUpstreamOrigin === undefined
+      ? undefined
+      : createOfficialProxyHandler({ origin: officialUpstreamOrigin });
+  const isRelayApiPath = (pathname: string): boolean =>
+    pathname === PATH_HEALTHZ || pathname.startsWith(RELAY_API_PREFIX);
+  const dispatch = (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    if (isRelayApiPath(pathname)) return handleRequest(request, response);
+    if (staticHandler !== undefined && isWebRemoteControlStaticPath(pathname)) {
+      return staticHandler(request, response);
+    }
+    if (officialProxyHandler !== undefined) return officialProxyHandler(request, response);
+    return handleRequest(request, response);
+  };
+  if (staticRoot !== undefined) {
+    logger.info("static-files-enabled", { root: staticRoot });
+  }
+  if (officialUpstreamOrigin !== undefined) {
+    logger.info("official-proxy-enabled", { origin: officialUpstreamOrigin });
+  }
+
+  const server = createServer((request, response) => {
+    // dispatch 级兜底（standalone static/proxy 面新增）：任何逃逸出子处理器的异常不得
+    // 变成 unhandledRejection——run-relay 的崩溃兜底会把进程杀掉，单个恶意请求不应有
+    // 此杀伤力（评审 http-body-limit 同款「单个请求不应有进程级杀伤」判定）。
+    // 红线（spec §9）：只记 message（fetch 类错误的 message 是泛化的 "fetch failed"），
+    // 不落 URL——upgrade token 与 OAuth code/state 都在查询参数里。
+    dispatch(request, response).catch((error: unknown) => {
+      logger.error("dispatch-error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        if (!response.headersSent) {
+          response.writeHead(500, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ code: 500, msg: "internal error" }));
+          return;
+        }
+        response.destroy();
+      } catch {
+        response.destroy();
+      }
+    });
+  });
   server.on("upgrade", (request, socket, head) => {
     gateway.handleUpgrade(request, socket, head);
   });

@@ -74,6 +74,10 @@ export interface StartRelayOptions {
   logger?: RelayLogger;
   /** config.msgTrace 开关（消息 trace 红线用例）：与注入 logger 的 trace 总开关配套置真 */
   msgTrace?: boolean;
+  /** standalone 静态托管根（spec §8.6）；缺省不装配，行为与既有用例完全一致 */
+  staticRoot?: string;
+  /** standalone 官方回源 origin（spec §8.6）；缺省不装配，未匹配路径保持 404 */
+  officialUpstreamOrigin?: string;
 }
 
 const started: StartedRelay[] = [];
@@ -107,6 +111,11 @@ export async function startRelay(options: StartRelayOptions = {}): Promise<Start
     // L0 断言行为不依赖日志；error 级静默正常路径输出（红线：凭据本就不允许落日志）
     logLevel: "error",
     msgTrace: options.msgTrace ?? false,
+    // standalone 两键（spec §8.6/§9）：可选，未设置不进 config 形状（与生产解析同构）
+    ...(options.staticRoot === undefined ? {} : { staticRoot: options.staticRoot }),
+    ...(options.officialUpstreamOrigin === undefined
+      ? {}
+      : { officialUpstreamOrigin: options.officialUpstreamOrigin }),
   };
   const handle = await createRelayServer({
     config,

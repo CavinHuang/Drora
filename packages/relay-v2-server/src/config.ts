@@ -61,6 +61,18 @@ export interface RelayConfig {
   /** MSG_TRACE：消息级 trace 总开关，生产默认关（spec §9 红线） */
   msgTrace: boolean;
   /**
+   * STATIC_ROOT：standalone 形态（spec §8.6）——设置后 relay 直接托管 /remote/v4 与
+   * /remote/v4/* 手机页静态（SPA fallback + 防路径穿越 + hash 资产 immutable）；未设置
+   * （默认）该分支整体不装配，行为完全不变。
+   */
+  staticRoot?: string;
+  /**
+   * OFFICIAL_UPSTREAM_ORIGIN：standalone 形态（spec §8.6）——设置后凡非远控 API/健康面/
+   * 静态范围的请求整体流式回源该 origin（复刻 Caddy catch-all）；非法 URL 按容错策略回退
+   * 未设置并记 fallbacks；未设置（默认）行为完全不变。
+   */
+  officialUpstreamOrigin?: string;
+  /**
    * 非法值回退记录（spec §9「错误取值经结构化日志观察」）：loadConfigFromEnv 在某个
    * 非空 env 值未通过校验而回退默认值时记录该键，装配层（src/index.ts）据此发 warn。
    * 仅 loadConfigFromEnv 产出；无回退时字段整体缺省，程序化构造的 config（测试注入）
@@ -151,6 +163,27 @@ function readList(value: string | undefined): string[] {
     .filter((item) => item.length > 0);
 }
 
+/**
+ * OFFICIAL_UPSTREAM_ORIGIN 专用：必须可解析为 http/https 绝对 URL（回源构造的上游 URL
+ * 要作为 fetch 目标，协议之外的部分全按 URL 语义携带）。非空但非法 → 回退未设置并通知
+ * （spec §8.6/§9 容错策略：回退经 fallbacks 记录，装配层转 warn，不是静默的）。
+ */
+function readOptionalOrigin(
+  value: string | undefined,
+  notify?: NotifyFallback,
+): string | undefined {
+  const trimmed = readOptionalString(value);
+  if (trimmed === undefined) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return trimmed;
+  } catch {
+    // 落到下方统一回退
+  }
+  notify?.("(unset)");
+  return undefined;
+}
+
 /** JWT_STUB_USERS：JSON 对象且值全为字符串才接受；其余（含非法 JSON/数组/数字值）按未提供 */
 function readJsonObject(
   value: string | undefined,
@@ -187,6 +220,12 @@ export function loadConfigFromEnv(
   const jwtIdClaims = readList(env.JWT_ID_CLAIMS);
   const jwtIssuers = readList(env.JWT_ISSUERS);
   const jwtRealm = readOptionalString(env.JWT_REALM);
+  // standalone 两键（spec §8.6）：先解析一次再条件展开——回退通知只发一次，非法 origin 只记一条 fallback
+  const staticRoot = readOptionalString(env.STATIC_ROOT);
+  const officialUpstreamOrigin = readOptionalOrigin(
+    env.OFFICIAL_UPSTREAM_ORIGIN,
+    notice("OFFICIAL_UPSTREAM_ORIGIN"),
+  );
   const config: RelayConfig = {
     bindHost: readString(env.BIND_HOST, "127.0.0.1"),
     listenPort: readInt(env.LISTEN_PORT, 8080, 1, 65_535, notice("LISTEN_PORT")),
@@ -218,6 +257,10 @@ export function loadConfigFromEnv(
     corsEnabled: readBool(env.CORS_ENABLED, false, notice("CORS_ENABLED")),
     logLevel: readEnum(env.LOG_LEVEL, LOG_LEVELS, "info", notice("LOG_LEVEL")),
     msgTrace: readBool(env.MSG_TRACE, false, notice("MSG_TRACE")),
+    // standalone 两键（spec §8.6）：可选字段，未设置不进 config 形状（保持「纯默认 config
+    // 可整体相等比较」契约——与 jwtRealm 同款条件展开）
+    ...(staticRoot === undefined ? {} : { staticRoot }),
+    ...(officialUpstreamOrigin === undefined ? {} : { officialUpstreamOrigin }),
   };
   // 无回退时字段整体缺省：纯默认 config 保持可整体相等比较（config.test.ts toEqual 契约）
   return fallbacks.length > 0 ? { ...config, fallbacks } : config;

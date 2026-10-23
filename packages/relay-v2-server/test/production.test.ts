@@ -231,7 +231,7 @@ describe("生产行为组：1 MiB 硬闸（spec §3/§5.2 规则 3）", () => {
 });
 
 describe("生产行为组：慢连接背压（评审 ws-backpressure）", () => {
-  it("对端 socket 暂停后泵帧：超高水位的慢连接被服务端断开，服务仍存活可服务", { timeout: 20_000 }, async () => {
+  it("对端 socket 暂停后泵帧：超高水位的慢连接被服务端断开，服务仍存活可服务", { timeout: 30_000 }, async () => {
     const relay = await startRelay();
     const { sid } = await registerDevice(relay, "machine");
     const device = await authAndAck(relay, sid, "device");
@@ -247,10 +247,17 @@ describe("生产行为组：慢连接背压（评审 ws-backpressure）", () => 
     const deviceSocket = (device.ws as unknown as { _socket: import("node:net").Socket })._socket;
     deviceSocket.pause();
     try {
-      // 泵 ~9.6MB（200×48KB）>> 4MiB 高水位：内核接收缓冲先吸收若干百 KB，余量保证触发
+      // 泵帧预算 ~19.2MB（400×48KB）>> 4MiB 高水位。逐批让出事件循环：背压触发依赖
+      // 中继事件循环推进（服务端每转发一帧才累加 bufferedAmount），固定同步泵在全量
+      // 套件并行负载下会顶到外层 timeout（隔离跑 1.8s、并行跑曾 20s 超时的根因）。
+      // 服务端 terminate 慢连接时 terminal 也按 §6.5 收 DEVICE_OFFLINE+close，
+      // 循环条件随之收敛，无需跑满预算。
       const frame = "z".repeat(48 * 1024);
-      for (let i = 0; i < 200 && terminal.ws.readyState === WebSocket.OPEN; i += 1) {
+      for (let i = 0; i < 400 && terminal.ws.readyState === WebSocket.OPEN; i += 1) {
         terminal.send({ type: "data", payload: frame });
+        if (i % 20 === 19) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 5));
+        }
       }
 
       // 慢连接被服务端 terminate：等价一次普通断连（非 1000 正常关闭码）

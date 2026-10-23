@@ -1,14 +1,15 @@
 # Relay V2 自建部署编排(specs/relay-v2-server.md §2/§8/§9/§12 M3)。
+# 单容器一体形态(standalone,无 Caddy)见同目录 docker-compose.standalone.yml + Dockerfile
+# (spec §8.6,含两种形态的选择指引)。
 #
 # ## 构建与运行方式
 #
 # 1. 宿主先构建 relay dist(工具链见仓库根 AGENTS.md;本机先 source .zcode/toolchain-env.sh):
 #      pnpm --filter @drora/relay-v2-server run build        # tsup 产出 ../dist/
-#    dist 内联了 @drora/shared+zod,但 ws 保持 external(tsup.config.ts「ws 保持默认 external」),
-#    由镜像内 npm 安装补齐——这是下面选「内嵌 Dockerfile」而非「mount 仓库跑 dist」的原因:
-#    mount 方案要求容器内解析 ws,而 pnpm 的 node_modules 是指向全局 store 的符号链接,
-#    挂进容器不可移植;内嵌构建只在镜像层 npm install 单个 ws,闭包完整自洽(spec §13
-#    「Docker 只消费产物」)。构建镜像需要网络拉取 node/caddy 基础镜像与 ws。
+#    dist 全自包含(spec §13 v2.4:noExternal 内联 @drora/shared+zod+ws,tsup.config.ts),
+#    容器内无需任何 npm 安装——下面选「内嵌 Dockerfile」而非「mount 仓库跑 dist」的原因:
+#    mount 方案要求容器内解析 pnpm 的符号链接 node_modules,不可移植;内嵌构建只复制产物,
+#    闭包完整自洽(spec §13「Docker 只消费产物」)。构建镜像需要网络拉取 node/caddy 基础镜像。
 # 2. 构建并填充手机页面静态资源(spec §8.2/§8.3)。注意 spec §8.2 实测注记:vite define 链
 #    消费无 VITE_ 前缀的 DRORA_ENDPOINT_ORIGIN,两个键必须同时设置,否则 OAuth redirect
 #    会静默烘焙官方域;产物校验:pnpm --filter @drora/relay-v2-server run verify:v4-build
@@ -60,12 +61,11 @@ services:
         # 优雅停机的接缝只有这一份,与进程冒烟/同源冒烟共用(tools/smoke-process.mjs 头注)。
         # 按包内相对布局复制到 /app/deploy/,其 ../dist import 与仓库内解析一致。
         COPY deploy/run-relay.mjs /app/deploy/run-relay.mjs
-        # dist 是 ESM:Node 按最近 package.json 的 type 判定模块系统,必须补 {"type":"module"};
-        # ws 在 tsup 产物中 external,镜像内 npm 安装补齐(包声明 ws@^8.20.0,与之一致)。
+        # dist 是 ESM:Node 按最近 package.json 的 type 判定模块系统,必须补 {"type":"module"}。
+        # dist 全自包含(ws 已内联,tsup.config.ts),无需 npm install 任何包。
         # 以 node 用户运行;数据目录预建并归属 node,具名卷首挂时继承该属主。
         RUN npm init -y >/dev/null \
          && npm pkg set type=module \
-         && npm install --omit=dev --no-audit --no-fund "ws@^8.20.0" \
          && mkdir -p /home/node/data \
          && chown -R node:node /app /home/node/data
         USER node

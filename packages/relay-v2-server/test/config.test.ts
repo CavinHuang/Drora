@@ -136,6 +136,31 @@ describe("loadConfigFromEnv", () => {
     expect(config.dbPath).toBe("./relay-v2.db");
     expect(config.jwtRealm).toBeUndefined();
   });
+
+  it("standalone 两键（spec §8.6/§9）：STATIC_ROOT 透传；OFFICIAL_UPSTREAM_ORIGIN 须为 http/https URL", () => {
+    // 合法值透传；空白按未提供（与可选字段同构）
+    const enabled = loadConfigFromEnv({
+      STATIC_ROOT: "/srv/web-remote-control",
+      OFFICIAL_UPSTREAM_ORIGIN: "https://zcode.z.ai",
+    });
+    expect(enabled.staticRoot).toBe("/srv/web-remote-control");
+    expect(enabled.officialUpstreamOrigin).toBe("https://zcode.z.ai");
+    expect(enabled.fallbacks).toBeUndefined();
+    const blank = loadConfigFromEnv({ STATIC_ROOT: "  ", OFFICIAL_UPSTREAM_ORIGIN: "" });
+    expect(blank.staticRoot).toBeUndefined();
+    expect(blank.officialUpstreamOrigin).toBeUndefined();
+    // 非法 origin（不可解析 / 非 http(s) 协议）按容错策略回退未设置，且 fallback 有记录
+    const invalid = loadConfigFromEnv({
+      OFFICIAL_UPSTREAM_ORIGIN: "not a url",
+    });
+    expect(invalid.officialUpstreamOrigin).toBeUndefined();
+    expect(invalid.fallbacks).toEqual([{ key: "OFFICIAL_UPSTREAM_ORIGIN", fallback: "(unset)" }]);
+    const wrongScheme = loadConfigFromEnv({ OFFICIAL_UPSTREAM_ORIGIN: "ftp://zcode.z.ai" });
+    expect(wrongScheme.officialUpstreamOrigin).toBeUndefined();
+    expect(wrongScheme.fallbacks).toEqual([
+      { key: "OFFICIAL_UPSTREAM_ORIGIN", fallback: "(unset)" },
+    ]);
+  });
 });
 
 describe("配置回退可观测（spec §9「错误取值经结构化日志观察」的兑现链路）", () => {

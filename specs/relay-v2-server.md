@@ -29,6 +29,10 @@
 > 背压高水位 4 MiB 断连（含不丢帧的契约判定）、token 惰性清扫、GC 单事务 + created_at 索引、
 > realm identity 含冒号 fail-closed、auth_init meta 256 字节限长（自建加固）、停机 flush 死线
 > 改真实墙钟、upgrade 停机竞态复查、deploy 面崩溃兜底与 /healthz 公网直暴默认关闭。
+> ⑩ 2026-10-22 新增 §8.6「单容器一体编排（standalone）」——relay 进程自身承担 `/remote/v4` 静态托管
+> （`STATIC_ROOT`）与官方 catch-all 回源（`OFFICIAL_UPSTREAM_ORIGIN`，§9 两键、§11 第 12 条定性），
+> deploy 面新增多阶段 Dockerfile 与单服务 compose（与 relay+caddy 双服务形态并存，选择指引见 §8.6）；
+> §13：tsup `noExternal` 并入 `ws`，dist 全自包含（容器 runtime 免 node_modules 闭包）。
 
 ## 1. 背景与目标
 
@@ -431,6 +435,44 @@ relay.example.com {
 | OAuth 回调白名单 | 自建域 `https://自建域/remote/v4` 需在 ZAI/BigModel 的 OAuth 应用登记；**authorize 与 token exchange 两步都校验 redirect_uri**（token 交换经 catch-all 回官方执行） | 局域网自用可走契约允许的私网 `return_to=/remote/v4` 开发转发构建（`VITE_DEV_ORIGIN` + `VITE_WEB_REMOTE_ALLOW_DEV_RETURN_TO`） |
 | 官方契约演进     | 客户端升级可能带来 V3 或字段变化                                                                                                                                    | 契约模块直接复用 `@drora/shared`（§3）：客户端改 shared 时本包编译期即暴露不兼容；fake relay 夹具同步演进可跑差异断言         |
 
+### 8.6 单容器一体编排（standalone，v2.4 新增）
+
+§8.1–§8.3 的形态是 **relay + Caddy 双服务**（Caddy 承担 TLS 终止、`/remote/v4` 静态与 catch-all 回源）。本节新增**单服务形态**：relay 进程自身承担静态托管与官方回源，两类部署产物并存，按需选择。
+
+**选择指引**：
+
+| 形态                                   | 适用                                                                                                       | 前提                                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 双服务（`deploy/docker-compose.yml` + Caddyfile） | 需要自动 HTTPS（ACME 签发/续期）或已有成熟反代运维习惯；公网部署首选                                       | 站点必须有真实公网域名供 Caddy 签发                                                                       |
+| 单服务（`deploy/docker-compose.standalone.yml` + `deploy/Dockerfile`） | 单容器最小依赖（NAS/家庭服务器/内网一台机跑起来）；不想维护两个容器                                        | **TLS 不由本容器终止**：由用户外部入口（自建 ingress/反代/云 LB）终止后回源 8080，或局域网明文直连（契约允许的 `return_to` 开发构建形态） |
+
+**单进程拓扑**：一个 Node 进程 = 远控 HTTP API + WS 网关 + `/remote/v4` 静态托管 + 官方 catch-all 回源。装配优先级（`src/index.ts`）：
+
+```
+请求 → /api/v1/remote/* 与 /healthz      → HttpApi（§5.1，行为不变）
+     → /remote/v4 与 /remote/v4/*（启用 STATIC_ROOT 时）→ 静态托管（src/staticFiles.ts）
+     → 其余路径（启用 OFFICIAL_UPSTREAM_ORIGIN 时）      → 官方回源（src/officialProxy.ts）
+     → 两个开关都未设置                                   → 现行为不变（未匹配 404）
+```
+
+**静态托管规则**（`STATIC_ROOT` 设置后，行为对齐 Caddy `handle_path /remote/v4*` 语义）：
+
+1. 仅 GET/HEAD；其余方法 405（`Allow: GET, HEAD`）。命中范围仅 `/remote/v4` 与 `/remote/v4/*`（`/remote/v4` 精确路径与以 `/remote/v4/` 为前缀的路径；`/remote/v4foo` 不在静态范围，按其余路径分流）。
+2. 精确命中文件 → 按扩展名 Content-Type；缓存策略：文件名带 Vite 内容哈希（`-xxxxxxxx.` 形态）的资产 → `public, max-age=31536000, immutable`；`index.html`（含 SPA fallback 命中）→ `no-cache`——桌面升级后手机页必须立即拿到新入口（§8.3 升级流程），其余文件同取 `no-cache`。
+3. 未命中文件 → SPA fallback 回 `index.html`（与 Caddy `try_files {path} /index.html` 同义）。
+4. **防路径穿越**：root 外内容在任何编码形态下不可达——`%2e%2e` 系编码点段在服务端 `new URL().pathname` 即被规范化收敛（落出静态范围，由 relay API 面的鉴权前置拒绝）；`..%2f`、`%00` 等不被 URL 规范化的形态由静态分支 percent-decode 后的 resolve 闸拦截：resolve 结果必须仍在 root 内，逃逸或含非法字节一律 403。
+5. `STATIC_ROOT` 未设置 → 该分支整体不装配，行为完全不变。
+
+**官方回源规则**（`OFFICIAL_UPSTREAM_ORIGIN` 设置后，行为对齐 Caddy catch-all `reverse_proxy https://zcode.z.ai`）：
+
+1. 凡非 `/api/v1/remote/*`、非 `/healthz`、非静态命中范围的请求（手机页 OAuth 的同源 token 交换 `POST /api/v1/oauth/token`、userinfo、Coding Plan API 等）整体回源该 origin；Host 重写为上游 host（`header_up Host {upstream_hostport}` 同义）。
+2. 请求与响应均**流式转发**：不缓冲完整 body、不解析任何业务内容（body 上限、鉴权前置等 §5.1 规则只属于 relay 自有 API 面，不适用于代理面——该面的凭据校验是官方源站的职责）。hop-by-hop 头（`connection`/`keep-alive`/`transfer-encoding`/`upgrade`/`proxy-*` 等）两侧剥离。
+3. 上游不可达/连接失败 → 502 JSON 信封 `{code: 502, msg: "official upstream unavailable"}`（远控客户端不会打到该面；人类浏览器得到明确错误而非空响应）。
+4. `OFFICIAL_UPSTREAM_ORIGIN` 未设置 → 该分支整体不装配，未匹配路径保持 404。
+5. 值非法（非 http/https URL）→ 按 §9 容错策略回退为未设置并记 `config-fallback` warn。
+
+**部署产物**：`packages/relay-v2-server/deploy/Dockerfile`（多阶段：build 阶段过滤安装 `@drora/relay-v2-server` + `@drora/web`、tsup 产出 dist、`vite build --base=/remote/v4/` 产出静态；runtime 阶段仅 dist + `deploy/run-relay.mjs` + 静态产物，dist 自包含见 §13）；`packages/relay-v2-server/deploy/docker-compose.standalone.yml`（单服务编排，`DRORA_PUBLIC_ORIGIN` 为必填构建参数——OAuth `redirect_uri` 构建期烘焙，§8.2）。手机 OAuth 白名单前提与 §8.5 完全一致，不因形态改变。
+
 ## 9. 配置项与可观测性
 
 解析容错策略主句（下表「唯一例外」等措辞的指代对象）：除 `JWT_MODE` 外，其余配置键出现非法值时解析层**静默回退该行默认值**、不阻断启动（空白值按未提供处理，不算回退）；「静默」指解析层不因误配抛错，并非无信号——发生回退的键由 `loadConfigFromEnv` 记入 `config.fallbacks`，经装配层以 `config-fallback` warn 结构化日志输出（本节「日志与红线」首条），这是误配的可观察手段。`JWT_MODE` 非法值启动即报错，是本策略的唯一例外。
@@ -450,7 +492,9 @@ relay.example.com {
 | `DEVICE_TTL_DAYS`                                                  | `180`                         | 离线设备 GC 阈值（§7）                                                                                                                                                                                                                |
 | `CORS_ENABLED`                                                     | `false`                       | 同源生产关闭；联调开                                                                                                                                                                                                                  |
 | `LOG_LEVEL`                                                        | `info`                        | 结构化日志                                                                                                                                                                                                                            |
-| `MSG_TRACE`                                                        | `false`                       | 消息级 trace 总开关（默认关）                                                                                                                                                                                                         |
+| `MSG_TRACE`                                                        | `false`                       | 消息级 trace 总开关（默认关）                                                                                                                                                                                                          |
+| `STATIC_ROOT`                                                      | —（未启用）                   | standalone 形态（§8.6）：设置后 relay 直接托管 `/remote/v4` 与 `/remote/v4/*` 手机页静态（仅 GET/HEAD、SPA fallback、防路径穿越、hash 资产 immutable / index no-cache）；未设置行为完全不变                                             |
+| `OFFICIAL_UPSTREAM_ORIGIN`                                         | —（未启用）                   | standalone 形态（§8.6）：设置后凡非 `/api/v1/remote/*`、非 `/healthz`、非静态范围的请求整体流式回源该 origin（Host 重写、hop-by-hop 剥离、不解析业务内容、上游失败 502 信封）；非 http/https URL 按容错策略回退未设置并记 fallback；未设置行为完全不变 |
 
 日志与红线：
 
@@ -497,6 +541,7 @@ L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID
 9. **`node:sqlite` 是 Node 实验特性**：`DatabaseSync` 在仓库钉版工具链（`mise.toml`，Node 24.14.0）下运行仍输出 `ExperimentalWarning: SQLite is an experimental feature`（单测/冒烟实测），API 面与行为可能在 Node 非语义化版本内变更，且不经 flag、默认内建（误升级 Node 即换实现）。约束：本包只在钉版工具链（Node 24.14.0）下开发、测试与交付，不对其他 Node 版本做兼容承诺；**复核条件：待 `node:sqlite` 在 Node 上游转正（不再标记 experimental、进入 LTS 语义化承诺）后复核一次 API 面与行为（建表/prepare/VACUUM INTO/WAL pragma），有破坏性变更再评估适配或迁移**。
 10. **`/healthz` 公网暴露面默认关闭（v2.3 暴露面收口）**：`deploy/Caddyfile` 将 `/healthz` 反代段置为默认注释，公网请求落入 catch-all 回源官方、不触及本服务；探活由 compose healthcheck 在 relay 容器内 `127.0.0.1` 直探（§9），公网直暴非必需。确需公网/远程探活时按 §8.1 注释示例以 `remote_ip` 来源白名单放开——无来源限制的直暴不构成受支持的部署形态。
 11. **资源上限类自建加固与官方行为存在未对齐面（有意差异声明）**：请求体 64 KiB 上限（§5.1 规则 8）、出站帧 1 MiB 预算（§5.2 规则 4）、背压高水位 4 MiB 断连（§5.2 规则 5）、`auth_init` meta 单字段 256 字节限长（§5.2 规则 6）均为本实现自建加固——官方对相应面的实际限值与行为未观测或契约无约束，取值方向一律保守拒绝（防无界缓冲进堆内存），可能严于官方。L1 真机联调若发现官方更宽松且客户端流量撞闸，按「逐项登记 → 评估放宽」处理，不做静默调整；meta 限长即便官方更宽松也不回退（meta 回显面在本服务，收紧无客户端兼容代价）。
+12. **standalone 的 official 回源代理属部署便利（v2.4，有意定性）**：`OFFICIAL_UPSTREAM_ORIGIN`（§8.6）是 Caddy catch-all 的进程内等价形态，目的只是让单容器少一个组件；它在转发路径上不解析任何业务内容、不落任何状态——「relay 只做鉴权、配对、心跳应答与 `data.payload` 透传，不持有业务状态」（§4）的纪律不因该部署便利破例，代理面同样不产生持久状态、不读写设备表与配对状态。该面无 relay 鉴权与 body 上限保护是有意的：其安全语义等同 §8.1 的 Caddy 反代（凭据校验归官方源站），部署侧若不接受等价边界，应改用双服务形态。
 
 ## 12. 里程碑
 
@@ -522,22 +567,27 @@ packages/relay-v2-server/
 │   ├── devices.ts        # DeviceStore（node:sqlite）+ GC
 │   ├── tokens.ts         # TokenStore（一次性，内存）
 │   ├── auth.ts           # JWT decode / introspect / jwks + realm 命名空间
+│   ├── staticFiles.ts    # standalone 静态托管：/remote/v4* SPA + 防穿越 + 缓存头（§8.6）
+│   ├── officialProxy.ts  # standalone 官方回源：流式 catch-all 代理（§8.6/§11 第 12 条）
 │   ├── logger.ts         # 结构化日志（JSON Lines）+ 消息 trace 摘要字段红线（spec §9）
 │   ├── types.ts          # 内部组件接缝（§4 状态所有者接口；wire 类型 re-export 自 shared）
 │   └── config.ts
 ├── tools/
 │   ├── probe-token.ts       # M0：离线解 JWT 打印 claim 形状（脱敏）
 │   ├── smoke-process.mjs    # 进程级冒烟：spawn dist 产物（临时 DB + JWT_MODE=stub 进程级配置）
-│                            #   → /healthz → 注册设备 → WS auth_init → pair_status_query 全流程
+│   │                        #   → /healthz → 注册设备 → WS auth_init → pair_status_query 全流程
 │   ├── verify-v4-build.mjs  # /remote/v4 构建校验：base 前缀 + 自建域 OAuth redirect 烘焙（§8.2）
 │   └── verify-same-origin.mjs # 同源链路 L1-lite 门禁：relay + 静态 + 前置同源入口三件，页面/资产 200、无凭据 401、烘焙非官方域（§8.1/§8.2/§10）
 ├── test/                 # L0 契约一致性套件（含历史故障模式 + 对照 fake relay 的差异断言）
-└── deploy/               # Caddyfile（/healthz 默认不公网直暴，§8.1/§11）、docker-compose.yml（构建产物挂载）、
+└── deploy/               # Caddyfile（/healthz 默认不公网直暴，§8.1/§11）、docker-compose.yml（relay+caddy 双服务）、
+                           # Dockerfile + docker-compose.standalone.yml（standalone 单容器，§8.6）、
                            # run-relay.mjs（单一装配引导：容器入口与两个冒烟工具共用，§10；含 process 级崩溃兜底——
                            # uncaughtException/unhandledRejection 结构化 error 日志后 exit(1)，§7）
 ```
 
 依赖仅 `ws`、`node:sqlite`（内置）与 `@drora/shared`（workspace:_，实际仅消费 `web-remote-relay` 子路径；该模块外部依赖只有 zod）。devDependencies 追加 `@drora/client` 与 `@drora/rpc`（workspace:_，仅 `test/differential.test.ts` 消费，`architecture-policy.yaml` 的 relay-v2-server `requires` 同步登记 `client`/`rpc`）：§10 L0 差异测试复用被测 transport 的公开协议入口（`createWebRemoteControlRelayProtocol` rpc-frame 组帧 + `VSBuffer`）对 fake relay 与本服务做同场景双打断言；src 构建闭包不变，tsup 产物仍零依赖（noExternal 不含 client/rpc）。新包接线清单：`pnpm-workspace.yaml` 的 `packages/_`glob 自动纳入；root`typecheck`项目清单与`architecture-policy.yaml`模块条目需登记（旧 relay-server 曾有`id: relay-server, managed: false` 先例）；不影响桌面产物——无任何包依赖它，不会进桌面 bundle。
+
+tsup 产物**全自包含**（v2.4 起）：`noExternal` 除 `@drora/shared`/`zod` 外并入 `ws`——dist 不再要求部署闭包提供任何 node_modules，standalone 容器 runtime 只需 dist + `deploy/run-relay.mjs` 引导 + `/remote/v4` 静态产物（§8.6）。
 
 ---
 

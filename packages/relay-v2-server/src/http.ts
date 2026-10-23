@@ -47,7 +47,8 @@ class BodyTooLargeError extends Error {
 const PATH_DEVICE = WEB_REMOTE_CONTROL_RELAY_V2_HTTP.register.path;
 const PATH_DELETE = WEB_REMOTE_CONTROL_RELAY_V2_HTTP.delete.path;
 const PATH_TOKEN = WEB_REMOTE_CONTROL_RELAY_V2_HTTP.token.path;
-const PATH_HEALTHZ = "/healthz";
+/** /healthz（spec §5.1 规则 9 不经鉴权）；export 供装配层 dispatch 归类 relay 自有面 */
+export const PATH_HEALTHZ = "/healthz";
 
 /** /healthz 视图（spec §9：进程 uptime、连接数、owner 数、DB 行数、收发计数） */
 export interface RelayHealthView {

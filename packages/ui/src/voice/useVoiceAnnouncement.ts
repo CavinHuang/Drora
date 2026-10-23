@@ -35,8 +35,15 @@ import {
 import { createBroadcastAnnouncementClaimAdapter } from "./voiceAnnouncementClaim.js";
 import { registerVoiceCommandHandler } from "./voiceCommandBus.js";
 import { createSpeechSynthesisTtsAdapter } from "./speechSynthesisTtsAdapter.js";
+import { createCloudTtsAdapter, resolveTtsEngineChoice } from "./cloudTtsAdapter.js";
+import { isVoiceVendorConfigComplete } from "./resolveAsrAdapter.js";
+import { createToolBriefPlanner } from "./toolBriefPlanner.js";
+import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
+import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
+import type { VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";
+import { logger } from "@/logger.js";
 
-/** 结构化最小权限 pending 源（与 drora-protocol-v4 pendingInteractionSchema 形状兼容；payload 为可辨识联合，读取前按 kind 判别）。 */
+/** 结构化最小权限 pending 源（与 drora-protocol-v4 pendingInteractionSchema 形状兼容；wiring 参数形状导出）。@lintignore */
 export interface VoiceAnnouncementPermissionSource {
   interactionId: string;
   payload: { kind: string };
@@ -45,6 +52,7 @@ export interface VoiceAnnouncementPermissionSource {
 /** §4.1：权限内容摘要超长截断阈值（字符）。 */
 export const VOICE_ANNOUNCEMENT_PERMISSION_MAX_CHARS = 200;
 
+/** hook 参数形状（SessionPane 接线用）。@lintignore */
 export interface UseVoiceAnnouncementParams {
   /** 播报跟随 focused（§3.4）；非 focused pane 不消费任何播报源。 */
   focused: boolean;
@@ -62,6 +70,7 @@ export interface UseVoiceAnnouncementParams {
   requestTaskStop: () => void;
 }
 
+/** hook 返回控制器形状（SessionPane 消费）。@lintignore */
 export interface VoiceAnnouncementController {
   planner: TurnSpeechPlanner;
   /** 播报腿相位（指示器渲染用；单一事实源 voiceSessionStore）。 */
@@ -130,11 +139,108 @@ export function useVoiceAnnouncement({
     () => createBroadcastAnnouncementClaimAdapter(services.broadcastService),
     [services.broadcastService],
   );
-  const tts = useMemo(() => createSpeechSynthesisTtsAdapter(), []);
+  const synthTts = useMemo(() => createSpeechSynthesisTtsAdapter(), []);
+  // §9.6.2：厂商档三元组的 apiKey 经凭据服务读取（不上 appSettings/wire）。
+  const getVendorApiKey = useCallback(
+    () =>
+      services.credentialService?.load(VOICE_VENDOR_CREDENTIAL_KEY).catch(() => null) ??
+      Promise.resolve(null),
+    [services.credentialService],
+  );
+  const cloudTts = useMemo(
+    () =>
+      createCloudTtsAdapter({
+        getVendorConfig: async () => {
+          const current = settingsRef.current;
+          const baseUrl = current?.voiceVendorBaseUrl?.trim() ?? "";
+          const model = current?.voiceTtsVendorModel?.trim() ?? "";
+          if (baseUrl.length === 0 || model.length === 0) {
+            return null;
+          }
+          const apiKey = (await getVendorApiKey().catch(() => null))?.trim() ?? "";
+          if (apiKey.length === 0) {
+            return null;
+          }
+          return { baseUrl, model, apiKey };
+        },
+        consecutiveFailuresThreshold: VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES,
+      }),
+    [getVendorApiKey],
+  );
 
   // 设置读取经 reader 收口（§9.3）；ref 保证 planner deps 闭包拿最新值而不重建 planner。
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+
+  // §9.6.5-2 引擎解析（routing TTS）：解析点 = renderer 装配（本 useMemo）/设置变更
+  //（下方 effect）/AnnIdle→Speaking 进入（speak 路由以最新解析结果执行）。回落：
+  // §9.6.5-3 连续失败 → cloudTts.onConsecutiveFailures（下方订阅）置 cloudFallbackRef →
+  // 后续 speak 回落 speechSynthesis + warn；planner.notifyStopPressed 中止本轮
+  //（层①语义复用：cancel+release+清队列、零协议）。播报腿/claim/打断语义零变化
+  //（只换合成源）。cancel() 双停双引擎：防止设置切换/回落瞬间在途 cloud 音频与
+  // 新引擎句叠音（幽灵声，评审 #2）。
+  const cloudFallbackRef = useRef(false);
+  const lastTtsEngineLoggedRef = useRef<string | null>(null);
+  const resolveTtsEngineNow = useCallback((): VoiceTtsPort => {
+    if (cloudFallbackRef.current) {
+      return synthTts;
+    }
+    const current = settingsRef.current;
+    // 选型判定：baseUrl+model 非空即视为档完整（apiKey 缓存未知=null 时不阻塞——
+    // 凭据异步加载晚于首句 speak；确认空串才判不完整。cloud 合成管线内 getVendorConfig
+    // 仍会以最新凭据校验兜底，§9.6.2）。
+    const choice = resolveTtsEngineChoice({
+      engine: current?.voiceTtsEngine ?? "system",
+      vendorConfigComplete: isVoiceVendorConfigComplete({
+        baseUrl: current?.voiceVendorBaseUrl,
+        model: current?.voiceTtsVendorModel,
+        apiKey: cloudApiKeyRef.current ?? "unknown",
+      }),
+    });
+    // §7.1：引擎解析结果落 voice.tts info 槽位（引擎变化时记录一次）。
+    if (lastTtsEngineLoggedRef.current !== choice) {
+      lastTtsEngineLoggedRef.current = choice;
+      logger.info("voice.tts", `tts engine resolved: ${choice}`);
+    }
+    return choice === "cloud" ? cloudTts : synthTts;
+  }, [cloudTts, synthTts]);
+  const tts = useMemo<VoiceTtsPort>(
+    () => ({
+      speak: (u: VoiceTtsUtterance) => resolveTtsEngineNow().speak(u),
+      cancel: () => {
+        // 双停双引擎：引擎切换/回落瞬间在途音频一并静音（幽灵声防护）。
+        cloudTts.cancel();
+        synthTts.cancel();
+      },
+      onDone: (cb) => {
+        const unsubCloud = cloudTts.onDone(cb);
+        const unsubSynth = synthTts.onDone(cb);
+        return () => {
+          unsubCloud();
+          unsubSynth();
+        };
+      },
+    }),
+    [cloudTts, synthTts, resolveTtsEngineNow],
+  );
+
+  // 设置读取经 reader 收口（§9.3）；ref 保证 planner deps 闭包拿最新值而不重建 planner。
+  // §9.6.2：apiKey 经凭据服务异步读取后缓存（routing 选型的同步判定输入；
+  // cloud 合成管线内仍会以最新凭据再读一次）。挂载与设置变更时刷新。
+  const cloudApiKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void getVendorApiKey()
+      .then((key) => {
+        if (!cancelled) {
+          cloudApiKeyRef.current = key ?? null;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [getVendorApiKey]);
   const localeRef = useRef(locale);
   localeRef.current = locale;
   const requestTaskStopRef = useRef(requestTaskStop);
@@ -223,6 +329,28 @@ export function useVoiceAnnouncement({
     });
   }, [planner]);
 
+  // §9.6.5-3 回落信号接线：连续失败 → 置回落标记（后续 speak 走 speechSynthesis）+
+  // planner.notifyStopPressed 中止本轮回 AnnIdle（cancel+release+清队列、零协议）+ warn。
+  useEffect(() => {
+    return cloudTts.onConsecutiveFailures(() => {
+      cloudFallbackRef.current = true;
+      logger.warn("voice.tts", "cloud tts consecutive failures; falling back to speechSynthesis");
+      planner.notifyStopPressed();
+    });
+  }, [cloudTts, planner]);
+
+  // §9.6.5-3 恢复条款：设置变更（引擎/厂商档任一字段）= 下一引擎解析点——清会话内
+  // 回落标记，cloud 引擎按最新设置重析（用户修复 baseUrl/凭据/网络后恢复，而非
+  // 「坏一次就整个会话不再响」）。签名含引擎+baseUrl+模型；首渲染不误清。
+  const ttsEngineSignature = `${settings?.voiceTtsEngine ?? "system"}\0${settings?.voiceVendorBaseUrl ?? ""}\0${settings?.voiceTtsVendorModel ?? ""}`;
+  const wasTtsEngineSignatureRef = useRef(ttsEngineSignature);
+  useEffect(() => {
+    if (wasTtsEngineSignatureRef.current !== ttsEngineSignature) {
+      wasTtsEngineSignatureRef.current = ttsEngineSignature;
+      cloudFallbackRef.current = false;
+    }
+  }, [ttsEngineSignature]);
+
   // §3.5-4 release 时机之「播报开关关闭」：播报进行中关闭总开关 → 停播回 AnnIdle
   //（立即 cancel + 释放 claim + 清队列），运行时行为与设置一致（§6.1 reader 收口意图）。
   const announcementEnabled = isVoiceAnnouncementEnabled(settings);
@@ -252,6 +380,59 @@ export function useVoiceAnnouncement({
       });
     }
   }, [focused, pendingInteractions, planner]);
+
+  // §9.6.7-1 工具简报：ToolCall 行「从无到有」→ 六规则限流（toolBriefPlanner）→
+  // consumeBriefSegment（FD-3 插播时机判定在 planner）。文本组装 §4.2-7：
+  // voice.brief.prefix 模板（tool + 目标截 40 字符）。
+  // §9.6.7-1 工具简报规划器（六规则限流，纯逻辑）：就绪简报经 consumeBrief 上交，
+  // 文案组装 §4.2-7：voice.brief.prefix 模板（tool + 目标截 40 字符，truncatedSuffix
+  // 作超长尾缀）。planner（TDZ 安全：useMemo 工厂闭包运行时 planner 已初始化）。
+  const extractToolBriefTarget = useCallback((inputText: string | undefined): string => {
+    const firstLine = (inputText ?? "").split("\n")[0]?.trim() ?? "";
+    return firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine;
+  }, []);
+  const toolBriefPlanner = useMemo(
+    () =>
+      createToolBriefPlanner({
+        isBriefEnabled: () => settingsRef.current?.voiceToolBriefEnabled === true,
+        consumeBrief: (briefId: string, toolName: string, target: string) => {
+          planner.consumeBriefSegment(
+            briefId,
+            // 简报目标截断的「…」由 extractToolBriefTarget 负责；权限段的截断尾缀文案不用于简报（§4.2-7 未定义简报尾缀）。
+            intl.formatMessage({ id: "voice.brief.prefix" }, { tool: toolName, target }),
+          );
+        },
+      }),
+    [intl, planner],
+  );
+  useEffect(() => {
+    if (!focused) {
+      return;
+    }
+    const rows: {
+      toolCallId: string;
+      toolName: string;
+      turnId: string;
+      status: string;
+      target: string;
+    }[] = [];
+    for (const unit of units) {
+      // assistantWorkRows 可选（类型上必有，测试夹具可缺省）——缺省即无工具行。
+      for (const row of unit.assistantWorkRows ?? []) {
+        if (row.kind !== "toolCall") {
+          continue;
+        }
+        rows.push({
+          toolCallId: row.toolCallId,
+          toolName: row.toolName,
+          turnId: unit.turnId,
+          status: row.status,
+          target: extractToolBriefTarget(row.inputText),
+        });
+      }
+    }
+    toolBriefPlanner.consumeToolCallSnapshot(rows);
+  }, [extractToolBriefTarget, focused, toolBriefPlanner, units]);
 
   useEffect(() => {
     return () => {

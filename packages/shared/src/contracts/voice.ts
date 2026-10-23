@@ -24,9 +24,18 @@ export const VOICE_SETTINGS_KEYS = {
   announcementRate: "voiceAnnouncementRate",
   dictationLang: "voiceDictationLang",
   asrEngine: "voiceAsrEngine",
+  // 厂商档（spec §9.6.2：双腿共用 baseUrl + 一枚凭据；非秘密进 appSettings，
+  // apiKey 走 VOICE_VENDOR_CREDENTIAL_KEY 凭据服务不进 appSettings/wire）。
+  vendorBaseUrl: "voiceVendorBaseUrl",
+  asrVendorModel: "voiceAsrVendorModel",
+  ttsEngine: "voiceTtsEngine",
+  ttsVendorModel: "voiceTtsVendorModel",
   toolBriefEnabled: "voiceToolBriefEnabled",
   privacyDisclosureAcknowledged: "voicePrivacyDisclosureAcknowledged",
 } as const;
+
+/** 语音厂商档凭据键（spec §9.6.2：apiKey 经 ICredentialService 加密存储，照 oauth: 命名空间先例）。 */
+export const VOICE_VENDOR_CREDENTIAL_KEY = "voice:vendor:api-key";
 
 /** 跨窗口 claim 键（经既有 BroadcastHub 通用 claim 通道，Main 不解析语义）。 */
 export const VOICE_BROADCAST_CLAIM_KEY = {

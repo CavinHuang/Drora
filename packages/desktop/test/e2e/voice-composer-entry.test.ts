@@ -26,6 +26,11 @@ import { prepareV4ConversationE2E } from "./helpers/v4-conversation.js";
  *
  * 录音交互（getUserMedia / SpeechRecognition）需要真实拾音与目标运行时网络，属
  * TV-1 spike 与桌面真机范围，不在本文件内断言。
+ *
+ * 修复轮 F2（2026-10-23）：读侧语义已修复（entryVisible = hidden === false，非反转），
+ * 本文件断言与修复后真实行为对齐——不再存在评审报告（voice-agent-implementation-review
+ * -2026-10-23 §4.1 F2 行）静态推演的「test 2 取消回落 unchecked / test 3 入口渲染必败」；
+ * 实机运行证据仍缺（Electron 目标运行时），转 GO 前须补（附录 C.4 同类 deferred）。
  */
 
 const MIC_ENTRY_TEST_ID = "v4-composer-voice-entry";
@@ -120,7 +125,24 @@ describe("语音听写 composer 入口（§9.2 / FD-5）", () => {
     await expect(micEntry).toHaveAttribute("data-voice-leg", "idle", { containing: true });
 
     // §9.2 几何子集：390px 窄宽度下入口仍渲染可见（截图基线另属附录 C.4 deferred）。
-    rendererSizeSnapshot = await setCurrentElectronRendererContentSize(390);
-    await expect(micEntry).toBeDisplayed();
+    // 实机首跑实证：窗口 minWidth 钳制会把 390 请求吞成 480（helper ±1px 校验必抛）——
+    // 照 conversation-session-composer-compression 先例放宽最小尺寸并在 finally 还原。
+    const sizeOriginal = await setCurrentElectronRendererContentSize(480, 800);
+    const minimum = await browser.electron.execute((electron, id) => {
+      const win = electron.BrowserWindow.fromId(id)!;
+      const min = win.getMinimumSize();
+      win.setMinimumSize(320, 400);
+      return min;
+    }, sizeOriginal.windowId);
+    try {
+      rendererSizeSnapshot = await setCurrentElectronRendererContentSize(390, 800);
+      await expect(micEntry).toBeDisplayed();
+    } finally {
+      await browser.electron.execute(
+        (electron, id, min) => electron.BrowserWindow.fromId(id)?.setMinimumSize(min[0]!, min[1]!),
+        sizeOriginal.windowId,
+        minimum,
+      );
+    }
   });
 });

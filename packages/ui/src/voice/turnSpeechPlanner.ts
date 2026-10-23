@@ -182,6 +182,12 @@ export interface TurnSpeechPlanner {
    * AnnIdle 时立即起播。text 由调用方按 §4.1 截断（200 字符 + 尾缀）。
    */
   consumePermissionSegment(segment: { permissionId: string; text: string }): void;
+  /**
+   * 工具简报句（§4.2 / FD-3 优先级最低）：仅 AnnIdle 或正文句间且无待播权限段时插播；
+   * 录音中（annPaused/未暂停的 recording）/权限段播报中/段间句隙/权限待插队列非空/
+   * Cancelling → 丢弃。uninterruptible 不置位（简报可被打断词通道打断）。
+   */
+  consumeBriefSegment(briefId: string, text: string): void;
   /** Composer 卸载/窗口关闭（§3.5-4 release 时机）：停播、清定时器、release claim。 */
   dispose(): void;
 }
@@ -215,6 +221,9 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
    */
   let pendingPermissionSegments: { permissionId: string; sentences: string[] }[] = [];
   const announcedPermissionIds = new Set<string>();
+  /** §4.2 工具简报待插段（FD-3 最低优先级；仅正文句间且无待播权限段插播）。 */
+  let pendingBriefSegments: { briefId: string; sentences: string[] }[] = [];
+  const announcedBriefIds = new Set<string>();
   let permissionWindow: { start: number; end: number } | null = null;
   /**
    * 轮尾起播链在飞标记：TurnComplete 与权限 pending 常在同一 snapshot 提交内到达，
@@ -223,32 +232,112 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
    */
   let turnStartInFlight = false;
   let permissionDrainScheduled = false;
+  let briefDrainScheduled = false;
 
-  /** 句边界：有待播权限段则在正文剩余句之前整段插队（§4.1 当前句播完即插队）。 */
-  const splicePermissionAtBoundary = (index: number): void => {
-    if (pendingPermissionSegments.length === 0) {
-      return;
-    }
-    const spliced: string[] = [];
+  /**
+   * 句边界调度：①权限段（FD-3 最高，正文剩余句之前整段插队、uninterruptible 闭合）；
+   * ②工具简报（§4.2 最低）：仅当**无待播权限段**时拼在正文余句之前（正文句间插播）；
+   * 权限段待插时简报保留，随权限播完后的句界/空闲排空再插（§4.2-5 段间句隙不插）。
+   */
+  const spliceScheduledSegmentsAtBoundary = (index: number): void => {
+    const permissionSentences: string[] = [];
     for (const segment of pendingPermissionSegments) {
-      spliced.push(...segment.sentences);
+      permissionSentences.push(...segment.sentences);
     }
     pendingPermissionSegments = [];
-    if (spliced.length === 0) {
+    if (permissionSentences.length > 0) {
+      sentences.splice(index, 0, ...permissionSentences);
+      permissionWindow = { start: index, end: index + permissionSentences.length };
+      // §3.3 uninterruptible：整段闭合（段 = 一次权限请求的完整播报；连续段背靠背）。
+      control.setUninterruptible(true);
+    }
+    const briefSentences: string[] = [];
+    if (permissionSentences.length === 0) {
+      for (const segment of pendingBriefSegments) {
+        briefSentences.push(...segment.sentences);
+      }
+      pendingBriefSegments = [];
+    }
+    if (briefSentences.length > 0) {
+      sentences.splice(index + permissionSentences.length, 0, ...briefSentences);
+    }
+    if (permissionSentences.length > 0 || briefSentences.length > 0) {
+      control.extendSentenceCount(sentences.length);
+    }
+  };
+
+  /**
+   * §4.2 简报插播（FD-3 最低优先级）：仅 AnnIdle（独立单句起播，权限段优先排空）或
+   * Speaking 期正文句间且无待播权限段（句界拼接在正文余句之前、权限段之后）。
+   * 其余相位（annPaused 录音让位/cancelling/权限段待插队列非空/权限窗内）→ 丢弃。
+   */
+  const consumeBriefSegmentInternal = (briefId: string, sentencesForBrief: string[]): void => {
+    if (announcedBriefIds.has(briefId)) {
       return;
     }
-    sentences.splice(index, 0, ...spliced);
-    permissionWindow = { start: index, end: index + spliced.length };
-    // §3.3 uninterruptible：整段闭合（段 = 一次权限请求的完整播报；连续段背靠背）。
-    control.setUninterruptible(true);
-    control.extendSentenceCount(sentences.length);
+    announcedBriefIds.add(briefId);
+    if (sentencesForBrief.length === 0) {
+      return;
+    }
+    const leg = control.snapshot();
+    if (leg.phase === "cancelling") {
+      return;
+    }
+    if (leg.phase === "annIdle" && !recording) {
+      // AnnIdle 空闲插播：权限 pending 优先排空后再到简报（microtask 串行，§9.6.7-1）。
+      pendingBriefSegments.push({ briefId, sentences: sentencesForBrief });
+      scheduleBriefDrain();
+      return;
+    }
+    if (leg.phase === "speaking" && !recording) {
+      // 正文句间插播点：句界拼接时权限段优先、简报在其后（§4.2-5 段间句隙不插简报）。
+      pendingBriefSegments.push({ briefId, sentences: sentencesForBrief });
+      return;
+    }
+    // annPaused（录音让位）/recording：丢弃（§4.2-5 未列插播点；避免与用户语音叠音）。
+  };
+
+  const scheduleBriefDrain = (): void => {
+    if (briefDrainScheduled) {
+      return;
+    }
+    briefDrainScheduled = true;
+    queueMicrotask(() => {
+      briefDrainScheduled = false;
+      drainPendingBriefFromIdle();
+    });
+  };
+
+  /** AnnIdle 段排空待播简报（FD-3：权限 pending 优先排空后再到简报）。 */
+  const drainPendingBriefFromIdle = (): void => {
+    if (pendingBriefSegments.length === 0) {
+      return;
+    }
+    if (turnStartInFlight || control.snapshot().phase !== "annIdle") {
+      return;
+    }
+    if (pendingPermissionSegments.length > 0) {
+      // 权限段优先：先排权限（同为 annIdle 起播），简报留待其播完后的句界/排空。
+      schedulePermissionDrain();
+      scheduleBriefDrain();
+      return;
+    }
+    const drained: string[] = [];
+    for (const segment of pendingBriefSegments) {
+      drained.push(...segment.sentences);
+    }
+    pendingBriefSegments = [];
+    if (drained.length === 0) {
+      return;
+    }
+    ensureClaimAndSpeak(null, drained, { uninterruptibleLength: 0 });
   };
 
   const speakCurrent = (leg: VoiceAnnouncementLegState): void => {
-    // 权限段只在句边界拼接（当前句播完后的下一句起点）。
-    splicePermissionAtBoundary(leg.sentenceIndex);
+    // 权限段/简报只在句边界拼接（当前句播完后的下一句起点）。
+    spliceScheduledSegmentsAtBoundary(leg.sentenceIndex);
     const window = permissionWindow;
-    // uninterruptible 只覆盖权限句区间：回到正文句即恢复可打断（§3.3 界定）。
+    // uninterruptible 只覆盖权限句区间：回到正文/简报外的句子即恢复可打断（§3.3 界定）。
     control.setUninterruptible(window != null && leg.sentenceIndex >= window.start && leg.sentenceIndex < window.end);
     const text = sentences[leg.sentenceIndex];
     if (text == null) {
@@ -333,8 +422,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       // 队列播完：离开播报态即解除 uninterruptible（残留 true 会误锁下一轮打断词通道）。
       control.setUninterruptible(false);
       stopRenewLoopAndRelease();
-      // 正文队列已尽但仍欠权限段（权限在最后一句播报中到达）→ AnnIdle 起播排空（FD-3）。
+      // 正文队列已尽但仍欠权限段/简报（最后一句播报中到达）→ AnnIdle 起播排空
+      //（FD-3：权限先、简报后）。
       drainPendingPermissionFromIdle();
+      drainPendingBriefFromIdle();
     }
     // annPaused：claim 保留（FD-2），等录音结束经 resumeSpeaking 续播。
   });
@@ -521,6 +612,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       announcedTurnId = null;
       activeHandle = null;
       pendingPermissionSegments = [];
+      pendingBriefSegments = [];
       permissionWindow = null;
       deps.tts.cancel();
       control.cancelAnnouncement("stopPressed");
@@ -539,6 +631,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       announcedTurnId = null;
       activeHandle = null;
       pendingPermissionSegments = [];
+      pendingBriefSegments = [];
       permissionWindow = null;
       deps.tts.cancel();
       stopRenewLoopAndRelease();
@@ -580,12 +673,17 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       schedulePermissionDrain();
     },
 
+    consumeBriefSegment(briefId, text) {
+      consumeBriefSegmentInternal(briefId, splitTurnIntoSentences(text));
+    },
+
     requestCancelTask() {
       const leg = control.snapshot();
       if (leg.phase === "speaking" || leg.phase === "annPaused") {
         // 播报同步静音（§3.2 Speaking/AnnPaused→Cancelling；§4.3 层③）。
         activeHandle = null;
         pendingPermissionSegments = [];
+        pendingBriefSegments = [];
         permissionWindow = null;
         deps.tts.cancel();
         control.beginTaskCancel();
@@ -622,6 +720,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       }
       activeHandle = null;
       pendingPermissionSegments = [];
+      pendingBriefSegments = [];
       permissionWindow = null;
       deps.tts.cancel();
       control.beginTaskCancel();
@@ -645,6 +744,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       announcedTurnId = null;
       activeHandle = null;
       pendingPermissionSegments = [];
+      pendingBriefSegments = [];
       permissionWindow = null;
       deps.tts.cancel();
       control.cancelAnnouncement("stopPressed");

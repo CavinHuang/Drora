@@ -7,7 +7,9 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import {
   isVoiceComposerEntryVisibleInSettings,
@@ -50,6 +52,7 @@ export function useVoiceComposerEntry({
   isWebRemoteControl = false,
 }: UseVoiceComposerEntryParams): VoiceComposerEntryController {
   const { intl, locale } = useDroraIntl();
+  const services = useServices();
   const { settings, update: updateSettings } = useSettings();
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   // 能力探测一次即可：window.SpeechRecognition 的存在性在会话生命周期内不会翻转；
@@ -86,12 +89,25 @@ export function useVoiceComposerEntry({
     });
   }, [updateSettings]);
 
+  // §9.6.6 引擎选型输入：settings 引擎/厂商档 + 凭据服务 apiKey（异步）。
+  const getVendorApiKey = useCallback(
+    () =>
+      services.credentialService?.load(VOICE_VENDOR_CREDENTIAL_KEY).catch(() => null) ??
+      Promise.resolve(null),
+    [services.credentialService],
+  );
   const dictation = useVoiceDictation({
     sessionId,
     workspacePath,
     workspaceIdentity,
     lang: dictationLang,
     requestStart,
+    asrEngine: settings?.voiceAsrEngine ?? "webSpeech",
+    vendor: {
+      baseUrl: settings?.voiceVendorBaseUrl ?? "",
+      model: settings?.voiceAsrVendorModel ?? "",
+    },
+    getVendorApiKey,
   });
 
   return {

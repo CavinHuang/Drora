@@ -267,6 +267,85 @@ describe("权限内容段（§4.1 / FD-3 / §3.3 uninterruptible）", () => {
   });
 });
 
+describe("工具简报插播时机（§4.2-5 / FD-3 权限>正文>简报 / §9.6.7-1）", () => {
+  it("AnnIdle 空闲插播：简报作为独立单句起播（claim 正常获取）", async () => {
+    const harness = createHarness();
+    harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正在 Edit a.ts"]);
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "speaking",
+      uninterruptible: false,
+      sentenceCount: 1,
+    });
+    harness.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+  });
+
+  it("正文句间插播且无待播权限段：简报排在权限段之后、正文余句之前", async () => {
+    const harness = createHarness();
+    harness.planner.consumeTurnTail({ turnId: "t1", text: "正文一。正文二。" });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正文一。"]);
+    // 无权限段排队：简报进句界拼接（权限段之后、正文二之前）。
+    harness.planner.consumeBriefSegment("brief-1", "正在 Bash build");
+    harness.tts.finishCurrent("end");
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正文一。", "正在 Bash build"]);
+    // 简报不置 uninterruptible（可被打断词通道打断）。
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(false);
+    harness.tts.finishCurrent("end");
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual([
+      "正文一。",
+      "正在 Bash build",
+      "正文二。",
+    ]);
+    harness.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+  });
+
+  it("权限段待插队列非空 → 简报推迟到权限段之后（FD-3：权限>简报，不丢弃）", async () => {
+    const harness = createHarness();
+    harness.planner.consumeTurnTail({ turnId: "t1", text: "正文一。" });
+    await new Promise((r) => setTimeout(r, 0));
+    // 权限段先排入待插队列（正文句播报中），随后简报到达。
+    harness.planner.consumePermissionSegment({ permissionId: "p1", text: "权限问题？" });
+    harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    harness.tts.finishCurrent("end");
+    await new Promise((r) => setTimeout(r, 0));
+    // 权限段拼接优先；简报不丢弃，推迟到权限段播完后的空闲排空（§4.2-5 段间句隙不插）。
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual([
+      "正文一。",
+      "权限问题？",
+      "正在 Edit a.ts",
+    ]);
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(false);
+  });
+
+  it("录音中（recording/annPaused）简报丢弃（避免与用户语音叠音）", async () => {
+    const harness = createHarness();
+    harness.planner.consumeTurnTail({ turnId: "t1", text: "甲。乙。" });
+    await new Promise((r) => setTimeout(r, 0));
+    harness.planner.notifyUserRecordingStarted();
+    harness.tts.finishCurrent("end"); // → annPaused
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annPaused");
+    harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    // 简报在 annPaused 被丢弃：录音结束后不补播。
+    harness.planner.notifyUserRecordingEnded();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["甲。"]);
+  });
+
+  it("briefId 幂等（重复简报只播一次）", async () => {
+    const harness = createHarness();
+    harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正在 Edit a.ts"]);
+    harness.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+  });
+});
+
 describe("外部停止面静音（§3.3 FD-1：播报同步静音经 Cancelling）", () => {
   it("notifyExternalTaskStop mutes via Cancelling without dispatching cancelTask", async () => {
     vi.useFakeTimers();

@@ -302,6 +302,11 @@ export interface AppSettings {
   voiceAnnouncementRate?: number;
   voiceDictationLang?: string;
   voiceAsrEngine?: "webSpeech" | "remote";
+  /** 厂商档非秘密配置（spec §9.6.2；apiKey 走凭据服务不上 wire）。 */
+  voiceVendorBaseUrl?: string;
+  voiceAsrVendorModel?: string;
+  voiceTtsEngine?: "system" | "cloud";
+  voiceTtsVendorModel?: string;
   voiceToolBriefEnabled?: boolean;
   voicePrivacyDisclosureAcknowledged?: boolean;
   /** 自动归档旧会话的总开关 */

@@ -9,6 +9,7 @@ import {
 } from "./voiceCommandBus.js";
 
 const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
+  const partialSubscribers = new Set<(text: string) => void>();
   class FakeSession {
     finalSubscribers = new Set<(text: string) => void>();
     errorSubscribers = new Set<(error: { code: string }) => void>();
@@ -39,6 +40,10 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
       for (const cb of Array.from(this.finalSubscribers)) cb(text);
     }
 
+    emitPartial(text: string): void {
+      for (const cb of Array.from(partialSubscribers)) cb(text);
+    }
+
     emitError(code: string): void {
       for (const cb of Array.from(this.errorSubscribers)) cb({ code });
     }
@@ -48,6 +53,9 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
   let startReject: { code: string } | null = null;
   const fakeAdapter = {
     isSupported: () => true,
+    emitPartial: (text: string) => {
+      for (const cb of Array.from(partialSubscribers)) cb(text);
+    },
     start: vi.fn(() => {
       if (startReject) {
         const error = Object.assign(new Error("asr"), startReject);
@@ -57,7 +65,10 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
       sessions.push(session);
       return Promise.resolve(session);
     }),
-    onPartial: vi.fn(() => () => undefined),
+    onPartial: (cb: (text: string) => void) => {
+      partialSubscribers.add(cb);
+      return () => partialSubscribers.delete(cb);
+    },
     _setStartReject: (code: string | null) => {
       startReject = code == null ? null : { code };
     },
@@ -66,13 +77,83 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
       sessions.length = 0;
       startReject = null;
       fakeAdapter.start.mockClear();
+      partialSubscribers.clear();
     },
   };
-  return { fakeAdapter, createFakeSession: FakeSession };
+  return { fakeAdapter, createFakeSession: FakeSession, partialSubscribers };
 });
 
 vi.mock("./webSpeechAsrAdapter.js", () => ({
   createWebSpeechAsrAdapter: () => fakeAdapter,
+  VoiceAsrError: class extends Error {
+    constructor(
+      readonly code: string,
+      message?: string,
+    ) {
+      super(message ?? code);
+    }
+  },
+}));
+
+const { remoteAdapterState } = vi.hoisted(() => {
+  class FakeRemoteSession {
+    finalSubscribers = new Set<(text: string) => void>();
+    errorSubscribers = new Set<(error: { code: string }) => void>();
+    stopCalls = 0;
+    abortCalls = 0;
+
+    onFinal(cb: (text: string) => void): () => void {
+      this.finalSubscribers.add(cb);
+      return () => this.finalSubscribers.delete(cb);
+    }
+
+    onError(cb: (error: { code: string }) => void): () => void {
+      this.errorSubscribers.add(cb);
+      return () => this.errorSubscribers.delete(cb);
+    }
+
+    async stop(): Promise<{ final: string }> {
+      this.stopCalls += 1;
+      return { final: "" };
+    }
+
+    abort(): void {
+      this.abortCalls += 1;
+    }
+  }
+  const sessions: FakeRemoteSession[] = [];
+  let startError: { code: string } | null = null;
+  return {
+    remoteAdapterState: {
+      sessions,
+      isSupported: () => true,
+      setStartError: (code: string | null) => {
+        startError = code == null ? null : { code };
+      },
+      reset: () => {
+        sessions.length = 0;
+        startError = null;
+      },
+      createAdapter: () => ({
+        isSupported: () => true,
+        start: vi.fn(() => {
+          if (startError) {
+            return Promise.reject(Object.assign(new Error("remote start failed"), startError));
+          }
+          const session = new FakeRemoteSession();
+          sessions.push(session);
+          return Promise.resolve(session);
+        }),
+        onPartial: () => () => undefined,
+      }),
+    },
+  };
+});
+
+vi.mock("./remoteAsrAdapter.js", () => ({
+  createRemoteAsrAdapter: () => remoteAdapterState.createAdapter(),
+  mapLanguage: (lang: string) => (lang.split("-")[0] || null),
+  resolveRemoteAsrErrorCode: () => "network",
   VoiceAsrError: class extends Error {
     constructor(
       readonly code: string,
@@ -132,8 +213,8 @@ async function mountStartedDictation() {
     }),
   );
   harness.result.current.toggleMic();
-  await Promise.resolve();
-  await Promise.resolve();
+  // §9.6.6 选型层引入了额外的微任务跳（pickAsrAdapter/startOn），确定性 flush。
+  await vi.advanceTimersByTimeAsync(0);
   expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
   return harness;
 }
@@ -141,6 +222,7 @@ async function mountStartedDictation() {
 beforeEach(() => {
   vi.useFakeTimers();
   fakeAdapter._reset();
+  remoteAdapterState.reset();
   resetStores();
   resetVoiceCommandHandlersForTest();
   wsPath = `/ws-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -176,10 +258,11 @@ describe("useVoiceDictation", () => {
   it("keeps partial only in the preview field and never dispatches it", async () => {
     const adapter = fakeAdapter;
     await mountStartedDictation();
-    // partial 经端口级 onPartial 通道；store 的 setPartial 由 wiring 消费——这里直接断言
-    // 分发通道：partial 期间 composerTextInsertRequest 不产生。
+    // §9.2：partial 经端口级 onPartial → store.partialText（预览条唯一归宿）。
+    fakeAdapter.emitPartial("半句");
+    expect(useVoiceSessionStore.getState().partialText).toBe("半句");
+    // partial 期间 composerTextInsertRequest 不产生（partial 永不进协议/正文）。
     expect(lastInsertRequest()?.text ?? "").not.toContain("半句");
-    // 会话 partial 不触发 onFinal（FakeSession 未 emitFinal），store 无待注入文本。
     expect(useVoiceSessionStore.getState().pendingFinalText).toBeNull();
     void adapter;
   });
@@ -286,6 +369,42 @@ describe("useVoiceDictation", () => {
     unregister();
   });
 
+  it("delivers the remote batch final through onFinal on manual stop (§9.6.8-S2 remote)", async () => {
+    // §9.6.8-S2：远程批量形态响应 {text} 经 onFinal 交付一次并注入 composer；
+    // 手动停止路径保留订阅至 stop() 结算，修复「提前退订静默丢弃转写」缺陷。
+    fakeAdapter._reset();
+    // 用 remote 形态 fake session：stop() 内经 onFinal 交付转写并 resolve 空串。
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+      }),
+    );
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    const remoteSession = fakeAdapter._sessions[0];
+    // 模拟 stop() 的远程批量交付顺序：结算前 emit onFinal（适配器内部交付），resolve 空串。
+    const originalStop = remoteSession?.stop.bind(remoteSession);
+    if (remoteSession && originalStop) {
+      remoteSession.stop = async () => {
+        remoteSession.emitFinal("远程转写文本");
+        remoteSession.stopCalls += 1;
+        return { final: "" };
+      };
+    }
+    harness.result.current.toggleMic(); // 手动停止
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastInsertRequest()).toMatchObject({
+      text: "远程转写文本",
+      mode: "append",
+      targetSessionId: "sess-1",
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
   it("keeps another pane's recording alive on a second mic press and pulses the holder (FD-6 wiring)", async () => {
     const first = renderHook(() =>
       useVoiceDictation({
@@ -379,5 +498,76 @@ describe("useVoiceDictation", () => {
     expect(lastInsertRequest()).toMatchObject({ text: "收尾句。", mode: "append" });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
     expect(useVoiceSessionStore.getState().lastDictation?.text).toBe("收尾句。");
+  });
+});
+
+
+describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
+  function mountWithSelection(params?: {
+    asrEngine?: "webSpeech" | "remote";
+    vendor?: { baseUrl: string; model: string };
+    getVendorApiKey?: () => Promise<string | null>;
+  }) {
+    return renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+        ...params,
+      }),
+    );
+  }
+
+  it("keeps the webSpeech adapter for engine=webSpeech (默认行为完全不变)", async () => {
+    const harness = mountWithSelection({ asrEngine: "webSpeech" });
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    expect(fakeAdapter.start).toHaveBeenCalledTimes(1);
+    // remote 适配器未被创建/使用。
+    expect(remoteAdapterState.sessions).toHaveLength(0);
+  });
+
+  it("selects the remote adapter when engine=remote and the vendor record is complete", async () => {
+    const harness = mountWithSelection({
+      asrEngine: "remote",
+      vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+      getVendorApiKey: async () => "sk-test-key",
+    });
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    // remote 起录：webSpeech 引擎零调用。
+    expect(fakeAdapter.start).not.toHaveBeenCalled();
+    expect(remoteAdapterState.sessions).toHaveLength(1);
+  });
+
+  it("falls back to webSpeech with info when the vendor record is incomplete (§9.6.6 W2)", async () => {
+    const harness = mountWithSelection({
+      asrEngine: "remote",
+      vendor: { baseUrl: "", model: "" },
+      getVendorApiKey: async () => null,
+    });
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    expect(fakeAdapter.start).toHaveBeenCalledTimes(1);
+    expect(remoteAdapterState.sessions).toHaveLength(0);
+  });
+
+  it("falls back to webSpeech within the same press when remote start fails (§9.6.6 W3)", async () => {
+    remoteAdapterState.setStartError("network");
+    const harness = mountWithSelection({
+      asrEngine: "remote",
+      vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+      getVendorApiKey: async () => "sk-test-key",
+    });
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    // 本次点按以 webSpeech 起录（用户手势同一动作内，§9.6.6 W3），不构成自动重启。
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    expect(fakeAdapter.start).toHaveBeenCalledTimes(1);
+    expect(useVoiceSessionStore.getState().notice).toBeNull();
   });
 });

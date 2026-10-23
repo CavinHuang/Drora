@@ -33,11 +33,18 @@ describe("voice i18n keys", () => {
   });
 
   it("keeps placeholders identical across locales for interpolated keys", () => {
-    // Phase 1a 带插值的键：recordingIndicatorAria 的 {session}（绑定会话名）。
+    // 带插值的键：recordingIndicatorAria 的 {session}（绑定会话名）、
+    // vendor.dataHandler 的 {baseUrl}（§9.6.2 数据处理方披露）。
     const interpolated = VOICE_CONSUMED_I18N_KEYS.filter(
       (key) => placeholders(zhCN[key] ?? "").length > 0,
     );
-    expect(interpolated).toEqual(["voice.dictation.recordingIndicatorAria"]);
+    expect(interpolated.sort()).toEqual(
+      [
+        "voice.brief.prefix",
+        "voice.dictation.recordingIndicatorAria",
+        "voice.settings.vendor.dataHandler",
+      ].sort(),
+    );
     for (const key of interpolated) {
       expect(placeholders(enUS[key] ?? ""), `en-US ${key}`).toEqual(placeholders(zhCN[key] ?? ""));
     }

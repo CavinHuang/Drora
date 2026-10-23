@@ -31,17 +31,21 @@ describe("voice contract constants", () => {
     expect(voiceInputSourceSchema.shape.kind.value).toBe(VOICE_INPUT_SOURCE_KIND);
   });
 
-  it("exposes exactly the eight appSettings keys per spec §6.1", () => {
+  it("exposes exactly the appSettings keys per spec §6.1 + §9.6.2 厂商档 additive", () => {
     expect(Object.keys(VOICE_SETTINGS_KEYS).sort()).toEqual(
       [
         "announcementEnabled",
         "announcementRate",
         "announcementVoice",
         "asrEngine",
+        "asrVendorModel",
         "composerEntryHidden",
         "dictationLang",
         "privacyDisclosureAcknowledged",
+        "ttsEngine",
+        "ttsVendorModel",
         "toolBriefEnabled",
+        "vendorBaseUrl",
       ].sort(),
     );
     expect(VOICE_SETTINGS_KEYS.composerEntryHidden).toBe("voiceComposerEntryHidden");

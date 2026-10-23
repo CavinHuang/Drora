@@ -336,12 +336,12 @@ stateDiagram-v2
 | **永不播** | 非 focused 会话的任何内容 | — | — | 永久 |
 | **永不播** | 失败堆栈、诊断、内部错误详情 | — | — | 永久 |
 
-### 4.2 工具简报合并限流规则（EG-1 裁决，建议，待拍板）
+### 4.2 工具简报合并限流规则（EG-1 裁决：合并窗基准=最近播出，已拍板）
 
 代码事实（本轮核验）：`DELIVERY_PROFILES` continuous `flushWindowMs:30, toolProgress:false`、replayable `flushWindowMs:150, toolProgress:true`（core.ts:35-60）——桌面 renderer 收到的是 30ms 级 flush 的行提交，进度级增量（toolProgress 流）在桌面 continuous 上**不到达**。规则：
 
 1. **触发源收窄**：简报只在 ToolCall 行「从无到有」（新工具调用开始）时生成一条候选；同一次调用的进度级更新不生成（桌面本就收不到；手机 replayable 收到的 progress 事件同样只用于行渲染，不生成简报候选）。
-2. **同类时间窗合并**：同名工具在 `sameToolMergeWindowMs = 10s` 窗口内的后续候选不生成新简报，只更新「最新目标」（连续 Edit a.ts / b.ts → 只保留最新一次）。
+2. **同类时间窗合并（EG-1 拍板：窗口基准 = 该工具类最近一次实际播出时刻）**：同名工具在该类最近一次**实际播出**后 `sameToolMergeWindowMs = 10s` 窗口内的后续候选不上交，只把待上交目标持续刷新为最新（连续 Edit a.ts / b.ts → 只保留最新一次）；窗过期后由下一次快照驱动上交一条（仍受规则 3 间隔约束），被合并者不补播。拍板理由（防机关枪是本规则的目的）：若以「候选到达」为基准，首条候选即时上交后基准并不前移，同类后续候选每满 5s 间隔就各播一条——连续编辑 5 个文件会以 5s 间隔连报 5 条；以播出时刻为基准后，同类简报至多每 10s 一条（实现与守护：`toolBriefPlanner.ts` / `toolBriefPlanner.test.ts` 含 [5s,10s) 偏差区间用例）。
 3. **最小间隔**：任意两条已播简报间隔 ≥ `minGapMs = 5s`；不足则丢弃，**不排队**（简报是可丢弃的增强信息，排队会造成播报积压）。
 4. **只播最新**：窗口内多条候选只保留最新一条，被合并者不补播。
 5. **不打断正文与权限段（FD-3）**：简报永不打断正在播的轮尾正文/权限内容；插播点仅限播报腿 AnnIdle 或**正文句间空隙**——让位条件 = 无待播正文**且无待播权限段**，二者齐备才消费。uninterruptible 段的粒度 = **整段**（一次权限请求的完整播报：标题+问题文本），权限段内句间空隙不开放简报插播（否则简报插进被标记 uninterruptible 的权限序列，打断词通道的失效窗口被拉长且边界模糊）；连续权限段背靠背连播，段间同样不插简报。
@@ -475,7 +475,7 @@ composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文�
 
 **zh-CN**
 
-1. **语音识别引擎与数据去向**：听写默认使用浏览器/系统内置语音识别（Web Speech API），音频与转写由该引擎的云服务处理，Drora 不额外存储音频；若切换为其他引擎，此处会如实标注其数据处理方。
+1. **语音识别引擎与数据去向**：听写默认使用浏览器/系统内置语音识别（Web Speech API），音频与转写由该引擎的云服务处理，Drora 不额外存储音频；若切换为其他引擎，此处会如实标注其数据处理方。**（2026-10-23 增补，§9.6.5 落地配套）配置云厂商 TTS 后，设置面数据流披露（voice.settings.vendor.dataHandler）如实标注：助手回复正文、权限请求摘要与工具简报目标会发送给该厂商处理。**
 2. **口述文本的持久化与流转**：您确认发送后的口述内容与键盘输入完全同等对待——进入会话记录、可随会话导出或分享、不会自动删除。口述可能包含密码、路径等敏感信息，发送前请在输入框中审阅。
 3. **麦克风边界**：麦克风仅在您点按麦克风按钮后开启，录音期间界面持续显示录音指示，按 Esc 或再次点按立即停止；Drora 没有任何后台监听或免提常开模式；日志不记录转写原文与音频数据。
 
@@ -715,6 +715,153 @@ voice.interrupt.hint                          # Phase 2
 
 触发条件：Phase 2 验证「用户要在 agent 跑工具时说话」核心假设。范围：音频留档（chatAttachments audio 序列化分支 + attachmentRead 白名单扩展 + artifact 引用，改动前全链 grep）与 Host 内实时双工旁路 sidecar（照 remoteMediaPreviewProxy lease+TTL+并发上限先例）。音频不过 relay/v4 wire；隐私合规（OQ-7）与自建 relay-server 对照在独立 spec 决策。验收由该 spec 定义。
 
+### 9.6 Phase 2 批次一：厂商对接与接口完善（2026-10-23 增补，工作树 feat/voice-agent-phase1）
+
+增补性质：本章在 Phase 1 落地（附录 C 记录的批次）之后，对 §9.4 Phase 2 清单做批次切分并裁决「厂商对接与接口完善」批次的全部设计面。**不改写任何既有冻结裁决**；本章新增裁决自增补日起纳入头部冻结范围，标注「建议，待拍板」条目除外。与 §9.4 的关系：本批次实施 §9.4 新建表中的 `remoteAsrAdapter`（原注「TV-1 spike 结果决定是否需要」——TV-1 是 Phase 1a SpeechRecognition 可用性 spike，与远程 ASR 无关，该注作废，以本章为准）与 `toolBriefPlanner`，以及 busy 语义验收；§9.4 的手机入口行、权限语音消费行（待 OQ-4）不在本批次（见 9.6.9）。证据约定同头部；本轮新增核验见附录 D。
+
+#### 9.6.1 厂商与协议：第一适配面（裁决）
+
+**裁决：第一适配面 = 「OpenAI 兼容音频端点族」整段 HTTP 批量（ASR: `POST {baseUrl}/audio/transcriptions`，TTS: `POST {baseUrl}/audio/speech`），多厂商经 baseUrl/model/apiKey 三元组可配置，不按厂商写死适配器；流式 WS 与非 OpenAI 兼容格式只留扩展位（9.6.4/9.6.9）。**
+
+端点事实（本轮一手核验，详见附录 D）：
+
+| 端点 | 认证/请求 | 模型与响应 | 出处 |
+|---|---|---|---|
+| `POST https://api.openai.com/v1/audio/transcriptions` | Bearer；multipart/form-data（file + model） | model ∈ {whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe}；参数含 language/prompt/response_format（json/text/srt/verbose_json/vtt）；webm 在支持格式列表 | developers.openai.com API reference「Create Transcription」与 Speech-to-Text 指南（WebSearch 摘要，2026-10-23） |
+| `POST https://api.siliconflow.cn/v1/audio/transcriptions` | Bearer；multipart/form-data（file + model） | model ∈ {FunAudioLLM/SenseVoiceSmall, TeleAI/TeleSpeechASR}；响应 `{"text": string}`；≤50MB / ≤1h | docs.siliconflow.cn「创建语音转文本请求」（webReader 全文抓取，2026-10-23） |
+| `POST https://api.siliconflow.cn/v1/audio/speech` | Bearer；JSON（model/input/voice/response_format∈{mp3,opus,wav,pcm}/speed/gain/sample_rate/stream） | 响应 = 二进制音频；speed 0.25–4.0；文档样本模型 fnlp/MOSS-TTSD-v0.5，body 另有 CosyVoice2-0.5B 页签 | docs.siliconflow.cn「创建文本转语音请求」（webReader 全文抓取，2026-10-23） |
+
+依据：
+
+1. **批量形态与 v1 交互严格同构**：调研报告 §7.2 已核验 OpenAI Chat Completions 音频「整段音频进出（`input_audio` 分片 + `message.audio{data,transcript}`），非流式会话，适合异步整段」——push-to-talk 批量（9.6.4）正是整段进出；整段 HTTP 不引入任何会话/帧协议，与冻结 §1.2「不新增音频帧通道」同向。
+2. **多厂商横移成本最低**：调研报告 §6.6 核验「端到端事件协议正向 OpenAI Realtime 风格收敛……学会一套事件族即可低成本横移多家供应商」——音频端点族同理；流式扩展位届时按同一事件族风格预留，不另造协议。
+3. **默认厂商建议（建议，待拍板）**：SiliconFlow——双腿同域 OpenAI 兼容、ASR/TTS 模型即调研 §4.2 的 FunAudioLLM 系（SenseVoiceSmall / CosyVoice2，与 §1.3「全中文栈 FunASR+CosyVoice」血统一致），且 **CORS preflight 本轮实测放行**（`Access-Control-Allow-Origin: *`，附录 D）。备选：① OpenAI 官方 transcriptions（海外/英文优先；其 CORS 本环境不可达未能核验，引入前须过 OQ-8 spike）；② 任意自托管 OpenAI 兼容网关（自托管面即调研 §1.3 中文栈路线的自托管部署；FunASR/CosyVoice 仓库本身只核验到「runtime WebSocket 服务」等事实，其 OpenAI 兼容 facade 属实现侧工作，不在调研核验范围）。
+4. **明确排除**：GLM-4-Voice 直连——调研 §4.2「2024-12 后停更」+ §4.5「商用需在开放平台登记」；MiniMax——调研 §6.2「未检索到公开的实时语音对话协议文档」，公开面仅 T2A 合成（可作未来 TTS 备选格式，v1 不做多格式适配）。开源权重自托管（SenseVoice/CosyVoice 仓库）不作为「厂商」，按备选②的自托管网关形态接入。
+
+#### 9.6.2 凭据与配置面（裁决）
+
+**裁决：复用既有两套存储，零新凭据机制——baseUrl/model 等**非秘密**配置进 appSettings（voice 键区 additive），apiKey 进 `ICredentialService`（host 侧加密凭据，renderer 经既有 `useCredentials` hook 读写）；不进 LLM provider registry，不进 appSettings 明文。**
+
+证据与理由：
+
+1. **不进 provider registry**：provider 配置域是 LLM 模型域——`providerApiTypeDataSchema` 枚举仅 `anthropic-messages / openai-chat-completions / openai-responses`（`packages/provider/src/config/provider-data-schema.ts:4-8`），连通性测试是模型测试（`providerFacadeServices.ts:67-71` testModelConnectivity），配置面（baseUrl/apiKey 编辑：`InlineEditableProviderCard.tsx:193/:241`、`ProviderDraftSave.ts:46-62`、`ApiKeyInput.tsx:20-40` password 形态）全部围绕 model membership 与 registry 资格。语音厂商档塞进去会牵动 model-selection/registry 语义，收益为零。**复用的是 pattern（baseUrl+apiKey 输入形态、配置/凭据分层），不是 registry 本体。**
+2. **apiKey 不进 appSettings**：appSettings 全 schema 无任何 apiKey 字段（`validationAppSettings.ts` grep 零命中，附录 D）；appSettings 走 protocol.ts wire 面跨窗口同步，秘密不宜上 wire。
+3. **既有凭据通道全链在仓**：契约 `ICredentialService`（`packages/services/src/credential/credential.ts:1-15`，实现端负责加密、renderer 只经 RPC）；实现为 app config 目录 `credentials.json` + cipherProvider 加密 + 跨进程文件锁（`credentialService.ts:19-34/:139-154`）；UI 既有消费 hook `useCredentials`（`packages/ui/src/hooks/useCredentials.ts:9-16`）与命名空间键先例 `oauth:${family}:access_token`（`useCodingPlanEntryPlanList.ts:49`）。
+4. **配置键 additive 四枚**（进 `VOICE_SETTINGS_KEYS`，parity 单测同步扩展，照 `contracts/voice.ts:20-29` 现状）：
+
+```ts
+// contracts/voice.ts 本批次 additive：
+vendorBaseUrl: "voiceVendorBaseUrl",      // 厂商档根地址（双腿共用），default ""
+asrVendorModel: "voiceAsrVendorModel",    // ASR model id（如 FunAudioLLM/SenseVoiceSmall），default ""
+ttsEngine: "voiceTtsEngine",              // "system" | "cloud"，default "system"
+ttsVendorModel: "voiceTtsVendorModel",    // TTS model id，default ""
+// 凭据键（持久化键前缀，AGENTS.md 契约键单一出处；照 oauth: 命名空间先例）：
+export const VOICE_VENDOR_CREDENTIAL_KEY = "voice:vendor:api-key";
+```
+
+   `voiceAsrEngine` 既有枚举 `["webSpeech","remote"]`（validationAppSettings.ts:537/:669）不动；TTS 引擎新增 `voiceTtsEngine`。双腿共用单一厂商档（baseUrl + 一枚凭据）是 v1 裁决：默认厂商双腿同域（9.6.1），用户「换厂商」只改一档；双腿异厂商的拆档 = 后续 additive 加键（键先进常量区、消费方后接）。
+5. **厂商档完整判定**（选型函数纯谓词，9.6.6 消费）：`baseUrl.trim() && asrVendorModel.trim() && apiKey.trim()`（TTS 腿用 `ttsVendorModel`）。设置面 = `VoiceSection.tsx` 内厂商档分组（照 model-provider-section 的 ApiKeyInput password 形态，凭据经 useCredentials 读写）；`remote` 引擎选项仅在 ASR 厂商档完整时可选（消除无实现/无配置的可选态，照 `VoiceSection.tsx:125-129` disabled 占位先例）。
+6. **隐私边界延伸**：§7.1 硬边界（不落音频、不落转写原文）延伸到 apiKey 与 Authorization 头——任何日志级别不落凭据；厂商错误对象透传 message 前须确认不含请求头。§6.2 披露 1「若切换为其他引擎，此处会如实标注其数据处理方」在本批次落地：任一云引擎开启且 baseUrl 非空时，设置面渲染该 baseUrl 为数据处理方。
+
+#### 9.6.3 网络通道：renderer 直连（裁决）
+
+**裁决：语音厂商调用一律由 renderer 进程直连厂商（浏览器 fetch），不经 host 代理、不经任何 Drora 协议通道；音频在本机（桌面 Chromium / 浏览器）内直接到厂商。**
+
+证据与理由：
+
+1. **决定性约束（远程语义）**：web/手机远控的 host 服务通道经 relay；若厂商调用在 host 侧，音频必须走 renderer→relay→host，直接违反冻结 §1.2「Phase 1/2 音频不过 relay、不过 v4 wire」与 §8.3「音频从不过 relay，过线的是文本」。renderer 直连使桌面/远控/手机三 surface 同一路径，构造性满足两处冻结。
+2. **renderer 直连外部 URL 有仓内先例**：`cloudLottieRuntime.ts:36`（外部资源 fetch，`credentials:"omit", redirect:"error"` + 2MB 上限）、`mcpStatusProbe.ts:51`（renderer fetch 探测**用户配置的任意 baseUrl**——与语音厂商档同构）。市场索引、更新检查、captcha solver 分别走 CLI/host/Main 进程（`packages/desktop/src/main/autoUpdater.ts`、`captchaSolverWindow.ts`），属 agent/宿主流量，不构成「外部 HTTP 必须代理」的先例。
+3. **代理与证书免费继承**：桌面 defaultSession（app renderer 出口）已按设置页代理显式收敛（`desktopNetworkPolicy.ts:56-74` fallback `direct`，注释「Drora 自身对后端与模型 API 的出口，收敛到设置页的显式配置」；:103 setProxy；:107-110 自定义 CA verify proc）——renderer 直连的厂商流量自动走同一代理/CA 策略。host 侧 fetch 则是另一套 env 代理体系（`agentProxyEnv.ts:11-22` HTTPS_PROXY；`nodeApiNetwork.ts:99` 注释「Host 是独立 Node 进程，Electron Session.setProxy 不会影响它的 globalThis.fetch」）——语音若走 host，桌面（session 代理）与远程（env 代理不可达）行为必然分叉。
+4. **可行性事实**：主 renderer 入口 `packages/web/index.html` 无 CSP meta（全文读取，connect-src 无限制）；全仓 `webSecurity` 无一处禁用（grep 仅两处显式 `true`：pluginSandbox/guestPolicy.ts:45、electronBrowserWebmRecorder.ts:298）。
+5. **代价与缓解（如实记录）**：CORS 是每厂商属性，直连仅在厂商允许浏览器来源时可用——默认厂商已实测放行（9.6.1-3、附录 D）；其他厂商连接失败走回退树（9.6.6）+ warn，不阻塞功能。厂商 CORS/容器格式能力矩阵列 **OQ-8（新增，keptOpen）**，**TV-8（新增）：默认厂商端到端连通性 spike 为本批次实施前置**（真实凭据直调两端点 + 桌面 renderer 环境 CORS 实测；SiliconFlow transcriptions 的容器格式支持列表本轮未抓取到，MediaRecorder 产出的 webm/opus 可用性以 spike 为准）。
+
+#### 9.6.4 远程 ASR v1 形态：push-to-talk 批量（裁决）
+
+**裁决：v1 = 批量整段转写。录音期间 MediaRecorder 本机收集；`stop()` 时整段上传，响应文本经既有 `onFinal` 交付一次；`onPartial` 永不发射。流式 WS 只留扩展位。**
+
+1. **final 语义不变**：适配器实现既有 `VoiceAsrPort/VoiceAsrSession` 契约（`packages/ui/src/voice/voiceAsrPort.ts:34-63`，Phase 1a 已含 additive 的 `onFinal/onError`），`stop(): Promise<{final}>`、`onFinal` 逐句通道、`onError` 错误码语义（§5.3）零改动；下游 `useVoiceDictation.ts:250-266` 的错误处置与注入链（mode=append + 打断词分类）零改动。`input-intent.ts` engine 枚举 `"remote"`（:46-64 voiceInputSourceSchema 已落地）不区分批量/流式，wire 语义不变。
+2. **v1 行为差异（如实记录，非缺口）**：① 无 partial——听写预览条（§5.2）空转，清除按钮行为不变；② 打断词命中判定从「句级实时」（§5.1）退化为「stop 时对整段 final 判定」——判定点与分类逻辑不变，判定时机变化；push-to-talk 下开停由用户手势控制，可接受。媒体参数：`VoiceAsrStartParams.lang` 映射端点 language 参数（格式转换在适配器内）、`hints` 映射 prompt 偏置（端点支持时，如 OpenAI transcriptions 的 `prompt`），不支持即忽略（照 webSpeech 适配器对 hints 的先例，webSpeechAsrAdapter.ts 文件头）。
+3. **流式 WS 扩展位**：`VoiceAsrPort` 不变；未来流式 = 新适配器成员 + 选型函数加分支 + engine 语义按需细化，协议形态按调研 §6.6 OpenAI Realtime 事件族风格（`session` / `input_audio_buffer.*` / `response.*`）预留——届时独立增补本 spec，不预写无依据的帧格式。
+
+#### 9.6.5 云 TTS v1 形态（裁决）
+
+**裁决：v1 = 逐句批量合成。`speechSynthesisTtsAdapter` 之外新增 `cloudTtsAdapter` 实现同一 `VoiceTtsPort`（`voiceTtsPort.ts:24-34` 零改动）；句切分/排队/暂停续播仍全部归 `turnSpeechPlanner`。**
+
+1. `speak(u)` → `POST {baseUrl}/audio/speech`（JSON：`model=voiceTtsVendorModel`、`input=u.text`、`voice=u.voice ?? 缺省`（复用既有 `voiceAnnouncementVoice` 作为厂商音色 id）、`speed=u.rate ?? 1` 映射端点 speed 0.25–4）；响应二进制音频在 renderer 解码播放；`u.lang` v1 不映射（默认厂商模型自判定语种，调研 §4.2 CosyVoice 多语种）。
+2. 引擎选择在**播报腿解析点**（AnnIdle→Speaking 进入、设置变更、renderer 装配）解析一次：`voiceTtsEngine="cloud"` 且 TTS 厂商档完整 → cloud；否则 speechSynthesis（Phase 1b 行为逐字段不变）。`useVoiceAnnouncement.ts:133` 现状硬编码 `createSpeechSynthesisTtsAdapter()` 是本批次唯一接线点。
+3. 失败语义：单句请求失败 = 既有「跳过坏句继续推进」（`turnSpeechPlanner.ts:322-325`）+ voice.tts warn，**不在播报中途换系统引擎重播同一句**（避免同会话混音色）；连续 `VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES`（voiceTuning.ts 新常量，初值 3，调参面不冻值）句失败 → 中止本轮播报回 AnnIdle + warn，本次 renderer 会话内后续播报回落 speechSynthesis，至下一引擎解析点恢复。引擎选择结果落 §7.1 既有 voice.tts info 槽位（首次播报启动记引擎名+语言）。
+4. **数据流披露（§6.2 配套，2026-10-23 实施轮补记）**：cloud 引擎开启且厂商档完整时，设置面数据流披露（voice.settings.vendor.dataHandler）如实标注：助手回复正文、权限请求摘要与工具简报目标会发送给该厂商处理（发送面 = speak(u.text) 的全部文本来源；§7.1 硬边界不变——日志仍不落这些内容）。
+
+#### 9.6.6 引擎选择与回退树（裁决）
+
+```mermaid
+flowchart TD
+    A[点按 mic] --> B{voiceAsrEngine}
+    B -->|webSpeech| W[webSpeechAsrAdapter：Phase 1a 现状路径零变化]
+    B -->|remote| C{厂商档完整? baseUrl+asrVendorModel+apiKey}
+    C -->|否| W2[webSpeech + voice.asr info 记录选择结果<br/>现状行为完全不变]
+    C -->|是| R[remoteAsrAdapter 起录]
+    R -->|start 失败：预检/网络| W3[本次点按以 webSpeech 起录 + voice.asr warn<br/>回退发生在用户手势同一动作内，不构成 §5.3 自动重启]
+    R -->|录音中厂商请求失败| E[onError network → 既有 §5.3 处置：<br/>保留已注入文本 + 提示 + 不自动重启不换引擎；下次点按重新选型]
+```
+
+- **未配置厂商 → 现有 web speech 行为完全不变**：选型纯函数（`packages/ui/src/voice/resolveAsrAdapter.ts` 新文件）对 webSpeech 路径返回既有适配器实例，行为差异为零；设置面 `remote` 选项档未完整时不可选（9.6.2-5）。
+- **TTS 对称规则**（9.6.5-2/-3）：未配置 → speechSynthesis 完全不变；播报中厂商失败 → 跳句 warn，连续失败中止并回落。
+- 选型结果与回退事件全部落 §7.1 既有槽位（voice.asr info=「适配器选择结果」、warn=错误码），无新 scope。
+
+#### 9.6.7 工具简报与 busy steer/queue 落点（裁决确认）
+
+1. **工具简报**：实现 §4.2 六规则合并限流（EG-1）——新建 `packages/ui/src/voice/toolBriefPlanner.ts`（同类 10s 窗 / 最小间隔 5s / 只播最新 / 每 turn ≤6 / 仅 AnnIdle 或正文句间且无待播权限段才插播 / 权限整段 uninterruptible 内外边界照 FD-3），阈值常量落 `voiceTuning.ts`（§4.2 已定调参面）；触发源 = ToolCall 行「从无到有」提交事件（§4.2-1，消费现有 conversation 投影，不建第二事件流）；开关消费走既有 `voiceToolBriefEnabled`（设置面开关与 i18n 键已落地：VoiceSection.tsx:63/:199-206、voiceI18nKeys.ts:57），缺的只有 planner 与播报腿消费接线；文案模板 `voice.brief.*`（§6.3 已预留）。
+2. **busy 语音 steer/queue = 零新协议，走既有 CommandInbox admission**：语音 final 注入 composer 后由用户手动发送（§5.1 冻结不变），sendText 载荷**不带** `requestedDelivery`（SessionPane.tsx:3727 仅显式传参时携带）；CLI 侧 `session-flow.ts:88-99` 以 `payload.requestedDelivery ?? (routingMode==="guide" ? "guide" : routingMode==="enqueue" ? "queue" : "startNow")` 裁决，inputRouting=guide 时经既有 guide drain、enqueue 时进 queue——语音文本与键盘文本同路、无第二条输入面（§4.3 映射表既有裁决，本批次只做验收与回归，无 CLI 改动）。本批次不实施 CLI source 固化（附录 C 第 2 条 CLI-first 门禁维持，语音输入继续以纯文本发送）。
+
+#### 9.6.8 本批次实现范围与逐条验收（裁决 f）
+
+**范围清单（全部 `packages/ui/src/voice/` 模块内 + shared 契约 additive + VoiceSection 扩展，零还原文件改动、零 CLI 改动）**
+
+| # | 交付物 | 内容 |
+|---|---|---|
+| S1 | `packages/shared/src/contracts/voice.ts` additive | VOICE_SETTINGS_KEYS 四键 + `VOICE_VENDOR_CREDENTIAL_KEY`；`contracts.test.ts` parity 扩展；`validationAppSettings.ts` persisted/patch 两 schema + `protocol.ts` wire 面 additive（照 :529-537/:666-668 先例） |
+| S2 | `packages/ui/src/voice/remoteAsrAdapter.ts`（+test） | 9.6.4 批量 ASR；MediaRecorder 收集 → multipart 上传 → final/onError；错误码映射 §5.3 |
+| S3 | `packages/ui/src/voice/resolveAsrAdapter.ts`（+test） | 9.6.6 选型纯函数 + `useVoiceDictation.ts:51` 单点接线（现状硬编码 createWebSpeechAsrAdapter） |
+| S4 | `packages/ui/src/voice/cloudTtsAdapter.ts`（+test） | 9.6.5 云 TTS；`useVoiceAnnouncement.ts:133` 单点接线 + 连续失败回落 |
+| S5 | `packages/ui/src/voice/toolBriefPlanner.ts`（+test） | 9.6.7-1 六规则合并限流 + 播报腿消费接线 |
+| S6 | `VoiceSection.tsx` 厂商档分组 | baseUrl/model 输入（appSettings 四键）+ apiKey（useCredentials + ApiKeyInput 形态）+ `remote`/`cloud` 选项启用条件 + 数据处理方披露渲染 |
+| S7 | i18n + 文档 | `voice.settings.vendor.*` 等新键进 zh/en + voiceI18n 守护；`packages/ui/src/voice/CONTRACT.md` 同步 |
+
+共同门禁照 §9 头（typecheck/lint 实测报告）；TV-8 spike（9.6.3-5）为 S2/S4 实施前置。
+
+**验收（断言级，逐条对应交付物）**
+
+- S1：given 新 schema，parity 单测字段集合 === VOICE_SETTINGS_KEYS 值集合通过；patch schema 缺省时 persisted default 生效（voiceTtsEngine="system"）。
+- S2：given engine=remote 且厂商档完整，when 说话后停止，则**恰好一次** `POST {baseUrl}/audio/transcriptions`（multipart file+model，Bearer 来自 ICredentialService），响应 `{text}` 经 onFinal 交付一次并注入 composer（mode=append，注入链与 webSpeech 逐字段一致）；全程零 partial；零 v4/relay 载荷含音频字节（mock transport 断言）。
+- S2：given Recording 中厂商请求失败（网络错误/非 2xx），则 onError("network") → 保留已注入文本 + 提示、不自动重启、不换引擎续录；下次点按重新选型。
+- S2：given 打断词命中整段 final，则消费为打断命令且不注入 composer（§5.1 判定点回归）。
+- S3：given engine=webSpeech，则适配器选择返回既有 webSpeech 实例，Phase 1a 验收（§9.2）全量回归通过；given engine=remote 且厂商档任一字段为空，则解析为 webSpeech + voice.asr info；given engine=remote 档完整但 start 失败，则本次以 webSpeech 起录 + warn。
+- S4：given ttsEngine=cloud 且档完整，when 轮尾终态，则逐句 POST `/audio/speech`（model/input/voice/speed 映射）且播报全文 === assistantTextRows 聚合；given 单句失败，则跳句 + warn 继续下一句；given 连续 3 句失败，则回 AnnIdle + warn 且后续轮尾回落 speechSynthesis；given ttsEngine=system，则 Phase 1b 验收（§9.3）全量回归通过。
+- S5：given 10s 窗内同工具 5 次调用，则简报 ≤1 条；given 正文播报中到达简报，则正文不打断、简报空闲插播；given 一 turn 12 个工具调用，则简报 ≤6 条；given 权限段播报中（含段间句隙）到达简报，则不插播；given `voiceToolBriefEnabled=false`，则零简报（§9.4 既有简报验收并入本批）。
+- S6：given 任一云引擎开启且 baseUrl 非空，则设置面渲染数据处理方（baseUrl）；given 档不完整，则 `remote`/`cloud` 选项不可选；apiKey 输入为 password 形态且任何日志零凭据（§7.1 延伸边界）。
+- S7：voiceI18n 三断言守护通过（新键双语一致/非空/占位符同构）。
+- busy steer/queue：given busy 且 inputRouting=guide，when 语音 final 注入后用户发送，则 sendText 无 requestedDelivery 字段且 CLI 裁决 inputAccepted(guide)；given inputRouting=enqueue，同路 → inputAccepted(queue)；given「停掉任务」命中（既有 voiceCommandBus 通道），when busy，则既有 v4 stop 带 expectedForegroundExecutionId（Phase 1b 回归断言）。
+
+#### 9.6.9 明确不做与 keptOpen（裁决 g）
+
+**本批次不做（对应清单/状态维持，不改既有裁决）**：
+
+1. **barge-in AEC 真机验收**——EG-11（防误触参数/回声护栏真机数据）与 OQ-6 维持 keptOpen；本批次远程 ASR 批量形态无并行播报拾音场景，AEC 验收仍绑定 Phase 1b 词表真机验收执行时。
+2. **原子 claim renew**——不引入原子续约原语；§3.5「TTL 5s + 周期 renew 2s + 以 claim 校正本地态」语义维持（EG-10 已闭环），重开条件 = 多窗口实测出现续约竞态双播。
+3. **播报输出设备选择**——OQ-2 维持 keptOpen（需 Main 原生层设计）。
+4. **手机端播报**——§8.2「手动触发的本地 TTS」形态裁决不变，本批次不实施；受控入口可行性 TV-7 维持 keptOpen。**手机 mic 听写入口同批延后**（§9.4 手机行延后，TV-7 前置勘察未做）。
+5. **打断词表真机定稿**——OQ-6 维持 keptOpen；本批次沿用 §4.5 词表与 9.6.4-2 批量判定时机。
+6. 流式 WS ASR、非 OpenAI 兼容格式适配器、TTS 逐句预取/缓存、双腿异厂商拆档——仅扩展位（9.6.1/9.6.4/9.6.5/9.6.2-4），实施前须增补本 spec。
+7. 权限语音 decline/cancel（§9.4 待 OQ-4 拍板）、CLI source 透传（附录 C 第 2 条）——维持。
+
+**新增 open 条目**：
+
+| # | 问题 | 为什么暂不裁决 | 重新打开的触发条件 | 责任人角度 |
+|---|---|---|---|---|
+| OQ-8 | 厂商 CORS / 容器格式能力矩阵（OpenAI 直连 preflight 本环境连接超时未能核验；SiliconFlow transcriptions 支持格式列表未抓取到） | 每厂商属性，只能实测；默认厂商已放行，第二厂商未引入 | 引入任何非默认厂商前（含 OpenAI 官方） | Phase 2 实现者 |
+| TV-8 | 默认厂商端到端连通性 spike（真实凭据直调 transcriptions/speech + 桌面 renderer 环境 CORS + MediaRecorder webm/opus 容器实测） | 需真实凭据与目标运行时，静态核验不足 | **S2/S4 实施前强制前置**（同 TV-1 之于 Phase 1a） | Phase 2 实现者 |
+
 ---
 
 ## 10. 开放问题清单（含触发条件与责任人角度）
@@ -740,7 +887,7 @@ voice.interrupt.hint                          # Phase 2
 | TV-6 残余 | 播报指示 overlay 的具体挂点与渲染性能 | 机制已裁决（行外 overlay，行组件 memo/props 零变化——ConversationRowView.tsx 现有 13 处 memo( 本轮核验）；挂点位置是工程选型 | Phase 1b「播报中指示」实施时（长会话滚动 + 播报并行渲染验证） | Phase 1b 实现者 |
 | TV-7 残余 | 受控远控 composer 能否承载手机 mic 入口 | 落位已改判 packages/web+ui 受控扩展（§8.3）；受控入口可行性未实测 | Phase 2 手机听写实施前勘察；不可行则走 DESIGN.md R3 + 上游对齐评审再立项 | Phase 2 实现者 + 架构 |
 
-已闭环不再跟踪：EG-9（§4.7 句粒度裁决冻结）、EG-10（§3.5 claim 机制冻结，参数留 voiceTuning 调优面）、EG-12（附录 B 漂移表落定）、EG-13（本文档即立项，设计报告状态改冻结属编辑性后续动作）、EG-14（§5.2 裁决，待拍板项随 Phase 1a 评审收口）、APP-1/2/3（附录出处登记，分别同 OQ-3/OQ-2/OQ-6，不重复展开）。
+已闭环不再跟踪：EG-1（§4.2 六规则拍板，合并窗基准=最近播出，守护测试含 [5s,10s) 偏差区间）、EG-9（§4.7 句粒度裁决冻结）、EG-10（§3.5 claim 机制冻结，参数留 voiceTuning 调优面）、EG-12（附录 B 漂移表落定）、EG-13（本文档即立项，设计报告状态改冻结属编辑性后续动作）、EG-14（§5.2 裁决，待拍板项随 Phase 1a 评审收口）、APP-1/2/3（附录出处登记，分别同 OQ-3/OQ-2/OQ-6，不重复展开）。
 
 ---
 
@@ -748,7 +895,7 @@ voice.interrupt.hint                          # Phase 2
 
 | id | kind | 裁决 |
 |---|---|---|
-| EG-1 | product | §4.2 六规则（触发源收窄到 ToolCall 行新增 + 同类 10s 合并 + 间隔 5s + 只播最新 + 不打断正文空闲插播 + 每 turn ≤6）。**建议，待拍板**；验收并入 Phase 2 |
+| EG-1 | open→裁决 | §4.2 六规则拍板（合并限流修复轮）：触发源收窄到 ToolCall 行新增 + 同类 10s 合并（**窗口基准 = 该工具类最近一次实际播出时刻**——防机关枪：以到达为基准会退化为每满 5s 连报）+ 间隔 5s + 只播最新 + 不打断正文空闲插播 + 每 turn ≤6。窗内候选保留待上交、目标刷新为最新，窗过期由快照驱动上交；实现 `packages/ui/src/voice/toolBriefPlanner.ts`，守护 `toolBriefPlanner.test.ts`（含 [5s,10s) 偏差区间用例） |
 | EG-2 | code | 设计报告 §4.6 断言不成立（snooze 仅 askUserQuestion、无 resume API）；Phase 1b 权限播报不触碰 interaction-registry，验收项改写；残余 pause/resume 决策 keptOpen |
 | EG-3 | product | §6.1 八开关四列表（入口默认隐藏 / 播报默认关 / 隐私披露确认门）。**建议，待拍板** |
 | EG-4 | product | §6.3 voice.* 命名空间 + 43 键清单（Phase 1a 39 + Phase 1b/2 4，含 FD-1 新增 `voice.ann.stop.aria`；定稿轮纠正初稿「35 键」误记）+ team/i18n.test.ts 三断言守护。**建议，待拍板** |
@@ -826,3 +973,23 @@ voice.interrupt.hint                          # Phase 2
 3. **§10 TV-1（Electron renderer SpeechRecognition 可用性 spike）——未执行**：需目标运行时真机实测（桌面 app 启动 + getUserMedia/SpeechRecognition 探针），本仓实施环境无法运行 Electron 桌面端。TV-1 保持「Phase 1a 听写入口真机验证前的强制前置项」；若 spike 结论为不可用，Phase 1a ASR 按 §10 备选（RemoteAsr/本地 whisper）另评。
 4. **§9.2/§9.3 验收末条（双主题 + 390px/1200px 快照）与交互 E2E——未交付**：需桌面 E2E 基建与真机运行。已交付的单测面：§4.4 Esc 仲裁顺序（composerEscapePlan 纯函数 + SessionPane/ChatPromptEditor 接线）、§3.3/FD-6 入口互斥（voiceSessionStore + useVoiceDictation wiring）、§9.3 层①/层③命令通道（voiceCommandBus + planner/wiring）。快照与 E2E 场景在桌面 E2E 基建批次补齐。
 5. **§6.1 语音八键 appSettings 持久化——已提前落地**（原列 §9.1 Phase 0 修改表）：validationAppSettings persisted/patch 两 schema + protocol.ts wire 面 + parity 单测（contracts/contract.test.ts），Phase 1a 设置面（VoiceSection）与入口 reader 已消费。
+
+## 附录 D：§9.6 增补核验记录（2026-10-23，工作树 feat/voice-agent-phase1 检出）
+
+**本轮实际读取的仓库证据**（grep/read 于 D:/workspace/projects/drora-voice-agent）：
+
+1. **provider 配置与 API key 模式**：`packages/provider/src/config/provider-config.ts:36-70`（ApiKeyAccessConfig：type/apiKey/apiKeyManagementUrl）、`:131-164`（ProviderApiConfig：type/baseUrl/headers）、`provider-data-schema.ts:4-8`（providerApiTypeDataSchema 仅 anthropic-messages/openai-chat-completions/openai-responses 三文本格式）、`:32-45`（apiKeyAccessDataSchema）；UI 读写链 `packages/ui/src/lib/providerApiKeyPersistence.ts:13-63`（经 IProviderSettingsService getView/savePersonalProviderOverlay）；服务契约 `packages/services/src/model-provider/providerFacadeServices.ts:30-71`；registry 装配在 host 侧 node 服务集合 `packages/services/src/node.ts:803/:1802`（ProviderRuntime 弱表 + createProviderRuntimeFromConfigRuntime）。设置面编辑先例：`InlineEditableProviderCard.tsx:193/:241`、`ProviderDraftSave.ts:46-62`、`ApiKeyInput.tsx:20-40`（password 形态）、`ProviderApiFormatSelect.tsx:7-11`（连接 API 格式三选一——均为文本 LLM 格式）。
+2. **凭据通道**：契约 `packages/services/src/credential/credential.ts:1-15`（ICredentialService load/save/delete，实现端加密）；实现 `credentialService.ts:19-34`（credentials.json + cipherProvider，头注「当前持久化格式仍是 JSON，但 value 会在写入前加密」）、`:139-154`（跨进程文件锁 whole-file read-modify-write）；UI 消费 `packages/ui/src/hooks/useCredentials.ts:9-16`、命名空间键先例 `useCodingPlanEntryPlanList.ts:49`（`oauth:${family}:access_token`）；`packages/client/src/globals.d.ts:71`（「凭据管理已迁移到 ICredentialService（通过 RPC）」）。
+3. **appSettings 无秘密先例**：`packages/shared/src/validationAppSettings.ts` grep `apiKey` 零命中；语音键现状 :529-537（persisted，voiceAsrEngine enum ["webSpeech","remote"] default webSpeech）/ :666-668（patch）。
+4. **renderer 外部 HTTP 先例**：`packages/ui/src/components/cloud-content-dialog/cloudLottieRuntime.ts:36`（fetch 外部 URL，credentials:"omit"、redirect:"error"、2MB 上限）；`packages/ui/src/lib/mcpStatusProbe.ts:51`（fetch 用户配置 URL 探测 + AbortController 超时）。对照：更新检查 `packages/desktop/src/main/autoUpdater.ts`（Main）、captcha `packages/desktop/src/main/captchaSolverWindow.ts`（Main 窗口）——宿主流量不构成代理先例。
+5. **网络策略与可行性**：`packages/desktop/src/main/desktopNetworkPolicy.ts:56-74`（defaultSession fallback direct + 注释「Drora 自身对后端与模型 API 的出口，收敛到设置页的显式配置」）、`:103`（setProxy）、`:107-110`（自定义 CA verify proc）；host 侧 env 代理 `packages/services/src/runtime-tools/agentProxyEnv.ts:11-22`、`nodeApiNetwork.ts:99`（「Host 是独立 Node 进程，Electron Session.setProxy 不会影响它的 globalThis.fetch」）；`packages/web/index.html` 全文无 CSP meta；grep `webSecurity` 全仓仅两处显式 `true`（pluginSandbox/guestPolicy.ts:45、browserView/electronBrowserWebmRecorder.ts:298）。
+6. **语音模块现状（Phase 1 已落地面）**：`packages/ui/src/voice/` 目录清单（voiceAsrPort/voiceTtsPort/webSpeechAsrAdapter/speechSynthesisTtsAdapter/turnSpeechPlanner/voiceCommandBus/useVoiceDictation/useVoiceAnnouncement 等 33 文件）；`voiceAsrPort.ts:34-63`（端口 + onFinal/onError additive）；`voiceTtsPort.ts:24-34`；`useVoiceDictation.ts:51`（createWebSpeechAsrAdapter 硬编码接线点）、`:250-266`（§5.3 错误处置已实现）；`useVoiceAnnouncement.ts:133`（createSpeechSynthesisTtsAdapter 硬编码接线点）；`turnSpeechPlanner.ts:322-325`（error 跳句 warn）；`voiceTuning.ts:9-36`（六常量）；`VoiceSection.tsx:63/:100-130/:199-206`（asrEngine 选择器含 remote disabled 占位 :125-129、toolBrief 开关已落地）；`contracts/voice.ts:16-39`（VOICE_INPUT_SOURCE_KIND/VOICE_SETTINGS_KEYS 八键/claim 两键）；`validationAppSettings.ts:537/:669`。
+7. **CLI busy 路由链**：`packages/shared/src/drora-protocol-v4/command.ts:88-95`（sendText requestedDelivery enum ["startNow","queue","guide"] optional）；`packages/ui/src/v4/SessionPane.tsx:3727/:3731-3736`（仅显式传参时携带 requestedDelivery）；`apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/session-flow.ts:88-99`（routingMode + requestedDelivery + evidence-safe delivery 裁决）；`apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/command-inbox.ts`（CommandInbox）；`packages/shared/src/drora-protocol-v4/input-intent.ts:46-64`（voiceInputSourceSchema 已落地，shared 侧）。
+
+**本轮执行的外部核验**（2026-10-23）：
+
+8. `curl -s -i -X OPTIONS https://api.siliconflow.cn/v1/audio/transcriptions`（Origin: http://localhost:5173, Access-Control-Request-Method: POST）→ `HTTP/1.1 204`，响应头 `Access-Control-Allow-Origin: *`、`Access-Control-Allow-Headers: *`、`Access-Control-Allow-Methods: GET,POST,DELETE,PUT,PATCH`、`Access-Control-Max-Age: 43200`——默认厂商 CORS preflight 实测放行（本机网络环境，非目标用户环境）。
+9. `curl -X OPTIONS https://api.openai.com/v1/audio/transcriptions`（同 preflight 头）→ 连接超时（`http_code=000`，exit 28，~21s）——本环境不可达，OpenAI CORS **未能核验**，列 OQ-8。
+10. OpenAI transcriptions 端点事实（`POST /v1/audio/transcriptions`：Bearer + multipart file/model，model ∈ {whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe}，language/prompt/response_format 参数，webm 在支持格式列表）：developers.openai.com「Create Transcription」API reference 与 Speech-to-Text 指南，经 WebSearch 结果摘要核验（未直接抓取原页）。
+11. SiliconFlow 双端点事实（transcriptions：Bearer + multipart file/model，model ∈ {FunAudioLLM/SenseVoiceSmall, TeleAI/TeleSpeechASR}，响应 `{"text"}`，≤50MB/≤1h；speech：Bearer + JSON model/input/voice/response_format/speed(0.25–4)/gain/stream，响应二进制音频，样本模型 fnlp/MOSS-TTSD-v0.5、CosyVoice2-0.5B 页签）：docs.siliconflow.cn 官方 API 文档两页，经 webReader 全文抓取核验；**transcriptions 支持的容器格式列表未在抓取内容中出现**，MediaRecorder webm/opus 可用性列 TV-8 spike。
+12. 调研报告引用（`docs/voice-agent-research-2026-10-22.md`，本仓文件）：§6.6 事件协议收敛、§7.2 Chat Completions 整段音频「适合异步整段」、§4.2 GLM-4-Voice 停更 2024-12 + 商用登记（HF 协议）、§4.5 许可红线（SenseVoiceSmall 自定义 model-license、CosyVoice2-0.5B Apache-2.0 存疑、CosyVoice 3.0 未核）、§6.2 MiniMax 无公开 S2S 协议文档仅 T2A、§1.3 中文栈自托管路线。调研报告对「各厂商 OpenAI 兼容 /v1/audio/* 端点覆盖面」未核验——本附录 8-11 为本轮补核，覆盖面仍以各家文档为准。

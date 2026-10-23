@@ -14,6 +14,7 @@ import { TID_VOICE_ANN_STOP } from "@drora/shared/test-ids";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { VoiceAnnouncementPhase } from "@/store/voiceSessionStore.js";
 
+/** 指示器 props（SessionPane 挂载传 phase/stop 回调）。@lintignore */
 export interface AnnouncementIndicatorProps {
   phase: VoiceAnnouncementPhase;
   /** FD-1 层①：点按 = planner.notifyStopPressed()，静音不取消任务。 */

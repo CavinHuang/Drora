@@ -25,11 +25,12 @@ import {
   isVoiceLastDictationFresh,
   useVoiceSessionStore,
 } from "@/store/voiceSessionStore.js";
-import { VOICE_LAST_DICTATION_TTL_MS } from "./voiceTuning.js";
+import { VOICE_LAST_DICTATION_TTL_MS, VOICE_NOTICE_VISIBLE_TTL_MS } from "./voiceTuning.js";
 import { DictationPreviewOverlay } from "./DictationPreviewOverlay.js";
 import { VoicePrivacyDisclosureDialog } from "./VoicePrivacyDisclosureDialog.js";
 import { useVoiceComposerEntry, useVoiceDictationSnapshot } from "./useVoiceComposerEntry.js";
 
+/** 入口组件 props（ConversationComposer leadingActions 挂载）。@lintignore */
 export interface V4ComposerVoiceEntryProps {
   /** mic 入口所在会话（按下即捕获为绑定目标；草稿 composer 为 null）。 */
   sessionId: string | null;
@@ -102,6 +103,29 @@ function V4ComposerVoiceEntryMounted({
     return () => clearTimeout(timer);
   }, [snapshot.lastDictation]);
 
+  // 修复轮 F1：notice 写入与「回 idle」同批（inputLeg 非 recording），渲染入口若只认
+  // recording 则六种提示零可见帧——扩为「绑定入口 + 未过期 notice 也渲染预览条」；
+  // TTL 到期安排重渲染并清 store（§9.2 用户可见 + voiceTuning 注释的选择理由）。
+  const [noticeExpired, setNoticeExpired] = useState(false);
+  useEffect(() => {
+    setNoticeExpired(false);
+    const notice = snapshot.notice;
+    if (!notice) {
+      return;
+    }
+    const remaining = VOICE_NOTICE_VISIBLE_TTL_MS - (Date.now() - notice.at);
+    if (remaining <= 0) {
+      setNoticeExpired(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setNoticeExpired(true);
+      // §9.2 自然消退后清 store，不留陈旧 notice（下次起录 startMicRequest 也会清除）。
+      useVoiceSessionStore.getState().clearNotice();
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [snapshot.notice]);
+
   if (!view.visible) return null;
 
   // §3.3/FD-6：停止态只属于绑定入口——他人 pane 录音时本入口仍显示普通 mic
@@ -160,15 +184,19 @@ function V4ComposerVoiceEntryMounted({
     </Button>
   );
 
+  // 修复轮 F1：notice 在 idle 态也可见——notice 写入与「回 idle」同批且 boundSessionId
+  // 同批清空，故不能按绑定归属过滤（否则仍零可见帧）；v1 简化：任一挂载入口都显示
+  // 未过期 notice（单 composer 主场景仅一个挂载点；双 pane 双显为已记录的 v1 简化）。
+  const noticeVisible = snapshot.notice != null && !noticeExpired;
   return (
     <div className="relative inline-flex items-center">
-      {/* 录音指示（绑定 pane，§3.2 note：常驻显示绑定会话名）+ 预览条（§5.2）。 */}
-      {recording && isBoundEntry ? (
+      {/* 录音指示/预览条（绑定 pane，§3.2/§5.2）+ notice 提示（不依赖绑定归属，F1）。 */}
+      {isBoundEntry || noticeVisible ? (
         <DictationPreviewOverlay
-          bound
+          bound={recording && isBoundEntry}
           inputLeg={snapshot.inputLeg}
           partialText={snapshot.partialText}
-          notice={snapshot.notice}
+          notice={noticeVisible ? snapshot.notice : null}
           onClearPartial={() => useVoiceSessionStore.getState().setPartial("")}
           onDismissNotice={() => useVoiceSessionStore.getState().clearNotice()}
         />

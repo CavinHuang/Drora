@@ -19,10 +19,13 @@ import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 import { logger } from "@/logger.js";
 import { classifyVoiceDictationFinal } from "./interruptionWords.js";
 import { dispatchVoiceCommand } from "./voiceCommandBus.js";
+import { createRemoteAsrAdapter } from "./remoteAsrAdapter.js";
+import { resolveAsrEngineChoice } from "./resolveAsrAdapter.js";
 import { createWebSpeechAsrAdapter } from "./webSpeechAsrAdapter.js";
-import type { VoiceAsrSession } from "./voiceAsrPort.js";
+import type { VoiceAsrPort, VoiceAsrSession } from "./voiceAsrPort.js";
 import { VOICE_REQUESTING_MIC_TIMEOUT_MS } from "./voiceTuning.js";
 
+/** hook 参数形状（V4ComposerVoiceEntry 接线用）。@lintignore */
 export interface UseVoiceDictationParams {
   /** mic 入口所在会话（按下即捕获为绑定；录音期间不变，§3.4）。草稿 composer 为 null。 */
   sessionId: string | null;
@@ -32,10 +35,21 @@ export interface UseVoiceDictationParams {
   lang: string;
   /** 请求开始听写（已过隐私确认门）；返回 false = 门拦截本次动作（FD-5 中止语义）。 */
   requestStart: () => boolean;
+  /**
+   * §9.6.6 引擎选型（additive，缺省 "webSpeech"：Phase 1a 行为逐字段不变）。
+   * engine="remote" 且厂商档完整时以 remoteAsrAdapter 起录；档不完整回退 webSpeech +
+   * info，remote start 失败本次以 webSpeech 起录 + warn（回退发生在用户手势同一动作内）。
+   */
+  asrEngine?: "webSpeech" | "remote";
+  /** 厂商档非秘密配置（§9.6.2）；engine=remote 时与 getVendorApiKey 一起参与完整判定。 */
+  vendor?: { baseUrl: string; model: string };
+  /** 厂商档 apiKey 读取（经凭据服务 VOICE_VENDOR_CREDENTIAL_KEY；null/空 = 档不完整）。 */
+  getVendorApiKey?: () => Promise<string | null>;
 }
 
 let voiceEntrySequence = 0;
 
+/** hook 返回控制器形状（V4ComposerVoiceEntry 消费）。@lintignore */
 export interface VoiceDictationController {
   /** 点按 mic：idle→RequestingMic（经隐私门）/ 录音中→手动停止。 */
   toggleMic: () => void;
@@ -47,8 +61,56 @@ export function useVoiceDictation({
   workspaceIdentity,
   lang,
   requestStart,
+  asrEngine = "webSpeech",
+  vendor,
+  getVendorApiKey,
 }: UseVoiceDictationParams): VoiceDictationController {
-  const adapter = useMemo(() => createWebSpeechAsrAdapter(), []);
+  const webSpeechAdapter = useMemo(() => createWebSpeechAsrAdapter(), []);
+  const vendorRef = useRef(vendor);
+  vendorRef.current = vendor;
+  const getVendorApiKeyRef = useRef(getVendorApiKey);
+  getVendorApiKeyRef.current = getVendorApiKey;
+  const asrEngineRef = useRef(asrEngine);
+  asrEngineRef.current = asrEngine;
+  // §9.6.6：remote 适配器惰性创建（settings 关闭/缺省场景零构造开销；单实例保会话语义）。
+  const remoteAdapterRef = useRef<ReturnType<typeof createRemoteAsrAdapter> | null>(null);
+  const pickAsrAdapter = useCallback(async (): Promise<VoiceAsrPort> => {
+    const engine = asrEngineRef.current;
+    if (engine !== "remote") {
+      return webSpeechAdapter;
+    }
+    if (!remoteAdapterRef.current) {
+      remoteAdapterRef.current = createRemoteAsrAdapter({
+        getVendorConfig: () => {
+          const vendorConfig = vendorRef.current;
+          if (!vendorConfig) {
+            return null;
+          }
+          // 厂商档三元组的 apiKey 分量在 runAsrSelection 内读取后暂存本轮闭包；
+          // 录音期间设置热更由 §9.6.4 的「档不完整 → network」出边兜底。
+          return { ...vendorConfig, apiKey: pendingApiKeyRef.current ?? "" };
+        },
+      });
+    }
+    const vendorConfig = vendorRef.current;
+    const apiKey = (await getVendorApiKeyRef.current?.().catch(() => null)) ?? null;
+    pendingApiKeyRef.current = apiKey;
+    const choice = resolveAsrEngineChoice({
+      engine: "remote",
+      vendorConfigComplete:
+        Boolean(vendorConfig?.baseUrl.trim()) &&
+        Boolean(vendorConfig?.model.trim()) &&
+        Boolean(apiKey?.trim()),
+      remoteSupported: remoteAdapterRef.current.isSupported(),
+      webSpeechSupported: webSpeechAdapter.isSupported(),
+    });
+    if (choice === "webSpeech") {
+      // §7.1 voice.asr info：适配器选择结果（§9.6.6 档不完整分支）。
+      logger.info("voice.asr", "asr selection resolved: webSpeech (remote vendor incomplete)");
+      return webSpeechAdapter;
+    }
+    return remoteAdapterRef.current;
+  }, [webSpeechAdapter]);
   // FD-6 入口实例标识：同会话主/辅 pane 双入口以实例区分「持有者点按=停止」与
   // 「第二入口点按=no-op+脉冲」，仅靠 sessionId 无法区分（spec §3.3 原场景）。
   const entryIdRef = useRef(`voice-entry-${(voiceEntrySequence += 1)}`);
@@ -57,11 +119,13 @@ export function useVoiceDictation({
   const generationRef = useRef(0);
   const sessionRef = useRef<VoiceAsrSession | null>(null);
   const unsubscribeFinalRef = useRef<(() => void) | null>(null);
+  const unsubscribePartialRef = useRef<(() => void) | null>(null);
   const unsubscribeErrorRef = useRef<(() => void) | null>(null);
   // §5.3：权限对话框被忽略/折叠 → 10s 超时自动回 Idle + 轻提示。
   const requestingMicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestStartRef = useRef(requestStart);
   const langRef = useRef(lang);
+  const pendingApiKeyRef = useRef<string | null>(null);
   requestStartRef.current = requestStart;
   langRef.current = lang;
 
@@ -72,6 +136,8 @@ export function useVoiceDictation({
     }
     unsubscribeFinalRef.current?.();
     unsubscribeFinalRef.current = null;
+    unsubscribePartialRef.current?.();
+    unsubscribePartialRef.current = null;
     unsubscribeErrorRef.current?.();
     unsubscribeErrorRef.current = null;
     sessionRef.current = null;
@@ -134,7 +200,8 @@ export function useVoiceDictation({
         // §4.3 三层打断接线（§9.3 验收）：命中的 final 不注入 composer，经命令总线送达
         // 播报规划器——层① stopAnnouncement（uninterruptible 段外生效）/ 层③ cancelTask
         // （发既有 v4 stop，带 expectedForegroundExecutionId，由 SessionPane 命令面执行）。
-        // planner 侧按播报腿活动态 gate：无播报者/非活动时 no-op，多 pane 注册安全。
+        // cancelTask 为无条件分发（§4.3/§9.6.8 busy 验收）：多 pane 双发由 handleStop 的
+        // canStop 守卫与 guard.stopTargetChanged 防误杀兜底，不在 dispatch 侧 gate。
         if (decision.action === "interruptAnnouncement") {
           dispatchVoiceCommand("stopAnnouncement");
         } else if (decision.action === "cancelTask") {
@@ -182,19 +249,28 @@ export function useVoiceDictation({
         state.startMicRequest(sessionId, entryId);
         return;
       }
-      // 本入口持有录音腿：手动停止（点按）；stop() 的 flush 段经 onFinal 之外的整段返回，
-      // 逐句 final 已在录音期注入，flush 段这里补一次注入（可能为空串）。
+      // 本入口持有录音腿：手动停止（点按）。订阅保留至 stop() 结算之后——远程批量
+      // 形态的 final 经 onFinal 交付（§9.6.8-S2），提前退订会静默丢弃已上传音频的
+      // 转写文本；webSpeech 的停止 flush 段进 stop() 内部 buffer 不走 onFinal，不受影响。
       const session = sessionRef.current;
       const generation = generationRef.current;
       if (!session) {
         state.stopRecording();
         return;
       }
-      cleanupSession();
       void session.stop().then(({ final }: { final: string }) => {
         if (generation !== generationRef.current) {
-          return; // 会话已被超时/卸载废弃：迟到的结算丢弃。
+          // 会话已被超时/卸载废弃：迟到的结算丢弃，此时统一清理。
+          cleanupSession();
+          return;
         }
+        unsubscribeFinalRef.current?.();
+        unsubscribeFinalRef.current = null;
+        unsubscribePartialRef.current?.();
+        unsubscribePartialRef.current = null;
+        unsubscribeErrorRef.current?.();
+        unsubscribeErrorRef.current = null;
+        sessionRef.current = null;
         if (useVoiceSessionStore.getState().inputLeg === "recording" && final.trim().length > 0) {
           handleSentenceFinal(final, { resumeRecording: false });
           return;
@@ -223,26 +299,39 @@ export function useVoiceDictation({
     const generation = ++generationRef.current;
     const activeSessionId = sessionId;
     void (async () => {
-      const session = await adapter.start({ lang: langRef.current }).catch((error: unknown) => {
-        if (generation !== generationRef.current) {
+      // §9.6.6 选型：engine=remote 且档完整 → remote；否则 webSpeech（Phase 1a 路径零变化）。
+      let runAdapter: VoiceAsrPort = await pickAsrAdapter();
+      const startOn = async (target: VoiceAsrPort): Promise<VoiceAsrSession | null> =>
+        target.start({ lang: langRef.current }).catch((error: unknown) => {
+          if (generation !== generationRef.current) {
+            return null;
+          }
+          const code = (error as { code?: string }).code;
+          // §9.6.6 W3：remote start 失败（预检/网络）→ 本次点按以 webSpeech 起录 + warn；
+          // 回退发生在用户手势同一动作内，不构成 §5.3 自动重启。webSpeech 再失败走正常出边。
+          if (target !== webSpeechAdapter) {
+            logger.warn("voice.asr", "remote start failed; falling back to webSpeech for this press", {
+              code: code ?? "unknown",
+            });
+            runAdapter = webSpeechAdapter;
+            return startOn(webSpeechAdapter);
+          }
+          useVoiceSessionStore
+            .getState()
+            .failMicRequest(
+              code === "not-allowed" || code === "service-not-allowed"
+                ? "permission"
+                : code === "network"
+                  ? "network"
+                  : code === "aborted"
+                    ? "aborted"
+                    : "device",
+            );
+          logger.warn("voice.entry", `asr start failed: ${code ?? "unknown"}`);
+          cleanupSession();
           return null;
-        }
-        const code = (error as { code?: string }).code;
-        useVoiceSessionStore
-          .getState()
-          .failMicRequest(
-            code === "not-allowed" || code === "service-not-allowed"
-              ? "permission"
-              : code === "network"
-                ? "network"
-                : code === "aborted"
-                  ? "aborted"
-                  : "device",
-          );
-        logger.warn("voice.entry", `asr start failed: ${code ?? "unknown"}`);
-        cleanupSession();
-        return null;
-      });
+        });
+      const session = await startOn(runAdapter);
       if (!session) {
         return;
       }
@@ -258,6 +347,14 @@ export function useVoiceDictation({
       }
       sessionRef.current = session;
       unsubscribeFinalRef.current = session.onFinal(handleSentenceFinal);
+      // §9.2：partial 只进听写预览条（store.partialText），不写 composer 正文、不进协议。
+      // 端口级订阅：webSpeech 逐字发射；remote 批量形态永不发射（§9.6.4，预览条空转）。
+      unsubscribePartialRef.current = runAdapter.onPartial((text) => {
+        const partialState = useVoiceSessionStore.getState();
+        if (partialState.inputLeg === "recording") {
+          partialState.setPartial(text);
+        }
+      });
       unsubscribeErrorRef.current = session.onError((error) => {
         const errorState = useVoiceSessionStore.getState();
         if (errorState.boundSessionId !== activeSessionId) {
@@ -278,7 +375,7 @@ export function useVoiceDictation({
       });
       current.beginRecording();
     })();
-  }, [adapter, cleanupSession, handleSentenceFinal, sessionId]);
+  }, [cleanupSession, handleSentenceFinal, pickAsrAdapter, sessionId, webSpeechAdapter]);
 
   return { toggleMic };
 }

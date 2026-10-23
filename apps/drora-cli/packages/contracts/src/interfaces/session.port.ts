@@ -320,6 +320,8 @@ export interface HighspeedMessageMetadata {
 /** 协议无关的输入 intent metadata；bootstrap v4 在事件边界组装为 ConversationInputIntent。 */
 export type TurnInputSourceMetadata =
   | { kind: "pluginUi"; pluginId: string; toolCallId: string }
+  /** 语音输入来源（镜像 voiceInputSourceSchema additive，spec §9.1/§9.6.7；E2E 构建门发现的类型漏同步）。 */
+  | { kind: "voice"; lang?: string; engine?: "webSpeech" | "remote" }
   | { kind: "genUi"; path: string; title?: string };
 
 export interface TurnInputIntentMetadata {

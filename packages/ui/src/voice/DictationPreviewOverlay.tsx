@@ -43,11 +43,9 @@ export function DictationPreviewOverlay({
   onDismissNotice,
 }: DictationPreviewOverlayProps) {
   const { intl } = useDroraIntl();
-  // 只在绑定入口渲染；Idle 且无提示时整体不占位（§5.2 预览条随录音腿生命周期）。
-  if (!bound) {
-    return null;
-  }
-  const active = inputLeg === "requestingMic" || inputLeg === "recording" || inputLeg === "injecting";
+  // notice 分支不依赖绑定归属（修复轮 F1：notice 写入与回 idle 同批、bound 已清空，
+  // 若按 bound 门控则六种提示零可见帧）；partial/active 段仍要求绑定 pane（§5.2/FD-6）。
+  const active = bound && (inputLeg === "requestingMic" || inputLeg === "recording" || inputLeg === "injecting");
   const showPartial = active && inputLeg === "recording" && partialText.trim().length > 0;
   if (!active && notice == null) {
     return null;

@@ -349,7 +349,7 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
   };
 }
 
-function mapGetUserMediaError(error: unknown): VoiceAsrError {
+export function mapGetUserMediaError(error: unknown): VoiceAsrError {
   const name = error instanceof DOMException ? error.name : "";
   switch (name) {
     case "NotAllowedError":

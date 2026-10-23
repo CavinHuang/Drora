@@ -6,8 +6,8 @@
  * （cancelTask）经本单例解耦：听写侧 dispatch，播报侧 register。
  *
  * 广播语义：dispatch 通知全部注册者——非播报中的 planner 对 stopAnnouncement 天然 no-op
- * （AnnIdle），cancelTask 由 planner 自行按播报腿活动态 gate（见 turnSpeechPlanner），
- * 因此多 pane 同时注册不会产生双停/双取消。
+ * （AnnIdle）；cancelTask 为无条件分发（§4.3），多 pane 双发由 handleStop 的 canStop
+ * 守卫与 guard.stopTargetChanged 防误杀兜底（见 turnSpeechPlanner），不会双停/双取消。
  */
 
 /**

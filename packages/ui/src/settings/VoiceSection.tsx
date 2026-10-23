@@ -6,12 +6,16 @@
  * 取消则开关回落。参数类设置（语言/引擎/音色/语速）不走确认门。
  * 消费读取一律经 voiceComposerEntryState 的 reader 函数收口，本组件只写不读判定。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { Input } from "@/components/ui/input.js";
+import { useServices } from "@/hooks/useServices.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
+import { isVoiceVendorConfigComplete } from "@/voice/resolveAsrAdapter.js";
+import { validateVoiceVendorBaseUrl } from "@/voice/voiceVendorBaseUrl.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { isVoicePrivacyAcknowledged } from "@/voice/voiceComposerEntryState.js";
 import { VoicePrivacyDisclosureDialog } from "@/voice/VoicePrivacyDisclosureDialog.js";
@@ -25,7 +29,47 @@ type VoiceCapabilityPatch = Partial<{
 export function VoiceSection() {
   const { intl } = useDroraIntl();
   const { settings, update: updateSettings } = useSettings();
+  const { credentialService } = useServices();
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  // §9.6.2：apiKey 走凭据服务（不进 appSettings/wire）；本地 state 支撑 remote 选项
+  // 启用条件与 password 输入，onBlur 落盘（避免每键 RPC）。
+  const [vendorApiKey, setVendorApiKey] = useState("");
+  const [vendorApiKeyLoaded, setVendorApiKeyLoaded] = useState(false);
+  useEffect(() => {
+    if (vendorApiKeyLoaded || !credentialService) {
+      return;
+    }
+    let cancelled = false;
+    void credentialService
+      .load(VOICE_VENDOR_CREDENTIAL_KEY)
+      .then((value) => {
+        if (!cancelled) {
+          setVendorApiKey(value ?? "");
+          setVendorApiKeyLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVendorApiKeyLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialService, vendorApiKeyLoaded]);
+  const persistVendorApiKey = useCallback(
+    (value: string) => {
+      if (!credentialService) {
+        return;
+      }
+      if (value.trim().length === 0) {
+        void credentialService.delete(VOICE_VENDOR_CREDENTIAL_KEY).catch(() => undefined);
+        return;
+      }
+      void credentialService.save(VOICE_VENDOR_CREDENTIAL_KEY, value).catch(() => undefined);
+    },
+    [credentialService],
+  );
   // 待生效的开关补丁：确认后才写入（FD-5「确认后本次开启生效」，取消则回落）。
   const [pendingPatch, setPendingPatch] = useState<VoiceCapabilityPatch | null>(null);
 
@@ -58,11 +102,40 @@ export function VoiceSection() {
     setPrivacyDialogOpen(false);
   }, []);
 
-  const entryVisible = settings?.voiceComposerEntryHidden !== false;
+  // 修复轮 F2：读侧语义 = 存储值直接决定入口可用性（hidden === false ⇔ 显示）。
+  // 修复前误写 `!== false`（hidden 语义被当作可见性，默认/显式隐藏全显示），
+  // 与写路径组合成死控件（开关显示态恒等存储值，点击后读回不变）。
+  const entryVisible = settings?.voiceComposerEntryHidden === false;
+  const vendorBaseUrl = settings?.voiceVendorBaseUrl ?? "";
+  // S1：baseUrl 草稿 + 明文非法标记（onBlur 校验，阻止写入持久层）。
+  const [vendorBaseUrlDraft, setVendorBaseUrlDraft] = useState(vendorBaseUrl);
+  // 终审 S3：警告按校验 reason 分型——unparseable 不应显示「明文 HTTP」文案。
+  const [baseUrlWarning, setBaseUrlWarning] = useState<
+    "insecure-remote" | "unparseable" | null
+  >(null);
+  useEffect(() => {
+    // 外部变更（如清除设置）同步草稿。
+    setVendorBaseUrlDraft(settings?.voiceVendorBaseUrl ?? "");
+  }, [settings?.voiceVendorBaseUrl]);
+  const asrVendorModel = settings?.voiceAsrVendorModel ?? "";
+  const vendorRecordComplete = isVoiceVendorConfigComplete({
+    baseUrl: vendorBaseUrl,
+    model: asrVendorModel,
+    apiKey: vendorApiKey,
+  });
+  const asrEngine = settings?.voiceAsrEngine ?? "webSpeech";
+  const ttsEngine = settings?.voiceTtsEngine ?? "system";
+  const ttsVendorModel = settings?.voiceTtsVendorModel ?? "";
+  // §9.6.2-5：TTS 厂商档完整判定（ttsVendorModel + baseUrl + apiKey）。
+  const ttsVendorComplete =
+    isVoiceVendorConfigComplete({
+      baseUrl: vendorBaseUrl,
+      model: ttsVendorModel,
+      apiKey: vendorApiKey,
+    }) && vendorBaseUrl.trim().length > 0;
   const announcementEnabled = settings?.voiceAnnouncementEnabled === true;
   const toolBriefEnabled = settings?.voiceToolBriefEnabled === true;
   const dictationLang = settings?.voiceDictationLang ?? "";
-  const asrEngine = settings?.voiceAsrEngine ?? "webSpeech";
   const announcementVoice = settings?.voiceAnnouncementVoice ?? "";
   const announcementRate = settings?.voiceAnnouncementRate ?? 1;
 
@@ -132,15 +205,96 @@ export function VoiceSection() {
                 <SelectItem value="webSpeech">
                   {intl.formatMessage({ id: "voice.settings.asr.engine.webSpeech" })}
                 </SelectItem>
-                {/* Phase 2 引擎（remoteAsrAdapter）未实现：保留选项占位但不可选，
-                    消除无实现的可选态。 */}
-                <SelectItem value="remote" disabled>
+                {/* §9.6.2-5：厂商档完整才可选，消除无实现/无配置的可选态；
+                    已选中后档变不完整 → 运行时回退树（§9.6.6）兜底，选项不回收。 */}
+                <SelectItem value="remote" disabled={!vendorRecordComplete}>
                   {intl.formatMessage({ id: "voice.settings.asr.engine.remote" })}
                 </SelectItem>
               </SelectContent>
             </Select>
           }
         />
+        {/* §9.6.2 厂商档分组：baseUrl/model（appSettings 非秘密键）+ apiKey（凭据服务，
+            password 形态照 model-provider-section 先例）；§6.2 披露 1 落地——任一云引擎
+            开启且 baseUrl 非空时渲染为数据处理方（§9.6.2-6 收口，终审 S3）。 */}
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.label" })}
+          detail={
+            baseUrlWarning ? (
+              <div
+                className="border-t border-border px-4 py-2 text-ui-base text-warning"
+                data-testid="voice-vendor-base-url-warning"
+              >
+                {intl.formatMessage({
+                  id:
+                    baseUrlWarning === "unparseable"
+                      ? "voice.settings.vendor.baseUrl.unparseableWarning"
+                      : "voice.settings.vendor.baseUrl.insecureWarning",
+                })}
+              </div>
+            ) : null
+          }
+          control={
+            <Input
+              className="w-72"
+              value={vendorBaseUrlDraft}
+              placeholder={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.placeholder" })}
+              aria-label={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.label" })}
+              data-testid="voice-vendor-base-url"
+              onChange={(event) => setVendorBaseUrlDraft(event.target.value)}
+              onBlur={(event) => {
+                // S1 UI 层：明文非本机地址阻止写入（持久化保持上一次合法值）+ 行内警告；
+                // 用户可改输 https 或本机明文地址。
+                const value = event.target.value;
+                const verdict = validateVoiceVendorBaseUrl(value);
+                if (verdict.ok) {
+                  setBaseUrlWarning(null);
+                  void updateSettings({ voiceVendorBaseUrl: value });
+                } else {
+                  setBaseUrlWarning(verdict.reason ?? "insecure-remote");
+                }
+              }}
+            />
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.vendor.asrModel.label" })}
+          control={
+            <Input
+              className="w-72"
+              value={asrVendorModel}
+              placeholder={intl.formatMessage({ id: "voice.settings.vendor.asrModel.placeholder" })}
+              aria-label={intl.formatMessage({ id: "voice.settings.vendor.asrModel.label" })}
+              data-testid="voice-vendor-asr-model"
+              onChange={(event) => {
+                void updateSettings({ voiceAsrVendorModel: event.target.value });
+              }}
+            />
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.vendor.apiKey.label" })}
+          control={
+            <Input
+              className="w-72"
+              type="password"
+              value={vendorApiKey}
+              placeholder={intl.formatMessage({ id: "voice.settings.vendor.apiKey.placeholder" })}
+              aria-label={intl.formatMessage({ id: "voice.settings.vendor.apiKey.label" })}
+              data-testid="voice-vendor-api-key"
+              onChange={(event) => setVendorApiKey(event.target.value)}
+              onBlur={(event) => persistVendorApiKey(event.target.value)}
+            />
+          }
+        />
+        {(asrEngine === "remote" || ttsEngine === "cloud") && vendorBaseUrl.trim().length > 0 ? (
+          <div className="border-t border-border px-4 py-3 text-ui-base leading-6 text-foreground-subtle">
+            {intl.formatMessage(
+              { id: "voice.settings.vendor.dataHandler" },
+              { baseUrl: vendorBaseUrl.trim() },
+            )}
+          </div>
+        ) : null}
       </SettingsGroupCard>
       <SettingsGroupCard>
         <SettingsRow
@@ -153,6 +307,47 @@ export function VoiceSection() {
               onCheckedChange={(checked) =>
                 handleCapabilityToggle({ voiceAnnouncementEnabled: checked })
               }
+            />
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}
+          control={
+            <Select
+              value={ttsEngine}
+              onValueChange={(value) => {
+                void updateSettings({
+                  voiceTtsEngine: value === "cloud" ? "cloud" : "system",
+                });
+              }}
+            >
+              <SelectTrigger className="w-40" aria-label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system">
+                  {intl.formatMessage({ id: "voice.settings.tts.engine.system" })}
+                </SelectItem>
+                {/* §9.6.2-5：TTS 厂商档完整才可选 cloud（消除无配置的可选态）。 */}
+                <SelectItem value="cloud" disabled={!ttsVendorComplete}>
+                  {intl.formatMessage({ id: "voice.settings.tts.engine.cloud" })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.label" })}
+          control={
+            <Input
+              className="w-72"
+              value={ttsVendorModel}
+              placeholder={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.placeholder" })}
+              aria-label={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.label" })}
+              data-testid="voice-vendor-tts-model"
+              onChange={(event) => {
+                void updateSettings({ voiceTtsVendorModel: event.target.value });
+              }}
             />
           }
         />

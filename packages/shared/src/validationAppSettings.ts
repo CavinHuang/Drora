@@ -535,6 +535,12 @@ const appSettingsObjectSchema = z.object({
   voiceAnnouncementRate: z.number().min(0.5).max(2).default(1),
   voiceDictationLang: z.string().default(""),
   voiceAsrEngine: z.enum(["webSpeech", "remote"]).default("webSpeech"),
+  // 厂商档（spec §9.6.2）：非秘密配置进 appSettings；apiKey 走 VOICE_VENDOR_CREDENTIAL_KEY
+  // 凭据服务（appSettings 全 schema 无任何 apiKey 字段，秘密不上 wire）。
+  voiceVendorBaseUrl: z.string().default(""),
+  voiceAsrVendorModel: z.string().default(""),
+  voiceTtsEngine: z.enum(["system", "cloud"]).default("system"),
+  voiceTtsVendorModel: z.string().default(""),
   voiceToolBriefEnabled: z.boolean().default(false),
   voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
   taskAutoArchiveEnabled: z.boolean().default(false),
@@ -664,6 +670,10 @@ export const appSettingsPatchSchema = z.object({
   voiceAnnouncementRate: z.number().min(0.5).max(2).optional(),
   voiceDictationLang: z.string().optional(),
   voiceAsrEngine: z.enum(["webSpeech", "remote"]).optional(),
+  voiceVendorBaseUrl: z.string().optional(),
+  voiceAsrVendorModel: z.string().optional(),
+  voiceTtsEngine: z.enum(["system", "cloud"]).optional(),
+  voiceTtsVendorModel: z.string().optional(),
   voiceToolBriefEnabled: z.boolean().optional(),
   voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),

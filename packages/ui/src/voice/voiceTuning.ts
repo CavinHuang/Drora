@@ -34,3 +34,19 @@ export const VOICE_MAX_SENTENCE_CHARS = 120;
  * onend 仍是主同步点，超时仅为 wedged engine 兜底。
  */
 export const VOICE_ASR_STOP_SETTLE_TIMEOUT_MS = 2_000;
+
+/**
+ * 云 TTS 连续失败回落阈值（句，spec §9.6.5-3）：连续 N 句合成/播放失败 → 中止本轮播报
+ * 回 AnnIdle + warn，本次 renderer 会话内后续播报回落 speechSynthesis，至下一引擎解析点
+ * （设置变更/装配）恢复。调参面不冻值。
+ */
+export const VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * 听写提示（notice）可见寿命（ms，修复轮 F1）：notice 写入与「回 idle」同批，若渲染
+ * 入口只认 recording 态则零可见帧——现扩为「recording 或存在未过期 notice」。选择
+ * 「TTL 6s 自然消退」而非「下次起录才清除」：错误提示（权限/网络/设备）需要用户读到，
+ * 而下次起录可能很久之后（§9.2 用户可见要求）；到期由 V4ComposerVoiceEntry 的定时器
+ * 清 store（下次起录 startMicRequest 也会清除，双保险）。
+ */
+export const VOICE_NOTICE_VISIBLE_TTL_MS = 6_000;

@@ -34,7 +34,7 @@ Keep the DOM observation as the final expression so the model receives it. Assig
 
 High-level methods return their payload directly. Actions return `undefined` on success. If a command fails, the method throws `BrowserCommandError`.
 
-`playwright.domSnapshot()` is the default observation and locator ground truth. It returns the Codex-compatible compact AI/ARIA tree rather than page `outerHTML`.
+`playwright.domSnapshot()` is the default observation and locator ground truth. It returns the compact AI/ARIA tree rather than page `outerHTML`.
 
 ## API use behavior
 

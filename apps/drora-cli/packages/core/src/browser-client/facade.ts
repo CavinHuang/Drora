@@ -925,7 +925,6 @@ export class Browser {
     this.runtimeObject = createBrowserApiProxy(this, "Browser", this.policy);
   }
 
-  /** Codex-compatible runtime browser identity；不能用 backend type 代替。 */
   get browserId(): string {
     return this.info.id;
   }

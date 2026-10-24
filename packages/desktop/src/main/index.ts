@@ -263,6 +263,7 @@ import {
 } from "./desktopNetworkTelemetry.js";
 import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
 import { applyEmbeddedBrowserPermissionPolicy } from "./embeddedBrowserPermissionPolicy.js";
+import { applyVoiceMicPermissionPolicy } from "./voicePermissionPolicy.js";
 import { createEmbeddedBrowserSitePermissionStore } from "./embeddedBrowserSitePermissionStore.js";
 import {
   createEmbeddedBrowserPermissionUiBridge,
@@ -2069,6 +2070,9 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
+  // 语音听写 mic 权限双 handler 显式登记（specs/voice-agent-integration.md §9.2 / TV-5
+  // 方案：request + check 双 handler；audio 允许、含 video 拒绝、其余保持缺省现状）。
+  applyVoiceMicPermissionPolicy(session.defaultSession, { logger });
   installRequestSecurityDiagnostics(session.defaultSession.webRequest, logger);
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,

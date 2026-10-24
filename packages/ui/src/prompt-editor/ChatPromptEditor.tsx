@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 输入壳同时收口 Lexical 同步、拖拽和工具栏插槽，暂不拆组件。 */
 // 输入展示壳：纯 props 组件、无 store/协议依赖；mention 面板通过 enableMentionPanel 透传。
+import { resolveComposerEscapePlan } from "@/prompt-editor/composerEscapePlan.js";
 import type {
   KeyboardEventHandler,
   DragEventHandler,
@@ -81,6 +82,7 @@ export function ChatPromptEditor({
   onSubmit,
   onModifiedSubmit,
   onCancel,
+  onVoiceRecordingEscape,
   onFocus,
   onWhiteboardMentionSelected,
   onPaste,
@@ -142,6 +144,11 @@ export function ChatPromptEditor({
   onSubmit: (value: string) => boolean | void;
   onModifiedSubmit?: (value: string) => boolean | void;
   onCancel?: () => void;
+  /**
+   * 语音录音态 Esc 仲裁（§4.4 优先级 3，props 注入保持本组件纯壳）：返回 true 表示
+   * Esc 已被录音腿消费（停录音），本组件 preventDefault + stopPropagation，不走 onCancel。
+   */
+  onVoiceRecordingEscape?: () => boolean;
   onFocus?: () => void;
   onWhiteboardMentionSelected?: (boardId: string) => void | Promise<void>;
   onPaste?: (event: ChatComposerPasteEvent) => void;
@@ -223,16 +230,29 @@ export function ChatPromptEditor({
 
   const handleKeyDown: KeyboardEventHandler<HTMLFormElement> = useCallback(
     (event) => {
-      if (event.key !== "Escape" || !onCancel || submitting) {
+      // §4.4 仲裁顺序抽纯函数（composerEscapePlan.ts）：mention 菜单/dialg 已消费的事件
+      // 一律 ignore——「仅关菜单，不停录音、不取消编辑」由分支顺序保证并有单测钉住。
+      const plan = resolveComposerEscapePlan({
+        key: event.key,
+        defaultPrevented: event.defaultPrevented,
+        insideDialog: event.target instanceof Element && event.target.closest('[role="dialog"]') !== null,
+        submitting,
+        hasCancel: Boolean(onCancel),
+      });
+      if (plan.ignore) {
         return;
       }
 
-      // Dialog 通过 React Portal 挂载时，Esc 关闭弹窗的事件仍会沿组件树
-      // 冒泡到行内编辑 form；弹窗已消费这次交互，不能再把消息编辑一并取消。
-      if (
-        event.defaultPrevented ||
-        (event.target instanceof Element && event.target.closest('[role="dialog"]'))
-      ) {
+      // 语音录音态优先（specs/voice-agent-integration.md §4.4 优先级 3）：录音中且无
+      // 更高优先消费者时 Esc 归录音（停录音、任务不中断），不再走 onCancel。
+      // 行为经 props 注入（本组件保持纯 props 壳），消费即阻止冒泡。
+      if (plan.tryVoice && onVoiceRecordingEscape?.() === true) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      if (!plan.canCancel || !onCancel) {
         return;
       }
 
@@ -240,7 +260,7 @@ export function ChatPromptEditor({
       event.preventDefault();
       onCancel();
     },
-    [onCancel, submitting],
+    [onCancel, onVoiceRecordingEscape, submitting],
   );
 
   const handleEditorSubmit = useCallback(

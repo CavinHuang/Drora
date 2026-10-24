@@ -291,6 +291,30 @@ export interface AppSettings {
    * 关闭后按钮不再渲染，且不因重启或版本更新自愈，仅能在设置页重新开启。
    */
   computerUseComposerEntryHidden?: boolean;
+  /**
+   * 语音八键 wire 面（specs/voice-agent-integration.md §6.1，全部 optional：
+   * undefined 走 validationAppSettings default——入口默认隐藏、播报默认关、
+   * 隐私披露未确认）。键名与 contracts/voice.ts VOICE_SETTINGS_KEYS 一一对应。
+   */
+  voiceComposerEntryHidden?: boolean;
+  voiceAnnouncementEnabled?: boolean;
+  voiceAnnouncementVoice?: string;
+  voiceAnnouncementRate?: number;
+  voiceDictationLang?: string;
+  voiceAsrEngine?: "webSpeech" | "remote";
+  /** 厂商档非秘密配置（spec §9.6.2；apiKey 走凭据服务不上 wire）。 */
+  voiceVendorBaseUrl?: string;
+  voiceAsrVendorModel?: string;
+  voiceTtsEngine?: "system" | "cloud";
+  voiceTtsVendorModel?: string;
+  /** 云 TTS 音色 id（spec §9.7.3 独立命名空间；空串 = 厂商默认音色）。 */
+  voiceTtsVendorVoice?: string;
+  /** 播报语言（spec §9.7.5；空串 = 自动 = UI locale）。 */
+  voiceAnnouncementLang?: string;
+  /** persona 显示键（spec §9.7.8；设置面显示派生单处消费，运行时零读路径）。 */
+  voicePersonaId?: string;
+  voiceToolBriefEnabled?: boolean;
+  voicePrivacyDisclosureAcknowledged?: boolean;
   /** 自动归档旧会话的总开关 */
   taskAutoArchiveEnabled?: boolean;
   /** 自动归档修复后的一次性关闭标记；只用于设置迁移，不参与归档判断。 */

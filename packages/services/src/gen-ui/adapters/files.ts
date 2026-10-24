@@ -14,6 +14,11 @@ export function assertGenUiFragment(html: string): void {
   if (/<(?:!doctype\b|\/?(?:html|head|body)(?:\s|>))/iu.test(html))
     throw new Error("Gen UI requires an HTML fragment");
 }
+
+/** dev 任一侧为 0（来源未提供设备标识，Windows path 侧 stat）即视为相等；双非 0 才要求真正相等。 */
+function isSameStatDevice(left: number, right: number): boolean {
+  return left === right || left === 0 || right === 0;
+}
 export async function readGenUiDocument(
   raw: GenUiStateTarget,
   outputRoot: string,
@@ -51,7 +56,13 @@ export async function readGenUiDocument(
   const handle = await open(current, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const opened = await handle.stat();
-    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
+    // 修复依据（verify:pre-push 2026-10-24 Windows 失败）：before 来自 path 侧 lstat
+    //（Windows dev 恒 0）、opened 来自 fd 侧 fstat（dev=卷序列号）——原 `opened.dev !==
+    // before.dev` 在 Windows 上恒真，Gen UI HTML 读取必然抛 "file changed while
+    // opening"。dev 为 0 = 来源未提供设备标识，跳过比较；POSIX 行为不变。同 quirk
+    // 内联副本见 projectMemoryStableRead.ts / feedbackLogArchive.ts（架构门禁：
+    // services src 根新文件需 managed 模块，故不抽共享文件）。
+    if (!opened.isFile() || !isSameStatDevice(opened.dev, before.dev) || opened.ino !== before.ino)
       throw new Error("Gen UI file changed while opening");
     const bytes = Buffer.alloc(GEN_UI_HTML_MAX_BYTES + 1);
     let used = 0;

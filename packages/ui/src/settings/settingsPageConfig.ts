@@ -21,6 +21,7 @@ import {
   Keyboard,
   FileSearch,
   BookOpen,
+  Mic,
 } from "lucide-react";
 // 包内运行时导入用相对路径（tsconfig 约定）：tsx 按进程 CWD 发现 tsconfig，从仓库根
 // 跑 node --test 时 @/ 别名不可解析（全量门禁失败修复）。
@@ -155,6 +156,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "computerUse",
     icon: Monitor,
     titleId: "settings.computerUse.title",
+    groupId: "basics",
+  },
+  // 语音（听写/播报）紧跟「电脑控制」：同属输入/输出能力配置，收在基础设置。
+  // specs/voice-agent-integration.md §6.1；入口/播报默认关，隐私披露确认门见 §6.2。
+  {
+    id: "voice",
+    icon: Mic,
+    titleId: "settings.voice.title",
     groupId: "basics",
   },
   // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。

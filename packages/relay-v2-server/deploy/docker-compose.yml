@@ -4,12 +4,10 @@
 #
 # ## 构建与运行方式
 #
-# 1. 宿主先构建 relay dist(工具链见仓库根 AGENTS.md;本机先 source .zcode/toolchain-env.sh):
-#      pnpm --filter @drora/relay-v2-server run build        # tsup 产出 ../dist/
-#    dist 全自包含(spec §13 v2.4:noExternal 内联 @drora/shared+zod+ws,tsup.config.ts),
-#    容器内无需任何 npm 安装——下面选「内嵌 Dockerfile」而非「mount 仓库跑 dist」的原因:
-#    mount 方案要求容器内解析 pnpm 的符号链接 node_modules,不可移植;内嵌构建只复制产物,
-#    闭包完整自洽(spec §13「Docker 只消费产物」)。构建镜像需要网络拉取 node/caddy 基础镜像。
+# 1. 构建镜像:relay 镜像与 standalone 形态共用 packages/relay-v2-server/deploy/Dockerfile
+#    (容器内完成过滤安装+dist 构建,构建配方单一出处;国内网络经 NODE_BUILD_IMAGE/
+#    NPM_REGISTRY 切镜像源,见 Dockerfile 头注释),无需宿主先建 dist。
+#    构建镜像需要网络拉取 node/caddy 基础镜像。
 # 2. 构建并填充手机页面静态资源(spec §8.2/§8.3)。注意 spec §8.2 实测注记:vite define 链
 #    消费无 VITE_ 前缀的 DRORA_ENDPOINT_ORIGIN,两个键必须同时设置,否则 OAuth redirect
 #    会静默烘焙官方域;产物校验:pnpm --filter @drora/relay-v2-server run verify:v4-build
@@ -46,31 +44,19 @@ name: relay-v2-server
 services:
   relay:
     # node:24 级镜像:与 tsup target=node24 及仓库工具链(node 24.14.0)对齐(spec §3)。
+    # 镜像与 standalone 形态共用同一份 deploy/Dockerfile(构建配方单一出处,评审缺口
+    # 「双形态构建分叉」收口):容器内完成过滤安装+dist 构建,无需宿主先建 dist。
+    # 本形态的语义差异经 env 关闭(见 environment 注释):静态与官方回源由 Caddy 负责。
     build:
-      context: ..
-      # 内嵌 Dockerfile(Compose ≥2.17 的 dockerfile_inline):单文件交付,无需独立
-      # Dockerfile 工件;理由见文件头注释第 1 步。
-      dockerfile_inline: |
-        # syntax=docker/dockerfile:1
-        FROM node:24-slim
-        WORKDIR /app
-        # dist 由宿主先构建(见文件头注释第 1 步);context=包目录,只消费产物。
-        COPY dist/ ./dist/
-        # 启动引导复用包内单一装配引导 deploy/run-relay.mjs(spec §13):dist 只导出装配
-        # 函数、无内置 main(src/index.ts 仅 export),env→JWT 鉴权→监听 + SIGTERM/SIGINT
-        # 优雅停机的接缝只有这一份,与进程冒烟/同源冒烟共用(tools/smoke-process.mjs 头注)。
-        # 按包内相对布局复制到 /app/deploy/,其 ../dist import 与仓库内解析一致。
-        COPY deploy/run-relay.mjs /app/deploy/run-relay.mjs
-        # dist 是 ESM:Node 按最近 package.json 的 type 判定模块系统,必须补 {"type":"module"}。
-        # dist 全自包含(ws 已内联,tsup.config.ts),无需 npm install 任何包。
-        # 以 node 用户运行;数据目录预建并归属 node,具名卷首挂时继承该属主。
-        RUN npm init -y >/dev/null \
-         && npm pkg set type=module \
-         && mkdir -p /home/node/data \
-         && chown -R node:node /app /home/node/data
-        USER node
-        VOLUME /home/node/data
-        CMD ["node", "deploy/run-relay.mjs"]
+      context: ../..
+      dockerfile: packages/relay-v2-server/deploy/Dockerfile
+      args:
+        # 双服务形态不经本镜像托管手机页(Caddy 挂载静态),OAuth 烘焙不消费;
+        # 仍需提供以通过 Dockerfile 的构建流程。
+        DRORA_PUBLIC_ORIGIN: "${DRORA_PUBLIC_ORIGIN:-https://relay.example.com}"
+        NODE_BUILD_IMAGE: "${NODE_BUILD_IMAGE:-docker.io/library/node:24.14.0-bookworm}"
+        NODE_RUNTIME_IMAGE: "${NODE_RUNTIME_IMAGE:-docker.io/library/node:24.14.0-slim}"
+        NPM_REGISTRY: "${NPM_REGISTRY:-https://registry.npmjs.org}"
     image: drora/relay-v2-server:local
     restart: unless-stopped
     environment:
@@ -79,6 +65,10 @@ services:
       LISTEN_PORT: "${LISTEN_PORT:-8080}"
       # 设备注册表落具名卷,重启后 SID 保留(spec §7)。
       DB_PATH: /home/node/data/relay-v2.db
+      # 本形态静态与官方回源由 Caddy 负责:显式关闭镜像内默认开启的同功能
+      # (Dockerfile ENV 默认 standalone 语义;空串=config 层「未设置」,spec §9)。
+      STATIC_ROOT: ""
+      OFFICIAL_UPSTREAM_ORIGIN: ""
       # —— spec §9 全量配置键,默认值与 spec §9 一致 ——
       JWT_MODE: "${JWT_MODE:-decode}"
       JWT_ID_CLAIMS: "${JWT_ID_CLAIMS:-sub,id}"

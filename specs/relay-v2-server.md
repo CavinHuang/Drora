@@ -526,7 +526,7 @@ L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID
 
 两个注入都被预期用例杀死、且不误伤无关场景（M1 未波及纯 HTTP 场景 1 与鉴权矩阵场景 5；M2 未波及场景 1/5/6——场景 6 的无对端 INTERNAL 恰是注入后的行为，对 fake relay 本就一致），证明 transcript 深度相等断言对这两类回归具备分辨力。
 
-**交付门禁（L1-lite；每次交付确定性执行，CI 挂载为后续项）**：进程冒烟 `tools/smoke-process.mjs` 与同源冒烟 `tools/verify-same-origin.mjs` 是每次交付确定性执行的检查（当前由交付流程在钉版工具链下运行；「常驻 CI 门禁」为目标态，挂载尚排期，不作为本设计已交付能力声称）。同源冒烟单脚本起三件——relay（dist 产物子进程，临时 DB + stub 鉴权进程级配置，与进程冒烟同用单一装配引导 `deploy/run-relay.mjs`）监听一个端口、静态服务挂 `packages/web/dist` 监听另一端口、前置同源入口把 `/api` 与 `/healthz` 转发 relay、`/remote/v4*` 剥前缀转发静态（§8.1 Caddy 同款路由）；断言页面与所引资产逐个 200、同源 `GET /api/v1/remote/device` 无凭据 401（证明 API 路径打到本服务而非静态服务）、`/healthz` 为本服务五字段视图、页面产物烘焙非官方域（含自建域正向 + 无官方 redirect 字面量/内联 env 反例，与 `verify-v4-build.mjs` 同款判别）。`packages/web/dist` 缺失时经钉版工具链跑 `build:web-remote-control:v4`（§8.2 双 env 注入）。它只覆盖 HTTP 面，不替代 L1 真机联调；WS 配对链路由 `smoke-process.mjs` 覆盖。
+**交付门禁（L1-lite；每次交付确定性执行，CI 已挂载）**：进程冒烟 `tools/smoke-process.mjs` 与同源冒烟 `tools/verify-same-origin.mjs` 是每次交付确定性执行的检查（交付流程在钉版工具链下运行；2026-10-24 起根 workflow `ci.yml` verify job 的「Relay V2 server contract suite」步骤挂载了包契约套件，冒烟两脚本仍属交付流程门禁）。同源冒烟单脚本起三件——relay（dist 产物子进程，临时 DB + stub 鉴权进程级配置，与进程冒烟同用单一装配引导 `deploy/run-relay.mjs`）监听一个端口、静态服务挂 `packages/web/dist` 监听另一端口、前置同源入口把 `/api` 与 `/healthz` 转发 relay、`/remote/v4*` 剥前缀转发静态（§8.1 Caddy 同款路由）；断言页面与所引资产逐个 200、同源 `GET /api/v1/remote/device` 无凭据 401（证明 API 路径打到本服务而非静态服务）、`/healthz` 为本服务五字段视图、页面产物烘焙非官方域（含自建域正向 + 无官方 redirect 字面量/内联 env 反例，与 `verify-v4-build.mjs` 同款判别）。`packages/web/dist` 缺失时经钉版工具链跑 `build:web-remote-control:v4`（§8.2 双 env 注入）。它只覆盖 HTTP 面，不替代 L1 真机联调；WS 配对链路由 `smoke-process.mjs` 覆盖。
 
 ## 11. 已知限制与风险
 
@@ -538,6 +538,8 @@ L2 的 relay 重启场景是自建部署特有的必测项：重启后桌面 SID
 6. 设备 `meta` 不持久化，离线设备在列表中无名称/平台——与官方一致，手机端本地缓存已兜底。
 7. **整域回源官方的可用性未实测**：官方域可能校验 Host 之外的指纹（WAF/风控/验证码面，旧取证提过）；若回源被拒，退路是只反代远控路径、桌面其余流量仍走官方域（端点拆开配置）。
 8. 托管页版本与桌面版本的失配行为（§8.3）依赖 L1 实测登记。
+13. **回源代理是无鉴权的开放转发面**：OFFICIAL_UPSTREAM_ORIGIN 开启时，任何能触达本服务的客户端都可经非远控路径借道本服务器访问官方域（带宽/出口 IP 共担）。这与 §8.1 Caddy catch-all 形态行为一致，属部署形态的既有属性；若部署面不可信，应在反代层对非远控路径加来源限制或关闭该开关。
+14. 套件并行度已关闭（fileParallelism=false）：全部用例为真实 loopback 服务器+真实定时器的集成测试，文件级并行的 CPU 竞争会引入时序偶发（评审修复实测），确定性优先于约 2 秒的并行收益。
 9. **`node:sqlite` 是 Node 实验特性**：`DatabaseSync` 在仓库钉版工具链（`mise.toml`，Node 24.14.0）下运行仍输出 `ExperimentalWarning: SQLite is an experimental feature`（单测/冒烟实测），API 面与行为可能在 Node 非语义化版本内变更，且不经 flag、默认内建（误升级 Node 即换实现）。约束：本包只在钉版工具链（Node 24.14.0）下开发、测试与交付，不对其他 Node 版本做兼容承诺；**复核条件：待 `node:sqlite` 在 Node 上游转正（不再标记 experimental、进入 LTS 语义化承诺）后复核一次 API 面与行为（建表/prepare/VACUUM INTO/WAL pragma），有破坏性变更再评估适配或迁移**。
 10. **`/healthz` 公网暴露面默认关闭（v2.3 暴露面收口）**：`deploy/Caddyfile` 将 `/healthz` 反代段置为默认注释，公网请求落入 catch-all 回源官方、不触及本服务；探活由 compose healthcheck 在 relay 容器内 `127.0.0.1` 直探（§9），公网直暴非必需。确需公网/远程探活时按 §8.1 注释示例以 `remote_ip` 来源白名单放开——无来源限制的直暴不构成受支持的部署形态。
 11. **资源上限类自建加固与官方行为存在未对齐面（有意差异声明）**：请求体 64 KiB 上限（§5.1 规则 8）、出站帧 1 MiB 预算（§5.2 规则 4）、背压高水位 4 MiB 断连（§5.2 规则 5）、`auth_init` meta 单字段 256 字节限长（§5.2 规则 6）均为本实现自建加固——官方对相应面的实际限值与行为未观测或契约无约束，取值方向一律保守拒绝（防无界缓冲进堆内存），可能严于官方。L1 真机联调若发现官方更宽松且客户端流量撞闸，按「逐项登记 → 评估放宽」处理，不做静默调整；meta 限长即便官方更宽松也不回退（meta 回显面在本服务，收紧无客户端兼容代价）。

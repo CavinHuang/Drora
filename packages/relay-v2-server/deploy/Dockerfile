@@ -68,9 +68,10 @@ COPY . .
 # filter 尾缀 `...` 必不可少：它选中依赖闭包内的全部工作区包并为每个创建 node_modules
 # 链接（首版无尾缀时 ui 只作为传递依赖被装入虚拟库、自身 node_modules 不建链接，
 # vite 从 ui 源码解析 @drora/shared 子路径失败——评审 standalone build 实证）。
-# 禁止 --frozen-lockfile：main 分支既有 @drora/ui react-popper 的 manifest/lock 失配
-# （pnpm install 在 frozen 模式直接报 lock 不一致），修齐前容器内必须允许 lockfile 就地解析。
-RUN pnpm install --filter @drora/relay-v2-server... --filter @drora/web...
+# --frozen-lockfile：lockfile 与 manifests 已一致（此前的 ui react-popper 失配已随
+# 后续 install 写回 lockfile 修齐），镜像构建期锁定依赖保证可复现；若未来再现失配，
+# frozen 会直接报 lock 不一致——修 lockfile 而不是删掉本参数。
+RUN pnpm install --frozen-lockfile --filter @drora/relay-v2-server... --filter @drora/web...
 
 # 1) relay 服务端 dist（tsup，自包含产物）
 RUN pnpm --filter @drora/relay-v2-server run build
@@ -107,7 +108,7 @@ ENV NODE_ENV=production \
 
 # 数据卷挂载点预建并归属 node 用户：首挂具名卷时 Docker 会复制镜像内目录的属主，
 # 不预建则以 root 属主挂载导致 node 用户无法写 SQLite。
-RUN mkdir -p /data && chown node:node /data
+RUN mkdir -p /data /home/node/data && chown node:node /data /home/node/data
 USER node
 VOLUME /data
 

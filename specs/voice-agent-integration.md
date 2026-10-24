@@ -862,6 +862,178 @@ flowchart TD
 | OQ-8 | 厂商 CORS / 容器格式能力矩阵（OpenAI 直连 preflight 本环境连接超时未能核验；SiliconFlow transcriptions 支持格式列表未抓取到） | 每厂商属性，只能实测；默认厂商已放行，第二厂商未引入 | 引入任何非默认厂商前（含 OpenAI 官方） | Phase 2 实现者 |
 | TV-8 | 默认厂商端到端连通性 spike（真实凭据直调 transcriptions/speech + 桌面 renderer 环境 CORS + MediaRecorder webm/opus 容器实测） | 需真实凭据与目标运行时，静态核验不足 | **S2/S4 实施前强制前置**（同 TV-1 之于 Phase 1a） | Phase 2 实现者 |
 
+### 9.7 Phase 2 批次二：音色选择完善与角色设置（2026-10-24 增补）
+
+增补性质：本章消化 `docs/voice-completeness-review-2026-10-24.md`（下称「复审报告」；**该报告与其引用的上轮 `docs/voice-agent-implementation-review-2026-10-23.md` 均随本批增补一并提交入仓，溯源链仓内可解析**）第三节五个音色缺口（#1 盲填 medium 复核成立 / #2 voiceschanged low / #3 云 voice 跨命名空间 medium 复核成立 / #4 播报语言来源 low / #5 语速草稿态 nit）、第四节 persona missing-in-spec（六条建议）与 7.2 后续动作 #1–#6。**不改写任何既有冻结裁决**；对 §9.6.5-1「voice=u.voice ?? 缺省（复用既有 voiceAnnouncementVoice 作为厂商音色 id）」云 voice 子句的取代，照 §9.6 头部对 §9.4「TV-1 注作废」的先例办理——原正文不改写，以本章为准。本章新增裁决自增补日起纳入头部冻结范围，标注「建议，待拍板」条目除外。
+
+证据约定：本章代码锚点全部为 2026-10-24 在 worktree `D:/workspace/projects/drora-voice-agent`（分支 `feat/voice-agent-phase1`，HEAD `63479ef7`，工作树干净）实际读取核验。复审报告锚定 `6d754098`；其后继提交 `63479ef7` 经 `git diff 6d754098 HEAD` 实测仅涉 3 文件（wiring 测试删 10 行 DEBUG console.error、useVoiceDictation.ts/voiceCommandBus.ts 注释修正——即复审报告 7.1 #1/#2 清理已落地），voice 模块行为面与本 spec 零变化。本轮新增 grep 证据见本节末尾核验记。
+
+#### 9.7.1 缺口 → 裁决对照表
+
+| 复审缺口 | 本章裁决 | 小节 |
+|---|---|---|
+| #1 system 音色盲填自由文本（medium，复核成立） | system 音色改枚举 Select（zh*/en* 前缀过滤 + 「自动」项 + voiceschanged 异步刷新） | 9.7.2 |
+| #3 云 TTS voice 复用同一键跨命名空间、错配静默回落（medium，复核成立） | 新独立键 `voiceTtsVendorVoice` + 端口 additive 字段 `vendorVoice`；取代 §9.6.5-1 云 voice 子句 | 9.7.3 |
+| —（#3 的 UI 配套） | system 引擎「试听」边界 | 9.7.4 |
+| #4 播报语言（utterance.lang）来源未定义（low） | 新 additive 键 `voiceAnnouncementLang`，缺省 ""=自动=UI locale（现状保持） | 9.7.5 |
+| #5 语速控件无草稿态（nit） | 语速 Input 改 draft+onBlur（对齐 baseUrl 先例） | 9.7.6 |
+| 功能面 low：`toolBriefPlanner.resetTurnCounters` 死 API + 三结构无界增长 | 接线 conversationKey 切换 + API 演进 `resetSessionState` + 首帧 prime 消化 | 9.7.7 |
+| 4.1 persona missing-in-spec + 4.2 六条建议 | persona v1：builtin 目录 + 「自定义」派生档 + 选择=物化写底层键 | 9.7.8 |
+
+#### 9.7.2 system 音色控件：枚举 Select（裁决）
+
+**裁决：`voiceAnnouncementVoice` 的设置控件由自由文本 Input（VoiceSection.tsx:354-367，placeholder「系统默认」）改为枚举 Select——「自动」+ 系统音色枚举，按 `zh*`/`en*` 语言前缀过滤，订阅 `voiceschanged` 异步刷新；持久键与运行时匹配语义零变化。**
+
+- **枚举来源**：`window.speechSynthesis.getVoices()`（经 `speechSynthesisTtsAdapter.ts:36` 既有 `SpeechSynthesisLike` 端口形状，不绕过抽象直摸 window）。新文件 `packages/ui/src/voice/systemVoiceCatalog.ts`（+test），签名级：
+  - `listSystemVoices(synth: SpeechSynthesisLike | null): SpeechSynthesisVoiceLike[]`（空合成器 → 空表）；
+  - `subscribeSystemVoices(synth, onChange: () => void): () => void`（挂 `voiceschanged`，卸载退订；synth 缺席时返回 no-op 退订）；
+  - `filterVoicesForAnnouncement(voices): SpeechSynthesisVoiceLike[]`——`voice.lang` 小写前缀 `zh`/`en` 过滤（两语言面 = §6.3 locale 仅 zh-CN/en-US 的既有产品面，照听写语言 Select 固定 auto/zh-CN/en-US 同型先例 VoiceSection.tsx:175-185）；**过滤结果为空时回落全量列表**（防「系统无 zh/en 音色 → 空死控件」）。
+- **「自动」项**：Select 哨兵值 `"auto"` → 写 `voiceAnnouncementVoice: ""`（照听写语言 auto→"" 写语义 VoiceSection.tsx:166-169）；文案复用既有键 `voice.settings.announcement.voice.default`（"系统默认"，zh-CN.ts:8251 已存），不新增键。
+- **voiceschanged 异步语义（复审缺口 #2）**：Windows/Chrome 首次 `getVoices()` 常返回空数组（平台行为，触发率未实测——复审 3.2 #2 low 定级为推断）。裁决：**设置面列表不阻塞等待**——首帧空表时 Select 仅含「自动」+ 禁用的加载占位项（新键 `voice.settings.announcement.voice.loading`）；`voiceschanged` 到达后刷新选项。**播报腿运行时零改动**：speak 时同步取一次 + 失配 warn 回落系统默认（speechSynthesisTtsAdapter.ts:111-119）保持为兜底——设置面枚举只是可发现性增强，不把「列表就绪」变成播报前置条件（首播通常晚于页面加载，且兜底不崩溃；触发率实测列 TV-9）。
+- 选中项写值 = 音色 `name` 原串（与适配器 `candidate.name === u.voice` 精确匹配键一致，speechSynthesisTtsAdapter.ts:112）；控件补 `data-testid="voice-announcement-voice"`（设置面本地字面量，照 voice-vendor-base-url 先例，不进 shared test-ids）。
+
+理由：复审 3.2 #1 定性为「spec 未定义的需求缺口」——§6.1 只定义键名/默认值、§9.3 只写「音色」二字；实现与 spec 自洽，缺的是控件形态定义。枚举 Select 消除「用户无从得知合法音色名」的可发现性缺口；键与匹配语义不动，使其成为纯 UI 面改动（无契约迁移）。
+
+#### 9.7.3 cloud 音色独立键 `voiceTtsVendorVoice` + 端口 additive 字段（裁决；取代 §9.6.5-1 云 voice 子句）
+
+**裁决：云 TTS 音色改用独立 appSettings 键 `voiceTtsVendorVoice`（string，default ""）；`voiceAnnouncementVoice` 收窄为 system 引擎语义（系统音色名），两者永不互读。`VoiceTtsUtterance` additive 可选字段 `vendorVoice?: string`（厂商音色 id）；`cloudTtsAdapter` 的 `body.voice` 改读 `u.vendorVoice`（缺省省略字段 = 厂商默认音色），`speechSynthesisTtsAdapter` 仍读 `u.voice` 零改动。**
+
+- 现状冲突（复审 #3，复核成立）：同一 `voiceAnnouncementVoice` 在 system/cloud 两引擎下分属两个命名空间——cloud 路径 `cloudTtsAdapter.ts:179-181` `body.voice = u.voice` 直传（源自 §9.6.5-1「复用 voiceAnnouncementVoice」裁决），system 音色名填入 → 厂商 4xx → 连续 3 句失败（voiceTuning.ts:43）→ 中止本轮 + 会话内静默回落系统引擎，UI 零反馈。
+- 为什么在 utterance 层加字段而不是「reader 按引擎返回」：引擎路由在 wiring 组合端口的 `speak` 内单点裁决（useVoiceAnnouncement.ts:207-225 `resolveTtsEngineNow`），而句配置在 planner 每句 `speak` 前组装（turnSpeechPlanner.ts:351-357）——若 reader 按引擎挑值，等于在配置组装点复刻一份引擎判定（含 `cloudFallbackRef` 回落态），两处必须永远一致，脆弱。`vendorVoice` 字段让两个适配器各取各轨，路由仍单点。端口改动为 additive optional（既有调用方零影响）。
+- **不迁移存量值**：旧语义下用户填进 `voiceAnnouncementVoice` 的厂商音色 id 本身就是错配输入（给 system 引擎也是失配回落），无「正确旧值」可迁；切换后 cloud 档 `voiceTtsVendorVoice` 缺省 ""= 厂商默认音色，用户在新键重填。设置面：厂商档分组 ttsModel 行后新增自由文本 Input（`voice.settings.vendor.ttsVoice.label`/`.placeholder`，恒可见，照 ttsVendorModel 行形态 VoiceSection.tsx:339-353；厂商音色枚举未抓取——附录 D.11/OQ-9——v1 不做校验下拉）。
+- 消费链：reader `resolveVoiceAnnouncementVoiceConfig`（voiceComposerEntryState.ts:41-53）additive 返回 `vendorVoice?: string`（读 `voiceTtsVendorVoice`，空 = 缺省）→ `voiceAnnouncementPreferences.resolveVoiceAnnouncementOutputConfig` 透传 → planner `getAnnouncementVoiceConfig` 形状扩展 `{ lang, voice?, vendorVoice?, rate }` → speak(u) 双轨各取。
+
+#### 9.7.4 试听（预览）边界（裁决）
+
+**裁决：system 音色控件旁新增「试听」按钮，走 TTS 端口独立短句；不进播报腿状态机、不持播报 claim；输入腿 Recording 或播报腿非 AnnIdle 时禁用。cloud 试听 keptOpen（TV-8 同期）。**
+
+- **载体**：VoiceSection 持 preview 专用 `createSpeechSynthesisTtsAdapter()` 实例（useRef），点按 = `cancel() + speak({ text: 试听短句键 voice.settings.announcement.voice.previewText, lang: 解析后播报语言（9.7.5）, voice: 当前选中 system 音色, rate: 当前语速 })`。试听短句文案按**当前 UI locale** 取键值（它只是发音样本，不承担播报语言链路验证）。
+- **不进播报腿状态机**：preview 不调用 planner、不写 `voiceSessionStore.announcement`（相位/claim 态零变化）；试听播放态是设置面本地 useState（按钮态：空闲/播放中）。
+- **不持 claim**：preview 是单窗设置面显式短句行为，不参与跨窗口单播报者仲裁（§3.5）。他窗正在播报时本窗试听可能叠音——接受（同 OQ-3「默认关 + 手动触发压叠音概率」哲学），不为他窗播报状态引入跨窗查询。
+- **禁用门（防叠音的构造性保障，非时序侥幸）**：`voiceSessionStore.inputLeg !== "recording" && announcement.phase === "idle"` 才可点（VoiceSection 直接订阅 store 两既有事实）。两条理由：① §3.3「Recording 优先」是冻结互斥规则，任何 TTS 出声与拾音竞争且会被 ASR 拾入（回声/误转写）；② `speechSynthesis.cancel()` 是**引擎级全停、无逐句选择性**（speechSynthesisTtsAdapter.ts:154-168）——preview 与播报腿共用底层引擎，任何一侧 cancel 会停掉另一侧在播内容；置灰入口使两侧永不并存，比「抢停/让位」分支简单且可测。AnnPaused/Cancelling 期同禁用（AnnPaused 必然伴随 recording；Cancelling 是过渡态）。
+- **cloud 试听 keptOpen**：需真实凭据直调厂商（计费）+ 音频回放链路复用度评估，与 TV-8 spike 同期裁决（9.7.10）。
+
+#### 9.7.5 播报语言键 `voiceAnnouncementLang`（裁决）
+
+**裁决：新增 additive 键 `voiceAnnouncementLang`（string，default ""）；""=自动=UI locale（现状语义原样保留为缺省，useVoiceAnnouncement.ts:266-269 `lang: localeRef.current` 零行为变化）；显式值优先。不做「跟随所选 system 音色 lang」联动。**
+
+- 控件：播报分组音色行后新增 Select「播报语言」（键 `voice.settings.announcement.lang.label`/`.auto`/`.zh`/`.en`），auto→"" 写语义照听写语言行（VoiceSection.tsx:162-189 同型）。
+- reader：新 `resolveVoiceAnnouncementLang(settings, currentLocale)`（照 `resolveVoiceDictationLang` voiceComposerEntryState.ts:32-38 同型收口）；planner 侧 `config.lang ?? defaultAnnouncementLang()`（turnSpeechPlanner.ts:354，fallback `navigator.language` :195-200）维持兜底不变。
+- **不联动所选音色 lang 的理由**：lang 来源必须单一（状态所有者红线）。若 auto = 音色 lang，则「音色=自动」时回落 UI locale、「音色=具体」时跟随音色，同键两套推断链且随 voiceschanged 漂移；显式键 + 缺省 UI locale 是零迁移、零歧义的最小面。音色/语言错配（如 UI=zh 选英文音色）为既有行为，不因本章变化；两控件相邻排列由用户组合。
+- **cloud 引擎 v1 不映射 lang**（§9.6.5-1「u.lang v1 不映射」维持）：本键 v1 仅 system 引擎生效，cloud 语种由厂商模型自判；如实记入设置面描述（不承诺 cloud 语言跟随）。
+- 该键是 persona 物化的四个底层键之一（9.7.8）——persona 需要可写的语言键是选择显式键方案的决定性理由。
+
+#### 9.7.6 语速 Input 改 draft+onBlur 草稿态（裁决）
+
+**裁决：语速控件（VoiceSection.tsx:368-387 受控 number Input，越界不写 → DOM 显示值与持久值短暂背离）改 baseUrl 先例的草稿模式：onChange 只写本地草稿；onBlur 解析——合法（有限数且 ∈ [0.5, 2]）→ `updateSettings({ voiceAnnouncementRate })` 恰一次；非法/越界 → 草稿回退持久值 + 行内警告（键 `voice.settings.announcement.rate.invalidWarning`，warning 形态照 baseUrl 行 VoiceSection.tsx:222-235）。**
+
+- 数值契约不变：设置域 0.5–2.0 在 zod（validationAppSettings.ts:535）与 reader（voiceComposerEntryState.ts:51）两处一致、端点 0.25–4 钳制全覆盖（cloudTtsAdapter.ts:66-72）——本条纯控件形态，零契约面。
+- **草稿随外部变更重同步**（useEffect 照 VoiceSection.tsx:116-119 baseUrl 草稿同步先例）：persona 物化写 `voiceAnnouncementRate`（9.7.8）是控件外写入路径，草稿必须跟随，否则 Select 选完角色后 Input 仍显示旧草稿。
+
+#### 9.7.7 toolBriefPlanner 会话边界重置与首帧消化（裁决）
+
+**裁决：`resetTurnCounters` 死 API 演进为 `resetSessionState()`，wiring 在 conversationKey 变化时点调用；快照消费增 prime（首帧消化）语义；`announcedCountByTurn` 每快照修剪。turn 推进时点不接线。**
+
+现状（本轮核验）：`resetTurnCounters`（toolBriefPlanner.ts:170-172）仅清 `announcedCountByTurn`，生产代码零调用（grep 全 ui src 仅定义/接口文档/测试命中）；`seenToolCallIds`（:73，Set）、`lastBriefAtByTool`（:80，Map）、`pendingByTool`（:85-94）、`announcedCountByTurn`（:105，Map）随会话内工具调用数无界增长（复审功能面 low #2；planner 实例生命周期 = pane 内 hook 生命周期，useVoiceAnnouncement.ts:394-407 useMemo）。既有语义约束：开关关闭时 seen 照常消化防「开启瞬间旧行涌入」（toolBriefPlanner.test.ts:176 用例）；EG-1 允许 pending 跨 turn 挂起（:99 注释）。
+
+1. **接线时点 = conversationKey 变化**（`useVoiceAnnouncement.ts:275-288` 既有会话切换检测 effect——`lastConsumedTurnRef` 重置同批，单点接线）。**turn 推进不接线**：per-turn 计数已按 turnId 键控、跨 turn 归属由 drain 时刻 `currentTurnId` 裁决（:130，终审角落修复语义），无「turn 边界事件」可挂且无必要。
+2. **API 演进**：`resetSessionState()` 清全部四结构（seen/lastBriefAtByTool/pendingByTool/announcedCountByTurn）+ `currentTurnId = null`；**保留** `lastAnnouncedAt`（全局最小间隔基准跨会话连续，方向安全：切换后首条简报至多被 5s 间隔约束丢弃一次）。原 `resetTurnCounters` 移除——死 API 无生产调用方，重命名零迁移成本，名字如实反映语义（「turn counters」名不副实：清的是会话态）。toolBriefPlanner.test.ts:154 用例同步改写。
+3. **首帧 prime 消化**：`consumeToolCallSnapshot(rows, opts?: { prime?: boolean })` additive。`prime: true` 时**终态行（status ∈ {success, error, cancelled}，drora-protocol-v4/rows.ts:211 枚举）只进 seen 不生成候选；非终态行（inputStreaming/pendingApproval/running）走正常首见候选路径**；drainPending 照常。wiring：conversationKey 变化（含首挂载）→ `resetSessionState()` → 本帧快照以 `{prime: true}` 消化；后续快照正常调用。
+   - prime 同时修复既有首帧涌入：现行挂载/切换即全量首见——投影含历史终态工具行时（units 全量喂入 useVoiceAnnouncement.ts:408-435），挂载即对历史工具出简报；wiring 测试与 planner 测试均未覆盖此形态（grep 双文件零相关断言）。prime 语义 = 「从无到有」以**本 planner 会话视图**为界，首帧存量不播——与 :176「开关关闭 seen 照常消化」同一哲学的补全。
+   - 切回旧会话同理：reset 后 prime 消化历史终态行，构造性防「切回即重播历史简报」。
+4. **修剪**：`consumeToolCallSnapshot` 末尾把 `announcedCountByTurn` 键集修剪至当前快照 turnId 集 ∪ {currentTurnId}——长会话内存有界，且不破坏跨 turn 挂起归属（挂起者上交时计入 currentTurnId，:130 语义保持）。
+
+#### 9.7.8 persona v1（裁决；目录内容建议，待拍板）
+
+**裁决：persona v1 = builtin 预设目录（4 个，内容建议待拍板）+「自定义」派生档；选择角色 = 一次 patch 物化写四个底层键；`voicePersonaId` 仅作设置面显示当前选择，运行时零读路径；双引擎双轨音色；角色不影响打断词表。**
+
+```mermaid
+flowchart LR
+    P["VoiceSection persona Select 点选 builtin P"] -->|"单次 updateSettings 5 键（原子 patch）"| S[("appSettings: voicePersonaId / voiceAnnouncementVoice / voiceTtsVendorVoice / voiceAnnouncementRate / voiceAnnouncementLang")]
+    S --> R["reader 收口（resolveVoiceAnnouncementVoiceConfig + resolveVoiceAnnouncementLang）"]
+    R -->|"每句 speak 读取（句粒度生效）"| PL["turnSpeechPlanner speak(u): voice=system 轨 / vendorVoice=cloud 轨"]
+    PL -->|system| A1["speechSynthesisTtsAdapter: u.voice"]
+    PL -->|cloud| A2["cloudTtsAdapter: body.voice = u.vendorVoice"]
+    D["Select 显示派生（四键与 P 物化值发散 → 显示「自定义」，不回写）"] -.只读.-> S
+```
+
+1. **目录形态**：新文件 `packages/ui/src/voice/voicePersonas.ts`（+test）。条目形状：`{ id: string; labelKey: string; lang: "" | "zh-CN" | "en-US"; rate: number; cloudVoice: string; systemVoiceHint: string }`——`cloudVoice`/`systemVoiceHint` 可空串 = 自动（cloud=厂商默认音色、system=系统默认音色）。名称走 i18n 静态键 `voice.settings.persona.preset.<id>` 进 `VOICE_SETTINGS_I18N_KEYS`（三断言守护覆盖；键清单静态，catalog 引用键名——照 EG-4 静态清单模式，不做动态键）。
+2. **目录内容（建议，待拍板）**：4 个 builtin——`standard`（标准，lang 自动/rate 1.0/双音色自动）、`brisk`（明快，rate 1.3）、`composed`（从容，rate 0.85）、`narration`（讲述，rate 1.0/lang 定档）。具体 `systemVoiceHint`/`cloudVoice` 值**实现时落**：系统音色名按目标平台实测枚举填（Windows/macOS 名集不同，miss 即走既有失配回落 speechSynthesisTtsAdapter.ts:111-119，hint 语义=「尽力匹配」）；cloud 音色 id 依赖厂商音色枚举抓取（OQ-9，附录 D.11 补记；默认厂商 SiliconFlow 音色集），抓取前相关字段留空串=自动。preset 数量 4 ∈ 复审建议区间 3–5。
+3. **物化写底层键**：点选 builtin P → **单次** `updateSettings({ voicePersonaId: P.id, voiceAnnouncementVoice: P.systemVoiceHint, voiceTtsVendorVoice: P.cloudVoice, voiceAnnouncementRate: P.rate, voiceAnnouncementLang: P.lang })`（单 patch 原子生效，照 handleAcknowledge 多键 patch 先例 VoiceSection.tsx:96）。**不新增第二读路径（§3.1 红线）**：运行时消费（reader→planner→适配器）只读四个底层键，`voicePersonaId` 的唯一消费方 = VoiceSection Select 显示。
+4. **「自定义」= 派生档，不可点选**：持久键 `voicePersonaId`（string，default ""；非枚举——目录演进不需 schema 迁移，未知 id 自然回落自定义）。显示判定：`voicePersonaId` 命中 builtin 且四底层键与该 preset 物化值逐项相等 → 显示该 preset；否则显示「自定义」（键 `voice.settings.persona.custom`）。手改任一底层键（音色 Select/云音色 Input/语速/播报语言）→ 发散 → 显示回落自定义，**不回写** `voicePersonaId`（各控件保持 persona 无感知，零耦合）。「自定义」不出现在 SelectItem 列表（radix SelectValue 可显示非选项值）。
+5. **双引擎双轨**：同一 persona 双轨各写各键——`systemVoiceHint → voiceAnnouncementVoice`（system 轨）、`cloudVoice → voiceTtsVendorVoice`（cloud 轨，9.7.3）；切引擎即换轨读，无需重选角色。异厂商（baseUrl 非 SiliconFlow）用户：preset cloudVoice 可能无效 → 走 §9.6.5-3 既有失败回落链；v1 不做异厂商映射表（keptOpen 9.7.10）。
+6. **生效时机 = 句粒度（既有机制，零新事件流）**：planner 每句 speak 时读 config（turnSpeechPlanner.ts:351-357），设置变更下一句即生效——比复审建议 5「对齐 §9.6.5-2 引擎解析点（设置变更=下一解析点）」粒度更细，方向一致；播报中切换 persona = 当句播完下句换音色/语速，不中断本轮。
+7. **角色不影响打断词表（v1 明确不做）**：打断词表按 locale 维度（interruptionWords.ts:16-19 现状），persona 不叠加维度——打断词命中是层①/层③分发判定（安全/仲裁面），「换角色打断词失效」是不可接受的意外面。重开条件 = OQ-6 真机调优数据表明需要。
+8. **持久化**：`voicePersonaId` 进 `VOICE_SETTINGS_KEYS`（contracts/voice.ts additive，12→15 键——与 9.7.3/9.7.5 两键同批）+ validationAppSettings persisted/patch + protocol.ts wire 面，parity 单测自动覆盖（§9.6.2-4 先例）。
+
+#### 9.7.9 实现范围与逐条验收（裁决 g）
+
+**范围清单（`packages/ui/src/voice/` + `settings/VoiceSection.tsx` + shared 契约 additive，零还原文件、零 CLI 改动；对照 §9.6.8 无线协议面）**
+
+| # | 交付物 | 内容 |
+|---|---|---|
+| V1 | `contracts/voice.ts` + `validationAppSettings.ts` + `protocol.ts` additive | 三键：`ttsVendorVoice: "voiceTtsVendorVoice"`、`announcementLang: "voiceAnnouncementLang"`、`personaId: "voicePersonaId"`（persisted default ""/""/""）+ patch optional + wire 面；parity 单测扩至 15 键 |
+| V2 | `voiceTtsPort.ts` additive + `cloudTtsAdapter.ts` 改读 | `VoiceTtsUtterance.vendorVoice?: string`；cloud `body.voice = u.vendorVoice`（:179-181 改）+ test 更新 |
+| V3 | `systemVoiceCatalog.ts`（+test） | 9.7.2 三函数（枚举/订阅/过滤） |
+| V4 | `voiceComposerEntryState.ts` reader 扩展 | `resolveVoiceAnnouncementVoiceConfig` + `vendorVoice`；新 `resolveVoiceAnnouncementLang`；`voiceAnnouncementPreferences.ts` 透传 |
+| V5 | `VoiceSection.tsx` 改造 | system 音色 Select（含自动项/加载占位）+ 试听按钮 + 云音色 Input + 播报语言 Select + 语速草稿态 + persona Select；data-testid：voice-announcement-voice / voice-announcement-voice-preview / voice-vendor-tts-voice / voice-announcement-lang / voice-announcement-rate / voice-persona |
+| V6 | `toolBriefPlanner.ts` + `useVoiceAnnouncement.ts` 接线 | `resetSessionState`/`prime`/修剪（9.7.7）+ conversationKey effect 单点接线 |
+| V7 | `voicePersonas.ts`（+test） | 目录 + 物化 patch 组装纯函数 + 「自定义」发散判定纯函数 |
+| V8 | i18n | 新键（清单见下）进 zh/en + `voiceI18nKeys.ts` additive，三断言守护 |
+
+新 i18n 键（15，清单随 EG-4 惯例属「建议，待拍板」，机制冻结）：`voice.settings.announcement.voice.loading` / `.preview` / `.previewText`；`voice.settings.announcement.lang.label` / `.auto` / `.zh` / `.en`；`voice.settings.announcement.rate.invalidWarning`；`voice.settings.vendor.ttsVoice.label` / `.placeholder`；`voice.settings.persona.label` / `.description` / `.custom` / `.preset.standard` / `.preset.brisk` / `.preset.composed` / `.preset.narration`。
+
+共同门禁照 §9 头（typecheck/lint 实测报告；UI 遵守 DESIGN.md token）。
+
+**验收（断言级）**
+
+- V1：parity 单测字段集合 === VOICE_SETTINGS_KEYS 值集合（15 键）通过；patch 缺省时 persisted default 生效（三键均 ""）。
+- V2-a：given ttsEngine=cloud 且 `voiceTtsVendorVoice` 非空，when 轮尾播报，则每句 POST body.voice === `voiceTtsVendorVoice` 值；given 该键空串，则 body 无 voice 字段（厂商默认）。
+- V2-b：given `voiceAnnouncementVoice="Microsoft Huihui"`（系统音色名）且 ttsEngine=cloud，则请求体（mock fetch 断言 JSON.parse(body)）零含该值——跨命名空间冲突构造性消除。
+- V2-c（system 回归）：given ttsEngine=system，则 utterance.voice 精确匹配 `voiceAnnouncementVoice`（speechSynthesisTtsAdapter.test.ts 既有用例全绿）。
+- V3-a：given getVoices() 同步返回含 zh-CN/en-US/ja-JP 音色，则 Select 选项 = 「自动」+ zh*/en* 两前缀命中项，ja 项不出现；given 全部音色均非 zh*/en*，则选项 = 「自动」+ 全量列表（回落断言）。
+- V3-b：given 首帧 getVoices() 返回 []，则选项仅「自动」+ 禁用加载项；when voiceschanged 触发，则选项刷新为完整过滤列表；组件卸载后订阅已退订（listeners 计数断言）。
+- V3-c：given 选中「自动」→ 持久值 `voiceAnnouncementVoice === ""`；given 选中具体项 → 持久值 === 该音色 name 原串。
+- V4-a：given `voiceAnnouncementLang === ""`，则 utterance.lang === UI locale（现状回归：wiring 注入 `localeRef.current` 零改动（useVoiceAnnouncement.ts:266-269），lang 透传既有钉住面为 turnSpeechPlanner.test.ts:130/:217——config.lang → utterance.lang）。
+- V4-b：given `voiceAnnouncementLang === "en-US"` 且 UI locale=zh-CN，则 utterance.lang === "en-US"。
+- V4-c：given ttsEngine=cloud，则请求体不含 language 类字段（v1 不映射回归）。
+- V5-a（试听边界）：given inputLeg=idle 且 announcement.phase=idle，when 点试听，则恰一次 speak（文本 === previewText 键值；lang/voice/rate === 当前设置解析值），且 `voiceSessionStore.announcement` 前后快照逐字段相等（不进播报腿状态机）、claim 端口 acquire 零调用（mock 断言）。
+- V5-b：given inputLeg="recording"，则试听按钮 disabled（点按零 speak）；given announcement.phase ∈ {speaking, paused, cancelling}，则同 disabled。
+- V5-c：given 试听播放中再次点按，则先 cancel 后 speak（preview 实例内重播）。
+- V5-d（语速草稿）：given onChange 输入 "0.3"/""/"abc"（中间态），则 updateSettings 零调用；when onBlur 越界值，则草稿回退持久值 + 行内警告渲染；when onBlur "1.5"，则恰一次 `updateSettings({voiceAnnouncementRate: 1.5})`。
+- V5-e（草稿同步）：given persona 物化写入 rate=1.3（外部 patch），则语速 Input 显示 1.3（草稿随 settings 重同步）。
+- V6-a：given 会话 A 已消化 3 个工具行，when conversationKey 切至会话 B，则 `resetSessionState` 恰调用一次，B 首帧以 prime 消化——B 的终态行零 `consumeBrief` 上交、B 的 running 行正常候选。
+- V6-b（首帧/切回防涌入）：given 挂载（或切回）时投影含 10 条历史终态工具行，则零简报上交（修复既有首帧全量首见形态）。
+- V6-c（内存有界）：given 同一会话内 turn 推进 N 轮后快照，则 `announcedCountByTurn` 键集 ⊆ 当前快照 turnId 集 ∪ {currentTurnId}（暴露内部态的测试断言或等价行为断言）。
+- V6-d：grep 生产代码 `resetTurnCounters` 零命中（死 API 移除干净）。
+- V7-a（物化）：given 点选 builtin P，则恰一次 updateSettings，patch 键集 === {voicePersonaId, voiceAnnouncementVoice, voiceTtsVendorVoice, voiceAnnouncementRate, voiceAnnouncementLang} 且值 === P 目录值（空串原样物化）。
+- V7-b（零第二读路径）：grep `voicePersonaId` 生产消费方 === VoiceSection 显示派生单处；planner/adapters/readers 零命中。
+- V7-c（自定义派生）：given 选 P 后手改语速，则 SelectValue 显示「自定义」文案且 `voicePersonaId` 持久值仍 === P.id（不回写）；given 四键与 P 逐项相等，则显示 P。
+- V7-d（生效粒度）：given 播报 Speaking 中 persona patch 落盘，则当前句以旧配置播完、下一句以新 voice/rate 播（句粒度，无中途重播）。
+- V7-e（词表隔离）：given persona=brisk 与 custom 两态，`classifyVoiceDictationFinal("停", "zh-CN")` 输出一致（词表函数零 persona 输入）。
+- V8：voiceI18n 三断言守护通过（新 15 键双语一致/非空/占位符同构）。
+
+#### 9.7.10 明确不做与 keptOpen
+
+**本批次不做**：
+
+1. **cloud 试听**——需真实凭据直调厂商（计费）与回放链路评估，与 TV-8 spike 同期；重开条件 = TV-8 完成后随厂商音色枚举（OQ-9）一并裁决。
+2. **persona 开场白/称呼模板**——复审 4.2 #2 后半；依赖播报内容白名单表（§4.1）扩行，属内容分级面非配置面，须独立增补再实现。
+3. **persona 影响打断词表**——9.7.8-7 裁决；重开条件 = OQ-6 真机数据。
+4. **自定义角色的保存/导入/导出**——「自定义」= 手动调底层键的派生态（9.7.8-4），不持久化自定义 persona 对象（避免第二配置真源）。
+5. **厂商音色枚举 Select 化与校验**——依赖 OQ-9 抓取；现云音色为自由输入（照 ttsVendorModel 同形态）。
+6. **preset cloudVoice 异厂商映射表**——preset 音色按默认厂商音色集落值；异厂商用户走自定义（9.7.8-5）。
+7. **voiceschanged 首帧空表触发率与跨平台行为矩阵实测**——语义已由 9.7.2 定义并兜底；实测列 TV-9 校准复审 #2 的 low 定级。
+
+**新增 open 条目**：
+
+| # | 问题 | 为什么暂不裁决 | 重新打开的触发条件 | 责任人角度 |
+|---|---|---|---|---|
+| OQ-9 | 厂商音色枚举值抓取（附录 D.11 补抓；preset cloudVoice 落值与云音色 Select 化/校验前置） | 需真实凭据拉取各厂商音色列表，静态核验不足 | V7 目录落值前 / 云音色枚举化立项前 | Phase 2 实现者 |
+| TV-9 | Windows/Chrome 首播 getVoices 空表触发率 + macOS/Linux voices 加载行为矩阵（校准复审 #2 low 定级） | 需目标运行时实测；本章语义已兜底不阻塞 | V3 实施后随真机验证批执行 | Phase 2 实现者 |
+
+**本轮核验记（2026-10-24，worktree @ 63479ef7 实际执行）**：读码 VoiceSection.tsx（全文 427 行）、speechSynthesisTtsAdapter.ts、cloudTtsAdapter.ts、voiceComposerEntryState.ts、voiceAnnouncementPreferences.ts、useVoiceAnnouncement.ts、toolBriefPlanner.ts、voiceTtsPort.ts、voiceTuning.ts、voiceI18nKeys.ts、contracts/voice.ts、turnSpeechPlanner.ts（:190-200/:340-358）；grep 三组——`voiceschanged` 于 ui src 零命中、`resetTurnCounters` 生产调用方零命中（仅定义/接口文档/测试）、`voicePersona|voice.persona|voice.character` 于 ui+shared src 零命中；validationAppSettings.ts:528-545/:669-681（12 键 persisted/patch）；drora-protocol-v4/rows.ts:211（toolCall status 枚举）；zh-CN.ts:8250-8253（音色/语速既有键）；`git diff 6d754098 HEAD` 实测仅 3 文件（DEBUG 清理 + 两处注释修正）。未执行：单测/E2E 实跑（本章为 spec-only 增补，无实现改动，不触发测试面；复审 5.4 的 246 项基线可作回归参照）。
+
 ---
 
 ## 10. 开放问题清单（含触发条件与责任人角度）

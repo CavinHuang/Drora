@@ -6,8 +6,9 @@ This runtime builds the viewer panels of several plugins. Each built-in plugin p
 
 - **Documents**: parsed by format (`adapters/parse/*`) into a `ParsedDocument` (outline, paged text, search, locator check). Cached per path and invalidated by size + mtime; the revision is a content hash.
 - **Anchors** (`domain/anchor.ts`): `<path>#<locator>` shared by panel, server and model. docx `p:N[-M]`, `t:N[/rRcC]`; xlsx `Sheet[!A1[:B2]]`; pptx `slide:N[-M]`, `slide:N/shape:ID` (the shape's `cNvPr` id); pdf `page:N[-M]`. 1-based. `check()` returns the canonical form (e.g. the real sheet name).
-- **Viewer state**: the current document (set by `open_document`, `show_in_viewer`, or the panel's `report_view`) and the user's last reported location and selection. One per server process.
-- **Bytes to the panel**: `load_document` hands out a token; the panel reads `ui://<plugin>/file/{token}/{index}` in 4 MiB chunks. Tokens are in-memory and expire after newer loads.
+- **Viewer state**: the current document (set by `open_document`, `show_in_viewer`, or the panel's `report_view`) and the user's last reported location and selection — one per viewer session. Tools name their session via `_meta.session_id` (`root_session_id` wins when present; calls without one share the `default` session, which covers direct stdio clients). Sessions live in an LRU capped at 32; evicting one resets it — its next `load_document` fails with "This viewer session was reset; reload the document." until the caller reloads.
+- **Bytes to the panel**: `load_document` hands out a token; the panel reads `ui://<plugin>/file/{token}/{index}` in 4 MiB chunks. Tokens are in-memory, capped at 4 per session, released when the session is evicted or its last chunk is read; an older load in the same session expires after newer loads.
+- **File imports**: `begin_file_import` counts its 4 pending slots per calling session, not per process.
 
 ## Tools
 

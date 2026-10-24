@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@drora/presentations-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "PPTX presentation production skills and a PowerPoint viewer panel, published as an official Drora plugin.",
   "license": "Apache-2.0",

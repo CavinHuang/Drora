@@ -175,6 +175,9 @@ export function createDocumentImporter(
       offset: number;
       handle: FileHandle;
       touched: number;
+      // 导入配额按会话（owner = _meta.session_id，缺省 "default"）计数：
+      // 还原自官方 dist（presentations-plugin/dist/server.mjs files.ts 段 :44117-44131）。
+      owner: string;
     }
   >();
   let queue: Promise<unknown> = Promise.resolve();
@@ -226,7 +229,11 @@ export function createDocumentImporter(
   return {
     // 只读工作区仍可预览；启动清扫失败只记录，不能阻断插件连接。
     initialize: () => run(() => sweep().catch((error) => options.onCleanupError?.(error))),
-    begin: (name: string, size: number) =>
+    // owner 参数为调用时会话键：MAX_IMPORTS 按 owner 计数，与官方 0.2.1 dist/server.mjs
+    // :44117-44131 逐字节一致（2026-10 dist 对照台账修正：官方本就按 owner 计数，原注释
+    // 误述为"从全局上限改为"，会给上游同步留下假分歧印象）；
+    // chunk/finish/cancel 仍按导入 id 操作，无需会话键。
+    begin: (name: string, size: number, owner = "default") =>
       run(async () => {
         if (closed) throw new OfficeError("invalid_token", "Importer is closed.");
         if (basename(name) !== name || name.includes("\\") || !kindOf(name))
@@ -234,14 +241,14 @@ export function createDocumentImporter(
         if (!Number.isInteger(size) || size < 1 || size > MAX_FILE_BYTES)
           throw new OfficeError("file_too_large", "File size is outside the supported range.");
         await sweep();
-        if (uploads.size >= MAX_IMPORTS)
+        if ([...uploads.values()].filter((upload) => upload.owner === owner).length >= MAX_IMPORTS)
           throw new OfficeError("invalid_token", "Too many pending imports.");
         const id = randomUUID();
         const directory = join((await parent())!, id);
         await mkdir(directory);
         try {
           const handle = await open(join(directory, ".partial"), "wx");
-          uploads.set(id, { directory, name, size, offset: 0, handle, touched: now() });
+          uploads.set(id, { directory, name, size, offset: 0, handle, touched: now(), owner });
           return id;
         } catch (error) {
           await rm(directory, { recursive: true, force: true }).catch((cleanupError) =>

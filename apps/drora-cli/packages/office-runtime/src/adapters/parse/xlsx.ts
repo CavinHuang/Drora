@@ -199,7 +199,11 @@ export async function parseXlsx(bytes: Uint8Array, label: string): Promise<Parse
       for (const sheet of sheets) {
         sheet.eachRow({ includeEmpty: false }, (row, r) => {
           if (hits.length >= limit) return;
-          row.eachCell({ includeEmpty: false }, (cell, c) => {
+          // 显式标注回调参数类型：门禁修复项（specs/official-plugin-sync-2026-10.md §3.3）。
+          // 2026-10-24 基线实测：office-runtime 依赖补装后 exceljs index.d.ts:586 的 eachCell
+          // 回调签名自带类型，此前的 TS7006（隐式 any）不可复现（pnpm typecheck exit 0）；
+          // 此处显式标注仅防类型环境变化回归，无行为改动。
+          row.eachCell({ includeEmpty: false }, (cell: ExcelJS.Cell, c: number) => {
             if (hits.length >= limit) return;
             const info = readCell(cell);
             const text = info.formula ? `${info.display} ${info.formula}` : info.display;

@@ -58,6 +58,22 @@ it("serializes concurrent admission and reclaims expired slots", async () => {
   await importer.close();
   expect(await readFile(join(root, path))).toHaveLength(1);
 });
+
+it("counts the pending-import quota per owner session, not per process", async () => {
+  // 导入配额按会话计（官方 0.2.1/0.2.2：begin(name, size, owner = "default")，files 段 :44117-44131）。
+  const { importer } = await fixture();
+  const sessionA: string[] = [];
+  for (let i = 0; i < 4; i++) sessionA.push(await importer.begin("a.pdf", 1, "session-a"));
+  // owner A 满 4 后第 5 个被拒
+  await expect(importer.begin("a.pdf", 1, "session-a")).rejects.toThrow(
+    "Too many pending imports.",
+  );
+  // owner B 与缺省 owner 的配额不受 A 挤占
+  const b = await importer.begin("b.pdf", 1, "session-b");
+  const d = await importer.begin("c.pdf", 1);
+  for (const id of [...sessionA, b, d]) await importer.cancel(id);
+  await importer.close();
+});
 it("startup cleans only expired partials, preserves completed and recent imports", async () => {
   const { root, importer } = await fixture();
   const parent = join(root, ".drora/document-imports");

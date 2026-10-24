@@ -2,6 +2,7 @@ import type { createDocumentImporter } from "#office/adapters/files.ts";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RequestMeta } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   ASSET_PREFIX,
@@ -21,7 +22,7 @@ import {
 import { formatAnchor } from "#office/domain/anchor.ts";
 import { truncateBytes } from "#office/domain/model.ts";
 import { wellFormed, wellFormedDeep } from "#office/domain/text.ts";
-import type { DocumentOwner } from "#office/app/documents.ts";
+import type { DocumentOwner, DocumentSession } from "#office/app/documents.ts";
 import { isAssetName } from "#office/adapters/assets.ts";
 import {
   EXAMPLE_ANCHORS,
@@ -36,6 +37,18 @@ import {
 } from "#office/wording.ts";
 
 type Visibility = ("model" | "app")[];
+
+/**
+ * Resolve the viewer session key of a call: `root_session_id` first, then `session_id`,
+ * both must be non-empty strings; otherwise `undefined` (the call shares the default session).
+ * 还原自官方 dist（presentations-plugin/dist/server.mjs :56391-56395）；导出供单测。
+ * `_meta` 是开放键值袋（SDK RequestMeta 只声明部分键），故按索引签名收参。
+ */
+export function sessionOf(meta: { [key: string]: unknown } | undefined): string | undefined {
+  for (const id of [meta?.root_session_id, meta?.session_id])
+    if (typeof id === "string" && id) return id;
+  return undefined;
+}
 
 const KIND_NAMES: Record<DocKind, string> = {
   docx: "Word document",
@@ -121,6 +134,7 @@ export function createOfficeServer({
     },
     execute: (
       input: z.infer<z.ZodObject<Shape>>,
+      session: DocumentSession,
     ) => Promise<{ text: string; structured?: Record<string, unknown> }>,
   ) => {
     server.registerTool(
@@ -136,9 +150,17 @@ export function createOfficeServer({
           ...(config.openPanel ? { "openai/ui": { preferredModelDisplayMode: "fullscreen" } } : {}),
         },
       },
-      (async (input: z.infer<z.ZodObject<Shape>>) => {
+      // 每次工具执行先解析会话（_meta.session_id → default），execute 拿到该会话的查看器状态：
+      // register 包装器还原自官方 dist（presentations-plugin/dist/server.mjs :56406-56420）。
+      (async (
+        input: z.infer<z.ZodObject<Shape>>,
+        extra: { _meta?: RequestMeta },
+      ) => {
         try {
-          const { text, structured } = await execute(input);
+          const { text, structured } = await execute(
+            input,
+            owner.session(sessionOf(extra._meta)),
+          );
           return textResult(text, structured);
         } catch (error) {
           const code = error instanceof OfficeError ? error.code : "corrupt_file";
@@ -180,8 +202,8 @@ export function createOfficeServer({
       panel: true,
       openPanel: true,
     },
-    async ({ path, at }) => {
-      const snapshot = await owner.open(path, at);
+    async ({ path, at }, session) => {
+      const snapshot = await session.open(path, at);
       return { text: describeSnapshot(snapshot, "Opened"), structured: { ...snapshot } };
     },
   );
@@ -201,8 +223,8 @@ export function createOfficeServer({
       },
       visibility: ["model"],
     },
-    async ({ anchor: target, cursor }) => {
-      const { info, at, page } = await owner.read(target, cursor ?? 0);
+    async ({ anchor: target, cursor }, session) => {
+      const { info, at, page } = await session.read(target, cursor ?? 0);
       const head = `${formatAnchor(info.path, at)} (${KIND_NAMES[info.kind]}, revision ${info.revision})`;
       const tail =
         page.next === null
@@ -227,8 +249,8 @@ export function createOfficeServer({
       },
       visibility: ["model"],
     },
-    async ({ path, query, limit }) => {
-      const { info, hits } = await owner.search(path, query, limit ?? 20);
+    async ({ path, query, limit }, session) => {
+      const { info, hits } = await session.search(path, query, limit ?? 20);
       const text = hits.length
         ? [
             `${hits.length} match${hits.length === 1 ? "" : "es"} for "${query}" in ${info.path}:`,
@@ -266,8 +288,8 @@ export function createOfficeServer({
       panel: true,
       openPanel: true,
     },
-    async ({ targets, note }) => {
-      const snapshot = await owner.show(targets, note);
+    async ({ targets, note }, session) => {
+      const snapshot = await session.show(targets, note);
       return { text: describeSnapshot(snapshot, "Showing"), structured: { ...snapshot } };
     },
   );
@@ -285,8 +307,8 @@ export function createOfficeServer({
       },
       visibility: ["model"],
     },
-    async ({ viewId }) => {
-      const views = owner.views();
+    async ({ viewId }, session) => {
+      const views = session.views();
       if (!viewId && views.length > 1)
         return {
           text:
@@ -299,8 +321,8 @@ export function createOfficeServer({
           "invalid_token",
           "Unknown viewer. Call get_view without viewId to list viewers.",
         );
-      const view = owner.view(viewId);
-      const current = view.path ? await owner.info(view.path) : owner.current();
+      const view = session.view(viewId);
+      const current = view.path ? await session.info(view.path) : session.current();
       if (!current && !view.path)
         return {
           text: `The ${TITLE} viewer has no document open. Use open_document to open one.`,
@@ -314,7 +336,7 @@ export function createOfficeServer({
         if (view.selection.text) lines.push(`Selected text: """${view.selection.text}"""`);
         if (view.kind === "xlsx") {
           // The panel shows computed values; add what the file stores (values and formulas).
-          const stored = await owner.read(formatAnchor(path, view.selection.at)).catch(() => null);
+          const stored = await session.read(formatAnchor(path, view.selection.at)).catch(() => null);
           if (stored)
             lines.push(
               "Selected cells as stored in the file:",
@@ -344,9 +366,10 @@ export function createOfficeServer({
         visibility: ["app"],
         readOnly: false,
       },
-      async ({ name, size }) => ({
+      // 导入归属调用会话：若接线漏传 session.id，配额会全部落 default（官方 :56580-56592）。
+      async ({ name, size }, session) => ({
         text: "Import started",
-        structured: { id: await importer.begin(name, size) },
+        structured: { id: await importer.begin(name, size, session.id) },
       }),
     );
     register(
@@ -405,8 +428,8 @@ export function createOfficeServer({
       input: { limit: z.number().int().min(1).max(1000).optional() },
       visibility: ["app"],
     },
-    async ({ limit }) => {
-      const documents = await owner.list(limit ?? 500);
+    async ({ limit }, session) => {
+      const documents = await session.list(limit ?? 500);
       return { text: `${documents.length} documents`, structured: { documents } };
     },
   );
@@ -419,8 +442,8 @@ export function createOfficeServer({
       input: { path: z.string().min(1).max(1000) },
       visibility: ["app"],
     },
-    async ({ path }) => {
-      const loaded = await owner.load(path);
+    async ({ path }, session) => {
+      const loaded = await session.load(path);
       return { text: describeDocument(loaded.info, 10), structured: { ...loaded } };
     },
   );
@@ -433,8 +456,8 @@ export function createOfficeServer({
       input: { path: z.string().min(1).max(1000) },
       visibility: ["app"],
     },
-    async ({ path }) => {
-      const info = await owner.info(path);
+    async ({ path }, session) => {
+      const info = await session.info(path);
       return { text: info.revision, structured: { path: info.path, revision: info.revision } };
     },
   );
@@ -446,8 +469,8 @@ export function createOfficeServer({
       input: {},
       visibility: ["app"],
     },
-    async () => {
-      const snapshot = owner.snapshot();
+    async (_input, session) => {
+      const snapshot = session.snapshot();
       return { text: describeSnapshot(snapshot, "Viewer has"), structured: { ...snapshot } };
     },
   );
@@ -468,8 +491,8 @@ export function createOfficeServer({
       visibility: ["app"],
       readOnly: false,
     },
-    async (input) => {
-      const view = await owner.report(input);
+    async (input, session) => {
+      const view = await session.report(input);
       return { text: "ok", structured: { view } };
     },
   );
@@ -482,8 +505,8 @@ export function createOfficeServer({
       visibility: ["app"],
       readOnly: false,
     },
-    async ({ viewId }) => {
-      owner.releaseView(viewId);
+    async ({ viewId }, session) => {
+      session.releaseView(viewId);
       return { text: "ok" };
     },
   );

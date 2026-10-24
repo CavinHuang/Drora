@@ -23,7 +23,7 @@ import type { IServiceAccessor } from "@drora/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
-import { isVoiceAnnouncementEnabled, resolveVoiceAnnouncementOutputConfig } from "@/lib/voiceAnnouncementPreferences.js";
+import { isVoiceAnnouncementEnabled, resolveVoiceAnnouncementLangFromSettings, resolveVoiceAnnouncementOutputConfig } from "@/lib/voiceAnnouncementPreferences.js";
 import { useVoiceSessionStore, type VoiceAnnouncementPhase } from "@/store/voiceSessionStore.js";
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnitTypes.js";
 import {
@@ -264,19 +264,56 @@ export function useVoiceAnnouncement({
         isAnnouncementEnabled: () => isVoiceAnnouncementEnabled(settingsRef.current),
         announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
         getAnnouncementVoiceConfig: () => {
+          // §9.7.5：播报语言经 reader 收口——voiceAnnouncementLang=""（缺省）时
+          // 回落 UI locale（现状语义零变化），显式值优先；§9.7.3 vendorVoice 双轨透传。
           const output = resolveVoiceAnnouncementOutputConfig(settingsRef.current);
-          return { lang: localeRef.current, ...output };
+          return {
+            lang: resolveVoiceAnnouncementLangFromSettings(settingsRef.current, localeRef.current),
+            ...output,
+          };
         },
         cancelTask: () => requestTaskStopRef.current(),
       }),
     [claim, tts],
   );
 
+  // §9.6.7-1 工具简报：ToolCall 行「从无到有」→ 六规则限流（toolBriefPlanner）→
+  // consumeBriefSegment（FD-3 插播时机判定在 planner）。文本组装 §4.2-7：
+  // voice.brief.prefix 模板（tool + 目标截 40 字符）。
+  // 声明先于 conversationKey effect：会话切换接线（§9.7.7）在其 deps 引用本实例
+  //（const 声明晚于使用点会在渲染期 deps 求值时 TDZ 报错）。
+  const extractToolBriefTarget = useCallback((inputText: string | undefined): string => {
+    const firstLine = (inputText ?? "").split("\n")[0]?.trim() ?? "";
+    return firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine;
+  }, []);
+  const toolBriefPlanner = useMemo(
+    () =>
+      createToolBriefPlanner({
+        isBriefEnabled: () => settingsRef.current?.voiceToolBriefEnabled === true,
+        consumeBrief: (briefId: string, toolName: string, target: string) => {
+          planner.consumeBriefSegment(
+            briefId,
+            // 简报目标截断的「…」由 extractToolBriefTarget 负责；权限段的截断尾缀文案不用于简报（§4.2-7 未定义简报尾缀）。
+            intl.formatMessage({ id: "voice.brief.prefix" }, { tool: toolName, target }),
+          );
+        },
+      }),
+    [intl, planner],
+  );
+  // §9.7.7-3：下一帧快照以 prime 消化（首挂载置 true——「从无到有」以本 planner
+  // 会话视图为界，挂载时存量终态行不播）。
+  const briefPrimePendingRef = useRef(true);
+
   useEffect(() => {
     if (lastConversationKeyRef.current !== conversationKey) {
       // 会话/workspace 切换：轮尾去重键失效（新会话的最新轮尾允许重新消费）。
       lastConversationKeyRef.current = conversationKey;
       lastConsumedTurnRef.current = null;
+      // §9.7.7：conversationKey 变化 = toolBriefPlanner 会话边界——单点接线（同批
+      // lastConsumedTurnRef 重置）：清四结构会话态 + 下一帧快照以 prime 消化
+      //（切回旧会话构造性防「切回即重播历史简报」）。
+      toolBriefPlanner.resetSessionState();
+      briefPrimePendingRef.current = true;
     }
     const tail = focused ? resolveFocusedAnnouncementTail(units) : null;
     tailRef.current = tail;
@@ -285,7 +322,7 @@ export function useVoiceAnnouncement({
     }
     lastConsumedTurnRef.current = tail.turnId;
     planner.consumeTurnTail(tail);
-  }, [conversationKey, focused, planner, units]);
+  }, [conversationKey, focused, planner, toolBriefPlanner, units]);
 
   // §3.4：切换 focused 离开本 pane → 停旧播报（立即 cancel 回 AnnIdle 并释放 claim）；
   // 新 focused pane 的就绪轮尾由上面的消费 effect 从 AnnIdle 起播。
@@ -381,30 +418,8 @@ export function useVoiceAnnouncement({
     }
   }, [focused, pendingInteractions, planner]);
 
-  // §9.6.7-1 工具简报：ToolCall 行「从无到有」→ 六规则限流（toolBriefPlanner）→
-  // consumeBriefSegment（FD-3 插播时机判定在 planner）。文本组装 §4.2-7：
-  // voice.brief.prefix 模板（tool + 目标截 40 字符）。
-  // §9.6.7-1 工具简报规划器（六规则限流，纯逻辑）：就绪简报经 consumeBrief 上交，
-  // 文案组装 §4.2-7：voice.brief.prefix 模板（tool + 目标截 40 字符，truncatedSuffix
-  // 作超长尾缀）。planner（TDZ 安全：useMemo 工厂闭包运行时 planner 已初始化）。
-  const extractToolBriefTarget = useCallback((inputText: string | undefined): string => {
-    const firstLine = (inputText ?? "").split("\n")[0]?.trim() ?? "";
-    return firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine;
-  }, []);
-  const toolBriefPlanner = useMemo(
-    () =>
-      createToolBriefPlanner({
-        isBriefEnabled: () => settingsRef.current?.voiceToolBriefEnabled === true,
-        consumeBrief: (briefId: string, toolName: string, target: string) => {
-          planner.consumeBriefSegment(
-            briefId,
-            // 简报目标截断的「…」由 extractToolBriefTarget 负责；权限段的截断尾缀文案不用于简报（§4.2-7 未定义简报尾缀）。
-            intl.formatMessage({ id: "voice.brief.prefix" }, { tool: toolName, target }),
-          );
-        },
-      }),
-    [intl, planner],
-  );
+  // §9.6.7-1 工具简报快照消费：每 tick 投影展开喂 planner；conversationKey 变化后
+  // 的首帧以 {prime: true} 消化（§9.7.7-3——终态行只进 seen 不生成候选）。
   useEffect(() => {
     if (!focused) {
       return;
@@ -431,7 +446,9 @@ export function useVoiceAnnouncement({
         });
       }
     }
-    toolBriefPlanner.consumeToolCallSnapshot(rows);
+    const prime = briefPrimePendingRef.current;
+    briefPrimePendingRef.current = false;
+    toolBriefPlanner.consumeToolCallSnapshot(rows, { prime });
   }, [extractToolBriefTarget, focused, toolBriefPlanner, units]);
 
   useEffect(() => {

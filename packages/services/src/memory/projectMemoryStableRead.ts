@@ -62,12 +62,25 @@ export async function readProjectMemoryFileFromStableHandle(params: {
 
 function isSameFileSnapshot(left: BigIntStats, right: BigIntStats): boolean {
   return (
-    left.dev === right.dev &&
+    // 修复依据（verify:pre-push 2026-10-24 Windows 失败）：Windows 上 path 侧 stat/lstat
+    // 与 fd 侧 fstat 的 st_dev 口径不一致（实测 node v24 win32：path 侧 dev 恒为 0、
+    // fstat.dev 为卷序列号；ino/size/mtimeNs/ctimeNs 两源一致）。本函数的跨源比对
+    // （fd 快照 vs path 快照，:32/:33）因此在 Windows 上必然误报 FILE_CHANGED，预览
+    // 全挂（含 5 MiB 超限检查前的误抛）。dev 为 0 = 来源未提供设备标识，跳过比较；
+    // POSIX 两源 dev 均为真实非 0 值，等价性不变（fd↔fd 比对 :45 亦不受影响）。
+    // 同 quirk 内联副本见 feedbackLogArchive.ts / gen-ui/adapters/files.ts（架构门禁：
+    // services src 根新文件需 managed 模块，故不抽共享文件）。
+    isComparableDevice(left.dev, right.dev) &&
     left.ino === right.ino &&
     left.size === right.size &&
     left.mtimeNs === right.mtimeNs &&
     left.ctimeNs === right.ctimeNs
   );
+}
+
+/** dev 任一侧为 0（来源未提供设备标识，Windows path 侧）即视为不可比；双非 0 才要求相等。 */
+function isComparableDevice(left: bigint, right: bigint): boolean {
+  return left === right || left === 0n || right === 0n;
 }
 
 async function readBoundedFile(handle: FileHandle, maxBytes: number): Promise<Buffer> {

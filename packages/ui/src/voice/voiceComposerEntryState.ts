@@ -37,17 +37,39 @@ export function resolveVoiceDictationLang(
   return configured.length > 0 ? configured : currentLocale;
 }
 
-/** §6.1 键 3/4：播报音色（空 = 系统默认）与语速（缺省 1，范围 0.5–2.0）。 */
+/**
+ * §9.7.5：播报语言（utterance.lang 来源）；空串/缺省 = 自动 = UI locale（现状语义
+ * 原样保留为缺省），显式值优先。与 resolveVoiceDictationLang 同型收口，语言来源单一。
+ */
+export function resolveVoiceAnnouncementLang(
+  settings: Pick<AppSettings, "voiceAnnouncementLang"> | null | undefined,
+  currentLocale: string,
+): string {
+  const configured = settings?.voiceAnnouncementLang?.trim() ?? "";
+  return configured.length > 0 ? configured : currentLocale;
+}
+
+/**
+ * §6.1 键 3/4 + §9.7.3 vendorVoice：播报音色（system 轨，空 = 系统默认）、语速
+ * （缺省 1，范围 0.5–2.0）与云厂商音色 id（cloud 轨，空 = 厂商默认）。双轨同键面
+ * 返回，由 speak 路由后的适配器各取各轨（引擎判定单点在 wiring，不在 reader 复刻）。
+ */
 export function resolveVoiceAnnouncementVoiceConfig(
-  settings: Pick<AppSettings, "voiceAnnouncementVoice" | "voiceAnnouncementRate"> | null | undefined,
+  settings: Pick<
+    AppSettings,
+    "voiceAnnouncementVoice" | "voiceAnnouncementRate" | "voiceTtsVendorVoice"
+  > | null | undefined,
 ): {
   voice?: string;
+  vendorVoice?: string;
   rate: number;
 } {
   const voice = settings?.voiceAnnouncementVoice?.trim() ?? "";
+  const vendorVoice = settings?.voiceTtsVendorVoice?.trim() ?? "";
   const rate = settings?.voiceAnnouncementRate;
   return {
     ...(voice.length > 0 ? { voice } : {}),
+    ...(vendorVoice.length > 0 ? { vendorVoice } : {}),
     rate: typeof rate === "number" && rate >= 0.5 && rate <= 2 ? rate : 1,
   };
 }

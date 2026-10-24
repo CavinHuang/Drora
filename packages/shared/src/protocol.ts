@@ -307,6 +307,12 @@ export interface AppSettings {
   voiceAsrVendorModel?: string;
   voiceTtsEngine?: "system" | "cloud";
   voiceTtsVendorModel?: string;
+  /** 云 TTS 音色 id（spec §9.7.3 独立命名空间；空串 = 厂商默认音色）。 */
+  voiceTtsVendorVoice?: string;
+  /** 播报语言（spec §9.7.5；空串 = 自动 = UI locale）。 */
+  voiceAnnouncementLang?: string;
+  /** persona 显示键（spec §9.7.8；设置面显示派生单处消费，运行时零读路径）。 */
+  voicePersonaId?: string;
   voiceToolBriefEnabled?: boolean;
   voicePrivacyDisclosureAcknowledged?: boolean;
   /** 自动归档旧会话的总开关 */

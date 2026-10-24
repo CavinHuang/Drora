@@ -9,6 +9,11 @@ import { redactFeedbackText, DRORA_VERSION, DRORA_COMMIT } from "@drora/shared";
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 
+/** dev 任一侧为 0（来源未提供设备标识，Windows path 侧 stat）即视为相等；双非 0 才要求真正相等。 */
+function isSameStatDevice(left: number, right: number): boolean {
+  return left === right || left === 0 || right === 0;
+}
+
 export interface FeedbackLogSource {
   directory: string;
   archivePrefix: string;
@@ -236,7 +241,14 @@ export async function createFeedbackDiagnosticArchive(options: {
               !opened.isFile() ||
               opened.nlink !== 1 ||
               opened.ino !== info.ino ||
-              opened.dev !== info.dev ||
+              // 修复依据（verify:pre-push 2026-10-24 Windows 失败）：info 来自 path 侧
+              // lstat（Windows dev 恒 0）、opened 来自 fd 侧 fstat（dev=卷序列号）——
+              // 原 `opened.dev !== info.dev` 在 Windows 上恒真，全部日志被
+              // opened-file-policy 误跳过（空 ZIP）。dev 为 0 = 来源未提供设备标识，
+              // 跳过比较；POSIX 行为不变。同 quirk 内联副本见
+              // projectMemoryStableRead.ts / gen-ui/adapters/files.ts（架构门禁：
+              // services src 根新文件需 managed 模块，故不抽共享文件）。
+              !isSameStatDevice(opened.dev, info.dev) ||
               (source.onlyCurrentDay !== false && !isToday(opened.mtimeMs)) ||
               opened.size > MAX_FILE_BYTES ||
               totalBytes + opened.size > budget

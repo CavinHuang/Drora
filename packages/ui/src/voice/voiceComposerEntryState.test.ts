@@ -4,6 +4,7 @@ import {
   isVoiceComposerEntryVisibleInSettings,
   isVoicePrivacyAcknowledged,
   resolveVoiceComposerEntryView,
+  resolveVoiceAnnouncementLang,
   resolveVoiceAnnouncementVoiceConfig,
   resolveVoiceDictationLang,
 } from "./voiceComposerEntryState.js";
@@ -96,5 +97,32 @@ describe("resolveVoiceAnnouncementVoiceConfig", () => {
     expect(
       resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "", voiceAnnouncementRate: 9 }),
     ).toEqual({ rate: 1 });
+  });
+
+  it("returns vendorVoice on the cloud track independently (§9.7.3 双轨)", () => {
+    // 云音色非空：双轨同返回（speak 路由后适配器各取各轨）。
+    expect(
+      resolveVoiceAnnouncementVoiceConfig({
+        voiceAnnouncementVoice: "晓琳",
+        voiceAnnouncementRate: 1,
+        voiceTtsVendorVoice: " alex ",
+      }),
+    ).toEqual({ voice: "晓琳", vendorVoice: "alex", rate: 1 });
+    // 云音色空/缺省：vendorVoice 字段缺省（= 厂商默认音色），system 轨零影响。
+    expect(
+      resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "晓琳", voiceTtsVendorVoice: "" }),
+    ).toEqual({ voice: "晓琳", rate: 1 });
+  });
+});
+
+describe("resolveVoiceAnnouncementLang (§9.7.5)", () => {
+  it("follows the current UI locale when unconfigured（缺省语义零变化）", () => {
+    expect(resolveVoiceAnnouncementLang(null, "zh-CN")).toBe("zh-CN");
+    expect(resolveVoiceAnnouncementLang({ voiceAnnouncementLang: "" }, "en-US")).toBe("en-US");
+    expect(resolveVoiceAnnouncementLang({ voiceAnnouncementLang: "  " }, "en-US")).toBe("en-US");
+  });
+
+  it("prefers the explicit value over the UI locale", () => {
+    expect(resolveVoiceAnnouncementLang({ voiceAnnouncementLang: "en-US" }, "zh-CN")).toBe("en-US");
   });
 });

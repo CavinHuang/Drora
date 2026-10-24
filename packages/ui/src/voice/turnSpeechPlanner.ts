@@ -148,8 +148,11 @@ export interface TurnSpeechPlannerDeps {
   /** 照 taskNotificationPreferences.ts:33 reader 收口先例：设置关闭后运行时行为一致。 */
   isAnnouncementEnabled(): boolean;
   announcementControl: AnnouncementLegControl;
-  /** §6.1 音色/语速 + 播报语言；缺省跟随 navigator.language（系统默认音色/语速 1）。 */
-  getAnnouncementVoiceConfig?(): { lang: string; voice?: string; rate?: number };
+  /**
+   * §6.1 音色/语速 + 播报语言（§9.7.5 lang 键 / §9.7.3 vendorVoice 双轨）；
+   * 缺省跟随 navigator.language（系统默认音色/厂商默认音色/语速 1）。
+   */
+  getAnnouncementVoiceConfig?(): { lang: string; voice?: string; vendorVoice?: string; rate?: number };
   /** 层③「停掉任务」→ 既有 v4 stop（带 expectedForegroundExecutionId）；Phase 1b 接线。 */
   cancelTask?(): void;
   /** claim 续约间隔（§3.5-1：间隔 < TTL/2）；缺省 voiceTuning，测试可缩短。 */
@@ -353,6 +356,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       text,
       lang: config?.lang ?? defaultAnnouncementLang(),
       voice: config?.voice,
+      vendorVoice: config?.vendorVoice,
       rate: config?.rate,
     });
   };

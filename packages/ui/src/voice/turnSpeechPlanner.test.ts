@@ -652,3 +652,45 @@ describe("claim 续约与被抢校正（§3.5 / FD-2）", () => {
     expect(h.tts.cancelCount).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("persona 句粒度生效（§9.7.8-6 V7-d）", () => {
+  it("播报 Speaking 中配置变更：当前句以旧配置播完，下一句以新 voice/vendorVoice/rate 播（无中途重播）", async () => {
+    let config: { lang: string; voice?: string; vendorVoice?: string; rate?: number } = {
+      lang: "zh-CN",
+      voice: "voice-a",
+      rate: 1,
+    };
+    const tts = new FakeTts();
+    const claim = new FakeClaim();
+    const planner = createTurnSpeechPlanner({
+      getFocusedTurnTail: () => ({ turnId: "t1", text: "第一句。第二句。" }),
+      tts,
+      claim,
+      isAnnouncementEnabled: () => true,
+      announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
+      // 每句 speak 前读取（turnSpeechPlanner speakCurrent）——persona patch 落盘后
+      // 下一句即以新配置播（句粒度生效，零新事件流）。
+      getAnnouncementVoiceConfig: () => config,
+      cancelTask: () => undefined,
+    });
+    planner.consumeTurnTail({ turnId: "t1", text: "第一句。第二句。" });
+    await flushMicrotasks();
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("speaking");
+    expect(tts.spoken[0]).toMatchObject({ text: "第一句。", voice: "voice-a", rate: 1 });
+    // persona patch 落盘（控件外写入路径）：配置在句边界之间变化。
+    config = { lang: "zh-CN", voice: "voice-b", vendorVoice: "alex", rate: 1.3 };
+    tts.finishCurrent("end"); // 当前句以旧配置播完 → 下一句以新配置播。
+    expect(tts.spoken).toHaveLength(2);
+    expect(tts.spoken[1]).toMatchObject({
+      text: "第二句。",
+      voice: "voice-b",
+      vendorVoice: "alex",
+      rate: 1.3,
+    });
+    tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+    // 无中途重播/静音：句粒度切换不触发 cancel。
+    expect(tts.cancelCount).toBe(0);
+    planner.dispose();
+  });
+});

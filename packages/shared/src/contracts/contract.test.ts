@@ -31,19 +31,22 @@ describe("voice contract constants", () => {
     expect(voiceInputSourceSchema.shape.kind.value).toBe(VOICE_INPUT_SOURCE_KIND);
   });
 
-  it("exposes exactly the appSettings keys per spec §6.1 + §9.6.2 厂商档 additive", () => {
+  it("exposes exactly the appSettings keys per spec §6.1 + §9.6.2 厂商档 + §9.7.3/§9.7.5/§9.7.8 additive", () => {
     expect(Object.keys(VOICE_SETTINGS_KEYS).sort()).toEqual(
       [
         "announcementEnabled",
+        "announcementLang",
         "announcementRate",
         "announcementVoice",
         "asrEngine",
         "asrVendorModel",
         "composerEntryHidden",
         "dictationLang",
+        "personaId",
         "privacyDisclosureAcknowledged",
         "ttsEngine",
         "ttsVendorModel",
+        "ttsVendorVoice",
         "toolBriefEnabled",
         "vendorBaseUrl",
       ].sort(),
@@ -58,6 +61,12 @@ describe("voice contract constants", () => {
     expect(VOICE_SETTINGS_KEYS.privacyDisclosureAcknowledged).toBe(
       "voicePrivacyDisclosureAcknowledged",
     );
+    // §9.7.3：云 TTS 音色独立键（与 voiceAnnouncementVoice 分属两个命名空间，永不互读）。
+    expect(VOICE_SETTINGS_KEYS.ttsVendorVoice).toBe("voiceTtsVendorVoice");
+    // §9.7.5：播报语言键（""=自动=UI locale）。
+    expect(VOICE_SETTINGS_KEYS.announcementLang).toBe("voiceAnnouncementLang");
+    // §9.7.8：persona 显示键（设置面显示派生单处消费，运行时零读路径）。
+    expect(VOICE_SETTINGS_KEYS.personaId).toBe("voicePersonaId");
   });
 
   it("exposes the two broadcast claim keys", () => {
@@ -89,6 +98,10 @@ describe("voice contract constants", () => {
     expect(defaults.voicePrivacyDisclosureAcknowledged).toBe(false);
     expect(defaults.voiceAnnouncementRate).toBe(1);
     expect(defaults.voiceAsrEngine).toBe("webSpeech");
+    // §9.7.3/§9.7.5/§9.7.8 additive 默认值：三键空串（cloud=厂商默认音色 / lang=自动=UI locale / persona=未选）。
+    expect(defaults.voiceTtsVendorVoice).toBe("");
+    expect(defaults.voiceAnnouncementLang).toBe("");
+    expect(defaults.voicePersonaId).toBe("");
   });
 });
 

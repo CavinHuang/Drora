@@ -133,7 +133,7 @@ sequenceDiagram
 | 权限模型成队时定死    | 创建 team 时捕获 lead 会话权限模式（plan 不带入，记 build——team 总在执行，与 run 同理）写入 team journal；此后 lead 换模式不影响在飞的 team；resume 从 journal 读回。成员 profile 只能收窄（如 Explore 只读）、不能放宽（§8.1）                                                                                                                                                                                                                                                                                                              |
 | 消息零授权            | 任何 teammate 消息不得充当待决权限的批准；被拒操作不得经成员转发绕过（§8.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 用户对成员说话        | 必须经 lead 侧团队命令走邮箱投递；teammate 会话本体只读（v4-bridge 只读守卫自动覆盖，§8.2）                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 两阶段成队            | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。用户明确要求跳过审批时才直通（approval: automatic 同款例外）。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
+| 两阶段成队            | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。跳过审批直通 **v1 不实现**——skipApproval 参数保留待后续卡（2026-10-24 订正，§21 A3；原「用户明确要求跳过时直通」承诺与实现三方漂移已收口），两阶段审批是唯一成队入口。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
 | 停止与恢复分离        | halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度，team 不删除）≠ escalated（自动循环到上限，升级给用户）；halted 后普通建任务不得静默恢复，必须显式 TeamResume 且带理由                                                                                                                                                                                                                                                                                                                                                            |
 | 转派/接管是 lead 专属 | 成员可建任务、可认领，但撤销 attempt 与转派（含 lead 接管）只有 lead 工具能做（§2.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
@@ -147,7 +147,7 @@ sequenceDiagram
 | Lead        | 用户的主交互会话 runtime（现有 interactive runtime，不新起进程） |
 | Teammate    | 命名、长寿命、可寻址的子代理成员；会话层就是 `subagent_child`    |
 | TeamBoard   | 共享任务板：三态 + 依赖 + 原子认领的结构化任务列表               |
-| TeamMailbox | 成员消息投递队列；写成功（持久化后）才算发送成功                 |
+| TeamMailbox | 成员消息投递队列；入队成功即 ack（持久化异步刷盘，写失败仅 warn——E12 真门未立，2026-10-24 订正见 §21 A13） |
 
 ### 2.2 状态所有者表（谁写、谁读）
 
@@ -155,7 +155,7 @@ sequenceDiagram
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------- |
 | 花名册（name→agentId/childSessionId/profile/状态机） | lead runtime 内 **TeamHub**（新模块，`core/src/team/`）                                    | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
 | 共享任务板                                           | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，in-process 原子，无文件锁） | 同上                                                                   | 同上                             |
-| 成员邮箱                                             | TeamHub 写入并投递（运行中 steer / 终态复活续跑）                                          | 目标成员                                                               | 写入持久化后才 ack               |
+| 成员邮箱                                             | TeamHub 写入并投递（运行中 steer / 终态复活续跑）                                          | 目标成员                                                               | 同步入队即 ack；异步刷盘失败仅 warn（§21 A13 如实口径） |
 | team 权限模式记录                                    | TeamHub（成队时一次写入，此后只读）                                                        | 全体成员构造与复活（hub 花名册记录，经私有端口构造通路）、UI 权限徽标  | team journal `team-created` 事件 |
 | teammate transcript                                  | 各 child runtime（现状不变）                                                               | 下钻 UI 只读订阅 child topic                                           | 现有 session store               |
 | UI teamStore（`packages/ui/src/store/teamStore.ts`） | renderer 派生缓存，**不得冒充服务端事实**                                                  | —                                                                      | 内存                             |
@@ -192,9 +192,11 @@ contract?: { objective, acceptance[], inScope?, outOfScope?, verify? } }`。
 - **冷恢复有界重试**：lead 会话 resume 时，对「开放 attempt 且成员已不在场」的任务
   自动重试**一次**；恢复投递失败则保持原状，**不退化为可无限重派的 pending**
   （dsh 实证的防雪崩语义）。
-- **交接纪律**：任务产出默认落盘 + artifactRefs 引用回传，消息只传轻量引用与结论
-  （Cognition/MetaGPT 实证：抑制级联幻觉与上下文碎片化）；产物区
-  `.drora/team-artifacts/{teamId}/`（清理策略见 §12 开放问题）。
+- **交接纪律**：任务产出默认落盘（成员侧既有落盘产物）+ artifactRefs 引用回传，
+  消息只传轻量引用与结论（Cognition/MetaGPT 实证：抑制级联幻觉与上下文碎片化）；
+  team 专属产物区 `.drora/team-artifacts/{teamId}/` **v1 不落盘**——
+  `TEAM_ARTIFACTS_DIR` 仅承载引用约定、artifactRefs 引用成员侧既有产物
+  （2026-10-24 裁决登记，§21 B20）。
 - 默认调度纪律：顺序优先、只读任务才并行（后派者能读先完成者产物）。
 
 ### 2.4 成员生命周期（定死：终态 + 复活路线，不新造 idle 钩子）
@@ -333,7 +335,7 @@ created（显式成队：权限模式与成员路由定死并记 journal）
 | shared   | team 投影 schema、限额常量、持久化键前缀                                                  | `packages/shared/src/drora-protocol-v4/team.ts`（照 workflow-runs\*.ts：纯 schema+纯函数）                                                  |
 | UI       | teamStore.ts                                                                              | `packages/ui/src/store/teamStore.ts`（归属裁决：AGENTS.md 明文 Zustand 状态在 store/ 目录，全局单例状态不适用托管模块自治——本行即裁决记录） |
 | UI       | TeamPanel / TeamBoardView / TeamMemberSidePane + hooks                                    | `packages/ui/src/team/`（新托管模块 ui-team，照 gen-ui 三模块样板，architecture-policy.yaml 登记 + 五件套）                                 |
-| UI 手机  | MobileTeamPanel                                                                           | `packages/ui/src/mobile`（MobileTaskShell 旁）                                                                                              |
+| UI 手机  | 手机 team 面不设独立面板（2026-10-24 订正，§21 B17）：由 RemoteConversationTimeline 摘要卡 + 既有 v4 命令链路承载；CONTRACT.md 的 MobileTeamPanel 列名由 UI 施工方同步订正 | —                                                                                                                                          |
 
 ### 6.2 TeamPort 接口（语义签名，非实现）
 
@@ -346,8 +348,10 @@ TeamPort —— lead runtime 的 TeamHub 实现，注入 teammate child runtime 
                                                      // 旧 attemptId 一律拒绝（§2.3）
   taskClaim(taskId): TeamTaskClaimResult             // 原子认领（成功/已被占/依赖未就绪三态）
   send(request: { to: memberName|agentId, message, summary }): TeamSendResult
-                                                     // 邮箱持久化成功才算发送成功；
-                                                     // 投递结果 queued|steered|resumed
+                                                     // 入队成功即 ack；持久化异步刷盘
+                                                     // （写失败仅 warn，2026-10-24 订正
+                                                     // 见 §21 A13）；投递结果
+                                                     // queued|steered|resumed
                                                      // （delivery 语义复用 subagent.port.ts:74 枚举）
 ```
 
@@ -445,8 +449,11 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
 5. **后台与取消**：teammate 后台生命周期只依赖持久化 profile selection（单次执行模型
    禁入后台，runner.ts:153-167 BACKGROUND_UNAVAILABLE）；团队级取消 = 停止 lead turn
    级联 abort 各成员（一层级联因派生禁令而充分）。
-6. **身份隔离**：team 实体绑定 `workspaceIdentity?.trim() || workspacePath`；远程链路
-   贯穿 workspaceIdentity 与 remoteSessionId，不按路径匹配。
+6. **身份隔离**：team 实体的身份隔离经 **lead 会话归属传导**——hub 登记键为
+   leadSessionId（session-scoped，会话天然归属其 workspace），**不另立显式
+   workspaceIdentity 键**（2026-10-24 裁决登记，§21 B19：原「team 实体绑定
+   workspaceIdentity」承诺零实现且无独立消费面）；远程链路 team 帧沿既有 relay
+   会话通道透传（remoteSessionId 语义照旧），不按路径匹配。
 7. **成员模型路由快照（借鉴 dsh-agent-teams）**：member spawn 时把**最终生效**的
    provider/model/思考档快照写入 team journal；复活与冷恢复一律恢复该快照。解析规则：
    沿用 lead 当前路由时一并继承 lead 当前思考档；显式换 provider/model 任一时自动用
@@ -512,8 +519,10 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
   ③成员卡列表：名称/角色 profile/color/状态，点击下钻 TeamMemberSidePane（复制
   WorkflowActorSessionSidePane.tsx:56-108「父投影门 + 只读 SessionPane 租约」）看
   transcript 并可发消息（走 v4 命令）。**team 的显示逻辑独立于 conversation 行流**：
-  lead 会话正文只留一行紧凑 team 摘要行（照 workflowRun 在 conversation 的呈现），
-  细节全部在面板。消息流尾窗摘要；全 idle 30s 折叠、>3 idle 折叠为「N idle agents」；
+  lead 会话正文只留紧凑 team 摘要——原「一行摘要行 + 全 idle 30s 折叠、>3 idle
+  折叠为『N idle agents』」方案未实现，由 **footerSlot 摘要卡**
+  （TeamConversationSummary，§18 登记）取代（2026-10-24 回写，§21 B18），细节全部
+  在面板；消息流尾窗摘要经摘要卡呈现；
   subagent 与 teammate 混排同面板。数据全部来自 conversationProjectionStore 的 team
   投影，**不走第二条真相通道**；派生视图状态入 teamStore。
 - **staged 审批视图（两阶段成队）**：staged 态的 TeamPanel 即草案编辑器——成员行
@@ -552,9 +561,10 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
     pointer-coarse ≥44px（DESIGN.md:661-662；写法参照
     `TeamConversationSummary.tsx:73` 的 pointer-coarse:min-h-11/min-w-11）。
 - **Web/手机（web-remote-replayable）**：冷快照必须携带 team 字段（§6.3）；
-  MobileTeamPanel = 任务板只读 + 成员状态 + 发消息/停止走既有命令链路（replayable
-  自动 inputOrigin=mobile 语义不变）；不为手机另起 Agent/Host；replayable 不产生
-  telemetry/CUA observation 的 facade 现状对 team 无例外。
+  手机 team 面 = RemoteConversationTimeline 摘要卡（footerSlot）+ 发消息/停止走
+  既有命令链路（replayable 自动 inputOrigin=mobile 语义不变）——MobileTeamPanel
+  独立面板 2026-10-24 订正为**非 v1 交付物**（§21 B17）；不为手机另起 Agent/Host；
+  replayable 不产生 telemetry/CUA observation 的 facade 现状对 team 无例外。
 - **恢复语义**：lead 会话 resume 时 TeamHub 从 team journal 恢复花名册/板/邮箱未读；
   成员 transcript 本就以 childSessionId 落 session store；终态成员按 §2.4 复活。
   branchGeneration stale fencing（subagent-messages.ts:26-42）对迟到成员消息照常生效。
@@ -645,7 +655,8 @@ Approve & Run→成员创建的全流程**（Approve 前零成员零会话）；
 字段的 round-trip 测试。
 
 **M3：持久化与 replayable（约 2 周）**——team journal 持久化 + lead resume 恢复；
-MobileTeamPanel；背压限额。
+背压限额（MobileTeamPanel 原列 M3 交付物，2026-10-24 订正为非 v1 项——手机面由
+RemoteConversationTimeline 摘要卡承载，§21 B17）。
 验收：① 刷新/重连/手机冷恢复后成员、板、**权限模式记录与 team 状态机**不丢（journal
 重放读回一致，未知模式值回退不猜）；② web-remote-replayable E2E：gap 重放、
 消息尾窗裁剪、envelope 有界；③ 迟到成员消息 branchGeneration 丢弃验证。
@@ -689,7 +700,9 @@ team 请求起固定——创建/批准/继续/暂停/归档**不重写 system p
 **开放问题**：① 上游未来引入团队机制触发替换条件的核对节奏（每次上游同步）；
 ② teammate 是否放开派生只读 Explore 子代理（当前禁止，放开需重设计两级级联）；
 ③ 跨会话/跨窗口共享同一 team（当前绑定 lead session，其他窗口只读订阅；workspace
-级管理面留待真实需求）；④ 产物区清理策略（对照官方 cleanupPeriodDays）；⑤ 团队级
+  级管理面留待真实需求）；④ 产物区清理策略（对照官方 cleanupPeriodDays；2026-10-24
+  预设订正，§21 B20——team 专属产物区 v1 不落盘，清理对象为成员侧既有产物，无
+  team 专属目录清理面）；⑤ 团队级
 compact 策略（lead 压缩时任务板引用防失真）；⑥ 团队命令的 CAS 归类逐条复核（§6.3
 初判为非行级，实现时验证）。
 
@@ -816,6 +829,10 @@ README + docs/usage.md + docs/quality-gates.md + docs/progressive-loading.md。
   成员会话与成员的 fork **永不**匹配 lead 身份（fail-closed——成员的父链包含 lead
   session id，不得据此获得 lead 权限；Drora 的 fork 会话种类真实存在，此规则必填）。
   世代深度上界 32、环防护。
+  **2026-10-24 裁决登记（§21 B16）**：上段完整实现 v1 不做——fork 会话不经世代链
+  解析，getInstalledTeamHub 按会话单键查表，fork 会话看不到 team（成员 fork 的
+  fail-closed 半边由「成员会话不在登记表」结构性成立）；世代链/深度 32/环防护列
+  开放决策后续卡（§21 末尾）。
 
 ### 16.4 Drora 映射说明
 
@@ -879,6 +896,9 @@ onSendMessage → commands.sendTeamMessage,唯一通道 = lead 邮箱投递);ui-
    「conversation 行流中 team 生命周期摘要」v1 **未实现**;面板开态徽标(tab 标题
    TeamTabStatusDot,色 + sr-only 文字并行)作为 v1 简化先行。正文行流改造涉及
    v4 行流组装面,不与本卡混排,PR-2.5b(staged 审批视图 + 桌面 E2E)承接。
+   **2026-10-24 订正（§21 B18）**:PR-2.5b 收口批次（缺口11 staged E2E）未含此面——
+   该承诺已由 footerSlot 摘要卡方案取代（§10 已回写取代关系），正文行流摘要不再
+   有承接批次，idle 折叠方案一并作废。
 3. **加号菜单入口**:ChatPromptActionMenu QUICK_COMMANDS 增「组建团队」(chat.composer.
    addTeam),照 /workflow 双入口先例——选中即插入 /team 命令标签,可用性以 CLI
    catalog 为权威(灰度关 / child 上下文无候选时入口自然消失)。
@@ -897,15 +917,22 @@ core 79 + ui 52 测试绿)。补充登记:
    缺 team 键,恢复完成后经 TeamStateChanged delta 收敛;窗口内已创建新 team 时恢复让位
    (adoptRestored 不覆盖现役记录)。PR-3.2 冷恢复 E2E 须覆盖此窗口。
 3. **journal 刷盘为异步串行**(persistMailboxEntry 的异步降级同款契约):入队后刷盘前崩溃丢
-   最后几条事实,只退化崩溃恢复。E12 全同步邮箱持久化已接线(2026-10-23 收口,v1 装配缺口
-   闭合;订正本条早前「仍待接线」表述——终局复核发现跨项遗留,单项纪律均无过错):
-   install persistMailboxEntry(install.ts:160)经 sessionStore.saveSessionEntry 同步入队,
-   写成功才算发送成功,同步抛错由 hub enqueueMail 转 mailbox_persist_failed;于
-   install.ts:306 注入 TeamHub(create-app.ts:921 灰度门内),行为由
-   team-install-runtime.test.ts ⑪⑫(:533/:568)锁定。恢复读取面边界(同日补登记):
+   最后几条事实,只退化崩溃恢复。E12 邮箱持久化接线(2026-10-23 收口;**2026-10-24
+   如实口径订正,§21 A13**——原「写成功才算发送成功、同步抛错转
+   mailbox_persist_failed」的已达契约表述与生产装配不符,唯一 high 级失实陈述):
+   install persistMailboxEntry(install.ts:160)经 sessionStore.saveSessionEntry 入队,
+   **入队成功即 ack(发送成功)**——生产适配器 SqliteSessionStore.saveSessionEntry 为
+   async(port 契约即 Promise<void> 签名),异步写失败只 rejection→warn,不转为
+   mailbox_persist_failed;该拒绝路径**仅 persist 同步抛错形态可达**(测试⑫
+   team-install-runtime.test.ts:576-580 的注入形态「非 async 函数+同步 throw」,
+   生产适配器不命中);journalSink 与 persistMailboxEntry 落同一 sessionStore,
+   同库故障下恢复源与邮箱同丢。行为由
+   team-install-runtime.test.ts ⑪⑫(:533/:568)锁定(⑫锁定 port 直调同步抛错形态的
+   内核语义,不证明生产门)。恢复读取面边界(同日补登记):
    team.mailbox 类型条目当前为只写 durable 通道,无路径读取该类型条目,恢复数据源仍是
    journal message_appended/message_delivered 重放(journal.ts:379-386)——install.ts:180
-   warn 注释已按此口径表述,spec 在此补登记。
+   warn 注释由施工方随 §21 A13 同步订正(原「journal 恢复源兜底」文案在其目标失效
+   模式上不增益)。真门(同步可校验写,动 port 面)与启动对账二选一见 §21 开放决策。
 4. **成员运行态不入 journal 的推论**:恢复后成员一律推导 terminal(诚实态);活跃 team 冷
    恢复为 idle 而非 active;复活/重跑走既有 resume 链路由边缘事件重驱;冷恢复单次重试
    依赖重放保留的 attemptId/recoveryRetried(已持久化),自动触发接线属 PR-1.6 面。
@@ -935,6 +962,9 @@ core 79 + ui 52 测试绿)。补充登记:
    机制(评估过承载面),但 v1 无真实消费场景实证;建议随真实使用反馈再接,避免空转面。
 6. **token 预算 defer(残留)**:usage 聚合进 A 区 usage 投影是独立特性(spec §12 M4
    原文),不在本批;成员数/板容量两维预算已生效,token 维度登记为 M4 残留待续。
+7. **具名工具策略评估(2026-10-24 补档,§21 B21;结论=继续不做)**:profile tools
+   治理已覆盖基本需求(§8.8 v1 预设即此);无真实部署场景实证前不立具名策略面,
+   与 hooks 第 5 条同格式留档,对齐「分歧与取舍须在 specs/ 登记」纪律。
 
 ### 实现登记(2026-10-18,真实实例验收——发现 slashCommands 失效缺口)
 
@@ -1186,7 +1216,13 @@ spec 先行面随批更新：§2.6 补 halted 中断/resume 唤醒语义（缺�
   改动的直接测试——必要改动而非顺手改。
 - 验证口径（批次报告转录，本节登记未复跑）：apps/drora-cli 的 `pnpm lint` 包装
   脚本在干净基线（stash 对照）同样失败，判定环境性问题；改以逐文件
-  `oxlint --no-ignore` 替代（0 警告 0 错误）。
+  `oxlint --no-ignore` 替代（0 警告 0 错误）。**2026-10-24 订正（§21 C）**：该
+  口径在 5982f5b5 时点不成立——hub.ts 有效行 1523 > 800 触发 max-lines error
+  （存量 warn 降级清单不含 hub.ts），另有 no-unused-vars 3 处（types.ts:9 /
+  team-tools.ts:94 / member-runtime.ts:74）。处置：hub.ts max-lines 加入
+  `.oxlintrc.json` 存量 warn 降级清单（照 steering.ts 先例）+ 清除三个
+  no-unused-vars 后，core/src/team 逐文件 oxlint 回到 0 error 0 warning；
+  bootstrap product-projection.ts max-lines 为 05625f17 前存量，登记不随本批处理。
 
 ## 14. 收口施工（批次 2，2026-10-21）
 
@@ -2306,8 +2342,10 @@ name_redirect（:1382）、mailbox_persist_failed（enqueueMail persist 抛错�
   终态由会话流摘要卡与任务列表徽标承载，面板不重复。行呈现：队名（fallback 通用标题）+
   状态词（复用 team.status.*）+「成员 working/members · 任务 completed/total」+ blocked
   计数（>0 才出）+ working 灯；行点击经 onOpenTeamPanel 打开 team 侧栏（SessionPane 接
-  useTeamNavigation，与摘要卡同一 TeamNavigation 路径，不造第二条导航）；宿主缺席
-  （手机远控未接线）时行退化为不可点事实行。hasContent 计入 team。
+  useTeamNavigation，与摘要卡同一 TeamNavigation 路径，不造第二条导航）；宿主仅缺
+  onOpenTeamPanel 时行退化为不可点事实行——手机远控 timeline 2026-10-24 起补传
+  team（§21 A4 修复 M-2「整体缺席」失准：此前该宿主连 hasContent 一起不出 team
+  分区，补传后才是本行登记的不可点退化形态）。hasContent 计入 team。
 - 有意取舍（登记，不做）：
   - **composer 徽标 team 直达不做**：胶囊计数吃 backgroundWorks/subagentCount 词表，
     team 非后台工作类；扩词表把「实时活动」语义搅混。状态面板分区已交付感知面，徽标
@@ -2326,13 +2364,17 @@ name_redirect（:1382）、mailbox_persist_failed（enqueueMail persist 抛错�
   不动）。
 - useTeamHistory 增 `refreshKey` 参数（照 useWorkflowRunJournalSummaries 同名先例——那边
   注释记载「跑完的 run 不挪位」是实测修过的 bug）：TeamProcessPanel 传「看板各列计数 +
-  working 成员数 + 最大任务 updatedAt + 尾窗末条消息 id」拼的投影侧单调信号，团队跑动中
-  任一活动边缘抬升即重查当前页；手动「回最新」保留为兜底。
+  working 成员数 + 最大任务 updatedAt + 尾窗末条消息 id + 尾窗末条 delivered + team
+  status」拼的投影侧单调信号（后两项 2026-10-24 补入，§21 A5——送达翻转与无板
+  活动的 halt/resume 两类边缘此前信号不动，均为投影既有字段），团队跑动中任一
+  活动边缘抬升即重查当前页；手动「回最新」保留为兜底。
 
 **D. i18n 守护升级与死键清理（评审 low-18 修复）**
 
 - 手写迁移清单只覆盖两家族且键集一致断言以 zh 为基准（两侧同删无报警）。升级为源码扫描
-  双守（i18n.test.ts）：正向——team 目录 + app-shell/TeamSidePane 源码里的 team.* 字面量
+  双守（i18n.test.ts）：正向——team 目录（2026-10-24 起递归扫描）+ 目录外挂载点
+  app-shell/TeamSidePane 与 v4/ConversationStatusPanel（后者消费 team.ui.title，
+  当轮漂移修复补入清单，§21 A10）源码里的 team.* 字面量
   （含 label: 形态与三元 id 形态）在双语词典非空；反向——词典 team.* 键必须被静态字面量、
   动态映射表或登记的动态键族消费。反向守首轮揪出并删除 4 个死键（双侧同删）：
   team.ui.tasks / team.ui.task / team.ui.approval / team.panel.title（消费方均已改名或
@@ -2341,8 +2383,10 @@ name_redirect（:1382）、mailbox_persist_failed（enqueueMail persist 抛错�
 
 **E. 触达与既有面收尾（评审 low-13/low-15）**
 
-- pointer-coarse ≥44px 补齐 staged 之外四处：TeamPanel HaltTeamButton/ResumeTeamSection
-  （输入+按钮）、TeamMemberSidePane 下钻 composer（输入+发送）、TeamSessionLine 主行——
+- pointer-coarse ≥44px 补齐 staged 之外五处（2026-10-24 订正，§21 A9——原登记
+  四处漏成员行「给成员发消息」按钮）：TeamPanel HaltTeamButton/ResumeTeamSection
+  （输入+按钮）、TeamPanel 成员行发消息按钮（team-member-message）、
+  TeamMemberSidePane 下钻 composer（输入+发送）、TeamSessionLine 主行——
   此前触达纪律只覆盖 staged 编辑器，全局一致性破口。
 - relations 截断提示（评审 low-15 补充边界）**不施工**：TeamCollaborationPanel 已有
   「已显示 shown/total 节点」scope 行 + 超 12 节点的聚焦选择器（:83/:115-116）——评审
@@ -2367,7 +2411,7 @@ name_redirect（:1382）、mailbox_persist_failed（enqueueMail persist 抛错�
 尾窗 ≤10 有界，登记为已知取舍，手机远控实测带宽敏感再改节点级差）；不重建
 TeamStagedAutoOpenBridge 类面板外常驻监听（§10 修订的裁定不变）。
 
-## 20. team 邮箱内核补审计——终态源报告投递语义 + 去重 target 双键（2026-10-23 登记，先于实现）
+## 20. team 邮箱内核补审计——终态源报告投递语义 + 去重 target 双键（2026-10-23 登记；同日随 05625f17 落地，实现验证见各契约末尾——状态订正 2026-10-24，§21 B15）
 
 本节是 2026-10-23 team 内核补审计的两项入选登记（一 medium 一 low；来源：§16 契约 4
 落地后的组合复核，清单位于裁决轮记录）。两项都是**对 §16 契约 4 已落地实现的修订**，
@@ -2467,6 +2511,12 @@ discardStaleMail 与 pendingMail 选取；不动契约 1 失败通知路径的�
 存量死条目的 journal 回填或持久化迁移；不改 sourceProvenanceHeader 展示格式；
 wire 词表零扩展。
 
+**实现验证（2026-10-23，随 05625f17 落地；2026-10-24 补登，§21 B15）**：hub.ts
+portSend 终态源分支入箱前剥离 sourceAttemptId（保留 sourceTaskId 展示引用）、降级
+为无绑定投递；mailbox.ts isCurrentMail 头注按本契约订正为如实求值顺序（宽容子句
+保留并注明）。终局实跑 `npx vitest run tests/team` → 13 文件 / 166 用例全绿
+（05625f17，含本契约顺序用例与同文重试去重两半边锁定）。
+
 ### 契约 2｜findDuplicateMail 去重谓词补 target 双键（修订 §16 契约 4 去重维度）
 
 来源：同批补审计（low——静默错投，与契约 1 同批一次改完 §16 契约 4 该段 spec）。
@@ -2513,5 +2563,377 @@ targetAttemptId 是每次发送对板上任务 attempt 的独立快照（hub.ts:
 「避免 wire 与内部态双词汇」同规）；不改 isCurrentMail 第二谓词与 pendingMail 选取；
 不改 TeamSendDelivery 返回语义；wire 词表零扩展。
 
+**实现验证（2026-10-23，随 05625f17 落地；2026-10-24 补登，§21 B15）**：mailbox.ts
+findDuplicateMail 谓词补 target 双键（undefined === undefined 视为相同，无定向
+邮件行为零变化）；team-mailbox.test.ts「never dedups on any difference」差异枚举
+补 target 维度（T1→T2 不归并 / 同任务同 attempt 快照仍归并）。终局实跑同契约 1
+（13 文件 / 166 用例全绿，05625f17）。
+
 **施工次序（依赖登记）**：契约 1 与契约 2 相互独立、可同批施工收口（两处实现分别
 落 hub.ts portSend 一段与 mailbox.ts 谓词一行）；测试同批一次实跑 tests/team。
+
+## 21. 全面审查修复批（2026-10-24 登记+施工）
+
+来源：第二轮全面审查 `docs/team-full-audit-2026-10-24.md`（基线 HEAD=5982f5b5；
+24 条：high 1 / medium 12 / low 11，含登记订正 1 条）。处置分五组：**A 修复契约
+13 项**（本轮施工，登记行为契约+测试要求供施工方对照）、**B 裁决/订正登记 8 项**
+（纯 spec，不改行为）、**C 行内订正**（并入既有节，各条注明「spec 订正已落」）、
+**D historyTeamMismatch 拒绝语义登记**、**E agents-team-skill-gate 补件登记**。
+开放决策恰两条（E12 真门、fork 世代链）登记于本节末「开放决策」。
+
+**登记基线**：本节为 spec 先行登记（撰写时零代码改动），测试套件未运行；报告 evidence
+经本会话抽验与当前检出一致（抽验实读：install.ts:76/:149-188/:295/:350-355、
+hub.ts:245/:406/:610-613/:935-940/:1541-1550/:1594-1597/:1638-1648、
+message-format.ts:33/:46、mailbox.ts:80-89、team.port.ts:49-55、types.ts:170、
+member-runtime.ts:149、errors.ts:70/:81、handlers/team.ts:46/:293-297、
+shared team-history.ts:24-38、ui team-status-presentation.ts:49、TeamPanel.tsx:392-403/
+:429/:622、commands.ts:82/:93-97/:201/:214/:221-225、i18n.test.ts:153-159、
+RemoteConversationTimeline.tsx:163、ConversationStatusPanel.tsx:1395、
+useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
+
+### A1｜deliverLeadMail 逐条容错：离册死件丢弃 + 部分注入不重投（修复 M-1，medium）
+
+- 现状缺口（实读证实）：install.ts deliverLeadMail 回调逐条注入中途遇失败条目
+  `return false`（:355），hub.deliverPendingLeadMail 对 false 整批
+  releaseDeliveryLease 留 queued（hub.ts:1645-1648）——组合出两个幂等破口：
+  ① 批内失败条目**之前**的条目已注入，四个重投边缘（routeMail lead 分支
+  hub.ts:1505-1507、kickTeam 末尾 :878、lead TurnComplete install.ts:532、冷恢复
+  install.ts:587）整批重投时重复注入（enqueueSubagentMessage 无 responseId 幂等）；
+  ② 发件人已移除的无世代键邮件 isCurrentMail 恒 true（mailbox.ts:80-89 落到
+  :89 `return true`），死件每个投递边缘重试失败、永不收敛。core/tests/team 对该
+  场景零覆盖。
+- **行为契约**：
+  - deliverLeadMail 通道（install 回调，经 hub.deliverPendingLeadMail 消费）返回值
+    从 boolean 收窄为结构化结果 `{ injected: messageIds[], skipped: messageIds[] }`：
+    逐条容错，不因单条失败提前 return。
+  - `skipped` 判定 = 发件人离册（roster snapshot 已滤 removed，查不到 `entry.from`）
+    或 `sender.childSessionId` 缺席——两类均为**永久不可投**（发件人不在场，任何
+    重投边缘都不可能成功）。
+  - hub 消费：`injected` 条目走既有 markDelivered(via="lead_injected") + journal
+    `message_delivered`；`skipped` 条目**不再整批释放**，改为从 mailbox 丢弃
+    （移除条目，动作与 discardStaleMail 清除同族）并 journal 新事实
+    kind `"message_dropped"`（载荷复用 teamHistoryEntrySchema 既有字段
+    messageIds + reason）；其余条目（注入动作失败但非永久不可投——回调内部逐条
+    吞错不上抛）仅释放投递租约留 queued 重投（§16 契约 3 抛错与拒绝同责语义
+    收窄到「未注入条目」）。旧的「accepted=false 整批释放」路径删除。
+  - **词表声明**：journal 内核事实新增一种 `message_dropped`。shared
+    `drora-protocol-v4/team-history.ts` 的 teamHistoryEntrySchema kind 枚举闭合
+    （z.enum 十三值，team-history.ts:24-38）→ additive 扩一枚举值 `message_dropped`
+    （superRefine 按 message_delivered 同款要求 messageIds 在场）；**零其余 wire
+    词表变更**（八条 mutation 命令、TEAM_LIMITS、错误码目录均不动）。
+  - **重放语义**：journal 重放遇 `message_dropped` 等同丢弃——该 messageId 不进
+    恢复邮箱；按 seq 顺序 message_appended 先入、message_dropped 后清，终态一致，
+    重放多次幂等。
+  - **不变量**：批内已注入条目在任何重投边缘不重复注入。**注入前按 messageId
+    判重不要求**——结构性保证的依据：已注入条目当次 markDelivered 置
+    deliveredAccepted=true 即永久退出 pendingMail 选取集（§16 契约 3 既有语义
+    「markDelivered 成功后条目退出 pending 集」），四个重投边缘只会重新捡起
+    「未注入且未丢弃」条目；离册条目已丢弃同样退出选取集。逐条容错使「失败」
+    不再触发整批重投，重复注入的唯一通道（旧实现整批释放后重投已注入条目）
+    结构性消失。
+- **测试要求**（tests/team）：① removed-sender 用例——成员移除后其 pending lead
+  邮件在投递边缘被丢弃（mailbox 零该条目 + journal 含 message_dropped + 后续
+  投递边缘零重试）；② 部分注入用例——批次含可投与不可投条目 → 可投条目恰注入
+  一次且 markDelivered、不可投条目丢弃、下一投递边缘已注入条目零重复注入
+  （enqueue 计数断言）。
+- 施工面注记：install.ts:349 注释「世代过滤/清理路径收敛」与实现矛盾，随本项
+  一并对齐（离册处置改由本契约的丢弃路径承载）。
+
+### A2｜resume 空理由防御分支改回 team_halted（修复 L-11，low）
+
+- 现状缺口（实读证实）：hub.ts:610-613 空理由防御分支返回 `team_lead_only`
+  （errors.ts:81「This action is reserved for the team lead.」）——对「调用方就是
+  lead、因 reason 空白被拒」的场景是错误教学。生产不可达（wire schema
+  `reason: z.string().min(1)` 网关先拒，shared team.ts:317-320；直调 hub 的
+  测试/工具路径可触达）。
+- **行为契约**：该分支错误码改回 `team_halted`——其 hint 已含「explicit resume
+  with a reason」（errors.ts:70），对「为什么被拒 + 怎么补救」教学正确；**零新码**。
+- **测试要求**：现有 resume 用例回归；空理由直调分支断言错误码为 team_halted。
+
+### A3｜skipApproval v1 不实现直通：死三元收折（修复 L-10，low）
+
+- 现状缺口（实读证实）：hub.ts:406 `input.skipApproval === true ? "staged" : "staged"`
+  两分支字面相同——「直通」分支不存在；port 注释（team.port.ts:203-204「仅用户
+  明确要求跳过审批时直通」）与 §1 产品规则承诺的例外三方静默漂移。生产不可达
+  （TeamSpawn 工具 schema 不暴露该键，§14 缺口0 登记）。
+- **行为契约**：三元收折为 `status: "staged"`（不留两分支同值的三元冒充实现）；
+  port 注释订正为「参数保留待后续卡——v1 不实现直通，两阶段审批是唯一成队入口」。
+  零行为改动。
+- spec 订正已落：§1 两阶段成队行（原「用户明确要求跳过审批时才直通」措辞删除，
+  指向本条）。
+- **测试要求**：现有 staged 用例回归（零新行为面）。
+
+### A4｜手机远控状态面板 team 分区接线（修复 M-2，medium）
+
+- 现状缺口（实读证实）：RemoteConversationTimeline.tsx:163 渲染
+  ConversationStatusPanel 未传 team prop——手机远控面 team 分区**整体缺席**（连
+  hasContent 一起消失），与 §19 契约 6B 登记的「不可点事实行」退化形态不符。
+  数据面就绪：RemoteStatusSnapshot 的 Pick 含 "team"、footerSlot 已在用
+  statusSnapshot.team 渲染 TeamConversationSummary 摘要卡。
+- **行为契约**：补传 `team={statusSnapshot?.team ?? null}`；**不传 onOpenTeamPanel**
+  （手机远端 timeline 无 shell 导航端口）→ 即得 §19 契约 6B 登记的不可点退化
+  事实行；模型层既有过滤照常（buildTeamModel/TEAM_LIVE_STATUSES 只收在途状态）。
+- spec 订正已落：§19 契约 6B「宿主缺席」措辞（见该节行内订正）。
+- **测试要求**：远端 timeline 渲染断言——statusSnapshot.team 在场时 team 分区
+  出现且行不可点（无 onOpenTeamPanel 即无点击处理）。
+
+### A5｜refreshKey 活性信号补齐：delivered 翻转与无板活动两边缘（修复 M-3，medium）
+
+- 现状缺口（实读证实）：TeamProcessPanel activitySignal（TeamProcessPanel.tsx:26-46）
+  = 看板四列计数 + working 成员数 + 最大 task.updatedAt + 尾窗末条 messageId，漏
+  两类真实活动边缘：(a) 送达翻转只改 `mailboxTail[].delivered` 并新增 journal
+  message_delivered——messageId/计数/updatedAt 全不变，信号不动（尾窗徽标可见但
+  过程页漏刷新）；(b) 无板活动的 halt/resume 仅迁移 record.status + journal +
+  notifyChange，不动板计数与任务 updatedAt——信号不动。refreshKey 活性缝
+  （00670ca1 引入）零测试锁定。
+- **行为契约**：信号拼入 `mailboxTail 末条 delivered` 与 `team.status`——均为
+  投影既有字段，**零 wire 词表扩展**；§19 契约 6C「任一活动边缘抬升即重查当前页」
+  的表述随信号补齐如实维持。
+- spec 订正已落：§19 契约 6C 信号清单（见该节行内订正）。
+- **测试要求**：① useTeamHistory refreshKey 变化触发重查当前页测试；②
+  activitySignal 纯函数单测（覆盖 delivered 翻转与 status 迁移两类边缘各自抬升
+  信号）。
+
+### A6｜常量接线：membersMax 与 maxTurns 缺省单一出处（修复 M-5 b/c 半边，medium）
+
+- 现状缺口（实读证实）：a 组（lead 字面量）单列 A7。b) `install.ts:295` 与
+  `hub.ts:245` 各自 `?? 5` 硬编码，绕过已定义的 `TEAM_MEMBERS_MAX_DEFAULT`
+  （team.port.ts:55，零生产消费）；c) 真实生效值是 `install.ts:76` 手写
+  `const TEAM_MEMBER_MAX_TURNS = 40` 与 `member-runtime.ts:149` 兜底 `?? 40`，
+  两个登记的单一出处常量 `TEAM_MEMBER_DEFAULT_MAX_TURNS`（team.port.ts:52）与
+  `TEAM_LIMITS.memberDefaultMaxTurns`（shared team.ts:43）全仓零生产消费——
+  改任一常量声明不影响行为，四处同值靠人肉同步。
+- **行为契约**：install.ts:295 与 hub.ts:245 改引 contracts
+  `TEAM_MEMBERS_MAX_DEFAULT`；install.ts:76 删手写常量改引 contracts
+  `TEAM_MEMBER_DEFAULT_MAX_TURNS`，member-runtime.ts:149 兜底同步收口改引同一
+  常量；两常量的**误导注释订正**——team.port.ts:51-52「成队/建成员时 hub 兜底
+  填入」的消费路径不存在，改写真实消费点（install spawn 装配与 member-runtime
+  长寿命策略兜底）；shared team.ts:43「镜像登记」注释同步指向真实消费侧。值
+  等价（5/40/40），零行为改动，改引后 typecheck 锁定漂移。
+- **测试要求**：现有 membersMax（team_members_max 超限拒绝）与 memberMaxTurns
+  显式传递用例回归。
+
+### A7｜lead 字面量收口（修复 M-5 a 半边，medium）
+
+- 现状缺口（实读证实）：message-format.ts:33（buildRevivalBody）与 :46
+  （buildSteerBody）两处 `entry.from === "lead"` 手写，绕过 shared
+  `TEAM_LEAD_ASSIGNEE`（shared team.ts:23-27 注释明言「任何一侧不得再手写
+  "lead" 字面量」）；core types.ts:170 已再导出 `LEAD_ASSIGNEE_KEY`，core 已依赖
+  @drora/shared 可引未引。若寻址键改动，此两处静默漂移为把 lead 显示成
+  "member lead"。
+- **行为契约**：两处改引 core `types.ts` 的 `LEAD_ASSIGNEE_KEY` 再导出（等价于
+  shared TEAM_LEAD_ASSIGNEE），消除手写字面量；§1 草案校验行的单一出处声明
+  （lead 寻址键 shared 单一出处）由此补齐消费侧。
+- **测试要求**：现有 message-format 用例回归（revival/steer 文案的 lead 呈现）。
+
+### A8｜幽灵 token 补清：bg-neutral-foreground/40 三处（修复 M-8，medium）
+
+- 现状缺口（实读证实）：`team-status-presentation.ts:49`
+  （TONE_DOT_CLASS.neutral）与 `TeamPanel.tsx:429`/:622 两处 fallback 圆点用
+  `bg-neutral-foreground/40`——`--color-neutral-foreground` 在本仓任何主题层都
+  不存在（类不生成 CSS），idle/cancelled/archived 状态圆点与 fallback 圆点视觉
+  消失。§18 设计审查（:1938-1942）已登记过一轮同族幽灵 token 清除
+  （bg-neutral-2/bg-neutral-3/text-neutral-foreground），本三处是该轮**漏网的
+  同族残留**——「类静默不生效」机制已由该登记实证过。
+- **行为契约**：三处改 `bg-foreground-subtlest/40`（本仓真实 token；不新登记
+  `--color-neutral-foreground` 引入第二套中性命名）；TeamPanel 两处 fallback
+  （fromColor/assigneeColor 缺席时）收口引 `TONE_DOT_CLASS`——收口后 TeamPanel
+  零字面量、tone→类名映射单一出处。
+- **测试要求**：team-status-presentation.test.ts 锁定 neutral tone 类名为
+  bg-foreground-subtlest/40。
+
+### A9｜44px 触达补齐：成员行发消息按钮（登记订正 R-1，medium）
+
+- 现状缺口（实读证实）：TeamPanel.tsx:392-403 成员行「给成员发消息」按钮
+  （data-testid=team-member-message）`size-7` 且无 pointer-coarse 补偿；同功能
+  `TeamMemberSidePane.tsx:193` 发送按钮已带 `pointer-coarse:min-h-11
+  pointer-coarse:min-w-11`——同面板同功能两处不一致，违反 DESIGN.md:660-662。
+  行为缺口在 §19 契约 6E「全局一致性破口」登记射程内，但登记清单（四处）漏了
+  此处——属登记失准的订正。
+- **行为契约**：补 `pointer-coarse:min-h-11 pointer-coarse:min-w-11`（照
+  TeamMemberSidePane.tsx:193 写法）。
+- spec 订正已落：§19 契约 6E 清单四处→五处（含此按钮，见该节行内订正）。
+- **测试要求**：静态类名无需新测；i18n/面板既有用例回归不受影响。
+
+### A10｜i18n 守卫升级：目录外清单与递归扫描（修复 L-7，low）
+
+- 现状缺口（实读证实）：teamSourceFiles（i18n.test.ts:153-159）目录外清单仅挂
+  app-shell/TeamSidePane.tsx，而 `v4/ConversationStatusPanel.tsx:1395` 也消费
+  `team.ui.title` 且不在清单——正向守不查它（漏裸键）、反向守判它死键（误删）；
+  readdirSync 非递归，team 目录将来出现子目录即静默漏扫。
+- **行为契约**：目录外清单补 `v4/ConversationStatusPanel.tsx`；readdirSync 改
+  递归。
+- spec 订正已落：§19 契约 6D 补记该漂移修复（见该节行内订正）。
+- **测试要求**：i18n.test.ts 双向守卫扩清单后实跑全绿。
+
+### A11｜logger 级别统一：两处传输异常 catch 同级（修复 L-8，low）
+
+- 现状缺口（实读证实）：commands.ts:82（sendTeamCommand 传输异常）logger.error
+  vs :214（queryTeamHistory 传输异常）logger.warn——同一类异常（sendCommand
+  传输异常族）两级错位，无从按级过滤。
+- **行为契约**：两处统一 **warn**（传输异常可恢复、用户可重试——AGENTS.md 分级
+  口径「warn 用于可恢复异常」）；两处注释互指。
+- **测试要求**：日志面无行为断言；commands.test.ts 回归。
+
+### A12｜transport-error 观测环 reasonCode 补齐（修复 L-9，low）
+
+- 现状缺口（实读证实）：两处 catch recordV4CommandAck 只记 status 不带
+  reasonCode（commands.ts:93-97/:221-225）；SessionPane:2215-2221 同场景记
+  `reasonCode: String(error)`；queryTeamHistory 同函数成功路径带条件 reasonCode
+  （:201）——probe 断线/能力缺席/握手失败原因时 team 命令不可见。
+- **行为契约**：两处 catch 补 `reasonCode: String(error)`（与 SessionPane 同
+  口径；UI 本地观测面字段，非跨进程契约键）。
+- **测试要求**：commands.test.ts 断言 transport-error 记录携带 reasonCode。
+
+### A13｜E12 如实口径（行为零改；修复 H-1，high）
+
+- 现状缺口（报告 H-1，install.ts:149-188 本会话实读证实）：spec :900-908 与
+  §2.1 术语表「写成功（持久化后）才算发送成功；同步抛错由 hub enqueueMail 转
+  mailbox_persist_failed」与生产装配不符——生产适配器
+  `SqliteSessionStore.saveSessionEntry` 为 **async**（port 契约本身即
+  `Promise<void>` 签名），写失败只以 rejection 被 install :177 `.catch` 吞成
+  warn；hub 的 `mailbox_persist_failed` 拒绝路径**仅在 persist 同步抛错时可达**
+  （测试⑫ team-install-runtime.test.ts:576-580 的注入形态是「非 async 函数 +
+  同步 throw」，生产适配器不命中该形态——测试绿不能证明生产门存在）。附加：
+  journalSink 与 persistMailboxEntry 落同一 sessionStore，**同库故障下恢复源
+  （journal message_appended）与邮箱同丢**——「journal 兜底恢复」声明在其目标
+  失效模式上不增益。
+- **行为契约（行为零改，纯口径订正）**：spec 三处（§2.1 TeamMailbox 行、§2.2
+  成员邮箱行、:900-908 段）与 install.ts 相关注释（:149-159、:172-175）+ warn
+  文案（:180）订正为如实口径——当前实现 = **入队成功即 ack（发送成功）、异步
+  刷盘失败仅 warn、mailbox_persist_failed 仅同步抛错形态可达（生产装配下不可达
+  ——只覆盖 port 直调方注入同步持久化实现的形态）、恢复源 journal 与邮箱同库
+  同丢**。真门（同步可校验写，动 port 面）与启动对账（team.mailbox 条目与
+  journal message_appended 比对补崩溃窗口）二选一列**开放决策**（本节末）。
+- spec 订正已落：§2.1/§2.2/:900-908（见各处行内订正；§6.2 send 语义注释同族
+  一并订正）。
+- **测试要求**：测试⑫断言维持（锁定 port 直调同步抛错形态的内核语义）；为
+  测试⑫补一条形态说明注释（注入形态 vs 生产 async 形态的差异，不改断言）。
+
+### B14｜送达翻转补通知契约登记（裁决登记，行为已实现；对应 M-9）
+
+- 事实：working（hub.ts:935-940）/steered（:1541-1550）/resumed（:1594-1597）
+  三分支 mailbox deliveredAccepted 翻转后的 refreshStatus + notifyChange **已随
+  05625f17 实现**，但 spec 全文此前零登记；代码注释自称依据「2026-10-23 留档项
+  『成员邮件 delivered 翻转不通知』」——该留档项在 spec 与深审报告
+  （docs/team-ui-deep-review-2026-10-22.md）中均不存在（两处 grep 零命中），
+  实现溯源断链，本条即补登记。
+- **契约登记**：三分支送达翻转必发 TeamStateChanged；次序统一
+  markDelivered → journal message_delivered → refreshStatus → notifyChange；
+  租约盖戳/释放与冻结门判定不动（§16 契约 3）。通知是投影唯一驱动——UI 尾窗
+  mailboxTail[].delivered 与「邮箱待决清空 → active/idle 重算」均依赖此链。
+- **归属订正**：5982f5b5 提交标题「§19 契约 1/6 追补收口」表述失准——§19 契约 1
+  仅登记 abandonStage 补通知半边；送达翻转补通知为独立行为面，契约载体归本条
+  （§21 B14）。
+
+### B15｜§20 补「实现验证」段（裁决登记；对应 L-1）
+
+- §20 两契约（终态源报告剥离 sourceAttemptId、findDuplicateMail target 双键）
+  已随 05625f17 落地：hub.ts portSend 终态分支入箱前剥离、mailbox.ts 谓词补
+  target 双键；core tests/team 13 文件 / 166 用例全绿（05625f17 终局实跑）。
+  §20 标题「先于实现」与两契约末尾的实现验证段已行内补落（见 §20 订正）。
+
+### B16｜fork 世代链 v1 决策（裁决登记；对应 M-10）
+
+- **v1 现状与决策**：fork 会话**不经世代链解析**——getInstalledTeamHub 按
+  leadSessionId 会话单键查表（installedHubsByLeadSession，install.ts:85/:96），
+  lead 会话的 fork（session fork 真实存在，kind 默认 "fork"）查不到 hub →
+  **fork 会话看不到 team**（命令按 hub 缺席拒绝、无 team 投影）。现状语义如实
+  登记为 v1 决策，非缺陷静默；成员会话与成员的 fork 永不匹配 lead 身份的
+  fail-closed 半边由「成员会话不在登记表」结构性成立。
+- §16.3 完整实现（世代链解析/深度 32/环防护/报告投递在世 fork 后代）列**开放
+  决策**后续卡（本节末）；§16.3「此规则必填」的表述已随本条加注裁决指针。
+
+### B17｜MobileTeamPanel 不列为 v1 交付物（裁决登记；对应 M-11）
+
+- **裁决**：手机 team 面 = RemoteConversationTimeline 摘要卡（footerSlot，
+  §18 登记）+ 既有 v4 命令链路（replayable 自动 inputOrigin=mobile 语义不变）
+  即全部；MobileTeamPanel（packages/ui/src/mobile 独立面板）**不列为 v1 交付物**
+  ——全仓零实现、无消费面，不再作为承诺挂着。§6.1 文件总表、§10 Web/手机面、
+  §12 M3 里程碑三处已行内订正（见各处）。
+- 配套（非本 spec 文件）：`packages/ui/src/team/CONTRACT.md:20` 的 MobileTeamPanel
+  列名职责由 **UI 施工方**同步订正——本条注明，不随本批落笔。
+
+### B18｜§10 摘要行/idle 折叠方案作废登记（裁决登记；对应 L-3）
+
+- §10「正文只留一行紧凑摘要行 + 全 idle 30s 折叠、>3 idle 折叠 N idle agents」
+  方案零实现；对话优先增量实际以 **footerSlot 摘要卡**（TeamConversationSummary）
+  取代——§18:1919-1920 已登记该事实，取代关系未回写 §10。:878-881 的
+  PR-2.5b 承接指向失准（该批收口的是缺口11 staged E2E，未含此面）。两处已
+  行内订正：§10 该句登记取代关系、:878-881 订正承接表述（不再有承接批次）。
+
+### B19｜§8.6 workspaceIdentity 裁决（裁决登记；对应 L-4）
+
+- **裁决**：team 实体的身份隔离经 **lead 会话归属传导**——hub 登记键为
+  leadSessionId（session-scoped，会话天然归属其 workspace，session-scoped 蕴含
+  workspace 归属），不另立显式 workspaceIdentity 键（team 生产代码 grep
+  workspaceIdentity 零命中，原「绑定 workspaceIdentity」承诺无实现亦无独立
+  消费面）；远程链路 team 帧沿既有 relay 会话通道透传（remoteSessionId 语义
+  照旧），无跨 workspace 匹配面。§8.6 已行内订正。
+
+### B20｜产物区 v1 不落盘（裁决登记；对应 L-5）
+
+- **裁决**：team 专属产物区 `.drora/team-artifacts/{teamId}/` **v1 不落盘**——
+  `TEAM_ARTIFACTS_DIR`（team.port.ts:49）仅承载引用约定（生产零消费，
+  projection.ts:79 注释自认「hub v1 未落，缺席即无产物区」）；board 的
+  artifactRefs 引用**成员侧既有落盘产物**。§2.3 交接纪律与 §12 开放问题④的
+  预设已行内订正（清理对象为成员侧产物，无 team 专属目录清理面）。
+
+### B21｜M4 具名工具策略评估结论留档（裁决登记；对应 L-6）
+
+- **结论 = 继续不做**：profile tools 治理已覆盖基本需求（§8.8 v1 设计预设即
+  此）；无真实部署场景实证前不立具名策略面——评估依据与 M4 实现登记 hooks
+  第 5 条同格式留档，§13（M4 实现登记）已补第 7 条。
+
+### D｜getTeamHistory 拒绝语义登记（对应 M-4）
+
+- `getTeamHistory` 的 teamId 不匹配拒绝（handlers/team.ts:293-297）使用
+  handler 层局部码 `historyTeamMismatch`（reasonCode
+  `fault.command.teamRejected.historyTeamMismatch`，文案内联英文）——**不入
+  TeamPortErrorCode 联合**（21 码封闭）：该拒绝是命令面路由校验（请求的
+  teamId 与该会话 hub 现役 team 不符）而非内核裁决语义，port 联合只收内核
+  拒绝语义；持久化缺席路径用既有 `TEAM_HISTORY_UNAVAILABLE`
+  （fault.command.teamHistoryUnavailable）。
+- handlers/team.ts:46 类注释「TeamPortErrorCode 透传为 reasonCode 后缀，文案
+  单一出处 core errors.ts」由施工方订正说明此例外（historyTeamMismatch 为
+  handler 层局部码，不进联合与 errors.ts）。
+- smoke 测试既有断言维持（team-commands-smoke.test.ts:154-158 固化该码）。
+
+### E｜agents-team-skill-gate contract.test.ts 补件登记（对应 M-7）
+
+- 事实：48a6b0dd 补受管登记（architecture-policy.yaml:830-843）但五件套缺
+  `contract.test.ts` → HEAD 架构检查 FAILED（missing-module-artifact，
+  `pnpm architecture:check` → violations 1，verify:pre-push 在该分支恒红）；
+  契约测试现居模块外 `bootstrap/tests/agents-team-skill-gate.test.ts`（195 行）。
+- **修复**：补
+  `apps/drora-cli/packages/bootstrap/src/app/agents-team-skill-gate/contract.test.ts`
+  ——从既有模块外测试提炼契约级断言（bundled agents-team 剔除、用户同名技能
+  不误伤、门开透传）；文件可运行性（bootstrap 包内嵌套路径的测试发现与收集）
+  按仓库既有受管模块先例处理——施工方查证先例后如实登记放置与收集口径，
+  不臆造。
+- 验收：`pnpm architecture:check` 回 violations 0。
+
+### C｜CLI 验证口径订正（对应 M-6；spec :1187-1189 行内已落）
+
+- 事实：5982f5b5 时点 spec:1187-1189 登记的「逐文件 oxlint --no-ignore
+  （0 警告 0 错误）」不成立——hub.ts 有效行 1523 > 800 触发 max-lines error
+  （.oxlintrc.json:6 error 级；存量 warn 降级清单 :10-38 不含 hub.ts），另有
+  no-unused-vars 3 处（types.ts:9 TeamSendDelivery 导入未用、team-tools.ts:94
+  TeamTaskUpdatePatchSchema 死 schema、member-runtime.ts:74 hasConcreteModel
+  解构未用）。
+- **处置**：hub.ts max-lines 加入 `.oxlintrc.json` 存量 warn 降级清单（照
+  steering.ts 先例，spec 登记降级理由=拆分归后续重构卡）；三个 no-unused-vars
+  清除（死导入/死 schema/死解构直接删）；完成后 core/src/team 逐文件
+  `oxlint --no-ignore` 回到 **0 error 0 warning**。bootstrap
+  product-projection.ts max-lines 超标为 05625f17 前存量，登记不随本批处理。
+
+### 开放决策（恰两条）
+
+1. **E12 真门 vs 启动对账（A13 的后续）**：二选一——① 真门 = 邮箱持久化做成
+   真实同步可校验写（适配器暴露同步写入路径，或 hub await 化 + TeamSendResult
+   变异步——**动 port 面**，须按 spec 决策流程另行登记）；② 启动对账 = 装配时
+   team.mailbox 条目与 journal message_appended 比对，补异步刷盘崩溃窗口的
+   丢失面。当前如实口径已随 A13 落定，本决策只影响是否补门。
+2. **fork 世代链（B16 的后续卡）**：§16.3 完整实现（lead fork 沿世代链解析/
+   深度上界 32/环防护/报告投递在世 fork 后代）是否立项——v1 现状为 fork 会话
+   看不到 team（B16 登记），有真实 fork+team 复合场景需求时再评估。

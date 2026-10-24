@@ -1,0 +1,30 @@
+{
+  "name": "@drora/relay-v2-server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "oxlint src test contract.ts contract.example.ts contract.test.ts module.ts",
+    "smoke": "node tools/smoke-process.mjs",
+    "verify:v4-build": "node tools/verify-v4-build.mjs",
+    "verify:same-origin": "node tools/verify-same-origin.mjs"
+  },
+  "dependencies": {
+    "@drora/shared": "workspace:*",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@drora/client": "workspace:*",
+    "@drora/rpc": "workspace:*",
+    "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.4.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

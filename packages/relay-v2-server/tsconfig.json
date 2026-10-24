@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["src"],
+  // 依赖 @drora/shared 的 web-remote-relay 契约区（spec §3：workspace:* 直接复用）；
+  // 与 drora-server-cli / 旧 relay-server 同款工程引用，tsc -b 先构建 shared 再检查本包。
+  "references": [{ "path": "../shared" }]
+}

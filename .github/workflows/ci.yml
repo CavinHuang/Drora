@@ -32,6 +32,10 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
+      - name: Relay V2 server contract suite
+        # 自建 relay 服务端(specs/relay-v2-server.md)的 L0 契约套件+差异测试:
+        # 真实 loopback 服务器+真实定时器,fileParallelism=false 串行执行(约 15s)。
+        run: pnpm --filter @drora/relay-v2-server test
       - name: Obsidian knowledge UI and evidence transport regression
         # EC-2（e2e-a-2，2026-10-18 终审）修复：rootJwtInvalidBroadcastGate
         # （ui-auth JWT 广播门控回归）此前不在任何 CI 通道，追加进本清单；

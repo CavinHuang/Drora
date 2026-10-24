@@ -15,12 +15,17 @@ const fileService = createFileService();
 describe.each([null, 0o000, 0o400, 0o100])(
   "远程工作区目录 admission，权限 %s（null 为删除）",
   (permissions) => {
-    it.each(["manual", "automatic"] as const)(
+    // 权限场景在 Windows（chmod 不生效）与 root（getuid===0 不受限）下无意义，整组跳过。
+    // 修复依据：原写在用例内的 context.skip() 在本 vitest 版本对原始类型 each 项恒拿到
+    // undefined context（win32 直接 TypeError 崩 6 条，主仓同败的存量缺陷）；照仓内
+    // it.skipIf/条件绑定先例（desktopLinuxDeepLinkRegistration.test.ts:618 等）提升到绑定处。
+    const admissionIt =
+      permissions !== null && (process.platform === "win32" || process.getuid?.() === 0)
+        ? it.skip
+        : it;
+    admissionIt.each(["manual", "automatic"] as const)(
       "%s：单个目录失效只拒绝该项目，修复后可以重连",
-      async (mode, context) => {
-        if (permissions !== null && (process.platform === "win32" || process.getuid?.() === 0)) {
-          context.skip();
-        }
+      async (mode) => {
         const root = await realpath(await mkdtemp(join(tmpdir(), "drora-workspace-admission-")));
         const paths = [1, 2, 3].map((n) => join(root, `workspace-${n}`));
         const closedListeners = new Set<

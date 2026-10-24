@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TeamStageInput } from "@drora/contracts";
 import { TeamHub, type TeamDispatchFn } from "../../src/team/hub.js";
 import { classifyMemberFailure, type BoardClock } from "../../src/team/board.js";
+import { projectTeam } from "../../src/team/projection.js";
 import { TEAM_KERNEL_LIMITS, type TeamMailboxEntry } from "../../src/team/types.js";
 
 function makeClock(): BoardClock {
@@ -2079,5 +2080,135 @@ describe("approveStage 竞态复查（specs/agents-team.md §19 契约 6）", ()
     expect(hub.snapshot()?.members.every((member) => member.agentId.startsWith("pending_"))).toBe(
       true,
     );
+  });
+});
+
+// ---------- 2026-10-23 送达翻转通知补齐（留档项「成员邮件 delivered 翻转不通知」）----------
+
+describe("mail delivered flip notifies (2026-10-23 留档项「成员邮件 delivered 翻转不通知」)", () => {
+  /**
+   * 桥同形最小投影（packages/bootstrap product-projection.ts teamProjectionViewOf）：
+   * projectTeam 对 members/tasks 容缺，mailboxTail[].delivered 即 deliveredAccepted
+   * 映射（core/src/team/projection.ts mailboxTailEntryOf）——经 wire 投影面断言送达
+   * 事实，而非只看内核 entry。
+   */
+  function projectedTailOf(hub: TeamHub) {
+    const roster = hub.snapshot();
+    if (roster === undefined) return [];
+    return projectTeam({
+      teamId: roster.teamId,
+      status: roster.status,
+      mailbox: hub.mailboxEntries(),
+    }).mailboxTail;
+  }
+
+  it("① working 成员 steer 异步接受后 onChange 触发、投影尾窗 delivered 翻 true；重复投递边缘零放大", async () => {
+    const onChange = vi.fn();
+    const prompts: string[] = [];
+    let releaseDispatch: ((accepted: boolean) => void) | undefined;
+    const dispatch: TeamDispatchFn = (request) =>
+      new Promise<boolean>((resolve) => {
+        prompts.push(request.prompt);
+        releaseDispatch = resolve;
+      });
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk(), dispatch, onChange });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    hub.markMemberWorking("bob"); // working → routeMail 即时 steer（fire-and-forget 异步完成）
+
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const sent = alice.send({ to: "bob", message: "steer notify probe" });
+    expect(sent.status === "success" && sent.delivery).toBe("steered");
+    // 同步入箱路径按现状已通知（enqueueMail 收尾），但送达未翻转：尾窗仍 delivered=false
+    const afterSend = onChange.mock.calls.length;
+    expect(afterSend).toBeGreaterThan(0);
+    expect(projectedTailOf(hub).at(-1)?.delivered).toBe(false);
+
+    // dispatch 被接受 → 送达翻转；异步完成路径补发通知（本卡主断言：此前为零——
+    // routeMail 异步分支只改邮箱不通知，UI 尾窗 delivered 恒滞留 false）
+    releaseDispatch?.(true);
+    await vi.waitFor(() => expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(true));
+    expect(onChange.mock.calls.length).toBeGreaterThan(afterSend);
+    expect(projectedTailOf(hub).at(-1)?.delivered).toBe(true);
+
+    // 幂等（spec §16 契约 3「markDelivered 成功后条目退出 pending 集，重复投递调用
+    // 零副作用」现状保留）：送达完成后重复投递边缘零新通知零新 dispatch
+    const settled = onChange.mock.calls.length;
+    await hub.kickTeam();
+    await hub.kickTeam();
+    expect(onChange.mock.calls.length).toBe(settled);
+    expect(prompts).toHaveLength(1);
+  });
+
+  it("② terminal 成员复活投递接受后同样补发通知且尾窗翻 true", async () => {
+    const onChange = vi.fn();
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      onChange,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    await hub.handleMemberTerminal("bob"); // 终态成员 → routeMail 走复活投递分支
+
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const baseline = onChange.mock.calls.length;
+    const sent = alice.send({ to: "bob", message: "revival notify probe" });
+    expect(sent.status === "success" && sent.delivery).toBe("resumed");
+    await vi.waitFor(() => expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(true));
+    // 复活投递接受后的送达翻转此前同样零通知（同一缺口），补齐后 onChange 必触发
+    expect(onChange.mock.calls.length).toBeGreaterThan(baseline);
+    expect(projectedTailOf(hub).at(-1)?.delivered).toBe(true);
+
+    // 幂等：送达后重复边缘零新通知
+    const settled = onChange.mock.calls.length;
+    await hub.kickTeam();
+    expect(onChange.mock.calls.length).toBe(settled);
+  });
+
+  it("③ doKickMember steer 接受后 onChange 触发、待决清空推导收敛 idle；重复 kick 零放大", async () => {
+    const onChange = vi.fn();
+    let accept = false;
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => accept,
+      onChange,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    // 全员终态化：内核无 idle 成员态赋值点（成员运行态只有 spawning/working/terminal/
+    // removed，hub.ts），本卡要断言「待决清空 → 团队收敛 idle」就必须无 busy 成员
+    // （hasWorkingMember 计 spawning/working）。
+    await hub.handleMemberTerminal("alice");
+    await hub.handleMemberTerminal("bob");
+
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // routeMail 即时复活投递先拒绝（照租约案② 先例：留 queued），邮件改由 kick 边缘
+    // 经 doKickMember 的 steer dispatch 接受——隔离出本卡考察的第三处完成路径
+    const sent = alice.send({ to: "bob", message: "kick notify probe" });
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries().at(-1);
+      expect(entry?.deliveryClaimedAt).toBeUndefined();
+      expect(entry?.deliveredAccepted).toBe(false);
+    });
+    const baseline = onChange.mock.calls.length;
+
+    accept = true;
+    await hub.kickMember("bob");
+    expect(onChange.mock.calls.length).toBeGreaterThan(baseline);
+    expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(true);
+    expect(projectedTailOf(hub).at(-1)?.delivered).toBe(true);
+    // refreshStatus 重算（邮箱待决清空 + 无 working/spawning 成员）→ 团队收敛 idle
+    // 而非滞留 active（通知补齐前该重算根本不发生）
+    expect(hub.status).toBe("idle");
+
+    // 幂等：已完成的重复 kick 边缘零新通知（§16 契约 3 现状保留）
+    const settled = onChange.mock.calls.length;
+    await hub.kickMember("bob");
+    await hub.kickMember("bob");
+    expect(onChange.mock.calls.length).toBe(settled);
   });
 });

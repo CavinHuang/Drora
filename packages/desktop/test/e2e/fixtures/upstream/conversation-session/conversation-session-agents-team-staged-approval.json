@@ -5,10 +5,7 @@
       "id": "agents-team-staged-approval-parent-spawn",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
-          "TeamSpawn"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_STAGED_APPROVAL", "TeamSpawn"]
       },
       "response": {
         "statusCode": 200,
@@ -27,9 +24,7 @@
               {
                 "title": "E2E_AGENTS_TEAM_TASK",
                 "goal": "E2E goal for the staged approval case",
-                "acceptance": [
-                  "E2E acceptance met"
-                ],
+                "acceptance": ["E2E acceptance met"],
                 "assignee": "alice"
               }
             ]
@@ -48,10 +43,7 @@
       "id": "agents-team-staged-approval-parent-final",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
-          "The draft is staged for user approval"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_STAGED_APPROVAL", "The draft is staged for user approval"]
       },
       "response": {
         "statusCode": 200,
@@ -69,9 +61,7 @@
       "id": "agents-team-staged-approval-member-welcome",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "You are \\\"alice\\\", a member of an Agents Team"
-        ]
+        "bodyIncludes": ["You are \\\"alice\\\", a member of an Agents Team"]
       },
       "response": {
         "statusCode": 200,
@@ -89,10 +79,7 @@
       "id": "agents-team-staged-approval-member-assignment",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "Agents Team automatic task assignment",
-          "E2E_AGENTS_TEAM_TASK"
-        ]
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_TASK"]
       },
       "response": {
         "statusCode": 200,
@@ -110,10 +97,7 @@
       "id": "agents-team-noprofile-parent-spawn",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_NO_PROFILE",
-          "TeamSpawn"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_NO_PROFILE", "TeamSpawn"]
       },
       "response": {
         "statusCode": 200,
@@ -131,9 +115,7 @@
               {
                 "title": "E2E_AGENTS_TEAM_NO_PROFILE_TASK",
                 "goal": "E2E goal for the no-profile staged case",
-                "acceptance": [
-                  "E2E acceptance met"
-                ],
+                "acceptance": ["E2E acceptance met"],
                 "assignee": "bob"
               }
             ]
@@ -152,10 +134,7 @@
       "id": "agents-team-noprofile-parent-final",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_NO_PROFILE",
-          "The draft is staged for user approval"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_NO_PROFILE", "The draft is staged for user approval"]
       },
       "response": {
         "statusCode": 200,
@@ -173,9 +152,7 @@
       "id": "agents-team-noprofile-member-welcome",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "You are \\\"bob\\\", a member of an Agents Team"
-        ]
+        "bodyIncludes": ["You are \\\"bob\\\", a member of an Agents Team"]
       },
       "response": {
         "statusCode": 200,
@@ -193,10 +170,7 @@
       "id": "agents-team-noprofile-member-assignment",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "Agents Team automatic task assignment",
-          "E2E_AGENTS_TEAM_NO_PROFILE_TASK"
-        ]
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_NO_PROFILE_TASK"]
       },
       "response": {
         "statusCode": 200,
@@ -214,10 +188,7 @@
       "id": "agents-team-sendrej-parent-spawn",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_SEND_REJECTED",
-          "TeamSpawn"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_SEND_REJECTED", "TeamSpawn"]
       },
       "response": {
         "statusCode": 200,
@@ -236,9 +207,7 @@
               {
                 "title": "E2E_AGENTS_TEAM_SEND_TASK",
                 "goal": "E2E goal for the send-rejected staged case",
-                "acceptance": [
-                  "E2E acceptance met"
-                ],
+                "acceptance": ["E2E acceptance met"],
                 "assignee": "carol"
               }
             ]
@@ -257,10 +226,7 @@
       "id": "agents-team-sendrej-parent-final",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_SEND_REJECTED",
-          "The draft is staged for user approval"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_SEND_REJECTED", "The draft is staged for user approval"]
       },
       "response": {
         "statusCode": 200,
@@ -278,9 +244,7 @@
       "id": "agents-team-sendrej-member-welcome",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "You are \\\"carol\\\", a member of an Agents Team"
-        ]
+        "bodyIncludes": ["You are \\\"carol\\\", a member of an Agents Team"]
       },
       "response": {
         "statusCode": 200,
@@ -298,10 +262,7 @@
       "id": "agents-team-sendrej-member-assignment",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "Agents Team automatic task assignment",
-          "E2E_AGENTS_TEAM_SEND_TASK"
-        ]
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_SEND_TASK"]
       },
       "response": {
         "statusCode": 200,

@@ -2210,6 +2210,9 @@ export function SessionPane({
           // unknown 现已静默清账，也不应为确定性拒绝留下无效的恢复记录。
           pendingCommandRegistry.rejectCommand(envelope.sessionId, envelope.commandId);
         }
+        // "transport-error" 是 UI 本地观测面的口径字面量（非跨进程契约键，不收
+        // shared 常量），与 ui/team/commands.ts 八命令/历史查询 catch 半边同字面量
+        // 互指（specs/agents-team.md §14 缺口11 补环纪律，2026-10-23 补齐）。
         recordV4CommandAck({
           type,
           status: "transport-error",

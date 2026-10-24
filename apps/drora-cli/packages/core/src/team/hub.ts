@@ -932,6 +932,12 @@ export class TeamHub {
           via: "steered",
           at: this.clock.now(),
         });
+        // 送达翻转补通知半边（2026-10-23 留档项「成员邮件 delivered 翻转不通知」）：
+        // 与 deliverPendingLeadMail 收尾同口径——refreshStatus 重算「邮箱待决清空 →
+        // active/idle」并 notifyChange 驱动投影（收敛链见 routeMail working 分支段注）；
+        // 租约盖戳/释放与冻结门判定一字不动（spec §16 契约 3）。
+        this.refreshStatus();
+        this.notifyChange();
       } else {
         // 未接受 → 释放投递租约（owner 核对防误删超时后其他路径的新租约），
         // 下一终态边缘/复活再投恰一次；不 ack 不丢弃。
@@ -1532,6 +1538,16 @@ export class TeamHub {
               via: "steered",
               at: clockNow.now(),
             });
+            // 送达事实翻转（deliveredAccepted→true）必须补通知半边（2026-10-23 留档项
+            // 「成员邮件 delivered 翻转不通知」）：通知是投影的唯一驱动（notify →
+            // deps.onChange → TeamStateChanged，spec §19 契约 1 收敛链），异步完成路径
+            // 此前只改邮箱不发通知——UI 尾窗 mailboxTail[].delivered 恒滞留 false、
+            // refreshStatus 的「邮箱待决清空 → active/idle 重算」也不发生。与 enqueueMail
+            // 同步路径收尾、deliverPendingLeadMail 收尾同口径（markDelivered → journal →
+            // refreshStatus → notifyChange）；租约盖戳/释放与冻结门判定一字不动
+            // （spec §16 契约 3 现状保留；dsh「ack 只认注入」的送达事实落库后对 UI 可见）。
+            this.refreshStatus();
+            this.notifyChange();
             return;
           }
           // 拒绝 → 释放租约（owner 核对：超租约后其他路径已盖新戳时不清除）。
@@ -1575,6 +1591,10 @@ export class TeamHub {
               via: "resumed",
               at: clockNow.now(),
             });
+            // 送达翻转补通知半边（留档项「成员邮件 delivered 翻转不通知」）：与 working
+            // 分支同口径（deliverPendingLeadMail 收尾同款），依据见该分支段注。
+            this.refreshStatus();
+            this.notifyChange();
             return;
           }
           // 拒绝 → 释放租约（owner 核对：超租约后其他路径已盖新戳时不清除）。

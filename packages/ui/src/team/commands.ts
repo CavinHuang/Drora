@@ -85,6 +85,16 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
       commandId: envelope.commandId,
       error,
     });
+    // 2026-10-23（specs/agents-team.md §14 缺口11 补环的 catch 半边补齐）：传输异常
+    // 同属 commandAckObservability 头注「每条命令」一条账——此前只进 logger.error，
+    // 环形缓冲里该命令完全缺席，e2e/现场 probe 分不清「未派发」与「已派发但传输失败」。
+    // status 用派发路径同款字面量 "transport-error"（v4/SessionPane.tsx 派发 catch；
+    // UI 本地观测面非跨进程契约键，不收 shared 常量，两处注释互指）。
+    recordV4CommandAck({
+      type,
+      status: "transport-error",
+      at: Date.now(),
+    });
     return { ok: false, error };
   }
 }
@@ -205,6 +215,13 @@ export async function queryTeamHistory(
       sessionId: connection.sessionId,
       teamId,
       error,
+    });
+    // 同 sendTeamCommand catch 半边（specs/agents-team.md §19 契约 6「recordV4CommandAck
+    // 单一口径」的传输异常半边补齐）：与 SessionPane "transport-error" 同字面量互指。
+    recordV4CommandAck({
+      type: TEAM_HISTORY_QUERY,
+      status: "transport-error",
+      at: Date.now(),
     });
     return { ok: false };
   }

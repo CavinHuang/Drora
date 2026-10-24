@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
-import type { CommandAck, CommandEnvelope } from "@drora/shared/drora-protocol-v4";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  TEAM_HISTORY_QUERY,
+  type CommandAck,
+  type CommandEnvelope,
+} from "@drora/shared/drora-protocol-v4";
+import type { V4CommandAckSummary } from "../v4/commandAckObservability.js";
 
 import {
   abandonTeamPlan,
   approveTeamPlan,
   haltTeam,
+  queryTeamHistory,
   resumeTeam,
   reviseTeamPlan,
   sendTeamMessage,
@@ -41,6 +47,18 @@ function captureSend(ack?: Partial<CommandAck>): CapturedCall {
     } as CommandAck;
   };
   return { envelopes, sendCommand };
+}
+
+/**
+ * recordV4CommandAck 在无 window 环境（vitest 默认 node）是 no-op；stub 一个
+ * window 宿主打开观测环断言面（与 commandAckObservability 的 window 调试面同构）。
+ */
+type AckDebugHost = { __droraV4CommandAcksE2E?: V4CommandAckSummary[] };
+
+function stubAckWindow(): AckDebugHost {
+  const host: AckDebugHost = {};
+  vi.stubGlobal("window", host);
+  return host;
 }
 
 describe("team v4 command helpers construct wire payloads per shared schema", () => {
@@ -194,5 +212,44 @@ describe("team command ACK semantics", () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.ack).toBeUndefined();
     expect(outcome.error).toBeInstanceOf(Error);
+  });
+});
+
+/**
+ * 传输异常补环（specs/agents-team.md §14 缺口11 补环的 catch 半边，2026-10-23）：
+ * 此前 catch 半边只进 logger，环形缓冲里该命令完全缺席——probe 分不清
+ * 「未派发」与「已派发但传输失败」。记录形状钉死为 { type, status, at }
+ * （与 SessionPane "transport-error" 同字面量；键必须真缺席）。
+ */
+describe("team command transport errors enter the ack ring buffer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("records status=transport-error when sendCommand throws (outcome ok:false, ack absent)", async () => {
+    const host = stubAckWindow();
+    const sendCommand: TeamCommandSender = async () => {
+      throw new Error("fault.subscription.runtimeRestarted");
+    };
+    const outcome = await approveTeamPlan({ sessionId: SESSION_ID, sendCommand });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ack).toBeUndefined();
+    expect(outcome.error).toBeInstanceOf(Error);
+    expect(host.__droraV4CommandAcksE2E).toEqual([
+      { type: "approveTeamPlan", status: "transport-error", at: expect.any(Number) },
+    ]);
+  });
+
+  it("records status=transport-error for queryTeamHistory when sendCommand throws", async () => {
+    const host = stubAckWindow();
+    const sendCommand = async (): Promise<CommandAck> => {
+      throw new Error("fault.subscription.runtimeRestarted");
+    };
+    const outcome = await queryTeamHistory({ sessionId: SESSION_ID, sendCommand }, "team_1");
+    expect(outcome.ok).toBe(false);
+    expect(outcome.data).toBeUndefined();
+    expect(host.__droraV4CommandAcksE2E).toEqual([
+      { type: TEAM_HISTORY_QUERY, status: "transport-error", at: expect.any(Number) },
+    ]);
   });
 });

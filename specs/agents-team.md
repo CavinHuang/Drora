@@ -896,8 +896,16 @@ core 79 + ui 52 测试绿)。补充登记:
    fire-and-forget——装配完成→恢复完成窗口内团队工具/命令看到「无 team」,冷快照可能
    缺 team 键,恢复完成后经 TeamStateChanged delta 收敛;窗口内已创建新 team 时恢复让位
    (adoptRestored 不覆盖现役记录)。PR-3.2 冷恢复 E2E 须覆盖此窗口。
-3. **journal 刷盘为异步串行**(persistMailboxEntry 同款契约):入队后刷盘前崩溃丢最后几条
-   事实,只退化崩溃恢复;E12 全同步持久化仍待接线(install persistMailboxEntry 自 v1 缺席)。
+3. **journal 刷盘为异步串行**(persistMailboxEntry 的异步降级同款契约):入队后刷盘前崩溃丢
+   最后几条事实,只退化崩溃恢复。E12 全同步邮箱持久化已接线(2026-10-23 收口,v1 装配缺口
+   闭合;订正本条早前「仍待接线」表述——终局复核发现跨项遗留,单项纪律均无过错):
+   install persistMailboxEntry(install.ts:160)经 sessionStore.saveSessionEntry 同步入队,
+   写成功才算发送成功,同步抛错由 hub enqueueMail 转 mailbox_persist_failed;于
+   install.ts:306 注入 TeamHub(create-app.ts:921 灰度门内),行为由
+   team-install-runtime.test.ts ⑪⑫(:533/:568)锁定。恢复读取面边界(同日补登记):
+   team.mailbox 类型条目当前为只写 durable 通道,无路径读取该类型条目,恢复数据源仍是
+   journal message_appended/message_delivered 重放(journal.ts:379-386)——install.ts:180
+   warn 注释已按此口径表述,spec 在此补登记。
 4. **成员运行态不入 journal 的推论**:恢复后成员一律推导 terminal(诚实态);活跃 team 冷
    恢复为 idle 而非 active;复活/重跑走既有 resume 链路由边缘事件重驱;冷恢复单次重试
    依赖重放保留的 attemptId/recoveryRetried(已持久化),自动触发接线属 PR-1.6 面。

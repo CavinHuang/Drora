@@ -226,9 +226,7 @@ describe("conversation session agents team staged approval", () => {
     // M2 验收③：Approve 前零成员零会话——基线差分读数（上游捕获工件跨用例累计，
     // 本用例非 worker 首个，绝对 0 会吃到前一用例的成员欢迎/派发请求）。
     const welcomeBaseline = await countUpstreamRequestsContainingAll([MEMBER_WELCOME_MARKER]);
-    expect(await countUpstreamRequestsContainingAll([MEMBER_WELCOME_MARKER])).toBe(
-      welcomeBaseline,
-    );
+    expect(await countUpstreamRequestsContainingAll([MEMBER_WELCOME_MARKER])).toBe(welcomeBaseline);
 
     // lead 回合在 TeamSpawn 工具结果后收束。
     await waitForUpstreamRequest(

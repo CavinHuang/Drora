@@ -9,8 +9,14 @@
 export interface VoiceTtsUtterance {
   text: string;
   lang: string;
-  /** 系统音色名；缺省 = 系统默认。 */
+  /** 系统音色名；缺省 = 系统默认（speechSynthesisTtsAdapter 精确 name 匹配）。 */
   voice?: string;
+  /**
+   * 厂商音色 id（spec §9.7.3 additive）；缺省 = 厂商默认音色（cloud 请求体省略 voice
+   * 字段）。cloudTtsAdapter 只读本字段、speechSynthesisTtsAdapter 只读 voice——双引擎
+   * 双轨各取各键，跨命名空间冲突构造性消除。
+   */
+  vendorVoice?: string;
   /** 语速倍率，缺省 1。 */
   rate?: number;
 }

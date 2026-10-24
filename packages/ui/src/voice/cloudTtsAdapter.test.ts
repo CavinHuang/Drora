@@ -128,12 +128,12 @@ describe("createCloudTtsAdapter（mock HTTP 契约）", () => {
     vi.clearAllMocks?.();
   });
 
-  it("posts /audio/speech once per sentence with model/input/voice/speed mapping (§9.6.5-1)", async () => {
+  it("posts /audio/speech once per sentence with model/input/vendorVoice/speed mapping (§9.6.5-1 云 voice 子句由 §9.7.3 取代)", async () => {
     const harness = createHarness();
     const handle = harness.adapter.speak({
       text: "第一句",
       lang: "zh-CN",
-      voice: "CosyVoice2-0.5B-narrator",
+      vendorVoice: "alex",
       rate: 1.5,
     });
     await vi.waitFor(() => {
@@ -146,7 +146,7 @@ describe("createCloudTtsAdapter（mock HTTP 契约）", () => {
     expect(request?.body).toEqual({
       model: "CosyVoice2-0.5B",
       input: "第一句",
-      voice: "CosyVoice2-0.5B-narrator",
+      voice: "alex",
       speed: 1.5,
     });
 
@@ -157,14 +157,16 @@ describe("createCloudTtsAdapter（mock HTTP 契约）", () => {
     });
   });
 
-  it("omits voice when unset and maps rate out-of-range by clamping to endpoint bounds", async () => {
+  it("omits voice when vendorVoice unset and never reads u.voice (§9.7.3 双轨隔离)", async () => {
     const harness = createHarness();
-    harness.adapter.speak({ text: "第二句", lang: "zh-CN", rate: 9 });
+    // u.voice 是 system 命名空间音色名，cloud 请求体零消费（V2-b 跨命名空间冲突消除）。
+    harness.adapter.speak({ text: "第二句", lang: "zh-CN", voice: "Microsoft Huihui", rate: 9 });
     await vi.waitFor(() => {
       expect(harness.requests).toHaveLength(1);
     });
     const body = harness.requests[0]?.body;
     expect(body?.voice).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("Microsoft Huihui");
     expect(body?.speed).toBe(4); // 0.25–4 上界钳制。
   });
 

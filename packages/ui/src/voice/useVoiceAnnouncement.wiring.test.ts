@@ -71,6 +71,7 @@ const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
       voiceTtsEngine: "system" as "system" | "cloud",
       voiceVendorBaseUrl: "",
       voiceTtsVendorModel: "",
+      voiceToolBriefEnabled: false,
     } as {
       voiceAnnouncementEnabled: boolean;
       voiceAnnouncementVoice: string;
@@ -78,6 +79,7 @@ const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
       voiceTtsEngine: "system" | "cloud";
       voiceVendorBaseUrl: string;
       voiceTtsVendorModel: string;
+      voiceToolBriefEnabled: boolean;
     },
   };
   class FakeHandle {
@@ -201,16 +203,40 @@ function makeUnit(turnId: string, texts: string[]): Record<string, unknown> {
   };
 }
 
+/** §9.7.7 wiring 测试：只含 ToolCall 行的 unit（无正文 → 无轮尾消费，仅简报链路）。 */
+function makeToolUnit(
+  turnId: string,
+  calls: Array<{ id: string; name?: string; status?: string }>,
+): Record<string, unknown> {
+  return {
+    turnId,
+    latestAssistantTextRow: null,
+    assistantTextRows: [],
+    assistantWorkRows: calls.map((call) => ({
+      kind: "toolCall",
+      toolCallId: call.id,
+      toolName: call.name ?? "Edit",
+      status: call.status ?? "running",
+      inputText: "src/foo.ts",
+    })),
+  };
+}
+
+function briefSpoken(): string[] {
+  return fakeTts.spoken.filter((text) => text === "voice.brief.prefix");
+}
+
 async function mountAnnouncement(params?: {
   units?: Record<string, unknown>[];
   pendingInteractions?: { interactionId: string; payload: { kind: string; toolName?: string; summary?: string } }[];
   focused?: boolean;
+  sessionId?: string;
   requestTaskStop?: () => void;
 }) {
   const harness = renderHook(() =>
     useVoiceAnnouncement({
       focused: params?.focused ?? true,
-      sessionId: "sess-1",
+      sessionId: params?.sessionId ?? "sess-1",
       workspacePath: "/ws",
       units: (params?.units ?? []) as never,
       pendingInteractions: params?.pendingInteractions as never,
@@ -235,6 +261,7 @@ beforeEach(() => {
     voiceTtsEngine: "system",
     voiceVendorBaseUrl: "",
     voiceTtsVendorModel: "",
+    voiceToolBriefEnabled: false,
   };
 });
 
@@ -432,6 +459,65 @@ describe("useVoiceAnnouncement wiring", () => {
     // 权限 pending 在消费 effect 先于/同轮于轮尾：权限段优先播（FD-3）。
     expect(fakeTts.spoken[0]).toBe("Bash: 要运行命令吗？");
     expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(true);
+    void harness;
+  });
+
+  it("primes tool briefs on mount and re-primes at conversation switch (§9.7.7 V6-a/V6-b)", async () => {
+    settingsState.current = { ...settingsState.current, voiceToolBriefEnabled: true };
+    let sessionId = "sess-A";
+    // 会话 A 挂载：投影含 10 条历史终态工具行 → 首帧 prime 消化 → 零简报（V6-b）。
+    let units = [
+      makeToolUnit(
+        "turn-1",
+        Array.from({ length: 10 }, (_, i) => ({
+          id: `tc-h-${i}`,
+          name: `Hist${i}`,
+          status: "success",
+        })),
+      ),
+    ];
+    const harness = renderHook(() =>
+      useVoiceAnnouncement({
+        focused: true,
+        sessionId,
+        workspacePath: "/ws",
+        units: units as never,
+        requestTaskStop: () => undefined,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(briefSpoken()).toHaveLength(0);
+
+    // 同会话后续快照（非 prime）：新 toolCallId 正常生成简报。
+    units = [
+      makeToolUnit("turn-1", [
+        ...Array.from({ length: 10 }, (_, i) => ({
+          id: `tc-h-${i}`,
+          name: `Hist${i}`,
+          status: "success",
+        })),
+        { id: "tc-live", name: "Live", status: "running" },
+      ]),
+    ];
+    harness.rerender();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(briefSpoken()).toHaveLength(1);
+    // 简报句播完（回 AnnIdle）+ 过全局最小间隔 5s（§9.7.7-2：lastAnnouncedAt 跨会话保留）。
+    fakeTts.finishCurrent();
+    await vi.advanceTimersByTimeAsync(5_100);
+
+    // conversationKey 切至会话 B：resetSessionState（接线单点）+ B 首帧 prime——
+    // B 的终态行（含 A 已 seen 复用同 id 的行）零上交，B 的 running 行正常候选（V6-a）。
+    sessionId = "sess-B";
+    units = [
+      makeToolUnit("turn-b", [
+        { id: "tc-live", name: "Replay", status: "success" },
+        { id: "tc-b-live", name: "LiveB", status: "pendingApproval" },
+      ]),
+    ];
+    harness.rerender();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(briefSpoken()).toHaveLength(2);
     void harness;
   });
 });

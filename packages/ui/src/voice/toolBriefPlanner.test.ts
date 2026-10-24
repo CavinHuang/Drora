@@ -5,10 +5,11 @@ import {
 } from "./toolBriefPlanner.js";
 
 /**
- * 工具简报六规则守护（specs/voice-agent-integration.md §4.2 / §9.6.7-1 / §9.6.8-S5）：
- * ①从无到有触发源收窄（进度更新不生成）②同类 10s 窗合并（只播最新目标）③最小间隔
- * 5s 不足即弃不排队 ④每 turn ≤6 上限 ⑤开关关闭零简报； FD-3 插播时机归
- * turnSpeechPlanner（见 turnSpeechPlanner.interrupt.test）。
+ * 工具简报六规则守护（specs/voice-agent-integration.md §4.2 / §9.6.7-1 / §9.6.8-S5 /
+ * §9.7.7 会话边界）：①从无到有触发源收窄（进度更新不生成）②同类 10s 窗合并（只播
+ * 最新目标）③最小间隔 5s 不足即弃不排队 ④每 turn ≤6 上限 ⑤开关关闭零简报；
+ * prime 首帧消化/会话重置/计数修剪；FD-3 插播时机归 turnSpeechPlanner（见
+ * turnSpeechPlanner.interrupt.test）。
  */
 
 function source(overrides: {
@@ -31,8 +32,8 @@ interface Harness {
   briefs: Array<{ briefId: string; toolName: string; target: string }>;
   clock: { now: number };
   setEnabled(enabled: boolean): void;
-  feed(rows: ToolCallBriefSource[]): void;
-  resetTurnCounters(): void;
+  feed(rows: ToolCallBriefSource[], opts?: { prime?: boolean }): void;
+  resetSessionState(): void;
   advance(ms: number): void;
 }
 
@@ -53,8 +54,8 @@ function createHarness(): Harness {
     setEnabled: (next) => {
       enabled = next;
     },
-    feed: (rows) => planner.consumeToolCallSnapshot(rows),
-    resetTurnCounters: () => planner.resetTurnCounters(),
+    feed: (rows, opts) => planner.consumeToolCallSnapshot(rows, opts),
+    resetSessionState: () => planner.resetSessionState(),
     advance: (ms) => {
       clock.now += ms;
     },
@@ -151,9 +152,9 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     expect(harness.briefs).toHaveLength(6); // 第 7 条起被每 turn 上限挡掉。
   });
 
-  it("resetTurnCounters 后新 turn 恢复简报配额（同一 planner 实例）", () => {
+  it("resetSessionState 后新会话恢复简报配额且 seen 重新消化（同一 planner 实例，§9.7.7-2）", () => {
     const harness = createHarness();
-    // 用互异 toolName 隔离合并窗（本用例只验证每 turn 配额，不测窗合并）。
+    // 用互异 toolName 隔离合并窗（本用例只验证会话边界重置，不测窗合并）。
     for (let i = 0; i < 6; i += 1) {
       harness.advance(5_000);
       harness.feed([
@@ -165,12 +166,18 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
       ]);
     }
     expect(harness.briefs).toHaveLength(6);
-    harness.resetTurnCounters(); // wiring 在 turn 切换时调用：清 per-turn 计数
+    harness.resetSessionState(); // wiring 在 conversationKey 变化时调用：清全部四结构
     harness.advance(5_000);
     harness.feed([
       source({ toolCallId: "tc-new", toolName: "ToolNew", turnId: "turn-2" }),
     ]);
     expect(harness.briefs).toHaveLength(7);
+    // seen 已清：同一 toolCallId 在新会话视图重新「从无到有」。
+    harness.advance(5_000);
+    harness.feed([
+      source({ toolCallId: "tc-1", toolName: "ToolReplay", turnId: "turn-2", status: "success" }),
+    ]);
+    expect(harness.briefs).toHaveLength(8);
   });
 
   it("规则⑤：开关关闭 → 零简报（seen 照常消化，避免开启瞬间旧行涌入）", () => {
@@ -267,9 +274,9 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     harness.advance(1_000);
     harness.feed([source({ toolCallId: "tc-a2", turnId: "turn-1", target: "b.ts" })]);
     expect(harness.briefs).toHaveLength(1);
-    // turn 切换：清 per-turn 计数；turn-2 的行推进「当前 turn」（该候选距上次播报
-    // <minGap 被 rule 3 弃，但行本身已把 currentTurnId 推到 turn-2）。
-    harness.resetTurnCounters();
+    // turn 切换（§9.7.7-1：turn 推进不重置——pending 跨 turn 挂起是 EG-1 既有语义）；
+    // turn-2 的行推进「当前 turn」（该候选距上次播报 <minGap 被 rule 3 弃，但行本身
+    // 已把 currentTurnId 推到 turn-2）。
     harness.advance(2_000);
     harness.feed([source({ toolCallId: "tc-b0", toolName: "Bash", turnId: "turn-2" })]);
     // +8s：Edit 合并窗（基准=tc-a1 播出时刻）过期，空快照驱动 drain → 挂起 Edit 上交。
@@ -277,8 +284,8 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     harness.feed([]);
     expect(harness.briefs).toHaveLength(2);
     // 修复口径：挂起 Edit 计入 turn-2 账面（=1）。再喂 5 条 turn-2 新工具（间隔 ≥minGap）
-    // → turn-2 账面到 6，第 7 条候选被规则 6 前置门丢弃。若无此修复，挂起计入已清零的
-    // turn-1，turn-2 账面只有 5，第 7 条会通过（共 8 条）。
+    // → turn-2 账面到 6，第 7 条候选被规则 6 前置门丢弃。若无此修复，挂起计入 turn-1，
+    // turn-2 账面只有 5，第 7 条会通过（共 8 条）。
     for (let i = 1; i <= 5; i++) {
       harness.advance(5_100);
       harness.feed([
@@ -289,5 +296,84 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     harness.advance(5_100);
     harness.feed([source({ toolCallId: "tc-b-over", toolName: "BashOver", turnId: "turn-2" })]);
     expect(harness.briefs).toHaveLength(7);
+  });
+});
+
+describe("toolBriefPlanner 会话边界（§9.7.7）", () => {
+  it("prime 首帧：历史终态行只进 seen 零简报，非终态行正常候选（V6-b/V6-a planner 面）", () => {
+    const harness = createHarness();
+    harness.feed(
+      [
+        ...Array.from({ length: 10 }, (_, i) =>
+          source({ toolCallId: `tc-done-${i}`, toolName: `Done${i}`, turnId: "turn-1", status: "success" }),
+        ),
+        source({ toolCallId: "tc-live", toolName: "Live", turnId: "turn-1", status: "running" }),
+      ],
+      { prime: true },
+    );
+    // 终态行零上交；running 行正常首见候选（首条无间隔/窗约束 → 即时上交）。
+    expect(harness.briefs).toHaveLength(1);
+    expect(harness.briefs[0]?.briefId).toBe("tc-live");
+    // seen 已消化终态行：prime 后同 id 的进度更新不重复生成。
+    harness.advance(6_000);
+    harness.feed([
+      source({ toolCallId: "tc-done-0", toolName: "Done0", turnId: "turn-1", status: "error" }),
+    ]);
+    expect(harness.briefs).toHaveLength(1);
+  });
+
+  it("prime 对全部终态枚举生效（success/error/cancelled），未知 status 按非终态处理", () => {
+    const harness = createHarness();
+    harness.feed(
+      [
+        source({ toolCallId: "tc-s", toolName: "S", status: "success" }),
+        source({ toolCallId: "tc-e", toolName: "E", status: "error" }),
+        source({ toolCallId: "tc-c", toolName: "C", status: "cancelled" }),
+        source({ toolCallId: "tc-u", toolName: "U", status: "someFutureStatus" }),
+      ],
+      { prime: true },
+    );
+    expect(harness.briefs.map((brief) => brief.briefId)).toEqual(["tc-u"]);
+  });
+
+  it("非 prime 快照：终态首见照常生成（既有「首见即终态也算从无到有」语义不变）", () => {
+    const harness = createHarness();
+    harness.feed([source({ toolCallId: "tc-1", status: "success" })]);
+    expect(harness.briefs).toHaveLength(1);
+  });
+
+  it("resetSessionState 保留 lastAnnouncedAt（全局最小间隔基准跨会话连续）", () => {
+    const harness = createHarness();
+    harness.feed([source({ toolCallId: "tc-a", toolName: "A", turnId: "turn-1" })]);
+    expect(harness.briefs).toHaveLength(1);
+    // 会话切换重置后 +2s：距上会话末次播报 <5s → 新会话首条被最小间隔约束丢弃一次。
+    harness.advance(2_000);
+    harness.resetSessionState();
+    harness.feed([source({ toolCallId: "tc-b", toolName: "B", turnId: "turn-9" })]);
+    expect(harness.briefs).toHaveLength(1);
+    // 间隔恢复后正常上交。
+    harness.advance(4_000);
+    harness.feed([source({ toolCallId: "tc-c", toolName: "C", turnId: "turn-9" })]);
+    expect(harness.briefs).toHaveLength(2);
+  });
+
+  it("announcedCountByTurn 修剪：旧 turn 键随快照消失被回收，同 id 复现恢复配额（V6-c 行为等价）", () => {
+    const harness = createHarness();
+    // turn-1 配额耗尽（6 条，互异 toolName 隔离合并窗）。
+    for (let i = 0; i < 6; i += 1) {
+      harness.advance(5_000);
+      harness.feed([
+        source({ toolCallId: `tc-1-${i}`, toolName: `T1_${i}`, turnId: "turn-1" }),
+      ]);
+    }
+    expect(harness.briefs).toHaveLength(6);
+    // turn-1 行退出快照：turn-1 键被修剪（键集 ⊆ 快照 turnId 集 ∪ {currentTurnId}）。
+    harness.advance(5_000);
+    harness.feed([source({ toolCallId: "tc-2-0", toolName: "T2_0", turnId: "turn-2" })]);
+    expect(harness.briefs).toHaveLength(7);
+    // turn-1 新工具行复现：计数已从零开始（若无修剪，turn-1 旧计数 6 会挡掉本条）。
+    harness.advance(5_000);
+    harness.feed([source({ toolCallId: "tc-1-new", toolName: "T1_new", turnId: "turn-1" })]);
+    expect(harness.briefs).toHaveLength(8);
   });
 });

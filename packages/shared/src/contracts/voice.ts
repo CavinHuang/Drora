@@ -30,6 +30,14 @@ export const VOICE_SETTINGS_KEYS = {
   asrVendorModel: "voiceAsrVendorModel",
   ttsEngine: "voiceTtsEngine",
   ttsVendorModel: "voiceTtsVendorModel",
+  // §9.7.3：云 TTS 音色独立键（厂商音色 id 命名空间）；voiceAnnouncementVoice
+  // 同步收窄为 system 引擎语义（系统音色名），两者永不互读。
+  ttsVendorVoice: "voiceTtsVendorVoice",
+  // §9.7.5：播报语言键；"" = 自动 = UI locale（现状语义原样保留为缺省）。
+  announcementLang: "voiceAnnouncementLang",
+  // §9.7.8：persona 显示键——唯一消费方 = 设置面 Select 显示派生（运行时零读路径，
+  // 消费只读四个底层键；未知 id 自然回落「自定义」）。
+  personaId: "voicePersonaId",
   toolBriefEnabled: "voiceToolBriefEnabled",
   privacyDisclosureAcknowledged: "voicePrivacyDisclosureAcknowledged",
 } as const;

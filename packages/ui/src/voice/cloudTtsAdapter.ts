@@ -4,8 +4,9 @@
  * voice/speed），响应二进制音频在 renderer 解码播放；实现既有 VoiceTtsPort（零改动），
  * 句切分/排队/暂停续播全部归 turnSpeechPlanner。
  *
- * 映射（§9.6.5-1 / §6.1 既有配置）：model=voiceTtsVendorModel（wiring 注入）、
- * input=u.text、voice=u.voice ?? 缺省（voiceAnnouncementVoice 作为厂商音色 id）、
+ * 映射（§9.6.5-1 / §6.1 既有配置；云 voice 子句由 §9.7.3 取代）：
+ * model=voiceTtsVendorModel（wiring 注入）、input=u.text、
+ * voice=u.vendorVoice ?? 缺省省略（云音色独立键 voiceTtsVendorVoice，空 = 厂商默认）、
  * speed=u.rate ?? 1 映射端点 speed 0.25–4（越界钳制）；u.lang v1 不映射（默认厂商
  * 模型自判定语种）。
  *
@@ -169,16 +170,18 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           settle(handle, "error");
           return;
         }
-        let blob: Blob;
-        try {
-          const body: Record<string, unknown> = {
-            model: config.model,
-            input: u.text,
-            speed: clampTtsSpeed(u.rate),
-          };
-          if (u.voice) {
-            body.voice = u.voice;
-          }
+          let blob: Blob;
+          try {
+            const body: Record<string, unknown> = {
+              model: config.model,
+              input: u.text,
+              speed: clampTtsSpeed(u.rate),
+            };
+            // §9.7.3：body.voice 改读 u.vendorVoice（云音色独立命名空间；缺省省略字段
+            // = 厂商默认音色）。u.voice（system 音色名）零消费——跨命名空间冲突消除。
+            if (u.vendorVoice) {
+              body.voice = u.vendorVoice;
+            }
           const response = await doFetch(`${config.baseUrl.replace(/\/+$/u, "")}/audio/speech`, {
             method: "POST",
             headers: {

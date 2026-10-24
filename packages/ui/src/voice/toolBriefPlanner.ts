@@ -55,15 +55,30 @@ export const TOOL_BRIEF_THRESHOLDS: ToolBriefPlannerThresholds = {
   targetMaxChars: 40,
 };
 
-/** 规划器能力面（wiring 消费 consumeToolCallSnapshot/resetTurnCounters）。@lintignore */
+/**
+ * 终态判定（§9.7.7-3 prime 语义）：status ∈ {success, error, cancelled}
+ * （drora-protocol-v4/rows.ts:211 枚举）；inputStreaming/pendingApproval/running 为
+ * 非终态。未知 status 按非终态处理（prime 宁可漏静默也不误丢活行）。
+ */
+const TERMINAL_TOOL_CALL_STATUSES = new Set(["success", "error", "cancelled"]);
+
+/** 规划器能力面（wiring 消费 consumeToolCallSnapshot/resetSessionState）。@lintignore */
 export interface ToolBriefPlanner {
   /**
    * 喂入当前 ToolCall 行快照（每 tick 由 wiring 从 conversation 投影展开）；
    * 内部 diff「从无到有」并按六规则产出 onBriefReady。
+   *
+   * opts.prime（§9.7.7-3 首帧消化）：true 时终态行只进 seen 不生成候选（「从无到有」
+   * 以本 planner 会话视图为界，首帧存量不播——修复挂载/切回即对历史工具出简报）；
+   * 非终态行走正常首见候选路径；drainPending 照常。
    */
-  consumeToolCallSnapshot(rows: readonly ToolCallBriefSource[]): void;
-  /** turn 切换（wiring 会话/轮次变更）时清 per-turn 计数（§4.2-6）。 */
-  resetTurnCounters(): void;
+  consumeToolCallSnapshot(rows: readonly ToolCallBriefSource[], opts?: { prime?: boolean }): void;
+  /**
+   * 会话边界重置（§9.7.7-2，wiring 在 conversationKey 变化时点调用）：清全部四结构
+   * （seen/lastBriefAtByTool/pendingByTool/announcedCountByTurn）+ currentTurnId=null；
+   * **保留 lastAnnouncedAt**（全局最小间隔基准跨会话连续，方向安全）。
+   */
+  resetSessionState(): void;
 }
 
 export function createToolBriefPlanner(
@@ -96,7 +111,7 @@ export function createToolBriefPlanner(
   let lastAnnouncedAt = Number.NEGATIVE_INFINITY;
   /**
    * 终审角落修复：drain 时刻的「当前 turn」= 最近一次快照见到的 turnId。
-   * EG-1 允许跨 turn 挂起合并（pendingByTool 不随 resetTurnCounters 清空），此类
+   * EG-1 允许跨 turn 挂起合并（pendingByTool 不随会话重置清空语义变化），此类
    * pending 在窗过期后上交时按当前 turn 计数——否则计入旧 turn（已清零）账面，
    * 新 turn 的实际播报数可比 maxPerTurn 多 1（规则 6 账面失真）。
    */
@@ -137,13 +152,22 @@ export function createToolBriefPlanner(
   };
 
   return {
-    consumeToolCallSnapshot(rows) {
+    consumeToolCallSnapshot(rows, opts) {
+      const prime = opts?.prime === true;
+      const snapshotTurnIds = new Set<string>();
     for (const row of rows) {
       currentTurnId = row.turnId;
+      snapshotTurnIds.add(row.turnId);
       if (seenToolCallIds.has(row.toolCallId)) {
         continue; // 规则 1：进度级更新不生成候选。
       }
         seenToolCallIds.add(row.toolCallId);
+        // §9.7.7-3 prime：终态行只进 seen 不生成候选（首帧/切回存量不播——「从无到有」
+        // 以本 planner 会话视图为界）；非终态行（inputStreaming/pendingApproval/running）
+        // 走正常首见候选路径（活行可能是用户正等待的工具进展）。
+        if (prime && TERMINAL_TOOL_CALL_STATUSES.has(row.status)) {
+          continue;
+        }
         // 首见任何状态都算「从无到有」（快速完成的调用也是一次工具调用开始）；
         // 同一 toolCallId 的后续进度/终态更新不重复生成（规则 1）。
         if (!deps.isBriefEnabled()) {
@@ -166,9 +190,22 @@ export function createToolBriefPlanner(
         });
       }
       drainPending();
+      // §9.7.7-4 修剪：announcedCountByTurn 键集 ⊆ 当前快照 turnId 集 ∪ {currentTurnId}
+      // ——长会话内存有界，且不破坏跨 turn 挂起归属（挂起者上交时计入 currentTurnId）。
+      for (const turnId of Array.from(announcedCountByTurn.keys())) {
+        if (turnId !== currentTurnId && !snapshotTurnIds.has(turnId)) {
+          announcedCountByTurn.delete(turnId);
+        }
+      }
     },
-    resetTurnCounters() {
+    resetSessionState() {
+      seenToolCallIds.clear();
+      lastBriefAtByTool.clear();
+      pendingByTool.clear();
       announcedCountByTurn.clear();
+      currentTurnId = null;
+      // lastAnnouncedAt 保留：全局最小间隔基准跨会话连续（切换后首条简报至多被 5s
+      // 间隔约束丢弃一次，方向安全，§9.7.7-2）。
     },
   };
 }

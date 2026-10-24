@@ -9,6 +9,7 @@
 import type { AppSettings } from "@drora/shared";
 import {
   isVoiceAnnouncementEnabledInSettings,
+  resolveVoiceAnnouncementLang,
   resolveVoiceAnnouncementVoiceConfig,
 } from "@/voice/voiceComposerEntryState.js";
 
@@ -19,10 +20,22 @@ export function isVoiceAnnouncementEnabled(
   return isVoiceAnnouncementEnabledInSettings(settings);
 }
 
-/** 播报音色/语速（§6.1 键 3/4；空音色 = 系统默认，语速缺省 1）。 */
+/**
+ * 播报音色/语速/云音色（§6.1 键 3/4 + §9.7.3 vendorVoice；空音色 = 系统默认、
+ * 空云音色 = 厂商默认，语速缺省 1）。
+ */
 export function resolveVoiceAnnouncementOutputConfig(settings: AppSettings | null | undefined): {
   voice?: string;
+  vendorVoice?: string;
   rate: number;
 } {
   return resolveVoiceAnnouncementVoiceConfig(settings);
+}
+
+/** 播报语言（§9.7.5；空 = 自动 = UI locale，显式值优先）。 */
+export function resolveVoiceAnnouncementLangFromSettings(
+  settings: Pick<AppSettings, "voiceAnnouncementLang"> | null | undefined,
+  currentLocale: string,
+): string {
+  return resolveVoiceAnnouncementLang(settings, currentLocale);
 }

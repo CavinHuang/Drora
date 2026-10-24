@@ -541,6 +541,13 @@ const appSettingsObjectSchema = z.object({
   voiceAsrVendorModel: z.string().default(""),
   voiceTtsEngine: z.enum(["system", "cloud"]).default("system"),
   voiceTtsVendorModel: z.string().default(""),
+  // §9.7.3：云 TTS 音色独立键（厂商音色 id；空串 = 厂商默认音色）；与
+  // voiceAnnouncementVoice（system 引擎系统音色名）分属两个命名空间，永不互读。
+  voiceTtsVendorVoice: z.string().default(""),
+  // §9.7.5：播报语言；空串 = 自动 = UI locale（现状语义为缺省，显式值优先）。
+  voiceAnnouncementLang: z.string().default(""),
+  // §9.7.8：persona 显示键；空串 = 未选（显示「自定义」派生档）。
+  voicePersonaId: z.string().default(""),
   voiceToolBriefEnabled: z.boolean().default(false),
   voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
   taskAutoArchiveEnabled: z.boolean().default(false),
@@ -677,6 +684,9 @@ export const appSettingsPatchSchema = z.object({
   voiceAsrVendorModel: z.string().optional(),
   voiceTtsEngine: z.enum(["system", "cloud"]).optional(),
   voiceTtsVendorModel: z.string().optional(),
+  voiceTtsVendorVoice: z.string().optional(),
+  voiceAnnouncementLang: z.string().optional(),
+  voicePersonaId: z.string().optional(),
   voiceToolBriefEnabled: z.boolean().optional(),
   voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),

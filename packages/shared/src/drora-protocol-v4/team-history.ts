@@ -30,6 +30,9 @@ export const teamHistoryEntrySchema = z
       "task_updated",
       "message_appended",
       "message_delivered",
+      // §21 A1（2026-10-24）：lead 邮箱「永久不可投」条目丢弃事实（载荷复用既有
+      // 字段 messageIds + reason，零其余 wire 词表变更）。
+      "message_dropped",
       "member_removed",
       "halted",
       "resumed",
@@ -61,7 +64,8 @@ export const teamHistoryEntrySchema = z
           ? !!entry.messageId && !!entry.from && !!entry.to && entry.message !== undefined
           : entry.kind === "member_added" || entry.kind === "member_removed"
             ? !!entry.memberName
-            : entry.kind === "message_delivered"
+            : // §21 A1：message_dropped 与 message_delivered 同款要求 messageIds 在场。
+              entry.kind === "message_delivered" || entry.kind === "message_dropped"
               ? entry.messageIds !== undefined
               : true;
     if (!valid) ctx.addIssue({ code: "custom", message: "Incomplete team history fact" });

@@ -6,7 +6,6 @@ import type {
   TeamTaskContract,
   TeamTaskSpec,
   TeamTaskStatus,
-  TeamSendDelivery,
 } from "@drora/contracts";
 
 /**

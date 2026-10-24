@@ -17,7 +17,9 @@ locale → ui-team index → IntlProvider 形成循环。下钻时保持 TeamPan
 ## 职责
 
 - TeamPanel / TeamStagedEditor / TeamBoardView / MemberCard / TeamMessageTail /
-  TeamArchiveView / TeamMemberSidePane / MobileTeamPanel 的渲染与交互；
+  TeamArchiveView / TeamMemberSidePane 的渲染与交互（2026-10-24 订正，spec §21 B17：
+  MobileTeamPanel 不列为 v1 交付物——手机 team 面由 RemoteConversationTimeline 摘要卡
+  （footerSlot）+ 既有 v4 命令链路承载，不再作为列名承诺挂着）；
 - 从 v4 conversationProjectionStore 的 team 投影派生视图模型（唯一数据通道）；
 - 用户动作全部转 v4 团队命令（approveTeamPlan / haltTeam / …）。
 

@@ -43,7 +43,14 @@ export class V4TeamHubUnavailableError extends Error {
   }
 }
 
-/** hub 拒绝（TeamPortErrorCode 透传为 reasonCode 后缀，文案单一出处 core errors.ts）。 */
+/**
+ * hub 拒绝（TeamPortErrorCode 透传为 reasonCode 后缀，文案单一出处 core errors.ts）。
+ * §21 D 例外登记（2026-10-24）：getTeamHistory 的 teamId 不匹配拒绝用 handler 层
+ * 局部码 historyTeamMismatch（fault.command.teamRejected.historyTeamMismatch，文案
+ * 内联英文）——它是命令面路由校验（请求的 teamId 与该会话 hub 现役 team 不符）而非
+ * 内核裁决语义，**不进 TeamPortErrorCode 联合**（21 码封闭）与 core errors.ts；
+ * 持久化缺席路径仍用既有 TEAM_HISTORY_UNAVAILABLE。
+ */
 export class V4TeamRejectedError extends Error {
   readonly reasonCode: string;
 

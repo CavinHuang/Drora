@@ -1,6 +1,6 @@
 import type { SessionEntryInfo, SessionStorePort, TeamPermissionMode } from "@drora/contracts";
 import { TEAM_JOURNAL_KEY_PREFIX } from "@drora/contracts";
-import { appendToMailbox, isCurrentMail, markDelivered } from "./mailbox.js";
+import { appendToMailbox, dropMailEntries, isCurrentMail, markDelivered } from "./mailbox.js";
 import type { TeamHub } from "./hub.js";
 import type { TeamMailboxEntry, TeamRecord, TeamTaskInternal } from "./types.js";
 
@@ -74,6 +74,18 @@ export type TeamJournalPayload =
       // lead_injected（2026-10-21 缺口12）：lead 邮箱注入事实（spec §14），与成员
       // steered/resumed 同族 additive 扩展；deliveredVia 不入 wire 投影。
       via: "steered" | "resumed" | "lead_injected";
+      at: string;
+    }
+  // §21 A1（2026-10-24 登记）：lead 邮箱投递通道判定「永久不可投」（发件人离册/
+  // childSessionId 缺席）的条目丢弃事实——载荷复用 messageIds + reason（与
+  // teamHistoryEntrySchema 既有字段同构，零新增字段词表）。重放语义=等同丢弃：
+  // 该 messageId 不进恢复邮箱，按 seq 顺序 message_appended 先入、message_dropped
+  // 后清，多次重放幂等。
+  | {
+      kind: "message_dropped";
+      teamId: string;
+      messageIds: readonly string[];
+      reason: string;
       at: string;
     }
   | { kind: "member_removed"; teamId: string; memberName: string }
@@ -221,6 +233,7 @@ const KNOWN_JOURNAL_KINDS: readonly TeamJournalPayload["kind"][] = [
   "task_updated",
   "message_appended",
   "message_delivered",
+  "message_dropped",
   "member_removed",
   "halted",
   "resumed",
@@ -385,6 +398,11 @@ export function replayTeamJournal(
       case "message_delivered":
         record.mailbox = markDelivered(record.mailbox, payload.messageIds, payload.via, payload.at);
         break;
+      case "message_dropped":
+        // §21 A1：重放遇丢弃事实等同丢弃（dropMailEntries 幂等——按 seq 顺序
+        // message_appended 先入、message_dropped 后清，重复重放终态一致）。
+        record.mailbox = dropMailEntries(record.mailbox, payload.messageIds);
+        break;
       case "member_removed": {
         const member = record.members.find(
           (candidate) => candidate.memberName === payload.memberName,
@@ -485,6 +503,14 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
         (payload.via === "steered" ||
           payload.via === "resumed" ||
           payload.via === "lead_injected") &&
+        nonEmpty(payload.at)
+      );
+    case "message_dropped":
+      // §21 A1：与 message_delivered 同款要求 messageIds 在场 + reason/at 非空。
+      return (
+        Array.isArray(payload.messageIds) &&
+        payload.messageIds.every((id) => typeof id === "string") &&
+        nonEmpty(payload.reason) &&
         nonEmpty(payload.at)
       );
     case "member_removed":

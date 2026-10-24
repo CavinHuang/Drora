@@ -232,7 +232,7 @@ export function markDelivered(
 
 /** 废弃世代过时邮件（读取路径的清理语义；幂等）。 */
 export function discardStaleMail(
-  mailbox: readonly TeamMailboxEntry[],
+  mailbox: TeamMailboxEntry[],
   tasks: readonly TeamTaskInternal[],
 ): { mailbox: TeamMailboxEntry[]; discardedIds: string[] } {
   const discardedIds: string[] = [];
@@ -243,4 +243,19 @@ export function discardStaleMail(
     return false;
   });
   return { mailbox: next, discardedIds };
+}
+
+/**
+ * 按 messageId 移除邮箱条目（§21 A1，2026-10-24 登记）：lead 邮箱投递通道判定
+ * 「永久不可投」（发件人离册/childSessionId 缺席——任何重投边缘都不可能成功）的
+ * skipped 条目由此丢弃，动作与 discardStaleMail 的清除同族（条目退出 pendingMail
+ * 选取集，重投边缘不再捡起）。幂等：不存在的 messageId 零副作用。journal 重放
+ * message_dropped 事实走同一函数（重放多次终态一致）。
+ */
+export function dropMailEntries(
+  mailbox: readonly TeamMailboxEntry[],
+  messageIds: readonly string[],
+): TeamMailboxEntry[] {
+  const ids = new Set(messageIds);
+  return mailbox.filter((entry) => !ids.has(entry.messageId));
 }

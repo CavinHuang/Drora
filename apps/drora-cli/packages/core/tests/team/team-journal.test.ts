@@ -597,7 +597,11 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     const hub = new TeamHub({
       clock: makeClock(),
       spawnMembers: spawn.forward,
-      deliverLeadMail: async () => true,
+      deliverLeadMail: async (request: { entries: readonly { messageId: string }[] }) => ({
+        // §21 A1：结构化结果（原 boolean true 的等价改写：全部注入）。
+        injected: request.entries.map((entry) => entry.messageId),
+        skipped: [] as string[],
+      }),
       journalWriter: (event) => sink.append(event),
     });
     spawn.bind(hub);
@@ -621,6 +625,77 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     const { record } = replayTeamJournal(parsed);
     expect(record!.mailbox.at(-1)?.deliveredAccepted).toBe(true);
     expect(record!.mailbox.at(-1)?.deliveredVia).toBe("lead_injected");
+  });
+
+  it("replays message_dropped facts as idempotent drops (§21 A1)", () => {
+    // §21 A1 重放语义：丢弃事实等同丢弃——按 seq 顺序 message_appended 先入、
+    // message_dropped 后清；重放多次幂等，被丢条目不进恢复邮箱。
+    const entry = (messageId: string, message: string) => ({
+      messageId,
+      from: "alice",
+      to: "lead",
+      message,
+      at: "2026-10-24T00:00:00.000Z",
+      deliveredAccepted: false,
+    });
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: "2026-10-24T00:00:00.000Z",
+        payload: {
+          kind: "team_created",
+          teamId: "team_drop",
+          leadSessionId: "lead_s1",
+          createdAt: "2026-10-24T00:00:00.000Z",
+        },
+      },
+      {
+        seq: 2,
+        at: "2026-10-24T00:00:01.000Z",
+        payload: {
+          kind: "message_appended",
+          teamId: "team_drop",
+          entry: entry("m_dead", "dead letter"),
+        },
+      },
+      {
+        seq: 3,
+        at: "2026-10-24T00:00:02.000Z",
+        payload: {
+          kind: "message_appended",
+          teamId: "team_drop",
+          entry: entry("m_live", "live report"),
+        },
+      },
+      {
+        seq: 4,
+        at: "2026-10-24T00:00:03.000Z",
+        payload: {
+          kind: "message_dropped",
+          teamId: "team_drop",
+          messageIds: ["m_dead"],
+          reason: "sender no longer on the team",
+          at: "2026-10-24T00:00:03.000Z",
+        },
+      },
+    ];
+    const first = replayTeamJournal(events);
+    expect(first.record!.mailbox.map((row) => row.messageId)).toEqual(["m_live"]);
+    // 同一事实流重放多次：终态一致（幂等丢弃，不复活也不重复清除）。
+    const second = replayTeamJournal(events);
+    expect(second.record!.mailbox.map((row) => row.messageId)).toEqual(["m_live"]);
+    // 畸形丢弃事实（缺 messageIds）整条跳过，不劫持其余事实。
+    const malformed = replayTeamJournal(
+      events.map((event) =>
+        event.seq === 4
+          ? {
+              ...event,
+              payload: { ...event.payload, messageIds: undefined } as never,
+            }
+          : event,
+      ),
+    );
+    expect(malformed.record!.mailbox.map((row) => row.messageId)).toEqual(["m_dead", "m_live"]);
   });
 });
 

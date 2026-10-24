@@ -17,6 +17,17 @@ import { createTeamMemberMessageSink } from "../../src/team/member-sink.js";
 import { TEAM_JOURNAL_ENTRY_TYPE } from "../../src/team/journal.js";
 import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
 
+/** §21 A1 用例⑬：journal 通道上 message_dropped 事实的收集助手。 */
+function droppedFactsIn(
+  rows: readonly { type: string; data: Record<string, unknown> }[],
+): unknown[] {
+  return rows.filter(
+    (row) =>
+      row.type === TEAM_JOURNAL_ENTRY_TYPE &&
+      (row.data as { payload?: { kind?: string } }).payload?.kind === "message_dropped",
+  );
+}
+
 /**
  * PR-1.1′d 运行时可达断言（specs/agents-team.md §12 M1 验收 ③ 的可达性半部；
  * 行为门零改动回归见 behavior-gates.snapshot.test.ts 与 PR-1.7）。
@@ -43,6 +54,10 @@ import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
  * 2026-10-22 spec §16 契约 1（dsh-agent-teams 好设计 P0 批次）：
  * ⑩ 成员终态失败分诊——真实 registry failed 终态边缘经 subscribe 链路分诊到
  *    handleMemberFailed（不直接调 hub 方法），lead 收到失败通知。
+ *
+ * 2026-10-24 spec §21 A1（deliverLeadMail 逐条容错）：
+ * ⑬ removed-sender 死件——成员移除后其 pending lead 邮件在投递边缘被丢弃
+ *    （mailbox 零该条目 + journal message_dropped + 后续投递边缘零重试）。
  *
  * 2026-10-23 E12 全同步邮箱持久化装配收口（spec §2.2 状态所有者表 TeamMailbox 行
  * 「写成功（持久化后）才算发送成功」+ M3 实现 登记#3）：
@@ -515,6 +530,66 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     );
     expect(lead.sessionId).toBeTruthy();
   });
+
+  it("⑬ §21 A1 removed-sender dead letter drops at the delivery edge with a message_dropped fact", async () => {
+    const sessionId = createSessionId();
+    const persisted: { type: string; data: Record<string, unknown> }[] = [];
+    const store = {
+      ...createRecordingMessageStore(),
+      async sessionEntries() {
+        return [];
+      },
+      async saveSessionEntry(entry: { type: string; data: Record<string, unknown> }) {
+        persisted.push(entry);
+      },
+    };
+    const { lead, installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    const hub = installed!.hub;
+    const leadPort = hub.leadPort(lead.sessionId);
+    leadPort.stageTeam({
+      draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
+      draftTasks: [],
+    });
+    await leadPort.approveStage();
+
+    // 场景（§21 A1 测试①）：成员移除后残留的 pending lead 邮件 = 永久不可投死件
+    //（发件人不在场，任何重投边缘都不可能成功）。enqueueMail 公开底层入口直构造
+    // 该形态（与 portSend 等价的入箱路径，绕过已离册发件人的成员端口校验）。
+    expect(hub.removeMember("alice").status).toBe("ok");
+    hub.enqueueMail({
+      messageId: "mail_removed_sender",
+      from: "alice",
+      to: "lead",
+      message: "dead letter after removal",
+      at: new Date(0).toISOString(),
+      deliveredAccepted: false,
+    });
+
+    // 投递边缘：install 回调查 roster（snapshot 已滤 removed）→ skipped → hub 丢弃
+    // + journal message_dropped（异步刷盘经 sessionStore 通道可观测）。
+    await vi.waitFor(
+      () => {
+        expect(
+          hub.mailboxEntries().some((entry) => entry.messageId === "mail_removed_sender"),
+        ).toBe(false);
+      },
+      { timeout: 10_000 },
+    );
+    await vi.waitFor(
+      () => {
+        expect(droppedFactsIn(persisted)).toHaveLength(1);
+      },
+      { timeout: 10_000 },
+    );
+
+    // 后续投递边缘零重试：丢弃即退出 pendingMail 选取集（不重复注入、不产生新事实）。
+    await hub.deliverPendingLeadMail();
+    await hub.kickTeam();
+    expect(hub.mailboxEntries().some((entry) => entry.messageId === "mail_removed_sender")).toBe(
+      false,
+    );
+    expect(droppedFactsIn(persisted)).toHaveLength(1);
+  });
 });
 
 describe("agents team mailbox persistence (E12 全同步持久化接线, 2026-10-23)", () => {
@@ -574,6 +649,11 @@ describe("agents team mailbox persistence (E12 全同步持久化接线, 2026-10
         return [];
       },
       // 非异步函数 + 同步 throw = 同步入队失败注入点（E12 失败语义：抛错即发送失败）。
+      // §21 A13 形态说明（2026-10-24）：这是 **port 直调方注入同步持久化实现**的形态
+      // ——生产适配器（SqliteSessionStore.saveSessionEntry）是 async（port 契约
+      // Promise<void> 签名），同步不抛、rejection 仅被 install 的 .catch 吞成 warn，
+      // 生产装配下 mailbox_persist_failed 不可达。本用例锁定的是内核语义（同步抛错
+      // → hub 转拒绝），不是生产门的存在性证明；真门/启动对账见 spec §21 开放决策。
       saveSessionEntry(entry: { type: string; data: Record<string, unknown> }) {
         attemptedWrites.push(entry);
         throw new Error("disk full (E12 persist failure injection)");

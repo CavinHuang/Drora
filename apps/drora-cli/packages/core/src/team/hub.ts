@@ -21,6 +21,7 @@ import type {
   TeamBoardSnapshot,
 } from "@drora/contracts";
 import { TEAM_LIMITS } from "@drora/shared/drora-protocol-v4";
+import { TEAM_MEMBERS_MAX_DEFAULT } from "@drora/contracts";
 import {
   applyTaskUpdate,
   beginTaskAttempt,
@@ -39,6 +40,7 @@ import { teamPortError } from "./errors.js";
 import {
   appendToMailbox,
   claimDeliveryLease,
+  dropMailEntries,
   findDuplicateMail,
   isCurrentMail,
   markDelivered,
@@ -76,6 +78,19 @@ export type TeamDispatchFn = (request: {
   attemptId?: string;
 }) => Promise<boolean>;
 
+/**
+ * lead 邮箱投递通道的结构化结果（§21 A1，2026-10-24 登记）：通道逐条容错，
+ * 不因单条失败提前 return。`injected` = 已注入（enqueue 即接受）；`skipped` =
+ * 永久不可投（发件人离册或 childSessionId 缺席——任何重投边缘都不可能成功，
+ * hub 侧丢弃并记 message_dropped 事实）；两表都缺席的条目 = 注入动作失败但
+ * 非永久不可投（回调内部逐条吞错不上抛），hub 仅释放该条投递租约留 queued
+ * 待重投边缘（§16 契约 3「抛错与拒绝同责」收窄到未注入条目）。
+ */
+export interface TeamLeadMailDeliveryResult {
+  injected: readonly string[];
+  skipped: readonly string[];
+}
+
 export interface TeamHubDeps {
   clock?: BoardClock;
   /** 建队时捕获的 lead 会话权限模式（spec §8.1 成队定死；plan 不带入由 install 换算）。 */
@@ -107,11 +122,15 @@ export interface TeamHubDeps {
   onChange?: () => void;
   /**
    * lead 邮箱投递通道（2026-10-21 缺口12，spec §14）：install 经 lead
-   * enqueueSubagentMessage 注入（mid-turn steer / idle 独立轮同通道）。返回 true =
-   * 已接受（enqueue 即接受），hub 记 lead_injected 送达事实；false/抛错 = 留 queued
-   * 待重试边缘。缺席 = lead 邮件恒 queued（与修复前行为一致）。
+   * enqueueSubagentMessage 注入（mid-turn steer / idle 独立轮同通道）。返回
+   * 结构化结果（§21 A1）：injected 条目 hub 记 lead_injected 送达事实；skipped
+   * 条目为永久不可投（发件人不在场），hub 丢弃并记 message_dropped；两表缺席
+   * 条目仅释放投递租约留 queued 重投。抛错与「全部未注入」同责。缺席 = lead
+   * 邮件恒 queued（与修复前行为一致）。
    */
-  deliverLeadMail?: (request: { entries: readonly TeamMailboxEntry[] }) => Promise<boolean>;
+  deliverLeadMail?: (request: {
+    entries: readonly TeamMailboxEntry[];
+  }) => Promise<TeamLeadMailDeliveryResult>;
   /**
    * halt 时中断 lead 自身回合（2026-10-21 边缘1，spec §14）：install 实现 =
    * lead.stopActiveForegroundExecution。静默失败不回滚冻结（同成员中断先例）。
@@ -242,7 +261,9 @@ export class TeamHub {
   constructor(private readonly depsOrUndefined: TeamHubDeps = {}) {
     this.clock = depsOrUndefined.clock ?? DEFAULT_CLOCK;
     this.limits = depsOrUndefined.limits ?? TEAM_KERNEL_LIMITS;
-    this.membersMax = depsOrUndefined.membersMax ?? 5;
+    // §21 A6（2026-10-24 常量接线）：?? 5 改引 contracts TEAM_MEMBERS_MAX_DEFAULT
+    //（原硬编码绕过登记常量，改任一声明不影响行为）。
+    this.membersMax = depsOrUndefined.membersMax ?? TEAM_MEMBERS_MAX_DEFAULT;
     this.dispatch = depsOrUndefined.dispatch ?? (async () => false);
     this.notifyChange = depsOrUndefined.onChange ?? (() => undefined);
     this.journalWriter = depsOrUndefined.journalWriter ?? (() => undefined);
@@ -403,7 +424,9 @@ export class TeamHub {
         ...(this.depsOrUndefined.leadPermissionMode === undefined
           ? {}
           : { permissionMode: this.depsOrUndefined.leadPermissionMode }),
-        status: input.skipApproval === true ? "staged" : "staged",
+        // §21 A3（2026-10-24）：skipApproval 的「直通」分支 v1 不实现（两分支字面
+        // 相同的死三元已收折）——两阶段审批是唯一成队入口，参数保留待后续卡。
+        status: "staged",
         members: [],
         tasks: [],
         mailbox: [],
@@ -608,8 +631,12 @@ export class TeamHub {
       return { status: "rejected", error: teamPortError("team_lead_only") };
     }
     if (reason.trim() === "") {
-      // 用户停的队不得静默恢复（spec §2.6）。
-      return { status: "rejected", error: teamPortError("team_lead_only") };
+      // 用户停的队不得静默恢复（spec §2.6）。§21 A2（2026-10-24）：错误码由
+      // team_lead_only 订正为 team_halted——调用方就是 lead，被拒因是 reason 空白，
+      // team_halted 的 hint（explicit resume with a reason）才是正确的「为什么被拒 +
+      // 怎么补救」教学；team_lead_only 文案对 lead 本人自相矛盾。生产不可达（wire
+      // schema reason min(1) 网关先拒），仅直调 hub 的测试/工具路径可触达。零新码。
+      return { status: "rejected", error: teamPortError("team_halted") };
     }
     record.status = this.hasWorkingMember(record) ? "active" : "idle";
     record.updatedAt = this.clock.now();
@@ -1611,10 +1638,15 @@ export class TeamHub {
 
   /**
    * lead 待决邮件批量投递（2026-10-21 缺口12，spec §14）：pendingMail(lead) 经装配
-   * 通道注入 lead 会话。送达 ack = 通道返回 true——enqueue 即接受（spec §14 登记的
-   * lead 例外：mid-turn 注入由 active-loop 异步完成，无同步回执面，stale-branch
-   * 丢弃窗口与 RespondToCoordinator 同源同责）；失败/抛错整体留 queued，重试边缘
-   * = routeMail 即时投递、kickTeam 末尾、lead turn-complete、冷恢复 adoption。
+   * 通道注入 lead 会话。送达 ack = 通道结构化结果（§21 A1，2026-10-24）：injected
+   * 条目 markDelivered(lead_injected) + journal message_delivered（enqueue 即接受，
+   * spec §14 登记的 lead 例外：mid-turn 注入由 active-loop 异步完成，无同步回执面）；
+   * skipped 条目为永久不可投（发件人离册/childSessionId 缺席）——丢弃条目（动作与
+   * discardStaleMail 清除同族）+ journal 新事实 message_dropped；其余条目（注入动作
+   * 失败但非永久不可投）仅释放投递租约留 queued，重试边缘 = routeMail 即时投递、
+   * kickTeam 末尾、lead turn-complete、冷恢复 adoption。旧「accepted=false 整批
+   * 释放」路径已删——批内已注入条目 markDelivered 后永久退出 pendingMail 选取集
+   * （§16 契约 3 既有语义），重投边缘只捡未注入未丢弃条目，重复注入通道结构性消失。
    * 幂等：deliveredAccepted 只在成功后置位，重复调用零副作用。
    * 投递租约（spec §16 契约 3）：三个并发触发点（routeMail/kickTeam/turn-complete）
    * 对同一 pending 集只投一次——发起注入前同步盖 claim，未过期租约被其余触发点的
@@ -1635,28 +1667,48 @@ export class TeamHub {
     if (ready.length === 0) return;
     const messageIds = ready.map((item) => item.messageId);
     record.mailbox = claimDeliveryLease(record.mailbox, messageIds, claimedAt);
-    let accepted = false;
+    let outcome: TeamLeadMailDeliveryResult;
     try {
-      accepted = await deliver({ entries: ready });
+      outcome = await deliver({ entries: ready });
     } catch {
-      // 注入抛错与拒绝同责（spec §16 契约 3）：释放租约留待下一触发点重投。
-      accepted = false;
-    }
-    if (!accepted) {
-      // 释放租约（owner 核对：超租约后其他路径已盖新戳时不清除），整体留 queued。
+      // 注入抛错与拒绝同责（spec §16 契约 3）：未注入条目释放租约留待下一触发点重投。
       record.mailbox = releaseDeliveryLease(record.mailbox, messageIds, claimedAt);
       return;
     }
-    const at = this.clock.now();
-    record.mailbox = markDelivered(record.mailbox, messageIds, "lead_injected", at);
-    record.updatedAt = at;
-    this.journal({
-      kind: "message_delivered",
-      teamId: record.teamId,
-      messageIds,
-      via: "lead_injected",
-      at,
-    });
+    const injected = outcome.injected.filter((id) => messageIds.includes(id));
+    const skipped = outcome.skipped.filter(
+      (id) => messageIds.includes(id) && !injected.includes(id),
+    );
+    const now = this.clock.now();
+    if (injected.length > 0) {
+      record.mailbox = markDelivered(record.mailbox, injected, "lead_injected", now);
+      this.journal({
+        kind: "message_delivered",
+        teamId: record.teamId,
+        messageIds: injected,
+        via: "lead_injected",
+        at: now,
+      });
+    }
+    if (skipped.length > 0) {
+      // §21 A1：永久不可投（发件人不在场）——丢弃退出选取集 + message_dropped 事实
+      //（重放等同丢弃，journal.ts 同款语义）；不再整批释放让死件每个边缘重试。
+      record.mailbox = dropMailEntries(record.mailbox, skipped);
+      this.journal({
+        kind: "message_dropped",
+        teamId: record.teamId,
+        messageIds: skipped,
+        reason: "sender no longer on the team",
+        at: now,
+      });
+    }
+    const settled = new Set<string>([...injected, ...skipped]);
+    const unreached = messageIds.filter((id) => !settled.has(id));
+    if (unreached.length > 0) {
+      // 注入动作失败但非永久不可投：仅释放本批盖戳（owner 核对），留 queued 重投。
+      record.mailbox = releaseDeliveryLease(record.mailbox, unreached, claimedAt);
+    }
+    record.updatedAt = now;
     this.refreshStatus();
     this.notifyChange();
   }

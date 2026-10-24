@@ -1454,6 +1454,9 @@ const zhCN: Record<string, string> = {
   "team.member.state.working": "工作中",
   "team.member.state.terminal": "空闲",
   "team.member.state.removed": "已移除",
+  // §21 A1（2026-10-24）：journal 新增 message_dropped 事实的历史呈现键
+  //（动态键族 team.history.kind.*，i18n 守卫按前缀放行）。
+  "team.history.kind.message_dropped": "邮件已丢弃（发件人离册）",
   "team.stagedEditor.title": "团队计划草案",
   // 2026-10-22 问句表头（spec §10 呈现规则1）：stagedSummary 移作表头计数（「N 名成员 ·
   // N 项任务」），确认语义由问句行承载；问句行 + 失败文案键见 TeamStagedEditor 头注。

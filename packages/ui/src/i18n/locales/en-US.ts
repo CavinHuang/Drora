@@ -1664,6 +1664,9 @@ const enUS: Record<string, string> = {
   "team.panel.action.halt": "Stop team",
   "team.panel.action.resume": "Resume team",
   "team.panel.action.stop": "Remove member",
+  // §21 A1 (2026-10-24): history label for the new message_dropped journal fact
+  // (dynamic key family team.history.kind.*, allowed by prefix in the i18n guard).
+  "team.history.kind.message_dropped": "Message dropped (sender no longer on the team)",
   // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
   "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",

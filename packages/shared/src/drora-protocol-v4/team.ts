@@ -39,7 +39,9 @@ export const TEAM_LIMITS = {
   dependencyDigestPerItemChars: 2_000,
   /** 依赖产物预算：总量（design §3.3.5 / spec §16.2）。 */
   dependencyDigestTotalChars: 12_000,
-  /** 成员默认 maxTurns（长寿命策略；与 contracts TEAM_MEMBER_DEFAULT_MAX_TURNS 同值，M1 先落，镜像登记）。 */
+  /** 成员默认 maxTurns（长寿命策略）。镜像登记：真实消费点在 CLI 树——contracts
+   *  TEAM_MEMBER_DEFAULT_MAX_TURNS 由 bootstrap install 装配（resolveMemberBinding）
+   *  与 core member-runtime 长寿命策略兜底引用（§21 A6，2026-10-24 注释订正）。 */
   memberDefaultMaxTurns: 40,
   // 以下为线上字符串/数组上界（design §3.3.5 未逐条列出，照 WORKFLOW_RUNS_LIMITS 体例补充：
   // 协议边界上的所有载荷有界——数字必须有界，字符串同理）。

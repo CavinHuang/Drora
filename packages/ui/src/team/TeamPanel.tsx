@@ -19,6 +19,10 @@ import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./v
 import { TeamWorkspaceViews } from "./TeamWorkspaceViews.js";
 import { TeamStatusBadge } from "./TeamStatusBadge.js";
 import { TeamAvatar } from "./TeamAvatar.js";
+// §21 A8（2026-10-24）：尾窗/任务卡 fallback 圆点收口引本表——收口后 TeamPanel 零
+// 字面量，tone→类名映射单一出处（原手写 bg-neutral-foreground/40 是幽灵 token，同族
+// 残留见 team-status-presentation.ts TONE_DOT_CLASS 注释）。
+import { TONE_DOT_CLASS } from "./team-status-presentation.js";
 
 /**
  * TeamPanel（PR-2.4a 只读视图 + PR-2.4b 动作区；specs/agents-team.md §10、
@@ -397,7 +401,10 @@ function TeamPanelContent({
                               { name: member.memberName },
                             )}
                             data-testid="team-member-message"
-                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            /* §21 A9（2026-10-24）：同功能按钮（TeamMemberSidePane 发送钮）已带
+                               pointer-coarse ≥44px（DESIGN.md:660-662）——此处漏补偿属 §19 契约 6E
+                               全局一致性破口的登记失准订正，照同面板写法补齐。 */
+                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
                           >
                             <MessageSquareTextIcon className="size-3.5" />
                           </button>
@@ -424,9 +431,10 @@ function TeamPanelContent({
                     <ul className="flex flex-col gap-0.5">
                       {model.mailboxTail.map((entry) => (
                         <li key={entry.messageId} className="flex min-w-0 items-center gap-1.5">
+                          {/* §21 A8：fromColor 缺席（lead/未匹配）兜底引单一出处映射的 neutral 档。 */}
                           <span
                             aria-hidden
-                            className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? "bg-neutral-foreground/40"}`}
+                            className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? TONE_DOT_CLASS.neutral}`}
                           />
                           <span className="shrink-0 text-ui-caption text-foreground-subtle">
                             {`${displayActorName(intl, entry.from)} → ${displayActorName(intl, entry.to)}`}
@@ -617,9 +625,10 @@ function TaskCard({
     >
       <div className="flex min-w-0 flex-wrap items-start gap-1.5">
         {task.assignee === undefined ? null : (
+          /* §21 A8：assigneeColor 缺席（lead/未匹配）兜底引单一出处映射的 neutral 档。 */
           <span
             aria-hidden
-            className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? "bg-neutral-foreground/40"}`}
+            className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? TONE_DOT_CLASS.neutral}`}
           />
         )}
         <button

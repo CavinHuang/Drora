@@ -220,13 +220,15 @@ describe("team command ACK semantics", () => {
  * 此前 catch 半边只进 logger，环形缓冲里该命令完全缺席——probe 分不清
  * 「未派发」与「已派发但传输失败」。记录形状钉死为 { type, status, at }
  * （与 SessionPane "transport-error" 同字面量；键必须真缺席）。
+ * §21 A12（2026-10-24）：catch 记录补 reasonCode: String(error)（与 SessionPane:2215-2221
+ * 同口径）——断言升级为携带 reasonCode，probe 断线/能力缺席/握手失败原因时可见。
  */
 describe("team command transport errors enter the ack ring buffer", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("records status=transport-error when sendCommand throws (outcome ok:false, ack absent)", async () => {
+  it("records status=transport-error with reasonCode when sendCommand throws (outcome ok:false, ack absent)", async () => {
     const host = stubAckWindow();
     const sendCommand: TeamCommandSender = async () => {
       throw new Error("fault.subscription.runtimeRestarted");
@@ -236,11 +238,16 @@ describe("team command transport errors enter the ack ring buffer", () => {
     expect(outcome.ack).toBeUndefined();
     expect(outcome.error).toBeInstanceOf(Error);
     expect(host.__droraV4CommandAcksE2E).toEqual([
-      { type: "approveTeamPlan", status: "transport-error", at: expect.any(Number) },
+      {
+        type: "approveTeamPlan",
+        status: "transport-error",
+        reasonCode: "Error: fault.subscription.runtimeRestarted",
+        at: expect.any(Number),
+      },
     ]);
   });
 
-  it("records status=transport-error for queryTeamHistory when sendCommand throws", async () => {
+  it("records status=transport-error with reasonCode for queryTeamHistory when sendCommand throws", async () => {
     const host = stubAckWindow();
     const sendCommand = async (): Promise<CommandAck> => {
       throw new Error("fault.subscription.runtimeRestarted");
@@ -249,7 +256,12 @@ describe("team command transport errors enter the ack ring buffer", () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.data).toBeUndefined();
     expect(host.__droraV4CommandAcksE2E).toEqual([
-      { type: TEAM_HISTORY_QUERY, status: "transport-error", at: expect.any(Number) },
+      {
+        type: TEAM_HISTORY_QUERY,
+        status: "transport-error",
+        reasonCode: "Error: fault.subscription.runtimeRestarted",
+        at: expect.any(Number),
+      },
     ]);
   });
 });

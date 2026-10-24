@@ -91,13 +91,8 @@ function teamToolEntry(input: {
   };
 }
 
-const TeamTaskUpdatePatchSchema = z.object({
-  status: z
-    .enum(["pending", "claimed", "in_progress", "completed", "failed", "cancelled"])
-    .optional(),
-  output: z.string().optional(),
-  artifactRefs: z.array(z.string()).optional(),
-});
+// §21 C（2026-10-24）：原 TeamTaskUpdatePatchSchema（status/output/artifactRefs 补丁
+// schema）零消费（死 schema）已删——TeamTaskUpdateInputSchema 内联同款字段校验。
 
 const TeamTaskUpdateInputSchema = z.object({
   task_id: z.string().min(1),

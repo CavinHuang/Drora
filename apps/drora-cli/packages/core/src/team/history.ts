@@ -118,6 +118,11 @@ function historyFact(event: TeamJournalEvent, delivered: ReadonlySet<string>): u
       };
     case "message_delivered":
       return { ...base, messageIds: p.messageIds };
+    // §21 A1（2026-10-24）：丢弃事实复用 messageIds + reason 载荷——不加本分支会
+    // 落到 default 只剩 {seq,at,kind}，被 schema superRefine（要求 messageIds）拒成
+    // skippedEntries，事实在历史查询面不可见。
+    case "message_dropped":
+      return { ...base, messageIds: p.messageIds, reason: p.reason };
     case "member_added":
     case "member_removed":
       return { ...base, memberName: p.memberName };

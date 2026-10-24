@@ -25,6 +25,22 @@ const STAGE_INPUT: TeamStageInput = {
   ],
 };
 
+/**
+ * §21 A1（2026-10-24）：deliverLeadMail 返回值从 boolean 收窄为结构化结果
+ * {injected, skipped}——旧 boolean mock 全部经这两支助手改写（接受=全部注入，
+ * 拒绝=两表皆空 = 全部条目留 queued 重投）。
+ */
+function acceptAllLeadMail() {
+  return async (request: { entries: readonly TeamMailboxEntry[] }) => ({
+    injected: request.entries.map((entry) => entry.messageId),
+    skipped: [] as string[],
+  });
+}
+
+function rejectAllLeadMail() {
+  return async () => ({ injected: [] as string[], skipped: [] as string[] });
+}
+
 function spawnOk() {
   return vi.fn(async (members: readonly { memberName: string }[]) =>
     members.map((member) => ({
@@ -801,7 +817,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
 
 describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
   it("routes lead mail through deliverLeadMail and records lead_injected on acceptance", async () => {
-    const deliver = vi.fn(async () => true);
+    const deliver = vi.fn(acceptAllLeadMail());
     const journal: { payload: { kind: string; via?: string } }[] = [];
     const hub = new TeamHub({
       clock: makeClock(),
@@ -835,7 +851,7 @@ describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
   });
 
   it("keeps failed lead mail queued and retries on kickTeam; halted freezes delivery until resume", async () => {
-    const deliver = vi.fn(async () => false);
+    const deliver = vi.fn(rejectAllLeadMail());
     const hub = new TeamHub({
       clock: makeClock(),
       spawnMembers: spawnOk(),
@@ -850,7 +866,7 @@ describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
 
     // halted 冻结门：kickTeam 不投递。
     hub.halt("lead_s1");
-    deliver.mockImplementation(async () => true);
+    deliver.mockImplementation(acceptAllLeadMail());
     await hub.kickTeam();
     expect(deliver).toHaveBeenCalledTimes(1);
     expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(false);
@@ -858,6 +874,153 @@ describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
     hub.resume("lead_s1", "continue");
     await vi.waitFor(() => {
       const entry = hub.mailboxEntries().at(-1) as TeamMailboxEntry;
+      expect(entry.deliveredAccepted).toBe(true);
+      expect(entry.deliveredVia).toBe("lead_injected");
+    });
+  });
+
+  it("§21 A2 blank resume reason is rejected as team_halted (not team_lead_only)", async () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1"); // halt 拒 staged：先过两阶段门再冻结
+    hub.halt("lead_s1");
+    // 空理由防御分支：调用方就是 lead，被拒因是 reason 空白——team_halted 的 hint
+    //（explicit resume with a reason）才是正确教学；生产不可达（wire schema
+    // reason min(1) 网关先拒），仅直调 hub 的测试/工具路径可触达。
+    const rejected = hub.resume("lead_s1", "   ");
+    expect(rejected.status).toBe("rejected");
+    expect(rejected.status === "rejected" && rejected.error?.code).toBe("team_halted");
+    expect(hub.status).toBe("halted"); // 冻结不动
+    // 非空理由照常恢复（回归半边）。
+    expect(hub.resume("lead_s1", "continue").status).toBe("ok");
+  });
+  // ---------- §21 A1（2026-10-24 登记）：deliverLeadMail 结构化结果——逐条容错， ----------
+  // ---------- 离册死件丢弃（message_dropped）+ 部分注入不重投。                          ----------
+
+  it("§21 A1 partial injection: injected entries deliver exactly once, skipped entries drop with a message_dropped fact, and later edges never re-inject", async () => {
+    const journal: { payload: { kind: string; messageIds?: readonly string[]; via?: string } }[] =
+      [];
+    const batchSizes: number[] = [];
+    let releaseDeliver: ((result: { injected: string[]; skipped: string[] }) => void) | undefined;
+    const deliver = vi.fn((request: { entries: TeamMailboxEntry[] }) => {
+      batchSizes.push(request.entries.length);
+      return new Promise<{ injected: string[]; skipped: string[] }>((resolve) => {
+        releaseDeliver = resolve;
+      });
+    });
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      deliverLeadMail: deliver,
+      journalWriter: (event) => journal.push(event as never),
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    // halted 冻结窗口构造同批 pending：halt 下 routeMail 的 fire-and-forget 投递被
+    // deliverPendingLeadMail 冻结门挡住（不盖租约），两条 lead 邮件同时留 queued。
+    hub.halt("lead_s1");
+    const leadMail = (message: string): TeamMailboxEntry => ({
+      messageId: `mail_${message.split(" ")[0]}`,
+      from: "alice",
+      to: "lead",
+      message,
+      at: "2026-10-24T00:00:00.000Z",
+      deliveredAccepted: false,
+    });
+    hub.enqueueMail(leadMail("deliverable report"));
+    hub.enqueueMail(leadMail("dead letter from a removed sender"));
+    expect(hub.mailboxEntries()).toHaveLength(2);
+    expect(deliver).not.toHaveBeenCalled();
+
+    // resume 唤醒 kickTeam → deliverPendingLeadMail：两条 pending 同批一次 deliver 调用。
+    hub.resume("lead_s1", "continue");
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
+    expect(batchSizes).toEqual([2]);
+    const deliveredId = hub.mailboxEntries()[0]!.messageId;
+    const droppedId = hub.mailboxEntries()[1]!.messageId;
+
+    // 通道逐条容错结果：可投条注入、发件人离册条跳过。
+    releaseDeliver?.({ injected: [deliveredId], skipped: [droppedId] });
+    await vi.waitFor(() => {
+      // 可投条：恰注入一次并 markDelivered(lead_injected)；不可投条：从邮箱丢弃。
+      const remaining = hub.mailboxEntries();
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]?.messageId).toBe(deliveredId);
+      expect(remaining[0]?.deliveredAccepted).toBe(true);
+      expect(remaining[0]?.deliveredVia).toBe("lead_injected");
+    });
+    // journal 双事实：message_delivered(lead_injected) 与 message_dropped（reason 载荷）。
+    await vi.waitFor(() => {
+      const deliveredFact = journal.find(
+        (event) =>
+          event.payload.kind === "message_delivered" && event.payload.via === "lead_injected",
+      );
+      expect(deliveredFact?.payload.messageIds).toEqual([deliveredId]);
+      const droppedFact = journal.find((event) => event.payload.kind === "message_dropped") as
+        | { payload: { messageIds?: readonly string[]; reason?: string } }
+        | undefined;
+      expect(droppedFact?.payload.messageIds).toEqual([droppedId]);
+      expect(droppedFact?.payload.reason).toBeTruthy();
+    });
+
+    // 重投边缘（deliverPendingLeadMail/kickTeam 同族）：已注入条 deliveredAccepted=true
+    // 退出 pendingMail 选取集、已丢弃条不在邮箱——deliver 零再调用（零重复注入）。
+    await hub.deliverPendingLeadMail();
+    await hub.kickTeam();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(journal.filter((event) => event.payload.kind === "message_delivered")).toHaveLength(1);
+    expect(journal.filter((event) => event.payload.kind === "message_dropped")).toHaveLength(1);
+  });
+
+  it("§21 A1 unreached entries keep their lease released and stay queued for the next edge", async () => {
+    // 注入动作失败但非永久不可投（两表缺席）：仅释放该条租约留 queued 重投——
+    // 「失败」不再触发整批重投已注入条目（旧 accepted=false 整批释放路径已删）。
+    const journal: { payload: { kind: string; messageIds?: readonly string[] } }[] = [];
+    let failAll = false;
+    const deliver = vi.fn(async () => {
+      if (failAll) return { injected: [], skipped: [] };
+      throw new Error("enqueue channel unavailable");
+    });
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      deliverLeadMail: deliver,
+      journalWriter: (event) => journal.push(event as never),
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    hub.halt("lead_s1");
+    // 同上：halt 冻结窗口留 queued，resume 边缘触发首投（抛错形态）。
+    hub.enqueueMail({
+      messageId: "mail_transient",
+      from: "alice",
+      to: "lead",
+      message: "transient failure probe",
+      at: "2026-10-24T00:00:00.000Z",
+      deliveredAccepted: false,
+    });
+    hub.resume("lead_s1", "continue");
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalled());
+
+    // 抛错与拒绝同责（收窄到未注入条目）：条目留 queued、无租约残留、零送达/丢弃事实。
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries()[0] as TeamMailboxEntry;
+      expect(entry.deliveredAccepted).toBe(false);
+      expect(entry.deliveryClaimedAt).toBeUndefined();
+    });
+    expect(journal.filter((event) => event.payload.kind === "message_delivered")).toHaveLength(0);
+    expect(journal.filter((event) => event.payload.kind === "message_dropped")).toHaveLength(0);
+
+    // 下一边缘重投恰一次，接受后收敛（spec §16 契约 3 重投语义维持）。
+    failAll = true;
+    deliver.mockImplementation(async (request: { entries: TeamMailboxEntry[] }) => ({
+      injected: request.entries.map((entry) => entry.messageId),
+      skipped: [],
+    }));
+    await hub.kickTeam();
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries()[0] as TeamMailboxEntry;
       expect(entry.deliveredAccepted).toBe(true);
       expect(entry.deliveredVia).toBe("lead_injected");
     });
@@ -1321,10 +1484,10 @@ describe("mailbox delivery lease (spec §16 契约 3, dsh 投递 claim 互斥 + 
 
   it("④ concurrent lead-mail triggers deliver the pending batch exactly once (routeMail × kickTeam × turn-complete)", async () => {
     const batchSizes: number[] = [];
-    let releaseDeliver: ((accepted: boolean) => void) | undefined;
+    let releaseDeliver: ((result: { injected: string[]; skipped: string[] }) => void) | undefined;
     const deliver = vi.fn((request: { entries: TeamMailboxEntry[] }) => {
       batchSizes.push(request.entries.length);
-      return new Promise<boolean>((resolve) => {
+      return new Promise<{ injected: string[]; skipped: string[] }>((resolve) => {
         releaseDeliver = resolve;
       });
     });
@@ -1349,7 +1512,10 @@ describe("mailbox delivery lease (spec §16 契约 3, dsh 投递 claim 互斥 + 
     expect(batchSizes).toEqual([1]);
 
     // 注入被接受 → 整批 markDelivered；此后触发点零副作用
-    releaseDeliver?.(true);
+    releaseDeliver?.({
+      injected: [hub.mailboxEntries()[0]!.messageId],
+      skipped: [],
+    });
     await vi.waitFor(() => {
       const delivered = hub.mailboxEntries().at(-1);
       expect(delivered?.deliveredAccepted).toBe(true);
@@ -1505,7 +1671,9 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
    * deliverLeadMail 探针（缺省依赖下无法断言「恰一次」与 deliveredAccepted）。
    */
   async function prepare(
-    deliver: (request: { entries: readonly TeamMailboxEntry[] }) => Promise<boolean>,
+    deliver: (request: {
+      entries: readonly TeamMailboxEntry[];
+    }) => Promise<{ injected: readonly string[]; skipped: readonly string[] }>,
   ) {
     const hub = new TeamHub({
       clock: makeClock(),
@@ -1539,7 +1707,7 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
   }
 
   it("① report sent after the source task completed enters stripped (no sourceAttemptId) and delivers to lead exactly once", async () => {
-    const deliver = vi.fn(async () => true);
+    const deliver = vi.fn(acceptAllLeadMail());
     const { hub, task } = await prepare(deliver);
     const attemptId = task.attemptId!;
     completeTask(hub, task.taskId, attemptId);
@@ -1577,7 +1745,7 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
 
   it("② retrying the identical stripped report while undelivered merges into the same messageId (unbound dedup half)", async () => {
     // 注入恒拒 → 旧条目保持未投递（无绑定去重半边的前提）。
-    const deliver = vi.fn(async () => false);
+    const deliver = vi.fn(rejectAllLeadMail());
     const { hub, task } = await prepare(deliver);
     const attemptId = task.attemptId!;
     completeTask(hub, task.taskId, attemptId);
@@ -1601,7 +1769,7 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
   });
 
   it("③ after delivery a re-sent identical stripped report enters as a new entry (deliberate reminder channel stays open)", async () => {
-    const deliver = vi.fn(async () => true);
+    const deliver = vi.fn(acceptAllLeadMail());
     const { hub, task } = await prepare(deliver);
     const attemptId = task.attemptId!;
     completeTask(hub, task.taskId, attemptId);
@@ -1923,7 +2091,7 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
   });
 
   it("⑤ stale-generation mail is not resurrected after reopen; the new generation dedups independently", async () => {
-    const deliver = vi.fn(async () => false); // lead 注入恒拒 → 失败通知留 queued（世代探针）
+    const deliver = vi.fn(rejectAllLeadMail()); // lead 注入恒拒 → 失败通知留 queued（世代探针）
     const hub = new TeamHub({
       clock: makeClock(),
       spawnMembers: spawnOk(),

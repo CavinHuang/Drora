@@ -45,6 +45,13 @@ describe("team status presentation maps", () => {
     }
   });
 
+  it("locks the neutral dot class to a real theme token (§21 A8)", () => {
+    // 2026-10-24（specs/agents-team.md §21 A8）：neutral 档此前是幽灵 token
+    // bg-neutral-foreground/40——本仓主题层无 --color-neutral-foreground，类静默不生成
+    // CSS，idle/cancelled/archived 圆点视觉消失。锁定为真实 token，防同族回潮。
+    expect(TONE_DOT_CLASS.neutral).toBe("bg-foreground-subtlest/40");
+  });
+
   it("keeps i18n keys under the team.status.* namespace", () => {
     for (const key of Object.values(TEAM_STATUS_I18N_KEYS)) {
       expect(key.startsWith("team.status.")).toBe(true);

@@ -150,13 +150,32 @@ import { fileURLToPath } from "node:url";
 import { TEAM_STAGED_FAILURE_REASON_I18N_KEYS } from "./TeamStagedEditor.js";
 import { TEAM_REVISE_PREFILL_PROMPT_KEY } from "./revise-prefill.js";
 
+/**
+ * 递归收集 team 目录源文件（§21 A10，2026-10-24）：readdirSync 此前非递归，team
+ * 目录将来出现子目录即静默漏扫（正向守漏裸键、反向守误判死键）——改递归遍历。
+ */
+function collectTeamSourceFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectTeamSourceFiles(path));
+      continue;
+    }
+    if (/\.(tsx|ts)$/.test(entry.name) && !entry.name.includes(".test.")) files.push(path);
+  }
+  return files;
+}
+
 function teamSourceFiles(): string[] {
   const teamDir = fileURLToPath(new URL("./", import.meta.url));
-  const files = readdirSync(teamDir)
-    .filter((name) => /\.(tsx|ts)$/.test(name) && !name.includes(".test."))
-    .map((name) => join(teamDir, name));
+  const files = collectTeamSourceFiles(teamDir);
   // 挂载点在 team 目录之外也消费 team.* 键（下钻返回/移除确认/引用任务等）。
   files.push(fileURLToPath(new URL("../app-shell/TeamSidePane.tsx", import.meta.url)));
+  // §21 A10（2026-10-24）：v4/ConversationStatusPanel.tsx 的 team 分区标题行消费
+  // `team.ui.title`（§19 契约 6）——此前不在目录外清单：正向守不查它（漏裸键）、
+  // 反向守可把它判成死键（误删）。
+  files.push(fileURLToPath(new URL("../v4/ConversationStatusPanel.tsx", import.meta.url)));
   return files;
 }
 

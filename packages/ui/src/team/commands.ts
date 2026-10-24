@@ -79,20 +79,26 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
     }
     return { ok, ack };
   } catch (error) {
-    logger.error("[team-commands] 团队命令发送失败", {
+    // §21 A11（2026-10-24，specs/agents-team.md）：传输异常（断线/握手失败/能力缺席）
+    // 可恢复、用户可重试——AGENTS.md 分级口径「warn 用于可恢复异常」，与下方
+    // queryTeamHistory 的 catch 同级 warn（此前两处 error/warn 错位，无从按级过滤）。
+    logger.warn("[team-commands] 团队命令发送失败", {
       type,
       sessionId: input.sessionId,
       commandId: envelope.commandId,
       error,
     });
     // 2026-10-23（specs/agents-team.md §14 缺口11 补环的 catch 半边补齐）：传输异常
-    // 同属 commandAckObservability 头注「每条命令」一条账——此前只进 logger.error，
+    // 同属 commandAckObservability 头注「每条命令」一条账——此前只进 logger，
     // 环形缓冲里该命令完全缺席，e2e/现场 probe 分不清「未派发」与「已派发但传输失败」。
     // status 用派发路径同款字面量 "transport-error"（v4/SessionPane.tsx 派发 catch；
     // UI 本地观测面非跨进程契约键，不收 shared 常量，两处注释互指）。
+    // §21 A12：补 reasonCode: String(error)（与 SessionPane:2215-2221 同口径）——
+    // probe 断线/能力缺席/握手失败原因时 team 命令不再不可见。
     recordV4CommandAck({
       type,
       status: "transport-error",
+      reasonCode: String(error),
       at: Date.now(),
     });
     return { ok: false, error };
@@ -211,6 +217,9 @@ export async function queryTeamHistory(
     }
     return { ok: true, data: parsed.data };
   } catch (error) {
+    // §21 A11（2026-10-24，specs/agents-team.md）：与上方 sendTeamCommand 的 catch
+    // 同级 warn——同一 sendCommand 传输异常族此前两处 error/warn 错位；分级依据与
+    // 互指注释见该处（AGENTS.md「warn 用于可恢复异常」）。
     logger.warn("[team-commands] 团队历史查询失败", {
       sessionId: connection.sessionId,
       teamId,
@@ -218,9 +227,11 @@ export async function queryTeamHistory(
     });
     // 同 sendTeamCommand catch 半边（specs/agents-team.md §19 契约 6「recordV4CommandAck
     // 单一口径」的传输异常半边补齐）：与 SessionPane "transport-error" 同字面量互指。
+    // §21 A12：补 reasonCode: String(error)（与 SessionPane:2215-2221 同口径）。
     recordV4CommandAck({
       type: TEAM_HISTORY_QUERY,
       status: "transport-error",
+      reasonCode: String(error),
       at: Date.now(),
     });
     return { ok: false };

@@ -48,7 +48,12 @@ export const AGENTS_TEAM_SETTINGS_ENABLED_KEY = "agentsTeam.enabled";
 /** 团队产物目录（工作区相对；清理策略见 spec §13 开放问题）。 */
 export const TEAM_ARTIFACTS_DIR = ".drora/team-artifacts";
 
-/** 成员默认 maxTurns（长寿命策略；成队/建成员时 hub 兜底填入）。 */
+/**
+ * 成员默认 maxTurns（长寿命策略）。真实消费点（§21 A6，2026-10-24 注释订正）：
+ * bootstrap install 的 resolveMemberBinding 装配值与 core member-runtime 长寿命
+ * 策略兜底（`binding?.memberMaxTurns ?? request.maxTurns ?? 本常量`）；原注释
+ * 「成队/建成员时 hub 兜底填入」描述的消费路径不存在。
+ */
 export const TEAM_MEMBER_DEFAULT_MAX_TURNS = 40;
 
 /** 团队成员数默认上限（spec §1；settings 可调）。 */
@@ -200,7 +205,11 @@ export interface TeamStageInput {
    * 亦无此键，成员不能注入任意 ID）。新任务缺省由 hub 生成 task_<uuid>。
    */
   draftTasks: readonly (TeamTaskCreateInput & { taskId?: string })[];
-  /** 仅用户明确要求跳过审批时直通（spec §1 两阶段成队）。 */
+  /**
+   * 参数保留待后续卡（§21 A3，2026-10-24 订正）——v1 不实现直通，两阶段审批是
+   * 唯一成队入口（spec §1）；TeamSpawn 工具 schema 不暴露该键（§14 缺口0 登记），
+   * 生产不可达。原「仅用户明确要求跳过审批时直通」的注释与实现三方漂移已收口。
+   */
   skipApproval?: boolean;
 }
 

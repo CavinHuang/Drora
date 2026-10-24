@@ -827,6 +827,19 @@ modules:
     layers:
       app: .
     owner: desktop
+  # agents-team-skill-gate：由 architecture:adopt 登记
+  - id: agents-team-skill-gate
+    roots:
+      - apps/drora-cli/packages/bootstrap/src/app/agents-team-skill-gate
+    managed: true
+    requires:
+      - drora-cli
+    publicEntrypoints:
+      - apps/drora-cli/packages/bootstrap/src/app/agents-team-skill-gate/index.ts
+      - apps/drora-cli/packages/bootstrap/src/app/agents-team-skill-gate/contract.ts
+    layers:
+      app: .
+    owner: agent
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

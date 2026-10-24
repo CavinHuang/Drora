@@ -468,7 +468,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
     // 冻结在 0.6.3：zone-decision 保留的 zcode-cua-plugin 包与 manifest 仍是 0.6.3，
     // 定义版本需与实际插件包对齐（缓存路径/UI 展示按此键控）；上游 0.6.5 待插件资产同步后再 bump。
-    version: "0.6.3",
+    version: "0.6.5",
   },
 ];
 

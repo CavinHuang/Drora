@@ -1,4 +1,4 @@
-// CUA producer 工具层（上游 0.6.3 切段）端到端冒烟：
+// CUA producer 工具层（上游 0.6.5 切段，2026-10-24 重切段）端到端冒烟：
 // 假 helper（NDJSON 42 项协议）验证三条硬契约——
 //   1. SDK 工具名 → broker 协议方法翻译（list_apps → list_applications）；
 //   2. 连接握手顺序（authenticate → broker_info claim → authenticate → 业务方法）；
@@ -10,10 +10,11 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
-// 切段里的 require("express") 在裸 ESM 加载时走全局 require；
-// 宿主 esbuild 打包时则被静态解析内联（两条路都通）。
+// 0.6.5 段自带头前奏（createRequire 顶层 require + esbuild helpers，见段文件头的组装
+// 说明）：ajv 运行时裸 require 由前奏解析；express 死声明已按接缝移除（0.6.3 构建的
+// tree-shake 等价物）。段裸 ESM 加载已不依赖本文件的 require 垫片，保留以防占位层复用。
 globalThis.require ??= createRequire(import.meta.url);
-const { createComputerUseRuntime } = await import("../upstream/zcode-cua-0.6.3.index.js");
+const { createComputerUseRuntime } = await import("../upstream/zcode-cua-0.6.5.index.js");
 
 const socketPath =
   process.platform === "win32"

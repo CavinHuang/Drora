@@ -1,5 +1,7 @@
 {
   "version": 1,
+  "caseName": "conversation-session-agents-team-staged-approval",
+  "spec": "./test/e2e/conversation-session/conversation-session-agents-team-staged-approval.test.ts",
   "fixtures": [
     {
       "id": "agents-team-staged-approval-parent-spawn",

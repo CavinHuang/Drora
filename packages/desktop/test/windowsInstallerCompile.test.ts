@@ -45,6 +45,11 @@ it("compiles real UAC calls when the plugin directory follows the custom include
       // 只编译不执行：载荷复用当前文件，所有平台都能验证真实 NSIS 插件解析。
       const args = [
         "-V2",
+        // 修复依据：makensis 默认按系统 ANSI 代码页读取无 BOM 的 UTF-8 脚本，中文行
+        // 直接 "Bad text encoding"（zh-CN 代码页下甄别台账存量失败）；显式声明输入
+        // 字符集——本版 makensis（3.0.4.1）该旗子为空格分隔取值，必须拆成两个 argv。
+        "-INPUTCHARSET",
+        "UTF8",
         ...(uninstaller ? ["-WX", "-DBUILD_UNINSTALLER"] : []),
         `-DNSIS_INCLUDE_DIR=${join(nsisDir, "Include")}`,
         `-DELECTRON_BUILDER_NSIS_INCLUDE_DIR=${join(builderDir, "templates/nsis/include")}`,

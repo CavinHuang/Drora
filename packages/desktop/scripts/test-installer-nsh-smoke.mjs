@@ -91,6 +91,12 @@ function compileFixture({
 }) {
   const args = [
     "/V2",
+    // 修复依据：makensis 默认按系统 ANSI 代码页读取无 BOM 的 UTF-8 脚本，中文行直接
+    // "Bad text encoding"（zh-CN 代码页下甄别台账存量失败）；显式声明输入字符集。
+    // 注意本版 makensis（3.0.4.1）该旗子是空格分隔取值，/INPUTCHARSET=UTF8 会被当
+    // 未知选项打出 usage——必须拆成两个 argv。
+    "/INPUTCHARSET",
+    "UTF8",
     ...(buildUninstaller ? ["/WX", "/DBUILD_UNINSTALLER"] : []),
     `/DNSIS_INCLUDE_DIR=${resolve(nsisDir, "Include")}`,
     `/DELECTRON_BUILDER_NSIS_INCLUDE_DIR=${resolve(appBuilderLibDir, "templates/nsis/include")}`,

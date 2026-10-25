@@ -172,7 +172,8 @@ import {
 } from "./desktopWindowLifecycle.js";
 import { resolveDroraBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import { DRORA_AGENTS_TEAM_ENV } from "@drora/shared";
-import { resolveAgentsTeamHostEnv,
+import {
+  resolveAgentsTeamHostEnv,
   getCredentialsDir,
   isDockerDaemonAvailable,
   listSSHConfigAliases,

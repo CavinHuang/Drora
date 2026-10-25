@@ -3,6 +3,26 @@
   "ignorePatterns": [
     ".gitlab/**/*.yml",
     "apps/drora-cli/tests/gb2312.js",
+    // oxfmt 0.47 markdown 强调/转义规范化缺陷：把下划线与星号字面量当强调处理——
+    // a_b→a*b、__X__→**X**、\_ 与 \* 转义被搅动、剥列表续行缩进（复现记录见
+    // specs/drora-divergence-ledger.md 台账 7）。含字面量的还原文档与档案恢复原文后必须豁免，
+    // 否则每次 fmt 都会再篡改。
+    "docs/cua/producer/cua-act-verify-scenarios.md",
+    "docs/conversation-session-case-catalog.md",
+    "docs/team-full-audit-2026-10-24.md",
+    "docs/upstream-sync/**",
+    "docs/agent-team-implementation-2026-10-16/00-master-design.md",
+    "docs/agent-team-implementation-2026-10-16/01-command-and-ui-design.md",
+    "docs/glm-parity-pass27-2026-10-08/99-final-report.md",
+    "docs/glm-parity-pass27-2026-10-08/parts/b04-tool-execution.md",
+    "docs/glm-parity-pass27-2026-10-08/parts/b16-hooks.md",
+    "docs/glm-parity-pass27-2026-10-08/parts/b18-config-env.md",
+    "docs/glm-parity-pass28-2026-10-09/00-briefing.md",
+    "docs/glm-parity-pass28-2026-10-09/parts/p28-b5-k1.md",
+    "docs/glm-parity-pass28-2026-10-09/parts/p28-b5-k2.md",
+    "docs/glm-parity-pass28-2026-10-09/parts/p28-b9-k2.md",
+    "docs/upstream/zcode-v3.16.1-segment-plan.md",
+    "specs/agents-team.md",
     "docs/electron/docs/fiddles/**/*.html",
     "packages/zcode-cua/**",
     "packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js",

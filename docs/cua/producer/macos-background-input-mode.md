@@ -13,7 +13,7 @@ open panel）证实：`Cmd+Shift+G` 一字不落地被忽略，而侧栏 cell �
 > 2026-08 更新：本文的 native owner、后台投递和 possibly_sent 安全边界仍有效。
 > “动作后强制 compact/full state、action_outcome、state_sync_status、delta/no_change
 > 解锁屏障”已被 `docs/cua-receipt-observation-contract.md` 取代。当前模型可见动作结果
-> 默认是 `drora-cua-action-receipt-v1`；只有显式 `return_state=compact|full` 时才抓一次
+> 默认是 `zcode-cua-action-receipt-v1`；只有显式 `return_state=compact|full` 时才抓一次
 > `force_full` 状态。
 
 ## 目标
@@ -127,7 +127,7 @@ accepted/possibly_sent receipt（retry_action=false）
     `-- return_state=compact/full --> 一次 force_full capture --> 新状态 s-(N+1)
 ```
 
-模型可见动作结果现在统一为 `drora-cua-action-receipt-v1`：
+模型可见动作结果现在统一为 `zcode-cua-action-receipt-v1`：
 
 - `dispatch_status="accepted" | "possibly_sent" | "not_sent"` 只描述派发事实；
 - `retry_action=false` 禁止宿主或模型原样重放非幂等调用；

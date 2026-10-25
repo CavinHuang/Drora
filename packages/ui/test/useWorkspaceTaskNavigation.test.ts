@@ -277,14 +277,12 @@ describe("useWorkspaceTaskNavigation", () => {
         "remote-b": { sessionId: "remote-b", services: targetServices },
       },
     });
-    useTaskQueryCacheStore
-      .getState()
-      .upsertTaskMeta(
-        taskMeta({
-          workspacePath: targetWorkspacePath,
-          workspaceIdentity: targetWorkspaceIdentity,
-        }),
-      );
+    useTaskQueryCacheStore.getState().upsertTaskMeta(
+      taskMeta({
+        workspacePath: targetWorkspacePath,
+        workspaceIdentity: targetWorkspaceIdentity,
+      }),
+    );
     tabStore.setState({
       activeTabId: "remote-a",
       tabs: [

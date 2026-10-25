@@ -1,4 +1,4 @@
-import { Blocks, CalendarClock } from "lucide-react";
+import { Blocks, BookMarked, CalendarClock } from "lucide-react";
 import { TID_AUTOMATIONS_OPEN } from "@drora/shared/test-ids";
 import type { ProjectSidebarProps } from "@/project-sidebar/contract.js";
 import { Button } from "@/components/ui/button.js";
@@ -18,6 +18,8 @@ export function ProjectSidebarNavigation({
     | "automationsActive"
     | "onOpenPluginStore"
     | "pluginStoreActive"
+    | "onOpenVault"
+    | "vaultActive"
     | "webRemoteControlWorkspaceSwitcher"
   >;
   onCreate(): void;
@@ -57,6 +59,22 @@ export function ProjectSidebarNavigation({
         <Blocks className="size-4" />
         {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
       </Button>
+      {/* Drora 扩展槽位：vault 侧栏入口（上游 ProjectSidebarProps 无该槽位，审计
+          docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7 回植）。可选接线，
+          未接线时不渲染；点击只上报 Shell，vault 路由由 Shell 唯一持有。 */}
+      {props.onOpenVault ? (
+        <Button
+          variant="ghost"
+          size="lg"
+          className={`w-full justify-start gap-2 ${props.vaultActive ? "bg-selected text-foreground" : ""}`}
+          aria-pressed={props.vaultActive ?? false}
+          data-testid="vault-sidebar-open"
+          onClick={() => props.onOpenVault?.()}
+        >
+          <BookMarked className="size-4" />
+          {intl.formatMessage({ id: "workspace.openVault" })}
+        </Button>
+      ) : null}
     </div>
   );
 }

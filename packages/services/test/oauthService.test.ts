@@ -362,8 +362,9 @@ describe("oauthService", () => {
             JSON.stringify({
               code: 0,
               data: {
+                // fixture 的 appId 须为 bigmodel 服务端注册值 zcode（specs/drora-rename.md 规则 0 改名豁免，非品牌名）。
                 authorize_url:
-                  "https://bigmodel.cn/login?appId=drora&redirect=https%3A%2F%2Fzcode.z.ai%2Fapi%2Fv1%2Foauth%2Fcli%2Fcallback%2Fbigmodel&state=bigmodel-flow",
+                  "https://bigmodel.cn/login?appId=zcode&redirect=https%3A%2F%2Fzcode.z.ai%2Fapi%2Fv1%2Foauth%2Fcli%2Fcallback%2Fbigmodel&state=bigmodel-flow",
                 expires_at: 2_000_000_300,
                 flow_id: "bigmodel-flow-1",
                 poll_interval_sec: 2,

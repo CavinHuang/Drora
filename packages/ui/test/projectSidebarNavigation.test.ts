@@ -87,3 +87,51 @@ it("SBV02: filter has project, group and recent update choices", async () => {
   fireEvent.click(screen.getByTestId("sidebar-view-timeline"));
   expect(onViewChange).toHaveBeenCalledWith("timeline");
 });
+
+// 审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7：vault 侧栏入口以
+// Drora 扩展槽位回植，组件级验证接线渲染、点击回调与选中态。
+it("SBV03: vault entry renders when wired and click invokes onOpenVault", () => {
+  const onOpenVault = vi.fn();
+  render(
+    createElement(
+      TooltipProvider,
+      {},
+      createElement(ProjectSidebarNavigation, {
+        props: { onOpenVault },
+        onCreate: vi.fn(),
+      }),
+    ),
+  );
+  const vault = screen.getByTestId("vault-sidebar-open");
+  expect(vault.tagName).toBe("BUTTON");
+  expect(vault.textContent).toBe("workspace.openVault");
+  fireEvent.click(vault);
+  expect(onOpenVault).toHaveBeenCalledOnce();
+});
+
+it("SBV04: vault entry reflects vaultActive pressed and highlight state", () => {
+  render(
+    createElement(
+      TooltipProvider,
+      {},
+      createElement(ProjectSidebarNavigation, {
+        props: { onOpenVault: vi.fn(), vaultActive: true },
+        onCreate: vi.fn(),
+      }),
+    ),
+  );
+  const vault = screen.getByTestId("vault-sidebar-open");
+  expect(vault.getAttribute("aria-pressed")).toBe("true");
+  expect(vault.className).toContain("bg-selected");
+});
+
+it("SBV05: vault entry stays absent when the extension slot is not wired", () => {
+  render(
+    createElement(
+      TooltipProvider,
+      {},
+      createElement(ProjectSidebarNavigation, { props: {}, onCreate: vi.fn() }),
+    ),
+  );
+  expect(screen.queryByTestId("vault-sidebar-open")).toBeNull();
+});

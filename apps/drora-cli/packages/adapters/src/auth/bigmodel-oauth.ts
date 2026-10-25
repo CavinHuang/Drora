@@ -4,7 +4,9 @@ import { buildBigModelApiUrl } from "@drora/shared";
 
 const BIGMODEL_AUTHORIZE_PATH = "/login";
 const BIGMODEL_TOKEN_PATH = "/api/auth/tokenByAuthCode";
-const BIGMODEL_APP_ID = "drora";
+// appId 是 bigmodel 服务端注册值，属 specs/drora-rename.md 规则 0 改名豁免区，不随品牌改名
+//（修复审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md「appId 契约漂移」，分派单 F1）。
+const BIGMODEL_APP_ID = "zcode";
 const OAUTH_STATE_BYTES = 32;
 const JSON_CONTENT_TYPE = "application/json";
 

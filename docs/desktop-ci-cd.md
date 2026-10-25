@@ -207,7 +207,7 @@ sockets are minted as random `broker-<hex>.sock` files; do not hard-code
 - **macOS shell / `build:remote:assets` / upload 读盘**：
   默认 **`DRORA_CI_SHARED_ROOT=/Users/dev/shared/drora`**，完整路径为  
   **`${DRORA_CI_SHARED_ROOT}/${TARGET_OUTPUT_DIR}`**  
-  例如：`/Users/dev/shared/drora/@electron/dev/my-branch/`。macOS 安装包只写入 **`macos-arm64/`**、**`macos-x64/`**；根目录只保留 remote assets 的 `manifest-*.json` 和 `components/`，由 macOS arm64 upload job 通过额外来源目录附带上传。
+  例如：`/Users/dev/shared/drora/@electron/dev/my-branch/`。macOS 安装包只写入 **`macos-arm64/`**、**`macos-x64/`**；根目录只保留 Source Server descriptor/archive，由 macOS arm64 upload job 通过额外来源目录附带上传。
 - **Linux Docker**  
   与常见 runner 配置 **`volumes = ["/Users/dev/shared/drora:/output", ...]`** 对齐：容器内写入  
   **`${DRORA_CI_LINUX_CONTAINER_OUT}/${TARGET_OUTPUT_DIR}`**（默认 **`DRORA_CI_LINUX_CONTAINER_OUT=/output`**），宿主机上即 **`/Users/dev/shared/drora/${TARGET_OUTPUT_DIR}`**。  

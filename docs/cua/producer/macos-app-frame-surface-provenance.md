@@ -169,7 +169,7 @@ verification is target-specific:
 Even `return_state="none"` reports the actual dispatch surface, whether retrying the action is
 safe, and why an effect is unverified. Post-send uncertainty is never replayed automatically.
 These fields are broker-internal surface evidence; the model-facing action result remains
-`drora-cua-action-receipt-v1`. The existing flat permission response remains
+`zcode-cua-action-receipt-v1`. The existing flat permission response remains
 unchanged.
 
 The same rule applies to PID-only `type`: it resolves the focused attached surface, records its

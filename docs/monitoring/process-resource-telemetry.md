@@ -807,8 +807,8 @@ SSH/WSL/Docker 保留原订阅路径。旧 Server 的通用 RPC 未知事件行�
 
 ## Out of Scope
 
-- **`cua_helper` 角色**。Windows Helper 由 Host fork，但运行的是外部 pinned 包 drora-cua-helper-runtime
-  的代码，自采需要改上游并走 `bump:producer` 原子升级；macOS Helper.app 由 launchd 拉起，不在进程树里，
+- **`cua_helper` 角色**。Windows Helper 由 Host fork，运行的是 workspace 包 `packages/zcode-cua-helper`
+  构建出的 Helper runtime，自采需要改该包的 Helper 入口；macOS Helper.app 由 launchd 拉起，不在进程树里，
   Host 只能靠 `ps` 采。二期方案：Helper runtime 在已有 health 心跳中自报 CPU 与 RSS，零外部进程。
 - 在 drora-server 侧另起独立的 MCP / Bash 探针。远端 CLI 自己产生的资源事实沿既有 trusted Host relay 转发，已由 08 / 09 接线。
 - Windows 上的 MCP CPU 与 Bash 进程树。方向是一个零外部进程的原生扩展（GetProcessMemoryInfo /

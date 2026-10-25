@@ -5,17 +5,17 @@
 
 ## 替换规则（有序，全部文本文件）
 
-| 序  | 规则                                                                                                                            | 说明                                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 0   | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai`、`zcode://oauth/callback`、bigmodel `appId: "zcode"` | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效；OAuth 中转页白名单只认 `zcode://oauth/callback`，appId 是服务端注册值 |
-| 1   | `@zcode/` → `@drora/`                                                                                                           | 包 scope（import specifier 与 package.json 依赖/名称）                                                                               |
-| 2   | `ZCODE_` → `DRORA_`                                                                                                             | 环境变量（ZCODE_ENV、ZCODE_PLUGIN_ROOT/DATA/PROJECT_DIR 等）                                                                         |
-| 3   | `.zcode` → `.drora`（但 `.zcode-plugin`/`.zcode-plugin-seed.json` 保留）                                                        | 用户数据目录 `~/.zcode`；插件 manifest 目录约定保留（与 0.5.13 逐字 seed 共享的磁盘格式，避免 8 处发现逻辑双读）                     |
-| 4   | `ZCode` → `Drora`                                                                                                               | 品牌显示词（productName、UI 文案、文档）                                                                                             |
-| 5   | `ZCODE` → `DRORA`                                                                                                               | 剩余全大写                                                                                                                           |
-| 6   | `Zcode` → `Drora`                                                                                                               | 标题式变体（含标识符 normalizeDesktopZCodeEnv 等）                                                                                   |
-| 7   | `z-code` → `drora`                                                                                                              | 连字变体                                                                                                                             |
-| 8   | `zcode` → `drora`                                                                                                               | 兜底小写（命令名、路径、文件名、目录名引用）                                                                                         |
+| 序  | 规则                                                                                                                                                                                                        | 说明                                                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | 占位保护 `cdn-zcode.z.ai`、`/zcode/official-plugin/`、`https://zcode.z.ai`、`zcode://oauth/callback`、bigmodel `appId: "zcode"` 与 URL 查询形态 `appId=zcode`（2026-10-21 起，见 divergence-ledger 台账 6） | 外部 CDN 主机/路径与后端 API 端点是 z.ai 基础设施，改名即失效；OAuth 中转页白名单只认 `zcode://oauth/callback`，appId 是服务端注册值（对象形态与 URL 查询形态均豁免） |
+| 1   | `@zcode/` → `@drora/`                                                                                                                                                                                       | 包 scope（import specifier 与 package.json 依赖/名称）                                                                                                                |
+| 2   | `ZCODE_` → `DRORA_`                                                                                                                                                                                         | 环境变量（ZCODE_ENV、ZCODE_PLUGIN_ROOT/DATA/PROJECT_DIR 等）                                                                                                          |
+| 3   | `.zcode` → `.drora`（但 `.zcode-plugin`/`.zcode-plugin-seed.json` 保留）                                                                                                                                    | 用户数据目录 `~/.zcode`；插件 manifest 目录约定保留（与 0.5.13 逐字 seed 共享的磁盘格式，避免 8 处发现逻辑双读）                                                      |
+| 4   | `ZCode` → `Drora`                                                                                                                                                                                           | 品牌显示词（productName、UI 文案、文档）                                                                                                                              |
+| 5   | `ZCODE` → `DRORA`                                                                                                                                                                                           | 剩余全大写                                                                                                                                                            |
+| 6   | `Zcode` → `Drora`                                                                                                                                                                                           | 标题式变体（含标识符 normalizeDesktopZCodeEnv 等）                                                                                                                    |
+| 7   | `z-code` → `drora`                                                                                                                                                                                          | 连字变体                                                                                                                                                              |
+| 8   | `zcode` → `drora`                                                                                                                                                                                           | 兜底小写（命令名、路径、文件名、目录名引用）                                                                                                                          |
 
 ## 改名桥接（规则 0 配套，2026-09-25）
 
@@ -81,6 +81,24 @@ zcode-cua-plugin` 保留原名（与其豁免身份一致，CI/打包清单路�
     `desktopDeepLinkUrl.ts` 对所有 deep-link 路由等价接受两个 scheme；
   - 验收：`packages/services/test/oauthDesktopCallbackContract.test.ts` 与
     `packages/desktop/test/desktopDeepLinkUrl.test.ts` 全绿。
+- **还原区/wire 契约字面量双名（2026-10-21 补记，v3.16.1 合并审计
+  docs/cua/producer 双名问题）**：文档与测试引用还原区/wire 契约字面量时保留
+  原版名（如 `zcode-cua-action-receipt-v1`、`zcode-cua-pip-session-v2`），
+  不随品牌归一化改名；如需品牌名并行展示，须同时给出原版字面量。
+  依据：豁免区 2 的还原代码逐字保留这些身份字符串
+  （`packages/zcode-cua/src/mcp/session.ts` 产出 receipt、
+  `packages/zcode-cua/src/broker/server/region-constants.ts` /
+  `packages/zcode-cua-helper/src/pip-session/contract.ts` /
+  `packages/zcode-cua-helper/native/ax_native.d.ts` 定义 pip-session runtime id），
+  文档/测试若改名会让读者按字面量 grep 扑空，或固化一个无生产者会产出的名字。
+  2026-10-21 已回退 `docs/cua/producer/macos-app-frame-surface-provenance.md`、
+  `docs/cua/producer/pip-session-coordinator-v2.md` 及
+  `apps/drora-cli/packages/core` 两个测试文件中的 drora- 名字面量。
+  验收：`git grep -n 'drora-cua-action-receipt\|drora-cua-pip-session' -- ':!specs/drora-rename.md'`
+  零命中——排除本条目自身，否则 grep 模式文本会自噬命中本行（2026-10-21 按排除后
+  口径实测通过）；转换脚本已把两个字面量列入
+  PLACEHOLDERS 占位保护，上游同步后 diff `docs/cua/producer` 四文档确认契约
+  字面量仍为 zcode- 原名。
 
 ## 目录/路径改名
 

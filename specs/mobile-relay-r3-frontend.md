@@ -183,6 +183,42 @@ busy/running 输入仍由 CLI/runtime CommandInbox 串行 admission（composer �
 | 10  | 配对心跳首条 query 立即发送                        | 官方先等一个 interval                                                        |
 | 11  | auth_init 不带官方 meta{platform, version, name}   | 服务端不校验                                                                 |
 
+### 7.1 WebRemoteControl IPC 保留簇——上游 v3.16.1 删除、本仓有意保留（2026-10-21 合并审计补登记）
+
+对照 2026-10-21 v3.16.1 合并完整性审计（`docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md`
+F10；工单侧编号 F3）。本簇是 §33.18「与官方有意分歧须在 spec 逐条记录，不得静默」的补登记。
+
+- **上游行为**：v3.16.1 区间（aac4755→0a1fc56d）删除 `ResetWebRemoteControlPairing`、
+  `SyncWebRemoteControlTasks` 通道及同一保留簇的契约面——`packages/shared/src/channels.ts`
+  （通道字面量、IPC map 条目、`WebRemoteControlTaskTarget` 导入）、`platform.ts`
+  （`refreshWebRemoteControlPairing` 方法）、`validation.ts`（`webRemoteControlTaskTargetSchema(s)`）、
+  `web-remote-control.ts`（`WebRemoteControlTaskDisplayStatus` 与 tasks 扩展字段）；任务同步面
+  迁往上游 mobile task view 投影，V2 relay 无配对轮换原语（逐文件 diff 见审计 F10）。
+- **本仓行为**：全簇有意保留——自研 mobile relay 同步链消费中，非死代码：
+  - 通道：`drora:reset-web-remote-control-pairing`（`packages/shared/src/channels.ts:287`，
+    map 条目 ：921）；`drora:mobile-relay-sync-tasks`（`channels.ts:243`，注释「官方
+    syncWebRemoteControlTasks 同款」）。
+  - 接口：`platform.ts` 三处——`refreshWebRemoteControlPairing`（:898-902，注释自标
+    「R1 分歧——V2 无轮换原语，desktop 侧降级为 cancelled 契约」）、
+    `onBotRemoteWorkspaceReconnected`（:853）、`syncWebRemoteControlTasks`（:1049-1050）；
+    另 `refreshMobileRelayControl`（:1037）承载 resetPairing 轮换语义的 relay 形态。
+  - 契约：`validation.ts:122` `webRemoteControlTaskTargetSchema`、
+    `web-remote-control.ts:660-662` 任务行显示状态类型（注释自标上游 3.16.1 已迁走、
+    本簇服务 MobileRelaySyncTasks 等通道）。
+  - 消费方实测：`packages/desktop/src/drora-extensions/remoteControl.ts:117`、
+    `packages/desktop/src/preload/index.ts:309`（轮换链）；
+    `packages/ui/src/root/WebRemoteControlTaskSync.tsx`、
+    `packages/desktop/src/main/desktopMobileRelayControl.ts`、`desktopMainIpcPlatform.ts`
+    （任务同步链）。
+- **依据**：轮换语义 = `specs/mobile-web-remote.md:36`（安全模型：泄露用「刷新二维码」重置，
+  对齐原版 resetPairing 轮换凭据）、:140（`resetPairing("leaked-qr")`）、:164（决策表行 4
+  「刷新二维码 = 重置配对」）；任务同步/侧板投影 = 本 spec §33.18/§33.18.16（按节号检索，
+  行号随本 spec 演进漂移）；上游删除面取证 = 审计 F10。
+- **下次同步注意**：**不得按「上游删除即随删」通用规则**（`specs/upstream-v3.16.1-migration.md`
+  §合并引擎第 3 条）机械随删本簇——这批通道/接口/schema 是 Drora 旁路保留面，同步时对照本条
+  与审计 F10 逐项复核。若上游后续以新原语覆盖轮换/任务同步语义，按 R1（自建 relay 与官方
+  云 relay 互为可替换端点）重新评估替换方案，而非默认跟随删除。
+
 ## 8. 契约键与常量盘点（P0 产出，2026-09-29 全链 grep）
 
 范围 = `packages/desktop`、`packages/relay-server`、`packages/shared` 非 test src。

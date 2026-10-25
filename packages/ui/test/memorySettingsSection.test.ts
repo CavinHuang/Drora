@@ -9,7 +9,6 @@ import {
   TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS,
   TID_SETTINGS_MEMORY_FILE_UPDATED_AT,
   TID_SETTINGS_MEMORY_SCOPE_TRIGGER,
-  TID_SETTINGS_MEMORY_SCOPE_ICON,
   TID_SETTINGS_MEMORY_SEARCH_CLEAR,
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   testId,
@@ -169,7 +168,6 @@ describe("MemorySettingsSection", () => {
     renderSection(createService(), true, ["drora", "Second"]);
     const scopeTrigger = await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
     expect(scopeTrigger.textContent).toContain("drora");
-    expect(screen.getByTestId(TID_SETTINGS_MEMORY_SCOPE_ICON)).toBeTruthy();
     expect(screen.queryByText("User")).toBeNull();
     expect(screen.getByTestId(TID_SETTINGS_MEMORY_COUNT).textContent).toBe(
       "settings.memory.viewer.memoryCount.other:count=2",

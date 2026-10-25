@@ -147,7 +147,7 @@ sequenceDiagram
 | Lead        | 用户的主交互会话 runtime（现有 interactive runtime，不新起进程） |
 | Teammate    | 命名、长寿命、可寻址的子代理成员；会话层就是 `subagent_child`    |
 | TeamBoard   | 共享任务板：三态 + 依赖 + 原子认领的结构化任务列表               |
-| TeamMailbox | 成员消息投递队列；入队成功即 ack（持久化异步刷盘，写失败仅 warn——E12 真门未立，2026-10-24 订正见 §21 A13） |
+| TeamMailbox | 成员消息投递队列；入队成功即 ack（持久化异步刷盘，写失败仅 warn——E12 真门未立，2026-10-24 订正见 §21 A13；冷恢复经 journal 重放 + 持久化条目对账补齐半持久窗口，§21 A13 裁决） |
 
 ### 2.2 状态所有者表（谁写、谁读）
 
@@ -155,7 +155,7 @@ sequenceDiagram
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------- |
 | 花名册（name→agentId/childSessionId/profile/状态机） | lead runtime 内 **TeamHub**（新模块，`core/src/team/`）                                    | lead 模型（经工具）、teammate（经 TeamPort 只读快照）、UI 投影（只读） | team journal（session store 侧） |
 | 共享任务板                                           | TeamHub（**所有 board 写操作经 TeamPort 收敛到 hub 串行裁决**，in-process 原子，无文件锁） | 同上                                                                   | 同上                             |
-| 成员邮箱                                             | TeamHub 写入并投递（运行中 steer / 终态复活续跑）                                          | 目标成员                                                               | 同步入队即 ack；异步刷盘失败仅 warn（§21 A13 如实口径） |
+| 成员邮箱                                             | TeamHub 写入并投递（运行中 steer / 终态复活续跑）                                          | 目标成员                                                               | 同步入队即 ack；异步刷盘失败仅 warn（§21 A13 如实口径）；冷恢复 journal 重放为主 + 持久化条目对账补齐（§21 A13 裁决） |
 | team 权限模式记录                                    | TeamHub（成队时一次写入，此后只读）                                                        | 全体成员构造与复活（hub 花名册记录，经私有端口构造通路）、UI 权限徽标  | team journal `team-created` 事件 |
 | teammate transcript                                  | 各 child runtime（现状不变）                                                               | 下钻 UI 只读订阅 child topic                                           | 现有 session store               |
 | UI teamStore（`packages/ui/src/store/teamStore.ts`） | renderer 派生缓存，**不得冒充服务端事实**                                                  | —                                                                      | 内存                             |
@@ -928,11 +928,12 @@ core 79 + ui 52 测试绿)。补充登记:
    生产适配器不命中);journalSink 与 persistMailboxEntry 落同一 sessionStore,
    同库故障下恢复源与邮箱同丢。行为由
    team-install-runtime.test.ts ⑪⑫(:533/:568)锁定(⑫锁定 port 直调同步抛错形态的
-   内核语义,不证明生产门)。恢复读取面边界(同日补登记):
-   team.mailbox 类型条目当前为只写 durable 通道,无路径读取该类型条目,恢复数据源仍是
-   journal message_appended/message_delivered 重放(journal.ts:379-386)——install.ts:180
-   warn 注释由施工方随 §21 A13 同步订正(原「journal 恢复源兜底」文案在其目标失效
-   模式上不增益)。真门(同步可校验写,动 port 面)与启动对账二选一见 §21 开放决策。
+   内核语义,不证明生产门)。恢复读取面边界(2026-10-24 §21 A13 B 案裁决落定后订正,
+   原同日补登记的「team.mailbox 只写 durable、恢复走 journal 重放」随裁决**作废**):
+   边界订正为「**journal 重放为主、持久化条目对账补齐**」——冷恢复建态完成后读取
+   team.mailbox 类型条目按 messageId 对账并入(契约全文见 §21 A13 裁决段)。install.ts:180
+   warn 注释已随 §21 A13 同步订正。真门(同步可校验写,动 port 面)留后续卡不撤
+   (若未来要求强不变量再启,见 §21 开放决策)。
 4. **成员运行态不入 journal 的推论**:恢复后成员一律推导 terminal(诚实态);活跃 team 冷
    恢复为 idle 而非 active;复活/重跑走既有 resume 链路由边缘事件重驱;冷恢复单次重试
    依赖重放保留的 attemptId/recoveryRetried(已持久化),自动触发接线属 PR-1.6 面。
@@ -1221,7 +1222,9 @@ spec 先行面随批更新：§2.6 补 halted 中断/resume 唤醒语义（缺�
   （存量 warn 降级清单不含 hub.ts），另有 no-unused-vars 3 处（types.ts:9 /
   team-tools.ts:94 / member-runtime.ts:74）。处置：hub.ts max-lines 加入
   `.oxlintrc.json` 存量 warn 降级清单（照 steering.ts 先例）+ 清除三个
-  no-unused-vars 后，core/src/team 逐文件 oxlint 回到 0 error 0 warning；
+  no-unused-vars 后，core/src/team 逐文件 oxlint 回到 0 error、hub.ts
+  max-lines 存量 warn（2026-10-26 订正：原记「0 error 0 warning」失准——
+  warn 降级清单语义即保留 warning，实测 1 warning，与 steering.ts 先例同款）；
   bootstrap product-projection.ts max-lines 为 05625f17 前存量，登记不随本批处理。
 
 ## 14. 收口施工（批次 2，2026-10-21）
@@ -2810,6 +2813,53 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 - **测试要求**：测试⑫断言维持（锁定 port 直调同步抛错形态的内核语义）；为
   测试⑫补一条形态说明注释（注入形态 vs 生产 async 形态的差异，不改断言）。
 
+#### A13 裁决落笔｜E12 开放决策选 B 案冷恢复对账（2026-10-24 落定）
+
+- **裁决**：本节末开放决策 1（E12 真门 vs 启动对账）二选一落定为 **② 启动对账
+  （B 案冷恢复对账）**。① 真门（同步可校验写）须动 port 面（适配器暴露同步写入
+  路径或 TeamSendResult 变异步）、变异步发送语义，风险不配收益——**留后续卡
+  不撤**（未来若要求强不变量再启）。
+- **行为契约（先登记后实现）**：
+  - 冷恢复对账：install 冷恢复建态（journal 重放 adopt）完成后，读取该会话
+    持久化的 team.mailbox 类型条目（写入通道即 persistMailboxEntry），以
+    messageId 为键并入 hub 邮箱状态——journal 重放**已见**的条目跳过（幂等，
+    两源谁多都不丢）；条目 delivered 状态以两源较新者为准（持久化条目带
+    delivered 时采用，重放侧已 delivered 则保留）。
+  - 「已见」的判定：journal 重放见过的 message_appended messageId **全集**
+    （含其后 delivered/dropped 的）——dropped 死件经此不复活（§21 A1 丢弃
+    事实只清 hub 内存态，持久化条目仍在库，按邮箱现存量对账会把死件补回）。
+    team_created 重建 team 时已见集重置（跨 team 的旧 messageId 不参与新 team
+    对账）。
+  - 语义边界（如实登记）：补的是「邮箱条目已持久化、journal 事实未刷」的
+    **半持久窗口**恢复（两写同库各自异步刷盘，存在单侧落盘窗口）；「两侧都
+    未刷」的尾部丢失仍不可恢复——与 A 案（真门）的差距即此，如实登记不夸大。
+  - 读取面：复用 sessionStore `sessionEntries({ sessionID, type })` 既有读 API
+    （journal 重放 readTeamJournalEvents 同款读法），**不扩 port 面**；
+    TEAM_MAILBOX_ENTRY_TYPE 常量移至 core journal.ts 导出（与
+    TEAM_JOURNAL_ENTRY_TYPE 并排同款拼接，键前缀仍单一出处 contracts
+    TEAM_JOURNAL_KEY_PREFIX；bootstrap install.ts 改引），写入（bootstrap）与
+    读取（core）两侧同源。
+  - 对账**不补写 journal**：补入条目不回写 message_appended——持久化条目本身
+    即该条目的恢复源（再崩溃对账幂等重做），补写反而引入 seq 竞态。
+  - 触发次序：对账在 hub adoptRestored 成功分支内、恢复窗口 lead 待决补投
+    之前；补入即刷新状态并通知（未投邮件可能使 idle→active 重推导），有补入
+    再触发一次 lead 待决补投；读取失败按无对账面降级（warn，不阻断装配）。
+- **测试要求**：install-runtime（bootstrap install 集成面）三用例——① 持久化
+  mailbox 条目在 journal 无对应事实时恢复后仍在 pending 集；② journal 有而
+  持久化无时不重复（幂等，恰一条）；③ delivered 并集语义一例（两源各执半边
+  的 delivered 事实合并后 deliveredAccepted=true）。core 纯逻辑单测：对账合并
+  函数（补入/journal 已见跳过/dropped 不复活/delivered 并集/保留期裁剪）+
+  replay appendedMessageIds 全集语义。
+- 实现验证登记：core `npx vitest run tests/team` **13 文件 / 181 用例全绿**（含本批
+  新增 10 用例：install-runtime 对账 ①②③ + mailbox 对账合并纯函数 5 + journal
+  appendedMessageIds 2）；bootstrap team 相关 4 文件 / 12 用例全绿
+  （team-session-summary、product-projection-team-archived/staged-fields、
+  agents-team-skill-gate）；core/bootstrap typecheck 双绿；core `oxlint src/team
+  --no-ignore` 0 error（hub.ts 1569 行仍处 §21 C 登记的 max-lines 存量 warn 降级）。
+  施工注意登记：install 消费的新 core 导出（TEAM_MAILBOX_ENTRY_TYPE/
+  readPersistedMailboxEntries）使 core dist 重建成为 bootstrap 装配测试的前置
+  （`@drora/core` 无 src alias、main 指 dist）——本批实跑前已 `pnpm build`。
+
 ### B14｜送达翻转补通知契约登记（裁决登记，行为已实现；对应 M-9）
 
 - 事实：working（hub.ts:935-940）/steered（:1541-1550）/resumed（:1594-1597）
@@ -2924,16 +2974,19 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 - **处置**：hub.ts max-lines 加入 `.oxlintrc.json` 存量 warn 降级清单（照
   steering.ts 先例，spec 登记降级理由=拆分归后续重构卡）；三个 no-unused-vars
   清除（死导入/死 schema/死解构直接删）；完成后 core/src/team 逐文件
-  `oxlint --no-ignore` 回到 **0 error 0 warning**。bootstrap
+  `oxlint --no-ignore` 回到 **0 error、hub.ts max-lines 存量 warn**（2026-10-26
+  订正：原记「0 error 0 warning」失准——warn 降级语义即保留 warning，复跑实测
+  1 warning，与 steering.ts 先例同款）。bootstrap
   product-projection.ts max-lines 超标为 05625f17 前存量，登记不随本批处理。
 
 ### 开放决策（恰两条）
 
-1. **E12 真门 vs 启动对账（A13 的后续）**：二选一——① 真门 = 邮箱持久化做成
-   真实同步可校验写（适配器暴露同步写入路径，或 hub await 化 + TeamSendResult
-   变异步——**动 port 面**，须按 spec 决策流程另行登记）；② 启动对账 = 装配时
-   team.mailbox 条目与 journal message_appended 比对，补异步刷盘崩溃窗口的
-   丢失面。当前如实口径已随 A13 落定，本决策只影响是否补门。
+1. **E12 真门 vs 启动对账（A13 的后续）**——**已裁决（2026-10-24，落定见 §21
+   A13 裁决落笔段）**：选 ② 启动对账（**B 案冷恢复对账**，已随本批实现——
+   journal 重放为主、team.mailbox 持久化条目对账补齐半持久窗口）。① 真门
+   （邮箱持久化做成真实同步可校验写——适配器暴露同步写入路径，或 hub await 化
+   + TeamSendResult 变异步——**动 port 面**）**留后续卡不撤**：若未来要求
+   「两侧都未刷」尾部丢失也强不可恢复的不变量，再按 spec 决策流程启卡。
 2. **fork 世代链（B16 的后续卡）**：§16.3 完整实现（lead fork 沿世代链解析/
    深度上界 32/环防护/报告投递在世 fork 后代）是否立项——v1 现状为 fork 会话
    看不到 team（B16 登记），有真实 fork+team 复合场景需求时再评估。

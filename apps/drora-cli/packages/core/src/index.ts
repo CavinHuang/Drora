@@ -222,14 +222,18 @@ export type {
   TeamProjectionTaskInput,
 } from "./team/projection.js";
 // M3 PR-3.1：journal 持久化与 lead resume 恢复（install.ts 经这些入口接线 journal 通道）。
+// TEAM_MAILBOX_ENTRY_TYPE/readPersistedMailboxEntries：§21 A13 B 案冷恢复对账读取面
+//（写入方 bootstrap install persistMailboxEntry，读取方 install 冷恢复建态后对账）。
 export {
   createTeamJournalSessionStoreSink,
   parseTeamJournalEntries,
+  readPersistedMailboxEntries,
   readTeamJournalEvents,
   replayTeamJournal,
   restoreAgentsTeamFromJournal,
   taskJournalFactOf,
   TEAM_JOURNAL_ENTRY_TYPE,
+  TEAM_MAILBOX_ENTRY_TYPE,
 } from "./team/journal.js";
 export type {
   TeamJournalEvent,

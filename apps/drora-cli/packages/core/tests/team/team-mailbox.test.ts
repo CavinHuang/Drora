@@ -9,6 +9,7 @@ import {
   mailboxTail,
   markDelivered,
   pendingMail,
+  reconcilePersistedMailEntries,
   releaseDeliveryLease,
   validateMessageSize,
 } from "../../src/team/mailbox.js";
@@ -381,5 +382,106 @@ describe("mailbox content-level dedup (spec §16 契约 4, dsh identical-report-
       targetAttemptId: "att_A",
     });
     expect(findDuplicateMail([first], resend, currentTasks)?.messageId).toBe(first.messageId);
+  });
+});
+
+describe("cold-restore mailbox reconcile (§21 A13 B 案, 2026-10-24)", () => {
+  it("journal-unseen persisted entries are appended (half-persisted window recovered into pending set)", () => {
+    // 半持久窗口：邮箱条目已持久化（team.mailbox 通道）、journal message_appended
+    // 事实未刷——对账补入，恢复后仍在待投（pending）语义（deliveredAccepted=false）。
+    const persisted = entry({ messageId: "m_window", to: "lead", message: "half persisted" });
+    const result = reconcilePersistedMailEntries([], new Set(), [persisted]);
+    expect(result.appended).toBe(1);
+    expect(result.merged).toBe(0);
+    expect(result.mailbox).toHaveLength(1);
+    expect(result.mailbox[0]).toMatchObject({
+      messageId: "m_window",
+      deliveredAccepted: false,
+    });
+  });
+
+  it("journal-seen ids are skipped (union idempotent — neither side's surplus is lost or duplicated)", () => {
+    // journal 已见（appendedMessageIds 含该 messageId）→ 跳过补入：两源都有的
+    // messageId 恰一条（幂等）；journal 有而持久化无的同样不重复。
+    const replayed = entry({ messageId: "m_seen" });
+    const persistedSameId = entry({ messageId: "m_seen", message: "same id snapshot" });
+    const seen = new Set(["m_seen"]);
+    let result = reconcilePersistedMailEntries([replayed], seen, [persistedSameId]);
+    expect(result.appended).toBe(0);
+    expect(result.merged).toBe(0);
+    expect(result.mailbox).toHaveLength(1);
+    expect(result.mailbox[0].message).toBe(replayed.message); // 字段主体以重放侧为准
+    // journal 有、持久化无：邮箱只来自重放侧，零重复。
+    result = reconcilePersistedMailEntries([replayed], seen, []);
+    expect(result.appended).toBe(0);
+    expect(result.merged).toBe(0);
+    expect(result.mailbox).toHaveLength(1);
+  });
+
+  it("dropped/retention-evicted ids stay gone (journal-seen but absent from mailbox is not revived)", () => {
+    // §21 A1 丢弃事实只清 hub 内存态（持久化条目仍在库）：已见但已不在邮箱 =
+    // 运行态裁决结果（dropped 或保留期裁掉），对账不得复活。
+    const droppedPersisted = entry({ messageId: "m_dropped", to: "lead" });
+    const evictedPersisted = entry({ messageId: "m_evicted", to: "lead" });
+    const result = reconcilePersistedMailEntries([], new Set(["m_dropped", "m_evicted"]), [
+      droppedPersisted,
+      evictedPersisted,
+    ]);
+    expect(result.appended).toBe(0);
+    expect(result.mailbox).toHaveLength(0);
+  });
+
+  it("delivered takes the union (newer source wins): persisted-delivered flips, replay-delivered stays", () => {
+    // 两源较新者为准：持久化条目带 delivered（deliveredAccepted=true）而重放侧
+    // 未 delivered → 采用持久化侧（merged，带 deliveredAt/deliveredVia）；反向
+    // （重放侧已有 message_delivered 事实）→ 保留重放侧形态（merged=0）。
+    const undelivered = entry({ messageId: "m_p_deliv" });
+    const deliveredReplay = entry({
+      messageId: "m_j_deliv",
+      deliveredAccepted: true,
+      deliveredAt: "2026-10-24T00:30:00.000Z",
+      deliveredVia: "lead_injected",
+    });
+    const replayMailbox = [undelivered, deliveredReplay];
+    const persisted = [
+      entry({
+        messageId: "m_p_deliv",
+        deliveredAccepted: true,
+        deliveredAt: "2026-10-24T01:00:00.000Z",
+        deliveredVia: "steered",
+      }),
+      entry({ messageId: "m_j_deliv", deliveredAccepted: false }),
+    ];
+    const result = reconcilePersistedMailEntries(
+      replayMailbox,
+      new Set(["m_p_deliv", "m_j_deliv"]),
+      persisted,
+    );
+    expect(result.appended).toBe(0);
+    expect(result.merged).toBe(1);
+    const flipped = result.mailbox.find((row) => row.messageId === "m_p_deliv");
+    expect(flipped).toMatchObject({
+      deliveredAccepted: true,
+      deliveredAt: "2026-10-24T01:00:00.000Z",
+      deliveredVia: "steered",
+    });
+    expect(flipped?.deliveryClaimedAt).toBeUndefined(); // delivered 覆盖租约盖戳（markDelivered 同款形态）
+    const kept = result.mailbox.find((row) => row.messageId === "m_j_deliv");
+    expect(kept?.deliveredAccepted).toBe(true);
+  });
+
+  it("appended entries go through per-recipient retention trimming (same as replay/runtime)", () => {
+    // 缺口12 同款：补入走 appendToMailbox 的每收件人保留期裁剪——重放邮箱与
+    // 运行态形状一致，对账补入不例外（超出保留期的最旧补入条目被裁）。
+    const retention = TEAM_KERNEL_LIMITS.mailboxRetentionPerMember;
+    const persisted: TeamMailboxEntry[] = [];
+    for (let index = 0; index < retention + 2; index += 1) {
+      persisted.push(entry({ messageId: `m_retention_${index}`, to: "lead" }));
+    }
+    const result = reconcilePersistedMailEntries([], new Set(), persisted);
+    expect(result.appended).toBe(retention + 2);
+    expect(result.mailbox).toHaveLength(retention);
+    expect(result.mailbox[0].messageId).toBe(`m_retention_2`); // 最旧两条被裁
+    expect(result.mailbox.at(-1)?.messageId).toBe(`m_retention_${retention + 1}`);
   });
 });

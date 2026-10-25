@@ -112,6 +112,14 @@ export type TeamJournalWriter = (event: TeamJournalEventDraft) => void;
 /** session entry 通道的 type 键（TEAM_JOURNAL_KEY_PREFIX 是唯一出处，此处只拼接）。 */
 export const TEAM_JOURNAL_ENTRY_TYPE = `${TEAM_JOURNAL_KEY_PREFIX}journal`;
 
+/**
+ * team 邮箱条目持久化通道的 type 键（E12；specs/agents-team.md §21 A13 B 案裁决）。
+ * 写入方 = bootstrap install persistMailboxEntry，读取方 = 冷恢复对账
+ * readPersistedMailboxEntries——两侧同引本常量（键前缀单一出处 contracts，AGENTS.md
+ * 契约键单一出处；2026-10-24 自 bootstrap install.ts 移入 core，单一出处不变）。
+ */
+export const TEAM_MAILBOX_ENTRY_TYPE = `${TEAM_JOURNAL_KEY_PREFIX}mailbox`;
+
 // ---------- 写入：同步入队 + 串行异步刷盘 ----------
 
 export interface TeamJournalSessionStoreSink {
@@ -189,6 +197,40 @@ export function readTeamJournalEvents(input: {
     });
 }
 
+/**
+ * 冷恢复对账读取面（§21 A13 B 案裁决，2026-10-24）：读该会话持久化的
+ * team.mailbox 条目（写入通道即 bootstrap persistMailboxEntry）。读法复用
+ * sessionEntries({ sessionID, type }) 既有 port API（readTeamJournalEvents 同款），
+ **不扩 port 面**。损坏条目跳过 + warn（同 journal 读取面逐条防御语义）；读取
+ * 失败按无对账面降级返回 []（对账是恢复增强，不劫持装配）。
+ */
+export function readPersistedMailboxEntries(input: {
+  sessionStore: Pick<SessionStorePort, "sessionEntries"> | undefined;
+  sessionId: string;
+  warn?: (message: string) => void;
+}): Promise<TeamMailboxEntry[]> {
+  const store = input.sessionStore;
+  if (store?.sessionEntries === undefined) return Promise.resolve([]);
+  return store
+    .sessionEntries({ sessionID: input.sessionId as never, type: TEAM_MAILBOX_ENTRY_TYPE })
+    .then((entries) => {
+      const parsed: TeamMailboxEntry[] = [];
+      for (const entry of entries ?? []) {
+        const data = entry.data as TeamMailboxEntry | undefined;
+        if (data === undefined || !isMailboxEntryWellFormed(data)) {
+          input.warn?.(`team mailbox entry skipped (malformed): id=${entry.id}`);
+          continue;
+        }
+        parsed.push(data);
+      }
+      return parsed;
+    })
+    .catch((error: unknown) => {
+      input.warn?.(`team mailbox entries read failed; skipping reconcile (${String(error)})`);
+      return [];
+    });
+}
+
 /** entry.data → 事件（结构守卫；缺失/畸形条目跳过 + warn，不让单条损坏劫持整流）。 */
 export function parseTeamJournalEntries(
   entries: readonly SessionEntryInfo[],
@@ -260,6 +302,12 @@ export interface TeamJournalReplayResult {
   record: TeamRecord | undefined;
   /** 见过的最大 seq（含被跳过的事件）——续写 sink.setNextSeq(lastSeq + 1)。 */
   lastSeq: number;
+  /**
+   * 重放见过的 message_appended messageId **全集**（含其后 delivered/dropped 的；
+   * §21 A13 B 案冷恢复对账的「已见」判定依据——dropped 死件经此不复活，
+   * team_created 重建 team 时重置）。
+   */
+  appendedMessageIds: ReadonlySet<string>;
 }
 
 /**
@@ -280,6 +328,8 @@ export function replayTeamJournal(
   let frozen: TeamRecord["status"] | undefined;
   let lastSeq = 0;
   let updatedAt: string | undefined;
+  // §21 A13 B 案：message_appended 见过的 messageId 全集（team_created 重置）。
+  let appendedMessageIds = new Set<string>();
 
   const restoreTask = (fact: TeamJournalTaskFact): void => {
     const restored: TeamTaskInternal = { ...fact, handoffId: undefined, reassigning: false };
@@ -325,6 +375,8 @@ export function replayTeamJournal(
       };
       approved = false;
       frozen = undefined;
+      // team_created 重建 team：旧 team 的 message 集不参与新 team 对账（§21 A13）。
+      appendedMessageIds = new Set<string>();
       record.updatedAt = updatedAt;
       continue;
     }
@@ -393,6 +445,9 @@ export function replayTeamJournal(
         // 2026-10-21 缺口12（保留期一致性，spec §14）：重放走 appendToMailbox 的
         // 每收件人保留期裁剪（默认限额与 hub 运行态同源）——裸 push 会让重放邮箱
         // 无界增长且与运行态形状不一致（运行态每次入队都裁）。
+        // §21 A13 B 案：已见集在裁剪/丢弃**之前**登记（被保留期裁掉的 messageId
+        // 也算 journal 已见——它是 hub 正常运行态裁决的结果，非刷盘丢失）。
+        appendedMessageIds.add(payload.entry.messageId);
         record.mailbox = appendToMailbox(record.mailbox, payload.entry);
         break;
       case "message_delivered":
@@ -440,7 +495,7 @@ export function replayTeamJournal(
     finalizeMemberStates(record, approved);
     record.status = frozen ?? (approved ? derivedActiveIdle(record) : "staged");
   }
-  return { record, lastSeq };
+  return { record, lastSeq, appendedMessageIds };
 }
 
 /** 成员运行态不入 journal（差异裁决#5）：重放后统一推导——无运行时的一律 terminal。 */
@@ -575,6 +630,11 @@ export interface TeamJournalRestoreOutcome {
   lastSeq: number;
   /** 重建的 record 是否已装入 hub（hub 已有在库记录时不覆盖——装配竞态让位于现役记录）。 */
   adopted: boolean;
+  /**
+   * 重放见过的 message_appended messageId 全集（§21 A13 B 案冷恢复对账的
+   * 「已见」判定依据；adopted=false 时无消费意义，仍原样返回）。
+   */
+  appendedMessageIds: ReadonlySet<string>;
 }
 
 /**
@@ -595,7 +655,7 @@ export async function restoreAgentsTeamFromJournal(input: {
     warn: input.warn,
   });
   if (events.length === 0) return undefined;
-  const { record, lastSeq } = replayTeamJournal(events, input.warn);
+  const { record, lastSeq, appendedMessageIds } = replayTeamJournal(events, input.warn);
   const adopted = record !== undefined && input.hub.adoptRestored(record);
-  return { lastSeq, adopted };
+  return { lastSeq, adopted, appendedMessageIds };
 }

@@ -4,17 +4,17 @@ import { createTestAgentRuntime } from "../test-agent-runtime.js";
 import { createTestSessionEventStore } from "../test-event-store.js";
 import { createTestModelFactory } from "../test-runtime-model.js";
 import { createRecordingMessageStore } from "../runtime-output-token-continuation-test-helpers.js";
-import {
-  installDroraAgentsTeam,
-  TEAM_MAILBOX_ENTRY_TYPE,
-} from "../../../bootstrap/src/app/drora-team/install.js";
+import { installDroraAgentsTeam } from "../../../bootstrap/src/app/drora-team/install.js";
 import { createAgentDefinitionsReader } from "../../src/subagent/definitions.js";
 import { createToolRegistry } from "../../src/tool/registry.js";
 import type { ToolEntry } from "../../src/tool/types.js";
 import type { AgentRuntimeDeps } from "../../src/runtime/types.js";
 import { buildSteerBody } from "../../src/team/message-format.js";
 import { createTeamMemberMessageSink } from "../../src/team/member-sink.js";
-import { TEAM_JOURNAL_ENTRY_TYPE } from "../../src/team/journal.js";
+import {
+  TEAM_JOURNAL_ENTRY_TYPE,
+  TEAM_MAILBOX_ENTRY_TYPE,
+} from "../../src/team/journal.js";
 import type { TeamMailboxEntry, TeamRecord } from "../../src/team/types.js";
 
 /** §21 A1 用例⑬：journal 通道上 message_dropped 事实的收集助手。 */
@@ -675,5 +675,179 @@ describe("agents team mailbox persistence (E12 全同步持久化接线, 2026-10
     expect(attemptedWrites).toHaveLength(1);
     expect(attemptedWrites[0]?.type).toBe(TEAM_MAILBOX_ENTRY_TYPE);
     expect(attemptedWrites.some((row) => row.type === TEAM_JOURNAL_ENTRY_TYPE)).toBe(false);
+  });
+});
+
+describe("cold-restore mailbox reconcile (§21 A13 B 案, 2026-10-24)", () => {
+  /**
+   * 冷恢复对账集成基座：预置「上一进程崩溃」形态的 sessionStore——journal 事实流
+   * （team.journal，含 team_created→staged→approved→member_added 与可选
+   * message_appended）+ team.mailbox 持久化条目；install 随装配触发
+   * restoreAgentsTeamFromJournal（journal 重放 adopt）后按 §21 A13 B 案对账并入。
+   * 收件定向成员 bob（member_added 在册）：成员向邮件不经 lead 补投通道，恢复后
+   * 稳定停留在 pending 语义，断言不被投递边缘扰动。
+   */
+  type StoredEntry = { type: string; data: Record<string, unknown> };
+
+  function journalRow(seq: number, payload: Record<string, unknown>): StoredEntry {
+    return {
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+      data: { seq, at: "2026-10-24T00:00:00.000Z", payload },
+    };
+  }
+
+  function mailboxRow(entry: TeamMailboxEntry): StoredEntry {
+    return { type: TEAM_MAILBOX_ENTRY_TYPE, data: entry as unknown as Record<string, unknown> };
+  }
+
+  const teamCreated = (leadSessionId: string) =>
+    journalRow(1, {
+      kind: "team_created",
+      teamId: "team_reconcile",
+      leadSessionId,
+      createdAt: "2026-10-24T00:00:00.000Z",
+    });
+  const stagedBob = () =>
+    journalRow(2, {
+      kind: "staged",
+      teamId: "team_reconcile",
+      awaitingFeedback: false,
+      members: [{ memberName: "bob", profile: "implementer" }],
+      tasks: [],
+    });
+  const approved = () => journalRow(3, { kind: "approved", teamId: "team_reconcile" });
+  const bobAdded = () =>
+    journalRow(4, {
+      kind: "member_added",
+      teamId: "team_reconcile",
+      memberName: "bob",
+      agentId: "agent_bob",
+      childSessionId: "child_bob",
+    });
+  const appendedFact = (seq: number, entry: TeamMailboxEntry) =>
+    journalRow(seq, { kind: "message_appended", teamId: "team_reconcile", entry });
+
+  function memberMail(messageId: string, message: string): TeamMailboxEntry {
+    return {
+      messageId,
+      from: "lead",
+      to: "bob",
+      message,
+      at: "2026-10-24T00:00:00.000Z",
+      deliveredAccepted: false,
+    };
+  }
+
+  function seededStore(rows: StoredEntry[]) {
+    const entries = [...rows];
+    return {
+      ...createRecordingMessageStore(),
+      async sessionEntries(input: { type?: string } | undefined) {
+        const type = input?.type;
+        return type === undefined ? entries : entries.filter((row) => row.type === type);
+      },
+      async saveSessionEntry(entry: StoredEntry) {
+        entries.push(entry);
+      },
+    };
+  }
+
+  it("① journal-unseen persisted entry survives restore in the pending set (half-persisted window)", async () => {
+    // 半持久窗口：上一进程 persistMailboxEntry 已落库（team.mailbox 条目在）、
+    // journal message_appended 事实未刷（journal 流无该 messageId）——冷恢复后
+    // 对账补入，条目仍在待投集（deliveredAccepted=false）。
+    const sessionId = createSessionId();
+    const windowed = memberMail("m_window", "half persisted report");
+    const store = seededStore([
+      teamCreated(sessionId),
+      stagedBob(),
+      approved(),
+      bobAdded(),
+      // journal 无 m_window 的 message_appended —— 刻意缺席。
+      mailboxRow(windowed),
+    ]);
+    const { lead, installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    expect(installed).toBeDefined();
+
+    await vi.waitFor(
+      () => {
+        const hub = installed!.hub;
+        expect(hub.teamId).toBe("team_reconcile"); // journal 重放 adopt 完成
+        const entry = hub.mailboxEntries().find((row) => row.messageId === "m_window");
+        expect(entry).toBeDefined(); // 对账补入完成
+      },
+      { timeout: 10_000 },
+    );
+    const hub = installed!.hub;
+    const entry = hub.mailboxEntries().find((row) => row.messageId === "m_window")!;
+    expect(entry.deliveredAccepted).toBe(false); // 恢复后仍在 pending 集
+    expect(entry.message).toBe("half persisted report");
+    expect(hub.mailboxEntries().filter((row) => row.messageId === "m_window")).toHaveLength(1);
+    expect(lead.sessionId).toBeTruthy();
+  });
+
+  it("② journal-seen entry is not duplicated when the persisted side lacks it (union idempotent)", async () => {
+    // 反向窗口：journal message_appended 已刷、persistMailboxEntry 未刷——重放邮箱
+    // 恰一条，对账不因持久化侧缺席而重复或清空（两源谁多都不丢）。
+    const sessionId = createSessionId();
+    const journaled = memberMail("m_journaled", "journaled only");
+    const store = seededStore([
+      teamCreated(sessionId),
+      stagedBob(),
+      approved(),
+      bobAdded(),
+      appendedFact(5, journaled),
+      // team.mailbox 通道无该条目 —— 刻意缺席。
+    ]);
+    const { installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    await vi.waitFor(
+      () => {
+        const hub = installed!.hub;
+        expect(hub.teamId).toBe("team_reconcile");
+        expect(hub.mailboxEntries().some((row) => row.messageId === "m_journaled")).toBe(true);
+      },
+      { timeout: 10_000 },
+    );
+    const hub = installed!.hub;
+    const rows = hub.mailboxEntries().filter((row) => row.messageId === "m_journaled");
+    expect(rows).toHaveLength(1); // journal 有而持久化无 → 不重复
+    expect(hub.mailboxEntries().length).toBe(1); // 全邮箱恰一条（无幽灵补入）
+  });
+
+  it("③ delivered takes the union: persisted-delivered flips the replayed pending entry", async () => {
+    // delivered 并集：journal 重放侧 m_p 未送达（message_delivered 事实未刷），
+    // 持久化条目带 delivered（deliveredAccepted=true + deliveredAt/Via）→ 对账采用
+    // 持久化半边，恢复后 deliveredAccepted=true（两源较新者为准）。
+    const sessionId = createSessionId();
+    const pendingSide = memberMail("m_union", "delivered on one side");
+    const deliveredSide: TeamMailboxEntry = {
+      ...pendingSide,
+      deliveredAccepted: true,
+      deliveredAt: "2026-10-24T01:00:00.000Z",
+      deliveredVia: "resumed",
+    };
+    const store = seededStore([
+      teamCreated(sessionId),
+      stagedBob(),
+      approved(),
+      bobAdded(),
+      appendedFact(5, pendingSide), // journal 只刷了 message_appended（未刷 delivered）
+      mailboxRow(deliveredSide),
+    ]);
+    const { installed } = await createLeadWithTeam({ sessionId, sessionStore: store });
+    await vi.waitFor(
+      () => {
+        const hub = installed!.hub;
+        expect(hub.teamId).toBe("team_reconcile");
+        const entry = hub.mailboxEntries().find((row) => row.messageId === "m_union");
+        expect(entry?.deliveredAccepted).toBe(true); // 并集完成
+      },
+      { timeout: 10_000 },
+    );
+    const hub = installed!.hub;
+    const entry = hub.mailboxEntries().find((row) => row.messageId === "m_union")!;
+    expect(entry.deliveredAt).toBe("2026-10-24T01:00:00.000Z");
+    expect(entry.deliveredVia).toBe("resumed");
+    expect(hub.mailboxEntries().filter((row) => row.messageId === "m_union")).toHaveLength(1);
   });
 });

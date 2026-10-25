@@ -1,6 +1,7 @@
 import {
   createTeamCollabToolEntries,
   createTeamJournalSessionStoreSink,
+  readPersistedMailboxEntries,
   readTeamHistoryPage,
   createTeamLeadToolEntries,
   createTeamMemberPort,
@@ -8,6 +9,7 @@ import {
   InMemoryRuntimeTaskRegistry,
   isTerminalRuntimeTask,
   restoreAgentsTeamFromJournal,
+  TEAM_MAILBOX_ENTRY_TYPE,
   TeamHub,
   type AgentRuntimeInternal,
   type TeamMailboxEntry,
@@ -20,7 +22,7 @@ import type {
   TraceId,
   TurnId,
 } from "@drora/contracts";
-import { SessionEventType, TEAM_JOURNAL_KEY_PREFIX } from "@drora/contracts";
+import { SessionEventType } from "@drora/contracts";
 // §21 A6（2026-10-24 常量接线）：成员缺省值不再手写——两个登记常量此前全仓零
 // 生产消费（改声明不影响行为、四处同值靠人肉同步），改引后由 typecheck 锁定漂移。
 import { TEAM_MEMBER_DEFAULT_MAX_TURNS, TEAM_MEMBERS_MAX_DEFAULT } from "@drora/contracts";
@@ -35,11 +37,10 @@ import type { TeamHistoryQuery, TeamHistoryResult } from "@drora/shared/drora-pr
 
 /**
  * team 邮箱条目持久化的 session entry 通道 type 键（E12 全同步邮箱持久化）。
- * 前缀单一出处 contracts TEAM_JOURNAL_KEY_PREFIX，此处只拼接后缀（journal.ts 的
- * TEAM_JOURNAL_ENTRY_TYPE 同款拼接先例）；消费方（测试与未来恢复读取面）必须引用本常量，
- * 不得手写字面量（AGENTS.md 契约键单一出处）。
+ * **§21 A13 B 案裁决（2026-10-24）**：常量定义移至 core journal.ts（写入方本文件
+ * 与读取方 core readPersistedMailboxEntries 同源单一出处），此处经 @drora/core
+ * 引用；键前缀单一出处仍是 contracts TEAM_JOURNAL_KEY_PREFIX。
  */
-export const TEAM_MAILBOX_ENTRY_TYPE = `${TEAM_JOURNAL_KEY_PREFIX}mailbox`;
 
 export interface AgentsTeamInstallInput {
   /** lead runtime（构造完成后的实例；install 只读其装配面）。 */
@@ -158,8 +159,10 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
   // 仅在 persist **同步抛错**时可达——生产装配下不可达（async 函数同步不抛），只
   // 覆盖 port 直调方注入同步持久化实现的形态（core 测试⑫）。附加边界：journalSink
   // 与 persistMailboxEntry 落同一 sessionStore，同库故障下恢复源（journal
-  // message_appended）与邮箱同丢。真门（同步可校验写）与启动对账二选一见 §21
-  // 开放决策。hub 入队前的内容级去重（duplicate 早退在 persist 之前，spec §16
+  // message_appended）与邮箱同丢。**§21 开放决策 1 已裁决（2026-10-24，B 案冷恢复
+  // 对账，§21 A13 裁决落笔段）**：本写入通道即冷恢复对账的读取源（journal 重放
+  // 为主、持久化条目对账补齐半持久窗口）；真门（同步可校验写）留后续卡不撤。
+  // hub 入队前的内容级去重（duplicate 早退在 persist 之前，spec §16
   // 契约 4）保证重发不落重复写，批量报告场景无写放大。
   const persistMailboxEntry = (entry: TeamMailboxEntry): void => {
     const store = input.leadDeps.sessionStore;
@@ -176,8 +179,9 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     // §21 A13 如实口径：同步抛错（仅 port 直调同步实现形态）向上传播由 hub 转
     // mailbox_persist_failed；生产 async 形态的 rejection 无法在同步端口上转抛，
     // 只 warn——发送已 ack（入队即成功），异步刷盘失败不回滚裁决。恢复语义注意：
-    // journal 与邮箱同库，同库故障时「journal 兜底恢复」不增益（真门/启动对账
-    // 见 §21 开放决策）。
+    // journal 与邮箱同库，同库故障时「journal 兜底恢复」不增益；单侧落盘窗口经
+    // §21 A13 B 案冷恢复对账补齐（下方 restore 链 readPersistedMailboxEntries），
+    // 「两侧都未刷」的尾部丢失仍不可恢复。
     const pending = store.saveSessionEntry?.(durable);
     pending?.catch((error: unknown) => {
       lead.logger?.warn(
@@ -307,9 +311,10 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
     },
     // journal 写入：hub 动作点的用户/协议动作与板/邮箱数据事实（spec 差异裁决#5）。
     journalWriter: (event) => journalSink.append(event),
-    // E12 全同步邮箱持久化装配收口（v1 起的装配缺口）：写成功才算发送成功，
-    // 同步入队失败由 hub enqueueMail 转拒绝 mailbox_persist_failed——职责边界与
-    // journal message_appended 的关系见上方 persistMailboxEntry 注释。
+    // E12 邮箱持久化装配（§21 A13 如实口径）：入队成功即 ack（发送成功），异步
+    // 刷盘失败仅 warn；仅 persist 同步抛错（port 直调同步实现形态）由 hub
+    // enqueueMail 转拒绝 mailbox_persist_failed——职责边界与冷恢复对账读取源
+    // 见上方 persistMailboxEntry 注释。
     persistMailboxEntry,
     // 派发通道：私有端口的 sendMessage——运行中成员 steer、终态成员复活；
     // queued 不算送达（ack 只认注入，spec §16.3），消息保留待下次投递边缘。
@@ -606,6 +611,33 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
             hub.memberPort({ agentId: member.agentId, memberName: member.memberName }),
           );
         }
+        // §21 A13 B 案冷恢复对账（2026-10-24 裁决）：journal 重放建态完成后，读取
+        // 持久化 team.mailbox 条目（写入通道即上方 persistMailboxEntry）按 messageId
+        // 并入 hub 邮箱——journal 已见跳过（幂等，两源谁多都不丢；dropped 死件与
+        // 保留期裁掉的不复活），journal 未见的补入（半持久窗口：邮箱条目已持久化、
+        // journal 事实未刷）。读取失败按无对账面降级（readPersistedMailboxEntries
+        // 内部兜错返回 []，不阻断装配）；不补写 journal（持久化条目本身即恢复源，
+        // 再崩溃对账幂等重做）。
+        void readPersistedMailboxEntries({
+          sessionStore: input.leadDeps.sessionStore,
+          sessionId: lead.sessionId,
+          warn: (message) => {
+            lead.logger?.warn(message, {
+              event: "agents_team.mailbox_reconcile_read",
+              module: "bootstrap.agentsTeam",
+              sessionId: lead.sessionId,
+            });
+          },
+        })
+          .then((persisted) => {
+            const { appended } = hub.reconcilePersistedMailbox({
+              appendedMessageIds: outcome.appendedMessageIds,
+              entries: persisted,
+            });
+            // 对账补入的 lead 待决邮件随本批补投（恢复窗口 + 对账窗口合并收敛）。
+            if (appended > 0) void hub.deliverPendingLeadMail().catch(() => undefined);
+          })
+          .catch(() => undefined); // readPersistedMailboxEntries 内部已兜错；防御性收口
         // 恢复窗口内积压的 lead 待决邮件补投（缺口12）。
         void hub.deliverPendingLeadMail().catch(() => undefined);
         // M4 冷恢复自动重试（spec §2.3：恰一次，失败不退 pending）：恢复后对每个

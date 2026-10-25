@@ -45,6 +45,7 @@ import {
   isCurrentMail,
   markDelivered,
   pendingMail,
+  reconcilePersistedMailEntries,
   releaseDeliveryLease,
   validateMessageSize,
 } from "./mailbox.js";
@@ -1246,6 +1247,37 @@ export class TeamHub {
     }
     this.notifyChange();
     return true;
+  }
+
+  /**
+   * 冷恢复对账（§21 A13 B 案裁决，2026-10-24）：journal 重放 adopt 完成后，把
+   * 持久化 team.mailbox 条目按 messageId 并入邮箱——journal 已见（appendedMessageIds，
+   * 含其后 delivered/dropped 的）跳过，dropped 死件与保留期裁掉的条目不复活；
+   * journal 未见的补入（半持久窗口：邮箱条目已持久化、journal 事实未刷）；
+   * delivered 以两源较新者为准（语义全文见 mailbox.reconcilePersistedMailEntries）。
+   * 补入/更新即刷新状态（未投邮件可能使 idle→active 重推导）并通知；无 team
+   * （未 adopt/无现役记录）时 no-op 返回 0。不补写 journal——持久化条目本身即
+   * 该条目的恢复源（再崩溃对账幂等重做）。
+   * @returns 补入条数与既有条目被更新数（0/0 = 无变化）。
+   */
+  reconcilePersistedMailbox(input: {
+    appendedMessageIds: ReadonlySet<string>;
+    entries: readonly TeamMailboxEntry[];
+  }): { appended: number; merged: number } {
+    const record = this.record;
+    if (record === undefined) return { appended: 0, merged: 0 };
+    const { mailbox, appended, merged } = reconcilePersistedMailEntries(
+      record.mailbox,
+      input.appendedMessageIds,
+      input.entries,
+      this.limits.mailboxRetentionPerMember,
+    );
+    if (appended === 0 && merged === 0) return { appended: 0, merged: 0 };
+    record.mailbox = mailbox;
+    record.updatedAt = this.clock.now();
+    this.refreshStatus();
+    this.notifyChange();
+    return { appended, merged };
   }
 
   // ---------- 端口工厂（两级接口；身份由装配结构性决定） ----------

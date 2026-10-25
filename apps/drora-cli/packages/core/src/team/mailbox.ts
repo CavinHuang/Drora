@@ -259,3 +259,55 @@ export function dropMailEntries(
   const ids = new Set(messageIds);
   return mailbox.filter((entry) => !ids.has(entry.messageId));
 }
+
+/** reconcilePersistedMailEntries 的结果计数（appended = 补入条数，merged = 既有条目形态被更新数）。 */
+export interface ReconcilePersistedMailResult {
+  mailbox: TeamMailboxEntry[];
+  appended: number;
+  merged: number;
+}
+
+/**
+ * 冷恢复对账合并（§21 A13 B 案裁决，2026-10-24）：journal 重放邮箱 × 持久化
+ * team.mailbox 条目按 messageId 并集——两源谁多都不丢。
+ * - journal 已见（appendedMessageIds 含该 messageId，含其后 delivered/dropped 的）
+ *   → 跳过补入：dropped 死件与保留期裁掉的条目经此**不复活**（它们是 hub 运行态
+ *   裁决的结果，非刷盘丢失）；仍在邮箱的做 delivered 并集——持久化条目带
+ *   delivered 而重放侧未 delivered 时采用持久化侧（两源较新者为准；反向保留
+ *   重放侧的 message_delivered 事实形态），字段主体以重放侧为准（journal 是更
+ *   完整的时序视图）。
+ * - journal 未见 → 补入（半持久窗口：邮箱条目已持久化、journal 事实未刷），
+ *   走 appendToMailbox 的每收件人保留期裁剪（与重放/运行态同源，缺口12 同款）。
+ * - 语义边界（spec 如实登记）：「两侧都未刷」的尾部丢失不在对账可恢复面内。
+ */
+export function reconcilePersistedMailEntries(
+  mailbox: readonly TeamMailboxEntry[],
+  appendedMessageIds: ReadonlySet<string>,
+  persisted: readonly TeamMailboxEntry[],
+  retentionPerMember = TEAM_KERNEL_LIMITS.mailboxRetentionPerMember,
+): ReconcilePersistedMailResult {
+  let next = [...mailbox];
+  let appended = 0;
+  let merged = 0;
+  for (const entry of persisted) {
+    if (!appendedMessageIds.has(entry.messageId)) {
+      next = appendToMailbox(next, entry, retentionPerMember);
+      appended += 1;
+      continue;
+    }
+    if (entry.deliveredAccepted !== true) continue; // 无 delivered 半边可并：保留重放侧形态
+    const index = next.findIndex((row) => row.messageId === entry.messageId);
+    if (index < 0) continue; // 已被 dropped/裁剪清出邮箱：不复活
+    const existing = next[index];
+    if (existing.deliveredAccepted) continue; // 重放侧已有 delivered 事实：保留
+    const { deliveryClaimedAt: _coveredClaim, ...rest } = existing;
+    next[index] = {
+      ...rest,
+      deliveredAt: entry.deliveredAt,
+      ...(entry.deliveredVia === undefined ? {} : { deliveredVia: entry.deliveredVia }),
+      deliveredAccepted: true,
+    };
+    merged += 1;
+  }
+  return { mailbox: next, appended, merged };
+}

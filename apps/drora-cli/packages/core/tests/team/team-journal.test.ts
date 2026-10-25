@@ -748,3 +748,85 @@ describe("legacy staged 事实空白 profile/thought 重放归一（§19 契约 
     expect(carol?.modelSelection).toEqual({ provider: "provider-a", model: "model-a" });
   });
 });
+
+describe("replay appendedMessageIds (§21 A13 B 案冷恢复对账的已见判定)", () => {
+  const mailEvent = (
+    seq: number,
+    messageId: string,
+    extra: Partial<TeamJournalEvent["payload"]> = {},
+  ): TeamJournalEvent => ({
+    seq,
+    at: "2026-10-24T00:00:00.000Z",
+    payload: {
+      kind: "message_appended",
+      teamId: "team_reconcile",
+      entry: {
+        messageId,
+        from: "alice",
+        to: "lead",
+        message: `m-${messageId}`,
+        at: "2026-10-24T00:00:00.000Z",
+        deliveredAccepted: false,
+      },
+      ...extra,
+    },
+  });
+  const created = (seq: number, teamId: string): TeamJournalEvent => ({
+    seq,
+    at: "2026-10-24T00:00:00.000Z",
+    payload: {
+      kind: "team_created",
+      teamId,
+      leadSessionId: "lead_s1",
+      createdAt: "2026-10-24T00:00:00.000Z",
+    },
+  });
+
+  it("collects the full appended id set including entries later delivered or dropped (dropped dead letters stay seen)", () => {
+    // 「已见」= message_appended 全集（含其后 delivered/dropped 的）：dropped 死件
+    // 的持久化条目仍在库，对账按全集跳过 → 不复活（§21 A1 × A13 交界）。
+    const events: TeamJournalEvent[] = [
+      created(1, "team_reconcile"),
+      mailEvent(2, "m_pending"),
+      mailEvent(3, "m_delivered"),
+      mailEvent(4, "m_dropped"),
+      {
+        seq: 5,
+        at: "2026-10-24T00:00:01.000Z",
+        payload: {
+          kind: "message_delivered",
+          teamId: "team_reconcile",
+          messageIds: ["m_delivered"],
+          via: "steered",
+          at: "2026-10-24T00:00:01.000Z",
+        },
+      },
+      {
+        seq: 6,
+        at: "2026-10-24T00:00:02.000Z",
+        payload: {
+          kind: "message_dropped",
+          teamId: "team_reconcile",
+          messageIds: ["m_dropped"],
+          reason: "sender removed",
+          at: "2026-10-24T00:00:02.000Z",
+        },
+      },
+    ];
+    const { appendedMessageIds } = replayTeamJournal(events);
+    expect([...appendedMessageIds].sort()).toEqual(["m_delivered", "m_dropped", "m_pending"]);
+  });
+
+  it("resets the seen set when team_created rebuilds the team (old ids do not leak into the new team)", () => {
+    // 同会话重建 team（abandon 后再建）：旧 team 的 messageId 不参与新 team 对账
+    // ——旧集重置；新 team 内的条目正常入集。
+    const events: TeamJournalEvent[] = [
+      created(1, "team_old"),
+      mailEvent(2, "m_old_team"),
+      created(3, "team_new"),
+      mailEvent(4, "m_new_team"),
+    ];
+    const { appendedMessageIds } = replayTeamJournal(events);
+    expect([...appendedMessageIds]).toEqual(["m_new_team"]);
+  });
+});

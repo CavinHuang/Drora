@@ -93,13 +93,13 @@ async function approveTeamPlan(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const { hub, sessionId } = requireTeamHub(host, envelope);
-  // §10 增补三：载荷 optional permissionMode（wire 枚举已验）随批准覆写成员权限。
+  // §10 增补三：载荷 optional permissionMode（wire 枚举已验）随批准覆写成员权限
+  //（载荷形态断言照姊妹 handler 同款）。
+  const payload = envelope.payload as CommandPayloadMap["approveTeamPlan"];
   assertMutationOk(
     "approveTeamPlan",
     await hub.approveStage(sessionId, {
-      ...(envelope.payload?.permissionMode === undefined
-        ? {}
-        : { permissionMode: envelope.payload.permissionMode }),
+      ...(payload.permissionMode === undefined ? {} : { permissionMode: payload.permissionMode }),
     }),
   );
   return undefined;

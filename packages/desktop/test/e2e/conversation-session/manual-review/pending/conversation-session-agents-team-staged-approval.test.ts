@@ -441,10 +441,12 @@ async function readStagedEditorHeader(): Promise<{
   return browser.execute(() => {
     const editor = document.querySelector<HTMLElement>('[data-testid="team-staged-editor"]');
     if (editor === null) return { ariaLabel: null, question: null, count: null };
+    // §18 附裁二表头（镜像 WorkflowCardHeader）：kind 问句 + name + detail 三段同列，
+    // 各有 testid；旧 h2/header 结构已废。
     return {
       ariaLabel: editor.getAttribute("aria-label"),
-      question: editor.querySelector("h2")?.textContent ?? null,
-      count: editor.querySelector("header > span")?.textContent ?? null,
+      question: editor.querySelector('[data-testid="team-staged-kind"]')?.textContent ?? null,
+      count: editor.querySelector('[data-testid="team-staged-detail"]')?.textContent ?? null,
     };
   });
 }

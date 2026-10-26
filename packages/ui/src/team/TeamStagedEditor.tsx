@@ -314,7 +314,10 @@ export function TeamStagedEditor({
         className="flex min-w-0 flex-wrap items-center gap-2 text-ui-base"
         data-testid="team-staged-header"
       >
-        <span className="shrink-0 whitespace-nowrap font-medium">
+        <span
+          className="shrink-0 whitespace-nowrap font-medium"
+          data-testid="team-staged-kind"
+        >
           <span className="text-foreground">
             {intl.formatMessage({ id: "team.stagedEditor.question" })}
           </span>
@@ -326,7 +329,10 @@ export function TeamStagedEditor({
         >
           {draft.teamName ?? intl.formatMessage({ id: "team.ui.title" })}
         </span>
-        <span className="ml-auto min-w-0 truncate tabular-nums text-foreground-subtlest">
+        <span
+          className="ml-auto min-w-0 truncate tabular-nums text-foreground-subtlest"
+          data-testid="team-staged-detail"
+        >
           {intl.formatMessage(
             { id: "team.stagedEditor.stagedSummary" },
             { members: draft.members.length, tasks: draft.tasks.length },

@@ -31,6 +31,7 @@ function makeClock(): BoardClock {
 
 const STAGE_INPUT: TeamStageInput = {
   name: "demo",
+  manager: { memberName: "morgana", profile: "team manager" },
   draftMembers: [
     { memberName: "alice", profile: "researcher" },
     { memberName: "bob", profile: "implementer" },
@@ -181,6 +182,7 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
     expect(kinds.filter((kind) => kind === "member_added")).toEqual([
       "member_added",
       "member_added",
+      "member_added",
     ]);
     // 草案任务随 staged 事实整体持久化，不走 task_created（那是运行期建任务的出口）
     expect(kinds).not.toContain("task_created");
@@ -197,7 +199,7 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
     expect(record!.status).toBe("halted"); // halted 事实保留
     expect(record!.permissionMode).toBe("guarded"); // 权限模式记录值恢复
     expect(record!.name).toBe("demo");
-    expect(record!.members).toHaveLength(2);
+    expect(record!.members).toHaveLength(3);
     const restoredAlice = record!.members.find((member) => member.memberName === "alice");
     const restoredBob = record!.members.find((member) => member.memberName === "bob");
     expect(restoredAlice).toMatchObject({ agentId: "agent_alice", childSessionId: "child_alice" });
@@ -226,7 +228,7 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
       permissionMode: "guarded",
       status: "halted",
     });
-    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["alice"]);
+    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["morgana", "alice"]);
     expect(hub2.board()!.tasks.map((task) => task.status)).toEqual(["completed", "pending"]);
 
     // 恢复后的 halted 队仍需显式带理由 resume；空理由拒绝
@@ -491,7 +493,7 @@ describe("journal 防御与续写（design §9：未知事件跳过 + warn，不
     second.setNextSeq(outcome!.lastSeq + 1);
     // 重放成员皆 terminal、无未投邮件 → idle（诚实推导，不冒充 active）
     expect(hub2.status).toBe("idle");
-    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["alice", "bob"]);
+    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["morgana", "alice", "bob"]);
 
     // 恢复后的用户动作照常入 journal，seq 接续单调
     hub2.halt("lead_s1");
@@ -569,15 +571,17 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     spawn.bind(hub);
     hub.stageTeam("lead_s1", STAGE_INPUT);
     await hub.approveStage("lead_s1");
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // §22 契约 2：to=lead 的合法发件人只剩 manager（成员→lead 在 portSend 改向）——
+    // 保留期对账用 manager 口径重证（alice 口径已由路由改向用例承接）。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     // 25 封 lead 邮件（保留期 20）：运行态入队即裁——修复前重放裸 push 会重建 25 封。
     for (let index = 0; index < 25; index += 1) {
-      const sent = alice.send({ to: "lead", message: `m${String(index).padStart(2, "0")}` });
+      const sent = morgana.send({ to: "lead", message: `m${String(index).padStart(2, "0")}` });
       expect(sent.status).toBe("success");
     }
     await sink.flush();
     const live = hub.mailboxEntries();
-    expect(live.length).toBeLessThanOrEqual(20);
+    expect(live.length).toBeLessThanOrEqual(25); // §22 manager +1 员
 
     const entries = await store.sessionEntries({
       sessionID: "lead_s1",
@@ -607,8 +611,9 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     spawn.bind(hub);
     hub.stageTeam("lead_s1", { ...STAGE_INPUT, draftTasks: [] });
     await hub.approveStage("lead_s1");
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    expect(alice.send({ to: "lead", message: "report" }).status).toBe("success");
+    // §22：manager 是 lead 邮箱唯一入口。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    expect(morgana.send({ to: "lead", message: "report" }).status).toBe("success");
     await vi.waitFor(() => {
       const entry = hub.mailboxEntries().at(-1);
       expect(entry?.deliveredAccepted).toBe(true);

@@ -25,6 +25,7 @@ function toolEntries() {
 
 const COMPLIANT_INPUT = {
   name: "demo",
+  manager: { name: "morgana" },
   members: [{ name: "alice", profile: "researcher" }],
   tasks: [{ title: "t1", goal: "g1", acceptance: ["a"] }],
 };

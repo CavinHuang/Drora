@@ -197,6 +197,12 @@ export interface TeamStageMemberDraft {
 
 export interface TeamStageInput {
   name?: string;
+  /**
+   * 团队管理者（specs/agents-team.md §22 契约 1，2026-10-26）：模型建草案时自行命名的
+   * manager——hub 物化为 roster 首位成员并记 record.managerName；管理工具/终态汇报的
+   * actor。与 draftMembers 重名由 hub 按 E13 同门拒绝。
+   */
+  manager: TeamStageMemberDraft;
   draftMembers: readonly TeamStageMemberDraft[];
   /**
    * 草案任务可携带既有 taskId（2026-10-21 缺口5 身份保持）：staged 再次入库
@@ -290,6 +296,11 @@ export interface TeamApproveResult extends TeamMutationResult {
  */
 export interface TeamMemberPort {
   roster(): TeamRosterSnapshot;
+  /**
+   * §22 契约 4：manager 成员的转派/接管（child session 自证 actor；hub isTeamActor
+   * 判定——普通成员调用返回 team_lead_only）。
+   */
+  reassign(input: TeamReassignInput): Promise<TeamMutationResult>;
   boardRead(): TeamBoardSnapshot;
   taskGet(taskId: string): TeamTaskCard | undefined;
   taskCreate(input: TeamTaskCreateInput): TeamTaskMutationResult;

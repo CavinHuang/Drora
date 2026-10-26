@@ -59,7 +59,7 @@ describe("TeamReassign lead tool registration smoke (§19 契约 4)", () => {
       entry!.handler({ task_id: "task_1", to: "lead", reason: "smoke" }, {
         sessionId: "sess_child_not_lead",
       } as never),
-    ).rejects.toThrow("lead session only");
+    ).rejects.toThrow("team sessions only");
 
     const error: { context?: { code?: string } } = await entry!
       .handler({ task_id: "task_1", to: "lead", reason: "smoke" }, { sessionId } as never)
@@ -69,6 +69,6 @@ describe("TeamReassign lead tool registration smoke (§19 契约 4)", () => {
         },
         (caught: unknown) => caught as { context?: { code?: string } },
       );
-    expect(error.context).toEqual({ code: "team_not_present" });
+    expect(error.context).toEqual({ code: "team_lead_only" });
   });
 });

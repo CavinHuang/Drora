@@ -199,7 +199,11 @@ export { LogLevel, SessionEventType } from "@drora/contracts";
 export { TeamHub } from "./team/hub.js";
 export { readTeamHistoryPage } from "./team/history.js";
 export { createTeamMemberPort } from "./team/member-port.js";
-export { createTeamCollabToolEntries, createTeamLeadToolEntries } from "./team/team-tools.js";
+export {
+  createTeamCollabToolEntries,
+  createTeamLeadToolEntries,
+  createTeamManagerToolEntries,
+} from "./team/team-tools.js";
 // 2026-10-21 缺口8（spec §14）：成员消息 sink（subagent_reply_steer 禁令承载），测试直连断言 presentation。
 export { createTeamMemberMessageSink } from "./team/member-sink.js";
 export { MEMBER_STEER_PRESENTATION } from "./team/message-format.js";

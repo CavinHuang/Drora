@@ -208,6 +208,7 @@ describe("team 投影 schema round-trip（PR-2.1 黄金测试）", () => {
     expect(
       hub.stageTeam("lead_s1", {
         name: "burn-guard",
+        manager: { memberName: "morgana", profile: "team manager" },
         draftMembers: [
           { memberName: "alice", profile: "" },
           {

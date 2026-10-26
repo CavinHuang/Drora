@@ -130,6 +130,7 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     const leadPort = hub.leadPort(sessionId);
     const staged = leadPort.stageTeam({
       name: "smoke-team",
+      manager: { memberName: "morgana" },
       draftMembers: [
         {
           memberName: "alice",
@@ -168,12 +169,13 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     expect(hub.teamId).toBe(teamId);
     expect(hub.status).toBe("staged");
     const renamedRoster = hub.snapshot();
-    expect(renamedRoster?.members.map((member) => member.memberName)).toEqual(["alicia"]);
+    expect(renamedRoster?.members.map((member) => member.memberName)).toEqual(["morgana", "alicia"]);
     expect(hub.board()?.tasks.map((task) => task.assignee)).toEqual(["alicia"]);
     // 缺口10 回归断言：查询面重建草案原样回写 team 名与路由快照（hub 查询面已补齐
     // 回读；不回写 = stageTeam 整体替换 + journalStagedFact 把它们静默清空）。
     expect(renamedRoster?.name).toBe("smoke-team");
-    expect(renamedRoster?.members[0]?.modelSelection).toEqual({
+    // manager(morgana) 是 roster 首位；modelSelection 断言对象是改名后的 alicia（§22 契约 1）。
+    expect(renamedRoster?.members[1]?.modelSelection).toEqual({
       provider: "provider-a",
       model: "model-x",
     });
@@ -188,7 +190,7 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
     expect(hub.status).toBe("staged");
     const revisedRoster = hub.snapshot();
     expect(revisedRoster?.name).toBe("smoke-team");
-    expect(revisedRoster?.members[0]?.modelSelection).toEqual({
+    expect(revisedRoster?.members[1]?.modelSelection).toEqual({
       provider: "provider-a",
       model: "model-x",
     });

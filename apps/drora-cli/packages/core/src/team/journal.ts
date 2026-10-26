@@ -42,6 +42,7 @@ export function taskJournalFactOf(task: TeamTaskInternal): TeamJournalTaskFact {
 export type TeamJournalPayload =
   | {
       kind: "team_created";
+      managerName?: string;
       teamId: string;
       leadSessionId: string;
       name?: string;
@@ -50,6 +51,7 @@ export type TeamJournalPayload =
     }
   | {
       kind: "staged";
+      managerName?: string;
       teamId: string;
       name?: string;
       awaitingFeedback: boolean;
@@ -94,7 +96,10 @@ export type TeamJournalPayload =
   // escalated（M5 自动升级）与 archived（abandonTeamPlan 归档）同为用户/协议裁决
   // 结果的状态事实：不记则恢复后丢失「禁止自动重建/升级待决」语义（spec §2.6）。
   | { kind: "escalated"; teamId: string }
-  | { kind: "archived"; teamId: string };
+  | { kind: "archived"; teamId: string }
+  // §22 契约 3：终态单条汇报两段事实（dispatched 恰一次防重派；delivered 后 to=lead 路由关闭）。
+  | { kind: "final_report_dispatched"; teamId: string }
+  | { kind: "final_report_delivered"; teamId: string };
 
 /** 单条 journal 事件（seq 由 sink 单调分配；at = 事实时间，hub clock 供给）。 */
 export interface TeamJournalEvent {
@@ -269,6 +274,8 @@ export function parseTeamJournalEntries(
 const KNOWN_JOURNAL_KINDS: readonly TeamJournalPayload["kind"][] = [
   "team_created",
   "staged",
+  "final_report_dispatched",
+  "final_report_delivered",
   "approved",
   "member_added",
   "task_created",
@@ -363,6 +370,8 @@ export function replayTeamJournal(
       record = {
         teamId: payload.teamId,
         leadSessionId: payload.leadSessionId,
+        // §22 契约 1：manager 名重放恢复（staged 事实随后也会刷新）。
+        ...(payload.managerName === undefined ? {} : { managerName: payload.managerName }),
         ...(payload.name === undefined ? {} : { name: payload.name }),
         // 未知模式值按缺席处理（spec §8.1：回退继承 lead 当前模式，不猜语义）。
         ...(permissionMode === undefined ? {} : { permissionMode }),
@@ -390,6 +399,9 @@ export function replayTeamJournal(
     switch (payload.kind) {
       case "staged": {
         record.name = payload.name;
+        // §22 契约 1：staged 事实刷新 manager 名（草案修订可换 manager）。
+        if (payload.managerName === undefined) delete record.managerName;
+        else record.managerName = payload.managerName;
         // 2026-10-23 空白归一（specs/agents-team.md §19 契约 2④）：legacy 空串
         // profile/空白 thought 事实原样恢复会让烧帧草案在 CLI 重启后复燃——
         // fail-closed 下用户连 abandon 都不可达。重放即归一为键缺席，与
@@ -480,6 +492,13 @@ export function replayTeamJournal(
         record.status = "archived";
         frozen = "archived";
         break;
+      case "final_report_dispatched":
+        // §22 契约 3：经 record 恢复通道回填（hub adopt 后消费并清除）。
+        record.restoredFinalReport = { ...record.restoredFinalReport, dispatched: true };
+        break;
+      case "final_report_delivered":
+        record.restoredFinalReport = { ...record.restoredFinalReport, delivered: true };
+        break;
       case "resumed":
         // resumed 解除冻结，状态回到可推导族（最终推导在流末统一做）。
         frozen = undefined;
@@ -529,12 +548,14 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
       return (
         nonEmpty(payload.teamId) &&
         nonEmpty(payload.leadSessionId) &&
+        (payload.managerName === undefined || typeof payload.managerName === "string") &&
         nonEmpty(payload.createdAt) &&
         (payload.permissionMode === undefined || typeof payload.permissionMode === "string")
       );
     case "staged":
       return (
         nonEmpty(payload.teamId) &&
+        (payload.managerName === undefined || typeof payload.managerName === "string") &&
         Array.isArray(payload.members) &&
         Array.isArray(payload.tasks) &&
         payload.members.every(isDraftMemberFactWellFormed) &&
@@ -576,6 +597,8 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
     case "halted":
     case "escalated":
     case "archived":
+    case "final_report_dispatched":
+    case "final_report_delivered":
       return nonEmpty(payload.teamId);
   }
 }

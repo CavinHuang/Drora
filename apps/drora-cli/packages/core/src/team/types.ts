@@ -101,6 +101,14 @@ export interface TeamRecord {
   teamId: string;
   name?: string;
   leadSessionId: string;
+  /** 管理者成员名（§22 契约 1；roster 首位成员的名字，路由/汇报/工具 actor 键）。 */
+  managerName?: string;
+  /**
+   * §22 契约 3 恢复通道（journal 重放回填、hub adopt 后消费并清除）：终态汇报
+   * dispatched/delivered 两 flag 的冷恢复载体——hub 实例字段不随重放重建，经 record
+   * 携带一次。不进 wire 投影（投影逐字段映射）。
+   */
+  restoredFinalReport?: { dispatched?: boolean; delivered?: boolean };
   permissionMode?: TeamPermissionMode;
   status: TeamStatus;
   members: TeamMemberInternal[];

@@ -3104,3 +3104,61 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
 - 团队主面板（team tab）保持独立存在；成员 tab 与 team tab 并列，用户在 tab 间切换。
 - 测试：tab 开关幂等/自愈单测；面板点击经回调开 tab 单测（回调缺席回退本地钻既有测试
   不动）；E2E 并入 AT-01 转正批。
+
+## 22. Manager 架构：团队内建管理者，lead 退为纯结果消费者（2026-10-26 用户裁定，同日施工）
+
+用户裁定（三点全落）：①每次组建团队由**大模型自己命名 manager**，团队结构从 manager 开始
+（manager 是花名册首位、明确可见）；②lead 只收**恰好一条**终态汇报，成败皆由 manager 汇报，
+全部中间管理（分配/转派/监视/成员汇报消费）归 manager；③drora 主 agent（lead）不再持有任何
+团队管理工具——纯结果消费者。实证：session_d15d08f4 中 10+ 条 subagent_reply_steer /
+task_notification_steer 注入驱动主 agent 逐条回应，末段连续三次模型请求失败（上下文污染实害）。
+
+### 契约 1｜TeamSpawn 草案从 manager 开始（wire + hub 物化）
+
+- TeamSpawnInputSchema 增**必填**顶层 `manager: { name, profile?, model_selection? }`——
+  模型建草案先定 manager 再列成员（结构从 manager 开始）；hub.stageTeam 物化 manager 为
+  roster **首位成员**并记 `record.managerName`（journal staged fact 随行，重放恢复）。
+- wire additive：team 状态投影增 `managerName?: string`（桥 teamProjectionViewOf 补映射）；
+  审批面/花名册/成员卡据此出「管理者」徽标，成员列表 manager 恒首位。
+- 约束：manager 名不得与成员重名（E13 同门）；manager 计入 membersMax 配额（成本透明）。
+
+### 契约 2｜邮箱路由改向（成员→manager；manager→lead 是唯一 lead 入口）
+
+- `routeMail`：`to=lead` 且**发件人非 manager** → 收件人重写为 manager（成员发给 lead 的
+  一切消息由 manager 消费；投递/租约/世代纪律零改动）。重写发生在地址解析处，wire 返回值
+  语义不变（to 不改写返回，仅路由改向）。
+- **仅 manager → lead** 的邮件走既有 deliverLeadMail 通道注入 lead 会话（§14 缺口12 机制
+  复用）；其余任何成员对 lead 的直达在路由层不存在。
+
+### 契约 3｜终态单条汇报（manager 执笔，hub 结构化兜底）
+
+- 终态判定：板全任务终态 且 全员（含 manager）终态 → 团队终态边缘。
+- 边缘到达且未派发过（`final_report` journal fact 幂等）→ hub 给 manager 投一条**汇报指令
+  邮件**（from=lead，body=buildFinalReportRequest：指示 manager 写恰好一条最终汇报发给 lead，
+  含成败、各任务终态与产物指引）并 kick 唤醒（复活链承接 terminal manager）；manager 的
+  回信（to=lead，契约 2 唯一入口）即为终态汇报注入 lead——**此后 to=lead 路由关闭**
+  （finalReportDelivered 边缘：manager→lead 也拒/改投 manager 自留，防多报）。
+- manager 不可投（已移除/投递失败）→ hub 结构化兜底：拼任务终态表 + 产物引用一条注入 lead
+  （deliverLeadMail 直投，via=final_report_fallback）并 journal fact。两条路径都保证
+  lead 恰好收一条。
+- halted 非终态不汇报（用户自停自知）；escalated/cancelled 属终态照报。
+
+### 契约 4｜管理工具移交（lead 零管理工具；TeamReassign 归 manager）
+
+- `createTeamLeadToolEntries` 删 TeamReassign——lead 工具族只剩 TeamSpawn（建队入口）。
+- `hub.reassign` 入参语义放宽为 actor：lead 会话或 **manager child 会话**皆可
+  （requireActorRecord）；普通成员 child 一律 team_lead_only。
+- 成员工具族：manager 成员额外注册 TeamReassign（install 按 roster managerName 判定），
+  普通成员不注册；TeamMemberPort 增 `reassign`（child session 自证 actor）。
+
+### 契约 5｜/team 与 skill 文案
+
+- /team 命令正文与 bundled agents-team skill 指引同步：建队结构从 manager 开始（先定
+  manager 名字与画像，再列执行成员）；成员汇报收件人写 manager（非 lead）。
+
+### 契约 6｜测试面
+
+- core：路由改向两向（成员→lead 落 manager、manager→lead 注入 lead）；终态单报幂等 +
+  兜底路径；reassign actor 三分（lead ✓/manager ✓/普通成员 ✗）；manager 重名拒绝。
+- bootstrap：manager 成员工具注册差异；投影 managerName。
+- ui：审批面/花名册徽标与首位。E2E：并入 AT-01 转正批（manager 流全链）。

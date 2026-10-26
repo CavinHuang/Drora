@@ -56,3 +56,25 @@ export function buildSteerBody(entry: TeamMailboxEntry): string {
       : `\n\n(Context: task ${entry.targetTaskId}, attempt_id ${entry.targetAttemptId ?? "n/a"})`;
   return `Message from ${from}:${provenance}\n\n${entry.message}`;
 }
+
+/**
+ * 终态汇报指令邮件（specs/agents-team.md §22 契约 3，2026-10-26）：团队到达终态时
+ * hub 发给 manager——指示其写恰好一条最终汇报发给 lead（收件人写 lead），涵盖成败、
+ * 各任务终态与产物指引；此后不得再向 lead 发任何消息。
+ */
+export function buildFinalReportRequestBody(record: {
+  tasks: readonly { title: string; status: string; artifactRefs: readonly string[] }[];
+}): string {
+  const taskLines = record.tasks
+    .map((task) => `- ${task.title}: ${task.status}${task.artifactRefs.length > 0 ? ` (artifacts: ${task.artifactRefs.join(", ")})` : ""}`)
+    .join("\n");
+  return [
+    "All team tasks and members have reached terminal states.",
+    "Write ONE final report and send it to the lead (to=lead) now:",
+    "overall success or failure, each task's outcome, key deliverables or artifacts, and any follow-up the user should know.",
+    "This is the only message you may ever send to the lead — after it, do not message the lead again.",
+    "",
+    "Task outcomes:",
+    taskLines,
+  ].join("\n");
+}

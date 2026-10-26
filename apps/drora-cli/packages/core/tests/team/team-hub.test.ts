@@ -15,6 +15,7 @@ function makeClock(): BoardClock {
 
 const STAGE_INPUT: TeamStageInput = {
   name: "demo",
+  manager: { memberName: "morgana", profile: "team manager" },
   draftMembers: [
     { memberName: "alice", profile: "researcher" },
     { memberName: "bob", profile: "implementer" },
@@ -56,6 +57,17 @@ function stageEmpty(hub: TeamHub, leadSessionId = "lead_s1"): void {
   hub.stageTeam(leadSessionId, { ...STAGE_INPUT, draftTasks: [] });
 }
 
+/** §22 契约 2：to=lead 的合法发件人只剩 manager（roster 首位，spawnOk 记 agent_morgana）。 */
+function managerLeadSend(
+  hub: TeamHub,
+  message: string,
+  leadSessionId = "lead_s1",
+): { status: string; delivery?: string } {
+  const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+  void leadSessionId;
+  return morgana.send({ to: "lead", message }) as { status: string; delivery?: string };
+}
+
 describe("two-phase staging (approve before any member exists)", () => {
   it("stage → edit same draft atomically → approve spawns all; nothing exists before approve", async () => {
     const spawn = spawnOk();
@@ -73,19 +85,20 @@ describe("two-phase staging (approve before any member exists)", () => {
     // 会被 stageTeam 源头拒绝——本用例考察原子性，不考察非法草案的容忍。
     const second = hub.stageTeam("lead_s1", {
       ...STAGE_INPUT,
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "carol", profile: "solo" }],
       draftTasks: STAGE_INPUT.draftTasks.map((task) =>
         task.assignee === "alice" ? { ...task, assignee: "carol" } : task,
       ),
     });
     expect(second.teamId).toBe(teamId);
-    expect(hub.snapshot()?.members).toHaveLength(1);
+    expect(hub.snapshot()?.members).toHaveLength(2);
     expect(hub.status).toBe("staged");
     expect(spawn).not.toHaveBeenCalled();
 
     const approve = await hub.approveStage("lead_s1");
     expect(approve.status).toBe("ok");
-    expect(approve.spawnedMembers).toEqual(["carol"]);
+    expect(approve.spawnedMembers).toEqual(["morgana", "carol"]);
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(hub.status).toBe("active");
     expect(hub.snapshot()?.permissionMode).toBe("build"); // 权限模式成队定死
@@ -134,6 +147,7 @@ describe("draft validation at stageTeam (2026-10-18 team UI 审查修复 E13/E14
     const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
     const result = hub.stageTeam("lead_s1", {
       ...STAGE_INPUT,
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [
         { memberName: "alice", profile: "researcher" },
         { memberName: "alice", profile: "implementer" },
@@ -184,6 +198,7 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
     // wire 对 members[].profile 有 min(1)，空串原样上投影会烧每一帧（§17 契约 4）。
     expect(
       hub.stageTeam("lead_s1", {
+        manager: { memberName: "morgana", profile: "team manager" },
         draftMembers: [
           { memberName: "alice", profile: "" },
           { memberName: "bob", profile: "   " },
@@ -192,6 +207,8 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
       }).status,
     ).toBe("ok");
     for (const member of hub.snapshot()?.members ?? []) {
+      // manager 自带合法 profile（§22 首位）；归一断言只对空白入参的执行成员。
+      if (member.memberName === "morgana") continue;
       expect("profile" in member).toBe(false);
     }
     const stagedFact = journal.find((event) => event.payload.kind === "staged") as {
@@ -199,6 +216,7 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
     };
     expect(stagedFact).toBeDefined();
     for (const member of stagedFact.payload.members) {
+      if (member.memberName === "morgana") continue;
       expect("profile" in member).toBe(false);
     }
   });
@@ -214,6 +232,7 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
     });
     expect(
       hub.stageTeam("lead_s1", {
+        manager: { memberName: "morgana", profile: "team manager" },
         draftMembers: [
           {
             memberName: "alice",
@@ -223,14 +242,15 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
         draftTasks: [],
       }).status,
     ).toBe("ok");
-    const selection = hub.snapshot()?.members[0]?.modelSelection;
+    // §22：roster 首位是 manager——alice 断言下标移至 [1]（manager 无 modelSelection）。
+    const selection = hub.snapshot()?.members[1]?.modelSelection;
     expect("thought" in (selection ?? {})).toBe(false);
     expect(selection).toEqual({ provider: "provider-a", model: "model-a" });
     const stagedFact = journal.find((event) => event.payload.kind === "staged") as {
       payload: { members: { modelSelection?: { thought?: string } }[] };
     };
     expect(stagedFact).toBeDefined();
-    expect(stagedFact.payload.members[0]?.modelSelection).toEqual({
+    expect(stagedFact.payload.members[1]?.modelSelection).toEqual({
       provider: "provider-a",
       model: "model-a",
     });
@@ -240,6 +260,7 @@ describe("blank profile/thought normalize to key-absent at stageTeam (§19 契�
     const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
     expect(
       hub.stageTeam("lead_s1", {
+        manager: { memberName: "morgana", profile: "team manager" },
         draftMembers: [{ memberName: "alice", profile: "researcher" }, { memberName: "bob" }],
         draftTasks: [],
       }).status,
@@ -346,8 +367,9 @@ describe("halt/resume and frozen scheduling", () => {
     hub.markMemberWorking("alice");
 
     expect(hub.halt("lead_s1").status).toBe("ok");
-    // 中断全员（alice=working；bob=spawning 同样在列），成员终态边缘在冻结期内消费。
-    await vi.waitFor(() => expect(settleCalls.length).toBe(2));
+    // 中断全员（alice=working；bob/morgana=spawning 同样在列，§22 manager 同为成员
+    // 参与中断），成员终态边缘在冻结期内消费。
+    await vi.waitFor(() => expect(settleCalls.length).toBe(3));
     prompts.length = 0; // 清掉 halt 前的认领派发，只观察 resume 后的派发
     await hub.handleMemberTerminal("alice");
     await hub.handleMemberTerminal("bob");
@@ -704,6 +726,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
       journalWriter: (event) => journal.push(event as never),
     });
     const draft = {
+      manager: { memberName: "morgana" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         {
@@ -730,6 +753,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
   it("rejects duplicate or empty explicit taskIds (draft_duplicate_task)", () => {
     const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
     const duplicate = hub.stageTeam("lead_s1", {
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         { taskId: "t_x", title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
@@ -739,6 +763,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
     expect(duplicate.status).toBe("rejected");
     expect(duplicate.error?.code).toBe("draft_duplicate_task");
     const empty = hub.stageTeam("lead_s1", {
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         { taskId: "", title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
@@ -750,6 +775,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
   it("rejects dependsOn referencing tasks outside the draft (unknown_dependency)", () => {
     const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
     const result = hub.stageTeam("lead_s1", {
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         { title: "t1", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["task_missing"] },
@@ -765,6 +791,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
   it("rejects dependency cycles including self-dependency (dependency_cycle)", () => {
     const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
     const cycle = hub.stageTeam("lead_s1", {
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         { taskId: "t_a", title: "a", spec: { goal: "g", acceptance: ["a"] }, dependsOn: ["t_b"] },
@@ -775,6 +802,7 @@ describe("draft task identity + dependency validation (2026-10-21 缺口5, spec 
     expect(cycle.error?.code).toBe("dependency_cycle");
     expect(cycle.error?.message).toContain("t_a -> t_b -> t_a");
     const selfDep = hub.stageTeam("lead_s1", {
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "researcher" }],
       draftTasks: [
         {
@@ -828,7 +856,7 @@ describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    const sent = alice.send({ to: "lead", message: "report to lead" });
+    const sent = managerLeadSend(hub, "report to lead");
     // wire 返回值保持 queued（送达事实只认邮箱 deliveredAccepted，spec §14）。
     expect(sent.status).toBe("success");
     expect(sent.status === "success" && sent.delivery).toBe("queued");
@@ -860,7 +888,7 @@ describe("lead mailbox delivery (2026-10-21 缺口12, spec §14)", () => {
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    alice.send({ to: "lead", message: "first report" });
+    managerLeadSend(hub, "first report");
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(false);
 
@@ -1090,8 +1118,8 @@ describe("member terminal failure disposition (spec §16 契约 1, dsh-agent-tea
     expect(failed.output).toContain("replacement task");
     expect(failed.output).not.toContain("TeamReassign");
     expect(failed.output).not.toContain("take it over");
-    // lead 邮箱恰一条（from=成员、to=lead、携 source_task_id/source_attempt_id）
-    const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "lead");
+    // §22 契约 2：失败通知投 manager（中间管理事件；legacy lead 收件已随架构废除）
+    const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "morgana");
     expect(leadMail).toHaveLength(1);
     expect(leadMail[0]?.from).toBe("alice");
     expect(leadMail[0]?.sourceTaskId).toBe(task.taskId);
@@ -1182,7 +1210,8 @@ describe("member terminal failure disposition (spec §16 契约 1, dsh-agent-tea
     await hub.handleMemberFailed("alice", { status: "failed" });
 
     expect(hub.board()!.tasks[0]!.status).toBe("completed"); // 板零改动
-    const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "lead");
+    // §22 契约 2：失败通知（noted）投 manager——同 ① 用例口径。
+    const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "morgana");
     expect(leadMail).toHaveLength(1); // lead 仍收一次通知（noted）
     expect(leadMail[0]?.sourceTaskId).toBeUndefined(); // noted 无任务绑定
     expect(leadMail[0]?.message).toContain("No open task");
@@ -1500,7 +1529,7 @@ describe("mailbox delivery lease (spec §16 契约 3, dsh 投递 claim 互斥 + 
     await hub.approveStage("lead_s1");
 
     const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    alice.send({ to: "lead", message: "lead batch probe" });
+    managerLeadSend(hub, "lead batch probe");
     // routeMail 的 fire-and-forget 触发点已盖 claim 并发起注入
     await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
     expect(batchSizes).toEqual([1]);
@@ -1714,13 +1743,9 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
     // 终态清凭证（applyTaskUpdate 终态分支）：提交的 attemptId 必非任务当前代。
     expect(hub.board()?.tasks.find((c) => c.taskId === task.taskId)?.attemptId).toBeUndefined();
 
-    // 成员自然顺序（spec §20 契约 1 现状缺口场景）：先 TeamTaskUpdate{completed} 再补报告。
-    const sent = hub.memberPort({ agentId: "agent_alice", memberName: "alice" }).send({
-      to: "lead",
-      message: "report: survey done",
-      sourceTaskId: task.taskId,
-      sourceAttemptId: attemptId,
-    });
+    // §22 契约 2：to=lead 由 manager 发（alice 口径已被 portSend 改向；终态源剥离
+    // 断言对 manager 口径同样成立——sourceTaskId 引用与剥离逻辑与发送者无关）。
+    const sent = managerLeadSend(hub, "report: survey done");
     expect(sent.status).toBe("success");
 
     // 入箱 entry 剥离 sourceAttemptId（保留 sourceTaskId 展示引用；模型报告恒无
@@ -1728,7 +1753,9 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
     expect(hub.mailboxEntries()).toHaveLength(1);
     const entry = hub.mailboxEntries()[0]!;
     expect(entry.sourceAttemptId).toBeUndefined();
-    expect(entry.sourceTaskId).toBe(task.taskId);
+    // manager 口径无 source 载荷（§22）；终态源剥离的 source 断言保留在 alice→manager
+    // 口径的姊妹用例（同 describe 组内）。
+    expect(entry.sourceTaskId).toBeUndefined();
     expect(entry.sourceTaskStatus).toBeUndefined();
 
     // lead 侧 pendingMail 可投递：deliverPendingLeadMail 恰一次注入该条并接受。
@@ -1779,13 +1806,14 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
       sourceTaskId: task.taskId,
       sourceAttemptId: attemptId,
     };
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    const first = alice.send(report);
+    // §22：to=lead 唯一入口是 manager——dedup/重发不对称语义在 manager 口径重证。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const first = morgana.send({ ...report, to: "lead" });
     expect(first.status).toBe("success");
     await vi.waitFor(() => expect(hub.mailboxEntries()[0]?.deliveredAccepted).toBe(true));
 
     // 不对称语义（dsh 补1）「未绑定」半边照常适用：已投递后重发允许新条目。
-    const second = alice.send(report);
+    const second = morgana.send({ ...report, to: "lead" });
     expect(second.status).toBe("success");
     expect(first.status === "success" && second.status === "success" && second.messageId).not.toBe(
       first.messageId,
@@ -2117,14 +2145,16 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
       agentId: "agent_alice",
       attemptId,
     });
-    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
+    // §22 契约 2：失败通知投 manager（中间管理事件）；lead 通道零调用。
+    expect(deliver).not.toHaveBeenCalled();
     const notice = hub.mailboxEntries().find((entry) => entry.sourceAttemptId === attemptId);
     expect(notice?.deliveredAccepted).toBe(false);
 
     // 重开：旧世代 attemptId 失配 → isCurrentMail 失活，重投边缘不再投旧通知
     expect(lead.reopenTask({ taskId: task.taskId }).status).toBe("ok");
     await hub.kickTeam();
-    expect(deliver).toHaveBeenCalledTimes(1); // 仅 enqueue 时的即时投递尝试
+    // §22：失败通知走成员通道（manager 收件），lead 通道（deliver mock）全程零调用。
+    expect(deliver).not.toHaveBeenCalled();
     expect(
       hub.mailboxEntries().find((entry) => entry.sourceAttemptId === attemptId)?.deliveredAccepted,
     ).toBe(false);
@@ -2158,6 +2188,7 @@ describe("draft field wire limits (specs/agents-team.md §17 契约 4)", () => {
     });
     const result = hub.stageTeam("lead_s1", {
       ...STAGE_INPUT,
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "p".repeat(200) }],
     });
     expect(result.status).toBe("rejected");

@@ -132,7 +132,9 @@ async function reviseTeamPlan(
     "reviseTeamPlan",
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
-      draftMembers: roster.members.map((member) => ({
+      // §22 契约 1：manager 随重建入参回写（roster 首位 = manager；hub 物化保持首位）。
+      manager: roster.members[0]!,
+      draftMembers: roster.members.slice(1).map((member) => ({
         memberName: member.memberName,
         // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——空白与
         // 缺席由 hub.stageTeam 落库归一兜住，空串落库会破 wire min(1) 烧帧。
@@ -271,7 +273,9 @@ async function setTeamMemberName(
     "setTeamMemberName",
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
-      draftMembers: roster.members.map((member) => ({
+      // §22 契约 1：manager 随重建入参回写（roster 首位 = manager；hub 物化保持首位）。
+      manager: roster.members[0]!,
+      draftMembers: roster.members.slice(1).map((member) => ({
         memberName: member.memberName === payload.memberName ? payload.newName : member.memberName,
         // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——
         // 同 reviseTeamPlan，空串落库会破 wire min(1) 烧帧。

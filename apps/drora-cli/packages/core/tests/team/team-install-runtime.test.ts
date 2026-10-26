@@ -146,13 +146,14 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     const hub = installed!.hub;
     const leadPort = hub.leadPort(lead.sessionId);
     const staged = leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [],
     });
     expect(staged.status).toBe("ok");
     const approved = await leadPort.approveStage();
     expect(approved.status).toBe("ok");
-    expect(approved.spawnedMembers).toEqual(["alice"]);
+    expect(approved.spawnedMembers).toEqual(["morgana", "alice"]);
 
     // 共享注册表 = 成员构造注入的同一实例：团队工具与内建工具同表可达。
     const names = teamToolNames(installed!.toolRegistry);
@@ -168,6 +169,7 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     const hub = installed!.hub;
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [],
     });
@@ -272,11 +274,14 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
     let modelCalls = 0;
     respond.mockImplementation(async () => {
       modelCalls += 1;
-      return modelCalls <= 1 ? TEST_MODEL_RESULT : revivedTurnGate;
+      // §22：manager 是首个 spawn（欢迎回合第 1 次调用）、alice 第 2 次——两次欢迎
+      // 都放行（自然终态触发认领边缘），挂起第 3 次（alice 复活认领回合）供断言。
+      return modelCalls <= 2 ? TEST_MODEL_RESULT : revivedTurnGate;
     });
 
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [
         {
@@ -303,7 +308,8 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
       { timeout: 10_000 },
     );
     // 复活回合在飞（gate 挂起）：运行态接线把 roster 从 terminal 翻回 working
-    expect(hub.snapshot()?.members[0]?.state).toBe("working");
+    //（§22：members[0]=manager；alice 是 [1]）。
+    expect(hub.snapshot()?.members[1]?.state).toBe("working");
 
     releaseRevivedTurn(TEST_MODEL_RESULT);
     // 复活回合结束的终态边缘同样收敛（park 驻留 attempt，成员回 terminal）
@@ -345,6 +351,7 @@ describe("agents team runtime reachability (PR-1.1′d)", () => {
 
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [
         { memberName: "alice", profile: "general-purpose" },
         // profile 是描述性画像（契约 6：不进 launch）——第 2 个成员 launch 失败由上面的
@@ -388,19 +395,22 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     const hub = installed!.hub;
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [],
     });
     await leadPort.approveStage();
     await hub.handleMemberTerminal("alice");
 
+    // §22 契约 2：to=lead 唯一入口是 manager（roster[0]）；成员口径已被 portSend 改向。
     const rosterMember = hub.snapshot()?.members[0];
     expect(rosterMember?.childSessionId).toBeTruthy();
-    const alicePort = hub.memberPort({
+    expect(rosterMember?.memberName).toBe("morgana");
+    const managerPort = hub.memberPort({
       agentId: rosterMember!.agentId,
-      memberName: "alice",
+      memberName: "morgana",
     });
-    const sent = alicePort.send({ to: "lead", message: "E2E_LEAD_MAIL_REPORT" });
+    const sent = managerPort.send({ to: "lead", message: "E2E_LEAD_MAIL_REPORT" });
     expect(sent.status).toBe("success");
 
     // 缺口12 消费闭环：deliverLeadMail → lead.enqueueSubagentMessage → 命令队列 →
@@ -492,14 +502,18 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     // "failed"。通知未分诊前保持失败（成员回合的重试同样命中），分诊后放行后续
     // 模型调用（lead 消费通知的独立轮）。
     const failureEdge = vi.spyOn(hub, "handleMemberFailed");
+    let failureModelCalls = 0;
     respond.mockImplementation(async () => {
-      if (failureEdge.mock.calls.length === 0) {
+      failureModelCalls += 1;
+      // §22：第 1 次调用是 manager 欢迎（放行），第 2 次 alice 回合失败进分诊。
+      if (failureModelCalls === 2) {
         throw new Error("429 from provider; retries exhausted");
       }
       return TEST_MODEL_RESULT;
     });
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [],
     });
@@ -515,16 +529,19 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     ];
     expect(memberName).toBe("alice");
     expect(info?.status).toBe("failed");
-    expect(info?.agentId).toBe(hub.snapshot()?.members[0]?.agentId);
+    expect(info?.agentId).toBe(
+      hub.snapshot()?.members.find((member) => member.memberName === "alice")?.agentId,
+    );
     // noted（无开放任务）：板零改动，lead 邮箱恰一条失败通知（缺口12 通道投递后
     // 落 lead_injected 送达事实）。
     expect(hub.board()?.tasks).toHaveLength(0);
     await vi.waitFor(
       () => {
-        const leadMail = hub.mailboxEntries().filter((entry) => entry.to === "lead");
-        expect(leadMail).toHaveLength(1);
-        expect(leadMail[0]?.from).toBe("alice");
-        expect(leadMail[0]?.message).toContain("429 from provider");
+        // §22 契约 2：失败通知投 manager（中间管理事件）。
+        const notice = hub.mailboxEntries().filter((entry) => entry.to === "morgana");
+        expect(notice).toHaveLength(1);
+        expect(notice[0]?.from).toBe("alice");
+        expect(notice[0]?.message).toContain("429 from provider");
       },
       { timeout: 10_000 },
     );
@@ -547,6 +564,7 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     const hub = installed!.hub;
     const leadPort = hub.leadPort(lead.sessionId);
     leadPort.stageTeam({
+      manager: { memberName: "morgana", profile: "team manager" },
       draftMembers: [{ memberName: "alice", profile: "general-purpose" }],
       draftTasks: [],
     });
@@ -564,6 +582,8 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
       at: new Date(0).toISOString(),
       deliveredAccepted: false,
     });
+    // 显式投递边缘：直击 lead 通道（kickTeam 经真实成员通道可能挂起，与本断言无关）。
+    await hub.deliverPendingLeadMail();
 
     // 投递边缘：install 回调查 roster（snapshot 已滤 removed）→ skipped → hub 丢弃
     // + journal message_dropped（异步刷盘经 sessionStore 通道可观测）。

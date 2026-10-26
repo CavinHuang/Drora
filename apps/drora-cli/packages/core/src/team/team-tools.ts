@@ -390,6 +390,19 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
 // 拒绝，模型当场自纠，而不是让坏载荷落库后烧订阅。
 const TeamSpawnInputSchema = z.object({
   name: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
+  // §22 契约 1（2026-10-26）：团队结构从 manager 开始——模型先命名管理者再列执行成员；
+  // hub 物化为 roster 首位成员并记 record.managerName。
+  manager: z.object({
+    name: z.string().min(1).max(TEAM_LIMITS.maxNameChars),
+    profile: z.string().max(TEAM_LIMITS.maxNameChars).optional(),
+    model_selection: z
+      .object({
+        provider: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+        model: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+        thought: z.string().max(TEAM_LIMITS.maxIdChars).optional(),
+      })
+      .optional(),
+  }),
   members: z
     .array(
       z.object({
@@ -451,11 +464,20 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
     teamToolEntry({
       name: "TeamSpawn",
       description:
-        "Stage an agent team draft (member roster + task DAG) for the user to review. No member is spawned until the user approves the plan. Call once with the full roster and DAG; re-call to atomically revise the same draft (pass task_id to keep task identity).",
+        "Stage an agent team draft (manager + member roster + task DAG) for the user to review. No member is spawned until the user approves the plan. The team structure starts with the manager: name a manager yourself first (it coordinates tasks, consumes member reports, and delivers exactly one final report to the lead), then list worker members, then the task DAG. Members report to the manager, not to the lead. Call once; re-call to atomically revise the same draft (pass task_id to keep task identity).",
       inputSchema: {
         type: "object",
         properties: {
           name: { type: "string" },
+          manager: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              profile: { type: "string" },
+              model_selection: { type: "object" },
+            },
+            required: ["name"],
+          },
           members: {
             type: "array",
             minItems: 1,
@@ -494,7 +516,7 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
             },
           },
         },
-        required: ["members", "tasks"],
+        required: ["manager", "members", "tasks"],
         additionalProperties: false,
       },
       runtimeInputSchema: TeamSpawnInputSchema,
@@ -512,6 +534,24 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
         const parsed = TeamSpawnInputSchema.parse(raw);
         const result = port.stageTeam({
           ...(parsed.name === undefined ? {} : { name: parsed.name }),
+          // §22 契约 1：manager 随草案上 port（hub 物化为 roster 首位 + record.managerName）。
+          manager: {
+            memberName: parsed.manager.name,
+            ...(parsed.manager.profile === undefined
+              ? {}
+              : { profile: parsed.manager.profile }),
+            ...(parsed.manager.model_selection === undefined
+              ? {}
+              : {
+                  modelSelection: {
+                    provider: parsed.manager.model_selection.provider,
+                    model: parsed.manager.model_selection.model,
+                    ...(parsed.manager.model_selection.thought === undefined
+                      ? {}
+                      : { thought: parsed.manager.model_selection.thought }),
+                  },
+                }),
+          },
           draftMembers: parsed.members.map((member) => ({
             memberName: member.name,
             // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——
@@ -562,12 +602,27 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
         };
       },
     }),
-    // §19 契约 4：转派/接管工具条目——hub.reassign 三步交接（失效旧凭证 →
-    // interruptAndSettle 静默 → handoffId 再入新者胜）之上的模型入口；内核语义零改动。
+    // §22 契约 4（2026-10-26）：TeamReassign 已从 lead 工具族移除——manager 架构下
+    // lead 是纯结果消费者（零管理工具）；转派/接管归 manager 成员（install 按
+    // roster managerName 注册，hub 侧 actor 判定 isTeamActor）。
+  ];
+}
+
+// ---------- §22 契约 4：manager 成员工具族（2026-10-26） ----------
+
+/**
+ * manager 成员的管理工具（转派/接管）。经同一注册表注册、port 按会话解析：manager
+ * child 命中 memberPort.reassign；普通成员 hub 层 team_lead_only（描述明示 manager
+ * 专用，注册表形态按会话解析而非按成员注册——工具对全员可见、硬门在 hub）。
+ */
+export function createTeamManagerToolEntries(
+  resolvePort: TeamToolPortResolver,
+): ToolEntry[] {
+  return [
     teamToolEntry({
       name: "TeamReassign",
       description:
-        "Reassign one of the team's open tasks to another member, or take it over yourself with to=\"lead\" (lead takeover moves the task to in_progress directly, no claim handshake). Only non-terminal tasks can be reassigned: the current assignee's attempt is revoked and they are told the task moved on. As lead you can hold at most one open task (claimed/in_progress) at a time; a second takeover is rejected.",
+        "Manager only: reassign one of the team's open tasks to another member, or take it over yourself. Only non-terminal tasks can be reassigned; the current assignee's attempt is revoked. As the manager you may hold at most one open task at a time.",
       inputSchema: {
         type: "object",
         properties: {
@@ -582,35 +637,27 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
       outputSchema: { type: "object", properties: { task: { type: "object" } } },
       readOnly: false,
       handler: async (raw, context) => {
-        // §19 契约 4：成员会话 resolver 返回 undefined → 结构性拒（E10 lead 专属的
-        // 装配保证，成员零通路；照 TeamSpawn 同门）。端口检查先于 schema 解析。
-        const port = resolveLeadPort({ sessionId: context.sessionId });
-        if (port === undefined) {
+        const port = resolvePort({ sessionId: context.sessionId });
+        if (port === undefined || port.reassign === undefined) {
           throw createCoreError(
             CoreErrorType.ConfigurationError,
-            "Team port is not configured for TeamReassign (lead session only)",
+            "Team port is not configured for TeamReassign (team sessions only)",
             { recoverable: false },
           );
         }
         const parsed = TeamReassignInputSchema.parse(raw);
-        // reason 是端口必填载荷（TeamReassignInput）；hub.reassign 现状不消费不持久化
-        //（照 §16 契约 5 reopen「无 reason 持久化面」同规）——原样透传，不在此加工。
         const result = await port.reassign({
           taskId: parsed.task_id,
           to: parsed.to,
           reason: parsed.reason,
         });
         if (result.status === "rejected") {
-          // §19 契约 4：六拒绝语义全数透传（team_halted / team_not_present /
-          // invalid_transition / attempt_revoked / name_redirect / team_lead_only）——
-          // error.code 挂 CoreError.context，拒绝文案与 hint 原样出显。
           throw createCoreError(
             CoreErrorType.ConfigurationError,
             `${result.error?.message ?? "reassign rejected"}${result.error?.hint === undefined ? "" : ` ${result.error.hint}`}`,
             { context: { code: result.error?.code }, recoverable: false },
           );
         }
-        // ok：回显轮换后的任务卡（新 assignee 与新 attempt 世代），lead 依此核对轮换。
         return { task: taskCardJson(port.taskGet(parsed.task_id)) };
       },
     }),

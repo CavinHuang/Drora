@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TeamLeadPort } from "@drora/contracts";
 import { TEAM_LIMITS } from "@drora/shared/drora-protocol-v4";
-import { createTeamLeadToolEntries } from "../../src/team/team-tools.js";
+import { createTeamManagerToolEntries } from "../../src/team/team-tools.js";
 
 // specs/agents-team.md §19 契约 4（2026-10-23）：TeamReassign lead 工具接线——
 // 端口与内核全备（hub 三步交接/静默链/新者胜见 team-hub.test.ts）后的生产入口。
@@ -34,7 +34,7 @@ function harness(options: { reassignResult?: unknown } = {}) {
       attemptId: "att_2",
     }),
   } as unknown as TeamLeadPort;
-  const entries = createTeamLeadToolEntries((context) =>
+  const entries = createTeamManagerToolEntries((context) =>
     context.sessionId === "lead_s1" ? port : undefined,
   );
   const reassign = entries.find((entry) => entry.metadata.name === "TeamReassign");
@@ -70,7 +70,7 @@ describe("TeamReassign lead tool boundary (§19 契约 4)", () => {
 
   it("成员会话 resolver undefined → 结构性拒（E10 lead 专属），端口零调用", async () => {
     const { reassign, reassignCalls, memberContext } = harness();
-    await expect(reassign.handler(VALID_INPUT, memberContext)).rejects.toThrow("lead session only");
+    await expect(reassign.handler(VALID_INPUT, memberContext)).rejects.toThrow("team sessions only");
     expect(reassignCalls()).toEqual([]);
   });
 

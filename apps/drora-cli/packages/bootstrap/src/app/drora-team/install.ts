@@ -1,5 +1,6 @@
 import {
   createTeamCollabToolEntries,
+  createTeamManagerToolEntries,
   createTeamJournalSessionStoreSink,
   readPersistedMailboxEntries,
   readTeamHistoryPage,
@@ -534,10 +535,16 @@ export function installDroraAgentsTeam(input: AgentsTeamInstallInput): AgentsTea
 
   // 团队工具注册：同一注册表实例服务 lead 与全体成员；身份经 hub 在场性校验
   //（E6 成员移除/E10 lead 专属由端口实现保证）。
-  for (const entry of createTeamCollabToolEntries((context) => {
+  const resolveTeamToolPort = (context: { sessionId: string }) => {
     if (context.sessionId === lead.sessionId) return hub.leadPort(lead.sessionId);
     return memberPortByChildSession.get(context.sessionId);
-  })) {
+  };
+  for (const entry of createTeamCollabToolEntries(resolveTeamToolPort)) {
+    toolRegistry.register(entry);
+  }
+  // §22 契约 4：manager 工具族（转派/接管）——同一注册表按会话解析 port；硬门在
+  // hub isTeamActor（普通成员调用返回 team_lead_only，描述明示 manager 专用）。
+  for (const entry of createTeamManagerToolEntries(resolveTeamToolPort)) {
     toolRegistry.register(entry);
   }
   // lead 专属工具族（2026-10-21 缺口0，spec §14）：TeamSpawn 是 staged 草案的唯一

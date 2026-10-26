@@ -311,3 +311,15 @@ export function reconcilePersistedMailEntries(
   }
   return { mailbox: next, appended, merged };
 }
+
+/** 原子替换单条邮箱条目（§22 契约 2：路由改投时保序替换；id 缺席不动）。 */
+export function replaceMailEntry(
+  mailbox: readonly TeamMailboxEntry[],
+  next: TeamMailboxEntry,
+): TeamMailboxEntry[] {
+  const index = mailbox.findIndex((entry) => entry.messageId === next.messageId);
+  if (index < 0) return [...mailbox];
+  const copy = [...mailbox];
+  copy[index] = next;
+  return copy;
+}

@@ -3067,3 +3067,23 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
   级；逐工具面归后续卡，前置=权限作用域四选项裁决 §15「明确不做」的再评估）。
 - **测试**：wire 载荷解析（带/不带 mode）；hub 覆写与缺省维持；commands 信封携带；
   编辑器默认值与选择后批准信封；E2E 并入 AT-01 转正批。
+
+### §18 附裁二｜审批卡逐层对齐 workflow 确认卡（2026-10-26 用户裁定，同日施工）
+
+分析结论（workflow 卡解剖：PermissionDialog 外壳 → 眉题+origin badge → 内容块 space-y-4
+（WorkflowPermissionBlock：WorkflowCardHeader 问句/名字/细节 → 设置行「句中值即控件」芯片
+（WORKFLOW_ASK_CHIP/ LINE/ TAIL 三类名族）→ Timeline → 脚本折叠）→ 选项 listbox → 反馈行
+→ 失败 alert（text-ui-base）→ 底栏）。team 对齐映射：
+
+- **表头**：镜像 WorkflowCardHeader 结构（kind 问句 font-medium + name 团队名 truncate
+  text-foreground-subtle + detail「N 名成员 · N 项任务」tabular-nums text-foreground-subtlest
+  同类名）——不借 WORKFLOW_CARD_ICON 徽记（§15 裁决不变）。
+- **权限设置行**：句内芯片形态照 WorkflowAskSettings 族——「成员以 [芯片 ▾] 权限运行」
+  WORKFLOW_ASK_LINE_CLASS_NAME 行 + h-6 芯片触发（WORKFLOW_ASK_CHIP_CLASS_NAME 同款类）
+  + DropdownMenu 五选一；改动后句尾「· 原为 X ↺」重置尾巴（照 WorkflowAskWasTail）。
+  取代原生 select 下拉。
+- **成员/任务清单**：保持全量呈现（§10「审批面定义即全量呈现，不设折叠」裁决不变，
+  不学脚本折叠）；改用 PermissionDialog bounded 模式的限高滚动形态
+  （max-h + overflow-y-auto + overscroll-contain），长草案不再撑高卡片。
+- **失败 alert**：字号对齐 text-ui-base（原 text-ui-sm）。
+- 外层容器/眉题/选项 listbox/反馈行/底栏/位置：§18 附裁已对齐，维持。

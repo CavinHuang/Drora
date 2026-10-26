@@ -1486,6 +1486,9 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.confirm": "确认",
   // §10 增补三：审批面板成员权限选择行（枚举词汇独立成族，不与 composer 模式键混用）。
   "team.stagedEditor.memberModeLabel": "成员权限",
+  "team.stagedEditor.memberModeLead": "成员以",
+  "team.stagedEditor.memberModeTrail": "权限运行",
+  "team.stagedEditor.memberModeWas": "原为 {value}",
   "team.stagedEditor.memberModeKeep": "维持建队时的值",
   "team.permission.mode.build": "变更前确认",
   "team.permission.mode.edit": "自动编辑",

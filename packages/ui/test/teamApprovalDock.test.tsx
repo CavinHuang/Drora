@@ -160,7 +160,10 @@ describe("TeamApprovalDock", () => {
         createElement(TeamApprovalDock, { team, sessionId: "lead_s1", sendCommand }),
       ),
     );
-    fireEvent.change(screen.getByTestId("team-staged-member-mode"), { target: { value: "yolo" } });
+    const chip = screen.getByTestId("team-staged-member-mode");
+    fireEvent.keyDown(chip, { key: "Enter" });
+    const item = await screen.findByTestId("team-staged-member-mode-yolo");
+    fireEvent.click(item);
     fireEvent.click(screen.getByTestId("team-staged-approve"));
     await vi.waitFor(() => {
       expect(sendCommand).toHaveBeenCalledTimes(1);

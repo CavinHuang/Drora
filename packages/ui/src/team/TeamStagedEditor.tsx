@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
-import { InfoIcon, PencilIcon } from "lucide-react";
+import { ChevronDownIcon, InfoIcon, PencilIcon, Undo2Icon } from "lucide-react";
 import {
   teamPermissionModeSchema,
   type TeamPermissionModeWire,
@@ -7,6 +7,12 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamCommandOutcome } from "./commands.js";
@@ -300,22 +306,33 @@ export function TeamStagedEditor({
       data-testid="team-staged-editor"
     >
       {/*
-       * 问句表头（spec §10 呈现规则1；对齐 WorkflowPermissionBlock 的「问句在最上」语汇，
-       * WorkflowPermissionBlock.tsx:240——但不借 workflow 徽记，见文件头注）：问句行承载
-       * 决策提问，计数行 = 原 stagedSummary 文案移作表头计数（「N 名成员 · N 项任务」）。
-       * 会话流卡头已有团队名与状态徽标，此处不重复。
+       * 问句表头（§10 呈现规则1；§18 附裁二：镜像 WorkflowCardHeader 结构——kind 问句
+       * font-medium + name 团队名 truncate + detail 计数 tabular-nums，类名逐字同款；
+       * 不借 WORKFLOW_CARD_ICON 徽记（§15 裁决不变）。
        */}
-      <header className="flex flex-col gap-0.5">
-        <h2 className="text-ui-base font-medium">
-          {intl.formatMessage({ id: "team.stagedEditor.question" })}
-        </h2>
-        <span className="text-ui-caption text-foreground-subtle">
+      <div
+        className="flex min-w-0 flex-wrap items-center gap-2 text-ui-base"
+        data-testid="team-staged-header"
+      >
+        <span className="shrink-0 whitespace-nowrap font-medium">
+          <span className="text-foreground">
+            {intl.formatMessage({ id: "team.stagedEditor.question" })}
+          </span>
+        </span>
+        <span
+          className="min-w-20 flex-1 truncate text-foreground-subtle"
+          data-testid="team-staged-name"
+          title={draft.teamName ?? intl.formatMessage({ id: "team.ui.title" })}
+        >
+          {draft.teamName ?? intl.formatMessage({ id: "team.ui.title" })}
+        </span>
+        <span className="ml-auto min-w-0 truncate tabular-nums text-foreground-subtlest">
           {intl.formatMessage(
             { id: "team.stagedEditor.stagedSummary" },
             { members: draft.members.length, tasks: draft.tasks.length },
           )}
         </span>
-      </header>
+      </div>
 
       {draft.awaitingFeedback ? (
         <p role="status" className="text-ui-sm text-foreground-subtle">
@@ -323,44 +340,102 @@ export function TeamStagedEditor({
         </p>
       ) : null}
 
-      <DraftMemberRows
-        members={draft.members}
-        {...(onRenameMember === undefined ? {} : { onRenameMember })}
-      />
-      <DraftTaskRows tasks={draft.tasks} />
+      {/*
+       * 草案清单（§10「全量呈现不折叠」裁决不变；§18 附裁二：限高滚动照 PermissionDialog
+       * bounded 模式——长草案不再撑高确认窗）。
+       */}
+      <div className="max-h-72 min-w-0 overflow-y-auto overscroll-contain">
+        <div className="flex flex-col gap-3">
+          <DraftMemberRows
+            members={draft.members}
+            {...(onRenameMember === undefined ? {} : { onRenameMember })}
+          />
+          <DraftTaskRows tasks={draft.tasks} />
+        </div>
+      </div>
 
       {/*
        * 成员权限选择行（§10 增补三，2026-10-26：对齐 workflow 确认面板 ask settings 的
        * 位置语义——批准前把成员权限定好）。默认=建队捕获值；批准信封随行选定值。
        */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="team-staged-member-mode" className="text-ui-caption text-foreground-subtle">
-          {intl.formatMessage({ id: "team.stagedEditor.memberModeLabel" })}
-        </label>
-        <select
-          id="team-staged-member-mode"
-          value={memberMode ?? ""}
-          disabled={busy}
-          onChange={(event) => {
-            const next = event.target.value;
-            setMemberMode(
-              next === "" ? null : (teamPermissionModeSchema.parse(next) as TeamPermissionModeWire),
-            );
-          }}
-          data-testid="team-staged-member-mode"
-          className="h-8 min-w-0 rounded-lg border border-border bg-surface px-2 text-ui-sm text-foreground focus-visible:border-ring focus-visible:outline-none pointer-coarse:min-h-11"
-        >
-          {permissionMode === undefined ? (
-            <option value="">
-              {intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })}
-            </option>
-          ) : null}
-          {TEAM_PERMISSION_MODES.map((mode) => (
-            <option key={mode} value={mode}>
-              {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
-            </option>
-          ))}
-        </select>
+      <div
+        className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-ui-sm text-foreground-subtle"
+        data-testid="team-staged-member-mode-line"
+      >
+        <span>{intl.formatMessage({ id: "team.stagedEditor.memberModeLead" })}</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={busy}
+              data-testid="team-staged-member-mode"
+              aria-label={intl.formatMessage({ id: "team.stagedEditor.memberModeLabel" })}
+              className="inline-flex h-6 min-w-0 max-w-[260px] shrink-0 items-center gap-1 rounded-md border border-transparent bg-surface pl-[7px] pr-1 text-ui-sm text-foreground hover:border-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-border-hover data-[state=open]:bg-input pointer-coarse:min-h-11"
+            >
+              <span
+                className={cn(
+                  "min-w-0 truncate",
+                  memberMode !== null && memberMode !== permissionMode && "font-medium",
+                )}
+              >
+                {memberMode === null
+                  ? intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })
+                  : intl.formatMessage({ id: `team.permission.mode.${memberMode}` })}
+              </span>
+              <ChevronDownIcon className="size-3 shrink-0 text-foreground-subtle" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {permissionMode === undefined ? (
+              <DropdownMenuItem
+                onSelect={() => setMemberMode(null)}
+                data-testid="team-staged-member-mode-keep"
+              >
+                {intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })}
+              </DropdownMenuItem>
+            ) : null}
+            {TEAM_PERMISSION_MODES.map((mode) => (
+              <DropdownMenuItem
+                key={mode}
+                onSelect={() => setMemberMode(mode)}
+                data-testid={`team-staged-member-mode-${mode}`}
+              >
+                {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <span>{intl.formatMessage({ id: "team.stagedEditor.memberModeTrail" })}</span>
+        {memberMode !== null && memberMode !== permissionMode ? (
+          // 「· 原为 X ↺」：照 WorkflowAskWasTail（§18 附裁二）。
+          <span className="inline-flex min-w-0 items-center gap-0.5 text-foreground-subtlest">
+            <span className="min-w-0 truncate" data-testid="team-staged-member-mode-was">
+              ·{" "}
+              {intl.formatMessage(
+                { id: "team.stagedEditor.memberModeWas" },
+                {
+                  value:
+                    permissionMode === undefined
+                      ? intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })
+                      : intl.formatMessage({ id: `team.permission.mode.${permissionMode}` }),
+                },
+              )}
+            </span>
+            <Button
+              aria-label={intl.formatMessage({ id: "chat.permission.workflow.settings.reset" })}
+              className="text-foreground-subtlest hover:text-foreground"
+              data-testid="team-staged-member-mode-reset"
+              disabled={busy}
+              onClick={() => setMemberMode(permissionMode ?? null)}
+              size="icon-xs"
+              title={intl.formatMessage({ id: "chat.permission.workflow.settings.reset" })}
+              type="button"
+              variant="ghost"
+            >
+              <Undo2Icon className="size-3" />
+            </Button>
+          </span>
+        ) : null}
       </div>
 
       {/*
@@ -371,7 +446,7 @@ export function TeamStagedEditor({
       {failure === undefined || failure === null ? null : (
         <p
           role="alert"
-          className="text-ui-sm text-destructive"
+          className="text-ui-base text-destructive"
           data-testid="team-staged-command-error"
         >
           {intl.formatMessage(

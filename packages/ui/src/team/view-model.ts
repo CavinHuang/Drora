@@ -61,6 +61,8 @@ export interface TeamPanelStagedTaskView {
 
 /** staged 草案整体（仅 staged 态携带；TeamStagedEditor 的数据输入）。 */
 export interface TeamPanelStagedDraftView {
+  /** 团队名（§18 附裁二表头 name 位；stagedDraft 本无名字，由 team 层投影随行）。 */
+  teamName?: string;
   members: readonly TeamPanelStagedMemberView[];
   tasks: readonly TeamPanelStagedTaskView[];
   awaitingFeedback: boolean;
@@ -197,6 +199,7 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       ? {}
       : {
           stagedDraft: {
+            ...(team.name === undefined ? {} : { teamName: team.name }),
             members: team.stagedDraft.draftMembers.map((member) => ({
               memberName: member.memberName,
               ...(member.profile === undefined ? {} : { profile: member.profile }),

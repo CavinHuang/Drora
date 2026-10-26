@@ -135,10 +135,14 @@ describe("stagedFailureReasonI18nKey（reasonCode → 文案键，未知走兜�
 });
 
 describe("TeamStagedEditor 问句表头（spec §10 呈现规则1）", () => {
-  it("顶部为问句行 + 「N 名成员 · N 项任务」计数（原 stagedSummary 移作表头计数）", () => {
+  it("表头镜像 WorkflowCardHeader：问句 + 团队名 + 计数同列（§18 附裁二）", () => {
     renderEditor();
-    expect(screen.getByRole("heading", { name: zhCN["team.stagedEditor.question"] })).toBeTruthy();
-    expect(screen.getByText("2 名成员 · 2 项任务")).toBeTruthy();
+    const header = screen.getByTestId("team-staged-header");
+    expect(header.textContent).toContain(zhCN["team.stagedEditor.question"] ?? "");
+    expect(screen.getByTestId("team-staged-name").textContent).toContain(
+      zhCN["team.ui.title"] ?? "",
+    );
+    expect(header.textContent).toContain("2 名成员 · 2 项任务");
   });
 
   it("无 failure 时不渲染失败 alert", () => {
@@ -311,12 +315,15 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     expect(confirm.className).toContain("pointer-coarse:min-h-11");
   });
 
-  it("成员权限选择行（§10 增补三）：默认=建队捕获值，选择后批准上抛选定模式", () => {
+  it("成员权限选择行（§10 增补三/§18 附裁二）：芯片默认=建队捕获值，菜单选择后批准上抛", async () => {
     const onApprove = vi.fn();
     renderEditor({ onApprove, permissionMode: "build" });
-    const select = screen.getByTestId("team-staged-member-mode") as HTMLSelectElement;
-    expect(select.value).toBe("build");
-    fireEvent.change(select, { target: { value: "yolo" } });
+    const chip = screen.getByTestId("team-staged-member-mode");
+    expect(chip.textContent).toContain(zhCN["team.permission.mode.build"] ?? "");
+    // 键盘路径开菜单（radix DropdownMenu 对 Enter 响应；jsdom 无 pointer capture）。
+    fireEvent.keyDown(chip, { key: "Enter" });
+    const item = await screen.findByTestId("team-staged-member-mode-yolo");
+    fireEvent.click(item);
     fireEvent.click(screen.getByTestId("team-staged-approve"));
     expect(onApprove).toHaveBeenCalledWith("yolo");
   });

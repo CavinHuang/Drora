@@ -74,7 +74,8 @@ function createHarness(options?: {
         url: input,
         method: init.method ?? "",
         authorization: headers.Authorization ?? "",
-        contentTypeContains: typeof headers["Content-Type"] === "string" ? headers["Content-Type"] : "multipart",
+        contentTypeContains:
+          typeof headers["Content-Type"] === "string" ? headers["Content-Type"] : "multipart",
         body,
       });
       return fetchImpl(input, init);
@@ -84,7 +85,11 @@ function createHarness(options?: {
   return { adapter, requests, config };
 }
 
-async function startSession(harness: ReturnType<typeof createHarness>, lang = "zh-CN", hints: string[] = []) {
+async function startSession(
+  harness: ReturnType<typeof createHarness>,
+  lang = "zh-CN",
+  hints: string[] = [],
+) {
   const session = await harness.adapter.start({ lang, hints });
   // jsdom 无 MediaRecorder 构造路径（fake 注入），会话开始即收集态。
   return session;
@@ -248,4 +253,51 @@ describe("resolveRemoteAsrErrorCode", () => {
     expect(resolveRemoteAsrErrorCode(new VoiceAsrError("audio-capture"))).toBe("audio-capture");
     expect(resolveRemoteAsrErrorCode(new TypeError("x"))).toBe("network");
   });
+});
+
+// §9.8.1：Esc/卸载可以打断已经开始结算的 remote 录音。
+it("abort during recorder settlement prevents upload and releases tracks", async () => {
+  const stopTrack = vi.fn();
+  const fetch = vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ text: "late" }),
+  }));
+  const adapter = createRemoteAsrAdapter({
+    getVendorConfig: () => ({ baseUrl: "https://voice.example.test", model: "m", apiKey: "test" }),
+    getUserMedia: async () => ({ getTracks: () => [{ stop: stopTrack }] }),
+    createMediaRecorder: () => new FakeRecorder(),
+    fetch,
+  });
+  const session = await adapter.start({ lang: "zh-CN" });
+  const final = vi.fn();
+  session.onFinal(final);
+  const pending = session.stop();
+  session.abort();
+  await pending;
+  expect(fetch).not.toHaveBeenCalled();
+  expect(final).not.toHaveBeenCalled();
+  expect(stopTrack).toHaveBeenCalledTimes(1);
+});
+it("abort during upload aborts HTTP and suppresses late final", async () => {
+  let respond: ((value: ResponseLike) => void) | undefined;
+  let signal: AbortSignal | null | undefined;
+  const harness = createHarness({
+    fetchImpl: async (_input, init) => {
+      signal = init.signal;
+      return new Promise((resolve) => {
+        respond = resolve;
+      });
+    },
+  });
+  const session = await startSession(harness);
+  const final = vi.fn();
+  session.onFinal(final);
+  const pending = session.stop();
+  await Promise.resolve();
+  session.abort();
+  expect(signal?.aborted).toBe(true);
+  respond?.({ ok: true, status: 200, json: async () => ({ text: "late" }) });
+  await pending;
+  expect(final).not.toHaveBeenCalled();
 });

@@ -16,7 +16,7 @@ export function exampleVoiceWiring(): void {
   const planner = createTurnSpeechPlanner({
     getFocusedTurnTail: () => null, // Phase 1b：从 ConversationTurnGroup 同一投影取轮尾
     tts: createSpeechSynthesisTtsAdapter(),
-    claim: { acquire: async () => false, renew: async () => false, release: () => {} }, // Phase 1b 换 BroadcastHub 适配
+    claim: { acquire: async () => null, renew: async () => null, release: () => {} }, // Phase 1b 换 BroadcastHub 适配
     isAnnouncementEnabled: () => false, // Phase 1b：接 voiceAnnouncementPreferences reader
     announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
   });

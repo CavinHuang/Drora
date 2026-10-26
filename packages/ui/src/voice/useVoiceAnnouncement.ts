@@ -23,7 +23,11 @@ import type { IServiceAccessor } from "@drora/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
-import { isVoiceAnnouncementEnabled, resolveVoiceAnnouncementLangFromSettings, resolveVoiceAnnouncementOutputConfig } from "@/lib/voiceAnnouncementPreferences.js";
+import {
+  isVoiceAnnouncementEnabled,
+  resolveVoiceAnnouncementLangFromSettings,
+  resolveVoiceAnnouncementOutputConfig,
+} from "@/lib/voiceAnnouncementPreferences.js";
 import { useVoiceSessionStore, type VoiceAnnouncementPhase } from "@/store/voiceSessionStore.js";
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnitTypes.js";
 import {
@@ -33,7 +37,7 @@ import {
   type TurnSpeechPlanner,
 } from "./turnSpeechPlanner.js";
 import { createBroadcastAnnouncementClaimAdapter } from "./voiceAnnouncementClaim.js";
-import { registerVoiceCommandHandler } from "./voiceCommandBus.js";
+import { dispatchVoiceCommand, registerVoiceCommandHandler } from "./voiceCommandBus.js";
 import { createSpeechSynthesisTtsAdapter } from "./speechSynthesisTtsAdapter.js";
 import { createCloudTtsAdapter, resolveTtsEngineChoice } from "./cloudTtsAdapter.js";
 import { isVoiceVendorConfigComplete } from "./resolveAsrAdapter.js";
@@ -108,7 +112,8 @@ export function buildPermissionAnnouncementText(
 ): string {
   const summary = payload.summary?.trim() ?? "";
   const title = payload.toolName?.trim() ?? "";
-  const composed = title.length > 0 && summary.length > 0 ? `${title}: ${summary}` : summary || title;
+  const composed =
+    title.length > 0 && summary.length > 0 ? `${title}: ${summary}` : summary || title;
   if (composed.length <= VOICE_ANNOUNCEMENT_PERMISSION_MAX_CHARS) {
     return composed;
   }
@@ -249,6 +254,10 @@ export function useVoiceAnnouncement({
   truncatedSuffixRef.current = truncatedSuffix;
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
+  const targetRef = useRef({ sessionId, workspacePath, workspaceIdentity });
+  targetRef.current = { sessionId, workspacePath, workspaceIdentity };
+  const pendingPermissionsRef = useRef(pendingInteractions);
+  pendingPermissionsRef.current = pendingInteractions;
 
   const planner = useMemo(
     () =>
@@ -273,6 +282,14 @@ export function useVoiceAnnouncement({
           };
         },
         cancelTask: () => requestTaskStopRef.current(),
+        isPermissionPending: (id) =>
+          pendingPermissionsRef.current?.some(
+            (item) => item.interactionId === id && item.payload.kind === "permission",
+          ) === true,
+        isRecording: () => {
+          const state = useVoiceSessionStore.getState();
+          return state.inputLeg === "recording" || state.inputLeg === "injecting";
+        },
       }),
     [claim, tts],
   );
@@ -306,6 +323,7 @@ export function useVoiceAnnouncement({
 
   useEffect(() => {
     if (lastConversationKeyRef.current !== conversationKey) {
+      planner.notifyStopPressed();
       // 会话/workspace 切换：轮尾去重键失效（新会话的最新轮尾允许重新消费）。
       lastConversationKeyRef.current = conversationKey;
       lastConsumedTurnRef.current = null;
@@ -335,35 +353,36 @@ export function useVoiceAnnouncement({
   }, [focused, planner]);
 
   // §3.3 腿互斥接线：输入腿迁移 → planner（Recording 优先 / §4.7 句粒度暂停续播）。
-  const inputLegRef = useRef(useVoiceSessionStore.getState().inputLeg);
+  const recordingRef = useRef(false);
   useEffect(() => {
-    return useVoiceSessionStore.subscribe((state) => {
-      const previous = inputLegRef.current;
-      inputLegRef.current = state.inputLeg;
-      if (state.inputLeg === previous) {
-        return;
-      }
-      if (state.inputLeg === "recording") {
-        planner.notifyUserRecordingStarted();
-        return;
-      }
-      if (previous === "recording") {
-        planner.notifyUserRecordingEnded();
-      }
-    });
+    const syncRecording = (state: ReturnType<typeof useVoiceSessionStore.getState>) => {
+      const recording = state.inputLeg === "recording" || state.inputLeg === "injecting";
+      if (recording === recordingRef.current) return;
+      recordingRef.current = recording;
+      if (recording) planner.notifyUserRecordingStarted();
+      else planner.notifyUserRecordingEnded();
+    };
+    syncRecording(useVoiceSessionStore.getState());
+    return useVoiceSessionStore.subscribe(syncRecording);
   }, [planner]);
 
   // §4.3 三层打断接线：语音命令总线（听写侧打断词命中 dispatch）→ 本 planner。
-  // 广播安全：stopAnnouncement 在 AnnIdle planner 上 no-op；cancelTask 由 planner 按
-  // 播报腿活动态 gate（非活动实例不分发 v4 stop）。
+  // §9.8：任务取消按绑定目标单播；停播报按 owner 单播，不再依赖 canStop 充当路由。
   useEffect(() => {
-    return registerVoiceCommandHandler((kind) => {
-      if (kind === "stopAnnouncement") {
-        planner.notifyInterruptWordHit();
-        return;
-      }
-      planner.requestCancelTask();
-    });
+    return registerVoiceCommandHandler(
+      (kind) => {
+        if (kind === "stopAnnouncementPressed") {
+          planner.notifyStopPressed();
+          return;
+        }
+        if (kind === "stopAnnouncement") {
+          planner.notifyInterruptWordHit();
+          return;
+        }
+        planner.requestCancelTask();
+      },
+      { getTarget: () => targetRef.current, isAnnouncementOwner: planner.isAnnouncementOwner },
+    );
   }, [planner]);
 
   // §9.6.5-3 回落信号接线：连续失败 → 置回落标记（后续 speak 走 speechSynthesis）+
@@ -410,7 +429,11 @@ export function useVoiceAnnouncement({
       if (payload.kind !== "permission") {
         continue;
       }
-      const permissionPayload = payload as { kind: "permission"; toolName?: string; summary?: string };
+      const permissionPayload = payload as {
+        kind: "permission";
+        toolName?: string;
+        summary?: string;
+      };
       planner.consumePermissionSegment({
         permissionId: interaction.interactionId,
         text: buildPermissionAnnouncementText(permissionPayload, truncatedSuffixRef.current),
@@ -462,7 +485,14 @@ export function useVoiceAnnouncement({
   }, [planner]);
 
   return {
-    planner,
+    // 指示器可能显示在另一个可见 pane；停止动作仍须送真正的播报持有者。
+    planner: useMemo(
+      () => ({
+        ...planner,
+        notifyStopPressed: () => dispatchVoiceCommand("stopAnnouncementPressed"),
+      }),
+      [planner],
+    ),
     indicatorPhase: useVoiceSessionStore((state) => state.announcement.phase),
     notifyExternalTaskStop,
   };

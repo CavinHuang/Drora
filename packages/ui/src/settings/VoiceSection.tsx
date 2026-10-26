@@ -11,7 +11,13 @@
  * + persona 选择（§9.7.8：物化写底层键，voicePersonaId 仅显示派生）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
@@ -22,7 +28,10 @@ import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
 import { isVoiceVendorConfigComplete } from "@/voice/resolveAsrAdapter.js";
 import { validateVoiceVendorBaseUrl } from "@/voice/voiceVendorBaseUrl.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
-import { isVoicePrivacyAcknowledged, resolveVoiceAnnouncementLang } from "@/voice/voiceComposerEntryState.js";
+import {
+  isVoicePrivacyAcknowledged,
+  resolveVoiceAnnouncementLang,
+} from "@/voice/voiceComposerEntryState.js";
 import { VoicePrivacyDisclosureDialog } from "@/voice/VoicePrivacyDisclosureDialog.js";
 import {
   VOICE_PERSONA_PRESETS,
@@ -113,7 +122,7 @@ export function VoiceSection() {
     // 连续开录」——composer 入口的下一次点按仍需显式动作。
     const patch = pendingPatch;
     setPendingPatch(null);
-    void updateSettings({ ...(patch), voicePrivacyDisclosureAcknowledged: true });
+    void updateSettings({ ...patch, voicePrivacyDisclosureAcknowledged: true });
   }, [pendingPatch, updateSettings]);
 
   const handleCancel = useCallback(() => {
@@ -130,9 +139,9 @@ export function VoiceSection() {
   // S1：baseUrl 草稿 + 明文非法标记（onBlur 校验，阻止写入持久层）。
   const [vendorBaseUrlDraft, setVendorBaseUrlDraft] = useState(vendorBaseUrl);
   // 终审 S3：警告按校验 reason 分型——unparseable 不应显示「明文 HTTP」文案。
-  const [baseUrlWarning, setBaseUrlWarning] = useState<
-    "insecure-remote" | "unparseable" | null
-  >(null);
+  const [baseUrlWarning, setBaseUrlWarning] = useState<"insecure-remote" | "unparseable" | null>(
+    null,
+  );
   useEffect(() => {
     // 外部变更（如清除设置）同步草稿。
     setVendorBaseUrlDraft(settings?.voiceVendorBaseUrl ?? "");
@@ -169,9 +178,9 @@ export function VoiceSection() {
 
   // §9.7.2 system 音色枚举目录：getVoices 快照 + voiceschanged 异步刷新（Windows/Chrome
   // 首帧常为空表——设置面列表不阻塞等待，空表仅渲染「自动」+ 禁用加载占位）。
-  const [systemVoices, setSystemVoices] = useState<
-    ReturnType<typeof filterVoicesForAnnouncement>
-  >([]);
+  const [systemVoices, setSystemVoices] = useState<ReturnType<typeof filterVoicesForAnnouncement>>(
+    [],
+  );
   useEffect(() => {
     const synth = getSpeechSynthesisForCatalog();
     const refresh = () => {
@@ -265,7 +274,10 @@ export function VoiceSection() {
                 void updateSettings({ voiceDictationLang: value === "auto" ? "" : value });
               }}
             >
-              <SelectTrigger className="w-40" aria-label={intl.formatMessage({ id: "voice.settings.dictation.lang.label" })}>
+              <SelectTrigger
+                className="w-40"
+                aria-label={intl.formatMessage({ id: "voice.settings.dictation.lang.label" })}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -295,7 +307,11 @@ export function VoiceSection() {
                 });
               }}
             >
-              <SelectTrigger className="w-40" aria-label={intl.formatMessage({ id: "voice.settings.asr.engine.label" })}>
+              <SelectTrigger
+                data-testid="voice-asr-engine"
+                className="w-40"
+                aria-label={intl.formatMessage({ id: "voice.settings.asr.engine.label" })}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -418,7 +434,10 @@ export function VoiceSection() {
                 });
               }}
             >
-              <SelectTrigger className="w-40" aria-label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}>
+              <SelectTrigger
+                className="w-40"
+                aria-label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

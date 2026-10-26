@@ -3,7 +3,10 @@ import {
   createTurnSpeechPlanner,
   createVoiceSessionAnnouncementControl,
 } from "./turnSpeechPlanner.js";
-import type { VoiceAnnouncementClaimPort } from "./voiceAnnouncementClaim.js";
+import type {
+  VoiceAnnouncementClaimPort,
+  VoiceAnnouncementLease,
+} from "./voiceAnnouncementClaim.js";
 import type {
   VoiceTtsDoneReason,
   VoiceTtsHandle,
@@ -61,14 +64,14 @@ class FakeClaim implements VoiceAnnouncementClaimPort {
   renewCalls = 0;
   releaseCalls = 0;
 
-  async acquire(): Promise<boolean> {
+  async acquire(): Promise<VoiceAnnouncementLease | null> {
     this.acquireCalls += 1;
-    return this.acquireResult;
+    return this.acquireResult ? { key: "k", token: "fake-lease" } : null;
   }
 
-  async renew(): Promise<boolean> {
+  async renew(lease: VoiceAnnouncementLease): Promise<VoiceAnnouncementLease | null> {
     this.renewCalls += 1;
-    return this.renewResult;
+    return this.renewResult ? lease : null;
   }
 
   release(): void {
@@ -95,6 +98,7 @@ function resetVoiceStore(): void {
     pendingFinalText: null,
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -312,6 +316,10 @@ describe("工具简报插播时机（§4.2-5 / FD-3 权限>正文>简报 / §9.6
     harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
     harness.tts.finishCurrent("end");
     await new Promise((r) => setTimeout(r, 0));
+    // 权限段须实际完成，最低优先级简报才能开始，不能仅因正文结束就越过权限段。
+    expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正文一。", "权限问题？"]);
+    harness.tts.finishCurrent("end");
+    await new Promise((r) => setTimeout(r, 0));
     // 权限段拼接优先；简报不丢弃，推迟到权限段播完后的空闲排空（§4.2-5 段间句隙不插）。
     expect(harness.tts.spoken.map((u) => u.text)).toEqual([
       "正文一。",
@@ -386,4 +394,29 @@ describe("外部停止面静音（§3.3 FD-1：播报同步静音经 Cancelling�
       vi.useRealTimers();
     }
   });
+});
+
+it("same owner replacing text during renewal adopts the renewed lease (§9.8)", async () => {
+  vi.useFakeTimers();
+  const h = createHarness();
+  let finish: ((lease: VoiceAnnouncementLease | null) => void) | undefined;
+  h.claim.renew = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const release = vi.spyOn(h.claim, "release");
+  try {
+    h.planner.consumeTurnTail({ turnId: "a", text: "A。" });
+    await vi.advanceTimersByTimeAsync(2000);
+    h.planner.consumeTurnTail({ turnId: "b", text: "B。" });
+    await vi.advanceTimersByTimeAsync(0);
+    const renewed = { key: "k", token: "same-owner-renewed" };
+    finish?.(renewed);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(release).not.toHaveBeenCalledWith(renewed);
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("speaking");
+  } finally {
+    h.planner.dispose();
+    vi.useRealTimers();
+  }
 });

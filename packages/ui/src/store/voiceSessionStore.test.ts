@@ -6,6 +6,7 @@ import {
   type VoiceAnnouncementLegState,
 } from "./voiceSessionStore.js";
 import { VOICE_LAST_DICTATION_TTL_MS } from "@/voice/voiceTuning.js";
+import { registerVoiceRecordingAbort } from "@/voice/voiceRecordingControl.js";
 /**
  * 语音会话两条腿状态机迁移表守护（specs/voice-agent-integration.md §3.2 / §3.3 / §5.1 /
  * §5.2 / §5.4）。迁移全部经 guarded actions：非法迁移 no-op 返回 false/null。
@@ -30,6 +31,7 @@ function resetVoiceStore(): void {
     pendingFinalText: null,
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -209,7 +211,11 @@ describe("输入腿：Recording 段与写入规则（§5.1/§5.2）", () => {
     // 非录音态：不消费，既有语义（停生成/onCancel）不变。
     expect(consumeVoiceRecordingEscape()).toBe(false);
     startRecording();
+    const unregister = registerVoiceRecordingAbort("entry-a", () => {
+      useVoiceSessionStore.getState().abortRecording();
+    });
     expect(consumeVoiceRecordingEscape()).toBe(true);
+    unregister();
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
     expect(useVoiceSessionStore.getState().partialText).toBe("");
     // 消费后回到非录音态，再次 Esc 不再归录音。

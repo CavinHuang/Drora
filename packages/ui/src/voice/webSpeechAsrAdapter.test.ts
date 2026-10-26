@@ -240,3 +240,14 @@ describe("createWebSpeechAsrAdapter", () => {
     expect(h.stoppedTracks).toEqual(["mic"]);
   });
 });
+
+it("abort settles an outstanding manual stop without waiting for engine onend (§9.8)", async () => {
+  const h = createHarness();
+  const session = await h.start();
+  const pending = session.stop();
+  session.abort();
+  session.abort();
+  await expect(pending).resolves.toEqual({ final: "" });
+  expect(h.recognition.abortCalls).toBe(1);
+  expect(h.stoppedTracks).toEqual(["mic"]);
+});

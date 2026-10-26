@@ -10,6 +10,10 @@
  * - turnSpeechPlanner.ts：播报规划器 + 播报腿控制面适配（写路径唯一归宿 voiceSessionStore）；
  * - interruptionWords.ts：打断词表与 final 分类（纯函数）；
  * - voiceAnnouncementClaim.ts：单播报者 claim 端口（BroadcastHub 适配 Phase 1b 落地）。
+ * - voiceRecordingControl.ts：入口持有者的同步资源终止端口（Esc 不直接改状态）。
+ * - voiceCommandBus.ts：按 workspace/session 定向任务取消、按播报 owner 定向停止。
+ * - remoteAsrAdapter.ts / cloudTtsAdapter.ts：云端语音适配与独立媒体能力探测。
+ * - voicePersonas.ts / systemVoiceCatalog.ts：预设物化与系统音色目录。
  *
  * 状态所有者边界：播报腿/输入腿状态的唯一所有者是 ui 包 store/voiceSessionStore（spec §3.1），
  * 本模块只经 AnnouncementLegControl 受控面写入，不在模块内保留第二状态源。

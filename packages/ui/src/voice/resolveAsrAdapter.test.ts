@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import {
-  isVoiceVendorConfigComplete,
-  resolveAsrEngineChoice,
-} from "./resolveAsrAdapter.js";
+import { isVoiceVendorConfigComplete, resolveAsrEngineChoice } from "./resolveAsrAdapter.js";
 
 /**
  * ASR 引擎选型纯函数守护（specs/voice-agent-integration.md §9.6.6 回退树 / §9.6.8-S3）：
@@ -33,9 +30,7 @@ describe("resolveAsrEngineChoice", () => {
   });
 
   it("falls back to webSpeech when the remote capability is absent", () => {
-    expect(resolveAsrEngineChoice({ ...completeRemote, remoteSupported: false })).toBe(
-      "webSpeech",
-    );
+    expect(resolveAsrEngineChoice({ ...completeRemote, remoteSupported: false })).toBe("webSpeech");
   });
 });
 
@@ -52,4 +47,17 @@ describe("isVoiceVendorConfigComplete", () => {
       isVoiceVendorConfigComplete({ baseUrl: "https://x", model: "m", apiKey: undefined }),
     ).toBe(false);
   });
+});
+
+it("remote remains available without SpeechRecognition, missing fallback fails closed (§9.8)", () => {
+  const inputs = {
+    engine: "remote" as const,
+    vendorConfigComplete: true,
+    remoteSupported: true,
+    webSpeechSupported: false,
+  };
+  expect(resolveAsrEngineChoice(inputs)).toBe("remote");
+  expect(resolveAsrEngineChoice({ ...inputs, vendorConfigComplete: false })).toBeNull();
+  expect(resolveAsrEngineChoice({ ...inputs, remoteSupported: false })).toBeNull();
+  expect(resolveAsrEngineChoice({ ...inputs, engine: "webSpeech" })).toBeNull();
 });

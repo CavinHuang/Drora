@@ -43,62 +43,82 @@ function makeBroadcastService() {
   };
 }
 
-describe("createBroadcastAnnouncementClaimAdapter", () => {
+describe("createBroadcastAnnouncementClaimAdapter (§9.8 concrete leases)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  it("acquires a reservation and keeps the lease for release", async () => {
+  it("returns the actual lease and releases it idempotently", async () => {
     const { service, leases } = makeBroadcastService();
     const adapter = createBroadcastAnnouncementClaimAdapter(service);
-    await expect(adapter.acquire("k")).resolves.toBe(true);
-    expect(leases).toHaveLength(1);
-    adapter.release("k");
-    expect(service.releaseClaim).toHaveBeenCalledWith(leases[0]);
+    const lease = await adapter.acquire("k");
+    expect(lease).toBe(leases[0]);
+    adapter.release(lease!);
+    adapter.release(lease!);
+    expect(service.releaseClaim).toHaveBeenCalledTimes(1);
+    expect(service.releaseClaim).toHaveBeenCalledWith(lease);
   });
-
-  it("reports busy as not acquired (他窗持有 → 未持有者静默)", async () => {
+  it("reports busy as null", async () => {
     const { service, setMode } = makeBroadcastService();
     setMode("busy");
-    const adapter = createBroadcastAnnouncementClaimAdapter(service);
-    await expect(adapter.acquire("k")).resolves.toBe(false);
+    await expect(createBroadcastAnnouncementClaimAdapter(service).acquire("k")).resolves.toBeNull();
   });
-
-  it("degrades unavailable (无广播面) to holding", async () => {
+  it.each(["unavailable", "absent"] as const)("uses explicit local leases for %s", async (mode) => {
     const { service, setMode } = makeBroadcastService();
     setMode("unavailable");
-    const adapter = createBroadcastAnnouncementClaimAdapter(service);
-    await expect(adapter.acquire("k")).resolves.toBe(true);
-    await expect(adapter.renew("k")).resolves.toBe(true);
-  });
-
-  it("renews by releasing the old lease then re-acquiring (FD-2 周期续约)", async () => {
-    const { service, leases, releaseCalls } = makeBroadcastService();
-    const adapter = createBroadcastAnnouncementClaimAdapter(service);
-    await adapter.acquire("k");
-    await expect(adapter.renew("k")).resolves.toBe(true);
-    // 先 release 旧 reservation，再拿新 lease（token 递增）。
-    expect(releaseCalls).toEqual([leases[0]]);
-    expect(leases[1]?.token).toBe("t-2");
-  });
-
-  it("returns false when the re-acquire after release loses the race (§3.5-3 renew=false)", async () => {
-    const { service, setMode } = makeBroadcastService();
-    const adapter = createBroadcastAnnouncementClaimAdapter(service);
-    await adapter.acquire("k");
-    setMode("busy");
-    await expect(adapter.renew("k")).resolves.toBe(false);
-    // renew 已 release 旧 lease；输掉竞争后本地不再持有 lease，
-    // 显式 release 不再触发第二次 releaseClaim。
-    service.releaseClaim.mockClear();
-    adapter.release("k");
+    const adapter = createBroadcastAnnouncementClaimAdapter(mode === "absent" ? null : service);
+    const lease = await adapter.acquire("k");
+    expect(lease?.key).toBe("k");
+    const renewed = await adapter.renew(lease!);
+    expect(renewed).not.toBeNull();
+    expect(renewed).not.toBe(lease);
+    adapter.release(renewed!);
     expect(service.releaseClaim).not.toHaveBeenCalled();
   });
-
-  it("degrades to a no-op port when there is no broadcast service", async () => {
-    const adapter = createBroadcastAnnouncementClaimAdapter(null);
-    await expect(adapter.acquire("k")).resolves.toBe(true);
-    await expect(adapter.renew("k")).resolves.toBe(true);
-    expect(() => adapter.release("k")).not.toThrow();
+  it("releases the previous reservation before renewing, stale release cannot touch the new token", async () => {
+    const { service, leases, releaseCalls } = makeBroadcastService();
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const old = await adapter.acquire("k");
+    const current = await adapter.renew(old!);
+    expect(releaseCalls).toEqual([leases[0]]);
+    expect(current).toBe(leases[1]);
+    adapter.release(old!);
+    expect(releaseCalls).toEqual([leases[0]]);
+    adapter.release(current!);
+    expect(releaseCalls).toEqual(leases);
+  });
+  it("losing renewal returns null and a released lease cannot be renewed", async () => {
+    const { service, setMode } = makeBroadcastService();
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const old = await adapter.acquire("k");
+    setMode("busy");
+    await expect(adapter.renew(old!)).resolves.toBeNull();
+    await expect(adapter.renew(old!)).resolves.toBeNull();
+    expect(service.acquireClaim).toHaveBeenCalledTimes(2);
+    adapter.release(old!);
+    expect(service.releaseClaim).toHaveBeenCalledTimes(1);
+  });
+  it("a late old acquire is released by its own lease, never the newer lease", async () => {
+    const { service, leases, releaseCalls } = makeBroadcastService();
+    const acquireReal = service.acquireClaim;
+    let resolveOld: ((value: Awaited<ReturnType<typeof acquireReal>>) => void) | undefined;
+    service.acquireClaim = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockImplementation(acquireReal);
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const oldPromise = adapter.acquire("k");
+    const current = await adapter.acquire("k");
+    const old = { key: "k", token: "late-old" };
+    resolveOld?.({ status: "acquired", lease: old });
+    const late = await oldPromise;
+    adapter.release(late!);
+    expect(releaseCalls).toEqual([old]);
+    adapter.release(current!);
+    expect(releaseCalls).toEqual([old, leases[0]]);
   });
 });

@@ -152,7 +152,7 @@ const { remoteAdapterState } = vi.hoisted(() => {
 
 vi.mock("./remoteAsrAdapter.js", () => ({
   createRemoteAsrAdapter: () => remoteAdapterState.createAdapter(),
-  mapLanguage: (lang: string) => (lang.split("-")[0] || null),
+  mapLanguage: (lang: string) => lang.split("-")[0] || null,
   resolveRemoteAsrErrorCode: () => "network",
   VoiceAsrError: class extends Error {
     constructor(
@@ -192,6 +192,7 @@ function resetStores(): void {
     pendingFinalText: null,
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -199,7 +200,11 @@ function resetStores(): void {
 // 每用例独立 workspacePath：droraSessionStore 的 workspace 状态跨用例存活，
 // request 通道按 workspace 隔离才能断言「本用例的分发」。
 let wsPath = "/ws";
-function lastInsertRequest(): { text: string; mode?: string; targetSessionId?: string | null } | null {
+function lastInsertRequest(): {
+  text: string;
+  mode?: string;
+  targetSessionId?: string | null;
+} | null {
   return useDroraSessionStore.getState().getWorkspaceState(wsPath).composerTextInsertRequest;
 }
 
@@ -283,7 +288,7 @@ describe("useVoiceDictation", () => {
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
     expect(lastInsertRequest() ?? null).toBeNull();
     // Esc 路径走 abort（丢弃式）而非 stop（等待结算）：零注入语义。
-    expect(fakeAdapter._sessions[0]?.abortCalls).toBe(0);
+    expect(fakeAdapter._sessions[0]?.abortCalls).toBe(1);
   });
 
   it("maps an ASR error to the store notice and does not auto-restart (§5.3)", async () => {
@@ -348,7 +353,10 @@ describe("useVoiceDictation", () => {
   it("routes an interrupt-word final to the command bus without injecting (§4.3 层①接线)", async () => {
     await mountStartedDictation();
     const handler = vi.fn();
-    const unregister = registerVoiceCommandHandler(handler);
+    const unregister = registerVoiceCommandHandler(handler, {
+      getTarget: () => ({ workspacePath: wsPath, sessionId: "sess-1" }),
+      isAnnouncementOwner: () => true,
+    });
     fakeAdapter._sessions[0]?.emitFinal("停");
     await vi.advanceTimersByTimeAsync(0);
     // §9.3 验收「given ASR final=『停』（AnnPaused 下）则停播报不续播」的 wiring 半区：
@@ -361,7 +369,10 @@ describe("useVoiceDictation", () => {
   it("routes the cancel-task phrase to the command bus (§4.3 层③接线)", async () => {
     await mountStartedDictation();
     const handler = vi.fn();
-    const unregister = registerVoiceCommandHandler(handler);
+    const unregister = registerVoiceCommandHandler(handler, {
+      getTarget: () => ({ workspacePath: wsPath, sessionId: "sess-1" }),
+      isAnnouncementOwner: () => true,
+    });
     fakeAdapter._sessions[0]?.emitFinal("停掉任务");
     await vi.advanceTimersByTimeAsync(0);
     expect(handler).toHaveBeenCalledWith("cancelTask");
@@ -501,7 +512,6 @@ describe("useVoiceDictation", () => {
   });
 });
 
-
 describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
   function mountWithSelection(params?: {
     asrEngine?: "webSpeech" | "remote";
@@ -570,4 +580,82 @@ describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
     expect(fakeAdapter.start).toHaveBeenCalledTimes(1);
     expect(useVoiceSessionStore.getState().notice).toBeNull();
   });
+});
+
+// §9.8：审查复现转正式回归。
+it("§9.8 regression: Esc must release the ASR session", async () => {
+  await mountStartedDictation();
+  const session = fakeAdapter._sessions[0];
+  consumeVoiceRecordingEscape();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(session?.abortCalls).toBe(1);
+  expect(session?.stopCalls).toBe(0);
+});
+
+it("Esc during manual-stop settlement discards late flush and is idempotent (§9.8)", async () => {
+  const h = await mountStartedDictation();
+  const session = fakeAdapter._sessions[0]!;
+  let settle: ((value: { final: string }) => void) | undefined;
+  session.stop = vi.fn(
+    () =>
+      new Promise<{ final: string }>((resolve) => {
+        settle = resolve;
+      }),
+  );
+  h.result.current.toggleMic();
+  h.result.current.toggleMic();
+  expect(session.stop).toHaveBeenCalledTimes(1);
+  expect(consumeVoiceRecordingEscape()).toBe(true);
+  expect(consumeVoiceRecordingEscape()).toBe(false);
+  settle?.({ final: "must not arrive" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(session.abortCalls).toBe(1);
+  expect(lastInsertRequest() ?? null).toBeNull();
+  expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+});
+
+it("switching a mounted entry target aborts the old episode before accepting results (§9.8)", async () => {
+  let sessionId = "A";
+  const h = renderHook(() =>
+    useVoiceDictation({
+      sessionId,
+      workspacePath: wsPath,
+      lang: "zh-CN",
+      requestStart: () => true,
+    }),
+  );
+  h.result.current.toggleMic();
+  await vi.advanceTimersByTimeAsync(0);
+  const old = fakeAdapter._sessions[0]!;
+  sessionId = "B";
+  h.rerender();
+  old.emitFinal("late A");
+  expect(old.abortCalls).toBe(1);
+  expect(lastInsertRequest() ?? null).toBeNull();
+  expect(useVoiceSessionStore.getState().notice?.code).toBe("sessionGone");
+});
+
+it("credential completion after RequestingMic timeout never starts an engine (§9.8)", async () => {
+  let finish: ((key: string) => void) | undefined;
+  const h = renderHook(() =>
+    useVoiceDictation({
+      sessionId: "A",
+      workspacePath: wsPath,
+      lang: "zh-CN",
+      requestStart: () => true,
+      asrEngine: "remote",
+      vendor: { baseUrl: "https://voice.example.test", model: "m" },
+      getVendorApiKey: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    }),
+  );
+  h.result.current.toggleMic();
+  await vi.advanceTimersByTimeAsync(10_000);
+  finish?.("synthetic-key");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(fakeAdapter.start).not.toHaveBeenCalled();
+  expect(remoteAdapterState.sessions).toHaveLength(0);
+  expect(useVoiceSessionStore.getState().notice?.code).toBe("requestingMicTimeout");
 });

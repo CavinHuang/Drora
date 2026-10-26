@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetVoiceCommandHandlersForTest } from "./voiceCommandBus.js";
 import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
@@ -13,9 +13,7 @@ import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 
 const { fakeTts } = vi.hoisted(() => {
   class FakeHandle {
-    constructor(
-      readonly utteranceId: string,
-    ) {}
+    constructor(readonly utteranceId: string) {}
   }
   let counter = 0;
   const spoken: string[] = [];
@@ -83,9 +81,7 @@ const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
     },
   };
   class FakeHandle {
-    constructor(
-      readonly utteranceId: string,
-    ) {}
+    constructor(readonly utteranceId: string) {}
   }
   let cloudCounter = 0;
   const cloudSpoken: string[] = [];
@@ -191,6 +187,7 @@ function resetStores(): void {
     lastDictation: null,
     pendingFinalText: null,
     recordingPulseSeq: 0,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -228,7 +225,10 @@ function briefSpoken(): string[] {
 
 async function mountAnnouncement(params?: {
   units?: Record<string, unknown>[];
-  pendingInteractions?: { interactionId: string; payload: { kind: string; toolName?: string; summary?: string } }[];
+  pendingInteractions?: {
+    interactionId: string;
+    payload: { kind: string; toolName?: string; summary?: string };
+  }[];
   focused?: boolean;
   sessionId?: string;
   requestTaskStop?: () => void;
@@ -358,7 +358,7 @@ describe("useVoiceAnnouncement wiring", () => {
     });
     await vi.advanceTimersByTimeAsync(0);
     expect(useVoiceSessionStore.getState().announcement.phase).toBe("speaking");
-    dispatchVoiceCommand("cancelTask");
+    dispatchVoiceCommand("cancelTask", { workspacePath: "/ws", sessionId: "sess-1" });
     // 播报腿活动态：Cancelling 静音 + 分发既有 v4 stop（带 expectedForegroundExecutionId 由 SessionPane 组装）。
     expect(requestTaskStop).toHaveBeenCalledTimes(1);
     expect(useVoiceSessionStore.getState().announcement.phase).toBe("cancelling");
@@ -373,7 +373,7 @@ describe("useVoiceAnnouncement wiring", () => {
     // 播报关闭：轮尾/权限均不消费，但「停掉任务」仍须分发既有 v4 stop。
     settingsState.current = { ...settingsState.current, voiceAnnouncementEnabled: false };
     const harness = await mountAnnouncement({ units: [], requestTaskStop });
-    dispatchVoiceCommand("cancelTask");
+    dispatchVoiceCommand("cancelTask", { workspacePath: "/ws", sessionId: "sess-1" });
     expect(requestTaskStop).toHaveBeenCalledTimes(1);
     expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
     void harness;
@@ -520,4 +520,46 @@ describe("useVoiceAnnouncement wiring", () => {
     expect(briefSpoken()).toHaveLength(2);
     void harness;
   });
+});
+
+// §9.8：审查复现转正式回归。
+it("§9.8 regression: a voice cancel bound to session A must not reach session B", async () => {
+  const stopA = vi.fn(),
+    stopB = vi.fn();
+  await mountAnnouncement({ sessionId: "A", requestTaskStop: stopA });
+  await mountAnnouncement({ sessionId: "B", focused: false, requestTaskStop: stopB });
+  const { dispatchVoiceCommand } = await import("./voiceCommandBus.js");
+  dispatchVoiceCommand("cancelTask", { workspacePath: "/ws", sessionId: "A" });
+  expect(stopA).toHaveBeenCalledTimes(1);
+  expect(stopB).not.toHaveBeenCalled();
+});
+
+it("§9.8 regression: remote ASR entry must work without SpeechRecognition", async () => {
+  Object.assign(settingsState.current, {
+    voiceComposerEntryHidden: false,
+    voicePrivacyDisclosureAcknowledged: true,
+    voiceAsrEngine: "remote",
+    voiceVendorBaseUrl: "https://voice.example.test/v1",
+    voiceAsrVendorModel: "asr",
+  });
+  vi.stubGlobal(
+    "MediaRecorder",
+    class {
+      static isTypeSupported() {
+        return true;
+      }
+    },
+  );
+  vi.stubGlobal("navigator", {
+    mediaDevices: { getUserMedia: async () => ({ getTracks: () => [] }) },
+  });
+  const { useVoiceComposerEntry } = await import("./useVoiceComposerEntry.js");
+  const h = renderHook(() => useVoiceComposerEntry({ sessionId: "A", workspacePath: "/ws" }));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  const visible = h.result.current.view.visible;
+  h.unmount();
+  vi.unstubAllGlobals();
+  expect(visible).toBe(true);
 });

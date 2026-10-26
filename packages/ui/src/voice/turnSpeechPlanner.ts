@@ -21,125 +21,24 @@
 
 import { VOICE_BROADCAST_CLAIM_KEY } from "@drora/shared";
 import { logger } from "@/logger.js";
-import type { VoiceAnnouncementClaimPort } from "./voiceAnnouncementClaim.js";
+import type {
+  VoiceAnnouncementClaimPort,
+  VoiceAnnouncementLease,
+} from "./voiceAnnouncementClaim.js";
 import {
   VOICE_CANCELLING_FALLBACK_TIMEOUT_MS,
   VOICE_CLAIM_RENEW_INTERVAL_MS,
-  VOICE_MAX_SENTENCE_CHARS,
 } from "./voiceTuning.js";
-import type {
-  VoiceAnnouncementLegState,
-  VoiceSessionStoreActions,
-  VoiceSessionStoreState,
-} from "@/store/voiceSessionStore.js";
+import type { VoiceAnnouncementLegState } from "@/store/voiceSessionStore.js";
 import type { VoiceTtsHandle, VoiceTtsPort } from "./voiceTtsPort.js";
 
-/**
- * 轮尾正文聚合同源（§4.1 白名单）：assistantTextRows → 滤空 → join("\n\n")，
- * 与 assistantCopyText/复制文本同链（packages/ui/src/v4/assistantPreviewCards.ts:34-37）。
- * 规划器不建第二事件流、不建第二状态源——Phase 1b wiring 从 ConversationTurnGroup 同一
- * 投影取行后经本函数聚合，再作为 consumeTurnTail 输入。
- */
-export function buildTurnSpeechText(assistantTextRows: readonly { text: string }[]): string {
-  return assistantTextRows
-    .map((row) => row.text)
-    .filter((text) => text.trim().length > 0)
-    .join("\n\n");
-}
-
-const SENTENCE_TERMINATORS = new Set(["。", "！", "？", "!", "?", "；", ";", "…", "\n"]);
-/** 终止符后紧跟的收尾字符随句子归属（引号/括号不独立成句）。 */
-const SENTENCE_CLOSERS = new Set(["」", "』", "）", "”", "’", "\"", "'"]);
-
-/**
- * 句边界切分（§4.1「整段分句播」）。确定性规则：
- * 终止标点/换行处断句；`.` 夹在数字间不切（小数保护）；单段超长按 maxChars 硬切；
- * 输出 trim 后非空段。
- */
-export function splitTurnIntoSentences(
-  text: string,
-  maxChars: number = VOICE_MAX_SENTENCE_CHARS,
-): string[] {
-  const segments: string[] = [];
-  let current = "";
-  const push = () => {
-    const trimmed = current.trim();
-    if (trimmed.length > 0) {
-      segments.push(trimmed);
-    }
-    current = "";
-  };
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (char == null) {
-      continue;
-    }
-    current += char;
-    if (!SENTENCE_TERMINATORS.has(char)) {
-      continue;
-    }
-    // 小数保护：'.' 前后均为数字时不切（3.14 / 1.5 倍）。
-    if (char === "." && i > 0) {
-      const prev = text[i - 1];
-      const next = text[i + 1];
-      if (prev != null && /\d/u.test(prev) && next != null && /\d/u.test(next)) {
-        continue;
-      }
-    }
-    // 收尾字符（引号/括号）随句归属。
-    let j = i + 1;
-    while (j < text.length) {
-      const follower = text[j];
-      if (follower == null || !SENTENCE_CLOSERS.has(follower)) {
-        break;
-      }
-      current += follower;
-      j += 1;
-    }
-    i = j - 1;
-    push();
-  }
-  push();
-
-  if (maxChars <= 0) {
-    return segments;
-  }
-  // 超长硬切：无标点长段保持 utterance 有界（调参面 voiceTuning）。
-  const bounded: string[] = [];
-  for (const segment of segments) {
-    if (segment.length <= maxChars) {
-      bounded.push(segment);
-      continue;
-    }
-    for (let offset = 0; offset < segment.length; offset += maxChars) {
-      const chunk = segment.slice(offset, offset + maxChars).trim();
-      if (chunk.length > 0) {
-        bounded.push(chunk);
-      }
-    }
-  }
-  return bounded;
-}
-
-/** 播报腿受控迁移面（voiceSessionStore 单一所有者的写入端口，见文件头说明）。 */
-export interface AnnouncementLegControl {
-  snapshot(): VoiceAnnouncementLegState;
-  startSpeaking(sentenceCount: number): VoiceAnnouncementLegState | null;
-  /** 权限段句界拼接后同步句总数（§4.1 插队使队列长度变化；additive 于 §2.3）。 */
-  extendSentenceCount(total: number): void;
-  markPauseRequested(): VoiceAnnouncementLegState | null;
-  clearPauseRequested(): VoiceAnnouncementLegState | null;
-  sentenceCompleted(): VoiceAnnouncementLegState | null;
-  resumeSpeaking(): VoiceAnnouncementLegState | null;
-  cancelAnnouncement(
-    source: "stopPressed" | "interruptWord" | "claimLost" | "tailSuperseded",
-  ): VoiceAnnouncementLegState | null;
-  beginTaskCancel(): VoiceAnnouncementLegState | null;
-  settleTaskCancel(): VoiceAnnouncementLegState | null;
-  setClaimHeld(held: boolean): void;
-  setUninterruptible(uninterruptible: boolean): void;
-}
+import { splitTurnIntoSentences } from "./turnSpeechText.js";
+export { buildTurnSpeechText, splitTurnIntoSentences } from "./turnSpeechText.js";
+export {
+  createVoiceSessionAnnouncementControl,
+  type AnnouncementLegControl,
+} from "./voiceAnnouncementControl.js";
+import type { AnnouncementLegControl } from "./voiceAnnouncementControl.js";
 
 export interface TurnSpeechPlannerDeps {
   getFocusedTurnTail(sessionId: string | null): { turnId: string; text: string } | null;
@@ -152,9 +51,18 @@ export interface TurnSpeechPlannerDeps {
    * §6.1 音色/语速 + 播报语言（§9.7.5 lang 键 / §9.7.3 vendorVoice 双轨）；
    * 缺省跟随 navigator.language（系统默认音色/厂商默认音色/语速 1）。
    */
-  getAnnouncementVoiceConfig?(): { lang: string; voice?: string; vendorVoice?: string; rate?: number };
+  getAnnouncementVoiceConfig?(): {
+    lang: string;
+    voice?: string;
+    vendorVoice?: string;
+    rate?: number;
+  };
   /** 层③「停掉任务」→ 既有 v4 stop（带 expectedForegroundExecutionId）；Phase 1b 接线。 */
   cancelTask?(): void;
+  /** 权限开始播放前重验，已处理的 pending 请求不能再读出。 */
+  isPermissionPending?(permissionId: string): boolean;
+  /** 录音是 episode 事实，不能把逐句 injecting 微态当作结束。 */
+  isRecording?(): boolean;
   /** claim 续约间隔（§3.5-1：间隔 < TTL/2）；缺省 voiceTuning，测试可缩短。 */
   claimRenewIntervalMs?: number;
   /** Cancelling 兜底（§3.3：5s）；缺省 voiceTuning，测试可缩短。 */
@@ -162,6 +70,7 @@ export interface TurnSpeechPlannerDeps {
 }
 
 export interface TurnSpeechPlanner {
+  isAnnouncementOwner(): boolean;
   /** focused 会话轮尾终态就绪（TurnComplete）时调用；内部判定 claim/互斥/顺延规则。 */
   consumeTurnTail(turnTail: { turnId: string; text: string }): void;
   /** 输入腿进入 Recording：当前句播完即停（句粒度，§4.7 裁决）。 */
@@ -215,6 +124,16 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
   let announcedTurnId: string | null = null;
   let activeHandle: VoiceTtsHandle | null = null;
   let recording = false;
+  let disposed = false;
+  let intentGeneration = 0;
+  let activeLease: VoiceAnnouncementLease | null = null;
+  let renewing = false;
+  const isRecording = () => deps.isRecording?.() ?? recording;
+  const isValid = (generation: number) =>
+    !disposed &&
+    generation === intentGeneration &&
+    control.isOwner() &&
+    deps.isAnnouncementEnabled();
   let pendingTail: { turnId: string; text: string } | null = null;
   let claimRenewTimer: ReturnType<typeof setInterval> | null = null;
   let cancellingFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -236,6 +155,12 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
   let turnStartInFlight = false;
   let permissionDrainScheduled = false;
   let briefDrainScheduled = false;
+  let startChain = Promise.resolve();
+  const prunePermissions = () => {
+    pendingPermissionSegments = pendingPermissionSegments.filter(
+      (segment) => deps.isPermissionPending?.(segment.permissionId) !== false,
+    );
+  };
 
   /**
    * 句边界调度：①权限段（FD-3 最高，正文剩余句之前整段插队、uninterruptible 闭合）；
@@ -243,6 +168,9 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
    * 权限段待插时简报保留，随权限播完后的句界/空闲排空再插（§4.2-5 段间句隙不插）。
    */
   const spliceScheduledSegmentsAtBoundary = (index: number): void => {
+    prunePermissions();
+    // 权限段专用起播时也要守住整段窗口，不能把 pending 简报插到它的第一句之前。
+    if (permissionWindow && index >= permissionWindow.start && index < permissionWindow.end) return;
     const permissionSentences: string[] = [];
     for (const segment of pendingPermissionSegments) {
       permissionSentences.push(...segment.sentences);
@@ -286,13 +214,13 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     if (leg.phase === "cancelling") {
       return;
     }
-    if (leg.phase === "annIdle" && !recording) {
+    if (leg.phase === "annIdle" && !isRecording()) {
       // AnnIdle 空闲插播：权限 pending 优先排空后再到简报（microtask 串行，§9.6.7-1）。
       pendingBriefSegments.push({ briefId, sentences: sentencesForBrief });
       scheduleBriefDrain();
       return;
     }
-    if (leg.phase === "speaking" && !recording) {
+    if (leg.phase === "speaking" && !isRecording()) {
       // 正文句间插播点：句界拼接时权限段优先、简报在其后（§4.2-5 段间句隙不插简报）。
       pendingBriefSegments.push({ briefId, sentences: sentencesForBrief });
       return;
@@ -313,6 +241,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
 
   /** AnnIdle 段排空待播简报（FD-3：权限 pending 优先排空后再到简报）。 */
   const drainPendingBriefFromIdle = (): void => {
+    if (disposed || isRecording() || !deps.isAnnouncementEnabled()) return;
     if (pendingBriefSegments.length === 0) {
       return;
     }
@@ -341,7 +270,9 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     spliceScheduledSegmentsAtBoundary(leg.sentenceIndex);
     const window = permissionWindow;
     // uninterruptible 只覆盖权限句区间：回到正文/简报外的句子即恢复可打断（§3.3 界定）。
-    control.setUninterruptible(window != null && leg.sentenceIndex >= window.start && leg.sentenceIndex < window.end);
+    control.setUninterruptible(
+      window != null && leg.sentenceIndex >= window.start && leg.sentenceIndex < window.end,
+    );
     const text = sentences[leg.sentenceIndex];
     if (text == null) {
       // 队列与状态失步防御：回 AnnIdle（release）而不是播空。
@@ -367,21 +298,39 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     }
     // §3.5-1：Speaking 与 AnnPaused 全程持 claim 周期续约（FD-2：AnnPaused 是持约态）。
     claimRenewTimer = setInterval(() => {
-      void (async () => {
-        if (!control.snapshot().claimHeld) {
-          stopRenewLoop();
-          return;
-        }
-        const renewed = await deps.claim.renew(claimKey);
-        if (renewed) {
-          return;
-        }
-        // §3.5-3 漂移校正以 claim 为准：立即 cancel 回 AnnIdle（AnnPaused 被抢则作废续播意图）。
-        logger.warn("voice.tts", "announcement claim lost; reverting to AnnIdle");
-        deps.tts.cancel();
-        control.cancelAnnouncement("claimLost");
-        stopRenewLoop();
-      })();
+      if (renewing || !activeLease || !control.isOwner() || disposed) return;
+      const previous = activeLease;
+      // 续约属于 owner/具体 lease 的生命周期；同 owner 换正文不应废弃仍有效的续约。
+      const renewalCurrent = () =>
+        !disposed && control.isOwner() && activeLease === previous && deps.isAnnouncementEnabled();
+      renewing = true;
+      void deps.claim
+        .renew(previous)
+        .then((renewed) => {
+          // F4：旧续约只能释放自己返回的 token，不能覆盖新 owner 的相位或 lease。
+          if (!renewalCurrent()) {
+            if (renewed) deps.claim.release(renewed);
+            return;
+          }
+          activeLease = renewed;
+          if (!renewed) {
+            activeHandle = null;
+            deps.tts.cancel();
+            control.cancelAnnouncement("claimLost");
+            stopRenewLoopAndRelease();
+            logger.warn("voice.tts", "announcement claim lost; reverting to AnnIdle");
+          }
+        })
+        .catch(() => {
+          if (!renewalCurrent()) return;
+          activeHandle = null;
+          deps.tts.cancel();
+          control.cancelAnnouncement("claimLost");
+          stopRenewLoopAndRelease();
+        })
+        .finally(() => {
+          renewing = false;
+        });
     }, claimRenewIntervalMs);
   };
 
@@ -394,7 +343,9 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
 
   const stopRenewLoopAndRelease = (): void => {
     stopRenewLoop();
-    deps.claim.release(claimKey);
+    if (activeLease) deps.claim.release(activeLease);
+    activeLease = null;
+    control.releaseOwner();
   };
 
   const clearCancellingFallbackTimer = (): void => {
@@ -404,7 +355,8 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     }
   };
 
-  deps.tts.onDone((handle, reason) => {
+  const unsubscribeDone = deps.tts.onDone((handle, reason) => {
+    if (disposed || !control.isOwner()) return;
     if (activeHandle == null || handle.utteranceId !== activeHandle.utteranceId) {
       return; // 迟到的旧句结算（替换/取消后）忽略。
     }
@@ -438,26 +390,47 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
   const ensureClaimAndSpeak = (
     turnId: string | null,
     queue: string[],
-    opts?: { uninterruptibleLength?: number },
+    opts?: {
+      uninterruptibleLength?: number;
+      permissionSegments?: typeof pendingPermissionSegments;
+    },
   ): void => {
-    if (queue.length === 0) {
-      return;
-    }
-    void (async () => {
+    if (!queue.length || disposed || isRecording() || !deps.isAnnouncementEnabled()) return;
+    if (!control.tryAcquireOwner()) return;
+    const generation = ++intentGeneration;
+    turnStartInFlight = true;
+    // F4：获取链串行，旧 lease 回收后才允许下一意图获取，避免 token 被迟到结果覆盖。
+    startChain = startChain.then(async () => {
+      let acquired: VoiceAnnouncementLease | null = null;
       try {
-        const before = control.snapshot();
-        if (before.phase === "cancelling" || before.phase === "annPaused" || recording) {
-          return; // 竞态防御：起播意图已过期。
-        }
-        if (!before.claimHeld) {
-          const acquired = await deps.claim.acquire(claimKey);
-          if (!acquired) {
-            // §3.3 单播报者：未持有者静默（Phase 1 从简，无「其他窗口播报中」指示）。
-            logger.info("voice.tts", "announcement claim held by another window; staying silent");
-            return;
+        if (
+          disposed ||
+          generation !== intentGeneration ||
+          isRecording() ||
+          !deps.isAnnouncementEnabled() ||
+          !control.tryAcquireOwner()
+        )
+          return;
+        acquired = activeLease ?? (await deps.claim.acquire(claimKey));
+        if (!isValid(generation) || isRecording()) {
+          if (isValid(generation) && isRecording()) {
+            if (turnId !== null) pendingTail = { turnId, text: queue.join("") };
+            if (opts?.permissionSegments)
+              pendingPermissionSegments.unshift(...opts.permissionSegments);
           }
-          control.setClaimHeld(true);
+          if (acquired && acquired !== activeLease) deps.claim.release(acquired);
+          return;
         }
+        if (!acquired) return;
+        activeLease = acquired;
+        // 权限在 claim 往返期间也可能已被处理，必须在真正出声前再核验。
+        if (opts?.permissionSegments) {
+          queue = opts.permissionSegments
+            .filter((segment) => deps.isPermissionPending?.(segment.permissionId) !== false)
+            .flatMap((segment) => segment.sentences);
+          if (!queue.length) return;
+        }
+        control.setClaimHeld(true);
         if (!control.startSpeaking(queue.length)) {
           // acquire 与起播之间输入腿进入 Recording 等竞态：立即放弃并释放，不长期持 claim。
           control.setClaimHeld(false);
@@ -475,12 +448,22 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
         }
         startRenewLoop();
         speakCurrent(control.snapshot());
+      } catch {
+        if (isValid(generation)) {
+          activeHandle = null;
+          deps.tts.cancel();
+          control.cancelAnnouncement("claimLost");
+          logger.warn("voice.tts", "announcement claim request failed");
+        }
       } finally {
-        turnStartInFlight = false;
-        // 起播链落地后如有遗留权限段（如轮尾起播竞胜）：再排一次空。
-        schedulePermissionDrain();
+        if (generation === intentGeneration) {
+          turnStartInFlight = false;
+          if (control.snapshot().phase === "annIdle") stopRenewLoopAndRelease();
+          schedulePermissionDrain();
+          scheduleBriefDrain();
+        }
       }
-    })();
+    });
   };
 
   /**
@@ -488,6 +471,8 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
    * speaking 期的 pending 由句界拼接消费，链在飞则等待 onDone 的 annIdle 排空。
    */
   const drainPendingPermissionFromIdle = (): void => {
+    prunePermissions();
+    if (disposed || isRecording() || !deps.isAnnouncementEnabled()) return;
     if (pendingPermissionSegments.length === 0) {
       return;
     }
@@ -495,6 +480,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       return;
     }
     const drained: string[] = [];
+    const permissionSegments = pendingPermissionSegments;
     for (const segment of pendingPermissionSegments) {
       drained.push(...segment.sentences);
     }
@@ -502,7 +488,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     if (drained.length === 0) {
       return;
     }
-    ensureClaimAndSpeak(null, drained, { uninterruptibleLength: drained.length });
+    ensureClaimAndSpeak(null, drained, {
+      uninterruptibleLength: drained.length,
+      permissionSegments,
+    });
   };
 
   const schedulePermissionDrain = (): void => {
@@ -518,7 +507,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
 
   return {
     consumeTurnTail(turnTail) {
-      if (!deps.isAnnouncementEnabled()) {
+      if (disposed || !deps.isAnnouncementEnabled()) {
         return;
       }
       // Cancelling 终态判定先于 Recording 顺延：录音中任务被取消时 TurnComplete
@@ -528,9 +517,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
         // TurnComplete(cancelled) 完成信号：回 AnnIdle 且不再播（§3.2 Cancelling 出边）。
         clearCancellingFallbackTimer();
         control.settleTaskCancel();
+        stopRenewLoopAndRelease();
         return;
       }
-      if (recording) {
+      if (isRecording()) {
         // §3.3 顺延规则：Recording 期间轮尾就绪不立即播，不排队多轮（只留最新）。
         pendingTail = turnTail;
         return;
@@ -548,7 +538,6 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       if (queue.length === 0) {
         return;
       }
-      turnStartInFlight = true;
       ensureClaimAndSpeak(turnTail.turnId, queue);
     },
 
@@ -607,9 +596,14 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
           }
         }
       }
+      // F5：没有正文轮尾时，录音中积压的权限段也必须在资源释放后排空。
+      schedulePermissionDrain();
+      scheduleBriefDrain();
     },
 
     notifyStopPressed() {
+      intentGeneration += 1;
+      turnStartInFlight = false;
       // §3.3 FD-1：任何播报态（含 uninterruptible 段、AnnPaused、Cancelling）立即静音回
       // AnnIdle；零协议、不取消任务（层①唯一点按载体是 TID_VOICE_ANN_STOP，Phase 1b）。
       pendingTail = null;
@@ -618,7 +612,7 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       pendingPermissionSegments = [];
       pendingBriefSegments = [];
       permissionWindow = null;
-      deps.tts.cancel();
+      if (control.isOwner()) deps.tts.cancel();
       control.cancelAnnouncement("stopPressed");
       clearCancellingFallbackTimer();
       stopRenewLoopAndRelease();
@@ -642,7 +636,8 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     },
 
     consumePermissionSegment(segment) {
-      if (!deps.isAnnouncementEnabled()) {
+      if (deps.isPermissionPending?.(segment.permissionId) === false) return;
+      if (disposed || !deps.isAnnouncementEnabled()) {
         return;
       }
       if (announcedPermissionIds.has(segment.permissionId)) {
@@ -660,12 +655,18 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       if (leg.phase === "speaking" || leg.phase === "annPaused") {
         // FD-3 句粒度让位：当前句播完后在下一句边界整段插队（AnnPaused 则等续播边界）。
         // 连续段在 splicePermissionAtBoundary 内背靠背拼接，段间句隙不开放正文。
-        pendingPermissionSegments.push({ permissionId: segment.permissionId, sentences: sentencesForSegment });
+        pendingPermissionSegments.push({
+          permissionId: segment.permissionId,
+          sentences: sentencesForSegment,
+        });
         return;
       }
-      if (recording) {
+      if (isRecording()) {
         // 录音中到达：暂存，录音结束的续播边界先播权限段（FD-3 权限 > 正文）。
-        pendingPermissionSegments.push({ permissionId: segment.permissionId, sentences: sentencesForSegment });
+        pendingPermissionSegments.push({
+          permissionId: segment.permissionId,
+          sentences: sentencesForSegment,
+        });
         return;
       }
       // AnnIdle：入队并微任务排空（与轮尾起播链串行——同帧到达时等待链落地后按相位
@@ -678,11 +679,16 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     },
 
     consumeBriefSegment(briefId, text) {
+      if (disposed || !deps.isAnnouncementEnabled()) return;
       consumeBriefSegmentInternal(briefId, splitTurnIntoSentences(text));
     },
 
     requestCancelTask() {
+      intentGeneration += 1;
+      turnStartInFlight = false;
+      stopRenewLoop();
       const leg = control.snapshot();
+      if (leg.phase === "annIdle") stopRenewLoopAndRelease();
       if (leg.phase === "speaking" || leg.phase === "annPaused") {
         // 播报同步静音（§3.2 Speaking/AnnPaused→Cancelling；§4.3 层③）。
         activeHandle = null;
@@ -707,19 +713,21 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
         }, cancellingFallbackTimeoutMs);
       }
       // 层③发既有 v4 stop（带 expectedForegroundExecutionId），与播报态无关——播报
-      // 关闭/AnnIdle 时口述「停掉任务」仍须生效（§4.3/§4.8）。语音命令总线会广播到
-      // 全部已注册 planner：多 pane 双发由 SessionPane.handleStop 的 canStop 守卫逐
-      // pane 挡住，同会话残余双发落在 guard.stopTargetChanged → V4CommandNoopError
-      //（spec §4.3 明载的防误杀机制）。
+      // 关闭/AnnIdle 时仍可取消任务；§9.8 总线已按绑定目标选出唯一处理者。
+      // SessionPane 保留 canStop 与 expectedForegroundExecutionId，负责能力/stale run 校验。
       deps.cancelTask?.();
     },
 
     notifyExternalTaskStop() {
+      intentGeneration += 1;
+      turnStartInFlight = false;
+      stopRenewLoop();
       // §3.3 FD-1：任务被既有停止面（TID_V4_STOP / Esc 停止生成）取消——播报同步静音经
       // Cancelling 回 AnnIdle；不重复发 v4 stop（停止面已发过，guard.stopTargetChanged
       // 命中是 noop 无 ACK，5s 兜底由 requestCancelTask 同款定时器覆盖）。
       const leg = control.snapshot();
       if (leg.phase !== "speaking" && leg.phase !== "annPaused") {
+        if (leg.phase === "annIdle") stopRenewLoopAndRelease();
         return;
       }
       activeHandle = null;
@@ -743,6 +751,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     },
 
     dispose() {
+      if (disposed) return;
+      disposed = true;
+      intentGeneration += 1;
+      unsubscribeDone();
       recording = false;
       pendingTail = null;
       announcedTurnId = null;
@@ -750,35 +762,12 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
       pendingPermissionSegments = [];
       pendingBriefSegments = [];
       permissionWindow = null;
-      deps.tts.cancel();
+      // F3：非持有 pane 卸载不能触发引擎级 cancel，更不能清掉别人的全局相位。
+      if (control.isOwner()) deps.tts.cancel();
       control.cancelAnnouncement("stopPressed");
       clearCancellingFallbackTimer();
       stopRenewLoopAndRelease();
     },
-  };
-}
-
-/**
- * 播报腿控制面的 store 适配（Phase 1b wiring 用）：把 voiceSessionStore 的 guarded
- * actions 映射为 AnnouncementLegControl。类型引入为 type-only，不构成运行时环
- * （voiceSessionStore 只反向依赖 voice/voiceTuning 常量）。
- */
-export function createVoiceSessionAnnouncementControl(store: {
-  getState(): VoiceSessionStoreActions & VoiceSessionStoreState;
-}): AnnouncementLegControl {
-  const call = () => store.getState();
-  return {
-    snapshot: () => call().announcement,
-    extendSentenceCount: (total) => call().setSentenceCount(total),
-    startSpeaking: (sentenceCount) => call().startAnnouncement(sentenceCount),
-    markPauseRequested: () => call().markPauseRequested(),
-    clearPauseRequested: () => call().clearPauseRequested(),
-    sentenceCompleted: () => call().sentenceCompleted(),
-    resumeSpeaking: () => call().resumeAnnouncement(),
-    cancelAnnouncement: (source) => call().cancelAnnouncement(source),
-    beginTaskCancel: () => call().beginTaskCancel(),
-    settleTaskCancel: () => call().settleTaskCancel(),
-    setClaimHeld: (held) => call().setClaimHeld(held),
-    setUninterruptible: (uninterruptible) => call().setUninterruptible(uninterruptible),
+    isAnnouncementOwner: () => !disposed && control.isOwner(),
   };
 }

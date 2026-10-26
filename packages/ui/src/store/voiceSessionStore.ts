@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { VOICE_LAST_DICTATION_TTL_MS } from "@/voice/voiceTuning.js";
+import { requestVoiceRecordingAbort } from "@/voice/voiceRecordingControl.js";
 
 /**
  * 语音会话两条腿状态机（specs/voice-agent-integration.md §3.1 / §3.2 / §3.3）。
@@ -86,9 +87,13 @@ export interface VoiceSessionStoreState {
 
   /** —— 播报腿 —— */
   announcement: VoiceAnnouncementLegState;
+  /** 窗口内唯一播报 planner 的不透明凭证；获取跨窗 claim 前即占有。 */
+  announcementOwnerId: string | null;
 }
 
 export interface VoiceSessionStoreActions {
+  acquireAnnouncementOwner(ownerId: string): boolean;
+  releaseAnnouncementOwner(ownerId: string): void;
   // —— 输入腿 ——
   /**
    * Idle→RequestingMic：捕获绑定会话（草稿 composer 传 null）与持有入口实例。
@@ -199,16 +204,14 @@ export function consumeVoiceRecordingEscape(): boolean {
   if (state.inputLeg !== "recording") {
     return false;
   }
-  state.stopRecording();
+  requestVoiceRecordingAbort(state.recordingOwnerEntryId);
   return true;
 }
 
 export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
   const withInputLeg = (
     from: readonly VoiceInputLegState[],
-    transition: (
-      state: VoiceSessionStoreState,
-    ) => Partial<VoiceSessionStoreState> | null,
+    transition: (state: VoiceSessionStoreState) => Partial<VoiceSessionStoreState> | null,
   ): boolean => {
     const state = get();
     if (!from.includes(state.inputLeg)) {
@@ -249,6 +252,16 @@ export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
     announcement: initialAnnouncement,
+    announcementOwnerId: null,
+    acquireAnnouncementOwner(ownerId) {
+      const current = get().announcementOwnerId;
+      if (current !== null && current !== ownerId) return false;
+      set({ announcementOwnerId: ownerId });
+      return true;
+    },
+    releaseAnnouncementOwner(ownerId) {
+      if (get().announcementOwnerId === ownerId) set({ announcementOwnerId: null });
+    },
 
     // —— 输入腿 ——
     startMicRequest(sessionId, ownerEntryId) {
@@ -284,7 +297,8 @@ export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
         recordingOwnerEntryId: null,
         notice: { code, at: Date.now() },
       }));
-    },    beginRecording() {
+    },
+    beginRecording() {
       return withInputLeg(["requestingMic"], () => ({
         inputLeg: "recording",
       }));
@@ -323,7 +337,9 @@ export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
       set({
         inputLeg: options?.resumeRecording === true ? "recording" : "idle",
         // 多句连说（resumeRecording）保持持有入口不变；单句/手动停止离场清持有者。
-        ...(options?.resumeRecording === true ? {} : { boundSessionId: null, recordingOwnerEntryId: null }),
+        ...(options?.resumeRecording === true
+          ? {}
+          : { boundSessionId: null, recordingOwnerEntryId: null }),
         pendingFinalText: null,
         lastDictation: { text: injected, capturedAt: Date.now() },
       });

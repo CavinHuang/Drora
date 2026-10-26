@@ -5,7 +5,7 @@
  * → voiceComposerEntryState 纯函数；录音运行时全部在 useVoiceDictation，本 hook 不复制
  * 任何状态机分支。FD-5 的两入口共用 reader 守卫也在这里消费（isVoicePrivacyAcknowledged）。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -19,6 +19,8 @@ import {
   type VoiceComposerEntryView,
 } from "./voiceComposerEntryState.js";
 import { createWebSpeechAsrAdapter } from "./webSpeechAsrAdapter.js";
+import { isRemoteAsrSupported } from "./remoteAsrAdapter.js";
+import { isVoiceVendorConfigComplete, resolveAsrEngineChoice } from "./resolveAsrAdapter.js";
 import { useVoiceDictation } from "./useVoiceDictation.js";
 import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 
@@ -57,7 +59,39 @@ export function useVoiceComposerEntry({
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   // 能力探测一次即可：window.SpeechRecognition 的存在性在会话生命周期内不会翻转；
   // 缺席（Firefox/iOS Safari）即不出入口（§6.1 能力探测，不写 UA 分支）。
-  const asrSupported = useMemo(() => createWebSpeechAsrAdapter().isSupported(), []);
+  const webSpeechSupported = useMemo(() => createWebSpeechAsrAdapter().isSupported(), []);
+  const [vendorCredentialReady, setVendorCredentialReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setVendorCredentialReady(false);
+    if (settings?.voiceAsrEngine !== "remote") return;
+    void services.credentialService
+      ?.load(VOICE_VENDOR_CREDENTIAL_KEY)
+      .then((key) => {
+        if (active) setVendorCredentialReady(Boolean(key?.trim()));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [
+    services.credentialService,
+    settings?.voiceAsrEngine,
+    settings?.voiceVendorBaseUrl,
+    settings?.voiceAsrVendorModel,
+  ]);
+  // F6：只在完整 remote 档+独立媒体能力均成立时选 remote，入口与起录同一解析规则。
+  const asrSupported =
+    resolveAsrEngineChoice({
+      engine: settings?.voiceAsrEngine ?? "webSpeech",
+      vendorConfigComplete: isVoiceVendorConfigComplete({
+        baseUrl: settings?.voiceVendorBaseUrl,
+        model: settings?.voiceAsrVendorModel,
+        apiKey: vendorCredentialReady ? "available" : "",
+      }),
+      remoteSupported: isRemoteAsrSupported(),
+      webSpeechSupported,
+    }) !== null;
 
   const view = useMemo(
     () =>

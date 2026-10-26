@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { useVoiceSessionStore, type VoiceAnnouncementLegState } from "@/store/voiceSessionStore.js";
@@ -177,6 +177,7 @@ function resetStores(): void {
     pendingFinalText: null,
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -197,18 +198,23 @@ interface Harness {
   announcement: ReturnType<typeof useVoiceAnnouncement>;
   dictation: ReturnType<typeof useVoiceDictation>;
   requestTaskStop: ReturnType<typeof vi.fn>;
+  addPermission(): void;
 }
 
 /** 挂载播报 + 听写两条腿：轮尾已消费（speaking/annIdle 由 settings 决定）。 */
 async function mountLegs(): Promise<Harness> {
   const requestTaskStop = vi.fn();
+  let pendingInteractions: {
+    interactionId: string;
+    payload: { kind: string; toolName: string; summary: string };
+  }[] = [];
   const announcement = renderHook(() =>
     useVoiceAnnouncement({
       focused: true,
       sessionId: "sess-1",
       workspacePath: "/ws",
       units: [makeUnit("t1", ["甲。乙。"])] as never,
-      pendingInteractions: [],
+      pendingInteractions,
       requestTaskStop,
     }),
   );
@@ -225,6 +231,19 @@ async function mountLegs(): Promise<Harness> {
     announcement: announcement.result.current,
     dictation: dictation.result.current,
     requestTaskStop,
+    addPermission: () => {
+      pendingInteractions = [
+        {
+          interactionId: "perm-1",
+          payload: {
+            kind: "permission",
+            toolName: "Bash",
+            summary: "要运行命令吗？",
+          },
+        },
+      ];
+      act(() => announcement.rerender());
+    },
   };
 }
 
@@ -288,10 +307,7 @@ describe("语音打断全链（听写决策 → 命令总线 → 播报规划器
   it("uninterruptible 权限段：语音「停」不生效（§3.3），点按停止不受限", async () => {
     const harness = await mountLegs();
     // 权限段在「甲」播报中插队（§4.1）：当前句播完的句界整段拼接。
-    harness.announcement.planner.consumePermissionSegment({
-      permissionId: "perm-1",
-      text: "Bash: 要运行命令吗？",
-    });
+    harness.addPermission();
     fakeTts.finishCurrent();
     // 权限句在播（uninterruptible 整段置位，§3.3）。
     expect(fakeTts.spoken).toEqual(["甲。", "Bash: 要运行命令吗？"]);
@@ -356,4 +372,19 @@ describe("语音打断全链（听写决策 → 命令总线 → 播报规划器
     expect(fakeTts.cancelCount.value).toBe(0);
     void harness;
   });
+});
+
+it("sentence-final injecting microstate does not resume speech while the mic episode continues (§9.8)", async () => {
+  const h = await mountLegs();
+  await startDictation(h);
+  fakeTts.finishCurrent();
+  expect(useVoiceSessionStore.getState().announcement.phase).toBe("annPaused");
+  dictationSession()?.emitFinal("追加一句");
+  await flush();
+  expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+  expect(useVoiceSessionStore.getState().announcement.phase).toBe("annPaused");
+  expect(fakeTts.spoken).toEqual(["甲。"]);
+  h.dictation.toggleMic();
+  await flush();
+  expect(fakeTts.spoken).toEqual(["甲。", "乙。"]);
 });

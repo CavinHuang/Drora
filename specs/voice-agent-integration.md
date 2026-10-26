@@ -1036,6 +1036,77 @@ flowchart LR
 
 ---
 
+### 9.8 生命周期与多 pane 隔离修复（2026-10-24）
+
+本批修复当前实现审查已复现的 F1–F6，取代此前依赖 `canStop` 防止跨会话语音取消的假设。
+不扩展 CLI/wire、手机语音或实时双工范围。状态仍由 `voiceSessionStore` 单独持有，IO 资源由
+录音入口 / 持有播报凭证的 planner 管理；不把 MediaStream、凭据或音频放进 store。
+
+#### 9.8.1 输入腿资源与定向命令
+
+- 开始录音时捕获 workspace ref、sessionId、入口实例和 episode 代际，期间不随 focus 改绑。
+  workspace key 使用 `workspaceIdentity?.trim() || workspacePath`；远程身份复用已有 ref。
+  仅切换其他 pane 的 focus 不结束本入口；本入口被替换为另一会话/workspace 则先释放旧
+  episode，等同旧 composer 离场，绝不把旧结果送入新目标。
+- Esc 是丢弃式 `abort()`：保留已注入的 final，丢弃 partial/未结算 final，先使代际失效、
+  停底层引擎/音轨、退订，再回 Idle；点 mic 停止仍是 `stop()` 等待 final 恰一次交付。
+  错误、超时、卸载共用终止清理，重复调用幂等。逐句 `Recording→Injecting→Recording`
+  不是 episode 结束，不能据此停引擎或恢复播报。RequestingMic 的迟到授权也须释放资源。
+- `cancelTask` 携带捕获的 workspace/session 目标，只送一个匹配的会话处理者；草稿或目标
+  消失时 no-op，不回退到当前 focused。`canStop` 与 expectedForegroundExecutionId 保留，
+  分别负责能力与 stale-run 校验，不再被当作目标路由。相同会话双 pane 仅处理一次，
+  优先选择其中的播报持有者，以保证取消任务同时静音；无播报时选一个匹配处理者。
+- `stopAnnouncement` 定向当前播报持有者，保持权限整段 uninterruptible 守卫；不取消任务。
+
+#### 9.8.2 播报唯一所有者与异步意图
+
+- 每个 planner 有独立 owner 凭证，store 原子仲裁窗口内唯一持有者；进入获取跨窗口 claim
+  前先占本地所有权。所有播报状态写入都经凭证校验的 control，非持有者不能 cancel 共享
+  TTS、不能重置全局相位；非持有 pane 卸载只释放自己的订阅和候选。
+- 起播使用 generation，续约使用 owner + 具体 lease 身份作为代际；停止、切离、会话切换、
+  关闭播报、卸载使旧意图失效。每次 await 返回后复核对应代际、disposed、owner 和当前条件，
+  旧结果不得开播或覆盖新态。同 owner 仅替换正文时保留有效续约，不误释放它的新 lease。
+- claim acquire 返回具体 lease；renew/release 都针对该 lease。旧请求迟到成功只释放自己的
+  lease，不能按 key 释放新请求的占用；同一 planner 续约不重叠。TTL/周期沿用 §3.5。
+- 指示器停止操作送实际播报 owner；同窗其他 pane 的停止/卸载不改变当前播报。
+- 录音释放、句完成和起播链完成进入同一调度点，按权限 > 正文 > 简报处理。
+  AnnIdle 且只有权限 pending 也必须起播；开播前复核请求仍 pending，已处理者作废。
+
+```mermaid
+sequenceDiagram
+    participant E as 录音入口/episode
+    participant S as voiceSessionStore
+    participant P as 持有凭证的 planner
+    participant H as 既有 claim/会话命令端口
+    E->>S: 捕获绑定目标和入口
+    E->>E: Esc：失效代际、abort、释放资源
+    E->>S: 输入 episode 结束
+    S->>P: 录音释放，调度有效权限/正文
+    P->>S: 原子取得本地 owner
+    P->>H: acquire/renew 具体 lease
+    H-->>P: 异步结果
+    P->>P: 校验代际、owner、开关和录音
+    alt 结果已过期
+      P->>H: 仅 release 该结果 lease
+    else 结果有效
+      P->>S: 经 owner 校验迁移并播放
+    end
+```
+
+#### 9.8.3 能力解析与验收
+
+- 入口与起录共用引擎选择：webSpeech 检查 SpeechRecognition；remote 检查 MediaRecorder、
+  getUserMedia、FormData/fetch 和完整厂商档（凭据只经 credentialService 读取）。remote
+  可用时不再要求 SpeechRecognition；回退只在对应能力可用时执行。远控壳仍隐藏入口。
+- 回归先行：Esc 后底层 abort/音轨停止、零 task stop/迟到注入；final 注入微态不结束
+  episode；A/B 并行时只取消绑定目标；同会话双 pane 与远程身份隔离；无关 pane 卸载不
+  停播；停止/切离/卸载后迟到 acquire/renew 零播放且不释放新 lease；仅权限 pending 的
+  录音释放起播；已处理权限不播；无 SpeechRecognition 的 remote 入口可见并可起录。
+- 交互场景以受控 ASR/TTS 的桌面候选 E2E 验证资源释放、命令路由与 pane 隔离，不要求
+  真实麦克风/云端凭据。真实语音质量、厂商连通性和跨平台能力矩阵仍按 TV 项独立验证。
+- 实测门禁：目标测试、typecheck、lint、显式功能基线架构检查；桌面 E2E 留存运行结果，
+  环境阻塞须记实，不以测试存在代替实跑。候选不自动提升正式 CI/Docker 覆盖。
+
 ## 10. 开放问题清单（含触发条件与责任人角度）
 
 | # | 问题 | 为什么暂不裁决 | 重新打开的触发条件 | 责任人角度 |

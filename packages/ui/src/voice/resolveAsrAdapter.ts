@@ -22,18 +22,18 @@ export interface AsrEngineChoiceInputs {
 }
 
 /** 选型结果单一出处（useVoiceDictation 按字面量消费；协议形状导出）。@lintignore */
-export type AsrEngineChoice = "webSpeech" | "remote";
+export type AsrEngineChoice = "webSpeech" | "remote" | null;
 
 import { validateVoiceVendorBaseUrl } from "./voiceVendorBaseUrl.js";
 
 export function resolveAsrEngineChoice(inputs: AsrEngineChoiceInputs): AsrEngineChoice {
   if (inputs.engine !== "remote") {
-    return "webSpeech";
+    return inputs.webSpeechSupported ? "webSpeech" : null;
   }
   // §9.6.6：remote 且档完整且能力可用 → remote；任一不满足 → webSpeech
   //（调用方对「档不完整」记 voice.asr info、「start 失败」记 warn，§7.1 既有槽位）。
   if (!inputs.vendorConfigComplete || !inputs.remoteSupported) {
-    return "webSpeech";
+    return inputs.webSpeechSupported ? "webSpeech" : null;
   }
   return "remote";
 }

@@ -51,7 +51,9 @@ export interface RemoteAsrAdapterDeps {
   /** 厂商档（调用时求值，设置热更即时生效）。 */
   getVendorConfig: () => RemoteAsrVendorConfig | null;
   /** 缺省 navigator.mediaDevices.getUserMedia（AEC/NS/AGC 约束与 webSpeech 同款）；测试注入 fake。 */
-  getUserMedia?(constraints: { audio: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean } }): Promise<MediaStreamLike>;
+  getUserMedia?(constraints: {
+    audio: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean };
+  }): Promise<MediaStreamLike>;
   /** 缺省 window.MediaRecorder；测试注入 fake（仓内 MediaRecorder 先例：electronBrowserWebmRecorder）。 */
   createMediaRecorder?(stream: MediaStreamLike, options?: { mimeType?: string }): MediaRecorderLike;
   /** 缺省 globalThis.fetch；测试注入 mock HTTP（契约单测不发真实厂商请求，§9.6.8-S2）。 */
@@ -128,9 +130,11 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
     private chunks: Blob[] = [];
     private finalSubscribers = new Set<(text: string) => void>();
     private errorSubscribers = new Set<(error: VoiceAsrError) => void>();
-    private stopping = false;
     private dead = false;
-    private stopResolve: ((value: { final: string }) => void) | null = null;
+    private streamClosed = false;
+    private uploadAbort = new AbortController();
+    private settleRecorderStop: (() => void) | null = null;
+    private stopPromise: Promise<{ final: string }> | null = null;
     private settleTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(
@@ -147,16 +151,11 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
     }
 
     private closeStream(): void {
+      if (this.streamClosed) return;
+      this.streamClosed = true;
       for (const track of this.stream.getTracks()) {
         track.stop();
       }
-    }
-
-    private settleStop(value: { final: string }): void {
-      this.clearSettleTimer();
-      const resolve = this.stopResolve;
-      this.stopResolve = null;
-      resolve?.(value);
     }
 
     private clearSettleTimer(): void {
@@ -181,44 +180,57 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
     }
 
     /** stop()：停收集 → 整段上传 → 经 onFinal 交付一次 + resolve；空音频/失败走 reject/空串。 */
-    async stop(): Promise<{ final: string }> {
-      if (this.dead || this.stopping) {
+    stop(): Promise<{ final: string }> {
+      if (this.stopPromise) return this.stopPromise;
+      this.stopPromise = this.finishStop();
+      return this.stopPromise;
+    }
+
+    private async finishStop(): Promise<{ final: string }> {
+      if (this.dead) {
         return { final: "" };
       }
-      this.stopping = true;
       const stopped = new Promise<void>((resolve) => {
-        const previous = this.recorder.ondataavailable;
-        this.recorder.ondataavailable = (event) => {
-          previous?.call(this.recorder, event);
-        };
+        this.settleRecorderStop = resolve;
         this.recorder.addEventListener("stop", () => resolve(), { once: true });
-        this.recorder.stop();
         // 引擎不吐 stop 事件的兜底（voiceTuning 同款 wedged-engine 防御）。
         this.settleTimer = setTimeout(resolve, stopSettleTimeoutMs);
+        this.recorder.stop();
       });
       await stopped;
       this.clearSettleTimer();
-      this.dead = true;
+      this.settleRecorderStop = null;
       this.closeStream();
+      // Esc 可在 recorder.stop 与 stop 事件结算之间发生，此时不再创建上传请求。
+      if (this.dead) return { final: "" };
 
       const blob = new Blob(this.chunks, { type: this.recorder.mimeType ?? "audio/webm" });
+      this.chunks = [];
+      this.recorder.ondataavailable = null;
       if (blob.size === 0) {
+        this.dead = true;
         // 静音/零字节：同静音超时处理（§5.3），无上传。
         return { final: "" };
       }
       try {
         const text = await this.transcribe(blob);
+        if (this.dead) return { final: "" };
         // §9.6.4-1：响应文本经既有 onFinal 通道交付一次；stop() 恒空串防双交付（见头注）。
         for (const cb of Array.from(this.finalSubscribers)) {
           cb(text);
         }
       } catch (error) {
+        if (this.dead) return { final: "" };
         const asrError =
-          error instanceof VoiceAsrError ? error : new VoiceAsrError("network", "transcription failed");
+          error instanceof VoiceAsrError
+            ? error
+            : new VoiceAsrError("network", "transcription failed");
         // §9.6.6：录音中厂商请求失败 → onError("network") → 既有 §5.3 处置。
         for (const cb of Array.from(this.errorSubscribers)) {
           cb(asrError);
         }
+      } finally {
+        this.dead = true;
       }
       return { final: "" };
     }
@@ -249,8 +261,10 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
           body: form,
           credentials: "omit",
           redirect: "error",
+          signal: this.uploadAbort.signal,
         });
       } catch (error) {
+        if (this.dead) throw error;
         // §7.1：warn 只落错误形状，不落 URL 查询串/凭据/音频。
         logger.warn("voice.asr", "remote transcription request failed", {
           type: error instanceof Error ? error.name : "unknown",
@@ -258,7 +272,9 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
         throw new VoiceAsrError("network", "transcription request failed");
       }
       if (!response.ok) {
-        logger.warn("voice.asr", "remote transcription request rejected", { status: response.status });
+        logger.warn("voice.asr", "remote transcription request rejected", {
+          status: response.status,
+        });
         throw new VoiceAsrError("network", `transcription HTTP ${response.status}`);
       }
       const payload = (await response.json()) as { text?: unknown };
@@ -272,9 +288,12 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
         return;
       }
       this.dead = true;
+      this.uploadAbort.abort();
+      this.settleRecorderStop?.();
+      this.settleRecorderStop = null;
       this.clearSettleTimer();
-      this.stopResolve = null;
       this.chunks = [];
+      this.recorder.ondataavailable = null;
       this.closeStream();
       // 丢弃式停止：不上传、不产生 final（§2.3 契约）。
       if (this.recorder.state !== "inactive") {
@@ -291,7 +310,7 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
     isSupported(): boolean {
       // renderer 直连不依赖引擎presence：能力面 = MediaRecorder + fetch + getUserMedia
       // （桌面 Chromium / 浏览器全具备；缺席环境由选型函数回退 webSpeech，§9.6.6）。
-      return typeof MediaRecorder !== "undefined" && typeof FormData !== "undefined";
+      return isRemoteAsrSupported();
     },
     async start(params: VoiceAsrStartParams): Promise<VoiceAsrSession> {
       const config = deps.getVendorConfig();
@@ -312,7 +331,7 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
         const mimeType = pickMimeType();
         recorder = deps.createMediaRecorder
           ? deps.createMediaRecorder(stream, mimeType ? { mimeType } : undefined)
-          : createMediaRecorder(stream);
+          : createMediaRecorder(stream, mimeType ? { mimeType } : undefined);
       } catch (error) {
         for (const track of stream.getTracks()) {
           track.stop();
@@ -322,7 +341,12 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
           : new VoiceAsrError("audio-capture", "MediaRecorder unavailable");
       }
       const session = new RemoteSession(stream, recorder, params.lang, params.hints ?? []);
-      session.startRecording();
+      try {
+        session.startRecording();
+      } catch (error) {
+        session.abort();
+        throw error;
+      }
       logger.info("voice.asr", "remote batch recognition session started");
       return session;
     },
@@ -333,6 +357,16 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
   };
 }
 
+/** 入口与起录共用能力探测；不能把独立 remote 引擎绑在 SpeechRecognition 上。 */
+export function isRemoteAsrSupported(): boolean {
+  return (
+    typeof MediaRecorder !== "undefined" &&
+    typeof FormData !== "undefined" &&
+    typeof fetch === "function" &&
+    typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function"
+  );
+}
 
 /** BCP-47 → 端点 language 参数（whisper 族取主子标签；空/无法映射 → 省略由模型自判定）。 */
 export function mapLanguage(lang: string): string | null {

@@ -41,7 +41,7 @@ export interface VoiceAsrStartParams {
 /** 一次录音会话；端口实现负责 getUserMedia 约束
  *  { echoCancellation: true, noiseSuppression: true, autoGainControl: true }（全仓首批）。 */
 export interface VoiceAsrSession {
-  /** 手动停止（点按/Esc）：等待最终结果，resolve final 文本（可能为空串）。 */
+  /** 点按停止：等待最终结果；Esc 经 abort 丢弃未完成转写（§9.8.1）。 */
   stop(): Promise<{ final: string }>;
   /** 丢弃式停止（错误/超时/绑定会话关闭）：不产生 final。 */
   abort(): void;

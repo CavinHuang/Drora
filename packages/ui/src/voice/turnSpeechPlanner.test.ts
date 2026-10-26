@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildTurnSpeechText } from "./turnSpeechText.js";
 import {
-  buildTurnSpeechText,
   createTurnSpeechPlanner,
   createVoiceSessionAnnouncementControl,
-  splitTurnIntoSentences,
   type AnnouncementLegControl,
   type TurnSpeechPlanner,
   type TurnSpeechPlannerDeps,
 } from "./turnSpeechPlanner.js";
-import type { VoiceAnnouncementClaimPort } from "./voiceAnnouncementClaim.js";
+import type {
+  VoiceAnnouncementClaimPort,
+  VoiceAnnouncementLease,
+} from "./voiceAnnouncementClaim.js";
 import type {
   VoiceTtsDoneReason,
   VoiceTtsHandle,
@@ -70,14 +72,14 @@ class FakeClaim implements VoiceAnnouncementClaimPort {
   renewCalls = 0;
   releaseCalls = 0;
 
-  async acquire(): Promise<boolean> {
+  async acquire(): Promise<VoiceAnnouncementLease | null> {
     this.acquireCalls += 1;
-    return this.acquireResult;
+    return this.acquireResult ? { key: "k", token: "fake-lease" } : null;
   }
 
-  async renew(): Promise<boolean> {
+  async renew(lease: VoiceAnnouncementLease): Promise<VoiceAnnouncementLease | null> {
     this.renewCalls += 1;
-    return this.renewResult;
+    return this.renewResult ? lease : null;
   }
 
   release(): void {
@@ -102,6 +104,7 @@ function resetVoiceStore(): void {
     notice: null,
     lastDictation: null,
     pendingFinalText: null,
+    announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
   });
 }
@@ -115,7 +118,9 @@ interface Harness {
 }
 
 function createHarness(
-  overrides?: Partial<Pick<TurnSpeechPlannerDeps, "claimRenewIntervalMs" | "cancellingFallbackTimeoutMs">>,
+  overrides?: Partial<
+    Pick<TurnSpeechPlannerDeps, "claimRenewIntervalMs" | "cancellingFallbackTimeoutMs">
+  >,
 ): Harness {
   let focusedTail: { turnId: string; text: string } | null = null;
   const tts = new FakeTts();
@@ -163,43 +168,6 @@ function speakAll(h: Harness): string[] {
 
 beforeEach(() => {
   resetVoiceStore();
-});
-
-describe("句边界切分与同源聚合（§4.1）", () => {
-  it("splits on terminal punctuation and keeps closers attached", () => {
-    expect(splitTurnIntoSentences("第一句。第二句！第三句？结尾无标点")).toEqual([
-      "第一句。",
-      "第二句！",
-      "第三句？",
-      "结尾无标点",
-    ]);
-    expect(splitTurnIntoSentences("他说：「好。」走！")).toEqual(["他说：「好。」", "走！"]);
-    expect(splitTurnIntoSentences("先做 a；再做 b;\n新行开始")).toEqual([
-      "先做 a；",
-      "再做 b;",
-      "新行开始",
-    ]);
-  });
-
-  it("protects decimals from splitting", () => {
-    expect(splitTurnIntoSentences("版本 3.14 已发布。下一句")).toEqual([
-      "版本 3.14 已发布。",
-      "下一句",
-    ]);
-  });
-
-  it("hard-splits overlong segments at the tuning bound", () => {
-    const segments = splitTurnIntoSentences("a".repeat(250));
-    expect(segments).toHaveLength(3);
-    expect(segments[0]?.length).toBe(120);
-    expect(segments[2]?.length).toBe(10);
-  });
-
-  it("aggregates turn text with the same join chain as assistantCopyText (§4.1 同源)", () => {
-    // 与 packages/ui/src/v4/assistantPreviewCards.ts:34-37 同链：map(text) → 滤空 → join("\n\n")。
-    const rows = [{ text: "第一段" }, { text: "   " }, { text: "第二段" }];
-    expect(buildTurnSpeechText(rows)).toBe("第一段\n\n第二段");
-  });
 });
 
 describe("轮尾播报主流程（§3.2 AnnIdle→Speaking）", () => {
@@ -595,9 +563,8 @@ describe("claim 续约与被抢校正（§3.5 / FD-2）", () => {
     try {
       const tts = new FakeTts();
       const claim = new FakeClaim();
-      const control: AnnouncementLegControl = createVoiceSessionAnnouncementControl(
-        useVoiceSessionStore,
-      );
+      const control: AnnouncementLegControl =
+        createVoiceSessionAnnouncementControl(useVoiceSessionStore);
       const planner = createTurnSpeechPlanner({
         getFocusedTurnTail: () => null,
         tts,
@@ -693,4 +660,136 @@ describe("persona 句粒度生效（§9.7.8-6 V7-d）", () => {
     expect(tts.cancelCount).toBe(0);
     planner.dispose();
   });
+});
+
+// §9.8：审查复现转正式回归。
+it("§9.8 regression: an idle secondary planner disposal must preserve the active planner", async () => {
+  const a = createHarness();
+  const b = createHarness();
+  a.planner.consumeTurnTail({ turnId: "a", text: "第一句。第二句。" });
+  await flushMicrotasks();
+  expect(useVoiceSessionStore.getState().announcement.phase).toBe("speaking");
+  b.planner.dispose();
+  const phase = useVoiceSessionStore.getState().announcement.phase;
+  a.planner.dispose();
+  expect(phase).toBe("speaking");
+});
+it("§9.8 regression: permission received during recording must play after recording ends", async () => {
+  resetVoiceStore();
+  const a = createHarness();
+  a.planner.notifyUserRecordingStarted();
+  a.planner.consumePermissionSegment({ permissionId: "p", text: "需要文件写入权限。" });
+  a.planner.notifyUserRecordingEnded();
+  await flushMicrotasks();
+  const spoken = a.tts.spoken.length;
+  a.planner.dispose();
+  expect(spoken).toBe(1);
+});
+it("§9.8 regression: stop must invalidate a pending claim acquisition", async () => {
+  resetVoiceStore();
+  let resolveClaim: ((lease: VoiceAnnouncementLease | null) => void) | undefined;
+  const tts = new FakeTts();
+  const claim = new FakeClaim();
+  claim.acquire = () =>
+    new Promise((resolve) => {
+      resolveClaim = resolve;
+    });
+  const p = createTurnSpeechPlanner({
+    getFocusedTurnTail: () => null,
+    tts,
+    claim,
+    isAnnouncementEnabled: () => true,
+    announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
+  });
+  p.consumeTurnTail({ turnId: "a", text: "不应播放。" });
+  await Promise.resolve();
+  p.notifyStopPressed();
+  resolveClaim?.({ key: "k", token: "late" });
+  await flushMicrotasks();
+  const spoken = tts.spoken.length;
+  p.dispose();
+  expect(spoken).toBe(0);
+});
+
+it("a resolved permission is dropped after a pending claim returns (§9.8)", async () => {
+  let finish: ((lease: VoiceAnnouncementLease | null) => void) | undefined;
+  let pending = true;
+  const tts = new FakeTts(),
+    claim = new FakeClaim();
+  claim.acquire = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const planner = createTurnSpeechPlanner({
+    tts,
+    claim,
+    getFocusedTurnTail: () => null,
+    isAnnouncementEnabled: () => true,
+    isPermissionPending: () => pending,
+    announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
+  });
+  planner.consumePermissionSegment({ permissionId: "p", text: "权限问题？" });
+  await Promise.resolve();
+  await Promise.resolve();
+  pending = false;
+  finish?.({ key: "k", token: "late" });
+  await flushMicrotasks();
+  expect(tts.spoken).toHaveLength(0);
+  expect(claim.releaseCalls).toBe(1);
+  expect(useVoiceSessionStore.getState().announcementOwnerId).toBeNull();
+  planner.dispose();
+});
+
+it("late renewal after stop cannot cancel a new pane's playback (§9.8)", async () => {
+  vi.useFakeTimers();
+  const a = createHarness(),
+    b = createHarness();
+  let finish: ((lease: VoiceAnnouncementLease | null) => void) | undefined;
+  a.claim.renew = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const released = vi.spyOn(a.claim, "release");
+  try {
+    a.planner.consumeTurnTail({ turnId: "a", text: "A。" });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(finish).toBeDefined();
+    a.planner.notifyStopPressed();
+    b.planner.consumeTurnTail({ turnId: "b", text: "B。" });
+    await vi.advanceTimersByTimeAsync(0);
+    const before = useVoiceSessionStore.getState().announcementOwnerId;
+    const late = { key: "k", token: "old-renew" };
+    finish?.(late);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(released).toHaveBeenCalledWith(late);
+    expect(useVoiceSessionStore.getState().announcementOwnerId).toBe(before);
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("speaking");
+    expect(b.tts.cancelCount).toBe(0);
+  } finally {
+    a.planner.dispose();
+    b.planner.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it("disposed pending acquisition never speaks or mutates another owner's state (§9.8)", async () => {
+  const a = createHarness(),
+    b = createHarness();
+  let finish: ((lease: VoiceAnnouncementLease | null) => void) | undefined;
+  a.claim.acquire = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  a.planner.consumeTurnTail({ turnId: "a", text: "A。" });
+  await Promise.resolve();
+  a.planner.dispose();
+  b.planner.consumeTurnTail({ turnId: "b", text: "B。" });
+  await flushMicrotasks();
+  const owner = useVoiceSessionStore.getState().announcementOwnerId;
+  finish?.({ key: "k", token: "disposed" });
+  await flushMicrotasks();
+  expect(a.tts.spoken).toHaveLength(0);
+  expect(useVoiceSessionStore.getState().announcementOwnerId).toBe(owner);
+  expect(b.tts.cancelCount).toBe(0);
+  b.planner.dispose();
 });

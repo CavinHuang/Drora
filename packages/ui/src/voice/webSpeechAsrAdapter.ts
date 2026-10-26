@@ -38,7 +38,10 @@ export interface WebSpeechRecognitionResultLike {
 
 export interface WebSpeechRecognitionEventLike extends Event {
   readonly resultIndex: number;
-  readonly results: { readonly length: number; [index: number]: WebSpeechRecognitionResultLike | undefined };
+  readonly results: {
+    readonly length: number;
+    [index: number]: WebSpeechRecognitionResultLike | undefined;
+  };
 }
 
 export interface WebSpeechRecognitionErrorEventLike extends Event {
@@ -60,7 +63,9 @@ export interface WebSpeechAsrAdapterDeps {
   /** 缺省从 window.SpeechRecognition / window.webkitSpeechRecognition 构造；测试注入 fake。 */
   createRecognition?(): WebSpeechRecognitionLike | null;
   /** 缺省 navigator.mediaDevices.getUserMedia；测试注入 fake。 */
-  getUserMedia?(constraints: { audio: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean } }): Promise<MediaStreamLike>;
+  getUserMedia?(constraints: {
+    audio: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean };
+  }): Promise<MediaStreamLike>;
   /** stop() 的 onend 兜底结算窗口，缺省 voiceTuning 值；测试可缩短。 */
   stopSettleTimeoutMs?: number;
 }
@@ -119,7 +124,10 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
     private errorSubscribers = new Set<(error: VoiceAsrError) => void>();
     private settleTimer: ReturnType<typeof setTimeout> | null = null;
 
-    constructor(readonly stream: MediaStreamLike, lang: string) {
+    constructor(
+      readonly stream: MediaStreamLike,
+      lang: string,
+    ) {
       const recognition = createRecognition();
       if (!recognition) {
         // isSupported()=true 但构造失败的窗口竞态（引擎随窗口卸载消失）按设备不可用处置。
@@ -292,7 +300,8 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
       }
       this.dead = true;
       this.clearSettleTimer();
-      this.stopResolve = null;
+      // Esc 可以发生在 stop() 等待 onend 期间，丢弃式结束也须结算该 Promise。
+      this.resolveStop({ final: "" });
       closeSession(this);
       // 丢弃式停止：不产生 final（§2.3）。
       try {

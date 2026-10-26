@@ -1,44 +1,66 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   dispatchVoiceCommand,
   registerVoiceCommandHandler,
   resetVoiceCommandHandlersForTest,
 } from "./voiceCommandBus.js";
-
-/**
- * 语音命令总线守护（§4.3 三层打断的 wiring 层）：dispatch 广播全部注册者（多 planner
- * 注册安全——非播报者在 planner 侧 gate），注销后不再接收。
- */
-describe("voiceCommandBus", () => {
-  it("broadcasts a command to every registered handler", () => {
-    resetVoiceCommandHandlersForTest();
-    const first = vi.fn();
-    const second = vi.fn();
-    const unregisterFirst = registerVoiceCommandHandler(first);
-    registerVoiceCommandHandler(second);
-
+const target = { workspacePath: "/ws", sessionId: "A" };
+const routing = (sessionId: string, owner = false, workspaceIdentity?: string) => ({
+  getTarget: () => ({ workspacePath: "/ws", sessionId, workspaceIdentity }),
+  isAnnouncementOwner: () => owner,
+});
+describe("voiceCommandBus directed routing (§9.8)", () => {
+  beforeEach(resetVoiceCommandHandlersForTest);
+  it("delivers cancel only once to the bound session, including duplicate panes", () => {
+    const a = vi.fn(),
+      duplicate = vi.fn(),
+      b = vi.fn();
+    registerVoiceCommandHandler(a, routing("A"));
+    registerVoiceCommandHandler(duplicate, routing("A"));
+    registerVoiceCommandHandler(b, routing("B"));
+    dispatchVoiceCommand("cancelTask", target);
+    expect(a).toHaveBeenCalledOnce();
+    expect(duplicate).not.toHaveBeenCalled();
+    expect(b).not.toHaveBeenCalled();
+  });
+  it("keeps remote workspace identities isolated despite equal paths", () => {
+    const a = vi.fn(),
+      b = vi.fn();
+    registerVoiceCommandHandler(a, routing("A", false, "remote-a"));
+    registerVoiceCommandHandler(b, routing("A", false, "remote-b"));
+    dispatchVoiceCommand("cancelTask", { ...target, workspaceIdentity: " remote-b " });
+    expect(a).not.toHaveBeenCalled();
+    expect(b).toHaveBeenCalledOnce();
+  });
+  it("sends spoken and physical stop only to the playback owner", () => {
+    const a = vi.fn(),
+      b = vi.fn();
+    registerVoiceCommandHandler(a, routing("A"));
+    registerVoiceCommandHandler(b, routing("B", true));
     dispatchVoiceCommand("stopAnnouncement");
-    expect(first).toHaveBeenCalledWith("stopAnnouncement");
-    expect(second).toHaveBeenCalledWith("stopAnnouncement");
-
-    unregisterFirst();
+    dispatchVoiceCommand("stopAnnouncementPressed");
+    expect(a).not.toHaveBeenCalled();
+    expect(b.mock.calls).toEqual([["stopAnnouncement"], ["stopAnnouncementPressed"]]);
+  });
+  it("fails closed for missing/draft/deleted targets, unregister is idempotent", () => {
+    const a = vi.fn();
+    const unregister = registerVoiceCommandHandler(a, routing("A"));
     dispatchVoiceCommand("cancelTask");
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledWith("cancelTask");
-  });
-
-  it("silently no-ops without handlers (播报未挂载)", () => {
-    resetVoiceCommandHandlersForTest();
-    expect(() => dispatchVoiceCommand("stopAnnouncement")).not.toThrow();
-  });
-
-  it("unregister is idempotent and scoped to its own handler", () => {
-    resetVoiceCommandHandlersForTest();
-    const handler = vi.fn();
-    const unregister = registerVoiceCommandHandler(handler);
+    dispatchVoiceCommand("cancelTask", { ...target, sessionId: null });
     unregister();
     unregister();
-    dispatchVoiceCommand("stopAnnouncement");
-    expect(handler).not.toHaveBeenCalled();
+    dispatchVoiceCommand("cancelTask", target);
+    expect(a).not.toHaveBeenCalled();
   });
+});
+
+it("same-session cancellation prefers the playback owner so task stop also silences speech (§9.8)", () => {
+  resetVoiceCommandHandlersForTest();
+  const inactive = vi.fn(),
+    owner = vi.fn();
+  registerVoiceCommandHandler(inactive, routing("A"));
+  registerVoiceCommandHandler(owner, routing("A", true));
+  dispatchVoiceCommand("cancelTask", target);
+  expect(owner).toHaveBeenCalledOnce();
+  expect(inactive).not.toHaveBeenCalled();
 });

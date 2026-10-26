@@ -859,6 +859,7 @@ modules:
     publicEntrypoints:
       - packages/ui/src/voice/contract.ts
       - packages/ui/src/voice/voiceTuning.ts
+      - packages/ui/src/voice/voiceRecordingControl.ts
     layers:
       adapters: .
     owner: drora

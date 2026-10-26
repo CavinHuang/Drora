@@ -342,3 +342,29 @@ describe("播报腿迁移表（§3.2/§3.3/§4.7）", () => {
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
   });
 });
+
+describe("已播权限账本（§9.9.3-L8 跨 pane 共享）", () => {
+  it("mark 后 has 命中且幂等（重复 mark 不新增引用）", () => {
+    useVoiceSessionStore.getState().markPermissionAnnounced("p1");
+    expect(useVoiceSessionStore.getState().hasAnnouncedPermission("p1")).toBe(true);
+    expect(useVoiceSessionStore.getState().hasAnnouncedPermission("p2")).toBe(false);
+    const before = useVoiceSessionStore.getState().announcedPermissionIds;
+    useVoiceSessionStore.getState().markPermissionAnnounced("p1");
+    // 幂等：重复 mark 不换 Set 引用（订阅零扰动）。
+    expect(useVoiceSessionStore.getState().announcedPermissionIds).toBe(before);
+  });
+
+  it("prune 收敛到当前 pending 集：离开 pending 的 id 剪除、再次 pending 会重新播", () => {
+    useVoiceSessionStore.getState().markPermissionAnnounced("p1");
+    useVoiceSessionStore.getState().markPermissionAnnounced("p2");
+    useVoiceSessionStore.getState().pruneAnnouncedPermissionIds(new Set(["p2"]));
+    expect(useVoiceSessionStore.getState().hasAnnouncedPermission("p1")).toBe(false);
+    expect(useVoiceSessionStore.getState().hasAnnouncedPermission("p2")).toBe(true);
+    // 等价行为断言：P1 再次进入 pending 时会重新播（planner 去重查同一账本）。
+    useVoiceSessionStore.getState().markPermissionAnnounced("p1");
+    expect(useVoiceSessionStore.getState().hasAnnouncedPermission("p1")).toBe(true);
+    // 全量剪除（空 pending 集）账本清空。
+    useVoiceSessionStore.getState().pruneAnnouncedPermissionIds(new Set());
+    expect(useVoiceSessionStore.getState().announcedPermissionIds.size).toBe(0);
+  });
+});

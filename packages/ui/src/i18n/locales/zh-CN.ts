@@ -8299,7 +8299,7 @@ const zhCN: Record<string, string> = {
   "voice.settings.dictation.lang.auto": "跟随界面语言",
   "voice.settings.asr.engine.label": "语音识别引擎",
   "voice.settings.asr.engine.webSpeech": "系统内置（Web Speech）",
-  "voice.settings.asr.engine.remote": "云引擎（即将支持）",
+  "voice.settings.asr.engine.remote": "云引擎",
   "voice.settings.announcement.enable.label": "轮尾播报",
   "voice.settings.announcement.enable.description": "会话回答完成后用系统语音朗读正文；播报跟随当前聚焦的会话。",
   "voice.brief.prefix": "正在 {tool} {target}",

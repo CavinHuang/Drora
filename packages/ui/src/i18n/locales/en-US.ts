@@ -8788,7 +8788,7 @@ const enUS: Record<string, string> = {
   "voice.settings.dictation.lang.auto": "Follow interface language",
   "voice.settings.asr.engine.label": "Speech recognition engine",
   "voice.settings.asr.engine.webSpeech": "Built-in (Web Speech)",
-  "voice.settings.asr.engine.remote": "Cloud engine (coming soon)",
+  "voice.settings.asr.engine.remote": "Cloud engine",
   "voice.settings.announcement.enable.label": "Turn-end announcement",
   "voice.settings.announcement.enable.description": "Read the assistant answer aloud when a turn completes; announcement follows the focused session.",
   "voice.brief.prefix": "Running {tool} {target}",

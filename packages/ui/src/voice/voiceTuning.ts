@@ -36,6 +36,16 @@ export const VOICE_MAX_SENTENCE_CHARS = 120;
 export const VOICE_ASR_STOP_SETTLE_TIMEOUT_MS = 2_000;
 
 /**
+ * §9.9.4-L4 自发 onend 看门狗窗口（ms）：非 stopping 的引擎自发 onend（部分平台
+ * 断流）后等待 trailing final/error 的 settle 窗——窗口内 final 照常交付并顺延看门狗、
+ * error 走既有 handleError；窗口耗尽仍无定论 → dead + 停轨 + onError("no-speech")
+ *（§5.3 冻结「onend 无结果 → 同静音超时处理」）。与 VOICE_ASR_STOP_SETTLE_TIMEOUT_MS
+ * 同量级、独立命名（调参面不冻值）；不是用超时掩盖同步——onend 是引擎自发事件非
+ * 同步点，看门狗把「引擎已停但 Recording 悬挂、麦克风持续占用」收敛到冻结出边。
+ */
+export const VOICE_ASR_SPONTANEOUS_END_SETTLE_MS = 2_000;
+
+/**
  * 云 TTS 连续失败回落阈值（句，spec §9.6.5-3）：连续 N 句合成/播放失败 → 中止本轮播报
  * 回 AnnIdle + warn，本次 renderer 会话内后续播报回落 speechSynthesis，至下一引擎解析点
  * （设置变更/装配）恢复。调参面不冻值。

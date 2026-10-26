@@ -1034,6 +1034,263 @@ flowchart LR
 
 **本轮核验记（2026-10-24，worktree @ 63479ef7 实际执行）**：读码 VoiceSection.tsx（全文 427 行）、speechSynthesisTtsAdapter.ts、cloudTtsAdapter.ts、voiceComposerEntryState.ts、voiceAnnouncementPreferences.ts、useVoiceAnnouncement.ts、toolBriefPlanner.ts、voiceTtsPort.ts、voiceTuning.ts、voiceI18nKeys.ts、contracts/voice.ts、turnSpeechPlanner.ts（:190-200/:340-358）；grep 三组——`voiceschanged` 于 ui src 零命中、`resetTurnCounters` 生产调用方零命中（仅定义/接口文档/测试）、`voicePersona|voice.persona|voice.character` 于 ui+shared src 零命中；validationAppSettings.ts:528-545/:669-681（12 键 persisted/patch）；drora-protocol-v4/rows.ts:211（toolCall status 枚举）；zh-CN.ts:8250-8253（音色/语速既有键）；`git diff 6d754098 HEAD` 实测仅 3 文件（DEBUG 清理 + 两处注释修正）。未执行：单测/E2E 实跑（本章为 spec-only 增补，无实现改动，不触发测试面；复审 5.4 的 246 项基线可作回归参照）。
 
+### 9.9 时间阶段审查修复（2026-10-26）
+
+增补性质：消化 2026-10-26 时间阶段审查 fixPlan 20 项（A 级 M3/M2/H6/H4，B 级 M11/M9/M10/L8/L7，C 级 L1/L2/L3/L4/L6/L9/L10/L13/L14/L11/L12）。**不改写任何既有冻结裁决**（FD-1/2/3、§3.3 互斥表、§3.5、§4.x、§5.3、§9.6/§9.7）；对冻结条款的实现欠账（H6/L4/L14 等）标注为「对齐冻结」而非新裁决；与并行批次的冲突消解集中在 9.9.5。本章为 spec 先行交付物（本批角色只写 spec 不改代码），每条验收均含「回退即红」回归测试要求（删掉修复代码测试必失败）与中文注释修复依据（仓库铁律）；实现批门禁照 §9 头（typecheck/lint 实测报告）。
+
+章节编号与并行批次的关系：**§9.8「生命周期与多 pane 隔离修复（2026-10-24）」属并行批次**（工作树 `D:/workspace/projects/drora-voice-agent`，分支 feat/voice-agent-phase1，未提交），其 spec §9.8 与代码形态本轮实读取证；本 worktree spec 暂缺该章，两批合并时 §9.8 随并行批次入册、本章（§9.9）紧随其后，编号即为此预留。本章所有「并行兼容」注以该实读形态为基线。
+
+证据约定：本章代码锚点全部为 2026-10-26 在本 worktree（分支 feat/voice-audit-fixes，基线 dc2a60fb，`git status` 实测零本地改动）实际读取；并行形态锚点标注「并行」= 该 worktree 未提交 diff 实读。核心锚点：`useVoiceAnnouncement.ts`（469 行全文）、`turnSpeechPlanner.ts`（784 行全文）、`voiceSessionStore.ts`（469 行全文）、`useVoiceDictation.ts`（381 行全文）、`V4ComposerVoiceEntry.tsx`/`DictationPreviewOverlay.tsx`/`webSpeechAsrAdapter.ts`/`voiceAnnouncementClaim.ts`/`toolBriefPlanner.ts`/`resolveAsrAdapter.ts`/`useVoiceComposerEntry.ts` 全文、`SessionPane.tsx` 局部（:849-856/:4593-4615/:5427-5444）、`droraSessionStoreWorkspaceSlice.ts:309-360`、`useComposerTextInsertApplied.ts` 全文、`droraSessionStoreTypes.ts:127-144`、`broadcastService.ts:140-230`/`broadcast.ts:19-50`、`rows.ts:175`、locales zh-CN.ts:8240 / en-US.ts:8716、VoiceSection.tsx（:93-123/:307）。
+
+#### 9.9.1 裁决总表
+
+| id | 一句话裁决 | 冲突消解 | 并行兼容 |
+|---|---|---|---|
+| M3 | AnnPaused 续播分支按「在播队列身份」分派：null-turnId（权限/简报）恢复队列，不改播 latest 轮尾 | §3.2 AnnPaused 出边前置仅定义于轮尾在播形态，本章增补（9.9.5-1） | F5 prunePermissions/isPermissionPending/unshift 正交叠加 |
+| M2 | speaking 分支保留顺延轮尾：clearPauseRequested 后 pendingTail 非空走既有「作废旧只播最新」supersede 路径 | 对齐 §3.3 顺延规则冻结（实现欠账）；对 fixPlan「句界消费」措辞收敛（9.9.5-2） | 并行同分支未改（实读），直接叠加 |
+| H6 | 可播终态收窄为 `state === "complete"` 单值，interrupted 移出；截断策略备选否决 | 对齐 §4.1「TurnComplete 终态」冻结（9.9.5-3） | 无涉 |
+| H4 | composerTextInsertRequest 单槽改按 `targetSessionId ?? ""` 多槽 + 同槽 append 合并 | §3.1「composer 唯一写入通道」不变，通道内寻址扩展（9.9.5-4） | §9.8.1 定向命令同构，无方向冲突 |
+| M11 | useVoiceAnnouncement 增 isWebRemoteControl 门（SessionPane 传 compactForRemoteControl），消费全停 | 对齐 §8.2/§8.3 冻结与 §9.8.3「远控壳仍隐藏入口」（补全覆盖缺口） | 并行未动消费门（实读） |
+| M9 | 入口隐藏 = 持有者定向停止（abort 引擎 + store 出腿），不卸载 hooks | §6.1 reader 收口哲学的输入腿对称项（9.9.5-5） | 复用 §9.8.1 终止清理序列（幂等），不建第二清理路径 |
+| M10 | 凭据三态进 cloud 路由判定，消除 `?? "unknown"` 占位；三层（路由/适配器/回退）统一凭据真实状态 | §9.6.5-2 解析点清单 additive 增补「凭据加载完成」（9.9.5-6） | 并行改引擎路由段，本条在判定输入，合并叠加 |
+| L8 | announcedPermissionIds 升 voiceSessionStore 跨 pane 共享账本 + pending 集修剪；owner 交接方案否决 | §3.1 store 单一所有者的回归（播过什么=播报腿状态族） | 与 F5 isPermissionPending 互补（已处理复核 vs 已播去重） |
+| L7 | claim unavailable 二分：仅 service 缺席（无仲裁面）降级持有；请求超时/传输失败 unavailable 一律不持有 | 对齐 §3.5-3「以 claim 为准」+ broadcastService.ts:186 自述语义（9.9.5-7） | 并行 lease 形态同义落地（映射语义为准） |
+| L1 | requestingMic 两条用户取消出边：持有者再点按、Esc（consumeVoiceRecordingEscape 扩展） | §3.2 RequestingMic→Idle「用户取消」边落地（既有冻结边，零调用方） | 迟到授权清理并归 §9.8.1；卸载出边不重复（并行已接） |
+| L2 | 预览条 bound 判定扩至腿活动（requestingMic/recording/injecting）&& 持有者 | §5.2/§5.3 既有键激活，零语义变化 | 与 L6 同源判定共用 |
+| L3 | Esc 窗口监听注册条件去 canStop 前置；handler 内 canStop 守卫后置 | §4.4 优先级 3 的覆盖缺口补全，优先级 4 语义不变（9.9.5-8） | 并行未改 SessionPane（实读清单） |
+| L4 | 自发 onend 看门狗：settle 窗内 trailing final 照常、窗尽 dead+停轨+onError("no-speech") | 对齐 §5.3「onend 无结果→同静音超时」冻结（实现欠账） | abort/resolveStop 路径不重复（并行已修） |
+| L6 | Entry 停止图标/预览/脉冲统一换轨 `recordingOwnerEntryId === entryId` | FD-6 冻结语义的正确实现（store :85 注释明言按实例区分） | store 侧零改动（并行未动该字段） |
+| L9 | planner 埋 turn.start/sentence.boundary/pause/resume 四类 voice.tts debug 事件（零文本载荷） | §7.1 voice.tts debug「句边界 boundary 事件」槽位落实 | 并行仅新增 claim warn（实读），时序槽位归本条 |
+| L10 | 选型/适配器创建异常 → voice.asr **error** + failMicRequest；start 失败槽位 voice.entry→voice.asr warn | §7.1 槽位表对齐（error=创建失败致入口不可用原文） | 无涉 |
+| L13 | cloudFallback 恢复签名拼入凭据指纹（二值，不落日志） | §9.6.5-3「用户修复凭据后恢复」自述条款兑现 | 并行改引擎路由段，本条在签名 effect，无重叠 |
+| L14 | drainPending 入口开关检查：关闭即清 pendingByTool | 对齐既有冻结验收「开关关闭时零简报」（§9.4/§9.6.8-S5） | 并行未动 toolBriefPlanner（实读清单） |
+| L11 | 确认门两入口时序不对称**记档为有意设计**（设置=确认即生效；mic=确认即中止需再点按），零代码 | FD-5/§9.2 验收原文两处已各自冻结，本章合并显式化 | 无涉 |
+| L12 | remote ASR 文案去「即将支持/coming soon」，键名不动 zh/en 同步 | §9.6 已实现能力与文案矛盾的修正 | 无涉 |
+
+#### 9.9.2 A 级：时序正确性（M3/M2/H6/H4）
+
+**M3+A：notifyUserRecordingEnded AnnPaused 分支——null-turnId 在播恢复队列而非改播 latest 轮尾**
+
+- 现状证据：`turnSpeechPlanner.ts:566-591`——`referenceTurnId = pendingTail?.turnId ?? announcedTurnId`（:569）；权限/简报专用起播走 `ensureClaimAndSpeak(null, …)`（:505/:336）使 `announcedTurnId = null` → `stillCurrent` 恒 false（:570-571 null 不等于任何 turnId）→ 落 tailSuperseded 分支：作废在播队列、改播 latest 轮尾（:583-590）。后果：被打断权限段剩余句永失——`announcedPermissionIds` 在 consumePermissionSegment 入口已记（:648-651），不重播；且 latest 轮尾多为旧正文，重播无信息量。
+- 裁决机制：**状态迁移**——AnnPaused 分支新增前置子分支：`pendingTail == null && announcedTurnId == null`（在播队列无轮尾身份=权限/简报段）时跳过轮尾比对，直接续播：`control.resumeSpeaking()` 成功 → `speakCurrent(control.snapshot())` 续播剩余句（句序号/`permissionWindow`/uninterruptible 覆盖原样保留，句界拼接继续消费 `pendingPermissionSegments`）；claim 仍持（FD-2 持约态）。**顺延轮尾排空点（新增）**——`pendingTail != null && announcedTurnId == null`（录音期间另有新轮尾就绪）时同样先续播权限队列、`pendingTail` 保留不清；planner 的 onDone annIdle 分支在 `drainPendingPermissionFromIdle()`/`drainPendingBriefFromIdle()`（:431-432）之后追加 `drainDeferredTail()`：相位仍 AnnIdle 且非 recording 时重读 `getFocusedTurnTail(null)`、仍最新则 `ensureClaimAndSpeak` 起播（与 :599-608 顺延起播同款新鲜度校验）；`ensureClaimAndSpeak` 的 finally（:478-482）同批追加该排空调用。**守卫**——resumeSpeaking 的 claimHeld 前置（voiceSessionStore.ts:419-423）不变；renew=false 已先回 AnnIdle（§3.5-3）。**数据**——pendingTail/permissionWindow/句序号维持 planner 实例瞬态（§3.1），零新 store 字段。
+- 并行兼容（partial）：合入 §9.8/F5 形态后——(a) 续播前先 `prunePermissions()`（并行形态：按 `deps.isPermissionPending?.(id) !== false` 过滤 `pendingPermissionSegments`，已处理段不复活），与 §9.8.2「开播前复核请求仍 pending，已处理者作废」同向；(b) F5 的 `pendingPermissionSegments.unshift(...opts.permissionSegments)` 顺延形态发生在「起播链在飞遇录音」路径（并行 ensureClaimAndSpeak 内），与本条「录音结束的续播路径」正交，两者都保留；(c) F5 在本函数尾部的 `schedulePermissionDrain()/scheduleBriefDrain()` 保留，`drainDeferredTail()` 排其后。
+- 验收（回退即红）：
+  - given 权限段播至第 2/4 句开录（sentenceCompleted→annPaused）、录音 8s 结束且无新轮尾，则自第 3 句续播、uninterruptible 覆盖 3-4 句、零改播轮尾（mock tts 断言播报序列 === 权限句 3、4，getFocusedTurnTail 的返回不产生任何 speak）；删除该子分支则测试红（落 tailSuperseded 改播 latest）。
+  - given 同场景但录音期间新轮尾 T2 就绪（pendingTail=T2），则序列 === [权限句3, 权限句4, T2 句1…]（权限先、正文后，FD-3 顺序断言）。
+  - given（合入 F5 后）权限 P 已处理（isPermissionPending(P)=false），则 P 的剩余句不复活。
+  - 回归：announcedTurnId 非空的既有 AnnPaused 续播/改播用例（turnSpeechPlanner.test.ts 既有）全绿。
+
+**M2+A：notifyUserRecordingEnded speaking 分支——不再无条件清 pendingTail**
+
+- 现状证据：`turnSpeechPlanner.ts:593-598`——`clearPauseRequested(); pendingTail = null;`。录音短于一句（暂停请求未在句界生效）结束时顺延轮尾被无条件丢弃：T2 永不播（wiring 的 `lastConsumedTurnRef` 已在 consumeTurnTail 前标记消费，useVoiceAnnouncement.ts:320-324，不会重发）——违反 §3.3 顺延规则冻结「录音结束时该轮尾仍最新 → 起播」。
+- 裁决机制：**状态迁移**——speaking 分支保留 `clearPauseRequested()`（撤销未生效暂停，正常续播语义不变）；`pendingTail` 非空时执行与 consumeTurnTail speaking 分支（:543-546）完全同款的「作废旧轮尾只播最新」：`deps.tts.cancel()` + 重读 `getFocusedTurnTail(null)` + `ensureClaimAndSpeak(latest)`——实现上把该块提为私有函数供 AnnPaused「改播最新」段（:580-590）与本分支共用（单一 supersede 代码路径，不复制第三份）。**对 fixPlan 措辞的收敛（如实记档）**：fixPlan 原文「交由句界/pause 流程消费」——句界流程的 pause 已被 clearPauseRequested 撤销、录音已结束无再触发点，唯一与 §3.3 冻结表一致的确定性归宿是立即 supersede（非录音态轮尾到达 speaking 的既有冻结行为就是立即 cancel 当前句，:543-546）；「等下一句界再换」会引入冻结表中不存在的第二种 supersede 时序，故不采。
+- 并行兼容：并行形态该分支与基线逐字一致（实读），直接叠加；F5 以 `isRecording()` 代换 `recording` 变量后语义不变。
+- 验收（回退即红）：
+  - given speaking 播 T1 第 2/5 句时开录又立即结束（句界未到，pauseRequested 已置未生效）且录音期间 T2 就绪，则 tts.cancel 恰一次（T1 第 2 句中止）+ T2 全文起播（speak 序列 === T2 各句）；
+  - given 同场景无 T2，则 clearPauseRequested 后 T1 自第 3 句原序续播（零 cancel、零新起播）；
+  - 回退即红：恢复 `pendingTail = null` 则 T2 用例红。
+
+**H6+A：interrupted 移出可播终态**
+
+- 现状证据：`useVoiceAnnouncement.ts:92`——`latest.state !== "complete" && latest.state !== "interrupted"` 跳过，即 interrupted ∈ 可播终态（:82 注释自述「terminal = complete|interrupted」）；`rows.ts:175` 枚举 `state ∈ {streaming, complete, interrupted, failed}`，interrupted = 停止生成打断的半截正文——整段播报半截正文。冻结 §4.1 播级表「轮尾正文……TurnComplete 终态后整段分句播」与 §3.2「轮尾终态就绪（TurnComplete）」从未包含 interrupted；§3.2 Cancelling 出边「TurnComplete(cancelled) 后 AnnIdle 且不再播」。
+- 裁决机制：**守卫**——`resolveFocusedAnnouncementTail` 终态判定收窄为 `latest.state !== "complete"` 单值跳过（仅改该行判定 + 注释，:82 注释同步改「terminal = complete」）。「按半截正文截断策略播报」的备选**否决**：属 §4.1 白名单表新增播级内容形态（截断标记文案、粒度规则均未定义），须按白名单闭集原则独立增补拍板，本批不做；重开条件 = 产品明确要求播报被打断轮次。
+- 冲突消解：无冻结冲突——本条是把实现欠账对齐 §4.1/§3.2 冻结文字，非语义变更（9.9.5-3）。
+- 验收（回退即红）：
+  - given 轮尾 state=interrupted 且文本非空，则零 consumeTurnTail（resolveFocusedAnnouncementTail 返回 null）；
+  - given state=complete 同文本，则正常消费（既有用例回归）；
+  - given Cancelling 相位收到 TurnComplete（consumeTurnTail :527-531 路径），行为零变化（cancelled 完成信号与可播终态解耦回归）；
+  - 回退即红：判定改回双值则 interrupted 用例红。
+
+**H4+A：composerTextInsertRequest 单槽 → 按目标多槽 + 同槽 append 合并**
+
+- 现状证据：`droraSessionStoreWorkspaceSlice.ts:319-337`——workspace 桶内单槽 `composerTextInsertRequest`，任何新 request 直接覆盖（latest-wins）；消费门 `SessionPane.tsx:5429` `focused && (targetSessionId ?? null) === (sessionId ?? null)`——失焦 pane 的 final 留槽期间，被任何后续插入（他会话 final、草稿 mention 预填等）覆盖即丢，语音侧仅剩 FD-4 手动恢复菜单；`useComposerTextInsertApplied.ts:32-39` 以全局 `composerTextInsertVersion > requestId` 判 superseded，同样只认「最新」。该 applied 布尔有真实 await 消费方（2026-10-26 评审修订轮核验）：插件推荐流 `ConversationDraftSuggestedPromptsContainer.tsx:498-503` 将其传入 `finishMutation`，`:319-330` 以 `succeeded ? "Succeeded" : "Failed"` 弹结果 popover；第二消费点 `:675-690` `if (!applied)` 清反馈静默返回——谓词误报 false 是用户可见的「失败」弹层，非纯诊断信号。
+- 裁决机制：**数据保在哪**——droraSessionStore workspace 桶内 `composerTextInsertRequest: ComposerTextInsertRequest | null` 演进为 `composerTextInsertRequests: Record<string, ComposerTextInsertRequest>`，槽键 = `targetSessionId ?? ""`（空串=草稿 composer 槽，既有非语音生产方语义原地保留）；`composerTextInsertVersion` 保持全局单调递增（requestId 唯一性来源不变，消费幂等键不变）。**状态迁移**——`requestComposerTextInsert` 按槽写入；**同槽叠加且新旧 mode 均 `"append"` → 合并为单请求**：`text = 旧.text +（旧.text 尾字符非空白则补一空格，否则直连）+ 新.text`（与 §2.4 消费端空格规则同款确定性规则，在合并点先行应用；requestId 取新 version，mention 不参与）；非 append 叠加维持槽内 latest-wins（mention 预填/replace 族行为逐字段不变）。**消费**——SessionPane 选择器按 `sessionId ?? ""` 读槽（:1679-1681 改造），focused 门保留（:5429 不变）；`clearComposerTextInsertRequest(workspacePath, requestId, identity)` 扫槽按 requestId 清除（签名不变）。`useComposerTextInsertApplied` 判定改（**2026-10-26 评审修订：弃用全局 version 比较，以槽态区分**——原稿谓词「superseded = `version > requestId && 全槽无该 requestId` / applied = `version === requestId && 该槽已清`」在跨槽并发交错下把「已成功消费」误判 superseded：`composerTextInsertVersion` 是全局单调计数（slice :325-329），任何**其他槽**的新请求（如语音 final 注入他会话槽）在该请求创建与消费之间 bump version，都会使一个被正常消费、槽已清的请求落入 superseded 分支，向插件推荐流误弹 Failed popover——现状单槽下同交错会真丢请求（Failed 报告准确），多槽化救回了插入本身而谓词仍报 false，属新设计内部不一致；原稿豁免注只覆盖同槽 merge 场景，未覆盖此多槽化新引入的常态并发）。修订后机制：hook 回调签名 additive 槽键参数（发送方传自己写入的 `targetSessionId ?? ""`，与 requestComposerTextInsert 的 targetSessionId 缺省语义同构；requestId 全局唯一故扫槽无歧义）；inspect 判定序——① 槽内 requestId === 本 id → pending 继续等；② 本 id 已不在槽且**该槽为空** → applied（依据：消费 clear 与任何后续写入是两个独立 set，Zustand 订阅同步触发，inspect 在 clear set 上即 settle 为 applied，不会观察到「清除后新写入」复合态；promise 创建与 inspect 首跑之间的同步间隙内不可能完成消费+新写入——消费依赖 effect/re-render 异步任务）；③ 该槽内是**更晚** requestId（同槽 replace 替换或 append 合并）→ superseded（合并场景旧发送方判 superseded 语义保留——语音 fire-and-forget 无消费方，可接受；replace 族未消费替换亦判 superseded，与现状语义一致）。全局 version 仅作 requestId 发号来源，**不参与** applied/superseded 判定；abort 路径（handleAbort）finish(false) + 扫槽清除本 id，语义不变。
+- 冲突消解（9.9.5-4）：§3.1「composer 正文唯一写入 = composerTextInsertRequest 通道」不变——多槽是通道内寻址扩展，非第二写路径；§2.4 冻结（mode/消费门语义）零改动。
+- 并行兼容：§9.8.1「定向命令携带捕获的 workspace/session 目标」以 (workspace, session) 寻址——与本条槽键同构，方向一致；voiceSessionStore 侧零改动。
+- 验收（回退即红）：
+  - given 会话 A 听写 final 落槽后焦点切至 pane B、B 会话 final 到达，则 A 槽保留、B 槽独立写入；焦点回 A 时 A 消费恰一次且文本 === A 的 final（旧单槽实现下该断言红：A 槽被 B 覆盖）；
+  - given 同会话（同槽）同 tick 两句 final，则合并为一次插入、正文 === 句1+一空格+句2（尾空白时直连）；
+  - given 草稿槽 mention 预填连续两次（replace 族），则行为与现状逐字段一致（既有测试全绿）；
+  - given 草稿槽插件预填 R1（id=5）等待期，语音 final 注入会话 A 槽（id=6，全局 version=6），随后草稿 composer 消费并清除 R1，则 waitForComposerTextInsertApplied(R1, 草稿槽) resolve **true**（finishMutation 收 succeeded=true，零 Failed popover）——谓词若按全局 version 比较则该断言红（version=6>5 且全槽无 5 → 误判 superseded）；
+  - given 同槽更晚请求替换或 append 合并（旧 id 仍在等待），则旧 id resolve false（superseded）；given 调用方 abort，则 resolve false 且该 id 已从槽中清除；
+  - 回退即红：槽结构退回单槽则跨会话保槽用例红；谓词退回全局 version 比较则跨槽交错用例红。
+
+#### 9.9.3 B 级：边界与状态所有者（M11/M9/M10/L8/L7）
+
+**M11+B：播报腿挂载 isWebRemoteControl 门控**
+
+- 现状证据：`SessionPane.tsx:849-856`——`useVoiceAnnouncement` 无条件挂载（无远控门）；mic 入口已有（V4ComposerVoiceEntry `isWebRemoteControl` → view 不可见，§9.2 验收「given isWebRemoteControl……mic 入口不渲染」）；SessionPane 自持 `compactForRemoteControl` 事实（:378 props/:626/:5441 传 ConversationComposer）。
+- 裁决机制：**守卫加在哪**——`UseVoiceAnnouncementParams` additive `isWebRemoteControl?: boolean`（SessionPane 传 `compactForRemoteControl`）；hook 内全部消费 effect（轮尾消费 :307-325、focused 切换停止 :330-335、腿互斥转发、权限段消费 :404-419、简报快照 :423-452）以 `focused && !isWebRemoteControl` 为门——hook 保持整挂载（hook 顺序稳定），planner/claim/TTS 实例照常创建但零消费零出声。对齐冻结 §8.2（手机 replayable 播报 = 手动触发的本地 TTS，Phase 2 才做；自动播报腿属 desktop-continuous 语义）、§8.3（受控远控壳约束）与 §9.8.3「远控壳仍隐藏入口」——本条是同一冻结在播报腿上的覆盖补全，非新裁决。
+- 验收（回退即红）：
+  - given compactForRemoteControl=true 的 pane 有就绪轮尾 + pending 权限 + 新工具行 + 播报开，则零 consumeTurnTail/零 consumePermissionSegment/零 consumeBriefSegment/零 claim.acquire/零 tts.speak（mock deps 断言）；
+  - given compactForRemoteControl=false（桌面），既有 §9.3 验收全量回归；
+  - 回退即红：去掉门参数则远控用例红。
+
+**M9+B：录音中设置隐藏入口 → 持有者定向停止（不卸载 hooks）**
+
+- 现状证据：`V4ComposerVoiceEntry.tsx:129`——`if (!view.visible) return null` 位于全部 hooks 之后：录音中把 `voiceComposerEntryHidden` 设回隐藏，组件仍挂载、录音腿继续、本组件内的预览条（:194-203）与停止按钮一并消失——无入口的继续拾音。
+- 裁决机制：**定向停止而非卸载**。`useVoiceDictation` 参数 additive `entryVisible?: boolean`（useVoiceComposerEntry 传 `view.visible`）；hook 内 effect 监听 true→false 沿：若 `useVoiceSessionStore.getState().recordingOwnerEntryId === 本实例 entryId`——recording 态：`generationRef+1` → `sessionRef.current?.abort()`（停引擎/音轨）→ `cleanupSession()` → `store.stopRecording()`（partial 丢弃、无 notice——隐藏入口是用户显式动作）；requestingMic 态：`store.cancelMicRequest()` + `generationRef+1`（迟到授权由既有守卫 useVoiceDictation.ts:338-346 丢弃）。非持有者实例零动作（他人 pane 入口隐藏不停别人的录音——FD-6 边界同源）。**为什么不是「真正卸载 hooks」**：可见性判定收口在 voiceComposerEntryState 纯函数（组件内部），父级条件渲染会复制门控逻辑成第二判定源；且真实卸载语义（含迟到授权资源释放）由 §9.8.1 定义且幂等——本条接入同一终止清理序列，不建第二条卸载路径。与 §6.1 reader 收口哲学对齐：播报开关关闭 → notifyStopPressed（useVoiceAnnouncement.ts:391-400）的输入腿对称项。
+- 并行兼容：§9.8.1「错误、超时、卸载共用终止清理，重复调用幂等」——合入后本条 effect 的清理体替换为对 §9.8 终止清理函数的调用（触发条件不同：可见性丢失 vs 卸载）。
+- 验收（回退即红）：
+  - given 本入口持有 recording 且设置隐藏入口，则 view.visible=false 后：inputLeg=idle、session.abort 恰一次、partialText=""、零 notice、getUserMedia 音轨 stop（mock 断言）；
+  - given 他 pane 持有录音、本入口隐藏，则录音腿与引擎会话不受影响；
+  - given requestingMic 中隐藏，则 cancelMicRequest 即时生效（不等 10s 超时；超时计时器同步清除——subscribe effect :161-164 既有清理）；
+  - 回退即红：移除该 effect 则隐藏用例红（inputLeg 恒 recording）。
+
+**M10+B：消除 apiKey 'unknown' 占位，三层判定统一凭据真实状态**
+
+- 现状证据：`useVoiceAnnouncement.ts:197`——`apiKey: cloudApiKeyRef.current ?? "unknown"`：凭据未加载（null）被占位为非空串 → `isVoiceVendorConfigComplete`（resolveAsrAdapter.ts:42-55）判「档完整」→ cloud 被乐观选择 → `cloudTtsAdapter` 的 `getVendorConfig`（:153-165 真读凭据）返回 null → 单句失败 → 连续 3 句（`VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES`）→ 会话内静默回落 system（§9.6.5-3）——启动期凭据竞态可造成整会话降级，UI 零反馈。§9.6.2-5 冻结谓词 `apiKey.trim()` 非空隐含「凭据已加载」前提，未定义未加载态。
+- 裁决机制：**三态判定**——`cloudApiKeyRef: string | null` 语义细化为 null=未加载（含已加载确认缺失），非空=已加载且有效。三层统一：(1) **路由层** `resolveTtsEngineNow`（:184-206）：`engine=cloud && baseUrl/model 完整 && 凭据已加载且非空` 才判档完整选 cloud；未加载 → 本次解析 system，`voice.tts` info 记一次 `tts engine resolved: system (credential pending)`（沿用 :200-204 一次性日志形态）；(2) **适配层** `cloudTtsAdapter.getVendorConfig` 真读兜底不变；(3) **回退层** 连续失败计数只在 cloud 被真实选择后可能发生——占位消除后构造性满足（未加载期根本不进 cloud 管线）。**凭据加载完成 = 新解析点**：加载 effect（:231-243）完成时驱动重渲染（ref 升 state 或 credentialVersion 计数器），下一句 speak 按最新状态解析——§9.6.5-2 括注「speak 路由以最新解析结果执行」本就允许逐句路由，非新增时序面（9.9.5-6 记 additive 增补）。**grep 断言**：voice 模块生产代码零 `"unknown"` 占位字面量（该用途）。
+- 验收（回退即红）：
+  - given ttsEngine=cloud、baseUrl/model 完整、凭据未加载，则首句解析结果 = system（info 恰一次 credential pending）；when 凭据加载完成且非空，则下一句起走 cloud（mock fetch 恰一次 POST /audio/speech）；
+  - given 凭据加载完成但为空串，则持续 system，且 `cloudFallbackRef` 保持 false（未加载/缺失期零连续失败计数——mock cloudTts 断言 onConsecutiveFailures 零触发）；
+  - 回退即红：恢复占位则「未加载→system」与「零回落计数」两断言红。
+
+**L8+B：announcedPermissionIds 升 voiceSessionStore 跨 pane 共享**
+
+- 现状证据：`turnSpeechPlanner.ts:226`——`const announcedPermissionIds = new Set<string>()` planner 实例级；每 SessionPane 一个 planner（useVoiceAnnouncement.ts:17-18 注释、:253-278 useMemo）——切 focused 至另一 pane 后新 planner 的 Set 为空 → 同一 pending 权限整段重播。
+- 裁决机制：**数据保在哪**——voiceSessionStore 新增字段 `announcedPermissionIds: Set<string>` + guarded actions `hasAnnouncedPermission(id)` / `markPermissionAnnounced(id)` / `pruneAnnouncedPermissionIds(currentPendingIds: ReadonlySet<string>)`；planner 的 `consumePermissionSegment` 去重查 store（写经 action，单一写路径红线保持——§3.1 冻结「播报腿状态所有者 = voiceSessionStore」：已播账本是播报腿状态族，归 store 是对该冻结的回归）。**修剪**——wiring 在 pendingInteractions 变化时 prune 至当前 pending id 集（账本有界；权限离开 pending 后 wiring 不再消费该 id，剪除安全）。**作用域 = 窗口内跨 pane**，不跨窗口（跨窗口单播报者由 §3.5 claim 决定只有一窗出声）。**备选「owner 交接」否决**：需要定义 owner 迁移时账本随交协议，复杂度高于 store 字段；§9.8 owner 凭证只仲裁「谁在播」不承载「播过什么」，正交。
+- 并行兼容：F5 的 `isPermissionPending`（开播前复核已处理）与本条（已播去重）互补——前者防「已处理仍播」，后者防「未处理重播」；合入后两者都保留。
+- 验收（回退即红）：
+  - given pane A 播完权限 P（P 仍 pending）后 focused 切至同 workspace pane B，则 B 的 planner 零重播（store.hasAnnouncedPermission(P)=true，mock tts 断言零 P 文本 speak）；
+  - given P 离开 pending 集，则 prune 后账本不含 P（暴露内部态断言或等价行为断言：P 再次进入 pending 时会重新播）；
+  - given 新权限 Q 到达，则正常播（既有用例回归）；
+  - 回退即红：退回实例级 Set 则切 pane 用例红。
+
+**L7+B：voiceAnnouncementClaim 区分两类 unavailable**
+
+- 现状证据：`voiceAnnouncementClaim.ts:47-49`（acquire）与 :71（renew）——`return result.status === "unavailable"` → 视为持有（乐观降级）。而服务层 `broadcastService.ts:185-196`（超时路径，`BROADCAST_CLAIM_TIMEOUT_MS = 2_000`，:16）注释明示「**claim 超时不能乐观播放；Main 可能已经把同一 key 授予另一窗口**。迟到的 acquired 结果会在消息处理器中按 token 主动 release」、:210-216（postMessage throw）同族——即经由非空 broadcastService 出现的 unavailable 只能是超时/传输失败，乐观持有=他窗可能同时持有=双窗叠音，违反 §3.5-3「以 claim 为准校正本地态」与 §3.5 单播报者。真正的「无仲裁面」= `broadcastService` 缺席（适配器 :38-41 null 分支返回 true，本就正确）。
+- 裁决机制：**映射收窄**（适配层单处）：acquired → 持有；busy/committed → 不持有（既有）；**unavailable → 不持有**——acquire 侧 planner 维持静默（§3.3「未持有者静默」，info 落 `claim unavailable; staying silent`），renew 侧 false → 既有 claimLost 链（cancel + 回 AnnIdle，§3.5-3）。null-service 降级分支保留不动。**已知代价如实记档**：host 桥启动竞态下首次播报可能静默一次（2s 超时窗），以 claim 真值为准，不做乐观播放、不加超时重试掩盖（AGENTS.md 禁用超时掩盖同步问题）。
+- 并行兼容：并行批次已把端口改为 lease 形态（`VoiceAnnouncementLease`、renew/release 按 lease/token，实读并行 diff）——本条是适配层**状态映射**裁决，两种端口形态同义落地（布尔形态：unavailable→false；lease 形态：unavailable→null lease/不持有）。两批同改本文件，合并时以本条映射语义为准（并行 diff 未动 unavailable 映射，实读确认）。
+- 验收（回退即红）：
+  - given mock broadcastService.acquireClaim 恒 resolve `{status:"unavailable"}`，则 acquire() === false、零 tts.speak、voice.tts info 恰一次；
+  - given broadcastService === null（无仲裁面），则 acquire() === true（降级持有回归不变）；
+  - 双窗叠音断言：窗 A 恒 unavailable + 窗 B 正常 acquired，则仅 B 出声（A 静默）；回退即红：映射改回 unavailable→true 则 A/B 同时 speak 红；
+  - given renew 恒 unavailable，则 cancelAnnouncement("claimLost") + 回 AnnIdle（既有链回归）。
+
+#### 9.9.4 C 级：可达性、日志与文案（L1/L2/L3/L4/L6/L9/L10/L13/L14/L11/L12）
+
+**L1+C：requestingMic 用户取消出边（Esc / 持有者再点按）**
+
+- 现状证据：store 动作 `cancelMicRequest` 已存在（voiceSessionStore.ts:273-279，RequestingMic→Idle）但生产代码零调用方（grep 实测仅定义/注释命中）；`toggleMic` 在 requestingMic 态再点按走 `startMicRequest` 被 store 拒绝=静默 no-op（useVoiceDictation.ts:284-290）；`consumeVoiceRecordingEscape` 只认 recording（voiceSessionStore.ts:197-204）→ requestingMic 期 Esc 死键，唯一出路是 10s 超时（§5.3）。§3.2 输入腿冻结图 RequestingMic→Idle 出边已含「用户取消」，本条是落地该边。
+- 裁决机制：**状态迁移**——(1) 再点按：`toggleMic` 在 `inputLeg === "requestingMic"` 时，`recordingOwnerEntryId === 本实例 entryId` → `cancelMicRequest()` + `generationRef+1`；非持有者点按维持 no-op（不代取消他人的请求，FD-6 边界同源）。(2) Esc：`consumeVoiceRecordingEscape` 扩展为两段：recording → stopRecording()（既有）；requestingMic → cancelMicRequest()。两接缝（ConversationComposer.tsx:2835 `onVoiceRecordingEscape` 与 SessionPane.tsx:4604 窗口监听）共用该消费函数，自动获得。**迟到授权**：既有守卫 useVoiceDictation.ts:338-346（inputLeg 已非 requestingMic → session.abort()）覆盖；generation 同步失效对齐 §9.8.1「RequestingMic 的迟到授权也须释放资源」——合入并行形态后由其终止清理统一覆盖。**卸载出边不做**（并行批次已接，按 fixPlan 明示勿重复）。
+- 验收（回退即红）：
+  - given requestingMic，when 再点按持有入口，则 inputLeg=idle、迟到授权被 abort（fake 授权延迟到达断言）、零 notice；
+  - given requestingMic，when Esc（composer 内或对话区焦点），则同结果且零 v4 stop、零停生成；
+  - given 非持有者入口点按，则维持 requestingMic（不代取消）；
+  - 回退即红：移除两条出边则对应用例红。
+
+**L2+C：DictationPreviewOverlay requestingMic 文案可达**
+
+- 现状证据：Overlay 自身已支持（DictationPreviewOverlay.tsx:48 active 判定含 requestingMic、:68-69 渲染 `voice.dictation.requestingMic`，键已落 locales）；不可达根因在 Entry 传参——V4ComposerVoiceEntry.tsx:196 `bound={recording && isBoundEntry}`，而 `recording` 仅认 `inputLeg === "recording"`（:133）→ requestingMic 期 bound=false → active=false → 文案零可见帧。§5.3「权限对话框被忽略/折叠 → 10s 超时」期间请求麦克风无任何可见反馈。
+- 裁决机制：**守卫加在 Entry 的 bound 计算**（Overlay 纯函数零改动）：`bound = 腿活动（requestingMic/recording/injecting）&& isOwner`（isOwner 见 L6：`recordingOwnerEntryId === dictation.entryId`；requestingMic 期 store 已设 recordingOwnerEntryId，voiceSessionStore.ts:264-270，天然成立）。
+- 验收（回退即红）：given requestingMic，则持有者入口渲染预览条且文案 === voice.dictation.requestingMic 键值（zh/en 双语断言）；授权转 recording 后文案切换为 partial/hint；非持有者入口零活动段渲染；回退即红（恢复 recording-only 判定则 requestingMic 用例红）。零新 i18n 键（既有键激活），voiceI18nKeys 守护零变化。
+
+**L3+C：SessionPane Esc 窗口监听注册条件扩展至无任务态**
+
+- 现状证据：`SessionPane.tsx:4593-4595`——`if (!focused || readOnly) return; if (!sessionId || !snapshot?.control.canStop) return;`：无任务态（canStop=false）整个窗口监听不注册 → 焦点在 composer 外时 Esc 死键；语音优先消费（:4604 consumeVoiceRecordingEscape，§4.4 优先级 3）随之失效——录音中但无任务运行 + 焦点在对话区 → Esc 停不了录音。
+- 裁决机制：**注册条件**收窄为 `focused && !readOnly && sessionId`（去 canStop 前置）；**handler 内后置守卫**：语音优先分支不变；其后的停生成分支加 canStop 现值守卫（经 ref 读，避免注册随快照抖动重挂）——canStop=false 时原样 return（不 preventDefault、不 handleStop），保持「无任务态无消费者 → Esc 无动作」的现状语义（§4.4 优先级 4「非录音态既有语义不变」）。
+- 冲突消解（9.9.5-8）：§4.4 冻结仲裁表优先级 3 的实现覆盖缺口补全；与 §9.8.1 Esc=丢弃式 abort 正交（那是消费后的清理语义，这是监听注册条件）。
+- 验收（回退即红）：
+  - given 录音中、canStop=false、焦点在对话区（composer 外），when Esc，则录音停止、零 v4 stop、event.preventDefault 恰一次；
+  - given 无任务无录音，when Esc（composer 外），则零动作零 preventDefault（现状回归）；
+  - given canStop=true 既有停生成路径全量回归（§4.4 既有验收）；
+  - 回退即红：恢复 canStop 注册前置则第一条红。
+
+**L4+C：webSpeechAsrAdapter 自发 onend 看门狗**
+
+- 现状证据：`webSpeechAsrAdapter.ts:223-231`——非 stopping 的 onend（引擎自发断流）：「不自动重启（§5.3），也不判死——等待调用方 stop()/abort() 或 error 事件定论」→ 引擎已停但 store 停在 recording、`closeSession` 未调用（getUserMedia 音轨未停）→ Recording 悬挂 + 麦克风持续占用。与冻结 §5.3「aborted/onend 无结果 → 同静音超时处理」直接相悖（实现欠账）。
+- 裁决机制：handleEnd 非 stopping 分支加看门狗：arm `VOICE_ASR_SPONTANEOUS_END_SETTLE_MS`（voiceTuning 新常量，与 `VOICE_ASR_STOP_SETTLE_TIMEOUT_MS`（:36，2000ms）同量级、独立命名；调参面不冻值）——窗口内 trailing final（部分平台 end 先于 final 派发）照常经 onFinal 交付并顺延看门狗；窗口内 error 走既有 handleError；窗口耗尽仍无定论 → `dead = true` + `closeSession`（停轨）+ `onError(new VoiceAsrError("no-speech"))`——输入腿经 useVoiceDictation.ts:358-374 既有映射 `abortRecording("aborted")`（同静音超时：提示 + 不自动重启，§5.3）。abort()/stop() 清理点（:242-247/:289-303）同步清该定时器。**abort/resolveStop 相关路径不重复实现**（并行已修，按 fixPlan 明示）。
+- 验收（回退即红）：
+  - given fake 引擎 start 后无 error 直发 end 且 settle 窗内无后续事件，则看门狗到期：onError("no-speech") 恰一次、音轨 stop 恰一次、inputLeg=idle + aborted notice；
+  - given end 后窗内补发 final，则该句正常交付、看门狗顺延、腿不中止；
+  - given stop() 后 onend（既有 stopping 路径）行为零变化（既有用例回归）；
+  - 回退即红：移除看门狗则悬挂用例红（inputLeg 恒 recording、音轨未停）。
+
+**L6+C：V4ComposerVoiceEntry 停止图标/预览/脉冲按 recordingOwnerEntryId 区分**
+
+- 现状证据：`V4ComposerVoiceEntry.tsx:133`（recording 判定）/`:135`（isBoundEntry）/`:196`（Overlay bound）/`:219`（sr-only 指示）全按 `boundSessionId === sessionId`——同会话主/辅 pane 双入口全部命中 → 停止图标/预览条/指示双显（违反 §9.2 FD-6 验收「partial 只出现在 A 的预览条」）；脉冲更宽（:77-88）：任何挂载入口在 inputLeg==="recording" 时都高亮（含他会话录音——违反 FD-6「持有录音指示的入口短暂高亮」原语义）。store 已备 `recordingOwnerEntryId`（voiceSessionStore.ts:81-86，注释明言「仅按 sessionId 无法区分」）；`entryId` 在 useVoiceDictation 已有（:116-117）但未暴露。
+- 裁决机制：useVoiceDictation 返回值 additive 暴露 `entryId`；`useVoiceDictationSnapshot`（useVoiceComposerEntry.ts:126-137）additive 订阅 `recordingOwnerEntryId`；Entry 判定统一换轨 `isOwner = snapshot.recordingOwnerEntryId === dictation.entryId`——停止图标（recording）= `inputLeg === "recording" && isOwner`；预览条活动段 bound（含 L2 扩展）= 腿活动 && isOwner；sr-only 绑定会话名指示同轨；脉冲 effect 仅 isOwner 触发。跨会话入口照旧显示普通 mic（点按走 store 拒绝 + 持有者脉冲）。notice 分支不按 owner 过滤的现状保留（F1 修复的 v1 简化已记档，不在本条范围）。
+- 验收（回退即红）：
+  - given 会话 S 双 pane A/B、A 开录，则 A 显示停止图标+预览+指示、B 显示普通 mic 且零预览；
+  - when 点按 B 的 mic，则 A 脉冲高亮恰一次、B 零脉冲；
+  - given 会话 T（他会话）入口挂载，则录音态变化时其图标/预览/脉冲零变化；
+  - 回退即红：退回 sessionId 判定则双显与跨会话脉冲用例红。
+
+**L9+C：voice.tts 句界/起播/暂停时序 debug 槽位**
+
+- 现状证据：voice 模块 logger.debug 仅 3 处且全在 voice.asr（grep 实测：remoteAsrAdapter.ts:266、useVoiceDictation.ts:199、webSpeechAsrAdapter.ts:186）；turnSpeechPlanner 零 debug 调用（全文实读）——§7.1 冻结「voice.tts debug = 句边界 boundary 事件」槽位未实现；M2/M3 族时序问题排查零日志。并行批次仅新增 claim warn（实读并行 diff：`announcement claim lost`/`claim request failed`），时序仍零日志。
+- 裁决机制：planner 埋 4 类 debug 事件（生产不落盘，§7.1 debug 行落实）：`turn.start`（startSpeaking 落地后：`{turnId: string|null, sentenceCount}`）、`sentence.boundary`（sentenceCompleted 推进后：`{index, total}`）、`pause`（`{phase: "requested"|"effective", index}`——markPauseRequested 时 / sentenceCompleted→annPaused 时）、`resume`（resumeSpeaking 后：`{index}`）。**硬边界**：载荷只含 id/序号/计数，零播报文本（§7.1 隐私边界同源审慎：播报正文亦不落任何日志级别）。
+- 验收（回退即红）：given 一次 3 句播报含开录暂停与续播，则 debug 事件序列 === [turn.start, sentence.boundary, pause(requested), pause(effective), resume, sentence.boundary, …]（logger 订阅断言）；断言全部载荷零文本字段；回退即红：移除埋点则序列断言红。
+
+**L10+C：适配器选型/创建失败补 voice.asr error 槽位映射（choice 与 start 失败分离）**
+
+- 现状证据：`useVoiceDictation.ts:301-334` 起录链 `await pickAsrAdapter()` 无 try/catch——`createRemoteAsrAdapter` 构造/选型链 throw = 未处理 rejection（store 悬在 requestingMic 至 10s 超时），零日志（fixPlan「或无日志」即此路径：选型无法给出适配器）；webSpeech start 最终失败落 `logger.warn("voice.entry", …)`（:330）——§7.1 voice.entry warn 槽位语义为「权限拒绝后的再次尝试、sendText 携带 source 被旧 CLI 拒收」，ASR 失败应归 voice.asr。
+- 裁决机制：两分映射：(1) **选型/适配器创建异常**（pickAsrAdapter 或适配器构造 throw——「choice=null」语义：选型函数无法产生适配器）→ catch：`logger.error("voice.asr", …)`（§7.1 error 槽位原文「适配器创建失败致入口不可用」；VoiceAsrError 用其 code，未知归 "device"）+ `failMicRequest(映射码)` + `generationRef+1` + `cleanupSession()`——即时出腿，不悬 10s；(2) **start 失败**（适配器已得、起录失败）→ 日志槽位 :330 由 voice.entry 移至 **voice.asr warn**（remote 回退 warn :313 已在 voice.asr 不动）；级别依据：创建失败=入口本次不可用（error 族），start 失败=可恢复错误码且回退树已处理（warn 族）。
+- 验收（回退即红）：
+  - given mock pickAsrAdapter throw（同步/异步各一），则恰一次 voice.asr error 日志 + inputLeg 即时=idle + notice(device) + 零 10s 悬挂；
+  - given webSpeech start not-allowed，则 voice.asr warn（非 voice.entry——scope 断言）+ failMicRequest(permission)；
+  - given remote start 失败回退 webSpeech 成功，则既有 :313 warn 不变、正常起录；
+  - 回退即红：移除 catch 则 throw 用例红（unhandled rejection / 悬挂）。
+
+**L13+C：cloudFallback 恢复签名纳入凭据修复事件**
+
+- 现状证据：`useVoiceAnnouncement.ts:379-389`——恢复签名 `ttsEngineSignature = engine + "\0" + baseUrl + "\0" + model`：用户只补凭据（三字段不动，凭据走 ICredentialService）时签名不变 → `cloudFallbackRef` 会话内不解除。§9.6.5-3 注释自述恢复条件含「用户修复 baseUrl/**凭据**/网络后恢复」——凭据一半未兑现，属实现欠账。
+- 裁决机制：凭据状态进签名：`cloudApiKeyRef` 升为 state（或增 `credentialVersion` 计数 state，加载 effect :231-243 完成时递增）驱动重渲染；签名拼入**凭据指纹二值**（`非空 ? "present" : "absent"`——判定只需区分空/非空迁移，不拼原文亦可；指纹不得落任何日志，§7.1 延伸边界）。签名变化 → 既有 effect（:384-389）清 `cloudFallbackRef`，下一解析点按最新凭据重试 cloud。数据保在哪 = hook 本地 state（会话级回落标记本就是 hook ref，粒度不变，不进 store 不持久化）。
+- 验收（回退即红）：
+  - given cloudFallback=true（连续失败置位），when 用户补 apiKey（凭据 load null→非空），则 cloudFallbackRef=false 且下一句 speak 走 cloud（mock fetch 断言恰一次 POST）；
+  - when 凭据非空→空（清除），则同样触发重析（回落 system）；
+  - 断言本轮全部 logger 调用载荷零凭据原文/指纹值；
+  - 回退即红：签名去掉凭据分量则补凭据用例红。
+
+**L14+C：toolBriefPlanner drain 增加简报开关检查，关闭时清 pending**
+
+- 现状证据：`toolBriefPlanner.ts:122-152`——`drainPending` 无 `isBriefEnabled()` 检查（候选生成侧 :173 有）：开关开着时候选已进 `pendingByTool`（合并窗内保留），用户关闭开关后窗过期、下一次快照驱动 drain 仍上交——违反既有冻结验收「工具简报开关关闭时零简报」（§9.4 末条/§9.6.8-S5）。
+- 裁决机制：**守卫加在 drainPending 入口**：`if (!deps.isBriefEnabled()) { pendingByTool.clear(); return; }`——关闭即清已 pending 简报（fixPlan 明示「关闭时清」，非挂起重开重放——简报是可丢弃的增强信息，§4.2-3 同哲学）；seen 消化照常（:173 既有，防「重开瞬间旧行涌入」语义不变）。
+- 验收（回退即红）：
+  - given 开关开时同名工具候选进 pending（窗内），when 关闭开关且窗过期后快照驱动 drain，则零 consumeBrief 上交、pendingByTool 空（暴露内部态断言或等价行为断言：重开后旧候选不补播）；
+  - given 重新开启后新工具行首见，则正常候选上交（既有六规则用例全量回归，含 [5s,10s) 偏差区间）；
+  - 回退即红：移除入口检查则关闭后 drain 用例红。
+
+**L11+C：配置确认门两入口时序不对称——记档为有意设计（零代码）**
+
+- 现状证据：VoiceSection.tsx:110-117 `handleAcknowledge` 确认即连同 `pendingPatch` 写入（本次开启生效——§9.2 验收原文「确认后本次开启生效」）；mic 入口 useVoiceComposerEntry.ts:83-90 `acknowledgePrivacy` 只写 `voicePrivacyDisclosureAcknowledged`、本次动作中止（§9.2 验收原文「显式确认后回 Idle（不自动开录），再次点按才开始」）。
+- 裁决：**有意不对称，本章记档**：设置开关 = 状态设置动作，确认即落开关（若不落则死锁——用户已表达「确认后要开」，开关回落迫使其第四次交互）；mic 开录 = 持续拾音动作，必须新手势（隐私披露 3「仅点按后开启」+ FD-5 明文「不做确认即连续开录」）。两入口共用同一 reader 守卫与同一 acknowledged 键（FD-5 冻结不变）。不对称是两条冻结验收的合取结果，非缺陷；零代码改动。
+
+**L12+C：remote ASR「即将支持」文案与已实现矛盾修正**
+
+- 现状证据：zh-CN.ts:8240 `"voice.settings.asr.engine.remote": "云引擎（即将支持）"`、en-US.ts:8716 `"Cloud engine (coming soon)"`——remote ASR 已于 §9.6 批次实现（remoteAsrAdapter.ts 存在；VoiceSection.tsx:307 档完整即可选），文案与实现矛盾。
+- 裁决机制：值改文案、键名与键集零变化：zh「云引擎」/ en "Cloud engine"（与 `voice.settings.tts.engine.cloud`「云引擎」措辞对齐）；zh/en 同步改（i18n 铁律），voiceI18nKeys 守护覆盖键集（无新键、无删键）。
+- 验收（回退即红）：断言 zh/en 两 locale 该键值 === 上述文案、全 `voice.*` 命名空间 grep「即将支持/coming soon」零命中；voiceI18n 三断言守护全绿；回退即红：恢复旧文案则断言红。
+
+#### 9.9.5 与既有冻结裁决的冲突消解记录（集中）
+
+| # | 冲突点 | 消解 |
+|---|---|---|
+| 1 | M3 vs §3.2 AnnPaused→Speaking 出边前置「轮尾仍最新」 | 该前置只对**轮尾正文在播**形态有定义（比对对象 = 在播/顺延轮尾 vs focused 最新轮尾）；null-turnId（权限/简报专用起播 `ensureClaimAndSpeak(null,…)`）在播时无比对对象，`stillCurrent` 恒 false 是判定空缺不是裁决意图。按 FD-3「权限段整段闭合、权限>正文」续播剩余句；新轮尾顺延至权限段排空后的 AnnIdle 排空点起播。**本章为 §3.2 图示的增补裁决**（照 §9.6/§9.7 先例：原冻结文字不改写，以本章为准），FD-1/2/3 零推翻：FD-2（AnnPaused 持约续期）照旧、FD-3 顺序强化、停止面（FD-1）零触及 |
+| 2 | M2 vs §3.3 顺延规则 | 现状（无条件清 pendingTail）**违反**冻结「录音结束时该轮尾仍最新 → 起播」；本条为对齐修复。supersede 采用立即 cancel（与非录音态 consumeTurnTail speaking 分支 :543-546 冻结行为一致），不引入「等句界」新时序。fixPlan「交由句界/pause 流程消费」措辞按此收敛（9.9.2-M2 论证） |
+| 3 | H6 vs §4.1/§3.2 | 实现将 interrupted 加入可播终态是对冻结的偏离（§4.1「TurnComplete 终态」从未含 interrupted）；收窄为 complete 单值 = 对齐冻结。「截断播报半截正文」备选属 §4.1 白名单新增播级内容，闭集原则下须独立增补拍板，本批不做 |
+| 4 | H4 vs §3.1/§2.4 | composer 正文唯一写入通道不变；多槽 = 通道内按 `targetSessionId` 寻址扩展（消费门匹配函数语义同源）；§2.4 mode 语义与空格规则零改动（同槽 append 合并复用同一规则） |
+| 5 | M9 vs §6.1/§3.5-4 | 「设置关闭后运行时行为一致」（reader 收口）在输入腿的对称落地：播报开关关闭 → notifyStopPressed 是既有实现（useVoiceAnnouncement.ts:391-400），入口隐藏 → 定向停止补齐同一哲学；与 §3.5-4 release 时机三处清单不冲突（claim 侧零变化） |
+| 6 | M10 vs §9.6.5-2 解析点清单 / §9.6.2-5 完整谓词 | 解析点清单（装配/设置变更/AnnIdle→Speaking）**additive 增补第四点「凭据加载完成」**——原裁决未考虑凭据异步到达，括注「speak 路由以最新解析结果执行」本就允许逐句路由，无时序新面；§9.6.2-5 谓词 `apiKey.trim()` 语义不变，只是「未加载」不再被占位值伪装成「已加载非空」 |
+| 7 | L7 vs §3.5-3/broadcastService 自述 | §3.5-3「以 claim 为准校正本地态」+ 服务层 broadcastService.ts:186 注释「claim 超时不能乐观播放」共同裁定：unavailable（超时/传输失败）→ 不持有；「无仲裁面可降级持有」仅保留 service 缺席分支（该分支才是真正的无仲裁面）。已知代价（桥启动竞态首播静默一次）如实记档，不加超时重试掩盖 |
+| 8 | L3 vs §4.4 优先级 4 | 注册条件放宽不改变优先级表：无任务态无消费者时 Esc 仍零动作（handler 内 canStop 后置守卫、不 preventDefault）；优先级 3（录音优先）获得无任务态覆盖。§4.4 表零改写 |
+| 9 | 全批 vs §9.8（并行） | 叠加关系非冲突：并行改「谁在播/谁持有/资源清理」（owner 凭证、generation/lease、Esc abort、卸载清理），本批改「播什么/何时播/可达性与观测」（队列身份分派、顺延保留、终态收窄、多槽注入、门控、日志）。同文件重叠点（turnSpeechPlanner notifyUserRecordingEnded、voiceAnnouncementClaim、useVoiceAnnouncement、useVoiceDictation）已在各条「并行兼容」注定义合成形态；M2 分支并行未改（实读）、M3 分支并行未改（实读）、claim unavailable 映射并行未改（实读）——三处均为单向叠加 |
+
+#### 9.9.6 明确不做与 deviations
+
+1. **interrupted 轮次的截断播报策略**（H6 备选）——否决，§4.1 白名单闭集原则，须独立增补拍板（9.9.2-H6）。
+2. **H4 消费门 focused 条件的放宽**——失焦 pane 即刻消费可进一步缩小丢失窗，但改变「主/辅 pane 同时 focused 的单一消费者」契约面，超出本批；多槽已消除覆盖丢失，focused 门维持现状。
+3. **L4 看门狗窗口值**——voiceTuning 新常量（`VOICE_ASR_SPONTANEOUS_END_SETTLE_MS`），初值 2000ms 与 stop settle 同量级，调参面不冻值。
+4. **L9 时序日志的 warn/info 升级**——时序事件全量 debug（生产不落盘）；已知可恢复异常维持既有 warn 槽位，不重复落。
+5. **桌面 E2E/真机**——本环境无 Electron 桌面运行时（附录 C 第 3/4 条既有约束持续有效）：本章交互断言以受控单测/wiring 测试（mock transport/deps）形态定义并执行；双主题/快照与真机项维持既有 TV/E2E 清单跟踪，不在本批伪造通过。
+6. **fixPlan 措辞偏离两处**——M2「句界/pause 流程消费」收敛为立即 supersede（9.9.5-2）；M9「真正卸载 hooks 或定向停止」二选一裁决定向停止（9.9.3-M9 论证）。均记档于此，不改冻结语义。
+7. **提交纪律**——本批不执行 git add/commit/push（铁律 3），提交由流程统一处理。
+
+#### 9.9.7 本轮核验记（2026-10-26，worktree feat/voice-audit-fixes @ dc2a60fb 实际执行）
+
+`git status` 零本地改动（实测）；全文读取：useVoiceAnnouncement.ts、turnSpeechPlanner.ts、voiceSessionStore.ts、useVoiceDictation.ts、useVoiceComposerEntry.ts、V4ComposerVoiceEntry.tsx、DictationPreviewOverlay.tsx、webSpeechAsrAdapter.ts、voiceAnnouncementClaim.ts、toolBriefPlanner.ts、resolveAsrAdapter.ts、useComposerTextInsertApplied.ts；局部读取：SessionPane.tsx（:835-870/:4580-4615/:5427-5444/:1677-1698）、droraSessionStoreWorkspaceSlice.ts（:309-360）、droraSessionStoreTypes.ts（:100-180）、broadcastService.ts（:140-230 + :16-18 常量）、broadcast.ts（全文）、rows.ts（:82/:175/:187）、locales zh-CN.ts（:8235-8248）/en-US.ts（:8710-8722）、VoiceSection.tsx（头注/:93-123/:291-307）。grep 实测：`cancelMicRequest` 生产调用方零命中；`logger.debug` voice 模块仅 3 处且全在 voice.asr；`consumeVoiceRecordingEscape` 消费接缝 2 处（ConversationComposer.tsx:2835、SessionPane.tsx:4604）；`TID_VOICE_ANN_STOP` 在 test-ids.ts:596；`compactForRemoteControl` 为 SessionPane prop（:378/:626）。并行 worktree（drora-voice-agent，feat/voice-agent-phase1）实读：spec §9.8 全文；未提交 diff 的 turnSpeechPlanner.ts（F5 形态：prunePermissions/isPermissionPending/unshift/owner+generation+lease，notifyUserRecordingEnded 与基线逐字一致）、voiceAnnouncementClaim.ts（lease 形态，unavailable 映射未动）、未提交清单（SessionPane.tsx/toolBriefPlanner.ts 不在其中）。评审修订轮（同日第二遍）：实读 ConversationDraftSuggestedPromptsContainer.tsx（:319-330 finishMutation Failed popover、:498-503 与 :675-690 两处 await applied）并复核 useComposerTextInsertApplied.ts:32-39 判定结构——证实 H4 原谓词在跨槽 bump 交错下误报 superseded，按 9.9.2-H4 修订注改槽态判定。未执行：typecheck/lint/单测（本批 spec-only，零代码改动，不触发测试面——实现批按 §9 头门禁实测报告）。
+
 ---
 
 ### 9.8 生命周期与多 pane 隔离修复（2026-10-24）

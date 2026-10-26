@@ -377,3 +377,28 @@ describe("toolBriefPlanner 会话边界（§9.7.7）", () => {
     expect(harness.briefs).toHaveLength(8);
   });
 });
+
+describe("§9.9.4-L14 drain 入口开关检查", () => {
+  it("开关关闭时窗过期候选不再上交且 pending 清空（关闭即清，非挂起重放）", () => {
+    const harness = createHarness();
+    // 首条 Edit 立即上交（无既有播出基准），建立该工具类的合并窗基准。
+    harness.feed([source({ toolCallId: "tc-a", toolName: "Edit", turnId: "turn-1" })]);
+    expect(harness.briefs).toHaveLength(1);
+    // 合并窗内的同类候选保留在 pendingByTool（不立即上交）。
+    harness.feed([source({ toolCallId: "tc-a2", toolName: "Edit", turnId: "turn-1" })]);
+    expect(harness.briefs).toHaveLength(1);
+    // 用户关闭开关 + 合并窗过期后快照驱动 drain。
+    harness.setEnabled(false);
+    harness.advance(20_000);
+    harness.feed([source({ toolCallId: "tc-other", toolName: "Other", turnId: "turn-1" })]);
+    // §9.4 末条/§9.6.8-S5 冻结验收「开关关闭时零简报」；pending 清空。
+    // 回退即红：移除 drainPending 入口检查则窗过期候选 tc-a2 上交（briefs=2）。
+    expect(harness.briefs).toHaveLength(1);
+    // 等价行为断言：重开开关后旧候选不补播（pending 已清），新工具行首见正常上交。
+    harness.setEnabled(true);
+    harness.advance(20_000);
+    harness.feed([source({ toolCallId: "tc-new", toolName: "New", turnId: "turn-1" })]);
+    expect(harness.briefs).toHaveLength(2);
+    expect(harness.briefs[1]?.toolName).toBe("New");
+  });
+});

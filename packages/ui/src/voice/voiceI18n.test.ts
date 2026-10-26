@@ -50,3 +50,22 @@ describe("voice i18n keys", () => {
     }
   });
 });
+
+describe("§9.9.4-L12 remote ASR 文案与已实现能力一致", () => {
+  it("remote ASR 引擎名不含「即将支持/coming soon」（§9.6 已实现）", () => {
+    // 回退即红：恢复旧文案「云引擎（即将支持）/Cloud engine (coming soon)」则本用例红。
+    expect(zhCN["voice.settings.asr.engine.remote"]).toBe("云引擎");
+    expect(enUS["voice.settings.asr.engine.remote"]).toBe("Cloud engine");
+    // 全 voice.* 命名空间零「即将支持/coming soon」残留。
+    for (const [key, message] of Object.entries(zhCN)) {
+      if (key.startsWith("voice.")) {
+        expect(message, `zh-CN ${key}`).not.toContain("即将支持");
+      }
+    }
+    for (const [key, message] of Object.entries(enUS)) {
+      if (key.startsWith("voice.")) {
+        expect(message, `en-US ${key}`).not.toContain("coming soon");
+      }
+    }
+  });
+});

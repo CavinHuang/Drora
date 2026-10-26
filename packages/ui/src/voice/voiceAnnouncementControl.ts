@@ -7,6 +7,7 @@ import type {
 
 /** 播报腿受控迁移面（voiceSessionStore 单一所有者的写入端口，见文件头说明）。 */
 export interface AnnouncementLegControl {
+  // 融合：§9.8.2 owner 凭证三方法为架构赢家（§9.9 拆分批次头注自述以其超集形态为准）。
   tryAcquireOwner(): boolean;
   isOwner(): boolean;
   releaseOwner(): void;
@@ -43,6 +44,7 @@ export function createVoiceSessionAnnouncementControl(store: {
     uninterruptible: false,
   };
   // F3：共享 store 的写权限属于唯一凭证，非 owner 只能读取空闲视图。
+  // 融合：取 §9.8.2 owner 凭证超集（§9.9 同名拆分批次的非凭证形态由其取代）。
   return {
     tryAcquireOwner: () => call().acquireAnnouncementOwner(ownerId),
     isOwner,

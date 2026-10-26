@@ -296,10 +296,10 @@ describe("语音打断全链（听写决策 → 命令总线 → 播报规划器
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
     expect(fakeTts.cancelCount.value).toBeGreaterThanOrEqual(1);
-    // §5.1：命中的 final 不注入 composer（「停」不出现在正文）。
+    // §5.1：命中的 final 不注入 composer（「停」不出现在正文）——多槽形态下全槽为空。
     expect(
-      useDroraSessionStore.getState().getWorkspaceState("/ws").composerTextInsertRequest,
-    ).toBeNull();
+      useDroraSessionStore.getState().getWorkspaceState("/ws").composerTextInsertRequests,
+    ).toEqual({});
     // 不续播：乙句不再被调度（cancel 后无在播 utterance，正文队列已随 AnnIdle 清空）。
     expect(() => fakeTts.finishCurrent()).toThrow();
   });

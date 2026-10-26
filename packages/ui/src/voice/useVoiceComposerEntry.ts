@@ -142,6 +142,9 @@ export function useVoiceComposerEntry({
       model: settings?.voiceAsrVendorModel ?? "",
     },
     getVendorApiKey,
+    // §9.9.3-M9：入口可见性（voiceComposerEntryState 纯函数收口的唯一判定源）——
+    // 录音中设置隐藏入口 = 持有者定向停止，不留下无入口的继续拾音。
+    entryVisible: view.visible,
   });
 
   return {
@@ -166,6 +169,9 @@ export function useVoiceDictationSnapshot() {
       notice: state.notice,
       recordingPulseSeq: state.recordingPulseSeq,
       lastDictation: state.lastDictation,
+      // §9.9.4-L6：owner 判定换轨——停止图标/预览条/脉冲/sr-only 指示按入口实例区分
+      //（store :85 注释明言仅按 sessionId 无法区分同会话双 pane 双入口）。
+      recordingOwnerEntryId: state.recordingOwnerEntryId,
     })),
   );
 }

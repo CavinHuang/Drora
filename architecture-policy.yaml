@@ -964,6 +964,23 @@ exceptions:
     rule: max-file-lines
     paths: [packages/ui/src/team/TeamPanel.tsx]
     reason: TeamPanel 是 team 的唯一显示面（状态头/动作区/任务板/成员卡/消息尾窗共享同一投影模型与命令上抛链）；2026-10-18 审查修复兑现设计 §3.3.2 全部承诺（attention 卡/头像点/依赖缩进/artifactRefs/尾窗）后超线，拆文件会割裂单一派生通道。
+  - id: turn-speech-planner-size
+    rule: max-file-lines
+    paths: [packages/ui/src/voice/turnSpeechPlanner.ts]
+    reason: 播报规划器是句队列/claim/起播链编排的单一所有者（specs/voice-agent-integration.md §2.3/§3.2/§9.8/F4-F5/§9.9.2-M2-M3）；纯函数（turnSpeechText）、受控面（voiceAnnouncementControl）、端口类型（turnSpeechPlannerTypes）三层已拆出，剩余主体共享 planner 闭包瞬态（sentences/pendingTail/权限窗/起播链代数），继续机械拆分会割裂状态机并扩大与并行 §9.8 批次同文件的合并冲突面。
+  - id: turn-speech-planner-test-size
+    rule: max-file-lines
+    paths: [packages/ui/src/voice/turnSpeechPlanner.test.ts]
+    reason: 融合批次（§9.8 rebase §9.9）测试取并集：主文件保留顺延/起播链/多 pane 骨架用例并叠加 §9.9.2-M2/M3/H6 语义用例，权限段/打断与 debug 槽位已拆至 turnSpeechPlanner.interrupt.test.ts / .debug.test.ts；再拆会把同一 planner 装配 harness 复制第四份。
+  - id: use-voice-dictation-test-size
+    rule: max-file-lines
+    paths: [packages/ui/src/voice/useVoiceDictation.test.ts]
+    reason: 融合批次（§9.8 rebase §9.9）测试取并集：§9.8 的 Esc 定向 abort/目标切换/迟到凭据回归与 §9.9.3-M9/§9.9.4-L1/L10 describe 块并列，共享同一 fake adapter/store 复位夹具；按 describe 拆文件会复制 hoisted mock 状态（fakeAdapter/remoteAdapterState 是模块级单例）。
+
+  - id: pane-escape-stop-generation-unmanaged
+    rule: unmanaged-new-file
+    paths: [packages/ui/src/v4/paneEscapeStopGeneration.ts]
+    reason: SessionPane 窗口级 Esc 停止生成监听提取（specs/voice-agent-integration.md §9.9.4-L3：注册条件去 canStop 前置 + handler 内现值守卫）——逻辑原样搬家，SessionPane 与 hook 一一对应；v4/ 整目录接管不在本批范围（照 composer-text-append-unmanaged-dir 先例）。
   - id: team-panel-lint
     rule: disable-count
     paths: [packages/ui/src/team/TeamPanel.tsx]

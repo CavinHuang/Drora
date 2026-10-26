@@ -120,6 +120,15 @@ export function createToolBriefPlanner(
   const announcedCountByTurn = new Map<string, number>();
 
   const drainPending = (): void => {
+    // §9.9.4-L14：drain 入口开关检查——开关开着时候选已进 pendingByTool（合并窗内
+    // 保留），用户关闭开关后窗过期、下一次快照驱动 drain 仍会上交，违反既有冻结验收
+    // 「工具简报开关关闭时零简报」（§9.4 末条/§9.6.8-S5）；关闭即清已 pending 简报
+    //（fixPlan 明示「关闭时清」非挂起重开重放——简报是可丢弃的增强信息，§4.2-3 同
+    // 哲学），seen 消化照常（上方 :173 既有，防「重开瞬间旧行涌入」语义不变）。
+    if (!deps.isBriefEnabled()) {
+      pendingByTool.clear();
+      return;
+    }
     // 规则 2 强制（C1 修复，EG-1 拍板基准=最近一次实际播出）：同类合并窗
     // （sameToolMergeWindowMs=10s，基准=该工具类播出时刻）内的候选**不上交**，
     // 保留 pending 只持续刷新最新目标——这是防机关枪的核心：窗内到达多少条

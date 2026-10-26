@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createWebSpeechAsrAdapter,
   type WebSpeechRecognitionAlternativeLike,
@@ -241,6 +241,7 @@ describe("createWebSpeechAsrAdapter", () => {
   });
 });
 
+// 融合：§9.8 的 abort 结算回归与 §9.9.4-L4 看门狗用例并集（adapter 两特性并存）。
 it("abort settles an outstanding manual stop without waiting for engine onend (§9.8)", async () => {
   const h = createHarness();
   const session = await h.start();
@@ -250,4 +251,66 @@ it("abort settles an outstanding manual stop without waiting for engine onend (�
   await expect(pending).resolves.toEqual({ final: "" });
   expect(h.recognition.abortCalls).toBe(1);
   expect(h.stoppedTracks).toEqual(["mic"]);
+});
+
+describe("§9.9.4-L4 自发 onend 看门狗", () => {
+  it("引擎自发断流且 settle 窗内无定论 → dead + 停轨 + onError(no-speech)", async () => {
+    vi.useFakeTimers();
+    try {
+      const stoppedTracks: string[] = [];
+      const recognition = new FakeRecognition();
+      const adapter = createWebSpeechAsrAdapter({
+        createRecognition: () => recognition,
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => stoppedTracks.push("mic") }],
+        }),
+        spontaneousEndSettleMs: 50,
+      });
+      const session = await adapter.start({ lang: "zh-CN" });
+      const errors: string[] = [];
+      session.onError((error) => errors.push(error.code));
+      // 引擎 start 后无 error 直发 end（自发断流），窗内无后续事件。
+      recognition.emitEnd();
+      expect(errors).toEqual([]); // 窗内不定论（等待 trailing final/error）。
+      await vi.advanceTimersByTimeAsync(60);
+      // §5.3 冻结「onend 无结果 → 同静音超时处理」：onError("no-speech") 恰一次 +
+      // 音轨 stop（解除麦克风占用）。回退即红：移除看门狗则 errors 恒空、音轨不停。
+      expect(errors).toEqual(["no-speech"]);
+      expect(stoppedTracks).toEqual(["mic"]);
+      // 判死后 trailing result 不再交付。
+      recognition.emitResult([result("迟到。", true)]);
+      await vi.advanceTimersByTimeAsync(60);
+      expect(errors).toEqual(["no-speech"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("end 后窗内补发 final → 正常交付、看门狗顺延、会话不中止", async () => {
+    vi.useFakeTimers();
+    try {
+      const recognition = new FakeRecognition();
+      const adapter = createWebSpeechAsrAdapter({
+        createRecognition: () => recognition,
+        getUserMedia: async () => ({ getTracks: () => [{ stop: () => undefined }] }),
+        spontaneousEndSettleMs: 50,
+      });
+      const session = await adapter.start({ lang: "zh-CN" });
+      const finals: string[] = [];
+      const errors: string[] = [];
+      session.onFinal((text) => finals.push(text));
+      session.onError((error) => errors.push(error.code));
+      recognition.emitEnd();
+      // 部分平台 end 先于 final 派发：窗内 trailing final 照常交付并顺延看门狗。
+      await vi.advanceTimersByTimeAsync(20);
+      recognition.emitResult([result("迟到的句子。", true)]);
+      expect(finals).toEqual(["迟到的句子。"]);
+      await vi.advanceTimersByTimeAsync(20); // 原窗口已耗尽，但已被顺延。
+      expect(errors).toEqual([]); // 未判死。
+      await vi.advanceTimersByTimeAsync(60); // 顺延窗口耗尽且无新事件 → 判死。
+      expect(errors).toEqual(["no-speech"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -56,6 +56,34 @@ describe("resolveFocusedAnnouncementTail", () => {
     ] as never;
     expect(resolveFocusedAnnouncementTail(units)).toBeNull();
   });
+
+  it("skips interrupted tails entirely even with non-empty text (§9.9.2-H6 半截正文不整段播报)", () => {
+    // interrupted = 停止生成打断的半截正文（rows state 四值之一）：§4.1 白名单
+    // 「TurnComplete 终态后整段分句播」从未包含它，收窄为 complete 单值——
+    // 回退即红：判定恢复 complete|interrupted 双值则本用例红（返回半截轮尾）。
+    const units = [
+      makeUnit({ turnId: "t1", latestState: "interrupted", texts: ["被打断的半截正文。"] }),
+    ] as never;
+    expect(resolveFocusedAnnouncementTail(units)).toBeNull();
+  });
+
+  it("falls back past the newest interrupted turn to the older complete one (§9.9.2-H6)", () => {
+    const units = [
+      makeUnit({ turnId: "t1", texts: ["完整回答。"] }),
+      makeUnit({ turnId: "t2", latestState: "interrupted", texts: ["半截。"] }),
+    ] as never;
+    expect(resolveFocusedAnnouncementTail(units)).toEqual({ turnId: "t1", text: "完整回答。" });
+  });
+
+  it("still consumes a complete tail with the same text shape (§9.9.2-H6 complete 回归)", () => {
+    const units = [
+      makeUnit({ turnId: "t1", latestState: "complete", texts: ["正常完成的正文。"] }),
+    ] as never;
+    expect(resolveFocusedAnnouncementTail(units)).toEqual({
+      turnId: "t1",
+      text: "正常完成的正文。",
+    });
+  });
 });
 
 describe("buildPermissionAnnouncementText", () => {

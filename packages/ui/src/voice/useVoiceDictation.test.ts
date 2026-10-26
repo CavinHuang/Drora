@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, renderHook } from "@testing-library/react";
+import { logger } from "@/logger.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { consumeVoiceRecordingEscape, useVoiceSessionStore } from "@/store/voiceSessionStore.js";
@@ -165,6 +166,7 @@ vi.mock("./remoteAsrAdapter.js", () => ({
 }));
 
 const { useVoiceDictation } = await import("./useVoiceDictation.js");
+const { VOICE_REQUESTING_MIC_TIMEOUT_MS } = await import("./voiceTuning.js");
 
 /**
  * 听写运行时守护（specs/voice-agent-integration.md §5.1/§5.2/§5.3/§9.2 验收）：
@@ -200,12 +202,13 @@ function resetStores(): void {
 // 每用例独立 workspacePath：droraSessionStore 的 workspace 状态跨用例存活，
 // request 通道按 workspace 隔离才能断言「本用例的分发」。
 let wsPath = "/ws";
-function lastInsertRequest(): {
-  text: string;
-  mode?: string;
-  targetSessionId?: string | null;
-} | null {
-  return useDroraSessionStore.getState().getWorkspaceState(wsPath).composerTextInsertRequest;
+// §9.9.2-H4 多槽形态：听写绑定会话 sess-1，读该会话槽（槽键 = targetSessionId ?? ""）。
+// 融合：workspaceSlice 的多槽 store 已按 §9.9 rebase 干净落地，读法取 §9.9 形态。
+function lastInsertRequest(): { text: string; mode?: string; targetSessionId?: string | null } | null {
+  return (
+    useDroraSessionStore.getState().getWorkspaceState(wsPath).composerTextInsertRequests["sess-1"] ??
+    null
+  );
 }
 
 async function mountStartedDictation() {
@@ -255,7 +258,13 @@ describe("useVoiceDictation", () => {
 
     session?.emitFinal("第二句！");
     await vi.advanceTimersByTimeAsync(0);
-    expect(lastInsertRequest()).toMatchObject({ text: "第二句！", targetSessionId: "sess-1" });
+    // §9.9.2-H4 同槽 append 合并：第一句未被消费清除期间，第二句按 §2.4 空格规则
+    // 拼进同一请求（旧单槽 latest-wins 会直接覆盖丢第一句；合并在写入点先行应用）。
+    expect(lastInsertRequest()).toMatchObject({
+      text: "第一句。 第二句！",
+      mode: "append",
+      targetSessionId: "sess-1",
+    });
     expect(useVoiceSessionStore.getState().lastDictation?.text).toBe("第二句！");
     void harness;
   });
@@ -582,6 +591,8 @@ describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
   });
 });
 
+// 融合：两侧用例取并集——§9.8 的 Esc/目标切换/迟到凭据回归 + §9.9 的 M9/L10/L1
+// describe 块并列；M9/L1 的停止/取消经 §9.8 abortEpisode 通道落地（融合：§9.8-F1 通道）。
 // §9.8：审查复现转正式回归。
 it("§9.8 regression: Esc must release the ASR session", async () => {
   await mountStartedDictation();
@@ -658,4 +669,201 @@ it("credential completion after RequestingMic timeout never starts an engine (§
   expect(fakeAdapter.start).not.toHaveBeenCalled();
   expect(remoteAdapterState.sessions).toHaveLength(0);
   expect(useVoiceSessionStore.getState().notice?.code).toBe("requestingMicTimeout");
+});
+
+describe("入口隐藏定向停止（§9.9.3-M9 entryVisible）", () => {
+  // 闭包直读外层变量（不可经形参传值——rerender 需读到最新值）。
+  let entryVisible = true;
+  function mountWithVisibility() {
+    return renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+        entryVisible,
+      }),
+    );
+  }
+
+  it("录音中入口隐藏：持有者定向停止（abort 引擎 + 出腿、partial 丢弃、零 notice）", async () => {
+    entryVisible = true;
+    const harness = mountWithVisibility();
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    fakeAdapter.emitPartial("半句");
+    expect(useVoiceSessionStore.getState().partialText).toBe("半句");
+    // 录音中把 voiceComposerEntryHidden 设回隐藏 → view.visible false → 定向停止。
+    // 回退即红：移除 entryVisible effect 则 inputLeg 恒 recording（无入口的继续拾音）。
+    entryVisible = false;
+    harness.rerender();
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(useVoiceSessionStore.getState().partialText).toBe("");
+    expect(useVoiceSessionStore.getState().notice).toBeNull();
+    // 丢弃式 abort（停引擎会话），非 stop 等待结算。
+    expect(fakeAdapter._sessions[0]?.abortCalls).toBe(1);
+    expect(fakeAdapter._sessions[0]?.stopCalls).toBe(0);
+  });
+
+  it("他入口持有录音时本入口隐藏：零动作不停别人的录音（FD-6 边界同源）", async () => {
+    // 他者实例持有录音腿。
+    expect(useVoiceSessionStore.getState().startMicRequest("sess-1", "entry-other")).toBe(true);
+    expect(useVoiceSessionStore.getState().beginRecording()).toBe(true);
+    useVoiceSessionStore.getState().setPartial("别人的半句");
+    entryVisible = true;
+    const harness = mountWithVisibility();
+    entryVisible = false;
+    harness.rerender();
+    // 非持有者入口隐藏：录音腿与 partial 不受影响。
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    expect(useVoiceSessionStore.getState().partialText).toBe("别人的半句");
+    useVoiceSessionStore.getState().stopRecording();
+  });
+
+  it("requestingMic 中入口隐藏：即时取消，不等 10s 超时", async () => {
+    // start 挂起：授权不落地，腿停在 requestingMic（权限对话框被忽略场景，§5.3）。
+    fakeAdapter.start.mockImplementationOnce(() => new Promise(() => undefined));
+    entryVisible = true;
+    const harness = mountWithVisibility();
+    harness.result.current.toggleMic();
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("requestingMic");
+    entryVisible = false;
+    harness.rerender();
+    // cancelMicRequest 即时生效（超时计时器随订阅 effect 同步清除）。
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(useVoiceSessionStore.getState().notice).toBeNull();
+    await vi.advanceTimersByTimeAsync(VOICE_REQUESTING_MIC_TIMEOUT_MS);
+    // 未走超时路径（无 requestingMicTimeout notice）。
+    expect(useVoiceSessionStore.getState().notice).toBeNull();
+  });
+});
+
+describe("§9.9.4-L10/L1 起录链失败处置与用户取消出边", () => {
+  it("选型/适配器创建异常：voice.asr error + 即时出腿，不悬 10s（§9.9.4-L10）", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+    const originalCreate = remoteAdapterState.createAdapter;
+    try {
+      // 选型链无法给出适配器（「choice=null」：构造 throw）。
+      remoteAdapterState.createAdapter = (() => {
+        throw new Error("adapter construction boom");
+      }) as typeof remoteAdapterState.createAdapter;
+      const harness = renderHook(() =>
+        useVoiceDictation({
+          sessionId: "sess-1",
+          workspacePath: wsPath,
+          lang: "zh-CN",
+          requestStart: () => true,
+          asrEngine: "remote",
+          vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+          getVendorApiKey: async () => "sk-test-key",
+        }),
+      );
+      harness.result.current.toggleMic();
+      await vi.advanceTimersByTimeAsync(0);
+      // 即时出腿：inputLeg=idle + device 提示（未知异常归 device 族）。
+      // 回退即红：移除 pickAsrAdapter catch 则 store 悬在 requestingMic 至 10s 超时
+      // 且零 error 日志（unhandled rejection）。
+      expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+      expect(useVoiceSessionStore.getState().notice?.code).toBe("device");
+      const asrErrors = errorSpy.mock.calls.filter(([scope]) => scope === "voice.asr");
+      expect(asrErrors).toHaveLength(1);
+      // 零 10s 悬挂：推进超时窗无新 notice（未走超时路径）。
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(useVoiceSessionStore.getState().notice?.code).toBe("device");
+    } finally {
+      remoteAdapterState.createAdapter = originalCreate;
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("webSpeech start 失败日志槽位归 voice.asr（§9.9.4-L10 槽位迁移）", async () => {
+    fakeAdapter._setStartReject("not-allowed");
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    try {
+      const harness = renderHook(() =>
+        useVoiceDictation({
+          sessionId: "sess-1",
+          workspacePath: wsPath,
+          lang: "zh-CN",
+          requestStart: () => true,
+        }),
+      );
+      harness.result.current.toggleMic();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(useVoiceSessionStore.getState().notice?.code).toBe("permission");
+      // 回退即红：恢复 voice.entry 槽位则本断言红（scope 不匹配）。
+      const startFails = warnSpy.mock.calls.filter(
+        ([scope, message]) => scope === "voice.asr" && String(message).includes("asr start failed"),
+      );
+      expect(startFails).toHaveLength(1);
+      expect(
+        warnSpy.mock.calls.some(([scope]) => scope === "voice.entry"),
+      ).toBe(false);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("requestingMic 持有者再点按 = 取消，迟到授权丢弃式 abort（§9.9.4-L1）", async () => {
+    let resolveStart!: (value: unknown) => void;
+    fakeAdapter.start.mockImplementationOnce(
+      () =>
+        new Promise<InstanceType<typeof createFakeSession>>((resolve) => {
+          resolveStart = resolve as unknown as (value: unknown) => void;
+        }),
+    );
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+      }),
+    );
+    harness.result.current.toggleMic();
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("requestingMic");
+    // flush：start 已被调用并挂起（pickAsrAdapter 的 await 链落地）。
+    await vi.advanceTimersByTimeAsync(0);
+    // 持有者再点按 → cancelMicRequest + generation 失效（§3.2 用户取消出边）。
+    // 回退即红：移除该出边则再点按走 store 拒绝=静默 no-op（仍 requestingMic）。
+    harness.result.current.toggleMic();
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(useVoiceSessionStore.getState().notice).toBeNull();
+    // 迟到授权：start resolve 后立即丢弃式 abort，绝不进入录音态。
+    const abortSpy = vi.fn();
+    resolveStart({
+      onFinal: () => () => undefined,
+      onError: () => () => undefined,
+      abort: abortSpy,
+      stop: () => Promise.resolve({ final: "" }),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(abortSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("requestingMic 非持有者点按维持 no-op（不代取消他人的请求，FD-6 边界）", async () => {
+    fakeAdapter.start.mockImplementationOnce(() => new Promise(() => undefined));
+    expect(useVoiceSessionStore.getState().startMicRequest("sess-1", "entry-other")).toBe(true);
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+      }),
+    );
+    harness.result.current.toggleMic();
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("requestingMic");
+    expect(useVoiceSessionStore.getState().recordingOwnerEntryId).toBe("entry-other");
+  });
+
+  it("requestingMic 期 Esc = 取消请求（consumeVoiceRecordingEscape 两段扩展，§9.9.4-L1）", () => {
+    expect(useVoiceSessionStore.getState().startMicRequest("sess-1", "entry-x")).toBe(true);
+    expect(consumeVoiceRecordingEscape()).toBe(true);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    // idle 态不消费（既有语义回归）。
+    expect(consumeVoiceRecordingEscape()).toBe(false);
+  });
 });

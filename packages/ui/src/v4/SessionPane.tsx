@@ -197,8 +197,8 @@ import {
   type ConversationComposerSendResult,
 } from "@/v4/ConversationComposer.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
-import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
-import { consumeVoiceRecordingEscape } from "@/store/voiceSessionStore.js";
+// §9.9.4-L3：窗口级 Esc 停止生成监听提取（含 shouldIgnore/consumeVoice 内部依赖）。
+import { usePaneEscapeStopGeneration } from "@/v4/paneEscapeStopGeneration.js";
 import { useVoiceAnnouncement } from "@/voice/useVoiceAnnouncement.js";
 import { AnnouncementIndicator } from "@/voice/AnnouncementIndicator.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
@@ -885,6 +885,9 @@ export function SessionPane({
     units: shareRenderUnits,
     pendingInteractions: snapshot?.pendingInteractions,
     requestTaskStop: () => voiceStopDispatchRef.current?.("voice"),
+    // §9.9.3-M11：远控壳播报腿门控——对齐 mic 入口的 §8.2/§8.3 冻结（远控 pane
+    // 零消费零出声；hook 保持整挂载，消费 effect 以 focused && !isWebRemoteControl 为门）。
+    isWebRemoteControl: compactForRemoteControl,
   });
   const voiceNotifyExternalStopRef = useRef(voiceAnnouncement.notifyExternalTaskStop);
   voiceNotifyExternalStopRef.current = voiceAnnouncement.notifyExternalTaskStop;
@@ -1708,8 +1711,14 @@ export function SessionPane({
     // 生命周期边界，避免长时间 workbench 中 Set 随会话数增长。
     autoOpenedAssistantPptxKeysRef.current.clear();
   }, [sessionId, snapshot?.logEpoch, workspaceKey]);
+  // §9.9.2-H4 多槽：按本 pane 的会话槽键（sessionId ?? ""，空串 = 草稿 composer）读取
+  // 插入请求——失焦 pane 的请求留在自己的槽内不被其他会话的写入覆盖（旧单槽
+  // latest-wins 丢失根因）；下方消费门（focused + targetSessionId 匹配）不变。
   const composerTextInsertRequest = useDroraSessionStore(
-    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).composerTextInsertRequest,
+    (store) =>
+      store.getWorkspaceState(workspacePath, workspaceIdentity).composerTextInsertRequests[
+        sessionId ?? ""
+      ] ?? null,
   );
   const timelineBottomRequest = useDroraSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).timelineBottomRequest,
@@ -4645,34 +4654,19 @@ export function SessionPane({
   // 主、辅对话可同时 focused（各自布局的可见态），不能据此争抢窗口 Esc。
   // 面板打开时按 DOM 归属隔离；关闭时由 Shell 授权主区接收对话外 Esc，避免焦点离开输入框后无法停止。
   // 保留窗口冒泡阶段，让 mention/slash 的 preventDefault 和 dialog 优先处理。
-  useEffect(() => {
-    if (!focused || readOnly) return;
-    if (!sessionId || !snapshot?.control.canStop) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (!paneRef.current) return;
-      if (!allowEscapeStopOutsidePane && !event.composedPath().includes(paneRef.current)) return;
-      if (shouldIgnoreEscapeForStopGeneration(event)) return;
-      // 语音录音态优先（specs/voice-agent-integration.md §4.4 优先级 3）：录音中 Esc
-      // 停录音且任务不中断（零 v4 stop 调用）；焦点在对话区（composer 外）时由本监听消费。
-      // mention/dialog 优先消费者已由上方 defaultPrevented 检查排除。
-      if (consumeVoiceRecordingEscape()) {
-        event.preventDefault();
-        return;
-      }
-      event.preventDefault();
-      handleStop("escape");
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    allowEscapeStopOutsidePane,
+  // §9.9.4-L3：注册条件去 canStop 前置（无任务态也注册——录音中但无任务运行 +
+  // 焦点在对话区时 Esc 可停录音，§4.4 优先级 3 覆盖缺口）；停生成分支的 canStop
+  // 改 handler 内现值守卫（经 snapshotRef，注册不随快照抖动重挂）。逻辑提取至
+  // paneEscapeStopGeneration.ts（可测性）。
+  usePaneEscapeStopGeneration({
     focused,
-    handleStop,
     readOnly,
     sessionId,
-    snapshot?.control.canStop,
-  ]);
+    canStopRef: () => snapshotRef.current?.control.canStop,
+    paneRef,
+    allowEscapeStopOutsidePane,
+    handleStop,
+  });
 
   // handleStop 带 source 参数（button / escape 两个调用点），但 ConversationComposer 是 memo：
   // 直接写 onStop={() => handleStop("button")} 每次 render 都换引用，memo 白做，而 composer

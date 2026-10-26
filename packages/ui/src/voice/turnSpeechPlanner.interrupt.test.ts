@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTurnSpeechPlanner,
   createVoiceSessionAnnouncementControl,
+  type TurnSpeechPlannerDeps,
 } from "./turnSpeechPlanner.js";
 import type {
   VoiceAnnouncementClaimPort,
@@ -63,9 +64,22 @@ class FakeClaim implements VoiceAnnouncementClaimPort {
   acquireCalls = 0;
   renewCalls = 0;
   releaseCalls = 0;
+  private acquireGate: Promise<boolean> | null = null;
+
+  /** 测试驱动：下一次 acquire 经该 promise 网关（构造 claim 往返窗口，§9.8/F5）。 */
+  holdNextAcquire(gate: Promise<boolean>): void {
+    this.acquireGate = gate;
+  }
 
   async acquire(): Promise<VoiceAnnouncementLease | null> {
     this.acquireCalls += 1;
+    // 融合：§9.8 lease 形态返回具体 lease；§9.9 的 acquireGate 网关保留（构造
+    // claim 往返窗口），网关布尔映射为 lease/null。
+    if (this.acquireGate) {
+      const gate = this.acquireGate;
+      this.acquireGate = null;
+      return (await gate) ? { key: "k", token: "fake-lease" } : null;
+    }
     return this.acquireResult ? { key: "k", token: "fake-lease" } : null;
   }
 
@@ -100,6 +114,8 @@ function resetVoiceStore(): void {
     recordingOwnerEntryId: null,
     announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
+    // §9.9.3-L8：跨 pane 共享账本随 store 重置（跨用例不泄漏已播标记）。
+    announcedPermissionIds: new Set<string>(),
   });
 }
 
@@ -111,7 +127,14 @@ interface Harness {
   setFocusedTail(tail: { turnId: string; text: string } | null): void;
 }
 
-function createHarness(): Harness {
+function createHarness(
+  overrides?: Partial<
+    Pick<
+      TurnSpeechPlannerDeps,
+      "isPermissionPending" | "announcedPermissionLedger" | "claimRenewIntervalMs"
+    >
+  >,
+): Harness {
   let focusedTail: { turnId: string; text: string } | null = null;
   const tts = new FakeTts();
   const claim = new FakeClaim();
@@ -124,6 +147,7 @@ function createHarness(): Harness {
     announcementControl: createVoiceSessionAnnouncementControl(useVoiceSessionStore),
     getAnnouncementVoiceConfig: () => ({ lang: "zh-CN", rate: 1 }),
     cancelTask,
+    ...overrides,
   });
   return {
     tts,
@@ -269,6 +293,257 @@ describe("权限内容段（§4.1 / FD-3 / §3.3 uninterruptible）", () => {
     await flushMicrotasks();
     expect(tts.spoken).toHaveLength(0);
   });
+
+  it("resumes the interrupted permission queue on recording end instead of superseding with the latest tail (§9.9.2-M3)", async () => {
+    const h = createHarness();
+    // focused 轮尾存在（旧正文）——原实现落入 tailSuperseded 改播分支会播它；断言零改播。
+    h.setFocusedTail({ turnId: "t-old", text: "旧正文。" });
+    h.planner.consumePermissionSegment({
+      permissionId: "p1",
+      text: "权限一？权限二？权限三？权限四？",
+    });
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？"]);
+    h.tts.finishCurrent("end");
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？"]);
+    // 第 2/4 句播完开录：句界入 AnnPaused（剩余 权限三/权限四）。
+    h.planner.notifyUserRecordingStarted();
+    h.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "annPaused",
+      sentenceIndex: 2,
+    });
+    // 录音结束且无新轮尾：自第 3 句续播权限队列剩余句（null-turnId 在播形态，
+    // 跳过轮尾比对）；uninterruptible 覆盖 3-4 句。
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？", "权限三？"]);
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "speaking",
+      sentenceIndex: 2,
+      uninterruptible: true,
+    });
+    h.tts.finishCurrent("end");
+    expect(h.tts.spoken.map((u) => u.text)).toEqual([
+      "权限一？",
+      "权限二？",
+      "权限三？",
+      "权限四？",
+    ]);
+    h.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+    // 旧正文轮尾从未被播（零改播轮尾；回退即红：删掉 null-turnId 子分支则落
+    // tailSuperseded 改播 latest，spoken 出现「旧正文。」且 权限三/四 永失）。
+    expect(h.tts.spoken.some((u) => u.text.includes("旧正文"))).toBe(false);
+  });
+
+  it("plays the deferred tail after the resumed permission queue drains: permission first, body after (§9.9.2-M3 FD-3)", async () => {
+    const h = createHarness();
+    h.planner.consumePermissionSegment({
+      permissionId: "p1",
+      text: "权限一？权限二？权限三？权限四？",
+    });
+    await flushMicrotasks();
+    h.tts.finishCurrent("end"); // 权限二 在播
+    h.planner.notifyUserRecordingStarted();
+    h.tts.finishCurrent("end"); // → AnnPaused（index 2）
+    // 录音期间新轮尾 T2 就绪：顺延（pendingTail = T2，不清）。
+    h.setFocusedTail({ turnId: "t2", text: "T2句一。T2句二。" });
+    h.planner.consumeTurnTail({ turnId: "t2", text: "T2句一。T2句二。" });
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    // 先续播权限句 3（顺延轮尾保留不清）。
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？", "权限三？"]);
+    h.tts.finishCurrent("end"); // 权限四
+    h.tts.finishCurrent("end"); // 权限队列排空 → AnnIdle → 排空点起播顺延轮尾
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual([
+      "权限一？",
+      "权限二？",
+      "权限三？",
+      "权限四？",
+      "T2句一。",
+    ]);
+    // FD-3 顺序断言：权限先、正文后（回退即红：恢复改播 latest 则权限句 3/4 永失，
+    // spoken 直接出现 T2 句）。
+    const spokenTexts = h.tts.spoken.map((u) => u.text);
+    expect(spokenTexts.indexOf("T2句一。")).toBeGreaterThan(spokenTexts.indexOf("权限四？"));
+    h.tts.finishCurrent("end");
+    expect(h.tts.spoken.map((u) => u.text)).toEqual([
+      "权限一？",
+      "权限二？",
+      "权限三？",
+      "权限四？",
+      "T2句一。",
+      "T2句二。",
+    ]);
+    h.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+  });
+
+  it("does not revive a processed permission segment at the resume boundary (§9.9.2-M3 F5 兼容 isPermissionPending)", async () => {
+    // 并行 §9.8/F5 形态同签名的 deps.isPermissionPending：已处理（!== pending）的
+    // 待插队段在续播前被 prunePermissions 修剪——其句不进队列（「已处理段不复活」，
+    // §9.8.2「开播前复核请求仍 pending」同向）。
+    const h = createHarness({ isPermissionPending: (id) => id !== "p2" });
+    h.planner.consumePermissionSegment({
+      permissionId: "p1",
+      text: "权限一？权限二？权限三？",
+    });
+    await flushMicrotasks();
+    h.tts.finishCurrent("end"); // 权限二 在播
+    h.planner.notifyUserRecordingStarted();
+    // 录音中 p2 到达（speaking 期 → 待插队 pendingPermissionSegments）且随后被处理。
+    h.planner.consumePermissionSegment({ permissionId: "p2", text: "已处理权限？" });
+    h.tts.finishCurrent("end"); // → AnnPaused（index 2，p1 剩余 权限三）
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    // 续播 p1 剩余句；p2 已处理 → 其剩余句不复活（不拼接进队列）。
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？", "权限三？"]);
+    h.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+    expect(h.tts.spoken.some((u) => u.text.includes("已处理权限"))).toBe(false);
+  });
+
+  it("起播链互斥：权限排空链在飞时简报排空不再并发起链（§9.8/F4/F5）", async () => {
+    const h = createHarness();
+    // AnnIdle 同帧驱动权限段与简报（两个排空微任务）。
+    h.planner.consumePermissionSegment({ permissionId: "p1", text: "权限问题？" });
+    h.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    await flushMicrotasks();
+    // 互斥：权限链独占起播，简报链被 turnStartInFlight 挡下——基线双链并发时简报链
+    // startSpeaking 替换权限队列（spoken 同时出现两者且 sentenceCount 被重置）。
+    // 回退即红：恢复基线 ensureClaimAndSpeak（排空链不置互斥标记）则简报同帧出声。
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限问题？"]);
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "speaking",
+      sentenceCount: 1,
+    });
+    h.tts.finishCurrent("end");
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限问题？", "正在 Edit a.ts"]);
+  });
+
+  it("await 后复核：claim 往返期间已处理的权限段不出声、刚拿到的 claim 归还（§9.8/F5）", async () => {
+    const pending: Record<string, boolean> = { p1: true };
+    const h = createHarness({ isPermissionPending: (id) => pending[id] !== false });
+    let releaseAcquire!: (value: boolean) => void;
+    h.claim.holdNextAcquire(
+      new Promise<boolean>((resolve) => {
+        releaseAcquire = resolve;
+      }),
+    );
+    h.planner.consumePermissionSegment({ permissionId: "p1", text: "权限问题？" });
+    await flushMicrotasks(); // 排空链进入 claim acquire await 窗口。
+    pending.p1 = false; // claim 往返期间 P1 已被处理。
+    releaseAcquire(true);
+    await flushMicrotasks();
+    // 零出声、回 AnnIdle、刚拿到的 claim 立即归还（不为死意图占锁）。
+    // 回退即红：移除 await 后权限过滤则 speak 出「权限问题？」且 releaseCalls=0。
+    expect(h.tts.spoken).toHaveLength(0);
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "annIdle",
+      claimHeld: false,
+    });
+    expect(h.claim.releaseCalls).toBe(1);
+  });
+
+  it("起播链遇录音：权限段 unshift 回队头，录音结束排空起播不丢（§9.8/F5）", async () => {
+    const h = createHarness();
+    let releaseAcquire!: (value: boolean) => void;
+    h.claim.holdNextAcquire(
+      new Promise<boolean>((resolve) => {
+        releaseAcquire = resolve;
+      }),
+    );
+    h.planner.consumePermissionSegment({ permissionId: "p1", text: "权限问题？" });
+    await flushMicrotasks(); // 链在 claim 往返窗口。
+    h.planner.notifyUserRecordingStarted(); // 录音在窗口内开始。
+    releaseAcquire(true);
+    await flushMicrotasks();
+    // 起播意图过期：不出声，权限段 unshift 回待插队队头（回退即红：移除
+    // deferExpiredStart 的 unshift 则段丢失、录音结束后零 speak）。
+    expect(h.tts.spoken).toHaveLength(0);
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限问题？"]);
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(true);
+  });
+
+  it("无轮尾时录音中积压的权限段在录音结束排空起播（§9.8/F5 权限排空）", async () => {
+    const h = createHarness();
+    h.planner.notifyUserRecordingStarted();
+    h.planner.consumePermissionSegment({ permissionId: "p1", text: "录音中权限？" });
+    await flushMicrotasks();
+    // 录音中：排空链遇 recording 过期（段 unshift 回队），零出声。
+    expect(h.tts.spoken).toHaveLength(0);
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    // §9.8/F5：没有正文轮尾时，录音中积压的权限段也必须在资源释放后排空起播。
+    // 回退即红：移除 notifyUserRecordingEnded 尾部的 schedulePermissionDrain 则滞留零 speak。
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["录音中权限？"]);
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(true);
+  });
+
+  it("权限窗内不插简报：整段闭合不被腰斩（§9.8/F5）", async () => {
+    const h = createHarness();
+    h.planner.consumePermissionSegment({ permissionId: "p1", text: "权限一？权限二？" });
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？"]);
+    // 权限窗 [0,2) 在播第 1 句时简报到达（speaking → 待插队）。
+    h.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
+    h.tts.finishCurrent("end"); // 句界（index 1 仍在窗内）。
+    // 简报未插入权限窗：第 2 权限句原序续播且 uninterruptible 保持覆盖。
+    // 回退即红：移除窗口防护则 spoken 变 [权限一？, 正在 Edit a.ts, 权限二？]。
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？"]);
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(true);
+    h.tts.finishCurrent("end"); // 队列尽 → AnnIdle → 简报空闲排空。
+    await flushMicrotasks();
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["权限一？", "权限二？", "正在 Edit a.ts"]);
+  });
+
+  it("已播权限账本跨 pane 共享：切 pane 后同一 pending 权限不重播（§9.9.3-L8）", async () => {
+    // wiring 同款 store 账本适配（voiceSessionStore 单一所有者）。
+    const ledger = {
+      has: (id: string) => useVoiceSessionStore.getState().hasAnnouncedPermission(id),
+      mark: (id: string) => useVoiceSessionStore.getState().markPermissionAnnounced(id),
+    };
+    // pane A 的 planner 播完权限 P（P 仍 pending，账本已记）。
+    const hA = createHarness({ announcedPermissionLedger: ledger });
+    hA.planner.consumePermissionSegment({ permissionId: "p1", text: "权限甲？" });
+    await flushMicrotasks();
+    expect(hA.tts.spoken.map((u) => u.text)).toEqual(["权限甲？"]);
+    hA.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+    // focused 切至 pane B：新 planner 实例共享同一账本 → 零重播。
+    // 回退即红：退回 planner 实例级 Set（不传 ledger）则 B 重播「权限甲？」。
+    const hB = createHarness({ announcedPermissionLedger: ledger });
+    hB.planner.consumePermissionSegment({ permissionId: "p1", text: "权限甲？" });
+    await flushMicrotasks();
+    expect(hB.tts.spoken).toHaveLength(0);
+    // 新权限 Q 到达：正常播（既有去重语义回归）。
+    hB.planner.consumePermissionSegment({ permissionId: "q1", text: "新权限？" });
+    await flushMicrotasks();
+    expect(hB.tts.spoken.map((u) => u.text)).toEqual(["新权限？"]);
+  });
+
+  it("双窗叠音：窗 A claim 不可得静默、窗 B 正常出声（§9.9.3-L7）", async () => {
+    // A 的 claim 恒不可得（unavailable 适配映射为 false 后的 planner 形态）。
+    const hA = createHarness();
+    hA.claim.acquireResult = false;
+    hA.setFocusedTail({ turnId: "t1", text: "A 句。" });
+    hA.planner.consumeTurnTail({ turnId: "t1", text: "A 句。" });
+    await flushMicrotasks();
+    // A 静默且不迁移共享 store 相位（未持有者不占播报腿）。
+    expect(hA.tts.spoken).toHaveLength(0);
+    expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+    const hB = createHarness();
+    hB.setFocusedTail({ turnId: "t1", text: "B 句。" });
+    hB.planner.consumeTurnTail({ turnId: "t1", text: "B 句。" });
+    await flushMicrotasks();
+    // 仅 B 出声。
+    expect(hB.tts.spoken.map((u) => u.text)).toEqual(["B 句。"]);
+  });
 });
 
 describe("工具简报插播时机（§4.2-5 / FD-3 权限>正文>简报 / §9.6.7-1）", () => {
@@ -316,11 +591,14 @@ describe("工具简报插播时机（§4.2-5 / FD-3 权限>正文>简报 / §9.6
     harness.planner.consumeBriefSegment("brief-1", "正在 Edit a.ts");
     harness.tts.finishCurrent("end");
     await new Promise((r) => setTimeout(r, 0));
-    // 权限段须实际完成，最低优先级简报才能开始，不能仅因正文结束就越过权限段。
+    // 融合（§9.8/F4 + §4.2-5）：权限段须实际完成，最低优先级简报才能开始，不能仅
+    // 因正文结束就越过权限段——起播链互斥下简报链不再与权限链同帧并发竞争
+    //（旧行为是双链并发、简报链半路替换权限队列；现简报等权限播完后的空闲排空）。
     expect(harness.tts.spoken.map((u) => u.text)).toEqual(["正文一。", "权限问题？"]);
+    expect(useVoiceSessionStore.getState().announcement.uninterruptible).toBe(true);
     harness.tts.finishCurrent("end");
     await new Promise((r) => setTimeout(r, 0));
-    // 权限段拼接优先；简报不丢弃，推迟到权限段播完后的空闲排空（§4.2-5 段间句隙不插）。
+    // 简报不丢弃，推迟到权限段播完后的空闲排空（§4.2-5 段间句隙不插）。
     expect(harness.tts.spoken.map((u) => u.text)).toEqual([
       "正文一。",
       "权限问题？",

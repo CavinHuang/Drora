@@ -182,7 +182,16 @@ export interface WorkspaceDroraUIState {
    */
   draftRuntimeInvalidationVersion: number;
   composerTextInsertVersion: number;
-  composerTextInsertRequest: ComposerTextInsertRequest | null;
+  /**
+   * composer 正文插入通道的多槽形态（specs/voice-agent-integration.md §9.9.2-H4，
+   * 2026-10-26）：槽键 = `targetSessionId ?? ""`（空串 = 草稿 composer 槽，既有非语音
+   * 生产方语义原地保留）。旧单槽 latest-wins 下，失焦 pane 的语音 final 留槽期间会被
+   * 任何后续插入（他会话 final、草稿 mention 预填）覆盖即丢；多槽后各会话槽独立，
+   * 消费门（SessionPane 按 sessionId 匹配）不变。同槽连续 mode="append" 在写入点
+   * 合并为单请求（§2.4 确定性空格规则先行应用）；非 append 叠加维持槽内 latest-wins。
+   * composerTextInsertVersion 保持全局单调递增（requestId 唯一性来源、消费幂等键）。
+   */
+  composerTextInsertRequests: Record<string, ComposerTextInsertRequest>;
   timelineBottomRequestVersion: number;
   timelineBottomRequest: TimelineBottomRequest | null;
   /** 草稿态错误需要跨页面保留，避免切走再回来后提示被本地 state 一起卸载 */
@@ -527,7 +536,7 @@ export function createDefaultWorkspaceState(
     draftRuntime: { status: "idle", error: null },
     draftRuntimeInvalidationVersion: 0,
     composerTextInsertVersion: 0,
-    composerTextInsertRequest: null,
+    composerTextInsertRequests: {},
     timelineBottomRequestVersion: 0,
     timelineBottomRequest: null,
     draftError: null,

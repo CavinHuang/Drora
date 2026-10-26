@@ -3,10 +3,12 @@ import { createBroadcastAnnouncementClaimAdapter } from "./voiceAnnouncementClai
 import type { BroadcastClaimLease, IBroadcastService } from "@drora/services";
 
 /**
- * BroadcastHub claim 适配守护（specs/voice-agent-integration.md §3.5）：
+ * BroadcastHub claim 适配守护（specs/voice-agent-integration.md §3.5 / §9.9.3-L7）：
  * acquire = 5s TTL reservation；renew = release 旧 lease 后 re-acquire（Main 无 renew
- * 原语，commitClaim 的永久语义被 spec §3.5-1 明确拒绝）；busy = 被抢；unavailable =
- * 无仲裁面降级为持有。
+ * 原语，commitClaim 的永久语义被 spec §3.5-1 明确拒绝）；busy = 被抢；
+ * unavailable = 请求超时/传输失败 → **不持有**（乐观持有 = Main 可能已把同一 key
+ * 授予另一窗口 = 双窗叠音，broadcastService.ts:185-196 自述语义）；真正的无仲裁面
+ * = service 缺席（null）才降级持有。
  */
 
 function makeBroadcastService() {
@@ -62,16 +64,52 @@ describe("createBroadcastAnnouncementClaimAdapter (§9.8 concrete leases)", () =
     setMode("busy");
     await expect(createBroadcastAnnouncementClaimAdapter(service).acquire("k")).resolves.toBeNull();
   });
-  it.each(["unavailable", "absent"] as const)("uses explicit local leases for %s", async (mode) => {
+  // 融合：§9.9.3-L7 裁决改变 unavailable 行为——经由非空 service 的 unavailable
+  //（请求超时/传输失败）一律不持有（乐观持有 = Main 可能已把同一 key 授予另一窗口
+  // = 双窗叠音）；仅 service 缺席（真正的无仲裁面）保留 §9.8 的本地 lease 降级持有。
+  // HEAD 原「unavailable 乐观降级」用例按裁决改写断言；回退实现（乐观降级）即红。
+  it("does NOT hold on unavailable from a live service (§9.9.3-L7 超时/传输失败不乐观持有)", async () => {
     const { service, setMode } = makeBroadcastService();
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const old = await adapter.acquire("k");
+    expect(old).not.toBeNull();
     setMode("unavailable");
-    const adapter = createBroadcastAnnouncementClaimAdapter(mode === "absent" ? null : service);
+    await expect(adapter.acquire("k")).resolves.toBeNull();
+    // renew 侧（release 旧 lease 后 re-acquire 落空）同样返回 null → 调用方走 claimLost 链。
+    await expect(adapter.renew(old!)).resolves.toBeNull();
+  });
+
+  it("uses explicit local leases when the service is absent (§9.8 无仲裁面降级持有)", async () => {
+    const adapter = createBroadcastAnnouncementClaimAdapter(null);
     const lease = await adapter.acquire("k");
     expect(lease?.key).toBe("k");
     const renewed = await adapter.renew(lease!);
     expect(renewed).not.toBeNull();
     expect(renewed).not.toBe(lease);
     adapter.release(renewed!);
+  });
+
+  it("renews by releasing the old lease then re-acquiring (FD-2 周期续约)", async () => {
+    const { service, leases, releaseCalls } = makeBroadcastService();
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const old = await adapter.acquire("k");
+    const next = await adapter.renew(old!);
+    // 先 release 旧 reservation，再拿新 lease（token 递增）。
+    expect(releaseCalls).toEqual([leases[0]]);
+    expect(leases[1]?.token).toBe("t-2");
+    expect(next).toBe(leases[1]);
+  });
+
+  it("returns null when the re-acquire after release loses the race (§3.5-3 renew=null)", async () => {
+    const { service, setMode } = makeBroadcastService();
+    const adapter = createBroadcastAnnouncementClaimAdapter(service);
+    const old = await adapter.acquire("k");
+    setMode("busy");
+    await expect(adapter.renew(old!)).resolves.toBeNull();
+    // renew 已 release 旧 lease；输掉竞争后本地不再持有 lease，
+    // 显式 release 不再触发第二次 releaseClaim。
+    service.releaseClaim.mockClear();
+    adapter.release(old!);
     expect(service.releaseClaim).not.toHaveBeenCalled();
   });
   it("releases the previous reservation before renewing, stale release cannot touch the new token", async () => {

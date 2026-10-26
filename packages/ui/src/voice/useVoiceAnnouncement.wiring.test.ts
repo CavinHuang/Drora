@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetVoiceCommandHandlersForTest } from "./voiceCommandBus.js";
 import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
+import { logger } from "@/logger.js";
 
 /**
  * 播报接线 wiring 守护（specs/voice-agent-integration.md §9.3 / §3.5-4 / §4.3）：
@@ -130,7 +131,8 @@ const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
   const stableServices = {
     broadcastService: undefined,
     credentialService: {
-      load: async () => "sk-test-key",
+      // §9.9.3-M10：凭据读取可编程（默认即时返回；未加载用例替换为挂起/空串）。
+      load: async (): Promise<string | null> => "sk-test-key",
       save: async () => undefined,
       delete: async () => undefined,
     },
@@ -189,6 +191,8 @@ function resetStores(): void {
     recordingPulseSeq: 0,
     announcementOwnerId: null,
     announcement: { ...initialAnnouncement },
+    // §9.9.3-L8：跨用例重置已播权限账本（wiring 接 store 账本）。
+    announcedPermissionIds: new Set<string>(),
   });
 }
 
@@ -232,6 +236,8 @@ async function mountAnnouncement(params?: {
   focused?: boolean;
   sessionId?: string;
   requestTaskStop?: () => void;
+  /** §9.9.3-M11：远控壳门控（缺省 false = 桌面行为）。 */
+  isWebRemoteControl?: boolean;
 }) {
   const harness = renderHook(() =>
     useVoiceAnnouncement({
@@ -241,6 +247,7 @@ async function mountAnnouncement(params?: {
       units: (params?.units ?? []) as never,
       pendingInteractions: params?.pendingInteractions as never,
       requestTaskStop: params?.requestTaskStop ?? (() => undefined),
+      isWebRemoteControl: params?.isWebRemoteControl ?? false,
     }),
   );
   // claim acquire→startSpeaking 是异步链：flush 微任务保证断言前状态迁移完成。
@@ -254,6 +261,8 @@ beforeEach(() => {
   cloudTtsState.reset();
   resetStores();
   resetVoiceCommandHandlersForTest();
+  // §9.9.3-M10：凭据默认即时加载（cloud 用例依赖）；未加载用例内替换为挂起 promise。
+  stableServices.credentialService.load = async () => "sk-test-key";
   settingsState.current = {
     voiceAnnouncementEnabled: true,
     voiceAnnouncementVoice: "",
@@ -519,6 +528,134 @@ describe("useVoiceAnnouncement wiring", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(briefSpoken()).toHaveLength(2);
     void harness;
+  });
+
+  it("credential pending: 凭据未加载时 cloud 引擎首句解析 system，加载完成后下一句起走 cloud（§9.9.3-M10）", async () => {
+    settingsState.current = {
+      ...settingsState.current,
+      voiceTtsEngine: "cloud",
+      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
+      voiceTtsVendorModel: "CosyVoice2-0.5B",
+    };
+    // 凭据未加载：load 挂起不 resolve（null=未加载占位场景）。
+    let resolveCredential!: (key: string | null) => void;
+    stableServices.credentialService.load = () =>
+      new Promise<string | null>((resolve) => {
+        resolveCredential = resolve;
+      });
+    const infoSpy = vi.spyOn(logger, "info").mockImplementation(() => undefined);
+    try {
+      const harness = await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
+      // 首句解析 system：占位消除后「未加载」不再伪装成「已加载非空」→ 不进 cloud 管线。
+      // 回退即红：恢复 `apiKey: cloudApiKeyRef.current ?? "unknown"` 占位则首句走 cloud
+      //（cloudTtsState.spoken 非空）且零 credential pending 日志。
+      expect(fakeTts.spoken).toEqual(["首句。"]);
+      expect(cloudTtsState.spoken).toEqual([]);
+      // info 恰一次 credential pending（引擎变化一次性日志形态）。
+      const pendingLogs = infoSpy.mock.calls.filter(
+        ([scope, message]) =>
+          scope === "voice.tts" && String(message).includes("credential pending"),
+      );
+      expect(pendingLogs).toHaveLength(1);
+      // 凭据加载完成（credentialBump = 新解析点）→ 下一句起走 cloud。
+      resolveCredential("sk-test-key");
+      await vi.advanceTimersByTimeAsync(0);
+      harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "次句。" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cloudTtsState.spoken).toEqual(["次句。"]);
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it("credential 空串：持续 system、零 cloud 管线调用（§9.9.3-M10 零回落计数）", async () => {
+    settingsState.current = {
+      ...settingsState.current,
+      voiceTtsEngine: "cloud",
+      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
+      voiceTtsVendorModel: "CosyVoice2-0.5B",
+    };
+    // 加载完成但为空串 = 确认缺失：判档不完整，不标 pending、零 cloud speak
+    //（连败计数构造性为零——未加载/缺失期根本不进 cloud 管线）。
+    stableServices.credentialService.load = async () => "";
+    await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
+    expect(fakeTts.spoken).toEqual(["首句。"]);
+    expect(cloudTtsState.spoken).toEqual([]);
+  });
+
+  it("远控壳（isWebRemoteControl）：就绪轮尾 + pending 权限 + 新工具行零消费零出声（§9.9.3-M11）", async () => {
+    settingsState.current = { ...settingsState.current, voiceToolBriefEnabled: true };
+    const harness = await mountAnnouncement({
+      isWebRemoteControl: true,
+      units: [
+        makeUnit("t1", ["就绪轮尾。"]),
+        makeToolUnit("t2", [{ id: "tc-1", name: "Edit", status: "running" }]),
+      ],
+      pendingInteractions: [
+        {
+          interactionId: "perm-1",
+          payload: { kind: "permission", toolName: "Bash", summary: "要运行命令吗？" },
+        },
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    // §8.2/§8.3 冻结：自动播报腿属 desktop-continuous 语义——远控壳零 consumeTurnTail/
+    // 零权限段/零简报/零 tts.speak（planner/claim 实例照常创建，hook 整挂载）。
+    // 回退即红：去掉 isWebRemoteControl 门（hook 忽略参数）则 spoken 非空。
+    expect(fakeTts.spoken).toEqual([]);
+    expect(cloudTtsState.spoken).toEqual([]);
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "annIdle",
+      uninterruptible: false,
+      claimHeld: false,
+    });
+    // 桌面（非远控）同条件正常消费（上方既有用例全量回归，此处零额外断言）。
+    void harness;
+  });
+});
+
+describe("§9.9.4-L13 cloudFallback 恢复签名纳入凭据指纹", () => {
+  it("回落置位后用户补凭据（load null→非空）→ 清回落标记且下一句走 cloud，日志零凭据原文", async () => {
+    settingsState.current = {
+      ...settingsState.current,
+      voiceTtsEngine: "cloud",
+      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
+      voiceTtsVendorModel: "CosyVoice2-0.5B",
+    };
+    // 凭据未加载（load 挂起，null=未加载占位）。
+    let resolveCredential!: (key: string | null) => void;
+    stableServices.credentialService.load = () =>
+      new Promise<string | null>((resolve) => {
+        resolveCredential = resolve;
+      });
+    const infoSpy = vi.spyOn(logger, "info").mockImplementation(() => undefined);
+    try {
+      const harness = await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
+      // 首句 system（凭据未加载不进 cloud 管线，§9.9.3-M10）。
+      expect(fakeTts.spoken).toEqual(["首句。"]);
+      // 连续失败信号 → 会话内回落标记置位。
+      cloudTtsState.fireConsecutiveFailures();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(harness.result.current.indicatorPhase).toBe("annIdle");
+      // 用户补 apiKey：凭据 load null→非空 → credentialBump 解析点 → 签名的凭据
+      // 分量 absent→present → cloudFallbackRef 清除（rerender 强制渲染提交使签名
+      // effect 在下一句 speak 前落定）。
+      resolveCredential("sk-test-key");
+      await vi.advanceTimersByTimeAsync(0);
+      harness.rerender();
+      await vi.advanceTimersByTimeAsync(0);
+      harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "恢复句。" });
+      await vi.advanceTimersByTimeAsync(0);
+      // 回退即红：签名去掉凭据分量则回落不解除——恢复句走 synth（cloudTtsState 空）。
+      expect(cloudTtsState.spoken).toEqual(["恢复句。"]);
+      expect(fakeTts.spoken).toEqual(["首句。"]);
+      // §7.1 延伸边界：本轮全部日志零凭据原文/指纹值。
+      for (const call of infoSpy.mock.calls) {
+        expect(String(call[1])).not.toContain("sk-test-key");
+      }
+    } finally {
+      infoSpy.mockRestore();
+    }
   });
 });
 

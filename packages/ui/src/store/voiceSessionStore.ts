@@ -87,8 +87,15 @@ export interface VoiceSessionStoreState {
 
   /** —— 播报腿 —— */
   announcement: VoiceAnnouncementLegState;
-  /** 窗口内唯一播报 planner 的不透明凭证；获取跨窗 claim 前即占有。 */
+  /** 窗口内唯一播报 planner 的不透明凭证；获取跨窗 claim 前即占有（§9.8-F3）。 */
   announcementOwnerId: string | null;
+  /**
+   * §9.9.3-L8：已播权限请求账本（跨 pane 共享——播过什么 = 播报腿状态族，归 store
+   * 单一所有者；planner 实例级 Set 会在切 focused pane 后清零，同一 pending 权限整段
+   * 重播）。作用域 = 窗口内跨 pane，不跨窗口（跨窗口单播报者由 §3.5 claim 决定只有
+   * 一窗出声）。wiring 在 pendingInteractions 变化时 prune 至当前 pending 集（有界）。
+   */
+  announcedPermissionIds: Set<string>;
 }
 
 export interface VoiceSessionStoreActions {
@@ -169,6 +176,13 @@ export interface VoiceSessionStoreActions {
   setClaimHeld(held: boolean): void;
   /** Phase 1b 权限段置位（§4.1）；本批仅状态位与打断词通道守卫。 */
   setUninterruptible(uninterruptible: boolean): void;
+  // —— §9.9.3-L8 已播权限账本（guarded actions，写路径单一）——
+  /** 读：该权限请求是否已播过（planner 去重查询；读不迁移状态）。 */
+  hasAnnouncedPermission(permissionId: string): boolean;
+  /** 写：记账已播（幂等；新 Set 引用触发订阅）。 */
+  markPermissionAnnounced(permissionId: string): void;
+  /** 修剪：账本收敛到当前 pending id 集（权限离开 pending 后剪除，账本有界；剪除后同一 id 再次 pending 会重新播）。 */
+  pruneAnnouncedPermissionIds(currentPendingIds: ReadonlySet<string>): void;
 }
 
 export type VoiceSessionStore = VoiceSessionStoreState & VoiceSessionStoreActions;
@@ -196,16 +210,27 @@ export function isVoiceLastDictationFresh(
 
 /**
  * §4.4 录音态 Esc 仲裁（键位仲裁表优先级 3）：录音中且无更高优先消费者时，Esc 归录音
- * （停录音、任务不中断）。返回是否消费；调用方据此决定 preventDefault/stopPropagation。
- * ChatPromptEditor（props 注入）与 SessionPane 窗口监听两处接缝共用本函数。
+ * （停录音、任务不中断）。§9.9.4-L1 扩展为两段：requestingMic 期 Esc = 取消本次
+ * 麦克风请求（§3.2 RequestingMic→Idle「用户取消」边的 Esc 出口，唯一出路不再是
+ * 10s 超时）；recording 期 Esc = 停录音。返回是否消费；调用方据此决定
+ * preventDefault/stopPropagation。ChatPromptEditor（props 注入）与 SessionPane 窗口
+ * 监听两处接缝共用本函数。
  */
 export function consumeVoiceRecordingEscape(): boolean {
   const state = useVoiceSessionStore.getState();
-  if (state.inputLeg !== "recording") {
-    return false;
+  if (state.inputLeg === "requestingMic") {
+    // §9.9.4-L1：请求麦克风中 Esc = 用户取消（迟到授权由 useVoiceDictation 的
+    // generation/inputLeg 守卫丢弃式 abort）。
+    state.cancelMicRequest();
+    return true;
   }
-  requestVoiceRecordingAbort(state.recordingOwnerEntryId);
-  return true;
+  if (state.inputLeg === "recording") {
+    // §9.8-F1：Esc 走定向 abort 通道（停引擎/音轨、取消上传并退订，再回 Idle），
+    // 不只翻 store 态；点按 stop 的保留转写语义不受影响。
+    requestVoiceRecordingAbort(state.recordingOwnerEntryId);
+    return true;
+  }
+  return false;
 }
 
 export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
@@ -252,6 +277,7 @@ export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
     recordingPulseSeq: 0,
     recordingOwnerEntryId: null,
     announcement: initialAnnouncement,
+    announcedPermissionIds: new Set<string>(),
     announcementOwnerId: null,
     acquireAnnouncementOwner(ownerId) {
       const current = get().announcementOwnerId;
@@ -480,6 +506,31 @@ export const useVoiceSessionStore = create<VoiceSessionStore>()((set, get) => {
     },
     setUninterruptible(uninterruptible) {
       set((state) => ({ announcement: { ...state.announcement, uninterruptible } }));
+    },
+    // §9.9.3-L8：账本写路径唯一经此（planner 不直接触 Set 引用）。
+    hasAnnouncedPermission(permissionId) {
+      return get().announcedPermissionIds.has(permissionId);
+    },
+    markPermissionAnnounced(permissionId) {
+      set((state) => {
+        if (state.announcedPermissionIds.has(permissionId)) {
+          return state;
+        }
+        const next = new Set(state.announcedPermissionIds);
+        next.add(permissionId);
+        return { announcedPermissionIds: next };
+      });
+    },
+    pruneAnnouncedPermissionIds(currentPendingIds) {
+      set((state) => {
+        const next = new Set(
+          [...state.announcedPermissionIds].filter((id) => currentPendingIds.has(id)),
+        );
+        if (next.size === state.announcedPermissionIds.size) {
+          return state;
+        }
+        return { announcedPermissionIds: next };
+      });
     },
   };
 });

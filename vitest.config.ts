@@ -135,6 +135,12 @@ export default defineConfig({
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",
+            // 终审修复：§9.9.2-H4（composerTextInsertRequest 多槽插入/applied 判定）与
+            // §9.9.4-L3（SessionPane 窗口级 Esc 监听 hook）的源码旁测试漏登记——
+            // 不进 include 则 pnpm test / pre-push affected 永不执行，回退即红回归网
+            // 在 CI/pre-push 门禁上失效（上方「评审 #5」注释所指同类缺口）。
+            "packages/ui/src/v4/useComposerTextInsertApplied.test.ts",
+            "packages/ui/src/v4/paneEscapeStopGeneration.test.ts",
             // §4.4 Esc 仲裁顺序的纯函数层（mention/录音/取消优先级单测）。
             "packages/ui/src/prompt-editor/composerEscapePlan.test.ts",
             "scripts/assert-safe-cua-helper-zip.test.mjs",

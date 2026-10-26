@@ -18,7 +18,7 @@
  * claim 仲裁，输者静默）。状态所有者仍是 voiceSessionStore（§3.1），本 hook 不持有
  * 播报腿状态。
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { IServiceAccessor } from "@drora/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -72,6 +72,14 @@ export interface UseVoiceAnnouncementParams {
    * SessionPane 传 handleStop 的懒引用，避免 hook/handler 循环依赖。
    */
   requestTaskStop: () => void;
+  /**
+   * §9.9.3-M11：手机 Web 远控壳（compactForRemoteControl）门控——对齐 mic 入口的
+   * §8.2/§8.3 冻结（远控 replayable 播报 = 手动触发的本地 TTS；自动播报腿属
+   * desktop-continuous 语义，§9.8.3「远控壳仍隐藏入口」）。hook 保持整挂载
+   * （hook 顺序稳定），planner/claim/TTS 实例照常创建但全部消费 effect 以
+   * focused && !isWebRemoteControl 为门：零消费零出声。
+   */
+  isWebRemoteControl?: boolean;
 }
 
 /** hook 返回控制器形状（SessionPane 消费）。@lintignore */
@@ -83,7 +91,7 @@ export interface VoiceAnnouncementController {
   notifyExternalTaskStop: () => void;
 }
 
-/** 最新终态轮尾（§4.1：TurnComplete 终态后整段分句播；terminal = complete|interrupted）。 */
+/** 最新终态轮尾（§4.1：TurnComplete 终态后整段分句播；terminal = complete）。 */
 export function resolveFocusedAnnouncementTail(
   units: readonly ConversationTurnRenderUnit[],
 ): { turnId: string; text: string } | null {
@@ -93,7 +101,13 @@ export function resolveFocusedAnnouncementTail(
     if (!latest) {
       continue;
     }
-    if (latest.state !== "complete" && latest.state !== "interrupted") {
+    // §9.9.2-H6：interrupted 移出可播终态——§4.1 白名单「轮尾正文……TurnComplete 终态后
+    // 整段分句播」与 §3.2「轮尾终态就绪（TurnComplete）」从未包含 interrupted（停止
+    // 生成打断的半截正文，rows state 四值之一）；原判定把它当可播终态是实现对冻结的
+    // 偏离，整段播报半截正文。收窄为 complete 单值对齐冻结；「按半截正文截断策略播报」
+    // 备选属 §4.1 白名单闭集新增，已按闭集原则否决（重开条件 = 产品明确要求播报被打断
+    // 轮次），本批不做。
+    if (latest.state !== "complete") {
       continue;
     }
     const text = buildTurnSpeechText(unit.assistantTextRows);
@@ -128,6 +142,7 @@ export function useVoiceAnnouncement({
   units,
   pendingInteractions,
   requestTaskStop,
+  isWebRemoteControl = false,
 }: UseVoiceAnnouncementParams): VoiceAnnouncementController {
   const { intl, locale } = useDroraIntl();
   const services: IServiceAccessor = useServices();
@@ -191,21 +206,33 @@ export function useVoiceAnnouncement({
       return synthTts;
     }
     const current = settingsRef.current;
-    // 选型判定：baseUrl+model 非空即视为档完整（apiKey 缓存未知=null 时不阻塞——
-    // 凭据异步加载晚于首句 speak；确认空串才判不完整。cloud 合成管线内 getVendorConfig
-    // 仍会以最新凭据校验兜底，§9.6.2）。
+    // §9.9.3-M10 凭据三态：null=未加载（含已加载确认缺失）、非空=已加载且有效。
+    // 消除旧实现的 `apiKey: cloudApiKeyRef.current ?? "unknown"` 占位——占位串让
+    // isVoiceVendorConfigComplete 把「未加载」伪装成「已加载非空」→ cloud 被乐观
+    // 选择 → cloudTtsAdapter.getVendorConfig 真读凭据返回 null → 单句失败 → 连续
+    // 3 句触发会话内静默回落 system（启动期凭据竞态可造成整会话降级，UI 零反馈）。
+    // 现统一以凭据真实状态判定：未加载/空串均判档不完整 → 本次解析 system，
+    // 凭据加载完成后（credentialBump 解析点）下一句起按最新状态重析。
+    const apiKey = cloudApiKeyRef.current;
+    const credentialReady = apiKey != null && apiKey.trim().length > 0;
     const choice = resolveTtsEngineChoice({
       engine: current?.voiceTtsEngine ?? "system",
       vendorConfigComplete: isVoiceVendorConfigComplete({
         baseUrl: current?.voiceVendorBaseUrl,
         model: current?.voiceTtsVendorModel,
-        apiKey: cloudApiKeyRef.current ?? "unknown",
+        apiKey: credentialReady ? apiKey : "",
       }),
     });
     // §7.1：引擎解析结果落 voice.tts info 槽位（引擎变化时记录一次）。
     if (lastTtsEngineLoggedRef.current !== choice) {
       lastTtsEngineLoggedRef.current = choice;
-      logger.info("voice.tts", `tts engine resolved: ${choice}`);
+      // §9.9.3-M10：cloud 被选但因凭据未加载回落 system 时标注 credential pending
+      //（一次性日志形态；空串=确认缺失不标 pending——非等待态）。
+      const credentialPending =
+        choice === "system" &&
+        (current?.voiceTtsEngine ?? "system") === "cloud" &&
+        apiKey == null;
+      logger.info("voice.tts", `tts engine resolved: ${choice}${credentialPending ? " (credential pending)" : ""}`);
     }
     return choice === "cloud" ? cloudTts : synthTts;
   }, [cloudTts, synthTts]);
@@ -232,13 +259,18 @@ export function useVoiceAnnouncement({
   // 设置读取经 reader 收口（§9.3）；ref 保证 planner deps 闭包拿最新值而不重建 planner。
   // §9.6.2：apiKey 经凭据服务异步读取后缓存（routing 选型的同步判定输入；
   // cloud 合成管线内仍会以最新凭据再读一次）。挂载与设置变更时刷新。
+  // §9.9.3-M10：加载完成 = 新解析点（§9.6.5-2 清单 additive 增补，§9.9.5-6）——
+  // credentialBump 计数驱动重渲染，下一句 speak 按最新凭据状态解析（逐句路由本就
+  // 以最新解析结果执行，非新增时序面）。
   const cloudApiKeyRef = useRef<string | null>(null);
+  const [, bumpCredentialVersion] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
     let cancelled = false;
     void getVendorApiKey()
       .then((key) => {
         if (!cancelled) {
           cloudApiKeyRef.current = key ?? null;
+          bumpCredentialVersion();
         }
       })
       .catch(() => undefined);
@@ -254,10 +286,16 @@ export function useVoiceAnnouncement({
   truncatedSuffixRef.current = truncatedSuffix;
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
+  // 融合：targetRef/pendingPermissionsRef 为 §9.8 接线（命令总线路由 + 权限 pending
+  // 复核），announceActive 为 §9.9.3-M11 远控壳消费门——两侧并存。
   const targetRef = useRef({ sessionId, workspacePath, workspaceIdentity });
   targetRef.current = { sessionId, workspacePath, workspaceIdentity };
   const pendingPermissionsRef = useRef(pendingInteractions);
   pendingPermissionsRef.current = pendingInteractions;
+  // §9.9.3-M11：远控壳消费门 = focused && !isWebRemoteControl——全部消费 effect
+  // （轮尾/权限/简报/腿互斥/focus 切换停止）统一以此为准；hook 保持整挂载
+  //（hook 顺序稳定），远控 pane 零消费零出声。
+  const announceActive = focused && !isWebRemoteControl;
 
   const planner = useMemo(
     () =>
@@ -282,13 +320,24 @@ export function useVoiceAnnouncement({
           };
         },
         cancelTask: () => requestTaskStopRef.current(),
+        // §9.8/F5：权限段出声前的 pending 复核数据源（wiring ref 供 planner 闭包取最新投影）。
         isPermissionPending: (id) =>
           pendingPermissionsRef.current?.some(
             (item) => item.interactionId === id && item.payload.kind === "permission",
           ) === true,
+        // §9.8/融合 §9.9-H2：录音是 episode 事实——recording 与逐句 injecting 微态都算
+        // 在录，isRecording 是 planner 起播/续播互斥守卫的判定输入。
         isRecording: () => {
           const state = useVoiceSessionStore.getState();
           return state.inputLeg === "recording" || state.inputLeg === "injecting";
+        },
+        // §9.9.3-L8：已播权限账本升 store 跨 pane 共享——切 focused pane 后新 planner
+        // 不再因实例级账本清零而重播同一 pending 权限（写经 action，单一写路径）。
+        announcedPermissionLedger: {
+          has: (permissionId) =>
+            useVoiceSessionStore.getState().hasAnnouncedPermission(permissionId),
+          mark: (permissionId) =>
+            useVoiceSessionStore.getState().markPermissionAnnounced(permissionId),
         },
       }),
     [claim, tts],
@@ -333,28 +382,35 @@ export function useVoiceAnnouncement({
       toolBriefPlanner.resetSessionState();
       briefPrimePendingRef.current = true;
     }
-    const tail = focused ? resolveFocusedAnnouncementTail(units) : null;
+    const tail = announceActive ? resolveFocusedAnnouncementTail(units) : null;
     tailRef.current = tail;
-    if (!focused || !tail || tail.turnId === lastConsumedTurnRef.current) {
+    if (!announceActive || !tail || tail.turnId === lastConsumedTurnRef.current) {
       return;
     }
     lastConsumedTurnRef.current = tail.turnId;
     planner.consumeTurnTail(tail);
-  }, [conversationKey, focused, planner, toolBriefPlanner, units]);
+  }, [announceActive, conversationKey, planner, toolBriefPlanner, units]);
 
   // §3.4：切换 focused 离开本 pane → 停旧播报（立即 cancel 回 AnnIdle 并释放 claim）；
   // 新 focused pane 的就绪轮尾由上面的消费 effect 从 AnnIdle 起播。
-  const wasFocusedRef = useRef(focused);
+  // §9.9.3-M11：远控 pane 不消费也从不停播（停播责任在真正在播的桌面 pane）。
+  const wasActiveRef = useRef(announceActive);
   useEffect(() => {
-    if (wasFocusedRef.current && !focused) {
+    if (wasActiveRef.current && !announceActive) {
       planner.notifyStopPressed();
     }
-    wasFocusedRef.current = focused;
-  }, [focused, planner]);
+    wasActiveRef.current = announceActive;
+  }, [announceActive, planner]);
 
   // §3.3 腿互斥接线：输入腿迁移 → planner（Recording 优先 / §4.7 句粒度暂停续播）。
+  // 融合：§9.8 的 episode 真值判定（recording 与逐句 injecting 微态都算在录——多句
+  // 连说时 injecting→recording 往返不触发 Ended，否则每句间都会恢复播报与用户语音
+  // 叠音，§9.9-H2 互斥的接线面）+ §9.9.3-M11 远控 pane 不转发腿互斥（零消费门）。
   const recordingRef = useRef(false);
   useEffect(() => {
+    if (!announceActive) {
+      return () => undefined;
+    }
     const syncRecording = (state: ReturnType<typeof useVoiceSessionStore.getState>) => {
       const recording = state.inputLeg === "recording" || state.inputLeg === "injecting";
       if (recording === recordingRef.current) return;
@@ -364,7 +420,7 @@ export function useVoiceAnnouncement({
     };
     syncRecording(useVoiceSessionStore.getState());
     return useVoiceSessionStore.subscribe(syncRecording);
-  }, [planner]);
+  }, [announceActive, planner]);
 
   // §4.3 三层打断接线：语音命令总线（听写侧打断词命中 dispatch）→ 本 planner。
   // §9.8：任务取消按绑定目标单播；停播报按 owner 单播，不再依赖 canStop 充当路由。
@@ -398,7 +454,16 @@ export function useVoiceAnnouncement({
   // §9.6.5-3 恢复条款：设置变更（引擎/厂商档任一字段）= 下一引擎解析点——清会话内
   // 回落标记，cloud 引擎按最新设置重析（用户修复 baseUrl/凭据/网络后恢复，而非
   // 「坏一次就整个会话不再响」）。签名含引擎+baseUrl+模型；首渲染不误清。
-  const ttsEngineSignature = `${settings?.voiceTtsEngine ?? "system"}\0${settings?.voiceVendorBaseUrl ?? ""}\0${settings?.voiceTtsVendorModel ?? ""}`;
+  // §9.9.4-L13：签名拼入**凭据指纹二值**（非空= present / 空或未加载= absent）——
+  // §9.6.5-3 自述恢复条件含「用户修复凭据」，但凭据走 ICredentialService 不经三字段，
+  // 只补凭据时签名不变 → cloudFallbackRef 会话内不解除；凭据加载/清除经
+  // credentialBump（§9.9.3-M10 解析点）驱动重渲染后本签名变化 → 清回落标记，下一句
+  // 按最新凭据重试 cloud。指纹不落任何日志（§7.1 延伸边界：凭据原文/指纹值均不出日志）。
+  const credentialFingerprint =
+    cloudApiKeyRef.current != null && cloudApiKeyRef.current.trim().length > 0
+      ? "present"
+      : "absent";
+  const ttsEngineSignature = `${settings?.voiceTtsEngine ?? "system"}\0${settings?.voiceVendorBaseUrl ?? ""}\0${settings?.voiceTtsVendorModel ?? ""}\0${credentialFingerprint}`;
   const wasTtsEngineSignatureRef = useRef(ttsEngineSignature);
   useEffect(() => {
     if (wasTtsEngineSignatureRef.current !== ttsEngineSignature) {
@@ -421,7 +486,7 @@ export function useVoiceAnnouncement({
   // §4.1 权限内容段消费：只读 pending 投影，去重由 planner（permissionId）兜底；
   // payload 按可辨识联合的 kind 收窄后取权限摘要。
   useEffect(() => {
-    if (!focused || !pendingInteractions) {
+    if (!announceActive || !pendingInteractions) {
       return;
     }
     for (const interaction of pendingInteractions) {
@@ -439,12 +504,27 @@ export function useVoiceAnnouncement({
         text: buildPermissionAnnouncementText(permissionPayload, truncatedSuffixRef.current),
       });
     }
-  }, [focused, pendingInteractions, planner]);
+  }, [announceActive, pendingInteractions, planner]);
+
+  // §9.9.3-L8：pendingInteractions 变化时把已播账本修剪到当前 pending 权限集——
+  // 账本有界；权限离开 pending 后 wiring 不再消费该 id，剪除安全（同一 id 再次
+  // pending 会重新播）。prune 是幂等账本维护而非播报消费，远控 pane 不门控。
+  useEffect(() => {
+    if (!pendingInteractions) {
+      return;
+    }
+    const pendingIds = new Set(
+      pendingInteractions
+        .filter((interaction) => interaction.payload.kind === "permission")
+        .map((interaction) => interaction.interactionId),
+    );
+    useVoiceSessionStore.getState().pruneAnnouncedPermissionIds(pendingIds);
+  }, [pendingInteractions]);
 
   // §9.6.7-1 工具简报快照消费：每 tick 投影展开喂 planner；conversationKey 变化后
   // 的首帧以 {prime: true} 消化（§9.7.7-3——终态行只进 seen 不生成候选）。
   useEffect(() => {
-    if (!focused) {
+    if (!announceActive) {
       return;
     }
     const rows: {
@@ -472,7 +552,7 @@ export function useVoiceAnnouncement({
     const prime = briefPrimePendingRef.current;
     briefPrimePendingRef.current = false;
     toolBriefPlanner.consumeToolCallSnapshot(rows, { prime });
-  }, [extractToolBriefTarget, focused, toolBriefPlanner, units]);
+  }, [announceActive, extractToolBriefTarget, toolBriefPlanner, units]);
 
   useEffect(() => {
     return () => {

@@ -16,7 +16,7 @@
  */
 
 import { logger } from "@/logger.js";
-import { VOICE_ASR_STOP_SETTLE_TIMEOUT_MS } from "./voiceTuning.js";
+import { VOICE_ASR_SPONTANEOUS_END_SETTLE_MS, VOICE_ASR_STOP_SETTLE_TIMEOUT_MS } from "./voiceTuning.js";
 import {
   VoiceAsrError,
   type VoiceAsrErrorCode,
@@ -68,6 +68,8 @@ export interface WebSpeechAsrAdapterDeps {
   }): Promise<MediaStreamLike>;
   /** stop() 的 onend 兜底结算窗口，缺省 voiceTuning 值；测试可缩短。 */
   stopSettleTimeoutMs?: number;
+  /** §9.9.4-L4 自发 onend 看门狗窗口，缺省 voiceTuning 值；测试可缩短。 */
+  spontaneousEndSettleMs?: number;
 }
 
 export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): VoiceAsrPort {
@@ -95,6 +97,7 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
       });
     });
   const stopSettleTimeoutMs = deps.stopSettleTimeoutMs ?? VOICE_ASR_STOP_SETTLE_TIMEOUT_MS;
+  const spontaneousEndSettleMs = deps.spontaneousEndSettleMs ?? VOICE_ASR_SPONTANEOUS_END_SETTLE_MS;
 
   const partialSubscribers = new Set<(text: string) => void>();
   let activeSession: ActiveSession | null = null;
@@ -123,6 +126,8 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
     private finalSubscribers = new Set<(text: string) => void>();
     private errorSubscribers = new Set<(error: VoiceAsrError) => void>();
     private settleTimer: ReturnType<typeof setTimeout> | null = null;
+    /** §9.9.4-L4 自发 onend 看门狗：非 stopping 断流后等待 trailing final/error 的窗口。 */
+    private spontaneousEndTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(
       readonly stream: MediaStreamLike,
@@ -162,6 +167,12 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
     private handleResult(event: WebSpeechRecognitionEventLike): void {
       if (this.dead) {
         return;
+      }
+      // §9.9.4-L4：自发断流后的 trailing final（部分平台 end 先于 final 派发）照常
+      // 交付并顺延**已 armed** 的看门狗；正常会话不 arm（引擎持续出 result≠断流，
+      // 看门狗只在自发 onend 后启动，避免把正常静音误判为 no-speech）。
+      if (this.spontaneousEndTimer != null) {
+        this.armSpontaneousEndWatchdog();
       }
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -216,6 +227,8 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
       // §7.1：warn 只落错误码，不落转写原文。
       logger.warn("voice.asr", `recognition error: ${mapped}`);
       this.dead = true;
+      // §9.9.4-L4：错误定论即清看门狗（窗口耗尽路径不再挂起）。
+      this.clearSpontaneousEndTimer();
       if (this.stopping) {
         // stop() 等待中的错误：按空 final 结算（§5.3 aborted/no-speech 同静音超时处理），
         // 错误再经 onError 通道上抛给输入腿做提示。
@@ -233,9 +246,16 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
         this.dead = true;
         closeSession(this);
         this.resolveStop({ final: this.stopFlushBuffer.trim() });
+        return;
       }
-      // 非 stopping 的 onend（引擎自发断流）：不自动重启（§5.3 防后台白跑），
-      // 也不判死——等待调用方 stop()/abort() 或 error 事件定论。
+      // §9.9.4-L4 自发 onend 看门狗（引擎非 stopping 断流）：不自动重启（§5.3 防后台
+      // 白跑），但也不再无限等待——arm settle 窗，窗口内 trailing final 照常交付并
+      // 顺延、error 走既有 handleError；窗口耗尽仍无定论 → dead + 停轨 +
+      // onError("no-speech")（§5.3「onend 无结果 → 同静音超时处理」冻结兑现——
+      // 旧实现 Recording 悬挂 + 麦克风持续占用）。
+      if (!this.dead) {
+        this.armSpontaneousEndWatchdog();
+      }
     }
 
     private resolveStop(value: { final: string }): void {
@@ -252,6 +272,36 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
         clearTimeout(this.settleTimer);
         this.settleTimer = null;
       }
+      // §9.9.4-L4：abort/stop/结算清理点同步清看门狗（并行已修的 abort/resolveStop
+      // 路径不重复——此处仅清理本看门狗自己的定时器）。
+      this.clearSpontaneousEndTimer();
+    }
+
+    private clearSpontaneousEndTimer(): void {
+      if (this.spontaneousEndTimer != null) {
+        clearTimeout(this.spontaneousEndTimer);
+        this.spontaneousEndTimer = null;
+      }
+    }
+
+    /** §9.9.4-L4：arm/顺延自发 onend 看门狗（窗口内 trailing final 交付会重新 arm）。 */
+    private armSpontaneousEndWatchdog(): void {
+      this.clearSpontaneousEndTimer();
+      this.spontaneousEndTimer = setTimeout(() => {
+        this.spontaneousEndTimer = null;
+        if (this.dead || this.stopping) {
+          return;
+        }
+        // §5.3 冻结「onend 无结果 → 同静音超时处理」：判死 + 停轨（解除麦克风占用）+
+        // onError("no-speech")——输入腿经 useVoiceDictation 既有映射 abortRecording
+        //（提示 + 不自动重启）。旧实现「不判死等待调用方」使 Recording 悬挂、音轨不停。
+        logger.warn("voice.asr", "spontaneous engine end without result; treating as no-speech");
+        this.dead = true;
+        closeSession(this);
+        for (const cb of Array.from(this.errorSubscribers)) {
+          cb(new VoiceAsrError("no-speech"));
+        }
+      }, spontaneousEndSettleMs);
     }
 
     onFinal(cb: (text: string) => void): () => void {

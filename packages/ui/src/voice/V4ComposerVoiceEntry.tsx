@@ -74,18 +74,22 @@ function V4ComposerVoiceEntryMounted({
 
   // FD-6：第二入口点按被拒时 store 递增 recordingPulseSeq；持有录音指示的入口（本组件
   // 在录音中即持有者）短暂高亮。
+  // §9.9.4-L6：脉冲只归 owner——recordingOwnerEntryId === 本实例 entryId（旧判定
+  // 「inputLeg==="recording"」会让同会话/他会话的任何挂载入口都高亮，违反 FD-6
+  // 「持有录音指示的入口短暂高亮」原语义）。
+  const isOwner = snapshot.recordingOwnerEntryId === dictation.entryId;
   useEffect(() => {
     if (snapshot.recordingPulseSeq === lastPulseSeqRef.current) {
       return;
     }
     lastPulseSeqRef.current = snapshot.recordingPulseSeq;
-    if (snapshot.inputLeg !== "recording") {
+    if (snapshot.inputLeg !== "recording" || !isOwner) {
       return;
     }
     setPulseHighlighted(true);
     const timer = setTimeout(() => setPulseHighlighted(false), RECORDING_PULSE_HIGHLIGHT_MS);
     return () => clearTimeout(timer);
-  }, [snapshot.inputLeg, snapshot.recordingPulseSeq]);
+  }, [isOwner, snapshot.inputLeg, snapshot.recordingPulseSeq]);
 
   // FD-4：TTL 过期后恢复菜单项「直接消失，不置灰」——到期时刻安排一次重渲染翻转。
   useEffect(() => {
@@ -128,11 +132,20 @@ function V4ComposerVoiceEntryMounted({
 
   if (!view.visible) return null;
 
-  // §3.3/FD-6：停止态只属于绑定入口——他人 pane 录音时本入口仍显示普通 mic
-  //（点按走 store 拒绝 + 脉冲高亮持有者，不停别人的录音）。
-  const recording = snapshot.inputLeg === "recording" && snapshot.boundSessionId === sessionId;
-  const bound = recording;
-  const isBoundEntry = snapshot.boundSessionId === sessionId;
+  // §9.9.4-L6：停止态/指示/预览条统一按 owner 换轨——`recordingOwnerEntryId === 本实例
+  // entryId`。旧判定 `boundSessionId === sessionId` 在同会话主/辅 pane 双入口全部命中
+  //（停止图标/预览条/sr-only 双显，违反 FD-6「partial 只出现在 A 的预览条」）；
+  // 跨会话入口照旧显示普通 mic（点按走 store 拒绝 + 持有者脉冲）。
+  const legActive =
+    snapshot.inputLeg === "requestingMic" ||
+    snapshot.inputLeg === "recording" ||
+    snapshot.inputLeg === "injecting";
+  const recording = snapshot.inputLeg === "recording" && isOwner;
+  // §9.9.4-L2：预览条 bound 扩至腿活动（requestingMic/recording/injecting）&& owner——
+  // 请求麦克风期间（权限对话框被忽略/折叠，§5.3 10s 超时窗）预览条可见
+  // `voice.dictation.requestingMic` 文案（既有键激活，零新 i18n 键；requestingMic 期
+  // store 已设 recordingOwnerEntryId，owner 判定天然成立）。
+  const bound = legActive && isOwner;
   const micAriaId = recording ? "voice.entry.mic.stop.aria" : "voice.entry.mic.start.aria";
 
   const lastDictationFresh =
@@ -190,10 +203,10 @@ function V4ComposerVoiceEntryMounted({
   const noticeVisible = snapshot.notice != null && !noticeExpired;
   return (
     <div className="relative inline-flex items-center">
-      {/* 录音指示/预览条（绑定 pane，§3.2/§5.2）+ notice 提示（不依赖绑定归属，F1）。 */}
-      {isBoundEntry || noticeVisible ? (
+      {/* 录音指示/预览条（持有者入口，§3.2/§5.2/§9.9.4-L6）+ notice 提示（不依赖绑定归属，F1）。 */}
+      {bound || noticeVisible ? (
         <DictationPreviewOverlay
-          bound={recording && isBoundEntry}
+          bound={bound}
           inputLeg={snapshot.inputLeg}
           partialText={snapshot.partialText}
           notice={noticeVisible ? snapshot.notice : null}
@@ -215,8 +228,9 @@ function V4ComposerVoiceEntryMounted({
           micButton
         )}
       </ControlHintTooltip>
-      {/* 录音中绑定会话名（§3.2 note，读给辅助技术的常驻指示；切 focused 不改绑定）。 */}
-      {recording && isBoundEntry ? (
+      {/* 录音中绑定会话名（§3.2 note，读给辅助技术的常驻指示；切 focused 不改绑定）。
+          §9.9.4-L6：sr-only 指示同轨 owner——同会话双 pane 不双显。 */}
+      {recording ? (
         <span className="sr-only">
           {intl.formatMessage({ id: "voice.dictation.recordingIndicatorAria" }, {
             session: sessionId ?? intl.formatMessage({ id: "voice.dictation.draftSessionName" }),

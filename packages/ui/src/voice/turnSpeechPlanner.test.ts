@@ -34,6 +34,8 @@ class FakeTts implements VoiceTtsPort {
   private doneCb: ((handle: VoiceTtsHandle, reason: VoiceTtsDoneReason) => void) | null = null;
   private lastHandle: VoiceTtsHandle | null = null;
   cancelCount = 0;
+  /** §9.9.4-L9 订阅退订锚：onDone 当前是否有活跃订阅（dispose 应清零）。 */
+  onDoneSubscribed = false;
 
   speak(u: VoiceTtsUtterance): VoiceTtsHandle {
     const handle = { utteranceId: `utt-${(this.counter += 1)}` };
@@ -49,8 +51,10 @@ class FakeTts implements VoiceTtsPort {
 
   onDone(cb: (handle: VoiceTtsHandle, reason: VoiceTtsDoneReason) => void): () => void {
     this.doneCb = cb;
+    this.onDoneSubscribed = true;
     return () => {
       this.doneCb = null;
+      this.onDoneSubscribed = false;
     };
   }
 
@@ -326,6 +330,51 @@ describe("输入腿互斥与句粒度暂停续播（§3.3 / §4.7）", () => {
     // 暂停请求被撤销：当前句播完正常推进，不入 AnnPaused。
     h.tts.finishCurrent("end");
     expect(useVoiceSessionStore.getState().announcement.phase).toBe("annIdle");
+  });
+
+  it("keeps the deferred tail when recording ends within one sentence: supersede with the newest (§9.9.2-M2)", async () => {
+    const h = createHarness();
+    h.planner.consumeTurnTail({ turnId: "t1", text: "一。二。三。四。五。" });
+    await flushMicrotasks();
+    h.tts.finishCurrent("end"); // → 二 在播（index 1，第 2/5 句）
+    const cancelBefore = h.tts.cancelCount;
+    // 开录又立即结束（句界未到，pauseRequested 已置未生效）。
+    h.planner.notifyUserRecordingStarted();
+    // 录音期间 T2 就绪：顺延（pendingTail = t2）。
+    h.setFocusedTail({ turnId: "t2", text: "T2一。T2二。" });
+    h.planner.consumeTurnTail({ turnId: "t2", text: "T2一。T2二。" });
+    h.planner.notifyUserRecordingEnded();
+    await flushMicrotasks();
+    // tts.cancel 恰一次（T1 第 2 句中止）+ T2 全文起播（§3.3「作废旧轮尾只播最新」）。
+    expect(h.tts.cancelCount - cancelBefore).toBe(1);
+    expect(h.tts.spoken.map((u) => u.text)).toEqual(["一。", "二。", "T2一。"]);
+    expect(speakAll(h)).toEqual(["一。", "二。", "T2一。", "T2二。"]);
+    // T1 的三/四/五句不再播（回退即红：恢复无条件 `pendingTail = null` 则 T2 永不播，
+    // spoken 停在 [一。, 二。, 三。, 四。, 五。]——顺延轮尾被静默丢弃）。
+    expect(h.tts.spoken.some((u) => u.text === "三。")).toBe(false);
+  });
+
+  it("resumes the current sentence in order when recording ends within one sentence and no new tail (§9.9.2-M2 回归)", async () => {
+    const h = createHarness();
+    h.setFocusedTail({ turnId: "t1", text: "一。二。三。" });
+    h.planner.consumeTurnTail({ turnId: "t1", text: "一。二。三。" });
+    await flushMicrotasks();
+    h.tts.finishCurrent("end"); // 二 在播
+    const cancelBefore = h.tts.cancelCount;
+    const spokenBefore = h.tts.spoken.length;
+    const acquireBefore = h.claim.acquireCalls;
+    h.planner.notifyUserRecordingStarted();
+    h.planner.notifyUserRecordingEnded();
+    // 无新轮尾：clearPauseRequested 后 T1 自第 3 句原序续播——零 cancel、零新起播。
+    expect(h.tts.cancelCount).toBe(cancelBefore);
+    expect(h.claim.acquireCalls).toBe(acquireBefore);
+    h.tts.finishCurrent("end");
+    expect(useVoiceSessionStore.getState().announcement).toMatchObject({
+      phase: "speaking",
+      sentenceIndex: 2,
+    });
+    expect(h.tts.spoken.length).toBe(spokenBefore + 1);
+    expect(h.tts.spoken[h.tts.spoken.length - 1]?.text).toBe("三。");
   });
 
   it("discards a superseded deferred tail and speaks only the newest (§3.3)", async () => {

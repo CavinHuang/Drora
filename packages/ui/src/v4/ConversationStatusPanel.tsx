@@ -140,6 +140,8 @@ export interface ConversationStatusPanelProps {
    * 缺席（手机远控/只读）= 不渲染停止钮。确认与失败出显由面板内聚。
    */
   onHaltTeam?: () => Promise<TeamCommandOutcome>;
+  /** 一键恢复（§10 增补二）：reason 必填；缺席 = 不渲染恢复钮。 */
+  onResumeTeam?: (reason: string) => Promise<TeamCommandOutcome>;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -1358,6 +1360,7 @@ function TeamStatusSection({
   team,
   onOpenTeamPanel,
   onHaltTeam,
+  onResumeTeam,
 }: {
   separated: boolean;
   team: ConversationStatusPanelTeam;
@@ -1368,10 +1371,21 @@ function TeamStatusSection({
    * 内完成（复用侧栏同款文案）；失败经行内 role=alert 出显（§19 契约 5 同款纪律）。
    */
   onHaltTeam?: () => Promise<TeamCommandOutcome>;
+  /**
+   * 一键恢复（§10 增补二，2026-10-26）：reason 必填（spec §1 产品规则，不因对齐
+   * workflow 放松）。缺席 = 不渲染恢复钮；失败出显与停止同一行内 alert。
+   */
+  onResumeTeam?: (reason: string) => Promise<TeamCommandOutcome>;
 }) {
   const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
-  const [haltFailure, setHaltFailure] = useState<string | null | undefined>(null);
+  const [haltFailure, setHaltFailure] = useState<{
+    action: "halt" | "resume";
+    reasonCode?: string;
+  } | null>(null);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeReason, setResumeReason] = useState("");
+  const [resumeSending, setResumeSending] = useState(false);
   const statusLabel = intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[team.status] });
   // 二次确认 + 发送 + 失败出显（照 TeamPanel HaltTeamButton 的确认语义；失败文案复用
   // team.panel.commandFailure.* 族，reasonCode 查表兜底同侧栏）。
@@ -1387,7 +1401,26 @@ function TeamStatusSection({
     if (!confirmed) return;
     const outcome = await onHaltTeam();
     if (outcome.ok) return;
-    setHaltFailure(outcome.ack?.reasonCode ?? undefined);
+    setHaltFailure({
+      action: "halt",
+      ...(outcome.ack?.reasonCode ? { reasonCode: outcome.ack.reasonCode } : {}),
+    });
+  };
+  // 一键恢复（§10 增补二）：理由必填本地门 + 发送 + 在途防双击；失败与停止共用
+  // 行内 alert（action 标签按来源区分），失败后理由输入保留。
+  const handleResume = async () => {
+    if (onResumeTeam === undefined || resumeSending) return;
+    const trimmed = resumeReason.trim();
+    if (trimmed === "") return;
+    setHaltFailure(null);
+    setResumeSending(true);
+    const outcome = await onResumeTeam(trimmed);
+    setResumeSending(false);
+    if (outcome.ok) return;
+    setHaltFailure({
+      action: "resume",
+      ...(outcome.ack?.reasonCode ? { reasonCode: outcome.ack.reasonCode } : {}),
+    });
   };
   const words = intl.formatMessage(
     { id: "chat.statusPanel.teamRowWords" },
@@ -1425,12 +1458,12 @@ function TeamStatusSection({
             {intl.formatMessage(
               { id: "team.panel.commandFailure.line" },
               {
-                action: intl.formatMessage({ id: "team.panel.action.halt" }),
+                action: intl.formatMessage({ id: `team.panel.action.${haltFailure.action}` }),
                 reason: intl.formatMessage({
                   id:
-                    haltFailure === undefined
+                    haltFailure.reasonCode === undefined
                       ? "team.panel.commandFailure.transport"
-                      : (teamRejectionReasonI18nKeyOrUndefined(haltFailure) ??
+                      : (teamRejectionReasonI18nKeyOrUndefined(haltFailure.reasonCode) ??
                         "team.panel.commandFailure.fallback"),
                 }),
               },
@@ -1479,7 +1512,60 @@ function TeamStatusSection({
               <SquareIcon className="size-3.5" />
             </button>
           )}
+          {onResumeTeam === undefined || team.status !== "halted" ? null : (
+            // 一键恢复（§10 增补二）：停止钮的对称位；点开理由输入行（理由必填，
+            // spec §1）。active/escalated 不出（与停止钮互斥呈现）。
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "team.panel.resume" })}
+              title={intl.formatMessage({ id: "team.panel.resume" })}
+              aria-expanded={resumeOpen}
+              data-testid="status-panel-team-resume"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              onClick={(event) => {
+                event.stopPropagation();
+                setResumeOpen((value) => !value);
+              }}
+            >
+              <PlayIcon className="size-3.5" />
+            </button>
+          )}
         </button>
+        {resumeOpen && onResumeTeam !== undefined && team.status === "halted" ? (
+          // 恢复理由行（§10 增补二）：输入 + 提交，空白禁提交、在途防双击；失败后
+          // 输入保留。成功后投影翻 active，本行随 halted 消失自然卸载。
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              value={resumeReason}
+              onChange={(event) => setResumeReason(event.target.value)}
+              disabled={resumeSending}
+              aria-label={intl.formatMessage({ id: "team.panel.resumeReasonLabel" })}
+              placeholder={intl.formatMessage({ id: "team.panel.resumeReasonPlaceholder" })}
+              data-testid="status-panel-team-resume-reason"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void handleResume();
+                }
+              }}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 text-ui-sm text-foreground placeholder:text-foreground-subtlest focus-visible:border-ring focus-visible:outline-none pointer-coarse:min-h-11"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={resumeSending || resumeReason.trim() === ""}
+              onClick={() => {
+                void handleResume();
+              }}
+              data-testid="status-panel-team-resume-submit"
+              className="pointer-coarse:min-h-11"
+            >
+              {intl.formatMessage({ id: "team.panel.resume" })}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </StatusSection>
   );
@@ -2072,6 +2158,7 @@ function ConversationStatusPanelImpl({
   team,
   onOpenTeamPanel,
   onHaltTeam,
+  onResumeTeam,
   className,
 }: ConversationStatusPanelProps) {
   const isOfficeMode = useIsOfficeMode();
@@ -2368,6 +2455,7 @@ function ConversationStatusPanelImpl({
                 team={model.team}
                 onOpenTeamPanel={onOpenTeamPanel}
                 onHaltTeam={onHaltTeam}
+                onResumeTeam={onResumeTeam}
                 separated={
                   canRenderGit ||
                   canRenderGoal ||

@@ -61,6 +61,7 @@ import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 // Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
 import {
   haltTeam,
+  resumeTeam,
   useWorkspaceConfigCatalogSync,
   TeamApprovalDock,
   TeamConversationSummary,
@@ -4924,6 +4925,15 @@ export function SessionPane({
     if (!sessionId) return Promise.resolve({ ok: false, error: new Error("no session") });
     return haltTeam({ sessionId, sendCommand });
   }, [sendCommand, sessionId]);
+  // 一键恢复（§10 增补二）：与侧栏 ResumeTeamSection 同一 resumeTeam 命令
+  //（reason 必填由面板本地门把守）。
+  const handleResumeTeamFromStatusPanel = useCallback(
+    (reason: string): Promise<TeamCommandOutcome> => {
+      if (!sessionId) return Promise.resolve({ ok: false, error: new Error("no session") });
+      return resumeTeam({ sessionId, sendCommand, reason });
+    },
+    [sendCommand, sessionId],
+  );
   const handleOpenRunningBackgroundWorks = useCallback(() => {
     if (runningBackgroundWorkCount === 0) return;
     if (soleRunningWorkflowRunTarget) {
@@ -5867,6 +5877,9 @@ export function SessionPane({
               }
               onHaltTeam={
                 readOnly || compactForRemoteControl ? undefined : handleHaltTeamFromStatusPanel
+              }
+              onResumeTeam={
+                readOnly || compactForRemoteControl ? undefined : handleResumeTeamFromStatusPanel
               }
             />
           ) : null}

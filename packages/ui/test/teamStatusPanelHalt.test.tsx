@@ -57,9 +57,11 @@ function activeTeam(status: TeamProjectionState["status"] = "active"): TeamProje
 function renderPanel({
   team,
   onHaltTeam,
+  onResumeTeam,
 }: {
   team: TeamProjectionState;
   onHaltTeam?: () => Promise<TeamCommandOutcome>;
+  onResumeTeam?: (reason: string) => Promise<TeamCommandOutcome>;
 }): ReturnType<typeof render> {
   return render(
     createElement(
@@ -71,6 +73,7 @@ function renderPanel({
         createElement(ConversationStatusPanel, {
           team,
           ...(onHaltTeam === undefined ? {} : { onHaltTeam }),
+          ...(onResumeTeam === undefined ? {} : { onResumeTeam }),
         }),
       ),
     ),
@@ -115,5 +118,48 @@ describe("状态面板 team 分区一键停止（specs/agents-team.md §10 增�
       ),
     );
     expect(screen.queryByTestId("status-panel-team-halt")).toBeNull();
+  });
+});
+
+describe("状态面板 team 分区一键恢复（specs/agents-team.md §10 增补二）", () => {
+  it("halted：恢复钮在场——点开输入理由并提交 → onResumeTeam(reason)；成功零出显", async () => {
+    const onResumeTeam = vi.fn().mockResolvedValue({ ok: true });
+    renderPanel({ team: activeTeam("halted"), onHaltTeam: vi.fn(), onResumeTeam });
+    fireEvent.click(screen.getByTestId("status-panel-team-resume"));
+    const input = screen.getByTestId("status-panel-team-resume-reason") as HTMLInputElement;
+    // 空理由禁提交（spec §1 理由必填的本地门）。
+    expect(
+      (screen.getByTestId("status-panel-team-resume-submit") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.change(input, { target: { value: "排查完毕继续跑" } });
+    fireEvent.click(screen.getByTestId("status-panel-team-resume-submit"));
+    await waitFor(() => expect(onResumeTeam).toHaveBeenCalledWith("排查完毕继续跑"));
+    expect(screen.queryByTestId("status-panel-team-halt-error")).toBeNull();
+  });
+
+  it("恢复被拒（team_halted 反例：非 halted 态被 hub 拒）→ 行内 role=alert；输入保留", async () => {
+    const onResumeTeam = vi.fn().mockResolvedValue({
+      ok: false,
+      ack: { status: "failed", reasonCode: "fault.command.teamRejected.team_lead_only" },
+    });
+    renderPanel({ team: activeTeam("halted"), onResumeTeam });
+    fireEvent.click(screen.getByTestId("status-panel-team-resume"));
+    fireEvent.change(screen.getByTestId("status-panel-team-resume-reason"), {
+      target: { value: "再试一次" },
+    });
+    fireEvent.click(screen.getByTestId("status-panel-team-resume-submit"));
+    const alert = await screen.findByTestId("status-panel-team-halt-error");
+    expect(alert.getAttribute("role")).toBe("alert");
+    expect(alert.textContent).toContain(zhCN["team.stagedEditor.failure.teamLeadOnly"] ?? "");
+    // 理由草稿不丢（失败后输入保留）。
+    expect((screen.getByTestId("status-panel-team-resume-reason") as HTMLInputElement).value).toBe(
+      "再试一次",
+    );
+  });
+
+  it("active：不出恢复钮（与停止钮互斥）", () => {
+    renderPanel({ team: activeTeam(), onHaltTeam: vi.fn(), onResumeTeam: vi.fn() });
+    expect(screen.queryByTestId("status-panel-team-resume")).toBeNull();
+    expect(screen.getByTestId("status-panel-team-halt")).toBeTruthy();
   });
 });

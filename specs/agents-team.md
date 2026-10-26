@@ -3026,3 +3026,21 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
   按钮不渲染（照 onOpenTeamPanel 的宿主缺席纪律）。
 - 测试：面板单测（active+注入 → 点击 → 确认 → 命令调用；拒绝 → 行内 alert；halted 不出钮）；
   E2E 桌面场景并入 AT-01 转正批（人工项同批）。
+
+### §10 增补二｜状态面板一键恢复（2026-10-26 用户裁定，同日施工）
+
+与一键停止（§10 增补）同位对称：halted 团队在状态面板 team 分区行尾提供恢复入口——
+对齐 workflow「停止后可恢复运行」的随手性，但**保留 team 产品差异：恢复理由必填**
+（spec §1「显式 TeamResume 且带理由」，不因对齐 workflow 而放松）：
+
+- 形态：halted 且宿主注入 onResumeTeam 时，行尾显示 Play 图标钮（停止钮的对称位）；
+  点击在分区行下展开一行「恢复理由（必填）」输入 + 恢复提交钮（空白禁提交），
+  再点收起。active/escalated 不显示恢复钮（与停止钮互斥呈现）。
+- 发送：resumeTeam v4 命令（reason 随行）——与侧栏 ResumeTeamSection 同一命令同一
+  语义；提交在途防双击（提交钮禁用到结算）。
+- 失败出显：与停止同一行内 role=alert（team.panel.commandFailure.*，action=resume），
+  再次发起清除；输入在失败后保留（不丢理由草稿）。
+- 成功：投影翻 active，恢复展开行随 halted 态消失自然卸载。
+- readOnly/手机远控不注入即不渲染（同一宿主缺席纪律）。
+- 测试：Play 展开输入提交调用 onResumeTeam(reason)、空理由禁用、拒绝→alert、
+  active 不出恢复钮；E2E 并入 AT-01 转正批。

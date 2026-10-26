@@ -3087,3 +3087,20 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
   （max-h + overflow-y-auto + overscroll-contain），长草案不再撑高卡片。
 - **失败 alert**：字号对齐 text-ui-base（原 text-ui-sm）。
 - 外层容器/眉题/选项 listbox/反馈行/底栏/位置：§18 附裁已对齐，维持。
+
+### §10 增补四｜成员下钻独立 tab（2026-10-26 用户裁定，同日施工）
+
+用户裁定：成员打开应在**新的 tab 页**打开并可维持——用户可同时开多个成员页切换查看任务，
+取代「单面板内本地切换、返回即丢」的 activeMember 本地态。照 workflow-actor-session 先例：
+
+- tab 类型 `team-member`：身份 = (workspace, lead 会话, memberName)，结构化 id 幂等——
+  重复点击同一成员聚焦同一 tab；childSessionId 是打开时刻已知值、缺席自愈 slot（重开时
+  以实时投影刷新，照 actorSessionId 语义）；GC 与 team tab 同门（按 parentSessionId）。
+- 打开链：TeamPanel 成员卡/「发消息」→ onOpenMemberSession（宿主注入，经
+  useAppPanels openTeamMemberSidePane）→ 开/聚 tab。**回调缺席（手机远端）退化为既有
+  本地下钻**——移动面行为不变（无 tab 体系）。
+- tab 内容：既有 TeamMemberSidePane（父投影门 + 只读 SessionPane + composer）原样入 tab；
+  顶部条保留成员名 + 移除成员入口（本地钻的头去掉返回钮——tab 条自身承载切换/关闭）。
+- 团队主面板（team tab）保持独立存在；成员 tab 与 team tab 并列，用户在 tab 间切换。
+- 测试：tab 开关幂等/自愈单测；面板点击经回调开 tab 单测（回调缺席回退本地钻既有测试
+  不动）；E2E 并入 AT-01 转正批。

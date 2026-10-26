@@ -251,6 +251,7 @@ export function App({
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
+    handleOpenTeamMemberSidePane,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,
@@ -1322,6 +1323,7 @@ export function App({
           handleOpenPlanDetail={handleOpenPlanDetail}
           handleOpenWorkflowRun={handleOpenWorkflowRun}
           handleOpenTeamSidePane={handleOpenTeamSidePane}
+          handleOpenTeamMemberSidePane={handleOpenTeamMemberSidePane}
           handleOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
           handleOpenWorkflowActorSession={handleOpenWorkflowActorSession}
           handleOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}

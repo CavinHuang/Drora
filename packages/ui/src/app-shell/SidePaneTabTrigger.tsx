@@ -24,6 +24,7 @@ import {
   UsersIcon,
   WaypointsIcon,
   Workflow as WorkflowIcon,
+  UserIcon,
   XIcon,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
@@ -313,6 +314,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "team") {
     return <UsersIcon className="size-3.5" />;
   }
+  // 成员 transcript tab（§10 增补四）：单个成员，与 actor（Bot）同层级——用单人像区别于
+  // 团队的多人像。
+  if (tab.type === "team-member") {
+    return <UserIcon className="size-3.5" />;
+  }
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
@@ -530,6 +536,10 @@ export function getSidePaneTabTitle(
   // team tab 不带任何数据（身份只是对话），标题恒为本地化名——团队名在面板状态头里跟投影走。
   if (tab.type === "team") {
     return formatMessage({ id: "sidePane.team" });
+  }
+  // 成员 transcript tab（§10 增补四）：标题=成员名（身份即标题；memberName 恒在）。
+  if (tab.type === "team-member") {
+    return tab.memberName;
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;

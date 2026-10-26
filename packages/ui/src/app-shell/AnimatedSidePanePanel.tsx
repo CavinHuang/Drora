@@ -61,7 +61,7 @@ import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySi
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
 import { WorkflowWorkspaceSidePane } from "@/app-shell/WorkflowWorkspaceSidePane.js";
 import { WorkflowArtifactSidePane } from "@/app-shell/WorkflowArtifactSidePane.js";
-import { TeamSidePane } from "@/app-shell/TeamSidePane.js";
+import { TeamMemberTabPane, TeamSidePane } from "@/app-shell/TeamSidePane.js";
 import {
   getSidePaneTabTitle,
   SidePaneTabDragOverlay,
@@ -343,6 +343,7 @@ export function AnimatedSidePanePanel({
   onOpenCodeViewer,
   onOpenFileLink,
   onPrefillComposer,
+  onOpenTeamMemberSession,
   onOpenSubagentSession,
   onOpenWorkflowActorSession,
   onOpenWorkflowWorkspace,
@@ -427,6 +428,14 @@ export function AnimatedSidePanePanel({
    * targetSessionId 定向插入（缺口9 消费门，见 SessionPane externalTextInsertRequest）。
    */
   onPrefillComposer?: (prefill: string, targetSessionId?: string | null) => void;
+
+  /** 成员 transcript tab 打开通道（§10 增补四；缺席 = 面板回退本地下钻）。 */
+  onOpenTeamMemberSession?: (
+    request: import("@/lib/workspaceSidePane.js").OpenTeamMemberSideTabRequest & {
+      workspacePath: string;
+      workspaceIdentity?: string;
+    },
+  ) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession: (request: OpenScopedSubagentSideTabRequest) => void;
   /** run 详情页里点 ask 节点 → 打开那个 actor 实例的 transcript tab。 */
@@ -1235,6 +1244,20 @@ export function AnimatedSidePanePanel({
                           />
                         ) : tab.type === "team" ? (
                           <TeamSidePane
+                            tab={tab}
+                            focused={isVisible && tab.id === visibleActiveTabId}
+                            onOpenBrowserUrl={onOpenBrowserUrl}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                            onOpenFileLink={onOpenFileLink}
+                            {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}
+                            {...(onOpenTeamMemberSession === undefined
+                              ? {}
+                              : { onOpenMemberSession: onOpenTeamMemberSession })}
+                          />
+                        ) : tab.type === "team-member" ? (
+                          // 成员 transcript tab（§10 增补四）：独立 tab 承载既有
+                          // TeamMemberSidePane（父投影门 + 只读 SessionPane + composer）。
+                          <TeamMemberTabPane
                             tab={tab}
                             focused={isVisible && tab.id === visibleActiveTabId}
                             onOpenBrowserUrl={onOpenBrowserUrl}

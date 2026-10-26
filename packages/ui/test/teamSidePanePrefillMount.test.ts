@@ -78,6 +78,7 @@ function stagedTeamFixture(): TeamProjectionState {
 
 function renderTeamPane(
   onPrefillComposer?: (prefill: string, targetSessionId?: string | null) => void,
+  onOpenMemberSession?: Parameters<typeof TeamSidePane>[0]["onOpenMemberSession"],
 ) {
   return render(
     createElement(
@@ -87,6 +88,7 @@ function renderTeamPane(
         tab: teamTab(),
         focused: true,
         ...(onPrefillComposer === undefined ? {} : { onPrefillComposer }),
+        ...(onOpenMemberSession === undefined ? {} : { onOpenMemberSession }),
       }),
     ),
   );
@@ -277,5 +279,43 @@ describe("TeamSidePane stop member entries (缺口10)", () => {
         (envelope) => (envelope as CommandEnvelope).type === "stopTeamMember",
       ),
     ).toBe(false);
+  });
+});
+
+describe("成员下钻独立 tab（specs/agents-team.md §10 增补四）", () => {
+  // 与本文件既有用例同一导航：overview 成员行 → 详情「查看成员」（team-transcript-open
+  // 走 handleMemberDrill 同一通道）。
+  it("通道在场：查看成员 → onOpenMemberSession 收到 scoped 请求（lead 会话 + 已知 childSessionId），不进本地钻", async () => {
+    harness.conversationSnapshot = { team: createTeamFixture() };
+    const calls: { memberName: string; parentSessionId: string; childSessionId?: string }[] = [];
+    renderTeamPane(undefined, (member) => {
+      calls.push({
+        memberName: member.memberName,
+        parentSessionId: member.parentSessionId,
+        ...(member.childSessionId === undefined ? {} : { childSessionId: member.childSessionId }),
+      });
+    });
+    const memberRow = screen
+      .getAllByTestId("team-overview-member")
+      .find((node) => node.textContent?.includes("Frontend"));
+    expect(memberRow).toBeTruthy();
+    fireEvent.click(memberRow!);
+    fireEvent.click(screen.getByTestId("team-transcript-open"));
+    expect(calls).toEqual([
+      { memberName: "Frontend", parentSessionId: "lead-session-1", childSessionId: "child-a" },
+    ]);
+    expect(screen.queryByTestId("team-member-back")).toBeNull();
+  });
+
+  it("通道缺席（手机远控回退）：查看成员进入本地钻（back 按钮在场）", async () => {
+    harness.conversationSnapshot = { team: createTeamFixture() };
+    renderTeamPane();
+    const memberRow = screen
+      .getAllByTestId("team-overview-member")
+      .find((node) => node.textContent?.includes("Frontend"));
+    expect(memberRow).toBeTruthy();
+    fireEvent.click(memberRow!);
+    fireEvent.click(screen.getByTestId("team-transcript-open"));
+    expect(screen.getByTestId("team-member-back")).toBeTruthy();
   });
 });

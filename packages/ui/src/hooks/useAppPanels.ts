@@ -81,7 +81,9 @@ import {
   type OpenScopedWorkflowArtifactSideTabRequest,
   type OpenScopedWorkflowWorkspaceSideTabRequest,
   openTeamSidePane,
+  openTeamMemberSidePane,
   type OpenScopedTeamSideTabRequest,
+  type OpenScopedTeamMemberSideTabRequest,
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
@@ -1117,6 +1119,26 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState],
   );
 
+  /** 打开（或聚焦）一个成员 transcript tab（specs/agents-team.md §10 增补四）。 */
+  const handleOpenTeamMemberSidePane = useCallback(
+    (request: OpenScopedTeamMemberSideTabRequest) => {
+      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
+      setIsSidePaneCollapsed(false);
+      commitOpenedSidePaneState((current) =>
+        openTeamMemberSidePane(current, {
+          ...request,
+          workspaceKey,
+        }),
+      );
+      logger.debug("[App] 打开团队成员右侧 tab", {
+        parentSessionId: request.parentSessionId,
+        memberName: request.memberName,
+        workspaceKey,
+      });
+    },
+    [commitOpenedSidePaneState],
+  );
+
   const handleOpenWorkflowActorSession = useCallback(
     (request: OpenScopedWorkflowActorSessionSideTabRequest) => {
       const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
@@ -1715,6 +1737,7 @@ export function useAppPanels(options: {
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
+    handleOpenTeamMemberSidePane,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

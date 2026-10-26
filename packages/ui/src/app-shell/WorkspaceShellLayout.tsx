@@ -111,6 +111,7 @@ import {
   requestSelectionSideChatOpen,
 } from "@/lib/selectionSideChatRuntime.js";
 import { getActiveSelectionSideChatTab } from "@/lib/workspaceSidePane.js";
+import type { OpenTeamMemberSideTabRequest } from "@/lib/workspaceSidePane.js";
 import { logger } from "@/logger.js";
 import {
   areWorkspaceFilePathsEqual,
@@ -407,6 +408,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   // Drora 扩展挂载：agents-team 面板打开回调（specs/agents-team.md §10），
   // 由 TeamNavigationProvider 内的入口触发，Shell 负责落到 side pane tab。
   handleOpenTeamSidePane,
+  handleOpenTeamMemberSidePane,
   handleOpenTerminalTab,
   handleToggleGit,
   handleOpenGitReview,
@@ -1405,6 +1407,26 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleOpenTeamSidePane, handleSelectTaskInChat, workspaceTabs],
   );
+  // 成员 transcript tab（specs/agents-team.md §10 增补四）：面板成员卡/发消息入口的开 tab
+  // 通道——宿主缺席（手机远控）时面板退化为既有本地下钻（TeamSidePane 侧判定）。
+  const handleOpenTeamMemberSidePaneSession = useCallback(
+    (
+      request: OpenTeamMemberSideTabRequest & {
+        workspacePath: string;
+        workspaceIdentity?: string;
+      },
+    ) => {
+      const key = request.workspaceIdentity?.trim() || request.workspacePath;
+      const remote =
+        workspaceTabs.find((tab) => (tab.workspaceIdentity?.trim() || tab.workspacePath) === key)
+          ?.remoteSessionId ?? undefined;
+      handleOpenTeamMemberSidePane?.({
+        ...request,
+        ...(remote ? { remoteSessionId: remote } : {}),
+      });
+    },
+    [handleOpenTeamMemberSidePane, workspaceTabs],
+  );
   // 中枢的产物 chip：与「查看实例」逐字同构（同一条「先回到发起它的会话」的路径），
   // 只是终点是 `workflow-artifact` tab 而不是 run 详情页。
   const handleOpenSavedWorkflowArtifact = useCallback(
@@ -1964,6 +1986,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onOpenBackgroundBash={handleOpenBackgroundBash}
       onOpenSubagentSession={handleOpenSubagentSession}
       onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+      onOpenTeamMemberSession={handleOpenTeamMemberSidePaneSession}
       onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
       onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
       onOpenWorkflowRun={handleOpenWorkflowRun}

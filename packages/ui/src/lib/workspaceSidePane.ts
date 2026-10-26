@@ -530,11 +530,45 @@ export interface TeamSidePaneTab {
   parentSessionId: string;
 }
 
+/**
+ * 一个团队成员的 transcript tab（specs/agents-team.md §10 增补四，2026-10-26；照
+ * workflow-actor-session 先例）。身份 = (workspace, lead 会话, memberName)——重复点击
+ * 同一成员幂等聚焦；`childSessionId` 是打开时刻已知值，缺席由面板按实时投影自愈
+ * （actorSessionId 同款 slot 语义）。GC 与 team tab 同门（按 parentSessionId）。
+ */
+export interface TeamMemberSidePaneTab {
+  id: string;
+  type: "team-member";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+  /** 成员显示名：tab 身份与标题；同时是花名册联接键与 sendTeamMessage 的 to。 */
+  memberName: string;
+  /** 打开时刻已知的成员会话 id；缺席时面板从实时投影自愈（照 actorSessionId）。 */
+  childSessionId?: string;
+}
+
 export interface OpenTeamSideTabRequest {
   parentSessionId: string;
 }
 
 export interface OpenScopedTeamSideTabRequest extends OpenTeamSideTabRequest {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
+export interface OpenTeamMemberSideTabRequest {
+  parentSessionId: string;
+  memberName: string;
+  childSessionId?: string;
+}
+
+export interface OpenScopedTeamMemberSideTabRequest extends OpenTeamMemberSideTabRequest {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
@@ -620,7 +654,8 @@ export type WorkspaceSidePaneTab =
   | WorkflowActorSessionSidePaneTab
   | WorkflowWorkspaceSidePaneTab
   | WorkflowArtifactSidePaneTab
-  | TeamSidePaneTab;
+  | TeamSidePaneTab
+  | TeamMemberSidePaneTab;
 
 /**
  * Browser/browser-use 的页面与 CDP 生命周期依赖 `<webview>` 持续连接 DOM。
@@ -1241,6 +1276,7 @@ export function isSidePaneTabVisibleInScope(
     case "workflow-workspace":
     case "workflow-artifact":
     case "team":
+    case "team-member":
       return tab.parentSessionId === scope.ownerTaskId;
     case "browser":
     case "browser-permissions":
@@ -2147,6 +2183,36 @@ export function openTeamSidePane(
   const nextTab = createTeamSidePaneTab(options);
   const existing = current?.tabs.find(
     (tab): tab is TeamSidePaneTab => tab.type === "team" && tab.id === nextTab.id,
+  );
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+/** 打开（或聚焦）一个成员 transcript tab（§10 增补四）。身份 (workspace, lead, memberName)
+ *  幂等；重开以已知 childSessionId 刷新 slot（自愈，actorSessionId 同款）。 */
+export function openTeamMemberSidePane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenScopedTeamMemberSideTabRequest & { workspaceKey: string },
+): WorkspaceSidePaneState {
+  const nextTab: TeamMemberSidePaneTab = {
+    // 结构化 id：同一成员在同一 workspace + 对话下永远是同一个 tab，重复点击幂等聚焦。
+    id: [
+      "team-member",
+      encodeSidePaneTabIdPart(options.workspaceKey),
+      encodeSidePaneTabIdPart(options.parentSessionId),
+      encodeSidePaneTabIdPart(options.memberName),
+    ].join(":"),
+    type: "team-member",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    parentSessionId: options.parentSessionId,
+    memberName: options.memberName,
+    ...(options.childSessionId ? { childSessionId: options.childSessionId } : {}),
+  };
+  const existing = current?.tabs.find(
+    (tab): tab is TeamMemberSidePaneTab => tab.type === "team-member" && tab.id === nextTab.id,
   );
   return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
 }

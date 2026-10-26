@@ -81,6 +81,10 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "terminal" || tab.type === "bash-output")
     return `${tab.title} terminal shell command`;
   if (tab.type === "file-manager") return `${tab.target.workspacePath} ${tab.source?.path ?? ""}`;
+  if (tab.type === "team-member") {
+    // §10 增补四：成员 transcript tab——可搜成员名与 lead 会话。
+    return `${tab.memberName} ${tab.parentSessionId} team member`;
+  }
   return tab.source.path ?? tab.source.title;
 }
 
@@ -129,6 +133,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "workflow-workspace") return labels.workflowScriptTitle;
   if (tab.type === "workflow-artifact") return labels.workflowArtifactTitle;
   if (tab.type === "team") return labels.teamTitle;
+  if (tab.type === "team-member") return tab.memberName;
   if (tab.type === "selection-side-chat") return labels.selectionChatTitle;
   if (tab.type === "subagent-session") {
     return tab.subagentType.trim() || labels.subagentTypeLabel;

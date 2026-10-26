@@ -77,8 +77,11 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatBackgroundTaskElapsedLabel } from "@/BackgroundTaskElapsedLabel.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { TEAM_STATUS_I18N_KEYS } from "@/team/team-status-presentation.js";
+import { teamRejectionReasonI18nKeyOrUndefined } from "@/team/TeamStagedEditor.js";
+import type { TeamCommandOutcome } from "@/team/commands.js";
 import type {
   OpenPlanDetailSideTabRequest,
   OpenSubagentDirectorySideTabRequest,
@@ -132,6 +135,11 @@ export interface ConversationStatusPanelProps {
   team?: TeamProjectionState | null;
   /** 打开 team 侧栏面板（行点击；宿主接 TeamNavigation，同一打开路径）。缺席 = 行不可点。 */
   onOpenTeamPanel?: () => void;
+  /**
+   * 一键停止团队（specs/agents-team.md §10 增补）：发送 haltTeam 并返回 outcome；
+   * 缺席（手机远控/只读）= 不渲染停止钮。确认与失败出显由面板内聚。
+   */
+  onHaltTeam?: () => Promise<TeamCommandOutcome>;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -1349,13 +1357,38 @@ function TeamStatusSection({
   separated,
   team,
   onOpenTeamPanel,
+  onHaltTeam,
 }: {
   separated: boolean;
   team: ConversationStatusPanelTeam;
   onOpenTeamPanel?: () => void;
+  /**
+   * 一键停止（specs/agents-team.md §10 增补，2026-10-26）：宿主注入的 haltTeam 发送
+   * （返回 TeamCommandOutcome）。缺席（手机远控/只读）= 不渲染停止钮。二次确认在本组件
+   * 内完成（复用侧栏同款文案）；失败经行内 role=alert 出显（§19 契约 5 同款纪律）。
+   */
+  onHaltTeam?: () => Promise<TeamCommandOutcome>;
 }) {
   const { intl } = useDroraIntl();
+  const requestConfirmation = useConfirmDialog();
+  const [haltFailure, setHaltFailure] = useState<string | null | undefined>(null);
   const statusLabel = intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[team.status] });
+  // 二次确认 + 发送 + 失败出显（照 TeamPanel HaltTeamButton 的确认语义；失败文案复用
+  // team.panel.commandFailure.* 族，reasonCode 查表兜底同侧栏）。
+  const handleHalt = async () => {
+    if (onHaltTeam === undefined) return;
+    setHaltFailure(null);
+    const confirmed = await requestConfirmation({
+      title: intl.formatMessage({ id: "team.panel.haltConfirmTitle" }),
+      description: intl.formatMessage({ id: "team.panel.haltConfirmBody" }),
+      confirmLabel: intl.formatMessage({ id: "team.panel.haltConfirmLabel" }),
+      confirmVariant: "destructive",
+    });
+    if (!confirmed) return;
+    const outcome = await onHaltTeam();
+    if (outcome.ok) return;
+    setHaltFailure(outcome.ack?.reasonCode ?? undefined);
+  };
   const words = intl.formatMessage(
     { id: "chat.statusPanel.teamRowWords" },
     {
@@ -1383,6 +1416,27 @@ function TeamStatusSection({
       }
     >
       <div className="px-2 pb-1">
+        {haltFailure === null ? null : (
+          <p
+            role="alert"
+            className="mb-1 text-ui-caption text-destructive"
+            data-testid="status-panel-team-halt-error"
+          >
+            {intl.formatMessage(
+              { id: "team.panel.commandFailure.line" },
+              {
+                action: intl.formatMessage({ id: "team.panel.action.halt" }),
+                reason: intl.formatMessage({
+                  id:
+                    haltFailure === undefined
+                      ? "team.panel.commandFailure.transport"
+                      : (teamRejectionReasonI18nKeyOrUndefined(haltFailure) ??
+                        "team.panel.commandFailure.fallback"),
+                }),
+              },
+            )}
+          </p>
+        )}
         <button
           type="button"
           onClick={onOpenTeamPanel}
@@ -1408,6 +1462,23 @@ function TeamStatusSection({
               )}
             </span>
           ) : null}
+          {onHaltTeam === undefined || team.status === "halted" ? null : (
+            // 一键停止（§10 增补）：照 WorkflowRunRow 的 Stop 形态（图标钮）；
+            // pointer-coarse ≥44px 同面板纪律。
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "team.panel.halt" })}
+              title={intl.formatMessage({ id: "team.panel.halt" })}
+              data-testid="status-panel-team-halt"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleHalt();
+              }}
+            >
+              <SquareIcon className="size-3.5" />
+            </button>
+          )}
         </button>
       </div>
     </StatusSection>
@@ -2000,6 +2071,7 @@ function ConversationStatusPanelImpl({
   onOpenWorkflowRunDirectory,
   team,
   onOpenTeamPanel,
+  onHaltTeam,
   className,
 }: ConversationStatusPanelProps) {
   const isOfficeMode = useIsOfficeMode();
@@ -2295,6 +2367,7 @@ function ConversationStatusPanelImpl({
               <TeamStatusSection
                 team={model.team}
                 onOpenTeamPanel={onOpenTeamPanel}
+                onHaltTeam={onHaltTeam}
                 separated={
                   canRenderGit ||
                   canRenderGoal ||

@@ -60,9 +60,11 @@ import { logger } from "@/logger.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 // Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
 import {
+  haltTeam,
   useWorkspaceConfigCatalogSync,
   TeamApprovalDock,
   TeamConversationSummary,
+  type TeamCommandOutcome,
 } from "@/team/index.js";
 // 状态面板 team 分区的打开路径（§19 契约 6）：与摘要卡「打开面板」同一 TeamNavigation。
 import { useTeamNavigation } from "@/team/TeamNavigation.js";
@@ -4915,6 +4917,13 @@ export function SessionPane({
     if (!sessionId) return;
     openTeamPanelTarget?.({ workspacePath, parentSessionId: sessionId });
   }, [openTeamPanelTarget, sessionId, workspacePath]);
+  // 状态面板一键停止（specs/agents-team.md §10 增补，2026-10-26）：haltTeam 单一通道
+  // （与侧栏同一命令语义）；二次确认与失败出显在面板内聚（TeamStatusSection）。
+  const handleHaltTeamFromStatusPanel = useCallback((): Promise<TeamCommandOutcome> => {
+    // 面板行渲染蕴含 sessionId 在场；防御分支不发送、按传输异常出显（不可达）。
+    if (!sessionId) return Promise.resolve({ ok: false, error: new Error("no session") });
+    return haltTeam({ sessionId, sendCommand });
+  }, [sendCommand, sessionId]);
   const handleOpenRunningBackgroundWorks = useCallback(() => {
     if (runningBackgroundWorkCount === 0) return;
     if (soleRunningWorkflowRunTarget) {
@@ -5855,6 +5864,9 @@ export function SessionPane({
               team={snapshot?.team ?? null}
               onOpenTeamPanel={
                 compactForRemoteControl ? undefined : handleOpenTeamPanelFromStatusPanel
+              }
+              onHaltTeam={
+                readOnly || compactForRemoteControl ? undefined : handleHaltTeamFromStatusPanel
               }
             />
           ) : null}

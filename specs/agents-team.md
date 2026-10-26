@@ -3009,3 +3009,20 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 - dock 卡内部收为单一 flex flex-col gap-3 p-3（眉题行 + 编辑器），眉题右侧补来源徽章位（对齐
   InteractionRequestOriginBadge 位）；stagedDock.hint 文案键随底栏键盘提示替代而移除。
 - 借形不借管线裁定不变：审批仍走 team/commands.ts 单一通道，不入权限请求管线。
+
+### §10 增补｜运行态一键停止入口（2026-10-26 用户裁定，同日施工）
+
+用户实测：团队运行中「全部停止」只能打开侧栏 TeamPanel 才能点到 halt——运行态没有随手可及
+的停止入口。裁定：**状态面板 team 分区行直接提供一键停止**（照 Workflows 分区 WorkflowRunRow
+的 Stop 先例），语义仍是既有 haltTeam（中断全员 + 冻结调度；团队保留可带理由恢复，escalated
+同样可停，halted 不再显示）：
+
+- 按钮形态：行尾 SquareIcon 图标钮（destructive 语义色），与状态词/计数同行；
+- 二次确认：复用侧栏同款确认文案（team.panel.haltConfirm*，列明影响面）；
+- 发送：经 SessionPane 注入的 onHaltTeam → haltTeam v4 命令（单一通道 team/commands.ts）；
+- 失败出显：分区行内 role=alert（复用 team.panel.commandFailure.* 文案族），再次发起清除
+  （§19 契约 5 同款纪律）；
+- 侧栏入口与状态面板入口同一命令同一语义，不造第二条停止路径；手机远控不接 onHaltTeam 时
+  按钮不渲染（照 onOpenTeamPanel 的宿主缺席纪律）。
+- 测试：面板单测（active+注入 → 点击 → 确认 → 命令调用；拒绝 → 行内 alert；halted 不出钮）；
+  E2E 桌面场景并入 AT-01 转正批（人工项同批）。

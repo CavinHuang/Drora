@@ -2219,6 +2219,35 @@ describe("abandonStage 归档通知半边（specs/agents-team.md §19 契约 1�
   });
 });
 
+describe("approveStage 批准时刻权限覆写（specs/agents-team.md §10 增补三）", () => {
+  it("options.permissionMode 覆写 record 并随 spawn 下发；缺省维持建队捕获值", async () => {
+    // 缺省：维持捕获值 build，spawn 第二参仍为 build。
+    const spawnA = spawnOk();
+    const hubA = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnA,
+      leadPermissionMode: "build",
+    });
+    hubA.stageTeam("lead_s1", STAGE_INPUT);
+    const kept = await hubA.approveStage("lead_s1");
+    expect(kept.status).toBe("ok");
+    expect(hubA.snapshot()?.permissionMode).toBe("build");
+    expect(spawnA.mock.calls[0]?.[1]).toBe("build");
+    // 覆写：yolo 批准时刻定死并随 spawn 下发。
+    const spawnB = spawnOk();
+    const hubB = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnB,
+      leadPermissionMode: "build",
+    });
+    hubB.stageTeam("lead_s1", STAGE_INPUT);
+    const result = await hubB.approveStage("lead_s1", { permissionMode: "yolo" });
+    expect(result.status).toBe("ok");
+    expect(hubB.snapshot()?.permissionMode).toBe("yolo");
+    expect(spawnB.mock.calls[0]?.[1]).toBe("yolo");
+  });
+});
+
 describe("approveStage 竞态复查（specs/agents-team.md §19 契约 6）", () => {
   it("spawn 期间 status 被并发改写（直调 abandon）→ 整批拒绝 team_lead_only，record 不被翻 active", async () => {
     // 并发写者绕过命令通道直调 port（生产面不可达：v4 命令经 per-session FIFO 串行；

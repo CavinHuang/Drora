@@ -536,12 +536,24 @@ export class TeamHub {
     return { status: "ok" };
   }
 
-  /** Approve & Run：唯一创建成员的裁决入口；全败回滚草案（spec §1 两阶段成队）。 */
-  async approveStage(leadSessionId: string): Promise<TeamApproveResult> {
+  /**
+   * Approve & Run：唯一创建成员的裁决入口；全败回滚草案（spec §1 两阶段成队）。
+   * §10 增补三（2026-10-26）：options.permissionMode 在批准时刻覆写成员权限模式
+   * （缺省维持建队捕获值；非法值在 wire 网关被枚举 zod 先拒，此处只收已验值）。
+   */
+  async approveStage(
+    leadSessionId: string,
+    options?: { permissionMode?: TeamPermissionMode },
+  ): Promise<TeamApproveResult> {
     const record = this.requireLeadRecord(leadSessionId);
     if (typeof record === "string") return { status: "rejected", error: teamPortError(record) };
     if (record.status !== "staged") {
       return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    // §10 增补三：批准时刻定权限（spawn 前，随 spawn 下发；缺省不覆写。非法枚举在
+    // wire 网关被 zod 先拒，此处只收已验值）。
+    if (options?.permissionMode !== undefined) {
+      record.permissionMode = options.permissionMode;
     }
     const draft = record.members.filter((member) => !member.removed);
     const spawn = this.deps.spawnMembers;

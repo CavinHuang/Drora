@@ -1484,6 +1484,14 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.pendingRevise": "正在发送…",
   "team.stagedEditor.pendingAbandon": "正在归档…",
   "team.stagedEditor.confirm": "确认",
+  // §10 增补三：审批面板成员权限选择行（枚举词汇独立成族，不与 composer 模式键混用）。
+  "team.stagedEditor.memberModeLabel": "成员权限",
+  "team.stagedEditor.memberModeKeep": "维持建队时的值",
+  "team.permission.mode.build": "变更前确认",
+  "team.permission.mode.edit": "自动编辑",
+  "team.permission.mode.yolo": "完全访问",
+  "team.permission.mode.guarded": "自主模式",
+  "team.permission.mode.auto": "自动匹配",
   "team.stagedEditor.optionsAria": "审批动作",
   // 改名失败的 action 标签（失败行模板 {action}失败：{reason}）。
   "team.stagedEditor.rename": "改名",

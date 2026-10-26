@@ -6,6 +6,7 @@ import {
   type TeamStagedCommandFailure,
   type TeamStagedPendingAction,
 } from "./TeamStagedEditor.js";
+import type { TeamPermissionModeWire } from "@drora/shared/drora-protocol-v4";
 import type { TeamPanelStagedDraftView } from "./view-model.js";
 import { abandonTeamPlan, approveTeamPlan, reviseTeamPlan, setTeamMemberName } from "./commands.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -29,7 +30,7 @@ export interface TeamStagedActions {
   failure: TeamStagedCommandFailure | null;
   /** 在途动作（三动作按钮全禁用的依据；null = 无在途）。 */
   pending: TeamStagedPendingAction | null;
-  onApprove: () => void;
+  onApprove: (permissionMode?: TeamPermissionModeWire) => void;
   onRevise: (note?: string) => void;
   onAbandon: () => void;
   /**
@@ -58,11 +59,21 @@ export function useTeamStagedActions(
     },
     [],
   );
-  const onApprove = useCallback(() => {
-    setFailure(null);
-    setPending("approve");
-    settle("approve", approveTeamPlan({ sessionId, sendCommand }));
-  }, [sendCommand, sessionId, settle]);
+  const onApprove = useCallback(
+    (permissionMode?: TeamPermissionModeWire) => {
+      setFailure(null);
+      setPending("approve");
+      settle(
+        "approve",
+        approveTeamPlan({
+          sessionId,
+          sendCommand,
+          ...(permissionMode === undefined ? {} : { permissionMode }),
+        }),
+      );
+    },
+    [sendCommand, sessionId, settle],
+  );
   const onRevise = useCallback(
     (note?: string) => {
       setFailure(null);
@@ -105,11 +116,14 @@ export function useTeamStagedActions(
  */
 export function TeamStagedEditorConnected({
   draft,
+  permissionMode,
   sessionId,
   sendCommand,
   onPrefillComposer,
 }: {
   draft: TeamPanelStagedDraftView;
+  /** 建队捕获的权限模式——选择行默认值（§10 增补三）。 */
+  permissionMode?: TeamPermissionModeWire;
   sessionId: string;
   /** 与摘要卡/面板同源（TeamHistoryConnection["sendCommand"]），单一通道不变。 */
   sendCommand: TeamHistoryConnection["sendCommand"];
@@ -144,6 +158,7 @@ export function TeamStagedEditorConnected({
   return (
     <TeamStagedEditor
       draft={draft}
+      permissionMode={permissionMode}
       failure={staged.failure}
       pendingAction={staged.pending}
       onApprove={staged.onApprove}

@@ -165,7 +165,7 @@ const TeamSidePaneContent = memo(function TeamSidePaneContent({
       switch (command.type) {
         case "approveTeamPlan":
           setPanelFailure(null);
-          staged.onApprove();
+          staged.onApprove(command.payload.permissionMode);
           break;
         case "reviseTeamPlan": {
           setPanelFailure(null);

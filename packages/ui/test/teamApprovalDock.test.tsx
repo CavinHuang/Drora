@@ -145,6 +145,29 @@ describe("TeamApprovalDock", () => {
     expect(screen.queryByTestId("team-staged-command-error")).toBeNull();
   });
 
+  it("成员权限选择（§10 增补三）：选择 yolo 后批准信封携带 permissionMode=yolo", async () => {
+    const sendCommand = vi.fn().mockResolvedValue({
+      commandId: "c9",
+      status: "accepted",
+      revisionAtDecision: 1,
+    });
+    const team = stagedTeam();
+    (team as { permissionMode?: string }).permissionMode = "build";
+    render(
+      createElement(
+        DroraIntlProvider,
+        { initialLocale: "zh-CN" },
+        createElement(TeamApprovalDock, { team, sessionId: "lead_s1", sendCommand }),
+      ),
+    );
+    fireEvent.change(screen.getByTestId("team-staged-member-mode"), { target: { value: "yolo" } });
+    fireEvent.click(screen.getByTestId("team-staged-approve"));
+    await vi.waitFor(() => {
+      expect(sendCommand).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(sendCommand.mock.calls[0]?.[0])).toContain('"permissionMode":"yolo"');
+    });
+  });
+
   it("dock 成员行提供改名入口（§10 呈现规则一体适用；改名走 setTeamMemberName 单一通道）", async () => {
     const sendCommand = vi.fn().mockResolvedValue({
       commandId: "c1",

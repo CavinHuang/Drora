@@ -105,9 +105,18 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
   }
 }
 
-/** staged 草案「确认并启动」：唯一创建成员入口（design §6.2；载荷为空，草案全文在 hub）。 */
-export function approveTeamPlan(input: TeamCommandInput): Promise<TeamCommandOutcome> {
-  return sendTeamCommand(input, "approveTeamPlan", {});
+/**
+ * staged 草案「确认并启动」：唯一创建成员入口（design §6.2；草案全文在 hub）。
+ * §10 增补三：optional permissionMode 随批准覆写成员权限（审批面板选择行；缺省维持
+ * 建队捕获值）。
+ */
+export function approveTeamPlan(
+  input: TeamCommandInput & CommandPayloadMap["approveTeamPlan"],
+): Promise<TeamCommandOutcome> {
+  const { permissionMode } = input;
+  return sendTeamCommand(input, "approveTeamPlan", {
+    ...(permissionMode === undefined ? {} : { permissionMode }),
+  });
 }
 
 /** 「回对话修改」：草案标记等待反馈并取消规划回合；修改方向由用户在对话里说（spec §10）。 */

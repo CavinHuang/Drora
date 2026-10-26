@@ -93,7 +93,15 @@ async function approveTeamPlan(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const { hub, sessionId } = requireTeamHub(host, envelope);
-  assertMutationOk("approveTeamPlan", await hub.approveStage(sessionId));
+  // §10 增补三：载荷 optional permissionMode（wire 枚举已验）随批准覆写成员权限。
+  assertMutationOk(
+    "approveTeamPlan",
+    await hub.approveStage(sessionId, {
+      ...(envelope.payload?.permissionMode === undefined
+        ? {}
+        : { permissionMode: envelope.payload.permissionMode }),
+    }),
+  );
   return undefined;
 }
 

@@ -3044,3 +3044,26 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 - readOnly/手机远控不注入即不渲染（同一宿主缺席纪律）。
 - 测试：Play 展开输入提交调用 onResumeTeam(reason)、空理由禁用、拒绝→alert、
   active 不出恢复钮；E2E 并入 AT-01 转正批。
+
+### §10 增补三｜审批面板定成员权限（2026-10-26 用户裁定，同日施工）
+
+用户裁定：成员权限应「一开始就在团队审批面板中审批好」，对齐 workflow 确认面板的 ask
+settings 位置语义（运行前把子代理权限定好），而不是批准后运行中逐个权限上浮。
+
+- **现状**：permissionMode 由 install 在建队时从 lead 会话换算并捕获（hub stageTeam 落
+  record），审批面板不可见不可调；§8.1 原表述「成队时刻定死」。
+- **行为契约**：
+  - 审批面（dock/摘要卡/侧栏三发起面同款）在任务行之后、动作选项之前呈现「成员权限」
+    选择行：label + 五选一（build/edit/yolo/guarded/auto，枚举单一出处
+    teamPermissionModeSchema），默认值 = 建队时捕获值（wire permissionMode 既有投影）。
+  - 批准时刻定死：approveTeamPlan 载荷 additive 增 optional `permissionMode`（枚举同一
+    出处；词表声明：仅此一字段，零其余 wire 变更）；hub approveStage 增可选 options
+    参数，在竞态复查通过后、spawn 前覆写 record.permissionMode。§8.1 表述订正为
+    「批准时刻定死（缺省维持建队捕获值）」。
+  - 拒绝语义不变：非法枚举在 wire 网关侧被 zod 拒（载荷校验先于 handler）。
+  - 其余动作（revise/abandon）与草案内容不携带权限字段；权限选择是批准动作的随行
+    参数，不落 journal staged 事实（批准事实本身不记权限，运行态以 record 为准）。
+- **有意不做（登记）**：workflow ask settings 的逐工具 allow 粒度不随本卡（v1 到模式
+  级；逐工具面归后续卡，前置=权限作用域四选项裁决 §15「明确不做」的再评估）。
+- **测试**：wire 载荷解析（带/不带 mode）；hub 覆写与缺省维持；commands 信封携带；
+  编辑器默认值与选择后批准信封；E2E 并入 AT-01 转正批。

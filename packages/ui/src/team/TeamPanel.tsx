@@ -254,9 +254,15 @@ function TeamPanelContent({
         visibility.stagedEditor ? (
         <TeamStagedEditor
           draft={model.stagedDraft}
+          permissionMode={model.permissionMode}
           failure={stagedFailure}
           pendingAction={stagedPending}
-          onApprove={() => onCommand({ type: "approveTeamPlan", payload: {} })}
+          onApprove={(permissionMode) =>
+            onCommand({
+              type: "approveTeamPlan",
+              payload: permissionMode === undefined ? {} : { permissionMode },
+            })
+          }
           onRevise={(note) =>
             onCommand({
               type: "reviseTeamPlan",

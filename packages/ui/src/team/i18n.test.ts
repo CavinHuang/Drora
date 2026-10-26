@@ -222,6 +222,11 @@ function dynamicallyConsumedTeamKeys(): Set<string> {
   for (const layer of ["dependencies", "messages", "handoffs"]) {
     consumed.add(`team.ui.${layer}`);
   }
+  // 成员权限模式标签（§10 增补三：TeamStagedEditor 的 `team.permission.mode.${mode}`，
+  // mode 全集 = teamPermissionModeSchema.options）。
+  for (const mode of ["build", "edit", "yolo", "guarded", "auto"]) {
+    consumed.add(`team.permission.mode.${mode}`);
+  }
   // 门占位文案（TeamMemberSidePane 的 `${view.id}.title/.body`，基名是源码字面量）。
   for (const base of TITLE_BODY_KEY_BASES) {
     consumed.add(`${base}.title`);

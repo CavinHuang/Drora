@@ -289,7 +289,11 @@ export type TeamProjectionState = z.infer<typeof teamProjectionStateSchema>;
  */
 export const TEAM_COMMAND_PAYLOAD_SCHEMAS = {
   /** staged 草案的「确认并启动」：唯一创建成员入口；草案全文是 hub 的服务端事实，载荷为空。 */
-  approveTeamPlan: z.object({}),
+  // §10 增补三（2026-10-26）：批准时刻定成员权限——additive optional，枚举单一出处
+  // teamPermissionModeSchema；缺省=维持建队捕获值（hub 侧不覆写）。
+  approveTeamPlan: z.object({
+    permissionMode: teamPermissionModeSchema.optional(),
+  }),
   /** 「回对话修改」：草案标记为等待反馈并取消规划回合；修改方向由用户在对话里说（spec §10）。 */
   reviseTeamPlan: z.object({
     note: z.string().min(1).max(TEAM_LIMITS.maxTextChars).optional(),

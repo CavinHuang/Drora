@@ -1,5 +1,9 @@
 import { useState, type KeyboardEvent } from "react";
 import { InfoIcon, PencilIcon } from "lucide-react";
+import {
+  teamPermissionModeSchema,
+  type TeamPermissionModeWire,
+} from "@drora/shared/drora-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -129,10 +133,18 @@ export function teamCommandOutcomeToStagedFailure(
   return { action, ...(reasonCode === undefined ? {} : { reasonCode }) };
 }
 
+/** 成员权限模式全集（§10 增补三；枚举单一出处 teamPermissionModeSchema）。 */
+const TEAM_PERMISSION_MODES = teamPermissionModeSchema.options;
+
 export interface TeamStagedEditorProps {
   draft: TeamPanelStagedDraftView;
-  /** 「确认并启动」上抛；宿主发 approveTeamPlan。 */
-  onApprove: () => void;
+  /** 建队捕获的权限模式（wire 投影既有值）——选择行默认值。 */
+  permissionMode?: TeamPermissionModeWire;
+  /**
+   * 「确认并启动」上抛；宿主发 approveTeamPlan。§10 增补三：参数为面板选定的成员
+   * 权限模式（undefined = 维持建队捕获值，宿主不携带字段）。
+   */
+  onApprove: (permissionMode?: TeamPermissionModeWire) => void;
   /** 「回对话修改」上抛；note 为面板内可选输入（trim 后为空则不携带）。 */
   onRevise: (note?: string) => void;
   /** 「放弃」上抛（本组件已完成二次确认）；宿主发 abandonTeamPlan。 */
@@ -182,6 +194,7 @@ const PENDING_LABEL_KEYS: Record<Exclude<TeamStagedPendingAction, null>, string>
 
 export function TeamStagedEditor({
   draft,
+  permissionMode,
   onApprove,
   onRevise,
   onAbandon,
@@ -196,6 +209,10 @@ export function TeamStagedEditor({
   // §18 附裁（2026-10-26）：选项默认选中 1（确认并启动）——既有 E2E「单击 approve 即
   // 发信封」的语义依赖此默认值（单击已选中项=执行，照 PermissionDialog）。
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // §10 增补三：成员权限选择（默认=建队捕获值；null=维持现值不携带）。
+  const [memberMode, setMemberMode] = useState<TeamPermissionModeWire | null>(
+    permissionMode ?? null,
+  );
   const busy = pendingAction !== null;
 
   // 执行语义（照 PermissionDialog respondWithOption）：放弃过二次确认门；修订携带 trim
@@ -203,7 +220,7 @@ export function TeamStagedEditor({
   const execute = (action: "approve" | "revise" | "abandon") => {
     if (busy) return;
     if (action === "approve") {
-      onApprove();
+      onApprove(memberMode ?? undefined);
       return;
     }
     if (action === "revise") {
@@ -311,6 +328,40 @@ export function TeamStagedEditor({
         {...(onRenameMember === undefined ? {} : { onRenameMember })}
       />
       <DraftTaskRows tasks={draft.tasks} />
+
+      {/*
+       * 成员权限选择行（§10 增补三，2026-10-26：对齐 workflow 确认面板 ask settings 的
+       * 位置语义——批准前把成员权限定好）。默认=建队捕获值；批准信封随行选定值。
+       */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="team-staged-member-mode" className="text-ui-caption text-foreground-subtle">
+          {intl.formatMessage({ id: "team.stagedEditor.memberModeLabel" })}
+        </label>
+        <select
+          id="team-staged-member-mode"
+          value={memberMode ?? ""}
+          disabled={busy}
+          onChange={(event) => {
+            const next = event.target.value;
+            setMemberMode(
+              next === "" ? null : (teamPermissionModeSchema.parse(next) as TeamPermissionModeWire),
+            );
+          }}
+          data-testid="team-staged-member-mode"
+          className="h-8 min-w-0 rounded-lg border border-border bg-surface px-2 text-ui-sm text-foreground focus-visible:border-ring focus-visible:outline-none pointer-coarse:min-h-11"
+        >
+          {permissionMode === undefined ? (
+            <option value="">
+              {intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })}
+            </option>
+          ) : null}
+          {TEAM_PERMISSION_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/*
        * 三动作失败出显（spec §10 呈现规则4）：role=alert 内联提示，文案 = 动作标签

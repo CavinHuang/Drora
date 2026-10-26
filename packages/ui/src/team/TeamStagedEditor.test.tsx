@@ -311,6 +311,23 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     expect(confirm.className).toContain("pointer-coarse:min-h-11");
   });
 
+  it("成员权限选择行（§10 增补三）：默认=建队捕获值，选择后批准上抛选定模式", () => {
+    const onApprove = vi.fn();
+    renderEditor({ onApprove, permissionMode: "build" });
+    const select = screen.getByTestId("team-staged-member-mode") as HTMLSelectElement;
+    expect(select.value).toBe("build");
+    fireEvent.change(select, { target: { value: "yolo" } });
+    fireEvent.click(screen.getByTestId("team-staged-approve"));
+    expect(onApprove).toHaveBeenCalledWith("yolo");
+  });
+
+  it("成员权限选择行：未给建队值且未选择 → 批准不携带（维持 hub 捕获值）", () => {
+    const onApprove = vi.fn();
+    renderEditor({ onApprove });
+    fireEvent.click(screen.getByTestId("team-staged-approve"));
+    expect(onApprove).toHaveBeenCalledWith(undefined);
+  });
+
   it("选项交互（§18 附裁，照 PermissionDialog）：单击已选中项=执行，单击未选中项=仅选中", () => {
     const onApprove = vi.fn();
     const onRevise = vi.fn();

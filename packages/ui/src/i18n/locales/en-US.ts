@@ -1621,6 +1621,14 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.pendingRevise": "Sending…",
   "team.stagedEditor.pendingAbandon": "Archiving…",
   "team.stagedEditor.confirm": "Confirm",
+  // §10 增补三: member permission selector row in the approval panel.
+  "team.stagedEditor.memberModeLabel": "Member permissions",
+  "team.stagedEditor.memberModeKeep": "Keep value set at staging",
+  "team.permission.mode.build": "Ask before changes",
+  "team.permission.mode.edit": "Edit automatically",
+  "team.permission.mode.yolo": "Full access",
+  "team.permission.mode.guarded": "Autonomous",
+  "team.permission.mode.auto": "Auto",
   "team.stagedEditor.optionsAria": "Approval actions",
   // Action label for rename failures (line template "{action} failed: {reason}").
   "team.stagedEditor.rename": "Rename",

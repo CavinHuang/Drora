@@ -63,6 +63,7 @@ export function TeamApprovalDock({
           </div>
           <TeamStagedEditorConnected
             draft={model.stagedDraft}
+            permissionMode={model.permissionMode}
             sessionId={sessionId}
             sendCommand={sendCommand}
             {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}

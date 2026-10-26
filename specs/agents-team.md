@@ -2990,3 +2990,22 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 2. **fork 世代链（B16 的后续卡）**：§16.3 完整实现（lead fork 沿世代链解析/
    深度上界 32/环防护/报告投递在世 fork 后代）是否立项——v1 现状为 fork 会话
    看不到 team（B16 登记），有真实 fork+team 复合场景需求时再评估。
+
+### §18 附裁｜审批面内部结构完全对齐 PermissionDialog（2026-10-26 用户裁定，同日施工）
+
+用户实测反馈：dock 只对齐了外层容器（rounded-2xl popover），内部仍是普通编辑器形态（朴素三按钮），
+未对齐 workflow 权限审批面板的样式、结构与交互。裁定：**内部结构按 PermissionDialog 同构重写**：
+
+- 内容块：问句表头（h2 问句 + 计数行）+ 草案成员/任务行（既有）——对应 WorkflowPermissionBlock 位。
+- 编号选项 listbox（role=listbox/option）：1 确认并启动 / 2 回对话修改 / 3 放弃；选中行 bg-selected，
+  悬停 bg-hover，rounded-xl px-3 py-2 行样式与 PermissionDialog 选项逐字同款。
+- 反馈行：修订说明输入随选项 2 呈现（照 PermissionDialog feedback 行形态：行内无边框输入、聚焦即
+  选中选项 2、Enter 提交该选项）。
+- 底栏：左键盘提示（复用 chat.permission.keyboardHint）+ 右大号确认钮（size=lg，testid
+  team-staged-confirm；在途时禁用并显示在途文案）。
+- 键盘与点击语义（照 PermissionDialog）：数字键 1/2/3 = 选中并执行；↑/↓ 移动选中；Enter = 执行
+  选中项；**单击已选中的选项 = 执行**（默认选中=1 确认并启动——既有 E2E 的单击 approve 发信封
+  语义因此保持兼容）；放弃执行仍先过二次确认门。
+- dock 卡内部收为单一 flex flex-col gap-3 p-3（眉题行 + 编辑器），眉题右侧补来源徽章位（对齐
+  InteractionRequestOriginBadge 位）；stagedDock.hint 文案键随底栏键盘提示替代而移除。
+- 借形不借管线裁定不变：审批仍走 team/commands.ts 单一通道，不入权限请求管线。

@@ -245,6 +245,8 @@ describe("失败提示的清除时机（spec §10 呈现规则4：下次任一�
     );
     expect(screen.getByTestId("team-staged-command-error")).toBeTruthy();
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    // §18 附裁：单击未选中项=选中，再点确认钮（或再点同一项）才执行。
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     expect(onRevise).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("team-staged-command-error")).toBeNull();
   });
@@ -269,7 +271,9 @@ describe("在途态（specs/agents-team.md §19 契约 6：发起即在途，对
     expect(approve.disabled).toBe(true);
     expect(revise.disabled).toBe(true);
     expect(abandon.disabled).toBe(true);
-    expect(approve.textContent).toContain(zhCN["team.stagedEditor.pendingApprove"] ?? "");
+    const confirm = screen.getByTestId("team-staged-confirm") as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    expect(confirm.textContent).toContain(zhCN["team.stagedEditor.pendingApprove"] ?? "");
     const note = screen.getByTestId("team-staged-revise-note") as HTMLInputElement;
     expect(note.disabled).toBe(true);
   });
@@ -294,15 +298,32 @@ describe("在途态（specs/agents-team.md §19 契约 6：发起即在途，对
 });
 
 describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
-  it("三动作按钮与备注输入带 pointer-coarse 44px 类", () => {
+  it("选项行/反馈输入/确认钮带 pointer-coarse 44px 类（§18 附裁后全宽行形态）", () => {
     renderEditor();
+    // 选项是全宽行（rounded-xl px-3 py-2），min-h 即达标；确认钮与反馈输入同纪律。
     for (const testId of ["team-staged-approve", "team-staged-revise", "team-staged-abandon"]) {
       const control = screen.getByTestId(testId);
       expect(control.className, testId).toContain("pointer-coarse:min-h-11");
-      expect(control.className, testId).toContain("pointer-coarse:min-w-11");
     }
     const note = screen.getByTestId("team-staged-revise-note");
     expect(note.className).toContain("pointer-coarse:min-h-11");
+    const confirm = screen.getByTestId("team-staged-confirm");
+    expect(confirm.className).toContain("pointer-coarse:min-h-11");
+  });
+
+  it("选项交互（§18 附裁，照 PermissionDialog）：单击已选中项=执行，单击未选中项=仅选中", () => {
+    const onApprove = vi.fn();
+    const onRevise = vi.fn();
+    renderEditor({ onApprove, onRevise });
+    // 默认选中 1：单击 approve 立即执行（E2E 兼容语义）。
+    fireEvent.click(screen.getByTestId("team-staged-approve"));
+    expect(onApprove).toHaveBeenCalledTimes(1);
+    // 单击 revise（未选中）只选中，不执行。
+    fireEvent.click(screen.getByTestId("team-staged-revise"));
+    expect(onRevise).not.toHaveBeenCalled();
+    // 确认钮执行当前选中项。
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
+    expect(onRevise).toHaveBeenCalledTimes(1);
   });
 
   it("改名铅笔带 pointer-coarse 44px 类（输入/确认/取消在编辑态同样）", () => {

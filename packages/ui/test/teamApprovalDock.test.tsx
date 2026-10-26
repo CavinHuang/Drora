@@ -126,19 +126,22 @@ describe("TeamApprovalDock", () => {
     const approve = () => screen.getByTestId("team-staged-approve") as HTMLButtonElement;
     fireEvent.click(approve());
     expect(sendCommand).toHaveBeenCalledTimes(1);
-    // 在途：三动作全禁用 + 在途按钮出等待文案。
+    // 在途（§18 附裁后）：选项行全禁用 + 确认钮禁用并出等待文案。
     await vi.waitFor(() => {
       expect(approve().disabled).toBe(true);
     });
     expect((screen.getByTestId("team-staged-revise") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId("team-staged-abandon") as HTMLButtonElement).disabled).toBe(true);
-    expect(approve().textContent).toContain("正在启动成员");
+    const confirm = () => screen.getByTestId("team-staged-confirm") as HTMLButtonElement;
+    expect(confirm().disabled).toBe(true);
+    expect(confirm().textContent).toContain("正在启动成员");
     // 结算（accepted）：在途清空，按钮恢复。
     resolveAck({ commandId: "c1", status: "accepted", revisionAtDecision: 1 });
     await vi.waitFor(() => {
       expect(approve().disabled).toBe(false);
     });
-    expect(approve().textContent).toContain("确认并启动");
+    expect(confirm().disabled).toBe(false);
+    expect(confirm().textContent).toContain("确认");
     expect(screen.queryByTestId("team-staged-command-error")).toBeNull();
   });
 

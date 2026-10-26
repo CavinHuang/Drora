@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { PencilIcon } from "lucide-react";
+import { useState, type KeyboardEvent } from "react";
+import { InfoIcon, PencilIcon } from "lucide-react";
+import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
@@ -163,6 +164,22 @@ export interface TeamStagedEditorProps {
   noteInputSuppressed?: boolean;
 }
 
+/**
+ * 三动作选项（§18 附裁，2026-10-26：内部结构对齐 PermissionDialog）。顺序即编号：
+ * 1 确认并启动 / 2 回对话修改 / 3 放弃。
+ */
+const TEAM_STAGED_OPTIONS = [
+  { action: "approve", labelKey: "team.stagedEditor.approve", testId: "team-staged-approve" },
+  { action: "revise", labelKey: "team.stagedEditor.revise", testId: "team-staged-revise" },
+  { action: "abandon", labelKey: "team.stagedEditor.abandon", testId: "team-staged-abandon" },
+] as const;
+
+const PENDING_LABEL_KEYS: Record<Exclude<TeamStagedPendingAction, null>, string> = {
+  approve: "team.stagedEditor.pendingApprove",
+  revise: "team.stagedEditor.pendingRevise",
+  abandon: "team.stagedEditor.pendingAbandon",
+};
+
 export function TeamStagedEditor({
   draft,
   onApprove,
@@ -176,26 +193,93 @@ export function TeamStagedEditor({
   const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
   const [note, setNote] = useState("");
+  // §18 附裁（2026-10-26）：选项默认选中 1（确认并启动）——既有 E2E「单击 approve 即
+  // 发信封」的语义依赖此默认值（单击已选中项=执行，照 PermissionDialog）。
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const busy = pendingAction !== null;
 
-  const handleRevise = () => {
-    const trimmed = note.trim();
-    onRevise(trimmed === "" ? undefined : trimmed);
+  // 执行语义（照 PermissionDialog respondWithOption）：放弃过二次确认门；修订携带 trim
+  // 后说明（空则不带）；在途全禁用（responding 同构，spec §19 契约 6）。
+  const execute = (action: "approve" | "revise" | "abandon") => {
+    if (busy) return;
+    if (action === "approve") {
+      onApprove();
+      return;
+    }
+    if (action === "revise") {
+      const trimmed = note.trim();
+      onRevise(trimmed === "" ? undefined : trimmed);
+      return;
+    }
+    void (async () => {
+      const confirmed = await requestConfirmation({
+        title: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmTitle" }),
+        description: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmBody" }),
+        confirmLabel: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmLabel" }),
+        confirmVariant: "destructive",
+      });
+      if (confirmed) onAbandon();
+    })();
   };
 
-  const handleAbandon = async () => {
-    const confirmed = await requestConfirmation({
-      title: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmTitle" }),
-      description: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmBody" }),
-      confirmLabel: intl.formatMessage({ id: "team.stagedEditor.abandonConfirmLabel" }),
-      confirmVariant: "destructive",
-    });
-    if (confirmed) onAbandon();
+  const confirmSelection = () => {
+    const option = TEAM_STAGED_OPTIONS[selectedIndex];
+    if (option !== undefined) execute(option.action);
+  };
+
+  const moveSelection = (delta: number) => {
+    setSelectedIndex(
+      (current) => (current + delta + TEAM_STAGED_OPTIONS.length) % TEAM_STAGED_OPTIONS.length,
+    );
+  };
+
+  // 选项行键盘（照 PermissionDialog handleOptionKeyDown）：数字键=选中并执行；方向键=
+  // 移动；Enter=已选中则执行、否则先选中。
+  const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (busy) return;
+    const digit = ["1", "2", "3"].indexOf(event.key);
+    if (digit !== -1) {
+      const shortcut = TEAM_STAGED_OPTIONS[digit];
+      if (shortcut === undefined) return;
+      event.preventDefault();
+      setSelectedIndex(digit);
+      execute(shortcut.action);
+      return;
+    }
+    switch (event.key) {
+      case "ArrowUp":
+      case "ArrowLeft":
+        event.preventDefault();
+        moveSelection(-1);
+        return;
+      case "ArrowDown":
+      case "ArrowRight":
+        event.preventDefault();
+        moveSelection(1);
+        return;
+      case "Enter":
+        event.preventDefault();
+        if (index === selectedIndex) execute(TEAM_STAGED_OPTIONS[index]!.action);
+        else setSelectedIndex(index);
+        return;
+      default:
+        return;
+    }
+  };
+
+  // 反馈行 Enter（非输入法组合态）= 执行选项 2（照 PermissionDialog feedback 行）。
+  const handleNoteKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && !busy) {
+      event.preventDefault();
+      setSelectedIndex(1);
+      execute("revise");
+    }
   };
 
   return (
     <section
       aria-label={intl.formatMessage({ id: "team.stagedEditor.title" })}
-      className="flex flex-col gap-2 rounded-lg border border-border-subtle p-2"
+      className="flex min-w-0 flex-col gap-3"
       data-testid="team-staged-editor"
     >
       {/*
@@ -228,38 +312,6 @@ export function TeamStagedEditor({
       />
       <DraftTaskRows tasks={draft.tasks} />
 
-      {noteInputSuppressed ? (
-        // note 静默丢弃禁止（spec §15 第4条 2026-10-23 扩圈）：无法预填的面不出输入
-        // （输入即丢），出提示引导修改方向走对话；revise 仍可发起（无 note = 草案重
-        // stage + lead 对话追问，v1 语义不变）。
-        <p
-          className="text-ui-caption text-foreground-subtle"
-          data-testid="team-staged-note-suppressed"
-        >
-          {intl.formatMessage({ id: "team.stagedEditor.noteSuppressedHint" })}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="team-staged-revise-note"
-            className="text-ui-caption text-foreground-subtle"
-          >
-            {intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
-          </label>
-          {/* pointer-coarse ≥44px：备注输入也是编辑器内可交互控件（spec §10 呈现规则5）；
-              在途禁用（spec §19 契约 6——revise 在途后备注已无意义）。 */}
-          <Input
-            id="team-staged-revise-note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            disabled={pendingAction !== null}
-            placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
-            className="text-ui-sm pointer-coarse:min-h-11"
-            data-testid="team-staged-revise-note"
-          />
-        </div>
-      )}
-
       {/*
        * 三动作失败出显（spec §10 呈现规则4）：role=alert 内联提示，文案 = 动作标签
        * （复用按钮文案键）+ 按 ack.reasonCode 映射的原因（未知走兜底，见
@@ -281,53 +333,133 @@ export function TeamStagedEditor({
         </p>
       )}
 
-      {/* pointer-coarse ≥44px：三动作按钮（DESIGN.md:661-662；写法照 TeamConversationSummary.tsx:73）。
-          在途全禁用 + 在途按钮出等待文案（spec §19 契约 6，对齐 workflow responding）。 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          onClick={onApprove}
-          disabled={pendingAction !== null}
-          className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-          data-testid="team-staged-approve"
+      {/*
+       * 编号选项 listbox（§18 附裁，2026-10-26：内部结构对齐 PermissionDialog）：行样式与
+       * 键盘/点击语义照 PermissionDialog 选项同款——数字键=选中并执行、方向键=移动、
+       * 单击已选中项=执行（默认选中 1，E2E 单击 approve 发信封的语义由此保持）。在途全
+       * 禁用（spec §19 契约 6）。pointer-coarse ≥44px 行高同纪律。
+       */}
+      <div className="shrink-0 space-y-1">
+        <div
+          role="listbox"
+          aria-label={intl.formatMessage({ id: "team.stagedEditor.optionsAria" })}
+          className="space-y-1"
         >
-          {intl.formatMessage({
-            id:
-              pendingAction === "approve"
-                ? "team.stagedEditor.pendingApprove"
-                : "team.stagedEditor.approve",
+          {TEAM_STAGED_OPTIONS.map((option, index) => {
+            const selected = index === selectedIndex;
+            return (
+              <button
+                key={option.action}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                aria-label={intl.formatMessage({ id: option.labelKey })}
+                tabIndex={selected ? 0 : -1}
+                disabled={busy}
+                onClick={() => {
+                  if (busy) return;
+                  if (selected) execute(option.action);
+                  else setSelectedIndex(index);
+                }}
+                onKeyDown={(event) => handleOptionKeyDown(event, index)}
+                data-testid={option.testId}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-selected pointer-coarse:min-h-11",
+                  selected ? "bg-selected" : "hover:bg-hover",
+                  busy && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "w-5 shrink-0 self-center text-ui-base font-medium",
+                    selected ? "text-foreground" : "text-foreground-subtlest",
+                  )}
+                >
+                  {index + 1}.
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 text-ui-base font-medium",
+                    option.action === "abandon" ? "text-destructive" : "text-foreground",
+                  )}
+                >
+                  {intl.formatMessage({ id: option.labelKey })}
+                </span>
+              </button>
+            );
           })}
-        </Button>
+          {noteInputSuppressed ? null : (
+            // 反馈行（照 PermissionDialog feedback 形态）：修订说明随选项 2，聚焦即选中
+            // 2、Enter 提交该选项；无边框行内输入。
+            <div
+              onClick={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (!busy) setSelectedIndex(1);
+              }}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2 transition-colors",
+                selectedIndex === 1 && !busy ? "bg-selected" : "hover:bg-hover",
+              )}
+            >
+              <span
+                className={cn(
+                  "w-5 shrink-0 self-center text-center text-ui-base font-medium",
+                  selectedIndex === 1 && !busy ? "text-foreground" : "text-foreground-subtlest",
+                )}
+                aria-hidden
+              >
+                ✎
+              </span>
+              <Input
+                aria-label={intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                onFocus={() => {
+                  if (!busy) setSelectedIndex(1);
+                }}
+                onKeyDown={handleNoteKeyDown}
+                disabled={busy}
+                placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
+                className="h-auto min-w-0 flex-1 border-transparent bg-transparent px-0 py-0 text-ui-base shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0 pointer-coarse:min-h-11"
+                data-testid="team-staged-revise-note"
+              />
+            </div>
+          )}
+        </div>
+        {noteInputSuppressed ? (
+          // note 静默丢弃禁止（spec §15 第4条）：无法预填的面不出输入（输入即丢），
+          // 引导修改方向走对话（§18 附裁后此形态仅侧栏挂载面出现）。
+          <p
+            className="px-3 text-ui-caption text-foreground-subtle"
+            data-testid="team-staged-note-suppressed"
+          >
+            {intl.formatMessage({ id: "team.stagedEditor.noteSuppressedHint" })}
+          </p>
+        ) : null}
+      </div>
+
+      {/*
+       * 底栏（§18 附裁：对齐 PermissionDialog 底栏）：左键盘提示（复用权限面板键位文案键）、
+       * 右大号确认钮——执行当前选中项；在途禁用 + 在途文案（§19 契约 6）。
+       */}
+      <div className="flex shrink-0 items-center justify-between gap-2 px-1">
+        <p className="flex items-center gap-2 text-ui-base text-foreground-subtle">
+          <InfoIcon className="size-4 shrink-0 text-foreground" />
+          {intl.formatMessage({ id: "chat.permission.keyboardHint" })}
+        </p>
         <Button
           type="button"
-          variant="outline"
-          onClick={handleRevise}
-          disabled={pendingAction !== null}
-          className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-          data-testid="team-staged-revise"
+          size="lg"
+          onClick={confirmSelection}
+          disabled={busy}
+          className="pointer-coarse:min-h-11"
+          data-testid="team-staged-confirm"
         >
           {intl.formatMessage({
             id:
-              pendingAction === "revise"
-                ? "team.stagedEditor.pendingRevise"
-                : "team.stagedEditor.revise",
-          })}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-destructive hover:text-destructive pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-          onClick={() => {
-            void handleAbandon();
-          }}
-          disabled={pendingAction !== null}
-          data-testid="team-staged-abandon"
-        >
-          {intl.formatMessage({
-            id:
-              pendingAction === "abandon"
-                ? "team.stagedEditor.pendingAbandon"
-                : "team.stagedEditor.abandon",
+              pendingAction === null
+                ? "team.stagedEditor.confirm"
+                : PENDING_LABEL_KEYS[pendingAction],
           })}
         </Button>
       </div>

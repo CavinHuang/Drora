@@ -90,6 +90,7 @@ describe("TeamConversationSummary staged 审批内联", () => {
       target: { value: "改成只做前端" },
     });
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(harness.envelopes.length).toBe(1));
     expect(harness.envelopes[0]?.type).toBe("reviseTeamPlan");
     // note 随信封上 wire（hub v1 不消费，预填面已随行、无静默丢弃）。

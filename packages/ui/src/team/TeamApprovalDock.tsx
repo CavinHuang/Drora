@@ -1,4 +1,3 @@
-import { MonitorDownIcon } from "lucide-react";
 import type { TeamProjectionState } from "@drora/shared/drora-protocol-v4";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamHistoryConnection } from "@/hooks/useTeamHistory.js";
@@ -52,13 +51,14 @@ export function TeamApprovalDock({
     >
       <div className="w-full rounded-2xl border border-border bg-popover shadow-xs">
         <div className="flex flex-col gap-3 p-3">
+          {/* 眉题行照 PermissionDialog 眉题（:850-855）：标题 + 来源徽章位
+              （InteractionRequestOriginBadge 的 team 对应物——域徽签）。 */}
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-ui-base font-medium leading-tight text-foreground-subtle">
               {intl.formatMessage({ id: "team.stagedDock.title" })}
             </p>
-            <span className="flex items-center gap-1 text-ui-caption text-foreground-subtlest">
-              <MonitorDownIcon className="size-3.5" />
-              {intl.formatMessage({ id: "team.stagedDock.hint" })}
+            <span className="rounded-sm bg-surface px-1.5 py-0.5 text-ui-caption text-foreground-subtle">
+              {intl.formatMessage({ id: "team.ui.title" })}
             </span>
           </div>
           <TeamStagedEditorConnected

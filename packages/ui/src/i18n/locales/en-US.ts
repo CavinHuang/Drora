@@ -1620,10 +1620,11 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.pendingApprove": "Starting members…",
   "team.stagedEditor.pendingRevise": "Sending…",
   "team.stagedEditor.pendingAbandon": "Archiving…",
+  "team.stagedEditor.confirm": "Confirm",
+  "team.stagedEditor.optionsAria": "Approval actions",
   // Action label for rename failures (line template "{action} failed: {reason}").
   "team.stagedEditor.rename": "Rename",
   "team.stagedDock.title": "Team plan pending approval",
-  "team.stagedDock.hint": "The approval panel is docked above the composer",
   "team.stagedEditor.abandon": "Abandon",
   // Inline failure for the three staged actions (spec §10 presentation rule 4): "line" is the
   // shell (action label + reason); the reason maps from ack.reasonCode via

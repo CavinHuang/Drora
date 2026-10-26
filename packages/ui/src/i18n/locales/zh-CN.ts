@@ -1483,10 +1483,11 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.pendingApprove": "正在启动成员…",
   "team.stagedEditor.pendingRevise": "正在发送…",
   "team.stagedEditor.pendingAbandon": "正在归档…",
+  "team.stagedEditor.confirm": "确认",
+  "team.stagedEditor.optionsAria": "审批动作",
   // 改名失败的 action 标签（失败行模板 {action}失败：{reason}）。
   "team.stagedEditor.rename": "改名",
   "team.stagedDock.title": "团队计划待确认",
-  "team.stagedDock.hint": "审批面板已钉在输入框上方",
   "team.stagedEditor.abandon": "放弃",
   // 三动作失败出显（spec §10 呈现规则4）：line 为壳（动作标签 + 原因），原因按
   // ack.reasonCode 在 TeamStagedEditor 的 TEAM_STAGED_FAILURE_REASON_I18N_KEYS 映射；

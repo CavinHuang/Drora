@@ -142,6 +142,7 @@ describe("会话流卡挂载点（TeamConversationSummary staged 分支）", () 
     // 下次任一动作发起时清除：第二击用 revise（abandon 有二次确认门，确认宿主不在
     // 测试树内；「任一动作都清除」已由 approve→revise 异动作组合覆盖）。
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(screen.queryByTestId("team-staged-command-error")).toBeNull());
   });
 
@@ -166,6 +167,7 @@ describe("会话流卡挂载点（TeamConversationSummary staged 分支）", () 
       target: { value: "把任务拆细一点" },
     });
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await screen.findByTestId("team-staged-command-error");
     expect(envelopes[0]?.type).toBe("reviseTeamPlan");
     expect(envelopes[0]?.payload).toEqual({ note: "把任务拆细一点" });
@@ -221,6 +223,7 @@ describe("侧栏挂载点（TeamSidePane → TeamPanel）", () => {
       );
 
       fireEvent.click(screen.getByTestId("team-staged-revise"));
+      fireEvent.click(screen.getByTestId("team-staged-confirm"));
       await waitFor(() => expect(screen.queryByTestId("team-staged-command-error")).toBeNull(), {
         timeout: 5000,
       });
@@ -245,6 +248,7 @@ describe("abandon 成功收敛（specs/agents-team.md §19 契约 1 UI 端）", 
 
     // 确认宿主已 mock 为自动确认 → abandon 信封照走单一通道。
     fireEvent.click(screen.getByTestId("team-staged-abandon"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(envelopes).toHaveLength(1));
     expect(envelopes[0]?.type).toBe("abandonTeamPlan");
     expect(envelopes[0]?.sessionId).toBe("lead_1");
@@ -291,6 +295,7 @@ describe("abandon 成功收敛（specs/agents-team.md §19 契约 1 UI 端）", 
       await screen.findByTestId("team-staged-editor", undefined, { timeout: 5000 });
 
       fireEvent.click(screen.getByTestId("team-staged-abandon"));
+      fireEvent.click(screen.getByTestId("team-staged-confirm"));
       // ACK accepted → delta 把投影翻 archived：mock 投影翻键后审批面不再渲染。
       mocks.team.current = ARCHIVED_TEAM;
       rerender(renderPane());
@@ -615,6 +620,7 @@ describe("三发起面预填通道（spec §15 第4条）：预填接线面", ()
       target: { value: "砍掉 bob" },
     });
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(envelopes).toHaveLength(1));
     // 命令单一通道不变（信封携带 note，hub v1 边界内照常上 wire）。
     expect(envelopes[0]?.type).toBe("reviseTeamPlan");
@@ -644,6 +650,7 @@ describe("三发起面预填通道（spec §15 第4条）：预填接线面", ()
       target: { value: "把 alice 的路由换成 deepseek" },
     });
     fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(envelopes).toHaveLength(1));
     expect(envelopes[0]?.type).toBe("reviseTeamPlan");
     expect(envelopes[0]?.payload).toEqual({ note: "把 alice 的路由换成 deepseek" });

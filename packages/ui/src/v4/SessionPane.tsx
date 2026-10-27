@@ -68,7 +68,7 @@ import {
   type TeamCommandOutcome,
 } from "@/team/index.js";
 // 状态面板 team 分区的打开路径（§19 契约 6）：与摘要卡「打开面板」同一 TeamNavigation。
-import { useTeamNavigation } from "@/team/TeamNavigation.js";
+import { useTeamNavigation, type TeamOpenTarget } from "@/team/TeamNavigation.js";
 import {
   getConversationShareErrorDetails,
   resolveConversationShareFallbackIssueCode,
@@ -566,6 +566,29 @@ export function resolveQueuedComposerRestore(
 
 export function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boolean {
   return status === "accepted" || status === "duplicate";
+}
+
+/**
+ * 状态面板 team 行打开 team 面板的导航 target（§19 契约 6）。
+ *
+ * 修复原因（M16）：此前只传 workspacePath + parentSessionId——identity≠path 的远程/
+ * 虚拟工作区会与消息流卡入口（TeamConversationSummary 的 target 四元组）铸出两个
+ * 不同结构化 id 的 team tab，remoteSessionId 解析 miss。现与卡片 target 同一形态，
+ * 身份字段（workspaceIdentity/remoteSessionId）在场即随行（条件展开语义，
+ * exactOptionalPropertyTypes 下缺席不下发键）。
+ */
+export function resolveTeamStatusPanelOpenTarget(input: {
+  workspacePath: string;
+  workspaceIdentity?: string | null;
+  remoteSessionId?: string | null;
+  parentSessionId: string;
+}): TeamOpenTarget {
+  return {
+    workspacePath: input.workspacePath,
+    ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+    ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+    parentSessionId: input.parentSessionId,
+  };
 }
 
 /**
@@ -4916,8 +4939,16 @@ export function SessionPane({
   const openTeamPanelTarget = useTeamNavigation();
   const handleOpenTeamPanelFromStatusPanel = useCallback(() => {
     if (!sessionId) return;
-    openTeamPanelTarget?.({ workspacePath, parentSessionId: sessionId });
-  }, [openTeamPanelTarget, sessionId, workspacePath]);
+    // M16：target 与消息流卡同一形态（身份字段随行），不再只按路径铸 tab id。
+    openTeamPanelTarget?.(
+      resolveTeamStatusPanelOpenTarget({
+        workspacePath,
+        workspaceIdentity,
+        remoteSessionId,
+        parentSessionId: sessionId,
+      }),
+    );
+  }, [openTeamPanelTarget, remoteSessionId, sessionId, workspaceIdentity, workspacePath]);
   // 状态面板一键停止（specs/agents-team.md §10 增补，2026-10-26）：haltTeam 单一通道
   // （与侧栏同一命令语义）；二次确认与失败出显在面板内聚（TeamStatusSection）。
   const handleHaltTeamFromStatusPanel = useCallback((): Promise<TeamCommandOutcome> => {
@@ -5711,6 +5742,25 @@ export function SessionPane({
       {conversationBottomDockContent}
     </ConversationBottomDockTransition>
   ) : null;
+  // §10 增补五团队卡唯一节点（M14 修复）：同一张卡同时喂 teamCardSlot（锚定轮轮内）
+  // 与 footerSlot（无锚定轮兜底钉底）。锚定/兜底两条路由由 ConversationTimeline 互斥
+  // ——锚定轮在场时抑制 footer——同一时刻只挂载一份；此前只传 teamCardSlot，
+  // TeamSpawn 轮滚出视口/折叠后卡彻底消失，违反增补五「诚实兜底而非消失」。
+  const teamConversationCardNode =
+    !readOnly && !importedShare && snapshot?.team && snapshot.sessionId === sessionId ? (
+      <TeamConversationSummary
+        key={`${sessionId}:${snapshot.team.teamId}`}
+        team={snapshot.team}
+        connection={{ sessionId: snapshot.sessionId, sendCommand }}
+        stagedEditorSuppressed
+        target={{
+          workspacePath,
+          workspaceIdentity: workspaceIdentity ?? undefined,
+          remoteSessionId: remoteSessionId ?? undefined,
+          parentSessionId: snapshot.sessionId,
+        }}
+      />
+    ) : null;
 
   return (
     <PluginUiSessionProvider
@@ -5915,25 +5965,8 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
-                  teamCardSlot={
-                    !readOnly &&
-                    !importedShare &&
-                    snapshot?.team &&
-                    snapshot.sessionId === sessionId ? (
-                      <TeamConversationSummary
-                        key={`${sessionId}:${snapshot.team.teamId}`}
-                        team={snapshot.team}
-                        connection={{ sessionId: snapshot.sessionId, sendCommand }}
-                        stagedEditorSuppressed
-                        target={{
-                          workspacePath,
-                          workspaceIdentity: workspaceIdentity ?? undefined,
-                          remoteSessionId: remoteSessionId ?? undefined,
-                          parentSessionId: snapshot.sessionId,
-                        }}
-                      />
-                    ) : null
-                  }
+                  teamCardSlot={teamConversationCardNode}
+                  footerSlot={teamConversationCardNode}
                   compactForRemoteControl={compactForRemoteControl}
                   scrollToBottomActionRef={timelineScrollToBottomRef}
                   scrollToQueryActionRef={timelineScrollToQueryRef}

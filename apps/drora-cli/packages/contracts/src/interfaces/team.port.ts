@@ -253,7 +253,15 @@ export type TeamPortErrorCode =
   // 2026-10-23 spec §17 契约 4（草案字段与 wire 限额同门）：草案原样进 team 投影，
   // 超限字段会让投影一 emit 就烧掉会话流的每一帧（proto.frameAssemblyInvalidPayload
   // → fail-closed 白屏）。在 stageTeam 源头拒绝，调用方改短字段而不是让坏载荷落库。
-  | "draft_field_too_long";
+  | "draft_field_too_long"
+  // 2026-10-27 L7：reassign 目标忙闲校验——「一成员至多一个开放任务」（spec §2.3）
+  // 在转派侧的拒绝码；认领面同义状态是 taskClaim 的 busy_with_open_task，此处是
+  // TeamMutationResult.error 面（教学式分类：改选空闲成员，错误分类即协议）。
+  | "member_busy"
+  // 2026-10-27 L10：草案空白名拒绝——memberName 是 wire 面 agent↔task 关系的联接键
+  // （§1 草案校验），空白不能像空白 profile 那样归一为键缺席；与 draft_field_too_long
+  // 同门（§17 契约 4 烧帧防护），管 port 直调绕过工具 schema min(1) 的形态。
+  | "draft_blank_name";
 
 export interface TeamPortError {
   code: TeamPortErrorCode;
@@ -300,9 +308,17 @@ export interface TeamMemberPort {
   roster(): TeamRosterSnapshot;
   /**
    * §22 契约 4：manager 成员的转派/接管（child session 自证 actor；hub isTeamActor
-   * 判定——普通成员调用返回 team_lead_only）。
+   * 判定——普通成员调用返回 team_lead_only）。2026-10-27 M9（决策 D1，裁定 3）：
+   * lead 会话同样被拒（lead 零管理工具、纯结果消费者）。
    */
   reassign(input: TeamReassignInput): Promise<TeamMutationResult>;
+  /**
+   * 2026-10-27 M15（决策 D8）：manager 成员显式重开 failed 任务（failed→pending
+   * 受控出边，spec §16 契约 5）——TeamReopen 工具的生产入口（child session 自证
+   * actor；非 manager 调用一律 team_lead_only）。此前该出边有 hub 实现无任何
+   * 生产入口（lead 端口无调用方），失败通知却教用户找 lead 重开。
+   */
+  reopen(input: TeamReopenInput): TeamTaskMutationResult;
   boardRead(): TeamBoardSnapshot;
   taskGet(taskId: string): TeamTaskCard | undefined;
   taskCreate(input: TeamTaskCreateInput): TeamTaskMutationResult;
@@ -313,23 +329,23 @@ export interface TeamMemberPort {
 }
 
 /**
- * lead 侧裁决面：TeamMemberPort 全量 + lead 专属动作（转派/接管、恢复停队、
- * staged 审批）。成员不可获得（team_lead_only E10 由装配结构性保证）。
+ * lead 侧裁决面：TeamMemberPort 全量 + lead 专属动作（staged 审批、恢复停队）。
+ * 成员不可获得（team_lead_only E10 由装配结构性保证）。
+ * 2026-10-27 M9/M15（裁定 3：lead 零管理工具）：reassign/reopen 从 lead 专属面移除
+ * ——继承自 TeamMemberPort 的同名方法对 lead 绑定一律 team_lead_only（hub isTeamActor
+ * 仅认 manager agentId）；原 reopenTask lead 专属声明删除（有实现无生产入口，重开归
+ * manager 的 TeamReopen 工具）。
  */
 export interface TeamLeadPort extends TeamMemberPort {
   /** staged 草案创建；staged 已存在时 = 原子更新同一草案（设计差异 D3）。 */
   stageTeam(input: TeamStageInput): TeamStageResult;
-  /** Approve & Run：唯一创建成员的裁决入口（原子 spawn，全败回滚草案）。 */
-  approveStage(): Promise<TeamApproveResult>;
-  /** 转派/接管：先失效旧 attempt，等旧成员静默后开新 attempt（spec §16.1）。 */
-  reassign(input: TeamReassignInput): Promise<TeamMutationResult>;
   /**
-   * 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记）：TASK_TRANSITIONS
-   * failed→pending 受控出边的唯一消费通道——failed 回共享池开新世代槽位（证据清空、
-   * recoveryRetried 重置、attempt 计数延续由再认领 +1 重铸）。仅 lead 可调
-   * （team_lead_only）；completed/cancelled/开放中任务一律 invalid_transition。
+   * Approve & Run：唯一创建成员的裁决入口（原子 spawn，全败回滚草案）。
+   * 2026-10-27 L9（决策 D10）：增可选 options（§10 增补三 permissionMode——批准时刻
+   * 覆写成员权限模式，缺省维持建队捕获值）；port 契约签名补齐后生产 handler 改走
+   * port，不再结构性直调 hub。
    */
-  reopenTask(input: TeamReopenInput): TeamTaskMutationResult;
+  approveStage(options?: { permissionMode?: TeamPermissionMode }): Promise<TeamApproveResult>;
   /** 恢复 halted/escalated；必须带非空 reason（E：用户停的队不得静默恢复）。 */
   resume(reason: string): TeamMutationResult;
 }

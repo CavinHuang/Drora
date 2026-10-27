@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import { ChevronRightIcon, EyeIcon } from "lucide-react";
 import { type HighspeedMessageMeta, type DroraApiRetryStatus } from "@drora/shared";
@@ -126,6 +127,15 @@ interface ConversationTurnGroupProps {
   nowMs?: number;
   /** 仅由 Timeline 注入给当前 live turn；历史 turn 永远不携带运行时 retry。 */
   apiRetry?: ApiRetryState | null;
+  /**
+   * 团队卡轮内挂载（specs/agents-team.md §10 增补五）：Timeline 判定本 turn 为锚定轮
+   * （renderRows 含 TeamSpawn 工具行）时注入，渲染在轮尾、ConversationWorkflowDigests
+   * 之前（照 workflow 轮尾摘要卡的挂载位）。
+   *
+   * 修复原因（H3）：Timeline 两条路径此前经条件 spread 注入本 prop，但本组件未声明
+   * ——spread 绕过了 TS 检查，prop 被静默丢弃，团队卡在有 TeamSpawn 行的会话完全不渲染。
+   */
+  teamCardSlot?: ReactNode;
   context: ConversationRowRenderContext;
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
@@ -1247,6 +1257,7 @@ function ConversationTurnGroupImpl({
   unit,
   nowMs = Date.now(),
   apiRetry = null,
+  teamCardSlot,
   context,
   onFork,
   onRetry,
@@ -1656,6 +1667,10 @@ function ConversationTurnGroupImpl({
               turnKey={unit.key}
             />
           )}
+          {/* §10 增补五：团队卡照 workflow 轮尾摘要卡的挂载位落卡——轮内容之后、
+              ConversationWorkflowDigests 与其余轮尾块之前；仅锚定轮（含 TeamSpawn 行）
+              由 Timeline 注入（H3 修复：此前 prop 未声明被静默丢弃，卡不渲染）。 */}
+          {teamCardSlot}
           {/* 轮尾摘要：这一轮留下在跑的 run，排在完成卡之后、其余轮尾块之前。 */}
           <ConversationWorkflowDigests
             context={context}

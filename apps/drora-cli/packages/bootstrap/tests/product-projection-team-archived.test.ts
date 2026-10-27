@@ -31,8 +31,13 @@ vi.mock("../src/app/drora-team/install.js", () => ({
   getInstalledTeamHistoryReader: () => undefined,
 }));
 
+// §22 契约 1（2026-10-27 补 manager）：TeamStageInput.manager 自 a1af8bb3 起为必填
+// （hub.stageTeam 直接读 input.manager.memberName）——本文件 STAGE_INPUT 自 05625f17
+// 后未随 §22 同步，缺 manager 会让 stageTeam 在入口即 TypeError。照同批 core 测试
+// 更新口径补 manager（roster 首位）。
 const STAGE_INPUT: TeamStageInput = {
   name: "demo",
+  manager: { memberName: "morgan", profile: "team manager" },
   draftMembers: [{ memberName: "alice", profile: "researcher" }],
   draftTasks: [{ title: "t1", spec: { goal: "g1", acceptance: ["a"] }, dependsOn: [] }],
 };

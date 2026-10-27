@@ -144,7 +144,9 @@ const TEAM_PERMISSION_MODES = teamPermissionModeSchema.options;
 
 export interface TeamStagedEditorProps {
   draft: TeamPanelStagedDraftView;
-  /** 管理者成员名（§22 契约 1；成员行徽标，stagedDraft 视图随行）。
+  // L13 修复：此处曾残留 §22 managerName 改造删 prop 后未闭合的 /** 注释头，
+  // 吞掉下方 permissionMode 注释的开头，两段文档错位；managerName 现经
+  // draft.managerName 随行（见 DraftMemberRows 的 managerName prop）。
   /** 建队捕获的权限模式（wire 投影既有值）——选择行默认值。 */
   permissionMode?: TeamPermissionModeWire;
   /**
@@ -315,10 +317,7 @@ export function TeamStagedEditor({
         className="flex min-w-0 flex-wrap items-center gap-2 text-ui-base"
         data-testid="team-staged-header"
       >
-        <span
-          className="shrink-0 whitespace-nowrap font-medium"
-          data-testid="team-staged-kind"
-        >
+        <span className="shrink-0 whitespace-nowrap font-medium" data-testid="team-staged-kind">
           <span className="text-foreground">
             {intl.formatMessage({ id: "team.stagedEditor.question" })}
           </span>
@@ -522,44 +521,45 @@ export function TeamStagedEditor({
               </button>
             );
           })}
-          {noteInputSuppressed ? null : (
-            // 反馈行（照 PermissionDialog feedback 形态）：修订说明随选项 2，聚焦即选中
-            // 2、Enter 提交该选项；无边框行内输入。
-            <div
-              onClick={(event) => {
-                if (event.target !== event.currentTarget) return;
+        </div>
+        {noteInputSuppressed ? null : (
+          // 反馈行（照 PermissionDialog feedback 形态，L12 修复：在 listbox 闭合后作
+          // 兄弟节点——它自身不是 option，嵌在 role="listbox" 容器内构成 ARIA 歧义）：
+          // 修订说明随选项 2，聚焦即选中 2、Enter 提交该选项；无边框行内输入。
+          <div
+            onClick={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (!busy) setSelectedIndex(1);
+            }}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-xl px-3 py-2 transition-colors",
+              selectedIndex === 1 && !busy ? "bg-selected" : "hover:bg-hover",
+            )}
+          >
+            <span
+              className={cn(
+                "w-5 shrink-0 self-center text-center text-ui-base font-medium",
+                selectedIndex === 1 && !busy ? "text-foreground" : "text-foreground-subtlest",
+              )}
+              aria-hidden
+            >
+              ✎
+            </span>
+            <Input
+              aria-label={intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              onFocus={() => {
                 if (!busy) setSelectedIndex(1);
               }}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-xl px-3 py-2 transition-colors",
-                selectedIndex === 1 && !busy ? "bg-selected" : "hover:bg-hover",
-              )}
-            >
-              <span
-                className={cn(
-                  "w-5 shrink-0 self-center text-center text-ui-base font-medium",
-                  selectedIndex === 1 && !busy ? "text-foreground" : "text-foreground-subtlest",
-                )}
-                aria-hidden
-              >
-                ✎
-              </span>
-              <Input
-                aria-label={intl.formatMessage({ id: "team.stagedEditor.noteLabel" })}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                onFocus={() => {
-                  if (!busy) setSelectedIndex(1);
-                }}
-                onKeyDown={handleNoteKeyDown}
-                disabled={busy}
-                placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
-                className="h-auto min-w-0 flex-1 border-transparent bg-transparent px-0 py-0 text-ui-base shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0 pointer-coarse:min-h-11"
-                data-testid="team-staged-revise-note"
-              />
-            </div>
-          )}
-        </div>
+              onKeyDown={handleNoteKeyDown}
+              disabled={busy}
+              placeholder={intl.formatMessage({ id: "team.stagedEditor.notePlaceholder" })}
+              className="h-auto min-w-0 flex-1 border-transparent bg-transparent px-0 py-0 text-ui-base shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0 pointer-coarse:min-h-11"
+              data-testid="team-staged-revise-note"
+            />
+          </div>
+        )}
         {noteInputSuppressed ? (
           // note 静默丢弃禁止（spec §15 第4条）：无法预填的面不出输入（输入即丢），
           // 引导修改方向走对话（§18 附裁后此形态仅侧栏挂载面出现）。
@@ -586,7 +586,9 @@ export function TeamStagedEditor({
           size="lg"
           onClick={confirmSelection}
           disabled={busy}
-          className="pointer-coarse:min-h-11"
+          // L14 修复：对照 PermissionDialog 确认钮（PermissionDialog.tsx 底栏）的品牌蓝
+          // 类名逐字同款——此前用默认 bg-primary，两卡并排时确认钮异色。
+          className="pointer-coarse:min-h-11 bg-brand text-foreground-inverse hover:bg-brand/80"
           data-testid="team-staged-confirm"
         >
           {intl.formatMessage({

@@ -170,6 +170,21 @@ export function taskCardOf(task: TeamTaskInternal): TeamTaskCard {
 }
 
 /**
+ * 终报送达后的团队终局状态（2026-10-27 M12-core/决策 D3）：任务全 cancelled 且板非空
+ * → "cancelled"，否则 "completed"（含全 failed——失败结论的收尾汇报亦是完成；空板视为
+ * completed）。hub 运行态（markFinalReportDelivered）与 journal 重放
+ * （final_report_delivered 事实 + 任务终态分布推导）共用本口径，不加新 journal kind
+ * ——completed/cancelled 此前在 hub/journal 均无生产者，终局团队永远定格 idle。
+ */
+export function finaleStatusOfTasks(
+  tasks: readonly Pick<TeamTaskInternal, "status">[],
+): "completed" | "cancelled" {
+  const allCancelled =
+    tasks.length > 0 && tasks.every((task) => task.status === "cancelled");
+  return allCancelled ? "cancelled" : "completed";
+}
+
+/**
  * 「lead」寻址键（assignee 的 lead 取值；与成员名命名空间隔离由 hub 校验保证）。
  * 2026-10-18 单一出处化：字面量定义在 @drora/shared TEAM_LEAD_ASSIGNEE，
  * 这里仅按内核内部名再导出——UI 侧 lead 判定直接引 shared 常量，两侧不再各写一份。

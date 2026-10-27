@@ -150,5 +150,23 @@ export function teamPortError(
         message: `Draft field '${params.field ?? "?"}' exceeds the wire limit of ${params.limit ?? "?"} characters.`,
         hint: "Shorten the field (member names and profiles ≤128 chars; task title/goal/acceptance items ≤8000) and stage the draft again. Nothing was stored.",
       };
+    // 2026-10-27 L7：reassign 目标忙闲校验——「一成员至多一个开放任务」（spec §2.3）
+    // 在转派侧的拒绝（认领面同义状态 taskClaim busy_with_open_task）；教学式分类：
+    // 改选空闲成员，不静默堆第二个开放任务。
+    case "member_busy":
+      return {
+        code,
+        message: `Member '${params.name ?? "?"}' already holds an open task.`,
+        hint: "A member may hold at most one open task. Reassign to an idle member, or wait for their current task to reach a terminal state.",
+      };
+    // 2026-10-27 L10：草案空白名拒绝——memberName 是 wire 面 agent↔task 关系的联接键
+    // （E13 同族），空白不能像空白 profile 那样归一为键缺席；与超限同门在 stageTeam
+    // 源头拒绝（§17 契约 4 烧帧防护），管 port 直调绕过工具 schema min(1) 的形态。
+    case "draft_blank_name":
+      return {
+        code,
+        message: `Draft field '${params.field ?? "?"}' must not be blank.`,
+        hint: "Give the manager a non-empty name (the roster joins tasks, mailbox and drill-downs by member name) and stage the draft again. Nothing was stored.",
+      };
   }
 }

@@ -255,7 +255,11 @@ created（显式成队：权限模式与成员路由定死并记 journal）
   → active（有成员 working 或邮箱有未读）
   → idle（全部成员终态且邮箱无未读——TeamPanel 折叠空闲态）
   → active …（自动派发 / 消息复活 / 新委派再激活）
-  → completed（用户收队 / lead 会话正常结束，归档保留完整花名册/板/邮箱）
+  → completed（2026-10-27 修订，§23 决策 D3：生产者=终报送达——markFinalReportDelivered
+           落送达事实后置 record.status=finaleStatusOfTasks（单一出处 core types.ts：
+           任务全 cancelled 且板非空→cancelled，否则 completed；全 failed 与空板均
+           completed）；原「用户收队/lead 会话正常结束」触发面 v1 无实现。归档保留
+           完整花名册/板/邮箱）
   / halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度；显式 TeamResume
            带理由才恢复，普通建任务不得静默解除。中断成员的终态边缘在冻结期内被
            消费且不 kick（冻结面）；TeamResume 即唤醒边缘——resume 翻状态后 kickTeam
@@ -264,7 +268,9 @@ created（显式成队：权限模式与成员路由定死并记 journal）
            2026-10-21 缺口7 登记前 resume 只翻状态：全员终态后无任何派发边缘可等，
            调度死寂（无轮询），此为中断半边的配套语义）
   / escalated（自动循环到上限：升级给用户裁决，与 halted 语义分离）
-  / cancelled（lead 会话被删 / 显式取消）
+  / cancelled（2026-10-27 修订，§23 决策 D3：同由终报送达推导——任务全 cancelled
+           且板非空时 finaleStatusOfTasks 置 cancelled；原「lead 会话被删/显式取消」
+           触发面 v1 无实现；legacy 无 manager 队伍不经任何路径触发终局）
 ```
 
 - team 状态是投影字段（§6.3），由 TeamHub 唯一裁决——成员终态/复活/邮箱事件驱动迁移，
@@ -1729,7 +1735,11 @@ failed:[]/completed:[]/cancelled:[]）；reassign 对终态任务必拒 invalid_
 
 **形态取舍（登记）**：本契约选择**形态 (b) 显式重开**——TASK_TRANSITIONS 增加**受控出边**
 failed→pending，消费唯一通道为 lead 专用端口方法 `TeamLeadPort.reopenTask`（不复用
-reassign，其终态拒绝语义原样保留）。形态 (a)「新建替代任务」零内核改动路径保留为并行
+reassign，其终态拒绝语义原样保留；**2026-10-27 订正，§23 决策 D8/A2 M15**：生产
+入口改为 manager 工具族 TeamReopen——createTeamManagerToolEntries 注册、经
+TeamMemberPort.reopen 以 child session 自证 actor；仅 manager 可调，lead 会话与普通
+成员同拒，TeamLeadPort.reopenTask 的 lead 专属声明删除——有实现无生产入口的 lead 面
+撤销）。形态 (a)「新建替代任务」零内核改动路径保留为并行
 补救（失败通知文案两路并存）；completed/cancelled **不获得出边**（交付结果与用户裁决
 终局不可重开，恢复走新建任务）。
 
@@ -1737,7 +1747,9 @@ reassign，其终态拒绝语义原样保留）。形态 (a)「新建替代任�
 
 - `TeamLeadPort.reopenTask(input: { taskId })`（hub 新方法）：板级处置照 reassign 先例
   requireLeadRecord lead-only（hub.ts:1011-1013）；成员终态离场后无板级权限，成员端口
-  结构性无此通道。仅 failed 可重开——pending/claimed/in_progress/completed/cancelled
+  结构性无此通道（**2026-10-27 订正，§23 决策 D8/A2 M15**：成员端口现为结构性持有
+  reopen 通道、仅 manager 成员可过——TeamMemberPort.reopen 以 child session 自证
+  actor，lead 会话与普通成员同拒）。仅 failed 可重开——pending/claimed/in_progress/completed/cancelled
   一律 invalid_transition（`{from, to:"pending"}`，与 reassign 终态拒绝同族）；
   staged/halted/归档态拒绝 team_halted（照 reassign hub.ts:1014-1016 冻结门）。
 - 板级执行 `reopenFailedTask`（board.ts 新纯函数）：failed → **pending 回共享池**
@@ -1773,7 +1785,10 @@ reassign，其终态拒绝语义原样保留）。形态 (a)「新建替代任�
     证据——与「重试必须自证」既有语义一致。
 - 失败通知文案联动（收窄契约 1 裁决④）：成员面仍不可重开/转派（成员端口无此通道、
   reassign 拒终态不变），通知文案从「cannot be reopened or reassigned」更新为如实陈述
-  两路补救——lead 可显式重开（lead 专用通道）或新建替代任务再指派。
+  两路补救——lead 可显式重开（lead 专用通道）或新建替代任务再指派（**2026-10-27 订正，
+  §23 决策 D8/A2 M15**：随重开入口移交 manager，followUp 文案改为「the team manager
+  can explicitly reopen it via the TeamReopen tool」；「成员端口无此通道」同款订正见
+  上条）。
 - 派发联动：重开任务回共享池后 kickTeam 重臂调度（事件驱动无轮询，spec §2.3——无
   唤醒边缘则重开任务永久 pending；fire-and-forget 照 resume 先例 hub.ts:578）。
 
@@ -1804,8 +1819,11 @@ reassign，其终态拒绝语义原样保留）。形态 (a)「新建替代任�
   parkedAttempts 残留清理）；邮箱世代联动（旧世代排队邮件不被重投，新世代同文正常入箱）。
 
 **不做**：不重开 completed/cancelled；不引入任何自动重开触发面（重开只由 lead 显式
-发起）；不动 reassign 的终态拒绝语义；不做 v4 wire 命令与 lead 工具 schema 暴露（端口
-契约先行，协议面接入留待后续批次）；不新增错误码与 journal kind（重开事实 = task_updated
+发起；**2026-10-27 订正，§23 决策 D8**：「lead 显式发起」随工具移交订正为「manager
+显式发起」）；不动 reassign 的终态拒绝语义；不做 v4 wire 命令与 lead 工具 schema 暴露
+（端口契约先行，协议面接入留待后续批次；**2026-10-27 订正，§23 决策 D8**：工具面已
+随 TeamReopen 落地为 manager 工具注册，v4 wire 命令面仍不做）；不新增错误码与
+journal kind（重开事实 = task_updated
 板事实，wire/journal 词表零扩展）。
 
 **实现验证（2026-10-23，本项已落地）**：contracts `TeamReopenInput` + `TeamLeadPort.
@@ -2940,7 +2958,8 @@ useTeamHistory.ts:63、TeamProcessPanel.tsx:26-46）。
 - `getTeamHistory` 的 teamId 不匹配拒绝（handlers/team.ts:293-297）使用
   handler 层局部码 `historyTeamMismatch`（reasonCode
   `fault.command.teamRejected.historyTeamMismatch`，文案内联英文）——**不入
-  TeamPortErrorCode 联合**（21 码封闭）：该拒绝是命令面路由校验（请求的
+  TeamPortErrorCode 联合**（21 码封闭；2026-10-27 起因 member_busy/draft_blank_name
+  两码 additive 扩至 23 码，见 §23 A2 L7/L10 登记）：该拒绝是命令面路由校验（请求的
   teamId 与该会话 hub 现役 team 不符）而非内核裁决语义，port 联合只收内核
   拒绝语义；持久化缺席路径用既有 `TEAM_HISTORY_UNAVAILABLE`
   （fault.command.teamHistoryUnavailable）。
@@ -3062,7 +3081,10 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
     「批准时刻定死（缺省维持建队捕获值）」。
   - 拒绝语义不变：非法枚举在 wire 网关侧被 zod 拒（载荷校验先于 handler）。
   - 其余动作（revise/abandon）与草案内容不携带权限字段；权限选择是批准动作的随行
-    参数，不落 journal staged 事实（批准事实本身不记权限，运行态以 record 为准）。
+    参数，不落 journal staged 事实（2026-10-27 修订，§23 决策 D7/A2 M8：approved
+    journal 事实增补 optional permissionMode——值为批准后 record 有效值、缺省随行建队
+    捕获值，重放侧回写 record.permissionMode，冷恢复不再回退建队捕获值；staged 事实
+    不记权限、运行态以 record 为准两点维持）。
 - **有意不做（登记）**：workflow ask settings 的逐工具 allow 粒度不随本卡（v1 到模式
   级；逐工具面归后续卡，前置=权限作用域四选项裁决 §15「明确不做」的再评估）。
 - **测试**：wire 载荷解析（带/不带 mode）；hub 覆写与缺省维持；commands 信封携带；
@@ -3126,28 +3148,61 @@ task_notification_steer 注入驱动主 agent 逐条回应，末段连续三次�
 
 - `routeMail`：`to=lead` 且**发件人非 manager** → 收件人重写为 manager（成员发给 lead 的
   一切消息由 manager 消费；投递/租约/世代纪律零改动）。重写发生在地址解析处，wire 返回值
-  语义不变（to 不改写返回，仅路由改向）。
+  语义不变（to 不改写返回，仅路由改向）。**2026-10-27 修订，§23 决策 D4/A1 M5/M3**：
+  成员→lead 的路由改向为**无条件**——portSend 落库前一律改写收件人为 manager（原条件
+  含 !finalReportDelivered()，送达后不再改写会产生永久 queued 死信且把团队钉死
+  active）；收件人离册（含被改投的 manager 已移除）的条目按 §21 A1 同族死信处置
+  （routeMail 落 message_dropped journal 事实，reason="recipient no longer on the
+  team" + 丢弃退出选取集；wire 返回值维持 "queued"——TeamSendDelivery 闭合枚举无
+  dropped 值）；busy 谓词按收件人在册过滤且 hub/重放同口径（hub.isRecipientOnRoster
+  与 journal.recipientOnRoster）——离册死信不计入 busy，已在箱、随后收件人被移除的
+  存量条目保留邮箱但不钉死 active（removeMember 不重跑 routeMail，如实登记）。
 - **仅 manager → lead** 的邮件走既有 deliverLeadMail 通道注入 lead 会话（§14 缺口12 机制
   复用）；其余任何成员对 lead 的直达在路由层不存在。
 
 ### 契约 3｜终态单条汇报（manager 执笔，hub 结构化兜底）
 
-- 终态判定：板全任务终态 且 全员（含 manager）终态 → 团队终态边缘。
+- 终态判定：板全任务终态 且 全员（含 manager）终态 → 团队终态边缘。**2026-10-27
+  修订，§23 决策 D2/A1 M11**：①「全员（含 manager）终态」修订为 **workers 全终态 +
+  任务板全终态**（manager 常驻协调、无任务，与 hasWorkingMember 忙闲口径一致——实现
+  本就 workers-only，本条为 spec 文本对齐）；②任务终态口径对齐 board
+  TERMINAL_STATUSES——**failed/cancelled/completed 均终态**（原实现只认
+  completed/cancelled，全任务 failed 收尾被按板开放计、终报永不派发）。
 - 边缘到达且未派发过（`final_report` journal fact 幂等）→ hub 给 manager 投一条**汇报指令
   邮件**（from=lead，body=buildFinalReportRequest：指示 manager 写恰好一条最终汇报发给 lead，
   含成败、各任务终态与产物指引）并 kick 唤醒（复活链承接 terminal manager）；manager 的
   回信（to=lead，契约 2 唯一入口）即为终态汇报注入 lead——**此后 to=lead 路由关闭**
   （finalReportDelivered 边缘：manager→lead 也拒/改投 manager 自留，防多报）。
+  **2026-10-27 修订，§23（A1 H1/M11/L5、M6/决策 D4）**：①派发门由「status==="active"」
+  修订为「manager 队伍且可调度态（active/idle）且团队已终态且尚未派发」——原门与唯一
+  运行态挂点（refreshStatus 的 idle 分支）恒不相交，manager 指令邮件与 hub 结构化兑底
+  两条路径均为不可达死代码、final_report_dispatched 永不落；幂等不变（dispatchedFlag
+  恰一次），halted/staged/escalated/归档态不派发；②「此后 to=lead 路由关闭」细化为
+  终报送达后的**闭箱过滤**（deliverPendingLeadMail 顶部、先于冻结/归档门：manager
+  发件的 to=lead 条目直接 message_dropped 死信防多报，成员发件的 to=lead 条目改投
+  manager——换 messageId，journal 落旧 id dropped + 新 id appended 两事实保重放与
+  运行态同形）；③终报链整体以 manager 架构为界：record.managerName===undefined 的
+  legacy/无 manager 队伍（含冷恢复记录）不自动派发终报、不翻终局、端口保持开放（lead
+  邮箱走缺口12 普通通道），与送达标记、闭箱过滤两处既有 legacy 界同门；④空板对终态
+  判定空真（manager 队伍的空板 + workers 全终态会派发「零任务」终报，如实登记）。
 - manager 不可投（已移除/投递失败）→ hub 结构化兜底：拼任务终态表 + 产物引用一条注入 lead
   （deliverLeadMail 直投，via=final_report_fallback）并 journal fact。两条路径都保证
   lead 恰好收一条。
-- halted 非终态不汇报（用户自停自知）；escalated/cancelled 属终态照报。
+- halted 非终态不汇报（用户自停自知）；escalated/cancelled 属终态照报。**2026-10-27
+  修订，§23 决策 D2/D3**：escalated 冻结期不终报（派发门只放 active/idle），恢复/
+  收尾后的 idle 边缘自然再入派发门；cancelled 在新模型下只能由终报送达推导产生（决策
+  D3），「cancelled 照报」的原触发面不存在；终局即归档态——checkPresence 的
+  isArchival 既有门关闭全部端口，送达后 manager 重发与成员→lead 均结构性不可达。
 
 ### 契约 4｜管理工具移交（lead 零管理工具；TeamReassign 归 manager）
 
 - `createTeamLeadToolEntries` 删 TeamReassign——lead 工具族只剩 TeamSpawn（建队入口）。
 - `hub.reassign` 入参语义放宽为 actor：lead 会话或 **manager child 会话**皆可
-  （requireActorRecord）；普通成员 child 一律 team_lead_only。
+  （requireActorRecord）；普通成员 child 一律 team_lead_only。**2026-10-27 修订，§23
+  决策 D1/A2 M9**：本条收敛为——管理动作（reassign/reopen）的 actor **仅 manager
+  成员的 agentId** 可过（hub isTeamActor 移除 leadSessionId 分支）；lead 会话（drora
+  主 agent）为纯结果消费者，直调或经 leadPort 调 reassign/reopen 一律
+  team_lead_only。
 - 成员工具族：manager 成员额外注册 TeamReassign（install 按 roster managerName 判定），
   普通成员不注册；TeamMemberPort 增 `reassign`（child session 自证 actor）。
 
@@ -3159,7 +3214,8 @@ task_notification_steer 注入驱动主 agent 逐条回应，末段连续三次�
 ### 契约 6｜测试面
 
 - core：路由改向两向（成员→lead 落 manager、manager→lead 注入 lead）；终态单报幂等 +
-  兜底路径；reassign actor 三分（lead ✓/manager ✓/普通成员 ✗）；manager 重名拒绝。
+  兜底路径；reassign actor 三分（lead ✓/manager ✓/普通成员 ✗；**2026-10-27 订正，§23
+  决策 D1/A2 M9**：随契约 4 收敛为 manager ✓/lead ✗/普通成员 ✗）；manager 重名拒绝。
 - bootstrap：manager 成员工具注册差异；投影 managerName。
 - ui：审批面/花名册徽标与首位。E2E：并入 AT-01 转正批（manager 流全链）。
 
@@ -3189,3 +3245,322 @@ task_notification_steer 注入驱动主 agent 逐条回应，末段连续三次�
   成员卡（model.managerName 透传 MemberCardBody）首位管理者出「管理者」徽标
   （team.ui.managerBadge，zh/en）；roster 首位=manager 由 hub 物化保证（契约 1）。
 - 测试：ui team 全套回归（131 用例绿）。
+
+## 23. 第五轮审查修复登记（2026-10-27 收口批）
+
+来源：agents-team 第五轮全面审查（六路评审 + 逐条独立复核）落定 35 条发现（3 高危 /
+16 中危 / 16 低危），本节登记其中需要改码条目的修复决策（D1-D13）与各批次实施登记。
+修复基线 353e1e24（分支 feat/team-staged-approval-panel，工作树起点干净）；并行批次只动
+各自清单内文件，本节为收口批唯一写入。正文矛盾处已就地改写（§2.6 completed/cancelled
+触发定义、§10 增补三权限事实句、§16 契约 5 重开入口、§21 D 错误码计数、§22 契约
+2/3/4/6），各处均注明「2026-10-27 修订」与本节依据条目。
+
+**登记基线（如实说明）**：本节为收口批 spec 写入，按分工纪律只编辑本文件、未运行任何
+测试/类型/架构检查；各批次条目内的「本轮实跑通过」等运行记录为各批次报告原文转录，
+收口批未复跑。
+
+### 决策登记（D1-D10）
+
+- **D1｜lead 工具面收敛（§22 裁定 3 落实）**：管理动作（reassign/reopen）的 actor 仅
+  manager 成员的 agentId 可过（hub isTeamActor 移除 leadSessionId 分支）；lead 会话
+  （drora 主 agent）为纯结果消费者，直调或经 leadPort 调 reassign/reopen 一律
+  team_lead_only。§22 契约 4 与契约 6 测试面已就地修订（实施登记见 A2 M9）。
+- **D2｜终态口径**：团队终态 = workers 全终态 + 任务板全终态（manager 常驻协调、无
+  任务，不计入——与 hasWorkingMember 忙闲口径一致，实现本就 workers-only，spec 文本
+  对齐）；任务终态口径对齐 board TERMINAL_STATUSES——failed/cancelled/completed 均
+  终态（原实现只认 completed/cancelled，全任务 failed 收尾被按板开放计、终报永不
+  派发）；escalated 冻结期不终报（派发门只放 active/idle），恢复/收尾后的 idle 边缘
+  自然再入派发门。§22 契约 3 已就地修订（实施登记见 A1）。
+- **D3｜团队 completed/cancelled 语义与重放推导**：终局状态生产者 = 终报送达——
+  markFinalReportDelivered 落送达事实后置 record.status = finaleStatusOfTasks（单一
+  出处 core types.ts：任务全 cancelled 且板非空 → cancelled，否则 completed——全
+  failed 与空板均 completed）；冷恢复不加新 journal kind，由 final_report_delivered
+  事实 + 任务终态分布在重放侧同口径推导（frozen 冻结事实优先，防御性保持）。与 §2.6
+  原「completed=用户收队/lead 会话正常结束、cancelled=lead 会话被删/显式取消」触发
+  定义为**有意分歧**（§2.6 触发面 v1 无实现，文本已就地修订）；终局即归档态
+  （checkPresence 的 isArchival 既有门关闭全部端口，M5 的「送达后」字面场景由该端口
+  关闭承接）。legacy 无 manager 队伍不经任何路径触发终局（含兑底），缺口12 通道语义
+  保持。
+- **D4｜成员→lead 一律改投 manager + 收件人离册死信化**：成员发件的 to=lead 路由
+  改向为无条件（portSend 落库前一律改写收件人为 manager——原条件含
+  !finalReportDelivered()，送达后不再改写会产生永久 queued 死信且把团队钉死
+  active）；收件人离册（含被改投的 manager 已移除）的条目按 §21 A1 同族死信处置
+  （message_dropped journal 事实 + 丢弃退出选取集，wire 返回值维持 "queued"）；busy
+  谓词按收件人在册过滤且 hub/重放同口径——离册死信不计入 busy，已在箱、随后收件人
+  被移除的存量条目保留邮箱但不钉死 active。§22 契约 2 已就地修订（实施登记见 A1）。
+- **D5｜冷恢复终报重臂两缝**：adoptRestored 补两恢复臂（均以 manager 架构为界，
+  legacy 队伍不重臂）：(a) 未 dispatched 且团队已终态 → 重走 maybeDispatchFinalReport
+  （恰一次不变）；(b) dispatched 已落未 delivered → 邮箱有 to=lead 终报条目则走既有
+  deliverPendingLeadMail 补投，有未投 to=manager 指令邮件且 manager 可用（在场 +
+  childSessionId）则 kick 令其产出；决策枚举外的收敛缝（指令已投/被裁剪或 manager
+  不可用）走结构化兑底直投，保「恰一条」。冻结/归档态不重臂（实施登记见 A1 M7）。
+- **D6｜assignee=manager 任务可被 workers 认领**：显式指派给 manager
+  （assignee===managerName）的任务视同共享池——workers 可认领（nextReadyTask 第二
+  优先匹配，reassign to=manager 同规则），manager 是路由地址不是执行者；taskCreate
+  指派 manager 与 reassign to=manager 的唤醒边为 kickTeam（kick manager 本人是
+  no-op）（实施登记见 A2 M4）。
+- **D7｜approved 事实携带 permissionMode**：approved journal 事实增补 optional
+  permissionMode（additive；值为批准后 record 有效值，缺省随行建队捕获值），重放侧
+  回写 record.permissionMode——冷恢复不再回退建队捕获值；未知模式值照 team_created
+  同款 warn + 缺席（不猜语义）。§10 增补三已就地修订（实施登记见 A2 M8）。
+- **D8｜TeamReopen 落地为 manager 工具**：failed→pending 受控出边的生产入口为
+  manager 工具族 TeamReopen（createTeamManagerToolEntries 注册，经
+  TeamMemberPort.reopen 以 child session 自证 actor）；「仅 lead 可调
+  （team_lead_only）」表述随 §22 裁定 3 订正为仅 manager 可调，lead 会话与普通成员
+  同拒；TeamLeadPort.reopenTask 的 lead 专属声明删除（有实现无生产入口的 lead 面
+  撤销）；成员失败通知 followUp 文案由「the lead can explicitly reopen it via the
+  lead-only reopen port」改为「the team manager can explicitly reopen it via the
+  TeamReopen tool」。§16 契约 5 已就地订正（实施登记见 A2 M15）。
+- **D9｜halt reason 透传**：halted journal 事实增补 optional reason（重放不消费
+  reason 只推 halted 状态）；haltTeam v4 命令 handler 把 wire 载荷 payload.reason
+  透传 hub.halt（shared schema 既有该字段，零 wire 变更）。已知不对称（登记）：
+  history 读取面（core history.ts historyFact）只对 resumed 透出 reason，halted 落
+  default 分支不透出——v1 处置只落 journal 事实，history 半边透出归后续卡（需扩
+  shared teamHistory 词表）（实施登记见 A2 L8）。
+- **D10｜approveStage port 契约扩 options**：TeamLeadPort.approveStage 签名扩
+  optional options{permissionMode}（leadPort 工厂透传 hub.approveStage）；
+  approveTeamPlan 生产 handler 改走 leadPort 不再直调 hub 绕开 port（实施登记见
+  A2 L9）。
+
+另有 D11（stageTeam 再入库 record.managerName 随 input.manager.memberName 刷新、
+input.name 缺省时保留已命名团队）与 D13（setTeamMemberName 改名映射覆盖 roster 首位
+manager——草案 manager 名与 assignee=manager 的任务重指派随名字生效）——实施登记见
+下方批次 A2 各条，不在此重复。
+
+### 批次登记（各批报来条目原样落盘）
+
+#### A1 批｜core 终报链与邮箱路由
+
+- 【A1】【§22 契约 3 修订（对应 H1/M11/L5；含评审阻断项 2 补界）】终态单条汇报的
+  派发门由「status==="active"」修订为「manager 队伍且可调度态（active/idle）且团队
+  已终态且尚未派发」：原门与唯一运行态挂点（refreshStatus 的 idle 分支）恒不相交，
+  manager 指令邮件与 hub 结构化兑底两条路径均为不可达死代码、final_report_dispatched
+  永不落（第五轮审查 H1）。幂等不变（dispatchedFlag 恰一次）；halted/staged/
+  escalated/归档态不派发。终报链整体以 manager 架构为界：
+  record.managerName===undefined 的 legacy/无 manager 队伍（含冷恢复记录）不自动派发
+  终报、不翻终局、端口保持开放（lead 邮箱走缺口12 普通通道）——与送达标记、闭箱过滤
+  两处既有 legacy 界同门；空板对终态判定空真（manager 队伍的空板+workers 全终态会
+  派发「零任务」终报，如实登记）。
+- 【A1】【§22 契约 3 终态判定三处修订（对应 M11/决策 D2）】①任务终态口径对齐 board
+  TERMINAL_STATUSES：failed/cancelled/completed 均终态（原实现只认
+  completed/cancelled，全任务 failed 收尾被按板开放计、终报永不派发）；②团队终态=
+  workers 全终态+任务板全终态——spec 原文「全员（含 manager）终态」修订为 workers
+  口径（manager 常驻协调、无任务，与 hasWorkingMember 忙闲口径一致，实现本就
+  workers-only，本条为 spec 文本对齐）；③escalated 冻结期不终报（派发门只放
+  active/idle），恢复/收尾后的 idle 边缘自然再入派发门。
+- 【A1】【§22 契约 2 修订 + 死信族增补（对应 M5/M3/决策 D4）】①成员→lead 的路由
+  改向为无条件（portSend 落库前一律改写收件人为 manager；原条件含
+  !finalReportDelivered()，送达后不再改写会产生永久 queued 死信且把团队钉死
+  active）；②收件人离册（含被改投的 manager 已移除）的条目在 routeMail 按 §21 A1
+  同族死信处置：message_dropped journal 事实（reason="recipient no longer on the
+  team"）+ 丢弃退出选取集，wire 返回值维持 "queued"（TeamSendDelivery 闭合枚举无
+  dropped 值）；③busy 谓词按收件人在册过滤且 hub/重放同口径
+  （hub.isRecipientOnRoster 与 journal.recipientOnRoster）——离册死信不计入 busy，
+  已在箱、随后收件人被移除的存量条目保留邮箱但不钉死 active（removeMember 不重跑
+  routeMail，如实登记）。
+- 【A1】【§22 增补：终报送达后的闭箱过滤（对应 M6/决策 D4；含评审阻断项 1 修正）】
+  deliverPendingLeadMail 顶部（先于冻结/归档门与通道判定——死信清理不是投递，终局
+  团队经冷恢复对账补入的条目仍可收口）在 finalReportDelivered 且 manager 队伍下：
+  manager 发件的 to=lead 条目（契约 2 下即终报语义）直接 message_dropped 死信（防
+  多报，含兑底直投条目通道拒绝后的残留收口）；成员发件的 to=lead 条目改投
+  manager——旧条目 dropMailEntries 出箱+新条目 appendToMailbox 入箱（保留期裁剪
+  同源），journal 落旧 id dropped+新 id appended 两事实保重放与运行态同形（换
+  messageId：原地改 to 会让重放重建旧地址），并 kick manager 投递，manager 离册则
+  死信；新条目 to=manager 永不再进 lead 选取集，过滤幂等。legacy 无 manager 队伍
+  不适用（缺口12 通道保持开放）。
+- 【A1】【§22 增补：终报冷恢复重臂（对应 M7/决策 D5）】adoptRestored 补两恢复臂
+  （均以 manager 架构为界，legacy 队伍不重臂）：(a) 未 dispatched 且团队已终态→
+  重走 maybeDispatchFinalReport（恰一次不变）；(b) dispatched 已落未 delivered→
+  邮箱有 to=lead 终报条目则走既有 deliverPendingLeadMail 补投，有未投 to=manager
+  指令邮件且 manager 可用（在场+childSessionId）则 kick 令其产出；决策枚举外的
+  收敛：指令已投/被裁剪或 manager 不可用的其余恢复缝走结构化兑底直投（否则崩溃缝里
+  指令消失时终报恰零条），保「恰一条」。冻结/归档态不重臂。
+- 【A1】【§22 增补：终局状态生产者（对应 M12-core/决策 D3，与 §2.6 的分歧取舍；
+  含评审阻断项 2 补界）】completed/cancelled 的生产者=终报送达：
+  markFinalReportDelivered 落送达事实后置 record.status=finaleStatusOfTasks（单一
+  出处 core types.ts：任务全 cancelled 且板非空→cancelled，否则 completed——全
+  failed 与空板均 completed）；冷恢复不加新 journal kind，由
+  final_report_delivered 事实+任务终态分布在重放侧同口径推导（frozen 冻结事实优先，
+  防御性保持）。终局即归档态：checkPresence 的 isArchival 既有门关闭全部端口，故
+  送达后 manager 重发与成员→lead 均结构性不可达——M5 的「送达后」字面场景由该端口
+  关闭承接。与 §2.6 原「completed=用户收队/lead 会话正常结束、cancelled=lead 会话
+  被删/显式取消」触发定义存在有意分歧：按 D3 以终报送达为生产者（§2.6 触发面 v1
+  无实现，收口批同步修订 §2.6 文本）。legacy 无 manager 队伍不经任何路径触发终局
+  （含兑底），缺口12 通道语义保持。
+- 【A1】【重放口径对齐（对应 L4+评审反馈 4）】journal 重放 busy 推导
+  derivedActiveIdle 与 hub.refreshStatus 同一谓词族：①排除 managerName（§22 口径
+  ——恢复缝里 approved 后 manager 的 member_added 未刷盘致 spawning 占位时，
+  workers 全终态推导 idle 而非 active，终报派发边缘挂 idle，口径分叉会让恢复后的
+  团队永不再触发派发）；②邮箱忙闲按收件人在册过滤（离册收件人的滞留条目，即
+  message_dropped 事实未刷的 crash 窗口，不计忙，恢复初值与运行态一致）。
+- 【A1】【§22 契约 3 落实登记（对应 L5）】final_report_dispatched 事实随
+  dispatchedFlag 同点落（manager 指令邮件与 hub 结构化兑底两条路径齐落）——此前
+  兑底路径缺该事实，journal 流无法区分路径。
+- 【A1】【收口批确认项（评审提示，非缺陷）】兑底路径乐观语义：
+  deliverFinalReportFallback 在注入前同步 markFinalReportDelivered+翻终局——lead
+  通道缺席/拒绝时 lead 实际收不到终报而事实流已记 delivered、团队定格 completed，
+  残留条目随后被 M6 闭箱过滤死信。本轮保持该取舍（与修复前乐观语义一致，代码注释
+  已声明），列请收口批确认是否有意。
+- 【A1】【既有测试更新登记（随 H1/M12 行为面）】四处既有用例按新行为更新：①§20
+  契约 1 用例③——to=lead 通道的「已投递后重发允许新条目（deliberate reminder）」
+  预期被 §22 契约 3 防多报+终局收口取代（成员间提醒通道不变，用例②保留）；
+  ②event-driven dispatch 首用例与 §21 A5 用例③——manager 队伍空板+workers 全终态
+  现在触发终报派发，idle 断言改为指令邮件送达后收敛；③team-journal M12 夹具补
+  worker member_added（夹具缺陷订正）。新增「final report chain (§22 契约 3,
+  2026-10-27 修复批)」测试组（H1×2/M11/M12/M5/M3×2/M6/M7×4/legacy 回归锁）与
+  journal 侧 L4/M3 口径/M12 重放推导组。
+
+#### A2 批｜core 工具面与契约扩展
+
+- 【A2】【M9/决策 D1】§22 契约 4 修订：原文「hub.reassign 入参语义放宽为 actor：
+  lead 会话或 manager child 会话皆可」收敛为——管理动作（reassign/reopen）的 actor
+  仅 manager 成员的 agentId 可过（hub isTeamActor 移除 leadSessionId 分支）；lead
+  会话（drora 主 agent）为纯结果消费者，直调或经 leadPort 调 reassign/reopen 一律
+  team_lead_only。§22 契约 6 测试面「reassign actor 三分（lead ✓/manager ✓/普通
+  成员 ✗）」同步订正为（manager ✓/lead ✗/普通成员 ✗）。
+- 【A2】【M15/决策 D8】§16 契约 5 订正：failed→pending 受控出边的生产入口为
+  manager 工具族 TeamReopen（createTeamManagerToolEntries 注册，经
+  TeamMemberPort.reopen 以 child session 自证 actor）；「仅 lead 可调
+  （team_lead_only）」表述随 §22 裁定 3 订正为仅 manager 可调，lead 会话与普通成员
+  同拒；TeamLeadPort.reopenTask 的 lead 专属声明删除（有实现无生产入口的 lead 面
+  撤销）；成员失败通知 followUp 文案由「the lead can explicitly reopen it via the
+  lead-only reopen port」改为「the team manager can explicitly reopen it via the
+  TeamReopen tool」。
+- 【A2】【L7】reassign 增目标忙闲校验：input.to（成员）已持开放任务
+  （claimed/in_progress，口径与 ownedOpenTask 同源；被转派任务自身除外，to=当前
+  assignee 的同名重派是合法轮换）→ 拒；TeamPortErrorCode 新增 member_busy（21→22
+  码，认领面 busy_with_open_task 的转派侧同族教学文案）。to=lead 接管分支保留并在
+  此登记为 §19 遗留语义：§22 manager 架构下 manager 可把执行任务派给 lead（接管
+  唯一性既有门不变）。
+- 【A2】【L10】§17 契约 4 扩展：manager 草案字段
+  （memberName/profile/modelSelection）纳入与 draftMembers 同门的 TEAM_LIMITS
+  限额校验（hub draftOverLimitField 提取共用 helper，port 直调绕过工具 schema 的
+  不变量兜底）；空白 manager 名以新错误码 draft_blank_name 拒绝（22→23 码
+  ——memberName 是 agent↔task 关系联接键，不能像空白 profile 归一为键缺席）。
+- 【A2】【M4/决策 D6】§22 契约 3 配套口径订正：显式指派给 manager
+  （assignee===managerName）的任务视同共享池——workers 可认领（nextReadyTask 第二
+  优先匹配，reassign to=manager 同规则），manager 是路由地址不是执行者；taskCreate
+  指派 manager 与 reassign to=manager 的唤醒边为 kickTeam（kick manager 本人是
+  no-op）。
+- 【A2】【M8/决策 D7】§10 增补三补恢复半边：approved journal 事实增补 optional
+  permissionMode（additive；值为批准后 record 有效值，缺省随行建队捕获值），重放侧
+  回写 record.permissionMode——冷恢复不再回退建队捕获值；未知模式值照 team_created
+  同款 warn + 缺席（不猜语义）。
+- 【A2】【L8/决策 D9】halted journal 事实增补 optional reason（重放不消费 reason
+  只推 halted 状态）；haltTeam v4 命令 handler 把 wire 载荷 payload.reason 透传
+  hub.halt（shared schema 既有该字段，零 wire 变更）。登记不对称：history 读取面
+  （core/src/team/history.ts historyFact）只对 resumed 透出 reason，halted 落
+  default 分支不透出——v1 处置只落 journal 事实，history 半边透出归后续卡（需扩
+  shared teamHistory 词表，属 shared/B 批面）。
+- 【A2】【L9/决策 D10】§6.2 TeamLeadPort.approveStage 签名扩 optional
+  options{permissionMode}（leadPort 工厂透传 hub.approveStage）；approveTeamPlan
+  生产 handler 改走 leadPort 不再直调 hub 绕开 port。
+- 【A2】【M2/L11/决策 D11】stageTeam 再入库（staged 原子修订）语义订正：
+  record.managerName 随 input.manager.memberName 刷新（journalStagedFact 随行
+  ——修订换 manager 名后邮箱路由/管理 actor/终局判定均用新名，旧名不再成幽灵
+  管理者）；input.name 缺省时保留已命名团队（不再覆写成 undefined 并经 staged 事实
+  持久化）。
+- 【A2】【M1/决策 D13】setTeamMemberName 的改名映射覆盖 roster 首位 manager：草案
+  manager 名与 assignee=manager 的任务重指派随名字生效（与 M2 的 hub 侧
+  record.managerName 刷新配合）。
+- 【A2】【L2】stageTeam 的 manager↔成员重名防护由「先 add manager、成员循环查重」
+  的次序承担（对刚建空集的恒假 has 检查已删，行为不变）；manager 与成员重名的
+  draft_duplicate_member 拒绝用例已补入测试面。
+- 【A2】【L6】成员面文案对齐 §22 契约 2：TeamSendMessage 工具描述与成员欢迎语改为
+  「成员对 lead 的消息由 manager 消费/经 manager 协调（workers report to the
+  manager — never to the lead）」，与 /team 命令及 bundled agents-team skill 的既有
+  正确表述一致。
+
+#### B 批｜投影与 wire/i18n
+
+- 【B】【H2 修订·§22 契约 7】managerName 投影链在 projectTeam 一跳补齐：
+  TeamProjectionRecordInput 增 managerName（可选）、projectTeam 输出键补
+  managerName（缺席键缺席）。此前桥 teamProjectionViewOf 已塞 record 但 core 投影
+  无此字段，wire 帧恒缺 managerName、UI 管理者徽标永不渲染。测试：core
+  team-projection.test.ts（透传/键缺席/wire 可解析）+ bootstrap
+  product-projection-team-manager-name.test.ts（delta 链与冷快照链 wire 全帧携带
+  managerName，roster/stagedDraft 首行=manager）。运维教训登记：@drora/core
+  exports 指 gitignored dist，改 core src 后必须 `pnpm --filter @drora/core build`
+  再跑 bootstrap 层测试（a1af8bb3 教训复现，本轮已按此回绿，6 文件 36 用例全过）。
+  附带登记：product-projection-team-archived/staged-fields 两桥测试 STAGE_INPUT 自
+  §22（a1af8bb3）引入必填 manager 后未同步（运行时入口 TypeError，typecheck 不含
+  tests 未暴露），本轮补 manager 并把草案行断言改按 memberName 定位（§22 后
+  manager 恒首位）。
+- 【B】【M12-wire 登记·决策 D3 现状澄清】teamStatusSchema 自 M2 协议面（647eb39c）
+  即为八值，已含 completed/cancelled；teamProjectionStateSchema.status 直接引用该
+  枚举——审查所述「枚举缺 completed/cancelled」与基线代码不符，无需 additive 补值。
+  按决策意图在 core team-schema-roundtrip.test.ts 增 a″ 用例逐值锁定终态
+  （completed/cancelled）投影帧可解析，防将来枚举收缩拒帧（本轮实跑通过）。
+- 【B】【M13 登记·§22 契约 3 补齐】teamHistoryEntrySchema.kind 补
+  final_report_dispatched/final_report_delivered 两 kind（载荷仅 teamId，
+  superRefine 无附加字段要求）；此前枚举缺席致历史查询逐条 safeParse 拒绝、计入
+  skippedEntries 误报「跳过 N 条」，过程面板看不到终局事实。core history.ts 显式
+  映射两 kind；UI TeamProcessPanel 经既有 team.history.kind.* 动态键族渲染（无需改
+  码），zh/en 补两标签键并在 dynamicallyConsumedTeamKeys 显式登记。测试：core
+  team-history.test.ts（两 kind 解析零 skippedEntries）+ ui i18n.test.ts（标签双语
+  在场，均本轮实跑通过）。
+- 【B】【L16 登记·已知冗余】wire teamMemberStateSchema 的 "removed" 枚举值冗余：
+  core projection.ts presentMembers 过滤 removed 成员（与 hub.snapshot() 同语义），
+  该结构永不上 wire；UI 的 team.member.state.removed 文案映射为不可达死代码（保留
+  无害）。行为有意按「成员从花名册消失 + history member_removed 事实」设计，不裁剪
+  枚举（wire additive 原则，避免旧端拒帧），登记为已知冗余；后续若裁剪须与旧端
+  兼容性一并裁决。
+
+#### C 批｜UI
+
+- 【C】【H3/M14，对应 §10 增补五实施修正】增补五落地补齐（2026-10-27 五轮审查
+  修复）：ConversationTurnGroup 已声明并渲染 teamCardSlot（轮尾、
+  ConversationWorkflowDigests 之前）——此前 Timeline 两路条件 spread 注入但
+  TurnGroup 未声明该 prop，spread 绕过 TS 检查被静默丢弃，有 TeamSpawn 行的会话
+  卡片完全不渲染（H3）；无锚定轮回退已接线：SessionPane 以同一节点
+  （teamConversationCardNode，守卫与轮内卡同源）同时喂 teamCardSlot 与 footerSlot，
+  Timeline 锚定/兜底互斥（锚在场抑制 footer）保证同一时刻只挂载一份（M14）——
+  「诚实兜底而非消失」闭合。测试：teamTurnGroupCardSlot.test.ts（渲染顺序）、
+  teamSessionPaneCardRouting.test.ts（双路由同节点+守卫）、
+  teamTimelineFooterFallback.test.ts（真实 Timeline 互斥：无锚 footer 钉底 1 次、
+  有锚 slot 恰下发锚定轮且 footer 0 次）。
+- 【C】【M16，对应 §19 契约 6 修订】状态面板团队行 open 入口的导航 target 与消息流
+  卡（TeamConversationSummary target 四元组）统一为同一形态：
+  workspaceIdentity/remoteSessionId 在场即随行（新增单一出处纯函数
+  resolveTeamStatusPanelOpenTarget，SessionPane.tsx）。此前只传
+  workspacePath+parentSessionId，identity≠path 的远程/虚拟工作区会与卡片入口铸出两个
+  不同结构化 id 的 team tab、remoteSessionId 解析 miss。测试：
+  teamStatusPanelOpenTarget.test.ts（渲染 SessionPane 点击团队行断言 onOpen 收到完整
+  target；client render 需补 useServices 的
+  highspeedCardService/broadcastService/botsService stub）、
+  teamSessionPaneCardRouting.test.ts（纯函数形态）。
+- 【C】【L12/L13/L14，对应 §18 附裁二修订】审批卡对齐修正三处：反馈行移出
+  role="listbox" 作兄弟节点（照 PermissionDialog 结构，消除 ARIA 歧义）；确认钮对齐
+  PermissionDialog 品牌蓝类（bg-brand text-foreground-inverse hover:bg-brand/80，
+  替代默认 bg-primary）；TeamStagedEditorProps 残留未闭合注释修复（§22 managerName
+  改造残骸）。同型教训登记：块注释内书写文件 glob（星号+斜杠序列）会提前闭合注释
+  吞掉余文——本批 L13（源码）与 M14 测试头注释先后踩中同一坑，后续注释一律以文字
+  描述引用路径模式、不内联 glob 字面量。测试：teamStagedEditorA11y.test.ts。
+- 【C】【L15，登记】AnimatedSidePanePanel team-member 分支删除对 TeamMemberTabPane
+  的 onPrefillComposer 死传参（props 未声明、条件 spread 静默丢弃型缺陷，与 H3
+  同型）；成员视图无「回对话修改」入口，不补声明。测试：
+  animatedSidePanePanelTeamPrefill.test.ts 补不下发断言。
+- 【C】【L17，登记】workspaceSidePane.selectSidePaneTabsForScope 的 scope 切换自动
+  激活偏好列表补 "team-member"（置于 team 之后）——成员 tab 与
+  workflow-actor-session 先例同构（会话型深链），切回对话 scope 时优先续选，不退回
+  普通工具 tab。测试：workspaceSidePaneTeamMember.test.ts 补用例。
+- 【C】【测试通道登记】本批全部新测试以 .ts 扩展名（createElement、零 JSX）落入
+  packages/ui/test/，被根 vitest unit 工程 include 与 verify:pre-push affected 通道
+  直接命中，不经由 CI 特例；此前批次的 team*.test.tsx
+  （teamStatusPanelHalt/teamApprovalDock/teamCardInlineFlow/
+  teamConversationSummaryStagedApproval/teamSidePanePrefillMount 等）仍只在
+  packages/ui 包配置通道执行、不在根 unit 默认门禁内——与 ci.yml:38-42 所称「文件
+  在、清单不收」同型，建议后续批次统一收敛（本批未动 vitest.config.ts/ci.yml，不在
+  清单）。
+- 【C】【L18，登记体验缺位（本轮不施工）】team-member tab 头部与成员 pane 头部缺
+  成员运行态指示（working/blocked 需回 team 面板查看）——与 workflow actor tab
+  同构对照下的体验缺位而非契约缺口，后续批次补状态点（数据面：team 投影
+  members[].state 已可达 tab 构造处）。
+
+### 收口批注记（2026-10-27）
+
+- A1「收口批确认项」（兑底路径乐观语义是否有意）为开放确认项，本轮收口未获用户
+  裁定输入，维持登记待决，不替用户判定；代码注释已声明取舍依据。
+- 本轮修复未动的条目（如 C L18 体验缺位、A2 L8 的 history 半边 reason 透出、B L16
+  的 wire 枚举裁剪、C 测试通道的 team*.test.tsx 收敛）均已在对应批次条目登记去向，
+  后续批次按登记承接。

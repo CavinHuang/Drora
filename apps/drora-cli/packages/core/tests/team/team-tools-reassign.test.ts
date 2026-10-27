@@ -130,3 +130,89 @@ describe("TeamReassign lead tool boundary (§19 契约 4)", () => {
     expect(reassignCalls()).toEqual([]);
   });
 });
+
+// ---------- 2026-10-27 M15（决策 D8）：TeamReopen manager 工具边界 ----------
+
+describe("TeamReopen manager tool boundary (M15/决策 D8)", () => {
+  interface ReopenCall {
+    taskId: string;
+  }
+
+  function reopenHarness(options: { reopenResult?: unknown } = {}) {
+    const calls: ReopenCall[] = [];
+    const port = {
+      reopen: (input: ReopenCall) => {
+        calls.push(input);
+        return (
+          options.reopenResult ?? {
+            status: "ok",
+            task: {
+              taskId: input.taskId,
+              title: "doomed",
+              status: "pending",
+              attempt: 1,
+            },
+          }
+        );
+      },
+    } as unknown as TeamLeadPort;
+    const entries = createTeamManagerToolEntries((context) =>
+      context.sessionId === "child_manager" ? port : undefined,
+    );
+    const reopen = entries.find((entry) => entry.metadata.name === "TeamReopen");
+    if (reopen === undefined) throw new Error("TeamReopen entry missing");
+    return {
+      reopen,
+      reopenCalls: () => calls,
+      managerContext: { sessionId: "child_manager" } as never,
+      outsiderContext: { sessionId: "child_alice" } as never,
+    };
+  }
+
+  it("manager 工具族注册 TeamReopen：入参映射 task_id，ok 回显重开后的任务卡", async () => {
+    const { reopen, reopenCalls, managerContext } = reopenHarness();
+    const result = (await reopen.handler({ task_id: "task_1" }, managerContext)) as {
+      task: { task_id?: string; status?: string };
+    };
+    expect(reopenCalls()).toEqual([{ taskId: "task_1" }]);
+    expect(result.task).toMatchObject({ task_id: "task_1", status: "pending" });
+  });
+
+  it("非团队会话 resolver undefined → 结构性拒（port 未解析），端口零调用", async () => {
+    const { reopen, reopenCalls, outsiderContext } = reopenHarness();
+    await expect(reopen.handler({ task_id: "task_1" }, outsiderContext)).rejects.toThrow(
+      "team sessions only",
+    );
+    expect(reopenCalls()).toEqual([]);
+  });
+
+  it("hub 拒绝（普通成员 team_lead_only）经 CoreError.context 全数透传", async () => {
+    const { reopen, managerContext } = reopenHarness({
+      reopenResult: {
+        status: "rejected",
+        error: {
+          code: "team_lead_only",
+          message: "This action is reserved for the team lead.",
+        },
+      },
+    });
+    const error: { message?: string; context?: { code?: string } } = await reopen
+      .handler({ task_id: "task_1" }, managerContext)
+      .then(
+        () => {
+          throw new Error("expected rejection");
+        },
+        (caught: unknown) => caught as { message?: string; context?: { code?: string } },
+      );
+    expect(error.context).toEqual({ code: "team_lead_only" });
+  });
+
+  it("超限/空串 task_id 工具边界拒（§17 契约 4 同门），端口零调用", async () => {
+    const { reopen, reopenCalls, managerContext } = reopenHarness();
+    await expect(
+      reopen.handler({ task_id: "x".repeat(TEAM_LIMITS.maxIdChars + 1) }, managerContext),
+    ).rejects.toThrow();
+    await expect(reopen.handler({ task_id: "" }, managerContext)).rejects.toThrow();
+    expect(reopenCalls()).toEqual([]);
+  });
+});

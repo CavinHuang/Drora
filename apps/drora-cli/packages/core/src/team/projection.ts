@@ -90,6 +90,12 @@ export interface TeamProjectionArtifactsInput {
 export interface TeamProjectionRecordInput {
   teamId: string;
   name?: string;
+  /**
+   * 管理者成员名（spec §22 契约 7；manager=roster 首位）。桥 teamProjectionViewOf 早已
+   * 塞进 record，但此前本接口无该字段、输出键清单也不含它——wire 帧恒缺 managerName，
+   * UI 管理者徽标永不渲染（§22 契约 7 断链，2026-10-27 审查 H2 补齐）。
+   */
+  managerName?: string;
   status: TeamStatus;
   permissionMode?: TeamPermissionMode;
   members?: readonly TeamProjectionMemberInput[];
@@ -171,6 +177,9 @@ export function projectTeam(
   return {
     teamId: record.teamId,
     ...(record.name === undefined ? {} : { name: record.name }),
+    // §22 契约 7（2026-10-27 审查 H2 修复）：managerName 此前在桥塞进 record 后于本跳
+    // 被静默丢弃（接口无字段、输出无键），wire 恒缺该键——UI 管理者徽标依赖它渲染。
+    ...(record.managerName === undefined ? {} : { managerName: record.managerName }),
     status: record.status,
     ...(record.permissionMode === undefined ? {} : { permissionMode: record.permissionMode }),
     members: presentMembers(members).map((member) =>

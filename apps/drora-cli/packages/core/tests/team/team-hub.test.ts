@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TeamStageInput } from "@drora/contracts";
+import { TEAM_LIMITS } from "@drora/shared/drora-protocol-v4";
 import { TeamHub, type TeamDispatchFn } from "../../src/team/hub.js";
+import { replayTeamJournal, type TeamJournalEvent } from "../../src/team/journal.js";
 import { classifyMemberFailure, type BoardClock } from "../../src/team/board.js";
 import { projectTeam } from "../../src/team/projection.js";
 import { TEAM_KERNEL_LIMITS, type TeamMailboxEntry } from "../../src/team/types.js";
@@ -438,9 +440,17 @@ describe("event-driven dispatch (mailbox first, then ready task)", () => {
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
 
-    // 两名成员都终态（结算完成）→ 无邮件无任务 → 状态 idle
+    // 两名成员都终态（结算完成）→ 空板对终态判定空真：2026-10-27 H1 修复后终报
+    // 派发在此边缘可达（修复前 maybeDispatchFinalReport 是死代码）——manager 指令
+    // 邮件先入箱（待决使 active），经 kick 复活链送达后待决清空 → 收敛 idle。
     await hub.handleMemberTerminal("alice");
     await hub.handleMemberTerminal("bob");
+    await vi.waitFor(() => {
+      const directive = hub
+        .mailboxEntries()
+        .find((entry) => entry.from === "lead" && entry.to === "morgana");
+      expect(directive?.deliveredAccepted).toBe(true);
+    });
     expect(hub.status).toBe("idle");
 
     // 给 alice 派任务（指派任务）→ 终态边缘自动派发
@@ -501,6 +511,9 @@ describe("reassign three-step handoff", () => {
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const lead = hub.leadPort("lead_s1");
+    // 2026-10-27 M9（决策 D1，裁定 3）：转派 actor 收敛 manager——原 lead.reassign
+    // 调用点全部换 manager 端口（三步交接语义不变，actor 门见新增 actor 三分用例）。
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     lead.taskCreate({
       title: "work",
       spec: { goal: "g", acceptance: [] },
@@ -509,13 +522,13 @@ describe("reassign three-step handoff", () => {
     });
     await hub.kickMember("alice");
     const task = hub.board()?.tasks.find((candidate) => candidate.title === "work");
-    return { hub, lead, task: task!, settleCalls };
+    return { hub, lead, manager, task: task!, settleCalls };
   }
 
   it("revokes the old attempt, waits for quiescence, and the new owner claims a fresh generation", async () => {
-    const { hub, lead, task, settleCalls } = await prepare();
+    const { hub, manager, task, settleCalls } = await prepare();
     const oldAttemptId = task.attemptId;
-    const result = await lead.reassign({
+    const result = await manager.reassign({
       taskId: task.taskId,
       to: "bob",
       reason: "alice overloaded",
@@ -543,7 +556,7 @@ describe("reassign three-step handoff", () => {
   });
 
   it("newer handoff wins: re-entry after rotation refuses to overwrite", async () => {
-    const { hub, lead, task } = await prepare();
+    const { hub, manager, task } = await prepare();
     // 静默回调里模拟并发交接：把 handoffId 世代改写（新者胜场景）
     const hubAny = hub as unknown as {
       deps: { interruptAndSettle?: (m: string) => Promise<void> };
@@ -557,13 +570,14 @@ describe("reassign three-step handoff", () => {
       const internalTask = internal.record?.tasks.find((c) => c.taskId === task.taskId);
       if (internalTask !== undefined) internalTask.handoffId = "handoff_newer";
     };
-    const result = await lead.reassign({ taskId: task.taskId, to: "bob", reason: "first" });
+    const result = await manager.reassign({ taskId: task.taskId, to: "bob", reason: "first" });
     expect(result.status).toBe("rejected"); // 再入校验失败：新者胜，拒绝覆盖
   });
 
   it("lead takeover is direct in_progress, unique, and returns to the pool on the lead idle edge", async () => {
-    const { hub, lead, task } = await prepare();
-    const taken = await lead.reassign({ taskId: task.taskId, to: "lead", reason: "taking over" });
+    const { hub, lead, manager, task } = await prepare();
+    // L7 登记：to=lead 接管分支保留（§22 后 manager 可把执行任务派给 lead）。
+    const taken = await manager.reassign({ taskId: task.taskId, to: "lead", reason: "taking over" });
     expect(taken.status).toBe("ok");
     let card = hub.board()?.tasks.find((candidate) => candidate.taskId === task.taskId);
     expect(card?.assignee).toBe("lead");
@@ -577,7 +591,7 @@ describe("reassign three-step handoff", () => {
       assignee: "bob",
     });
     await hub.kickMember("bob");
-    const second = await lead.reassign({
+    const second = await manager.reassign({
       taskId: hub.board()!.tasks.find((c) => c.title === "second")!.taskId,
       to: "lead",
       reason: "again",
@@ -1143,6 +1157,8 @@ describe("member terminal failure disposition (spec §16 契约 1, dsh-agent-tea
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const lead = hub.leadPort("lead_s1");
+    // M9：转派 actor = manager（原 lead.reassign 调用点换 manager 端口）。
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     lead.taskCreate({
       title: "shifted",
       spec: { goal: "g", acceptance: [] },
@@ -1154,7 +1170,7 @@ describe("member terminal failure disposition (spec §16 契约 1, dsh-agent-tea
     const staleAttemptId = stale.attemptId!;
 
     // 失败前任务已转派给 bob（旧世代失效），alice 另开新代任务
-    const reassign = await lead.reassign({
+    const reassign = await manager.reassign({
       taskId: stale.taskId,
       to: "bob",
       reason: "alice overloaded",
@@ -1570,6 +1586,8 @@ describe("TeamSend generation discipline: content-level dedup + source pairing (
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const lead = hub.leadPort("lead_s1");
+    // M9：转派 actor = manager（原 lead.reassign 调用点换 manager 端口）。
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     lead.taskCreate({
       title: "work",
       spec: { goal: "g", acceptance: [] },
@@ -1578,7 +1596,7 @@ describe("TeamSend generation discipline: content-level dedup + source pairing (
     });
     await hub.kickMember("alice");
     const task = hub.board()?.tasks.find((candidate) => candidate.title === "work");
-    return { hub, lead, task: task! };
+    return { hub, lead, manager, task: task! };
   }
 
   it("① resending the identical report twice keeps exactly one mailbox entry and returns the same messageId", async () => {
@@ -1622,14 +1640,14 @@ describe("TeamSend generation discipline: content-level dedup + source pairing (
   });
 
   it("③ resending the same text after a generation rotation enters normally (the old entry is no longer current)", async () => {
-    const { hub, lead, task } = await prepare();
+    const { hub, manager, task } = await prepare();
     const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
     const first = alice.send({ to: "bob", message: "heads up", targetTaskId: task.taskId });
     expect(first.status).toBe("success");
 
     // 转派轮换世代：条目快照的 targetAttemptId 失配 → 旧条目已不 isCurrentMail，
     // 去重谓词不命中 → 同文重发正常入箱（spec §16 契约 4 不变量）。
-    const rotated = await lead.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
+    const rotated = await manager.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
     expect(rotated.status).toBe("ok");
     const second = alice.send({ to: "bob", message: "heads up", targetTaskId: task.taskId });
     expect(second.status).toBe("success");
@@ -1653,9 +1671,9 @@ describe("TeamSend generation discipline: content-level dedup + source pairing (
   });
 
   it("⑤ a stale sourceAttemptId after reassignment is rejected (attempt_revoked) and nothing is appended", async () => {
-    const { hub, lead, task } = await prepare();
+    const { hub, manager, task } = await prepare();
     const staleAttemptId = task.attemptId ?? "";
-    const rotated = await lead.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
+    const rotated = await manager.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
     expect(rotated.status).toBe("ok");
 
     // 世代纪律（dsh tools.ts 语义）：非终态源任务上报告不能靠携带旧代穿透——
@@ -1673,8 +1691,8 @@ describe("TeamSend generation discipline: content-level dedup + source pairing (
   });
 
   it("⑥ the current owner's sourceAttemptId passes the pairing check and enters the mailbox", async () => {
-    const { hub, lead, task } = await prepare();
-    const rotated = await lead.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
+    const { hub, manager, task } = await prepare();
+    const rotated = await manager.reassign({ taskId: task.taskId, to: "bob", reason: "rotate" });
     expect(rotated.status).toBe("ok");
     const fresh = hub.board()?.tasks.find((candidate) => candidate.taskId === task.taskId);
 
@@ -1795,7 +1813,7 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
     expect(hub.mailboxEntries()).toHaveLength(1);
   });
 
-  it("③ after delivery a re-sent identical stripped report enters as a new entry (deliberate reminder channel stays open)", async () => {
+  it("③ after final-report delivery the team reaches its finale and the lead mailbox stays closed to a re-sent report (§22 契约 3 + 2026-10-27 M12)", async () => {
     const deliver = vi.fn(acceptAllLeadMail());
     const { hub, task } = await prepare(deliver);
     const attemptId = task.attemptId!;
@@ -1806,25 +1824,30 @@ describe("terminal-source report strips sourceAttemptId at portSend (spec §20 �
       sourceTaskId: task.taskId,
       sourceAttemptId: attemptId,
     };
-    // §22：to=lead 唯一入口是 manager——dedup/重发不对称语义在 manager 口径重证。
+    // §22：to=lead 唯一入口是 manager——第一条 manager→lead 注入即终报送达。
     const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     const first = morgana.send({ ...report, to: "lead" });
     expect(first.status).toBe("success");
     await vi.waitFor(() => expect(hub.mailboxEntries()[0]?.deliveredAccepted).toBe(true));
 
-    // 不对称语义（dsh 补1）「未绑定」半边照常适用：已投递后重发允许新条目。
+    // 2026-10-27 M12（决策 D3）改写旧断言「已投递后重发允许新条目」：to=lead 通道的
+    // 「有意重复提醒」被 §22 契约 3 防多报 + 终局收口取代——终报送达即 completed，
+    // 归档态关闭全部端口，重发被拒、不再产生 M5 登记的永久 queued 死信；成员间提醒
+    // 通道（deliberate reminder）不受影响，见 ② 用例。
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
     const second = morgana.send({ ...report, to: "lead" });
-    expect(second.status).toBe("success");
-    expect(first.status === "success" && second.status === "success" && second.messageId).not.toBe(
-      first.messageId,
-    );
-    expect(hub.mailboxEntries()).toHaveLength(2);
+    expect(second.status).toBe("failed");
+    expect(second.status === "failed" && second.error.code).toBe("member_removed");
+    expect(hub.mailboxEntries()).toHaveLength(1);
   });
 });
 
-// ---------- spec §16 契约 5（2026-10-23 登记）：任务终态恢复预算——lead 显式重开 ----------
+// ---------- spec §16 契约 5（2026-10-23 登记）：任务终态恢复预算——manager 显式重开 ----------
+// 2026-10-27 M15（决策 D8）：重开 actor 随 §22 裁定 3 归 manager（memberPort.reopen /
+// TeamReopen 工具）；原 leadPort.reopenTask lead 专属面有实现无生产入口，已从
+// TeamLeadPort 移除。以下用例的 actor 从 lead 全部换 manager，重开语义本身不变。
 
-describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled edge)", () => {
+describe("manager task reopen (spec §16 契约 5, failed→pending controlled edge; M15)", () => {
   interface JournalRow {
     payload: { kind: string; task?: { status?: string; attempt?: number } };
   }
@@ -1857,18 +1880,26 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     return { hub, journal, task, attemptId };
   }
 
-  it("① reopen is lead-only: a foreign lead session is rejected and the member update path cannot pull failed back to pending", async () => {
+  it("① reopen is manager-only (M15/D8): lead sessions and plain members are rejected; the member update path cannot pull failed back to pending", async () => {
     const { hub, task, attemptId } = await prepareWithFailedTask();
 
-    // 非 lead 会话（TeamLeadPort 结构性通道，requireLeadRecord 拒绝）
-    const foreign = hub.leadPort("lead_other").reopenTask({ taskId: task.taskId });
+    // M9/D1：lead 会话（含本队 lead）不再是管理 actor——isTeamActor 仅认 manager agentId
+    const ownLead = hub.leadPort("lead_s1").reopen({ taskId: task.taskId });
+    expect(ownLead.status).toBe("rejected");
+    expect(ownLead.status === "rejected" && ownLead.error.code).toBe("team_lead_only");
+    const foreign = hub.leadPort("lead_other").reopen({ taskId: task.taskId });
     expect(foreign.status).toBe("rejected");
     expect(foreign.status === "rejected" && foreign.error.code).toBe("team_lead_only");
+
+    // 普通成员 child 同拒（manager 专属管理动作）
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const viaReopen = alice.reopen({ taskId: task.taskId });
+    expect(viaReopen.status).toBe("rejected");
+    expect(viaReopen.status === "rejected" && viaReopen.error.code).toBe("team_lead_only");
     expect(hub.board()!.tasks[0]!.status).toBe("failed");
 
-    // 成员端口无重开通道（TeamMemberPort 类型面即无此方法）；经 taskUpdate 携旧代
-    // 凭证把 failed 拉回 pending → 通用更新面整次拒绝（契约 5 wasTerminal 守卫）
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // 经 taskUpdate 携旧代凭证把 failed 拉回 pending → 通用更新面整次拒绝
+    //（契约 5 wasTerminal 守卫）
     const viaUpdate = alice.taskUpdate({
       taskId: task.taskId,
       attemptId,
@@ -1880,13 +1911,15 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     expect(hub.board()!.tasks[0]!.output).toBeDefined(); // 失败通知记录不被绕过重开清掉
   });
 
-  it("② lead reopens the failed task: shared-pool pending with evidence cleared, journal fact, and redispatch claims a continued attempt", async () => {
+  it("② the manager reopens the failed task: shared-pool pending with evidence cleared, journal fact, and redispatch claims a continued attempt", async () => {
     const journal: JournalRow[] = [];
     const { hub, task, attemptId } = await prepareWithFailedTask(journal);
     const failed = hub.board()!.tasks[0]!;
     expect(failed.output).toContain("replacement task"); // 契约 1 失败通知在 output（重开将清空）
+    expect(failed.output).toContain("TeamReopen"); // M15：失败通知改指 manager 的 TeamReopen 通道
 
-    const reopened = hub.leadPort("lead_s1").reopenTask({ taskId: task.taskId });
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const reopened = manager.reopen({ taskId: task.taskId });
     expect(reopened.status).toBe("ok");
     const card = reopened.status === "ok" ? reopened.task : undefined;
     expect(card?.status).toBe("pending");
@@ -1928,9 +1961,10 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     stageEmpty(hub);
     await hub.approveStage("lead_s1");
     const lead = hub.leadPort("lead_s1");
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
 
-    const unknown = lead.reopenTask({ taskId: "task_missing" });
+    const unknown = manager.reopen({ taskId: "task_missing" });
     expect(unknown.status).toBe("rejected");
     expect(unknown.status === "rejected" && unknown.error.code).toBe("team_not_present");
 
@@ -1948,7 +1982,7 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     });
     const live = hub.board()!.tasks.find((candidate) => candidate.title === "live")!;
     const liveCredential = live.attemptId!;
-    const openReopen = lead.reopenTask({ taskId: live.taskId });
+    const openReopen = manager.reopen({ taskId: live.taskId });
     expect(openReopen.status === "rejected" && openReopen.error.code).toBe("invalid_transition");
 
     // completed 任务不可重开；reassign 对 completed 仍拒（锁定保留）
@@ -1966,11 +2000,11 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
         patch: { status: "completed", output: "done" },
       }).status,
     ).toBe("ok");
-    const completedReopen = lead.reopenTask({ taskId: live.taskId });
+    const completedReopen = manager.reopen({ taskId: live.taskId });
     expect(completedReopen.status === "rejected" && completedReopen.error.code).toBe(
       "invalid_transition",
     );
-    const completedReassign = await lead.reassign({
+    const completedReassign = await manager.reassign({
       taskId: live.taskId,
       to: "bob",
       reason: "nope",
@@ -1999,13 +2033,13 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
         patch: { status: "cancelled" },
       }).status,
     ).toBe("ok");
-    const cancelledReopen = lead.reopenTask({ taskId: dropped.taskId });
+    const cancelledReopen = manager.reopen({ taskId: dropped.taskId });
     expect(cancelledReopen.status === "rejected" && cancelledReopen.error.code).toBe(
       "invalid_transition",
     );
 
     // failed 任务：reassign 仍拒终态（契约 5 不动 reassign 语义）；lead 自身的通用
-    // taskUpdate 同样不能消费受控出边（team_lead_only）——唯一通道是 reopenTask
+    // taskUpdate 同样不能消费受控出边（team_lead_only）——唯一通道是 manager 的 reopen
     lead.taskCreate({
       title: "doomed",
       spec: { goal: "g", acceptance: [] },
@@ -2026,7 +2060,7 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     expect(hub.board()!.tasks.find((candidate) => candidate.title === "doomed")!.status).toBe(
       "failed",
     );
-    const failedReassign = await lead.reassign({
+    const failedReassign = await manager.reassign({
       taskId: doomed.taskId,
       to: "bob",
       reason: "nope",
@@ -2043,7 +2077,7 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
 
     // halted 冻结门（照 reassign 先例）
     expect(hub.halt("lead_s1").status).toBe("ok");
-    const haltedReopen = lead.reopenTask({ taskId: doomed.taskId });
+    const haltedReopen = manager.reopen({ taskId: doomed.taskId });
     expect(haltedReopen.status === "rejected" && haltedReopen.error.code).toBe("team_halted");
   });
 
@@ -2089,8 +2123,9 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
       .parkedAttempts;
     expect(parkedAttempts.get("agent_alice")).toBe(firstAttemptId); // 残留探针
 
-    // reopenTask：recoveryRetried 重置 + parked 残留清理（failed_attempt 先例同族）
-    expect(lead.reopenTask({ taskId: hub.board()!.tasks[0]!.taskId }).status).toBe("ok");
+    // manager reopen：recoveryRetried 重置 + parked 残留清理（failed_attempt 先例同族）
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    expect(manager.reopen({ taskId: hub.board()!.tasks[0]!.taskId }).status).toBe("ok");
     expect(hub.board()!.tasks[0]!.recoveryRetried).toBeUndefined();
     expect(parkedAttempts.has("agent_alice")).toBe(false);
 
@@ -2151,7 +2186,8 @@ describe("lead-only task reopen (spec §16 契约 5, failed→pending controlled
     expect(notice?.deliveredAccepted).toBe(false);
 
     // 重开：旧世代 attemptId 失配 → isCurrentMail 失活，重投边缘不再投旧通知
-    expect(lead.reopenTask({ taskId: task.taskId }).status).toBe("ok");
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    expect(manager.reopen({ taskId: task.taskId }).status).toBe("ok");
     await hub.kickTeam();
     // §22：失败通知走成员通道（manager 收件），lead 通道（deliver mock）全程零调用。
     expect(deliver).not.toHaveBeenCalled();
@@ -2429,8 +2465,11 @@ describe("mail delivered flip notifies (2026-10-23 留档项「成员邮件 deli
     expect(onChange.mock.calls.length).toBeGreaterThan(baseline);
     expect(hub.mailboxEntries().at(-1)?.deliveredAccepted).toBe(true);
     expect(projectedTailOf(hub).at(-1)?.delivered).toBe(true);
-    // refreshStatus 重算（邮箱待决清空 + 无 working/spawning 成员）→ 团队收敛 idle
-    // 而非滞留 active（通知补齐前该重算根本不发生）
+    // 2026-10-27 H1：空板 + workers 全终态同样触发终报派发（§22 契约 3 终态判定对
+    // 空板空真）——manager 指令邮件与本用例的 bob 探针同处待决（首次 kick 已随
+    // accept=false 被拒释放）。补 kick manager 送达指令后，「邮箱待决清空 → 团队
+    // 收敛 idle」的重算断言照旧成立（通知补齐前该重算根本不发生）。
+    await hub.kickMember("morgana");
     expect(hub.status).toBe("idle");
 
     // 幂等：已完成的重复 kick 边缘零新通知（§16 契约 3 现状保留）
@@ -2438,5 +2477,923 @@ describe("mail delivered flip notifies (2026-10-23 留档项「成员邮件 deli
     await hub.kickMember("bob");
     await hub.kickMember("bob");
     expect(onChange.mock.calls.length).toBe(settled);
+  });
+});
+
+// ---------- 2026-10-27 §22 契约 3 终报链修复批（第五轮审查 H1/M3/M5/M6/M7/M11/M12/L5）----------
+
+describe("final report chain (§22 契约 3, 2026-10-27 修复批)", () => {
+  interface JournalRow {
+    payload: {
+      kind: string;
+      messageIds?: readonly string[];
+      reason?: string;
+      entry?: TeamMailboxEntry;
+    };
+  }
+
+  /** 单任务草案：alice 执行、bob 闲置、morgana 管理（spawnOk 记 agent_ 前缀）。 */
+  const ONE_TASK_STAGE: TeamStageInput = {
+    name: "finale",
+    manager: { memberName: "morgana", profile: "team manager" },
+    draftMembers: [
+      { memberName: "alice", profile: "researcher" },
+      { memberName: "bob", profile: "implementer" },
+    ],
+    draftTasks: [
+      {
+        title: "only",
+        spec: { goal: "g", acceptance: ["a"] },
+        dependsOn: [],
+        assignee: "alice",
+      },
+    ],
+  };
+
+  async function prepareFinaleTeam() {
+    const journal: JournalRow[] = [];
+    const dispatch = vi.fn(async () => true);
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch,
+      deliverLeadMail: deliver,
+      journalWriter: (event) => journal.push(event as never),
+    });
+    hub.stageTeam("lead_s1", ONE_TASK_STAGE);
+    await hub.approveStage("lead_s1");
+    return { hub, journal, dispatch, deliver };
+  }
+
+  function onlyTaskId(hub: TeamHub): string {
+    return hub.board()!.tasks[0]!.taskId;
+  }
+
+  /** alice 经成员端口把唯一任务推到终态（claimed→in_progress→final；cancelled 可自 claimed 直达）。 */
+  function finishTask(
+    hub: TeamHub,
+    final: "completed" | "failed" | "cancelled",
+  ): void {
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const claim = alice.taskClaim(onlyTaskId(hub));
+    expect(claim.status).toBe("claimed");
+    if (claim.status !== "claimed") return;
+    if (final !== "cancelled") {
+      expect(
+        alice.taskUpdate({
+          taskId: claim.taskId,
+          attemptId: claim.attemptId,
+          patch: { status: "in_progress" },
+        }).status,
+      ).toBe("ok");
+    }
+    expect(
+      alice.taskUpdate({
+        taskId: claim.taskId,
+        attemptId: claim.attemptId,
+        patch: { status: final },
+      }).status,
+    ).toBe("ok");
+  }
+
+  /** workers 全终态——最后一个终态边缘触发 refreshStatus 的 idle → 终报派发（H1）。 */
+  async function settleWorkers(hub: TeamHub): Promise<void> {
+    await hub.handleMemberTerminal("alice");
+    await hub.handleMemberTerminal("bob");
+  }
+
+  function directiveOf(hub: TeamHub): TeamMailboxEntry | undefined {
+    return hub
+      .mailboxEntries()
+      .find((entry) => entry.from === "lead" && entry.to === "morgana");
+  }
+
+  const kinds = (journal: JournalRow[], kind: string): JournalRow[] =>
+    journal.filter((row) => row.payload.kind === kind);
+
+  it("H1: terminal idle edge dispatches the manager directive exactly once; a second terminal edge does not re-dispatch; delivery completes the team (M12)", async () => {
+    const { hub, journal } = await prepareFinaleTeam();
+    finishTask(hub, "completed");
+    await settleWorkers(hub);
+
+    // 修复前死代码：refreshStatus 只在 idle 边缘调用而派发门恒要求 active——两条
+    // 路径均不可达、final_report_dispatched 永不落。现在 idle 且终态即派发。
+    const directive = directiveOf(hub);
+    expect(directive).toBeDefined();
+    expect(directive?.message).toContain("Write ONE final report");
+    expect(kinds(journal, "final_report_dispatched")).toHaveLength(1);
+    // 指令经 kick 复活链送达 manager（dispatch mock 接受）。
+    await vi.waitFor(() => {
+      const settled = directiveOf(hub);
+      expect(settled?.messageId).toBe(directive?.messageId);
+      expect(settled?.deliveredAccepted).toBe(true);
+    });
+
+    // 幂等：二次终态边缘不重派（dispatchedFlag 门）——事实与指令邮件均不重复。
+    await hub.handleMemberTerminal("alice");
+    expect(kinds(journal, "final_report_dispatched")).toHaveLength(1);
+    expect(
+      hub.mailboxEntries().filter((entry) => entry.from === "lead" && entry.to === "morgana"),
+    ).toHaveLength(1);
+
+    // manager 执笔终报 → lead 注入 → delivered 事实恰一条 + 终局 completed（M12）。
+    const sent = managerLeadSend(hub, "final: all tasks completed");
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+  });
+
+  it("H1 fallback + L5: manager unavailable routes the structured fallback with BOTH facts (dispatched + delivered) and completes the team", async () => {
+    const { hub, journal } = await prepareFinaleTeam();
+    expect(hub.removeMember("morgana").status).toBe("ok");
+    finishTask(hub, "completed");
+    await settleWorkers(hub);
+
+    // 兜底路径两事实齐落（L5：此前缺 final_report_dispatched，journal 流无法区分路径）。
+    await vi.waitFor(() => {
+      expect(kinds(journal, "final_report_dispatched")).toHaveLength(1);
+      expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+    });
+    const fallback = hub.mailboxEntries().find((entry) => entry.to === "lead");
+    expect(fallback?.message).toContain("only: completed");
+    await vi.waitFor(() => {
+      const settled = hub
+        .mailboxEntries()
+        .find((entry) => entry.messageId === fallback?.messageId);
+      expect(settled?.deliveredAccepted).toBe(true);
+      expect(settled?.deliveredVia).toBe("lead_injected");
+    });
+    expect(hub.status).toBe("completed");
+  });
+
+  it("M11: a team whose only task ended failed still dispatches the final report (board TERMINAL_STATUSES alignment)", async () => {
+    const { hub, journal } = await prepareFinaleTeam();
+    finishTask(hub, "failed");
+    await settleWorkers(hub);
+    // 修复前 failed 被按开放计（只认 completed/cancelled）——全 failed 收尾的团队
+    // 永不终报。指令邮件随行失败结论。
+    const directive = directiveOf(hub);
+    expect(directive).toBeDefined();
+    expect(directive?.message).toContain("only: failed");
+    expect(kinds(journal, "final_report_dispatched")).toHaveLength(1);
+  });
+
+  it("M12: an all-cancelled finale derives status cancelled after the report is delivered", async () => {
+    const { hub, journal } = await prepareFinaleTeam();
+    finishTask(hub, "cancelled");
+    await settleWorkers(hub);
+    await vi.waitFor(() => expect(directiveOf(hub)).toBeDefined());
+    expect(managerLeadSend(hub, "final: everything cancelled").status).toBe("success");
+    // 全任务 cancelled 且无 completed → cancelled（其余终局分布一律 completed）。
+    await vi.waitFor(() => expect(hub.status).toBe("cancelled"));
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+  });
+
+  it("M5: member→lead is unconditionally rerouted to the manager; after the finale the member port is closed (no permanent queued dead letter)", async () => {
+    const { hub } = await prepareFinaleTeam();
+    finishTask(hub, "completed");
+    await settleWorkers(hub);
+    await vi.waitFor(() => expect(directiveOf(hub)).toBeDefined());
+
+    // 终报周期进行中（dispatched 已落、未 delivered）：成员发 to=lead 仍一律改投
+    // manager（契约 2 无条件表述；修复前条件含 !finalReportDelivered()）。
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const sent = alice.send({ to: "lead", message: "worker summary for the manager" });
+    expect(sent.status).toBe("success");
+    const entry = hub
+      .mailboxEntries()
+      .find((row) => row.message === "worker summary for the manager");
+    expect(entry?.to).toBe("morgana");
+
+    // 终报送达即终局（M12）：归档态关闭成员端口——M5 登记的「送达后成员→lead 死信
+    // 钉死 active」入口结构性消失（离册 manager 的同类死信由 M3 死信化承接）。
+    expect(managerLeadSend(hub, "final report").status).toBe("success");
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+    const after = alice.send({ to: "lead", message: "another lead attempt" });
+    expect(after.status).toBe("failed");
+  });
+
+  it("M3: member→lead with the manager removed is dead-lettered (message_dropped) and the team still reaches its finale", async () => {
+    const { hub, journal } = await prepareFinaleTeam();
+    expect(hub.removeMember("morgana").status).toBe("ok");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const sent = alice.send({ to: "lead", message: "late report to the lead" });
+    // M5 改投（record.managerName 仍在、人已离册）→ routeMail 判定收件人离册 →
+    // §21 A1 同族死信：message_dropped 事实 + 条目退出邮箱（修复前恒 queued、
+    // busy 把死信计入，团队被钉死 active）。
+    expect(sent.status).toBe("success");
+    expect(sent.status === "success" && sent.delivery).toBe("queued");
+    const dropped = kinds(journal, "message_dropped").find(
+      (row) => row.payload.reason === "recipient no longer on the team",
+    );
+    expect(dropped?.payload.messageIds).toEqual(
+      sent.status === "success" ? [sent.messageId] : [],
+    );
+    expect(hub.mailboxEntries().some((entry) => entry.to === "morgana")).toBe(false);
+
+    // 死信不钉死收尾：任务终态 + workers 终态 → idle 边缘可达 → 兜底终报 → 终局。
+    finishTask(hub, "completed");
+    await settleWorkers(hub);
+    expect(hub.status).toBe("completed");
+  });
+
+  it("M3 busy filter: mail queued to a LATER-removed manager stays in the mailbox but no longer pins the team active", async () => {
+    const { hub } = await prepareFinaleTeam();
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // manager 在册：改投条目入箱（morgana 处 spawning 态，routeMail 排队等待）。
+    expect(alice.send({ to: "lead", message: "intermediate report" }).status).toBe("success");
+    expect(hub.mailboxEntries().some((entry) => entry.to === "morgana")).toBe(true);
+    // manager 随后被移除：routeMail 不重跑、条目留在邮箱，但 busy 谓词按收件人在册
+    // 过滤（修复前恒 isCurrentMail → 永久 active，idle 边缘与终报均不可达）。
+    expect(hub.removeMember("morgana").status).toBe("ok");
+    finishTask(hub, "completed");
+    await settleWorkers(hub);
+    // idle 边缘同步推进到兜底终报终局（修复前此处被钉死 active）。
+    expect(hub.status).toBe("completed");
+    expect(hub.mailboxEntries().some((entry) => entry.to === "morgana")).toBe(true); // 条目如实保留，只是不再计入 busy
+  });
+
+  // ---------- M6/M7：闭箱过滤与冷恢复重臂（经手写事实流重放构造恢复态）----------
+
+  const FINALE_AT = "2026-10-27T00:00:00.000Z";
+
+  function finaleMail(
+    messageId: string,
+    from: string,
+    to: string,
+    message: string,
+  ): TeamMailboxEntry {
+    return { messageId, from, to, message, at: FINALE_AT, deliveredAccepted: false };
+  }
+
+  /** 终态团队基线事实流：创建→草案→审批→三成员出生→唯一任务 completed（seq 1-7）。 */
+  function finaleBaseEvents(): TeamJournalEvent[] {
+    const taskFact = {
+      taskId: "t_only",
+      title: "only",
+      spec: { goal: "g", acceptance: ["a"] },
+      attempt: 1,
+      dependsOn: [],
+      artifactRefs: [],
+      createdAt: FINALE_AT,
+      updatedAt: FINALE_AT,
+    };
+    const memberAdded = (seq: number, memberName: string): TeamJournalEvent => ({
+      seq,
+      at: FINALE_AT,
+      payload: {
+        kind: "member_added",
+        teamId: "team_finale",
+        memberName,
+        agentId: `agent_${memberName}`,
+        childSessionId: `child_${memberName}`,
+      },
+    });
+    return [
+      {
+        seq: 1,
+        at: FINALE_AT,
+        payload: {
+          kind: "team_created",
+          teamId: "team_finale",
+          leadSessionId: "lead_s1",
+          managerName: "morgana",
+          createdAt: FINALE_AT,
+        },
+      },
+      {
+        seq: 2,
+        at: FINALE_AT,
+        payload: {
+          kind: "staged",
+          teamId: "team_finale",
+          managerName: "morgana",
+          awaitingFeedback: false,
+          members: [{ memberName: "morgana" }, { memberName: "alice" }, { memberName: "bob" }],
+          tasks: [{ ...taskFact, status: "pending" as const, attempt: 0 }],
+        },
+      },
+      { seq: 3, at: FINALE_AT, payload: { kind: "approved", teamId: "team_finale" } },
+      memberAdded(4, "morgana"),
+      memberAdded(5, "alice"),
+      memberAdded(6, "bob"),
+      {
+        seq: 7,
+        at: FINALE_AT,
+        payload: {
+          kind: "task_updated",
+          teamId: "team_finale",
+          task: { ...taskFact, status: "completed" as const },
+        },
+      },
+    ];
+  }
+
+  const appendedFact = (seq: number, entry: TeamMailboxEntry): TeamJournalEvent => ({
+    seq,
+    at: FINALE_AT,
+    payload: { kind: "message_appended", teamId: "team_finale", entry },
+  });
+  const dispatchedFact = (seq: number): TeamJournalEvent => ({
+    seq,
+    at: FINALE_AT,
+    payload: { kind: "final_report_dispatched", teamId: "team_finale" },
+  });
+  const deliveredFact = (seq: number): TeamJournalEvent => ({
+    seq,
+    at: FINALE_AT,
+    payload: { kind: "final_report_delivered", teamId: "team_finale" },
+  });
+  const removedFact = (seq: number, memberName: string): TeamJournalEvent => ({
+    seq,
+    at: FINALE_AT,
+    payload: { kind: "member_removed", teamId: "team_finale", memberName },
+  });
+
+  function restoredHub(journal: JournalRow[], deliver: ReturnType<typeof vi.fn>) {
+    const hub = new TeamHub({
+      clock: makeClock(),
+      dispatch: vi.fn(async () => true),
+      deliverLeadMail: deliver,
+      journalWriter: (event) => journal.push(event as never),
+    });
+    return hub;
+  }
+
+  it("M6: after final-report delivery the batch channel dead-letters a second manager report and reroutes a member's late lead mail to the manager", async () => {
+    const report1 = finaleMail("m_report_1", "morgana", "lead", "final report");
+    const report2 = finaleMail(
+      "m_report_2",
+      "morgana",
+      "lead",
+      "second report (multi-report attempt)",
+    );
+    const lateMember = finaleMail("m_late", "alice", "lead", "late member mail");
+    const events: TeamJournalEvent[] = [
+      ...finaleBaseEvents(),
+      appendedFact(8, report1),
+      {
+        seq: 9,
+        at: FINALE_AT,
+        payload: {
+          kind: "message_delivered",
+          teamId: "team_finale",
+          messageIds: ["m_report_1"],
+          via: "lead_injected",
+          at: FINALE_AT,
+        },
+      },
+      dispatchedFact(10),
+      appendedFact(11, report2),
+      appendedFact(12, lateMember),
+      deliveredFact(13),
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record).toBeDefined();
+    // M12 重放推导：送达事实 + 任务分布 → completed；闭箱过滤仍须可达（M6 过滤
+    // 先于归档门执行——死信清理不是投递）。
+    expect(record!.status).toBe("completed");
+
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    expect(hub.adoptRestored(record!)).toBe(true);
+
+    await hub.deliverPendingLeadMail();
+    // 批量通道不再向 lead 注入第二条终报/成员迟到信：deliver 零调用。
+    expect(deliver).not.toHaveBeenCalled();
+    const droppedIds = kinds(journal, "message_dropped").flatMap((row) => [
+      ...(row.payload.messageIds ?? []),
+    ]);
+    expect(droppedIds).toContain("m_report_2"); // manager 第二条汇报 → 死信（防多报）
+    expect(hub.mailboxEntries().some((entry) => entry.messageId === "m_report_2")).toBe(false);
+    // 成员迟到信 → 改投 manager：旧 id 死信 + 新 id 入册两事实（重放同形）。
+    expect(droppedIds).toContain("m_late");
+    const rerouted = hub
+      .mailboxEntries()
+      .find((entry) => entry.messageId !== "m_report_1" && entry.to === "morgana");
+    expect(rerouted).toBeDefined();
+    expect(rerouted?.message).toBe("late member mail");
+    expect(
+      kinds(journal, "message_appended").some(
+        (row) => row.payload.entry?.messageId === rerouted?.messageId,
+      ),
+    ).toBe(true);
+  });
+
+  it("M7 arm (a): a restored terminal team whose dispatched fact was lost re-dispatches on adoption; the lead receives exactly one report", async () => {
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    // 事实流终态但缺 final_report_dispatched（journal 刷盘半持久窗口）：
+    // 修复前恢复后无人再派发，「恰一条」退化为「零条」。
+    const { record } = replayTeamJournal(finaleBaseEvents());
+    expect(hub.adoptRestored(record!)).toBe(true);
+    await vi.waitFor(() => expect(kinds(journal, "final_report_dispatched")).toHaveLength(1));
+    expect(directiveOf(hub)).toBeDefined();
+    // manager 执笔（模拟 child 会话端口）→ 恰一条送达 + 终局。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const sent = morgana.send({ to: "lead", message: "final report after restore" });
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+    // lead 通道恰一次注入（恰一条）。
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(
+      deliver.mock.calls[0]?.[0]?.entries.map((entry: TeamMailboxEntry) => entry.message),
+    ).toEqual(["final report after restore"]);
+  });
+
+  it("M7 arm (b): dispatched-but-undelivered with only the directive mail kicks the manager to produce exactly one report", async () => {
+    const directive = finaleMail("reportreq_1", "lead", "morgana", "Write ONE final report...");
+    const events: TeamJournalEvent[] = [
+      ...finaleBaseEvents(),
+      appendedFact(8, directive),
+      dispatchedFact(9),
+    ];
+    const { record } = replayTeamJournal(events);
+    // 指令邮件未投 → busy 推导 active（恢复臂仍可达）。
+    expect(record!.status).toBe("active");
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    expect(hub.adoptRestored(record!)).toBe(true);
+    // 恢复臂 (b)：kick manager 令其产出——指令经 kick 送达。
+    await vi.waitFor(() => {
+      expect(
+        hub.mailboxEntries().find((entry) => entry.messageId === "reportreq_1")?.deliveredAccepted,
+      ).toBe(true);
+    });
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const sent = morgana.send({ to: "lead", message: "final report (directive seam)" });
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+
+  it("M7 arm (b): a queued to=lead final report entry is delivered through the existing lead channel after restore", async () => {
+    const directive = finaleMail("reportreq_1", "lead", "morgana", "Write ONE final report...");
+    const report = finaleMail(
+      "m_final",
+      "morgana",
+      "lead",
+      "final report (crashed before injection)",
+    );
+    const events: TeamJournalEvent[] = [
+      ...finaleBaseEvents(),
+      appendedFact(8, directive),
+      dispatchedFact(9),
+      appendedFact(10, report),
+    ];
+    const { record } = replayTeamJournal(events);
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    expect(hub.adoptRestored(record!)).toBe(true);
+    // 恢复臂 (b) 优先补投 lead：既有 deliverPendingLeadMail 通道注入恰一条。
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(
+      deliver.mock.calls[0]?.[0]?.entries.map((entry: TeamMailboxEntry) => entry.messageId),
+    ).toEqual(["m_final"]);
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(1);
+  });
+
+  it("M7 arm (b): manager unavailable after dispatch falls back to the structured direct report", async () => {
+    const directive = finaleMail("reportreq_1", "lead", "morgana", "Write ONE final report...");
+    const events: TeamJournalEvent[] = [
+      ...finaleBaseEvents(),
+      removedFact(8, "morgana"),
+      appendedFact(9, directive),
+      dispatchedFact(10),
+    ];
+    const { record } = replayTeamJournal(events);
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    expect(hub.adoptRestored(record!)).toBe(true);
+    // 恢复臂 (b) 收敛：manager 离册 → 兜底直投（恰一条）。
+    const fallback = hub.mailboxEntries().find((entry) => entry.to === "lead");
+    expect(fallback?.message).toContain("only: completed");
+    await vi.waitFor(() => expect(kinds(journal, "final_report_delivered")).toHaveLength(1));
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+  });
+
+  it("legacy restored team without a manager never auto-dispatches a final report nor flips the finale status (评审阻断项回归锁)", async () => {
+    // §22 之前的无 manager 事实流：终报链（派发门/恢复臂/终局翻转）以 manager 架构
+    // 为界——空板 + workers 全终态对 isTeamTerminal 空真也不触发派发，lead 邮箱走
+    // 缺口12 普通通道、端口保持开放（install-runtime ⑤⑪⑫②⑩ 回归实证的锁）。
+    const AT = "2026-10-27T00:00:00.000Z";
+    const legacyAdded = (seq: number, memberName: string): TeamJournalEvent => ({
+      seq,
+      at: AT,
+      payload: {
+        kind: "member_added",
+        teamId: "team_legacy",
+        memberName,
+        agentId: `agent_${memberName}`,
+        childSessionId: `child_${memberName}`,
+      },
+    });
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: AT,
+        payload: {
+          kind: "team_created",
+          teamId: "team_legacy",
+          leadSessionId: "lead_s1",
+          createdAt: AT,
+        },
+      },
+      {
+        seq: 2,
+        at: AT,
+        payload: {
+          kind: "staged",
+          teamId: "team_legacy",
+          awaitingFeedback: false,
+          members: [{ memberName: "alice" }, { memberName: "bob" }],
+          tasks: [],
+        },
+      },
+      { seq: 3, at: AT, payload: { kind: "approved", teamId: "team_legacy" } },
+      legacyAdded(4, "alice"),
+      legacyAdded(5, "bob"),
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record!.managerName).toBeUndefined();
+    const journal: JournalRow[] = [];
+    const deliver = vi.fn(acceptAllLeadMail());
+    const hub = restoredHub(journal, deliver);
+    expect(hub.adoptRestored(record!)).toBe(true);
+    // 恢复臂与派发门均不触发：零终报事实、状态维持可推导族（idle）、端口开放。
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(kinds(journal, "final_report_dispatched")).toHaveLength(0);
+    expect(hub.status).toBe("idle");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const sent = alice.send({ to: "lead", message: "legacy lead mail" });
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => {
+      const entry = hub.mailboxEntries().find((row) => row.message === "legacy lead mail");
+      expect(entry?.deliveredAccepted).toBe(true);
+      expect(entry?.deliveredVia).toBe("lead_injected");
+    });
+    // legacy 注入不触发终局翻转（markFinalReportDelivered 以 manager 队伍为界）。
+    expect(hub.status).toBe("idle");
+    expect(kinds(journal, "final_report_delivered")).toHaveLength(0);
+  });
+});
+
+// ---------- 2026-10-27 core 语义批（agents-team 第五轮全面修复 A2）----------
+// 覆盖：M2/L11（再入库 managerName 刷新与 name 保留）、L2（manager↔成员重名次序防护）、
+// L10（manager 草案限额/空白名）、M4（assignee=manager 任务视同可认领）、L7（reassign
+// 目标忙闲校验）、M9（管理 actor 三分）、M8/L9（批准覆写权限入 approved 事实，经 port）。
+
+describe("staged re-entry refreshes managerName and preserves the team name (M2/L11, 决策 D11)", () => {
+  it("M2: 修订轮换 manager 名后 snapshot/路由改向/管理 actor 均用新名（journalStagedFact 随行）", async () => {
+    const journal: { payload: { kind: string; managerName?: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      leadPermissionMode: "build",
+      journalWriter: (event) => journal.push(event as never),
+    });
+    expect(hub.stageTeam("lead_s1", { ...STAGE_INPUT, draftTasks: [] }).status).toBe("ok");
+    expect(hub.snapshot()?.managerName).toBe("morgana");
+
+    // 再入库换 manager 名（M2 修复前 record.managerName 不刷新——旧名成幽灵管理者：
+    // 邮件改投不存在成员、真 manager 被 team_lead_only 拒）
+    const revised = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      manager: { memberName: "merlin", profile: "team manager" },
+      draftTasks: [
+        { title: "t2", spec: { goal: "g2", acceptance: ["a"] }, dependsOn: [], assignee: "merlin" },
+      ],
+    });
+    expect(revised.status).toBe("ok");
+    expect(hub.snapshot()?.managerName).toBe("merlin");
+    expect(hub.snapshot()?.members[0]?.memberName).toBe("merlin");
+    // journalStagedFact 读 record：最后一条 staged 事实携带新 manager 名（重放恢复）
+    const stagedFacts = journal.filter((event) => event.payload.kind === "staged");
+    expect(stagedFacts.at(-1)?.payload.managerName).toBe("merlin");
+
+    // 批准后（spawnOk 记 agent_merlin）：路由改向与 actor 判定均用新名
+    await hub.approveStage("lead_s1");
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    expect(alice.send({ to: "lead", message: "status report" }).status).toBe("success");
+    expect(hub.mailboxEntries().at(-1)?.to).toBe("merlin"); // §22 契约 2 改投新 manager
+
+    const task = hub.board()!.tasks.find((candidate) => candidate.title === "t2")!;
+    const ghost = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const byGhost = await ghost.reassign({ taskId: task.taskId, to: "alice", reason: "stale name" });
+    expect(byGhost.status).toBe("rejected"); // 旧名 agent 不再是管理 actor
+    expect(byGhost.status === "rejected" && byGhost.error.code).toBe("team_lead_only");
+    const merlin = hub.memberPort({ agentId: "agent_merlin", memberName: "merlin" });
+    const byMerlin = await merlin.reassign({ taskId: task.taskId, to: "alice", reason: "route" });
+    expect(byMerlin.status).toBe("ok"); // 新名 manager 可转派
+  });
+
+  it("L11: 再入库省略 name 键保留已命名团队（不再覆写成 undefined 并持久化）", () => {
+    const journal: { payload: { kind: string; name?: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      journalWriter: (event) => journal.push(event as never),
+    });
+    expect(
+      hub.stageTeam("lead_s1", { ...STAGE_INPUT, name: "named-team", draftTasks: [] }).status,
+    ).toBe("ok");
+    // port 直调形态：重列草案不带 name 键（L11 修复前 record.name 被清成 undefined）
+    const reentry = hub.stageTeam("lead_s1", {
+      manager: STAGE_INPUT.manager,
+      draftMembers: STAGE_INPUT.draftMembers,
+      draftTasks: [],
+    });
+    expect(reentry.status).toBe("ok");
+    expect(hub.snapshot()?.name).toBe("named-team");
+    const stagedFacts = journal.filter((event) => event.payload.kind === "staged");
+    expect(stagedFacts.at(-1)?.payload.name).toBe("named-team"); // 持久化同为保留值
+  });
+});
+
+describe("manager↔member duplicate name protection is carried by ordering (L2)", () => {
+  it("manager 与成员重名 → draft_duplicate_member（先 add manager、成员循环查重承担防护）", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const result = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      draftMembers: [{ memberName: "morgana" }, { memberName: "alice" }],
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.status === "rejected" && result.error.code).toBe("draft_duplicate_member");
+    expect(result.status === "rejected" && result.error.message).toContain("morgana");
+    expect(hub.snapshot()).toBeUndefined(); // 落库前拒绝
+  });
+});
+
+describe("manager draft field limits at stageTeam (L10, §17 契约 4 同门)", () => {
+  it("port 直调超长 manager 名/profile/modelSelection 被拒（draft_field_too_long，落库前）", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const overName = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      manager: { memberName: "m".repeat(TEAM_LIMITS.maxNameChars + 1) },
+    });
+    expect(overName.status).toBe("rejected");
+    expect(overName.status === "rejected" && overName.error.code).toBe("draft_field_too_long");
+    expect(overName.status === "rejected" && overName.error.message).toContain("manager.name");
+
+    const overProfile = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      manager: {
+        memberName: "morgana",
+        profile: "p".repeat(TEAM_LIMITS.maxNameChars + 1),
+      },
+    });
+    expect(overProfile.status).toBe("rejected");
+    expect(overProfile.status === "rejected" && overProfile.error.message).toContain(
+      "manager.profile",
+    );
+
+    const overSelection = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      manager: {
+        memberName: "morgana",
+        modelSelection: {
+          provider: "p".repeat(TEAM_LIMITS.maxIdChars + 1),
+          model: "model-a",
+        },
+      },
+    });
+    expect(overSelection.status).toBe("rejected");
+    expect(overSelection.status === "rejected" && overSelection.error.message).toContain(
+      "manager.modelSelection",
+    );
+    expect(hub.snapshot()).toBeUndefined(); // 落库前拒绝
+  });
+
+  it("空白 manager 名被拒（draft_blank_name——memberName 是联接键，不可归一为键缺席）", () => {
+    const hub = new TeamHub({ clock: makeClock(), spawnMembers: spawnOk() });
+    const blank = hub.stageTeam("lead_s1", {
+      ...STAGE_INPUT,
+      manager: { memberName: "   " },
+    });
+    expect(blank.status).toBe("rejected");
+    expect(blank.status === "rejected" && blank.error.code).toBe("draft_blank_name");
+    expect(hub.snapshot()).toBeUndefined();
+  });
+});
+
+describe("tasks addressed to the manager are claimable by workers (M4/决策 D6)", () => {
+  it("assignee=manager 的任务被 worker 认领并推进到终态（taskCreate 指派 → kickTeam → 认领）", async () => {
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    // 指派给 manager（路由地址，不是执行者）：portTaskCreate 走 kickTeam 唤醒 workers。
+    // M4 修复前：nextReadyTask 对 manager 早退、workers 只匹配本人/未指派——该任务
+    // 永久 pending、团队到不了终态。
+    hub.leadPort("lead_s1").taskCreate({
+      title: "manager-routed",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "morgana",
+    });
+    await vi.waitFor(() => expect(hub.board()?.tasks[0]?.status).toBe("claimed"));
+    const claimed = hub.board()!.tasks[0]!;
+    expect(claimed.assignee).not.toBe("morgana"); // manager 不执行
+    expect(["alice", "bob"]).toContain(claimed.assignee);
+    const worker = hub.memberPort({
+      agentId: `agent_${claimed.assignee}`,
+      memberName: claimed.assignee!,
+    });
+    expect(
+      worker.taskUpdate({
+        taskId: claimed.taskId,
+        attemptId: claimed.attemptId!,
+        patch: { status: "in_progress" },
+      }).status,
+    ).toBe("ok");
+    expect(
+      worker.taskUpdate({
+        taskId: claimed.taskId,
+        attemptId: claimed.attemptId!,
+        patch: { status: "completed", output: "done" },
+      }).status,
+    ).toBe("ok");
+    expect(hub.board()?.tasks[0]?.status).toBe("completed");
+  });
+
+  it("reassign to=manager 同规则：交接提交后 kickTeam，workers 认领（不滞留 manager 名下）", async () => {
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      interruptAndSettle: async () => undefined,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    lead.taskCreate({
+      title: "work",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "alice",
+    });
+    await vi.waitFor(() => expect(hub.board()?.tasks[0]?.status).toBe("claimed"));
+    const task = hub.board()!.tasks[0]!;
+    const result = await manager.reassign({
+      taskId: task.taskId,
+      to: "morgana",
+      reason: "route via manager",
+    });
+    expect(result.status).toBe("ok");
+    await vi.waitFor(() => expect(hub.board()?.tasks[0]?.status).toBe("claimed"));
+    const rotated = hub.board()!.tasks[0]!;
+    expect(rotated.assignee).not.toBe("morgana"); // worker 认领，manager 零执行面
+  });
+});
+
+describe("reassign target busy check (L7, 「一成员至多一个开放任务」)", () => {
+  it("目标已持开放任务 → member_busy 拒且板未动；空闲目标通过并认领", async () => {
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      interruptAndSettle: async () => undefined,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    lead.taskCreate({
+      title: "t1",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "alice",
+    });
+    await vi.waitFor(() => {
+      expect(hub.board()?.tasks.find((candidate) => candidate.title === "t1")?.status).toBe(
+        "claimed",
+      );
+    });
+    lead.taskCreate({ title: "t2", spec: { goal: "g", acceptance: [] }, dependsOn: [] });
+    const t2 = hub.board()!.tasks.find((candidate) => candidate.title === "t2")!;
+
+    // alice 忙（claimed t1）→ 拒（L7 修复前可给同一成员堆第二个开放任务）
+    const busy = await manager.reassign({ taskId: t2.taskId, to: "alice", reason: "double up" });
+    expect(busy.status).toBe("rejected");
+    expect(busy.status === "rejected" && busy.error.code).toBe("member_busy");
+    expect(busy.status === "rejected" && busy.error.message).toContain("alice");
+    expect(hub.board()!.tasks.find((candidate) => candidate.title === "t2")?.status).toBe("pending");
+
+    // bob 空闲 → 过
+    const idle = await manager.reassign({ taskId: t2.taskId, to: "bob", reason: "route to bob" });
+    expect(idle.status).toBe("ok");
+    await vi.waitFor(() => {
+      expect(hub.board()?.tasks.find((candidate) => candidate.title === "t2")?.status).toBe(
+        "claimed",
+      );
+    });
+    expect(hub.board()!.tasks.find((candidate) => candidate.title === "t2")?.assignee).toBe("bob");
+  });
+});
+
+describe("management actor is manager-only (M9/决策 D1, §22 契约 4 收敛为裁定 3)", () => {
+  it("reassign actor 三分：manager ✓ / lead 会话 ✗ / 普通成员 ✗（✗ 者 team_lead_only）", async () => {
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      interruptAndSettle: async () => undefined,
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    const lead = hub.leadPort("lead_s1");
+    lead.taskCreate({
+      title: "work",
+      spec: { goal: "g", acceptance: [] },
+      dependsOn: [],
+      assignee: "alice",
+    });
+    await vi.waitFor(() => expect(hub.board()?.tasks[0]?.status).toBe("claimed"));
+    const task = hub.board()!.tasks[0]!;
+
+    // lead 会话（生产经 resolveTeamToolPort 得 leadPort.reassign）→ 拒
+    const byLead = await hub.leadPort("lead_s1").reassign({
+      taskId: task.taskId,
+      to: "bob",
+      reason: "lead tries to manage",
+    });
+    expect(byLead.status).toBe("rejected");
+    expect(byLead.status === "rejected" && byLead.error.code).toBe("team_lead_only");
+
+    // 普通成员 child → 拒
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const byMember = await alice.reassign({
+      taskId: task.taskId,
+      to: "bob",
+      reason: "member tries to manage",
+    });
+    expect(byMember.status).toBe("rejected");
+    expect(byMember.status === "rejected" && byMember.error.code).toBe("team_lead_only");
+    expect(hub.board()!.tasks[0]?.assignee).toBe("alice"); // 板未动
+
+    // manager child → 过
+    const manager = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    const byManager = await manager.reassign({
+      taskId: task.taskId,
+      to: "bob",
+      reason: "manager rotates",
+    });
+    expect(byManager.status).toBe("ok");
+    await vi.waitFor(() => expect(hub.board()?.tasks[0]?.assignee).toBe("bob"));
+  });
+});
+
+describe("approval-time permission override rides the approved fact via the port (M8/决策 D7 + L9/决策 D10)", () => {
+  it("leadPort.approveStage({permissionMode}) 覆写生效且 approved 事实随行（重放回写见 team-journal.test.ts）", async () => {
+    const journal: { payload: { kind: string; permissionMode?: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      leadPermissionMode: "build",
+      journalWriter: (event) => journal.push(event as never),
+    });
+    hub.stageTeam("lead_s1", { ...STAGE_INPUT, draftTasks: [] });
+    // L9：经 port 携带 options（§10 增补三；修复前 port 契约签名无 options）
+    const approved = await hub.leadPort("lead_s1").approveStage({ permissionMode: "yolo" });
+    expect(approved.status).toBe("ok");
+    expect(hub.snapshot()?.permissionMode).toBe("yolo"); // 批准时刻覆写生效
+    // M8：approved 事实携带覆写值（缺省会随行建队捕获值——additive 键总在）
+    const fact = journal.find((event) => event.payload.kind === "approved");
+    expect(fact?.payload.permissionMode).toBe("yolo");
+  });
+});
+
+describe("halt reason lands in the halted journal fact (L8/决策 D9)", () => {
+  it("halt 带 reason → halted 事实携带；不带 → 键缺席（与 resumed.reason 对称）", async () => {
+    const journal: { payload: { kind: string; reason?: string } }[] = [];
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      journalWriter: (event) => journal.push(event as never),
+    });
+    stageEmpty(hub);
+    await hub.approveStage("lead_s1");
+    expect(hub.halt("lead_s1", "pause for review").status).toBe("ok");
+    const halted = journal.find((event) => event.payload.kind === "halted");
+    expect(halted?.payload.reason).toBe("pause for review");
+
+    expect(hub.resume("lead_s1", "go on").status).toBe("ok");
+    expect(hub.halt("lead_s1").status).toBe("ok");
+    const haltedAgain = [...journal].reverse().find((event) => event.payload.kind === "halted");
+    expect(haltedAgain).toBeDefined();
+    expect("reason" in (haltedAgain?.payload ?? {})).toBe(false);
   });
 });

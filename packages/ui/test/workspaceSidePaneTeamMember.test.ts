@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   activateSidePaneTab,
+  openBrowserSidePane,
   openTeamMemberSidePane,
+  selectSidePaneTabsForScope,
   type WorkspaceSidePaneState,
 } from "@/lib/workspaceSidePane.js";
 
@@ -49,5 +51,26 @@ describe("openTeamMemberSidePane（specs/agents-team.md §10 增补四）", () =
     if (active?.type === "team-member") expect(active.memberName).toBe("alice");
     // activateSidePaneTab 返回结构可用（无异常）。
     expect(activateSidePaneTab(state, state!.tabs[0]!).activeTabId).toBe(state!.tabs[0]!.id);
+  });
+});
+
+describe("team-member tab 的 scope 自动激活偏好（L17，与 workflow-actor-session 先例对称）", () => {
+  it("切回对话 scope：active 失效时优先续选 team-member，而非退回其后打开的普通 tab", () => {
+    // 顺序刻意「先 member 后 browser」：若 team-member 不在偏好列表，
+    // findLast 落空后会回退 visibleTabs.at(-1)（browser），用例即失败——真正区分两种实现。
+    const withMember = openTeamMemberSidePane(null, scoped());
+    const withBrowser = openBrowserSidePane(withMember, {
+      tabId: "browser:1",
+      ownerTaskId: "lead_1",
+      workspaceKey: "/repo",
+    });
+    const memberTab = withBrowser?.tabs.find((tab) => tab.type === "team-member");
+    expect(memberTab).toBeDefined();
+
+    const selected = selectSidePaneTabsForScope(
+      { ...withBrowser!, activeTabId: "missing" },
+      { workspaceKey: "/repo", ownerTaskId: "lead_1" },
+    );
+    expect(selected?.activeTabId).toBe(memberTab?.id);
   });
 });

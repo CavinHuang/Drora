@@ -95,12 +95,18 @@ async function approveTeamPlan(
   const { hub, sessionId } = requireTeamHub(host, envelope);
   // §10 增补三：载荷 optional permissionMode（wire 枚举已验）随批准覆写成员权限
   //（载荷形态断言照姊妹 handler 同款）。
+  // 2026-10-27 L9（决策 D10）：改走 leadPort——TeamLeadPort.approveStage 契约签名
+  // 已扩 options，生产路径不再结构性直调 hub 绕开 port。
   const payload = envelope.payload as CommandPayloadMap["approveTeamPlan"];
+  // 2026-10-27 review：条件展开改直接构造——spread 单键条件对象触发
+  // unicorn/no-useless-spread；缺省传 undefined（approveStage options 可选）。
+  const options =
+    payload.permissionMode === undefined
+      ? undefined
+      : { permissionMode: payload.permissionMode };
   assertMutationOk(
     "approveTeamPlan",
-    await hub.approveStage(sessionId, {
-      ...(payload.permissionMode === undefined ? {} : { permissionMode: payload.permissionMode }),
-    }),
+    await hub.leadPort(sessionId).approveStage(options),
   );
   return undefined;
 }
@@ -172,13 +178,18 @@ async function abandonTeamPlan(
   return undefined;
 }
 
-/** 用户停队：halted ≠ escalated（spec §2.6）；payload.reason v1 无 hub 消费面（hub.halt 不收）。 */
+/**
+ * 用户停队：halted ≠ escalated（spec §2.6）。2026-10-27 L8（决策 D9）：payload.reason
+ * 透传 hub.halt 随 halted 事实留档——此前 wire 接受该字段后即被丢弃（对比 resume 全链
+ * 入库）；shared schema 已有 optional reason（min(1)/max(maxTextChars)），此处只透传。
+ */
 async function haltTeam(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const { hub, sessionId } = requireTeamHub(host, envelope);
-  assertMutationOk("haltTeam", hub.halt(sessionId));
+  const payload = envelope.payload as CommandPayloadMap["haltTeam"];
+  assertMutationOk("haltTeam", hub.halt(sessionId, payload.reason));
   return undefined;
 }
 
@@ -274,7 +285,20 @@ async function setTeamMemberName(
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
       // §22 契约 1：manager 随重建入参回写（roster 首位 = manager；hub 物化保持首位）。
-      manager: roster.members[0]!,
+      // 2026-10-27 M1（决策 D13）：改名映射覆盖 manager——此前映射只作用 slice(1)，
+      // 对 manager 改名是静默 no-op（草案 manager 名不同步；hub 侧 M2 修复再入库刷新
+      // record.managerName，两侧合力使 manager 改名生效）。assignee=manager 的任务
+      // 在下方 draftTasks 映射按同一 payload.memberName→newName 规则重指派。
+      manager: {
+        memberName:
+          roster.members[0]!.memberName === payload.memberName
+            ? payload.newName
+            : roster.members[0]!.memberName,
+        profile: roster.members[0]!.profile,
+        ...(roster.members[0]!.modelSelection === undefined
+          ? {}
+          : { modelSelection: roster.members[0]!.modelSelection }),
+      },
       draftMembers: roster.members.slice(1).map((member) => ({
         memberName: member.memberName === payload.memberName ? payload.newName : member.memberName,
         // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——

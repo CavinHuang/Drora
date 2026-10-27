@@ -2312,7 +2312,11 @@ export function selectSidePaneTabsForScope(
         tab.type === "workflow-actor-session" ||
         tab.type === "workflow-workspace" ||
         tab.type === "workflow-artifact" ||
-        tab.type === "team",
+        // team 族（team 主面板 + team-member 成员下钻）都在优先续选之列：成员
+        // tab 与 actor-session 先例同构（会话型深链），切回对话 scope 时不应退回
+        // 普通工具 tab（L17：此前漏 team-member，与 workflow-actor-session 不对称）。
+        tab.type === "team" ||
+        tab.type === "team-member",
     ) ??
     visibleTabs.at(-1);
   return nextActive && nextActive.id !== current.activeTabId

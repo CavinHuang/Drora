@@ -3,6 +3,7 @@ import { TEAM_JOURNAL_KEY_PREFIX } from "@drora/contracts";
 import { appendToMailbox, dropMailEntries, isCurrentMail, markDelivered } from "./mailbox.js";
 import type { TeamHub } from "./hub.js";
 import type { TeamMailboxEntry, TeamRecord, TeamTaskInternal } from "./types.js";
+import { finaleStatusOfTasks, LEAD_ASSIGNEE_KEY } from "./types.js";
 
 /**
  * team journal 持久化（M3 PR-3.1；specs/agents-team.md §2.2/§2.6/§3.3 + 差异裁决#5）。
@@ -58,7 +59,10 @@ export type TeamJournalPayload =
       members: readonly TeamJournalDraftMemberFact[];
       tasks: readonly TeamJournalTaskFact[];
     }
-  | { kind: "approved"; teamId: string }
+  // 2026-10-27 M8（决策 D7）：approved 事实增补可选 permissionMode（additive）——
+  // 批准时刻覆写的成员权限模式随审批事实持久化，重放侧回写 record（缺省即键缺席，
+  // 维持建队捕获值，spec §10 增补三「批准时刻定死」的恢复半边）。
+  | { kind: "approved"; teamId: string; permissionMode?: TeamPermissionMode }
   | {
       kind: "member_added";
       teamId: string;
@@ -91,7 +95,9 @@ export type TeamJournalPayload =
       at: string;
     }
   | { kind: "member_removed"; teamId: string; memberName: string }
-  | { kind: "halted"; teamId: string }
+  // 2026-10-27 L8（决策 D9）：halt 的 optional reason 随冻结事实留档（与 resumed.reason
+  // 对称；wire 载荷此前被接受后即丢弃）。重放侧不消费 reason（只推 halted 状态）。
+  | { kind: "halted"; teamId: string; reason?: string }
   | { kind: "resumed"; teamId: string; reason: string }
   // escalated（M5 自动升级）与 archived（abandonTeamPlan 归档）同为用户/协议裁决
   // 结果的状态事实：不记则恢复后丢失「禁止自动重建/升级待决」语义（spec §2.6）。
@@ -435,6 +441,18 @@ export function replayTeamJournal(
         approved = true;
         frozen = undefined;
         delete record.awaitingFeedback;
+        // 2026-10-27 M8（决策 D7）：批准事实回写 permissionMode——批准时刻覆写值冷恢复
+        // 后不回退建队捕获值；未知模式值照 team_created 同款 warn + 缺席（不猜语义）。
+        if (payload.permissionMode !== undefined) {
+          if (isKnownPermissionMode(payload.permissionMode)) {
+            record.permissionMode = payload.permissionMode;
+          } else {
+            warn?.(
+              `team journal approved permission mode "${payload.permissionMode}" unknown; ` +
+                "keeping the team-created capture (spec §8.1, no guessing)",
+            );
+          }
+        }
         break;
       }
       case "member_added": {
@@ -512,7 +530,16 @@ export function replayTeamJournal(
     // 先终态化成员运行态（重放无运行时，一律 terminal），再做 busy 推导——
     // 否则 staged 事实物化的 spawning 占位会被误算成「有 working 成员」。
     finalizeMemberStates(record, approved);
-    record.status = frozen ?? (approved ? derivedActiveIdle(record) : "staged");
+    // 2026-10-27 M12-core（决策 D3）：终报已送达的团队由 final_report_delivered 事实 +
+    // 任务终态分布推导终局状态（completed/cancelled）——不加新 journal kind，与 hub
+    // markFinalReportDelivered 的 finaleStatusOfTasks 同口径单一出处（types.ts）。
+    // frozen（halted/escalated/archived 最后事实）仍优先；事实序上送达后端口全关
+    // （归档态 checkPresence 拒绝），冻结事实后置不可达，此优先级是防御性保持。
+    if (frozen === undefined && approved && record.restoredFinalReport?.delivered === true) {
+      record.status = finaleStatusOfTasks(record.tasks);
+    } else {
+      record.status = frozen ?? (approved ? derivedActiveIdle(record) : "staged");
+    }
   }
   return { record, lastSeq, appendedMessageIds };
 }
@@ -526,14 +553,40 @@ function finalizeMemberStates(record: TeamRecord, approved: boolean): void {
   }
 }
 
-/** busy 推导（hub.refreshStatus 同一谓词族）：working 成员或未投世代当前邮件 = active。 */
+/**
+ * busy 推导（hub.refreshStatus 同一谓词族）：working 成员或未投世代当前邮件 = active。
+ * 2026-10-27 L4 修复：与 hub hasWorkingMember 的 §22 口径对齐——manager 不计入忙闲。
+ * 此前重放侧把 manager 的 spawning/working 态算作 busy，与运行态分叉：恢复缝里
+ * approved 后 member_added 未落的 manager 仍处 spawning 占位（crash 窗口事实），
+ * 重放会把 workers 全终态的团队推导成 active，hub 侧却是 idle——终报派发边缘
+ * （H1 修复后挂 idle）在恢复后永不再触发。
+ * 2026-10-27 评审补齐（M3 口径对齐）：邮箱忙闲按收件人在册过滤（hub 侧
+ * isRecipientOnRoster 同款）——离册收件人的滞留条目（message_dropped 事实未刷的
+ * crash 窗口）不计忙，恢复初值与运行态 busy 谓词保持同一口径；lead 收件恒可投
+ * （可达性由 lead 通道 §21 A1 的 skipped 判定承载）。
+ */
 function derivedActiveIdle(record: TeamRecord): TeamRecord["status"] {
   const busy =
     record.members.some(
-      (member) => !member.removed && (member.state === "working" || member.state === "spawning"),
+      (member) =>
+        !member.removed &&
+        member.memberName !== record.managerName &&
+        (member.state === "working" || member.state === "spawning"),
     ) ||
-    record.mailbox.some((entry) => !entry.deliveredAccepted && isCurrentMail(record.tasks, entry));
+    record.mailbox.some(
+      (entry) =>
+        !entry.deliveredAccepted &&
+        isCurrentMail(record.tasks, entry) &&
+        recipientOnRoster(record, entry),
+    );
   return busy ? "active" : "idle";
+}
+
+/** 收件人仍在花名册（hub.isRecipientOnRoster 的重放同款；lead 寻址键引 types 单一出处）。 */
+function recipientOnRoster(record: TeamRecord, entry: TeamMailboxEntry): boolean {
+  if (entry.to === LEAD_ASSIGNEE_KEY) return true;
+  const target = record.members.find((member) => member.memberName === entry.to);
+  return target !== undefined && !target.removed;
 }
 
 function isKnownPermissionMode(value: unknown): value is TeamPermissionMode {
@@ -593,8 +646,18 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
       return nonEmpty(payload.memberName);
     case "resumed":
       return typeof payload.reason === "string";
+    // 2026-10-27 M8：approved 增可选 permissionMode（additive，旧流无该键照常通过）。
     case "approved":
+      return (
+        nonEmpty(payload.teamId) &&
+        (payload.permissionMode === undefined || typeof payload.permissionMode === "string")
+      );
+    // 2026-10-27 L8：halted 增可选 reason（additive；重放不消费，只做结构守卫）。
     case "halted":
+      return (
+        nonEmpty(payload.teamId) &&
+        (payload.reason === undefined || typeof payload.reason === "string")
+      );
     case "escalated":
     case "archived":
     case "final_report_dispatched":

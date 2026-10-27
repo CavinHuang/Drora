@@ -1257,13 +1257,15 @@ export function AnimatedSidePanePanel({
                         ) : tab.type === "team-member" ? (
                           // 成员 transcript tab（§10 增补四）：独立 tab 承载既有
                           // TeamMemberSidePane（父投影门 + 只读 SessionPane + composer）。
+                          // 不下发 onPrefillComposer：成员视图无「回对话修改」入口，此前
+                          // 条件 spread 传入的该 prop 未被 TeamMemberTabPane 声明、被
+                          // 静默丢弃（L15 清理，防再次假接线）。
                           <TeamMemberTabPane
                             tab={tab}
                             focused={isVisible && tab.id === visibleActiveTabId}
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
                             onOpenFileLink={onOpenFileLink}
-                            {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}
                           />
                         ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
                           <FileManagerPane

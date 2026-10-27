@@ -38,6 +38,12 @@ export const teamHistoryEntrySchema = z
       "resumed",
       "escalated",
       "archived",
+      // §22 契约 3（2026-10-27 审查 M13 补齐）：终态单条汇报两段事实（dispatched 恰一次
+      // 防重派；delivered 后 to=lead 路由关闭）。core journal 自 §22 起写入这两 kind，
+      // 此前枚举缺席 → 历史查询 safeParse 逐条拒绝、计入 skippedEntries 误报「跳过 N 条」，
+      // 过程面板看不到终局事实。载荷仅 teamId（superRefine 无附加要求，缺席其余字段）。
+      "final_report_dispatched",
+      "final_report_delivered",
     ]),
     memberName: name.optional(),
     taskId: id.optional(),

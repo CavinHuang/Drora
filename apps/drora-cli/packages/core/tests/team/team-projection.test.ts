@@ -194,6 +194,24 @@ describe("projectTeam → shared teamProjectionStateSchema 一致性", () => {
     expect(projection.mailboxTail).toEqual([]);
     expect(teamProjectionStateSchema.safeParse(projection).success).toBe(true);
   });
+
+  // §22 契约 7（2026-10-27 审查 H2 修复）：managerName 此前在桥塞进 record 后于
+  // projectTeam 一跳被静默丢弃（TeamProjectionRecordInput 无该字段、输出键清单不含它）
+  // ——wire 帧恒缺该键，UI 管理者徽标永不渲染。锁三件事：在场透传、键缺席语义、wire 可解析。
+  it("managerName 在场透传到 wire 投影；缺席时键缺席而非 undefined（§22 契约 7）", () => {
+    const withManager = projectTeam(
+      makeRecord({
+        managerName: "explorer",
+        members: [{ agentId: "agent_1", memberName: "explorer", state: "working" }],
+      }),
+    );
+    expect(withManager.managerName).toBe("explorer");
+    expect(teamProjectionStateSchema.safeParse(withManager).success).toBe(true);
+
+    const withoutManager = projectTeam(makeRecord());
+    expect("managerName" in withoutManager).toBe(false);
+    expect(teamProjectionStateSchema.safeParse(withoutManager).success).toBe(true);
+  });
 });
 
 describe("board.tasks limit 裁剪（保序截尾窗；pending 优先保留、terminal 从最旧丢弃）", () => {

@@ -197,6 +197,16 @@ describe("team 投影 schema round-trip（PR-2.1 黄金测试）", () => {
     expect("reassigning" in card).toBe(false);
   });
 
+  // M12-wire（2026-10-27 审查 D3 锁定）：teamStatusSchema 自 M2 落地即为八值（含
+  // completed/cancelled）——hub 侧终态生产者补齐后，wire 必须继续接受终态帧。逐值
+  // 断言防止将来有人把枚举收回到非终态子集（加值 = wire 偏斜代价，减值 = 拒帧）。
+  it("a″) 终态 completed/cancelled 投影帧逐值可解析（wire 不拒终态）", () => {
+    for (const status of ["completed", "cancelled"] as const) {
+      const frame: TeamProjectionState = { ...activeTeam, status };
+      expect(teamProjectionStateSchema.safeParse(frame).success, status).toBe(true);
+    }
+  });
+
   it("a′) §19 契约 2：含无 profile/空白 thought 成员的草案经 stageTeam→projectTeam 后 wire parse 通过", () => {
     // 唯一运行时参与用例：stageTeam 是空白归一唯一所有者（specs/agents-team.md
     // §19 契约 2②）——模型合法省略/空白 profile 与 thought 落库后必须键缺席，

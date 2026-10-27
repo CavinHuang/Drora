@@ -11,8 +11,9 @@ import { LEAD_ASSIGNEE_KEY, type TeamTaskInternal } from "./types.js";
 
 /**
  * 严格迁移表：completed/cancelled 终态无出边；claimed 不得直接 completed（E4）。
- * failed → pending 是唯一受控出边（spec §16 契约 5，2026-10-23 登记）：只由 lead
- * 专用端口 reopenTask 消费（板级执行 reopenFailedTask）；通用更新面对终态任务的
+ * failed → pending 是唯一受控出边（spec §16 契约 5，2026-10-23 登记）：只由管理
+ * 动作端口 hub.reopenTask 消费（板级执行 reopenFailedTask；2026-10-27 M15/决策 D8
+ * 起 actor 为 manager，经 memberPort.reopen 接线）；通用更新面对终态任务的
  * status 写即便迁移合法也拒绝（见 applyTaskUpdate 的 wasTerminal 守卫），
  * reassign 的终态拒绝语义不变。
  */
@@ -114,10 +115,11 @@ export function cancelUnfinishedTask(
   return true;
 }
 
-// ---------- lead 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记） ----------
+// ---------- 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记；M15 起 manager） ----------
 
 /**
- * failed → pending 受控出边的板级执行（唯一调用方 hub.reopenTask，lead 专用端口；
+ * failed → pending 受控出边的板级执行（唯一调用方 hub.reopenTask——2026-10-27
+ * M15/决策 D8 起 actor 为 manager，经 memberPort.reopen 接线；
  * 通用更新面在 applyTaskUpdate 的 wasTerminal 守卫处被拒）。重开 = 开新世代槽位：
  * 回共享池（assignee 清空，定向指派经既有 reassign）、证据清空（output/
  * acceptanceSupplement，「重试必须自证」clearAttemptResult 同语义；artifactRefs 是
@@ -291,13 +293,15 @@ export function applyTaskUpdate(
       return { task, error: transition };
     }
     if (wasTerminal) {
-      // 受控出边仅 lead 专用端口可消费（spec §16 契约 5，2026-10-23 登记）：
+      // 受控出边仅管理动作端口可消费（spec §16 契约 5，2026-10-23 登记；
+      // 2026-10-27 M15 起 manager 专属，lead 的 taskUpdate 同拒）：
       // TASK_TRANSITIONS 的 failed→pending 是 reopenTask 唯一通道的板级依据；通用
       // 更新面（含 lead 的 taskUpdate）即便迁移合法也整次拒绝——否则在场成员可无
-      // 凭证把 failed 任务拉回 pending，绕过重开的 lead 权与预算语义。复用
-      // team_lead_only：其文案「reserved for the team lead」对本场景是正确陈述
-      // （契约 2 先例：文案与场景不符才新增错误码）。非出边的终态迁移仍走上方
-      // invalid_transition；混带的追补一并整次拒绝（不做部分应用，与其余拒绝路径一致）。
+      // 凭证把 failed 任务拉回 pending，绕过重开的 manager 权与预算语义。复用
+      // team_lead_only：沿用既有 E10 管理权拒绝码（§22 后管理动作归 manager，文案
+      // 归属见 errors.ts；契约 2 先例：文案与场景不符才新增错误码）。非出边的终态
+      // 迁移仍走上方 invalid_transition；混带的追补一并整次拒绝（不做部分应用，
+      // 与其余拒绝路径一致）。
       return { task, error: teamPortError("team_lead_only") };
     }
   }

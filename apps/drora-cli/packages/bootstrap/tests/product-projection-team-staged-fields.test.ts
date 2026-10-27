@@ -37,6 +37,7 @@ vi.mock("../src/app/drora-team/install.js", () => ({
 
 const STAGE_INPUT_NAMED: TeamStageInput = {
   name: "research-squad",
+  manager: { memberName: "morgan", profile: "team manager" },
   draftMembers: [
     {
       memberName: "alice",
@@ -48,12 +49,14 @@ const STAGE_INPUT_NAMED: TeamStageInput = {
 };
 
 const STAGE_INPUT_UNNAMED: TeamStageInput = {
+  manager: { memberName: "morgan", profile: "team manager" },
   draftMembers: [{ memberName: "bob", profile: "writer" }],
   draftTasks: [{ title: "t2", spec: { goal: "g2", acceptance: ["b"] }, dependsOn: [] }],
 };
 
 const STAGE_INPUT_BLANK: TeamStageInput = {
   name: "blank-demo",
+  manager: { memberName: "morgan", profile: "team manager" },
   draftMembers: [
     {
       memberName: "carol",
@@ -84,6 +87,15 @@ function setupTeamProjectionHarness() {
   };
   const live = publisher.subscribe({ connectionId: "live", deliveryProfile: "continuous" });
   return { hub, publisher, ingestTeamChanged, live };
+}
+
+/** 按 memberName 定位草案成员行（§22 后 manager 恒为首位，位置断言会随 roster 结构漂移）。 */
+type DraftMemberRow = NonNullable<TeamProjectionState["stagedDraft"]>["draftMembers"][number];
+function draftMemberOf(
+  team: TeamProjectionState | undefined,
+  memberName: string,
+): DraftMemberRow | undefined {
+  return team?.stagedDraft?.draftMembers.find((member) => member.memberName === memberName);
 }
 
 function teamPatchOf(deltas: readonly ConversationDelta[]): TeamProjectionState | undefined {
@@ -118,21 +130,22 @@ describe("teamProjectionViewOf 补 name/modelSelection 映射（specs/agents-tea
     // 虽也可解析，但 §17 契约 4 的烧帧形态证明「全帧可解析」必须连同字段一起锁）。
     expect(() => teamProjectionStateSchema.parse(deltaTeam)).not.toThrow();
     expect(deltaTeam?.name).toBe("research-squad");
-    expect(deltaTeam?.stagedDraft?.draftMembers[0]?.modelSelection).toEqual({
+    expect(draftMemberOf(deltaTeam, "alice")?.modelSelection).toEqual({
       provider: "zai",
       model: "glm-4.7",
       thought: "deep route",
     });
     // 花名册行有意不映射（登记免误补）：modelSelection 只经 stagedDraft 行上 wire。
-    expect(deltaTeam?.members[0]).toBeDefined();
-    expect(deltaTeam?.members[0]).not.toHaveProperty("modelSelection");
+    const rosterAlice = deltaTeam?.members.find((member) => member.memberName === "alice");
+    expect(rosterAlice).toBeDefined();
+    expect(rosterAlice).not.toHaveProperty("modelSelection");
 
     // 冷快照链（刷新/重连）与 delta 同源同形。
     const cold = publisher.subscribe({ connectionId: "cold", deliveryProfile: "continuous" });
     const coldTeam = requireSnapshot(cold.frame!).team;
     expect(() => teamProjectionStateSchema.parse(coldTeam)).not.toThrow();
     expect(coldTeam?.name).toBe("research-squad");
-    expect(coldTeam?.stagedDraft?.draftMembers[0]?.modelSelection).toEqual({
+    expect(draftMemberOf(coldTeam, "alice")?.modelSelection).toEqual({
       provider: "zai",
       model: "glm-4.7",
       thought: "deep route",
@@ -141,7 +154,7 @@ describe("teamProjectionViewOf 补 name/modelSelection 映射（specs/agents-tea
     // delta 施加语义自洽：施加到初始快照后与冷快照一致。
     const applied = applyConversationDeltas(initial, deltas);
     expect(applied.team?.name).toBe("research-squad");
-    expect(applied.team?.stagedDraft?.draftMembers[0]?.modelSelection).toEqual({
+    expect(draftMemberOf(applied.team, "alice")?.modelSelection).toEqual({
       provider: "zai",
       model: "glm-4.7",
       thought: "deep route",
@@ -149,15 +162,15 @@ describe("teamProjectionViewOf 补 name/modelSelection 映射（specs/agents-tea
   });
 
   it("无名草案 name 键缺席、无路由成员 modelSelection 键缺席（缺席照旧键缺席，旧数据兼容）", () => {
-    const { hub, publisher, ingestTeamChanged, live } = setupTeamProjectionHarness();
+    const { publisher, ingestTeamChanged, live, hub } = setupTeamProjectionHarness();
     expect(hub.stageTeam("lead", STAGE_INPUT_UNNAMED).status).toBe("ok");
     ingestTeamChanged();
     const deltaTeam = teamPatchOf(requireDeltas(publisher.flush(live.ack.subscriptionId)));
     expect(deltaTeam).toBeDefined();
     expect(() => teamProjectionStateSchema.parse(deltaTeam)).not.toThrow();
     expect(deltaTeam).not.toHaveProperty("name");
-    expect(deltaTeam?.stagedDraft?.draftMembers[0]).toBeDefined();
-    expect(deltaTeam?.stagedDraft?.draftMembers[0]).not.toHaveProperty("modelSelection");
+    expect(draftMemberOf(deltaTeam, "bob")).toBeDefined();
+    expect(draftMemberOf(deltaTeam, "bob")).not.toHaveProperty("modelSelection");
   });
 
   it('thought=""/profile="" 草案经 hub 落库归一后投影不含空串（§19 契约 2→3 次序依赖的投影端证据）', () => {
@@ -165,7 +178,7 @@ describe("teamProjectionViewOf 补 name/modelSelection 映射（specs/agents-tea
     expect(hub.stageTeam("lead", STAGE_INPUT_BLANK).status).toBe("ok");
     ingestTeamChanged();
     const deltaTeam = teamPatchOf(requireDeltas(publisher.flush(live.ack.subscriptionId)));
-    const draftMember = deltaTeam?.stagedDraft?.draftMembers[0];
+    const draftMember = draftMemberOf(deltaTeam, "carol");
     expect(draftMember).toBeDefined();
     // §19 契约 2②：空白 profile/thought 落库归一为键缺席——桥补映射后空串不再
     // 进投影，wire min(1)（shared team.ts thought min(1)）不会烧帧。

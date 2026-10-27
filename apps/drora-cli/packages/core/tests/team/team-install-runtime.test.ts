@@ -532,16 +532,24 @@ describe("agents team lead mailbox + cold recovery (2026-10-21 收口施工批�
     expect(info?.agentId).toBe(
       hub.snapshot()?.members.find((member) => member.memberName === "alice")?.agentId,
     );
-    // noted（无开放任务）：板零改动，lead 邮箱恰一条失败通知（缺口12 通道投递后
-    // 落 lead_injected 送达事实）。
+    // noted（无开放任务）：板零改动；§22 契约 2 失败通知投 manager 恰一条。
+    // 2026-10-27 review（跨批回归收口）：旁批 H1 把 maybeDispatchFinalReport 派发门
+    // 由 status==="active" 放宽为 active|idle 后，空板 + workers 终态的团队在 idle
+    // 边缘即时派发终报指令邮件（from=lead、to=manager）——manager 收件共两条：
+    // alice 的失败通知 + 终报指令。断言按此形态更新（失败通知仍恰一条、终报指令
+    // 在场）；分诊链本身（failureEdge/alice/failed）不变。
     expect(hub.board()?.tasks).toHaveLength(0);
     await vi.waitFor(
       () => {
         // §22 契约 2：失败通知投 manager（中间管理事件）。
-        const notice = hub.mailboxEntries().filter((entry) => entry.to === "morgana");
+        const managerMail = hub.mailboxEntries().filter((entry) => entry.to === "morgana");
+        const notice = managerMail.filter((entry) => entry.from === "alice");
         expect(notice).toHaveLength(1);
-        expect(notice[0]?.from).toBe("alice");
         expect(notice[0]?.message).toContain("429 from provider");
+        // 终报指令（H1 后空板+workers 终态的合法派发，§22 契约 3）：from=lead。
+        const directive = managerMail.filter((entry) => entry.from === "lead");
+        expect(directive).toHaveLength(1);
+        expect(directive[0]?.summary).toContain("final report");
       },
       { timeout: 10_000 },
     );

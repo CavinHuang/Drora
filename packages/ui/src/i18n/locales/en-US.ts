@@ -1680,6 +1680,11 @@ const enUS: Record<string, string> = {
   // §21 A1 (2026-10-24): history label for the new message_dropped journal fact
   // (dynamic key family team.history.kind.*, allowed by prefix in the i18n guard).
   "team.history.kind.message_dropped": "Message dropped (sender no longer on the team)",
+  // §22 contract 3 (2026-10-27 review M13): history labels for the two final-report
+  // journal facts (same dynamic key family; visible in the process panel once the shared
+  // teamHistoryEntrySchema admits the two kinds).
+  "team.history.kind.final_report_dispatched": "Final report dispatched to the manager",
+  "team.history.kind.final_report_delivered": "Final report delivered to the lead session",
   // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
   "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",

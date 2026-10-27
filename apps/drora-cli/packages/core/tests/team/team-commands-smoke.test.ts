@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSessionId, type SessionEntryInfo } from "@drora/contracts";
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
@@ -195,9 +195,15 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
       model: "model-x",
     });
 
-    // approve 正路径：唯一创建成员入口。
-    await teamHandlers.approveTeamPlan(smokeHost, teamEnvelope("approveTeamPlan", sessionId));
+    // approve 正路径：唯一创建成员入口。2026-10-27 L9（决策 D10）：载荷携带 §10 增补三
+    // optional permissionMode，handler 经 leadPort.approveStage(options) 覆写（不再直调
+    // hub 绕开 port）。
+    await teamHandlers.approveTeamPlan(
+      smokeHost,
+      teamEnvelope("approveTeamPlan", sessionId, { permissionMode: "yolo" }),
+    );
     expect(hub.status).toBe("active");
+    expect(hub.snapshot()?.permissionMode).toBe("yolo"); // 批准时刻覆写生效（经 port）
     expect(hub.snapshot()?.members.some((member) => member.memberName === "alicia")).toBe(true);
 
     // rename 拒绝路径（缺口10 边界）：已 spawn（非 staged）无改名端口——明确拒绝不静默。
@@ -214,6 +220,16 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
       teamEnvelope("haltTeam", sessionId, { reason: "pause" }),
     );
     expect(hub.status).toBe("halted");
+    // 2026-10-27 L8（决策 D9）：payload.reason 透传进 halted 事实——此前 wire 接受该
+    // 字段后即被丢弃（对比 resume 全链入库）。journal 经 createTeamJournalSessionStoreSink
+    // 异步串行刷盘（review 阻断项：haltTeam 返回时事实尚未 saveSessionEntry），等落盘
+    // 后再断言。
+    await vi.waitFor(() => {
+      const haltedFact = journalEntries
+        .map((entry) => entry.data as { payload?: { kind?: string; reason?: string } })
+        .find((row) => row.payload?.kind === "halted");
+      expect(haltedFact?.payload?.reason).toBe("pause");
+    });
     await teamHandlers.resumeTeam(
       smokeHost,
       teamEnvelope("resumeTeam", sessionId, { reason: "go on" }),
@@ -250,5 +266,68 @@ describe("team v4 command handlers smoke (PR-2.2)", () => {
       expect(COMMANDS_REQUIRING_BASE_REVISION.has(type)).toBe(false);
       expect(type in NATIVE_HANDLERS).toBe(true);
     }
+  });
+
+  // 2026-10-27 M1（决策 D13）：setTeamMemberName 的改名映射覆盖 roster 首位 manager——
+  // 修复前映射只作用 slice(1)，对 manager 改名是静默 no-op（草案 manager 名不同步、
+  // assignee=manager 的任务不重指派；hub 侧 M2 修复再入库刷新 record.managerName）。
+  it("④ setTeamMemberName renames the manager: draft manager name and manager-assignee tasks follow (M1)", async () => {
+    const sessionId = createSessionId();
+    const leadDeps: AgentRuntimeDeps = {
+      eventStore: createTestSessionEventStore(),
+      sessionStore: {
+        ...createRecordingMessageStore(),
+        saveSessionEntry: async () => undefined,
+        sessionEntries: async () => [],
+      } as never,
+      modelFactory: createTestModelFactory({
+        properties: { supportsMidConversationSystem: true },
+        generateText: async () => ({
+          finishReason: "stop" as const,
+          text: "ok",
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        }),
+      }),
+    } as unknown as AgentRuntimeDeps;
+    const registry = createToolRegistry();
+    const lead = createTestAgentRuntime(
+      sessionId,
+      { mode: "build", compact: { enabled: false }, titleGeneration: { enabled: false } },
+      { ...leadDeps, toolRegistry: registry },
+    ) as unknown as Parameters<typeof installDroraAgentsTeam>[0]["runtime"];
+    const { hub } = installDroraAgentsTeam({
+      runtime: lead,
+      leadDeps,
+      registry,
+      leadPermissionMode: "build",
+    });
+    hostedSessions.add(sessionId);
+
+    const staged = hub.leadPort(sessionId).stageTeam({
+      name: "rename-team",
+      manager: { memberName: "morgana", profile: "team manager" },
+      draftMembers: [{ memberName: "alice", profile: "researcher" }],
+      draftTasks: [
+        { title: "t-mgr", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [], assignee: "morgana" },
+        { title: "t-alice", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [], assignee: "alice" },
+      ],
+    });
+    expect(staged.status).toBe("ok");
+
+    await teamHandlers.setTeamMemberName(
+      smokeHost,
+      teamEnvelope("setTeamMemberName", sessionId, { memberName: "morgana", newName: "merlin" }),
+    );
+
+    const roster = hub.snapshot();
+    expect(roster?.status).toBe("staged"); // 同 teamId 原子更新，仍 staged
+    expect(roster?.members[0]?.memberName).toBe("merlin"); // manager 名同步（映射覆盖首位）
+    expect(roster?.managerName).toBe("merlin"); // M2：再入库刷新 record.managerName
+    expect(roster?.members[0]?.profile).toBe("team manager"); // 重建回写不丢画像
+    expect(roster?.name).toBe("rename-team");
+    // 任务重指派一致：assignee=manager 的任务随名字换新，其余不动
+    expect(hub.board()?.tasks.map((task) => task.assignee)).toEqual(["merlin", "alice"]);
+
+    hostedSessions.delete(sessionId);
   });
 });

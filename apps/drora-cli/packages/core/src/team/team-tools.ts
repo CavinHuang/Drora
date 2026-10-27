@@ -7,10 +7,10 @@ import type { ToolEntry, ToolHandler } from "../tool/types.js";
 /**
  * 团队协作工具面（spec §6.2）：闭包捕获 TeamMemberPort 的自包含 ToolEntry——
  * v2 注入方式（无 deps 字段接缝），由 install 注册进 hub 自建注册表实例。
- * lead 专属动作：TeamSpawn 舞台工具与 TeamReassign 转派/接管（specs/agents-team.md
- * §19 契约 4——sticky-parked 任务唯一轮换面，spec §1「转派/接管只有 lead 工具能做」）
- * 在本文件；审批/停队/恢复走 v4 用户面命令，不做模型工具——审批是用户动作，模型
- * 不得自批。本文件其余为成员侧协作面（强制保留集合）。
+ * lead 专属动作只剩 TeamSpawn 舞台工具（§22 契约 4/裁定 3：lead 零管理工具；
+ * TeamReassign/TeamReopen 归 manager 工具族，见 createTeamManagerToolEntries）。
+ * 审批/停队/恢复走 v4 用户面命令，不做模型工具——审批是用户动作，模型不得自批。
+ * 本文件其余为成员侧协作面（强制保留集合）。
  */
 
 const TASK_LIST_OUTPUT_SCHEMA = {
@@ -331,8 +331,12 @@ export function createTeamCollabToolEntries(resolvePort: TeamToolPortResolver): 
     }),
     teamToolEntry({
       name: "TeamSendMessage",
+      // 2026-10-27 L6：文案对齐 §22 契约 2——成员对 lead 的消息在路由层改投 manager
+      //（成员汇报由 manager 消费；manager→lead 是唯一 lead 入口）。原「可直达 lead、
+      // the lead is never a relay」与 portSend 实现矛盾（/team 与 SKILL.md 已是正确
+      // 表述：workers report to the manager — never to the lead）。
       description:
-        "Send a durable message to a teammate or the team lead. Delivery wakes the recipient; the lead is never a relay you must go through.",
+        "Send a durable message to a teammate or the team manager. Delivery wakes the recipient; workers coordinate through the manager — a message addressed to the lead is routed to and consumed by the manager (the manager is the only one who can message the lead).",
       inputSchema: {
         type: "object",
         properties: {
@@ -448,6 +452,11 @@ const TeamReassignInputSchema = z.object({
   reason: z.string().min(1).max(TEAM_LIMITS.maxTextChars),
 });
 
+// 2026-10-27 M15（决策 D8）：TeamReopen 入参限额与 TeamReassign 同门（§17 契约 4）。
+const TeamReopenInputSchema = z.object({
+  task_id: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
+});
+
 /**
  * lead 专属工具族（spec §6.2/§14 缺口0）：TeamSpawn 是 staged 草案的唯一生产入口
  * ——/team 命令展开后模型用它建花名册 + 任务 DAG，Approve & Run 是用户侧动作
@@ -455,9 +464,10 @@ const TeamReassignInputSchema = z.object({
  * 再次调用 = 原子更新同一草案（spec §10）；task_id 可选携带用于修订时身份保持
  * （缺口5——dependsOn 引用旧 ID 不悬空）。
  *
- * TeamReassign（specs/agents-team.md §19 契约 4）是转派/接管的唯一生产入口
- * （spec §1「转派/接管只有 lead 工具能做」）：sticky-parked 任务的轮换面；
- * 成员会话经 resolver 解析 undefined，E10 team_lead_only 由装配结构性保证。
+ * §22 契约 4/裁定 3（2026-10-27 M9 收敛）：TeamReassign 已从 lead 工具族移除——
+ * lead 零管理工具、纯结果消费者；转派/接管/重开归 manager 工具族
+ * （createTeamManagerToolEntries）。成员会话经 resolver 解析 undefined，
+ * E10 lead 专属由装配结构性保证。
  */
 export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver): ToolEntry[] {
   return [
@@ -611,9 +621,13 @@ export function createTeamLeadToolEntries(resolveLeadPort: TeamLeadPortResolver)
 // ---------- §22 契约 4：manager 成员工具族（2026-10-26） ----------
 
 /**
- * manager 成员的管理工具（转派/接管）。经同一注册表注册、port 按会话解析：manager
- * child 命中 memberPort.reassign；普通成员 hub 层 team_lead_only（描述明示 manager
- * 专用，注册表形态按会话解析而非按成员注册——工具对全员可见、硬门在 hub）。
+ * manager 成员的管理工具（转派/接管 + 显式重开）。经同一注册表注册、port 按会话
+ * 解析：manager child 命中 memberPort.reassign/reopen；普通成员 hub 层
+ * team_lead_only（描述明示 manager 专用，注册表形态按会话解析而非按成员注册——
+ * 工具对全员可见、硬门在 hub）。
+ * 2026-10-27 M15（决策 D8）：TeamReopen 注册入列——failed→pending 受控出边
+ * （spec §16 契约 5）此前有 hub 实现无任何生产入口（lead 端口无调用方），失败
+ * 通知却教用户找 lead 经「lead-only reopen port」重开（指向无人能触发的端口）。
  */
 export function createTeamManagerToolEntries(
   resolvePort: TeamToolPortResolver,
@@ -659,6 +673,42 @@ export function createTeamManagerToolEntries(
           );
         }
         return { task: taskCardJson(port.taskGet(parsed.task_id)) };
+      },
+    }),
+    // 2026-10-27 M15（决策 D8）：manager 显式重开 failed 任务（spec §16 契约 5 的
+    // failed→pending 受控出边；经 memberPort.reopen，hub isTeamActor 硬门）。
+    teamToolEntry({
+      name: "TeamReopen",
+      description:
+        "Manager only: explicitly reopen one of the team's failed tasks. The task returns to the shared pool as pending with its old evidence cleared; workers claim it as a fresh attempt. Only failed tasks can be reopened; completed and cancelled results stay closed.",
+      inputSchema: {
+        type: "object",
+        properties: { task_id: { type: "string" } },
+        required: ["task_id"],
+        additionalProperties: false,
+      },
+      runtimeInputSchema: TeamReopenInputSchema,
+      outputSchema: { type: "object", properties: { task: { type: "object" } } },
+      readOnly: false,
+      handler: async (raw, context) => {
+        const port = resolvePort({ sessionId: context.sessionId });
+        if (port === undefined) {
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            "Team port is not configured for TeamReopen (team sessions only)",
+            { recoverable: false },
+          );
+        }
+        const parsed = TeamReopenInputSchema.parse(raw);
+        const result = port.reopen({ taskId: parsed.task_id });
+        if (result.status === "rejected") {
+          throw createCoreError(
+            CoreErrorType.ConfigurationError,
+            `${result.error?.message ?? "reopen rejected"}${result.error?.hint === undefined ? "" : ` ${result.error.hint}`}`,
+            { context: { code: result.error?.code }, recoverable: false },
+          );
+        }
+        return { task: result.task === undefined ? undefined : taskCardJson(result.task) };
       },
     }),
   ];

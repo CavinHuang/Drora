@@ -132,4 +132,33 @@ describe("ATUI06–08 saved team history", () => {
       }),
     ).rejects.toThrow("read failed");
   });
+
+  // §22 契约 3（2026-10-27 审查 M13 修复）：终态汇报两 kind 自 §22 起由 hub 写入
+  // journal（载荷仅 teamId）。shared teamHistoryEntrySchema.kind 此前无这两值——
+  // 每条 safeParse 拒绝、计入 skippedEntries 误报「跳过 N 条」，过程面板看不到
+  // 终局事实。枚举补齐后必须逐条解析成功且零跳过。
+  it("final_report_dispatched/delivered 两 kind 解析成历史事实，不计入 skippedEntries", async () => {
+    const raw = (seq: number, payload: unknown): SessionEntryInfo => ({
+      id: String(seq),
+      sessionID: "parent" as never,
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+      time: { created: 1, updated: 1 },
+      data: { seq, at: "2026-10-27T08:00:00Z", payload },
+    });
+    const page = await readTeamHistoryPage({
+      sessionStore: {
+        sessionEntries: async () => [
+          raw(1, { kind: "final_report_dispatched", teamId: "a" }),
+          raw(2, { kind: "final_report_delivered", teamId: "a" }),
+        ],
+      },
+      sessionId: "parent",
+      teamId: "a",
+    });
+    expect(page.events.map((event) => event.kind)).toEqual([
+      "final_report_dispatched",
+      "final_report_delivered",
+    ]);
+    expect(page.skippedEntries).toBe(0);
+  });
 });

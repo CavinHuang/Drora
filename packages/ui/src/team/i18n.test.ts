@@ -147,6 +147,7 @@ describe("team i18n keys", () => {
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { teamHistoryEntrySchema } from "@drora/shared/drora-protocol-v4";
 import { TEAM_STAGED_FAILURE_REASON_I18N_KEYS } from "./TeamStagedEditor.js";
 import { TEAM_REVISE_PREFILL_PROMPT_KEY } from "./revise-prefill.js";
 
@@ -232,6 +233,12 @@ function dynamicallyConsumedTeamKeys(): Set<string> {
     consumed.add(`${base}.title`);
     consumed.add(`${base}.body`);
   }
+  // §22 契约 3（2026-10-27 审查 M13）：终态汇报两 kind 的历史标签键——TeamProcessPanel
+  // 经 `team.history.kind.${entry.kind}` 模板拼接消费（前缀族已放行），此处显式登记
+  // 并在下方「终局事实标签」用例中逐键断言双语在场——前缀族只守「不判死键」，
+  // 逐键存在性由用例锁定，双侧同删可被发现。
+  consumed.add("team.history.kind.final_report_dispatched");
+  consumed.add("team.history.kind.final_report_delivered");
   // 「回对话修改」预填追问（常量键，revise-prefill.ts 单一出处）。
   consumed.add(TEAM_REVISE_PREFILL_PROMPT_KEY);
   return consumed;
@@ -278,6 +285,21 @@ describe("team i18n 源码扫描双守（§19 契约 6，评审 Low-18）", () =
       const covered =
         consumed.has(key) || DYNAMIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
       expect(covered, `未被消费的词典键：${key}`).toBe(true);
+    }
+  });
+
+  // §22 契约 3（2026-10-27 审查 M13）：终态汇报两 kind 补进 shared
+  // teamHistoryEntrySchema 后，TeamProcessPanel 经 team.history.kind.* 动态键族渲染
+  // 标签——前缀族守卫只防「误判死键」，逐键存在性在此锁定（漏一侧即渲染裸键）。
+  it("终局事实标签双语在场：final_report_dispatched/delivered 两 kind 的 team.history.kind.* 键在 zh-CN 与 en-US 均非空", () => {
+    expect(teamHistoryEntrySchema.shape.kind.options).toContain("final_report_dispatched");
+    expect(teamHistoryEntrySchema.shape.kind.options).toContain("final_report_delivered");
+    for (const key of [
+      "team.history.kind.final_report_dispatched",
+      "team.history.kind.final_report_delivered",
+    ]) {
+      expect(zhCN[key], `zh-CN ${key}`).toBeTruthy();
+      expect(enUS[key], `en-US ${key}`).toBeTruthy();
     }
   });
 });

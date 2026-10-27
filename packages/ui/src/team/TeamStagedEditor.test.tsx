@@ -320,6 +320,21 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     renderEditor({ onApprove, permissionMode: "build" });
     const chip = screen.getByTestId("team-staged-member-mode");
     expect(chip.textContent).toContain(zhCN["team.permission.mode.build"] ?? "");
+    // 位置（2026-10-27 对齐修订）：设置行在问句表头之后、草案清单（成员/任务标题）之前
+    // ——照 WorkflowPermissionBlock 的 ask settings 先于内容清单的次序语义。
+    const modeLine = screen.getByTestId("team-staged-member-mode-line");
+    const header = screen.getByTestId("team-staged-header");
+    const membersHeading = screen.getByText((content, element) =>
+      element?.tagName === "H3"
+        ? content.includes(zhCN["team.stagedEditor.membersHeading"] ?? "成员")
+        : false,
+    );
+    expect(
+      header.compareDocumentPosition(modeLine) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      modeLine.compareDocumentPosition(membersHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     // 键盘路径开菜单（radix DropdownMenu 对 Enter 响应；jsdom 无 pointer capture）。
     fireEvent.keyDown(chip, { key: "Enter" });
     const item = await screen.findByTestId("team-staged-member-mode-yolo");

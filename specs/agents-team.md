@@ -3072,9 +3072,15 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
 - **现状**：permissionMode 由 install 在建队时从 lead 会话换算并捕获（hub stageTeam 落
   record），审批面板不可见不可调；§8.1 原表述「成队时刻定死」。
 - **行为契约**：
-  - 审批面（dock/摘要卡/侧栏三发起面同款）在任务行之后、动作选项之前呈现「成员权限」
-    选择行：label + 五选一（build/edit/yolo/guarded/auto，枚举单一出处
-    teamPermissionModeSchema），默认值 = 建队时捕获值（wire permissionMode 既有投影）。
+  - 审批面（dock/摘要卡/侧栏三发起面同款）呈现「成员权限」选择行：label + 五选一
+    （build/edit/yolo/guarded/auto，枚举单一出处 teamPermissionModeSchema），默认值 =
+    建队时捕获值（wire permissionMode 既有投影）。
+    位置与形态（2026-10-27 用户裁定对齐修订）：完整参考 workflow 确认窗 ask settings
+    的实现——位置在问句表头/状态行之后、**草案清单之前**（WorkflowPermissionBlock 的
+    设置区先于时间线/脚本的次序语义；此前误排在清单之后）；行/芯片/「· 原为 X ↺」
+    尾巴直接复用 WorkflowAskSettingsParts 导出零件
+    （WORKFLOW_ASK_LINE/CHIP_CLASS_NAME + WorkflowAskWasTail，不再手抄类名）；菜单项
+    带选中指示（DropdownMenuCheckboxItem，照 ModelConfigSelect 菜单的当前值标记）。
   - 批准时刻定死：approveTeamPlan 载荷 additive 增 optional `permissionMode`（枚举同一
     出处；词表声明：仅此一字段，零其余 wire 变更）；hub approveStage 增可选 options
     参数，在竞态复查通过后、spawn 前覆写 record.permissionMode。§8.1 表述订正为

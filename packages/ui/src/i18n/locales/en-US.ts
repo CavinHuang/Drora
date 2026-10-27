@@ -1626,7 +1626,6 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.memberModeLabel": "Member permissions",
   "team.stagedEditor.memberModeLead": "Members run with",
   "team.stagedEditor.memberModeTrail": "permissions",
-  "team.stagedEditor.memberModeWas": "was {value}",
   "team.stagedEditor.memberModeKeep": "Keep value set at staging",
   "team.permission.mode.build": "Ask before changes",
   "team.permission.mode.edit": "Edit automatically",

@@ -3162,3 +3162,30 @@ task_notification_steer 注入驱动主 agent 逐条回应，末段连续三次�
   兜底路径；reassign actor 三分（lead ✓/manager ✓/普通成员 ✗）；manager 重名拒绝。
 - bootstrap：manager 成员工具注册差异；投影 managerName。
 - ui：审批面/花名册徽标与首位。E2E：并入 AT-01 转正批（manager 流全链）。
+
+### §10 增补五｜团队卡入消息流（2026-10-27 用户裁定，同日施工）
+
+用户裁定：团队卡应留在消息流中、与 workflow 的消息卡片同位（锚定在事件发生的轮次），
+而不是一直钉在消息流底部（footerSlot 形态）。
+
+- 锚点规则：卡渲染在**包含 TeamSpawn 工具行的那个 turn 的轮尾**（照 workflow 轮尾摘要
+  卡 ConversationWorkflowDigests 的挂载位——轮内容之后、其余轮尾块之前）；该轮滚出视口
+  即随历史滚走，新轮追加不再推动它。
+- 判定：turn 的 renderRows 中存在 toolName === "TeamSpawn" 的工具行即锚定轮（同一轮内
+  原子修订不产生第二张卡）；找不到锚定轮（旧会话/行已折叠进历史聚合）时回退 footerSlot
+  钉底——诚实兜底而非消失。
+- staged 态：dock（审批）在 composer 上方钉底不变（§18 裁定独立）；轮内卡同帧渲染
+  只读摘要（stagedEditorSuppressed 语义复用）。
+- 数据流：SessionPane 把 TeamConversationSummary 从 footerSlot 改经 ConversationTimeline
+  新 prop `teamCardSlot` 传入；Timeline 判定锚定轮后经 TurnGroup 新 prop `teamCardSlot`
+  在该轮尾渲染；卡本体/命令通道/守卫零改动（借形不借管线不变）。
+- 测试：锚定轮判定（含/不含 TeamSpawn 行）；回退路径；ui team 回归。
+
+### §22 契约 7｜wire managerName 投影 + UI 管理者徽标（2026-10-27 追补施工）
+
+- wire additive：teamProjectionStateSchema 增 `managerName?`（roster 快照 → 投影桥
+  teamProjectionViewOf → wire）；hub.snapshot 输出随行。
+- UI 徽标：staged 编辑器成员行（draft.managerName 随 stagedDraft 视图）与 TeamPanel
+  成员卡（model.managerName 透传 MemberCardBody）首位管理者出「管理者」徽标
+  （team.ui.managerBadge，zh/en）；roster 首位=manager 由 hub 物化保证（契约 1）。
+- 测试：ui team 全套回归（131 用例绿）。

@@ -265,6 +265,8 @@ export type TeamArtifacts = z.infer<typeof teamArtifactsSchema>;
 export const teamProjectionStateSchema = z.object({
   teamId: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
   name: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
+  /** 管理者成员名（§22 契约 1；manager=roster 首位，徽标/汇报 actor 的 UI 依据）。 */
+  managerName: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
   status: teamStatusSchema,
   /** 成队定死的记录值；缺席 = 未记录（旧版本 journal，读侧回退继承 lead 当前模式）。 */
   permissionMode: teamPermissionModeSchema.optional(),

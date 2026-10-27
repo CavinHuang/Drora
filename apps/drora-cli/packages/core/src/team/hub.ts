@@ -300,6 +300,7 @@ export class TeamHub {
       // 映射由 §19 契约 3（2026-10-23）补齐——原注「映射不受影响」与事实不符：
       // 桥此前的显式字段清单漏了这两项，查询面补齐后仍到不了 wire。
       ...(record.name === undefined ? {} : { name: record.name }),
+      ...(record.managerName === undefined ? {} : { managerName: record.managerName }),
       members: record.members
         .filter((member) => !member.removed)
         .map((member) => ({

@@ -1541,6 +1541,7 @@ const enUS: Record<string, string> = {
   // copy (color paired with text, never color alone).
   "team.panel.memberOpen": "Open {name}'s session",
   "team.panel.memberMessage": "Message {name}",
+  "team.ui.managerBadge": "Manager",
   "team.tab.statusDot": "Team status: {status}",
   "team.status.staged": "Pending approval",
   "team.status.active": "Active",

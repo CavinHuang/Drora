@@ -382,7 +382,7 @@ function TeamPanelContent({
                       <li key={member.agentId} className="flex items-center gap-1">
                         {onMemberClick === undefined ? (
                           <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                            <MemberCardBody member={member} stateLabel={stateLabel} managerName={model.managerName} />
                           </span>
                         ) : (
                           <button
@@ -395,7 +395,7 @@ function TeamPanelContent({
                             data-testid="team-member-card"
                             className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                            <MemberCardBody member={member} stateLabel={stateLabel} managerName={model.managerName} />
                           </button>
                         )}
                         {onMessageMember === undefined ? null : (
@@ -473,15 +473,27 @@ function displayActorName(intl: ReturnType<typeof useDroraIntl>["intl"], name: s
 function MemberCardBody({
   member,
   stateLabel,
+  managerName,
 }: {
   member: TeamPanelMemberView;
   stateLabel: string;
+  /** 管理者成员名（§22 徽标依据；§21 A9 后由调用方透传避免闭包整 model）。 */
+  managerName?: string;
 }): JSX.Element {
+  const { intl } = useDroraIntl();
   return (
     <>
       <TeamAvatar name={member.memberName} color={member.profileColor} />
       <span className="min-w-0 break-words text-ui-sm">
         {member.memberName}
+        {managerName !== undefined && member.memberName === managerName ? (
+          <span
+            className="ml-1 rounded-sm bg-surface px-1.5 py-0.5 text-ui-caption text-foreground-subtle"
+            data-testid="team-manager-badge"
+          >
+            {intl.formatMessage({ id: "team.ui.managerBadge" })}
+          </span>
+        ) : null}
         {member.profile ? (
           <span className="ml-1 text-foreground-subtle">{member.profile}</span>
         ) : null}

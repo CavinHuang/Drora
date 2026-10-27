@@ -85,6 +85,8 @@ export interface TeamRosterSnapshot {
   status: TeamStatus;
   /** team 名（stageTeam.name 回读；草案重建不丢名，同 modelSelection 语义）。 */
   name?: string;
+  /** 管理者成员名（§22 契约 1；投影桥上 wire）。 */
+  managerName?: string;
   members: readonly TeamMemberView[];
 }
 

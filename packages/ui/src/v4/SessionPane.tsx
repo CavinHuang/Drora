@@ -5915,7 +5915,7 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
-                  footerSlot={
+                  teamCardSlot={
                     !readOnly &&
                     !importedShare &&
                     snapshot?.team &&

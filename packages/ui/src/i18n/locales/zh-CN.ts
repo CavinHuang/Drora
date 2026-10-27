@@ -1409,6 +1409,7 @@ const zhCN: Record<string, string> = {
   // PR-2.4c：成员卡入口（下钻 + 发消息）、tab 状态点、状态机徽标文字（色 + 文字并行）。
   "team.panel.memberOpen": "查看 {name} 的会话",
   "team.panel.memberMessage": "给 {name} 发消息",
+  "team.ui.managerBadge": "管理者",
   "team.tab.statusDot": "团队状态：{status}",
   "team.status.staged": "待审批",
   "team.status.active": "进行中",

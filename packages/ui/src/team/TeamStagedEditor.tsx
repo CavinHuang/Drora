@@ -144,6 +144,7 @@ const TEAM_PERMISSION_MODES = teamPermissionModeSchema.options;
 
 export interface TeamStagedEditorProps {
   draft: TeamPanelStagedDraftView;
+  /** 管理者成员名（§22 契约 1；成员行徽标，stagedDraft 视图随行）。
   /** 建队捕获的权限模式（wire 投影既有值）——选择行默认值。 */
   permissionMode?: TeamPermissionModeWire;
   /**
@@ -354,6 +355,7 @@ export function TeamStagedEditor({
         <div className="flex flex-col gap-3">
           <DraftMemberRows
             members={draft.members}
+            managerName={draft.managerName}
             {...(onRenameMember === undefined ? {} : { onRenameMember })}
           />
           <DraftTaskRows tasks={draft.tasks} />
@@ -601,9 +603,12 @@ export function TeamStagedEditor({
 
 function DraftMemberRows({
   members,
+  managerName,
   onRenameMember,
 }: {
   members: TeamPanelStagedDraftView["members"];
+  /** 管理者成员名（§22 契约 1；首位成员行「管理者」徽标）。 */
+  managerName?: string;
   onRenameMember?: (memberName: string, newName: string) => void;
 }): JSX.Element {
   const { intl } = useDroraIntl();
@@ -619,6 +624,14 @@ function DraftMemberRows({
             className="flex flex-wrap items-baseline gap-x-2 rounded-md bg-surface px-1.5 py-1"
           >
             <span className="text-ui-sm font-medium">{member.memberName}</span>
+            {member.memberName === managerName ? (
+              <span
+                className="rounded-sm bg-surface px-1.5 py-0.5 text-ui-caption text-foreground-subtle"
+                data-testid="team-staged-manager-badge"
+              >
+                {intl.formatMessage({ id: "team.ui.managerBadge" })}
+              </span>
+            ) : null}
             <span className="text-ui-caption text-foreground-subtle">
               {member.profile ?? intl.formatMessage({ id: "team.stagedEditor.roleNone" })}
             </span>

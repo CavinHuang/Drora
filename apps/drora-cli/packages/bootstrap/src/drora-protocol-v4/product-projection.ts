@@ -5967,6 +5967,7 @@ function teamProjectionViewOf(sessionId: string): ReturnType<typeof projectTeam>
     // 命名的队名到不了 wire——会话卡/面板/摘要卡恒显 fallback 通用标题。name 经
     // projectTeam（core projection.ts）直达 teamProjectionStateSchema.name。
     ...(roster.name === undefined ? {} : { name: roster.name }),
+    ...(roster.managerName === undefined ? {} : { managerName: roster.managerName }),
     ...(roster.permissionMode === undefined ? {} : { permissionMode: roster.permissionMode }),
     members: roster.members.map((member) => ({
       agentId: member.agentId,

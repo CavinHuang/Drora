@@ -5,7 +5,7 @@ import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 
 /**
- * R3 移动会话面壳（spec specs/mobile-relay-r3-frontend.md §2「移动会话面」、D1）。
+ * R3 移动会话面壳（spec docs/web-remote-control/web-remote-control-architecture.md。
  *
  * 本期只做壳与导航：顶栏（返回首页/任务标题/更多菜单位/侧板展开位）+
  * 时间线滚动容器 + 底部 composer 槽。时间线条目与 composer 本体由装配方以

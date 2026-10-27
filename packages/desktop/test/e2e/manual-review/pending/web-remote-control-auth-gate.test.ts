@@ -62,6 +62,20 @@ describe("桌面远控登录门禁", () => {
         const label = locale === "zh-CN" ? "移动端远程控制" : "Mobile remote control";
         await openRemoteControlDialog(label);
         await waitForTestIdByDom("web-remote-control-auth-required");
+        // 自研 LAN/配对栈已删除：真实弹窗和 preload 只能暴露官方 V2 路径。
+        expect(await $('[role="dialog"] select').isExisting()).toBe(false);
+        expect(
+          await browser.execute(() => {
+            const bridge = (window as Window & { drora?: Record<string, unknown> }).drora;
+            return [
+              "startMobileRelayControl",
+              "stopMobileRelayControl",
+              "refreshMobileRelayControl",
+              "getMobileRelayControlState",
+              "refreshWebRemoteControlPairing",
+            ].filter((method) => typeof bridge?.[method] === "function");
+          }),
+        ).toEqual([]);
         const card = $('[data-testid="web-remote-control-auth-required"]');
         expect(await card.getText()).toContain(
           locale === "zh-CN" ? "需要先登录" : "Sign in required",

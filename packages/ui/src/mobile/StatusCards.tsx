@@ -10,7 +10,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
  * 内的 CVn 失败卡映射、lHn 加载态映射与 $9/EVn 渲染结构），中英文案已提取到
  * mobileShell.loading.* / mobileShell.failure.* i18n 命名空间。
  *
- * spec：specs/mobile-relay-r3-frontend.md §2 对齐清单、D1 模块决策。
+ * spec：docs/web-remote-control/web-remote-control-architecture.md。
  */
 
 /** 加载卡覆盖的连接阶段（对齐官方 lHn 的 state 入参；preparing 为官方 default 兜底态）。 */

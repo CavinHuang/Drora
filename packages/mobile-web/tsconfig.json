@@ -16,7 +16,6 @@
     { "path": "../rpc" },
     { "path": "../services" },
     { "path": "../client" },
-    { "path": "../relay-client" },
     { "path": "../ui" }
   ]
 }

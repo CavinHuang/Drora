@@ -645,44 +645,21 @@ adding breakpoint overrides.
 - create components that only look correct in one theme
 - trade clarity for visual novelty in tool-heavy screens
 
-## Mobile Remote Shell (R3)
+## Mobile Remote Shell
 
-The mobile remote page (`@drora/mobile-web`, served at `/remote/v4`) is a
-self-contained React app. Its shell UI lives in the package (`src/ui`,
-`src/intl`). The task conversation uses the narrow
-`@drora/ui/remote-timeline` public entry for the original v4 message list,
-conversation status panel, and sticky composer dock. The entry frame uses
-`@drora/ui/remote-frame` (see `specs/mobile-relay-r3-frontend.md` §§22–25).
+The current `/remote/v4` page uses `packages/web` and the shared `packages/ui`
+components. `packages/mobile-web` only builds the canonical page and preserves
+original snapshots for provenance; it does not own a separate app, locale store,
+Relay server, or HMAC client.
 
-### Do
+- Reuse the official mobile home/chat shell and its responsive wide-screen layout.
+- Keep touch targets at 44px and use the shared typography, theme and i18n tokens.
+- Keep mobile selection and theme independent from the desktop selection/theme.
+- Platform capabilities go through the existing platform ports and Host attachment.
+- Keep desktop continuous and mobile replayable delivery separate; never create
+  another Host, Agent, accepted queue or business snapshot in the UI.
 
-- reuse the ported shell primitives (StatusCards / HomeShell / TaskShell /
-  TaskTimeline / InteractionCards) before adding new surface
-- keep touch targets at 44px (`size-11` / `min-h-11`); icon buttons explicitly
-  override the desktop `icon-sm` size
-- source new Tailwind utilities inside the package's `@source` directives
-  (`src/app/styles.css`); utilities used only by `src/ui` are invisible to the
-  scanner otherwise (E2E-proven failure mode)
-- keep the design-token subset in `styles.css` in lockstep with
-  `packages/ui/src/styles.css` values (light/dark both), and add official i18n
-  keys verbatim from `packages/ui/src/i18n/locales/*` before inventing new ones
-  (mark package-local keys in the dictionary)
-- route all user-facing strings through `src/intl` with zh-CN/en-US parity
-  (enforced by test)
-- keep conversation rows driven by the v4 store; never invent protocol state in
-  components
-
-### Don't
-
-- import desktop-only capabilities into the mobile shell or bypass the
-  `@drora/ui/remote-timeline` and `@drora/ui/remote-frame` entries to reach UI
-  implementation files
-- render raw i18n keys — a missing key means the dictionary extraction missed
-  an official string; fix the extraction instead of tolerating the fallback
-- introduce single-file bundles: vendor/app splits are a hard requirement
-  (the official 6.2MB monolith is the anti-example)
-- widen the shell to a desktop layout without a product decision (the wide
-  viewport question is recorded as open in `specs/mobile-relay-r3-frontend.md`)
+See `docs/web-remote-control/web-remote-control-architecture.md`.
 
 ## Remote connection progress (RDUX-03)
 

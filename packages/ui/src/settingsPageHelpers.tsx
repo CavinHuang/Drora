@@ -145,7 +145,6 @@ export function GeneralSectionContent({
   onToolSearchModeChange,
   nativeSearchEnhancementsEnabled,
   httpProxy = "",
-  relayServerUrl = "",
   httpProxyNoProxy = "",
   httpProxyCaCertPath = "",
   defaultHomeDir,
@@ -176,7 +175,6 @@ export function GeneralSectionContent({
   onHttpProxyChange = async () => {},
   onHttpProxyNoProxyChange = async () => {},
   onHttpProxyCaCertPathChange = async () => {},
-  onRelayServerUrlChange = async () => {},
   onCloseToTrayOnWindowsChange,
   onKeepAwakeWhileRunningChange = async () => {},
   onDesktopChromiumHardwareAccelerationChange = async () => {},
@@ -213,7 +211,6 @@ export function GeneralSectionContent({
   httpProxy?: string;
   httpProxyNoProxy?: string;
   httpProxyCaCertPath?: string;
-  relayServerUrl?: string;
   defaultHomeDir: string;
   isDesktop?: boolean;
   isWindowsDesktop?: boolean;
@@ -251,7 +248,6 @@ export function GeneralSectionContent({
   onHttpProxyChange?: (httpProxy: string) => Promise<void>;
   onHttpProxyNoProxyChange?: (noProxy: string) => Promise<void>;
   onHttpProxyCaCertPathChange?: (caCertPath: string) => Promise<void>;
-  onRelayServerUrlChange?: (relayServerUrl: string) => Promise<void>;
   onCloseToTrayOnWindowsChange: (enabled: boolean) => Promise<void>;
   onKeepAwakeWhileRunningChange?: (enabled: boolean) => Promise<void>;
   onDesktopChromiumHardwareAccelerationChange?: (enabled: boolean) => Promise<void>;
@@ -372,19 +368,6 @@ export function GeneralSectionContent({
   const handleHttpProxyCaCertPathSave = useCallback(async () => {
     await onHttpProxyCaCertPathChange(normalizedHttpProxyCaCertPath);
   }, [normalizedHttpProxyCaCertPath, onHttpProxyCaCertPathChange]);
-
-  const [localRelayServerUrl, setLocalRelayServerUrl] = useState(relayServerUrl);
-
-  useEffect(() => {
-    setLocalRelayServerUrl(relayServerUrl);
-  }, [relayServerUrl]);
-
-  const normalizedRelayServerUrl = localRelayServerUrl.trim();
-  const isRelayServerUrlDirty = normalizedRelayServerUrl !== relayServerUrl;
-
-  const handleRelayServerUrlSave = useCallback(async () => {
-    await onRelayServerUrlChange(normalizedRelayServerUrl);
-  }, [normalizedRelayServerUrl, onRelayServerUrlChange]);
 
   return (
     <div className="space-y-4">
@@ -693,39 +676,6 @@ export function GeneralSectionContent({
               onKeyDown={(event) => {
                 if (event.key === "Enter" && isHttpProxyCaCertPathDirty) {
                   void handleHttpProxyCaCertPathSave();
-                }
-              }}
-              className="max-w-[520px] font-mono"
-            />
-          }
-        />
-        {/* 自建 relay 云中继（spec: mobile-relay-server.md §8）：留空走官方 zcode.z.ai。*/}
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.relayServerUrl" })}
-          description={intl.formatMessage({
-            id: "settings.relayServerUrlDescription",
-          })}
-          control={
-            <Button
-              type="button"
-              size="lg"
-              disabled={!isRelayServerUrlDirty}
-              onClick={() => void handleRelayServerUrlSave()}
-            >
-              {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
-            </Button>
-          }
-          detail={
-            <Input
-              size="lg"
-              value={localRelayServerUrl}
-              placeholder={intl.formatMessage({ id: "settings.relayServerUrlPlaceholder" })}
-              onChange={(event) => {
-                setLocalRelayServerUrl(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && isRelayServerUrlDirty) {
-                  void handleRelayServerUrlSave();
                 }
               }}
               className="max-w-[520px] font-mono"

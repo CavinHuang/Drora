@@ -21,7 +21,7 @@ docs/knip/docs/LICENSE -text -whitespace
 docs/knip/docs/licenses/** -text -whitespace
 third-party/inventory.json linguist-generated=true
 
-# 手机远控冻结快照按字节保存（specs/mobile-web-remote.md §33.11 产物一致性；
+# 手机远控原版取证快照按字节保存（完整性清单见 packages/mobile-web/upstream/SHA256SUMS.txt；
 # upstream/SHA256SUMS.txt 是完整性锚点），禁止 autocrlf 行尾改写。
 packages/mobile-web/upstream/** -text -whitespace
 packages/mobile-web/src/recovered/** -text -whitespace

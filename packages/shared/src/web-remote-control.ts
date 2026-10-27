@@ -657,8 +657,7 @@ export type WebRemoteControlReconnectWorkspaceResult =
       error: string;
     };
 
-// Drora 自研 relay 同步链仍消费的任务行显示状态（上游 3.16.1 已把该面迁往
-// mobile task view 投影；此类型与下方扩展字段服务 MobileRelaySyncTasks 等通道）。
+// 手机任务索引的显示状态；不参与 Relay 鉴权或连接状态。
 export type WebRemoteControlTaskDisplayStatus = "idle" | "running" | "completed" | "error";
 
 export interface WebRemoteControlTaskTarget {

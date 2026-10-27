@@ -1,6 +1,4 @@
 # desktop-drora-extensions
 
-自研接入模块，迁移策略见 `specs/upstream-v3.15.1-migration.md`。
-官方业务状态仍由 Agent、scoped Host 和官方远控 manager 持有。这里只做装配、部署选择或展示。
-凭据按 origin 捕获，不使用可被其他窗口改变的 active-origin；LAN 以持久化 registry 为身份域。
-关闭由宿主生命周期调用，所有业务命令复用官方路径。禁止加入第二份任务队列/会话状态。
+Drora 的桌宠与发行源装配入口。桌宠控制器拥有窗口生命周期，官方 updater 拥有更新状态。
+不提供自建 Relay、设备凭据仓储或局域网远控服务。远控统一使用官方 Relay V2 manager。

@@ -8648,12 +8648,6 @@ const enUS: Record<string, string> = {
   "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Follow task activity on the desktop. Click to view tasks, drag to move, or right-click for options.",
-  "settings.relayServerUrl": "Relay server",
-  "settings.relayServerUrlDescription":
-    "Self-hosted relay server URL for mobile remote control. Leave empty to use the official zcode.z.ai; restart remote control after changing.",
-  "settings.relayServerUrlPlaceholder": "Empty = official, e.g. http://relay.lan:4430",
-  "settings.relayServerUrlSavedHint":
-    "Relay server settings saved. Restart the app to take effect.",
   "vault.ask.candidate.attachEvidence": "Attach as evidence to Agent",
   "vault.ask.candidate.attachEvidenceHint":
     'Attaches this verification\'s receipt to the target session composer; submitted with the message and re-verified before execution. Distinct from the plain-quote "Add to Agent" semantics.',

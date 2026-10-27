@@ -15,15 +15,6 @@ export function createDesktopPlatform(options: {
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.drora.selectDirectory(),
     selectDirectories: () => window.drora.selectDirectories(),
-    // 移动远控方法面必须整体转发（spec: mobile-web-remote.md「Renderer 集成面」）：
-    // relay 五项缺失曾让云中继 tab 永久停在“正在准备二维码”，且 renderer 子项目
-    // 不在根 typecheck 覆盖内，缺口只能由 desktopRendererPlatformMobileFace 测试守护。
-    // 旧 LAN 直连 5 项（startMobilePairing 等）已随配对栈删除（§12.4）。
-    startMobileRelayControl: (params) => window.drora.startMobileRelayControl(params),
-    stopMobileRelayControl: () => window.drora.stopMobileRelayControl(),
-    refreshMobileRelayControl: () => window.drora.refreshMobileRelayControl(),
-    getMobileRelayControlState: () => window.drora.getMobileRelayControlState(),
-    onMobileRelayStateChanged: (handler) => window.drora.onMobileRelayStateChanged(handler),
     selectFile: () => window.drora.selectFile(),
     selectFiles: () => window.drora.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.drora.createTempTextAttachment(payload),
@@ -47,9 +38,6 @@ export function createDesktopPlatform(options: {
       window.drora.bindRemoteWorkspaceSessionContext?.(context) ??
       Promise.reject(new Error("Desktop bindRemoteWorkspaceSessionContext bridge unavailable")),
     startWebRemoteControl: (context) => window.drora.startWebRemoteControl(context),
-    // B 类保护：二维码泄露时的配对轮换转发面（ours 保真；desktopRendererPlatformMobileFace 测试守护）。
-    refreshWebRemoteControlPairing: (context) =>
-      window.drora.refreshWebRemoteControlPairing(context),
     stopWebRemoteControl: () => window.drora.stopWebRemoteControl(),
     getWebRemoteControlStatus: () => window.drora.getWebRemoteControlStatus(),
     onWebRemoteControlStatusChanged: (handler) =>

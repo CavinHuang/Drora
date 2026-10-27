@@ -1,7 +1,7 @@
 /**
- * R3 移动壳组件族（spec specs/mobile-relay-r3-frontend.md D1）。
+ * R3 移动壳组件族（spec docs/web-remote-control/web-remote-control-architecture.md。
  * 纯展示组件：数据与动作全部 props 注入，不接数据面、不路由；
- * 装配（RootShell 能力位分支、relay-client 接线）为后续任务。
+ * 装配（RootShell 能力位分支、官方 Web 入口接线）为后续任务。
  */
 export {
   MobileLoadingCard,

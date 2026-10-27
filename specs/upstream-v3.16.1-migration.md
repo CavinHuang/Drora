@@ -1,6 +1,30 @@
 # ZCode v3.16.1 同步与分段合并策略
 
-状态：**实施完成（2026-10-20）**。S0-S7 全段落地说完毕：a5fcd647/cc1b9a26/58cd765（S0 转换+黄金+预演）→ 4f814061/810d3d5b（S1 契约）→ 7d7ee097/c62b2c32/69bda53a（S2 CLI）→ ac72baf5/81a32c5d（S3 services）→ 9a5a6c1a/c58bd34c（S4 desktop+Relay V2）→ 5bf741d3/b9a6e63d（S5 UI/web）→ 3de1880a（S6 资产+R5 快照）→ 69daa438/576c3dbc/b830139b（S7 终验）→ 25837882（祖先记录 merge，merge-base=0a1fc56d）。终验门禁全绿（typecheck 18 项目/lint/fmt/架构 0 违规/单测 vitest+node 全量 0 失败/CLI 19 包 0 失败/SHA256 锚点）。结构对齐审计：上游 3.16.1 现行树缺口 18 条全部有据。明细见 docs/upstream/zcode-v3.16.1-segment-plan.md。遗留：relay-server 的 V2 wire 适配（R1 后续独立任务）、G-hint E2E 真机再基线、E2E/跨平台/真包 parity 属 CI 与发布验证。
+## 2026-10-22：移除自研 Relay 复刻
+
+用户确认上游未开源云端 Relay 服务，要求删除本仓复刻实现及相关文档。
+删除自建服务端、仅服务旧协议的客户端/手机壳、HMAC 凭据与协议辅助代码、LAN 宿主、
+自建地址/传输选择 UI、旧二维码轮换入口及其专属测试和设计文档。
+保留当前官方 Relay V2 客户端、canonical Web 手机页面、原版冻结取证资产和 Host/CLI 恢复链路。
+既有本地注册表/凭据文件不做磁盘删除；废弃设置不再参与启动或端点解析。
+
+端点统一经当前应用 endpoint origin 推导；显式调试覆盖继续使用官方环境变量。
+上游云端可用性仍属于外部依赖，本次不实现替代服务，也不宣称云端已完成联调。
+
+```mermaid
+flowchart LR
+  M[官方 Web 手机页] --> R[外部 Relay V2]
+  R --> D[Desktop main：官方 manager]
+  D --> H[已有 Window Host]
+  H --> C[同一 CLI runtime]
+  U[桌面 continuous] --> H
+```
+
+验收：正式启动接线与设置界面没有自建/LAN 分支；V2 登录、端点覆盖、共享 Host、
+分片 ACK/重放和 continuous/replayable 边界的现有回归继续执行；完成类型、Lint 和架构检查。
+以下历史阶段中的“后续补齐自建 Relay V2”决定已被本节撤销。
+
+状态：**实施完成（2026-10-20）**。S0-S7 全段落地说完毕：a5fcd647/cc1b9a26/58cd765（S0 转换+黄金+预演）→ 4f814061/810d3d5b（S1 契约）→ 7d7ee097/c62b2c32/69bda53a（S2 CLI）→ ac72baf5/81a32c5d（S3 services）→ 9a5a6c1a/c58bd34c（S4 desktop+Relay V2）→ 5bf741d3/b9a6e63d（S5 UI/web）→ 3de1880a（S6 资产+R5 快照）→ 69daa438/576c3dbc/b830139b（S7 终验）→ 25837882（祖先记录 merge，merge-base=0a1fc56d）。终验门禁全绿（typecheck 18 项目/lint/fmt/架构 0 违规/单测 vitest+node 全量 0 失败/CLI 19 包 0 失败/SHA256 锚点）。结构对齐审计：上游 3.16.1 现行树缺口 18 条全部有据。明细见 docs/upstream/zcode-v3.16.1-segment-plan.md。遗留：G-hint E2E 真机再基线、E2E/跨平台/真包 parity 属 CI 与发布验证。
 
 总目标：合并后目录结构与原版 ZCode 保持对齐（在 zcode→drora 改名空间下），结构差异仅允许两类——自研新增模块、spec 已记录的有意分歧；S7 做结构对齐审计并固化差异清单。本文是执行的唯一依据；实施结果与证据链后补于 `docs/upstream/zcode-v3.16.1-*.md`。
 
@@ -88,11 +112,11 @@
 
 ## 自研保护区（合并期间冻结清单）
 
-A 类（上游无对应物，整目录保护）：`packages/ui/src/team/`、`apps/drora-cli/packages/bootstrap/src/app/drora-team/`、`packages/services/src/{knowledge,obsidian-vault}/`、Jev/ONNX（jevDynamicProvider、localEmbeddingPort、knowledge-evidence、knowledge-jev）、`packages/{relay-server,relay-client,drora-server-cli}/`、手机远控 UI（WebRemoteControl\*、mobile/）、桌宠资产与 `drora-extensions/desktopPet`、发行更新 `drora-extensions/updateFeed`、四层 `drora-extensions/`、`packages/mobile-web`（upstream/ 快照整目录排除合并）。
+A 类（上游无对应物，整目录保护）：`packages/ui/src/team/`、`apps/drora-cli/packages/bootstrap/src/app/drora-team/`、`packages/services/src/{knowledge,obsidian-vault}/`、Jev/ONNX（jevDynamicProvider、localEmbeddingPort、knowledge-evidence、knowledge-jev）、`packages/drora-server-cli/`、手机远控 UI（WebRemoteControl\*、mobile/）、桌宠资产与 `drora-extensions/desktopPet`、发行更新 `drora-extensions/updateFeed`、四层 `drora-extensions/`、`packages/mobile-web`（upstream/ 快照整目录排除合并）。
 
 B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/App.tsx`、`i18n/locales/{zh-CN,en-US}.ts`、`app-shell/`（TeamSidePane、WorkspaceShellLayout）、`SettingsPage.tsx`+`settings/`、`create-app.ts`（team 装配 L106/184/797/886-905/926、vaultSearchPort）、permission 面（write-tier-policy 单一出处）、`packages/desktop/src/main/index.ts`（remoteControl/desktopPet/webRemoteControlManager 装配）、`packages/shared/src/`（drora-protocol* 63 文件、desktopPet.ts、knowledge*）、根 `architecture-policy.yaml` 与 `package.json` scripts。
 
-还原资产（内容字节保持，不参与内容转换）：`packages/mobile-web/src/recovered|upstream|legacy-v3.14.3`、`packages/zcode-cua{,-helper}` 还原区、`packages/desktop/resources/{cua-helper,cua-helper-3.11.2-reference,glm-natives-3.14.3}`、`third-party/`、`apps/drora-cli`（oxlint 整包 ignore）。
+还原资产（内容字节保持，不参与内容转换）：`packages/mobile-web/src/recovered|upstream`、`packages/zcode-cua{,-helper}` 还原区、`packages/desktop/resources/{cua-helper,cua-helper-3.11.2-reference,glm-natives-3.14.3}`、`third-party/`、`apps/drora-cli`（oxlint 整包 ignore）。
 
 ## 契约字面量差分（S1 处置清单）
 
@@ -109,7 +133,7 @@ B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/A
 
 已裁定（2026-10-20 用户）：
 
-- **R1**：采纳 Relay V2——客户端/桌面/契约全量合并；自建 relay-server 升级实现 V2 wire 契约，与官方云 relay 互为可替换端点（影响 S3/S4/S5，relay-server 适配作为合并内任务）。
+- **R1**：保留官方 Relay V2 客户端；自建服务端复刻已按 2026-10-22 用户决定删除，不再安排后续适配。
 - **R2**：按推荐——`__ZCODE_MIN_COMPATIBLE_VERSION__` 由 build-drora.mjs 注入 Drora 独立值，不复用官方值。
 - **R3**：按推荐——维持冻结 CUA 0.6.3 SDK/Helper 运行时；上游 0.6.5 占位包仅登记对照。
 - **R4**：按 zcode 原版实现——vitest/wdio 采用上游版本与配置，去掉 Drora 钉版。

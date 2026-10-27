@@ -46,18 +46,10 @@ modules:
   - id: drora-server-cli
     roots: [packages/drora-server-cli/src]
     managed: false
-  - id: relay-server
-    roots: [packages/relay-server/src]
-    managed: false
-  - id: relay-client
-    roots: [packages/relay-client/src]
-    managed: false
-    requires: [shared]
   - id: mobile-web
-    roots:
-      [packages/mobile-web/scripts, packages/mobile-web/src, packages/mobile-web/legacy-v3.14.3]
+    roots: [packages/mobile-web/scripts, packages/mobile-web/src]
     managed: false
-    requires: [shared, rpc, client, services, relay-client, ui]
+    requires: [shared, rpc, client, services, ui]
   - id: ui
     roots: [packages/ui/src]
     managed: false
@@ -262,11 +254,10 @@ modules:
   - id: desktop-drora-extensions
     roots: [packages/desktop/src/drora-extensions]
     managed: true
-    requires: [desktop, services, shared, relay-server]
+    requires: [desktop, services, shared]
     publicEntrypoints:
       [
         packages/desktop/src/drora-extensions/contract.ts,
-        packages/desktop/src/drora-extensions/remoteControl.ts,
         packages/desktop/src/drora-extensions/desktopPet.ts,
         packages/desktop/src/drora-extensions/updateFeed.ts,
       ]
@@ -276,11 +267,10 @@ modules:
   - id: ui-drora-extensions
     roots: [packages/ui/src/drora-extensions]
     managed: true
-    requires: [ui, shared, services, web-remote-control-ui] # RemoteControlDialog 包装 v3.16.1 新远控模块
+    requires: [ui, shared, services]
     publicEntrypoints:
       [
         packages/ui/src/drora-extensions/contract.ts,
-        packages/ui/src/drora-extensions/RemoteControlDialog.tsx,
         packages/ui/src/drora-extensions/WorkspaceMainView.tsx,
       ]
     layers: { app: "." }

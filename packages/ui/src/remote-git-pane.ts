@@ -1,4 +1,4 @@
-// GitPane 窄公开入口（specs/mobile-relay-r3-frontend.md §25；§22 窄入口模式——
+// GitPane 窄公开入口（docs/web-remote-control/web-remote-control-architecture.md
 // mobile-web 经此装配官方 GitPane 复原件与同源 git 数据派生 hook，不深引 UI 实现文件）。
 export { GitPane } from "@/GitPane.js";
 export { useGitRepository } from "@/hooks/useGitRepository.js";

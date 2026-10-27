@@ -67,7 +67,6 @@ import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js"
 import { useWorkspaceTerminalTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { useMarketingTaskCompletionRefresh } from "@/components/marketing-touch/useMarketingTaskCompletionRefresh.js";
 import { useOffPeakTaskNotifications } from "@/hooks/useOffPeakTaskNotifications.js";
-import { WebRemoteControlSidePaneSync } from "@/root/WebRemoteControlSidePaneSync.js";
 import type { AppProps, WorkspaceMainView } from "@/app-shell/types.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -1161,7 +1160,6 @@ export function App({
     <>
       {/* §33.18.16 侧板初态投影：窗口侧板当前 tab 活推 relay（手机页侧板初值/跟随）。
           activeSidePaneTab 在本作用域计算（getActiveSidePaneTab）。 */}
-      <WebRemoteControlSidePaneSync activeTab={activeSidePaneTab} />
       <CommandCenterDialog
         open={isQuickPickOpen}
         commands={quickPickCommands}

@@ -3,6 +3,27 @@ import { z } from "zod";
 import { appSettingsPatchSchema, appSettingsSchema } from "#src/validationAppSettings.js";
 
 describe("app settings", () => {
+  it("旧自建 Relay 设置不影响官方 V2 身份与恢复目标", () => {
+    const device = {
+      deviceSid: "device-v2",
+      userId: "user-v2",
+      endpointOrigin: "https://zcode.z.ai",
+    };
+    const target = { workspacePath: "/workspace", initialTaskId: "task-1" };
+    for (const schema of [appSettingsSchema, appSettingsPatchSchema]) {
+      const settings = schema.parse({
+        mobileRelayTransport: "lan",
+        relayServerUrl: "http://retired-relay.invalid:4430",
+        webRemoteControlRelayV2Device: device,
+        webRemoteControlLastEnabledContext: target,
+      });
+      expect(settings).not.toHaveProperty("mobileRelayTransport");
+      expect(settings).not.toHaveProperty("relayServerUrl");
+      expect(settings.webRemoteControlRelayV2Device).toEqual(device);
+      expect(settings.webRemoteControlLastEnabledContext).toEqual(target);
+    }
+  });
+
   it.each([undefined, false, true])("旧自动归档选择 %s 一次性关闭，保留天数", (enabled) => {
     const migrated = appSettingsSchema.parse({
       taskAutoArchiveEnabled: enabled,

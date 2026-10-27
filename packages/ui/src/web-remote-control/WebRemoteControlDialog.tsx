@@ -8,7 +8,7 @@ import {
   isSameWebRemoteControlStatus,
   getFailureDescription,
 } from "@/web-remote-control/domain/presentation.js";
-import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import type { BotProvider, WebRemoteControlStatus } from "@drora/shared";
 import {
@@ -84,7 +84,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   workspaceIdentity,
   remoteSessionId,
   initialTaskId,
-  deploymentControls,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,10 +91,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   workspaceIdentity?: string;
   remoteSessionId?: string;
   initialTaskId?: string;
-  // 移植自 packages/ui/src/WebRemoteControlDialog.tsx（d3dded216→780721e74 relay 集成 lineage）：
-  // 部署选项（LAN / 云中继传输切换等 Drora 自研装配）由调用方注入弹层头部下方，
-  // 官方弹层本体不感知部署差异。
-  deploymentControls?: ReactNode;
 }) {
   const platform = usePlatform();
   const { intl } = useDroraIntl();
@@ -406,8 +401,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                 </div>
               </div>
             </DialogHeader>
-            {/* 移植自 packages/ui/src/WebRemoteControlDialog.tsx：Drora 部署控件插槽，渲染在标题区下方。 */}
-            {deploymentControls}
 
             <div
               data-testid="web-remote-control-main-grid"

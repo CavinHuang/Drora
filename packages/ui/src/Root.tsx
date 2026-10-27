@@ -90,14 +90,12 @@ import { DesktopPetTaskSync } from "@/root/DesktopPetTaskSync.js";
 // S5 delete-decision：webRemoteControlTaskIndex.ts 随上游 v3.16.1 删除，
 // 其消费者（远控任务索引/行）已由 web-remote-control 与 project-sidebar 新模块接替。
 // useGlobalTaskList 已随上游 root 重构移出 Root，不再在此导入。
-import { WebRemoteControlTaskSync } from "@/root/WebRemoteControlTaskSync.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import {
   WebRemoteControlFeatureProvider,
   useWebRemoteControlFeatureEnabled,
 } from "@/WebRemoteControlFeatureProvider.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
-import { useWebRemoteControlStatus } from "@/hooks/useWebRemoteControlStatus.js";
 import {
   CODE_COMMENT_REMOVE_BROADCAST_CHANNEL,
   CODE_COMMENT_PREVIEW_RESTORE_BROADCAST_CHANNEL,
@@ -531,21 +529,6 @@ function RootInner({
     [tabStoreApi],
   );
   const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
-  // Bugfix: WebRemoteControlDialog 只是可开关的展示入口，不能由它的本地 state 决定全局远控状态。
-  // Root 直接轮询 main 进程状态，让远控会话 running/active 成为唯一真值来源。
-  const webRemoteControlStatus = useWebRemoteControlStatus({
-    enabled: Boolean(webRemoteControlFeatureEnabled && isDesktop),
-  });
-  const webRemoteControlSessionActive =
-    webRemoteControlStatus.status === "running" || webRemoteControlStatus.status === "active";
-  // 官方 syncWebRemoteControlTasks 推送仅在 relay 会话存活且平台实现存在时挂载，
-  // 与展示状态解耦（详见下方 WebRemoteControlTaskSync 挂载点）。
-  const webRemoteControlTaskSyncEnabled = Boolean(
-    webRemoteControlFeatureEnabled &&
-    webRemoteControlSessionActive &&
-    isDesktop &&
-    platform.syncWebRemoteControlTasks,
-  );
   const refreshProviderState = useRootProviderStateRefresh(services);
   useRootProviderSettingsSnapshot(services);
   useEffect(() => {
@@ -966,12 +949,6 @@ function RootInner({
       platform={platform}
     />
   );
-  const webRemoteControlTaskSyncNode =
-    hasCompletedFullRestore && webRemoteControlTaskSyncEnabled ? (
-      // 平台能力与 relay 存活判定已内聚在模块化组件里（getMobileRelayControlState 轮询）。
-      <WebRemoteControlTaskSync workspaceTabs={windowWorkspaceTabs} />
-    ) : null;
-
   // Bug 原因（2026-08-16 web 远控卡死）：Start Plan 请求校验应答方曾只随桌面正在展示的
   // session pane 挂载，web 远控新建会话时桌面没有对应 pane、web 端无应答方，
   // headers 请求永远滞留 pending，任务永久「工作中」。应答方必须常驻桌面窗口、
@@ -1486,7 +1463,6 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
-        {webRemoteControlTaskSyncNode}
         {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
@@ -1503,7 +1479,6 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
-        {webRemoteControlTaskSyncNode}
         {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
@@ -1542,7 +1517,6 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
-        {webRemoteControlTaskSyncNode}
         {desktopPetTaskSyncNode}
         {requestSecurityBridgeNode}
         {initialWorkspaceLoadingFallback}
@@ -1564,7 +1538,6 @@ function RootInner({
   return (
     <RootShell>
       {rootModelSelectionErrorNode}
-      {webRemoteControlTaskSyncNode}
       {desktopPetTaskSyncNode}
       {requestSecurityBridgeNode}
       {remoteConnectionDialog}

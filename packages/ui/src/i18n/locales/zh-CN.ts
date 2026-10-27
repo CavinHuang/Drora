@@ -8176,11 +8176,6 @@ const zhCN: Record<string, string> = {
   "settings.desktopPet": "桌面宠物",
   "settings.desktopPetDescription":
     "在桌面显示任务活动；点击宠物查看任务，拖动可移动位置，右键打开菜单。",
-  "settings.relayServerUrl": "云中继服务器",
-  "settings.relayServerUrlDescription":
-    "自建 relay 服务端地址（移动端远控）。留空使用官方 zcode.z.ai；修改后需停止并重新开启远程控制。",
-  "settings.relayServerUrlPlaceholder": "留空使用官方，例如 http://relay.lan:4430",
-  "settings.relayServerUrlSavedHint": "云中继服务器设置已保存，重启应用后生效",
   "vault.ask.candidate.attachEvidence": "作为证据附给 Agent",
   "vault.ask.candidate.attachEvidenceHint":
     "把本次核验的 Receipt 附给目标会话输入框，发送时随消息提交并在执行前复验；与「加入 Agent」的普通引用语义不同。",

@@ -1,6 +1,2 @@
-import type { RemoteDeploymentDialogProps } from "./contract.js";
-export const example: RemoteDeploymentDialogProps = {
-  open: false,
-  onOpenChange: () => {},
-  workspacePath: "/workspace",
-};
+import type { WorkspaceMainViewTarget } from "./contract.js";
+export const example: WorkspaceMainViewTarget = { workspaceKey: "/workspace" };

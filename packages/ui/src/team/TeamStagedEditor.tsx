@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
-import { ChevronDownIcon, InfoIcon, PencilIcon } from "lucide-react";
+import { InfoIcon, PencilIcon } from "lucide-react";
 import {
   teamPermissionModeSchema,
   type TeamPermissionModeWire,
@@ -8,13 +8,6 @@ import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
-import {
-  WORKFLOW_ASK_CHIP_CLASS_NAME,
   WORKFLOW_ASK_LINE_CLASS_NAME,
   WorkflowAskWasTail,
 } from "@/components/workflow-timeline/WorkflowAskSettingsParts.js";
@@ -67,7 +60,7 @@ import type { TeamPanelStagedDraftView } from "./view-model.js";
  * rename 走同一失败出显面：改名入口（TeamStagedEditorConnected 内部发送 / 面板
  * onRenameMember 宿主接线）被拒时与三动作共用内联 role=alert。
  */
-export type TeamStagedActionKind = "approve" | "revise" | "abandon" | "rename";
+export type TeamStagedActionKind = "approve" | "approveSession" | "revise" | "abandon" | "rename";
 
 /**
  * 在途动作标识（spec §19 契约 6，2026-10-23）：任一三动作发起后到 outcome 结算前，
@@ -155,10 +148,12 @@ export interface TeamStagedEditorProps {
   /** 建队捕获的权限模式（wire 投影既有值）——选择行默认值。 */
   permissionMode?: TeamPermissionModeWire;
   /**
-   * 「确认并启动」上抛；宿主发 approveTeamPlan。§10 增补三：参数为面板选定的成员
-   * 权限模式（undefined = 维持建队捕获值，宿主不携带字段）。
+   * 「启动一次」/「本会话内始终允许」上抛；宿主发 approveTeamPlan。§10 增补三：
+   * permissionMode 为面板选定的成员权限模式（undefined = 维持建队捕获值，宿主不
+   * 携带字段）；§10 增补六：rememberForSession=true 即「本会话内始终允许」（hub 置
+   * 会话免问标志，后续草案自动批准）。
    */
-  onApprove: (permissionMode?: TeamPermissionModeWire) => void;
+  onApprove: (permissionMode?: TeamPermissionModeWire, rememberForSession?: boolean) => void;
   /** 「回对话修改」上抛；note 为面板内可选输入（trim 后为空则不携带）。 */
   onRevise: (note?: string) => void;
   /** 「放弃」上抛（本组件已完成二次确认）；宿主发 abandonTeamPlan。 */
@@ -191,17 +186,29 @@ export interface TeamStagedEditorProps {
 }
 
 /**
- * 三动作选项（§18 附裁，2026-10-26：内部结构对齐 PermissionDialog）。顺序即编号：
- * 1 确认并启动 / 2 回对话修改 / 3 放弃。
+ * 动作选项（§18 附裁内部结构对齐 PermissionDialog；§10 增补六 2026-10-27 对齐
+ * workflow 权限选项族）。顺序即编号：
+ * 1 启动一次 / 2 本会话内始终允许（带说明行）/ 3 提出修改 / 4 放弃。
  */
 const TEAM_STAGED_OPTIONS = [
-  { action: "approve", labelKey: "team.stagedEditor.approve", testId: "team-staged-approve" },
+  {
+    action: "approve",
+    labelKey: "team.stagedEditor.approve",
+    testId: "team-staged-approve",
+  },
+  {
+    action: "approveSession",
+    labelKey: "team.stagedEditor.approveSession",
+    descriptionKey: "team.stagedEditor.approveSessionDescription",
+    testId: "team-staged-approve-session",
+  },
   { action: "revise", labelKey: "team.stagedEditor.revise", testId: "team-staged-revise" },
   { action: "abandon", labelKey: "team.stagedEditor.abandon", testId: "team-staged-abandon" },
 ] as const;
 
 const PENDING_LABEL_KEYS: Record<Exclude<TeamStagedPendingAction, null>, string> = {
   approve: "team.stagedEditor.pendingApprove",
+  approveSession: "team.stagedEditor.pendingApproveSession",
   revise: "team.stagedEditor.pendingRevise",
   abandon: "team.stagedEditor.pendingAbandon",
 };
@@ -228,13 +235,20 @@ export function TeamStagedEditor({
     permissionMode ?? null,
   );
   const busy = pendingAction !== null;
+  // 权限选择是否偏离建队捕获值（「启动一次」改口与 was 尾巴共用）。
+  const modeChanged = memberMode !== null && memberMode !== permissionMode;
 
   // 执行语义（照 PermissionDialog respondWithOption）：放弃过二次确认门；修订携带 trim
   // 后说明（空则不带）；在途全禁用（responding 同构，spec §19 契约 6）。
-  const execute = (action: "approve" | "revise" | "abandon") => {
+  const execute = (action: "approve" | "approveSession" | "revise" | "abandon") => {
     if (busy) return;
     if (action === "approve") {
       onApprove(memberMode ?? undefined);
+      return;
+    }
+    if (action === "approveSession") {
+      // §10 增补六：批准 + 置会话免问标志（等价 workflow allowForSession 语义）。
+      onApprove(memberMode ?? undefined, true);
       return;
     }
     if (action === "revise") {
@@ -268,7 +282,7 @@ export function TeamStagedEditor({
   // 移动；Enter=已选中则执行、否则先选中。
   const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (busy) return;
-    const digit = ["1", "2", "3"].indexOf(event.key);
+    const digit = ["1", "2", "3", "4"].indexOf(event.key);
     if (digit !== -1) {
       const shortcut = TEAM_STAGED_OPTIONS[digit];
       if (shortcut === undefined) return;
@@ -302,7 +316,8 @@ export function TeamStagedEditor({
   const handleNoteKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.nativeEvent.isComposing && !busy) {
       event.preventDefault();
-      setSelectedIndex(1);
+      // 「提出修改」现为选项 3（§10 增补六 四选项后移位）。
+      setSelectedIndex(2);
       execute("revise");
     }
   };
@@ -352,75 +367,74 @@ export function TeamStagedEditor({
       ) : null}
 
       {/*
-       * 成员权限设置行（§10 增补三，2026-10-27 对齐修订：完整参考 workflow 确认窗 ask
-       * settings 的实现——位置在 WorkflowPermissionBlock 中是「表头/状态行之后、内容
-       * 清单之前」（settings 先于时间线/脚本），此前误排在草案清单之后；行/芯片/尾巴
-       * 直接复用 WorkflowAskSettingsParts 的导出零件（WORKFLOW_ASK_* 类名家族 +
-       * WorkflowAskWasTail「· 原为 X ↺」），不再手抄类名。菜单项带选中指示
-       * （CheckboxItem，照 ModelConfigSelect 菜单的当前值标记语义）。
+       * 成员权限平铺单选列表（§10 增补六，2026-10-27 用户裁定：权限选择从句式下拉
+       * 芯片改为平铺列表——每行=单选指示点+模式名+一句说明，单击即选；位置维持
+       * 「表头/状态行之后、草案清单之前」（同日上午修订的 workflow 设置区次序）。
+       * 组标题行的「· 原为 X ↺」尾巴零件复用维持（WorkflowAskWasTail）。
        */}
-      <div className={WORKFLOW_ASK_LINE_CLASS_NAME} data-testid="team-staged-member-mode-line">
-        <span>{intl.formatMessage({ id: "team.stagedEditor.memberModeLead" })}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+      <div className="flex flex-col gap-1.5" data-testid="team-staged-member-mode-line">
+        <div className={WORKFLOW_ASK_LINE_CLASS_NAME}>
+          <span className="text-ui-sm font-medium text-foreground-subtle">
+            {intl.formatMessage({ id: "team.stagedEditor.permissionGroupLabel" })}
+          </span>
+          {memberMode !== null && memberMode !== permissionMode ? (
+            <WorkflowAskWasTail
               disabled={busy}
-              data-testid="team-staged-member-mode"
-              aria-label={intl.formatMessage({ id: "team.stagedEditor.memberModeLabel" })}
-              className={cn(
-                "inline-flex shrink-0 items-center pointer-coarse:min-h-11",
-                WORKFLOW_ASK_CHIP_CLASS_NAME,
-              )}
-            >
-              <span
+              onReset={() => setMemberMode(permissionMode ?? null)}
+              testId="team-staged-member-mode"
+              value={
+                permissionMode === undefined
+                  ? intl.formatMessage({ id: "team.permission.mode.build" })
+                  : intl.formatMessage({ id: `team.permission.mode.${permissionMode}` })
+              }
+            />
+          ) : null}
+        </div>
+        <div
+          role="radiogroup"
+          aria-label={intl.formatMessage({ id: "team.stagedEditor.permissionGroupLabel" })}
+          className="flex flex-col gap-1"
+        >
+          {TEAM_PERMISSION_MODES.map((mode) => {
+            const selected = memberMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={busy}
+                onClick={() => {
+                  if (!busy) setMemberMode(mode);
+                }}
+                data-testid={`team-staged-member-mode-${mode}`}
                 className={cn(
-                  "min-w-0 truncate",
-                  memberMode !== null && memberMode !== permissionMode && "font-medium",
+                  "flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-selected pointer-coarse:min-h-11",
+                  selected ? "bg-selected" : "hover:bg-hover",
+                  busy && "cursor-not-allowed opacity-50",
                 )}
               >
-                {memberMode === null
-                  ? intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })
-                  : intl.formatMessage({ id: `team.permission.mode.${memberMode}` })}
-              </span>
-              <ChevronDownIcon className="size-3 shrink-0 text-foreground-subtle" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {permissionMode === undefined ? (
-              <DropdownMenuCheckboxItem
-                checked={memberMode === null}
-                onSelect={() => setMemberMode(null)}
-                data-testid="team-staged-member-mode-keep"
-              >
-                {intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })}
-              </DropdownMenuCheckboxItem>
-            ) : null}
-            {TEAM_PERMISSION_MODES.map((mode) => (
-              <DropdownMenuCheckboxItem
-                key={mode}
-                checked={memberMode === mode}
-                onSelect={() => setMemberMode(mode)}
-                data-testid={`team-staged-member-mode-${mode}`}
-              >
-                {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <span>{intl.formatMessage({ id: "team.stagedEditor.memberModeTrail" })}</span>
-        {memberMode !== null && memberMode !== permissionMode ? (
-          <WorkflowAskWasTail
-            disabled={busy}
-            onReset={() => setMemberMode(permissionMode ?? null)}
-            testId="team-staged-member-mode"
-            value={
-              permissionMode === undefined
-                ? intl.formatMessage({ id: "team.stagedEditor.memberModeKeep" })
-                : intl.formatMessage({ id: `team.permission.mode.${permissionMode}` })
-            }
-          />
-        ) : null}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                    selected ? "border-foreground" : "border-foreground-subtlest",
+                  )}
+                >
+                  {selected ? <span className="size-2 rounded-full bg-foreground" /> : null}
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-ui-base font-medium text-foreground">
+                    {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
+                  </span>
+                  <span className="text-ui-sm text-foreground-subtlest">
+                    {intl.formatMessage({ id: `team.permission.mode.${mode}.description` })}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/*
@@ -473,6 +487,12 @@ export function TeamStagedEditor({
         >
           {TEAM_STAGED_OPTIONS.map((option, index) => {
             const selected = index === selectedIndex;
+            // §10 增补六：选了与捕获值不同的权限时，「启动一次」改口「按所选权限
+            // 启动一次」（照 workflow allowOnce.adjusted 的改口语义）。
+            const labelKey =
+              option.action === "approve" && modeChanged
+                ? "team.stagedEditor.approveAdjusted"
+                : option.labelKey;
             return (
               <button
                 key={option.action}
@@ -490,7 +510,7 @@ export function TeamStagedEditor({
                 onKeyDown={(event) => handleOptionKeyDown(event, index)}
                 data-testid={option.testId}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-selected pointer-coarse:min-h-11",
+                  "flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-selected pointer-coarse:min-h-11",
                   selected ? "bg-selected" : "hover:bg-hover",
                   busy && "cursor-not-allowed opacity-50",
                 )}
@@ -503,13 +523,21 @@ export function TeamStagedEditor({
                 >
                   {index + 1}.
                 </span>
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 text-ui-base font-medium",
-                    option.action === "abandon" ? "text-destructive" : "text-foreground",
-                  )}
-                >
-                  {intl.formatMessage({ id: option.labelKey })}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span
+                    className={cn(
+                      "text-ui-base font-medium",
+                      option.action === "abandon" ? "text-destructive" : "text-foreground",
+                    )}
+                  >
+                    {intl.formatMessage({ id: labelKey })}
+                  </span>
+                  {"descriptionKey" in option && option.descriptionKey !== undefined ? (
+                    // 说明行（§10 增补六，照 workflow allowForSession.description）。
+                    <span className="text-ui-sm text-foreground-subtlest">
+                      {intl.formatMessage({ id: option.descriptionKey })}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );
@@ -522,11 +550,11 @@ export function TeamStagedEditor({
           <div
             onClick={(event) => {
               if (event.target !== event.currentTarget) return;
-              if (!busy) setSelectedIndex(1);
+              if (!busy) setSelectedIndex(2);
             }}
             className={cn(
               "flex w-full items-center gap-3 rounded-xl px-3 py-2 transition-colors",
-              selectedIndex === 1 && !busy ? "bg-selected" : "hover:bg-hover",
+              selectedIndex === 2 && !busy ? "bg-selected" : "hover:bg-hover",
             )}
           >
             <span

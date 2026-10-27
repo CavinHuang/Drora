@@ -227,6 +227,8 @@ function dynamicallyConsumedTeamKeys(): Set<string> {
   // mode 全集 = teamPermissionModeSchema.options）。
   for (const mode of ["build", "edit", "yolo", "guarded", "auto"]) {
     consumed.add(`team.permission.mode.${mode}`);
+    // 平铺列表的行说明（§10 增补六：`team.permission.mode.${mode}.description`）。
+    consumed.add(`team.permission.mode.${mode}.description`);
   }
   // 门占位文案（TeamMemberSidePane 的 `${view.id}.title/.body`，基名是源码字面量）。
   for (const base of TITLE_BODY_KEY_BASES) {

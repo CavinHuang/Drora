@@ -293,8 +293,11 @@ export const TEAM_COMMAND_PAYLOAD_SCHEMAS = {
   /** staged 草案的「确认并启动」：唯一创建成员入口；草案全文是 hub 的服务端事实，载荷为空。 */
   // §10 增补三（2026-10-26）：批准时刻定成员权限——additive optional，枚举单一出处
   // teamPermissionModeSchema；缺省=维持建队捕获值（hub 侧不覆写）。
+  // §10 增补六（2026-10-27）：会话级始终允许——additive optional rememberForSession，
+  // true 时 hub 置会话免问标志（后续草案自动批准，等价 workflow allowForSession）。
   approveTeamPlan: z.object({
     permissionMode: teamPermissionModeSchema.optional(),
+    rememberForSession: z.boolean().optional(),
   }),
   /** 「回对话修改」：草案标记为等待反馈并取消规划回合；修改方向由用户在对话里说（spec §10）。 */
   reviseTeamPlan: z.object({

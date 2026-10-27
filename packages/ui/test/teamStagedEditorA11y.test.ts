@@ -39,15 +39,31 @@ function renderEditor(): void {
 afterEach(cleanup);
 
 describe("TeamStagedEditor 反馈行结构（§18 附裁二 / L12）", () => {
-  it("listbox 只含三个 option；反馈行不在 listbox 内（照 PermissionDialog 兄弟节点结构）", () => {
+  it("listbox 含四个 option（§10 增补六）；反馈行不在 listbox 内（照 PermissionDialog 兄弟节点结构）", () => {
     renderEditor();
 
     const listbox = screen.getByRole("listbox");
-    expect(listbox.querySelectorAll('[role="option"]')).toHaveLength(3);
+    expect(listbox.querySelectorAll('[role="option"]')).toHaveLength(4);
     // 反馈行是 listbox 的兄弟节点，不是它的子节点。
     const note = screen.getByTestId("team-staged-revise-note");
     expect(note.closest('[role="listbox"]')).toBeNull();
     expect(listbox.parentElement?.contains(note)).toBe(true);
+  });
+});
+
+describe("TeamStagedEditor 权限平铺列表（§10 增补六）", () => {
+  it("radiogroup 五行带说明；组标题行与选项 listbox 相互独立", () => {
+    renderEditor();
+
+    const group = screen.getByRole("radiogroup");
+    const radios = group.querySelectorAll('[role="radio"]');
+    expect(radios).toHaveLength(5);
+    // 每行都有说明文本（description 键双语在场由 i18n 测试锁）。
+    const yolo = screen.getByTestId("team-staged-member-mode-yolo");
+    expect(yolo.getAttribute("aria-checked")).toBe("false");
+    expect(yolo.textContent).not.toBe("");
+    // radiogroup 不在动作 listbox 内。
+    expect(group.closest('[role="listbox"]')).toBeNull();
   });
 });
 

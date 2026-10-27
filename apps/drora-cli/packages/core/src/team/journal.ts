@@ -62,7 +62,14 @@ export type TeamJournalPayload =
   // 2026-10-27 M8（决策 D7）：approved 事实增补可选 permissionMode（additive）——
   // 批准时刻覆写的成员权限模式随审批事实持久化，重放侧回写 record（缺省即键缺席，
   // 维持建队捕获值，spec §10 增补三「批准时刻定死」的恢复半边）。
-  | { kind: "approved"; teamId: string; permissionMode?: TeamPermissionMode }
+  // §10 增补六（2026-10-27）：cause——自动批准（会话免问）路径的审计标记；重放
+  // 语义同 approved（人工/自动不区分），仅事实流可辨。
+  | {
+      kind: "approved";
+      teamId: string;
+      permissionMode?: TeamPermissionMode;
+      cause?: "session_allow";
+    }
   | {
       kind: "member_added";
       teamId: string;
@@ -647,10 +654,12 @@ function isPayloadWellFormed(payload: TeamJournalPayload): boolean {
     case "resumed":
       return typeof payload.reason === "string";
     // 2026-10-27 M8：approved 增可选 permissionMode（additive，旧流无该键照常通过）。
+    // §10 增补六：approved 增可选 cause 审计标记（重放不消费，只做结构守卫）。
     case "approved":
       return (
         nonEmpty(payload.teamId) &&
-        (payload.permissionMode === undefined || typeof payload.permissionMode === "string")
+        (payload.permissionMode === undefined || typeof payload.permissionMode === "string") &&
+        (payload.cause === undefined || payload.cause === "session_allow")
       );
     // 2026-10-27 L8：halted 增可选 reason（additive；重放不消费，只做结构守卫）。
     case "halted":

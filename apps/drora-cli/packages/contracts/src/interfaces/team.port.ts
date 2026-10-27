@@ -344,8 +344,13 @@ export interface TeamLeadPort extends TeamMemberPort {
    * 2026-10-27 L9（决策 D10）：增可选 options（§10 增补三 permissionMode——批准时刻
    * 覆写成员权限模式，缺省维持建队捕获值）；port 契约签名补齐后生产 handler 改走
    * port，不再结构性直调 hub。
+   * §10 增补六（2026-10-27）：rememberForSession——true 时 hub 置会话免问标志，
+   * 本 lead 会话后续 TeamSpawn 草案自动批准（等价 workflow allowForSession）。
    */
-  approveStage(options?: { permissionMode?: TeamPermissionMode }): Promise<TeamApproveResult>;
+  approveStage(options?: {
+    permissionMode?: TeamPermissionMode;
+    rememberForSession?: boolean;
+  }): Promise<TeamApproveResult>;
   /** 恢复 halted/escalated；必须带非空 reason（E：用户停的队不得静默恢复）。 */
   resume(reason: string): TeamMutationResult;
 }

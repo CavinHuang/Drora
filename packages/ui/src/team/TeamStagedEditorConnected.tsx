@@ -30,7 +30,11 @@ export interface TeamStagedActions {
   failure: TeamStagedCommandFailure | null;
   /** 在途动作（三动作按钮全禁用的依据；null = 无在途）。 */
   pending: TeamStagedPendingAction | null;
-  onApprove: (permissionMode?: TeamPermissionModeWire) => void;
+  /**
+   * 批准并启动。§10 增补三：permissionMode=面板选定成员权限（undefined=维持捕获值）；
+   * §10 增补六：rememberForSession=true=「本会话内始终允许」（hub 置会话免问标志）。
+   */
+  onApprove: (permissionMode?: TeamPermissionModeWire, rememberForSession?: boolean) => void;
   onRevise: (note?: string) => void;
   onAbandon: () => void;
   /**
@@ -60,15 +64,16 @@ export function useTeamStagedActions(
     [],
   );
   const onApprove = useCallback(
-    (permissionMode?: TeamPermissionModeWire) => {
+    (permissionMode?: TeamPermissionModeWire, rememberForSession?: boolean) => {
       setFailure(null);
-      setPending("approve");
+      setPending(rememberForSession === true ? "approveSession" : "approve");
       settle(
-        "approve",
+        rememberForSession === true ? "approveSession" : "approve",
         approveTeamPlan({
           sessionId,
           sendCommand,
           ...(permissionMode === undefined ? {} : { permissionMode }),
+          ...(rememberForSession === undefined ? {} : { rememberForSession }),
         }),
       );
     },

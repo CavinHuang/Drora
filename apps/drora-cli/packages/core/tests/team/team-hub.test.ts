@@ -3397,3 +3397,128 @@ describe("halt reason lands in the halted journal fact (L8/决策 D9)", () => {
     expect("reason" in (haltedAgain?.payload ?? {})).toBe(false);
   });
 });
+
+describe("session auto-approve + archival replacement (§10 增补六，2026-10-27)", () => {
+  const STAGE_A: TeamStageInput = {
+    name: "first",
+    manager: { memberName: "morgana", profile: "team manager" },
+    draftMembers: [
+      { memberName: "alice", profile: "researcher" },
+      { memberName: "bob", profile: "implementer" },
+    ],
+    draftTasks: [
+      { title: "only", spec: { goal: "g", acceptance: ["a"] }, dependsOn: [] },
+    ],
+  };
+
+  function makeSessionHub(journal: JournalRow[] = []): TeamHub {
+    return new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawnOk(),
+      dispatch: async () => true,
+      deliverLeadMail: acceptAllLeadMail(),
+      journalWriter: (event) => journal.push(event as never),
+    });
+  }
+
+  /** 把队推到终局 completed（H1/M12 全链：任务终态 → workers 终态 → 终报送达）。 */
+  async function completeTeam(hub: TeamHub): Promise<void> {
+    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    const task = hub.board()!.tasks[0]!;
+    const claim = alice.taskClaim(task.taskId);
+    if (claim.status === "claimed") {
+      expect(
+        alice.taskUpdate({
+          taskId: claim.taskId,
+          attemptId: claim.attemptId,
+          patch: { status: "in_progress" },
+        }).status,
+      ).toBe("ok");
+      expect(
+        alice.taskUpdate({
+          taskId: claim.taskId,
+          attemptId: claim.attemptId,
+          patch: { status: "completed" },
+        }).status,
+      ).toBe("ok");
+    }
+    await hub.handleMemberTerminal("alice");
+    await hub.handleMemberTerminal("bob");
+    // 终报指令投递（dispatch accept-all + kick 复活链）→ manager 执笔终报 →
+    // lead 注入 → delivered → completed（H1/M12 全链）。
+    await vi.waitFor(() => {
+      const directive = hub
+        .mailboxEntries()
+        .find((entry) => entry.from === "lead" && entry.to === "morgana");
+      expect(directive?.deliveredAccepted).toBe(true);
+    });
+    const sent = managerLeadSend(hub, "final: all tasks completed");
+    expect(sent.status).toBe("success");
+    await vi.waitFor(() => expect(hub.status).toBe("completed"));
+  }
+
+  it("archival replacement：completed 队可被新草案替换（新 teamId），在途态仍拒绝", async () => {
+    const journal: JournalRow[] = [];
+    const hub = makeSessionHub(journal);
+    expect(hub.stageTeam("lead_s1", STAGE_A).status).toBe("ok");
+    const firstTeamId = hub.snapshot()!.teamId;
+    await hub.approveStage("lead_s1");
+    await completeTeam(hub);
+    expect(hub.status).toBe("completed");
+
+    // 替换：终局队上再 stageTeam = 新建记录（新 teamId），不再是 team_not_present。
+    const second = hub.stageTeam("lead_s1", { ...STAGE_A, name: "second" });
+    expect(second.status).toBe("ok");
+    expect(hub.snapshot()!.teamId).not.toBe(firstTeamId);
+    expect(hub.status).toBe("staged");
+    // 流中两队各自成序：两次 team_created，旧队事实位于其前（重放不跨队）。
+    const created = journal.filter((row) => row.payload.kind === "team_created");
+    expect(created).toHaveLength(2);
+  });
+
+  it("approve with rememberForSession：后续草案落库即自动批准（cause=session_allow），revise 草案不自动", async () => {
+    const journal: JournalRow[] = [];
+    const hub = makeSessionHub(journal);
+    expect(hub.stageTeam("lead_s1", STAGE_A).status).toBe("ok");
+    // 用户选「本会话内始终允许」= 批准 + 置会话免问标志。
+    await hub.approveStage("lead_s1", { rememberForSession: true });
+    await completeTeam(hub);
+
+    // 第二队：stageTeam 落库即自动批准（异步推进；无 awaitingFeedback）。
+    expect(hub.stageTeam("lead_s1", { ...STAGE_A, name: "second" }).status).toBe("ok");
+    await vi.waitFor(() => expect(hub.status).toBe("active"));
+    const autoApproved = journal
+      .filter((row) => row.payload.kind === "approved")
+      .find((row) => "cause" in row.payload && row.payload.cause === "session_allow");
+    expect(autoApproved).toBeDefined();
+
+    // 反例：revise（awaitingFeedback）草案不被自动批准——用户明确要改，等待反馈优先。
+    hub.abandonStage("lead_s1");
+    await completeTeam(hub);
+    hub.stageTeam("lead_s1", { ...STAGE_A, name: "third" });
+    hub.markStageAwaitingFeedback("lead_s1");
+    expect(hub.status).toBe("staged");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(hub.status).toBe("staged");
+    const causes = journal
+      .filter((row) => row.payload.kind === "approved")
+      .map((row) => ("cause" in row.payload ? row.payload.cause : undefined));
+    expect(causes.filter((cause) => cause === "session_allow")).toHaveLength(1);
+  });
+
+  it("无 rememberForSession 的普通批准不置标志：第二队照常 staged 等待人工批准", async () => {
+    const journal: JournalRow[] = [];
+    const hub = makeSessionHub(journal);
+    expect(hub.stageTeam("lead_s1", STAGE_A).status).toBe("ok");
+    await hub.approveStage("lead_s1");
+    await completeTeam(hub);
+    expect(hub.stageTeam("lead_s1", { ...STAGE_A, name: "second" }).status).toBe("ok");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(hub.status).toBe("staged");
+    expect(
+      journal.some(
+        (row) => row.payload.kind === "approved" && "cause" in row.payload,
+      ),
+    ).toBe(false);
+  });
+});

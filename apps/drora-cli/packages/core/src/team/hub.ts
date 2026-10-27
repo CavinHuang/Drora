@@ -253,6 +253,11 @@ export class TeamHub {
   private readonly limits: TeamInternalLimits;
   private readonly membersMax: number;
   private record: TeamRecord | undefined;
+  // §10 增补六（2026-10-27）：会话级「始终允许团队」标志——用户在审批面选
+  // 「本会话内始终允许」（approveStage rememberForSession=true）后置位；置位期间
+  // 新 TeamSpawn 草案落库即自动批准。内存态：随 hub（=lead 会话）生命周期，不入
+  // journal、不跨重启——与 workflow allowForSession 的会话语义同构。
+  private sessionAutoApproveTeams = false;
   private readonly parkedAttempts = new Map<string, string>();
   private readonly dispatch: TeamDispatchFn;
   private readonly deps: Pick<
@@ -347,7 +352,17 @@ export class TeamHub {
   // ---------- 两阶段成队（spec §1 / §2.6；设计差异 D3） ----------
 
   stageTeam(leadSessionId: string, input: TeamStageInput): TeamStageResult {
-    if (this.record !== undefined && !isStageEditable(this.record.status)) {
+    // §10 增补六（2026-10-27）：终局/弃置队（isArchival：archived/completed/cancelled）
+    // 允许被新草案**替换**——会话内二队的前提（此前单记录 + staged-only 门让归档/
+    // 完成后的 TeamSpawn 一律 team_not_present，会话实际只能有一支队）。替换=新建
+    // 记录（新 teamId），旧队历史由 journal 流保留（重放按序：后续 team_created
+    // 重建新记录，旧队事实在流中位于其前、不跨队污染）。在途态（active/halted/
+    // escalated）仍拒绝——同会话并行两队不在 v1 词表。
+    if (
+      this.record !== undefined &&
+      this.record.status !== "staged" &&
+      !isArchival(this.record.status)
+    ) {
       return { status: "rejected", error: teamPortError("team_not_present") };
     }
     if (input.draftMembers.length + 1 > this.membersMax) {
@@ -438,7 +453,13 @@ export class TeamHub {
         error: teamPortError("dependency_cycle", { path: cycle.join(" -> ") }),
       };
     }
-    if (this.record === undefined) {
+    if (this.record === undefined || isArchival(this.record.status)) {
+      // §10 增补六：终局队替换成新队时，终报两标志（hub 实例级）必须随队复位——
+      // 旧队的 dispatched/delivered 若带入新队，派发门恒早退、新队永不终报
+      // （会话免问测试实证：第二队邮箱全空）。冷恢复路径不受影响（adoptRestored
+      // 按 record.restoredFinalReport 重置两标志，见 :1397-1398）。
+      this.finalReportDispatchedFlag = false;
+      this.finalReportDeliveredFlag = false;
       // 权限模式成队定死（spec §8.1）：plan 由 install 换算为 build 后传入；
       // 未记录（undefined）= 旧宿主/未知值，读回时回退继承 lead 当前模式。
       this.record = {
@@ -510,6 +531,14 @@ export class TeamHub {
     });
     this.notifyChange();
     this.journalStagedFact();
+    // §10 增补六（2026-10-27）：会话免问（用户已选「本会话内始终允许」）时，草案
+    // 落库即自动批准——与人工批准同一条 runApprove 路径（spawn/journal/notifyChange
+    // 单一出处），approved 事实带 cause:"session_allow" 审计标记。stageTeam 保持同步
+    // 契约（port 返回 staged 结果），批准在后台推进、经投影翻转呈现。revise 出的
+    // awaitingFeedback 草案不自动批准（用户明确要改，等待反馈优先）。
+    if (this.sessionAutoApproveTeams && this.record.awaitingFeedback !== true) {
+      void this.runApprove(leadSessionId, undefined, "session_allow");
+    }
     return { status: "ok", teamId: this.record.teamId };
   }
 
@@ -576,14 +605,38 @@ export class TeamHub {
    * Approve & Run：唯一创建成员的裁决入口；全败回滚草案（spec §1 两阶段成队）。
    * §10 增补三（2026-10-26）：options.permissionMode 在批准时刻覆写成员权限模式
    * （缺省维持建队捕获值；非法值在 wire 网关被枚举 zod 先拒，此处只收已验值）。
+   * §10 增补六（2026-10-27）：options.rememberForSession=true 置会话免问标志
+   * sessionAutoApproveTeams——本 lead 会话后续 TeamSpawn 草案自动批准（标志为内存态、
+   * 随 hub 生命周期，不入 journal 不跨重启）。
    */
   async approveStage(
     leadSessionId: string,
-    options?: { permissionMode?: TeamPermissionMode },
+    options?: { permissionMode?: TeamPermissionMode; rememberForSession?: boolean },
+  ): Promise<TeamApproveResult> {
+    if (options?.rememberForSession === true) this.sessionAutoApproveTeams = true;
+    return this.runApprove(leadSessionId, options, undefined);
+  }
+
+  /**
+   * 批准执行体（approveStage 与会话免问自动批准共用同一条路径：spawn/journal/
+   * notifyChange 单一出处）。cause 仅自动路径携带（journal 事实审计用，重放语义同
+   * approved——不区分人工/自动）。
+   */
+  private async runApprove(
+    leadSessionId: string,
+    options: { permissionMode?: TeamPermissionMode } | undefined,
+    cause: "session_allow" | undefined,
   ): Promise<TeamApproveResult> {
     const record = this.requireLeadRecord(leadSessionId);
     if (typeof record === "string") return { status: "rejected", error: teamPortError(record) };
     if (record.status !== "staged") {
+      return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    // 自动路径（会话免问）的等待反馈门：revise 链是 stageTeam → markStageAwaitingFeedback
+    // 后序（handlers/team.ts:174-175），自动批准在 stageTeam 尾部开跑时反馈标记尚未置
+    // ——入口与 spawn 后双查，反馈标记期间到达的自动批准整批让位（用户明确要改，
+    // 等待反馈优先；spawn 后复查命中时成员进程未指派即弃，同并发写者分支的处置）。
+    if (cause === "session_allow" && record.awaitingFeedback === true) {
       return { status: "rejected", error: teamPortError("team_lead_only") };
     }
     // §10 增补三：批准时刻定权限（spawn 前，随 spawn 下发；缺省不覆写。非法枚举在
@@ -616,6 +669,11 @@ export class TeamHub {
       if (record.status !== "staged") {
         return { status: "rejected", error: teamPortError("team_lead_only") };
       }
+      // 自动路径的等待反馈复查（§10 增补六，见 runApprove 头注）：spawn 期间 revise 链
+      // 标了 awaitingFeedback → 让位（record 保持 staged+反馈标记；成员进程未指派即弃）。
+      if (cause === "session_allow" && record.awaitingFeedback === true) {
+        return { status: "rejected", error: teamPortError("team_lead_only") };
+      }
       for (const member of record.members) {
         const row = byName.get(member.memberName);
         if (row === undefined) continue;
@@ -638,6 +696,8 @@ export class TeamHub {
         ...(record.permissionMode === undefined
           ? {}
           : { permissionMode: record.permissionMode }),
+        // §10 增补六：自动批准（会话免问）路径的审计标记；人工批准缺省缺席。
+        ...(cause === undefined ? {} : { cause }),
       });
       return { status: "ok", spawnedMembers: spawned.map((row) => row.memberName) };
     } catch {
@@ -2397,10 +2457,6 @@ function isTeamActor(record: TeamRecord, actorKey: string): boolean {
     (member) => member.memberName === record.managerName && !member.removed,
   );
   return manager?.agentId === actorKey;
-}
-
-function isStageEditable(status: TeamStatus): boolean {
-  return status === "staged";
 }
 
 function isArchival(status: TeamStatus): boolean {

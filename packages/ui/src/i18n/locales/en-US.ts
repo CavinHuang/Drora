@@ -1608,30 +1608,35 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.dependsOnNone": "No dependencies",
   "team.stagedEditor.dependsOnSeparator": ", ",
   "team.stagedEditor.noteLabel": "Revision notes (optional)",
-  "team.stagedEditor.notePlaceholder":
-    "What should change? Leave empty and explain it in the conversation",
+  "team.stagedEditor.notePlaceholder": "Describe how this team should change…",
   // 2026-10-23 three-surface prefill channel (spec §15 item 4): mounts that cannot reach
   // the composer hide the note input and show this hint — silent note drops are forbidden
   // (a typed note would only go on the wire, which the hub v1 does not consume).
   "team.stagedEditor.noteSuppressedHint":
     "Revision notes can't be attached here: state the direction in the conversation",
-  "team.stagedEditor.approve": "Approve & run",
-  "team.stagedEditor.revise": "Revise in conversation",
+  "team.stagedEditor.approve": "Run once",
+  "team.stagedEditor.approveAdjusted": "Run once with selected permissions",
+  "team.stagedEditor.approveSession": "Always allow for this session",
+  "team.stagedEditor.approveSessionDescription": "Launching teams won't ask again this session",
+  "team.stagedEditor.revise": "Suggest changes",
   // §19 contract 6 (2026-10-23): in-flight waiting copy (buttons disabled until the outcome settles).
   "team.stagedEditor.pendingApprove": "Starting members…",
+  "team.stagedEditor.pendingApproveSession": "Allowing and launching members…",
   "team.stagedEditor.pendingRevise": "Sending…",
   "team.stagedEditor.pendingAbandon": "Archiving…",
   "team.stagedEditor.confirm": "Confirm",
   // §10 增补三: member permission selector row in the approval panel.
-  "team.stagedEditor.memberModeLabel": "Member permissions",
-  "team.stagedEditor.memberModeLead": "Members run with",
-  "team.stagedEditor.memberModeTrail": "permissions",
-  "team.stagedEditor.memberModeKeep": "Keep value set at staging",
+  "team.stagedEditor.permissionGroupLabel": "Member permissions",
   "team.permission.mode.build": "Ask before changes",
+  "team.permission.mode.build.description": "Confirm before every file change",
   "team.permission.mode.edit": "Edit automatically",
+  "team.permission.mode.edit.description": "Can edit files without asking",
   "team.permission.mode.yolo": "Full access",
+  "team.permission.mode.yolo.description": "No more confirmations, just run",
   "team.permission.mode.guarded": "Autonomous",
+  "team.permission.mode.guarded.description": "Ask only for risky actions",
   "team.permission.mode.auto": "Auto",
+  "team.permission.mode.auto.description": "Pick permissions per task",
   "team.stagedEditor.optionsAria": "Approval actions",
   // Action label for rename failures (line template "{action} failed: {reason}").
   "team.stagedEditor.rename": "Rename",

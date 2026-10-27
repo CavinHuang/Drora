@@ -97,13 +97,21 @@ async function approveTeamPlan(
   //（载荷形态断言照姊妹 handler 同款）。
   // 2026-10-27 L9（决策 D10）：改走 leadPort——TeamLeadPort.approveStage 契约签名
   // 已扩 options，生产路径不再结构性直调 hub 绕开 port。
+  // §10 增补六：载荷 optional rememberForSession——true 时 hub 置会话免问标志。
   const payload = envelope.payload as CommandPayloadMap["approveTeamPlan"];
   // 2026-10-27 review：条件展开改直接构造——spread 单键条件对象触发
   // unicorn/no-useless-spread；缺省传 undefined（approveStage options 可选）。
   const options =
-    payload.permissionMode === undefined
+    payload.permissionMode === undefined && payload.rememberForSession === undefined
       ? undefined
-      : { permissionMode: payload.permissionMode };
+      : {
+          ...(payload.permissionMode === undefined
+            ? {}
+            : { permissionMode: payload.permissionMode }),
+          ...(payload.rememberForSession === undefined
+            ? {}
+            : { rememberForSession: payload.rememberForSession }),
+        };
   assertMutationOk(
     "approveTeamPlan",
     await hub.leadPort(sessionId).approveStage(options),

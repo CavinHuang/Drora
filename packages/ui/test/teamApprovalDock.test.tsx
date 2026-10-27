@@ -160,10 +160,8 @@ describe("TeamApprovalDock", () => {
         createElement(TeamApprovalDock, { team, sessionId: "lead_s1", sendCommand }),
       ),
     );
-    const chip = screen.getByTestId("team-staged-member-mode");
-    fireEvent.keyDown(chip, { key: "Enter" });
-    const item = await screen.findByTestId("team-staged-member-mode-yolo");
-    fireEvent.click(item);
+    // §10 增补六：权限改为平铺单选列表（radiogroup 行单击即选，无下拉）。
+    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
     fireEvent.click(screen.getByTestId("team-staged-approve"));
     await vi.waitFor(() => {
       expect(sendCommand).toHaveBeenCalledTimes(1);

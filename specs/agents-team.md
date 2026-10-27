@@ -133,7 +133,7 @@ sequenceDiagram
 | 权限模型成队时定死    | 创建 team 时捕获 lead 会话权限模式（plan 不带入，记 build——team 总在执行，与 run 同理）写入 team journal；此后 lead 换模式不影响在飞的 team；resume 从 journal 读回。成员 profile 只能收窄（如 Explore 只读）、不能放宽（§8.1）                                                                                                                                                                                                                                                                                                              |
 | 消息零授权            | 任何 teammate 消息不得充当待决权限的批准；被拒操作不得经成员转发绕过（§8.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 用户对成员说话        | 必须经 lead 侧团队命令走邮箱投递；teammate 会话本体只读（v4-bridge 只读守卫自动覆盖，§8.2）                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 两阶段成队            | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。跳过审批直通 **v1 不实现**——skipApproval 参数保留待后续卡（2026-10-24 订正，§21 A3；原「用户明确要求跳过时直通」承诺与实现三方漂移已收口），两阶段审批是唯一成队入口。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
+| 两阶段成队            | 默认先 staged：花名册占位 + 任务 DAG，**不 spawn 任何成员**；用户在 TeamPanel 审查（可改成员路由/角色/依赖/负责人）后 Approve & Run 才原子创建成员并启动调度。跳过审批直通 **v1 不实现**——skipApproval 参数保留待后续卡（2026-10-24 订正，§21 A3；原「用户明确要求跳过时直通」承诺与实现三方漂移已收口），两阶段审批是唯一成队入口。**会话级始终允许（2026-10-27 用户裁定，§10 增补六）**：用户在审批面选「本会话内始终允许」后，本 lead 会话后续 TeamSpawn 草案自动批准启动——仍是用户显式动作授权（与模型自批的 skipApproval 不同源，A3 的「不实现模型直通」维持）。**草案校验（2026-10-18 登记）**：stageTeam 源头拒绝成员重名（E13）与悬空 assignee（E14）——wire 面 agent↔task 关系全部按 memberName 联接，重名/悬空会让任务卡负责人、成员下钻与邮箱地址失位；lead 寻址键字面量单一出处为 shared `TEAM_LEAD_ASSIGNEE`（core 以 `LEAD_ASSIGNEE_KEY` 再导出，UI 直接引 shared 常量） |
 | 停止与恢复分离        | halted（用户停队：取消 lead 当前回合 + 中断全员 + 冻结调度，team 不删除）≠ escalated（自动循环到上限，升级给用户）；halted 后普通建任务不得静默恢复，必须显式 TeamResume 且带理由                                                                                                                                                                                                                                                                                                                                                            |
 | 转派/接管是 lead 专属 | 成员可建任务、可认领，但撤销 attempt 与转派（含 lead 接管）只有 lead 工具能做（§2.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
@@ -3096,6 +3096,51 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
 - **测试**：wire 载荷解析（带/不带 mode）；hub 覆写与缺省维持；commands 信封携带；
   编辑器默认值与选择后批准信封；E2E 并入 AT-01 转正批。
 
+### §10 增补六｜审批面权限列表平铺 + 会话级始终允许（2026-10-27 用户裁定，同日施工）
+
+用户裁定（对齐询问后确认「两处都要」）：审批面的权限选择从句式下拉芯片改为**平铺
+单选列表**，且动作选项**完整对齐 workflow 确认窗的权限选项形态**（含「本会话内始终
+允许」）。
+
+- **权限模式平铺列表（替代增补三 2026-10-27 上午的句式芯片形态）**：
+  - 位置：问句表头/状态行之后、草案清单之前（同日上午修订的位置维持）。
+  - 形态：`role=radiogroup` 五行（build/edit/yolo/guarded/auto），每行=单选指示点 +
+    模式名 + 一句说明（i18n `team.permission.mode.{mode}.description` 新增五键）；
+    选中态=bg-selected 同款行样式（对齐选项行视觉），单击即选；方向键移动选择；
+    默认选中=建队捕获值（未捕获则空选，批准不携带=维持捕获）。
+  - 改动标记：组标题行「成员权限」+（选择≠捕获值时）`WorkflowAskWasTail`
+    「· 原为 X ↺」（零件复用维持）。
+- **动作选项四项（对齐 workflow PermissionDialog 选项族）**：
+  1. 启动一次（选择≠捕获值时改文案「按所选权限启动一次」，照 workflow
+     `.allowOnce.adjusted`）；批准随行 permissionMode。
+  2. **本会话内始终允许**（描述行「本会话内启动团队不再询问」，照 workflow
+     `.allowForSession(.description)`）；执行=批准 + `rememberForSession: true`。
+  3. 提出修改（随行 note 输入行维持；文案从「回对话修改」对齐 workflow
+     `.refine`「提出修改」）。
+  4. 放弃（维持，destructive + 二次确认）。
+  - 键盘：数字键 1-4 选中并执行；默认选中 1（既有 E2E「单击 approve 发信封」
+    语义维持——team-staged-approve 等 testid 不变）。
+- **会话级始终允许（hub 能力，A3 修订）**：
+  - wire：approveTeamPlan 载荷 additive optional `rememberForSession?: boolean`。
+  - hub：approveStage options 扩 `rememberForSession`——true 时置会话级
+    `sessionAutoApproveTeams` 标志（内存态、随 hub 生命周期=lead 会话，不入
+    journal/不跨重启）；后续 stageTeam 完成草案落库后若标志在且非 awaitingFeedback
+    → 自动走 approveStage（同一条批准路径：spawn/journal/notifyChange 单一出处），
+    approved 事实增补 optional `cause: "session_allow"`（additive，重放语义同
+    approved）。revise（awaitingFeedback）不自动批准。
+  - **终局队可被新草案替换（施工时收口的配套决策）**：此前单记录 + staged-only
+    编辑门使归档/完成后的 TeamSpawn 一律 team_not_present——会话实际只能有一支
+    队，「始终允许」没有可触达的第二队。现 stageTeam 门放行 isArchival
+    （archived/completed/cancelled）态：替换=新建记录（新 teamId，journal 流按序
+    保留旧队历史，重放时后续 team_created 重建新记录、旧队事实不跨队）；在途态
+    （active/halted/escalated）仍拒绝（同会话并行两队不在 v1 词表）。
+  - 与 A3 的关系：A3「模型自批直通不实现」维持——本能力是**用户显式动作**授权的
+    会话免问（等价 workflow `.allowForSession` 语义），非 skipApproval 复活。
+- **有意不做（登记）**：持久化跨会话「始终允许」（设定面/全局记忆归后续卡）；
+  逐工具权限粒度（维持 §15 裁决）。
+- **测试**：hub 会话允许（标志置位→新草案自动批准、revise 不自动、journal cause）；
+  wire 载荷解析；编辑器四选项/平铺列表交互/改动文案；i18n 新键双语。
+
 ### §18 附裁二｜审批卡逐层对齐 workflow 确认卡（2026-10-26 用户裁定，同日施工）
 
 分析结论（workflow 卡解剖：PermissionDialog 外壳 → 眉题+origin badge → 内容块 space-y-4
@@ -3109,7 +3154,8 @@ settings 位置语义（运行前把子代理权限定好），而不是批准�
 - **权限设置行**：句内芯片形态照 WorkflowAskSettings 族——「成员以 [芯片 ▾] 权限运行」
   WORKFLOW_ASK_LINE_CLASS_NAME 行 + h-6 芯片触发（WORKFLOW_ASK_CHIP_CLASS_NAME 同款类）
   + DropdownMenu 五选一；改动后句尾「· 原为 X ↺」重置尾巴（照 WorkflowAskWasTail）。
-  取代原生 select 下拉。
+  取代原生 select 下拉。（2026-10-27 §10 增补六修订：句式芯片形态由**平铺单选列表**
+  取代——芯片/尾巴零件复用维持，位置维持表头后清单前。）
 - **成员/任务清单**：保持全量呈现（§10「审批面定义即全量呈现，不设折叠」裁决不变，
   不学脚本折叠）；改用 PermissionDialog bounded 模式的限高滚动形态
   （max-h + overflow-y-auto + overscroll-contain），长草案不再撑高卡片。

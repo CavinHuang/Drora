@@ -113,9 +113,11 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
 export function approveTeamPlan(
   input: TeamCommandInput & CommandPayloadMap["approveTeamPlan"],
 ): Promise<TeamCommandOutcome> {
-  const { permissionMode } = input;
+  const { permissionMode, rememberForSession } = input;
+  // §10 增补六：rememberForSession 随行（true=会话免问标志，wire additive optional）。
   return sendTeamCommand(input, "approveTeamPlan", {
     ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(rememberForSession === undefined ? {} : { rememberForSession }),
   });
 }
 

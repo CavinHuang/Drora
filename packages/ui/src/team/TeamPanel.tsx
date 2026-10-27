@@ -257,10 +257,14 @@ function TeamPanelContent({
           permissionMode={model.permissionMode}
           failure={stagedFailure}
           pendingAction={stagedPending}
-          onApprove={(permissionMode) =>
+          onApprove={(permissionMode, rememberForSession) =>
             onCommand({
               type: "approveTeamPlan",
-              payload: permissionMode === undefined ? {} : { permissionMode },
+              payload: {
+                ...(permissionMode === undefined ? {} : { permissionMode }),
+                // §10 增补六：会话级「始终允许」随行。
+                ...(rememberForSession === undefined ? {} : { rememberForSession }),
+              },
             })
           }
           onRevise={(note) =>
@@ -382,7 +386,11 @@ function TeamPanelContent({
                       <li key={member.agentId} className="flex items-center gap-1">
                         {onMemberClick === undefined ? (
                           <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <MemberCardBody member={member} stateLabel={stateLabel} managerName={model.managerName} />
+                            <MemberCardBody
+                              member={member}
+                              stateLabel={stateLabel}
+                              managerName={model.managerName}
+                            />
                           </span>
                         ) : (
                           <button
@@ -395,7 +403,11 @@ function TeamPanelContent({
                             data-testid="team-member-card"
                             className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <MemberCardBody member={member} stateLabel={stateLabel} managerName={model.managerName} />
+                            <MemberCardBody
+                              member={member}
+                              stateLabel={stateLabel}
+                              managerName={model.managerName}
+                            />
                           </button>
                         )}
                         {onMessageMember === undefined ? null : (

@@ -315,13 +315,22 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     expect(confirm.className).toContain("pointer-coarse:min-h-11");
   });
 
-  it("成员权限选择行（§10 增补三/§18 附裁二）：芯片默认=建队捕获值，菜单选择后批准上抛", async () => {
+  it("成员权限平铺列表（§10 增补六）：默认选中=建队捕获值，行点选后批准上抛所选值", () => {
     const onApprove = vi.fn();
     renderEditor({ onApprove, permissionMode: "build" });
-    const chip = screen.getByTestId("team-staged-member-mode");
-    expect(chip.textContent).toContain(zhCN["team.permission.mode.build"] ?? "");
-    // 位置（2026-10-27 对齐修订）：设置行在问句表头之后、草案清单（成员/任务标题）之前
-    // ——照 WorkflowPermissionBlock 的 ask settings 先于内容清单的次序语义。
+    // 平铺单选行：默认选中捕获值（aria-checked），行点击即选（无下拉菜单）。
+    const build = screen.getByTestId("team-staged-member-mode-build");
+    expect(build.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
+    expect(screen.getByTestId("team-staged-member-mode-yolo").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    fireEvent.click(screen.getByTestId("team-staged-approve"));
+    expect(onApprove).toHaveBeenCalledWith("yolo");
+  });
+
+  it("成员权限列表位置（§10 增补六）：表头之后、草案清单之前", () => {
+    renderEditor({ permissionMode: "build" });
     const modeLine = screen.getByTestId("team-staged-member-mode-line");
     const header = screen.getByTestId("team-staged-header");
     const membersHeading = screen.getByText((content, element) =>
@@ -335,12 +344,32 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     expect(
       modeLine.compareDocumentPosition(membersHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // 键盘路径开菜单（radix DropdownMenu 对 Enter 响应；jsdom 无 pointer capture）。
-    fireEvent.keyDown(chip, { key: "Enter" });
-    const item = await screen.findByTestId("team-staged-member-mode-yolo");
-    fireEvent.click(item);
-    fireEvent.click(screen.getByTestId("team-staged-approve"));
-    expect(onApprove).toHaveBeenCalledWith("yolo");
+  });
+
+  it("「本会话内始终允许」选项（§10 增补六）：带说明行，执行=批准 + rememberForSession", () => {
+    const onApprove = vi.fn();
+    renderEditor({ onApprove, permissionMode: "build" });
+    const session = screen.getByTestId("team-staged-approve-session");
+    expect(session.textContent).toContain(zhCN["team.stagedEditor.approveSession"] ?? "");
+    expect(session.textContent).toContain(
+      zhCN["team.stagedEditor.approveSessionDescription"] ?? "",
+    );
+    // 选项两步语义（照 PermissionDialog）：首击选中、单击已选中项=执行。
+    fireEvent.click(screen.getByTestId("team-staged-approve-session"));
+    fireEvent.click(screen.getByTestId("team-staged-approve-session"));
+    expect(onApprove).toHaveBeenCalledWith("build", true);
+  });
+
+  it("权限选择偏离捕获值时「启动一次」改口（照 workflow allowOnce.adjusted）", () => {
+    const onApprove = vi.fn();
+    renderEditor({ onApprove, permissionMode: "build" });
+    expect(screen.getByTestId("team-staged-approve").textContent).toContain(
+      zhCN["team.stagedEditor.approve"] ?? "",
+    );
+    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
+    expect(screen.getByTestId("team-staged-approve").textContent).toContain(
+      zhCN["team.stagedEditor.approveAdjusted"] ?? "",
+    );
   });
 
   it("成员权限选择行：未给建队值且未选择 → 批准不携带（维持 hub 捕获值）", () => {

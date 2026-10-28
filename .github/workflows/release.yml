@@ -92,6 +92,10 @@ jobs:
         run: Set-MpPreference -DisableRealtimeMonitoring $true
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 ci.yml:本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在,
+      # 全新环境无 @drora/contracts 等 dist 会全量 TS2307(v0.0.10 首跑实证)。
+      - name: Build bootstrap dependency closure
+        run: pnpm --filter @drora/bootstrap^... run build
       # SEA 资产解析与 node-repl-host 构建需要 workspace dist / 插件 runtime;
       # node-repl-host 还依赖 @drora/core、@drora/contracts 的 dist(在 cli 依赖
       # 闭包内),先构建闭包
@@ -261,6 +265,10 @@ jobs:
         run: Set-MpPreference -DisableRealtimeMonitoring $true
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 ci.yml:本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在,
+      # 全新环境无 @drora/contracts 等 dist 会全量 TS2307(v0.0.10 首跑实证)。
+      - name: Build bootstrap dependency closure
+        run: pnpm --filter @drora/bootstrap^... run build
       - name: Emit workspace dists
         env:
           NODE_OPTIONS: --max-old-space-size=6144

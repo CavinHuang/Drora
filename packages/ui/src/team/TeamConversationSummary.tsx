@@ -107,7 +107,6 @@ function TeamConversationSummaryContent({
               <div className="mt-1 w-full">
                 <TeamStagedEditorConnected
                   draft={model.stagedDraft}
-                  permissionMode={model.permissionMode}
                   sessionId={target.parentSessionId}
                   sendCommand={sendCommand}
                   {...(onPrefillComposer === undefined ? {} : { onPrefillComposer })}

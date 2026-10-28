@@ -89,7 +89,7 @@ describe("TeamConversationSummary staged 审批内联", () => {
     fireEvent.change(screen.getByTestId("team-staged-revise-note"), {
       target: { value: "改成只做前端" },
     });
-    fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.focus(screen.getByTestId("team-staged-revise-note"));
     fireEvent.click(screen.getByTestId("team-staged-confirm"));
     await waitFor(() => expect(harness.envelopes.length).toBe(1));
     expect(harness.envelopes[0]?.type).toBe("reviseTeamPlan");

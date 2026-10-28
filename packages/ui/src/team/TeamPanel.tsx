@@ -254,7 +254,6 @@ function TeamPanelContent({
         visibility.stagedEditor ? (
         <TeamStagedEditor
           draft={model.stagedDraft}
-          permissionMode={model.permissionMode}
           failure={stagedFailure}
           pendingAction={stagedPending}
           onApprove={(permissionMode, rememberForSession) =>

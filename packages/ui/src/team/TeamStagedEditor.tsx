@@ -7,10 +7,6 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import {
-  WORKFLOW_ASK_LINE_CLASS_NAME,
-  WorkflowAskWasTail,
-} from "@/components/workflow-timeline/WorkflowAskSettingsParts.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamCommandOutcome } from "./commands.js";
@@ -142,16 +138,11 @@ const TEAM_PERMISSION_MODES = teamPermissionModeSchema.options;
 
 export interface TeamStagedEditorProps {
   draft: TeamPanelStagedDraftView;
-  // L13 修复：此处曾残留 §22 managerName 改造删 prop 后未闭合的 /** 注释头，
-  // 吞掉下方 permissionMode 注释的开头，两段文档错位；managerName 现经
-  // draft.managerName 随行（见 DraftMemberRows 的 managerName prop）。
-  /** 建队捕获的权限模式（wire 投影既有值）——选择行默认值。 */
-  permissionMode?: TeamPermissionModeWire;
   /**
-   * 「启动一次」/「本会话内始终允许」上抛；宿主发 approveTeamPlan。§10 增补三：
-   * permissionMode 为面板选定的成员权限模式（undefined = 维持建队捕获值，宿主不
-   * 携带字段）；§10 增补六：rememberForSession=true 即「本会话内始终允许」（hub 置
-   * 会话免问标志，后续草案自动批准）。
+   * 「允许」/「本会话内始终允许」上抛；宿主发 approveTeamPlan。permissionMode 恒
+   * undefined（2026-10-28 用户裁定：面板不再铺开权限选择，成员权限维持建队捕获值
+   * ——审批面的权限语义收敛为 workflow 同款「允许/本会话内始终允许」二选项）；
+   * rememberForSession=true 即后者（hub 置会话免问标志，后续草案自动批准）。
    */
   onApprove: (permissionMode?: TeamPermissionModeWire, rememberForSession?: boolean) => void;
   /** 「回对话修改」上抛；note 为面板内可选输入（trim 后为空则不携带）。 */
@@ -194,6 +185,7 @@ const TEAM_STAGED_OPTIONS = [
   {
     action: "approve",
     labelKey: "team.stagedEditor.approve",
+    descriptionKey: "team.stagedEditor.approveDescription",
     testId: "team-staged-approve",
   },
   {
@@ -202,7 +194,6 @@ const TEAM_STAGED_OPTIONS = [
     descriptionKey: "team.stagedEditor.approveSessionDescription",
     testId: "team-staged-approve-session",
   },
-  { action: "revise", labelKey: "team.stagedEditor.revise", testId: "team-staged-revise" },
   { action: "abandon", labelKey: "team.stagedEditor.abandon", testId: "team-staged-abandon" },
 ] as const;
 
@@ -215,7 +206,6 @@ const PENDING_LABEL_KEYS: Record<Exclude<TeamStagedPendingAction, null>, string>
 
 export function TeamStagedEditor({
   draft,
-  permissionMode,
   onApprove,
   onRevise,
   onAbandon,
@@ -227,28 +217,22 @@ export function TeamStagedEditor({
   const { intl } = useDroraIntl();
   const requestConfirmation = useConfirmDialog();
   const [note, setNote] = useState("");
-  // §18 附裁（2026-10-26）：选项默认选中 1（确认并启动）——既有 E2E「单击 approve 即
+  // §18 附裁（2026-10-26）：选项默认选中 1（允许）——既有 E2E「单击 approve 即
   // 发信封」的语义依赖此默认值（单击已选中项=执行，照 PermissionDialog）。
   const [selectedIndex, setSelectedIndex] = useState(0);
-  // §10 增补三：成员权限选择（默认=建队捕获值；null=维持现值不携带）。
-  const [memberMode, setMemberMode] = useState<TeamPermissionModeWire | null>(
-    permissionMode ?? null,
-  );
   const busy = pendingAction !== null;
-  // 权限选择是否偏离建队捕获值（「启动一次」改口与 was 尾巴共用）。
-  const modeChanged = memberMode !== null && memberMode !== permissionMode;
 
   // 执行语义（照 PermissionDialog respondWithOption）：放弃过二次确认门；修订携带 trim
   // 后说明（空则不带）；在途全禁用（responding 同构，spec §19 契约 6）。
   const execute = (action: "approve" | "approveSession" | "revise" | "abandon") => {
     if (busy) return;
     if (action === "approve") {
-      onApprove(memberMode ?? undefined);
+      onApprove(undefined);
       return;
     }
     if (action === "approveSession") {
       // §10 增补六：批准 + 置会话免问标志（等价 workflow allowForSession 语义）。
-      onApprove(memberMode ?? undefined, true);
+      onApprove(undefined, true);
       return;
     }
     if (action === "revise") {
@@ -268,6 +252,11 @@ export function TeamStagedEditor({
   };
 
   const confirmSelection = () => {
+    // 备注行（视觉第 4 项）占用 selectedIndex=3：确认钮即「提出修改」（随行 note）。
+    if (selectedIndex === TEAM_STAGED_OPTIONS.length) {
+      execute("revise");
+      return;
+    }
     const option = TEAM_STAGED_OPTIONS[selectedIndex];
     if (option !== undefined) execute(option.action);
   };
@@ -282,7 +271,7 @@ export function TeamStagedEditor({
   // 移动；Enter=已选中则执行、否则先选中。
   const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (busy) return;
-    const digit = ["1", "2", "3", "4"].indexOf(event.key);
+    const digit = ["1", "2", "3"].indexOf(event.key);
     if (digit !== -1) {
       const shortcut = TEAM_STAGED_OPTIONS[digit];
       if (shortcut === undefined) return;
@@ -316,8 +305,8 @@ export function TeamStagedEditor({
   const handleNoteKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.nativeEvent.isComposing && !busy) {
       event.preventDefault();
-      // 「提出修改」现为选项 3（§10 增补六 四选项后移位）。
-      setSelectedIndex(2);
+      // 备注行视觉上是第 4 项（三选项之后），选中态与选项 3（放弃）互斥显示。
+      setSelectedIndex(3);
       execute("revise");
     }
   };
@@ -365,77 +354,6 @@ export function TeamStagedEditor({
           {intl.formatMessage({ id: "team.stagedEditor.awaitingFeedback" })}
         </p>
       ) : null}
-
-      {/*
-       * 成员权限平铺单选列表（§10 增补六，2026-10-27 用户裁定：权限选择从句式下拉
-       * 芯片改为平铺列表——每行=单选指示点+模式名+一句说明，单击即选；位置维持
-       * 「表头/状态行之后、草案清单之前」（同日上午修订的 workflow 设置区次序）。
-       * 组标题行的「· 原为 X ↺」尾巴零件复用维持（WorkflowAskWasTail）。
-       */}
-      <div className="flex flex-col gap-1.5" data-testid="team-staged-member-mode-line">
-        <div className={WORKFLOW_ASK_LINE_CLASS_NAME}>
-          <span className="text-ui-sm font-medium text-foreground-subtle">
-            {intl.formatMessage({ id: "team.stagedEditor.permissionGroupLabel" })}
-          </span>
-          {memberMode !== null && memberMode !== permissionMode ? (
-            <WorkflowAskWasTail
-              disabled={busy}
-              onReset={() => setMemberMode(permissionMode ?? null)}
-              testId="team-staged-member-mode"
-              value={
-                permissionMode === undefined
-                  ? intl.formatMessage({ id: "team.permission.mode.build" })
-                  : intl.formatMessage({ id: `team.permission.mode.${permissionMode}` })
-              }
-            />
-          ) : null}
-        </div>
-        <div
-          role="radiogroup"
-          aria-label={intl.formatMessage({ id: "team.stagedEditor.permissionGroupLabel" })}
-          className="flex flex-col gap-1"
-        >
-          {TEAM_PERMISSION_MODES.map((mode) => {
-            const selected = memberMode === mode;
-            return (
-              <button
-                key={mode}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={busy}
-                onClick={() => {
-                  if (!busy) setMemberMode(mode);
-                }}
-                data-testid={`team-staged-member-mode-${mode}`}
-                className={cn(
-                  "flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-selected pointer-coarse:min-h-11",
-                  selected ? "bg-selected" : "hover:bg-hover",
-                  busy && "cursor-not-allowed opacity-50",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                    selected ? "border-foreground" : "border-foreground-subtlest",
-                  )}
-                >
-                  {selected ? <span className="size-2 rounded-full bg-foreground" /> : null}
-                </span>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-ui-base font-medium text-foreground">
-                    {intl.formatMessage({ id: `team.permission.mode.${mode}` })}
-                  </span>
-                  <span className="text-ui-sm text-foreground-subtlest">
-                    {intl.formatMessage({ id: `team.permission.mode.${mode}.description` })}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/*
        * 草案清单（§10「全量呈现不折叠」裁决不变；§18 附裁二：限高滚动照 PermissionDialog
@@ -487,12 +405,7 @@ export function TeamStagedEditor({
         >
           {TEAM_STAGED_OPTIONS.map((option, index) => {
             const selected = index === selectedIndex;
-            // §10 增补六：选了与捕获值不同的权限时，「启动一次」改口「按所选权限
-            // 启动一次」（照 workflow allowOnce.adjusted 的改口语义）。
-            const labelKey =
-              option.action === "approve" && modeChanged
-                ? "team.stagedEditor.approveAdjusted"
-                : option.labelKey;
+            const labelKey = option.labelKey;
             return (
               <button
                 key={option.action}
@@ -545,22 +458,22 @@ export function TeamStagedEditor({
         </div>
         {noteInputSuppressed ? null : (
           // 反馈行（照 PermissionDialog feedback 形态，L12 修复：在 listbox 闭合后作
-          // 兄弟节点——它自身不是 option，嵌在 role="listbox" 容器内构成 ARIA 歧义）：
-          // 修订说明随选项 2，聚焦即选中 2、Enter 提交该选项；无边框行内输入。
+          // 兄弟节点）：修订说明随备注行（视觉第 4 项，selectedIndex=3），聚焦即选中、
+          // Enter 直接提交该选项，确认钮在选中态执行；无边框行内输入。
           <div
             onClick={(event) => {
               if (event.target !== event.currentTarget) return;
-              if (!busy) setSelectedIndex(2);
+              if (!busy) setSelectedIndex(3);
             }}
             className={cn(
               "flex w-full items-center gap-3 rounded-xl px-3 py-2 transition-colors",
-              selectedIndex === 2 && !busy ? "bg-selected" : "hover:bg-hover",
+              selectedIndex === 3 && !busy ? "bg-selected" : "hover:bg-hover",
             )}
           >
             <span
               className={cn(
                 "w-5 shrink-0 self-center text-center text-ui-base font-medium",
-                selectedIndex === 1 && !busy ? "text-foreground" : "text-foreground-subtlest",
+                selectedIndex === 3 && !busy ? "text-foreground" : "text-foreground-subtlest",
               )}
               aria-hidden
             >
@@ -571,7 +484,7 @@ export function TeamStagedEditor({
               value={note}
               onChange={(event) => setNote(event.target.value)}
               onFocus={() => {
-                if (!busy) setSelectedIndex(1);
+                if (!busy) setSelectedIndex(3);
               }}
               onKeyDown={handleNoteKeyDown}
               disabled={busy}

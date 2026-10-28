@@ -121,14 +121,11 @@ export function useTeamStagedActions(
  */
 export function TeamStagedEditorConnected({
   draft,
-  permissionMode,
   sessionId,
   sendCommand,
   onPrefillComposer,
 }: {
   draft: TeamPanelStagedDraftView;
-  /** 建队捕获的权限模式——选择行默认值（§10 增补三）。 */
-  permissionMode?: TeamPermissionModeWire;
   sessionId: string;
   /** 与摘要卡/面板同源（TeamHistoryConnection["sendCommand"]），单一通道不变。 */
   sendCommand: TeamHistoryConnection["sendCommand"];
@@ -163,7 +160,6 @@ export function TeamStagedEditorConnected({
   return (
     <TeamStagedEditor
       draft={draft}
-      permissionMode={permissionMode}
       failure={staged.failure}
       pendingAction={staged.pending}
       onApprove={staged.onApprove}

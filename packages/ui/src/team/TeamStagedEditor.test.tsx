@@ -248,9 +248,10 @@ describe("失败提示的清除时机（spec §10 呈现规则4：下次任一�
       />,
     );
     expect(screen.getByTestId("team-staged-command-error")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("team-staged-revise"));
-    // §18 附裁：单击未选中项=选中，再点确认钮（或再点同一项）才执行。
-    fireEvent.click(screen.getByTestId("team-staged-confirm"));
+    // revise 入口现为备注行（2026-10-28 收敛）：聚焦选中 + Enter 提交。
+    const note = screen.getByTestId("team-staged-revise-note");
+    fireEvent.focus(note);
+    fireEvent.keyDown(note, { key: "Enter" });
     expect(onRevise).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("team-staged-command-error")).toBeNull();
   });
@@ -270,16 +271,14 @@ describe("在途态（specs/agents-team.md §19 契约 6：发起即在途，对
       </DroraIntlProvider>,
     );
     const approve = screen.getByTestId("team-staged-approve") as HTMLButtonElement;
-    const revise = screen.getByTestId("team-staged-revise") as HTMLButtonElement;
     const abandon = screen.getByTestId("team-staged-abandon") as HTMLButtonElement;
+    const note = screen.getByTestId("team-staged-revise-note") as HTMLInputElement;
     expect(approve.disabled).toBe(true);
-    expect(revise.disabled).toBe(true);
     expect(abandon.disabled).toBe(true);
+    expect(note.disabled).toBe(true);
     const confirm = screen.getByTestId("team-staged-confirm") as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
     expect(confirm.textContent).toContain(zhCN["team.stagedEditor.pendingApprove"] ?? "");
-    const note = screen.getByTestId("team-staged-revise-note") as HTMLInputElement;
-    expect(note.disabled).toBe(true);
   });
 
   it("无在途（null）：三动作可点，按钮出常规文案", () => {
@@ -305,7 +304,11 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
   it("选项行/反馈输入/确认钮带 pointer-coarse 44px 类（§18 附裁后全宽行形态）", () => {
     renderEditor();
     // 选项是全宽行（rounded-xl px-3 py-2），min-h 即达标；确认钮与反馈输入同纪律。
-    for (const testId of ["team-staged-approve", "team-staged-revise", "team-staged-abandon"]) {
+    for (const testId of [
+      "team-staged-approve",
+      "team-staged-approve-session",
+      "team-staged-abandon",
+    ]) {
       const control = screen.getByTestId(testId);
       expect(control.className, testId).toContain("pointer-coarse:min-h-11");
     }
@@ -315,40 +318,16 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     expect(confirm.className).toContain("pointer-coarse:min-h-11");
   });
 
-  it("成员权限平铺列表（§10 增补六）：默认选中=建队捕获值，行点选后批准上抛所选值", () => {
+  it("权限语义（2026-10-28 裁定）：无权限选择 UI，允许选项上抛 permissionMode=undefined（维持捕获值）", () => {
     const onApprove = vi.fn();
-    renderEditor({ onApprove, permissionMode: "build" });
-    // 平铺单选行：默认选中捕获值（aria-checked），行点击即选（无下拉菜单）。
-    const build = screen.getByTestId("team-staged-member-mode-build");
-    expect(build.getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
-    expect(screen.getByTestId("team-staged-member-mode-yolo").getAttribute("aria-checked")).toBe(
-      "true",
-    );
+    renderEditor({ onApprove });
     fireEvent.click(screen.getByTestId("team-staged-approve"));
-    expect(onApprove).toHaveBeenCalledWith("yolo");
+    expect(onApprove).toHaveBeenCalledWith(undefined);
   });
 
-  it("成员权限列表位置（§10 增补六）：表头之后、草案清单之前", () => {
-    renderEditor({ permissionMode: "build" });
-    const modeLine = screen.getByTestId("team-staged-member-mode-line");
-    const header = screen.getByTestId("team-staged-header");
-    const membersHeading = screen.getByText((content, element) =>
-      element?.tagName === "H3"
-        ? content.includes(zhCN["team.stagedEditor.membersHeading"] ?? "成员")
-        : false,
-    );
-    expect(
-      header.compareDocumentPosition(modeLine) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      modeLine.compareDocumentPosition(membersHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("「本会话内始终允许」选项（§10 增补六）：带说明行，执行=批准 + rememberForSession", () => {
+  it("「本会话内始终允许」选项（§10 增补六）：带说明行，两步执行=批准 + rememberForSession", () => {
     const onApprove = vi.fn();
-    renderEditor({ onApprove, permissionMode: "build" });
+    renderEditor({ onApprove });
     const session = screen.getByTestId("team-staged-approve-session");
     expect(session.textContent).toContain(zhCN["team.stagedEditor.approveSession"] ?? "");
     expect(session.textContent).toContain(
@@ -357,19 +336,7 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
     // 选项两步语义（照 PermissionDialog）：首击选中、单击已选中项=执行。
     fireEvent.click(screen.getByTestId("team-staged-approve-session"));
     fireEvent.click(screen.getByTestId("team-staged-approve-session"));
-    expect(onApprove).toHaveBeenCalledWith("build", true);
-  });
-
-  it("权限选择偏离捕获值时「启动一次」改口（照 workflow allowOnce.adjusted）", () => {
-    const onApprove = vi.fn();
-    renderEditor({ onApprove, permissionMode: "build" });
-    expect(screen.getByTestId("team-staged-approve").textContent).toContain(
-      zhCN["team.stagedEditor.approve"] ?? "",
-    );
-    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
-    expect(screen.getByTestId("team-staged-approve").textContent).toContain(
-      zhCN["team.stagedEditor.approveAdjusted"] ?? "",
-    );
+    expect(onApprove).toHaveBeenCalledWith(undefined, true);
   });
 
   it("成员权限选择行：未给建队值且未选择 → 批准不携带（维持 hub 捕获值）", () => {
@@ -381,17 +348,17 @@ describe("触达（spec §10 呈现规则5：pointer-coarse ≥44px）", () => {
 
   it("选项交互（§18 附裁，照 PermissionDialog）：单击已选中项=执行，单击未选中项=仅选中", () => {
     const onApprove = vi.fn();
-    const onRevise = vi.fn();
-    renderEditor({ onApprove, onRevise });
+    renderEditor({ onApprove });
     // 默认选中 1：单击 approve 立即执行（E2E 兼容语义）。
     fireEvent.click(screen.getByTestId("team-staged-approve"));
     expect(onApprove).toHaveBeenCalledTimes(1);
-    // 单击 revise（未选中）只选中，不执行。
-    fireEvent.click(screen.getByTestId("team-staged-revise"));
-    expect(onRevise).not.toHaveBeenCalled();
-    // 确认钮执行当前选中项。
+    // 单击 session 选项（未选中）只选中，不执行。
+    fireEvent.click(screen.getByTestId("team-staged-approve-session"));
+    expect(onApprove).toHaveBeenCalledTimes(1);
+    // 确认钮执行当前选中项（会话允许）。
     fireEvent.click(screen.getByTestId("team-staged-confirm"));
-    expect(onRevise).toHaveBeenCalledTimes(1);
+    expect(onApprove).toHaveBeenCalledTimes(2);
+    expect(onApprove).toHaveBeenLastCalledWith(undefined, true);
   });
 
   it("改名铅笔带 pointer-coarse 44px 类（输入/确认/取消在编辑态同样）", () => {

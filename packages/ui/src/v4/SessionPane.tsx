@@ -5455,6 +5455,18 @@ export function SessionPane({
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 若仍创建 composer，会让用户误以为可以直接向 child session 继续输入。
+  // §10 增补六修订（2026-10-28 用户裁定）：staged 审批 dock 与 workflow 确认窗同机制
+  // ——在场时 composer 隐藏（ConversationComposer 对 blockingRequestId 非空自display:none，
+  // 弹窗覆盖输入框位置），而非把输入框下推并存。守卫与下方 dock 挂载完全同源；
+  // 哨兵值不会与 interactionId（intr_ 前缀）碰撞。
+  const teamStagedDockVisible =
+    Boolean(sessionId) &&
+    snapshot?.team?.status === "staged" &&
+    snapshot.sessionId === sessionId &&
+    !readOnly &&
+    !importedShare;
+  const composerBlockingRequestId =
+    blockingInteractionId ?? (teamStagedDockVisible ? "team-staged-dock" : null);
   const composerNode = readOnly ? null : (
     <ConversationComposer
       key="conversation-composer"
@@ -5475,7 +5487,7 @@ export function SessionPane({
       telemetryDraftConfig={telemetryDraftConfig}
       contextHeader={isDraft ? draftComposerHeader : undefined}
       centered={isDraft}
-      blockingRequestId={blockingInteractionId}
+      blockingRequestId={composerBlockingRequestId}
       listenAddToChatEvents={focused}
       // 缺口9 消费门（2026-10-21 修复）：此前 `focused && sessionId === null` 只对草稿
       // composer 下发——团队面板「回对话修改/在主会话中引用」的目标是 lead 会话
@@ -5686,13 +5698,10 @@ export function SessionPane({
       ) : null}
       {/* staged 审批的 timeline bottom dock（specs/agents-team.md §10 呈现规则修订，
           2026-10-23）：与 workflow 确认窗同位同 chrome——钉底、composer 之上；摘要卡在
-          同一守卫下传 stagedEditorSuppressed 退化为只读。守卫与 footerSlot 同源。 */}
-      {sessionId &&
-      snapshot?.team &&
-      snapshot.team.status === "staged" &&
-      snapshot.sessionId === sessionId &&
-      !readOnly &&
-      !importedShare ? (
+          同一守卫下传 stagedEditorSuppressed 退化为只读。守卫与 footerSlot 同源。
+          2026-10-28：守卫提取为 teamStagedDockVisible——composer 的阻塞隐藏（覆盖输入框）
+          与本挂载共用同一布尔，保证「dock 在场 ⇔ composer 隐藏」不漂移。 */}
+      {teamStagedDockVisible && snapshot?.team ? (
         <TeamApprovalDock
           key={`team-approval-dock:${snapshot.team.teamId}`}
           team={snapshot.team}

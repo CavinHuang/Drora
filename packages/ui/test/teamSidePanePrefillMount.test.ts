@@ -115,7 +115,7 @@ describe("TeamSidePane onPrefillComposer mount chains (缺口9)", () => {
     const prefillCalls: { prefill: string; targetSessionId?: string | null }[] = [];
     renderTeamPane((prefill, targetSessionId) => prefillCalls.push({ prefill, targetSessionId }));
 
-    fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.focus(screen.getByTestId("team-staged-revise-note"));
     fireEvent.click(screen.getByTestId("team-staged-confirm"));
     // 缺口9 消费门：目标会话随行（lead 会话），挂载点据此走 targetSessionId 定向插入。
     expect(prefillCalls).toEqual([{ prefill: "要调整什么？", targetSessionId: "lead-session-1" }]);
@@ -132,7 +132,7 @@ describe("TeamSidePane onPrefillComposer mount chains (缺口9)", () => {
     fireEvent.change(screen.getByTestId("team-staged-revise-note"), {
       target: { value: "成员名改成 alicia" },
     });
-    fireEvent.click(screen.getByTestId("team-staged-revise"));
+    fireEvent.focus(screen.getByTestId("team-staged-revise-note"));
     fireEvent.click(screen.getByTestId("team-staged-confirm"));
     expect(prefillCalls).toEqual([
       {

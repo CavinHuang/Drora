@@ -1614,8 +1614,8 @@ const enUS: Record<string, string> = {
   // (a typed note would only go on the wire, which the hub v1 does not consume).
   "team.stagedEditor.noteSuppressedHint":
     "Revision notes can't be attached here: state the direction in the conversation",
-  "team.stagedEditor.approve": "Run once",
-  "team.stagedEditor.approveAdjusted": "Run once with selected permissions",
+  "team.stagedEditor.approve": "Allow",
+  "team.stagedEditor.approveDescription": "Just this once",
   "team.stagedEditor.approveSession": "Always allow for this session",
   "team.stagedEditor.approveSessionDescription": "Launching teams won't ask again this session",
   "team.stagedEditor.revise": "Suggest changes",
@@ -1626,17 +1626,11 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.pendingAbandon": "Archiving…",
   "team.stagedEditor.confirm": "Confirm",
   // §10 增补三: member permission selector row in the approval panel.
-  "team.stagedEditor.permissionGroupLabel": "Member permissions",
   "team.permission.mode.build": "Ask before changes",
-  "team.permission.mode.build.description": "Confirm before every file change",
   "team.permission.mode.edit": "Edit automatically",
-  "team.permission.mode.edit.description": "Can edit files without asking",
   "team.permission.mode.yolo": "Full access",
-  "team.permission.mode.yolo.description": "No more confirmations, just run",
   "team.permission.mode.guarded": "Autonomous",
-  "team.permission.mode.guarded.description": "Ask only for risky actions",
   "team.permission.mode.auto": "Auto",
-  "team.permission.mode.auto.description": "Pick permissions per task",
   "team.stagedEditor.optionsAria": "Approval actions",
   // Action label for rename failures (line template "{action} failed: {reason}").
   "team.stagedEditor.rename": "Rename",

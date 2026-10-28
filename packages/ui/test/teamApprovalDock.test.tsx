@@ -130,7 +130,9 @@ describe("TeamApprovalDock", () => {
     await vi.waitFor(() => {
       expect(approve().disabled).toBe(true);
     });
-    expect((screen.getByTestId("team-staged-revise") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("team-staged-approve-session") as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     expect((screen.getByTestId("team-staged-abandon") as HTMLButtonElement).disabled).toBe(true);
     const confirm = () => screen.getByTestId("team-staged-confirm") as HTMLButtonElement;
     expect(confirm().disabled).toBe(true);
@@ -145,7 +147,7 @@ describe("TeamApprovalDock", () => {
     expect(screen.queryByTestId("team-staged-command-error")).toBeNull();
   });
 
-  it("成员权限选择（§10 增补三）：选择 yolo 后批准信封携带 permissionMode=yolo", async () => {
+  it("权限语义（2026-10-28 裁定）：批准信封不携带 permissionMode（维持捕获值）", async () => {
     const sendCommand = vi.fn().mockResolvedValue({
       commandId: "c9",
       status: "accepted",
@@ -160,12 +162,37 @@ describe("TeamApprovalDock", () => {
         createElement(TeamApprovalDock, { team, sessionId: "lead_s1", sendCommand }),
       ),
     );
-    // §10 增补六：权限改为平铺单选列表（radiogroup 行单击即选，无下拉）。
-    fireEvent.click(screen.getByTestId("team-staged-member-mode-yolo"));
     fireEvent.click(screen.getByTestId("team-staged-approve"));
     await vi.waitFor(() => {
       expect(sendCommand).toHaveBeenCalledTimes(1);
-      expect(JSON.stringify(sendCommand.mock.calls[0]?.[0])).toContain('"permissionMode":"yolo"');
+      expect(JSON.stringify(sendCommand.mock.calls[0]?.[0])).not.toContain("permissionMode");
+    });
+  });
+
+  it("「本会话内始终允许」（§10 增补六）：信封携带 rememberForSession=true 且不带 permissionMode", async () => {
+    const sendCommand = vi.fn().mockResolvedValue({
+      commandId: "c10",
+      status: "accepted",
+      revisionAtDecision: 1,
+    });
+    render(
+      createElement(
+        DroraIntlProvider,
+        { initialLocale: "zh-CN" },
+        createElement(TeamApprovalDock, {
+          team: stagedTeam(),
+          sessionId: "lead_s1",
+          sendCommand,
+        }),
+      ),
+    );
+    fireEvent.click(screen.getByTestId("team-staged-approve-session"));
+    fireEvent.click(screen.getByTestId("team-staged-approve-session"));
+    await vi.waitFor(() => {
+      expect(sendCommand).toHaveBeenCalledTimes(1);
+      const envelope = JSON.stringify(sendCommand.mock.calls[0]?.[0]);
+      expect(envelope).toContain('"rememberForSession":true');
+      expect(envelope).not.toContain("permissionMode");
     });
   });
 

@@ -1482,8 +1482,8 @@ const zhCN: Record<string, string> = {
   // 2026-10-23 三发起面预填通道（spec §15 第4条）：无法触达 composer 的挂载面隐藏
   // note 输入并出本提示——禁止 note 静默丢弃（输入只会随命令上 wire 而 hub v1 不消费）。
   "team.stagedEditor.noteSuppressedHint": "此面板无法携带修改方向：请在对话里直接说明调整方向",
-  "team.stagedEditor.approve": "启动一次",
-  "team.stagedEditor.approveAdjusted": "按所选权限启动一次",
+  "team.stagedEditor.approve": "允许",
+  "team.stagedEditor.approveDescription": "仅允许这一次",
   "team.stagedEditor.approveSession": "本会话内始终允许",
   "team.stagedEditor.approveSessionDescription": "本会话内启动团队不再询问",
   "team.stagedEditor.revise": "提出修改",
@@ -1494,17 +1494,11 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.pendingAbandon": "正在归档…",
   "team.stagedEditor.confirm": "确认",
   // §10 增补三：审批面板成员权限选择行（枚举词汇独立成族，不与 composer 模式键混用）。
-  "team.stagedEditor.permissionGroupLabel": "成员权限",
   "team.permission.mode.build": "变更前确认",
-  "team.permission.mode.build.description": "每次文件变更前询问",
   "team.permission.mode.edit": "自动编辑",
-  "team.permission.mode.edit.description": "可以直接编辑文件",
   "team.permission.mode.yolo": "完全访问",
-  "team.permission.mode.yolo.description": "不再询问，直接执行",
   "team.permission.mode.guarded": "自主模式",
-  "team.permission.mode.guarded.description": "有风险的操作才询问",
   "team.permission.mode.auto": "自动匹配",
-  "team.permission.mode.auto.description": "按任务自动选择权限",
   "team.stagedEditor.optionsAria": "审批动作",
   // 改名失败的 action 标签（失败行模板 {action}失败：{reason}）。
   "team.stagedEditor.rename": "改名",

@@ -497,7 +497,10 @@ export function ConversationDraftSuggestedPromptsContainer({
         }
         const applied = await trackDraftSuggestedPluginOperation(
           operation,
-          waitForComposerTextInsertApplied(composerRequestId, operation.abort.signal),
+          // §9.9.2-H4：监听按槽态判定，发送方传自己写入的槽键——推荐流的插入全部走
+          // 草稿 composer 槽（revalidateAndPrependPlugin/replacePlainPrompt 均不带
+          // targetSessionId → 槽键 ""）。
+          waitForComposerTextInsertApplied(composerRequestId, "", operation.abort.signal),
         );
         if (operation.abort.signal.aborted || requestVersion !== requestVersionRef.current) return;
         finishMutation(flow, kind, applied);
@@ -674,7 +677,8 @@ export function ConversationDraftSuggestedPromptsContainer({
           // 推荐项锚点整体移动，浮层因而先按旧坐标出现再跳位。安装与开启都等插入落地后再测量锚点。
           const applied = await trackDraftSuggestedPluginOperation(
             operation,
-            waitForComposerTextInsertApplied(composerRequestId, operation.abort.signal),
+            // §9.9.2-H4：草稿 composer 槽（replacePlainPrompt 不带 targetSessionId → 槽键 ""）。
+            waitForComposerTextInsertApplied(composerRequestId, "", operation.abort.signal),
           );
           if (operation.abort.signal.aborted || requestVersion !== requestVersionRef.current)
             return;

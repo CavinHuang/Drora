@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   parseAgentProfileFromMarkdown,
@@ -39,6 +39,32 @@ async function listDocuments(root: string): Promise<string[]> {
     .filter((entry) => entry.isFile() && /\.(md|markdown)$/iu.test(entry.name))
     .map((entry) => join(root, entry.name));
 }
+/**
+ * 修复依据（verify:pre-push 第 2 轮 Windows 失败，「case rename 后移除旧缓存条目」）：
+ * 大小写不敏感文件系统（Windows/默认 macOS）上仅改大小写的重命名不会为旧拼写产生
+ * unlink——chokidar 对旧拼写做存在性检查时按大小写不敏感解析仍命中重命名后的同一
+ * 文件，旧键以「同一物理文件的旧拼写」残留在 Profiles（同名 profile 双条目，旧
+ * path 仍可读出新内容）。读取成功后按文件身份（dev+ino，同源 path stat 口径一致）
+ * 合并仅大小写不同的旧键，保留当前拼写；POSIX 大小写敏感文件系统上两个拼写是不同
+ * 文件（ino 不同）或旧拼写已不存在（ENOENT 不删，交由其自身的 remove 事件路径），
+ * 行为不变。候选先用字符串预筛，常规更新零额外 stat。
+ */
+async function supersedeCaseVariantKeys(next: Profiles, path: string): Promise<void> {
+  const lower = path.toLowerCase();
+  const candidates = [...next.keys()].filter(
+    (key) => key !== path && key.toLowerCase() === lower,
+  );
+  if (candidates.length === 0) return;
+  const identity = await stat(path).catch(() => undefined);
+  if (!identity) return;
+  for (const candidate of candidates) {
+    const candidateStat = await stat(candidate).catch(() => undefined);
+    if (candidateStat && candidateStat.dev === identity.dev && candidateStat.ino === identity.ino) {
+      next.delete(candidate);
+    }
+  }
+}
+
 async function loadDocuments(
   root: string,
   source: "user" | "project",
@@ -76,6 +102,7 @@ async function loadDocuments(
       const parsed = parseAgentProfileFromMarkdown({ content, path, source });
       if (parsed.diagnostic) logger.warn(undefined, "Agent profile diagnostic", parsed.diagnostic);
       next.set(path, parsed);
+      await supersedeCaseVariantKeys(next, path);
     }),
   );
   return next;

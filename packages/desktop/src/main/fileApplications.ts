@@ -39,7 +39,12 @@ function mac(
     id,
     name,
     appPath,
-    appPathCandidates: [join(homedir(), "Applications", basename(appPath))],
+    // 修复依据：darwin 候选路径必须恒为 posix 形态——在非 darwin 宿主（Windows 跑单测/
+    // 交叉场景）经 win32 join 会产生反斜杠路径，令「用户 Applications」候选的后缀判定
+    // （endsWith("/Applications/X.app")）恒不中；homedir 反斜杠统一归一为 posix 分隔。
+    appPathCandidates: [
+      `${homedir().replace(/\\/gu, "/")}/Applications/${basename(appPath)}`,
+    ],
     command: null,
     fileExtensions,
   };

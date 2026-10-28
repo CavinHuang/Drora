@@ -2,9 +2,24 @@ import type { FileEntry } from "@drora/shared";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { mkdir, stat } from "node:fs/promises";
-import { isAbsolute, join, normalize } from "node:path";
+import { isAbsolute, join, posix, win32 } from "node:path";
 import type { ProjectRepositoryContract } from "#src/project-storage/contract.js";
 import type { IProjectService, ProjectDirectories, VirtualProject } from "#src/project/contract.js";
+
+/**
+ * 逻辑路径归一（readDirectory 与保存 root 共用，保证两侧匹配规则相同）。
+ * 修复依据（verify:pre-push 第 2 轮 Windows 失败）：平台默认 normalize 在 win32 上把
+ * "/owner" 改写成 "\owner"、"/owner/child/../folder" 改写成 "\owner\folder"，破坏契约的
+ * 正斜杠保持——readDirectory 归一结果要与远端 Host 保存 root 的规则一致，不能按控制端
+ * 操作系统处理路径（本函数上方 readDirectory 内注释的既有意图）。Windows 盘符/UNC
+ * 路径按 win32 规则归一（本地真实路径行为不变）；其余（POSIX 绝对与 "/" 根相对）按
+ * posix 规则归一，保持分隔符风格；node:fs 对两种分隔符等价解析，stat/mkdir 不受影响。
+ */
+function normalizeDirectoryPath(path: string): string {
+  return /^[A-Za-z]:[\\/]/u.test(path) || path.startsWith("\\\\")
+    ? win32.normalize(path)
+    : posix.normalize(path);
+}
 export { IProjectService } from "#src/project/contract.js";
 export { createLegacySingleRootProjectService } from "#src/project/legacy-single-root.js";
 export {
@@ -106,7 +121,7 @@ export function createProjectService(options: {
       const requestedPath = input.path ?? (await options.directories.home());
       if (!isAbsolute(requestedPath)) throw new Error("project.absolute-path-required");
       // 目录匹配必须和本 Host 保存 root 的规则相同，不能在控制端按其操作系统处理远端路径。
-      const path = normalize(requestedPath);
+      const path = normalizeDirectoryPath(requestedPath);
       return {
         path,
         entries: await options.directories.read({
@@ -149,7 +164,7 @@ export function createProjectService(options: {
             ...new Set(
               input.roots.map((path) => {
                 if (!isAbsolute(path)) throw new Error("project.absolute-path-required");
-                return normalize(path);
+                return normalizeDirectoryPath(path);
               }),
             ),
           ]
@@ -162,7 +177,7 @@ export function createProjectService(options: {
       const result = (await options.repository()).saveProject({
         ...input,
         roots,
-        ...(input.primaryRoot ? { primaryRoot: normalize(input.primaryRoot) } : {}),
+        ...(input.primaryRoot ? { primaryRoot: normalizeDirectoryPath(input.primaryRoot) } : {}),
       });
       await changed();
       return result;

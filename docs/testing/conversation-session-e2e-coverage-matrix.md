@@ -4340,3 +4340,19 @@ Linux Electron 重建后 run `desktop-e2e-20261014-120739-442`，TD01/03/04 1/1 
 - Desktop：`packages/desktop/test/e2e/ui-shell/manual-review/pending/sidebar-tooltips.test.ts`，完整应用的项目行、分区、搜索/筛选、底部及文件树入口。
 
 验证（2026-10-16）：浏览器 Tooltip 12 项及 SPT03 性能回归 4 项通过，包含桌面/手机布局、中英文、深浅主题、触屏点击和键盘 focus；新增分组操作断言复测通过。macOS 完整桌面 E2E 通过，12 个入口实测 304–309ms，覆盖相邻提示切换、提前移出、文件树菜单和清空搜索。受影响单测 285 文件 / 3671 项、typecheck、E2E typecheck、lint、架构及改动代码格式检查通过。候选保持 pending；未覆盖 Windows/Linux 整机或真实手机远控传输。
+
+
+## 语音生命周期修复候选（2026-10-24）
+
+依据：`specs/voice-agent-integration.md §9.8`、catalog 的 VOICE-L01–06。
+候选：`packages/desktop/test/e2e/conversation-session/manual-review/pending/voice-lifecycle.test.ts`。
+
+- VOICE-L01：受控 Web Speech + MediaStream，操作真实 mic/Esc，断言资源释放和迟到文本隔离。
+- VOICE-L06：受控 MediaRecorder + 仅测试厂商 URL 的 renderer fetch，操作设置与真实 mic，
+  断言无 SpeechRecognition 时可见并追加 final 一次；不调用真实服务、不读取真实凭据。
+- VOICE-L02–05：本批以定向命令、双 hook/planner 与异步 lease UT 覆盖；没有伪称完成 Desktop E2E。
+- 运行结果由本批验证记录补记；保留 pending，尚无人审转正、未登记 Docker/CI admission。
+
+2026-10-24 实测：VOICE-L01/L06 在 Windows Electron 41.0.3、Chromium 146 通过（2/2），
+最终 run `desktop-e2e-20261024110611497-p52752-f6bac12bca1bea62`；其余边界为 316 项相关 UT
+中的定向回归。完整命令、失败过程与范围见 `docs/voice-lifecycle-fix-validation-2026-10-24.md`。

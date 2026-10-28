@@ -4794,3 +4794,20 @@ SPR01 是连接隔离 Electron 的独立 `node:test` / CDP E2E，保持 pending�
 - Desktop：`packages/desktop/test/e2e/ui-shell/manual-review/pending/sidebar-tooltips.test.ts`，完整应用的项目行、分区、搜索/筛选、底部及文件树入口。
 
 验证（2026-10-16）：浏览器 Tooltip 12 项及 SPT03 性能回归 4 项通过，包含桌面/手机布局、中英文、深浅主题、触屏点击和键盘 focus；新增分组操作断言复测通过。macOS 完整桌面 E2E 通过，12 个入口实测 304–309ms，覆盖相邻提示切换、提前移出、文件树菜单和清空搜索。受影响单测 285 文件 / 3671 项、typecheck、E2E typecheck、lint、架构及改动代码格式检查通过。候选保持 pending；未覆盖 Windows/Linux 整机或真实手机远控传输。
+
+
+## 语音生命周期修复（2026-10-24，spec §9.8）
+
+以下为已确认产品规则的 accepted 回归，不扩展手机语音或真实厂商验收。Desktop 候选位于
+`conversation-session/manual-review/pending/voice-lifecycle.test.ts`，保持 pending，不自动进入 CI。
+
+| ID | 场景与断言 | 验证边界 |
+|---|---|---|
+| VOICE-L01 | 开麦后 Esc：引擎 abort、音轨释放、入口 idle、迟到 final 不注入 | Desktop 受控媒体候选 + hook UT |
+| VOICE-L02 | A/B 并行只取消绑定目标，同会话双 pane 一次、远程同路径身份隔离 | 定向命令/双 hook UT；真实双任务 E2E 后续补证 |
+| VOICE-L03 | 非 owner pane 卸载不静音当前播报 | 双 planner UT；多窗口真机后续补证 |
+| VOICE-L04 | 停止/切离/卸载后迟到 acquire/renew 不起播且只释放对应 lease | planner/claim UT |
+| VOICE-L05 | 录音结束后仅权限 pending 也播报，已处理请求不播 | planner/hook UT |
+| VOICE-L06 | 无 SpeechRecognition、remote 档完整：入口可见、录音结果追加一次 | Desktop mock HTTP/MediaRecorder 候选 + hook UT |
+
+真实麦克风、音质、厂商 CORS/格式、多窗口和手机远控未由以上 mock 覆盖；沿用 TV 项。

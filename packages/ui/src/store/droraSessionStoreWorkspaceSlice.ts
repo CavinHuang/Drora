@@ -17,10 +17,14 @@ import type { DroraUiError } from "@/lib/droraUiError.js";
 import { pushNavEntry } from "@/lib/taskNavigationHistory.js";
 import { notifyTaskNavigationCommitted } from "@/store/droraSessionStoreNavigation.js";
 import { resolveTaskRestorePreloadConfigOptions } from "@/lib/taskModelRecovery.js";
+// §9.9.2-H4 同槽 append 合并复用 §2.4 消费端的确定性拼接规则（单一出处，规则不复制；
+// store→v4 纯函数 import 先例：taskQueryCacheStore.ts → v4/taskListRowActivity）。
+import { appendComposerText } from "@/v4/composer/composerTextAppend.js";
 import type {
   DroraSessionStoreState,
   ComposerInitialConfig,
   ComposerInitialization,
+  ComposerTextInsertRequest,
   ConfigOptionsStatus,
   ComposerMentionPrefill,
   ModelSwitchStage,
@@ -311,7 +315,8 @@ export function createWorkspaceSlice(set: SetFn) {
       text: string,
       workspaceIdentity?: string,
       mention?: ComposerMentionPrefill,
-      mode?: "replace" | "prepend-if-missing",
+      // mode="append"：语音听写逐句追加（specs/voice-agent-integration.md §2.4）。
+      mode?: "replace" | "prepend-if-missing" | "append",
       // 缺口9 消费门：缺席 = 草稿（既有语义）；指定 sessionId = 目标会话 composer 消费。
       targetSessionId?: string | null,
     ) => {
@@ -323,15 +328,33 @@ export function createWorkspaceSlice(set: SetFn) {
           (current) => {
             const requestId = current.composerTextInsertVersion + 1;
             nextRequestId = requestId;
+            // §9.9.2-H4：槽键 = targetSessionId ?? ""（空串 = 草稿 composer 槽）——
+            // 各会话槽独立，失焦 pane 的 final 留槽期间不再被其他槽的写入覆盖
+            //（旧单槽 latest-wins 丢失根因）；消费幂等键 requestId 仍全局唯一发号。
+            const slotKey = targetSessionId ?? "";
+            const previous = current.composerTextInsertRequests[slotKey];
+            const incoming: ComposerTextInsertRequest = {
+              requestId,
+              text,
+              ...(mention ? { mention } : {}),
+              ...(mode ? { mode } : {}),
+              ...(targetSessionId === undefined ? {} : { targetSessionId }),
+            };
+            // §9.9.2-H4 同槽 append 叠加合并为单请求：正文以 §2.4 消费端同款确定性
+            // 空格规则在合并点先行应用（appendComposerText 单一出处，避免规则漂移）；
+            // requestId 取新 version（旧 id 的等待方按同槽更晚请求判 superseded）；
+            // mention 不参与（append 生产方不携带）。非 append 叠加维持槽内
+            // latest-wins（mention 预填/replace 族行为逐字段不变）。
+            const nextRequest =
+              previous?.mode === "append" && mode === "append"
+                ? { ...incoming, text: appendComposerText(previous.text, text) }
+                : incoming;
             return {
               ...current,
               composerTextInsertVersion: requestId,
-              composerTextInsertRequest: {
-                requestId,
-                text,
-                ...(mention ? { mention } : {}),
-                ...(mode ? { mode } : {}),
-                ...(targetSessionId === undefined ? {} : { targetSessionId }),
+              composerTextInsertRequests: {
+                ...current.composerTextInsertRequests,
+                [slotKey]: nextRequest,
               },
             };
           },
@@ -350,10 +373,21 @@ export function createWorkspaceSlice(set: SetFn) {
         updateWorkspaceState(
           state,
           workspacePath,
-          (current) =>
-            current.composerTextInsertRequest?.requestId === requestId
-              ? { ...current, composerTextInsertRequest: null }
-              : current,
+          (current) => {
+            // §9.9.2-H4 多槽：requestId 全局唯一，扫槽按 id 清除（消费方不感知槽结构，
+            // 既有「只清当前请求」语义按 id 等价保持）。
+            const slotKeys = Object.keys(current.composerTextInsertRequests).filter(
+              (key) => current.composerTextInsertRequests[key]?.requestId === requestId,
+            );
+            if (slotKeys.length === 0) {
+              return current;
+            }
+            const nextRequests = { ...current.composerTextInsertRequests };
+            for (const key of slotKeys) {
+              delete nextRequests[key];
+            }
+            return { ...current, composerTextInsertRequests: nextRequests };
+          },
           workspaceIdentity,
         ),
       );

@@ -1,6 +1,6 @@
 import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   SOURCE_SERVER_RELEASE_DESCRIPTOR_FILE_NAME,
@@ -57,7 +57,11 @@ describe("Source Server remote release assets", () => {
       version: "3.8.0",
     });
 
-    expect(collected.map((path) => path.split("/").at(-1))).toEqual(
+    // 修复依据（verify:pre-push 第 2 轮 Windows 失败）：原 `path.split("/").at(-1)`
+    // 只在 POSIX 下能取到 basename——win32 的 join 产物是反斜杠路径，split("/") 返回
+    // 整串。collect 契约是平台原生路径（与下方 toEqual(join(...)) 用例一致），断言改用
+    // basename 跨平台取文件名。
+    expect(collected.map((path) => basename(path))).toEqual(
       SOURCE_SERVER_REMOTE_RELEASE_TARGETS.map((target) => `drora-server-${target}.tar.gz`),
     );
     await expect(

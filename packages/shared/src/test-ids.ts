@@ -592,6 +592,8 @@ export const TID_V4_ATTACHMENT_UPLOAD_PROGRESS = "v4-attachment-upload-progress"
 export const TID_V4_ATTACHMENT_UPLOAD_RETRY = "v4-attachment-upload-retry";
 /** v4 stop 按钮 */
 export const TID_V4_STOP = "v4-stop";
+/** 语音播报指示内停止按钮（specs/voice-agent-integration.md §3.3 FD-1：层①唯一载体，零协议） */
+export const TID_VOICE_ANN_STOP = "voice-ann-stop";
 /** v4 assistant 行 fork 按钮（动态后缀为 rowId） */
 export const TID_V4_FORK = "v4-fork";
 /** v4 assistant 行 retry 按钮（动态后缀为 rowId） */

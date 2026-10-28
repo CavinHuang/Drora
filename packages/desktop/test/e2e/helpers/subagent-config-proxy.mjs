@@ -8,13 +8,29 @@ import { fileURLToPath } from "node:url";
 if (process.argv.includes("app-server") && process.argv.includes("--stdio")) {
   // 仅由本组 WDIO 预加载的透明 stdio 代理。真实 Host/CLI 完成保存、解析和执行；
   // 故障位于传输边界，不修改业务对象，也不记录其他 RPC 的鉴权或模型凭据。
-  const preload = `--import=${JSON.stringify(fileURLToPath(import.meta.url))}`;
+  // 修复依据：剥除自身预载时必须同时兼容裸路径与 file:// URL 两种形态——Windows 的
+  // ESM 加载器只接受 URL 形态（裸盘符路径=ERR_UNSUPPORTED_ESM_URL_SCHEME），测试侧
+  // 因此改为传 URL；若只按裸路径形态剥除，子进程会递归预载代理并无限 spawn，最终以
+  // AssignProcessToJobObject(50) 类系统错误崩出。
+  const selfPath = fileURLToPath(import.meta.url);
+  const selfUrl = import.meta.url;
+  const stripSelfPreload = (options) =>
+    options
+      .split(`--import=${JSON.stringify(selfPath)}`)
+      .join("")
+      .split(`--import=${JSON.stringify(selfUrl)}`)
+      .join("")
+      .split(`--import=${selfUrl}`)
+      .join("")
+      .split(`--import=${selfPath}`)
+      .join("")
+      .trim();
   const child = spawn(process.execPath, process.argv.slice(1), {
     stdio: ["pipe", "pipe", "inherit"],
     // 只移除当前代理预加载，保留覆盖采集等其他 Node 参数，防止递归启动代理。
     env: {
       ...process.env,
-      NODE_OPTIONS: (process.env.NODE_OPTIONS ?? "").replace(preload, "").trim(),
+      NODE_OPTIONS: stripSelfPreload(process.env.NODE_OPTIONS ?? ""),
     },
   });
   const root = process.env.DRORA_E2E_ARTIFACT_DIR;

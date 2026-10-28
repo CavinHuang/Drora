@@ -63,7 +63,9 @@ const forkIsolatedTests = [
 export default defineConfig({
   // 测试固定注入事件上报端点，使遥测上报链路在单测中可验证；真实构建由 scripts/build-time-config.mjs 决定。
   define: {
-    __DRORA_TELEMETRY_REPORT_ENDPOINT__: JSON.stringify("https://zcode.z.ai/api/v1/event/report"),
+    __DRORA_TELEMETRY_REPORT_ENDPOINT__: JSON.stringify(
+      "https://zcode.z.ai/api/v1/event/report",
+    ),
   },
   resolve: {
     alias: {
@@ -120,6 +122,27 @@ export default defineConfig({
             // Gen UI 目录回归位于源码旁，默认入口也必须执行，避免只在手动定向运行时生效。
             "packages/shared/src/node/genUiPaths.test.ts",
             "packages/services/src/gen-ui/**/*.test.ts",
+            // 语音模块（specs/voice-agent-integration.md）：源码旁测试同理必须进默认
+            // 单测通道，否则 pnpm test / pre-push affected 永远不会执行它们（评审 #5）。
+            // .ts 单测（useVoiceDictation/useVoiceAnnouncement/toolBriefPlanner/
+            // turnSpeechPlanner 等 18 个文件；终审 #3 回归修复：该 glob 不得被
+            // .tsx 新增项替换，两类都要在通道内）。
+            "packages/ui/src/voice/**/*.test.ts",
+            // .tsx 组件级渲染测试（修复轮评审 #3：V4ComposerVoiceEntry 的 F1/F2 回归面
+            // + VoiceSection 开关读写往返/S1 baseUrl 校验交互 + AnnouncementIndicator）。
+            "packages/ui/src/voice/**/*.test.tsx",
+            "packages/ui/src/settings/VoiceSection.test.tsx",
+            "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
+            "packages/ui/src/store/voiceSessionStore.test.ts",
+            "packages/ui/src/v4/composer/composerTextAppend.test.ts",
+            // 终审修复：§9.9.2-H4（composerTextInsertRequest 多槽插入/applied 判定）与
+            // §9.9.4-L3（SessionPane 窗口级 Esc 监听 hook）的源码旁测试漏登记——
+            // 不进 include 则 pnpm test / pre-push affected 永不执行，回退即红回归网
+            // 在 CI/pre-push 门禁上失效（上方「评审 #5」注释所指同类缺口）。
+            "packages/ui/src/v4/useComposerTextInsertApplied.test.ts",
+            "packages/ui/src/v4/paneEscapeStopGeneration.test.ts",
+            // §4.4 Esc 仲裁顺序的纯函数层（mention/录音/取消优先级单测）。
+            "packages/ui/src/prompt-editor/composerEscapePlan.test.ts",
             "scripts/assert-safe-cua-helper-zip.test.mjs",
             "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
           ],

@@ -168,6 +168,9 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 Typecheck job：本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在。
+      - name: Build bootstrap dependency closure
+        run: pnpm --filter @drora/bootstrap^... run build
       - name: Emit workspace dists (tsc -b project references)
         # 明确各 runner 的编译堆资源；macOS 首次运行曾中止（exit 134），检查范围保持一致。
         env:

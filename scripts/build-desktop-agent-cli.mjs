@@ -91,11 +91,24 @@ const requiredDevPluginRuntimeBuilds = [
     artifactPath: "browser-use-plugin/scripts/browser-client.mjs",
   },
   // 文档插件的查看面板 server 由 office-runtime 构建；dev 若不构建，面板入口可见但 MCP 启动失败。
+  // Bug 原因：这四个内容型插件按 seed 分发策略被 pnpm-workspace.yaml 排除出 workspace，
+  // `pnpm --filter <name> build` 会静默匹配不到包（exit 0、零输出），随后产物验证才报
+  // "build succeeded without required MCP runtime"（v3.16.1 合并把它们登记进本清单、
+  // 与既有排除决策相撞，此前被 lockfile 安装失败掩盖）。它们的构建脚本只依赖
+  // office-runtime（在 workspace 内）的 node_modules，照 ci.yml「excluded seed
+  // packages」步骤的先例改走 `pnpm --dir` 目录直构。
   ...["documents", "pdf", "presentations", "spreadsheets"].map((name) => ({
     packageName: `@drora/${name}-plugin`,
+    packageDir: `${name}-plugin`,
     artifactPath: `${name}-plugin/dist/server.mjs`,
   })),
 ];
+// workspace 排除、须走目录直构的 seed 插件（packageDir 在上；其余走 --filter）。
+const workspaceExcludedSeedDirs = new Map(
+  requiredDevPluginRuntimeBuilds
+    .filter(({ packageDir }) => packageDir !== undefined)
+    .map(({ packageName, packageDir }) => [packageName, packageDir]),
+);
 const defaultBuildFilters = [
   ...cliWorkspaceBuilds.map(({ packageName }) => packageName),
   ...requiredDevPluginRuntimeBuilds.map(({ packageName }) => packageName),
@@ -176,6 +189,16 @@ if (!useTurboBuild) {
   // 同时 agent 子 workspace 不包含根 packages/shared，但 agent 包依赖 @drora/shared。
   // 因此默认改用仓库根 workspace 的明确 pnpm 包顺序构建，避免 WDIO 前置构建卡在子 workspace 解析。
   for (const filter of defaultBuildFilters) {
+    const excludedSeedDir = workspaceExcludedSeedDirs.get(filter);
+    if (excludedSeedDir !== undefined) {
+      // workspace 排除的 seed 插件（office 四件）按 ci.yml 先例目录直构：
+      // `--filter` 匹配不到包会静默成功，掩盖产物缺失。
+      runCommand("pnpm", ["--dir", `apps/drora-cli/packages/${excludedSeedDir}`, "run", "build"], {
+        env: pnpmRunEnv,
+        stdio: "inherit",
+      });
+      continue;
+    }
     runCommand("pnpm", ["--filter", filter, "build"], {
       env: pnpmRunEnv,
       stdio: "inherit",

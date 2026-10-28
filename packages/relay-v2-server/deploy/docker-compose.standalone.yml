@@ -1,0 +1,113 @@
+# Relay V2 standalone 单容器编排（specs/relay-v2-server.md §8.6）——
+# 一个服务同时承载：远控 API+WS（relay）、/remote/v4 手机页静态（STATIC_ROOT）、
+# 官方 catch-all 回源（OFFICIAL_UPSTREAM_ORIGIN，覆盖手机页 OAuth 的同源 token 交换
+# POST /api/v1/oauth/token 与 Coding Plan API 等其余路径）。
+#
+# ## 与 relay+caddy 双服务形态（同目录 docker-compose.yml）的选择指引
+#
+# | 形态            | 适用                                                     | TLS                                                |
+# | --------------- | -------------------------------------------------------- | -------------------------------------------------- |
+# | 双服务 + Caddy  | 公网部署、要自动 HTTPS（ACME 签发/续期）                 | Caddy 容器内终止（80/443 直暴）                    |
+# | 本 standalone   | 单容器最小依赖（NAS/家庭服务器/内网一台机）              | **不由本容器终止**，见下                           |
+#
+# ## TLS 与暴露面（standalone 形态的前提）
+#
+# - 本服务只听明文 HTTP/WS；TLS 由用户**外部入口**终止——自建域需用户自己的 ingress/
+#   反代/云 LB 终止后回源到本服务发布的端口，或局域网明文直连（私网 return_to 开发转发
+#   构建，spec §8.5）。不要把 8080 明文端口直接发布公网。
+# - 手机 OAuth 前提（spec §8.4/§8.5）：自建域 `https://自建域/remote/v4` 必须在
+#   ZAI/BigModel 的 OAuth 应用回调白名单（authorize 与 token exchange 两步都校验）；
+#   这是外部组织流程，不因部署形态改变。
+#
+# ## 构建与启动
+#
+#   cd packages/relay-v2-server/deploy
+#   echo 'DRORA_PUBLIC_ORIGIN=https://你的自建域' >> .env   # 必填：OAuth redirect 构建期烘焙
+#   docker compose -f docker-compose.standalone.yml up -d --build
+#
+# - DRORA_PUBLIC_ORIGIN 必填（缺失时 compose 配置解析即报错）：手机页 OAuth 的
+#   redirect_uri 在镜像构建期烘焙，运行期无法纠正（spec §8.2/§8.6；Dockerfile 头注释）。
+# - 构建验证状态（2026-10-23 实测）：首次真实 build 与容器级验证已完成（见 Dockerfile
+#   头注释）；构建慢/失败的排查入口也在那里（过滤闭包尾缀、基础镜像 ARG 全局化、
+#   镜像源与 npm 源切换）。语法校验可先 `docker compose config -q`（不需要 daemon）。
+# - 语法校验与构建均不需要 deploy/.env 的其余键：§9 其余配置全部有与 spec 一致的默认值。
+#
+# ## 运维
+#
+# - 设备注册表持久化在具名卷 relay-data（DB_PATH=/data/relay-v2.db），重启后桌面 SID 与
+#   二维码保持有效（spec §7）；备份为手动运维接缝（RelayV2ServerHandle.backupDevices），
+#   禁止直接 cp 运行中的 WAL 库。
+# - /healthz 由 Dockerfile/compose healthcheck 在容器内 127.0.0.1 直探；standalone 无
+#   Caddy 兜底，端口直接发布——若入口是外部反代，建议在反代侧继续不透传 /healthz
+#   （该面暴露连接数/owner 数/设备行数等运维画像，spec §11 第 10 条）。
+# - 环境变量全量清单与语义见 spec §9；此处透传其中全部键（含 standalone 两键）。
+
+name: relay-v2-server-standalone
+
+services:
+  relay:
+    build:
+      # context=仓库根（Dockerfile 按整仓闭包过滤安装，见其头注释）
+      context: ../../..
+      dockerfile: packages/relay-v2-server/deploy/Dockerfile
+      args:
+        # :? 语法=未设置时 compose 配置解析即失败——必填约束在编排层显式生效
+        DRORA_PUBLIC_ORIGIN: ${DRORA_PUBLIC_ORIGIN:?DRORA_PUBLIC_ORIGIN 必填（自建域，如 https://relay.example.com；手机页 OAuth redirect_uri 构建期烘焙，spec §8.2）}
+        # 基础镜像/npm 源可替换（spec §8.6）：国内网络对 docker.io 直连不稳时切镜像源，
+        # 例如 NODE_BUILD_IMAGE=docker.m.daocloud.io/library/node:24.14.0-bookworm、
+        # NPM_REGISTRY=https://registry.npmmirror.com（.env 即可，缺省走官方）。
+        NODE_BUILD_IMAGE: "${NODE_BUILD_IMAGE:-docker.io/library/node:24.14.0-bookworm}"
+        NODE_RUNTIME_IMAGE: "${NODE_RUNTIME_IMAGE:-docker.io/library/node:24.14.0-slim}"
+        NPM_REGISTRY: "${NPM_REGISTRY:-https://registry.npmjs.org}"
+    image: drora/relay-v2-server-standalone:local
+    restart: unless-stopped
+    ports:
+      # 宿主唯一入口；两侧同随 LISTEN_PORT，改端口无需改本文件（TLS 外置见头注释）
+      - "${LISTEN_PORT:-8080}:${LISTEN_PORT:-8080}"
+    environment:
+      # 容器内绑全部网卡（端口映射必需，与默认 127.0.0.1 的差异见 Dockerfile 头注释）
+      BIND_HOST: 0.0.0.0
+      LISTEN_PORT: "${LISTEN_PORT:-8080}"
+      # standalone 两开关：静态托管镜像内 /remote/v4 产物；回源官方可按需覆盖
+      STATIC_ROOT: /app/public
+      OFFICIAL_UPSTREAM_ORIGIN: "${OFFICIAL_UPSTREAM_ORIGIN:-https://zcode.z.ai}"
+      # 设备注册表落具名卷，重启后 SID 保留（spec §7）
+      DB_PATH: /data/relay-v2.db
+      # —— spec §9 其余全量配置键，默认值与 spec §9 一致 ——
+      JWT_MODE: "${JWT_MODE:-decode}"
+      JWT_ID_CLAIMS: "${JWT_ID_CLAIMS:-sub,id}"
+      # JWT_STUB_USERS 仅测试/冒烟可用（spec §9）；生产部署不应设置。
+      JWT_STUB_USERS: "${JWT_STUB_USERS:-}"
+      JWT_REALM_MODE: "${JWT_REALM_MODE:-iss}"
+      JWT_REALM: "${JWT_REALM:-}"
+      JWT_JWKS_URL: "${JWT_JWKS_URL:-}"
+      JWT_ISSUERS: "${JWT_ISSUERS:-}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-}"
+      INTROSPECT_URL: "${INTROSPECT_URL:-}"
+      AUTH_TIMEOUT_MS: "${AUTH_TIMEOUT_MS:-15000}"
+      IDLE_TIMEOUT_MS: "${IDLE_TIMEOUT_MS:-120000}"
+      DEVICE_TTL_DAYS: "${DEVICE_TTL_DAYS:-180}"
+      CORS_ENABLED: "${CORS_ENABLED:-false}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      MSG_TRACE: "${MSG_TRACE:-false}"
+    volumes:
+      - relay-data:/data
+    # 与 Dockerfile HEALTHCHECK 同款：node 自带 fetch 直探容器内 127.0.0.1 的 /healthz，
+    # 端口随 LISTEN_PORT 走。
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        # 块标量：脚本含 " : " 等序列，YAML 纯标量会解析坏（对照 docker-compose.yml 同款）
+        - >-
+          fetch('http://127.0.0.1:' + (Number(process.env.LISTEN_PORT) || 8080)
+          + '/healthz').then((r) => process.exit(r.ok ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  relay-data:

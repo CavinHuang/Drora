@@ -174,8 +174,7 @@ jobs:
             conversation-session/R8-concurrency-late-requests.json \
             conversation-session/R9-second-read-focus.json \
             conversation-session/G-interleaving.json \
-            conversation-session/G28-citation-open-errors.json \
-            conversation-session/G-hint-and-plain-selection.json; do
+            conversation-session/G28-citation-open-errors.json; do
             test -f "test/e2e/fixtures/upstream/$fx" || { echo "missing fixture: $fx"; exit 1; }
           done
       - name: "R1 first use (G01/G02)"
@@ -271,14 +270,10 @@ jobs:
           DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-g-citation-open-errors
           E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
         run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/g-citation-open-errors.test.ts
-      - name: "G hint and plain selection (G25/G30)"
-        shell: bash
-        env:
-          DRORA_E2E_SPEC: "./test/e2e/acceptance/g-hint-and-plain-selection.test.ts"
-          E2E_PROVIDER_REPLAY_FIXTURE_PATH: ${{ github.workspace }}/packages/desktop/test/e2e/fixtures/upstream/conversation-session/G-hint-and-plain-selection.json
-          DRORA_E2E_HOME_DIR: ${{ github.workspace }}/.e2e-home/acceptance-g-hint-and-plain-selection
-          E2E_WDIO_PREFIX: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
-        run: $E2E_WDIO_PREFIX pnpm --dir packages/desktop exec wdio run wdio.conf.ts --spec ./test/e2e/acceptance/g-hint-and-plain-selection.test.ts
+      # G hint and plain selection（G25/G30）已于 69daa438 移 manual-review/pending
+      # （入口交互被 project-sidebar 重构替换，需真机再基线）——pending 用例不进 CI，
+      # 此前该 job 引用已移动的 spec 路径必炸 "spec file(s) not found"（install 雷
+      # 修复后 R1-R9 首次真实跑到才暴露）。转正后随 e2e-case-lifecycle 流程恢复。
       - name: Upload R1-R9 Electron diagnostics
         if: always()
         uses: actions/upload-artifact@v4

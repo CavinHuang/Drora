@@ -26,6 +26,12 @@ jobs:
       - name: Freshness baseline
         run: node scripts/check-workspace-freshness.mjs
         continue-on-error: true
+      # 本分支 typecheck 脚本尾段对 apps/drora-cli/packages/bootstrap 跑 tsc
+      #（Phase 2 接入的 CLI 质量门）——bootstrap 经 node_modules dist 消费
+      # @drora/contracts|adapters|i18n|core 类型，全新 CI 环境无这些 dist 会全量
+      # TS2307（2026-10-28 实证）。typecheck 前先构建 bootstrap 的 workspace 依赖闭包。
+      - name: Build bootstrap dependency closure
+        run: pnpm --filter @drora/bootstrap^... run build
       - name: Typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=4096

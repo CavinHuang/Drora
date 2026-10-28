@@ -57,9 +57,14 @@ export function useSubagents(
     remoteSessionId,
     remoteTarget: workspaceRpcTarget.remoteTarget,
   });
-  const contextKey = workspacePath
-    ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity, subagentsService)
-    : null;
+  // service 缺席（官网 hero mock 的 ServiceProvider 只聚合展示面、SSR 渲染链）时
+  // 不查上下文键——getSubagentsContextKey 会以 service 作 WeakMap 键，undefined 入键
+  // 直接 TypeError（main 99ab7901 起官网 Pages 部署实证）。语义同「无 service 即无
+  // subagents 上下文可查」，与 workspacePath 空值同路。
+  const contextKey =
+    workspacePath && subagentsService
+      ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity, subagentsService)
+      : null;
   const context = useSubagentsContextStore((state) =>
     contextKey ? state.contexts[contextKey] : undefined,
   );
